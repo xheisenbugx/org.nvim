@@ -69,3 +69,27 @@ describe("decorations", function()
     cfg.ui.checkboxes = false
   end)
 end)
+
+describe("link conceal", function()
+  local function rendered(text)
+    org_buffer({ text })
+    local s, line, last = "", vim.fn.getline(1), nil
+    for c = 1, #line do
+      local r = vim.fn.synconcealed(1, c)
+      if r[1] == 0 then
+        s, last = s .. line:sub(c, c), nil
+      elseif r[3] ~= last then
+        s, last = s .. r[2], r[3]
+      end
+    end
+    return s
+  end
+  it("shows only the description", function()
+    eq("3. this is something else", rendered("3. this is [[https://www.google.com][something else]]"))
+    eq("* TODO see Link :tag:", rendered("* TODO see [[file:a.org::*x][Link]] :tag:"))
+    eq("| cell H | b |", rendered("| cell [[*Heading][H]] | b |"))
+  end)
+  it("shows the target when there is no description", function()
+    eq("no desc https://example.com end", rendered("no desc [[https://example.com]] end"))
+  end)
+end)
