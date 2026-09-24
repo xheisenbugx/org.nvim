@@ -114,8 +114,8 @@ function M.menu(opts)
       hls[#hls + 1] = { #lines - 1, 0, -1, "Comment" }
     end
     lines[#lines + 1] = ""
-    lines[#lines + 1] = " [q]  Quit"
-    hls[#hls + 1] = { #lines - 1, 1, 4, "Comment" }
+    lines[#lines + 1] = " [Esc]  Quit"
+    hls[#hls + 1] = { #lines - 1, 1, 6, "Comment" }
     local buf, win = M.float(lines, { title = title, width = math.max(40, 0) })
     for _, h in ipairs(hls) do
       vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], {
@@ -128,7 +128,7 @@ function M.menu(opts)
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
-    if not ch or ch == "q" then
+    if not ch then
       return nil
     end
     local chosen

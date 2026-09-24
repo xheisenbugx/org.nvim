@@ -133,3 +133,27 @@ describe("link conceal", function()
     eq("no desc https://example.com end", rendered("no desc [[https://example.com]] end"))
   end)
 end)
+
+describe("ui.menu", function()
+  local ui, utils = require("org.ui"), require("org.utils")
+  local function pick(keys, ch)
+    local items = {}
+    for _, k in ipairs(keys) do
+      items[#items + 1] = { key = k, label = k, value = k }
+    end
+    local orig = utils.getchar
+    utils.getchar = function()
+      return ch
+    end
+    local r = ui.menu({ title = "t", items = items })
+    utils.getchar = orig
+    return r
+  end
+  it("q is an ordinary key, not quit", function()
+    eq("q", pick({ "a", "q" }, "q"))
+    eq(nil, pick({ "a", "b" }, "q"))
+  end)
+  it("Esc quits", function()
+    eq(nil, pick({ "a", "q" }, nil))
+  end)
+end)
