@@ -1,14 +1,12 @@
 ---@mod org.ui.decorations Visual decorations (bullets, checkboxes, indent mode)
 ---
 --- Enabled through `ui.bullets`, `ui.hide_leading_stars`, `ui.checkboxes`,
---- `ui.indent_mode` and `ui.pretty_entities`. Extmarks are recomputed for
---- the whole buffer after changes (debounced), which keeps rendering simple
---- and works with inline virtual text.
+--- `ui.indent_mode` and `ui.pretty_entities`. Drawn at redraw time by a
+--- decoration provider (see below).
 
 local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.decorations")
-local timers = {}
 
 --- A few common org entities (org-pretty-entities).
 M.entities = {
@@ -30,19 +28,25 @@ local function enabled(ui)
   return ui.bullets or ui.hide_leading_stars or ui.checkboxes or ui.indent_mode or ui.pretty_entities
 end
 
-function M.render(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then
-    return
-  end
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+--- Decorations of a buffer, per 0-based row: `{ [row] = { { col, opts }, ... } }`.
+---@return table<integer, table[]>
+function M.compute(bufnr)
+  local rows = {}
   local ui = require("org.config").opts.ui
   if not enabled(ui) then
-    return
+    return rows
+  end
+  local function set(row, col, opts)
+    local r = rows[row]
+    if not r then
+      r = {}
+      rows[row] = r
+    end
+    r[#r + 1] = { col, opts }
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local level = 0
   local in_block = false
-  local set = vim.api.nvim_buf_set_extmark
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   for i, line in ipairs(lines) do
@@ -54,17 +58,17 @@ function M.render(bufnr)
       if bullets then
         local b = bullets[((level - 1) % #bullets) + 1]
         local pad = ui.indent_mode and "" or string.rep(" ", level - 1)
-        set(bufnr, ns, row, 0, {
+        set(row, 0, {
           virt_text = { { pad .. b, "OrgHeadlineLevel" .. (((level - 1) % 8) + 1) } },
           virt_text_pos = "overlay",
           hl_mode = "combine",
         })
         if ui.indent_mode and level > 1 then
-          set(bufnr, ns, row, 0, { end_col = level - 1, conceal = "" })
+          set(row, 0, { end_col = level - 1, conceal = "" })
         end
       elseif ui.hide_leading_stars or ui.indent_mode then
         if level > 1 then
-          set(bufnr, ns, row, 0, {
+          set(row, 0, {
             virt_text = { { string.rep(" ", level - 1), "OrgHiddenStars" } },
             virt_text_pos = "overlay",
           })
@@ -77,7 +81,7 @@ function M.render(bufnr)
         in_block = false
       end
       if ui.indent_mode and level > 0 and line ~= "" then
-        set(bufnr, ns, row, 0, {
+        set(row, 0, {
           virt_text = { { string.rep(" ", level + 1), "Normal" } },
           virt_text_pos = "inline",
           right_gravity = false,
@@ -107,7 +111,7 @@ function M.render(bufnr)
                 text = icon .. string.rep(" ", 3 - w)
               end
             end
-            set(bufnr, ns, row, #pre, { virt_text = { { text, grp } }, virt_text_pos = "overlay" })
+            set(row, #pre, { virt_text = { { text, grp } }, virt_text_pos = "overlay" })
           end
         end
       end
@@ -119,29 +123,93 @@ function M.render(bufnr)
             if line:sub(e, e + 1) == "{}" then
               stop = e + 2
             end
-            set(bufnr, ns, row, s - 1, { end_col = stop - 1, conceal = sym })
+            set(row, s - 1, { end_col = stop - 1, conceal = sym })
           end
         end
       end
     end
   end
+  return rows
 end
 
-function M.schedule(bufnr)
-  local t = timers[bufnr]
-  if t then
-    t:stop()
-  else
-    t = vim.uv.new_timer()
-    timers[bufnr] = t
+-- Decorations are drawn by a decoration provider from the buffer text at
+-- redraw time, so they can never lag behind an edit. (Persistent extmarks
+-- updated after a debounce were dragged to wrong rows/columns by line
+-- replacements and showed up in odd places until the next render.)
+-- Results are cached per changedtick.
+local attached = {} ---@type table<integer, boolean>
+local cache = {} ---@type table<integer, { tick: integer, rows: table<integer, table[]> }>
+
+local function rows_for(bufnr)
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local c = cache[bufnr]
+  if not c or c.tick ~= tick then
+    c = { tick = tick, rows = M.compute(bufnr) }
+    cache[bufnr] = c
   end
-  t:start(
-    120,
-    0,
-    vim.schedule_wrap(function()
-      M.render(bufnr)
-    end)
-  )
+  return c.rows
+end
+
+local current ---@type table<integer, table[]>?
+
+-- Inline virtual text (indent mode) can't be ephemeral, so those marks are
+-- real extmarks in their own namespace, rebuilt before the window is drawn
+-- whenever the text changed.
+local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
+local inline_tick = {} ---@type table<integer, integer>
+
+local function is_inline(opts)
+  return opts.virt_text_pos == "inline"
+end
+
+local function sync_inline(bufnr, rows)
+  local tick = cache[bufnr].tick
+  if inline_tick[bufnr] == tick then
+    return
+  end
+  inline_tick[bufnr] = tick
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
+  for row, marks in pairs(rows) do
+    for _, m in ipairs(marks) do
+      if is_inline(m[2]) then
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_inline, row, m[1], m[2])
+      end
+    end
+  end
+end
+
+vim.api.nvim_set_decoration_provider(ns, {
+  on_win = function(_, _, bufnr)
+    if not attached[bufnr] then
+      return false
+    end
+    current = rows_for(bufnr)
+    sync_inline(bufnr, current)
+    return next(current) ~= nil
+  end,
+  on_line = function(_, _, bufnr, row)
+    local marks = current and current[row]
+    if not marks then
+      return
+    end
+    for _, m in ipairs(marks) do
+      if not is_inline(m[2]) then
+        local opts = vim.tbl_extend("force", m[2], { ephemeral = true })
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], opts)
+      end
+    end
+  end,
+})
+
+--- Recompute on the next redraw (e.g. after `ui` options changed).
+function M.render(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  cache[bufnr] = nil
+  inline_tick[bufnr] = nil
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
+  pcall(vim.api.nvim__redraw, { buf = bufnr, valid = false })
 end
 
 function M.attach(bufnr)
@@ -155,27 +223,18 @@ function M.attach(bufnr)
       vim.wo.wrap = true
     end)
   end
-  M.render(bufnr)
+  attached[bufnr] = true
   local group = vim.api.nvim_create_augroup("org.decorations." .. bufnr, { clear = true })
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "InsertLeave" }, {
-    group = group,
-    buffer = bufnr,
-    callback = function()
-      M.schedule(bufnr)
-    end,
-  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     group = group,
     buffer = bufnr,
     callback = function()
-      local t = timers[bufnr]
-      if t then
-        t:stop()
-        t:close()
-        timers[bufnr] = nil
-      end
+      attached[bufnr] = nil
+      cache[bufnr] = nil
+      inline_tick[bufnr] = nil
     end,
   })
+  M.render(bufnr)
 end
 
 function M.refresh(bufnr)
