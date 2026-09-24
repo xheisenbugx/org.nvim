@@ -121,10 +121,9 @@ end
 -- M-RET
 ---------------------------------------------------------------------------
 
-local function after_insert(insert_mode)
-  if insert_mode then
-    vim.cmd("startinsert!")
-  end
+-- Like Emacs, leave the cursor on the new heading/item ready to type.
+local function after_insert(_)
+  vim.cmd("startinsert!")
 end
 
 function M.meta_return()

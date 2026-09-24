@@ -96,12 +96,14 @@ M.defaults = {
     skip_deadline_if_done = false,
     skip_deadline_prewarning_if_scheduled = false,
     skip_scheduled_delay_if_deadline = false,
-    show_future_repeats = true,
+    show_future_repeats = true, -- true | false | "next"
     todo_ignore_scheduled = false, -- false | "all" | "future" | "past"
     todo_ignore_deadlines = false, -- false | "all" | "near" | "far"
     todo_ignore_with_date = false,
     time_grid = {
       enabled = true,
+      --- Emacs org-agenda-time-grid type flags.
+      type = { "daily", "today", "require-timed" },
       times = { 800, 1000, 1200, 1400, 1600, 1800, 2000 },
       separator = "┄┄┄┄┄",
       time_string = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
@@ -166,7 +168,9 @@ M.defaults = {
     out_when_done = true,
     into_drawer = true, -- true = log_into_drawer, or a drawer name
     out_remove_zero_time = true,
+    --- State to switch to on clock in: a keyword, or function(headline) -> keyword|nil
     in_switch_to_state = nil, -- e.g. "NEXT"
+    statusline_icon = "⏱",
     clocktable_default = { maxlevel = 3, scope = "file", block = nil },
     persist = true,
     persist_file = data_dir .. "/clock.json",
@@ -259,6 +263,8 @@ M.defaults = {
       head_extra = "",
       mathjax = true,
     },
+    --- Line width of the plain-text (UTF-8) exporter.
+    text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },
   },
 
@@ -273,6 +279,8 @@ M.defaults = {
     check_interval = 60,
     --- Also use the OS notifier (osascript / notify-send) when available.
     system_notification = true,
+    --- Custom notifier: function({ title, body, item, minutes }). nil = built-in.
+    notifier = nil,
   },
 
   ---------------------------------------------------------------------------
@@ -293,10 +301,13 @@ M.defaults = {
     indent_mode = false,
     --- Render \alpha etc. as unicode (org-pretty-entities).
     pretty_entities = false,
-    --- Show clock sums as virtual text after headlines after `clock display`.
+    --- Dim the whole headline of DONE entries.
     fontify_done_headline = true,
-    --- Syntax-include these languages for src blocks (true = auto-detect).
+    --- Syntax-include the languages of src blocks for highlighting.
     src_highlight = true,
+    --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
+    --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
+    todo_keyword_faces = {},
   },
 
   ---------------------------------------------------------------------------
@@ -446,7 +457,7 @@ M.defaults = {
     agenda = {
       quit = "q",
       exit = "x",
-      redo = { "r", "g" },
+      redo = "r",
       later = "f",
       earlier = "b",
       today = ".",

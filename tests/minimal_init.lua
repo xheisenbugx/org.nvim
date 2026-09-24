@@ -2,6 +2,7 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.opt.rtp = { root, vim.env.VIMRUNTIME }
 vim.opt.swapfile = false
+vim.opt.hidden = true
 vim.opt.shadafile = "NONE"
 vim.g.mapleader = " "
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path

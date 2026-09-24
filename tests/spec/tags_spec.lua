@@ -1,0 +1,53 @@
+local tags = require("org.tags")
+local properties = require("org.properties")
+local utils = require("org.utils")
+
+describe("tags", function()
+  it("parses input", function()
+    eq({ "a", "b", "c" }, tags.parse_input(":a:b: c,a"))
+  end)
+  it("sets, toggles and aligns tags", function()
+    local buf = org_buffer({ "* TODO Task", "** Sub  :x:" }, { 1, 0 })
+    tags.set_tags(nil, { "work", "home" })
+    local l = buf_lines(buf)[1]
+    ok(l:match("^%* TODO Task%s+:work:home:$"))
+    eq(77, vim.api.nvim_strwidth(l))
+    tags.toggle_tag(nil, "work")
+    ok(buf_lines(buf)[1]:match("^%* TODO Task%s+:home:$"))
+    tags.align_all(buf)
+    eq(77, vim.api.nvim_strwidth(buf_lines(buf)[2]))
+    tags.set_tags(nil, {})
+    eq("* TODO Task", buf_lines(buf)[1])
+  end)
+  it("collects all tags", function()
+    org_buffer({ "#+TAGS: alpha(a) beta", "#+FILETAGS: :ft:", "* H :gamma:" })
+    local all = tags.all_tags()
+    for _, t in ipairs({ "alpha", "beta", "ft", "gamma" }) do
+      ok(vim.tbl_contains(all, t), t)
+    end
+  end)
+  it("prompts with completion when no fast keys", function()
+    local orig = utils.input_complete
+    utils.input_complete = function(_, _, default)
+      eq("", default)
+      return ":x:y:"
+    end
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    tags.set_tags()
+    utils.input_complete = orig
+    ok(buf_lines(buf)[1]:match(":x:y:$"))
+  end)
+end)
+
+describe("properties", function()
+  it("sets effort and properties", function()
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    properties.set_effort(nil, "90")
+    eq({ "* Task", ":PROPERTIES:", ":Effort: 1:30", ":END:" }, buf_lines(buf))
+    properties.set_property(nil, "Owner", "me")
+    eq(":Owner: me", buf_lines(buf)[4])
+    properties.delete_property(nil, "Effort")
+    eq({ "* Task", ":PROPERTIES:", ":Owner: me", ":END:" }, buf_lines(buf))
+    ok(vim.tbl_contains(properties.known_names(buf), "OWNER"))
+  end)
+end)

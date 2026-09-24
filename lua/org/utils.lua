@@ -253,7 +253,15 @@ function M.expand(path, base)
   if not path or path == "" then
     return path
   end
-  path = vim.fn.expand(path)
+  if path:find("[%*%?%[]") then
+    -- vim.fn.expand() would expand wildcards (joining matches with newlines);
+    -- only expand ~ and environment variables for glob patterns
+    path = path:gsub("^~", vim.env.HOME or "~"):gsub("%$(%w+)", function(v)
+      return vim.env[v] or ("$" .. v)
+    end)
+  else
+    path = vim.fn.expand(path)
+  end
   if not path:match("^/") and not path:match("^%a:[/\\]") then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path
@@ -430,7 +438,8 @@ function M.open_file(path, lnum, opts)
     if b and cmd == "edit" then
       vim.api.nvim_set_current_buf(b)
     else
-      vim.cmd(cmd .. " " .. vim.fn.fnameescape(path))
+      -- `hide` avoids E37 when the current buffer has unsaved changes
+      vim.cmd((cmd == "edit" and "hide " or "") .. cmd .. " " .. vim.fn.fnameescape(path))
     end
   end
   if lnum then

@@ -224,7 +224,7 @@ function TodoConfig:vim_alternation(filter)
   local out = {}
   for _, k in ipairs(self.keywords) do
     if filter == nil or (filter == "done") == k.done then
-      out[#out + 1] = vim.fn.escape(k.name, [[\/.*$^~[]()|{}+?=<>@]])
+      out[#out + 1] = vim.fn.escape(k.name, [[\/.*$^~[]])
     end
   end
   return table.concat(out, [[\|]])
