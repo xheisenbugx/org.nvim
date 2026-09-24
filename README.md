@@ -1,25 +1,172 @@
-# org.nvim
+<div align="center">
 
-Org mode for Neovim, written in pure Lua with no dependencies. It aims to
-cover everyday Emacs Org mode: outlines, TODOs, scheduling, agenda, capture,
-clocking, tables with formulas, links, Babel and export.
+# 🦄 org.nvim
 
-It works with any setup. There is first-class support for LazyVim
-(which-key groups, blink.cmp completion, `vim.ui.select` pickers through
-snacks).
+### Emacs Org mode, rebuilt for Neovim in pure Lua.
 
-> Full reference: `:h org.nvim` (see [`doc/org.txt`](doc/org.txt)).
-> Hands-on tour: open [`examples/tutorial.org`](examples/tutorial.org).
+Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babel · Export
+
+[![Neovim 0.10+](https://img.shields.io/badge/Neovim-0.10%2B-57A143?style=for-the-badge&logo=neovim&logoColor=white)](https://neovim.io)
+[![Pure Lua](https://img.shields.io/badge/100%25-Lua-2C2D72?style=for-the-badge&logo=lua&logoColor=white)](lua/org)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-zero-ff69b4?style=for-the-badge)](#requirements)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-orange?style=for-the-badge)](CONTRIBUTING.md)
+
+**[Install](#-install-in-30-seconds)** ·
+**[Tour](#-a-quick-tour)** ·
+**[Features](#-features)** ·
+**[Docs](doc/org.txt)** ·
+**[Contributing](CONTRIBUTING.md)**
+
+</div>
 
 ---
 
-## Contents
+Org mode is one of the most loved tools in Emacs. It works as a
+plain-text outliner, planner, time tracker, spreadsheet, literate-programming
+notebook and publishing system. **org.nvim puts all of that in Neovim.** It
+isn't a syntax file with a few keymaps on top. It reimplements Org's
+behaviour: the agenda, capture templates, repeaters, clock tables, table
+formulas, Babel and export.
 
-- [Features](#features)
+- 🪶 **No dependencies.** It's about 24k lines of Lua and needs no
+  tree-sitter parser, external binary or companion plugin.
+- 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
+  so you can edit a file in Emacs today and in Neovim tomorrow.
+- ⌨️ **Keys that fit Vim.** Context-aware keys fall back to normal Vim
+  behaviour when they don't apply (`>>` still indents, `<C-a>` still
+  increments). Press `g?` anywhere to see what's available.
+- 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
+  source, `vim.ui.select` pickers and a lualine clock, and it works with
+  any other setup too.
+- ✅ **Tested.** The headless test suite has 200+ tests across 23 specs.
+
+---
+
+## ⚡ Install in 30 seconds
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim) / LazyVim:
+
+```lua
+-- ~/.config/nvim/lua/plugins/org.lua
+return {
+  "xheisenbugx/org.nvim",
+  main = "org",
+  lazy = false, -- startup cost is tiny: only :Org and a few global keymaps
+  opts = {
+    org_directory = "~/org",
+    agenda_files = { "~/org/**/*.org" },
+    default_notes_file = "~/org/refile.org",
+  },
+}
+```
+
+Restart Neovim and run `:checkhealth org`. Then open
+[`examples/tutorial.org`](examples/tutorial.org), a hands-on tour you
+work through with the keys it describes.
+
+---
+
+## 🎬 A quick tour
+
+### A real agenda
+
+`<leader>oa` → `a`. This is actual output from org.nvim, not a mockup:
+
+```text
+Day-agenda (W39):
+Thursday   24 September 2026 W39
+                8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                8:20 ← now ─────────────────────────────
+  work:         9:30...... Scheduled: TODO Standup                          :team:
+               10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+               12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:        12:30-13:30 Lunch with the team
+  work:        14:00-15:00 Scheduled: TODO Review pull requests              :oss:
+               16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  work:        In   2 d.: NEXT Ship org.nvim v1.0                            :oss:
+  work:        Sched. 2x: WAITING Design feedback
+  life:        Scheduled: TODO Run 5k                         * ** ** *!   :habit:
+  life:        In   8 d.: TODO Renew passport
+```
+
+The time grid, current-time line, deadline countdowns, overdue items and
+habit consistency graph all work as they do in Emacs. From the agenda you
+can change states, reschedule, clock in, refile, filter and run bulk
+actions.
+
+### Spreadsheet tables
+
+Type a rough table, press `<C-c><C-c>`, and it aligns itself and evaluates
+its formulas:
+
+```org
+| Item     | Qty | Price | Total |
+|----------+-----+-------+-------|
+| Coffee   |   3 |   4.5 |  13.5 |
+| Keyboard |   1 |   120 |   120 |
+| Stickers |  10 |   0.8 |     8 |
+|----------+-----+-------+-------|
+| Sum      |     |       | 141.5 |
+#+TBLFM: @2$4..@4$4=$2*$3::@5$4=vsum(@2..@4)
+```
+
+### Code that runs in your notes
+
+`<C-c><C-c>` on a source block runs it asynchronously and writes the
+output back into the file:
+
+```org
+#+begin_src python :results output
+import sys
+print(f"Hello from Python {sys.version_info.major}!")
+print(sum(range(1, 101)))
+#+end_src
+
+#+RESULTS:
+: Hello from Python 3!
+: 5050
+```
+
+Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
+supported, along with `:var`, `:noweb`, `#+CALL` and tangling.
+
+### Capture from anywhere
+
+Press `<leader>oc` → `t` in any buffer, type the task, then press
+`<C-c><C-c>` or `:w`. The task is filed where your template says:
+under a headline, an outline path or a date tree. The capture keeps a link
+back to where you were.
+
+---
+
+## ✨ Features
+
+| | Area | Highlights |
+| --- | --- | --- |
+| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` visibility, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
+| ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
+| 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering |
+| ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, repeaters (`+1w`, `++1d`, `.+2d`), `ORDERED` dependencies, priorities |
+| 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
+| 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
+| 🗓️ | **Agenda** | Day to year views, a time grid, habits, log and clock-report modes, the full Emacs match syntax, custom composite commands, filters, bulk actions, follow mode |
+| 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
+| 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
+| 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
+| ⏱️ | **Clocking** | Clock in/out/cancel/jump, effort estimates, a statusline component, clocks that survive restarts, `clocktable` blocks, column view |
+| 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
+| 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
+| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
+| 🎁 | **And more** | Footnotes, sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
+
+The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
+
+---
+
+## 📚 Contents
+
 - [Requirements](#requirements)
 - [Installation](#installation)
-  - [LazyVim / lazy.nvim](#lazyvim--lazynvim)
-  - [Local development checkout](#local-development-checkout)
 - [Quick start](#quick-start)
 - [Keymaps](#keymaps)
 - [Configuration](#configuration)
@@ -28,35 +175,14 @@ snacks).
 - [Completion](#completion)
 - [Statusline](#statusline)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
-- [Development](#development)
-
----
-
-## Features
-
-| Area | What you get |
-| --- | --- |
-| **Outline** | Folding by headline, with drawers and blocks folding one level deeper. `TAB` subtree cycling and `S-TAB` global cycling, like Emacs. `#+STARTUP` visibility. Motions (`]]`, `[[`, `][`, `[]`, `g{`) and text objects (`ih`, `ah`, `ir`, `ar`). |
-| **Structure editing** | `M-RET` inserts a heading, list item or table row depending on context. Promote and demote headings or subtrees, move subtrees, cut/copy/paste them with level adjustment, clone with a time shift. Sort by alpha, numeric, time, priority, TODO or property. Narrow to a subtree. Toggle headings, items and `COMMENT`. Structure templates (`#+begin_src` and friends). Emphasis. |
-| **Plain lists** | `-`, `+`, `*`, `1.` and `1)` bullets, `[@N]` counters, description lists, checkboxes with `[-]` partial state. Statistics cookies (`[2/5]`, `[40%]`) with `COOKIE_DATA` support. Renumbering, indent/outdent, move, bullet cycling. |
-| **TODO** | Multiple keyword sequences, fast-selection keys, per-file `#+TODO`, and logging with `!` (timestamp) and `@` (note) on entering and leaving a state. `CLOSED:` timestamps. Repeaters `+1w`, `++1d` and `.+2d` with `LAST_REPEAT`. `ORDERED` and checkbox dependencies. Priorities with `#+PRIORITIES`. |
-| **Tags and properties** | Fast tag selection with `#+TAGS` groups, inheritance, `#+FILETAGS`, automatic alignment. Property drawers with inheritance, `_ALL` allowed values, `Effort`, and special properties. |
-| **Dates** | Active and inactive timestamps, ranges, times and time ranges, repeaters, warning periods. A floating calendar that accepts Org's date input (`+2w`, `fri 14:00`, `sep 15`). `SCHEDULED` and `DEADLINE` with reschedule logging. `C-a`, `C-x` and the shift-arrows change whichever part of the timestamp is under the cursor. |
-| **Agenda** | Day, week, fortnight, month and year views, with a time grid and current-time line. Deadline warnings, overdue scheduled items and repeaters. Habits with the Emacs consistency graph. Log mode and clock report mode. The global TODO list, tags and property matches (the full Emacs match syntax), text search and stuck projects. Custom commands with composite blocks. Filters, bulk actions and follow mode. You can edit entries straight from the agenda. |
-| **Capture** | Templates with key groups. Entry, item, checkitem, table-line and plain types. Targets can be a file, a headline, an outline path, a date tree, a regexp or a function. All the common `%`-escapes. Finalize, abort or refile from the capture window, or finish with `:w`. |
-| **Refile and archive** | Refile to any headline in the agenda files, with outline paths, or create new parent nodes. Archive to `%s_archive::` or a custom location with the `ARCHIVE_*` context properties, plus the `ARCHIVE` tag. |
-| **Links** | `[[target][desc]]`, plain and `<angle>` links. `file:` links with `::line`, `::*heading`, `::#id` or `::/regex/`. Also `id:`, `#custom-id`, `*heading`, `<<targets>>`, `http(s)`, `mailto`, `shell:`, `help:` and `attachment:`, plus abbreviations and custom link types. Store and insert links. Concealed display. |
-| **Clocking** | Clock in, out, cancel and jump, with effort estimates. A statusline component. The running clock survives restarts. Clock sums shown as virtual text. `clocktable` dynamic blocks with scope, block and match (no `:step` yet). Column view and `columnview` blocks. |
-| **Tables** | Automatic alignment. `TAB`, `S-TAB` and `RET` navigation. Insert, delete and move rows and columns. Hlines, sorting, and converting CSV or TSV to a table. Formulas in `#+TBLFM` using `$`/`@` references, ranges, `vsum`/`vmean`/…, and Lua expressions. |
-| **Babel** | Run source blocks asynchronously: sh, bash, zsh, python, lua (in-process), node, ruby, R, go, sqlite and more. `:results` handling with all common options. `:var` accepts values, tables or other blocks' results. `:noweb`, `:dir`, `#+CALL`. Tangling with `:tangle`, `:mkdirp` and `:shebang`. Edit a block in a native buffer with `C-c '`. |
-| **Export** | Native HTML (standalone, with a table of contents, section numbers and MathJax), GitHub-flavoured Markdown, plain UTF-8 text and LaTeX. Everything else goes through pandoc: PDF, DOCX, ODT, EPUB, RST and more. Handles `#+OPTIONS`, `export`/`noexport` tags, `:exports`, `#+INCLUDE` and macros. |
-| **More** | Footnotes, sparse trees, appointment notifications, attachments, IDs, relative and countdown timers, dynamic blocks, completion (blink.cmp, nvim-cmp or omnifunc), and `:checkhealth org`. |
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
 
 ---
 
 ## Requirements
 
-- Neovim **0.10+**.
+- Neovim **0.10+**. Nothing else is required.
 - Optional:
   - `pandoc` for LaTeX, PDF, DOCX and ODT export.
   - `latexmk` or `pdflatex` for native PDF.
@@ -66,7 +192,7 @@ snacks).
 
 ## Installation
 
-### LazyVim / lazy.nvim
+### LazyVim / lazy.nvim, with blink.cmp completion
 
 ```lua
 -- ~/.config/nvim/lua/plugins/org.lua
@@ -74,7 +200,7 @@ return {
   {
     "xheisenbugx/org.nvim",
     main = "org",
-    lazy = false, -- startup cost is tiny: only :Org and a few global keymaps
+    lazy = false,
     opts = {
       org_directory = "~/org",
       agenda_files = { "~/org/**/*.org" },
@@ -95,6 +221,14 @@ return {
 }
 ```
 
+### Other plugin managers
+
+Add the plugin to your `'runtimepath'` and call:
+
+```lua
+require("org").setup({ org_directory = "~/org" })
+```
+
 ### Local development checkout
 
 Point lazy.nvim at the directory instead of a GitHub repo:
@@ -112,6 +246,7 @@ Point lazy.nvim at the directory instead of a GitHub repo:
 Restart Neovim (or run `:Lazy reload org.nvim`) and check the result with
 `:checkhealth org`.
 
+> [!TIP]
 > **Keymap prefix.** All org commands live under `<leader>o` by default. If
 > another plugin already uses it (obsidian.nvim, overseer), set
 > `mappings = { prefix = "<leader>O" }` or any other prefix.
@@ -148,7 +283,8 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 | `<prefix>ls` | Store a link to the current location |
 | `<prefix>xj` / `xo` / `xq` | Go to clocked task / clock out / cancel clock |
 
-### Org buffers
+<details>
+<summary><b>Org buffers</b> (click to expand)</summary>
 
 | Key | Action |
 | --- | --- |
@@ -184,7 +320,10 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 | `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
 | `g?` | Show all keymaps |
 
-### Agenda buffer
+</details>
+
+<details>
+<summary><b>Agenda buffer</b> (click to expand)</summary>
 
 | Key | Action | Key | Action |
 | --- | --- | --- | --- |
@@ -200,7 +339,10 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 | `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `n` / `p` | next / previous item |
 | `E` | export agenda | `q` / `x` | quit / quit and wipe |
 
-### Capture and edit buffers
+</details>
+
+<details>
+<summary><b>Capture and edit buffers</b> (click to expand)</summary>
 
 | Key | Capture | Edit src (`C-c '`) |
 | --- | --- | --- |
@@ -209,12 +351,14 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 | `<C-c><C-k>`, `<prefix>k` | abort | abort |
 | `<C-c><C-w>`, `<prefix>r` | refile | — |
 
+</details>
+
 ---
 
 ## Configuration
 
 Every option with its default is in [`lua/org/config.lua`](lua/org/config.lua)
-and documented in `:h org-config`. Most common:
+and documented in `:h org-config`. The most common ones:
 
 ```lua
 require("org").setup({
@@ -282,7 +426,8 @@ Other options: `type`, `prepend`, `empty_lines`, `properties`,
 `immediate_finish`, `jump_to_captured`, `clock_in`, `clock_resume`,
 `time_prompt`.
 
-Expansions:
+<details>
+<summary><b>Template expansions</b> (click to expand)</summary>
 
 | Escape | Inserts |
 | --- | --- |
@@ -301,6 +446,8 @@ Expansions:
 | `%^{PROP}p` | property prompt |
 | `%k` `%K` | the running clock's task / a link to it |
 | `%%` | a literal `%` |
+
+</details>
 
 ---
 
@@ -326,7 +473,7 @@ Block types: `agenda`, `todo`, `tags`, `tags_todo`, `search`, `stuck`.
 Per-block options: `match`, `header`, `span`, `start_day`, `files`,
 `skip = function(headline) … end`, and the `todo_ignore_*` flags.
 
-The match syntax is Emacs'. Some examples:
+The match syntax is the same as in Emacs. Some examples:
 
 - `+work-boss`
 - `work|home`
@@ -340,7 +487,7 @@ The match syntax is Emacs'. Some examples:
 
 ## Completion
 
-- **blink.cmp:** add the provider shown in [Installation](#lazyvim--lazynvim).
+- **blink.cmp:** add the provider shown in [Installation](#installation).
 - **nvim-cmp:**
   ```lua
   require("cmp").register_source("org", require("org.completion.cmp").new())
@@ -348,15 +495,9 @@ The match syntax is Emacs'. Some examples:
   Then add `{ name = "org" }` to your org sources.
 - **Built in:** `<C-x><C-o>` (omnifunc).
 
-It completes:
-
-- TODO keywords
-- tags
-- `#+` keywords
-- `#+STARTUP` and `#+OPTIONS` values
-- src block languages
-- property names
-- link types, headings (`[[*`), custom IDs (`[[#`) and stored links
+It completes TODO keywords, tags, `#+` keywords, `#+STARTUP` and
+`#+OPTIONS` values, src block languages, property names, link types,
+headings (`[[*`), custom IDs (`[[#`) and stored links.
 
 ---
 
@@ -373,8 +514,8 @@ It completes:
 }
 ```
 
-Output looks like `⏱ [0:25/1:00] (Write report)` while a clock runs, and
-is empty otherwise.
+While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`.
+It's empty otherwise.
 
 ---
 
@@ -391,40 +532,57 @@ The goal is feature parity for everyday use, but some things differ:
   - There are no `:session` or `:cache` options.
   - Export uses existing `#+RESULTS` blocks and never runs code.
   - `elisp:` links and blocks can't run.
-- **Not implemented:**
-  - diary sexp timestamps `<%%(…)>`
-  - clock idle detection
-  - `org-crypt`, `org-protocol`, MobileOrg
-  - inline image and LaTeX previews
-  - column view as overlays (it opens as a separate table view instead)
+- **Column view** opens as a separate table view instead of overlays.
 - **M-RET** always inserts after the current subtree or item; it never
   splits the line at the cursor.
 - Minute increments step by one minute (Emacs rounds to five).
 
+The features still missing are listed in the [Roadmap](#-roadmap).
+
 ---
 
-## Development
+## 🗺️ Roadmap
+
+These Emacs features aren't implemented yet. Each one would make a good
+first contribution:
+
+- [ ] Inline image and LaTeX previews
+- [ ] Clock idle detection
+- [ ] `clocktable` `:step`
+- [ ] Babel `:session` and `:cache`
+- [ ] Multi-line note buffers for state changes
+- [ ] Column view as overlays on headlines
+- [ ] Diary sexp timestamps `<%%(…)>`
+- [ ] Date-tree archive locations
+- [ ] `org-crypt` and `org-protocol`
+
+If there's something you'd like that isn't here,
+[open an issue](https://github.com/xheisenbugx/org.nvim/issues).
+
+---
+
+## 🤝 Contributing
+
+Contributions of all sizes are welcome: bug reports, docs fixes, new link
+types, Babel languages, exporters, or anything on the roadmap. Each piece
+of Org lives in its own small module, and there's a fast headless test
+suite, so it's easy to get started:
 
 ```sh
+git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # run all specs headlessly
 make test SPEC=tests/spec/agenda_spec.lua # one spec
+make lint                                 # stylua --check
 ```
 
-Layout:
+[`CONTRIBUTING.md`](CONTRIBUTING.md) explains how the code is organised
+and how to add a feature.
 
-| Path | Contents |
-| --- | --- |
-| `lua/org/` | core: `parser`, `date`, `edit`, `files`, `config`, `actions`, `context`, `mappings` |
-| `lua/org/{structure,fold,lists}.lua` | outline editing |
-| `lua/org/{todo,priority,tags,properties,timestamps,calendar,clock,dblock,columns,timer}.lua` | task management |
-| `lua/org/agenda/` | agenda, search, sparse trees, notifications |
-| `lua/org/{capture,refile,archive,links,id,attach,footnotes}.lua` | capture and navigation |
-| `lua/org/table.lua`, `lua/org/table/` | tables and formulas |
-| `lua/org/babel/` | source blocks |
-| `lua/org/export/` | exporters |
-| `syntax/`, `lua/org/{syntax,highlights}.lua`, `lua/org/ui/` | highlighting and decorations |
-| `tests/` | headless test runner and specs |
+---
 
-Every user-facing operation is a named **action** in `lua/org/actions.lua`.
-Keymaps (`mappings.org.<action>`) and `:Org <action>` both go through that
-registry.
+<div align="center">
+
+**If org.nvim makes your notes, tasks or agenda better, give it a ⭐.**
+It helps other Neovim users find it.
+
+</div>
