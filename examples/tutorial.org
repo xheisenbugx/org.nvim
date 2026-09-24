@@ -1,0 +1,117 @@
+#+TITLE: org.nvim hands-on tour
+#+AUTHOR: org.nvim
+#+STARTUP: content
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+TAGS: work(w) home(h) { @office(o) @remote(r) } urgent(u)
+#+FILETAGS: :tutorial:
+
+Open this file with org.nvim installed. Keys below assume the default
+prefix =<leader>o=; replace it with yours (for example =<leader>O=).
+Press =g?= at any time to list every keymap.
+
+* Visibility
+Press =<Tab>= on a headline to cycle it (folded → children → subtree),
+and =<S-Tab>= anywhere to cycle the whole buffer.
+** A child headline
+Folded text lives here.
+*** A grandchild
+Deeper still.
+
+* Editing structure
+- =<M-CR>= on a headline inserts a sibling; on a list item, a new item.
+- =>>= / =<<= demote / promote this headline; =>s= / =<s= the subtree.
+- =<M-j>= / =<M-k>= move a subtree (or list item, or table row).
+- =<leader>ohy= copies a subtree, =<leader>ohp= pastes it.
+- =<leader>o*= turns a line into a headline and back.
+** Move me down with <M-j>
+** Then move me up with <M-k>
+
+* TODO Try TODO states                                                :work:
+Press =cit= (or =<S-Right>=) on the headline to cycle states, or =<leader>oT=
+for fast selection. Marking it DONE adds a CLOSED timestamp.
+Setting WAITING asks for a note (the =@= flag).
+
+* TODO [#B] Priorities and tags                                 :home:urgent:
+- =<S-Up>= / =<S-Down>= on the headline change the priority.
+- =<leader>ot= opens fast tag selection (keys from =#+TAGS=).
+  =@office= and =@remote= are mutually exclusive.
+
+* TODO Weekly review                                                  :work:
+  SCHEDULED: <2026-09-25 Fri +1w>
+This repeats every week: mark it DONE and watch the date shift forward.
+Put the cursor on the date and press =<C-a>= / =<C-x>= to change the day
+under the cursor, or =<leader>os= to reschedule with the calendar.
+
+* NEXT Write the report                                               :work:
+  DEADLINE: <2026-10-01 Thu -3d>
+  :PROPERTIES:
+  :Effort:   1:30
+  :END:
+Clock in with =<leader>oxi=, out with =<leader>oxo=.
+The deadline shows in the agenda 3 days before it is due (=-3d=).
+
+* Checklists [1/3]
+- [X] Buy milk
+- [ ] Toggle me with =<C-Space>=
+- [ ] A parent item [0/2]
+  - [ ] child one
+  - [ ] child two
+
+* Agenda and capture
+- =<leader>oa= opens the agenda dispatcher. Try =a= (week), =t= (all TODOs),
+  =m= with a match like =+work-home/!=.
+- In the agenda: =t= changes state, =s= schedules, =I= clocks in,
+  =<CR>= jumps to the entry.
+- =<leader>oc= captures a new entry from any buffer.
+
+Add this file to =agenda_files= to see its entries in the agenda.
+
+* Links
+- External: [[https://orgmode.org][The Org manual]]
+- Internal heading: [[*Tables][jump to Tables]]
+- File with line: [[file:tutorial.org::1][top of this file]]
+- Footnote reference[fn:1]
+Press =<CR>= on a link to follow it. =<leader>oli= inserts a link,
+=<leader>ols= stores one from anywhere.
+
+* Tables
+Type a =|= row and press =<C-c><C-c>= to align. In Insert mode, =<Tab>= moves
+between fields. =<leader>oTf= recalculates the formulas.
+
+| Item   | Qty | Price | Total |
+|--------+-----+-------+-------|
+| Apples |   3 |  0.50 |  1.50 |
+| Pears  |   2 |  0.75 |  1.50 |
+| Plums  |  10 |  0.20 |  2.00 |
+|--------+-----+-------+-------|
+| Sum    |  15 |       |  5.00 |
+#+TBLFM: $4=$2*$3;%.2f::@>$2=vsum(@I..@II)::@>$4=vsum(@I..@II);%.2f
+
+* Source blocks
+Press =<C-c><C-c>= inside a block to run it, =<leader>o'= to edit it in a
+real buffer with the right filetype.
+
+#+NAME: greeting
+#+begin_src lua
+return "Hello from Neovim " .. tostring(vim.version())
+#+end_src
+
+#+begin_src sh :results output
+echo "shell says hi"; date +%Y
+#+end_src
+
+#+begin_src python :var n=4
+return [[i, i * i] for i in range(n)]
+#+end_src
+
+* Clock report
+Put the cursor on the =#+BEGIN= line and press =<C-c><C-c>= to refresh.
+#+BEGIN: clocktable :scope file :maxlevel 2
+#+END:
+
+* Export
+=<leader>oe= opens the export dispatcher: =h h= writes HTML, =m m= Markdown,
+=t a= plain text, =l p= PDF (via pandoc).
+
+* Footnotes
+[fn:1] Press =<CR>= here to jump back to the reference.

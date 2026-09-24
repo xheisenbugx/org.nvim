@@ -1,0 +1,1067 @@
+*org.txt*  Org mode for Neovim                                 *org.nvim* *org*
+
+                               org.nvim ~
+
+      Outlines, TODOs, agenda, capture, clocking, tables, Babel, export.
+
+==============================================================================
+CONTENTS                                                        *org-contents*
+
+   1. Introduction .............................. |org-introduction|
+   2. Installation .............................. |org-installation|
+   3. Document structure ........................ |org-structure|
+   4. Visibility and folding .................... |org-folding|
+   5. Plain lists and checkboxes ................ |org-lists|
+   6. TODO items and priorities ................. |org-todo|
+   7. Tags ...................................... |org-tags|
+   8. Properties and column view ................ |org-properties|
+   9. Dates and times ........................... |org-dates|
+  10. Clocking and effort ....................... |org-clock|
+  11. Agenda .................................... |org-agenda|
+  12. Match syntax (tags/properties) ............ |org-match-syntax|
+  13. Sparse trees .............................. |org-sparse-tree|
+  14. Capture ................................... |org-capture|
+  15. Refile and archive ........................ |org-refile|
+  16. Links, IDs and attachments ................ |org-links|
+  17. Footnotes ................................. |org-footnotes|
+  18. Tables and formulas ....................... |org-tables|
+  19. Source blocks (Babel) ..................... |org-babel|
+  20. Dynamic blocks ............................ |org-dblocks|
+  21. Export .................................... |org-export|
+  22. Timers and notifications .................. |org-timers|
+  23. Completion ................................ |org-completion|
+  24. Appearance and highlights ................. |org-appearance|
+  25. Configuration reference ................... |org-config|
+  26. Keymaps reference ......................... |org-keymaps|
+  27. Commands .................................. |org-commands|
+  28. Lua API ................................... |org-api|
+  29. In-buffer settings ........................ |org-in-buffer-settings|
+  30. Differences from Emacs .................... |org-differences|
+
+==============================================================================
+1. INTRODUCTION                                             *org-introduction*
+
+org.nvim implements Emacs Org mode in pure Lua. It reads and writes the same
+plain-text format, so files can be shared with Emacs.
+
+Conventions used in this manual:
+
+  <prefix>    The value of `mappings.prefix` (default `<leader>o`).
+  (ctx)       A context-sensitive key. When it does not apply at the cursor,
+              the key falls back to its normal Vim behaviour (for example
+              `>>` indents plain text and `<C-a>` increments numbers).
+  target      Many Lua functions accept `{ bufnr = n, lnum = l }` to act on
+              a headline other than the one at the cursor.
+
+Press `g?` in an org or agenda buffer for a list of active keymaps.
+
+==============================================================================
+2. INSTALLATION                                             *org-installation*
+
+Requires Neovim 0.10 or later. Optional tools:
+
+  pandoc               LaTeX, PDF, DOCX, ODT, EPUB, RST, ... export
+  latexmk / pdflatex   native PDF export
+  interpreters         whatever languages Babel should run
+
+lazy.nvim / LazyVim: >lua
+    {
+      "you/org.nvim",       -- or: dir = "~/path/to/checkout", name = "org.nvim"
+      main = "org",
+      lazy = false,
+      opts = {
+        org_directory = "~/org",
+        agenda_files = { "~/org/**/*.org" },
+        default_notes_file = "~/org/refile.org",
+      },
+    }
+<
+Other plugin managers: add the plugin to 'runtimepath' and call: >lua
+    require("org").setup({ ... })
+<
+If `setup()` is never called, the defaults are used the first time an org
+buffer is opened or `:Org` is run.
+
+Run |:checkhealth| `org` to check paths and external tools.
+
+==============================================================================
+3. DOCUMENT STRUCTURE                                          *org-structure*
+
+Headlines start with one or more stars followed by a space: >org
+    * TODO [#A] Headline text                              :tag1:tag2:
+      SCHEDULED: <2026-09-23 Wed> DEADLINE: <2026-09-30 Wed>
+      :PROPERTIES:
+      :ID:       0c7a...
+      :END:
+      Body text.
+    ** Child headline
+<
+                                                          *org-meta-return*
+<M-CR>          (ctx) Insert a new headline, list item or table row,
+                depending on the cursor position, then enter Insert mode.
+                On a headline: a new sibling after the subtree (or above,
+                when the cursor is at column 0). In a list: a new item.
+                In a table: a new row below.
+<M-S-CR>        Like <M-CR>, but inserts a TODO headline or a checkbox item.
+<prefix>ih      Insert headline after the current subtree.
+<prefix>it      Insert TODO headline.
+<prefix>is      Insert subheading (a child of the current headline).
+<prefix>id      Insert a drawer (wraps the visual selection).
+<prefix>ib      Insert a structure template (`#+begin_src`, quote, example,
+                verse, center, comment, export ...). Wraps the visual
+                selection.
+
+                                                       *org-promote-demote*
+<< / >>         (ctx) Promote / demote headline or list item. Count repeats.
+<s / >s         (ctx) Promote / demote the whole subtree or item and its
+                children.
+<M-h> / <M-l>   (ctx) Promote / demote. In a table: move column.
+<M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
+                column.
+
+                                                          *org-move-subtree*
+<M-k> / <M-j>   (ctx) Move subtree, list item or table row up / down.
+<prefix>K / J   Move subtree up / down.
+
+                                                         *org-kill-subtree*
+<prefix>hy      Copy subtree (count: that many siblings).
+<prefix>hd      Cut subtree.
+<prefix>hp      Paste subtree after the current one, adjusting levels.
+                Subtrees are kept in a kill ring and also in the `"`
+                register.
+<prefix>hc      Clone subtree N times, shifting timestamps by a given offset
+                (for example `+1w`).
+
+                                                                 *org-sort*
+<prefix>hs      Sort the children of the current headline (or top-level
+                entries, or the list at the cursor). Menu keys: a alpha,
+                n numeric, t time, s scheduled, d deadline, c created,
+                p priority, o TODO order, r property. Uppercase reverses.
+
+                                                               *org-narrow*
+<prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
+                back and <C-c>' saves and closes.
+
+<prefix>*       Toggle headline: line ↔ headline, item ↔ headline.
+<prefix>-       Toggle list item: line ↔ item, headline ↔ item.
+<prefix>hC      Toggle the COMMENT keyword.
+<prefix>E       (Visual) Wrap the selection in an emphasis marker.
+
+Motions and text objects:                           *org-motions* *org-textobj*
+]] / [[         Next / previous visible headline.
+][ / []         Next / previous sibling.
+g{              Parent headline.
+<prefix>.       Pick a headline of the buffer (|vim.ui.select()|).
+ih / ah         Headline section without / with the headline line.
+ir / ar         Subtree without / with the headline line.
+
+==============================================================================
+4. VISIBILITY AND FOLDING                                        *org-folding*
+
+Headlines fold by level. Drawers and `#+begin_`/`#+end_` blocks fold one level
+deeper.
+
+<Tab>           (ctx) Subtree cycling: FOLDED → CHILDREN → SUBTREE. On a
+                drawer or block line, toggle that fold. In Insert mode
+                inside a table, move to the next field.
+<S-Tab>         Global cycling: OVERVIEW → CONTENTS → SHOW ALL. With a
+                count N, show headlines up to level N.
+
+Startup visibility comes from `#+STARTUP:` (`overview`, `content`, `showall`,
+`showeverything`, `nofold`), falling back to the `startup_folded` option.
+
+`:Org overview`, `:Org content` and `:Org show_all` set the visibility
+explicitly.
+
+==============================================================================
+5. PLAIN LISTS AND CHECKBOXES                                      *org-lists*
+
+Unordered bullets are `-`, `+` and indented `*`. Ordered bullets are `1.` and
+`1)`. `[@N]` sets a counter. Description items look like `- term :: text`.
+Checkboxes are `[ ]`, `[-]` (partial) and `[X]`.
+
+<C-Space>       Toggle the checkbox. Parents get `[-]` or `[X]`, and
+                statistics cookies are updated.
+<C-c><C-c>      On an item: toggle its checkbox, or renumber the list.
+<S-Right/Left>  (ctx) On an item: cycle the bullet style.
+<prefix>hb      Cycle the bullet style.
+<prefix>#       Update the statistics cookies `[1/3]` / `[33%]` at the cursor.
+
+Statistics cookies on a headline count its checkboxes, or its child TODO
+entries when it has no checkboxes. `:COOKIE_DATA: todo|checkbox recursive`
+overrides this.
+
+==============================================================================
+6. TODO ITEMS AND PRIORITIES                               *org-todo* *org-priority*
+
+Keywords are defined with `todo_keywords` or per file with `#+TODO:` lines.
+Each string is a sequence, and keywords after `|` are done states: >lua
+    todo_keywords = {
+      "TODO(t) NEXT(n) | DONE(d!)",
+      "WAITING(w@/!) | CANCELLED(c@)",
+    }
+<
+In `(x!/@)`, `x` is the fast-selection key, the first flag applies when
+entering the state and the flag after `/` applies when leaving it: `!` logs a
+timestamp and `@` asks for a note. Log entries go into the `log_into_drawer`
+drawer (default `LOGBOOK`).
+
+cit / ciT       Next / previous TODO state.
+<S-Right/Left>  (ctx) Same, on a headline.
+<prefix>T       Select a state (fast keys when defined).
+
+Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
+leaving it removes CLOSED again.
+
+Repeated tasks                                            *org-repeat*
+A SCHEDULED or DEADLINE timestamp with a repeater (`+1w`, `++1d`, `.+2d`)
+is shifted when the task is marked done, and the task returns to its
+previous TODO state (or `todo_repeat_to_state`). `LAST_REPEAT` is set and the
+state change is logged when `log_repeat` is enabled.
+  +N   shift by N units once
+  ++N  shift until the date is in the future, keeping the weekday
+  .+N  shift to N units after today
+
+Dependencies                                              *org-todo-dependencies*
+With `enforce_todo_dependencies`, an entry cannot be marked done while its
+children are unfinished, or while earlier siblings under an `:ORDERED: t`
+parent are unfinished. `enforce_todo_checkbox_dependencies` also blocks
+entries that have unchecked checkboxes.
+
+Priorities
+<S-Up> / <S-Down>   (ctx) Raise / lower priority on a headline.
+<C-a> / <C-x>       (ctx) Same, with the cursor on the `[#A]` cookie.
+<prefix>,           Set priority (press a letter, <Space> removes it).
+Range and default come from `priority_highest/lowest/default` or
+`#+PRIORITIES: A C B`.
+
+==============================================================================
+7. TAGS                                                             *org-tags*
+
+Tags sit at the end of the headline: `:work:urgent:`.
+
+<prefix>t       Set tags. When tags have fast keys (`#+TAGS: work(w)
+                home(h)` or the `tags` option) a key menu is shown: `{ }`
+                groups are mutually exclusive, <Tab> lets you type a tag and
+                <Space> clears all. Otherwise you type the tags with
+                completion.
+<C-c><C-c>      On a headline: set tags.
+
+Tags are aligned to `tags_column` (negative values right-align them).
+`:Org align_tags` realigns every headline in the buffer.
+
+Inheritance: children inherit their parents' tags and `#+FILETAGS:`, except
+the tags in `tags_exclude_from_inheritance`. Set `use_tag_inheritance =
+false` to disable it.
+
+==============================================================================
+8. PROPERTIES AND COLUMN VIEW                   *org-properties* *org-columns*
+
+<prefix>p       Set a property. Names are completed, and values come from
+                `PROP_ALL` properties when available.
+<prefix>P       Delete a property.
+<prefix>xe      Set the Effort property.
+<prefix>lI      Create an ID property (or show the existing one).
+
+Special properties available in matches and column view: ITEM, TODO,
+PRIORITY, TAGS, ALLTAGS, CATEGORY, LEVEL, FILE, SCHEDULED, DEADLINE, CLOSED,
+TIMESTAMP.
+
+Inheritance is controlled by `use_property_inheritance` (true, false, or a
+list of property names). `#+PROPERTY: NAME value` sets file-wide values, and
+`global_properties` sets values everywhere.
+
+<prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
+                property or `columns_default_format`, for example
+                `%25ITEM %TODO %3PRIORITY %TAGS %Effort{:}`. Summary
+                operators: {+} {:} {X} {X/} {X%} {min} {max} {mean}.
+                Keys: e edit, v view value, <CR> jump, r refresh, q quit.
+
+==============================================================================
+9. DATES AND TIMES                                                 *org-dates*
+
+Timestamps:
+  <2026-09-23 Wed>                  active (shows in the agenda)
+  [2026-09-23 Wed]                  inactive
+  <2026-09-23 Wed 10:00-11:30>      time range
+  <2026-09-23 Wed>--<2026-09-25 Fri> date range
+  <2026-09-23 Wed +1w -2d>          repeater and warning period
+
+<prefix>s       Schedule (SCHEDULED:).
+<prefix>d       Deadline (DEADLINE:).
+<prefix>i.      Insert an active timestamp (count: include time). Right
+                after an existing timestamp, this creates a range.
+<prefix>i!      Insert an inactive timestamp.
+<C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor:
+                year, month, day, hour, minute, repeater or warning.
+<S-Up/Down>     (ctx) Same as <C-a> / <C-x>.
+<S-Right/Left>  (ctx) Day +1 / -1.
+<CR>            On a timestamp: open the agenda for that day.
+
+The calendar                                                   *org-calendar*
+Date prompts open a floating calendar:
+  h l j k        day -1 / +1, week -1 / +1
+  H L  < >       month -1 / +1
+  J K  [ ]       year -1 / +1
+  .              today
+  i  t           type a date (see below)
+  T              set a time
+  x  <Del>       remove the date (schedule/deadline)
+  <CR>           select
+  q  <Esc>       cancel
+A count before the schedule/deadline key also removes the date.
+
+Date input (like org-read-date)                                 *org-read-date*
+  ""  "."  today       today
+  +3d  -2w  +1m  +4    relative to today (unit defaults to days)
+  ++3d                 relative to the default date
+  fri  +2fri           next Friday / Friday in two weeks
+  2026-10-01  26-10-01  10-01  10/1  10/1/2026   absolute dates
+  15                   next 15th of a month
+  sep 15  15 sep 2027  month names
+  tomorrow  yesterday  now
+  14:00  2pm  10:00-11:30  10:00+1:30   times (combine with any date)
+
+Changes to SCHEDULED and DEADLINE are logged when `log_reschedule` or
+`log_redeadline` is set (or via the `#+STARTUP` log keywords).
+
+==============================================================================
+10. CLOCKING AND EFFORT                                            *org-clock*
+
+<prefix>xi      Clock in on the current entry. Any running clock is
+                stopped first, and `clock.in_switch_to_state` can change the
+                TODO state.
+<prefix>xo      Clock out (global).
+<prefix>xq      Cancel the running clock (global).
+<prefix>xj      Jump to the clocked entry (global).
+<prefix>xe      Set effort.
+<prefix>xd      Toggle clock sums as virtual text on every headline.
+<prefix>xr      Insert a clock report (`#+BEGIN: clocktable`).
+<C-c><C-c>      On a CLOCK line: recompute its duration.
+:Org clock_in_last   Clock in the last clocked entry again.
+
+Clock lines go into the LOGBOOK drawer: >org
+    :LOGBOOK:
+    CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:30] =>  1:30
+    :END:
+<
+Marking a clocked task done clocks it out (`clock.out_when_done`). A running
+clock is restored after restarting Neovim (`clock.persist`).
+
+Use |org-api| `require("org").statusline()` in your statusline.
+
+==============================================================================
+11. AGENDA                                                        *org-agenda*
+
+<prefix>a opens the dispatcher:
+
+  a   agenda for the current week (or `agenda.span`)
+  t   global TODO list        T   TODO list for one keyword
+  m   tags/property match     M   match, TODO entries only
+  s   search for words or a regexp
+  #   stuck projects
+  <   restrict to the current file / subtree (press again to cycle)
+  ... custom commands from `agenda.custom_commands`
+
+Agenda view contents:
+- Entries SCHEDULED for a day. Overdue, unfinished ones show
+  `Sched. Nx:` on today.
+- Deadlines from `deadline_warning_days` (or the `-Nd` warning) before they
+  are due: `In N d.:`, `N d. ago:`.
+- Active timestamps and ranges (`(1/3):`). Repeaters are expanded.
+- A time grid with a current-time line.
+- Habits (`:STYLE: habit` and a repeater) with a consistency graph.
+- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+
+Agenda keys (all configurable under `mappings.agenda`):
+  f / b / .       later / earlier / today
+  vd vw vt vm vy  day / week / fortnight / month / year view
+  gd              go to a date (calendar)
+  r               rebuild the view
+  <CR> <Tab>      open the entry here / in another window
+  <Space>         show the entry, keeping focus in the agenda
+  F               follow mode
+  n / p           next / previous item
+  t               change TODO state; <C-S-Right/Left> cycle it
+  , + -           set / raise / lower priority (also <S-Up/Down>)
+  :               set tags
+  s / d           schedule / deadline
+  <S-Right/Left>  move the date +1 / -1 day
+  >               prompt for a new date
+  e               set effort
+  I O X J         clock in / out / cancel / go to clocked entry
+  R $ a           refile / archive / toggle the ARCHIVE tag
+  z               add a note
+  c               capture
+  l               log mode (closed items, clocks, state changes)
+  C               clock report mode
+  /               filter by tag (`+tag` / `-tag`; again to clear)
+  <               filter by category
+  =               filter by regexp
+  |               remove all filters
+  m u U           mark / unmark / unmark all
+  B               bulk action on marked entries: t todo, s schedule,
+                  d deadline, + add tag, - remove tag, r refile,
+                  $ archive
+  E               export the agenda buffer to a .txt or .html file
+  q / x           quit / quit and wipe the buffer
+  g?              help
+
+Edits made from the agenda are saved to disk when `agenda.save_after_edit`
+is set.
+
+Custom commands                                   *org-agenda-custom-commands*
+>lua
+    agenda = {
+      custom_commands = {
+        w = {
+          description = "Work overview",
+          types = {
+            { type = "agenda", span = "day", header = "Today" },
+            { type = "tags_todo", match = "+work/!", header = "Work" },
+            { type = "todo", match = "WAITING" },
+          },
+        },
+        u = { description = "Urgent", type = "tags", match = "+urgent" },
+      },
+    }
+<
+Block types: `agenda`, `todo`, `tags`, `tags_todo`, `search`, `stuck`.
+Block options:
+  match         match string (see |org-match-syntax|), TODO keywords for
+                `todo`, or text for `search`
+  header        heading shown above the block (also accepted as
+                `org_agenda_overriding_header`)
+  span          span for `agenda` blocks
+  start_day     first day for `agenda` blocks
+  files         files to use instead of `agenda_files`
+  skip          function(headline) that returns true to skip an entry
+  todo_ignore_scheduled, todo_ignore_deadlines, todo_ignore_with_date
+Keys may be several characters long; a string entry (`w = "Work"`) only
+labels the group.
+
+:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|#|day|week|month|year|<key>
+
+==============================================================================
+12. MATCH SYNTAX                                            *org-match-syntax*
+
+Used by the agenda (m, M, custom commands), sparse trees and clocktables.
+
+  +work-boss            has `work` and not `boss`
+  work|home             either tag
+  work&urgent           both tags (`&` is optional between +terms)
+  {^proj}               tag matching a regexp
+  LEVEL>1               property comparison: = <> < <= > >=
+  PRIORITY="A"          string comparison
+  Effort<"1:00"         durations compare as minutes
+  CATEGORY={^work}      regexp match on a property
+  SCHEDULED<="<+2d>"    date comparison: "<today>", "<tomorrow>",
+                        "<+2d>", "<2026-01-01>"
+  +proj/NEXT|TODO       TODO keyword part after `/`
+  +proj/!               only entries that aren't done
+  /-DONE                exclude a keyword
+
+==============================================================================
+13. SPARSE TREES                                             *org-sparse-tree*
+
+<prefix>/ shows a menu:
+  /  regexp     t  TODO entries     T  specific keyword
+  m  match      M  match, TODO only p  property value
+  d  deadlines due or overdue       b  before date
+  a  after date D  between dates    c  clear
+
+The buffer is folded so only matching entries are visible, the matches are
+highlighted, and the location list is filled (|:lnext|).
+
+==============================================================================
+14. CAPTURE                                                      *org-capture*
+
+<prefix>c opens the template menu. `:Org capture KEY` selects a template
+directly.
+
+                                                    *org-capture-templates*
+>lua
+    capture = {
+      templates = {
+        t = { description = "Task", template = "* TODO %?\n  %U", target = "~/org/refile.org" },
+        w = "Work",   -- group label for keys starting with w
+        wt = { description = "Work task", template = "* TODO %?", target = "~/org/work.org", headline = "Inbox" },
+        j = { description = "Journal", template = "* %<%H:%M> %?", target = "~/org/journal.org", datetree = true },
+      },
+      window = "float",
+    }
+<
+Template fields:
+  description        menu label
+  template           string, list of lines, or function returning a string
+  type               "entry" (default), "item", "checkitem", "table-line",
+                     "plain"
+  target             file (relative to `org_directory`); defaults to
+                     `default_notes_file`
+  headline           file+headline target (created when missing)
+  olp                outline path, e.g. { "Projects", "Neovim" }
+  datetree           true or { tree_type = "day"|"week"|"month" }
+  regexp             insert after the first line matching this Lua pattern
+  func / function    function(bufnr) returning the line number to insert
+                     under
+  prepend            insert as the first child instead of the last
+  empty_lines        blank lines around the entry (also
+                     empty_lines_before / empty_lines_after)
+  properties         table of properties added to the entry
+  immediate_finish   finish without opening the capture window
+  jump_to_captured   jump to the entry after finishing
+  clock_in           clock in while capturing
+  clock_resume       resume the previous clock after finishing
+  time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
+
+Template expansions:                               *org-capture-expansions*
+  %?           cursor position
+  %t %T        active date / date and time
+  %u %U        inactive date / date and time
+  %^t %^T %^u %^U  the same, asking with the calendar
+  %<fmt>       strftime format, e.g. %<%Y-%m-%d>
+  %a           annotation: a link to the location capture was started from
+  %A           the same, asking for a description
+  %l           the link without a description
+  %i           initial content (the visual selection)
+  %x           clipboard
+  %c           last yank
+  %f %F        origin file name / full path
+  %n           user name
+  %k %K        the clocked task's title / a link to it
+  %^{Prompt}   ask; `%^{Prompt|default|opt1|opt2}` offers choices
+  %\1 ...      the answer to the Nth prompt
+  %^g %^G      tags prompt
+  %^{PROP}p    property prompt
+  %%           a literal %
+
+Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
+`<C-c><C-w>` refiles (also `<prefix>w`, `<prefix>k`, `<prefix>r`).
+
+==============================================================================
+15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
+
+<prefix>r       Refile the subtree under another headline in the agenda
+                files (or the current file). Targets are listed as
+                "file.org/Parent/Child", up to `refile.max_level`. With
+                `refile.allow_creating_parent_nodes`, you can type
+                "file.org/Parent/New" to create missing parents.
+:Org refile_goto   Jump to a refile target.
+
+<prefix>$       Archive the subtree. The location comes from the ARCHIVE
+                property, then `#+ARCHIVE:`, then `archive_location`
+                (default `%s_archive::`). Forms:
+                  "%s_archive::"             another file, top level
+                  "archive.org::* Archived"  another file, under a headline
+                  "::* Archive"              same file, under a headline
+                Adds ARCHIVE_TIME, ARCHIVE_FILE, ARCHIVE_OLPATH,
+                ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS according
+                to `archive_save_context_info`.
+<prefix>hA      Toggle the ARCHIVE tag. Archived subtrees stay folded and are
+                excluded from the agenda.
+
+==============================================================================
+16. LINKS, IDS AND ATTACHMENTS                  *org-links* *org-id* *org-attach*
+
+Syntax: `[[target][description]]`, `[[target]]`, plain URLs and <angle>
+links. With `ui.conceal_links`, only the description is shown.
+
+Targets:
+  https://… http://… ftp:… mailto:…   opened with |vim.ui.open()|
+  file:path  ./rel  ~/p  /abs          open a file; add a search option:
+      ::42  ::*Heading  ::#custom-id  ::/regex/  ::some text
+  id:UUID                             headline with that ID
+  #custom-id                          headline with that CUSTOM_ID
+  *Heading                            headline in the current file
+  <<target>>  text                    dedicated target or fuzzy text
+  shell:cmd                           run in a terminal (asks first)
+  help:topic                          Vim :help
+  attachment:name                     file in the entry's attachment dir
+  abbrev:tag                          `#+LINK:` or `links.abbreviations`
+                                      (`%s` = tag, `%h` = url-encoded)
+  custom:path                         `links.types.custom =
+                                      function(path, link) ... end`
+
+<CR>, gx, <prefix>o  Open the link, footnote or date at the cursor.
+<prefix>ls      Store a link to the current location (works in any
+                buffer). In org buffers this is an `id:` link (see
+                `links.use_id`), `#custom-id`, or `file:…::*Heading`.
+<prefix>li      Insert a link (stored links and file paths are completed).
+                On an existing link, edit it. In Visual mode, the selection
+                becomes the description.
+<prefix>lt      Toggle concealed link display.
+<prefix>ln/lp   Next / previous link.
+
+IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
+it from the agenda files.
+
+<prefix>A opens the attachment menu:
+  a  attach a file (method from `attach.method`: cp/mv/ln)
+  c m l  attach by copy / move / symlink
+  n  create a new file       o  open an attachment
+  f  open the directory      d  delete one
+  D  delete all              s  set the DIR property
+The directory is `attach.dir` + an ID-based path (or DIR), and the ATTACH tag
+is added.
+
+==============================================================================
+17. FOOTNOTES                                                  *org-footnotes*
+
+References: `[fn:1]`, `[fn:name]`, inline `[fn::text]` and `[fn:name:text]`.
+Definitions start a line with `[fn:name]`.
+
+<prefix>if      Insert a new numbered footnote. Its definition goes in the
+                `* Footnotes` section (or at the end of the file).
+<CR>            On a reference: jump to its definition. On a definition:
+                jump back to the reference.
+
+==============================================================================
+18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
+
+Start a row with `|`. `|-` becomes a separator line (hline) when the table is
+aligned.
+
+Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
+              <CR>           same column in the next row
+Normal mode:
+  <C-c><C-c>      realign (on `#+TBLFM`: recalculate)
+  <M-h/l>         move column left / right
+  <M-k/j>         move row up / down
+  <M-H>/<M-L>     delete / insert column
+  <M-K>/<M-J>     delete row / insert row above
+  <M-CR>          insert row below
+  <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
+                  (Visual mode)
+  <prefix>T-      insert a hline
+  <prefix>Tf      recalculate formulas
+  <prefix>Ts      sort rows by the current column (a/n/t, uppercase
+                  reverses)
+  <prefix>Tr/TR   insert / delete row
+  <prefix>Ti/TI   insert / delete column
+  <prefix>'       edit the formulas in a separate buffer
+
+Mostly-numeric columns are right-aligned. `<l>`, `<r>` and `<c>` cookies
+override the alignment. The table is realigned when you leave Insert mode.
+
+Formulas go in `#+TBLFM:` lines below the table: >org
+    | Item  | Qty | Price | Total |
+    |-------+-----+-------+-------|
+    | Apple |   3 |  0.50 |  1.50 |
+    | Pear  |   2 |  0.75 |  1.50 |
+    |-------+-----+-------+-------|
+    | Sum   |     |       |  3.00 |
+    #+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+<
+References:
+  $2  $>  $<  $+1 $-1        columns
+  @3  @>  @<  @-1 @I @II     rows / hlines
+  @2$3                       a single field
+  @2$1..@4$3  $1..$3         ranges
+  @# $#                      the current row / column number
+  remote(name, @2$1)         a field of a named table (#+NAME:)
+Functions: vsum vmean vmin vmax vcount vprod vmedian, the Lua math functions
+(abs, floor, sqrt, ...) and `if(cond, a, b)`.
+Lua formulas: `$3='(string.upper($1))`.
+Flags after `;`: `%.2f` (format), `N` (numbers), `E` (keep empty), `T` / `t`
+(durations H:MM:SS / hours), `U` (H:MM).
+Column formulas skip the header rows above the first hline. Errors show as
+#ERROR.
+
+==============================================================================
+19. SOURCE BLOCKS (BABEL)                                          *org-babel*
+>org
+    #+NAME: hello
+    #+begin_src python :results output :var n=3
+    for i in range(n): print("hi", i)
+    #+end_src
+<
+<C-c><C-c> or <prefix>be   Execute the block (asynchronously). With
+                           `babel.confirm_evaluate`, you are asked first
+                           (`:eval yes|no|never-export` is honoured).
+<prefix>bb / bs    Execute every block in the buffer / subtree.
+<prefix>bk         Remove the result.
+<prefix>bn / bp    Next / previous block.
+<prefix>'          Edit the block in a buffer with the language's filetype.
+<prefix>bt         Tangle the file (`:Org tangle`).
+#+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
+
+Languages: `babel.languages` maps a language name to `{ cmd = "...", ext =
+"..." }`. Lua runs inside Neovim. sqlite uses `:db file`.
+
+Header arguments merge in this order: `babel.default_header_args`, then
+`#+PROPERTY: header-args[:lang]`, then HEADER-ARGS properties, then
+`#+HEADER:` lines, then the `#+begin_src` line.
+  :results   output|value; replace|append|prepend|silent;
+             verbatim|raw|org|drawer|html|latex|code|list|table|file
+  :var       name=value, name=named-table, name=named-block,
+             name=table[1,2]
+  :dir :cmdline :prologue :epilogue :file :noweb yes :noweb-ref
+  :exports   code|results|both|none (for export)
+  :tangle    yes|no|path  :mkdirp yes  :shebang "#!/bin/sh"
+  :comments  link|org|both  :padline  :tangle-mode
+
+Results of 10 or more lines (`babel.min_lines_for_block_output`) use an
+example block; shorter results use `: ` lines. Value results that look like a
+list of lists become a table.
+
+==============================================================================
+20. DYNAMIC BLOCKS                                               *org-dblocks*
+>org
+    #+BEGIN: clocktable :scope file :maxlevel 2 :block thisweek
+    #+END:
+<
+<prefix>xu / xU  Update the block at the cursor / all blocks. <C-c><C-c> on
+                 the `#+BEGIN:` line also updates it.
+
+clocktable parameters:
+  :scope     file|subtree|tree|agenda|file-with-archives|("a.org" "b.org")
+  :maxlevel  N
+  :block     today, yesterday, thisweek, lastweek, thismonth, lastmonth,
+             thisyear, today-N, 2026-09-23, 2026-W39, 2026-09
+  :tstart / :tend   explicit start and end dates
+  :fileskip0 :link :emphasize :tags   options
+  :match     a match string (|org-match-syntax|)
+
+columnview parameters: `:id local|global|file:path|ID`, `:maxlevel`,
+`:skip-empty-rows`, `:indent`, `:format`.
+
+Custom blocks: >lua
+    require("org.dblock").register("myblock", function(params, ctx)
+      return { "| generated | table |" }
+    end)
+<
+==============================================================================
+21. EXPORT                                                        *org-export*
+
+<prefix>e opens the export dispatcher:
+  h h  HTML file        h o  HTML and open      h H  HTML to a buffer
+  m m  Markdown file    m o  Markdown and open  m M  Markdown to a buffer
+  t a  plain text (UTF-8)
+  l l  LaTeX            l p  PDF
+  o o  ODT              d d  DOCX
+  p    other format via pandoc     O    Org buffer (noexport removed)
+  s    toggle subtree-only export
+  b    toggle body-only export
+
+`:Org export html|md|txt|latex|pdf|docx|odt|rst|epub|... [subtree] [body]
+[buffer] [open]`
+
+HTML, Markdown, text and LaTeX are native. Other formats run pandoc on an org
+file with noexport and COMMENT subtrees removed. PDF uses latexmk or
+pdflatex, falling back to pandoc.
+
+Supported: `#+TITLE/AUTHOR/DATE/EMAIL`, `#+OPTIONS:` (toc num H todo tags pri
+^ author date timestamp \n), select and exclude tags, COMMENT and ARCHIVE
+subtrees, headlines deeper than H: exported as lists, emphasis, links
+(internal links become anchors, image links become images), footnotes,
+lists, checkboxes, tables, blocks, `#+RESULTS` according to `:exports`,
+`#+INCLUDE`, `#+MACRO`, `#+CAPTION`, `#+ATTR_HTML` and LaTeX fragments
+(MathJax in HTML).
+
+Output goes next to the source file, or to `export.output_dir`.
+
+==============================================================================
+22. TIMERS AND NOTIFICATIONS                    *org-timers* *org-notifications*
+
+:Org timer_start        Start a relative timer.
+:Org timer_insert       Insert the timer value (in a list: `- 0:01:23 :: `).
+:Org timer_pause        Pause or continue.
+:Org timer_stop         Stop.
+:Org timer_countdown N  Countdown of N minutes, with a notification at the
+                        end.
+
+Appointment reminders (`notifications.enabled = true`, or
+`:Org notifications_start`): timed SCHEDULED, DEADLINE and plain timestamps
+from the agenda files trigger |vim.notify()| at each of `reminder_time`
+minutes before the start. With `system_notification`, osascript or
+notify-send is also used. Set `notifications.notifier = function(n) ... end`
+to deliver them yourself.
+
+==============================================================================
+23. COMPLETION                                                *org-completion*
+
+Completes:
+- TODO keywords after stars
+- tags after `:` on a headline or in `#+FILETAGS`
+- `#+` keywords, `#+STARTUP` and `#+OPTIONS` values, `#+begin_src`
+  languages
+- property and drawer names after `:` at the start of a line
+- link types, stored links, headlines (`[[*`) and custom IDs (`[[#`)
+
+omnifunc:    <C-x><C-o> (set automatically)
+blink.cmp: >lua
+    sources = {
+      per_filetype = { org = { inherit_defaults = true, "org" } },
+      providers = { org = { name = "Org", module = "org.completion.blink" } },
+    }
+<nvim-cmp: >lua
+    require("cmp").register_source("org", require("org.completion.cmp").new())
+<
+==============================================================================
+24. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
+
+Options under `ui`:
+  conceal_links          show only link descriptions (conceallevel=2)
+  hide_emphasis_markers  hide * / _ = ~ + around emphasized text
+  hide_leading_stars     show only the last star of each headline
+  bullets                list of symbols replacing the stars, per level
+  checkboxes             { unchecked, partial, checked } icons
+  indent_mode            virtual indentation (org-indent-mode)
+  pretty_entities        \alpha → α and similar
+  fontify_done_headline  dim DONE headlines
+  src_highlight          highlight src blocks with the language syntax
+  todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
+                         or a highlight table, or a group name
+
+Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
+  OrgHeadlineLevel1..8   (linked to the colorscheme's markdown headings)
+  OrgTodo OrgDone OrgHeadlineDone OrgHeadlineComment
+  OrgPriority OrgPriorityA OrgPriorityB OrgPriorityC OrgTags
+  OrgTimestamp OrgTimestampInactive OrgPlanning OrgClockDuration OrgClockSum
+  OrgDrawer OrgPropertyKey OrgPropertyValue OrgKeyword OrgKeywordValue
+  OrgTitle OrgComment OrgBlock OrgQuoteBlock OrgBlockDelimiter
+  OrgBold OrgItalic OrgUnderline OrgStrikethrough OrgVerbatim OrgCode
+  OrgLink OrgListBullet OrgListTerm OrgCheckbox OrgCheckboxChecked
+  OrgCheckboxPartial OrgStatistic OrgTable OrgTableSeparator OrgTableFormula
+  OrgFootnote OrgTarget OrgLatex OrgHorizontalRule OrgMacro
+  OrgHiddenStars OrgSparseMatch OrgAgenda*
+
+==============================================================================
+25. CONFIGURATION REFERENCE                                       *org-config*
+
+Every option and its default is listed in `lua/org/config.lua`. Lists
+replace the default, tables are merged, and `capture.templates` replaces the
+default template. Summary:
+
+General ~
+  org_directory             "~/org"   base for relative paths
+  agenda_files              { "~/org/**/*.org" }  files, dirs or globs
+  default_notes_file        "~/org/refile.org"
+  win_split_mode            "float"   special buffers: float|split|vsplit|
+                                      tab|current
+  win_border                "rounded"
+TODO and logging ~
+  todo_keywords             { "TODO(t) NEXT(n) | DONE(d)" }
+  todo_repeat_to_state      nil
+  enforce_todo_dependencies           false
+  enforce_todo_checkbox_dependencies  false
+  log_done                  "time"    false|"time"|"note"
+  log_repeat                "time"
+  log_reschedule            false     false|"time"|"note"
+  log_redeadline            false
+  log_into_drawer           "LOGBOOK" or false
+  log_states_order_reversed true
+Priorities, tags, properties ~
+  priority_highest/lowest/default     "A" / "C" / "B"
+  tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
+  tags_column               -77
+  use_tag_inheritance       true
+  tags_exclude_from_inheritance  {}
+  use_property_inheritance  false     true|false|{ names }
+  global_properties         {}
+  effort_property           "Effort"
+  columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
+Buffer ~
+  startup_folded            "overview"
+  adapt_indentation         false
+  edit_src_content_indentation  0
+  ellipsis                  " …"
+  blank_before_new_entry    { heading = "auto", plain_list_item = false }
+  deadline_warning_days     14
+  archive_location          "%s_archive::"
+  archive_save_context_info { "time", "file", "olpath", "category", "todo",
+                              "itags" }
+agenda ~
+  span "week", start_on_weekday 1, start_day nil ("-3d"),
+  skip_scheduled_if_done, skip_deadline_if_done,
+  skip_deadline_prewarning_if_scheduled, skip_scheduled_delay_if_deadline,
+  show_future_repeats (true|false|"next"),
+  todo_ignore_scheduled/deadlines/with_date,
+  time_grid { enabled, type, times, separator, time_string },
+  current_time_string, sorting { agenda, todo, tags, search },
+  window ("current"|"split"|"vsplit"|"tab"|"float"), log_mode_items,
+  habits { graph_column, preceding_days, following_days, show_habits,
+  show_all_today }, stuck_projects { match, todo_keywords, tags, text },
+  save_after_edit, block_separator, show_inherited_tags, remove_tags,
+  custom_commands
+capture ~
+  templates (|org-capture-templates|), window
+refile ~
+  max_level 3, use_outline_path "file", allow_creating_parent_nodes false,
+  include_current_file true
+clock ~
+  out_when_done true, into_drawer true, out_remove_zero_time true,
+  in_switch_to_state nil (keyword or function(headline)),
+  statusline_icon "⏱", clocktable_default { maxlevel, scope, block },
+  persist true, persist_file
+links ~
+  abbreviations {}, types {}, confirm_shell true,
+  use_id "create-if-interactive" (true|false|"use-existing"), file_apps {}
+id ~        locations_file, method "uuid"|"ts"
+attach ~    dir "data/", method "cp"|"mv"|"ln"
+babel ~
+  confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
+  default_header_args, languages
+export ~
+  output_dir, with_toc, with_section_numbers, headline_levels 3,
+  with_author, with_date, with_todo_keywords, with_tags, with_priority,
+  with_drawers, with_planning, with_timestamps, select_tags { "export" },
+  exclude_tags { "noexport" }, open_after_export, html { style,
+  head_extra, mathjax }, text_width 72, pandoc { cmd, args }
+notifications ~
+  enabled false, reminder_time { 10, 0 }, check_interval 60,
+  system_notification true, notifier nil
+ui ~        see |org-appearance|
+mappings ~  see |org-keymaps|
+
+==============================================================================
+26. KEYMAPS REFERENCE                                            *org-keymaps*
+
+Every mapping is `mappings.<section>.<action> = lhs | { lhs, ... } | false`.
+`<prefix>` expands to `mappings.prefix`. `mappings.disable_all = true` turns
+off every mapping.
+>lua
+    mappings = {
+      prefix = "<localleader>",
+      org = { toggle_checkbox = "<leader>x", open_at_point = "gx" },
+      agenda = { later = "L", earlier = "H" },
+    }
+<
+Section `global`: agenda, capture, store_link, goto_heading, clock_goto,
+clock_out, clock_cancel.
+
+Section `org` (default key: action):
+  g?  help                          <Tab>  cycle
+  <S-Tab>  global_cycle             <C-c><C-c>, <prefix><CR>  context_action
+  <CR>, gx, <prefix>o  open_at_point
+  <M-CR>  meta_return               <M-S-CR>  meta_shift_return
+  <prefix>ih  insert_heading        <prefix>it  insert_todo_heading
+  <prefix>is  insert_subheading     <prefix>id  insert_drawer
+  <prefix>ib  insert_structure_template  <prefix>if  insert_footnote
+  <<  promote_heading               >>  demote_heading
+  <s  promote_subtree               >s  demote_subtree
+  <M-h> <M-l> <M-k> <M-j>  meta_left/right/up/down
+  <M-H> <M-L> <M-K> <M-J>  shift_meta_left/right/up/down
+  <prefix>K / J  move_subtree_up / move_subtree_down
+  <prefix>hy hd hp hc  copy/cut/paste/clone_subtree
+  <prefix>hs  sort                  <prefix>hn  narrow_subtree
+  <prefix>hC  toggle_comment        <prefix>hA  toggle_archive_tag
+  <prefix>*  toggle_heading         <prefix>-  toggle_item
+  <prefix>E  emphasize              <prefix>hb  cycle_bullet
+  g{  goto_parent                   ]] [[  next/prev_heading
+  ][ []  next/prev_sibling          <prefix>.  buffer_goto
+  cit / ciT  todo_next / todo_prev  <prefix>T  todo_select
+  <S-Right>/<S-Left>  shift_right/shift_left
+  <S-Up>/<S-Down>  shift_up/shift_down
+  <C-a>/<C-x>  increment/decrement  <prefix>,  priority
+  <prefix>t  set_tags               <prefix>p / P  set/delete_property
+  <prefix>lI  id_get_create         <prefix>s / d  schedule / deadline
+  <prefix>i. / i!  timestamp / timestamp_inactive
+  <C-Space>  toggle_checkbox        <prefix>#  update_statistics
+  <prefix>xi xo xq xj xe  clock_in/out/cancel/goto, set_effort
+  <prefix>xr xd xu xU  clock_report, clock_display, dblock_update(_all)
+  <prefix>C  column_view
+  <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
+                          next/prev_link
+  <prefix>r  refile   <prefix>$  archive_subtree   <prefix>A  attach
+  <prefix>/  sparse_tree            <prefix>e  export
+  <prefix>Tc T- Tf Ts Tr TR Ti TI   table_create, table_insert_hline,
+      table_recalc, table_sort, table_insert/delete_row,
+      table_insert/delete_column
+  <prefix>'  edit_special
+  <prefix>be bb bs bt bk bn bp      babel_execute(_buffer/_subtree),
+      babel_tangle, babel_remove_result, babel_next/prev_block
+
+Section `org_insert`: meta_return <M-CR>, table_next_field <Tab>,
+table_prev_field <S-Tab>, table_next_row <CR>.
+Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
+ir, around_subtree ar.
+Section `agenda`: see |org-agenda|.
+Section `capture`: finalize, kill, refile.
+Section `edit_src`: save_exit, abort.
+
+==============================================================================
+27. COMMANDS                                                    *org-commands*
+
+                                                                        *:Org*
+:Org {action} [args]    Run any action by name (the names are those in
+                        |org-keymaps|). Without arguments, shows a picker.
+Additional subcommands:
+  :Org agenda [key|view]     :Org capture [key]
+  :Org export [format] [subtree] [body] [buffer] [open]
+  :Org tangle                :Org search {text}
+  :Org tags_search {match}   :Org todo_list [KEYWORD]
+  :Org clock_in_last         :Org refile_goto
+  :Org show_all | overview | content
+  :Org align_tags            :Org id_update_locations
+  :Org timer_start | timer_stop | timer_pause | timer_insert
+  :Org timer_countdown [min]
+  :Org notifications_start | notifications_stop
+
+==============================================================================
+28. LUA API                                                          *org-api*
+
+require("org").setup({opts})        configure (see |org-config|)
+require("org").agenda([key])        open the dispatcher or a view
+require("org").capture([key])       capture
+require("org").statusline()         clock string for statuslines
+require("org").action(name)         run an action (|org-keymaps|)
+
+Lower-level modules (stable within a major version):
+  org.parser    parse(lines, filename) → file with headlines, planning,
+                properties, clocks and timestamps
+  org.files     get(path), get_buffer(bufnr), agenda_files()
+  org.date      parse(), read_date(), Date:add(), Date:to_string()
+  org.todo      change_state(target, keyword)
+  org.clock     clock_in(target), clock_out(), active()
+  org.agenda.search  compile(match) → function(headline) → boolean
+  org.export    export(format, opts) → output path; to_string(format)
+  org.dblock    register(name, fn)
+
+Targets are `{ bufnr = n, lnum = l }`.
+
+==============================================================================
+29. IN-BUFFER SETTINGS                               *org-in-buffer-settings*
+
+  #+TITLE: #+AUTHOR: #+DATE: #+EMAIL:   export metadata
+  #+TODO: / #+SEQ_TODO: / #+TYP_TODO:   keyword sequences (replace config)
+  #+TAGS: work(w) home(h) { @a @b }     tag list, fast keys and groups
+  #+FILETAGS: :proj:                    tags inherited by every entry
+  #+CATEGORY: name                      category in the agenda
+  #+STARTUP: overview content showall showeverything nofold
+             logdone lognotedone nologdone logrepeat nologrepeat
+             logreschedule nologreschedule logredeadline ...
+  #+PROPERTY: NAME value                file-wide property; `NAME+` appends
+  #+PROPERTY: header-args:python :results output
+  #+COLUMNS: %25ITEM %TODO %Effort{:}   column view format
+  #+ARCHIVE: file::* Heading            archive location
+  #+LINK: gh https://github.com/%s      link abbreviation
+  #+PRIORITIES: A E C                   highest, lowest, default
+  #+OPTIONS: toc:2 num:nil ^:{}         export options
+  #+INCLUDE: "file.org"   #+MACRO: name text $1
+
+After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
+
+==============================================================================
+30. DIFFERENCES FROM EMACS                                   *org-differences*
+
+- Notes (state changes with `@`, agenda `z`) are single-line prompts rather
+  than a separate note buffer.
+- Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
+  is no symbolic math, no named fields ($name) and no #+CONSTANTS. Elisp
+  formulas `'(...)` are Lua expressions.
+- Babel has no sessions and no `:cache`. Export uses existing results and
+  never runs code. `elisp:` links and emacs-lisp blocks are not supported.
+- Not implemented:
+  - diary sexps `<%%(...)>`
+  - clock idle detection
+  - clocktable `:step`
+  - org-crypt, org-protocol, MobileOrg
+  - inline image and LaTeX previews
+  - datetree archive locations
+- Column view is a separate table buffer rather than overlays on the
+  headlines.
+- <M-CR> never splits the current line.
+- Minute increments step by 1 (Emacs rounds to 5).
+
+ vim:tw=78:ts=8:ft=help:norl:

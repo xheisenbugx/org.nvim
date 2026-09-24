@@ -74,7 +74,13 @@ function M.check()
 
   h.start("org.nvim completion")
   if pcall(require, "blink.cmp") then
-    h.info('blink.cmp detected: add provider `org = { name = "Org", module = "org.completion.blink" }`')
+    local ok_cfg, bcfg = pcall(require, "blink.cmp.config")
+    local provider = ok_cfg and bcfg.sources and bcfg.sources.providers and bcfg.sources.providers.org
+    if provider and provider.module == "org.completion.blink" then
+      h.ok("blink.cmp org source configured")
+    else
+      h.info('blink.cmp detected: add provider `org = { name = "Org", module = "org.completion.blink" }`')
+    end
   elseif pcall(require, "cmp") then
     h.info('nvim-cmp detected: register_source("org", require("org.completion.cmp").new())')
   else

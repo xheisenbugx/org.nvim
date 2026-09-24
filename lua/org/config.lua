@@ -134,7 +134,6 @@ M.defaults = {
     --- Save source buffers after editing them from the agenda.
     save_after_edit = true,
     block_separator = "─",
-    tag_filter_preset = nil,
     show_inherited_tags = true,
     remove_tags = false,
     custom_commands = {},
@@ -275,7 +274,6 @@ M.defaults = {
     enabled = false,
     --- Minutes before a timed scheduled/deadline entry to notify.
     reminder_time = { 10, 0 },
-    deadline_warning_reminder_time = false,
     check_interval = 60,
     --- Also use the OS notifier (osascript / notify-send) when available.
     system_notification = true,
@@ -461,7 +459,7 @@ M.defaults = {
       later = "f",
       earlier = "b",
       today = ".",
-      goto_date = "j",
+      goto_date = "gd", -- Emacs: j (kept free for motion)
       day_view = "vd",
       week_view = "vw",
       fortnight_view = "vt",
@@ -504,7 +502,7 @@ M.defaults = {
       bulk_action = "B",
       next_item = "n",
       prev_item = "p",
-      capture = "k",
+      capture = "c", -- Emacs: k (kept free for motion)
       export = "E",
       help = "g?",
     },
