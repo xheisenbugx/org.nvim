@@ -328,6 +328,118 @@ function M.cycle()
 end
 
 ---------------------------------------------------------------------------
+-- Subtree visibility commands
+---------------------------------------------------------------------------
+
+--- Headline at the cursor (the one whose section contains it).
+local function headline_at_cursor()
+  return file():headline_at(vim.api.nvim_win_get_cursor(0)[1])
+end
+
+--- Open `hl` (and its ancestors), show descendants down to `depth` levels
+--- below it and fold the rest. Leaves are folded at any depth, so only
+--- headlines stay visible - except the text of entries that have visible
+--- children, which Vim folds cannot hide separately.
+local function show_descendants(hl, depth)
+  pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+  local function walk(h, rel)
+    if rel > 0 and (rel >= depth or #h.children == 0) then
+      if has_fold(h) then
+        close_at(h.line)
+      end
+      return
+    end
+    close_drawers(h.line, h.body_end)
+    for _, ch in ipairs(h.children) do
+      walk(ch, rel + 1)
+    end
+  end
+  walk(hl, 0)
+end
+
+--- Show all headlines of the current subtree, folding their bodies
+--- (org-kill-note-or-show-branches outside capture / outline-show-branches).
+function M.show_branches()
+  local hl = headline_at_cursor()
+  if not hl then
+    return false
+  end
+  show_descendants(hl, math.huge)
+end
+
+--- Show the direct children of the current headline, folded
+--- (org-show-children). With a count N, show N levels.
+function M.show_children()
+  local hl = headline_at_cursor()
+  if not hl then
+    return false
+  end
+  show_descendants(hl, math.max(vim.v.count, 1))
+end
+
+--- Make the context around the cursor visible (org-reveal): open the
+--- folds hiding the cursor so the headline path and its siblings show, and
+--- the current entry's own text. With a count, show the parent's whole
+--- subtree.
+---@param whole_parent? boolean defaults to `vim.v.count > 0`
+function M.reveal(whole_parent)
+  if whole_parent == nil then
+    whole_parent = vim.v.count > 0
+  end
+  vim.cmd("normal! zv")
+  local hl = headline_at_cursor()
+  if not hl then
+    return
+  end
+  if whole_parent then
+    local top = hl.parent or hl
+    pcall(vim.cmd, top.line .. "," .. top.end_line .. "foldopen!")
+    close_drawers(top.line, top.end_line)
+    return
+  end
+  if has_fold(hl) and lnum_closed(hl.line) then
+    open_at(hl.line)
+    for _, ch in ipairs(hl.children) do
+      if has_fold(ch) then
+        close_at(ch.line)
+      end
+    end
+    close_drawers(hl.line, hl.body_end)
+  end
+end
+
+--- Copy the visible text (closed folds contribute only their first line)
+--- of the buffer, or of the lines of the visual selection, into the
+--- unnamed and `+` registers (org-copy-visible).
+function M.copy_visible()
+  local s, e = 1, vim.api.nvim_buf_line_count(0)
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" or mode == "\22" then
+    local srow, _, erow = require("org.utils").visual_range()
+    s, e = srow, erow
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  end
+  local out = {}
+  local lnum = s
+  while lnum <= e do
+    local fc = vim.fn.foldclosed(lnum)
+    if fc == -1 then
+      out[#out + 1] = vim.fn.getline(lnum)
+      lnum = lnum + 1
+    else
+      if fc == lnum then
+        out[#out + 1] = vim.fn.getline(lnum)
+      end
+      lnum = vim.fn.foldclosedend(lnum) + 1
+    end
+  end
+  vim.fn.setreg('"', out, "l")
+  pcall(vim.fn.setreg, "+", out, "l")
+  require("org.utils").notify(string.format("Copied %d visible line(s)", #out))
+  return out
+end
+
+---------------------------------------------------------------------------
 -- Setup
 ---------------------------------------------------------------------------
 

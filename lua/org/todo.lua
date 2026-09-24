@@ -303,7 +303,8 @@ function M.select(target)
       end
       for _, kw in ipairs(seq) do
         if kw.key then
-          items[#items + 1] = { key = kw.key, label = kw.name .. (kw.name == hl.todo and "  (current)" or ""), value = kw.name }
+          items[#items + 1] =
+            { key = kw.key, label = kw.name .. (kw.name == hl.todo and "  (current)" or ""), value = kw.name }
         end
       end
     end
@@ -321,6 +322,20 @@ function M.select(target)
     return nil
   end
   return M.change_state({ bufnr = bufnr, lnum = hl.line }, choice ~= "" and choice or nil)
+end
+
+--- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
+--- fast selection when keywords define keys, otherwise cycle to the next
+--- state.
+function M.select_or_cycle(target)
+  local bufnr, file = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  if file.settings.todo.has_fast_keys then
+    return M.select(target)
+  end
+  return M.cycle_next(target)
 end
 
 --- Add a note to the entry (org-add-note).

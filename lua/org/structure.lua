@@ -708,7 +708,8 @@ function M.sort()
   local items = {}
   for _, it in ipairs(SORT_ITEMS) do
     items[#items + 1] = { key = it.key, label = it.label, value = { kind = it.kind, reverse = false } }
-    items[#items + 1] = { key = it.key:upper(), label = it.label .. " (reverse)", value = { kind = it.kind, reverse = true } }
+    items[#items + 1] =
+      { key = it.key:upper(), label = it.label .. " (reverse)", value = { kind = it.kind, reverse = true } }
   end
   local choice = require("org.ui").menu({ title = on_item and "Sort list" or "Sort entries", items = items })
   if not choice then
@@ -784,21 +785,38 @@ end
 -- Narrowing
 ---------------------------------------------------------------------------
 
-function M.narrow_subtree()
+local function narrow(window)
   local bufnr = buf()
   local hl = current_headline()
   if not hl then
     utils.warn("Not in a subtree")
     return
   end
-  require("org.special").open({
+  return require("org.special").open({
     source_buf = bufnr,
     start_line = hl.line,
     end_line = hl.end_line,
     lines = get_lines(bufnr, hl.line, hl.end_line),
     filetype = "org",
     name = "narrow " .. hl:plain_title(),
+    window = window,
   })
+end
+
+function M.narrow_subtree()
+  narrow()
+end
+
+--- Edit the current subtree in a split window (org-tree-to-indirect-buffer).
+--- Uses `win_split_mode` when it is a split / tab, otherwise a horizontal
+--- split. The buffer is an edit buffer like `narrow_subtree`: `:w` or the
+--- save mapping writes it back.
+function M.tree_to_indirect_buffer()
+  local mode = config.opts.win_split_mode
+  if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" then
+    mode = "split"
+  end
+  return narrow(mode)
 end
 
 ---------------------------------------------------------------------------
@@ -1048,6 +1066,46 @@ function M.select_heading(inner)
   else
     select_lines(hl.line, hl.body_end)
   end
+end
+
+--- Visually select the current subtree, linewise (org-mark-subtree). A
+--- count selects that many sibling subtrees; in visual mode the selection
+--- is extended to the next sibling subtree.
+function M.mark_subtree()
+  local file = files.get_buffer(0)
+  local start, stop
+  if in_visual() then
+    local srow, _, erow = utils.visual_range()
+    local hl = file:headline_at(srow)
+    if not hl then
+      return false
+    end
+    local sibs = siblings(hl)
+    local last
+    for i = sibling_index(hl), #sibs do
+      last = sibs[i]
+      if sibs[i].end_line > erow then
+        break
+      end
+    end
+    start, stop = hl.line, last.end_line
+  else
+    local hl = file:headline_at(cursor()[1])
+    if not hl then
+      return false
+    end
+    local sibs = siblings(hl)
+    local idx = sibling_index(hl)
+    local last = sibs[math.min(idx + math.max(vim.v.count, 1) - 1, #sibs)] or hl
+    start, stop = hl.line, last.end_line
+  end
+  local fc = vim.fn.foldclosed(start)
+  if fc ~= -1 and fc ~= start then
+    -- inside a closed ancestor: linewise Visual would grab the whole fold
+    vim.api.nvim_win_set_cursor(0, { start, 0 })
+    vim.cmd("normal! zv")
+  end
+  select_lines(start, stop)
 end
 
 --- Select the current subtree. `inner` excludes the headline.

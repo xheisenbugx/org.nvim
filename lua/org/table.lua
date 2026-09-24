@@ -849,6 +849,505 @@ function M.rows_to_lines(rows, indent)
 end
 
 ---------------------------------------------------------------------------
+-- Field commands (Emacs C-c =, C-c `, C-c +, C-c SPC, C-c ?, regions ...)
+---------------------------------------------------------------------------
+
+--- Data-line number (Emacs `@N`, hlines not counted) of table row `row`.
+local function dline(t, row)
+  local n = 0
+  for i = 1, row do
+    if not t.rows[i].hline then
+      n = n + 1
+    end
+  end
+  return n
+end
+
+--- Emacs-style column letter (A, B, ..., Z, AA, ...) for column `c`.
+local function col_letter(c)
+  local s = ""
+  while c > 0 do
+    local r = (c - 1) % 26
+    s = string.char(65 + r) .. s
+    c = math.floor((c - 1) / 26)
+  end
+  return s
+end
+
+local function escape_cell(s)
+  return (s:gsub("\n", " "):gsub("|", "\\vert{}"))
+end
+
+--- Table at cursor with rows padded, plus cursor row/field/offset.
+local function current_field()
+  local info = M.at_cursor()
+  if not info then
+    return nil
+  end
+  local row, field, offset = cursor_pos(info)
+  pad_rows(info.tbl)
+  return info, row, math.min(field, info.tbl.ncols), offset
+end
+
+--- Individual `lhs=rhs` formulas of the #+TBLFM lines, verbatim.
+local function formula_parts(bufnr, info)
+  local parts = {}
+  for part in (read_formulas(bufnr, info) .. "::"):gmatch("(.-)::") do
+    part = vim.trim(part)
+    if part ~= "" then
+      parts[#parts + 1] = part
+    end
+  end
+  return parts
+end
+
+--- Index of the formula whose target is exactly `lhs`, or nil.
+local function find_formula(parts, lhs)
+  for i, p in ipairs(parts) do
+    if vim.trim(p:match("^(.-)=") or "") == lhs then
+      return i
+    end
+  end
+end
+
+--- Replace the #+TBLFM lines of table `info` (creating/removing them).
+local function write_formulas(bufnr, info, parts)
+  local indent = info.lines[1]:match("^(%s*)")
+  local new = #parts > 0 and { indent .. "#+TBLFM: " .. table.concat(parts, "::") } or {}
+  if #info.tblfm == 0 then
+    vim.api.nvim_buf_set_lines(bufnr, info.finish, info.finish, false, new)
+  else
+    vim.api.nvim_buf_set_lines(bufnr, info.tblfm[1] - 1, info.tblfm[#info.tblfm], false, new)
+  end
+end
+
+--- Put the cursor back on `row`/`field` of the table starting at `start`.
+local function restore_cursor(start, row, field)
+  local info = M.find(0, start)
+  if info then
+    set_cursor(info, info.lines, row, field, 0)
+  end
+end
+
+--- Set (or remove, on empty input) the formula of the current column in
+--- #+TBLFM and recalculate. With a count (or `field_formula` = true) the
+--- formula is a field formula `@R$C=` instead. Emacs `C-c =` / `C-u C-c =`
+--- (org-table-eval-formula).
+---@param field_formula? boolean
+function M.eval_formula(field_formula)
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.warn("Not in a table data field")
+    return
+  end
+  if field_formula == nil then
+    field_formula = vim.v.count > 0
+  end
+  local lhs = field_formula and ("@" .. dline(t, row) .. "$" .. field) or ("$" .. field)
+  local parts = formula_parts(0, info)
+  local idx = find_formula(parts, lhs)
+  local default = idx and parts[idx]:match("^.-=%s*(.*)$") or ""
+  local rhs = utils.input({
+    prompt = (field_formula and "Field" or "Column") .. " formula " .. lhs .. "=",
+    default = default,
+  })
+  if rhs == nil then
+    return
+  end
+  rhs = vim.trim(rhs)
+  if rhs == "" then
+    if not idx then
+      return
+    end
+    table.remove(parts, idx)
+  elseif idx then
+    parts[idx] = lhs .. "=" .. rhs
+  else
+    parts[#parts + 1] = lhs .. "=" .. rhs
+  end
+  write_formulas(0, info, parts)
+  M.recalc(0, info.start)
+  restore_cursor(info.start, row, field)
+end
+
+--- Edit the full content of the current field in a prompt, then realign.
+--- Emacs `C-c `` (org-table-edit-field).
+function M.edit_field()
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.warn("Not in a table data field")
+    return
+  end
+  local value = utils.input({
+    prompt = string.format("Field @%d$%d: ", dline(t, row), field),
+    default = t.rows[row].cells[field],
+  })
+  if value == nil then
+    return
+  end
+  t.rows[row].cells[field] = escape_cell(vim.trim(value))
+  local lines = write_table(info, t)
+  set_cursor(info, lines, row, field, 0)
+end
+
+local function in_visual()
+  local m = vim.fn.mode()
+  return m == "v" or m == "V" or m == "\22"
+end
+
+--- Rectangle of fields to act on: the visual selection (visual mode is
+--- left) or, in normal mode, the current field (or the whole current
+--- column when `whole_column`).
+---@return table|nil info, integer[] rows (table row indices, hlines skipped), integer c1, integer c2
+local function selected_rect(whole_column)
+  local visual = in_visual()
+  local srow, scol, erow, ecol, mode
+  if visual then
+    srow, scol, erow, ecol, mode = utils.visual_range()
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  end
+  local info, row, field = current_field()
+  if not info then
+    return nil
+  end
+  local t = info.tbl
+  local r1, r2, c1, c2
+  if visual then
+    local function fld(lnum, col, fallback)
+      if lnum < info.start or lnum > info.finish or mode == "V" then
+        return fallback
+      end
+      local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1]
+      return math.max(1, math.min((field_at(line, col)), t.ncols))
+    end
+    c1, c2 = fld(srow, scol, 1), fld(erow, ecol, t.ncols)
+    if c1 > c2 then
+      c1, c2 = c2, c1
+    end
+    r1 = math.max(srow, info.start) - info.start + 1
+    r2 = math.min(erow, info.finish) - info.start + 1
+  elseif whole_column then
+    r1, r2, c1, c2 = 1, #t.rows, field, field
+  else
+    r1, r2, c1, c2 = row, row, field, field
+  end
+  local rows = {}
+  for r = r1, r2 do
+    if not t.rows[r].hline then
+      rows[#rows + 1] = r
+    end
+  end
+  return info, rows, c1, c2
+end
+
+--- Sum the numbers (and H:MM[:SS] durations) of the current column, or of
+--- the fields in the visual selection. Rows above the first hline (the
+--- header) are skipped in the whole-column case. The result is shown and
+--- stored in the unnamed register. Emacs `C-c +` (org-table-sum).
+function M.sum()
+  local visual = in_visual()
+  local info, rows, c1, c2 = selected_rect(true)
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  local first = 1
+  if not visual then
+    for i, r in ipairs(t.rows) do
+      if r.hline then
+        if i > 1 and i < #t.rows then
+          first = i + 1
+        end
+        break
+      end
+    end
+  end
+  local formula = require("org.table.formula")
+  local total, count, time, seconds = 0, 0, false, false
+  for _, r in ipairs(rows) do
+    if r >= first then
+      for c = c1, c2 do
+        local v = vim.trim(t.rows[r].cells[c] or "")
+        local secs = formula._parse_duration(v)
+        if secs then
+          time = true
+          seconds = seconds or select(2, v:gsub(":", "")) > 1
+          total, count = total + secs, count + 1
+        else
+          local n = tonumber(v) or tonumber((v:gsub("^%+", "")))
+          if n and v ~= "" then
+            total, count = total + n, count + 1
+          end
+        end
+      end
+    end
+  end
+  local s
+  if time then
+    s = formula._format_duration(total, seconds)
+  elseif total == math.floor(total) and math.abs(total) < 1e15 then
+    s = string.format("%d", total)
+  else
+    s = string.format("%.12g", total)
+  end
+  vim.fn.setreg('"', s)
+  utils.notify(string.format("Sum of %d items: %s", count, s))
+  return s
+end
+
+--- Blank the current field (or every field in the visual selection) and
+--- realign. Emacs `C-c SPC` (org-table-blank-field).
+function M.blank_field()
+  local info, rows, c1, c2 = selected_rect(false)
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  for _, r in ipairs(rows) do
+    for c = c1, c2 do
+      t.rows[r].cells[c] = ""
+    end
+  end
+  local row, field = cursor_pos(info)
+  local lines = write_table(info, t)
+  set_cursor(info, lines, row, math.min(field, t.ncols), 0)
+end
+
+--- Insert an hline below the current row and move to the first field of
+--- the row after it, creating that row when the table ends there or
+--- another hline follows. With a count (or `same_column`) keep the column.
+--- Emacs `C-c RET` (org-table-hline-and-move).
+---@param same_column? boolean
+function M.hline_and_move(same_column)
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  if same_column == nil then
+    same_column = vim.v.count > 0
+  end
+  local t = info.tbl
+  table.insert(t.rows, row + 1, { hline = true })
+  local target = row + 2
+  if not t.rows[target] or t.rows[target].hline then
+    table.insert(t.rows, target, empty_row(t.ncols))
+  end
+  local lines = write_table(info, t)
+  set_cursor(info, lines, target, same_column and field or 1, 0)
+end
+
+--- Show the reference of the current field and the formula applying to
+--- it. Emacs `C-c ?` (org-table-field-info).
+function M.field_info()
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.notify("Not in a table data field")
+    return
+  end
+  local dl = dline(t, row)
+  local ref = "@" .. dl .. "$" .. field
+  local msg = string.format("line @%d, col $%d, ref %s or %s%d", dl, field, ref, col_letter(field), dl)
+  local parts = formula_parts(0, info)
+  local idx = find_formula(parts, ref)
+  if not idx then
+    -- column formulas apply below the first hline (or to all rows without one)
+    local first_hline = 0
+    for i, r in ipairs(t.rows) do
+      if r.hline and i > 1 then
+        first_hline = i
+        break
+      end
+    end
+    if row > first_hline then
+      idx = find_formula(parts, "$" .. field)
+    end
+  end
+  if idx then
+    msg = msg .. ", formula: " .. parts[idx]
+  end
+  utils.notify(msg)
+  return msg
+end
+
+---------------------------------------------------------------------------
+-- Coordinate overlays (Emacs C-c })
+---------------------------------------------------------------------------
+
+local coord_ns = vim.api.nvim_create_namespace("org.table.coordinates")
+
+--- Toggle virtual text showing row (`@N`) and column (`$N`) references on
+--- the table at the cursor. Emacs `C-c }`
+--- (org-table-toggle-coordinate-overlays).
+function M.toggle_coordinate_overlays()
+  local bufnr = vim.api.nvim_get_current_buf()
+  if #vim.api.nvim_buf_get_extmarks(bufnr, coord_ns, 0, -1, { limit = 1 }) > 0 then
+    vim.api.nvim_buf_clear_namespace(bufnr, coord_ns, 0, -1)
+    return
+  end
+  local info = M.at_cursor()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  local n = 0
+  for i, r in ipairs(t.rows) do
+    local lnum = info.start + i - 1
+    if not r.hline then
+      n = n + 1
+      vim.api.nvim_buf_set_extmark(bufnr, coord_ns, lnum - 1, 0, {
+        virt_text = { { "@" .. n, "OrgTableFormula" } },
+        virt_text_pos = "eol",
+      })
+    end
+  end
+  -- column labels above the first row, each over its field
+  local line = info.lines[1]
+  local pipes = pipe_positions(line)
+  local label = ""
+  for c = 1, t.ncols do
+    local p = pipes[c]
+    if not p then
+      break
+    end
+    local col = vim.fn.strdisplaywidth(line:sub(1, p)) + 1
+    local text = "$" .. c
+    label = label .. string.rep(" ", math.max(col - vim.fn.strdisplaywidth(label), c > 1 and 1 or 0)) .. text
+  end
+  vim.api.nvim_buf_set_extmark(bufnr, coord_ns, info.start - 1, 0, {
+    virt_lines = { { { label, "OrgTableFormula" } } },
+    virt_lines_above = true,
+  })
+end
+
+---------------------------------------------------------------------------
+-- Rectangles (Emacs C-c C-x M-w / C-w / C-y)
+---------------------------------------------------------------------------
+
+--- Last copied/cut rectangle: list of rows of cells.
+---@type string[][]|nil
+M.clipboard = nil
+
+local function copy_rect(t, rows, c1, c2)
+  local out = {}
+  for _, r in ipairs(rows) do
+    local cells = {}
+    for c = c1, c2 do
+      cells[#cells + 1] = t.rows[r].cells[c] or ""
+    end
+    out[#out + 1] = cells
+  end
+  return out
+end
+
+--- Copy the fields of the visual selection (or the current field) into the
+--- table clipboard. Emacs `C-c C-x M-w` (org-table-copy-region).
+function M.copy_region()
+  local info, rows, c1, c2 = selected_rect(false)
+  if not info then
+    return false
+  end
+  M.clipboard = copy_rect(info.tbl, rows, c1, c2)
+end
+
+--- Copy the selected fields (or the current field) into the table
+--- clipboard and blank them. Emacs `C-c C-x C-w` (org-table-cut-region).
+function M.cut_region()
+  local info, rows, c1, c2 = selected_rect(false)
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  M.clipboard = copy_rect(t, rows, c1, c2)
+  for _, r in ipairs(rows) do
+    for c = c1, c2 do
+      t.rows[r].cells[c] = ""
+    end
+  end
+  local lines = write_table(info, t)
+  set_cursor(info, lines, rows[1] or 1, c1, 0)
+end
+
+--- Paste the table clipboard with its top-left corner at the current field,
+--- overwriting fields and adding rows/columns as needed (hlines are
+--- skipped). Emacs `C-c C-x C-y` (org-table-paste-rectangle).
+function M.paste_rectangle()
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  if not M.clipboard or #M.clipboard == 0 then
+    utils.warn("First cut/copy a region to paste")
+    return
+  end
+  local t = info.tbl
+  local r = row
+  while t.rows[r] and t.rows[r].hline do
+    r = r + 1
+  end
+  local first = r
+  for i, cells in ipairs(M.clipboard) do
+    if i > 1 then
+      r = r + 1
+      while t.rows[r] and t.rows[r].hline do
+        r = r + 1
+      end
+    end
+    if not t.rows[r] then
+      t.rows[r] = empty_row(t.ncols)
+    end
+    if field + #cells - 1 > t.ncols then
+      t.ncols = field + #cells - 1
+      pad_rows(t)
+    end
+    for j, v in ipairs(cells) do
+      t.rows[r].cells[field + j - 1] = v
+    end
+  end
+  local lines = write_table(info, t)
+  set_cursor(info, lines, first, field, 0)
+end
+
+--- Recalculate every table with #+TBLFM formulas in the buffer, iterating
+--- until the results are stable (at most 10 passes). Emacs `C-u C-u C-c *`
+--- (org-table-iterate-buffer-tables).
+function M.recalc_buffer(bufnr)
+  bufnr = (type(bufnr) == "number" and bufnr) or 0
+  for _ = 1, 10 do
+    local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local l = 1
+    while l <= vim.api.nvim_buf_line_count(bufnr) do
+      local line = vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1]
+      local info = is_table_line(line) and M.find(bufnr, l)
+      if info then
+        if #info.tblfm > 0 then
+          M.recalc(bufnr, l)
+          info = M.find(bufnr, l)
+        end
+        l = (info.tblfm[#info.tblfm] or info.finish) + 1
+      else
+        l = l + 1
+      end
+    end
+    if vim.deep_equal(before, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) then
+      return
+    end
+  end
+  utils.warn("Table formulas did not converge after 10 iterations")
+end
+
+---------------------------------------------------------------------------
 -- Buffer attach
 ---------------------------------------------------------------------------
 

@@ -53,11 +53,13 @@ function M.setup_global()
   if maps.disable_all then
     return
   end
-  for name, value in pairs(maps.global or {}) do
-    local a = actions.list[name]
-    if a then
-      for _, lhs in ipairs(config.lhs_list(value)) do
-        set("n", lhs, wrap(name, lhs, "n"), { desc = "org: " .. a.desc })
+  for _, section in ipairs({ maps.global or {}, maps.emacs_global or {} }) do
+    for name, value in pairs(section) do
+      local a = actions.list[name]
+      if a then
+        for _, lhs in ipairs(config.lhs_list(value)) do
+          set("n", lhs, wrap(name, lhs, "n"), { desc = "org: " .. a.desc })
+        end
       end
     end
   end
@@ -82,11 +84,26 @@ function M.attach(bufnr)
       end
     end
   end
-  for name, value in pairs(maps.org_insert or {}) do
+  -- Emacs keys: the action's non-insert modes (insert mode has its own section)
+  for name, value in pairs(maps.emacs or {}) do
     local a = actions.list[name]
     if a then
       for _, lhs in ipairs(config.lhs_list(value)) do
-        set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = "org: " .. a.desc })
+        for _, mode in ipairs(a.modes or { "n" }) do
+          if mode ~= "i" then
+            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc })
+          end
+        end
+      end
+    end
+  end
+  for _, section in ipairs({ maps.org_insert or {}, maps.emacs_insert or {} }) do
+    for name, value in pairs(section) do
+      local a = actions.list[name]
+      if a then
+        for _, lhs in ipairs(config.lhs_list(value)) do
+          set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = "org: " .. a.desc })
+        end
       end
     end
   end
@@ -145,7 +162,12 @@ function M.show_help()
       end
     end
   else
-    for _, tbl in ipairs({ maps.global or {}, maps.org or {}, maps.org_insert or {} }) do
+    local sections = { maps.global, maps.org, maps.org_insert, maps.emacs_global, maps.emacs, maps.emacs_insert }
+    for _, tbl in
+      ipairs(vim.tbl_map(function(t)
+        return t or {}
+      end, sections))
+    do
       for name, value in pairs(tbl) do
         local a = actions.list[name]
         local lhs = table.concat(config.lhs_list(value), ", ")

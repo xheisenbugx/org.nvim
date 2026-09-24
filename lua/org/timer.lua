@@ -99,6 +99,38 @@ function M.insert()
   return true
 end
 
+--- Insert a description list item with the timer value, "- 0:12:34 :: "
+--- (org-timer-item). On a list item, the new item goes below it with the
+--- same indentation and bullet; otherwise it replaces an empty line or goes
+--- below the current line. Starts the timer when not running.
+function M.insert_item()
+  if not M.state then
+    M.start()
+  end
+  local value = M.format(M.elapsed())
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_get_current_line()
+  local indent, bullet = line:match("^(%s*)([-+*])%s")
+  if not indent then
+    indent, bullet = line:match("^(%s*)(%d+[.)])%s")
+  end
+  if not bullet or (indent == "" and bullet == "*") then
+    indent, bullet = line:match("^(%s*)") or "", "-"
+  elseif bullet:match("%d") then
+    bullet = "-"
+  end
+  local new = indent .. bullet .. " " .. value .. " :: "
+  if line:match("^%s*$") then
+    vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { new })
+  else
+    vim.api.nvim_buf_set_lines(0, lnum, lnum, false, { new })
+    lnum = lnum + 1
+  end
+  vim.api.nvim_win_set_cursor(0, { lnum, #new })
+  vim.cmd("startinsert!")
+  return true
+end
+
 --- Start a countdown of `args` minutes (prompted when empty).
 function M.countdown(args)
   local minutes = tonumber(args)

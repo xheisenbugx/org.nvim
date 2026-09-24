@@ -273,6 +273,19 @@ marked *(ctx)* depend on what's under the cursor. When they don't apply,
 they fall back to the normal Vim behaviour (`>>` still indents plain text,
 `<C-a>` still increments numbers).
 
+### Emacs keys
+
+Coming from Emacs? The standard Org keys work out of the box, on top of
+the Vim-style ones: `C-c C-t`, `C-RET` / `C-S-RET`, `C-c C-s` / `C-c C-d`,
+`C-c .`, `C-c C-q`, `C-c C-w`, `C-c C-x C-i` / `C-c C-x C-o`, `C-c C-l`,
+`C-c C-e`, `C-c '`, `C-c C-v e`, `C-c =`, `C-c -`, `C-c ^` and about 90 more.
+Context-sensitive keys behave as in Emacs (`C-c -` adds an hline in a table,
+cycles a bullet on an item and toggles an item elsewhere). Use a count in
+place of `C-u`: `4<C-c>.` inserts a timestamp with the time.
+
+The full list is in `:h org-emacs-keys`. Turn them off with
+`mappings = { emacs = false, emacs_insert = false, emacs_global = false }`.
+
 ### Global
 
 | Key | Action |

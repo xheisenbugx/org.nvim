@@ -321,6 +321,94 @@ function M.shift_down()
   return false
 end
 
+--- C-S-<Right>/<Left>: switch to the next/previous TODO keyword set.
+function M.shift_control_right()
+  local _, _, line = cur()
+  if not is_headline(line) then
+    return false
+  end
+  return require("org.todo").next_sequence(nil, 1)
+end
+
+function M.shift_control_left()
+  local _, _, line = cur()
+  if not is_headline(line) then
+    return false
+  end
+  return require("org.todo").next_sequence(nil, -1)
+end
+
+local function in_visual()
+  return vim.fn.mode():match("^[vV\22]") ~= nil
+end
+
+--- C-c *: recalculate a table, else toggle heading.
+function M.ctrl_c_star()
+  local lnum, _, line = cur()
+  if in_table(line) then
+    if vim.v.count >= 16 then
+      return require("org.table").recalc_buffer(0)
+    end
+    return require("org.table").recalc(0, lnum)
+  end
+  return require("org.structure").toggle_heading()
+end
+
+--- C-c -: table hline, else cycle the bullet of an item, else toggle item.
+function M.ctrl_c_minus()
+  local lnum, _, line = cur()
+  if in_table(line) then
+    return require("org.table").insert_hline()
+  end
+  if not in_visual() and not is_headline(line) and list_item(lnum) then
+    return require("org.lists").cycle_bullet(1)
+  end
+  return require("org.lists").toggle_item()
+end
+
+--- C-c RET: hline and move in a table, else insert a heading.
+function M.ctrl_c_ret()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").hline_and_move(vim.v.count > 0)
+  end
+  return require("org.structure").insert_heading()
+end
+
+--- C-c C-x M-w / C-w / C-y: table rectangle in tables, else subtree.
+function M.copy_special()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").copy_region()
+  end
+  return require("org.structure").copy_subtree()
+end
+
+function M.cut_special()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").cut_region()
+  end
+  return require("org.structure").cut_subtree()
+end
+
+function M.paste_special()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").paste_rectangle()
+  end
+  return require("org.structure").paste_subtree()
+end
+
+--- C-c ^: sort a table column, else sort entries or list items.
+function M.ctrl_c_caret()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").sort_column()
+  end
+  return require("org.structure").sort()
+end
+
 function M.shift_right()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(count(), "d")

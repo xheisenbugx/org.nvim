@@ -11,9 +11,22 @@ local M = {}
 M.DEFAULT_EFFORTS = { "0:05", "0:10", "0:15", "0:30", "0:45", "1:00", "1:30", "2:00", "3:00", "4:00", "6:00", "8:00" }
 
 local SPECIAL = {
-  ITEM = true, TODO = true, PRIORITY = true, TAGS = true, ALLTAGS = true, CATEGORY = true,
-  LEVEL = true, FILE = true, SCHEDULED = true, DEADLINE = true, CLOSED = true, TIMESTAMP = true,
-  TIMESTAMP_IA = true, CLOCKSUM = true, CLOCKSUM_T = true, BLOCKED = true,
+  ITEM = true,
+  TODO = true,
+  PRIORITY = true,
+  TAGS = true,
+  ALLTAGS = true,
+  CATEGORY = true,
+  LEVEL = true,
+  FILE = true,
+  SCHEDULED = true,
+  DEADLINE = true,
+  CLOSED = true,
+  TIMESTAMP = true,
+  TIMESTAMP_IA = true,
+  CLOCKSUM = true,
+  CLOCKSUM_T = true,
+  BLOCKED = true,
 }
 
 local function collect_files(bufnr)
@@ -175,6 +188,21 @@ function M.set_effort(target, value)
   end
   edit.set_property(bufnr, hl.line, prop, value)
   return value
+end
+
+--- Toggle the ORDERED property of the entry (org-toggle-ordered-property):
+--- set it to `t`, or remove it when already set.
+--- Returns true when handled (never false, so the key does not fall back).
+function M.toggle_ordered(target)
+  local bufnr, _, hl = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  local v = hl.properties.ORDERED
+  local ordered = not (v ~= nil and v ~= "" and v:lower() ~= "nil")
+  edit.set_property(bufnr, hl.line, "ORDERED", ordered and "t" or nil)
+  utils.notify(ordered and "Subtasks must be completed in sequence" or "Subtasks can be completed in arbitrary order")
+  return true
 end
 
 --- Effort of a headline in minutes, or nil.

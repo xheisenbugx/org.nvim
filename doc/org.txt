@@ -1001,6 +1001,83 @@ Section `org` (default key: action):
 
 Section `org_insert`: meta_return <M-CR>, table_next_field <Tab>,
 table_prev_field <S-Tab>, table_next_row <CR>.
+                                                          *org-emacs-keys*
+Sections `emacs`, `emacs_insert` and `emacs_global` add Emacs Org's own
+keys (org-mode-map) on top of the Vim-style keys, so muscle memory from
+Emacs works unchanged. Set a section to `false` to turn it off: >lua
+    mappings = { emacs = false, emacs_insert = false, emacs_global = false }
+<
+C-c prefixed keys are normal-mode only (in Insert mode <C-c> still leaves
+Insert mode). Keys marked (ctx) depend on the cursor, like in Emacs.
+A count stands in for C-u (e.g. `4<C-c>.` is `C-u C-c .`).
+
+Global (emacs_global):
+  <C-c>a  agenda        <C-c>c  capture        <C-c>l  store_link
+
+Structure and visibility:
+  <C-CR>           insert_heading (after the subtree; also Insert mode)
+  <C-S-CR>         insert_todo_heading (also Insert mode)
+  <C-c><CR>        (ctx) table: hline and move; else insert heading
+  <C-c>*           (ctx) table: recalculate (count 16: all tables);
+                   else toggle heading
+  <C-c>-           (ctx) table: hline; item: cycle bullet; else toggle item
+  <C-c>^           (ctx) sort table column / entries / list items
+  <C-c>;           toggle COMMENT       <C-c>@  mark (select) subtree
+  <C-c><C-,>       structure template   <C-c><C-x>d  insert drawer
+  <C-c><C-x>f      footnote             <C-c><C-x><C-f>  emphasize (Visual)
+  <C-c><C-x>c      clone subtree        <C-c><C-x>b  subtree in a split
+  <C-c><C-x><M-w>  (ctx) copy table region / subtree
+  <C-c><C-x><C-w>  (ctx) cut table region / subtree
+  <C-c><C-x><C-y>  (ctx) paste table rectangle / subtree
+  <C-c><C-k>       show branches        <C-c><Tab>  show children
+  <C-c><C-r>       reveal context       <C-c><C-x>v  copy visible text
+  <C-c><C-n> <C-p> next / previous heading
+  <C-c><C-f> <C-b> next / previous sibling
+  <C-c><C-u>       parent heading       <C-c><C-j>  go to heading
+
+TODO, tags, properties:
+  <C-c><C-t>       change TODO state (fast selection, or cycle when the
+                   keywords have no keys)
+  <C-S-Right> <C-S-Left>  next / previous TODO keyword set
+  <C-c>,  priority       <C-c><C-q>  tags        <C-c><C-x>p  property
+  <C-c><C-x>o  toggle ORDERED           <C-c><C-z>  add note
+  <C-c>#  update statistics cookies     <C-c><C-x><C-b>  toggle checkbox
+
+Dates:
+  <C-c><C-s> <C-c><C-d>  schedule / deadline (count: remove)
+  <C-c>. <C-c>!    active / inactive timestamp (count: with time)
+  <C-c><           insert today         <C-c>>  open calendar
+  <C-c><C-y>       evaluate time range (count: insert `=> H:MM`)
+
+Clock, effort, dynamic blocks, timers:
+  <C-c><C-x><C-i>, <C-c><C-x><Tab>  clock in
+  <C-c><C-x><C-x>  clock in last task   <C-c><C-x><C-o>  clock out
+  <C-c><C-x><C-q>  cancel clock         <C-c><C-x><C-j>  go to clock
+  <C-c><C-x><C-r>  clock report         <C-c><C-x><C-d>  clock sums
+  <C-c><C-x>e      effort               <C-c><C-x><C-u>  update dblock
+  <C-c><C-x><C-c>  column view          <C-c><C-x>i  columnview block
+  <C-c><C-x>x      insert dynamic block
+  <C-c><C-x>0 _ ,  timer start / stop / pause-continue
+  <C-c><C-x>. - ;  insert timer / timer item / countdown
+
+Links, refile, archive, export:
+  <C-c><C-l>  insert link    <C-c><C-o>  open at point
+  <C-c><C-x><C-n> <C-p>  next / previous link
+  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
+  <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
+
+Tables:
+  <C-c>|  create / convert region     <C-c>=  column formula
+          (count: field formula)      <C-c>`  edit field
+  <C-c>+  sum column / selection      <C-c><Space>  blank field(s)
+  <C-c>}  toggle @row/$col overlays   <C-c>?  field info
+
+Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
+  e execute   b buffer   s subtree   t tangle   k remove result
+  n / p next / previous block
+
 Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
 ir, around_subtree ar.
 Section `agenda`: see |org-agenda|.
