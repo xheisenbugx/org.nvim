@@ -1,0 +1,9 @@
+# Files the tutorial exercises generate (export, tangle, archive, attach).
+tutorial.html
+tutorial.md
+tutorial.txt
+tutorial.tex
+tutorial.pdf
+hello.sh
+tutorial.org_archive
+data/

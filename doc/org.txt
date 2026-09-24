@@ -67,7 +67,11 @@ Quick start:                                              *org-quickstart*
   5. Press `g?` to list every keymap.
 
 For a hands-on tour, open `examples/tutorial.org` from the plugin
-directory.
+directory. It has a section with exercises for every feature. To try it
+with a throwaway config (agenda and capture included), run from the plugin
+directory: >sh
+    nvim -u examples/minimal_init.lua examples/tutorial.org
+<
 
 Conventions used in this manual:
 

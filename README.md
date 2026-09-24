@@ -61,8 +61,13 @@ return {
 ```
 
 Restart Neovim and run `:checkhealth org`. Then open
-[`examples/tutorial.org`](examples/tutorial.org), a hands-on tour you
-work through with the keys it describes.
+[`examples/tutorial.org`](examples/tutorial.org), a hands-on tour with a
+section and exercises for every feature. To try it without touching your
+config or your notes, run it from a checkout with the bundled init file:
+
+```sh
+nvim -u examples/minimal_init.lua examples/tutorial.org
+```
 
 ---
 
