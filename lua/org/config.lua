@@ -60,6 +60,9 @@ M.defaults = {
   use_property_inheritance = false,
   --- Properties that apply to every entry (e.g. `Effort_ALL`).
   global_properties = {},
+  --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
+  --- `#+CONSTANTS:` lines in a file take precedence.
+  table_formula_constants = {},
   effort_property = "Effort",
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 

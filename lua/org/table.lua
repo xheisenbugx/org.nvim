@@ -723,6 +723,22 @@ local function read_formulas(bufnr, info)
   return table.concat(out, "::")
 end
 
+--- Constants for `$name` in formulas: the global option, overridden by the
+--- buffer's `#+CONSTANTS: name=value ...` lines.
+local function formula_constants(bufnr)
+  local out = vim.deepcopy(require("org.config").opts.table_formula_constants or {})
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    local body = line:match("^%s*#%+[Cc][Oo][Nn][Ss][Tt][Aa][Nn][Tt][Ss]:%s*(.*)$")
+    for k, v in (body or ""):gmatch("([%a_][%w_]*)=(%S+)") do
+      out[k] = v
+    end
+  end
+  for k, v in pairs(out) do
+    out[k] = tostring(v)
+  end
+  return out
+end
+
 --- Recalculate the table at cursor (or at `lnum`) using its #+TBLFM line.
 function M.recalc(bufnr, lnum)
   bufnr = bufnr or 0
@@ -738,8 +754,13 @@ function M.recalc(bufnr, lnum)
     local formula = require("org.table.formula")
     local ok, err = pcall(formula.apply, t, formula.parse_tblfm(tblfm), {
       bufnr = bufnr,
-      get_named_table = function(name)
-        return M.get_named_table(bufnr, name, true)
+      get_table = function(name)
+        return M.find_named_table(bufnr, name)
+      end,
+      constants = formula_constants(bufnr),
+      property = function(name)
+        local hl = require("org.files").get_buffer(bufnr):headline_at(info.start)
+        return hl and hl:get_property(name, true)
       end,
     })
     if not ok then
@@ -796,6 +817,22 @@ end
 --- Hlines are skipped. When `keep_header` is false and the first row is
 --- followed by an hline, that header row is dropped (org-babel behaviour).
 function M.get_named_table(bufnr, name, keep_header)
+  local t = M.find_named_table(bufnr, name)
+  if not t then
+    return nil
+  end
+  local rows = {}
+  local drop_header = not keep_header and #t.rows > 2 and not t.rows[1].hline and t.rows[2].hline
+  for idx, r in ipairs(t.rows) do
+    if not r.hline and not (drop_header and idx == 1) then
+      rows[#rows + 1] = vim.deepcopy(r.cells)
+    end
+  end
+  return rows
+end
+
+--- The parsed table (hlines included) after `#+NAME: name`, or nil.
+function M.find_named_table(bufnr, name)
   bufnr = bufnr or 0
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   for i, line in ipairs(lines) do
@@ -813,14 +850,7 @@ function M.get_named_table(bufnr, name, keep_header)
         end
         local t = M.parse(tl)
         pad_rows(t)
-        local rows = {}
-        local drop_header = not keep_header and #t.rows > 2 and not t.rows[1].hline and t.rows[2].hline
-        for idx, r in ipairs(t.rows) do
-          if not r.hline and not (drop_header and idx == 1) then
-            rows[#rows + 1] = vim.deepcopy(r.cells)
-          end
-        end
-        return rows
+        return t
       end
       return nil
     end
