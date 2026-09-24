@@ -171,7 +171,9 @@ function M.apply(bufnr)
   cmd(
     [=[syntax match orgLink /\[\[[^][]\+\]\(\[[^][]\+\]\)\?\]/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=]
   )
-  cmd([[syntax match orgLinkTargetHidden /\[\[\zs[^][]\+\]\[\ze[^][]\+\]\]/ contained]] .. lconceal)
+  -- lookbehind (not \zs): orgLinkBracket already consumes the "[[", so a
+  -- pattern that has to match from "[[" would never get a chance to apply
+  cmd([[syntax match orgLinkTargetHidden /\(\[\[\)\@<=[^][]\+\]\[\ze[^][]\+\]\]/ contained]] .. lconceal)
   cmd([[syntax match orgLinkBracket /\[\[\|\]\]/ contained]] .. lconceal)
 
   -- Tables -------------------------------------------------------------------
