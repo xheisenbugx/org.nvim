@@ -116,6 +116,7 @@ Headlines start with one or more stars followed by a space: >org
 <s / >s         (ctx) Promote / demote the whole subtree or item and its
                 children.
 <M-h> / <M-l>   (ctx) Promote / demote. In a table: move column.
+<M-Left> / <M-Right>  Same as <M-h> / <M-l> (Alt + arrow keys).
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
                 column.
 
@@ -625,7 +626,7 @@ Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
               <CR>           same column in the next row
 Normal mode:
   <C-c><C-c>      realign (on `#+TBLFM`: recalculate)
-  <M-h/l>         move column left / right
+  <M-h/l>         move column left / right (also <M-Left/Right>)
   <M-k/j>         move row up / down
   <M-H>/<M-L>     delete / insert column
   <M-K>/<M-J>     delete row / insert row above
@@ -941,6 +942,7 @@ Section `org` (default key: action):
   <<  promote_heading               >>  demote_heading
   <s  promote_subtree               >s  demote_subtree
   <M-h> <M-l> <M-k> <M-j>  meta_left/right/up/down
+  <M-Left> <M-Right>       meta_left/right (in addition to <M-h>/<M-l>)
   <M-H> <M-L> <M-K> <M-J>  shift_meta_left/right/up/down
   <prefix>K / J  move_subtree_up / move_subtree_down
   <prefix>hy hd hp hc  copy/cut/paste/clone_subtree

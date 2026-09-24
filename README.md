@@ -159,7 +159,8 @@ they fall back to the normal Vim behaviour (`>>` still indents plain text,
 | `<prefix>ih` `it` `is` | Insert heading / TODO heading / subheading |
 | `<prefix>id` `ib` `if` | Insert drawer / block template / footnote |
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
-| `<M-h>` `<M-l>` `<M-k>` `<M-j>` | Promote, demote, move up, move down: heading, item or table column/row *(ctx)* |
+| `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item; move table column *(ctx)* |
+| `<M-k>` `<M-j>` | Move subtree, item or table row up / down *(ctx)* |
 | `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
