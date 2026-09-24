@@ -44,6 +44,31 @@ CONTENTS                                                        *org-contents*
 org.nvim implements Emacs Org mode in pure Lua. It reads and writes the same
 plain-text format, so files can be shared with Emacs.
 
+It covers the parts of Org you use every day:
+
+  - Outlines with Emacs-style folding, cycling, motions and text objects.
+  - TODO workflows with logging, repeaters, priorities, tags and properties.
+  - An agenda with a time grid, habits, custom commands and bulk actions.
+  - Capture templates that file notes from any buffer.
+  - Clocking, effort estimates, clock tables and column view.
+  - Spreadsheet tables with `#+TBLFM` formulas.
+  - Source blocks that run asynchronously (Babel), and tangling.
+  - Export to HTML, Markdown, text and LaTeX, plus more formats via pandoc.
+
+There are no dependencies: no tree-sitter parser, external binary or
+companion plugin.
+
+Quick start:                                              *org-quickstart*
+
+  1. Open `~/org/todo.org` and type `* TODO Buy milk`.
+  2. Press `<prefix>s` to schedule it for today.
+  3. Press `<prefix>a` then `a` to open the weekly agenda.
+  4. Press `<prefix>c` then `t` in any buffer to capture a task.
+  5. Press `g?` to list every keymap.
+
+For a hands-on tour, open `examples/tutorial.org` from the plugin
+directory.
+
 Conventions used in this manual:
 
   <prefix>    The value of `mappings.prefix` (default `<leader>o`).
