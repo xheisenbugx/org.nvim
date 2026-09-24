@@ -57,16 +57,56 @@ describe("completion", function()
 end)
 
 describe("decorations", function()
-  it("renders bullets without errors", function()
-    local cfg = require("org.config").opts
-    cfg.ui.bullets = { "◉", "○" }
-    cfg.ui.checkboxes = { " ", "◐", "✓" }
-    local buf = org_buffer({ "* A", "** B", "- [X] done" })
-    require("org.ui.decorations").render(buf)
-    local marks = vim.api.nvim_buf_get_extmarks(buf, vim.api.nvim_create_namespace("org.decorations"), 0, -1, {})
-    ok(#marks >= 3)
-    cfg.ui.bullets = false
-    cfg.ui.checkboxes = false
+  local deco = require("org.ui.decorations")
+  local cfg = require("org.config").opts
+  local function with_ui(ui, fn)
+    local saved = vim.deepcopy(cfg.ui)
+    for k, v in pairs(ui) do
+      cfg.ui[k] = v
+    end
+    local ok_, err = pcall(fn)
+    cfg.ui = saved
+    assert(ok_, err)
+  end
+  local function texts(rows, row)
+    return vim.tbl_map(function(m)
+      return m[2].virt_text and m[2].virt_text[1][1] or m[2].conceal
+    end, rows[row] or {})
+  end
+
+  it("computes bullets and checkboxes per row", function()
+    with_ui({ bullets = { "◉", "○" }, checkboxes = { " ", "◐", "✓" } }, function()
+      local buf = org_buffer({ "* A", "** B", "- [X] done", "1. [ ] todo" })
+      local rows = deco.compute(buf)
+      eq({ "◉" }, texts(rows, 0))
+      eq({ " ○" }, texts(rows, 1))
+      eq({ "[✓]" }, texts(rows, 2))
+      eq(2, rows[2][1][1])
+      eq({ "[ ]" }, texts(rows, 3))
+      eq(3, rows[3][1][1])
+    end)
+  end)
+
+  it("never leaves stale marks when lines are replaced", function()
+    -- Regression: persistent extmarks were dragged to the next line (col 0)
+    -- by list edits and showed up there until a debounced re-render.
+    with_ui({ bullets = { "◉" }, checkboxes = { " ", "◐", "✓" } }, function()
+      local buf = org_buffer({ "* H", "- [X] a", "- [X] b" })
+      deco.render(buf)
+      vim.api.nvim_buf_set_lines(buf, 1, 3, false, { "1. [X] a", "   1. [X] b", "2. [X] c" })
+      local ns = vim.api.nvim_create_namespace("org.decorations")
+      eq({}, vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}), "no persistent marks to go stale")
+      local rows = deco.compute(buf)
+      eq({ 3, 6, 3 }, { rows[1][1][1], rows[2][1][1], rows[3][1][1] })
+    end)
+  end)
+
+  it("keeps indent-mode inline marks as real extmarks", function()
+    with_ui({ indent_mode = true }, function()
+      local buf = org_buffer({ "* A", "body" })
+      local rows = deco.compute(buf)
+      eq("inline", rows[1][1][2].virt_text_pos)
+    end)
   end)
 end)
 
