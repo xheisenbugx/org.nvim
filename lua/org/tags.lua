@@ -154,7 +154,7 @@ function M.fast_select(current, defs, inherited)
     end
     flush()
     lines[#lines + 1] = ""
-    lines[#lines + 1] = "key: toggle  TAB: type tags  SPC: clear  RET: accept  q/Esc: cancel   (* exclusive)"
+    lines[#lines + 1] = "key: toggle  TAB: type tags  SPC: clear  RET: accept  Esc: cancel   (* exclusive)"
     local buf, win = require("org.ui").float(lines, { title = "Tags" })
     for i, l in ipairs(lines) do
       for _, name in ipairs(hl_marks) do
@@ -173,7 +173,7 @@ function M.fast_select(current, defs, inherited)
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
-    if ch == nil or ch == "q" then
+    if ch == nil then
       return nil
     elseif ch == "\r" or ch == "\n" then
       return cur

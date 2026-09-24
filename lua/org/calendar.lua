@@ -60,7 +60,7 @@ local function render(sel, opts)
   lines[#lines + 1] = ""
   local help = " hjkl move  HL month  JK year  . today"
   lines[#lines + 1] = help
-  lines[#lines + 1] = " i type  T time  CR ok" .. (opts.allow_remove and "  x remove" or "") .. "  q quit"
+  lines[#lines + 1] = " i type  T time  CR ok" .. (opts.allow_remove and "  x remove" or "") .. "  Esc quit"
   marks[#marks + 1] = { #lines - 2, 0, #lines[#lines - 1], "Comment" }
   marks[#marks + 1] = { #lines - 1, 0, #lines[#lines], "Comment" }
   return lines, marks
@@ -94,7 +94,7 @@ function M.pick(opts)
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
-    if not ok or ch == "\27" or ch == "\3" or ch == "q" then
+    if not ok or ch == "\27" or ch == "\3" then
       return nil
     end
     if ch == "\r" or ch == "\n" then
