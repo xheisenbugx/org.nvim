@@ -66,7 +66,7 @@ Requires Neovim 0.10 or later. Optional tools:
 
 lazy.nvim / LazyVim: >lua
     {
-      "you/org.nvim",       -- or: dir = "~/path/to/checkout", name = "org.nvim"
+      "xheisenbugx/orgmode.nvim",       -- or: dir = "~/path/to/checkout", name = "org.nvim"
       main = "org",
       lazy = false,
       opts = {
