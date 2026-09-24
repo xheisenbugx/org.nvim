@@ -31,19 +31,10 @@ end
 -- Insert
 ---------------------------------------------------------------------------
 
-local function insert(active)
-  local with_time = vim.v.count > 0
-  local existing = M.at_cursor()
-  local default = existing and existing.date or date.today()
-  local picked = require("org.calendar").pick({
-    default = default,
-    prompt = active and "Timestamp" or "Inactive timestamp",
-    with_time = with_time,
-  })
-  if not picked or picked.remove then
-    return nil
-  end
-  picked = picked:clone({ active = active })
+--- Write `picked` at the cursor: replace the timestamp `existing` under
+--- the cursor, or insert after the cursor character (creating a range when
+--- right after another timestamp).
+local function put(picked, existing)
   if existing and existing.date.repeater and not picked.repeater then
     picked.repeater = vim.deepcopy(existing.date.repeater)
   end
@@ -72,12 +63,121 @@ local function insert(active)
   return picked
 end
 
+local function insert(active)
+  local with_time = vim.v.count > 0
+  local existing = M.at_cursor()
+  local default = existing and existing.date or date.today()
+  local picked = require("org.calendar").pick({
+    default = default,
+    prompt = active and "Timestamp" or "Inactive timestamp",
+    with_time = with_time,
+  })
+  if not picked or picked.remove then
+    return nil
+  end
+  return put(picked:clone({ active = active }), existing)
+end
+
 function M.insert_active()
   return insert(true)
 end
 
 function M.insert_inactive()
   return insert(false)
+end
+
+--- Insert today's active date at the cursor (org-date-from-calendar: Emacs
+--- inserts the date selected in the calendar, which defaults to today).
+function M.insert_today()
+  return put(date.today(), M.at_cursor())
+end
+
+--- Show the calendar at the date under the cursor, or today
+--- (org-goto-calendar). The picked date is only reported.
+function M.goto_calendar()
+  local existing = M.at_cursor()
+  local picked = require("org.calendar").pick({
+    default = existing and existing.date or date.today(),
+    prompt = "Calendar",
+  })
+  if picked and not picked.remove then
+    utils.notify(picked:to_string())
+  end
+  return true
+end
+
+--- Duration text in Emacs style: "N days H:MM" (days omitted when zero).
+local function tdiff_string(minutes)
+  local neg = minutes < 0
+  minutes = math.abs(minutes)
+  local days = math.floor(minutes / 1440)
+  local rest = minutes % 1440
+  local s = string.format("%d:%02d", math.floor(rest / 60), rest % 60)
+  if days > 0 then
+    s = string.format("%d day%s %s", days, days == 1 and "" or "s", s)
+  end
+  return neg and ("-" .. s) or s
+end
+
+--- Duration of a timestamp range in minutes (nil when not a range).
+local function range_minutes(d)
+  if d.range_end then
+    return d.range_end:minutes() - d:minutes()
+  elseif d.end_hour then
+    return d:end_minutes() - d:minutes()
+  end
+end
+
+--- Report the duration of the timestamp range at the cursor, or the first
+--- range on the line (org-evaluate-time-range). Handles `<a>--<b>` and
+--- `<d 10:00-12:30>`. With `insert` (default: `vim.v.count > 0`), write
+--- ` => H:MM` after the range, replacing an existing `=> ...`. On a CLOCK
+--- line, recompute its duration instead.
+---@param insert_result? boolean
+function M.evaluate_time_range(insert_result)
+  if insert_result == nil then
+    insert_result = vim.v.count > 0
+  end
+  local lnum, col = utils.cursor()
+  local line = vim.api.nvim_get_current_line()
+  if line:match("^%s*CLOCK:") then
+    local clock = require("org.clock")
+    if clock.update_clock_line(0, lnum) then
+      local new = vim.api.nvim_get_current_line()
+      utils.notify("Clock: " .. (new:match("=>%s*(%S+)") or "?"))
+      return true
+    end
+  end
+  local item
+  local all = date.parse_all(line)
+  for _, it in ipairs(all) do
+    if range_minutes(it.date) and col >= it.start_col and col <= it.end_col then
+      item = it
+    end
+  end
+  if not item then
+    for _, it in ipairs(all) do
+      if range_minutes(it.date) then
+        item = it
+        break
+      end
+    end
+  end
+  if not item then
+    utils.warn("No timestamp range on this line")
+    return false
+  end
+  local minutes = range_minutes(item.date)
+  if insert_result then
+    local rest = line:sub(item.end_col + 1)
+    if rest:match("^%s*=>") then
+      rest = ""
+    end
+    local new = line:sub(1, item.end_col) .. " => " .. date.format_duration(minutes) .. rest
+    vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { new })
+  end
+  utils.notify(tdiff_string(minutes))
+  return true
 end
 
 --- Rewrite the timestamp under the cursor in canonical form (day names).
@@ -242,9 +342,15 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
   local old_str = '"' .. old:clone({ active = false }):to_string({ range = false }) .. '"'
   local header
   if new then
-    header = (kind == "scheduled" and "- Rescheduled from " or "- New deadline from ") .. old_str .. " on " .. now_inactive():to_string()
+    header = (kind == "scheduled" and "- Rescheduled from " or "- New deadline from ")
+      .. old_str
+      .. " on "
+      .. now_inactive():to_string()
   else
-    header = (kind == "scheduled" and "- Not scheduled, was " or "- Removed deadline, was ") .. old_str .. " on " .. now_inactive():to_string()
+    header = (kind == "scheduled" and "- Not scheduled, was " or "- Removed deadline, was ")
+      .. old_str
+      .. " on "
+      .. now_inactive():to_string()
   end
   local note
   if setting == "note" then

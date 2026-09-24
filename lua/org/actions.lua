@@ -30,6 +30,10 @@ M.list = {
   -- visibility
   cycle = { "org.fold", "cycle", desc = "Cycle visibility" },
   global_cycle = { "org.fold", "global_cycle", desc = "Cycle global visibility" },
+  show_branches = { "org.fold", "show_branches", desc = "Show all branches of subtree" },
+  show_children = { "org.fold", "show_children", desc = "Show children" },
+  reveal = { "org.fold", "reveal", desc = "Reveal context around cursor" },
+  copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
 
   -- context
   context_action = { "org.context", "context_action", desc = "Context action (C-c C-c)" },
@@ -37,12 +41,22 @@ M.list = {
 
   -- structure
   meta_return = { "org.context", "meta_return", desc = "New heading / item / row", modes = { "n", "i" } },
-  meta_shift_return = { "org.context", "meta_shift_return", desc = "New TODO heading / checkbox item", modes = { "n", "i" } },
+  meta_shift_return = {
+    "org.context",
+    "meta_shift_return",
+    desc = "New TODO heading / checkbox item",
+    modes = { "n", "i" },
+  },
   insert_heading = { "org.structure", "insert_heading", desc = "Insert heading after subtree" },
   insert_todo_heading = { "org.structure", "insert_todo_heading", desc = "Insert TODO heading" },
   insert_subheading = { "org.structure", "insert_subheading", desc = "Insert subheading" },
   insert_drawer = { "org.structure", "insert_drawer", desc = "Insert drawer" },
-  insert_structure_template = { "org.structure", "insert_structure_template", desc = "Insert block (#+begin_...)", modes = { "n", "x" } },
+  insert_structure_template = {
+    "org.structure",
+    "insert_structure_template",
+    desc = "Insert block (#+begin_...)",
+    modes = { "n", "x" },
+  },
   insert_footnote = { "org.footnotes", "new_footnote", desc = "Insert footnote" },
   promote_heading = { "org.context", "promote", desc = "Promote heading / item" },
   demote_heading = { "org.context", "demote", desc = "Demote heading / item" },
@@ -64,10 +78,24 @@ M.list = {
   clone_subtree = { "org.structure", "clone_subtree", desc = "Clone subtree with time shift" },
   sort = { "org.structure", "sort", desc = "Sort entries / items" },
   narrow_subtree = { "org.structure", "narrow_subtree", desc = "Narrow to subtree (edit buffer)" },
+  indirect_subtree = { "org.structure", "tree_to_indirect_buffer", desc = "Subtree in split edit buffer" },
+  mark_subtree = { "org.structure", "mark_subtree", desc = "Select subtree", modes = { "n", "x" } },
   toggle_comment = { "org.structure", "toggle_comment", desc = "Toggle COMMENT keyword" },
   toggle_archive_tag = { "org.archive", "toggle_archive_tag", desc = "Toggle ARCHIVE tag" },
   toggle_heading = { "org.structure", "toggle_heading", desc = "Toggle heading", modes = { "n", "x" } },
   toggle_item = { "org.lists", "toggle_item", desc = "Toggle list item", modes = { "n", "x" } },
+  ctrl_c_star = { "org.context", "ctrl_c_star", desc = "Recalc table / toggle heading", modes = { "n", "x" } },
+  ctrl_c_minus = {
+    "org.context",
+    "ctrl_c_minus",
+    desc = "Table hline / cycle bullet / toggle item",
+    modes = { "n", "x" },
+  },
+  ctrl_c_ret = { "org.context", "ctrl_c_ret", desc = "Table hline and move / insert heading" },
+  copy_special = { "org.context", "copy_special", desc = "Copy table region / subtree", modes = { "n", "x" } },
+  cut_special = { "org.context", "cut_special", desc = "Cut table region / subtree", modes = { "n", "x" } },
+  paste_special = { "org.context", "paste_special", desc = "Paste table rectangle / subtree" },
+  ctrl_c_caret = { "org.context", "ctrl_c_caret", desc = "Sort table column / entries / items" },
   emphasize = { "org.structure", "emphasize", desc = "Emphasize selection", modes = { "x" } },
   goto_parent = { "org.structure", "goto_parent", desc = "Go to parent heading" },
   next_heading = { "org.structure", "next_heading", desc = "Next heading", modes = { "n", "x", "o" } },
@@ -82,6 +110,11 @@ M.list = {
   shift_right = { "org.context", "shift_right", desc = "Next TODO / date +1 / bullet" },
   shift_left = { "org.context", "shift_left", desc = "Previous TODO / date -1 / bullet" },
   todo_select = { "org.todo", "select", desc = "Select TODO state" },
+  todo_next_sequence = { "org.context", "shift_control_right", desc = "Next TODO keyword set" },
+  todo_prev_sequence = { "org.context", "shift_control_left", desc = "Previous TODO keyword set" },
+  add_note = { "org.todo", "add_note", desc = "Add note" },
+  todo = { "org.todo", "select_or_cycle", desc = "Change TODO state (C-c C-t)" },
+  toggle_ordered = { "org.properties", "toggle_ordered", desc = "Toggle ORDERED property" },
   shift_up = { "org.context", "shift_up", desc = "Priority up / timestamp up" },
   shift_down = { "org.context", "shift_down", desc = "Priority down / timestamp down" },
   increment = { "org.context", "increment", desc = "Increment timestamp / priority" },
@@ -97,6 +130,9 @@ M.list = {
   deadline = { "org.timestamps", "deadline", desc = "Deadline" },
   timestamp = { "org.timestamps", "insert_active", desc = "Insert active timestamp" },
   timestamp_inactive = { "org.timestamps", "insert_inactive", desc = "Insert inactive timestamp" },
+  date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
+  goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
+  evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
 
   -- lists
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox" },
@@ -105,12 +141,23 @@ M.list = {
 
   -- clock
   clock_in = { "org.clock", "clock_in", desc = "Clock in" },
+  clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in last task" },
   set_effort = { "org.properties", "set_effort", desc = "Set effort" },
   clock_report = { "org.dblock", "insert_clocktable", desc = "Insert clock report" },
   clock_display = { "org.clock", "toggle_display", desc = "Display clock sums" },
   dblock_update = { "org.dblock", "update_at_cursor", desc = "Update dynamic block" },
   dblock_update_all = { "org.dblock", "update_all", desc = "Update all dynamic blocks" },
   column_view = { "org.columns", "open", desc = "Column view" },
+  insert_columnview = { "org.dblock", "insert_columnview", desc = "Insert columnview block" },
+  insert_dblock = { "org.dblock", "insert_dblock", desc = "Insert dynamic block" },
+
+  -- timers
+  timer_start = { "org.timer", "start", desc = "Start relative timer" },
+  timer_stop = { "org.timer", "stop", desc = "Stop timer" },
+  timer_pause = { "org.timer", "pause_or_continue", desc = "Pause / continue timer" },
+  timer_insert = { "org.timer", "insert", desc = "Insert timer value" },
+  timer_item = { "org.timer", "insert_item", desc = "Insert timer list item" },
+  timer_countdown = { "org.timer", "countdown", desc = "Start countdown timer" },
 
   -- links
   insert_link = { "org.links", "insert_link", desc = "Insert link", modes = { "n", "x" } },
@@ -122,6 +169,8 @@ M.list = {
   refile = { "org.refile", "refile", desc = "Refile subtree" },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
   attach = { "org.attach", "menu", desc = "Attachments" },
+  agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
+  agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
 
   -- search / export
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
@@ -136,6 +185,13 @@ M.list = {
   table_delete_row = { "org.table", "delete_row", desc = "Delete table row" },
   table_insert_column = { "org.table", "insert_column", desc = "Insert table column" },
   table_delete_column = { "org.table", "delete_column", desc = "Delete table column" },
+  table_formula = { "org.table", "eval_formula", desc = "Set column / field formula" },
+  table_edit_field = { "org.table", "edit_field", desc = "Edit table field" },
+  table_sum = { "org.table", "sum", desc = "Sum column / rectangle", modes = { "n", "x" } },
+  table_blank_field = { "org.table", "blank_field", desc = "Blank table field(s)", modes = { "n", "x" } },
+  table_coordinates = { "org.table", "toggle_coordinate_overlays", desc = "Toggle table coordinates" },
+  table_field_info = { "org.table", "field_info", desc = "Table field info" },
+  table_recalc_buffer = { "org.table", "recalc_buffer", desc = "Recalculate all tables" },
   table_next_field = { "org.table", "next_field", desc = "Next table field", modes = { "i" } },
   table_prev_field = { "org.table", "prev_field", desc = "Previous table field", modes = { "i" } },
   table_next_row = { "org.table", "next_row", desc = "Next table row", modes = { "i" } },

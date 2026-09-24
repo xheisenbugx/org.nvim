@@ -198,6 +198,68 @@ function M.insert_clocktable()
   return M.update_block(bufnr, block)
 end
 
+--- Insert `#+BEGIN: name params` / `#+END:` below the cursor line and
+--- fill it.
+local function insert_block(bufnr, header)
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  vim.api.nvim_buf_set_lines(bufnr, lnum, lnum, false, { "#+BEGIN: " .. header, "#+END:" })
+  local block = M.find_at(bufnr, lnum + 1)
+  vim.api.nvim_win_set_cursor(0, { lnum + 1, 0 })
+  return M.update_block(bufnr, block)
+end
+
+--- Insert (or update) a column view block at the cursor
+--- (org-columns-insert-dblock). Prompts for the scope: local, global or the
+--- ID of an entry.
+function M.insert_columnview()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local existing = M.at_cursor()
+  if existing and existing.name:lower() == "columnview" then
+    return M.update_block(bufnr, existing)
+  end
+  local candidates = { "global", "local" }
+  for _, hl in ipairs(require("org.files").get_buffer(bufnr).headlines) do
+    local id = hl.properties.ID
+    if id and id ~= "" and not vim.tbl_contains(candidates, id) then
+      candidates[#candidates + 1] = id
+    end
+  end
+  local id = utils.input_complete("Capture columns (local, global, entry with :ID: property) [local]: ", candidates)
+  if id == nil then
+    return nil
+  end
+  id = vim.trim(id)
+  if id == "" then
+    id = "local"
+  end
+  return insert_block(bufnr, "columnview :hlines 1 :id " .. id)
+end
+
+--- Prompt for a registered dynamic block type and insert it at the cursor
+--- (org-dynamic-block-insert-dblock).
+function M.insert_dblock()
+  local names = vim.tbl_keys(M.writers)
+  table.sort(names)
+  local name = utils.input_complete("Dynamic block: ", names)
+  if name == nil then
+    return nil
+  end
+  name = vim.trim(name):lower()
+  if name == "" then
+    return nil
+  end
+  if not M.writers[name] then
+    utils.warn("No writer for dynamic block: " .. name)
+    return nil
+  end
+  if name == "clocktable" then
+    return M.insert_clocktable()
+  elseif name == "columnview" then
+    return M.insert_columnview()
+  end
+  return insert_block(vim.api.nvim_get_current_buf(), name)
+end
+
 ---------------------------------------------------------------------------
 -- Built-in writers
 ---------------------------------------------------------------------------

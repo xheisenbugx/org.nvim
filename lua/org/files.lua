@@ -66,6 +66,11 @@ function M.invalidate(path)
   end
 end
 
+--- Files removed from the agenda for this session (`remove_file`), even
+--- when a directory or glob in `agenda_files` still matches them.
+---@type table<string, boolean>
+M.removed = {}
+
 --- Absolute paths of all agenda files.
 ---@param extra? string[] additional patterns
 ---@return string[]
@@ -78,7 +83,80 @@ function M.agenda_file_paths(extra)
   for _, p in ipairs(extra or {}) do
     patterns[#patterns + 1] = p
   end
-  return utils.glob_org_files(patterns)
+  local paths = utils.glob_org_files(patterns)
+  if next(M.removed) then
+    paths = vim.tbl_filter(function(p)
+      return not M.removed[p]
+    end, paths)
+  end
+  return paths
+end
+
+local function current_path()
+  local name = vim.api.nvim_buf_get_name(0)
+  if name == "" or not utils.is_org() then
+    utils.warn("Buffer is not visiting an org file")
+    return nil
+  end
+  return vim.fs.normalize(vim.fn.fnamemodify(name, ":p"))
+end
+
+local function pattern_list()
+  local cfg = require("org.config").opts
+  local list = cfg.agenda_files or {}
+  if type(list) == "string" then
+    list = { list }
+  end
+  cfg.agenda_files = list
+  return list
+end
+
+local function same_path(pattern, path)
+  return type(pattern) == "string" and vim.fs.normalize(utils.expand(pattern)) == path
+end
+
+--- Add the current file to the front of the agenda files, or move it there
+--- (org-agenda-file-to-front). Only affects this session.
+function M.agenda_file_to_front()
+  local path = current_path()
+  if not path then
+    return nil
+  end
+  local list = pattern_list()
+  local moved = false
+  for i = #list, 1, -1 do
+    if same_path(list[i], path) then
+      table.remove(list, i)
+      moved = true
+    end
+  end
+  moved = moved or (not M.removed[path] and vim.tbl_contains(M.agenda_file_paths(), path))
+  M.removed[path] = nil
+  table.insert(list, 1, path)
+  utils.notify((moved and "Moved " or "Added ") .. vim.fn.fnamemodify(path, ":~") .. " to front of agenda file list")
+  return true
+end
+
+--- Remove the current file from the agenda files (org-remove-file). Only
+--- affects this session.
+function M.remove_file()
+  local path = current_path()
+  if not path then
+    return nil
+  end
+  if not vim.tbl_contains(M.agenda_file_paths(), path) then
+    utils.notify("File was not in list: " .. vim.fn.fnamemodify(path, ":~") .. " (not removed)")
+    return true
+  end
+  local list = pattern_list()
+  for i = #list, 1, -1 do
+    if same_path(list[i], path) then
+      table.remove(list, i)
+    end
+  end
+  M.removed[path] = true
+  utils.notify("Removed from Org Agenda list: " .. vim.fn.fnamemodify(path, ":~"))
+  return true
 end
 
 --- Parsed agenda files.
