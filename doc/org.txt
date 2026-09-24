@@ -679,17 +679,37 @@ Formulas go in `#+TBLFM:` lines below the table: >org
     #+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
 <
 References:
-  $2  $>  $<  $+1 $-1        columns
-  @3  @>  @<  @-1 @I @II     rows / hlines
+  $2  $>  $<  $>> $+1 $-1    columns
+  @3  @>  @<  @<< @-1 @I @II rows / hlines
   @2$3                       a single field
   @2$1..@4$3  $1..$3         ranges
   @# $#                      the current row / column number
   remote(name, @2$1)         a field of a named table (#+NAME:)
-Functions: vsum vmean vmin vmax vcount vprod vmedian, the Lua math functions
-(abs, floor, sqrt, ...) and `if(cond, a, b)`.
-Lua formulas: `$3='(string.upper($1))`.
-Flags after `;`: `%.2f` (format), `N` (numbers), `E` (keep empty), `T` / `t`
-(durations H:MM:SS / hours), `U` (H:MM).
+  $name                      a named column, field, parameter or constant
+Names, looked up in this order:
+  `!` row           `| ! | | qty | price |` names the columns below it
+  `^` / `_` rows    name the field in the row above / below
+  `$` row           `| $ | max=50 |` defines a parameter
+  constants         `#+CONSTANTS: tax=0.16 rate=18.5`, then the
+                    `table_formula_constants` option
+  $PROP_Name        the Name property of the entry (inherited)
+  header row        (extension) `$Total=$Qty*$Price` uses the header above
+                    the first hline when there is no `!` row
+Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vvar vpvar
+vpsdev, abs sqrt exp ln log10 floor ceil round idiv mod min max, sin cos tan
+and their inverses (degrees, like Org's Calc defaults), `if(cond, a, b)` and
+vectors `[1, 2, 3]`.
+Lisp formulas: `'(+ $1 $2);N`, `'(concat $1 "-" $2)`. Fields are inserted as
+strings, as numbers with `N`, verbatim with `L`; ranges become lists.
+Lua formulas: `$3='(string.upper($1))` (anything that is not Lisp).
+Flags after `;`: a printf format with optional text (`%.2f`, `%.1f%%`),
+Calc modes `f2` (fixed), `s3` / `e3` (scientific / engineering), `n4`
+(significant digits), `N` (numbers), `E` (keep empty), `R` / `D` (radians /
+degrees), `T` / `t` (durations H:MM:SS / hours), `U` (H:MM).
+Results show 8 significant digits by default (`1/3` gives 0.33333333).
+Formulas run row by row: column formulas first, then field formulas.
+With `#`/`*` marks in the first column, only marked rows are recalculated by
+column formulas; `!` `^` `_` `$` rows are never changed.
 Column formulas skip the header rows above the first hline. Errors show as
 #ERROR.
 
