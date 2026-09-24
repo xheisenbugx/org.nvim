@@ -1,117 +1,1059 @@
 #+TITLE: org.nvim hands-on tour
 #+AUTHOR: org.nvim
-#+STARTUP: content
+#+STARTUP: overview
 #+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
-#+TAGS: work(w) home(h) { @office(o) @remote(r) } urgent(u)
+#+TAGS: work(w) home(h) { @office(o) @remote(r) } urgent(u) project(p)
 #+FILETAGS: :tutorial:
+#+CATEGORY: tutorial
+#+PROPERTY: Effort_ALL 0:15 0:30 1:00 2:00 4:00
+#+COLUMNS: %40ITEM %TODO %3PRIORITY %Effort{:} %CLOCKSUM %TAGS
+#+LINK: gh https://github.com/%s
+#+LINK: ddg https://duckduckgo.com/?q=%s
 
-Open this file with org.nvim installed. Keys below assume the default
-prefix =<leader>o=; replace it with yours (for example =<leader>O=).
-Press =g?= at any time to list every keymap.
+* How to use this file
+This file is a hands-on tour of org.nvim. Every top-level heading covers one
+feature and contains examples you can edit right here. Nothing breaks if you
+make a mess: =u= undoes, and =git checkout examples/tutorial.org= restores
+the file.
 
-* Visibility
-Press =<Tab>= on a headline to cycle it (folded → children → subtree),
-and =<S-Tab>= anywhere to cycle the whole buffer.
-** A child headline
-Folded text lives here.
-*** A grandchild
-Deeper still.
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it. =<S-Tab>= cycles the whole buffer.
+- Keys below assume the default prefix =<leader>o=; replace it with yours.
+- Press =g?= at any time to list every keymap of the current buffer.
+- Coming from Emacs? The usual =C-c= keys work too (=:h org-emacs-keys=).
+- Lines starting with *Try:* are exercises.
 
-* Editing structure
-- =<M-CR>= on a headline inserts a sibling; on a list item, a new item.
-- =>>= / =<<= demote / promote this headline; =>s= / =<s= the subtree.
-- =<M-j>= / =<M-k>= move a subtree (or list item, or table row).
-- =<leader>ohy= copies a subtree, =<leader>ohp= pastes it.
-- =<leader>o*= turns a line into a headline and back.
-** Move me down with <M-j>
-** Then move me up with <M-k>
+To try the agenda, capture and refile sections without touching your own
+config, start Neovim with the bundled init file from the repo root:
 
-* TODO Try TODO states                                                :work:
-Press =cit= (or =<S-Right>=) on the headline to cycle states, or =<leader>oT=
-for fast selection. Marking it DONE adds a CLOSED timestamp.
-Setting WAITING asks for a note (the =@= flag).
-
-* TODO [#B] Priorities and tags                                 :home:urgent:
-- =<S-Up>= / =<S-Down>= on the headline change the priority.
-- =<leader>ot= opens fast tag selection (keys from =#+TAGS=).
-  =@office= and =@remote= are mutually exclusive.
-
-* TODO Weekly review                                                  :work:
-  SCHEDULED: <2026-09-25 Fri +1w>
-This repeats every week: mark it DONE and watch the date shift forward.
-Put the cursor on the date and press =<C-a>= / =<C-x>= to change the day
-under the cursor, or =<leader>os= to reschedule with the calendar.
-
-* NEXT Write the report                                               :work:
-  DEADLINE: <2026-10-01 Thu -3d>
-  :PROPERTIES:
-  :Effort:   1:30
-  :END:
-Clock in with =<leader>oxi=, out with =<leader>oxo=.
-The deadline shows in the agenda 3 days before it is due (=-3d=).
-
-* Checklists [1/3]
-- [X] Buy milk
-- [ ] Toggle me with =<C-Space>=
-- [ ] A parent item [0/2]
-  - [ ] child one
-  - [ ] child two
-
-* Agenda and capture
-- =<leader>oa= opens the agenda dispatcher. Try =a= (week), =t= (all TODOs),
-  =m= with a match like =+work-home/!=.
-- In the agenda: =t= changes state, =s= schedules, =I= clocks in,
-  =<CR>= jumps to the entry.
-- =<leader>oc= captures a new entry from any buffer.
-
-Add this file to =agenda_files= to see its entries in the agenda.
-
-* Links
-- External: [[https://orgmode.org][The Org manual]]
-- Internal heading: [[*Tables][jump to Tables]]
-- File with line: [[file:tutorial.org::1][top of this file]]
-- Footnote reference[fn:1]
-Press =<CR>= on a link to follow it. =<leader>oli= inserts a link,
-=<leader>ols= stores one from anywhere.
-
-* Tables
-Type a =|= row and press =<C-c><C-c>= to align. In Insert mode, =<Tab>= moves
-between fields. =<leader>oTf= recalculates the formulas.
-
-| Item   | Qty | Price | Total |
-|--------+-----+-------+-------|
-| Apples |   3 |  0.50 |  1.50 |
-| Pears  |   2 |  0.75 |  1.50 |
-| Plums  |  10 |  0.20 |  2.00 |
-|--------+-----+-------+-------|
-| Sum    |  15 |       |  5.00 |
-#+TBLFM: $4=$2*$3;%.2f::@>$2=vsum(@I..@II)::@>$4=vsum(@I..@II);%.2f
-
-* Source blocks
-Press =<C-c><C-c>= inside a block to run it, =<leader>o'= to edit it in a
-real buffer with the right filetype.
-
-#+NAME: greeting
-#+begin_src lua
-return "Hello from Neovim " .. tostring(vim.version())
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/tutorial.org
 #+end_src
 
-#+begin_src sh :results output
-echo "shell says hi"; date +%Y
-#+end_src
+It points =agenda_files= at this directory and sends captures to a scratch
+file, so your real notes are untouched.
 
-#+begin_src python :var n=4
-return [[i, i * i] for i in range(n)]
-#+end_src
+The examples use dates around late September 2026. When they are in the
+past, press =<C-a>= on the day of any timestamp to move it forward.
 
-* Clock report
-Put the cursor on the =#+BEGIN= line and press =<C-c><C-c>= to refresh.
+* Outline and visibility
+An org file is an outline: headlines start with one or more stars.
+
+** Cycling
+- =<Tab>= on a headline cycles it: FOLDED → CHILDREN → SUBTREE.
+- =<S-Tab>= cycles the whole buffer: OVERVIEW → CONTENTS → SHOW ALL.
+- =3<S-Tab>= shows every headline up to level 3.
+- =<Tab>= on a =:PROPERTIES:= drawer or a =#+begin_= line folds just that.
+- =:Org overview=, =:Org content= and =:Org show_all= set it directly.
+
+*Try:* fold and unfold the tree below.
+
+*** Level 3
+Body text belongs to the headline above it.
+**** Level 4
+***** Level 5
+Headlines can go as deep as you like.
+*** Another level 3
+:PROPERTIES:
+:NOTE:     press <Tab> on the line above to fold this drawer
+:END:
+
+** Startup visibility
+=#+STARTUP:= at the top of the file sets how it opens: =overview=,
+=content=, =showall=, =showeverything= or =nofold=. Without it, the
+=startup_folded= option decides.
+
+*Try:* change the =#+STARTUP:= line of this file to =content=, press
+=<C-c><C-c>= on it, then reopen the file with =:e=.
+
+** Motions and text objects
+| Key        | Moves to / selects                        |
+|------------+-------------------------------------------|
+| =]]= =[[=  | next / previous visible headline          |
+| =][= =[]=  | next / previous sibling                   |
+| =g{=       | parent headline                           |
+| =<prefix>.= | pick any headline of the buffer          |
+| =ih= =ah=  | section body / section with its headline  |
+| =ir= =ar=  | subtree body / subtree with its headline  |
+
+*Try:* on "Sibling one" below, press =dar= to delete the whole subtree,
+then =u=. Press =yih= to yank just its body.
+
+*** Sibling one
+Body of sibling one.
+**** A child of sibling one
+*** Sibling two
+*** Sibling three
+
+* Structure editing
+** Inserting headlines
+- =<M-CR>= on a headline inserts a sibling after its subtree; on a list
+  item it inserts a new item; in a table, a new row.
+- =<M-S-CR>= does the same but inserts a TODO heading or a checkbox item.
+- =<prefix>ih= / =<prefix>it= / =<prefix>is= insert a heading, a TODO
+  heading and a subheading.
+
+*Try:* press =<M-CR>= on "Fruit" below and type "Vegetables".
+
+*** Fruit
+*** Grains
+
+** Promote, demote and move
+| Key              | Action                                          |
+|------------------+-------------------------------------------------|
+| =<<= =>>=        | promote / demote the headline (or list item)    |
+| =<s= =>s=        | promote / demote the whole subtree              |
+| =<M-h>= =<M-l>=  | promote / demote (also =<M-Left>= =<M-Right>=)  |
+| =<M-k>= =<M-j>=  | move the subtree (or item, or table row) up/down |
+
+*Try:* sort these into order with =<M-j>= / =<M-k>=, then demote
+"Step 2b" under "Step 2" with =>>=.
+
+*** Step 3
+*** Step 1
+*** Step 2b
+*** Step 2
+
+** Cut, copy, paste and clone
+- =<prefix>hy= copies a subtree, =<prefix>hd= cuts it, =<prefix>hp= pastes
+  it after the current subtree, adjusting its level.
+- =<prefix>hc= clones a subtree N times and shifts its timestamps.
+
+*Try:* on "Team sync" press =<prefix>hc=, answer =3= copies with a shift of
+=+1w=. You get the next three weekly meetings.
+
+*** Team sync
+<2026-09-28 Mon 10:00-10:30>
+
+** Sorting
+=<prefix>hs= sorts the children of the current headline (or the list under
+the cursor). Menu keys: =a= alphabetical, =n= numeric, =t= time, =s=
+scheduled, =d= deadline, =p= priority, =o= TODO order, =r= by property.
+Uppercase reverses.
+
+*Try:* on "Books to read" press =<prefix>hs= then =a=, then =<prefix>hs=
+and =p= to sort by priority.
+
+*** Books to read
+**** [#C] The Pragmatic Programmer
+**** [#A] Structure and Interpretation of Computer Programs
+**** [#B] Crafting Interpreters
+
+** Narrowing
+=<prefix>hn= opens the current subtree in its own buffer. =:w= writes the
+changes back, =<C-c>'= saves and closes.
+
+** Converting lines
+- =<prefix>*= turns a line into a headline (and back). On a list item, the
+  item becomes a headline.
+- =<prefix>-= turns a line into a list item (and back).
+- =<prefix>hC= toggles the =COMMENT= keyword. Commented subtrees are left
+  out of the agenda and the export.
+
+*Try:* turn this line into a headline and back with =<prefix>*=.
+
+* Markup
+Org has inline markup: *bold*, /italic/, _underlined_, =verbatim=,
+~code~ and +strike-through+. In Visual mode, =<prefix>E= wraps the selection
+in a marker. Set =ui.hide_emphasis_markers = true= to hide the markers.
+
+Blocks are inserted with =<prefix>ib= (a template menu). In Visual mode the
+selection is wrapped in the block.
+
+#+begin_quote
+Plain text is the most durable format there is.
+#+end_quote
+
+#+begin_example
+Example blocks are shown verbatim, in a monospace font.
+#+end_example
+
+#+begin_verse
+  Verse blocks keep
+    their line breaks
+      and indentation.
+#+end_verse
+
+#+begin_center
+Centered text (in export).
+#+end_center
+
+#+begin_comment
+Comment blocks never make it into the export.
+#+end_comment
+
+LaTeX fragments like $E = mc^2$ and \(\alpha + \beta\) are exported with
+MathJax in HTML. With =ui.pretty_entities= set, \alpha shows as α.
+
+-----
+
+The line of five dashes above is a horizontal rule.
+
+* Plain lists and checkboxes
+** Bullet styles
+Unordered bullets are =-=, =+= or an indented =*=. Ordered bullets are =1.=
+and =1)=.
+
+- dash
++ plus
+  * star (only when indented)
+
+1. first
+2. second
+3. third
+
+1) with a paren
+2) also works
+
+*Try:* put the cursor on "dash" and press =<S-Right>= a few times to cycle
+the bullet style of the whole list. On the ordered list, move "third" up
+with =<M-k>=: the list is renumbered.
+
+** Counters and descriptions
+3. [@3] =[@3]= starts the list at three
+4. and the next item continues
+
+- Org :: a plain-text outliner
+- Neovim :: a hyperextensible Vim-based text editor
+- org.nvim :: both of the above
+
+** Checkboxes
+=<C-Space>= (or =<C-c><C-c>=) toggles a checkbox. A parent shows =[-]= while
+only some of its children are done. Statistics cookies (=[1/3]= or =[33%]=)
+update automatically; =<prefix>#= updates them by hand.
+
+*Try:* check the children of "Pack for the trip" and watch both cookies.
+
+- [-] Pack for the trip [1/3] [33%]
+  - [X] Passport
+  - [ ] Charger
+  - [ ] Toothbrush
+- [ ] =<M-S-CR>= on this item adds a new checkbox item
+
+** Checklists on a headline [1/4]
+A cookie on a headline counts the checkboxes in its body.
+
+- [X] Draft the outline
+- [ ] Write the introduction
+- [ ] Add examples
+- [ ] Proofread
+
+* TODO keywords
+This file defines its own keywords with =#+TODO:= at the top:
+
+#+begin_example
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+end_example
+
+Keywords after =|= are done states. The letter in parentheses is the key for
+fast selection. =!= logs a timestamp, =@= asks for a note. =w@/!= means:
+ask for a note when entering WAITING, log a timestamp when leaving it.
+
+** TODO Cycle my state
+- =cit= / =ciT= (or =<S-Right>= / =<S-Left>= on the headline) cycles through
+  the states.
+- =<prefix>T= opens fast selection: press =d= for DONE, =w= for WAITING...
+
+*Try:* mark this entry DONE. A =CLOSED:= timestamp is added and the state
+change is logged in a =:LOGBOOK:= drawer. Set it to WAITING and you are
+asked for a note.
+
+** WAITING Reply from the landlord
+:LOGBOOK:
+- State "WAITING"    from "TODO"       [2026-09-22 Tue 09:12] \\
+  Emailed about the heating, waiting for an answer.
+:END:
+This is what a logged state change with a note looks like.
+
+** DONE A finished task
+CLOSED: [2026-09-23 Wed 17:40]
+:LOGBOOK:
+- State "DONE"       from "NEXT"       [2026-09-23 Wed 17:40]
+:END:
+
+** TODO Repeating tasks
+Timestamps with a repeater move forward when the task is marked DONE, and
+the task goes back to TODO.
+
+| Repeater | Meaning                                                  |
+|----------+----------------------------------------------------------|
+| =+1w=    | shift by one week, once                                  |
+| =++1w=   | shift by weeks until the date is in the future (same weekday) |
+| =.+2d=   | shift to two days after today                            |
+
+*** TODO Water the plants
+SCHEDULED: <2026-09-25 Fri .+3d>
+*** TODO Pay rent
+DEADLINE: <2026-10-01 Thu +1m>
+*** TODO Weekly review
+SCHEDULED: <2026-09-25 Fri ++1w>
+
+*Try:* mark "Weekly review" DONE and watch the date jump forward.
+
+** TODO Child TODOs and progress [0/3]
+A cookie on a headline without checkboxes counts its child TODO entries.
+
+*** TODO Book the flights
+*** TODO Reserve the hotel
+*** TODO Plan the itinerary
+
+*Try:* mark the children DONE one by one.
+
+** TODO Ordered dependencies
+:PROPERTIES:
+:ORDERED:  t
+:END:
+With =:ORDERED: t= and =enforce_todo_dependencies = true= in your config,
+a child can't be marked DONE before its earlier siblings are.
+=<C-c><C-x>o= toggles the ORDERED property.
+
+*** TODO Step one
+*** TODO Step two (blocked until step one is done)
+
+* Priorities
+Priorities go right after the keyword: =[#A]=, =[#B]= or =[#C]=. The range
+comes from =priority_highest= / =priority_lowest= or =#+PRIORITIES:=.
+
+- =<S-Up>= / =<S-Down>= on the headline raise / lower the priority.
+- =<C-a>= / =<C-x>= on the cookie do the same.
+- =<prefix>,= then a letter sets it, =<Space>= removes it.
+
+** TODO [#A] Fix the production outage
+** TODO [#B] Review the pull request
+** TODO [#C] Clean up the downloads folder
+** TODO No priority yet
+
+*Try:* give the last entry priority A, then lower it to C.
+
+* Tags
+Tags sit at the end of the headline, between colons. The fast keys come from
+=#+TAGS:= at the top of the file. Tags inside ={ }= are mutually exclusive.
+
+- =<prefix>t= (or =<C-c><C-c>= on a headline) opens fast tag selection.
+- In that menu, =<Tab>= lets you type any tag and =<Space>= clears them all.
+- =:Org align_tags= realigns every tag in the buffer to =tags_column=.
+
+** Plan the offsite                                               :work:
+*** Book a room                                              :@office:
+*** Send the agenda                                           :urgent:
+
+*Try:* on "Book a room" press =<prefix>t= then =r=. =@remote= replaces
+=@office= because they are in the same group.
+
+** Inheritance
+Children inherit the tags of their parents, and every entry in this file has
+=tutorial= from =#+FILETAGS:=. The agenda match =+work= finds "Book a room"
+and "Send the agenda" even though only their parent has =:work:=.
+Disable it with =use_tag_inheritance = false=, or exclude single tags with
+=tags_exclude_from_inheritance=.
+
+* Properties and column view
+** TODO Write the quarterly report                                   :work:
+:PROPERTIES:
+:ID:       tutorial-quarterly-report
+:Effort:   2:00
+:CLIENT:   ACME
+:END:
+Properties live in a =:PROPERTIES:= drawer under the headline.
+
+- =<prefix>p= sets a property (names are completed), =<prefix>P= deletes one.
+- =<prefix>xe= sets the =Effort= property. The choices come from
+  =#+PROPERTY: Effort_ALL= at the top of the file.
+- =<prefix>lI= creates an =ID= property.
+
+*Try:* set a =CLIENT= property on "Prepare the slides" below. Set its
+effort with =<prefix>xe=.
+
+*** TODO Gather the numbers
+:PROPERTIES:
+:Effort:   1:00
+:END:
+*** TODO Prepare the slides
+
+** Special and file-wide properties
+- Special properties can be used in matches and column view: =ITEM=, =TODO=,
+  =PRIORITY=, =TAGS=, =ALLTAGS=, =CATEGORY=, =LEVEL=, =SCHEDULED=,
+  =DEADLINE=, =CLOSED=, =TIMESTAMP=, =FILE=.
+- =#+PROPERTY: NAME value= sets a property for the whole file.
+- =use_property_inheritance= makes children inherit property values.
+
+** Column view
+=<prefix>C= opens column view: every headline as a row of a table, with the
+columns from =#+COLUMNS:= at the top of this file. =%Effort{:}= sums the
+efforts of the children. In the view, =e= edits a value, =<CR>= jumps to
+the entry, =r= refreshes and =q= quits.
+
+*Try:* put the cursor on "Write the quarterly report" and press =<prefix>C=.
+
+Summary operators: ={+}= sum, ={:}= time sum, ={X}= checkbox, ={X/}= and
+={X%}= checkbox statistics, ={min}= ={max}= ={mean}=.
+
+* Dates and times
+** Timestamps
+#+begin_example
+<2026-11-02 Mon>                     active: shows in the agenda
+[2026-11-02 Mon]                     inactive: just a note
+<2026-11-02 Mon 10:00-11:30>         with a time range
+<2026-11-09 Mon>--<2026-11-11 Wed>   a date range
+<2026-11-02 Mon +1w>                 with a repeater
+<2026-11-19 Thu -5d>                 with a warning period
+#+end_example
+
+- =<prefix>i.= inserts an active timestamp, =<prefix>i!= an inactive one.
+  With a count (=4<prefix>i.=) the time is included. Right after another
+  timestamp, it makes a range.
+- =<C-a>= / =<C-x>= change the part under the cursor: year, month, day,
+  hour, minute, repeater or warning. =<S-Right>= / =<S-Left>= move one day.
+- =<CR>= on a timestamp opens the agenda for that day.
+
+*Try:* type =<prefix>i.= here and pick a date. Then put the cursor on the
+month and press =<C-a>=: the weekday is updated for you.
+
+Meeting with the designers <2026-09-30 Wed 15:00>
+
+** SCHEDULED and DEADLINE
+*** TODO Dentist appointment
+SCHEDULED: <2026-09-29 Tue 15:00>
+*** TODO Submit the tax return
+DEADLINE: <2026-10-15 Thu -10d>
+The =-10d= shows the deadline in the agenda ten days before it is due
+(instead of =deadline_warning_days=).
+
+*** TODO Something to plan
+*Try:* press =<prefix>s= on this headline to schedule it and =<prefix>d= to
+give it a deadline. =2<prefix>s= removes the date again.
+
+** The calendar and date input
+Date prompts open a floating calendar. Move with =h= =j= =k= =l= (day,
+week), =H= =L= (month), =J= =K= (year), =.= for today, =T= to set a time,
+=<CR>= to select. Press =i= to type a date instead:
+
+| You type          | You get                              |
+|-------------------+--------------------------------------|
+| =.= or nothing    | today                                |
+| =+3d= =-2w= =+1m= | relative to today                    |
+| =fri= =+2fri=     | next Friday / Friday in two weeks    |
+| =sep 15=          | the next September 15                |
+| =15=              | the next 15th of a month             |
+| =2026-10-01=      | an absolute date                     |
+| =tomorrow 14:00=  | a date and a time                    |
+| =fri 10:00-11:30= | a date with a time range             |
+| =10:00+1:30=      | a start time and a duration          |
+
+* Clocking and effort
+** NEXT Write the blog post                                          :work:
+:PROPERTIES:
+:Effort:   1:30
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-23 Wed 14:00]--[2026-09-23 Wed 15:10] =>  1:10
+CLOCK: [2026-09-22 Tue 09:30]--[2026-09-22 Tue 10:15] =>  0:45
+:END:
+
+- =<prefix>xi= clocks in on this entry, =<prefix>xo= clocks out.
+- =<prefix>xq= cancels the clock, =<prefix>xj= jumps to the clocked entry
+  from anywhere. =:Org clock_in_last= restarts the last clock.
+- The running clock survives a restart of Neovim.
+- =<prefix>xd= shows the clocked time of every headline as virtual text.
+- =<C-c><C-c>= on a =CLOCK:= line recomputes its duration.
+
+*Try:* clock in here, wait a minute, clock out and look at the =:LOGBOOK:=.
+With =require("org").statusline()= in your statusline you see
+=⏱ [0:01/1:30] (Write the blog post)= while it runs.
+
+** TODO Review the design doc                                        :work:
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 11:00]--[2026-09-24 Thu 11:40] =>  0:40
+:END:
+
+** Clock table
+A clock table is a dynamic block. Put the cursor on the =#+BEGIN:= line and
+press =<C-c><C-c>= to (re)generate it. =<prefix>xr= inserts a new one.
+
 #+BEGIN: clocktable :scope file :maxlevel 2
 #+END:
 
+*Try:* change =:maxlevel 2= to =:maxlevel 3=, or add =:block thisweek= or
+=:tags t=, and update it again.
+
+* Agenda
+The agenda collects entries from =agenda_files= into one view. Open the
+dispatcher with =<prefix>a=:
+
+| Key | View                                             |
+|-----+--------------------------------------------------|
+| =a= | the week (or day, see =agenda.span=)             |
+| =t= | every open TODO                                  |
+| =T= | TODOs with one keyword                           |
+| =m= | a tags/properties match                          |
+| =M= | a match, TODO entries only                       |
+| =s= | search for words or a regexp                     |
+| =#= | stuck projects                                   |
+| =<= | restrict to the current file (press again: subtree) |
+
+This file is in =agenda_files= when you use =examples/minimal_init.lua=.
+Otherwise add it for this session with =<C-c>[=.
+
+*Try:* press =<prefix>a= then =a=. Press =gd= and go to =2026-09-28= to
+see the entries below.
+
+** Things that show up in the agenda
+*** TODO Standup                                                   :work:
+SCHEDULED: <2026-09-28 Mon 09:30 ++1d>
+*** Lunch with Sam
+<2026-09-28 Mon 12:30-13:30>
+*** Conference
+<2026-10-05 Mon>--<2026-10-07 Wed>
+Multi-day ranges show as =(1/3):=, =(2/3):=, =(3/3):=.
+*** TODO Renew the passport                                        :home:
+DEADLINE: <2026-10-02 Fri>
+Deadlines appear =In N d.:= before they are due and =N d. ago:= after.
+*** TODO Run 5k                                                   :habit:
+SCHEDULED: <2026-09-28 Mon .+2d/3d>
+:PROPERTIES:
+:STYLE:    habit
+:LAST_REPEAT: [2026-09-26 Sat 07:30]
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-09-26 Sat 07:30]
+- State "DONE"       from "TODO"       [2026-09-24 Thu 07:15]
+- State "DONE"       from "TODO"       [2026-09-21 Mon 07:40]
+- State "DONE"       from "TODO"       [2026-09-19 Sat 08:05]
+- State "DONE"       from "TODO"       [2026-09-16 Wed 07:20]
+:END:
+With =:STYLE: habit= the agenda draws a consistency graph: =*= marks a day
+the habit was done, and the colours show whether it was on time.
+
+** Working in the agenda
+| Key                  | Action                                    |
+|----------------------+-------------------------------------------|
+| =f= =b= =.=          | later / earlier / today                   |
+| =vd= =vw= =vm=       | day / week / month view                   |
+| =<CR>= =<Tab>=       | open the entry here / in another window   |
+| =F=                  | follow mode                               |
+| =t=                  | change the TODO state                     |
+| =s= =d= =>=          | schedule / deadline / move to a date      |
+| =,= =+= =-=          | set / raise / lower the priority          |
+| =:=                  | set tags                                  |
+| =I= =O=              | clock in / out                            |
+| =R= =$=              | refile / archive                          |
+| =l= =C=              | log mode / clock report                   |
+| =/= =<=              | filter by tag / category                  |
+| =m= =B=              | mark entries / bulk action on marked ones |
+| =q=                  | quit                                      |
+
+The = key filters by regexp and | removes all filters.
+
+** Match syntax
+The =m= and =M= views, custom commands, sparse trees and clock tables use
+the same match syntax as Emacs:
+
+| Match                  | Finds                                        |
+|------------------------+----------------------------------------------|
+| =+work-urgent=         | tagged work, not urgent                      |
+| =+work/NEXT=           | work entries in the NEXT state               |
+| =+work/!=              | work entries that are not done               |
+| =PRIORITY="A"=         | priority A                                   |
+| =Effort<"1:00"=        | effort under an hour                         |
+| =LEVEL=2=              | second-level headlines                       |
+| =CLIENT="ACME"=        | a property value                             |
+| =SCHEDULED<="<+2d>"=   | scheduled in the next two days (or overdue)  |
+| ={^hab}=               | a tag matching a regexp                      |
+
+Use =|= for "or": =work|home= finds entries tagged work or home.
+
+*Try:* =<prefix>a= then =M= and type =+work/!=.
+
+** Custom agenda commands
+Combine several views in one buffer with =agenda.custom_commands=:
+
+#+begin_src lua
+agenda = {
+  custom_commands = {
+    w = {
+      description = "Work overview",
+      types = {
+        { type = "agenda", span = "day", header = "Today" },
+        { type = "tags_todo", match = "+work/!", header = "Open work tasks" },
+        { type = "todo", match = "WAITING", header = "Waiting for" },
+      },
+    },
+    u = { description = "Urgent", type = "tags", match = 'PRIORITY="A"|+urgent' },
+  },
+}
+#+end_src
+
+=examples/minimal_init.lua= defines both, so =<prefix>a= then =w= works
+right away.
+
+** Stuck projects
+A project is "stuck" when it has no NEXT or TODO child. =<prefix>a= then =#=
+lists them. =agenda.stuck_projects= says what a project is; the example
+config uses ={ match = "+project/-DONE" }= and keeps the =project= tag
+from being inherited (=tags_exclude_from_inheritance=), so "Learn Rust" is stuck and
+"Repaint the kitchen" is not.
+
+*** Learn Rust                                                   :project:
+*** Repaint the kitchen                                          :project:
+**** TODO Buy paint
+
+* Sparse trees
+=<prefix>/= folds the buffer so that only matching entries are visible, and
+fills the location list (=:lnext=, =:lprev=).
+
+| Key | Shows                                      |
+|-----+--------------------------------------------|
+| =/= | lines matching a regexp                    |
+| =t= | open TODO entries                          |
+| =T= | entries with one TODO keyword              |
+| =m= | a tags/properties match                    |
+| =p= | a property value                           |
+| =d= | deadlines due soon or overdue              |
+| =b= =a= =D= | timestamps before / after / between dates |
+| =c= | clear the highlights                       |
+
+*Try:* =<prefix>/= then =m= and type =+work=. Then =<S-Tab>= to show
+everything again and =<prefix>/= =c= to clear the highlights.
+
+* Capture
+Capture files a note from any buffer without leaving what you are doing.
+=<prefix>c= shows the template menu. In the capture window, =<C-c><C-c>= or
+=:w= finishes, =<C-c><C-k>= aborts and =<C-c><C-w>= refiles.
+
+Templates live in your config:
+
+#+begin_src lua
+capture = {
+  templates = {
+    t = { description = "Task", template = "* TODO %?\n  %U\n  %a", target = "inbox.org" },
+    w = "Work", -- a group: press w, then t or m
+    wt = { description = "Work task", template = "* TODO %? :work:", target = "work.org", headline = "Inbox" },
+    wm = { description = "Meeting", template = "* %^{Who} %^g\n  %T\n  %?", target = "work.org", olp = { "Meetings" }, clock_in = true },
+    j = { description = "Journal", template = "* %<%H:%M> %?", target = "journal.org", datetree = true },
+    s = { description = "Shopping item", type = "checkitem", template = "[ ] %?", target = "inbox.org", headline = "Shopping" },
+    x = { description = "Expense", type = "table-line", template = "| %u | %^{Amount} | %^{What} |", target = "inbox.org", headline = "Expenses", immediate_finish = true },
+  },
+}
+#+end_src
+
+Useful expansions: =%?= cursor, =%U= inactive timestamp, =%T= active
+timestamp with time, =%a= link back to where you were, =%i= the visual
+selection, =%^{Prompt}= ask for text, =%^g= ask for tags, =%<%Y-%m-%d>=
+strftime.
+
+*Try:* with =examples/minimal_init.lua=, select a line of this paragraph in
+Visual mode, press =<prefix>c= and =t=. The task links back here and quotes
+the selection. The captured entries go to a scratch file under
+=stdpath("state")=.
+
+* Refile and archive
+** Refiling
+=<prefix>r= moves the subtree under another headline in any agenda file.
+Targets look like =tutorial.org/Refile and archive/Projects=.
+
+*Try:* refile "A stray idea" under "Projects".
+
+*** A stray idea
+*** Projects
+**** Existing project
+
+** Archiving
+- =<prefix>$= moves the subtree to the archive (=tutorial.org_archive=
+  here). It keeps where it came from in =ARCHIVE_*= properties.
+- =<prefix>hA= toggles the =ARCHIVE= tag instead: the subtree stays in
+  place, folded, and is hidden from the agenda.
+- The location comes from the =ARCHIVE= property, =#+ARCHIVE:= or
+  =archive_location=.
+
+*** DONE An old task to archive
+CLOSED: [2026-09-20 Sun 10:00]
+*** Old notes                                                    :ARCHIVE:
+Archived in place with =<prefix>hA=.
+
+* Links
+=<CR>= (or =gx=) opens the link under the cursor. =<prefix>li= inserts a
+link (or edits the one under the cursor), =<prefix>ls= stores a link to the
+current location from any buffer, and =<prefix>ln= / =<prefix>lp= jump
+between links. =<prefix>lt= shows the raw link text.
+
+** Link types
+- A web page: [[https://orgmode.org][the Org manual]], or a bare URL: https://neovim.io
+- A heading in this file: [[*Tables][the Tables section]]
+- A custom ID: [[#tutorial-footnotes][the footnotes section]]
+- A dedicated target: [[my target][jump to <<my target>>]]
+- A file: [[file:minimal_init.lua][the example config]]
+- A line in a file: [[file:tutorial.org::1][the top of this file]]
+- A heading in a file: [[file:tutorial.org::*Capture][Capture]]
+- A regexp in a file: [[file:minimal_init.lua::/agenda_files/][agenda_files]]
+- Vim help: [[help:org-links][:h org-links]]
+- A shell command (asks first): [[shell:echo "hello from a link"][say hello]]
+- An abbreviation from =#+LINK:=: [[gh:xheisenbugx/org.nvim][org.nvim on GitHub]]
+- Another one: [[ddg:org mode tables][search the web]]
+
+<<my target>> This is the dedicated target from the list above.
+
+*Try:* =<prefix>ls= on the "Tables" heading below, come back here and press
+=<prefix>li=. The stored link is offered first.
+
+** IDs
+An =ID= property gives a heading a link that survives moving it to another
+file. =<prefix>lI= creates one; =<prefix>ls= uses it automatically.
+=:Org id_update_locations= rebuilds the index from the agenda files.
+
+** Attachments
+=<prefix>A= opens the attachment menu: =a= attach a file, =n= create a new
+one, =o= open one, =f= open the attachment directory, =d= delete. Files go
+into =attach.dir= (default =data/=) and the heading gets an =ATTACH= tag.
+=[[attachment:notes.txt]]= links to an attached file.
+
+* Using footnotes
+:PROPERTIES:
+:CUSTOM_ID: tutorial-footnotes
+:END:
+Footnotes are references like this one[fn:1], named ones[fn:name], and
+inline footnotes[fn::defined right here, no definition needed].
+
+- =<CR>= on a reference jumps to its definition, and back.
+- =<prefix>if= inserts a new footnote and its definition.
+
+*Try:* put the cursor at the end of this sentence and press =<prefix>if=.
+
+* Tables
+** Editing
+Type =|Name|Age=, press =<CR>=, type =|-= and press =<Tab>= in Insert mode:
+the table is aligned and a separator appears.
+
+- Insert mode: =<Tab>= / =<S-Tab>= next / previous field (a new row is added
+  at the end), =<CR>= the same column in the next row.
+- =<C-c><C-c>= aligns the table. Leaving Insert mode also aligns it.
+- =<M-h>= =<M-l>= move a column, =<M-k>= =<M-j>= move a row.
+- =<M-H>= / =<M-L>= delete / insert a column; =<M-K>= / =<M-J>= delete /
+  insert a row; =<M-CR>= adds a row below.
+- =<prefix>Ts= sorts the rows by the column under the cursor.
+- =<prefix>Tc= creates a table, or converts selected CSV/TSV lines.
+
+*Try:* this table is a mess. Put the cursor in it and press =<C-c><C-c>=.
+
+|Name|Language|Stars
+|-
+|org.nvim|Lua|42
+|neorg|Lua|6500
+|orgmode|Lua|3100
+
+*Try:* select the lines below in Visual mode and press =<prefix>Tc=.
+
+name,role,city
+Ada,engineer,London
+Linus,maintainer,Portland
+
+** Formulas
+Formulas go on a =#+TBLFM:= line under the table. =<C-c><C-c>= on that line
+(or =<prefix>Tf= in the table) recalculates. =<prefix>'= edits the formulas
+in their own buffer.
+
+*Try:* change a quantity, then press =<C-c><C-c>= on the =#+TBLFM:= line.
+
+| Item     | Qty | Price | Total |
+|----------+-----+-------+-------|
+| Coffee   |   3 |   4.5 |       |
+| Keyboard |   1 |   120 |       |
+| Stickers |  10 |   0.8 |       |
+|----------+-----+-------+-------|
+| Sum      |     |       |       |
+#+TBLFM: $4=$2*$3;%.2f::@>$2=vsum(@I..@II)::@>$4=vsum(@I..@II);%.2f
+
+- =$4= is column 4, =@>= the last row, =@I..@II= the rows between the first
+  and the second separator.
+- =$4=...= is a column formula; =@>$4=...= a field formula.
+- =;%.2f= formats the result.
+
+** References and functions
+| References           | Meaning                                  |
+|----------------------+------------------------------------------|
+| =$2= =$>= =$-1=      | column 2 / last column / column to the left |
+| =@3= =@>= =@-1=      | row 3 / last row / row above             |
+| =@I= =@II=           | first / second separator                 |
+| =@2$3=               | a single field                           |
+| =@2$1..@4$3=         | a range                                  |
+| =@#= =$#=            | the current row / column number          |
+
+| n | square | running total | odd? | label  |
+|---+--------+---------------+------+--------|
+| 1 |      1 |             1 |    1 | item-1 |
+| 2 |      4 |             3 |    0 | item-2 |
+| 3 |      9 |             6 |    1 | item-3 |
+| 4 |     16 |            10 |    0 | item-4 |
+#+TBLFM: $2=$1^2::$3=vsum(@I$1..@0$1)::$4=if(mod($1, 2) == 1, 1, 0)::$5='(string.format("item-%d", $1))
+
+Available functions: =vsum= =vmean= =vmin= =vmax= =vcount= =vmedian=
+=vsdev= =abs= =sqrt= =round= =floor= =ceil= =mod= =min= =max= =if= and more.
+Anything else in ='( ... )= is evaluated as Lua (or as Emacs Lisp, for the
+common functions like =+=, =concat= and =format=).
+
+** Named columns, parameters and constants
+Name columns with a =!= row, and define parameters with a =$= row. Constants
+come from =#+CONSTANTS:=.
+
+#+CONSTANTS: vat=0.21
+
+|   | Product | net |  gross |
+|---+---------+-----+--------|
+| ! | Product | net |  gross |
+| # | Lamp    |  40 |  48.40 |
+| # | Chair   | 120 | 145.20 |
+| # | Desk    | 300 | 363.00 |
+|---+---------+-----+--------|
+| $ | rate=1  |     |        |
+#+TBLFM: $gross=$net*(1+$vat)*$rate;%.2f
+
+** Time and durations
+The =T= flag reads and writes =H:MM:SS=; =U= writes =H:MM=.
+
+| Task    | Start |   End | Duration |
+|---------+-------+-------+----------|
+| Emails  | 09:00 | 09:40 |    00:40 |
+| Coding  | 09:40 | 12:15 |    02:35 |
+| Meeting | 13:00 | 13:45 |    00:45 |
+#+TBLFM: $4=$3-$2;U
+
+** Referencing another table
+=remote(name, ref)= reads a field of a table with a =#+NAME:=.
+
+#+NAME: prices
+| Fruit  | Price |
+|--------+-------|
+| Apple  |  0.50 |
+| Banana |  0.25 |
+
+| Order   | Amount | Total |
+|---------+--------+-------|
+| Apples  |     12 |  6.00 |
+| Bananas |      6 |  1.50 |
+#+TBLFM: @2$3=$2*remote(prices, @2$2);%.2f::@3$3=$2*remote(prices, @3$2);%.2f
+
+* Source blocks (Babel)
+=<C-c><C-c>= inside a block runs it in the background and writes the output
+into a =#+RESULTS:= block. You are asked before anything runs
+(=babel.confirm_evaluate=).
+
+| Key                    | Action                                    |
+|------------------------+-------------------------------------------|
+| =<C-c><C-c>= =<prefix>be= | run the block under the cursor         |
+| =<prefix>bb= =<prefix>bs= | run every block in the buffer / subtree |
+| =<prefix>bk=           | remove the result                         |
+| =<prefix>bn= =<prefix>bp= | next / previous block                  |
+| =<prefix>'=            | edit the block in a buffer with its filetype |
+| =<prefix>bt=           | tangle the file                           |
+
+** Languages
+Lua runs inside Neovim, so it can use the whole =vim= API:
+
+#+begin_src lua
+return string.format("Neovim %s, %d buffers open", tostring(vim.version()), #vim.api.nvim_list_bufs())
+#+end_src
+
+Other languages run their interpreter:
+
+#+begin_src sh :results output
+echo "Hello from $(basename "$SHELL")"
+uname -s
+#+end_src
+
+#+begin_src python :results output
+import platform
+print(f"Python {platform.python_version()}")
+#+end_src
+
+#+begin_src js :results output
+console.log(["a", "b", "c"].map((s) => s.toUpperCase()).join(" "))
+#+end_src
+
+Add or change languages with =babel.languages=, for example
+={ deno = { cmd = "deno run", ext = "ts" } }=.
+
+** Results
+=:results output= captures what the program prints. =:results value= (the
+default) captures the return value. Lists of lists become tables.
+
+#+begin_src python :results value
+return [[n, n * n, n ** 3] for n in range(1, 5)]
+#+end_src
+
+#+begin_src sh :results output list
+printf "apples\nbananas\ncherries\n"
+#+end_src
+
+#+begin_src python :results output :exports both
+print("Exported with its result")
+#+end_src
+
+Other =:results= options: =raw=, =org=, =drawer=, =html=, =code=, =file=,
+and =append= / =prepend= / =silent=.
+
+** Variables and tables as input
+=:var= passes values into a block. A named table becomes a list of rows.
+
+#+NAME: expenses
+| Category | Amount |
+|----------+--------|
+| Rent     |   1200 |
+| Food     |    450 |
+| Travel   |    300 |
+
+#+begin_src python :var rows=expenses :results output
+total = sum(amount for _, amount in rows)
+for name, amount in rows:
+    print(f"{name:8} {amount / total:6.1%}")
+#+end_src
+
+#+begin_src lua :var name="world" :var times=3
+return string.rep("hello " .. name .. "! ", times)
+#+end_src
+
+** Named blocks and #+CALL
+A named block can be called with other arguments. Put the cursor on the
+=#+CALL:= line and press =<C-c><C-c>=.
+
+#+NAME: square
+#+begin_src python :var x=2
+return x * x
+#+end_src
+
+#+CALL: square(x=12)
+
+** Noweb
+=:noweb yes= expands =<<name>>= with the body of another block.
+
+#+NAME: greet-function
+#+begin_src sh :eval no
+greet() { echo "Hello, $1!"; }
+#+end_src
+
+#+begin_src sh :noweb yes :results output
+<<greet-function>>
+greet "noweb"
+#+end_src
+
+** Tangling
+=<prefix>bt= writes blocks with =:tangle= to files. This one becomes
+=hello.sh= next to this file:
+
+#+begin_src sh :tangle hello.sh :shebang "#!/bin/sh"
+echo "I was tangled from tutorial.org"
+#+end_src
+
+** Header arguments
+Header arguments can also be set for the whole file
+(=#+PROPERTY: header-args:python :results output=), for a subtree (a
+=header-args= property), or on =#+HEADER:= lines above a block.
+
+#+HEADER: :results output
+#+begin_src sh :dir /tmp
+pwd
+#+end_src
+
+* Dynamic blocks
+Dynamic blocks are regenerated in place. =<C-c><C-c>= on the =#+BEGIN:= line
+updates one, =<prefix>xU= updates every block in the file.
+
+The clock table in "Clocking and effort" is one. A =columnview= block writes
+the column view of a subtree into the file:
+
+#+BEGIN: columnview :id tutorial-quarterly-report :format "%40ITEM %TODO %Effort{:}"
+| ITEM                       | TODO | Effort |
+|----------------------------+------+--------|
+| Write the quarterly report | TODO |   1:00 |
+| Gather the numbers         | TODO |   1:00 |
+| Prepare the slides         | TODO |        |
+#+END:
+
+=:id= names the subtree by its =ID= property. =:id local= uses the subtree
+the block is in, and =:id global= the whole file.
+
+You can register your own blocks from Lua:
+
+#+begin_src lua :eval no
+require("org.dblock").register("today", function(params, ctx)
+  return { "Generated on " .. os.date("%Y-%m-%d") }
+end)
+#+end_src
+
 * Export
-=<leader>oe= opens the export dispatcher: =h h= writes HTML, =m m= Markdown,
-=t a= plain text, =l p= PDF (via pandoc).
+=<prefix>e= opens the export dispatcher:
+
+| Keys  | Output                                  |
+|-------+-----------------------------------------|
+| =h h= | HTML file (=h o= also opens it)         |
+| =m m= | Markdown file                           |
+| =t a= | plain text                              |
+| =l l= | LaTeX, =l p= PDF                        |
+| =d d= | DOCX (pandoc), =o o= ODT                |
+| =s=   | toggle: export only the current subtree |
+
+*Try:* put the cursor on the "Export sample" heading below, press
+=<prefix>e=, then =s= and =h o=.
+
+** Export sample
+:PROPERTIES:
+:EXPORT_TITLE: A sample export
+:END:
+#+MACRO: plugin /org.nvim/
+{{{plugin}}} replaces the macro with its text.
+
+#+CAPTION: A captioned table
+| Format   | Native |
+|----------+--------|
+| HTML     | yes    |
+| Markdown | yes    |
+| DOCX     | pandoc |
+
+Inline math: $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$.
+
+*** This subtree is exported
+*** This one is not                                               :noexport:
+Tagging a subtree =noexport= leaves it out. Tagging subtrees =export=
+does the opposite: then only those subtrees are exported.
+
+** Export settings
+Export options go in =#+OPTIONS:= at the top of a file, for example
+=#+OPTIONS: toc:2 num:nil ^:{} todo:nil=. =#+TITLE:=, =#+AUTHOR:= and
+=#+DATE:= fill in the title page. Code runs only with =:exports results= or
+=both=, and export uses the existing =#+RESULTS:= instead of running it
+again.
+
+* Timers and notifications
+** Timers
+- =:Org timer_start= starts a relative timer (=<C-c><C-x>0=).
+- =:Org timer_insert= inserts its value. In a list it starts an item like
+  =- 0:01:23 :: =, which makes meeting notes easy.
+- =:Org timer_countdown 25= starts a 25-minute countdown (a pomodoro).
+
+- 0:00:05 :: introductions
+- 0:04:40 :: roadmap discussion
+
+** Appointment reminders
+With =notifications = { enabled = true }= (or =:Org notifications_start=),
+entries with a time in the agenda files trigger a notification
+=reminder_time= minutes before they start.
+
+* Completion
+Completion works with the built-in omnifunc (=<C-x><C-o>=), blink.cmp and
+nvim-cmp. It completes:
+
+- TODO keywords right after the stars
+- tags after =:= on a headline
+- =#+= keywords, =#+STARTUP= and =#+OPTIONS= values
+- source block languages after =#+begin_src=
+- property and drawer names at the start of a line
+- link types, stored links, headings (=[[*=) and custom IDs (=[[#=)
+
+*Try:* on a new line, type =#+= and press =<C-x><C-o>=. Then type
+=[[*Ta= and complete again.
 
 * Footnotes
+New footnote definitions are added to this section.
+
 [fn:1] Press =<CR>= here to jump back to the reference.
+
+[fn:name] Named footnotes work the same way.
+
