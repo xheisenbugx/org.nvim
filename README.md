@@ -72,7 +72,7 @@ snacks).
 -- ~/.config/nvim/lua/plugins/org.lua
 return {
   {
-    "xheisenbugx/orgmode.nvim",
+    "xheisenbugx/org.nvim",
     main = "org",
     lazy = false, -- startup cost is tiny: only :Org and a few global keymaps
     opts = {
