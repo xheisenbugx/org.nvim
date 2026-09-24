@@ -399,7 +399,15 @@ function M.load_buffer(path)
   end
   b = vim.fn.bufadd(path)
   vim.bo[b].buflisted = true
-  vim.fn.bufload(b)
+  -- A hidden load can't show the swap-file dialog; from Lua the ATTENTION
+  -- message surfaces as E325. Suppress it ('shortmess' A) and load anyway.
+  local shortmess = vim.o.shortmess
+  vim.opt.shortmess:append("A")
+  local ok, err = pcall(vim.fn.bufload, b)
+  vim.o.shortmess = shortmess
+  if not ok then
+    error(err, 0)
+  end
   if vim.bo[b].filetype == "" then
     vim.bo[b].filetype = "org"
   end
