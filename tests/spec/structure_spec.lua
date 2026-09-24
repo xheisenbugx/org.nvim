@@ -141,6 +141,91 @@ describe("structure: sort", function()
     eq("* [#C] x", buf_lines(buf)[1])
   end)
 
+  local function pick(key)
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function(opts)
+      for _, it in ipairs(opts.items) do
+        if it.key == key then
+          return it.value
+        end
+      end
+    end
+    return function()
+      ui.menu = orig
+    end
+  end
+
+  it("sorts the entries selected in Visual mode", function()
+    local buf = org_buffer({
+      "#+TITLE: t",
+      "* [#C] c",
+      "body c",
+      "** child of c",
+      "* [#A] a",
+      "* [#B] b",
+      "body b",
+      "* untouched",
+    }, { 2, 0 })
+    vim.cmd("normal! zR")
+    local restore = pick("p")
+    -- select from "c" into the body of "b": its whole subtree is included
+    vim.api.nvim_feedkeys(vim.keycode("V5j<leader>ohs"), "xt", false)
+    restore()
+    eq({
+      "#+TITLE: t",
+      "* [#A] a",
+      "* [#B] b",
+      "body b",
+      "* [#C] c",
+      "body c",
+      "** child of c",
+      "* untouched",
+    }, buf_lines(buf))
+    eq("n", vim.fn.mode())
+  end)
+
+  it("sorts only the top-level entries of the selection", function()
+    local buf = org_buffer({ "* P", "** b", "*** z", "*** y", "** a" }, { 2, 0 })
+    vim.cmd("normal! zR")
+    local restore = pick("a")
+    vim.api.nvim_feedkeys(vim.keycode("V3j<leader>ohs"), "xt", false)
+    restore()
+    eq({ "* P", "** a", "** b", "*** z", "*** y" }, buf_lines(buf))
+  end)
+
+  it("sorts list items selected in Visual mode", function()
+    local buf = org_buffer({ "* H", "- b", "- c", "- a" }, { 2, 0 })
+    vim.cmd("normal! zR")
+    local restore = pick("a")
+    vim.api.nvim_feedkeys(vim.keycode("Vj<leader>ohs"), "xt", false)
+    restore()
+    eq({ "* H", "- a", "- b", "- c" }, buf_lines(buf))
+  end)
+
+  it("sorts the children of a single selected (folded) entry", function()
+    local buf = org_buffer({ "* P", "** b", "** a", "* Q" }, { 1, 0 })
+    vim.cmd("normal! zx")
+    local restore = pick("a")
+    vim.api.nvim_feedkeys(vim.keycode("V<leader>ohs"), "xt", false)
+    restore()
+    eq({ "* P", "** a", "** b", "* Q" }, buf_lines(buf))
+  end)
+
+  it("leaves a heading without children alone", function()
+    local buf = org_buffer({ "* b", "* a" }, { 1, 0 })
+    local asked = false
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function()
+      asked = true
+    end
+    structure.sort()
+    ui.menu = orig
+    eq(false, asked, "no menu when there is nothing to sort")
+    eq({ "* b", "* a" }, buf_lines(buf))
+  end)
+
   it("sorts list items", function()
     local buf = org_buffer({ "- b", "- c", "- a" }, { 1, 0 })
     local ui = require("org.ui")

@@ -164,9 +164,13 @@ Headlines start with one or more stars followed by a space: >org
 
                                                                  *org-sort*
 <prefix>hs      Sort the children of the current headline (or top-level
-                entries, or the list at the cursor). Menu keys: a alpha,
-                n numeric, t time, s scheduled, d deadline, c created,
-                p priority, o TODO order, r property. Uppercase reverses.
+                entries, or the list at the cursor). In Visual mode, sort
+                the selected entries instead: the top-level headings of the
+                selection with their subtrees (a single selected heading,
+                such as a closed fold, has its children sorted), or the
+                selected list. Menu keys: a alpha, n numeric, t time,
+                s scheduled, d deadline, c created, p priority, o TODO
+                order, r property. Uppercase reverses.
 
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes

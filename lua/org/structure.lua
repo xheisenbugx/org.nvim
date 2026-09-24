@@ -699,12 +699,61 @@ local function mixed_compare(a, b)
   return a < b
 end
 
+--- Headlines to sort for the Visual selection srow..erow: the top-level
+--- entries of the selection (siblings), like Emacs with an active region.
+local function region_entries(file, srow, erow)
+  local min
+  for _, h in ipairs(file.headlines) do
+    if h.line >= srow and h.line <= erow and (not min or h.level < min) then
+      min = h.level
+    end
+  end
+  local out = {}
+  for _, h in ipairs(file.headlines) do
+    if h.line >= srow and h.line <= erow and h.level == min then
+      out[#out + 1] = h
+    end
+  end
+  return out
+end
+
+--- Sort the children of the headline at the cursor (or the top-level
+--- entries before the first headline), the list at the cursor, or, in
+--- Visual mode, the entries or list items in the selection.
 function M.sort()
   local bufnr = buf()
   local lnum = cursor()[1]
-  local line = vim.api.nvim_get_current_line()
+  local srow, erow
+  if in_visual() then
+    srow, _, erow = utils.visual_range()
+    exit_visual()
+    lnum = srow
+  end
+  local line = get_lines(bufnr, lnum, lnum)[1] or ""
   local lists = require("org.lists")
-  local on_item = not parser.headline_level(line) and lists.item_at(bufnr, lnum)
+  local file = files.get_buffer(bufnr)
+  local children
+  if srow then
+    children = region_entries(file, srow, erow)
+    -- a single selected entry (e.g. a closed fold): sort its children
+    if #children == 1 then
+      children = children[1].children
+    end
+  end
+  local on_item = not parser.headline_level(line) and (not children or #children == 0) and lists.item_at(bufnr, lnum)
+  if not on_item then
+    if not children then
+      local hl = file:headline_at(lnum)
+      children = hl and hl.children or file.children
+    end
+    if #children < 2 then
+      utils.notify(
+        srow and "Nothing to sort: select at least two sibling headings"
+          or "Nothing to sort: this heading has fewer than two children (select siblings in Visual mode to sort them)"
+      )
+      return
+    end
+  end
   local items = {}
   for _, it in ipairs(SORT_ITEMS) do
     items[#items + 1] = { key = it.key, label = it.label, value = { kind = it.kind, reverse = false } }
@@ -725,12 +774,6 @@ function M.sort()
   end
   if on_item then
     lists.sort_items(bufnr, lnum, item_key(choice.kind, prop), choice.reverse)
-    return
-  end
-  local hl, file = current_headline()
-  local children = hl and hl.children or file.children
-  if #children < 2 then
-    utils.notify("Nothing to sort")
     return
   end
   local keyfn = headline_key(choice.kind, prop)

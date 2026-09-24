@@ -76,7 +76,7 @@ M.list = {
   cut_subtree = { "org.structure", "cut_subtree", desc = "Cut subtree" },
   paste_subtree = { "org.structure", "paste_subtree", desc = "Paste subtree" },
   clone_subtree = { "org.structure", "clone_subtree", desc = "Clone subtree with time shift" },
-  sort = { "org.structure", "sort", desc = "Sort entries / items" },
+  sort = { "org.structure", "sort", desc = "Sort entries / items", modes = { "n", "x" } },
   narrow_subtree = { "org.structure", "narrow_subtree", desc = "Narrow to subtree (edit buffer)" },
   indirect_subtree = { "org.structure", "tree_to_indirect_buffer", desc = "Subtree in split edit buffer" },
   mark_subtree = { "org.structure", "mark_subtree", desc = "Select subtree", modes = { "n", "x" } },

@@ -318,7 +318,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
-| `<prefix>hs` `hn` `hC` `hA` `hb` | Sort / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
+| `<prefix>hs` `hn` `hC` `hA` `hb` | Sort (children, or the selection in Visual mode) / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
 | `<prefix>*` / `<prefix>-` | Toggle heading / list item |
 | `cit` / `ciT` / `<prefix>T` | Next / previous / select TODO state |
 | `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; cycle bullet *(ctx)* |
