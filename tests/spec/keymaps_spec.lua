@@ -39,6 +39,22 @@ describe("keymaps e2e", function()
     keys("<C-a>")
     eq("x 6", buf_lines(buf)[1])
   end)
+  it("<S-Down>/<S-Up> removing a priority does not scroll", function()
+    local lines = { "* TODO [#C] Low", "* TODO [#A] High" }
+    for i = 1, 200 do
+      lines[#lines + 1] = "line " .. i
+    end
+    local buf = org_buffer(lines, { 1, 0 })
+    keys("<S-Down>")
+    eq("* TODO Low", buf_lines(buf)[1])
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+    eq(1, vim.fn.line("w0"))
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    keys("<S-Up>")
+    eq("* TODO High", buf_lines(buf)[2])
+    eq(2, vim.api.nvim_win_get_cursor(0)[1])
+    eq(1, vim.fn.line("w0"))
+  end)
   it("<C-c><C-c> aligns a table", function()
     local buf = org_buffer({ "|a|bb|", "|-", "|ccc|d|" }, { 1, 1 })
     keys("<C-c><C-c>")

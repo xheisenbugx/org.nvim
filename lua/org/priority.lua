@@ -7,6 +7,8 @@ local M = {}
 
 --- Shift priority. dir = 1 raises (towards highest), -1 lowers.
 --- Moving past either end removes the cookie (Emacs behaviour).
+--- Returns the new priority, or nil when it was removed. Never `false`: to a
+--- keymap that means "not applicable" and replays the key (<S-Down> pages down).
 ---@param target? org.Target
 ---@param dir integer
 function M.shift(target, dir)
@@ -25,8 +27,8 @@ function M.shift(target, dir)
       new = nil
     end
   end
-  local value = new and string.char(new) or false
-  edit.update_headline(bufnr, hl.line, { priority = value })
+  local value = new and string.char(new)
+  edit.update_headline(bufnr, hl.line, { priority = value or false })
   return value
 end
 
@@ -55,7 +57,7 @@ function M.set(target, value)
   end
   if value == " " or value == "" then
     edit.update_headline(bufnr, hl.line, { priority = false })
-    return false
+    return nil
   end
   value = value:upper()
   local b = value:byte()
