@@ -36,7 +36,8 @@ CONTENTS                                                        *org-contents*
   27. Commands .................................. |org-commands|
   28. Lua API ................................... |org-api|
   29. In-buffer settings ........................ |org-in-buffer-settings|
-  30. Differences from Emacs .................... |org-differences|
+  30. Linting ................................... |org-lint|
+  31. Differences from Emacs .................... |org-differences|
 
 ==============================================================================
 1. INTRODUCTION                                             *org-introduction*
@@ -1729,6 +1730,7 @@ Additional subcommands:
   :Org timer_countdown [min]   :Org timer_remaining
   :Org toggle_timestamp_type
   :Org notifications_start | notifications_stop
+  :Org lint [checker ...]    (|org-lint|)
 
 ==============================================================================
 28. LUA API                                                          *org-api*
@@ -1779,7 +1781,80 @@ Targets are `{ bufnr = n, lnum = l }`.
 After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 
 ==============================================================================
-30. DIFFERENCES FROM EMACS                                   *org-differences*
+30. LINTING                                                         *org-lint*
+
+:Org lint [checker ...]  Check the buffer for syntax mistakes (Emacs
+                        `org-lint`) and list the problems in the location
+                        list (title "org-lint", entries "checker: message",
+                        E for high trust, W for low trust). With checker
+                        names (completed), only those run (Emacs C-u C-u).
+                        No default key, as in Emacs.
+
+Lua: `require("org.lint").lint(bufnr, checkers?)` returns the reports
+`{ lnum, col, checker, message, trust }` sorted by position, and
+`require("org.lint").show(checkers?)` fills the location list. The buffer is
+parsed like Org's element parser, so messages and lines match Emacs.
+
+Checkers (low trust ones are heuristics):
+  misplaced-heading (low)           `** Heading` glued to text
+  duplicate-custom-id               duplicate-name   duplicate-target
+  duplicate-footnote-definition
+  orphaned-affiliated-keywords (low) `#+NAME:` / `#+ATTR_*:` with no element
+  combining-keywords-with-affiliated (low)
+                                    keyword right above affiliated ones
+  obsolete-affiliated-keywords      `#+TBLNAME:`, `#+SRCNAME:`, `#+RESULT:`
+  deprecated-export-blocks (low)    `#+BEGIN_HTML` instead of `BEGIN_EXPORT`
+  deprecated-header-syntax (low)    `#+PROPERTY: cache yes`, `:cache:`
+  missing-language-in-src-block     suspicious-language-in-src-block (low)
+  missing-backend-in-export-block   invalid-babel-call-block
+  wrong-header-argument             wrong-header-value (low)
+  empty-header-argument (low)       named-result
+  deprecated-category-setup         second `#+CATEGORY:` keyword
+  invalid-coderef-link              invalid-custom-id-link
+  invalid-fuzzy-link                invalid-id-link (current buffer, then
+                                    the ID locations, see |org-id|)
+  trailing-bracket-after-link (low)
+  unclosed-brackets-in-link-description (low)
+  link-to-local-file (low)          non-existent-setupfile-parameter (low)
+  wrong-include-link-parameter (low) obsolete-include-markup (low)
+  unknown-options-item (low)        misspelled-export-option (low)
+  invalid-macro-argument-and-template (low)
+  special-property-in-properties-drawer
+  obsolete-properties-drawer        invalid-effort-property
+  invalid-id-property               undefined-footnote-reference
+  unreferenced-footnote-definition  extraneous-element-in-footnote-section
+  invalid-keyword-syntax (low)      invalid-image-alignment
+  invalid-block (low)               mismatched-planning-repeaters (low)
+  misplaced-planning-info (low)     incomplete-drawer (low)
+  indented-diary-sexp (low)         quote-section (low)
+  file-application                  percent-encoding-link-escape (low)
+  spurious-colons                   non-existent-bibliography
+  missing-print-bibliography        invalid-cite-export-declaration
+  incomplete-citation (low)         item-number
+  priority                          LaTeX-$ (low)
+  beamer-frame (low)                timestamp-syntax (low)
+  clock-syntax (low)                planning-inactive
+  LaTeX-$-fragment                  `$...$` fragments; only on request:
+                                    Emacs registers it under the name
+                                    LaTeX-$, which the ambiguous-$ checker
+                                    replaces
+
+Differences from Emacs:
+- suspicious-language-in-src-block knows the languages Babel can run
+  (`babel.languages`) and those with a Vim filetype, instead of Emacs major
+  modes.
+- Header arguments of the languages shipped with Org (python, shell, C,
+  sqlite, ...) are accepted as if their ob- library were loaded.
+- misplaced-heading reports the line of the heading; Emacs sometimes
+  reports a later line.
+- Link and file checks use the plugin's link abbreviations, link types,
+  attachment directories (|org-attach|) and ID locations.
+- Nothing is skipped: every checker of Org 9.8 is implemented. The report
+  buffer's keys (h hide, i ignore a checker) are replaced by the location
+  list; rerun with checker names instead.
+
+==============================================================================
+31. DIFFERENCES FROM EMACS                                   *org-differences*
 
 - Notes (state changes with `@`, agenda `z`) are single-line prompts rather
   than a separate note buffer.

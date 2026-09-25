@@ -226,6 +226,7 @@ M.list = {
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
+  lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
 
   -- tables
   table_create = { "org.table", "create_or_convert", desc = "Create table / convert region", modes = { "n", "x" } },

@@ -32,6 +32,7 @@ M.extra = {
   content = { "org.fold", "content", desc = "Show contents (all headlines)" },
   align_tags = { "org.tags", "align_all", desc = "Align all tags in buffer" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
+  lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
 }
 
 local function names()
@@ -98,6 +99,14 @@ function M.complete(arglead, cmdline)
     return out
   elseif sub == "capture" then
     return vim.tbl_keys(require("org.config").opts.capture.templates or {})
+  elseif sub == "lint" then
+    local out = {}
+    for _, c in ipairs(require("org.lint").checkers) do
+      if c[1]:find(arglead, 1, true) == 1 then
+        out[#out + 1] = c[1]
+      end
+    end
+    return out
   end
   return {}
 end
