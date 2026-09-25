@@ -347,15 +347,18 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | --- | --- | --- | --- |
 | `f` / `b` / `.` | later / earlier / today | `vd` `vw` `vt` `vm` `vy` | day / week / fortnight / month / year |
 | `gd` | go to date | `r` | redo |
-| `<CR>` / `<Tab>` / `<Space>` | switch to / go to / show entry | `F` | follow mode |
+| `<CR>` / `<Tab>` / `<Space>` / `L` | switch to / go to / show / show and recenter | `F` | follow mode |
 | `t`, `<C-S-Right/Left>` | change TODO | `,` `+` `-` | set/raise/lower priority |
-| `:` | tags | `s` / `d` | schedule / deadline |
-| `<S-Right>` / `<S-Left>` / `>` | date +1 / −1 / prompt | `e` | effort |
-| `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / ARCHIVE tag |
-| `z` | add note | `c` | capture |
-| `l` / `C` | log mode / clock report | `/` `<` `=` `\|` | filter tag / category / regexp / clear |
-| `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `n` / `p` | next / previous item |
-| `E` | export agenda | `q` / `x` | quit / quit and wipe |
+| `:` / `T` | set / show tags | `s` / `d` | schedule / deadline |
+| `<S-Right>` / `<S-Left>` / `>` | date +1 / −1 / prompt | `e` / `<C-c><C-x>p` | effort / property |
+| `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / archive with confirmation |
+| `<C-c><C-x>A` / `<C-c><C-x>a` | archive sibling / ARCHIVE tag | `<C-k>` / `<C-c><C-o>` | delete entry / open link |
+| `z` | add note | `c` | capture (at the date at point) |
+| `l` `vL` / `C` | log mode (all) / clock report | `E` / `G` | entry text / time grid |
+| `va` / `vA` / `v[` | archived trees / archive files / inactive timestamps | `/` `<` `=` `_` `^` `\|` | filter tag / category / regexp / effort / top headline / clear |
+| `[` `]` `{` `}` | add +word / -word / +{re} / -{re} to the query | `n` / `p`, `<C-c><C-n/p>` | next / previous item, date line |
+| `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `<M-m>` `*` `<M-*>` `%` | toggle / mark all / toggle all / mark regexp |
+| `<C-x><C-s>` / `<C-x><C-w>` | save org buffers / export agenda | `q` / `x` | quit / quit and wipe |
 
 </details>
 
@@ -571,7 +574,6 @@ first contribution:
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`
-- [ ] Date-tree archive locations
 - [ ] `org-crypt` and `org-protocol`
 
 If there's something you'd like that isn't here,

@@ -407,36 +407,74 @@ Agenda view contents:
 Agenda keys (all configurable under `mappings.agenda`):
   f / b / .       later / earlier / today
   vd vw vt vm vy  day / week / fortnight / month / year view
+  v<Space>        reset the span to the default
   gd              go to a date (calendar)
   r               rebuild the view
   <CR> <Tab>      open the entry here / in another window
   <Space>         show the entry, keeping focus in the agenda
-  F               follow mode
+  L               show the entry and recenter its window
+  o               close the other windows
+  F               follow mode (also vf)
   n / p           next / previous item
+  <C-c><C-n/p>    next / previous date line
+  <C-Down/Up>     next / previous block
   t               change TODO state; <C-S-Right/Left> cycle it
   , + -           set / raise / lower priority (also <S-Up/Down>)
-  :               set tags
+  : / T           set tags / show tags
+  <C-c><C-x>p     set a property
   s / d           schedule / deadline
   <S-Right/Left>  move the date +1 / -1 day
   >               prompt for a new date
   e               set effort
   I O X J         clock in / out / cancel / go to clocked entry
-  R $ a           refile / archive / toggle the ARCHIVE tag
+  ;               start a countdown timer
+  R               refile
+  $               archive (also <C-c>$, <C-c><C-x><C-s>)
+  a               archive after confirmation
+  <C-c><C-x>A     move to the Archive sibling
+  <C-c><C-x>a     toggle the ARCHIVE tag
+  <C-k>           delete the entry in its file (asks when it is longer
+                  than `agenda.confirm_kill` lines)
+  <C-c><C-o>      open a link of the entry (choose when there are several)
   z               add a note
-  c               capture
-  l               log mode (closed items, clocks, state changes)
-  C               clock report mode
+  c               capture, with the date at point as default date
+  l               log mode: closed items and clocks (also vl);
+                  vL also shows state changes
+  C               clock report mode (also vR)
+  E               entry text mode: show the first body lines of each
+                  entry (`agenda.entry_text_maxlines`) (also vE)
+  G               toggle the time grid (also vG)
+  va / vA         include archived trees / also the archive files
+  v[              include inactive timestamps
   /               filter by tag (`+tag` / `-tag`; again to clear)
   <               filter by category
   =               filter by regexp
+  _               filter by effort: `<1:00`, `>30`, `=0:15` (entries
+                  without an effort count as infinitely long)
+  ^               filter by the top headline of the entry at point
   |               remove all filters
+  [ ] { }         search view: add a +word / -word / +{regexp} /
+                  -{regexp} term (tags views: a +tag / -tag term);
+                  date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
+  <M-m> * <M-*>   toggle mark / mark all / toggle all marks
+  %               mark entries matching a regexp
   B               bulk action on marked entries: t todo, s schedule,
-                  d deadline, + add tag, - remove tag, r refile,
-                  $ archive
-  E               export the agenda buffer to a .txt or .html file
+                  d deadline, S shift, + add tag, - remove tag,
+                  p priority, r refile, $ archive, A archive sibling,
+                  a ARCHIVE tag, f apply a Lua function
+  <C-x><C-s>      save all modified org buffers
+  <C-x><C-w>      export the agenda buffer to a .txt or .html file
   q / x           quit / quit and wipe the buffer
   g?              help
+Emacs-style aliases: <C-c><C-t> todo, <C-c><C-q> and <C-c><C-c> tags,
+<C-c>, priority, <C-c><C-x>e effort, <C-c><C-z> note, <C-c><C-x><C-i>
+<C-c><C-x><C-o> <C-c><C-x><C-x> <C-c><C-x><C-j> clock in / out / cancel /
+goto, <C-c><C-x><Right/Left> date later / earlier.
+
+Options: `agenda.start_with_log_mode` (true or "all"),
+`start_with_follow_mode`, `start_with_clockreport_mode`,
+`start_with_entry_text_mode`.
 
 Edits made from the agenda are saved to disk when `agenda.save_after_edit`
 is set.
@@ -585,11 +623,24 @@ Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
                   "%s_archive::"             another file, top level
                   "archive.org::* Archived"  another file, under a headline
                   "::* Archive"              same file, under a headline
+                  "archive.org::datetree/"   another file, in a date tree
+                                             for the CLOSED date (or today)
                 Adds ARCHIVE_TIME, ARCHIVE_FILE, ARCHIVE_OLPATH,
-                ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS according
-                to `archive_save_context_info`.
+                ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS (also
+                "ltags" and "olid") according to
+                `archive_save_context_info`. Inherited tags become local
+                tags when archiving within the same file
+                (`archive_subtree_add_inherited_tags`: "infile", true or
+                false).
 <prefix>hA      Toggle the ARCHIVE tag. Archived subtrees stay folded and are
                 excluded from the agenda.
+<C-c><C-x>A     Move the subtree under its "Archive" sibling
+                (`archive_sibling_heading`), which is created with the
+                ARCHIVE tag when missing (org-archive-to-archive-sibling).
+:Org archive_all_done
+                Offer to archive each child of the headline at the cursor
+                (each top-level tree when not on a headline) that has no
+                open TODO entries (C-u C-c C-x C-s in Emacs).
 
 ==============================================================================
 16. LINKS, IDS AND ATTACHMENTS                  *org-links* *org-id* *org-attach*
@@ -922,6 +973,8 @@ Buffer ~
   archive_location          "%s_archive::"
   archive_save_context_info { "time", "file", "olpath", "category", "todo",
                               "itags" }
+  archive_sibling_heading   "Archive"
+  archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
   skip_scheduled_if_done, skip_deadline_if_done,
@@ -934,7 +987,9 @@ agenda ~
   habits { graph_column, preceding_days, following_days, show_habits,
   show_all_today }, stuck_projects { match, todo_keywords, tags, text },
   save_after_edit, block_separator, show_inherited_tags, remove_tags,
-  custom_commands
+  custom_commands, entry_text_maxlines 5, confirm_kill 1,
+  start_with_log_mode, start_with_follow_mode,
+  start_with_clockreport_mode, start_with_entry_text_mode
 capture ~
   templates (|org-capture-templates|), window
 refile ~
@@ -1091,6 +1146,7 @@ Links, refile, archive, export:
   <C-c><C-x><C-n> <C-p>  next / previous link
   <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
+  <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
 
@@ -1188,7 +1244,6 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   - clocktable `:step`
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
-  - datetree archive locations
 - Column view is a separate table buffer rather than overlays on the
   headlines.
 - <M-CR> never splits the current line.

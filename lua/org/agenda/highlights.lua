@@ -25,6 +25,7 @@ local links = {
   OrgAgendaClocking = "Visual",
   OrgAgendaLog = "Comment",
   OrgAgendaHint = "Comment",
+  OrgAgendaEntryText = "Comment",
   OrgSparseMatch = "Search",
 }
 

@@ -168,6 +168,8 @@ M.list = {
   -- refile / archive / attach
   refile = { "org.refile", "refile", desc = "Refile subtree" },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
+  archive_to_sibling = { "org.archive", "archive_to_sibling", desc = "Archive to Archive sibling" },
+  archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
   attach = { "org.attach", "menu", desc = "Attachments" },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
