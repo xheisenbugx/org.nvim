@@ -1,0 +1,8 @@
+* H
+:LOGBOOK:
+- State "DONE" from "TODO" [2026-09-23 Wed 10:00]
+:END:
+:NOTE:
+note text
+:END:
+body

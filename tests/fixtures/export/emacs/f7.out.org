@@ -1,0 +1,30 @@
+#+latex_class: report
+#+latex_class_options: [a4paper]
+#+latex_header: \usepackage{foo}
+#+latex_header_extra: \usepackage{bar}
+#+caption: Img cap
+#+name: fig:a
+[[file:img.png]]
+
+| a | 10 |
+| b | 20 |
+
+#+begin_theorem
+A theorem.
+#+end_theorem
+
+#+caption: Code cap
+#+begin_src python
+  x = "a_b"
+#+end_src
+
+\begin{equation}
+e=mc^2
+\end{equation}
+
+Text with 50% and & and # and ~ and ^ and "quotes" and <2026-09-23 Wed>.
+See [[fig:a]].
+* H1
+** H2
+*** H3
+**** H4

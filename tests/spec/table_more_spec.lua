@@ -22,13 +22,14 @@ end
 
 describe("table inline formulas", function()
   it("<Tab> installs a column formula typed as =...", function()
+    -- like Emacs (org-table-maybe-eval-formula), only the field is computed
     local buf = org_buffer({ "| a | b | c |", "|---+---+---|", "| 1 | 2 |   |", "| 3 | 4 |   |" }, { 3, 10 })
     keys("a=$1+$2<Tab><Esc>")
     eq({
       "| a | b | c |",
       "|---+---+---|",
       "| 1 | 2 | 3 |",
-      "| 3 | 4 | 7 |",
+      "| 3 | 4 |   |",
       "#+TBLFM: $3=$1+$2",
     }, buf_lines(buf))
     -- the cursor moved on to the next row
@@ -38,13 +39,13 @@ describe("table inline formulas", function()
   it("C-c C-c installs a field formula typed as :=...", function()
     local buf = org_buffer({ "| 1 |      |", "| 2 | :=vsum(@1$1..@2$1) |", "#+TBLFM: $2=$1*10" }, { 2, 8 })
     keys("<C-c><C-c>")
-    eq({ "| 1 | 10 |", "| 2 |  3 |", "#+TBLFM: $2=$1*10::@2$2=vsum(@1$1..@2$1)" }, buf_lines(buf))
+    eq({ "| 1 |   |", "| 2 | 3 |", "#+TBLFM: $2=$1*10::@2$2=vsum(@1$1..@2$1)" }, buf_lines(buf))
   end)
 
   it("<CR> replaces an existing formula for the same column", function()
     local buf = org_buffer({ "| 2 | =$1*3 |", "| 5 |       |", "#+TBLFM: $2=$1" }, { 1, 8 })
     keys("a<CR><Esc>")
-    eq({ "| 2 |  6 |", "| 5 | 15 |", "#+TBLFM: $2=$1*3" }, buf_lines(buf))
+    eq({ "| 2 | 6 |", "| 5 |   |", "#+TBLFM: $2=$1*3" }, buf_lines(buf))
   end)
 
   it("<Tab> in a # row recalculates the table", function()

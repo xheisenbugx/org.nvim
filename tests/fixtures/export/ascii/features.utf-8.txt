@@ -1,0 +1,149 @@
+               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                THE ASCII BACK-END, FILLED AND JUSTIFIED
+                             A stress test
+
+                                Jane Doe
+                            jane@example.com
+               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+                               2024-03-01
+
+
+Table of Contents
+─────────────────
+
+1. TODO (#A) First section with a rather long title that goes on and on :work:urgent:
+.. 1. Sub section
+2. Second
+
+
+List of Tables
+──────────────
+
+Table 1: A small table
+List of Listings
+────────────────
+
+Listing 1: Some code
+
+
+1 TODO (#A) First section with a rather long title that goes on and on :work:urgent:
+══════════════════════════════════════════════════════════════════════
+
+  DEADLINE: <2024-03-08 Fri>
+  This paragraph is long enough to be filled over several lines. It has
+  sentences.  Some end with two spaces.  Others end at the end of a
+  line.  And “quotes” plus ’single quotes’ become smart in UTF-8…
+  Special strings – en dash — em dash and α → β entities, x^2 and
+  H_{2}O,   non-breaking.  A link to [Org] and a bare
+  <https://example.com> link, see [the first section] and 2.  Footnote
+  here[1] and inline[2].
+
+  Line break
+  after it.  *bold* /italic/ _under_ +strike+ `verb' `code' [1/3] [50%]
+
+  • ☑ done item with enough words in it to require filling at the margin
+    width
+    • nested + bullet
+      1. ordered one
+      2. ordered two
+  • ☐ open item
+  • ☒ partial item
+  • description of the term that is long enough to wrap onto the next
+    line as well
+  • ☑ with a checkbox
+
+        Quoted text that is long enough to be wrapped because the
+        quote margin reduces the text width on both sides of the
+        block.
+
+        Verse lines
+           keep their
+        indentation
+
+  		  Centered paragraph across a line.
+
+  Right aligned text.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━
+   Name   Value  <5>      
+  ────────────────────────
+   alpha    1.5  abcdefgh 
+   beta      20  c        
+  ━━━━━━━━━━━━━━━━━━━━━━━━
+  Table 1: A small table
+
+  ┌────
+  │ (message "hello")
+  └────
+  Listing 1: Some code
+
+  ┌────
+  │ example text
+  └────
+
+  ┌────
+  │ fixed width
+  │ lines
+  └────
+
+  ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+
+  \begin{equation}
+  x = y
+  \end{equation}
+
+  Math $a+b$ and \(c\).
+
+
+[Org] <https://orgmode.org>
+
+[the first section] See section 1
+
+1.1 Sub section
+───────────────
+
+  Text in the subsection with a [described link].
+
+
+[described link] <https://example.org/very/long/path>
+
+◊ 1.1.1 Low level headline                                         :tag:
+
+  Low level content that is long enough to be filled and indented under
+  the bullet of the low level headline.
+
+
+  ◊ 1.1.1.1 Deeper low level
+
+    Deeper text.
+
+                                            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                            TODO Inline task title
+                                            ──────────────────────────────
+                                            Inline task body.
+                                            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+2 Second
+════════
+
+  CLOSED: [2024-03-02 Sat 10:00]
+  Second section.
+
+  ┌────
+  │ print("listing two")
+  └────
+
+
+
+Footnotes
+─────────
+
+[1] A regular footnote with a long text that goes on for a while to be
+filled too.
+
+Second paragraph of the note.
+
+[2] An inline note.

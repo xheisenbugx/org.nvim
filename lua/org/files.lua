@@ -78,7 +78,15 @@ function M.agenda_file_paths(extra)
   local cfg = require("org.config").opts
   local patterns = vim.deepcopy(cfg.agenda_files or {})
   if type(patterns) == "string" then
-    patterns = { patterns }
+    local path = utils.expand(patterns)
+    if not path:match("%.org$") and not path:find("[%*%?%[]") and vim.fn.filereadable(path) == 1 then
+      -- like Emacs, a file that lists the agenda files, one per line
+      patterns = vim.tbl_filter(function(l)
+        return l:match("%S") ~= nil and not l:match("^%s*#")
+      end, vim.fn.readfile(path))
+    else
+      patterns = { patterns }
+    end
   end
   for _, p in ipairs(extra or {}) do
     patterns[#patterns + 1] = p

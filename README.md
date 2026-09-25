@@ -157,13 +157,13 @@ back to where you were.
 | 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00`, `sep 15` and `w39`; `SCHEDULED`/`DEADLINE` with warning and delay periods; `<C-a>`/`<C-x>` on any part of a timestamp, minutes rounded to 5 |
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp, ID, clock and function targets; all the common `%`-escapes |
-| 📦 | **Refile and archive** | Refile or copy to any headline in the agenda files, with Emacs-style target specs and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
+| 📦 | **Refile and archive** | Refile or copy subtrees or regions, with Emacs-style target specs, outline-path completion in steps and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
-| ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
-| 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
+| ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history with default and interrupted tasks, Emacs's clock resolution (keep, subtract, got-back) for dangling clocks and idle time, auto clock-out, effort estimates with an overrun alert, a statusline component, `clocktable` blocks matching Emacs output (`:step`, `:formula`, `:sort`, `:lang`…), agenda clock check, relative and countdown timers |
+| 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode and plots |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` (shells, Python, Node, Ruby, Lua), inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
-| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc; `#+INCLUDE` (with `::*heading`), `#+SETUPFILE`, `#+MACRO`, most `#+OPTIONS` |
-| 🎁 | **And more** | Footnotes (sort, renumber, normalize), sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
+| 📤 | **Export** | A port of Emacs's export engine: HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar back-ends matching Emacs output, citations, publishing projects, every `#+OPTIONS` key, plus DOCX, ODT, EPUB and more through pandoc |
+| 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
@@ -437,22 +437,29 @@ capture = {
     c = { description = "Checklist item", type = "checkitem", template = "[ ] %?", target = "~/org/todo.org", headline = "Shopping" },
     l = { description = "Log line", type = "table-line", template = "| %U | %^{Amount} | %^{What} |", target = "~/org/log.org", headline = "Expenses", immediate_finish = true },
   },
-  window = "float",  -- "float" | "split" | "vsplit" | "current"
+  window = "split",  -- "split" (like Emacs) | "float" | "vsplit" | "tab" | "current"
 }
 ```
 
 Target options:
 
-- `target`: the file to capture into.
+- `target`: the file to capture into (`""` or none: `default_notes_file`).
 - `headline`: a headline in the target, created if it doesn't exist.
-- `olp`: an outline path, as a list of headlines.
-- `datetree`: `true`, or `{ tree_type = "week" | "month" }`.
-- `regexp`: insert under the first line matching this pattern.
+- `olp`: an outline path, as a list of headlines (they must exist).
+- `datetree`: `true`, or `{ tree_type = "week" | "month" | { "year", "quarter", ... } }`.
+- `regexp`: a Vim regexp; the text goes where the first match ends.
+- `func` / `location`: functions choosing the position (file+function /
+  function targets).
 - `id`: insert under the entry with this ID.
 - `target = "clock"`: insert under the task being clocked.
 
-Other options: `type`, `prepend`, `empty_lines`, `properties`,
-`immediate_finish`, `jump_to_captured`, `clock_in`, `clock_resume`,
+Without any template, Emacs's "t" Task template is used (a TODO under
+"Tasks" in `default_notes_file`). `capture.templates_contexts` limits
+templates to some buffers (org-capture-templates-contexts).
+
+Other options: `type`, `prepend`, `empty_lines`, `table_line_pos`,
+`properties`, `immediate_finish`, `jump_to_captured`, `kill_buffer`,
+`refile_targets`, `clock_in`, `clock_keep`, `clock_resume`,
 `time_prompt`, `no_save`, and the `prepare_finalize`, `before_finalize`
 and `after_finalize` hook functions.
 
@@ -465,18 +472,19 @@ and `after_finalize` hook functions.
 | `%t` `%T` `%u` `%U` | date / date+time, active / inactive |
 | `%^t` `%^T` `%^u` `%^U` | same, but prompts with the calendar |
 | `%<%Y-%m-%d>` | strftime format |
-| `%a` `%A` `%l` | annotation link: plain / with description prompt / bare link |
-| `%i` | initial content (the visual selection) |
+| `%a` `%A` `%l` `%L` | annotation link: plain / with description prompt / without description / bare target |
+| `%i` | initial content (the visual selection), the text before it repeated on each line |
 | `%x` `%c` | clipboard / last yank |
 | `%f` `%F` | origin file name / full path |
-| `%n` | user name |
+| `%n` | your full name |
 | `%^{prompt\|default\|opt}` | prompt with a default and options |
-| `%\1` | the answer to the first prompt |
+| `%\1` `%\*1` | the answer to the first `%^{...}` prompt / to the first prompt of any kind |
 | `%^g` `%^G` | tags prompt |
 | `%^{PROP}p` | property prompt |
 | `%k` `%K` | the running clock's task / a link to it |
 | `%(expr)` | the value of a Lua expression (Emacs: elisp) |
-| `%%` | a literal `%` |
+| `%[file]` | the contents of a file |
+| `\%` | a literal `%` before an escape character (`%%` is not an escape, as in Emacs) |
 
 </details>
 
@@ -554,45 +562,40 @@ followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ## Differences from Emacs Org mode
 
-The goal is feature parity for everyday use, but some things differ:
+The goal is Emacs Org 9.8 parity: option defaults are Emacs's (so a fresh
+setup behaves like a fresh Emacs: no agenda files, `TODO | DONE`, nothing
+logged on DONE, files open expanded), and behaviour is checked against Emacs
+run in batch mode. What can't work the same way is listed with the reason in
+`:h org-differences`. The main points:
 
-- **Notes** (state-change notes, `z` in the agenda) are single-line prompts
-  instead of a separate note buffer.
-- **Table formulas** are evaluated as Lua arithmetic, not Emacs Calc: there
-  is no symbolic math. Elisp formulas `'(...)` support the common Lisp
-  functions; anything else is a Lua expression.
-- **Tables:** width cookies (`<10>`) don't shrink columns, and there is no
-  formula debugger, `orgtbl-mode` or radio tables.
-- **Babel:**
-  - `:session` works for shells, Python, Node, Ruby and Lua. Each block runs
-    as one request to the interpreter, and a session keeps a transcript
-    buffer where you can type lines, but it's not a full REPL.
-  - Export runs code only when `babel.evaluate_on_export` is `true`. Emacs
-    evaluates by default; here export uses the existing `#+RESULTS` unless
-    you turn it on.
-  - `elisp:` links and blocks can't run. `:var` Lisp values support only
-    what the table-formula Lisp evaluator implements.
-- **Column view** opens as a separate table view instead of overlays.
-- **M-RET** always inserts after the current subtree or item; it never
-  splits the line at the cursor.
-- **Plain list items don't fold** with `TAB`; only headlines, drawers and
-  blocks do.
-
-The features still missing are listed in the [Roadmap](#-roadmap).
+- **No Emacs Lisp.** `elisp:` links, emacs-lisp Babel blocks, `%(sexp)` in
+  capture templates, `#+BIND` and Elisp in header arguments can't run;
+  Lua functions take their place where a hook or function is expected.
+  Table `'(...)` formulas run on a small Lisp evaluator, and GNU Calc is
+  reimplemented only for what tables use.
+- **Emacs applications** (Gnus, mu4e, BBDB, the diary, the calendar's
+  holidays and astronomy) have no counterpart; common diary sexps such as
+  `%%(org-anniversary ...)` and `%%(diary-float ...)` are emulated.
+- **Display:** inline image and LaTeX previews need an image protocol core
+  Neovim lacks; hiding body text between visible headlines needs Neovim
+  0.11 (`conceal_lines`); column view is a table view, not overlays.
+- **Point vs cursor:** Emacs acts between characters, Normal mode on a
+  character, so commands that insert "at point" act at the end of the line
+  in Normal mode (at the cursor in Insert mode).
+- **Prefix arguments** are counts (4 = C-u, 16 = C-u C-u, 64 = C-u C-u C-u).
+- Babel sessions run each block as one request (not a full REPL), and Lua
+  blocks run inside Neovim.
+- MobileOrg is not supported (the apps are unmaintained).
 
 ---
 
 ## 🗺️ Roadmap
 
-These Emacs features aren't implemented yet. Each one would make a good
-first contribution:
+Ideas that would need more than core Neovim:
 
-- [ ] Inline image and LaTeX previews
-- [ ] Clock idle detection
-- [ ] Multi-line note buffers for state changes
+- [ ] Inline image and LaTeX previews through image.nvim / snacks.image
 - [ ] Column view as overlays on headlines
-- [ ] Diary sexp timestamps `<%%(…)>`
-- [ ] `org-crypt` and `org-protocol`
+- [ ] Async Babel sessions (`:async`)
 
 If there's something you'd like that isn't here,
 [open an issue](https://github.com/xheisenbugx/org.nvim/issues).

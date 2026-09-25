@@ -29,7 +29,7 @@ add("4 shopping", { { 2, 5, 4 } }, [[
 |----------+-----+-------+-------|
 | Coffee   |   3 |   4.5 |  13.5 |
 | Keyboard |   1 |   120 |   120 |
-| Stickers |  10 |   0.8 |     8 |
+| Stickers |  10 |   0.8 |    8. |
 |----------+-----+-------+-------|
 | Sum      |     |       | 141.5 |
 #+TBLFM: @2$4..@4$4=$2*$3::@5$4=vsum(@2..@4)]])
@@ -78,16 +78,16 @@ add("9 constants", { { 2, 4, 3 }, { 2, 4, 4 } }, [[
 
 | Product  | Price | Tax  | Total  |
 |----------+-------+------+--------|
-| Keyboard |  1200 |  192 |   1392 |
-| Mouse    |   500 |   80 |    580 |
-| Monitor  |  6000 |  960 |   6960 |
+| Keyboard |  1200 | 192. |  1392. |
+| Mouse    |   500 |  80. |   580. |
+| Monitor  |  6000 | 960. |  6960. |
 #+TBLFM: @2$3..@4$3=$2*$tax::@2$4..@4$4=$2+$3]])
 add("10 named columns", { { 2, 4, 4 } }, [[
 | Item     | Qty | Price | Total |
 |----------+-----+-------+-------|
 | Coffee   |   3 |   4.5 |  13.5 |
 | Keyboard |   1 |   120 |   120 |
-| Stickers |  10 |   0.8 |     8 |
+| Stickers |  10 |   0.8 |    8. |
 #+TBLFM: $Total=$Qty*$Price]])
 add("11 ! row names", { { 3, 5, 5 } }, [[
 |   | Item     | Qty | Price | Total |
@@ -96,7 +96,7 @@ add("11 ! row names", { { 3, 5, 5 } }, [[
 |---+----------+-----+-------+-------|
 | # | Coffee   |   3 |   4.5 |  13.5 |
 | # | Keyboard |   1 |   120 |   120 |
-| # | Stickers |  10 |   0.8 |     8 |
+| # | Stickers |  10 |   0.8 |    8. |
 #+TBLFM: $total=$qty*$price]])
 add("12 relative cols", { { 2, 4, 3 } }, [[
 | A | B | Result |

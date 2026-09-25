@@ -1,0 +1,12 @@
+#+bibliography: refs.json
+#+LANGUAGE: fr
+#+OPTIONS: toc:nil
+
+Une phrase [cite/ft:@knuth84]. Et une autre, [cite/ft:@lamport94] fin.
+Déjà en note[fn:1].
+
+Style [cite/t:@knuth84;@lamport94] et [cite/na:@lamport94].
+
+[fn:1] Voir [cite/ft:@knuth84 p. 12].
+
+#+print_bibliography:

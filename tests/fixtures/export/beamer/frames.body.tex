@@ -1,0 +1,50 @@
+\section{Intro}
+\label{sec:org6aec3a8}
+\begin{frame}[label={sec:orga3eadd6}]{First frame}
+Some \alert{important} text and \emph{italic}.
+
+\begin{itemize}
+\item item one
+\item<2-> item two
+\end{itemize}
+\end{frame}
+\begin{frame}[label={sec:orgc8f31f0},fragile]{Code frame}
+ \begin{verbatim}
+echo hi
+\end{verbatim}
+\end{frame}
+\begin{frame}[label={sec:org5fcbb8f}]{Blocks}
+\begin{block}{A block}
+Block text.
+\end{block}
+\begin{alertblock}<2->{An alert}
+Alert text.
+\end{alertblock}
+\begin{theorem}[Theorem]\label{sec:orga80383d}
+Statement.
+\end{theorem}
+\end{frame}
+\section<<3>>{Second section}
+\label{sec:org5628a59}
+\begin{frame}[allowframebreaks]{Columns frame}
+\begin{columns}
+\begin{column}{0.5\columnwidth}
+Left text.
+\end{column}
+\begin{column}{0.5\columnwidth}
+\begin{block}{Right}
+Right text.
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+\note{Notes
+A note.}
+\begin{frame}[<+->][label={sec:orged56dc4}]{}
+\begin{itemize}
+\item a
+\item b
+\end{itemize}
+\end{frame}
+\againframe<3>{sec:orga3eadd6}
+Plain text after ignore.

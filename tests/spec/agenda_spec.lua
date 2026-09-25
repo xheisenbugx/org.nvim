@@ -86,7 +86,9 @@ describe("agenda.items", function()
     eq({ "Deadline soon | Deadline:" }, titles(by_day[T + 5]))
     eq({ "Weekly | Scheduled:" }, titles(by_day[T + 6]))
     eq({ "Overdue scheduled | Scheduled:" }, titles(by_day[T - 3]))
-    local meeting = by_day[T + 1][1]
+    local meeting = vim.tbl_filter(function(it)
+      return it.title == "Meeting"
+    end, by_day[T + 1])[1]
     eq(600, meeting.time)
     eq(660, meeting.end_time)
   end)
@@ -155,9 +157,14 @@ describe("agenda.render", function()
     local from, to = render.range("week", wed, true)
     eq(wed - 2, from)
     eq(wed + 4, to)
+    -- org-agenda-list: a month span starts on the start day and lasts as
+    -- long as its month; changing the view starts it on the 1st
     from, to = render.range("month", wed, true)
-    eq(date.parse("<2026-09-01 Tue>"):days(), from)
-    eq(date.parse("<2026-09-30 Wed>"):days(), to)
+    eq(wed, from)
+    eq(wed + 29, to)
+    eq(date.parse("<2026-09-01 Tue>"):days(), render.starting_day("month", wed))
+    eq(date.parse("<2026-01-01 Thu>"):days(), render.starting_day("year", wed))
+    eq(wed - 2, render.starting_day("week", wed))
     eq(date.parse("<2026-10-23 Fri>"):days(), render.shift_anchor("month", wed, 1))
   end)
   it("renders a view", function()
@@ -174,7 +181,7 @@ describe("agenda.render", function()
     })
     ok(b.lines[1]:match("^Day%-agenda"))
     local text = table.concat(b.lines, "\n")
-    ok(text:find("test:%s+Scheduled: TODO Scheduled today"), text)
+    ok(text:find("  test:       Scheduled:  TODO Scheduled today", 1, true), text)
     ok(text:find("Global list of TODO items of type: ALL"), text)
     local tagline
     for _, l in ipairs(b.lines) do
@@ -211,8 +218,7 @@ describe("agenda.view", function()
     local t = view.resolve_target(item)
     eq(2, t.lnum)
     -- filter by tag
-    view.state.filters.tags.include.work = true
-    view.redo()
+    view.set_tag_filter({ "+work" })
     local count = vim.tbl_count(view.state.line_items)
     eq(1, count)
     view.actions.filter_remove()

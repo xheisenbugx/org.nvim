@@ -1,0 +1,45 @@
+- desc one :: first
+- desc two :: second
+
+sep1
+
+3. [@3] three
+4. four
+
+sep2
+
+- [X] done
+- [-] partial
+- [ ] open
+
+| a   | b |
+| 1   | 2 |
+| x=1 |   |
+
+| <l>  |   <r> |
+| left | right |
+
+#+caption: An image
+#+name: fig1
+[[file:img.png]]
+
+#+begin_warning
+special block
+#+end_warning
+
+#+begin: clocktable
+dyn content
+#+end:
+
+Inline src_python{1+1} and src_sh[:exports code]{echo hi}.
+Cite [cite:@key] here.
+
+#+toc: headlines 1
+#+toc: tables
+* Arch                                                              :ARCHIVE:
+* Normal
+text
+*************** TODO Inline task
+inline body
+*************** end
+after

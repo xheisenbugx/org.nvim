@@ -106,7 +106,11 @@ describe("babel :session", function()
       "#+end_src",
     })
     local l = buf_lines(buf)
-    ok(vim.tbl_contains(l, ": ZeroDivisionError: division by zero"), vim.inspect(l))
+    -- like Emacs, the error is not the result: it is shown in the
+    -- *Org-Babel Error Output* buffer and the result stays empty
+    eq({ "#+RESULTS:", "" }, vim.list_slice(l, 6, 7))
+    local eb = vim.fn.bufnr("*Org-Babel Error Output*")
+    ok(eb > 0 and table.concat(vim.api.nvim_buf_get_lines(eb, 0, -1, false), "\n"):find("ZeroDivisionError"))
     ok(vim.tbl_contains(l, ": 5"), vim.inspect(l))
   end)
 
@@ -185,7 +189,8 @@ describe("babel :session", function()
     })
     local l = buf_lines(buf)
     ok(vim.tbl_contains(l, ": 6"), vim.inspect(l))
-    ok(vim.tbl_contains(l, ": false"), vim.inspect(l))
+    -- the value is Python's str(), as in Emacs
+    ok(vim.tbl_contains(l, ": False"), vim.inspect(l))
   end)
 
   it("shows a transcript, loads a block and kills the session", function()

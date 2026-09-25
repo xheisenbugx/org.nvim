@@ -104,6 +104,73 @@ function M.input(opts)
   end)
 end
 
+--- Read a log note like Emacs' `*Org Note*` buffer: a small split where the
+--- note is typed over several lines, <C-c><C-c> stores it and <C-c><C-k>
+--- cancels (returns nil). Lines starting with "# " at the top are dropped.
+--- Falls back to a one-line `M.input` outside an interactive action or
+--- with `note_buffer = false`.
+---@param opts { prompt: string, purpose?: string }
+---@return string|nil
+function M.input_note(opts)
+  if type(opts) == "string" then
+    opts = { prompt = opts }
+  end
+  local ok_cfg, config = pcall(require, "org.config")
+  local use_buffer = not (ok_cfg and config.opts.note_buffer == false)
+  if not use_buffer or not in_coroutine() or #vim.api.nvim_list_uis() == 0 then
+    return M.input(opts)
+  end
+  local what = (opts.purpose or opts.prompt or "note"):gsub("[:%s]+$", "")
+  return M.await(function(cb)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].bufhidden = "wipe"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "# Insert note for " .. what .. ".",
+      "# Finish with C-c C-c, or cancel with C-c C-k.",
+      "",
+    })
+    vim.cmd("botright 8split")
+    local win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(win, buf)
+    vim.bo[buf].filetype = "org"
+    pcall(vim.api.nvim_buf_set_name, buf, "*Org Note*")
+    vim.api.nvim_win_set_cursor(win, { 3, 0 })
+    vim.cmd("startinsert")
+    local done = false
+    local function finish(text)
+      if done then
+        return
+      end
+      done = true
+      vim.cmd("stopinsert")
+      if vim.api.nvim_win_is_valid(win) then
+        pcall(vim.api.nvim_win_close, win, true)
+      end
+      cb(text)
+    end
+    local function store()
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      while lines[1] and lines[1]:match("^# ") do
+        table.remove(lines, 1)
+      end
+      finish((vim.trim(table.concat(lines, "\n"))))
+    end
+    for _, mode in ipairs({ "n", "i" }) do
+      vim.keymap.set(mode, "<C-c><C-c>", store, { buffer = buf, desc = "org: store note" })
+      vim.keymap.set(mode, "<C-c><C-k>", function()
+        finish(nil)
+      end, { buffer = buf, desc = "org: cancel note" })
+    end
+    vim.api.nvim_create_autocmd("BufWipeout", {
+      buffer = buf,
+      once = true,
+      callback = function()
+        finish(nil)
+      end,
+    })
+  end)
+end
+
 --- Prompt for text with a completion function (always uses the cmdline so
 --- custom completion works). `complete` receives the typed text.
 ---@param prompt string
@@ -340,18 +407,23 @@ function M.glob_org_files(patterns)
       out[#out + 1] = p
     end
   end
+  --- Files of a directory like Emacs org-agenda-files: not recursive,
+  --- names matching org-agenda-file-regexp ("^[^.].*\\.org$").
+  local function add_dir(dir)
+    for _, f in ipairs(vim.fn.globpath(dir, "*.org", false, true)) do
+      if not vim.fs.basename(f):match("^%.") then
+        add(f)
+      end
+    end
+  end
   for _, pattern in ipairs(patterns or {}) do
     local expanded = M.expand(pattern)
     if M.is_dir(expanded) then
-      for _, f in ipairs(vim.fn.globpath(expanded, "**/*.org", false, true)) do
-        add(f)
-      end
+      add_dir(expanded)
     elseif expanded:find("[%*%?%[]") then
       for _, f in ipairs(vim.fn.glob(expanded, false, true)) do
         if M.is_dir(f) then
-          for _, g in ipairs(vim.fn.globpath(f, "**/*.org", false, true)) do
-            add(g)
-          end
+          add_dir(f)
         else
           add(f)
         end
@@ -446,8 +518,17 @@ function M.open_file(path, lnum, opts)
     if b and cmd == "edit" then
       vim.api.nvim_set_current_buf(b)
     else
-      -- `hide` avoids E37 when the current buffer has unsaved changes
-      vim.cmd((cmd == "edit" and "hide " or "") .. cmd .. " " .. vim.fn.fnameescape(path))
+      -- `hide` avoids E37 when the current buffer has unsaved changes; a
+      -- modified buffer that can't be hidden (bufhidden=wipe) keeps its
+      -- window and the file opens in a split
+      local ok, err = pcall(vim.cmd, (cmd == "edit" and "hide " or "") .. cmd .. " " .. vim.fn.fnameescape(path))
+      if not ok then
+        if cmd == "edit" and tostring(err):find("E37", 1, true) then
+          vim.cmd("split " .. vim.fn.fnameescape(path))
+        else
+          error(err, 0)
+        end
+      end
     end
   end
   if lnum then

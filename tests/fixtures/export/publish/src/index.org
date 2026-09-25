@@ -1,0 +1,6 @@
+#+TITLE: Home
+#+OPTIONS: toc:nil num:nil
+
+Welcome. See [[file:sub/page.org::*Section Two][the page]] and [[file:about.org][about]].
+
+#+INDEX: Welcome

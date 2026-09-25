@@ -1,0 +1,15 @@
+#+OPTIONS: toc:nil num:nil
+
+file_name.txt and snake_case_var and x^{2+y} and 10^-3 and a_1b.
+*bold /nested it/ bold* and *multi
+line bold* and =code *not bold*= and ~x~.
+\alpha{}beta and \pi and \hellip and \shy and \ast and \Rightarrow and \leftrightarrow.
+Dash - single, \-shy, "x" 1--2.
+<<target1>> go to [[target1]] and [[target1][desc]].
+[[https://example.com/img.png]] and [[./local.org][Local]] and [[file:other.org::*Head][OtherH]].
+[[mailto:a@b.c]] and [[https://x.org/a%20b][pct]].
+Date [2026-09-23 Wed 10:00] and <2026-09-23 Wed>--<2026-09-24 Thu> and <%%(diary-float t 4 2)>.
+Latex $\frac{a}{b}$ and $$x$$ and \[y\] and \(z\) and \mathbb{R}.
+Price $5 and $10.
+Emphasis at end *x*.
+Hard *b* ~c~.

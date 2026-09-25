@@ -58,7 +58,11 @@ function M.setup_global()
       local a = actions.list[name]
       if a then
         for _, lhs in ipairs(config.lhs_list(value)) do
-          set("n", lhs, wrap(name, lhs, "n"), { desc = "org: " .. a.desc })
+          for _, mode in ipairs(a.modes or { "n" }) do
+            if mode ~= "i" then
+              set(mode, lhs, wrap(name, lhs, mode), { desc = "org: " .. a.desc })
+            end
+          end
         end
       end
     end

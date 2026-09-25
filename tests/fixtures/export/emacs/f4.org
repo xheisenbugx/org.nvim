@@ -1,0 +1,23 @@
+#+TITLE: F4
+#+SETUPFILE: setup.org
+#+MACRO: two $1-$2
+#+MACRO: ev (eval (concat "E" "V"))
+#+SELECT_TAGS: keep
+#+EXCLUDE_TAGS: drop
+
+M: {{{fromsetup}}} {{{two(a,b\,c)}}} {{{ev}}} {{{keyword(TITLE)}}} {{{property(FOO)}}}.
+
+* Kept :keep:
+:PROPERTIES:
+:FOO: headprop
+:END:
+Prop: {{{property(FOO)}}} item {{{property(ITEM)}}}.
+#+INCLUDE: "inc.org" :lines "1-2"
+#+INCLUDE: "inc.org::*IncTop" :minlevel 3
+#+INCLUDE: "inc.org" src python :lines "2-3"
+** Child dropped :drop:
+x
+** Child kept
+y
+* Not selected
+z

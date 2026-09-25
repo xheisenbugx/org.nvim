@@ -44,6 +44,16 @@ function M.attach(bufnr)
   try("org.ui.decorations", "attach", bufnr)
   try("org.table", "attach", bufnr)
   try("org.clock", "attach", bufnr)
+  try("org.crypt", "attach", bufnr)
+  try("org.speed", "attach", bufnr)
+  -- custom timestamp display (display_custom_times, #+STARTUP: customtime)
+  local ok_ts, ts = pcall(require, "org.timestamps")
+  if ok_ts and ts.custom_display_enabled(bufnr) then
+    vim.api.nvim_buf_call(bufnr, function()
+      vim.wo.conceallevel = math.max(vim.wo.conceallevel, 2)
+    end)
+    try("org.timestamps", "attach_custom_display", bufnr)
+  end
 
   vim.b[bufnr].undo_ftplugin = (vim.b[bufnr].undo_ftplugin or "") .. "|lua require('org.buffer').detach(" .. bufnr .. ")"
 end

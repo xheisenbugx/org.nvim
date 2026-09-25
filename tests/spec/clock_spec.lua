@@ -13,6 +13,8 @@ local function file_buffer(lines)
 end
 
 describe("clock", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   before_each(function()
     config.opts.clock.persist = false
     clock.state = nil
@@ -39,6 +41,7 @@ describe("clock", function()
   end)
 
   it("switches tasks and removes zero clocks", function()
+    config.opts.clock.out_remove_zero_time = true
     local buf = file_buffer({ "* A", "* B" })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     clock.clock_in()
@@ -50,6 +53,7 @@ describe("clock", function()
     eq(":LOGBOOK:", l[3])
     eq("B", clock.active().title)
     clock.clock_cancel()
+    config.opts.clock.out_remove_zero_time = false
     eq({ "* A", "* B" }, buf_lines(buf))
   end)
 
@@ -288,7 +292,7 @@ describe("clock", function()
     local buf = file_buffer({ "* A", ":PROPERTIES:", ":Effort: 1:00", ":Effort_ALL: 0:30 1:00 2:00", ":END:" })
     clock.clock_in(nil, { at = date.now():add(-5, "min") })
     eq("1:15", clock.modify_effort("+15"))
-    eq(":Effort: 1:15", buf_lines(buf)[3])
+    eq(":Effort:   1:15", buf_lines(buf)[3])
     eq(75, clock.state.effort)
     eq("0:45", clock.modify_effort("-0:30"))
     eq("2:00", clock.modify_effort("2h"))
@@ -297,7 +301,7 @@ describe("clock", function()
     eq(nil, clock.inc_effort()) -- 2:00 is the last value
     clock.modify_effort("0:30")
     eq("1:00", clock.inc_effort())
-    eq(":Effort: 1:00", buf_lines(buf)[3])
+    eq(":Effort:   1:00", buf_lines(buf)[3])
   end)
 
   it("shifts both clock timestamps with C-S-Up/Down", function()

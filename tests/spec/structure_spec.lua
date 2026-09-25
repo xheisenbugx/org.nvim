@@ -4,12 +4,35 @@ local function cur()
   return vim.api.nvim_win_get_cursor(0)
 end
 
+local function with_stub(tbl, key, fn, body)
+  local orig = tbl[key]
+  tbl[key] = fn
+  local ok, err = pcall(body)
+  tbl[key] = orig
+  if not ok then
+    error(err, 0)
+  end
+end
+
+local function edit_build(before, tags)
+  return require("org.edit").with_tags(before, tags)
+end
+
 describe("structure: inserting headings", function()
-  it("M-RET inserts sibling after subtree", function()
+  -- Emacs org-insert-heading: C-u (arg 4) inserts after the subtree; at
+  -- the end of a headline the new one goes right below it; at the start
+  -- of a text line, that line becomes a headline
+  it("M-RET with C-u inserts a sibling after the subtree", function()
     local buf = org_buffer({ "* A", "body", "** A1", "* B" }, { 2, 0 })
-    structure.meta_return_heading({})
+    structure.meta_return_heading({ arg = 4 })
     eq({ "* A", "body", "** A1", "* ", "* B" }, buf_lines(buf))
     eq(4, cur()[1])
+    buf = org_buffer({ "* A", "body", "** A1", "* B" }, { 1, 0 })
+    structure.meta_return_heading({ pos = { 1, 3 } })
+    eq({ "* A", "* ", "body", "** A1", "* B" }, buf_lines(buf))
+    buf = org_buffer({ "* A", "body" }, { 2, 0 })
+    structure.meta_return_heading({})
+    eq({ "* A", "* body" }, buf_lines(buf))
   end)
 
   it("M-RET at start of headline inserts above", function()
@@ -18,23 +41,34 @@ describe("structure: inserting headings", function()
     eq({ "* ", "* A" }, buf_lines(buf))
   end)
 
-  it("TODO heading uses first keyword", function()
-    local buf = org_buffer({ "#+TODO: NEXT | FIN", "* A" }, { 2, 3 })
-    structure.meta_return_heading({ todo = true })
+  it("M-RET splits the title at point, keeping the tags", function()
+    local buf = org_buffer({ "* Heading :t:" }, { 1, 0 })
+    structure.meta_return_heading({ pos = { 1, 5 } })
+    eq(edit_build("* Hea", { "t" }), buf_lines(buf)[1])
+    eq("* ding", buf_lines(buf)[2])
+    eq(2, cur()[1])
+  end)
+
+  it("TODO heading uses the keyword of the current entry", function()
+    local buf = org_buffer({ "#+TODO: NEXT WAIT | FIN", "* WAIT A" }, { 2, 3 })
+    structure.meta_return_heading({ todo = true, pos = { 2, 8 } })
+    eq("* WAIT ", buf_lines(buf)[3])
+    structure.meta_return_heading({ todo = true, pos = { 2, 8 }, arg = 4 })
     eq("* NEXT ", buf_lines(buf)[3])
   end)
 
   it("respects blank lines with auto", function()
     local buf = org_buffer({ "* A", "", "* B", "text" }, { 3, 2 })
-    structure.meta_return_heading({})
+    structure.meta_return_heading({ arg = 4 })
     eq({ "* A", "", "* B", "text", "", "* " }, buf_lines(buf))
   end)
 
-  it("inserts subheading after own section", function()
+  -- Emacs org-insert-subheading: a headline below the current line, demoted
+  it("inserts subheading below the headline", function()
     local buf = org_buffer({ "* A", "body", "** old" }, { 1, 0 })
     structure.insert_subheading()
     vim.cmd("stopinsert")
-    eq({ "* A", "body", "** ", "** old" }, buf_lines(buf))
+    eq({ "* A", "** ", "body", "** old" }, buf_lines(buf))
   end)
 end)
 
@@ -69,13 +103,26 @@ describe("structure: moving and kill ring", function()
     eq({ "* A", "a", "* B", "b", "** B1" }, buf_lines(buf))
   end)
 
+  -- Emacs org-paste-subtree: at the start of a headline, before it with
+  -- its level; elsewhere before the next visible headline, at the deeper
+  -- level of the headlines around
   it("cut and paste at a different level", function()
     local buf = org_buffer({ "* A", "** A1", "text", "* B" }, { 2, 0 })
-    structure.cut_subtree()
-    eq({ "* A", "* B" }, buf_lines(buf))
-    vim.api.nvim_win_set_cursor(0, { 2, 0 })
-    structure.paste_subtree()
-    eq({ "* A", "* B", "* A1", "text" }, buf_lines(buf))
+    with_stub(vim, "notify", function() end, function()
+      structure.cut_subtree()
+      eq({ "* A", "* B" }, buf_lines(buf))
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+      structure.paste_subtree()
+      eq({ "* A", "* A1", "text", "* B" }, buf_lines(buf))
+      eq({ 2, 0 }, cur())
+    end)
+    buf = org_buffer({ "* A", "** B", "body", "*** C" }, { 1, 0 })
+    with_stub(vim, "notify", function() end, function()
+      structure.copy_subtree()
+      vim.api.nvim_win_set_cursor(0, { 3, 2 })
+      structure.paste_subtree()
+    end)
+    eq({ "* A", "** B", "body", "*** A", "**** B", "body", "***** C", "*** C" }, buf_lines(buf))
   end)
 end)
 
@@ -206,11 +253,49 @@ describe("structure: clone", function()
     end
     structure.clone_subtree()
     utils.input = orig
+    -- Emacs: with a repeater, n + 2 entries: the original and the clones
+    -- lose it, one more clone after them keeps it; every copy gets a new ID
     local l = buf_lines(buf)
-    eq(9, #l)
+    eq(20, #l)
+    eq("SCHEDULED: <2026-09-01 Tue>", l[2])
     eq("SCHEDULED: <2026-09-02 Wed>", l[7])
-    eq("SCHEDULED: <2026-09-03 Thu>", l[9])
-    eq("SCHEDULED: <2026-09-01 Tue +1w>", l[2])
+    eq("SCHEDULED: <2026-09-03 Thu>", l[12])
+    eq("SCHEDULED: <2026-09-04 Fri +1w>", l[17])
+    local ids = {}
+    for _, x in ipairs(l) do
+      local id = x:match("^:ID:%s+(.*)$")
+      if id then
+        ids[id] = true
+      end
+    end
+    eq(4, vim.tbl_count(ids))
+    eq(nil, ids.x)
+  end)
+
+  it("drops the ID with clone_delete_id, shifts backwards, removes clocks", function()
+    local config = require("org.config")
+    config.opts.clone_delete_id = true
+    local buf = org_buffer({
+      "* T",
+      ":PROPERTIES:",
+      ":ID: x",
+      ":END:",
+      "<2026-09-10 Thu>",
+      ":LOGBOOK:",
+      "CLOCK: [2026-09-01 Tue 10:00]--[2026-09-01 Tue 11:00] =>  1:00",
+      ":END:",
+    }, { 1, 0 })
+    local utils = require("org.utils")
+    local orig = utils.input
+    local answers = { "1", "-1d" }
+    utils.input = function()
+      return table.remove(answers, 1)
+    end
+    structure.clone_subtree()
+    utils.input = orig
+    config.opts.clone_delete_id = false
+    eq({ "* T", "<2026-09-09 Wed>" }, vim.list_slice(buf_lines(buf), 9, 10))
+    eq(10, #buf_lines(buf))
   end)
 end)
 
@@ -228,13 +313,16 @@ describe("structure: keymaps integration", function()
     eq(vim.bo.shiftwidth, #buf_lines(buf)[2]:match("^(%s*)"))
   end)
   it("M-RET in list adds item, on heading adds heading", function()
-    local buf = org_buffer({ "* A", "- x" }, { 2, 0 })
+    local buf = org_buffer({ "* A", "- x" }, { 2, 2 })
     require("org.fold").show_all()
     keys("<M-CR>")
+    vim.cmd("stopinsert")
     eq({ "* A", "- x", "- " }, buf_lines(buf))
+    -- Normal mode: at the end of the headline, so right below it
     vim.api.nvim_win_set_cursor(0, { 1, 2 })
     keys("<M-CR>")
-    eq("* ", buf_lines(buf)[4])
+    vim.cmd("stopinsert")
+    eq({ "* A", "* ", "- x", "- " }, buf_lines(buf))
   end)
   it("<Tab> folds a headline", function()
     org_buffer({ "* A", "body", "* B" }, { 1, 0 })
@@ -257,15 +345,19 @@ describe("structure: templates, drawers, narrow, emphasize", function()
     ui.menu = function(o) for _, i in ipairs(o.items) do if i.key == "q" then return i.value end end end
     s.insert_structure_template(); vim.cmd("stopinsert")
     ui.menu = orig
-    eq({ "* A", "#+begin_quote", "", "#+end_quote" }, buf_lines(buf))
+    -- Emacs org-insert-structure-template: the empty line becomes the
+    -- block, the cursor goes before its end line
+    eq({ "* A", "#+begin_quote", "#+end_quote" }, buf_lines(buf))
+    eq({ 3, 0 }, vim.api.nvim_win_get_cursor(0))
   end)
   it("drawer", function()
-    local buf = org_buffer({ "* A", "x" }, { 1, 0 })
+    local buf = org_buffer({ "* A", "x" }, { 1, 2 })
     local u = require("org.utils"); local o = u.input
     u.input = function() return "notes" end
     s.insert_drawer(); vim.cmd("stopinsert")
     u.input = o
-    eq({ "* A", ":NOTES:", "", ":END:", "x" }, buf_lines(buf))
+    -- Emacs org-insert-drawer keeps the name as typed
+    eq({ "* A", ":notes:", "", ":END:", "", "x" }, buf_lines(buf))
   end)
   it("narrow", function()
     local buf = org_buffer({ "* A", "a", "* B" }, { 1, 0 })

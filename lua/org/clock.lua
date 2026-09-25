@@ -1335,21 +1335,29 @@ function M.dangling_clocks(with_active)
 end
 
 --- Close the open CLOCK line of `clock` at `stop` (minutes).
-local function close_clock(clock, stop, ctx)
+local function close_clock(clock, stop)
   if clock.active then
     return M.clock_out({ at = at_minutes(stop), quiet = true })
   end
+  -- like org-with-clock: clock out of the dangling clock as if it were the
+  -- running one (state switch, note, 0:00 removal), then restore the
+  -- running clock
   local lnum = vim.api.nvim_buf_get_extmark_by_id(clock.bufnr, mark_ns, clock.mark, {})[1] + 1
-  local line = vim.api.nvim_buf_get_lines(clock.bufnr, lnum - 1, lnum, false)[1]
-  local stop_date = at_minutes(stop)
-  local text, minutes = M.format_clock_line(line:match("^(%s*)"), clock.start, stop_date)
-  if minutes == 0 and clock_cfg().out_remove_zero_time == true then
-    delete_clock_line(clock.bufnr, lnum)
-  else
-    vim.api.nvim_buf_set_lines(clock.bufnr, lnum - 1, lnum, false, { text })
+  local hl = files.get_buffer(clock.bufnr):headline_at(lnum)
+  local saved = M.state
+  M.state = {
+    path = buf_path(clock.bufnr) or "",
+    start = clock.start:clone({ active = false }):to_string({ range = false }),
+    title = hl and mode_line_heading(hl) or "?",
+  }
+  local ok, err = pcall(M.clock_out, { at = at_minutes(stop), quiet = true })
+  M.state = saved
+  if saved then
+    persist()
+    start_timers()
   end
-  if ctx then
-    M.last = vim.tbl_extend("force", M.last or {}, { out = stop_date:to_string() })
+  if not ok then
+    error(err, 0)
   end
 end
 
@@ -1373,12 +1381,12 @@ local function resolve_clock(clock, to, out_time, close, restart, ctx)
     end
   elseif to == "now" then
     if close or ctx.clocking_in then
-      close_clock(clock, date.now():minutes(), ctx)
+      close_clock(clock, date.now():minutes())
     elseif not clock.active then
       M.clock_in(heading_target(), { resume = true, no_count = true, clocking_in = true })
     end
   else
-    close_clock(clock, out_time or to, ctx)
+    close_clock(clock, out_time or to)
     if ctx.clocking_in then
       return
     elseif close then
@@ -1769,6 +1777,12 @@ end
 -- Persistence
 ---------------------------------------------------------------------------
 
+--- Ask whether to resume a clock found after a restart
+--- (org-clock-persist-query-resume).
+local function query_resume(title)
+  return not clock_cfg().persist_query_resume or utils.confirm("Resume clock (" .. title .. ")?")
+end
+
 --- Restore the running clock after a restart (from `clock.persist_file`).
 --- Called by `setup()` when `clock.persist` is set: `true` restores the
 --- clock and the history, `"clock"` / `"history"` only one of them.
@@ -1794,7 +1808,8 @@ function M.restore()
       if want_clock and type(data.state) == "table" and data.state.path and data.state.start then
         M.state = data.state
         if M.find_open_clock() then
-          if cfg.persist_query_resume and not utils.confirm("Resume clock (" .. M.state.title .. ")?") then
+          if not query_resume(M.state.title) then
+            -- the open CLOCK line stays, as a dangling clock to resolve
             M.state = nil
             return nil
           end
@@ -1812,6 +1827,9 @@ function M.restore()
     for _, hl in ipairs(f.headlines) do
       for _, c in ipairs(hl.clocks) do
         if not c["end"] then
+          if not query_resume(mode_line_heading(hl)) then
+            return nil
+          end
           M.state = {
             path = f.filename,
             start = c.start:clone({ active = false }):to_string({ range = false }),

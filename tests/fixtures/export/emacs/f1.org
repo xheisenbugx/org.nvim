@@ -1,0 +1,65 @@
+#+TITLE: Test Doc
+#+AUTHOR: Jane
+#+DATE: 2026-09-23
+#+OPTIONS: toc:nil
+
+Para with *bold* /it/ _u_ +s+ =v= ~c~ and H_2O and x^2 and a_{b}.
+Special -- strings --- and ... and \alpha \to \Alpha \aacute \nbsp.
+Quote "double" and 'single'.
+Link [[https://orgmode.org][Org]] and <https://example.com> bare https://neovim.io.
+Macro {{{title}}} by {{{author}}} on {{{date}}} file {{{input-file}}}.
+Counter {{{n}}} {{{n}}} {{{n(x)}}} {{{n}}}.
+Snippet @@html:<b>raw</b>@@ @@latex:\LaTeX@@.
+Footnote[fn:1] and inline[fn:: inline def] and named[fn:nm:named def].
+
+* TODO [#A] Head one :tag1:
+SCHEDULED: <2026-09-23 Wed>
+Text line
+second line\\
+forced break.
+
+- item one
+- item two
+  1. nested
+  2. nested two
+- term :: def
+
+** Sub [1/2]
+#+CAPTION: Tbl
+#+NAME: tbl1
+| a | b |
+|---+---|
+| 1 | 2 |
+
+*** Deep
+**** Deeper than H
+Deep text.
+
+* Second
+#+begin_quote
+quoted
+#+end_quote
+#+begin_center
+centered
+#+end_center
+#+begin_verse
+  verse line
+another
+#+end_verse
+#+begin_example
+example text
+#+end_example
+: fixed
+
+#+begin_src python
+print(1)
+#+end_src
+
+See [[*Sub]] and [[tbl1]].
+-----
+#+begin_export html
+<div>exp</div>
+#+end_export
+
+* Footnotes
+[fn:1] The def.

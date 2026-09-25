@@ -96,7 +96,8 @@ function M.parse_format(fmt)
   return cols
 end
 
---- Raw value of a column for a headline.
+--- Raw value of a column for a headline (Emacs org-entry-get with
+--- selective inheritance). LEVEL is an ordinary property here, like Emacs.
 function M.value(hl, prop)
   local key = prop:upper()
   if key == "ITEM" then
@@ -107,6 +108,8 @@ function M.value(hl, prop)
     return hl.priority or hl.file:priorities().default
   elseif key == "TAGS" then
     return #hl.tags > 0 and (":" .. table.concat(hl.tags, ":") .. ":") or ""
+  elseif key == "LEVEL" then
+    return hl.properties.LEVEL or ""
   elseif key == "CLOCKSUM" or key == "CLOCKSUM_T" then
     -- time clocked in the subtree (CLOCKSUM_T: today only), org-duration style
     local from, to
@@ -119,19 +122,8 @@ function M.value(hl, prop)
   return hl:get_property(prop) or ""
 end
 
-local function checkbox_state(v)
-  if v == "[X]" or v == "[x]" then
-    return true
-  end
-  local a, b = v:match("^%[(%d+)/(%d+)%]$")
-  if a then
-    return a == b and tonumber(b) > 0
-  end
-  local p = v:match("^%[(%d+)%%%]$")
-  if p then
-    return tonumber(p) == 100
-  end
-  return false
+local function formula()
+  return require("org.table.formula")
 end
 
 --- Age in minutes as "Nd Nh Nmin" (zero parts dropped), like Emacs'
@@ -152,7 +144,213 @@ function M.format_age(minutes)
   return table.concat(parts, " ")
 end
 
---- Combine child values with a summary operator.
+--- Emacs `(format fmt number)` of a summary number.
+local function format_num(fmt, n, isfloat)
+  if not fmt then
+    return formula().number_to_string(n, isfloat)
+  end
+  local ok, s = pcall(formula().format_number, fmt, n, isfloat)
+  return ok and s or formula().number_to_string(n, isfloat)
+end
+
+--- Numbers of `values` (Emacs string-to-number) and whether any is a float.
+local function numbers(values)
+  local out, anyfloat = {}, false
+  for i, v in ipairs(values) do
+    local n, fl = formula().string_to_number(v)
+    out[i] = { n = n, float = fl }
+    anyfloat = anyfloat or fl
+  end
+  return out, anyfloat
+end
+
+--- Emacs `round` (halves to even).
+local function round_even(x)
+  local f = math.floor(x)
+  local d = x - f
+  if d > 0.5 or (d == 0.5 and f % 2 == 1) then
+    return f + 1
+  end
+  return f
+end
+
+--- Minutes of a duration (org-duration-to-minutes).
+local function duration_minutes(v)
+  return date.parse_duration(v) or 0
+end
+
+--- Whether every value is an H:MM duration (org-duration-h:mm-only-p).
+local function hmm_only(values)
+  for _, v in ipairs(values) do
+    if not vim.trim(v):match("^%d+:%d%d$") and not vim.trim(v):match("^%d+:%d%d:%d%d$") then
+      return false
+    end
+  end
+  return true
+end
+
+--- Age in minutes of a timestamp or duration (org-columns--age-to-minutes).
+local function age_minutes(v)
+  local d = date.parse(v)
+  if d then
+    return os.time() / 60 - d:to_time() / 60
+  end
+  return date.parse_duration(v) or 0
+end
+
+--- The summary functions (Emacs org-columns-summary-types-default).
+M.SUMMARIES = {
+  ["+"] = function(values, fmt)
+    local nums, fl = numbers(values)
+    local s = 0
+    for _, x in ipairs(nums) do
+      s = s + x.n
+    end
+    return format_num(fmt, s, fl)
+  end,
+  ["$"] = function(values)
+    local s = 0
+    for _, x in ipairs(numbers(values)) do
+      s = s + x.n
+    end
+    return string.format("%.2f", s)
+  end,
+  ["X"] = function(values)
+    local done = 0
+    for _, v in ipairs(values) do
+      if v == "[X]" then
+        done = done + 1
+      end
+    end
+    return done == #values and "[X]" or (done > 0 and "[-]" or "[ ]")
+  end,
+  ["X/"] = function(values)
+    local done = 0
+    for _, v in ipairs(values) do
+      local a, b = v:match("%[([1-9])/([1-9])%]")
+      if v == "[X]" or (a and a == b) then
+        done = done + 1
+      end
+    end
+    return string.format("[%d/%d]", done, #values)
+  end,
+  ["X%"] = function(values)
+    local done = 0
+    for _, v in ipairs(values) do
+      if v == "[X]" or v == "[100%]" then
+        done = done + 1
+      end
+    end
+    return string.format("[%d%%]", round_even(100 * done / #values))
+  end,
+  ["min"] = function(values, fmt)
+    local best
+    for _, x in ipairs(numbers(values)) do
+      if not best or x.n < best.n then
+        best = x
+      end
+    end
+    return format_num(fmt, best.n, best.float)
+  end,
+  ["max"] = function(values, fmt)
+    local best
+    for _, x in ipairs(numbers(values)) do
+      if not best or x.n > best.n then
+        best = x
+      end
+    end
+    return format_num(fmt, best.n, best.float)
+  end,
+  ["mean"] = function(values, fmt)
+    local s = 0
+    for _, x in ipairs(numbers(values)) do
+      s = s + x.n
+    end
+    return format_num(fmt, s / #values, true)
+  end,
+  [":"] = function(values)
+    local s = 0
+    for _, v in ipairs(values) do
+      s = s + duration_minutes(v)
+    end
+    return date.duration_to_string(s, hmm_only(values) and "h:mm" or nil)
+  end,
+  [":min"] = function(values)
+    local r
+    for _, v in ipairs(values) do
+      r = math.min(r or math.huge, duration_minutes(v))
+    end
+    return date.duration_to_string(r, hmm_only(values) and "h:mm" or nil)
+  end,
+  [":max"] = function(values)
+    local r
+    for _, v in ipairs(values) do
+      r = math.max(r or -math.huge, duration_minutes(v))
+    end
+    return date.duration_to_string(r, hmm_only(values) and "h:mm" or nil)
+  end,
+  [":mean"] = function(values)
+    local s = 0
+    for _, v in ipairs(values) do
+      s = s + duration_minutes(v)
+    end
+    return date.duration_to_string(s / #values, hmm_only(values) and "h:mm" or nil)
+  end,
+  ["@min"] = function(values)
+    local r
+    for _, v in ipairs(values) do
+      r = math.min(r or math.huge, age_minutes(v))
+    end
+    return M.format_age(r)
+  end,
+  ["@max"] = function(values)
+    local r
+    for _, v in ipairs(values) do
+      r = math.max(r or -math.huge, age_minutes(v))
+    end
+    return M.format_age(r)
+  end,
+  ["@mean"] = function(values)
+    local s = 0
+    for _, v in ipairs(values) do
+      s = s + age_minutes(v)
+    end
+    return M.format_age(s / #values)
+  end,
+  ["est+"] = function(values)
+    -- sum of means +/- the square root of the summed variances
+    local mean, var = 0, 0
+    for _, v in ipairs(values) do
+      local parts = vim.split(v, "-", { plain = true })
+      if #parts == 2 then
+        local low, high = formula().string_to_number(parts[1]), formula().string_to_number(parts[2])
+        local m = (low + high) / 2
+        mean = mean + m
+        var = var + (low * low + high * high) / 2 - m * m
+      else
+        mean = mean + formula().string_to_number(v)
+      end
+    end
+    local sd = math.sqrt(var)
+    return string.format("%.0f-%.0f", mean - sd, mean + sd)
+  end,
+}
+
+--- Summary and collect functions of operator `op`: a user type from
+--- `columns_summary_types` (a function, or `{ summarize, collect }`), else
+--- a built-in one.
+local function summary_type(op)
+  local user = (config.opts.columns_summary_types or {})[op]
+  if type(user) == "function" then
+    return user
+  elseif type(user) == "table" then
+    return user[1] or user.summarize, user[2] or user.collect
+  end
+  return M.SUMMARIES[op]
+end
+
+--- Combine child values with a summary operator (nil when there is no
+--- value to summarize).
 function M.summarize(op, values, sfmt)
   local present = vim.tbl_filter(function(v)
     return v ~= nil and v ~= ""
@@ -160,167 +358,133 @@ function M.summarize(op, values, sfmt)
   if #present == 0 then
     return ""
   end
-  local function fmt_num(n)
-    if sfmt then
-      return string.format(sfmt, n)
-    end
-    if n == math.floor(n) then
-      return tostring(math.floor(n))
-    end
-    return string.format("%.2f", n)
+  local fn = summary_type(op)
+  if not fn then
+    return present[1]
   end
-  if op == "est+" then
-    -- sum of means +/- the square root of the summed variances
-    local mean, var = 0, 0
-    for _, v in ipairs(present) do
-      local low, high = v:match("^%s*([-+]?[%d.]+)%s*%-%s*([-+]?[%d.]+)%s*$")
-      if low then
-        low, high = tonumber(low), tonumber(high)
-        local m = (low + high) / 2
-        mean = mean + m
-        var = var + (low * low + high * high) / 2 - m * m
-      else
-        mean = mean + (tonumber(v) or 0)
-      end
-    end
-    local sd = math.sqrt(var)
-    return string.format("%.0f-%.0f", mean - sd, mean + sd)
-  elseif op == "$" then
-    local s = 0
-    for _, v in ipairs(present) do
-      s = s + (tonumber(v) or 0)
-    end
-    return string.format("%.2f", s)
-  elseif op == "@min" or op == "@max" or op == "@mean" then
-    local now = os.time() / 60
-    local ages = {}
-    for _, v in ipairs(present) do
-      local d = date.parse(v)
-      ages[#ages + 1] = d and (now - d:to_time() / 60) or date.parse_duration(v) or 0
-    end
-    local r
-    if op == "@min" then
-      r = math.min(unpack(ages))
-    elseif op == "@max" then
-      r = math.max(unpack(ages))
-    else
-      r = 0
-      for _, a in ipairs(ages) do
-        r = r + a
-      end
-      r = r / #ages
-    end
-    return M.format_age(r)
-  elseif op == "+" then
-    local s = 0
-    for _, v in ipairs(present) do
-      s = s + (tonumber(v) or 0)
-    end
-    return fmt_num(s)
-  elseif op == ":" or op == ":min" or op == ":max" or op == ":mean" then
-    local nums = {}
-    for _, v in ipairs(present) do
-      nums[#nums + 1] = date.parse_duration(v) or 0
-    end
-    local r
-    if op == ":" then
-      r = 0
-      for _, n in ipairs(nums) do
-        r = r + n
-      end
-    elseif op == ":min" then
-      r = math.min(unpack(nums))
-    elseif op == ":max" then
-      r = math.max(unpack(nums))
-    else
-      r = 0
-      for _, n in ipairs(nums) do
-        r = r + n
-      end
-      r = r / #nums
-    end
-    return date.format_duration(r)
-  elseif op == "min" or op == "max" or op == "mean" then
-    local nums = {}
-    for _, v in ipairs(present) do
-      nums[#nums + 1] = tonumber(v) or 0
-    end
-    if op == "min" then
-      return fmt_num(math.min(unpack(nums)))
-    elseif op == "max" then
-      return fmt_num(math.max(unpack(nums)))
-    end
-    local s = 0
-    for _, n in ipairs(nums) do
-      s = s + n
-    end
-    return fmt_num(s / #nums)
-  elseif op == "X" or op == "X/" or op == "X%" then
-    local done = 0
-    for _, v in ipairs(present) do
-      if checkbox_state(v) then
-        done = done + 1
-      end
-    end
-    if op == "X" then
-      return done == #present and "[X]" or (done > 0 and "[-]" or "[ ]")
-    elseif op == "X/" then
-      return string.format("[%d/%d]", done, #present)
-    end
-    return string.format("[%d%%]", math.floor(done * 100 / #present + 0.5))
-  end
-  return present[1]
+  return fn(present, sfmt)
 end
 
---- Compute rows for a list of root headlines.
+--- Displayed value of a column (org-columns--displayed-value): the user's
+--- display function, active timestamps of SCHEDULED/DEADLINE/TIMESTAMP as
+--- inactive ones, and the column's printf format applied to every value.
+function M.display_value(col, value)
+  local modify = config.opts.columns_modify_value_for_display_function
+  if type(modify) == "function" then
+    local v = modify(col.title, value)
+    if v ~= nil then
+      return v
+    end
+  end
+  local key = col.prop:upper()
+  if key == "ITEM" then
+    return value
+  elseif key == "DEADLINE" or key == "SCHEDULED" or key == "TIMESTAMP" then
+    return (value:gsub("<(%d%d%d%d%-%d%d%-%d%d[^>]*)>", "[%1]"))
+  elseif col.summary_fmt then
+    local n, fl = formula().string_to_number(value)
+    return format_num(col.summary_fmt, n, fl)
+  end
+  return value
+end
+
+--- Write `value` into the existing property `prop` of `hl` (org-entry-put
+--- on an existing property: the key is written upcased and aligned).
+local function write_property(hl, prop, value)
+  local range = hl.properties_range
+  if not range then
+    return
+  end
+  local path = hl.file.filename
+  local bufnr = hl.file.bufnr
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    bufnr = path and utils.find_buffer(path)
+  end
+  if not bufnr then
+    return
+  end
+  for i = range[1] + 1, range[2] - 1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, i - 1, i, false)[1] or ""
+    local indent, key = line:match("^(%s*):([^%s:]+):")
+    if key and key:upper() == prop:upper() then
+      local new = indent .. string.format("%-10s %s", ":" .. prop:upper() .. ":", value)
+      if new ~= line then
+        vim.api.nvim_buf_set_lines(bufnr, i - 1, i, false, { new })
+      end
+      return
+    end
+  end
+end
+
+--- Compute rows for a list of root headlines. Each row has `cells` (the
+--- summary or value of each column) and `display` (what column view
+--- shows). With `opts.update`, summaries are written back to properties
+--- that exist on the entry and differ (Emacs org-columns-compute-all, done
+--- when column view opens and when a columnview block is updated).
 ---@param roots org.Headline[]
 ---@param cols table
----@param opts? { maxlevel?: integer }
----@return { hl: org.Headline, cells: string[] }[]
+---@param opts? { maxlevel?: integer, update?: boolean }
+---@return { hl: org.Headline, cells: string[], display: string[], rel_level: integer }[]
 function M.compute(roots, cols, opts)
   opts = opts or {}
-  local rows = {}
-  local function effective(hl, maxdepth_ok)
-    local cells = {}
-    local child_cells = {}
-    for _, child in ipairs(hl.children) do
-      child_cells[#child_cells + 1] = effective(child, maxdepth_ok)
+  local summaries = {} -- hl -> { [i] = summary }
+  local seen_prop = {}
+  for i, col in ipairs(cols) do
+    local key = col.prop:upper()
+    local fn, collect
+    if col.summary and not M.SPECIAL[key] then
+      fn, collect = summary_type(col.summary)
     end
-    for i, col in ipairs(cols) do
-      local v = M.value(hl, col.prop)
-      if col.summary and not M.SPECIAL[col.prop:upper()] and #child_cells > 0 then
+    local update = opts.update and not seen_prop[key]
+    seen_prop[key] = true
+    if fn then
+      local function walk(hl)
         local vals = {}
-        for _, cc in ipairs(child_cells) do
-          vals[#vals + 1] = cc[i]
+        for _, child in ipairs(hl.children) do
+          local v = walk(child)
+          if v ~= nil then
+            vals[#vals + 1] = v
+          end
         end
-        local s = M.summarize(col.summary, vals, col.summary_fmt)
-        if s ~= "" then
-          v = s
+        local own = collect and collect(hl, col.prop) or M.value(hl, col.prop)
+        local s
+        if #vals > 0 then
+          s = fn(vals, col.summary_fmt)
+          summaries[hl] = summaries[hl] or {}
+          summaries[hl][i] = s
+          if update and hl.properties[key] ~= nil and hl.properties[key] ~= vim.trim(s) then
+            write_property(hl, col.prop, vim.trim(s))
+          end
+        end
+        if s then
+          return s
+        elseif own ~= "" then
+          return own
         end
       end
-      cells[i] = v
+      for _, r in ipairs(roots) do
+        walk(r)
+      end
     end
-    hl._column_cells = cells
-    return cells
   end
-  for _, r in ipairs(roots) do
-    effective(r)
-  end
+  local rows = {}
   local function walk(hl, base)
-    local rel = hl.level - base + 1
     if opts.maxlevel and hl.level > opts.maxlevel then
       return
     end
-    rows[#rows + 1] = { hl = hl, cells = hl._column_cells, rel_level = rel }
+    local cells, display = {}, {}
+    for i, col in ipairs(cols) do
+      local s = summaries[hl] and summaries[hl][i]
+      cells[i] = s or M.value(hl, col.prop)
+      display[i] = M.display_value(col, cells[i])
+    end
+    rows[#rows + 1] = { hl = hl, cells = cells, display = display, rel_level = hl.level - base + 1 }
     for _, c in ipairs(hl.children) do
       walk(c, base)
     end
   end
   for _, r in ipairs(roots) do
     walk(r, r.level)
-  end
-  for _, r in ipairs(rows) do
-    r.hl._column_cells = nil
   end
   return rows
 end
@@ -383,6 +547,138 @@ local function tag_list(v)
   return out
 end
 
+--- A headline title without the objects that cannot be copied into a
+--- table: statistics cookies, footnote references, targets, radio
+--- targets, inline src blocks and babel calls; `|` becomes `\vert{}`.
+--- Emacs org-columns--clean-item.
+function M.clean_item(item)
+  local s = item
+  s = s:gsub("%s*%[%d*%%%]", ""):gsub("%s*%[%d*/%d*%]", "")
+  s = s:gsub("%s*%[fn:[^%]]*%]", "")
+  s = s:gsub("%s*<<<[^>]*>>>", ""):gsub("%s*<<[^>]*>>", "")
+  s = s:gsub("%s*src_[%w%-]+%b[]%b{}", ""):gsub("%s*src_[%w%-]+%b{}", "")
+  s = s:gsub("%s*call_[%w%-_]+%b[]%b()%b[]", ""):gsub("%s*call_[%w%-_]+%b()%b[]", "")
+  s = s:gsub("%s*call_[%w%-_]+%b[]%b()", ""):gsub("%s*call_[%w%-_]+%b()", "")
+  return (vim.trim(s):gsub("|", "\\vert{}"))
+end
+
+--- Search string of a heading link (org-link-heading-search-string).
+local function heading_search(title)
+  local t = title:gsub("%[%d*%%%]", " "):gsub("%[%d*/%d*%]", " "):gsub("[ \t]+", " ")
+  return "*" .. vim.trim(t)
+end
+
+--- The rows captured for a columnview block, like Emacs
+--- org-columns--capture-view: the titles, "hline", then for every entry
+--- `{ level = n, hl = headline, cells... }` (display values; ITEM raw).
+local function capture(rows, cols, params)
+  local pred = matcher(params.match)
+  local exclude = tag_list(params["exclude-tags"])
+  local has_item = false
+  for _, c in ipairs(cols) do
+    has_item = has_item or c.prop:upper() == "ITEM"
+  end
+  local titles = {}
+  for i, c in ipairs(cols) do
+    titles[i] = c.title
+  end
+  local out = { titles, "hline" }
+  for _, r in ipairs(rows) do
+    local row = { level = r.hl.level, hl = r.hl, rel_level = r.rel_level }
+    local distinct = {}
+    for i, c in ipairs(cols) do
+      row[i] = c.prop:upper() == "ITEM" and r.cells[i] or r.display[i]
+      if row[i] ~= "" then
+        distinct[row[i]] = true
+      end
+    end
+    local n = vim.tbl_count(distinct)
+    local empty = n == 0 or (has_item and n == 1)
+    local excluded = false
+    if #exclude > 0 then
+      local tags = r.hl:get_tags()
+      for _, t in ipairs(exclude) do
+        excluded = excluded or vim.tbl_contains(tags, t)
+      end
+    end
+    if
+      not r.hl:is_hidden_by_ancestor()
+      and not (params["skip-empty-rows"] and empty)
+      and not excluded
+      and (not pred or pred(r.hl))
+    then
+      out[#out + 1] = row
+    end
+  end
+  return out
+end
+
+--- The default columnview writer (org-columns-dblock-write-default): the
+--- rows as table lines, with hlines, indented and linked items, column
+--- groups and a width cookie row when the format has widths.
+local function write_default(captured, cols, params, file)
+  local item_index
+  for i, c in ipairs(cols) do
+    if c.prop:upper() == "ITEM" and not item_index then
+      item_index = i
+    end
+  end
+  local hlines, indent = params.hlines, params.indent and params.indent ~= false
+  local out = { captured[1], "hline" }
+  for k = 3, #captured do
+    local row = captured[k]
+    local level = row.rel_level or row.level
+    if out[#out] ~= "hline" and (hlines == true or (type(hlines) == "number" and row.level <= hlines)) then
+      out[#out + 1] = "hline"
+    end
+    local cells = {}
+    for i = 1, #cols do
+      cells[i] = row[i] or ""
+    end
+    if item_index then
+      local raw = cells[item_index]
+      local item = M.clean_item(raw)
+      if params.link then
+        local search = heading_search(raw)
+        local target = file.filename and ("file:" .. file.filename .. "::" .. search) or search
+        -- org-link-make-string escapes brackets in the link
+        item = "[[" .. target:gsub("[%[%]]", "\\%0") .. "][" .. item .. "]]"
+      end
+      if indent and level > 1 then
+        item = "\\_" .. string.rep(" ", 2 * (level - 1)) .. item
+      end
+      cells[item_index] = item
+    end
+    for i, v in ipairs(cells) do
+      if i ~= item_index then
+        cells[i] = v:gsub("|", "\\vert{}")
+      end
+    end
+    out[#out + 1] = cells
+  end
+  if params.vlines then
+    for i, row in ipairs(out) do
+      if row ~= "hline" then
+        out[i] = vim.list_extend({ "" }, row)
+      end
+    end
+    local groups = { "/" }
+    for _ = 1, #cols do
+      groups[#groups + 1] = "<>"
+    end
+    out[#out + 1] = groups
+  end
+  local widths, any = {}, false
+  for i, c in ipairs(cols) do
+    widths[i] = c.width and ("<" .. c.width .. ">") or ""
+    any = any or c.width ~= nil
+  end
+  if any then
+    table.insert(out, 1, widths)
+  end
+  return out, any
+end
+
 function M.dblock(params, ctx)
   local file = files.get_buffer(ctx.bufnr)
   local id = params.id
@@ -422,63 +718,18 @@ function M.dblock(params, ctx)
     fmt = params.format
   end
   local cols = M.parse_format(fmt)
-  local rows = M.compute(roots, cols, { maxlevel = tonumber(params.maxlevel) })
-  local pred = matcher(params.match)
-  local exclude = tag_list(params["exclude-tags"])
-  local hlines = params.hlines
-  local out = {}
-  local header = {}
-  for _, c in ipairs(cols) do
-    header[#header + 1] = c.title
+  local rows = M.compute(roots, cols, { maxlevel = tonumber(params.maxlevel), update = true })
+  local captured = capture(rows, cols, params)
+  -- :formatter (a global Lua function name) or columns_dblock_formatter
+  local formatter = params.formatter
+  if type(formatter) == "string" then
+    formatter = _G[formatter] or error("unknown :formatter " .. formatter)
   end
-  out[1] = header
-  out[2] = "hline"
-  local indent = params.indent and params.indent ~= false
-  for _, r in ipairs(rows) do
-    local cells = {}
-    local empty = true
-    for i, c in ipairs(cols) do
-      local v = (r.cells[i] or ""):gsub("|", "\\vert{}")
-      if c.prop:upper() == "ITEM" then
-        if params.link then
-          local target = "*" .. r.hl.title
-          if file.filename then
-            target = "file:" .. file.filename .. "::" .. target
-          end
-          v = "[[" .. target .. "][" .. v .. "]]"
-        end
-        if indent and r.rel_level > 1 then
-          v = "\\_" .. string.rep(" ", 2 * (r.rel_level - 1)) .. v
-        end
-      elseif v ~= "" then
-        empty = false
-      end
-      cells[i] = v
-    end
-    local excluded = false
-    for _, t in ipairs(exclude) do
-      excluded = excluded or vim.tbl_contains(r.hl.tags, t)
-    end
-    if not (params["skip-empty-rows"] and empty) and not excluded and (not pred or pred(r.hl)) then
-      local level_ok = hlines == true or (type(hlines) == "number" and r.hl.level <= hlines)
-      if level_ok and out[#out] ~= "hline" then
-        out[#out + 1] = "hline"
-      end
-      out[#out + 1] = cells
-    end
+  formatter = formatter or config.opts.columns_dblock_formatter
+  if type(formatter) == "function" then
+    return formatter(captured, params)
   end
-  if params.vlines then
-    for i, row in ipairs(out) do
-      if row ~= "hline" then
-        out[i] = vim.list_extend({ "" }, row)
-      end
-    end
-    local groups = { "/" }
-    for _ = 1, #cols do
-      groups[#groups + 1] = "<>"
-    end
-    out[#out + 1] = groups
-  end
+  local out, has_widths = write_default(captured, cols, params, file)
   -- Like Emacs, keep the keywords (#+NAME: ...) above the table and the
   -- #+TBLFM lines below it, and recalculate.
   local tbl = require("org.table")
@@ -494,6 +745,15 @@ function M.dblock(params, ctx)
   if #tblfm > 0 then
     lines = tbl.recalc_lines(ctx.bufnr, lines, tblfm, ctx.start_line)
   end
+  if has_widths then
+    -- shrink the columns once the block is written (org-table-shrink)
+    local bufnr, start = ctx.bufnr, ctx.start_line + #keywords + 1
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        pcall(tbl.shrink, bufnr, start)
+      end
+    end)
+  end
   return vim.list_extend(vim.list_extend(keywords, lines), tblfm)
 end
 
@@ -507,22 +767,30 @@ local function anchor_line(state)
   return (pos[1] or 0) + 1
 end
 
+--- Text of cell `i` of row `r` in the view: the displayed value; ITEM
+--- with its stars and links shown as their descriptions.
+local function view_text(r, i, col)
+  local v = r.display[i] or ""
+  if col.prop:upper() == "ITEM" and v == r.cells[i] then
+    v = v:gsub("%[%[([^%]]-)%]%[(.-)%]%]", "%2"):gsub("%[%[([^%]]-)%]%]", "%1")
+    v = string.rep("*", r.hl.level) .. " " .. v
+  end
+  return v
+end
+
 local function render(state)
   local file = files.get_buffer(state.src)
   local fmt, roots, holder = scope_for(file, anchor_line(state))
   state.holder = holder
   state.cols = M.parse_format(fmt)
-  local rows = M.compute(roots, state.cols)
+  -- like Emacs, summaries are written back to existing properties
+  local rows = M.compute(roots, state.cols, { update = true })
   state.rows = rows
   local widths = {}
   for i, c in ipairs(state.cols) do
     local w = utils.width(c.title)
     for _, r in ipairs(rows) do
-      local v = r.cells[i] or ""
-      if c.prop:upper() == "ITEM" then
-        v = string.rep("*", r.hl.level) .. " " .. v
-      end
-      w = math.max(w, utils.width(v))
+      w = math.max(w, utils.width(view_text(r, i, c)))
     end
     widths[i] = c.width and math.max(c.width, 1) or math.min(w, 60)
   end
@@ -547,11 +815,7 @@ local function render(state)
   for _, r in ipairs(rows) do
     local cells = {}
     for i, c in ipairs(state.cols) do
-      local v = r.cells[i] or ""
-      if c.prop:upper() == "ITEM" then
-        v = string.rep("*", r.hl.level) .. " " .. v
-      end
-      cells[i] = v
+      cells[i] = view_text(r, i, c)
     end
     lines[#lines + 1] = line_for(cells)
   end
@@ -645,10 +909,11 @@ local function allowed_values(state, r, ci)
   if key == "TODO" then
     vals = vim.list_extend(vim.deepcopy(file.settings.todo:names()), { "" })
   elseif key == "PRIORITY" then
-    local p = file:priorities()
+    local prio = require("org.priority")
+    local range = prio.range(file)
     vals = {}
-    for b = p.highest:byte(), p.lowest:byte() do
-      vals[#vals + 1] = string.char(b)
+    for v = range.hi, range.lo do
+      vals[#vals + 1] = prio.to_string(v)
     end
   elseif not M.SPECIAL[key] then
     vals = vim.tbl_filter(function(v)
@@ -656,7 +921,7 @@ local function allowed_values(state, r, ci)
     end, r.hl:get_allowed_values(col.prop) or {})
   end
   if (not vals or #vals == 0) and (col.summary == "X" or col.summary == "X/" or col.summary == "X%") then
-    vals = { "[ ]", "[X]" }
+    vals = vim.deepcopy(config.opts.columns_checkbox_allowed_values or { "[ ]", "[X]" })
   end
   if not vals or #vals == 0 then
     local v = vim.trim(r.cells[ci] or "")
@@ -996,6 +1261,26 @@ function M.open()
   map({ "n", "<S-Right>" }, run(next_allowed, 1), "next allowed value")
   map({ "p", "<S-Left>" }, run(next_allowed, -1), "previous allowed value")
   map("a", run(edit_allowed), "edit allowed values")
+  -- 1..9 pick the Nth allowed value (org-columns-next-allowed-value); 0
+  -- keeps its Vim meaning
+  for i = 1, 9 do
+    map(tostring(i), run(next_allowed, 1, i), "allowed value " .. i)
+  end
+  map("<C-c><C-o>", function()
+    local r, ci = current(state)
+    if not r then
+      return
+    end
+    local value = r.cells[ci] or ""
+    local target = value:match("%[%[(.-)%]%]") or value:match("%[%[(.-)%]%[") or value:match("%a[%w+.-]*:%S+")
+    if target then
+      target = target:match("^(.-)%]%[") or target
+      vim.cmd("wincmd p")
+      require("org.links").open(target, { bufnr = state.src })
+    else
+      utils.warn("No link in this field")
+    end
+  end, "open link")
   map("s", run(new_column, true), "edit column attributes")
   map({ "<M-S-Right>", "<M-L>" }, run(new_column, false), "new column")
   map({ "<M-S-Left>", "<M-H>" }, run(delete_column), "delete column")

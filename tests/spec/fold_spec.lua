@@ -48,11 +48,22 @@ describe("fold: cycling", function()
     eq(1, vim.fn.foldclosed(1))
   end)
 
-  it("returns false on body text", function()
-    local buf = org_buffer(lines, { 2, 0 })
+  -- Emacs org-cycle-emulate-tab: TAB in body text indents the line, or
+  -- with it off cycles the entry
+  it("indents body text, or cycles the entry without cycle_emulate_tab", function()
+    local buf = org_buffer({ "* A", "- item", "  more", "   x" }, { 4, 0 })
     fold.setup_buffer(buf)
     fold.show_all()
-    eq(false, fold.cycle())
+    fold.cycle()
+    eq("  x", buf_lines(buf)[4])
+    local config = require("org.config")
+    config.opts.cycle_emulate_tab = false
+    buf = org_buffer(lines, { 2, 0 })
+    fold.setup_buffer(buf)
+    fold.show_all()
+    fold.cycle()
+    config.opts.cycle_emulate_tab = true
+    eq(1, vim.fn.foldclosed(1))
   end)
 
   it("global cycle", function()

@@ -1,0 +1,51 @@
+Para with *bold* /it/ _u_ +s+ =v= ~c~ and H_2O and x^2 and a_{b}.
+Special -- strings --- and ... and \alpha \to \Alpha \aacute \nbsp.
+Quote "double" and 'single'.
+Link [[https://orgmode.org][Org]] and <https://example.com> bare https://neovim.io.
+Macro Test Doc by Jane on 2026-09-23 file f1.org.
+Counter 1 2 1 3.
+Snippet .
+Footnote[fn:1] and inline[fn:: inline def] and named[fn:nm:named def].
+
+[fn:1] The def.
+* TODO Head one                                                        :tag1:
+Text line
+second line\\
+forced break.
+
+- item one
+- item two
+  1. nested
+  2. nested two
+- term :: def
+** Sub [1/2]
+#+caption: Tbl
+#+name: tbl1
+| a | b |
+|---+---|
+| 1 | 2 |
+*** Deep
+**** Deeper than H
+Deep text.
+* Second
+#+begin_quote
+quoted
+#+end_quote
+#+begin_center
+centered
+#+end_center
+#+begin_verse
+  verse line
+another
+#+end_verse
+#+begin_example
+  example text
+#+end_example
+: fixed
+
+#+begin_src python
+  print(1)
+#+end_src
+
+See [[*Sub]] and [[tbl1]].
+-----

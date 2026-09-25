@@ -65,7 +65,10 @@ function M.show(matches, title)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local loc = {}
   local view = vim.fn.winsaveview()
-  pcall(vim.cmd, "normal! zM")
+  -- like org-occur: overview, then the context of each match (its
+  -- headline, ancestors and, for a match in the text, the entry)
+  local fold = require("org.fold")
+  fold.overview()
   for _, m in ipairs(matches) do
     local line = lines[m.lnum] or ""
     if m.col then
@@ -82,7 +85,7 @@ function M.show(matches, title)
       })
     end
     vim.api.nvim_win_set_cursor(0, { m.lnum, 0 })
-    pcall(vim.cmd, "normal! zv")
+    fold.show_context(m.lnum, "ancestors")
     loc[#loc + 1] = { bufnr = bufnr, lnum = m.lnum, col = m.col or 1, text = line }
   end
   vim.fn.setloclist(0, {}, "r", { title = "Sparse tree: " .. title, items = loc })

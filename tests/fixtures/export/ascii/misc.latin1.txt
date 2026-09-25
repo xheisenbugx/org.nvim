@@ -1,0 +1,64 @@
+Jane Doe                                                      2024-01-02
+
+
+Top                                                                  :a:
+===
+
+  .. Child one
+  .. Child two
+
+
+Child one
+~~~~~~~~~
+
+  Child text: see Child two and [the target].
+
+
+[the target] Unknown reference
+
+
+Child two
+~~~~~~~~~
+
+  Target here.
+
+   a | b  c 
+  ---+------
+   1 | 2  3 
+  ---+------
+   x | y  z 
+
+
+Lists
+=====
+
+  3. third
+  4. fourth with continuation
+
+     and a second paragraph
+  5. fifth
+
+  + plus bullet
+    * star bullet in list
+
+  - value
+    nested
+          deep and more text on a line that is long enough to need
+          filling at width seventy two
+
+
+Text
+====
+
+  - > quoted-looking list item text which is long enough to be wrapped
+      around the margin
+  Some -- text... with "quotes" and it's done.  Numbers 1.5 and
+  e.g. abbreviations. Sentence? Yes! Done.  Trailing sentence with
+  closing paren (like this.) Next one.
+
+  Indented paragraph with a prefix that is also rather long so it must
+  wrap here.
+
+  Raw ascii export.
+  keyword line
+  snippet and .

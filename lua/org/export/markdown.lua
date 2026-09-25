@@ -1,388 +1,541 @@
----@mod org.export.markdown Markdown (GitHub flavoured) backend
+---@mod org.export.markdown Markdown back-end (port of Emacs ox-md.el)
+---
+--- Derived from the HTML back-end, like Emacs: tables, special blocks and
+--- centered blocks are written as HTML, code is indented by four spaces
+--- and footnotes use <sup> links. See `org.export.gfm` for GitHub
+--- flavoured Markdown.
 
-local ast = require("org.export.ast")
+local ox = require("org.export.ox")
+local element = require("org.export.element")
+local html = require("org.export.html")
 
 local M = {}
 
 M.extension = "md"
 
-local function esc(s)
-  return (s:gsub("([%*`])", "\\%1"))
+local fmt = string.format
+local nw = ox.nw
+local trim = ox.trim
+
+local function mcfg()
+  return (require("org.config").opts.export or {}).md or {}
 end
 
-local R = {}
-R.__index = R
-
-function M.new(doc)
-  return setmetatable({ doc = doc, o = doc.options, fn_n = {}, fn_order = {}, fn_defs = {}, shift = 0 }, R)
+local function translate(s, info)
+  return ox.translate(s, "html", info)
 end
 
-function R:footnote(label, def)
-  if not label then
-    label = "__anon" .. (#self.fn_order + 1)
-  end
-  if not self.fn_n[label] then
-    self.fn_order[#self.fn_order + 1] = label
-    self.fn_n[label] = #self.fn_order
-  end
-  if def and not self.fn_defs[label] then
-    self.fn_defs[label] = def
-  end
-  return self.fn_n[label]
+local function indent4(s)
+  return (s:gsub("\n(.)", "\n    %1"):gsub("^(.)", "    %1"))
 end
 
-function R:inline(nodes)
+--- "^" -> "    " on every line, like (replace-regexp-in-string "^" "    " s)
+local function prefix_lines(s, p)
   local out = {}
-  for _, nd in ipairs(nodes or {}) do
-    local t = nd.type
-    if t == "text" then
-      out[#out + 1] = esc(nd.value)
-    elseif t == "bold" then
-      out[#out + 1] = "**" .. self:inline(nd.children) .. "**"
-    elseif t == "italic" then
-      out[#out + 1] = "*" .. self:inline(nd.children) .. "*"
-    elseif t == "underline" then
-      out[#out + 1] = "<u>" .. self:inline(nd.children) .. "</u>"
-    elseif t == "strike" then
-      out[#out + 1] = "~~" .. self:inline(nd.children) .. "~~"
-    elseif t == "verbatim" or t == "code" then
-      local ticks = nd.value:find("`", 1, true) and "``" or "`"
-      out[#out + 1] = ticks .. nd.value .. ticks
-    elseif t == "sub" then
-      out[#out + 1] = "<sub>" .. self:inline(nd.children) .. "</sub>"
-    elseif t == "sup" then
-      out[#out + 1] = "<sup>" .. self:inline(nd.children) .. "</sup>"
-    elseif t == "linebreak" then
-      out[#out + 1] = "  \n"
-    elseif t == "entity" then
-      out[#out + 1] = ast.ENTITIES[nd.name][2]
-    elseif t == "latex" then
-      out[#out + 1] = nd.value
-    elseif t == "timestamp" then
-      if self.o.timestamps ~= false then
-        out[#out + 1] = "`" .. nd.value .. "`"
-      end
-    elseif t == "target" then
-      out[#out + 1] = '<a id="' .. (nd.id or ast.slug(nd.value)) .. '"></a>'
-    elseif t == "snippet" then
-      if nd.backend == "md" or nd.backend == "markdown" or nd.backend == "html" then
-        out[#out + 1] = nd.value
-      end
-    elseif t == "footnote_ref" then
-      out[#out + 1] = "[^" .. self:footnote(nd.label, nd.def) .. "]"
-    elseif t == "link" then
-      out[#out + 1] = self:link(nd)
-    end
+  local ends = s:match("\n$") ~= nil
+  local body = ends and s:sub(1, -2) or s
+  for line in (body .. "\n"):gmatch("(.-)\n") do
+    out[#out + 1] = p .. line
   end
-  return table.concat(out)
+  local r = table.concat(out, "\n")
+  if ends then
+    r = r .. "\n" .. p
+  end
+  return r
+end
+M.prefix_lines = prefix_lines
+_ = indent4
+
+local function make_tag_string(tags)
+  if not tags or #tags == 0 then
+    return ""
+  end
+  return ":" .. table.concat(tags, ":") .. ":"
 end
 
-function R:link(nd)
-  local kind, target = ast.classify_link(self.doc, nd.path)
-  local desc = nd.desc and self:inline(nd.desc) or nil
-  if kind == "image" and not nd.desc then
-    return "![" .. vim.fn.fnamemodify(target, ":t") .. "](" .. target .. ")"
-  elseif kind == "url" or kind == "image" or kind == "other" then
-    if not desc and nd.plain then
-      return "<" .. target .. ">"
+local function headline_referred_p(h, info)
+  if h.footnote_section_p then
+    return false
+  end
+  if info.with_toc then
+    for _, x in ipairs(ox.collect_headlines(info, type(info.with_toc) == "number" and info.with_toc or nil)) do
+      if x == h then
+        return true
+      end
     end
-    return "[" .. (desc or target) .. "](" .. target .. ")"
-  elseif kind == "internal" then
-    local label = desc
-    if not label then
-      for _, h in ipairs(self.doc.headlines) do
-        if h.id == target then
-          label = self:inline(h.title)
+  end
+  local p = h.parent
+  while p do
+    if p.type == "headline" or p.type == "org-data" then
+      local section = p.contents[1]
+      if section and section.type == "section" then
+        local hit = element.map(section, "keyword", function(k)
+          if k.key == "TOC" then
+            local v = k.value:lower()
+            if v:match("%f[%w]headlines%f[%W]") then
+              local n = tonumber(k.value:match("%f[%d](%d+)%f[%D]"))
+              local localp = v:match("%f[%w]local%f[%W]")
+              for _, x in ipairs(ox.collect_headlines(info, n, localp and k or nil)) do
+                if x == h then
+                  return true
+                end
+              end
+            end
+          end
+        end, { first_match = true, ignore = info.ignore })
+        if hit then
+          return true
         end
       end
     end
-    return "[" .. (label or nd.path) .. "](#" .. target .. ")"
-  elseif kind == "file" then
-    local href = target:gsub("%.org$", ".md")
-    return "[" .. (desc or target) .. "](" .. href .. ")"
+    p = p.parent
   end
-  return desc or nd.path
+  return element.map(info.parse_tree, "link", function(l)
+    local ok, dest = pcall(ox.resolve_id_link, l, info)
+    if ok and dest == h then
+      return true
+    end
+  end, { first_match = true, ignore = info.ignore }) == true
 end
 
-local function indent_lines(lines, prefix, first)
+local function headline_title(style, level, title, anchor, tags)
+  local anchor_lines = anchor and (anchor .. "\n\n") or ""
+  if (style == "setext" or style == "mixed") and level < 3 then
+    local ch = level == 1 and "=" or "-"
+    return "\n" .. anchor_lines .. title .. (tags or "") .. "\n" .. string.rep(ch, vim.fn.strchars(title)) .. "\n\n"
+  end
+  return "\n" .. anchor_lines .. string.rep("#", level) .. " " .. title .. (tags or "") .. "\n\n"
+end
+
+local function build_toc(info, n, scope)
   local out = {}
-  for i, l in ipairs(lines) do
-    if i == 1 and first then
-      out[i] = first .. l
+  if not scope then
+    out[#out + 1] = headline_title(info.md_headline_style, info.md_toplevel_hlevel, translate("Table of Contents", info))
+  end
+  local entries = {}
+  for _, h in ipairs(ox.collect_headlines(info, n, scope)) do
+    local indentation = string.rep(" ", 4 * (ox.get_relative_level(h, info) - 1))
+    local bullet
+    if not ox.numbered_headline_p(h, info) then
+      bullet = "-   "
     else
-      out[i] = l == "" and "" or prefix .. l
+      local num = ox.get_headline_number(h, info)
+      local prefix = fmt("%d.", num[#num])
+      bullet = prefix .. string.rep(" ", math.max(1, 4 - #prefix))
     end
+    local title = fmt(
+      "[%s](#%s)",
+      ox.data_with_backend(ox.get_alt_title(h), ox.toc_entry_backend("md"), info),
+      (h.props and h.props.CUSTOM_ID) or ox.get_reference(h, info)
+    )
+    local tags = ""
+    if info.with_tags and info.with_tags ~= "not-in-toc" then
+      tags = make_tag_string(ox.get_tags(h, info))
+    end
+    entries[#entries + 1] = indentation .. bullet .. title .. tags
   end
-  return out
+  out[#out + 1] = table.concat(entries, "\n")
+  out[#out + 1] = "\n"
+  return table.concat(out)
 end
 
---- Render elements into a list of lines (blocks separated by blank lines).
-function R:elements(nodes)
-  local out = {}
-  for _, nd in ipairs(nodes or {}) do
-    local lines = self:element(nd)
-    if lines and #lines > 0 then
-      if #out > 0 then
-        out[#out + 1] = ""
-      end
-      vim.list_extend(out, lines)
-    end
-  end
-  return out
-end
-
-function R:headline_title(nd)
-  local parts = {}
-  if nd.todo and self.o.todo ~= false then
-    parts[#parts + 1] = nd.todo
-  end
-  if nd.priority and self.o.pri then
-    parts[#parts + 1] = "[#" .. nd.priority .. "]"
-  end
-  parts[#parts + 1] = self:inline(nd.title)
-  local s = table.concat(parts, " ")
-  if self.o.tags ~= false and #nd.tags > 0 then
-    s = s .. "&emsp;<kbd>" .. table.concat(nd.tags, "</kbd> <kbd>") .. "</kbd>"
-  end
-  return s
-end
-
-function R:element(nd)
-  local t = nd.type
-  if t == "paragraph" then
-    local text = self:inline(nd.inline)
-    return vim.split(text, "\n", { plain = true })
-  elseif t == "headline" then
-    if nd.deep then
-      local lines = { "- **" .. self:headline_title(nd) .. "**" }
-      local body = self:elements(nd.children)
-      if #body > 0 then
-        lines[#lines + 1] = ""
-        vim.list_extend(lines, indent_lines(body, "  "))
-      end
-      return lines
-    end
-    local level = math.min(nd.level + self.shift, 6)
-    local num = ""
-    if nd.number and self.o.num and self.number_headings then
-      num = table.concat(nd.number, ".") .. " "
-    end
-    local lines = { string.rep("#", level) .. " " .. num .. self:headline_title(nd) }
-    if nd.id and nd.id ~= ast.slug(nd.raw_title) then
-      lines[1] = '<a id="' .. nd.id .. '"></a>\n' .. lines[1]
-      lines = vim.split(table.concat(lines, "\n"), "\n", { plain = true })
-    end
-    if nd.planning then
-      lines[#lines + 1] = ""
-      lines[#lines + 1] = "`" .. nd.planning .. "`"
-    end
-    local body = self:elements(nd.children)
-    if #body > 0 then
-      lines[#lines + 1] = ""
-      vim.list_extend(lines, body)
-    end
-    return lines
-  elseif t == "list" then
-    return self:list(nd)
-  elseif t == "table" then
-    return self:table(nd)
-  elseif t == "src" then
-    local fence = "```"
-    for _, l in ipairs(nd.lines) do
-      if l:find("```", 1, true) then
-        fence = "~~~~"
-      end
-    end
-    local lines = { fence .. nd.lang }
-    vim.list_extend(lines, nd.lines)
-    lines[#lines + 1] = fence
-    return lines
-  elseif t == "example" or t == "fixed" then
-    local lines = { "```" }
-    vim.list_extend(lines, nd.lines)
-    lines[#lines + 1] = "```"
-    return lines
-  elseif t == "quote" then
-    local body = self:elements(nd.children)
-    local out = {}
-    for i, l in ipairs(body) do
-      out[i] = l == "" and ">" or ("> " .. l)
-    end
-    return out
-  elseif t == "center" or t == "special" then
-    return self:elements(nd.children)
-  elseif t == "verse" then
-    local out = {}
-    for _, l in ipairs(nd.lines) do
-      out[#out + 1] = self:inline(l) .. "  "
-    end
-    return out
-  elseif t == "export" then
-    if nd.backend == "md" or nd.backend == "markdown" or nd.backend == "html" then
-      return nd.lines
-    end
-  elseif t == "latex_env" then
-    local out = { "$$" }
-    vim.list_extend(out, nd.lines)
-    out[#out + 1] = "$$"
-    return out
-  elseif t == "hr" then
-    return { "---" }
-  elseif t == "keyword_toc" then
-    return self:toc(nd.depth)
-  end
-  return nil
-end
-
-function R:list(nd)
-  local out = {}
-  local n = 0
-  for _, it in ipairs(nd.items) do
-    n = n + 1
-    if it.counter and tonumber(it.counter) then
-      n = tonumber(it.counter)
-    end
-    local marker = nd.kind == "ordered" and (n .. ". ") or "- "
-    local box = ""
-    if it.checkbox == "on" then
-      box = "[x] "
-    elseif it.checkbox == "off" then
-      box = "[ ] "
-    elseif it.checkbox == "trans" then
-      box = "[-] "
-    end
-    local body = self:elements(it.children)
-    if nd.kind == "description" then
-      local term = "**" .. self:inline(it.term) .. "**"
-      if #body > 0 then
-        body[1] = term .. ": " .. body[1]
-      else
-        body = { term }
-      end
-    end
-    if #body == 0 then
-      body = { "" }
-    end
-    body[1] = box .. body[1]
-    vim.list_extend(out, indent_lines(body, string.rep(" ", #marker), marker))
-  end
-  return out
-end
-
-function R:table(nd)
-  local rows = {}
-  local ncols = 0
-  for _, r in ipairs(nd.rows) do
-    if r ~= "hline" then
-      local cells = {}
-      for c, cell in ipairs(r.cells) do
-        cells[c] = self:inline(cell):gsub("|", "\\|")
-      end
-      rows[#rows + 1] = cells
-      ncols = math.max(ncols, #cells)
-    end
-  end
-  if #rows == 0 then
+local function footnote_section(info)
+  local defs = ox.collect_footnote_definitions(info)
+  if #defs == 0 then
     return nil
   end
-  local header = nd.header > 0 and nd.header or 0
-  local out = {}
-  local function line(cells)
-    local parts = {}
-    for c = 1, ncols do
-      parts[c] = cells[c] or ""
-    end
-    return "| " .. table.concat(parts, " | ") .. " |"
+  local items = {}
+  for _, d in ipairs(defs) do
+    local n = d[1]
+    local text = trim(ox.data(d[3], info))
+    local a = fmt('<a id="fn.%d" href="#fnr.%d">%d</a>', n, n, n)
+    items[#items + 1] = fmt(info.md_footnote_format, a) .. " " .. text .. "\n"
   end
-  local sep = {}
-  for c = 1, ncols do
-    sep[c] = "---"
-  end
-  if header == 0 then
-    local empty = {}
-    out[#out + 1] = line(empty)
-    out[#out + 1] = "|" .. table.concat(sep, "|") .. "|"
-  end
-  for i, cells in ipairs(rows) do
-    out[#out + 1] = line(cells)
-    if header > 0 and i == header then
-      out[#out + 1] = "|" .. table.concat(sep, "|") .. "|"
-    end
-  end
-  if nd.affiliated and nd.affiliated.caption then
-    table.insert(out, 1, "")
-    table.insert(out, 1, "*" .. self:inline(nd.affiliated.caption) .. "*")
-  end
-  return out
+  local title = headline_title(info.md_headline_style, info.md_toplevel_hlevel, translate("Footnotes", info))
+  local i = 0
+  return (info.md_footnotes_section:gsub("%%s", function()
+    i = i + 1
+    return i == 1 and title or table.concat(items, "\n")
+  end))
 end
 
-function R:toc(depth)
-  local max = depth or (type(self.o.toc) == "number" and self.o.toc) or tonumber(self.o.H) or 3
-  local out = {}
-  local function walk(nodes)
-    for _, nd in ipairs(nodes) do
-      if nd.type == "headline" and not nd.deep and nd.level <= max then
-        out[#out + 1] = string.rep("  ", nd.level - 1) .. "- [" .. ast.plain(nd.title) .. "](#" .. nd.id .. ")"
-        walk(nd.children)
-      end
-    end
+local function convert_to_html(datum, _, info)
+  return ox.data_with_backend(datum, "html", info)
+end
+
+local T = {}
+
+T.bold = function(_, contents)
+  return fmt("**%s**", contents or "")
+end
+
+T.italic = function(_, contents)
+  return fmt("*%s*", contents or "")
+end
+
+local function verbatim(el)
+  local v = el.value
+  if not v:find("`", 1, true) then
+    return fmt("`%s`", v)
+  elseif v:sub(1, 1) == "`" or v:sub(-1) == "`" then
+    return fmt("`` %s ``", v)
   end
-  walk(self.doc.children)
-  if #out == 0 then
+  return fmt("``%s``", v)
+end
+T.verbatim = verbatim
+T.code = verbatim
+T["inline-src-block"] = verbatim
+
+T["center-block"] = convert_to_html
+T.inlinetask = convert_to_html
+T["special-block"] = convert_to_html
+T.table = convert_to_html
+
+T.drawer = function(_, contents)
+  return contents
+end
+T["dynamic-block"] = function(_, contents)
+  return contents
+end
+
+local function example_block(el, _, info)
+  local code = ox.format_code_default(el, info)
+  local lines = element.remove_indentation(vim.split((code:gsub("\n$", "")), "\n", { plain = true }))
+  local s = table.concat(lines, "\n") .. (code:match("\n$") and "\n" or "")
+  return prefix_lines(s, "    ")
+end
+T["example-block"] = example_block
+T["src-block"] = example_block
+T["fixed-width"] = function(el, _, info)
+  -- fixed-width elements are formatted like example blocks
+  local fake = { value = el.value .. "\n", type = "example-block" }
+  return example_block(fake, nil, info)
+end
+
+T["export-block"] = function(el, contents, info)
+  if el.back_end_type == "MARKDOWN" or el.back_end_type == "MD" then
+    return table.concat(element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })), "\n")
+      .. "\n"
+  end
+  return ox.with_backend("html", el, contents, info)
+end
+
+T.headline = function(el, contents, info)
+  if el.footnote_section_p then
     return nil
   end
-  table.insert(out, 1, "")
-  table.insert(out, 1, string.rep("#", 1 + self.shift) .. " Table of Contents")
-  return out
-end
-
-function R:footnotes()
-  if #self.fn_order == 0 then
-    return {}
+  local level = ox.get_relative_level(el, info) + info.md_toplevel_hlevel - 1
+  local title = ox.data(el.title, info)
+  local todo = info.with_todo_keywords and el.todo_keyword and (el.todo_keyword .. " ") or ""
+  local tags = ""
+  if info.with_tags then
+    local tl = ox.get_tags(el, info)
+    if #tl > 0 then
+      tags = "     " .. make_tag_string(tl)
+    end
   end
-  local out = {}
-  for _, label in ipairs(self.fn_order) do
-    local n = self.fn_n[label]
-    local body
-    if self.fn_defs[label] then
-      body = { self:inline(self.fn_defs[label]) }
+  local priority = (info.with_priority and el.priority) and fmt("[#%s] ", el.priority) or ""
+  local heading = todo .. priority .. title
+  local style = info.md_headline_style
+  if
+    ox.low_level_p(el, info)
+    or not (style == "atx" or style == "mixed" or style == "setext")
+    or (style == "atx" and level > 6)
+    or (style == "setext" and level > 2)
+    or (style == "mixed" and level > 6)
+  then
+    local bullet
+    if not ox.numbered_headline_p(el, info) then
+      bullet = "-"
     else
-      body = self:elements(self.doc.footnote_defs[label] or {})
+      local num = ox.get_headline_number(el, info)
+      bullet = tostring(num[#num]) .. "."
     end
-    if #body == 0 then
-      body = { "" }
-    end
-    vim.list_extend(out, indent_lines(body, "    ", "[^" .. n .. "]: "))
+    return bullet .. string.rep(" ", 4 - #bullet) .. heading .. tags .. "\n\n" .. (contents and prefix_lines(contents, "    ") or "")
   end
-  return out
+  local anchor
+  if headline_referred_p(el, info) then
+    anchor = fmt('<a id="%s"></a>', (el.props and el.props.CUSTOM_ID) or ox.get_reference(el, info))
+  end
+  return headline_title(style, level, heading, anchor, tags) .. (contents or "")
 end
 
-function M.render(doc, opts)
-  opts = opts or {}
-  local r = M.new(doc)
-  local o = doc.options
-  local out = {}
-  local function add(lines)
-    if lines and #lines > 0 then
-      if #out > 0 then
-        out[#out + 1] = ""
-      end
-      vim.list_extend(out, lines)
-    end
-  end
-  if not opts.body_only and o.title ~= false and doc.title then
-    r.shift = 1
-    add({ "# " .. r:inline(ast.parse_inline(doc.title, o)) })
-    if doc.subtitle then
-      add({ "*" .. r:inline(ast.parse_inline(doc.subtitle, o)) .. "*" })
-    end
-  end
-  if o.toc then
-    add(r:toc())
-  end
-  add(r:elements(doc.children))
-  add(r:footnotes())
-  return table.concat(out, "\n") .. "\n"
+T["horizontal-rule"] = function()
+  return "---"
 end
+
+T.item = function(el, contents, info)
+  local list = el.parent
+  local bullet
+  if list.list_type ~= "ordered" then
+    bullet = "-"
+  else
+    local num = ox.get_ordinal(el, info)
+    bullet = tostring(num[#num]) .. "."
+  end
+  local box = ({ on = "[X] ", trans = "[-] ", off = "[ ] " })[el.checkbox or ""] or ""
+  local tag = el.tag and fmt("**%s:** ", ox.data(el.tag, info)) or ""
+  return bullet .. string.rep(" ", math.max(1, 4 - #bullet)) .. box .. tag .. (contents and trim(prefix_lines(contents, "    ")) or "")
+end
+
+T.keyword = function(el, contents, info)
+  local k = el.key
+  if k == "MARKDOWN" or k == "MD" then
+    return el.value
+  elseif k == "TOC" then
+    local v = el.value
+    if v:lower():match("%f[%w]headlines%f[%W]") then
+      local depth = tonumber(v:match("%f[%d](%d+)%f[%D]"))
+      local scope
+      local target = v:match(':target +(".-")') or v:match(":target +(%S+)")
+      if target then
+        scope = ox.resolve_link((target:gsub('^"(.*)"$', "%1")), info)
+      elseif v:lower():match("%f[%w]local%f[%W]") then
+        scope = el
+      end
+      local toc = build_toc(info, depth, scope)
+      local lines = element.remove_indentation(vim.split((toc:gsub("\n$", "")), "\n", { plain = true }))
+      return table.concat(lines, "\n") .. (toc:match("\n$") and "\n" or "")
+    end
+    return nil
+  end
+  return ox.with_backend("html", el, contents, info)
+end
+
+T["latex-environment"] = function(el, _, info)
+  if not info.with_latex then
+    return nil
+  end
+  local lines = element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true }))
+  local frag = table.concat(lines, "\n") .. "\n"
+  local label = html.reference(el, info, true)
+  if nw(label) then
+    frag = frag:gsub("^([^\n]*)", "%1\n\\label{" .. label .. "}", 1)
+  end
+  return frag
+end
+
+T["latex-fragment"] = function(el, _, info)
+  if not info.with_latex then
+    return nil
+  end
+  local frag = el.value
+  if frag:sub(1, 2) == "\\(" then
+    return "$" .. frag:sub(3, -3) .. "$"
+  elseif frag:sub(1, 2) == "\\[" then
+    return "$$" .. frag:sub(3, -3) .. "$$"
+  end
+  return frag
+end
+
+T["line-break"] = function()
+  return "  \n"
+end
+
+local function org_as_md(raw, info)
+  if info.md_link_org_files_as_md and raw:lower():match("%.org$") then
+    return raw:sub(1, -5) .. ".md"
+  end
+  return raw
+end
+
+T.link = function(el, desc, info)
+  local ltype = el.link_type
+  local raw = el.path
+  local path
+  if ltype == "file" then
+    path = ox.file_uri(org_as_md(raw, info))
+  else
+    path = ltype .. ":" .. raw
+  end
+  desc = (desc ~= nil and desc ~= "") and desc or nil
+  local custom = ox.custom_protocol_maybe(el, desc, "md", info)
+  if custom then
+    return custom
+  end
+  if ltype == "custom-id" or ltype == "id" or ltype == "fuzzy" then
+    local dest = ltype == "fuzzy" and ox.resolve_fuzzy_link(el, info) or ox.resolve_id_link(el, info)
+    if dest.type == "plain-text" then
+      local p = org_as_md(dest.value, info)
+      if not desc then
+        return fmt("<%s>", p)
+      end
+      return fmt("[%s](%s)", desc, p)
+    elseif dest.type == "headline" then
+      local d = nw(desc)
+      if not d then
+        if ox.numbered_headline_p(dest, info) then
+          local parts = {}
+          for i, x in ipairs(ox.get_headline_number(dest, info) or {}) do
+            parts[i] = tostring(x)
+          end
+          d = table.concat(parts, ".")
+        else
+          d = ox.data(dest.title, info)
+        end
+      end
+      return fmt("[%s](#%s)", d, (dest.props and dest.props.CUSTOM_ID) or ox.get_reference(dest, info))
+    else
+      local d = nw(desc)
+      if not d then
+        local number = ox.get_ordinal(dest, info)
+        if number == nil then
+          d = nil
+        elseif type(number) == "number" then
+          d = tostring(number)
+        else
+          local parts = {}
+          for i, x in ipairs(number) do
+            parts[i] = tostring(x)
+          end
+          d = table.concat(parts, ".")
+        end
+      end
+      if d then
+        return fmt("[%s](#%s)", d, ox.get_reference(dest, info))
+      end
+      return nil
+    end
+  end
+  if ox.inline_image_p(el, html.inline_image_rules) then
+    local p
+    if ltype ~= "file" then
+      p = ltype .. ":" .. raw
+    elseif not (raw:match("^/") or raw:match("^~")) then
+      p = raw
+    else
+      p = vim.fn.fnamemodify(vim.fn.expand(raw), ":p")
+    end
+    local caption = ox.data(ox.get_caption(element.parent_element(el)) or {}, info)
+    return fmt("![img](%s)", nw(caption) and fmt('%s "%s"', p, caption) or p)
+  end
+  if ltype == "coderef" then
+    local f = ox.get_coderef_format(path, desc)
+    local r = ox.resolve_coderef(raw, info)
+    return (f:gsub("%%s", function()
+      return tostring(r)
+    end))
+  end
+  if ltype == "radio" then
+    local dest = ox.resolve_radio_link(el, info)
+    if not dest then
+      return desc
+    end
+    return fmt('<a href="#%s">%s</a>', ox.get_reference(dest, info), desc or "")
+  end
+  if not desc then
+    return fmt("<%s>", path)
+  end
+  return fmt("[%s](%s)", desc, path)
+end
+
+T["node-property"] = function(el)
+  return fmt("%s:%s", el.key, el.value and (" " .. el.value) or "")
+end
+
+T.paragraph = function(el, contents)
+  contents = (contents or ""):gsub("\n[ \t\n]*\n", "\n")
+  local first = el.contents[1]
+  if first and first.type == "plain-text" and first.value:sub(1, 1) == "#" then
+    return "\\" .. contents
+  end
+  return contents
+end
+
+T["plain-list"] = function(_, contents)
+  return contents
+end
+
+function M.plain_text(text, info, node)
+  if info.with_smart_quotes and node then
+    text = ox.activate_smart_quotes(text, "html", info, node)
+  end
+  text = text:gsub("([`%*_\\])", "\\%1")
+  text = text:gsub("\n#", "\n\\#")
+  text = text:gsub("!%[", "\\![")
+  if info.with_special_strings then
+    text = html.convert_special_strings(text)
+  end
+  if info.preserve_breaks then
+    text = text:gsub("[ \t]*\n", "  \n")
+  end
+  return text
+end
+
+T["plain-text"] = function(text, info, node)
+  return M.plain_text(text, info, node)
+end
+
+T["property-drawer"] = function(_, contents)
+  if nw(contents) then
+    return prefix_lines(contents, "    ")
+  end
+end
+
+T["quote-block"] = function(_, contents)
+  return prefix_lines((contents or ""):gsub("\n$", ""), "> ")
+end
+
+T.section = function(_, contents)
+  return contents
+end
+
+T.inner_template = function(contents, info)
+  local depth = info.with_toc
+  return (depth and (build_toc(info, type(depth) == "number" and depth or nil) .. "\n") or "")
+    .. contents
+    .. "\n"
+    .. (footnote_section(info) or "")
+end
+
+T.template = function(contents)
+  return contents
+end
+
+M.transcoders = T
+
+local function separate_elements(tree, _, info)
+  local types = {}
+  for k in pairs(element.ELEMENTS) do
+    if k ~= "item" and k ~= "table-row" and k ~= "org-data" then
+      types[k] = true
+    end
+  end
+  element.map(tree, types, function(e)
+    local pb = 1
+    if e.type == "paragraph" and e.parent and e.parent.type == "item" and ox.first_sibling_p(e, info) then
+      local nxt = ox.get_next_element(e, info)
+      if nxt and nxt.type == "plain-list" and not ox.get_next_element(nxt, info) then
+        pb = 0
+      end
+    end
+    e.post_blank = pb
+  end, { ignore = info.ignore })
+  return tree
+end
+
+M.backend = ox.define_backend("md", {
+  parent = "html",
+  transcoders = T,
+  options = function()
+    local c = mcfg()
+    local function v(name, default)
+      if c[name] == nil then
+        return default
+      end
+      return c[name]
+    end
+    return {
+      { "md_footnote_format", nil, nil, v("footnote_format", "<sup>%s</sup>") },
+      { "md_footnotes_section", nil, nil, v("footnotes_section", "%s%s") },
+      { "md_headline_style", nil, nil, v("headline_style", "atx") },
+      { "md_toplevel_hlevel", nil, nil, v("toplevel_hlevel", 1) },
+      { "md_link_org_files_as_md", nil, nil, v("link_org_files_as_md", true) },
+    }
+  end,
+  filters = {
+    ["parse-tree"] = { separate_elements },
+  },
+})
 
 return M

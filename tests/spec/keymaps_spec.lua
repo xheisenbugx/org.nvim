@@ -4,6 +4,8 @@ local function keys(k)
 end
 
 describe("keymaps e2e", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("cit cycles TODO keyword", function()
     local buf = org_buffer({ "* Task" }, { 1, 0 })
     keys("cit")
@@ -72,7 +74,7 @@ describe("keymaps e2e", function()
   end)
   it("<M-CR> on a list item adds an item", function()
     vim.g.org_test = true
-    local buf = org_buffer({ "- one" }, { 1, 0 })
+    local buf = org_buffer({ "- one" }, { 1, 3 })
     keys("<M-CR>")
     vim.cmd("stopinsert")
     eq("- one", buf_lines(buf)[1])

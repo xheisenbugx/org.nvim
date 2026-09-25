@@ -19,14 +19,37 @@ M.keywords = {
   "BEGIN_EXPORT", "END_EXPORT", "BEGIN:", "END:",
 }
 
+--- `#+STARTUP` options (org-startup-options).
 M.startup = {
-  "overview", "content", "showall", "showeverything", "nofold", "indent", "noindent",
-  "logdone", "lognotedone", "nologdone", "logrepeat", "lognoterepeat", "nologrepeat",
+  "fold", "overview", "nofold", "showall", "showeverything", "content", "indent", "noindent",
+  "num", "nonum", "hidestars", "showstars", "odd", "oddeven", "align", "noalign", "shrink",
+  "descriptivelinks", "literallinks", "inlineimages", "noinlineimages", "linkpreviews",
+  "nolinkpreviews", "latexpreview", "nolatexpreview", "customtime", "logdone", "lognotedone",
+  "nologdone", "lognoteclock-out", "nolognoteclock-out", "logrepeat", "lognoterepeat",
+  "nologrepeat", "logdrawer", "nologdrawer", "logstatesreversed", "nologstatesreversed",
   "logreschedule", "lognotereschedule", "nologreschedule", "logredeadline", "lognoteredeadline",
-  "nologredeadline", "lognoteclock-out", "nolognoteclock-out", "logdrawer", "nologdrawer",
-  "logstatesreversed", "nologstatesreversed", "hidestars", "showstars", "odd", "oddeven",
-  "align", "noalign", "inlineimages", "noinlineimages", "entitiespretty", "entitiesplain",
-  "hideblocks", "nohideblocks", "hidedrawers", "nohidedrawers", "fninline", "fnlocal",
+  "nologredeadline", "logrefile", "lognoterefile", "nologrefile", "fninline", "nofninline",
+  "fnlocal", "fnauto", "fnprompt", "fnconfirm", "fnplain", "fnadjust", "nofnadjust", "fnanon",
+  "constcgs", "constSI", "noptag", "beamer", "entitiespretty", "entitiesplain", "hideblocks",
+  "nohideblocks", "hidedrawers", "nohidedrawers",
+}
+
+--- Source block header arguments (org-babel-common-header-args-w-values)
+--- and switches.
+M.header_args = {
+  ":cache", ":cmdline", ":colnames", ":comments", ":dir", ":epilogue", ":eval", ":exports",
+  ":file", ":file-desc", ":file-ext", ":file-mode", ":hlines", ":mkdirp", ":no-expand",
+  ":noeval", ":noweb", ":noweb-prefix", ":noweb-ref", ":noweb-sep", ":output-dir", ":padline",
+  ":post", ":prologue", ":results", ":rownames", ":sep", ":session", ":shebang", ":tangle",
+  ":tangle-mode", ":var", ":wrap", "-n", "-r", "-l",
+}
+
+--- Clock table parameters (pcomplete/org-mode/block-option/clocktable).
+M.clocktable_params = {
+  ":maxlevel", ":scope", ":lang", ":tstart", ":tend", ":block", ":step", ":stepskip0",
+  ":fileskip0", ":emphasize", ":link", ":narrow", ":indent", ":hidefiles", ":tcolumns",
+  ":level", ":compact", ":timestamp", ":formula", ":formatter", ":wstart", ":mstart",
+  ":match", ":tags", ":properties", ":inherit-props", ":filetitle", ":sort", ":header",
 }
 
 M.options = {
@@ -143,10 +166,36 @@ function M.get(line, col, bufnr)
   if options_lead then
     return { start = col - #options_lead, items = items(M.options, "option") }
   end
-  -- #+begin_src <lang>
+  -- #+begin_src <lang> <header args>
   local lang_lead = before:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc]%s+(%S*)$")
   if lang_lead then
     return { start = col - #lang_lead, items = items(block_languages(), "language") }
+  end
+  local arg_lead = before:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc]%s+%S+.-%s([-:]%S*)$")
+    or before:match("^%s*#%+[Hh][Ee][Aa][Dd][Ee][Rr]:.-([:]%S*)$")
+  if arg_lead then
+    return { start = col - #arg_lead, items = items(M.header_args, "header arg") }
+  end
+  -- #+BEGIN: clocktable parameters
+  local ct_lead = before:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]:%s+clocktable%s.-(:%S*)$")
+  if ct_lead then
+    return { start = col - #ct_lead, items = items(M.clocktable_params, "parameter") }
+  end
+  -- \entity (org-entities)
+  local tex_lead = before:match("\\(%a*)$")
+  if tex_lead and not before:match("^%s*#%+") then
+    local set = {}
+    for _, e in ipairs(require("org.entities").list) do
+      if e[1]:match("^%a+%d*$") then
+        set[e[1]] = true
+      end
+    end
+    for k in pairs(require("org.export.ast").ENTITIES or {}) do
+      set[k] = true
+    end
+    local names = vim.tbl_keys(set)
+    table.sort(names)
+    return { start = col - #tex_lead - 1, items = items(names, "entity", "\\") }
   end
   -- #+TODO / #+FILETAGS values
   local ft_lead = before:match("^%s*#%+[Ff][Ii][Ll][Ee][Tt][Aa][Gg][Ss]:.-:?([^:%s]*)$")
@@ -209,7 +258,17 @@ function M.get(line, col, bufnr)
     local tag_lead = before:match("%s:([^%s]*)$")
     if tag_lead then
       local last = tag_lead:match("([^:]*)$")
-      return { start = col - #last, items = items(all_tags(file), "tag") }
+      -- tags already on the headline are not offered again
+      local set = {}
+      for t in line:gmatch(":([^:%s]+)") do
+        set[t] = true
+      end
+      local list = vim.tbl_filter(function(t)
+        return not set[t] or t == last
+      end, all_tags(file))
+      return { start = col - #last, items = items(vim.tbl_map(function(t)
+        return t .. ":"
+      end, list), "tag") }
     end
     local word = before:match("^%*+%s+(%S*)$")
     if word then
@@ -222,7 +281,31 @@ function M.get(line, col, bufnr)
   -- property drawer key / drawer names
   local prop_lead = before:match("^%s*:([^%s:]*)$")
   if prop_lead then
-    local list = { "PROPERTIES:", "END:", "LOGBOOK:" }
+    local lnum = vim.api.nvim_win_get_cursor(0)[1]
+    local hl = file:headline_at(lnum)
+    local in_props = hl and hl.properties_range and lnum > hl.properties_range[1] and lnum < hl.properties_range[2]
+    local list = {}
+    if in_props then
+      -- property names not yet set in this entry (pcomplete/org-mode/prop)
+      for _, p in ipairs(property_names(file)) do
+        if hl.properties[p:upper()] == nil then
+          list[#list + 1] = p .. ": "
+        end
+      end
+      list[#list + 1] = "END:"
+      return { start = col - #prop_lead, items = items(list, "property") }
+    end
+    -- drawer names used in the buffer (pcomplete/org-mode/drawer)
+    local seen = { PROPERTIES = true, END = true, LOGBOOK = true }
+    list = { "PROPERTIES:", "END:", "LOGBOOK:" }
+    for _, h in ipairs(file.headlines) do
+      for _, d in ipairs(h.drawers or {}) do
+        if not seen[d.name:upper()] then
+          seen[d.name:upper()] = true
+          list[#list + 1] = d.name .. ":"
+        end
+      end
+    end
     for _, p in ipairs(property_names(file)) do
       list[#list + 1] = p .. ":"
     end

@@ -1,0 +1,2 @@
+* Head with [[https://x.org][link]] and note[fn:1]
+text

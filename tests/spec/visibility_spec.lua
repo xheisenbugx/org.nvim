@@ -91,7 +91,11 @@ describe("visibility: cycling", function()
     fold.overview()
     fold.cycle() -- children
     eq(false, closed(1))
-    fold.cycle() -- folded again
+    -- Emacs: SUBTREE (the archived child stays closed), then FOLDED
+    fold.cycle()
+    eq(false, closed(1))
+    eq(2, vim.fn.foldclosed(2))
+    fold.cycle()
     eq(1, vim.fn.foldclosed(1))
   end)
 

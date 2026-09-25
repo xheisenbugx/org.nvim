@@ -70,6 +70,7 @@ M.links = {
   orgLinkPlain = "OrgLink",
   orgLinkBracket = "OrgLink",
   orgLinkTargetHidden = "OrgLink",
+  orgRadioLink = "OrgLink",
   orgListBullet = "OrgListBullet",
   orgListTerm = "OrgListTerm",
   orgCheckbox = "OrgCheckbox",
@@ -132,6 +133,10 @@ local function defaults()
     OrgTable = { link = first_existing({ "@markup.raw" }, "Normal") },
     OrgTableSeparator = { link = "Delimiter" },
     OrgTableFormula = { link = "Comment" },
+    -- formula editor: referenced fields, the reference at the cursor, the target
+    OrgTableFormulaRef = { link = "Search" },
+    OrgTableFormulaRefCursor = { link = "IncSearch" },
+    OrgTableFormulaTarget = { link = "Visual" },
     OrgFootnote = { link = "Underlined" },
     OrgTarget = { link = "Underlined" },
     OrgLatex = { link = first_existing({ "@markup.math" }, "Statement") },
@@ -139,6 +144,9 @@ local function defaults()
     OrgMacro = { link = "PreProc" },
     OrgBullet = { link = "OrgHeadlineLevel1" },
     OrgHiddenStars = { link = "Conceal" },
+    OrgSuperscript = { link = "Special" },
+    OrgSubscript = { link = "Special" },
+    OrgInlinetask = { link = "Comment" },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }
@@ -184,12 +192,28 @@ end
 
 --- Define highlight groups for `ui.todo_keyword_faces`.
 function M.apply_todo_faces()
-  local faces = require("org.config").opts.ui.todo_keyword_faces or {}
-  for name, face in pairs(faces) do
+  local ui = require("org.config").opts.ui
+  for name, face in pairs(ui.todo_keyword_faces or {}) do
     local group = "orgTodoKw_" .. name:gsub("[^%w_]", "_")
     local def = hl_from_face(face)
     vim.api.nvim_set_hl(0, group, def)
   end
+  -- ui.priority_faces / ui.tag_faces (org-priority-faces, org-tag-faces)
+  for name, face in pairs(ui.priority_faces or {}) do
+    vim.api.nvim_set_hl(0, M.face_group("orgPriorityFace_", name), hl_from_face(face))
+  end
+  for name, face in pairs(ui.tag_faces or {}) do
+    vim.api.nvim_set_hl(0, M.face_group("orgTagFace_", name), hl_from_face(face))
+  end
+end
+
+--- Highlight group for a per-priority or per-tag face: `prefix` plus the
+--- name with other characters than letters, digits and `_` as their byte
+--- code, so distinct names get distinct groups.
+function M.face_group(prefix, name)
+  return prefix .. tostring(name):gsub("[^%w_]", function(c)
+    return "_" .. c:byte() .. "_"
+  end)
 end
 
 function M.define()

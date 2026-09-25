@@ -13,8 +13,13 @@ local M = {}
 M.extra = {
   agenda = { "org.agenda", "command", desc = "Open agenda: :Org agenda [a|t|m|s|<custom key>|day|week|month]" },
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
-  export = { "org.export", "command", desc = "Export: :Org export [html|md|txt|latex|pdf|docx|odt|...]" },
+  export = { "org.export", "command", desc = "Export: :Org export [html|md|gfm|ascii|latex|pdf|beamer|org|ics|docx|...]" },
+  publish = { "org.export", "publish_command", desc = "Publish: :Org publish [project|file|current|all] [force]" },
   tangle = { "org.babel", "tangle_command", desc = "Tangle current file" },
+  detangle = { "org.babel", "detangle_command", desc = "Send tangled file edits back to Org: :Org detangle [file]" },
+  tangle_jump = { "org.babel", "jump_to_org", desc = "From a tangled file, jump to its Org src block" },
+  tangle_clean = { "org.babel", "tangle_clean", desc = "Remove tangle link comments from the buffer" },
+  babel_load_file = { "org.babel", "load_file_command", desc = "Tangle an Org file's Lua blocks and run them" },
   clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in the last clocked task" },
   timer_start = { "org.timer", "start", desc = "Start relative timer" },
   timer_stop = { "org.timer", "stop", desc = "Stop relative timer" },
@@ -32,6 +37,8 @@ M.extra = {
   content = { "org.fold", "content", desc = "Show contents (all headlines)" },
   align_tags = { "org.tags", "align_all", desc = "Align all tags in buffer" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
+  protocol = { "org.protocol", "handle", desc = "Handle an org-protocol:// URL: :Org protocol <url>" },
+  lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
 }
 
 local function names()
@@ -89,7 +96,33 @@ function M.complete(arglead, cmdline)
   if sub == "export" then
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1
-    end, { "html", "md", "markdown", "txt", "latex", "pdf", "docx", "odt", "rst", "epub", "org" })
+    end, {
+      "html",
+      "md",
+      "gfm",
+      "ascii",
+      "latin1",
+      "utf8",
+      "txt",
+      "latex",
+      "pdf",
+      "beamer",
+      "beamer-pdf",
+      "org",
+      "ics",
+      "docx",
+      "odt",
+      "rst",
+      "epub",
+    })
+  elseif sub == "publish" then
+    local out = { "all", "file", "current", "force" }
+    for _, p in ipairs(require("org.export.publish").projects()) do
+      out[#out + 1] = p[1]
+    end
+    return vim.tbl_filter(function(n)
+      return n:find(arglead, 1, true) == 1
+    end, out)
   elseif sub == "agenda" then
     local out = { "a", "t", "T", "m", "M", "s", "#", "day", "week", "month", "year" }
     for key in pairs(require("org.config").opts.agenda.custom_commands or {}) do
@@ -98,6 +131,14 @@ function M.complete(arglead, cmdline)
     return out
   elseif sub == "capture" then
     return vim.tbl_keys(require("org.config").opts.capture.templates or {})
+  elseif sub == "lint" then
+    local out = {}
+    for _, c in ipairs(require("org.lint").checkers) do
+      if c[1]:find(arglead, 1, true) == 1 then
+        out[#out + 1] = c[1]
+      end
+    end
+    return out
   end
   return {}
 end
