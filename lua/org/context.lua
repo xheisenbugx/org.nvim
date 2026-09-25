@@ -114,6 +114,9 @@ function M.edit_special()
   if babel.at_block(0, lnum) then
     return babel.edit_special()
   end
+  if require("org.special").edit_element(0, lnum) ~= false then
+    return
+  end
   utils.warn("Nothing to edit here (place the cursor in a src block or table)")
 end
 

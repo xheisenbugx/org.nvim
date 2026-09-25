@@ -416,6 +416,10 @@ M.defaults = {
       toggle_link_display = "<prefix>lt",
       next_link = "<prefix>ln",
       prev_link = "<prefix>lp",
+      insert_last_stored_link = "<prefix>lL",
+      insert_all_links = "<prefix>lA",
+      id_goto = "<prefix>lg",
+      id_copy = "<prefix>ly",
       -- refile / archive / attach
       refile = "<prefix>r",
       archive_subtree = "<prefix>$",
@@ -542,7 +546,10 @@ M.defaults = {
       timer_countdown = "<C-c><C-x>;",
       -- links
       insert_link = "<C-c><C-l>",
-      open_at_point = "<C-c><C-o>",
+      open_link_or_entry = "<C-c><C-o>",
+      insert_last_stored_link = "<C-c><M-l>",
+      insert_all_links = "<C-c><C-M-l>",
+      mark_ring_goto = "<C-c>&",
       next_link = "<C-c><C-x><C-n>",
       prev_link = "<C-c><C-x><C-p>",
       -- refile / archive / attach / agenda files

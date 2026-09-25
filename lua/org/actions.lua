@@ -164,6 +164,13 @@ M.list = {
   toggle_link_display = { "org.links", "toggle_link_display", desc = "Toggle link display" },
   next_link = { "org.links", "next_link", desc = "Next link" },
   prev_link = { "org.links", "prev_link", desc = "Previous link" },
+  insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
+  insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
+  open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
+  id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
+  id_copy = { "org.id", "copy", desc = "Copy entry ID" },
+  id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 
   -- refile / archive / attach
   refile = { "org.refile", "refile", desc = "Refile subtree" },

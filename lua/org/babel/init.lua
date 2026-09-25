@@ -938,6 +938,8 @@ function M.edit_special()
     lines = dedented,
     filetype = ft,
     name = "src-" .. (b.lang ~= "" and b.lang or "block"),
+    kind = "src",
+    switches = b.switches,
     to_source = function(lines)
       local out = {}
       for i, l in ipairs(blocks_mod.escape(lines)) do

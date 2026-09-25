@@ -593,6 +593,88 @@ local function display_path(path)
   return vim.fn.fnamemodify(path, ":~")
 end
 
+--- Name of the element at `lnum` (its `#+NAME:` line, or a src block /
+--- table / block below one).
+local function named_element_at(bufnr, lnum)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local name_pat = "^%s*#%+[Nn][Aa][Mm][Ee]:%s*(.-)%s*$"
+  local function name_above(l)
+    local k = l - 1
+    while k >= 1 and lines[k]:match("^%s*#%+[%w_]+:") do
+      local nm = lines[k]:match(name_pat)
+      if nm then
+        return nm
+      end
+      k = k - 1
+    end
+  end
+  local line = lines[lnum] or ""
+  local nm = line:match(name_pat)
+  if nm and nm ~= "" then
+    return nm
+  end
+  if line:match("^%s*#%+[%w_]+:") then
+    local k = lnum + 1
+    while lines[k] and lines[k]:match("^%s*#%+[%w_]+:") and not lines[k]:lower():match("^%s*#%+begin_") do
+      k = k + 1
+    end
+    return name_above(k)
+  end
+  if line:match("^%s*|") then
+    local k = lnum
+    while k > 1 and lines[k - 1]:match("^%s*|") do
+      k = k - 1
+    end
+    return name_above(k)
+  end
+  -- inside a #+begin_ ... #+end_ block
+  for k = lnum, 1, -1 do
+    local l = lines[k]
+    if k < lnum and l:lower():match("^%s*#%+end_") then
+      return nil
+    end
+    if l:lower():match("^%s*#%+begin_") then
+      return name_above(k)
+    end
+    if l:match("^%*+%s") then
+      return nil
+    end
+  end
+end
+
+--- Link to a code line from a src / example edit buffer: `(label)`,
+--- creating the `(ref:label)` when `interactive`.
+local function coderef_link(bufnr, lnum, interactive)
+  local src = vim.b[bufnr].org_special_source
+  if not src or not vim.api.nvim_buf_is_valid(src) then
+    return nil
+  end
+  local pat = require("org.babel.blocks").coderef_pattern(vim.b[bufnr].org_special_switches)
+  local fmt = (vim.b[bufnr].org_special_switches or ""):match('%-l%s+"(.-)"') or "(ref:%s)"
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+  local label = line:match(pat)
+  if not label then
+    if not interactive then
+      return nil
+    end
+    label = utils.input({ prompt = "Code line label: " })
+    if not label or vim.trim(label) == "" then
+      return nil
+    end
+    label = vim.trim(label)
+    local ref = fmt:gsub("%%s", function()
+      return label
+    end)
+    local pad = math.max(1, 79 - #ref - vim.fn.strdisplaywidth(line))
+    vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { line .. string.rep(" ", pad) .. ref })
+  end
+  local name = vim.api.nvim_buf_get_name(src)
+  if name == "" then
+    return { link = "(" .. label .. ")", desc = nil }
+  end
+  return { link = "file:" .. display_path(name) .. "::(" .. label .. ")", desc = nil }
+end
+
 --- Compute a link to the current location without storing it.
 ---@param opts? { interactive?: boolean, bufnr?: integer, lnum?: integer }
 ---@return { link: string, desc: string|nil }|nil
@@ -603,17 +685,45 @@ function M.link_to_location(opts)
   if name == "" or vim.bo[bufnr].buftype ~= "" and vim.bo[bufnr].buftype ~= "acwrite" then
     return nil
   end
-  if name:match("^org%-special://") or name:match("CAPTURE%-") then
-    return nil
-  end
   local lnum = opts.lnum
   if not lnum then
     lnum = bufnr == vim.api.nvim_get_current_buf() and vim.api.nvim_win_get_cursor(0)[1] or 1
+  end
+  if name:match("^org%-special://") then
+    return coderef_link(bufnr, lnum, opts.interactive)
+  end
+  if name:match("CAPTURE%-") then
+    return nil
   end
   local path = display_path(name)
   if vim.bo[bufnr].filetype == "org" then
     local file = files.get_buffer(bufnr)
     local hl = file:headline_at(lnum)
+    local cur_line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+    -- a dedicated <<target>> under the cursor
+    local col = bufnr == vim.api.nvim_get_current_buf() and (vim.api.nvim_win_get_cursor(0)[2] + 1) or nil
+    local init = 1
+    while col do
+      local s, e, target = cur_line:find("<<([^<>]+)>>", init)
+      if not s then
+        break
+      end
+      if col >= s and col <= e and cur_line:sub(s - 1, s - 1) ~= "<" and cur_line:sub(e + 1, e + 1) ~= ">" then
+        return { link = "file:" .. path .. "::" .. target, desc = nil }
+      end
+      init = e + 1
+    end
+    -- a named element (#+NAME:)
+    local element = named_element_at(bufnr, lnum)
+    if element then
+      return { link = "file:" .. path .. "::" .. element, desc = element }
+    end
+    if not hl then
+      local text = vim.trim(cur_line)
+      if text ~= "" and #text <= 80 and not text:find("[%[%]]") then
+        return { link = "file:" .. path .. "::" .. text, desc = nil }
+      end
+    end
     if hl then
       local desc = hl:plain_title()
       if hl.properties.CUSTOM_ID then
@@ -795,6 +905,45 @@ function M.insert_link()
   end
 end
 
+local function insert_text_at_cursor(text)
+  local row, col0 = unpack(vim.api.nvim_win_get_cursor(0))
+  local line = vim.api.nvim_get_current_line()
+  local at = line == "" and 0 or math.min(col0 + 1, #line)
+  vim.api.nvim_set_current_line(line:sub(1, at) .. text .. line:sub(at + 1))
+  vim.api.nvim_win_set_cursor(0, { row, at + #text - 1 })
+end
+
+--- Insert the most recently stored link (org-insert-last-stored-link).
+function M.insert_last_stored_link()
+  local s = M.stored[1]
+  if not s then
+    utils.warn("No stored link")
+    return
+  end
+  insert_text_at_cursor(M.format(shorten_for_current(s.link), s.desc))
+end
+
+--- Insert every stored link as a list item and clear the list
+--- (org-insert-all-links).
+function M.insert_all_links()
+  if #M.stored == 0 then
+    utils.warn("No stored links")
+    return
+  end
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local indent = vim.api.nvim_get_current_line():match("^(%s*)") or ""
+  local out = {}
+  for _, s in ipairs(M.stored) do
+    out[#out + 1] = indent .. "- " .. M.format(shorten_for_current(s.link), s.desc)
+  end
+  if vim.api.nvim_get_current_line():match("^%s*$") then
+    vim.api.nvim_buf_set_lines(0, row - 1, row, false, out)
+  else
+    vim.api.nvim_buf_set_lines(0, row, row, false, out)
+  end
+  M.stored = {}
+end
+
 ---------------------------------------------------------------------------
 -- Misc
 ---------------------------------------------------------------------------
@@ -809,18 +958,121 @@ function M.toggle_link_display()
   end
 end
 
-local LINK_RE = [[\[\[\|\<\(https\?\|ftp\|mailto\|file\|id\):]]
+--- Move to the next (dir = 1) or previous (dir = -1) link of any kind.
+local function goto_link(dir)
+  local lnum, col = utils.cursor()
+  local last = vim.api.nvim_buf_line_count(0)
+  local l = lnum
+  while l >= 1 and l <= last do
+    local line = vim.api.nvim_buf_get_lines(0, l - 1, l, false)[1]
+    local found
+    local list = M.parse_links(line)
+    if dir > 0 then
+      for _, lk in ipairs(list) do
+        if l > lnum or lk.start_col > col then
+          found = lk
+          break
+        end
+      end
+    else
+      for i = #list, 1, -1 do
+        local lk = list[i]
+        if l < lnum or lk.start_col < col then
+          found = lk
+          break
+        end
+      end
+    end
+    if found then
+      vim.cmd("normal! m'")
+      vim.api.nvim_win_set_cursor(0, { l, found.start_col - 1 })
+      pcall(vim.cmd, "normal! zv")
+      return true
+    end
+    l = l + dir
+  end
+  return false
+end
 
 function M.next_link()
-  if vim.fn.search(LINK_RE, "W") == 0 then
-    utils.notify("No further link found")
+  for _ = 1, math.max(vim.v.count, 1) do
+    if not goto_link(1) then
+      utils.notify("No further link found")
+      return
+    end
   end
 end
 
 function M.prev_link()
-  if vim.fn.search(LINK_RE, "bW") == 0 then
-    utils.notify("No previous link found")
+  for _ = 1, math.max(vim.v.count, 1) do
+    if not goto_link(-1) then
+      utils.notify("No previous link found")
+      return
+    end
   end
+end
+
+--- Links in the entry at the cursor (headline and body, not children).
+function M.entry_links()
+  if not utils.is_org() then
+    return {}
+  end
+  local lnum = utils.cursor()
+  local hl = files.get_buffer(0):headline_at(lnum)
+  if not hl then
+    return {}
+  end
+  local out = {}
+  local last = hl.body_end or hl.line
+  for l, line in ipairs(vim.api.nvim_buf_get_lines(0, hl.line - 1, last, false)) do
+    for _, lk in ipairs(M.parse_links(line)) do
+      lk.lnum = hl.line + l - 1
+      out[#out + 1] = lk
+    end
+  end
+  return out
+end
+
+--- On a headline without a link at the cursor, open one of the entry's
+--- links (Emacs offers every link of the entry). Returns false when the
+--- entry has none.
+function M.open_entry_links()
+  local list = M.entry_links()
+  if #list == 0 then
+    return false
+  end
+  local chosen = list[1]
+  if #list > 1 then
+    local labels = {}
+    for i, lk in ipairs(list) do
+      labels[i] = lk.desc and (lk.desc .. " (" .. lk.target .. ")") or lk.target
+    end
+    local pick, idx = utils.select(labels, { prompt = "Open link" })
+    if not pick then
+      return
+    end
+    chosen = list[idx]
+  end
+  M.open(chosen.target, { bufnr = vim.api.nvim_get_current_buf(), link = chosen })
+end
+
+--- C-c C-o: open the link / footnote / date at point; elsewhere on a
+--- headline, offer the entry's links (org-open-at-point).
+function M.open_at_point_or_entry()
+  local r = require("org.context").open_at_point()
+  if r ~= false then
+    return r
+  end
+  if not require("org.parser").headline_level(vim.api.nvim_get_current_line()) then
+    return false
+  end
+  return M.open_entry_links()
+end
+
+--- Jump back to the position before the last link was followed
+--- (org-mark-ring-goto).
+function M.mark_ring_goto()
+  vim.cmd("normal! \15")
 end
 
 return M
