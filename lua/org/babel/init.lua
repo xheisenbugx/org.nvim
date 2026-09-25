@@ -939,6 +939,10 @@ local function session_code(lang, body, args, vars)
   if args.epilogue then
     vim.list_extend(lines, vim.split(blocks_mod.unquote(args.epilogue), "\\n", { plain = true }))
   end
+  if langs.family(lang) == "python" and args.results_spec.collection == "value" and args["return"] then
+    -- in a session :return is an expression line (ob-python)
+    lines[#lines + 1] = args["return"]
+  end
   return table.concat(lines, "\n")
 end
 
