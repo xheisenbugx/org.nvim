@@ -155,7 +155,8 @@
 ---@field results? string
 ---(default: `"code"`)
 ---@field exports? "code"|"results"|"both"|"none"|string
----(default: `"none"`)
+---`"none"`, or a session name: blocks with the same language and session
+---name share one running interpreter. (default: `"none"`)
 ---@field session? string
 ---(default: `"no"`)
 ---@field noweb? "yes"|"no"|"tangle"|"no-export"|"strip-export"|"eval"|string
@@ -171,8 +172,14 @@
 ---Results with at least this many lines use an example block instead of
 ---`: ` lines (`org-babel-min-lines-for-block-output`). (default: `10`)
 ---@field min_lines_for_block_output? integer
----Kill evaluation after this many milliseconds. (default: `30000`)
+---Kill evaluation after this many milliseconds; for a `:session`, stop
+---waiting for the answer. (default: `30000`)
 ---@field timeout? integer
+---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
+---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
+---results in the exported copy (the buffer is not changed). When `false`,
+---export uses the `#+RESULTS` already in the buffer. (default: `false`)
+---@field evaluate_on_export? boolean
 ---Default header arguments, merged key by key with the defaults.
 ---(default: `{ results = "replace", exports = "code", session = "none", noweb = "no", tangle = "no" }`)
 ---@field default_header_args? org.Config.Babel.HeaderArgs

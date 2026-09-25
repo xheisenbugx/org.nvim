@@ -75,10 +75,42 @@ function M.parse_header_string(str)
   return out
 end
 
+--- Replace the commas that separate arguments (outside quotes, brackets
+--- and parentheses) with spaces, like org-babel-ref-split-args.
+local function top_level_commas(str)
+  local out, depth, quote = {}, 0, false
+  local i = 1
+  while i <= #str do
+    local ch = str:sub(i, i)
+    if quote then
+      if ch == "\\" then
+        out[#out + 1] = str:sub(i, i + 1)
+        i = i + 1
+        ch = nil
+      elseif ch == '"' then
+        quote = false
+      end
+    elseif ch == '"' then
+      quote = true
+    elseif ch == "(" or ch == "[" then
+      depth = depth + 1
+    elseif ch == ")" or ch == "]" then
+      depth = depth - 1
+    elseif ch == "," and depth <= 0 then
+      ch = " "
+    end
+    if ch then
+      out[#out + 1] = ch
+    end
+    i = i + 1
+  end
+  return table.concat(out)
+end
+
 --- Split `:var` values like "x=1 y=2" or "x=1, y=2" into assignments.
 local function split_vars(value)
   local out = {}
-  for _, tok in ipairs(tokenize((value or ""):gsub(",%s*", " "))) do
+  for _, tok in ipairs(tokenize(top_level_commas(value or ""))) do
     local name, v = tok:match("^([%w_%-]+)=(.*)$")
     if name then
       out[#out + 1] = { name = name, value = v }
@@ -114,6 +146,9 @@ function M.merge(args, pairs_list)
         for cat, set in pairs(RESULT_CATEGORIES) do
           if set[word] then
             args.results_spec[cat] = word
+            if cat == "collection" then
+              args.default_collection = nil
+            end
           end
         end
       end
@@ -331,6 +366,16 @@ function M.parse_blocks(lines)
         body = {},
         name = nil,
       }
+      local k = i - 1
+      while k >= 1 and lines[k]:match("^%s*#%+[%w_]+:") do
+        local nm = lines[k]:match("^%s*#%+[Nn][Aa][Mm][Ee]:%s*(.-)%s*$")
+        if nm then
+          block.name = nm
+          block.name_line = k
+          break
+        end
+        k = k - 1
+      end
       local r = i + 1
       while r <= n and lines[r]:match("^%s*$") do
         r = r + 1
@@ -385,6 +430,8 @@ function M.header_args(block, file, lang)
     M.merge(args, M.parse_header_string(h))
   end
   M.merge(args, M.parse_header_string(block.params))
+  -- shells use the exit status only for an explicit `:results value`
+  args.default_collection = args.results_spec.collection == nil or nil
   args.results_spec.collection = args.results_spec.collection or "value"
   args.results_spec.handling = args.results_spec.handling or "replace"
   return args

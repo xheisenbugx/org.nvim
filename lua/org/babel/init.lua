@@ -6,6 +6,7 @@
 local blocks_mod = require("org.babel.blocks")
 local langs = require("org.babel.langs")
 local results = require("org.babel.results")
+local session_mod = require("org.babel.session")
 local utils = require("org.utils")
 
 local M = {}
@@ -149,13 +150,16 @@ M.library = {}
 local function noweb_reference(bufnr, ref, depth, purpose, ctx)
   local call_name = ref:match("^(.-)%(.*%)$")
   if call_name then
-    -- <<name(args)>>: the results of the named block
-    local target = M.find_named_block(ctx.lines, call_name)
-    if target and target.results then
-      local text = results.read(vim.list_slice(ctx.lines, target.results.start + 1, target.results.finish))
-      return vim.split(type(text) == "table" and vim.inspect(text) or text, "\n", { plain = true })
+    -- <<name(args)>>: the result of evaluating the named block with args
+    local ok, v = pcall(M.resolve_var, bufnr, ref, {}, {}, { skip_confirm = ctx.skip_confirm })
+    if not ok then
+      if type(bufnr) == "number" and (purpose or "eval") == "eval" then
+        error("noweb <<" .. ref .. ">>: " .. tostring(v), 0)
+      end
+      utils.warn("noweb <<" .. ref .. ">>: " .. tostring(v))
+      return { "" }
     end
-    return { "" }
+    return vim.split(results.stringify(v), "\n", { plain = true })
   end
   local function body_of(b, args)
     local nw = noweb_for(args, purpose or "eval")
@@ -320,9 +324,11 @@ local function disassemble(rows, args, meta)
     names = rows[1]
     rows = vim.list_slice(rows, 2)
   end
+  -- :hlines yes keeps the horizontal lines (as "hline" rows)
+  local keep_hlines = args and args.hlines == "yes"
   local out = {}
   for _, r in ipairs(rows) do
-    if r ~= "hline" then
+    if r ~= "hline" or keep_hlines then
       out[#out + 1] = r
     end
   end
@@ -330,8 +336,10 @@ local function disassemble(rows, args, meta)
   if rownames == "yes" or rownames == "t" then
     rnames = {}
     for i, r in ipairs(out) do
-      rnames[i] = r[1]
-      out[i] = vim.list_slice(r, 2)
+      if type(r) == "table" then
+        rnames[i] = r[1]
+        out[i] = vim.list_slice(r, 2)
+      end
     end
     if names then
       names = vim.list_slice(names, 2)
@@ -379,9 +387,151 @@ function M.reassemble(value, args, meta)
   return out
 end
 
---- Resolve a :var value to a Lua value. `args` (the block's header args)
---- controls :colnames / :rownames; names found are recorded in `meta`.
-function M.resolve_var(bufnr, raw, args, meta)
+--- Convert a value of the Emacs Lisp evaluator to a Lua value.
+local function from_elisp(v)
+  local el = require("org.table.elisp")
+  if v == nil then
+    return ""
+  elseif v == true then
+    return "t"
+  end
+  local n = el.tonumber(v)
+  if n then
+    return n
+  end
+  if type(v) == "table" then
+    if v.n ~= nil and getmetatable(v) == nil then
+      local out = {}
+      for i = 1, v.n do
+        out[i] = from_elisp(v[i])
+      end
+      return out
+    elseif v.name then
+      return v.name -- a symbol, e.g. hline
+    end
+  end
+  return type(v) == "string" and v or el.to_string(v)
+end
+
+--- Split a reference `name[header](args)[index]` like org-babel-ref-resolve.
+---@return { name: string, header?: string, call?: string, index?: string, contents?: boolean }
+function M.parse_ref(ref)
+  local r = {}
+  local head, idx = ref:match("^(.-)(%b[])$")
+  if head and head ~= "" then
+    local _, opens = head:gsub("%(", "")
+    local _, closes = head:gsub("%)", "")
+    if opens == closes then
+      local inner = idx:sub(2, -2)
+      if inner == "" then
+        r.contents = true
+      else
+        r.index = inner
+      end
+      ref = head
+    end
+  end
+  local name, hdr, call = ref:match("^(.-)(%b[])%((.*)%)$")
+  if not name or name == "" then
+    hdr = nil
+    name, call = ref:match("^(.-)%((.*)%)$")
+  end
+  if name and name ~= "" then
+    r.call = call
+    r.header = hdr and hdr:sub(2, -2) or nil
+    ref = name
+  end
+  r.name = vim.trim(ref)
+  return r
+end
+
+--- Directory a buffer's code runs in by default (the file's directory).
+local function buf_dir(bufnr)
+  if type(bufnr) ~= "number" then
+    return vim.fn.getcwd()
+  end
+  local dir = vim.b[bufnr].org_babel_dir
+  if dir then
+    return dir
+  end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  return name ~= "" and vim.fn.fnamemodify(name, ":p:h") or vim.fn.getcwd()
+end
+M.buf_dir = buf_dir
+
+--- Value of a named element that is not code (org-babel-read-element):
+--- tables become rows, lists their top-level items, the rest text.
+local function read_element(lines, args, meta)
+  local first = lines[1] or ""
+  if first:match("^%s*|") then
+    local rows = results.read(lines, true)
+    return langs.normalize(disassemble(rows, args, meta))
+  end
+  if first:match("^%s*[-+*] ") or first:match("^%s*%d+[.)] ") then
+    local indent = #first:match("^(%s*)")
+    local items = {}
+    for _, l in ipairs(lines) do
+      local ind, text = l:match("^(%s*)[-+*] (.*)$")
+      if not ind then
+        ind, text = l:match("^(%s*)%d+[.)] (.*)$")
+      end
+      if ind and #ind == indent then
+        items[#items + 1] = langs.normalize(text:gsub("^%[.%] ", ""))
+      end
+    end
+    return items
+  end
+  local text = results.read(lines)
+  if type(text) == "string" and tonumber(vim.trim(text)) and not text:find("\n") then
+    return tonumber(vim.trim(text))
+  end
+  return text
+end
+
+--- Body text of the headline with ID or CUSTOM_ID `id` (after its
+--- planning line and property drawer), or nil.
+local function headline_body(bufnr, id)
+  local file, lines, hl = get_file(bufnr), nil, nil
+  for _, h in ipairs(file and file.headlines or {}) do
+    if h.properties and (h.properties.ID == id or h.properties.CUSTOM_ID == id) then
+      hl, lines = h, buf_lines(bufnr)
+      break
+    end
+  end
+  if not hl then
+    local ok, found = pcall(require("org.id").find, id)
+    if not ok or not found then
+      return nil
+    end
+    hl = found.headline
+    lines = found.bufnr and buf_lines(found.bufnr) or utils.readfile(found.filename)
+    if not hl or not lines then
+      return nil
+    end
+  end
+  local k = hl.line + 1
+  local last = hl.end_line or #lines
+  if lines[k] and lines[k]:match("^%s*[A-Z]+:%s*[<%[]") then
+    k = k + 1
+  end
+  if lines[k] and lines[k]:match("^%s*:PROPERTIES:%s*$") then
+    while k <= last and not lines[k]:match("^%s*:END:%s*$") do
+      k = k + 1
+    end
+    k = k + 1
+  end
+  return table.concat(vim.list_slice(lines, k, last), "\n")
+end
+
+local evaluate_ref
+
+--- Resolve a :var value to a Lua value (org-babel-read, then
+--- org-babel-ref-resolve). `args` (the block's header args) controls
+--- :colnames / :rownames / :hlines; names found are recorded in `meta`.
+--- References to src blocks and #+CALL lines evaluate them.
+---@param opts? { depth?: integer, skip_confirm?: boolean }
+function M.resolve_var(bufnr, raw, args, meta, opts)
+  opts = opts or {}
   raw = vim.trim(raw or "")
   local q = raw:match('^"(.*)"$')
   if q then
@@ -390,57 +540,76 @@ function M.resolve_var(bufnr, raw, args, meta)
   if tonumber(raw) then
     return tonumber(raw)
   end
-  local name, index = raw:match("^([^%[]+)(%b[])$")
-  name = name or raw
-  local lines = buf_lines(bufnr)
-  local value
-  local tbl = require("org.table").find_named_table(bufnr, name)
-  if tbl then
-    local rows = {}
-    for _, r in ipairs(tbl.rows) do
-      rows[#rows + 1] = r.hline and "hline" or vim.deepcopy(r.cells)
-    end
-    value = langs.normalize(disassemble(rows, args, meta))
-  else
-    local b = M.find_named_block(lines, name)
-    if b then
-      if b.results then
-        value = results.read(vim.list_slice(lines, b.results.start + 1, b.results.finish), true)
-        if is_rows(value) then
-          value = disassemble(value, args, meta)
-        end
-        value = langs.normalize(value)
-      elseif langs.family(b.lang) == "lua" then
-        local res = langs.run_lua(b.body, { results_spec = { collection = "value" } }, {})
-        value = res.value ~= nil and res.value or res.output
-      else
-        error("block '" .. name .. "' has no results (evaluate it first)")
-      end
-    else
-      -- named list / example / paragraph
-      for i, l in ipairs(lines) do
-        local nm = l:match("^%s*#%+[Nn][Aa][Mm][Ee]:%s*(.-)%s*$")
-        if nm == name then
-          local e = blocks_mod.results_end(lines, i)
-          value = results.read(vim.list_slice(lines, i + 1, e))
-          break
-        end
-      end
-    end
+  if raw == "" then
+    return ""
   end
-  if value == nil then
-    return raw
+  local c = raw:sub(1, 1)
+  if c == "(" or c == "'" or c == "`" then
+    local ok, v = pcall(require("org.table.elisp").eval, raw)
+    if not ok then
+      error("cannot evaluate " .. raw .. ": " .. tostring(v), 0)
+    end
+    return from_elisp(v)
   end
-  if index then
-    value = M.index_value(value, index:sub(2, -2))
+  local ref = M.parse_ref(raw)
+  local value = M.resolve_ref(bufnr, ref, args, meta, opts)
+  if ref.index then
+    value = M.index_value(value, ref.index)
   end
   return value
 end
 
-local function resolve_vars(bufnr, args, meta)
+--- Value of the element named by `ref` (see `M.parse_ref`).
+function M.resolve_ref(bufnr, ref, args, meta, opts)
+  local name = ref.name
+  -- file.org:name refers to another file
+  local fpart, rest = name:match("^(.+):([^:]+)$")
+  if fpart and type(bufnr) == "number" then
+    local path = utils.expand(fpart, buf_dir(bufnr))
+    if utils.exists(path) then
+      bufnr = utils.load_buffer(path)
+      name = rest
+    end
+  end
+  local lines = buf_lines(bufnr)
+  local file = get_file(bufnr)
+  local all = blocks_mod.parse_blocks(lines)
+  for i, l in ipairs(lines) do
+    local nm = l:match("^%s*#%+[Nn][Aa][Mm][Ee]:%s*(.-)%s*$")
+    if nm == name and not in_commented(file, i) then
+      local k = i + 1
+      while lines[k] and lines[k]:match("^%s*#%+[%w_]+:") and not lines[k]:match("^%s*#%+[Cc][Aa][Ll][Ll]:") do
+        k = k + 1
+      end
+      for _, b in ipairs(all) do
+        if b.start == k then
+          if ref.contents then
+            return table.concat(b.body, "\n")
+          end
+          return evaluate_ref(bufnr, b, ref, file, opts)
+        end
+      end
+      return read_element(vim.list_slice(lines, k, blocks_mod.results_end(lines, k - 1)), args, meta)
+    end
+  end
+  local body = headline_body(bufnr, name)
+  if body then
+    return body
+  end
+  if M.library[name] then
+    local b = vim.deepcopy(M.library[name])
+    if ref.contents then
+      return table.concat(b.body, "\n")
+    end
+    return evaluate_ref(bufnr, b, ref, nil, opts)
+  end
+  error("reference '" .. name .. "' not found in this buffer", 0)
+end
+
+local function resolve_vars(bufnr, args, meta, opts)
   local out = {}
   for _, v in ipairs(args.vars or {}) do
-    out[#out + 1] = { name = v.name, value = M.resolve_var(bufnr, v.value, args, meta) }
+    out[#out + 1] = { name = v.name, value = M.resolve_var(bufnr, v.value, args, meta, opts) }
   end
   return out
 end
@@ -456,14 +625,140 @@ local function split_cmd(cmd)
   return vim.split(vim.trim(cmd), "%s+")
 end
 
---- Run code and call `cb(result)` with { value?, text, error? }.
-function M.run(bufnr, lang, body, args, vars, cb)
-  local fam = langs.family(lang)
-  local file_dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":p:h")
+--- Working directory of a block (`:dir`, created with `:mkdirp yes`).
+local function block_cwd(bufnr, args)
+  local file_dir = buf_dir(bufnr)
   local cwd = args.dir and utils.expand(blocks_mod.unquote(args.dir), file_dir) or file_dir
+  if args.dir and (args.mkdirp == "yes" or args.mkdirp == "t") and not utils.is_dir(cwd) then
+    vim.fn.mkdir(cwd, "p")
+  end
   if not utils.is_dir(cwd) then
     cwd = vim.fn.getcwd()
   end
+  return cwd
+end
+
+local warned_session = {}
+
+--- Session name of a block, or nil (warns once for languages without
+--- session support, which then run without one).
+local function block_session(lang, args)
+  local name = session_mod.name(args.session)
+  if name and not session_mod.supported(lang, langs.family(lang)) then
+    if not warned_session[lang] then
+      warned_session[lang] = true
+      utils.warn(string.format("babel: %s has no session support; ignoring :session", lang))
+    end
+    return nil
+  end
+  return name
+end
+
+--- The session of a block, started when needed.
+local function get_session(bufnr, lang, args, name)
+  local fam = langs.family(lang)
+  local cmd = {}
+  if fam ~= "lua" then
+    local lang_cfg = (require("org.config").opts.babel.languages or {})[lang]
+    if not lang_cfg or not lang_cfg.cmd then
+      error("No babel command configured for language: " .. tostring(lang), 0)
+    end
+    cmd = split_cmd(lang_cfg.cmd)
+    if vim.fn.executable(cmd[1]) == 0 then
+      error("Executable not found: " .. cmd[1], 0)
+    end
+  end
+  return session_mod.get({ lang = lang, family = fam, name = name, cmd = cmd, cwd = block_cwd(bufnr, args) })
+end
+
+--- Code sent to a session: variables, :prologue, body and :epilogue.
+local function session_code(lang, body, args, vars)
+  local lines = langs.var_lines(lang, vars, args)
+  if args.prologue then
+    vim.list_extend(lines, vim.split(blocks_mod.unquote(args.prologue), "\\n", { plain = true }))
+  end
+  if langs.family(lang) == "js" then
+    -- top-level let/const would fail when the block is evaluated again
+    for _, l in ipairs(body) do
+      lines[#lines + 1] = (l:gsub("^let%s", "var "):gsub("^const%s", "var "))
+    end
+  else
+    vim.list_extend(lines, body)
+  end
+  if args.epilogue then
+    vim.list_extend(lines, vim.split(blocks_mod.unquote(args.epilogue), "\\n", { plain = true }))
+  end
+  return table.concat(lines, "\n")
+end
+
+local function run_in_session(bufnr, lang, body, args, vars, name, done, sync)
+  local ok, sess = pcall(get_session, bufnr, lang, args, name)
+  if not ok then
+    return done({ error = tostring(sess), text = "" })
+  end
+  local timeout = require("org.config").opts.babel.timeout
+  if langs.family(lang) == "lua" then
+    session_mod.echo(sess, table.concat(body, "\n"))
+    local res = langs.run_lua(body, args, vars, sess.env)
+    if vim.trim(res.output or "") ~= "" then
+      session_mod.append(sess, res.output)
+    end
+    local r = { text = res.output }
+    if res.error then
+      r.error = res.error
+      r.text = (res.output ~= "" and (res.output .. "\n") or "") .. res.error
+    elseif args.results_spec.collection == "value" then
+      r.value = res.value
+    end
+    return done(r)
+  end
+  local exit_status = langs.shell_exit_status(lang, args)
+  local mode = (args.results_spec.collection == "value" and not langs.family(lang):match("shell")) and "value"
+    or "output"
+  local function convert(sres)
+    local r = { text = sres.output or "", error = sres.error }
+    if not sres.error then
+      if exit_status then
+        r.value = sres.status
+      elseif mode == "value" then
+        r.value = sres.value
+      end
+    end
+    return r
+  end
+  local code = session_code(lang, body, args, vars)
+  if sync then
+    return done(convert(session_mod.eval_sync(sess, code, mode, { timeout = timeout })))
+  end
+  session_mod.eval(sess, code, mode, function(sres)
+    done(convert(sres))
+  end, { timeout = timeout })
+end
+
+--- Run code and call `cb(result)` with { value?, text, error? }. With
+--- `opts.sync` the result is returned instead (the call blocks).
+---@param opts? { sync?: boolean }
+function M.run(bufnr, lang, body, args, vars, cb, opts)
+  opts = opts or {}
+  local sync = opts.sync
+  local result
+  local function done(r)
+    if sync then
+      result = r
+    elseif cb then
+      vim.schedule(function()
+        cb(r)
+      end)
+    end
+    return r
+  end
+  local fam = langs.family(lang)
+  local sname = block_session(lang, args)
+  if sname then
+    run_in_session(bufnr, lang, body, args, vars, sname, done, sync)
+    return result
+  end
+  local cwd = block_cwd(bufnr, args)
   if fam == "lua" then
     local res = langs.run_lua(body, args, vars)
     local r = { text = res.output }
@@ -475,23 +770,34 @@ function M.run(bufnr, lang, body, args, vars, cb)
         r.value = res.value
       end
     end
-    vim.schedule(function()
-      cb(r)
-    end)
-    return
+    done(r)
+    return result
   end
   local lang_cfg = (require("org.config").opts.babel.languages or {})[lang]
   if not lang_cfg or not lang_cfg.cmd then
-    cb({ error = "No babel command configured for language: " .. tostring(lang), text = "" })
-    return
+    done({ error = "No babel command configured for language: " .. tostring(lang), text = "" })
+    return result
   end
   local cmd = split_cmd(lang_cfg.cmd)
   if vim.fn.executable(cmd[1]) == 0 then
-    cb({ error = "Executable not found: " .. cmd[1], text = "" })
-    return
+    done({ error = "Executable not found: " .. cmd[1], text = "" })
+    return result
+  end
+  local stdin
+  if args.stdin and (fam == "shell" or fam == "fish") then
+    -- :stdin ref feeds a value to the script (ob-shell)
+    local ok, v = pcall(M.resolve_var, bufnr, args.stdin, args, {})
+    if not ok then
+      done({ error = ":stdin: " .. tostring(v), text = "" })
+      return result
+    end
+    stdin = langs.table_to_text(v) .. "\n"
+  end
+  if fam == "sqlite" then
+    body = langs.sqlite_substitute(body, vars)
+    vars = {}
   end
   local code, has_marker = langs.program(lang, body, args, vars)
-  local stdin
   if fam == "sqlite" then
     cmd[#cmd + 1] = blocks_mod.unquote(args.db) or ":memory:"
     stdin = code
@@ -503,35 +809,73 @@ function M.run(bufnr, lang, body, args, vars, cb)
       vim.list_extend(cmd, vim.split(blocks_mod.unquote(args.cmdline), "%s+", { trimempty = true }))
     end
   end
-  local timeout = require("org.config").opts.babel.timeout
-  local ok, err = pcall(vim.system, cmd, { cwd = cwd, text = true, stdin = stdin, timeout = timeout }, function(obj)
-    vim.schedule(function()
-      local stdout = obj.stdout or ""
-      local stderr = obj.stderr or ""
-      local r = {}
-      if has_marker then
-        local value, printed = langs.split_marker(stdout)
-        r.value = value
-        r.text = printed
-        if value == nil then
-          r.text = stdout
-        end
-      else
+  local function handle(obj)
+    local stdout = obj.stdout or ""
+    local stderr = obj.stderr or ""
+    local r = {}
+    if has_marker then
+      local value, printed = langs.split_marker(stdout)
+      r.value = value
+      r.text = printed
+      if value == nil then
         r.text = stdout
       end
-      if obj.code ~= 0 or (obj.signal and obj.signal ~= 0) then
-        r.error = stderr ~= "" and stderr or ("exited with code " .. tostring(obj.code))
-        r.value = nil
-        r.text = vim.trim((r.text or "") .. "\n" .. stderr)
-      elseif stderr ~= "" and vim.trim(r.text or "") == "" and r.value == nil then
-        r.text = stderr
-      end
-      cb(r)
+    else
+      r.text = stdout
+    end
+    if obj.code ~= 0 or (obj.signal and obj.signal ~= 0) then
+      r.error = stderr ~= "" and stderr or ("exited with code " .. tostring(obj.code))
+      r.value = nil
+      r.text = vim.trim((r.text or "") .. "\n" .. stderr)
+    elseif stderr ~= "" and vim.trim(r.text or "") == "" and r.value == nil then
+      r.text = stderr
+    end
+    return r
+  end
+  local timeout = require("org.config").opts.babel.timeout
+  local sys_opts = { cwd = cwd, text = true, stdin = stdin, timeout = timeout }
+  if sync then
+    local ok, obj = pcall(function()
+      return vim.system(cmd, sys_opts):wait()
+    end)
+    done(ok and handle(obj) or { error = tostring(obj), text = "" })
+    return result
+  end
+  local ok, err = pcall(vim.system, cmd, sys_opts, function(obj)
+    vim.schedule(function()
+      cb(handle(obj))
     end)
   end)
   if not ok then
-    cb({ error = tostring(err), text = "" })
+    done({ error = tostring(err), text = "" })
   end
+  return result
+end
+
+--- The value a result gives a :var reference: the value, else the output
+--- (as a table for `:results table`, a list for `:results list`).
+function M.result_value(res, args)
+  local v = res.value
+  if v ~= nil and v ~= vim.NIL then
+    return v
+  end
+  local text = (res.text or ""):gsub("\n+$", "")
+  local t = args.results_spec.type
+  if t == "table" or t == "vector" then
+    return langs.normalize(results.text_to_rows(text))
+  elseif t == "list" then
+    local items = {}
+    for _, l in ipairs(vim.split(text, "\n", { plain = true })) do
+      if l:match("%S") then
+        items[#items + 1] = langs.normalize(l)
+      end
+    end
+    return items
+  end
+  if tonumber(vim.trim(text)) and not text:find("\n") then
+    return tonumber(vim.trim(text))
+  end
+  return text
 end
 
 --- Insert formatted results for `block` (re-parsed at `start`).
@@ -586,7 +930,10 @@ function M.cache_hash(lang, body, args, vars)
   table.sort(keys)
   local spec = {}
   for k, v in pairs(args.results_spec or {}) do
-    spec[#spec + 1] = k .. "=" .. v
+    -- like org-babel-sha1-hash, how results are inserted doesn't count
+    if k ~= "handling" then
+      spec[#spec + 1] = k .. "=" .. v
+    end
   end
   table.sort(spec)
   local payload = table.concat({
@@ -646,7 +993,7 @@ local function write_file_result(bufnr, res, args, path)
     end
     out = vim.split(text, "\n", { plain = true })
   end
-  local file_dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":p:h")
+  local file_dir = buf_dir(bufnr)
   local cwd = args.dir and utils.expand(blocks_mod.unquote(args.dir), file_dir) or file_dir
   local full = utils.expand(path, cwd)
   vim.fn.mkdir(vim.fn.fnamemodify(full, ":h"), "p")
@@ -675,8 +1022,9 @@ local function should_eval(args, lang, name, skip_confirm)
   return true
 end
 
---- Execute the block at (bufnr, lnum). `cb(ok)` is called when done.
----@param opts? { bufnr?: integer, lnum?: integer, skip_confirm?: boolean, on_done?: fun(ok: boolean) }
+--- Execute the block at (bufnr, lnum). `on_done(ok)` is called when done.
+--- With `sync` the evaluation blocks and results are inserted before return.
+---@param opts? { bufnr?: integer, lnum?: integer, skip_confirm?: boolean, sync?: boolean, handling?: string, on_done?: fun(ok: boolean) }
 function M.execute(opts)
   opts = opts or {}
   local bufnr = resolve_buf(opts.bufnr)
@@ -698,12 +1046,15 @@ function M.execute(opts)
     end
   end
   local src = target or b
+  if opts.handling then
+    args.results_spec.handling = opts.handling
+  end
   if not should_eval(args, src.lang, src.name, opts.skip_confirm) then
     done(false)
     return
   end
   local meta = {}
-  local ok, vars = pcall(resolve_vars, bufnr, args, meta)
+  local ok, vars = pcall(resolve_vars, bufnr, args, meta, { skip_confirm = opts.skip_confirm })
   if not ok then
     utils.error("babel: " .. tostring(vars))
     done(false)
@@ -758,27 +1109,43 @@ function M.execute(opts)
     end
     done(res.error == nil)
   end
-  M.run(bufnr, src.lang, body, args, vars, function(res)
+  local function after_run(res)
     if res.value ~= nil and not res.error then
       res.value = M.reassemble(res.value, args, meta)
     end
     if args.post and not res.error and vim.api.nvim_buf_is_valid(bufnr) then
+      if opts.sync then
+        return finish(M.run_post(bufnr, args.post, res, nil, { sync = true }))
+      end
       return M.run_post(bufnr, args.post, res, finish)
     end
     finish(res)
-  end)
+  end
+  if opts.sync then
+    after_run(M.run(bufnr, src.lang, body, args, vars, nil, { sync = true }))
+  else
+    M.run(bufnr, src.lang, body, args, vars, after_run)
+  end
 end
 
 --- :post name(arg=*this*): run the named block on the result; its result
---- replaces the original one.
-function M.run_post(bufnr, post, res, cb)
+--- replaces the original one. With `opts.sync` the result is returned.
+function M.run_post(bufnr, post, res, cb, opts)
+  opts = opts or {}
+  cb = cb or function() end
+  local function give(r)
+    if opts.sync then
+      return r
+    end
+    cb(r)
+  end
   post = vim.trim(blocks_mod.unquote(post) or "")
   local pname, pargs = post:match("^([^%(]+)%((.*)%)$")
   pname = vim.trim(pname or post)
   local target = M.find_named_block(buf_lines(bufnr), pname)
   if not target then
     utils.error(":post: no block named " .. pname)
-    return cb(res)
+    return give(res)
   end
   local file = get_file(bufnr)
   local targs = blocks_mod.header_args(target, not target.lob and file or nil)
@@ -795,18 +1162,100 @@ function M.run_post(bufnr, post, res, cb)
     if vim.trim(v.value) == "*this*" then
       value = this
     else
-      local ok, resolved = pcall(M.resolve_var, bufnr, v.value, targs, {})
+      local ok, resolved = pcall(M.resolve_var, bufnr, v.value, targs, {}, { skip_confirm = true })
       value = ok and resolved or v.value
     end
     vars[#vars + 1] = { name = v.name, value = value }
   end
-  M.run(bufnr, target.lang, target.body, targs, vars, function(pres)
+  local function after(pres)
     if pres.error then
       utils.error(string.format("babel :post (%s): %s", pname, vim.trim(pres.error)))
-      return cb(res)
+      return res
     end
-    cb(pres)
+    return pres
+  end
+  if opts.sync then
+    return after(M.run(bufnr, target.lang, target.body, targs, vars, nil, { sync = true }))
+  end
+  M.run(bufnr, target.lang, target.body, targs, vars, function(pres)
+    cb(after(pres))
   end)
+end
+
+--- Evaluate a block synchronously and return its result without inserting
+--- it (what a :var reference or a noweb call sees). Honours :eval, :cache,
+--- :noweb, :var and :post. Raises an error when evaluation fails.
+---@param src table the block (the target of a #+CALL)
+---@param opts? { depth?: integer, skip_confirm?: boolean }
+function M.evaluate_sync(bufnr, src, args, opts)
+  opts = opts or {}
+  local depth = (opts.depth or 0) + 1
+  if depth > 20 then
+    error("reference depth exceeded (circular :var references?)", 0)
+  end
+  local name = src.name or "block"
+  local ev = args.eval
+  if ev == "no" or ev == "never" then
+    error("evaluation of '" .. name .. "' is disabled (:eval " .. ev .. ")", 0)
+  end
+  if not should_eval(args, src.lang, src.name, opts.skip_confirm) then
+    error("evaluation of '" .. name .. "' was cancelled", 0)
+  end
+  local meta = {}
+  local vars = resolve_vars(bufnr, args, meta, { depth = depth, skip_confirm = opts.skip_confirm })
+  local body = src.body
+  if noweb_for(args, "eval") then
+    body = M.expand_noweb(bufnr, body, 0, nil, args, "eval")
+  end
+  if args.cache == "yes" and src.results and not src.lob then
+    if src.results.hash == M.cache_hash(src.lang, body, args, vars) then
+      local lines = buf_lines(bufnr)
+      return { value = results.read(vim.list_slice(lines, src.results.start + 1, src.results.finish)) }
+    end
+  end
+  local res = M.run(bufnr, src.lang, body, args, vars, nil, { sync = true })
+  if res.error then
+    error(string.format("%s (%s): %s", name, src.lang, vim.trim(res.error)), 0)
+  end
+  if res.value ~= nil then
+    res.value = M.reassemble(res.value, args, meta)
+  end
+  if args.post then
+    res = M.run_post(bufnr, args.post, res, nil, { sync = true })
+  end
+  return res
+end
+
+--- Evaluate the block (or #+CALL) `b` for the reference `ref`.
+evaluate_ref = function(bufnr, b, ref, file, opts)
+  local args, src
+  if b.call then
+    args, src = M.block_args(b, file, bufnr)
+    if not src then
+      error("#+CALL: no block named " .. tostring(b.target), 0)
+    end
+  else
+    src = b
+    args = blocks_mod.header_args(b, file)
+  end
+  if ref.header and ref.header ~= "" then
+    blocks_mod.merge(args, blocks_mod.parse_header_string(ref.header))
+  end
+  if ref.call and vim.trim(ref.call) ~= "" then
+    blocks_mod.merge(args, { { key = "var", value = ref.call } })
+  end
+  args.results_spec.handling = "none"
+  if type(bufnr) ~= "number" then
+    -- a list of lines (export) can't run code: use the existing results
+    local lines = buf_lines(bufnr)
+    if src.results then
+      return results.read(vim.list_slice(lines, src.results.start + 1, src.results.finish), true)
+    end
+    error("block '" .. tostring(src.name) .. "' has no results", 0)
+  end
+  opts = opts or {}
+  local res = M.evaluate_sync(bufnr, src, args, { depth = opts.depth, skip_confirm = opts.skip_confirm })
+  return M.result_value(res, args)
 end
 
 --- Execute the src block at cursor (or the inline src block under it).
@@ -821,34 +1270,67 @@ end
 -- Inline src blocks: src_lang[:args]{body} {{{results(=value=)}}}
 ---------------------------------------------------------------------------
 
---- Inline src block of `line` covering column `col` (1-based), or nil.
----@return { lang: string, params: string, body: string, s: integer, e: integer }|nil
+--- Inline src block or inline call of `line` covering column `col`
+--- (1-based), or nil. Calls are `call_name[inside](args)[end]`.
+---@return { lang?: string, params: string, body?: string, call?: boolean, target?: string, inside?: string, call_args?: string, s: integer, e: integer }|nil
 function M.inline_at(line, col)
+  for _, ib in ipairs(M.inline_all(line)) do
+    if col >= ib.s and col <= ib.e then
+      return ib
+    end
+  end
+end
+
+--- Every inline src block and inline call of `line`, left to right.
+function M.inline_all(line)
+  local list = {}
   local init = 1
   while true do
-    local s = line:find("src_", init, true)
+    local s, _, kind = line:find("(%l+)_", init)
     if not s then
-      return nil
+      return list
     end
-    if s == 1 or not line:sub(s - 1, s - 1):match("[%w_]") then
+    local found
+    if (kind == "src" or kind == "call") and (s == 1 or not line:sub(s - 1, s - 1):match("[%w_]")) then
       local rest = line:sub(s)
-      local lang, hdr, body = rest:match("^src_([%w%-%+]+)(%b[])(%b{})")
-      if not lang then
-        hdr = ""
-        lang, body = rest:match("^src_([%w%-%+]+)(%b{})")
-      end
-      if lang then
-        local e = s + 3 + #lang + #hdr + #body
-        if col >= s and col <= e then
-          local params = hdr ~= "" and hdr:sub(2, -2) or ""
-          return { lang = lang, params = params, body = body:sub(2, -2), s = s, e = e }
+      if kind == "src" then
+        local lang, hdr, body = rest:match("^src_([%w%-%+]+)(%b[])(%b{})")
+        if not lang then
+          hdr = ""
+          lang, body = rest:match("^src_([%w%-%+]+)(%b{})")
         end
-        init = e + 1
+        if lang then
+          local params = hdr ~= "" and hdr:sub(2, -2) or ""
+          found = { lang = lang, params = params, body = body:sub(2, -2), len = 4 + #lang + #hdr + #body }
+        end
       else
-        init = s + 4
+        local name = rest:match("^call_([^%s%[%(]+)")
+        if name then
+          local after = rest:sub(6 + #name)
+          local inside = after:match("^%b[]") or ""
+          after = after:sub(#inside + 1)
+          local cargs = after:match("^%b()")
+          if cargs then
+            after = after:sub(#cargs + 1)
+            local ending = after:match("^%b[]") or ""
+            found = {
+              call = true,
+              target = name,
+              inside = inside:sub(2, -2),
+              call_args = cargs:sub(2, -2),
+              params = ending:sub(2, -2),
+              len = 5 + #name + #inside + #cargs + #ending,
+            }
+          end
+        end
       end
+    end
+    if found then
+      found.s, found.e, found.len = s, s + found.len - 1, nil
+      list[#list + 1] = found
+      init = found.e + 1
     else
-      init = s + 4
+      init = s + 1
     end
   end
 end
@@ -864,8 +1346,7 @@ local function inline_result(res, args, lang)
   if v == nil or v == vim.NIL then
     v = res.text or ""
   end
-  local text = type(v) == "table" and results.stringify(v) or results.stringify(v)
-  text = vim.trim(text)
+  local text = vim.trim(results.stringify(v))
   if text:find("\n") then
     return nil, "multi-line results cannot be inserted inline"
   end
@@ -880,43 +1361,66 @@ local function inline_result(res, args, lang)
   return "{{{results(=" .. text .. "=)}}}"
 end
 
---- Evaluate the inline src block at the cursor and insert or replace its
---- `{{{results(...)}}}` right after it (C-c C-c on src_lang{...}).
+--- Evaluate the inline src block or inline call at the cursor and insert or
+--- replace its `{{{results(...)}}}` right after it (C-c C-c on it).
 function M.execute_inline(opts)
-  opts = opts or {}
-  local bufnr = vim.api.nvim_get_current_buf()
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local ib = M.inline_at_cursor()
   if not ib then
     return false
   end
+  return M.execute_inline_at(vim.api.nvim_get_current_buf(), vim.api.nvim_win_get_cursor(0)[1], ib, opts)
+end
+
+--- Evaluate the inline element `ib` (from `M.inline_at`) of line `lnum`.
+---@param opts? { skip_confirm?: boolean, sync?: boolean }
+function M.execute_inline_at(bufnr, lnum, ib, opts)
+  opts = opts or {}
   local file = get_file(bufnr)
-  local pseudo = { start = lnum, lang = ib.lang, params = ib.params, header_lines = {} }
-  local args = blocks_mod.header_args(pseudo, file)
-  if not ib.params:match(":results") then
+  local lang, body, args, name
+  if ib.call then
+    local target = M.find_named_block(buf_lines(bufnr), ib.target)
+    if not target then
+      utils.error("call_" .. ib.target .. ": no block named " .. ib.target)
+      return
+    end
+    lang, body, name = target.lang, target.body, target.name
+    args = blocks_mod.header_args(target, not target.lob and file or nil)
+    blocks_mod.merge(args, blocks_mod.parse_header_string(ib.inside))
+    if vim.trim(ib.call_args) ~= "" then
+      blocks_mod.merge(args, { { key = "var", value = ib.call_args } })
+    end
+    blocks_mod.merge(args, blocks_mod.parse_header_string(ib.params))
+  else
+    lang, body = ib.lang, { ib.body }
+    args = blocks_mod.header_args({ start = lnum, lang = ib.lang, params = ib.params, header_lines = {} }, file)
+  end
+  if not ib.params:match(":results") and not (ib.inside or ""):match(":results") then
     args.results_spec.handling = "replace"
   end
-  if not should_eval(args, ib.lang, nil, opts.skip_confirm) then
+  if not should_eval(args, lang, name, opts.skip_confirm) then
     return
   end
-  local ok, vars = pcall(resolve_vars, bufnr, args, {})
+  local ok, vars = pcall(resolve_vars, bufnr, args, {}, { skip_confirm = opts.skip_confirm })
   if not ok then
     utils.error("babel: " .. tostring(vars))
     return
   end
+  if noweb_for(args, "eval") then
+    body = M.expand_noweb(bufnr, body, 0, nil, args, "eval")
+  end
   local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, ib.e, { right_gravity = false })
-  M.run(bufnr, ib.lang, { ib.body }, args, vars, function(res)
+  local function finish(res)
     if not vim.api.nvim_buf_is_valid(bufnr) then
       return
     end
     local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
     if res.error then
-      utils.error(string.format("babel (%s): %s", ib.lang, vim.trim(res.error)))
+      utils.error(string.format("babel (%s): %s", lang, vim.trim(res.error)))
       return
     end
     local handling = args.results_spec.handling
-    local text, err = inline_result(res, args, ib.lang)
+    local text, err = inline_result(res, args, lang)
     if not text then
       utils.warn("Inline error: " .. err)
       return
@@ -933,7 +1437,11 @@ function M.execute_inline(opts)
     local before, after = line:sub(1, col), line:sub(col + 1)
     after = after:gsub("^%s*{{{results%(.-%)}}}", "", 1)
     vim.api.nvim_buf_set_lines(bufnr, row, row + 1, false, { before .. " " .. text .. after })
-  end)
+  end
+  if opts.sync then
+    return finish(M.run(bufnr, lang, body, args, vars, nil, { sync = true }))
+  end
+  M.run(bufnr, lang, body, args, vars, finish)
 end
 
 local function execute_many(bufnr, starts)
@@ -1377,7 +1885,7 @@ function M.expand_body(bufnr, b, args, purpose)
   local out = {}
   local ok, vars = pcall(resolve_vars, bufnr, args, {})
   if ok and #vars > 0 then
-    vim.list_extend(out, langs.var_lines(b.lang, vars))
+    vim.list_extend(out, langs.var_lines(b.lang, vars, args))
   end
   if args.prologue then
     vim.list_extend(out, vim.split(blocks_mod.unquote(args.prologue), "\\n", { plain = true }))
@@ -1467,6 +1975,312 @@ function M.view_info()
   return out
 end
 
+---------------------------------------------------------------------------
+-- Sessions (C-c C-v z, C-z, l)
+---------------------------------------------------------------------------
+
+--- Session of the block at the cursor (started when needed), or nil.
+local function cursor_session()
+  local bufnr, src, args = block_at_cursor()
+  if not bufnr then
+    return nil
+  end
+  local name = session_mod.name(args.session)
+  if not name then
+    utils.warn("This block is not using a session (:session)")
+    return nil
+  end
+  if not session_mod.supported(src.lang, langs.family(src.lang)) then
+    utils.warn("No session support for " .. tostring(src.lang))
+    return nil
+  end
+  local ok, sess = pcall(get_session, bufnr, src.lang, args, name)
+  if not ok then
+    utils.error("babel: " .. tostring(sess))
+    return nil
+  end
+  return sess, bufnr, src, args
+end
+
+--- C-c C-v C-z: show the session of the block at the cursor
+--- (org-babel-switch-to-session). The block body is copied to the unnamed
+--- register. With a count, the block's :var values are first assigned in
+--- the session (org-babel-prep-session).
+function M.switch_to_session()
+  local sess, bufnr, src, args = cursor_session()
+  if not sess then
+    return
+  end
+  vim.fn.setreg('"', table.concat(src.body, "\n"))
+  if vim.v.count > 0 then
+    local ok, vars = pcall(resolve_vars, bufnr, args, {})
+    if not ok then
+      utils.error("babel: " .. tostring(vars))
+    elseif #vars > 0 then
+      if sess.kind == "lua" then
+        for _, v in ipairs(vars) do
+          sess.env[v.name] = v.value
+        end
+      else
+        session_mod.eval(sess, table.concat(langs.var_lines(src.lang, vars, args), "\n"), "output", function() end)
+      end
+    end
+  end
+  return session_mod.show(sess)
+end
+
+--- C-c C-v z: show the session and edit the block in its edit buffer
+--- (org-babel-switch-to-session-with-code).
+function M.switch_to_session_with_code()
+  local org_win = vim.api.nvim_get_current_win()
+  if not M.switch_to_session() then
+    return
+  end
+  vim.api.nvim_set_current_win(org_win)
+  return M.edit_special()
+end
+
+--- C-c C-v l: send the body of the block (noweb expanded) to its session
+--- and show the session (org-babel-load-in-session).
+function M.load_in_session()
+  local sess, bufnr, src, args = cursor_session()
+  if not sess then
+    return
+  end
+  local body = src.body
+  if noweb_for(args, "eval") then
+    body = M.expand_noweb(bufnr, body, 0, nil, args, "eval")
+  end
+  session_mod.eval(sess, table.concat(body, "\n"), "output", function(res)
+    if res.error then
+      utils.error("babel: " .. vim.trim(res.error))
+    end
+  end, { timeout = require("org.config").opts.babel.timeout })
+  return session_mod.show(sess)
+end
+
+--- Stop the session of the block at the cursor (in Emacs: kill its buffer).
+--- `name` ("lang:name" or a session object) stops that session instead.
+function M.kill_session(name)
+  if name then
+    return session_mod.kill(name)
+  end
+  local bufnr, src, args = block_at_cursor()
+  if not bufnr then
+    return false
+  end
+  local sname = session_mod.name(args.session)
+  local sess = sname and session_mod.find(langs.family(src.lang), sname)
+  if not sess then
+    utils.notify("No running session for this block")
+    return false
+  end
+  session_mod.kill(sess)
+  utils.notify("Killed session " .. sname)
+  return true
+end
+
+---------------------------------------------------------------------------
+-- More C-c C-v commands
+---------------------------------------------------------------------------
+
+--- C-c C-v a: show the hash of the block (org-babel-sha1-hash), the one
+--- `:cache yes` stores in `#+RESULTS[hash]:`.
+function M.sha1_hash()
+  local bufnr, src, args = block_at_cursor()
+  if not bufnr then
+    return
+  end
+  local ok, vars = pcall(resolve_vars, bufnr, args, {})
+  if not ok then
+    utils.error("babel: " .. tostring(vars))
+    return
+  end
+  local body = src.body
+  if noweb_for(args, "eval") then
+    body = M.expand_noweb(bufnr, body, 0, nil, args, "eval")
+  end
+  local hash = M.cache_hash(src.lang, body, args, vars)
+  utils.notify(hash)
+  return hash
+end
+
+--- C-c C-v h: list the Babel key bindings (org-babel-describe-bindings).
+function M.describe_bindings()
+  local maps = require("org.config").opts.mappings
+  local acts = require("org.actions").list
+  local rows = {}
+  for name, a in pairs(acts) do
+    if name:match("^babel_") then
+      local keys = {}
+      for _, section in ipairs({ maps.org or {}, maps.emacs or {} }) do
+        vim.list_extend(keys, require("org.config").lhs_list(section[name]))
+      end
+      if #keys > 0 then
+        rows[#rows + 1] = { table.concat(keys, " "), a.desc }
+      end
+    end
+  end
+  table.sort(rows, function(x, y)
+    return x[2] < y[2]
+  end)
+  local width = 0
+  for _, r in ipairs(rows) do
+    width = math.max(width, vim.fn.strdisplaywidth(r[1]))
+  end
+  local out = { "Babel key bindings", "" }
+  for _, r in ipairs(rows) do
+    out[#out + 1] = r[1] .. string.rep(" ", width - vim.fn.strdisplaywidth(r[1]) + 2) .. r[2]
+  end
+  return show_scratch(out, "", "org-babel-bindings")
+end
+
+--- C-c C-v C-M-h: select the body of the block (org-babel-mark-block).
+function M.mark_block()
+  local b = M.at_block(0, vim.api.nvim_win_get_cursor(0)[1])
+  if not b or b.call then
+    utils.warn("No source block at point")
+    return
+  end
+  if b.finish - 1 < b.start + 1 then
+    utils.notify("The block is empty")
+    return
+  end
+  vim.api.nvim_win_set_cursor(0, { b.start + 1, 0 })
+  vim.cmd("normal! V")
+  vim.api.nvim_win_set_cursor(0, { b.finish - 1, 0 })
+end
+
+--- C-c C-v x: run a key sequence (Normal-mode keys) in the edit buffer of
+--- the block and write the result back (org-babel-do-key-sequence-in-edit-buffer).
+---@param keys? string e.g. "gg=G"
+function M.do_key_sequence_in_edit_buffer(keys)
+  if not keys then
+    keys = utils.input({ prompt = "Keys to run in the edit buffer: " })
+    if not keys or keys == "" then
+      return
+    end
+  end
+  local org_win = vim.api.nvim_get_current_win()
+  local cursor = vim.api.nvim_win_get_cursor(org_win)
+  local before = vim.api.nvim_get_current_buf()
+  if M.edit_special() == false or vim.api.nvim_get_current_buf() == before then
+    utils.warn("No source block at point")
+    return
+  end
+  local ebuf = vim.api.nvim_get_current_buf()
+  vim.cmd("normal " .. vim.keycode(keys))
+  if vim.api.nvim_buf_is_valid(ebuf) then
+    if vim.bo[ebuf].modified then
+      vim.api.nvim_buf_call(ebuf, function()
+        vim.cmd("silent write")
+      end)
+    end
+    pcall(vim.api.nvim_buf_delete, ebuf, { force = true })
+  end
+  if vim.api.nvim_win_is_valid(org_win) then
+    vim.api.nvim_set_current_win(org_win)
+    pcall(vim.api.nvim_win_set_cursor, org_win, cursor)
+  end
+end
+
+---------------------------------------------------------------------------
+-- Evaluation during export (org-export-use-babel)
+---------------------------------------------------------------------------
+
+--- Evaluate the code of `bufnr` for export and return the resulting lines;
+--- the buffer itself is not changed. Like Emacs: blocks and #+CALL lines
+--- with `:exports results|both` are evaluated and their results replaced,
+--- `:exports code|none` blocks only run when they use a session (to keep it
+--- in step), inline src blocks and calls get their `{{{results}}}`, and
+--- `:eval never-export|no-export` (or never/no) blocks are left alone.
+---@param lines? string[] the lines to evaluate (default: the buffer's)
+---@return string[]
+function M.export_evaluate(bufnr, lines)
+  bufnr = resolve_buf(bufnr)
+  lines = lines or buf_lines(bufnr)
+  local scratch = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(scratch, 0, -1, false, lines)
+  vim.b[scratch].org_babel_dir = buf_dir(bufnr)
+  local file = get_file(scratch)
+  local jobs = {}
+  local blocked = { never = true, no = true, ["never-export"] = true, ["no-export"] = true }
+  for _, b in ipairs(blocks_mod.parse_blocks(lines)) do
+    if not in_commented(file, b.start) then
+      local args = M.block_args(b, file, scratch)
+      if args and not blocked[args.eval or ""] then
+        local exports = args.exports or "code"
+        if b.call then
+          -- calls export their results unless they say otherwise
+          local own = blocks_mod.parse_header_string(table.concat(b.header_lines, " ") .. " " .. b.params)
+          exports = blocks_mod.merge({}, own).exports or "results"
+        end
+        local silent = (exports == "code" or exports == "none") and session_mod.name(args.session) ~= nil
+        if exports == "results" or exports == "both" or silent then
+          jobs[#jobs + 1] = { line = b.start, silent = silent, query = args.eval }
+        end
+      end
+    end
+  end
+  -- inline src blocks and calls in the text (not inside blocks)
+  local in_block = false
+  for i, l in ipairs(lines) do
+    if l:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_") then
+      in_block = true
+    elseif l:match("^%s*#%+[Ee][Nn][Dd]_") then
+      in_block = false
+    elseif not in_block and not l:match("^%s*#%+") and not l:match("^%s*:") and not in_commented(file, i) then
+      for _, ib in ipairs(M.inline_all(l)) do
+        jobs[#jobs + 1] = { line = i, inline = ib, col = ib.s }
+      end
+    end
+  end
+  local cfg = require("org.config").opts.babel
+  local proceed = #jobs > 0
+  if proceed and cfg.confirm_evaluate ~= false then
+    proceed = utils.confirm(string.format("Evaluate %d code block%s for export?", #jobs, #jobs == 1 and "" or "s"))
+  end
+  if proceed then
+    table.sort(jobs, function(x, y)
+      if x.line ~= y.line then
+        return x.line < y.line
+      end
+      return (x.col or 0) < (y.col or 0)
+    end)
+    for _, job in ipairs(jobs) do
+      job.mark = vim.api.nvim_buf_set_extmark(scratch, ns, job.line - 1, (job.col or 1) - 1, {})
+    end
+    for _, job in ipairs(jobs) do
+      local pos = vim.api.nvim_buf_get_extmark_by_id(scratch, ns, job.mark, {})
+      local lnum = pos[1] + 1
+      local ask = job.query == "query" or job.query == "query-export"
+      local ok, err = pcall(function()
+        if job.inline then
+          local line = vim.api.nvim_buf_get_lines(scratch, lnum - 1, lnum, false)[1] or ""
+          local ib = M.inline_at(line, pos[2] + 1)
+          if ib then
+            M.execute_inline_at(scratch, lnum, ib, { skip_confirm = not ask, sync = true })
+          end
+        else
+          M.execute({
+            bufnr = scratch,
+            lnum = lnum,
+            skip_confirm = not ask,
+            sync = true,
+            handling = job.silent and "none" or nil,
+          })
+        end
+      end)
+      if not ok then
+        utils.error("babel (export): " .. tostring(err))
+      end
+    end
+  end
+  local out = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
+  pcall(vim.api.nvim_buf_delete, scratch, { force = true })
+  return out
+end
+
 --- Header arguments known to Org Babel (for completion and checking).
 M.HEADER_ARGS = {
   cache = { "yes", "no" },
@@ -1475,7 +2289,7 @@ M.HEADER_ARGS = {
   comments = { "no", "link", "yes", "org", "both", "noweb" },
   dir = {},
   epilogue = {},
-  eval = { "yes", "no", "query", "never", "never-export", "no-export", "query-export" },
+  eval = { "yes", "no", "query", "never", "never-export", "no-export", "query-export", "strip-export" },
   exports = { "code", "results", "both", "none" },
   file = {},
   ["file-desc"] = {},
@@ -1484,6 +2298,7 @@ M.HEADER_ARGS = {
   hlines = { "no", "yes" },
   mkdirp = { "yes", "no" },
   ["no-expand"] = {},
+  noeval = {},
   noweb = { "yes", "no", "tangle", "no-export", "strip-export", "strip-tangle", "eval", "tangle-eval" },
   ["noweb-prefix"] = { "yes", "no" },
   ["noweb-ref"] = {},
@@ -1518,7 +2333,9 @@ M.HEADER_ARGS = {
   },
   rownames = { "no", "yes" },
   sep = {},
+  separator = {},
   session = { "none" },
+  stdin = {},
   shebang = {},
   tangle = { "yes", "no" },
   ["tangle-mode"] = {},

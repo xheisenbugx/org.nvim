@@ -52,6 +52,7 @@ local function text_to_rows(text)
   end
   return rows
 end
+M.text_to_rows = text_to_rows
 
 --- Produce the lines to insert after `#+RESULTS:` (unindented).
 ---@param result { value?: any, text?: string }
@@ -77,12 +78,20 @@ function M.format(result, args, lang)
       end
       return { string.format("[[file:%s]]", path) }
     end
-    return { stringify(v) }
+    -- without :file the result itself is the file name
+    local name = vim.trim(stringify(v))
+    if name == "" then
+      return {}
+    end
+    return { string.format("[[file:%s]]", name) }
   end
 
   local body
   local is_table_like = false
-  if type(v) == "table" and spec.type ~= "verbatim" and spec.type ~= "scalar" then
+  if type(v) == "table" and spec.format == "pp" then
+    -- pretty-printed value, shown verbatim
+    body = vim.split(vim.inspect(v), "\n", { plain = true })
+  elseif type(v) == "table" and spec.type ~= "verbatim" and spec.type ~= "scalar" then
     if spec.type == "list" then
       body = {}
       for _, x in ipairs(v) do
