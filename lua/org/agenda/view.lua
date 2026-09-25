@@ -559,8 +559,8 @@ local function show_outline_path()
   end
   local path = item.headline:outline_path()
   path[#path + 1] = item.headline:plain_title()
-  local sep = config.opts.agenda.breadcrumbs_separator or "->"
-  vim.api.nvim_echo({ { table.concat(path, "/"):gsub("/", sep == "->" and "/" or sep) } }, false, {})
+  local text = table.concat(path, "/")
+  vim.api.nvim_echo({ { text } }, false, {})
 end
 
 local function ensure_buf(name)
@@ -895,6 +895,10 @@ function M.quit(wipe)
   local win = S.win
   local mode = S.win_mode
   local layout = S.layout
+  if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == "" then
+    -- the filter display belongs to the agenda, not to the window
+    pcall(vim.api.nvim_set_option_value, "winbar", "", { scope = "local", win = win })
+  end
   if layout and win and vim.api.nvim_win_is_valid(win) and mode ~= "float" and mode ~= "tab" then
     vim.api.nvim_set_current_win(win)
     restore_layout(layout)
@@ -1148,6 +1152,12 @@ M.pick_date = pick_date
 --- The date in the source of an item: its SCHEDULED/DEADLINE, or the
 --- plain timestamp it comes from.
 local function source_date(target, item)
+  -- only SCHEDULED, DEADLINE and active plain timestamps of date views
+  local t = item.type
+  if item.sexp or item.inactive or item.log or not item.day
+    or not (t == "scheduled" or t == "deadline" or t == "timestamp" or t == "range") then
+    return nil, nil
+  end
   local file = files.get_buffer(target.bufnr)
   local hl = file:headline_at(target.lnum)
   if not hl then
@@ -1166,8 +1176,8 @@ end
 --- org-agenda-move-date-from-past-immediately-to-today, a single step on a
 --- past date moves it to today.
 function M.shift_item(target, item, n, explicit_count)
-  if item.sexp then
-    utils.warn("Cannot shift a diary sexp entry")
+  if item.sexp or item.inactive or item.log or not item.day then
+    utils.warn("Cannot change this date from the agenda line")
     return
   end
   local d, kind = source_date(target, item)
@@ -1189,6 +1199,10 @@ end
 --- of the timestamp is kept unless a new one is given.
 function M.date_prompt(target, item)
   local d, kind = source_date(target, item)
+  if not kind then
+    utils.warn("Cannot change this date from the agenda line")
+    return
+  end
   if kind ~= "timestamp" then
     if kind == "deadline" then
       call("org.timestamps", "deadline", target)

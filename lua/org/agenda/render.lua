@@ -1201,6 +1201,8 @@ local BLOCK_KEYS = {
 
 -- Agenda options whose default is nil.
 local NIL_OPTIONS = {
+  -- a global option a block may override (org-deadline-warning-days)
+  deadline_warning_days = true,
   start_day = true,
   format_date = true,
   hide_tags_regexp = true,

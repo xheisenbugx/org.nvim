@@ -1010,6 +1010,8 @@ Not supported in the agenda                        *org-agenda-unsupported*
   ps-print; export .html and print it from a browser instead.
   org-agenda-exporter-settings is not used; pass options as the second
   argument of batch()/batch_csv().
+- `%%(...)` sexp lines before the first heading of a file: agenda
+  entries belong to a heading here, so write them under one.
 - `?` (show the FLAGGED note of MobileOrg) and the Customize keys (`C`,
   `!` in the dispatcher): there is no MobileOrg or Customize.
 - Group tags (`#+TAGS: [ Work : Lab ]`) are not expanded in matches and

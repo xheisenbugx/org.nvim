@@ -268,7 +268,7 @@ end
 
 --- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees).
 ---@param files org.File[]
----@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: fun(hl): boolean, archives?: string|boolean }
+---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean }
 function M.each_headline(files, opts, fn)
   opts = opts or {}
   local r = opts.restrict
@@ -542,7 +542,8 @@ function M.agenda(files, from, to, opts)
     local dl_type = types.deadline or (types["deadline*"] and dl and dl.hour)
     if dl and dl.active ~= false and dl_type then
       local base = prefers_last(acfg, hl.todo) and last_occ(dl, today) or dl:days()
-      local warn = date.warning_days(dl, cfg.deadline_warning_days)
+      local wdays = acfg.deadline_warning_days or cfg.deadline_warning_days
+      local warn = date.warning_days(dl, wdays)
       local skip_pre = acfg.skip_deadline_prewarning_if_scheduled
       local sched = hl.planning.scheduled
       if skip_pre and sched then
@@ -550,7 +551,7 @@ function M.agenda(files, from, to, opts)
         if int(skip_pre) then
           max = skip_pre
         elseif skip_pre == "pre-scheduled" then
-          max = math.min(base - sched:days(), cfg.deadline_warning_days or 14)
+          max = math.min(base - sched:days(), wdays or 14)
         else
           max = 0
         end
@@ -1066,7 +1067,8 @@ local function ignored_by_date(hl, acfg, today)
   local id = acfg.todo_ignore_deadlines
   if id and dl then
     local diff = dl:days() - today
-    local close = diff <= date.warning_days(dl, config.opts.deadline_warning_days) and not hl:is_done()
+    local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
+    local close = diff <= date.warning_days(dl, wdays) and not hl:is_done()
     if id == "all" then
       return true
     elseif id == "far" then

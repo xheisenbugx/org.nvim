@@ -131,6 +131,30 @@ describe("agenda item dates", function()
     eq("  " .. ts(2, "10:00"), source_lines()[2])
   end)
 
+  it("does not move other dates from inactive or log lines", function()
+    open({ "* TODO Task", "  SCHEDULED: " .. ts(1), "  [" .. today:to_string({ brackets = false }) .. "]" })
+    view.actions.inactive_mode()
+    local l
+    for n, it in pairs(view.state.line_items) do
+      if it.inactive then
+        l = n
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { l, 0 })
+    view.actions.date_later()
+    eq("  SCHEDULED: " .. ts(1), source_lines()[2])
+  end)
+
+  it("a block's deadline_warning_days (org-deadline-warning-days) applies", function()
+    open({ "* TODO Due", "  DEADLINE: " .. ts(5) }, {}, {
+      blocks = { { type = "agenda", span = "day", org_deadline_warning_days = 0 } },
+    })
+    eq({}, shown())
+    view.quit(true)
+    agenda.open({ type = "agenda", span = "day" })
+    eq({ "Due" }, shown())
+  end)
+
   it("edits are not saved (save_after_edit = false, like Emacs)", function()
     open({ "* TODO Task", "  SCHEDULED: " .. ts(0) })
     goto_title("Task")
