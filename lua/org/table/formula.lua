@@ -925,7 +925,8 @@ end
 --- Apply formulas to parsed table `t` in place.
 ---@param t table from org.table.parse
 ---@param formulas table from parse_tblfm
----@param ctx? table { get_table = fun(name), constants = table, property = fun(name), row = integer, debug = fun(trace): boolean }
+---@param ctx? table { get_table = fun(name), constants = table, property = fun(name), row = integer,
+---   debug = fun(trace): boolean }
 ---   `row` (a data row index) recalculates only the column formulas of that
 ---   row (Emacs C-c * without prefix); field formulas always run. `debug`
 ---   is called after each evaluation and returns false to abort.

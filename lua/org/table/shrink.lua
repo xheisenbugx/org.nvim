@@ -67,7 +67,8 @@ local function entry_for(bufnr, lnum, create)
   if not create then
     return nil, info
   end
-  local e = { mark = vim.api.nvim_buf_set_extmark(bufnr, anchor_ns, info.start - 1, 0, { right_gravity = false }), cols = {} }
+  local mark = vim.api.nvim_buf_set_extmark(bufnr, anchor_ns, info.start - 1, 0, { right_gravity = false })
+  local e = { mark = mark, cols = {} }
   list[#list + 1] = e
   return e, info
 end

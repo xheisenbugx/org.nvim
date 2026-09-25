@@ -335,7 +335,7 @@ function M.show_reference(st, move)
         if rhs:sub(j, j + 1) == ".." then
           spec2, k = formula().parse_ref(rhs, j + 2)
         end
-        local okr = pcall(function()
+        pcall(function()
           local function rowof(sp, pos)
             if not sp.row then
               return r
@@ -384,7 +384,6 @@ function M.show_reference(st, move)
             at_cursor = { r1, c1 }
           end
         end)
-        local _ = okr
         i = spec2 and k or j
       else
         i = (j or i) + 1

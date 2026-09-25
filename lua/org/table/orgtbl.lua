@@ -40,7 +40,15 @@ function M.to_lisp(lines)
   return out
 end
 
-local SPECIAL_MARKS = { ["#"] = true, ["*"] = true, ["!"] = true, ["$"] = true, ["^"] = true, ["_"] = true, ["/"] = true }
+local SPECIAL_MARKS = {
+  ["#"] = true,
+  ["*"] = true,
+  ["!"] = true,
+  ["$"] = true,
+  ["^"] = true,
+  ["_"] = true,
+  ["/"] = true,
+}
 
 --- Whether the first column only holds recalculation marks (and at least
 --- one): org-export-table-has-special-column-p.
@@ -341,6 +349,13 @@ local function apply(v, ...)
   return s
 end
 
+--- `body` between :tstart and :tend.
+local function frame(body, params)
+  local head = params.tstart and (apply(params.tstart) .. "\n") or ""
+  local tail = params.tend and ("\n" .. apply(params.tend)) or ""
+  return head .. body .. tail
+end
+
 --- A per-column format: a string or function, or a list `{ col, fmt, ... }`.
 local function column_format(v, col)
   if type(v) == "table" and not vim.is_callable(v) then
@@ -362,7 +377,8 @@ local EXP = "^([-+]?%d*%.?%d+)[eE]([-+]?%d+)$"
 --- (the backend's transcoder).
 ---@param rows (string[]|string)[]
 ---@param params table
----@param backend? { cell?: fun(s: string): string, row?: fun(cells: string[], info: table): string, hline?: fun(info: table): string?, table?: fun(body: string, info: table): string }
+---@param backend? { cell?: fun(s: string): string, row?: fun(cells: string[], info: table): string,
+---   hline?: fun(info: table): string?, table?: fun(body: string, info: table): string }
 function M.generic(rows, params, backend)
   params = params or {}
   backend = backend or {}
@@ -411,7 +427,10 @@ function M.generic(rows, params, backend)
         cells[c] = s
       end
       local line
-      local lfmt = (last_header and params.hllfmt) or (header and params.hlfmt) or (last and params.llfmt) or params.lfmt
+      local lfmt = (last_header and params.hllfmt)
+        or (header and params.hlfmt)
+        or (last and params.llfmt)
+        or params.lfmt
       if lfmt then
         line = apply(lfmt, cells)
       else
@@ -448,7 +467,7 @@ function M.generic(rows, params, backend)
     return body
   end
   if params.tstart or params.tend then
-    return (params.tstart and (apply(params.tstart) .. "\n") or "") .. body .. (params.tend and ("\n" .. apply(params.tend)) or "")
+    return frame(body, params)
   end
   if backend.table then
     return backend.table(body, { rows = rows, params = params })
@@ -634,8 +653,6 @@ end
 
 function M.translators.texinfo(rows, params)
   params = params or {}
-  local prepared = prepare(rows, params)
-  local nheader = header_count(prepared)
   local out = M.generic(rows, params, {
     cell = texinfo_cell,
     row = function(cells, info)
@@ -674,7 +691,6 @@ function M.translators.texinfo(rows, params)
       return "@multitable " .. columns
     end, 1)
   end
-  local _ = nheader
   return out
 end
 
@@ -688,7 +704,7 @@ function M.translators.orgtbl(rows, params)
   local rendered = tbl().render(tbl().parse(lines))
   local body = table.concat(rendered, "\n")
   if params.tstart or params.tend then
-    body = (params.tstart and (apply(params.tstart) .. "\n") or "") .. body .. (params.tend and ("\n" .. apply(params.tend)) or "")
+    body = frame(body, params)
   end
   return body
 end
@@ -750,13 +766,13 @@ local function replace_receiver(bufnr, name, text)
   local l = 1
   while l <= vim.api.nvim_buf_line_count(bufnr) do
     local line = vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1]
-    if line:match("BEGIN +RECEIVE +ORGTBL +" .. pat .. "%f[%s%z]") or line:match("BEGIN +RECEIVE +ORGTBL +" .. pat .. "$") then
+    if line:match("BEGIN +RECEIVE +ORGTBL +" .. pat .. "%f[%s%z]") then
       found = true
       local e = l + 1
       local n = vim.api.nvim_buf_line_count(bufnr)
       while e <= n do
         local el = vim.api.nvim_buf_get_lines(bufnr, e - 1, e, false)[1]
-        if el:match("END +RECEIVE +ORGTBL +" .. pat .. "%f[%s%z]") or el:match("END +RECEIVE +ORGTBL +" .. pat .. "$") then
+        if el:match("END +RECEIVE +ORGTBL +" .. pat .. "%f[%s%z]") then
           break
         end
         e = e + 1

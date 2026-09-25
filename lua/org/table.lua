@@ -784,7 +784,8 @@ end
 --- Emacs' C-u), n (numbers), t (timestamps, durations, H:MM), f (a key
 --- function, prompted as Lua, with an optional comparison function);
 --- uppercase sorts in reverse. Emacs org-table-sort-lines (C-c ^).
----@param opts? { type?: string, with_case?: boolean, getkey?: fun(field: string): any, compare?: fun(a: any, b: any): boolean }
+---@param opts? { type?: string, with_case?: boolean, getkey?: fun(field: string): any,
+---   compare?: fun(a: any, b: any): boolean }
 function M.sort_column(opts)
   opts = type(opts) == "table" and opts or {}
   local visual = in_visual()
@@ -1539,7 +1540,8 @@ local function write_formulas(bufnr, info, parts, line)
     local prefix = old:match("^(%s*#%+[Tt][Bb][Ll][Ff][Mm]:)") or (indent .. "#+TBLFM:")
     vim.api.nvim_buf_set_lines(bufnr, l - 1, l, false, { prefix .. " " .. table.concat(norm, "::") })
   elseif #norm > 0 then
-    vim.api.nvim_buf_set_lines(bufnr, info.finish, info.finish, false, { indent .. "#+TBLFM: " .. table.concat(norm, "::") })
+    local line_text = indent .. "#+TBLFM: " .. table.concat(norm, "::")
+    vim.api.nvim_buf_set_lines(bufnr, info.finish, info.finish, false, { line_text })
   end
 end
 M._write_formulas = write_formulas

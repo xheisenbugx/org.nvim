@@ -1462,7 +1462,7 @@ local function truth(v)
   end
   return nil
 end
-F["if"] = function(args, lazy)
+F["if"] = function(args)
   local c = truth(args[1])
   if c == nil then
     if tag(args[1]) == "vec" then
@@ -1522,8 +1522,6 @@ end
 ---------------------------------------------------------------------------
 -- Evaluation
 ---------------------------------------------------------------------------
-
-local CONSTANTS = { pi = true, e = true, gamma = true, phi = true, i = true }
 
 local function eval(node)
   local k = node.k
@@ -1827,6 +1825,5 @@ end
 M._format_float = format_float
 M._days_from_civil = days_from_civil
 M._civil_from_days = civil_from_days
-M.CONSTANTS = CONSTANTS
 
 return M
