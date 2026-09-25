@@ -543,28 +543,29 @@ function M.c_expand(lang, body, args, vars, colnames)
         for i, h in ipairs(names) do
           quoted[i] = '"' .. lisp.princ(h) .. '"'
         end
+        local header_list = table.concat(quoted, ",")
+        local decl, accessor
         if variant == "d" then
-          heads[#heads + 1] = string.format("string[%d] %s_header = [%s];", #names, v.name, table.concat(quoted, ","))
-            .. "\n"
-            .. string.format(
-              "%s %s_h (size_t row, string col) { return %s[row][get_column_num(%s_header,col)]; }",
-              typename,
-              v.name,
-              v.name,
-              v.name
-            )
+          decl = string.format("string[%d] %s_header = [%s];", #names, v.name, header_list)
+          accessor = string.format(
+            "%s %s_h (size_t row, string col) { return %s[row][get_column_num(%s_header,col)]; }",
+            typename,
+            v.name,
+            v.name,
+            v.name
+          )
         else
-          heads[#heads + 1] = string.format("const char* %s_header[%d] = {%s};", v.name, #names, table.concat(quoted, ","))
-            .. "\n"
-            .. string.format(
-              "%s %s_h (int row, const char* col) { return %s[row][get_column_num(%d,%s_header,col)]; }",
-              typename,
-              v.name,
-              v.name,
-              #names,
-              v.name
-            )
+          decl = string.format("const char* %s_header[%d] = {%s};", v.name, #names, header_list)
+          accessor = string.format(
+            "%s %s_h (int row, const char* col) { return %s[row][get_column_num(%d,%s_header,col)]; }",
+            typename,
+            v.name,
+            v.name,
+            #names,
+            v.name
+          )
         end
+        heads[#heads + 1] = decl .. "\n" .. accessor
       end
     end
   else
@@ -994,7 +995,13 @@ function M.prepare(lang, body, args, vars, ctx)
     elseif engine == "monetdb" then
       command = string.format("mclient -f tab %s < %s > %s", cmdl, q(in_file), q(out_file))
     elseif engine == "dbi" then
-      command = string.format("dbish --batch %s < %s | sed '%s' > %s", cmdl, q(in_file), "/^+/d;s/^|//;s/(NULL)/ /g;$d", q(out_file))
+      command = string.format(
+        "dbish --batch %s < %s | sed '%s' > %s",
+        cmdl,
+        q(in_file),
+        "/^+/d;s/^|//;s/(NULL)/ /g;$d",
+        q(out_file)
+      )
       prefix = "/format partbox\n"
     elseif engine == "vertica" then
       local db = {}
@@ -1024,7 +1031,13 @@ function M.prepare(lang, body, args, vars, ctx)
         end
       end
       if engine == "mssql" then
-        command = string.format('sqlcmd %s -s "\t" %s -i %s -o %s', cmdl, table.concat(db, " "), q(in_file), q(out_file))
+        command = string.format(
+          'sqlcmd %s -s "\t" %s -i %s -o %s',
+          cmdl,
+          table.concat(db, " "),
+          q(in_file),
+          q(out_file)
+        )
       else
         command = string.format("sqsh %s %s -i %s -o %s -m csv", cmdl, table.concat(db, " "), q(in_file), q(out_file))
       end

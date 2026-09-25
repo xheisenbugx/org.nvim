@@ -15,7 +15,7 @@ M.extra = {
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
   export = { "org.export", "command", desc = "Export: :Org export [html|md|txt|latex|pdf|docx|odt|...]" },
   tangle = { "org.babel", "tangle_command", desc = "Tangle current file" },
-  detangle = { "org.babel", "detangle_command", desc = "Send edits of a tangled file back to Org: :Org detangle [file]" },
+  detangle = { "org.babel", "detangle_command", desc = "Send tangled file edits back to Org: :Org detangle [file]" },
   tangle_jump = { "org.babel", "jump_to_org", desc = "From a tangled file, jump to its Org src block" },
   tangle_clean = { "org.babel", "tangle_clean", desc = "Remove tangle link comments from the buffer" },
   babel_load_file = { "org.babel", "load_file_command", desc = "Tangle an Org file's Lua blocks and run them" },

@@ -609,7 +609,8 @@ local function read_element(lines, k, bufnr)
     return lisp.string_to_number(v) or v
   elseif kind == "src" or kind == "example" or kind == "export" then
     local body = blocks_mod.unescape(vim.list_slice(el, 2, #el - 1))
-    local preserve = kind ~= "export" and (el[1]:match("%s%-i%f[%s%z]") or require("org.config").opts.src_preserve_indentation)
+    local preserve = kind ~= "export"
+      and (el[1]:match("%s%-i%f[%s%z]") or require("org.config").opts.src_preserve_indentation)
     return table.concat(preserve and body or dedent(body), "\n") .. (#body > 0 and "\n" or "")
   elseif kind == "special" or kind == "quote" or kind == "center" or kind == "verse" then
     return table.concat(dedent(vim.list_slice(el, 2, #el - 1)), "\n") .. (#el > 2 and "\n" or "")
@@ -910,7 +911,10 @@ function M.error_notify(code, stderr)
       vim.api.nvim_set_current_win(win)
     end)
   end
-  utils.warn(code and string.format("Babel evaluation exited with code %s", tostring(code)) or "Babel evaluation exited abnormally")
+  utils.warn(
+    code and string.format("Babel evaluation exited with code %s", tostring(code))
+      or "Babel evaluation exited abnormally"
+  )
 end
 
 ---------------------------------------------------------------------------
@@ -1097,7 +1101,10 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
     local res = langs.run_lua(body, args, vars)
     if res.error then
       M.error_notify(nil, res.error)
-      done({ error = res.error, result = args.results_spec.collection == "output" and res.output ~= "" and (res.output .. "\n") or nil })
+      done({
+        error = res.error,
+        result = args.results_spec.collection == "output" and res.output ~= "" and (res.output .. "\n") or nil,
+      })
     else
       done({ result = lua_result(res, args) })
     end
@@ -1267,7 +1274,12 @@ function M.file_mode(value)
   end
   local n = tonumber(v)
   if n then
-    return nil, string.format("%s is not a valid file mode octal.  Did you give the decimal value %s by mistake?", string.format("%o", n), v)
+    return nil,
+      string.format(
+        "%s is not a valid file mode octal.  Did you give the decimal value %s by mistake?",
+        string.format("%o", n),
+        v
+      )
   end
   if v:match("^[r-][w-][xs-][r-][w-][xs-][r-][w-][x-]$") then
     local function part(s)
@@ -1622,7 +1634,9 @@ function M.evaluate(bufnr, src, args, opts, cb)
     end
   end
   if sync then
-    after(M.run(bufnr, lang, body, args, vars, nil, { sync = true, colnames = colnames, graphics_file = graphics_file }))
+    after(
+      M.run(bufnr, lang, body, args, vars, nil, { sync = true, colnames = colnames, graphics_file = graphics_file })
+    )
   else
     M.run(bufnr, lang, body, args, vars, after, { colnames = colnames, graphics_file = graphics_file })
   end
@@ -1783,7 +1797,8 @@ function M.execute(opts)
     end
     local rp = results.result_params(iargs)
     if rp.silent then
-      utils.notify(type(result) == "string" and result or lisp.prin1(result))
+      -- :results silent echoes the value (message "%S")
+      utils.notify(lisp.prin1(result))
     elseif not rp.none and pos and pos[1] then
       local ctx = { base_dir = buf_dir(bufnr), cwd = info.cwd }
       insert_results(bufnr, pos[1] + 1, result, iargs, rp.replace and info.hash or nil, src.lang, ctx)
@@ -2016,7 +2031,8 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
       return
     end
     if rp.silent then
-      utils.notify(type(result) == "string" and result or lisp.prin1(result))
+      -- :results silent echoes the value (message "%S")
+      utils.notify(lisp.prin1(result))
       done(true)
       return
     end

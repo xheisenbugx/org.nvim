@@ -250,7 +250,10 @@ local function org_comment(lines, file, b, prev_end)
     from_line = hl.line
     from_col = #(lines[hl.line]:match("^%*+%s+") or "") + 1
   end
-  if prev_end and prev_end.line > from_line or (prev_end and prev_end.line == from_line and prev_end.col > from_col) then
+  if
+    prev_end
+    and (prev_end.line > from_line or (prev_end.line == from_line and prev_end.col > from_col))
+  then
     from_line, from_col = prev_end.line, prev_end.col
   end
   local parts = { lines[from_line]:sub(from_col) }

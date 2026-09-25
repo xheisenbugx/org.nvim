@@ -431,6 +431,10 @@ M.defaults = {
     -- Write tangle comments as they are, without comment syntax
     -- (org-babel-tangle-uncomment-comments)
     tangle_uncomment_comments = false,
+    -- Languages that can run, { cmd, ext, default_header_args }
+    -- (org-babel-load-languages; default_header_args is
+    -- org-babel-default-header-args:LANG). Emacs enables only emacs-lisp,
+    -- which cannot run in Neovim, so the common interpreters are enabled.
     languages = {
       sh = { cmd = "sh" },
       shell = { cmd = "sh" },

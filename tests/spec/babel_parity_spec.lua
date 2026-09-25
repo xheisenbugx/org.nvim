@@ -248,7 +248,16 @@ describe("babel parity: results", function()
       "",
       "Next.",
     })
-    eq({ "#+begin_src sh :results output", "echo new", "#+end_src", "#+RESULTS:", ": new", "Old paragraph", "", "Next." }, out)
+    eq({
+      "#+begin_src sh :results output",
+      "echo new",
+      "#+end_src",
+      "#+RESULTS:",
+      ": new",
+      "Old paragraph",
+      "",
+      "Next.",
+    }, out)
   end)
 
   it("converts Python values like ob-python", function()
@@ -395,7 +404,10 @@ describe("babel parity: results", function()
       "#+end_src",
     })
     eq({ "| 1 | a b |", "| 2 | c   |" }, result_of(out, "#+begin_src sqlite :db t.db"))
-    eq({ "| n | s   |", "|---+-----|", "| 1 | a b |", "| 2 | c   |" }, result_of(out, "#+begin_src sqlite :db t.db :colnames yes"))
+    eq(
+      { "| n | s   |", "|---+-----|", "| 1 | a b |", "| 2 | c   |" },
+      result_of(out, "#+begin_src sqlite :db t.db :colnames yes")
+    )
     eq({ "| 1 | a | b |", "| 2 | c |   |" }, result_of(out, "#+begin_src sqlite :db t.db :list"))
     ok(vim.tbl_contains(out, ": 2"), vim.inspect(out))
   end)
@@ -440,7 +452,10 @@ describe("babel parity: results", function()
       "echo x",
       "#+end_src",
     })
-    eq({ "[[file:sub/o.txt][o.txt]]" }, result_of(out, "#+begin_src sh :dir sub :mkdirp yes :results file :file o.txt :file-desc"))
+    eq(
+      { "[[file:sub/o.txt][o.txt]]" },
+      result_of(out, "#+begin_src sh :dir sub :mkdirp yes :results file :file o.txt :file-desc")
+    )
     eq({ "in-sub" }, vim.fn.readfile(dir .. "/sub/o.txt"))
     -- without `file` in :results nothing is written (Emacs 9.8)
     eq({ ": d" }, result_of(out, "#+begin_src sh :results output :file d.txt"))
@@ -464,7 +479,10 @@ describe("babel parity: results", function()
 
   it("inserts inline results like Emacs, raw ones bare", function()
     local out = run({ "A src_sh[:results raw]{printf '*b*'} and src_sh{echo 1} and src_sh{echo 2} end." })
-    eq({ "A src_sh[:results raw]{printf '*b*'} *b* and src_sh{echo 1} {{{results(=1=)}}} and src_sh{echo 2} {{{results(=2=)}}} end." }, out)
+    eq({
+      "A src_sh[:results raw]{printf '*b*'} *b* and src_sh{echo 1} {{{results(=1=)}}}"
+        .. " and src_sh{echo 2} {{{results(=2=)}}} end.",
+    }, out)
     -- a list result stops the execution: "Inline error: list result cannot be used"
     out = run({ "A src_sh{printf 'a\\nb'} and src_sh{echo 3} end." })
     eq({ "A src_sh{printf 'a\\nb'} and src_sh{echo 3} end." }, out)
@@ -636,7 +654,8 @@ describe("babel parity: C and SQL", function()
     }, nil)
     local spec = langs.prepare("sql", { "select 1;" }, args, {}, { cmd = {}, ext = "sql" })
     local cmd = spec.steps[1].cmd
-    ok(cmd:find("^psql %-%-set=\"ON_ERROR_STOP=1\"  %-A %-P footer=off %-F \"\t\"  %-h'h' %-p5433 %-U'u' %-d'd' %-f "), cmd)
+    local want = 'psql --set="ON_ERROR_STOP=1"  -A -P footer=off -F "\t"  ' .. "-h'h' -p5433 -U'u' -d'd' -f "
+    eq(want, cmd:sub(1, #want))
     args = blocks.header_args({ params = ":engine mysql :database d", header_lines = {}, start = 1, lang = "sql" }, nil)
     cmd = langs.prepare("sql", { "select 1;" }, args, {}, { cmd = {}, ext = "sql" }).steps[1].cmd
     ok(cmd:find("^mysql %-D'd'  +< "), cmd)
