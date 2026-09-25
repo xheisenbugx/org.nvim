@@ -378,17 +378,34 @@ list of property names). `#+PROPERTY: NAME value` sets file-wide values, and
 <prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
                 property or `columns_default_format`, for example
                 `%25ITEM %TODO %3PRIORITY %TAGS %Effort{:}`. Summary
-                operators: {+} {$} (2 decimals) {:} {:min} {:max} {:mean}
-                (durations) {X} {X/} {X%} (checkboxes) {min} {max} {mean}
-                {@min} {@max} {@mean} (ages of timestamps) {est+} (low-high
-                estimates); a format may follow, `{+;%.1f}`.
+                operators (org-columns-summary-types-default): {+} (sum,
+                printed like Emacs: `4.1`, `6`), {$} (2 decimals), {min}
+                {max} {mean} (mean is always a float: `3.0`), {:} {:min}
+                {:max} {:mean} (durations, in `duration_format` unless all
+                values are H:MM), {X} {X/} {X%} (checkboxes), {@min} {@max}
+                {@mean} (ages of timestamps), {est+} (low-high estimates).
+                A format after `;`, `{+;%.1f}`, is applied to every value
+                of the column, leaves included. `columns_summary_types`
+                adds operators: `{ ["+|"] = function(values, fmt) ... end }`
+                (or `{ summarize, collect }` where `collect(headline,
+                prop)` gives a headline's value).
+                Like Emacs (org-columns-compute-all), opening column view
+                and updating a columnview block write each computed
+                summary into the entry's property when the entry already
+                has that property (even empty) and its value differs.
+                SCHEDULED, DEADLINE and TIMESTAMP show as inactive
+                timestamps; `columns_modify_value_for_display_function`
+                (`function(title, value)`) can change any shown value.
                 Keys in the view:
                   e               edit the value (TODO, tags, dates, ...)
                   n / p           next / previous allowed value (also
                                   <S-Right> / <S-Left>): `PROP_ALL`, TODO
-                                  keywords, priorities, checkboxes, days
+                                  keywords, priorities, checkboxes
+                                  (`columns_checkbox_allowed_values`), days
+                  1 .. 9          select the Nth allowed value (digits are
+                                  not counts in the view)
                   a               edit the allowed values (`PROP_ALL`)
-                  < / >           narrow / widen the column (count)
+                  < / >           narrow / widen the column
                   <M-h> <M-l>     move the column left / right (also
                                   <M-Left> / <M-Right>)
                   <M-L> / <M-H>   add a column / delete it (also
@@ -398,6 +415,7 @@ list of property names). `#+PROPERTY: NAME value` sets file-wide values, and
                                   <M-Down>)
                   <C-c><C-c>      toggle a checkbox value, else quit
                   <C-c><C-t>      change the TODO state
+                  <C-c><C-o>      open the link in the field
                   v view value, <CR> jump, r refresh, q quit.
                 Format changes are saved to the COLUMNS property or the
                 `#+COLUMNS:` line the view comes from.
@@ -992,7 +1010,13 @@ Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
               <CR>           same column in the next row
               <S-CR>         copy the field down (see below)
 Normal mode:
-  <C-c><C-c>      realign (on `#+TBLFM`: recalculate)
+  <C-c><C-c>      realign; in a row marked `#` recalculate that row; with a
+                  count recalculate the table (4) or iterate it (16); on
+                  a `#+TBLFM` line apply that line (see below); on
+                  `#+PLOT:` plot; on `#+ORGTBL:` recalculate and send
+  <C-c>*          recalculate the current row (column formulas of the row
+                  and every field formula); count 4: the whole table;
+                  count 16: until it no longer changes (org-table-iterate)
   <M-h/l>         move column left / right (also <M-Left/Right>)
   <M-k/j>         move row up / down (also <M-Up/Down>)
   <M-H>/<M-L>     delete / insert column
@@ -1006,33 +1030,66 @@ Normal mode:
                   In tmux, <S-CR> arrives as <CR> unless extended keys
                   are on: `set -s extended-keys on` and
                   `set -as terminal-features 'xterm*:extkeys'`
+  <C-c>+          sum the column (or the Visual selection) into the
+                  unnamed register: every row, header included; as soon as
+                  one field is H:MM[:SS], plain numbers count as hours and
+                  the sum is H:MM:SS (org-table-sum)
+  <C-c><Tab>      shrink / expand the column (see |org-table-shrink|)
+  <C-c>`          edit the field in a prompt; count 4: show a shrunk
+                  column in full; count 16: follow-field mode
+  <C-c>{          toggle the formula debugger (|org-table-debugger|)
+  <C-c>"a <C-c>"g ASCII bar plot / gnuplot plot (|org-plot|)
   <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
                   (Visual mode; count 4: comma, 16: tab, N: N+ spaces)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
-  <prefix>Tf      recalculate formulas
-  <prefix>Ts      sort rows by the current column (a/n/t, uppercase
-                  reverses)
+  <prefix>Tf      recalculate the whole table
+  <prefix>Ts      sort rows (<C-c>^, see below)
   <prefix>Tr/TR   insert / delete row
   <prefix>Ti/TI   insert / delete column
   <prefix>Tt      transpose the table (hlines are dropped)
   <prefix>T#      rotate the recalculation mark ` # * ! $ _ ^` of the row
                   (Visual mode: set a mark on every selected row); a
                   marker column is added when needed
-  <prefix>'       edit the formulas in a separate buffer
+  <prefix>'       the formula editor (|org-table-formula-editor|)
   :Org table_import   insert a CSV/TSV/whitespace file as a table
-  :Org table_export   write the table to a TSV or CSV file; the file and
+  :Org table_export   write the table with a translator: the file and
                       format come from the TABLE_EXPORT_FILE and
-                      TABLE_EXPORT_FORMAT (`orgtbl-to-csv`) properties when
-                      set, else from a prompt and the file extension
+                      TABLE_EXPORT_FORMAT (`orgtbl-to-latex :splice t`)
+                      properties when set, else from prompts (the format
+                      offered matches the file extension, else
+                      `table_export_default_format`)
+  :Org table_iterate  :Org table_recalc_buffer (all tables, iterated)
 
-Mostly-numeric columns are right-aligned. `<l>`, `<r>` and `<c>` cookies
-override the alignment. The table is realigned when you leave Insert mode.
+Inserting, deleting and moving rows and columns rewrites the references of
+every `#+TBLFM` line below the table like Emacs org-table-fix-formulas:
+`$3=$1+$2` becomes `$2=$INVALID+$1` when column 1 is deleted, formulas that
+assign to a deleted row or column are removed, references inside remote()
+are left alone. Set `table_fix_formulas_confirm` to be asked first. A new
+row copies a `#`, `*` or `$` mark of the current row.
+
+Sorting (<C-c>^, org-table-sort-lines) sorts the rows between the hlines
+around the cursor, or the rows of the Visual selection: `a` text (emphasis
+markers and link brackets ignored; case-insensitive, case-sensitive with a
+count), `n` numbers, `t` timestamps, durations and H:MM, `f` a key function
+typed as Lua (`function(s) return #s end`) with an optional comparison
+function; the uppercase letters sort in reverse.
+
+Alignment: a column is right-aligned when at least `table_number_fraction`
+(0.5) of its fields are numbers. `<l>`, `<r>` and `<c>` cookies (`<r10>`
+with a width) fix the alignment; cookie cells are aligned like the column.
 
 Type `=formula` in a field and press <Tab>, <CR> or <C-c><C-c>: it becomes
 the column formula of that column (`:=formula` a field formula for that
-field), is stored in `#+TBLFM` and the table is recalculated. <Tab>, <S-Tab>,
-<CR> and <C-c><C-c> in a row marked `#` recalculate the table.
+field), is stored in `#+TBLFM` and the field is computed (<C-c>* updates
+the rest). `table_formula_evaluate_inline` turns this off.
 
+<C-c>= reads the formula of the current column (count: of the current field,
+or its `^`/`_` name; count 16: put the active formula into the field as
+`=...` for editing), stores it and computes the field. An empty formula
+removes it. A1-style references (`B3`, `C&`) are accepted when typed
+(`table_use_standard_references`).
+
+                                                        *org-table-formulas*
 Formulas go in `#+TBLFM:` lines below the table: >org
     | Item  | Qty | Price | Total |
     |-------+-----+-------+-------|
@@ -1042,6 +1099,11 @@ Formulas go in `#+TBLFM:` lines below the table: >org
     | Sum   |     |       |  3.00 |
     #+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
 <
+Only the first `#+TBLFM:` line is used. Keep alternatives in more lines
+below it and press <C-c><C-c> on one of them to apply it once
+(org-table-calc-current-TBLFM). Storing formulas (<C-c>=, inline formulas,
+the formula editor) rewrites only the first line (or the edited one), with
+the formulas sorted like Emacs.
 References:
   $2  $>  $<  $>> $+1 $-1    columns
   @3  @>  @<  @<< @-1 @I @II rows / hlines
@@ -1052,30 +1114,158 @@ References:
   $name                      a named column, field, parameter or constant
 Names, looked up in this order:
   `!` row           `| ! | | qty | price |` names the columns below it
-  `^` / `_` rows    name the field in the row above / below
+  `^` / `_` rows    name the field in the row above / below (a formula
+                    sees the value it had before the recalculation, like
+                    Emacs, so iterate to use a fresh one)
   `$` row           `| $ | max=50 |` defines a parameter
   constants         `#+CONSTANTS: tax=0.16 rate=18.5`, then the
                     `table_formula_constants` option
   $PROP_Name        the Name property of the entry (inherited)
   header row        (extension) `$Total=$Qty*$Price` uses the header above
                     the first hline when there is no `!` row
-Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vvar vpvar
-vpsdev, abs sqrt exp ln log10 floor ceil round idiv mod min max, sin cos tan
-and their inverses (degrees, like Org's Calc defaults), `if(cond, a, b)` and
-vectors `[1, 2, 3]`.
-Lisp formulas: `'(+ $1 $2);N`, `'(concat $1 "-" $2)`. Fields are inserted as
-strings, as numbers with `N`, verbatim with `L`; ranges become lists.
-Lua formulas: `$3='(string.upper($1))` (anything that is not Lisp).
-Flags after `;`: a printf format with optional text (`%.2f`, `%.1f%%`),
-Calc modes `f2` (fixed), `s3` / `e3` (scientific / engineering), `n4`
-(significant digits), `N` (numbers), `E` (keep empty), `R` / `D` (radians /
-degrees), `T` / `t` (durations H:MM:SS / hours), `U` (H:MM).
-Results show 8 significant digits by default (`1/3` gives 0.33333333).
-Formulas run row by row: column formulas first, then field formulas.
-With `#`/`*` marks in the first column, only marked rows are recalculated by
-column formulas; `!` `^` `_` `$` rows are never changed.
-Column formulas skip the header rows above the first hline. Errors show as
-#ERROR.
+Column formulas run on the rows below the first hline (all rows without
+one); when the first column holds marks (`! $ ^ _ # *`), only on rows
+marked `#` or `*`. Rows marked `! ^ _ $ /` are never changed. Formulas run
+row by row in the order of their sorted left sides, column formulas first,
+then field formulas. A column formula beyond the last column adds the
+column; a field formula does so only with `table_formula_create_columns`
+(true, "warn" or "prompt"; false: an error).
+
+                                                           *org-table-calc*
+Formulas are GNU Calc expressions, evaluated by a Lua reimplementation of
+the parts Org tables use. As in Emacs, each reference is replaced by the
+field text (`(3)`; ranges `[1,2,3]`, empty fields dropped) before the
+formula is evaluated, so:
+- Calc precedence: `/` binds looser than `*`, `a/b*c` is `a/(b*c)`; `^`
+  binds tighter than unary minus (`-2^2` is -4); `2 3` and `2(3+1)`
+  multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
+- Numbers: exact integers of any size (`2^100`), floats with 12 digits and
+  Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`),
+  fractions `3:4` (`F` flag), vectors `[1, 2]` (`|` concatenates, `*` of
+  two vectors is the dot product).
+- Dates: `<2024-01-10 Wed>` (also `[...]` fields) is a date; subtracting
+  two gives days (`$2-$1`), adding a number gives a date (written as an
+  inactive timestamp), `date(<...>)` gives the day number.
+- Text stays symbolic: `$1*2` on `x` gives `2 x`, `sqrt(x)` stays,
+  `if($1>3, big, small)` returns `big`/`small`; `pi` and `e` stay
+  symbols. With `N` a non-numeric result is #ERROR.
+- Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vpsdev vvar
+  vpvar vlen rev sort, abs sqrt exp ln log log10 exp10 floor ceil round
+  trunc frac idiv mod `\` gcd lcm fact choose perm sign min max hypot, sin
+  cos tan arcsin arccos arctan arctan2 sinh cosh tanh deg rad (degrees
+  unless `R`), if lnot, date year month day hour minute second weekday
+  now. Unknown functions stay symbolic, e.g. `foo(x)`.
+Flags after `;` (org-table-eval-formula): Calc modes `p20` (precision),
+`n3` (significant digits), `f2` (fixed), `s3` / `e3` (scientific /
+engineering), `N` (fields as numbers), `E` (keep empty fields, as `nan` in
+Calc), `R` / `D` (radians / degrees), `F` (fractions), `T` / `t` / `U`
+(fields and results as durations: H:MM:SS, hours (see
+`table_duration_custom_format`) and H:MM; `table_duration_hour_zero_padding`),
+`L` (Lisp literal). Like Emacs, these letters are removed from the rest,
+which is a printf format applied to the result: `%.2f`, `%.1f%%`, `%d`.
+Lisp formulas: `'(+ $1 $2);N`, `'(concat $1 "-" $2)`: fields become Lisp
+strings, numbers with `N`, verbatim text with `L`; ranges become several
+arguments; a list result is #ERROR. See |org-differences| for the Lisp
+subset. Lua formulas (extension): `$3='(string.upper($1))` (a `'(...)`
+that is not Lisp).
+Errors show as #ERROR.
+
+                                                  *org-table-formula-editor*
+<C-c>' (or <prefix>') in a table, or on a `#+TBLFM` line, opens the
+formula editor in a split below (org-table-edit-formulas): one `lhs = rhs`
+per line under "# Column Formulas", "# Field and Range Formulas" and
+"# Named Field Formulas". Lines starting with a blank continue the formula
+above. As the cursor moves, the fields the formula uses are highlighted in
+the table (OrgTableFormulaRef, OrgTableFormulaRefCursor for the reference
+at the cursor, OrgTableFormulaTarget for the target), for column formulas
+on the row of the table window's cursor.
+  <C-c><C-c> <C-c>' <C-c><C-s> <C-x><C-s> :w   store (a count: also
+                                              recalculate the table)
+  <C-c><C-q>          abort
+  <C-c>?              show the references, move the table cursor there
+  <S-Up/Down/Left/Right>  shift the reference at the cursor
+  <M-S-Up> <M-S-Down> change the table row used for column formulas
+  <M-Up> <M-Down>     scroll the table window
+  <Tab>               pretty-print the Lisp formula
+  <C-c><C-r>          show references as B3 / as @3$2
+  <C-c>}              toggle the table coordinates
+
+                                                       *org-table-debugger*
+<C-c>{ toggles the formula debugger: each evaluation then shows the
+original formula, the formula with the references replaced, the result, the
+format and the final text in a `*Substitution History*` window and asks
+whether to go on; answering no stops the recalculation.
+
+                                                         *org-table-shrink*
+<C-c><Tab> in a table shrinks the current column, or shows it again
+(org-table-toggle-column-width): a shrunk column shows the first W
+characters of each field (W from a `<W>`/`<lW>` cookie in the column, one
+character without one) followed by `table_shrunk_column_indicator` (`…`).
+Before the first or after the last column it asks for column ranges
+(`2-4 6-`). Count 4 shrinks the columns with a width cookie and expands the
+others (org-table-shrink), count 16 expands all (org-table-expand).
+`#+STARTUP: shrink` (or `startup_shrink_all_tables`) shrinks every table
+with cookies when a file is opened; columnview blocks with widths are
+shrunk after an update. Neovim has no overlays that hide text, so shrunk
+fields are concealed ('conceallevel' is set to 2) and drawn as inline
+virtual text; the text itself is unchanged. In Insert mode the table is
+shown in full, and it shrinks again when you leave Insert mode.
+
+                                                  *org-table-follow-field*
+Follow-field mode (<C-c>` with count 16): a small window below shows the
+full text of the current field and follows the cursor. Edit the text there
+and write it back with <C-c><C-c> or :w (moving to another field writes it
+too). Leaving the table ends the mode
+(`table_exit_follow_field_mode_when_leaving_table`).
+Header-line mode (`:Org table_header_line_mode`, or `table_header_line_p`
+for every buffer): while the first row of the table at the top of the window
+is scrolled out of view, it is shown in the 'winbar' (Emacs draws it over
+the first visible line).
+
+                                            *org-table-translators* *orgtbl*
+Translators turn a table into another format (Emacs orgtbl-to-*):
+`orgtbl-to-tsv`, `-csv`, `-latex` (:booktabs, :environment), `-html`
+(:attributes), `-texinfo` (:columns), `-orgtbl` and `-generic`. Parameters
+of orgtbl-to-generic: :splice, :skip N (rows, hlines included), :skipcols
+(2 3), :hline, :sep, :hsep, :tstart :tend, :lstart :lend, :llstart :llend,
+:hlstart :hlend :hllstart :hllend, :lfmt :llfmt :hlfmt :hllfmt, :fmt :hfmt
+(a format or `(2 "$%s$" 4 "%s")`), :efmt (`"%s\\times10^{%s}"`), :raw. As in
+Emacs export, a column of recalculation marks, the `! ^ _ $ /` rows and
+cookie rows are dropped. From Lua, the format parameters may be functions:
+`require("org.table.orgtbl").translate("orgtbl-to-generic", rows, {...})`;
+a global Lua function can be used as a translator by name.
+
+                                              *org-radio-tables* *orgtbl-mode*
+Radio tables: a table below `#+ORGTBL: SEND name translator :params` is
+sent, translated, between the lines containing `BEGIN RECEIVE ORGTBL name`
+and `END RECEIVE ORGTBL name` (anywhere in the buffer) whenever <C-c><C-c>
+recalculates or realigns it. `:Org orgtbl_mode` turns on the table editor in
+buffers of any filetype (Emacs orgtbl-mode): on table lines <Tab>, <S-Tab>,
+<CR> (Insert mode), <S-CR>, <C-c><C-c>, <C-c>|, <C-c>-, <C-c><CR>, <C-c>=,
+<C-c>', <C-c>`, <C-c>*, <C-c>^, <C-c>?, <C-c><Space>, <C-c>+, <C-c>},
+<C-c>{, <C-c><Tab>, <C-#>, <C-c><C-x><M-w>/<C-w>/<C-y>, <M-arrows>,
+<M-S-arrows>, <M-hjkl>, <M-HJKL>, <C-c>"a and <C-c>"g work like in org
+buffers; elsewhere the keys keep their meaning. `:Org
+orgtbl_insert_radio_table` inserts a template for the filetype
+(`orgtbl_radio_table_templates`: tex, texinfo, html, org),
+`:Org orgtbl_toggle_comment` comments or uncomments the table with
+'commentstring', `:Org orgtbl_send_table` sends it.
+
+                                                                  *org-plot*
+<C-c>"a (orgtbl-ascii-plot) adds a column after the current one with a bar
+plot of its numbers, drawn by `'(orgtbl-ascii-draw $2 MIN MAX 12)` (a
+count sets the width, count 4 asks); it follows the table on
+recalculation. `orgtbl-uc-draw-grid` and `orgtbl-uc-draw-cont` draw with
+Unicode blocks. <C-c>"g (or <C-c><C-c> on a `#+PLOT:` line) plots the
+table with gnuplot (`plot_gnuplot_program`, `plot_gnuplot_script_preamble`,
+`plot_gnuplot_term_extra`), using the `#+PLOT:` options above it: >org
+    #+PLOT: title:"Sales" ind:1 deps:(2 3) type:2d with:lines
+    #+PLOT: file:"sales.png" set:"yrange [0:]" labels:("x" "a" "b")
+<
+Options: type (2d, 3d, grid), title, ind, deps, with, file, labels, line,
+set, map, script (a gnuplot script; `$datafile` is replaced), timefmt,
+transpose. The header row gives the labels; an independent column of
+timestamps is plotted as time. The radar type is not supported.
 
 ==============================================================================
 19. SOURCE BLOCKS (BABEL)                                          *org-babel*
@@ -1254,10 +1444,19 @@ clocktable parameters (the output matches Emacs 9.8):
 
 columnview parameters: `:id local|global|file:path|ID` (default local),
 `:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
-property match), `:exclude-tags (a b)`, `:hlines t|N` (a hline before each
-entry, or each entry of level N or less), `:vlines t` (column groups),
-`:link t` (link items to their headings). Keywords like `#+NAME:` above the
-table and `#+TBLFM:` lines below it are kept, and the formulas re-applied.
+property match), `:exclude-tags (a b)` (inherited tags count), `:hlines t|N`
+(a hline before each entry, or each entry of level N or less), `:vlines t`
+(column groups), `:link t` (link items to their headings), `:formatter`
+(the name of a global Lua function `function(rows, params)` returning the
+lines; `columns_dblock_formatter` sets one for every block; rows are the
+titles, "hline", then `{ level = n, hl = headline, cells... }`). Like Emacs
+(org-columns-dblock-write-default), a first row of width cookies (`<25>`)
+is written when the format has widths, and the columns are shrunk; ITEM
+loses statistics cookies, footnote references, targets and inline src
+blocks / calls; archived and commented subtrees are skipped. Keywords like
+`#+NAME:` above the table and the first `#+TBLFM:` line below it are kept,
+and the formulas re-applied. A `|` in a value is written as `\vert{}` (Emacs
+writes it raw, which breaks the table).
 
 Custom blocks: >lua
     require("org.dblock").register("myblock", function(params, ctx)
@@ -1447,10 +1646,31 @@ Priorities, tags, properties ~
   effort_property           "Effort"
   duration_format           "d h:mm"  or "h:mm"
   columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
+  columns_summary_types     {}        extra summary operators
+  columns_modify_value_for_display_function  nil  function(title, value)
+  columns_dblock_formatter  nil       function(rows, params) → lines
+  columns_checkbox_allowed_values  { "[ ]", "[X]" }
 Tables ~
   table_formula_constants   {}        `$name` constants for formulas
   table_copy_increment      true      <S-CR> step: true (difference to the
                                       field above, else 1), a number, false
+  table_formula_create_columns  false field formulas beyond the table:
+                                      false (error)|true|"warn"|"prompt"
+  table_fix_formulas_confirm    false ask before fixing #+TBLFM references
+  table_duration_custom_format  "hours"  `t` flag: hours|minutes|seconds|
+                                      days
+  table_duration_hour_zero_padding  true  `01:30:00`
+  table_formula_evaluate_inline true  `=formula` typed into a field
+  table_number_fraction     0.5       numbers needed to right-align
+  table_shrunk_column_indicator "…"
+  startup_shrink_all_tables false     shrink tables on open (#+STARTUP)
+  table_header_line_p       false     header-line mode in every buffer
+  table_exit_follow_field_mode_when_leaving_table  true
+  table_use_standard_references "from"  B3 references: "from"|true|false
+  table_export_default_format "orgtbl-to-tsv"
+  orgtbl_radio_table_templates  { tex, texinfo, html, org }
+  plot_gnuplot_program      "gnuplot"
+  plot_gnuplot_script_preamble ""     plot_gnuplot_term_extra ""
 Buffer ~
   startup_folded            "overview"  also "show2levels".."show5levels"
   hide_drawer_startup       true      fold drawers on startup
@@ -1623,8 +1843,8 @@ Structure and visibility:
   <C-CR>           insert_heading (after the subtree; also Insert mode)
   <C-S-CR>         insert_todo_heading (also Insert mode)
   <C-c><CR>        (ctx) table: hline and move; else insert heading
-  <C-c>*           (ctx) table: recalculate (count 16: all tables);
-                   else toggle heading
+  <C-c>*           (ctx) table: recalculate the row (count 4: the table,
+                   16: iterate); else toggle heading
   <C-c>-           (ctx) table: hline; item: cycle bullet; else toggle item
   <C-c>^           (ctx) sort table column / entries / list items
   <C-c>;           toggle COMMENT       <C-c>@  mark (select) subtree
@@ -1635,6 +1855,7 @@ Structure and visibility:
   <C-c><C-x><C-w>  (ctx) cut table region / subtree
   <C-c><C-x><C-y>  (ctx) paste table rectangle / subtree
   <C-c><C-k>       show branches        <C-c><Tab>  show children
+                   (ctx) in a table: shrink / expand the column
   <C-c><C-Tab>     cycle even an archived subtree
   <C-c><C-r>       reveal context       <C-c><C-x>v  copy visible text
   <C-c><C-n> <C-p> next / previous heading
@@ -1688,10 +1909,17 @@ Links, refile, archive, export:
 
 Tables:
   <C-c>|  create / convert region     <C-c>=  column formula
-          (count: field formula)      <C-c>`  edit field
-  <C-c>+  sum column / selection      <C-c><Space>  blank field(s)
-  <C-c>}  toggle @row/$col overlays   <C-c>?  field info
-  <C-#>   rotate recalculation mark
+          (count: field formula)      <C-c>`  edit field (count 4: show
+  <C-c>+  sum column / selection              shrunk column, 16: follow)
+  <C-c>}  toggle @row/$col overlays   <C-c><Space>  blank field(s)
+  <C-c>{  formula debugger            <C-c>?  field info
+  <C-#>   rotate recalculation mark   <C-c>"a <C-c>"g  ASCII / gnuplot plot
+  <C-c>~  table.el (not supported)
+Actions without default keys: table_recalculate, table_iterate,
+table_recalc_buffer, table_toggle_column_width, table_shrink, table_expand,
+table_edit_formulas, table_follow_field_mode, table_header_line_mode,
+orgtbl_mode, orgtbl_insert_radio_table, orgtbl_send_table,
+orgtbl_toggle_comment (also outside org buffers).
 
 Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   e execute   b buffer   s subtree   t tangle   k remove result
@@ -1767,9 +1995,14 @@ Targets are `{ bufnr = n, lnum = l }`.
              logreschedule nologreschedule logredeadline ...
              lognoteclock-out nolognoteclock-out logdrawer nologdrawer
              logstatesreversed nologstatesreversed
+             shrink noshrink (table columns with width cookies)
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
   #+PROPERTY: header-args:python :results output
   #+COLUMNS: %25ITEM %TODO %Effort{:}   column view format
+  #+CONSTANTS: tax=0.16                 constants for table formulas
+  #+TBLFM: $3=$1*$2                     table formulas (|org-tblfm|)
+  #+PLOT: title:"x" ind:1               plot options (|org-plot|)
+  #+ORGTBL: SEND name orgtbl-to-latex   radio table (|org-radio-tables|)
   #+ARCHIVE: file::* Heading            archive location
   #+LINK: gh https://github.com/%s      link abbreviation
   #+PRIORITIES: A E C                   highest, lowest, default
@@ -1783,13 +2016,34 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 
 - Notes (state changes with `@`, agenda `z`) are single-line prompts rather
   than a separate note buffer.
-- Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
-  is no symbolic math. Elisp formulas `'(...)` support common Lisp functions,
-  anything else is a Lua expression.
-- Tables: width cookies (`<10>`) don't shrink columns, there is no formula
-  debugger (C-c {), no orgtbl-mode / radio tables, no table.el tables, and
-  <M-CR> inserts a row instead of splitting the field. Table export writes
-  TSV or CSV only.
+- Table formulas: GNU Calc is reimplemented in Lua for what tables use
+  (|org-table-calc|); its symbolic algebra (simplification, solving,
+  derivatives), units, complex numbers (`sqrt(-4)` stays `sqrt(-4)`
+  instead of `(0, 2)`), HMS forms, intervals, error forms and its ~1000
+  other functions are not: Calc is a large Emacs package, and results
+  here are exact integers, fractions, 12-digit floats, dates or symbolic
+  text with only a few simplifications (`x + x` is `2 x`; Emacs's
+  `vmean` of symbols is left as `(1 + x + 3) / 3`). Quoted strings
+  (`"big"`) are kept as text; Calc makes them vectors of character codes.
+  Emacs Lisp formulas `'(...)` run on a small Lisp interpreter (the
+  functions listed in `lua/org/table/elisp.lua`): arbitrary Emacs Lisp
+  cannot run without Emacs. Any other `'(...)` is a Lua expression.
+- Table formula errors: Emacs stops the whole recalculation on some errors
+  (a reference outside the table, `$2=` defined twice, unknown remote
+  tables); here the field shows #ERROR (the last definition wins) and the
+  other fields are still computed. Left sides Emacs rejects are accepted:
+  `$name=` for a named column, `$2..$3=` and `@I$2..@>$2=` ranges.
+- Tables in the table.el format (`+---+` grids, C-c ~, C-c ' on them) are
+  not supported: table.el is a separate large Emacs package; such tables
+  are left alone. <M-CR> inserts a row instead of splitting the field.
+  Shrunk columns use conceal and virtual text (|org-table-shrink|), the
+  header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
+  (follow-field mode uses a window) and plots use gnuplot directly (Emacs
+  needs gnuplot.el; the radar plot type is missing). The orgtbl-to-unicode
+  and orgtbl-to-table.el translators are missing, and translators convert
+  Org markup in cells with a simplified exporter.
+- Column view in the agenda (org-agenda-columns, C-c C-x C-c in the
+  agenda, `org-columns-default-format-for-agenda`) is not implemented.
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
   instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
@@ -1805,8 +2059,8 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
 - Column view is a separate table buffer rather than overlays on the
-  headlines. Digit keys keep their Vim meaning (counts) there instead of
-  selecting the Nth allowed value.
+  headlines. Like Emacs, digits 1-9 select allowed values there, so counts
+  are not available in the view (0 keeps its Vim meaning).
 - <M-CR> never splits the current line.
 - Plain list items don't fold with <Tab>. A `VISIBILITY: children` or
   `content` entry keeps its own body text visible (Vim folds nest).
