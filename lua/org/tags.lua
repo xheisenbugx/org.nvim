@@ -427,7 +427,7 @@ function M.fast_select(current, defs, inherited, opts)
       for _, m in ipairs(marks) do
         pcall(vim.api.nvim_buf_set_extmark, buf, ns, m[1], m[2], { end_col = m[3], hl_group = m[4] })
       end
-      vim.api.nvim_buf_set_extmark(buf, ns, 1, 0, { end_col = #lines[2], hl_group = "Title" })
+      pcall(vim.api.nvim_buf_set_extmark, buf, ns, 1, 0, { end_col = #lines[2], hl_group = "Title" })
       vim.cmd("redraw")
     end
     local ch = utils.getchar()

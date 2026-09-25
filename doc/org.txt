@@ -462,7 +462,8 @@ all three. Groups nest, and `{regexp}` members match tags by regexp:
 
 Inheritance: children inherit their parents' tags and `#+FILETAGS:`, except
 the tags in `tags_exclude_from_inheritance`. Set `use_tag_inheritance =
-false` to disable it.
+false` to disable it, or to a list of tags or a regexp to inherit only those
+tags (org-use-tag-inheritance).
 
 ==============================================================================
 8. PROPERTIES AND COLUMN VIEW                   *org-properties* *org-columns*
@@ -497,8 +498,8 @@ PRIORITY, TAGS, ALLTAGS, CATEGORY, LEVEL, FILE, SCHEDULED, DEADLINE, CLOSED,
 TIMESTAMP, TIMESTAMP_IA (first inactive timestamp), BLOCKED (`t` when the
 entry cannot be marked done, else empty).
 
-Inheritance is controlled by `use_property_inheritance` (true, false, or a
-list of property names). `NAME+` lines append to the value, also to an
+Inheritance is controlled by `use_property_inheritance` (true, false, a
+list of property names, or a regexp matching them). `NAME+` lines append to the value, also to an
 inherited one: `:Acc: 1` on a parent and `:Acc+: 2` on its child give
 `1 2`. A property drawer at the top of the file, `#+PROPERTY: NAME value`
 and `global_properties` set values for the whole file, in that order.
@@ -1616,13 +1617,13 @@ Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
   tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
   tags_column               -77
-  use_tag_inheritance       true
+  use_tag_inheritance       true      true|false|{ tags }|"regexp"
   tags_exclude_from_inheritance  {}
   group_tags                true      |org-tag-groups|
   fast_tag_selection_single_key  false  true|false|"expert"
   fast_tag_selection_include_todo  false
   complete_tags_always_offer_all_agenda_tags  false
-  use_property_inheritance  false     true|false|{ names }
+  use_property_inheritance  false     true|false|{ names }|"regexp"
   property_format           "%-10s %s"
   global_properties         {}
   effort_property           "Effort"
@@ -2007,6 +2008,8 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
     (cancel repeaters) have no count form and are the actions
     `todo_without_note` and `todo_cancel_repeaters`; a count of 4 always
     means C-u, so the 4th keyword cannot be picked by count.
+  - `#+TYP_TODO:` keywords cycle like a sequence; Emacs jumps to the done
+    keyword on the first C-c C-t of a series.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
     only `todo_blockers` (org-blocker-hook) can veto a change.
@@ -2016,8 +2019,8 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
     not supported (true, false and "start-level" are).
   - The fast tag selection menu is a floating window read one key at a
     time; it does not show the tags on the headline while it is open.
-  - `org-use-tag-inheritance` and `org-use-property-inheritance` as a
-    regexp are not supported (booleans, and a list for properties, are).
+  - Regexps (`use_tag_inheritance`, `use_property_inheritance`, `{...}` in
+    matches and tag groups) are Vim regexps, not Emacs regexps.
   - The date prompt refuses text it cannot read at all instead of using the
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,

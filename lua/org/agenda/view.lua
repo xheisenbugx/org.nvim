@@ -1100,13 +1100,9 @@ M.actions = {
       M.show_item(false)
     end
   end,
-  todo = on_item(function(target, item)
-    local f = files.get_buffer(target.bufnr)
-    if f.settings.todo.has_fast_keys then
-      call("org.todo", "select", target)
-    else
-      call("org.todo", "cycle_next", target)
-    end
+  todo = on_item(function(target)
+    -- org-agenda-todo runs org-todo: fast selection or cycling in the set
+    call("org.todo", "select_or_cycle", target)
   end),
   todo_next = on_item(function(target)
     call("org.todo", "cycle_next", target)

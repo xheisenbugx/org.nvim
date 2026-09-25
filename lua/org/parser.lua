@@ -678,11 +678,21 @@ function Headline:get_tags(opts)
   end
   local cfg = require("org.config").opts
   local seen, out = {}, {}
+  -- use_tag_inheritance: true, false, a list of tags or a regexp
+  -- (org-use-tag-inheritance)
+  local inh = cfg.use_tag_inheritance
+  local inh_re = type(inh) == "string" and vim.regex(inh) or nil
   local function add(tag, inherited)
     if seen[tag] then
       return
     end
     if inherited and vim.tbl_contains(cfg.tags_exclude_from_inheritance or {}, tag) then
+      return
+    end
+    if inherited and type(inh) == "table" and not vim.tbl_contains(inh, tag) then
+      return
+    end
+    if inherited and inh_re and not inh_re:match_str(tag) then
       return
     end
     seen[tag] = true
@@ -729,6 +739,10 @@ local function should_inherit(name)
   local inh = require("org.config").opts.use_property_inheritance
   if inh == true then
     return true
+  elseif type(inh) == "string" then
+    -- a regexp matched against the name, ignoring case like Emacs
+    local ok, re = pcall(vim.regex, "\\c" .. inh)
+    return ok and re:match_str(name) ~= nil
   elseif type(inh) == "table" then
     for _, p in ipairs(inh) do
       if p:upper() == name then

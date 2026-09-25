@@ -128,15 +128,17 @@
 ---Column tags are aligned to; negative = right-align so tags end at that
 ---column. (Emacs `org-tags-column`, default: `-77`)
 ---@field tags_column? integer
----Whether tags are inherited by sub-headings.
+---Whether tags are inherited by sub-headings: `true`, `false`, a list of the
+---tags that inherit, or a regexp matching them.
 ---(Emacs `org-use-tag-inheritance`, default: `true`)
----@field use_tag_inheritance? boolean
+---@field use_tag_inheritance? boolean|string[]|string
 ---Tags that are never inherited.
 ---(Emacs `org-tags-exclude-from-inheritance`, default: `{}`)
 ---@field tags_exclude_from_inheritance? string[]
----Property inheritance: `true`, `false`, or a list of property names that
----inherit. (Emacs `org-use-property-inheritance`, default: `false`)
----@field use_property_inheritance? boolean|string[]
+---Property inheritance: `true`, `false`, a list of property names that
+---inherit, or a regexp matching them (ignoring case).
+---(Emacs `org-use-property-inheritance`, default: `false`)
+---@field use_property_inheritance? boolean|string[]|string
 ---Format of `:NAME: value` lines written to property drawers.
 ---(Emacs `org-property-format`, default: `"%-10s %s"`)
 ---@field property_format? string

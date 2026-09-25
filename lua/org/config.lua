@@ -130,9 +130,13 @@ M.defaults = {
   tags = {},
   --- Column tags are aligned to. Negative = right-align to that column.
   tags_column = -77,
+  --- Tag inheritance (org-use-tag-inheritance): true, false, a list of the
+  --- tags that inherit, or a regexp matching them.
   use_tag_inheritance = true,
+  --- Tags that never inherit (org-tags-exclude-from-inheritance).
   tags_exclude_from_inheritance = {},
-  --- true, false, or a list of property names that inherit.
+  --- Property inheritance (org-use-property-inheritance): true, false, a
+  --- list of property names, or a regexp matching them (ignoring case).
   use_property_inheritance = false,
   --- Format of `:NAME: value` lines in property drawers (org-property-format).
   property_format = "%-10s %s",
