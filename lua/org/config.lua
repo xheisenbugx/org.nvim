@@ -95,13 +95,17 @@ M.defaults = {
   --- "overview" | "content" | "showall" | "showeverything" | "nofold"
   --- | "show2levels" .. "show5levels" (org-startup-folded)
   startup_folded = "showeverything",
-  --- Fold drawers when the file is opened (#+STARTUP: hidedrawers / nohidedrawers).
+  --- Fold drawers when the file is opened (org-hide-drawer-startup;
+  --- #+STARTUP: hidedrawers / nohidedrawers).
   hide_drawer_startup = true,
-  --- Fold `#+begin_...` blocks when the file is opened (#+STARTUP: hideblocks).
+  --- Fold `#+begin_...` blocks when the file is opened (org-hide-block-startup;
+  --- #+STARTUP: hideblocks).
   hide_block_startup = false,
-  --- Let visibility cycling open subtrees tagged :ARCHIVE:.
+  --- Let visibility cycling open subtrees tagged :ARCHIVE:
+  --- (org-cycle-open-archived-trees).
   cycle_open_archived_trees = false,
-  --- Heading that collects footnote definitions (created when missing).
+  --- Heading that collects footnote definitions (created when missing)
+  --- (org-footnote-section; #+STARTUP: fnlocal).
   --- false = put each definition at the end of the reference's section.
   footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
@@ -546,11 +550,12 @@ M.defaults = {
   -- UI
   ---------------------------------------------------------------------------
   ui = {
-    --- Conceal link brackets and show only descriptions.
+    --- Conceal link brackets and show only descriptions (org-link-descriptive).
     conceal_links = true,
-    --- Hide *, /, _, =, ~, + around emphasized text.
+    --- Hide *, /, _, =, ~, + around emphasized text (org-hide-emphasis-markers).
     hide_emphasis_markers = false,
-    --- Show only the last star of each headline.
+    --- Show only the last star of each headline (org-hide-leading-stars;
+    --- #+STARTUP: hidestars / showstars).
     hide_leading_stars = false,
     --- Replace headline stars with symbols. false or list per level.
     bullets = false, -- e.g. { "◉", "○", "✸", "✿" }
@@ -584,9 +589,10 @@ M.defaults = {
     --- function(numbers) -> string, the text shown before the headline
     --- (org-num-format-function). nil = "1.2.3 ".
     num_format_function = nil,
-    --- Dim the whole headline of DONE entries.
+    --- Dim the whole headline of DONE entries (org-fontify-done-headline).
     fontify_done_headline = true,
-    --- Syntax-include the languages of src blocks for highlighting.
+    --- Syntax-include the languages of src blocks for highlighting
+    --- (org-src-fontify-natively).
     src_highlight = true,
     --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
     --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
