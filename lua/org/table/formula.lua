@@ -1,6 +1,11 @@
 ---@mod org.table.formula Spreadsheet formulas (#+TBLFM)
 ---
---- Supported (Emacs org-table subset, evaluated with Lua arithmetic):
+--- Formulas are evaluated like Emacs `org-table-eval-formula`: references
+--- are replaced by the field text (`(3)`, `[1,2,3]`, `nan` for kept empty
+--- fields), and the result is computed by a small GNU Calc
+--- (`org.table.calc`) or, for `'(...)` formulas, by the Emacs Lisp subset
+--- in `org.table.elisp`.
+---
 ---   column formulas      $3=$1*$2            (rows below the first hline)
 ---   field formulas       @2$3=..., @>$2=vsum(@I..@II)
 ---   range targets        @2$3..@4$3=...
@@ -8,20 +13,16 @@
 ---                        @I @II @-I (hlines, with +N/-N offsets)
 ---   ranges               @2$1..@4$1  $1..$3  @I..@II
 ---   counters             @# (row) $# (column)
----   functions            vsum vmean vmin vmax vcount vprod vmedian vsdev vvar
----                        vpvar vpsdev, abs sqrt exp ln log log10 floor ceil
----                        round idiv min max sin cos tan asin acos atan (in
----                        degrees unless ;R) pow mod, if(c,a,b), [1, 2] vectors
 ---   names                $name: `!` row column names, `^`/`_` field names,
 ---                        `$` row parameters, #+CONSTANTS, $PROP_x properties,
 ---                        and (extension) header-row column names
 ---   remote references    remote(name, @2$1)
 ---   Lisp formulas        '(+ $1 $2) - Emacs Lisp subset (org.table.elisp)
----   Lua formulas         '(expr) that is not Lisp - references substituted as
----                        Lua strings (numbers with the N flag)
----   format flags         ;%.2f  ;%.1f%%  ;f2 s3 e3 n4 (Calc modes)  ;R ;D
----                        ;N (non-numbers = 0)  ;E (keep empty)  ;L (Lisp literal)
----                        ;T (H:MM:SS)  ;t (decimal hours)  ;U (H:MM)
+---   Lua formulas         '(expr) that is not Lisp (extension) - references
+---                        substituted as Lua strings (numbers with the N flag)
+---   mode flags           ;%.2f  ;%.1f%%  ;p20 n3 f2 s3 e3 (Calc modes)  ;R ;D
+---                        ;F (fractions) ;N (numbers) ;E (keep empty)
+---                        ;L (Lisp literal) ;T ;t ;U (durations)
 
 local M = {}
 
@@ -44,6 +45,140 @@ function M.parse_tblfm(str)
     end
   end
   return out
+end
+
+---------------------------------------------------------------------------
+-- Emacs number/string conversions
+---------------------------------------------------------------------------
+
+--- Emacs `string-to-number`: the leading number of `s` (0 when none) and
+--- whether it is a float.
+---@return number, boolean
+function M.string_to_number(s)
+  s = (s or ""):gsub("^[ \t\n]+", "")
+  local sign, rest = s:match("^([-+]?)(.*)$")
+  local int = rest:match("^%d*")
+  local frac = rest:sub(#int + 1):match("^%.(%d+)")
+  local after = rest:sub(#int + 1 + (frac and #frac + 1 or 0))
+  if int == "" and not frac then
+    return 0, false
+  end
+  local exp = (int ~= "" or frac) and after:match("^[eE]([-+]?%d+)")
+  local isfloat = frac ~= nil or exp ~= nil
+  local v = tonumber((int ~= "" and int or "0") .. (frac and ("." .. frac) or "") .. (exp and ("e" .. exp) or ""))
+  if sign == "-" then
+    v = -v
+  end
+  return v, isfloat
+end
+
+--- Emacs `number-to-string`.
+function M.number_to_string(v, isfloat)
+  if not isfloat and v == math.floor(v) and math.abs(v) < 2 ^ 63 then
+    return string.format("%d", v)
+  end
+  if v ~= v then
+    return "0.0e+NaN"
+  elseif v == math.huge or v == -math.huge then
+    return (v < 0 and "-" or "") .. "1.0e+INF"
+  end
+  local s
+  for p = 15, 17 do
+    s = string.format("%." .. p .. "g", v)
+    if tonumber(s) == v then
+      break
+    end
+  end
+  if not s:find("[.e]") then
+    s = s .. ".0"
+  end
+  return s
+end
+
+local s2n, n2s = M.string_to_number, M.number_to_string
+
+--- Emacs `org-table-time-string-to-seconds`: H:MM:SS or H:MM as seconds
+--- (the first one anywhere in the string; H:MM not inside a timestamp),
+--- else the number in the string. "" stays "".
+function M.time_string_to_seconds(s)
+  if s == "" then
+    return s
+  end
+  local neg, h, mi, se = s:match("(%-?)(%d+):(%d+):(%d+)")
+  local res
+  if h then
+    res = tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(se)
+  elseif not s:match("[<%[]%d%d%d%d%-%d%d%-%d%d") then
+    neg, h, mi = s:match("(%-?)(%d+):(%d+)")
+    if h then
+      res = tonumber(h) * 3600 + tonumber(mi) * 60
+    end
+  end
+  if res then
+    return string.format("%d", neg == "-" and -res or res)
+  end
+  return n2s(s2n(s))
+end
+
+--- Emacs `org-table-time-seconds-to-string`. `format` is nil (H:MM:SS),
+--- "hh:mm", or a custom format "days" / "hours" / "minutes" / "seconds".
+function M.seconds_to_string(secs, format)
+  local s0 = math.abs(secs)
+  local opts = require("org.config").opts
+  local pad = opts.table_duration_hour_zero_padding ~= false
+  local res
+  if format == "days" then
+    res = string.format("%.3f", s0 / 86400)
+  elseif format == "hours" then
+    res = string.format("%.2f", s0 / 3600)
+  elseif format == "minutes" then
+    res = string.format("%.1f", s0 / 60)
+  elseif format == "seconds" then
+    res = string.format("%d", math.floor(s0))
+  else
+    local total = math.floor(s0)
+    local h, mi, se = math.floor(total / 3600), math.floor(total % 3600 / 60), total % 60
+    res = string.format(pad and "%02d:%02d:%02d" or "%d:%02d:%02d", h, mi, se)
+    if format == "hh:mm" then
+      res = res:sub(1, -4)
+    end
+  end
+  return secs < 0 and "-" .. res or res
+end
+
+--- Emacs `(format fmt number)` for a formula format: integer directives
+--- truncate floats, `%s` prints the number like Emacs.
+function M.format_number(fmt, v, isfloat)
+  local out, i, used = {}, 1, false
+  while i <= #fmt do
+    local a, b = fmt:find("%%[%-%+ #0]*%d*%.?%d*[a-zA-Z%%]", i)
+    if not a then
+      out[#out + 1] = fmt:sub(i)
+      break
+    end
+    out[#out + 1] = fmt:sub(i, a - 1)
+    local spec = fmt:sub(a, b)
+    local conv = spec:sub(-1)
+    if conv == "%" then
+      out[#out + 1] = "%"
+    elseif used then
+      error("Not enough arguments for format string")
+    else
+      used = true
+      if conv == "d" or conv == "i" or conv == "x" or conv == "X" or conv == "o" or conv == "c" then
+        local n = v < 0 and math.ceil(v) or math.floor(v)
+        out[#out + 1] = string.format(spec:gsub("i$", "d"), n)
+      elseif conv == "s" or conv == "S" then
+        out[#out + 1] = string.format(spec:sub(1, -2) .. "s", n2s(v, isfloat))
+      elseif conv:match("[feEgG]") then
+        out[#out + 1] = string.format(spec, v)
+      else
+        error("Invalid format operation %" .. conv)
+      end
+    end
+    i = b + 1
+  end
+  return table.concat(out)
 end
 
 ---------------------------------------------------------------------------
@@ -72,21 +207,27 @@ end
 --- Collect names from the marking column (Emacs `org-table-analyze`):
 --- `!` names columns, `^`/`_` name the fields above/below, `$` rows hold
 --- `name=value` parameters. As an extension, when no `!` row exists the
---- header row (above the first hline) names columns too.
+--- header row (above the first hline) names columns too. Named fields
+--- also keep their value from before the recalculation (Emacs substitutes
+--- that value in formulas, so it is only updated by another pass).
 local function collect_names(m)
   local cols, fields, params, header = {}, {}, {}, {}
   for r, row in ipairs(m.data) do
     local mark = vim.trim(row[1] or "")
-    if mark == "!" or mark == "^" or mark == "_" or mark == "$" then
+    if mark == "!" or mark == "^" or mark == "_" or mark == "$" or mark == "/" then
       m.special[r] = true
+    end
+    if mark == "!" or mark == "^" or mark == "_" or mark == "$" then
       for c = 2, m.ncols do
         local v = vim.trim(row[c] or "")
         if mark == "!" and is_name(v) then
           cols[v] = c
         elseif mark == "^" and is_name(v) and r > 1 then
           fields[v] = { r - 1, c }
+          params[v] = m.data[r - 1][c] or ""
         elseif mark == "_" and is_name(v) and r < #m.data then
           fields[v] = { r + 1, c }
+          params[v] = m.data[r + 1][c] or ""
         elseif mark == "$" then
           local k, val = v:match("^([%a_][%w_]*)%s*=%s*(.-)$")
           if k then
@@ -191,6 +332,7 @@ local function parse_ref(s, i)
   end
   return spec, j
 end
+M.parse_ref = parse_ref
 
 --- Resolve a row spec to a data row index.
 ---@param pos "single"|"start"|"end"
@@ -251,8 +393,10 @@ local function resolve_col(m, spec, c)
 end
 
 --- Turn a `$name` spec into a plain reference spec, or return the named
---- value (a string) for parameters, constants and properties.
-local function resolve_name(m, spec, ctx)
+--- value (a string) for parameters, named fields (their value before the
+--- recalculation), constants and properties. On a formula's left side
+--- (`lhs`), a named field is its location.
+local function resolve_name(m, spec, ctx, lhs)
   if not spec or not spec.name then
     return spec
   end
@@ -261,7 +405,7 @@ local function resolve_name(m, spec, ctx)
     return { col = { kind = "abs", n = names.cols[name] } }
   end
   local f = names.fields[name]
-  if f then
+  if f and lhs then
     return { row = { kind = "abs", n = f[1] }, col = { kind = "abs", n = f[2] } }
   end
   local v = names.params[name] or (ctx.constants or {})[name]
@@ -278,112 +422,66 @@ local function resolve_name(m, spec, ctx)
 end
 
 ---------------------------------------------------------------------------
--- Values
+-- Flags
 ---------------------------------------------------------------------------
 
-local function parse_duration(s)
-  local neg = s:sub(1, 1) == "-"
-  if neg then
-    s = s:sub(2)
-  end
-  local h, mi, se = s:match("^(%d+):(%d%d):(%d%d)$")
-  local v
-  if h then
-    v = tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(se)
-  else
-    h, mi = s:match("^(%d+):(%d%d)$")
-    if h then
-      v = tonumber(h) * 3600 + tonumber(mi) * 60
+--- Parse the mode string after `;` like Emacs: Calc modes `p20 n3 f2 s3
+--- e3` and the letters `tTUNLEDRFSu` are removed wherever they are, and
+--- what is left (e.g. `%.1f%%`) is the printf format.
+function M.parse_flags(str)
+  local f = { raw = str, deg = true }
+  local fmt = str or ""
+  while true do
+    local a, b, c, n = fmt:find("([pnfse])(%-?%d+)")
+    if not a then
+      break
     end
+    n = tonumber(n)
+    if c == "p" then
+      f.prec = n
+    elseif c == "n" then
+      f.float_format = { "float", n }
+    elseif c == "f" then
+      f.float_format = { "fix", n }
+    elseif c == "s" then
+      f.float_format = { "sci", n }
+    elseif c == "e" then
+      f.float_format = { "eng", n }
+    end
+    fmt = fmt:sub(1, a - 1) .. fmt:sub(b + 1)
   end
-  if v and neg then
-    v = -v
-  end
-  return v
-end
-
-local function format_duration(secs, with_seconds)
-  local neg = secs < 0
-  secs = math.floor(math.abs(secs) + 0.5)
-  local h = math.floor(secs / 3600)
-  local mi = math.floor((secs % 3600) / 60)
-  local se = secs % 60
-  local s
-  if with_seconds then
-    s = string.format("%02d:%02d:%02d", h, mi, se)
-  else
-    s = string.format("%02d:%02d", h, mi)
-  end
-  return neg and "-" .. s or s
-end
-
---- Split a mode string into flags, Calc modes (p20 f2 s3 e3 n4) and a
---- printf format. Like Emacs, flag letters are removed and whatever is
---- left (e.g. `%.1f%%`) is the format.
-local function parse_flags(flags)
-  local f = { raw = flags }
-  local fmt, i = {}, 1
-  while i <= #flags do
-    local spec = flags:match("^%%%%", i) or flags:match("^%%[%-%+ #0]*%d*%.?%d*[dfeEgGsxXoi]", i)
-    local mode, n = flags:match("^([pnfse])(%-?%d+)", i)
-    if spec then
-      if spec ~= "%%" then
-        f.format = true
-      end
-      fmt[#fmt + 1] = spec
-      i = i + #spec
-    elseif mode then
-      f.calc = { mode = mode, n = tonumber(n) }
-      i = i + #mode + #n
-    else
-      local ch = flags:sub(i, i)
-      if ch:match("[DRFSLNEtTU]") then
-        f[ch] = true
+  fmt = fmt:gsub("[tTUNLEDRFSu]", function(ch)
+    if ch == "t" or ch == "T" or ch == "U" then
+      f.duration, f.numbers = true, true
+      if ch == "t" then
+        f.duration_format = require("org.config").opts.table_duration_custom_format or "hours"
       else
-        fmt[#fmt + 1] = ch
+        f.duration_format = ch == "U" and "hh:mm" or nil
       end
-      i = i + 1
+    elseif ch == "N" then
+      f.numbers = true
+    elseif ch == "D" or ch == "R" then
+      f.deg = ch == "D"
+    elseif ch == "F" then
+      f.frac = true
     end
-  end
-  if f.format then
-    f.format = table.concat(fmt):gsub("%%i", "%%d")
-  end
+    f[ch] = true
+    return ""
+  end)
+  f.format = fmt:find("%S") and fmt or nil
   return f
 end
+local parse_flags = M.parse_flags
 
---- Convert a cell string into a formula value.
-local function cell_value(s, flags, lisp)
+---------------------------------------------------------------------------
+-- Lua formulas (extension)
+---------------------------------------------------------------------------
+
+--- Convert a cell string into a Lua formula value.
+local function cell_value(s, flags)
   s = s or ""
-  if lisp then
-    if flags.N then
-      return tonumber(s) or 0
-    end
-    return s
-  end
-  if (flags.T or flags.t or flags.U) and s:find(":") then
-    -- org-table-time-string-to-seconds: the first H:MM:SS or H:MM anywhere
-    -- in the field ("*1d 11:45*" reads 11:45), but not inside a timestamp
-    local neg, h, mi, se = s:match("(%-?)(%d+):(%d+):(%d+)")
-    if not h and not s:match("%d%d%d%d%-%d%d%-%d%d") then
-      neg, h, mi = s:match("(%-?)(%d+):(%d+)")
-    end
-    if h then
-      local v = tonumber(h) * 3600 + tonumber(mi) * 60 + (tonumber(se) or 0)
-      return neg == "-" and -v or v
-    end
-  end
-  if s == "" then
-    if flags.E and not flags.N then
-      return ""
-    end
-    return 0
-  end
-  local n = tonumber(s)
-  if n then
-    return n
-  end
   if flags.N then
-    return 0
+    return tonumber(s) or 0
   end
   return s
 end
@@ -403,200 +501,14 @@ local function lua_literal(v)
     for i, x in ipairs(v) do
       parts[i] = lua_literal(x)
     end
-    return "__R({" .. table.concat(parts, ",") .. "})"
+    return "{" .. table.concat(parts, ",") .. "}"
   end
   return string.format("%q", tostring(v))
 end
 
----------------------------------------------------------------------------
--- Environment
----------------------------------------------------------------------------
-
-local function nums(v)
-  if type(v) ~= "table" then
-    v = { v }
-  end
-  local out = {}
-  for _, x in ipairs(v) do
-    if type(x) == "number" then
-      out[#out + 1] = x
-    elseif type(x) == "string" and tonumber(x) then
-      out[#out + 1] = tonumber(x)
-    end
-  end
-  return out
-end
-
-local function make_env(flags)
-  flags = flags or {}
+local function lua_env()
   local env = {}
-  env.__R = function(t)
-    return setmetatable(t, { __org_range = true })
-  end
-  env.vsum = function(...)
-    local s = 0
-    for _, a in ipairs({ ... }) do
-      for _, x in ipairs(nums(a)) do
-        s = s + x
-      end
-    end
-    return s
-  end
-  env.vcount = function(...)
-    local c = 0
-    for _, a in ipairs({ ... }) do
-      if type(a) == "table" then
-        for _, x in ipairs(a) do
-          if x ~= "" then
-            c = c + 1
-          end
-        end
-      else
-        c = c + 1
-      end
-    end
-    return c
-  end
-  env.vmean = function(...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    if #all == 0 then
-      return 0
-    end
-    local s = 0
-    for _, x in ipairs(all) do
-      s = s + x
-    end
-    return s / #all
-  end
-  env.vmin = function(...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    return #all > 0 and math.min(unpack(all)) or 0
-  end
-  env.vmax = function(...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    return #all > 0 and math.max(unpack(all)) or 0
-  end
-  env.vprod = function(...)
-    local p = 1
-    for _, a in ipairs({ ... }) do
-      for _, x in ipairs(nums(a)) do
-        p = p * x
-      end
-    end
-    return p
-  end
-  env.vmedian = function(...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    table.sort(all)
-    local n = #all
-    if n == 0 then
-      return 0
-    end
-    if n % 2 == 1 then
-      return all[(n + 1) / 2]
-    end
-    return (all[n / 2] + all[n / 2 + 1]) / 2
-  end
-  env.vsdev = function(...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    local n = #all
-    if n < 2 then
-      return 0
-    end
-    local mean = env.vsum(all) / n
-    local s = 0
-    for _, x in ipairs(all) do
-      s = s + (x - mean) ^ 2
-    end
-    return math.sqrt(s / (n - 1))
-  end
-  -- variance: sample (vvar) and population (vpvar, vpsdev)
-  local function var(pop, ...)
-    local all = {}
-    for _, a in ipairs({ ... }) do
-      vim.list_extend(all, nums(a))
-    end
-    local n = #all
-    if n < (pop and 1 or 2) then
-      return 0
-    end
-    local mean = env.vsum(all) / n
-    local s = 0
-    for _, x in ipairs(all) do
-      s = s + (x - mean) ^ 2
-    end
-    return s / (pop and n or n - 1)
-  end
-  env.vvar = function(...)
-    return var(false, ...)
-  end
-  env.vpvar = function(...)
-    return var(true, ...)
-  end
-  env.vpsdev = function(...)
-    return math.sqrt(var(true, ...))
-  end
-  env.__if = function(c, a, b)
-    if c and c ~= 0 then
-      return a
-    end
-    return b
-  end
-  env.abs, env.sqrt, env.exp = math.abs, math.sqrt, math.exp
-  env.ln, env.log = math.log, math.log
-  env.log10 = function(x)
-    return math.log(x) / math.log(10)
-  end
-  env.floor, env.ceil = math.floor, math.ceil
-  -- Calc rounds halves away from zero
-  env.round = function(x, d)
-    local m = 10 ^ (d or 0)
-    local v = math.floor(math.abs(x) * m + 0.5) / m
-    return x < 0 and -v or v
-  end
-  env.trunc = function(x)
-    return x < 0 and math.ceil(x) or math.floor(x)
-  end
-  env.idiv = function(a, b)
-    return math.floor(a / b)
-  end
-  env.min, env.max = math.min, math.max
-  -- Org's Calc default is degrees; the R flag switches to radians.
-  local k = flags.R and 1 or math.pi / 180
-  for _, f in ipairs({ "sin", "cos", "tan" }) do
-    env[f] = function(x)
-      return math[f](x * k)
-    end
-  end
-  for _, f in ipairs({ "asin", "acos", "atan" }) do
-    env["arc" .. f:sub(2)] = function(x)
-      return math[f](x) / k
-    end
-    env[f] = env["arc" .. f:sub(2)]
-  end
-  env.pow = function(a, b)
-    return a ^ b
-  end
-  env.mod = function(a, b)
-    return a % b
-  end
-  env.pi = math.pi
-  env.math, env.string, env.table = math, string, table
+  env.math, env.string, env.table, env.os = math, string, table, { date = os.date, time = os.time }
   env.tonumber, env.tostring, env.type = tonumber, tostring, type
   env.ipairs, env.pairs, env.select, env.unpack = ipairs, pairs, select, unpack
   env.concat = function(t, sep)
@@ -605,32 +517,31 @@ local function make_env(flags)
   return env
 end
 
----------------------------------------------------------------------------
--- Evaluation
----------------------------------------------------------------------------
-
---- Source text for a value in the formula language `mode`:
---- "calc" / "lua" (Lua expressions) or "elisp" (Emacs Lisp, where ranges
---- are space-separated and the L flag inserts fields verbatim).
-local function literal(v, mode, flags)
-  if mode ~= "elisp" then
-    return lua_literal(v)
-  end
+local function lua_result(v)
   if type(v) == "table" then
     local parts = {}
     for i, x in ipairs(v) do
-      parts[i] = literal(x, mode, flags)
+      parts[i] = lua_result(x)
     end
     return table.concat(parts, " ")
+  elseif type(v) == "boolean" then
+    return v and "1" or "0"
+  elseif type(v) == "number" then
+    if v ~= v then
+      return "#ERROR"
+    elseif v == math.floor(v) and math.abs(v) < 2 ^ 53 then
+      return string.format("%d", v)
+    end
+    return (string.format("%.8g", v):gsub("e%+?(%-?)0*(%d)", "e%1%2"))
+  elseif v == nil then
+    return ""
   end
-  if type(v) == "number" then
-    return v == math.floor(v) and string.format("%d", v) or string.format("%.17g", v)
-  end
-  if flags.L then
-    return tostring(v)
-  end
-  return '"' .. tostring(v):gsub('[\\"]', "\\%0") .. '"'
+  return tostring(v)
 end
+
+---------------------------------------------------------------------------
+-- Substitution
+---------------------------------------------------------------------------
 
 --- Model of the table named `name` (for remote references).
 local function remote_model(ctx, name)
@@ -643,9 +554,11 @@ local function remote_model(ctx, name)
   return rm
 end
 
---- Value of the reference or range at position i of s, evaluated in model
---- `m` at (r, c). Returns the value (a range is a list) and the next index.
-local function read_ref(m, s, i, r, c, flags, lisp, ctx)
+--- The reference or range at position i of s, evaluated in model `m` at
+--- (r, c). Returns kind ("counter", "named", "field" or "range"), the
+--- value (a string, or a list of strings for ranges; a number for
+--- counters) and the next index.
+local function read_ref(m, s, i, r, c, ctx)
   local spec, j = parse_ref(s, i)
   if not spec then
     error("bad reference near: " .. s:sub(i, i + 5))
@@ -653,12 +566,12 @@ local function read_ref(m, s, i, r, c, flags, lisp, ctx)
   local named
   spec, named = resolve_name(m, spec, ctx)
   if named then
-    return cell_value(named, flags, lisp), j
+    return "named", named, j
   end
   if spec.row and spec.row.kind == "counter" and not spec.col then
-    return r, j
+    return "counter", r, j
   elseif spec.col and spec.col.kind == "counter" and not spec.row then
-    return c, j
+    return "counter", c, j
   end
   local spec2
   if s:sub(j, j + 1) == ".." then
@@ -675,7 +588,7 @@ local function read_ref(m, s, i, r, c, flags, lisp, ctx)
     if not row or cc < 1 or cc > m.ncols then
       error("reference out of range")
     end
-    return cell_value(row[cc], flags, lisp), j
+    return "field", row[cc] or "", j
   end
   local r1 = resolve_row(m, spec.row, r, "start")
   local r2 = resolve_row(m, spec2.row, r, "end")
@@ -694,19 +607,97 @@ local function read_ref(m, s, i, r, c, flags, lisp, ctx)
       error("row out of range: " .. rr)
     end
     for cc = c1, c2 do
-      local cell = row[cc] or ""
-      if cell ~= "" or flags.E then
-        vals[#vals + 1] = cell_value(cell, flags, lisp)
+      if cc < 1 or cc > m.ncols then
+        error("reference out of range")
       end
+      vals[#vals + 1] = row[cc] or ""
     end
   end
-  return vals, j
+  return "range", vals, j
 end
 
---- Substitute references in `rhs` for evaluation at (r, c).
+--- Emacs `org-table-make-reference`: the text a field (string) or range
+--- (list) becomes in a Calc (`lisp` false) or Lisp formula.
+local function make_reference(elements, keep_empty, numbers, lisp)
+  local function lisp_item(x)
+    if lisp == "literal" then
+      return x
+    elseif numbers then
+      return n2s(s2n(x))
+    end
+    return '"' .. x:gsub('[\\"]', "\\%0") .. '"'
+  end
+  if type(elements) == "string" then
+    if lisp then
+      return lisp_item(elements)
+    end
+    if elements:find("%S") then
+      return "(" .. (numbers and n2s(s2n(elements)) or elements) .. ")"
+    end
+    return (not keep_empty or numbers) and "(0)" or "nan"
+  end
+  local items = {}
+  for _, x in ipairs(elements) do
+    if keep_empty or x:find("%S") then
+      items[#items + 1] = x
+    end
+  end
+  local parts = {}
+  for i, x in ipairs(items) do
+    if lisp then
+      parts[i] = lisp_item(x)
+    elseif x:find("%S") then
+      parts[i] = numbers and n2s(s2n(x)) or x
+    else
+      parts[i] = (not keep_empty or numbers) and "0" or "nan"
+    end
+  end
+  if lisp then
+    return table.concat(parts, " ")
+  end
+  return "[" .. table.concat(parts, ",") .. "]"
+end
+
+--- Text of a reference value in the formula language `mode`.
+local function reference_text(kind, v, mode, fl)
+  if kind == "counter" then
+    return string.format("%d", v)
+  end
+  if mode == "lua" then
+    if kind == "range" then
+      local vals = {}
+      for _, x in ipairs(v) do
+        if x ~= "" or fl.E then
+          vals[#vals + 1] = cell_value(x, fl)
+        end
+      end
+      return lua_literal(vals)
+    end
+    return lua_literal(cell_value(v, fl))
+  end
+  local lisp = mode == "elisp" and (fl.L and "literal" or true) or false
+  if fl.duration then
+    if kind == "range" then
+      local out = {}
+      for i, x in ipairs(v) do
+        out[i] = M.time_string_to_seconds(x)
+      end
+      v = out
+    else
+      v = M.time_string_to_seconds(v)
+    end
+  end
+  if kind == "named" then
+    -- constants are wrapped in parentheses in Calc formulas
+    return lisp and v or ("(" .. v .. ")")
+  end
+  return make_reference(v, fl.E, fl.numbers, lisp)
+end
+
+--- Substitute references in `rhs` for evaluation at (r, c). Returns the
+--- formula text and the text after `$name` substitution (for the debugger).
 ---@param mode "calc"|"lua"|"elisp"
 local function substitute(m, rhs, r, c, flags, mode, ctx)
-  local lisp = mode ~= "calc"
   local out = {}
   local i, n = 1, #rhs
   local in_str = nil
@@ -731,157 +722,155 @@ local function substitute(m, rhs, r, c, flags, mode, ctx)
         error("bad remote reference")
       end
       local rm = remote_model(ctx, name)
-      local v, k = read_ref(rm, ref, 1, r, c, flags, lisp, {})
+      local kind, v, k = read_ref(rm, ref, 1, r, c, {})
       if k <= #ref then
         error("bad remote reference: " .. ref)
       end
-      out[#out + 1] = literal(v, mode, flags)
+      out[#out + 1] = reference_text(kind, v, mode, flags)
       i = j
     elseif ch == "@" or ch == "$" then
-      local v, j = read_ref(m, rhs, i, r, c, flags, lisp, ctx)
-      out[#out + 1] = literal(v, mode, flags)
+      local kind, v, j = read_ref(m, rhs, i, r, c, ctx)
+      out[#out + 1] = reference_text(kind, v, mode, flags)
       i = j
-    elseif mode == "calc" and ch == "[" then
-      out[#out + 1] = "__R({"
-      i = i + 1
-    elseif mode == "calc" and ch == "]" then
-      out[#out + 1] = "})"
-      i = i + 1
     else
       out[#out + 1] = ch
       i = i + 1
     end
   end
-  local expr = table.concat(out)
-  if mode == "calc" then
-    expr = expr:gsub("!=", "~="):gsub("&&", " and "):gsub("||", " or ")
-    expr = expr:gsub("%f[%w_]if%s*%(", "__if(")
-  end
-  return expr
+  return table.concat(out)
 end
 
-local function format_result(v, flags)
-  if type(v) == "table" then
-    local parts = {}
-    for i, x in ipairs(v) do
-      parts[i] = format_result(x, flags)
-    end
-    return table.concat(parts, " ")
-  end
-  if type(v) == "boolean" then
-    return v and "1" or "0"
-  end
-  if type(v) == "number" then
-    if v ~= v then
-      return "#ERROR"
-    end
-    if flags.T then
-      return format_duration(v, true)
-    elseif flags.U then
-      return format_duration(v, false)
-    elseif flags.t then
-      return string.format(flags.format or "%.2f", v / 3600)
-    end
-    if flags.format then
-      if flags.format:find("%%[^%%]*[dxXo]") then
-        v = v < 0 and math.ceil(v) or math.floor(v)
-      end
-      local ok, out = pcall(string.format, flags.format, v)
-      if ok then
-        return out
-      end
-    end
-    local calc = flags.calc
-    if calc and calc.mode == "f" then
-      return string.format("%." .. math.max(calc.n, 0) .. "f", v)
-    elseif calc and (calc.mode == "s" or calc.mode == "e") and v ~= 0 and calc.n > 0 then
-      local e = math.floor(math.log10(math.abs(v)))
-      if calc.mode == "e" then
-        e = math.floor(e / 3) * 3
-      end
-      local mant = v / 10 ^ e
-      local digits = calc.n - 1 - math.floor(math.log10(math.abs(mant)))
-      local out = string.format("%." .. math.max(digits, 0) .. "f", mant):gsub("%.?0+$", "")
-      return e == 0 and out or (out .. "e" .. e)
-    end
-    if v == math.floor(v) and math.abs(v) < 2 ^ 53 then
-      return string.format("%d", v)
-    end
-    -- Calc's default display: 8 significant digits (n mode overrides)
-    local digits = (calc and calc.mode == "n" and calc.n > 0) and calc.n or 8
-    local out = string.format("%." .. digits .. "g", v)
-    return (out:gsub("e%+?(%-?)0*(%d)", "e%1%2"))
-  end
-  if v == nil then
-    return ""
-  end
-  if flags.format and flags.format:find("%%[^%%]*s") then
-    local ok, out = pcall(string.format, flags.format, tostring(v))
-    if ok then
-      return out
-    end
-  end
-  return tostring(v)
+---------------------------------------------------------------------------
+-- Evaluation
+---------------------------------------------------------------------------
+
+local function inactive_timestamps(s)
+  return (s:gsub("<(%d%d%d%d%-%d%d%-%d%d[^>\n]*)>", "[%1]"))
 end
 
---- Evaluate a formula RHS for field (r, c). Returns a string.
-function M.evaluate(m, rhs, flags, r, c, ctx)
+--- Evaluate a formula RHS for field (r, c). Returns the field text and an
+--- error message (or nil). `trace`, when given, receives the steps for the
+--- formula debugger (Emacs *Substitution History*).
+function M.evaluate(m, rhs, flags, r, c, ctx, trace)
+  ctx = ctx or {}
+  trace = trace or {}
+  trace.orig = rhs
   local mode, body = "calc", rhs
   if rhs:sub(1, 1) == "'" then
     body = rhs:sub(2)
     local has_elisp, elisp = pcall(require, "org.table.elisp")
     mode = (has_elisp and elisp.looks_like(body)) and "elisp" or "lua"
   end
-  local ok, expr = pcall(substitute, m, body, r, c, flags, mode, ctx or {})
+  local ok, expr = pcall(substitute, m, body, r, c, flags, mode, ctx)
   if not ok then
+    trace.error = expr
     return "#ERROR", expr
   end
+  trace.form = expr
+  if mode == "lua" then
+    local env = lua_env()
+    local chunk, err = load("return " .. expr, "tblfm", "t", env)
+    if not chunk then
+      return "#ERROR", err
+    end
+    local ok2, v = pcall(chunk)
+    if not ok2 then
+      return "#ERROR", v
+    end
+    if type(v) == "number" and flags.format then
+      local okf, s = pcall(M.format_number, flags.format, v, v ~= math.floor(v))
+      if okf then
+        return s
+      end
+    end
+    return lua_result(v)
+  end
+  local ev, err
+  local fmt = flags.format
   if mode == "elisp" then
     local elisp = require("org.table.elisp")
     local ok2, v = pcall(elisp.eval, expr)
     if not ok2 then
-      return "#ERROR", v
+      ev, err = "#ERROR", v
+    elseif elisp.is_cons(v) then
+      trace.result = elisp.to_string(v)
+      return "#ERROR", "the Lisp formula returned a list"
+    else
+      local n = elisp.tonumber(v)
+      ev = n and n2s(n, elisp.is_float(v)) or elisp.to_string(v)
     end
-    return elisp.to_string(v)
+    if flags.duration then
+      ev = M.seconds_to_string(s2n(ev), flags.duration_format)
+    end
+  else
+    expr = expr:gsub("%[(%d%d%d%d%-%d%d%-%d%d[^%]\n]*)%]", "<%1>")
+    -- `date(<$1>)`: a timestamp field inside a date form
+    expr = expr:gsub("<%((<%d%d%d%d%-%d%d%-%d%d[^>\n]*>)%)>", "%1")
+    trace.form = expr
+    if flags.duration and expr:match("^%d+:%d+$") or expr:match("^%d+:%d+:%d+$") and flags.duration then
+      ev = expr
+    else
+      local calc = require("org.table.calc")
+      local ok2, v = pcall(calc.eval, expr, {
+        prec = flags.prec,
+        float_format = flags.float_format,
+        deg = flags.deg,
+        frac = flags.frac,
+        num = flags.numbers and not flags.E,
+      })
+      if not ok2 then
+        trace.error = v
+        return "#ERROR", v
+      end
+      ev = v
+    end
+    if flags.duration and ev ~= "" then
+      local secs
+      if ev:match("^%d+:%d+$") or ev:match("^%d+:%d+:%d+$") then
+        secs = tonumber(M.time_string_to_seconds(ev))
+      else
+        secs = s2n(ev)
+      end
+      ev = M.seconds_to_string(secs, flags.duration_format)
+    end
   end
-  local chunk, err = load("return " .. expr, "tblfm", "t", make_env(flags))
-  if not chunk then
-    return "#ERROR", err
+  trace.result = ev
+  trace.format = fmt
+  if fmt then
+    local n, isfloat = s2n(ev)
+    local okf, s = pcall(M.format_number, fmt, n, isfloat)
+    if okf then
+      ev = s
+    else
+      err = s
+      ev = "#ERROR"
+    end
+  else
+    ev = inactive_timestamps(ev)
   end
-  local ok2, v = pcall(chunk)
-  if not ok2 then
-    return "#ERROR", v
-  end
-  return format_result(v, flags)
+  trace.final = ev
+  return ev, err
 end
 
 --- Parse a formula LHS into a list of target fields {r, c}, and whether it
 --- is a column formula.
 local function targets(m, lhs, ctx)
   local spec, j = parse_ref(lhs, 1)
-  spec = resolve_name(m, spec, ctx)
+  spec = resolve_name(m, spec, ctx, true)
   if not spec then
     error("bad formula target: " .. lhs)
   end
   local spec2
   if lhs:sub(j, j + 1) == ".." then
     spec2, j = parse_ref(lhs, j + 2)
-    spec2 = resolve_name(m, spec2, ctx)
+    spec2 = resolve_name(m, spec2, ctx, true)
   end
   if j <= #lhs then
     error("bad formula target: " .. lhs)
   end
   local out = {}
   if not spec2 and spec.col and not spec.row then
-    -- column formula: rows below the first hline (or all rows)
-    local c = resolve_col(m, spec.col, 1)
-    local first = (m.hlines[1] and m.hlines[1] > 0) and m.hlines[1] + 1 or 1
-    for r = first, #m.data do
-      if not m.special[r] then
-        out[#out + 1] = { r, c }
-      end
-    end
-    return out, true
+    return { col = resolve_col(m, spec.col, 1) }, true
   end
   if spec2 then
     local r1 = resolve_row(m, spec.row, 1, "start")
@@ -901,23 +890,72 @@ local function targets(m, lhs, ctx)
   return out, false
 end
 
+--- Add empty columns up to `n` (a formula writing beyond the table).
+local function add_columns(t, m, n)
+  if n > 1000 then
+    error("Formula column target too large")
+  end
+  for _, row in ipairs(m.data) do
+    for c = #row + 1, n do
+      row[c] = ""
+    end
+  end
+  m.ncols = math.max(m.ncols, n)
+  t.ncols = m.ncols
+end
+
+--- Whether a field formula may add columns up to `n`
+--- (`table_formula_create_columns`, Emacs org-table-formula-create-columns).
+local function may_create_columns(ctx)
+  local opt = require("org.config").opts.table_formula_create_columns
+  if opt == true then
+    return true
+  elseif opt == "warn" then
+    require("org.utils").warn("Out-of-bounds formula added columns")
+    return true
+  elseif opt == "prompt" then
+    if ctx.confirm then
+      return ctx.confirm("Out-of-bounds formula.  Add columns?")
+    end
+    return require("org.utils").confirm("Out-of-bounds formula.  Add columns?")
+  end
+  return false
+end
+
 --- Apply formulas to parsed table `t` in place.
 ---@param t table from org.table.parse
 ---@param formulas table from parse_tblfm
----@param ctx? table { get_table = fun(name), constants = table, property = fun(name) }
+---@param ctx? table { get_table = fun(name), constants = table, property = fun(name), row = integer,
+---   debug = fun(trace): boolean }
+---   `row` (a data row index) recalculates only the column formulas of that
+---   row (Emacs C-c * without prefix); field formulas always run. `debug`
+---   is called after each evaluation and returns false to abort.
 ---@return string[] errors
 function M.apply(t, formulas, ctx)
   ctx = ctx or {}
   local m = model(t)
+  m.ncols = t.ncols
   collect_names(m)
   local errors = {}
   local column, field = {}, {}
-  for _, f in ipairs(formulas) do
+  -- like Emacs, formulas run in the order of their sorted left sides
+  local sorted = {}
+  for i, f in ipairs(formulas) do
+    sorted[i] = { f = f, i = i }
+  end
+  table.sort(sorted, function(a, b)
+    if a.f.lhs ~= b.f.lhs then
+      return a.f.lhs < b.f.lhs
+    end
+    return a.i < b.i
+  end)
+  for _, s in ipairs(sorted) do
+    local f = s.f
     local ok, tg, is_col = pcall(targets, m, f.lhs, ctx)
     if not ok then
       errors[#errors + 1] = tg
     elseif is_col then
-      column[#column + 1] = { f = f, targets = tg }
+      column[#column + 1] = { f = f, col = tg.col }
     else
       field[#field + 1] = { f = f, targets = tg }
     end
@@ -929,52 +967,99 @@ function M.apply(t, formulas, ctx)
       overridden[tg[1] .. ":" .. tg[2]] = true
     end
   end
-  -- with `#`/`*` marks in the first column, unmarked rows are exempt from
-  -- column formulas
-  local marked
-  for _, row in ipairs(m.data) do
-    local mark = vim.trim(row[1] or "")
-    if mark == "#" or mark == "*" then
-      marked = marked or {}
-    end
-  end
-  if marked then
-    for r, row in ipairs(m.data) do
-      local mark = vim.trim(row[1] or "")
-      marked[r] = mark == "#" or mark == "*"
-    end
-  end
-  local function eval(entry, r, c)
-    if m.data[r] and c >= 1 and c <= m.ncols then
-      entry.flags = entry.flags or parse_flags(entry.f.flags or "")
-      local v, err = M.evaluate(m, entry.f.rhs, entry.flags, r, c, ctx)
-      if err then
-        errors[#errors + 1] = err
+  -- Rows the column formulas apply to (org-table-recalculate): with marks
+  -- (`! $ ^ _ # *` in the first column) only `#` and `*` rows, else the
+  -- rows below the first hline (all rows without an hline); `_ ^ ! $ /`
+  -- rows are never changed.
+  local rows = {}
+  if ctx.row then
+    rows[1] = ctx.row
+  else
+    local marked = false
+    for _, row in ipairs(m.data) do
+      if vim.trim(row[1] or ""):match("^[!%$%^_#%*]$") then
+        marked = true
       end
-      m.data[r][c] = v
+    end
+    local first = (not marked and m.hlines[1] and m.hlines[1] > 0) and m.hlines[1] + 1 or 1
+    for r = first, #m.data do
+      local mark = vim.trim(m.data[r][1] or "")
+      if not marked or mark == "#" or mark == "*" then
+        rows[#rows + 1] = r
+      end
+    end
+  end
+  local aborted = false
+  local function eval(entry, r, c)
+    if aborted or not m.data[r] or c < 1 then
+      return
+    end
+    entry.flags = entry.flags or parse_flags(entry.f.flags or "")
+    local trace = { lhs = entry.f.lhs, row = r, col = c }
+    local v, err = M.evaluate(m, entry.f.rhs, entry.flags, r, c, ctx, trace)
+    if err then
+      errors[#errors + 1] = err
+    end
+    m.data[r][c] = vim.trim(v)
+    if ctx.debug and ctx.debug(trace) == false then
+      aborted = true
     end
   end
   -- like Emacs: row by row, every column formula in order; then field formulas
-  for r = 1, #m.data do
-    if not marked or marked[r] then
+  for _, r in ipairs(rows) do
+    if not m.special[r] then
       for _, e in ipairs(column) do
-        for _, tg in ipairs(e.targets) do
-          if tg[1] == r and not overridden[r .. ":" .. tg[2]] then
-            eval(e, r, tg[2])
-          end
+        if e.col > m.ncols then
+          add_columns(t, m, e.col)
+        end
+        if not overridden[r .. ":" .. e.col] then
+          eval(e, r, e.col)
         end
       end
     end
   end
   for _, e in ipairs(field) do
     for _, tg in ipairs(e.targets) do
+      if tg[2] > m.ncols and m.data[tg[1]] then
+        if not may_create_columns(ctx) then
+          t.ncols = m.ncols
+          error("Missing columns in the table.  Aborting", 0)
+        end
+        add_columns(t, m, tg[2])
+      end
       eval(e, tg[1], tg[2])
     end
+  end
+  t.ncols = m.ncols
+  if aborted then
+    error("Abort", 0)
   end
   return errors
 end
 
-M._format_duration = format_duration
-M._parse_duration = parse_duration
+--- Seconds of an H:MM or H:MM:SS string (nil for anything else).
+function M._parse_duration(s)
+  local neg = s:sub(1, 1) == "-"
+  if neg then
+    s = s:sub(2)
+  end
+  local h, mi, se = s:match("^(%d+):(%d%d):(%d%d)$")
+  local v
+  if h then
+    v = tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(se)
+  else
+    h, mi = s:match("^(%d+):(%d%d)$")
+    if h then
+      v = tonumber(h) * 3600 + tonumber(mi) * 60
+    end
+  end
+  if v and neg then
+    v = -v
+  end
+  return v
+end
+
+M._model = model
+M._collect_names = collect_names
 
 return M

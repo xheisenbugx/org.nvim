@@ -133,6 +133,10 @@ local function defaults()
     OrgTable = { link = first_existing({ "@markup.raw" }, "Normal") },
     OrgTableSeparator = { link = "Delimiter" },
     OrgTableFormula = { link = "Comment" },
+    -- formula editor: referenced fields, the reference at the cursor, the target
+    OrgTableFormulaRef = { link = "Search" },
+    OrgTableFormulaRefCursor = { link = "IncSearch" },
+    OrgTableFormulaTarget = { link = "Visual" },
     OrgFootnote = { link = "Underlined" },
     OrgTarget = { link = "Underlined" },
     OrgLatex = { link = first_existing({ "@markup.math" }, "Statement") },

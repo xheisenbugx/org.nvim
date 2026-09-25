@@ -52,7 +52,20 @@ function M.context_action()
     return require("org.properties").property_action()
   end
   if line:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:") then
-    return require("org.table").recalc()
+    -- apply the formulas of this #+TBLFM line (org-table-calc-current-TBLFM)
+    return require("org.table").calc_current_tblfm(0, lnum)
+  end
+  if line:match("^%s*#%+[Pp][Ll][Oo][Tt]:") then
+    return require("org.table.plot").gnuplot(0, lnum)
+  end
+  if line:match("^%s*#%+[Oo][Rr][Gg][Tt][Bb][Ll]:") then
+    -- recalculate the table below and send it (org-ctrl-c-ctrl-c on a table)
+    local nxt = vim.api.nvim_buf_get_lines(0, lnum, lnum + 1, false)[1]
+    if nxt and in_table(nxt) then
+      require("org.table").recalc(0, lnum + 1)
+      require("org.table.orgtbl").send_table(0, lnum + 1, true)
+      return true
+    end
   end
   if in_table(line) then
     return require("org.table").ctrl_c_ctrl_c()
@@ -429,14 +442,22 @@ local function in_visual()
   return vim.fn.mode():match("^[vV\22]") ~= nil
 end
 
---- C-c *: recalculate a table, else toggle heading.
-function M.ctrl_c_star()
-  local lnum, _, line = cur()
+--- C-c TAB: in a table shrink or expand the column
+--- (org-table-toggle-column-width), else show the children.
+function M.ctrl_c_tab()
+  local _, _, line = cur()
   if in_table(line) then
-    if vim.v.count >= 16 then
-      return require("org.table").recalc_buffer(0)
-    end
-    return require("org.table").recalc(0, lnum)
+    return require("org.table").toggle_column_width(vim.v.count)
+  end
+  return require("org.fold").show_children()
+end
+
+--- C-c *: in a table recalculate the current row (count 4: the table,
+--- 16: iterate it; org-table-recalculate), else toggle heading.
+function M.ctrl_c_star()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").recalculate(vim.v.count)
   end
   return require("org.structure").toggle_heading()
 end
