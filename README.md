@@ -151,14 +151,14 @@ back to where you were.
 | 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` visibility, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
 | ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
 | 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering |
-| ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, repeaters (`+1w`, `++1d`, `.+2d`), `ORDERED` dependencies, priorities |
+| ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, `LOGGING` / `LOG_INTO_DRAWER` properties, repeaters (`+1w`, `++1d`, `.+2d`, `REPEAT_TO_STATE`), `ORDERED` / `NOBLOCKING` dependencies, tag triggers, priorities |
 | 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
-| 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
+| 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00`, `sep 15` and `w39`; `SCHEDULED`/`DEADLINE` with warning and delay periods; `<C-a>`/`<C-x>` on any part of a timestamp, minutes rounded to 5 |
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log and clock-report modes, the full Emacs match syntax, custom composite commands, filters, bulk actions, follow mode |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
 | 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
-| ⏱️ | **Clocking** | Clock in/out/cancel/jump, effort estimates, a statusline component, clocks that survive restarts, `clocktable` blocks, column view |
+| ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
@@ -326,7 +326,8 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>,` `t` `p` `P` | Priority / tags / set property / delete property |
 | `<prefix>s` `d` `i.` `i!` | Schedule / deadline / active / inactive timestamp |
 | `<C-Space>`, `<prefix>#` | Toggle checkbox / update statistics cookies |
-| `<prefix>xi` `xo` `xq` `xj` `xe` | Clock in / out / cancel / goto / set effort |
+| `<prefix>xi` `xo` `xq` `xj` | Clock in (count: pick from history) / out / cancel / goto |
+| `<prefix>xe` `xE` `xm` `xz` | Set effort / next allowed effort / change clocked effort / resolve dangling clocks |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
 | `<prefix>r` `$` `A` | Refile / archive subtree / attachments |
@@ -532,8 +533,8 @@ headings (`[[*`), custom IDs (`[[#`) and stored links.
 }
 ```
 
-While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`.
-It's empty otherwise.
+While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
+followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ---
 
@@ -553,7 +554,6 @@ The goal is feature parity for everyday use, but some things differ:
 - **Column view** opens as a separate table view instead of overlays.
 - **M-RET** always inserts after the current subtree or item; it never
   splits the line at the cursor.
-- Minute increments step by one minute (Emacs rounds to five).
 
 The features still missing are listed in the [Roadmap](#-roadmap).
 
@@ -566,7 +566,6 @@ first contribution:
 
 - [ ] Inline image and LaTeX previews
 - [ ] Clock idle detection
-- [ ] `clocktable` `:step`
 - [ ] Babel `:session` and `:cache`
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines

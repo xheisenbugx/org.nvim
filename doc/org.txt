@@ -235,20 +235,42 @@ Each string is a sequence, and keywords after `|` are done states: >lua
 In `(x!/@)`, `x` is the fast-selection key, the first flag applies when
 entering the state and the flag after `/` applies when leaving it: `!` logs a
 timestamp and `@` asks for a note. Log entries go into the `log_into_drawer`
-drawer (default `LOGBOOK`).
+drawer (default `LOGBOOK`), or the drawer named by the inherited
+`LOG_INTO_DRAWER` property (`nil` logs under the headline);
+`#+STARTUP: logdrawer / nologdrawer` also switch it.
 
 cit / ciT       Next / previous TODO state.
 <S-Right/Left>  (ctx) Same, on a headline.
 <prefix>T       Select a state (fast keys when defined).
+<C-c><C-t>      Fast selection, or cycle. A count N picks the Nth keyword.
 
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
 leaving it removes CLOSED again.
 
+                                                        *org-logging-property*
+The inherited `LOGGING` property overrides the logging of a subtree, like
+Emacs: `:LOGGING: nil` turns it off, `:LOGGING: lognotedone logrepeat`
+selects done/repeat logging, and keyword specs such as `WAIT(@) DONE(!)`
+replace the flags of the keyword definitions.
+
+                                                      *org-todo-tags-triggers*
+`todo_state_tags_triggers` adds or removes tags on state changes. Keys are
+keywords, `todo` (any not-done state), `done` or `""` (no keyword): >lua
+    todo_state_tags_triggers = {
+      WAITING = { WAITING = true },
+      done = { WAITING = false },
+      [""] = { WAITING = false },
+    }
+<
+
 Repeated tasks                                            *org-repeat*
 A SCHEDULED or DEADLINE timestamp with a repeater (`+1w`, `++1d`, `.+2d`)
-is shifted when the task is marked done, and the task returns to its
-previous TODO state (or `todo_repeat_to_state`). `LAST_REPEAT` is set and the
-state change is logged when `log_repeat` is enabled.
+is shifted when the task is marked done, and the task returns to the first
+keyword of its sequence, like Emacs. The `REPEAT_TO_STATE` property or
+`todo_repeat_to_state` (a keyword, or `true` for the previous state) choose
+another state. A SCHEDULED date without a repeater is removed. The state
+change is logged and `LAST_REPEAT` set when `log_repeat` is enabled
+(`LAST_REPEAT` is also set when the entry has clock lines).
   +N   shift by N units once
   ++N  shift until the date is in the future, keeping the weekday
   .+N  shift to N units after today
@@ -256,8 +278,10 @@ state change is logged when `log_repeat` is enabled.
 Dependencies                                              *org-todo-dependencies*
 With `enforce_todo_dependencies`, an entry cannot be marked done while its
 children are unfinished, or while earlier siblings under an `:ORDERED: t`
-parent are unfinished. `enforce_todo_checkbox_dependencies` also blocks
-entries that have unchecked checkboxes.
+parent are unfinished, or while an ancestor TODO is blocked that way. A
+`NOBLOCKING` property disables blocking for the entry.
+`enforce_todo_checkbox_dependencies` also blocks entries that have
+unchecked checkboxes.
 
 Priorities
 <S-Up> / <S-Down>   (ctx) Raise / lower priority on a headline.
@@ -320,13 +344,18 @@ Timestamps:
 
 <prefix>s       Schedule (SCHEDULED:).
 <prefix>d       Deadline (DEADLINE:).
-<prefix>i.      Insert an active timestamp (count: include time). Right
-                after an existing timestamp, this creates a range.
+<prefix>i.      Insert an active timestamp (count: include time; count
+                16: the current time without a prompt). Right after an
+                existing timestamp, this creates a range.
 <prefix>i!      Insert an inactive timestamp.
 <C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor:
                 year, month, day, hour, minute, repeater or warning.
-<S-Up/Down>     (ctx) Same as <C-a> / <C-x>.
+<S-Up/Down>     (ctx) Same as <C-a> / <C-x>. On minutes, step by the
+                second value of `time_stamp_rounding_minutes` (5) and
+                round to it; a count steps by exactly that many minutes.
 <S-Right/Left>  (ctx) Day +1 / -1.
+:Org toggle_timestamp_type   Switch the timestamp at the cursor between
+                active and inactive.
 <CR>            On a timestamp: open the agenda for that day.
 
 The calendar                                                   *org-calendar*
@@ -340,7 +369,10 @@ Date prompts open a floating calendar:
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   q  <Esc>       cancel
-A count before the schedule/deadline key also removes the date.
+A count before the schedule/deadline key also removes the date; a count
+of 16 (`C-u C-u`) instead asks for a date and sets the warning period
+(DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
+date, e.g. `<2026-10-10 Sat -5d>`.
 
 Date input (like org-read-date)                                 *org-read-date*
   ""  "."  today       today
@@ -349,9 +381,11 @@ Date input (like org-read-date)                                 *org-read-date*
   fri  +2fri           next Friday / Friday in two weeks
   2026-10-01  26-10-01  10-01  10/1  10/1/2026   absolute dates
   15                   next 15th of a month
+  15.3.  15.3.2027     dotted day.month[.year]
+  w39  2026-w39-5  w39 fri   ISO week (and weekday, default Monday)
   sep 15  15 sep 2027  month names
   tomorrow  yesterday  now
-  14:00  2pm  10:00-11:30  10:00+1:30   times (combine with any date)
+  14:00  2pm  15h30  10:00-11:30  10:00+1:30   times (combine with any date)
 
 Changes to SCHEDULED and DEADLINE are logged when `log_reschedule` or
 `log_redeadline` is set (or via the `#+STARTUP` log keywords).
@@ -361,14 +395,24 @@ Changes to SCHEDULED and DEADLINE are logged when `log_reschedule` or
 
 <prefix>xi      Clock in on the current entry. Any running clock is
                 stopped first, and `clock.in_switch_to_state` can change the
-                TODO state.
-<prefix>xo      Clock out (global).
+                TODO state. With a count, pick a task from the clock history
+                (the last `clock.history_length` clocked tasks).
+<prefix>xo      Clock out (global). `clock.out_switch_to_state` changes the
+                TODO state; with a count, you are asked for the state.
 <prefix>xq      Cancel the running clock (global).
 <prefix>xj      Jump to the clocked entry (global).
 <prefix>xe      Set effort.
+<prefix>xE      Set effort to the next value of `Effort_ALL`.
+<prefix>xm      Change the effort of the clocked task (or the entry at the
+                cursor); `+0:15` / `-10` add or subtract.
+<prefix>xz      Resolve dangling clocks: open CLOCK lines other than the
+                running one. For each, keep it (clock out now, or after N
+                minutes), cancel it, jump to it or ignore it.
 <prefix>xd      Toggle clock sums as virtual text on every headline.
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`).
 <C-c><C-c>      On a CLOCK line: recompute its duration.
+<C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
+                the cursor, keeping the duration.
 :Org clock_in_last   Clock in the last clocked entry again.
 
 Clock lines go into the LOGBOOK drawer: >org
@@ -376,8 +420,20 @@ Clock lines go into the LOGBOOK drawer: >org
     CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:30] =>  1:30
     :END:
 <
-Marking a clocked task done clocks it out (`clock.out_when_done`). A running
-clock is restored after restarting Neovim (`clock.persist`).
+The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
+for none), then `clock.into_drawer`, then the log drawer. With
+`log_note_clock_out` (or `#+STARTUP: lognoteclock-out`), clocking out asks
+for a note that goes below the CLOCK line. `clock.continuously` starts a new
+clock where the last one stopped.
+
+Marking a clocked task done clocks it out (`clock.out_when_done`: true or a
+list of states). A running clock is restored after restarting Neovim
+(`clock.persist`). When the clocked time reaches the task's Effort, you are
+notified once (`clock.notify_effort`).
+
+Durations in clock tables, clock sums and effort changes use `1d 2:30` from
+one day on, like Emacs `org-duration-format` (`duration_format = "h:mm"`
+writes `26:30`).
 
 Use |org-api| `require("org").statusline()` in your statusline.
 
@@ -765,13 +821,26 @@ list of lists become a table.
                  the `#+BEGIN:` line also updates it.
 
 clocktable parameters:
-  :scope     file|subtree|tree|agenda|file-with-archives|("a.org" "b.org")
+  :scope     file|subtree|tree|treeN|agenda|file-with-archives|
+             ("a.org" "b.org")
   :maxlevel  N
   :block     today, yesterday, thisweek, lastweek, thismonth, lastmonth,
              thisyear, today-N, 2026-09-23, 2026-W39, 2026-09
   :tstart / :tend   explicit start and end dates
-  :fileskip0 :link :emphasize :tags   options
+  :step      day|week|semimonth|month|quarter|year: one table per period
+             of the :block or :tstart/:tend range (`:stepskip0 t` skips
+             empty ones, `:wstart` sets the week start, 1 = Monday)
   :match     a match string (|org-match-syntax|)
+  :formula % add a percentage column
+  :properties ("Effort" "OWNER")   property columns (`:inherit-props t`)
+  :level t   a level column        :timestamp t  a timestamp column
+  :tags t    a tags column         :emphasize t  bold level 1, italic 2
+  :link t    link headlines        :fileskip0 t  skip files without time
+  :hidefiles t  no file column     :tcolumns N   at most N time columns
+  :compact t    one time column, indented headlines
+  :indent nil   no `\_` indentation
+  :narrow 40!   cut headlines at 40 characters (the default)
+  :header "text"  replace the `#+CAPTION:` line
 
 columnview parameters: `:id local|global|file:path|ID`, `:maxlevel`,
 `:skip-empty-rows`, `:indent`, `:format`.
@@ -814,12 +883,18 @@ Output goes next to the source file, or to `export.output_dir`.
 ==============================================================================
 22. TIMERS AND NOTIFICATIONS                    *org-timers* *org-notifications*
 
-:Org timer_start        Start a relative timer.
+:Org timer_start        Start a relative timer (count: ask for an
+                        offset such as `0:10:00`).
 :Org timer_insert       Insert the timer value (in a list: `- 0:01:23 :: `).
-:Org timer_pause        Pause or continue.
-:Org timer_stop         Stop.
-:Org timer_countdown N  Countdown of N minutes, with a notification at the
-                        end.
+                        During a countdown, the remaining time.
+:Org timer_pause        Pause or continue the timer or countdown.
+:Org timer_stop         Stop the timer or countdown.
+:Org timer_countdown N  Countdown of N minutes (or `H:MM:SS`, `M:SS`). Without
+                        an argument: a count, else the entry's Effort, else
+                        a prompt. At the end you get a notification and a
+                        `User OrgTimerDone` autocmd.
+:Org timer_remaining    Show the remaining countdown time.
+One timer runs at a time; `require("org").statusline()` shows it.
 
 Appointment reminders (`notifications.enabled = true`, or
 `:Org notifications_start`): timed SCHEDULED, DEADLINE and plain timestamps
@@ -893,13 +968,15 @@ General ~
   win_border                "rounded"
 TODO and logging ~
   todo_keywords             { "TODO(t) NEXT(n) | DONE(d)" }
-  todo_repeat_to_state      nil
+  todo_repeat_to_state      nil       nil (first keyword)|true|"KEYWORD"
+  todo_state_tags_triggers  {}        |org-todo-tags-triggers|
   enforce_todo_dependencies           false
   enforce_todo_checkbox_dependencies  false
   log_done                  "time"    false|"time"|"note"
   log_repeat                "time"
   log_reschedule            false     false|"time"|"note"
   log_redeadline            false
+  log_note_clock_out        false     ask for a note on clock out
   log_into_drawer           "LOGBOOK" or false
   log_states_order_reversed true
 Priorities, tags, properties ~
@@ -911,6 +988,7 @@ Priorities, tags, properties ~
   use_property_inheritance  false     true|false|{ names }
   global_properties         {}
   effort_property           "Effort"
+  duration_format           "d h:mm"  or "h:mm"
   columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
 Buffer ~
   startup_folded            "overview"
@@ -919,6 +997,7 @@ Buffer ~
   ellipsis                  " …"
   blank_before_new_entry    { heading = "auto", plain_list_item = false }
   deadline_warning_days     14
+  time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   archive_location          "%s_archive::"
   archive_save_context_info { "time", "file", "olpath", "category", "todo",
                               "itags" }
@@ -932,7 +1011,7 @@ agenda ~
   current_time_string, sorting { agenda, todo, tags, search },
   window ("current"|"split"|"vsplit"|"tab"|"float"), log_mode_items,
   habits { graph_column, preceding_days, following_days, show_habits,
-  show_all_today }, stuck_projects { match, todo_keywords, tags, text },
+  show_all_today, show_done_always_green }, stuck_projects { match, todo_keywords, tags, text },
   save_after_edit, block_separator, show_inherited_tags, remove_tags,
   custom_commands
 capture ~
@@ -942,7 +1021,9 @@ refile ~
   include_current_file true
 clock ~
   out_when_done true, into_drawer true, out_remove_zero_time true,
-  in_switch_to_state nil (keyword or function(headline)),
+  in_switch_to_state nil (keyword or function(keyword)),
+  out_switch_to_state nil (keyword or function(keyword)),
+  notify_effort true, history_length 35, continuously false,
   statusline_icon "⏱", clocktable_default { maxlevel, scope, block },
   persist true, persist_file
 links ~
@@ -1012,6 +1093,7 @@ Section `org` (default key: action):
   <prefix>i. / i!  timestamp / timestamp_inactive
   <C-Space>  toggle_checkbox        <prefix>#  update_statistics
   <prefix>xi xo xq xj xe  clock_in/out/cancel/goto, set_effort
+  <prefix>xE xm xz  inc_effort, clock_modify_effort, clock_resolve
   <prefix>xr xd xu xU  clock_report, clock_display, dblock_update(_all)
   <prefix>C  column_view
   <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
@@ -1063,15 +1145,17 @@ Structure and visibility:
 
 TODO, tags, properties:
   <C-c><C-t>       change TODO state (fast selection, or cycle when the
-                   keywords have no keys)
+                   keywords have no keys; count N: the Nth keyword)
   <C-S-Right> <C-S-Left>  next / previous TODO keyword set
   <C-c>,  priority       <C-c><C-q>  tags        <C-c><C-x>p  property
   <C-c><C-x>o  toggle ORDERED           <C-c><C-z>  add note
   <C-c>#  update statistics cookies     <C-c><C-x><C-b>  toggle checkbox
 
 Dates:
-  <C-c><C-s> <C-c><C-d>  schedule / deadline (count: remove)
-  <C-c>. <C-c>!    active / inactive timestamp (count: with time)
+  <C-c><C-s> <C-c><C-d>  schedule / deadline (count: remove; count 16:
+                   delay / warning period)
+  <C-c>. <C-c>!    active / inactive timestamp (count: with time; count
+                   16: now, no prompt)
   <C-c><           insert today         <C-c>>  open calendar
   <C-c><C-y>       evaluate time range (count: insert `=> H:MM`)
 
@@ -1080,7 +1164,10 @@ Clock, effort, dynamic blocks, timers:
   <C-c><C-x><C-x>  clock in last task   <C-c><C-x><C-o>  clock out
   <C-c><C-x><C-q>  cancel clock         <C-c><C-x><C-j>  go to clock
   <C-c><C-x><C-r>  clock report         <C-c><C-x><C-d>  clock sums
-  <C-c><C-x>e      effort               <C-c><C-x><C-u>  update dblock
+  <C-c><C-x>e      effort               <C-c><C-x>E  next allowed effort
+  <C-c><C-x><C-e>  change clocked effort <C-c><C-x><C-z>  resolve clocks
+  <C-S-Up> <C-S-Down>  shift CLOCK line timestamps
+  <C-c><C-x><C-u>  update dblock
   <C-c><C-x><C-c>  column view          <C-c><C-x>i  columnview block
   <C-c><C-x>x      insert dynamic block
   <C-c><C-x>0 _ ,  timer start / stop / pause-continue
@@ -1125,7 +1212,8 @@ Additional subcommands:
   :Org show_all | overview | content
   :Org align_tags            :Org id_update_locations
   :Org timer_start | timer_stop | timer_pause | timer_insert
-  :Org timer_countdown [min]
+  :Org timer_countdown [min]   :Org timer_remaining
+  :Org toggle_timestamp_type
   :Org notifications_start | notifications_stop
 
 ==============================================================================
@@ -1134,7 +1222,7 @@ Additional subcommands:
 require("org").setup({opts})        configure (see |org-config|)
 require("org").agenda([key])        open the dispatcher or a view
 require("org").capture([key])       capture
-require("org").statusline()         clock string for statuslines
+require("org").statusline()         clock and timer string for statuslines
 require("org").action(name)         run an action (|org-keymaps|)
 
 Lower-level modules (stable within a major version):
@@ -1161,6 +1249,8 @@ Targets are `{ bufnr = n, lnum = l }`.
   #+STARTUP: overview content showall showeverything nofold
              logdone lognotedone nologdone logrepeat nologrepeat
              logreschedule nologreschedule logredeadline ...
+             lognoteclock-out nolognoteclock-out logdrawer nologdrawer
+             logstatesreversed nologstatesreversed
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
   #+PROPERTY: header-args:python :results output
   #+COLUMNS: %25ITEM %TODO %Effort{:}   column view format
@@ -1185,13 +1275,11 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Not implemented:
   - diary sexps `<%%(...)>`
   - clock idle detection
-  - clocktable `:step`
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
   - datetree archive locations
 - Column view is a separate table buffer rather than overlays on the
   headlines.
 - <M-CR> never splits the current line.
-- Minute increments step by 1 (Emacs rounds to 5).
 
  vim:tw=78:ts=8:ft=help:norl:
