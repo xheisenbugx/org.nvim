@@ -43,7 +43,9 @@ describe("babel", function()
     local b = list[1]
     eq("hello", b.name)
     eq("sh", b.lang)
-    eq({ "  echo hi", "  * not a heading" }, b.body)
+    -- like org-babel--normalize-body, the common indentation is removed
+    eq({ "echo hi", "* not a heading" }, b.body)
+    eq({ "  echo hi", "  * not a heading" }, b.body_raw)
     eq({ start = 8, finish = 9, name = "hello" }, b.results)
     local args = blocks.header_args(b, nil)
     eq("output", args.results_spec.collection)
@@ -68,7 +70,9 @@ describe("babel", function()
     local b = babel.at_block(buf, 8)
     eq("output", b.args.results_spec.collection)
     eq("silent", b.args.results_spec.handling)
-    eq("/tmp", b.args.dir)
+    -- the headline's header-args:sh wins over #+PROPERTY (org-entry-get
+    -- with inheritance stops at the nearest value)
+    eq(nil, b.args.dir)
     eq("9", b.args.vars[1].value)
   end)
 
@@ -138,7 +142,7 @@ describe("babel", function()
     local buf2 = org_buffer({ "#+begin_src sh :results output drawer", "echo hi", "#+end_src" }, { 1, 0 })
     babel.execute_block()
     ok(wait_for(buf2, function(l)
-      return l[7] == "hi" and l[8] == ":END:"
+      return l[7] == "hi" and l[8] == ":end:"
     end), vim.inspect(buf_lines(buf2)))
   end)
 

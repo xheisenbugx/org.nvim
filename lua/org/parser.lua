@@ -25,7 +25,8 @@ local M = {}
 ---@field tags string[] own tags
 ---@field planning { scheduled?: table, deadline?: table, closed?: table }
 ---@field planning_line integer|nil
----@field properties table<string,string> keys upper-cased
+---@field properties table<string,string> keys upper-cased (`KEY+:` values appended)
+---@field properties_extend table<string,boolean>|nil keys only given as `KEY+:`
 ---@field properties_range integer[]|nil {start, end}
 ---@field drawers { name: string, start: integer, ["end"]: integer }[]
 ---@field logbook { start: integer, ["end"]: integer }|nil
@@ -291,18 +292,38 @@ local function parse_section(hl, lines, from, to, log_drawer)
   if i <= to and lines[i]:match("^%s*:PROPERTIES:%s*$") then
     local start = i
     local j = i + 1
+    -- like org-property-re, a name may contain colons (`:header-args:sh:`):
+    -- only the last colon followed by blanks or the end of line ends it
+    local bases, extra, order = {}, {}, {}
     while j <= to and not lines[j]:match("^%s*:END:%s*$") do
-      local key, value = lines[j]:match("^%s*:([^%s:]+):%s*(.-)%s*$")
+      local key, value = lines[j]:match("^%s*:(%S+):%s+(.-)%s*$")
+      if not key then
+        key, value = lines[j]:match("^%s*:(%S+):%s*$"), ""
+      end
       if key then
         local base = key:match("^(.-)%+$")
+        local k = (base or key):upper()
+        if not bases[k] and not extra[k] then
+          order[#order + 1] = k
+        end
         if base then
-          local k = base:upper()
-          hl.properties[k] = hl.properties[k] and (hl.properties[k] .. " " .. value) or value
+          extra[k] = extra[k] or {}
+          table.insert(extra[k], value)
         else
-          hl.properties[key:upper()] = value
+          bases[k] = value
         end
       end
       j = j + 1
+    end
+    for _, k in ipairs(order) do
+      local parts = { bases[k] }
+      vim.list_extend(parts, extra[k] or {})
+      hl.properties[k] = table.concat(parts, " ")
+      if bases[k] == nil then
+        -- only `KEY+:` here: inherited values are extended (org-entry-get)
+        hl.properties_extend = hl.properties_extend or {}
+        hl.properties_extend[k] = true
+      end
     end
     if j <= to then
       hl.properties_range = { start, j }

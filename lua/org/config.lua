@@ -109,6 +109,10 @@ M.defaults = {
   --- Indentation added to src block contents in the edit buffer
   --- (org-src-content-indentation).
   edit_src_content_indentation = 2,
+  --- Keep the indentation of src block lines as written: no common
+  --- indentation is removed for evaluation, tangling or editing
+  --- (org-src-preserve-indentation). The `-i` switch does it per block.
+  src_preserve_indentation = false,
   --- Text appended to folded headlines (org-ellipsis).
   ellipsis = "...",
   --- Blank line handling before new headlines and list items: true | false |
@@ -369,17 +373,55 @@ M.defaults = {
   -- Babel
   ---------------------------------------------------------------------------
   babel = {
+    -- Ask before evaluating: true, false, or a function(lang, body) that
+    -- returns true to ask (org-confirm-babel-evaluate)
     confirm_evaluate = true,
+    -- Results of this many lines or more use an example block
+    -- (org-babel-min-lines-for-block-output)
     min_lines_for_block_output = 10,
+    -- Kill an evaluation after this many ms (no Emacs counterpart)
     timeout = 30000,
-    evaluate_on_export = false,
+    -- Evaluate code when exporting (org-export-use-babel)
+    evaluate_on_export = true,
+    -- C-c C-c on a block does not evaluate it (org-babel-no-eval-on-ctrl-c-ctrl-c)
+    no_eval_on_ctrl_c_ctrl_c = false,
+    -- (org-babel-default-header-args)
     default_header_args = {
+      session = "none",
       results = "replace",
       exports = "code",
-      session = "none",
+      cache = "no",
       noweb = "no",
+      hlines = "no",
       tangle = "no",
     },
+    -- Header args of inline src blocks (org-babel-default-inline-header-args)
+    default_inline_header_args = {
+      session = "none",
+      results = "replace",
+      exports = "results",
+      hlines = "yes",
+    },
+    -- Header args of #+CALL lines and call_ (org-babel-default-lob-header-args)
+    default_lob_header_args = { exports = "results" },
+    -- Keyword of results lines (org-babel-results-keyword)
+    results_keyword = "RESULTS",
+    -- Inline results inside {{{results(...)}}} (org-babel-inline-result-wrap)
+    inline_result_wrap = "=%s=",
+    -- Write "(date) " before :cache hashes (org-babel-hash-show-time)
+    hash_show_time = false,
+    -- Noweb reference delimiters (org-babel-noweb-wrap-start / -end)
+    noweb_wrap_start = "<<",
+    noweb_wrap_end = ">>",
+    -- Tangle link comments use paths relative to the tangled file
+    -- (org-babel-tangle-use-relative-file-links)
+    tangle_use_relative_file_links = true,
+    -- Link comments around tangled blocks, %link / %source-name / %file /
+    -- %start-line / %end-line (org-babel-tangle-comment-format-beg / -end)
+    tangle_comment_format_beg = "[[%link][%source-name]]",
+    tangle_comment_format_end = "%source-name ends here",
+    -- Mode of tangled files, octal string (org-babel-tangle-default-file-mode)
+    tangle_default_file_mode = "644",
     languages = {
       sh = { cmd = "sh" },
       shell = { cmd = "sh" },
@@ -401,6 +443,13 @@ M.defaults = {
       go = { cmd = "go run", ext = "go" },
       rust = { cmd = "rust-script", ext = "rs" },
       sqlite = { cmd = "sqlite3", ext = "sql" },
+      -- :engine postgresql|mysql|... runs the engine's client (ob-sql)
+      sql = { ext = "sql" },
+      -- ob-C: compiled with :flags, :libs, :includes, :defines, :main
+      C = { cmd = "gcc", ext = "c" },
+      ["C++"] = { cmd = "g++", ext = "cpp" },
+      cpp = { cmd = "g++", ext = "cpp" },
+      D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
     },
   },

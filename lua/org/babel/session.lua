@@ -43,6 +43,47 @@ def _org_run(code, mode):
     if last is not None:
         return eval(compile(last, "<org-babel>", "eval"), _org_g)
     return None
+# the text Emacs' __org_babel_python_format_value writes for a value
+def _org_fmt(result, result_params, result_file):
+    if 'graphics' in result_params:
+        result.savefig(result_file)
+        return ""
+    if 'pp' in result_params:
+        import pprint
+        return pprint.pformat(result)
+    if 'list' in result_params and isinstance(result, dict):
+        return str(['{} :: {}'.format(k, v) for k, v in result.items()])
+    if not set(result_params).intersection(['scalar', 'verbatim', 'raw']):
+        def dict2table(res):
+            if isinstance(res, dict):
+                return [(k, dict2table(v)) for k, v in res.items()]
+            elif isinstance(res, list) or isinstance(res, tuple):
+                return [dict2table(x) for x in res]
+            else:
+                return res
+        if 'table' in result_params:
+            result = dict2table(result)
+        try:
+            import pandas
+        except ImportError:
+            pass
+        else:
+            if isinstance(result, pandas.DataFrame) and 'table' in result_params:
+                result = [[result.index.name or ''] + list(result.columns)] + \
+                    [None] + [[i] + list(row) for i, row in result.iterrows()]
+            elif isinstance(result, pandas.Series) and 'table' in result_params:
+                result = list(result.items())
+        try:
+            import numpy
+        except ImportError:
+            pass
+        else:
+            if isinstance(result, numpy.ndarray):
+                if 'table' in result_params:
+                    result = result.tolist()
+                else:
+                    result = repr(result)
+    return str(result)
 while True:
     header = sys.stdin.readline()
     if not header:
@@ -58,10 +99,7 @@ while True:
     try:
         value = _org_run("".join(lines), req["mode"])
         if req["mode"] == "value":
-            try:
-                payload = json.dumps(value)
-            except Exception:
-                payload = json.dumps(repr(value))
+            payload = json.dumps(_org_fmt(value, req.get("params") or [], req.get("file") or ""))
         elif req["mode"] == "repl" and value is not None:
             print(repr(value))
     except SystemExit:
@@ -96,7 +134,7 @@ async function pump() {
     try {
       let v = vm.runInThisContext(code, { filename: "org-babel" });
       if (v && typeof v.then === "function") v = await v;
-      if (r.mode === "value") payload = encode(v);
+      if (r.mode === "value") payload = JSON.stringify(util.inspect(v));
       else if (r.mode === "repl" && v !== undefined) console.log(util.inspect(v));
     } catch (e) {
       status = 1;
@@ -130,11 +168,13 @@ while (header = $stdin.gets)
   begin
     value = eval(code, TOPLEVEL_BINDING, "org-babel")
     if req["mode"] == "value"
-      payload = begin
-        JSON.generate(value)
-      rescue StandardError
-        JSON.generate(value.inspect)
+      text = if (req["params"] || []).include?("pp")
+        require "pp"
+        value.pretty_inspect
+      else
+        value.class == String ? value : value.inspect
       end
+      payload = JSON.generate(text)
     elsif req["mode"] == "repl"
       puts value.inspect
     end
@@ -286,11 +326,8 @@ local function finish(sess, id, output, status, payload)
     res.error = ok and type(msg) == "string" and msg or (payload ~= "" and payload or "evaluation failed")
   elseif req.mode == "value" then
     local ok, v = pcall(vim.json.decode, payload, { luanil = { object = true, array = true } })
-    if not ok then
+    if not ok or type(v) ~= "string" then
       v = payload
-    end
-    if v == nil and sess.family == "python" then
-      v = "None"
     end
     res.value = v
   end
@@ -418,7 +455,9 @@ end
 
 --- Evaluate `code` in `sess`; `cb(res)` gets { output, value?, status?, error? }.
 --- `mode` is "value", "output" or "repl".
----@param opts? { timeout?: integer, echo?: boolean }
+--- `opts.params` are the result params (python formats the value like
+--- Emacs), `opts.file` the graphics file.
+---@param opts? { timeout?: integer, echo?: boolean, params?: string[], file?: string }
 function M.eval(sess, code, mode, cb, opts)
   opts = opts or {}
   if opts.echo ~= false then
@@ -456,7 +495,12 @@ function M.eval(sess, code, mode, cb, opts)
     local status = sess.family == "fish" and "$status" or '"$?"'
     frame = code .. "\n" .. string.format("printf '\\n%s %d %%s \\n' %s\n", M.EOE, id, status)
   else
-    frame = vim.json.encode({ id = id, mode = mode }) .. "\n" .. code .. "\n" .. M.EOF .. "\n"
+    frame = vim.json.encode({ id = id, mode = mode, params = opts.params or {}, file = opts.file or "" })
+      .. "\n"
+      .. code
+      .. "\n"
+      .. M.EOF
+      .. "\n"
   end
   local timeout = opts.timeout
   if timeout and timeout > 0 then

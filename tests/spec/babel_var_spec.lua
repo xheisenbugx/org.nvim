@@ -76,7 +76,8 @@ describe("babel :var (Emacs references)", function()
       "return 1",
       "#+end_src",
     }, { 15, 0 })
-    eq("echo from-sh", var(buf, 15, "code[]"))
+    -- the src block value keeps its final newline, as in Emacs
+    eq("echo from-sh\n", var(buf, 15, "code[]"))
     eq(20, var(buf, 15, "twenty"))
     eq(14, var(buf, 15, "dbl[:var n=3](n=7)"))
   end)
@@ -103,7 +104,7 @@ describe("babel :var (Emacs references)", function()
     }, { 16, 0 })
     eq({ "apple", "banana", 3 }, var(buf, 16, "fruits"))
     eq(12, var(buf, 16, "fixed"))
-    eq("line one", var(buf, 16, "ex"))
+    eq("line one\n", var(buf, 16, "ex"))
   end)
 
   it("Emacs Lisp values, IDs, other files and missing references", function()
@@ -153,7 +154,8 @@ describe("babel :var (Emacs references)", function()
     )
     eq({ "unset l", "declare -a l=( 'a' 'b' )" }, langs.var_lines("bash", { { name = "l", value = { "a", "b" } } }))
     eq({ "t='x,1,p\ny,2,q'" }, langs.var_lines("sh", { { name = "t", value = rows } }, { separator = "," }))
-    eq({ 'x = [["a"],None]' }, langs.var_lines("python", { { name = "x", value = { { "a" }, "hline" } } }))
+    -- org-babel-python-var-to-python
+    eq({ 'x=[["a"], None]' }, langs.var_lines("python", { { name = "x", value = { { "a" }, "hline" } } }))
     eq({ "my $x = [['a', 1], undef];" }, langs.var_lines("perl", { { name = "x", value = { { "a", 1 }, "hline" } } }))
   end)
 
