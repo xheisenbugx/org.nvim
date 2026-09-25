@@ -190,6 +190,14 @@
 ---@field show_all_today? boolean
 ---Always color DONE days green (org-habit-show-done-always-green). (default: `false`)
 ---@field show_done_always_green? boolean
+---Show habits only on today's agenda, not on their future days
+---(org-habit-show-habits-only-for-today). (default: `true`)
+---@field show_habits_only_for_today? boolean
+---Graph character for today (org-habit-today-glyph). (default: `"!"`)
+---@field today_glyph? string
+---Graph character for days the habit was done (org-habit-completed-glyph).
+---(default: `"*"`)
+---@field completed_glyph? string
 
 ---Stuck project definition (org-stuck-projects).
 ---@class org.Config.Agenda.StuckProjects

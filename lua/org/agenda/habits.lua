@@ -10,7 +10,8 @@ local date = require("org.date")
 
 local M = {}
 
-local UNIT_DAYS = { h = 1, d = 1, w = 7, m = 30, y = 365 }
+-- org-habit-duration-to-days: a month is 30.4 days, a year 365.25
+local UNIT_DAYS = { h = 1, d = 1, w = 7, m = 30.4, y = 365.25 }
 
 local function to_days(value, unit)
   return math.max(1, math.floor(value * (UNIT_DAYS[unit] or 1)))
@@ -69,7 +70,9 @@ local function faces(habit, m_days, scheduled_days, donep)
   elseif habit.has_max then
     deadline = habit.scheduled_days + (habit.max_days - habit.min_days)
   else
-    deadline = habit.scheduled_days + s_repeat - 1
+    -- org-habit-deadline: without a `/max` period the habit is due on its
+    -- scheduled day
+    deadline = habit.scheduled_days
   end
   local cfg = require("org.config").opts.agenda.habits or {}
   local name
@@ -110,7 +113,8 @@ function M.graph(habit, today)
     end
   end
   local out = {}
-  for day = start, stop do
+  -- like org-habit-build-graph, the last day has no face
+  for day = start, stop - 1 do
     local past = day < today
     local donep = done[1] == day
     local face, future
@@ -149,13 +153,13 @@ function M.graph(habit, today)
     local ch = " "
     local marked = false
     if donep then
-      ch = "*"
+      ch = cfg.completed_glyph or "*"
       marked = true
       while done[1] == day do
         last_done = table.remove(done, 1)
       end
     elseif day == today then
-      ch = "!"
+      ch = cfg.today_glyph or "!"
     end
     local group = (past or day == today) and face or future
     if past and group ~= "OrgAgendaHabitOverdue" and not marked then
@@ -163,6 +167,7 @@ function M.graph(habit, today)
     end
     out[#out + 1] = { ch, group }
   end
+  out[#out + 1] = { " ", nil }
   return out
 end
 

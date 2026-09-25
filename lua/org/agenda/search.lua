@@ -79,8 +79,46 @@ function M.resolve_date(v)
   return date.read_date(inner)
 end
 
+---------------------------------------------------------------------------
+-- Tag groups (org-group-tags, org-tags-expand)
+---------------------------------------------------------------------------
+
+--- A tag term for `name`: a group tag (`[ GTD : Control Persp ]` in
+--- #+TAGS) matches itself and its members, recursively, and `{regexp}`
+--- members match by regexp, like Emacs `org-tags-expand`.
+---@param groups table<string, string[]>|nil
+local function tag_term(name, neg, groups)
+  local expanded = groups and require("org.tags").expand_group(name, groups)
+  if not expanded then
+    return { kind = "tag", neg = neg, name = name }
+  end
+  local res = {}
+  for _, re in ipairs(expanded.regexps) do
+    res[#res + 1] = compile_regex(re)
+  end
+  return { kind = "tagset", neg = neg, names = expanded.names, res = res }
+end
+
+local function eval_tagset(t, tags)
+  for tag in pairs(tags) do
+    if t.names[tag] then
+      return true
+    end
+    for _, re in ipairs(t.res) do
+      if re:match_str(tag) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+---------------------------------------------------------------------------
+-- Match expressions
+---------------------------------------------------------------------------
+
 --- Parse one AND-group of tag/property terms.
-local function parse_group(g)
+local function parse_group(g, groups)
   local terms = {}
   local i = 1
   local n = #g
@@ -134,7 +172,7 @@ local function parse_group(g)
           end
           terms[#terms + 1] = { kind = "prop", neg = neg, name = name:upper(), op = op, value = value }
         else
-          terms[#terms + 1] = { kind = "tag", neg = neg, name = name }
+          terms[#terms + 1] = tag_term(name, neg, groups)
         end
       end
     end
@@ -211,6 +249,8 @@ local function eval_term(hl, t, tags)
   local r
   if t.kind == "tag" then
     r = tags[t.name] == true
+  elseif t.kind == "tagset" then
+    r = eval_tagset(t, tags)
   elseif t.kind == "tagre" then
     r = false
     for tag in pairs(tags) do
@@ -274,10 +314,19 @@ end
 
 --- Compile a match string into predicate(headline) -> boolean.
 --- Errors (invalid syntax) are raised; use `M.try_compile` for (nil, err).
+--- `opts.groups` are the tag groups to expand (default: the current
+--- buffer's, the `tags` option's and the agenda files', when `group_tags`
+--- is on).
 ---@param match string
+---@param opts? { groups?: table<string, string[]>|false }
 ---@return fun(hl: org.Headline): boolean
-function M.compile(match)
+function M.compile(match, opts)
   match = vim.trim(match or "")
+  local tag_groups = opts and opts.groups
+  if tag_groups == nil then
+    tag_groups = require("org.tags").match_groups()
+  end
+  tag_groups = tag_groups or nil
   local tag_part, todo_part = match, nil
   -- split on the first "/" outside {} and ""
   local depth, inq = 0, false
@@ -310,13 +359,13 @@ function M.compile(match)
         d = d - 1
       end
       if c == "|" and d == 0 and not q then
-        groups[#groups + 1] = parse_group(table.concat(cur))
+        groups[#groups + 1] = parse_group(table.concat(cur), tag_groups)
         cur = {}
       else
         cur[#cur + 1] = c
       end
     end
-    groups[#groups + 1] = parse_group(table.concat(cur))
+    groups[#groups + 1] = parse_group(table.concat(cur), tag_groups)
   end
   local todo_pred = todo_part and compile_todo(vim.trim(todo_part)) or nil
 

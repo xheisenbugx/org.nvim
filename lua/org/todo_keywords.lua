@@ -86,6 +86,7 @@ function M.new(sequences)
     by_name = {},
     sequences = {},
     has_fast_keys = false,
+    has_log_flags = false,
   }, TodoConfig)
   for si, seq in ipairs(M.normalize(sequences)) do
     local tokens = vim.split(vim.trim(seq), "%s+")
@@ -107,6 +108,9 @@ function M.new(sequences)
           list[#list + 1] = kw
           if kw.key then
             self.has_fast_keys = true
+          end
+          if kw.log_enter or kw.log_leave then
+            self.has_log_flags = true
           end
         end
       end
@@ -186,14 +190,26 @@ function TodoConfig:first_done(name)
   return self:done_names()[1]
 end
 
---- Cycle within the keyword's sequence. `dir` = 1 or -1.
---- nil -> first (or last) keyword of the first sequence; past the end -> nil.
+--- First keyword of the sequence `name` belongs to (org-get-todo-sequence-head).
 ---@return string|nil
-function TodoConfig:cycle(current, dir)
+function TodoConfig:sequence_head(name)
+  local kw = self:get(name)
+  local list = kw and self.sequences[kw.seq]
+  return list and list[1].name or nil
+end
+
+--- `C-c C-t` without fast selection (org-todo without argument): the next
+--- keyword of the sequence, nothing after its last keyword, and from no
+--- keyword the first keyword of `head`'s sequence (the sequence the
+--- headline was last in) or of the first sequence. `dir = -1` walks back.
+---@param head? string remembered sequence head for an empty state
+---@return string|nil
+function TodoConfig:cycle(current, dir, head)
   dir = dir or 1
   local kw = self:get(current)
   if not kw then
-    local list = self.sequences[1] or {}
+    local hk = self:get(head)
+    local list = self.sequences[hk and hk.seq or 1] or {}
     if dir > 0 then
       return list[1] and list[1].name
     end
@@ -210,15 +226,38 @@ function TodoConfig:cycle(current, dir)
   return nxt and nxt.name or nil
 end
 
---- Switch to the first keyword of the next/previous sequence.
-function TodoConfig:next_sequence(current, dir)
+--- <S-Right>/<S-Left> on a headline (org-todo 'right / 'left): walk every
+--- keyword of every sequence in order, with the empty state before the
+--- first and after the last keyword.
+---@return string|nil
+function TodoConfig:shift(current, dir)
+  local kws = self.keywords
   local kw = self:get(current)
+  if not kw then
+    local k = dir > 0 and kws[1] or kws[#kws]
+    return k and k.name or nil
+  end
+  local k = kws[kw.index + (dir > 0 and 1 or -1)]
+  return k and k.name or nil
+end
+
+--- Switch to the first keyword of the next/previous sequence (org-todo
+--- 'nextset / 'previousset). From no keyword, `head` (the remembered
+--- sequence) is the starting point; without one, the next set is the
+--- first and the previous set the last.
+function TodoConfig:next_sequence(current, dir, head)
+  local kw = self:get(current) or self:get(head)
   local n = #self.sequences
   if n == 0 then
     return nil
   end
-  local seq = kw and kw.seq or 0
-  seq = ((seq - 1 + (dir or 1)) % n) + 1
+  dir = dir or 1
+  local seq
+  if kw then
+    seq = ((kw.seq - 1 + dir) % n) + 1
+  else
+    seq = dir > 0 and 1 or n
+  end
   return self.sequences[seq][1].name
 end
 

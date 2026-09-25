@@ -76,14 +76,16 @@ function M.parse_headline_line(line, todo_cfg)
   local parts = { level = #stars, stars = stars, tags = {}, commented = false }
 
   -- tags
-  local before, tagstr = rest:match("^(.-)%s+(:[^%s]+:)%s*$")
+  -- tags use org-tag-re characters: letters, digits, _ @ # % (and any
+  -- non-ASCII letter)
+  local before, tagstr = rest:match("^(.-)%s+(:[%w_@#%%:\128-\255]+:)%s*$")
   if not before then
-    tagstr = rest:match("^(:[^%s]+:)%s*$")
+    tagstr = rest:match("^(:[%w_@#%%:\128-\255]+:)%s*$")
     if tagstr then
       before = ""
     end
   end
-  if tagstr and not tagstr:find("::", 1, true) then
+  if tagstr then
     for tag in tagstr:gmatch("[^:]+") do
       parts.tags[#parts.tags + 1] = tag
     end
@@ -98,7 +100,14 @@ function M.parse_headline_line(line, todo_cfg)
     rest = after:gsub("^%s+", "")
   end
   -- priority
-  local prio, after2 = rest:match("^%[#(%w)%](.*)$")
+  -- org-priority-value-regexp: A-Z or 0-64
+  local prio, after2 = rest:match("^%[#([A-Z])%](.*)$")
+  if not prio then
+    prio, after2 = rest:match("^%[#(%d%d?)%](.*)$")
+    if prio and tonumber(prio) > 64 then
+      prio = nil
+    end
+  end
   if prio and (after2 == "" or after2:match("^%s")) then
     parts.priority = prio
     rest = after2:gsub("^%s+", "")
@@ -126,6 +135,8 @@ local function parse_settings(lines, filename)
     category = nil,
     startup = {},
     properties = {},
+    -- properties with a non-`+` definition (`:Foo:` vs only `:Foo+:`)
+    property_base = {},
     link_abbrevs = {},
     archive = nil,
     columns = nil,
@@ -166,6 +177,7 @@ local function parse_settings(lines, filename)
               s.properties[k] = s.properties[k] and (s.properties[k] .. " " .. pval) or pval
             else
               s.properties[pname:upper()] = pval
+              s.property_base[pname:upper()] = true
             end
           end
         elseif key == "LINK" then
@@ -178,7 +190,7 @@ local function parse_settings(lines, filename)
         elseif key == "COLUMNS" then
           s.columns = value
         elseif key == "PRIORITIES" then
-          local hi, lo, def = value:match("^(%w)%s+(%w)%s+(%w)")
+          local hi, lo, def = value:match("^(%S+)%s+(%S+)%s+(%S+)")
           if hi then
             s.priorities = { highest = hi, lowest = lo, default = def }
           end
@@ -261,12 +273,16 @@ end
 local function parse_section(hl, lines, from, to, log_drawer)
   hl.planning = {}
   hl.properties = {}
+  hl.property_base = {}
   hl.drawers = {}
   hl.clocks = {}
   hl.timestamps = {}
 
   -- timestamps in the title
   for _, item in ipairs(date.parse_all(hl.title)) do
+    if not item.date.active and not hl.first_inactive then
+      hl.first_inactive = item.date
+    end
     if item.date.active then
       local col_offset = hl.raw:find(hl.title, 1, true)
       hl.timestamps[#hl.timestamps + 1] = {
@@ -302,6 +318,7 @@ local function parse_section(hl, lines, from, to, log_drawer)
           hl.properties[k] = hl.properties[k] and (hl.properties[k] .. " " .. value) or value
         else
           hl.properties[key:upper()] = value
+          hl.property_base[key:upper()] = true
         end
       end
       j = j + 1
@@ -330,7 +347,11 @@ local function parse_section(hl, lines, from, to, log_drawer)
       if dname and dname:upper() ~= "END" then
         in_drawer = { name = dname, start = i }
       else
+        local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
         for _, item in ipairs(date.parse_all(line)) do
+          if not item.date.active and not hl.first_inactive and not is_clock then
+            hl.first_inactive = item.date
+          end
           if item.date.active then
             hl.timestamps[#hl.timestamps + 1] = {
               date = item.date,
@@ -422,7 +443,47 @@ function M.parse(lines, filename)
     parse_section(hl, lines, hl.line + 1, hl.body_end, log_drawer)
   end
   file.preamble_end = headlines[1] and headlines[1].line - 1 or #lines
+  M.parse_file_drawer(file)
   return file
+end
+
+--- The file-level property drawer: a `:PROPERTIES:` drawer at the top of
+--- the file, preceded only by comments and blank lines (like Emacs). Sets
+--- `file.properties_range`, `file.properties` and `file.property_base`.
+---@param file org.File
+function M.parse_file_drawer(file)
+  local lines = file.lines
+  file.properties = {}
+  file.property_base = {}
+  file.properties_range = nil
+  local i = 1
+  while i <= file.preamble_end and (lines[i]:match("^%s*$") or lines[i]:match("^%s*#%s") or lines[i]:match("^%s*#$")) do
+    i = i + 1
+  end
+  if i > file.preamble_end or not lines[i]:match("^%s*:PROPERTIES:%s*$") then
+    return
+  end
+  local j = i + 1
+  while j <= file.preamble_end and not lines[j]:match("^%s*:END:%s*$") do
+    local key, value = lines[j]:match("^%s*:([^%s:]+):%s*(.-)%s*$")
+    if key then
+      local base = key:match("^(.-)%+$")
+      if base then
+        local k = base:upper()
+        file.properties[k] = file.properties[k] and (file.properties[k] .. " " .. value) or value
+      else
+        file.properties[key:upper()] = value
+        file.property_base[key:upper()] = true
+      end
+    end
+    j = j + 1
+  end
+  if j <= file.preamble_end then
+    file.properties_range = { i, j }
+  else
+    file.properties = {}
+    file.property_base = {}
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -516,9 +577,9 @@ function File:priorities()
   local cfg = require("org.config").opts
   local p = self.settings.priorities
   return {
-    highest = p and p.highest or cfg.priority_highest,
-    lowest = p and p.lowest or cfg.priority_lowest,
-    default = p and p.default or cfg.priority_default,
+    highest = tostring(p and p.highest or cfg.priority_highest),
+    lowest = tostring(p and p.lowest or cfg.priority_lowest),
+    default = tostring(p and p.default or cfg.priority_default),
   }
 end
 
@@ -527,22 +588,22 @@ function File:tag_definitions()
   local out = {}
   local function add(spec)
     for tok in spec:gmatch("%S+") do
-      if tok == "{" or tok == "}" or tok == "\\n" or tok == "[" or tok == "]" then
+      if tok == "{" or tok == "}" or tok == "\\n" or tok == "[" or tok == "]" or tok == ":" then
+        -- `:` separates a group tag from its members
         out[#out + 1] = { group = tok }
-      elseif tok ~= ":" then -- `:` separates a group tag from its members
+      else
         local name, key = tok:match("^([^%(]+)%((.)%)$")
         out[#out + 1] = { name = name or tok, key = key }
       end
     end
   end
-  if #self.settings.tags > 0 then
-    for _, spec in ipairs(self.settings.tags) do
-      add(spec)
+  local specs = #self.settings.tags > 0 and self.settings.tags or require("org.config").opts.tags or {}
+  for i, spec in ipairs(specs) do
+    if i > 1 and #self.settings.tags > 0 then
+      -- #+TAGS lines are joined with newlines, like Emacs
+      out[#out + 1] = { group = "\\n" }
     end
-  else
-    for _, spec in ipairs(require("org.config").opts.tags or {}) do
-      add(spec)
-    end
+    add(spec)
   end
   return out
 end
@@ -619,11 +680,21 @@ function Headline:get_tags(opts)
   end
   local cfg = require("org.config").opts
   local seen, out = {}, {}
+  -- use_tag_inheritance: true, false, a list of tags or a regexp
+  -- (org-use-tag-inheritance)
+  local inh = cfg.use_tag_inheritance
+  local inh_re = type(inh) == "string" and vim.regex(inh) or nil
   local function add(tag, inherited)
     if seen[tag] then
       return
     end
     if inherited and vim.tbl_contains(cfg.tags_exclude_from_inheritance or {}, tag) then
+      return
+    end
+    if inherited and type(inh) == "table" and not vim.tbl_contains(inh, tag) then
+      return
+    end
+    if inherited and inh_re and not inh_re:match_str(tag) then
       return
     end
     seen[tag] = true
@@ -670,6 +741,10 @@ local function should_inherit(name)
   local inh = require("org.config").opts.use_property_inheritance
   if inh == true then
     return true
+  elseif type(inh) == "string" then
+    -- a regexp matched against the name, ignoring case like Emacs
+    local ok, re = pcall(vim.regex, "\\c" .. inh)
+    return ok and re:match_str(name) ~= nil
   elseif type(inh) == "table" then
     for _, p in ipairs(inh) do
       if p:upper() == name then
@@ -707,34 +782,52 @@ function Headline:get_property(name, inherit)
     return d and d:to_string() or nil
   elseif key == "TIMESTAMP" then
     return self.timestamps[1] and self.timestamps[1].date:to_string() or nil
+  elseif key == "TIMESTAMP_IA" then
+    return self.first_inactive and self.first_inactive:to_string() or nil
   elseif key == "BLOCKED" then
-    return nil
-  end
-  if self.properties[key] ~= nil then
-    return self.properties[key]
+    -- org-entry-blocked-p: an open TODO that cannot be marked done
+    local blocked = self:is_todo() and require("org.todo").blocked_reason(self) ~= nil
+    return blocked and "t" or ""
   end
   if inherit == nil then
     inherit = should_inherit(key)
   end
-  if inherit then
-    local p = self.parent
-    while p do
-      if p.properties[key] ~= nil then
-        return p.properties[key]
-      end
-      p = p.parent
+  if not inherit then
+    return self.properties[key]
+  end
+  -- org-entry-get-with-inheritance: `PROP+` values accumulate onto the
+  -- inherited value until a plain `PROP` definition is found
+  local parts = {}
+  local function take(props, base)
+    local v = props[key]
+    if v ~= nil then
+      table.insert(parts, 1, v)
+      return base[key] == true
     end
-    if self.file.settings.properties[key] ~= nil then
-      return self.file.settings.properties[key]
+    return false
+  end
+  local h = self
+  while h do
+    if take(h.properties, h.property_base) then
+      return table.concat(parts, " ")
     end
-    local global = require("org.config").opts.global_properties or {}
-    for k, v in pairs(global) do
-      if k:upper() == key then
-        return v
-      end
+    h = h.parent
+  end
+  local file = self.file
+  if take(file.properties or {}, file.property_base or {}) then
+    return table.concat(parts, " ")
+  end
+  if take(file.settings.properties, file.settings.property_base or {}) then
+    return table.concat(parts, " ")
+  end
+  local global = require("org.config").opts.global_properties or {}
+  for k, v in pairs(global) do
+    if k:upper() == key then
+      table.insert(parts, 1, v)
+      break
     end
   end
-  return nil
+  return #parts > 0 and table.concat(parts, " ") or nil
 end
 
 --- Allowed values for a property (`PROP_ALL`), searched upward then globally.
@@ -748,7 +841,7 @@ function Headline:get_allowed_values(name)
     end
     h = h.parent
   end
-  local v = self.file.settings.properties[key]
+  local v = (self.file.properties or {})[key] or self.file.settings.properties[key]
   if not v then
     for k, gv in pairs(require("org.config").opts.global_properties or {}) do
       if k:upper() == key then

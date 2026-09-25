@@ -645,10 +645,11 @@ local function allowed_values(state, r, ci)
   if key == "TODO" then
     vals = vim.list_extend(vim.deepcopy(file.settings.todo:names()), { "" })
   elseif key == "PRIORITY" then
-    local p = file:priorities()
+    local prio = require("org.priority")
+    local range = prio.range(file)
     vals = {}
-    for b = p.highest:byte(), p.lowest:byte() do
-      vals[#vals + 1] = string.char(b)
+    for v = range.hi, range.lo do
+      vals[#vals + 1] = prio.to_string(v)
     end
   elseif not M.SPECIAL[key] then
     vals = vim.tbl_filter(function(v)

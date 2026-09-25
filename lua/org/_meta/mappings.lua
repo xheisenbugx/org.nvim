@@ -89,7 +89,7 @@
 ---| "date_today" # Insert today's date
 ---| "dblock_update" # Update dynamic block
 ---| "dblock_update_all" # Update all dynamic blocks
----| "deadline" # Deadline
+---| "deadline" # Deadline (Visual: all headlines)
 ---| "decrement" # Decrement timestamp / priority
 ---| "delete_property" # Delete property
 ---| "delete_property_globally" # Delete a property from all entries
@@ -146,7 +146,8 @@
 ---| "prev_heading" # Previous heading
 ---| "prev_link" # Previous link
 ---| "prev_sibling" # Previous sibling heading
----| "priority" # Set priority
+---| "priority" # Set priority (count 4: show the priority)
+---| "priority_show" # Show the priority (C-u C-c ,)
 ---| "promote_heading" # Promote heading / item
 ---| "promote_subtree" # Promote subtree
 ---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
@@ -154,9 +155,10 @@
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
 ---| "reveal" # Reveal context around cursor
----| "schedule" # Schedule
+---| "schedule" # Schedule (Visual: all headlines)
 ---| "set_effort" # Set effort
 ---| "set_property" # Set property
+---| "set_property_and_value" # Set property and value (C-c C-x P)
 ---| "set_startup_visibility" # Restore startup visibility
 ---| "set_tags" # Set tags (Visual: change tag in region)
 ---| "shift_control_down" # Shift CLOCK timestamps down
@@ -208,12 +210,14 @@
 ---| "timer_stop" # Stop timer
 ---| "timestamp" # Insert active timestamp
 ---| "timestamp_inactive" # Insert inactive timestamp
----| "todo" # Change TODO state (C-c C-t)
+---| "todo" # Change TODO state (C-c C-t; count 4 note, 16 next set, 64 no blocking; Visual: all)
+---| "todo_cancel_repeaters" # Cancel repeaters and change TODO state (C-- 1 C-c C-t)
 ---| "todo_next" # Next TODO state
 ---| "todo_next_sequence" # Next TODO keyword set
 ---| "todo_prev" # Previous TODO state
 ---| "todo_prev_sequence" # Previous TODO keyword set
 ---| "todo_select" # Select TODO state
+---| "todo_without_note" # Change TODO state without a note (C-0 C-c C-t)
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
@@ -221,6 +225,8 @@
 ---| "toggle_item" # Toggle list item
 ---| "toggle_link_display" # Toggle link display
 ---| "toggle_ordered" # Toggle ORDERED property
+---| "toggle_tags_groups" # Toggle tag groups in matches (C-c C-x q)
+---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "update_statistics" # Update statistics cookies
 
@@ -643,6 +649,10 @@
 ---@field set_tags? org.MappingLhs
 --- Set property. Default: `<C-c><C-x>p`
 ---@field set_property? org.MappingLhs
+--- Set property and value (C-c C-x P). Default: `<C-c><C-x>P`
+---@field set_property_and_value? org.MappingLhs
+--- Toggle tag groups in matches (C-c C-x q). Default: `<C-c><C-x>q`
+---@field toggle_tags_groups? org.MappingLhs
 --- Toggle ORDERED property. Default: `<C-c><C-x>o`
 ---@field toggle_ordered? org.MappingLhs
 --- Add note. Default: `<C-c><C-z>`
@@ -655,6 +665,8 @@
 ---@field timestamp? org.MappingLhs
 --- Insert inactive timestamp. Default: `<C-c>!`
 ---@field timestamp_inactive? org.MappingLhs
+--- Toggle custom timestamp display (C-c C-x C-t). Default: `<C-c><C-x><C-t>`
+---@field toggle_time_stamp_overlays? org.MappingLhs
 --- Insert today's date. Default: `<C-c><`
 ---@field date_today? org.MappingLhs
 --- Open calendar. Default: `<C-c>>`

@@ -215,6 +215,16 @@ function M.agenda(files, from, to, opts)
             habit = habit,
             reminder = s0 ~= today,
           }))
+        elseif not done and s0 > today and habit_cfg.show_habits_only_for_today == false then
+          -- org-habit-show-habits-only-for-today = nil: on its future day too
+          add(s0, new_item(hl, {
+            type = "scheduled",
+            date = s,
+            time = time_of(s),
+            extra = "Scheduled: ",
+            face = "OrgAgendaScheduled",
+            habit = habit,
+          }))
         end
       else
         local delay = 0
@@ -540,12 +550,9 @@ end
 ---------------------------------------------------------------------------
 
 local function prio_rank(item)
-  local p = item.priority
-  local f = item.headline.file
-  local pr = f:priorities()
-  p = p or pr.default
-  -- higher rank = more important
-  return -(p:byte() or 0)
+  -- higher rank = more important (numeric priorities too)
+  local prio = require("org.priority")
+  return -(prio.to_value(item.priority) or prio.range(item.headline.file).def or 0)
 end
 
 local function todo_rank(item)

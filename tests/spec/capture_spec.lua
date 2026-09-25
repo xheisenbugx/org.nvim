@@ -118,7 +118,7 @@ describe("capture.expand (org-capture-fill-template)", function()
     run(capture.capture, { target = p, headline = "Target", template = "* X %^{Status}p", immediate_finish = true })
     restore()
     eq({ "open", "closed" }, seen[1].candidates)
-    eq({ "* Target", ":PROPERTIES:", ":Status_ALL: open closed", ":END:", "** X ", ":PROPERTIES:", ":Status: closed", ":END:" }, file_lines(p))
+    eq({ "* Target", ":PROPERTIES:", ":Status_ALL: open closed", ":END:", "** X ", ":PROPERTIES:", ":Status:   closed", ":END:" }, file_lines(p))
   end)
 
   it("repeats the text before %i on every line of the initial content", function()
@@ -375,7 +375,7 @@ describe("capture targets", function()
       properties = { Where = "Room 1" },
       immediate_finish = true,
     })
-    eq({ "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where: Room 1", ":END:" }, file_lines(p))
+    eq({ "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where:    Room 1", ":END:" }, file_lines(p))
     local r = run(capture.capture, { target = p, olp = "Work/Missing", template = "* X", immediate_finish = true })
     eq(nil, r)
     eq(7, #file_lines(p))

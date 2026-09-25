@@ -329,11 +329,27 @@ function M.apply(bufnr)
       ))
     end
   end
-  cmd([=[syntax match orgPriority /\[#\w\]/ contained contains=orgPriorityA,orgPriorityB,orgPriorityC]=])
+  cmd([=[syntax match orgPriority /\[#\(\u\|\d\d\=\)\]/ contained contains=orgPriorityA,orgPriorityB,orgPriorityC]=])
   cmd([=[syntax match orgPriorityA /\[#A\]/ contained]=])
   cmd([=[syntax match orgPriorityB /\[#B\]/ contained]=])
   cmd([=[syntax match orgPriorityC /\[#C\]/ contained]=])
   cmd([=[syntax match orgTags /\s\zs:\([^[:space:]:]\+:\)\+\ze\s*$/ contained]=])
+  -- ui.priority_faces / ui.tag_faces (org-priority-faces, org-tag-faces)
+  local hls = require("org.highlights")
+  for prio in pairs(ui.priority_faces or {}) do
+    cmd(string.format(
+      [=[syntax match %s /\[#%s\]/ contained containedin=orgPriority]=],
+      hls.face_group("orgPriorityFace_", prio),
+      esc(tostring(prio))
+    ))
+  end
+  for tag in pairs(ui.tag_faces or {}) do
+    cmd(string.format(
+      [=[syntax match %s /:\zs%s\ze:/ contained containedin=orgTags]=],
+      hls.face_group("orgTagFace_", tag),
+      esc(tostring(tag))
+    ))
+  end
   cmd([=[syntax match orgHeadlineComment /\(^\*\+\s\+\(\S\+\s\+\)\?\)\@<=COMMENT\>/ contained]=])
 
   require("org.highlights").apply_todo_faces()

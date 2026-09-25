@@ -46,6 +46,24 @@ M.defaults = {
   enforce_todo_dependencies = false,
   --- Block marking an entry DONE while it has unchecked checkboxes.
   enforce_todo_checkbox_dependencies = false,
+  --- Functions that can block a TODO state change (org-blocker-hook). Each
+  --- receives `{ type = "todo-state-change", from, to, bufnr, lnum }` and
+  --- blocks the change by returning `false`.
+  todo_blockers = {},
+  --- C-c C-t uses the fast-selection menu when keywords have keys
+  --- (org-use-fast-todo-selection `auto`); `false` always cycles.
+  use_fast_todo_selection = "auto",
+  --- Which child headlines statistics cookies count
+  --- (org-provide-todo-statistics): `true` (entries with a TODO keyword),
+  --- `"all-headlines"`, a list of keywords, or `{ todo_list, done_list }`.
+  --- `false` stops updating cookies on state changes.
+  provide_todo_statistics = true,
+  --- Statistics cookies count direct children only; `false` counts the
+  --- whole subtree (org-hierarchical-todo-statistics).
+  hierarchical_todo_statistics = true,
+  --- Keep CLOSED when the TODO keyword is removed
+  --- (org-closed-keep-when-no-todo).
+  closed_keep_when_no_todo = false,
   --- `false`, `"time"` (add CLOSED:) or `"note"` (CLOSED: + note).
   log_done = false,
   --- Logging when a repeated task is marked done: false | "time" | "note".
@@ -59,6 +77,34 @@ M.defaults = {
   log_into_drawer = false,
   --- Newest log entries first (Emacs default).
   log_states_order_reversed = true,
+  --- Log notes are typed in a small `*Org Note*` split (<C-c><C-c> stores,
+  --- <C-c><C-k> cancels) like Emacs org-add-log-note; `false` asks with a
+  --- one-line prompt.
+  note_buffer = true,
+  --- Headings of log notes (org-log-note-headings). `%t` inactive
+  --- timestamp, `%T` active, `%d`/`%D` date only, `%s` new state, `%S` old
+  --- state or date (both quoted), `%u`/`%U` user name.
+  log_note_headings = {
+    done = "CLOSING NOTE %t",
+    state = "State %-12s from %-12S %t",
+    note = "Note taken on %t",
+    reschedule = "Rescheduled from %S on %t",
+    delschedule = "Not scheduled, was %S on %t",
+    redeadline = "New deadline from %S on %t",
+    deldeadline = "Removed deadline, was %S on %t",
+    refile = "Refiled on %t",
+    ["clock-out"] = "",
+  },
+  --- Hours after midnight that still belong to the previous day for
+  --- "today" in the agenda and date prompts (org-extend-today-until).
+  extend_today_until = 0,
+  --- With `extend_today_until`, record CLOSED and log times before that
+  --- hour as 23:59 of the previous day (org-use-effective-time).
+  use_effective_time = false,
+  --- In Visual mode, C-c C-t, C-c C-s and C-c C-d act on every headline of
+  --- the selection: `true`, `"start-level"` (only headlines of the first
+  --- one's level) or `false` (org-loop-over-headlines-in-active-region).
+  loop_over_headlines_in_active_region = true,
 
   ---------------------------------------------------------------------------
   -- Priorities & tags
@@ -66,15 +112,34 @@ M.defaults = {
   priority_highest = "A",
   priority_lowest = "C",
   priority_default = "B",
+  --- Tag groups (`[ GTD : Control Persp ]` in #+TAGS / `tags`) also match
+  --- their members in tag searches (org-group-tags); toggled by
+  --- `toggle_tags_groups`.
+  group_tags = true,
+  --- Fast tag selection exits after one key (org-fast-tag-selection-single-key):
+  --- `false`, `true`, or `"expert"` (no menu window).
+  fast_tag_selection_single_key = false,
+  --- Show the TODO keywords with fast keys in the fast tag selection menu
+  --- (org-fast-tag-selection-include-todo).
+  fast_tag_selection_include_todo = false,
+  --- Tag completion offers the tags of every agenda file instead of the
+  --- current buffer's (org-complete-tags-always-offer-all-agenda-tags).
+  complete_tags_always_offer_all_agenda_tags = false,
   --- Global tag list offered for completion. Strings may contain fast keys,
   --- e.g. `"work(w)"`, and `"{" ... "}"` for mutually exclusive groups.
   tags = {},
   --- Column tags are aligned to. Negative = right-align to that column.
   tags_column = -77,
+  --- Tag inheritance (org-use-tag-inheritance): true, false, a list of the
+  --- tags that inherit, or a regexp matching them.
   use_tag_inheritance = true,
+  --- Tags that never inherit (org-tags-exclude-from-inheritance).
   tags_exclude_from_inheritance = {},
-  --- true, false, or a list of property names that inherit.
+  --- Property inheritance (org-use-property-inheritance): true, false, a
+  --- list of property names, or a regexp matching them (ignoring case).
   use_property_inheritance = false,
+  --- Format of `:NAME: value` lines in property drawers (org-property-format).
+  property_format = "%-10s %s",
   --- Properties that apply to every entry (e.g. `Effort_ALL`).
   global_properties = {},
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
@@ -120,6 +185,16 @@ M.defaults = {
   --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.
   time_stamp_rounding_minutes = { 0, 5 },
+  --- Date prompts interpret incomplete dates in the future: `true` (a past
+  --- day/month means next month/year), `"time"` (also a past time today
+  --- means tomorrow) or `false` (org-read-date-prefer-future).
+  read_date_prefer_future = true,
+  --- Display timestamps with `time_stamp_custom_formats` (strftime
+  --- formats for dates and date+time, without brackets); toggled by
+  --- `toggle_time_stamp_overlays` (org-display-custom-times,
+  --- org-timestamp-custom-formats).
+  display_custom_times = false,
+  time_stamp_custom_formats = { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" },
   --- Where `archive_subtree` sends entries. `%s` = current file name
   --- (org-archive-location).
   archive_location = "%s_archive::",
@@ -184,6 +259,12 @@ M.defaults = {
       show_habits = true,
       show_all_today = false,
       show_done_always_green = false,
+      --- Only show habits on today's agenda (org-habit-show-habits-only-for-today).
+      show_habits_only_for_today = true,
+      --- Graph characters for today and for days the habit was done
+      --- (org-habit-today-glyph, org-habit-completed-glyph).
+      today_glyph = "!",
+      completed_glyph = "*",
     },
     stuck_projects = {
       match = "+LEVEL=2/-DONE",
@@ -630,6 +711,12 @@ M.defaults = {
     --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
     --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
     todo_keyword_faces = {},
+    --- Faces of priority cookies, like `todo_keyword_faces`:
+    --- `{ A = "ErrorMsg", ["10"] = { fg = "gray" } }` (org-priority-faces).
+    priority_faces = {},
+    --- Faces of tags, like `todo_keyword_faces`: `{ urgent = ":foreground red" }`
+    --- (org-tag-faces).
+    tag_faces = {},
   },
 
   ---------------------------------------------------------------------------
@@ -850,6 +937,8 @@ M.defaults = {
       priority = "<C-c>,",
       set_tags = "<C-c><C-q>",
       set_property = "<C-c><C-x>p",
+      set_property_and_value = "<C-c><C-x>P",
+      toggle_tags_groups = "<C-c><C-x>q",
       toggle_ordered = "<C-c><C-x>o",
       add_note = "<C-c><C-z>",
       -- dates
@@ -857,6 +946,7 @@ M.defaults = {
       deadline = "<C-c><C-d>",
       timestamp = "<C-c>.",
       timestamp_inactive = "<C-c>!",
+      toggle_time_stamp_overlays = "<C-c><C-x><C-t>",
       date_today = "<C-c><",
       goto_calendar = "<C-c>>",
       evaluate_time_range = "<C-c><C-y>",
