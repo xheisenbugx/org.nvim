@@ -2027,24 +2027,32 @@ timestamps is plotted as time. The radar type is not supported.
     for i in range(n): print("hi", i)
     #+end_src
 <
-<C-c><C-c> or <prefix>be   Execute the block (asynchronously). With
-                           `babel.confirm_evaluate`, you are asked first
-                           (`:eval yes|no|never-export` is honoured).
-<prefix>bb / bs    Execute every block in the buffer / subtree.
+Babel follows Emacs Org 9.8: the same header arguments, the same way values
+are read from programs and written back (tables, lists, `: ` lines), the same
+`#+RESULTS` placement, `:cache` hashes and tangled files, so a file gives the
+same results in both editors.
+
+<C-c><C-c> or <prefix>be   Execute the block, #+CALL line, inline src block
+                           or inline call at the cursor (asynchronously).
+                           With a count (C-u) a `:cache yes` block runs even
+                           when its hash is unchanged.
+<prefix>bb / bs    Execute every src block, #+CALL line, inline src block
+                   and inline call of the buffer / subtree, in order.
 <prefix>bk         Remove the result. With a count (C-u), remove every
                    result in the buffer.
 <prefix>bn / bp    Next / previous block.
 <prefix>'          Edit the block in a buffer with the language's filetype.
-                   <prefix>' also edits example, export and comment
-                   blocks, LaTeX environments and `: ` fixed-width areas.
+                   With a count (C-u) on a block with a `:session`, show
+                   the session instead. See |org-babel-edit-special|.
 <prefix>bt         Tangle the file (`:Org tangle`). With a count of 1
                    (C-u) only the block at the cursor; with 2 or more
-                   (C-u C-u) every block of that block's target file.
+                   (C-u C-u) the blocks with the same `:tangle` value.
 <prefix>bf         Tangle another file.
-<prefix>bv         Show the expanded block (noweb, :var assignments,
-                   :prologue / :epilogue) in a split.
-<prefix>bI / bc    Show the block's merged header args / warn about
-                   unknown header args.
+<prefix>bv         Show the expanded block (noweb, :prologue, variables,
+                   :epilogue) in a split.
+<prefix>bI / bc    Show the block's merged header args / report a header
+                   arg of the #+begin_src line that looks like a misspelt
+                   one (within 2 edits of a known name, like Emacs).
 <prefix>bj         Insert a header argument (names and values completed).
 <prefix>bg / br    Go to a named block / a named result.
 <prefix>bu         Go to the head of the block.
@@ -2053,7 +2061,8 @@ timestamps is plotted as time. The radar type is not supported.
                    wrap the selection in a new block (or, inside a block,
                    make it a block of its own); elsewhere insert a block.
 <prefix>bi         Add the named blocks of a file to the Library of Babel,
-                   so #+CALL, :var and noweb can use them everywhere.
+                   so #+CALL, :var and noweb can use them everywhere
+                   (also <C-c><C-v><Tab>).
 <prefix>bz / bZ    Show the block's session (with a count, first assign
                    its :var values there); bZ also opens the edit buffer.
 <prefix>bl         Send the block to its session and show the session.
@@ -2063,11 +2072,69 @@ timestamps is plotted as time. The radar type is not supported.
 <prefix>bm         Select the block body (Visual line mode).
 <prefix>bx         Run Normal-mode keys in the block's edit buffer and
                    write the result back (e.g. `gg=G` to reindent).
+<Tab> on #+RESULTS Fold / unfold the result (org-babel-hide-result-toggle);
+                   `:Org babel_hide_all_results` folds every result.
 #+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
-                   `#+NAME:` above a call names its results.
+                   `#+NAME:` above a call names its results. Arguments
+                   without `name=` fill the block's variables in order:
+                   `#+CALL: add(10, 20)`.
 src_lua{return 1}  Inline block: C-c C-c on it inserts or replaces
-                   ` {{{results(=1=)}}}` after it (single-line results).
+                   ` {{{results(=1=)}}}` after it. `:results raw` inserts
+                   the bare value; tables, lists and multi-line results
+                   are an error ("Inline error: ... cannot be used").
 call_name(n=5)     Inline call, same as above.
+
+Evaluation ~
+Before a block runs you are asked "Evaluate this LANG code block on your
+system?" unless `babel.confirm_evaluate` is false. It can also be a
+function `function(lang, body) return true end` that decides (like Emacs'
+`org-confirm-babel-evaluate`). `:eval query` always asks, `:eval no` and
+`:eval never` (or `:noeval`) never run, `:eval never-export`/`no-export`
+only skip export, `:eval query-export` asks when exporting. Executing the
+buffer or a subtree asks for every block, like Emacs. With
+`babel.no_eval_on_ctrl_c_ctrl_c` C-c C-c does not evaluate blocks.
+
+Errors: whatever a program writes to stderr, and its exit code when it
+fails, go to the `*Org-Babel Error Output*` buffer (shown in a split); the
+result keeps the standard output only, like `org-babel-eval`. A missing
+reference or an inline result that cannot be inserted stops the execution
+of the buffer.
+
+Hooks are `User` autocommands: `OrgBabelAfterExecute` (after a result is
+inserted; `data` has bufnr, lang, name, result), `OrgBabelTanglePre`,
+`OrgBabelTangleBody` (the body being tangled is in
+`require("org.babel.tangle").body`, which the callback may change),
+`OrgBabelTanglePost` (per written file, `data.file`) and
+`OrgBabelTangleFinished`.
+
+Results ~
+A block's result is its value (`:results value`, the default) or what it
+prints (`:results output`). Like Emacs:
+  - Python, Ruby and JavaScript values are read from their printed form:
+    `[[1,2],None,[3,4]]` is a table with a hline, `1.0`, big integers,
+    `True`, `None` keep their spelling, a dict stays text (a table with
+    `:results table`, a `key :: value` list with `:results list`),
+    `:results verbatim` / `pp` / `scalar` keep the text (pprint for pp).
+  - Shell blocks default to their output (`:results value` is the exit
+    status). Unless `output`, `verbatim`, `raw`, `org`, `html`, `code`,
+    `pp` or `file` is given, the text is read like
+    `org-babel-import-elisp-from-file`: several lines become a table split
+    at tabs, commas or runs of spaces, numbers are read, one line stays
+    text (`echo a b` gives `: a b`, `printf 'a\nb\n'` a two-row table).
+  - sqlite runs `sqlite3 -csv` (`-header` with `:colnames yes`) and passes
+    `:header :echo :bail :csv :column :html :line :list :separator
+    :nullvalue` (and `:readonly yes`) to it.
+  - Lua blocks run inside Neovim (not an external `lua` like Emacs): a
+    returned table becomes a table or list, `return "a", "b"` gives `a, b`,
+    `nil` gives `nil`. Code runs in the editor process: it can use the
+    `vim` API, but `os.exit()` or a blocking loop affects Neovim, and
+    `babel.timeout` cannot stop it. `print` goes to the result.
+Results are inserted after `#+RESULTS:` like `org-babel-insert-result`:
+text as `: ` lines (an example block from `babel.min_lines_for_block_output`
+lines), lists as tables (with `:results list` as a plain list), `raw`,
+`drawer` (`:results:` ... `:end:`), `org`, `html`, `latex`, `code` and
+`:wrap` as in Emacs. A paragraph below `#+RESULTS:` is not part of the
+result and stays when the result is replaced.
 
 Sessions ~
 `:session [name]` runs the block in a long-lived interpreter shared by every
@@ -2077,8 +2144,8 @@ Supported: shells (sh, bash, zsh, fish), python, js/node, ruby and lua (lua
 sessions keep their globals inside Neovim). Other languages ignore
 `:session` with a warning.
   - `:results value` is the value of the last expression (python, ruby,
-    js) or the returned value (lua); shells use their output unless
-    `:results value` is explicit, which gives the exit status.
+    js), formatted like Emacs, or the returned value (lua); shells use their
+    output unless `:results value` is explicit, which gives the exit status.
   - stderr is merged into the output, like an Emacs REPL buffer.
   - Each session has a transcript buffer (`org-babel-session://lang/name`)
     showing what ran; type at its prompt to evaluate a line in the session.
@@ -2086,72 +2153,165 @@ sessions keep their globals inside Neovim). Other languages ignore
   - The session starts in the block's `:dir`. A top-level `let`/`const` in
     a js session becomes `var`, so blocks can be evaluated again.
 
-Languages: `babel.languages` maps a language name to `{ cmd = "...", ext =
-"..." }`. Lua runs inside Neovim. sqlite uses `:db file`.
+Languages ~
+`babel.languages` maps a language name to `{ cmd = "...", ext = "...",
+default_header_args = {...} }`. `default_header_args` are that language's
+defaults (Emacs `org-babel-default-header-args:LANG`). Emacs enables only
+emacs-lisp (`org-babel-load-languages`); the plugin enables shells, python,
+lua, js/ts, ruby, perl, php, R, go, rust, sqlite, sql, C, C++/cpp, D and awk
+because emacs-lisp cannot run in Neovim (see below). `:python`, `:ruby` and
+`:cmd` (js) choose the interpreter of one block, like Emacs.
+  - python: `:return expr` (the value of `expr`), `:preamble`, and
+    `:results graphics file :file x.png` (the matplotlib figure is saved).
+  - C, C++ (cpp) and D (ob-C): compiled with gcc / g++ (rdmd for D) and
+    run; `:includes <stdio.h>`, `:defines N 5`, `:namespaces std`,
+    `:flags -O2`, `:libs -lm`, `:main no`, `:cmdline args`; table
+    variables become arrays with `NAME_rows` / `NAME_cols` (and
+    `NAME_h(row, "col")` with `:colnames yes`).
+  - sql (ob-sql): `:engine postgresql|mysql|mssql|sqsh|vertica|monetdb|dbi`
+    runs that client with `:dbhost :dbport :dbuser :dbpassword :database`
+    (`:out-file`); without `:engine` the plugin runs sqlite3 with `:db`.
+    `$name` in the body is replaced by `:var name` (a table becomes a CSV
+    file name).
 
-Header arguments merge in this order: `babel.default_header_args`, then
-`#+PROPERTY: header-args[:lang]`, then HEADER-ARGS properties, then
-`#+HEADER:` lines, then the `#+begin_src` line.
-  :results   output|value; replace|append|prepend|silent;
-             verbatim|raw|org|drawer|html|latex|code|list|table|file
+Header arguments ~
+Header arguments merge like Emacs: `babel.default_header_args` (inline
+blocks: `default_inline_header_args`, #+CALL: the called block's, then
+`default_lob_header_args`), the language's `default_header_args`, the
+`header-args` and `header-args:LANG` properties (the nearest headline that
+sets one wins; `header-args+:` adds to the inherited value; `#+PROPERTY:`
+applies when no headline sets it), the `#+begin_src` line, then `#+HEADER:`
+lines (the last wins).
+  :results   output|value; replace|append|prepend|silent|none|discard;
+             verbatim|scalar|table|vector|list|file; raw|org|drawer|html|
+             latex|code|pp|link|graphics
   :var       name=value, name="string", name=named-table, name=list,
-             name=table[1,2], name=table[1:3,-1] (0-based, ranges,
-             negative indices from the end, `[,1]` = a column).
-             Like Emacs, a reference to a src block or `#+CALL` evaluates
-             it: name=block, name=block(x=1), name=block[:results output]
-             (x=1), name=block(x=1)[0]; `name=block[]` is its body text.
-             Other forms: file.org:name (another file), an ID or CUSTOM_ID
-             (the headline's text), Emacs Lisp literals `'(1 2 3)` and
-             simple forms `(+ 1 2)`. Bash gets tables as associative
-             arrays and lists as arrays; sqlite replaces `$name` in the
-             body (a table becomes a CSV file path). An unknown reference
-             is an error.
-  :hlines    yes: keep the horizontal lines of table variables (None /
-             nil / null in python, ruby, js; "hline" in lua and shells)
+             name=table[1,2], name=table[1:3,-1] (0-based ranges and
+             negative indices count every row, the header and hlines
+             included; `[,1]` = a column). A reference to a src block or
+             `#+CALL` evaluates it: name=block, name=block(x=1),
+             name=block(1, 2), name=block[:results output](x=1),
+             name=block(x=1)[0]; `name=block[]` is its body text. Other
+             forms: file.org:name, an ID or CUSTOM_ID (the headline's
+             text), Emacs Lisp literals `'(1 2 3)` and simple forms
+             `(+ 1 2)`. Bash gets tables as associative arrays and lists
+             as arrays; sqlite/sql replace `$name`.
+  :hlines    yes: keep the hlines of table variables (None / nil / hline)
   :separator cell separator of tables given to shells (default: tab)
   :stdin     ref: feed a value to the stdin of a shell block
   :session   [name]: see Sessions above
-  :colnames  (default) a table variable whose 2nd row is a hline passes
-             its first row as column names; they are put back on a table
-             result of the same width. `yes` / `no` / `'(a b)` like Emacs
+  :colnames  a table variable whose 2nd row is the only hline loses its
+             header row; `yes` always takes the first row as names and
+             puts them back on a table result of the same width (the
+             default, like Emacs 9.8, does not put them back); `no` keeps
+             the header as data; `'(a b)` names the result's columns
   :rownames  yes: the same for the first column
   :wrap      [type [params]] wrap the result in #+begin_type (default
-             `results`), e.g. `:wrap src python`, `:wrap export html`
-  :cache     yes: store a hash in `#+RESULTS[hash]:` and skip evaluation
-             when the body and arguments did not change
-  :file      write the result to the file and insert a link to it (not
-             with `:results link` / `graphics`); :output-dir, :file-ext
-             (with #+NAME), :file-mode, :sep (for tables)
-  :dir :cmdline :prologue :epilogue :noweb-ref  (`:dir` is created
-             with `:mkdirp yes`)
+             `results`), e.g. `:wrap src python`, `:wrap export html`;
+             `:wrap no` inserts the result as it is
+  :cache     yes: store a hash in `#+RESULTS[hash]:` and reuse the result
+             while the parameters and body are unchanged. The hash is
+             computed like `org-babel-sha1-hash`, so it matches Emacs
+             (`babel.hash_show_time` adds the date). Works on #+CALL too.
+  :file      with `:results file` the result is written to the file
+             (relative to `:dir`; the directory must exist) and a link is
+             inserted (relative to the Org file); `:results file link` /
+             `graphics` only links. :output-dir (created), :file-ext (with
+             #+NAME), :file-mode `(identity #o755)`, :sep (for tables),
+             :file-desc (no value = the file name, `[]` = none)
+  :dir :cmdline :prologue :epilogue :noweb-ref :mkdirp yes (for :dir)
   :noweb     yes|no|tangle|eval|no-export|strip-export|strip-tangle|
-             tangle-eval. Every <<ref>> of a line is expanded; blocks
-             sharing a :noweb-ref are joined with :noweb-sep (default a
-             newline); :noweb-prefix no stops repeating the text before
-             the reference. `<<name(x=1)>>` inserts the result of
-             evaluating the block. Blocks in COMMENT subtrees are skipped.
+             tangle-eval. Every <<ref>> of a line is expanded (references
+             may contain spaces: `<<add(a=3, b=4)>>`); blocks sharing a
+             :noweb-ref are joined with :noweb-sep (default a newline);
+             :noweb-prefix no stops repeating the text before the
+             reference. `<<name(x=1)>>` inserts the result of evaluating
+             the block; `<<id>>` of a headline with that CUSTOM_ID or ID
+             inserts its text. Blocks in COMMENT subtrees are skipped.
   :exports   code|results|both|none (for export)
-  :results   file without :file: the value is a file name to link
-  :tangle    yes|no|path  :mkdirp yes  :shebang "#!/bin/sh"
-  :comments  link|org|both  :padline  :tangle-mode  :no-expand
   :post      name(arg=*this*): run the named block on the result; its
              result is inserted instead
-Switches: `-i` keeps the indentation of the lines (edit buffer and
-tangling), `-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs
-in export.
-Tangled files contain the :var assignments, :prologue and :epilogue, like
-Emacs; `-r` removes coderef labels and COMMENT subtrees are skipped.
+  :tangle :comments :padline :shebang :tangle-mode :no-expand  see below
+Switches: `-i` keeps the indentation of the lines (like
+`src_preserve_indentation`, Emacs `org-src-preserve-indentation`),
+otherwise the common indentation of a block is removed before it runs;
+`-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs (always
+removed before a block runs).
 
-Results of 10 or more lines (`babel.min_lines_for_block_output`) use an
-example block; shorter results use `: ` lines. Value results that look like a
-list of lists become a table.
+Tangling ~
+`:tangle yes|FILE` writes a block to a file (`yes`: the Org file's name with
+the extension of `babel.tangle_lang_exts` or the language name, as Emacs:
+`python` → `.py`, `sh` → `.sh`, `bash` → `.bash`). Like `org-babel-tangle`:
+  - the Org buffer is saved first; blocks in COMMENT and :ARCHIVE:
+    subtrees are skipped; `:var` assignments, `:prologue`/`:epilogue` and
+    noweb references (`:noweb yes|tangle`) are written; `-r` removes
+    coderef labels; unchanged files are not rewritten.
+  - `:comments link` (and `yes`) wraps each block in
+    `[[file:x.org::*Heading][Heading:N]]` ... `Heading:N ends here`
+    comments (N counts the blocks of the entry; a named block uses its
+    name; the link is relative to the tangled file,
+    `babel.tangle_use_relative_file_links`), `:comments org` writes the
+    Org text before the block as comments, `both` does both, `noweb` also
+    wraps every noweb expansion. The formats are
+    `babel.tangle_comment_format_beg` / `_end`.
+  - `:padline no` removes the blank line between blocks; `:shebang` goes
+    on the first line and makes the file executable; `:mkdirp yes` creates
+    the directory; `:tangle-mode o755`, `(identity #o755)`, `rwxr-xr-x` or
+    `u+x` (added to `babel.tangle_default_file_mode`) set the mode.
+From a tangled file:
+  :Org tangle_jump      jump to the Org block the cursor is in
+                        (org-babel-tangle-jump-to-org)
+  :Org detangle [file]  copy the edited bodies back into the Org blocks
+                        (org-babel-detangle; needs link comments)
+  :Org tangle_clean     remove the link comments and noweb references
+                        (Emacs 9.8's org-babel-tangle-clean removes
+                        nothing because of a bug; this does what its
+                        documentation says)
+`:Org babel_load_file [file]` tangles the `lua` blocks of an Org file to
+FILE.lua (again only when the Org file is newer) and runs it with `dofile`,
+the Lua counterpart of `org-babel-load-file` (e.g. an init.org).
 
-Export: with `babel.evaluate_on_export = true` (the default, Emacs
+Library of Babel and tables ~
+`org-sbe` works in Emacs Lisp table formulas: >org
+    | 2 | 4 |
+    #+TBLFM: $2='(org-sbe "square" (x $1))
+<
+evaluates the block `square` with `x` set to the first column (`$$1` passes
+the field as a string, a first string argument holds header arguments).
+
+Export ~
+With `babel.evaluate_on_export = true` (the default, Emacs
 `org-export-use-babel`) exporting first evaluates, in a copy of the buffer,
 the blocks and #+CALL lines with `:exports results|both`, inline src blocks
-and calls, and `:exports code|none` blocks that use a session. `:eval
-never-export|no-export` blocks keep their existing results. When false,
-`:exports` is ignored and the buffer is exported as it is.
+and calls, and `:exports code|none` blocks that use a session; each one is
+confirmed like any evaluation. `:eval never-export|no-export` blocks keep
+their existing results. With `false`, export uses the `#+RESULTS` already in
+the buffer.
+
+                                                        *org-babel-edit-special*
+<prefix>' (C-c ') also edits, like `org-edit-special`: example, export and
+comment blocks, LaTeX environments, `: ` fixed-width areas, the body of an
+inline src block (kept on one line), the definition of the footnote at the
+cursor (inline definitions cannot contain blank lines), a LaTeX fragment
+(`$x$`, `\(x\)`, `\[x\]`); it visits the file of an INCLUDE, SETUPFILE or
+BIBLIOGRAPHY keyword, runs deadline / schedule on a planning line and the
+date prompt on a timestamp, and follows a link. Elsewhere: "No special
+environment to edit here".
+
+Not supported ~
+  - emacs-lisp (elisp) blocks cannot be evaluated: Neovim has no Emacs Lisp
+    interpreter (the small evaluator used by table formulas only knows
+    arithmetic, strings and lists). They can still be tangled and exported.
+  - Header values that are arbitrary Emacs Lisp (`:dir (concat ...)`,
+    `:var x=(some-function)`, `:results (if ...)`): only the forms the
+    table formula evaluator knows are evaluated.
+  - `org-babel-load-file` for Emacs Lisp, and Emacs hook functions (hooks
+    are `User` autocommands instead).
+  - Asynchronous sessions (`:async`), `:results xmp` (Ruby rcodetools),
+    Indium js sessions, and SQL sessions and `:dbconnection` (Emacs'
+    `sql-connection-alist`).
+  - Attachment links for `:file` results inside the attachment directory
+    (`attachment:` links) and `:dir 'attach`.
 
 ==============================================================================
 20. DYNAMIC BLOCKS                                               *org-dblocks*
@@ -2851,8 +3011,16 @@ attach ~
   preferred_new_method "id", store_link "attached",
   sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH"
 babel ~
-  confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
-  evaluate_on_export true, default_header_args, languages
+  confirm_evaluate true (or a function), min_lines_for_block_output 10,
+  timeout 30000, evaluate_on_export true, no_eval_on_ctrl_c_ctrl_c false,
+  default_header_args, default_inline_header_args,
+  default_lob_header_args, results_keyword "RESULTS",
+  inline_result_wrap "=%s=", hash_show_time false, noweb_wrap_start "<<",
+  noweb_wrap_end ">>", tangle_use_relative_file_links true,
+  tangle_comment_format_beg / _end, tangle_default_file_mode "644",
+  tangle_lang_exts {}, tangle_save_buffer true,
+  tangle_uncomment_comments false, languages (see |org-babel|)
+src_preserve_indentation false (org-src-preserve-indentation)
 export ~                                                   *org-config-export*
   output_dir, open_after_export, and the Emacs org-export-* options:
   with_toc true, with_section_numbers true, headline_levels 3,
@@ -3078,6 +3246,8 @@ Additional subcommands:
   :Org export [format] [subtree] [body] [visible] [buffer] [open]
   :Org publish [project|file|current|all] [force]
   :Org tangle                :Org search {text}
+  :Org detangle [file]       :Org tangle_jump    :Org tangle_clean
+  :Org babel_load_file [file]
   :Org tags_search {match}   :Org todo_list [KEYWORD]
   :Org clock_in_last         :Org refile_goto
   :Org show_all | overview | content | show_everything
@@ -3275,9 +3445,11 @@ Differences from Emacs:
   `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
 - Babel sessions exist for shells, python, js, ruby and lua only, and
-  are not full REPLs: each block runs as one request. `elisp:`
-  links and emacs-lisp blocks are not supported; `:var` Lisp forms are
-  limited to what the table formula Lisp evaluator implements.
+  are not full REPLs: each block runs as one request. Lua blocks run
+  inside Neovim instead of an external `lua`. `elisp:` links and
+  emacs-lisp blocks are not supported; `:var` and header Lisp forms are
+  limited to what the table formula Lisp evaluator implements (see
+  |org-babel|).
 - Export: see |org-export-unsupported|.
 - Links (|org-links|):
   - `elisp:` links are not supported: they need an Emacs Lisp interpreter.

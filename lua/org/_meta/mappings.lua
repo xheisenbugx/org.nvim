@@ -36,6 +36,7 @@
 ---| "babel_goto_head" # Go to src block head
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
+---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
 ---| "babel_load_in_session" # Load src block into its session
@@ -841,7 +842,7 @@
 ---@field babel_open_result? org.MappingLhs
 --- Split / wrap src block. Default: `{ "<C-c><C-v>d", "<C-c><C-v><C-d>" }`
 ---@field babel_demarcate? org.MappingLhs
---- Add file's blocks to Library of Babel. Default: `<C-c><C-v>i`
+--- Add file's blocks to Library of Babel. Default: `{ "<C-c><C-v>i", "<C-c><C-v><Tab>" }`
 ---@field babel_lob_ingest? org.MappingLhs
 --- Load src block into its session. Default: `{ "<C-c><C-v>l", "<C-c><C-v><C-l>" }`
 ---@field babel_load_in_session? org.MappingLhs

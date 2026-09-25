@@ -728,6 +728,10 @@ local function substitute(m, rhs, r, c, flags, mode, ctx)
       end
       out[#out + 1] = reference_text(kind, v, mode, flags)
       i = j
+    elseif mode == "elisp" and ch == "$" and rhs:sub(i + 1, i + 1) == "$" then
+      -- `$$2` in org-sbe: a literal `$` (quote the next value as a string)
+      out[#out + 1] = "$ "
+      i = i + 1
     elseif ch == "@" or ch == "$" then
       local kind, v, j = read_ref(m, rhs, i, r, c, ctx)
       out[#out + 1] = reference_text(kind, v, mode, flags)

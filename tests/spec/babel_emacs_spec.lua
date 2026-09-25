@@ -105,7 +105,9 @@ describe("babel (Emacs header args)", function()
     vim.bo[buf].modified = false
   end)
 
-  it(":colnames re-attaches the header of a table variable", function()
+  it(":colnames yes re-attaches the header of a table variable", function()
+    -- Emacs 9.8: without :colnames the header row is removed from the
+    -- variable and not put back (org-babel-pick-name with a nil selector)
     local buf = org_buffer({
       "#+NAME: tbl",
       "| name | n |",
@@ -118,6 +120,13 @@ describe("babel (Emacs header args)", function()
       "return t",
       "#+end_src",
     }, { 8, 0 })
+    babel.execute_block()
+    ok(wait_for(buf, function(l)
+      return l[14] ~= nil
+    end), vim.inspect(buf_lines(buf)))
+    eq({ "#+RESULTS:", "| a | 10 |", "| b | 20 |" }, vim.list_slice(buf_lines(buf), 12, 14))
+    vim.api.nvim_buf_set_lines(buf, 6, 7, false, { "#+begin_src lua :var t=tbl :colnames yes" })
+    vim.api.nvim_win_set_cursor(0, { 8, 0 })
     babel.execute_block()
     ok(wait_for(buf, function(l)
       return l[16] ~= nil
@@ -166,7 +175,8 @@ describe("babel (Emacs header args)", function()
   it(":file writes the result to the file and links it", function()
     local dir = tmpdir()
     local buf = org_buffer(
-      { "#+NAME: gen", "#+begin_src lua :output-dir out :file-ext txt", "return 'hello'", "#+end_src" },
+      -- like Emacs 9.8, only `:results file` writes the file
+      { "#+NAME: gen", "#+begin_src lua :results file :output-dir out :file-ext txt", "return 'hello'", "#+end_src" },
       { 3, 0 }
     )
     vim.api.nvim_buf_set_name(buf, dir .. "/f.org")
@@ -181,7 +191,8 @@ describe("babel (Emacs header args)", function()
   it("expands a block body with variables", function()
     local buf = org_buffer({ "#+begin_src sh :var x=2 :prologue \"set -e\"", "echo $x", "#+end_src" }, { 2, 0 })
     local b = babel.at_block(buf, 2)
-    eq({ "x='2'", "set -e", "echo $x" }, babel.expand_body(buf, b, b.args, "eval"))
+    -- org-babel-expand-body:generic: prologue, variables, body
+    eq({ "set -e", "x='2'", "echo $x" }, babel.expand_body(buf, b, b.args, "eval"))
   end)
 
   it("demarcates (splits) a block at the cursor", function()
@@ -269,10 +280,11 @@ describe("babel (Emacs header args)", function()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Two: src_lua[:results raw]{return 3} {{{results(=2=)}}} end" })
     vim.api.nvim_win_set_cursor(0, { 1, 8 })
     require("org.context").context_action()
+    -- :results raw inserts the bare value in place of the old macro
     ok(wait_for(buf, function(l)
-      return l[1]:find("results(3)", 1, true) ~= nil
+      return not l[1]:find("{{{results", 1, true)
     end), vim.inspect(buf_lines(buf)))
-    eq("Two: src_lua[:results raw]{return 3} {{{results(3)}}} end", buf_lines(buf)[1])
+    eq("Two: src_lua[:results raw]{return 3} 3 end", buf_lines(buf)[1])
   end)
 
   it("goes to named blocks and results; inserts header args", function()
@@ -295,8 +307,14 @@ describe("babel (Emacs header args)", function()
     eq(3, vim.api.nvim_win_get_cursor(0)[1])
     babel.insert_header_arg("results", "output")
     eq("#+begin_src sh :results output", buf_lines(buf)[3])
-    eq({ ":bogus" }, (function()
+    -- like org-babel-check-src-block, only headers close to a known one
+    -- are reported
+    eq({}, (function()
       babel.insert_header_arg("bogus", "1")
+      return babel.check_block()
+    end)())
+    eq({ "resluts", "results" }, (function()
+      babel.insert_header_arg("resluts", "1")
       return babel.check_block()
     end)())
   end)
