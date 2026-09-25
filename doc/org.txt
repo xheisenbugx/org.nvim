@@ -1359,12 +1359,16 @@ to deliver them yourself.
 ==============================================================================
 23. COMPLETION                                                *org-completion*
 
-Completes:
+Completes (like Emacs `org-pcomplete`):
 - TODO keywords after stars
-- tags after `:` on a headline or in `#+FILETAGS`
+- tags after `:` on a headline (not the ones already set) or in
+  `#+FILETAGS`
 - `#+` keywords, `#+STARTUP` and `#+OPTIONS` values, `#+begin_src`
-  languages
-- property and drawer names after `:` at the start of a line
+  languages, then header arguments and switches (also on `#+HEADER:`)
+- `#+BEGIN: clocktable` parameters
+- entities after `\` (`\alpha`)
+- in a property drawer, property names the entry doesn't have yet;
+  elsewhere drawer names used in the buffer, after `:` at line start
 - link types, stored links, headlines (`[[*`) and custom IDs (`[[#`)
 
 omnifunc:    <C-x><C-o> (set automatically)
