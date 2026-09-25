@@ -273,7 +273,7 @@ function M.edit_object(bufnr, lnum, col)
       end
       f = f:gsub("::.*$", "")
       local dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":p:h")
-      vim.cmd("edit " .. vim.fn.fnameescape(utils.expand(f, dir)))
+      utils.open_file(utils.expand(f, dir))
       return true
     end
   end

@@ -211,12 +211,17 @@
 ---@class org.Config.Babel.Language
 ---Command that runs the program: a string (split on whitespace) or an argv
 ---list. The code is written to a temp file whose path is appended (sqlite
----gets the `:db` path and the code on stdin). Required to evaluate a
----language not in the defaults; `lua` always runs inside Neovim.
+---gets the code on stdin, C/C++/D is the compiler, `sql` runs the client
+---of its `:engine`). Required to evaluate a language not in the defaults;
+---`lua` always runs inside Neovim.
 ---@field cmd? string|string[]
----Extension of the temp file / tangled file, e.g. `"py"`. Defaults to a
----built-in per-language table, else the language name.
+---Extension of the temp file, e.g. `"py"`. Defaults to a built-in
+---per-language table, else the language name. (`:tangle yes` files use
+---`tangle_lang_exts`.)
 ---@field ext? string
+---Default header arguments of this language, merged after
+---`default_header_args` (Emacs `org-babel-default-header-args:LANG`).
+---@field default_header_args? org.Config.Babel.HeaderArgs
 
 ---Default header arguments (`org-babel-default-header-args`). Keys are
 ---header argument names without `:`; values are strings.
@@ -229,16 +234,21 @@
 ---name share one running interpreter. (default: `"none"`)
 ---@field session? string
 ---(default: `"no"`)
+---@field cache? "yes"|"no"
+---(default: `"no"`)
 ---@field noweb? "yes"|"no"|"tangle"|"no-export"|"strip-export"|"eval"|string
+---Keep the hlines of table variables. (default: `"no"`)
+---@field hlines? "yes"|"no"
 ---(default: `"no"`)
 ---@field tangle? "yes"|"no"|string
 ---@field [string] string|number
 
 ---Source block evaluation (Babel) options.
 ---@class org.Config.Babel
----Ask before evaluating a src block (`org-confirm-babel-evaluate`); `:eval`
----header args still apply. (default: `true`)
----@field confirm_evaluate? boolean
+---Ask before evaluating a src block (`org-confirm-babel-evaluate`): `true`,
+---`false`, or a function `(lang, body) -> boolean` that returns true to
+---ask. `:eval query` always asks. (default: `true`)
+---@field confirm_evaluate? boolean|fun(lang: string, body: string): boolean
 ---Results with at least this many lines use an example block instead of
 ---`: ` lines (`org-babel-min-lines-for-block-output`). (default: `10`)
 ---@field min_lines_for_block_output? integer
@@ -247,16 +257,59 @@
 ---@field timeout? integer
 ---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
 ---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
----results in the exported copy (the buffer is not changed). When `false`,
----export uses the `#+RESULTS` already in the buffer. (default: `false`)
+---results in the exported copy (the buffer is not changed); each block is
+---confirmed like any evaluation. When `false`, export uses the `#+RESULTS`
+---already in the buffer. (default: `true`)
 ---@field evaluate_on_export? boolean
+---C-c C-c does not evaluate src blocks
+---(`org-babel-no-eval-on-ctrl-c-ctrl-c`). (default: `false`)
+---@field no_eval_on_ctrl_c_ctrl_c? boolean
 ---Default header arguments, merged key by key with the defaults.
----(default: `{ results = "replace", exports = "code", session = "none", noweb = "no", tangle = "no" }`)
+---(default: `{ session = "none", results = "replace", exports = "code", cache = "no", noweb = "no", hlines = "no", tangle = "no" }`)
 ---@field default_header_args? org.Config.Babel.HeaderArgs
+---Header arguments of inline src blocks (`org-babel-default-inline-header-args`).
+---(default: `{ session = "none", results = "replace", exports = "results", hlines = "yes" }`)
+---@field default_inline_header_args? org.Config.Babel.HeaderArgs
+---Header arguments of `#+CALL` lines and `call_` after the called block's
+---(`org-babel-default-lob-header-args`). (default: `{ exports = "results" }`)
+---@field default_lob_header_args? org.Config.Babel.HeaderArgs
+---Keyword of results lines (`org-babel-results-keyword`). (default: `"RESULTS"`)
+---@field results_keyword? string
+---Format of inline results inside `{{{results(...)}}}`
+---(`org-babel-inline-result-wrap`). (default: `"=%s="`)
+---@field inline_result_wrap? string
+---Put the date before `:cache` hashes (`org-babel-hash-show-time`).
+---(default: `false`)
+---@field hash_show_time? boolean
+---Noweb reference delimiters (`org-babel-noweb-wrap-start` / `-end`).
+---(default: `"<<"`, `">>"`)
+---@field noweb_wrap_start? string
+---@field noweb_wrap_end? string
+---Links in tangle comments are relative to the tangled file
+---(`org-babel-tangle-use-relative-file-links`). (default: `true`)
+---@field tangle_use_relative_file_links? boolean
+---Tangle comment formats with `%link`, `%source-name`, `%file`,
+---`%start-line` (`org-babel-tangle-comment-format-beg` / `-end`).
+---(default: `"[[%link][%source-name]]"`, `"%source-name ends here"`)
+---@field tangle_comment_format_beg? string
+---@field tangle_comment_format_end? string
+---Base mode (octal string) for symbolic `:tangle-mode` values like `u+x`
+---(`org-babel-tangle-default-file-mode`). (default: `"644"`)
+---@field tangle_default_file_mode? string
+---Extensions of `:tangle yes` files by language, added to Emacs' list
+---(`org-babel-tangle-lang-exts`). (default: `{}`)
+---@field tangle_lang_exts? table<string, string>
+---Save the Org buffer before tangling (`org-babel-pre-tangle-hook`).
+---(default: `true`)
+---@field tangle_save_buffer? boolean
+---Write tangle comments without comment syntax
+---(`org-babel-tangle-uncomment-comments`). (default: `false`)
+---@field tangle_uncomment_comments? boolean
 ---Languages that can be evaluated, merged key by key with the defaults
 ---(sh, shell, bash, zsh, fish, python, python3, lua, js, javascript,
----typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, awk). Set a
----language to `false` to remove it.
+---typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, sql, C, C++,
+---cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
+---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
 
 ---------------------------------------------------------------------------

@@ -1192,12 +1192,13 @@ end
 
 --- Output file of a block (org-babel-generate-file-param: `:file`, or
 --- NAME.`:file-ext`, below `:output-dir`), or nil.
-function M.file_param(args, name)
+---@param base? string directory relative paths start from (the Org file's)
+function M.file_param(args, name, base)
   local file = blocks_mod.unquote(args.file)
   local dir = blocks_mod.unquote(args["output-dir"])
   local ext = blocks_mod.unquote(args["file-ext"])
   if dir and dir ~= "" then
-    pcall(vim.fn.mkdir, dir, "p")
+    pcall(vim.fn.mkdir, utils.expand(dir, base or vim.fn.getcwd()), "p")
   end
   if (not file or file == "") and name and ext and ext ~= "" then
     file = name .. "." .. ext
@@ -1253,11 +1254,13 @@ end
 
 --- File mode of a `:tangle-mode` / `:file-mode` value like
 --- org-babel-interpret-file-mode: `(identity #o755)`, `o755`, `#o755`,
---- `rwxr-xr-x` or `u+x` (on top of 0644). Returns nil and a message for
+--- `rwxr-xr-x` or `u+x` (on top of `babel.tangle_default_file_mode`,
+--- 644). Returns nil and a message for
 --- other values (a decimal number like `755` is refused, as in Emacs).
 function M.file_mode(value)
   local v = vim.trim(blocks_mod.unquote(value or "") or "")
-  local default = tonumber("644", 8)
+  local default = tonumber(tostring(require("org.config").opts.babel.tangle_default_file_mode or "644"), 8)
+    or tonumber("644", 8)
   local oct = v:match("^#o([0-7]+)$") or v:match("^%(identity%s+#o([0-7]+)%)$") or v:match("^o0?([0-7][0-7][0-7])$")
   if oct then
     return tonumber(oct, 8)
@@ -1308,7 +1311,10 @@ local function write_file_result(path, result, args)
   else
     text = type(result) == "string" and result or lisp.prin1(result)
   end
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+  -- like Emacs, the directory must exist (:mkdirp is about :dir)
+  if not utils.is_dir(vim.fn.fnamemodify(path, ":h")) then
+    return false, "Opening output file: No such file or directory, " .. path
+  end
   vim.fn.writefile(vim.split(text, "\n", { plain = true }), path, "b")
   if args["file-mode"] then
     local mode, err = M.file_mode(args["file-mode"])
@@ -1506,19 +1512,19 @@ function M.evaluate(bufnr, src, args, opts, cb)
   local ok, vars = pcall(resolve_vars, bufnr, args, meta, { depth = depth, skip_confirm = opts.skip_confirm })
   if not ok then
     utils.error("babel: " .. tostring(vars))
-    finish(nil, { error = tostring(vars), skipped = true })
+    finish(nil, { error = tostring(vars), skipped = true, abort = true })
     return ret_result, ret_info
   end
   if noweb_for(args, "eval") then
     local nok, expanded = pcall(M.expand_noweb, bufnr, body, 0, nil, args, "eval")
     if not nok then
       utils.error("babel: " .. tostring(expanded))
-      finish(nil, { error = tostring(expanded), skipped = true })
+      finish(nil, { error = tostring(expanded), skipped = true, abort = true })
       return ret_result, ret_info
     end
     body = expanded
   end
-  local out_file = M.file_param(args, name)
+  local out_file = M.file_param(args, name, buf_dir(bufnr))
   if out_file then
     args.file = out_file
   end
@@ -1552,7 +1558,7 @@ function M.evaluate(bufnr, src, args, opts, cb)
       local msg = args["file-ext"] and ":file-ext given but no :file generated; did you forget to name a block?"
         or "No :file header argument given; cannot create graphical result"
       utils.error(msg)
-      finish(nil, { error = msg, skipped = true })
+      finish(nil, { error = msg, skipped = true, abort = true })
       return ret_result, ret_info
     end
     graphics_file = utils.expand(blocks_mod.unquote(args.file), cwd)
@@ -1581,7 +1587,11 @@ function M.evaluate(bufnr, src, args, opts, cb)
     local file = rp.file and args.file and blocks_mod.unquote(args.file)
     if file then
       if not results.is_null(result) and not (rp.link or rp.graphics) then
-        write_file_result(utils.expand(file, cwd), result, args)
+        local wok, werr = write_file_result(utils.expand(file, cwd), result, args)
+        if wok == false then
+          utils.error(werr)
+          return finish(nil, { skipped = true, abort = true, error = werr })
+        end
       end
       result = file
     end
@@ -1759,7 +1769,7 @@ function M.execute(opts)
     local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
     if info.skipped then
-      done(false)
+      done(false, info.abort)
       return
     end
     if info.cached then
@@ -1807,7 +1817,7 @@ end
 function M.evaluate_sync(bufnr, src, args, opts)
   opts = opts or {}
   local holder = opts.block or src
-  local result = M.evaluate(bufnr, src, args, {
+  local result, info = M.evaluate(bufnr, src, args, {
     sync = true,
     skip_confirm = opts.skip_confirm,
     depth = opts.depth,
@@ -1816,6 +1826,10 @@ function M.evaluate_sync(bufnr, src, args, opts)
       return holder.results and type(bufnr) == "number" and read_block_result(bufnr, holder)
     end,
   })
+  if info and info.abort then
+    -- errors (a missing reference ...) stop the evaluation that needed it
+    error(info.error or "evaluation failed", 0)
+  end
   return result
 end
 
@@ -1988,7 +2002,7 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
     local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
     if info.skipped then
-      done(false)
+      done(false, info.abort)
       return
     end
     local iargs = args
@@ -2019,15 +2033,18 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
       local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
       local after = line:sub(col + 1)
       local ws = after:match("^(%s*)")
+      -- a raw result may hold newlines: they are inserted as they are
+      local parts = vim.split(text, "\n", { plain = true })
       if after:sub(#ws + 1):match("^{{{results%(") then
         -- replace the existing macro (it ends at the first ")}}}")
         local e = after:find(")}}}", #ws + 1, true)
         local stop = e and (col + e + 3) or #line
-        vim.api.nvim_buf_set_text(bufnr, row, col + #ws, row, stop, { text })
+        vim.api.nvim_buf_set_text(bufnr, row, col + #ws, row, stop, parts)
       else
         local before = line:sub(1, col)
         local trimmed = before:gsub("[ \t]+$", "")
-        vim.api.nvim_buf_set_text(bufnr, row, #trimmed, row, #trimmed, { " " .. text })
+        parts[1] = " " .. parts[1]
+        vim.api.nvim_buf_set_text(bufnr, row, #trimmed, row, #trimmed, parts)
       end
     end
     M.fire("OrgBabelAfterExecute", { bufnr = bufnr, lang = src.lang, name = src.name, result = result, inline = true })
@@ -2813,7 +2830,7 @@ function M.sha1_hash()
   if noweb_for(args, "eval") then
     body = M.expand_noweb(bufnr, body, 0, nil, args, "eval")
   end
-  local out_file = M.file_param(args, src.name)
+  local out_file = M.file_param(args, src.name, buf_dir(bufnr))
   if out_file then
     args.file = out_file
   end

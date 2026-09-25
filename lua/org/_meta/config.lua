@@ -125,6 +125,10 @@
 ---Indentation added to src block contents in the edit buffer.
 ---(Emacs `org-edit-src-content-indentation`, default: `0`)
 ---@field edit_src_content_indentation? integer
+---Keep src block lines as written: no common indentation is removed for
+---evaluation, tangling or the edit buffer (the `-i` switch does it per
+---block). (Emacs `org-src-preserve-indentation`, default: `false`)
+---@field src_preserve_indentation? boolean
 ---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `" …"`)
 ---@field ellipsis? string
 ---Blank line before new headings / list items. A single value applies to

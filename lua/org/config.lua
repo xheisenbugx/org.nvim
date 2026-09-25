@@ -420,8 +420,17 @@ M.defaults = {
     -- %start-line / %end-line (org-babel-tangle-comment-format-beg / -end)
     tangle_comment_format_beg = "[[%link][%source-name]]",
     tangle_comment_format_end = "%source-name ends here",
-    -- Mode of tangled files, octal string (org-babel-tangle-default-file-mode)
+    -- Base mode for symbolic :tangle-mode values like u+x, octal string
+    -- (org-babel-tangle-default-file-mode)
     tangle_default_file_mode = "644",
+    -- Extensions of `:tangle yes` files by language, added to Emacs' list
+    -- (org-babel-tangle-lang-exts)
+    tangle_lang_exts = {},
+    -- Save the Org buffer before tangling (org-babel-pre-tangle-hook)
+    tangle_save_buffer = true,
+    -- Write tangle comments as they are, without comment syntax
+    -- (org-babel-tangle-uncomment-comments)
+    tangle_uncomment_comments = false,
     languages = {
       sh = { cmd = "sh" },
       shell = { cmd = "sh" },
