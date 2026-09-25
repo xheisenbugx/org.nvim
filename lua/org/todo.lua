@@ -128,7 +128,6 @@ local function recall_head(bufnr, lnum)
   local m = marks[#marks]
   return m and heads[bufnr] and heads[bufnr][m[1]] or nil
 end
-M._recall_head = recall_head
 
 --- Fire a User autocmd with `data`.
 local function emit(pattern, data)

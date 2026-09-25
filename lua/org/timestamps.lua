@@ -7,10 +7,6 @@ local utils = require("org.utils")
 
 local M = {}
 
-local function now_inactive()
-  return date.now():clone({ active = false })
-end
-
 --- Timestamp under the cursor.
 ---@return { date: table, start_col: integer, end_col: integer, lnum: integer, raw: string }|nil
 function M.at_cursor()
