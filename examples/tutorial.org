@@ -104,7 +104,7 @@ Body of sibling one.
 | =<<= =>>=        | promote / demote the headline (or list item)    |
 | =<s= =>s=        | promote / demote the whole subtree              |
 | =<M-h>= =<M-l>=  | promote / demote (also =<M-Left>= =<M-Right>=)  |
-| =<M-k>= =<M-j>=  | move the subtree (or item, or table row) up/down |
+| =<M-k>= =<M-j>=  | move subtree/item/row up/down (also =<M-Up>= =<M-Down>=) |
 
 *Try:* sort these into order with =<M-j>= / =<M-k>=, then demote
 "Step 2b" under "Step 2" with =>>=.

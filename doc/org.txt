@@ -151,6 +151,7 @@ Headlines start with one or more stars followed by a space: >org
 
                                                           *org-move-subtree*
 <M-k> / <M-j>   (ctx) Move subtree, list item or table row up / down.
+<M-Up> / <M-Down>  Same as <M-k> / <M-j> (Alt + arrow keys).
 <prefix>K / J   Move subtree up / down.
 
                                                          *org-kill-subtree*
@@ -656,7 +657,7 @@ Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
 Normal mode:
   <C-c><C-c>      realign (on `#+TBLFM`: recalculate)
   <M-h/l>         move column left / right (also <M-Left/Right>)
-  <M-k/j>         move row up / down
+  <M-k/j>         move row up / down (also <M-Up/Down>)
   <M-H>/<M-L>     delete / insert column
   <M-K>/<M-J>     delete row / insert row above
   <M-CR>          insert row below
@@ -992,6 +993,7 @@ Section `org` (default key: action):
   <s  promote_subtree               >s  demote_subtree
   <M-h> <M-l> <M-k> <M-j>  meta_left/right/up/down
   <M-Left> <M-Right>       meta_left/right (in addition to <M-h>/<M-l>)
+  <M-Up> <M-Down>          meta_up/down (in addition to <M-k>/<M-j>)
   <M-H> <M-L> <M-K> <M-J>  shift_meta_left/right/up/down
   <prefix>K / J  move_subtree_up / move_subtree_down
   <prefix>hy hd hp hc  copy/cut/paste/clone_subtree
