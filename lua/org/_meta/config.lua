@@ -17,7 +17,7 @@
 ---sequence: `"TODO(t) NEXT(n!) | DONE(d@/!)"`; `(k)` is a fast-selection key,
 ---`!` logs a timestamp, `@` asks for a note, `/x` is the flag used when
 ---leaving the state. A flat list with a `"|"` element (or a single string)
----is also accepted. (default: `{ "TODO(t) NEXT(n) | DONE(d)" }`)
+---is also accepted. (default: `{ "TODO | DONE" }`)
 ---@field todo_keywords? string|string[]
 ---State a repeating task returns to when marked done: `nil` = the first
 ---keyword of its sequence, `true` = the state it had before, or a keyword.
@@ -35,8 +35,26 @@
 ---Block marking an entry DONE while it has unchecked checkboxes.
 ---(Emacs `org-enforce-todo-checkbox-dependencies`, default: `false`)
 ---@field enforce_todo_checkbox_dependencies? boolean
+---Functions that can block a TODO state change. Each receives
+---`{ type = "todo-state-change", from, to, bufnr, lnum }` and blocks the
+---change by returning `false`. (Emacs `org-blocker-hook`, default: `{}`)
+---@field todo_blockers? (fun(change: table): boolean?)[]
+---C-c C-t opens the fast-selection menu when keywords have keys; `false`
+---always cycles. (Emacs `org-use-fast-todo-selection`, default: `"auto"`)
+---@field use_fast_todo_selection? "auto"|false
+---Which child headlines statistics cookies count: `true` (entries with a
+---TODO keyword), `"all-headlines"`, a list of keywords (plus done ones) or
+---`{ todo_keywords, done_keywords }`; `false` stops updating cookies on
+---state changes. (Emacs `org-provide-todo-statistics`, default: `true`)
+---@field provide_todo_statistics? boolean|"all-headlines"|string[]|string[][]
+---Statistics cookies count direct children only; `false` counts the whole
+---subtree. (Emacs `org-hierarchical-todo-statistics`, default: `true`)
+---@field hierarchical_todo_statistics? boolean
+---Keep `CLOSED:` when the TODO keyword is removed.
+---(Emacs `org-closed-keep-when-no-todo`, default: `false`)
+---@field closed_keep_when_no_todo? boolean
 ---Logging when an entry is marked DONE: `false`, `"time"` (add `CLOSED:`)
----or `"note"` (`CLOSED:` plus a note). (Emacs `org-log-done`, default: `"time"`)
+---or `"note"` (`CLOSED:` plus a note). (Emacs `org-log-done`, default: `false`)
 ---@field log_done? false|"time"|"note"
 ---Logging when a repeating task is marked done.
 ---(Emacs `org-log-repeat`, default: `"time"`)
@@ -52,11 +70,34 @@
 ---@field log_note_clock_out? boolean
 ---Drawer for state changes, notes and clock lines: a drawer name, `true`
 ---(= `"LOGBOOK"`) or `false` (no drawer).
----(Emacs `org-log-into-drawer`, default: `"LOGBOOK"`)
+---(Emacs `org-log-into-drawer`, default: `false`)
 ---@field log_into_drawer? string|boolean
 ---Put the newest log entries first.
 ---(Emacs `org-log-states-order-reversed`, default: `true`)
 ---@field log_states_order_reversed? boolean
+---Type log notes in a small `*Org Note*` split (<C-c><C-c> stores,
+---<C-c><C-k> cancels) like Emacs `org-add-log-note`; `false` asks with a
+---one-line prompt. (default: `true`)
+---@field note_buffer? boolean
+---Headings of log notes, by purpose (`done`, `state`, `note`,
+---`reschedule`, `delschedule`, `redeadline`, `deldeadline`, `refile`,
+---`clock-out`). `%t`/`%T` inactive/active timestamp, `%d`/`%D` date only,
+---`%s`/`%S` new/old state or date (quoted), `%u`/`%U` user name; `%-12s`
+---pads. (Emacs `org-log-note-headings`)
+---@field log_note_headings? table<string, string>
+---Hours after midnight that still count as the previous day for "today"
+---in the agenda and date prompts. (Emacs `org-extend-today-until`,
+---default: `0`)
+---@field extend_today_until? integer
+---With `extend_today_until`, record `CLOSED:` and log times before that
+---hour as 23:59 of the previous day.
+---(Emacs `org-use-effective-time`, default: `false`)
+---@field use_effective_time? boolean
+---In Visual mode, C-c C-t, C-c C-s and C-c C-d act on every headline of the
+---selection: `true`, `"start-level"` (only headlines of the first one's
+---level) or `false`.
+---(Emacs `org-loop-over-headlines-in-active-region`, default: `true`)
+---@field loop_over_headlines_in_active_region? boolean|"start-level"
 ---Highest priority letter. (Emacs `org-priority-highest`, default: `"A"`)
 ---@field priority_highest? string
 ---Lowest priority letter. (Emacs `org-priority-lowest`, default: `"C"`)
@@ -64,6 +105,21 @@
 ---Priority of entries without a cookie.
 ---(Emacs `org-priority-default`, default: `"B"`)
 ---@field priority_default? string
+---Tag groups (`[ GTD : Control Persp ]`) also match their members in tag
+---searches and sparse trees; toggled by `toggle_tags_groups`.
+---(Emacs `org-group-tags`, default: `true`)
+---@field group_tags? boolean
+---Fast tag selection exits after one change: `false`, `true`, or `"expert"`
+---(no menu window until <C-c>).
+---(Emacs `org-fast-tag-selection-single-key`, default: `false`)
+---@field fast_tag_selection_single_key? boolean|"expert"
+---Show the TODO keywords with fast keys in the fast tag selection menu.
+---(Emacs `org-fast-tag-selection-include-todo`, default: `false`)
+---@field fast_tag_selection_include_todo? boolean
+---Tag completion offers the tags of every agenda file instead of the
+---current buffer's. (Emacs `org-complete-tags-always-offer-all-agenda-tags`,
+---default: `false`)
+---@field complete_tags_always_offer_all_agenda_tags? boolean
 ---Global tag list offered for completion and fast tag selection. Strings
 ---may contain fast keys (`"work(w)"`) and `"{"` ... `"}"` elements for
 ---mutually exclusive groups. A file's `#+TAGS:` replaces it.
@@ -81,6 +137,9 @@
 ---Property inheritance: `true`, `false`, or a list of property names that
 ---inherit. (Emacs `org-use-property-inheritance`, default: `false`)
 ---@field use_property_inheritance? boolean|string[]
+---Format of `:NAME: value` lines written to property drawers.
+---(Emacs `org-property-format`, default: `"%-10s %s"`)
+---@field property_format? string
 ---Properties that apply to every entry, e.g.
 ---`{ Effort_ALL = "0:10 0:30 1:00 2:00" }`.
 ---(Emacs `org-global-properties`, default: `{}`)
@@ -139,6 +198,19 @@
 ---steps by exactly that many minutes).
 ---(Emacs `org-time-stamp-rounding-minutes`, default: `{ 0, 5 }`)
 ---@field time_stamp_rounding_minutes? integer[]
+---Date prompts read incomplete dates in the future: `true` (a past day or
+---month means next month or year), `"time"` (also a past time today means
+---tomorrow) or `false`. (Emacs `org-read-date-prefer-future`,
+---default: `true`)
+---@field read_date_prefer_future? boolean|"time"
+---Display timestamps with `time_stamp_custom_formats`; toggled per buffer
+---by `toggle_time_stamp_overlays`, `#+STARTUP: customtime` turns it on.
+---(Emacs `org-display-custom-times`, default: `false`)
+---@field display_custom_times? boolean
+---`{ date format, date and time format }` (strftime) of the custom
+---timestamp display. (Emacs `org-timestamp-custom-formats`,
+---default: `{ "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }`)
+---@field time_stamp_custom_formats? string[]
 ---Where `archive_subtree` sends entries: `"file::heading"`, `%s` = current
 ---file name. (Emacs `org-archive-location`, default: `"%s_archive::"`)
 ---@field archive_location? string
@@ -256,3 +328,9 @@
 ---highlight definition table (`{ fg = "#ff9e64", bold = true }`).
 ---(Emacs `org-todo-keyword-faces`, default: `{}`)
 ---@field todo_keyword_faces? table<string, string|vim.api.keyset.highlight>
+---Faces of priority cookies, by priority (`A`, `"10"`), like
+---`todo_keyword_faces`. (Emacs `org-priority-faces`, default: `{}`)
+---@field priority_faces? table<string, string|vim.api.keyset.highlight>
+---Faces of tags, by tag, like `todo_keyword_faces`.
+---(Emacs `org-tag-faces`, default: `{}`)
+---@field tag_faces? table<string, string|vim.api.keyset.highlight>

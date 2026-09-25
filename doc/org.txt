@@ -288,15 +288,47 @@ timestamp and `@` asks for a note. Log entries go into the `log_into_drawer`
 drawer (default none: under the headline, like Emacs; `true` = `LOGBOOK`), or
 the drawer named by the inherited
 `LOG_INTO_DRAWER` property (`nil` logs under the headline);
-`#+STARTUP: logdrawer / nologdrawer` also switch it.
+`#+STARTUP: logdrawer / nologdrawer` also switch it. The headings of the log
+entries come from `log_note_headings` (org-log-note-headings). Notes are
+typed in a small `*Org Note*` split, like Emacs: <C-c><C-c> stores the note
+(lines starting with "# " are dropped), <C-c><C-k> cancels it
+(`note_buffer = false` asks with a one-line prompt instead).
 
 cit / ciT       Next / previous TODO state.
-<S-Right/Left>  (ctx) Same, on a headline.
+<S-Right/Left>  (ctx) Same, on a headline. Like Emacs, this walks every
+                keyword of every sequence in order, with no keyword before
+                the first and after the last one.
 <prefix>T       Select a state (fast keys when defined).
-<C-c><C-t>      Fast selection, or cycle. A count N picks the Nth keyword.
+<C-c><C-t>      Fast selection when the keywords have keys (turn it off
+                with `use_fast_todo_selection = false`), otherwise cycle
+                within the sequence: after its last keyword the headline
+                has no keyword, and the next C-c C-t goes back to the
+                first keyword of that same sequence. The count is the
+                Emacs prefix argument:
+                  4 (C-u)          take a note for this change
+                  16 (C-u C-u)     switch to the next keyword set
+                  64 (C-u C-u C-u) ignore blocking (dependencies)
+                  N                switch to the Nth keyword
+                In Visual mode every headline of the selection changes.
+<C-S-Right/Left>  Next / previous keyword set (not logged, like Emacs).
+:Org todo_without_note   Change the state, recording a time instead of
+                asking for a note (C-0 C-c C-t).
+:Org todo_cancel_repeaters   Set the repeaters of the entry to 0 and change
+                the state, so a repeating task is done for good
+                (C-- 1 C-c C-t, org-cancel-repeaters).
+
+                                                     *org-loop-over-headlines*
+In Visual mode, <C-c><C-t>, <C-c><C-s> and <C-c><C-d> act on every headline
+of the selection, skipping headlines hidden in closed folds
+(`loop_over_headlines_in_active_region`: true, false or "start-level" for
+only the headlines at the level of the first one).
 
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
-leaving it removes CLOSED again.
+going back to a TODO state removes it. Like Emacs, CLOSED is only touched
+when some logging is set up (`log_done` or a keyword with `!`/`@`);
+`closed_keep_when_no_todo` keeps it when the keyword is removed. With
+`use_effective_time`, times recorded before `extend_today_until` o'clock
+are 23:59 of the previous day.
 
                                                         *org-logging-property*
 The inherited `LOGGING` property overrides the logging of a subtree, like
@@ -313,6 +345,20 @@ keywords, `todo` (any not-done state), `done` or `""` (no keyword): >lua
       [""] = { WAITING = false },
     }
 <
+                                                             *org-todo-events*
+Every state change fires the User autocmd `OrgTodoStateChange` (Emacs
+org-after-todo-state-change-hook and org-trigger-hook), and a repeating task
+marked done also fires `OrgTodoRepeat` (org-todo-repeat-hook). `data` holds
+`bufnr`, `lnum`, `from`, `to` (the final keyword), `state` (the keyword
+chosen), `done` and `repeated`: >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgTodoStateChange",
+      callback = function(ev) print(ev.data.from, "->", ev.data.to) end,
+    })
+<
+`todo_blockers` is a list of functions (org-blocker-hook); each receives
+`{ type = "todo-state-change", from, to, bufnr, lnum }` and blocks the
+change by returning `false`.
 
 Repeated tasks                                            *org-repeat*
 A SCHEDULED or DEADLINE timestamp with a repeater (`+1w`, `++1d`, `.+2d`)
@@ -325,6 +371,8 @@ change is logged and `LAST_REPEAT` set when `log_repeat` is enabled
   +N   shift by N units once
   ++N  shift until the date is in the future, keeping the weekday
   .+N  shift to N units after today
+Months keep the day of the month and roll over like Emacs: `<2026-01-31
++1m>` becomes `<2026-03-03>`.
 
 Dependencies                                              *org-todo-dependencies*
 With `enforce_todo_dependencies`, an entry cannot be marked done while its
@@ -332,37 +380,85 @@ children are unfinished, or while earlier siblings under an `:ORDERED: t`
 parent are unfinished, or while an ancestor TODO is blocked that way. A
 `NOBLOCKING` property disables blocking for the entry.
 `enforce_todo_checkbox_dependencies` also blocks entries that have
-unchecked checkboxes.
+unchecked or partial checkboxes (not the ones inside blocks).
+
+Statistics                                               *org-todo-statistics*
+A `[/]` or `[%]` cookie on a headline counts its children with a TODO
+keyword. `provide_todo_statistics` chooses what counts (org-provide-todo-
+statistics): `true`, `"all-headlines"`, a list of keywords, or
+`{ todo_keywords, done_keywords }`; `false` stops updating cookies when a
+state changes. `hierarchical_todo_statistics = false` counts the whole
+subtree instead of the direct children (`:COOKIE_DATA: recursive` does it
+for one entry).
 
 Priorities
-<S-Up> / <S-Down>   (ctx) Raise / lower priority on a headline.
+<S-Up> / <S-Down>   (ctx) Raise / lower priority on a headline. Past the
+                    highest or lowest priority the cookie is removed; the
+                    next shift in the same direction wraps around to the
+                    other end, like Emacs.
 <C-a> / <C-x>       (ctx) Same, with the cursor on the `[#A]` cookie.
-<prefix>,           Set priority (press a letter, <Space> removes it).
+<prefix>,           Set priority (press a letter, <Space> removes it). With
+                    a count of 4 (C-u C-c ,), show the priority value.
+:Org priority_show  Show the priority as Emacs computes it for sorting,
+                    1000 × (lowest - priority) (org-priority-show).
 Range and default come from `priority_highest/lowest/default` or
-`#+PRIORITIES: A C B`.
+`#+PRIORITIES: A C B`. Numbers from 0 to 64 work too, like Emacs:
+`#+PRIORITIES: 1 10 5` uses `[#1]` .. `[#10]` (typed as a number).
+`ui.priority_faces` gives priorities their own highlight, like
+`ui.todo_keyword_faces`.
 
 ==============================================================================
 7. TAGS                                                             *org-tags*
 
-Tags sit at the end of the headline: `:work:urgent:`.
+Tags sit at the end of the headline: `:work:urgent:`. They contain letters,
+digits, `_`, `@`, `#` and `%` (org-tag-re); `:a-b:` is not a tag.
 
-<prefix>t       Set tags. When tags have fast keys (`#+TAGS: work(w)
-                home(h)` or the `tags` option) a key menu is shown: `{ }`
-                groups are mutually exclusive, <Tab> lets you type a tag and
-                <Space> clears all. Otherwise you type the tags with
+<prefix>t       Set tags. When some tag has a fast key (`#+TAGS: work(w)
+                home(h)` or the `tags` option), a key menu is shown
+                (org-fast-tag-selection); otherwise you type the tags with
                 completion.
 <C-c><C-c>      On a headline: set tags.
 N<prefix>t      With a count (C-u C-c C-q): realign the tags of every
-                headline.
+                headline. A count of 16 (C-u C-u) types the tags with
+                completion even when they have keys.
 {Visual}<prefix>t  Add or remove one tag on every headline of the selection
                 (org-change-tag-in-region).
+<C-c><C-x>q     Toggle tag groups in matches (org-toggle-tags-groups).
 
-Tags are aligned to `tags_column` (negative values right-align them).
-`:Org align_tags` realigns every headline in the buffer.
+                                                      *org-fast-tag-selection*
+In the fast selection menu, like Emacs:
+  a key         toggle that tag (tags without a key get one: their first
+                letter after a leading `@` when it is free, else the first
+                free character of a-z A-Z { | } ~)
+  <Tab>         add or remove one tag by completion
+  <Space>       remove all tags
+  <CR>          accept
+  !             toggle the exclusivity of `{ }` groups
+  <C-c>         toggle "exit after the next change"
+  q <Esc> <C-g> cancel (`q` only when it is not a tag key)
+The new tags are in the order of the tag table, followed by the other
+tags. `fast_tag_selection_single_key` exits after one change (`true`) or
+also hides the menu until <C-c> (`"expert"`);
+`fast_tag_selection_include_todo` adds the TODO keywords with keys, which
+change the state right away.
+
+Completion offers the tags defined for the buffer (`#+TAGS` or the `tags`
+option), or the tags used in the buffer when none are defined;
+`complete_tags_always_offer_all_agenda_tags` adds every agenda file's tags.
+
+Tags are aligned to `tags_column` (negative values right-align them, a
+positive value starts them at that column). `:Org align_tags` realigns every
+headline in the buffer. `ui.tag_faces` gives tags their own highlight.
 
 In `#+TAGS`, `{ }` groups are mutually exclusive in the fast selection menu,
 `[ ]` groups and `\n` start a new row, and `:` (as in `[ GTD : Control ]`)
 separates a group tag from its members.
+                                                              *org-tag-groups*
+A group tag also matches its members in tag searches and sparse trees
+(org-group-tags, `group_tags`): with `#+TAGS: [ GTD : Control Persp ]`, the
+match `GTD` finds entries tagged GTD, Control or Persp, and `-GTD` excludes
+all three. Groups nest, and `{regexp}` members match tags by regexp:
+`[ Project : {P@.+} ]`. <C-c><C-x>q turns this off and on.
 
 Inheritance: children inherit their parents' tags and `#+FILETAGS:`, except
 the tags in `tags_exclude_from_inheritance`. Set `use_tag_inheritance =
@@ -372,24 +468,40 @@ false` to disable it.
 8. PROPERTIES AND COLUMN VIEW                   *org-properties* *org-columns*
 
 <prefix>p       Set a property. Names are completed, and values come from
-                `PROP_ALL` properties when available.
-<prefix>P       Delete a property.
+                `PROP_ALL` properties when available. Before the first
+                headline, the file-level property drawer at the top of the
+                file is set (created after leading comments).
+<C-c><C-x>P     Set a property from one `PROPERTY: value` answer
+                (org-set-property-and-value); a count reuses the last one.
+<prefix>P       Delete a property (and its `PROPERTY+` lines).
 <S-Right/Left>  (ctx) On a property line: next / previous allowed value
                 from `PROP_ALL` (org-property-next-allowed-value).
 <C-c><C-c>      (ctx) On a property line: menu to set the value, delete it
                 here or delete it from all entries (org-property-action).
 `:Org delete_property_globally` removes a property from every entry of the
 buffer.
-<prefix>xe      Set the Effort property.
+<prefix>xe      Set the Effort property (stored as typed, e.g. `1h`).
 <prefix>lI      Create an ID property (or show the existing one).
+
+Property lines are written with `property_format` (org-property-format,
+`"%-10s %s"`): `:Owner:    me`; an empty value leaves `:Owner:`.
+
+Setting the special properties TODO, PRIORITY, SCHEDULED or DEADLINE
+changes the headline instead (an empty value removes them), like Emacs
+org-entry-put; the other special properties cannot be set. Every change
+through <prefix>p fires the User autocmd `OrgPropertyChanged` with `data`
+`{ bufnr, lnum, name, value }` (org-property-changed-functions).
 
 Special properties available in matches and column view: ITEM, TODO,
 PRIORITY, TAGS, ALLTAGS, CATEGORY, LEVEL, FILE, SCHEDULED, DEADLINE, CLOSED,
-TIMESTAMP.
+TIMESTAMP, TIMESTAMP_IA (first inactive timestamp), BLOCKED (`t` when the
+entry cannot be marked done, else empty).
 
 Inheritance is controlled by `use_property_inheritance` (true, false, or a
-list of property names). `#+PROPERTY: NAME value` sets file-wide values, and
-`global_properties` sets values everywhere.
+list of property names). `NAME+` lines append to the value, also to an
+inherited one: `:Acc: 1` on a parent and `:Acc+: 2` on its child give
+`1 2`. A property drawer at the top of the file, `#+PROPERTY: NAME value`
+and `global_properties` set values for the whole file, in that order.
 
 <prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
                 property or `columns_default_format`, for example
@@ -428,20 +540,38 @@ Timestamps:
   <2026-09-23 Wed>--<2026-09-25 Fri> date range
   <2026-09-23 Wed +1w -2d>          repeater and warning period
 
-<prefix>s       Schedule (SCHEDULED:).
+<prefix>s       Schedule (SCHEDULED:). A new date removes CLOSED.
 <prefix>d       Deadline (DEADLINE:).
 <prefix>i.      Insert an active timestamp (count: include time; count
                 16: the current time without a prompt). Right after an
                 existing timestamp, this creates a range.
 <prefix>i!      Insert an inactive timestamp.
-<C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor:
-                year, month, day, hour, minute, repeater or warning.
+<C-a> / <C-x>   (ctx) Increment / decrement the part under the cursor, like
+                Emacs org-timestamp-change: year, month, day, hour, minute,
+                end time, repeater or warning. The cursor on the character
+                right after a part (a `-`, `:` or space) changes that part.
+                On a repeater or warning, the number never goes below 1
+                (warning: 0) and the unit letter cycles d, w, m, y. Only
+                `+N` repeaters and `-N` warnings are changed, like Emacs.
 <S-Up/Down>     (ctx) Same as <C-a> / <C-x>. On minutes, step by the
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
+                The end minute of a time range moves by 1. On a bracket,
+                switch the timestamp between active and inactive.
 <S-Right/Left>  (ctx) Day +1 / -1.
 :Org toggle_timestamp_type   Switch the timestamp at the cursor between
-                active and inactive.
+                active and inactive (in a range, only that end).
+<C-c><C-y>      Show the length of the range at the cursor, e.g. "2 days
+                3 hours 30 minutes"; with a count, insert it after the
+                range as ` 2d 03:30` (` 2d` for dates, ` 00:20` under a
+                day), replacing an earlier result (org-evaluate-time-range).
+                `<d 10:00-12:30>` ranges work too (an extension).
+<C-c><C-x><C-t> Toggle the custom display of timestamps
+                (org-toggle-timestamp-overlays): each timestamp is shown as
+                `time_stamp_custom_formats` (`09/25/26 Fri`) with conceal
+                and inline virtual text. `display_custom_times = true` or
+                `#+STARTUP: customtime` turn it on; the real text shows in
+                Insert mode (see 'concealcursor').
 <CR>            On a timestamp: open the agenda for that day.
 
 The calendar                                                   *org-calendar*
@@ -450,31 +580,48 @@ Date prompts open a floating calendar:
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
   .              today
-  i  t           type a date (see below)
+  i  t           type a date (see below); a date moved to in the calendar
+                 is part of the answer, like Emacs
   T              set a time
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   q  <Esc>       cancel
-A count before the schedule/deadline key also removes the date; a count
-of 16 (`C-u C-u`) instead asks for a date and sets the warning period
+A count of 4 (`C-u`) before the schedule/deadline key removes the date; a
+count of 16 (`C-u C-u`) instead asks for a date and sets the warning period
 (DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
-date, e.g. `<2026-10-10 Sat -5d>`.
+date, e.g. `<2026-10-10 Sat -5d>`. Other counts are ignored, like Emacs.
 
 Date input (like org-read-date)                                 *org-read-date*
-  ""  "."  today       today
+The typed text is read like Emacs org-read-date-analyze:
+  ""                   the default date (the date being changed, or today)
+  "."  "+0"            today
   +3d  -2w  +1m  +4    relative to today (unit defaults to days)
-  ++3d                 relative to the default date
-  fri  +2fri           next Friday / Friday in two weeks
+  +2h                  two hours from now
+  ++3d  --1w           relative to the default date
+  fri  +2fri  -mon     next Friday (a weekday name is never today) / in two
+                       weeks / last Monday
   2026-10-01  26-10-01  10-01  10/1  10/1/2026   absolute dates
-  15                   next 15th of a month
+  2026-10-01 Thu +1w   extra words (a pasted timestamp) are ignored
+  15                   the 15th, this month or the next
   15.3.  15.3.2027     dotted day.month[.year]
+  oct  sep 15  15 sep 2027  2027   month names, a year alone
   w39  2026-w39-5  w39 fri   ISO week (and weekday, default Monday)
-  sep 15  15 sep 2027  month names
-  tomorrow  yesterday  now
-  14:00  2pm  15h30  10:00-11:30  10:00+1:30   times (combine with any date)
+  14:00  2pm  15h30  24:00   times (combine with any date); 24:00 is the
+                       next day
+  10:00-11:30  10am-11am  10:00+1:30   time ranges
+  2026-10-01T10:00     ISO date and time
+  today tomorrow yesterday now   (extensions; Emacs ignores these words)
+Dates out of range roll over (`feb 30` is March 2nd). With
+`read_date_prefer_future` (default), a day or month without a year is taken
+in the future: `15` on the 20th is the 15th of next month; `"time"` also
+moves a past time of today to tomorrow; `false` completes the date from the
+default instead. Before `extend_today_until` o'clock the default is still
+yesterday. Text that cannot be read at all is refused with a warning (Emacs
+silently uses the default date).
 
 Changes to SCHEDULED and DEADLINE are logged when `log_reschedule` or
-`log_redeadline` is set (or via the `#+STARTUP` log keywords).
+`log_redeadline` is set (or via the `#+STARTUP` log keywords); setting the
+same date again is not logged.
 
 ==============================================================================
 10. CLOCKING AND EFFORT                                            *org-clock*
@@ -1411,6 +1558,9 @@ Options under `ui`:
   src_highlight          highlight src blocks with the language syntax
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name
+  priority_faces         the same per priority (org-priority-faces):
+                         { A = "ErrorMsg", ["10"] = { fg = "gray" } }
+  tag_faces              the same per tag (org-tag-faces)
 
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
   OrgHeadlineLevel1..8   (linked to the colorscheme's markdown headings)
@@ -1446,6 +1596,11 @@ TODO and logging ~
   todo_state_tags_triggers  {}        |org-todo-tags-triggers|
   enforce_todo_dependencies           false
   enforce_todo_checkbox_dependencies  false
+  todo_blockers             {}        functions returning false to block
+  use_fast_todo_selection   "auto"    or false (always cycle)
+  provide_todo_statistics   true      |org-todo-statistics|
+  hierarchical_todo_statistics  true
+  closed_keep_when_no_todo  false
   log_done                  false     false|"time"|"note"
   log_repeat                "time"
   log_reschedule            false     false|"time"|"note"
@@ -1453,13 +1608,22 @@ TODO and logging ~
   log_note_clock_out        false     ask for a note on clock out
   log_into_drawer           false     true (LOGBOOK), a drawer name, false
   log_states_order_reversed true
+  log_note_headings         { done = "CLOSING NOTE %t", state = ... }
+  extend_today_until        0         hours that still belong to yesterday
+  use_effective_time        false
+  loop_over_headlines_in_active_region  true   true|false|"start-level"
 Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
   tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
   tags_column               -77
   use_tag_inheritance       true
   tags_exclude_from_inheritance  {}
+  group_tags                true      |org-tag-groups|
+  fast_tag_selection_single_key  false  true|false|"expert"
+  fast_tag_selection_include_todo  false
+  complete_tags_always_offer_all_agenda_tags  false
   use_property_inheritance  false     true|false|{ names }
+  property_format           "%-10s %s"
   global_properties         {}
   effort_property           "Effort"
   duration_format           "d h:mm"  or "h:mm"
@@ -1481,6 +1645,9 @@ Buffer ~
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
+  read_date_prefer_future   true      true|false|"time"
+  display_custom_times      false     |org-dates|
+  time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
   archive_location          "%s_archive::"
   archive_save_context_info { "time", "file", "olpath", "category", "todo",
                               "itags" }
@@ -1496,7 +1663,8 @@ agenda ~
   current_time_string, sorting { agenda, todo, tags, search },
   window ("current"|"split"|"vsplit"|"tab"|"float"), log_mode_items,
   habits { graph_column, preceding_days, following_days, show_habits,
-  show_all_today, show_done_always_green }, stuck_projects { match, todo_keywords, tags, text },
+  show_all_today, show_done_always_green, show_habits_only_for_today,
+  today_glyph "!", completed_glyph "*" }, stuck_projects { match, todo_keywords, tags, text },
   save_after_edit, block_separator, show_inherited_tags, remove_tags,
   custom_commands, entry_text_maxlines 5, confirm_kill 1,
   dim_blocked_tasks true (true|false|"invisible"),
@@ -1661,15 +1829,19 @@ Structure and visibility:
 
 TODO, tags, properties:
   <C-c><C-t>       change TODO state (fast selection, or cycle when the
-                   keywords have no keys; count N: the Nth keyword)
+                   keywords have no keys; count 4: note, 16: next set,
+                   64: ignore blocking, N: the Nth keyword; Visual: every
+                   headline)
   <C-S-Right> <C-S-Left>  next / previous TODO keyword set
   <C-c>,  priority       <C-c><C-q>  tags        <C-c><C-x>p  property
+  <C-c><C-x>P  property and value       <C-c><C-x>q  toggle tag groups
   <C-c><C-x>o  toggle ORDERED           <C-c><C-z>  add note
   <C-c>#  update statistics cookies     <C-c><C-x><C-b>  toggle checkbox
 
 Dates:
-  <C-c><C-s> <C-c><C-d>  schedule / deadline (count: remove; count 16:
-                   delay / warning period)
+  <C-c><C-s> <C-c><C-d>  schedule / deadline (count 4: remove; count 16:
+                   delay / warning period; Visual: every headline)
+  <C-c><C-x><C-t>  toggle the custom timestamp display
   <C-c>. <C-c>!    active / inactive timestamp (count: with time; count
                    16: now, no prompt)
   <C-c><           insert today         <C-c>>  open calendar
@@ -1785,12 +1957,14 @@ Targets are `{ bufnr = n, lnum = l }`.
              logreschedule nologreschedule logredeadline ...
              lognoteclock-out nolognoteclock-out logdrawer nologdrawer
              logstatesreversed nologstatesreversed
+             customtime (custom timestamp display)
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
   #+PROPERTY: header-args:python :results output
   #+COLUMNS: %25ITEM %TODO %Effort{:}   column view format
   #+ARCHIVE: file::* Heading            archive location
   #+LINK: gh https://github.com/%s      link abbreviation
-  #+PRIORITIES: A E C                   highest, lowest, default
+  #+PRIORITIES: A E C                   highest, lowest, default (or
+                                        numbers 0-64: `1 10 5`)
   #+OPTIONS: toc:2 num:nil ^:{}         export options
   #+INCLUDE: "file.org"   #+MACRO: name text $1
 
@@ -1799,8 +1973,9 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 ==============================================================================
 30. DIFFERENCES FROM EMACS                                   *org-differences*
 
-- Notes (state changes with `@`, agenda `z`) are single-line prompts rather
-  than a separate note buffer.
+- Agenda notes (`z`), clock-out and refile notes are single-line prompts;
+  state change and schedule notes use a `*Org Note*` split like Emacs
+  (`note_buffer`).
 - Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
   is no symbolic math. Elisp formulas `'(...)` support common Lisp functions,
   anything else is a Lua expression.
@@ -1826,6 +2001,32 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   headlines. Digit keys keep their Vim meaning (counts) there instead of
   selecting the Nth allowed value.
 - <M-CR> never splits the current line.
+- TODO keywords, tags, properties and dates (see |org-todo|, |org-tags|,
+  |org-properties|, |org-dates|):
+  - C-c C-t prefix arguments are counts: `C-0` (no note) and `C-- 1`
+    (cancel repeaters) have no count form and are the actions
+    `todo_without_note` and `todo_cancel_repeaters`; a count of 4 always
+    means C-u, so the 4th keyword cannot be picked by count.
+  - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
+    `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
+    only `todo_blockers` (org-blocker-hook) can veto a change.
+    org-todo-get-default-hook, org-todo-statistics-hook and
+    org-after-todo-statistics-hook have no equivalent.
+  - `org-loop-over-headlines-in-active-region` given as a match string is
+    not supported (true, false and "start-level" are).
+  - The fast tag selection menu is a floating window read one key at a
+    time; it does not show the tags on the headline while it is open.
+  - `org-use-tag-inheritance` and `org-use-property-inheritance` as a
+    regexp are not supported (booleans, and a list for properties, are).
+  - The date prompt refuses text it cannot read at all instead of using the
+    default date, and accepts today/tomorrow/yesterday/now; the calendar is
+    the plugin's own (no Emacs calendar/diary commands such as holidays,
+    sunrise or diary entries in it).
+  - The custom timestamp display conceals the timestamp text: the cursor
+    moves over the hidden characters, and the real text shows in Insert
+    mode or with 'concealcursor' unset.
+  - Habit graphs are only drawn in the agenda (as in Emacs); a habit's
+    scheduled date must have a repeater of at least one day.
 - Plain list items don't fold with <Tab>. A `VISIBILITY: children` or
   `content` entry keeps its own body text visible (Vim folds nest).
 

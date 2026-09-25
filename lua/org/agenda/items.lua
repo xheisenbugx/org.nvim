@@ -215,6 +215,16 @@ function M.agenda(files, from, to, opts)
             habit = habit,
             reminder = s0 ~= today,
           }))
+        elseif not done and s0 > today and habit_cfg.show_habits_only_for_today == false then
+          -- org-habit-show-habits-only-for-today = nil: on its future day too
+          add(s0, new_item(hl, {
+            type = "scheduled",
+            date = s,
+            time = time_of(s),
+            extra = "Scheduled: ",
+            face = "OrgAgendaScheduled",
+            habit = habit,
+          }))
         end
       else
         local delay = 0

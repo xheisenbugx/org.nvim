@@ -77,6 +77,10 @@ M.defaults = {
   log_into_drawer = false,
   --- Newest log entries first (Emacs default).
   log_states_order_reversed = true,
+  --- Log notes are typed in a small `*Org Note*` split (<C-c><C-c> stores,
+  --- <C-c><C-k> cancels) like Emacs org-add-log-note; `false` asks with a
+  --- one-line prompt.
+  note_buffer = true,
   --- Headings of log notes (org-log-note-headings). `%t` inactive
   --- timestamp, `%T` active, `%d`/`%D` date only, `%s` new state, `%S` old
   --- state or date (both quoted), `%u`/`%U` user name.
@@ -108,11 +112,6 @@ M.defaults = {
   priority_highest = "A",
   priority_lowest = "C",
   priority_default = "B",
-  --- Highlight groups per priority, e.g. `{ A = "ErrorMsg", C = { fg = "gray" } }`
-  --- (org-priority-faces). Keys are priority letters or numbers.
-  priority_faces = {},
-  --- Highlight groups per tag, e.g. `{ urgent = "ErrorMsg" }` (org-tag-faces).
-  tag_faces = {},
   --- Tag groups (`[ GTD : Control Persp ]` in #+TAGS / `tags`) also match
   --- their members in tag searches (org-group-tags); toggled by
   --- `toggle_tags_groups`.
@@ -551,6 +550,12 @@ M.defaults = {
     --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
     --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
     todo_keyword_faces = {},
+    --- Faces of priority cookies, like `todo_keyword_faces`:
+    --- `{ A = "ErrorMsg", ["10"] = { fg = "gray" } }` (org-priority-faces).
+    priority_faces = {},
+    --- Faces of tags, like `todo_keyword_faces`: `{ urgent = ":foreground red" }`
+    --- (org-tag-faces).
+    tag_faces = {},
   },
 
   ---------------------------------------------------------------------------

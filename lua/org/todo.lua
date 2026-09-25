@@ -469,7 +469,7 @@ function M.change_state(target, new, opts)
     end
     local note = opts.note
     if rep_log == "note" and note == nil then
-      note = utils.input({ prompt = "Note for state change to " .. new .. ": " })
+      note = utils.input_note({ prompt = "Note for state change to " .. new .. ": ", purpose = "state change to " .. new })
     end
     local final = repeat_to_state(hl, todo_cfg, old)
     local has_clock = #hl.clocks > 0
@@ -493,7 +493,10 @@ function M.change_state(target, new, opts)
     local note = opts.note
     local wants_note = (new ~= nil and state_log == "note") or (becomes_done and log_done == "note")
     if wants_note and note == nil then
-      note = utils.input({ prompt = "Note for state change to " .. (new or "none") .. ": " })
+      note = utils.input_note({
+        prompt = "Note for state change to " .. (new or "none") .. ": ",
+        purpose = "state change to " .. (new or "none"),
+      })
     end
     edit.update_headline(bufnr, lnum, { todo = new or false })
     if logging_active then
@@ -748,7 +751,7 @@ function M.add_note(target)
   if not bufnr then
     return nil
   end
-  local note = utils.input({ prompt = "Note: " })
+  local note = utils.input_note({ prompt = "Note: ", purpose = "note" })
   if not note or vim.trim(note) == "" then
     return nil
   end

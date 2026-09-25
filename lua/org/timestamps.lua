@@ -480,6 +480,109 @@ function M.increment(n, unit)
 end
 
 ---------------------------------------------------------------------------
+-- Custom timestamp display (org-display-custom-times)
+---------------------------------------------------------------------------
+
+local custom_ns = vim.api.nvim_create_namespace("org.timestamps.custom")
+
+--- Is the custom display on in `bufnr`? The buffer's toggle, else
+--- `#+STARTUP: customtime`, else `display_custom_times`.
+function M.custom_display_enabled(bufnr)
+  local v = vim.b[bufnr].org_custom_times
+  if v ~= nil then
+    return v
+  end
+  local ok, file = pcall(require("org.files").get_buffer, bufnr)
+  if ok and file.settings.startup.customtime then
+    return true
+  end
+  return config.opts.display_custom_times == true
+end
+
+--- The text a timestamp is displayed as: `time_stamp_custom_formats`
+--- (org-timestamp-custom-formats) without surrounding brackets.
+function M.custom_text(d)
+  local fmts = config.opts.time_stamp_custom_formats or { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
+  local fmt = (d.hour and fmts[2] or fmts[1]) or "%Y-%m-%d"
+  if fmt:match("^<.*>$") or fmt:match("^%[.*%]$") then
+    fmt = fmt:sub(2, -2)
+  end
+  return d:strftime(fmt)
+end
+
+--- Redraw the custom display of every timestamp of the buffer: each one
+--- (both ends of a range) is concealed and its custom text shown inline,
+--- like Emacs displays it over the timestamp. Editing shows the real text
+--- (the concealment follows 'concealcursor').
+function M.refresh_custom_display(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  vim.api.nvim_buf_clear_namespace(bufnr, custom_ns, 0, -1)
+  if not M.custom_display_enabled(bufnr) then
+    return
+  end
+  for i, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    if line:find("[<%[]%d%d%d%d%-") then
+      for _, item in ipairs(date.parse_all(line)) do
+        local parts = { { item.date, item.start_col, item.end_col } }
+        if item.date.range_end then
+          local dash = item.raw:find("[%]>]%-%-[<%[]")
+          if dash then
+            parts = {
+              { item.date, item.start_col, item.start_col + dash - 1 },
+              { item.date.range_end, item.start_col + dash + 2, item.end_col },
+            }
+          end
+        end
+        for _, part in ipairs(parts) do
+          local d, s, e = part[1], part[2], part[3]
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, custom_ns, i - 1, s - 1, {
+            end_col = e,
+            conceal = "",
+            virt_text = { { M.custom_text(d), d.active and "OrgTimestamp" or "OrgTimestampInactive" } },
+            virt_text_pos = "inline",
+          })
+        end
+      end
+    end
+  end
+end
+
+--- Keep the custom display of `bufnr` up to date while it is on.
+function M.attach_custom_display(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if vim.b[bufnr].org_custom_times_attached then
+    M.refresh_custom_display(bufnr)
+    return
+  end
+  vim.b[bufnr].org_custom_times_attached = true
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWinEnter" }, {
+    buffer = bufnr,
+    group = vim.api.nvim_create_augroup("org.timestamps.custom." .. bufnr, { clear = true }),
+    callback = function()
+      M.refresh_custom_display(bufnr)
+    end,
+  })
+  M.refresh_custom_display(bufnr)
+end
+
+--- Toggle the custom timestamp display of the buffer
+--- (org-toggle-timestamp-overlays, C-c C-x C-t).
+function M.toggle_custom_display()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local on = not M.custom_display_enabled(bufnr)
+  vim.b[bufnr].org_custom_times = on
+  if on and vim.wo.conceallevel < 2 then
+    vim.wo.conceallevel = 2
+  end
+  M.attach_custom_display(bufnr)
+  utils.notify(on and "Time stamps are overlaid with custom format" or "Time stamp overlays removed")
+  return true
+end
+
+---------------------------------------------------------------------------
 -- Schedule / deadline
 ---------------------------------------------------------------------------
 
@@ -503,7 +606,7 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
   end
   local note
   if setting == "note" then
-    note = utils.input({ prompt = "Note: " })
+    note = utils.input_note({ prompt = "Note: ", purpose = new and "rescheduling" or "removing the date" })
   end
   edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old))
 end
