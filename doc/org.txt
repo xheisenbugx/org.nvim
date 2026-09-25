@@ -772,41 +772,87 @@ away with the next change or the next <C-c><C-c>.
 14. CAPTURE                                                      *org-capture*
 
 <prefix>c opens the template menu. `:Org capture KEY` selects a template
-directly.
+directly. A count works like Emacs's prefix argument: `4<prefix>c` (C-u)
+jumps to a template's target, `16<prefix>c` (C-u C-u) to the last stored
+entry and `1<prefix>c` (C-1) asks for the date of a date tree entry.
+`:Org capture_here` (C-0 C-c c) inserts the template at the cursor: an
+entry becomes a sibling of the headline there, other types go on the
+cursor line (before it at column 0, else after it).
+
+The target is resolved when the capture starts, like Emacs: missing
+file+headline headlines and date tree nodes are created then, and the
+location is remembered even if the file changes (or the clock moves to
+another task) while you type. When the target is gone at the end (its
+headline was deleted), nothing is lost: the capture buffer stays open.
 
                                                     *org-capture-templates*
 >lua
     capture = {
       templates = {
-        t = { description = "Task", template = "* TODO %?\n  %U", target = "~/org/refile.org" },
+        t = { description = "Task", template = "* TODO %?\n  %u", target = "~/org/refile.org" },
         w = "Work",   -- group label for keys starting with w
         wt = { description = "Work task", template = "* TODO %?", target = "~/org/work.org", headline = "Inbox" },
         j = { description = "Journal", template = "* %<%H:%M> %?", target = "~/org/journal.org", datetree = true },
       },
-      window = "float",
+      window = "split",
     }
 <
+When `templates` is empty (the default), Emacs's fallback is used:
+`t = { description = "Task", target = "", headline = "Tasks", template =
+"* TODO %?\n  %u\n  %a" }`, which files under "Tasks" in
+`default_notes_file`.
+
 Template fields:
   description        menu label
-  template           string, list of lines, or function returning a string
+  template           string, list of lines, `{ file = "path" }` (read from
+                     that file, relative to `org_directory`) or a function
+                     returning a string. When empty: "* %?\n  %a" for
+                     entries, "- %?" for items, "- [ ] %?" for checkitems,
+                     "| %? |" for table lines
   type               "entry" (default), "item", "checkitem", "table-line",
                      "plain"
-  target             file (relative to `org_directory`); defaults to
-                     `default_notes_file`
-  headline           file+headline target (created when missing)
-  olp                outline path, e.g. { "Projects", "Neovim" }
-  datetree           true or { tree_type = "day"|"week"|"month" }
-  regexp             insert after the first line matching this Lua pattern
-  func / function    function(bufnr) returning the line number to insert
-                     under
+  target             file (relative to `org_directory`, "" =
+                     `default_notes_file`), "clock", or a function
+                     returning either; defaults to `default_notes_file`
+  headline           file+headline: under the first headline with this
+                     title (TODO keyword, priority and tags ignored),
+                     created at the end of the file when missing
+  olp                file+olp: outline path, e.g. { "Projects", "Neovim" }
+                     or "Projects/Neovim"; every node must exist
+  datetree           file+olp+datetree: true or { tree_type = ... }, under
+                     `olp`/`headline` when given. The date is the capture
+                     date (agenda day, `time_prompt`, C-1) or today.
+                     Existing nodes are recognized by their date
+                     ("2026-09 Sept" is the September node)
+  tree_type          "day" (default), "week", "month", a list of "year",
+                     "quarter", "month", "week", "day", or a function(date)
+                     returning { { title, compare } ... } (:tree-type)
+  regexp             file+regexp: Vim regexp; the text goes where the
+                     first match ends (starts, with `prepend`); an entry
+                     becomes a child when the match is on a headline
+  func / function    file+function: function(bufnr) returning the line
+                     (and column) of the location, or moving the cursor
+                     there; a headline line means "under this headline"
+  location           the (function f) target: function() returning the
+                     buffer, line and column, or nothing for the cursor
+                     position in the current buffer
   id                 insert under the entry with this ID (file+id)
   target = "clock"   insert under the currently clocked task (clock)
   prepend            insert as the first child instead of the last
-  empty_lines        blank lines around the entry (also
-                     empty_lines_before / empty_lines_after)
+  empty_lines        blank lines around the text, replacing the blank
+                     lines already there (also empty_lines_before /
+                     empty_lines_after; items in an existing list get at
+                     most one)
+  table_line_pos     where a table line goes, e.g. "II-3" (3 lines before
+                     the 2nd hline) or "I+1" (right after the 1st). A table
+                     is created when there is none
   properties         table of properties added to the entry
   immediate_finish   finish without opening the capture window
   jump_to_captured   jump to the entry after finishing
+  kill_buffer        unload the target file afterwards when the capture
+                     loaded it
+  refile_targets     `refile.targets` used when refiling from the capture
+                     buffer
   clock_in           clock the entry while capturing (stops the running
                      clock); the time is logged when the capture ends
   clock_keep         with clock_in, keep the clock running afterwards
@@ -817,7 +863,30 @@ Template fields:
   prepare_finalize   function(capture_bufnr), before the text is read
   before_finalize    function(bufnr, lnum) in the target, before saving
   after_finalize     function(bufnr, lnum) when the capture is done
+  unnarrowed         not supported: see |org-differences|
 
+An entry template without stars gets "* ", item templates get "- " (and
+continuation lines are indented under the bullet); in an existing list the
+item takes the list's indentation and bullet style. Items and table lines
+go into the first list / table of the target entry (of the file for a
+plain file target); "plain" text goes at the end of the entry's text,
+before its children (after its planning, properties and drawers with
+`prepend`), or at the end (top) of a file.
+
+                                                    *org-capture-contexts*
+`capture.templates_contexts` (org-capture-templates-contexts) makes
+templates available only in some buffers. Each rule is `{ key, rules }`, or
+`{ key, other_key, rules }` to use `other_key`'s template for `key` there
+(the other key is then hidden). A template is shown when any of its rules
+holds; rules are tables with one of `in_file`, `not_in_file`, `in_mode`
+(filetype), `not_in_mode`, `in_buffer`, `not_in_buffer` (Vim regexps) or
+functions:
+>lua
+    capture = { templates_contexts = {
+      { "m", { { in_mode = "^mail$" } } },
+      { "t", "p", { { in_file = "project" } } },
+    } }
+<
 Template expansions:                               *org-capture-expansions*
   %?           cursor position
   %t %T        active date / date and time
@@ -827,22 +896,37 @@ Template expansions:                               *org-capture-expansions*
   %a           annotation: a link to the location capture was started from
   %A           the same, asking for a description
   %l           the link without a description
-  %i           initial content (the visual selection)
-  %x           clipboard
+  %L           the bare link target
+  %i           initial content (the visual selection); the text before
+               %i on its line is repeated on every line
+  %x           clipboard (the `*` register, else `+`)
   %c           last yank
   %f %F        origin file name / full path
-  %n           user name
+  %n           your full name (like Emacs's `user-full-name`)
   %k %K        the clocked task's title / a link to it
-  %^{Prompt}   ask; `%^{Prompt|default|opt1|opt2}` offers choices
-  %\1 ...      the answer to the Nth prompt
-  %^g %^G      tags prompt
-  %^{PROP}p    property prompt
+  %^{Prompt}   ask; `%^{Prompt|default|opt1|opt2}` offers opt1 and opt2
+               and uses the default for an empty answer
+  %^C %^L      ask for a clipboard value (%^L makes it a link)
+  %\1 ...      the answer to the Nth %^{...} prompt
+  %\*1 ...     the answer to the Nth prompt of any kind (%^t, %^g, ...)
+  %^g %^G      tags prompt, completing the target file's / all agenda
+               files' tags; tags on a headline are aligned
+  %^{PROP}p    property prompt (offers the PROP_ALL values of the target)
+  %:keyword    link information: %:link, %:description, %:annotation,
+               %:initial, %:type
+  %[file]      the contents of a file
   %(expr)      the value of a Lua expression, e.g. %(os.getenv("HOST"))
                (Emacs: an elisp sexp)
-  %%           a literal %
+Like Emacs, `%%` is not an escape: write `\%` for a literal "%" before an
+expansion character (`\%t`). Leading blank lines and trailing whitespace of
+the expanded text are removed.
 
-Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
-`<C-c><C-w>` refiles (also `<prefix>w`, `<prefix>k`, `<prefix>r`).
+Capture window: `<C-c><C-c>` or `:w` finalizes (with a count, C-u C-c C-c,
+it then jumps to the entry), `<C-c><C-k>` aborts (the headlines created for
+an unmodified target are dropped again) and `<C-c><C-w>` finalizes and
+refiles the entry (entry templates only; also `<prefix>w`, `<prefix>k`,
+`<prefix>r`). The window splits the screen like Emacs (`capture.window`:
+"split", "float", "vsplit", "tab" or "current").
 
 :Org capture_goto_target  choose a template and jump to its target
                           (C-u C-c c in Emacs)
@@ -886,24 +970,27 @@ has no counterpart: the handler command above plays that role.
 ==============================================================================
 15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
 
-<prefix>r       Refile the subtree under another headline in the agenda
-                files (or the current file). Targets are listed as
-                "file.org/Parent/Child", up to `refile.max_level`. With
-                `refile.allow_creating_parent_nodes`, you can type
-                "file.org/Parent/New" to create missing parents.
+<prefix>r       Refile the subtree as the last child of another headline
+                (org-refile, <C-c><C-w>). In Visual mode, refile the
+                selected lines; they must start with a headline and form a
+                sequence of subtrees. The subtree keeps its blank lines and
+                goes after the target's own blank lines, like Emacs. A
+                count works like Emacs's prefix argument: 4 (C-u) jumps to
+                a target, 16 (C-u C-u) to the last refiled entry, 2 refiles
+                under the running clock and 3 copies (org-refile-keep).
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
 :Org refile_goto_last  Jump to where the last refile or capture went
                        (C-u C-u C-c C-w).
 
-Refile options:
-  targets             like org-refile-targets; when non-empty it replaces
-                      `max_level` / `include_current_file`. A list of
-                      specs, each with `files` ("agenda", "current" (the
-                      default), a path or glob, a list, or a function) and
-                      any of `max_level`, `level`, `tag`, `todo`,
-                      `regexp` (Vim regexp on the headline):
+By default the targets are the level-1 headlines of the current buffer,
+shown by their heading (Emacs's org-refile-targets nil). Refile options:
+  targets             like org-refile-targets. A list of specs, each with
+                      `files` ("agenda", "current" (the default), a path or
+                      glob, a list, or a function) and any of `max_level`,
+                      `level`, `tag`, `todo`, `regexp` (Vim regexp on the
+                      headline):
 >lua
     refile = { targets = {
       { files = "current", max_level = 2 },
@@ -911,10 +998,30 @@ Refile options:
       { files = "~/org/someday.org", level = 1 },
     } }
 <
+  max_level           shortcut when `targets` is empty: the agenda files
+                      plus the current file (unless `include_current_file
+                      = false`) up to this level
+  use_outline_path    how targets are shown (org-refile-use-outline-path):
+                      false (default) the heading, followed by
+                      " (file.org)" for other files; true "Parent/Child/";
+                      "file" "file.org/Parent/Child/"; "full-file-path",
+                      "title" (#+TITLE) and "buffer-name" likewise. The
+                      last four also offer the files themselves (top
+                      level). A "/" in a heading is shown as "\/"
+  outline_path_complete_in_steps
+                      with an outline path, choose one level at a time
+                      (default true)
+  allow_creating_parent_nodes
+                      true or "confirm" (ask first): type "Target/New" to
+                      create missing headlines under an existing target
+  active_region_within_subtree
+                      refile a Visual selection that does not start at a
+                      headline by making its first line one
   verify              function(headline) -> boolean to drop targets
                       (org-refile-target-verify-function)
   log                 false | "time" | "note": add "Refiled on [date]"
-                      to the entry's logbook (org-log-refile)
+                      to the entry's logbook (org-log-refile); a region
+                      only gets time stamps
   reverse_note_order  refile as the first child (org-reverse-note-order)
 
 <prefix>$       Archive the subtree. The location comes from the ARCHIVE
@@ -925,15 +1032,31 @@ Refile options:
                   "::* Archive"              same file, under a headline
                   "archive.org::datetree/"   another file, in a date tree
                                              for the CLOSED date (or today)
+                  "archive.org::datetree/* Sub"  under "Sub" in the day
+                A new archive file starts with
+                `archive_file_header_format` ("\nArchived entries from
+                file %s\n\n", false for none; a file not named *.org also
+                gets an Org mode line). Entries are separated by one blank
+                line (none in a date tree); `archive_reversed_order` makes
+                them the first child. `archive_mark_done` (true or a done
+                keyword) marks them done.
                 Adds ARCHIVE_TIME, ARCHIVE_FILE, ARCHIVE_OLPATH,
                 ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS (also
                 "ltags" and "olid") according to
                 `archive_save_context_info`. Inherited tags become local
                 tags when archiving within the same file
                 (`archive_subtree_add_inherited_tags`: "infile", true or
-                false).
+                false). IDs of archived entries keep resolving
+                (|org-id|). With a count, 4 (C-u) runs `archive_all_done`
+                and 16 (C-u C-u) `archive_all_old`.
+                User autocmds `OrgArchive` (source buffer, before the
+                subtree is removed; org-archive-hook) and
+                `OrgArchiveFinalize` (archive buffer;
+                org-archive-finalize-hook) get `data = { bufnr, lnum,
+                title, archive_file }`.
 <prefix>hA      Toggle the ARCHIVE tag. Archived subtrees stay folded and are
-                excluded from the agenda.
+                excluded from the agenda. With a count (C-u C-c C-x a),
+                offer to tag every child without open TODO entries.
 <C-c><C-x>A     Move the subtree under its "Archive" sibling
                 (`archive_sibling_heading`), which is created with the
                 ARCHIVE tag when missing (org-archive-to-archive-sibling).
@@ -941,6 +1064,9 @@ Refile options:
                 Offer to archive each child of the headline at the cursor
                 (each top-level tree when not on a headline) that has no
                 open TODO entries (C-u C-c C-x C-s in Emacs).
+:Org archive_all_old
+                The same for children whose first active time stamp lies
+                before today (C-u C-u C-c C-x C-s).
 
 ==============================================================================
 16. LINKS, IDS AND ATTACHMENTS                  *org-links* *org-id* *org-attach*
@@ -1071,28 +1197,53 @@ description. `links.search_functions` run first on search options and
 `links.translation_function(type, path)` rewrites links before they open.
 
 IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
-it from the agenda files. Links to headings are `file:` links unless
+it from the agenda files, their archive files (`id.search_archives`,
+default true), `id.extra_files`, the loaded org buffers and the files
+already known; an ID that is not where the database says triggers the same
+scan. Refiled and archived entries are recorded at their new place.
+New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
+stamp in `id.ts_format`) or "org" (a compact time based ID), with
+`id.prefix` and a colon in front when set (org-id-prefix).
+Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
 `id:` links get a search string for a named element or a selection below
 the heading (`id:ID::tbl1`, `id.link_use_context`); with
 `id.link_consider_parent_id`, a heading without an ID is linked through
 its ancestor's ID (`id:ID::*Child`).
-<prefix>lI      Get or create the entry's ID.
+<prefix>lI      Get or create the entry's ID; with a count (C-u), replace
+                it by a new one.
 <prefix>lg      Go to an entry by ID (org-id-goto, IDs are completed).
 <prefix>ly      Copy the entry's ID, creating it if needed (org-id-copy).
 `:Org id_store_link` stores an `id:` link whatever `links.use_id` says.
 
-<prefix>A opens the attachment menu:
+<prefix>A opens the attachment menu (org-attach):
   a  attach a file (method from `attach.method`: cp/mv/ln/lns)
-  c m l y  attach by copy / move / symlink / relative symlink
+  c m l y  attach by copy / move / hard link / symbolic link
   u  download a URL (curl)   b  attach the contents of a buffer
   n  create a new file       z  sync the ATTACH tag with the directory
-  o  open an attachment      O  open it with the system app
-  f  open the directory      F  open it with the system app
+  o  open an attachment (system app or `links.file_apps`)
+  O  open it in Neovim
+  f  open the directory with the system app
+  F  open the directory in Neovim
   d  delete one              D  delete all
   s  set the DIR property    S  remove the DIR property
-The directory is `attach.dir` + an ID-based path (or DIR), and the ATTACH tag
-is added.
+Directories can be attached too (copied recursively with "cp").
+
+The directory is the DIR property (or the older ATTACH_DIR), else it
+comes from the ID: `attach.dir` + a folder from `attach.id_to_path`
+(org-attach-id-to-path-function-list: "uuid" gives `ab/cdef...`, "ts"
+gives `202609/25T...`, "fallback" gives `__/a/abcdef...`, or your own
+functions); an existing folder wins, also under the default "data/".
+Parents' DIR / ID count only as `attach.use_inheritance` says
+("selective", the default, follows `use_property_inheritance`). An entry
+without either gets an ID (`attach.preferred_new_method`: "id", "dir"
+asks for a DIR, "ask", or false). Attaching adds the `attach.auto_tag`
+tag (ATTACH) and stores a link (`attach.store_link`: "attached" an
+`attachment:` link, "file" a `file:` link to the attachment, true to the
+source, false none). Other options: `dir_relative` (store DIR relative to
+the file), `sync_delete_empty_dir` ("query", true, false) and
+`archive_delete` (delete the attachments of archived entries: false, true,
+"query").
 
 ==============================================================================
 17. FOOTNOTES                                                  *org-footnotes*
@@ -1635,7 +1786,7 @@ General ~
   org_directory             "~/org"   base for relative paths
   agenda_files              {}        files, dirs (not recursive), globs,
                                       or a file listing them
-  default_notes_file        "~/.notes"
+  default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
   win_border                "rounded"
@@ -1685,6 +1836,9 @@ Buffer ~
                               "itags" }
   archive_sibling_heading   "Archive"
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
+  archive_reversed_order    false
+  archive_mark_done         false     true|"DONEKEYWORD"
+  archive_file_header_format  "\nArchived entries from file %s\n\n"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
   skip_scheduled_if_done, skip_deadline_if_done,
@@ -1702,10 +1856,14 @@ agenda ~
   start_with_log_mode, start_with_follow_mode,
   start_with_clockreport_mode, start_with_entry_text_mode
 capture ~
-  templates (|org-capture-templates|), window
+  templates {} (|org-capture-templates|; empty = Emacs's "t" Task
+  template), templates_contexts {} (|org-capture-contexts|),
+  window "split"
 refile ~
-  max_level 3, use_outline_path "file", allow_creating_parent_nodes false,
-  include_current_file true, targets {}, verify nil, log false,
+  targets {} (empty = level-1 headlines of the current buffer),
+  max_level nil, include_current_file nil, use_outline_path false,
+  outline_path_complete_in_steps true, allow_creating_parent_nodes false,
+  active_region_within_subtree false, verify nil, log false,
   reverse_note_order false
 clock ~
   out_when_done true, into_drawer true (or a drawer name / number),
@@ -1739,9 +1897,14 @@ links ~
   function), make_description nil, doi_server_url "https://doi.org/",
   search_functions {}, translation_function nil
 id ~
-  locations_file, method "uuid"|"ts", link_use_context true,
-  link_consider_parent_id false
-attach ~    dir "data/", method "cp"|"mv"|"ln"
+  locations_file, method "uuid"|"ts"|"org", prefix nil,
+  ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
+  link_use_context true, link_consider_parent_id false
+attach ~
+  dir "data/", method "cp"|"mv"|"ln"|"lns", id_to_path { "uuid", "ts",
+  "fallback" }, use_inheritance "selective", dir_relative false,
+  preferred_new_method "id", store_link "attached",
+  sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH"
 babel ~
   confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
   evaluate_on_export false, default_header_args, languages
@@ -2095,7 +2258,26 @@ Differences from Emacs:
   <M-CR> inserts a row instead of splitting the field. Table export writes
   TSV or CSV only.
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
-  instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
+  instead of Elisp.
+- Capture edits the text in a separate buffer that is stored at the target
+  (resolved when the capture starts) on finalize, instead of an indirect
+  buffer narrowed to the text already inserted in the target. So
+  `:unnarrowed` (showing the rest of the target file while capturing) is
+  not supported, and the target file does not show the new text until the
+  capture is finished. Mail and news `%:keyword` values (`%:from`,
+  `%:subject`, ...) come from Emacs link sources (Gnus, mu4e, ...) that
+  have no Neovim counterpart; only `%:link`, `%:description`,
+  `%:annotation`, `%:initial` and `%:type` exist. The last stored location
+  (`org-capture-bookmark`, obsolete in Emacs) lasts for the session only.
+  `org-extend-today-until` is not applied to capture dates. With C-0
+  (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
+  sits on a character, so the text goes before the cursor line at column
+  0 and after it otherwise.
+- The ID database is JSON, not Emacs's `org-id-locations-file` format, so
+  it can't be shared with Emacs. The org-attach git/annex extensions and
+  the refile cache (not needed) are not implemented; archiving does not
+  loop over a Visual selection (Emacs does only with
+  `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
 - Babel sessions exist for shells, python, js, ruby and lua only, and
   are not full REPLs: each block runs as one request. Export runs code only

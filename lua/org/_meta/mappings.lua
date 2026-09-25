@@ -21,6 +21,7 @@
 ---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
 ---| "archive_all_done" # Archive children without open TODOs
+---| "archive_all_old" # Archive children with old time stamps
 ---| "archive_subtree" # Archive subtree
 ---| "archive_to_sibling" # Archive to Archive sibling
 ---| "attach" # Attachments
@@ -51,8 +52,9 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "buffer_goto" # Go to heading in buffer
----| "capture" # Capture
+---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
+---| "capture_here" # Capture at the cursor (C-0 C-c c)
 ---| "capture_goto_target" # Go to a capture template's target
 ---| "clock_cancel" # Cancel clock
 ---| "clock_display" # Display clock sums
@@ -147,8 +149,8 @@
 ---| "priority" # Set priority
 ---| "promote_heading" # Promote heading / item
 ---| "promote_subtree" # Promote subtree
----| "refile" # Refile subtree
----| "refile_copy" # Copy subtree to a refile target
+---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
+---| "refile_copy" # Copy subtree / region to a refile target
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
 ---| "reveal" # Reveal context around cursor

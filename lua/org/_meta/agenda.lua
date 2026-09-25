@@ -275,11 +275,24 @@
 ---Templates keyed by selection key (org-capture-templates). Keys may be several
 ---characters long; a string value only labels the group of keys that start
 ---with that prefix. Setting this replaces the defaults instead of merging.
----See `:h org-capture-templates`.
----(default: `{ t = { description = "Task", template = "* TODO %?\n  %U" } }`)
+---When empty, Emacs's fallback template is used: `t = { description = "Task",
+---target = "", headline = "Tasks", template = "* TODO %?\n  %u\n  %a" }`.
+---See `:h org-capture-templates`. (default: `{}`)
 ---@field templates? table<string, org.Config.CaptureTemplate|string>
----Window used for the capture buffer. (default: `"float"`)
+---Rules limiting templates to some buffers (org-capture-templates-contexts):
+---`{ key, rules }` or `{ key, other_key, rules }` (use `other_key`'s template
+---for `key`). See `:h org-capture-contexts`. (default: `{}`)
+---@field templates_contexts? org.Config.CaptureContextRule[]
+---Window used for the capture buffer; Emacs splits the frame.
+---(default: `"split"`)
 ---@field window? "float"|"split"|"vsplit"|"tab"|"current"
+
+---An entry of `capture.templates_contexts`: `{ key, rules }` or
+---`{ key, replacement_key, rules }`. `rules` is a list of conditions (any
+---one must hold): tables with one of `in_file`, `not_in_file`, `in_mode`
+---(filetype), `not_in_mode`, `in_buffer`, `not_in_buffer` (Vim regexps), or
+---functions returning a boolean.
+---@alias org.Config.CaptureContextRule table
 
 ---Context passed to a function `template`, also used for `%` expansions.
 ---@class org.Config.CaptureContext
@@ -297,42 +310,58 @@
 ---@field date? table
 ---The target file.
 ---@field target_file? org.File
+---The headline of the target location, if any.
+---@field target_hl? org.Headline
+---Values for `%:keyword`.
 ---@field keywords table
 
 ---A capture template (an entry of org-capture-templates). At least one of
----`template`, `type`, `target` or `file` must be set for the table to be
----treated as a template rather than a group label.
+---`template`, `type`, `target`, `file`, `headline`, `olp`, `id`, `datetree`
+---or `location` must be set for the table to be treated as a template rather
+---than a group label.
 ---@class org.Config.CaptureTemplate
 ---Menu label.
 ---@field description? string
 ---Template text with `%` expansions (see `:h org-capture-expansions`): a
----string, a list of lines, or a function returning either.
----(default: depends on `type`, e.g. `"* %?"` for entries)
----@field template? string|string[]|fun(ctx: org.Config.CaptureContext): string|string[]
+---string, a list of lines, `{ file = "path" }` (read from that file,
+---relative to `org_directory`), or a function returning a string.
+---(default when empty: `"* %?\n  %a"` for entries, `"- %?"` for items,
+---`"- [ ] %?"` for checkitems, `"| %? |"` for table lines)
+---@field template? string|string[]|{ file: string }|fun(ctx: org.Config.CaptureContext): string|string[]
 ---What is captured. (default: `"entry"`)
 ---@field type? "entry"|"item"|"checkitem"|"table-line"|"plain"
----Target file (relative to `org_directory`), `"clock"` for the clocked task,
----or a function returning either. (default: `default_notes_file`)
+---Target file (relative to `org_directory`; `""` = `default_notes_file`),
+---`"clock"` for the clocked task, or a function returning either.
+---(default: `default_notes_file`)
 ---@field target? string|"clock"|fun(): string
 ---Alias of `target`.
 ---@field file? string|"clock"|fun(): string
----Insert under the headline with this title, created when missing (file+headline).
----@field headline? string
----Outline path, a list or a `"A/B"` string; missing nodes are created (file+olp).
----@field olp? string|string[]
+---Insert under the first headline with this title, created at the end of
+---the file when missing (file+headline). A function returns the title.
+---@field headline? string|fun(): string
+---Outline path, a list or a `"A/B"` string, or a function returning one
+---(file+olp). Every node must exist.
+---@field olp? string|string[]|fun(): (string|string[])
 ---Insert under the entry with this ID (id). Also locates the file when no `target` is set.
 ---@field id? string
----Vim regexp; insert after the first line that matches (file+regexp).
+---Vim regexp; the text goes where the first match ends (its start with
+---`prepend`), as a child when the match is on a headline (file+regexp).
 ---@field regexp? string
----Called in the target buffer; returns the line of the headline to insert
----under, or nil for top level (function).
----@field func? fun(bufnr: integer): integer?
+---Called in the target buffer; returns the line (and column) of the
+---location, or moves the cursor there (file+function). A headline line
+---means "under this headline".
+---@field func? fun(bufnr: integer): (integer?, integer?)
 ---Alias of `func`.
----@field ["function"]? fun(bufnr: integer): integer?
----File the entry in a date tree (file+datetree), under the location above if any.
----@field datetree? boolean|{ tree_type?: "day"|"week"|"month" }
----Date tree type when `datetree = true`. (default: `"day"`)
----@field tree_type? "day"|"week"|"month"
+---@field ["function"]? fun(bufnr: integer): (integer?, integer?)
+---The (function f) target: returns the buffer, line and column of the
+---location, or nothing for the cursor position in the current buffer.
+---@field location? fun(): (integer?, integer?, integer?)
+---File the entry in a date tree (file+olp+datetree), under the location above if any.
+---@field datetree? boolean|{ tree_type?: "day"|"week"|"month"|string[]|fun(date: table): table }
+---Date tree type (:tree-type): `"day"`, `"week"`, `"month"`, a list of
+---`"year"`, `"quarter"`, `"month"`, `"week"`, `"day"`, or a function of the
+---date returning `{ { title, compare } ... }`. (default: `"day"`)
+---@field tree_type? "day"|"week"|"month"|string[]|fun(date: table): table
 ---Insert as the first child / at the top instead of the end (:prepend).
 ---@field prepend? boolean
 ---Blank lines before and after the captured text (:empty-lines). (default: `0`)
@@ -341,12 +370,19 @@
 ---@field empty_lines_before? integer
 ---Blank lines after the captured text (:empty-lines-after).
 ---@field empty_lines_after? integer
+---Where a table line goes (:table-line-pos), e.g. `"II-3"`: the 3rd line
+---before the 2nd hline.
+---@field table_line_pos? string
 ---Properties added to a captured entry.
 ---@field properties? table<string, string>
 ---Store without opening the capture window (:immediate-finish).
 ---@field immediate_finish? boolean
 ---Jump to the captured entry after finishing (:jump-to-captured).
 ---@field jump_to_captured? boolean
+---Unload the target buffer after the capture when the capture loaded it (:kill-buffer).
+---@field kill_buffer? boolean
+---Refile targets used when refiling from the capture buffer (:refile-targets).
+---@field refile_targets? org.Config.RefileTargetSpec[]
 ---Clock the captured entry while capturing (:clock-in): the running clock
 ---stops when the capture starts, and the capture time is logged as a CLOCK
 ---line when it ends.
@@ -373,20 +409,31 @@
 
 ---Refile options.
 ---@class org.Config.Refile
----Deepest headline level offered as a target (without `targets`). (default: `3`)
----@field max_level? integer
----How targets are labelled (org-refile-use-outline-path): `"file"` (or
----`"full-file-path"`) = `file.org/Parent/Child`, `true` = `Parent/Child`,
----`false` = the title plus the file name. (default: `"file"`)
----@field use_outline_path? "file"|"full-file-path"|boolean
----Allow typing a new path like `file.org/Parent/New` to create missing parents
----(org-refile-allow-creating-parent-nodes). (default: `false`)
----@field allow_creating_parent_nodes? boolean
----Also offer targets in the current file (without `targets`). (default: `true`)
----@field include_current_file? boolean
----Target specs like org-refile-targets; replaces `max_level` /
----`include_current_file` when non-empty. See `:h org-refile`. (default: `{}`)
+---Target specs (org-refile-targets). When empty, the targets are the level-1
+---headlines of the current buffer (Emacs's nil). See `:h org-refile`.
+---(default: `{}`)
 ---@field targets? org.Config.RefileTargetSpec[]
+---When set and `targets` is empty: offer the agenda files plus the current
+---file up to this level. (default: `nil`)
+---@field max_level? integer
+---With `max_level`: `false` leaves out the current file. (default: `nil`)
+---@field include_current_file? boolean
+---How targets are labelled (org-refile-use-outline-path): `false` = the
+---heading (plus ` (file.org)` for other files), `true` = `Parent/Child/`,
+---`"file"` = `file.org/Parent/Child/`, `"full-file-path"`, `"title"`
+---(`#+TITLE`) and `"buffer-name"` likewise; those four also offer the files
+---themselves. (default: `false`)
+---@field use_outline_path? boolean|"file"|"full-file-path"|"title"|"buffer-name"
+---With an outline path, choose it one level at a time
+---(org-outline-path-complete-in-steps). (default: `true`)
+---@field outline_path_complete_in_steps? boolean
+---Allow typing a new path like `Parent/New` to create missing parents
+---(org-refile-allow-creating-parent-nodes): `true`, or `"confirm"` to ask.
+---(default: `false`)
+---@field allow_creating_parent_nodes? boolean|"confirm"
+---Refile a Visual selection that does not start at a headline by making
+---its first line one (org-refile-active-region-within-subtree). (default: `false`)
+---@field active_region_within_subtree? boolean
 ---Return false to drop a target (org-refile-target-verify-function). (default: `nil`)
 ---@field verify? fun(headline: org.Headline): boolean
 ---Log refiling in the entry's logbook (org-log-refile). (default: `false`)

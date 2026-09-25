@@ -306,12 +306,23 @@
 
 ---ID options.
 ---@class org.Config.Id
----JSON file mapping IDs to files (`org-id-locations-file`).
+---JSON file mapping IDs to files (`org-id-locations-file`; not shared with Emacs).
 ---(default: `stdpath("data") .. "/org/id-locations.json"`)
 ---@field locations_file? string
----How new IDs are generated (`org-id-method`): `"uuid"` or `"ts"`
----(timestamp like `20240101T120000.123456`). (default: `"uuid"`)
----@field method? "uuid"|"ts"
+---How new IDs are generated (`org-id-method`): `"uuid"`, `"ts"` (a time
+---stamp like `20240101T120000.123456`) or `"org"` (a compact time based
+---ID). (default: `"uuid"`)
+---@field method? "uuid"|"ts"|"org"
+---Prefix of new IDs, joined with `:` (`org-id-prefix`). (default: `nil`)
+---@field prefix? string
+---Format of `"ts"` IDs; `%6N` is replaced by microseconds (`org-id-ts-format`).
+---(default: `"%Y%m%dT%H%M%S.%6N"`)
+---@field ts_format? string
+---Also look for IDs in the archive files of the agenda files
+---(`org-id-search-archives`). (default: `true`)
+---@field search_archives? boolean
+---More files (paths or globs) scanned for IDs (`org-id-extra-files`). (default: `{}`)
+---@field extra_files? string[]
 ---Add a search string to stored `id:` links (`id:ID::name`) for a named
 ---element or selection below the heading (`org-id-link-use-context`).
 ---(default: `true`)
@@ -323,13 +334,39 @@
 ---Attachment options.
 ---@class org.Config.Attach
 ---Attachment root (`org-attach-id-dir`), relative to the org file's
----directory unless absolute. Files go to `<dir>/<ID[1:2]>/<ID[3:]>`.
----(default: `"data/"`)
+---directory unless absolute. (default: `"data/"`)
 ---@field dir? string
 ---Default attach method (`org-attach-method`): `"cp"` copy, `"mv"` move,
----`"ln"` symbolic link (absolute path), `"lns"` symbolic link (relative
----path). (default: `"cp"`)
+---`"ln"` hard link, `"lns"` symbolic link. (default: `"cp"`)
 ---@field method? "cp"|"mv"|"ln"|"lns"
+---Map an ID to a folder under `dir` (`org-attach-id-to-path-function-list`):
+---functions `fun(id): string?` or the built-ins `"uuid"` (`ab/cdef...`),
+---`"ts"` (`202401/...` for time stamp IDs) and `"fallback"`
+---(`__/a/abcdef...`). The first existing folder wins, else the first result.
+---(default: `{ "uuid", "ts", "fallback" }`)
+---@field id_to_path? (string|fun(id: string): string?)[]
+---Inherit the attachment directory (`DIR` / an ancestor's ID) from parents
+---(`org-attach-use-inheritance`): `"selective"` follows
+---`use_property_inheritance`. (default: `"selective"`)
+---@field use_inheritance? boolean|"selective"
+---Store `DIR` relative to the org file (`org-attach-dir-relative`). (default: `false`)
+---@field dir_relative? boolean
+---How an entry without a directory gets one (`org-attach-preferred-new-method`):
+---`"id"`, `"dir"` (ask for a `DIR`), `"ask"` or `false` (error). (default: `"id"`)
+---@field preferred_new_method? "id"|"dir"|"ask"|false
+---Store a link after attaching (`org-attach-store-link-p`): `"attached"`
+---(`attachment:` link), `"file"` (`file:` link to the attachment), `true`
+---(`file:` link to the source) or `false`. (default: `"attached"`)
+---@field store_link? "attached"|"file"|boolean
+---Delete an empty attachment directory when syncing
+---(`org-attach-sync-delete-empty-dir`): `"query"`, `true` or `false`. (default: `"query"`)
+---@field sync_delete_empty_dir? "query"|boolean
+---Delete the attachments of archived entries (`org-attach-archive-delete`):
+---`false`, `true` or `"query"`. (default: `false`)
+---@field archive_delete? boolean|"query"
+---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
+---(default: `"ATTACH"`)
+---@field auto_tag? string|false
 
 ---------------------------------------------------------------------------
 -- Babel

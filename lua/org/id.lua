@@ -2,7 +2,9 @@
 ---
 --- IDs are stored in the `:ID:` property. A JSON database
 --- (`config.id.locations_file`) maps ids to files so `id:` links resolve
---- quickly; it is rebuilt from agenda files when an id is not found.
+--- quickly; it is rebuilt from the agenda files, their archives
+--- (`id.search_archives`), `id.extra_files`, the loaded org buffers and the
+--- files already known when an id is not found (org-id-update-id-locations).
 
 local config = require("org.config")
 local edit = require("org.edit")
@@ -37,29 +39,87 @@ function M.register(id, filename)
   if not id or not filename then
     return
   end
-  load_db()[id] = filename
-  save_db()
-end
-
---- Generate a new id according to `config.id.method`.
-function M.new_id()
-  local method = (config.opts.id or {}).method or "uuid"
-  if method == "ts" then
-    return os.date("%Y%m%dT%H%M%S") .. "." .. string.format("%06d", math.random(0, 999999))
+  local d = load_db()
+  if d[id] ~= filename then
+    d[id] = filename
+    save_db()
   end
-  return utils.uuid()
 end
 
---- Return the ID of the headline at target, creating one if missing.
+--- Record every `:ID:` property found in `lines` as living in `filename`
+--- (org-id-paste-tracker: refiled and archived entries keep resolving).
+function M.register_lines(lines, filename)
+  if not filename or filename == "" then
+    return
+  end
+  local d, changed = load_db(), false
+  for _, l in ipairs(lines) do
+    local id = l:match("^%s*:ID:%s+(%S+)")
+    if id and d[id] ~= filename then
+      d[id] = filename
+      changed = true
+    end
+  end
+  if changed then
+    save_db()
+  end
+end
+
+local B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+local function b36(n, len)
+  local s = ""
+  while n > 0 do
+    local r = n % 36
+    s = B36:sub(r + 1, r + 1) .. s
+    n = math.floor(n / 36)
+  end
+  if #s < len then
+    s = string.rep("0", len - #s) .. s
+  end
+  return s
+end
+
+--- Generate a new id according to `id.method` and `id.prefix`
+--- (org-id-new).
+function M.new_id()
+  local cfg = config.opts.id or {}
+  local method = cfg.method or "uuid"
+  local unique
+  if method == "ts" then
+    local sec, usec = vim.uv.gettimeofday()
+    local fmt = (cfg.ts_format or "%Y%m%dT%H%M%S.%6N"):gsub("%%6N", string.format("%06d", usec))
+    unique = os.date(fmt, sec)
+  elseif method == "org" then
+    -- the time (HI LO USEC) in base 36, reversed
+    local sec, usec = vim.uv.gettimeofday()
+    unique = (b36(math.floor(sec / 65536), 4) .. b36(sec % 65536, 4) .. b36(usec, 4)):reverse()
+  else
+    unique = utils.uuid()
+  end
+  local prefix = cfg.prefix
+  if prefix and prefix ~= "" then
+    return prefix .. ":" .. unique
+  end
+  return unique
+end
+
+--- Return the ID of the headline at target, creating one if missing
+--- (org-id-get-create). With `force` (a count: C-u), a new ID replaces
+--- the existing one.
 ---@param target? org.Target
+---@param force? boolean
 ---@return string|nil
-function M.get_create(target)
+function M.get_create(target, force)
+  if force == nil and target == nil then
+    force = vim.v.count > 0
+  end
   local bufnr, file, hl = edit.resolve_headline(target)
   if not hl then
     return nil
   end
   local id = hl.properties.ID
-  if not id or id == "" then
+  if force or not id or not id:match("%S") then
     id = M.new_id()
     edit.set_property(bufnr, hl.line, "ID", id)
   end
@@ -89,34 +149,72 @@ local function search_file(path, id)
   end
 end
 
---- Rebuild the id database from agenda files (plus files already known).
-function M.update_locations()
-  local new = {}
-  local paths = files.agenda_file_paths()
-  local seen = {}
-  for _, p in ipairs(paths) do
-    seen[p] = true
-  end
-  for _, p in pairs(load_db()) do
-    if type(p) == "string" and not seen[p] and utils.exists(p) then
-      seen[p] = true
-      paths[#paths + 1] = p
+--- Files scanned for IDs: the agenda files, their archives
+--- (`id.search_archives`), `id.extra_files`, the files known to hold IDs
+--- and the loaded org buffers.
+function M.files()
+  local cfg = config.opts.id or {}
+  local out, seen = {}, {}
+  local function add(p)
+    if type(p) == "string" and p ~= "" then
+      p = vim.fs.normalize(p)
+      if not seen[p] and utils.exists(p) then
+        seen[p] = true
+        out[#out + 1] = p
+      end
     end
   end
+  for _, p in ipairs(files.agenda_file_paths()) do
+    add(p)
+  end
+  if cfg.search_archives ~= false then
+    local ok, view = pcall(require, "org.agenda.view")
+    if ok and view.archive_files then
+      for _, f in ipairs(view.archive_files(files.agenda_files())) do
+        add(f.filename)
+      end
+    end
+  end
+  local extra = cfg.extra_files or {}
+  if type(extra) == "string" then
+    extra = { extra }
+  end
+  for _, p in ipairs(utils.glob_org_files(extra)) do
+    add(p)
+  end
+  for _, p in pairs(load_db()) do
+    add(p)
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" and vim.bo[b].buftype == "" then
+      add(vim.api.nvim_buf_get_name(b))
+    end
+  end
+  return out
+end
+
+--- Rebuild the id database (org-id-update-id-locations). Returns the
+--- number of IDs found.
+function M.update_locations()
+  local new = {}
   local count = 0
-  for _, p in ipairs(paths) do
+  for _, p in ipairs(M.files()) do
     local f = files.get(p)
     if f then
       for _, hl in ipairs(f.headlines) do
-        if hl.properties.ID then
-          new[hl.properties.ID] = f.filename or p
-          count = count + 1
+        local id = hl.properties.ID
+        if id then
+          if not new[id] then
+            count = count + 1
+          end
+          new[id] = f.filename or p
         end
       end
     end
   end
   db = new
   save_db()
+  utils.notify(string.format("%d IDs found", count))
   return count
 end
 
@@ -140,11 +238,14 @@ function M.find(id)
       return r
     end
   end
-  for _, p in ipairs(files.agenda_file_paths()) do
-    local r = search_file(p, id)
-    if r then
-      M.register(id, r.filename)
-      return r
+  -- not where the database says: rescan every file
+  for _, p in ipairs(M.files()) do
+    if p ~= path then
+      local r = search_file(p, id)
+      if r then
+        M.register(id, r.filename)
+        return r
+      end
     end
   end
   return nil

@@ -11,7 +11,7 @@
 ---also accepted. (Emacs `org-agenda-files`, default: `{ "~/org/**/*.org" }`)
 ---@field agenda_files? string|string[]
 ---Default target for capture templates without a `target`.
----(Emacs `org-default-notes-file`, default: `"~/org/refile.org"`)
+---(Emacs `org-default-notes-file`, default: `"~/.notes"`)
 ---@field default_notes_file? string
 ---TODO keyword sequences, like Emacs `org-todo-keywords`. Each string is one
 ---sequence: `"TODO(t) NEXT(n!) | DONE(d@/!)"`; `(k)` is a fast-selection key,
@@ -145,7 +145,7 @@
 ---Context saved as `ARCHIVE_*` properties on archived entries.
 ---(Emacs `org-archive-save-context-info`,
 ---default: `{ "time", "file", "olpath", "category", "todo", "itags" }`)
----@field archive_save_context_info? ("time"|"file"|"olpath"|"category"|"todo"|"itags")[]
+---@field archive_save_context_info? ("time"|"file"|"olpath"|"olid"|"category"|"todo"|"itags"|"ltags")[]
 ---Heading of the sibling used by `archive_to_sibling`.
 ---(Emacs `org-archive-sibling-heading`, default: `"Archive"`)
 ---@field archive_sibling_heading? string
@@ -153,6 +153,16 @@
 ---within the same file), `true` or `false`.
 ---(Emacs `org-archive-subtree-add-inherited-tags`, default: `"infile"`)
 ---@field archive_subtree_add_inherited_tags? "infile"|boolean
+---Archive as the first child of the archive heading instead of the last.
+---(Emacs `org-archive-reversed-order`, default: `false`)
+---@field archive_reversed_order? boolean
+---Mark archived entries done: `true` (the first done keyword) or a done keyword.
+---(Emacs `org-archive-mark-done`, default: `false`)
+---@field archive_mark_done? boolean|string
+---Text put at the top of a new archive file, `%s` = the source file; `false`
+---for none. (Emacs `org-archive-file-header-format`,
+---default: `"\nArchived entries from file %s\n\n"`)
+---@field archive_file_header_format? string|false
 ---Window used for special buffers (src edit, capture, etc.).
 ---(default: `"float"`)
 ---@field win_split_mode? "float"|"split"|"vsplit"|"tab"|"current"
