@@ -364,7 +364,7 @@ function M.increment(n, unit)
   if line:match("^%s*CLOCK:") then
     local ok, clock = pcall(require, "org.clock")
     if ok and clock.update_clock_line then
-      clock.update_clock_line(0, item.lnum)
+      clock.update_clock_line(0, item.lnum, line)
     end
   end
   return true

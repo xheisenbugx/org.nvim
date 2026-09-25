@@ -194,6 +194,8 @@ local function clipboard_items()
   return out
 end
 
+local finish_clock
+
 local function clock_task()
   local ok, clock = pcall(require, "org.clock")
   if not ok then
@@ -787,6 +789,44 @@ local function first_headline_line(bufnr, start)
 end
 
 --- Store the captured text at its target. Returns (bufnr, line).
+--- :clock-in: the capture clocks into the new entry from the start of the
+--- capture (the running clock is stopped then). At the end the clock keeps
+--- running with :clock-keep; otherwise it is clocked out and, with
+--- :clock-resume, the interrupted task is clocked in again.
+local function start_clock(tpl, ctx)
+  if not tpl.clock_in then
+    return
+  end
+  local clock = require("org.clock")
+  ctx.clock_start = date.now()
+  ctx.interrupted_clock = clock.current_task()
+  if ctx.interrupted_clock then
+    clock.clock_out({ quiet = true })
+  end
+end
+
+local function resume_interrupted(tpl, ctx)
+  if tpl.clock_resume and not tpl.clock_keep and ctx.interrupted_clock then
+    require("org.clock").clock_in_task(ctx.interrupted_clock)
+    utils.notify("Interrupted clock has been resumed")
+  end
+end
+
+finish_clock = function(tpl, ctx, bufnr, line)
+  local clock = require("org.clock")
+  -- a non-entry capture clocks the entry it lands in
+  local hl = files.get_buffer(bufnr):headline_at(line)
+  if not hl then
+    return
+  end
+  if tpl.clock_keep then
+    clock.clock_in({ bufnr = bufnr, lnum = hl.line }, { at = ctx.clock_start, no_count = true })
+  else
+    clock.add_clock(bufnr, hl.line, ctx.clock_start, date.now())
+    resume_interrupted(tpl, ctx)
+  end
+end
+
 function M.store(tpl, lines, ctx)
   ctx = ctx or {}
   lines = trim_blank(vim.deepcopy(lines))
@@ -804,19 +844,9 @@ function M.store(tpl, lines, ctx)
   local ttype = tpl.type or "entry"
   if ttype == "entry" then
     line = first_headline_line(bufnr, line)
-    if ctx.clock_start and tpl.clock_resume then
-      local now = date.now():clone({ active = false })
-      local start = ctx.clock_start:clone({ active = false })
-      local mins = now:minutes() - start:minutes()
-      edit.add_log_entry(bufnr, line, {
-        string.format("CLOCK: %s--%s => %s", start:to_string(), now:to_string(), string.format("%2d:%02d", math.floor(mins / 60), mins % 60)),
-      })
-    elseif tpl.clock_in then
-      local ok, clock = pcall(require, "org.clock")
-      if ok and clock.clock_in then
-        pcall(clock.clock_in, { bufnr = bufnr, lnum = line })
-      end
-    end
+  end
+  if ctx.clock_start then
+    finish_clock(tpl, ctx, bufnr, line)
   end
   require("org.refile").remember(bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
@@ -869,6 +899,9 @@ function M.finalize(buf, opts)
     close_session(buf)
     lines = trim_blank(lines)
     dbuf, dline = refile.insert_subtree(lines, dest)
+    if s.ctx.clock_start then
+      finish_clock(s.template, s.ctx, dbuf, dline)
+    end
     refile.remember(dbuf, dline)
     run_hook(s.template.before_finalize, dbuf, dline)
     save_if_hidden(dbuf)
@@ -933,8 +966,13 @@ function M.kill(buf)
     return
   end
   vim.cmd("stopinsert")
+  local s = M.sessions[buf]
   close_session(buf)
   utils.notify("Capture aborted")
+  if s.ctx.clock_start then
+    -- nothing was clocked; :clock-resume restarts the interrupted clock
+    resume_interrupted(vim.tbl_extend("force", s.template, { clock_keep = false }), s.ctx)
+  end
 end
 
 function M.refile(buf)
@@ -1091,9 +1129,7 @@ function M.capture(tpl_or_key, opts)
       ctx.properties[#ctx.properties + 1] = { k, v }
     end
   end
-  if tpl.clock_in and tpl.clock_resume then
-    ctx.clock_start = date.now()
-  end
+  start_clock(tpl, ctx)
   if tpl.immediate_finish then
     local lines = vim.split(expanded:gsub(CURSOR, ""), "\n", { plain = true })
     if #ctx.properties > 0 and ttype == "entry" then

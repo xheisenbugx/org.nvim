@@ -299,6 +299,7 @@ function M.set_effort(target, value)
   value = vim.trim(value)
   if value == "" then
     edit.set_property(bufnr, hl.line, prop, nil)
+    require("org.clock").effort_changed(bufnr, hl.line)
     return false
   end
   local minutes = date.parse_duration(value)
@@ -310,6 +311,8 @@ function M.set_effort(target, value)
     value = date.format_duration(minutes)
   end
   edit.set_property(bufnr, hl.line, prop, value)
+  -- the running clock shows the new effort (org-set-effort)
+  require("org.clock").effort_changed(bufnr, hl.line)
   return value
 end
 

@@ -42,6 +42,11 @@ function M.context_action()
     -- like Emacs, the first C-c C-c after a sparse tree removes highlights
     return sparse.clear()
   end
+  if require("org.clock").remove_overlays(0) then
+    -- and the clock sums of org-clock-display
+    utils.notify("Temporary highlights/overlays removed from current buffer")
+    return true
+  end
   local lnum, col, line = cur()
   if require("org.properties").at_property_line(0, lnum) then
     return require("org.properties").property_action()
@@ -312,10 +317,18 @@ function M.meta_down()
   return false
 end
 
+local function timestamp_under_cursor()
+  local _, col, line = cur()
+  return require("org.date").at_col(line, col)
+end
+
 function M.shift_meta_up()
   local _, _, line = cur()
   if in_table(line) then
     return require("org.table").delete_row()
+  end
+  if line:match("^%s*CLOCK:") and timestamp_under_cursor() then
+    return require("org.clock").timestamps_adjust_closest(count())
   end
   return require("org.structure").drag_line(-1)
 end
@@ -325,6 +338,9 @@ function M.shift_meta_down()
   if in_table(line) then
     return require("org.table").insert_row(true)
   end
+  if line:match("^%s*CLOCK:") and timestamp_under_cursor() then
+    return require("org.clock").timestamps_adjust_closest(-count())
+  end
   return require("org.structure").drag_line(1)
 end
 
@@ -332,14 +348,12 @@ end
 -- Shift arrows / increment
 ---------------------------------------------------------------------------
 
-local function timestamp_under_cursor()
-  local _, col, line = cur()
-  return require("org.date").at_col(line, col)
-end
-
 function M.shift_up()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(count())
+  end
+  if require("org.clock").clocktable_shift(count()) then
+    return true
   end
   local lnum, _, line = cur()
   if is_headline(line) then
@@ -357,6 +371,9 @@ end
 function M.shift_down()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(-count())
+  end
+  if require("org.clock").clocktable_shift(-count()) then
+    return true
   end
   local lnum, _, line = cur()
   if is_headline(line) then
@@ -472,6 +489,9 @@ function M.shift_right()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(count(), "d")
   end
+  if require("org.clock").clocktable_shift(count()) then
+    return true
+  end
   local lnum, _, line = cur()
   if is_headline(line) then
     return require("org.todo").cycle_next()
@@ -491,6 +511,9 @@ end
 function M.shift_left()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(-count(), "d")
+  end
+  if require("org.clock").clocktable_shift(-count()) then
+    return true
   end
   local lnum, _, line = cur()
   if is_headline(line) then

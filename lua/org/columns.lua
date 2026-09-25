@@ -107,9 +107,14 @@ function M.value(hl, prop)
     return hl.priority or hl.file:priorities().default
   elseif key == "TAGS" then
     return #hl.tags > 0 and (":" .. table.concat(hl.tags, ":") .. ":") or ""
-  elseif key == "CLOCKSUM" then
-    local m = require("org.clock").sum_minutes(hl)
-    return m > 0 and date.format_duration(m) or ""
+  elseif key == "CLOCKSUM" or key == "CLOCKSUM_T" then
+    -- time clocked in the subtree (CLOCKSUM_T: today only), org-duration style
+    local from, to
+    if key == "CLOCKSUM_T" then
+      from, to = require("org.clock").special_range("today")
+    end
+    local m = require("org.clock").sum_minutes(hl, from, to)
+    return m > 0 and date.duration_to_string(m) or ""
   end
   return hl:get_property(prop) or ""
 end

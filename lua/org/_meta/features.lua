@@ -15,11 +15,19 @@
 ---@field out_when_done? boolean|string[]
 ---Drawer for CLOCK lines (`org-clock-into-drawer`). `true` = the log drawer
 ---(`log_into_drawer`, else `LOGBOOK`), `false` = no drawer, a string = that
----drawer name. The `CLOCK_INTO_DRAWER` property overrides it. (default: `true`)
----@field into_drawer? boolean|string
+---drawer name, or a number N: only once the entry has N CLOCK lines (the
+---loose lines are then moved into the drawer). The `CLOCK_INTO_DRAWER`
+---property overrides it. (default: `true`)
+---@field into_drawer? boolean|string|integer
 ---Remove clock lines of zero duration on clock out
----(`org-clock-out-remove-zero-time-clocks`). (default: `true`)
+---(`org-clock-out-remove-zero-time-clocks`; Emacs defaults to nil). (default: `true`)
 ---@field out_remove_zero_time? boolean
+---Round clock-in/out times to this many minutes; `"same-as-time-stamp"`
+---uses `time_stamp_rounding_minutes[1]` (`org-clock-rounding-minutes`). (default: `0`)
+---@field rounding_minutes? integer|"same-as-time-stamp"
+---Clocking into an entry with an open CLOCK line continues that clock
+---(`org-clock-in-resume`). (default: `false`)
+---@field in_resume? boolean
 ---TODO state to switch the task to on clock in (`org-clock-in-switch-to-state`):
 ---a keyword, or a function receiving the task's current keyword (`nil` when
 ---it has none) and returning the new keyword, or `nil` to keep it.
@@ -37,21 +45,69 @@
 ---Start a new clock where the last one stopped (`org-clock-continuously`).
 ---(default: `false`)
 ---@field continuously? boolean
+---Time shown in the statusline next to the running clock
+---(`org-clock-mode-line-total`, overridden by the CLOCK_MODELINE_TOTAL
+---property): `"current"` this clock, `"today"`, `"repeat"` since
+---LAST_REPEAT, `"all"`, or `"auto"` (`"repeat"` for repeated tasks, else
+---`"all"`). (default: `"auto"`)
+---@field mode_line_total? "current"|"today"|"repeat"|"all"|"auto"
+---Maximum statusline length, 0 = no limit (`org-clock-string-limit`). (default: `0`)
+---@field string_limit? integer
+---Task name shown in the statusline (`org-clock-heading-function`). (default: `nil`)
+---@field heading_function? fun(headline: org.Headline): string
+---Text put before the statusline once the effort is used up
+---(`org-clock-task-overrun-text`). (default: `nil`)
+---@field task_overrun_text? string
+---Sound of the effort notification: `true` = bell, or a sound file
+---(`org-clock-sound`). (default: `nil`)
+---@field sound? boolean|string
+---Function or program receiving the effort notification instead of
+---`vim.notify` (`org-show-notification-handler`). (default: `nil`)
+---@field notification_handler? fun(msg: string)|string
+---After this many idle minutes, ask how to resolve the running clock
+---(`org-clock-idle-time`). Uses the system idle time on macOS and X11
+---(xprintidle). (default: `nil`)
+---@field idle_time? integer
+---Clock out after this many idle seconds (`org-clock-auto-clockout-timer`).
+---(default: `nil`)
+---@field auto_clockout_timer? integer
+---Resolve dangling clocks when clocking in (`org-clock-auto-clock-resolution`).
+---(default: `"when-no-clock-is-running"`)
+---@field auto_clock_resolution? "when-no-clock-is-running"|boolean
+---Count the running clock in clock tables and clock sums
+---(`org-clock-report-include-clocking-task`). (default: `false`)
+---@field report_include_clocking_task? boolean
+---`clock_goto` falls back to the last clocked task
+---(`org-clock-goto-may-find-recent-task`). (default: `true`)
+---@field goto_may_find_recent_task? boolean
+---Lines shown above the entry after `clock_goto`
+---(`org-clock-goto-before-context`). (default: `2`)
+---@field goto_before_context? integer
+---Range of `clock_display` without a count, a `:block` value
+---(`org-clock-display-default-range`). (default: `"thisyear"`)
+---@field display_default_range? string
+---Ask to clock out when quitting with a running clock
+---(`org-clock-ask-before-exiting`; Emacs asks by default). (default: `false`)
+---@field ask_before_exiting? boolean
 ---Icon prefixed to the running clock in the statusline. (default: `"⏱"`)
 ---@field statusline_icon? string
 ---Default parameters for clock tables (`org-clocktable-defaults`); block
----parameters override them. (default: `{ maxlevel = 3, scope = "file" }`)
+---parameters override them. (default: `{ maxlevel = 2, scope = "file" }`)
 ---@field clocktable_default? org.Config.Clock.ClocktableDefault
 ---Persist the running clock and clock history across restarts
----(`org-clock-persist`). (default: `true`)
----@field persist? boolean
+---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
+---(default: `true`)
+---@field persist? boolean|"clock"|"history"
+---Ask before resuming a saved clock (`org-clock-persist-query-resume`;
+---Emacs asks by default). (default: `false`)
+---@field persist_query_resume? boolean
 ---File where the clock state is persisted (`org-clock-persist-file`).
 ---(default: `stdpath("data") .. "/org/clock.json"`)
 ---@field persist_file? string
 
 ---Default clock table parameters (`org-clocktable-defaults`).
 ---@class org.Config.Clock.ClocktableDefault
----Maximum headline level shown (`:maxlevel`). (default: `3`)
+---Maximum headline level shown (`:maxlevel`). (default: `2`)
 ---@field maxlevel? integer
 ---Files/subtrees covered (`:scope`): `"file"`, `"file-with-archives"`,
 ---`"subtree"`, `"tree"`, `"treeN"` (e.g. `"tree2"`), `"agenda"`,
@@ -60,8 +116,9 @@
 ---@field scope? "file"|"file-with-archives"|"subtree"|"tree"|"agenda"|"agenda-with-archives"|string
 ---Time block (`:block`): `"today"`, `"yesterday"`, `"thisweek"`,
 ---`"lastweek"`, `"thismonth"`, `"lastmonth"`, `"thisyear"`, `"lastyear"`,
----with an optional `-N` offset (e.g. `"today-1"`), or `"YYYY-MM-DD"`,
----`"YYYY-WNN"`, ... `nil` = all time. (default: `nil`)
+---`"thisq"`, `"lastq"`, `"untilnow"`, with an optional `-N`/`+N` offset
+---(e.g. `"today-1"`), or `"YYYY-MM-DD"`, `"YYYY-WNN"`, `"YYYY-QN"`,
+---`"YYYY-MM"`, `"YYYY"`. `nil` = all time. (default: `nil`)
 ---@field block? "today"|"yesterday"|"thisweek"|"lastweek"|"thismonth"|"lastmonth"|"thisyear"|"lastyear"|string
 
 ---------------------------------------------------------------------------

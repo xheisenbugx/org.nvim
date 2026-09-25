@@ -124,12 +124,24 @@
 ---Ask before `<C-k>` deletes an entry longer than this many lines
 ---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
 ---@field confirm_kill? integer|false
----Start in log mode; `"all"` shows all log items (org-agenda-start-with-log-mode). (default: `false`)
----@field start_with_log_mode? boolean|"all"
+---Start in log mode; `"all"` shows all log items, `"clockcheck"` the clock
+---check (org-agenda-start-with-log-mode). (default: `false`)
+---@field start_with_log_mode? boolean|"all"|"clockcheck"
+---Add the first line of a clock-out or state note to log items
+---(org-agenda-log-mode-add-notes). (default: `true`)
+---@field log_mode_add_notes? boolean
 ---Start in follow mode (org-agenda-start-with-follow-mode). (default: `false`)
 ---@field start_with_follow_mode? boolean
 ---Start with the clock report shown (org-agenda-start-with-clockreport-mode). (default: `false`)
 ---@field start_with_clockreport_mode? boolean
+---Clocktable parameters of the clock report
+---(org-agenda-clockreport-parameter-plist); the scope and time range come
+---from the agenda. (default: `{ link = true, maxlevel = 2 }`)
+---@field clockreport_parameters? table<string, any>
+---Text above the clock report (org-agenda-clock-report-header). (default: `nil`)
+---@field clock_report_header? string
+---What the clock check (`vc`) reports (org-agenda-clock-consistency-checks).
+---@field clock_consistency_checks? org.Config.Agenda.ClockChecks
 ---Start in entry text mode (org-agenda-start-with-entry-text-mode). (default: `false`)
 ---@field start_with_entry_text_mode? boolean
 ---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
@@ -335,10 +347,14 @@
 ---@field immediate_finish? boolean
 ---Jump to the captured entry after finishing (:jump-to-captured).
 ---@field jump_to_captured? boolean
----Clock in on the captured entry (:clock-in).
+---Clock the captured entry while capturing (:clock-in): the running clock
+---stops when the capture starts, and the capture time is logged as a CLOCK
+---line when it ends.
 ---@field clock_in? boolean
----With `clock_in`, log the capture time as a clock entry and return to the
----previous clock (:clock-resume).
+---With `clock_in`, keep the clock running on the captured entry (:clock-keep).
+---@field clock_keep? boolean
+---With `clock_in`, clock the interrupted task in again when the capture ends
+---or is aborted (:clock-resume). `clock_keep` wins over it.
 ---@field clock_resume? boolean
 ---Ask for the date used by `%t`/`%T`/`%u`/`%U` and the datetree (:time-prompt).
 ---@field time_prompt? boolean
@@ -396,3 +412,16 @@
 ---@field todo? string
 ---Only headlines matching this Vim regexp (:regexp).
 ---@field regexp? string
+
+---Clock check settings (org-agenda-clock-consistency-checks). Durations are
+---"H:MM" strings or minutes.
+---@class org.Config.Agenda.ClockChecks
+---Report clocks longer than this. (default: `"10:00"`)
+---@field max_duration? string|integer
+---Report clocks shorter than this. (default: `0`)
+---@field min_duration? string|integer
+---Report gaps between clocks longer than this. (default: `"0:05"`)
+---@field max_gap? string|integer
+---Times of day that make a gap fine when it contains one (night, lunch).
+---(default: `{ "4:00" }`)
+---@field gap_ok_around? (string|integer)[]

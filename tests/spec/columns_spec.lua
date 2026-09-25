@@ -113,8 +113,9 @@ describe("columnview dblock parameters", function()
 
   it(":link links items, :vlines adds column groups", function()
     local l = run(":link t :vlines t :maxlevel 1")
-    eq("|   | [[*A][A]] |  2 |", l[4])
-    eq("| / | <>        | <> |", l[6])
+    -- links count as their description when aligning (org-link-descriptive)
+    eq("|   | [[*A][A]]    |  2 |", l[4])
+    eq("| / | <>   | <> |", l[6])
   end)
 
   it("keeps keywords and #+TBLFM lines and recalculates", function()

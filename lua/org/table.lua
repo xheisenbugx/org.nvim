@@ -146,6 +146,40 @@ local function is_cookie_row(row)
   return any
 end
 
+--- Display width of a cell. Links count as their description (or path)
+--- while `ui.conceal_links` hides the brackets, like Emacs aligning with
+--- `org-link-descriptive`.
+local function cell_width(s)
+  if not s:find("[[", 1, true) or (require("org.config").opts.ui or {}).conceal_links == false then
+    return utils.width(s)
+  end
+  local out, i = {}, 1
+  while true do
+    local a = s:find("[[", i, true)
+    if not a then
+      break
+    end
+    -- the link path may hold backslash-escaped brackets
+    local k = a + 2
+    while k <= #s and not s:sub(k, k):match("[%[%]]") do
+      k = k + (s:sub(k, k) == "\\" and 2 or 1)
+    end
+    local after, visible = nil, nil
+    if s:sub(k, k + 1) == "]]" then
+      after, visible = k + 2, s:sub(a + 2, k - 1)
+    elseif s:sub(k, k + 1) == "][" then
+      local close = s:find("]]", k + 2, true)
+      if close then
+        after, visible = close + 2, s:sub(k + 2, close - 1)
+      end
+    end
+    out[#out + 1] = s:sub(i, a - 1) .. (visible or "[[")
+    i = after or a + 2
+  end
+  out[#out + 1] = s:sub(i)
+  return utils.width(table.concat(out))
+end
+
 --- Render a parsed table into aligned lines.
 function M.render(t)
   local ncols = t.ncols
@@ -158,7 +192,7 @@ function M.render(t)
       local cookie = is_cookie_row(row)
       for c = 1, ncols do
         local cell = row.cells[c] or ""
-        widths[c] = math.max(widths[c], utils.width(cell))
+        widths[c] = math.max(widths[c], cell_width(cell))
         if cookie then
           local a = cell:match("^<([lrc])")
           if a then
@@ -189,7 +223,7 @@ function M.render(t)
       local parts = {}
       for c = 1, ncols do
         local cell = row.cells[c] or ""
-        local w = utils.width(cell)
+        local w = cell_width(cell)
         local pad = widths[c] - w
         local a = align[c]
         if is_cookie_row(row) then
