@@ -165,7 +165,10 @@ describe("babel (Emacs header args)", function()
 
   it(":file writes the result to the file and links it", function()
     local dir = tmpdir()
-    local buf = org_buffer({ "#+NAME: gen", "#+begin_src lua :output-dir out :file-ext txt", "return 'hello'", "#+end_src" }, { 3, 0 })
+    local buf = org_buffer(
+      { "#+NAME: gen", "#+begin_src lua :output-dir out :file-ext txt", "return 'hello'", "#+end_src" },
+      { 3, 0 }
+    )
     vim.api.nvim_buf_set_name(buf, dir .. "/f.org")
     babel.execute_block()
     ok(wait_for(buf, function(l)

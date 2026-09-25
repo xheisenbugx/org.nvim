@@ -653,7 +653,8 @@ local function expand_includes(lines, dir, depth)
       local content = utils.readfile(utils.expand(path, dir))
       if content then
         for _, l in ipairs(expand_includes(content, vim.fn.fnamemodify(utils.expand(path, dir), ":h"), depth + 1)) do
-          if l:match("^%s*#%+[%w_]+:") and not l:lower():match("^%s*#%+begin_") and not l:lower():match("^%s*#%+end_") then
+          local low = l:lower()
+          if l:match("^%s*#%+[%w_]+:") and not low:match("^%s*#%+begin_") and not low:match("^%s*#%+end_") then
             out[#out + 1] = l
           end
         end

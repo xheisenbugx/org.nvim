@@ -2,7 +2,10 @@ local export = require("org.export")
 
 local function html(lines, opts)
   opts = opts or {}
-  return export.to_string("html", { lines = lines, filename = opts.filename, subtree_line = opts.subtree_line, body_only = true })
+  return export.to_string(
+    "html",
+    { lines = lines, filename = opts.filename, subtree_line = opts.subtree_line, body_only = true }
+  )
 end
 
 local function txt(lines)
@@ -102,7 +105,10 @@ describe("export (Emacs features)", function()
 
   it("#+INCLUDE with a headline selector, :only-contents and level shifting", function()
     local dir = tmpdir()
-    vim.fn.writefile({ "* One", "one body", "* Two", ":PROPERTIES:", ":X: 1", ":END:", "two body", "** Two child" }, dir .. "/inc.org")
+    vim.fn.writefile(
+      { "* One", "one body", "* Two", ":PROPERTIES:", ":X: 1", ":END:", "two body", "** Two child" },
+      dir .. "/inc.org"
+    )
     vim.fn.writefile({ "#+MACRO: shout $1!" }, dir .. "/setup.org")
     local lines = {
       "#+SETUPFILE: setup.org",
@@ -130,7 +136,8 @@ describe("export (Emacs features)", function()
       ":PROPERTIES:",
       ":COLOR: blue",
       ":END:",
-      "{{{wrap(x,y)}}} {{{pair(a\\, b, c)}}} {{{property(COLOR)}}} {{{n}}} {{{n}}} {{{n(x,5)}}} {{{date(%Y)}}} {{{results(42)}}}",
+      "{{{wrap(x,y)}}} {{{pair(a\\, b, c)}}} {{{property(COLOR)}}} "
+        .. "{{{n}}} {{{n}}} {{{n(x,5)}}} {{{date(%Y)}}} {{{results(42)}}}",
     }
     local h = html(lines)
     has(h, "[(x / y)] (a, b / c) blue 1 2 5 2026 42")
