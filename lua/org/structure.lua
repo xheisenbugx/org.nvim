@@ -535,8 +535,9 @@ function M.insert_subheading()
     M.meta_return_heading({ arg = vim.v.count > 0 and vim.v.count or nil, pos = { lnum, #line }, split = false })
     local row = cursor()[1]
     local l = get_lines(0, row, row)[1]
-    set_lines(0, row, row, { "*" .. l })
-    vim.api.nvim_win_set_cursor(0, { row, #l + 1 })
+    local add = string.rep("*", M.level_increment())
+    set_lines(0, row, row, { add .. l })
+    vim.api.nvim_win_set_cursor(0, { row, #l + #add })
   end
   start_insert()
 end

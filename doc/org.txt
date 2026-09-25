@@ -132,7 +132,8 @@ Run |:checkhealth| `org` to check paths and external tools.
 ==============================================================================
 3. DOCUMENT STRUCTURE                                          *org-structure*
 
-Headlines start with one or more stars followed by a space: >org
+Headlines start with one or more stars followed by a space (a line of
+stars alone is text, like in Emacs): >org
     * TODO [#A] Headline text                              :tag1:tag2:
       SCHEDULED: <2026-09-23 Wed> DEADLINE: <2026-09-30 Wed>
       :PROPERTIES:
@@ -142,19 +143,61 @@ Headlines start with one or more stars followed by a space: >org
     ** Child headline
 <
                                                           *org-meta-return*
-<M-CR>          (ctx) Insert a new headline, list item or table row,
-                depending on the cursor position, then enter Insert mode.
-                On a headline: a new sibling after the subtree (or above,
-                when the cursor is at column 0). In a list: a new item.
-                In a table: a new row below.
-<M-S-CR>        Like <M-CR>, but inserts a TODO headline or a checkbox item.
-<prefix>ih      Insert headline after the current subtree.
-<prefix>it      Insert TODO headline.
-<prefix>is      Insert subheading (a child of the current headline).
-<prefix>id      Insert a drawer (wraps the visual selection).
-<prefix>ib      Insert a structure template (`#+begin_src`, quote, example,
-                verse, center, comment, export ...). Wraps the visual
-                selection.
+<M-CR>          (ctx) Insert a new headline, list item or table row, then
+                enter Insert mode, like org-meta-return:
+                - In Insert mode it acts at the cursor: at the start of a
+                  headline the new one goes above it; in the title the
+                  rest of the title moves to the new headline (the tags
+                  stay); at the start of a text line that line becomes a
+                  headline; elsewhere in a line the line is split. In a
+                  list, at or before the item text the new item goes
+                  before it; elsewhere the rest of the item (and its
+                  sub-items) moves to the new item.
+                  `meta_return_split_line` (org-M-RET-may-split-line)
+                  turns splitting off: `false`, or per context
+                  `{ headline = false, item = true }`.
+                - In Normal mode it acts at the end of the line without
+                  splitting it (in column 0: at its start). So on a
+                  headline the new one goes right below the headline line,
+                  in a list after the item and its sub-items.
+                - A folded headline gets the new one after its subtree.
+                - With a count (C-u, `4<M-CR>`): always a headline, after
+                  the current subtree; `16<M-CR>` (C-u C-u): at the end of
+                  the parent's subtree.
+                New headlines get a blank line before them when the
+                current one has one (`blank_before_new_entry.heading =
+                "auto"`); new items when the items of the list are
+                separated by blank lines (`plain_list_item = "auto"`).
+<M-S-CR>        Like <M-CR>, but a TODO headline (with the keyword of the
+                current entry, or the first one when it is done or with
+                a count) or an item with an empty checkbox. M-RET never
+                copies a checkbox.
+<prefix>ih      Insert headline after the current subtree
+<C-CR>          (org-insert-heading-respect-content). Before the first
+                headline, after the text.
+<prefix>it      Insert TODO headline after the subtree
+<C-S-CR>        (org-insert-todo-heading-respect-content).
+<C-c><CR>       (ctx) Outside tables: insert a headline like <M-CR>.
+<prefix>is      Insert a subheading: a headline below the current line,
+                demoted (org-insert-subheading). In a list: an item,
+                indented.
+<prefix>id      Insert a drawer at the cursor (Insert mode splits the line,
+<C-c><C-x>d     like Emacs), or around the Visual selection. With a count
+                (C-u), a property drawer.
+<prefix>ib      Insert a structure template (org-insert-structure-template):
+<C-c><C-,>      `#+begin_TYPE` / `#+end_TYPE` around the selection, or an
+                empty block at the cursor; the cursor goes inside, or
+                after `#+begin_src ` to type the language. Types come from
+                `structure_template_alist` (a export ascii, c center,
+                C comment, e example, E export, h export html, l export
+                latex, q quote, s src, v verse); TAB asks for any type,
+                written in upper case for #+BEGIN_/#+END_.
+                                                              *org-tempo*
+<s<Tab>         With `tempo = true` (the org-tempo module), `<` plus a key
+                of `structure_template_alist` then <Tab> in Insert mode
+                expands to that block; `<L`, `<H`, `<A`, `<i`
+                (`tempo_keywords`) to `#+latex: `, `#+html: `, `#+ascii: `,
+                `#+index: `, and `<I` asks for a file to `#+include:`.
 
                                                        *org-promote-demote*
 << / >>         (ctx) Promote / demote headline or list item. Count repeats.
@@ -163,13 +206,28 @@ Headlines start with one or more stars followed by a space: >org
 <M-h> / <M-l>   (ctx) Promote / demote. In a table: move column.
 <M-Left> / <M-Right>  Same as <M-h> / <M-l> (Alt + arrow keys).
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
-                column.
+                column. Elsewhere an error, like Emacs.
 <M-h> / <M-l>   In Visual mode: promote / demote every headline of the
-                selection (org-metaleft / org-metaright with a region).
+                selection, or outdent / indent every item.
+Promotion keeps the spacing of the headline and realigns its tags. With
+`odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
+by two.
+
+List items follow org-list rules: an item with children cannot be outdented
+alone (use <M-H>), the first item of a list cannot be indented alone, and
+<M-L> / <M-H> on the first item move the whole list. A `*` bullet that
+reaches column 0 becomes `-`. After each change the list is repaired:
+numbers, bullets of siblings, sub-list indentation, parent checkboxes.
 
                                                           *org-move-subtree*
-<M-k> / <M-j>   (ctx) Move subtree, list item or table row up / down.
-<M-Up> / <M-Down>  Same as <M-k> / <M-j> (Alt + arrow keys).
+<M-k> / <M-j>   (ctx) Move subtree, list item or table row up / down; a
+<M-Up> / <M-Down>  count moves past that many siblings. Elsewhere, drag the
+                element (paragraph, block, drawer, table...) past the
+                previous / next one, keeping blank lines in place
+                (org-drag-element-backward / forward). In Visual mode:
+                move the selected subtrees past the previous / next sibling
+                when the selection starts at a headline, else move the
+                selected lines.
 <prefix>K / J   Move subtree up / down.
 <M-K> / <M-J>   (ctx) Outside tables: drag the line at the cursor up / down
                 (org-drag-line-backward / forward). Count repeats.
@@ -177,35 +235,71 @@ Headlines start with one or more stars followed by a space: >org
                                                          *org-kill-subtree*
 <prefix>hy      Copy subtree (count: that many siblings).
 <prefix>hd      Cut subtree.
-<prefix>hp      Paste subtree after the current one, adjusting levels.
-                Subtrees are kept in a kill ring and also in the `"`
-                register.
-<prefix>hc      Clone subtree N times, shifting timestamps by a given offset
-                (for example `+1w`).
+<prefix>hp      Paste subtree like org-paste-subtree: in column 0 of a
+<C-c><C-x><C-y> headline, before it with its level; elsewhere before the
+                next visible headline, at the deeper level of the visible
+                headlines before and after. On an empty headline (`***`)
+                its stars give the level. Count 4 (C-u): after the current
+                subtree at its level; 16 (C-u C-u): as the first child;
+                other counts: that level. A subtree that was folded when
+                copied is pasted folded. Subtrees are kept in a kill ring
+                and also in the `"` register.
+<prefix>hc      Clone subtree N times (org-clone-subtree-with-time-shift),
+<C-c><C-x>c     shifting its timestamps by an offset per clone (`+1w`,
+                `-2d`, `+3h`; asked only when it has timestamps, and not
+                with a count). Clones lose CLOCK lines and get a new ID, or
+                none with `clone_delete_id`. With a repeating timestamp,
+                the copies lose the repeater and one more copy after them
+                keeps it.
 
                                                                  *org-sort*
-<prefix>hs      Sort the children of the current headline (or top-level
-                entries, or the list at the cursor). Menu keys: a alpha,
-                n numeric, t time, s scheduled, d deadline, c created,
-                p priority, o TODO order, r property, k clocking time
-                (entries), x checkbox status (lists). Uppercase reverses.
+<prefix>hs      Sort the children of the current headline, the top-level
+<C-c>^          entries before the first headline, the entries of the
+                Visual selection, or the list at the cursor. Entry keys:
+                a alpha, n numeric (a missing number is 0), p priority,
+                r property (compared as text), o TODO order (open
+                keywords, then none, then done), f function, t time
+                (first active timestamp, else inactive), s scheduled,
+                d deadline, c created (first inactive timestamp at the
+                start of a line), k clocking time; missing dates count as
+                now. List keys: a, n, t, f, x (checkbox). Uppercase
+                reverses; a count (C-u) makes it case-sensitive. For `f`,
+                give a name from `sort_functions` or a Lua expression
+                returning a function(entry, lines), then optionally a
+                compare function.
 
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
+<prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
+<prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
                                                         *org-cycle-level*
 <Tab>           (Insert mode) On a new empty headline, cycle its level:
                 child of the previous entry, then up the hierarchy, then
                 back (org-cycle-level). On an empty list item, indent it
-                under the previous item, then outdent it back
-                (org-cycle-item-indentation). So `<M-CR><Tab>` makes a
-                subheading. In a table: next field. Elsewhere: a tab.
+                under the previous item, then outdent it level by level,
+                then back to where it started (org-cycle-item-indentation).
+                So `<M-CR><Tab>` makes a subheading. In a table: next field.
+                Elsewhere: a tab.
 
-<prefix>*       Toggle headline: line ↔ headline, item ↔ headline.
-<prefix>-       Toggle list item: line ↔ item, headline ↔ item.
+<prefix>*       Toggle headline (org-toggle-heading): headline → text,
+<C-c>*          item → headline one level below the entry (checkboxes
+                become TODO / DONE), text line → headline. In Visual mode,
+                every line; with a count on text, only the first line.
+<prefix>-       Toggle list item (org-toggle-item): item → text (the
+<C-c>-          checkbox stays), headline → item (TODO → checkbox, tags,
+                planning and properties dropped, and in Visual mode the
+                text of each entry moves into its item), text → item. With
+                a count, the selection becomes one item.
+<C-c><C-*>      Turn the list at the cursor into a subtree
+                (org-list-make-subtree).
 <prefix>hC      Toggle the COMMENT keyword.
-<prefix>E       (Visual) Wrap the selection in an emphasis marker.
+<prefix>E       Emphasize (org-emphasize): wrap the Visual selection in a
+<C-c><C-x><C-f> marker, replacing one already there (a space removes it);
+                without a selection, insert a pair and type between them.
+<C-c>:          Toggle fixed-width markup `: ` (org-toggle-fixed-width) on
+                the line or the Visual selection.
 
 Motions and text objects:                           *org-motions* *org-textobj*
 ]] / [[         Next / previous visible headline.
@@ -215,23 +309,112 @@ g{              Parent headline.
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
+Elements                                                    *org-elements*
+Paragraphs, lists and items, blocks, drawers, tables, fixed-width areas,
+keywords and comments are elements; blank lines after one belong to it.
+Commands work on whole lines: on the first line of a list item they act on
+the item.
+<M-}> / <M-{>   Next / previous element at the same level
+                (org-forward-element / org-backward-element); on a
+                headline, the next / previous sibling.
+<C-c><C-^>      Up to the parent element, or the headline (org-up-element).
+<C-c><C-_>      Down to the first element inside (org-down-element).
+<prefix>v       Select the element (org-mark-element); again in Visual
+                mode to add the next one. Emacs binds it to M-h, which is
+                <M-h> (promote) here.
+<C-M-t>         Swap the element with the previous one and move after both
+                (org-transpose-element).
+<C-c><M-f>      Next / previous `#+begin_` block (org-next-block /
+<C-c><M-b>      org-previous-block); a count skips blocks.
+
+                                                        *org-inlinetask*
+Inline tasks (the org-inlinetask module, off like in Emacs): with
+`inlinetask_min_level = 15`, headlines of that level or deeper are TODO
+items inside the text of an entry, optionally closed by an END line: >org
+    * Entry
+    *************** TODO Call Bob
+    Details.
+    *************** END
+<
+They are not entries of their own (the text around them belongs to the
+entry), fold up to END with <Tab>, promote / demote together with their END
+line (never below the minimum level) and show only their last two stars.
+<C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
+                keyword unless a count is given), around the Visual
+                selection if any.
+
+                                                      *org-speed-commands*
+Speed commands (org-use-speed-commands, off by default): with
+`use_speed_commands = true`, a letter typed in Insert mode at the very start
+of a headline (before the stars) runs a command instead of being inserted:
+n p f b u next / previous / next sibling / previous sibling / parent
+headline, F B next / previous block, j go to heading, g refile goto, c C
+cycle / global cycle, SPC outline path, s narrow, k cut subtree, = column
+view, U D move subtree, r l R L demote / promote (subtree), i insert heading,
+^ sort, w refile, a archive, @ select subtree, # COMMENT, I O clock in / out,
+t TODO, , priority (0 remove, 1 2 3 highest, default, lowest), : tags,
+e E effort, W APPT_WARNTIME, v agenda, / sparse tree, o open link,
+< > agenda restriction lock, ? help. `speed_commands` adds or changes keys:
+`{ x = "archive_subtree", n = false }`. `use_speed_commands` may also be a
+function deciding where they apply.
+
 ==============================================================================
 4. VISIBILITY AND FOLDING                                        *org-folding*
 
-Headlines fold by level. Drawers and `#+begin_`/`#+end_` blocks fold one level
-deeper.
+Headlines fold by level. Plain list items with sub-items or more lines fold
+one level deeper (`cycle_include_plain_lists`, org-cycle-include-plain-lists),
+and drawers and `#+begin_`/`#+end_` blocks one level deeper than what
+contains them. When the text before a headline ends with at least
+`cycle_separator_lines` (2) blank lines, the last one stays visible when the
+subtree above is folded (org-cycle-separator-lines).
 
-<Tab>           (ctx) Subtree cycling: FOLDED → CHILDREN → SUBTREE. On a
-                drawer or block line, toggle that fold. In Insert mode
-                inside a table, move to the next field.
+<Tab>           (ctx) Subtree cycling like org-cycle: a folded subtree
+                shows its text and its children (CHILDREN); right after
+                that, <Tab> shows the whole subtree (SUBTREE); otherwise it
+                folds it (FOLDED). A subtree without children goes from
+                FOLDED to SUBTREE. On a list item, the same with its
+                sub-items. On a drawer, block or inline task line, toggle
+                that fold. On text, indent the line like org-indent-line
+                (`cycle_emulate_tab`, org-cycle-emulate-tab: `true`,
+                `"white"`, `"whitestart"`, `"exc-hl-bol"`; `false` cycles
+                the entry instead). In Insert mode inside a table, move to
+                the next field.
                 With a count (in place of C-u): `16<Tab>` restores the
                 startup visibility, `64<Tab>` shows everything including
                 drawers, and any other N shows the whole subtree of the
                 ancestor at level N.
-<S-Tab>         Global cycling: OVERVIEW → CONTENTS → SHOW ALL. With a
-                count N, show headlines up to level N.
+<S-Tab>         Global cycling: OVERVIEW → CONTENTS (headlines only) →
+                SHOW ALL. With a count N, show headlines up to level N.
+<C-c><Tab>      Show the children of the entry (a count: that many levels)
+                without showing its text (org-show-children).
+<C-c><C-k>      Show every headline of the subtree, without their text
+                (show_branches).
+<C-c><C-r>      Show the context of the cursor (org-reveal): the headlines
+                above it, their children and the current entry. A count 4
+                (C-u) also shows the text of the headlines above; 16 the
+                parent's whole subtree.
 <C-c><C-Tab>    Cycle the subtree even when it is archived
                 (`:Org force_cycle_archived`).
+<C-c><C-x>v     Copy the visible text (org-copy-visible).
+
+                                                        *org-hidden-lines*
+Vim folds nest, so a fold that is open shows every line in it: they cannot
+show the child headlines of an entry while hiding its own text, as the Emacs
+CONTENTS view, <C-c><Tab>, <C-c><C-k>, `#+STARTUP: content` and
+`show2levels`, and a `VISIBILITY: content` property do, nor hide the
+siblings of a sparse-tree match. Those lines are hidden with `conceal_lines`
+extmarks (Neovim 0.11 or later, 'conceallevel' 2, set by the plugin), and
+the headline gets the ellipsis. Hidden lines are never under the cursor:
+<j> / <k> skip them and other jumps show them (like Emacs, which never
+leaves point in invisible text). Typing on a hidden line follows
+`catch_invisible_edits` (org-fold-catch-invisible-edits): `"smart"` (the
+default) and `"show-and-error"` show the line and refuse the character,
+`"show"` shows it and types, `"error"` refuses, `false` types into it.
+Hidden lines are shared by the windows showing the buffer (like Emacs
+invisible text), while folds are per window. Vim's own fold commands (zo,
+zR, ...) don't show hidden lines; the org commands above do. Neovim 0.10
+cannot hide lines: the text of those entries stays visible and sparse trees
+also show the siblings of the matches.
 
 Startup visibility comes from `#+STARTUP:` (`overview`, `content`,
 `showall`, `show2levels` … `show5levels`, `showeverything`, `nofold`),
@@ -249,25 +432,46 @@ startup visibility), like Emacs `org-cycle-open-archived-trees = nil`. Use
 `:Org overview`, `:Org content`, `:Org show_all`, `:Org show_everything`
 and `:Org set_startup_visibility` set the visibility explicitly.
 
+Vim's linewise commands act on a closed fold as a whole (`dd` on a folded
+headline deletes the subtree, `>>` indents all of it); Emacs edits only the
+visible headline. That is Vim's fold semantics and is not caught.
+
 ==============================================================================
 5. PLAIN LISTS AND CHECKBOXES                                      *org-lists*
 
 Unordered bullets are `-`, `+` and indented `*`. Ordered bullets are `1.` and
 `1)`. `[@N]` sets a counter. Description items look like `- term :: text`.
-Checkboxes are `[ ]`, `[-]` (partial) and `[X]`.
+Checkboxes are `[ ]`, `[-]` (partial) and `[X]`. Lines inside example,
+src, export and verse blocks are never items (org-list-forbidden-blocks).
 
-<C-Space>       Toggle the checkbox. Parents get `[-]` or `[X]`, and
-                statistics cookies are updated. Items without a checkbox
-                get one. With a count of 4 (C-u), remove the checkbox; 16
-                (C-u C-u) sets `[-]`. In Visual mode, toggle every item of
-                the selection (all checked or all unchecked, following the
-                first one; adds checkboxes when there are none).
+<C-c><C-c>      On the first line of an item: toggle its checkbox and repair
+                the list (numbers, bullets, sub-list indentation, parent
+                checkboxes). A parent checkbox follows its children, so
+                toggling it is refused ("Cannot toggle this checkbox"). A
+                count 4 (C-u) adds or removes the checkbox, 16 (C-u C-u)
+                sets `[-]`. Without a checkbox, it only repairs the list.
+                With `ORDERED: t`, boxes after an unchecked one stay
+                unchecked. On other lines of an item: nothing.
+<C-Space>       Toggle checkboxes (org-toggle-checkbox): the item at the
+<C-c><C-x><C-b> cursor, every item of the Visual selection (following the
+                first one), or on a headline every item of its text. Items
+                without a checkbox are left alone; with a count of 4
+                (C-u) checkboxes are added or removed, 16 (C-u C-u) sets
+                `[-]`.
+                                                          *org-radio-list*
+<C-c><C-x><C-r> Toggle a radio button: check this item, uncheck its
+                siblings (org-toggle-radio-button). In a list preceded by
+                `#+attr_org: :radio t`, <C-c><C-c> and <C-Space> do this.
 <S-Up/Down>     (ctx) On an item: previous / next item of the same level
                 (org-previous-item / org-next-item).
-<C-c><C-c>      On an item: toggle its checkbox, or renumber the list.
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
+<C-c>-          (ctx) On an item: cycle the bullet style; elsewhere toggle
+                items (|org-structure|).
 <prefix>hb      Cycle the bullet style.
-<prefix>#       Update the statistics cookies `[1/3]` / `[33%]` at the cursor.
+<prefix>#       Update the statistics cookies of the current entry
+<C-c>#          (org-update-statistics-cookies): on a headline with child
+                entries, its TODO cookie; with a count (C-u), every cookie
+                of the buffer.
 
 Statistics cookies on a headline count its checkboxes, or its child TODO
 entries when it has no checkboxes. `:COOKIE_DATA: todo|checkbox recursive`
@@ -984,10 +1188,19 @@ References: `[fn:1]`, `[fn:name]`, inline `[fn::text]` and `[fn:name:text]`.
 Definitions start a line with `[fn:name]`.
 
 <prefix>if      On a footnote: jump between reference and definition.
-                Elsewhere: insert a new numbered footnote. Its definition
-                goes in the `footnote_section` heading (`* Footnotes`,
-                created at the end of the file when missing), or at the end
-                of the current section when `footnote_section = false`.
+<C-c><C-x>f     Elsewhere: insert a new footnote after the cursor
+                (org-footnote-new). Its label is the first unused number,
+                or follows `footnote_auto_label`: `false` asks (an
+                existing label only adds a reference, empty makes it
+                anonymous), `"confirm"` asks with the number as default,
+                `"random"`, `"anonymous"` (`[fn:: ]`). The definition goes
+                first in the `footnote_section` heading (`* Footnotes`,
+                created at the end of the file after a blank line when
+                missing), at the end of the current section when
+                `footnote_section = false`, or inline (`[fn:1: ]`) with
+                `footnote_define_inline`. With `footnote_auto_adjust`
+                (`true`, `"sort"`, `"renumber"`) footnotes are then
+                renumbered and / or sorted.
                 With a count (C-u C-c C-x f), a menu (org-footnote-action):
                   s  sort definitions in reference order
                   r  renumber `fn:N` labels in reference order
@@ -998,6 +1211,12 @@ Definitions start a line with `[fn:name]`.
                      definition)
 <CR>            On a reference: jump to its definition (offers to create a
                 missing one). On a definition: jump back to the reference.
+
+Sorting and normalizing rebuild the footnote section at the end of the file
+with a blank line before each definition, like org-footnote-sort. The
+`#+STARTUP:` words fnlocal (`footnote_section = false`), fnauto, fnprompt,
+fnconfirm, fnplain, fnanon, fnadjust, nofnadjust, fninline and nofninline
+override the options for a file.
 
 ==============================================================================
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
@@ -1485,14 +1704,41 @@ Options under `ui`:
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
   hide_leading_stars     show only the last star of each headline
+                         (#+STARTUP: hidestars / showstars)
   bullets                list of symbols replacing the stars, per level
   checkboxes             { unchecked, partial, checked } icons
-  indent_mode            virtual indentation (org-indent-mode)
-  pretty_entities        \alpha → α and similar
+  indent_mode            virtual indentation like org-indent-mode: the
+                         text of a level-n entry starts at column 2n and
+                         headlines get n-1 columns of prefix; turns on
+                         hide_leading_stars (#+STARTUP: indent / noindent)
+  pretty_entities        `\alpha` → α for every entity of Emacs'
+                         org-entities (#+STARTUP: entitiespretty /
+                         entitiesplain); `x^2` → x², `a_{ij}` → aᵢⱼ
+                         (pretty_entities_include_sub_superscripts, and
+                         use_sub_superscripts = true | "{}" | false):
+                         Unicode super/subscript characters when all the
+                         characters have one, else the script is
+                         highlighted with OrgSuperscript / OrgSubscript and
+                         only the markers are hidden (Neovim cannot raise
+                         text). Not in blocks, code, verbatim or links.
+  num                    number headlines with virtual text like
+                         org-num-mode (#+STARTUP: num / nonum); num_max_level,
+                         num_skip_commented, num_skip_footnotes,
+                         num_skip_tags, num_skip_unnumbered and
+                         num_format_function(numbers) -> text follow the
+                         org-num options
   fontify_done_headline  dim DONE headlines
   src_highlight          highlight src blocks with the language syntax
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name
+
+<C-c><C-x>\     Toggle pretty entities in the buffer
+                (org-toggle-pretty-entities, toggle_pretty_entities).
+:Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
+
+Emphasis follows org-emphasis-regexp-components: the markers need a space,
+`(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
+break, and bold, italic, underline and strike-through can nest.
 
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
   OrgHeadlineLevel1..8   (linked to the colorscheme's markdown headings)
@@ -1505,7 +1751,8 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   OrgLink OrgListBullet OrgListTerm OrgCheckbox OrgCheckboxChecked
   OrgCheckboxPartial OrgStatistic OrgTable OrgTableSeparator OrgTableFormula
   OrgFootnote OrgTarget OrgLatex OrgHorizontalRule OrgMacro
-  OrgHiddenStars OrgSparseMatch OrgAgenda*
+  OrgHiddenStars OrgSuperscript OrgSubscript OrgInlinetask OrgSparseMatch
+  OrgAgenda*
 
 ==============================================================================
 26. CONFIGURATION REFERENCE                                       *org-config*
@@ -1561,6 +1808,30 @@ Buffer ~
   edit_src_content_indentation  2
   ellipsis                  "..."
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
+Structure and visibility ~
+  meta_return_split_line    true      M-RET splits the line (Insert mode);
+                                      or { headline, item, default }
+  clone_delete_id           false     clones lose their ID (else a new one)
+  odd_levels_only           false     promote / demote by two stars
+  sort_functions            {}        named key functions for sorting (f)
+  structure_template_alist  { a = "export ascii", c = "center", ... }
+  tempo                     false     `<s` TAB expansion (org-tempo)
+  tempo_keywords            { L = "latex", H = "html", A = "ascii",
+                              i = "index" }
+  cycle_include_plain_lists true      TAB folds list items
+  cycle_emulate_tab         true      TAB on text: true|"white"|
+                                      "whitestart"|"exc-hl-bol"|false
+  cycle_separator_lines     2         blank lines kept visible when folded
+  catch_invisible_edits     "smart"   false|"error"|"show"|
+                                      "show-and-error"|"smart"
+  use_speed_commands        false     |org-speed-commands|
+  speed_commands            {}        { key = action | function | false }
+  inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
+  inlinetask_default_state  nil
+  footnote_auto_label       true      true|false|"confirm"|"random"|
+                                      "plain"|"anonymous"
+  footnote_auto_adjust      false     false|true|"sort"|"renumber"
+  footnote_define_inline    false
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   archive_location          "%s_archive::"
@@ -1665,6 +1936,7 @@ Section `org` (default key: action):
   <prefix>hC  toggle_comment        <prefix>hA  toggle_archive_tag
   <prefix>*  toggle_heading         <prefix>-  toggle_item
   <prefix>E  emphasize              <prefix>hb  cycle_bullet
+  <prefix>v  mark_element           <prefix>nb / ne  narrow_block / element
   g{  goto_parent                   ]] [[  next/prev_heading
   ][ []  next/prev_sibling          <prefix>.  buffer_goto
   cit / ciT  todo_next / todo_prev  <prefix>T  todo_select
@@ -1731,7 +2003,13 @@ Structure and visibility:
   <C-c>^           (ctx) sort table column / entries / list items
   <C-c>;           toggle COMMENT       <C-c>@  mark (select) subtree
   <C-c><C-,>       structure template   <C-c><C-x>d  insert drawer
-  <C-c><C-x>f      footnote             <C-c><C-x><C-f>  emphasize (Visual)
+  <C-c><C-x>f      footnote             <C-c><C-x><C-f>  emphasize
+  <C-c>:           fixed-width          <C-c><C-*>  list to subtree
+  <C-c><C-x><C-r>  radio button         <C-c><C-x>t  inline task
+  <C-c><C-x>\      pretty entities      <C-M-t>  transpose elements
+  <M-}> <M-{>      next / previous element
+  <C-c><C-^> <C-c><C-_>  up / down element
+  <C-c><M-f> <C-c><M-b>  next / previous block
   <C-c><C-x>c      clone subtree        <C-c><C-x>b  subtree in a split
   <C-c><C-x><M-w>  (ctx) copy table region / subtree
   <C-c><C-x><C-w>  (ctx) cut table region / subtree
@@ -1865,6 +2143,10 @@ Targets are `{ bufnr = n, lnum = l }`.
   #+STARTUP: overview content showall showeverything nofold
              show2levels .. show5levels hidedrawers nohidedrawers
              hideblocks nohideblocks
+             indent noindent hidestars showstars entitiespretty
+             entitiesplain num nonum odd oddeven
+             fnlocal fnauto fnprompt fnconfirm fnplain fnanon
+             fnadjust nofnadjust fninline nofninline
              logdone lognotedone nologdone logrepeat nologrepeat
              logreschedule nologreschedule logredeadline ...
              lognoteclock-out nolognoteclock-out logdrawer nologdrawer
@@ -1909,8 +2191,29 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Column view is a separate table buffer rather than overlays on the
   headlines. Digit keys keep their Vim meaning (counts) there instead of
   selecting the Nth allowed value.
-- <M-CR> never splits the current line.
-- Plain list items don't fold with <Tab>. A `VISIBILITY: children` or
-  `content` entry keeps its own body text visible (Vim folds nest).
+- Structure editing:                               *org-structure-differences*
+  - Emacs acts at point, between two characters; Normal mode has a cursor
+    on a character. Commands that insert at point (<M-CR>, C-c RET,
+    drawers, templates, paste) act at the end of the line in Normal mode
+    (at its start in column 0) and never split it; in Insert mode they act
+    at the cursor like Emacs.
+  - Emacs binds M-h to org-mark-element and C-x n b / C-x n e to narrowing;
+    here <M-h> promotes and <C-x> decrements, so those are <prefix>v,
+    <prefix>nb and <prefix>ne. Narrowing edits the region in a separate
+    buffer instead of hiding the rest of the buffer.
+  - A count repeats promote / demote (<M-h>, <<); Emacs ignores it.
+  - Element commands work on whole lines.
+  - Speed commands work in Insert mode at the start of a headline (where
+    Emacs would insert the letter); Normal mode keeps Vim's letters.
+  - Pretty sub/superscripts can't be raised: Unicode super/subscript
+    characters are used when they exist, else a highlight.
+  - The org-list-checkbox-radio-mode minor mode is not provided; use
+    `#+attr_org: :radio t` or <C-c><C-x><C-r>.
+- Visibility (see |org-hidden-lines|): hiding text between visible lines
+  needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
+  windows of a buffer while folds are per window; Vim fold commands don't
+  show hidden lines; linewise commands on a closed fold act on the whole
+  fold; `catch_invisible_edits` only watches typing on hidden lines (in a
+  closed fold the cursor is on its visible first line).
 
  vim:tw=78:ts=8:ft=help:norl:
