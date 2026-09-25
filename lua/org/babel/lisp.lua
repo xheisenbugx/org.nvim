@@ -29,9 +29,24 @@ function M.is_bignum(v)
   return getmetatable(v) == Big
 end
 
---- Is `v` a list value (a Lua array, not a number)?
+--- Emacs vectors `[a b]` (from Lisp header values): not lists.
+local Vector = {}
+
+function M.vector(items)
+  return setmetatable({ items = items }, Vector)
+end
+
+function M.is_vector(v)
+  return getmetatable(v) == Vector
+end
+
+local function lisp_list_or_empty(v)
+  return type(v) == "table" and v or {}
+end
+
+--- Is `v` a list value (a Lua array, not a number or vector)?
 function M.is_list(v)
-  return type(v) == "table" and not el.is_float(v) and getmetatable(v) ~= Big
+  return type(v) == "table" and getmetatable(v) == nil
 end
 
 --- The Lua number of an integer or float value, or nil.
@@ -88,6 +103,12 @@ function M.prin1(v)
     return M.float_str(v.v)
   elseif getmetatable(v) == Big then
     return v.digits
+  elseif getmetatable(v) == Vector then
+    local parts = {}
+    for i, x in ipairs(v.items) do
+      parts[i] = x == "hline" and "hline" or M.prin1(x)
+    end
+    return "[" .. table.concat(parts, " ") .. "]"
   elseif type(v) == "table" then
     if #v == 0 then
       return "nil"
@@ -184,6 +205,14 @@ function M.read(cell, inhibit_lisp)
     return n
   end
   local c = cell:sub(1, 1)
+  if not inhibit_lisp and c == "[" and cell:match("^%[.*%]%s*$") then
+    -- a vector (self-evaluating): not a list, printed back as [a b]
+    local ok, v = pcall(el.eval, "'(" .. cell:match("^%[(.*)%]%s*$") .. ")")
+    if ok then
+      local items = M.from_elisp(v)
+      return M.vector(lisp_list_or_empty(items))
+    end
+  end
   if not inhibit_lisp and (c == "(" or c == "'" or c == "`" or c == "[") then
     local ok, v = pcall(el.eval, cell)
     if ok then
