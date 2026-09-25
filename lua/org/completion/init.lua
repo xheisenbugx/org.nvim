@@ -184,7 +184,16 @@ function M.get(line, col, bufnr)
   -- \entity (org-entities)
   local tex_lead = before:match("\\(%a*)$")
   if tex_lead and not before:match("^%s*#%+") then
-    local names = vim.tbl_keys(require("org.export.ast").ENTITIES or {})
+    local set = {}
+    for _, e in ipairs(require("org.entities").list) do
+      if e[1]:match("^%a+%d*$") then
+        set[e[1]] = true
+      end
+    end
+    for k in pairs(require("org.export.ast").ENTITIES or {}) do
+      set[k] = true
+    end
+    local names = vim.tbl_keys(set)
     table.sort(names)
     return { start = col - #tex_lead - 1, items = items(names, "entity", "\\") }
   end

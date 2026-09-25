@@ -50,6 +50,7 @@
 ---| "babel_tangle" # Tangle file (count: block / its target)
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
+---| "backward_element" # Previous element
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture
 ---| "capture_goto_last" # Go to the last captured entry
@@ -93,11 +94,15 @@
 ---| "delete_property_globally" # Delete a property from all entries
 ---| "demote_heading" # Demote heading / item
 ---| "demote_subtree" # Demote subtree
+---| "down_element" # First child element
+---| "drag_element_down" # Drag element down
+---| "drag_element_up" # Drag element up
 ---| "edit_special" # Edit src block / table formulas
----| "emphasize" # Emphasize selection
+---| "emphasize" # Emphasize selection / insert markers
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "force_cycle_archived" # Cycle subtree, even when archived
+---| "forward_element" # Next element
 ---| "global_cycle" # Cycle global visibility
 ---| "goto_calendar" # Open calendar
 ---| "goto_heading" # Go to heading in agenda files
@@ -110,6 +115,7 @@
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
 ---| "indirect_subtree" # Subtree in split edit buffer
+---| "inlinetask_insert" # Insert inline task
 ---| "insert_all_links" # Insert all stored links
 ---| "insert_columnview" # Insert columnview block
 ---| "insert_dblock" # Insert dynamic block
@@ -122,20 +128,26 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "list_make_subtree" # Turn the list into a subtree
+---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
 ---| "mark_subtree" # Select subtree
----| "meta_down" # Move subtree / item / row down
+---| "meta_down" # Move subtree / item / row / element down
 ---| "meta_left" # Promote / move column left
 ---| "meta_return" # New heading / item / row
 ---| "meta_right" # Demote / move column right
 ---| "meta_shift_return" # New TODO heading / checkbox item
----| "meta_up" # Move subtree / item / row up
+---| "meta_up" # Move subtree / item / row / element up
 ---| "move_subtree_down" # Move subtree down
 ---| "move_subtree_up" # Move subtree up
+---| "narrow_block" # Narrow to block (edit buffer)
+---| "narrow_element" # Narrow to element (edit buffer)
 ---| "narrow_subtree" # Narrow to subtree (edit buffer)
+---| "next_block" # Next block
 ---| "next_heading" # Next heading
 ---| "next_link" # Next link
 ---| "next_sibling" # Next sibling heading
+---| "num_mode" # Toggle headline numbering (org-num-mode)
 ---| "open_at_point" # Open link / footnote / date at point
 ---| "open_link_or_entry" # Open link at point / entry links
 ---| "paste_special" # Paste table rectangle / subtree
@@ -143,6 +155,7 @@
 ---| "prev_heading" # Previous heading
 ---| "prev_link" # Previous link
 ---| "prev_sibling" # Previous sibling heading
+---| "previous_block" # Previous block
 ---| "priority" # Set priority
 ---| "promote_heading" # Promote heading / item
 ---| "promote_subtree" # Promote subtree
@@ -214,11 +227,16 @@
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
+---| "toggle_fixed_width" # Toggle fixed-width (:)
 ---| "toggle_heading" # Toggle heading
 ---| "toggle_item" # Toggle list item
 ---| "toggle_link_display" # Toggle link display
 ---| "toggle_ordered" # Toggle ORDERED property
+---| "toggle_pretty_entities" # Toggle pretty entities
+---| "toggle_radio_button" # Toggle radio button
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
+---| "transpose_element" # Swap element with the previous one
+---| "up_element" # Parent element
 ---| "update_statistics" # Update statistics cookies
 
 --- Base for action-backed sections: any `org.ActionName` may be used as a
@@ -356,6 +374,12 @@
 ---@field toggle_item? org.MappingLhs
 --- Emphasize selection. Default: `<prefix>E`
 ---@field emphasize? org.MappingLhs
+--- Select element. Default: `<prefix>v`
+---@field mark_element? org.MappingLhs
+--- Narrow to block (edit buffer). Default: `<prefix>nb`
+---@field narrow_block? org.MappingLhs
+--- Narrow to element (edit buffer). Default: `<prefix>ne`
+---@field narrow_element? org.MappingLhs
 --- Go to parent heading. Default: `g{`
 ---@field goto_parent? org.MappingLhs
 --- Next heading. Default: `]]`
@@ -606,6 +630,30 @@
 ---@field mark_subtree? org.MappingLhs
 --- Subtree in split edit buffer. Default: `<C-c><C-x>b`
 ---@field indirect_subtree? org.MappingLhs
+--- Next element. Default: `<M-}>`
+---@field forward_element? org.MappingLhs
+--- Previous element. Default: `<M-{>`
+---@field backward_element? org.MappingLhs
+--- Parent element. Default: `<C-c><C-^>`
+---@field up_element? org.MappingLhs
+--- First child element. Default: `<C-c><C-_>`
+---@field down_element? org.MappingLhs
+--- Swap element with the previous one. Default: `<C-M-t>`
+---@field transpose_element? org.MappingLhs
+--- Next block. Default: `<C-c><M-f>`
+---@field next_block? org.MappingLhs
+--- Previous block. Default: `<C-c><M-b>`
+---@field previous_block? org.MappingLhs
+--- Toggle fixed-width (:). Default: `<C-c>:`
+---@field toggle_fixed_width? org.MappingLhs
+--- Turn the list into a subtree. Default: `<C-c><C-*>`
+---@field list_make_subtree? org.MappingLhs
+--- Toggle radio button. Default: `<C-c><C-x><C-r>`
+---@field toggle_radio_button? org.MappingLhs
+--- Toggle pretty entities. Default: `<C-c><C-x>\`
+---@field toggle_pretty_entities? org.MappingLhs
+--- Insert inline task. Default: `<C-c><C-x>t`
+---@field inlinetask_insert? org.MappingLhs
 --- Show all branches of subtree. Default: `<C-c><C-k>`
 ---@field show_branches? org.MappingLhs
 --- Show children. Default: `<C-c><Tab>`

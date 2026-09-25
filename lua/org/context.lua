@@ -216,6 +216,9 @@ function M.insert_tab()
   if in_table(line) then
     return require("org.table").next_field()
   end
+  if require("org.config").opts.tempo and require("org.structure").tempo_expand() then
+    return
+  end
   if is_headline(line) then
     return require("org.structure").cycle_level()
   end

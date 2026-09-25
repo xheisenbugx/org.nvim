@@ -376,9 +376,45 @@ function M.parse(lines, filename)
 
   local stack = {}
   local headlines = file.headlines
+  local min_inline = M.inlinetask_min_level()
+  local skip_to = 0
   for i, line in ipairs(lines) do
-    if line:byte(1) == 42 then -- '*'
+    if line:byte(1) == 42 and i > skip_to then -- '*'
       local parts = M.parse_headline_line(line, todo_cfg)
+      if parts and min_inline and parts.level >= min_inline then
+        -- an inline task (org-inlinetask): part of the entry's text, up to
+        -- its END line when it has one
+        local stop = i
+        for j = i + 1, #lines do
+          local l = lines[j]
+          local lv = l:byte(1) == 42 and M.headline_level(l)
+          if lv then
+            if lv >= min_inline and l:match("^%*+%s+END%s*$") then
+              stop = j
+            end
+            break
+          end
+        end
+        local hl = setmetatable({
+          file = file,
+          level = parts.level,
+          line = i,
+          raw = line,
+          todo = parts.todo,
+          priority = parts.priority,
+          commented = parts.commented,
+          title = parts.title,
+          tags = parts.tags,
+          children = {},
+          index = #headlines + 1,
+          inlinetask = true,
+          end_line = stop,
+          parent = stack[#stack],
+        }, Headline)
+        headlines[#headlines + 1] = hl
+        skip_to = stop
+        parts = nil
+      end
       if parts then
         local hl = setmetatable({
           file = file,
@@ -412,12 +448,41 @@ function M.parse(lines, filename)
     hl.end_line = #lines
   end
   for idx, hl in ipairs(headlines) do
-    local nxt = headlines[idx + 1]
-    hl.body_end = nxt and nxt.line - 1 or #lines
+    if hl.inlinetask then
+      hl.body_end = hl.end_line > hl.line and hl.end_line - 1 or hl.line
+    else
+      local nxt = headlines[idx + 1]
+      while nxt and nxt.inlinetask do
+        nxt = headlines[nxt.index + 1]
+      end
+      hl.body_end = nxt and nxt.line - 1 or #lines
+    end
     parse_section(hl, lines, hl.line + 1, hl.body_end, log_drawer)
   end
-  file.preamble_end = headlines[1] and headlines[1].line - 1 or #lines
+  local first = headlines[1]
+  while first and first.inlinetask do
+    first = headlines[first.index + 1]
+  end
+  file.preamble_end = first and first.line - 1 or #lines
   return file
+end
+
+--- Level from which headlines are inline tasks (org-inlinetask-min-level),
+--- nil when inline tasks are off.
+function M.inlinetask_min_level()
+  local v = require("org.config").opts.inlinetask_min_level
+  return type(v) == "number" and v or nil
+end
+
+--- Level of `line` as an outline headline: nil for text and, when inline
+--- tasks are on, for inline tasks (org-with-limited-levels).
+function M.outline_level(line)
+  local lvl = M.headline_level(line)
+  local min = lvl and M.inlinetask_min_level()
+  if min and lvl >= min then
+    return nil
+  end
+  return lvl
 end
 
 ---------------------------------------------------------------------------
@@ -437,6 +502,10 @@ function File:headline_at(lnum)
     else
       hi = mid - 1
     end
+  end
+  -- after an inline task, the line belongs to the enclosing entry
+  while found and found.inlinetask and lnum > found.end_line do
+    found = hls[found.index - 1]
   end
   return found
 end

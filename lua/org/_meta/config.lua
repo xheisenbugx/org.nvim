@@ -104,7 +104,7 @@
 ---default: `"%25ITEM %TODO %3PRIORITY %TAGS"`)
 ---@field columns_default_format? string
 ---Initial visibility when a file is opened; `#+STARTUP:` overrides it.
----(Emacs `org-startup-folded`, default: `"overview"`)
+---(Emacs `org-startup-folded`, default: `"showeverything"`)
 ---@field startup_folded? "overview"|"content"|"showall"|"showeverything"|"nofold"|"show2levels"|"show3levels"|"show4levels"|"show5levels"
 ---Fold drawers when a file is opened (`#+STARTUP: hidedrawers` /
 ---`nohidedrawers`). (Emacs `org-hide-drawer-startup`, default: `true`)
@@ -123,14 +123,74 @@
 ---(Emacs `org-adapt-indentation`, default: `false`)
 ---@field adapt_indentation? boolean
 ---Indentation added to src block contents in the edit buffer.
----(Emacs `org-edit-src-content-indentation`, default: `0`)
+---(Emacs `org-edit-src-content-indentation`, default: `2`)
 ---@field edit_src_content_indentation? integer
----Text appended to folded headlines. (Emacs `org-ellipsis`, default: `" …"`)
+---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `"..."`)
 ---@field ellipsis? string
 ---Blank line before new headings / list items. A single value applies to
 ---headings. (Emacs `org-blank-before-new-entry`,
----default: `{ heading = "auto", plain_list_item = false }`)
+---default: `{ heading = "auto", plain_list_item = "auto" }`)
 ---@field blank_before_new_entry? org.Config.BlankBeforeNewEntry|boolean|"auto"
+---M-RET in Insert mode splits the line at the cursor: `true`, `false`, or
+---per context `{ headline = false, item = true, default = true }`.
+---(Emacs `org-M-RET-may-split-line`, default: `true`)
+---@field meta_return_split_line? boolean|{ headline?: boolean, item?: boolean, default?: boolean }
+---Clones made by clone_subtree lose their ID instead of getting a new one.
+---(Emacs `org-clone-delete-id`, default: `false`)
+---@field clone_delete_id? boolean
+---Only odd levels: promotion and demotion add or remove two stars
+---(`#+STARTUP: odd` / `oddeven`). (Emacs `org-odd-levels-only`, default: `false`)
+---@field odd_levels_only? boolean
+---Named key functions for sorting by function (`f`), called with the
+---headline (or list item) and its lines. (default: `{}`)
+---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
+---TAB on a list item folds its children and text.
+---(Emacs `org-cycle-include-plain-lists`, default: `true`)
+---@field cycle_include_plain_lists? boolean
+---Where TAB outside headlines, items, drawers and blocks indents the line:
+---`true` (everywhere), `"white"`, `"whitestart"`, `"exc-hl-bol"` or `false`
+---(then it cycles the entry). (Emacs `org-cycle-emulate-tab`, default: `true`)
+---@field cycle_emulate_tab? boolean|"white"|"whitestart"|"exc-hl-bol"
+---Blank lines needed at the end of a subtree for one of them to stay
+---visible when it is folded. (Emacs `org-cycle-separator-lines`, default: `2`)
+---@field cycle_separator_lines? integer
+---Typing on hidden lines: `false`, `"error"`, `"show"`, `"show-and-error"`
+---or `"smart"`. (Emacs `org-fold-catch-invisible-edits`, default: `"smart"`)
+---@field catch_invisible_edits? false|"error"|"show"|"show-and-error"|"smart"
+---Single-letter commands typed in Insert mode at the start of a headline,
+---or a function deciding where they apply.
+---(Emacs `org-use-speed-commands`, default: `false`)
+---@field use_speed_commands? boolean|fun(): boolean
+---Extra or changed speed commands: an action name, a function, or `false`.
+---(Emacs `org-speed-commands`, default: `{}`)
+---@field speed_commands? table<string, string|fun()|false>
+---Headlines of this level or deeper are inline tasks; `false` = off (Emacs
+---without the org-inlinetask module; 15 once it is loaded).
+---(Emacs `org-inlinetask-min-level`, default: `false`)
+---@field inlinetask_min_level? integer|false
+---TODO keyword of new inline tasks.
+---(Emacs `org-inlinetask-default-state`, default: `nil`)
+---@field inlinetask_default_state? string
+---Block types of insert_structure_template, by key; `false` removes one.
+---(Emacs `org-structure-template-alist`, default: a c C e E h l q s v)
+---@field structure_template_alist? table<string, string|false>
+---Expand `<s` + TAB (Insert mode) into blocks and keywords.
+---(the org-tempo module, default: `false`)
+---@field tempo? boolean
+---Keywords for tempo expansion.
+---(Emacs `org-tempo-keywords-alist`, default: `{ L = "latex", H = "html", A = "ascii", i = "index" }`)
+---@field tempo_keywords? table<string, string|false>
+---Labels of new footnotes: `true` (fn:N), `false` (prompt), `"confirm"`,
+---`"random"`, `"plain"` or `"anonymous"`; `#+STARTUP: fnauto` etc.
+---(Emacs `org-footnote-auto-label`, default: `true`)
+---@field footnote_auto_label? boolean|"confirm"|"random"|"plain"|"anonymous"
+---Renumber and / or sort footnotes after inserting or deleting one:
+---`false`, `true`, `"sort"` or `"renumber"`; `#+STARTUP: fnadjust`.
+---(Emacs `org-footnote-auto-adjust`, default: `false`)
+---@field footnote_auto_adjust? boolean|"sort"|"renumber"
+---Define new footnotes inline (`[fn:N: text]`); `#+STARTUP: fninline`.
+---(Emacs `org-footnote-define-inline`, default: `false`)
+---@field footnote_define_inline? boolean
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer
@@ -190,11 +250,12 @@
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry
----Before new headings: `true`, `false`, or `"auto"` (blank only when the
+---Before new headings: `true`, `false`, or `"auto"` (blank when the
 ---current heading is preceded by a blank line). (default: `"auto"`)
 ---@field heading? boolean|"auto"
----Before new plain list items: `true`, `false`, or `"auto"` (blank only
----when the current item is preceded by a blank line). (default: `false`)
+---Before new plain list items: `true`, `false`, or `"auto"` (the blank
+---lines between the items of the list, see
+---org-list-separating-blank-lines-number). (default: `"auto"`)
 ---@field plain_list_item? boolean|"auto"
 
 ---Payload passed to a custom `notifications.notifier`.
@@ -242,11 +303,36 @@
 ---Replace checkboxes with icons `{ unchecked, partial, checked }`, e.g.
 ---`{ " ", "◐", "✓" }`; `false` = off. (default: `false`)
 ---@field checkboxes? string[]|false
----Virtual indentation of body text. (Emacs `org-indent-mode`, default: `false`)
+---Virtual indentation of body text (`#+STARTUP: indent` / `noindent`).
+---(Emacs `org-indent-mode` / `org-startup-indented`, default: `false`)
 ---@field indent_mode? boolean
----Render entities like `\alpha` as unicode.
+---Render entities like `\alpha` as unicode (`#+STARTUP: entitiespretty` /
+---`entitiesplain`, toggle_pretty_entities).
 ---(Emacs `org-pretty-entities`, default: `false`)
 ---@field pretty_entities? boolean
+---With pretty_entities, show `x^2` and `a_{i}` as super/subscripts.
+---(Emacs `org-pretty-entities-include-sub-superscripts`, default: `true`)
+---@field pretty_entities_include_sub_superscripts? boolean
+---Which `^` / `_` are scripts: `true`, `"{}"` (braces only) or `false`.
+---(Emacs `org-use-sub-superscripts`, default: `true`)
+---@field use_sub_superscripts? boolean|"{}"
+---Number headlines with virtual text (`#+STARTUP: num` / `nonum`, num_mode).
+---(Emacs `org-num-mode` / `org-startup-numerated`, default: `false`)
+---@field num? boolean
+---Deepest numbered level; `nil` = all. (Emacs `org-num-max-level`, default: `nil`)
+---@field num_max_level? integer
+---Don't number COMMENT subtrees. (Emacs `org-num-skip-commented`, default: `false`)
+---@field num_skip_commented? boolean
+---Don't number the footnote section. (Emacs `org-num-skip-footnotes`, default: `false`)
+---@field num_skip_footnotes? boolean
+---Tags whose subtrees are not numbered. (Emacs `org-num-skip-tags`, default: `{}`)
+---@field num_skip_tags? string[]
+---Don't number subtrees with an UNNUMBERED property.
+---(Emacs `org-num-skip-unnumbered`, default: `false`)
+---@field num_skip_unnumbered? boolean
+---Text shown before a headline from its numbers, e.g. `{ 1, 2 }` -> `"1.2 "`.
+---(Emacs `org-num-format-function`, default: `nil`)
+---@field num_format_function? fun(numbers: integer[]): string?
 ---Dim the whole headline of DONE entries.
 ---(Emacs `org-fontify-done-headline`, default: `true`)
 ---@field fontify_done_headline? boolean

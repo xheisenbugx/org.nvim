@@ -139,6 +139,9 @@ local function defaults()
     OrgMacro = { link = "PreProc" },
     OrgBullet = { link = "OrgHeadlineLevel1" },
     OrgHiddenStars = { link = "Conceal" },
+    OrgSuperscript = { link = "Special" },
+    OrgSubscript = { link = "Special" },
+    OrgInlinetask = { link = "Comment" },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }

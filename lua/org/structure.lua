@@ -705,6 +705,59 @@ function M.insert_block(type, s, e)
   start_insert()
 end
 
+--- org-tempo: expand `<KEY` before the cursor (Insert mode) into a block
+--- of `structure_template_alist` or a keyword of `tempo_keywords`
+--- (`<I` asks for a file to include). Returns true when it expanded.
+function M.tempo_expand()
+  local pos = cursor()
+  local line = vim.api.nvim_get_current_line()
+  local before = line:sub(1, pos[2])
+  local key = before:match("<(%w+)$")
+  if not key then
+    return false
+  end
+  local start = pos[2] - #key - 1
+  local ind = string.rep(" ", #line:match("^(%s*)"))
+  local rest = line:sub(pos[2] + 1)
+  local prefix = line:sub(1, start)
+  local lnum = pos[1]
+  local block = config.opts.structure_template_alist[key]
+  local kw = (config.opts.tempo_keywords or {})[key]
+  local out, row, col
+  if block then
+    local special = block == "src" or block == "export"
+    local first = block:match("^(%S+)") or block
+    local upcase = first == first:upper() and first:lower() ~= first
+    local b, en = upcase and "BEGIN" or "begin", upcase and "END" or "end"
+    local begin_line = prefix .. "#+" .. b .. "_" .. block .. (special and " " or "")
+    if special then
+      out = { begin_line .. rest, ind, ind .. "#+" .. en .. "_" .. first }
+      row, col = lnum, #begin_line
+    else
+      out = { begin_line, ind .. rest, ind .. "#+" .. en .. "_" .. first }
+      row, col = lnum + 1, #ind
+    end
+  elseif kw then
+    local text = prefix .. "#+" .. kw .. ": "
+    out = { text .. rest }
+    row, col = lnum, #text
+  elseif key == "I" then
+    local f = utils.input({ prompt = "Include file: ", completion = "file" })
+    if not f then
+      return true
+    end
+    local rel = vim.fn.fnamemodify(f, ":.")
+    local text = prefix .. '#+include: "' .. rel .. '" '
+    out = { text .. rest }
+    row, col = lnum, #text
+  else
+    return false
+  end
+  set_lines(0, lnum, lnum, out)
+  vim.api.nvim_win_set_cursor(0, { row, col })
+  return true
+end
+
 --- org-insert-structure-template (C-c C-,): pick a block type from
 --- `structure_template_alist` (TAB asks for any type) and insert it.
 function M.insert_structure_template()
@@ -744,6 +797,9 @@ end
 
 local function change_level(hl, file, delta, subtree)
   local bufnr = buf()
+  if hl.inlinetask then
+    return require("org.inlinetask").change_level(bufnr, hl, delta)
+  end
   delta = delta * M.level_increment(bufnr)
   if hl.level + delta < 1 then
     utils.warn("Cannot promote to level 0.  UNDO to recover if necessary")

@@ -105,11 +105,36 @@ function M.compute(lines)
   local cur = 0
   local n = #lines
   local depth, item_start = item_depths(lines)
+  local min_inline = parser.inlinetask_min_level()
   local i = 1
   while i <= n do
     local line = lines[i]
     local lvl = line:byte(1) == 42 and parser.headline_level(line) or nil
-    if lvl then
+    local inline_stop
+    if lvl and min_inline and lvl >= min_inline then
+      -- an inline task folds up to its END line, inside the entry
+      for j = i + 1, n do
+        local l = lines[j]
+        local lv = l:byte(1) == 42 and parser.headline_level(l)
+        if lv then
+          if lv >= min_inline and l:match("^%*+%s+END%s*$") then
+            inline_stop = j
+          end
+          break
+        end
+      end
+      lvl = nil
+    end
+    if inline_stop then
+      local inner = cur + (depth[i] or 0) + 1
+      levels[i] = ">" .. inner
+      for j = i + 1, inline_stop - 1 do
+        levels[j] = inner
+      end
+      levels[inline_stop] = "<" .. inner
+      regions[#regions + 1] = { start = i, ["end"] = inline_stop, kind = "inlinetask" }
+      i = inline_stop + 1
+    elseif lvl then
       levels[i] = ">" .. lvl
       cur = lvl
       i = i + 1
