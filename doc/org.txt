@@ -1304,6 +1304,9 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
   is no symbolic math, no named fields ($name) and no #+CONSTANTS. Elisp
   formulas `'(...)` are Lua expressions.
+- Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
+  instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
+  stay on until toggled off.
 - Babel has no sessions and no `:cache`. Export uses existing results and
   never runs code. `elisp:` links and emacs-lisp blocks are not supported.
 - Not implemented:
