@@ -592,7 +592,7 @@ first contribution:
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`
-- [ ] `org-crypt` and `org-protocol`
+- [ ] `org-protocol`
 
 If there's something you'd like that isn't here,
 [open an issue](https://github.com/xheisenbugx/org.nvim/issues).

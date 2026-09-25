@@ -167,6 +167,8 @@
 ---@field refile? org.Config.Refile
 ---Clocking (time tracking).
 ---@field clock? org.Config.Clock
+---Encrypting entries (`org-crypt`).
+---@field crypt? org.Config.Crypt
 ---Relative and countdown timers.
 ---@field timer? org.Config.Timer
 ---Links: abbreviations, custom types, following.

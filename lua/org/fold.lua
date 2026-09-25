@@ -479,6 +479,8 @@ function M.reveal(whole_parent)
   if whole_parent == nil then
     whole_parent = vim.v.count > 0
   end
+  -- org-crypt puts org-decrypt-entry on org-fold-reveal-start-hook
+  require("org.crypt").reveal_hook()
   vim.cmd("normal! zv")
   local hl = headline_at_cursor()
   if not hl then

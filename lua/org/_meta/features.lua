@@ -122,6 +122,33 @@
 ---@field block? "today"|"yesterday"|"thisweek"|"lastweek"|"thismonth"|"lastmonth"|"thisyear"|"lastyear"|string
 
 ---------------------------------------------------------------------------
+-- Encryption
+---------------------------------------------------------------------------
+
+---Entry encryption with gpg (`org-crypt`).
+---@class org.Config.Crypt
+---Match expression selecting the entries `crypt_encrypt_entries`,
+---`crypt_decrypt_entries` and `encrypt_on_save` work on
+---(`org-crypt-tag-matcher`). (default: `"crypt"`)
+---@field tag_matcher? string
+---Key(s) to encrypt for, matched against the public keyring; the `CRYPTKEY`
+---property overrides it. `""` matches no key, so entries without `CRYPTKEY`
+---are encrypted symmetrically; `false` always encrypts symmetrically
+---(`org-crypt-key`, whose `nil` is `false` here). (default: `""`)
+---@field key? string|false
+---Encrypt matching entries before the buffer is written
+---(`org-crypt-use-before-save-magic`). (default: `false`)
+---@field encrypt_on_save? boolean
+---What decrypting does when the buffer has a swap or undo file, which may
+---store the clear text on disk: `"ask"` to turn them off for the buffer,
+---`true` to turn them off, `false` to keep them. `"encrypt"` behaves like
+---`true` (Neovim has no hook before writing the swap file)
+---(`org-crypt-disable-auto-save`). (default: `"ask"`)
+---@field disable_auto_save? "ask"|"encrypt"|boolean
+---The gpg executable (`epg-gpg-program`). (default: `"gpg"`)
+---@field gpg_program? string
+
+---------------------------------------------------------------------------
 -- Timers
 ---------------------------------------------------------------------------
 
