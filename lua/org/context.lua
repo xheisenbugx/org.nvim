@@ -180,13 +180,15 @@ end
 
 --- Where M-RET acts: in Insert mode at the cursor (splitting the line
 --- when `meta_return_split_line` allows it); in Normal mode at the end of
---- the line without splitting, or at its beginning in column 0.
-local function meta_return_point(insert_mode)
+--- the line without splitting, or at its beginning in column 0 (not on a
+--- list item: the Normal-mode cursor sits on the bullet, so the new item
+--- goes after it; `i<M-CR>` still adds one before it, as in Emacs).
+local function meta_return_point(insert_mode, item)
   local pos = vim.api.nvim_win_get_cursor(0)
   if insert_mode then
     return pos, nil
   end
-  if pos[2] == 0 then
+  if pos[2] == 0 and not item then
     return pos, false
   end
   return { pos[1], #vim.api.nvim_get_current_line() }, false
@@ -212,8 +214,9 @@ function M.meta_return()
     require("org.table").insert_row(false)
     return
   end
-  local pos, split = meta_return_point(insert_mode)
-  if not arg and list_item(lnum) and not is_headline(line) then
+  local item = not arg and list_item(lnum) and not is_headline(line)
+  local pos, split = meta_return_point(insert_mode, item)
+  if item then
     require("org.lists").new_item({ pos = pos, split = split })
     after_insert(insert_mode)
     return
@@ -228,8 +231,9 @@ end
 function M.meta_shift_return()
   local insert_mode = vim.fn.mode():sub(1, 1) == "i"
   local lnum, _, line = cur()
-  local pos, split = meta_return_point(insert_mode)
-  if list_item(lnum) and not is_headline(line) then
+  local item = list_item(lnum) and not is_headline(line)
+  local pos, split = meta_return_point(insert_mode, item)
+  if item then
     require("org.lists").new_item({ checkbox = true, pos = pos, split = split })
     after_insert(insert_mode)
     return

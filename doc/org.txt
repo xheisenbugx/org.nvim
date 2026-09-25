@@ -159,9 +159,11 @@ stars alone is text, like in Emacs): >org
                   turns splitting off: `false`, or per context
                   `{ headline = false, item = true }`.
                 - In Normal mode it acts at the end of the line without
-                  splitting it (in column 0: at its start). So on a
-                  headline the new one goes right below the headline line,
-                  in a list after the item and its sub-items.
+                  splitting it (in column 0 of a headline or text line:
+                  at its start). So on a headline the new one goes right
+                  below the headline line, in a list after the item and
+                  its sub-items (also in column 0; use `i<M-CR>` there
+                  for an item before it).
                 - A folded headline gets the new one after its subtree.
                 - With a count (C-u, `4<M-CR>`): always a headline, after
                   the current subtree; `16<M-CR>` (C-u C-u): at the end of
