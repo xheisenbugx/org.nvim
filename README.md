@@ -314,7 +314,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>id` `ib` `if` | Insert drawer / block template / footnote |
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
 | `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item; move table column *(ctx)* |
-| `<M-k>` `<M-j>` | Move subtree, item or table row up / down *(ctx)* |
+| `<M-k>` `<M-j>` (also `<M-Up>` `<M-Down>`) | Move subtree, item or table row up / down *(ctx)* |
 | `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
