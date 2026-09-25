@@ -1167,6 +1167,12 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
       return done({ error = true })
     end
     local raw = stdout
+    if spec.result_file and opts.graphics_file and vim.fn.filereadable(spec.result_file) == 0 then
+      -- Emacs reads the value back from the graphics file: an error when missing
+      local msg = "Opening input file: No such file or directory, " .. spec.result_file
+      utils.error(msg)
+      return done({ error = msg, abort = true })
+    end
     if spec.result_file then
       raw = ""
       if not opts.graphics_file and vim.fn.filereadable(spec.result_file) == 1 then
@@ -1584,6 +1590,9 @@ function M.evaluate(bufnr, src, args, opts, cb)
     colnames[pair[1]] = pair[2]
   end
   local function after(r)
+    if r.abort then
+      return finish(nil, { skipped = true, abort = true, error = r.error })
+    end
     local result = r.result
     if rp.discard then
       result = nil
