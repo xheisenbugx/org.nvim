@@ -2667,34 +2667,51 @@ end
 
 --- C-c C-v I: show the block's language, name and merged header arguments.
 function M.view_info()
-  local _, src, args = block_at_cursor()
+  local bufnr, src, args, b = block_at_cursor()
   if not src then
     return
   end
-  local out = { "Lang: " .. (src.lang ~= "" and src.lang or "none") }
+  -- like org-babel-view-src-block-info
+  local out = {}
   if src.name then
     out[#out + 1] = "Name: " .. src.name
   end
-  out[#out + 1] = "Header arguments:"
-  local keys = {}
+  out[#out + 1] = "Language: " .. (src.lang ~= "" and src.lang or "none")
+  out[#out + 1] = "Properties:"
+  local file = get_file(bufnr)
+  local ha = file and blocks_mod.inherited_property(file, b.start, "HEADER-ARGS") or nil
+  local hl = file and blocks_mod.inherited_property(file, b.start, "HEADER-ARGS:" .. src.lang) or nil
+  out[#out + 1] = "\t:header-args \t" .. (ha or "nil")
+  out[#out + 1] = "\t:header-args:" .. src.lang .. " \t" .. (hl or "nil")
+  if src.switches and vim.trim(src.switches) ~= "" then
+    out[#out + 1] = "Switches: " .. vim.trim(src.switches)
+  end
+  out[#out + 1] = "Header Arguments:"
+  local entries = {}
   for k, v in pairs(args) do
-    if type(v) == "string" then
-      keys[#keys + 1] = k
+    if type(v) == "string" and v ~= "" then
+      entries[#entries + 1] = { ":" .. k, v }
     end
   end
-  table.sort(keys)
   local spec = {}
   for _, cat in ipairs({ "collection", "type", "format", "handling" }) do
-    if args.results_spec[cat] then
+    if args.results_spec[cat] and not (cat == "collection" and args.default_collection) then
       spec[#spec + 1] = args.results_spec[cat]
     end
   end
-  out[#out + 1] = "  :results " .. table.concat(spec, " ")
+  vim.list_extend(spec, args.results_extra or {})
+  entries[#entries + 1] = { ":results", table.concat(spec, " ") }
   for _, v in ipairs(args.vars) do
-    out[#out + 1] = "  :var " .. v.name .. "=" .. v.value
+    entries[#entries + 1] = { ":var", v.name .. "=" .. v.value }
   end
-  for _, k in ipairs(keys) do
-    out[#out + 1] = "  :" .. k .. " " .. args[k]
+  table.sort(entries, function(x, y)
+    if x[1] ~= y[1] then
+      return x[1] < y[1]
+    end
+    return x[2] < y[2]
+  end)
+  for _, e in ipairs(entries) do
+    out[#out + 1] = "\t" .. e[1] .. (#e[1] > 7 and "" or "\t") .. "\t" .. e[2]
   end
   utils.notify(table.concat(out, "\n"))
   return out
@@ -3065,30 +3082,116 @@ M.HEADER_ARGS = {
   ["tangle-mode"] = {},
   var = {},
   wrap = {},
+  -- language specific (org-babel-header-args:LANG)
   db = {},
+  ["return"] = {},
+  python = {},
+  preamble = {},
+  ruby = {},
+  cmd = {},
+  includes = {},
+  defines = {},
+  namespaces = {},
+  flags = {},
+  libs = {},
+  main = { "yes", "no" },
+  engine = { "postgresql", "mysql", "mssql", "sqsh", "vertica", "monetdb", "dbi", "oracle", "saphana" },
+  dbhost = {},
+  dbport = {},
+  dbuser = {},
+  dbpassword = {},
+  database = {},
+  ["out-file"] = {},
+  header = {},
+  echo = {},
+  bail = {},
+  csv = {},
+  column = {},
+  html = {},
+  line = {},
+  list = {},
+  nullvalue = {},
+  readonly = { "yes", "no" },
 }
 
---- C-c C-v c: warn about unknown header arguments (org-babel-check-src-block).
+--- Levenshtein distance (org-string-distance).
+local function distance(a, b)
+  local prev = {}
+  for j = 0, #b do
+    prev[j] = j
+  end
+  for i = 1, #a do
+    local cur = { [0] = i }
+    for j = 1, #b do
+      local cost = a:sub(i, i) == b:sub(j, j) and 0 or 1
+      cur[j] = math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+    end
+    prev = cur
+  end
+  return prev[#b]
+end
+
+--- Common header argument names (org-babel-header-arg-names).
+local COMMON_HEADERS = {
+  "cache",
+  "cmdline",
+  "colnames",
+  "comments",
+  "dir",
+  "eval",
+  "exports",
+  "epilogue",
+  "file",
+  "file-desc",
+  "file-ext",
+  "file-mode",
+  "hlines",
+  "mkdirp",
+  "no-expand",
+  "noeval",
+  "noweb",
+  "noweb-ref",
+  "noweb-sep",
+  "noweb-prefix",
+  "output-dir",
+  "padline",
+  "post",
+  "prologue",
+  "results",
+  "rownames",
+  "sep",
+  "session",
+  "shebang",
+  "tangle",
+  "tangle-mode",
+  "var",
+  "wrap",
+}
+
+--- C-c C-v c: like org-babel-check-src-block, report a header argument of
+--- the #+begin_src line that is not a known one but is within 2 edits of
+--- one ("suspiciously close"). Returns { header, name } or {}.
 function M.check_block()
   local _, src = block_at_cursor()
   if not src then
     return
   end
-  local bad = {}
-  local lines = vim.list_extend(vim.deepcopy(src.header_lines or {}), { src.params or "" })
-  for _, l in ipairs(lines) do
-    for _, p in ipairs(blocks_mod.parse_header_string(l)) do
-      if not M.HEADER_ARGS[p.key] then
-        bad[#bad + 1] = ":" .. p.key
+  local known = {}
+  for _, n in ipairs(COMMON_HEADERS) do
+    known[n] = true
+  end
+  for _, p in ipairs(blocks_mod.parse_header_string(src.params or "")) do
+    if not known[p.key] then
+      for _, n in ipairs(COMMON_HEADERS) do
+        if distance(p.key, n) <= 2 then
+          utils.error(string.format('Supplied header "%s" is suspiciously close to "%s"', p.key, n))
+          return { p.key, n }
+        end
       end
     end
   end
-  if #bad > 0 then
-    utils.warn("Unknown header argument(s): " .. table.concat(bad, " "))
-  else
-    utils.notify("No problems found")
-  end
-  return bad
+  utils.notify("No suspicious header arguments found.")
+  return {}
 end
 
 --- C-c C-v j: insert a header argument on the #+begin_src line.

@@ -308,6 +308,34 @@ describe("babel parity: results", function()
     eq({ ": 9" }, result_of(out, "#+begin_src python :results value :return w"))
   end)
 
+  it("saves Python graphics with :results graphics file", function()
+    if not has("python3") then
+      return
+    end
+    -- a stand-in for matplotlib that writes the figure file
+    local mdir = tmpdir()
+    vim.fn.mkdir(mdir .. "/matplotlib", "p")
+    vim.fn.writefile({}, mdir .. "/matplotlib/__init__.py")
+    vim.fn.writefile({
+      "class _F:",
+      "    def clear(self): pass",
+      "def gcf(): return _F()",
+      "def savefig(f): open(f, 'w').write('PNG')",
+      "def plot(*a): pass",
+    }, mdir .. "/matplotlib/pyplot.py")
+    local saved = vim.env.PYTHONPATH
+    vim.env.PYTHONPATH = mdir
+    local out, dir = run({
+      "#+begin_src python :results graphics file output :file plot.png",
+      "import matplotlib.pyplot as plt",
+      "plt.plot([1, 2])",
+      "#+end_src",
+    })
+    vim.env.PYTHONPATH = saved
+    eq({ "[[file:plot.png]]" }, result_of(out, "#+begin_src python :results graphics file output :file plot.png"))
+    eq({ "PNG" }, vim.fn.readfile(dir .. "/plot.png"))
+  end)
+
   it("converts JavaScript and Ruby values like ob-js / ob-ruby", function()
     if has("node") then
       local out = run({
@@ -524,6 +552,25 @@ describe("babel parity: evaluation", function()
     vim.api.nvim_del_autocmd(id)
     eq("sh", got.lang)
     eq("h\n", got.result)
+  end)
+
+  it("shows block info like org-babel-view-src-block-info and checks header names", function()
+    org_buffer({
+      "* H",
+      ":PROPERTIES:",
+      ":header-args:sh: :var z=9",
+      ":END:",
+      "#+NAME: info",
+      "#+begin_src sh :results output",
+      "echo",
+      "#+end_src",
+    }, { 7, 0 })
+    local out = babel.view_info()
+    eq("Name: info", out[1])
+    eq("Language: sh", out[2])
+    eq("\t:header-args:sh \t:var z=9", out[5])
+    ok(vim.tbl_contains(out, "\t:results\toutput replace"), vim.inspect(out))
+    ok(vim.tbl_contains(out, "\t:var\t\tz=9"), vim.inspect(out))
   end)
 
   it("does not evaluate on C-c C-c with no_eval_on_ctrl_c_ctrl_c", function()
@@ -875,6 +922,23 @@ describe("babel parity: edit special", function()
     vim.notify = notify
     ok(table.concat(msgs, "\n"):find("No special environment to edit here", 1, true), vim.inspect(msgs))
     vim.bo[buf].modified = false
+  end)
+
+  it("shows the session with C-u C-c ' on a :session block", function()
+    org_buffer({ "#+begin_src lua :session ed", "x = 1", "#+end_src" }, { 2, 0 })
+    babel.edit_special({ session = true })
+    ok(vim.api.nvim_buf_get_name(0):find("org-babel-session://lua/ed", 1, true), vim.api.nvim_buf_get_name(0))
+    require("org.babel.session").kill_all()
+  end)
+
+  it("uses Emacs defaults: export evaluates, cache and hlines no", function()
+    local d = config.defaults.babel
+    eq(true, d.evaluate_on_export)
+    eq("no", d.default_header_args.cache)
+    eq("no", d.default_header_args.hlines)
+    eq({ session = "none", results = "replace", exports = "results", hlines = "yes" }, d.default_inline_header_args)
+    eq(2, config.defaults.edit_src_content_indentation)
+    eq(false, config.defaults.src_preserve_indentation)
   end)
 
   it("keeps indentation with src_preserve_indentation", function()

@@ -1108,8 +1108,9 @@ same results in both editors.
 <prefix>bf         Tangle another file.
 <prefix>bv         Show the expanded block (noweb, :prologue, variables,
                    :epilogue) in a split.
-<prefix>bI / bc    Show the block's merged header args / warn about
-                   unknown header args.
+<prefix>bI / bc    Show the block's merged header args / report a header
+                   arg of the #+begin_src line that looks like a misspelt
+                   one (within 2 edits of a known name, like Emacs).
 <prefix>bj         Insert a header argument (names and values completed).
 <prefix>bg / br    Go to a named block / a named result.
 <prefix>bu         Go to the head of the block.
