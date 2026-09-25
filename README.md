@@ -574,8 +574,9 @@ run in batch mode. What can't work the same way is listed with the reason in
   Table `'(...)` formulas run on a small Lisp evaluator, and GNU Calc is
   reimplemented only for what tables use.
 - **Emacs applications** (Gnus, mu4e, BBDB, the diary, the calendar's
-  holidays and astronomy) have no counterpart; common diary sexps such as
-  `%%(org-anniversary ...)` and `%%(diary-float ...)` are emulated.
+  commands) have no counterpart; common diary sexps such as
+  `%%(org-anniversary ...)`, `%%(diary-float ...)` and
+  `%%(org-calendar-holiday)` (with Emacs's holiday lists) are emulated.
 - **Display:** inline image and LaTeX previews need an image protocol core
   Neovim lacks; hiding body text between visible headlines needs Neovim
   0.11 (`conceal_lines`); column view is a table view, not overlays.
