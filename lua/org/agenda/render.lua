@@ -186,7 +186,16 @@ local DEFAULT_PREFIX = {
 }
 M.DEFAULT_PREFIX = DEFAULT_PREFIX
 
-local VARS = { c = "category", t = "time", l = "level", s = "extra", i = "icon", T = "tag", e = "effort", b = "breadcrumbs" }
+local VARS = {
+  c = "category",
+  t = "time",
+  l = "level",
+  s = "extra",
+  i = "icon",
+  T = "tag",
+  e = "effort",
+  b = "breadcrumbs",
+}
 
 local compiled_cache = {}
 
@@ -1037,7 +1046,8 @@ function M.agenda_block(b, block, ctx)
     insert_header(b, block, span_name(span) .. "-agenda" .. wk .. ":")
   end
   local sorting = sorting_for(block, "agenda")
-  local dctx = vim.tbl_extend("force", ctx, { agenda = true, kind = "agenda", span = span, ndays = ndays, clockcheck = {} })
+  local dctx =
+    vim.tbl_extend("force", ctx, { agenda = true, kind = "agenda", span = span, ndays = ndays, clockcheck = {} })
   for d = from, to do
     local list = filter_list(by_day[d] or {}, ctx)
     if #list > 0 or acfg.show_all_dates ~= false then
@@ -1125,7 +1135,8 @@ function M.list_block(b, block, ctx)
     end
   elseif t == "search" then
     kind = "search"
-    local pred = require("org.agenda.search").compile_text((block.todo_only and "!" or "") .. (block.match or ""), block)
+    local query = (block.todo_only and "!" or "") .. (block.match or "")
+    local pred = require("org.agenda.search").compile_text(query, block)
     list = items_mod.search(ctx.files, pred, lopts)
     header = { { { "Search words: ", "OrgAgendaHeader" }, { block.match or "", "OrgAgendaFilter" } } }
     if not ctx.multi then

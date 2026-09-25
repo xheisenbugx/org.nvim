@@ -515,7 +515,7 @@ function M.dispatch(key, restrict)
   elseif key == "#" then
     M.open_stuck(restrict)
   elseif key == "n" then
-    M.open({ description = "Agenda and all TODOs", blocks = { { type = "agenda" }, { type = "todo" } } }, {
+    M.open({ key = "n", description = "Agenda and all TODOs", blocks = { { type = "agenda" }, { type = "todo" } } }, {
       restrict = restrict,
     })
   elseif key == "/" then

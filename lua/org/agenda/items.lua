@@ -224,7 +224,9 @@ local function set_time(item, stamp, acfg, remove_stamps)
     if stamp.end_hour then
       t = t .. "-" .. string.format("%02d:%02d", stamp.end_hour, stamp.end_min or 0)
     end
-    found = { text = t }
+    -- a timestamp item's time comes from the stamp, which is removed
+    -- from the text anyway (org-stamp-time-of-day-regexp)
+    found = not remove_stamps and { text = t } or nil
   elseif acfg.search_headline_for_time ~= false then
     found = M.find_time(strip_timestamps(title))
     if found then
@@ -453,7 +455,8 @@ local SOURCE_RANK = {
 ---@param files org.File[]
 ---@param from integer
 ---@param to integer
----@param opts? { today?: integer, log_mode?: boolean|string, restrict?: table, skip?: function, block?: table, inactive?: boolean, no_deadlines?: boolean, archives?: string|boolean }
+---@param opts? { today?: integer, log_mode?: boolean|string, restrict?: table, skip?: function, block?: table,
+---  inactive?: boolean, no_deadlines?: boolean, archives?: string|boolean }
 ---@return table<integer, org.AgendaItem[]> items by day
 function M.agenda(files, from, to, opts)
   opts = opts or {}
@@ -495,10 +498,37 @@ function M.agenda(files, from, to, opts)
   local sc_past_days = acfg.scheduled_past_days or 10000
   local sexp_mod
 
+  -- sexps are parsed once; a bad one is reported once and skipped, like
+  -- Emacs's "Bad sexp ... Skipping"
+  local parsed, warned = {}, {}
+  local function warn_once(s, err)
+    if not warned[s] then
+      warned[s] = true
+      vim.schedule(function()
+        vim.notify(string.format("org agenda: bad sexp %s: %s; skipping", s, tostring(err)), vim.log.levels.WARN)
+      end)
+    end
+  end
   local function eval_sexp(s, day, text)
     sexp_mod = sexp_mod or require("org.agenda.sexp")
-    local ok, res = pcall(sexp_mod.eval, s, day, text or "")
-    return ok and res or nil
+    local node = parsed[s]
+    if node == nil then
+      local n, err = sexp_mod.parse(s)
+      node = n or false
+      parsed[s] = node
+      if not n then
+        warn_once(s, err)
+      end
+    end
+    if not node then
+      return nil
+    end
+    local ok, res, err = pcall(sexp_mod.eval, node, day, text or "")
+    if not ok or (res == nil and err) then
+      warn_once(s, ok and err or res)
+      return nil
+    end
+    return res
   end
 
   M.each_headline(files, opts, function(hl, _, fidx)
@@ -1141,7 +1171,8 @@ function M.tags(files, predicate, todo_only, opts)
       return
     end
     if predicate(hl) then
-      out[#out + 1] = new_item(hl, { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil })
+      out[#out + 1] =
+        new_item(hl, { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil })
       if acfg.tags_match_list_sublevels == false then
         skip_below = hl
       end

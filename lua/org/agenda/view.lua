@@ -900,7 +900,8 @@ function M.quit(wipe)
     restore_layout(layout)
     S.layout = nil
   elseif win and vim.api.nvim_win_is_valid(win) then
-    if (mode == "float" or mode == "split" or mode == "vsplit" or mode == "other") and #vim.api.nvim_list_wins() > 1 then
+    local closable = mode == "float" or mode == "split" or mode == "vsplit" or mode == "other"
+    if closable and #vim.api.nvim_list_wins() > 1 then
       vim.api.nvim_win_close(win, true)
     elseif mode == "tab" and #vim.api.nvim_list_tabpages() > 1 then
       vim.api.nvim_set_current_win(win)
@@ -1848,7 +1849,8 @@ function M.bulk_action()
     table.sort(ckeys)
     for _, k in ipairs(ckeys) do
       local c = custom[k]
-      items[#items + 1] = { key = k, label = type(c) == "table" and (c.desc or c.description or "Custom") or "Custom", value = { custom = k } }
+      local label = type(c) == "table" and (c.desc or c.description or "Custom") or "Custom"
+      items[#items + 1] = { key = k, label = label, value = { custom = k } }
     end
     choice = require("org.ui").menu({
       title = string.format("Bulk (%d marked)", vim.tbl_count(S.marks)),
@@ -1897,10 +1899,8 @@ function M.bulk_action()
       utils.error(string.format('Can\'t scatter tasks in "%s" agenda view', b.type))
       return
     end
-    local days = tonumber(
-      utils.input({ prompt = string.format("Scatter tasks across how many %sdays: ", count > 0 and "week" or ""), default = "7" })
-        or ""
-    )
+    local prompt = string.format("Scatter tasks across how many %sdays: ", count > 0 and "week" or "")
+    local days = tonumber(utils.input({ prompt = prompt, default = "7" }) or "")
     if not days or days < 1 then
       return
     end
@@ -2683,7 +2683,8 @@ function M.export(path)
   if not S.buf or not vim.api.nvim_buf_is_valid(S.buf) then
     return
   end
-  path = path or utils.input({ prompt = "Write agenda to file: ", default = vim.fn.expand("~/agenda.txt"), completion = "file" })
+  path = path
+    or utils.input({ prompt = "Write agenda to file: ", default = vim.fn.expand("~/agenda.txt"), completion = "file" })
   if not path or path == "" then
     return
   end

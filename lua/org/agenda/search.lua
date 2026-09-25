@@ -62,7 +62,8 @@ local CLASSES = {
   multibyte = "\\u0080-\\uffff",
 }
 
-local VIM_SPECIAL = { ["\\"] = true, ["^"] = true, ["$"] = true, ["."] = true, ["*"] = true, ["["] = true, ["~"] = true }
+local VIM_SPECIAL =
+  { ["\\"] = true, ["^"] = true, ["$"] = true, ["."] = true, ["*"] = true, ["["] = true, ["~"] = true }
 
 --- A character as a literal in a magic Vim pattern.
 local function lit(c)
@@ -440,7 +441,15 @@ local function parse_term(s, i)
           local value, e = parse_operand(s, q)
           if value then
             local name = s:sub(j, k - 1):gsub("\\(.)", "%1"):upper()
-            return { kind = "prop", neg = neg, name = name, op = op, star = star, value = value, text = s:sub(j, e - 1) },
+            return {
+              kind = "prop",
+              neg = neg,
+              name = name,
+              op = op,
+              star = star,
+              value = value,
+              text = s:sub(j, e - 1),
+            },
               e
           end
         end
