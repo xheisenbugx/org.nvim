@@ -74,7 +74,7 @@ describe("keymaps e2e", function()
   end)
   it("<M-CR> on a list item adds an item", function()
     vim.g.org_test = true
-    local buf = org_buffer({ "- one" }, { 1, 0 })
+    local buf = org_buffer({ "- one" }, { 1, 3 })
     keys("<M-CR>")
     vim.cmd("stopinsert")
     eq("- one", buf_lines(buf)[1])

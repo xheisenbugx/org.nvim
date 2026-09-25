@@ -102,6 +102,10 @@ end
 
 --- Heading that collects definitions, or nil (config `footnote_section`).
 local function section_name()
+  local ok, file = pcall(require("org.files").get_buffer, 0)
+  if ok and file.settings.startup and file.settings.startup.fnlocal then
+    return nil
+  end
   local s = require("org.config").opts.footnote_section
   if s == nil then
     return M.section_title
@@ -113,93 +117,201 @@ local function is_blank(l)
   return l == nil or l:match("^%s*$") ~= nil
 end
 
---- Line range of the footnote section heading's own text, or nil.
----@return integer|nil heading, integer|nil last line of its section
-local function find_section(lines, name)
+--- Whether `blank_before_new_entry.heading` is on ("auto" counts), which
+--- org-back-over-empty-lines and the footnote section creation look at.
+local function heading_blank_setting()
+  local b = require("org.config").opts.blank_before_new_entry
+  local v = type(b) == "table" and b.heading or b
+  return v ~= nil and v ~= false
+end
+
+--- Pattern for the footnote section headline.
+local function section_line_p(line, name)
+  local title = line:match("^%*+[ \t]+(.-)[ \t]*$")
+  return title ~= nil and title == name
+end
+
+--- org-back-over-empty-lines on textbuf `tb`: move back to the first
+--- empty line before point and return how many were passed.
+local function tb_back_over_empty_lines(tb)
+  local pos = tb.point
+  if heading_blank_setting() then
+    tb:skip_backward(" \t\n\r")
+  elseif not tb:eobp() then
+    tb:forward_line(-1)
+  end
+  tb:forward_line(1)
+  tb:goto(math.min(tb.point, pos))
+  local n = 0
+  local p = tb.point
+  while p < pos do
+    local nl = tb.text:find("\n", p, true)
+    if not nl or nl >= pos then
+      break
+    end
+    n = n + 1
+    p = nl + 1
+  end
+  return n
+end
+
+--- org-footnote--clear-footnote-section: remove every footnote section
+--- and create a new one at the end of the buffer; point after it.
+local function tb_clear_section(tb, name)
   local parser = require("org.parser")
-  for i, l in ipairs(lines) do
-    local p = parser.parse_headline_line(l)
-    if p and vim.trim(p.title) == name then
-      local e = #lines
-      for j = i + 1, #lines do
-        if parser.headline_level(lines[j]) then
-          e = j - 1
+  local lines = tb:lines()
+  local i = 1
+  local out = {}
+  while i <= #lines do
+    local l = lines[i]
+    local lvl = parser.headline_level(l)
+    if lvl and section_line_p(l, name) then
+      local j = i + 1
+      while j <= #lines do
+        local lv = parser.headline_level(lines[j])
+        if lv and lv <= lvl then
+          break
+        end
+        j = j + 1
+      end
+      i = j
+    else
+      out[#out + 1] = l
+      i = i + 1
+    end
+  end
+  while #out > 0 and is_blank(out[#out]) do
+    table.remove(out)
+  end
+  local text = table.concat(out, "\n")
+  if #out > 0 then
+    text = text .. "\n"
+  end
+  tb.text = text
+  tb:goto(tb:point_max())
+  if heading_blank_setting() then
+    local save = tb.point
+    if tb_back_over_empty_lines(tb) == 0 then
+      tb:goto(save)
+      tb:insert("\n")
+    else
+      tb:goto(save)
+    end
+  end
+  tb:insert("* " .. name .. "\n")
+end
+
+--- org-footnote--goto-local-insertion-point: just before the next
+--- headline, after the last non-blank line.
+local function tb_local_insertion_point(tb)
+  local parser = require("org.parser")
+  local p = tb:line_beg()
+  local target = tb:point_max()
+  while true do
+    local nl = tb.text:find("\n", p, true)
+    if not nl or nl + 1 > #tb.text then
+      break
+    end
+    p = nl + 1
+    if parser.headline_level(tb:line(p)) then
+      target = p
+      break
+    end
+  end
+  tb:goto(target)
+  tb:skip_backward(" \t\n")
+  if not tb:bobp() then
+    tb:forward_line(1)
+  end
+  if not tb:bolp() then
+    tb:insert("\n")
+  end
+end
+
+--- Move after the planning line, drawers, clock lines and blank lines of
+--- the headline at point (org-end-of-meta-data with FULL = t).
+local function tb_end_of_meta_data(tb)
+  tb:forward_line(1)
+  local l = tb:line()
+  if l:match("^%s*SCHEDULED:") or l:match("^%s*DEADLINE:") or l:match("^%s*CLOSED:") then
+    tb:forward_line(1)
+  end
+  local parser = require("org.parser")
+  while not tb:eobp() do
+    l = tb:line()
+    if parser.headline_level(l) then
+      break
+    elseif l:match("^%s*$") or l:match("^%s*CLOCK:") then
+      tb:forward_line(1)
+    elseif l:match("^%s*:[%w_%-]+:%s*$") then
+      local found = false
+      local p = tb.point
+      while true do
+        local nl = tb.text:find("\n", p, true)
+        if not nl or nl + 1 > #tb.text then
+          break
+        end
+        p = nl + 1
+        local ln = tb:line(p)
+        if parser.headline_level(ln) then
+          break
+        end
+        if ln:match("^%s*:[Ee][Nn][Dd]:%s*$") then
+          tb:goto(p)
+          tb:forward_line(1)
+          found = true
           break
         end
       end
-      return i, e
+      if not found then
+        break
+      end
+    else
+      break
     end
   end
 end
 
---- Last line of the outline section containing `lnum` (before the next
---- headline), or of the file.
-local function section_end(lines, lnum)
-  local parser = require("org.parser")
-  for j = lnum + 1, #lines do
-    if parser.headline_level(lines[j]) then
-      return j - 1
-    end
-  end
-  return #lines
-end
-
---- Insert `block` (definition lines) at the end of the region ending at
---- `e` (trailing blank lines skipped), separated by a blank line unless it
---- directly follows `heading`. Returns the new lines and the line of the
---- inserted definition.
-local function insert_block(lines, heading, e, block)
-  while e > (heading or 0) and is_blank(lines[e]) do
-    e = e - 1
-  end
-  local new = vim.deepcopy(block)
-  local lead = 0
-  if e > 0 and e ~= heading then
-    table.insert(new, 1, "")
-    lead = 1
-  end
-  if lines[e + 1] and not is_blank(lines[e + 1]) then
-    new[#new + 1] = ""
-  end
-  for i, l in ipairs(new) do
-    table.insert(lines, e + i, l)
-  end
-  return lines, e + lead + 1
-end
-
---- Footnote section heading line and section end in `lines`, creating
---- the heading at the end of the buffer when it is missing.
-local function ensure_section(lines, name)
-  local heading, e = find_section(lines, name)
-  if heading then
-    return heading, e
-  end
-  while #lines > 0 and is_blank(lines[#lines]) do
-    table.remove(lines)
-  end
-  if #lines > 0 then
-    lines[#lines + 1] = ""
-  end
-  lines[#lines + 1] = "* " .. name
-  return #lines, #lines
-end
-
---- Create a definition for `label` (org-footnote-create-definition): in
---- the footnote section (created at the end of the buffer when missing),
---- or at the end of the section containing `ref_lnum` when
+--- Create a definition for `label` (org-footnote-create-definition): at
+--- the top of the footnote section (created at the end of the buffer when
+--- missing), or at the end of the section containing `ref_lnum` when
 --- `footnote_section` is false. Returns the definition's line.
 function M.create_definition(bufnr, label, ref_lnum)
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local name = section_name()
-  local heading, e
-  if name then
-    heading, e = ensure_section(lines, name)
+  local tb = require("org.textbuf").from_buffer(bufnr, { ref_lnum or 1, 0 })
+  if not name then
+    tb_local_insertion_point(tb)
   else
-    e = section_end(lines, ref_lnum or 1)
+    local found
+    local p = 1
+    while p <= #tb.text do
+      if section_line_p(tb:line(p), name) then
+        found = p
+        break
+      end
+      local nl = tb.text:find("\n", p, true)
+      if not nl then
+        break
+      end
+      p = nl + 1
+    end
+    if found then
+      tb:goto(found)
+      tb_end_of_meta_data(tb)
+      if not tb:bolp() then
+        tb:insert("\n")
+      end
+    else
+      tb_clear_section(tb, name)
+    end
   end
-  local _, target = insert_block(lines, heading, e, { "[fn:" .. label .. "] " })
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-  return target
+  if tb_back_over_empty_lines(tb) == 0 then
+    tb:insert("\n")
+  end
+  local def_pos = tb.point
+  tb:insert("[fn:" .. label .. "] \n")
+  tb:apply(false)
+  return (tb:rowcol(def_pos))
 end
 
 --- Jump between a reference and its definition. On a reference without
@@ -238,32 +350,141 @@ function M.action_at_point()
   end
 end
 
---- Next free numeric label.
-function M.next_label(bufnr)
-  local max = 0
+--- Every footnote label used in the buffer (org-footnote-all-labels).
+function M.all_labels(bufnr)
+  local seen, out = {}, {}
   for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)) do
-    for n in l:gmatch("%[fn:(%d+)[%]:]") do
-      max = math.max(max, tonumber(n))
+    for label in l:gmatch("%[fn:([^%]:%s]+)[%]:]") do
+      if not seen[label] then
+        seen[label] = true
+        out[#out + 1] = label
+      end
     end
   end
-  return tostring(max + 1)
+  return out
 end
 
---- Insert a new footnote reference at the cursor and create its definition.
+--- The first unused numeric label (org-footnote-unique-label).
+function M.next_label(bufnr)
+  local used = {}
+  for _, l in ipairs(M.all_labels(bufnr)) do
+    used[l] = true
+  end
+  local n = 1
+  while used[tostring(n)] do
+    n = n + 1
+  end
+  return tostring(n)
+end
+
+--- A footnote option, `#+STARTUP` words first: "label" (auto label),
+--- "adjust", "inline" or "section".
+function M.option(bufnr, what)
+  local cfg = require("org.config").opts
+  local ok, file = pcall(require("org.files").get_buffer, bufnr or 0)
+  local st = ok and file.settings.startup or {}
+  if what == "label" then
+    if st.fnauto then
+      return true
+    elseif st.fnprompt then
+      return false
+    elseif st.fnconfirm then
+      return "confirm"
+    elseif st.fnplain then
+      return "plain"
+    elseif st.fnanon then
+      return "anonymous"
+    end
+    return cfg.footnote_auto_label
+  elseif what == "adjust" then
+    if st.fnadjust then
+      return true
+    elseif st.nofnadjust then
+      return false
+    end
+    return cfg.footnote_auto_adjust
+  elseif what == "inline" then
+    if st.fninline then
+      return true
+    elseif st.nofninline then
+      return false
+    end
+    return cfg.footnote_define_inline
+  end
+end
+
+--- Renumber and / or sort after an insertion or deletion
+--- (org-footnote-auto-adjust-maybe).
+local function auto_adjust(bufnr)
+  local v = M.option(bufnr, "adjust")
+  if v == true or v == "renumber" then
+    M.renumber(bufnr)
+  end
+  if v == true or v == "sort" then
+    M.sort(bufnr)
+  end
+end
+
+--- Insert a new footnote after the cursor (org-footnote-new). The label
+--- follows `footnote_auto_label` (a prompt offers the existing labels; an
+--- existing one only adds a reference); the definition goes in the
+--- footnote section, or inline with `footnote_define_inline`.
 ---@param opts? { no_insert?: boolean }
 function M.new_footnote(opts)
   opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
-  local label = M.next_label(bufnr)
-  local ref = "[fn:" .. label .. "]"
+  local mode = M.option(bufnr, "label")
+  local all = M.all_labels(bufnr)
+  local label
+  if mode == "anonymous" then
+    label = nil
+  elseif mode == "random" then
+    label = string.format("%x", math.random(0, 0x7fffffff))
+  elseif mode == true or mode == "plain" or mode == nil then
+    label = M.next_label(bufnr)
+  else
+    local answer = utils.input({
+      prompt = "Label (leave empty for anonymous): ",
+      default = mode == "confirm" and M.next_label(bufnr) or nil,
+    })
+    if answer == nil then
+      return
+    end
+    answer = vim.trim(answer):gsub("^fn:", "")
+    label = answer ~= "" and answer or nil
+  end
   local row, col0 = unpack(vim.api.nvim_win_get_cursor(0))
   local line = vim.api.nvim_get_current_line()
   local at = line == "" and 0 or math.min(col0 + 1, #line)
-  vim.api.nvim_set_current_line(line:sub(1, at) .. ref .. line:sub(at + 1))
-  local target = M.create_definition(bufnr, label, row)
+  local function put(ref, cursor_offset)
+    vim.api.nvim_set_current_line(line:sub(1, at) .. ref .. line:sub(at + 1))
+    vim.api.nvim_win_set_cursor(0, { row, at + cursor_offset })
+    if not opts.no_insert and not vim.g.org_test then
+      vim.cmd("startinsert")
+    end
+  end
+  if not label then
+    put("[fn::]", 5)
+    return nil, row
+  end
+  if vim.tbl_contains(all, label) then
+    put("[fn:" .. label .. "]", #label + 5)
+    utils.notify("New reference to existing note")
+    return label, row
+  end
+  if M.option(bufnr, "inline") then
+    put("[fn:" .. label .. ":]", #label + 5)
+    auto_adjust(bufnr)
+    return label, row
+  end
+  vim.api.nvim_set_current_line(line:sub(1, at) .. "[fn:" .. label .. "]" .. line:sub(at + 1))
+  M.create_definition(bufnr, label, row)
+  auto_adjust(bufnr)
+  local target = find_definition(bufnr, label)
   local def = "[fn:" .. label .. "] "
   vim.cmd("normal! m'")
-  vim.api.nvim_win_set_cursor(0, { target, #def - 1 })
+  local l = vim.api.nvim_buf_get_lines(bufnr, target - 1, target, false)[1]
+  vim.api.nvim_win_set_cursor(0, { target, math.min(#def, #l) })
   pcall(vim.cmd, "normal! zv")
   if not opts.no_insert and not vim.g.org_test then
     vim.cmd("startinsert!")
@@ -371,42 +592,47 @@ local function extract_definitions(lines)
   return blocks, order
 end
 
---- Insert definition blocks: all in the footnote section, or each at the
---- end of the section of its first reference.
+--- Insert definition blocks like org-footnote-sort: the footnote sections
+--- are removed and one is created at the end of the buffer with every
+--- definition, each after a blank line; with `footnote_section` false,
+--- each goes at the end of the outline section of its first reference.
 ---@param entries { block: string[], ref_lnum: integer|nil }[]
 local function insert_definitions(lines, entries)
   local name = section_name()
+  local text = table.concat(lines, "\n") .. (#lines > 0 and "\n" or "")
+  local tb = setmetatable({ text = text, point = 1 }, require("org.textbuf"))
   if name then
-    local out = {}
-    for i, en in ipairs(entries) do
-      if i > 1 then
-        out[#out + 1] = ""
+    tb_clear_section(tb, name)
+    for _, en in ipairs(entries) do
+      tb:insert("\n" .. table.concat(en.block, "\n") .. "\n")
+    end
+  else
+    local last
+    for _, en in ipairs(entries) do
+      if en.ref_lnum then
+        tb:goto(tb:pos_of(en.ref_lnum, 0))
+        tb_local_insertion_point(tb)
+        -- later references move down with the inserted lines
+        local row = tb:rowcol()
+        local block = "\n" .. table.concat(en.block, "\n") .. "\n"
+        local added = select(2, block:gsub("\n", ""))
+        tb:insert(block)
+        for _, other in ipairs(entries) do
+          if other ~= en and other.ref_lnum and other.ref_lnum >= row then
+            other.ref_lnum = other.ref_lnum + added
+          end
+        end
+        last = tb.point
       end
-      vim.list_extend(out, en.block)
     end
-    if #out == 0 then
-      return lines
+    tb:goto(last or tb:point_max())
+    for _, en in ipairs(entries) do
+      if not en.ref_lnum then
+        tb:insert("\n" .. table.concat(en.block, "\n") .. "\n")
+      end
     end
-    local heading, e = ensure_section(lines, name)
-    insert_block(lines, heading, e, out)
-    return lines
   end
-  -- local placement, bottom-up so earlier line numbers stay valid
-  local sorted = {}
-  for i, en in ipairs(entries) do
-    sorted[#sorted + 1] = { idx = i, lnum = en.ref_lnum or #lines, block = en.block }
-  end
-  table.sort(sorted, function(a, b)
-    if a.lnum ~= b.lnum then
-      return a.lnum > b.lnum
-    end
-    return a.idx > b.idx
-  end)
-  for _, en in ipairs(sorted) do
-    local e = section_end(lines, math.min(en.lnum, #lines))
-    insert_block(lines, nil, e, en.block)
-  end
-  return lines
+  return tb:lines()
 end
 
 --- Rebuild definitions in reference order. `extra` adds label -> block
@@ -569,6 +795,7 @@ function M.delete(bufnr, label)
     end
   end
   set_buffer(bufnr, lines)
+  auto_adjust(bufnr)
   utils.notify(string.format("%d definition(s) of and %d reference(s) of footnote %s removed", ndef, nref, label))
 end
 

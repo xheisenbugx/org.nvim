@@ -114,6 +114,78 @@ M.defaults = {
   --- Blank line handling before new headlines and list items: true | false |
   --- "auto" (org-blank-before-new-entry).
   blank_before_new_entry = { heading = "auto", plain_list_item = "auto" },
+  --- M-RET in Insert mode splits the line at the cursor
+  --- (org-M-RET-may-split-line): true, false, or per context
+  --- `{ headline = false, item = true, default = true }`.
+  meta_return_split_line = true,
+  --- Clones made by clone_subtree lose their ID instead of getting a new
+  --- one (org-clone-delete-id).
+  clone_delete_id = false,
+  --- Only odd levels: promotion and demotion add or remove two stars
+  --- (org-odd-levels-only; #+STARTUP: odd / oddeven).
+  odd_levels_only = false,
+  --- Named key functions for sorting by function (`f` in sort), called
+  --- with the headline (or list item) and its lines:
+  --- `{ by_length = function(h, lines) return #lines end }`.
+  sort_functions = {},
+  --- TAB on a list item folds its children and text
+  --- (org-cycle-include-plain-lists).
+  cycle_include_plain_lists = true,
+  --- Where TAB outside headlines, items, drawers and blocks indents the
+  --- line (org-cycle-emulate-tab): true (everywhere), "white" (blank
+  --- lines only), "whitestart" (before the first non-blank character),
+  --- "exc-hl-bol" (everywhere except at the start of a headline) or false.
+  cycle_emulate_tab = true,
+  --- Blank lines needed at the end of a subtree for one of them to stay
+  --- visible when it is folded (org-cycle-separator-lines).
+  cycle_separator_lines = 2,
+  --- Edits inside folded text: false (allow), "error", "show" (unfold
+  --- first), "show-and-error" or "smart" (unfold, and refuse edits in
+  --- text that was hidden) (org-fold-catch-invisible-edits).
+  catch_invisible_edits = "smart",
+  --- Single-letter commands at the start of a headline
+  --- (org-use-speed-commands). See `:h org-speed-commands`.
+  use_speed_commands = false,
+  --- Extra or changed speed commands: `{ key = action name | function | false }`.
+  speed_commands = {},
+  --- Headlines of this level or deeper are inline tasks
+  --- (org-inlinetask-min-level). false turns inline tasks off, like Emacs
+  --- without the org-inlinetask module; Emacs uses 15 once it is loaded.
+  inlinetask_min_level = false,
+  --- TODO keyword of new inline tasks (org-inlinetask-default-state).
+  inlinetask_default_state = nil,
+  --- Block types offered by insert_structure_template, by key
+  --- (org-structure-template-alist). `false` removes one.
+  structure_template_alist = {
+    a = "export ascii",
+    c = "center",
+    C = "comment",
+    e = "example",
+    E = "export",
+    h = "export html",
+    l = "export latex",
+    q = "quote",
+    s = "src",
+    v = "verse",
+  },
+  --- Expand `<s` + TAB (Insert mode) into a block and `<L` + TAB into a
+  --- `#+latex: ` keyword (the org-tempo module, off by default like in
+  --- Emacs). Blocks come from `structure_template_alist`.
+  tempo = false,
+  --- Keywords for tempo expansion (org-tempo-keywords-alist).
+  tempo_keywords = { L = "latex", H = "html", A = "ascii", i = "index" },
+  --- Labels of new footnotes (org-footnote-auto-label): true (fn:N),
+  --- false (prompt), "confirm" (prompt with fn:N as default), "random" or
+  --- "plain" (like true), "anonymous" (`[fn:: text]`). #+STARTUP: fnauto,
+  --- fnprompt, fnconfirm, fnplain, fnanon; fnlocal sets footnote_section = false.
+  footnote_auto_label = true,
+  --- Renumber and / or sort footnotes after inserting or deleting one
+  --- (org-footnote-auto-adjust): false, true, "sort" or "renumber".
+  --- #+STARTUP: fnadjust / nofnadjust.
+  footnote_auto_adjust = false,
+  --- Define new footnotes inline, `[fn:N: text]` at the reference
+  --- (org-footnote-define-inline). #+STARTUP: fninline / nofninline.
+  footnote_define_inline = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
   --- { rounding of the current time in date prompts, minute step of
@@ -484,10 +556,34 @@ M.defaults = {
     bullets = false, -- e.g. { "◉", "○", "✸", "✿" }
     --- Replace checkboxes with icons. false or { unchecked, partial, checked }
     checkboxes = false, -- e.g. { " ", "◐", "✓" }
-    --- Virtual indentation of body text (org-indent-mode).
+    --- Virtual indentation of body text (org-indent-mode, org-startup-indented;
+    --- #+STARTUP: indent / noindent).
     indent_mode = false,
-    --- Render \alpha etc. as unicode (org-pretty-entities).
+    --- Render \alpha etc. as unicode (org-pretty-entities; #+STARTUP:
+    --- entitiespretty / entitiesplain, toggle with toggle_pretty_entities).
     pretty_entities = false,
+    --- With pretty_entities, also show x^2 and a_{i} as super- and
+    --- subscripts (org-pretty-entities-include-sub-superscripts).
+    pretty_entities_include_sub_superscripts = true,
+    --- Which `^` / `_` are sub/superscripts: true, "{}" (only with braces)
+    --- or false (org-use-sub-superscripts; #+OPTIONS: ^:{}).
+    use_sub_superscripts = true,
+    --- Number headlines with virtual text (org-num-mode, org-startup-numerated;
+    --- #+STARTUP: num / nonum). Toggle with num_mode.
+    num = false,
+    --- Deepest numbered level, nil = all (org-num-max-level).
+    num_max_level = nil,
+    --- Don't number COMMENT subtrees (org-num-skip-commented).
+    num_skip_commented = false,
+    --- Don't number the footnote section (org-num-skip-footnotes).
+    num_skip_footnotes = false,
+    --- Tags whose subtrees are not numbered (org-num-skip-tags).
+    num_skip_tags = {},
+    --- Don't number subtrees with an UNNUMBERED property (org-num-skip-unnumbered).
+    num_skip_unnumbered = false,
+    --- function(numbers) -> string, the text shown before the headline
+    --- (org-num-format-function). nil = "1.2.3 ".
+    num_format_function = nil,
     --- Dim the whole headline of DONE entries.
     fontify_done_headline = true,
     --- Syntax-include the languages of src blocks for highlighting.
@@ -555,6 +651,9 @@ M.defaults = {
       toggle_heading = "<prefix>*",
       toggle_item = "<prefix>-",
       emphasize = "<prefix>E",
+      mark_element = "<prefix>v",
+      narrow_block = "<prefix>nb",
+      narrow_element = "<prefix>ne",
       goto_parent = "g{",
       next_heading = "]]",
       prev_heading = "[[",
@@ -695,6 +794,19 @@ M.defaults = {
       paste_special = "<C-c><C-x><C-y>",
       mark_subtree = "<C-c>@",
       indirect_subtree = "<C-c><C-x>b",
+      -- elements (M-h org-mark-element is taken by meta_left)
+      forward_element = "<M-}>",
+      backward_element = "<M-{>",
+      up_element = "<C-c><C-^>",
+      down_element = "<C-c><C-_>",
+      transpose_element = "<C-M-t>",
+      next_block = "<C-c><M-f>",
+      previous_block = "<C-c><M-b>",
+      toggle_fixed_width = "<C-c>:",
+      list_make_subtree = "<C-c><C-*>",
+      toggle_radio_button = "<C-c><C-x><C-r>",
+      toggle_pretty_entities = "<C-c><C-x>\\",
+      inlinetask_insert = "<C-c><C-x>t",
       -- visibility
       show_branches = "<C-c><C-k>",
       show_children = "<C-c><Tab>",

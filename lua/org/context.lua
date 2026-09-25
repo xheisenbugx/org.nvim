@@ -81,11 +81,9 @@ function M.context_action()
     return require("org.tags").set_tags()
   end
   local item = list_item(lnum)
-  if item then
-    if item.checkbox then
-      return require("org.lists").toggle_checkbox()
-    end
-    return require("org.lists").repair(0, lnum)
+  if item and item.lnum == lnum then
+    local arg = vim.v.count > 0 and (vim.v.count >= 16 and 16 or 4) or nil
+    return require("org.lists").ctrl_c_ctrl_c_item(item, arg)
   end
   if line:match("^#%+") then
     require("org.buffer").refresh(0)
@@ -96,7 +94,7 @@ function M.context_action()
   if ts then
     return require("org.timestamps").normalize_at_cursor()
   end
-  utils.notify("C-c C-c: nothing to do here")
+  utils.warn("C-c C-c can do nothing useful here")
 end
 
 --- Open link / follow footnote / show agenda for timestamp.
@@ -138,35 +136,75 @@ end
 ---------------------------------------------------------------------------
 
 -- Like Emacs, leave the cursor on the new heading/item ready to type.
-local function after_insert(_)
-  vim.cmd("startinsert!")
+local function after_insert(insert_mode)
+  if insert_mode then
+    return
+  end
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  if col >= #vim.api.nvim_get_current_line() then
+    vim.cmd("startinsert!")
+  else
+    vim.cmd("startinsert")
+  end
 end
 
+--- Where M-RET acts: in Insert mode at the cursor (splitting the line
+--- when `meta_return_split_line` allows it); in Normal mode at the end of
+--- the line without splitting, or at its beginning in column 0.
+local function meta_return_point(insert_mode)
+  local pos = vim.api.nvim_win_get_cursor(0)
+  if insert_mode then
+    return pos, nil
+  end
+  if pos[2] == 0 then
+    return pos, false
+  end
+  return { pos[1], #vim.api.nvim_get_current_line() }, false
+end
+
+--- The C-u prefix of M-RET given as a count: 16 or more is C-u C-u.
+local function prefix_arg()
+  local c = vim.v.count
+  if c == 0 then
+    return nil
+  end
+  return c >= 16 and 16 or 4
+end
+
+--- M-RET (org-meta-return): a new item in a list, else a new headline
+--- (org-insert-heading). With a count (C-u / C-u C-u), always a headline
+--- after the subtree / at the end of the parent's subtree.
 function M.meta_return()
   local insert_mode = vim.fn.mode():sub(1, 1) == "i"
   local lnum, _, line = cur()
-  if in_table(line) then
+  local arg = prefix_arg()
+  if in_table(line) and not arg then
     require("org.table").insert_row(false)
     return
   end
-  if list_item(lnum) and not is_headline(line) then
-    require("org.lists").new_item({})
+  local pos, split = meta_return_point(insert_mode)
+  if not arg and list_item(lnum) and not is_headline(line) then
+    require("org.lists").new_item({ pos = pos, split = split })
     after_insert(insert_mode)
     return
   end
-  require("org.structure").meta_return_heading({})
+  require("org.structure").meta_return_heading({ pos = pos, split = split, arg = arg })
   after_insert(insert_mode)
 end
 
+--- M-S-RET (org-insert-todo-heading): a checkbox item in a list, else a
+--- TODO headline with the keyword of the current entry (the first one
+--- when it is done, or with a count).
 function M.meta_shift_return()
   local insert_mode = vim.fn.mode():sub(1, 1) == "i"
   local lnum, _, line = cur()
+  local pos, split = meta_return_point(insert_mode)
   if list_item(lnum) and not is_headline(line) then
-    require("org.lists").new_item({ checkbox = true })
+    require("org.lists").new_item({ checkbox = true, pos = pos, split = split })
     after_insert(insert_mode)
     return
   end
-  require("org.structure").meta_return_heading({ todo = true })
+  require("org.structure").meta_return_heading({ todo = true, pos = pos, split = split, arg = prefix_arg() })
   after_insert(insert_mode)
 end
 
@@ -191,6 +229,14 @@ end
 -- Promote / demote / move
 ---------------------------------------------------------------------------
 
+local function item_line(lnum)
+  return require("org.lists").item_on(0, lnum)
+end
+
+local function special_context_error()
+  utils.warn("This command is active in special context like tables, headlines or items")
+end
+
 function M.promote()
   local lnum, _, line = cur()
   if is_headline(line) then
@@ -199,7 +245,7 @@ function M.promote()
     end
     return
   end
-  if list_item(lnum) then
+  if item_line(lnum) then
     return require("org.lists").indent_item(-1, false)
   end
   return false
@@ -213,7 +259,7 @@ function M.demote()
     end
     return
   end
-  if list_item(lnum) then
+  if item_line(lnum) then
     return require("org.lists").indent_item(1, false)
   end
   return false
@@ -221,7 +267,7 @@ end
 
 function M.promote_subtree()
   local lnum, _, line = cur()
-  if list_item(lnum) and not is_headline(line) then
+  if item_line(lnum) and not is_headline(line) then
     return require("org.lists").indent_item(-1, true)
   end
   if files.get_buffer(0):headline_at(lnum) then
@@ -232,7 +278,7 @@ end
 
 function M.demote_subtree()
   local lnum, _, line = cur()
-  if list_item(lnum) and not is_headline(line) then
+  if item_line(lnum) and not is_headline(line) then
     return require("org.lists").indent_item(1, true)
   end
   if files.get_buffer(0):headline_at(lnum) then
@@ -245,9 +291,38 @@ local function visual_active()
   return vim.fn.mode():match("^[vV\22]") ~= nil
 end
 
+--- First non-blank line of the Visual selection, and the selection.
+local function region()
+  local s, _, e = utils.visual_range()
+  local lines = vim.api.nvim_buf_get_lines(0, s - 1, e, false)
+  local first = s
+  for i, l in ipairs(lines) do
+    if l:match("%S") then
+      first = s + i - 1
+      break
+    end
+  end
+  return first, s, e
+end
+
+--- M-left / M-right with a Visual selection: promote / demote its
+--- headlines, or outdent / indent its items (org-metaleft/right).
+local function meta_left_right_region(delta)
+  local first, s, e = region()
+  local line = vim.api.nvim_buf_get_lines(0, first - 1, first, false)[1] or ""
+  if is_headline(line) then
+    return require("org.structure").change_level_region(delta)
+  end
+  if item_line(first) then
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    return require("org.lists").indent_item(delta, false, { s, e })
+  end
+  return false
+end
+
 function M.meta_left()
   if visual_active() then
-    return require("org.structure").change_level_region(-1)
+    return meta_left_right_region(-1)
   end
   local _, _, line = cur()
   if in_table(line) then
@@ -258,7 +333,7 @@ end
 
 function M.meta_right()
   if visual_active() then
-    return require("org.structure").change_level_region(1)
+    return meta_left_right_region(1)
   end
   local _, _, line = cur()
   if in_table(line) then
@@ -267,29 +342,43 @@ function M.meta_right()
   return M.demote()
 end
 
+--- M-S-left / M-S-right: promote / demote the subtree, outdent / indent
+--- the item with its children, delete / insert a table column.
 function M.shift_meta_left()
-  local _, _, line = cur()
+  local lnum, _, line = cur()
   if in_table(line) then
     return require("org.table").delete_column()
   end
-  if is_headline(line) or list_item(utils.cursor()) then
-    return M.promote_subtree()
+  if is_headline(line) then
+    return require("org.structure").promote_subtree()
   end
-  return false
+  if item_line(lnum) then
+    return require("org.lists").indent_item(-1, true)
+  end
+  special_context_error()
 end
 
 function M.shift_meta_right()
-  local _, _, line = cur()
+  local lnum, _, line = cur()
   if in_table(line) then
     return require("org.table").insert_column()
   end
-  if is_headline(line) or list_item(utils.cursor()) then
-    return M.demote_subtree()
+  if is_headline(line) then
+    return require("org.structure").demote_subtree()
   end
-  return false
+  if item_line(lnum) then
+    return require("org.lists").indent_item(1, true)
+  end
+  special_context_error()
 end
 
+--- M-up (org-metaup): move the subtree, item or table row up; with a
+--- Visual selection, the selected subtrees or lines; elsewhere drag the
+--- element (paragraph, block, ...) above the previous one.
 function M.meta_up()
+  if visual_active() then
+    return require("org.structure").move_region(-1)
+  end
   local lnum, _, line = cur()
   if in_table(line) then
     return require("org.table").move_row(-1)
@@ -297,13 +386,17 @@ function M.meta_up()
   if is_headline(line) then
     return require("org.structure").move_subtree_up()
   end
-  if list_item(lnum) then
+  if item_line(lnum) then
     return require("org.lists").move_item(-1)
   end
-  return false
+  return require("org.element").drag_backward()
 end
 
+--- M-down (org-metadown), see meta_up.
 function M.meta_down()
+  if visual_active() then
+    return require("org.structure").move_region(1)
+  end
   local lnum, _, line = cur()
   if in_table(line) then
     return require("org.table").move_row(1)
@@ -311,10 +404,10 @@ function M.meta_down()
   if is_headline(line) then
     return require("org.structure").move_subtree_down()
   end
-  if list_item(lnum) then
+  if item_line(lnum) then
     return require("org.lists").move_item(1)
   end
-  return false
+  return require("org.element").drag_forward()
 end
 
 local function timestamp_under_cursor()
@@ -442,13 +535,17 @@ function M.ctrl_c_minus()
   return require("org.lists").toggle_item()
 end
 
---- C-c RET: hline and move in a table, else insert a heading.
+--- C-c RET (org-ctrl-c-ret): hline and move in a table, else insert a
+--- heading like M-RET (org-insert-heading), even in a list.
 function M.ctrl_c_ret()
   local _, _, line = cur()
   if in_table(line) then
     return require("org.table").hline_and_move(vim.v.count > 0)
   end
-  return require("org.structure").insert_heading()
+  local insert_mode = vim.fn.mode():sub(1, 1) == "i"
+  local pos, split = meta_return_point(insert_mode)
+  require("org.structure").meta_return_heading({ pos = pos, split = split, arg = prefix_arg() })
+  after_insert(insert_mode)
 end
 
 --- C-c C-x M-w / C-w / C-y: table rectangle in tables, else subtree.

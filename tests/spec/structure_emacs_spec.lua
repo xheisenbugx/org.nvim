@@ -51,19 +51,26 @@ describe("lists: checkboxes", function()
     eq({ "* H [3/3]", "- [X] a", "- [X] b", "- [X] c" }, buf_lines(buf))
   end)
 
-  it("adds checkboxes to a selection without any", function()
+  -- Emacs org-toggle-checkbox: only C-u adds checkboxes
+  it("adds checkboxes to a selection only with a count", function()
     local buf = org_buffer({ "- a", "- b" }, { 1, 0 })
     keys("Vj<C-Space>")
+    eq({ "- a", "- b" }, buf_lines(buf))
+    keys("ggVj4<C-Space>")
     eq({ "- [ ] a", "- [ ] b" }, buf_lines(buf))
   end)
 
   it("4<C-Space> removes the checkbox, 16<C-Space> sets [-]", function()
-    local buf = org_buffer({ "- [X] a", "- b" }, { 1, 0 })
+    local buf = org_buffer({ "- [X] a", "- [ ] b", "- c" }, { 1, 0 })
     keys("4<C-Space>")
     eq("- a", buf_lines(buf)[1])
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     keys("16<C-Space>")
     eq("- [-] b", buf_lines(buf)[2])
+    -- without a box, C-u C-u leaves the item alone
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    keys("16<C-Space>")
+    eq("- c", buf_lines(buf)[3])
   end)
 end)
 
@@ -305,7 +312,7 @@ describe("footnotes: maintenance", function()
   it("sorts definitions in reference order", function()
     local buf = org_buffer({ "a[fn:b] c[fn:a]", "", "* Footnotes", "[fn:a] A", "", "[fn:b] B", "", "[fn:z] orphan" })
     fn.sort(buf)
-    eq({ "a[fn:b] c[fn:a]", "", "* Footnotes", "[fn:b] B", "", "[fn:a] A", "", "[fn:z] orphan" }, buf_lines(buf))
+    eq({ "a[fn:b] c[fn:a]", "", "* Footnotes", "", "[fn:b] B", "", "[fn:a] A", "", "[fn:z] orphan" }, buf_lines(buf))
   end)
 
   it("normalizes inline and named footnotes", function()
@@ -316,6 +323,7 @@ describe("footnotes: maintenance", function()
       "x[fn:1] y[fn:2] z[fn:1]",
       "",
       "* Footnotes",
+      "",
       "[fn:1] Named.",
       "",
       "[fn:2] inline text",
@@ -344,7 +352,7 @@ describe("footnotes: maintenance", function()
     local buf = org_buffer({ "* A", "Hello", "* B", "x" }, { 2, 4 })
     fn.new_footnote({ no_insert = true })
     config.opts.footnote_section = "Footnotes"
-    eq({ "* A", "Hello[fn:1]", "", "[fn:1] ", "", "* B", "x" }, buf_lines(buf))
+    eq({ "* A", "Hello[fn:1]", "", "[fn:1] ", "* B", "x" }, buf_lines(buf))
   end)
 
   it("offers to create a missing definition", function()
@@ -354,7 +362,7 @@ describe("footnotes: maintenance", function()
     end, function()
       fn.action_at_point()
     end)
-    eq({ "Text[fn:x] more", "", "* Footnotes", "[fn:x] " }, buf_lines(buf))
-    eq(4, cursor_line())
+    eq({ "Text[fn:x] more", "", "* Footnotes", "", "[fn:x] " }, buf_lines(buf))
+    eq(5, cursor_line())
   end)
 end)
