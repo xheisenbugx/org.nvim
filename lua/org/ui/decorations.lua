@@ -189,13 +189,14 @@ function M.compute(bufnr)
   if not enabled(ui) then
     return rows
   end
-  local function set(row, col, opts)
+  ---@param persist? boolean draw as a real extmark (see `is_persistent`)
+  local function set(row, col, opts, persist)
     local r = rows[row]
     if not r then
       r = {}
       rows[row] = r
     end
-    r[#r + 1] = { col, opts }
+    r[#r + 1] = { col, opts, persist }
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local level = 0
@@ -231,23 +232,29 @@ function M.compute(bufnr)
           right_gravity = false,
         })
       end
+      -- Overlays on the stars share column 0 with the indent-mode prefix;
+      -- an ephemeral overlay there is drawn over the inline prefix instead
+      -- of the stars, so they are real extmarks like the prefix.
+      local persist = ui.indent_mode and level > 1
       if bullets then
+        -- leading stars hidden, the last one replaced by the level's bullet
+        -- (org-superstar), so the title stays at column 2n in indent mode
         local b = bullets[((level - 1) % #bullets) + 1]
-        local pad = ui.indent_mode and "" or string.rep(" ", level - 1)
+        local chunks = { { b, group } }
+        if level > 1 then
+          table.insert(chunks, 1, { string.rep(" ", level - 1), "OrgHiddenStars" })
+        end
         set(row, 0, {
-          virt_text = { { pad .. b, group } },
+          virt_text = chunks,
           virt_text_pos = "overlay",
           hl_mode = "combine",
-        })
-        if ui.indent_mode and level > 1 then
-          set(row, 0, { end_col = level - 1, conceal = "" })
-        end
+        }, persist)
       elseif ui.hide_leading_stars then
         if level > 1 then
           set(row, 0, {
             virt_text = { { string.rep(" ", level - 1), "OrgHiddenStars" } },
             virt_text_pos = "overlay",
-          })
+          }, persist)
         end
       end
       local n = nums[row]
@@ -431,8 +438,11 @@ local current ---@type table<integer, table[]>?
 local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
 local inline_tick = {} ---@type table<integer, integer>
 
-local function is_inline(opts)
-  return opts.virt_text_pos == "inline"
+--- Marks drawn as real extmarks instead of ephemeral ones: inline virtual
+--- text (which can't be ephemeral) and overlays that must be placed after
+--- an inline mark at the same column.
+local function is_persistent(m)
+  return m[3] or m[2].virt_text_pos == "inline"
 end
 
 local function sync_inline(bufnr, rows)
@@ -444,7 +454,7 @@ local function sync_inline(bufnr, rows)
   vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
   for row, marks in pairs(rows) do
     for _, m in ipairs(marks) do
-      if is_inline(m[2]) then
+      if is_persistent(m) then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_inline, row, m[1], m[2])
       end
     end
@@ -466,7 +476,7 @@ vim.api.nvim_set_decoration_provider(ns, {
       return
     end
     for _, m in ipairs(marks) do
-      if not is_inline(m[2]) then
+      if not is_persistent(m) then
         local opts = vim.tbl_extend("force", m[2], { ephemeral = true })
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, row, m[1], opts)
       end
