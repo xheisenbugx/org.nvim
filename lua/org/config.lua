@@ -174,6 +174,15 @@ M.defaults = {
     use_outline_path = "file", -- "file" | true | false
     allow_creating_parent_nodes = false,
     include_current_file = true,
+    --- Target specs like org-refile-targets; replaces max_level /
+    --- include_current_file when non-empty. See `:h org-refile`.
+    targets = {},
+    --- function(headline) -> boolean, filters targets (org-refile-target-verify-function).
+    verify = nil,
+    --- Log refiling: false | "time" | "note" (org-log-refile).
+    log = false,
+    --- Refile as the first child instead of the last (org-reverse-note-order).
+    reverse_note_order = false,
   },
 
   ---------------------------------------------------------------------------
@@ -431,6 +440,7 @@ M.defaults = {
       prev_link = "<prefix>lp",
       -- refile / archive / attach
       refile = "<prefix>r",
+      refile_copy = "<prefix>R",
       archive_subtree = "<prefix>$",
       attach = "<prefix>A",
       -- search / export
@@ -549,7 +559,8 @@ M.defaults = {
       prev_link = "<C-c><C-x><C-p>",
       -- refile / archive / attach / agenda files
       refile = "<C-c><C-w>",
-      archive_subtree = { "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
+      refile_copy = "<C-c><M-w>",
+      archive_subtree ={ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
       toggle_archive_tag = "<C-c><C-x>a",
       archive_to_sibling = "<C-c><C-x>A",
       attach = "<C-c><C-a>",

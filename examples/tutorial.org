@@ -666,6 +666,11 @@ Targets look like =tutorial.org/Refile and archive/Projects=.
 
 *Try:* refile "A stray idea" under "Projects".
 
+=<prefix>R= copies the subtree instead, leaving the original in place, and
+=:Org refile_goto_last= jumps to wherever the last refile or capture went.
+=refile.targets= picks the targets like Emacs' =org-refile-targets=, e.g.
+={ { files = "agenda", tag = "project" } }=.
+
 *** A stray idea
 *** Projects
 **** Existing project

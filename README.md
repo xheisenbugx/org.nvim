@@ -155,8 +155,8 @@ back to where you were.
 | 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
 | 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
-| 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
-| 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
+| 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp, ID, clock and function targets; all the common `%`-escapes |
+| 📦 | **Refile and archive** | Refile or copy to any headline in the agenda files, with Emacs-style target specs and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, effort estimates, a statusline component, clocks that survive restarts, `clocktable` blocks, column view |
 | 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
@@ -329,7 +329,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>xi` `xo` `xq` `xj` `xe` | Clock in / out / cancel / goto / set effort |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
-| `<prefix>r` `$` `A` | Refile / archive subtree / attachments |
+| `<prefix>r` `R` `$` `A` | Refile / copy to a refile target / archive subtree / attachments |
 | `<prefix>/` `e` | Sparse tree / export dispatcher |
 | `<prefix>Tc` `T-` `Tf` `Ts` `Tr` `TR` `Ti` `TI` | Table: create/convert, hline, recalc, sort, insert/delete row, insert/delete column |
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
@@ -442,10 +442,13 @@ Target options:
 - `olp`: an outline path, as a list of headlines.
 - `datetree`: `true`, or `{ tree_type = "week" | "month" }`.
 - `regexp`: insert under the first line matching this pattern.
+- `id`: insert under the entry with this ID.
+- `target = "clock"`: insert under the task being clocked.
 
 Other options: `type`, `prepend`, `empty_lines`, `properties`,
 `immediate_finish`, `jump_to_captured`, `clock_in`, `clock_resume`,
-`time_prompt`.
+`time_prompt`, `no_save`, and the `prepare_finalize`, `before_finalize`
+and `after_finalize` hook functions.
 
 <details>
 <summary><b>Template expansions</b> (click to expand)</summary>
@@ -466,6 +469,7 @@ Other options: `type`, `prepend`, `empty_lines`, `properties`,
 | `%^g` `%^G` | tags prompt |
 | `%^{PROP}p` | property prompt |
 | `%k` `%K` | the running clock's task / a link to it |
+| `%(expr)` | the value of a Lua expression (Emacs: elisp) |
 | `%%` | a literal `%` |
 
 </details>

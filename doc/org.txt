@@ -584,6 +584,8 @@ Template fields:
   regexp             insert after the first line matching this Lua pattern
   func / function    function(bufnr) returning the line number to insert
                      under
+  id                 insert under the entry with this ID (file+id)
+  target = "clock"   insert under the currently clocked task (clock)
   prepend            insert as the first child instead of the last
   empty_lines        blank lines around the entry (also
                      empty_lines_before / empty_lines_after)
@@ -593,6 +595,10 @@ Template fields:
   clock_in           clock in while capturing
   clock_resume       resume the previous clock after finishing
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
+  no_save            don't save the target file after capturing
+  prepare_finalize   function(capture_bufnr), before the text is read
+  before_finalize    function(bufnr, lnum) in the target, before saving
+  after_finalize     function(bufnr, lnum) when the capture is done
 
 Template expansions:                               *org-capture-expansions*
   %?           cursor position
@@ -613,10 +619,18 @@ Template expansions:                               *org-capture-expansions*
   %\1 ...      the answer to the Nth prompt
   %^g %^G      tags prompt
   %^{PROP}p    property prompt
+  %(expr)      the value of a Lua expression, e.g. %(os.getenv("HOST"))
+               (Emacs: an elisp sexp)
   %%           a literal %
 
 Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
 `<C-c><C-w>` refiles (also `<prefix>w`, `<prefix>k`, `<prefix>r`).
+
+:Org capture_goto_target  choose a template and jump to its target
+                          (C-u C-c c in Emacs)
+:Org capture_goto_last    jump to the last captured (or refiled) entry
+                          (C-u C-u C-c c)
+From the agenda, `c` captures with the date at point as the default date.
 
 ==============================================================================
 15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
@@ -626,7 +640,31 @@ Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
                 "file.org/Parent/Child", up to `refile.max_level`. With
                 `refile.allow_creating_parent_nodes`, you can type
                 "file.org/Parent/New" to create missing parents.
-:Org refile_goto   Jump to a refile target.
+<prefix>R       Copy the subtree to a refile target, keeping the original
+                (org-refile-copy, <C-c><M-w>).
+:Org refile_goto       Jump to a refile target (C-u C-c C-w).
+:Org refile_goto_last  Jump to where the last refile or capture went
+                       (C-u C-u C-c C-w).
+
+Refile options:
+  targets             like org-refile-targets; when non-empty it replaces
+                      `max_level` / `include_current_file`. A list of
+                      specs, each with `files` ("agenda", "current" (the
+                      default), a path or glob, a list, or a function) and
+                      any of `max_level`, `level`, `tag`, `todo`,
+                      `regexp` (Vim regexp on the headline):
+>lua
+    refile = { targets = {
+      { files = "current", max_level = 2 },
+      { files = "agenda", tag = "project" },
+      { files = "~/org/someday.org", level = 1 },
+    } }
+<
+  verify              function(headline) -> boolean to drop targets
+                      (org-refile-target-verify-function)
+  log                 false | "time" | "note": add "Refiled on [date]"
+                      to the entry's logbook (org-log-refile)
+  reverse_note_order  refile as the first child (org-reverse-note-order)
 
 <prefix>$       Archive the subtree. The location comes from the ARCHIVE
                 property, then `#+ARCHIVE:`, then `archive_location`
@@ -1005,7 +1043,8 @@ capture ~
   templates (|org-capture-templates|), window
 refile ~
   max_level 3, use_outline_path "file", allow_creating_parent_nodes false,
-  include_current_file true
+  include_current_file true, targets {}, verify nil, log false,
+  reverse_note_order false
 clock ~
   out_when_done true, into_drawer true, out_remove_zero_time true,
   in_switch_to_state nil (keyword or function(headline)),
@@ -1083,6 +1122,7 @@ Section `org` (default key: action):
   <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
                           next/prev_link
   <prefix>r  refile   <prefix>$  archive_subtree   <prefix>A  attach
+  <prefix>R  refile_copy
   <prefix>/  sparse_tree            <prefix>e  export
   <prefix>Tc T- Tf Ts Tr TR Ti TI   table_create, table_insert_hline,
       table_recalc, table_sort, table_insert/delete_row,
@@ -1156,6 +1196,7 @@ Links, refile, archive, export:
   <C-c><C-l>  insert link    <C-c><C-o>  open at point
   <C-c><C-x><C-n> <C-p>  next / previous link
   <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><M-w>  copy to a refile target
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)

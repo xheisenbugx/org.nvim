@@ -1,9 +1,13 @@
 ---@mod org.refile Refiling subtrees
 ---
 --- Targets are headlines in the agenda files (plus the current file) up to
---- `refile.max_level`, and the files themselves (top level).
+--- `refile.max_level`, and the files themselves (top level). With
+--- `refile.targets` (like org-refile-targets) they come from specs:
+---   { files = "agenda"|"current"|path(s)|function, max_level?, level?,
+---     tag?, todo?, regexp? }
 
 local config = require("org.config")
+local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
 local utils = require("org.utils")
@@ -21,17 +25,67 @@ local function file_label(path)
   return vim.fn.fnamemodify(path, ":t")
 end
 
---- All refile targets.
----@param opts? { exclude?: { filename: string, s: integer, e: integer } }
----@return org.RefileTarget[]
-function M.targets(opts)
-  opts = opts or {}
-  local rcfg = config.opts.refile or {}
-  local max_level = rcfg.max_level or 3
-  local style = rcfg.use_outline_path
-  if style == nil then
-    style = "file"
+--- Files for a `refile.targets` spec: "agenda", "current", a path/glob or
+--- a list of them, or a function returning paths (nil = current file).
+local function spec_files(spec_files_value)
+  local v = spec_files_value
+  if type(v) == "function" then
+    v = v()
   end
+  if v == nil or v == "current" then
+    return utils.is_org() and { files.get_buffer(0) } or {}
+  elseif v == "agenda" then
+    return files.agenda_files()
+  end
+  local out = {}
+  for _, p in ipairs(utils.glob_org_files(type(v) == "table" and v or { v })) do
+    local f = files.get(p)
+    if f then
+      out[#out + 1] = f
+    end
+  end
+  return out
+end
+
+--- Does `hl` satisfy a `refile.targets` spec?
+local function spec_matches(spec, hl)
+  if spec.level and hl.level ~= spec.level then
+    return false
+  end
+  local max = spec.max_level or spec.maxlevel
+  if max and hl.level > max then
+    return false
+  end
+  if spec.tag and not vim.tbl_contains(hl.tags, spec.tag) then
+    return false
+  end
+  if spec.todo and hl.todo ~= spec.todo then
+    return false
+  end
+  if spec.regexp and vim.fn.match(hl.raw, spec.regexp) < 0 then
+    return false
+  end
+  return true
+end
+
+--- (file, predicate) pairs describing where targets come from.
+local function target_sources()
+  local rcfg = config.opts.refile or {}
+  local sources = {}
+  if rcfg.targets and #rcfg.targets > 0 then
+    for _, spec in ipairs(rcfg.targets) do
+      for _, f in ipairs(spec_files(spec.files)) do
+        sources[#sources + 1] = {
+          file = f,
+          pred = function(hl)
+            return spec_matches(spec, hl)
+          end,
+        }
+      end
+    end
+    return sources
+  end
+  local max_level = rcfg.max_level or 3
   local list = files.agenda_files()
   if rcfg.include_current_file ~= false and utils.is_org() then
     local cur = files.get_buffer(0)
@@ -46,17 +100,46 @@ function M.targets(opts)
       table.insert(list, 1, cur)
     end
   end
-  local out = {}
   for _, f in ipairs(list) do
+    sources[#sources + 1] = {
+      file = f,
+      pred = function(hl)
+        return hl.level <= max_level
+      end,
+    }
+  end
+  return sources
+end
+
+--- All refile targets.
+---@param opts? { exclude?: { filename: string, s: integer, e: integer } }
+---@return org.RefileTarget[]
+function M.targets(opts)
+  opts = opts or {}
+  local rcfg = config.opts.refile or {}
+  local style = rcfg.use_outline_path
+  if style == nil then
+    style = "file"
+  end
+  local verify = rcfg.verify
+  local out = {}
+  local seen = {}
+  for _, src in ipairs(target_sources()) do
+    local f = src.file
     if f.filename then
       local fname = file_label(f.filename)
-      out[#out + 1] = { filename = f.filename, olp = {}, label = fname .. "/" }
+      if not seen[f.filename] then
+        out[#out + 1] = { filename = f.filename, olp = {}, label = fname .. "/" }
+      end
+      seen[f.filename] = true
       for _, hl in ipairs(f.headlines) do
         local excluded = opts.exclude
           and opts.exclude.filename == f.filename
           and hl.line >= opts.exclude.s
           and hl.line <= opts.exclude.e
-        if hl.level <= max_level and not excluded then
+        local key = f.filename .. ":" .. hl.line
+        if not excluded and not seen[key] and src.pred(hl) and (not verify or verify(hl)) then
+          seen[key] = true
           local olp = hl:outline_path()
           olp[#olp + 1] = hl:plain_title()
           local label
@@ -256,37 +339,91 @@ local function save_if_hidden(bufnr)
   end
 end
 
+--- Where the last refile / capture went: { filename|bufnr, lnum, raw }.
+M.last_stored = nil
+
+--- Remember the headline at (bufnr, lnum) as the last stored location.
+function M.remember(bufnr, lnum)
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  M.last_stored = { bufnr = bufnr, filename = name ~= "" and name or nil, lnum = lnum, raw = line }
+end
+
+--- Log a refile note under the moved entry (org-log-refile).
+local function log_refile(bufnr, lnum)
+  local mode = (config.opts.refile or {}).log
+  if not mode then
+    return
+  end
+  local note
+  if mode == "note" then
+    note = utils.input({ prompt = "Refile note: " })
+    if note == nil then
+      note = ""
+    end
+  end
+  local ts = date.now():clone({ active = false }):to_string()
+  edit.add_log_entry(bufnr, lnum, edit.log_lines("- Refiled on " .. ts, note))
+end
+
+local function with_note_order(dest)
+  if dest.prepend == nil and (config.opts.refile or {}).reverse_note_order then
+    return vim.tbl_extend("force", dest, { prepend = true })
+  end
+  return dest
+end
+
 --- Refile the subtree at target (org-refile).
 ---@param target? org.Target
----@param opts? { dest?: org.RefileTarget, save?: boolean }
+---@param opts? { dest?: org.RefileTarget, save?: boolean, copy?: boolean }
 function M.refile(target, opts)
   opts = opts or {}
   local bufnr, file, hl = edit.resolve_headline(target)
   if not hl then
     return
   end
+  local verb = opts.copy and "Copy" or "Refile"
   local dest = opts.dest
     or M.pick_target({
-      prompt = "Refile \"" .. hl:plain_title() .. "\" to",
+      prompt = verb .. ' "' .. hl:plain_title() .. '" to',
       exclude = { filename = file.filename, s = hl.line, e = hl.end_line },
     })
   if not dest then
     return
   end
+  dest = with_note_order(dest)
   local title = hl:plain_title()
-  local ok, dbuf, dline = pcall(M.move, { bufnr = bufnr, lnum = hl.line }, dest)
+  local ok, dbuf, dline
+  if opts.copy then
+    local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line - 1, hl.end_line, false)
+    while #lines > 1 and vim.trim(lines[#lines]) == "" do
+      table.remove(lines)
+    end
+    ok, dbuf, dline = pcall(M.insert_subtree, lines, dest)
+  else
+    ok, dbuf, dline = pcall(M.move, { bufnr = bufnr, lnum = hl.line }, dest)
+  end
   if not ok then
     utils.error(tostring(dbuf))
     return
   end
+  log_refile(dbuf, dline)
+  M.remember(dbuf, dline)
   if dbuf ~= bufnr then
     save_if_hidden(dbuf)
   end
   if opts.save then
     utils.save_buffer(bufnr)
   end
-  utils.notify("Refiled \"" .. title .. "\" to " .. dest.label:gsub("/$", ""))
+  utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. dest.label:gsub("/$", ""))
   return dbuf, dline
+end
+
+--- Copy the subtree at target to another location (org-refile-copy).
+---@param target? org.Target
+---@param opts? { dest?: org.RefileTarget }
+function M.refile_copy(target, opts)
+  return M.refile(target, vim.tbl_extend("force", opts or {}, { copy = true }))
 end
 
 --- Jump to a refile target (C-u C-c C-w in Emacs).
@@ -297,6 +434,40 @@ function M.goto()
   end
   vim.cmd("normal! m'")
   utils.open_file(dest.filename, dest.lnum or 1)
+end
+
+--- Jump to the location of the last refile or capture
+--- (org-refile-goto-last-stored, C-u C-u C-c C-w).
+function M.goto_last_stored()
+  local l = M.last_stored
+  if not l then
+    utils.warn("No refile or capture location stored yet")
+    return
+  end
+  local bufnr = l.bufnr
+  if not (bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
+    bufnr = l.filename and utils.load_buffer(l.filename) or nil
+  end
+  if not bufnr then
+    utils.warn("The last stored location is gone")
+    return
+  end
+  local lnum = l.lnum
+  if vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] ~= l.raw then
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+      if line == l.raw then
+        lnum = i
+        break
+      end
+    end
+  end
+  vim.cmd("normal! m'")
+  if vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    utils.open_file(vim.api.nvim_buf_get_name(bufnr), lnum)
+  else
+    vim.api.nvim_set_current_buf(bufnr)
+    pcall(vim.api.nvim_win_set_cursor, 0, { lnum, 0 })
+  end
 end
 
 return M

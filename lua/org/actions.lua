@@ -20,6 +20,8 @@ M.list = {
   -- global
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
   capture = { "org.capture", "prompt", desc = "Capture", global = true },
+  capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
+  capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
   store_link = { "org.links", "store_link", desc = "Store link to current location", global = true },
   goto_heading = { "org.agenda.search", "goto_heading", desc = "Go to heading in agenda files", global = true },
   clock_goto = { "org.clock", "goto_clock", desc = "Go to clocked task", global = true },
@@ -167,6 +169,9 @@ M.list = {
 
   -- refile / archive / attach
   refile = { "org.refile", "refile", desc = "Refile subtree" },
+  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree to a refile target" },
+  refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
+  refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
   archive_to_sibling = { "org.archive", "archive_to_sibling", desc = "Archive to Archive sibling" },
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
