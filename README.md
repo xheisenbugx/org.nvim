@@ -154,7 +154,7 @@ back to where you were.
 | ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, repeaters (`+1w`, `++1d`, `.+2d`), `ORDERED` dependencies, priorities |
 | 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
 | 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
-| 🗓️ | **Agenda** | Day to year views, a time grid, habits, log and clock-report modes, the full Emacs match syntax, custom composite commands, filters, bulk actions, follow mode |
+| 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
 | 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |

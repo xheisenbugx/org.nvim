@@ -172,6 +172,14 @@ M.list = {
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
   attach = { "org.attach", "menu", desc = "Attachments" },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
+  cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },
+  agenda_set_restriction_lock = { "org.agenda", "set_restriction_lock", desc = "Lock agenda to subtree / file" },
+  agenda_remove_restriction_lock = {
+    "org.agenda",
+    "remove_restriction_lock",
+    desc = "Remove agenda restriction lock",
+    global = true,
+  },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
 
   -- search / export

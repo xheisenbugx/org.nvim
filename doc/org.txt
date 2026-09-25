@@ -390,9 +390,19 @@ Use |org-api| `require("org").statusline()` in your statusline.
   t   global TODO list        T   TODO list for one keyword
   m   tags/property match     M   match, TODO entries only
   s   search for words or a regexp
-  #   stuck projects
+  S   like s, TODO entries only
+  n   agenda and all TODOs    #   stuck projects
+  /   multi-occur: a regexp in all agenda files, into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
   ... custom commands from `agenda.custom_commands`
+
+Restriction lock (org-agenda-set-restriction-lock):
+  <C-c><C-x><    lock every agenda command to the current subtree (to the
+                 file when not under a headline, or with a count); also
+                 in the agenda, from the entry at point
+  <C-c><C-x>>    remove the lock
+Other keys in org buffers:
+  <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
 
 Agenda view contents:
 - Entries SCHEDULED for a day. Overdue, unfinished ones show
@@ -509,7 +519,8 @@ Block options:
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
-:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|#|day|week|month|year|<key>
+:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|day|week|
+            month|year|<key>
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
@@ -1148,6 +1159,7 @@ Links, refile, archive, export:
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-'> <C-,>  next agenda file   <C-c><C-x>< >  set / remove agenda lock
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
 
 Tables:

@@ -488,8 +488,14 @@ dispatcher with =<prefix>a=:
 | =m= | a tags/properties match                          |
 | =M= | a match, TODO entries only                       |
 | =s= | search for words or a regexp                     |
+| =S= | search, TODO entries only                        |
+| =n= | the agenda and all TODOs                         |
 | =#= | stuck projects                                   |
+| =/= | a regexp in all agenda files (quickfix list)     |
 | =<= | restrict to the current file (press again: subtree) |
+
+=<C-c><C-x><= on a headline locks every agenda command to that subtree
+until =<C-c><C-x>>= removes the lock.
 
 This file is in =agenda_files= when you use =examples/minimal_init.lua=.
 Otherwise add it for this session with =<C-c>[=.

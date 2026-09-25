@@ -1581,6 +1581,22 @@ M.actions = {
   timer = function()
     call("org.timer", "countdown")
   end,
+  restriction_lock = function()
+    local item = M.item_at_cursor()
+    local target = item and M.resolve_target(item)
+    if not target then
+      return
+    end
+    local agenda = require("org.agenda")
+    agenda.set_restriction_lock(target)
+    S.restrict = agenda.lock_restriction()
+    M.redo()
+  end,
+  remove_restriction_lock = function()
+    require("org.agenda").remove_restriction_lock()
+    S.restrict = nil
+    M.redo()
+  end,
   next_item = function()
     move_to_item(1)
   end,

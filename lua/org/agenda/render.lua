@@ -508,7 +508,7 @@ function M.list_block(b, block, ctx)
     header = block.header or ("Headlines with TAGS match: " .. (block.match or ""))
     sorting = block.sorting or (acfg.sorting or {}).tags
   elseif t == "search" then
-    local pred = require("org.agenda.search").compile_text(block.match or "")
+    local pred = require("org.agenda.search").compile_text((block.todo_only and "!" or "") .. (block.match or ""))
     list = items_mod.search(ctx.files, pred, lopts)
     header = block.header or ("Search words: " .. (block.match or ""))
     sorting = block.sorting or (acfg.sorting or {}).search
