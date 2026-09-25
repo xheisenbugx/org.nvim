@@ -143,6 +143,7 @@ M.defaults = {
       following_days = 7,
       show_habits = true,
       show_all_today = false,
+      show_done_always_green = false,
     },
     stuck_projects = {
       match = "+LEVEL=2/-DONE",
