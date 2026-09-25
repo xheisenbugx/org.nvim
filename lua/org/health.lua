@@ -49,6 +49,9 @@ function M.check()
 
   h.start("org.nvim external tools")
   local pandoc = (cfg.export.pandoc or {}).cmd or "pandoc"
+  if type(pandoc) == "table" then
+    pandoc = pandoc[1]
+  end
   if vim.fn.executable(pandoc) == 1 then
     h.ok("pandoc found (LaTeX/PDF/DOCX/ODT/... export)")
   else
@@ -56,7 +59,8 @@ function M.check()
   end
   local seen = {}
   for lang, spec in pairs(cfg.babel.languages or {}) do
-    local exe = spec.cmd and vim.split(spec.cmd, "%s+")[1]
+    local cmd = type(spec) == "table" and spec.cmd
+    local exe = type(cmd) == "table" and cmd[1] or type(cmd) == "string" and vim.split(cmd, "%s+")[1] or nil
     if exe and not seen[exe] then
       seen[exe] = true
       if exe == "nvim" or vim.fn.executable(exe) == 1 then

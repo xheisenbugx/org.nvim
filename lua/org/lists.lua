@@ -250,6 +250,20 @@ local function cursor_lnum()
   return vim.api.nvim_win_get_cursor(0)[1]
 end
 
+--- Whether to put a blank line before a new item after `item`
+--- (`blank_before_new_entry.plain_list_item`; "auto": when `item` itself
+--- is preceded by a blank line).
+local function want_blank(bufnr, item)
+  local b = require("org.config").opts.blank_before_new_entry
+  local v = type(b) == "table" and b.plain_list_item
+  if v == true then
+    return true
+  elseif v == "auto" then
+    return item.lnum > 1 and is_blank(get_lines(bufnr, item.lnum - 1, item.lnum - 1)[1])
+  end
+  return false
+end
+
 ---------------------------------------------------------------------------
 -- Renumbering / repair
 ---------------------------------------------------------------------------
@@ -648,8 +662,12 @@ function M.new_item(opts)
     text = text .. " :: "
   end
   local at = item.end_lnum
-  set_lines(bufnr, at + 1, at, { text })
-  local new_lnum = at + 1
+  local new_lines = { text }
+  if want_blank(bufnr, item) and not is_blank(get_lines(bufnr, at, at)[1]) then
+    table.insert(new_lines, 1, "")
+  end
+  set_lines(bufnr, at + 1, at, new_lines)
+  local new_lnum = at + #new_lines
   M.repair(bufnr, new_lnum)
   local final = get_lines(bufnr, new_lnum, new_lnum)[1]
   local col = #final

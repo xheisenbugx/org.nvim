@@ -175,3 +175,17 @@ describe("export pandoc", function()
     vim.bo[buf].modified = false
   end)
 end)
+
+describe("export: link abbreviations", function()
+  it("expands function abbreviations", function()
+    local config = require("org.config")
+    config.opts.links.abbreviations = {
+      gh = function(tag)
+        return "https://github.com/" .. tag
+      end,
+    }
+    local _, target = ast.classify_link({ settings = { link_abbrevs = {} } }, "gh:neovim/neovim")
+    eq("https://github.com/neovim/neovim", target)
+    config.opts.links.abbreviations = {}
+  end)
+end)

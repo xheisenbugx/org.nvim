@@ -117,6 +117,23 @@ describe("lists: editing", function()
     eq({ "- [X] a", "  - sub", "- [ ] ", "- b" }, buf_lines(buf))
   end)
 
+  it("new item honours blank_before_new_entry.plain_list_item", function()
+    local config = require("org.config")
+    config.opts.blank_before_new_entry.plain_list_item = true
+    local buf = org_buffer({ "- a", "- b" }, { 1, 0 })
+    lists.new_item({})
+    eq({ "- a", "", "- ", "- b" }, buf_lines(buf))
+    eq(3, vim.api.nvim_win_get_cursor(0)[1])
+    config.opts.blank_before_new_entry.plain_list_item = "auto"
+    buf = org_buffer({ "- a", "- b", "", "- c" }, { 1, 0 })
+    lists.new_item({})
+    eq({ "- a", "- ", "- b", "", "- c" }, buf_lines(buf))
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    lists.new_item({})
+    eq({ "- a", "- ", "- b", "", "- c", "", "- " }, buf_lines(buf))
+    config.opts.blank_before_new_entry.plain_list_item = false
+  end)
+
   it("indents and outdents items", function()
     local buf = org_buffer({ "- a", "- b", "  - c" }, { 2, 0 })
     lists.indent_item(1, true)
