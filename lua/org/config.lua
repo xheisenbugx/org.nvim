@@ -251,8 +251,9 @@ M.defaults = {
     --- drawer (LOGBOOK), a drawer name, false = none, or a number N = only
     --- once the entry has N clock lines. CLOCK_INTO_DRAWER overrides it.
     into_drawer = true,
-    --- Remove CLOCK lines of 0:00 on clock out (Emacs default: nil).
-    out_remove_zero_time = true,
+    --- Remove CLOCK lines of 0:00 on clock out
+    --- (org-clock-out-remove-zero-time-clocks).
+    out_remove_zero_time = false,
     --- Round clock-in/out times to this many minutes; 0 = no rounding,
     --- "same-as-time-stamp" = `time_stamp_rounding_minutes[1]`
     --- (org-clock-rounding-minutes).
@@ -308,17 +309,18 @@ M.defaults = {
     --- Range of clock_display without a count (org-clock-display-default-range):
     --- a :block value such as "thisyear", "thismonth", "untilnow".
     display_default_range = "thisyear",
-    --- Ask to clock out when quitting Neovim with a running clock
-    --- (org-clock-ask-before-exiting; Emacs asks by default).
-    ask_before_exiting = false,
+    --- Ask to clock out (and save) when quitting Neovim with a running
+    --- clock (org-clock-ask-before-exiting).
+    ask_before_exiting = true,
     statusline_icon = "⏱",
     --- Parameters for clocktables that don't set them (org-clocktable-defaults).
     clocktable_default = { maxlevel = 2, scope = "file", block = nil },
     --- Keep the running clock and the clock history across restarts:
     --- true (both), "clock", "history" or false (org-clock-persist).
     persist = true,
-    --- Ask before resuming a saved clock (org-clock-persist-query-resume).
-    persist_query_resume = false,
+    --- Ask before resuming a saved clock after a restart
+    --- (org-clock-persist-query-resume).
+    persist_query_resume = true,
     persist_file = data_dir .. "/clock.json",
   },
 

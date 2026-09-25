@@ -1769,6 +1769,12 @@ end
 -- Persistence
 ---------------------------------------------------------------------------
 
+--- Ask whether to resume a clock found after a restart
+--- (org-clock-persist-query-resume).
+local function query_resume(title)
+  return not clock_cfg().persist_query_resume or utils.confirm("Resume clock (" .. title .. ")?")
+end
+
 --- Restore the running clock after a restart (from `clock.persist_file`).
 --- Called by `setup()` when `clock.persist` is set: `true` restores the
 --- clock and the history, `"clock"` / `"history"` only one of them.
@@ -1794,7 +1800,8 @@ function M.restore()
       if want_clock and type(data.state) == "table" and data.state.path and data.state.start then
         M.state = data.state
         if M.find_open_clock() then
-          if cfg.persist_query_resume and not utils.confirm("Resume clock (" .. M.state.title .. ")?") then
+          if not query_resume(M.state.title) then
+            -- the open CLOCK line stays, as a dangling clock to resolve
             M.state = nil
             return nil
           end
@@ -1812,6 +1819,9 @@ function M.restore()
     for _, hl in ipairs(f.headlines) do
       for _, c in ipairs(hl.clocks) do
         if not c["end"] then
+          if not query_resume(mode_line_heading(hl)) then
+            return nil
+          end
           M.state = {
             path = f.filename,
             start = c.start:clone({ active = false }):to_string({ range = false }),

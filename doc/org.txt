@@ -517,7 +517,10 @@ last one stopped, `clock.rounding_minutes` rounds clock times and
 
 Marking a clocked task done clocks it out (`clock.out_when_done`: true or a
 list of states). A running clock is restored after restarting Neovim
-(`clock.persist`: true, "clock" or "history").
+(`clock.persist`: true, "clock" or "history"), after asking
+(`clock.persist_query_resume`). Quitting with a running clock asks whether
+to clock out and save first (`clock.ask_before_exiting`). Clocks of 0:00
+are kept unless `clock.out_remove_zero_time` is set.
 
 The statusline shows `[clocked/effort] (Task)`, where the clocked time
 includes the task's earlier clocks (`clock.mode_line_total` or the
@@ -1471,7 +1474,7 @@ refile ~
   reverse_note_order false
 clock ~
   out_when_done true, into_drawer true (or a drawer name / number),
-  out_remove_zero_time true, rounding_minutes 0, in_resume false,
+  out_remove_zero_time false, rounding_minutes 0, in_resume false,
   in_switch_to_state nil (keyword or function(keyword)),
   out_switch_to_state nil (keyword or function(keyword)),
   notify_effort true, history_length 35, continuously false,
@@ -1481,9 +1484,9 @@ clock ~
   auto_clock_resolution "when-no-clock-is-running",
   report_include_clocking_task false, goto_may_find_recent_task true,
   goto_before_context 2, display_default_range "thisyear",
-  ask_before_exiting false, statusline_icon "⏱",
+  ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
-  persist true ("clock" | "history"), persist_query_resume false,
+  persist true ("clock" | "history"), persist_query_resume true,
   persist_file
 links ~
   abbreviations {}, types {}, confirm_shell true,
