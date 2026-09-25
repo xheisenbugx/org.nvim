@@ -101,7 +101,12 @@ describe("decorations", function()
   end
   local function texts(rows, row)
     return vim.tbl_map(function(m)
-      return m[2].virt_text and m[2].virt_text[1][1] or m[2].conceal
+      if m[2].virt_text then
+        return table.concat(vim.tbl_map(function(chunk)
+          return chunk[1]
+        end, m[2].virt_text))
+      end
+      return m[2].conceal
     end, rows[row] or {})
   end
 
@@ -129,6 +134,39 @@ describe("decorations", function()
       eq({}, vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}), "no persistent marks to go stale")
       local rows = deco.compute(buf)
       eq({ 3, 6, 3 }, { rows[1][1][1], rows[2][1][1], rows[3][1][1] })
+    end)
+  end)
+
+  it("indent mode: bullets and hidden stars cover the stars, after the prefix", function()
+    -- Regression: the headline overlay was ephemeral while the indent
+    -- prefix is a real inline extmark at the same column, so the overlay
+    -- was drawn over the prefix and the stars stayed visible ("○*").
+    local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
+    local function prefix_marks(buf, row)
+      local out = {}
+      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns_inline, { row, 0 }, { row, 0 }, { details = true })) do
+        out[#out + 1] = m[4].virt_text_pos .. ":" .. m[4].virt_text[#m[4].virt_text][1]
+      end
+      return out
+    end
+    with_ui({ indent_mode = true, bullets = { "◉", "○", "✸" } }, function()
+      local buf = org_buffer({ "* A", "** B", "body", "*** C" })
+      local rows = deco.compute(buf)
+      eq({ "◉" }, texts(rows, 0))
+      eq({ " ", " ○" }, texts(rows, 1))
+      eq({ "  ", "  ✸" }, texts(rows, 3))
+      for _, m in ipairs(rows[1]) do
+        eq(nil, m[2].conceal, "stars are covered, not concealed: the title stays at column 2n")
+      end
+      deco.attach(buf)
+      vim.cmd("redraw")
+      eq({ "inline: ", "overlay:○" }, prefix_marks(buf, 1))
+    end)
+    with_ui({ indent_mode = true, bullets = false }, function()
+      local buf = org_buffer({ "* A", "*** C" })
+      deco.attach(buf)
+      vim.cmd("redraw")
+      eq({ "inline:  ", "overlay:  " }, prefix_marks(buf, 1))
     end)
   end)
 
