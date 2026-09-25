@@ -1752,7 +1752,8 @@ function M.classify_link(doc, path)
   end
   if path:match("^https?://") or path:match("^ftp://") or path:match("^mailto:") or path:match("^doi:") then
     if path:match("^doi:") then
-      path = "https://doi.org/" .. path:sub(5)
+      local links_cfg = require("org.config").opts.links or {}
+      path = (links_cfg.doi_server_url or "https://doi.org/") .. path:sub(5)
     end
     local ext = path:match("%.(%w+)$")
     if ext and IMAGE[ext:lower()] then

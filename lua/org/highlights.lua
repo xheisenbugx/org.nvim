@@ -70,6 +70,7 @@ M.links = {
   orgLinkPlain = "OrgLink",
   orgLinkBracket = "OrgLink",
   orgLinkTargetHidden = "OrgLink",
+  orgRadioLink = "OrgLink",
   orgListBullet = "OrgListBullet",
   orgListTerm = "OrgListTerm",
   orgCheckbox = "OrgCheckbox",

@@ -186,16 +186,26 @@ function M.copy()
 end
 
 --- Store an `id:` link to the entry, creating the ID (org-id-store-link).
+--- With `id.link_use_context`, a named element or selection below the
+--- heading adds a search string (`id:ID::name`).
 function M.store_link()
   local bufnr = vim.api.nvim_get_current_buf()
   local _, _, hl = edit.resolve_headline({ bufnr = bufnr, lnum = vim.api.nvim_win_get_cursor(0)[1] })
   if not hl then
     return
   end
-  local id = M.get_create({ bufnr = bufnr, lnum = hl.line })
-  local stored = require("org.links").store("id:" .. id, hl:plain_title())
-  utils.notify("Stored: " .. hl:plain_title())
-  return stored
+  if vim.api.nvim_buf_get_name(bufnr) == "" then
+    local id = M.get_create({ bufnr = bufnr, lnum = hl.line })
+    return require("org.links").store("id:" .. id, hl.title)
+  end
+  return require("org.links").store_id_link()
+end
+
+--- Known IDs (from the locations file), sorted.
+function M.known_ids()
+  local known = vim.tbl_keys(load_db())
+  table.sort(known)
+  return known
 end
 
 --- For tests.

@@ -133,8 +133,10 @@ local function parse_settings(lines, filename)
     priorities = nil,
   }
   for _, line in ipairs(lines) do
-    if line:byte(1) == 35 then -- '#'
-      local key, value = line:match("^#%+([%w_%-]+):%s*(.-)%s*$")
+    local b = line:byte(1)
+    -- '#', or indentation before a keyword (valid in Emacs)
+    if b == 35 or ((b == 32 or b == 9) and line:find("^%s+#%+")) then
+      local key, value = line:match("^%s*#%+([%w_%-]+):%s*(.-)%s*$")
       if key then
         key = key:upper()
         s.keywords[key] = s.keywords[key] or {}

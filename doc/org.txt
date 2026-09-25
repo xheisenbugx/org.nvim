@@ -911,55 +911,138 @@ Refile options:
 ==============================================================================
 16. LINKS, IDS AND ATTACHMENTS                  *org-links* *org-id* *org-attach*
 
-Syntax: `[[target][description]]`, `[[target]]`, plain URLs and <angle>
-links. With `ui.conceal_links`, only the description is shown.
+Syntax: `[[target][description]]`, `[[target]]`, plain links
+(`https://en.wikipedia.org/wiki/Foo_(bar)`: balanced parentheses are part
+of the link, trailing punctuation is not) and <angle> links. Bracket links
+may span lines. With `ui.conceal_links` (org-link-descriptive), only the
+description is shown.
 
 Targets:
   https://… http://… ftp:… mailto:…   opened with |vim.ui.open()|
+  doi:10.1000/x                       `links.doi_server_url` + path
   file:path  ./rel  ~/p  /abs          open a file; add a search option:
-      ::42  ::*Heading  ::#custom-id  ::/regex/  ::some text
-  id:UUID                             headline with that ID
+      ::42  ::*Heading  ::#custom-id  ::(coderef)  ::/regexp/  ::some text
+  file+sys:path  file+emacs:path      system application / always Neovim
+  id:UUID  id:UUID::search            headline with that ID (the search
+                                      runs inside its subtree)
   #custom-id                          headline with that CUSTOM_ID
   *Heading                            headline in the current file
-  <<target>>  text                    dedicated target or fuzzy text
-  shell:cmd                           run in a terminal (asks first)
+  (label)                             coderef in a src/example block
+  <<target>>  text                    dedicated target, `#+NAME`, headline
+  shell:cmd                           run in a terminal in the file's
+                                      directory (asks first)
   help:topic                          Vim :help
+  man:printf(3)  man:ls::-l           |:Man|, with an optional search
+  info:emacs#Top                      the `info` program in a terminal
   attachment:name                     file in the entry's attachment dir
-  abbrev:tag                          `#+LINK:` or `links.abbreviations`
+  abbrev:tag  abbrev::tag  abbrev     `#+LINK:` or `links.abbreviations`
                                       (`%s` = tag, `%h` = url-encoded)
-  custom:path                         `links.types.custom =
-                                      function(path, link) ... end`
+  custom:path                         `links.types` (see below)
+
+Searches (org-link-search) ignore case and runs of whitespace (a text
+search also matches across line breaks), and headline searches ignore the
+TODO keyword, priority, COMMENT, tags and statistics cookies. A fuzzy
+link tries `<<target>>`, `#+NAME:` and headlines. When nothing matches in
+an Org file, `links.search_must_match_exact_headline` decides: with
+"query-to-create" (default) you are asked "No match - create this as a new
+heading?" (the heading is added at the end of the file, or as the last
+child of the entry for `id:ID::*Heading`); with true the failure is
+reported; with false a plain text search follows, which never lands on the
+link itself. `*Heading` searches never fall back to text. `::/regexp/`
+takes an Emacs regexp: in Org files it shows a sparse tree
+(|org-sparse-tree|), elsewhere a location list (like `occur`); common
+Emacs syntax is translated to Vim regexps, see |org-differences|.
 
 <CR>, gx, <prefix>o  Open the link, footnote or date at the cursor.
-<C-c><C-o>      The same; on a headline without a link under the cursor,
-                pick one of the entry's links (like Emacs).
+<C-c><C-o>      The same. On the tags of a headline, show a tags agenda for
+                the tag under the cursor (a count: TODO entries only).
+                Elsewhere on a headline, pick one of the entry's links, or
+                "Open all links"; without links, open the attachment
+                directory when there is one.
+                With a count (C-u), files open in Neovim even when an
+                external app applies, and internal links are shown in
+                another window; with 16 (C-u C-u), files open with the
+                system application.
+                `file:` and `id:` links open in another window, splitting
+                when there is none, like Emacs (`links.frame_setup`).
 <prefix>ls      Store a link to the current location (works in any
-                buffer). In org buffers this is, in order: the
-                `<<target>>` under the cursor (`file:…::target`), the
-                `#+NAME:` of the element at the cursor, an `id:` link
-                (see `links.use_id`), `#custom-id`, or `file:…::*Heading`.
-                Before the first heading, the current line is used. In
-                the agenda, the link points to the item's entry. In a
-                src block edit buffer (|org-babel|), it stores a coderef
-                link `file:…::(label)` and adds a `(ref:label)` to the
-                line when it has none.
-<prefix>li      Insert a link (stored links and file paths are completed).
-                On an existing link, edit it. In Visual mode, the selection
-                becomes the description.
-<prefix>lL      Insert the last stored link (C-c M-l).
-<prefix>lA      Insert every stored link as a list and forget them
-                (C-c C-M-l).
-<prefix>lt      Toggle concealed link display.
-<prefix>ln/lp   Next / previous link of any kind (takes a count).
+                buffer, org-store-link). In org buffers this is, in order:
+                the `store` function of a custom link type, an `id:` link
+                (see `links.use_id`), the `<<target>>` under the cursor
+                (`file:…::target`), the `#+NAME:` of the element at the
+                cursor, the current line before the first heading, or the
+                heading: `file:…::#custom-id` or `file:…::*Heading`. When
+                the entry has a CUSTOM_ID, a `file:…::#custom-id` link is
+                stored too. In Visual mode the selection is the search
+                string (`links.context_for_files` may limit its lines).
+                In other files, the current line is the search string (an
+                empty line gives a plain `file:` link). Search strings
+                collapse whitespace and drop statistics cookies. In the
+                agenda, the link points to the item's entry; in a src
+                block edit buffer (|org-babel|), it stores a coderef link
+                `file:…::(label)` and adds a `(ref:label)` to the line when
+                it has none. Help buffers give `help:tag`, man pages
+                `man:page`, netrw/oil listings a link to the file under the
+                cursor.
+                A count of 4 (C-u) toggles `links.context_for_files`, 16
+                (C-u C-u) skips custom `store` functions, 64 stores one link
+                per selected line.
+<prefix>li      Insert a link (org-insert-link). Stored links, their
+                descriptions, link types and file paths (relative to the
+                file's directory) are completed; an empty answer inserts
+                the last stored link. Entering a type alone (`file`,
+                `id:`, a custom type) completes it. On a link, edit it (a
+                plain or angle link becomes a bracket link). In Visual
+                mode, the selection becomes the description. Links to the
+                current file become their search option, and file paths
+                follow `links.file_path_type`. An inserted stored link is
+                removed from the list (`links.keep_stored_after_insertion`).
+                With a count of 4 (C-u), pick a file; 16 (C-u C-u) uses an
+                absolute path; 64 inverts `keep_stored_after_insertion`.
+<prefix>lL      Insert the last stored link and a newline, and forget it
+                (C-c M-l). A count inserts that many. Links without a
+                description get `<no description>`, like Emacs.
+<prefix>lA      Insert every stored link as a `- ` line and forget them
+                (C-c C-M-l); a count of 4 keeps them.
+<prefix>lt      Toggle concealed link display (org-toggle-link-display):
+                only links change, not emphasis markers.
+<prefix>ln/lp   Next / previous link (takes a count). Links in src and
+                example blocks, comments and verbatim are skipped;
+                repeating a failed search wraps around the buffer.
 <C-c>&          Jump back to where you followed a link from (<C-o> works
                 too).
+<C-c>'          On `#+INCLUDE:`, `#+SETUPFILE:` or `#+BIBLIOGRAPHY:`, visit
+                the file.
 
 Radio targets `<<<text>>>` make every occurrence of "text" a link to them
-(also in export). Coderefs: a `(ref:name)` label at the end of a src or
-example block line can be reached with `[[(name)]]`.
+(also in export): case is ignored, the words must stand alone and may be
+split over lines. Radio links are highlighted; after adding a radio
+target, <C-c><C-c> on it refreshes the highlighting. Coderefs: a
+`(ref:name)` label at the end of a src or example block line (or the
+block's `-l "fmt"` format) can be reached with `[[(name)]]`.
+
+Custom link types (org-link-set-parameters) go in `links.types`, either a
+function (follow) or a table: >lua
+    links = { types = { jira = {
+      follow = function(path, link, count) vim.ui.open("https://jira/" .. path) end,
+      complete = function() return "jira:" .. vim.fn.input("Issue: ") end,
+      store = function(interactive) end,   -- { link = ..., desc = ... } or nil
+      export = function(path, desc, backend) end,  -- "html", "md", "latex", "ascii"
+      face = "DiagnosticWarn",
+      insert_description = function(link, desc) return link:sub(6) end,
+    } } }
+<
+`links.make_description(link, desc)` gives other links a default
+description. `links.search_functions` run first on search options and
+`links.translation_function(type, path)` rewrites links before they open.
 
 IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
-it from the agenda files.
+it from the agenda files. Links to headings are `file:` links unless
+`links.use_id` asks for `id:` links (IDs are then created in your files).
+`id:` links get a search string for a named element or a selection below
+the heading (`id:ID::tbl1`, `id.link_use_context`); with
+`id.link_consider_parent_id`, a heading without an ID is linked through
+its ancestor's ID (`id:ID::*Child`).
 <prefix>lI      Get or create the entry's ID.
 <prefix>lg      Go to an entry by ID (org-id-goto, IDs are completed).
 <prefix>ly      Copy the entry's ID, creating it if needed (org-id-copy).
@@ -1610,9 +1693,19 @@ timer ~    format "%s ", default_timer "0"
 crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
-  abbreviations {}, types {}, confirm_shell true,
-  use_id "create-if-interactive" (true|false|"use-existing"), file_apps {}
-id ~        locations_file, method "uuid"|"ts"
+  abbreviations {}, types {}, confirm_shell true (or a function),
+  shell_skip_confirm_regexp "", use_id false (true|"create-if-interactive"|
+  "create-if-interactive-and-no-custom-id"|"use-existing"), file_apps {}
+  ("vim" forces Neovim), context_for_files true (or a number of lines),
+  file_path_type "adaptive" ("relative"|"absolute"|"noabbrev"|function),
+  keep_stored_after_insertion false,
+  search_must_match_exact_headline "query-to-create" (true|false),
+  frame_setup { file = "other-window" } ("current"|"split"|"vsplit"|"tab"|
+  function), make_description nil, doi_server_url "https://doi.org/",
+  search_functions {}, translation_function nil
+id ~
+  locations_file, method "uuid"|"ts", link_use_context true,
+  link_consider_parent_id false
 attach ~    dir "data/", method "cp"|"mv"|"ln"
 babel ~
   confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
@@ -1902,10 +1995,41 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   limited to what the table formula Lisp evaluator implements.
 - Export is lenient: broken internal links are rendered in italics instead
   of stopping the export.
+- Links (|org-links|):
+  - `elisp:` links are not supported: they need an Emacs Lisp interpreter.
+    Abbreviations using `%(my-function)` cannot call Elisp either; give
+    `links.abbreviations` a Lua function instead.
+  - `help:` opens Vim's |:help|: Emacs `help:` links name Elisp functions
+    and variables (describe-function), which do not exist here. `info:`
+    runs the `info` program in a terminal, `man:` uses |:Man|.
+  - Links to Emacs applications (gnus, rmail, mhe, bbdb, irc/erc, eww,
+    w3m, bibtex, calendar) can't be followed or stored: there is no such
+    application in Neovim. `docview:` opens the file.
+  - `shell:` runs in a terminal window instead of collecting the output in
+    an `*Org Shell Output*` buffer; `links.confirm_shell` asks with a y/n
+    prompt.
+  - `::/regexp/` searches translate the common Emacs regexp syntax to Vim
+    regexps; Emacs-only constructs (syntax classes other than whitespace
+    and words, categories, backward references to point) are approximated
+    or unsupported.
+  - Internal links followed with a count open in another window on the same
+    buffer; there are no indirect buffers
+    (org-link-use-indirect-buffer-for-internals), and Vim folds are per
+    window anyway.
+  - Files Neovim cannot display (images, media, office documents, PDF,
+    HTML) open with the system application, where Emacs opens images and
+    office documents itself (org-file-apps); `links.file_apps` overrides it.
+  - Storing an `id:` link before the first heading stores a `file:` link:
+    no file-level ID property drawer is created.
+  - Emacs wildcard file links (`file:*.org`) do not open a directory
+    listing of the matches.
 - Not implemented:
   - diary sexps `<%%(...)>`
   - org-protocol, MobileOrg
-  - inline image and LaTeX previews
+  - inline image and LaTeX previews: core Neovim has no image protocol
+    (org-link-preview, org-toggle-inline-images, org-image-max-width,
+    org-display-remote-inline-images); an image.nvim / snacks.image
+    integration could provide them in kitty or sixel terminals.
 - Column view is a separate table buffer rather than overlays on the
   headlines. Digit keys keep their Vim meaning (counts) there instead of
   selecting the Nth allowed value.

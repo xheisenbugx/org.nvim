@@ -368,19 +368,65 @@ M.defaults = {
   ---------------------------------------------------------------------------
   links = {
     --- `#+LINK` style abbreviations: { gh = "https://github.com/%s" }
+    --- (org-link-abbrev-alist).
     abbreviations = {},
-    --- Custom link handlers: { jira = function(path, link) ... end }
+    --- Custom link types (org-link-parameters): a follow function, or a
+    --- table { follow, complete, store, export, face, insert_description }.
     types = {},
-    --- Ask before running shell: links.
+    --- Ask before running shell: links: true, false or function(cmd) ->
+    --- boolean (org-link-shell-confirm-function).
     confirm_shell = true,
-    --- Store links to headlines with an ID (creating one if needed).
-    use_id = "create-if-interactive", -- true | false | "create-if-interactive"
-    --- Open files with an extension via external app: { pdf = "open" }
+    --- Vim regex: shell: links matching it run without asking; "" = none
+    --- (org-link-shell-skip-confirm-regexp).
+    shell_skip_confirm_regexp = "",
+    --- Store links to headlines as id: links (org-id-link-to-org-use-id):
+    --- false | true | "create-if-interactive" |
+    --- "create-if-interactive-and-no-custom-id" | "use-existing".
+    use_id = false,
+    --- Open files with an extension via external app: { pdf = "open" };
+    --- "vim" forces Neovim (org-file-apps).
     file_apps = {},
+    --- Add a search string (the heading, a name, the line or the
+    --- selection) to stored file links: true, false, or the number of
+    --- selected lines to keep (org-link-context-for-files).
+    context_for_files = true,
+    --- How inserted file links write paths: "adaptive" (relative below the
+    --- file's directory, else absolute), "relative", "absolute",
+    --- "noabbrev" or function(path) -> string (org-link-file-path-type).
+    file_path_type = "adaptive",
+    --- Keep a stored link after inserting it (org-link-keep-stored-after-insertion).
+    keep_stored_after_insertion = false,
+    --- Fuzzy links in Org files only match headlines, targets and names:
+    --- "query-to-create" offers to create a missing heading, true reports
+    --- it, false falls back to a text search
+    --- (org-link-search-must-match-exact-headline).
+    search_must_match_exact_headline = "query-to-create",
+    --- Where file: and id: links open: "other-window", "current", "split",
+    --- "vsplit", "tab" or function(path) (org-link-frame-setup, `file`).
+    frame_setup = { file = "other-window" },
+    --- Default description of inserted links: function(link, desc) ->
+    --- string|nil (org-link-make-description-function).
+    make_description = nil,
+    --- Server for doi: links (org-link-doi-server-url).
+    doi_server_url = "https://doi.org/",
+    --- Functions tried first on a file search string: function(search) ->
+    --- true when handled (org-execute-file-search-functions).
+    search_functions = {},
+    --- function(type, path) -> type, path applied before following a link
+    --- (org-link-translation-function).
+    translation_function = nil,
   },
   id = {
+    --- (org-id-locations-file)
     locations_file = data_dir .. "/id-locations.json",
-    method = "uuid", -- "uuid" | "ts"
+    --- "uuid" | "ts" (org-id-method)
+    method = "uuid",
+    --- Add a search string to id: links for a named element or selection
+    --- inside the entry (org-id-link-use-context).
+    link_use_context = true,
+    --- Store id: links using an ancestor's ID plus a search string
+    --- (org-id-link-consider-parent-id).
+    link_consider_parent_id = false,
   },
   attach = {
     dir = "data/",

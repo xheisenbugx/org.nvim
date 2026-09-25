@@ -175,36 +175,106 @@
 ---@field path string
 
 ---Handler that opens a custom link type (`org-link-set-parameters` `:follow`).
----Receives the path after `type:` and the classified link.
----@alias org.Config.Links.TypeHandler fun(path: string, link: org.Config.Links.Link): any
+---Receives the path after `type:`, the classified link and the count (the
+---Emacs prefix argument, 0 without one).
+---@alias org.Config.Links.TypeHandler fun(path: string, link: org.Config.Links.Link, arg: integer): any
+
+---Properties of a custom link type (`org-link-set-parameters`).
+---@class org.Config.Links.Type
+---Open the link (`:follow`).
+---@field follow? org.Config.Links.TypeHandler
+---Return a full link (`type:...`) when the type is entered alone at the
+---insert-link prompt (`:complete`).
+---@field complete? fun(): string|nil
+---Return `{ link = ..., desc = ... }` (or a link string) when a link to the
+---current location can be stored, nil otherwise (`:store`). Tried before
+---the built-in store logic. Receives whether the call is interactive.
+---@field store? fun(interactive: boolean): { link: string, desc?: string }|string|nil
+---Export the link: receives the path, the exported description (or nil)
+---and the backend (`"html"`, `"md"`, `"latex"`, `"ascii"`); return the
+---output, or nil for the default (`:export`).
+---@field export? fun(path: string, desc: string|nil, backend: string): string|nil
+---Highlight group for links of this type (`:face`).
+---@field face? string
+---Default description of inserted links: a string, or a function
+---receiving the link and the current default (`:insert-description`).
+---@field insert_description? string|fun(link: string, desc: string|nil): string|nil
 
 ---External application for `links.file_apps`: a shell command (the path is
 ---appended, or substituted for `%s`), `"system"`/`"default"` for the OS
----opener, or a function receiving the absolute path.
----@alias org.Config.Links.FileApp "system"|"default"|string|fun(path: string): any
+---opener, `"vim"` to open in Neovim, or a function receiving the absolute
+---path.
+---@alias org.Config.Links.FileApp "system"|"default"|"vim"|string|fun(path: string): any
+
+---Where `file:` and `id:` links open (`org-link-frame-setup`).
+---@class org.Config.Links.FrameSetup
+---`"other-window"` (`find-file-other-window`: another window, split when
+---there is none), `"current"` (`find-file`), `"split"`, `"vsplit"`, `"tab"`
+---(`find-file-other-frame`), or a function receiving the path.
+---(default: `"other-window"`)
+---@field file? "other-window"|"current"|"split"|"vsplit"|"tab"|fun(path: string): any
 
 ---Link options.
 ---@class org.Config.Links
 ---Link abbreviations like `#+LINK:` (`org-link-abbrev-alist`), e.g.
----`{ gh = "https://github.com/%s" }`. In the replacement `%s` is the tag and
----`%h` the URL-encoded tag; otherwise the tag is appended. A function
----receiving the tag and returning the URL is also accepted. (default: `{}`)
+---`{ gh = "https://github.com/%s" }`, used as `gh:tag`, `gh::tag` or `gh`.
+---In the replacement `%s` is the tag and `%h` the URL-encoded tag;
+---otherwise the tag is appended. A function receiving the tag and returning
+---the URL is also accepted. (default: `{}`)
 ---@field abbreviations? table<string, string|fun(tag: string): string>
----Custom link types, e.g. `{ jira = function(path, link) ... end }`
----(`org-link-set-parameters` `:follow`). (default: `{}`)
----@field types? table<string, org.Config.Links.TypeHandler>
----Ask before running `shell:` links (`org-link-shell-confirm-function`).
----(default: `true`)
----@field confirm_shell? boolean
+---Custom link types (`org-link-set-parameters`): a follow function, e.g.
+---`{ jira = function(path, link) ... end }`, or a table of properties.
+---(default: `{}`)
+---@field types? table<string, org.Config.Links.TypeHandler|org.Config.Links.Type>
+---Ask before running `shell:` links (`org-link-shell-confirm-function`):
+---`true`, `false`, or a function receiving the command and returning
+---whether to run it. (default: `true`)
+---@field confirm_shell? boolean|fun(cmd: string): boolean
+---Vim regex; `shell:` links matching it run without confirmation
+---(`org-link-shell-skip-confirm-regexp`). (default: `""`, none)
+---@field shell_skip_confirm_regexp? string
 ---Store links to headlines as `id:` links (`org-id-link-to-org-use-id`):
 ---`true` = always, creating an ID if needed; `"create-if-interactive"` =
----create only when storing interactively; `"use-existing"` = only when the
----headline already has an ID; `false` = never. (default: `"create-if-interactive"`)
----@field use_id? boolean|"create-if-interactive"|"use-existing"
+---create only when storing interactively; `"create-if-interactive-and-no-custom-id"`
+---= the same unless the entry has a CUSTOM_ID; `"use-existing"` = only when
+---the headline already has an ID; `false` = never. (default: `false`)
+---@field use_id? boolean|"create-if-interactive"|"create-if-interactive-and-no-custom-id"|"use-existing"
 ---Open files with these (lowercase) extensions with an external app
 ---(`org-file-apps`), e.g. `{ pdf = "open" }` or `{ pdf = "zathura %s" }`.
 ---(default: `{}`)
 ---@field file_apps? table<string, org.Config.Links.FileApp>
+---Add a search string to stored file links: the heading, `#custom-id`, a
+---`#+NAME`, the current line or the selection (`org-link-context-for-files`).
+---A number keeps that many selected lines. (default: `true`)
+---@field context_for_files? boolean|integer
+---How inserted file links write paths (`org-link-file-path-type`):
+---`"adaptive"` (relative below the buffer's directory, else absolute with
+---`~`), `"relative"`, `"absolute"`, `"noabbrev"`, or a function.
+---(default: `"adaptive"`)
+---@field file_path_type? "adaptive"|"relative"|"absolute"|"noabbrev"|fun(path: string): string
+---Keep a stored link in the list after inserting it
+---(`org-link-keep-stored-after-insertion`). (default: `false`)
+---@field keep_stored_after_insertion? boolean
+---Unmatched fuzzy links in Org files (`org-link-search-must-match-exact-headline`):
+---`"query-to-create"` offers to create the heading, `true` reports the
+---failure, `false` falls back to a plain text search.
+---(default: `"query-to-create"`)
+---@field search_must_match_exact_headline? boolean|"query-to-create"
+---Where `file:` and `id:` links open (`org-link-frame-setup`).
+---(default: `{ file = "other-window" }`)
+---@field frame_setup? org.Config.Links.FrameSetup
+---Default description of inserted links (`org-link-make-description-function`).
+---(default: `nil`)
+---@field make_description? fun(link: string, desc: string|nil): string|nil
+---URL prefix of `doi:` links (`org-link-doi-server-url`).
+---(default: `"https://doi.org/"`)
+---@field doi_server_url? string
+---Functions tried first on file search strings; return true when handled
+---(`org-execute-file-search-functions`). (default: `{}`)
+---@field search_functions? (fun(search: string): boolean)[]
+---Translate a link before following it (`org-link-translation-function`).
+---(default: `nil`)
+---@field translation_function? fun(type: string, path: string): string|nil, string|nil
 
 ---------------------------------------------------------------------------
 -- IDs / attachments
@@ -218,6 +288,13 @@
 ---How new IDs are generated (`org-id-method`): `"uuid"` or `"ts"`
 ---(timestamp like `20240101T120000.123456`). (default: `"uuid"`)
 ---@field method? "uuid"|"ts"
+---Add a search string to stored `id:` links (`id:ID::name`) for a named
+---element or selection below the heading (`org-id-link-use-context`).
+---(default: `true`)
+---@field link_use_context? boolean
+---Store `id:` links with an ancestor's ID plus a search string instead of
+---creating an ID (`org-id-link-consider-parent-id`). (default: `false`)
+---@field link_consider_parent_id? boolean
 
 ---Attachment options.
 ---@class org.Config.Attach
