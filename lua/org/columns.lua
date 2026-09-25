@@ -1260,8 +1260,9 @@ function M.open()
   map({ "n", "<S-Right>" }, run(next_allowed, 1), "next allowed value")
   map({ "p", "<S-Left>" }, run(next_allowed, -1), "previous allowed value")
   map("a", run(edit_allowed), "edit allowed values")
-  -- 1..9 pick the Nth allowed value, 0 the last (org-columns-next-allowed-value)
-  for i = 0, 9 do
+  -- 1..9 pick the Nth allowed value (org-columns-next-allowed-value); 0
+  -- keeps its Vim meaning
+  for i = 1, 9 do
     map(tostring(i), run(next_allowed, 1, i), "allowed value " .. i)
   end
   map("<C-c><C-o>", function()

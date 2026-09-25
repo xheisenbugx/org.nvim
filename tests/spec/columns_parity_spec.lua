@@ -152,7 +152,7 @@ describe("columnview blocks", function()
 end)
 
 describe("column view keys", function()
-  it("1-9 select the Nth allowed value, 0 the last", function()
+  it("1-9 select the Nth allowed value", function()
     local src = org_buffer({
       "* A",
       ":PROPERTIES:",
@@ -165,8 +165,6 @@ describe("column view keys", function()
     local view = vim.api.nvim_get_current_buf()
     vim.api.nvim_win_set_cursor(0, { 3, #vim.api.nvim_get_current_line() - 1 })
     vim.api.nvim_feedkeys("3", "xt", false)
-    eq(":Status: done", buf_lines(src)[5])
-    vim.api.nvim_feedkeys("0", "xt", false)
     eq(":Status: done", buf_lines(src)[5])
     vim.api.nvim_feedkeys("2", "xt", false)
     eq(":Status: open", buf_lines(src)[5])
