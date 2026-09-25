@@ -1,0 +1,34 @@
+#+OPTIONS: toc:nil d:t
+#+TITLE: Options
+#+AUTHOR: Jane Doe
+
+First paragraph of the document that is filled to a narrower width than
+the default one.
+
+Second paragraph with a [[https://orgmode.org][link]] and a note[fn:1].
+Third sentence.
+
+* Heading
+  :DRAWER:
+  Drawer content.
+  :END:
+Some text.
+Another paragraph, right after.
+
+#+CAPTION: Caption above
+| a | b          |
+|---+------------|
+| <3> |          |
+| long cell | x |
+
+#+begin_src sh
+echo one
+#+end_src
+
+- item one
+- item two
+
+** Sub
+- [ ] list in sub
+
+[fn:1] The note.

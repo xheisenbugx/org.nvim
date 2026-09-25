@@ -591,20 +591,6 @@ local T = {
   template = template,
 }
 
-local has_ascii = pcall(require, "org.export.ascii")
-if not has_ascii then
-  -- Fallback while no ASCII back-end is available: plain paragraphs.
-  T.paragraph = function(_, contents)
-    return ((contents or ""):gsub("\n$", ""):gsub("[ \t]*\n[ \t]*", " "))
-  end
-  T.timestamp = function(el)
-    return ox.timestamp_translate(el)
-  end
-  T["plain-text"] = function(text)
-    return text
-  end
-end
-
 M.transcoders = T
 
 local function options()
@@ -628,7 +614,7 @@ local function options()
 end
 
 M.backend = ox.define_backend("icalendar", {
-  parent = has_ascii and "ascii" or nil,
+  parent = "ascii",
   transcoders = T,
   options = options,
   filters = {

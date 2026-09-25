@@ -619,6 +619,30 @@ M.defaults = {
       biblatex_styles = nil, -- org-cite-biblatex-styles (nil = the Emacs table)
       biblatex_style_shortcuts = nil, -- org-cite-biblatex-style-shortcuts (nil = the Emacs table)
     },
+    ascii = {
+      charset = "ascii", -- org-ascii-charset ("ascii", "latin1", "utf-8")
+      text_width = nil, -- org-ascii-text-width (nil = export.text_width, else 72)
+      global_margin = 0, -- org-ascii-global-margin
+      inner_margin = 2, -- org-ascii-inner-margin
+      quote_margin = 6, -- org-ascii-quote-margin
+      list_margin = 0, -- org-ascii-list-margin
+      inlinetask_width = 30, -- org-ascii-inlinetask-width
+      headline_spacing = { 1, 2 }, -- org-ascii-headline-spacing ({ before, after } or false)
+      indented_line_width = "auto", -- org-ascii-indented-line-width
+      paragraph_spacing = "auto", -- org-ascii-paragraph-spacing
+      links_to_notes = true, -- org-ascii-links-to-notes
+      table_keep_all_vertical_lines = false, -- org-ascii-table-keep-all-vertical-lines
+      table_widen_columns = true, -- org-ascii-table-widen-columns
+      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (not supported)
+      caption_above = false, -- org-ascii-caption-above
+      verbatim_format = "`%s'", -- org-ascii-verbatim-format
+      bullets = nil, -- org-ascii-bullets ({ ascii = {...}, latin1 = {...}, ["utf-8"] = {...} }; nil = Emacs)
+      underline = nil, -- org-ascii-underline (same shape; nil = Emacs)
+      format_drawer_function = nil, -- org-ascii-format-drawer-function: fn(name, contents, width)
+      --- org-ascii-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, name, tags, contents, width, inlinetask, info)
+      format_inlinetask_function = nil,
+    },
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },

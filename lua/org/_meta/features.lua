@@ -502,7 +502,46 @@
 
 ---ASCII back-end options (ox-ascii).
 ---@class org.Config.Export.Ascii
----@@ASCII@@
+---(`org-ascii-charset`) (default: `"ascii"`)
+---@field charset? "ascii"|"latin1"|"utf-8"
+---(`org-ascii-text-width`) (default: `nil` = `export.text_width`, else `72`)
+---@field text_width? integer
+---(`org-ascii-global-margin`) (default: `0`)
+---@field global_margin? integer
+---(`org-ascii-inner-margin`) (default: `2`)
+---@field inner_margin? integer
+---(`org-ascii-quote-margin`) (default: `6`)
+---@field quote_margin? integer
+---(`org-ascii-list-margin`) (default: `0`)
+---@field list_margin? integer
+---(`org-ascii-inlinetask-width`) (default: `30`)
+---@field inlinetask_width? integer
+---(`org-ascii-headline-spacing`): `{ before, after }` or `false`. (default: `{ 1, 2 }`)
+---@field headline_spacing? integer[]|false
+---(`org-ascii-indented-line-width`) (default: `"auto"`)
+---@field indented_line_width? integer|"auto"
+---(`org-ascii-paragraph-spacing`) (default: `"auto"`)
+---@field paragraph_spacing? integer|"auto"
+---(`org-ascii-links-to-notes`) (default: `true`)
+---@field links_to_notes? boolean
+---(`org-ascii-table-keep-all-vertical-lines`) (default: `false`)
+---@field table_keep_all_vertical_lines? boolean
+---(`org-ascii-table-widen-columns`) (default: `true`)
+---@field table_widen_columns? boolean
+---(`org-ascii-table-use-ascii-art`), not supported. (default: `false`)
+---@field table_use_ascii_art? boolean
+---(`org-ascii-caption-above`) (default: `false`)
+---@field caption_above? boolean
+---(`org-ascii-verbatim-format`) (default: ``"`%s'"``)
+---@field verbatim_format? string
+---(`org-ascii-bullets`) (default: `nil` = the Emacs bullets)
+---@field bullets? table<string, string[]>
+---(`org-ascii-underline`) (default: `nil` = the Emacs characters)
+---@field underline? table<string, string[]>
+---(`org-ascii-format-drawer-function`) (default: `nil`)
+---@field format_drawer_function? fun(name: string, contents: string, width: integer): string
+---(`org-ascii-format-inlinetask-function`) (default: `nil`)
+---@field format_inlinetask_function? function
 
 ---Citation export options (oc, oc-basic).
 ---@class org.Config.Export.Cite

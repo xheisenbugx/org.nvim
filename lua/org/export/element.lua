@@ -1052,8 +1052,8 @@ end
 
 function P:planning_values(line)
   local out = {}
-  for kw, ts in line:gmatch("(%u+):[ \t]*([<%[][^>%]]+[>%]])") do
-    local t = self:parse_timestamp(ts, 1)
+  for kw, pos in line:gmatch("(%u+):[ \t]*()[<%[][^>%]]+[>%]]") do
+    local t = self:parse_timestamp(line, pos)
     if t then
       out[kw:lower()] = t
     end

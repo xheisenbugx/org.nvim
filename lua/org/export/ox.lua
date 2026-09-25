@@ -229,7 +229,8 @@ end
 --- Timestamp as displayed in exports (org-timestamp-translate without
 --- custom display formats).
 function M.timestamp_translate(ts)
-  return M.interpret_timestamp(ts)
+  -- org-element-interpret-data keeps the trailing blanks.
+  return M.interpret_timestamp(ts) .. string.rep(" ", ts.post_blank or 0)
 end
 
 function M.timestamp_has_time_p(ts)
