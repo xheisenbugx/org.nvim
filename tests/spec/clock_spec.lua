@@ -190,6 +190,18 @@ describe("clock", function()
     eq(90.5, date.parse_duration("1:30:30"))
   end)
 
+  it("clocks in continuously", function()
+    config.opts.clock.continuously = true
+    local buf = file_buffer({ "* A", "* B" })
+    local stop = date.now():add(-20, "min")
+    clock.clock_in(nil, { at = date.now():add(-60, "min") })
+    clock.clock_out({ at = stop })
+    clock.clock_in({ bufnr = buf, lnum = files.get_buffer(buf).headlines[2].line })
+    config.opts.clock.continuously = false
+    eq(stop:clone({ active = false }):to_string(), clock.state.start)
+    clock.clock_cancel()
+  end)
+
   it("honours CLOCK_INTO_DRAWER and LOG_INTO_DRAWER", function()
     local buf = file_buffer({ "* A", ":PROPERTIES:", ":CLOCK_INTO_DRAWER: CLOCKING", ":END:" })
     clock.clock_in(nil, { at = date.now():add(-5, "min") })

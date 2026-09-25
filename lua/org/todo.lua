@@ -480,11 +480,17 @@ end
 
 --- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
 --- fast selection when keywords define keys, otherwise cycle to the next
---- state.
+--- state. A count N switches to the Nth keyword (org-todo with a numeric
+--- prefix).
 function M.select_or_cycle(target)
-  local bufnr, file = edit.resolve_headline(target)
+  local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
+  end
+  local n = target == nil and vim.v.count or 0
+  local names = file.settings.todo:names()
+  if n > 0 and names[n] then
+    return M.change_state({ bufnr = bufnr, lnum = hl.line }, names[n])
   end
   if file.settings.todo.has_fast_keys then
     return M.select(target)

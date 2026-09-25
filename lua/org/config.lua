@@ -195,6 +195,8 @@ M.defaults = {
     notify_effort = true,
     --- Number of tasks remembered for clock_in with a count (clock history).
     history_length = 35,
+    --- Start a new clock where the last one stopped (org-clock-continuously).
+    continuously = false,
     statusline_icon = "⏱",
     clocktable_default = { maxlevel = 3, scope = "file", block = nil },
     persist = true,

@@ -263,7 +263,7 @@ function M.clock_out(opts)
     end
   end
   local id = M.last and M.last.path == st.path and M.last.title == st.title and M.last.id or nil
-  M.last = { path = st.path, title = st.title, id = id }
+  M.last = { path = st.path, title = st.title, id = id, out = stop:clone({ active = false }):to_string() }
   persist()
   stop_effort_timer()
   -- org-clock-out-switch-to-state
@@ -346,7 +346,15 @@ function M.clock_in(target, opts)
     require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, switch)
     hl = files.get_buffer(bufnr):headline_at(lnum)
   end
-  local start = (opts.at or date.now()):clone({ active = false })
+  local start = opts.at or date.now()
+  if not opts.at and clock_cfg().continuously and M.last and M.last.out then
+    -- org-clock-continuously: start where the last clock stopped
+    local out = date.parse(M.last.out)
+    if out and out:minutes() <= start:minutes() then
+      start = out
+    end
+  end
+  start = start:clone({ active = false })
   local start_str = start:to_string({ range = false })
   local drawer = drawer_name(hl)
   if drawer then
