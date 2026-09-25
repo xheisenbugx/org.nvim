@@ -16,6 +16,7 @@ local ns = vim.api.nvim_create_namespace("org.babel")
 
 M.parse_blocks = blocks_mod.parse_blocks
 M.parse_header_string = blocks_mod.parse_header_string
+M.dedent = blocks_mod.dedent
 
 local function buf_lines(bufnr)
   if type(bufnr) == "table" then
@@ -40,6 +41,8 @@ local function get_file(bufnr)
   end)
   return ok and f or nil
 end
+M.buf_lines = buf_lines
+M.get_file = get_file
 
 --- Block containing `lnum` (begin line .. end line, the #+NAME/#+HEADER
 --- lines above it, or its #+RESULTS), or a #+CALL line. Returns nil otherwise.
@@ -191,26 +194,41 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   end
   -- :comments noweb wraps each expansion in link comments (ob-tangle)
   local comment = parent_args and parent_args.comments == "noweb" and purpose == "tangle"
-  local function body_of(b, args)
+  local function body_of(b, args, named)
     local nw = noweb_for(args, purpose or "eval")
     local body = b.body
     if nw then
       body = M.expand_noweb(bufnr, b.body, depth + 1, nw == "strip" and "strip" or nil, args, purpose)
     end
-    if comment and M.tangle_comment_links then
-      local beg_c, end_c = M.tangle_comment_links(bufnr, b, ctx.file)
-      local cp = langs.comment_prefix(parent_args.lang or b.lang)
-      local out = { cp .. beg_c }
+    -- like Emacs, a link comment points at the referenced block the first
+    -- time it is looked up, then (from its reference cache) at the block
+    -- being tangled
+    local seen = M._noweb_seen
+    local first = named and (not seen or not seen[ref])
+    if named and seen then
+      seen[ref] = true
+    end
+    if comment then
+      local link_block = first and b or (M._noweb_parent or b)
+      local beg_c, end_c = require("org.babel.tangle").comment_links(bufnr, b, ctx.file, nil, true, link_block)
+      local cs, ce = require("org.babel.tangle").comment_delims(b.lang)
+      local out = { cs .. beg_c .. ce }
       vim.list_extend(out, body)
-      out[#out + 1] = cp .. end_c
+      -- ob-tangle wraps the body as "BEG\nBODY\nEND\n": an empty line follows
+      vim.list_extend(out, { cs .. end_c .. ce, "" })
       body = out
     end
     return body
   end
+  -- the text of a headline with this CUSTOM_ID or ID
+  local hbody = type(bufnr) == "number" and M.headline_body and M.headline_body(bufnr, ref, true)
+  if hbody then
+    return vim.split(hbody, "\n", { plain = true })
+  end
   -- a block named `ref` is unique
   for _, b in ipairs(ctx.all) do
     if not b.call and b.name == ref and not in_commented(ctx.file, b.start) then
-      return body_of(b, blocks_mod.header_args(b, ctx.file))
+      return body_of(b, blocks_mod.header_args(b, ctx.file), true)
     end
   end
   local lob = M.library[ref]
@@ -545,27 +563,7 @@ local function buf_dir(bufnr)
 end
 M.buf_dir = buf_dir
 
---- Remove the common indentation of lines (org-remove-indentation).
-local function dedent(lines)
-  local min
-  for _, l in ipairs(lines) do
-    if l:match("%S") then
-      local n = #l:match("^(%s*)")
-      if not min or n < min then
-        min = n
-      end
-    end
-  end
-  if not min or min == 0 then
-    return lines
-  end
-  local out = {}
-  for i, l in ipairs(lines) do
-    out[i] = l:sub(min + 1)
-  end
-  return out
-end
-M.dedent = dedent
+local dedent = blocks_mod.dedent
 
 --- Value of the element at line `k` (org-babel-read-element): a table
 --- (rows of read cells and "hline"), the top-level items of a list, the
@@ -639,14 +637,18 @@ end
 M.read_element = read_element
 
 --- Body text of the headline with ID or CUSTOM_ID `id` (after its
---- planning line and property drawer), or nil.
-local function headline_body(bufnr, id)
+--- planning line and property drawer), or nil. With `local_only` other
+--- files are not searched.
+local function headline_body(bufnr, id, local_only)
   local file, lines, hl = get_file(bufnr), nil, nil
   for _, h in ipairs(file and file.headlines or {}) do
     if h.properties and (h.properties.ID == id or h.properties.CUSTOM_ID == id) then
       hl, lines = h, buf_lines(bufnr)
       break
     end
+  end
+  if not hl and local_only then
+    return nil
   end
   if not hl then
     local ok, found = pcall(require("org.id").find, id)
@@ -672,6 +674,8 @@ local function headline_body(bufnr, id)
   end
   return table.concat(vim.list_slice(lines, k, last), "\n")
 end
+
+M.headline_body = headline_body
 
 local evaluate_ref
 
@@ -2304,117 +2308,20 @@ function M.edit_special()
     end,
   })
 end
-
 ---------------------------------------------------------------------------
--- Tangling
+-- Tangling (see org.babel.tangle)
 ---------------------------------------------------------------------------
 
---- Tangle `bufnr`. Returns list of written files.
----@param opts? { bufnr?: integer, target?: string only tangle this file, silent?: boolean }
+--- Tangle `bufnr` (org-babel-tangle). Returns the list of written files.
+---@param opts? { bufnr?: integer, target?: string only tangle this file, only_line?: integer, tangle_file?: string, silent?: boolean }
 function M.tangle(opts)
-  opts = opts or {}
-  local bufnr = resolve_buf(opts.bufnr)
-  local lines = buf_lines(bufnr)
-  local file = get_file(bufnr)
-  local src_path = vim.api.nvim_buf_get_name(bufnr)
-  local dir = src_path ~= "" and vim.fn.fnamemodify(src_path, ":p:h") or vim.fn.getcwd()
-  local base = src_path ~= "" and vim.fn.fnamemodify(src_path, ":t:r") or "tangled"
-  local outputs, order = {}, {}
-  for _, b in ipairs(blocks_mod.parse_blocks(lines)) do
-    if not b.call and not in_commented(file, b.start) and (not opts.only_line or opts.only_line == b.start) then
-      local args = blocks_mod.header_args(b, file)
-      local tangle = blocks_mod.unquote(args.tangle or "no")
-      if tangle ~= "no" and tangle ~= "nil" and tangle ~= "" then
-        local target
-        if tangle == "yes" then
-          target = dir .. "/" .. base .. "." .. langs.ext(b.lang)
-        else
-          target = utils.expand(tangle, dir)
-        end
-        if not opts.target or opts.target == target then
-          if not outputs[target] then
-            outputs[target] = { lines = {}, args = args, lang = b.lang }
-            order[#order + 1] = target
-          end
-          local out = outputs[target]
-          local body = M.expand_body(bufnr, b, args, "tangle")
-          local n = (" " .. (b.switches or "") .. " "):match("%s%-i%s") and 0 or common_indent(body)
-          local ded = {}
-          for i, l in ipairs(body) do
-            ded[i] = l:sub(n + 1)
-          end
-          local comments = args.comments or "no"
-          local cp = langs.comment_prefix(b.lang)
-          local hl = file and file:headline_at(b.start)
-          local link = string.format("[[file:%s::%d][%s]]", src_path, b.start, hl and hl:plain_title() or b.name or "block")
-          if #out.lines > 0 and args.padline ~= "no" then
-            out.lines[#out.lines + 1] = ""
-          end
-          if comments == "link" or comments == "both" or comments == "yes" then
-            out.lines[#out.lines + 1] = cp .. link
-          end
-          if comments == "org" or comments == "both" then
-            if hl then
-              out.lines[#out.lines + 1] = cp .. hl:plain_title()
-            end
-          end
-          vim.list_extend(out.lines, ded)
-          if comments == "link" or comments == "both" or comments == "yes" then
-            out.lines[#out.lines + 1] = cp .. link .. " ends here"
-          end
-          if args.shebang and not out.shebang then
-            out.shebang = blocks_mod.unquote(args.shebang)
-          end
-          if args["tangle-mode"] then
-            out.mode = args["tangle-mode"]
-          end
-          if args.mkdirp == "yes" or args.mkdirp == "t" then
-            out.mkdirp = true
-          end
-        end
-      end
-    end
-  end
-  local written = {}
-  for _, target in ipairs(order) do
-    local out = outputs[target]
-    local content = vim.deepcopy(out.lines)
-    if out.shebang then
-      table.insert(content, 1, out.shebang)
-    end
-    local pdir = vim.fn.fnamemodify(target, ":h")
-    if not utils.is_dir(pdir) then
-      if out.mkdirp then
-        vim.fn.mkdir(pdir, "p")
-      else
-        utils.error("Tangle: directory does not exist (use :mkdirp yes): " .. pdir)
-        goto continue
-      end
-    end
-    utils.writefile(target, content)
-    do
-      local mode
-      if out.mode then
-        local oct = out.mode:match("#o(%d+)") or out.mode:match("^o?(%d%d%d)$")
-        mode = oct and tonumber(oct, 8)
-      elseif out.shebang then
-        mode = tonumber("755", 8)
-      end
-      if mode then
-        vim.uv.fs_chmod(target, mode)
-      end
-    end
-    written[#written + 1] = target
-    ::continue::
-  end
-  if not opts.silent then
-    if #written == 0 then
-      utils.notify("Tangled 0 code blocks")
-    else
-      utils.notify(string.format("Tangled %d file(s):\n%s", #written, table.concat(written, "\n")))
-    end
-  end
-  return written
+  return require("org.babel.tangle").tangle(opts)
+end
+
+--- Begin / end link comments of block `b` used around noweb expansions
+--- with `:comments noweb`.
+function M.tangle_comment_links(bufnr, b, file)
+  return require("org.babel.tangle").comment_links(bufnr, b, file, nil, true)
 end
 
 function M.tangle_command(args)
@@ -2422,24 +2329,9 @@ function M.tangle_command(args)
   return M.tangle({ target = args ~= "" and utils.expand(args, vim.fn.expand("%:p:h")) or nil })
 end
 
---- Tangle target of the block at the cursor (nil when it isn't tangled).
-local function block_tangle_target(bufnr, b)
-  local src_path = vim.api.nvim_buf_get_name(bufnr)
-  local dir = src_path ~= "" and vim.fn.fnamemodify(src_path, ":p:h") or vim.fn.getcwd()
-  local tangle = blocks_mod.unquote(b.args.tangle or "no")
-  if tangle == "no" or tangle == "nil" or tangle == "" then
-    return nil
-  end
-  if tangle == "yes" then
-    local base = src_path ~= "" and vim.fn.fnamemodify(src_path, ":t:r") or "tangled"
-    return dir .. "/" .. base .. "." .. langs.ext(b.lang)
-  end
-  return utils.expand(tangle, dir)
-end
-
 --- C-c C-v t: tangle the file. With a count of 1 (Emacs C-u) only the block
---- at the cursor, with a count of 2 or more (C-u C-u) the target file of the
---- block at the cursor.
+--- at the cursor, with a count of 2 or more (C-u C-u) the blocks with the
+--- same `:tangle` value as the block at the cursor.
 function M.tangle_action()
   local count = vim.v.count
   if count == 0 then
@@ -2448,24 +2340,19 @@ function M.tangle_action()
   local bufnr = vim.api.nvim_get_current_buf()
   local b = M.at_block(bufnr, vim.api.nvim_win_get_cursor(0)[1])
   if not b or b.call then
-    utils.warn("No source block at point")
-    return
-  end
-  local target = block_tangle_target(bufnr, b)
-  if not target then
-    utils.warn("This block is not tangled (:tangle no)")
+    utils.warn("Point is not in a source code block")
     return
   end
   if count == 1 then
     return M.tangle({ only_line = b.start })
   end
-  return M.tangle({ target = target })
+  return M.tangle({ tangle_file = blocks_mod.unquote(b.args.tangle or "no") })
 end
 
---- C-c C-v f: tangle another org file.
+--- C-c C-v f: tangle another org file (org-babel-tangle-file).
 function M.tangle_file(path)
   if not path then
-    local ok, v = pcall(vim.fn.input, { prompt = "Tangle file: ", completion = "file", cancelreturn = vim.NIL })
+    local ok, v = pcall(vim.fn.input, { prompt = "File to tangle: ", completion = "file", cancelreturn = vim.NIL })
     if not ok or v == vim.NIL or vim.trim(v) == "" then
       return
     end
@@ -2479,6 +2366,27 @@ function M.tangle_file(path)
   local bufnr = vim.fn.bufadd(path)
   vim.fn.bufload(bufnr)
   return M.tangle({ bufnr = bufnr })
+end
+
+--- Propagate edits of a tangled file back to the Org file (org-babel-detangle).
+function M.detangle(path)
+  return require("org.babel.tangle").detangle(path)
+end
+
+--- Jump from a tangled file to its Org block (org-babel-tangle-jump-to-org).
+function M.jump_to_org()
+  return require("org.babel.tangle").jump_to_org()
+end
+
+--- Remove tangle comments from the current buffer (org-babel-tangle-clean).
+function M.tangle_clean()
+  return require("org.babel.tangle").clean(0)
+end
+
+--- Tangle the Lua blocks of an Org file and run them (a Lua counterpart
+--- of org-babel-load-file).
+function M.load_file(path)
+  return require("org.babel.tangle").load_file(path)
 end
 
 ---------------------------------------------------------------------------
@@ -2540,36 +2448,37 @@ end
 -- Inspection and navigation (C-c C-v ...)
 ---------------------------------------------------------------------------
 
---- Body of a block with noweb references expanded and :var assignments,
---- :prologue and :epilogue added (what tangling writes).
+--- Body of a block with noweb references expanded and :prologue,
+--- variables and :epilogue added (org-babel-expand-src-block; with
+--- `purpose` "tangle" what tangling writes, `-r` coderefs removed).
 function M.expand_body(bufnr, b, args, purpose)
   local body = b.body
   local nw = noweb_for(args, purpose or "eval")
   if nw then
     body = M.expand_noweb(bufnr, body, 0, nw == "strip" and "strip" or nil, args, purpose or "eval")
   end
-  local pat = blocks_mod.coderef_pattern(b.switches)
-  if (b.switches or ""):match("%-r") then
+  local out
+  if args["no-expand"] then
+    out = body
+  else
+    local meta = {}
+    local ok, vars = pcall(resolve_vars, bufnr, args, meta)
+    if not ok then
+      vars = {}
+    end
+    local colnames = {}
+    for _, pair in ipairs(meta.colnames or {}) do
+      colnames[pair[1]] = pair[2]
+    end
+    out = vim.split(langs.expand(b.lang, body, args, vars, colnames), "\n", { plain = true })
+  end
+  if purpose == "tangle" and (b.switches or ""):match("%-r") then
+    local pat = blocks_mod.coderef_pattern(b.switches)
     local stripped = {}
-    for i, l in ipairs(body) do
+    for i, l in ipairs(out) do
       stripped[i] = l:gsub(pat, "")
     end
-    body = stripped
-  end
-  if args["no-expand"] then
-    return body
-  end
-  local out = {}
-  local ok, vars = pcall(resolve_vars, bufnr, args, {})
-  if ok and #vars > 0 then
-    vim.list_extend(out, langs.var_lines(b.lang, vars, args))
-  end
-  if args.prologue then
-    vim.list_extend(out, vim.split(blocks_mod.unquote(args.prologue), "\\n", { plain = true }))
-  end
-  vim.list_extend(out, body)
-  if args.epilogue then
-    vim.list_extend(out, vim.split(blocks_mod.unquote(args.epilogue), "\\n", { plain = true }))
+    out = stripped
   end
   return out
 end
@@ -2891,15 +2800,11 @@ function M.export_evaluate(bufnr, lines)
     if not in_commented(file, b.start) then
       local args = M.block_args(b, file, scratch)
       if args and not blocked[args.eval or ""] then
+        -- #+CALL lines get :exports results from babel.default_lob_header_args
         local exports = args.exports or "code"
-        if b.call then
-          -- calls export their results unless they say otherwise
-          local own = blocks_mod.parse_header_string(table.concat(b.header_lines, " ") .. " " .. b.params)
-          exports = blocks_mod.merge({}, own).exports or "results"
-        end
         local silent = (exports == "code" or exports == "none") and session_mod.name(args.session) ~= nil
         if exports == "results" or exports == "both" or silent then
-          jobs[#jobs + 1] = { line = b.start, silent = silent, query = args.eval }
+          jobs[#jobs + 1] = { line = b.start, silent = silent }
         end
       end
     end
@@ -2917,45 +2822,39 @@ function M.export_evaluate(bufnr, lines)
       end
     end
   end
-  local cfg = require("org.config").opts.babel
-  local proceed = #jobs > 0
-  if proceed and cfg.confirm_evaluate ~= false then
-    proceed = utils.confirm(string.format("Evaluate %d code block%s for export?", #jobs, #jobs == 1 and "" or "s"))
-  end
-  if proceed then
-    table.sort(jobs, function(x, y)
-      if x.line ~= y.line then
-        return x.line < y.line
-      end
-      return (x.col or 0) < (y.col or 0)
-    end)
-    for _, job in ipairs(jobs) do
-      job.mark = vim.api.nvim_buf_set_extmark(scratch, ns, job.line - 1, (job.col or 1) - 1, {})
+  table.sort(jobs, function(x, y)
+    if x.line ~= y.line then
+      return x.line < y.line
     end
-    for _, job in ipairs(jobs) do
-      local pos = vim.api.nvim_buf_get_extmark_by_id(scratch, ns, job.mark, {})
-      local lnum = pos[1] + 1
-      local ask = job.query == "query" or job.query == "query-export"
-      local ok, err = pcall(function()
-        if job.inline then
-          local line = vim.api.nvim_buf_get_lines(scratch, lnum - 1, lnum, false)[1] or ""
-          local ib = M.inline_at(line, pos[2] + 1)
-          if ib then
-            M.execute_inline_at(scratch, lnum, ib, { skip_confirm = not ask, sync = true })
-          end
-        else
-          M.execute({
-            bufnr = scratch,
-            lnum = lnum,
-            skip_confirm = not ask,
-            sync = true,
-            handling = job.silent and "none" or nil,
-          })
+    return (x.col or 0) < (y.col or 0)
+  end)
+  for _, job in ipairs(jobs) do
+    job.mark = vim.api.nvim_buf_set_extmark(scratch, ns, job.line - 1, (job.col or 1) - 1, {})
+  end
+  -- like Emacs, each block is confirmed on its own (org-confirm-babel-evaluate,
+  -- :eval query / query-export)
+  for _, job in ipairs(jobs) do
+    local pos = vim.api.nvim_buf_get_extmark_by_id(scratch, ns, job.mark, {})
+    local lnum = pos[1] + 1
+    local ok, err = pcall(function()
+      if job.inline then
+        local line = vim.api.nvim_buf_get_lines(scratch, lnum - 1, lnum, false)[1] or ""
+        local ib = M.inline_at(line, pos[2] + 1)
+        if ib then
+          M.execute_inline_at(scratch, lnum, ib, { sync = true, export = true })
         end
-      end)
-      if not ok then
-        utils.error("babel (export): " .. tostring(err))
+      else
+        M.execute({
+          bufnr = scratch,
+          lnum = lnum,
+          sync = true,
+          export = true,
+          handling = job.silent and "none" or nil,
+        })
       end
+    end)
+    if not ok then
+      utils.error("babel (export): " .. tostring(err))
     end
   end
   local out = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)

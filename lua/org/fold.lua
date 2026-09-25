@@ -56,6 +56,23 @@ function M.compute(lines)
       i = i + 1
     else
       local kind, bname
+      -- (a results drawer keeps its own drawer fold)
+      local rstop = line:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss][%[:]")
+        and not is_drawer_start(lines[i + 1] or "")
+        and require("org.babel.blocks").results_end(lines, i)
+      if rstop and rstop > i then
+        -- a #+RESULTS keyword and its result fold like Emacs'
+        -- org-babel-hide-result-toggle (TAB on the keyword)
+        local inner = cur + 1
+        levels[i] = ">" .. inner
+        for j = i + 1, rstop - 1 do
+          levels[j] = inner
+        end
+        levels[rstop] = "<" .. inner
+        regions[#regions + 1] = { start = i, ["end"] = rstop, kind = "results" }
+        i = rstop + 1
+        goto continue
+      end
       if is_drawer_start(line) then
         kind = "drawer"
       else
@@ -91,6 +108,7 @@ function M.compute(lines)
         i = i + 1
       end
     end
+    ::continue::
   end
   return levels, regions
 end

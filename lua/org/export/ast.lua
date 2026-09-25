@@ -1081,7 +1081,7 @@ function M.parse_elements(lines, s, e, ctx)
       if include then
         local inner = vim.list_slice(lines, i + 1, r_end)
         -- unwrap RESULTS drawer
-        if inner[1] and inner[1]:match("^%s*:RESULTS:%s*$") then
+        if inner[1] and inner[1]:upper():match("^%s*:RESULTS:%s*$") then
           inner = vim.list_slice(inner, 2, #inner - 1)
         end
         vim.list_extend(out, M.parse_elements(inner, 1, #inner, ctx))

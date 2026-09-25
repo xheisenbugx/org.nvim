@@ -191,7 +191,8 @@ describe("babel (Emacs header args)", function()
   it("expands a block body with variables", function()
     local buf = org_buffer({ "#+begin_src sh :var x=2 :prologue \"set -e\"", "echo $x", "#+end_src" }, { 2, 0 })
     local b = babel.at_block(buf, 2)
-    eq({ "x='2'", "set -e", "echo $x" }, babel.expand_body(buf, b, b.args, "eval"))
+    -- org-babel-expand-body:generic: prologue, variables, body
+    eq({ "set -e", "x='2'", "echo $x" }, babel.expand_body(buf, b, b.args, "eval"))
   end)
 
   it("demarcates (splits) a block at the cursor", function()
