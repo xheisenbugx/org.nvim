@@ -451,8 +451,17 @@ function M.open_file(path, lnum, opts)
     if b and cmd == "edit" then
       vim.api.nvim_set_current_buf(b)
     else
-      -- `hide` avoids E37 when the current buffer has unsaved changes
-      vim.cmd((cmd == "edit" and "hide " or "") .. cmd .. " " .. vim.fn.fnameescape(path))
+      -- `hide` avoids E37 when the current buffer has unsaved changes; a
+      -- modified buffer that can't be hidden (bufhidden=wipe) keeps its
+      -- window and the file opens in a split
+      local ok, err = pcall(vim.cmd, (cmd == "edit" and "hide " or "") .. cmd .. " " .. vim.fn.fnameescape(path))
+      if not ok then
+        if cmd == "edit" and tostring(err):find("E37", 1, true) then
+          vim.cmd("split " .. vim.fn.fnameescape(path))
+        else
+          error(err, 0)
+        end
+      end
     end
   end
   if lnum then
