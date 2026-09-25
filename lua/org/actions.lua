@@ -19,7 +19,8 @@ local M = {}
 M.list = {
   -- global
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
-  capture = { "org.capture", "prompt", desc = "Capture", global = true },
+  capture = { "org.capture", "prompt", desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)", global = true },
+  capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
   store_link = { "org.links", "store_link", desc = "Store link to current location", global = true },
@@ -203,13 +204,19 @@ M.list = {
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 
   -- refile / archive / attach
-  refile = { "org.refile", "refile", desc = "Refile subtree" },
-  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree to a refile target" },
+  refile = {
+    "org.refile",
+    "refile",
+    desc = "Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)",
+    modes = { "n", "x" },
+  },
+  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree / region to a refile target", modes = { "n", "x" } },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
   refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
   archive_to_sibling = { "org.archive", "archive_to_sibling", desc = "Archive to Archive sibling" },
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
+  archive_all_old = { "org.archive", "archive_all_old", desc = "Archive children with old time stamps" },
   attach = { "org.attach", "menu", desc = "Attachments" },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
   cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },

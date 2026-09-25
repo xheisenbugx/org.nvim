@@ -120,13 +120,26 @@ M.defaults = {
   --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.
   time_stamp_rounding_minutes = { 0, 5 },
-  --- Where `archive_subtree` sends entries. `%s` = current file name.
+  --- Where `archive_subtree` sends entries. `%s` = current file name
+  --- (org-archive-location).
   archive_location = "%s_archive::",
+  --- Context saved as ARCHIVE_* properties (org-archive-save-context-info):
+  --- "time", "file", "olpath", "olid", "category", "todo", "itags", "ltags".
   archive_save_context_info = { "time", "file", "olpath", "category", "todo", "itags" },
-  --- Heading of the sibling used by `archive_to_sibling`.
+  --- Heading of the sibling used by `archive_to_sibling` (org-archive-sibling-heading).
   archive_sibling_heading = "Archive",
-  --- Add inherited tags to archived entries: "infile" | true | false.
+  --- Add inherited tags to archived entries: "infile" | true | false
+  --- (org-archive-subtree-add-inherited-tags).
   archive_subtree_add_inherited_tags = "infile",
+  --- Archive as the first child of the archive heading instead of the last
+  --- (org-archive-reversed-order).
+  archive_reversed_order = false,
+  --- Mark archived entries done: false | true (first done keyword) | a done
+  --- keyword (org-archive-mark-done).
+  archive_mark_done = false,
+  --- Text put at the top of a new archive file, `%s` = the source file;
+  --- false for none (org-archive-file-header-format).
+  archive_file_header_format = "\nArchived entries from file %s\n\n",
   --- Window used for special buffers: "float" | "split" | "vsplit" | "tab" | "current"
   win_split_mode = "float",
   win_border = "rounded",
@@ -220,24 +233,47 @@ M.defaults = {
   -- Capture
   ---------------------------------------------------------------------------
   capture = {
-    --- Templates keyed by selection key. See `:h org-capture-templates`.
-    templates = {
-      t = { description = "Task", template = "* TODO %?\n  %U" },
-    },
-    window = "float", -- "float" | "split" | "vsplit" | "current"
+    --- Templates keyed by selection key (org-capture-templates). See
+    --- `:h org-capture-templates`. When empty, the Emacs fallback
+    --- `t = { description = "Task", target = "", headline = "Tasks",
+    --- template = "* TODO %?\n  %u\n  %a" }` is used.
+    templates = {},
+    --- Rules making templates available only in some buffers
+    --- (org-capture-templates-contexts), e.g.
+    --- `{ { "p", { { in_mode = "markdown" } } } }`.
+    templates_contexts = {},
+    --- Window of the capture buffer: "split" (Emacs splits the frame) |
+    --- "float" | "vsplit" | "tab" | "current".
+    window = "split",
   },
 
   ---------------------------------------------------------------------------
   -- Refile
   ---------------------------------------------------------------------------
   refile = {
-    max_level = 3,
-    use_outline_path = "file", -- "file" | true | false
-    allow_creating_parent_nodes = false,
-    include_current_file = true,
-    --- Target specs like org-refile-targets; replaces max_level /
-    --- include_current_file when non-empty. See `:h org-refile`.
+    --- Target specs (org-refile-targets). Empty = the level-1 headlines of
+    --- the current buffer, like Emacs's nil. See `:h org-refile`.
     targets = {},
+    --- When set (and `targets` is empty): the agenda files plus the current
+    --- file, up to this level (a shortcut for
+    --- `{ { files = "agenda", max_level = N }, { files = "current", max_level = N } }`).
+    max_level = nil,
+    --- With `max_level`: false leaves out the current file.
+    include_current_file = nil,
+    --- Target labels (org-refile-use-outline-path): false (the heading) |
+    --- true (outline path) | "file" | "full-file-path" | "title" |
+    --- "buffer-name" (outline path after that prefix; these also offer
+    --- the files themselves).
+    use_outline_path = false,
+    --- With an outline path, choose it one level at a time
+    --- (org-outline-path-complete-in-steps).
+    outline_path_complete_in_steps = true,
+    --- Allow new parent headlines ("Target/New"): false | true | "confirm"
+    --- (org-refile-allow-creating-parent-nodes).
+    allow_creating_parent_nodes = false,
+    --- Refile a Visual selection that does not start at a headline, making
+    --- its first line one (org-refile-active-region-within-subtree).
+    active_region_within_subtree = false,
     --- function(headline) -> boolean, filters targets (org-refile-target-verify-function).
     verify = nil,
     --- Log refiling: false | "time" | "note" (org-log-refile).
@@ -357,12 +393,51 @@ M.defaults = {
     file_apps = {},
   },
   id = {
+    --- Where the ID -> file database is kept (org-id-locations-file; JSON,
+    --- not shared with Emacs).
     locations_file = data_dir .. "/id-locations.json",
-    method = "uuid", -- "uuid" | "ts"
+    --- How new IDs are made (org-id-method): "uuid" | "ts" | "org".
+    method = "uuid",
+    --- Prefix of new IDs (org-id-prefix), e.g. "Org".
+    prefix = nil,
+    --- Time stamp format of "ts" IDs (org-id-ts-format; %6N = microseconds).
+    ts_format = "%Y%m%dT%H%M%S.%6N",
+    --- Also scan the archive files of the agenda files (org-id-search-archives).
+    search_archives = true,
+    --- More files (paths or globs) scanned for IDs (org-id-extra-files).
+    extra_files = {},
   },
   attach = {
+    --- Base directory of ID-based attachment directories (org-attach-id-dir).
     dir = "data/",
-    method = "cp", -- "cp" | "mv" | "ln"
+    --- Default attach method (org-attach-method): "cp" | "mv" | "ln" (hard
+    --- link) | "lns" (symbolic link).
+    method = "cp",
+    --- ID -> subdirectory of `dir` (org-attach-id-to-path-function-list):
+    --- functions or the built-ins "uuid" (`ab/cdef...`), "ts"
+    --- (`202609/...` for time stamp IDs) and "fallback" (`__/a/abcdef...`). The first result
+    --- that exists is used, else the first one.
+    id_to_path = { "uuid", "ts", "fallback" },
+    --- Inherit the attachment directory from a parent: "selective" (follow
+    --- `use_property_inheritance`) | true | false (org-attach-use-inheritance).
+    use_inheritance = "selective",
+    --- Store DIR relative to the file (org-attach-dir-relative).
+    dir_relative = false,
+    --- How an entry without a directory gets one
+    --- (org-attach-preferred-new-method): "id" | "dir" | "ask" | false.
+    preferred_new_method = "id",
+    --- Store a link after attaching (org-attach-store-link-p): "attached"
+    --- (attachment: link) | "file" (file: link to the attachment) | true
+    --- (file: link to the source) | false.
+    store_link = "attached",
+    --- Delete an empty attachment directory on sync: "query" | true | false
+    --- (org-attach-sync-delete-empty-dir).
+    sync_delete_empty_dir = "query",
+    --- Delete the attachments of archived entries: false | true | "query"
+    --- (org-attach-archive-delete).
+    archive_delete = false,
+    --- Tag of entries with attachments; false for none (org-attach-auto-tag).
+    auto_tag = "ATTACH",
   },
 
   ---------------------------------------------------------------------------

@@ -113,7 +113,7 @@ describe("ids", function()
 end)
 
 describe("attachments", function()
-  it("attaches buffers, relative symlinks and syncs the ATTACH tag", function()
+  it("attaches buffers, symbolic links and syncs the ATTACH tag", function()
     local dir = tmpdir()
     config.opts.id.locations_file = dir .. "/ids.json"
     local other = vim.api.nvim_create_buf(true, false)
@@ -126,7 +126,8 @@ describe("attachments", function()
     ok(buf_lines(buf)[1]:match(":ATTACH:"))
     vim.fn.writefile({ "src" }, dir .. "/src.txt")
     local link = attach.attach_file(dir .. "/src.txt", "lns", { bufnr = buf, lnum = 1 })
-    ok(vim.uv.fs_readlink(link):match("^%.%./"), vim.uv.fs_readlink(link))
+    -- lns is a symbolic link to the absolute path (org-attach-method)
+    eq(dir .. "/src.txt", vim.uv.fs_readlink(link))
     eq({ "src" }, vim.fn.readfile(link))
     vim.fn.delete(vim.fn.fnamemodify(dest, ":h"), "rf")
     local orig = require("org.utils").confirm
