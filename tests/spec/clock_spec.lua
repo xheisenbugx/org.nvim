@@ -13,6 +13,8 @@ local function file_buffer(lines)
 end
 
 describe("clock", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   before_each(function()
     config.opts.clock.persist = false
     clock.state = nil

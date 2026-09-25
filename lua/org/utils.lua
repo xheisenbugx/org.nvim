@@ -340,18 +340,23 @@ function M.glob_org_files(patterns)
       out[#out + 1] = p
     end
   end
+  --- Files of a directory like Emacs org-agenda-files: not recursive,
+  --- names matching org-agenda-file-regexp ("^[^.].*\\.org$").
+  local function add_dir(dir)
+    for _, f in ipairs(vim.fn.globpath(dir, "*.org", false, true)) do
+      if not vim.fs.basename(f):match("^%.") then
+        add(f)
+      end
+    end
+  end
   for _, pattern in ipairs(patterns or {}) do
     local expanded = M.expand(pattern)
     if M.is_dir(expanded) then
-      for _, f in ipairs(vim.fn.globpath(expanded, "**/*.org", false, true)) do
-        add(f)
-      end
+      add_dir(expanded)
     elseif expanded:find("[%*%?%[]") then
       for _, f in ipairs(vim.fn.glob(expanded, false, true)) do
         if M.is_dir(f) then
-          for _, g in ipairs(vim.fn.globpath(f, "**/*.org", false, true)) do
-            add(g)
-          end
+          add_dir(f)
         else
           add(f)
         end

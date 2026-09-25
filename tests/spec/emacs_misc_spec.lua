@@ -249,6 +249,8 @@ describe("emacs: dynamic blocks", function()
 end)
 
 describe("emacs: todo / notes / timer", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("select_or_cycle cycles without fast keys", function()
     local buf = org_buffer({ "#+TODO: TODO | DONE", "* Task" }, { 2, 0 })
     todo.select_or_cycle()

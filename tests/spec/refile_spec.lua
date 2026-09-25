@@ -19,6 +19,8 @@ local function lines_of(path)
 end
 
 describe("refile", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("lists targets with outline paths", function()
     local dir = setup_files({ "* A1", "** A2", "*** A3", "**** A4" }, { "* B1" })
     vim.cmd("edit! " .. dir .. "/a.org")
@@ -73,6 +75,7 @@ describe("refile", function()
     local dir = setup_files({ "* Copy me", "text" }, { "* Target", "** Existing" })
     config.opts.refile.reverse_note_order = true
     config.opts.refile.log = "time"
+    config.opts.log_into_drawer = "LOGBOOK"
     vim.cmd("edit! " .. dir .. "/a.org")
     refile.refile_copy({ lnum = 1 }, { dest = target("b.org/Target") })
     eq({ "* Copy me", "text" }, buf_lines())

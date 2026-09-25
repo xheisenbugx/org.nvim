@@ -122,7 +122,8 @@ end
 function M.foldtext()
   local lnum = vim.v.foldstart
   local line = vim.fn.getline(lnum)
-  local ellipsis = config.opts.ellipsis or " …"
+  -- org-ellipsis nil shows the standard "..."
+  local ellipsis = config.opts.ellipsis or "..."
   local lvl = parser.headline_level(line)
   local group = "Folded"
   if lvl then

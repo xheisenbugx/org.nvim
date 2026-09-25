@@ -23,6 +23,8 @@ local today = date.today()
 local now_prefix = "[" .. today:to_date_string()
 
 describe("todo", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   before_each(function()
     utils.input = function()
       return "a note"

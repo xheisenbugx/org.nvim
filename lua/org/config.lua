@@ -16,11 +16,15 @@ local data_dir = vim.fn.stdpath("data") .. "/org"
 M.defaults = {
   --- Base directory for org files. Used to resolve relative paths.
   org_directory = "~/org",
-  --- Files and globs scanned by the agenda, refile and id lookups.
-  --- Directories are scanned recursively for `*.org` files.
-  agenda_files = { "~/org/**/*.org" },
-  --- Default target for capture templates without a `target`.
-  default_notes_file = "~/org/refile.org",
+  --- Files scanned by the agenda, refile and id lookups (org-agenda-files).
+  --- A directory adds its `*.org` files (not recursively, names not starting
+  --- with a dot, like org-agenda-file-regexp); a string naming a non-org
+  --- file reads the list from that file, one per line. Glob patterns such
+  --- as `~/org/**/*.org` are an extension.
+  agenda_files = {},
+  --- Default target for capture templates without a `target`
+  --- (org-default-notes-file).
+  default_notes_file = "~/.notes",
 
   ---------------------------------------------------------------------------
   -- TODO keywords & logging
@@ -28,7 +32,7 @@ M.defaults = {
   --- Each string is a sequence, exactly like Emacs `org-todo-keywords`.
   --- `(k)` is a fast-selection key, `!` logs a timestamp, `@` asks for a note.
   --- A flat list containing a `"|"` element is also accepted.
-  todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" },
+  todo_keywords = { "TODO | DONE" },
   --- State a repeating task returns to: nil = first keyword of its sequence,
   --- true = the state it had before, or a keyword. The REPEAT_TO_STATE
   --- property overrides it.
@@ -43,7 +47,7 @@ M.defaults = {
   --- Block marking an entry DONE while it has unchecked checkboxes.
   enforce_todo_checkbox_dependencies = false,
   --- `false`, `"time"` (add CLOSED:) or `"note"` (CLOSED: + note).
-  log_done = "time",
+  log_done = false,
   --- Logging when a repeated task is marked done: false | "time" | "note".
   log_repeat = "time",
   --- Log changes of SCHEDULED / DEADLINE: false | "time" | "note".
@@ -52,7 +56,7 @@ M.defaults = {
   --- Ask for a note when clocking out (org-log-note-clock-out).
   log_note_clock_out = false,
   --- Drawer used for state changes, notes and clocks. `false` = no drawer.
-  log_into_drawer = "LOGBOOK",
+  log_into_drawer = false,
   --- Newest log entries first (Emacs default).
   log_states_order_reversed = true,
 
@@ -89,8 +93,8 @@ M.defaults = {
   -- Buffer behaviour
   ---------------------------------------------------------------------------
   --- "overview" | "content" | "showall" | "showeverything" | "nofold"
-  --- | "show2levels" .. "show5levels"
-  startup_folded = "overview",
+  --- | "show2levels" .. "show5levels" (org-startup-folded)
+  startup_folded = "showeverything",
   --- Fold drawers when the file is opened (#+STARTUP: hidedrawers / nohidedrawers).
   hide_drawer_startup = true,
   --- Fold `#+begin_...` blocks when the file is opened (#+STARTUP: hideblocks).
@@ -102,12 +106,14 @@ M.defaults = {
   footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
-  --- Indentation added to src block contents in the edit buffer.
-  edit_src_content_indentation = 0,
-  --- Text appended to folded headlines.
-  ellipsis = " …",
-  --- Blank line handling before new headlines: true | false | "auto".
-  blank_before_new_entry = { heading = "auto", plain_list_item = false },
+  --- Indentation added to src block contents in the edit buffer
+  --- (org-src-content-indentation).
+  edit_src_content_indentation = 2,
+  --- Text appended to folded headlines (org-ellipsis).
+  ellipsis = "...",
+  --- Blank line handling before new headlines and list items: true | false |
+  --- "auto" (org-blank-before-new-entry).
+  blank_before_new_entry = { heading = "auto", plain_list_item = "auto" },
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
   --- { rounding of the current time in date prompts, minute step of
@@ -269,7 +275,7 @@ M.defaults = {
     --- Notify once when the clocked time reaches the task's effort.
     notify_effort = true,
     --- Number of tasks remembered for clock_in with a count (clock history).
-    history_length = 35,
+    history_length = 5,
     --- Start a new clock where the last one stopped (org-clock-continuously).
     continuously = false,
     --- Time shown in the statusline besides the running clock
@@ -317,7 +323,7 @@ M.defaults = {
     clocktable_default = { maxlevel = 2, scope = "file", block = nil },
     --- Keep the running clock and the clock history across restarts:
     --- true (both), "clock", "history" or false (org-clock-persist).
-    persist = true,
+    persist = false,
     --- Ask before resuming a saved clock after a restart
     --- (org-clock-persist-query-resume).
     persist_query_resume = true,
@@ -434,7 +440,7 @@ M.defaults = {
   notifications = {
     enabled = false,
     --- Minutes before a timed scheduled/deadline entry to notify.
-    reminder_time = { 10, 0 },
+    reminder_time = { 12, 9, 6, 3, 0 },
     check_interval = 60,
     --- Also use the OS notifier (osascript / notify-send) when available.
     system_notification = true,

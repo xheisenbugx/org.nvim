@@ -4,17 +4,45 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local results = { passed = 0, failed = 0, errors = {} }
 local stack = {}
 local befores = {}
+local afters = {}
 
 _G.describe = function(name, fn)
   table.insert(stack, name)
   table.insert(befores, {})
+  table.insert(afters, {})
   fn()
+  table.remove(afters)
   table.remove(befores)
   table.remove(stack)
 end
 
 _G.before_each = function(fn)
   table.insert(befores[#befores], fn)
+end
+
+_G.after_each = function(fn)
+  table.insert(afters[#afters], fn)
+end
+
+--- Inside a describe: set top-level config options for each of its tests
+--- and restore them afterwards (specs written for a non-default setup,
+--- e.g. a NEXT keyword or logging into LOGBOOK).
+_G.with_config = function(overrides)
+  local saved
+  before_each(function()
+    local opts = require("org.config").opts
+    saved = {}
+    for k, v in pairs(overrides) do
+      saved[k] = { opts[k] }
+      opts[k] = vim.deepcopy(v)
+    end
+  end)
+  after_each(function()
+    local opts = require("org.config").opts
+    for k, v in pairs(saved or {}) do
+      opts[k] = v[1]
+    end
+  end)
 end
 
 _G.it = function(name, fn)
@@ -27,6 +55,14 @@ _G.it = function(name, fn)
     end
     fn()
   end)
+  for i = #afters, 1, -1 do
+    for _, a in ipairs(afters[i]) do
+      local aok, aerr = pcall(a)
+      if ok and not aok then
+        ok, err = false, aerr
+      end
+    end
+  end
   if ok then
     results.passed = results.passed + 1
   else

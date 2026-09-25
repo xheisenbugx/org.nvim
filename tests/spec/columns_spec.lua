@@ -137,6 +137,8 @@ describe("columnview dblock parameters", function()
 end)
 
 describe("column view", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("n / p cycle allowed values and C-c C-t changes the TODO state", function()
     local src = open_view({
       "#+COLUMNS: %ITEM %Status",

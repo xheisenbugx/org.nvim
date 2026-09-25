@@ -144,6 +144,8 @@ describe("parser", function()
 end)
 
 describe("edit", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   local edit = require("org.edit")
   it("builds headlines with aligned tags", function()
     local l = edit.build_headline({ level = 2, todo = "TODO", priority = "B", title = "Hello", tags = { "a", "b" } })

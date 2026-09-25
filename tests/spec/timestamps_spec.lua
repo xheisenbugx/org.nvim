@@ -4,6 +4,8 @@ local ts = require("org.timestamps")
 local calendar = require("org.calendar")
 
 describe("timestamps", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("increments the component under the cursor", function()
     local buf = org_buffer({ "x <2026-09-23 Wed 10:00-11:30 +1w -2d> y" }, { 1, 4 })
     -- cursor on year (col 0-based 4 -> '2' of 2026? '<' is col 2)

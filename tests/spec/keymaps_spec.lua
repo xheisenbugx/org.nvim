@@ -4,6 +4,8 @@ local function keys(k)
 end
 
 describe("keymaps e2e", function()
+  -- written for this setup rather than the Emacs defaults
+  with_config({ todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" }, log_done = "time", log_into_drawer = "LOGBOOK" })
   it("cit cycles TODO keyword", function()
     local buf = org_buffer({ "* Task" }, { 1, 0 })
     keys("cit")
