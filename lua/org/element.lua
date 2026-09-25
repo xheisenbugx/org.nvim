@@ -490,9 +490,18 @@ function M.up()
   end
   local el = M.at(bufnr, lnum)
   local p = el and el.parent
-  if p and p.type == "plain-list" and el.type == "item" then
-    -- an item's parent is its list: go to the enclosing item, if any
-    p = p.parent or p
+  if el and el.type == "item" then
+    local line = vim.api.nvim_get_current_line()
+    local col = cursor()[2]
+    if col > #line:match("^(%s*)") then
+      -- in the item's text: its paragraph's parent is the item
+      return goto_line(el.first)
+    end
+    -- at the bullet: the list, or at its first item the list's parent
+    if p.first ~= lnum then
+      return goto_line(p.first)
+    end
+    p = p.parent
   end
   if p then
     return goto_line(p.first)
@@ -585,6 +594,17 @@ local function swap(bufnr, a, b)
   local a_body = get(a.first, a.clast)
   local between = get(a.clast + 1, b.first - 1)
   local b_body = get(b.first, b.clast)
+  local p = a.parent
+  if p and p.type == "item" and p.first == a.first and a.type ~= "item" then
+    -- A is the text right after a bullet: the bullet stays in place and
+    -- each position keeps its prefix (org-element-swap-A-B)
+    local pa = p.list_item.content_col
+    local pb = #b_body[1]:match("^(%s*)")
+    local a_prefix, b_prefix = a_body[1]:sub(1, pa), b_body[1]:sub(1, pb)
+    a_body[1], b_body[1] = a_body[1]:sub(pa + 1), b_body[1]:sub(pb + 1)
+    b_body[1] = a_prefix .. b_body[1]
+    a_body[1] = b_prefix .. a_body[1]
+  end
   local new = vim.list_extend(vim.list_extend(vim.deepcopy(b_body), between), a_body)
   vim.api.nvim_buf_set_lines(bufnr, a.first - 1, b.clast, false, new)
   return a.first + #b_body + #between
