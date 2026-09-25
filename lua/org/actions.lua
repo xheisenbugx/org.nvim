@@ -289,6 +289,7 @@ M.list = {
   babel_describe_bindings = { "org.babel", "describe_bindings", desc = "List Babel key bindings" },
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
+  babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
 }
 
 --- Resolve an action to its function.

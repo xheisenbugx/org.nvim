@@ -368,7 +368,8 @@ local function match_results(line)
   end
   local hash, name = line:match(RESULTS_PAT)
   if name then
-    return name, hash:sub(2, -2)
+    -- org-babel-hash-show-time writes "[(2024-01-02 10:00:00) hash]"
+    return name, (hash:sub(2, -2):gsub("^%(%d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d%)%s*", ""))
   end
   return line:match(RESULTS_PAT2)
 end

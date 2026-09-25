@@ -59,7 +59,7 @@ function M.context_action()
   end
   local babel = require("org.babel")
   if babel.at_block(0, lnum) or babel.inline_at_cursor() then
-    return babel.execute_block()
+    return babel.ctrl_c_ctrl_c()
   end
   local dblock = require("org.dblock")
   if dblock.at_cursor() then
@@ -124,13 +124,19 @@ function M.edit_special()
     return require("org.table").edit_formulas()
   end
   local babel = require("org.babel")
-  if babel.at_block(0, lnum) then
-    return babel.edit_special()
+  local b = babel.at_block(0, lnum)
+  if b and not b.call and lnum <= b.finish then
+    return babel.edit_special({ session = vim.v.count > 0 })
   end
-  if require("org.special").edit_element(0, lnum) ~= false then
+  local special = require("org.special")
+  if special.edit_element(0, lnum) ~= false then
     return
   end
-  utils.warn("Nothing to edit here (place the cursor in a src block or table)")
+  local _, col = cur()
+  if special.edit_object(0, lnum, col) then
+    return
+  end
+  utils.error("No special environment to edit here")
 end
 
 ---------------------------------------------------------------------------

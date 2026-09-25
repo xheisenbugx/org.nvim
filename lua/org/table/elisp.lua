@@ -733,6 +733,10 @@ S.setq = function(x, env)
   end
   return v
 end
+-- (org-sbe "block" [header] (var value)...): a src block's result (ob-table)
+S["org-sbe"] = function(x)
+  return require("org.babel").sbe_form(x)
+end
 
 -- Builtins ---------------------------------------------------------------
 

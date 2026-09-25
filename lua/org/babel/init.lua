@@ -1655,8 +1655,18 @@ local function insert_results(bufnr, start, result, args, hash, lang, ctx)
   for i, l in ipairs(out) do
     body[i] = (l == "" or no_indent) and l or (indent .. l)
   end
-  local keyword = require("org.config").opts.babel.results_keyword or "RESULTS"
-  local header = indent .. "#+" .. keyword .. (hash and ("[" .. hash .. "]") or "") .. ":" .. (b.name and (" " .. b.name) or "")
+  local bcfg = require("org.config").opts.babel
+  local keyword = bcfg.results_keyword or "RESULTS"
+  local hash_text = hash
+  if hash and bcfg.hash_show_time then
+    hash_text = os.date("(%Y-%m-%d %H:%M:%S) ") .. hash
+  end
+  local header = indent
+    .. "#+"
+    .. keyword
+    .. (hash_text and ("[" .. hash_text .. "]") or "")
+    .. ":"
+    .. (b.name and (" " .. b.name) or "")
   local after_row
   if b.results then
     local s, e = b.results.start, b.results.finish
@@ -2256,34 +2266,27 @@ end
 -- Edit special
 ---------------------------------------------------------------------------
 
-local function common_indent(lines)
-  local min
-  for _, l in ipairs(lines) do
-    if l:match("%S") then
-      local n = #l:match("^(%s*)")
-      if not min or n < min then
-        min = n
-      end
-    end
-  end
-  return min or 0
-end
-
-function M.edit_special()
+--- C-c ': edit the src block at the cursor in a buffer with the
+--- language's filetype (org-edit-src-code). The common indentation is
+--- removed and put back (plus `edit_src_content_indentation`) unless the
+--- block has `-i` or `src_preserve_indentation` is set. With
+--- `opts.session` (C-u C-c ') a block with a :session shows its session
+--- instead.
+---@param opts? { session?: boolean }
+function M.edit_special(opts)
+  opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
   local b = M.at_block(bufnr, vim.api.nvim_win_get_cursor(0)[1])
   if not b or b.call then
     return false
   end
+  if opts.session and session_mod.name(b.args.session) then
+    return M.switch_to_session({ no_register = true })
+  end
   local raw = vim.api.nvim_buf_get_lines(bufnr, b.start, b.finish - 1, false)
   local body = blocks_mod.unescape(raw)
-  -- -i (org-src-preserve-indentation) keeps the lines exactly as they are
-  local preserve = (" " .. (b.switches or "") .. " "):match("%s%-i%s") ~= nil
-  local n = preserve and 0 or common_indent(body)
-  local dedented = {}
-  for i, l in ipairs(body) do
-    dedented[i] = l:sub(n + 1)
-  end
+  local preserve = blocks_mod.preserve_indentation(b.switches)
+  local dedented = preserve and body or blocks_mod.dedent(body)
   if #dedented == 0 then
     dedented = { "" }
   end
@@ -2308,6 +2311,7 @@ function M.edit_special()
     end,
   })
 end
+
 ---------------------------------------------------------------------------
 -- Tangling (see org.babel.tangle)
 ---------------------------------------------------------------------------
@@ -2387,6 +2391,124 @@ end
 --- of org-babel-load-file).
 function M.load_file(path)
   return require("org.babel.tangle").load_file(path)
+end
+
+--- :Org detangle [file]
+function M.detangle_command(args)
+  args = vim.trim(args or "")
+  return M.detangle(args ~= "" and args or nil)
+end
+
+--- :Org babel_load_file [file] (default: the current file)
+function M.load_file_command(args)
+  args = vim.trim(args or "")
+  local path = args ~= "" and args or vim.api.nvim_buf_get_name(0)
+  local ok, err = pcall(M.load_file, path)
+  if not ok then
+    utils.error(tostring(err))
+  end
+end
+
+---------------------------------------------------------------------------
+-- Hiding results (org-babel-hide-result-toggle / org-babel-result-hide-all)
+---------------------------------------------------------------------------
+
+--- Fold every `#+RESULTS` keyword with its result (org-babel-result-hide-all).
+--- TAB on a `#+RESULTS` line toggles one result.
+function M.hide_all_results()
+  local lines = buf_lines(0)
+  local n = 0
+  for i, l in ipairs(lines) do
+    if blocks_mod.match_results(l) and blocks_mod.results_end(lines, i) > i then
+      if vim.fn.foldlevel(i) > 0 and vim.fn.foldclosed(i) == -1 then
+        pcall(vim.cmd, i .. "foldclose")
+        n = n + 1
+      end
+    end
+  end
+  return n
+end
+
+--- C-c C-c on a src block or #+CALL (org-babel-execute-safely-maybe):
+--- nothing with `babel.no_eval_on_ctrl_c_ctrl_c`.
+function M.ctrl_c_ctrl_c()
+  if require("org.config").opts.babel.no_eval_on_ctrl_c_ctrl_c then
+    return true
+  end
+  return M.execute_block()
+end
+
+---------------------------------------------------------------------------
+-- org-sbe (ob-table)
+---------------------------------------------------------------------------
+
+--- The result of the src block `name` called with `vars` (a list of
+--- { name, value } where value is the text of the argument), as a
+--- trimmed string: what `(org-sbe name (var value)...)` gives a table
+--- formula. `header` holds header arguments.
+function M.sbe(name, vars, header, bufnr)
+  bufnr = resolve_buf(bufnr)
+  local parts = {}
+  for i, v in ipairs(vars or {}) do
+    parts[i] = v[1] .. "=" .. v[2]
+  end
+  local ref = name .. "[" .. (header or "") .. "](" .. table.concat(parts, ", ") .. ")"
+  local value = M.resolve_var(bufnr, ref, {}, {}, {})
+  if type(value) ~= "string" then
+    value = lisp.prin1(value)
+  end
+  return vim.trim(value)
+end
+
+--- `org-sbe` for the Emacs Lisp formula interpreter (org.table.elisp):
+--- `x` is the unevaluated form. Like the Emacs macro, a value preceded by
+--- the symbol `$` is passed as a string ("$$2" in a formula).
+function M.sbe_form(x)
+  local el = require("org.table.elisp")
+  local function text(v)
+    if type(v) == "table" and v.name then
+      return v.name
+    end
+    return type(v) == "string" and v or el.to_string(v)
+  end
+  local name = text(x[2])
+  local k = 3
+  local header = ""
+  if type(x[k]) == "string" then
+    header = x[k]
+    k = k + 1
+  end
+  local vars = {}
+  for i = k, x.n do
+    local spec = x[i]
+    if type(spec) == "table" and spec.n then
+      local values, quote = {}, false
+      for j = 2, spec.n do
+        local v = spec[j]
+        if type(v) == "table" and v.name == "$" then
+          quote = true
+        else
+          if quote then
+            values[#values + 1] = lisp.prin1(type(v) == "string" and v or text(v))
+          elseif el.is_float(v) or type(v) == "number" then
+            values[#values + 1] = el.to_string(v)
+          else
+            values[#values + 1] = text(v)
+          end
+          quote = false
+        end
+      end
+      local value = values[1] or ""
+      if #values > 1 then
+        value = "'(" .. table.concat(values, " ") .. ")"
+      end
+      vars[#vars + 1] = { text(spec[1]), value }
+    end
+  end
+  if name == "" then
+    return ""
+  end
+  return M.sbe(name, vars, header)
 end
 
 ---------------------------------------------------------------------------
@@ -2592,12 +2714,16 @@ end
 --- (org-babel-switch-to-session). The block body is copied to the unnamed
 --- register. With a count, the block's :var values are first assigned in
 --- the session (org-babel-prep-session).
-function M.switch_to_session()
+---@param opts? { no_register?: boolean }
+function M.switch_to_session(opts)
+  opts = opts or {}
   local sess, bufnr, src, args = cursor_session()
   if not sess then
     return
   end
-  vim.fn.setreg('"', table.concat(src.body, "\n"))
+  if not opts.no_register then
+    vim.fn.setreg('"', table.concat(src.body, "\n"))
+  end
   if vim.v.count > 0 then
     local ok, vars = pcall(resolve_vars, bufnr, args, {})
     if not ok then
@@ -2605,7 +2731,7 @@ function M.switch_to_session()
     elseif #vars > 0 then
       if sess.kind == "lua" then
         for _, v in ipairs(vars) do
-          sess.env[v.name] = v.value
+          sess.env[v.name] = langs.lua_value(v.value)
         end
       else
         session_mod.eval(sess, table.concat(langs.var_lines(src.lang, vars, args), "\n"), "output", function() end)
