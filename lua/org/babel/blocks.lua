@@ -714,7 +714,7 @@ end
 --- `header-args:LANG` (inherited properties or #+PROPERTY) < the
 --- `#+begin_src` line < `#+HEADER` lines.
 ---@param file org.File|nil
----@param opts? { inline?: boolean, no_finish?: boolean, state?: table }
+---@param opts? { inline?: boolean, no_finish?: boolean, state?: table, extra_defaults?: table }
 function M.header_args(block, file, lang, opts)
   opts = opts or {}
   lang = lang or block.lang
@@ -723,6 +723,9 @@ function M.header_args(block, file, lang, opts)
   local state = opts.state or { pos = 0 }
   local defaults = opts.inline and cfg.default_inline_header_args or cfg.default_header_args
   M.merge(args, dict_pairs(defaults), state)
+  if opts.extra_defaults then
+    M.merge(args, dict_pairs(opts.extra_defaults), state)
+  end
   local lcfg = (cfg.languages or {})[lang]
   if type(lcfg) == "table" and lcfg.default_header_args then
     M.merge(args, dict_pairs(lcfg.default_header_args), state)

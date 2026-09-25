@@ -311,10 +311,11 @@ function M.collect(bufnr, opts)
       local counter = counters[key]
       local skip = hidden(file, b.start) or (opts.only_line and opts.only_line ~= b.start)
       if not skip then
-        local args = blocks_mod.header_args(b, file)
-        if opts.default_tangle and (args.tangle == nil or args.tangle == "no") then
-          args.tangle = opts.default_tangle
-        end
+        -- a target file is the default :tangle of every block (org-babel-tangle's
+        -- TARGET-FILE); a block's own `:tangle no` still wins
+        local args = blocks_mod.header_args(b, file, nil, {
+          extra_defaults = opts.default_tangle and { tangle = opts.default_tangle } or nil,
+        })
         local tfile = blocks_mod.unquote(args.tangle or "no")
         local ok_lang = not opts.lang_re or (b.lang ~= "" and vim.regex(opts.lang_re):match_str(b.lang))
         if
@@ -728,9 +729,10 @@ function M.clean(bufnr)
 end
 
 --- Tangle an Org file and run the Lua it produced (a Lua counterpart of
---- org-babel-load-file, which loads Emacs Lisp). The Lua blocks are
---- tangled to FILE.lua next to it (unless it is newer than the Org file
---- and `compile` is false) and run with `dofile`.
+--- org-babel-load-file, which loads Emacs Lisp). The `lua` blocks are
+--- tangled to FILE.lua next to it (blocks with `:tangle no` are left out;
+--- nothing is done while FILE.lua is newer than the Org file) and the
+--- file runs with `dofile`.
 ---@param path string
 ---@return any result of the file
 function M.load_file(path)
@@ -741,7 +743,7 @@ function M.load_file(path)
   local out = vim.fn.fnamemodify(path, ":r") .. ".lua"
   if not utils.exists(out) or vim.fn.getftime(out) < vim.fn.getftime(path) then
     local obuf = utils.load_buffer(path)
-    M.tangle({ bufnr = obuf, target = out, default_tangle = out, lang_re = "^lua$", silent = true })
+    M.tangle({ bufnr = obuf, default_tangle = out, lang_re = "^lua$", silent = true })
   end
   if not utils.exists(out) then
     error("No Lua code tangled from " .. path, 0)

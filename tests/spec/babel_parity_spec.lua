@@ -860,7 +860,18 @@ describe("babel parity: tangling", function()
     eq(2, babel.tangle_clean())
     eq({ "echo c" }, buf_lines(0))
     vim.cmd("bwipeout!")
-    vim.fn.writefile({ "* Init", "#+begin_src lua", "return 40 + 2", "#+end_src" }, dir .. "/init.org")
+    vim.fn.writefile({
+      "* Init",
+      "#+begin_src lua :tangle no",
+      "error('not tangled')",
+      "#+end_src",
+      "#+begin_src sh",
+      "echo not lua",
+      "#+end_src",
+      "#+begin_src lua",
+      "return 40 + 2",
+      "#+end_src",
+    }, dir .. "/init.org")
     eq(42, babel.load_file(dir .. "/init.org"))
     eq(1, vim.fn.filereadable(dir .. "/init.lua"))
   end)
