@@ -550,7 +550,7 @@ The goal is feature parity for everyday use, but some things differ:
   is no symbolic math, no named fields (`$name`) and no `#+CONSTANTS`.
   Elisp formulas are replaced by `'(lua expression)`.
 - **Babel:**
-  - There are no `:session` or `:post` options.
+  - There is no `:session` option.
   - Export uses existing `#+RESULTS` blocks and never runs code.
   - `elisp:` links and blocks can't run.
 - **Column view** opens as a separate table view instead of overlays.
@@ -570,7 +570,7 @@ first contribution:
 - [ ] Inline image and LaTeX previews
 - [ ] Clock idle detection
 - [ ] `clocktable` `:step`
-- [ ] Babel `:session` and `:post`
+- [ ] Babel `:session`
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`

@@ -226,6 +226,36 @@ describe("babel (Emacs header args)", function()
     end), vim.inspect(buf_lines(buf)))
   end)
 
+  it(":post runs a named block on the result", function()
+    local buf = org_buffer({
+      "#+NAME: shout",
+      "#+begin_src lua :var s=\"\"",
+      "return string.upper(s) .. '!'",
+      "#+end_src",
+      "",
+      "#+begin_src lua :post shout(s=*this*)",
+      "return 'hey'",
+      "#+end_src",
+    }, { 7, 0 })
+    babel.execute_block()
+    ok(wait_for(buf, function(l)
+      return vim.tbl_contains(l, ": HEY!")
+    end), vim.inspect(buf_lines(buf)))
+  end)
+
+  it("keeps indentation with -i when editing and tangling", function()
+    local dir = tmpdir()
+    local buf = org_buffer({ "#+begin_src sh -i :tangle i.sh", "  indented", "#+end_src" }, { 2, 0 })
+    vim.api.nvim_buf_set_name(buf, dir .. "/i.org")
+    babel.tangle({ bufnr = buf, silent = true })
+    eq({ "  indented" }, vim.fn.readfile(dir .. "/i.sh"))
+    babel.edit_special()
+    eq({ "  indented" }, buf_lines(0))
+    vim.cmd("bwipeout!")
+    vim.api.nvim_set_current_buf(buf)
+    vim.bo[buf].modified = false
+  end)
+
   it("evaluates inline src blocks and replaces their results", function()
     local buf = org_buffer({ "Two: src_lua{return 1 + 1} and more." }, { 1, 8 })
     babel.execute_block()

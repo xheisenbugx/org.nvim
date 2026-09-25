@@ -681,6 +681,16 @@ end
 function M.link_to_location(opts)
   opts = opts or {}
   local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].filetype == "orgagenda" then
+    -- in the agenda: a link to the entry of the item at the cursor
+    local view = require("org.agenda.view")
+    local item = view.item_at_cursor()
+    local target = item and view.resolve_target(item)
+    if not target then
+      return nil
+    end
+    return M.link_to_location({ bufnr = target.bufnr, lnum = target.lnum, interactive = opts.interactive })
+  end
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" or vim.bo[bufnr].buftype ~= "" and vim.bo[bufnr].buftype ~= "acwrite" then
     return nil

@@ -38,6 +38,27 @@ describe("links (Emacs commands)", function()
     vim.bo[buf].modified = false
   end)
 
+  it("stores a link to the entry of an agenda item", function()
+    local dir = tmpdir()
+    local path = dir .. "/ag.org"
+    local today = os.date("%Y-%m-%d")
+    vim.fn.writefile({ "* TODO Agenda entry", "SCHEDULED: <" .. today .. ">" }, path)
+    local saved = config.opts.agenda_files
+    config.opts.agenda_files = { path }
+    config.opts.links.use_id = false
+    require("org.agenda").open_agenda({ span = "day" })
+    local view = require("org.agenda.view")
+    for l, it in pairs(view.state.line_items) do
+      if it.title == "Agenda entry" then
+        vim.api.nvim_win_set_cursor(0, { l, 0 })
+      end
+    end
+    local l = links.link_to_location({ interactive = true })
+    view.quit(true)
+    config.opts.agenda_files = saved
+    ok(l and l.link:match("ag%.org::%*Agenda entry$"), vim.inspect(l))
+  end)
+
   it("inserts the last stored link and all stored links", function()
     local buf = org_buffer({ "x", "" }, { 1, 0 })
     links.store("https://a.example", "A")

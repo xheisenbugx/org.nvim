@@ -621,7 +621,8 @@ Targets:
                 `<<target>>` under the cursor (`file:…::target`), the
                 `#+NAME:` of the element at the cursor, an `id:` link
                 (see `links.use_id`), `#custom-id`, or `file:…::*Heading`.
-                Before the first heading, the current line is used. In a
+                Before the first heading, the current line is used. In
+                the agenda, the link points to the item's entry. In a
                 src block edit buffer (|org-babel|), it stores a coderef
                 link `file:…::(label)` and adds a `(ref:label)` to the
                 line when it has none.
@@ -812,6 +813,11 @@ Header arguments merge in this order: `babel.default_header_args`, then
   :exports   code|results|both|none (for export)
   :tangle    yes|no|path  :mkdirp yes  :shebang "#!/bin/sh"
   :comments  link|org|both  :padline  :tangle-mode  :no-expand
+  :post      name(arg=*this*): run the named block on the result; its
+             result is inserted instead
+Switches: `-i` keeps the indentation of the lines (edit buffer and
+tangling), `-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs
+in export.
 Tangled files contain the :var assignments, :prologue and :epilogue, like
 Emacs; `-r` removes coderef labels and COMMENT subtrees are skipped.
 
@@ -1282,7 +1288,7 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
   is no symbolic math, no named fields ($name) and no #+CONSTANTS. Elisp
   formulas `'(...)` are Lua expressions.
-- Babel has no sessions and no `:post`. Export uses existing results and
+- Babel has no sessions. Export uses existing results and
   never runs code, and `<<name()>>` noweb calls use the block's existing
   results. `elisp:` links and emacs-lisp blocks are not supported.
 - Export is lenient: broken internal links are rendered in italics instead

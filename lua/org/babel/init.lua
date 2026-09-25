@@ -732,7 +732,7 @@ function M.execute(opts)
     virt_text = { { "  ⏳ executing…", "Comment" } },
     virt_text_pos = "eol",
   })
-  M.run(bufnr, src.lang, body, args, vars, function(res)
+  local function finish(res)
     if not vim.api.nvim_buf_is_valid(bufnr) then
       return
     end
@@ -742,9 +742,6 @@ function M.execute(opts)
       utils.error(string.format("babel (%s): %s", src.lang, vim.trim(res.error)))
     end
     local handling = args.results_spec.handling
-    if res.value ~= nil and not res.error then
-      res.value = M.reassemble(res.value, args, meta)
-    end
     if out_file then
       write_file_result(bufnr, res, args, out_file)
     end
@@ -760,6 +757,55 @@ function M.execute(opts)
       insert_results(bufnr, pos[1] + 1, out or {}, args, hash)
     end
     done(res.error == nil)
+  end
+  M.run(bufnr, src.lang, body, args, vars, function(res)
+    if res.value ~= nil and not res.error then
+      res.value = M.reassemble(res.value, args, meta)
+    end
+    if args.post and not res.error and vim.api.nvim_buf_is_valid(bufnr) then
+      return M.run_post(bufnr, args.post, res, finish)
+    end
+    finish(res)
+  end)
+end
+
+--- :post name(arg=*this*): run the named block on the result; its result
+--- replaces the original one.
+function M.run_post(bufnr, post, res, cb)
+  post = vim.trim(blocks_mod.unquote(post) or "")
+  local pname, pargs = post:match("^([^%(]+)%((.*)%)$")
+  pname = vim.trim(pname or post)
+  local target = M.find_named_block(buf_lines(bufnr), pname)
+  if not target then
+    utils.error(":post: no block named " .. pname)
+    return cb(res)
+  end
+  local file = get_file(bufnr)
+  local targs = blocks_mod.header_args(target, not target.lob and file or nil)
+  if pargs and vim.trim(pargs) ~= "" then
+    blocks_mod.merge(targs, { { key = "var", value = pargs } })
+  end
+  local this = res.value
+  if this == nil or this == vim.NIL then
+    this = vim.trim(res.text or "")
+  end
+  local vars = {}
+  for _, v in ipairs(targs.vars) do
+    local value
+    if vim.trim(v.value) == "*this*" then
+      value = this
+    else
+      local ok, resolved = pcall(M.resolve_var, bufnr, v.value, targs, {})
+      value = ok and resolved or v.value
+    end
+    vars[#vars + 1] = { name = v.name, value = value }
+  end
+  M.run(bufnr, target.lang, target.body, targs, vars, function(pres)
+    if pres.error then
+      utils.error(string.format("babel :post (%s): %s", pname, vim.trim(pres.error)))
+      return cb(res)
+    end
+    cb(pres)
   end)
 end
 
@@ -1042,7 +1088,9 @@ function M.edit_special()
   end
   local raw = vim.api.nvim_buf_get_lines(bufnr, b.start, b.finish - 1, false)
   local body = blocks_mod.unescape(raw)
-  local n = common_indent(body)
+  -- -i (org-src-preserve-indentation) keeps the lines exactly as they are
+  local preserve = (" " .. (b.switches or "") .. " "):match("%s%-i%s") ~= nil
+  local n = preserve and 0 or common_indent(body)
   local dedented = {}
   for i, l in ipairs(body) do
     dedented[i] = l:sub(n + 1)
@@ -1051,7 +1099,7 @@ function M.edit_special()
     dedented = { "" }
   end
   local content_indent = require("org.config").opts.edit_src_content_indentation or 0
-  local prefix = (b.indent or "") .. string.rep(" ", content_indent)
+  local prefix = preserve and "" or ((b.indent or "") .. string.rep(" ", content_indent))
   local ft = vim.filetype.match({ filename = "x." .. langs.ext(b.lang) }) or b.lang
   require("org.special").open({
     source_buf = bufnr,
@@ -1105,7 +1153,7 @@ function M.tangle(opts)
           end
           local out = outputs[target]
           local body = M.expand_body(bufnr, b, args, "tangle")
-          local n = common_indent(body)
+          local n = (" " .. (b.switches or "") .. " "):match("%s%-i%s") and 0 or common_indent(body)
           local ded = {}
           for i, l in ipairs(body) do
             ded[i] = l:sub(n + 1)

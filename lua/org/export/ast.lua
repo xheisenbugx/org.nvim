@@ -949,8 +949,9 @@ end
 local function code_lines(lines, switches, ctx)
   switches = switches or ""
   local pat = blocks.coderef_pattern(switches)
-  local remove = switches:match("%f[%S]%-r%f[%s%z]") ~= nil or switches:match("^%-r") ~= nil
-  local sign, val = switches:match("%f[%S]([%-%+])n%s*(%d*)")
+  local padded = " " .. switches .. " "
+  local remove = padded:match("%s%-r%s") ~= nil
+  local sign, val = padded:match("%s([%-%+])n%s+(%d*)")
   local start
   if sign == "-" then
     start = tonumber(val) or 1
