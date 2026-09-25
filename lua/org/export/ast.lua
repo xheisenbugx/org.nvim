@@ -518,10 +518,11 @@ function M.parse_inline(s, o)
       -- text matching a radio target links to it
       local low = rest:lower()
       for _, r in ipairs(M._radios) do
-        if low:sub(1, #r) == r:lower() and not rest:sub(#r + 1, #r + 1):match("[%w_]") then
-          local text = rest:sub(1, #r)
-          push({ type = "link", path = r, desc = { { type = "text", value = text } }, raw = text, radio = true })
-          i = i + #r
+        local m = low:match(r.pat)
+        if m and not rest:sub(#m + 1, #m + 1):match("[%w_]") then
+          local text = rest:sub(1, #m)
+          push({ type = "link", path = r.text, desc = { { type = "text", value = text } }, raw = text, radio = true })
+          i = i + #m
           handled = true
           break
         end
@@ -1388,11 +1389,18 @@ function M.parse(lines, opts)
   local radios = {}
   for _, l in ipairs(lines) do
     for r in l:gmatch("<<<([^<>]-)>>>") do
-      radios[#radios + 1] = r
+      -- words may be separated by any whitespace (also a line break)
+      local words = vim.split(vim.trim(r):lower(), "%s+", { trimempty = true })
+      for k, w in ipairs(words) do
+        words[k] = vim.pesc(w)
+      end
+      if #words > 0 then
+        radios[#radios + 1] = { text = r, pat = "^" .. table.concat(words, "%s+") }
+      end
     end
   end
   table.sort(radios, function(a, b)
-    return #a > #b
+    return #a.text > #b.text
   end)
   M._radios = radios
   local doc = {

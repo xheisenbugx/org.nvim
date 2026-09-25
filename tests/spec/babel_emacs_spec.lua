@@ -226,6 +226,22 @@ describe("babel (Emacs header args)", function()
     end), vim.inspect(buf_lines(buf)))
   end)
 
+  it("evaluates inline src blocks and replaces their results", function()
+    local buf = org_buffer({ "Two: src_lua{return 1 + 1} and more." }, { 1, 8 })
+    babel.execute_block()
+    ok(wait_for(buf, function(l)
+      return l[1]:find("{{{results", 1, true) ~= nil
+    end), vim.inspect(buf_lines(buf)))
+    eq("Two: src_lua{return 1 + 1} {{{results(=2=)}}} and more.", buf_lines(buf)[1])
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Two: src_lua[:results raw]{return 3} {{{results(=2=)}}} end" })
+    vim.api.nvim_win_set_cursor(0, { 1, 8 })
+    require("org.context").context_action()
+    ok(wait_for(buf, function(l)
+      return l[1]:find("results(3)", 1, true) ~= nil
+    end), vim.inspect(buf_lines(buf)))
+    eq("Two: src_lua[:results raw]{return 3} {{{results(3)}}} end", buf_lines(buf)[1])
+  end)
+
   it("goes to named blocks and results; inserts header args", function()
     local buf = org_buffer({
       "* H",

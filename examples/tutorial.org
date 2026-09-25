@@ -693,17 +693,34 @@ between links. =<prefix>lt= shows the raw link text.
 <<my target>> This is the dedicated target from the list above.
 
 *Try:* =<prefix>ls= on the "Tables" heading below, come back here and press
-=<prefix>li=. The stored link is offered first.
+=<prefix>li=. The stored link is offered first. =<prefix>lL= inserts the
+last stored link without asking, and =<prefix>lA= inserts every stored link
+as a list.
+
+=<prefix>ls= on a =<<target>>= or on a named table or block stores a link to
+that target or name instead of the heading.
+
+** Radio targets
+A <<<radio link>>> is a target with three brackets: every other "radio
+link" in the file becomes a link to it, also in export. Press =<CR>= on the
+words radio link at the end of this sentence to jump back: radio link.
+
+** Following links from a headline
+=<C-c><C-o>= on a headline without a link under the cursor offers the links
+of the entry. =<C-c>&= (or =<C-o>=) jumps back.
 
 ** IDs
 An =ID= property gives a heading a link that survives moving it to another
 file. =<prefix>lI= creates one; =<prefix>ls= uses it automatically.
-=:Org id_update_locations= rebuilds the index from the agenda files.
+=<prefix>lg= goes to an entry by ID and =<prefix>ly= copies the ID of the
+entry under the cursor. =:Org id_update_locations= rebuilds the index from
+the agenda files.
 
 ** Attachments
-=<prefix>A= opens the attachment menu: =a= attach a file, =n= create a new
-one, =o= open one, =f= open the attachment directory, =d= delete. Files go
-into =attach.dir= (default =data/=) and the heading gets an =ATTACH= tag.
+=<prefix>A= opens the attachment menu: =a= attach a file, =u= download a
+URL, =b= attach a buffer, =n= create a new one, =o= open one, =f= open the
+attachment directory, =z= sync the tag, =d= delete. Files go into
+=attach.dir= (default =data/=) and the heading gets an =ATTACH= tag.
 =[[attachment:notes.txt]]= links to an attached file.
 
 * Using footnotes
@@ -844,6 +861,10 @@ into a =#+RESULTS:= block. You are asked before anything runs
 | =<prefix>bn= =<prefix>bp= | next / previous block                  |
 | =<prefix>'=            | edit the block in a buffer with its filetype |
 | =<prefix>bt=           | tangle the file                           |
+| =<prefix>bv=           | show the expanded block                   |
+| =<prefix>bd=           | split the block at the cursor in two      |
+| =<prefix>bg= =<prefix>br= | go to a named block / result           |
+| =<prefix>bj=           | add a header argument                     |
 
 ** Languages
 Lua runs inside Neovim, so it can use the whole =vim= API:
@@ -890,8 +911,28 @@ print("Exported with its result")
 Other =:results= options: =raw=, =org=, =drawer=, =html=, =code=, =file=,
 and =append= / =prepend= / =silent=.
 
+=:wrap= puts the result in a block, and =:cache yes= only runs the block
+again when it changed (the hash is kept in =#+RESULTS[…]:=):
+
+#+begin_src python :wrap src json :cache yes
+import json
+return json.dumps({"answer": 42})
+#+end_src
+
+=:file= writes the result to a file and links to it:
+
+#+begin_src sh :results output :file hello.txt
+echo "Written by babel"
+#+end_src
+
+Inline blocks work too: put the cursor on src_lua{return 6 * 7} and press
+=<C-c><C-c>=.
+
 ** Variables and tables as input
 =:var= passes values into a block. A named table becomes a list of rows.
+Its header row (above the first hline) is passed separately and put back on
+a table result (=:colnames=). =rows=expenses[0:1]= would pass the first two
+rows only.
 
 #+NAME: expenses
 | Category | Amount |
@@ -935,8 +976,8 @@ greet "noweb"
 #+end_src
 
 ** Tangling
-=<prefix>bt= writes blocks with =:tangle= to files. This one becomes
-=hello.sh= next to this file:
+=<prefix>bt= writes blocks with =:tangle= to files (=1<prefix>bt= only the
+block under the cursor). This one becomes =hello.sh= next to this file:
 
 #+begin_src sh :tangle hello.sh :shebang "#!/bin/sh"
 echo "I was tangled from tutorial.org"
@@ -1019,7 +1060,13 @@ Export options go in =#+OPTIONS:= at the top of a file, for example
 =#+OPTIONS: toc:2 num:nil ^:{} todo:nil=. =#+TITLE:=, =#+AUTHOR:= and
 =#+DATE:= fill in the title page. Code runs only with =:exports results= or
 =both=, and export uses the existing =#+RESULTS:= instead of running it
-again.
+again. =#= in the export dispatcher inserts all the settings with their
+current values.
+
+=#+INCLUDE: "other.org::*A heading" :only-contents t= includes one subtree
+of another file, and =tasks:nil=, =arch:nil=, =prop:t= or =d:("NOTES")= in
+=#+OPTIONS:= choose which tasks, archived trees, properties and drawers are
+exported.
 
 * Timers and notifications
 ** Timers

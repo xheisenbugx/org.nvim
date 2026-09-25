@@ -45,7 +45,7 @@ function M.context_action()
     return require("org.table").align()
   end
   local babel = require("org.babel")
-  if babel.at_block(0, lnum) then
+  if babel.at_block(0, lnum) or babel.inline_at_cursor() then
     return babel.execute_block()
   end
   local dblock = require("org.dblock")

@@ -763,9 +763,131 @@ function M.execute(opts)
   end)
 end
 
---- Execute the src block at cursor.
+--- Execute the src block at cursor (or the inline src block under it).
 function M.execute_block()
+  if M.inline_at_cursor() then
+    return M.execute_inline()
+  end
   M.execute({})
+end
+
+---------------------------------------------------------------------------
+-- Inline src blocks: src_lang[:args]{body} {{{results(=value=)}}}
+---------------------------------------------------------------------------
+
+--- Inline src block of `line` covering column `col` (1-based), or nil.
+---@return { lang: string, params: string, body: string, s: integer, e: integer }|nil
+function M.inline_at(line, col)
+  local init = 1
+  while true do
+    local s = line:find("src_", init, true)
+    if not s then
+      return nil
+    end
+    if s == 1 or not line:sub(s - 1, s - 1):match("[%w_]") then
+      local rest = line:sub(s)
+      local lang, hdr, body = rest:match("^src_([%w%-%+]+)(%b[])(%b{})")
+      if not lang then
+        hdr = ""
+        lang, body = rest:match("^src_([%w%-%+]+)(%b{})")
+      end
+      if lang then
+        local e = s + 3 + #lang + #hdr + #body
+        if col >= s and col <= e then
+          local params = hdr ~= "" and hdr:sub(2, -2) or ""
+          return { lang = lang, params = params, body = body:sub(2, -2), s = s, e = e }
+        end
+        init = e + 1
+      else
+        init = s + 4
+      end
+    else
+      init = s + 4
+    end
+  end
+end
+
+function M.inline_at_cursor()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  return M.inline_at(vim.api.nvim_get_current_line(), col)
+end
+
+--- Format a value for an inline `{{{results(...)}}}` macro.
+local function inline_result(res, args, lang)
+  local v = res.value
+  if v == nil or v == vim.NIL then
+    v = res.text or ""
+  end
+  local text = type(v) == "table" and results.stringify(v) or results.stringify(v)
+  text = vim.trim(text)
+  if text:find("\n") then
+    return nil, "multi-line results cannot be inserted inline"
+  end
+  local fmt = args.results_spec.format
+  if fmt == "raw" then
+    return "{{{results(" .. text .. ")}}}"
+  elseif fmt == "code" then
+    return "{{{results(src_" .. lang .. "{" .. text .. "})}}}"
+  elseif fmt == "html" or fmt == "latex" then
+    return "{{{results(@@" .. fmt .. ":" .. text .. "@@)}}}"
+  end
+  return "{{{results(=" .. text .. "=)}}}"
+end
+
+--- Evaluate the inline src block at the cursor and insert or replace its
+--- `{{{results(...)}}}` right after it (C-c C-c on src_lang{...}).
+function M.execute_inline(opts)
+  opts = opts or {}
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local ib = M.inline_at_cursor()
+  if not ib then
+    return false
+  end
+  local file = get_file(bufnr)
+  local pseudo = { start = lnum, lang = ib.lang, params = ib.params, header_lines = {} }
+  local args = blocks_mod.header_args(pseudo, file)
+  if not ib.params:match(":results") then
+    args.results_spec.handling = "replace"
+  end
+  if not should_eval(args, ib.lang, nil, opts.skip_confirm) then
+    return
+  end
+  local ok, vars = pcall(resolve_vars, bufnr, args, {})
+  if not ok then
+    utils.error("babel: " .. tostring(vars))
+    return
+  end
+  local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, ib.e, { right_gravity = false })
+  M.run(bufnr, ib.lang, { ib.body }, args, vars, function(res)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      return
+    end
+    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
+    if res.error then
+      utils.error(string.format("babel (%s): %s", ib.lang, vim.trim(res.error)))
+      return
+    end
+    local handling = args.results_spec.handling
+    local text, err = inline_result(res, args, ib.lang)
+    if not text then
+      utils.warn("Inline error: " .. err)
+      return
+    end
+    if handling == "silent" or handling == "none" or handling == "discard" then
+      utils.notify(text)
+      return
+    end
+    if not pos or not pos[1] then
+      return
+    end
+    local row, col = pos[1], pos[2]
+    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+    local before, after = line:sub(1, col), line:sub(col + 1)
+    after = after:gsub("^%s*{{{results%(.-%)}}}", "", 1)
+    vim.api.nvim_buf_set_lines(bufnr, row, row + 1, false, { before .. " " .. text .. after })
+  end)
 end
 
 local function execute_many(bufnr, starts)
