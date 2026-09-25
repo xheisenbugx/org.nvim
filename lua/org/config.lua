@@ -93,6 +93,10 @@ M.defaults = {
   blank_before_new_entry = { heading = "auto", plain_list_item = false },
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- { rounding of the current time in date prompts, minute step of
+  --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
+  --- exactly that many minutes.
+  time_stamp_rounding_minutes = { 0, 5 },
   --- Where `archive_subtree` sends entries. `%s` = current file name.
   archive_location = "%s_archive::",
   archive_save_context_info = { "time", "file", "olpath", "category", "todo", "itags" },

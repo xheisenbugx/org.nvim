@@ -1,5 +1,6 @@
 ---@mod org.timestamps Inserting and editing timestamps, scheduling
 
+local config = require("org.config")
 local date = require("org.date")
 local edit = require("org.edit")
 local utils = require("org.utils")
@@ -66,6 +67,10 @@ end
 local function insert(active)
   local with_time = vim.v.count > 0
   local existing = M.at_cursor()
+  if vim.v.count >= 16 then
+    -- C-u C-u: the current time, without prompting
+    return put(date.now():clone({ active = active }), existing)
+  end
   local default = existing and existing.date or date.today()
   local picked = require("org.calendar").pick({
     default = default,
@@ -84,6 +89,23 @@ end
 
 function M.insert_inactive()
   return insert(false)
+end
+
+--- Toggle the timestamp at the cursor between active and inactive
+--- (org-toggle-timestamp-type). Returns false when not on a timestamp.
+function M.toggle_type()
+  local item = M.at_cursor()
+  if not item then
+    return false
+  end
+  local d = item.date
+  local active = not d.active
+  local new = d:clone({ active = active })
+  if d.range_end then
+    new.range_end = d.range_end:clone({ active = active })
+  end
+  replace_text(0, item.lnum, item.start_col, item.end_col, new:to_string())
+  return true
 end
 
 --- Insert today's active date at the cursor (org-date-from-calendar: Emacs
@@ -241,7 +263,29 @@ local function component_at(s, off)
   return "day"
 end
 
+--- Minute step for <S-Up>/<S-Down> without a count
+--- (org-time-stamp-rounding-minutes), and the minute value rounded so that
+--- one step lands on a multiple of it.
+local function rounded_minutes(min, n)
+  local dm = math.max((config.opts.time_stamp_rounding_minutes or {})[2] or 1, 1)
+  if dm <= 1 or vim.v.count > 0 then
+    return min, n
+  end
+  local rem = min % dm
+  if rem ~= 0 then
+    min = min + (n > 0 and -rem or (dm - rem))
+  end
+  return min, dm * (n > 0 and 1 or n < 0 and -1 or 0)
+end
+
 local function shift_component(d, comp, n)
+  if comp == "min" and d.min then
+    local min, step = rounded_minutes(d.min, n)
+    return d:add(min - d.min + step, "min")
+  elseif comp == "end_min" and d.end_min then
+    local min, step = rounded_minutes(d.end_min, n)
+    n = min - d.end_min + step
+  end
   if comp == "year" then
     return d:add(n, "y")
   elseif comp == "month" then
@@ -386,11 +430,34 @@ function M.set_date(target, kind, value)
   return value
 end
 
+--- C-u C-u C-c C-s / C-c C-d: set the delay (SCHEDULED) or warning period
+--- (DEADLINE) from a date picked relative to the existing one.
+local function plan_warning(bufnr, hl, kind)
+  local existing = hl.planning[kind]
+  if not existing then
+    utils.warn(kind == "deadline" and "No deadline information to update" or "No scheduled information to update")
+    return nil
+  end
+  local picked = require("org.calendar").pick({
+    default = existing,
+    prompt = kind == "deadline" and "Warn starting from" or "Delay until",
+  })
+  if not picked or picked.remove then
+    return nil
+  end
+  local new = existing:clone({ warning = { type = "-", value = math.abs(existing:days() - picked:days()), unit = "d" } })
+  edit.set_planning(bufnr, hl.line, kind, new)
+  return new
+end
+
 local function plan(target, kind)
   local remove = vim.v.count > 0
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
+  end
+  if vim.v.count >= 16 then
+    return plan_warning(bufnr, hl, kind)
   end
   local existing = hl.planning[kind]
   local new

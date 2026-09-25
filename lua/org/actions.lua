@@ -133,6 +133,7 @@ M.list = {
   date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
   goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
+  toggle_timestamp_type = { "org.timestamps", "toggle_type", desc = "Toggle timestamp active/inactive" },
 
   -- lists
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox" },
@@ -163,6 +164,7 @@ M.list = {
   timer_insert = { "org.timer", "insert", desc = "Insert timer value" },
   timer_item = { "org.timer", "insert_item", desc = "Insert timer list item" },
   timer_countdown = { "org.timer", "countdown", desc = "Start countdown timer" },
+  timer_remaining = { "org.timer", "show_remaining", desc = "Show remaining countdown time" },
 
   -- links
   insert_link = { "org.links", "insert_link", desc = "Insert link", modes = { "n", "x" } },

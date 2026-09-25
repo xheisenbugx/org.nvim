@@ -631,6 +631,11 @@ local function parse_time_token(tok)
   if h then
     return tonumber(h), tonumber(m)
   end
+  -- 15h, 15h30 (HHhMM)
+  h, m = tok:match("^(%d%d?)h(%d?%d?)$")
+  if h and tonumber(h) < 24 and (m == "" or #m == 2) then
+    return tonumber(h), tonumber(m) or 0
+  end
   local hh, mm, ap = tok:match("^(%d%d?):?(%d?%d?)([ap]m)$")
   if hh then
     local hour = tonumber(hh) % 12
@@ -766,6 +771,47 @@ function M.read_date(input, default)
         end
         ok = true
       end
+    end
+  end
+
+  if not ok then
+    -- ISO week: w39, w39-5, 2026-w39, 2026-w39-5, "w39 fri"
+    local y, w, wd = text:match("^(%d%d%d%d)%-w(%d%d?)%-?(%d?)$")
+    if not y then
+      w, wd = text:match("^w(%d%d?)%-?(%d?)$")
+    end
+    if not w then
+      local name
+      w, name = text:match("^w(%d%d?)%s+(%a+)$")
+      wd = name and DAY_LOOKUP[name] and tostring(DAY_LOOKUP[name]) or nil
+      if not wd then
+        w = nil
+      end
+    end
+    if w then
+      local jan4 = Date.new({ year = tonumber(y) or today.year, month = 1, day = 4 })
+      local day = tonumber(wd) or 1
+      if day == 0 then
+        day = 7
+      end
+      set_days(jan4:start_of("week"):days() + (tonumber(w) - 1) * 7 + day - 1)
+    end
+  end
+
+  if not ok then
+    -- European dotted: 15.3. / 15.3.2027
+    local d, m, y = text:match("^(%d%d?)%.%s?(%d%d?)%.%s?(%d*)$")
+    if d then
+      base.day, base.month = tonumber(d), tonumber(m)
+      if y ~= "" then
+        base.year = tonumber(y)
+      else
+        base.year = today.year
+        if base:days() < today:days() then
+          base.year = base.year + 1
+        end
+      end
+      ok = true
     end
   end
 
