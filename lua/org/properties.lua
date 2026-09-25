@@ -85,24 +85,82 @@ function M.known_values(name, bufnr)
 end
 
 --- Prompt for a value, offering allowed values when defined.
-local function prompt_value(hl, name, bufnr)
-  local allowed = hl:get_allowed_values(name)
-  local current = hl.properties[name:upper()]
+local function prompt_value(hl, name, bufnr, file)
+  local allowed = hl and hl:get_allowed_values(name)
+  local current
+  if hl then
+    current = hl.properties[name:upper()]
+  else
+    current = file and (file.properties or {})[name:upper()]
+  end
   if allowed and #allowed > 0 then
     return utils.select(allowed, { prompt = name .. " value" .. (current and (" (current: " .. current .. ")") or "") })
   end
   return utils.input_complete(name .. ": ", M.known_values(name, bufnr), current or "")
 end
 
---- Set a property (org-set-property).
+--- Put a property value like Emacs `org-entry-put`: TODO, PRIORITY,
+--- SCHEDULED and DEADLINE change the headline (an empty value removes
+--- them), other special properties cannot be set, and before the first
+--- headline the file-level property drawer is used. Fires the
+--- `OrgPropertyChanged` User autocmd (org-property-changed-functions).
+---@param bufnr integer
+---@param lnum integer
+---@param name string
+---@param value string
+---@return boolean ok
+function M.entry_put(bufnr, lnum, name, value)
+  value = value or ""
+  local target = { bufnr = bufnr, lnum = lnum }
+  if name == "TODO" then
+    if value ~= "" and not files.get_buffer(bufnr).settings.todo:is_keyword(value) then
+      utils.warn(string.format('"%s" is not a valid TODO state', value))
+      return false
+    end
+    require("org.todo").change_state(target, value ~= "" and value or nil)
+  elseif name == "PRIORITY" then
+    require("org.priority").set(target, value ~= "" and value or " ")
+  elseif name == "SCHEDULED" or name == "DEADLINE" then
+    local kind = name:lower()
+    local d
+    if value ~= "" then
+      d = date.parse(value) or date.read_date((value:gsub("^[<%[]", ""):gsub("[>%]]$", "")))
+      if not d then
+        utils.warn("Invalid date: " .. value)
+        return false
+      end
+      d = d:clone({ active = true, range_end = vim.NIL })
+    end
+    local _, _, hl = edit.resolve(target)
+    if not hl then
+      return false
+    end
+    edit.set_planning(bufnr, hl.line, kind, d)
+    if d and hl.planning.closed then
+      edit.set_planning(bufnr, hl.line, "closed", nil)
+    end
+  elseif SPECIAL[name] then
+    utils.warn(string.format("The %s property cannot be set with `org-entry-put'", name))
+    return false
+  else
+    edit.set_property(bufnr, lnum, name, value)
+  end
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgPropertyChanged",
+    data = { bufnr = bufnr, lnum = lnum, name = name, value = value },
+    modeline = false,
+  })
+  return true
+end
+
+--- Set a property (org-set-property). Before the first headline, the
+--- file-level property drawer is set.
 ---@param target? org.Target
 ---@param name? string
 ---@param value? string
 function M.set_property(target, name, value)
-  local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
-    return nil
-  end
+  local bufnr, file, hl = edit.resolve(target)
+  local lnum = hl and hl.line or (target and target.lnum) or 1
   if not name then
     name = utils.input_complete("Property: ", M.known_names(bufnr))
     if not name or vim.trim(name) == "" then
@@ -110,30 +168,61 @@ function M.set_property(target, name, value)
     end
     name = vim.trim(name)
   end
-  if SPECIAL[name:upper()] then
-    utils.warn("Special property cannot be set in a drawer: " .. name)
+  if name == "" or name:find("%s") then
+    utils.warn(string.format('Invalid property name: "%s"', name))
     return nil
   end
   if value == nil then
-    value = prompt_value(hl, name, bufnr)
+    value = prompt_value(hl, name, bufnr, file)
     if value == nil then
       return nil
     end
   end
-  edit.set_property(bufnr, hl.line, name, value)
+  local current
+  if hl then
+    current = hl:get_property(name, false)
+  else
+    current = (file.properties or {})[name:upper()]
+  end
+  if current == value and not SPECIAL[name] then
+    return value
+  end
+  M.last_set_property_value = name .. ": " .. value
+  if not M.entry_put(bufnr, lnum, name, value) then
+    return nil
+  end
   return value
+end
+
+--- Set a property from one "PROPERTY: value" answer
+--- (org-set-property-and-value, C-c C-x P). A count reuses the last pair.
+function M.set_property_and_value(target, pair)
+  if not pair then
+    if target == nil and vim.v.count > 0 and M.last_set_property_value then
+      pair = M.last_set_property_value
+    else
+      pair = utils.input({ prompt = 'Enter a "[Property]: [value]" pair: ', default = M.last_set_property_value })
+    end
+  end
+  if not pair then
+    return nil
+  end
+  local prop, val = pair:match("^[ \t]*([^:]+):[ \t]*(.-)[ \t]*$")
+  if not prop then
+    return nil
+  end
+  return M.set_property(target, prop, val)
 end
 
 --- Delete a property (org-delete-property).
 function M.delete_property(target, name)
-  local bufnr, _, hl = edit.resolve_headline(target)
-  if not bufnr then
-    return nil
-  end
+  local bufnr, file, hl = edit.resolve(target)
+  local owner = hl or file
+  local lnum = hl and hl.line or 1
   if not name then
     local names = {}
-    if hl.properties_range then
-      local lines = vim.api.nvim_buf_get_lines(bufnr, hl.properties_range[1], hl.properties_range[2] - 1, false)
+    if owner.properties_range then
+      local lines = vim.api.nvim_buf_get_lines(bufnr, owner.properties_range[1], owner.properties_range[2] - 1, false)
       for _, l in ipairs(lines) do
         local k = l:match("^%s*:([^%s:]+):")
         if k then
@@ -150,7 +239,7 @@ function M.delete_property(target, name)
       return nil
     end
   end
-  edit.set_property(bufnr, hl.line, name, nil)
+  edit.set_property(bufnr, lnum, name, nil)
   return true
 end
 
@@ -217,7 +306,7 @@ end
 local function set_value_at(bufnr, lnum, name, value)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local indent = line:match("^(%s*)")
-  vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { indent .. ":" .. name .. ": " .. value })
+  vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { edit.property_line(indent, name, value) })
 end
 
 --- Switch the property at the cursor to the next (dir = 1) or previous
@@ -302,13 +391,11 @@ function M.set_effort(target, value)
     require("org.clock").effort_changed(bufnr, hl.line)
     return false
   end
+  -- the value is stored as typed, like Emacs; it must be a duration
   local minutes = date.parse_duration(value)
   if not minutes then
     utils.warn("Invalid effort: " .. value)
     return nil
-  end
-  if not value:find(":") then
-    value = date.format_duration(minutes)
   end
   edit.set_property(bufnr, hl.line, prop, value)
   -- the running clock shows the new effort (org-set-effort)

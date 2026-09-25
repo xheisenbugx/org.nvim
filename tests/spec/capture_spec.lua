@@ -101,7 +101,7 @@ describe("capture.store", function()
       immediate_finish = true,
     })
     local lines = file_lines(p)
-    eq({ "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where: Room 1", ":END:" }, lines)
+    eq({ "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where:    Room 1", ":END:" }, lines)
   end)
 
   it("builds datetrees", function()

@@ -79,6 +79,7 @@ end
 function M.pick(opts)
   opts = opts or {}
   local sel = (opts.default or date.today()):clone({ range_end = vim.NIL })
+  local initial = sel:to_date_string()
   if opts.with_time and not sel.hour then
     local now = date.now()
     local r = (require("org.config").opts.time_stamp_rounding_minutes or {})[1] or 0
@@ -112,21 +113,32 @@ function M.pick(opts)
     elseif ch == "k" or ch == key("<Up>") then
       sel = sel:add(-7, "d")
     elseif ch == "H" or ch == "<" then
-      sel = sel:add(-1, "m")
+      sel = sel:add(-1, "m", true)
     elseif ch == "L" or ch == ">" then
-      sel = sel:add(1, "m")
+      sel = sel:add(1, "m", true)
     elseif ch == "K" or ch == "[" then
-      sel = sel:add(-1, "y")
+      sel = sel:add(-1, "y", true)
     elseif ch == "J" or ch == "]" then
-      sel = sel:add(1, "y")
+      sel = sel:add(1, "y", true)
     elseif ch == "." then
       local t = date.today()
       sel = sel:clone({ year = t.year, month = t.month, day = t.day })
     elseif ch == "i" or ch == "t" then
       local ok2, text = pcall(vim.fn.input, { prompt = "Date: ", cancelreturn = vim.NIL })
       if ok2 and text ~= vim.NIL and text ~= nil then
-        local d = date.read_date(text, sel)
+        -- like Emacs, a date moved to in the calendar is part of the answer
+        local answer = text
+        if sel:to_date_string() ~= initial then
+          answer = text .. " " .. sel:to_date_string()
+        end
+        local d = date.read_date(answer, opts.default)
         if d then
+          if not d.hour and sel.hour then
+            -- the time of the default date is kept (Emacs pre-fills it)
+            d.hour, d.min, d.end_hour, d.end_min = sel.hour, sel.min, sel.end_hour, sel.end_min
+          end
+          d.repeater = d.repeater or (sel.repeater and vim.deepcopy(sel.repeater))
+          d.warning = d.warning or (sel.warning and vim.deepcopy(sel.warning))
           return d
         end
         utils.warn("Cannot parse date: " .. text)

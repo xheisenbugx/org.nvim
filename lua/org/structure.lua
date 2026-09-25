@@ -747,8 +747,7 @@ local function headline_key(kind, prop)
       end
       return nil
     elseif kind == "priority" then
-      local p = h.priority or h.file:priorities().default
-      return p:byte(1)
+      return require("org.priority").value(h)
     elseif kind == "todo" then
       if not h.todo then
         return nil

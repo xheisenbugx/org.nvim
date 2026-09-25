@@ -26,10 +26,10 @@ describe("timestamps", function()
     vim.api.nvim_win_set_cursor(0, { 1, 24 }) -- end hour
     ts.increment(1)
     eq("x <2027-10-22 Fri 11:05-13:35 +1w -2d> y", buf_lines(buf)[1])
-    vim.api.nvim_win_set_cursor(0, { 1, 32 }) -- repeater
+    vim.api.nvim_win_set_cursor(0, { 1, 31 }) -- repeater value
     ts.increment(1)
     eq("x <2027-10-22 Fri 11:05-13:35 +2w -2d> y", buf_lines(buf)[1])
-    vim.api.nvim_win_set_cursor(0, { 1, 36 }) -- warning
+    vim.api.nvim_win_set_cursor(0, { 1, 35 }) -- warning value
     ts.increment(1)
     eq("x <2027-10-22 Fri 11:05-13:35 +2w -3d> y", buf_lines(buf)[1])
     vim.api.nvim_win_set_cursor(0, { 1, 4 })
@@ -138,11 +138,16 @@ describe("timestamps (Emacs details)", function()
   end)
 
   it("toggles the timestamp type", function()
+    -- only the timestamp at the cursor, like org-toggle-timestamp-type
     local buf = org_buffer({ "a <2026-09-23 Wed>--<2026-09-24 Thu> b" }, { 1, 5 })
     ok(ts.toggle_type())
-    eq("a [2026-09-23 Wed]--[2026-09-24 Thu] b", buf_lines(buf)[1])
+    eq("a [2026-09-23 Wed]--<2026-09-24 Thu> b", buf_lines(buf)[1])
     ts.toggle_type()
     eq("a <2026-09-23 Wed>--<2026-09-24 Thu> b", buf_lines(buf)[1])
+    vim.api.nvim_win_set_cursor(0, { 1, 25 })
+    ts.toggle_type()
+    eq("a <2026-09-23 Wed>--[2026-09-24 Thu] b", buf_lines(buf)[1])
+    vim.api.nvim_win_set_cursor(0, { 1, 5 })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     eq(false, ts.toggle_type())
   end)

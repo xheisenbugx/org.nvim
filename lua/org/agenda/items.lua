@@ -540,12 +540,9 @@ end
 ---------------------------------------------------------------------------
 
 local function prio_rank(item)
-  local p = item.priority
-  local f = item.headline.file
-  local pr = f:priorities()
-  p = p or pr.default
-  -- higher rank = more important
-  return -(p:byte() or 0)
+  -- higher rank = more important (numeric priorities too)
+  local prio = require("org.priority")
+  return -(prio.to_value(item.priority) or prio.range(item.headline.file).def or 0)
 end
 
 local function todo_rank(item)

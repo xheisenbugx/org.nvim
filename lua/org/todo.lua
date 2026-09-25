@@ -13,7 +13,7 @@ local utils = require("org.utils")
 local M = {}
 
 local function now_inactive()
-  return date.now():clone({ active = false })
+  return date.effective_now():clone({ active = false })
 end
 
 local LOGGING_WORDS = {
@@ -87,12 +87,52 @@ function M.log_setting(file, kind, hl)
   return value or false
 end
 
---- Format a state-change log entry header (Emacs style).
+--- Format a state-change log entry header (Emacs style, from the `state`
+--- entry of `log_note_headings`).
 function M.state_log_header(new, old, ts)
-  local function q(s)
-    return '"' .. (s or "") .. '"'
+  return "- " .. edit.log_heading("state", new or "", old or "", ts)
+end
+
+--- Log lines of a state change (nil when the heading and note are empty).
+local function state_entry(new, old, note)
+  local heading = edit.log_heading("state", new or "", old or "")
+  if heading == "" and (not note or vim.trim(note) == "") then
+    return nil
   end
-  return string.format("- State %-12s from %-12s %s", q(new), q(old), (ts or now_inactive()):to_string())
+  return edit.log_entry("state", note, new or "", old or "")
+end
+
+---------------------------------------------------------------------------
+-- Remembered keyword sequence of a headline without keyword
+---------------------------------------------------------------------------
+
+local head_ns = vim.api.nvim_create_namespace("org.todo.head")
+local heads = {}
+
+--- Remember the keyword sequence of the headline at `lnum`, so that cycling
+--- from the empty state returns to it (Emacs keeps it in the
+--- `org-todo-head` text property).
+local function remember_head(bufnr, lnum, head)
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, head_ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {})) do
+    vim.api.nvim_buf_del_extmark(bufnr, head_ns, m[1])
+  end
+  if head then
+    local id = vim.api.nvim_buf_set_extmark(bufnr, head_ns, lnum - 1, 0, {})
+    heads[bufnr] = heads[bufnr] or {}
+    heads[bufnr][id] = head
+  end
+end
+
+local function recall_head(bufnr, lnum)
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, head_ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {})
+  local m = marks[#marks]
+  return m and heads[bufnr] and heads[bufnr][m[1]] or nil
+end
+M._recall_head = recall_head
+
+--- Fire a User autocmd with `data`.
+local function emit(pattern, data)
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
 end
 
 local function truthy_prop(v)
@@ -115,8 +155,11 @@ end
 
 --- Reason the headline cannot be marked done, or nil
 --- (org-block-todo-from-children-or-siblings-or-parent).
+--- `todo_blockers` functions receive `change` ({ type = "todo-state-change",
+--- from, to, bufnr, lnum }) and block by returning false (org-blocker-hook).
 ---@param hl org.Headline
-function M.blocked_reason(hl)
+---@param change? table
+function M.blocked_reason(hl, change)
   local cfg = config.opts
   if hl.properties.NOBLOCKING then
     return nil
@@ -140,12 +183,41 @@ function M.blocked_reason(hl)
     end
   end
   if cfg.enforce_todo_checkbox_dependencies then
+    -- an unchecked or partial checkbox outside blocks, after an optional
+    -- counter cookie (org-block-todo-from-checkboxes)
     local lines = hl.file.lines
+    local in_block = false
     for i = hl.line + 1, hl.body_end do
       local l = lines[i]
-      if l:match("^%s*[-+*]%s+%[ %]") or l:match("^%s*%d+[.)]%s+%[ %]") or l:match("^%s+%*%s+%[ %]") then
-        return "has unchecked checkboxes"
+      if in_block then
+        if l:match("^%s*#%+[eE][nN][dD]_") then
+          in_block = false
+        end
+      elseif l:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
+        in_block = true
+      else
+        local rest = l:match("^%s*[-+]%s+(.*)$") or l:match("^%s+%*%s+(.*)$") or l:match("^%s*%d+[.)]%s+(.*)$")
+        if rest then
+          rest = rest:gsub("^%[@[^%]]*%]%s*", "")
+          if rest:match("^%[[ %-]%]") then
+            return "contained checkboxes"
+          end
+        end
       end
+    end
+  end
+  return M.custom_blocked(hl, change)
+end
+
+--- Reason from the `todo_blockers` functions (org-blocker-hook), or nil.
+---@param hl org.Headline
+---@param change? table
+function M.custom_blocked(hl, change)
+  change = change or { type = "todo-state-change", from = hl.todo, to = "done", lnum = hl.line }
+  for _, fn in ipairs(config.opts.todo_blockers or {}) do
+    local ok, res = pcall(fn, change)
+    if ok and res == false then
+      return "a blocker function"
     end
   end
   return nil
@@ -177,7 +249,8 @@ local function clocked_here(bufnr, lnum)
 end
 
 local function update_parent_statistics(bufnr, hl)
-  if not hl.parent then
+  -- a parent counting checkboxes is left alone (org-update-parent-todo-statistics)
+  if not hl.parent or (hl.parent.properties.COOKIE_DATA or ""):lower():find("checkbox") then
     return
   end
   local ok, lists = pcall(require, "org.lists")
@@ -297,10 +370,18 @@ end
 ---@field bufnr integer
 ---@field lnum integer
 
+---@class org.TodoChangeOpts
+---@field note? string note text (no prompt)
+---@field force? boolean ignore blocking (C-u C-u C-u C-c C-t)
+---@field no_log? boolean no logging at all
+---@field force_note? boolean always ask for a note (C-u C-c C-t)
+---@field inhibit_note? boolean record times instead of notes (C-0 C-c C-t)
+---@field nextset? boolean a keyword set switch: nothing is logged
+
 --- Change the TODO state of a headline with full org semantics.
 ---@param target? org.Target
 ---@param new string|nil new keyword (nil clears)
----@param opts? { note?: string, force?: boolean, no_log?: boolean }
+---@param opts? org.TodoChangeOpts
 ---@return org.TodoChangeResult|nil
 function M.change_state(target, new, opts)
   opts = opts or {}
@@ -326,10 +407,16 @@ function M.change_state(target, new, opts)
   local new_done = todo_cfg:is_done(new)
   local becomes_done = new_done and not old_done
 
-  if becomes_done and not opts.force then
-    local reason = M.blocked_reason(hl)
+  local change = { type = "todo-state-change", from = old, to = new, bufnr = bufnr, lnum = lnum }
+  if not opts.force and not hl.properties.NOBLOCKING then
+    local reason
+    if becomes_done then
+      reason = M.blocked_reason(hl, change)
+    else
+      reason = M.custom_blocked(hl, change)
+    end
     if reason then
-      utils.warn(string.format("TODO state change blocked: %s", reason))
+      utils.warn(string.format("TODO state change from %s to %s blocked (by %s)", old or "", new or "", reason))
       return nil
     end
   end
@@ -340,17 +427,42 @@ function M.change_state(target, new, opts)
   if loc then
     new_kw, old_kw = loc.states[new or ""], loc.states[old or ""]
   end
-  local state_log = (new_kw and new_kw.log_enter) or (old_kw and old_kw.log_leave) or false
-  if opts.no_log then
-    state_log = false
+  -- Emacs only looks at logging (and CLOSED) when some logging is set up
+  local log_done = M.log_setting(file, "done", hl)
+  local logging_active
+  if opts.force_note then
+    logging_active = true
+  elseif opts.no_log or opts.nextset then
+    logging_active = false
+  else
+    local any_states
+    if loc then
+      any_states = next(loc.states) ~= nil
+    else
+      any_states = todo_cfg.has_log_flags
+    end
+    logging_active = any_states or log_done ~= false
   end
-  local log_done = opts.no_log and false or M.log_setting(file, "done", hl)
-  local now = date.now()
+  local state_log = false
+  if logging_active then
+    state_log = (opts.force_note and "note") or (new_kw and new_kw.log_enter) or (old_kw and old_kw.log_leave) or false
+    if state_log == "note" and opts.inhibit_note then
+      state_log = "time"
+    end
+  else
+    log_done = false
+  end
+  if opts.inhibit_note and log_done == "note" then
+    log_done = "time"
+  end
   local result = { old = old, new = new, bufnr = bufnr, lnum = lnum }
 
   if becomes_done and entry_repeats(hl) then
     -- repeating task: shift dates, return to a TODO state
-    local log_repeat = opts.no_log and false or M.log_setting(file, "repeat", hl)
+    local log_repeat = (opts.no_log or opts.nextset) and false or M.log_setting(file, "repeat", hl)
+    if opts.inhibit_note and log_repeat == "note" then
+      log_repeat = "time"
+    end
     local rep_log = log_repeat
     if state_log then
       rep_log = (state_log == "note" or log_repeat == "note") and "note" or "time"
@@ -361,7 +473,7 @@ function M.change_state(target, new, opts)
     end
     local final = repeat_to_state(hl, todo_cfg, old)
     local has_clock = #hl.clocks > 0
-    shift_repeaters(bufnr, hl, now)
+    shift_repeaters(bufnr, hl, date.now())
     trigger_tags(bufnr, lnum, todo_cfg, new)
     edit.update_headline(bufnr, lnum, { todo = final or false })
     if hl.planning.closed then
@@ -372,30 +484,37 @@ function M.change_state(target, new, opts)
       edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive():to_string())
     end
     if rep_log then
-      edit.add_log_entry(bufnr, lnum, edit.log_lines(M.state_log_header(new, old, now_inactive()), note))
+      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note))
     end
     result.new = final
     result.done_keyword = new
     result.repeated = true
   else
     local note = opts.note
-    local wants_note = state_log == "note" or (becomes_done and log_done == "note")
+    local wants_note = (new ~= nil and state_log == "note") or (becomes_done and log_done == "note")
     if wants_note and note == nil then
       note = utils.input({ prompt = "Note for state change to " .. (new or "none") .. ": " })
     end
     edit.update_headline(bufnr, lnum, { todo = new or false })
-    if becomes_done and log_done then
-      edit.set_planning(bufnr, lnum, "closed", now_inactive())
-    elseif not new_done and hl.planning.closed then
-      edit.set_planning(bufnr, lnum, "closed", nil)
+    if logging_active then
+      if becomes_done and log_done then
+        edit.set_planning(bufnr, lnum, "closed", now_inactive())
+      elseif
+        hl.planning.closed
+        and ((new == nil and not cfg.closed_keep_when_no_todo) or (todo_cfg:is_todo(new) and not todo_cfg:is_todo(old)))
+      then
+        edit.set_planning(bufnr, lnum, "closed", nil)
+      end
     end
     trigger_tags(bufnr, lnum, todo_cfg, new)
-    if state_log then
-      edit.add_log_entry(bufnr, lnum, edit.log_lines(M.state_log_header(new, old, now_inactive()), note))
+    if new and state_log then
+      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note))
     elseif becomes_done and log_done == "note" then
-      edit.add_log_entry(bufnr, lnum, edit.log_lines("- CLOSING NOTE " .. now_inactive():to_string(), note))
+      edit.add_log_entry(bufnr, lnum, edit.log_entry("done", note, new, old))
     end
   end
+  -- the sequence a keyword-less headline returns to (org-todo-head)
+  remember_head(bufnr, lnum, todo_cfg:sequence_head(old) or todo_cfg:sequence_head(new))
 
   -- org-clock-out-if-current: `out_when_done` is true or a list of states
   local out_when = (cfg.clock or {}).out_when_done
@@ -411,44 +530,87 @@ function M.change_state(target, new, opts)
       pcall(clock.clock_out, { switch_to_state = false, note = false })
     end
   end
-  update_parent_statistics(bufnr, hl)
+  if cfg.provide_todo_statistics ~= false then
+    update_parent_statistics(bufnr, hl)
+  end
+  -- org-after-todo-state-change-hook / org-trigger-hook / org-todo-repeat-hook
+  local data = {
+    bufnr = bufnr,
+    lnum = lnum,
+    from = old,
+    to = result.new,
+    state = new,
+    done = new_done,
+    repeated = result.repeated or false,
+  }
+  if result.repeated then
+    emit("OrgTodoRepeat", data)
+  end
+  emit("OrgTodoStateChange", data)
   return result
 end
 
-local function cycle(target, dir)
+--- Run `fn(target)` on the headline at the cursor or, in Visual mode, on
+--- every headline of the selection (org-loop-over-headlines-in-active-region).
+local function for_targets(target, fn)
+  if target == nil then
+    local targets = edit.region_headlines()
+    if targets then
+      local last
+      for _, t in ipairs(targets) do
+        local l = t.lnum()
+        if l then
+          last = fn({ bufnr = t.bufnr, lnum = l })
+        end
+      end
+      return last
+    end
+  end
+  return fn(target)
+end
+M.for_targets = for_targets
+
+--- <S-Right>/<S-Left>: walk every keyword of every set (org-todo 'right).
+local function shift(target, dir)
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
   end
-  local nxt = file.settings.todo:cycle(hl.todo, dir)
+  local nxt = file.settings.todo:shift(hl.todo, dir)
   return M.change_state({ bufnr = bufnr, lnum = hl.line }, nxt)
 end
 
 function M.cycle_next(target)
-  return cycle(target, 1)
+  return shift(target, 1)
 end
 
 function M.cycle_prev(target)
-  return cycle(target, -1)
+  return shift(target, -1)
 end
 
---- Switch to the next keyword sequence (C-S-right in Emacs).
+--- Switch to the next keyword sequence (C-S-right in Emacs). Nothing is
+--- logged, like Emacs.
 function M.next_sequence(target, dir)
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
   end
-  return M.change_state({ bufnr = bufnr, lnum = hl.line }, file.settings.todo:next_sequence(hl.todo, dir or 1))
+  local todo_cfg = file.settings.todo
+  local nxt = todo_cfg:next_sequence(hl.todo, dir or 1, not hl.todo and recall_head(bufnr, hl.line) or nil)
+  local res = M.change_state({ bufnr = bufnr, lnum = hl.line }, nxt, { nextset = true })
+  local kw = res and todo_cfg:get(nxt)
+  if kw then
+    local names = vim.tbl_map(function(k)
+      return k.name
+    end, todo_cfg.sequences[kw.seq])
+    utils.notify(string.format("Keyword-Set %d/%d: %s", kw.seq, #todo_cfg.sequences, table.concat(names, " ")))
+  end
+  return res
 end
 
---- Pick a keyword (fast selection when keys are defined).
-function M.select(target)
-  local bufnr, file, hl = edit.resolve_headline(target)
-  if not bufnr then
-    return nil
-  end
-  local todo_cfg = file.settings.todo
-  local choice
+--- Pick a keyword with the fast-selection menu (keys) or a list.
+---@return string|nil keyword ("" for none), nil when cancelled
+local function pick_keyword(todo_cfg, current)
   if todo_cfg.has_fast_keys then
     local items = {}
     for si, seq in ipairs(todo_cfg.sequences) do
@@ -458,44 +620,126 @@ function M.select(target)
       for _, kw in ipairs(seq) do
         if kw.key then
           items[#items + 1] =
-            { key = kw.key, label = kw.name .. (kw.name == hl.todo and "  (current)" or ""), value = kw.name }
+            { key = kw.key, label = kw.name .. (kw.name == current and "  (current)" or ""), value = kw.name }
         end
       end
     end
     items[#items + 1] = { key = " ", label = "(clear keyword)", value = "" }
-    choice = require("org.ui").menu({ title = "TODO state", items = items })
-  else
-    local names = todo_cfg:names()
-    names[#names + 1] = "(none)"
-    choice = utils.select(names, { prompt = "TODO state" })
-    if choice == "(none)" then
-      choice = ""
-    end
+    return require("org.ui").menu({ title = "TODO state", items = items })
   end
-  if choice == nil then
-    return nil
+  local names = todo_cfg:names()
+  names[#names + 1] = "(none)"
+  local choice = utils.select(names, { prompt = "TODO state" })
+  if choice == "(none)" then
+    choice = ""
   end
-  return M.change_state({ bufnr = bufnr, lnum = hl.line }, choice ~= "" and choice or nil)
+  return choice
 end
 
---- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
---- fast selection when keywords define keys, otherwise cycle to the next
---- state. A count N switches to the Nth keyword (org-todo with a numeric
---- prefix).
-function M.select_or_cycle(target)
+--- Pick a keyword (fast selection when keys are defined).
+function M.select(target, opts)
+  return for_targets(target, function(t)
+    local bufnr, file, hl = edit.resolve_headline(t)
+    if not bufnr then
+      return nil
+    end
+    local choice = pick_keyword(file.settings.todo, hl.todo)
+    if choice == nil then
+      return nil
+    end
+    return M.change_state({ bufnr = bufnr, lnum = hl.line }, choice ~= "" and choice or nil, opts)
+  end)
+end
+
+--- One `C-c C-t` on a headline; `arg` is the Emacs prefix argument.
+local function todo_command(target, arg, opts)
+  opts = vim.deepcopy(opts or {})
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
   end
-  local n = target == nil and vim.v.count or 0
-  local names = file.settings.todo:names()
-  if n > 0 and names[n] then
-    return M.change_state({ bufnr = bufnr, lnum = hl.line }, names[n])
+  local tgt = { bufnr = bufnr, lnum = hl.line }
+  local todo_cfg = file.settings.todo
+  if arg == 4 then
+    opts.force_note = true
+  elseif arg == 16 then
+    return M.next_sequence(tgt, 1)
+  elseif arg == 64 then
+    opts.force = true
+  elseif arg and arg > 0 then
+    local names = todo_cfg:names()
+    if names[arg] then
+      return M.change_state(tgt, names[arg], opts)
+    end
+    return nil
   end
-  if file.settings.todo.has_fast_keys then
-    return M.select(target)
+  if todo_cfg.has_fast_keys and config.opts.use_fast_todo_selection ~= false then
+    return M.select(tgt, opts)
   end
-  return M.cycle_next(target)
+  local nxt = todo_cfg:cycle(hl.todo, 1, not hl.todo and recall_head(bufnr, hl.line) or nil)
+  return M.change_state(tgt, nxt, opts)
+end
+
+--- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
+--- fast selection when keywords define keys, otherwise cycle to the next
+--- state (from no keyword: the sequence the headline was last in). A count
+--- is the prefix argument: 4 (C-u) forces a note, 16 (C-u C-u) switches to
+--- the next keyword set, 64 (C-u C-u C-u) ignores blocking, any other N
+--- picks the Nth keyword. In Visual mode, every headline of the selection
+--- changes.
+---@param target? org.Target
+---@param arg? integer prefix argument (default: `vim.v.count` when interactive)
+---@param opts? org.TodoChangeOpts
+function M.select_or_cycle(target, arg, opts)
+  if arg == nil and target == nil and vim.v.count > 0 then
+    arg = vim.v.count
+  end
+  return for_targets(target, function(t)
+    return todo_command(t, arg, opts)
+  end)
+end
+
+--- `C-0 C-c C-t`: change the state without taking a note (notes become
+--- timestamps).
+function M.todo_without_note(target)
+  return M.select_or_cycle(target, nil, { inhibit_note = true })
+end
+
+--- Set every repeater of the entry to 0 (org-cancel-repeaters).
+function M.cancel_repeaters(target)
+  local bufnr, _, hl = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line - 1, hl.body_end, false)
+  local changed = false
+  for i, line in ipairs(lines) do
+    local new = line:gsub("([<%[]%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", function(body, close)
+      return (body:gsub("(%s[%.%+]?%+)(%d+)([hdwmy])", "%10%3")) .. close
+    end)
+    if new ~= line then
+      lines[i] = new
+      changed = true
+    end
+  end
+  if changed then
+    vim.api.nvim_buf_set_lines(bufnr, hl.line - 1, hl.body_end, false, lines)
+  end
+  return changed
+end
+
+--- `C-- 1 C-c C-t`: cancel the entry's repeaters (org-cancel-repeaters),
+--- then change the state, so that a repeating task can be marked done for
+--- good.
+function M.todo_cancel_repeaters(target)
+  return for_targets(target, function(t)
+    local bufnr, _, hl = edit.resolve_headline(t)
+    if not bufnr then
+      return nil
+    end
+    M.cancel_repeaters({ bufnr = bufnr, lnum = hl.line })
+    return todo_command({ bufnr = bufnr, lnum = hl.line }, nil)
+  end)
 end
 
 --- Add a note to the entry (org-add-note).
@@ -508,7 +752,7 @@ function M.add_note(target)
   if not note or vim.trim(note) == "" then
     return nil
   end
-  edit.add_log_entry(bufnr, hl.line, edit.log_lines("- Note taken on " .. now_inactive():to_string(), note))
+  edit.add_log_entry(bufnr, hl.line, edit.log_entry("note", note))
   return true
 end
 

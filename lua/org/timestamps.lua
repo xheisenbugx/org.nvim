@@ -71,7 +71,7 @@ local function insert(active)
     -- C-u C-u: the current time, without prompting
     return put(date.now():clone({ active = active }), existing)
   end
-  local default = existing and existing.date or date.today()
+  local default = existing and existing.date or nil
   local picked = require("org.calendar").pick({
     default = default,
     prompt = active and "Timestamp" or "Inactive timestamp",
@@ -98,13 +98,22 @@ function M.toggle_type()
   if not item then
     return false
   end
-  local d = item.date
-  local active = not d.active
-  local new = d:clone({ active = active })
-  if d.range_end then
-    new.range_end = d.range_end:clone({ active = active })
+  -- only the timestamp at the cursor, also inside a range (like Emacs)
+  local _, col = utils.cursor()
+  local s, e = item.start_col, item.end_col
+  if item.date.range_end then
+    local dash = item.raw:find("[%]>]%-%-[<%[]")
+    if dash then
+      if col > item.start_col + dash then
+        s = item.start_col + dash + 2
+      else
+        e = item.start_col + dash - 1
+      end
+    end
   end
-  replace_text(0, item.lnum, item.start_col, item.end_col, new:to_string())
+  local map = { ["["] = "<", ["]"] = ">", ["<"] = "[", [">"] = "]" }
+  local text = vim.api.nvim_get_current_line():sub(s, e):gsub("[%[%]<>]", map)
+  replace_text(0, item.lnum, s, e, text)
   return true
 end
 
@@ -128,33 +137,36 @@ function M.goto_calendar()
   return true
 end
 
---- Duration text in Emacs style: "N days H:MM" (days omitted when zero).
-local function tdiff_string(minutes)
-  local neg = minutes < 0
-  minutes = math.abs(minutes)
-  local days = math.floor(minutes / 1440)
-  local rest = minutes % 1440
-  local s = string.format("%d:%02d", math.floor(rest / 60), rest % 60)
-  if days > 0 then
-    s = string.format("%d day%s %s", days, days == 1 and "" or "s", s)
+--- Duration message like Emacs `org-make-tdiff-string`: "2 days 3 hours
+--- 30 minutes" (zero parts omitted).
+local function tdiff_string(d, h, m)
+  local parts = {}
+  local function add(v, word)
+    if v > 0 then
+      parts[#parts + 1] = string.format("%d %s%s", v, word, v > 1 and "s" or "")
+    end
   end
-  return neg and ("-" .. s) or s
+  add(d, "day")
+  add(h, "hour")
+  add(m, "minute")
+  return table.concat(parts, " ")
 end
 
---- Duration of a timestamp range in minutes (nil when not a range).
-local function range_minutes(d)
+--- The two dates of the range and whether one has a time, or nil when
+--- not a range. `<a>--<b>` like Emacs; `<d 10:00-12:30>` is an extension.
+local function range_bounds(d)
   if d.range_end then
-    return d.range_end:minutes() - d:minutes()
+    return d, d.range_end, d.hour ~= nil or d.range_end.hour ~= nil
   elseif d.end_hour then
-    return d:end_minutes() - d:minutes()
+    return d, d:clone({ hour = d.end_hour, min = d.end_min, end_hour = vim.NIL, end_min = vim.NIL }), true
   end
 end
 
 --- Report the duration of the timestamp range at the cursor, or the first
---- range on the line (org-evaluate-time-range). Handles `<a>--<b>` and
---- `<d 10:00-12:30>`. With `insert` (default: `vim.v.count > 0`), write
---- ` => H:MM` after the range, replacing an existing `=> ...`. On a CLOCK
---- line, recompute its duration instead.
+--- range on the line (org-evaluate-time-range). With `insert` (default:
+--- `vim.v.count > 0`), write it after the range in Emacs format (` 2d
+--- 03:30`, ` 2d`, ` 00:20`), replacing an earlier result. On a CLOCK line,
+--- recompute its duration instead.
 ---@param insert_result? boolean
 function M.evaluate_time_range(insert_result)
   if insert_result == nil then
@@ -173,32 +185,53 @@ function M.evaluate_time_range(insert_result)
   local item
   local all = date.parse_all(line)
   for _, it in ipairs(all) do
-    if range_minutes(it.date) and col >= it.start_col and col <= it.end_col then
+    if range_bounds(it.date) and col >= it.start_col and col <= it.end_col then
       item = it
     end
   end
   if not item then
     for _, it in ipairs(all) do
-      if range_minutes(it.date) then
+      if range_bounds(it.date) then
         item = it
         break
       end
     end
   end
   if not item then
-    utils.warn("No timestamp range on this line")
+    utils.warn("Not at a timestamp range, and none found in current line")
     return false
   end
-  local minutes = range_minutes(item.date)
+  local a, b, havetime = range_bounds(item.date)
+  local diff = b:minutes() - a:minutes()
+  local negative = diff < 0
+  diff = math.abs(diff)
+  local d, h, m
+  if havetime then
+    d, h, m = math.floor(diff / 1440), math.floor((diff % 1440) / 60), diff % 60
+  else
+    d, h, m = math.floor(diff / 1440 + 0.5), 0, 0
+  end
   if insert_result then
     local rest = line:sub(item.end_col + 1)
-    if rest:match("^%s*=>") then
-      rest = ""
+    -- an earlier result: ( *-? *[0-9]+y)?( *[0-9]+d)? *[0-9][0-9]:[0-9][0-9]
+    local r = rest:gsub("^ *%-? *%d+y", "", 1)
+    r = r:gsub("^ *%d+d", "", 1)
+    local r2 = r:gsub("^ *%d%d:%d%d", "", 1)
+    if r2 ~= r then
+      rest = r2
     end
-    local new = line:sub(1, item.end_col) .. " => " .. date.format_duration(minutes) .. rest
+    local text
+    if d > 0 then
+      text = havetime and string.format("%dd %02d:%02d", d, h, m) or string.format("%dd", d)
+    else
+      text = string.format("%02d:%02d", h, m)
+    end
+    local new = line:sub(1, item.end_col) .. (negative and " -" or "") .. " " .. text .. rest
     vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { new })
+    utils.notify("Time difference inserted")
+  else
+    utils.notify(tdiff_string(d, h, m))
   end
-  utils.notify(tdiff_string(minutes))
   return true
 end
 
@@ -216,51 +249,117 @@ end
 -- Increment component under cursor
 ---------------------------------------------------------------------------
 
---- Find which component of a single timestamp string `s` is at `off`
---- (1-based offset into s).
+--- Which part of the single timestamp string `s` the cursor is on, like
+--- Emacs `org-at-timestamp-p`: the cursor on character `off` (1-based) is
+--- point before it, and a field extends to the position right after it.
+--- Returns "bracket", "year", "month", "day", "hour", "minute", or
+--- { extra = string, offset = integer } for the part after the time (end
+--- time, repeater, warning).
 local function component_at(s, off)
-  -- brackets / date part
-  local body_start = 2
-  local pos = body_start
-  local tokens = {}
-  while true do
-    local ts, te = s:find("[^%s<>%[%]]+", pos)
-    if not ts then
-      break
-    end
-    tokens[#tokens + 1] = { s = ts, e = te, text = s:sub(ts, te) }
-    pos = te + 1
+  local p = off - 1
+  if p <= 0 or p == #s - 1 then
+    return "bracket"
   end
-  for _, t in ipairs(tokens) do
-    if off >= t.s and off <= t.e then
-      local rel = off - t.s + 1
-      local text = t.text
-      if text:match("^%d%d%d%d%-%d%d?%-%d%d?$") then
-        if rel <= 4 then
-          return "year"
-        elseif rel <= 7 then
-          return "month"
-        end
-        return "day"
-      elseif text:match("^%d%d?:%d%d%-%d%d?:%d%d$") then
-        local dash = text:find("-", 1, true)
-        local colon1 = text:find(":", 1, true)
-        if rel < dash then
-          return rel < colon1 and "hour" or "min"
-        end
-        local colon2 = text:find(":", dash, true)
-        return rel < colon2 and "end_hour" or "end_min"
-      elseif text:match("^%d%d?:%d%d$") then
-        return rel < text:find(":", 1, true) and "hour" or "min"
-      elseif text:match("^[%.%+]?%+%d+[hdwmy]") then
-        return "repeater"
-      elseif text:match("^%-%-?%d+[hdwmy]") then
-        return "warning"
-      end
-      return "day"
-    end
+  local function in_range(b, e)
+    return b and p >= b and p <= e
+  end
+  -- 0-based [begin, end) positions of the groups of org-ts-regexp3
+  local ys = 1
+  local after_date = 11
+  local _, name_e = s:find("^ *[^%]%+0-9>\r\n %-]+", after_date + 1)
+  local name_b = name_e and s:find("[^ ]", after_date + 1)
+  local pos = name_e or after_date
+  local hs, he, ms, me
+  local hh, mm = s:match("^ (%d%d?):(%d%d)", pos + 1)
+  if hh then
+    hs = pos + 1
+    he = hs + #hh
+    ms = he + 1
+    me = ms + 2
+  end
+  if in_range(ys, ys + 4) then
+    return "year"
+  elseif in_range(6, 8) then
+    return "month"
+  elseif in_range(hs, he) then
+    return "hour"
+  elseif in_range(ms, me) then
+    return "minute"
+  elseif in_range(9, 11) or (name_e and in_range(name_b - 1, name_e)) then
+    return "day"
+  end
+  local e = me or name_e
+  if e and p > e and p < #s then
+    return { extra = s:sub(e + 1, -2), offset = p - e }
   end
   return "day"
+end
+
+-- d -> w -> m -> y (org-modify-ts-extra)
+local UNIT_ORDER = { "d", "w", "m", "y" }
+
+--- Change the end time, repeater or warning at `offset` of `extra` like
+--- Emacs `org-modify-ts-extra`: the end hour and minute move by `n`, a
+--- unit letter cycles d/w/m/y, a repeater value never drops below 1 and a
+--- warning value below 0. Only `+N` repeaters and `-N` warnings in days,
+--- weeks, months or years are changed, like Emacs.
+local function modify_extra(extra, offset, n)
+  local groups = {}
+  local i = 0
+  local eh, em = extra:match("^%-([012]%d):([0-5]%d)")
+  if eh then
+    groups.end_hour = { 1, 3 }
+    groups.end_min = { 4, 6 }
+    i = 6
+  end
+  local sp, num, unit = extra:match("^( +%+)(%d+)([dmwy])", i + 1)
+  if sp then
+    local b = i + #sp
+    groups.rep_num = { b, b + #num }
+    groups.rep_unit = { b + #num, b + #num + 1 }
+    i = b + #num + 1
+  end
+  local wsp, wnum, wunit = extra:match("^( +%-)(%d+)([dmwy])", i + 1)
+  if wsp then
+    local b = i + #wsp
+    groups.warn_num = { b, b + #wnum }
+    groups.warn_unit = { b + #wnum, b + #wnum + 1 }
+  end
+  local function at(g)
+    return g and offset >= g[1] and offset <= g[2]
+  end
+  local function replace(g, text)
+    return extra:sub(1, g[1]) .. text .. extra:sub(g[2] + 1)
+  end
+  local function cycle(u)
+    local idx = 1
+    for k, v in ipairs(UNIT_ORDER) do
+      if v == u then
+        idx = k
+      end
+    end
+    return UNIT_ORDER[math.max(1, math.min(#UNIT_ORDER, idx + n))]
+  end
+  if at(groups.end_hour) or at(groups.end_min) then
+    local hour, minute = tonumber(eh), tonumber(em)
+    if at(groups.end_hour) then
+      hour = hour + n
+    else
+      minute = minute + n
+    end
+    hour = hour + math.floor(minute / 60)
+    minute = minute % 60
+    return replace({ 0, 6 }, string.format("-%02d:%02d", hour % 24, minute))
+  elseif at(groups.rep_unit) then
+    return replace(groups.rep_unit, cycle(unit))
+  elseif at(groups.rep_num) then
+    return replace(groups.rep_num, tostring(math.max(1, tonumber(num) + n)))
+  elseif at(groups.warn_unit) then
+    return replace(groups.warn_unit, cycle(wunit))
+  elseif at(groups.warn_num) then
+    return replace(groups.warn_num, tostring(math.max(0, tonumber(wnum) + n)))
+  end
+  return nil
 end
 
 --- Minute step for <S-Up>/<S-Down> without a count
@@ -279,43 +378,23 @@ local function rounded_minutes(min, n)
 end
 
 local function shift_component(d, comp, n)
-  if comp == "min" and d.min then
+  if comp == "minute" and d.min then
     local min, step = rounded_minutes(d.min, n)
     return d:add(min - d.min + step, "min")
-  elseif comp == "end_min" and d.end_min then
-    local min, step = rounded_minutes(d.end_min, n)
-    n = min - d.end_min + step
-  end
-  if comp == "year" then
+  elseif comp == "year" then
     return d:add(n, "y")
   elseif comp == "month" then
     return d:add(n, "m")
-  elseif comp == "day" then
-    return d:add(n, "d")
-  elseif comp == "hour" then
+  elseif comp == "hour" and d.hour then
     return d:add(n, "h")
-  elseif comp == "min" then
-    return d:add(n, "min")
-  elseif comp == "end_hour" or comp == "end_min" then
-    local c = d:clone()
-    local total = c.end_hour * 60 + c.end_min + (comp == "end_hour" and n * 60 or n)
-    total = total % 1440
-    c.end_hour, c.end_min = math.floor(total / 60), total % 60
-    return c
-  elseif comp == "repeater" and d.repeater then
-    local c = d:clone()
-    c.repeater.value = math.max(0, c.repeater.value + n)
-    return c
-  elseif comp == "warning" and d.warning then
-    local c = d:clone()
-    c.warning.value = math.max(0, c.warning.value + n)
-    return c
   end
   return d:add(n, "d")
 end
 
---- Shift the component under the cursor by `n`. `unit` forces a unit
---- ("d" for S-left/right). Returns false when not on a timestamp.
+--- Shift the component under the cursor by `n` (org-timestamp-change). On
+--- a bracket, toggle the timestamp between active and inactive. `unit`
+--- forces a unit ("d" for S-left/right). Returns false when not on a
+--- timestamp.
 ---@param n integer
 ---@param unit? string
 function M.increment(n, unit)
@@ -336,31 +415,61 @@ function M.increment(n, unit)
     end
     part2_start = dash and (item.start_col + dash + 1) or nil
   end
-  local first = d:clone({ range_end = vim.NIL })
-  local second = d.range_end
   local on_second = part2_start and col >= part2_start
-  local part_text = on_second and line:sub(part2_start, item.end_col)
-    or line:sub(item.start_col, part2_start and (part2_start - 3) or item.end_col)
   local part_start = on_second and part2_start or item.start_col
-  local comp = unit == "d" and "day" or component_at(part_text, col - part_start + 1)
-  if unit and unit ~= "d" then
-    comp = ({ y = "year", m = "month", h = "hour", min = "min", w = "day" })[unit] or "day"
+  local part_end = on_second and item.end_col or (part2_start and (part2_start - 3) or item.end_col)
+  if part2_start and not on_second and col > part_end then
+    -- on the "--" between the two timestamps: right after the first one
+    -- only a forced unit changes it, the second dash is not on a
+    -- timestamp (Emacs)
+    if col ~= part_end + 1 then
+      return false
+    elseif not unit then
+      return true
+    end
+  end
+  local part_text = line:sub(part_start, part_end)
+  local comp = component_at(part_text, col - part_start + 1)
+  if unit then
+    comp = ({ y = "year", m = "month", h = "hour", min = "minute", w = "day", d = "day" })[unit] or "day"
     if unit == "w" then
       n = n * 7
     end
   end
-  if on_second then
-    second = shift_component(second, comp, n)
+  if comp == "bracket" then
+    return M.toggle_type()
+  end
+  local text
+  if type(comp) == "table" then
+    local extra = modify_extra(comp.extra, comp.offset, n)
+    if not extra then
+      return true
+    end
+    text = line:sub(part_start, part_start + #part_text - #comp.extra - 2) .. extra .. part_text:sub(-1)
+    local new = date.parse(text)
+    if not new then
+      return true
+    end
+    replace_text(0, item.lnum, part_start, part_end, text)
   else
-    first = shift_component(first, comp, n)
+    local first = d:clone({ range_end = vim.NIL })
+    local second = d.range_end
+    if on_second then
+      second = shift_component(second, comp, n)
+    else
+      first = shift_component(first, comp, n)
+    end
+    text = first:to_string({ range = false })
+    if second then
+      text = text .. "--" .. second:to_string({ range = false })
+    end
+    replace_text(0, item.lnum, item.start_col, item.end_col, text)
+    text = nil
   end
-  local text = first:to_string({ range = false })
-  if second then
-    text = text .. "--" .. second:to_string({ range = false })
-  end
-  replace_text(0, item.lnum, item.start_col, item.end_col, text)
-  local new_col = math.min(col, item.start_col + #text - 1)
-  vim.api.nvim_win_set_cursor(0, { item.lnum, new_col - 1 })
+  local new_line = vim.api.nvim_get_current_line()
+  local new_item = date.at_col(new_line, math.min(col, #new_line))
+  local max_col = new_item and new_item.end_col or col
+  vim.api.nvim_win_set_cursor(0, { item.lnum, math.min(col, max_col) - 1 })
   if line:match("^%s*CLOCK:") then
     local ok, clock = pcall(require, "org.clock")
     if ok and clock.update_clock_line then
@@ -383,24 +492,20 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
   if not setting then
     return
   end
-  local old_str = '"' .. old:clone({ active = false }):to_string({ range = false }) .. '"'
-  local header
+  if new and new:to_string({ range = false }) == old:to_string({ range = false }) then
+    return
+  end
+  local purpose
   if new then
-    header = (kind == "scheduled" and "- Rescheduled from " or "- New deadline from ")
-      .. old_str
-      .. " on "
-      .. now_inactive():to_string()
+    purpose = kind == "scheduled" and "reschedule" or "redeadline"
   else
-    header = (kind == "scheduled" and "- Not scheduled, was " or "- Removed deadline, was ")
-      .. old_str
-      .. " on "
-      .. now_inactive():to_string()
+    purpose = kind == "scheduled" and "delschedule" or "deldeadline"
   end
   local note
   if setting == "note" then
     note = utils.input({ prompt = "Note: " })
   end
-  edit.add_log_entry(bufnr, lnum, edit.log_lines(header, note))
+  edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old))
 end
 
 --- Set (or remove with nil) a date of an entry.
@@ -451,22 +556,27 @@ local function plan_warning(bufnr, hl, kind)
   return new
 end
 
-local function plan(target, kind)
-  local remove = vim.v.count > 0
+--- C-c C-s / C-c C-d with the Emacs prefix argument `arg`: 4 (C-u)
+--- removes the date, 16 (C-u C-u) sets the delay / warning period.
+local function plan(target, kind, arg)
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
   end
-  if vim.v.count >= 16 then
+  if arg == 16 then
     return plan_warning(bufnr, hl, kind)
   end
   local existing = hl.planning[kind]
   local new
-  if remove then
+  if arg == 4 then
+    if not existing then
+      utils.notify(kind == "deadline" and "Entry had no deadline to remove" or "Entry was not scheduled")
+      return nil
+    end
     new = nil
   else
     local picked = require("org.calendar").pick({
-      default = existing or date.today(),
+      default = existing,
       prompt = kind == "scheduled" and "Schedule" or "Deadline",
       allow_remove = existing ~= nil,
     })
@@ -486,16 +596,44 @@ local function plan(target, kind)
   end
   local lnum = hl.line
   edit.set_planning(bufnr, lnum, kind, new)
+  if new and hl.planning.closed then
+    -- a new date removes CLOSED (org-add-planning-info ... 'closed)
+    edit.set_planning(bufnr, lnum, "closed", nil)
+  end
   log_planning_change(bufnr, file, lnum, kind, existing, new)
+  if not new then
+    utils.notify(kind == "deadline" and "Entry no longer has a deadline." or "Entry is no longer scheduled.")
+  end
   return new or false
 end
 
+--- Schedule or set a deadline on the headline at the cursor, or on every
+--- headline of the Visual selection. The count is the Emacs prefix
+--- argument (4 removes, 16 sets the delay / warning).
+local function plan_command(target, kind)
+  local arg = target == nil and vim.v.count or nil
+  if target == nil then
+    local targets = edit.region_headlines()
+    if targets then
+      local last
+      for _, t in ipairs(targets) do
+        local l = t.lnum()
+        if l then
+          last = plan({ bufnr = t.bufnr, lnum = l }, kind, arg)
+        end
+      end
+      return last
+    end
+  end
+  return plan(target, kind, arg)
+end
+
 function M.schedule(target)
-  return plan(target, "scheduled")
+  return plan_command(target, "scheduled")
 end
 
 function M.deadline(target)
-  return plan(target, "deadline")
+  return plan_command(target, "deadline")
 end
 
 --- Shift a date of an entry by n units (agenda S-left/right).

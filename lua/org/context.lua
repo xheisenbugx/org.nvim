@@ -536,7 +536,7 @@ function M.increment()
     return require("org.timestamps").increment(count())
   end
   local _, col, line = cur()
-  local s, e = line:find("%[#%w%]")
+  local s, e = line:find("%[#%w%w?%]")
   if is_headline(line) and s and col >= s and col <= e then
     return require("org.priority").shift(nil, 1)
   end
@@ -548,7 +548,7 @@ function M.decrement()
     return require("org.timestamps").increment(-count())
   end
   local _, col, line = cur()
-  local s, e = line:find("%[#%w%]")
+  local s, e = line:find("%[#%w%w?%]")
   if is_headline(line) and s and col >= s and col <= e then
     return require("org.priority").shift(nil, -1)
   end
