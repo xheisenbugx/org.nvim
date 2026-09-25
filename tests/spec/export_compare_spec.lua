@@ -30,7 +30,11 @@ local CASES = {
   { "org", "out.org" },
 }
 
-local FILES = { "f1", "f2", "f3", "f4", "f6", "f7", "f9", "f10", "f11", "f12", "f13", "f14", "f16" }
+-- Cases left out: f5 -> org aligns a <r> cookie in a numeric column the
+-- way org.table renders it (the table area owns that alignment).
+local SKIP = { ["f5.org"] = true }
+
+local FILES = { "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f9", "f10", "f11", "f12", "f13", "f14", "f16" }
 
 describe("export matches Emacs", function()
   before_each(function()
@@ -39,12 +43,14 @@ describe("export matches Emacs", function()
   end)
   for _, name in ipairs(FILES) do
     for _, case in ipairs(CASES) do
-      it(name .. " -> " .. case[1], function()
-        local file = dir .. "/" .. name .. ".org"
-        local expected = read(dir .. "/" .. name .. "." .. case[2])
-        local out = ox.export_as(case[1], vim.fn.readfile(file), { filename = file, body_only = true })
-        eq(normalise(expected), normalise(out))
-      end)
+      if not SKIP[name .. "." .. case[1]] then
+        it(name .. " -> " .. case[1], function()
+          local file = dir .. "/" .. name .. ".org"
+          local expected = read(dir .. "/" .. name .. "." .. case[2])
+          local out = ox.export_as(case[1], vim.fn.readfile(file), { filename = file, body_only = true })
+          eq(normalise(expected), normalise(out))
+        end)
+      end
     end
   end
 end)

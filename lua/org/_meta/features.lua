@@ -247,8 +247,9 @@
 ---@field timeout? integer
 ---Evaluate code blocks, `#+CALL` lines and inline code when exporting, like
 ---Emacs `org-export-use-babel`: `:exports results|both` blocks get fresh
----results in the exported copy (the buffer is not changed). When `false`,
----export uses the `#+RESULTS` already in the buffer. (default: `false`)
+---results in the exported copy (the buffer is not changed). `confirm_evaluate`
+---still applies. When `false`, export uses the buffer as it is and ignores
+---`:exports`. (default: `true`)
 ---@field evaluate_on_export? boolean
 ---Default header arguments, merged key by key with the defaults.
 ---(default: `{ results = "replace", exports = "code", session = "none", noweb = "no", tangle = "no" }`)
@@ -263,18 +264,273 @@
 -- Export
 ---------------------------------------------------------------------------
 
----HTML exporter options.
+---HTML back-end options (ox-html).
 ---@class org.Config.Export.Html
----Stylesheet: `nil` = built-in stylesheet, `false` = none, a string = CSS
----put in a `<style>` element (`org-html-head-include-default-style`).
+---(`org-html-doctype`) (default: `"xhtml-strict"`)
+---@field doctype? string
+---(`org-html-html5-fancy`) (default: `false`)
+---@field html5_fancy? boolean
+---(`org-html-container-element`) (default: `"div"`)
+---@field container? string
+---(`org-html-content-class`) (default: `"content"`)
+---@field content_class? string
+---(`org-html-extension`) (default: `"html"`)
+---@field extension? string
+---(`org-html-head-include-default-style`) (default: `true`)
+---@field head_include_default_style? boolean
+---Extra CSS put after the default style; `false` = no default style.
 ---(default: `nil`)
 ---@field style? string|false
----Extra markup appended to `<head>` (`org-html-head-extra`). (default: `""`)
----@field head_extra? string
----Load MathJax when the document contains math. (default: `true`)
+---(`org-html-head`) (default: `""`)
+---@field head? string|fun(info: table): string
+---(`org-html-head-extra`) (default: `""`)
+---@field head_extra? string|fun(info: table): string
+---(`org-html-head-include-scripts`) (default: `false`)
+---@field head_include_scripts? boolean
+---(`org-html-preamble`): `true`, `false`, a format string or a function.
+---(default: `true`)
+---@field preamble? boolean|string|fun(info: table): string
+---(`org-html-postamble`): `"auto"`, `true`, `false`, a format string or a
+---function. (default: `"auto"`)
+---@field postamble? boolean|string|fun(info: table): string
+---(`org-html-postamble-format`), per language. (default: Emacs value)
+---@field postamble_format? table<string, string>
+---(`org-html-preamble-format`), per language. (default: `nil`)
+---@field preamble_format? table<string, string>
+---(`org-html-validation-link`) (default: Emacs value)
+---@field validation_link? string|false
+---(`org-html-creator-string`) (default: `nil` = `creator`)
+---@field creator_string? string
+---(`org-html-link-home`) (default: `""`)
+---@field link_home? string
+---(`org-html-link-up`) (default: `""`)
+---@field link_up? string
+---(`org-html-link-use-abs-url`) (default: `false`)
+---@field link_use_abs_url? boolean
+---(`org-html-link-org-files-as-html`) (default: `true`)
+---@field link_org_files_as_html? boolean
+---(`org-html-metadata-timestamp-format`) (default: `"%Y-%m-%d %a %H:%M"`)
+---@field metadata_timestamp_format? string
+---(`org-html-toplevel-hlevel`) (default: `2`)
+---@field toplevel_hlevel? integer
+---(`org-html-self-link-headlines`) (default: `false`)
+---@field self_link_headlines? boolean
+---(`org-html-prefer-user-labels`) (default: `false`)
+---@field prefer_user_labels? boolean
+---(`org-html-checkbox-type`) (default: `"ascii"`)
+---@field checkbox_type? "ascii"|"unicode"|"html"
+---(`org-html-inline-images`) (default: `true`)
+---@field inline_images? boolean
+---(`org-html-table-caption-above`) (default: `true`)
+---@field table_caption_above? boolean
+---(`org-html-footnote-format`) (default: `"<sup>%s</sup>"`)
+---@field footnote_format? string
+---(`org-html-footnote-separator`) (default: `"<sup>, </sup>"`)
+---@field footnote_separator? string
+---(`org-html-equation-reference-format`) (default: `"\\eqref{%s}"`)
+---@field equation_reference_format? string
+---(`org-html-use-infojs`) (default: `"when-configured"`)
+---@field use_infojs? boolean|"when-configured"
+---(`org-html-wrap-src-lines`) (default: `false`)
+---@field wrap_src_lines? boolean
+---Load MathJax for LaTeX fragments (`org-html-with-latex` = `mathjax`).
+---(default: `true`)
 ---@field mathjax? boolean
+---(`org-html-mathjax-options`) (default: Emacs value)
+---@field mathjax_options? table
+---Highlight source code (Emacs uses htmlize): `function(code, lang)`
+---returning HTML. (default: `nil`)
+---@field fontify? fun(code: string, lang: string): string
 
----Pandoc options (LaTeX/PDF/DOCX/ODT/... export).
+---LaTeX back-end options (ox-latex).
+---@class org.Config.Export.Latex
+---(`org-latex-default-class`) (default: `"article"`)
+---@field default_class? string
+---(`org-latex-classes`): `{ { name, header, { open, close } | format, ... } }`.
+---(default: `nil` = the Emacs list)
+---@field classes? table[]
+---(`org-latex-default-packages-alist`) (default: `nil` = the Emacs list)
+---@field default_packages? table[]
+---(`org-latex-packages-alist`) (default: `{}`)
+---@field packages? table[]
+---(`org-latex-compiler`) (default: `"pdflatex"`)
+---@field compiler? string
+---(`org-latex-pdf-process`): list of commands with `%f %b %o %O %latex %bib`.
+---(default: `nil` = latexmk when available, else three `%latex` runs)
+---@field pdf_process? string[]
+---(`org-latex-bib-compiler`) (default: `"bibtex"`)
+---@field bib_compiler? string
+---(`org-latex-remove-logfiles`) (default: `true`)
+---@field remove_logfiles? boolean
+---Compile PDFs in the background with `vim.system`. (default: `true`)
+---@field async_compile? boolean
+---(`org-latex-src-block-backend`) (default: `"verbatim"`)
+---@field src_block_backend? "verbatim"|"listings"|"minted"
+---(`org-latex-caption-above`) (default: `{ "table" }`)
+---@field caption_above? boolean|string[]
+---(`org-latex-prefer-user-labels`) (default: `false`)
+---@field prefer_user_labels? boolean
+---(`org-latex-reference-command`) (default: `"\\ref{%s}"`)
+---@field reference_command? string
+---(`org-latex-tables-booktabs`) (default: `false`)
+---@field tables_booktabs? boolean
+---(`org-latex-tables-centered`) (default: `true`)
+---@field tables_centered? boolean
+---(`org-latex-images-centered`) (default: `true`)
+---@field images_centered? boolean
+---(`org-latex-image-default-width`) (default: `".9\\linewidth"`)
+---@field image_default_width? string
+---(`org-latex-default-figure-position`) (default: `"htbp"`)
+---@field default_figure_position? string
+---(`org-latex-default-table-environment`) (default: `"tabular"`)
+---@field default_table_environment? string
+---(`org-latex-default-table-mode`) (default: `"table"`)
+---@field default_table_mode? string
+---(`org-latex-title-command`) (default: `"\\maketitle"`)
+---@field title_command? string
+---(`org-latex-toc-command`) (default: `"\\tableofcontents\n\n"`)
+---@field toc_command? string
+---(`org-latex-hyperref-template`) (default: `nil` = the Emacs template)
+---@field hyperref_template? string
+---(`org-latex-use-sans`) (default: `false`)
+---@field use_sans? boolean
+
+---Markdown back-end options (ox-md).
+---@class org.Config.Export.Md
+---(`org-md-headline-style`) (default: `"atx"`)
+---@field headline_style? "atx"|"setext"|"mixed"
+---(`org-md-toplevel-hlevel`) (default: `1`)
+---@field toplevel_hlevel? integer
+---(`org-md-footnote-format`) (default: `"<sup>%s</sup>"`)
+---@field footnote_format? string
+---(`org-md-footnotes-section`) (default: `"%s%s"`)
+---@field footnotes_section? string
+---(`org-md-link-org-files-as-md`) (default: `true`)
+---@field link_org_files_as_md? boolean
+
+---Org back-end options (ox-org).
+---@class org.Config.Export.Org
+---(`org-org-with-special-rows`) (default: `true`)
+---@field with_special_rows? boolean
+
+---Beamer back-end options (ox-beamer).
+---@class org.Config.Export.Beamer
+---(`org-beamer-frame-level`) (default: `1`)
+---@field frame_level? integer
+---(`org-beamer-frame-default-options`) (default: `""`)
+---@field frame_default_options? string
+---(`org-beamer-outline-frame-title`) (default: `"Outline"`)
+---@field outline_frame_title? string
+---(`org-beamer-outline-frame-options`) (default: `""`)
+---@field outline_frame_options? string
+---(`org-beamer-subtitle-format`) (default: `"\\subtitle{%s}"`)
+---@field subtitle_format? string
+---(`org-beamer-theme`) (default: `"default"`)
+---@field theme? string
+---(`org-beamer-environments-extra`): `{ { name, key, open, close }, ... }`.
+---(default: `{}`)
+---@field environments_extra? string[][]
+---(`org-beamer-frame-environment`) (default: `"orgframe"`)
+---@field frame_environment? string
+
+---iCalendar back-end options (ox-icalendar).
+---@class org.Config.Export.Icalendar
+---(`org-icalendar-combined-agenda-file`) (default: `"~/org.ics"`)
+---@field combined_agenda_file? string
+---(`org-icalendar-combined-name`) (default: `"OrgMode"`)
+---@field combined_name? string
+---(`org-icalendar-combined-description`) (default: `""`)
+---@field combined_description? string
+---(`org-icalendar-alarm-time`), minutes. (default: `0`)
+---@field alarm_time? integer
+---(`org-icalendar-force-alarm`) (default: `false`)
+---@field force_alarm? boolean
+---(`org-icalendar-exclude-tags`) (default: `{}`)
+---@field exclude_tags? string[]
+---(`org-icalendar-scheduled-summary-prefix`) (default: `"S: "`)
+---@field scheduled_summary_prefix? string
+---(`org-icalendar-deadline-summary-prefix`) (default: `"DL: "`)
+---@field deadline_summary_prefix? string
+---(`org-icalendar-use-deadline`) (default: `{ "event-if-not-todo", "todo-due" }`)
+---@field use_deadline? string[]
+---(`org-icalendar-use-scheduled`) (default: `{ "todo-start" }`)
+---@field use_scheduled? string[]
+---(`org-icalendar-categories`) (default: `{ "local-tags", "category" }`)
+---@field categories? string[]
+---(`org-icalendar-with-timestamps`) (default: `"active"`)
+---@field with_timestamps? boolean|"active"|"inactive"
+---(`org-icalendar-include-todo`) (default: `false`)
+---@field include_todo? boolean|"unblocked"|"all"|string[]
+---(`org-icalendar-todo-unscheduled-start`) (default: `"recurring-deadline-warning"`)
+---@field todo_unscheduled_start? string|false
+---(`org-icalendar-include-sexps`); diary sexps are not supported. (default: `true`)
+---@field include_sexps? boolean
+---(`org-icalendar-include-body`): `true` or a number of characters. (default: `true`)
+---@field include_body? boolean|integer
+---(`org-icalendar-store-UID`) (default: `false`)
+---@field store_uid? boolean
+---(`org-icalendar-timezone`) (default: `nil` = `$TZ`)
+---@field timezone? string
+---(`org-icalendar-date-time-format`) (default: `":%Y%m%dT%H%M%S"`)
+---@field date_time_format? string
+---(`org-icalendar-ttl`) (default: `nil`)
+---@field ttl? string
+---(`org-agenda-default-appointment-duration`), minutes. (default: `nil`)
+---@field default_appointment_duration? integer
+---(`org-icalendar-after-save-hook`) (default: `nil`)
+---@field after_save_hook? fun(path: string)
+
+---Publishing options (ox-publish).
+---@class org.Config.Export.Publish
+---(`org-publish-project-alist`): `{ name = { base_directory = ..., ... } }`
+---or a list of project tables with a `name` field. (default: `{}`)
+---@field projects? table
+---(`org-publish-timestamp-directory`) (default: `stdpath("data") .. "/org-timestamps/"`)
+---@field timestamp_directory? string
+---(`org-publish-use-timestamps-flag`) (default: `true`)
+---@field use_timestamps_flag? boolean
+---(`org-publish-list-skipped-files`) (default: `true`)
+---@field list_skipped_files? boolean
+---(`org-publish-sitemap-sort-files`) (default: `"alphabetically"`)
+---@field sitemap_sort_files? "alphabetically"|"chronologically"|"anti-chronologically"|false
+---(`org-publish-sitemap-sort-folders`) (default: `"ignore"`)
+---@field sitemap_sort_folders? "first"|"last"|"ignore"
+---(`org-publish-sitemap-sort-ignore-case`) (default: `false`)
+---@field sitemap_sort_ignore_case? boolean
+---(`org-publish-after-publishing-hook`) (default: `nil`)
+---@field after_publishing_hook? fun(src: string, out: string)
+
+---ASCII back-end options (ox-ascii).
+---@class org.Config.Export.Ascii
+---@@ASCII@@
+
+---Citation export options (oc, oc-basic).
+---@class org.Config.Export.Cite
+---(`org-cite-export-processors`): `{ [backend] = { name, bibstyle, citestyle } | name }`,
+---`t` is the fallback. (default: `{ t = { "basic" } }`)
+---@field export_processors? table<string, string|string[]>
+---(`org-cite-global-bibliography`) (default: `{}`)
+---@field global_bibliography? string[]
+---(`org-cite-adjust-note-numbers`) (default: `true`)
+---@field adjust_note_numbers? boolean
+---(`org-cite-note-rules`) (default: `nil` = the Emacs rules)
+---@field note_rules? table<string, string[]>
+---(`org-cite-punctuation-marks`) (default: `{ ".", ",", ";", ":", "!", "?" }`)
+---@field punctuation_marks? string[]
+---(`org-cite-basic-sorting-field`) (default: `"author"`)
+---@field basic_sorting_field? string|false
+---(`org-cite-basic-author-year-separator`) (default: `", "`)
+---@field basic_author_year_separator? string
+---(`org-cite-natbib-options`) (default: `{}`)
+---@field natbib_options? string[]
+---(`org-cite-biblatex-options`) (default: `nil`)
+---@field biblatex_options? string
+---(`org-cite-biblatex-styles`) (default: `nil` = the Emacs table)
+---@field biblatex_styles? table
+---(`org-cite-biblatex-style-shortcuts`) (default: `nil` = the Emacs table)
+---@field biblatex_style_shortcuts? table
+
+---Pandoc options (ODT/DOCX/RST/EPUB export).
 ---@class org.Config.Export.Pandoc
 ---Pandoc executable: a string (split on whitespace) or an argv list.
 ---(default: `"pandoc"`)
@@ -282,46 +538,123 @@
 ---Extra arguments passed to pandoc. (default: `{}`)
 ---@field args? string[]
 
----Export options. `#+OPTIONS:` in a file overrides the `with_*` values.
+---Export options. `#+OPTIONS:`, keywords and `EXPORT_*` properties override
+---the `with_*` values; each option names the Emacs variable it mirrors.
 ---@class org.Config.Export
 ---Output directory, relative to the source file unless absolute; `nil` =
 ---next to the source file. (default: `nil`)
 ---@field output_dir? string
----Include a table of contents (`org-export-with-toc`, `toc:`). (default: `true`)
----@field with_toc? boolean
----Number sections (`org-export-with-section-numbers`, `num:`). (default: `true`)
----@field with_section_numbers? boolean
----Deepest headline level exported as a section (`org-export-headline-levels`,
----`H:`). (default: `3`)
----@field headline_levels? integer
----Include the author (`org-export-with-author`, `author:`). (default: `true`)
----@field with_author? boolean
----Include the date (`org-export-with-date`, `date:`). (default: `true`)
----@field with_date? boolean
----Include TODO keywords (`org-export-with-todo-keywords`, `todo:`). (default: `true`)
----@field with_todo_keywords? boolean
----Include tags (`org-export-with-tags`, `tags:`). (default: `true`)
----@field with_tags? boolean
----Include priority cookies (`org-export-with-priority`, `pri:`). (default: `false`)
----@field with_priority? boolean
----Include drawers (`org-export-with-drawers`, `d:`). (default: `false`)
----@field with_drawers? boolean
----Include planning lines (`org-export-with-planning`, `p:`). (default: `false`)
----@field with_planning? boolean
----Include timestamps (`org-export-with-timestamps`, `<:`). (default: `true`)
----@field with_timestamps? boolean
----When any headline has one of these tags, only those subtrees are exported
----(`org-export-select-tags`). (default: `{ "export" }`)
----@field select_tags? string[]
----Subtrees with one of these tags are not exported (`org-export-exclude-tags`).
----(default: `{ "noexport" }`)
----@field exclude_tags? string[]
 ---Open the exported file with the system opener. (default: `false`)
 ---@field open_after_export? boolean
----HTML exporter options.
+---(`org-export-with-toc`, `toc:`) (default: `true`)
+---@field with_toc? boolean|integer
+---(`org-export-with-section-numbers`, `num:`) (default: `true`)
+---@field with_section_numbers? boolean|integer
+---(`org-export-headline-levels`, `H:`) (default: `3`)
+---@field headline_levels? integer
+---(`org-export-with-author`, `author:`) (default: `true`)
+---@field with_author? boolean
+---(`org-export-with-date`, `date:`) (default: `true`)
+---@field with_date? boolean
+---(`org-export-with-email`, `email:`) (default: `false`)
+---@field with_email? boolean
+---(`org-export-with-creator`, `creator:`) (default: `false`)
+---@field with_creator? boolean
+---(`org-export-with-title`, `title:`) (default: `true`)
+---@field with_title? boolean
+---(`org-export-with-todo-keywords`, `todo:`) (default: `true`)
+---@field with_todo_keywords? boolean
+---(`org-export-with-tags`, `tags:`) (default: `true`)
+---@field with_tags? boolean|"not-in-toc"
+---(`org-export-with-priority`, `pri:`) (default: `false`)
+---@field with_priority? boolean
+---(`org-export-with-drawers`, `d:`): `true`, `false`, a list of names, or
+---`{ ["not"] = { ... } }`. (default: `{ ["not"] = { "LOGBOOK" } }`)
+---@field with_drawers? boolean|string[]|table
+---(`org-export-with-properties`, `prop:`) (default: `false`)
+---@field with_properties? boolean|string[]
+---(`org-export-with-planning`, `p:`) (default: `false`)
+---@field with_planning? boolean
+---(`org-export-with-clocks`, `c:`) (default: `false`)
+---@field with_clocks? boolean
+---(`org-export-with-timestamps`, `<:`) (default: `true`)
+---@field with_timestamps? boolean|"active"|"inactive"
+---(`org-export-with-tasks`, `tasks:`) (default: `true`)
+---@field with_tasks? boolean|"todo"|"done"|string[]
+---(`org-export-with-archived-trees`, `arch:`) (default: `"headline"`)
+---@field with_archived_trees? boolean|"headline"
+---(`org-export-with-emphasize`, `*:`) (default: `true`)
+---@field with_emphasize? boolean
+---(`org-export-with-entities`, `e:`) (default: `true`)
+---@field with_entities? boolean
+---(`org-export-with-fixed-width`, `::`) (default: `true`)
+---@field with_fixed_width? boolean
+---(`org-export-with-footnotes`, `f:`) (default: `true`)
+---@field with_footnotes? boolean
+---(`org-export-with-inlinetasks`, `inline:`) (default: `true`)
+---@field with_inlinetasks? boolean
+---(`org-export-with-latex`, `tex:`) (default: `true`)
+---@field with_latex? boolean|"verbatim"
+---(`org-export-with-smart-quotes`, `':`) (default: `false`)
+---@field with_smart_quotes? boolean
+---(`org-export-with-special-strings`, `-:`) (default: `true`)
+---@field with_special_strings? boolean
+---(`org-export-with-statistics-cookies`, `stat:`) (default: `true`)
+---@field with_statistics_cookies? boolean
+---(`org-export-with-sub-superscripts`, `^:`) (default: `true`)
+---@field with_sub_superscripts? boolean|"{}"
+---(`org-export-with-tables`, `|:`) (default: `true`)
+---@field with_tables? boolean
+---(`org-export-with-broken-links`, `broken-links:`): `false` stops the export,
+---`true` ignores broken links, `"mark"` marks them. (default: `false`)
+---@field with_broken_links? boolean|"mark"
+---(`org-export-preserve-breaks`, `\n:`) (default: `false`)
+---@field preserve_breaks? boolean
+---(`org-export-timestamp-file`, `timestamp:`) (default: `true`)
+---@field timestamp_file? boolean
+---(`org-export-expand-links`) (default: `true`)
+---@field expand_links? boolean
+---(`org-export-select-tags`) (default: `{ "export" }`)
+---@field select_tags? string[]
+---(`org-export-exclude-tags`) (default: `{ "noexport" }`)
+---@field exclude_tags? string[]
+---(`org-export-default-language`) (default: `"en"`)
+---@field default_language? string
+---(`org-export-date-timestamp-format`) (default: `nil`)
+---@field date_timestamp_format? string
+---(`user-full-name`); `nil` = the system user's full name. (default: `nil`)
+---@field author? string
+---(`user-mail-address`) (default: `nil`)
+---@field email? string
+---(`org-export-creator-string`) (default: `nil` = Neovim and org.nvim versions)
+---@field creator? string
+---(`org-export-global-macros`): `{ name = "template $1" | function(...) }`.
+---(default: `{}`)
+---@field global_macros? table<string, string|function>
+---(`org-export-snippet-translation-alist`) (default: `{}`)
+---@field snippet_translation? table<string, string>
+---(`org-inlinetask-min-level`) (default: `15`)
+---@field inlinetask_min_level? integer
+---(`org-table-number-fraction`) (default: `0.5`)
+---@field table_number_fraction? number
+---`{ before_processing = fn, before_parsing = fn }`, `fn(backend, lines)`
+---returning new lines (`org-export-before-processing-functions`,
+---`org-export-before-parsing-functions`). (default: `{}`)
+---@field hooks? table<string, function>
+---Filters (`org-export-filter-TYPE-functions`): `{ [type] = fn | fn[] }`,
+---`fn(text, backend, info)` returning the new text (`nil` keeps it). Types are
+---element/object types plus `"body"`, `"final-output"`, `"parse-tree"` and
+---`"options"`. (default: `{}`)
+---@field filters? table<string, function|function[]>
 ---@field html? org.Config.Export.Html
----Line width of the plain-text (UTF-8) exporter (`org-ascii-text-width`).
----(default: `72`)
+---@field latex? org.Config.Export.Latex
+---@field md? org.Config.Export.Md
+---@field org? org.Config.Export.Org
+---@field beamer? org.Config.Export.Beamer
+---@field icalendar? org.Config.Export.Icalendar
+---@field publish? org.Config.Export.Publish
+---@field ascii? org.Config.Export.Ascii
+---@field cite? org.Config.Export.Cite
+---Legacy alias of `ascii.text_width`. (default: `72`)
 ---@field text_width? integer
----Pandoc options for formats handled by pandoc.
 ---@field pandoc? org.Config.Export.Pandoc

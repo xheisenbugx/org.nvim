@@ -13,7 +13,8 @@ local M = {}
 M.extra = {
   agenda = { "org.agenda", "command", desc = "Open agenda: :Org agenda [a|t|m|s|<custom key>|day|week|month]" },
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
-  export = { "org.export", "command", desc = "Export: :Org export [html|md|txt|latex|pdf|docx|odt|...]" },
+  export = { "org.export", "command", desc = "Export: :Org export [html|md|gfm|ascii|latex|pdf|beamer|org|ics|docx|...]" },
+  publish = { "org.export", "publish_command", desc = "Publish: :Org publish [project|file|current|all] [force]" },
   tangle = { "org.babel", "tangle_command", desc = "Tangle current file" },
   clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in the last clocked task" },
   timer_start = { "org.timer", "start", desc = "Start relative timer" },
@@ -89,7 +90,33 @@ function M.complete(arglead, cmdline)
   if sub == "export" then
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1
-    end, { "html", "md", "markdown", "txt", "latex", "pdf", "docx", "odt", "rst", "epub", "org" })
+    end, {
+      "html",
+      "md",
+      "gfm",
+      "ascii",
+      "latin1",
+      "utf8",
+      "txt",
+      "latex",
+      "pdf",
+      "beamer",
+      "beamer-pdf",
+      "org",
+      "ics",
+      "docx",
+      "odt",
+      "rst",
+      "epub",
+    })
+  elseif sub == "publish" then
+    local out = { "all", "file", "current", "force" }
+    for _, p in ipairs(require("org.export.publish").projects()) do
+      out[#out + 1] = p[1]
+    end
+    return vim.tbl_filter(function(n)
+      return n:find(arglead, 1, true) == 1
+    end, out)
   elseif sub == "agenda" then
     local out = { "a", "t", "T", "m", "M", "s", "#", "day", "week", "month", "year" }
     for key in pairs(require("org.config").opts.agenda.custom_commands or {}) do

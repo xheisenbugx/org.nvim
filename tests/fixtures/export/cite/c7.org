@@ -1,0 +1,7 @@
+#+bibliography: refs.bib
+#+cite_export: bibtex
+#+OPTIONS: toc:nil
+
+A [cite:@doe2020] b [cite:@zed2019 p. 2] c [cite/n:@alpha2018] d [cite:@doe2020;@zed2019].
+
+#+print_bibliography:

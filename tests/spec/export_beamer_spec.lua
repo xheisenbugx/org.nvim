@@ -43,16 +43,17 @@ describe("export beamer (Emacs ox-beamer parity)", function()
   end)
 
   it("honours export.beamer options", function()
-    config.opts.export.beamer = {
+    local saved = config.opts.export.beamer
+    config.opts.export.beamer = vim.tbl_extend("force", saved or {}, {
       frame_level = 1,
       outline_frame_title = "Plan",
       outline_frame_options = "allowframebreaks",
       frame_default_options = "t",
       environments_extra = { { "mybox", "m", "\\begin{mybox}%a{%h}", "\\end{mybox}" } },
-    }
+    })
     local lines = { "#+OPTIONS: toc:t", "* F", "** Box", ":PROPERTIES:", ":BEAMER_env: mybox", ":END:", "x" }
     local ok_, out = pcall(ox.export_as, "beamer", lines, {})
-    config.opts.export.beamer = nil
+    config.opts.export.beamer = saved
     ok(ok_, out)
     ok(out:find("\\begin{frame}[allowframebreaks]{Plan}", 1, true), out)
     ok(out:find("\\begin{frame}%[label={sec:org%x+},t%]{F}"), out)

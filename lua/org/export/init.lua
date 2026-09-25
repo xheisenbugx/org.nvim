@@ -623,7 +623,7 @@ function M.prompt()
       end
       local names = {}
       for _, p in ipairs(pub.projects()) do
-        names[#names + 1] = p.name
+        names[#names + 1] = p[1]
       end
       local name = utils.input_complete("Publish project: ", names)
       if name and name ~= "" then
@@ -683,7 +683,7 @@ function M.publish_command(args)
   local force = vim.tbl_contains(words, "force")
   local pub = require("org.export.publish")
   local target = words[1]
-  if not target or target == "force" then
+  if not target or target == "force" or target == "current" then
     return pub.publish_current_project(force)
   elseif target == "all" then
     return pub.publish_all(force)

@@ -555,6 +555,70 @@ M.defaults = {
     org = {
       with_special_rows = true, -- org-org-with-special-rows
     },
+    beamer = {
+      frame_level = 1, -- org-beamer-frame-level
+      frame_default_options = "", -- org-beamer-frame-default-options
+      outline_frame_title = "Outline", -- org-beamer-outline-frame-title
+      outline_frame_options = "", -- org-beamer-outline-frame-options
+      subtitle_format = "\\subtitle{%s}", -- org-beamer-subtitle-format
+      theme = "default", -- org-beamer-theme
+      --- org-beamer-environments-extra: { { name, key, open, close }, ... }
+      environments_extra = {},
+      frame_environment = "orgframe", -- org-beamer-frame-environment
+    },
+    icalendar = {
+      combined_agenda_file = "~/org.ics", -- org-icalendar-combined-agenda-file
+      combined_name = "OrgMode", -- org-icalendar-combined-name
+      combined_description = "", -- org-icalendar-combined-description
+      alarm_time = 0, -- org-icalendar-alarm-time (minutes)
+      force_alarm = false, -- org-icalendar-force-alarm
+      exclude_tags = {}, -- org-icalendar-exclude-tags
+      scheduled_summary_prefix = "S: ", -- org-icalendar-scheduled-summary-prefix
+      deadline_summary_prefix = "DL: ", -- org-icalendar-deadline-summary-prefix
+      use_deadline = { "event-if-not-todo", "todo-due" }, -- org-icalendar-use-deadline
+      use_scheduled = { "todo-start" }, -- org-icalendar-use-scheduled
+      categories = { "local-tags", "category" }, -- org-icalendar-categories
+      with_timestamps = "active", -- org-icalendar-with-timestamps
+      --- org-icalendar-include-todo: false, true, "unblocked", "all" or keywords.
+      include_todo = false,
+      todo_unscheduled_start = "recurring-deadline-warning", -- org-icalendar-todo-unscheduled-start
+      include_sexps = true, -- org-icalendar-include-sexps (diary sexps are not supported)
+      include_body = true, -- org-icalendar-include-body (true or a number of characters)
+      store_uid = false, -- org-icalendar-store-UID
+      timezone = nil, -- org-icalendar-timezone (nil = $TZ)
+      date_time_format = ":%Y%m%dT%H%M%S", -- org-icalendar-date-time-format
+      ttl = nil, -- org-icalendar-ttl
+      default_appointment_duration = nil, -- org-agenda-default-appointment-duration (minutes)
+      after_save_hook = nil, -- org-icalendar-after-save-hook: function(path)
+    },
+    publish = {
+      --- org-publish-project-alist: { name = { base_directory = ..., ... } }
+      --- or a list of tables with a `name`.
+      projects = {},
+      --- org-publish-timestamp-directory (Emacs: ~/.org-timestamps/).
+      timestamp_directory = vim.fn.stdpath("data") .. "/org-timestamps/",
+      use_timestamps_flag = true, -- org-publish-use-timestamps-flag
+      list_skipped_files = true, -- org-publish-list-skipped-files
+      sitemap_sort_files = "alphabetically", -- org-publish-sitemap-sort-files
+      sitemap_sort_folders = "ignore", -- org-publish-sitemap-sort-folders
+      sitemap_sort_ignore_case = false, -- org-publish-sitemap-sort-ignore-case
+      after_publishing_hook = nil, -- org-publish-after-publishing-hook: function(src, out)
+    },
+    cite = {
+      --- org-cite-export-processors: { [backend] = { name, bibstyle, citestyle } | "name" };
+      --- `t` is the fallback. #+CITE_EXPORT overrides it.
+      export_processors = { t = { "basic" } },
+      global_bibliography = {}, -- org-cite-global-bibliography
+      adjust_note_numbers = true, -- org-cite-adjust-note-numbers
+      note_rules = nil, -- org-cite-note-rules (nil = the Emacs rules)
+      punctuation_marks = { ".", ",", ";", ":", "!", "?" }, -- org-cite-punctuation-marks
+      basic_sorting_field = "author", -- org-cite-basic-sorting-field
+      basic_author_year_separator = ", ", -- org-cite-basic-author-year-separator
+      natbib_options = {}, -- org-cite-natbib-options
+      biblatex_options = nil, -- org-cite-biblatex-options
+      biblatex_styles = nil, -- org-cite-biblatex-styles (nil = the Emacs table)
+      biblatex_style_shortcuts = nil, -- org-cite-biblatex-style-shortcuts (nil = the Emacs table)
+    },
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },

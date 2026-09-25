@@ -1,0 +1,14 @@
+#+bibliography: refs.bib
+#+OPTIONS: toc:nil
+
+Default [cite:@doe2020] and [cite: @zed2019; @doe2020b].
+Prefix [cite:see @doe2020 p. 3] and global [cite:Glob; @doe2020; @zed2019;  end].
+Author [cite/a:@doe2020] caps [cite/a/c:@alpha2018].
+Noauthor [cite/na:@doe2020] bare [cite/na/b:@zed2019].
+Text [cite/t:@doe2020] caps [cite/t/c:@zed2019] bare [cite/t/b:@alpha2018].
+Numeric [cite/nb:@doe2020;@zed2019;@alpha2018;@doe2020b] and [cite/numeric:@zed2019].
+Nocite [cite/n:@alpha2018] here.
+Bare [cite//b:@doe2020] caps [cite//c:@doe2020].
+Unknown [cite:@nokey] and [cite:@nokey2].
+
+#+print_bibliography:

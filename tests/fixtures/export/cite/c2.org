@@ -1,0 +1,8 @@
+#+bibliography: refs.bib
+#+cite_export: basic plain numeric
+#+OPTIONS: toc:nil
+
+Numeric default [cite:@doe2020] and [cite:@zed2019;@alpha2018].
+Note style "quoted" [cite/ft:@doe2020]. After text [cite/note:@zed2019], more.
+
+#+print_bibliography:

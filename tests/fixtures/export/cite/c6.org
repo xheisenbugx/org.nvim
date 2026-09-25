@@ -1,0 +1,9 @@
+#+bibliography: refs.bib
+#+cite_export: biblatex authoryear
+#+OPTIONS: toc:nil
+
+A [cite:@doe2020] b [cite/t:@zed2019] c [cite/a/c:@doe2020] d [cite/na/b:@alpha2018] l [cite/l:@zed2019].
+Pre [cite:see @doe2020 p. 3] multi [cite:@doe2020;@zed2019] glob [cite:Glob; @doe2020;@zed2019; end].
+Multicite [cite:@doe2020 p. 1;@zed2019 p. 2] nocite [cite/n:@doe2020b] text [cite/t/c:@doe2020;see @zed2019].
+
+#+print_bibliography: :keyword abc,xyz :title "Primary Sources"

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "knuth84",
+    "type": "book",
+    "author": [{ "family": "Knuth", "given": "Donald" }],
+    "title": "The TeXbook",
+    "publisher": "Addison-Wesley",
+    "issued": { "date-parts": [[1984]] }
+  },
+  {
+    "id": "lamport94",
+    "type": "book",
+    "author": [{ "family": "Lamport", "given": "Leslie" }],
+    "title": "LaTeX: A Document Preparation System",
+    "publisher": "Addison-Wesley",
+    "issued": { "date-parts": [[1994, 6]] }
+  }
+]

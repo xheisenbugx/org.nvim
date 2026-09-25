@@ -279,7 +279,17 @@ function M.interpret(data)
   elseif t == "inline-babel-call" then
     return data.value .. pb
   elseif t == "citation" then
-    return (data.raw or "") .. pb
+    -- org-element-citation-interpreter
+    local contents = inner()
+    return "[cite"
+      .. (data.style and ("/" .. data.style) or "")
+      .. ":"
+      .. (data.prefix and (M.interpret(data.prefix) .. ";") or "")
+      .. (data.suffix and (contents .. M.interpret(data.suffix)) or contents:sub(1, -2))
+      .. "]"
+      .. pb
+  elseif t == "citation-reference" then
+    return M.interpret(data.prefix) .. "@" .. data.key .. M.interpret(data.suffix) .. ";"
   elseif t == "table-cell" then
     return " " .. inner() .. " |"
   end
@@ -2487,7 +2497,12 @@ function P:object_at(s, p, R)
   return nil
 end
 
+--- Citation key (org-element-citation-key-re): "@" then word characters
+--- or any of -.:?!`'/*@+|(){}<>&_^$#%~.
+local CITE_KEY = "()@([%w\128-\255%-%.:%?!`'/%*@%+|%(%){}<>&_%^%$#%%~]+)()"
+
 --- Citation at p: [cite/style:prefix;@key suffix;...]
+--- (org-element-citation-parser).
 function P:citation(s, p)
   local style, colon = s:match("^%[cite/([/_%w%-]+)()", p)
   local start
@@ -2496,53 +2511,79 @@ function P:citation(s, p)
       return nil
     end
     start = colon + 1
-  else
+  elseif s:sub(p, p + 5) == "[cite:" then
     start = p + 6
+  else
+    return nil
   end
+  -- Ignore blanks between cite type and prefix or key.
+  start = s:match("^[ \t\n]*()", start)
   local close = balanced_square(s, p)
   if not close then
     return nil
   end
-  local inner = s:sub(start, close - 1)
-  if not inner:find("@[%w!#%-%+%./:<>%-@%^%-`{%-~_]") then
+  local inner = s:sub(1, close - 1)
+  local _, _, first_key_end = inner:match(CITE_KEY, start)
+  if not first_key_end then
     return nil
   end
   local ws = s:match("^[ \t]*", close + 1)
   local node = M.node("citation", { style = style, post_blank = #ws, raw = s:sub(p, close) })
-  -- split on ";" at top level
-  local parts = vim.split(inner, ";", { plain = true })
+  local types = M.RESTRICTIONS["citation-reference"]
+  -- Common prefix: text before the last ";" preceding the first key.
+  local cbeg = start
+  local semi
+  for i = first_key_end - 1, start, -1 do
+    if s:sub(i, i) == ";" then
+      semi = i
+      break
+    end
+  end
+  if semi then
+    if start < semi then
+      node.prefix = self:parse_objects(s:sub(start, semi - 1), types, node)
+    end
+    cbeg = semi + 1
+  end
+  -- Common suffix: text after the last ";" when no key follows it.
+  local cend = close - 1
+  while cend >= first_key_end and s:sub(cend, cend):match("[ \r\t\n]") do
+    cend = cend - 1
+  end
+  cend = cend + 1 -- exclusive end
+  semi = nil
+  for i = cend - 1, first_key_end, -1 do
+    if s:sub(i, i) == ";" then
+      semi = i
+      break
+    end
+  end
+  if semi and not s:sub(semi + 1, cend - 1):find(CITE_KEY) then
+    if semi + 1 < cend then
+      node.suffix = self:parse_objects(s:sub(semi + 1, cend - 1), types, node)
+    end
+    cend = semi
+  end
+  -- References, separated by ";" (org-element-citation-reference-parser).
   local refs = {}
-  local prefix, suffix
-  for idx, part in ipairs(parts) do
-    local kpos, key = part:match("()@([%w!#%%+%./:<>%-@%^_`{|}~]+)")
+  for part in (s:sub(cbeg, cend - 1) .. ";"):gmatch("([^;]*);") do
+    local kpos, key, kend = part:match(CITE_KEY)
     if kpos then
-      local ref = M.node("citation-reference", { key = key })
-      local pre = part:sub(1, kpos - 1)
-      local suf = part:sub(kpos + 1 + #key)
-      if pre ~= "" then
-        ref.prefix = self:parse_objects(pre, M.RESTRICTIONS["citation-reference"], ref)
+      local ref = M.node("citation-reference", { key = key, post_blank = 0 })
+      if kpos > 1 then
+        ref.prefix = self:parse_objects(part:sub(1, kpos - 1), types, ref)
       end
-      if suf ~= "" then
-        ref.suffix = self:parse_objects(suf, M.RESTRICTIONS["citation-reference"], ref)
+      if kend <= #part then
+        ref.suffix = self:parse_objects(part:sub(kend), types, ref)
       end
       ref.parent = node
       refs[#refs + 1] = ref
-    elseif idx == 1 then
-      prefix = trim(part) ~= "" and part or nil
-    elseif idx == #parts then
-      suffix = trim(part) ~= "" and part or nil
     end
   end
   if #refs == 0 then
     return nil
   end
   node.contents = refs
-  if prefix then
-    node.prefix = self:parse_objects(prefix, M.RESTRICTIONS["citation-reference"], node)
-  end
-  if suffix then
-    node.suffix = self:parse_objects(suffix, M.RESTRICTIONS["citation-reference"], node)
-  end
   return node, close + 1 + #ws
 end
 
