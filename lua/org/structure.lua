@@ -1615,8 +1615,7 @@ local function entry_key(kind, prop, with_case, keyfn)
     elseif kind == "deadline" then
       return h.planning.deadline and h.planning.deadline:minutes() or now_minutes()
     elseif kind == "priority" then
-      local p = h.priority or h.file:priorities().default
-      return p:byte(1)
+      return require("org.priority").value(h)
     elseif kind == "todo" then
       local todo_cfg = h.file.settings.todo
       local n = #todo_cfg.keywords

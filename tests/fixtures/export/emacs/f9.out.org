@@ -1,0 +1,16 @@
+Ref a[fn:b] ref b[fn:a] again[fn:b].
+
+[fn:b] Def B
+
+[fn:a] Def A
+with second line.
+
+Second para of A.
+* One
+** One.A
+#+toc: headlines 2 local
+*** One.A.1
+* Two
+** Two.A
+* Three
+text

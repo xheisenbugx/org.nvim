@@ -1,0 +1,46 @@
+#+AUTHOR: Jane Doe
+#+DATE: 2024-01-02
+#+OPTIONS: toc:nil title:nil num:nil tags:not-in-toc todo:nil
+
+* Top :a:
+#+TOC: headlines 1 local
+** Child one
+Child text: see [[*Child two]] and [[tgt][the target]].
+** Child two
+<<tgt>>Target here.
+
+| a | b | c |
+|---+---+---|
+| 1 | 2 | 3 |
+|---+---+---|
+| / | < |   |
+| x | y | z |
+
+* Lists
+1. [@3] third
+2. fourth
+   with continuation
+
+   and a second paragraph
+3. fifth
+
++ plus bullet
+ * star bullet in list
+
+- tag :: value
+  - nested :: deep
+    and more text on a line that is long enough to need filling at width seventy two
+
+* Text
+- > quoted-looking list item text which is long enough to be wrapped around the margin
+Some -- text... with "quotes" and it's done.
+Numbers 1.5 and e.g. abbreviations. Sentence? Yes! Done.
+Trailing sentence with closing paren (like this.) Next one.
+
+    Indented paragraph with a prefix that is also rather long so it must wrap here.
+
+#+begin_export ascii
+Raw ascii export.
+#+end_export
+#+ASCII: keyword line
+@@ascii:snippet@@ and @@html:<b>no</b>@@.

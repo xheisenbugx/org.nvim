@@ -1,0 +1,43 @@
+#+TITLE: Calendar, test; one
+#+AUTHOR: Jane Doe
+#+CATEGORY: work
+
+* Meeting with team :meet:office:
+:PROPERTIES:
+:ID: 11111111-2222-3333-4444-555555555555
+:LOCATION: Room 1
+:END:
+<2026-09-23 Wed 10:00-11:30>
+Discuss the plan, the budget; and more.
+
+* Holiday
+<2026-12-24 Thu>--<2026-12-26 Sat>
+
+* Deadline entry
+DEADLINE: <2026-10-01 Thu 17:00>
+:PROPERTIES:
+:ID: dl-entry
+:END:
+
+* TODO Task with schedule
+SCHEDULED: <2026-10-02 Fri>
+:PROPERTIES:
+:ID: todo-entry
+:END:
+
+* Weekly sync
+:PROPERTIES:
+:ID: weekly
+:APPT_WARNTIME: 15
+:CLASS: PRIVATE
+:END:
+<2026-09-28 Mon 09:00 +1w>
+
+* Inactive only
+[2026-09-20 Sun]
+
+* Long summary to check that folding of very long iCalendar content lines works as expected in all cases
+:PROPERTIES:
+:ID: long
+:END:
+<2026-11-11 Wed>

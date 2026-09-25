@@ -1,0 +1,87 @@
+% Intended LaTeX compiler: pdflatex
+\documentclass[presentation]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usetheme{Madrid}
+\usecolortheme[light]{whale}
+\usefonttheme{serif}
+\author{Jane}
+\date{2026-09-23}
+\title{Talk}
+\subtitle{A subtitle}
+\institute{Org}
+\hypersetup{
+ pdfauthor={Jane},
+ pdftitle={Talk},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={},
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+\section{Intro}
+\label{sec:orgf692cc2}
+\begin{frame}[label={sec:org201751e}]{First frame}
+Some \alert{important} text and \emph{italic}.
+
+\begin{itemize}
+\item item one
+\item<2-> item two
+\end{itemize}
+\end{frame}
+\begin{frame}[label={sec:org0ac873f},fragile]{Code frame}
+ \begin{verbatim}
+echo hi
+\end{verbatim}
+\end{frame}
+\begin{frame}[label={sec:org16dc177}]{Blocks}
+\begin{block}{A block}
+Block text.
+\end{block}
+\begin{alertblock}<2->{An alert}
+Alert text.
+\end{alertblock}
+\begin{theorem}[Theorem]\label{sec:orgf47c2ba}
+Statement.
+\end{theorem}
+\end{frame}
+\section<<3>>{Second section}
+\label{sec:org6e5cec2}
+\begin{frame}[allowframebreaks]{Columns frame}
+\begin{columns}
+\begin{column}{0.5\columnwidth}
+Left text.
+\end{column}
+\begin{column}{0.5\columnwidth}
+\begin{block}{Right}
+Right text.
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+\note{Notes
+A note.}
+\begin{frame}[<+->][label={sec:org93c0929}]{}
+\begin{itemize}
+\item a
+\item b
+\end{itemize}
+\end{frame}
+\againframe<3>{sec:org201751e}
+Plain text after ignore.
+\end{document}

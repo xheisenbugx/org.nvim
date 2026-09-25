@@ -24,20 +24,25 @@ local ns = vim.api.nvim_create_namespace("org.special")
 ---@field to_source? fun(lines: string[]): string[] transform before writing back
 ---@field on_close? fun()
 ---@field window? string
+---@field start_col? integer edit an object: 0-based byte column of its start on `start_line`
+---@field end_col? integer 0-based byte column after its end on `end_line`
 
 ---@param opts org.SpecialOpts
 function M.open(opts)
   local src = opts.source_buf
+  local object = opts.start_col ~= nil
   -- extmarks around the region: start mark before the first line,
-  -- end mark at the end of the last line
-  local sm = vim.api.nvim_buf_set_extmark(src, ns, opts.start_line - 1, 0, { right_gravity = false })
+  -- end mark at the end of the last line (or around an object)
+  local sm = vim.api.nvim_buf_set_extmark(src, ns, opts.start_line - 1, opts.start_col or 0, { right_gravity = false })
   local end_row = math.max(opts.end_line, opts.start_line - 1)
   local em
-  if opts.end_line >= opts.start_line then
+  if object then
+    em = vim.api.nvim_buf_set_extmark(src, ns, opts.end_line - 1, opts.end_col, { right_gravity = true })
+  elseif opts.end_line >= opts.start_line then
     local last = vim.api.nvim_buf_get_lines(src, end_row - 1, end_row, false)[1] or ""
     em = vim.api.nvim_buf_set_extmark(src, ns, end_row - 1, #last, { right_gravity = true })
   end
-  local empty_region = opts.end_line < opts.start_line
+  local empty_region = not object and opts.end_line < opts.start_line
 
   local buf = vim.api.nvim_create_buf(false, false)
   local base = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(src), ":t")
@@ -69,6 +74,22 @@ function M.open(opts)
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     if opts.to_source then
       lines = opts.to_source(lines)
+      if lines == nil then
+        return false
+      end
+    end
+    if object then
+      local s = vim.api.nvim_buf_get_extmark_by_id(src, ns, sm, {})
+      local e = vim.api.nvim_buf_get_extmark_by_id(src, ns, em, {})
+      vim.api.nvim_buf_set_text(src, s[1], s[2], e[1], e[2], lines)
+      vim.api.nvim_buf_del_extmark(src, ns, sm)
+      vim.api.nvim_buf_del_extmark(src, ns, em)
+      sm = vim.api.nvim_buf_set_extmark(src, ns, s[1], s[2], { right_gravity = false })
+      local erow = s[1] + #lines - 1
+      local ecol = (#lines == 1 and s[2] or 0) + #lines[#lines]
+      em = vim.api.nvim_buf_set_extmark(src, ns, erow, ecol, { right_gravity = true })
+      vim.bo[buf].modified = false
+      return true
     end
     local s, e = region()
     vim.api.nvim_buf_set_lines(src, s - 1, e, false, lines)
@@ -175,6 +196,262 @@ local function common_indent(lines)
 end
 
 local EXPORT_FT = { html = "html", latex = "tex", tex = "tex", md = "markdown", markdown = "markdown", ascii = "text" }
+
+--- LaTeX fragment of `line` covering byte column `col` (1-based):
+--- `$x$`, `$$x$$`, `\(x\)`, `\[x\]`. Returns the 1-based start and end of
+--- its contents (between the delimiters), or nil.
+local function latex_fragment_at(line, col)
+  local pats = {
+    { "\\%(", "\\%)" },
+    { "\\%[", "\\%]" },
+    { "%$%$", "%$%$" },
+  }
+  for _, p in ipairs(pats) do
+    local init = 1
+    while true do
+      local s, os_ = line:find(p[1], init)
+      if not s then
+        break
+      end
+      local cs, e = line:find(p[2], os_ + 1)
+      if not cs then
+        break
+      end
+      if col >= s and col <= e then
+        return os_ + 1, cs - 1
+      end
+      init = e + 1
+    end
+  end
+  -- $x$: no space after the opening / before the closing dollar
+  local init = 1
+  while true do
+    local s = line:find("%$", init)
+    if not s then
+      break
+    end
+    local e = line:find("%$", s + 1)
+    if not e then
+      break
+    end
+    local inner = line:sub(s + 1, e - 1)
+    if
+      inner ~= ""
+      and not inner:match("^%s")
+      and not inner:match("%s$")
+      and line:sub(s - 1, s - 1) ~= "$"
+      and line:sub(e + 1, e + 1) ~= "$"
+      and col >= s
+      and col <= e
+    then
+      return s + 1, e - 1
+    end
+    init = e + 1
+  end
+end
+
+--- C-c ' on an object or line that is not a block (org-edit-special):
+--- inline src block, footnote reference, LaTeX fragment, INCLUDE /
+--- SETUPFILE / BIBLIOGRAPHY keyword, planning line, timestamp or link.
+--- Returns true when something was done.
+function M.edit_object(bufnr, lnum, col)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+  -- keywords that name a file: visit it
+  local key, value = line:match("^%s*#%+(%w+):%s*(.-)%s*$")
+  if key then
+    key = key:upper()
+    if key == "INCLUDE" or key == "SETUPFILE" or key == "BIBLIOGRAPHY" then
+      if value == "" then
+        utils.error("No file to edit")
+        return true
+      end
+      local f = value:match('^"(.-)"') or value:match("^(%S+)")
+      if f:match("^%a[%w+.-]*://") then
+        utils.error("Files located with a URL cannot be edited")
+        return true
+      end
+      f = f:gsub("::.*$", "")
+      local dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":p:h")
+      utils.open_file(utils.expand(f, dir))
+      return true
+    end
+  end
+  -- planning line: org-deadline and/or org-schedule
+  if line:match("^%s*SCHEDULED:") or line:match("^%s*DEADLINE:") or line:match("^%s*CLOSED:") then
+    local ts = require("org.timestamps")
+    local done = false
+    if line:find("DEADLINE:", 1, true) then
+      ts.deadline()
+      done = true
+    end
+    if line:find("SCHEDULED:", 1, true) then
+      ts.schedule()
+      done = true
+    end
+    if done then
+      return true
+    end
+  end
+  local babel = require("org.babel")
+  -- inline src block: edit its body (kept on one line)
+  local ib = babel.inline_at(line, col)
+  if ib and not ib.call then
+    local open = line:find("{", ib.s, true)
+    M.open({
+      source_buf = bufnr,
+      start_line = lnum,
+      end_line = lnum,
+      start_col = open,
+      end_col = ib.e - 1,
+      lines = { ib.body },
+      filetype = ib.lang,
+      name = "inline-" .. ib.lang,
+      kind = "inline-src",
+      to_source = function(new)
+        local text = table.concat(new, "\n"):gsub("\n[ \t]*", " ")
+        return { vim.trim(text) }
+      end,
+    })
+    return true
+  end
+  -- footnote reference: edit its definition
+  local fn = require("org.footnotes").at_point(bufnr, lnum, col)
+  if fn and (fn.kind == "reference" or fn.kind == "inline") then
+    if not fn.label then
+      utils.error("Cannot edit remotely anonymous footnotes")
+      return true
+    end
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local function inline_def(l, row)
+      local s = l:find("[fn:" .. fn.label .. ":", 1, true)
+      if not s then
+        return nil
+      end
+      local depth, e = 0, nil
+      for i = s, #l do
+        local c = l:sub(i, i)
+        if c == "[" then
+          depth = depth + 1
+        elseif c == "]" then
+          depth = depth - 1
+          if depth == 0 then
+            e = i
+            break
+          end
+        end
+      end
+      if e then
+        return { row = row, s = s + 5 + #fn.label, e = e }
+      end
+    end
+    local target
+    if fn.kind == "inline" then
+      target = inline_def(line, lnum)
+    else
+      for _, d in ipairs(require("org.footnotes").collect_definitions(lines)) do
+        if d.label == fn.label then
+          target = { def = d }
+        end
+      end
+      if not target then
+        for i, l in ipairs(lines) do
+          local t = inline_def(l, i)
+          if t then
+            target = t
+            break
+          end
+        end
+      end
+    end
+    if not target then
+      utils.error("No definition for footnote " .. fn.label)
+      return true
+    end
+    if target.def then
+      local d = target.def
+      local first = lines[d.start]
+      local prefix = first:match("^%[fn:[^%]]+%]%s?") or ""
+      local content = { first:sub(#prefix + 1) }
+      vim.list_extend(content, vim.list_slice(lines, d.start + 1, d.stop))
+      M.open({
+        source_buf = bufnr,
+        start_line = d.start,
+        end_line = d.stop,
+        start_col = #prefix,
+        end_col = #lines[d.stop],
+        lines = content,
+        filetype = "org",
+        name = "footnote-" .. fn.label,
+        kind = "footnote",
+      })
+    else
+      local l = lines[target.row]
+      M.open({
+        source_buf = bufnr,
+        start_line = target.row,
+        end_line = target.row,
+        start_col = target.s - 1,
+        end_col = target.e - 1,
+        lines = vim.split(l:sub(target.s, target.e - 1), "\n", { plain = true }),
+        filetype = "org",
+        name = "footnote-" .. fn.label,
+        kind = "footnote",
+        to_source = function(new)
+          local text = table.concat(new, "\n")
+          if text:find("\n[ \t]*\n") then
+            utils.error("Inline definitions cannot contain blank lines")
+            return nil
+          end
+          return { (text:gsub("\n", " ")) }
+        end,
+      })
+    end
+    return true
+  end
+  -- LaTeX fragment
+  local fs, fe = latex_fragment_at(line, col)
+  if fs then
+    local in_table = line:match("^%s*|") ~= nil
+    M.open({
+      source_buf = bufnr,
+      start_line = lnum,
+      end_line = lnum,
+      start_col = fs - 1,
+      end_col = fe,
+      lines = { line:sub(fs, fe) },
+      filetype = "tex",
+      name = "latex-fragment",
+      kind = "latex-fragment",
+      to_source = function(new)
+        local text = table.concat(new, "\n"):gsub("\n[ \t]*\n", "\n")
+        if in_table then
+          text = text:gsub("\n", " ")
+        end
+        return vim.split(text, "\n", { plain = true })
+      end,
+    })
+    return true
+  end
+  -- timestamp: org-timestamp / org-timestamp-inactive
+  local ts = require("org.date").at_col(line, col)
+  if ts then
+    local t = require("org.timestamps")
+    if ts.date and ts.date.active == false then
+      t.insert_inactive()
+    else
+      t.insert_active()
+    end
+    return true
+  end
+  -- link: visit it (ffap)
+  local links = require("org.links")
+  if links.link_at_cursor and links.link_at_cursor() then
+    links.open_at_point()
+    return true
+  end
+  return false
+end
 
 --- Edit the element at the cursor in a separate buffer (org-edit-special
 --- for elements other than src blocks and tables): example, export and

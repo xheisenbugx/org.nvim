@@ -27,6 +27,9 @@ local links = {
   OrgAgendaHint = "Comment",
   OrgAgendaEntryText = "Comment",
   OrgAgendaDimmed = "Comment",
+  OrgAgendaColumn = "Pmenu",
+  OrgAgendaColumnDateline = "PmenuSel",
+  OrgAgendaColumnTitle = "TabLineSel",
   OrgSparseMatch = "Search",
 }
 

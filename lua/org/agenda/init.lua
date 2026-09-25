@@ -23,27 +23,94 @@ end
 
 local TYPE_ALIASES = {
   ["tags-todo"] = "tags_todo",
-  ["todo-tree"] = "todo",
   alltodo = "todo",
   ["stuck-projects"] = "stuck",
   stuck_projects = "stuck",
-  ["tags-tree"] = "tags",
+  ["tags-tree"] = "tags_tree",
+  ["todo-tree"] = "todo_tree",
+  ["occur-tree"] = "occur_tree",
 }
 
---- Normalize a block spec (accepts Emacs-style option names).
-function M.normalize_block(b)
-  local out = vim.deepcopy(b)
+--- Custom command types that build a sparse tree in the current org
+--- buffer instead of an agenda view.
+local SPARSE_TYPES = { tags_tree = true, todo_tree = true, occur_tree = true }
+M.SPARSE_TYPES = SPARSE_TYPES
+
+--- Emacs option names (`org_agenda_<name>`) whose plugin block key differs.
+local OPTION_ALIASES = {
+  org_agenda_overriding_header = "header",
+  org_agenda_skip_function = "skip",
+  org_agenda_sorting_strategy = "sorting",
+  org_agenda_files = "files",
+  org_stuck_projects = "stuck_projects",
+  org_deadline_warning_days = "deadline_warning_days",
+  org_agenda_tag_filter_preset = "tag_filter_preset",
+  org_agenda_category_filter_preset = "category_filter_preset",
+  org_agenda_regexp_filter_preset = "regexp_filter_preset",
+  org_agenda_effort_filter_preset = "effort_filter_preset",
+}
+
+--- Normalize a block spec (accepts Emacs-style option names). `settings`
+--- (the options of a composite command, Emacs's third element) apply to
+--- the block unless it sets the same option itself.
+---@param b table
+---@param settings? table
+function M.normalize_block(b, settings)
+  local out = vim.deepcopy(settings or {})
+  for k, v in pairs(b) do
+    out[k] = type(v) == "table" and vim.deepcopy(v) or v
+  end
+  -- Emacs-style names: org_agenda_span -> span, ...
+  for k, v in pairs(vim.deepcopy(out)) do
+    if type(k) == "string" then
+      local key = OPTION_ALIASES[k] or k:match("^org_agenda_(.+)$")
+      if key and out[key] == nil then
+        out[key] = v
+      end
+    end
+  end
   out.type = TYPE_ALIASES[out.type] or out.type or "agenda"
-  out.header = out.header or out.org_agenda_overriding_header
-  out.span = out.span or out.org_agenda_span
-  out.start_day = out.start_day or out.org_agenda_start_day
-  out.files = out.files or out.org_agenda_files
-  out.skip = b.skip or b.org_agenda_skip_function
-  out.sorting = out.sorting or out.org_agenda_sorting_strategy
+  -- functions are not deep-copied reliably; take them from the sources
+  out.skip = b.skip or b.org_agenda_skip_function or (settings or {}).skip or (settings or {}).org_agenda_skip_function
   if out.type == "todo" and not out.keywords and out.match and out.match ~= "" then
     out.keywords = vim.split(out.match, "[|%s]+", { trimempty = true })
   end
   return out
+end
+
+--- The `settings` of a custom command (Emacs's options list).
+local function command_settings(cmd)
+  return cmd.settings or cmd.options
+end
+
+--- Run a sparse-tree custom command (tags-tree, todo-tree, occur-tree)
+--- in the current org buffer.
+---@param block table normalized block
+function M.sparse_command(block)
+  local buf = vim.api.nvim_get_current_buf()
+  if not utils.is_org(buf) then
+    local ft = vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or "fundamental"
+    utils.error("Cannot execute Org agenda command on buffer in " .. ft .. " mode")
+    return nil
+  end
+  local sparse = require("org.agenda.sparse")
+  local match = block.match or ""
+  if block.type == "tags_tree" then
+    return sparse.match(match, block.todo_only)
+  elseif block.type == "todo_tree" then
+    if match == "" then
+      return sparse.headlines(function(hl)
+        return hl:is_todo()
+      end, "TODO")
+    end
+    return sparse.headlines(function(hl)
+      return hl.raw:match("^%*+%s+" .. vim.pesc(match) .. "%f[^%w_]") ~= nil
+    end, match)
+  else
+    local search = require("org.agenda.search")
+    local ok, re = pcall(search.emacs_regexp, match)
+    return sparse.regexp(ok and re or match)
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -289,6 +356,9 @@ function M.occur(pattern)
 end
 
 --- Open a view: `{ blocks = {...} }` or a single block `{ type = ... }`.
+--- A view with `blocks`/`types` is a composite (block) agenda; its
+--- `settings` apply to every block. Sparse-tree types (tags_tree,
+--- todo_tree, occur_tree) act on the current org buffer instead.
 ---@param spec table
 ---@param opts? { anchor?: integer, span?: string|integer, restrict?: table }
 function M.open(spec, opts)
@@ -297,14 +367,28 @@ function M.open(spec, opts)
     opts = vim.tbl_extend("force", opts, { restrict = M.lock_restriction() })
   end
   local blocks
+  local multi = false
   if spec.blocks or spec.types then
     blocks = spec.blocks or spec.types
+    multi = true
   else
     blocks = { spec }
   end
-  local view = { title = spec.description or spec.title, blocks = {} }
+  local settings = command_settings(spec)
+  local view = { title = spec.description or spec.title, blocks = {}, multi = multi, key = spec.key }
   for _, b in ipairs(blocks) do
-    view.blocks[#view.blocks + 1] = M.normalize_block(b)
+    local nb = M.normalize_block(b, multi and settings or nil)
+    if not multi and settings then
+      nb = M.normalize_block(nb, settings)
+    end
+    if SPARSE_TYPES[nb.type] then
+      if multi then
+        utils.error("Sparse tree commands cannot be part of a block agenda")
+        return
+      end
+      return M.sparse_command(nb)
+    end
+    view.blocks[#view.blocks + 1] = nb
   end
   view_mod().open(view, opts)
 end
@@ -377,11 +461,27 @@ local function open_custom(key, restrict)
     utils.error("No agenda custom command for key: " .. key)
     return
   end
-  local spec = cmd
   if cmd.type then
-    spec = { description = cmd.description, blocks = { cmd } }
+    -- a single block: not a composite agenda
+    local block = vim.tbl_extend("force", {}, cmd)
+    block.settings, block.options = nil, nil
+    local s = command_settings(cmd)
+    local nb = M.normalize_block(block, s)
+    nb.description = cmd.description
+    nb.key = key
+    M.open(nb, { restrict = restrict })
+    return
   end
-  M.open(spec, { restrict = restrict })
+  M.open(vim.tbl_extend("force", cmd, { key = key }), { restrict = restrict })
+end
+M.open_custom = open_custom
+
+--- Toggle sticky agenda buffers (the `*` dispatcher key).
+function M.toggle_sticky()
+  local acfg = config.opts.agenda
+  acfg.sticky = not acfg.sticky
+  utils.notify("Sticky agenda buffers are now " .. (acfg.sticky and "on" or "off"))
+  return acfg.sticky
 end
 
 --- Dispatch a dispatcher key.
@@ -415,13 +515,21 @@ function M.dispatch(key, restrict)
   elseif key == "#" then
     M.open_stuck(restrict)
   elseif key == "n" then
-    M.open({ description = "Agenda and all TODOs", blocks = { { type = "agenda" }, { type = "todo" } } }, {
+    M.open({ key = "n", description = "Agenda and all TODOs", blocks = { { type = "agenda" }, { type = "todo" } } }, {
       restrict = restrict,
     })
   elseif key == "/" then
     local re = utils.input({ prompt = "Occur in agenda files (regexp): " })
     if re and re ~= "" then
       M.occur(re)
+    end
+  elseif key == "e" then
+    return require("org.agenda.export").store_views()
+  elseif key == "*" then
+    return M.toggle_sticky()
+  elseif key == ">" then
+    if M.lock then
+      M.remove_restriction_lock()
     end
   end
 end
@@ -454,6 +562,12 @@ function M.prompt()
       { key = "n", label = "Agenda and all TODOs", value = "n" },
       { key = "#", label = "List stuck projects", value = "#" },
       { key = "/", label = "Multi-occur in agenda files", value = "/" },
+      { key = "e", label = "Export agenda views", value = "e" },
+      {
+        key = "*",
+        label = "Toggle sticky agenda views  [" .. (config.opts.agenda.sticky and "on" or "off") .. "]",
+        value = "__sticky",
+      },
     }
     local items = {}
     for _, it in ipairs(builtin) do
@@ -463,6 +577,9 @@ function M.prompt()
     end
     if is_org then
       items[#items + 1] = { key = "<", label = rlabel, value = "__restrict" }
+    end
+    if restrict or M.lock then
+      items[#items + 1] = { key = ">", label = "Remove restriction", value = "__unrestrict" }
     end
     local entries = {}
     for key, cmd in pairs(custom) do
@@ -483,7 +600,15 @@ function M.prompt()
     if choice == nil then
       return
     end
-    if choice == "__restrict" then
+    if choice == "__sticky" then
+      M.toggle_sticky()
+    elseif choice == "__unrestrict" then
+      -- like Emacs: drop both the `<` restriction and the lock, stay in the menu
+      restrict = nil
+      if M.lock then
+        M.remove_restriction_lock()
+      end
+    elseif choice == "__restrict" then
       if not restrict then
         restrict = { bufnr = buf, filename = require("org.files").get_buffer(buf).filename }
       elseif not restrict.range and cur_hl then
@@ -502,7 +627,9 @@ end
 
 --- `:Org agenda [args]`: open a view by key. `args` is a built-in key with
 --- optional arguments (`"a"`, `"t [KW|KW]"`, `"T KW"`, `"m MATCH"`,
---- `"M MATCH"`, `"s TEXT"`, `"S TEXT"`, `"n"`, `"#"`, `"/ REGEXP"`), a span
+--- `"M MATCH"`, `"s TEXT"`, `"S TEXT"`, `"n"`, `"#"`, `"/ REGEXP"`, `"*"`,
+--- `">"`, `"e"` = store the agenda views, `"export FILE"` = write the
+--- current agenda to FILE), a span
 --- (`"day"`, `"week"`, `"fortnight"`, `"month"`, `"year"`, a number of days),
 --- a key of `agenda.custom_commands`, or a date understood by
 --- `org.date.read_date`. Empty opens the dispatcher. Must run inside a
@@ -541,8 +668,13 @@ function M.command(args)
       return M.dispatch(key)
     end
     return M.open_search(rest, nil, key == "S")
-  elseif key == "#" or key == "n" then
+  elseif key == "#" or key == "n" or key == "*" or key == ">" then
     return M.dispatch(key)
+  elseif key == "e" or key == "export" then
+    if rest ~= "" then
+      return require("org.agenda.export").write(rest)
+    end
+    return require("org.agenda.export").store_views()
   elseif key == "/" then
     if rest == "" then
       return M.dispatch("/")

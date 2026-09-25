@@ -26,7 +26,8 @@ describe("formulas", function()
       "| sum  |     |       |       |",
       "#+TBLFM: $4=$2*$3::@>$2=vsum(@I..@II)::@>$4=vsum(@I..@II);%.2f",
     })
-    eq("| a    |   2 |   1.5 |     3 |", out[3])
+    -- like Calc, a product with a float is a float: 3. (Emacs display)
+    eq("| a    |   2 |   1.5 |    3. |", out[3])
     eq("| b    |   3 |     2 |     6 |", out[4])
     eq("| sum  |   5 |       |  9.00 |", out[6])
   end)
@@ -61,9 +62,12 @@ describe("formulas", function()
     eq("| 02:15 |", out[3]:gsub("%s+", " "):gsub("^| ", "| "))
   end)
 
-  it("errors", function()
-    local out = calc({ "| a |  |", "#+TBLFM: $2=$1*2" })
+  it("errors and symbolic results", function()
+    local out = calc({ "| a |  |", "#+TBLFM: $2=$1*" })
     eq("| a | #ERROR |", out[1])
+    -- Calc keeps text symbolic, like Emacs
+    out = calc({ "| a |  |", "#+TBLFM: $2=$1*2" })
+    eq("| a | 2 a |", out[1])
   end)
 
   it("remote", function()

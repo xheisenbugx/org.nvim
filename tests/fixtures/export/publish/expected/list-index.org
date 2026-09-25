@@ -1,0 +1,7 @@
+# Created 2026-09-25 Fri 15:35
+#+options: toc:nil num:nil
+#+title: Home
+#+author: Osvaldo Cordova Aburto
+Welcome. See [[file:sub/page.org::*Section Two][the page]] and [[file:about.org][about]].
+
+#+index: Welcome

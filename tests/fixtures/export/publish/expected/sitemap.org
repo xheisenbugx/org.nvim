@@ -1,0 +1,7 @@
+#+TITLE: My Site
+
+- [[file:index.org][Home]]
+- [[file:map.org][Sitemap for project site-list]]
+- [[file:about.org][about]]
+- sub
+  - [[file:sub/page.org][A Page]]

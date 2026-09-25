@@ -264,3 +264,250 @@ describe("priority", function()
     eq("* [#4] Task", buf_lines(buf)[2])
   end)
 end)
+
+-- Emacs Org 9.8 parity (expectations checked against Emacs in batch mode)
+describe("todo: Emacs org-todo parity", function()
+  local function keys(k)
+    vim.api.nvim_feedkeys(vim.keycode(k), "xt", false)
+  end
+  local function hl1(buf, l)
+    return buf_lines(buf)[l or 1]
+  end
+  local SETS = { "#+TODO: TODO | DONE", "#+TODO: WAIT | CANC" }
+  local input = utils.input
+  before_each(function()
+    utils.input = function()
+      return "a note"
+    end
+  end)
+  after_each(function()
+    utils.input = input
+  end)
+  local function seq(buf, lnum, fn, n)
+    local out = {}
+    for _ = 1, n do
+      fn()
+      out[#out + 1] = (hl1(buf, lnum):match("^%* (%u+) X$")) or "-"
+    end
+    return table.concat(out, " ")
+  end
+
+  it("S-Right / S-Left walk the keywords of every set", function()
+    local buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* CANC X" }), { 3, 0 })
+    eq("- TODO DONE WAIT", seq(buf, 3, todo.cycle_next, 4))
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "* X" })
+    eq("CANC WAIT DONE TODO -", seq(buf, 3, todo.cycle_prev, 5))
+  end)
+
+  it("C-c C-t cycles within the set and comes back to it from no keyword", function()
+    local buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* WAIT X" }), { 3, 0 })
+    eq("CANC - WAIT CANC", seq(buf, 3, function()
+      todo.select_or_cycle(nil, nil)
+    end, 4))
+    -- without a remembered set: the first keyword
+    local b2 = org_buffer({ "#+TODO: A B C", "* X" }, { 2, 0 })
+    eq("A B C -", seq(b2, 2, function()
+      todo.select_or_cycle()
+    end, 4))
+  end)
+
+  it("switches keyword sets without logging, from no keyword to the first / last set", function()
+    local buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* DONE X" }), { 3, 0 })
+    with_opts({ log_done = "time" }, function()
+      eq("WAIT TODO WAIT", seq(buf, 3, function()
+        todo.next_sequence(nil, 1)
+      end, 3))
+    end)
+    eq(3, #buf_lines(buf))
+    buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* X" }), { 3, 0 })
+    eq("WAIT TODO WAIT", seq(buf, 3, function()
+      todo.next_sequence(nil, -1)
+    end, 3))
+  end)
+
+  it("prefix arguments: 4 forces a note, 16 next set, 64 ignores blocking, N the Nth keyword", function()
+    local buf = org_buffer({ "* TODO X" }, { 1, 0 })
+    todo.select_or_cycle(nil, 4)
+    eq("* DONE X", hl1(buf))
+    ok(hl1(buf, 2):match('^%- State "DONE"       from "TODO"       %[.*%] \\\\$'), hl1(buf, 2))
+    eq("  a note", hl1(buf, 3))
+
+    buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* TODO X" }), { 3, 0 })
+    todo.select_or_cycle(nil, 16)
+    eq("* WAIT X", hl1(buf, 3))
+    todo.select_or_cycle(nil, 3)
+    eq("* WAIT X", hl1(buf, 3))
+    todo.select_or_cycle(nil, 2)
+    eq("* DONE X", hl1(buf, 3))
+
+    with_opts({ enforce_todo_dependencies = true }, function()
+      buf = org_buffer({ "* TODO P", "** TODO C" }, { 1, 0 })
+      todo.select_or_cycle(nil, 2)
+      eq("* TODO P", hl1(buf))
+      todo.change_state(nil, "DONE", { force = true })
+      eq("* DONE P", hl1(buf))
+      todo.change_state(nil, "TODO")
+      todo.select_or_cycle(nil, 64)
+      eq("* DONE P", hl1(buf))
+    end)
+  end)
+
+  it("C-0: notes become timestamps; C-- 1: repeaters are cancelled", function()
+    local buf = org_buffer({ "#+TODO: TODO WAIT(w@) | DONE", "* TODO X" }, { 2, 0 })
+    utils.input = function()
+      error("no note expected")
+    end
+    todo.change_state(nil, "WAIT", { inhibit_note = true })
+    eq("* WAIT X", hl1(buf, 2))
+    ok(hl1(buf, 3):match('^%- State "WAIT"       from "TODO"       %[.*%]$'), hl1(buf, 3))
+
+    buf = org_buffer({ "* TODO X", "SCHEDULED: <2026-09-01 Tue +1w>" }, { 1, 0 })
+    todo.todo_cancel_repeaters()
+    eq("* DONE X", hl1(buf))
+    eq("SCHEDULED: <2026-09-01 Tue +0w>", hl1(buf, 2))
+  end)
+
+  it("logs and touches CLOSED only when logging is set up", function()
+    local buf = org_buffer({ "* DONE X", "CLOSED: [2026-09-01 Tue 10:00]" }, { 1, 0 })
+    todo.change_state(nil, "TODO")
+    eq({ "* TODO X", "CLOSED: [2026-09-01 Tue 10:00]" }, buf_lines(buf))
+    with_opts({ log_done = "time" }, function()
+      todo.change_state(nil, "DONE")
+      todo.change_state(nil, nil)
+    end)
+    eq({ "* X" }, buf_lines(buf))
+  end)
+
+  it("uses log_note_headings", function()
+    local buf = org_buffer({ "#+TODO: TODO WAIT(w!) | DONE", "* TODO X" }, { 2, 0 })
+    with_opts({ log_note_headings = { done = "Closed by %u %d", state = "%s <- %S" } }, function()
+      todo.change_state(nil, "WAIT")
+      eq('- "WAIT" <- "TODO"', hl1(buf, 3))
+      with_opts({ log_done = "note" }, function()
+        todo.change_state(nil, "DONE")
+      end)
+    end)
+    local found = false
+    for _, l in ipairs(buf_lines(buf)) do
+      found = found or l:match("^%- Closed by .* %[%d+%-%d+%-%d+ %a+%] \\\\$") ~= nil
+    end
+    ok(found, vim.inspect(buf_lines(buf)))
+  end)
+
+  it("records the effective time before extend_today_until", function()
+    local real = date.now
+    date.now = function()
+      return date.parse("<2026-09-25 Fri 02:30>")
+    end
+    local ok_, err = pcall(with_opts, { use_effective_time = true, extend_today_until = 4, log_done = "time" }, function()
+      local buf = org_buffer({ "* TODO X" }, { 1, 0 })
+      todo.change_state(nil, "DONE")
+      eq("CLOSED: [2026-09-24 Thu 23:59]", hl1(buf, 2))
+    end)
+    date.now = real
+    assert(ok_, err)
+  end)
+
+  it("fires OrgTodoStateChange / OrgTodoRepeat and honours todo_blockers", function()
+    local events = {}
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = { "OrgTodoStateChange", "OrgTodoRepeat" },
+      callback = function(ev)
+        events[#events + 1] = ev.match .. ":" .. tostring(ev.data.from) .. ">" .. tostring(ev.data.to)
+      end,
+    })
+    local buf = org_buffer({ "* TODO X", "SCHEDULED: <2026-09-01 Tue +1w>", "* TODO Y" }, { 1, 0 })
+    todo.change_state(nil, "DONE")
+    local target = { bufnr = buf, lnum = #buf_lines(buf) }
+    with_opts({
+      todo_blockers = {
+        function(change)
+          return change.to ~= "DONE"
+        end,
+      },
+    }, function()
+      eq(nil, todo.change_state(target, "DONE"))
+    end)
+    vim.api.nvim_del_autocmd(id)
+    eq({ "OrgTodoRepeat:TODO>TODO", "OrgTodoStateChange:TODO>TODO" }, events)
+  end)
+
+  it("checkbox blocking: counters, partial boxes, not inside blocks", function()
+    with_opts({ enforce_todo_checkbox_dependencies = true }, function()
+      org_buffer({ "* TODO P", "1. [@3] [ ] a" }, { 1, 0 })
+      eq(nil, todo.change_state(nil, "DONE"))
+      org_buffer({ "* TODO P", "- [-] a", "  - [X] b" }, { 1, 0 })
+      eq(nil, todo.change_state(nil, "DONE"))
+      local buf = org_buffer({ "* TODO P", "#+begin_example", "- [ ] a", "#+end_example" }, { 1, 0 })
+      ok(todo.change_state(nil, "DONE"))
+      eq("* DONE P", hl1(buf))
+    end)
+  end)
+
+  it("statistics options: provide_todo_statistics, hierarchical_todo_statistics", function()
+    local buf = org_buffer({ "* P [/]", "** TODO A", "*** TODO deep", "** B" }, { 3, 0 })
+    with_opts({ hierarchical_todo_statistics = false }, function()
+      todo.change_state(nil, "DONE")
+    end)
+    eq("* P [1/2]", hl1(buf))
+    buf = org_buffer({ "* P [/]", "** TODO A", "** B" }, { 2, 0 })
+    with_opts({ provide_todo_statistics = "all-headlines" }, function()
+      todo.change_state(nil, "DONE")
+    end)
+    eq("* P [1/2]", hl1(buf))
+    buf = org_buffer({ "#+TODO: TODO NEXT | DONE", "* P [/]", "** NEXT A", "** TODO B" }, { 4, 0 })
+    with_opts({ provide_todo_statistics = { "TODO" } }, function()
+      todo.change_state(nil, "DONE")
+    end)
+    eq("* P [1/1]", hl1(buf, 2))
+    -- a parent counting checkboxes is left alone
+    buf = org_buffer({ "* P [/]", ":PROPERTIES:", ":COOKIE_DATA: checkbox", ":END:", "- [X] x", "** TODO A" }, { 6, 0 })
+    todo.change_state(nil, "DONE")
+    eq("* P [/]", hl1(buf))
+  end)
+
+  it("Visual C-c C-t changes every headline of the selection", function()
+    local buf = org_buffer({ "* A", "text", "* TODO B", "* C" }, { 1, 0 })
+    keys("Vjj<C-c><C-t>")
+    eq({ "* TODO A", "text", "* DONE B", "* C" }, buf_lines(buf))
+  end)
+end)
+
+describe("priority: Emacs parity", function()
+  it("numeric priorities", function()
+    local buf = org_buffer({ "#+PRIORITIES: 1 10 5", "* TODO [#10] X" }, { 2, 0 })
+    priority.up()
+    eq("* TODO [#9] X", buf_lines(buf)[2])
+    priority.down()
+    priority.down()
+    eq("* TODO X", buf_lines(buf)[2])
+    buf = org_buffer({ "#+PRIORITIES: 1 10 5", "* TODO X" }, { 2, 0 })
+    priority.up()
+    eq("* TODO [#5] X", buf_lines(buf)[2])
+    eq("5", require("org.files").get_buffer(buf).headlines[1].priority)
+    priority.set(nil, "10")
+    eq("* TODO [#10] X", buf_lines(buf)[2])
+    eq(nil, priority.set(nil, "11"))
+    eq(0, priority.show())
+  end)
+
+  it("wraps around after a removal", function()
+    local buf = org_buffer({ "* TODO [#A] X" }, { 1, 0 })
+    priority.up()
+    eq("* TODO X", buf_lines(buf)[1])
+    priority.up()
+    eq("* TODO [#C] X", buf_lines(buf)[1])
+    buf = org_buffer({ "* TODO [#C] X" }, { 1, 0 })
+    priority.down()
+    priority.down()
+    eq("* TODO [#A] X", buf_lines(buf)[1])
+    eq(2000, priority.show())
+  end)
+
+  it("[#a] and [#65] are not priority cookies", function()
+    local p = require("org.parser")
+    eq(nil, p.parse_headline_line("* [#a] X").priority)
+    eq(nil, p.parse_headline_line("* [#65] X").priority)
+    eq("64", p.parse_headline_line("* [#64] X").priority)
+  end)
+end)

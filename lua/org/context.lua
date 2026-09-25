@@ -52,14 +52,27 @@ function M.context_action()
     return require("org.properties").property_action()
   end
   if line:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:") then
-    return require("org.table").recalc()
+    -- apply the formulas of this #+TBLFM line (org-table-calc-current-TBLFM)
+    return require("org.table").calc_current_tblfm(0, lnum)
+  end
+  if line:match("^%s*#%+[Pp][Ll][Oo][Tt]:") then
+    return require("org.table.plot").gnuplot(0, lnum)
+  end
+  if line:match("^%s*#%+[Oo][Rr][Gg][Tt][Bb][Ll]:") then
+    -- recalculate the table below and send it (org-ctrl-c-ctrl-c on a table)
+    local nxt = vim.api.nvim_buf_get_lines(0, lnum, lnum + 1, false)[1]
+    if nxt and in_table(nxt) then
+      require("org.table").recalc(0, lnum + 1)
+      require("org.table.orgtbl").send_table(0, lnum + 1, true)
+      return true
+    end
   end
   if in_table(line) then
     return require("org.table").ctrl_c_ctrl_c()
   end
   local babel = require("org.babel")
   if babel.at_block(0, lnum) or babel.inline_at_cursor() then
-    return babel.execute_block()
+    return babel.ctrl_c_ctrl_c()
   end
   local dblock = require("org.dblock")
   if dblock.at_cursor() then
@@ -84,6 +97,13 @@ function M.context_action()
   if item and item.lnum == lnum then
     local arg = vim.v.count > 0 and (vim.v.count >= 16 and 16 or 4) or nil
     return require("org.lists").ctrl_c_ctrl_c_item(item, arg)
+  end
+  if line:match("<<<.->>>") then
+    -- on a radio target: refresh radio link highlighting
+    -- (org-update-radio-target-regexp)
+    require("org.buffer").refresh(0)
+    utils.notify("Radio targets updated")
+    return
   end
   if line:match("^#%+") then
     require("org.buffer").refresh(0)
@@ -122,13 +142,23 @@ function M.edit_special()
     return require("org.table").edit_formulas()
   end
   local babel = require("org.babel")
-  if babel.at_block(0, lnum) then
-    return babel.edit_special()
+  local b = babel.at_block(0, lnum)
+  if b and not b.call and lnum <= b.finish then
+    return babel.edit_special({ session = vim.v.count > 0 })
   end
-  if require("org.special").edit_element(0, lnum) ~= false then
+  local special = require("org.special")
+  if special.edit_element(0, lnum) ~= false then
     return
   end
-  utils.warn("Nothing to edit here (place the cursor in a src block or table)")
+  -- #+INCLUDE / #+SETUPFILE / #+BIBLIOGRAPHY: visit the file
+  if require("org.links").open_keyword_file(line, vim.api.nvim_get_current_buf()) then
+    return
+  end
+  local _, col = cur()
+  if special.edit_object(0, lnum, col) then
+    return
+  end
+  utils.error("No special environment to edit here")
 end
 
 ---------------------------------------------------------------------------
@@ -514,14 +544,22 @@ local function in_visual()
   return vim.fn.mode():match("^[vV\22]") ~= nil
 end
 
---- C-c *: recalculate a table, else toggle heading.
-function M.ctrl_c_star()
-  local lnum, _, line = cur()
+--- C-c TAB: in a table shrink or expand the column
+--- (org-table-toggle-column-width), else show the children.
+function M.ctrl_c_tab()
+  local _, _, line = cur()
   if in_table(line) then
-    if vim.v.count >= 16 then
-      return require("org.table").recalc_buffer(0)
-    end
-    return require("org.table").recalc(0, lnum)
+    return require("org.table").toggle_column_width(vim.v.count)
+  end
+  return require("org.fold").show_children()
+end
+
+--- C-c *: in a table recalculate the current row (count 4: the table,
+--- 16: iterate it; org-table-recalculate), else toggle heading.
+function M.ctrl_c_star()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").recalculate(vim.v.count)
   end
   return require("org.structure").toggle_heading()
 end
@@ -636,7 +674,7 @@ function M.increment()
     return require("org.timestamps").increment(count())
   end
   local _, col, line = cur()
-  local s, e = line:find("%[#%w%]")
+  local s, e = line:find("%[#%w%w?%]")
   if is_headline(line) and s and col >= s and col <= e then
     return require("org.priority").shift(nil, 1)
   end
@@ -648,7 +686,7 @@ function M.decrement()
     return require("org.timestamps").increment(-count())
   end
   local _, col, line = cur()
-  local s, e = line:find("%[#%w%]")
+  local s, e = line:find("%[#%w%w?%]")
   if is_headline(line) and s and col >= s and col <= e then
     return require("org.priority").shift(nil, -1)
   end

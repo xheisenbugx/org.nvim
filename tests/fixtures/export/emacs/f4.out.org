@@ -1,0 +1,12 @@
+* Kept                                                                 :keep:
+Prop: headprop item Kept.
+line1
+*** IncTop
+inc body
+**** IncSub
+sub body
+#+begin_src python
+  line2
+#+end_src
+** Child kept
+y

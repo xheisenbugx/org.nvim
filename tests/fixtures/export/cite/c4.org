@@ -1,0 +1,6 @@
+#+bibliography: refs.bib
+#+OPTIONS: toc:nil
+#+LANGUAGE: en-us
+
+A sentence "with a quote." [cite/ft:@doe2020] And "another" [cite/ft:@zed2019]. Plain [cite/ft:@alpha2018].
+Then "outside" [cite/ft:@doe2020b].

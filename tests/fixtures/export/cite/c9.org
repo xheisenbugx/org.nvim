@@ -1,0 +1,9 @@
+#+bibliography: refs.bib
+#+bibliography: "https://example.com/remote.bib"
+#+cite_export: biblatex numeric/authoryear
+#+latex_header: \usepackage[backend=biber,style=apa]{biblatex}
+#+OPTIONS: toc:nil
+
+See [cite:@doe2020] and [cite/t/b:@zed2019].
+
+#+print_bibliography:

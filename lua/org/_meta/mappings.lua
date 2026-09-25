@@ -21,6 +21,7 @@
 ---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
 ---| "archive_all_done" # Archive children without open TODOs
+---| "archive_all_old" # Archive children with old time stamps
 ---| "archive_subtree" # Archive subtree
 ---| "archive_to_sibling" # Archive to Archive sibling
 ---| "attach" # Attachments
@@ -35,6 +36,7 @@
 ---| "babel_goto_head" # Go to src block head
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
+---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
 ---| "babel_load_in_session" # Load src block into its session
@@ -52,8 +54,9 @@
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
 ---| "buffer_goto" # Go to heading in buffer
----| "capture" # Capture
+---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
+---| "capture_here" # Capture at the cursor (C-0 C-c c)
 ---| "capture_goto_target" # Go to a capture template's target
 ---| "clock_cancel" # Cancel clock
 ---| "clock_display" # Display clock sums
@@ -88,7 +91,7 @@
 ---| "date_today" # Insert today's date
 ---| "dblock_update" # Update dynamic block
 ---| "dblock_update_all" # Update all dynamic blocks
----| "deadline" # Deadline
+---| "deadline" # Deadline (Visual: all headlines)
 ---| "decrement" # Decrement timestamp / priority
 ---| "delete_property" # Delete property
 ---| "delete_property_globally" # Delete a property from all entries
@@ -128,6 +131,7 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
@@ -150,23 +154,29 @@
 ---| "num_mode" # Toggle headline numbering (org-num-mode)
 ---| "open_at_point" # Open link / footnote / date at point
 ---| "open_link_or_entry" # Open link at point / entry links
+---| "orgtbl_insert_radio_table" # Insert radio table template
+---| "orgtbl_mode" # Toggle orgtbl-mode
+---| "orgtbl_send_table" # Send radio table
+---| "orgtbl_toggle_comment" # Comment / uncomment table
 ---| "paste_special" # Paste table rectangle / subtree
 ---| "paste_subtree" # Paste subtree
 ---| "prev_heading" # Previous heading
 ---| "prev_link" # Previous link
 ---| "prev_sibling" # Previous sibling heading
 ---| "previous_block" # Previous block
----| "priority" # Set priority
+---| "priority" # Set priority (count 4: show the priority)
+---| "priority_show" # Show the priority (C-u C-c ,)
 ---| "promote_heading" # Promote heading / item
 ---| "promote_subtree" # Promote subtree
----| "refile" # Refile subtree
----| "refile_copy" # Copy subtree to a refile target
+---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
+---| "refile_copy" # Copy subtree / region to a refile target
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
 ---| "reveal" # Reveal context around cursor
----| "schedule" # Schedule
+---| "schedule" # Schedule (Visual: all headlines)
 ---| "set_effort" # Set effort
 ---| "set_property" # Set property
+---| "set_property_and_value" # Set property and value (C-c C-x P)
 ---| "set_startup_visibility" # Restore startup visibility
 ---| "set_tags" # Set tags (Visual: change tag in region)
 ---| "shift_control_down" # Shift CLOCK timestamps down
@@ -180,11 +190,12 @@
 ---| "shift_right" # Next TODO / date +1 / bullet
 ---| "shift_up" # Priority up / timestamp up
 ---| "show_branches" # Show all branches of subtree
----| "show_children" # Show children
+---| "show_children" # Show children / shrink table column
 ---| "show_everything" # Show everything, including drawers
 ---| "sort" # Sort entries / items
 ---| "sparse_tree" # Sparse tree
 ---| "store_link" # Store link to current location
+---| "table_ascii_plot" # ASCII bar plot of table column
 ---| "table_blank_field" # Blank table field(s)
 ---| "table_coordinates" # Toggle table coordinates
 ---| "table_copy_down" # Copy table field down
@@ -192,21 +203,32 @@
 ---| "table_delete_column" # Delete table column
 ---| "table_delete_row" # Delete table row
 ---| "table_edit_field" # Edit table field
----| "table_export" # Export table to TSV/CSV file
+---| "table_edit_formulas" # Edit table formulas
+---| "table_el" # table.el tables (not supported)
+---| "table_expand" # Expand all table columns
+---| "table_export" # Export table with a translator
 ---| "table_field_info" # Table field info
+---| "table_follow_field_mode" # Toggle table follow-field mode
 ---| "table_formula" # Set column / field formula
+---| "table_formula_debugger" # Toggle table formula debugger
+---| "table_header_line_mode" # Toggle table header-line mode
 ---| "table_import" # Import file as table
 ---| "table_insert_column" # Insert table column
 ---| "table_insert_hline" # Insert table hline
 ---| "table_insert_row" # Insert table row
+---| "table_iterate" # Recalculate table until stable
 ---| "table_next_field" # Next table field
 ---| "table_next_row" # Next table row
+---| "table_plot" # Plot table with gnuplot
 ---| "table_prev_field" # Previous table field
 ---| "table_recalc" # Recalculate table formulas
 ---| "table_recalc_buffer" # Recalculate all tables
+---| "table_recalculate" # Recalculate table row (count: table / iterate)
 ---| "table_rotate_marks" # Rotate table recalculation mark
+---| "table_shrink" # Shrink table columns with width cookies
 ---| "table_sort" # Sort table by column
 ---| "table_sum" # Sum column / rectangle
+---| "table_toggle_column_width" # Shrink / expand table column
 ---| "table_transpose" # Transpose table
 ---| "tags_sparse_tree" # Tags / property match sparse tree
 ---| "timer_countdown" # Start countdown timer
@@ -218,12 +240,14 @@
 ---| "timer_stop" # Stop timer
 ---| "timestamp" # Insert active timestamp
 ---| "timestamp_inactive" # Insert inactive timestamp
----| "todo" # Change TODO state (C-c C-t)
+---| "todo" # Change TODO state (C-c C-t; count 4 note, 16 next set, 64 no blocking; Visual: all)
+---| "todo_cancel_repeaters" # Cancel repeaters and change TODO state (C-- 1 C-c C-t)
 ---| "todo_next" # Next TODO state
 ---| "todo_next_sequence" # Next TODO keyword set
 ---| "todo_prev" # Previous TODO state
 ---| "todo_prev_sequence" # Previous TODO keyword set
 ---| "todo_select" # Select TODO state
+---| "todo_without_note" # Change TODO state without a note (C-0 C-c C-t)
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
@@ -234,6 +258,8 @@
 ---| "toggle_ordered" # Toggle ORDERED property
 ---| "toggle_pretty_entities" # Toggle pretty entities
 ---| "toggle_radio_button" # Toggle radio button
+---| "toggle_tags_groups" # Toggle tag groups in matches (C-c C-x q)
+---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
 ---| "up_element" # Parent element
@@ -656,7 +682,7 @@
 ---@field inlinetask_insert? org.MappingLhs
 --- Show all branches of subtree. Default: `<C-c><C-k>`
 ---@field show_branches? org.MappingLhs
---- Show children. Default: `<C-c><Tab>`
+--- Show children / shrink table column. Default: `<C-c><Tab>`
 ---@field show_children? org.MappingLhs
 --- Reveal context around cursor. Default: `<C-c><C-r>`
 ---@field reveal? org.MappingLhs
@@ -688,6 +714,10 @@
 ---@field set_tags? org.MappingLhs
 --- Set property. Default: `<C-c><C-x>p`
 ---@field set_property? org.MappingLhs
+--- Set property and value (C-c C-x P). Default: `<C-c><C-x>P`
+---@field set_property_and_value? org.MappingLhs
+--- Toggle tag groups in matches (C-c C-x q). Default: `<C-c><C-x>q`
+---@field toggle_tags_groups? org.MappingLhs
 --- Toggle ORDERED property. Default: `<C-c><C-x>o`
 ---@field toggle_ordered? org.MappingLhs
 --- Add note. Default: `<C-c><C-z>`
@@ -700,6 +730,8 @@
 ---@field timestamp? org.MappingLhs
 --- Insert inactive timestamp. Default: `<C-c>!`
 ---@field timestamp_inactive? org.MappingLhs
+--- Toggle custom timestamp display (C-c C-x C-t). Default: `<C-c><C-x><C-t>`
+---@field toggle_time_stamp_overlays? org.MappingLhs
 --- Insert today's date. Default: `<C-c><`
 ---@field date_today? org.MappingLhs
 --- Open calendar. Default: `<C-c>>`
@@ -816,6 +848,14 @@
 ---@field table_field_info? org.MappingLhs
 --- Rotate table recalculation mark. Default: `<C-#>`
 ---@field table_rotate_marks? org.MappingLhs
+--- Toggle table formula debugger. Default: `<C-c>{`
+---@field table_formula_debugger? org.MappingLhs
+--- ASCII bar plot of table column. Default: `<C-c>"a`
+---@field table_ascii_plot? org.MappingLhs
+--- Plot table with gnuplot. Default: `<C-c>"g`
+---@field table_plot? org.MappingLhs
+--- table.el tables (not supported). Default: `<C-c>~`
+---@field table_el? org.MappingLhs
 --- Execute src block. Default: `{ "<C-c><C-v>e", "<C-c><C-v><C-e>" }`
 ---@field babel_execute? org.MappingLhs
 --- Execute all src blocks. Default: `{ "<C-c><C-v>b", "<C-c><C-v><C-b>" }`
@@ -850,7 +890,7 @@
 ---@field babel_open_result? org.MappingLhs
 --- Split / wrap src block. Default: `{ "<C-c><C-v>d", "<C-c><C-v><C-d>" }`
 ---@field babel_demarcate? org.MappingLhs
---- Add file's blocks to Library of Babel. Default: `<C-c><C-v>i`
+--- Add file's blocks to Library of Babel. Default: `{ "<C-c><C-v>i", "<C-c><C-v><Tab>" }`
 ---@field babel_lob_ingest? org.MappingLhs
 --- Load src block into its session. Default: `{ "<C-c><C-v>l", "<C-c><C-v><C-l>" }`
 ---@field babel_load_in_session? org.MappingLhs
@@ -890,10 +930,34 @@
 ---@class org.Config.Mappings.Agenda
 --- Quit the agenda window. Default: `q`
 ---@field quit? org.MappingLhs
---- Exit the agenda and wipe agenda-opened buffers. Default: `x`
+--- Quit and delete the agenda buffer (org-agenda-Quit). Default: `Q`
+---@field quit_kill? org.MappingLhs
+--- Exit the agenda, deleting the agenda buffers and the unmodified buffers it loaded. Default: `x`
 ---@field exit? org.MappingLhs
---- Rebuild the agenda (refresh). Default: `r`
+--- Rebuild the agenda (refresh; count: TODO keyword N, or edit the query). Default: `r`
 ---@field redo? org.MappingLhs
+--- Rebuild all agenda buffers (org-agenda-redo-all). Emacs: `g`. Default: `gr`
+---@field redo_all? org.MappingLhs
+--- Show the entry and scroll its window down. Default: `<BS>`
+---@field show_scroll_down? org.MappingLhs
+--- Attach to the entry (org-agenda-attach). Default: `<C-c><C-a>`
+---@field attach? org.MappingLhs
+--- Stop the timer. Default: `<C-c><C-x>_`
+---@field timer_stop? org.MappingLhs
+--- Combined filter `+cat-tag<0:10-/re/` (org-agenda-filter). Default: `/`
+---@field filter? org.MappingLhs
+--- Limit the number of entries (count: remove the limits). Default: `~`
+---@field limit? org.MappingLhs
+--- Move the line down (the agenda text only). Default: `<M-Down>`
+---@field drag_line_forward? org.MappingLhs
+--- Move the line up (the agenda text only). Default: `<M-Up>`
+---@field drag_line_backward? org.MappingLhs
+--- Append another agenda view. Default: `A`
+---@field append? org.MappingLhs
+--- Toggle the agenda column view. Default: `<C-c><C-x><C-c>`
+---@field columns? org.MappingLhs
+--- Pick a date in the calendar and go there. Default: `c`
+---@field calendar? org.MappingLhs
 --- Go forward one span (day/week/...; count: that many). Default: `f`
 ---@field later? org.MappingLhs
 --- Go back one span (day/week/...; count: that many). Default: `b`
@@ -1009,13 +1073,13 @@
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
---- Filter by tags (`+tag` include, `-tag` exclude; empty clears). Default: `/`
+--- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`
 ---@field filter_tag? org.MappingLhs
---- Filter by the category at point (toggle). Default: `<`
+--- Filter by the category at point (toggle; count: exclude it). Default: `<`
 ---@field filter_category? org.MappingLhs
---- Filter by regexp (prefix `-` to exclude; empty clears). Default: `=`
+--- Filter by an Emacs regexp (count: hide matches; again clears). Default: `=`
 ---@field filter_regexp? org.MappingLhs
---- Filter by effort (e.g. `<1:00`, `>30`; empty clears). Default: `_`
+--- Filter by effort: an operator, then an Effort_ALL value. Default: `_`
 ---@field filter_effort? org.MappingLhs
 --- Filter by the item's top-level headline (toggle). Default: `^`
 ---@field filter_top_headline? org.MappingLhs
@@ -1059,7 +1123,7 @@
 ---@field backward_block? org.MappingLhs
 --- Save all modified org buffers. Default: `<C-x><C-s>`
 ---@field save_all? org.MappingLhs
---- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `c`
+--- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `K`
 ---@field capture? org.MappingLhs
 --- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`
 ---@field export? org.MappingLhs

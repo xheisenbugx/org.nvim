@@ -157,7 +157,7 @@ back to where you were.
 | 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00`, `sep 15` and `w39`; `SCHEDULED`/`DEADLINE` with warning and delay periods; `<C-a>`/`<C-x>` on any part of a timestamp, minutes rounded to 5 |
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp, ID, clock and function targets; all the common `%`-escapes |
-| 📦 | **Refile and archive** | Refile or copy to any headline in the agenda files, with Emacs-style target specs and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
+| 📦 | **Refile and archive** | Refile or copy subtrees or regions, with Emacs-style target specs, outline-path completion in steps and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
@@ -437,22 +437,29 @@ capture = {
     c = { description = "Checklist item", type = "checkitem", template = "[ ] %?", target = "~/org/todo.org", headline = "Shopping" },
     l = { description = "Log line", type = "table-line", template = "| %U | %^{Amount} | %^{What} |", target = "~/org/log.org", headline = "Expenses", immediate_finish = true },
   },
-  window = "float",  -- "float" | "split" | "vsplit" | "current"
+  window = "split",  -- "split" (like Emacs) | "float" | "vsplit" | "tab" | "current"
 }
 ```
 
 Target options:
 
-- `target`: the file to capture into.
+- `target`: the file to capture into (`""` or none: `default_notes_file`).
 - `headline`: a headline in the target, created if it doesn't exist.
-- `olp`: an outline path, as a list of headlines.
-- `datetree`: `true`, or `{ tree_type = "week" | "month" }`.
-- `regexp`: insert under the first line matching this pattern.
+- `olp`: an outline path, as a list of headlines (they must exist).
+- `datetree`: `true`, or `{ tree_type = "week" | "month" | { "year", "quarter", ... } }`.
+- `regexp`: a Vim regexp; the text goes where the first match ends.
+- `func` / `location`: functions choosing the position (file+function /
+  function targets).
 - `id`: insert under the entry with this ID.
 - `target = "clock"`: insert under the task being clocked.
 
-Other options: `type`, `prepend`, `empty_lines`, `properties`,
-`immediate_finish`, `jump_to_captured`, `clock_in`, `clock_resume`,
+Without any template, Emacs's "t" Task template is used (a TODO under
+"Tasks" in `default_notes_file`). `capture.templates_contexts` limits
+templates to some buffers (org-capture-templates-contexts).
+
+Other options: `type`, `prepend`, `empty_lines`, `table_line_pos`,
+`properties`, `immediate_finish`, `jump_to_captured`, `kill_buffer`,
+`refile_targets`, `clock_in`, `clock_keep`, `clock_resume`,
 `time_prompt`, `no_save`, and the `prepare_finalize`, `before_finalize`
 and `after_finalize` hook functions.
 
@@ -465,18 +472,19 @@ and `after_finalize` hook functions.
 | `%t` `%T` `%u` `%U` | date / date+time, active / inactive |
 | `%^t` `%^T` `%^u` `%^U` | same, but prompts with the calendar |
 | `%<%Y-%m-%d>` | strftime format |
-| `%a` `%A` `%l` | annotation link: plain / with description prompt / bare link |
-| `%i` | initial content (the visual selection) |
+| `%a` `%A` `%l` `%L` | annotation link: plain / with description prompt / without description / bare target |
+| `%i` | initial content (the visual selection), the text before it repeated on each line |
 | `%x` `%c` | clipboard / last yank |
 | `%f` `%F` | origin file name / full path |
-| `%n` | user name |
+| `%n` | your full name |
 | `%^{prompt\|default\|opt}` | prompt with a default and options |
-| `%\1` | the answer to the first prompt |
+| `%\1` `%\*1` | the answer to the first `%^{...}` prompt / to the first prompt of any kind |
 | `%^g` `%^G` | tags prompt |
 | `%^{PROP}p` | property prompt |
 | `%k` `%K` | the running clock's task / a link to it |
 | `%(expr)` | the value of a Lua expression (Emacs: elisp) |
-| `%%` | a literal `%` |
+| `%[file]` | the contents of a file |
+| `\%` | a literal `%` before an escape character (`%%` is not an escape, as in Emacs) |
 
 </details>
 

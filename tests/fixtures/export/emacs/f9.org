@@ -1,0 +1,22 @@
+#+OPTIONS: toc:t num:1 H:4
+
+Ref a[fn:b] ref b[fn:a] again[fn:b].
+
+* One
+** One.A
+#+TOC: headlines 2 local
+*** One.A.1
+* Two
+:PROPERTIES:
+:UNNUMBERED: notoc
+:END:
+** Two.A
+* Three
+text
+
+[fn:a] Def A
+with second line.
+
+Second para of A.
+
+[fn:b] Def B

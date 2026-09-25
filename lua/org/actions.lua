@@ -19,10 +19,17 @@ local M = {}
 M.list = {
   -- global
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
-  capture = { "org.capture", "prompt", desc = "Capture", global = true },
+  capture = { "org.capture", "prompt", desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)", global = true },
+  capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
-  store_link = { "org.links", "store_link", desc = "Store link to current location", global = true },
+  store_link = {
+    "org.links",
+    "store_link",
+    desc = "Store link to current location",
+    global = true,
+    modes = { "n", "x" },
+  },
   goto_heading = { "org.agenda.search", "goto_heading", desc = "Go to heading in agenda files", global = true },
   clock_goto = { "org.clock", "goto_clock", desc = "Go to clocked task", global = true },
   clock_out = { "org.clock", "clock_out", desc = "Clock out", global = true },
@@ -33,7 +40,7 @@ M.list = {
   cycle = { "org.fold", "cycle", desc = "Cycle visibility" },
   global_cycle = { "org.fold", "global_cycle", desc = "Cycle global visibility" },
   show_branches = { "org.fold", "show_branches", desc = "Show all branches of subtree" },
-  show_children = { "org.fold", "show_children", desc = "Show children" },
+  show_children = { "org.context", "ctrl_c_tab", desc = "Show children / shrink table column" },
   reveal = { "org.fold", "reveal", desc = "Reveal context around cursor" },
   force_cycle_archived = { "org.fold", "force_cycle_archived", desc = "Cycle subtree, even when archived" },
   set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
@@ -148,15 +155,30 @@ M.list = {
   todo_next_sequence = { "org.context", "shift_control_right", desc = "Next TODO keyword set" },
   todo_prev_sequence = { "org.context", "shift_control_left", desc = "Previous TODO keyword set" },
   add_note = { "org.todo", "add_note", desc = "Add note" },
-  todo = { "org.todo", "select_or_cycle", desc = "Change TODO state (C-c C-t)" },
+  todo = {
+    "org.todo",
+    "select_or_cycle",
+    desc = "Change TODO state (C-c C-t; count 4 note, 16 next set, 64 no blocking; Visual: all)",
+    modes = { "n", "x" },
+  },
+  todo_without_note = { "org.todo", "todo_without_note", desc = "Change TODO state without a note (C-0 C-c C-t)" },
+  todo_cancel_repeaters = {
+    "org.todo",
+    "todo_cancel_repeaters",
+    desc = "Cancel repeaters and change TODO state (C-- 1 C-c C-t)",
+    modes = { "n", "x" },
+  },
   toggle_ordered = { "org.properties", "toggle_ordered", desc = "Toggle ORDERED property" },
   shift_up = { "org.context", "shift_up", desc = "Priority up / timestamp up" },
   shift_down = { "org.context", "shift_down", desc = "Priority down / timestamp down" },
   increment = { "org.context", "increment", desc = "Increment timestamp / priority" },
   decrement = { "org.context", "decrement", desc = "Decrement timestamp / priority" },
-  priority = { "org.priority", "set", desc = "Set priority" },
+  priority = { "org.priority", "set", desc = "Set priority (count 4: show the priority)" },
+  priority_show = { "org.priority", "show", desc = "Show the priority (C-u C-c ,)" },
   set_tags = { "org.tags", "set_tags_command", desc = "Set tags (Visual: change tag in region)", modes = { "n", "x" } },
   set_property = { "org.properties", "set_property", desc = "Set property" },
+  set_property_and_value = { "org.properties", "set_property_and_value", desc = "Set property and value (C-c C-x P)" },
+  toggle_tags_groups = { "org.tags", "toggle_groups", desc = "Toggle tag groups in matches (C-c C-x q)" },
   delete_property = { "org.properties", "delete_property", desc = "Delete property" },
   delete_property_globally = {
     "org.properties",
@@ -166,14 +188,19 @@ M.list = {
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
 
   -- dates
-  schedule = { "org.timestamps", "schedule", desc = "Schedule" },
-  deadline = { "org.timestamps", "deadline", desc = "Deadline" },
+  schedule = { "org.timestamps", "schedule", desc = "Schedule (Visual: all headlines)", modes = { "n", "x" } },
+  deadline = { "org.timestamps", "deadline", desc = "Deadline (Visual: all headlines)", modes = { "n", "x" } },
   timestamp = { "org.timestamps", "insert_active", desc = "Insert active timestamp" },
   timestamp_inactive = { "org.timestamps", "insert_inactive", desc = "Insert inactive timestamp" },
   date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
   goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
   toggle_timestamp_type = { "org.timestamps", "toggle_type", desc = "Toggle timestamp active/inactive" },
+  toggle_time_stamp_overlays = {
+    "org.timestamps",
+    "toggle_custom_display",
+    desc = "Toggle custom timestamp display (C-c C-x C-t)",
+  },
 
   -- lists
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
@@ -241,13 +268,19 @@ M.list = {
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 
   -- refile / archive / attach
-  refile = { "org.refile", "refile", desc = "Refile subtree" },
-  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree to a refile target" },
+  refile = {
+    "org.refile",
+    "refile",
+    desc = "Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)",
+    modes = { "n", "x" },
+  },
+  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree / region to a refile target", modes = { "n", "x" } },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
   refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
   archive_to_sibling = { "org.archive", "archive_to_sibling", desc = "Archive to Archive sibling" },
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
+  archive_all_old = { "org.archive", "archive_all_old", desc = "Archive children with old time stamps" },
   attach = { "org.attach", "menu", desc = "Attachments" },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
   cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },
@@ -264,6 +297,7 @@ M.list = {
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
+  lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
 
   -- tables
   table_create = { "org.table", "create_or_convert", desc = "Create table / convert region", modes = { "n", "x" } },
@@ -293,7 +327,28 @@ M.list = {
     modes = { "n", "x" },
   },
   table_import = { "org.table", "import", desc = "Import file as table" },
-  table_export = { "org.table", "export", desc = "Export table to TSV/CSV file" },
+  table_export = { "org.table", "export", desc = "Export table with a translator" },
+  table_recalculate = { "org.table", "recalculate", desc = "Recalculate table row (count: table / iterate)" },
+  table_iterate = { "org.table", "iterate", desc = "Recalculate table until stable" },
+  table_toggle_column_width = { "org.table", "toggle_column_width", desc = "Shrink / expand table column" },
+  table_shrink = { "org.table", "shrink", desc = "Shrink table columns with width cookies" },
+  table_expand = { "org.table", "expand", desc = "Expand all table columns" },
+  table_formula_debugger = { "org.table", "toggle_formula_debugger", desc = "Toggle table formula debugger" },
+  table_edit_formulas = { "org.table", "edit_formulas", desc = "Edit table formulas" },
+  table_follow_field_mode = { "org.table", "toggle_follow_field_mode", desc = "Toggle table follow-field mode" },
+  table_header_line_mode = { "org.table", "header_line_mode", desc = "Toggle table header-line mode" },
+  table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
+  table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
+  table_el = { "org.table", "table_el", desc = "table.el tables (not supported)" },
+  orgtbl_mode = { "org.table.orgtbl", "toggle", desc = "Toggle orgtbl-mode", global = true },
+  orgtbl_insert_radio_table = {
+    "org.table.orgtbl",
+    "insert_radio_table",
+    desc = "Insert radio table template",
+    global = true,
+  },
+  orgtbl_send_table = { "org.table.orgtbl", "send_table", desc = "Send radio table", global = true },
+  orgtbl_toggle_comment = { "org.table.orgtbl", "toggle_comment", desc = "Comment / uncomment table", global = true },
 
   -- babel
   edit_special = { "org.context", "edit_special", desc = "Edit src block / table formulas" },
@@ -327,6 +382,7 @@ M.list = {
   babel_describe_bindings = { "org.babel", "describe_bindings", desc = "List Babel key bindings" },
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
+  babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
 }
 
 --- Resolve an action to its function.

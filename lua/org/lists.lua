@@ -657,7 +657,8 @@ end
 --- Counts for a headline cookie.
 local function headline_counts(file, hl)
   local cookie_data = (hl.properties.COOKIE_DATA or ""):lower()
-  local recursive = cookie_data:find("recursive") ~= nil
+  local cfg = require("org.config").opts
+  local recursive = cookie_data:find("recursive") ~= nil or cfg.hierarchical_todo_statistics == false
   local mode
   if cookie_data:find("todo") then
     mode = "todo"
@@ -684,12 +685,29 @@ local function headline_counts(file, hl)
     end
     return d, t
   end
+  -- which headlines count (org-provide-todo-statistics): true = TODO
+  -- keywords, "all-headlines", a list of keywords (plus done keywords) or
+  -- { todo keywords, done keywords }
+  local provide = cfg.provide_todo_statistics
+  local function counts(c)
+    local kw, done_kw = c.todo, c:is_done()
+    if provide == "all-headlines" then
+      return true, done_kw
+    elseif type(provide) == "table" and type(provide[1]) == "table" then
+      local in_done = done_kw and vim.tbl_contains(provide[2] or {}, kw)
+      return vim.tbl_contains(provide[1], kw) or in_done, in_done
+    elseif type(provide) == "table" then
+      return vim.tbl_contains(provide, kw) or done_kw, done_kw
+    end
+    return kw ~= nil, done_kw
+  end
   local done, total = 0, 0
   local function walk(children)
     for _, c in ipairs(children) do
-      if c.todo then
+      local counted, is_done = counts(c)
+      if counted then
         total = total + 1
-        if c:is_done() then
+        if is_done then
           done = done + 1
         end
       end
