@@ -119,6 +119,23 @@ M.defaults = {
   table_export_default_format = "orgtbl-to-tsv",
   --- The gnuplot program for `table_plot` (gnuplot-program).
   plot_gnuplot_program = "gnuplot",
+  --- Text added to every plot script (org-plot/gnuplot-script-preamble).
+  plot_gnuplot_script_preamble = "",
+  --- Extra `set term` options, e.g. "size 1050,650"
+  --- (org-plot/gnuplot-term-extra).
+  plot_gnuplot_term_extra = "",
+  --- Radio table templates inserted by `orgtbl_insert_radio_table`, per
+  --- filetype; `%n` is the table name (orgtbl-radio-table-templates).
+  orgtbl_radio_table_templates = {
+    tex = "% BEGIN RECEIVE ORGTBL %n\n% END RECEIVE ORGTBL %n\n\\begin{comment}\n"
+      .. "#+ORGTBL: SEND %n orgtbl-to-latex :splice nil :skip 0\n| | |\n\\end{comment}\n",
+    texinfo = "@c BEGIN RECEIVE ORGTBL %n\n@c END RECEIVE ORGTBL %n\n@ignore\n"
+      .. "#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n@end ignore\n",
+    html = "<!-- BEGIN RECEIVE ORGTBL %n -->\n<!-- END RECEIVE ORGTBL %n -->\n<!--\n"
+      .. "#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n-->\n",
+    org = "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n"
+      .. "#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n",
+  },
   --- Extra summary operators for column view: a map from the operator to
   --- `fun(values: string[], format?: string): string`, e.g.
   --- `{ ["+|"] = function(v) ... end }` (org-columns-summary-types).

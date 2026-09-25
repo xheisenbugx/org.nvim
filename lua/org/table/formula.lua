@@ -999,7 +999,7 @@ function M.apply(t, formulas, ctx)
     if err then
       errors[#errors + 1] = err
     end
-    m.data[r][c] = v
+    m.data[r][c] = vim.trim(v)
     if ctx.debug and ctx.debug(trace) == false then
       aborted = true
     end

@@ -1181,6 +1181,36 @@ function M.eval_to_string(src)
   return M.to_string(M.eval(src))
 end
 
+--- orgtbl-ascii-draw: a bar for VALUE between MIN and MAX, WIDTH cells
+--- wide, drawn with CHARACTERS (shades from empty to full).
+local function ascii_draw(value, min, max, width, characters)
+  width = math.ceil(M.tonumber(width) or 12)
+  characters = characters or " .:;c!lhVHW"
+  local chars = vim.fn.split(characters, "\\zs")
+  local len = #chars - 1
+  local v = M.tonumber(value)
+  if type(value) == "string" then
+    v = tonumber(value:match("^%s*([-+]?%d*%.?%d+[eE]?[-+]?%d*)")) or 0
+  end
+  local lo, hi = M.tonumber(min), M.tonumber(max)
+  local relative = (v - lo) / (hi - lo)
+  local steps = round_even(relative * width * len)
+  if steps < 0 then
+    return "too small"
+  elseif steps > width * len then
+    return "too large"
+  end
+  local int = math.floor(steps / len)
+  return string.rep(chars[len + 1], int) .. chars[steps - int * len + 1]
+end
+F["orgtbl-ascii-draw"] = ascii_draw
+F["orgtbl-uc-draw-grid"] = function(value, min, max, width)
+  return ascii_draw(value, min, max, width, " ▏▎▍▌▋▊▉")
+end
+F["orgtbl-uc-draw-cont"] = function(value, min, max, width)
+  return ascii_draw(value, min, max, width, " ▏▎▍▌▋▊▉█")
+end
+
 --- True for a non-empty list (a cons cell): Org turns such formula
 --- results into #ERROR.
 function M.is_cons(v)

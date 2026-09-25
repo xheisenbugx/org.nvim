@@ -133,6 +133,16 @@
 ---The gnuplot program run by `table_plot`.
 ---(Emacs `gnuplot-program`, default: `"gnuplot"`)
 ---@field plot_gnuplot_program? string
+---Text added to every plot script.
+---(Emacs `org-plot/gnuplot-script-preamble`, default: `""`)
+---@field plot_gnuplot_script_preamble? string
+---Extra `set term` options, e.g. `"size 1050,650"`.
+---(Emacs `org-plot/gnuplot-term-extra`, default: `""`)
+---@field plot_gnuplot_term_extra? string
+---Radio table templates inserted by `orgtbl_insert_radio_table`, per
+---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
+---(Emacs `orgtbl-radio-table-templates`)
+---@field orgtbl_radio_table_templates? table<string, string>
 ---Extra column view summary operators: operator → `fun(values: string[],
 ---format?: string): string`. (Emacs `org-columns-summary-types`,
 ---default: `{}`)

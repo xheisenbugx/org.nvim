@@ -304,6 +304,7 @@ local function write_table(info, t)
     vim.api.nvim_buf_set_lines(0, info.start - 1, info.finish, false, lines)
   end
   info.finish = info.start + #lines - 1
+  require("org.table.shrink").refresh(0, info.start)
   return lines
 end
 
@@ -341,8 +342,10 @@ local function in_visual()
   return m == "v" or m == "V" or m == "\22"
 end
 
---- Renumber shrunk columns after a column edit (defined with shrinking).
-function M.shift_shrunk(_start, _map) end
+--- Renumber shrunk columns after a column edit.
+function M.shift_shrunk(start, map)
+  require("org.table.shrink").shift(0, start, map)
+end
 
 --- Data-line number (Emacs `@N`, hlines not counted) of table row `row`.
 local function dline(t, row)
@@ -1059,17 +1062,32 @@ function M.to_separated(rows, format)
   return out
 end
 
---- Write the table at the cursor to a TSV or CSV file (hlines dropped). The
---- file and format come from the TABLE_EXPORT_FILE / TABLE_EXPORT_FORMAT
---- properties (inherited) when set, else the file is asked for and the
---- format follows its extension. Emacs org-table-export.
+--- Translators offered for `table_export` (org-table-export).
+local EXPORT_FORMATS = {
+  "orgtbl-to-tsv",
+  "orgtbl-to-csv",
+  "orgtbl-to-latex",
+  "orgtbl-to-html",
+  "orgtbl-to-generic",
+  "orgtbl-to-texinfo",
+  "orgtbl-to-orgtbl",
+}
+
+--- Write the table at the cursor to a file with a translator (see
+--- |org-table-translators|). The file and format come from the
+--- TABLE_EXPORT_FILE / TABLE_EXPORT_FORMAT properties (inherited) when
+--- set, else they are asked for; the suggested format matches the file
+--- extension, else `table_export_default_format`. A format is a
+--- translator name with parameters, `orgtbl-to-latex :splice t`. Emacs
+--- org-table-export.
 ---@param path? string
----@param format? string "tsv" or "csv" (also "orgtbl-to-tsv" / "orgtbl-to-csv")
+---@param format? string
 function M.export(path, format)
   local info = M.at_cursor()
   if not info then
     return false
   end
+  local interactive = path == nil
   local hl = require("org.files").get_buffer(0):headline_at(info.start)
   path = path or (hl and hl:get_property("TABLE_EXPORT_FILE", true))
   if not path then
@@ -1094,20 +1112,31 @@ function M.export(path, format)
   end
   format = format or (hl and hl:get_property("TABLE_EXPORT_FORMAT", true))
   if not format then
-    format = (path:match("%.(%w+)$") or ""):lower() == "csv" and "csv" or "tsv"
-  end
-  format = vim.trim(format):gsub("^orgtbl%-to%-", ""):match("^(%S+)")
-  if format ~= "tsv" and format ~= "csv" then
-    utils.warn("Unsupported table export format: " .. tostring(format) .. " (use tsv or csv)")
-    return
-  end
-  local rows = {}
-  for _, r in ipairs(info.tbl.rows) do
-    if not r.hline then
-      rows[#rows + 1] = r.cells
+    local ext = (path:match("%.(%w+)$") or ""):lower()
+    local default = require("org.config").opts.table_export_default_format or "orgtbl-to-tsv"
+    for _, f in ipairs(EXPORT_FORMATS) do
+      if ext ~= "" and f:sub(-#ext) == ext then
+        default = f
+        break
+      end
+    end
+    if interactive then
+      format = utils.input_complete("Format: ", EXPORT_FORMATS, default)
+      if not format or vim.trim(format) == "" then
+        return
+      end
+    else
+      format = default
     end
   end
-  utils.writefile(path, M.to_separated(rows, format))
+  local name, params = vim.trim(format):match("^(%S+)%s*(.*)$")
+  local orgtbl = require("org.table.orgtbl")
+  if not name or not orgtbl.translator(name) then
+    utils.warn("No such transformation function " .. tostring(name))
+    return
+  end
+  local text = orgtbl.translate(name, orgtbl.to_lisp(info.lines), params)
+  utils.writefile(path, vim.split(text, "\n", { plain = true }))
   utils.notify("Export done: " .. path)
   return path
 end
@@ -2465,7 +2494,72 @@ end
 -- Buffer attach
 ---------------------------------------------------------------------------
 
+---------------------------------------------------------------------------
+-- Shrinking columns (Emacs org-table-shrink / C-c TAB)
+---------------------------------------------------------------------------
+
+--- Shrink the columns with a width cookie of the table at `lnum` and expand
+--- the others. Emacs org-table-shrink.
+function M.shrink(bufnr, lnum)
+  return require("org.table.shrink").shrink(bufnr, lnum or vim.api.nvim_win_get_cursor(0)[1])
+end
+
+--- Show every column of the table at `lnum` in full. Emacs org-table-expand.
+function M.expand(bufnr, lnum)
+  return require("org.table.shrink").expand(bufnr, lnum or vim.api.nvim_win_get_cursor(0)[1])
+end
+
+--- Shrink or expand the current column; before the first or after the
+--- last column, ask for column ranges (`2-4 6-`). Count 4 (C-u) shrinks
+--- the columns with width cookies (org-table-shrink), 16 expands all.
+--- Emacs C-c TAB in a table (org-table-toggle-column-width).
+---@param count? integer
+---@param ranges? string column ranges instead of the current column
+function M.toggle_column_width(count, ranges)
+  count = count or vim.v.count
+  local lnum, col = utils.cursor()
+  local info = M.find(0, lnum)
+  if not info then
+    utils.warn("Not in a table")
+    return false
+  end
+  local shrink = require("org.table.shrink")
+  if count >= 16 then
+    return shrink.expand(0, lnum)
+  elseif count >= 4 then
+    return shrink.shrink(0, lnum)
+  end
+  local line = vim.api.nvim_get_current_line()
+  local pipes = pipe_positions(line)
+  local t = M.parse(info.lines)
+  local cols
+  if ranges or col <= (pipes[1] or 1) or col > (pipes[#pipes] or #line) then
+    ranges = ranges or utils.input({ prompt = "Column ranges (e.g. 2-4 6-): " })
+    if not ranges then
+      return
+    end
+    cols = shrink.parse_ranges(ranges, t.ncols)
+  else
+    cols = { [field_at(line, col)] = true }
+  end
+  local current = shrink.get(0, lnum)
+  for c in pairs(cols) do
+    if c >= 1 and c <= t.ncols then
+      current[c] = not current[c] or nil
+    end
+  end
+  return shrink.set(0, lnum, current)
+end
+
 function M.attach(bufnr)
+  local startup = require("org.files").get_buffer(bufnr).settings.startup or {}
+  if startup.shrink or (require("org.config").opts.startup_shrink_all_tables and not startup.noshrink) then
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        require("org.table.shrink").shrink_all(bufnr)
+      end
+    end)
+  end
   vim.api.nvim_create_autocmd("InsertLeave", {
     buffer = bufnr,
     group = vim.api.nvim_create_augroup("org.table." .. bufnr, { clear = true }),
