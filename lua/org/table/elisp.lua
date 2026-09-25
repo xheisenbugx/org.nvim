@@ -1181,6 +1181,12 @@ function M.eval_to_string(src)
   return M.to_string(M.eval(src))
 end
 
+--- True for a non-empty list (a cons cell): Org turns such formula
+--- results into #ERROR.
+function M.is_cons(v)
+  return is_list(v)
+end
+
 M.functions = F
 M.special_forms = S
 

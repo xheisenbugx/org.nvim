@@ -92,6 +92,63 @@
 ---the difference to the field above, else 1), a number (fixed step) or
 ---`false`. (Emacs `org-table-copy-increment`, default: `true`)
 ---@field table_copy_increment? boolean|number
+---A field formula writing beyond the last column: `false` (error), `true`
+---(add columns), `"warn"` (add them and warn) or `"prompt"` (ask). Column
+---formulas always add columns.
+---(Emacs `org-table-formula-create-columns`, default: `false`)
+---@field table_formula_create_columns? boolean|"warn"|"prompt"
+---Ask before rewriting `#+TBLFM` references after inserting, deleting or
+---moving rows and columns. (Emacs `org-table-fix-formulas-confirm`,
+---default: `false`)
+---@field table_fix_formulas_confirm? boolean
+---Output of the `t` formula flag.
+---(Emacs `org-table-duration-custom-format`, default: `"hours"`)
+---@field table_duration_custom_format? "hours"|"minutes"|"seconds"|"days"
+---Pad hours to two digits in `T` / `U` durations (`01:30:00`).
+---(Emacs `org-table-duration-hour-zero-padding`, default: `true`)
+---@field table_duration_hour_zero_padding? boolean
+---Typing `=formula` or `:=formula` into a field installs it as a column or
+---field formula. (Emacs `org-table-formula-evaluate-inline`, default: `true`)
+---@field table_formula_evaluate_inline? boolean
+---Minimum fraction of numbers in a column for it to be right-aligned.
+---(Emacs `org-table-number-fraction`, default: `0.5`)
+---@field table_number_fraction? number
+---Text shown at the end of a shrunk column.
+---(Emacs `org-table-shrunk-column-indicator`, default: `"…"`)
+---@field table_shrunk_column_indicator? string
+---Shrink the columns with a width cookie of every table when a file is
+---opened; `#+STARTUP: shrink` / `noshrink` override it.
+---(Emacs `org-startup-shrink-all-tables`, default: `false`)
+---@field startup_shrink_all_tables? boolean
+---Show the first row of a table in the winbar while it is scrolled out of
+---view. (Emacs `org-table-header-line-p`, default: `false`)
+---@field table_header_line_p? boolean
+---A1-style references (`B3`) in formulas: `"from"` accepts them when
+---typed, `true` also shows them in the formula editor, `false` never.
+---(Emacs `org-table-use-standard-references`, default: `"from"`)
+---@field table_use_standard_references? boolean|"from"
+---Translator used by `table_export` when no TABLE_EXPORT_FORMAT is set.
+---(Emacs `org-table-export-default-format`, default: `"orgtbl-to-tsv"`)
+---@field table_export_default_format? string
+---The gnuplot program run by `table_plot`.
+---(Emacs `gnuplot-program`, default: `"gnuplot"`)
+---@field plot_gnuplot_program? string
+---Extra column view summary operators: operator → `fun(values: string[],
+---format?: string): string`. (Emacs `org-columns-summary-types`,
+---default: `{}`)
+---@field columns_summary_types? table<string, fun(values: string[], format?: string): string>
+---Change values shown in column view and columnview blocks: return the
+---new text, or nil to keep the value.
+---(Emacs `org-columns-modify-value-for-display-function`, default: `nil`)
+---@field columns_modify_value_for_display_function? fun(prop: string, value: string): string?
+---Write columnview dynamic blocks with this function instead of the
+---default table; it gets the rows (lists of cells, `"hline"` for rules)
+---and the block parameters and returns the lines.
+---(Emacs `org-columns-dblock-formatter`, default: `nil`)
+---@field columns_dblock_formatter? fun(rows: (string[]|string)[], params: table): string[]
+---Values <S-Right> cycles through in checkbox columns.
+---(Emacs `org-columns-checkbox-allowed-values`, default: `{ "[ ]", "[X]" }`)
+---@field columns_checkbox_allowed_values? string[]
 ---Property holding effort estimates.
 ---(Emacs `org-effort-property`, default: `"Effort"`)
 ---@field effort_property? string

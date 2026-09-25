@@ -83,6 +83,57 @@ M.defaults = {
   --- S-RET (table_copy_down) increments numbers and dates: true (by the
   --- difference to the field above, else 1), a number (fixed step) or false.
   table_copy_increment = true,
+  --- A field formula (or C-c =) writing beyond the last column: false
+  --- (error), true (add columns), "warn" (add and warn) or "prompt"
+  --- (org-table-formula-create-columns). Column formulas always add them.
+  table_formula_create_columns = false,
+  --- Ask before rewriting #+TBLFM references after inserting, deleting or
+  --- moving rows and columns (org-table-fix-formulas-confirm).
+  table_fix_formulas_confirm = false,
+  --- Output of the `t` formula flag: "hours", "minutes", "seconds" or
+  --- "days" (org-table-duration-custom-format).
+  table_duration_custom_format = "hours",
+  --- Pad hours to two digits in `T` / `U` durations, `01:30:00`
+  --- (org-table-duration-hour-zero-padding).
+  table_duration_hour_zero_padding = true,
+  --- Typing `=formula` / `:=formula` into a field installs it
+  --- (org-table-formula-evaluate-inline).
+  table_formula_evaluate_inline = true,
+  --- Minimum fraction of numbers in a column for right alignment
+  --- (org-table-number-fraction).
+  table_number_fraction = 0.5,
+  --- Text shown at the end of a shrunk column (org-table-shrunk-column-indicator).
+  table_shrunk_column_indicator = "…",
+  --- Shrink the columns with a width cookie of every table when a file is
+  --- opened; `#+STARTUP: shrink` / `noshrink` (org-startup-shrink-all-tables).
+  startup_shrink_all_tables = false,
+  --- Keep the first table row visible in the winbar when it scrolls out of
+  --- view (org-table-header-line-p).
+  table_header_line_p = false,
+  --- A1-style references (B3) in formulas: "from" accepts them when typed,
+  --- true also shows them in the formula editor, false never
+  --- (org-table-use-standard-references).
+  table_use_standard_references = "from",
+  --- Format of `table_export` without TABLE_EXPORT_FORMAT: a translator
+  --- name like "orgtbl-to-csv" (org-table-export-default-format).
+  table_export_default_format = "orgtbl-to-tsv",
+  --- The gnuplot program for `table_plot` (gnuplot-program).
+  plot_gnuplot_program = "gnuplot",
+  --- Extra summary operators for column view: a map from the operator to
+  --- `fun(values: string[], format?: string): string`, e.g.
+  --- `{ ["+|"] = function(v) ... end }` (org-columns-summary-types).
+  columns_summary_types = {},
+  --- `fun(prop: string, value: string): string?` changing values shown in
+  --- column view and columnview blocks
+  --- (org-columns-modify-value-for-display-function).
+  columns_modify_value_for_display_function = nil,
+  --- `fun(rows: table, params: table): string[]` writing a columnview
+  --- dynamic block instead of the default table, or nil; a block's
+  --- `:formatter` names a global Lua function (org-columns-dblock-formatter).
+  columns_dblock_formatter = nil,
+  --- Values <S-Right> cycles through for checkbox columns
+  --- (org-columns-checkbox-allowed-values).
+  columns_checkbox_allowed_values = { "[ ]", "[X]" },
   effort_property = "Effort",
   --- Durations in clock tables, clock sums and efforts: "d h:mm" writes
   --- "1d 2:30" from one day on (Emacs `org-duration-format`), "h:mm" "26:30".

@@ -52,7 +52,8 @@ function M.context_action()
     return require("org.properties").property_action()
   end
   if line:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:") then
-    return require("org.table").recalc()
+    -- apply the formulas of this #+TBLFM line (org-table-calc-current-TBLFM)
+    return require("org.table").calc_current_tblfm(0, lnum)
   end
   if in_table(line) then
     return require("org.table").ctrl_c_ctrl_c()
@@ -418,14 +419,12 @@ local function in_visual()
   return vim.fn.mode():match("^[vV\22]") ~= nil
 end
 
---- C-c *: recalculate a table, else toggle heading.
+--- C-c *: in a table recalculate the current row (count 4: the table,
+--- 16: iterate it; org-table-recalculate), else toggle heading.
 function M.ctrl_c_star()
-  local lnum, _, line = cur()
+  local _, _, line = cur()
   if in_table(line) then
-    if vim.v.count >= 16 then
-      return require("org.table").recalc_buffer(0)
-    end
-    return require("org.table").recalc(0, lnum)
+    return require("org.table").recalculate(vim.v.count)
   end
   return require("org.structure").toggle_heading()
 end
