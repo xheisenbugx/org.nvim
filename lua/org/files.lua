@@ -159,7 +159,14 @@ function M.remove_file()
   return true
 end
 
---- Parsed agenda files.
+--- Parsed agenda files (`agenda_files` config plus `extra` patterns).
+---
+--- ```lua
+--- for _, file in ipairs(require("org.files").agenda_files()) do
+---   print(file.filename, #file.headlines)
+--- end
+--- ```
+---@param extra? string[] additional file paths / glob patterns
 ---@return org.File[]
 function M.agenda_files(extra)
   local out = {}

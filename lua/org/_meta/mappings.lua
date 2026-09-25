@@ -1,0 +1,988 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ mappings = ... })`.
+-- Generated from `M.defaults.mappings` in lua/org/config.lua and
+-- `actions.list` in lua/org/actions.lua. Annotations only.
+
+--- A mapping value: one lhs, a list of lhs, or `false` to disable the
+--- mapping. The literal `<prefix>` inside a lhs is replaced by
+--- `mappings.prefix` (default `<leader>o`), e.g. `"<prefix>a"` -> `<leader>oa`.
+--- A list replaces the default list wholesale (it is not merged).
+---@alias org.MappingLhs string|string[]|false
+
+--- Name of an action in `require("org.actions").list`. Also usable as
+--- `:Org <name>`. Any of these can be bound in the action-backed mapping
+--- sections (`global`, `org`, `org_insert`, `emacs_global`, `emacs`,
+--- `emacs_insert`), even when the section has no default for it.
+---@alias org.ActionName
+---| "add_note" # Add note
+---| "agenda" # Agenda dispatcher
+---| "agenda_file_remove" # Remove file from agenda files
+---| "agenda_file_to_front" # Add file to agenda files
+---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
+---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
+---| "archive_all_done" # Archive children without open TODOs
+---| "archive_subtree" # Archive subtree
+---| "archive_to_sibling" # Archive to Archive sibling
+---| "attach" # Attachments
+---| "babel_check" # Check src block header args
+---| "babel_demarcate" # Split / wrap src block
+---| "babel_execute" # Execute src block
+---| "babel_execute_buffer" # Execute all src blocks
+---| "babel_execute_subtree" # Execute src blocks in subtree
+---| "babel_expand" # Show expanded src block
+---| "babel_goto_head" # Go to src block head
+---| "babel_goto_named" # Go to named src block
+---| "babel_goto_named_result" # Go to named result
+---| "babel_insert_header_arg" # Insert header argument
+---| "babel_lob_ingest" # Add file's blocks to Library of Babel
+---| "babel_next_block" # Next src block
+---| "babel_open_result" # Open src block result
+---| "babel_prev_block" # Previous src block
+---| "babel_remove_result" # Remove src block result (count: all)
+---| "babel_tangle" # Tangle file (count: block / its target)
+---| "babel_tangle_file" # Tangle another file
+---| "babel_view_info" # Show src block info
+---| "buffer_goto" # Go to heading in buffer
+---| "capture" # Capture
+---| "capture_goto_last" # Go to the last captured entry
+---| "capture_goto_target" # Go to a capture template's target
+---| "clock_cancel" # Cancel clock
+---| "clock_display" # Display clock sums
+---| "clock_goto" # Go to clocked task
+---| "clock_in" # Clock in
+---| "clock_in_last" # Clock in last task
+---| "clock_modify_effort" # Change effort of clocked task
+---| "clock_out" # Clock out
+---| "clock_report" # Insert clock report
+---| "clock_resolve" # Resolve dangling clocks
+---| "clone_subtree" # Clone subtree with time shift
+---| "column_view" # Column view
+---| "context_action" # Context action (C-c C-c)
+---| "copy_special" # Copy table region / subtree
+---| "copy_subtree" # Copy subtree
+---| "copy_visible" # Copy visible text
+---| "ctrl_c_caret" # Sort table column / entries / items
+---| "ctrl_c_minus" # Table hline / cycle bullet / toggle item
+---| "ctrl_c_ret" # Table hline and move / insert heading
+---| "ctrl_c_star" # Recalc table / toggle heading
+---| "cut_special" # Cut table region / subtree
+---| "cut_subtree" # Cut subtree
+---| "cycle" # Cycle visibility
+---| "cycle_agenda_files" # Visit next agenda file
+---| "cycle_bullet" # Cycle list bullet
+---| "date_today" # Insert today's date
+---| "dblock_update" # Update dynamic block
+---| "dblock_update_all" # Update all dynamic blocks
+---| "deadline" # Deadline
+---| "decrement" # Decrement timestamp / priority
+---| "delete_property" # Delete property
+---| "delete_property_globally" # Delete a property from all entries
+---| "demote_heading" # Demote heading / item
+---| "demote_subtree" # Demote subtree
+---| "edit_special" # Edit src block / table formulas
+---| "emphasize" # Emphasize selection
+---| "evaluate_time_range" # Evaluate time range
+---| "export" # Export dispatcher
+---| "force_cycle_archived" # Cycle subtree, even when archived
+---| "global_cycle" # Cycle global visibility
+---| "goto_calendar" # Open calendar
+---| "goto_heading" # Go to heading in agenda files
+---| "goto_parent" # Go to parent heading
+---| "help" # Show org keymaps
+---| "id_copy" # Copy entry ID
+---| "id_get_create" # Get or create ID
+---| "id_goto" # Go to entry by ID
+---| "id_store_link" # Store id: link to entry
+---| "inc_effort" # Next allowed effort value
+---| "increment" # Increment timestamp / priority
+---| "indirect_subtree" # Subtree in split edit buffer
+---| "insert_all_links" # Insert all stored links
+---| "insert_columnview" # Insert columnview block
+---| "insert_dblock" # Insert dynamic block
+---| "insert_drawer" # Insert drawer
+---| "insert_footnote" # Footnote: jump / new / menu (count)
+---| "insert_heading" # Insert heading after subtree
+---| "insert_last_stored_link" # Insert last stored link
+---| "insert_link" # Insert link
+---| "insert_structure_template" # Insert block (#+begin_...)
+---| "insert_subheading" # Insert subheading
+---| "insert_tab" # Table: next field / empty heading or item: cycle level
+---| "insert_todo_heading" # Insert TODO heading
+---| "mark_ring_goto" # Jump back from followed link
+---| "mark_subtree" # Select subtree
+---| "meta_down" # Move subtree / item / row down
+---| "meta_left" # Promote / move column left
+---| "meta_return" # New heading / item / row
+---| "meta_right" # Demote / move column right
+---| "meta_shift_return" # New TODO heading / checkbox item
+---| "meta_up" # Move subtree / item / row up
+---| "move_subtree_down" # Move subtree down
+---| "move_subtree_up" # Move subtree up
+---| "narrow_subtree" # Narrow to subtree (edit buffer)
+---| "next_heading" # Next heading
+---| "next_link" # Next link
+---| "next_sibling" # Next sibling heading
+---| "open_at_point" # Open link / footnote / date at point
+---| "open_link_or_entry" # Open link at point / entry links
+---| "paste_special" # Paste table rectangle / subtree
+---| "paste_subtree" # Paste subtree
+---| "prev_heading" # Previous heading
+---| "prev_link" # Previous link
+---| "prev_sibling" # Previous sibling heading
+---| "priority" # Set priority
+---| "promote_heading" # Promote heading / item
+---| "promote_subtree" # Promote subtree
+---| "refile" # Refile subtree
+---| "refile_copy" # Copy subtree to a refile target
+---| "refile_goto" # Jump to a refile target
+---| "refile_goto_last" # Jump to last refile / capture
+---| "reveal" # Reveal context around cursor
+---| "schedule" # Schedule
+---| "set_effort" # Set effort
+---| "set_property" # Set property
+---| "set_startup_visibility" # Restore startup visibility
+---| "set_tags" # Set tags (Visual: change tag in region)
+---| "shift_control_down" # Shift CLOCK timestamps down
+---| "shift_control_up" # Shift CLOCK timestamps up
+---| "shift_down" # Priority down / timestamp down
+---| "shift_left" # Previous TODO / date -1 / bullet
+---| "shift_meta_down" # Insert table row / move down
+---| "shift_meta_left" # Promote subtree / delete column
+---| "shift_meta_right" # Demote subtree / insert column
+---| "shift_meta_up" # Delete table row / move up
+---| "shift_right" # Next TODO / date +1 / bullet
+---| "shift_up" # Priority up / timestamp up
+---| "show_branches" # Show all branches of subtree
+---| "show_children" # Show children
+---| "show_everything" # Show everything, including drawers
+---| "sort" # Sort entries / items
+---| "sparse_tree" # Sparse tree
+---| "store_link" # Store link to current location
+---| "table_blank_field" # Blank table field(s)
+---| "table_coordinates" # Toggle table coordinates
+---| "table_copy_down" # Copy table field down
+---| "table_create" # Create table / convert region
+---| "table_delete_column" # Delete table column
+---| "table_delete_row" # Delete table row
+---| "table_edit_field" # Edit table field
+---| "table_export" # Export table to TSV/CSV file
+---| "table_field_info" # Table field info
+---| "table_formula" # Set column / field formula
+---| "table_import" # Import file as table
+---| "table_insert_column" # Insert table column
+---| "table_insert_hline" # Insert table hline
+---| "table_insert_row" # Insert table row
+---| "table_next_field" # Next table field
+---| "table_next_row" # Next table row
+---| "table_prev_field" # Previous table field
+---| "table_recalc" # Recalculate table formulas
+---| "table_recalc_buffer" # Recalculate all tables
+---| "table_rotate_marks" # Rotate table recalculation mark
+---| "table_sort" # Sort table by column
+---| "table_sum" # Sum column / rectangle
+---| "table_transpose" # Transpose table
+---| "tags_sparse_tree" # Tags / property match sparse tree
+---| "timer_countdown" # Start countdown timer
+---| "timer_insert" # Insert timer value
+---| "timer_item" # Insert timer list item
+---| "timer_pause" # Pause / continue timer
+---| "timer_remaining" # Show remaining countdown time
+---| "timer_start" # Start relative timer
+---| "timer_stop" # Stop timer
+---| "timestamp" # Insert active timestamp
+---| "timestamp_inactive" # Insert inactive timestamp
+---| "todo" # Change TODO state (C-c C-t)
+---| "todo_next" # Next TODO state
+---| "todo_next_sequence" # Next TODO keyword set
+---| "todo_prev" # Previous TODO state
+---| "todo_prev_sequence" # Previous TODO keyword set
+---| "todo_select" # Select TODO state
+---| "toggle_archive_tag" # Toggle ARCHIVE tag
+---| "toggle_checkbox" # Toggle checkbox
+---| "toggle_comment" # Toggle COMMENT keyword
+---| "toggle_heading" # Toggle heading
+---| "toggle_item" # Toggle list item
+---| "toggle_link_display" # Toggle link display
+---| "toggle_ordered" # Toggle ORDERED property
+---| "toggle_timestamp_type" # Toggle timestamp active/inactive
+---| "update_statistics" # Update statistics cookies
+
+--- Base for action-backed sections: any `org.ActionName` may be used as a
+--- key; unknown names are ignored.
+---@class org.Config.Mappings.ActionSection
+---@field [org.ActionName] org.MappingLhs?
+
+--- Key mappings. Set any mapping to `false` to disable it, or give a list
+--- of lhs. `<prefix>` in a lhs is replaced by `mappings.prefix`.
+--- Sections are merged key by key with the defaults; set a whole section
+--- to `false` to disable all of its keys.
+---@class org.Config.Mappings
+--- Skip the `global`, `emacs_global`, `org`, `org_insert`, `emacs`,
+--- `emacs_insert` and `text_objects` mappings (agenda, capture and edit_src
+--- buffer keys are still set).
+--- Default: `false`
+---@field disable_all? boolean
+--- Replaces `<prefix>` in every lhs. Default: `"<leader>o"`
+---@field prefix? string
+--- Global normal-mode keys, set on `setup()` (available everywhere). Set to `false` to disable the whole section.
+---@field global? org.Config.Mappings.Global|false
+--- Buffer-local keys in org buffers. Keys map in the action's modes (normal by default; some also visual / operator-pending); insert mode only for `meta_return` / `meta_shift_return` (use `org_insert` for insert-mode keys). Set to `false` to disable the whole section.
+---@field org? org.Config.Mappings.Org|false
+--- Insert-mode keys in org buffers. Set to `false` to disable the whole section.
+---@field org_insert? org.Config.Mappings.OrgInsert|false
+--- Global Emacs-style keys (Emacs `C-c a`, `C-c c`, `C-c l`). Set to `false` to disable the whole section.
+---@field emacs_global? org.Config.Mappings.EmacsGlobal|false
+--- Emacs Org keys (org-mode-map), buffer-local in org buffers, on top of the Vim-style `org` keys. Mapped in the action's non-insert modes. Set to `false` to disable the whole section.
+---@field emacs? org.Config.Mappings.Emacs|false
+--- Insert-mode Emacs keys in org buffers. Set to `false` to disable the whole section.
+---@field emacs_insert? org.Config.Mappings.EmacsInsert|false
+--- Buffer-local text objects (operator-pending and visual modes). Set to `false` to disable the whole section.
+---@field text_objects? org.Config.Mappings.TextObjects|false
+--- Keys in the agenda buffer (normal mode). Only the agenda action names listed here are recognised. Set to `false` to disable the whole section.
+---@field agenda? org.Config.Mappings.Agenda|false
+--- Keys in the capture buffer (normal mode). Set to `false` to disable the whole section.
+---@field capture? org.Config.Mappings.Capture|false
+--- Keys in the src-block / special edit buffer (normal mode). Set to `false` to disable the whole section.
+---@field edit_src? org.Config.Mappings.EditSrc|false
+
+--- Global normal-mode keys, set on `setup()` (available everywhere).
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.Global: org.Config.Mappings.ActionSection
+--- Agenda dispatcher. Default: `<prefix>a`
+---@field agenda? org.MappingLhs
+--- Capture. Default: `<prefix>c`
+---@field capture? org.MappingLhs
+--- Store link to current location. Default: `<prefix>ls`
+---@field store_link? org.MappingLhs
+--- Go to heading in agenda files. Default: `<prefix>g`
+---@field goto_heading? org.MappingLhs
+--- Go to clocked task. Default: `<prefix>xj`
+---@field clock_goto? org.MappingLhs
+--- Clock out. Default: `<prefix>xo`
+---@field clock_out? org.MappingLhs
+--- Cancel clock. Default: `<prefix>xq`
+---@field clock_cancel? org.MappingLhs
+
+--- Buffer-local keys in org buffers. Keys map in the action's modes (normal by default; some also visual / operator-pending); insert mode only for `meta_return` / `meta_shift_return` (use `org_insert` for insert-mode keys).
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.Org: org.Config.Mappings.ActionSection
+--- Show org keymaps. Default: `g?`
+---@field help? org.MappingLhs
+--- Cycle visibility. Default: `<Tab>`
+---@field cycle? org.MappingLhs
+--- Cycle global visibility. Default: `<S-Tab>`
+---@field global_cycle? org.MappingLhs
+--- Context action (C-c C-c). Default: `{ "<C-c><C-c>", "<prefix><CR>" }`
+---@field context_action? org.MappingLhs
+--- Open link / footnote / date at point. Default: `{ "<CR>", "gx", "<prefix>o" }`
+---@field open_at_point? org.MappingLhs
+--- New heading / item / row. Default: `<M-CR>`
+---@field meta_return? org.MappingLhs
+--- New TODO heading / checkbox item. Default: `<M-S-CR>`
+---@field meta_shift_return? org.MappingLhs
+--- Insert heading after subtree. Default: `<prefix>ih`
+---@field insert_heading? org.MappingLhs
+--- Insert TODO heading. Default: `<prefix>it`
+---@field insert_todo_heading? org.MappingLhs
+--- Insert subheading. Default: `<prefix>is`
+---@field insert_subheading? org.MappingLhs
+--- Insert drawer. Default: `<prefix>id`
+---@field insert_drawer? org.MappingLhs
+--- Insert block (#+begin_...). Default: `<prefix>ib`
+---@field insert_structure_template? org.MappingLhs
+--- Footnote: jump / new / menu (count). Default: `<prefix>if`
+---@field insert_footnote? org.MappingLhs
+--- Promote heading / item. Default: `<<`
+---@field promote_heading? org.MappingLhs
+--- Demote heading / item. Default: `>>`
+---@field demote_heading? org.MappingLhs
+--- Promote subtree. Default: `<s`
+---@field promote_subtree? org.MappingLhs
+--- Demote subtree. Default: `>s`
+---@field demote_subtree? org.MappingLhs
+--- Promote / move column left. Default: `{ "<M-h>", "<M-Left>" }`
+---@field meta_left? org.MappingLhs
+--- Demote / move column right. Default: `{ "<M-l>", "<M-Right>" }`
+---@field meta_right? org.MappingLhs
+--- Move subtree / item / row up. Default: `{ "<M-k>", "<M-Up>" }`
+---@field meta_up? org.MappingLhs
+--- Move subtree / item / row down. Default: `{ "<M-j>", "<M-Down>" }`
+---@field meta_down? org.MappingLhs
+--- Promote subtree / delete column. Default: `<M-H>`
+---@field shift_meta_left? org.MappingLhs
+--- Demote subtree / insert column. Default: `<M-L>`
+---@field shift_meta_right? org.MappingLhs
+--- Delete table row / move up. Default: `<M-K>`
+---@field shift_meta_up? org.MappingLhs
+--- Insert table row / move down. Default: `<M-J>`
+---@field shift_meta_down? org.MappingLhs
+--- Move subtree up. Default: `<prefix>K`
+---@field move_subtree_up? org.MappingLhs
+--- Move subtree down. Default: `<prefix>J`
+---@field move_subtree_down? org.MappingLhs
+--- Copy subtree. Default: `<prefix>hy`
+---@field copy_subtree? org.MappingLhs
+--- Cut subtree. Default: `<prefix>hd`
+---@field cut_subtree? org.MappingLhs
+--- Paste subtree. Default: `<prefix>hp`
+---@field paste_subtree? org.MappingLhs
+--- Clone subtree with time shift. Default: `<prefix>hc`
+---@field clone_subtree? org.MappingLhs
+--- Sort entries / items. Default: `<prefix>hs`
+---@field sort? org.MappingLhs
+--- Narrow to subtree (edit buffer). Default: `<prefix>hn`
+---@field narrow_subtree? org.MappingLhs
+--- Toggle COMMENT keyword. Default: `<prefix>hC`
+---@field toggle_comment? org.MappingLhs
+--- Toggle ARCHIVE tag. Default: `<prefix>hA`
+---@field toggle_archive_tag? org.MappingLhs
+--- Toggle heading. Default: `<prefix>*`
+---@field toggle_heading? org.MappingLhs
+--- Toggle list item. Default: `<prefix>-`
+---@field toggle_item? org.MappingLhs
+--- Emphasize selection. Default: `<prefix>E`
+---@field emphasize? org.MappingLhs
+--- Go to parent heading. Default: `g{`
+---@field goto_parent? org.MappingLhs
+--- Next heading. Default: `]]`
+---@field next_heading? org.MappingLhs
+--- Previous heading. Default: `[[`
+---@field prev_heading? org.MappingLhs
+--- Next sibling heading. Default: `][`
+---@field next_sibling? org.MappingLhs
+--- Previous sibling heading. Default: `[]`
+---@field prev_sibling? org.MappingLhs
+--- Go to heading in buffer. Default: `<prefix>.`
+---@field buffer_goto? org.MappingLhs
+--- Next TODO state. Default: `cit`
+---@field todo_next? org.MappingLhs
+--- Previous TODO state. Default: `ciT`
+---@field todo_prev? org.MappingLhs
+--- Next TODO / date +1 / bullet. Default: `<S-Right>`
+---@field shift_right? org.MappingLhs
+--- Previous TODO / date -1 / bullet. Default: `<S-Left>`
+---@field shift_left? org.MappingLhs
+--- Select TODO state. Default: `<prefix>T`
+---@field todo_select? org.MappingLhs
+--- Priority up / timestamp up. Default: `<S-Up>`
+---@field shift_up? org.MappingLhs
+--- Priority down / timestamp down. Default: `<S-Down>`
+---@field shift_down? org.MappingLhs
+--- Increment timestamp / priority. Default: `<C-a>`
+---@field increment? org.MappingLhs
+--- Decrement timestamp / priority. Default: `<C-x>`
+---@field decrement? org.MappingLhs
+--- Set priority. Default: `<prefix>,`
+---@field priority? org.MappingLhs
+--- Set tags (Visual: change tag in region). Default: `<prefix>t`
+---@field set_tags? org.MappingLhs
+--- Set property. Default: `<prefix>p`
+---@field set_property? org.MappingLhs
+--- Delete property. Default: `<prefix>P`
+---@field delete_property? org.MappingLhs
+--- Get or create ID. Default: `<prefix>lI`
+---@field id_get_create? org.MappingLhs
+--- Schedule. Default: `<prefix>s`
+---@field schedule? org.MappingLhs
+--- Deadline. Default: `<prefix>d`
+---@field deadline? org.MappingLhs
+--- Insert active timestamp. Default: `<prefix>i.`
+---@field timestamp? org.MappingLhs
+--- Insert inactive timestamp. Default: `<prefix>i!`
+---@field timestamp_inactive? org.MappingLhs
+--- Toggle checkbox. Default: `<C-Space>`
+---@field toggle_checkbox? org.MappingLhs
+--- Update statistics cookies. Default: `<prefix>#`
+---@field update_statistics? org.MappingLhs
+--- Cycle list bullet. Default: `<prefix>hb`
+---@field cycle_bullet? org.MappingLhs
+--- Clock in. Default: `<prefix>xi`
+---@field clock_in? org.MappingLhs
+--- Clock out. Default: `<prefix>xo`
+---@field clock_out? org.MappingLhs
+--- Cancel clock. Default: `<prefix>xq`
+---@field clock_cancel? org.MappingLhs
+--- Go to clocked task. Default: `<prefix>xj`
+---@field clock_goto? org.MappingLhs
+--- Set effort. Default: `<prefix>xe`
+---@field set_effort? org.MappingLhs
+--- Next allowed effort value. Default: `<prefix>xE`
+---@field inc_effort? org.MappingLhs
+--- Change effort of clocked task. Default: `<prefix>xm`
+---@field clock_modify_effort? org.MappingLhs
+--- Resolve dangling clocks. Default: `<prefix>xz`
+---@field clock_resolve? org.MappingLhs
+--- Insert clock report. Default: `<prefix>xr`
+---@field clock_report? org.MappingLhs
+--- Display clock sums. Default: `<prefix>xd`
+---@field clock_display? org.MappingLhs
+--- Update dynamic block. Default: `<prefix>xu`
+---@field dblock_update? org.MappingLhs
+--- Update all dynamic blocks. Default: `<prefix>xU`
+---@field dblock_update_all? org.MappingLhs
+--- Column view. Default: `<prefix>C`
+---@field column_view? org.MappingLhs
+--- Insert link. Default: `<prefix>li`
+---@field insert_link? org.MappingLhs
+--- Store link to current location. Default: `<prefix>ls`
+---@field store_link? org.MappingLhs
+--- Toggle link display. Default: `<prefix>lt`
+---@field toggle_link_display? org.MappingLhs
+--- Next link. Default: `<prefix>ln`
+---@field next_link? org.MappingLhs
+--- Previous link. Default: `<prefix>lp`
+---@field prev_link? org.MappingLhs
+--- Insert last stored link. Default: `<prefix>lL`
+---@field insert_last_stored_link? org.MappingLhs
+--- Insert all stored links. Default: `<prefix>lA`
+---@field insert_all_links? org.MappingLhs
+--- Go to entry by ID. Default: `<prefix>lg`
+---@field id_goto? org.MappingLhs
+--- Copy entry ID. Default: `<prefix>ly`
+---@field id_copy? org.MappingLhs
+--- Refile subtree. Default: `<prefix>r`
+---@field refile? org.MappingLhs
+--- Copy subtree to a refile target. Default: `<prefix>R`
+---@field refile_copy? org.MappingLhs
+--- Archive subtree. Default: `<prefix>$`
+---@field archive_subtree? org.MappingLhs
+--- Attachments. Default: `<prefix>A`
+---@field attach? org.MappingLhs
+--- Sparse tree. Default: `<prefix>/`
+---@field sparse_tree? org.MappingLhs
+--- Export dispatcher. Default: `<prefix>e`
+---@field export? org.MappingLhs
+--- Create table / convert region. Default: `<prefix>Tc`
+---@field table_create? org.MappingLhs
+--- Insert table hline. Default: `<prefix>T-`
+---@field table_insert_hline? org.MappingLhs
+--- Recalculate table formulas. Default: `<prefix>Tf`
+---@field table_recalc? org.MappingLhs
+--- Sort table by column. Default: `<prefix>Ts`
+---@field table_sort? org.MappingLhs
+--- Insert table row. Default: `<prefix>Tr`
+---@field table_insert_row? org.MappingLhs
+--- Delete table row. Default: `<prefix>TR`
+---@field table_delete_row? org.MappingLhs
+--- Insert table column. Default: `<prefix>Ti`
+---@field table_insert_column? org.MappingLhs
+--- Delete table column. Default: `<prefix>TI`
+---@field table_delete_column? org.MappingLhs
+--- Copy table field down. Default: `<S-CR>`
+---@field table_copy_down? org.MappingLhs
+--- Transpose table. Default: `<prefix>Tt`
+---@field table_transpose? org.MappingLhs
+--- Rotate table recalculation mark. Default: `<prefix>T#`
+---@field table_rotate_marks? org.MappingLhs
+--- Edit src block / table formulas. Default: `<prefix>'`
+---@field edit_special? org.MappingLhs
+--- Execute src block. Default: `<prefix>be`
+---@field babel_execute? org.MappingLhs
+--- Execute all src blocks. Default: `<prefix>bb`
+---@field babel_execute_buffer? org.MappingLhs
+--- Execute src blocks in subtree. Default: `<prefix>bs`
+---@field babel_execute_subtree? org.MappingLhs
+--- Tangle file (count: block / its target). Default: `<prefix>bt`
+---@field babel_tangle? org.MappingLhs
+--- Remove src block result (count: all). Default: `<prefix>bk`
+---@field babel_remove_result? org.MappingLhs
+--- Next src block. Default: `<prefix>bn`
+---@field babel_next_block? org.MappingLhs
+--- Previous src block. Default: `<prefix>bp`
+---@field babel_prev_block? org.MappingLhs
+--- Tangle another file. Default: `<prefix>bf`
+---@field babel_tangle_file? org.MappingLhs
+--- Show expanded src block. Default: `<prefix>bv`
+---@field babel_expand? org.MappingLhs
+--- Show src block info. Default: `<prefix>bI`
+---@field babel_view_info? org.MappingLhs
+--- Check src block header args. Default: `<prefix>bc`
+---@field babel_check? org.MappingLhs
+--- Insert header argument. Default: `<prefix>bj`
+---@field babel_insert_header_arg? org.MappingLhs
+--- Go to named src block. Default: `<prefix>bg`
+---@field babel_goto_named? org.MappingLhs
+--- Go to named result. Default: `<prefix>br`
+---@field babel_goto_named_result? org.MappingLhs
+--- Go to src block head. Default: `<prefix>bu`
+---@field babel_goto_head? org.MappingLhs
+--- Open src block result. Default: `<prefix>bo`
+---@field babel_open_result? org.MappingLhs
+--- Split / wrap src block. Default: `<prefix>bd`
+---@field babel_demarcate? org.MappingLhs
+--- Add file's blocks to Library of Babel. Default: `<prefix>bi`
+---@field babel_lob_ingest? org.MappingLhs
+
+--- Insert-mode keys in org buffers.
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.OrgInsert: org.Config.Mappings.ActionSection
+--- New heading / item / row. Default: `<M-CR>`
+---@field meta_return? org.MappingLhs
+--- Table: next field / empty heading or item: cycle level. Default: `<Tab>`
+---@field insert_tab? org.MappingLhs
+--- Previous table field. Default: `<S-Tab>`
+---@field table_prev_field? org.MappingLhs
+--- Next table row. Default: `<CR>`
+---@field table_next_row? org.MappingLhs
+--- Copy table field down. Default: `<S-CR>`
+---@field table_copy_down? org.MappingLhs
+
+--- Global Emacs-style keys (Emacs `C-c a`, `C-c c`, `C-c l`).
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.EmacsGlobal: org.Config.Mappings.ActionSection
+--- Agenda dispatcher. Default: `<C-c>a`
+---@field agenda? org.MappingLhs
+--- Capture. Default: `<C-c>c`
+---@field capture? org.MappingLhs
+--- Store link to current location. Default: `<C-c>l`
+---@field store_link? org.MappingLhs
+
+--- Emacs Org keys (org-mode-map), buffer-local in org buffers, on top of the Vim-style `org` keys. Mapped in the action's non-insert modes.
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.Emacs: org.Config.Mappings.ActionSection
+--- Insert heading after subtree. Default: `<C-CR>`
+---@field insert_heading? org.MappingLhs
+--- Insert TODO heading. Default: `<C-S-CR>`
+---@field insert_todo_heading? org.MappingLhs
+--- Table hline and move / insert heading. Default: `<C-c><CR>`
+---@field ctrl_c_ret? org.MappingLhs
+--- Recalc table / toggle heading. Default: `<C-c>*`
+---@field ctrl_c_star? org.MappingLhs
+--- Recalculate all tables. Also available as `C-u C-u C-c *` in a table. Default: `false` (disabled)
+---@field table_recalc_buffer? org.MappingLhs
+--- Table hline / cycle bullet / toggle item. Default: `<C-c>-`
+---@field ctrl_c_minus? org.MappingLhs
+--- Sort table column / entries / items. Default: `<C-c>^`
+---@field ctrl_c_caret? org.MappingLhs
+--- Toggle COMMENT keyword. Default: `<C-c>;`
+---@field toggle_comment? org.MappingLhs
+--- Insert block (#+begin_...). Default: `<C-c><C-,>`
+---@field insert_structure_template? org.MappingLhs
+--- Insert drawer. Default: `<C-c><C-x>d`
+---@field insert_drawer? org.MappingLhs
+--- Footnote: jump / new / menu (count). Default: `<C-c><C-x>f`
+---@field insert_footnote? org.MappingLhs
+--- Emphasize selection. Default: `<C-c><C-x><C-f>`
+---@field emphasize? org.MappingLhs
+--- Clone subtree with time shift. Default: `<C-c><C-x>c`
+---@field clone_subtree? org.MappingLhs
+--- Copy table region / subtree. Default: `<C-c><C-x><M-w>`
+---@field copy_special? org.MappingLhs
+--- Cut table region / subtree. Default: `<C-c><C-x><C-w>`
+---@field cut_special? org.MappingLhs
+--- Paste table rectangle / subtree. Default: `<C-c><C-x><C-y>`
+---@field paste_special? org.MappingLhs
+--- Select subtree. Default: `<C-c>@`
+---@field mark_subtree? org.MappingLhs
+--- Subtree in split edit buffer. Default: `<C-c><C-x>b`
+---@field indirect_subtree? org.MappingLhs
+--- Show all branches of subtree. Default: `<C-c><C-k>`
+---@field show_branches? org.MappingLhs
+--- Show children. Default: `<C-c><Tab>`
+---@field show_children? org.MappingLhs
+--- Reveal context around cursor. Default: `<C-c><C-r>`
+---@field reveal? org.MappingLhs
+--- Cycle subtree, even when archived. Default: `<C-c><C-Tab>`
+---@field force_cycle_archived? org.MappingLhs
+--- Copy visible text. Default: `<C-c><C-x>v`
+---@field copy_visible? org.MappingLhs
+--- Next heading. Default: `<C-c><C-n>`
+---@field next_heading? org.MappingLhs
+--- Previous heading. Default: `<C-c><C-p>`
+---@field prev_heading? org.MappingLhs
+--- Next sibling heading. Default: `<C-c><C-f>`
+---@field next_sibling? org.MappingLhs
+--- Previous sibling heading. Default: `<C-c><C-b>`
+---@field prev_sibling? org.MappingLhs
+--- Go to parent heading. Default: `<C-c><C-u>`
+---@field goto_parent? org.MappingLhs
+--- Go to heading in buffer. Default: `<C-c><C-j>`
+---@field buffer_goto? org.MappingLhs
+--- Change TODO state (C-c C-t). Default: `<C-c><C-t>`
+---@field todo? org.MappingLhs
+--- Next TODO keyword set. Default: `<C-S-Right>`
+---@field todo_next_sequence? org.MappingLhs
+--- Previous TODO keyword set. Default: `<C-S-Left>`
+---@field todo_prev_sequence? org.MappingLhs
+--- Set priority. Default: `<C-c>,`
+---@field priority? org.MappingLhs
+--- Set tags (Visual: change tag in region). Default: `<C-c><C-q>`
+---@field set_tags? org.MappingLhs
+--- Set property. Default: `<C-c><C-x>p`
+---@field set_property? org.MappingLhs
+--- Toggle ORDERED property. Default: `<C-c><C-x>o`
+---@field toggle_ordered? org.MappingLhs
+--- Add note. Default: `<C-c><C-z>`
+---@field add_note? org.MappingLhs
+--- Schedule. Default: `<C-c><C-s>`
+---@field schedule? org.MappingLhs
+--- Deadline. Default: `<C-c><C-d>`
+---@field deadline? org.MappingLhs
+--- Insert active timestamp. Default: `<C-c>.`
+---@field timestamp? org.MappingLhs
+--- Insert inactive timestamp. Default: `<C-c>!`
+---@field timestamp_inactive? org.MappingLhs
+--- Insert today's date. Default: `<C-c><`
+---@field date_today? org.MappingLhs
+--- Open calendar. Default: `<C-c>>`
+---@field goto_calendar? org.MappingLhs
+--- Evaluate time range. Default: `<C-c><C-y>`
+---@field evaluate_time_range? org.MappingLhs
+--- Toggle checkbox. Default: `<C-c><C-x><C-b>`
+---@field toggle_checkbox? org.MappingLhs
+--- Update statistics cookies. Default: `<C-c>#`
+---@field update_statistics? org.MappingLhs
+--- Clock in. Default: `{ "<C-c><C-x><C-i>", "<C-c><C-x><Tab>" }`
+---@field clock_in? org.MappingLhs
+--- Clock in last task. Default: `<C-c><C-x><C-x>`
+---@field clock_in_last? org.MappingLhs
+--- Clock out. Default: `<C-c><C-x><C-o>`
+---@field clock_out? org.MappingLhs
+--- Cancel clock. Default: `<C-c><C-x><C-q>`
+---@field clock_cancel? org.MappingLhs
+--- Go to clocked task. Default: `<C-c><C-x><C-j>`
+---@field clock_goto? org.MappingLhs
+--- Insert clock report. Default: `<C-c><C-x><C-r>`
+---@field clock_report? org.MappingLhs
+--- Display clock sums. Default: `<C-c><C-x><C-d>`
+---@field clock_display? org.MappingLhs
+--- Set effort. Default: `<C-c><C-x>e`
+---@field set_effort? org.MappingLhs
+--- Next allowed effort value. Default: `<C-c><C-x>E`
+---@field inc_effort? org.MappingLhs
+--- Change effort of clocked task. Default: `<C-c><C-x><C-e>`
+---@field clock_modify_effort? org.MappingLhs
+--- Resolve dangling clocks. Default: `<C-c><C-x><C-z>`
+---@field clock_resolve? org.MappingLhs
+--- Shift CLOCK timestamps up. Default: `<C-S-Up>`
+---@field shift_control_up? org.MappingLhs
+--- Shift CLOCK timestamps down. Default: `<C-S-Down>`
+---@field shift_control_down? org.MappingLhs
+--- Update dynamic block. Default: `<C-c><C-x><C-u>`
+---@field dblock_update? org.MappingLhs
+--- Column view. Default: `<C-c><C-x><C-c>`
+---@field column_view? org.MappingLhs
+--- Insert columnview block. Default: `<C-c><C-x>i`
+---@field insert_columnview? org.MappingLhs
+--- Insert dynamic block. Default: `<C-c><C-x>x`
+---@field insert_dblock? org.MappingLhs
+--- Start relative timer. Default: `<C-c><C-x>0`
+---@field timer_start? org.MappingLhs
+--- Stop timer. Default: `<C-c><C-x>_`
+---@field timer_stop? org.MappingLhs
+--- Pause / continue timer. Default: `<C-c><C-x>,`
+---@field timer_pause? org.MappingLhs
+--- Insert timer value. Default: `<C-c><C-x>.`
+---@field timer_insert? org.MappingLhs
+--- Insert timer list item. Default: `<C-c><C-x>-`
+---@field timer_item? org.MappingLhs
+--- Start countdown timer. Default: `<C-c><C-x>;`
+---@field timer_countdown? org.MappingLhs
+--- Insert link. Default: `<C-c><C-l>`
+---@field insert_link? org.MappingLhs
+--- Open link at point / entry links. Default: `<C-c><C-o>`
+---@field open_link_or_entry? org.MappingLhs
+--- Insert last stored link. Default: `<C-c><M-l>`
+---@field insert_last_stored_link? org.MappingLhs
+--- Insert all stored links. Default: `<C-c><C-M-l>`
+---@field insert_all_links? org.MappingLhs
+--- Jump back from followed link. Default: `<C-c>&`
+---@field mark_ring_goto? org.MappingLhs
+--- Next link. Default: `<C-c><C-x><C-n>`
+---@field next_link? org.MappingLhs
+--- Previous link. Default: `<C-c><C-x><C-p>`
+---@field prev_link? org.MappingLhs
+--- Refile subtree. Default: `<C-c><C-w>`
+---@field refile? org.MappingLhs
+--- Copy subtree to a refile target. Default: `<C-c><M-w>`
+---@field refile_copy? org.MappingLhs
+--- Archive subtree. Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
+---@field archive_subtree? org.MappingLhs
+--- Toggle ARCHIVE tag. Default: `<C-c><C-x>a`
+---@field toggle_archive_tag? org.MappingLhs
+--- Archive to Archive sibling. Default: `<C-c><C-x>A`
+---@field archive_to_sibling? org.MappingLhs
+--- Attachments. Default: `<C-c><C-a>`
+---@field attach? org.MappingLhs
+--- Add file to agenda files. Default: `<C-c>[`
+---@field agenda_file_to_front? org.MappingLhs
+--- Remove file from agenda files. Default: `<C-c>]`
+---@field agenda_file_remove? org.MappingLhs
+--- Visit next agenda file. Default: `{ "<C-'>", "<C-,>" }`
+---@field cycle_agenda_files? org.MappingLhs
+--- Lock agenda to subtree / file. Default: `<C-c><C-x><`
+---@field agenda_set_restriction_lock? org.MappingLhs
+--- Remove agenda restriction lock. Default: `<C-c><C-x>>`
+---@field agenda_remove_restriction_lock? org.MappingLhs
+--- Sparse tree. Default: `<C-c>/`
+---@field sparse_tree? org.MappingLhs
+--- Tags / property match sparse tree. Default: `<C-c>\`
+---@field tags_sparse_tree? org.MappingLhs
+--- Export dispatcher. Default: `<C-c><C-e>`
+---@field export? org.MappingLhs
+--- Edit src block / table formulas. Default: `<C-c>'`
+---@field edit_special? org.MappingLhs
+--- Create table / convert region. Default: `<C-c>|`
+---@field table_create? org.MappingLhs
+--- Set column / field formula. Default: `<C-c>=`
+---@field table_formula? org.MappingLhs
+--- Edit table field. Default: `<C-c>``
+---@field table_edit_field? org.MappingLhs
+--- Sum column / rectangle. Default: `<C-c>+`
+---@field table_sum? org.MappingLhs
+--- Blank table field(s). Default: `<C-c><Space>`
+---@field table_blank_field? org.MappingLhs
+--- Toggle table coordinates. Default: `<C-c>}`
+---@field table_coordinates? org.MappingLhs
+--- Table field info. Default: `<C-c>?`
+---@field table_field_info? org.MappingLhs
+--- Rotate table recalculation mark. Default: `<C-#>`
+---@field table_rotate_marks? org.MappingLhs
+--- Execute src block. Default: `{ "<C-c><C-v>e", "<C-c><C-v><C-e>" }`
+---@field babel_execute? org.MappingLhs
+--- Execute all src blocks. Default: `{ "<C-c><C-v>b", "<C-c><C-v><C-b>" }`
+---@field babel_execute_buffer? org.MappingLhs
+--- Execute src blocks in subtree. Default: `{ "<C-c><C-v>s", "<C-c><C-v><C-s>" }`
+---@field babel_execute_subtree? org.MappingLhs
+--- Tangle file (count: block / its target). Default: `{ "<C-c><C-v>t", "<C-c><C-v><C-t>" }`
+---@field babel_tangle? org.MappingLhs
+--- Remove src block result (count: all). Default: `<C-c><C-v>k`
+---@field babel_remove_result? org.MappingLhs
+--- Next src block. Default: `{ "<C-c><C-v>n", "<C-c><C-v><C-n>" }`
+---@field babel_next_block? org.MappingLhs
+--- Previous src block. Default: `{ "<C-c><C-v>p", "<C-c><C-v><C-p>" }`
+---@field babel_prev_block? org.MappingLhs
+--- Tangle another file. Default: `{ "<C-c><C-v>f", "<C-c><C-v><C-f>" }`
+---@field babel_tangle_file? org.MappingLhs
+--- Show expanded src block. Default: `{ "<C-c><C-v>v", "<C-c><C-v><C-v>" }`
+---@field babel_expand? org.MappingLhs
+--- Show src block info. Default: `<C-c><C-v>I`
+---@field babel_view_info? org.MappingLhs
+--- Check src block header args. Default: `{ "<C-c><C-v>c", "<C-c><C-v><C-c>" }`
+---@field babel_check? org.MappingLhs
+--- Insert header argument. Default: `{ "<C-c><C-v>j", "<C-c><C-v><C-j>" }`
+---@field babel_insert_header_arg? org.MappingLhs
+--- Go to named src block. Default: `<C-c><C-v>g`
+---@field babel_goto_named? org.MappingLhs
+--- Go to named result. Default: `{ "<C-c><C-v>r", "<C-c><C-v><C-r>" }`
+---@field babel_goto_named_result? org.MappingLhs
+--- Go to src block head. Default: `{ "<C-c><C-v>u", "<C-c><C-v><C-u>" }`
+---@field babel_goto_head? org.MappingLhs
+--- Open src block result. Default: `{ "<C-c><C-v>o", "<C-c><C-v><C-o>" }`
+---@field babel_open_result? org.MappingLhs
+--- Split / wrap src block. Default: `{ "<C-c><C-v>d", "<C-c><C-v><C-d>" }`
+---@field babel_demarcate? org.MappingLhs
+--- Add file's blocks to Library of Babel. Default: `{ "<C-c><C-v>i", "<C-c><C-v>l", "<C-c><C-v><C-l>" }`
+---@field babel_lob_ingest? org.MappingLhs
+
+--- Insert-mode Emacs keys in org buffers.
+--- Besides the fields below, any `org.ActionName` is accepted as a key.
+---@class org.Config.Mappings.EmacsInsert: org.Config.Mappings.ActionSection
+--- Insert heading after subtree. Default: `<C-CR>`
+---@field insert_heading? org.MappingLhs
+--- Insert TODO heading. Default: `<C-S-CR>`
+---@field insert_todo_heading? org.MappingLhs
+
+--- Buffer-local text objects (operator-pending and visual modes).
+---@class org.Config.Mappings.TextObjects
+--- Text object: inner heading (the heading's body). Default: `ih`
+---@field inner_heading? org.MappingLhs
+--- Text object: around heading (heading line and body, without children). Default: `ah`
+---@field around_heading? org.MappingLhs
+--- Text object: inner subtree (subtree contents without the heading line). Default: `ir`
+---@field inner_subtree? org.MappingLhs
+--- Text object: around subtree (whole subtree). Default: `ar`
+---@field around_subtree? org.MappingLhs
+
+--- Keys in the agenda buffer (normal mode). Only the agenda action names listed here are recognised.
+---@class org.Config.Mappings.Agenda
+--- Quit the agenda window. Default: `q`
+---@field quit? org.MappingLhs
+--- Exit the agenda and wipe agenda-opened buffers. Default: `x`
+---@field exit? org.MappingLhs
+--- Rebuild the agenda (refresh). Default: `r`
+---@field redo? org.MappingLhs
+--- Go forward one span (day/week/...; count: that many). Default: `f`
+---@field later? org.MappingLhs
+--- Go back one span (day/week/...; count: that many). Default: `b`
+---@field earlier? org.MappingLhs
+--- Go to today. Default: `.`
+---@field today? org.MappingLhs
+--- Jump to a date (prompted). Emacs: `j`, kept free for motion here. Default: `gd`
+---@field goto_date? org.MappingLhs
+--- Switch to day view. Default: `vd`
+---@field day_view? org.MappingLhs
+--- Switch to week view. Default: `vw`
+---@field week_view? org.MappingLhs
+--- Switch to fortnight (two-week) view. Default: `vt`
+---@field fortnight_view? org.MappingLhs
+--- Switch to month view. Default: `vm`
+---@field month_view? org.MappingLhs
+--- Switch to year view. Default: `vy`
+---@field year_view? org.MappingLhs
+--- Reset the view span to the default. Default: `v<Space>`
+---@field reset_view? org.MappingLhs
+--- Go to the item's location in another window. Default: `<Tab>`
+---@field ["goto"] org.MappingLhs?
+--- Go to the item's location in this window. Default: `<CR>`
+---@field switch_to? org.MappingLhs
+--- Show the item's location in another window, keeping focus in the agenda. Default: `<Space>`
+---@field show? org.MappingLhs
+--- Show the item in the other window and recenter it. Default: `L`
+---@field recenter? org.MappingLhs
+--- Close all other windows. Default: `o`
+---@field delete_other_windows? org.MappingLhs
+--- Toggle follow mode (the other window tracks the cursor). Default: `{ "F", "vf" }`
+---@field follow_mode? org.MappingLhs
+--- Change the item's TODO state (fast selection when keys are defined, else cycle). Default: `{ "t", "<C-c><C-t>" }`
+---@field todo? org.MappingLhs
+--- Cycle the item's TODO state forward. Default: `<C-S-Right>`
+---@field todo_next? org.MappingLhs
+--- Cycle the item's TODO state backward. Default: `<C-S-Left>`
+---@field todo_prev? org.MappingLhs
+--- Set the item's priority. Default: `{ ",", "<C-c>," }`
+---@field priority? org.MappingLhs
+--- Raise the item's priority. Default: `{ "+", "<S-Up>" }`
+---@field priority_up? org.MappingLhs
+--- Lower the item's priority. Default: `{ "-", "<S-Down>" }`
+---@field priority_down? org.MappingLhs
+--- Set the item's tags. Default: `{ ":", "<C-c><C-q>", "<C-c><C-c>" }`
+---@field set_tags? org.MappingLhs
+--- Echo the item's tags. Default: `T`
+---@field show_tags? org.MappingLhs
+--- Set a property on the item. Default: `<C-c><C-x>p`
+---@field set_property? org.MappingLhs
+--- Schedule the item. Default: `{ "<C-c><C-s>", "s" }`
+---@field schedule? org.MappingLhs
+--- Set the item's deadline. Default: `{ "<C-c><C-d>", "d" }`
+---@field deadline? org.MappingLhs
+--- Shift the item's date one day later (count: days). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
+---@field date_later? org.MappingLhs
+--- Shift the item's date one day earlier (count: days). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
+---@field date_earlier? org.MappingLhs
+--- Change the item's date via prompt (deadline or scheduled, by item kind). Default: `>`
+---@field date_prompt? org.MappingLhs
+--- Clock in the item. Default: `{ "I", "<C-c><C-x><C-i>" }`
+---@field clock_in? org.MappingLhs
+--- Clock out. Default: `{ "O", "<C-c><C-x><C-o>" }`
+---@field clock_out? org.MappingLhs
+--- Cancel the running clock. Default: `{ "X", "<C-c><C-x><C-x>" }`
+---@field clock_cancel? org.MappingLhs
+--- Go to the clocked task. Default: `{ "J", "<C-c><C-x><C-j>" }`
+---@field clock_goto? org.MappingLhs
+--- Set the item's effort. Default: `{ "e", "<C-c><C-x>e" }`
+---@field set_effort? org.MappingLhs
+--- Start a countdown timer. Default: `;`
+---@field timer? org.MappingLhs
+--- Lock the agenda to the item's subtree / file. Default: `<C-c><C-x><`
+---@field restriction_lock? org.MappingLhs
+--- Remove the agenda restriction lock. Default: `<C-c><C-x>>`
+---@field remove_restriction_lock? org.MappingLhs
+--- Refile the item. Default: `{ "<C-c><C-w>", "R" }`
+---@field refile? org.MappingLhs
+--- Archive the item's subtree. Default: `{ "$", "<C-c>$", "<C-c><C-x><C-s>" }`
+---@field archive? org.MappingLhs
+--- Archive the item's subtree, after confirmation. Default: `{ "a", "<C-c><C-x><C-a>" }`
+---@field archive_default? org.MappingLhs
+--- Move the item to its Archive sibling. Default: `<C-c><C-x>A`
+---@field archive_sibling? org.MappingLhs
+--- Toggle the item's ARCHIVE tag. Default: `<C-c><C-x>a`
+---@field toggle_archive_tag? org.MappingLhs
+--- Delete the item's entry from its file (confirmation per `agenda.confirm_kill`). Default: `<C-k>`
+---@field kill? org.MappingLhs
+--- Open a link in the item's entry. Default: `<C-c><C-o>`
+---@field open_link? org.MappingLhs
+--- Add a note to the item. Default: `{ "z", "<C-c><C-z>" }`
+---@field add_note? org.MappingLhs
+--- Toggle log mode (closed / clocked / state-changed entries). Default: `{ "l", "vl" }`
+---@field log_mode? org.MappingLhs
+--- Toggle log mode showing all log entries. Default: `vL`
+---@field log_all_mode? org.MappingLhs
+--- Toggle the clock report table. Default: `{ "C", "vR" }`
+---@field clockreport_mode? org.MappingLhs
+--- Toggle showing entry text under each item. Default: `{ "E", "vE" }`
+---@field entry_text_mode? org.MappingLhs
+--- Toggle including archived trees. Default: `va`
+---@field archives_mode? org.MappingLhs
+--- Toggle including archived trees and archive files. Default: `vA`
+---@field archives_files_mode? org.MappingLhs
+--- Toggle including inactive timestamps. Default: `v[`
+---@field inactive_mode? org.MappingLhs
+--- Toggle the time grid. Default: `{ "G", "vG" }`
+---@field time_grid? org.MappingLhs
+--- Toggle showing deadlines. Default: `{ "!", "v!" }`
+---@field toggle_deadlines? org.MappingLhs
+--- Toggle dimming of blocked tasks. Default: `#`
+---@field dim_blocked? org.MappingLhs
+--- Filter by tags (`+tag` include, `-tag` exclude; empty clears). Default: `/`
+---@field filter_tag? org.MappingLhs
+--- Filter by the category at point (toggle). Default: `<`
+---@field filter_category? org.MappingLhs
+--- Filter by regexp (prefix `-` to exclude; empty clears). Default: `=`
+---@field filter_regexp? org.MappingLhs
+--- Filter by effort (e.g. `<1:00`, `>30`; empty clears). Default: `_`
+---@field filter_effort? org.MappingLhs
+--- Filter by the item's top-level headline (toggle). Default: `^`
+---@field filter_top_headline? org.MappingLhs
+--- Remove all filters. Default: `|`
+---@field filter_remove? org.MappingLhs
+--- Search view: add a required word to the query. Default: `[`
+---@field query_add? org.MappingLhs
+--- Search view: add an excluded word to the query. Default: `]`
+---@field query_subtract? org.MappingLhs
+--- Search view: add a required regexp to the query. Default: `{`
+---@field query_add_re? org.MappingLhs
+--- Search view: add an excluded regexp to the query. Default: `}`
+---@field query_subtract_re? org.MappingLhs
+--- Mark the item for bulk action. Default: `m`
+---@field mark? org.MappingLhs
+--- Unmark the item. Default: `u`
+---@field unmark? org.MappingLhs
+--- Remove all marks. Default: `U`
+---@field unmark_all? org.MappingLhs
+--- Toggle the item's mark. Default: `<M-m>`
+---@field toggle_mark? org.MappingLhs
+--- Mark all items. Default: `*`
+---@field mark_all? org.MappingLhs
+--- Toggle marks on all items. Default: `<M-*>`
+---@field toggle_mark_all? org.MappingLhs
+--- Mark items matching a regexp. Default: `%`
+---@field mark_regexp? org.MappingLhs
+--- Run a bulk action on marked items. Default: `B`
+---@field bulk_action? org.MappingLhs
+--- Move to the next item. Default: `n`
+---@field next_item? org.MappingLhs
+--- Move to the previous item. Default: `p`
+---@field prev_item? org.MappingLhs
+--- Move to the next date line. Default: `<C-c><C-n>`
+---@field next_date_line? org.MappingLhs
+--- Move to the previous date line. Default: `<C-c><C-p>`
+---@field prev_date_line? org.MappingLhs
+--- Move to the next agenda block. Default: `<C-Down>`
+---@field forward_block? org.MappingLhs
+--- Move to the previous agenda block. Default: `<C-Up>`
+---@field backward_block? org.MappingLhs
+--- Save all modified org buffers. Default: `<C-x><C-s>`
+---@field save_all? org.MappingLhs
+--- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `c`
+---@field capture? org.MappingLhs
+--- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`
+---@field export? org.MappingLhs
+--- Show the agenda keymaps. Default: `g?`
+---@field help? org.MappingLhs
+
+--- Keys in the capture buffer (normal mode).
+---@class org.Config.Mappings.Capture
+--- Finalize the capture and file it. Default: `{ "<C-c><C-c>", "<prefix>w" }`
+---@field finalize? org.MappingLhs
+--- Abort the capture. Default: `{ "<C-c><C-k>", "<prefix>k" }`
+---@field kill? org.MappingLhs
+--- Finalize the capture and refile it (prompts for a target). Default: `{ "<C-c><C-w>", "<prefix>r" }`
+---@field refile? org.MappingLhs
+
+--- Keys in the src-block / special edit buffer (normal mode).
+---@class org.Config.Mappings.EditSrc
+--- Write the edit buffer back and close it. Default: `{ "<C-c>'", "<prefix>'" }`
+---@field save_exit? org.MappingLhs
+--- Close the edit buffer, discarding changes. Default: `{ "<C-c><C-k>", "<prefix>k" }`
+---@field abort? org.MappingLhs

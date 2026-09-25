@@ -282,7 +282,10 @@ function M.show_remaining()
   return true
 end
 
---- Statusline component: "⏲ 0:12:34" (empty without a timer).
+--- Statusline component: `"⏲ 0:12:34"`, with `" (paused)"` appended while
+--- paused (empty without a timer). `require("org").statusline()` combines
+--- this with the clock.
+---@return string
 function M.statusline()
   if not M.state then
     return ""

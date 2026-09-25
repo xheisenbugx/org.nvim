@@ -8,8 +8,22 @@ local utils = require("org.utils")
 
 local M = {}
 
+---@alias org.DblockWriter fun(params: table<string, any>, ctx: { bufnr: integer, start_line: integer, end_line: integer, name: string }): string[]|nil
+
+---@type table<string, org.DblockWriter>
 M.writers = {}
 
+--- Register a writer for `#+BEGIN: name` blocks (name is case-insensitive).
+--- `params` are the parsed `:key value` pairs of the BEGIN line; the
+--- returned lines replace the block's content.
+---
+--- ```lua
+--- require("org.dblock").register("myblock", function(params, ctx)
+---   return { "| generated | table |" }
+--- end)
+--- ```
+---@param name string
+---@param fn org.DblockWriter
 function M.register(name, fn)
   M.writers[name:lower()] = fn
 end
@@ -139,7 +153,7 @@ function M.update_block(bufnr, block)
     return false
   end
   local indent = vim.api.nvim_buf_get_lines(bufnr, block.start_line - 1, block.start_line, false)[1]:match("^(%s*)")
-  if indent ~= "" then
+  if indent ~= "" and lines then
     lines = vim.tbl_map(function(l)
       return indent .. l
     end, lines)
@@ -189,7 +203,7 @@ function M.insert_clocktable()
     return M.update_block(bufnr, existing)
   end
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local maxlevel = ((require("org.config").opts.clock or {}).clocktable_default or {}).maxlevel or 2
+  local maxlevel = ((require("org.config").opts.clock or {}).clocktable_default or {}).maxlevel or 3
   vim.api.nvim_buf_set_lines(bufnr, lnum, lnum, false, {
     "#+BEGIN: clocktable :scope file :maxlevel " .. maxlevel,
     "#+END:",

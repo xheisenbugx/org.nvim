@@ -1,0 +1,250 @@
+---@meta
+
+-- Types for the `clock`, `links`, `id`, `attach`, `babel` and `export`
+-- sections of `require("org").setup({...})`. Annotations only.
+
+---------------------------------------------------------------------------
+-- Clocking
+---------------------------------------------------------------------------
+
+---Clocking options.
+---@class org.Config.Clock
+---Clock out when the clocked task is marked DONE (`org-clock-out-when-done`).
+---`true` = any DONE state, `false` = never, or a list of TODO keywords that
+---clock out when switched to. (default: `true`)
+---@field out_when_done? boolean|string[]
+---Drawer for CLOCK lines (`org-clock-into-drawer`). `true` = the log drawer
+---(`log_into_drawer`, else `LOGBOOK`), `false` = no drawer, a string = that
+---drawer name. The `CLOCK_INTO_DRAWER` property overrides it. (default: `true`)
+---@field into_drawer? boolean|string
+---Remove clock lines of zero duration on clock out
+---(`org-clock-out-remove-zero-time-clocks`). (default: `true`)
+---@field out_remove_zero_time? boolean
+---TODO state to switch the task to on clock in (`org-clock-in-switch-to-state`):
+---a keyword, or a function receiving the task's current keyword (`nil` when
+---it has none) and returning the new keyword, or `nil` to keep it.
+---Ignored unless the result is a TODO keyword of the file. (default: `nil`)
+---@field in_switch_to_state? string|fun(keyword: string?): string?
+---TODO state to switch the task to on clock out (`org-clock-out-switch-to-state`):
+---a keyword, or a function receiving the task's current keyword (`nil` when
+---it has none) and returning the new keyword, or `nil` to keep it. (default: `nil`)
+---@field out_switch_to_state? string|fun(keyword: string?): string?
+---Notify once when the clocked time reaches the task's effort. (default: `true`)
+---@field notify_effort? boolean
+---Number of tasks remembered in the clock history, used by clock in with a
+---count (`org-clock-history-length`). (default: `35`)
+---@field history_length? integer
+---Start a new clock where the last one stopped (`org-clock-continuously`).
+---(default: `false`)
+---@field continuously? boolean
+---Icon prefixed to the running clock in the statusline. (default: `"⏱"`)
+---@field statusline_icon? string
+---Default parameters for clock tables (`org-clocktable-defaults`); block
+---parameters override them. (default: `{ maxlevel = 3, scope = "file" }`)
+---@field clocktable_default? org.Config.Clock.ClocktableDefault
+---Persist the running clock and clock history across restarts
+---(`org-clock-persist`). (default: `true`)
+---@field persist? boolean
+---File where the clock state is persisted (`org-clock-persist-file`).
+---(default: `stdpath("data") .. "/org/clock.json"`)
+---@field persist_file? string
+
+---Default clock table parameters (`org-clocktable-defaults`).
+---@class org.Config.Clock.ClocktableDefault
+---Maximum headline level shown (`:maxlevel`). (default: `3`)
+---@field maxlevel? integer
+---Files/subtrees covered (`:scope`): `"file"`, `"file-with-archives"`,
+---`"subtree"`, `"tree"`, `"treeN"` (e.g. `"tree2"`), `"agenda"`,
+---`"agenda-with-archives"`, or a file path / list like `'("a.org" "b.org")'`.
+---(default: `"file"`)
+---@field scope? "file"|"file-with-archives"|"subtree"|"tree"|"agenda"|"agenda-with-archives"|string
+---Time block (`:block`): `"today"`, `"yesterday"`, `"thisweek"`,
+---`"lastweek"`, `"thismonth"`, `"lastmonth"`, `"thisyear"`, `"lastyear"`,
+---with an optional `-N` offset (e.g. `"today-1"`), or `"YYYY-MM-DD"`,
+---`"YYYY-WNN"`, ... `nil` = all time. (default: `nil`)
+---@field block? "today"|"yesterday"|"thisweek"|"lastweek"|"thismonth"|"lastmonth"|"thisyear"|"lastyear"|string
+
+---------------------------------------------------------------------------
+-- Links
+---------------------------------------------------------------------------
+
+---A link as passed to a custom link type handler.
+---@class org.Config.Links.Link
+---Link target as written inside `[[...]]`.
+---@field target string
+---Link type (the scheme before `:`).
+---@field type string
+---Part after `type:`.
+---@field path string
+
+---Handler that opens a custom link type (`org-link-set-parameters` `:follow`).
+---Receives the path after `type:` and the classified link.
+---@alias org.Config.Links.TypeHandler fun(path: string, link: org.Config.Links.Link): any
+
+---External application for `links.file_apps`: a shell command (the path is
+---appended, or substituted for `%s`), `"system"`/`"default"` for the OS
+---opener, or a function receiving the absolute path.
+---@alias org.Config.Links.FileApp "system"|"default"|string|fun(path: string): any
+
+---Link options.
+---@class org.Config.Links
+---Link abbreviations like `#+LINK:` (`org-link-abbrev-alist`), e.g.
+---`{ gh = "https://github.com/%s" }`. In the replacement `%s` is the tag and
+---`%h` the URL-encoded tag; otherwise the tag is appended. A function
+---receiving the tag and returning the URL is also accepted. (default: `{}`)
+---@field abbreviations? table<string, string|fun(tag: string): string>
+---Custom link types, e.g. `{ jira = function(path, link) ... end }`
+---(`org-link-set-parameters` `:follow`). (default: `{}`)
+---@field types? table<string, org.Config.Links.TypeHandler>
+---Ask before running `shell:` links (`org-link-shell-confirm-function`).
+---(default: `true`)
+---@field confirm_shell? boolean
+---Store links to headlines as `id:` links (`org-id-link-to-org-use-id`):
+---`true` = always, creating an ID if needed; `"create-if-interactive"` =
+---create only when storing interactively; `"use-existing"` = only when the
+---headline already has an ID; `false` = never. (default: `"create-if-interactive"`)
+---@field use_id? boolean|"create-if-interactive"|"use-existing"
+---Open files with these (lowercase) extensions with an external app
+---(`org-file-apps`), e.g. `{ pdf = "open" }` or `{ pdf = "zathura %s" }`.
+---(default: `{}`)
+---@field file_apps? table<string, org.Config.Links.FileApp>
+
+---------------------------------------------------------------------------
+-- IDs / attachments
+---------------------------------------------------------------------------
+
+---ID options.
+---@class org.Config.Id
+---JSON file mapping IDs to files (`org-id-locations-file`).
+---(default: `stdpath("data") .. "/org/id-locations.json"`)
+---@field locations_file? string
+---How new IDs are generated (`org-id-method`): `"uuid"` or `"ts"`
+---(timestamp like `20240101T120000.123456`). (default: `"uuid"`)
+---@field method? "uuid"|"ts"
+
+---Attachment options.
+---@class org.Config.Attach
+---Attachment root (`org-attach-id-dir`), relative to the org file's
+---directory unless absolute. Files go to `<dir>/<ID[1:2]>/<ID[3:]>`.
+---(default: `"data/"`)
+---@field dir? string
+---Default attach method (`org-attach-method`): `"cp"` copy, `"mv"` move,
+---`"ln"` symbolic link (absolute path), `"lns"` symbolic link (relative
+---path). (default: `"cp"`)
+---@field method? "cp"|"mv"|"ln"|"lns"
+
+---------------------------------------------------------------------------
+-- Babel
+---------------------------------------------------------------------------
+
+---How to run one src block language.
+---@class org.Config.Babel.Language
+---Command that runs the program: a string (split on whitespace) or an argv
+---list. The code is written to a temp file whose path is appended (sqlite
+---gets the `:db` path and the code on stdin). Required to evaluate a
+---language not in the defaults; `lua` always runs inside Neovim.
+---@field cmd? string|string[]
+---Extension of the temp file / tangled file, e.g. `"py"`. Defaults to a
+---built-in per-language table, else the language name.
+---@field ext? string
+
+---Default header arguments (`org-babel-default-header-args`). Keys are
+---header argument names without `:`; values are strings.
+---@class org.Config.Babel.HeaderArgs
+---(default: `"replace"`)
+---@field results? string
+---(default: `"code"`)
+---@field exports? "code"|"results"|"both"|"none"|string
+---(default: `"none"`)
+---@field session? string
+---(default: `"no"`)
+---@field noweb? "yes"|"no"|"tangle"|"no-export"|"strip-export"|"eval"|string
+---(default: `"no"`)
+---@field tangle? "yes"|"no"|string
+---@field [string] string|number
+
+---Source block evaluation (Babel) options.
+---@class org.Config.Babel
+---Ask before evaluating a src block (`org-confirm-babel-evaluate`); `:eval`
+---header args still apply. (default: `true`)
+---@field confirm_evaluate? boolean
+---Results with at least this many lines use an example block instead of
+---`: ` lines (`org-babel-min-lines-for-block-output`). (default: `10`)
+---@field min_lines_for_block_output? integer
+---Kill evaluation after this many milliseconds. (default: `30000`)
+---@field timeout? integer
+---Default header arguments, merged key by key with the defaults.
+---(default: `{ results = "replace", exports = "code", session = "none", noweb = "no", tangle = "no" }`)
+---@field default_header_args? org.Config.Babel.HeaderArgs
+---Languages that can be evaluated, merged key by key with the defaults
+---(sh, shell, bash, zsh, fish, python, python3, lua, js, javascript,
+---typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, awk). Set a
+---language to `false` to remove it.
+---@field languages? table<string, org.Config.Babel.Language|false>
+
+---------------------------------------------------------------------------
+-- Export
+---------------------------------------------------------------------------
+
+---HTML exporter options.
+---@class org.Config.Export.Html
+---Stylesheet: `nil` = built-in stylesheet, `false` = none, a string = CSS
+---put in a `<style>` element (`org-html-head-include-default-style`).
+---(default: `nil`)
+---@field style? string|false
+---Extra markup appended to `<head>` (`org-html-head-extra`). (default: `""`)
+---@field head_extra? string
+---Load MathJax when the document contains math. (default: `true`)
+---@field mathjax? boolean
+
+---Pandoc options (LaTeX/PDF/DOCX/ODT/... export).
+---@class org.Config.Export.Pandoc
+---Pandoc executable: a string (split on whitespace) or an argv list.
+---(default: `"pandoc"`)
+---@field cmd? string|string[]
+---Extra arguments passed to pandoc. (default: `{}`)
+---@field args? string[]
+
+---Export options. `#+OPTIONS:` in a file overrides the `with_*` values.
+---@class org.Config.Export
+---Output directory, relative to the source file unless absolute; `nil` =
+---next to the source file. (default: `nil`)
+---@field output_dir? string
+---Include a table of contents (`org-export-with-toc`, `toc:`). (default: `true`)
+---@field with_toc? boolean
+---Number sections (`org-export-with-section-numbers`, `num:`). (default: `true`)
+---@field with_section_numbers? boolean
+---Deepest headline level exported as a section (`org-export-headline-levels`,
+---`H:`). (default: `3`)
+---@field headline_levels? integer
+---Include the author (`org-export-with-author`, `author:`). (default: `true`)
+---@field with_author? boolean
+---Include the date (`org-export-with-date`, `date:`). (default: `true`)
+---@field with_date? boolean
+---Include TODO keywords (`org-export-with-todo-keywords`, `todo:`). (default: `true`)
+---@field with_todo_keywords? boolean
+---Include tags (`org-export-with-tags`, `tags:`). (default: `true`)
+---@field with_tags? boolean
+---Include priority cookies (`org-export-with-priority`, `pri:`). (default: `false`)
+---@field with_priority? boolean
+---Include drawers (`org-export-with-drawers`, `d:`). (default: `false`)
+---@field with_drawers? boolean
+---Include planning lines (`org-export-with-planning`, `p:`). (default: `false`)
+---@field with_planning? boolean
+---Include timestamps (`org-export-with-timestamps`, `<:`). (default: `true`)
+---@field with_timestamps? boolean
+---When any headline has one of these tags, only those subtrees are exported
+---(`org-export-select-tags`). (default: `{ "export" }`)
+---@field select_tags? string[]
+---Subtrees with one of these tags are not exported (`org-export-exclude-tags`).
+---(default: `{ "noexport" }`)
+---@field exclude_tags? string[]
+---Open the exported file with the system opener. (default: `false`)
+---@field open_after_export? boolean
+---HTML exporter options.
+---@field html? org.Config.Export.Html
+---Line width of the plain-text (UTF-8) exporter (`org-ascii-text-width`).
+---(default: `72`)
+---@field text_width? integer
+---Pandoc options for formats handled by pandoc.
+---@field pandoc? org.Config.Export.Pandoc

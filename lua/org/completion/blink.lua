@@ -1,15 +1,21 @@
---- blink.cmp source for org buffers.
+---@mod org.completion.blink blink.cmp source
 ---
---- LazyVim / blink.cmp:
----   sources = {
----     per_filetype = { org = { inherit_defaults = true, "org" } },
----     providers = { org = { name = "Org", module = "org.completion.blink" } },
----   }
+--- blink.cmp source for org buffers; blink calls `new()` itself.
+---
+--- ```lua
+--- -- LazyVim / blink.cmp opts
+--- sources = {
+---   per_filetype = { org = { inherit_defaults = true, "org" } },
+---   providers = { org = { name = "Org", module = "org.completion.blink" } },
+--- }
+--- ```
 local completion = require("org.completion")
 
 local Source = {}
 Source.__index = Source
 
+--- Create a source instance (called by blink.cmp).
+---@return table source
 function Source.new()
   return setmetatable({}, Source)
 end

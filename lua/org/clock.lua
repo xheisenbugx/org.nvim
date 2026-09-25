@@ -86,7 +86,14 @@ function M.find_open_clock()
   return nil
 end
 
---- Info about the running clock, or nil.
+--- Info about the running clock, or nil when no clock runs.
+---
+--- ```lua
+--- local a = require("org.clock").active()
+--- if a then print(a.title, a.minutes) end
+--- ```
+---@return { path: string, title: string, start: table, effort: integer|nil, minutes: integer }|nil
+---   `start` is an `org.date` timestamp; `effort` and `minutes` are in minutes
 function M.active()
   local st = M.state
   if not st then
@@ -633,7 +640,11 @@ function M.sum_minutes(hl, from_min, to_min, own_only)
   return total
 end
 
---- Statusline component: "⏱ 0:25 [0:25/1:00] (Task)".
+--- Statusline component: `"⏱ 0:25 (Task)"`, or `"⏱ [0:25/1:00] (Task)"`
+--- when the task has an Effort. Empty when no clock runs. The icon comes
+--- from `clock.statusline_icon`. `require("org").statusline()` combines this
+--- with the timer.
+---@return string
 function M.statusline()
   local a = M.active()
   if not a then
@@ -789,7 +800,9 @@ function M.attach(bufnr)
   end
 end
 
---- Restore the running clock after a restart.
+--- Restore the running clock after a restart (from `clock.persist_file`).
+--- Called by `setup()` when `clock.persist` is set.
+---@return org.ClockState|nil state the running clock, if any
 function M.restore()
   if M.state then
     return M.state
