@@ -3702,8 +3702,12 @@ Differences from Emacs:
   needs gnuplot.el; the radar plot type is missing). The orgtbl-to-unicode
   and orgtbl-to-table.el translators are missing, and translators convert
   Org markup in cells with a simplified exporter.
-- Column view in the agenda (org-agenda-columns, C-c C-x C-c in the
-  agenda, `org-columns-default-format-for-agenda`) is not implemented.
+- Clocking (|org-clock|): the idle time comes from the system on macOS
+  (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
+  own input, so time spent in other applications counts as idle there.
+  The mode line entry is the |org-api| statusline component; clicking it
+  has no menu. Timers use counts, so a countdown's C-u (default timer)
+  has no count form: a count is always minutes.
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
   instead of Elisp.
 - Capture edits the text in a separate buffer that is stored at the target
