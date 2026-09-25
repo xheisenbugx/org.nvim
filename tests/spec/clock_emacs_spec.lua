@@ -447,6 +447,33 @@ describe("resolving clocks (Emacs)", function()
     eq({ "* A", ":LOGBOOK:", "CLOCK: " .. ts(start), ":END:" }, buf_lines(buf))
   end)
 
+  test("closing a dangling clock clocks it out fully, keeping the running clock", function()
+    config.opts.clock.out_switch_to_state = "DONE"
+    local start = ago(30)
+    local buf = file_buffer({ "* TODO A", ":LOGBOOK:", "CLOCK: " .. ts(start), ":END:", "* B" })
+    clock.clock_in({ bufnr = buf, lnum = 5 }, { at = ago(5) })
+    local running = clock.state.start
+    with(ui, {
+      menu = function()
+        return "K"
+      end,
+    }, function()
+      with(utils, {
+        input = function()
+          return "10"
+        end,
+      }, function()
+        clock.resolve_clocks(true, {})
+      end)
+    end)
+    local l = buf_lines(buf)
+    eq("* DONE A", l[1])
+    ok(vim.tbl_contains(l, "CLOCK: " .. ts(start) .. "--" .. ts(ago(20)) .. " =>  0:10"), vim.inspect(l))
+    eq("B", clock.state.title)
+    eq(running, clock.state.start)
+    ok(clock.find_open_clock())
+  end)
+
   test("clocking in resolves dangling clocks first", function()
     config.opts.clock.auto_clock_resolution = "when-no-clock-is-running"
     local buf = file_buffer({ "* A", "* B", ":LOGBOOK:", "CLOCK: " .. ts(ago(40)), ":END:" })

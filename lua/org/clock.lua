@@ -1335,21 +1335,29 @@ function M.dangling_clocks(with_active)
 end
 
 --- Close the open CLOCK line of `clock` at `stop` (minutes).
-local function close_clock(clock, stop, ctx)
+local function close_clock(clock, stop)
   if clock.active then
     return M.clock_out({ at = at_minutes(stop), quiet = true })
   end
+  -- like org-with-clock: clock out of the dangling clock as if it were the
+  -- running one (state switch, note, 0:00 removal), then restore the
+  -- running clock
   local lnum = vim.api.nvim_buf_get_extmark_by_id(clock.bufnr, mark_ns, clock.mark, {})[1] + 1
-  local line = vim.api.nvim_buf_get_lines(clock.bufnr, lnum - 1, lnum, false)[1]
-  local stop_date = at_minutes(stop)
-  local text, minutes = M.format_clock_line(line:match("^(%s*)"), clock.start, stop_date)
-  if minutes == 0 and clock_cfg().out_remove_zero_time == true then
-    delete_clock_line(clock.bufnr, lnum)
-  else
-    vim.api.nvim_buf_set_lines(clock.bufnr, lnum - 1, lnum, false, { text })
+  local hl = files.get_buffer(clock.bufnr):headline_at(lnum)
+  local saved = M.state
+  M.state = {
+    path = buf_path(clock.bufnr) or "",
+    start = clock.start:clone({ active = false }):to_string({ range = false }),
+    title = hl and mode_line_heading(hl) or "?",
+  }
+  local ok, err = pcall(M.clock_out, { at = at_minutes(stop), quiet = true })
+  M.state = saved
+  if saved then
+    persist()
+    start_timers()
   end
-  if ctx then
-    M.last = vim.tbl_extend("force", M.last or {}, { out = stop_date:to_string() })
+  if not ok then
+    error(err, 0)
   end
 end
 
@@ -1373,12 +1381,12 @@ local function resolve_clock(clock, to, out_time, close, restart, ctx)
     end
   elseif to == "now" then
     if close or ctx.clocking_in then
-      close_clock(clock, date.now():minutes(), ctx)
+      close_clock(clock, date.now():minutes())
     elseif not clock.active then
       M.clock_in(heading_target(), { resume = true, no_count = true, clocking_in = true })
     end
   else
-    close_clock(clock, out_time or to, ctx)
+    close_clock(clock, out_time or to)
     if ctx.clocking_in then
       return
     elseif close then
