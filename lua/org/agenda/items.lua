@@ -137,7 +137,7 @@ function M.agenda(files, from, to, opts)
 
     -- deadlines ------------------------------------------------------
     local dl = hl.planning.deadline
-    if dl and not (done and acfg.skip_deadline_if_done) then
+    if dl and not opts.no_deadlines and not (done and acfg.skip_deadline_if_done) then
       local d0 = dl:days()
       local warn = date.warning_days(dl, cfg.deadline_warning_days)
       add(d0, new_item(hl, {

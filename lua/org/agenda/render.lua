@@ -239,9 +239,34 @@ function M.entry_text(hl, max)
   return res
 end
 
+--- Is the item a TODO blocked by its children, an ORDERED sibling or
+--- unchecked checkboxes (only with the enforce_todo_* options)?
+function M.is_blocked(it)
+  if not it.headline or not it.todo or it.done then
+    return false
+  end
+  local ok, todo = pcall(require, "org.todo")
+  if not ok or type(todo.blocked_reason) ~= "function" then
+    return false
+  end
+  local ok2, reason = pcall(todo.blocked_reason, it.headline)
+  return ok2 and reason ~= nil
+end
+
 --- Add an item line (plus its entry text in entry-text mode).
 function M.add_item(b, it, ctx)
-  b:add(M.item_parts(it, ctx), it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local parts = M.item_parts(it, ctx)
+  if ctx.dim_blocked and M.is_blocked(it) then
+    if ctx.dim_blocked == "invisible" then
+      return
+    end
+    for _, p in ipairs(parts) do
+      if p[2] ~= "OrgAgendaCategory" then
+        p[2] = "OrgAgendaDimmed"
+      end
+    end
+  end
+  b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
   if ctx.entry_text and it.headline then
     local max = config.opts.agenda.entry_text_maxlines or 5
     for _, l in ipairs(M.entry_text(it.headline, max)) do
@@ -439,6 +464,7 @@ function M.agenda_block(b, block, ctx)
     today = ctx.today,
     log_mode = ctx.log_mode,
     inactive = ctx.inactive,
+    no_deadlines = ctx.no_deadlines,
     archives = ctx.archives,
     restrict = ctx.restrict,
     skip = block.skip,

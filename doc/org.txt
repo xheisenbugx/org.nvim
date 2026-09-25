@@ -454,6 +454,11 @@ Agenda keys (all configurable under `mappings.agenda`):
   E               entry text mode: show the first body lines of each
                   entry (`agenda.entry_text_maxlines`) (also vE)
   G               toggle the time grid (also vG)
+  !               show / hide deadlines (also v!)
+  #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
+                  true, false or "invisible"; needs
+                  `enforce_todo_dependencies` or
+                  `enforce_todo_checkbox_dependencies`)
   va / vA         include archived trees / also the archive files
   v[              include inactive timestamps
   /               filter by tag (`+tag` / `-tag`; again to clear)
@@ -515,6 +520,15 @@ Block options:
   start_day     first day for `agenda` blocks
   files         files to use instead of `agenda_files`
   skip          function(headline) that returns true to skip an entry
+                (also `org_agenda_skip_function`). Helpers like Emacs'
+                org-agenda-skip-entry-if / -subtree-if:
+                  local agenda = require("org.agenda")
+                  skip = agenda.skip_entry_if("scheduled", "deadline")
+                  skip = agenda.skip_subtree_if("regexp", ":someday:")
+                Conditions: scheduled, notscheduled, deadline,
+                notdeadline, timestamp, nottimestamp, regexp RE,
+                notregexp RE, todo KWS, nottodo KWS (KWS: a list of
+                keywords, or "todo", "done", "any")
   todo_ignore_scheduled, todo_ignore_deadlines, todo_ignore_with_date
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
@@ -1037,6 +1051,7 @@ agenda ~
   show_all_today }, stuck_projects { match, todo_keywords, tags, text },
   save_after_edit, block_separator, show_inherited_tags, remove_tags,
   custom_commands, entry_text_maxlines 5, confirm_kill 1,
+  dim_blocked_tasks true (true|false|"invisible"),
   start_with_log_mode, start_with_follow_mode,
   start_with_clockreport_mode, start_with_entry_text_mode
 capture ~

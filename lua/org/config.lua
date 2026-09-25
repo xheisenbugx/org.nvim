@@ -153,6 +153,9 @@ M.defaults = {
     start_with_follow_mode = false,
     start_with_clockreport_mode = false,
     start_with_entry_text_mode = false,
+    --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
+    --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
+    dim_blocked_tasks = true,
   },
 
   ---------------------------------------------------------------------------
@@ -659,6 +662,8 @@ M.defaults = {
       archives_files_mode = "vA",
       inactive_mode = "v[",
       time_grid = { "G", "vG" },
+      toggle_deadlines = { "!", "v!" },
+      dim_blocked = "#",
       filter_tag = "/",
       filter_category = "<",
       filter_regexp = "=",

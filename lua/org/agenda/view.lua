@@ -28,6 +28,8 @@ local S = {
   archives = false, -- false | "trees" | "files"
   inactive = false,
   time_grid_off = false,
+  no_deadlines = false,
+  dim_blocked = true, -- true | false | "invisible"
   filters = { tags = { include = {}, exclude = {} }, category = nil, regexp = nil },
   marks = {},
   line_items = {},
@@ -295,6 +297,8 @@ function M.build(width)
     archives = S.archives,
     inactive = S.inactive,
     time_grid_off = S.time_grid_off,
+    no_deadlines = S.no_deadlines,
+    dim_blocked = S.dim_blocked,
     restrict = S.restrict and { range = S.restrict.range } or nil,
     filter = item_filter(),
     filter_desc = filter_desc(),
@@ -451,6 +455,11 @@ function M.open(view, opts)
     S.archives = false
     S.inactive = false
     S.time_grid_off = false
+    S.no_deadlines = false
+    S.dim_blocked = acfg.dim_blocked_tasks
+    if S.dim_blocked == nil then
+      S.dim_blocked = true
+    end
     S.marks = {}
     reset_filters()
     S.restrict = opts.restrict
@@ -1394,6 +1403,16 @@ M.actions = {
   end,
   reset_view = function()
     set_span(nil)
+  end,
+  toggle_deadlines = function()
+    S.no_deadlines = not S.no_deadlines
+    M.redo()
+    utils.notify("Deadlines " .. (S.no_deadlines and "hidden" or "shown"))
+  end,
+  dim_blocked = function()
+    S.dim_blocked = not S.dim_blocked
+    M.redo()
+    utils.notify("Dimming blocked tasks " .. (S.dim_blocked and "on" or "off"))
   end,
   filter_effort = function()
     local input = utils.input({ prompt = "Effort filter (<1:00, >30, =0:15; empty clears): " })

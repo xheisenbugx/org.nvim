@@ -349,3 +349,66 @@ describe("agenda buffer commands", function()
     view.quit(true)
   end)
 end)
+
+describe("agenda skip helpers, deadlines and blocked tasks", function()
+  local agenda = require("org.agenda")
+  local file = parser.parse({
+    "* TODO Sched",
+    "  SCHEDULED: " .. ts(0),
+    "* TODO Dead",
+    "  DEADLINE: " .. ts(2),
+    "* DONE Done",
+    "* TODO Plain",
+    "  mentions waiting here",
+    "* Parent :p:",
+    "** TODO Child",
+  }, "/tmp/skip.org")
+
+  it("skip_entry_if and skip_subtree_if", function()
+    local function kept(skip)
+      local out = {}
+      for _, it in ipairs(items.todo({ file }, { "TODO", "DONE" }, { skip = skip })) do
+        out[#out + 1] = it.title
+      end
+      table.sort(out)
+      return out
+    end
+    eq({ "Child", "Done", "Plain" }, kept(agenda.skip_entry_if("scheduled", "deadline")))
+    eq({ "Child", "Dead", "Done", "Sched" }, kept(agenda.skip_entry_if("regexp", "waiting")))
+    eq({ "Done" }, kept(agenda.skip_entry_if("todo", "todo")))
+    eq({ "Child", "Dead", "Plain", "Sched" }, kept(agenda.skip_entry_if("todo", { "DONE" })))
+    eq({ "Dead", "Sched" }, kept(agenda.skip_entry_if("nottimestamp")))
+    eq({ "Dead", "Done", "Plain", "Sched" }, kept(agenda.skip_subtree_if("regexp", ":p:")))
+  end)
+
+  it("hides deadlines and dims blocked tasks", function()
+    local by_day = items.agenda({ file }, T, T + 3, { today = T, no_deadlines = true })
+    for _, list in pairs(by_day) do
+      for _, it in ipairs(list) do
+        ok(it.type ~= "deadline")
+      end
+    end
+    config.opts.enforce_todo_dependencies = true
+    local blocked = parser.parse({ "* TODO Parent", "** TODO Kid" }, "/tmp/blocked.org")
+    local list = items.todo({ blocked })
+    local b = render.builder()
+    for _, it in ipairs(list) do
+      render.add_item(b, it, { width = 80, today = T, dim_blocked = true })
+    end
+    local dimmed = {}
+    for _, h in ipairs(b.hls) do
+      if h[4] == "OrgAgendaDimmed" then
+        dimmed[h[1] + 1] = true
+      end
+    end
+    eq(2, #b.lines)
+    ok(b.lines[1]:find("Parent") and dimmed[1])
+    ok(not dimmed[2])
+    b = render.builder()
+    for _, it in ipairs(list) do
+      render.add_item(b, it, { width = 80, today = T, dim_blocked = "invisible" })
+    end
+    eq(1, #b.lines)
+    config.opts.enforce_todo_dependencies = false
+  end)
+end)

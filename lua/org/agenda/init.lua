@@ -47,6 +47,110 @@ function M.normalize_block(b)
 end
 
 ---------------------------------------------------------------------------
+-- Skip functions (org-agenda-skip-entry-if / org-agenda-skip-subtree-if)
+---------------------------------------------------------------------------
+
+local ARG_CONDITIONS = { regexp = true, notregexp = true, todo = true, nottodo = true }
+
+local function parse_conditions(...)
+  local args = { ... }
+  local conds = {}
+  local i = 1
+  while i <= #args do
+    local c = args[i]
+    if ARG_CONDITIONS[c] then
+      conds[#conds + 1] = { c, args[i + 1] }
+      i = i + 2
+    else
+      conds[#conds + 1] = { c }
+      i = i + 1
+    end
+  end
+  return conds
+end
+
+local function todo_matches(hl, spec)
+  if spec == "todo" then
+    return hl:is_todo()
+  elseif spec == "done" then
+    return hl:is_done()
+  elseif spec == "any" then
+    return hl.todo ~= nil
+  end
+  spec = type(spec) == "string" and { spec } or spec or {}
+  return hl.todo ~= nil and vim.tbl_contains(spec, hl.todo)
+end
+
+local function has_timestamp(hl)
+  return hl.planning.scheduled ~= nil or hl.planning.deadline ~= nil or #hl.timestamps > 0
+end
+
+local function condition_holds(hl, cond, subtree)
+  local c, arg = cond[1], cond[2]
+  if c == "scheduled" or c == "notscheduled" then
+    return (hl.planning.scheduled ~= nil) == (c == "scheduled")
+  elseif c == "deadline" or c == "notdeadline" then
+    return (hl.planning.deadline ~= nil) == (c == "deadline")
+  elseif c == "timestamp" or c == "nottimestamp" then
+    return has_timestamp(hl) == (c == "timestamp")
+  elseif c == "regexp" or c == "notregexp" then
+    local ok, re = pcall(vim.regex, arg or "")
+    if not ok then
+      return false
+    end
+    local last = subtree and hl.end_line or hl.body_end
+    local found = false
+    for i = hl.line, last do
+      if re:match_str(hl.file.lines[i] or "") then
+        found = true
+        break
+      end
+    end
+    return found == (c == "regexp")
+  elseif c == "todo" then
+    return todo_matches(hl, arg)
+  elseif c == "nottodo" then
+    return not todo_matches(hl, arg)
+  end
+  error("unknown skip condition: " .. tostring(c))
+end
+
+--- A `skip` function skipping entries for which any condition holds:
+--- "scheduled", "notscheduled", "deadline", "notdeadline", "timestamp",
+--- "nottimestamp", "regexp" RE, "notregexp" RE, "todo" KWS, "nottodo" KWS
+--- (KWS: a list of keywords, or "todo", "done" or "any").
+---   skip = require("org.agenda").skip_entry_if("scheduled", "deadline")
+function M.skip_entry_if(...)
+  local conds = parse_conditions(...)
+  return function(hl)
+    for _, c in ipairs(conds) do
+      if condition_holds(hl, c, false) then
+        return true
+      end
+    end
+    return false
+  end
+end
+
+--- Like `skip_entry_if`, but skips the whole subtree of an entry for which
+--- a condition holds ("regexp" searches the whole subtree).
+function M.skip_subtree_if(...)
+  local conds = parse_conditions(...)
+  return function(hl)
+    local h = hl
+    while h do
+      for _, c in ipairs(conds) do
+        if condition_holds(h, c, true) then
+          return true
+        end
+      end
+      h = h.parent
+    end
+    return false
+  end
+end
+
+---------------------------------------------------------------------------
 -- Restriction lock (org-agenda-set-restriction-lock)
 ---------------------------------------------------------------------------
 

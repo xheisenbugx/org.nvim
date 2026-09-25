@@ -26,6 +26,7 @@ local links = {
   OrgAgendaLog = "Comment",
   OrgAgendaHint = "Comment",
   OrgAgendaEntryText = "Comment",
+  OrgAgendaDimmed = "Comment",
   OrgSparseMatch = "Search",
 }
 

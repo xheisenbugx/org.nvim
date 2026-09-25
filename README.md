@@ -497,6 +497,8 @@ agenda = {
 Block types: `agenda`, `todo`, `tags`, `tags_todo`, `search`, `stuck`.
 Per-block options: `match`, `header`, `span`, `start_day`, `files`,
 `skip = function(headline) … end`, and the `todo_ignore_*` flags.
+Like Emacs' `org-agenda-skip-entry-if`, `require("org.agenda").skip_entry_if("scheduled", "deadline")`
+and `skip_subtree_if("regexp", ":someday:")` build `skip` functions.
 
 The match syntax is the same as in Emacs. Some examples:
 
