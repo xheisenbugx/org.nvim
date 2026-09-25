@@ -46,10 +46,244 @@ function M.normalize_block(b)
   return out
 end
 
+---------------------------------------------------------------------------
+-- Skip functions (org-agenda-skip-entry-if / org-agenda-skip-subtree-if)
+---------------------------------------------------------------------------
+
+local ARG_CONDITIONS = { regexp = true, notregexp = true, todo = true, nottodo = true }
+
+local function parse_conditions(...)
+  local args = { ... }
+  local conds = {}
+  local i = 1
+  while i <= #args do
+    local c = args[i]
+    if ARG_CONDITIONS[c] then
+      conds[#conds + 1] = { c, args[i + 1] }
+      i = i + 2
+    else
+      conds[#conds + 1] = { c }
+      i = i + 1
+    end
+  end
+  return conds
+end
+
+local function todo_matches(hl, spec)
+  if spec == "todo" then
+    return hl:is_todo()
+  elseif spec == "done" then
+    return hl:is_done()
+  elseif spec == "any" then
+    return hl.todo ~= nil
+  end
+  spec = type(spec) == "string" and { spec } or spec or {}
+  return hl.todo ~= nil and vim.tbl_contains(spec, hl.todo)
+end
+
+local function has_timestamp(hl)
+  return hl.planning.scheduled ~= nil or hl.planning.deadline ~= nil or #hl.timestamps > 0
+end
+
+local function condition_holds(hl, cond, subtree)
+  local c, arg = cond[1], cond[2]
+  if c == "scheduled" or c == "notscheduled" then
+    return (hl.planning.scheduled ~= nil) == (c == "scheduled")
+  elseif c == "deadline" or c == "notdeadline" then
+    return (hl.planning.deadline ~= nil) == (c == "deadline")
+  elseif c == "timestamp" or c == "nottimestamp" then
+    return has_timestamp(hl) == (c == "timestamp")
+  elseif c == "regexp" or c == "notregexp" then
+    local ok, re = pcall(vim.regex, arg or "")
+    if not ok then
+      return false
+    end
+    local last = subtree and hl.end_line or hl.body_end
+    local found = false
+    for i = hl.line, last do
+      if re:match_str(hl.file.lines[i] or "") then
+        found = true
+        break
+      end
+    end
+    return found == (c == "regexp")
+  elseif c == "todo" then
+    return todo_matches(hl, arg)
+  elseif c == "nottodo" then
+    return not todo_matches(hl, arg)
+  end
+  error("unknown skip condition: " .. tostring(c))
+end
+
+--- A `skip` function skipping entries for which any condition holds:
+--- "scheduled", "notscheduled", "deadline", "notdeadline", "timestamp",
+--- "nottimestamp", "regexp" RE, "notregexp" RE, "todo" KWS, "nottodo" KWS
+--- (KWS: a list of keywords, or "todo", "done" or "any").
+---   skip = require("org.agenda").skip_entry_if("scheduled", "deadline")
+function M.skip_entry_if(...)
+  local conds = parse_conditions(...)
+  return function(hl)
+    for _, c in ipairs(conds) do
+      if condition_holds(hl, c, false) then
+        return true
+      end
+    end
+    return false
+  end
+end
+
+--- Like `skip_entry_if`, but skips the whole subtree of an entry for which
+--- a condition holds ("regexp" searches the whole subtree).
+function M.skip_subtree_if(...)
+  local conds = parse_conditions(...)
+  return function(hl)
+    local h = hl
+    while h do
+      for _, c in ipairs(conds) do
+        if condition_holds(h, c, true) then
+          return true
+        end
+      end
+      h = h.parent
+    end
+    return false
+  end
+end
+
+---------------------------------------------------------------------------
+-- Restriction lock (org-agenda-set-restriction-lock)
+---------------------------------------------------------------------------
+
+--- `{ bufnr, filename, line?, raw? }`: agenda commands are restricted to
+--- this file, or to the subtree of the headline `raw` near `line`.
+M.lock = nil
+
+--- The restriction described by the lock, with the subtree range
+--- recomputed from the current buffer contents.
+function M.lock_restriction()
+  local l = M.lock
+  if not l then
+    return nil
+  end
+  if not (l.bufnr and vim.api.nvim_buf_is_valid(l.bufnr)) then
+    return l.filename and { filename = l.filename } or nil
+  end
+  local r = { bufnr = l.bufnr, filename = l.filename }
+  if l.raw then
+    local file = require("org.files").get_buffer(l.bufnr)
+    local hl = file:headline_at(l.line)
+    if not (hl and hl.raw == l.raw) then
+      hl = file:find_headline(function(h)
+        return h.raw == l.raw
+      end)
+    end
+    if not hl then
+      utils.warn("The restriction lock's subtree is gone; lock removed")
+      M.lock = nil
+      return nil
+    end
+    r.range = { hl.line, hl.end_line }
+  end
+  return r
+end
+
+--- Lock the agenda to the current subtree, or to the file when not under
+--- a headline or with `whole_file` (C-c C-x <).
+---@param target? { bufnr?: integer, lnum?: integer, whole_file?: boolean }
+function M.set_restriction_lock(target)
+  target = target or {}
+  local bufnr = target.bufnr or vim.api.nvim_get_current_buf()
+  if not utils.is_org(bufnr) then
+    utils.warn("Not in an org buffer")
+    return false
+  end
+  local file = require("org.files").get_buffer(bufnr)
+  local lnum = target.lnum
+  if not lnum then
+    lnum = bufnr == vim.api.nvim_get_current_buf() and vim.api.nvim_win_get_cursor(0)[1] or 1
+  end
+  local hl = not target.whole_file and file:headline_at(lnum) or nil
+  if not target.whole_file and vim.v.count > 0 then
+    hl = nil
+  end
+  M.lock = { bufnr = bufnr, filename = file.filename, line = hl and hl.line, raw = hl and hl.raw }
+  local name = vim.fn.fnamemodify(file.filename or "buffer", ":t")
+  utils.notify(hl and ('Agenda restricted to subtree "' .. hl:plain_title() .. '"') or ("Agenda restricted to " .. name))
+  return true
+end
+
+--- Remove the restriction lock (C-c C-x >).
+function M.remove_restriction_lock()
+  if not M.lock then
+    utils.notify("No agenda restriction lock")
+    return
+  end
+  M.lock = nil
+  utils.notify("Agenda restriction lock removed")
+end
+
+---------------------------------------------------------------------------
+-- Agenda files
+---------------------------------------------------------------------------
+
+--- Visit the agenda file after the current one (org-cycle-agenda-files).
+function M.cycle_files()
+  local paths = require("org.files").agenda_file_paths()
+  if #paths == 0 then
+    utils.warn("No agenda files")
+    return
+  end
+  local function real(p)
+    return vim.uv.fs_realpath(p) or vim.fs.normalize(p)
+  end
+  local name = vim.api.nvim_buf_get_name(0)
+  local cur = name ~= "" and real(name) or nil
+  local next_path = paths[1]
+  for i, p in ipairs(paths) do
+    if real(p) == cur then
+      next_path = paths[i % #paths + 1]
+      break
+    end
+  end
+  vim.cmd("edit " .. vim.fn.fnameescape(next_path))
+end
+
+--- Search a regexp in all agenda files and show the matches in the
+--- quickfix list (org-occur-in-agenda-files).
+---@param pattern string Vim regexp
+---@return integer number of matches
+function M.occur(pattern)
+  local ok, re = pcall(vim.regex, pattern)
+  if not ok then
+    utils.error("Invalid regexp: " .. pattern)
+    return 0
+  end
+  local qf = {}
+  for _, f in ipairs(require("org.files").agenda_files()) do
+    for i, line in ipairs(f.lines) do
+      local s = re:match_str(line)
+      if s then
+        qf[#qf + 1] = { filename = f.filename, lnum = i, col = s + 1, text = line }
+      end
+    end
+  end
+  vim.fn.setqflist({}, " ", { title = "Occur in agenda files: " .. pattern, items = qf })
+  if #qf == 0 then
+    utils.notify("No match for " .. pattern)
+  else
+    vim.cmd("copen")
+  end
+  return #qf
+end
+
 --- Open a view: `{ blocks = {...} }` or a single block `{ type = ... }`.
 ---@param spec table
 ---@param opts? { anchor?: integer, span?: string|integer, restrict?: table }
 function M.open(spec, opts)
+  opts = opts or {}
+  if not opts.restrict and M.lock then
+    opts = vim.tbl_extend("force", opts, { restrict = M.lock_restriction() })
+  end
   local blocks
   if spec.blocks or spec.types then
     blocks = spec.blocks or spec.types
@@ -89,8 +323,9 @@ function M.open_tags(match, todo_only, restrict)
   M.open({ type = todo_only and "tags_todo" or "tags", match = match }, { restrict = restrict })
 end
 
-function M.open_search(text, restrict)
-  M.open({ type = "search", match = text }, { restrict = restrict })
+---@param todo_only? boolean only TODO entries (C-c a S)
+function M.open_search(text, restrict, todo_only)
+  M.open({ type = "search", match = text, todo_only = todo_only or nil }, { restrict = restrict })
 end
 
 function M.open_stuck(restrict)
@@ -159,14 +394,23 @@ function M.dispatch(key, restrict)
       return
     end
     M.open_tags(match, key == "M", restrict)
-  elseif key == "s" then
+  elseif key == "s" or key == "S" then
     local text = utils.input({ prompt = "Search (words, +word -word {regexp}): " })
     if not text or text == "" then
       return
     end
-    M.open_search(text, restrict)
+    M.open_search(text, restrict, key == "S")
   elseif key == "#" then
     M.open_stuck(restrict)
+  elseif key == "n" then
+    M.open({ description = "Agenda and all TODOs", blocks = { { type = "agenda" }, { type = "todo" } } }, {
+      restrict = restrict,
+    })
+  elseif key == "/" then
+    local re = utils.input({ prompt = "Occur in agenda files (regexp): " })
+    if re and re ~= "" then
+      M.occur(re)
+    end
   end
 end
 
@@ -181,7 +425,7 @@ function M.prompt()
   end
   local custom = config.opts.agenda.custom_commands or {}
   while true do
-    local rlabel = "Restrict to buffer / subtree  [none]"
+    local rlabel = "Restrict to buffer / subtree  [" .. (M.lock and "lock" or "none") .. "]"
     if restrict then
       rlabel = restrict.range and "Restrict to buffer / subtree  [subtree]" or "Restrict to buffer / subtree  [buffer]"
     end
@@ -192,7 +436,10 @@ function M.prompt()
       { key = "m", label = "Match a TAGS/PROP/TODO query", value = "m" },
       { key = "M", label = "Like m, but only TODO entries", value = "M" },
       { key = "s", label = "Search for keywords", value = "s" },
+      { key = "S", label = "Like s, but only TODO entries", value = "S" },
+      { key = "n", label = "Agenda and all TODOs", value = "n" },
       { key = "#", label = "List stuck projects", value = "#" },
+      { key = "/", label = "Multi-occur in agenda files", value = "/" },
     }
     local items = {}
     for _, it in ipairs(builtin) do
@@ -268,13 +515,18 @@ function M.command(args)
       return M.dispatch(key)
     end
     return M.open_tags(rest, key == "M")
-  elseif key == "s" then
+  elseif key == "s" or key == "S" then
     if rest == "" then
-      return M.dispatch("s")
+      return M.dispatch(key)
     end
-    return M.open_search(rest)
-  elseif key == "#" then
-    return M.open_stuck()
+    return M.open_search(rest, nil, key == "S")
+  elseif key == "#" or key == "n" then
+    return M.dispatch(key)
+  elseif key == "/" then
+    if rest == "" then
+      return M.dispatch("/")
+    end
+    return M.occur(rest)
   end
   -- a date?
   local d = date.read_date(args)

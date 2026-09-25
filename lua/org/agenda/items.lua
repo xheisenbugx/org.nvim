@@ -65,15 +65,28 @@ local function end_time_of(d)
   end
 end
 
+--- Is `hl` inside a COMMENT subtree, or an ARCHIVE-tagged one (unless
+--- archived trees are included, org-agenda-archives-mode)?
+local function hidden(hl, include_archived)
+  local h = hl
+  while h do
+    if h.commented or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
+      return true
+    end
+    h = h.parent
+  end
+  return false
+end
+
 --- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees).
 ---@param files org.File[]
----@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: fun(hl): boolean }
+---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: fun(hl): boolean, archives?: string|boolean }
 function M.each_headline(files, opts, fn)
   opts = opts or {}
   local r = opts.restrict
   for _, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
-      local ok = not hl:is_hidden_by_ancestor()
+      local ok = not hidden(hl, opts.archives)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
@@ -124,7 +137,7 @@ function M.agenda(files, from, to, opts)
 
     -- deadlines ------------------------------------------------------
     local dl = hl.planning.deadline
-    if dl and not (done and acfg.skip_deadline_if_done) then
+    if dl and not opts.no_deadlines and not (done and acfg.skip_deadline_if_done) then
       local d0 = dl:days()
       local warn = date.warning_days(dl, cfg.deadline_warning_days)
       add(d0, new_item(hl, {
@@ -274,10 +287,36 @@ function M.agenda(files, from, to, opts)
       end
     end
 
+    -- inactive timestamps (org-agenda-include-inactive-timestamps) --
+    if opts.inactive then
+      local lines = hl.file.lines
+      local pr = hl.properties_range
+      for i = hl.line, hl.body_end do
+        local line = lines[i] or ""
+        local skip = i == hl.planning_line or (pr and i >= pr[1] and i <= pr[2]) or line:match("^%s*CLOCK:")
+        if not skip then
+          for _, m in ipairs(date.parse_all(line)) do
+            local ts = m.date
+            if not ts.active and not ts.range_end then
+              add(ts:days(), new_item(hl, {
+                type = "timestamp",
+                date = ts,
+                time = time_of(ts),
+                end_time = end_time_of(ts),
+                extra = "",
+                face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                inactive = true,
+              }))
+            end
+          end
+        end
+      end
+    end
+
     -- log mode -------------------------------------------------------
     if opts.log_mode then
       local closed = hl.planning.closed
-      if log_items.closed and closed then
+      if (log_items.closed or opts.log_mode == "all") and closed then
         add(closed:days(), new_item(hl, {
           type = "closed",
           date = closed,
@@ -287,7 +326,7 @@ function M.agenda(files, from, to, opts)
           log = true,
         }))
       end
-      if log_items.clock then
+      if log_items.clock or opts.log_mode == "all" then
         for _, c in ipairs(hl.clocks) do
           add(c.start:days(), new_item(hl, {
             type = "clock",
@@ -301,7 +340,7 @@ function M.agenda(files, from, to, opts)
           }))
         end
       end
-      if log_items.state then
+      if log_items.state or opts.log_mode == "all" then
         for i = hl.line + 1, hl.body_end do
           local line = hl.file.lines[i]
           local kw, ts = line:match('^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])')

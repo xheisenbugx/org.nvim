@@ -517,8 +517,14 @@ dispatcher with =<prefix>a=:
 | =m= | a tags/properties match                          |
 | =M= | a match, TODO entries only                       |
 | =s= | search for words or a regexp                     |
+| =S= | search, TODO entries only                        |
+| =n= | the agenda and all TODOs                         |
 | =#= | stuck projects                                   |
+| =/= | a regexp in all agenda files (quickfix list)     |
 | =<= | restrict to the current file (press again: subtree) |
+
+=<C-c><C-x><= on a headline locks every agenda command to that subtree
+until =<C-c><C-x>>= removes the lock.
 
 This file is in =agenda_files= when you use =examples/minimal_init.lua=.
 Otherwise add it for this session with =<C-c>[=.
@@ -567,11 +573,18 @@ the habit was done, and the colours show whether it was on time.
 | =I= =O=              | clock in / out                            |
 | =R= =$=              | refile / archive                          |
 | =l= =C=              | log mode / clock report                   |
-| =/= =<=              | filter by tag / category                  |
-| =m= =B=              | mark entries / bulk action on marked ones |
+| =E=                  | show the first lines of each entry        |
+| =va= =v[=            | include archived trees / inactive dates   |
+| =/= =<= =_=          | filter by tag / category / effort         |
+| =m= =*= =B=          | mark one / mark all / bulk action         |
+| =<C-k>=              | delete the entry from its file            |
 | =q=                  | quit                                      |
 
-The = key filters by regexp and | removes all filters.
+The = key filters by regexp, ^ keeps the entries under the same top
+headline and | removes all filters.
+
+*Try:* in the week agenda press =E= to see the body text of the entries,
+then =_= and type =<0:30= to keep only the short tasks.
 
 ** Match syntax
 The =m= and =M= views, custom commands, sparse trees and clock tables use
@@ -683,6 +696,11 @@ Targets look like =tutorial.org/Refile and archive/Projects=.
 
 *Try:* refile "A stray idea" under "Projects".
 
+=<prefix>R= copies the subtree instead, leaving the original in place, and
+=:Org refile_goto_last= jumps to wherever the last refile or capture went.
+=refile.targets= picks the targets like Emacs' =org-refile-targets=, e.g.
+={ { files = "agenda", tag = "project" } }=.
+
 *** A stray idea
 *** Projects
 **** Existing project
@@ -692,6 +710,10 @@ Targets look like =tutorial.org/Refile and archive/Projects=.
   here). It keeps where it came from in =ARCHIVE_*= properties.
 - =<prefix>hA= toggles the =ARCHIVE= tag instead: the subtree stays in
   place, folded, and is hidden from the agenda.
+- =<C-c><C-x>A= moves the subtree under an =Archive= sibling (created with
+  the =ARCHIVE= tag when missing).
+- =:Org archive_all_done= on a headline offers to archive each child that
+  has no open TODO.
 - The location comes from the =ARCHIVE= property, =#+ARCHIVE:= or
   =archive_location=.
 

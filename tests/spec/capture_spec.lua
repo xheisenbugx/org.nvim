@@ -133,6 +133,61 @@ describe("capture.store", function()
     eq("| 3 | 4 |", lines[10]:gsub("%s+", " "))
   end)
 
+  it("captures under an entry with an ID", function()
+    local p = tmpfile({ "* A", "* B", ":PROPERTIES:", ":ID: cap-id-1", ":END:", "** Old", "* C" })
+    base_setup({ agenda_files = { p } })
+    run(capture.capture, { id = "cap-id-1", template = "* New", immediate_finish = true })
+    eq({ "* A", "* B", ":PROPERTIES:", ":ID: cap-id-1", ":END:", "** Old", "** New", "* C" }, file_lines(p))
+  end)
+
+  it("captures under the clocked task", function()
+    local clock = require("org.clock")
+    local p = tmpfile({ "* Task", "* Other" })
+    vim.cmd("edit! " .. p)
+    clock.clock_in({ bufnr = vim.api.nvim_get_current_buf(), lnum = 1 })
+    run(capture.capture, { target = "clock", template = "* Note", immediate_finish = true })
+    local lines = file_lines(p)
+    eq("** Note", lines[#lines - 1])
+    eq("* Other", lines[#lines])
+    clock.clock_cancel()
+    -- no clock: nothing happens
+    local r = run(capture.capture, { target = "clock", template = "* X", immediate_finish = true })
+    eq(nil, r)
+  end)
+
+  it("evaluates %(lua) and runs hooks", function()
+    local text = run(capture.expand, "%(1 + 2) %(string.upper('x')) %(", {})
+    eq("3 X %(", text)
+    local p = tmpfile({ "* Inbox" })
+    local calls = {}
+    run(capture.capture, {
+      target = p,
+      template = "* Hooked",
+      immediate_finish = true,
+      before_finalize = function(b, l)
+        calls[#calls + 1] = "before:" .. vim.api.nvim_buf_get_lines(b, l - 1, l, false)[1]
+      end,
+      after_finalize = function()
+        calls[#calls + 1] = "after"
+      end,
+    })
+    eq({ "before:* Hooked", "after" }, calls)
+  end)
+
+  it("goes to the last stored entry and to a template target", function()
+    local p = tmpfile({ "* Inbox", "* Other" })
+    local tpl = { template = "* X", target = p, headline = "Other", immediate_finish = true }
+    base_setup({ capture = { templates = { t = tpl } } })
+    run(capture.capture, "t", {})
+    vim.cmd("enew!")
+    run(capture.goto_last_stored)
+    eq(vim.uv.fs_realpath(p), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq("** X", vim.api.nvim_get_current_line())
+    vim.cmd("enew!")
+    run(capture.goto_target, "t")
+    eq("* Other", vim.api.nvim_get_current_line())
+  end)
+
   it("plain text at top level", function()
     local p = tmpfile({ "#+TITLE: x", "* H" })
     run(capture.capture, { target = p, type = "plain", template = "Just text", immediate_finish = true, prepend = true })

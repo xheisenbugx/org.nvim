@@ -460,9 +460,19 @@ Use |org-api| `require("org").statusline()` in your statusline.
   t   global TODO list        T   TODO list for one keyword
   m   tags/property match     M   match, TODO entries only
   s   search for words or a regexp
-  #   stuck projects
+  S   like s, TODO entries only
+  n   agenda and all TODOs    #   stuck projects
+  /   multi-occur: a regexp in all agenda files, into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
   ... custom commands from `agenda.custom_commands`
+
+Restriction lock (org-agenda-set-restriction-lock):
+  <C-c><C-x><    lock every agenda command to the current subtree (to the
+                 file when not under a headline, or with a count); also
+                 in the agenda, from the entry at point
+  <C-c><C-x>>    remove the lock
+Other keys in org buffers:
+  <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
 
 Agenda view contents:
 - Entries SCHEDULED for a day. Overdue, unfinished ones show
@@ -477,36 +487,79 @@ Agenda view contents:
 Agenda keys (all configurable under `mappings.agenda`):
   f / b / .       later / earlier / today
   vd vw vt vm vy  day / week / fortnight / month / year view
+  v<Space>        reset the span to the default
   gd              go to a date (calendar)
   r               rebuild the view
   <CR> <Tab>      open the entry here / in another window
   <Space>         show the entry, keeping focus in the agenda
-  F               follow mode
+  L               show the entry and recenter its window
+  o               close the other windows
+  F               follow mode (also vf)
   n / p           next / previous item
+  <C-c><C-n/p>    next / previous date line
+  <C-Down/Up>     next / previous block
   t               change TODO state; <C-S-Right/Left> cycle it
   , + -           set / raise / lower priority (also <S-Up/Down>)
-  :               set tags
+  : / T           set tags / show tags
+  <C-c><C-x>p     set a property
   s / d           schedule / deadline
   <S-Right/Left>  move the date +1 / -1 day
   >               prompt for a new date
   e               set effort
   I O X J         clock in / out / cancel / go to clocked entry
-  R $ a           refile / archive / toggle the ARCHIVE tag
+  ;               start a countdown timer
+  R               refile
+  $               archive (also <C-c>$, <C-c><C-x><C-s>)
+  a               archive after confirmation
+  <C-c><C-x>A     move to the Archive sibling
+  <C-c><C-x>a     toggle the ARCHIVE tag
+  <C-k>           delete the entry in its file (asks when it is longer
+                  than `agenda.confirm_kill` lines)
+  <C-c><C-o>      open a link of the entry (choose when there are several)
   z               add a note
-  c               capture
-  l               log mode (closed items, clocks, state changes)
-  C               clock report mode
+  c               capture, with the date at point as default date
+  l               log mode: closed items and clocks (also vl);
+                  vL also shows state changes
+  C               clock report mode (also vR)
+  E               entry text mode: show the first body lines of each
+                  entry (`agenda.entry_text_maxlines`) (also vE)
+  G               toggle the time grid (also vG)
+  !               show / hide deadlines (also v!)
+  #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
+                  true, false or "invisible"; needs
+                  `enforce_todo_dependencies` or
+                  `enforce_todo_checkbox_dependencies`)
+  va / vA         include archived trees / also the archive files
+  v[              include inactive timestamps
   /               filter by tag (`+tag` / `-tag`; again to clear)
   <               filter by category
   =               filter by regexp
+  _               filter by effort: `<1:00`, `>30`, `=0:15` (entries
+                  without an effort count as infinitely long)
+  ^               filter by the top headline of the entry at point
   |               remove all filters
+  [ ] { }         search view: add a +word / -word / +{regexp} /
+                  -{regexp} term (tags views: a +tag / -tag term);
+                  date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
+  <M-m> * <M-*>   toggle mark / mark all / toggle all marks
+  %               mark entries matching a regexp
   B               bulk action on marked entries: t todo, s schedule,
-                  d deadline, + add tag, - remove tag, r refile,
-                  $ archive
-  E               export the agenda buffer to a .txt or .html file
+                  d deadline, S shift, + add tag, - remove tag,
+                  p priority, r refile, $ archive, A archive sibling,
+                  a ARCHIVE tag, f apply a Lua function
+  <C-x><C-s>      save all modified org buffers
+  <C-x><C-w>      export the agenda buffer to a .txt or .html file
   q / x           quit / quit and wipe the buffer
   g?              help
+Emacs-style aliases: <C-c><C-t> todo, <C-c><C-q> and <C-c><C-c> tags,
+<C-c>, priority, <C-c><C-x>e effort, <C-c><C-z> note, <C-c><C-x><C-i>
+<C-c><C-x><C-o> <C-c><C-x><C-x> <C-c><C-x><C-j> clock in / out / cancel /
+goto, <C-c><C-x><Right/Left> date later / earlier.
+
+Options: `agenda.start_with_log_mode` (true or "all"),
+`start_with_follow_mode`, `start_with_clockreport_mode`,
+`start_with_entry_text_mode`.
 
 Edits made from the agenda are saved to disk when `agenda.save_after_edit`
 is set.
@@ -537,11 +590,21 @@ Block options:
   start_day     first day for `agenda` blocks
   files         files to use instead of `agenda_files`
   skip          function(headline) that returns true to skip an entry
+                (also `org_agenda_skip_function`). Helpers like Emacs'
+                org-agenda-skip-entry-if / -subtree-if:
+                  local agenda = require("org.agenda")
+                  skip = agenda.skip_entry_if("scheduled", "deadline")
+                  skip = agenda.skip_subtree_if("regexp", ":someday:")
+                Conditions: scheduled, notscheduled, deadline,
+                notdeadline, timestamp, nottimestamp, regexp RE,
+                notregexp RE, todo KWS, nottodo KWS (KWS: a list of
+                keywords, or "todo", "done", "any")
   todo_ignore_scheduled, todo_ignore_deadlines, todo_ignore_with_date
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
-:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|#|day|week|month|year|<key>
+:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|day|week|
+            month|year|<key>
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
@@ -609,6 +672,8 @@ Template fields:
   regexp             insert after the first line matching this Lua pattern
   func / function    function(bufnr) returning the line number to insert
                      under
+  id                 insert under the entry with this ID (file+id)
+  target = "clock"   insert under the currently clocked task (clock)
   prepend            insert as the first child instead of the last
   empty_lines        blank lines around the entry (also
                      empty_lines_before / empty_lines_after)
@@ -618,6 +683,10 @@ Template fields:
   clock_in           clock in while capturing
   clock_resume       resume the previous clock after finishing
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
+  no_save            don't save the target file after capturing
+  prepare_finalize   function(capture_bufnr), before the text is read
+  before_finalize    function(bufnr, lnum) in the target, before saving
+  after_finalize     function(bufnr, lnum) when the capture is done
 
 Template expansions:                               *org-capture-expansions*
   %?           cursor position
@@ -638,10 +707,18 @@ Template expansions:                               *org-capture-expansions*
   %\1 ...      the answer to the Nth prompt
   %^g %^G      tags prompt
   %^{PROP}p    property prompt
+  %(expr)      the value of a Lua expression, e.g. %(os.getenv("HOST"))
+               (Emacs: an elisp sexp)
   %%           a literal %
 
 Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
 `<C-c><C-w>` refiles (also `<prefix>w`, `<prefix>k`, `<prefix>r`).
+
+:Org capture_goto_target  choose a template and jump to its target
+                          (C-u C-c c in Emacs)
+:Org capture_goto_last    jump to the last captured (or refiled) entry
+                          (C-u C-u C-c c)
+From the agenda, `c` captures with the date at point as the default date.
 
 ==============================================================================
 15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
@@ -651,7 +728,31 @@ Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
                 "file.org/Parent/Child", up to `refile.max_level`. With
                 `refile.allow_creating_parent_nodes`, you can type
                 "file.org/Parent/New" to create missing parents.
-:Org refile_goto   Jump to a refile target.
+<prefix>R       Copy the subtree to a refile target, keeping the original
+                (org-refile-copy, <C-c><M-w>).
+:Org refile_goto       Jump to a refile target (C-u C-c C-w).
+:Org refile_goto_last  Jump to where the last refile or capture went
+                       (C-u C-u C-c C-w).
+
+Refile options:
+  targets             like org-refile-targets; when non-empty it replaces
+                      `max_level` / `include_current_file`. A list of
+                      specs, each with `files` ("agenda", "current" (the
+                      default), a path or glob, a list, or a function) and
+                      any of `max_level`, `level`, `tag`, `todo`,
+                      `regexp` (Vim regexp on the headline):
+>lua
+    refile = { targets = {
+      { files = "current", max_level = 2 },
+      { files = "agenda", tag = "project" },
+      { files = "~/org/someday.org", level = 1 },
+    } }
+<
+  verify              function(headline) -> boolean to drop targets
+                      (org-refile-target-verify-function)
+  log                 false | "time" | "note": add "Refiled on [date]"
+                      to the entry's logbook (org-log-refile)
+  reverse_note_order  refile as the first child (org-reverse-note-order)
 
 <prefix>$       Archive the subtree. The location comes from the ARCHIVE
                 property, then `#+ARCHIVE:`, then `archive_location`
@@ -659,11 +760,24 @@ Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
                   "%s_archive::"             another file, top level
                   "archive.org::* Archived"  another file, under a headline
                   "::* Archive"              same file, under a headline
+                  "archive.org::datetree/"   another file, in a date tree
+                                             for the CLOSED date (or today)
                 Adds ARCHIVE_TIME, ARCHIVE_FILE, ARCHIVE_OLPATH,
-                ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS according
-                to `archive_save_context_info`.
+                ARCHIVE_CATEGORY, ARCHIVE_TODO and ARCHIVE_ITAGS (also
+                "ltags" and "olid") according to
+                `archive_save_context_info`. Inherited tags become local
+                tags when archiving within the same file
+                (`archive_subtree_add_inherited_tags`: "infile", true or
+                false).
 <prefix>hA      Toggle the ARCHIVE tag. Archived subtrees stay folded and are
                 excluded from the agenda.
+<C-c><C-x>A     Move the subtree under its "Archive" sibling
+                (`archive_sibling_heading`), which is created with the
+                ARCHIVE tag when missing (org-archive-to-archive-sibling).
+:Org archive_all_done
+                Offer to archive each child of the headline at the cursor
+                (each top-level tree when not on a headline) that has no
+                open TODO entries (C-u C-c C-x C-s in Emacs).
 
 ==============================================================================
 16. LINKS, IDS AND ATTACHMENTS                  *org-links* *org-id* *org-attach*
@@ -1039,6 +1153,8 @@ Buffer ~
   archive_location          "%s_archive::"
   archive_save_context_info { "time", "file", "olpath", "category", "todo",
                               "itags" }
+  archive_sibling_heading   "Archive"
+  archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
   skip_scheduled_if_done, skip_deadline_if_done,
@@ -1051,12 +1167,16 @@ agenda ~
   habits { graph_column, preceding_days, following_days, show_habits,
   show_all_today }, stuck_projects { match, todo_keywords, tags, text },
   save_after_edit, block_separator, show_inherited_tags, remove_tags,
-  custom_commands
+  custom_commands, entry_text_maxlines 5, confirm_kill 1,
+  dim_blocked_tasks true (true|false|"invisible"),
+  start_with_log_mode, start_with_follow_mode,
+  start_with_clockreport_mode, start_with_entry_text_mode
 capture ~
   templates (|org-capture-templates|), window
 refile ~
   max_level 3, use_outline_path "file", allow_creating_parent_nodes false,
-  include_current_file true
+  include_current_file true, targets {}, verify nil, log false,
+  reverse_note_order false
 clock ~
   out_when_done true, into_drawer true, out_remove_zero_time true,
   in_switch_to_state nil (keyword or function(headline)),
@@ -1134,6 +1254,7 @@ Section `org` (default key: action):
   <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
                           next/prev_link
   <prefix>r  refile   <prefix>$  archive_subtree   <prefix>A  attach
+  <prefix>R  refile_copy
   <prefix>/  sparse_tree            <prefix>e  export
   <prefix>Tc T- Tf Ts Tr TR Ti TI   table_create, table_insert_hline,
       table_recalc, table_sort, table_insert/delete_row,
@@ -1212,8 +1333,11 @@ Links, refile, archive, export:
   <C-c><C-l>  insert link    <C-c><C-o>  open at point
   <C-c><C-x><C-n> <C-p>  next / previous link
   <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><M-w>  copy to a refile target
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
+  <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-'> <C-,>  next agenda file   <C-c><C-x>< >  set / remove agenda lock
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
   <C-c>\  tags / property match sparse tree
 
@@ -1312,6 +1436,9 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   debugger (C-c {), no orgtbl-mode / radio tables, no table.el tables, and
   <M-CR> inserts a row instead of splitting the field. Table export writes
   TSV or CSV only.
+- Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
+  instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
+  stay on until toggled off.
 - Babel has no sessions and no `:cache`. Export uses existing results and
   never runs code. `elisp:` links and emacs-lisp blocks are not supported.
 - Not implemented:
@@ -1320,7 +1447,6 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   - clocktable `:step`
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
-  - datetree archive locations
 - Column view is a separate table buffer rather than overlays on the
   headlines. Digit keys keep their Vim meaning (counts) there instead of
   selecting the Nth allowed value.
