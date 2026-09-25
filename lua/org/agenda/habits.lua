@@ -59,6 +59,35 @@ function M.parse(hl)
   }
 end
 
+--- The habit's deadline day (org-habit-deadline): the end of the `/max`
+--- period, else the scheduled day.
+function M.deadline(habit)
+  if habit.has_max then
+    return habit.scheduled_days + (habit.max_days - habit.min_days)
+  end
+  return habit.scheduled_days
+end
+
+--- Urgency of a habit for sorting (org-habit-get-urgency).
+---@param habit table from M.parse
+---@param today integer day number
+function M.urgency(habit, today)
+  local pri = 1000
+  local scheduled = habit.scheduled_days
+  local deadline = M.deadline(habit)
+  pri = pri + (today - scheduled) * 10
+  if scheduled ~= deadline and today == deadline then
+    pri = pri + 50
+  end
+  local slip = today - (deadline - 1)
+  if slip > 0 then
+    pri = pri + slip * 100
+  else
+    pri = pri + slip * 10
+  end
+  return pri
+end
+
 --- Faces (group, future group) for a day (org-habit-get-faces).
 local function faces(habit, m_days, scheduled_days, donep)
   local s_repeat = habit.min_days
@@ -67,12 +96,8 @@ local function faces(habit, m_days, scheduled_days, donep)
   local deadline
   if scheduled_days then
     deadline = scheduled_days + (d_repeat - s_repeat)
-  elseif habit.has_max then
-    deadline = habit.scheduled_days + (habit.max_days - habit.min_days)
   else
-    -- org-habit-deadline: without a `/max` period the habit is due on its
-    -- scheduled day
-    deadline = habit.scheduled_days
+    deadline = M.deadline(habit)
   end
   local cfg = require("org.config").opts.agenda.habits or {}
   local name
@@ -113,7 +138,7 @@ function M.graph(habit, today)
     end
   end
   local out = {}
-  -- like org-habit-build-graph, the last day has no face
+  -- like org-habit-build-graph, the last column stays blank
   for day = start, stop - 1 do
     local past = day < today
     local donep = done[1] == day

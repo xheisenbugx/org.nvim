@@ -617,7 +617,8 @@ function M.set_date(target, kind, value)
     return nil
   end
   if kind == "timestamp" then
-    local t = hl.timestamps[1]
+    -- `target.ts_index`: which plain timestamp (an agenda item's own)
+    local t = hl.timestamps[target and target.ts_index or 1]
     if not t then
       if value then
         -- add one after the meta lines
@@ -744,7 +745,8 @@ function M.shift(target, kind, n, unit)
   end
   local d
   if kind == "timestamp" then
-    d = hl.timestamps[1] and hl.timestamps[1].date
+    local t = hl.timestamps[target and target.ts_index or 1]
+    d = t and t.date
   else
     d = hl.planning[kind]
   end
@@ -752,7 +754,7 @@ function M.shift(target, kind, n, unit)
     return nil
   end
   local new = d:add_with_range(n, unit or "d")
-  M.set_date({ bufnr = bufnr, lnum = hl.line }, kind, new)
+  M.set_date({ bufnr = bufnr, lnum = hl.line, ts_index = target and target.ts_index }, kind, new)
   return new
 end
 

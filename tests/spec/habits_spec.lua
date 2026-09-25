@@ -52,11 +52,12 @@ describe("habits", function()
     eq({ " ", "OrgAgendaHabitClearFuture" }, g[1])
     eq({ "*", "OrgAgendaHabitReady" }, g[20])
     eq({ " ", "OrgAgendaHabitClearFuture" }, g[21])
-    -- due today (org-habit-deadline is the scheduled day without /max)
+    -- Emacs: without a /max period the habit's deadline is its scheduled
+    -- day, so today is "alert" and the following days "overdue"; the last
+    -- column stays blank (org-habit-build-graph)
     eq({ "!", "OrgAgendaHabitAlert" }, g[22])
     eq({ " ", "OrgAgendaHabitOverdueFuture" }, g[23])
     eq({ " ", "OrgAgendaHabitOverdueFuture" }, g[24])
-    -- the last day has no face, like org-habit-build-graph
     eq({ " ", nil }, g[29])
   end)
 

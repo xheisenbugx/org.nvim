@@ -294,72 +294,204 @@ M.defaults = {
   -- Agenda
   ---------------------------------------------------------------------------
   agenda = {
-    span = "week", -- "day" | "week" | "fortnight" | "month" | "year" | number of days
-    start_on_weekday = 1, -- 1 = Monday, false = start on today
-    start_day = nil, -- offset string like "-3d" relative to today
-    skip_scheduled_if_done = false,
-    skip_deadline_if_done = false,
+    --- Span of the agenda view (org-agenda-span): "day" | "week" |
+    --- "fortnight" | "month" | "year" | number of days.
+    span = "week",
+    --- Weekday 7 and 14 day spans start on, 1 = Monday; false = today
+    --- (org-agenda-start-on-weekday).
+    start_on_weekday = 1,
+    --- First day as an offset like "-3d" or a date (org-agenda-start-day).
+    start_day = nil,
+    --- Kinds of dated entries collected (org-agenda-entry-types):
+    --- "deadline", "scheduled", "timestamp", "sexp", and "deadline*" /
+    --- "scheduled*" for timed ones only.
+    entry_types = { "deadline", "scheduled", "timestamp", "sexp" },
+    --- Include deadlines in the agenda (org-agenda-include-deadlines).
+    include_deadlines = true,
+    skip_scheduled_if_done = false, -- org-agenda-skip-scheduled-if-done
+    skip_deadline_if_done = false, -- org-agenda-skip-deadline-if-done
+    skip_timestamp_if_done = false, -- org-agenda-skip-timestamp-if-done
+    --- true | "not-today" (org-agenda-skip-scheduled-if-deadline-is-shown).
+    skip_scheduled_if_deadline_is_shown = false,
+    skip_timestamp_if_deadline_is_shown = false, -- org-agenda-skip-timestamp-if-deadline-is-shown
+    skip_scheduled_repeats_after_deadline = false, -- org-agenda-skip-scheduled-repeats-after-deadline
+    skip_additional_timestamps_same_entry = false, -- org-agenda-skip-additional-timestamps-same-entry
+    --- true (no pre-warning when scheduled) | number of days | "pre-scheduled"
+    --- (org-agenda-skip-deadline-prewarning-if-scheduled).
     skip_deadline_prewarning_if_scheduled = false,
+    --- true | number | "post-deadline" (org-agenda-skip-scheduled-delay-if-deadline).
     skip_scheduled_delay_if_deadline = false,
-    show_future_repeats = true, -- true | false | "next"
-    todo_ignore_scheduled = false, -- false | "all" | "future" | "past"
-    todo_ignore_deadlines = false, -- false | "all" | "near" | "far"
-    todo_ignore_with_date = false,
+    --- Days an overdue deadline / past scheduled entry keeps being shown
+    --- (org-deadline-past-days, org-scheduled-past-days).
+    deadline_past_days = 10000,
+    scheduled_past_days = 10000,
+    --- Show the last repeat instead of the base date: true or a list of
+    --- TODO keywords (org-agenda-prefer-last-repeat).
+    prefer_last_repeat = false,
+    show_future_repeats = true, -- true | false | "next" (org-agenda-show-future-repeats)
+    --- Show days without entries (org-agenda-show-all-dates).
+    show_all_dates = true,
+    --- false | "all" | "future" | "past" | days (org-agenda-todo-ignore-scheduled).
+    todo_ignore_scheduled = false,
+    --- false | true (= "near") | "near" | "far" | "all" | "future" | "past" | days
+    --- (org-agenda-todo-ignore-deadlines).
+    todo_ignore_deadlines = false,
+    --- false | true | "future" | "past" | days (org-agenda-todo-ignore-timestamp).
+    todo_ignore_timestamp = false,
+    todo_ignore_with_date = false, -- org-agenda-todo-ignore-with-date
+    --- Apply the todo_ignore_* options to tags-todo (M) views too
+    --- (org-agenda-tags-todo-honor-ignore-options).
+    tags_todo_honor_ignore_options = false,
+    --- List TODO children of TODO entries (org-agenda-todo-list-sublevels).
+    todo_list_sublevels = true,
+    --- List matching children of matching entries (org-tags-match-list-sublevels).
+    tags_match_list_sublevels = true,
     time_grid = {
-      enabled = true,
-      --- Emacs org-agenda-time-grid type flags.
+      enabled = true, -- org-agenda-use-time-grid
+      --- org-agenda-time-grid flags: "daily", "weekly", "today",
+      --- "require-timed", "remove-match".
       type = { "daily", "today", "require-timed" },
       times = { 800, 1000, 1200, 1400, 1600, 1800, 2000 },
-      separator = "┄┄┄┄┄",
+      --- Text after the time of grid lines and timed entries (3rd element).
+      separator = " ┄┄┄┄┄ ",
       time_string = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
     },
-    current_time_string = "← now ─────────────────────────────",
+    --- org-agenda-current-time-string
+    current_time_string = "← now ───────────────────────────────────────────────",
+    show_current_time_in_grid = true, -- org-agenda-show-current-time-in-grid
+    --- Line prefix per view (org-agenda-prefix-format): %c category, %i
+    --- icon, %t time, %s leader, %e effort, %l level, %b breadcrumbs,
+    --- %T last tag, %(lua expr); a string applies to all views.
+    prefix_format = {
+      agenda = " %i %-12:c%?-12t% s",
+      todo = " %i %-12:c",
+      tags = " %i %-12:c",
+      search = " %i %-12:c",
+    },
+    --- org-agenda-scheduled-leaders: { on the day, past (%d = days) }.
+    scheduled_leaders = { "Scheduled: ", "Sched.%2dx: " },
+    --- org-agenda-deadline-leaders: { due, in %d days, %d days ago }.
+    deadline_leaders = { "Deadline:  ", "In %3d d.: ", "%2d d. ago: " },
+    --- org-agenda-timerange-leaders: { same day, "(day/days)" }.
+    timerange_leaders = { "", "(%d/%d): " },
+    inactive_leader = "[", -- org-agenda-inactive-leader
+    --- Remove a time shown in the prefix from the headline text: true |
+    --- false | "beg" (org-agenda-remove-times-when-in-prefix).
+    remove_times_when_in_prefix = true,
+    --- Use a time of day found in the headline (org-agenda-search-headline-for-time).
+    search_headline_for_time = true,
+    --- Minutes added to timed entries without an end time
+    --- (org-agenda-default-appointment-duration).
+    default_appointment_duration = nil,
+    time_leading_zero = false, -- org-agenda-time-leading-zero
+    timegrid_use_ampm = false, -- org-agenda-timegrid-use-ampm
+    --- Day header: nil (aligned, week number on Mondays), a strftime
+    --- format or a function(date) -> string (org-agenda-format-date).
+    format_date = nil,
+    --- Weekend days, 0 = Sunday (org-agenda-weekend-days).
+    weekend_days = { 6, 0 },
+    --- Vim regexp; matching tags are not displayed (org-agenda-hide-tags-regexp).
+    hide_tags_regexp = nil,
+    --- "auto" = right-aligned to the window, N > 0 = start column, N < 0 =
+    --- right-aligned to column -N (org-agenda-tags-column).
+    tags_column = "auto",
+    --- { { vim_regexp, icon_text }, ... } for %i (org-agenda-category-icon-alist).
+    category_icons = {},
+    --- Echo the outline path of the entry at point (org-agenda-show-outline-path).
+    show_outline_path = true,
+    breadcrumbs_separator = "->", -- org-agenda-breadcrumbs-separator
+    --- Sorting strategies per view (org-agenda-sorting-strategy).
     sorting = {
-      agenda = { "time-up", "priority-down", "category-keep" },
-      todo = { "priority-down", "category-keep" },
-      tags = { "priority-down", "category-keep" },
+      agenda = { "habit-down", "time-up", "urgency-down", "category-keep" },
+      todo = { "urgency-down", "category-keep" },
+      tags = { "urgency-down", "category-keep" },
       search = { "category-keep" },
     },
-    --- Where the agenda opens: "current" | "split" | "vsplit" | "tab" | "float"
-    window = "current",
-    log_mode_items = { "closed", "clock" },
+    --- function(a, b) -> -1 | 1 | nil for "user-defined-up/-down"
+    --- (org-agenda-cmp-user-defined).
+    cmp_user_defined = nil,
+    sort_notime_is_late = true, -- org-agenda-sort-notime-is-late
+    sort_noeffort_is_high = true, -- org-agenda-sort-noeffort-is-high
+    --- Maximum entries per day or list: a number, or a table per view type
+    --- { agenda = n, todo = n, tags = n, search = n } (org-agenda-max-entries,
+    --- org-agenda-max-todos, org-agenda-max-tags, org-agenda-max-effort).
+    max_entries = nil,
+    max_todos = nil,
+    max_tags = nil,
+    max_effort = nil,
+    --- Where the agenda opens: "split" (org-agenda-window-setup
+    --- reorganize-frame), "vsplit", "current", "only", "tab", "float".
+    window = "split",
+    --- Restore the window layout when quitting (org-agenda-restore-windows-after-quit).
+    restore_windows_after_quit = false,
+    --- One buffer per agenda command, reused until refreshed (org-agenda-sticky).
+    sticky = false,
+    --- Keep filters when another agenda is built (org-agenda-persistent-filter).
+    persistent_filter = false,
+    --- function(tag) -> "+tag" | "-tag" | nil, applied by `\` <CR> and 3/
+    --- (org-agenda-auto-exclude-function).
+    auto_exclude_function = nil,
+    --- Keep marks after a bulk action (org-agenda-persistent-marks).
+    persistent_marks = false,
+    --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
+    --- (org-agenda-bulk-custom-functions).
+    bulk_custom_functions = {},
+    --- No block headers and separators (org-agenda-compact-blocks).
+    compact_blocks = false,
+    log_mode_items = { "closed", "clock" }, -- org-agenda-log-mode-items
     habits = {
-      graph_column = 50,
-      preceding_days = 21,
-      following_days = 7,
-      show_habits = true,
-      show_all_today = false,
-      show_done_always_green = false,
-      --- Only show habits on today's agenda (org-habit-show-habits-only-for-today).
-      show_habits_only_for_today = true,
-      --- Graph characters for today and for days the habit was done
-      --- (org-habit-today-glyph, org-habit-completed-glyph).
-      today_glyph = "!",
-      completed_glyph = "*",
+      graph_column = 40, -- org-habit-graph-column
+      preceding_days = 21, -- org-habit-preceding-days
+      following_days = 7, -- org-habit-following-days
+      show_habits = true, -- org-habit-show-habits
+      show_habits_only_for_today = true, -- org-habit-show-habits-only-for-today
+      show_all_today = false, -- org-habit-show-all-today
+      show_done_always_green = false, -- org-habit-show-done-always-green
+      scheduled_past_days = nil, -- org-habit-scheduled-past-days
+      today_glyph = "!", -- org-habit-today-glyph
+      completed_glyph = "*", -- org-habit-completed-glyph
     },
+    --- org-stuck-projects: projects matching `match` are stuck unless their
+    --- subtree has one of `todo_keywords` / `tags` ("*" = any) or text
+    --- matching the Vim regexp `text`.
     stuck_projects = {
       match = "+LEVEL=2/-DONE",
-      todo_keywords = { "TODO", "NEXT" },
+      todo_keywords = { "TODO", "NEXT", "NEXTACTION" },
       tags = {},
       text = nil,
     },
-    --- Save source buffers after editing them from the agenda.
-    save_after_edit = true,
-    block_separator = "─",
-    show_inherited_tags = true,
+    --- Save source buffers after editing them from the agenda. Emacs never
+    --- does: edited buffers stay modified until saved (C-x C-s in the agenda).
+    save_after_edit = false,
+    block_separator = "─", -- org-agenda-block-separator
+    show_inherited_tags = true, -- org-agenda-show-inherited-tags
+    --- true | false | "prefix" (org-agenda-remove-tags).
     remove_tags = false,
-    custom_commands = {},
-    --- Body lines shown under each entry in entry text mode (E).
+    custom_commands = {}, -- org-agenda-custom-commands
+    --- Columns format of the agenda column view; nil = the first agenda
+    --- file's (org-agenda-overriding-columns-format).
+    overriding_columns_format = nil,
+    view_columns_initially = false, -- org-agenda-view-columns-initially
+    --- Show column summaries on date lines (org-agenda-columns-show-summaries).
+    columns_show_summaries = true,
+    --- Extra files for the search view; "agenda-archives" adds the archive
+    --- files (org-agenda-text-search-extra-files).
+    text_search_extra_files = {},
+    search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
+    search_view_force_full_words = false, -- org-agenda-search-view-force-full-words
+    search_view_max_outline_level = 0, -- org-agenda-search-view-max-outline-level
+    --- Body lines shown under each entry in entry text mode (E)
+    --- (org-agenda-entry-text-maxlines).
     entry_text_maxlines = 5,
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,
-    start_with_log_mode = false, -- false | true | "all" | "clockcheck"
+    start_with_log_mode = false, -- false | true | "all" | "clockcheck" (org-agenda-start-with-log-mode)
     --- Add the first line of a clock or state note to log items
     --- (org-agenda-log-mode-add-notes).
     log_mode_add_notes = true,
-    start_with_follow_mode = false,
-    start_with_clockreport_mode = false,
+    start_with_follow_mode = false, -- org-agenda-start-with-follow-mode
+    start_with_clockreport_mode = false, -- org-agenda-start-with-clockreport-mode
     --- Clocktable parameters of the clock report mode
     --- (org-agenda-clockreport-parameter-plist); :scope and the time range
     --- come from the agenda.
@@ -375,7 +507,7 @@ M.defaults = {
       max_gap = "0:05",
       gap_ok_around = { "4:00" },
     },
-    start_with_entry_text_mode = false,
+    start_with_entry_text_mode = false, -- org-agenda-start-with-entry-text-mode
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
@@ -1127,8 +1259,10 @@ M.defaults = {
     },
     agenda = {
       quit = "q",
+      quit_kill = "Q",
       exit = "x",
       redo = "r",
+      redo_all = "gr", -- Emacs: g (a Vim prefix key)
       later = "f",
       earlier = "b",
       today = ".",
@@ -1142,6 +1276,7 @@ M.defaults = {
       goto = "<Tab>",
       switch_to = "<CR>",
       show = "<Space>",
+      show_scroll_down = "<BS>",
       recenter = "L",
       delete_other_windows = "o",
       follow_mode = { "F", "vf" },
@@ -1163,8 +1298,10 @@ M.defaults = {
       clock_out = { "O", "<C-c><C-x><C-o>" },
       clock_cancel = { "X", "<C-c><C-x><C-x>" },
       clock_goto = { "J", "<C-c><C-x><C-j>" },
+      attach = "<C-c><C-a>",
       set_effort = { "e", "<C-c><C-x>e" },
       timer = ";",
+      timer_stop = "<C-c><C-x>_",
       restriction_lock = "<C-c><C-x><",
       remove_restriction_lock = "<C-c><C-x>>",
       refile = { "<C-c><C-w>", "R" },
@@ -1186,12 +1323,14 @@ M.defaults = {
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
       dim_blocked = "#",
-      filter_tag = "/",
+      filter = "/",
+      filter_tag = "\\",
       filter_category = "<",
       filter_regexp = "=",
       filter_effort = "_",
       filter_top_headline = "^",
       filter_remove = "|",
+      limit = "~",
       query_add = "[",
       query_subtract = "]",
       query_add_re = "{",
@@ -1210,8 +1349,13 @@ M.defaults = {
       prev_date_line = "<C-c><C-p>",
       forward_block = "<C-Down>",
       backward_block = "<C-Up>",
+      drag_line_forward = "<M-Down>",
+      drag_line_backward = "<M-Up>",
+      append = "A",
+      columns = "<C-c><C-x><C-c>",
+      calendar = "c",
       save_all = "<C-x><C-s>",
-      capture = "c", -- Emacs: k (kept free for motion)
+      capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",
     },

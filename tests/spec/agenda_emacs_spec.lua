@@ -152,7 +152,7 @@ describe("agenda buffer commands", function()
     local function grid_lines()
       local n = 0
       for _, l in ipairs(buf_lines()) do
-        if l:find("┄┄┄┄┄", 1, true) then
+        if l:find("┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄", 1, true) then
           n = n + 1
         end
       end
@@ -183,7 +183,8 @@ describe("agenda buffer commands", function()
     eq({ "Quick call" }, shown())
     view.set_effort_filter(">30")
     eq({ "Unrelated", "Write report" }, shown())
-    ok(buf_lines()[1]:find("Effort>0:30", 1, true), buf_lines()[1])
+    -- like the Emacs mode line, the filter is shown in the window bar
+    ok(view.filter_desc():find("Effort:+>30", 1, true), view.filter_desc())
     view.set_effort_filter("")
     goto_title("Quick call")
     view.actions.filter_top_headline()
@@ -219,7 +220,8 @@ describe("agenda buffer commands", function()
     utils.confirm = orig
     ok(asked and asked:find("2 lines"), asked)
     ok(not vim.tbl_contains(shown(), "Unrelated"))
-    ok(not table.concat(utils.readfile(path), "\n"):find("Unrelated"))
+    -- like Emacs, the source buffer is left modified, not saved
+    ok(not table.concat(vim.api.nvim_buf_get_lines(utils.find_buffer(path), 0, -1, false), "\n"):find("Unrelated"))
     view.quit(true)
   end)
 
