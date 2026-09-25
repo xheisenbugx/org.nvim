@@ -1322,18 +1322,32 @@ Output goes next to the source file, or to `export.output_dir`.
 ==============================================================================
 22. TIMERS AND NOTIFICATIONS                    *org-timers* *org-notifications*
 
-:Org timer_start        Start a relative timer (count: ask for an
-                        offset such as `0:10:00`).
-:Org timer_insert       Insert the timer value (in a list: `- 0:01:23 :: `).
-                        During a countdown, the remaining time.
+:Org timer_start        Start a relative timer. A count asks for an offset
+                        `H:MM:SS` (default: the timer value on the line; a
+                        bare number is seconds, `M:SS` minutes); 16 shifts
+                        the timer values of the selection instead.
+:Org timer_insert       Insert the timer value after the cursor, written
+                        with `timer.format` ("%s "). Starts the timer if
+                        needed; a count restarts it; 16 shifts the timer
+                        values of the selection. During a countdown, the
+                        remaining time.
+:Org timer_item         Insert a `- 0:01:23 :: ` item: below the current
+                        item in a timer list, turning the current line into
+                        one elsewhere (an error in other lists).
 :Org timer_pause        Pause or continue the timer or countdown.
 :Org timer_stop         Stop the timer or countdown.
 :Org timer_countdown N  Countdown of N minutes (or `H:MM:SS`, `M:SS`). Without
-                        an argument: a count, else the entry's Effort, else
-                        a prompt. At the end you get a notification and a
-                        `User OrgTimerDone` autocmd.
+                        an argument: a count (minutes), else the entry's
+                        Effort, else a prompt suggesting `timer.default_timer`.
+                        At the end you get a notification (`clock.sound`,
+                        `clock.notification_handler`).
 :Org timer_remaining    Show the remaining countdown time.
-One timer runs at a time; `require("org").statusline()` shows it.
+One timer runs at a time; `require("org").statusline()` shows it. User
+autocmds: `OrgTimerStart`, `OrgTimerStop`, `OrgTimerPause`,
+`OrgTimerContinue`, `OrgTimerSet`, `OrgTimerDone`.
+Note: Emacs distinguishes C-u from a numeric prefix for the countdown
+(C-u = the default timer); Neovim has only counts, so a count is always a
+number of minutes.
 
 Appointment reminders (`notifications.enabled = true`, or
 `:Org notifications_start`): timed SCHEDULED, DEADLINE and plain timestamps
@@ -1488,6 +1502,7 @@ clock ~
   clocktable_default { maxlevel 2, scope, block },
   persist true ("clock" | "history"), persist_query_resume true,
   persist_file
+timer ~    format "%s ", default_timer "0"
 links ~
   abbreviations {}, types {}, confirm_shell true,
   use_id "create-if-interactive" (true|false|"use-existing"), file_apps {}

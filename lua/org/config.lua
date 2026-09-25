@@ -325,6 +325,17 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- Timers
+  ---------------------------------------------------------------------------
+  timer = {
+    --- How timer_insert writes the value, "%s" is the value (org-timer-format).
+    format = "%s ",
+    --- Countdown suggested at the prompt, minutes or h:mm:ss; "0" = none
+    --- (org-timer-default-timer).
+    default_timer = "0",
+  },
+
+  ---------------------------------------------------------------------------
   -- Links / IDs / attachments
   ---------------------------------------------------------------------------
   links = {

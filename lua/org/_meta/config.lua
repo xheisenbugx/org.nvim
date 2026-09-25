@@ -167,6 +167,8 @@
 ---@field refile? org.Config.Refile
 ---Clocking (time tracking).
 ---@field clock? org.Config.Clock
+---Relative and countdown timers.
+---@field timer? org.Config.Timer
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
 ---`ID` property creation and lookup.

@@ -122,6 +122,19 @@
 ---@field block? "today"|"yesterday"|"thisweek"|"lastweek"|"thismonth"|"lastmonth"|"thisyear"|"lastyear"|string
 
 ---------------------------------------------------------------------------
+-- Timers
+---------------------------------------------------------------------------
+
+---Timer options.
+---@class org.Config.Timer
+---How `timer_insert` writes the value; `%s` is the value (`org-timer-format`).
+---(default: `"%s "`)
+---@field format? string
+---Countdown suggested at the prompt, minutes or `h:mm:ss`; `"0"` suggests
+---nothing (`org-timer-default-timer`). (default: `"0"`)
+---@field default_timer? string
+
+---------------------------------------------------------------------------
 -- Links
 ---------------------------------------------------------------------------
 

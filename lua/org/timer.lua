@@ -55,42 +55,145 @@ function M.format(seconds)
   return string.format("%d:%02d:%02d", math.floor(seconds / 3600), math.floor(seconds % 3600 / 60), seconds % 60)
 end
 
---- Parse a timer value into seconds like Emacs: "25" is minutes, "1:30"
---- is M:SS and "1:30:00" is H:MM:SS (org-timer-fix-incomplete).
-local function parse_hms(str)
-  str = vim.trim(str or "")
-  local h, m, s = str:match("^(%d+):(%d+):(%d+)$")
-  if h then
-    return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s)
-  end
-  m, s = str:match("^(%d+):(%d+)$")
-  if m then
-    return tonumber(m) * 60 + tonumber(s)
-  end
-  local n = tonumber(str)
-  return n and math.floor(n * 60) or nil
+local function cfg()
+  return require("org.config").opts.timer or {}
 end
 
---- Start (or restart) the relative timer. `args` is an optional offset,
---- "H:MM:SS" or minutes; interactively a count prompts for it
---- (org-timer-start with C-u).
+local function fire(pattern, data)
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data or {}, modeline = false })
+end
+
+--- Complete "SS" or "M:SS" to "H:MM:SS" (org-timer-fix-incomplete).
+local function fix_incomplete(hms)
+  local a, b, c = hms:match("(%d+):(%d+):(%d+)")
+  if not a then
+    b, c = hms:match("(%d+):(%d+)")
+    if not b then
+      c = hms:match("(%d+)")
+    end
+  end
+  if not c then
+    return nil
+  end
+  return string.format("%d:%02d:%02d", tonumber(a) or 0, tonumber(b) or 0, tonumber(c))
+end
+
+--- "[-]H:MM:SS" to seconds (org-timer-hms-to-secs); 0 when not a timer value.
+local function hms_to_secs(hms)
+  local sign, h, m, sec = (hms or ""):match("([-+]?)(%d+):(%d%d):(%d%d)")
+  if not h then
+    return 0
+  end
+  local v = tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(sec)
+  return sign == "-" and -v or v
+end
+
+--- Seconds of a countdown length: plain digits are minutes, else
+--- [[H:]M:]S like Emacs (org-timer-set-timer).
+local function countdown_secs(str)
+  str = vim.trim(tostring(str or ""))
+  if str:match("^%d+$") then
+    str = str .. ":00"
+  end
+  local fixed = fix_incomplete(str)
+  return fixed and hms_to_secs(fixed) or nil
+end
+
+--- The timer value as inserted in the buffer (org-timer-value-string).
+local function value_string()
+  local fmt = cfg().format or "%s "
+  return (fmt:gsub("%%s", M.format(M.value()), 1))
+end
+
+--- Start (or restart) the relative timer (org-timer-start). `args` is an
+--- offset "H:MM:SS" (a bare number is seconds, "M:SS" minutes and seconds);
+--- interactively a count asks for it, defaulting to the timer value at the
+--- cursor. A count of 16 shifts the timer values of the selection instead.
 function M.start(args)
+  if args == nil and vim.v.count >= 16 then
+    return M.change_times_in_region()
+  end
   if M.state and M.state.countdown then
-    utils.warn("A countdown timer is running. Stop it first")
+    utils.warn("Countdown timer is running.  Cancel first")
     return nil
   end
   if args == nil and vim.v.count > 0 then
-    args = utils.input({ prompt = "Restart timer with offset: ", default = "0:00:00" })
+    local line = vim.api.nvim_get_current_line()
+    local def = line:match("[-+]?%d+:%d%d:%d%d") or "0:00:00"
+    args = utils.input({ prompt = "Restart timer with offset [" .. def .. "]: " })
     if args == nil then
       return nil
     end
+    if not args:match("%S") then
+      args = def
+    end
   end
   local offset = 0
-  if type(args) == "string" and args ~= "" then
-    offset = parse_hms(args) or 0
+  if type(args) == "number" then
+    offset = args
+  elseif type(args) == "string" and args ~= "" then
+    offset = hms_to_secs(fix_incomplete(args) or "")
   end
   M.state = { start = now() - offset }
-  utils.notify("Timer started")
+  utils.notify(
+    string.format(
+      "Timer start time set to %s, current value is %s",
+      os.date("%H:%M:%S", os.time() - offset),
+      M.format(offset)
+    )
+  )
+  fire("OrgTimerStart")
+  vim.cmd("redrawstatus")
+  return true
+end
+
+--- Shift every timer value (H:MM:SS) in the selection, or the current
+--- line, by `delta` (org-timer-change-times-in-region). Without `delta`,
+--- ask for it, defaulting to the value that makes the first one 0:00:00.
+---@param delta? string like "-1:08:26"
+function M.change_times_in_region(delta, s, e)
+  if not s then
+    local mode = vim.fn.mode()
+    if mode == "v" or mode == "V" or mode == "\22" then
+      s, e = vim.fn.line("v"), vim.fn.line(".")
+      if s > e then
+        s, e = e, s
+      end
+      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    else
+      s = vim.api.nvim_win_get_cursor(0)[1]
+      e = s
+    end
+  end
+  local lines = vim.api.nvim_buf_get_lines(0, s - 1, e, false)
+  local pat = "[-+]?%d+:%d%d:%d%d"
+  if delta == nil then
+    delta = utils.input({ prompt = 'Enter time difference like "-1:08:26".  Default is first time to zero: ' })
+    if delta == nil then
+      return nil
+    end
+  end
+  if not delta:match("%S") then
+    local first = table.concat(lines, "\n"):match(pat)
+    if not first then
+      utils.warn("No change")
+      return nil
+    end
+    delta = first:sub(1, 1) == "-" and first:sub(2) or ("-" .. first)
+  end
+  local sign = delta:match("^%s*%-") and -1 or 1
+  local d = hms_to_secs(fix_incomplete(delta:gsub("^%s*[-+]", "")) or "") * sign
+  if d == 0 then
+    utils.warn("No change")
+    return nil
+  end
+  for i, l in ipairs(lines) do
+    lines[i] = l:gsub(pat, function(v)
+      local secs = hms_to_secs(v) + d
+      return (secs < 0 and "-" or "") .. M.format(math.abs(secs))
+    end)
+  end
+  vim.api.nvim_buf_set_lines(0, s - 1, e, false, lines)
   return true
 end
 
@@ -101,9 +204,10 @@ function M.stop()
     return nil
   end
   local v = M.value()
+  fire("OrgTimerStop")
   M.state = nil
   stop_countdown_timer()
-  utils.notify("Timer stopped at " .. M.format(v))
+  utils.notify("Timer stopped")
   vim.cmd("redrawstatus")
   return v
 end
@@ -118,10 +222,11 @@ local function arm_countdown()
       if M.state ~= st then
         return
       end
+      -- org-notify, with the clock's notification handler and sound
+      require("org.clock").notify(string.format("%s: time out", st.title or "Timer"))
+      fire("OrgTimerDone", { title = st.title })
       stop_countdown_timer()
       M.state = nil
-      utils.notify(string.format("%s: time out", st.title or "Timer"), vim.log.levels.WARN)
-      pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgTimerDone", data = { title = st.title } })
       vim.cmd("redrawstatus")
     end)
   end)
@@ -140,8 +245,10 @@ function M.pause_or_continue()
     if st.countdown then
       arm_countdown()
     end
-    utils.notify("Timer continued")
+    fire("OrgTimerContinue")
+    utils.notify("Timer continues at " .. M.format(M.value()))
   else
+    fire("OrgTimerPause")
     st.paused_at = now()
     stop_countdown_timer()
     utils.notify("Timer paused at " .. M.format(M.value()))
@@ -150,64 +257,92 @@ function M.pause_or_continue()
   return true
 end
 
---- Insert the timer value at the cursor (org-timer). Starts the relative
---- timer when none runs. In a list item, start a new description item
---- "- 0:12:34 :: ".
+--- Insert the timer value after the cursor, formatted with `timer.format`
+--- (org-timer). Starts the relative timer when none runs; a count restarts
+--- it (C-u), 16 shifts the timer values of the selection instead (C-u C-u).
 function M.insert()
-  if not M.state then
+  local count = vim.v.count
+  if count >= 16 then
+    return M.change_times_in_region()
+  end
+  if count > 0 or not M.state then
     M.start("")
   end
-  local value = M.format(M.value())
+  local text = value_string()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
-  local indent, bullet = line:match("^(%s*)([-+*])%s")
-  if not indent then
-    indent, bullet = line:match("^(%s*)(%d+[.)])%s")
-  end
-  if bullet and not (indent == "" and bullet == "*") then
-    local new = indent .. (bullet:match("%d") and "-" or bullet) .. " " .. value .. " :: "
-    vim.api.nvim_buf_set_lines(0, lnum, lnum, false, { new })
-    vim.api.nvim_win_set_cursor(0, { lnum + 1, #new })
-    vim.cmd("startinsert!")
-    return true
-  end
   local col = vim.api.nvim_win_get_cursor(0)[2]
   local at = #line == 0 and 0 or col + 1
-  local text = value .. " "
   vim.api.nvim_buf_set_text(0, lnum - 1, at, lnum - 1, at, { text })
-  vim.api.nvim_win_set_cursor(0, { lnum, at + #text - 1 })
+  vim.api.nvim_win_set_cursor(0, { lnum, math.max(at + #text - 1, 0) })
   return true
 end
 
---- Insert a description list item with the timer value, "- 0:12:34 :: "
---- (org-timer-item). On a list item, the new item goes below it with the
---- same indentation and bullet; otherwise it replaces an empty line or goes
---- below the current line. Starts the timer when not running.
+local ITEM = "^(%s*)([-+*])%s+"
+local OITEM = "^(%s*)(%d+)([.)])%s+"
+
+--- Insert a description item with the timer value, "- 0:12:34 :: "
+--- (org-timer-item). In a list of timer items the new item goes below the
+--- current one; in another kind of list this is an error; elsewhere the
+--- current line starts a new list. A count restarts the timer.
 function M.insert_item()
-  if not M.state then
+  if vim.v.count > 0 or not M.state then
     M.start("")
   end
-  local value = M.format(M.value())
+  local value = M.format(M.value()) .. " :: "
+  local buf = 0
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local line = vim.api.nvim_get_current_line()
-  local indent, bullet = line:match("^(%s*)([-+*])%s")
-  if not indent then
-    indent, bullet = line:match("^(%s*)(%d+[.)])%s")
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  -- the item around the cursor
+  local item
+  for i = lnum, 1, -1 do
+    local l = lines[i]
+    if l:match(ITEM) and not l:match("^%*") or l:match(OITEM) then
+      item = i
+      break
+    end
+    if l:match("^%*+%s") or (i < lnum and l:match("^%S") and not l:match(ITEM)) then
+      break
+    end
   end
-  if not bullet or (indent == "" and bullet == "*") then
-    indent, bullet = line:match("^(%s*)") or "", "-"
-  elseif bullet:match("%d") then
-    bullet = "-"
+  if item then
+    local l = lines[item]
+    local indent, bullet = l:match(ITEM)
+    local num, delim
+    if not indent then
+      indent, num, delim = l:match(OITEM)
+    end
+    local _, prefix_end = l:find(bullet and ITEM or OITEM)
+    local rest = l:sub(prefix_end + 1):gsub("^%[[ Xx-]%]%s+", "")
+    if not rest:match("^[-+]?%d+:%d%d:%d%d%s+::") then
+      utils.error("This is not a timer list")
+      return nil
+    end
+    -- below the item and its continuation lines
+    local last = item
+    for i = item + 1, #lines do
+      local li = lines[i]
+      if li:match("^%s*$") or #(li:match("^(%s*)")) > #indent then
+        last = i
+      else
+        break
+      end
+    end
+    while last > item and lines[last]:match("^%s*$") do
+      last = last - 1
+    end
+    local new = indent .. (bullet or (tostring(tonumber(num) + 1) .. delim)) .. " " .. value
+    vim.api.nvim_buf_set_lines(buf, last, last, false, { new })
+    vim.api.nvim_win_set_cursor(0, { last + 1, #new })
+    vim.cmd("startinsert!")
+    return true
   end
-  local new = indent .. bullet .. " " .. value .. " :: "
-  if line:match("^%s*$") then
-    vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { new })
-  else
-    vim.api.nvim_buf_set_lines(0, lnum, lnum, false, { new })
-    lnum = lnum + 1
-  end
-  vim.api.nvim_win_set_cursor(0, { lnum, #new })
-  vim.cmd("startinsert!")
+  local line = lines[lnum]
+  local indent = line:match("^(%s*)")
+  local new = indent .. "- " .. value .. line:sub(#indent + 1)
+  vim.api.nvim_buf_set_lines(buf, lnum - 1, lnum, false, { new })
+  vim.api.nvim_win_set_cursor(0, { lnum, #indent + 2 + #value })
+  vim.cmd("startinsert")
   return true
 end
 
@@ -219,7 +354,8 @@ local function entry_title()
   local ok, hl = pcall(function()
     return require("org.files").get_buffer(0):headline_at(vim.api.nvim_win_get_cursor(0)[1])
   end)
-  return ok and hl and hl:plain_title() or nil
+  -- org-get-heading: the headline without its stars
+  return ok and hl and vim.trim((hl.raw:gsub("^%*+%s*", ""))) or nil
 end
 
 --- Effort of the entry at the cursor, in minutes.
@@ -234,29 +370,36 @@ local function entry_effort()
   return ok and minutes or nil
 end
 
---- Start a countdown (org-timer-set-timer). `args` is minutes or H:MM:SS;
---- otherwise a count gives the minutes, then the entry's Effort, then a
---- prompt (default 25 minutes).
+--- Start a countdown (org-timer-set-timer). `args` is minutes or
+--- [H:]M:SS. Interactively a count gives the minutes; otherwise the entry's
+--- Effort, else a prompt (suggesting `timer.default_timer` unless "0").
 function M.countdown(args)
   if M.state and not M.state.countdown then
-    utils.warn("Relative timer is running. Stop first")
+    utils.warn("Relative timer is running.  Stop first")
     return nil
   end
-  local secs = type(args) == "string" and args ~= "" and parse_hms(args) or tonumber(args) and tonumber(args) * 60
-  if not secs and vim.v.count > 0 then
-    secs = vim.v.count * 60
+  local minutes = args ~= nil and args ~= "" and tostring(args) or nil
+  if not minutes and vim.v.count > 0 then
+    minutes = tostring(vim.v.count)
   end
-  if not secs then
+  if not minutes then
     local effort = entry_effort()
-    secs = effort and effort > 0 and effort * 60 or nil
+    minutes = effort and effort > 0 and tostring(math.floor(effort)) or nil
   end
-  if not secs then
-    local v = utils.input({ prompt = "How much time left? (minutes or h:mm:ss) ", default = "25" })
-    if v == nil then
+  if not minutes then
+    local def = tostring(cfg().default_timer or "0")
+    minutes = utils.input({
+      prompt = "How much time left? (minutes or h:mm:ss) ",
+      default = def ~= "0" and def or nil,
+    })
+    if minutes == nil then
       return nil
     end
-    secs = parse_hms(v)
   end
+  if not minutes:match("%d") then
+    return M.show_remaining()
+  end
+  local secs = countdown_secs(minutes)
   if not secs or secs <= 0 then
     return nil
   end
@@ -264,9 +407,9 @@ function M.countdown(args)
     utils.notify("No timer set")
     return nil
   end
-  M.state = { start = now(), countdown = secs, title = entry_title() }
+  M.state = { start = now(), countdown = secs, title = entry_title() or vim.fn.bufname() }
   arm_countdown()
-  utils.notify(string.format("Timer set: %s", M.format(secs)))
+  fire("OrgTimerSet", { seconds = secs })
   vim.cmd("redrawstatus")
   return true
 end
@@ -277,8 +420,8 @@ function M.show_remaining()
     utils.notify("No timer set")
     return nil
   end
-  local title = M.state.title and (" " .. M.state.title) or ""
-  utils.notify(string.format("%s remaining for timer%s", M.format(M.value()), title))
+  local v = M.value()
+  utils.notify(string.format("%d minute(s) %d seconds left before next time out", math.floor(v / 60), v % 60))
   return true
 end
 
