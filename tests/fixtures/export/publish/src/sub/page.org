@@ -1,0 +1,9 @@
+#+TITLE: A Page
+#+DATE: <2026-01-02 Fri>
+#+OPTIONS: toc:nil
+
+* Section One
+one
+* Section Two
+two
+#+INDEX: Page

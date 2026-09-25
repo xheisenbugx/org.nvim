@@ -1,0 +1,46 @@
+#+TITLE: Envs
+#+OPTIONS: toc:nil
+* A frame
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: shrink=10
+:BEAMER_subtitle: Sub *title*
+:END:
+** Example
+:PROPERTIES:
+:BEAMER_env: example
+:BEAMER_act: [<2->]
+:END:
+Example text.
+** Col box
+:PROPERTIES:
+:BEAMER_env: columns
+:BEAMER_opt: T
+:END:
+*** One
+:PROPERTIES:
+:BEAMER_col: 0.4
+:BEAMER_env: onlyenv
+:BEAMER_act: <1>
+:END:
+Only here.
+*** Two
+:PROPERTIES:
+:BEAMER_col: 0.6
+:END:
+Two text.
+** Verse
+:PROPERTIES:
+:BEAMER_env: quote
+:END:
+Quoted.
+* Appendix
+:PROPERTIES:
+:BEAMER_env: appendix
+:END:
+** Backup
+Backup [[*A frame][link]] and <<tgt>> target and <<<radio>>> word radio.
+
+#+ATTR_BEAMER: :overlay <+->
+- x
+- y

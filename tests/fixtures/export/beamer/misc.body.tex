@@ -1,0 +1,25 @@
+\section{Section}
+\label{sec:orgc72830f}
+\begin{enumerate}
+\item Sub
+\label{sec:org755fd41}
+\begin{orgframe}[label={sec:org9d95c0c},fragile]{Deep frame}
+ Text with <2> \alert{bold} and \href{https://orgmode.org}{site}.
+
+\begin{verbatim}
+\begin{frame}
+inside
+\end{frame}
+\end{verbatim}
+\end{orgframe}
+\begin{block}{Other frame}
+\begin{itemize}
+\item<1-> first
+\item second
+\end{itemize}
+
+\setcounter{tocdepth}{1}
+\tableofcontents[currentsection]
+\end{block}
+\note<2>{Note body.}
+\end{enumerate}

@@ -1,0 +1,5 @@
+#+OPTIONS: tex:nil toc:nil
+Math $x+1$ and \(y\) end.
+\begin{equation}
+a=b
+\end{equation}
