@@ -591,6 +591,111 @@ M.defaults = {
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
+    --- Holidays shown by `%%(org-calendar-holiday)` (calendar-holidays): one
+    --- list per holiday-*-holidays variable, with Emacs's defaults. Set a
+    --- group to `{}` to drop it; add your own to `local`/`other`. See
+    --- `:h org-agenda-holidays`.
+    holidays = {
+      -- holiday-general-holidays (the United States)
+      general = {
+        { "holiday-fixed", 1, 1, "New Year's Day" },
+        { "holiday-float", 1, 1, 3, "Martin Luther King Day" },
+        { "holiday-fixed", 2, 2, "Groundhog Day" },
+        { "holiday-fixed", 2, 14, "Valentine's Day" },
+        { "holiday-float", 2, 1, 3, "President's Day" },
+        { "holiday-fixed", 3, 17, "St. Patrick's Day" },
+        { "holiday-fixed", 4, 1, "April Fools' Day" },
+        { "holiday-float", 5, 0, 2, "Mother's Day" },
+        { "holiday-float", 5, 1, -1, "Memorial Day" },
+        { "holiday-fixed", 6, 14, "Flag Day" },
+        { "holiday-float", 6, 0, 3, "Father's Day" },
+        { "holiday-fixed", 7, 4, "Independence Day" },
+        { "holiday-float", 9, 1, 1, "Labor Day" },
+        { "holiday-float", 10, 1, 2, "Columbus Day" },
+        { "holiday-fixed", 10, 31, "Halloween" },
+        { "holiday-fixed", 11, 11, "Veteran's Day" },
+        { "holiday-float", 11, 4, 4, "Thanksgiving" },
+      },
+      ["local"] = {}, -- holiday-local-holidays
+      other = {}, -- holiday-other-holidays
+      -- holiday-christian-holidays
+      christian = {
+        { "holiday-easter-etc" },
+        { "holiday-fixed", 12, 25, "Christmas" },
+        {
+          "if",
+          "christian_all",
+          { "holiday-fixed", 1, 6, "Epiphany" },
+          { "holiday-julian", 12, 25, "Christmas (Julian calendar)" },
+          { "holiday-greek-orthodox-easter" },
+          { "holiday-fixed", 8, 15, "Assumption" },
+          { "holiday-advent", 0, "Advent" },
+        },
+      },
+      -- holiday-hebrew-holidays
+      hebrew = {
+        { "holiday-hebrew-passover" },
+        { "holiday-hebrew-rosh-hashanah" },
+        { "holiday-hebrew-hanukkah" },
+        { "if", "hebrew_all", { "holiday-hebrew-tisha-b-av" }, { "holiday-hebrew-misc" } },
+      },
+      -- holiday-islamic-holidays
+      islamic = {
+        { "holiday-islamic-new-year" },
+        { "holiday-islamic", 9, 1, "Ramadan Begins" },
+        {
+          "if",
+          "islamic_all",
+          { "holiday-islamic", 1, 10, "Ashura" },
+          { "holiday-islamic", 3, 12, "Mulad-al-Nabi" },
+          { "holiday-islamic", 7, 26, "Shab-e-Mi'raj" },
+          { "holiday-islamic", 8, 15, "Shab-e-Bara't" },
+          { "holiday-islamic", 9, 27, "Shab-e Qadr" },
+          { "holiday-islamic", 10, 1, "Id-al-Fitr" },
+          { "holiday-islamic", 12, 10, "Id-al-Adha" },
+        },
+      },
+      -- holiday-bahai-holidays
+      bahai = {
+        { "holiday-bahai-new-year" },
+        { "holiday-bahai-ridvan" },
+        { "holiday-bahai", 4, 8, "Declaration of the Báb" },
+        { "holiday-bahai", 4, 13, "Ascension of Bahá’u’lláh" },
+        { "holiday-bahai", 6, 17, "Martyrdom of the Báb" },
+        { "holiday-bahai-twin-holy-birthdays" },
+        {
+          "if",
+          "bahai_all",
+          { "holiday-bahai", 14, 4, "Day of the Covenant" },
+          { "holiday-bahai", 14, 6, "Ascension of ‘Abdu’l-Bahá" },
+        },
+      },
+      -- holiday-oriental-holidays
+      oriental = {
+        { "holiday-chinese-new-year" },
+        {
+          "if",
+          "chinese_all",
+          { "holiday-chinese", 1, 15, "Lantern Festival" },
+          { "holiday-chinese-qingming" },
+          { "holiday-chinese", 5, 5, "Dragon Boat Festival" },
+          { "holiday-chinese", 7, 7, "Double Seventh Festival" },
+          { "holiday-chinese", 8, 15, "Mid-Autumn Festival" },
+          { "holiday-chinese", 9, 9, "Double Ninth Festival" },
+          { "holiday-chinese-winter-solstice" },
+        },
+      },
+      -- holiday-solar-holidays (times in the local time zone)
+      solar = {
+        { "solar-equinoxes-solstices" },
+        { "holiday-daylight-saving" },
+      },
+      christian_all = false, -- calendar-christian-all-holidays-flag
+      hebrew_all = false, -- calendar-hebrew-all-holidays-flag
+      islamic_all = false, -- calendar-islamic-all-holidays-flag
+      bahai_all = false, -- calendar-bahai-all-holidays-flag
+      chinese_all = false, -- calendar-chinese-all-holidays-flag
+    },
   },
 
   ---------------------------------------------------------------------------

@@ -11,12 +11,13 @@
 ---   org-date Y M D            diary-date M D Y     (t = any, lists allowed)
 ---   diary-float MONTH DAYNAME N [DAY]
 ---   org-class Y1 M1 D1 Y2 M2 D2 DAYNAME [SKIP-WEEKS...]
+---   org-calendar-holiday      (the holidays of `agenda.holidays`)
 ---   and, or, not, list, quote
 ---
 --- The `diary-*` functions use Emacs's default `calendar-date-style`
 --- (american: month day year); the `org-*` wrappers use ISO order (year month
---- day), exactly like Emacs. Anything else (arbitrary Elisp, holidays, other
---- calendars, diary-remind, ...) is reported as an error so the caller can skip
+--- day), exactly like Emacs. Anything else (arbitrary Elisp, other calendars'
+--- diary entries, diary-remind, ...) is reported as an error so the caller can skip
 --- the entry.
 
 local date = require("org.date")
@@ -384,6 +385,10 @@ local FUNCS = {
   end,
   ["diary-float"] = fn_float,
   ["org-class"] = fn_class,
+  -- org-calendar-holiday: the calendar-holidays of the day, joined with "; "
+  ["org-calendar-holiday"] = function(ctx)
+    return require("org.agenda.holidays").org_calendar_holiday(ctx.day) or NIL
+  end,
   list = function(_, ...)
     return { items = { ... } }
   end,

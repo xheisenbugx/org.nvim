@@ -13,6 +13,9 @@ local habits = require("org.agenda.habits")
 
 local M = {}
 
+-- sexps already reported as bad (org agenda warns once per session)
+M._warned_sexps = {}
+
 ---@class org.AgendaItem
 ---@field type string scheduled|deadline|timestamp|range|sexp|closed|clock|state|todo|tags|search|stuck
 ---@field headline org.Headline
@@ -498,9 +501,12 @@ function M.agenda(files, from, to, opts)
   local sc_past_days = acfg.scheduled_past_days or 10000
   local sexp_mod
 
-  -- sexps are parsed once; a bad one is reported once and skipped, like
-  -- Emacs's "Bad sexp ... Skipping"
-  local parsed, warned = {}, {}
+  -- sexps are parsed once; a bad one is reported once per session and
+  -- skipped, like Emacs's "Bad sexp ... Skipping"
+  local parsed, warned = {}, M._warned_sexps
+  if package.loaded["org.agenda.holidays"] then
+    package.loaded["org.agenda.holidays"].reset()
+  end
   local function warn_once(s, err)
     if not warned[s] then
       warned[s] = true

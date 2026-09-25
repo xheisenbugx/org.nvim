@@ -309,6 +309,9 @@
 ---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
 ---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
 ---@field dim_blocked_tasks? boolean|"invisible"
+---Holidays of `%%(org-calendar-holiday)` (calendar-holidays), see
+---`:h org-agenda-holidays`.
+---@field holidays? org.Config.Agenda.Holidays
 
 ---Prefix formats per view (org-agenda-prefix-format).
 ---@class org.Config.Agenda.PrefixFormat
@@ -674,3 +677,39 @@
 ---Times of day that make a gap fine when it contains one (night, lunch).
 ---(default: `{ "4:00" }`)
 ---@field gap_ok_around? (string|integer)[]
+
+---A holiday item: an Emacs holiday form as a list (`{ "holiday-fixed", 12, 25,
+---"Christmas" }`), `{ "if", FLAG, ITEM... }`, or a function(year) returning
+---`{ { MONTH, DAY, NAME }, ... }` (holiday-sexp).
+---@alias org.Config.Agenda.HolidayItem any[]|fun(year: integer): { [1]: integer, [2]: integer, [3]: string }[]
+
+---The `holiday-*-holidays` lists making up calendar-holidays (Emacs defaults).
+---@class org.Config.Agenda.Holidays
+---holiday-general-holidays (the United States)
+---@field general? org.Config.Agenda.HolidayItem[]
+---holiday-local-holidays (default: `{}`)
+---@field local? org.Config.Agenda.HolidayItem[]
+---holiday-other-holidays (default: `{}`)
+---@field other? org.Config.Agenda.HolidayItem[]
+---holiday-christian-holidays
+---@field christian? org.Config.Agenda.HolidayItem[]
+---holiday-hebrew-holidays
+---@field hebrew? org.Config.Agenda.HolidayItem[]
+---holiday-islamic-holidays
+---@field islamic? org.Config.Agenda.HolidayItem[]
+---holiday-bahai-holidays
+---@field bahai? org.Config.Agenda.HolidayItem[]
+---holiday-oriental-holidays
+---@field oriental? org.Config.Agenda.HolidayItem[]
+---holiday-solar-holidays (equinoxes, solstices, daylight saving time)
+---@field solar? org.Config.Agenda.HolidayItem[]
+---calendar-christian-all-holidays-flag (default: `false`)
+---@field christian_all? boolean
+---calendar-hebrew-all-holidays-flag (default: `false`)
+---@field hebrew_all? boolean
+---calendar-islamic-all-holidays-flag (default: `false`)
+---@field islamic_all? boolean
+---calendar-bahai-all-holidays-flag (default: `false`)
+---@field bahai_all? boolean
+---calendar-chinese-all-holidays-flag (default: `false`)
+---@field chinese_all? boolean

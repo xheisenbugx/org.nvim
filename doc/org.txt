@@ -1001,7 +1001,7 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   `agenda.prefer_last_repeat` shows the last repeat instead of the base
   date.
 - Diary sexps, `<%%(...)>` timestamps and `%%(...)` lines
-  (|org-agenda-diary-sexp|).
+  (|org-agenda-diary-sexp|), including holidays (|org-agenda-holidays|).
 - Habits (`:STYLE: habit` and a repeater) in today's agenda, without a
   leader, with a consistency graph from column
   `agenda.habits.graph_column` (40) that overwrites the end of the line
@@ -1383,12 +1383,72 @@ anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
 (its ordinal suffix, "st", "nd", ...); a result with "; " gives several
 agenda lines.
 
+Holidays                                              *org-agenda-holidays*
+
+A `%%(org-calendar-holiday)` line shows the day's holidays, like Emacs's
+`calendar-check-holidays`: several on one day give several agenda lines.
+>org
+    * Holidays
+      :PROPERTIES:
+      :CATEGORY: Holiday
+      :END:
+    %%(org-calendar-holiday)
+<
+The holidays come from `agenda.holidays` (calendar-holidays), with the
+Emacs defaults: one list per `holiday-*-holidays` variable (`general`
+(the United States), `local`, `other`, `christian`, `hebrew`, `islamic`,
+`bahai`, `oriental` and `solar`), and the flags `christian_all`,
+`hebrew_all`, `islamic_all`, `bahai_all` and `chinese_all`
+(calendar-*-all-holidays-flag, false). Set a group to `{}` to drop it;
+list replaces the default. Items are Emacs's holiday forms written as Lua
+lists, or Lua functions:
+>lua
+    agenda = {
+      holidays = {
+        general = {},  -- no US holidays
+        christian = {  -- only Christmas and Easter Sunday
+          { "holiday-fixed", 12, 25, "Christmas" },
+          { "holiday-easter-etc", 0, "Easter Sunday" },
+        },
+        ["local"] = {
+          { "holiday-fixed", 9, 16, "Independence Day" },
+          { "holiday-float", 11, 1, 3, "Revolution Day" },  -- 3rd Monday
+          function(year)  -- holiday-sexp: { MONTH, DAY, NAME } per year
+            return { { 2, 5, "Constitution Day " .. (year - 1917) } }
+          end,
+        },
+      },
+    }
+<
+    `{ "holiday-fixed", MONTH, DAY, NAME }`
+    `{ "holiday-float", MONTH, DAYNAME, N, NAME [, DAY] }` (the Nth
+      DAYNAME, 0 = Sunday, from DAY; negative N counts backwards)
+    `{ "holiday-easter-etc" [, N, NAME] }`, `{ "holiday-advent" [, N, NAME] }`,
+    `{ "holiday-greek-orthodox-easter" [, N, NAME] }` (N days from Easter,
+      Advent Sunday or Pascha; without arguments the default holidays)
+    `{ "holiday-julian" | "holiday-hebrew" | "holiday-islamic" |
+      "holiday-bahai" | "holiday-chinese", MONTH, DAY, NAME }` (a date
+      of that calendar)
+    `{ "holiday-hebrew-passover" }`, `-rosh-hashanah`, `-hanukkah`,
+    `-tisha-b-av`, `-misc`, `{ "holiday-islamic-new-year" }`,
+    `{ "holiday-bahai-new-year" }`, `-ridvan`, `-twin-holy-birthdays`,
+    `{ "holiday-chinese-new-year" }`, `-qingming`, `-winter-solstice`,
+    `{ "solar-equinoxes-solstices" }` and `{ "holiday-daylight-saving" }`
+      (the Emacs functions of the same names)
+    `{ "if", FLAG, ITEM... }` (the items when `holidays[FLAG]` is true)
+
+Equinox, solstice and daylight saving times use the system time zone,
+like Emacs's calendar-time-zone. A bad item is reported once and skipped.
+Differences: Emacs evaluates each item as Lisp (`holiday-sexp` and other
+Lisp forms become Lua functions here).
+
 Not supported in the agenda                        *org-agenda-unsupported*
 
-- Arbitrary Emacs Lisp in sexps, `diary-remind`, `diary-offset`, other
-  calendars (Hebrew, Islamic, Chinese, ...) and the `holidays` argument
-  of `org-class`: they need Emacs's Lisp evaluator and calendar and
-  holiday libraries. An unsupported sexp is skipped with a message.
+- Arbitrary Emacs Lisp in sexps, `diary-remind`, `diary-offset`, the
+  diary functions of other calendars (`diary-hebrew-date`, ...) and the
+  `holidays` argument of `org-class`: they need Emacs's Lisp evaluator
+  and diary library. An unsupported sexp is skipped with a message (once
+  per session). Holidays are supported (|org-agenda-holidays|).
 - The Emacs diary file (org-agenda-include-diary) and the agenda keys
   that use it (`i` insert a diary entry, `D` toggle the diary): the diary
   is an Emacs file format and machinery with no Neovim counterpart.
@@ -3767,9 +3827,9 @@ Differences from Emacs:
     no file-level ID property drawer is created.
   - Emacs wildcard file links (`file:*.org`) do not open a directory
     listing of the matches.
-- Diary sexps are emulated for the common calendar functions only, and
-  the Emacs diary, calendars and holidays are not available in the
-  agenda (|org-agenda-unsupported|).
+- Diary sexps are emulated for the common calendar functions and
+  `org-calendar-holiday` (|org-agenda-holidays|) only, and the Emacs
+  diary is not available in the agenda (|org-agenda-unsupported|).
 - Not implemented:
   - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
     staging/sync protocol is tied to Emacs; sync the files with any file
