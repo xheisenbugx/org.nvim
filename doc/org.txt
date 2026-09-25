@@ -148,11 +148,15 @@ Headlines start with one or more stars followed by a space: >org
 <M-Left> / <M-Right>  Same as <M-h> / <M-l> (Alt + arrow keys).
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
                 column.
+<M-h> / <M-l>   In Visual mode: promote / demote every headline of the
+                selection (org-metaleft / org-metaright with a region).
 
                                                           *org-move-subtree*
 <M-k> / <M-j>   (ctx) Move subtree, list item or table row up / down.
 <M-Up> / <M-Down>  Same as <M-k> / <M-j> (Alt + arrow keys).
 <prefix>K / J   Move subtree up / down.
+<M-K> / <M-J>   (ctx) Outside tables: drag the line at the cursor up / down
+                (org-drag-line-backward / forward). Count repeats.
 
                                                          *org-kill-subtree*
 <prefix>hy      Copy subtree (count: that many siblings).
@@ -167,11 +171,20 @@ Headlines start with one or more stars followed by a space: >org
 <prefix>hs      Sort the children of the current headline (or top-level
                 entries, or the list at the cursor). Menu keys: a alpha,
                 n numeric, t time, s scheduled, d deadline, c created,
-                p priority, o TODO order, r property. Uppercase reverses.
+                p priority, o TODO order, r property, k clocking time
+                (entries), x checkbox status (lists). Uppercase reverses.
 
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
+
+                                                        *org-cycle-level*
+<Tab>           (Insert mode) On a new empty headline, cycle its level:
+                child of the previous entry, then up the hierarchy, then
+                back (org-cycle-level). On an empty list item, indent it
+                under the previous item, then outdent it back
+                (org-cycle-item-indentation). So `<M-CR><Tab>` makes a
+                subheading. In a table: next field. Elsewhere: a tab.
 
 <prefix>*       Toggle headline: line ↔ headline, item ↔ headline.
 <prefix>-       Toggle list item: line ↔ item, headline ↔ item.
@@ -195,14 +208,30 @@ deeper.
 <Tab>           (ctx) Subtree cycling: FOLDED → CHILDREN → SUBTREE. On a
                 drawer or block line, toggle that fold. In Insert mode
                 inside a table, move to the next field.
+                With a count (in place of C-u): `16<Tab>` restores the
+                startup visibility, `64<Tab>` shows everything including
+                drawers, and any other N shows the whole subtree of the
+                ancestor at level N.
 <S-Tab>         Global cycling: OVERVIEW → CONTENTS → SHOW ALL. With a
                 count N, show headlines up to level N.
+<C-c><C-Tab>    Cycle the subtree even when it is archived
+                (`:Org force_cycle_archived`).
 
-Startup visibility comes from `#+STARTUP:` (`overview`, `content`, `showall`,
-`showeverything`, `nofold`), falling back to the `startup_folded` option.
+Startup visibility comes from `#+STARTUP:` (`overview`, `content`,
+`showall`, `show2levels` … `show5levels`, `showeverything`, `nofold`),
+falling back to the `startup_folded` option. Drawers are then folded
+(`hidedrawers`, off with `nohidedrawers` or `hide_drawer_startup = false`)
+and so are blocks with `hideblocks` (or `hide_block_startup = true`).
+Except with `showeverything`, a `VISIBILITY` property (`folded`,
+`children`, `content`, `all`) then sets the visibility of its subtree.
 
-`:Org overview`, `:Org content` and `:Org show_all` set the visibility
-explicitly.
+                                                        *org-archived-trees*
+Subtrees tagged `:ARCHIVE:` stay folded when you cycle (TAB, S-TAB, the
+startup visibility), like Emacs `org-cycle-open-archived-trees = nil`. Use
+<C-c><C-Tab> to open one anyway, or set `cycle_open_archived_trees = true`.
+
+`:Org overview`, `:Org content`, `:Org show_all`, `:Org show_everything`
+and `:Org set_startup_visibility` set the visibility explicitly.
 
 ==============================================================================
 5. PLAIN LISTS AND CHECKBOXES                                      *org-lists*
@@ -212,7 +241,13 @@ Unordered bullets are `-`, `+` and indented `*`. Ordered bullets are `1.` and
 Checkboxes are `[ ]`, `[-]` (partial) and `[X]`.
 
 <C-Space>       Toggle the checkbox. Parents get `[-]` or `[X]`, and
-                statistics cookies are updated.
+                statistics cookies are updated. Items without a checkbox
+                get one. With a count of 4 (C-u), remove the checkbox; 16
+                (C-u C-u) sets `[-]`. In Visual mode, toggle every item of
+                the selection (all checked or all unchecked, following the
+                first one; adds checkboxes when there are none).
+<S-Up/Down>     (ctx) On an item: previous / next item of the same level
+                (org-previous-item / org-next-item).
 <C-c><C-c>      On an item: toggle its checkbox, or renumber the list.
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
 <prefix>hb      Cycle the bullet style.
@@ -277,9 +312,17 @@ Tags sit at the end of the headline: `:work:urgent:`.
                 <Space> clears all. Otherwise you type the tags with
                 completion.
 <C-c><C-c>      On a headline: set tags.
+N<prefix>t      With a count (C-u C-c C-q): realign the tags of every
+                headline.
+{Visual}<prefix>t  Add or remove one tag on every headline of the selection
+                (org-change-tag-in-region).
 
 Tags are aligned to `tags_column` (negative values right-align them).
 `:Org align_tags` realigns every headline in the buffer.
+
+In `#+TAGS`, `{ }` groups are mutually exclusive in the fast selection menu,
+`[ ]` groups and `\n` start a new row, and `:` (as in `[ GTD : Control ]`)
+separates a group tag from its members.
 
 Inheritance: children inherit their parents' tags and `#+FILETAGS:`, except
 the tags in `tags_exclude_from_inheritance`. Set `use_tag_inheritance =
@@ -291,6 +334,12 @@ false` to disable it.
 <prefix>p       Set a property. Names are completed, and values come from
                 `PROP_ALL` properties when available.
 <prefix>P       Delete a property.
+<S-Right/Left>  (ctx) On a property line: next / previous allowed value
+                from `PROP_ALL` (org-property-next-allowed-value).
+<C-c><C-c>      (ctx) On a property line: menu to set the value, delete it
+                here or delete it from all entries (org-property-action).
+`:Org delete_property_globally` removes a property from every entry of the
+buffer.
 <prefix>xe      Set the Effort property.
 <prefix>lI      Create an ID property (or show the existing one).
 
@@ -517,13 +566,17 @@ Used by the agenda (m, M, custom commands), sparse trees and clocktables.
 13. SPARSE TREES                                             *org-sparse-tree*
 
 <prefix>/ shows a menu:
-  /  regexp     t  TODO entries     T  specific keyword
+  / r  regexp   t  TODO entries     T  specific keyword
   m  match      M  match, TODO only p  property value
   d  deadlines due or overdue       b  before date
   a  after date D  between dates    c  clear
 
+<C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
+                With a count, only TODO entries match.
+
 The buffer is folded so only matching entries are visible, the matches are
-highlighted, and the location list is filled (|:lnext|).
+highlighted, and the location list is filled (|:lnext|). The highlights go
+away with the next change or the next <C-c><C-c>.
 
 ==============================================================================
 14. CAPTURE                                                      *org-capture*
@@ -662,10 +715,21 @@ is added.
 References: `[fn:1]`, `[fn:name]`, inline `[fn::text]` and `[fn:name:text]`.
 Definitions start a line with `[fn:name]`.
 
-<prefix>if      Insert a new numbered footnote. Its definition goes in the
-                `* Footnotes` section (or at the end of the file).
-<CR>            On a reference: jump to its definition. On a definition:
-                jump back to the reference.
+<prefix>if      On a footnote: jump between reference and definition.
+                Elsewhere: insert a new numbered footnote. Its definition
+                goes in the `footnote_section` heading (`* Footnotes`,
+                created at the end of the file when missing), or at the end
+                of the current section when `footnote_section = false`.
+                With a count (C-u C-c C-x f), a menu (org-footnote-action):
+                  s  sort definitions in reference order
+                  r  renumber `fn:N` labels in reference order
+                  S  renumber, then sort
+                  n  normalize: number every footnote and turn inline
+                     footnotes into regular definitions
+                  d  delete the footnote at the cursor (references and
+                     definition)
+<CR>            On a reference: jump to its definition (offers to create a
+                missing one). On a definition: jump back to the reference.
 
 ==============================================================================
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
@@ -962,7 +1026,11 @@ Tables ~
   table_copy_increment      true      <S-CR> step: true (difference to the
                                       field above, else 1), a number, false
 Buffer ~
-  startup_folded            "overview"
+  startup_folded            "overview"  also "show2levels".."show5levels"
+  hide_drawer_startup       true      fold drawers on startup
+  hide_block_startup        false     fold blocks on startup
+  cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
+  footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
   edit_src_content_indentation  0
   ellipsis                  " …"
@@ -1076,8 +1144,10 @@ Section `org` (default key: action):
   <prefix>be bb bs bt bk bn bp      babel_execute(_buffer/_subtree),
       babel_tangle, babel_remove_result, babel_next/prev_block
 
-Section `org_insert`: meta_return <M-CR>, table_next_field <Tab>,
-table_prev_field <S-Tab>, table_next_row <CR>, table_copy_down <S-CR>.
+Section `org_insert`: meta_return <M-CR>, insert_tab <Tab> (table: next
+field; empty headline or item: cycle its level), table_prev_field <S-Tab>,
+table_next_row <CR>, table_copy_down <S-CR>. The `table_next_field` action
+is still available.
                                                           *org-emacs-keys*
 Sections `emacs`, `emacs_insert` and `emacs_global` add Emacs Org's own
 keys (org-mode-map) on top of the Vim-style keys, so muscle memory from
@@ -1107,6 +1177,7 @@ Structure and visibility:
   <C-c><C-x><C-w>  (ctx) cut table region / subtree
   <C-c><C-x><C-y>  (ctx) paste table rectangle / subtree
   <C-c><C-k>       show branches        <C-c><Tab>  show children
+  <C-c><C-Tab>     cycle even an archived subtree
   <C-c><C-r>       reveal context       <C-c><C-x>v  copy visible text
   <C-c><C-n> <C-p> next / previous heading
   <C-c><C-f> <C-b> next / previous sibling
@@ -1144,6 +1215,7 @@ Links, refile, archive, export:
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
+  <C-c>\  tags / property match sparse tree
 
 Tables:
   <C-c>|  create / convert region     <C-c>=  column formula
@@ -1174,7 +1246,9 @@ Additional subcommands:
   :Org tangle                :Org search {text}
   :Org tags_search {match}   :Org todo_list [KEYWORD]
   :Org clock_in_last         :Org refile_goto
-  :Org show_all | overview | content
+  :Org show_all | overview | content | show_everything
+  :Org set_startup_visibility    :Org force_cycle_archived
+  :Org delete_property_globally  :Org tags_sparse_tree
   :Org align_tags            :Org id_update_locations
   :Org timer_start | timer_stop | timer_pause | timer_insert
   :Org timer_countdown [min]
@@ -1211,6 +1285,8 @@ Targets are `{ bufnr = n, lnum = l }`.
   #+FILETAGS: :proj:                    tags inherited by every entry
   #+CATEGORY: name                      category in the agenda
   #+STARTUP: overview content showall showeverything nofold
+             show2levels .. show5levels hidedrawers nohidedrawers
+             hideblocks nohideblocks
              logdone lognotedone nologdone logrepeat nologrepeat
              logreschedule nologreschedule logredeadline ...
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
@@ -1249,6 +1325,8 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   headlines. Digit keys keep their Vim meaning (counts) there instead of
   selecting the Nth allowed value.
 - <M-CR> never splits the current line.
+- Plain list items don't fold with <Tab>. A `VISIBILITY: children` or
+  `content` entry keeps its own body text visible (Vim folds nest).
 - Minute increments step by 1 (Emacs rounds to 5).
 
  vim:tw=78:ts=8:ft=help:norl:

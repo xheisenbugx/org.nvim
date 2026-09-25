@@ -33,6 +33,9 @@ M.list = {
   show_branches = { "org.fold", "show_branches", desc = "Show all branches of subtree" },
   show_children = { "org.fold", "show_children", desc = "Show children" },
   reveal = { "org.fold", "reveal", desc = "Reveal context around cursor" },
+  force_cycle_archived = { "org.fold", "force_cycle_archived", desc = "Cycle subtree, even when archived" },
+  set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
+  show_everything = { "org.fold", "show_everything", desc = "Show everything, including drawers" },
   copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
 
   -- context
@@ -41,6 +44,12 @@ M.list = {
 
   -- structure
   meta_return = { "org.context", "meta_return", desc = "New heading / item / row", modes = { "n", "i" } },
+  insert_tab = {
+    "org.context",
+    "insert_tab",
+    desc = "Table: next field / empty heading or item: cycle level",
+    modes = { "i" },
+  },
   meta_shift_return = {
     "org.context",
     "meta_shift_return",
@@ -57,13 +66,13 @@ M.list = {
     desc = "Insert block (#+begin_...)",
     modes = { "n", "x" },
   },
-  insert_footnote = { "org.footnotes", "new_footnote", desc = "Insert footnote" },
+  insert_footnote = { "org.footnotes", "footnote_action", desc = "Footnote: jump / new / menu (count)" },
   promote_heading = { "org.context", "promote", desc = "Promote heading / item" },
   demote_heading = { "org.context", "demote", desc = "Demote heading / item" },
   promote_subtree = { "org.context", "promote_subtree", desc = "Promote subtree" },
   demote_subtree = { "org.context", "demote_subtree", desc = "Demote subtree" },
-  meta_left = { "org.context", "meta_left", desc = "Promote / move column left" },
-  meta_right = { "org.context", "meta_right", desc = "Demote / move column right" },
+  meta_left = { "org.context", "meta_left", desc = "Promote / move column left", modes = { "n", "x" } },
+  meta_right = { "org.context", "meta_right", desc = "Demote / move column right", modes = { "n", "x" } },
   meta_up = { "org.context", "meta_up", desc = "Move subtree / item / row up" },
   meta_down = { "org.context", "meta_down", desc = "Move subtree / item / row down" },
   shift_meta_left = { "org.context", "shift_meta_left", desc = "Promote subtree / delete column" },
@@ -120,9 +129,14 @@ M.list = {
   increment = { "org.context", "increment", desc = "Increment timestamp / priority" },
   decrement = { "org.context", "decrement", desc = "Decrement timestamp / priority" },
   priority = { "org.priority", "set", desc = "Set priority" },
-  set_tags = { "org.tags", "set_tags", desc = "Set tags" },
+  set_tags = { "org.tags", "set_tags_command", desc = "Set tags (Visual: change tag in region)", modes = { "n", "x" } },
   set_property = { "org.properties", "set_property", desc = "Set property" },
   delete_property = { "org.properties", "delete_property", desc = "Delete property" },
+  delete_property_globally = {
+    "org.properties",
+    "delete_property_globally",
+    desc = "Delete a property from all entries",
+  },
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
 
   -- dates
@@ -135,7 +149,7 @@ M.list = {
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
 
   -- lists
-  toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox" },
+  toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
   update_statistics = { "org.lists", "update_statistics", desc = "Update statistics cookies" },
   cycle_bullet = { "org.lists", "cycle_bullet", desc = "Cycle list bullet" },
 
@@ -174,6 +188,7 @@ M.list = {
 
   -- search / export
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
+  tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
 
   -- tables

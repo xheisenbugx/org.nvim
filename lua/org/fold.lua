@@ -191,6 +191,40 @@ local function has_fold(hl)
   return hl.end_line > hl.line
 end
 
+--- Close the block folds (`#+begin_...`) in [s, e] (org-fold-hide-block-all).
+local function close_blocks(s, e)
+  local c = get(vim.api.nvim_get_current_buf())
+  for _, r in ipairs(c.regions) do
+    if r.kind == "block" and r.start >= s and r["end"] <= e then
+      close_at(r.start)
+    end
+  end
+end
+
+--- Re-fold archived subtrees (`:ARCHIVE:` tag) whose headline is in
+--- [s, e], so visibility cycling never opens them
+--- (org-cycle-hide-archived-subtrees). Returns true when the headline at
+--- `s` itself is archived.
+local function hide_archived(s, e)
+  if config.opts.cycle_open_archived_trees or M._force_archived then
+    return false
+  end
+  local self_archived = false
+  for _, hl in ipairs(file().headlines) do
+    if hl.line >= s and hl.line <= e and vim.tbl_contains(hl.tags, "ARCHIVE") and has_fold(hl) then
+      close_at(hl.line)
+      if hl.line == s then
+        self_archived = true
+      end
+    end
+  end
+  return self_archived
+end
+
+local function hide_archived_all()
+  hide_archived(1, vim.api.nvim_buf_line_count(0))
+end
+
 ---------------------------------------------------------------------------
 -- Global visibility
 ---------------------------------------------------------------------------
@@ -207,6 +241,7 @@ function M.content()
       open_at(hl.line)
     end
   end
+  hide_archived_all()
   vim.b.org_global_cycle = "content"
 end
 
@@ -219,6 +254,7 @@ end
 local function show_all_but_drawers()
   vim.cmd("normal! zR")
   close_drawers(1, vim.api.nvim_buf_line_count(0))
+  hide_archived_all()
   vim.b.org_global_cycle = "showall"
 end
 
@@ -230,6 +266,7 @@ local function show_levels(level)
       open_at(hl.line)
     end
   end
+  hide_archived_all()
 end
 
 function M.global_cycle()
@@ -254,7 +291,37 @@ end
 -- Local cycling
 ---------------------------------------------------------------------------
 
+--- Show the whole subtree of the ancestor at `level` of the headline at
+--- the cursor (org-cycle with a numeric argument).
+local function show_ancestor_subtree(level)
+  local hl = file():headline_at(vim.api.nvim_win_get_cursor(0)[1])
+  if not hl then
+    return false
+  end
+  while hl.parent and hl.level > level do
+    hl = hl.parent
+  end
+  local pos = vim.api.nvim_win_get_cursor(0)
+  vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+  vim.cmd("normal! zv")
+  vim.api.nvim_win_set_cursor(0, pos)
+  pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+  close_drawers(hl.line, hl.end_line)
+  hide_archived(hl.line + 1, hl.end_line)
+end
+
+--- TAB. With a count: 16 restores the startup visibility, 64 shows
+--- everything (drawers too), any other N shows the whole subtree of the
+--- ancestor at level N (like C-u C-u TAB, C-u C-u C-u TAB and M-N TAB).
 function M.cycle()
+  local count = vim.v.count
+  if count == 16 then
+    return M.set_startup_visibility()
+  elseif count == 64 then
+    return M.show_everything()
+  elseif count > 0 then
+    return show_ancestor_subtree(count)
+  end
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -281,17 +348,26 @@ function M.cycle()
     vim.api.nvim_echo({ { "EMPTY ENTRY" } }, false, {})
     return
   end
+  local keep_archived_closed = not (config.opts.cycle_open_archived_trees or M._force_archived)
   local function descendants(h, out)
     for _, ch in ipairs(h.children) do
-      out[#out + 1] = ch
-      descendants(ch, out)
+      -- archived subtrees stay closed, so they don't count as foldable
+      if not (keep_archived_closed and vim.tbl_contains(ch.tags, "ARCHIVE")) then
+        out[#out + 1] = ch
+        descendants(ch, out)
+      end
     end
     return out
   end
+  local archived_msg = "Subtree is archived and stays closed (use force_cycle_archived to cycle it)"
   if lnum_closed(lnum) then
     open_at(lnum)
     if #hl.children == 0 then
       close_drawers(hl.line, hl.end_line)
+      if hide_archived(hl.line, hl.end_line) then
+        vim.api.nvim_echo({ { archived_msg } }, false, {})
+        return
+      end
       vim.api.nvim_echo({ { "SUBTREE (NO CHILDREN)" } }, false, {})
       return
     end
@@ -302,6 +378,10 @@ function M.cycle()
       end
     end
     close_drawers(hl.line, hl.body_end)
+    if hide_archived(hl.line, hl.end_line) then
+      vim.api.nvim_echo({ { archived_msg } }, false, {})
+      return
+    end
     vim.api.nvim_echo({ { "CHILDREN" } }, false, {})
     return
   end
@@ -319,12 +399,25 @@ function M.cycle()
     -- SUBTREE
     vim.cmd(hl.line .. "," .. hl.end_line .. "foldopen!")
     close_drawers(hl.line, hl.end_line)
+    hide_archived(hl.line + 1, hl.end_line)
     vim.api.nvim_echo({ { "SUBTREE" } }, false, {})
     return
   end
   -- FOLDED
   close_at(lnum)
   vim.api.nvim_echo({ { "FOLDED" } }, false, {})
+end
+
+--- Cycle the subtree at the cursor even when it is archived
+--- (org-cycle-force-archived).
+function M.force_cycle_archived()
+  M._force_archived = true
+  local ok, res = pcall(M.cycle)
+  M._force_archived = nil
+  if not ok then
+    error(res)
+  end
+  return res
 end
 
 ---------------------------------------------------------------------------
@@ -443,13 +536,78 @@ end
 -- Setup
 ---------------------------------------------------------------------------
 
---- Apply #+STARTUP / startup_folded visibility in the current window.
+--- Apply the VISIBILITY property of every headline that has one
+--- (org-cycle-set-visibility-according-to-property): `folded`,
+--- `children`, `content` or `all`. The headline itself is revealed.
+function M.apply_visibility_properties()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  for _, hl in ipairs(file().headlines) do
+    local state = hl.properties.VISIBILITY
+    state = state and state:lower()
+    if state and has_fold(hl) then
+      if state == "folded" then
+        close_at(hl.line)
+      else
+        vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+        vim.cmd("normal! zv")
+      end
+      if state == "children" then
+        show_descendants(hl, 1)
+      elseif state == "content" then
+        -- every headline of the subtree, no body text
+        pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+        local function walk(h)
+          close_drawers(h.line, h.body_end)
+          for _, ch in ipairs(h.children) do
+            if #ch.children > 0 then
+              walk(ch)
+            elseif has_fold(ch) then
+              close_at(ch.line)
+            end
+          end
+        end
+        walk(hl)
+      elseif state == "all" or state == "showall" then
+        pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+        close_drawers(hl.line, hl.end_line)
+      end
+    end
+  end
+  vim.api.nvim_win_set_cursor(0, pos)
+end
+
+local STARTUP_MODES = {
+  "overview",
+  "content",
+  "showall",
+  "showeverything",
+  "nofold",
+  "fold",
+  "show2levels",
+  "show3levels",
+  "show4levels",
+  "show5levels",
+}
+
+--- Resolve an on/off `#+STARTUP` word pair against a default.
+local function startup_flag(startup, on, off, default)
+  if startup[on] then
+    return true
+  elseif startup[off] then
+    return false
+  end
+  return default
+end
+
+--- Apply #+STARTUP / startup_folded visibility in the current window,
+--- then hide blocks (`hideblocks`), apply VISIBILITY properties, fold
+--- archived subtrees and hide drawers (org-cycle-set-startup-visibility).
 function M.apply_startup(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local f = require("org.files").get_buffer(bufnr)
   local startup = f.settings.startup or {}
   local mode = config.opts.startup_folded or "overview"
-  for _, k in ipairs({ "overview", "content", "showall", "showeverything", "nofold", "fold" }) do
+  for _, k in ipairs(STARTUP_MODES) do
     if startup[k] then
       mode = k
     end
@@ -457,16 +615,44 @@ function M.apply_startup(bufnr)
   if mode == "fold" then
     mode = "overview"
   end
+  local levels = tonumber(mode:match("^show(%d)levels$") or "")
   if mode == "overview" then
     M.overview()
   elseif mode == "content" then
     M.content()
-  elseif mode == "showall" then
-    show_all_but_drawers()
+  elseif levels then
+    show_levels(levels)
+    vim.b.org_global_cycle = "content"
   else
     vim.cmd("normal! zR")
     vim.b.org_global_cycle = "showall"
   end
+  if mode == "showeverything" then
+    return
+  end
+  local last = vim.api.nvim_buf_line_count(0)
+  if startup_flag(startup, "hideblocks", "nohideblocks", config.opts.hide_block_startup) then
+    close_blocks(1, last)
+  end
+  M.apply_visibility_properties()
+  hide_archived_all()
+  if startup_flag(startup, "hidedrawers", "nohidedrawers", config.opts.hide_drawer_startup ~= false) then
+    close_drawers(1, last)
+  end
+end
+
+--- Return to the startup visibility, VISIBILITY properties included
+--- (C-u C-u TAB, org-cycle-set-startup-visibility).
+function M.set_startup_visibility()
+  M.apply_startup(0)
+  vim.api.nvim_echo({ { "Startup visibility, plus VISIBILITY properties" } }, false, {})
+end
+
+--- Show the entire buffer, drawers included (C-u C-u C-u TAB).
+function M.show_everything()
+  vim.cmd("normal! zR")
+  vim.b.org_global_cycle = "showall"
+  vim.api.nvim_echo({ { "Entire buffer visible, including drawers" } }, false, {})
 end
 
 function M.setup_buffer(bufnr)
