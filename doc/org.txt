@@ -858,24 +858,49 @@ Targets:
                                       function(path, link) ... end`
 
 <CR>, gx, <prefix>o  Open the link, footnote or date at the cursor.
+<C-c><C-o>      The same; on a headline without a link under the cursor,
+                pick one of the entry's links (like Emacs).
 <prefix>ls      Store a link to the current location (works in any
-                buffer). In org buffers this is an `id:` link (see
-                `links.use_id`), `#custom-id`, or `file:…::*Heading`.
+                buffer). In org buffers this is, in order: the
+                `<<target>>` under the cursor (`file:…::target`), the
+                `#+NAME:` of the element at the cursor, an `id:` link
+                (see `links.use_id`), `#custom-id`, or `file:…::*Heading`.
+                Before the first heading, the current line is used. In
+                the agenda, the link points to the item's entry. In a
+                src block edit buffer (|org-babel|), it stores a coderef
+                link `file:…::(label)` and adds a `(ref:label)` to the
+                line when it has none.
 <prefix>li      Insert a link (stored links and file paths are completed).
                 On an existing link, edit it. In Visual mode, the selection
                 becomes the description.
+<prefix>lL      Insert the last stored link (C-c M-l).
+<prefix>lA      Insert every stored link as a list and forget them
+                (C-c C-M-l).
 <prefix>lt      Toggle concealed link display.
-<prefix>ln/lp   Next / previous link.
+<prefix>ln/lp   Next / previous link of any kind (takes a count).
+<C-c>&          Jump back to where you followed a link from (<C-o> works
+                too).
+
+Radio targets `<<<text>>>` make every occurrence of "text" a link to them
+(also in export). Coderefs: a `(ref:name)` label at the end of a src or
+example block line can be reached with `[[(name)]]`.
 
 IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
 it from the agenda files.
+<prefix>lI      Get or create the entry's ID.
+<prefix>lg      Go to an entry by ID (org-id-goto, IDs are completed).
+<prefix>ly      Copy the entry's ID, creating it if needed (org-id-copy).
+`:Org id_store_link` stores an `id:` link whatever `links.use_id` says.
 
 <prefix>A opens the attachment menu:
-  a  attach a file (method from `attach.method`: cp/mv/ln)
-  c m l  attach by copy / move / symlink
-  n  create a new file       o  open an attachment
-  f  open the directory      d  delete one
-  D  delete all              s  set the DIR property
+  a  attach a file (method from `attach.method`: cp/mv/ln/lns)
+  c m l y  attach by copy / move / symlink / relative symlink
+  u  download a URL (curl)   b  attach the contents of a buffer
+  n  create a new file       z  sync the ATTACH tag with the directory
+  o  open an attachment      O  open it with the system app
+  f  open the directory      F  open it with the system app
+  d  delete one              D  delete all
+  s  set the DIR property    S  remove the DIR property
 The directory is `attach.dir` + an ID-based path (or DIR), and the ATTACH tag
 is added.
 
@@ -1005,11 +1030,32 @@ Column formulas skip the header rows above the first hline. Errors show as
                            `babel.confirm_evaluate`, you are asked first
                            (`:eval yes|no|never-export` is honoured).
 <prefix>bb / bs    Execute every block in the buffer / subtree.
-<prefix>bk         Remove the result.
+<prefix>bk         Remove the result. With a count (C-u), remove every
+                   result in the buffer.
 <prefix>bn / bp    Next / previous block.
 <prefix>'          Edit the block in a buffer with the language's filetype.
-<prefix>bt         Tangle the file (`:Org tangle`).
+                   <prefix>' also edits example, export and comment
+                   blocks, LaTeX environments and `: ` fixed-width areas.
+<prefix>bt         Tangle the file (`:Org tangle`). With a count of 1
+                   (C-u) only the block at the cursor; with 2 or more
+                   (C-u C-u) every block of that block's target file.
+<prefix>bf         Tangle another file.
+<prefix>bv         Show the expanded block (noweb, :var assignments,
+                   :prologue / :epilogue) in a split.
+<prefix>bI / bc    Show the block's merged header args / warn about
+                   unknown header args.
+<prefix>bj         Insert a header argument (names and values completed).
+<prefix>bg / br    Go to a named block / a named result.
+<prefix>bu         Go to the head of the block.
+<prefix>bo         Open the result (follows a file link, or shows it).
+<prefix>bd         Split the block at the cursor into two; in Visual mode
+                   wrap the selection in a new block (or, inside a block,
+                   make it a block of its own); elsewhere insert a block.
+<prefix>bi         Add the named blocks of a file to the Library of Babel,
+                   so #+CALL, :var and noweb can use them everywhere.
 #+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
+src_lua{return 1}  Inline block: C-c C-c on it inserts or replaces
+                   ` {{{results(=1=)}}}` after it (single-line results).
 
 Languages: `babel.languages` maps a language name to `{ cmd = "...", ext =
 "..." }`. Lua runs inside Neovim. sqlite uses `:db file`.
@@ -1020,11 +1066,35 @@ Header arguments merge in this order: `babel.default_header_args`, then
   :results   output|value; replace|append|prepend|silent;
              verbatim|raw|org|drawer|html|latex|code|list|table|file
   :var       name=value, name=named-table, name=named-block,
-             name=table[1,2]
-  :dir :cmdline :prologue :epilogue :file :noweb yes :noweb-ref
+             name=table[1,2], name=table[1:3,-1] (0-based, ranges,
+             negative indices from the end, `[,1]` = a column)
+  :colnames  (default) a table variable whose 2nd row is a hline passes
+             its first row as column names; they are put back on a table
+             result of the same width. `yes` / `no` / `'(a b)` like Emacs
+  :rownames  yes: the same for the first column
+  :wrap      [type [params]] wrap the result in #+begin_type (default
+             `results`), e.g. `:wrap src python`, `:wrap export html`
+  :cache     yes: store a hash in `#+RESULTS[hash]:` and skip evaluation
+             when the body and arguments did not change
+  :file      write the result to the file and insert a link to it (not
+             with `:results link` / `graphics`); :output-dir, :file-ext
+             (with #+NAME), :file-mode, :sep (for tables)
+  :dir :cmdline :prologue :epilogue :noweb-ref
+  :noweb     yes|no|tangle|eval|no-export|strip-export|strip-tangle|
+             tangle-eval. Every <<ref>> of a line is expanded; blocks
+             sharing a :noweb-ref are joined with :noweb-sep (default a
+             newline); :noweb-prefix no stops repeating the text before
+             the reference. Blocks in COMMENT subtrees are skipped.
   :exports   code|results|both|none (for export)
   :tangle    yes|no|path  :mkdirp yes  :shebang "#!/bin/sh"
-  :comments  link|org|both  :padline  :tangle-mode
+  :comments  link|org|both  :padline  :tangle-mode  :no-expand
+  :post      name(arg=*this*): run the named block on the result; its
+             result is inserted instead
+Switches: `-i` keeps the indentation of the lines (edit buffer and
+tangling), `-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs
+in export.
+Tangled files contain the :var assignments, :prologue and :epilogue, like
+Emacs; `-r` removes coderef labels and COMMENT subtrees are skipped.
 
 Results of 10 or more lines (`babel.min_lines_for_block_output`) use an
 example block; shorter results use `: ` lines. Value results that look like a
@@ -1085,6 +1155,7 @@ Custom blocks: >lua
   p    other format via pandoc     O    Org buffer (noexport removed)
   s    toggle subtree-only export
   b    toggle body-only export
+  #    insert the default export template
 
 `:Org export html|md|txt|latex|pdf|docx|odt|rst|epub|... [subtree] [body]
 [buffer] [open]`
@@ -1094,12 +1165,36 @@ file with noexport and COMMENT subtrees removed. PDF uses latexmk or
 pdflatex, falling back to pandoc.
 
 Supported: `#+TITLE/AUTHOR/DATE/EMAIL`, `#+OPTIONS:` (toc num H todo tags pri
-^ author date timestamp \n), select and exclude tags, COMMENT and ARCHIVE
+^ author date timestamp \n e f tex | arch tasks stat prop c d, where
+`tasks:` / `d:` / `prop:` also take lists like `tasks:("TODO" "NEXT")` or
+`d:(not "LOGBOOK")`), select and exclude tags, COMMENT and ARCHIVE
 subtrees, headlines deeper than H: exported as lists, emphasis, links
-(internal links become anchors, image links become images), footnotes,
-lists, checkboxes, tables, blocks, `#+RESULTS` according to `:exports`,
-`#+INCLUDE`, `#+MACRO`, `#+CAPTION`, `#+ATTR_HTML` and LaTeX fragments
-(MathJax in HTML).
+(internal links become anchors, image links become images), radio targets,
+footnotes, lists, checkboxes, tables, blocks, `#+RESULTS` according to
+`:exports`, `:noweb` expansion, line numbers (`-n`, `+n`) and coderefs
+(`-r`, `-l`), inline src blocks (`src_lang{…}`, exported by their
+`:exports`, default results), `#+HTML:` / `#+LATEX:` / `#+ASCII:` lines,
+`#+CAPTION`, `#+ATTR_HTML` and LaTeX fragments (MathJax in HTML).
+
+`#+INCLUDE: "file.org"` includes a file; its headlines become children of
+the current one (or start at `:minlevel N`). Add `::*Heading`, `::#id` or
+`::name` to include one subtree or named element, `:only-contents t` to
+drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
+`export BACKEND` to include it as a block. `#+SETUPFILE:` reads the
+keywords of another file.
+
+Macros: `#+MACRO: name text $1 $2` (`$0` = all arguments, `\,` a literal
+comma, macros may use other macros) and the built-ins `{{{title}}}`,
+`{{{author}}}`, `{{{email}}}`, `{{{date(FMT)}}}`, `{{{time(FMT)}}}`,
+`{{{modification-time(FMT)}}}`, `{{{input-file}}}`, `{{{keyword(NAME)}}}`,
+`{{{property(NAME[,search])}}}`, `{{{n(name[,-|N])}}}` and
+`{{{results(…)}}}`.
+
+When exporting a subtree, its EXPORT_TITLE, EXPORT_FILE_NAME,
+EXPORT_OPTIONS, EXPORT_AUTHOR, EXPORT_DATE, EXPORT_EMAIL, EXPORT_SUBTITLE
+... properties override the file's keywords. `#` in the dispatcher inserts
+the default export template (`#+options:`, `#+title:` … lines, or EXPORT_*
+properties in subtree mode).
 
 Output goes next to the source file, or to `export.output_dir`.
 
@@ -1335,6 +1430,8 @@ Section `org` (default key: action):
   <prefix>C  column_view
   <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
                           next/prev_link
+  <prefix>lL lA  insert_last_stored_link / insert_all_links
+  <prefix>lg ly  id_goto / id_copy
   <prefix>r  refile   <prefix>$  archive_subtree   <prefix>A  attach
   <prefix>R  refile_copy
   <prefix>/  sparse_tree            <prefix>e  export
@@ -1346,6 +1443,11 @@ Section `org` (default key: action):
   <prefix>'  edit_special
   <prefix>be bb bs bt bk bn bp      babel_execute(_buffer/_subtree),
       babel_tangle, babel_remove_result, babel_next/prev_block
+  <prefix>bf bv bI bc bj            babel_tangle_file, babel_expand,
+      babel_view_info, babel_check, babel_insert_header_arg
+  <prefix>bg br bu bo bd bi         babel_goto_named(_result),
+      babel_goto_head, babel_open_result, babel_demarcate,
+      babel_lob_ingest
 
 Section `org_insert`: meta_return <M-CR>, insert_tab <Tab> (table: next
 field; empty headline or item: cycle its level), table_prev_field <S-Tab>,
@@ -1417,7 +1519,10 @@ Clock, effort, dynamic blocks, timers:
   <C-c><C-x>. - ;  insert timer / timer item / countdown
 
 Links, refile, archive, export:
-  <C-c><C-l>  insert link    <C-c><C-o>  open at point
+  <C-c><C-l>  insert link    <C-c><C-o>  open at point (on a headline:
+                             the entry's links)
+  <C-c><M-l>  insert last stored link   <C-c><C-M-l>  insert all links
+  <C-c>&      jump back from a followed link
   <C-c><C-x><C-n> <C-p>  next / previous link
   <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
   <C-c><M-w>  copy to a refile target
@@ -1437,7 +1542,10 @@ Tables:
 
 Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   e execute   b buffer   s subtree   t tangle   k remove result
-  n / p next / previous block
+  n / p next / previous block   f tangle a file   v expand block
+  I block info   c check header args   j insert header arg
+  g go to named block   r go to named result   u go to block head
+  o open result   d split / wrap block   i, l ingest into Library of Babel
 
 Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
 ir, around_subtree ar.
@@ -1529,8 +1637,11 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
   instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
-- Babel has no sessions and no `:cache`. Export uses existing results and
-  never runs code. `elisp:` links and emacs-lisp blocks are not supported.
+- Babel has no sessions. Export uses existing results and
+  never runs code, and `<<name()>>` noweb calls use the block's existing
+  results. `elisp:` links and emacs-lisp blocks are not supported.
+- Export is lenient: broken internal links are rendered in italics instead
+  of stopping the export.
 - Not implemented:
   - diary sexps `<%%(...)>`
   - clock idle detection

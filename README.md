@@ -133,7 +133,8 @@ print(sum(range(1, 101)))
 ```
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
-supported, along with `:var`, `:noweb`, `#+CALL` and tangling.
+supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
+`src_lang{…}` blocks and tangling.
 
 ### Capture from anywhere
 
@@ -157,11 +158,11 @@ back to where you were.
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp, ID, clock and function targets; all the common `%`-escapes |
 | 📦 | **Refile and archive** | Refile or copy to any headline in the agenda files, with Emacs-style target specs and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
-| 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
+| 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
-| 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
-| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
+| 🧪 | **Babel** | Asynchronous execution in many languages, inline `src_lang{…}` blocks, `:results`, `:var` (with `:colnames`, slices), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
+| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc; `#+INCLUDE` (with `::*heading`), `#+SETUPFILE`, `#+MACRO`, most `#+OPTIONS` |
 | 🎁 | **And more** | Footnotes (sort, renumber, normalize), sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -330,12 +331,14 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>xe` `xE` `xm` `xz` | Set effort / next allowed effort / change clocked effort / resolve dangling clocks |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
+| `<prefix>lL` `lA` `lg` `ly` | Insert last / all stored links, go to ID, copy ID |
 | `<prefix>r` `R` `$` `A` | Refile / copy to a refile target / archive subtree / attachments |
 | `<prefix>/` `e` | Sparse tree / export dispatcher |
 | `<prefix>Tc` `T-` `Tf` `Ts` `Tr` `TR` `Ti` `TI` | Table: create/convert, hline, recalc, sort, insert/delete row, insert/delete column |
 | `<prefix>Tt` `T#`, `<S-CR>`, `<S-arrows>` | Table: transpose, rotate recalc mark, copy field down (with increment), swap field with neighbour |
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
 | `<prefix>be` `bb` `bs` `bt` `bk` `bn` `bp` | Babel: execute block/buffer/subtree, tangle, remove result, next/prev block |
+| `<prefix>bv` `bd` `bg` `br` `bo` `bj` `bi` | Babel: expand, split/wrap, go to named block/result, open result, insert header arg, ingest library |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
 | `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
 | `g?` | Show all keymaps |
@@ -560,7 +563,7 @@ The goal is feature parity for everyday use, but some things differ:
 - **Tables:** width cookies (`<10>`) don't shrink columns, and there is no
   formula debugger, `orgtbl-mode` or radio tables.
 - **Babel:**
-  - There are no `:session` or `:cache` options.
+  - There is no `:session` option.
   - Export uses existing `#+RESULTS` blocks and never runs code.
   - `elisp:` links and blocks can't run.
 - **Column view** opens as a separate table view instead of overlays.
@@ -580,7 +583,7 @@ first contribution:
 
 - [ ] Inline image and LaTeX previews
 - [ ] Clock idle detection
-- [ ] Babel `:session` and `:cache`
+- [ ] Babel `:session`
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`

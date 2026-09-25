@@ -155,7 +155,149 @@ function M.open(opts)
     end, { buffer = buf, desc = "org: abort edit buffer" })
   end
   vim.b[buf].org_special = true
+  vim.b[buf].org_special_source = src
+  vim.b[buf].org_special_kind = opts.kind
+  vim.b[buf].org_special_switches = opts.switches
   return buf, win
+end
+
+local function common_indent(lines)
+  local min
+  for _, l in ipairs(lines) do
+    if l:match("%S") then
+      local n = #l:match("^(%s*)")
+      if not min or n < min then
+        min = n
+      end
+    end
+  end
+  return min or 0
+end
+
+local EXPORT_FT = { html = "html", latex = "tex", tex = "tex", md = "markdown", markdown = "markdown", ascii = "text" }
+
+--- Edit the element at the cursor in a separate buffer (org-edit-special
+--- for elements other than src blocks and tables): example, export and
+--- comment blocks, LaTeX environments and fixed-width (`: `) areas.
+--- Returns false when there is nothing to edit.
+function M.edit_element(bufnr, lnum)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  lnum = lnum or vim.api.nvim_win_get_cursor(0)[1]
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local blocks = require("org.babel.blocks")
+  if lnum < 1 or lnum > #lines then
+    return false
+  end
+  local line = lines[lnum]
+  -- fixed-width area
+  local function fixed(l)
+    return l and (l:match("^%s*:%s") or l:match("^%s*:$"))
+  end
+  if fixed(line) then
+    local s, e = lnum, lnum
+    while fixed(lines[s - 1]) do
+      s = s - 1
+    end
+    while fixed(lines[e + 1]) do
+      e = e + 1
+    end
+    local indent = lines[s]:match("^(%s*)")
+    local content = {}
+    for i = s, e do
+      content[#content + 1] = lines[i]:match("^%s*: (.*)$") or ""
+    end
+    M.open({
+      source_buf = bufnr,
+      start_line = s,
+      end_line = e,
+      lines = content,
+      name = "fixed-width",
+      to_source = function(new)
+        local out = {}
+        for i, l in ipairs(new) do
+          out[i] = indent .. (l == "" and ":" or (": " .. l))
+        end
+        return out
+      end,
+    })
+    return
+  end
+  -- LaTeX environment
+  for s = lnum, 1, -1 do
+    local env = lines[s]:match("^%s*\\begin{([^}]+)}")
+    if env then
+      local e = s
+      while e <= #lines and not lines[e]:find("\\end{" .. env .. "}", 1, true) do
+        e = e + 1
+      end
+      if e <= #lines and e >= lnum then
+        M.open({
+          source_buf = bufnr,
+          start_line = s,
+          end_line = e,
+          lines = vim.list_slice(lines, s, e),
+          filetype = "tex",
+          name = "latex-" .. env,
+        })
+        return
+      end
+      break
+    end
+    if s < lnum and (lines[s]:match("^%s*$") or lines[s]:match("^%*+%s")) then
+      break
+    end
+  end
+  -- example / export / comment blocks
+  for s = lnum, 1, -1 do
+    local l = lines[s]:lower()
+    if s < lnum and (l:match("^%s*#%+end_") or l:match("^%*+%s")) then
+      break
+    end
+    local kind, rest = l:match("^%s*#%+begin_(%S+)%s*(.*)$")
+    if kind then
+      if kind ~= "example" and kind ~= "export" and kind ~= "comment" then
+        break
+      end
+      local e = s + 1
+      while e <= #lines and not lines[e]:lower():match("^%s*#%+end_" .. vim.pesc(kind)) do
+        e = e + 1
+      end
+      if e > #lines or e < lnum then
+        break
+      end
+      local body = blocks.unescape(vim.list_slice(lines, s + 1, e - 1))
+      local n = common_indent(body)
+      local ded = {}
+      for i, x in ipairs(body) do
+        ded[i] = x:sub(n + 1)
+      end
+      local prefix = lines[s]:match("^(%s*)")
+      local ft = kind == "comment" and "org" or nil
+      if kind == "export" then
+        local backend = rest:match("^(%S+)") or ""
+        ft = EXPORT_FT[backend] or backend
+      end
+      M.open({
+        source_buf = bufnr,
+        start_line = s + 1,
+        end_line = e - 1,
+        lines = #ded > 0 and ded or { "" },
+        filetype = ft,
+        name = kind,
+        kind = kind,
+        switches = kind == "example" and lines[s]:match("^%s*#%+%a+_%a+%s*(.*)$") or nil,
+        to_source = function(new)
+          local out = {}
+          for i, x in ipairs(blocks.escape(new)) do
+            out[i] = x == "" and "" or prefix .. x
+          end
+          return out
+        end,
+      })
+      return
+    end
+  end
+  return false
 end
 
 return M

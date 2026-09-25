@@ -187,6 +187,13 @@ M.list = {
   toggle_link_display = { "org.links", "toggle_link_display", desc = "Toggle link display" },
   next_link = { "org.links", "next_link", desc = "Next link" },
   prev_link = { "org.links", "prev_link", desc = "Previous link" },
+  insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
+  insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
+  open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
+  id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
+  id_copy = { "org.id", "copy", desc = "Copy entry ID" },
+  id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 
   -- refile / archive / attach
   refile = { "org.refile", "refile", desc = "Refile subtree" },
@@ -248,10 +255,21 @@ M.list = {
   babel_execute = { "org.babel", "execute_block", desc = "Execute src block" },
   babel_execute_buffer = { "org.babel", "execute_buffer", desc = "Execute all src blocks" },
   babel_execute_subtree = { "org.babel", "execute_subtree", desc = "Execute src blocks in subtree" },
-  babel_tangle = { "org.babel", "tangle", desc = "Tangle file" },
-  babel_remove_result = { "org.babel", "remove_result", desc = "Remove src block result" },
+  babel_tangle = { "org.babel", "tangle_action", desc = "Tangle file (count: block / its target)" },
+  babel_tangle_file = { "org.babel", "tangle_file", desc = "Tangle another file" },
+  babel_remove_result = { "org.babel", "remove_result", desc = "Remove src block result (count: all)" },
   babel_next_block = { "org.babel", "next_block", desc = "Next src block" },
   babel_prev_block = { "org.babel", "prev_block", desc = "Previous src block" },
+  babel_expand = { "org.babel", "expand_block", desc = "Show expanded src block" },
+  babel_view_info = { "org.babel", "view_info", desc = "Show src block info" },
+  babel_check = { "org.babel", "check_block", desc = "Check src block header args" },
+  babel_insert_header_arg = { "org.babel", "insert_header_arg", desc = "Insert header argument" },
+  babel_goto_named = { "org.babel", "goto_named_block", desc = "Go to named src block" },
+  babel_goto_named_result = { "org.babel", "goto_named_result", desc = "Go to named result" },
+  babel_goto_head = { "org.babel", "goto_block_head", desc = "Go to src block head" },
+  babel_open_result = { "org.babel", "open_result", desc = "Open src block result" },
+  babel_demarcate = { "org.babel", "demarcate_block", desc = "Split / wrap src block", modes = { "n", "x" } },
+  babel_lob_ingest = { "org.babel", "lob_ingest", desc = "Add file's blocks to Library of Babel" },
 }
 
 --- Resolve an action to its function.

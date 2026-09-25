@@ -134,6 +134,21 @@ function M.format(result, args, lang)
   end
 
   local fmt = spec.format
+  -- :wrap [type [params]] wraps the raw result in a #+begin_TYPE block
+  local wrap = args.wrap
+  if wrap then
+    wrap = vim.trim(blocks_mod.unquote(wrap) or "")
+    if wrap == "" then
+      wrap = "results"
+    end
+    local wtype = wrap:match("^(%S+)")
+    if wtype:lower() == "no" or wtype:lower() == "nil" then
+      return body
+    end
+    local verbatim = ({ export = true, example = true, src = true })[wtype:lower()]
+    local inner = verbatim and blocks_mod.escape(body) or body
+    return vim.list_extend(vim.list_extend({ "#+begin_" .. wrap }, inner), { "#+end_" .. wtype })
+  end
   if fmt == "raw" then
     return body
   elseif fmt == "org" then
@@ -163,16 +178,21 @@ function M.format(result, args, lang)
 end
 
 --- Parse existing results lines back into a value (for :var references).
-function M.read(lines)
+--- With `raw`, tables keep their header row and "hline" markers.
+function M.read(lines, raw)
   if #lines == 0 then
     return ""
   end
   if lines[1]:match("^%s*|") then
     local t = require("org.table").parse(lines)
     local rows = {}
-    local drop = #t.rows > 2 and t.rows[2].hline
+    local drop = not raw and #t.rows > 2 and t.rows[2].hline
     for i, r in ipairs(t.rows) do
-      if not r.hline and not (drop and i == 1) then
+      if r.hline then
+        if raw then
+          rows[#rows + 1] = "hline"
+        end
+      elseif not (drop and i == 1) then
         rows[#rows + 1] = r.cells
       end
     end

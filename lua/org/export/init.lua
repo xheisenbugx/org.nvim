@@ -279,6 +279,109 @@ function M.to_string(format, opts)
   return require(M.BACKENDS[fmt]).render(doc, { body_only = opts.body_only })
 end
 
+--- Insert the export keywords with their current values (C-c C-e #,
+--- org-export-insert-default-template). With `subtree`, set EXPORT_*
+--- properties on the current headline instead.
+---@param opts? { subtree?: boolean }
+function M.insert_template(opts)
+  opts = opts or {}
+  local ast = require("org.export.ast")
+  local file = require("org.files").get_buffer(0)
+  local o = ast.options(file.settings)
+  local function fmt(v)
+    if v == true then
+      return "t"
+    elseif v == false then
+      return "nil"
+    elseif type(v) == "table" then
+      local parts = {}
+      for _, x in ipairs(v) do
+        parts[#parts + 1] = '"' .. x .. '"'
+      end
+      return "(" .. (v.negate and "not " or "") .. table.concat(parts, " ") .. ")"
+    end
+    return tostring(v)
+  end
+  local keys = {
+    { "<", "timestamps" },
+    { "H", "H" },
+    { "\\n", "linebreaks" },
+    { "^", "sub" },
+    { "arch", "arch" },
+    { "author", "author" },
+    { "c", "clocks" },
+    { "d", "drawers" },
+    { "date", "date" },
+    { "e", "entities" },
+    { "email", "email" },
+    { "f", "footnotes" },
+    { "num", "num" },
+    { "p", "planning" },
+    { "pri", "pri" },
+    { "prop", "prop" },
+    { "stat", "stat" },
+    { "tags", "tags" },
+    { "tasks", "tasks" },
+    { "tex", "latex" },
+    { "title", "title" },
+    { "toc", "toc" },
+    { "todo", "todo" },
+    { "|", "tables" },
+  }
+  local items = {}
+  for _, k in ipairs(keys) do
+    items[#items + 1] = k[1] .. ":" .. fmt(o[k[2]])
+  end
+  local kw = file.settings.keywords
+  local function first(name, default)
+    return kw[name] and kw[name][1] or default
+  end
+  local name = vim.api.nvim_buf_get_name(0)
+  local today = require("org.date").today():clone({ active = false }):to_string()
+  local values = {
+    { "TITLE", first("TITLE", name ~= "" and vim.fn.fnamemodify(name, ":t:r") or "") },
+    { "DATE", first("DATE", today) },
+    { "AUTHOR", first("AUTHOR", vim.env.USER or "") },
+    { "EMAIL", first("EMAIL", "") },
+    { "LANGUAGE", first("LANGUAGE", "en") },
+    { "SELECT_TAGS", table.concat(o.select_tags or {}, " ") },
+    { "EXCLUDE_TAGS", table.concat(o.exclude_tags or {}, " ") },
+  }
+  if opts.subtree then
+    local edit = require("org.edit")
+    local bufnr, _, hl = edit.resolve_headline()
+    if not hl then
+      utils.warn("No subtree to set export options for")
+      return
+    end
+    local line = hl.line
+    edit.set_property(bufnr, line, "EXPORT_OPTIONS", table.concat(items, " "))
+    for _, kv in ipairs(values) do
+      if kv[1] ~= "SELECT_TAGS" and kv[1] ~= "EXCLUDE_TAGS" then
+        local v = kv[1] == "TITLE" and hl:plain_title() or kv[2]
+        edit.set_property(bufnr, line, "EXPORT_" .. kv[1], v)
+      end
+    end
+    return
+  end
+  local out = {}
+  local cur = "#+options:"
+  for _, item in ipairs(items) do
+    if #cur + #item + 1 > 70 then
+      out[#out + 1] = cur
+      cur = "#+options:"
+    end
+    cur = cur .. " " .. item
+  end
+  out[#out + 1] = cur
+  for _, kv in ipairs(values) do
+    out[#out + 1] = "#+" .. kv[1]:lower() .. ": " .. kv[2]
+  end
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  vim.api.nvim_buf_set_lines(0, row - 1, row - 1, false, out)
+  return out
+end
+
 --- Emacs-like export dispatcher (C-c C-e).
 function M.prompt()
   if not utils.ensure_org() then
@@ -349,6 +452,7 @@ function M.prompt()
       },
       { key = "O", label = "As Org buffer (noexport removed)", value = { fmt = "org", to_buffer = true } },
       { key = "p", label = "Other format via pandoc…", value = { fmt = "__pandoc" } },
+      { key = "#", label = "Insert default export template", value = { template = true } },
     }
     local choice = require("org.ui").menu({ title = "Org Export", items = items })
     if not choice then
@@ -356,6 +460,8 @@ function M.prompt()
     end
     if choice.toggle then
       state[choice.toggle] = not state[choice.toggle]
+    elseif choice.template then
+      return M.insert_template({ subtree = state.subtree })
     else
       local fmt = choice.fmt
       if fmt == "__pandoc" then

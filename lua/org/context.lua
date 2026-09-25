@@ -53,7 +53,7 @@ function M.context_action()
     return require("org.table").ctrl_c_ctrl_c()
   end
   local babel = require("org.babel")
-  if babel.at_block(0, lnum) then
+  if babel.at_block(0, lnum) or babel.inline_at_cursor() then
     return babel.execute_block()
   end
   local dblock = require("org.dblock")
@@ -121,6 +121,9 @@ function M.edit_special()
   local babel = require("org.babel")
   if babel.at_block(0, lnum) then
     return babel.edit_special()
+  end
+  if require("org.special").edit_element(0, lnum) ~= false then
+    return
   end
   utils.warn("Nothing to edit here (place the cursor in a src block or table)")
 end

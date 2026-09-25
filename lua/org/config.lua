@@ -482,6 +482,10 @@ M.defaults = {
       toggle_link_display = "<prefix>lt",
       next_link = "<prefix>ln",
       prev_link = "<prefix>lp",
+      insert_last_stored_link = "<prefix>lL",
+      insert_all_links = "<prefix>lA",
+      id_goto = "<prefix>lg",
+      id_copy = "<prefix>ly",
       -- refile / archive / attach
       refile = "<prefix>r",
       refile_copy = "<prefix>R",
@@ -511,6 +515,17 @@ M.defaults = {
       babel_remove_result = "<prefix>bk",
       babel_next_block = "<prefix>bn",
       babel_prev_block = "<prefix>bp",
+      babel_tangle_file = "<prefix>bf",
+      babel_expand = "<prefix>bv",
+      babel_view_info = "<prefix>bI",
+      babel_check = "<prefix>bc",
+      babel_insert_header_arg = "<prefix>bj",
+      babel_goto_named = "<prefix>bg",
+      babel_goto_named_result = "<prefix>br",
+      babel_goto_head = "<prefix>bu",
+      babel_open_result = "<prefix>bo",
+      babel_demarcate = "<prefix>bd",
+      babel_lob_ingest = "<prefix>bi",
     },
     --- Insert-mode mappings inside org buffers.
     org_insert = {
@@ -609,7 +624,10 @@ M.defaults = {
       timer_countdown = "<C-c><C-x>;",
       -- links
       insert_link = "<C-c><C-l>",
-      open_at_point = "<C-c><C-o>",
+      open_link_or_entry = "<C-c><C-o>",
+      insert_last_stored_link = "<C-c><M-l>",
+      insert_all_links = "<C-c><C-M-l>",
+      mark_ring_goto = "<C-c>&",
       next_link = "<C-c><C-x><C-n>",
       prev_link = "<C-c><C-x><C-p>",
       -- refile / archive / attach / agenda files
@@ -646,6 +664,17 @@ M.defaults = {
       babel_remove_result = "<C-c><C-v>k",
       babel_next_block = { "<C-c><C-v>n", "<C-c><C-v><C-n>" },
       babel_prev_block = { "<C-c><C-v>p", "<C-c><C-v><C-p>" },
+      babel_tangle_file = { "<C-c><C-v>f", "<C-c><C-v><C-f>" },
+      babel_expand = { "<C-c><C-v>v", "<C-c><C-v><C-v>" },
+      babel_view_info = "<C-c><C-v>I",
+      babel_check = { "<C-c><C-v>c", "<C-c><C-v><C-c>" },
+      babel_insert_header_arg = { "<C-c><C-v>j", "<C-c><C-v><C-j>" },
+      babel_goto_named = "<C-c><C-v>g",
+      babel_goto_named_result = { "<C-c><C-v>r", "<C-c><C-v><C-r>" },
+      babel_goto_head = { "<C-c><C-v>u", "<C-c><C-v><C-u>" },
+      babel_open_result = { "<C-c><C-v>o", "<C-c><C-v><C-o>" },
+      babel_demarcate = { "<C-c><C-v>d", "<C-c><C-v><C-d>" },
+      babel_lob_ingest = { "<C-c><C-v>i", "<C-c><C-v>l", "<C-c><C-v><C-l>" },
     },
     --- Insert-mode Emacs keys.
     emacs_insert = {

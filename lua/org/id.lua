@@ -150,6 +150,54 @@ function M.find(id)
   return nil
 end
 
+--- Prompt for an ID and go to its entry (org-id-goto).
+---@param id? string
+function M.goto(id)
+  if not id then
+    local known = vim.tbl_keys(load_db())
+    table.sort(known)
+    id = utils.input_complete("ID: ", known)
+    if not id or vim.trim(id) == "" then
+      return
+    end
+    id = vim.trim(id)
+  end
+  local loc = M.find(id)
+  if not loc then
+    utils.warn("Cannot find entry with ID: " .. id)
+    return false
+  end
+  vim.cmd("normal! m'")
+  utils.open_file(loc.filename, loc.headline and loc.headline.line or loc.lnum)
+  return true
+end
+
+--- Copy the entry's ID (created if needed) to the unnamed and `+`
+--- registers (org-id-copy).
+function M.copy()
+  local id = M.get_create({ bufnr = vim.api.nvim_get_current_buf(), lnum = vim.api.nvim_win_get_cursor(0)[1] })
+  if not id then
+    return
+  end
+  vim.fn.setreg('"', id)
+  pcall(vim.fn.setreg, "+", id)
+  utils.notify("Copied ID: " .. id)
+  return id
+end
+
+--- Store an `id:` link to the entry, creating the ID (org-id-store-link).
+function M.store_link()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local _, _, hl = edit.resolve_headline({ bufnr = bufnr, lnum = vim.api.nvim_win_get_cursor(0)[1] })
+  if not hl then
+    return
+  end
+  local id = M.get_create({ bufnr = bufnr, lnum = hl.line })
+  local stored = require("org.links").store("id:" .. id, hl:plain_title())
+  utils.notify("Stored: " .. hl:plain_title())
+  return stored
+end
+
 --- For tests.
 function M._reset()
   db = nil
