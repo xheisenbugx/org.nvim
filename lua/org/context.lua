@@ -162,6 +162,23 @@ function M.meta_shift_return()
   after_insert(insert_mode)
 end
 
+--- Insert-mode TAB: next table field in a table; on an empty headline or
+--- list item (e.g. right after M-RET), cycle its level
+--- (org-cycle-level-after-item/entry-creation).
+function M.insert_tab()
+  local lnum, _, line = cur()
+  if in_table(line) then
+    return require("org.table").next_field()
+  end
+  if is_headline(line) then
+    return require("org.structure").cycle_level()
+  end
+  if list_item(lnum) then
+    return require("org.lists").cycle_item_indentation()
+  end
+  return false
+end
+
 ---------------------------------------------------------------------------
 -- Promote / demote / move
 ---------------------------------------------------------------------------

@@ -44,6 +44,12 @@ M.list = {
 
   -- structure
   meta_return = { "org.context", "meta_return", desc = "New heading / item / row", modes = { "n", "i" } },
+  insert_tab = {
+    "org.context",
+    "insert_tab",
+    desc = "Table: next field / empty heading or item: cycle level",
+    modes = { "i" },
+  },
   meta_shift_return = {
     "org.context",
     "meta_shift_return",

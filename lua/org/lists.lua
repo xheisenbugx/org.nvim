@@ -783,6 +783,34 @@ function M.goto_sibling_item(dir)
   vim.api.nvim_win_set_cursor(0, { target.lnum, target.indent })
 end
 
+--- On an empty item (only a bullet, maybe a checkbox), indent it under
+--- the previous item, or outdent it back when it can't go deeper
+--- (org-cycle-item-indentation, used by TAB right after M-RET). Returns
+--- false when the item is not empty.
+function M.cycle_item_indentation()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = cursor_lnum()
+  local line = vim.api.nvim_get_current_line()
+  local parsed = M.parse_item_line(line)
+  if not parsed or vim.trim(parsed.text) ~= "" or parser.headline_level(line) then
+    return false
+  end
+  local item = M.item_at(bufnr, lnum)
+  if not item or item.lnum ~= lnum or #item.children > 0 then
+    return false
+  end
+  local sibs = M.siblings(item)
+  if sibs[1] ~= item then
+    M.indent_item(1, true)
+  elseif item.parent then
+    M.indent_item(-1, true)
+  else
+    return false
+  end
+  local new = vim.api.nvim_get_current_line()
+  vim.api.nvim_win_set_cursor(0, { lnum, #new })
+end
+
 function M.next_item()
   return M.goto_sibling_item(1)
 end

@@ -455,7 +455,8 @@ M.defaults = {
     --- Insert-mode mappings inside org buffers.
     org_insert = {
       meta_return = "<M-CR>",
-      table_next_field = "<Tab>",
+      --- table: next field; empty headline / item: cycle its level
+      insert_tab = "<Tab>",
       table_prev_field = "<S-Tab>",
       table_next_row = "<CR>",
     },

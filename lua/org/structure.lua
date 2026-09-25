@@ -417,6 +417,42 @@ function M.change_level_region(delta)
   end
 end
 
+--- On an empty headline (only stars and maybe a TODO keyword), cycle its
+--- level: child of the previous entry, then up the hierarchy, then back
+--- (org-cycle-level, used by TAB right after M-RET). Returns false when
+--- the headline is not empty.
+function M.cycle_level()
+  local bufnr = buf()
+  local lnum = cursor()[1]
+  local line = vim.api.nvim_get_current_line()
+  local file = files.get_buffer(bufnr)
+  local p = parser.parse_headline_line(line, file.settings.todo)
+  if not p or vim.trim(p.title) ~= "" or p.priority or #p.tags > 0 then
+    return false
+  end
+  local cur = p.level
+  local prev_hl = lnum > 1 and file:headline_at(lnum - 1) or nil
+  local prev = prev_hl and prev_hl.level or 0
+  local new
+  if prev == 0 then
+    new = 1 -- first headline of the file
+  elseif prev == cur then
+    new = cur + 1 -- sibling -> child
+  elseif prev == 1 then
+    new = 1
+  elseif cur == 1 then
+    new = prev -- back to the sibling level
+  elseif cur < prev then
+    new = cur - 1
+  else
+    new = prev - 1
+  end
+  local rest = line:sub(#line:match("^%*+") + 1)
+  local text = string.rep("*", math.max(new, 1)) .. rest
+  vim.api.nvim_set_current_line(text)
+  vim.api.nvim_win_set_cursor(0, { lnum, #text })
+end
+
 --- Drag the line at the cursor up (dir = -1) or down (dir = 1), count
 --- times (org-drag-line-backward / org-drag-line-forward, M-S-Up/Down).
 function M.drag_line(dir)

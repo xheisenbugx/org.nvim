@@ -148,11 +148,11 @@ back to where you were.
 
 | | Area | Highlights |
 | --- | --- | --- |
-| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` visibility, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
+| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
 | ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
-| 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering |
+| 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering, `TAB` on a new item to indent it |
 | ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, repeaters (`+1w`, `++1d`, `.+2d`), `ORDERED` dependencies, priorities |
-| 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
+| 🏷️ | **Tags and properties** | Fast tag selection with groups, tag changes over a selection, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values cycled with `S-Left`/`S-Right` |
 | 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
 | 🗓️ | **Agenda** | Day to year views, a time grid, habits, log and clock-report modes, the full Emacs match syntax, custom composite commands, filters, bulk actions, follow mode |
 | 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
@@ -162,7 +162,7 @@ back to where you were.
 | 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
-| 🎁 | **And more** | Footnotes, sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
+| 🎁 | **And more** | Footnotes (sort, renumber, normalize), sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
@@ -306,26 +306,26 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 
 | Key | Action |
 | --- | --- |
-| `<Tab>` / `<S-Tab>` | Cycle subtree / global visibility *(ctx: table fields in insert mode)* |
-| `<C-c><C-c>`, `<prefix><CR>` | Context action: toggle checkbox, align/recalc table, run src block, update dblock/clock line/cookie, set tags on headline… |
+| `<Tab>` / `<S-Tab>` | Cycle subtree / global visibility *(ctx: in insert mode, next table field or cycle the level of a new empty heading/item)* |
+| `<C-c><C-c>`, `<prefix><CR>` | Context action: toggle checkbox, align/recalc table, run src block, update dblock/clock line/cookie, set tags on headline, property menu on a property line, clear sparse-tree highlights… |
 | `<CR>`, `gx`, `<prefix>o` | Open link / footnote / date at point *(ctx)* |
 | `<M-CR>` / `<M-S-CR>` | New heading, item or row / new TODO heading or checkbox item |
 | `<prefix>ih` `it` `is` | Insert heading / TODO heading / subheading |
-| `<prefix>id` `ib` `if` | Insert drawer / block template / footnote |
+| `<prefix>id` `ib` `if` | Insert drawer / block template / footnote (on a footnote: jump; count: sort/renumber/normalize/delete menu) |
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
-| `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item; move table column *(ctx)* |
+| `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item (Visual: every headline); move table column *(ctx)* |
 | `<M-k>` `<M-j>` (also `<M-Up>` `<M-Down>`) | Move subtree, item or table row up / down *(ctx)* |
-| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row *(ctx)* |
+| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row; elsewhere drag the line up/down *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
 | `<prefix>hs` `hn` `hC` `hA` `hb` | Sort / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
 | `<prefix>*` / `<prefix>-` | Toggle heading / list item |
 | `cit` / `ciT` / `<prefix>T` | Next / previous / select TODO state |
-| `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; cycle bullet *(ctx)* |
-| `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down *(ctx)* |
-| `<prefix>,` `t` `p` `P` | Priority / tags / set property / delete property |
+| `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; next/previous allowed property value; cycle bullet *(ctx)* |
+| `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down; previous/next list item *(ctx)* |
+| `<prefix>,` `t` `p` `P` | Priority / tags (Visual: add/remove a tag on each headline; count: realign all) / set property / delete property |
 | `<prefix>s` `d` `i.` `i!` | Schedule / deadline / active / inactive timestamp |
-| `<C-Space>`, `<prefix>#` | Toggle checkbox / update statistics cookies |
+| `<C-Space>`, `<prefix>#` | Toggle checkbox (Visual: every item; count 4: remove, 16: `[-]`) / update statistics cookies |
 | `<prefix>xi` `xo` `xq` `xj` `xe` | Clock in / out / cancel / goto / set effort |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
@@ -553,6 +553,8 @@ The goal is feature parity for everyday use, but some things differ:
 - **Column view** opens as a separate table view instead of overlays.
 - **M-RET** always inserts after the current subtree or item; it never
   splits the line at the cursor.
+- **Plain list items don't fold** with `TAB`; only headlines, drawers and
+  blocks do.
 - Minute increments step by one minute (Emacs rounds to five).
 
 The features still missing are listed in the [Roadmap](#-roadmap).
