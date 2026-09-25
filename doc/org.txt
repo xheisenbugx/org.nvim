@@ -2562,11 +2562,8 @@ Targets are `{ bufnr = n, lnum = l }`.
              logreschedule nologreschedule logredeadline ...
              lognoteclock-out nolognoteclock-out logdrawer nologdrawer
              logstatesreversed nologstatesreversed
-<<<<<<< HEAD
              customtime (custom timestamp display)
-=======
              shrink noshrink (table columns with width cookies)
->>>>>>> worktree-agent-a7a2bb5cba679e8dd
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
   #+PROPERTY: header-args:python :results output
   #+COLUMNS: %25ITEM %TODO %Effort{:}   column view format
@@ -2586,7 +2583,6 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 ==============================================================================
 31. LINTING                                                         *org-lint*
 
-<<<<<<< HEAD
 :Org lint [checker ...]  Check the buffer for syntax mistakes (Emacs
                         `org-lint`) and list the problems in the location
                         list (title "org-lint", entries "checker: message",
@@ -2663,16 +2659,6 @@ Differences from Emacs:
 - Agenda notes (`z`), clock-out and refile notes are single-line prompts;
   state change and schedule notes use a `*Org Note*` split like Emacs
   (`note_buffer`).
-- Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
-  is no symbolic math. Elisp formulas `'(...)` support common Lisp functions,
-  anything else is a Lua expression.
-- Tables: width cookies (`<10>`) don't shrink columns, there is no formula
-  debugger (C-c {), no orgtbl-mode / radio tables, no table.el tables, and
-  <M-CR> inserts a row instead of splitting the field. Table export writes
-  TSV or CSV only.
-=======
-- Notes (state changes with `@`, agenda `z`) are single-line prompts rather
-  than a separate note buffer.
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
   (|org-table-calc|); its symbolic algebra (simplification, solving,
   derivatives), units, complex numbers (`sqrt(-4)` stays `sqrt(-4)`
@@ -2701,7 +2687,6 @@ Differences from Emacs:
   Org markup in cells with a simplified exporter.
 - Column view in the agenda (org-agenda-columns, C-c C-x C-c in the
   agenda, `org-columns-default-format-for-agenda`) is not implemented.
->>>>>>> worktree-agent-a7a2bb5cba679e8dd
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
   instead of Elisp.
 - Capture edits the text in a separate buffer that is stored at the target
