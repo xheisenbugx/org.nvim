@@ -947,6 +947,9 @@ Normal mode:
                   field, copy the nearest non-empty field above (count: the
                   Nth). Numbers, text starting or ending with a number and
                   dates are incremented (`table_copy_increment`)
+                  In tmux, <S-CR> arrives as <CR> unless extended keys
+                  are on: `set -s extended-keys on` and
+                  `set -as terminal-features 'xterm*:extkeys'`
   <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
                   (Visual mode; count 4: comma, 16: tab, N: N+ spaces)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
