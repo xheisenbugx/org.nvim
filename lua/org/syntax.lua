@@ -91,13 +91,85 @@ local function has_syntax(name)
     or #vim.api.nvim_get_runtime_file("syntax/" .. name .. ".lua", false) > 0
 end
 
+-- Link target inside [[...]]: no unescaped brackets (org-link-bracket-re).
+local LINK_TARGET = [=[\%([^][\\]\|\\\+[][]\|\\\+[^][]\)\+]=]
+-- Plain link path: balanced parentheses allowed, no trailing punctuation
+-- other than "/" (org-link-plain-re).
+local PLAIN_PATH = (function()
+  local char = [=[[^][[:space:]()<>]]=]
+  local group = [=[(\%([^][[:space:]()<>]\|([^][[:space:]()<>]*)\)*)]=]
+  return [=[\%(]=] .. char .. [=[\|]=] .. group .. [=[\)*\%([^][[:space:]()<>[:punct:]]\|\/\|]=] .. group .. [=[\)]=]
+end)()
+
+--- Link syntax: bracket, plain and radio links, and custom link type faces
+--- (`links.types.<name>.face`). All are in the `@orgLinks` cluster.
+function M.links(bufnr, conceal_links)
+  local links = require("org.links")
+  local lconceal = conceal_links and " conceal" or ""
+  local cluster = { "orgLink", "orgLinkPlain" }
+  local schemes = {}
+  for name in pairs(links.URL_SCHEMES) do
+    schemes[#schemes + 1] = esc(name)
+  end
+  local types = require("org.config").opts.links.types or {}
+  for name in pairs(types) do
+    if name:match("^[%w_+%-]+$") then
+      schemes[#schemes + 1] = esc(name)
+    end
+  end
+  table.sort(schemes)
+  cmd(string.format([=[syntax match orgLinkPlain /\<\%%(%s\):%s/]=], table.concat(schemes, [[\|]]), PLAIN_PATH))
+  local bracket = [=[\[\[]=] .. LINK_TARGET .. [=[\]\%(\[.\{-1,}\]\)\?\]]=]
+  cmd(string.format([=[syntax match orgLink /%s/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=], bracket))
+  -- lookbehind (not \zs): orgLinkBracket already consumes the "[[", so a
+  -- pattern that has to match from "[[" would never get a chance to apply
+  cmd(
+    string.format([=[syntax match orgLinkTargetHidden /\(\[\[\)\@<=%s\]\[\ze.\{-1,}\]\]/ contained]=], LINK_TARGET)
+      .. lconceal
+  )
+  cmd([[syntax match orgLinkBracket /\[\[\|\]\]/ contained]] .. lconceal)
+  -- custom link faces
+  for name, def in pairs(types) do
+    local face = type(def) == "table" and def.face or nil
+    if type(face) == "string" and name:match("^[%w_+%-]+$") then
+      local group = "orgLinkType_" .. name:gsub("[^%w_]", "_")
+      cmd(string.format(
+        [=[syntax match %s /\[\[%s:%s\]\%%(\[.\{-1,}\]\)\?\]/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=],
+        group,
+        esc(name),
+        LINK_TARGET
+      ))
+      cmd(string.format([=[syntax match %s /\<%s:%s/]=], group, esc(name), PLAIN_PATH))
+      vim.api.nvim_set_hl(0, group, { link = face, default = true })
+      cluster[#cluster + 1] = group
+    end
+  end
+  -- radio links: words matching a <<<radio target>>>
+  local targets = {}
+  for _, t in ipairs(links.radio_targets(bufnr)) do
+    targets[#targets + 1] = esc(t):gsub(" +", [[\_s\+]])
+  end
+  if #targets > 0 then
+    cmd(string.format(
+      [=[syntax match orgRadioLink /\c\%%(^\|[^[:alnum:]]\)\@<=\%%(%s\)\%%($\|[^[:alnum:]]\)\@=/ contains=@NoSpell]=],
+      table.concat(targets, [[\|]])
+    ))
+    cluster[#cluster + 1] = "orgRadioLink"
+  end
+  cmd("syntax cluster orgLinks contains=" .. table.concat(cluster, ","))
+end
+
 function M.apply(bufnr)
   local config = require("org.config").opts
   local file = require("org.files").get_buffer(bufnr)
   local todo = file.settings.todo
   local ui = config.ui or {}
   local conceal_emph = ui.hide_emphasis_markers and " concealends" or ""
+  -- org-link-descriptive; toggle_link_display sets the buffer variable
   local conceal_links = ui.conceal_links ~= false
+  if vim.b[bufnr].org_link_descriptive ~= nil then
+    conceal_links = vim.b[bufnr].org_link_descriptive and true or false
+  end
 
   cmd("syntax clear")
   cmd("syntax spell toplevel")
@@ -155,7 +227,7 @@ function M.apply(bufnr)
       c,
       post,
       conceal_emph,
-      extra or "contains=@Spell,orgLink"
+      extra or "contains=@Spell,@orgLinks"
     ))
   end
   emph("orgBold", "*")
@@ -166,18 +238,10 @@ function M.apply(bufnr)
   emph("orgCode", "~", "")
 
   -- Links --------------------------------------------------------------------
-  local lconceal = conceal_links and " conceal" or ""
-  cmd([=[syntax match orgLinkPlain /\<\(https\?\|ftp\|mailto\|file\):[^[:space:]<>\]]\+/]=])
-  cmd(
-    [=[syntax match orgLink /\[\[[^][]\+\]\(\[[^][]\+\]\)\?\]/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=]
-  )
-  -- lookbehind (not \zs): orgLinkBracket already consumes the "[[", so a
-  -- pattern that has to match from "[[" would never get a chance to apply
-  cmd([[syntax match orgLinkTargetHidden /\(\[\[\)\@<=[^][]\+\]\[\ze[^][]\+\]\]/ contained]] .. lconceal)
-  cmd([[syntax match orgLinkBracket /\[\[\|\]\]/ contained]] .. lconceal)
+  M.links(bufnr, conceal_links)
 
   -- Tables -------------------------------------------------------------------
-  cmd([=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgBold,orgItalic,orgCode,orgVerbatim,orgLink,orgTimestamp,orgTimestampInactive]=])
+  cmd([=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgBold,orgItalic,orgCode,orgVerbatim,@orgLinks,orgTimestamp,orgTimestampInactive]=])
   cmd([=[syntax match orgTableSeparator /|/ contained]=])
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
@@ -185,8 +249,8 @@ function M.apply(bufnr)
   -- Blocks -------------------------------------------------------------------
   cmd([=[syntax case ignore]=])
   cmd([=[syntax region orgBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\z(\w\+\)\>.*$/ end=/^\s*#+end_\z1\>.*$/ keepend contains=@NoSpell]=])
-  cmd([=[syntax region orgDynamicBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin:.*$/ end=/^\s*#+end:.*$/ keepend contains=orgTable,orgTimestamp,orgTimestampInactive,orgLink]=])
-  cmd([=[syntax region orgQuoteBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\(quote\|verse\|center\)\>.*$/ end=/^\s*#+end_\(quote\|verse\|center\)\>.*$/ keepend contains=orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgLink,@Spell]=])
+  cmd([=[syntax region orgDynamicBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin:.*$/ end=/^\s*#+end:.*$/ keepend contains=orgTable,orgTimestamp,orgTimestampInactive,@orgLinks]=])
+  cmd([=[syntax region orgQuoteBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\(quote\|verse\|center\)\>.*$/ end=/^\s*#+end_\(quote\|verse\|center\)\>.*$/ keepend contains=orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,@orgLinks,@Spell]=])
   cmd([=[syntax case match]=])
 
   if ui.src_highlight ~= false then
@@ -222,7 +286,7 @@ function M.apply(bufnr)
 
   -- Headlines (defined last so they win) ------------------------------------
   local contains =
-    "orgTodo,orgDone,orgTodoCustom,orgPriority,orgTags,orgTimestamp,orgTimestampInactive,orgLink,orgLinkPlain,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell"
+    "orgTodo,orgDone,orgTodoCustom,orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell"
   for level = 1, 8 do
     cmd(string.format(
       [=[syntax match orgHeadlineLevel%d /^\*\{%d}\(\s.*\)\?$/ contains=%s]=],
@@ -250,7 +314,7 @@ function M.apply(bufnr)
     cmd(string.format([[syntax match orgDone /\(^\*\+\s\+\)\@<=\(%s\)\ze\(\s\|$\)/ contained]], done_alt))
     if ui.fontify_done_headline ~= false then
       cmd(string.format(
-        [=[syntax match orgHeadlineDone /^\*\+\s\+\(%s\)\s.*$/ contains=orgDone,orgTags,orgTimestamp,orgTimestampInactive,orgLink,orgPriority]=],
+        [=[syntax match orgHeadlineDone /^\*\+\s\+\(%s\)\s.*$/ contains=orgDone,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgPriority]=],
         done_alt
       ))
     end

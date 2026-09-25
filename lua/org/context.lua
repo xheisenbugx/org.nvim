@@ -87,6 +87,13 @@ function M.context_action()
     end
     return require("org.lists").repair(0, lnum)
   end
+  if line:match("<<<.->>>") then
+    -- on a radio target: refresh radio link highlighting
+    -- (org-update-radio-target-regexp)
+    require("org.buffer").refresh(0)
+    utils.notify("Radio targets updated")
+    return
+  end
   if line:match("^#%+") then
     require("org.buffer").refresh(0)
     utils.notify("Local setup has been refreshed")
@@ -128,6 +135,10 @@ function M.edit_special()
     return babel.edit_special()
   end
   if require("org.special").edit_element(0, lnum) ~= false then
+    return
+  end
+  -- #+INCLUDE / #+SETUPFILE / #+BIBLIOGRAPHY: visit the file
+  if require("org.links").open_keyword_file(line, vim.api.nvim_get_current_buf()) then
     return
   end
   utils.warn("Nothing to edit here (place the cursor in a src block or table)")

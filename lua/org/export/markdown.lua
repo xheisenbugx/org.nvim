@@ -80,7 +80,10 @@ end
 function R:link(nd)
   local kind, target = ast.classify_link(self.doc, nd.path)
   local desc = nd.desc and self:inline(nd.desc) or nil
-  if kind == "image" and not nd.desc then
+  local custom = require("org.links").export_link(nd.path, desc, "md")
+  if custom then
+    return custom
+  elseif kind == "image" and not nd.desc then
     return "![" .. vim.fn.fnamemodify(target, ":t") .. "](" .. target .. ")"
   elseif kind == "url" or kind == "image" or kind == "other" then
     if not desc and nd.plain then

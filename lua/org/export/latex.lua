@@ -81,7 +81,10 @@ function R:inline(nodes)
     elseif t == "link" then
       local kind, target = ast.classify_link(self.doc, nd.path)
       local desc = nd.desc and self:inline(nd.desc) or nil
-      if kind == "image" and not desc then
+      local custom = require("org.links").export_link(nd.path, desc, "latex")
+      if custom then
+        out[#out + 1] = custom
+      elseif kind == "image" and not desc then
         out[#out + 1] = "\\includegraphics[width=.9\\linewidth]{" .. target .. "}"
       elseif kind == "url" or kind == "other" or kind == "image" then
         out[#out + 1] = desc and ("\\href{" .. target:gsub("%%", "\\%%") .. "}{" .. desc .. "}")

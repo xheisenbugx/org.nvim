@@ -135,6 +135,8 @@ describe("store and ids", function()
     utils.writefile(p, { "* Alpha", "* Beta" })
     vim.cmd("edit! " .. p)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    -- Emacs default (org-id-link-to-org-use-id nil) stores file links
+    base_setup({ id = { locations_file = vim.fn.tempname() .. ".json" }, links = { use_id = "create-if-interactive" } })
     local l = links.store_link()
     ok(l.link:match("^id:"), l.link)
     local id = l.link:sub(4)

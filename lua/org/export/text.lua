@@ -80,7 +80,10 @@ function R:inline(nodes)
       out[#out + 1] = "[" .. self:footnote(nd.label, nd.def) .. "]"
     elseif t == "link" then
       local kind, target = ast.classify_link(self.doc, nd.path)
-      if nd.desc then
+      local custom = require("org.links").export_link(nd.path, nd.desc and self:inline(nd.desc) or nil, "ascii")
+      if custom then
+        out[#out + 1] = custom
+      elseif nd.desc then
         local d = self:inline(nd.desc)
         if kind == "url" or kind == "file" or kind == "other" or kind == "image" then
           out[#out + 1] = d .. " <" .. target .. ">"
