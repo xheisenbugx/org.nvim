@@ -20,7 +20,7 @@
 ---property overrides it. (default: `true`)
 ---@field into_drawer? boolean|string|integer
 ---Remove clock lines of zero duration on clock out
----(`org-clock-out-remove-zero-time-clocks`; Emacs defaults to nil). (default: `true`)
+---(`org-clock-out-remove-zero-time-clocks`). (default: `false`)
 ---@field out_remove_zero_time? boolean
 ---Round clock-in/out times to this many minutes; `"same-as-time-stamp"`
 ---uses `time_stamp_rounding_minutes[1]` (`org-clock-rounding-minutes`). (default: `0`)
@@ -86,8 +86,8 @@
 ---Range of `clock_display` without a count, a `:block` value
 ---(`org-clock-display-default-range`). (default: `"thisyear"`)
 ---@field display_default_range? string
----Ask to clock out when quitting with a running clock
----(`org-clock-ask-before-exiting`; Emacs asks by default). (default: `false`)
+---Ask to clock out (and save) when quitting with a running clock
+---(`org-clock-ask-before-exiting`). (default: `true`)
 ---@field ask_before_exiting? boolean
 ---Icon prefixed to the running clock in the statusline. (default: `"⏱"`)
 ---@field statusline_icon? string
@@ -98,8 +98,8 @@
 ---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
 ---(default: `true`)
 ---@field persist? boolean|"clock"|"history"
----Ask before resuming a saved clock (`org-clock-persist-query-resume`;
----Emacs asks by default). (default: `false`)
+---Ask before resuming a clock after a restart
+---(`org-clock-persist-query-resume`). (default: `true`)
 ---@field persist_query_resume? boolean
 ---File where the clock state is persisted (`org-clock-persist-file`).
 ---(default: `stdpath("data") .. "/org/clock.json"`)

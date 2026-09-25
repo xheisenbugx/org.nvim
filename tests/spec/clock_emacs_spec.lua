@@ -231,6 +231,62 @@ describe("clock in (Emacs)", function()
   end)
 end)
 
+describe("clock defaults (Emacs)", function()
+  test("keeps 0:00 clock lines unless out_remove_zero_time", function()
+    local buf = file_buffer({ "* A" })
+    clock.clock_in()
+    clock.clock_out()
+    ok(buf_lines(buf)[3]:match("^CLOCK: .* =>  0:00$"), buf_lines(buf)[3])
+  end)
+
+  test("asks before resuming a clock after a restart", function()
+    config.opts.clock.persist_query_resume = true
+    local _, path = file_buffer({ "* Running", ":LOGBOOK:", "CLOCK: " .. ts(ago(30)), ":END:" })
+    local saved = config.opts.agenda_files
+    config.opts.agenda_files = { path }
+    local asked
+    with(utils, {
+      confirm = function(msg)
+        asked = msg
+        return false
+      end,
+    }, function()
+      clock.restore()
+    end)
+    eq("Resume clock (Running)?", asked)
+    eq(nil, clock.state)
+    with(utils, {
+      confirm = function()
+        return true
+      end,
+    }, function()
+      clock.restore()
+    end)
+    config.opts.agenda_files = saved
+    eq("Running", clock.state.title)
+  end)
+
+  test("asks to clock out and saves when quitting", function()
+    config.opts.clock.ask_before_exiting = true
+    local buf, path = file_buffer({ "* A" })
+    clock.clock_in(nil, { at = ago(10) })
+    local asked
+    with(utils, {
+      confirm = function(msg)
+        asked = msg
+        return true
+      end,
+    }, function()
+      vim.api.nvim_exec_autocmds("VimLeavePre", { group = utils.augroup })
+    end)
+    eq("Clock out before exiting?", asked)
+    eq(nil, clock.state)
+    -- the clocked-out entry is saved
+    eq(buf_lines(buf), vim.fn.readfile(path))
+    ok(vim.fn.readfile(path)[3]:match("=>  0:10$"), vim.inspect(vim.fn.readfile(path)))
+  end)
+end)
+
 describe("clock statusline and effort (Emacs)", function()
   local lines = {
     "* TODO Task",

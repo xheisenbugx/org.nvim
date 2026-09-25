@@ -39,6 +39,7 @@ describe("clock", function()
   end)
 
   it("switches tasks and removes zero clocks", function()
+    config.opts.clock.out_remove_zero_time = true
     local buf = file_buffer({ "* A", "* B" })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     clock.clock_in()
@@ -50,6 +51,7 @@ describe("clock", function()
     eq(":LOGBOOK:", l[3])
     eq("B", clock.active().title)
     clock.clock_cancel()
+    config.opts.clock.out_remove_zero_time = false
     eq({ "* A", "* B" }, buf_lines(buf))
   end)
 
