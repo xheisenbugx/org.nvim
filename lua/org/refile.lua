@@ -567,7 +567,7 @@ end
 --- (C-u) jumps to a target, 16 (C-u C-u) to the last refiled entry, 2
 --- refiles under the running clock and 3 copies (org-refile-keep).
 ---@param target? org.Target
----@param opts? { dest?: org.RefileTarget, save?: boolean, copy?: boolean, targets?: table[], range?: integer[], count?: integer }
+---@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count? }
 function M.refile(target, opts)
   opts = opts or {}
   local count = opts.count

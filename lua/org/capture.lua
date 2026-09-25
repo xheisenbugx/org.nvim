@@ -464,7 +464,7 @@ end
 --- finally the backreferences `%\N` / `%\*N`. The first `%?` becomes the
 --- cursor marker. Must run inside a coroutine when it prompts.
 ---@param text string
----@param ctx table { origin_file?, annotation?, link?, link_desc?, initial?, date?, target_file?, target_hl?, keywords? }
+---@param ctx org.Config.CaptureContext|table
 ---@return string text with CURSOR marker, table ctx
 function M.expand(text, ctx)
   ctx = ctx or {}
@@ -1332,7 +1332,12 @@ local function first_list(bufnr, s, e)
       last = it
     end
   end
-  return { first = first.lnum, last = math.max(last.end_lnum, last.lnum), indent = first.indent, ordered = first.is_ordered }
+  return {
+    first = first.lnum,
+    last = math.max(last.end_lnum, last.lnum),
+    indent = first.indent,
+    ordered = first.is_ordered,
+  }
 end
 
 --- End of the metadata after a headline (org-end-of-meta-data): planning

@@ -11,7 +11,7 @@
 ---also accepted. (Emacs `org-agenda-files`, default: `{ "~/org/**/*.org" }`)
 ---@field agenda_files? string|string[]
 ---Default target for capture templates without a `target`.
----(Emacs `org-default-notes-file`, default: `"~/org/refile.org"`)
+---(Emacs `org-default-notes-file`, default: `"~/.notes"`)
 ---@field default_notes_file? string
 ---TODO keyword sequences, like Emacs `org-todo-keywords`. Each string is one
 ---sequence: `"TODO(t) NEXT(n!) | DONE(d@/!)"`; `(k)` is a fast-selection key,
