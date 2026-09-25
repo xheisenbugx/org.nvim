@@ -120,7 +120,7 @@ describe("org-attach", function()
     setup(dir, { attach = { dir_relative = true } })
     local nb = file_buffer(dir, { "* C" })
     attach.set_directory({ bufnr = nb, lnum = 1 }, dir .. "/rel/here")
-    eq(":DIR: rel/here", buf_lines(nb)[3])
+    eq(":DIR:      rel/here", buf_lines(nb)[3])
     eq(dir .. "/rel/here", (attach.dir_for({ bufnr = nb, lnum = 1 })))
   end)
 
@@ -166,7 +166,7 @@ describe("org-attach", function()
     local d = attach.dir_for({ bufnr = buf, lnum = 1 }, true)
     vim.fn.input = oi
     eq(dir .. "/chosen", d)
-    eq(":DIR: " .. dir .. "/chosen", buf_lines(buf)[3])
+    eq(":DIR:      " .. dir .. "/chosen", buf_lines(buf)[3])
   end)
 
   it("syncs the tag, deletes empty directories and supports another auto tag", function()

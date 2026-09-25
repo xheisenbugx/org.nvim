@@ -49,7 +49,7 @@ describe("org-id", function()
     eq(first, id.get_create({ bufnr = buf, lnum = 1 }))
     local second = id.get_create({ bufnr = buf, lnum = 1 }, true)
     ok(second ~= first)
-    eq({ "* A", ":PROPERTIES:", ":ID: " .. second, ":END:" }, buf_lines(buf))
+    eq({ "* A", ":PROPERTIES:", ":ID:       " .. second, ":END:" }, buf_lines(buf))
   end)
 
   it("finds IDs in archives and extra files and rebuilds the database", function()
