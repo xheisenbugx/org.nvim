@@ -448,7 +448,22 @@ function M.format_duration(minutes)
   return neg and "-" .. s or s
 end
 
---- Parse `H:MM`, `1h30min`, `90`, `1d 2h`, `1.5h` into minutes.
+--- Duration in org-duration style: `H:MM`, or `Nd H:MM` from one day on
+--- when `duration_format` is "d h:mm" (the default, like Emacs
+--- `org-duration-format`). `fmt` overrides the option.
+---@param minutes number
+---@param fmt? "h:mm"|"d h:mm"
+function M.duration_to_string(minutes, fmt)
+  fmt = fmt or require("org.config").opts.duration_format or "d h:mm"
+  local m = floor(math.abs(minutes) + 0.5)
+  if fmt ~= "d h:mm" or m < 1440 then
+    return M.format_duration(minutes)
+  end
+  local days = floor(m / 1440)
+  return (minutes < 0 and "-" or "") .. days .. "d " .. M.format_duration(m - days * 1440)
+end
+
+--- Parse `H:MM`, `H:MM:SS`, `1h30min`, `90`, `1d 2h`, `1.5h` into minutes.
 function M.parse_duration(str)
   if not str then
     return nil
@@ -465,11 +480,16 @@ function M.parse_duration(str)
   if h then
     return tonumber(h) * 60 + tonumber(m)
   end
+  local sec
+  h, m, sec = str:match("^(%d+):(%d%d):(%d%d)$")
+  if h then
+    return tonumber(h) * 60 + tonumber(m) + tonumber(sec) / 60
+  end
   if str:match("^%d+%.?%d*$") then
     return tonumber(str)
   end
   local total, found = 0, false
-  local mult = { min = 1, m = 1, h = 60, d = 1440, w = 10080, mon = 43200, y = 525600 }
+  local mult = { min = 1, m = 1, h = 60, d = 1440, w = 10080, mon = 43200, y = 525960 }
   for num, unit in str:gmatch("(%d+%.?%d*)%s*(%a+)") do
     local f = mult[unit]
     if not f then
@@ -611,6 +631,11 @@ local function parse_time_token(tok)
   if h then
     return tonumber(h), tonumber(m)
   end
+  -- 15h, 15h30 (HHhMM)
+  h, m = tok:match("^(%d%d?)h(%d?%d?)$")
+  if h and tonumber(h) < 24 and (m == "" or #m == 2) then
+    return tonumber(h), tonumber(m) or 0
+  end
   local hh, mm, ap = tok:match("^(%d%d?):?(%d?%d?)([ap]m)$")
   if hh then
     local hour = tonumber(hh) % 12
@@ -746,6 +771,47 @@ function M.read_date(input, default)
         end
         ok = true
       end
+    end
+  end
+
+  if not ok then
+    -- ISO week: w39, w39-5, 2026-w39, 2026-w39-5, "w39 fri"
+    local y, w, wd = text:match("^(%d%d%d%d)%-w(%d%d?)%-?(%d?)$")
+    if not y then
+      w, wd = text:match("^w(%d%d?)%-?(%d?)$")
+    end
+    if not w then
+      local name
+      w, name = text:match("^w(%d%d?)%s+(%a+)$")
+      wd = name and DAY_LOOKUP[name] and tostring(DAY_LOOKUP[name]) or nil
+      if not wd then
+        w = nil
+      end
+    end
+    if w then
+      local jan4 = Date.new({ year = tonumber(y) or today.year, month = 1, day = 4 })
+      local day = tonumber(wd) or 1
+      if day == 0 then
+        day = 7
+      end
+      set_days(jan4:start_of("week"):days() + (tonumber(w) - 1) * 7 + day - 1)
+    end
+  end
+
+  if not ok then
+    -- European dotted: 15.3. / 15.3.2027
+    local d, m, y = text:match("^(%d%d?)%.%s?(%d%d?)%.%s?(%d*)$")
+    if d then
+      base.day, base.month = tonumber(d), tonumber(m)
+      if y ~= "" then
+        base.year = tonumber(y)
+      else
+        base.year = today.year
+        if base:days() < today:days() then
+          base.year = base.year + 1
+        end
+      end
+      ok = true
     end
   end
 

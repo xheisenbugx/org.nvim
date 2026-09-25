@@ -272,8 +272,29 @@ function M.ensure_drawer(bufnr, lnum, name)
 end
 
 --- Name of the log drawer, or nil when logging directly into the entry.
-function M.log_drawer_name()
+--- With a headline, `#+STARTUP: logdrawer|nologdrawer` and the (inherited)
+--- LOG_INTO_DRAWER property override `log_into_drawer`.
+---@param hl? org.Headline
+function M.log_drawer_name(hl)
   local d = require("org.config").opts.log_into_drawer
+  if hl then
+    local startup = hl.file.settings.startup
+    if startup.logdrawer then
+      d = true
+    elseif startup.nologdrawer then
+      d = false
+    end
+    local prop = hl:get_property("LOG_INTO_DRAWER", true)
+    if prop and prop ~= "" then
+      if prop == "nil" then
+        d = false
+      elseif prop == "t" then
+        d = true
+      else
+        d = prop
+      end
+    end
+  end
   if d == true then
     return "LOGBOOK"
   end
@@ -288,8 +309,13 @@ function M.add_log_entry(bufnr, lnum, entry_lines)
   if not hl then
     return
   end
-  local drawer = M.log_drawer_name()
+  local drawer = M.log_drawer_name(hl)
   local reversed = cfg.log_states_order_reversed ~= false
+  if file.settings.startup.logstatesreversed then
+    reversed = true
+  elseif file.settings.startup.nologstatesreversed then
+    reversed = false
+  end
   if drawer then
     local s, e = M.ensure_drawer(bufnr, hl.line, drawer)
     local indent = vim.api.nvim_buf_get_lines(bufnr, s - 1, s, false)[1]:match("^(%s*)")

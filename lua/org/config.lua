@@ -25,8 +25,15 @@ M.defaults = {
   --- `(k)` is a fast-selection key, `!` logs a timestamp, `@` asks for a note.
   --- A flat list containing a `"|"` element is also accepted.
   todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" },
-  --- State a repeating task returns to. nil = previous TODO state (or first).
+  --- State a repeating task returns to: nil = first keyword of its sequence,
+  --- true = the state it had before, or a keyword. The REPEAT_TO_STATE
+  --- property overrides it.
   todo_repeat_to_state = nil,
+  --- Tag changes on TODO state changes (org-todo-state-tags-triggers). Keys
+  --- are keywords, `"todo"`, `"done"` or `""` (no keyword); values map tags
+  --- to true (add) / false (remove):
+  --- `{ CANCELLED = { CANCELLED = true }, done = { WAITING = false } }`.
+  todo_state_tags_triggers = {},
   --- Block marking an entry DONE while children are not DONE.
   enforce_todo_dependencies = false,
   --- Block marking an entry DONE while it has unchecked checkboxes.
@@ -38,6 +45,8 @@ M.defaults = {
   --- Log changes of SCHEDULED / DEADLINE: false | "time" | "note".
   log_reschedule = false,
   log_redeadline = false,
+  --- Ask for a note when clocking out (org-log-note-clock-out).
+  log_note_clock_out = false,
   --- Drawer used for state changes, notes and clocks. `false` = no drawer.
   log_into_drawer = "LOGBOOK",
   --- Newest log entries first (Emacs default).
@@ -67,6 +76,9 @@ M.defaults = {
   --- difference to the field above, else 1), a number (fixed step) or false.
   table_copy_increment = true,
   effort_property = "Effort",
+  --- Durations in clock tables, clock sums and efforts: "d h:mm" writes
+  --- "1d 2:30" from one day on (Emacs `org-duration-format`), "h:mm" "26:30".
+  duration_format = "d h:mm",
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 
   ---------------------------------------------------------------------------
@@ -94,6 +106,10 @@ M.defaults = {
   blank_before_new_entry = { heading = "auto", plain_list_item = false },
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- { rounding of the current time in date prompts, minute step of
+  --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
+  --- exactly that many minutes.
+  time_stamp_rounding_minutes = { 0, 5 },
   --- Where `archive_subtree` sends entries. `%s` = current file name.
   archive_location = "%s_archive::",
   archive_save_context_info = { "time", "file", "olpath", "category", "todo", "itags" },
@@ -144,6 +160,7 @@ M.defaults = {
       following_days = 7,
       show_habits = true,
       show_all_today = false,
+      show_done_always_green = false,
     },
     stuck_projects = {
       match = "+LEVEL=2/-DONE",
@@ -210,6 +227,14 @@ M.defaults = {
     out_remove_zero_time = true,
     --- State to switch to on clock in: a keyword, or function(headline) -> keyword|nil
     in_switch_to_state = nil, -- e.g. "NEXT"
+    --- State to switch to on clock out: a keyword, or function(keyword) -> keyword|nil
+    out_switch_to_state = nil,
+    --- Notify once when the clocked time reaches the task's effort.
+    notify_effort = true,
+    --- Number of tasks remembered for clock_in with a count (clock history).
+    history_length = 35,
+    --- Start a new clock where the last one stopped (org-clock-continuously).
+    continuously = false,
     statusline_icon = "⏱",
     clocktable_default = { maxlevel = 3, scope = "file", block = nil },
     persist = true,
@@ -443,6 +468,9 @@ M.defaults = {
       clock_cancel = "<prefix>xq",
       clock_goto = "<prefix>xj",
       set_effort = "<prefix>xe",
+      inc_effort = "<prefix>xE",
+      clock_modify_effort = "<prefix>xm",
+      clock_resolve = "<prefix>xz",
       clock_report = "<prefix>xr",
       clock_display = "<prefix>xd",
       dblock_update = "<prefix>xu",
@@ -563,6 +591,11 @@ M.defaults = {
       clock_report = "<C-c><C-x><C-r>",
       clock_display = "<C-c><C-x><C-d>",
       set_effort = "<C-c><C-x>e",
+      inc_effort = "<C-c><C-x>E",
+      clock_modify_effort = "<C-c><C-x><C-e>",
+      clock_resolve = "<C-c><C-x><C-z>",
+      shift_control_up = "<C-S-Up>",
+      shift_control_down = "<C-S-Down>",
       dblock_update = "<C-c><C-x><C-u>",
       column_view = "<C-c><C-x><C-c>",
       insert_columnview = "<C-c><C-x>i",

@@ -23,6 +23,9 @@ local M = {}
 M.state = nil
 ---@type { path: string, title: string, id?: string }|nil
 M.last = nil
+--- Recently clocked tasks, newest first (org-clock-history).
+---@type { path: string, title: string, id?: string }[]
+M.history = {}
 
 local display_ns = vim.api.nvim_create_namespace("org.clock.display")
 
@@ -35,7 +38,11 @@ local function persist()
   if not cfg.persist or not cfg.persist_file then
     return
   end
-  pcall(utils.write_json, cfg.persist_file, { state = M.state or vim.NIL, last = M.last or vim.NIL })
+  pcall(utils.write_json, cfg.persist_file, {
+    state = M.state or vim.NIL,
+    last = M.last or vim.NIL,
+    history = M.history,
+  })
 end
 
 local function buf_path(bufnr)
@@ -118,15 +125,85 @@ function M.is_clocked_headline(bufnr, lnum)
   return hl ~= nil and target ~= nil and hl.line == target.line
 end
 
-local function drawer_name()
+--- Drawer for clock lines (org-clock-into-drawer): the (inherited)
+--- CLOCK_INTO_DRAWER property, then `clock.into_drawer`.
+---@param hl? org.Headline
+local function drawer_name(hl)
   local into = clock_cfg().into_drawer
+  local prop = hl and hl:get_property("CLOCK_INTO_DRAWER", true)
+  if prop and prop ~= "" then
+    if prop == "nil" then
+      into = false
+    elseif prop == "t" or prop:match("^%d+$") then
+      into = true
+    else
+      into = prop
+    end
+  end
   if into == false then
     return nil
   end
   if type(into) == "string" then
     return into
   end
-  return edit.log_drawer_name() or "LOGBOOK"
+  return edit.log_drawer_name(hl) or "LOGBOOK"
+end
+
+--- Remember a clocked task in the history (newest first, no duplicates).
+local function push_history(entry)
+  local max = clock_cfg().history_length or 35
+  local out = { entry }
+  for _, h in ipairs(M.history) do
+    if #out >= max then
+      break
+    end
+    if not (h.path == entry.path and ((entry.id and h.id == entry.id) or h.title == entry.title)) then
+      out[#out + 1] = h
+    end
+  end
+  M.history = out
+end
+
+---------------------------------------------------------------------------
+-- Effort
+---------------------------------------------------------------------------
+
+local effort_timer
+
+local function stop_effort_timer()
+  if effort_timer then
+    effort_timer:stop()
+    effort_timer:close()
+    effort_timer = nil
+  end
+end
+
+--- Notify once when the running clock reaches the task's effort
+--- (org-clock-notify-once-if-expired).
+local function start_effort_timer()
+  stop_effort_timer()
+  local a = M.active()
+  if not a or not a.effort or a.effort <= 0 or clock_cfg().notify_effort == false then
+    return
+  end
+  local remaining = a.effort - a.minutes
+  if remaining < 0 then
+    return
+  end
+  local start = M.state.start
+  effort_timer = vim.uv.new_timer()
+  effort_timer:start(remaining * 60000 + 1000, 0, function()
+    vim.schedule(function()
+      stop_effort_timer()
+      local cur = M.active()
+      if cur and M.state.start == start and cur.effort and cur.minutes >= cur.effort then
+        utils.notify(
+          string.format("Task '%s' should be finished by now. (%s)", cur.title, date.format_duration(cur.effort)),
+          vim.log.levels.WARN
+        )
+      end
+    end)
+  end)
 end
 
 --- Remove an empty drawer whose start line is `s`.
@@ -137,10 +214,13 @@ local function remove_empty_drawer(bufnr, s)
   end
 end
 
---- Clock out of the running clock.
----@param opts? { at?: table }
+--- Clock out of the running clock. Interactively (no `opts`) with a
+--- count, ask for the TODO state to switch the task to (org-clock-out with
+--- C-u); otherwise `clock.out_switch_to_state` applies.
+---@param opts? { at?: table, switch_to_state?: string|false, note?: string|false }
 function M.clock_out(opts)
-  opts = opts or {}
+  local interactive = type(opts) ~= "table"
+  opts = type(opts) == "table" and opts or {}
   if not M.state then
     utils.notify("No running clock")
     return nil
@@ -155,6 +235,8 @@ function M.clock_out(opts)
   end
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local indent = line:match("^(%s*)")
+  local clocked = files.get_buffer(bufnr):headline_at(lnum)
+  local hl_line = clocked and clocked.line
   local start = date.parse(st.start)
   local stop = opts.at or date.now()
   local new, minutes = M.format_clock_line(indent, start, stop)
@@ -168,9 +250,44 @@ function M.clock_out(opts)
   else
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new })
     utils.notify(string.format("Clocked out of %s: %s", st.title, date.format_duration(minutes)))
+    local file = files.get_buffer(bufnr)
+    if opts.note ~= false and require("org.todo").log_setting(file, "clock_out", clocked) == "note" then
+      -- org-log-note-clock-out: the note goes right below the CLOCK line
+      local note = opts.note or utils.input({ prompt = "Clock-out note: " })
+      if note and vim.trim(note) ~= "" then
+        local note_lines = vim.split(note, "\n")
+        local out = { indent .. "- " .. note_lines[1] }
+        for i = 2, #note_lines do
+          out[#out + 1] = indent .. "  " .. note_lines[i]
+        end
+        vim.api.nvim_buf_set_lines(bufnr, lnum, lnum, false, out)
+      end
+    end
   end
-  M.last = { path = st.path, title = st.title }
+  local id = M.last and M.last.path == st.path and M.last.title == st.title and M.last.id or nil
+  M.last = { path = st.path, title = st.title, id = id, out = stop:clone({ active = false }):to_string() }
   persist()
+  stop_effort_timer()
+  -- org-clock-out-switch-to-state
+  local switch = opts.switch_to_state
+  if switch == nil then
+    if interactive and vim.v.count > 0 then
+      local todo_cfg = files.get_buffer(bufnr).settings.todo
+      switch = utils.input_complete("Switch to state: ", todo_cfg:names(), todo_cfg:first_done() or "")
+    else
+      switch = clock_cfg().out_switch_to_state
+    end
+  end
+  -- the headline line is above the clock line, so edits did not move it
+  local hl = hl_line and files.get_buffer(bufnr):headline_on(hl_line)
+  if hl then
+    if type(switch) == "function" then
+      switch = switch(hl.todo)
+    end
+    if type(switch) == "string" and switch ~= "" and hl.todo ~= switch then
+      require("org.todo").change_state({ bufnr = bufnr, lnum = hl.line }, switch)
+    end
+  end
   vim.cmd("redrawstatus")
   return minutes
 end
@@ -193,6 +310,7 @@ function M.clock_cancel()
     end
   end
   utils.notify("Clock canceled: " .. st.title)
+  stop_effort_timer()
   vim.cmd("redrawstatus")
   return true
 end
@@ -202,6 +320,9 @@ end
 ---@param opts? { at?: table }
 function M.clock_in(target, opts)
   opts = opts or {}
+  if target == nil and vim.v.count > 0 and not opts.at then
+    return M.clock_in_select()
+  end
   local bufnr, _, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
@@ -214,7 +335,7 @@ function M.clock_in(target, opts)
       utils.notify("Already clocking this task")
       return nil
     end
-    M.clock_out()
+    M.clock_out({})
   end
   local lnum = vim.api.nvim_buf_get_extmark_by_id(bufnr, mark_ns, mark, {})[1] + 1
   vim.api.nvim_buf_del_extmark(bufnr, mark_ns, mark)
@@ -228,9 +349,17 @@ function M.clock_in(target, opts)
     require("org.todo").change_state({ bufnr = bufnr, lnum = lnum }, switch)
     hl = files.get_buffer(bufnr):headline_at(lnum)
   end
-  local start = (opts.at or date.now()):clone({ active = false })
+  local start = opts.at or date.now()
+  if not opts.at and clock_cfg().continuously and M.last and M.last.out then
+    -- org-clock-continuously: start where the last clock stopped
+    local out = date.parse(M.last.out)
+    if out and out:minutes() <= start:minutes() then
+      start = out
+    end
+  end
+  start = start:clone({ active = false })
   local start_str = start:to_string({ range = false })
-  local drawer = drawer_name()
+  local drawer = drawer_name(hl)
   if drawer then
     local s = edit.ensure_drawer(bufnr, lnum, drawer)
     local indent = vim.api.nvim_buf_get_lines(bufnr, s - 1, s, false)[1]:match("^(%s*)")
@@ -249,15 +378,16 @@ function M.clock_in(target, opts)
     effort = effort,
   }
   M.last = { path = M.state.path, title = M.state.title, id = hl.properties.ID }
+  push_history(M.last)
   persist()
+  start_effort_timer()
   utils.notify("Clock started: " .. M.state.title)
   vim.cmd("redrawstatus")
   return M.state
 end
 
---- Find the headline of `M.last` (by ID, then title).
-local function find_last()
-  local last = M.last
+--- Find the headline of a clocked-task entry (by ID, then title).
+local function find_entry(last)
   if not last or not utils.exists(last.path) then
     return nil
   end
@@ -269,6 +399,39 @@ local function find_last()
     return nil
   end
   return bufnr, hl.line
+end
+
+local function find_last()
+  return find_entry(M.last)
+end
+
+--- Clock in a task picked from the clock history (org-clock-in with C-u).
+function M.clock_in_select()
+  local items = {}
+  for _, h in ipairs(M.history) do
+    if utils.exists(h.path) then
+      items[#items + 1] = h
+    end
+  end
+  if #items == 0 then
+    utils.notify("No clock history")
+    return nil
+  end
+  local choice = utils.select(items, {
+    prompt = "Clock in",
+    format_item = function(h)
+      return h.title .. "  (" .. vim.fn.fnamemodify(h.path, ":t") .. ")"
+    end,
+  })
+  if not choice then
+    return nil
+  end
+  local bufnr, lnum = find_entry(choice)
+  if not bufnr then
+    utils.warn("Cannot find task: " .. choice.title)
+    return nil
+  end
+  return M.clock_in({ bufnr = bufnr, lnum = lnum })
 end
 
 --- Clock in the most recently clocked task.
@@ -311,6 +474,129 @@ function M.update_clock_line(bufnr, lnum)
   local new = M.format_clock_line(line:match("^(%s*)"), c.start, c["end"])
   if new ~= line then
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new })
+  end
+  return true
+end
+
+--- Shift both timestamps of the CLOCK line at the cursor by `n` units of
+--- the part under the cursor, keeping the duration (org-clock-timestamps-up
+--- / -down, C-S-Up / C-S-Down). Returns false when not on a closed clock.
+---@param n integer
+function M.timestamps_shift(n)
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_get_current_line()
+  local c = parser.parse_clock_line(line)
+  if not c or not c["end"] then
+    return false
+  end
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  local s1 = line:find("[", 1, true)
+  local s2 = line:find("--[", 1, true)
+  if not s1 or not s2 then
+    return false
+  end
+  local on_end = col > s2 + 1
+  if col < s1 then
+    vim.api.nvim_win_set_cursor(0, { lnum, s1 })
+  end
+  if not require("org.timestamps").increment(n) then
+    return false
+  end
+  local new = parser.parse_clock_line(vim.api.nvim_get_current_line())
+  if not new or not new["end"] then
+    return true
+  end
+  local start, stop = new.start, new["end"]
+  if on_end then
+    start = start:add(stop:minutes() - c["end"]:minutes(), "min")
+  else
+    stop = stop:add(start:minutes() - c.start:minutes(), "min")
+  end
+  local text = M.format_clock_line(line:match("^(%s*)"), start, stop)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { text })
+  vim.api.nvim_win_set_cursor(0, { lnum, math.min(cursor[2], #text - 1) })
+  return true
+end
+
+--- Open CLOCK lines in the agenda files (and loaded org buffers) other
+--- than the running clock: list of { bufnr, lnum, start, title }.
+function M.dangling_clocks()
+  local out, seen = {}, {}
+  local running_buf, running_lnum = M.find_open_clock()
+  local function scan(bufnr)
+    if seen[bufnr] then
+      return
+    end
+    seen[bufnr] = true
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    for i, l in ipairs(lines) do
+      local c = l:find("CLOCK:", 1, true) and parser.parse_clock_line(l)
+      if c and not c["end"] and not (bufnr == running_buf and i == running_lnum) then
+        local hl = files.get_buffer(bufnr):headline_at(i)
+        out[#out + 1] = { bufnr = bufnr, lnum = i, start = c.start, title = hl and hl:plain_title() or "?" }
+      end
+    end
+  end
+  for _, f in ipairs(files.agenda_files()) do
+    if f.filename and utils.exists(f.filename) then
+      scan(utils.load_buffer(f.filename))
+    end
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
+      scan(b)
+    end
+  end
+  return out
+end
+
+--- Resolve open clocks that are not the running one (org-resolve-clocks):
+--- for each, keep it (close it now, or after N minutes), cancel it (remove
+--- the line), jump to it, or skip it.
+function M.resolve_clocks()
+  local list = M.dangling_clocks()
+  if #list == 0 then
+    utils.notify("No dangling clocks")
+    return true
+  end
+  -- bottom-up per buffer so line numbers stay valid
+  table.sort(list, function(a, b)
+    return a.bufnr == b.bufnr and a.lnum > b.lnum or a.bufnr < b.bufnr
+  end)
+  for _, d in ipairs(list) do
+    local ago = date.now():minutes() - d.start:minutes()
+    local choice = require("org.ui").menu({
+      title = string.format("Dangling clock started %d mins ago: %s", ago, d.title),
+      items = {
+        { key = "k", label = "Keep: clock out now, or after N minutes", value = "k" },
+        { key = "C", label = "Cancel: remove the clock line", value = "C" },
+        { key = "j", label = "Jump to the clock", value = "j" },
+        { key = "i", label = "Ignore", value = "i" },
+      },
+    })
+    local line = vim.api.nvim_buf_get_lines(d.bufnr, d.lnum - 1, d.lnum, false)[1] or ""
+    if choice == "k" then
+      local keep = utils.input({ prompt = string.format("Keep how many minutes? (default all, %d): ", ago) })
+      if keep == nil then
+        return nil
+      end
+      local minutes = tonumber(vim.trim(keep)) or ago
+      local stop = d.start:add(math.max(0, math.min(minutes, ago)), "min")
+      local text = M.format_clock_line(line:match("^(%s*)"), d.start, stop)
+      vim.api.nvim_buf_set_lines(d.bufnr, d.lnum - 1, d.lnum, false, { text })
+    elseif choice == "C" then
+      vim.api.nvim_buf_set_lines(d.bufnr, d.lnum - 1, d.lnum, false, {})
+      local prev = vim.api.nvim_buf_get_lines(d.bufnr, d.lnum - 2, d.lnum - 1, false)[1]
+      if prev and prev:match("^%s*:[%w_%-]+:%s*$") then
+        remove_empty_drawer(d.bufnr, d.lnum - 1)
+      end
+    elseif choice == "j" then
+      utils.open_file(vim.api.nvim_buf_get_name(d.bufnr), d.lnum)
+      return true
+    elseif choice == nil then
+      return nil
+    end
   end
   return true
 end
@@ -360,6 +646,107 @@ function M.statusline()
   return string.format("%s %s (%s)", clock_cfg().statusline_icon or "⏱", elapsed, a.title)
 end
 
+--- Headline of the running clock: bufnr, headline (or nil).
+local function clocked_headline()
+  local bufnr, lnum = M.find_open_clock()
+  if not bufnr then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  return hl and bufnr, hl
+end
+
+--- Refresh the running clock's effort after the entry's Effort changed.
+function M.effort_changed(bufnr, lnum)
+  if M.state and M.is_clocked_headline(bufnr, lnum) then
+    local hl = files.get_buffer(bufnr):headline_at(lnum)
+    M.state.effort = require("org.properties").effort_minutes(hl)
+    persist()
+    start_effort_timer()
+    vim.cmd("redrawstatus")
+  end
+end
+
+--- Set or change the effort of the clocked task
+--- (org-clock-modify-effort-estimate). `value` may be relative: `+0:15`,
+--- `-10`. Without a running clock, acts on the entry at the cursor.
+---@param value? string
+function M.modify_effort(value)
+  local bufnr, hl = clocked_headline()
+  if not bufnr then
+    local _
+    bufnr, _, hl = edit.resolve_headline(nil)
+    if not bufnr then
+      return nil
+    end
+  end
+  local prop = config.opts.effort_property or "Effort"
+  local current = hl.properties[prop:upper()]
+  if value == nil then
+    value = utils.input({
+      prompt = "Set effort (hh:mm or mm" .. (current and (", prefix + to add to " .. current) or "") .. "): ",
+    })
+    if not value or vim.trim(value) == "" then
+      return nil
+    end
+  end
+  value = vim.trim(tostring(value))
+  local sign = value:sub(1, 1)
+  local base = 0
+  if sign == "+" or sign == "-" then
+    base = current and date.parse_duration(current) or 0
+    value = value:sub(2)
+  end
+  local minutes = date.parse_duration(value)
+  if not minutes then
+    utils.warn("Invalid effort: " .. value)
+    return nil
+  end
+  if sign == "-" then
+    minutes = base - minutes
+  elseif sign == "+" then
+    minutes = base + minutes
+  end
+  local str = date.duration_to_string(math.max(0, minutes))
+  edit.set_property(bufnr, hl.line, prop, str)
+  M.effort_changed(bufnr, hl.line)
+  utils.notify("Effort is now " .. str)
+  return str
+end
+
+--- Set the effort to the next value of `Effort_ALL` (org-inc-effort).
+function M.inc_effort(target)
+  local bufnr, _, hl = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  local prop = config.opts.effort_property or "Effort"
+  local allowed = hl:get_allowed_values(prop)
+  if not allowed or #allowed == 0 then
+    utils.warn("Allowed effort values are not set (" .. prop .. "_ALL)")
+    return nil
+  end
+  local current = hl.properties[prop:upper()]
+  local nxt
+  if not current then
+    nxt = allowed[1]
+  else
+    for i, v in ipairs(allowed) do
+      if v == current then
+        nxt = allowed[i + 1]
+      end
+    end
+    if not nxt then
+      utils.warn(string.format("Unknown value %q among allowed values", current))
+      return nil
+    end
+  end
+  edit.set_property(bufnr, hl.line, prop, nxt)
+  M.effort_changed(bufnr, hl.line)
+  utils.notify(prop .. " is now " .. nxt)
+  return nxt
+end
+
 --- Toggle clock-sum virtual text on headlines (org-clock-display).
 function M.toggle_display(bufnr)
   if type(bufnr) ~= "number" or bufnr == 0 then
@@ -379,12 +766,12 @@ function M.toggle_display(bufnr)
     end
     if m > 0 then
       vim.api.nvim_buf_set_extmark(bufnr, display_ns, hl.line - 1, 0, {
-        virt_text = { { " " .. date.format_duration(m) .. " ", "OrgClockSum" } },
+        virt_text = { { " " .. date.duration_to_string(m) .. " ", "OrgClockSum" } },
         virt_text_pos = "eol",
       })
     end
   end
-  utils.notify("Total file time: " .. date.format_duration(total))
+  utils.notify("Total file time: " .. date.duration_to_string(total))
   return true
 end
 
@@ -414,9 +801,13 @@ function M.restore()
       if type(data.last) == "table" then
         M.last = data.last
       end
+      if type(data.history) == "table" and vim.islist(data.history) then
+        M.history = data.history
+      end
       if type(data.state) == "table" and data.state.path and data.state.start then
         M.state = data.state
         if M.find_open_clock() then
+          start_effort_timer()
           return M.state
         end
         M.state = nil
@@ -537,7 +928,11 @@ function M.format_table(rows)
       local parts = {}
       for i = 1, #widths do
         local c = r[i] or ""
-        if c:match("^%*?%-?%d+:%d%d%*?$") or c:match("^%-?%d+%.?%d*$") then
+        if
+          c:match("^[*/]?%-?%d+:%d%d[*/]?$")
+          or c:match("^[*/]?%-?%d+d %d+:%d%d[*/]?$")
+          or c:match("^%-?%d+%.?%d*$")
+        then
           parts[i] = " " .. utils.pad_left(c, widths[i]) .. " "
         else
           parts[i] = " " .. utils.pad_right(c, widths[i]) .. " "
@@ -573,35 +968,23 @@ local function matcher(match)
   end
 end
 
---- Build clock table lines for a dynamic block.
----@param params table parsed block parameters (:scope, :maxlevel, :block, ...)
----@param bufnr integer buffer containing the block
----@param lnum? integer line of the block (for :scope subtree)
----@return string[]
-function M.clocktable(params, bufnr, lnum)
-  params = params or {}
-  local defaults = clock_cfg().clocktable_default or {}
-  local scope = params.scope or defaults.scope or "file"
-  local maxlevel = tonumber(params.maxlevel or defaults.maxlevel) or 3
-  local from_min, to_min = M.block_range(params.block or defaults.block)
-  local ts = parse_time_param(params.tstart)
-  local te = parse_time_param(params.tend)
-  if ts then
-    from_min = ts
-  end
-  if te then
-    to_min = te
-  end
-  local pred = matcher(params.match)
-  local show_tags = params.tags and params.tags ~= "nil" and params.tags ~= false
-  local emphasize = params.emphasize and params.emphasize ~= "nil" and params.emphasize ~= false
-  local link = params.link and params.link ~= "nil" and params.link ~= false
-  local fileskip0 = params.fileskip0 and params.fileskip0 ~= "nil" and params.fileskip0 ~= false
+local function param_on(v)
+  return v ~= nil and v ~= false and v ~= "nil"
+end
 
-  local file_list = {}
-  local roots
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-  local cur = files.get_buffer(bufnr)
+--- Emacs `org-shorten-string`: cut at a word boundary and add "...".
+local function shorten(s, max)
+  if utils.width(s) <= max then
+    return s
+  end
+  local n = math.max(max - 4, 1)
+  local cut = s:sub(1, n + 2):match("^(.+[^ ]) ") or s:sub(1, math.max(max - 3, 0))
+  return cut .. "..."
+end
+
+--- Files and root headlines covered by a clocktable :scope.
+local function scope_files(scope, cur, lnum)
+  local file_list, roots = {}, nil
   if scope == "agenda" or scope == "agenda-with-archives" then
     file_list = files.agenda_files()
     if scope == "agenda-with-archives" then
@@ -614,10 +997,14 @@ function M.clocktable(params, bufnr, lnum)
         end
       end
     end
-  elseif scope == "subtree" or scope == "tree" then
+  elseif scope == "subtree" or scope == "tree" or (type(scope) == "string" and scope:match("^tree%d$")) then
     local hl = cur:headline_at(lnum or 1)
+    local level = tonumber(scope:match("^tree(%d)$") or "")
     if scope == "tree" then
-      while hl and hl.parent do
+      level = 1
+    end
+    if level then
+      while hl and hl.parent and hl.level > level do
         hl = hl.parent
       end
     end
@@ -642,7 +1029,43 @@ function M.clocktable(params, bufnr, lnum)
   else
     file_list = { cur }
   end
-  local multi = #file_list > 1 or scope == "agenda"
+  return file_list, roots
+end
+
+--- One clock table (org-clocktable-write-default) for [from_min, to_min).
+---@return string[] lines, integer total minutes
+local function clocktable_single(params, bufnr, lnum, from_min, to_min)
+  local defaults = clock_cfg().clocktable_default or {}
+  local scope = params.scope or defaults.scope or "file"
+  local maxlevel = tonumber(params.maxlevel or defaults.maxlevel) or 3
+  local pred = matcher(params.match)
+  local show_tags = param_on(params.tags)
+  local emphasize = param_on(params.emphasize)
+  local link = param_on(params.link)
+  local fileskip0 = param_on(params.fileskip0)
+  local compact = param_on(params.compact)
+  local show_level = param_on(params.level) and not compact
+  local show_ts = param_on(params.timestamp)
+  local indent = compact or params.indent == nil or param_on(params.indent)
+  local percent = params.formula == "%"
+  local props = {}
+  if type(params.properties) == "string" then
+    for p in params.properties:gmatch('[^%s%(%)"]+') do
+      props[#props + 1] = p
+    end
+  end
+  local inherit_props = param_on(params["inherit-props"])
+  local narrow = params.narrow
+  if narrow == nil then
+    narrow = "40!"
+  end
+  local narrow_cut = narrow and tostring(narrow):match("^(%d+)!$")
+  narrow_cut = tonumber(narrow_cut or (link and tonumber(narrow)) or "")
+
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local cur = files.get_buffer(bufnr)
+  local file_list, roots = scope_files(scope, cur, lnum)
+  local multi = (#file_list > 1 or scope == "agenda") and not param_on(params.hidefiles)
 
   -- collect rows
   local total_all = 0
@@ -650,7 +1073,6 @@ function M.clocktable(params, bufnr, lnum)
   local depth_used = 1
   for _, f in ipairs(file_list) do
     local rows = {}
-    local file_total = 0
     local function walk(hl, level)
       if hl.level > maxlevel and not roots then
         return
@@ -674,33 +1096,23 @@ function M.clocktable(params, bufnr, lnum)
         end
       end
     end
-    local tops = roots or f.children
-    for _, hl in ipairs(tops) do
+    for _, hl in ipairs(roots or f.children) do
       walk(hl, 1)
     end
+    -- non-overlapping total (filtered tables may skip parents)
+    local file_total = 0
+    local counted = {}
     for _, r in ipairs(rows) do
-      if r.level == 1 or not pred then
-        if r.level == 1 then
-          file_total = file_total + r.minutes
+      local p, covered = r.hl.parent, false
+      while p do
+        if counted[p] then
+          covered = true
         end
+        p = p.parent
       end
-    end
-    if pred then
-      -- non-overlapping totals for filtered tables
-      file_total = 0
-      local counted = {}
-      for _, r in ipairs(rows) do
-        local p, covered = r.hl.parent, false
-        while p do
-          if counted[p] then
-            covered = true
-          end
-          p = p.parent
-        end
-        if not covered then
-          counted[r.hl] = true
-          file_total = file_total + r.minutes
-        end
+      if not covered then
+        counted[r.hl] = true
+        file_total = file_total + r.minutes
       end
     end
     total_all = total_all + file_total
@@ -709,80 +1121,196 @@ function M.clocktable(params, bufnr, lnum)
     end
   end
 
-  local ncols = depth_used
-  local header = {}
-  if multi then
-    header[#header + 1] = "File"
+  local ncols = (compact or maxlevel < 2) and 1 or math.min(maxlevel, tonumber(params.tcolumns) or 100, depth_used)
+  local fmt = date.duration_to_string
+  local function pct(m)
+    return total_all > 0 and string.format("%.1f", 100 * m / total_all) or "0.0"
   end
-  header[#header + 1] = "Headline"
-  if show_tags then
-    header[#header + 1] = "Tags"
-  end
-  header[#header + 1] = "Time"
-  for _ = 2, ncols do
-    header[#header + 1] = ""
-  end
-  local width = #header
-  local function row(cells)
-    for i = #cells + 1, width do
-      cells[i] = ""
+  -- leading cells: File, L, Timestamp, Tags, properties
+  local function lead(file_cell, level, ts, tags, values)
+    local cells = {}
+    if multi then
+      cells[#cells + 1] = file_cell or ""
+    end
+    if show_level then
+      cells[#cells + 1] = level and tostring(level) or ""
+    end
+    if show_ts then
+      cells[#cells + 1] = ts or ""
+    end
+    if show_tags then
+      cells[#cells + 1] = tags or ""
+    end
+    for i = 1, #props do
+      cells[#cells + 1] = values and values[i] or ""
     end
     return cells
   end
-  local fmt = date.format_duration
-  local out_rows = { header, "hline" }
-  local lead = multi and { "" } or {}
-  local total_row = vim.list_extend(vim.deepcopy(lead), { "*Total time*" })
-  if show_tags then
-    total_row[#total_row + 1] = ""
-  end
-  total_row[#total_row + 1] = "*" .. fmt(total_all) .. "*"
-  out_rows[#out_rows + 1] = row(total_row)
-  for _, sec in ipairs(file_sections) do
-    out_rows[#out_rows + 1] = "hline"
-    if multi then
-      local fr = { vim.fn.fnamemodify(sec.file.filename or "", ":t"), "*File time*" }
-      if show_tags then
-        fr[#fr + 1] = ""
-      end
-      fr[#fr + 1] = "*" .. fmt(sec.total) .. "*"
-      out_rows[#out_rows + 1] = row(fr)
+  local function time_cells(cells, col, value)
+    for i = 1, ncols do
+      cells[#cells + 1] = i == col and value or ""
     end
-    for _, r in ipairs(sec.rows) do
-      local title = r.hl:plain_title():gsub("|", "\\vert{}")
-      if link and sec.file.filename then
-        title = string.format("[[file:%s::*%s][%s]]", sec.file.filename, r.hl:plain_title(), title)
-      end
-      if emphasize and r.level == 1 then
-        title = "*" .. title .. "*"
-      end
-      if r.level > 1 then
-        title = "\\_" .. string.rep(" ", 2 * (r.level - 1)) .. title
-      end
-      local cells = vim.deepcopy(lead)
-      cells[#cells + 1] = title
-      if show_tags then
-        cells[#cells + 1] = table.concat(r.hl:get_tags(), ":")
-      end
-      for lvl = 1, ncols do
-        local v = ""
-        if lvl == r.level then
-          v = fmt(r.minutes)
-          if emphasize and r.level == 1 then
-            v = "*" .. v .. "*"
-          end
+    return cells
+  end
+
+  local header = lead("File", "L", "Timestamp", "Tags", props)
+  header[#header + 1] = "Headline"
+  time_cells(header, 1, "Time")
+  if percent then
+    header[#header + 1] = "%"
+  end
+  local total_row = lead(multi and "ALL" or "")
+  total_row[#total_row + 1] = "*Total time*"
+  time_cells(total_row, 1, "*" .. fmt(total_all) .. "*")
+  if percent then
+    total_row[#total_row + 1] = total_all > 0 and "100.0" or "0.0"
+  end
+  local out_rows = { header, "hline", total_row }
+  if total_all > 0 then
+    for _, sec in ipairs(file_sections) do
+      out_rows[#out_rows + 1] = "hline"
+      if multi then
+        local fr = lead(vim.fn.fnamemodify(sec.file.filename or "", ":t"))
+        fr[#fr + 1] = "*File time*"
+        time_cells(fr, 1, "*" .. fmt(sec.total) .. "*")
+        if percent then
+          fr[#fr + 1] = pct(sec.total)
         end
-        cells[#cells + 1] = v
+        out_rows[#out_rows + 1] = fr
       end
-      out_rows[#out_rows + 1] = row(cells)
+      for _, r in ipairs(sec.rows) do
+        local hl = r.hl
+        local plain = hl:plain_title():gsub("|", "\\vert{}")
+        local title = narrow_cut and shorten(plain, narrow_cut) or plain
+        if link and sec.file.filename then
+          title = string.format("[[file:%s::*%s][%s]]", sec.file.filename, hl:plain_title(), title)
+        end
+        local function emph(s)
+          if emphasize and r.level == 1 then
+            return "*" .. s .. "*"
+          elseif emphasize and r.level == 2 then
+            return "/" .. s .. "/"
+          end
+          return s
+        end
+        title = emph(title)
+        if indent and r.level > 1 then
+          title = "\\_" .. string.rep(" ", 2 * (r.level - 1)) .. title
+        end
+        local ts
+        if show_ts then
+          ts = hl:get_property("SCHEDULED") or hl:get_property("DEADLINE") or hl:get_property("TIMESTAMP")
+        end
+        local values = {}
+        for i, p in ipairs(props) do
+          values[i] = hl:get_property(p, inherit_props or nil) or ""
+        end
+        local cells = lead("", r.level, ts, table.concat(hl:get_tags(), ", "), values)
+        cells[#cells + 1] = title
+        time_cells(cells, math.min(r.level, ncols), emph(fmt(r.minutes)))
+        if percent then
+          cells[#cells + 1] = pct(r.minutes)
+        end
+        out_rows[#out_rows + 1] = cells
+      end
     end
   end
-  local lines = { "#+CAPTION: Clock summary at " .. date.now():clone({ active = false }):to_string() }
-  if params.block then
-    lines[1] = lines[1] .. ", for " .. tostring(params.block) .. "."
+  local lines = {}
+  if params.header then
+    if params.header ~= "" then
+      vim.list_extend(lines, vim.split((tostring(params.header):gsub("\\n", "\n")), "\n"))
+    end
+  else
+    lines[1] = "#+CAPTION: Clock summary at " .. date.now():clone({ active = false }):to_string()
+    if params.block then
+      lines[1] = lines[1] .. ", for " .. tostring(params.block) .. "."
+    end
   end
   vim.list_extend(lines, M.format_table(out_rows))
-  return lines
+  return lines, total_all
+end
+
+--- Start of the step period after `d` (org-clocktable-steps).
+local function next_step(d, step, wstart)
+  if step == "day" then
+    return d:add(1, "d")
+  elseif step == "week" then
+    local dow = d:weekday() % 7 -- 0 = Sunday, like Emacs
+    local offset = dow == wstart and 7 or (wstart - dow) % 7
+    return d:add(offset, "d")
+  elseif step == "semimonth" then
+    if d.day < 16 then
+      return d:clone({ day = 16 })
+    end
+    return d:clone({ day = 1 }):add(1, "m")
+  elseif step == "month" then
+    return d:clone({ day = 1 }):add(1, "m")
+  elseif step == "quarter" then
+    return d:clone({ day = 1 }):add(3, "m")
+  elseif step == "year" then
+    return date.Date.new({ year = d.year + 1, month = 1, day = 1 })
+  end
+end
+
+local STEP_HEADERS = {
+  day = "Daily report: ",
+  week = "Weekly report starting on: ",
+  semimonth = "Semimonthly report starting on: ",
+  month = "Monthly report starting on: ",
+  quarter = "Quarterly report starting on: ",
+  year = "Annual report starting on: ",
+}
+
+--- Build clock table lines for a dynamic block. Parameters follow Emacs:
+--- :scope :maxlevel :block :tstart :tend :step :stepskip0 :wstart :match
+--- :tags :emphasize :link :fileskip0 :hidefiles :level :timestamp
+--- :properties :inherit-props :formula % :compact :indent :narrow
+--- :tcolumns :header.
+---@param params table parsed block parameters
+---@param bufnr integer buffer containing the block
+---@param lnum? integer line of the block (for :scope subtree)
+---@return string[]
+function M.clocktable(params, bufnr, lnum)
+  params = params or {}
+  local defaults = clock_cfg().clocktable_default or {}
+  local from_min, to_min = M.block_range(params.block or defaults.block)
+  local ts = parse_time_param(params.tstart)
+  local te = parse_time_param(params.tend)
+  if ts then
+    from_min = ts
+  end
+  if te then
+    to_min = te
+  end
+  local step = params.step and tostring(params.step)
+  if not step then
+    return (clocktable_single(params, bufnr, lnum, from_min, to_min))
+  end
+  if not STEP_HEADERS[step] then
+    return { "Unknown :step specification: " .. step }
+  end
+  if not from_min then
+    return { ":step needs a :block or :tstart" }
+  end
+  to_min = to_min or date.now():minutes()
+  local wstart = (tonumber(params.wstart) or 1) % 7
+  local sub = vim.tbl_extend("force", params, { header = "", block = false })
+  local out = {}
+  local d = date.from_days(math.floor(from_min / 1440))
+  local guard = 0
+  while d:minutes() < to_min and guard < 1000 do
+    guard = guard + 1
+    local nxt = next_step(d, step, wstart)
+    local lines, total =
+      clocktable_single(sub, bufnr, lnum, math.max(d:minutes(), from_min), math.min(nxt:minutes(), to_min))
+    if not (param_on(params.stepskip0) and total == 0) then
+      out[#out + 1] = ""
+      out[#out + 1] = STEP_HEADERS[step] .. d:clone({ active = false }):to_string()
+      vim.list_extend(out, lines)
+    end
+    d = nxt
+  end
+  return out
 end
 
 return M

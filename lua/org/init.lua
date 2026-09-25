@@ -70,13 +70,18 @@ function M.capture(key)
   end)
 end
 
---- Statusline component showing the running clock (empty when idle).
+--- Statusline component showing the running clock and timer (empty when
+--- idle).
 function M.statusline()
-  local ok, clock = pcall(require, "org.clock")
-  if not ok or not clock.statusline then
-    return ""
+  local parts = {}
+  for _, mod in ipairs({ "org.clock", "org.timer" }) do
+    local ok, m = pcall(require, mod)
+    local s = ok and m.statusline and m.statusline() or ""
+    if s ~= "" then
+      parts[#parts + 1] = s
+    end
   end
-  return clock.statusline()
+  return table.concat(parts, " ")
 end
 
 --- Run a named action (see `org.actions`).

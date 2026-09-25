@@ -385,6 +385,15 @@ function M.shift_control_left()
   return require("org.todo").next_sequence(nil, -1)
 end
 
+--- C-S-<Up>/<Down>: shift both timestamps of a CLOCK line.
+function M.shift_control_up()
+  return require("org.clock").timestamps_shift(count())
+end
+
+function M.shift_control_down()
+  return require("org.clock").timestamps_shift(-count())
+end
+
 local function in_visual()
   return vim.fn.mode():match("^[vV\22]") ~= nil
 end

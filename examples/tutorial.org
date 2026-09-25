@@ -286,9 +286,21 @@ CLOSED: [2026-09-23 Wed 17:40]
 - State "DONE"       from "NEXT"       [2026-09-23 Wed 17:40]
 :END:
 
+** Logging per subtree
+:PROPERTIES:
+:LOGGING:  nil
+:END:
+The =LOGGING= property changes logging for a whole subtree: =nil= turns it
+off, =lognotedone= asks for a note when done, and specs like =WAITING(@)=
+replace the flags of the keywords. =LOG_INTO_DRAWER= picks another drawer.
+
+*** TODO Nothing is logged here
+*Try:* mark this entry DONE: no =CLOSED:= line and no =:LOGBOOK:=.
+
 ** TODO Repeating tasks
 Timestamps with a repeater move forward when the task is marked DONE, and
-the task goes back to TODO.
+the task goes back to the first keyword of its sequence (TODO). A
+=REPEAT_TO_STATE= property picks another state.
 
 | Repeater | Meaning                                                  |
 |----------+----------------------------------------------------------|
@@ -302,6 +314,11 @@ SCHEDULED: <2026-09-25 Fri .+3d>
 DEADLINE: <2026-10-01 Thu +1m>
 *** TODO Weekly review
 SCHEDULED: <2026-09-25 Fri ++1w>
+*** NEXT Stand-up notes
+SCHEDULED: <2026-09-25 Fri +1d>
+:PROPERTIES:
+:REPEAT_TO_STATE: NEXT
+:END:
 
 *Try:* mark "Weekly review" DONE and watch the date jump forward.
 
@@ -433,6 +450,8 @@ Summary operators: ={+}= sum, ={$}= money, ={:}= time sum, ={X}= checkbox,
   timestamp, it makes a range.
 - =<C-a>= / =<C-x>= change the part under the cursor: year, month, day,
   hour, minute, repeater or warning. =<S-Right>= / =<S-Left>= move one day.
+  On the minutes, =<S-Up>= / =<S-Down>= step by five minutes.
+- =:Org toggle_timestamp_type= turns =<...>= into =[...]= and back.
 - =<CR>= on a timestamp opens the agenda for that day.
 
 *Try:* type =<prefix>i.= here and pick a date. Then put the cursor on the
@@ -450,7 +469,8 @@ The =-10d= shows the deadline in the agenda ten days before it is due
 
 *** TODO Something to plan
 *Try:* press =<prefix>s= on this headline to schedule it and =<prefix>d= to
-give it a deadline. =2<prefix>s= removes the date again.
+give it a deadline. =2<prefix>s= removes the date again, and
+=16<prefix>d= asks for the day the deadline starts warning (=-5d=).
 
 ** The calendar and date input
 Date prompts open a floating calendar. Move with =h= =j= =k= =l= (day,
@@ -468,6 +488,9 @@ week), =H= =L= (month), =J= =K= (year), =.= for today, =T= to set a time,
 | =tomorrow 14:00=  | a date and a time                    |
 | =fri 10:00-11:30= | a date with a time range             |
 | =10:00+1:30=      | a start time and a duration          |
+| =w40= =w40 fri=   | Monday (or Friday) of ISO week 40    |
+| =15.3.2027=       | a day.month.year date                |
+| =15h30=           | a time                               |
 
 * Clocking and effort
 ** NEXT Write the blog post                                          :work:
@@ -484,7 +507,14 @@ CLOCK: [2026-09-22 Tue 09:30]--[2026-09-22 Tue 10:15] =>  0:45
   from anywhere. =:Org clock_in_last= restarts the last clock.
 - The running clock survives a restart of Neovim.
 - =<prefix>xd= shows the clocked time of every headline as virtual text.
-- =<C-c><C-c>= on a =CLOCK:= line recomputes its duration.
+- =<C-c><C-c>= on a =CLOCK:= line recomputes its duration, and
+  =<C-S-Up>= / =<C-S-Down>= move both of its timestamps.
+- =2<prefix>xi= picks a task from the recently clocked ones.
+- =<prefix>xm= changes the effort of the clocked task (=+0:15= adds a
+  quarter), =<prefix>xE= steps through =Effort_ALL=. You are notified when
+  the clocked time reaches the effort.
+- =<prefix>xz= finds clocks that were never closed and lets you keep or
+  cancel them.
 
 *Try:* clock in here, wait a minute, clock out and look at the =:LOGBOOK:=.
 With =require("org").statusline()= in your statusline you see
@@ -502,8 +532,9 @@ press =<C-c><C-c>= to (re)generate it. =<prefix>xr= inserts a new one.
 #+BEGIN: clocktable :scope file :maxlevel 2
 #+END:
 
-*Try:* change =:maxlevel 2= to =:maxlevel 3=, or add =:block thisweek= or
-=:tags t=, and update it again.
+*Try:* change =:maxlevel 2= to =:maxlevel 3=, or add =:block thisweek=,
+=:tags t=, =:formula %= or =:properties ("Effort")=, and update it again.
+=:step day= with a =:block= makes one table per day.
 
 * Agenda
 The agenda collects entries from =agenda_files= into one view. Open the
@@ -1110,6 +1141,8 @@ again.
 - =:Org timer_insert= inserts its value. In a list it starts an item like
   =- 0:01:23 :: =, which makes meeting notes easy.
 - =:Org timer_countdown 25= starts a 25-minute countdown (a pomodoro).
+  On an entry with an Effort, =<C-c><C-x>;= counts down from the effort.
+  =<C-c><C-x>,= pauses either timer, =<C-c><C-x>_= stops it.
 
 - 0:00:05 :: introductions
 - 0:04:40 :: roadmap discussion
