@@ -130,8 +130,34 @@ local function opt_value(v)
   return v
 end
 
---- Export options from config + #+OPTIONS keywords.
-function M.options(settings, overrides)
+--- Iterate `key:value` pairs of an #+OPTIONS line. Values may be lists in
+--- parentheses (`tasks:("TODO" "NEXT")`) or quoted strings.
+function M.option_pairs(line)
+  local pairs_list = {}
+  local i, n = 1, #line
+  while i <= n do
+    local ks, ke, key = line:find("([^%s:]+):", i)
+    if not ks then
+      break
+    end
+    local rest = line:sub(ke + 1)
+    local value = rest:match("^%b()") or rest:match('^"[^"]*"') or rest:match("^%S*")
+    pairs_list[#pairs_list + 1] = { key, value }
+    i = ke + 1 + #value
+  end
+  local k = 0
+  return function()
+    k = k + 1
+    local p = pairs_list[k]
+    if p then
+      return p[1], p[2]
+    end
+  end
+end
+
+--- Export options from config + #+OPTIONS keywords (+ `extra_options`
+--- lines such as a subtree's EXPORT_OPTIONS property).
+function M.options(settings, overrides, extra_options)
   local cfg = require("org.config").opts.export or {}
   local o = {
     toc = cfg.with_toc ~= false,
@@ -154,6 +180,12 @@ function M.options(settings, overrides)
     footnotes = true,
     tables = true,
     latex = true,
+    tasks = true,
+    arch = "headline",
+    entities = true,
+    stat = true,
+    prop = false,
+    clocks = false,
     select_tags = cfg.select_tags or { "export" },
     exclude_tags = cfg.exclude_tags or { "noexport" },
   }
@@ -178,13 +210,30 @@ function M.options(settings, overrides)
     f = "footnotes",
     ["|"] = "tables",
     tex = "latex",
+    tasks = "tasks",
+    arch = "arch",
+    e = "entities",
+    stat = "stat",
+    prop = "prop",
+    c = "clocks",
   }
-  for _, line in ipairs(settings.keywords.OPTIONS or {}) do
-    for key, value in line:gmatch("(%S-):(%S+)") do
+  local option_lines = vim.list_extend(vim.deepcopy(settings.keywords.OPTIONS or {}), extra_options or {})
+  for _, line in ipairs(option_lines) do
+    for key, value in M.option_pairs(line) do
       local name = map[key]
       if name then
         if value == "{}" then
           o[name] = "{}"
+        elseif value:match("^%(.*%)$") then
+          -- a list of strings: tasks:("TODO" "NEXT"), d:("NOTES"), prop:("A")
+          local list = {}
+          for s in value:sub(2, -2):gmatch('"(.-)"') do
+            list[#list + 1] = s
+          end
+          if value:match('^%(%s*not%s') then
+            list.negate = true
+          end
+          o[name] = list
         else
           o[name] = opt_value(value)
         end
@@ -301,8 +350,15 @@ function M.parse_inline(s, o)
         i = i + #ts
         handled = true
       else
+        local radio = rest:match("^<<<([^<>]+)>>>")
         local target = rest:match("^<<([^<>]+)>>")
-        if target and not rest:match("^<<<") then
+        if radio then
+          -- radio target: an anchor that keeps its text
+          push({ type = "target", value = radio, radio = true })
+          nodes[#nodes + 1] = { type = "text", value = radio }
+          i = i + #radio + 6
+          handled = true
+        elseif target and not rest:match("^<<<") then
           push({ type = "target", value = target })
           i = i + #target + 4
           handled = true
@@ -344,7 +400,7 @@ function M.parse_inline(s, o)
         end
       else
         local name, brace = rest:match("^\\(%a+)(%{?%}?)")
-        if name and M.ENTITIES[name] then
+        if name and M.ENTITIES[name] and o.entities ~= false then
           push({ type = "entity", name = name })
           i = i + 1 + #name + (brace == "{}" and 2 or 0)
           handled = true
@@ -400,6 +456,34 @@ function M.parse_inline(s, o)
           handled = true
         end
       end
+    elseif (c == "s" or c == "c") and not (i > 1 and s:sub(i - 1, i - 1):match("[%w_]")) then
+      -- inline src blocks src_lang[params]{body} and inline calls
+      local lang, hdr, body = rest:match("^src_([%w%-%+]+)(%b[])(%b{})")
+      if not lang then
+        hdr = ""
+        lang, body = rest:match("^src_([%w%-%+]+)(%b{})")
+      end
+      if lang then
+        -- inline blocks export their results by default
+        local exports = hdr:match(":exports%s+([%w%-]+)") or "results"
+        if exports == "code" or exports == "both" then
+          push({ type = "code", value = body:sub(2, -2), lang = lang })
+        else
+          flush()
+        end
+        i = i + 4 + #lang + #hdr + #body
+        handled = true
+      else
+        local call = rest:match("^(call_[%w_%-]+%b[]%b()%b[])")
+          or rest:match("^(call_[%w_%-]+%b()%b[])")
+          or rest:match("^(call_[%w_%-]+%b[]%b())")
+          or rest:match("^(call_[%w_%-]+%b())")
+        if call then
+          flush()
+          i = i + #call
+          handled = true
+        end
+      end
     elseif c == "h" or c == "f" or c == "m" then
       local url = rest:match("^(https?://[^%s<>%[%]\"]+)") or rest:match("^(ftp://[^%s<>%[%]\"]+)")
         or rest:match("^(mailto:[^%s<>%[%]\"]+)")
@@ -427,6 +511,19 @@ function M.parse_inline(s, o)
             i = i + 1 + #word
             handled = true
           end
+        end
+      end
+    end
+    if not handled and M._radios and #M._radios > 0 and not (i > 1 and s:sub(i - 1, i - 1):match("[%w_]")) then
+      -- text matching a radio target links to it
+      local low = rest:lower()
+      for _, r in ipairs(M._radios) do
+        if low:sub(1, #r) == r:lower() and not rest:sub(#r + 1, #r + 1):match("[%w_]") then
+          local text = rest:sub(1, #r)
+          push({ type = "link", path = r, desc = { { type = "text", value = text } }, raw = text, radio = true })
+          i = i + #r
+          handled = true
+          break
         end
       end
     end
@@ -464,23 +561,127 @@ end
 -- Preprocessing: #+INCLUDE and macros
 ---------------------------------------------------------------------------
 
+--- Lines of the part of an org file selected by an #+INCLUDE search
+--- option: `*Heading` or `#custom-id` (a subtree) or a `<<target>>` /
+--- `#+NAME:` (the element).
+local function include_search(content, search)
+  local file = parser.parse(content)
+  local hl
+  local title = search:match("^%*%s*(.-)%s*$")
+  local custom = search:match("^#(.+)$")
+  if title then
+    hl = file:find_headline(function(h)
+      return h:plain_title() == title or h.title == title
+    end)
+  elseif custom then
+    hl = file:find_by_custom_id(custom)
+  end
+  if hl then
+    return vim.list_slice(content, hl.line, hl.end_line), true
+  end
+  for i, l in ipairs(content) do
+    local nm = l:match("^%s*#%+[Nn][Aa][Mm][Ee]:%s*(.-)%s*$")
+    if nm == search then
+      local j = i + 1
+      if content[j] and content[j]:lower():match("^%s*#%+begin_") then
+        while content[j] and not content[j]:lower():match("^%s*#%+end_") do
+          j = j + 1
+        end
+      else
+        while content[j + 1] and not content[j + 1]:match("^%s*$") do
+          j = j + 1
+        end
+      end
+      return vim.list_slice(content, i, math.min(j, #content)), false
+    end
+  end
+  return nil
+end
+
+--- Shift headline levels of `content` so the shallowest one is `minlevel`.
+local function shift_levels(content, minlevel)
+  local min
+  for _, l in ipairs(content) do
+    local stars = l:match("^(%*+)%s")
+    if stars and (not min or #stars < min) then
+      min = #stars
+    end
+  end
+  if not min or min == minlevel then
+    return content
+  end
+  local out = {}
+  for i, l in ipairs(content) do
+    local stars, rest = l:match("^(%*+)(%s.*)$")
+    out[i] = stars and (string.rep("*", math.max(1, #stars - min + minlevel)) .. rest) or l
+  end
+  return out
+end
+
+--- Drop the headline, planning and property drawer of an included subtree.
+local function only_contents(content)
+  local i = 2
+  if content[i] and content[i]:match("^%s*[A-Z]+:%s*[<%[]") then
+    i = i + 1
+  end
+  if content[i] and content[i]:match("^%s*:PROPERTIES:%s*$") then
+    while content[i] and not content[i]:match("^%s*:END:%s*$") do
+      i = i + 1
+    end
+    i = i + 1
+  end
+  return vim.list_slice(content, i)
+end
+
+--- Expand #+INCLUDE and #+SETUPFILE keywords.
 local function expand_includes(lines, dir, depth)
   depth = depth or 0
+  local utils = require("org.utils")
   local out = {}
+  local level = 0
   for _, line in ipairs(lines) do
+    local stars = line:match("^(%*+)%s")
+    if stars then
+      level = #stars
+    end
     local spec = line:match("^%s*#%+[Ii][Nn][Cc][Ll][Uu][Dd][Ee]:%s*(.-)%s*$")
-    if spec and depth < 5 then
+    local setup = not spec and line:match("^%s*#%+[Ss][Ee][Tt][Uu][Pp][Ff][Ii][Ll][Ee]:%s*(.-)%s*$")
+    if setup and depth < 5 then
+      -- only the in-buffer settings of a setup file are used
+      local path = setup:match('^"(.-)"$') or setup
+      local content = utils.readfile(utils.expand(path, dir))
+      if content then
+        for _, l in ipairs(expand_includes(content, vim.fn.fnamemodify(utils.expand(path, dir), ":h"), depth + 1)) do
+          if l:match("^%s*#%+[%w_]+:") and not l:lower():match("^%s*#%+begin_") and not l:lower():match("^%s*#%+end_") then
+            out[#out + 1] = l
+          end
+        end
+      end
+      out[#out + 1] = line
+    elseif spec and depth < 5 then
       local path, rest = spec:match('^"(.-)"%s*(.*)$')
       if not path then
         path, rest = spec:match("^(%S+)%s*(.*)$")
       end
-      local full = path and require("org.utils").expand(path, dir)
-      local content = full and require("org.utils").readfile(full)
+      local search
+      if path then
+        local p, s = path:match("^(.-)::(.*)$")
+        if p then
+          path, search = p, s
+        end
+      end
+      local full = path and utils.expand(path, dir)
+      local content = full and utils.readfile(full)
       if content then
         local range = rest:match(':lines%s+"(%d*%-%d*)"')
         if range then
           local a, b = range:match("^(%d*)%-(%d*)$")
           content = vim.list_slice(content, tonumber(a) or 1, tonumber(b) and (tonumber(b) - 1) or #content)
+        end
+        local subtree = false
+        if search then
+          content, subtree = include_search(content, search)
+          content = content or {}
         end
         local kind, lang = rest:match("^(%a+)%s*(%S*)")
         if kind == "src" then
@@ -492,7 +693,13 @@ local function expand_includes(lines, dir, depth)
           vim.list_extend(out, blocks.escape(content))
           out[#out + 1] = "#+end_" .. kind
         else
-          vim.list_extend(out, expand_includes(content, vim.fn.fnamemodify(full, ":h"), depth + 1))
+          if subtree and rest:match(":only%-contents%s+t") then
+            content = only_contents(content)
+          end
+          content = expand_includes(content, vim.fn.fnamemodify(full, ":h"), depth + 1)
+          -- like Emacs, headlines become children of the current one
+          local minlevel = tonumber(rest:match(":minlevel%s+(%d+)")) or (level + 1)
+          vim.list_extend(out, shift_levels(content, minlevel))
         end
       else
         out[#out + 1] = "# (missing include: " .. tostring(path) .. ")"
@@ -504,7 +711,41 @@ local function expand_includes(lines, dir, depth)
   return out
 end
 
-local function expand_macros(lines, settings, filename)
+--- Split macro arguments on unescaped commas (`\,` is a literal comma).
+local function macro_args(argstr)
+  local args = {}
+  local cur = {}
+  local i = 1
+  while i <= #argstr do
+    local c = argstr:sub(i, i)
+    if c == "\\" and argstr:sub(i + 1, i + 1) == "," then
+      cur[#cur + 1] = ","
+      i = i + 2
+    else
+      if c == "," then
+        args[#args + 1] = vim.trim(table.concat(cur))
+        cur = {}
+      else
+        cur[#cur + 1] = c
+      end
+      i = i + 1
+    end
+  end
+  args[#args + 1] = vim.trim(table.concat(cur))
+  return args
+end
+
+--- Find the end of a macro call `{{{name(args)}}}` starting at `s`.
+local function macro_end(line, s)
+  local e = line:find(")}}}", s, true)
+  local plain = line:match("^{{{[%w_%-]+}}}", s)
+  if plain and (not e or s + #plain - 1 < e) then
+    return s + #plain - 1
+  end
+  return e and (e + 3) or nil
+end
+
+local function expand_macros(lines, settings, filename, file)
   local macros = {}
   for _, def in ipairs(settings.keywords.MACRO or {}) do
     local name, body = def:match("^(%S+)%s*(.*)$")
@@ -517,6 +758,13 @@ local function expand_macros(lines, settings, filename)
     local v = settings.keywords[name:upper()]
     return v and table.concat(v, " ") or ""
   end
+  local function format_date(value, fmt)
+    local d = value and value ~= "" and require("org.date").parse(value)
+    if d and fmt and fmt ~= "" then
+      return d:strftime(fmt)
+    end
+    return value or ""
+  end
   local builtin = {
     title = function()
       return kw("TITLE")
@@ -527,11 +775,15 @@ local function expand_macros(lines, settings, filename)
     email = function()
       return kw("EMAIL")
     end,
-    date = function()
-      return kw("DATE")
+    date = function(args)
+      return format_date(kw("DATE"), args[1])
     end,
     time = function(args)
       return os.date(args[1] ~= "" and args[1] or "%Y-%m-%d")
+    end,
+    ["modification-time"] = function(args)
+      local mtime = filename and vim.fn.getftime(filename) or -1
+      return os.date(args[1] and args[1] ~= "" and args[1] or "%Y-%m-%d", mtime > 0 and mtime or os.time())
     end,
     ["input-file"] = function()
       return filename and vim.fn.fnamemodify(filename, ":t") or ""
@@ -539,36 +791,99 @@ local function expand_macros(lines, settings, filename)
     keyword = function(args)
       return kw(args[1] or "")
     end,
+    results = function(args)
+      return table.concat(args, ",")
+    end,
+    property = function(args, lnum)
+      local name = args[1] or ""
+      local hl = file and file:headline_at(lnum)
+      if args[2] and args[2] ~= "" and file then
+        local search = args[2]
+        hl = file:find_by_custom_id((search:gsub("^#", ""))) or file:find_by_title((search:gsub("^%*%s*", "")))
+          or file:find_by_id(search)
+      end
+      if not hl then
+        return settings.properties and settings.properties[name:upper()] or ""
+      end
+      if name:upper() == "ITEM" then
+        return hl:plain_title()
+      end
+      return hl:get_property(name:upper(), true) or hl:get_property(name, true) or ""
+    end,
     n = function(args)
       local key = args[1] or ""
-      counters[key] = (counters[key] or 0) + 1
+      local action = args[2] or ""
+      if action == "-" then
+        return tostring(counters[key] or 0)
+      elseif tonumber(action) then
+        counters[key] = tonumber(action)
+      else
+        counters[key] = (counters[key] or 0) + 1
+      end
       return tostring(counters[key])
     end,
   }
-  local out = {}
-  for _, line in ipairs(lines) do
-    if line:find("{{{", 1, true) and not line:match("^%s*#%+[Mm][Aa][Cc][Rr][Oo]:") then
-      line = line:gsub("{{{([%w_%-]+)(%(?.-%)?)}}}", function(name, argstr)
-        local args = {}
-        if argstr ~= "" then
-          for a in (argstr:sub(2, -2) .. ","):gmatch("(.-)%s*,%s*") do
-            args[#args + 1] = vim.trim(a)
-          end
-        end
-        name = name:lower()
-        if macros[name] then
-          return (macros[name]:gsub("%$(%d)", function(d)
-            return args[tonumber(d)] or ""
-          end))
-        elseif builtin[name] then
-          return builtin[name](args)
-        end
-        return nil
-      end)
+  local function expand(line, lnum, depth)
+    if depth > 10 or not line:find("{{{", 1, true) then
+      return line
     end
-    out[#out + 1] = line
+    local out = {}
+    local pos = 1
+    local changed = false
+    while true do
+      local s = line:find("{{{", pos, true)
+      if not s then
+        out[#out + 1] = line:sub(pos)
+        break
+      end
+      local e = macro_end(line, s)
+      local call = e and line:sub(s + 3, e - 3)
+      local name, argstr = nil, nil
+      if call then
+        name, argstr = call:match("^([%w_%-]+)%((.*)%)$")
+        if not name then
+          name = call:match("^([%w_%-]+)$")
+        end
+      end
+      local replacement
+      if name then
+        local args = argstr and macro_args(argstr) or {}
+        local lname = name:lower()
+        if macros[lname] then
+          replacement = macros[lname]:gsub("%$(%d)", function(d)
+            if d == "0" then
+              return argstr or ""
+            end
+            return args[tonumber(d)] or ""
+          end)
+        elseif builtin[lname] then
+          replacement = builtin[lname](args, lnum)
+        end
+      end
+      if replacement then
+        out[#out + 1] = line:sub(pos, s - 1) .. replacement
+        pos = e + 1
+        changed = true
+      else
+        out[#out + 1] = line:sub(pos, s + 2)
+        pos = s + 3
+      end
+    end
+    local result = table.concat(out)
+    if changed and result:find("{{{", 1, true) then
+      return expand(result, lnum, depth + 1)
+    end
+    return result
   end
-  return out
+  local result = {}
+  for i, line in ipairs(lines) do
+    if line:match("^%s*#%+[Mm][Aa][Cc][Rr][Oo]:") then
+      result[i] = line
+    else
+      result[i] = expand(line, i, 0)
+    end
+  end
+  return result
 end
 
 ---------------------------------------------------------------------------
@@ -610,7 +925,7 @@ end
 local function starts_element(l)
   return l:match("^%s*#%+") or l:match("^%s*|") or l:match("^%s*%-%-%-%-%-+%s*$") or l:match("^%s*:%s")
     or l:match("^%s*:$") or l:match("^%s*:[%w_%-]+:%s*$") or l:match("^%s*\\begin{") or match_item(l) ~= nil
-    or l:match("^%s*#%s") or l:match("^%s*#$") or l:match("^%[fn:[^%]]+%]")
+    or l:match("^%s*#%s") or l:match("^%s*#$") or l:match("^%[fn:[^%]]+%]") or l:match("^%s*CLOCK:")
 end
 
 local function dedent(lines)
@@ -626,6 +941,43 @@ local function dedent(lines)
     out[i] = l:sub((min or 0) + 1)
   end
   return out
+end
+
+--- Line numbers (-n / +n) and coderefs (`(ref:name)`, removed with -r) of
+--- a src or example block. Returns the lines and { [index] = label }.
+local function code_lines(lines, switches, ctx)
+  switches = switches or ""
+  local pat = blocks.coderef_pattern(switches)
+  local remove = switches:match("%f[%S]%-r%f[%s%z]") ~= nil or switches:match("^%-r") ~= nil
+  local sign, val = switches:match("%f[%S]([%-%+])n%s*(%d*)")
+  local start
+  if sign == "-" then
+    start = tonumber(val) or 1
+  elseif sign == "+" then
+    start = (ctx.doc.last_line_number or 0) + (tonumber(val) or 1)
+  end
+  local out, refs = {}, {}
+  for i, l in ipairs(lines) do
+    local label = l:match(pat)
+    if label then
+      refs[i] = label
+      local number = (start or 1) + i - 1
+      ctx.doc.coderefs[label] = (remove or start) and tostring(number) or label
+      if remove then
+        l = l:gsub(pat, "")
+      end
+    end
+    out[i] = l
+  end
+  if start then
+    local last = start + #out - 1
+    ctx.doc.last_line_number = last
+    local fmt = "%" .. #tostring(last) .. "d  "
+    for i, l in ipairs(out) do
+      out[i] = string.format(fmt, start + i - 1) .. l
+    end
+  end
+  return out, next(refs) and refs or nil
 end
 
 --- Parse block elements from lines[s..e].
@@ -662,20 +1014,38 @@ function M.parse_elements(lines, s, e, ctx)
         }
         local args = blocks.header_args(fake, ctx.file_for_args)
         local exports = args.exports or "code"
+        local body = dedent(blocks.unescape(inner))
+        local nw = args.noweb
+        if ctx.all_lines and (nw == "yes" or nw == "strip-tangle" or nw == "strip-export") then
+          local ok, expanded = pcall(
+            require("org.babel").expand_noweb,
+            ctx.all_lines,
+            body,
+            0,
+            nw == "strip-export" and "strip" or nil,
+            args,
+            "export"
+          )
+          if ok then
+            body = expanded
+          end
+        end
         local node = {
           type = "src",
           lang = lang,
-          lines = dedent(blocks.unescape(inner)),
           switches = switches or rest,
           affiliated = aff,
           exports = exports,
         }
+        node.lines, node.coderefs = code_lines(body, node.switches, ctx)
         if exports == "code" or exports == "both" then
           out[#out + 1] = node
         end
         last_src = node
       elseif btype == "example" then
-        out[#out + 1] = { type = "example", lines = dedent(blocks.unescape(inner)), affiliated = aff }
+        local node = { type = "example", affiliated = aff, switches = params }
+        node.lines, node.coderefs = code_lines(dedent(blocks.unescape(inner)), params, ctx)
+        out[#out + 1] = node
       elseif btype == "quote" then
         out[#out + 1] = { type = "quote", children = M.parse_elements(inner, 1, #inner, ctx) }
       elseif btype == "center" then
@@ -732,6 +1102,9 @@ function M.parse_elements(lines, s, e, ctx)
       elseif key:match("^ATTR_") then
         aff.attr = aff.attr or {}
         aff.attr[key:sub(6):lower()] = value
+      elseif key == "HTML" or key == "LATEX" or key == "ASCII" or key == "MD" or key == "BEAMER" then
+        -- one-line export snippets: #+HTML: <br>
+        out[#out + 1] = { type = "export", backend = key:lower(), lines = { value } }
       elseif key == "TOC" then
         local depth = value:match("headlines%s+(%d+)")
         out[#out + 1] = { type = "keyword_toc", depth = tonumber(depth) }
@@ -750,12 +1123,32 @@ function M.parse_elements(lines, s, e, ctx)
         out[#out + 1] = { type = "paragraph", inline = M.parse_inline(vim.trim(l), o) }
         i = i + 1
       else
-        if o.drawers and name:upper() ~= "PROPERTIES" and name:upper() ~= "LOGBOOK" then
+        local up = name:upper()
+        local wanted
+        if type(o.drawers) == "table" then
+          -- d:("NOTES") exports only those, d:(not "LOGBOOK") all but those
+          local listed = false
+          for _, d in ipairs(o.drawers) do
+            if d:upper() == up then
+              listed = true
+            end
+          end
+          wanted = listed ~= (o.drawers.negate == true)
+        else
+          wanted = o.drawers and up ~= "LOGBOOK"
+        end
+        if wanted and up ~= "PROPERTIES" then
           local inner = vim.list_slice(lines, i + 1, j - 1)
           vim.list_extend(out, M.parse_elements(inner, 1, #inner, ctx))
         end
         i = j + 1
       end
+    elseif l:match("^%s*CLOCK:") then
+      -- clock lines outside drawers are exported only with c:t
+      if o.clocks then
+        out[#out + 1] = { type = "paragraph", inline = { { type = "text", value = vim.trim(l) } } }
+      end
+      i = i + 1
     elseif l:match("^%s*|") then
       local rows = {}
       local header = 0
@@ -978,11 +1371,30 @@ function M.parse(lines, opts)
   local dir = opts.filename and vim.fn.fnamemodify(opts.filename, ":p:h") or vim.fn.getcwd()
   lines = expand_includes(lines, dir)
   local file = parser.parse(lines, opts.filename)
-  lines = expand_macros(lines, file.settings, opts.filename)
+  lines = expand_macros(lines, file.settings, opts.filename, file)
   file = parser.parse(lines, opts.filename)
   local settings = file.settings
-  local o = M.options(settings, opts.options)
-  local kw = settings.keywords
+  -- subtree export: EXPORT_OPTIONS and friends override the file keywords
+  local root_hl = opts.subtree_line and file:headline_at(opts.subtree_line) or nil
+  local root_props = root_hl and root_hl.properties or {}
+  local o = M.options(settings, opts.options, root_props.EXPORT_OPTIONS and { root_props.EXPORT_OPTIONS } or nil)
+  local kw = vim.deepcopy(settings.keywords)
+  for _, k in ipairs({ "AUTHOR", "DATE", "EMAIL", "SUBTITLE", "DESCRIPTION", "KEYWORDS", "LANGUAGE" }) do
+    if root_props["EXPORT_" .. k] then
+      kw[k] = { root_props["EXPORT_" .. k] }
+    end
+  end
+  -- radio targets turn matching text into links
+  local radios = {}
+  for _, l in ipairs(lines) do
+    for r in l:gmatch("<<<([^<>]-)>>>") do
+      radios[#radios + 1] = r
+    end
+  end
+  table.sort(radios, function(a, b)
+    return #a > #b
+  end)
+  M._radios = radios
   local doc = {
     title = settings.title,
     subtitle = kw.SUBTITLE and table.concat(kw.SUBTITLE, " ") or nil,
@@ -1000,9 +1412,10 @@ function M.parse(lines, opts)
     headlines = {},
     footnote_defs = {},
     ids = {}, -- lookup: kind:key -> anchor id
+    coderefs = {}, -- coderef label -> text shown by links to it
     settings = settings,
   }
-  local ctx = { o = o, doc = doc, file_for_args = file }
+  local ctx = { o = o, doc = doc, file_for_args = file, all_lines = lines }
   -- footnote definitions may live anywhere (e.g. a "* Footnotes" section)
   do
     local fctx = { o = o, doc = doc, file_for_args = file }
@@ -1062,11 +1475,6 @@ function M.parse(lines, opts)
     return false
   end
 
-  local root_hl
-  if opts.subtree_line then
-    root_hl = file:headline_at(opts.subtree_line)
-  end
-
   local function section_start(hl)
     local st = hl.line + 1
     if hl.planning_line then
@@ -1101,11 +1509,32 @@ function M.parse(lines, opts)
     if any_select and not subtree_selected(hl) then
       return nil
     end
+    -- tasks:nil / tasks:todo / tasks:done / tasks:("TODO" ...)
+    if hl.todo and o.tasks ~= true then
+      local keep = false
+      if o.tasks == "todo" then
+        keep = not hl:is_done()
+      elseif o.tasks == "done" then
+        keep = hl:is_done()
+      elseif type(o.tasks) == "table" then
+        keep = vim.tbl_contains(o.tasks, hl.todo)
+      end
+      if not keep then
+        return nil
+      end
+    end
+    if o.arch == false and hl:is_archived() then
+      return nil
+    end
+    local title = hl.title
+    if o.stat == false then
+      title = vim.trim((title:gsub("%s*%[%d*/%d*%]", ""):gsub("%s*%[%d*%%%]", "")))
+    end
     local level = hl.level - level_shift
     local node = {
       type = "headline",
       level = level,
-      title = M.parse_inline(hl.title, o),
+      title = M.parse_inline(title, o),
       raw_title = hl:plain_title(),
       todo = hl.todo,
       todo_type = hl.todo and (hl:is_done() and "done" or "todo") or nil,
@@ -1131,11 +1560,24 @@ function M.parse(lines, opts)
       node.planning = vim.trim(lines[hl.planning_line])
     end
     doc.headlines[#doc.headlines + 1] = node
-    if hl:is_archived() then
+    if hl:is_archived() and o.arch ~= true then
       return node -- archived trees: headline only
     end
     local st = section_start(hl)
     ctx.base_line = 0
+    if o.prop and hl.properties_range then
+      -- prop:t / prop:("NAME" ...) exports the property drawer
+      local plines = {}
+      for l = hl.properties_range[1] + 1, hl.properties_range[2] - 1 do
+        local k, v = lines[l]:match("^%s*:([^%s:]+):%s*(.-)%s*$")
+        if k and (o.prop == true or (type(o.prop) == "table" and vim.tbl_contains(o.prop, k))) then
+          plines[#plines + 1] = k .. ": " .. v
+        end
+      end
+      if #plines > 0 then
+        node.children[#node.children + 1] = { type = "example", lines = plines, properties = true }
+      end
+    end
     vim.list_extend(node.children, M.parse_elements(lines, st, hl.body_end, ctx))
     for _, c in ipairs(hl.children) do
       local cn = build(c, level_shift)
@@ -1209,6 +1651,11 @@ function M.parse(lines, opts)
           end
         end
       end
+      if nd.coderefs then
+        for _, label in pairs(nd.coderefs) do
+          doc.ids["coderef:" .. label] = "coderef-" .. slug(label)
+        end
+      end
       if nd.children then
         scan(nd.children)
       end
@@ -1220,6 +1667,35 @@ function M.parse(lines, opts)
     end
   end
   scan(doc.children)
+  -- links to coderefs show the line number (-n / -r) or the label
+  local function fix_links(nodes)
+    for _, inl in ipairs(nodes or {}) do
+      if inl.type == "link" and not inl.desc then
+        local label = inl.path:match("^%((.+)%)$")
+        if label and doc.coderefs[label] then
+          inl.desc = { { type = "text", value = doc.coderefs[label] } }
+        end
+      end
+      if inl.children then
+        fix_links(inl.children)
+      end
+    end
+  end
+  local function walk(nodes)
+    for _, nd in ipairs(nodes or {}) do
+      fix_links(nd.inline)
+      if nd.children then
+        walk(nd.children)
+      end
+      for _, it in ipairs(nd.items or {}) do
+        walk(it.children)
+      end
+    end
+  end
+  if next(doc.coderefs) then
+    walk(doc.children)
+  end
+  M._radios = nil
   return doc
 end
 
@@ -1236,6 +1712,10 @@ function M.resolve_internal(doc, path)
   local id = path:match("^id:(.+)$")
   if id then
     return doc.ids["id:" .. id]
+  end
+  local coderef = path:match("^%((.+)%)$")
+  if coderef then
+    return doc.ids["coderef:" .. coderef]
   end
   return doc.ids["target:" .. path] or doc.ids["name:" .. path] or doc.ids["title:" .. path]
 end

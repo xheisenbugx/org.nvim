@@ -16,6 +16,9 @@ M.parse_blocks = blocks_mod.parse_blocks
 M.parse_header_string = blocks_mod.parse_header_string
 
 local function buf_lines(bufnr)
+  if type(bufnr) == "table" then
+    return bufnr -- a list of lines (export)
+  end
   return vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 end
 
@@ -27,6 +30,9 @@ local function resolve_buf(bufnr)
 end
 
 local function get_file(bufnr)
+  if type(bufnr) == "table" then
+    return require("org.parser").parse(bufnr)
+  end
   local ok, f = pcall(function()
     return require("org.files").get_buffer(bufnr)
   end)
@@ -113,14 +119,26 @@ M.in_commented = in_commented
 local function noweb_for(args, purpose)
   local v = args.noweb or "no"
   if purpose == "eval" then
-    return (v == "yes" or v == "eval" or v == "no-export" or v == "strip-export" or v == "tangle-eval") and "expand"
-      or nil
+    local expand = {
+      yes = true,
+      eval = true,
+      ["no-export"] = true,
+      ["strip-export"] = true,
+      ["tangle-eval"] = true,
+      ["strip-tangle"] = true,
+    }
+    return expand[v] and "expand" or nil
   elseif purpose == "tangle" then
     if v == "strip-tangle" then
       return "strip"
     end
     return (v == "yes" or v == "tangle" or v == "no-export" or v == "strip-export" or v == "tangle-eval") and "expand"
       or nil
+  elseif purpose == "export" then
+    if v == "strip-export" then
+      return "strip"
+    end
+    return (v == "yes" or v == "strip-tangle") and "expand" or nil
   end
 end
 
@@ -140,8 +158,9 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx)
     return { "" }
   end
   local function body_of(b, args)
-    if noweb_for(args, purpose or "eval") then
-      return M.expand_noweb(bufnr, b.body, depth + 1, nil, args, purpose)
+    local nw = noweb_for(args, purpose or "eval")
+    if nw then
+      return M.expand_noweb(bufnr, b.body, depth + 1, nw == "strip" and "strip" or nil, args, purpose)
     end
     return b.body
   end
