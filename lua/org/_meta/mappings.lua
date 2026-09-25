@@ -26,6 +26,8 @@
 ---| "attach" # Attachments
 ---| "babel_check" # Check src block header args
 ---| "babel_demarcate" # Split / wrap src block
+---| "babel_describe_bindings" # List Babel key bindings
+---| "babel_do_key_sequence" # Run keys in src edit buffer
 ---| "babel_execute" # Execute src block
 ---| "babel_execute_buffer" # Execute all src blocks
 ---| "babel_execute_subtree" # Execute src blocks in subtree
@@ -34,11 +36,17 @@
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
 ---| "babel_insert_header_arg" # Insert header argument
+---| "babel_kill_session" # Kill src block session
+---| "babel_load_in_session" # Load src block into its session
 ---| "babel_lob_ingest" # Add file's blocks to Library of Babel
+---| "babel_mark_block" # Select src block body
 ---| "babel_next_block" # Next src block
 ---| "babel_open_result" # Open src block result
 ---| "babel_prev_block" # Previous src block
 ---| "babel_remove_result" # Remove src block result (count: all)
+---| "babel_sha1_hash" # Show src block hash
+---| "babel_switch_to_session" # Show src block session (count: assign vars)
+---| "babel_switch_to_session_with_code" # Show src block session and edit the block
 ---| "babel_tangle" # Tangle file (count: block / its target)
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
@@ -512,6 +520,22 @@
 ---@field babel_demarcate? org.MappingLhs
 --- Add file's blocks to Library of Babel. Default: `<prefix>bi`
 ---@field babel_lob_ingest? org.MappingLhs
+--- Load src block into its session. Default: `<prefix>bl`
+---@field babel_load_in_session? org.MappingLhs
+--- Show src block session (count: assign vars). Default: `<prefix>bz`
+---@field babel_switch_to_session? org.MappingLhs
+--- Show src block session and edit the block. Default: `<prefix>bZ`
+---@field babel_switch_to_session_with_code? org.MappingLhs
+--- Kill src block session. Default: `<prefix>bK`
+---@field babel_kill_session? org.MappingLhs
+--- Show src block hash. Default: `<prefix>ba`
+---@field babel_sha1_hash? org.MappingLhs
+--- List Babel key bindings. Default: `<prefix>bh`
+---@field babel_describe_bindings? org.MappingLhs
+--- Select src block body. Default: `<prefix>bm`
+---@field babel_mark_block? org.MappingLhs
+--- Run keys in src edit buffer. Default: `<prefix>bx`
+---@field babel_do_key_sequence? org.MappingLhs
 
 --- Insert-mode keys in org buffers.
 --- Besides the fields below, any `org.ActionName` is accepted as a key.
@@ -772,8 +796,22 @@
 ---@field babel_open_result? org.MappingLhs
 --- Split / wrap src block. Default: `{ "<C-c><C-v>d", "<C-c><C-v><C-d>" }`
 ---@field babel_demarcate? org.MappingLhs
---- Add file's blocks to Library of Babel. Default: `{ "<C-c><C-v>i", "<C-c><C-v>l", "<C-c><C-v><C-l>" }`
+--- Add file's blocks to Library of Babel. Default: `<C-c><C-v>i`
 ---@field babel_lob_ingest? org.MappingLhs
+--- Load src block into its session. Default: `{ "<C-c><C-v>l", "<C-c><C-v><C-l>" }`
+---@field babel_load_in_session? org.MappingLhs
+--- Show src block session (count: assign vars). Default: `<C-c><C-v><C-z>`
+---@field babel_switch_to_session? org.MappingLhs
+--- Show src block session and edit the block. Default: `<C-c><C-v>z`
+---@field babel_switch_to_session_with_code? org.MappingLhs
+--- Show src block hash. Default: `{ "<C-c><C-v>a", "<C-c><C-v><C-a>" }`
+---@field babel_sha1_hash? org.MappingLhs
+--- List Babel key bindings. Default: `<C-c><C-v>h`
+---@field babel_describe_bindings? org.MappingLhs
+--- Select src block body. Default: `<C-c><C-v><C-M-h>`
+---@field babel_mark_block? org.MappingLhs
+--- Run keys in src edit buffer. Default: `{ "<C-c><C-v>x", "<C-c><C-v><C-x>" }`
+---@field babel_do_key_sequence? org.MappingLhs
 
 --- Insert-mode Emacs keys in org buffers.
 --- Besides the fields below, any `org.ActionName` is accepted as a key.

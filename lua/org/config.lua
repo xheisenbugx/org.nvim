@@ -277,6 +277,7 @@ M.defaults = {
     confirm_evaluate = true,
     min_lines_for_block_output = 10,
     timeout = 30000,
+    evaluate_on_export = false,
     default_header_args = {
       results = "replace",
       exports = "code",
@@ -531,6 +532,14 @@ M.defaults = {
       babel_open_result = "<prefix>bo",
       babel_demarcate = "<prefix>bd",
       babel_lob_ingest = "<prefix>bi",
+      babel_load_in_session = "<prefix>bl",
+      babel_switch_to_session = "<prefix>bz",
+      babel_switch_to_session_with_code = "<prefix>bZ",
+      babel_kill_session = "<prefix>bK",
+      babel_sha1_hash = "<prefix>ba",
+      babel_describe_bindings = "<prefix>bh",
+      babel_mark_block = "<prefix>bm",
+      babel_do_key_sequence = "<prefix>bx",
     },
     --- Insert-mode mappings inside org buffers.
     org_insert = {
@@ -679,7 +688,14 @@ M.defaults = {
       babel_goto_head = { "<C-c><C-v>u", "<C-c><C-v><C-u>" },
       babel_open_result = { "<C-c><C-v>o", "<C-c><C-v><C-o>" },
       babel_demarcate = { "<C-c><C-v>d", "<C-c><C-v><C-d>" },
-      babel_lob_ingest = { "<C-c><C-v>i", "<C-c><C-v>l", "<C-c><C-v><C-l>" },
+      babel_lob_ingest = "<C-c><C-v>i",
+      babel_load_in_session = { "<C-c><C-v>l", "<C-c><C-v><C-l>" },
+      babel_switch_to_session = "<C-c><C-v><C-z>",
+      babel_switch_to_session_with_code = "<C-c><C-v>z",
+      babel_sha1_hash = { "<C-c><C-v>a", "<C-c><C-v><C-a>" },
+      babel_describe_bindings = "<C-c><C-v>h",
+      babel_mark_block = "<C-c><C-v><C-M-h>",
+      babel_do_key_sequence = { "<C-c><C-v>x", "<C-c><C-v><C-x>" },
     },
     --- Insert-mode Emacs keys.
     emacs_insert = {

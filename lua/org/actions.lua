@@ -270,6 +270,18 @@ M.list = {
   babel_open_result = { "org.babel", "open_result", desc = "Open src block result" },
   babel_demarcate = { "org.babel", "demarcate_block", desc = "Split / wrap src block", modes = { "n", "x" } },
   babel_lob_ingest = { "org.babel", "lob_ingest", desc = "Add file's blocks to Library of Babel" },
+  babel_load_in_session = { "org.babel", "load_in_session", desc = "Load src block into its session" },
+  babel_switch_to_session = { "org.babel", "switch_to_session", desc = "Show src block session (count: assign vars)" },
+  babel_switch_to_session_with_code = {
+    "org.babel",
+    "switch_to_session_with_code",
+    desc = "Show src block session and edit the block",
+  },
+  babel_kill_session = { "org.babel", "kill_session", desc = "Kill src block session" },
+  babel_sha1_hash = { "org.babel", "sha1_hash", desc = "Show src block hash" },
+  babel_describe_bindings = { "org.babel", "describe_bindings", desc = "List Babel key bindings" },
+  babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
+  babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
 }
 
 --- Resolve an action to its function.

@@ -204,6 +204,10 @@ function M.export(format, opts)
   end
   local fmt = ALIASES[format] or format
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  if require("org.config").opts.babel.evaluate_on_export then
+    -- run the code first, like Emacs (org-export-use-babel)
+    lines = require("org.babel").export_evaluate(bufnr, lines)
+  end
   local src = vim.api.nvim_buf_get_name(bufnr)
   local subtree_line = opts.subtree_line
   if opts.subtree and not subtree_line then

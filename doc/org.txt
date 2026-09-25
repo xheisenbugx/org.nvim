@@ -1056,9 +1056,37 @@ Column formulas skip the header rows above the first hline. Errors show as
                    make it a block of its own); elsewhere insert a block.
 <prefix>bi         Add the named blocks of a file to the Library of Babel,
                    so #+CALL, :var and noweb can use them everywhere.
+<prefix>bz / bZ    Show the block's session (with a count, first assign
+                   its :var values there); bZ also opens the edit buffer.
+<prefix>bl         Send the block to its session and show the session.
+<prefix>bK         Kill the block's session.
+<prefix>ba         Show the block's hash (the one `:cache yes` stores).
+<prefix>bh         List the Babel key bindings.
+<prefix>bm         Select the block body (Visual line mode).
+<prefix>bx         Run Normal-mode keys in the block's edit buffer and
+                   write the result back (e.g. `gg=G` to reindent).
 #+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
+                   `#+NAME:` above a call names its results.
 src_lua{return 1}  Inline block: C-c C-c on it inserts or replaces
                    ` {{{results(=1=)}}}` after it (single-line results).
+call_name(n=5)     Inline call, same as above.
+
+Sessions ~
+`:session [name]` runs the block in a long-lived interpreter shared by every
+block with the same language and name (no name = `default`), so variables,
+imports, functions and the working directory persist between blocks.
+Supported: shells (sh, bash, zsh, fish), python, js/node, ruby and lua (lua
+sessions keep their globals inside Neovim). Other languages ignore
+`:session` with a warning.
+  - `:results value` is the value of the last expression (python, ruby,
+    js) or the returned value (lua); shells use their output unless
+    `:results value` is explicit, which gives the exit status.
+  - stderr is merged into the output, like an Emacs REPL buffer.
+  - Each session has a transcript buffer (`org-babel-session://lang/name`)
+    showing what ran; type at its prompt to evaluate a line in the session.
+    Wiping that buffer kills the session.
+  - The session starts in the block's `:dir`. A top-level `let`/`const` in
+    a js session becomes `var`, so blocks can be evaluated again.
 
 Languages: `babel.languages` maps a language name to `{ cmd = "...", ext =
 "..." }`. Lua runs inside Neovim. sqlite uses `:db file`.
@@ -1068,9 +1096,23 @@ Header arguments merge in this order: `babel.default_header_args`, then
 `#+HEADER:` lines, then the `#+begin_src` line.
   :results   output|value; replace|append|prepend|silent;
              verbatim|raw|org|drawer|html|latex|code|list|table|file
-  :var       name=value, name=named-table, name=named-block,
+  :var       name=value, name="string", name=named-table, name=list,
              name=table[1,2], name=table[1:3,-1] (0-based, ranges,
-             negative indices from the end, `[,1]` = a column)
+             negative indices from the end, `[,1]` = a column).
+             Like Emacs, a reference to a src block or `#+CALL` evaluates
+             it: name=block, name=block(x=1), name=block[:results output]
+             (x=1), name=block(x=1)[0]; `name=block[]` is its body text.
+             Other forms: file.org:name (another file), an ID or CUSTOM_ID
+             (the headline's text), Emacs Lisp literals `'(1 2 3)` and
+             simple forms `(+ 1 2)`. Bash gets tables as associative
+             arrays and lists as arrays; sqlite replaces `$name` in the
+             body (a table becomes a CSV file path). An unknown reference
+             is an error.
+  :hlines    yes: keep the horizontal lines of table variables (None /
+             nil / null in python, ruby, js; "hline" in lua and shells)
+  :separator cell separator of tables given to shells (default: tab)
+  :stdin     ref: feed a value to the stdin of a shell block
+  :session   [name]: see Sessions above
   :colnames  (default) a table variable whose 2nd row is a hline passes
              its first row as column names; they are put back on a table
              result of the same width. `yes` / `no` / `'(a b)` like Emacs
@@ -1082,13 +1124,16 @@ Header arguments merge in this order: `babel.default_header_args`, then
   :file      write the result to the file and insert a link to it (not
              with `:results link` / `graphics`); :output-dir, :file-ext
              (with #+NAME), :file-mode, :sep (for tables)
-  :dir :cmdline :prologue :epilogue :noweb-ref
+  :dir :cmdline :prologue :epilogue :noweb-ref  (`:dir` is created
+             with `:mkdirp yes`)
   :noweb     yes|no|tangle|eval|no-export|strip-export|strip-tangle|
              tangle-eval. Every <<ref>> of a line is expanded; blocks
              sharing a :noweb-ref are joined with :noweb-sep (default a
              newline); :noweb-prefix no stops repeating the text before
-             the reference. Blocks in COMMENT subtrees are skipped.
+             the reference. `<<name(x=1)>>` inserts the result of
+             evaluating the block. Blocks in COMMENT subtrees are skipped.
   :exports   code|results|both|none (for export)
+  :results   file without :file: the value is a file name to link
   :tangle    yes|no|path  :mkdirp yes  :shebang "#!/bin/sh"
   :comments  link|org|both  :padline  :tangle-mode  :no-expand
   :post      name(arg=*this*): run the named block on the result; its
@@ -1102,6 +1147,13 @@ Emacs; `-r` removes coderef labels and COMMENT subtrees are skipped.
 Results of 10 or more lines (`babel.min_lines_for_block_output`) use an
 example block; shorter results use `: ` lines. Value results that look like a
 list of lists become a table.
+
+Export: with `babel.evaluate_on_export = true` (Emacs
+`org-export-use-babel`) exporting first evaluates, in a copy of the buffer,
+the blocks and #+CALL lines with `:exports results|both`, inline src blocks
+and calls, and `:exports code|none` blocks that use a session. `:eval
+never-export|no-export` blocks keep their existing results. Otherwise export
+uses the `#+RESULTS` already in the buffer.
 
 ==============================================================================
 20. DYNAMIC BLOCKS                                               *org-dblocks*
@@ -1368,7 +1420,7 @@ id ~        locations_file, method "uuid"|"ts"
 attach ~    dir "data/", method "cp"|"mv"|"ln"
 babel ~
   confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
-  default_header_args, languages
+  evaluate_on_export false, default_header_args, languages
 export ~
   output_dir, with_toc, with_section_numbers, headline_levels 3,
   with_author, with_date, with_todo_keywords, with_tags, with_priority,
@@ -1451,6 +1503,10 @@ Section `org` (default key: action):
   <prefix>bg br bu bo bd bi         babel_goto_named(_result),
       babel_goto_head, babel_open_result, babel_demarcate,
       babel_lob_ingest
+  <prefix>bl bz bZ bK               babel_load_in_session,
+      babel_switch_to_session(_with_code), babel_kill_session
+  <prefix>ba bh bm bx               babel_sha1_hash,
+      babel_describe_bindings, babel_mark_block, babel_do_key_sequence
 
 Section `org_insert`: meta_return <M-CR>, insert_tab <Tab> (table: next
 field; empty headline or item: cycle its level), table_prev_field <S-Tab>,
@@ -1548,7 +1604,10 @@ Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   n / p next / previous block   f tangle a file   v expand block
   I block info   c check header args   j insert header arg
   g go to named block   r go to named result   u go to block head
-  o open result   d split / wrap block   i, l ingest into Library of Babel
+  o open result   d split / wrap block   i ingest into Library of Babel
+  l load block into session   <C-z> show session   z session + edit buffer
+  a block hash   h list bindings   x run keys in edit buffer
+  <C-M-h> select block body
 
 Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
 ir, around_subtree ar.
@@ -1640,9 +1699,11 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
   instead of Elisp. Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
-- Babel has no sessions. Export uses existing results and
-  never runs code, and `<<name()>>` noweb calls use the block's existing
-  results. `elisp:` links and emacs-lisp blocks are not supported.
+- Babel sessions exist for shells, python, js, ruby and lua only, and
+  are not full REPLs: each block runs as one request. Export runs code only
+  with `babel.evaluate_on_export` (Emacs evaluates by default). `elisp:`
+  links and emacs-lisp blocks are not supported; `:var` Lisp forms are
+  limited to what the table formula Lisp evaluator implements.
 - Export is lenient: broken internal links are rendered in italics instead
   of stopping the export.
 - Not implemented:

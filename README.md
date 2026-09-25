@@ -161,7 +161,7 @@ back to where you were.
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
-| 🧪 | **Babel** | Asynchronous execution in many languages, inline `src_lang{…}` blocks, `:results`, `:var` (with `:colnames`, slices), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
+| 🧪 | **Babel** | Asynchronous execution in many languages, `:session` (shells, Python, Node, Ruby, Lua), inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc; `#+INCLUDE` (with `::*heading`), `#+SETUPFILE`, `#+MACRO`, most `#+OPTIONS` |
 | 🎁 | **And more** | Footnotes (sort, renumber, normalize), sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
 
@@ -339,6 +339,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
 | `<prefix>be` `bb` `bs` `bt` `bk` `bn` `bp` | Babel: execute block/buffer/subtree, tangle, remove result, next/prev block |
 | `<prefix>bv` `bd` `bg` `br` `bo` `bj` `bi` | Babel: expand, split/wrap, go to named block/result, open result, insert header arg, ingest library |
+| `<prefix>bz` `bZ` `bl` `bK` | Babel sessions: show session, show session + edit block, load block into session, kill session |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
 | `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
 | `g?` | Show all keymaps |
@@ -563,9 +564,14 @@ The goal is feature parity for everyday use, but some things differ:
 - **Tables:** width cookies (`<10>`) don't shrink columns, and there is no
   formula debugger, `orgtbl-mode` or radio tables.
 - **Babel:**
-  - There is no `:session` option.
-  - Export uses existing `#+RESULTS` blocks and never runs code.
-  - `elisp:` links and blocks can't run.
+  - `:session` works for shells, Python, Node, Ruby and Lua. Each block runs
+    as one request to the interpreter, and a session keeps a transcript
+    buffer where you can type lines, but it's not a full REPL.
+  - Export runs code only when `babel.evaluate_on_export` is `true`. Emacs
+    evaluates by default; here export uses the existing `#+RESULTS` unless
+    you turn it on.
+  - `elisp:` links and blocks can't run. `:var` Lisp values support only
+    what the table-formula Lisp evaluator implements.
 - **Column view** opens as a separate table view instead of overlays.
 - **M-RET** always inserts after the current subtree or item; it never
   splits the line at the cursor.
@@ -583,7 +589,6 @@ first contribution:
 
 - [ ] Inline image and LaTeX previews
 - [ ] Clock idle detection
-- [ ] Babel `:session`
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`
