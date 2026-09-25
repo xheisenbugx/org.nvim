@@ -63,6 +63,9 @@ M.defaults = {
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},
+  --- S-RET (table_copy_down) increments numbers and dates: true (by the
+  --- difference to the field above, else 1), a number (fixed step) or false.
+  table_copy_increment = true,
   effort_property = "Effort",
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 
@@ -432,6 +435,9 @@ M.defaults = {
       table_delete_row = "<prefix>TR",
       table_insert_column = "<prefix>Ti",
       table_delete_column = "<prefix>TI",
+      table_copy_down = "<S-CR>",
+      table_transpose = "<prefix>Tt",
+      table_rotate_marks = "<prefix>T#",
       -- babel
       edit_special = "<prefix>'",
       babel_execute = "<prefix>be",
@@ -448,6 +454,7 @@ M.defaults = {
       table_next_field = "<Tab>",
       table_prev_field = "<S-Tab>",
       table_next_row = "<CR>",
+      table_copy_down = "<S-CR>",
     },
     --- Emacs Org keys (org-mode-map), on top of the Vim-style keys above.
     --- Set a section to `false` to disable it, or an entry to `false` to
@@ -553,6 +560,7 @@ M.defaults = {
       table_blank_field = "<C-c><Space>",
       table_coordinates = "<C-c>}",
       table_field_info = "<C-c>?",
+      table_rotate_marks = "<C-#>",
       -- babel (C-c C-v)
       babel_execute = { "<C-c><C-v>e", "<C-c><C-v><C-e>" },
       babel_execute_buffer = { "<C-c><C-v>b", "<C-c><C-v><C-b>" },

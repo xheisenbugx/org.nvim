@@ -159,7 +159,7 @@ back to where you were.
 | 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, effort estimates, a statusline component, clocks that survive restarts, `clocktable` blocks, column view |
-| 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
+| 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
 | 🎁 | **And more** | Footnotes, sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
@@ -332,6 +332,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>r` `$` `A` | Refile / archive subtree / attachments |
 | `<prefix>/` `e` | Sparse tree / export dispatcher |
 | `<prefix>Tc` `T-` `Tf` `Ts` `Tr` `TR` `Ti` `TI` | Table: create/convert, hline, recalc, sort, insert/delete row, insert/delete column |
+| `<prefix>Tt` `T#`, `<S-CR>`, `<S-arrows>` | Table: transpose, rotate recalc mark, copy field down (with increment), swap field with neighbour |
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
 | `<prefix>be` `bb` `bs` `bt` `bk` `bn` `bp` | Babel: execute block/buffer/subtree, tangle, remove result, next/prev block |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
@@ -544,8 +545,10 @@ The goal is feature parity for everyday use, but some things differ:
 - **Notes** (state-change notes, `z` in the agenda) are single-line prompts
   instead of a separate note buffer.
 - **Table formulas** are evaluated as Lua arithmetic, not Emacs Calc: there
-  is no symbolic math, no named fields (`$name`) and no `#+CONSTANTS`.
-  Elisp formulas are replaced by `'(lua expression)`.
+  is no symbolic math. Elisp formulas `'(...)` support the common Lisp
+  functions; anything else is a Lua expression.
+- **Tables:** width cookies (`<10>`) don't shrink columns, and there is no
+  formula debugger, `orgtbl-mode` or radio tables.
 - **Babel:**
   - There are no `:session` or `:cache` options.
   - Export uses existing `#+RESULTS` blocks and never runs code.

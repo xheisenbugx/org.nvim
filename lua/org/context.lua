@@ -42,7 +42,7 @@ function M.context_action()
     return require("org.table").recalc()
   end
   if in_table(line) then
-    return require("org.table").align()
+    return require("org.table").ctrl_c_ctrl_c()
   end
   local babel = require("org.babel")
   if babel.at_block(0, lnum) then
@@ -307,6 +307,9 @@ function M.shift_up()
   if is_headline(line) then
     return require("org.priority").shift(nil, 1)
   end
+  if in_table(line) then
+    return require("org.table").move_cell("up")
+  end
   return false
 end
 
@@ -317,6 +320,9 @@ function M.shift_down()
   local _, _, line = cur()
   if is_headline(line) then
     return require("org.priority").shift(nil, -1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("down")
   end
   return false
 end
@@ -358,7 +364,7 @@ end
 function M.ctrl_c_minus()
   local lnum, _, line = cur()
   if in_table(line) then
-    return require("org.table").insert_hline()
+    return require("org.table").insert_hline(vim.v.count > 0)
   end
   if not in_visual() and not is_headline(line) and list_item(lnum) then
     return require("org.lists").cycle_bullet(1)
@@ -420,6 +426,9 @@ function M.shift_right()
   if list_item(lnum) then
     return require("org.lists").cycle_bullet(1)
   end
+  if in_table(line) then
+    return require("org.table").move_cell("right")
+  end
   return false
 end
 
@@ -433,6 +442,9 @@ function M.shift_left()
   end
   if list_item(lnum) then
     return require("org.lists").cycle_bullet(-1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("left")
   end
   return false
 end

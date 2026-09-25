@@ -195,6 +195,16 @@ M.list = {
   table_next_field = { "org.table", "next_field", desc = "Next table field", modes = { "i" } },
   table_prev_field = { "org.table", "prev_field", desc = "Previous table field", modes = { "i" } },
   table_next_row = { "org.table", "next_row", desc = "Next table row", modes = { "i" } },
+  table_copy_down = { "org.table", "copy_down", desc = "Copy table field down", modes = { "n", "i" } },
+  table_transpose = { "org.table", "transpose", desc = "Transpose table" },
+  table_rotate_marks = {
+    "org.table",
+    "rotate_recalc_marks",
+    desc = "Rotate table recalculation mark",
+    modes = { "n", "x" },
+  },
+  table_import = { "org.table", "import", desc = "Import file as table" },
+  table_export = { "org.table", "export", desc = "Export table to TSV/CSV file" },
 
   -- babel
   edit_special = { "org.context", "edit_special", desc = "Edit src block / table formulas" },

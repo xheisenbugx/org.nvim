@@ -380,13 +380,22 @@ effort with =<prefix>xe=.
 ** Column view
 =<prefix>C= opens column view: every headline as a row of a table, with the
 columns from =#+COLUMNS:= at the top of this file. =%Effort{:}= sums the
-efforts of the children. In the view, =e= edits a value, =<CR>= jumps to
-the entry, =r= refreshes and =q= quits.
+efforts of the children. In the view, =e= edits a value, =n= / =p= switch to
+the next / previous allowed value (from =Effort_ALL=, the TODO keywords, the
+priorities...), =a= edits the allowed values, =<CR>= jumps to the entry,
+=r= refreshes and =q= quits.
+
+The layout can be changed from the view too, and is saved back to the
+=#+COLUMNS:= line: =<= / =>= narrow / widen a column, =<M-h>= / =<M-l>= move
+it, =<M-L>= adds a column, =<M-H>= deletes one and =s= edits one.
 
 *Try:* put the cursor on "Write the quarterly report" and press =<prefix>C=.
+Move to the Effort column of "Prepare the slides" and press =n=.
 
-Summary operators: ={+}= sum, ={:}= time sum, ={X}= checkbox, ={X/}= and
-={X%}= checkbox statistics, ={min}= ={max}= ={mean}=.
+Summary operators: ={+}= sum, ={$}= money, ={:}= time sum, ={X}= checkbox,
+={X/}= and ={X%}= checkbox statistics, ={min}= ={max}= ={mean}=, ={:min}=
+={:max}= ={:mean}= for times, ={@min}= ={@max}= ={@mean}= for ages and
+={est+}= for =low-high= estimates.
 
 * Dates and times
 ** Timestamps
@@ -731,6 +740,22 @@ the table is aligned and a separator appears.
   insert a row; =<M-CR>= adds a row below.
 - =<prefix>Ts= sorts the rows by the column under the cursor.
 - =<prefix>Tc= creates a table, or converts selected CSV/TSV lines.
+- =<S-Up>= =<S-Down>= =<S-Left>= =<S-Right>= swap a single field with its
+  neighbour. =<prefix>Tt= transposes the whole table.
+- =<S-CR>= copies the field one row down and moves with it. Numbers, text
+  ending in a number and dates count up, so pressing it again fills a series.
+- =:Org table_import= reads a CSV/TSV file into a table, =:Org table_export=
+  writes the table to one.
+
+*Try:* put the cursor on =3= below and press =<S-CR>= a few times.
+
+| Step | Date             |
+|------+------------------|
+|    1 | <2026-11-02 Mon> |
+|    2 | <2026-11-09 Mon> |
+|    3 | <2026-11-16 Mon> |
+
+Then do the same on the last date: it moves on by a week each time.
 
 *Try:* this table is a mess. Put the cursor in it and press =<C-c><C-c>=.
 
@@ -766,6 +791,18 @@ in their own buffer.
   and the second separator.
 - =$4=...= is a column formula; =@>$4=...= a field formula.
 - =;%.2f= formats the result.
+- You can also type a formula straight into a field: ~=$1*2~ makes a column
+  formula, ~:=vsum(@I..@II)~ a field formula. =<Tab>=, =<CR>= or
+  =<C-c><C-c>= moves it to the =#+TBLFM:= line and recalculates.
+
+*Try:* in Insert mode, type ~=$1*2~ in the first empty field below and press
+=<Tab>=.
+
+| n | double |
+|---+--------|
+| 1 |        |
+| 2 |        |
+| 3 |        |
 
 ** References and functions
 | References           | Meaning                                  |

@@ -305,8 +305,29 @@ list of property names). `#+PROPERTY: NAME value` sets file-wide values, and
 <prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
                 property or `columns_default_format`, for example
                 `%25ITEM %TODO %3PRIORITY %TAGS %Effort{:}`. Summary
-                operators: {+} {:} {X} {X/} {X%} {min} {max} {mean}.
-                Keys: e edit, v view value, <CR> jump, r refresh, q quit.
+                operators: {+} {$} (2 decimals) {:} {:min} {:max} {:mean}
+                (durations) {X} {X/} {X%} (checkboxes) {min} {max} {mean}
+                {@min} {@max} {@mean} (ages of timestamps) {est+} (low-high
+                estimates); a format may follow, `{+;%.1f}`.
+                Keys in the view:
+                  e               edit the value (TODO, tags, dates, ...)
+                  n / p           next / previous allowed value (also
+                                  <S-Right> / <S-Left>): `PROP_ALL`, TODO
+                                  keywords, priorities, checkboxes, days
+                  a               edit the allowed values (`PROP_ALL`)
+                  < / >           narrow / widen the column (count)
+                  <M-h> <M-l>     move the column left / right (also
+                                  <M-Left> / <M-Right>)
+                  <M-L> / <M-H>   add a column / delete it (also
+                                  <M-S-Right> / <M-S-Left>)
+                  s               edit the column's attributes
+                  <M-k> <M-j>     move the entry up / down (also <M-Up> /
+                                  <M-Down>)
+                  <C-c><C-c>      toggle a checkbox value, else quit
+                  <C-c><C-t>      change the TODO state
+                  v view value, <CR> jump, r refresh, q quit.
+                Format changes are saved to the COLUMNS property or the
+                `#+COLUMNS:` line the view comes from.
 
 ==============================================================================
 9. DATES AND TIMES                                                 *org-dates*
@@ -654,6 +675,7 @@ aligned.
 
 Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
               <CR>           same column in the next row
+              <S-CR>         copy the field down (see below)
 Normal mode:
   <C-c><C-c>      realign (on `#+TBLFM`: recalculate)
   <M-h/l>         move column left / right (also <M-Left/Right>)
@@ -661,18 +683,37 @@ Normal mode:
   <M-H>/<M-L>     delete / insert column
   <M-K>/<M-J>     delete row / insert row above
   <M-CR>          insert row below
+  <S-Up/Down/Left/Right>  swap the field with its neighbour
+  <S-CR>          copy the field one row down and move there; in an empty
+                  field, copy the nearest non-empty field above (count: the
+                  Nth). Numbers, text starting or ending with a number and
+                  dates are incremented (`table_copy_increment`)
   <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
-                  (Visual mode)
-  <prefix>T-      insert a hline
+                  (Visual mode; count 4: comma, 16: tab, N: N+ spaces)
+  <prefix>T-      insert a hline (<C-c>- with a count: above)
   <prefix>Tf      recalculate formulas
   <prefix>Ts      sort rows by the current column (a/n/t, uppercase
                   reverses)
   <prefix>Tr/TR   insert / delete row
   <prefix>Ti/TI   insert / delete column
+  <prefix>Tt      transpose the table (hlines are dropped)
+  <prefix>T#      rotate the recalculation mark ` # * ! $ _ ^` of the row
+                  (Visual mode: set a mark on every selected row); a
+                  marker column is added when needed
   <prefix>'       edit the formulas in a separate buffer
+  :Org table_import   insert a CSV/TSV/whitespace file as a table
+  :Org table_export   write the table to a TSV or CSV file; the file and
+                      format come from the TABLE_EXPORT_FILE and
+                      TABLE_EXPORT_FORMAT (`orgtbl-to-csv`) properties when
+                      set, else from a prompt and the file extension
 
 Mostly-numeric columns are right-aligned. `<l>`, `<r>` and `<c>` cookies
 override the alignment. The table is realigned when you leave Insert mode.
+
+Type `=formula` in a field and press <Tab>, <CR> or <C-c><C-c>: it becomes
+the column formula of that column (`:=formula` a field formula for that
+field), is stored in `#+TBLFM` and the table is recalculated. <Tab>, <S-Tab>,
+<CR> and <C-c><C-c> in a row marked `#` recalculate the table.
 
 Formulas go in `#+TBLFM:` lines below the table: >org
     | Item  | Qty | Price | Total |
@@ -773,8 +814,12 @@ clocktable parameters:
   :fileskip0 :link :emphasize :tags   options
   :match     a match string (|org-match-syntax|)
 
-columnview parameters: `:id local|global|file:path|ID`, `:maxlevel`,
-`:skip-empty-rows`, `:indent`, `:format`.
+columnview parameters: `:id local|global|file:path|ID` (default local),
+`:maxlevel`, `:skip-empty-rows`, `:indent`, `:format`, `:match` (tags /
+property match), `:exclude-tags (a b)`, `:hlines t|N` (a hline before each
+entry, or each entry of level N or less), `:vlines t` (column groups),
+`:link t` (link items to their headings). Keywords like `#+NAME:` above the
+table and `#+TBLFM:` lines below it are kept, and the formulas re-applied.
 
 Custom blocks: >lua
     require("org.dblock").register("myblock", function(params, ctx)
@@ -912,6 +957,10 @@ Priorities, tags, properties ~
   global_properties         {}
   effort_property           "Effort"
   columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
+Tables ~
+  table_formula_constants   {}        `$name` constants for formulas
+  table_copy_increment      true      <S-CR> step: true (difference to the
+                                      field above, else 1), a number, false
 Buffer ~
   startup_folded            "overview"
   adapt_indentation         false
@@ -1021,12 +1070,14 @@ Section `org` (default key: action):
   <prefix>Tc T- Tf Ts Tr TR Ti TI   table_create, table_insert_hline,
       table_recalc, table_sort, table_insert/delete_row,
       table_insert/delete_column
+  <prefix>Tt T#  table_transpose, table_rotate_marks
+  <S-CR>  table_copy_down
   <prefix>'  edit_special
   <prefix>be bb bs bt bk bn bp      babel_execute(_buffer/_subtree),
       babel_tangle, babel_remove_result, babel_next/prev_block
 
 Section `org_insert`: meta_return <M-CR>, table_next_field <Tab>,
-table_prev_field <S-Tab>, table_next_row <CR>.
+table_prev_field <S-Tab>, table_next_row <CR>, table_copy_down <S-CR>.
                                                           *org-emacs-keys*
 Sections `emacs`, `emacs_insert` and `emacs_global` add Emacs Org's own
 keys (org-mode-map) on top of the Vim-style keys, so muscle memory from
@@ -1099,6 +1150,7 @@ Tables:
           (count: field formula)      <C-c>`  edit field
   <C-c>+  sum column / selection      <C-c><Space>  blank field(s)
   <C-c>}  toggle @row/$col overlays   <C-c>?  field info
+  <C-#>   rotate recalculation mark
 
 Babel (C-c C-v, each also with the Ctrl form, e.g. <C-c><C-v><C-e>):
   e execute   b buffer   s subtree   t tangle   k remove result
@@ -1178,8 +1230,12 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 - Notes (state changes with `@`, agenda `z`) are single-line prompts rather
   than a separate note buffer.
 - Table formulas are evaluated as Lua arithmetic instead of Emacs Calc: there
-  is no symbolic math, no named fields ($name) and no #+CONSTANTS. Elisp
-  formulas `'(...)` are Lua expressions.
+  is no symbolic math. Elisp formulas `'(...)` support common Lisp functions,
+  anything else is a Lua expression.
+- Tables: width cookies (`<10>`) don't shrink columns, there is no formula
+  debugger (C-c {), no orgtbl-mode / radio tables, no table.el tables, and
+  <M-CR> inserts a row instead of splitting the field. Table export writes
+  TSV or CSV only.
 - Babel has no sessions and no `:cache`. Export uses existing results and
   never runs code. `elisp:` links and emacs-lisp blocks are not supported.
 - Not implemented:
@@ -1190,7 +1246,8 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   - inline image and LaTeX previews
   - datetree archive locations
 - Column view is a separate table buffer rather than overlays on the
-  headlines.
+  headlines. Digit keys keep their Vim meaning (counts) there instead of
+  selecting the Nth allowed value.
 - <M-CR> never splits the current line.
 - Minute increments step by 1 (Emacs rounds to 5).
 

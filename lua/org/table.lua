@@ -296,6 +296,17 @@ local function empty_row(ncols)
   return { cells = cells }
 end
 
+-- Defined with the formula commands below.
+local before_move
+
+--- Re-read the table starting at `info.start` (after a buffer change).
+local function reload(info)
+  local fresh = M.find(0, info.start)
+  fresh.tbl = M.parse(fresh.lines)
+  pad_rows(fresh.tbl)
+  return fresh
+end
+
 ---------------------------------------------------------------------------
 -- Public actions
 ---------------------------------------------------------------------------
@@ -330,6 +341,7 @@ function M.next_field()
     return false
   end
   local row, field = cursor_pos(info)
+  info = before_move(info, row, field)
   local t = info.tbl
   pad_rows(t)
   -- move out of an hline row
@@ -356,6 +368,7 @@ function M.prev_field()
     return false
   end
   local row, field = cursor_pos(info)
+  info = before_move(info, row, field, true)
   local t = info.tbl
   pad_rows(t)
   local target_row, target_field = row, field - 1
@@ -381,6 +394,7 @@ function M.next_row()
     return false
   end
   local row, field = cursor_pos(info)
+  info = before_move(info, row, field)
   local t = info.tbl
   pad_rows(t)
   local nxt = t.rows[row + 1]
@@ -630,6 +644,7 @@ local function split_csv(line)
 end
 
 --- Convert lines of CSV/TSV/whitespace data into table lines.
+---@param sep? "tab"|"csv"|"space"|integer an integer N splits on N+ spaces or tabs
 function M.convert_lines(lines, sep)
   local indent = (lines[1] or ""):match("^(%s*)")
   if not sep then
@@ -650,6 +665,9 @@ function M.convert_lines(lines, sep)
         cells = vim.split(vim.trim(l), "\t", { plain = true })
       elseif sep == "csv" then
         cells = split_csv(vim.trim(l))
+      elseif type(sep) == "number" then
+        -- N or more spaces, or a tab (Emacs C-N C-c |)
+        cells = vim.split((vim.trim(l):gsub(string.rep(" ", sep) .. "+", "\t")), "%s*\t%s*")
       else
         cells = vim.split(vim.trim(l), "%s+")
       end
@@ -664,14 +682,29 @@ function M.convert_lines(lines, sep)
   return M.render(t)
 end
 
+--- Separator for a count given to a conversion command, like Emacs'
+--- prefix argument: 4 (C-u) comma, 16 (C-u C-u) tab, another N that many
+--- spaces (or a tab); no count guesses from the data.
+function M.separator_for_count(count)
+  if not count or count == 0 then
+    return nil
+  elseif count == 4 then
+    return "csv"
+  elseif count == 16 then
+    return "tab"
+  end
+  return count
+end
+
 --- Create an empty table (normal mode) or convert the visual selection.
 function M.create_or_convert()
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
+    local sep = M.separator_for_count(vim.v.count)
     local srow, _, erow = utils.visual_range()
     vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
     local lines = vim.api.nvim_buf_get_lines(0, srow - 1, erow, false)
-    vim.api.nvim_buf_set_lines(0, srow - 1, erow, false, M.convert_lines(lines))
+    vim.api.nvim_buf_set_lines(0, srow - 1, erow, false, M.convert_lines(lines, sep))
     return
   end
   local line = vim.api.nvim_get_current_line()
@@ -704,6 +737,100 @@ function M.create_or_convert()
     vim.api.nvim_buf_set_lines(0, at, at, false, lines)
   end
   vim.api.nvim_win_set_cursor(0, { at + 1, #t.indent + 2 })
+end
+
+--- Insert a CSV/TSV/whitespace separated file as a table below the cursor
+--- line (replacing it when blank). The separator is guessed unless given
+--- (or set with a count, see `separator_for_count`). Emacs org-table-import.
+---@param path? string
+---@param sep? "tab"|"csv"|"space"|integer
+function M.import(path, sep)
+  sep = sep or M.separator_for_count(vim.v.count)
+  path = path or utils.input({ prompt = "Import table from file: ", completion = "file" })
+  if not path or vim.trim(path) == "" then
+    return
+  end
+  path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
+  local data = utils.readfile(path)
+  if not data then
+    utils.warn("Cannot read file: " .. path)
+    return
+  end
+  local lines = M.convert_lines(data, sep)
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local blank = vim.api.nvim_get_current_line():match("^%s*$") ~= nil
+  local at = blank and lnum - 1 or lnum
+  vim.api.nvim_buf_set_lines(0, at, blank and lnum or lnum, false, lines)
+  vim.api.nvim_win_set_cursor(0, { at + 1, 2 })
+end
+
+--- Lines of `rows` (lists of cells) as "tsv" or "csv" text.
+function M.to_separated(rows, format)
+  local out = {}
+  for _, cells in ipairs(rows) do
+    local parts = {}
+    for i, c in ipairs(cells) do
+      if format == "csv" and c:find('[",\n]') then
+        c = '"' .. c:gsub('"', '""') .. '"'
+      end
+      parts[i] = c
+    end
+    out[#out + 1] = table.concat(parts, format == "csv" and "," or "\t")
+  end
+  return out
+end
+
+--- Write the table at the cursor to a TSV or CSV file (hlines dropped). The
+--- file and format come from the TABLE_EXPORT_FILE / TABLE_EXPORT_FORMAT
+--- properties (inherited) when set, else the file is asked for and the
+--- format follows its extension. Emacs org-table-export.
+---@param path? string
+---@param format? string "tsv" or "csv" (also "orgtbl-to-tsv" / "orgtbl-to-csv")
+function M.export(path, format)
+  local info = M.at_cursor()
+  if not info then
+    return false
+  end
+  local hl = require("org.files").get_buffer(0):headline_at(info.start)
+  path = path or (hl and hl:get_property("TABLE_EXPORT_FILE", true))
+  if not path then
+    path = utils.input({ prompt = "Export table to: ", completion = "file" })
+    if not path or vim.trim(path) == "" then
+      return
+    end
+    path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
+    if utils.exists(path) and not utils.confirm("Overwrite file " .. path .. "?") then
+      utils.notify("File not written")
+      return
+    end
+  end
+  path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
+  if utils.is_dir(path) then
+    utils.warn("This is a directory path, not a file")
+    return
+  end
+  if path == vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":p") then
+    utils.warn("Please specify a file name that is different from current")
+    return
+  end
+  format = format or (hl and hl:get_property("TABLE_EXPORT_FORMAT", true))
+  if not format then
+    format = (path:match("%.(%w+)$") or ""):lower() == "csv" and "csv" or "tsv"
+  end
+  format = vim.trim(format):gsub("^orgtbl%-to%-", ""):match("^(%S+)")
+  if format ~= "tsv" and format ~= "csv" then
+    utils.warn("Unsupported table export format: " .. tostring(format) .. " (use tsv or csv)")
+    return
+  end
+  local rows = {}
+  for _, r in ipairs(info.tbl.rows) do
+    if not r.hline then
+      rows[#rows + 1] = r.cells
+    end
+  end
+  utils.writefile(path, M.to_separated(rows, format))
+  utils.notify("Export done: " .. path)
+  return path
 end
 
 ---------------------------------------------------------------------------
@@ -747,8 +874,28 @@ function M.recalc(bufnr, lnum)
   if not info then
     return false
   end
-  local tblfm = read_formulas(bufnr, info)
-  local t = M.parse(info.lines)
+  local lines = M.recalc_lines(bufnr, info.lines, read_formulas(bufnr, info), info.start)
+  if not vim.deep_equal(lines, info.lines) then
+    vim.api.nvim_buf_set_lines(bufnr, info.start - 1, info.finish, false, lines)
+  end
+end
+
+--- Apply formulas to table `lines` and return the aligned result. `tblfm`
+--- is the formula string or a list of `#+TBLFM:` lines; `lnum` locates the
+--- table in `bufnr` (for $PROP_ lookups).
+---@param tblfm string|string[]
+function M.recalc_lines(bufnr, lines, tblfm, lnum)
+  if type(tblfm) == "table" then
+    local parts = {}
+    for _, l in ipairs(tblfm) do
+      local body = l:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:%s*(.-)%s*$")
+      if body and body ~= "" then
+        parts[#parts + 1] = body
+      end
+    end
+    tblfm = table.concat(parts, "::")
+  end
+  local t = M.parse(lines)
   pad_rows(t)
   if tblfm ~= "" then
     local formula = require("org.table.formula")
@@ -759,7 +906,7 @@ function M.recalc(bufnr, lnum)
       end,
       constants = formula_constants(bufnr),
       property = function(name)
-        local hl = require("org.files").get_buffer(bufnr):headline_at(info.start)
+        local hl = require("org.files").get_buffer(bufnr):headline_at(lnum)
         return hl and hl:get_property(name, true)
       end,
     })
@@ -767,10 +914,7 @@ function M.recalc(bufnr, lnum)
       utils.error("Table formula error: " .. tostring(err))
     end
   end
-  local lines = M.render(t)
-  if not vim.deep_equal(lines, info.lines) then
-    vim.api.nvim_buf_set_lines(bufnr, info.start - 1, info.finish, false, lines)
-  end
+  return M.render(t)
 end
 
 --- Edit the #+TBLFM formulas of the table at cursor, one per line.
@@ -1004,6 +1148,65 @@ function M.eval_formula(field_formula)
   restore_cursor(info.start, row, field)
 end
 
+--- When field `field` of row `row` holds `=formula` (or `:=formula`),
+--- install it as the column (or field) formula in #+TBLFM, clear the field
+--- and recalculate. Emacs org-table-maybe-eval-formula (typing a formula
+--- into a field and pressing <Tab>, <CR> or C-c C-c).
+---@return boolean installed
+local function maybe_eval_formula(info, row, field)
+  local t = info.tbl
+  local r = t.rows[row]
+  if not r or r.hline then
+    return false
+  end
+  local named, rhs = vim.trim(r.cells[field] or ""):match("^(:?)=(.*[^=])$")
+  if not rhs then
+    return false
+  end
+  local lhs = named == ":" and ("@" .. dline(t, row) .. "$" .. field) or ("$" .. field)
+  r.cells[field] = ""
+  write_table(info, t)
+  local parts = formula_parts(0, info)
+  local idx = find_formula(parts, lhs)
+  parts[idx or (#parts + 1)] = lhs .. "=" .. vim.trim(rhs)
+  write_formulas(0, info, parts)
+  M.recalc(0, info.start)
+  return true
+end
+
+--- Recalculate the table when row `row` is marked with `#` in its first
+--- column. Emacs org-table-maybe-recalculate-line.
+local function maybe_recalc_line(info, row)
+  local r = info.tbl.rows[row]
+  if r and not r.hline and vim.trim(r.cells[1] or "") == "#" and #info.tblfm > 0 then
+    M.recalc(0, info.start)
+    return true
+  end
+  return false
+end
+
+--- Run before <Tab>/<S-Tab>/<CR>/C-c RET/C-c C-c: evaluate an inline
+--- formula and auto-recalculate `#` rows. Returns fresh table info.
+function before_move(info, row, field, no_formula)
+  if (not no_formula and maybe_eval_formula(info, row, field)) or maybe_recalc_line(info, row) then
+    return reload(info)
+  end
+  return info
+end
+
+--- C-c C-c in a table: install an inline `=`/`:=` formula, recalculate a
+--- `#`-marked row, then realign (org-ctrl-c-ctrl-c).
+function M.ctrl_c_ctrl_c()
+  local info = M.at_cursor()
+  if not info then
+    return false
+  end
+  local row, field, offset = cursor_pos(info)
+  info = before_move(info, row, field)
+  local lines = write_table(info, info.tbl)
+  set_cursor(info, lines, row, math.min(field, info.tbl.ncols), offset)
+end
+
 --- Edit the full content of the current field in a prompt, then realign.
 --- Emacs `C-c `` (org-table-edit-field).
 function M.edit_field()
@@ -1164,6 +1367,7 @@ function M.hline_and_move(same_column)
   if same_column == nil then
     same_column = vim.v.count > 0
   end
+  info = before_move(info, row, field)
   local t = info.tbl
   table.insert(t.rows, row + 1, { hline = true })
   local target = row + 2
@@ -1209,6 +1413,271 @@ function M.field_info()
   end
   utils.notify(msg)
   return msg
+end
+
+--- Swap the current field with its neighbour in `dir` ("up", "down",
+--- "left" or "right"), skipping hlines, and follow it. Emacs S-<arrows>
+--- in a table (org-table-move-cell-up/down/left/right).
+---@param dir "up"|"down"|"left"|"right"
+function M.move_cell(dir)
+  local info = M.at_cursor()
+  if not info then
+    return false
+  end
+  local row, field = cursor_pos(info)
+  local t = info.tbl
+  pad_rows(t)
+  if t.rows[row].hline then
+    utils.warn("Not in a table data field")
+    return
+  end
+  local r2, f2 = row, field
+  if dir == "left" or dir == "right" then
+    f2 = field + (dir == "left" and -1 or 1)
+  else
+    local step = dir == "up" and -1 or 1
+    r2 = row + step
+    while t.rows[r2] and t.rows[r2].hline do
+      r2 = r2 + step
+    end
+  end
+  if not t.rows[r2] or f2 < 1 or f2 > t.ncols then
+    utils.warn("Cannot move cell further")
+    return
+  end
+  local a, b = t.rows[row].cells, t.rows[r2].cells
+  a[field], b[f2] = b[f2], a[field]
+  local lines = write_table(info, t)
+  set_cursor(info, lines, r2, f2, 0)
+end
+
+--- Next value in a copy-down series: numbers, numbers prefixed or
+--- suffixed to text, and timestamps (by days) are incremented by the
+--- difference to `previous` when it has the same shape, else by `step`.
+--- Emacs org-table--increment-field.
+---@param value string
+---@param previous? string
+---@param step number
+function M.increment_field(value, previous, step)
+  local function num_str(n)
+    if n == math.floor(n) and math.abs(n) < 1e15 then
+      return string.format("%d", n)
+    end
+    return string.format("%.15g", n)
+  end
+  local function analyze(s)
+    if not s or s == "" then
+      return nil
+    end
+    local n = s:match("^[-+]?%d+%.?$") or s:match("^[-+]?%d*%.%d+$") or s:match("^[-+]?%d+%.?%d*[eE][-+]?%d+$")
+    if n then
+      return "number", tonumber((n:gsub("^%+", ""):gsub("%.$", ""))), nil
+    end
+    local pre = s:match("^%d+")
+    if pre then
+      return "prefix", tonumber(pre), s:sub(#pre + 1)
+    end
+    local suf = s:match("%d+$")
+    if suf then
+      return "suffix", tonumber(suf), s:sub(1, #s - #suf)
+    end
+    local item = require("org.date").parse_all(s)[1]
+    if item then
+      return "timestamp", item, nil
+    end
+  end
+  local kind, v1, p1 = analyze(value)
+  local kind2, v2, p2 = analyze(previous)
+  local same = kind == kind2 and p1 == p2
+  if kind == "number" then
+    return num_str(v1 + (same and (v1 - v2) or step))
+  elseif kind == "prefix" then
+    return num_str(v1 + (same and (v1 - v2) or step)) .. p1
+  elseif kind == "suffix" then
+    return p1 .. num_str(v1 + (same and (v1 - v2) or step))
+  elseif kind == "timestamp" then
+    local days = same and (v1.date:days() - v2.date:days()) or step
+    local shifted = v1.date:add_with_range(days, "d")
+    return value:sub(1, v1.start_col - 1) .. shifted:to_string() .. value:sub(v1.end_col + 1)
+  end
+  return value
+end
+
+--- Copy the current field one row down (creating the row when needed) and
+--- move with it; in an empty field, copy the nearest non-empty field above
+--- (the Nth with a count). Numbers, numbered text and timestamps are
+--- incremented (`table_copy_increment`). Emacs S-RET (org-table-copy-down).
+---@param n? integer
+function M.copy_down(n)
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  n = n or math.max(vim.v.count, 1)
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.warn("Not in a table data field")
+    return
+  end
+  local function above(r)
+    r = r - 1
+    if t.rows[r] and not t.rows[r].hline then
+      local v = t.rows[r].cells[field]
+      return v ~= "" and v or nil
+    end
+  end
+  local initial = t.rows[row].cells[field]
+  local value, src = initial, row
+  if value == "" then
+    value = nil
+    for r = row - 1, 1, -1 do
+      local v = not t.rows[r].hline and t.rows[r].cells[field] or ""
+      if v ~= "" then
+        if n > 1 then
+          n = n - 1
+        else
+          value, src = v, r
+          break
+        end
+      end
+    end
+    if not value then
+      utils.warn("No non-empty field found")
+      return
+    end
+  end
+  local inc = require("org.config").opts.table_copy_increment
+  if inc ~= false and inc ~= nil and n ~= 0 then
+    value = M.increment_field(value, type(inc) ~= "number" and above(src) or nil, type(inc) == "number" and inc or 1)
+  end
+  local target = row
+  if initial ~= "" then
+    target = row + 1
+    if not t.rows[target] or t.rows[target].hline then
+      table.insert(t.rows, target, empty_row(t.ncols))
+    end
+  end
+  t.rows[target].cells[field] = value
+  local lines = write_table(info, t)
+  set_cursor(info, lines, target, field, #value)
+end
+
+--- Transpose the table at the cursor: rows become columns. Hlines are
+--- dropped. Emacs org-table-transpose-table-at-point.
+function M.transpose()
+  local info = M.at_cursor()
+  if not info then
+    return false
+  end
+  local row, field = cursor_pos(info)
+  local t = info.tbl
+  pad_rows(t)
+  local data = {}
+  for _, r in ipairs(t.rows) do
+    if not r.hline then
+      data[#data + 1] = r.cells
+    end
+  end
+  local out = { indent = t.indent, rows = {}, ncols = math.max(#data, 1) }
+  for c = 1, t.ncols do
+    local cells = {}
+    for i, cells_in in ipairs(data) do
+      cells[i] = cells_in[c] or ""
+    end
+    out.rows[c] = { cells = cells }
+  end
+  local lines = write_table(info, out)
+  set_cursor(info, lines, field, t.rows[row].hline and 1 or dline(t, row), 0)
+end
+
+--- Recalculation marks, in rotation order (Emacs org-recalc-marks).
+local RECALC_MARKS = { " ", "#", "*", "!", "$", "_", "^" }
+local MARK_HELP = {
+  [" "] = "Unmarked: no special line, no automatic recalculation",
+  ["#"] = "Automatically recalculate this line upon TAB, RET, and C-c C-c in the line",
+  ["*"] = "Recalculate only when entire table is recalculated with C-u C-c *",
+  ["!"] = "Column name definition line. Reference in formula as $name.",
+  ["$"] = "Parameter definition line name=value. Reference in formula as $name.",
+  ["_"] = "Names for values in row below this one.",
+  ["^"] = "Names for values in row above this one.",
+}
+
+--- Rotate the recalculation mark (` # * ! $ _ ^`) in the first column of
+--- the current row (or set `mark` on every row of the visual selection,
+--- after prompting). A marker column is inserted when the table has none.
+--- Emacs C-# (org-table-rotate-recalc-marks).
+---@param mark? string
+function M.rotate_recalc_marks(mark)
+  local visual = in_visual()
+  local srow, erow
+  if visual then
+    local s, _, e = utils.visual_range()
+    srow, erow = s, e
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  end
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.warn("Not at a table data line")
+    return
+  end
+  if visual and not mark then
+    mark = utils.getchar("Change region to what mark?  Type # * ! $ or SPC: ")
+    if not mark then
+      return
+    end
+  end
+  if mark and not MARK_HELP[mark] then
+    utils.warn("Invalid recalculation mark: " .. mark)
+    return
+  end
+  local has_marks = true
+  for _, r in ipairs(t.rows) do
+    if not r.hline and not MARK_HELP[r.cells[1] == "" and " " or r.cells[1]] then
+      has_marks = false
+      break
+    end
+  end
+  if not has_marks then
+    for _, r in ipairs(t.rows) do
+      if not r.hline then
+        table.insert(r.cells, 1, "")
+      end
+    end
+    t.ncols = t.ncols + 1
+    field = field + 1
+  end
+  local new = mark
+  if not new then
+    local current = t.rows[row].cells[1]
+    current = current == "" and " " or current
+    if not has_marks or not MARK_HELP[current] then
+      new = "#"
+    else
+      for i, m in ipairs(RECALC_MARKS) do
+        if m == current then
+          new = RECALC_MARKS[i % #RECALC_MARKS + 1]
+        end
+      end
+    end
+  end
+  local r1, r2 = row, row
+  if visual then
+    r1 = math.max(srow, info.start) - info.start + 1
+    r2 = math.min(erow, info.finish) - info.start + 1
+  end
+  for r = r1, r2 do
+    if not t.rows[r].hline then
+      t.rows[r].cells[1] = new == " " and "" or new
+    end
+  end
+  local lines = write_table(info, t)
+  set_cursor(info, lines, row, field, 0)
+  utils.notify(MARK_HELP[new])
+  return new
 end
 
 ---------------------------------------------------------------------------
