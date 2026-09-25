@@ -122,6 +122,7 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "mark_ring_goto" # Jump back from followed link
 ---| "mark_subtree" # Select subtree
 ---| "meta_down" # Move subtree / item / row down
