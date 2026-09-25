@@ -367,7 +367,7 @@ end
 function M.shift_levels(lines, delta)
   local out = {}
   for i, l in ipairs(lines) do
-    local stars = l:match("^(%*+)%s") or l:match("^(%*+)$")
+    local stars = l:match("^(%*+) ")
     if stars then
       local n = math.max(1, #stars + delta)
       out[i] = string.rep("*", n) .. l:sub(#stars + 1)

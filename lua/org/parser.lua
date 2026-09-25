@@ -55,7 +55,7 @@ M.File = File
 --- Is `line` a headline? Returns the level.
 ---@return integer|nil
 function M.headline_level(line)
-  local stars = line:match("^(%*+)%s") or line:match("^(%*+)$")
+  local stars = line:match("^(%*+) ")
   return stars and #stars or nil
 end
 
@@ -64,13 +64,10 @@ end
 ---@param todo_cfg? org.TodoConfig
 ---@return table|nil { level, stars, todo, priority, commented, title, tags }
 function M.parse_headline_line(line, todo_cfg)
-  local stars, rest = line:match("^(%*+)%s+(.*)$")
+  -- like org-outline-regexp, stars must be followed by a space
+  local stars, rest = line:match("^(%*+) +(.*)$")
   if not stars then
-    stars = line:match("^(%*+)$")
-    if not stars then
-      return nil
-    end
-    rest = ""
+    return nil
   end
   todo_cfg = todo_cfg or todo_keywords.global()
   local parts = { level = #stars, stars = stars, tags = {}, commented = false }

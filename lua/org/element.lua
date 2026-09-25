@@ -770,6 +770,95 @@ function M.previous_block()
   return M.next_block(-1)
 end
 
+--- Column where the contents of `el` start (org--get-expected-indentation
+--- with CONTENTSP).
+local function contents_indentation(bufnr, el, lnum)
+  if not el then
+    local hl = files.get_buffer(bufnr):headline_at(lnum)
+    if hl and require("org.config").opts.adapt_indentation then
+      return hl.level + 1
+    end
+    return 0
+  end
+  if el.type == "footnote-definition" then
+    return 0
+  elseif el.type == "item" then
+    local it = el.list_item
+    return it.indent + #it.bullet_ws
+  elseif el.type == "plain-list" then
+    local it = el.children[1].list_item
+    return it.indent + #it.bullet_ws
+  end
+  local line = vim.api.nvim_buf_get_lines(bufnr, el.first - 1, el.first, false)[1] or ""
+  return #line:match("^(%s*)")
+end
+
+--- Indent the line like org-indent-line (TAB in body text with
+--- `cycle_emulate_tab`): the first line of an element like its previous
+--- sibling or its container, other lines like the line above. Lines of
+--- src and example blocks and headlines are left alone.
+function M.indent_line(lnum)
+  local bufnr = vim.api.nvim_get_current_buf()
+  lnum = lnum or cursor()[1]
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+  if not line or parser.headline_level(line) or is_blank(line) then
+    return
+  end
+  local el = M.at(bufnr, lnum)
+  local target
+  if el and not el.greater and el.cfirst and lnum > el.post and lnum < el.clast then
+    return -- inside a verbatim block
+  end
+  if el and el.type == "footnote-definition" and lnum == el.first then
+    target = 0
+  elseif el and lnum == el.first then
+    local sibs = siblings(el, bufnr)
+    local prev
+    for i, s in ipairs(sibs) do
+      if s == el then
+        prev = sibs[i - 1]
+      end
+    end
+    if el.type == "item" then
+      return -- items are indented with M-left / M-right
+    elseif prev and prev.type ~= "footnote-definition" then
+      local pl = vim.api.nvim_buf_get_lines(bufnr, prev.first - 1, prev.first, false)[1]
+      target = #pl:match("^(%s*)")
+      if prev.type == "item" or prev.type == "planning" then
+        target = contents_indentation(bufnr, el.parent, lnum)
+      end
+    else
+      target = contents_indentation(bufnr, el.parent, lnum)
+    end
+  else
+    -- like the first non-blank line above
+    local l = lnum - 1
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, lnum - 1, false)
+    while l >= 1 and is_blank(lines[l]) do
+      l = l - 1
+    end
+    if l < 1 then
+      target = 0
+    elseif el and el.type == "item" and l == el.first then
+      target = contents_indentation(bufnr, el, lnum)
+    else
+      target = #lines[l]:match("^(%s*)")
+    end
+  end
+  local cur = #line:match("^(%s*)")
+  if target == cur then
+    return
+  end
+  local col = cursor()[2]
+  vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { string.rep(" ", target) .. line:sub(cur + 1) })
+  if col < cur then
+    col = target
+  else
+    col = col + target - cur
+  end
+  vim.api.nvim_win_set_cursor(0, { lnum, math.max(0, col) })
+end
+
 --- org-toggle-fixed-width (C-c :): remove the `: ` marker in a
 --- fixed-width area, add it to other lines. In Visual mode: when the
 --- selection holds only fixed-width lines, unmark them all, else mark

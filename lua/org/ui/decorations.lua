@@ -51,7 +51,7 @@ function M.compute(bufnr)
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
   for i, line in ipairs(lines) do
     local row = i - 1
-    local stars = line:match("^(%*+)%s") or line:match("^(%*+)$")
+    local stars = line:match("^(%*+) ")
     if stars then
       level = #stars
       in_block = false

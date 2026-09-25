@@ -1058,8 +1058,7 @@ end
 
 --- Line not hidden by a closed fold (the first line of a fold shows).
 local function line_visible(lnum)
-  local fc = vim.fn.foldclosed(lnum)
-  return fc == -1 or fc == lnum
+  return require("org.fold").line_visible(lnum)
 end
 
 local function subtree_lines()
@@ -2029,8 +2028,7 @@ local function jump(lnum)
 end
 
 local function visible(lnum)
-  local fc = vim.fn.foldclosed(lnum)
-  return fc == -1 or fc == lnum
+  return require("org.fold").line_visible(lnum)
 end
 
 function M.next_heading()

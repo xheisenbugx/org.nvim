@@ -141,21 +141,31 @@ function M.apply(bufnr)
   cmd([=[syntax match orgLineBreak /\\\\\s*$/]=])
 
   -- Emphasis -----------------------------------------------------------------
-  local pre = [=[\(^\|[[:space:]('"{\[-]\)\@<=]=]
-  local post = [=[\ze\($\|[[:space:]-.,:!?;'")}\[\]]\)]=]
+  -- org-emphasis-regexp-components: allowed characters before and after
+  -- the markers, the characters the text cannot start or end with, and at
+  -- most one newline inside (Emacs `org-emph-re`).
+  local pre = [=[\%(^\|[[:space:]('"{-]\)\@<=]=]
+  local post = [=[\%($\|[[:space:]-.,:!?;'")}\[]\)]=]
+  local border = [=[[^[:space:],"']]=]
+  -- (the newline cannot be followed by a headline)
+  local body = string.format([=[\%%(%s\|%s.\{-}\%%(\n\%%(\*\+ \)\@!.\{-}\)\=%s\)]=], border, border, border)
+  local markup = "orgBold,orgItalic,orgUnderline,orgStrikethrough,orgVerbatim,orgCode"
   local function emph(group, char, extra)
     local c = esc(char)
     cmd(string.format(
-      [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze[^[:space:]%s]/ end=/[^[:space:]]\@<=%s%s/ oneline keepend%s %s]=],
+      [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
       group,
       group,
       pre,
       c,
+      body,
       c,
+      post,
+      border,
       c,
       post,
       conceal_emph,
-      extra or "contains=@Spell,orgLink"
+      extra or ("contains=@Spell,orgLink," .. markup)
     ))
   end
   emph("orgBold", "*")
@@ -225,7 +235,7 @@ function M.apply(bufnr)
     "orgTodo,orgDone,orgTodoCustom,orgPriority,orgTags,orgTimestamp,orgTimestampInactive,orgLink,orgLinkPlain,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell"
   for level = 1, 8 do
     cmd(string.format(
-      [=[syntax match orgHeadlineLevel%d /^\*\{%d}\(\s.*\)\?$/ contains=%s]=],
+      [=[syntax match orgHeadlineLevel%d /^\*\{%d} .*$/ contains=%s]=],
       level,
       level,
       contains
@@ -234,7 +244,7 @@ function M.apply(bufnr)
   for level = 9, 20 do
     local l = ((level - 1) % 8) + 1
     cmd(string.format(
-      [=[syntax match orgHeadlineLevel%d /^\*\{%d}\(\s.*\)\?$/ contains=%s]=],
+      [=[syntax match orgHeadlineLevel%d /^\*\{%d} .*$/ contains=%s]=],
       l,
       level,
       contains
