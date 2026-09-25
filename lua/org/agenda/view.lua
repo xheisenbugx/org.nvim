@@ -889,6 +889,8 @@ end
 --- Quit the agenda window (org-agenda-quit). `wipe` also deletes the
 --- buffer (org-agenda-Quit).
 function M.quit(wipe)
+  -- windows switching below may make another agenda buffer current
+  local S = S
   S.follow = false
   local win = S.win
   local mode = S.win_mode
@@ -1198,7 +1200,7 @@ function M.date_prompt(target, item)
     utils.warn("No timestamp to change")
     return
   end
-  local picked = pick_date(d, "Change date")
+  local picked = M.pick_date(d, "Change date")
   if not picked or picked.remove then
     return
   end
@@ -1609,12 +1611,6 @@ function M.filter_by_tag(count)
       end
     end
   end
-  for _, d in ipairs(config.opts.tags or {}) do
-    if type(d) == "table" and d.key and d.name and not keys[d.key] then
-      keys[d.key] = d.name
-      chars[#chars + 1] = d.key
-    end
-  end
   local tag
   while true do
     local prompt = string.format(
@@ -1810,7 +1806,7 @@ local function read_bulk_date(prompt)
     return { shift = tonumber(n), unit = unit ~= "" and unit or "d" }
   end
   if vim.trim(input) == "" then
-    local d = pick_date(date.today(), prompt)
+    local d = M.pick_date(date.today(), prompt)
     return d and { date = d:clone({ active = true }) } or nil
   end
   local d = date.read_date(input, date.today())
@@ -2121,14 +2117,14 @@ M.actions = {
     end
   end,
   goto_date = function()
-    local d = pick_date(date.from_days(M.day_at_cursor() or date.today_days()), "Go to date")
+    local d = M.pick_date(date.from_days(M.day_at_cursor() or date.today_days()), "Go to date")
     if not d then
       return
     end
     M.goto_date(d:days())
   end,
   calendar = function()
-    local d = pick_date(date.from_days(M.day_at_cursor() or date.today_days()), "Calendar")
+    local d = M.pick_date(date.from_days(M.day_at_cursor() or date.today_days()), "Calendar")
     if d then
       M.goto_date(d:days())
     end
