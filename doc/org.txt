@@ -849,6 +849,39 @@ Capture window: `<C-c><C-c>` or `:w` finalizes, `<C-c><C-k>` aborts and
                           (C-u C-u C-c c)
 From the agenda, `c` captures with the date at point as the default date.
 
+org-protocol                                                  *org-protocol*
+`org-protocol://` URLs from a browser or another program capture, store
+links and open files in a running Neovim, like Emacs `org-protocol.el`:
+  org-protocol://capture?template=KEY&url=URL&title=TITLE&body=TEXT
+      capture with template KEY (`protocol.default_template_key`, else
+      choose); `%:link`, `%:description`, `%a`, `%i` (body) and
+      `%:<param>` come from the URL
+  org-protocol://store-link?url=URL&title=TITLE
+      store the link for |org-insert-link| and yank the URL
+  org-protocol://open-source?url=URL
+      open the local file behind a published URL (`protocol.projects`,
+      like org-protocol-project-alist: base_url, working_directory,
+      online_suffix, working_suffix, rewrites)
+Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, and
+`protocol.handlers` adds sub-protocols. Call it from Lua with
+`require("org.protocol").handle(url)` or `:Org protocol <url>`.
+
+Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
+|v:servername|) and the OS must send `org-protocol:` URLs to a handler
+that forwards them, e.g. on Linux a desktop file with
+`MimeType=x-scheme-handler/org-protocol;` and: >sh
+    Exec=nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+<
+then `xdg-mime default org-protocol.desktop x-scheme-handler/org-protocol`.
+On macOS register the scheme with a small app bundle (an AppleScript
+`on open location` handler running the same command). A bookmarklet: >js
+    javascript:location.href='org-protocol://capture?'+new URLSearchParams({
+      template:'p', url:location.href, title:document.title,
+      body:window.getSelection()});void(0)
+<
+Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
+has no counterpart: the handler command above plays that role.
+
 ==============================================================================
 15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
 
@@ -1690,6 +1723,7 @@ clock ~
   persist false (true | "clock" | "history"), persist_query_resume true,
   persist_file
 timer ~    format "%s ", default_timer "0"
+protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
 crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
@@ -2025,7 +2059,9 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
     listing of the matches.
 - Not implemented:
   - diary sexps `<%%(...)>`
-  - org-protocol, MobileOrg
+  - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
+    staging/sync protocol is tied to Emacs; sync the files with any file
+    sync tool instead.
   - inline image and LaTeX previews: core Neovim has no image protocol
     (org-link-preview, org-toggle-inline-images, org-image-max-width,
     org-display-remote-inline-images); an image.nvim / snacks.image

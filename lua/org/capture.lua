@@ -730,7 +730,24 @@ end
 -- Capture session
 ---------------------------------------------------------------------------
 
+--- Link properties for the next capture, set by org-protocol and link
+--- handlers instead of storing a link from the current buffer
+--- (org-link-store-props / org-capture-link-is-already-stored):
+--- `{ link?, description?, annotation?, initial?, keywords? }`.
+M.link_store_props = nil
+
 local function origin_context(opts)
+  local props = M.link_store_props
+  M.link_store_props = nil
+  if props then
+    return {
+      keywords = props.keywords or {},
+      link = props.link,
+      link_desc = props.description,
+      annotation = props.annotation or "",
+      initial = opts.initial or props.initial or "",
+    }
+  end
   local ctx = { keywords = {} }
   local bufnr = vim.api.nvim_get_current_buf()
   local name = vim.api.nvim_buf_get_name(bufnr)

@@ -171,6 +171,8 @@
 ---@field crypt? org.Config.Crypt
 ---Relative and countdown timers.
 ---@field timer? org.Config.Timer
+---org-protocol handling.
+---@field protocol? org.Config.Protocol
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
 ---`ID` property creation and lookup.

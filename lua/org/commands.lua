@@ -32,6 +32,7 @@ M.extra = {
   content = { "org.fold", "content", desc = "Show contents (all headlines)" },
   align_tags = { "org.tags", "align_all", desc = "Align all tags in buffer" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
+  protocol = { "org.protocol", "handle", desc = "Handle an org-protocol:// URL: :Org protocol <url>" },
 }
 
 local function names()

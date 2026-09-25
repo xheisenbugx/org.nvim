@@ -353,6 +353,22 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- org-protocol
+  ---------------------------------------------------------------------------
+  protocol = {
+    --- Capture template of org-protocol://capture URLs without a template
+    --- (org-protocol-default-template-key); nil = choose.
+    default_template_key = nil,
+    --- URL-to-file mappings for org-protocol://open-source
+    --- (org-protocol-project-alist): list of { base_url, working_directory,
+    --- online_suffix?, working_suffix?, rewrites? = { [vim regex] = path } }.
+    projects = {},
+    --- Extra sub-protocols (org-protocol-protocol-alist): list of
+    --- { protocol = "name", fn = function(params) end, order? = { keys } }.
+    handlers = {},
+  },
+
+  ---------------------------------------------------------------------------
   -- Timers
   ---------------------------------------------------------------------------
   timer = {

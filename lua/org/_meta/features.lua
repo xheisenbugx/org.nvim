@@ -149,6 +149,30 @@
 ---@field gpg_program? string
 
 ---------------------------------------------------------------------------
+-- org-protocol
+---------------------------------------------------------------------------
+
+---org-protocol options.
+---@class org.Config.Protocol
+---Capture template for URLs without one (`org-protocol-default-template-key`).
+---(default: `nil`)
+---@field default_template_key? string
+---URL-to-file mappings for `open-source` (`org-protocol-project-alist`).
+---(default: `{}`)
+---@field projects? { base_url: string, working_directory: string, online_suffix?: string, working_suffix?: string, rewrites?: table<string, string> }[]
+---Extra sub-protocols (`org-protocol-protocol-alist`). (default: `{}`)
+---@field handlers? org.Config.ProtocolHandler[]
+
+---A custom org-protocol sub-protocol.
+---@class org.Config.ProtocolHandler
+---The sub-protocol name in `org-protocol://NAME?...`.
+---@field protocol string
+---Called with the URL parameters.
+---@field fn fun(params: table<string, string>): any
+---Parameter names for old-style `NAME://a/b` URLs.
+---@field order? string[]
+
+---------------------------------------------------------------------------
 -- Timers
 ---------------------------------------------------------------------------
 
