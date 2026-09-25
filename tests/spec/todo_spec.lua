@@ -162,7 +162,10 @@ describe("todo", function()
   end)
 
   it("honours LOG_INTO_DRAWER and #+STARTUP: nologdrawer", function()
-    local buf = org_buffer({ "#+TODO: TODO(!) | DONE(!)", "* TODO Task", ":PROPERTIES:", ":LOG_INTO_DRAWER: NOTES", ":END:" }, { 2, 0 })
+    local buf = org_buffer(
+      { "#+TODO: TODO(!) | DONE(!)", "* TODO Task", ":PROPERTIES:", ":LOG_INTO_DRAWER: NOTES", ":END:" },
+      { 2, 0 }
+    )
     todo.change_state(nil, "DONE")
     local l = buf_lines(buf)
     ok(vim.tbl_contains(l, ":NOTES:"), vim.inspect(l))

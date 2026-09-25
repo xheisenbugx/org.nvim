@@ -277,7 +277,8 @@ function M.show_remaining()
     utils.notify("No timer set")
     return nil
   end
-  utils.notify(string.format("%s remaining for timer%s", M.format(M.value()), M.state.title and (" " .. M.state.title) or ""))
+  local title = M.state.title and (" " .. M.state.title) or ""
+  utils.notify(string.format("%s remaining for timer%s", M.format(M.value()), title))
   return true
 end
 

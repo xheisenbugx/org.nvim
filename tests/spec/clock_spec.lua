@@ -138,7 +138,14 @@ describe("clock", function()
       "* Other",
       "CLOCK: [2026-09-20 Sun 12:00]--[2026-09-20 Sun 13:00] =>  1:00",
     })
-    local lines = clock.clocktable({ maxlevel = 2, formula = "%", level = true, properties = '("Effort")', tags = true, emphasize = true }, buf)
+    local lines = clock.clocktable({
+      maxlevel = 2,
+      formula = "%",
+      level = true,
+      properties = '("Effort")',
+      tags = true,
+      emphasize = true,
+    }, buf)
     eq("| L | Tags | Effort | Headline       | Time   |        | %     |", lines[2])
     eq("|   |      |        | *Total time*   | *2:00* |        | 100.0 |", lines[4])
     eq("| 1 | work |   2:00 | *Project*      | *1:00* |        |  50.0 |", lines[6])
@@ -308,7 +315,13 @@ describe("clock", function()
     ui.menu, utils.input = omenu, oinput
     config.opts.agenda_files = saved
     -- bottom-up: B kept 30 minutes, A cancelled
-    eq({ "* A", "* B", ":LOGBOOK:", "CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 10:30] =>  0:30", ":END:" }, buf_lines(buf))
+    eq({
+      "* A",
+      "* B",
+      ":LOGBOOK:",
+      "CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 10:30] =>  0:30",
+      ":END:",
+    }, buf_lines(buf))
   end)
 
   it("cleans up temp buffers", function()

@@ -235,6 +235,8 @@ function M.clock_out(opts)
   end
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local indent = line:match("^(%s*)")
+  local clocked = files.get_buffer(bufnr):headline_at(lnum)
+  local hl_line = clocked and clocked.line
   local start = date.parse(st.start)
   local stop = opts.at or date.now()
   local new, minutes = M.format_clock_line(indent, start, stop)
@@ -249,7 +251,7 @@ function M.clock_out(opts)
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new })
     utils.notify(string.format("Clocked out of %s: %s", st.title, date.format_duration(minutes)))
     local file = files.get_buffer(bufnr)
-    if opts.note ~= false and require("org.todo").log_setting(file, "clock_out", file:headline_at(lnum)) == "note" then
+    if opts.note ~= false and require("org.todo").log_setting(file, "clock_out", clocked) == "note" then
       -- org-log-note-clock-out: the note goes right below the CLOCK line
       local note = opts.note or utils.input({ prompt = "Clock-out note: " })
       if note and vim.trim(note) ~= "" then
@@ -276,7 +278,8 @@ function M.clock_out(opts)
       switch = clock_cfg().out_switch_to_state
     end
   end
-  local hl = files.get_buffer(bufnr):headline_at(math.min(lnum, vim.api.nvim_buf_line_count(bufnr)))
+  -- the headline line is above the clock line, so edits did not move it
+  local hl = hl_line and files.get_buffer(bufnr):headline_on(hl_line)
   if hl then
     if type(switch) == "function" then
       switch = switch(hl.todo)
@@ -925,7 +928,11 @@ function M.format_table(rows)
       local parts = {}
       for i = 1, #widths do
         local c = r[i] or ""
-        if c:match("^[*/]?%-?%d+:%d%d[*/]?$") or c:match("^[*/]?%-?%d+d %d+:%d%d[*/]?$") or c:match("^%-?%d+%.?%d*$") then
+        if
+          c:match("^[*/]?%-?%d+:%d%d[*/]?$")
+          or c:match("^[*/]?%-?%d+d %d+:%d%d[*/]?$")
+          or c:match("^%-?%d+%.?%d*$")
+        then
           parts[i] = " " .. utils.pad_left(c, widths[i]) .. " "
         else
           parts[i] = " " .. utils.pad_right(c, widths[i]) .. " "
@@ -1294,7 +1301,8 @@ function M.clocktable(params, bufnr, lnum)
   while d:minutes() < to_min and guard < 1000 do
     guard = guard + 1
     local nxt = next_step(d, step, wstart)
-    local lines, total = clocktable_single(sub, bufnr, lnum, math.max(d:minutes(), from_min), math.min(nxt:minutes(), to_min))
+    local lines, total =
+      clocktable_single(sub, bufnr, lnum, math.max(d:minutes(), from_min), math.min(nxt:minutes(), to_min))
     if not (param_on(params.stepskip0) and total == 0) then
       out[#out + 1] = ""
       out[#out + 1] = STEP_HEADERS[step] .. d:clone({ active = false }):to_string()

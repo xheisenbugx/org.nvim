@@ -445,7 +445,8 @@ local function plan_warning(bufnr, hl, kind)
   if not picked or picked.remove then
     return nil
   end
-  local new = existing:clone({ warning = { type = "-", value = math.abs(existing:days() - picked:days()), unit = "d" } })
+  local days = math.abs(existing:days() - picked:days())
+  local new = existing:clone({ warning = { type = "-", value = days, unit = "d" } })
   edit.set_planning(bufnr, hl.line, kind, new)
   return new
 end
