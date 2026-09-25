@@ -465,25 +465,42 @@ Changes to SCHEDULED and DEADLINE are logged when `log_reschedule` or
 
 <prefix>xi      Clock in on the current entry. Any running clock is
                 stopped first, and `clock.in_switch_to_state` can change the
-                TODO state. With a count, pick a task from the clock history
-                (the last `clock.history_length` clocked tasks).
+                TODO state. A count picks a task from the clock history
+                (d default task, i the interrupted task, c the current one,
+                1-9 A-Z recent tasks); 16 also marks the entry as the
+                default task; 64 starts where the last clock stopped.
 <prefix>xo      Clock out (global). `clock.out_switch_to_state` changes the
                 TODO state; with a count, you are asked for the state.
 <prefix>xq      Cancel the running clock (global).
-<prefix>xj      Jump to the clocked entry (global).
+<prefix>xj      Jump to the clocked entry (global), else to the last
+                clocked one. With a count, pick from the history.
 <prefix>xe      Set effort.
 <prefix>xE      Set effort to the next value of `Effort_ALL`.
 <prefix>xm      Change the effort of the clocked task (or the entry at the
                 cursor); `+0:15` / `-10` add or subtract.
-<prefix>xz      Resolve dangling clocks: open CLOCK lines other than the
-                running one. For each, keep it (clock out now, or after N
-                minutes), cancel it, jump to it or ignore it.
-<prefix>xd      Toggle clock sums as virtual text on every headline.
-<prefix>xr      Insert a clock report (`#+BEGIN: clocktable`).
+<prefix>xz      Resolve open clocks (with a count: only dangling ones, not
+                the running clock). See |org-clock-resolve|.
+<prefix>xd      Show the time clocked in each subtree next to its headline,
+                for `clock.display_default_range` (this year). Count: 4 =
+                today, 16 = ask for a range, 64 = only the total. Editing
+                the buffer, <C-c><C-c> or calling it again hides the sums.
+<prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
+                at the cursor (:scope subtree), or the file before the
+                first headline; update it when on one. With a count,
+                update the first clock table of the buffer.
 <C-c><C-c>      On a CLOCK line: recompute its duration.
 <C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
                 the cursor, keeping the duration.
-:Org clock_in_last   Clock in the last clocked entry again.
+<S-M-Up/Down>   On a CLOCK timestamp: change it and move the touching
+                timestamp of the previous (on a clock-in) or next (on a
+                clock-out) task in the clock history by the same amount.
+<S-arrows>      On a `#+BEGIN: clocktable` line: shift its :block
+                (today -> today-1, 2026-W39 -> 2026-W40, ...).
+:Org clock_in_last   Clock in the last clocked entry again (count: pick
+                from the history; 16 = from the last clock-out; 64 = ask
+                for the TODO state).
+:Org clock_mark_default_task   Mark the entry as the default task.
+:Org clock_toggle_auto_clockout  Turn auto clock-out on/off for this session.
 
 Clock lines go into the LOGBOOK drawer: >org
     :LOGBOOK:
@@ -491,15 +508,43 @@ Clock lines go into the LOGBOOK drawer: >org
     :END:
 <
 The drawer comes from the inherited `CLOCK_INTO_DRAWER` property (`nil`
-for none), then `clock.into_drawer`, then the log drawer. With
-`log_note_clock_out` (or `#+STARTUP: lognoteclock-out`), clocking out asks
-for a note that goes below the CLOCK line. `clock.continuously` starts a new
-clock where the last one stopped.
+for none, a number N for "once there are N clock lines"), then
+`clock.into_drawer`, then the log drawer. With `log_note_clock_out` (or
+`#+STARTUP: lognoteclock-out`), clocking out asks for a note that goes
+below the CLOCK line. `clock.continuously` starts a new clock where the
+last one stopped, `clock.rounding_minutes` rounds clock times and
+`clock.in_resume` continues an entry's open CLOCK line.
 
 Marking a clocked task done clocks it out (`clock.out_when_done`: true or a
 list of states). A running clock is restored after restarting Neovim
-(`clock.persist`). When the clocked time reaches the task's Effort, you are
-notified once (`clock.notify_effort`).
+(`clock.persist`: true, "clock" or "history").
+
+The statusline shows `[clocked/effort] (Task)`, where the clocked time
+includes the task's earlier clocks (`clock.mode_line_total` or the
+`CLOCK_MODELINE_TOTAL` property: current, today, repeat, all, auto =
+since LAST_REPEAT for repeated tasks). Once it reaches the Effort you are
+notified once (`clock.notify_effort`, `clock.sound`,
+`clock.notification_handler`) and `clock.task_overrun_text` is prepended.
+
+User autocmds: `OrgClockInPrepare` (before the CLOCK line is written, e.g.
+to set an effort), `OrgClockIn`, `OrgClockOut`, `OrgClockCancel`,
+`OrgClockGoto`.
+
+Resolving clocks                                           *org-clock-resolve*
+An open CLOCK line that isn't the running clock is dangling (e.g. after a
+crash). Clocking in resolves them first (`clock.auto_clock_resolution`),
+and after `clock.idle_time` idle minutes you are asked about the running
+clock (the system idle time is used on macOS and with xprintidle). Keys:
+  k / K   keep N of the minutes (default all) and stay clocked in / out
+  t / T   keep the time until a given time
+  g / G   you got back N minutes ago: clock out when you left, clock in
+          again from then (G: stay out)
+  s / S   subtract the idle time: clock in again now (S: stay out; the
+          next clock in offers to start from the subtracted time)
+  C       cancel the clock
+  j / J   jump to the clock (J: clock it out first)
+  i / q   ignore
+`clock.auto_clockout_timer` clocks out after that many idle seconds.
 
 Durations in clock tables, clock sums and effort changes use `1d 2:30` from
 one day on, like Emacs `org-duration-format` (`duration_format = "h:mm"`
@@ -576,7 +621,12 @@ Agenda keys (all configurable under `mappings.agenda`):
   c               capture, with the date at point as default date
   l               log mode: closed items and clocks (also vl);
                   vL also shows state changes
-  C               clock report mode (also vR)
+  C               clock report mode (also vR): a clock table of the
+                  agenda files for the shown days
+                  (`agenda.clockreport_parameters`)
+  vc              clock check: only clocked entries, with their issues
+                  (gaps, overlaps, too long / short, no end time;
+                  `agenda.clock_consistency_checks`)
   E               entry text mode: show the first body lines of each
                   entry (`agenda.entry_text_maxlines`) (also vE)
   G               toggle the time grid (also vG)
@@ -736,8 +786,11 @@ Template fields:
   properties         table of properties added to the entry
   immediate_finish   finish without opening the capture window
   jump_to_captured   jump to the entry after finishing
-  clock_in           clock in while capturing
-  clock_resume       resume the previous clock after finishing
+  clock_in           clock the entry while capturing (stops the running
+                     clock); the time is logged when the capture ends
+  clock_keep         with clock_in, keep the clock running afterwards
+  clock_resume       with clock_in, clock the interrupted task in again
+                     when the capture ends or is aborted
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
   no_save            don't save the target file after capturing
   prepare_finalize   function(capture_bufnr), before the text is read
@@ -1164,18 +1217,27 @@ uses the `#+RESULTS` already in the buffer.
 <prefix>xu / xU  Update the block at the cursor / all blocks. <C-c><C-c> on
                  the `#+BEGIN:` line also updates it.
 
-clocktable parameters:
-  :scope     file|subtree|tree|treeN|agenda|file-with-archives|
-             ("a.org" "b.org")
-  :maxlevel  N
+clocktable parameters (the output matches Emacs 9.8):
+  :scope     file|subtree|tree|treeN|agenda|agenda-with-archives|
+             file-with-archives|("a.org" "b.org")
+  :maxlevel  N (default 2)
   :block     today, yesterday, thisweek, lastweek, thismonth, lastmonth,
-             thisyear, today-N, 2026-09-23, 2026-W39, 2026-09
-  :tstart / :tend   explicit start and end dates
+             thisq, lastq, thisyear, lastyear (the this* forms and today
+             take -N / +N), untilnow, 2026-09-23, 2026-W39, 2026-Q3,
+             2026-09, 2026. It wins over :tstart / :tend.
+  :tstart / :tend   timestamps or <now>, <today>, <yesterday>,
+             <tomorrow>, <-2d>, <+1w>, <-3h> (h from now, d w m y from
+             today)
+  :wstart / :mstart  first day of the week (1 = Monday) / of the month
   :step      day|week|semimonth|month|quarter|year: one table per period
              of the :block or :tstart/:tend range (`:stepskip0 t` skips
-             empty ones, `:wstart` sets the week start, 1 = Monday)
+             empty ones)
   :match     a match string (|org-match-syntax|)
-  :formula % add a percentage column
+  :formula % add a percentage column; :formula "$3=$2;t" adds a
+             #+TBLFM line. A #+TBLFM below the table survives updates.
+  :sort (2 . ?T)  sort the rows by a column (a/A n/N t/T)
+  :lang de   headers in de, es, fr, nl, nn, pl, pt-BR or sk
+  :filetitle t  #+TITLE instead of the file name in the file column
   :properties ("Effort" "OWNER")   property columns (`:inherit-props t`)
   :level t   a level column        :timestamp t  a timestamp column
   :tags t    a tags column         :emphasize t  bold level 1, italic 2
@@ -1183,7 +1245,8 @@ clocktable parameters:
   :hidefiles t  no file column     :tcolumns N   at most N time columns
   :compact t    one time column, indented headlines
   :indent nil   no `\_` indentation
-  :narrow 40!   cut headlines at 40 characters (the default)
+  :narrow 40!   cut headlines at 40 characters (the default); :narrow 40
+                adds a <40> width row instead
   :header "text"  replace the `#+CAPTION:` line
 
 columnview parameters: `:id local|global|file:path|ID` (default local),
@@ -1407,12 +1470,21 @@ refile ~
   include_current_file true, targets {}, verify nil, log false,
   reverse_note_order false
 clock ~
-  out_when_done true, into_drawer true, out_remove_zero_time true,
+  out_when_done true, into_drawer true (or a drawer name / number),
+  out_remove_zero_time true, rounding_minutes 0, in_resume false,
   in_switch_to_state nil (keyword or function(keyword)),
   out_switch_to_state nil (keyword or function(keyword)),
   notify_effort true, history_length 35, continuously false,
-  statusline_icon "⏱", clocktable_default { maxlevel, scope, block },
-  persist true, persist_file
+  mode_line_total "auto", string_limit 0, heading_function nil,
+  task_overrun_text nil, sound nil, notification_handler nil,
+  idle_time nil, auto_clockout_timer nil,
+  auto_clock_resolution "when-no-clock-is-running",
+  report_include_clocking_task false, goto_may_find_recent_task true,
+  goto_before_context 2, display_default_range "thisyear",
+  ask_before_exiting false, statusline_icon "⏱",
+  clocktable_default { maxlevel 2, scope, block },
+  persist true ("clock" | "history"), persist_query_resume false,
+  persist_file
 links ~
   abbreviations {}, types {}, confirm_shell true,
   use_id "create-if-interactive" (true|false|"use-existing"), file_apps {}
@@ -1708,7 +1780,6 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   of stopping the export.
 - Not implemented:
   - diary sexps `<%%(...)>`
-  - clock idle detection
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
 - Column view is a separate table buffer rather than overlays on the

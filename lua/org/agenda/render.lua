@@ -298,6 +298,68 @@ local function show_grid(grid, d, today, span, has_timed)
   return (set.daily and span == "day") or (set.weekly and span ~= "day") or (set.today and d == today)
 end
 
+--- Minutes of an org-duration value ("10:00", 30, "1d 2:00").
+local function duration_minutes(v)
+  if type(v) == "number" then
+    return v
+  end
+  return v and date.parse_duration(tostring(v)) or nil
+end
+
+--- Does the gap [t1, t2] (minutes) contain one of the `ok` times of day?
+--- (org-agenda-check-clock-gap)
+local function gap_ok(t1, t2, ok)
+  if not ok or #ok == 0 then
+    return false
+  end
+  -- Emacs compares (t / 36000) seconds here, so "more than 24" is 10 days
+  if (t2 - t1) / 600 > 24 then
+    return true
+  end
+  local min1, min2 = t1 % 1440, t2 % 1440
+  if min2 < min1 then
+    min2 = min2 + 1440
+  end
+  for _, x in ipairs(ok) do
+    x = duration_minutes(x) or 0
+    if x < min1 then
+      x = x + 1440
+    end
+    if min1 <= x and x <= min2 then
+      return true
+    end
+  end
+  return false
+end
+
+--- The clocking issue of a clock item for the clock check
+--- (org-agenda-show-clocking-issues), or nil. `state.tlend` carries the
+--- end of the previous clock across the agenda.
+local function clock_issue(it, state)
+  local checks = config.opts.agenda.clock_consistency_checks or {}
+  local c = it.clock
+  if not c.stop then
+    return string.format("No end time: (%s)", date.duration_to_string(date.now():minutes() - c.start))
+  end
+  local maxtime = duration_minutes(checks.max_duration or "24:00") or 1440
+  local mintime = duration_minutes(checks.min_duration or 0) or 0
+  local maxgap = duration_minutes(checks.max_gap or "30:00") or 1800
+  local dt = c.stop - c.start
+  local tlend = state.tlend or 0
+  local issue
+  if dt > maxtime then
+    issue = "Clocking interval is very long: " .. date.duration_to_string(dt)
+  elseif dt < mintime then
+    issue = "Clocking interval is very short: " .. date.duration_to_string(dt)
+  elseif tlend > 0 and c.start < tlend then
+    issue = string.format("Clocking overlap: %d minutes", tlend - c.start)
+  elseif tlend > 0 and c.start > tlend + maxgap and not gap_ok(tlend, c.start, checks.gap_ok_around) then
+    issue = string.format("Clocking gap: %d minutes", c.start - tlend)
+  end
+  state.tlend = c.stop
+  return issue
+end
+
 --- Render the item list of one day, with time grid.
 local function render_day(b, list, d, ctx)
   local acfg = config.opts.agenda
@@ -363,6 +425,12 @@ local function render_day(b, list, d, ctx)
     elseif r.kind == 2 then
       b:add({ { pad }, { fmt_min(r.min) .. " " .. (acfg.current_time_string or "now"), "OrgAgendaCurrentTime" } })
     else
+      if ctx.log_mode == "clockcheck" and r.item.clock then
+        local issue = clock_issue(r.item, ctx.clockcheck)
+        if issue then
+          b:add({ { string.format("%-43s", " " .. issue), "OrgAgendaClockIssue" } })
+        end
+      end
       M.add_item(b, r.item, ctx)
     end
   end
@@ -381,75 +449,29 @@ local function filter_list(list, ctx)
   return out
 end
 
---- Clock summary for the span (org-agenda-clockreport-mode).
+--- Clock table for the span (org-agenda-clockreport-mode): a clocktable
+--- over the agenda files with `agenda.clockreport_parameters`, from the
+--- first day of the span to the end of the last.
 function M.clock_report(b, files, from, to)
-  local from_min, to_min = from * 1440, (to + 1) * 1440
-  local maxlevel = ((config.opts.clock or {}).clocktable_default or {}).maxlevel or 3
-  local rows = {}
-  local total = 0
-  for _, file in ipairs(files) do
-    local file_rows, file_total = {}, 0
-    local function walk(hl)
-      local m = hl:clocked_minutes(from_min, to_min, true)
-      if m > 0 and hl.level <= maxlevel then
-        local indent = hl.level > 1 and ("\\_" .. string.rep("  ", hl.level - 2) .. " ") or ""
-        file_rows[#file_rows + 1] = { "", indent .. hl:plain_title(), date.format_duration(m) }
-        for _, c in ipairs(hl.children) do
-          walk(c)
-        end
-      end
-    end
-    for _, hl in ipairs(file.children) do
-      if not hl:is_hidden_by_ancestor() then
-        file_total = file_total + hl:clocked_minutes(from_min, to_min, true)
-        walk(hl)
-      end
-    end
-    if file_total > 0 then
-      rows[#rows + 1] = "hline"
-      rows[#rows + 1] = {
-        vim.fn.fnamemodify(file.filename or "buffer", ":t"),
-        "*File time*",
-        "*" .. date.format_duration(file_total) .. "*",
-      }
-      vim.list_extend(rows, file_rows)
-      total = total + file_total
+  local acfg = config.opts.agenda
+  local params = vim.deepcopy(acfg.clockreport_parameters or { link = true, maxlevel = 2 })
+  params.block, params.step = nil, nil
+  params.scope = files
+  params.tstart = "[" .. date.from_days(from):to_date_string() .. "]"
+  params.tend = "[" .. date.from_days(to + 1):to_date_string() .. "]"
+  params.header = ""
+  local ok, lines = pcall(require("org.clock").clocktable, params, vim.api.nvim_get_current_buf())
+  if acfg.clock_report_header then
+    for _, l in ipairs(vim.split(acfg.clock_report_header, "\n", { plain = true, trimempty = true })) do
+      b:text(l, "OrgAgendaHeader")
     end
   end
-  b:text("")
-  b:text(
-    string.format(
-      "Clock summary report: [%s]--[%s]",
-      date.from_days(from):to_date_string(),
-      date.from_days(to):to_date_string()
-    ),
-    "OrgAgendaHeader"
-  )
-  local all = {
-    { "File", "Headline", "Time" },
-    "hline",
-    { "", "ALL *Total time*", "*" .. date.format_duration(total) .. "*" },
-  }
-  vim.list_extend(all, rows)
-  local w = { 0, 0, 0 }
-  for _, r in ipairs(all) do
-    if type(r) == "table" then
-      for i = 1, 3 do
-        w[i] = math.max(w[i], utils.width(r[i]))
-      end
-    end
+  if not ok then
+    b:text("Clock report: " .. tostring(lines), "ErrorMsg")
+    return
   end
-  for _, r in ipairs(all) do
-    if r == "hline" then
-      b:text("|" .. string.rep("-", w[1] + 2) .. "+" .. string.rep("-", w[2] + 2) .. "+" .. string.rep("-", w[3] + 2) .. "|")
-    else
-      b:text(string.format(
-        "| %s | %s | %s |",
-        utils.pad_right(r[1], w[1]),
-        utils.pad_right(r[2], w[2]),
-        utils.pad_left(r[3], w[3])
-      ))
-    end
+  for _, l in ipairs(lines) do
+    b:text(l)
   end
 end
 
@@ -478,7 +500,7 @@ function M.agenda_block(b, block, ctx)
   end
   b:text(header, "OrgAgendaHeader")
   local sorting = block.sorting or (acfg.sorting or {}).agenda or { "time-up", "priority-down", "category-keep" }
-  local dctx = vim.tbl_extend("force", ctx, { agenda = true, span = span })
+  local dctx = vim.tbl_extend("force", ctx, { agenda = true, span = span, clockcheck = {} })
   for d = from, to do
     local wd = (d + 3) % 7 + 1
     local group = "OrgAgendaDate"

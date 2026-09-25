@@ -361,9 +361,15 @@ local function cell_value(s, flags, lisp)
     return s
   end
   if (flags.T or flags.t or flags.U) and s:find(":") then
-    local d = parse_duration(s)
-    if d then
-      return d
+    -- org-table-time-string-to-seconds: the first H:MM:SS or H:MM anywhere
+    -- in the field ("*1d 11:45*" reads 11:45), but not inside a timestamp
+    local neg, h, mi, se = s:match("(%-?)(%d+):(%d+):(%d+)")
+    if not h and not s:match("%d%d%d%d%-%d%d%-%d%d") then
+      neg, h, mi = s:match("(%-?)(%d+):(%d+)")
+    end
+    if h then
+      local v = tonumber(h) * 3600 + tonumber(mi) * 60 + (tonumber(se) or 0)
+      return neg == "-" and -v or v
     end
   end
   if s == "" then

@@ -2,13 +2,14 @@
 ---
 --- Writers are registered by name: `register(name, fn)` where
 --- `fn(params, ctx)` returns the block's content lines. `ctx` holds
---- `{ bufnr, start_line, end_line, name }`. Built-in: clocktable, columnview.
+--- `{ bufnr, start_line, end_line, name, content }` (`content` holds the
+--- block's current lines). Built-in: clocktable, columnview.
 
 local utils = require("org.utils")
 
 local M = {}
 
----@alias org.DblockWriter fun(params: table<string, any>, ctx: { bufnr: integer, start_line: integer, end_line: integer, name: string }): string[]|nil
+---@alias org.DblockWriter fun(params: table<string, any>, ctx: { bufnr: integer, start_line: integer, end_line: integer, name: string, content: string[] }): string[]|nil
 
 ---@type table<string, org.DblockWriter>
 M.writers = {}
@@ -49,10 +50,23 @@ function M.parse_params(str)
     local j = i + #ws
     local c = str:sub(j, j)
     if c == '"' then
-      local close = str:find('"', j + 1, true)
-      close = close or n
-      value = str:sub(j + 1, close - 1)
-      i = close + 1
+      -- a Lisp string: \" and \\ are escapes, \n a newline
+      local k, buf = j + 1, {}
+      while k <= n do
+        local ch = str:sub(k, k)
+        if ch == "\\" and k < n then
+          local nx = str:sub(k + 1, k + 1)
+          buf[#buf + 1] = nx == "n" and "\n" or nx == "t" and "\t" or nx
+          k = k + 2
+        elseif ch == '"' then
+          break
+        else
+          buf[#buf + 1] = ch
+          k = k + 1
+        end
+      end
+      value = table.concat(buf)
+      i = k + 1
     elseif c == "(" then
       local depth, k = 0, j
       while k <= n do
@@ -147,6 +161,7 @@ function M.update_block(bufnr, block)
     start_line = block.start_line,
     end_line = block.end_line,
     name = block.name,
+    content = vim.api.nvim_buf_get_lines(bufnr, block.start_line, block.end_line - 1, false),
   })
   if not ok then
     utils.error("Dynamic block " .. block.name .. ": " .. tostring(lines))
@@ -197,19 +212,7 @@ end
 
 --- Insert (or update) a clock table at the cursor (org-clock-report).
 function M.insert_clocktable()
-  local bufnr = vim.api.nvim_get_current_buf()
-  local existing = M.at_cursor()
-  if existing and existing.name:lower() == "clocktable" then
-    return M.update_block(bufnr, existing)
-  end
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local maxlevel = ((require("org.config").opts.clock or {}).clocktable_default or {}).maxlevel or 3
-  vim.api.nvim_buf_set_lines(bufnr, lnum, lnum, false, {
-    "#+BEGIN: clocktable :scope file :maxlevel " .. maxlevel,
-    "#+END:",
-  })
-  local block = M.find_at(bufnr, lnum + 1)
-  return M.update_block(bufnr, block)
+  return require("org.clock").clock_report()
 end
 
 --- Insert `#+BEGIN: name params` / `#+END:` below the cursor line and
@@ -279,7 +282,7 @@ end
 ---------------------------------------------------------------------------
 
 M.register("clocktable", function(params, ctx)
-  return require("org.clock").clocktable(params, ctx.bufnr, ctx.start_line)
+  return require("org.clock").clocktable(params, ctx.bufnr, ctx.start_line, ctx.content)
 end)
 
 M.register("columnview", function(params, ctx)

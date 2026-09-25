@@ -117,7 +117,8 @@ describe("clock", function()
     })
     local lines = clock.clocktable({ maxlevel = 2 }, buf)
     ok(lines[1]:match("^#%+CAPTION: Clock summary at"))
-    eq("| Headline     | Time   |      |", lines[2])
+    -- half the Time cells are numbers: Emacs right-aligns the column
+    eq("| Headline     |   Time |      |", lines[2])
     eq("|--------------+--------+------|", lines[3])
     eq("| *Total time* | *1:45* |      |", lines[4])
     eq("| Project      |   1:30 |      |", lines[6])
@@ -146,7 +147,7 @@ describe("clock", function()
       tags = true,
       emphasize = true,
     }, buf)
-    eq("| L | Tags | Effort | Headline       | Time   |        | %     |", lines[2])
+    eq("| L | Tags | Effort | Headline       | Time   |        |     % |", lines[2])
     eq("|   |      |        | *Total time*   | *2:00* |        | 100.0 |", lines[4])
     eq("| 1 | work |   2:00 | *Project*      | *1:00* |        |  50.0 |", lines[6])
     eq("| 2 | work |        | \\_  /Task one/ |        | /1:00/ |  50.0 |", lines[7])
@@ -164,8 +165,8 @@ describe("clock", function()
     local lines = clock.clocktable({ maxlevel = 2, compact = true, timestamp = true }, buf)
     eq("| Timestamp        | Headline                                 | Time      |", lines[2])
     eq("|                  | *Total time*                             | *1d 2:30* |", lines[4])
-    eq("| <2026-09-21 Mon> | A very long headline that goes on and... |   1d 2:30 |", lines[6])
-    eq("|                  | \\_  Child                                |      0:30 |", lines[7])
+    eq("| <2026-09-21 Mon> | A very long headline that goes on and... | 1d 2:30   |", lines[6])
+    eq("|                  | \\_  Child                                | 0:30      |", lines[7])
   end)
 
   it("clock table :step", function()
@@ -181,7 +182,9 @@ describe("clock", function()
     eq("| *Total time* | *1:00* |", lines[5])
     eq("Daily report: [2026-09-23 Wed]", lines[9])
     eq("| *Total time* | *0:30* |", lines[12])
-    eq(14, #lines)
+    -- the skipped Sunday leaves an empty line, like Emacs
+    eq(15, #lines)
+    eq("", lines[15])
     lines = clock.clocktable({ step = "week", tstart = "<2026-09-16 Wed>", tend = "<2026-09-30 Wed>" }, buf)
     eq("Weekly report starting on: [2026-09-16 Wed]", lines[2])
     eq("| *Total time* | *0:00* |", lines[5])
@@ -245,16 +248,39 @@ describe("clock", function()
     eq({ "B", "A" }, vim.tbl_map(function(h)
       return h.title
     end, clock.history))
-    local utils = require("org.utils")
-    local orig = utils.select
-    utils.select = function(items, opts)
-      eq("A  (" .. vim.fn.fnamemodify(items[2].path, ":t") .. ")", opts.format_item(items[2]))
-      return items[2]
+    local ui = require("org.ui")
+    local orig = ui.menu
+    local seen
+    ui.menu = function(opts)
+      seen = {}
+      for _, it in ipairs(opts.items) do
+        seen[#seen + 1] = it.heading and it.label or (it.key .. " " .. vim.trim(it.label))
+      end
+      -- recent task 2 is A
+      for _, it in ipairs(opts.items) do
+        if it.key == "2" then
+          return it.value
+        end
+      end
     end
     clock.clock_in_select()
-    utils.select = orig
+    ui.menu = orig
+    local cat = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t:r")
+    eq({
+      "The task interrupted by starting the last one",
+      "i " .. cat .. "  A",
+      "Current Clocking Task",
+      "c " .. cat .. "  B",
+      "Recent Tasks",
+      "1 " .. cat .. "  B",
+      "2 " .. cat .. "  A",
+    }, vim.tbl_map(function(l)
+      return (l:gsub("%s+", " "):gsub(cat .. " ", cat .. "  "))
+    end, seen))
     eq("A", clock.active().title)
     eq("A", clock.history[1].title)
+    -- B was interrupted
+    eq("B", clock.interrupted.title)
     clock.clock_cancel()
   end)
 
@@ -304,7 +330,8 @@ describe("clock", function()
     local ui = require("org.ui")
     local utils = require("org.utils")
     local omenu, oinput = ui.menu, utils.input
-    local answers = { B = "k", A = "C" }
+    -- K: keep 30 minutes and stay clocked out (k would clock in again)
+    local answers = { B = "K", A = "C" }
     ui.menu = function(opts)
       return answers[opts.title:match(": (%w+)$")] or "i"
     end

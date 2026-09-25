@@ -117,8 +117,10 @@ function M.agenda(files, from, to, opts)
   local acfg = vim.tbl_extend("force", cfg.agenda, opts.block or {})
   local today = opts.today or date.today_days()
   local by_day = {}
+  -- the clock check lists clocked entries only
+  local clockcheck = opts.log_mode == "clockcheck"
   local function add(day, item)
-    if day < from or day > to then
+    if day < from or day > to or (clockcheck and not item.log) then
       return
     end
     item.day = day
@@ -129,6 +131,9 @@ function M.agenda(files, from, to, opts)
   local log_items = {}
   for _, k in ipairs(acfg.log_mode_items or { "closed", "clock" }) do
     log_items[k] = true
+  end
+  if clockcheck then
+    log_items = { clock = true }
   end
   local habit_cfg = acfg.habits or {}
 
@@ -328,6 +333,13 @@ function M.agenda(files, from, to, opts)
       end
       if log_items.clock or opts.log_mode == "all" then
         for _, c in ipairs(hl.clocks) do
+          local title = hl.title
+          -- a clock-out note right below the CLOCK line (org-agenda-log-mode-add-notes)
+          local note = acfg.log_mode_add_notes ~= false
+            and (hl.file.lines[c.line + 1] or ""):match("^%s*%-%s+([^%-%s].-)%s*$")
+          if note then
+            title = title .. " - " .. note
+          end
           add(c.start:days(), new_item(hl, {
             type = "clock",
             date = c.start,
@@ -337,6 +349,8 @@ function M.agenda(files, from, to, opts)
             face = "OrgAgendaLog",
             log = true,
             clock_line = c.line,
+            clock = { start = c.start:minutes(), stop = c["end"] and c["end"]:minutes() or nil },
+            title = title,
           }))
         end
       end

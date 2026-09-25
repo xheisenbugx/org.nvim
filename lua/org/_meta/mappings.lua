@@ -59,10 +59,12 @@
 ---| "clock_goto" # Go to clocked task
 ---| "clock_in" # Clock in
 ---| "clock_in_last" # Clock in last task
+---| "clock_mark_default_task" # Mark entry as default clocking task
 ---| "clock_modify_effort" # Change effort of clocked task
 ---| "clock_out" # Clock out
----| "clock_report" # Insert clock report
----| "clock_resolve" # Resolve dangling clocks
+---| "clock_report" # Insert / update clock report (count: first in buffer)
+---| "clock_resolve" # Resolve open clocks (count: dangling only)
+---| "clock_toggle_auto_clockout" # Toggle auto clock-out after idle time
 ---| "clone_subtree" # Clone subtree with time shift
 ---| "column_view" # Column view
 ---| "context_action" # Context action (C-c C-c)
@@ -936,6 +938,9 @@
 ---@field log_mode? org.MappingLhs
 --- Toggle log mode showing all log entries. Default: `vL`
 ---@field log_all_mode? org.MappingLhs
+--- Toggle the clock check: only clocked entries, with their clocking issues
+--- (gaps, overlaps, too long / short, no end). Default: `vc`
+---@field clockcheck_mode? org.MappingLhs
 --- Toggle the clock report table. Default: `{ "C", "vR" }`
 ---@field clockreport_mode? org.MappingLhs
 --- Toggle showing entry text under each item. Default: `{ "E", "vE" }`

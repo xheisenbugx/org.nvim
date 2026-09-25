@@ -1403,6 +1403,11 @@ M.actions = {
   log_all_mode = function()
     toggle("log_mode", "Log mode (all entries)", "all")
   end,
+  clockcheck_mode = function()
+    S.log_mode = S.log_mode ~= "clockcheck" and "clockcheck" or false
+    M.redo()
+    utils.notify("Clock check " .. (S.log_mode and "on" or "off"))
+  end,
   time_grid = function()
     S.time_grid_off = not S.time_grid_off
     M.redo()

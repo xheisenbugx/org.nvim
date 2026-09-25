@@ -183,9 +183,27 @@ M.defaults = {
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,
-    start_with_log_mode = false, -- false | true | "all"
+    start_with_log_mode = false, -- false | true | "all" | "clockcheck"
+    --- Add the first line of a clock or state note to log items
+    --- (org-agenda-log-mode-add-notes).
+    log_mode_add_notes = true,
     start_with_follow_mode = false,
     start_with_clockreport_mode = false,
+    --- Clocktable parameters of the clock report mode
+    --- (org-agenda-clockreport-parameter-plist); :scope and the time range
+    --- come from the agenda.
+    clockreport_parameters = { link = true, maxlevel = 2 },
+    --- Text shown above the clock report (org-agenda-clock-report-header).
+    clock_report_header = nil,
+    --- What the clock check (`vc`) reports (org-agenda-clock-consistency-checks):
+    --- clocks longer than max_duration or shorter than min_duration, gaps
+    --- longer than max_gap unless they contain a gap_ok_around time of day.
+    clock_consistency_checks = {
+      max_duration = "10:00",
+      min_duration = 0,
+      max_gap = "0:05",
+      gap_ok_around = { "4:00" },
+    },
     start_with_entry_text_mode = false,
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
@@ -226,9 +244,22 @@ M.defaults = {
   -- Clocking
   ---------------------------------------------------------------------------
   clock = {
+    --- Clock out when the clocked entry is marked done: true (any done
+    --- state) or a list of states (org-clock-out-when-done).
     out_when_done = true,
-    into_drawer = true, -- true = log_into_drawer, or a drawer name
+    --- Drawer for CLOCK lines (org-clock-into-drawer): true = the log
+    --- drawer (LOGBOOK), a drawer name, false = none, or a number N = only
+    --- once the entry has N clock lines. CLOCK_INTO_DRAWER overrides it.
+    into_drawer = true,
+    --- Remove CLOCK lines of 0:00 on clock out (Emacs default: nil).
     out_remove_zero_time = true,
+    --- Round clock-in/out times to this many minutes; 0 = no rounding,
+    --- "same-as-time-stamp" = `time_stamp_rounding_minutes[1]`
+    --- (org-clock-rounding-minutes).
+    rounding_minutes = 0,
+    --- Clocking into an entry with an open CLOCK line continues that clock
+    --- (org-clock-in-resume).
+    in_resume = false,
     --- State to switch to on clock in: a keyword, or function(keyword) -> keyword|nil
     --- (receives the task's current keyword, nil when it has none)
     in_switch_to_state = nil, -- e.g. "NEXT"
@@ -240,9 +271,54 @@ M.defaults = {
     history_length = 35,
     --- Start a new clock where the last one stopped (org-clock-continuously).
     continuously = false,
+    --- Time shown in the statusline besides the running clock
+    --- (org-clock-mode-line-total, CLOCK_MODELINE_TOTAL property):
+    --- "current" | "today" | "repeat" (since LAST_REPEAT) | "all" | "auto"
+    --- ("repeat" for repeated tasks, else "all").
+    mode_line_total = "auto",
+    --- Maximum length of the statusline text, 0 = no limit (org-clock-string-limit).
+    string_limit = 0,
+    --- function(headline) -> string: the task name in the statusline
+    --- (org-clock-heading-function).
+    heading_function = nil,
+    --- Text put before the statusline once the effort is reached
+    --- (org-clock-task-overrun-text).
+    task_overrun_text = nil,
+    --- Sound for the effort notification: true = bell, or a sound file
+    --- (org-clock-sound).
+    sound = nil,
+    --- function(msg) or program called with the message instead of
+    --- vim.notify (org-show-notification-handler).
+    notification_handler = nil,
+    --- Ask how to resolve the running clock after this many idle minutes
+    --- (org-clock-idle-time). nil = never.
+    idle_time = nil,
+    --- Clock out after this many idle seconds (org-clock-auto-clockout-timer).
+    auto_clockout_timer = nil,
+    --- Resolve dangling clocks when clocking in: "when-no-clock-is-running",
+    --- true (always) or false (org-clock-auto-clock-resolution).
+    auto_clock_resolution = "when-no-clock-is-running",
+    --- Count the running clock in clock tables and sums
+    --- (org-clock-report-include-clocking-task).
+    report_include_clocking_task = false,
+    --- clock_goto falls back to the last clocked task (org-clock-goto-may-find-recent-task).
+    goto_may_find_recent_task = true,
+    --- Lines shown above the entry after clock_goto (org-clock-goto-before-context).
+    goto_before_context = 2,
+    --- Range of clock_display without a count (org-clock-display-default-range):
+    --- a :block value such as "thisyear", "thismonth", "untilnow".
+    display_default_range = "thisyear",
+    --- Ask to clock out when quitting Neovim with a running clock
+    --- (org-clock-ask-before-exiting; Emacs asks by default).
+    ask_before_exiting = false,
     statusline_icon = "⏱",
-    clocktable_default = { maxlevel = 3, scope = "file", block = nil },
+    --- Parameters for clocktables that don't set them (org-clocktable-defaults).
+    clocktable_default = { maxlevel = 2, scope = "file", block = nil },
+    --- Keep the running clock and the clock history across restarts:
+    --- true (both), "clock", "history" or false (org-clock-persist).
     persist = true,
+    --- Ask before resuming a saved clock (org-clock-persist-query-resume).
+    persist_query_resume = false,
     persist_file = data_dir .. "/clock.json",
   },
 
@@ -760,6 +836,7 @@ M.defaults = {
       add_note = { "z", "<C-c><C-z>" },
       log_mode = { "l", "vl" },
       log_all_mode = "vL",
+      clockcheck_mode = "vc",
       clockreport_mode = { "C", "vR" },
       entry_text_mode = { "E", "vE" },
       archives_mode = "va",
