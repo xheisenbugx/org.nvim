@@ -108,6 +108,21 @@ lazy.nvim / LazyVim: >lua
 Other plugin managers: add the plugin to 'runtimepath' and call: >lua
     require("org").setup({ ... })
 <
+
+Option defaults follow Emacs Org 9.8 (see |org-config|): with no
+`agenda_files` the agenda and refile see only the current file until you
+add some (`<C-c>[` adds the current file), `todo_keywords` is `TODO | DONE`,
+nothing is logged on DONE and files open fully expanded. A common starting
+point closer to many Emacs setups: >lua
+    require("org").setup({
+      agenda_files = { "~/org" },
+      default_notes_file = "~/org/refile.org",
+      todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" },
+      log_done = "time",
+      log_into_drawer = true,
+      startup_folded = "overview",
+    })
+<
 If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
@@ -270,7 +285,8 @@ Each string is a sequence, and keywords after `|` are done states: >lua
 In `(x!/@)`, `x` is the fast-selection key, the first flag applies when
 entering the state and the flag after `/` applies when leaving it: `!` logs a
 timestamp and `@` asks for a note. Log entries go into the `log_into_drawer`
-drawer (default `LOGBOOK`), or the drawer named by the inherited
+drawer (default none: under the headline, like Emacs; `true` = `LOGBOOK`), or
+the drawer named by the inherited
 `LOG_INTO_DRAWER` property (`nil` logs under the headline);
 `#+STARTUP: logdrawer / nologdrawer` also switch it.
 
@@ -1418,23 +1434,24 @@ default template. Summary:
 
 General ~
   org_directory             "~/org"   base for relative paths
-  agenda_files              { "~/org/**/*.org" }  files, dirs or globs
-  default_notes_file        "~/org/refile.org"
+  agenda_files              {}        files, dirs (not recursive), globs,
+                                      or a file listing them
+  default_notes_file        "~/.notes"
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
   win_border                "rounded"
 TODO and logging ~
-  todo_keywords             { "TODO(t) NEXT(n) | DONE(d)" }
+  todo_keywords             { "TODO | DONE" }
   todo_repeat_to_state      nil       nil (first keyword)|true|"KEYWORD"
   todo_state_tags_triggers  {}        |org-todo-tags-triggers|
   enforce_todo_dependencies           false
   enforce_todo_checkbox_dependencies  false
-  log_done                  "time"    false|"time"|"note"
+  log_done                  false     false|"time"|"note"
   log_repeat                "time"
   log_reschedule            false     false|"time"|"note"
   log_redeadline            false
   log_note_clock_out        false     ask for a note on clock out
-  log_into_drawer           "LOGBOOK" or false
+  log_into_drawer           false     true (LOGBOOK), a drawer name, false
   log_states_order_reversed true
 Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
@@ -1452,15 +1469,16 @@ Tables ~
   table_copy_increment      true      <S-CR> step: true (difference to the
                                       field above, else 1), a number, false
 Buffer ~
-  startup_folded            "overview"  also "show2levels".."show5levels"
+  startup_folded            "showeverything"  also "overview", "content",
+                                      "showall", "show2levels".."show5levels"
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
-  edit_src_content_indentation  0
-  ellipsis                  " …"
-  blank_before_new_entry    { heading = "auto", plain_list_item = false }
+  edit_src_content_indentation  2
+  ellipsis                  "..."
+  blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   archive_location          "%s_archive::"
@@ -1495,7 +1513,7 @@ clock ~
   out_remove_zero_time false, rounding_minutes 0, in_resume false,
   in_switch_to_state nil (keyword or function(keyword)),
   out_switch_to_state nil (keyword or function(keyword)),
-  notify_effort true, history_length 35, continuously false,
+  notify_effort true, history_length 5, continuously false,
   mode_line_total "auto", string_limit 0, heading_function nil,
   task_overrun_text nil, sound nil, notification_handler nil,
   idle_time nil, auto_clockout_timer nil,
@@ -1504,7 +1522,7 @@ clock ~
   goto_before_context 2, display_default_range "thisyear",
   ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
-  persist true ("clock" | "history"), persist_query_resume true,
+  persist false (true | "clock" | "history"), persist_query_resume true,
   persist_file
 timer ~    format "%s ", default_timer "0"
 links ~
@@ -1522,7 +1540,7 @@ export ~
   exclude_tags { "noexport" }, open_after_export, html { style,
   head_extra, mathjax }, text_width 72, pandoc { cmd, args }
 notifications ~
-  enabled false, reminder_time { 10, 0 }, check_interval 60,
+  enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil
 ui ~        see |org-appearance|
 mappings ~  see |org-keymaps|
