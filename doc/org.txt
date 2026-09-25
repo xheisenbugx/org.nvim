@@ -29,14 +29,15 @@ CONTENTS                                                        *org-contents*
   20. Dynamic blocks ............................ |org-dblocks|
   21. Export .................................... |org-export|
   22. Timers and notifications .................. |org-timers|
-  23. Completion ................................ |org-completion|
-  24. Appearance and highlights ................. |org-appearance|
-  25. Configuration reference ................... |org-config|
-  26. Keymaps reference ......................... |org-keymaps|
-  27. Commands .................................. |org-commands|
-  28. Lua API ................................... |org-api|
-  29. In-buffer settings ........................ |org-in-buffer-settings|
-  30. Differences from Emacs .................... |org-differences|
+  23. Encryption (org-crypt) .................... |org-crypt|
+  24. Completion ................................ |org-completion|
+  25. Appearance and highlights ................. |org-appearance|
+  26. Configuration reference ................... |org-config|
+  27. Keymaps reference ......................... |org-keymaps|
+  28. Commands .................................. |org-commands|
+  29. Lua API ................................... |org-api|
+  30. In-buffer settings ........................ |org-in-buffer-settings|
+  31. Differences from Emacs .................... |org-differences|
 
 ==============================================================================
 1. INTRODUCTION                                             *org-introduction*
@@ -1373,7 +1374,88 @@ notify-send is also used. Set `notifications.notifier = function(n) ... end`
 to deliver them yourself.
 
 ==============================================================================
-23. COMPLETION                                                *org-completion*
+23. ENCRYPTION (ORG CRYPT)                                         *org-crypt*
+
+Encrypt the text of an entry with GnuPG, like Emacs' org-crypt. The `gpg`
+command (`crypt.gpg_program`) must be installed and set up. The headline,
+planning line, property drawer, clock lines, LOGBOOK drawer and the blank
+lines after them stay in clear; the rest of the entry, subtree included, is
+replaced by an ASCII-armored message (trailing blank lines stay outside):
+>
+    * Totally secret                                              :crypt:
+    :PROPERTIES:
+    :CRYPTKEY: 0x0123456789012345678901234567890123456789
+    :END:
+    -----BEGIN PGP MESSAGE-----
+
+    jA0ECQMIkNjbrRrbvfn80mABVGV15nu5Iag/HgOzdDr3dtq1HTkNqHu2MN2nc6ow
+    ...
+    -----END PGP MESSAGE-----
+<
+The format is the one Emacs writes: files encrypted in either editor
+decrypt in the other.
+
+:Org crypt_encrypt_entry     Encrypt the entry at the cursor
+                             (org-encrypt-entry). Encrypted entries are
+                             left alone.
+:Org crypt_decrypt_entry     Decrypt the entry at the cursor
+                             (org-decrypt-entry).
+:Org crypt_encrypt_entries   Encrypt every entry matching
+                             `crypt.tag_matcher` (org-encrypt-entries).
+:Org crypt_decrypt_entries   Decrypt every matching entry
+                             (org-decrypt-entries).
+There are no default keys, as in Emacs; bind the actions in `mappings.org`.
+`:Org reveal` (<C-c><C-r>) decrypts the entry at the cursor first, as
+org-crypt does through `org-fold-reveal-start-hook`. `*_entries` skip
+archived and commented trees, like org-scan-tags.
+
+Keys: `crypt.key = false` encrypts symmetrically, always (Emacs
+`org-crypt-key` nil). Otherwise the `CRYPTKEY` property (inherited only
+through `use_property_inheritance`; the value `nil` means no key), or else
+`crypt.key`, is looked up in the public keyring and every key it matches
+becomes a recipient. When nothing matches (`""`, the default, never does)
+the entry is encrypted symmetrically. Unchanged decrypted text gets its old
+message back when encrypted again, so saving doesn't rewrite it.
+
+Passphrases are read with |inputsecret()| (twice when encrypting) and
+passed to gpg on stdin with `--pinentry-mode loopback`; for secret keys
+they are asked only when gpg-agent has none cached. During one
+`*_entries` run or save the symmetric passphrase is asked once.
+
+Encrypting on save: with `crypt.encrypt_on_save = true`, matching entries
+are encrypted before the buffer is written (Emacs
+`(org-crypt-use-before-save-magic)`). As in Emacs the buffer stays
+encrypted after writing; decrypt again to keep working. When an entry
+can't be encrypted the write is aborted.
+
+                                                           *org-crypt-leaks*
+Emacs' auto-save files leak decrypted text to disk; in Neovim the swap
+file ('swapfile') and a persistent undo file ('undofile') do. Before
+decrypting in a buffer that has either, `crypt.disable_auto_save` decides
+(org-crypt-disable-auto-save): `"ask"` (default) asks whether to turn both
+off for the buffer, `true` turns them off, `false` keeps them with a
+warning. `"encrypt"` (re-encrypt before auto-saving) is not possible, as
+Neovim has no hook before writing the swap file: it acts like `true`.
+Text you yank goes to registers, which 'shada' may save; for files you
+always keep encrypted consider an autocmd such as: >lua
+
+    vim.api.nvim_create_autocmd("BufReadPre", {
+      pattern = "*/secret/*.org",
+      command = "setlocal noswapfile noundofile shada=",
+    })
+<
+Tag inheritance: children inherit `crypt`, so `crypt_encrypt_entries` and
+`crypt_decrypt_entries` also visit them (harmless: they are encrypted with
+their parent). Emacs recommends `tags_exclude_from_inheritance = { "crypt"
+}` to keep the tag on the entries that carry it; like Emacs it is not the
+default.
+
+Config (`crypt`): `tag_matcher` "crypt" (a |org-match-syntax| expression),
+`key` "" (string or false), `encrypt_on_save` false, `disable_auto_save`
+"ask", `gpg_program` "gpg".
+
+==============================================================================
+24. COMPLETION                                                *org-completion*
 
 Completes (like Emacs `org-pcomplete`):
 - TODO keywords after stars
@@ -1397,7 +1479,7 @@ blink.cmp: >lua
     require("cmp").register_source("org", require("org.completion.cmp").new())
 <
 ==============================================================================
-24. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
+25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
 Options under `ui`:
   conceal_links          show only link descriptions (conceallevel=2)
@@ -1426,7 +1508,7 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   OrgHiddenStars OrgSparseMatch OrgAgenda*
 
 ==============================================================================
-25. CONFIGURATION REFERENCE                                       *org-config*
+26. CONFIGURATION REFERENCE                                       *org-config*
 
 Every option and its default is listed in `lua/org/config.lua`. Lists
 replace the default, tables are merged, and `capture.templates` replaces the
@@ -1525,6 +1607,8 @@ clock ~
   persist false (true | "clock" | "history"), persist_query_resume true,
   persist_file
 timer ~    format "%s ", default_timer "0"
+crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
+           disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
   abbreviations {}, types {}, confirm_shell true,
   use_id "create-if-interactive" (true|false|"use-existing"), file_apps {}
@@ -1546,7 +1630,7 @@ ui ~        see |org-appearance|
 mappings ~  see |org-keymaps|
 
 ==============================================================================
-26. KEYMAPS REFERENCE                                            *org-keymaps*
+27. KEYMAPS REFERENCE                                            *org-keymaps*
 
 Every mapping is `mappings.<section>.<action> = lhs | { lhs, ... } | false`.
 `<prefix>` expands to `mappings.prefix`. `mappings.disable_all = true` turns
@@ -1728,7 +1812,7 @@ Section `capture`: finalize, kill, refile.
 Section `edit_src`: save_exit, abort.
 
 ==============================================================================
-27. COMMANDS                                                    *org-commands*
+28. COMMANDS                                                    *org-commands*
 
                                                                         *:Org*
 :Org {action} [args]    Run any action by name (the names are those in
@@ -1749,7 +1833,7 @@ Additional subcommands:
   :Org notifications_start | notifications_stop
 
 ==============================================================================
-28. LUA API                                                          *org-api*
+29. LUA API                                                          *org-api*
 
 require("org").setup({opts})        configure (see |org-config|)
 require("org").agenda([key])        open the dispatcher or a view
@@ -1771,7 +1855,7 @@ Lower-level modules (stable within a major version):
 Targets are `{ bufnr = n, lnum = l }`.
 
 ==============================================================================
-29. IN-BUFFER SETTINGS                               *org-in-buffer-settings*
+30. IN-BUFFER SETTINGS                               *org-in-buffer-settings*
 
   #+TITLE: #+AUTHOR: #+DATE: #+EMAIL:   export metadata
   #+TODO: / #+SEQ_TODO: / #+TYP_TODO:   keyword sequences (replace config)
@@ -1797,7 +1881,7 @@ Targets are `{ bufnr = n, lnum = l }`.
 After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
 
 ==============================================================================
-30. DIFFERENCES FROM EMACS                                   *org-differences*
+31. DIFFERENCES FROM EMACS                                   *org-differences*
 
 - Notes (state changes with `@`, agenda `z`) are single-line prompts rather
   than a separate note buffer.
@@ -1820,7 +1904,7 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   of stopping the export.
 - Not implemented:
   - diary sexps `<%%(...)>`
-  - org-crypt, org-protocol, MobileOrg
+  - org-protocol, MobileOrg
   - inline image and LaTeX previews
 - Column view is a separate table buffer rather than overlays on the
   headlines. Digit keys keep their Vim meaning (counts) there instead of

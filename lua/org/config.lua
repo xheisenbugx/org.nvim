@@ -331,6 +331,28 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- Encryption (org-crypt)
+  ---------------------------------------------------------------------------
+  crypt = {
+    --- Match expression selecting the entries encrypt_entries,
+    --- decrypt_entries and encrypt_on_save work on (org-crypt-tag-matcher).
+    tag_matcher = "crypt",
+    --- Key(s) to encrypt for, matched against the public keyring; the
+    --- CRYPTKEY property overrides it. "" matches no key (symmetric unless
+    --- CRYPTKEY is set), false always encrypts symmetrically (org-crypt-key).
+    key = "",
+    --- Encrypt matching entries before writing the buffer
+    --- (org-crypt-use-before-save-magic).
+    encrypt_on_save = false,
+    --- Before decrypting in a buffer with a swap or undo file: "ask" to turn
+    --- them off, true to turn them off, false to keep them
+    --- (org-crypt-disable-auto-save). "encrypt" acts like true.
+    disable_auto_save = "ask",
+    --- The gpg executable (epg-gpg-program).
+    gpg_program = "gpg",
+  },
+
+  ---------------------------------------------------------------------------
   -- Timers
   ---------------------------------------------------------------------------
   timer = {

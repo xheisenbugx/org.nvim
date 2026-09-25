@@ -71,6 +71,10 @@
 ---| "copy_special" # Copy table region / subtree
 ---| "copy_subtree" # Copy subtree
 ---| "copy_visible" # Copy visible text
+---| "crypt_decrypt_entries" # Decrypt all entries matching crypt.tag_matcher
+---| "crypt_decrypt_entry" # Decrypt entry
+---| "crypt_encrypt_entries" # Encrypt all entries matching crypt.tag_matcher
+---| "crypt_encrypt_entry" # Encrypt entry
 ---| "ctrl_c_caret" # Sort table column / entries / items
 ---| "ctrl_c_minus" # Table hline / cycle bullet / toggle item
 ---| "ctrl_c_ret" # Table hline and move / insert heading

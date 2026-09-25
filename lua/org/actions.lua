@@ -180,6 +180,20 @@ M.list = {
   insert_columnview = { "org.dblock", "insert_columnview", desc = "Insert columnview block" },
   insert_dblock = { "org.dblock", "insert_dblock", desc = "Insert dynamic block" },
 
+  -- encryption
+  crypt_encrypt_entry = { "org.crypt", "encrypt_entry", desc = "Encrypt entry" },
+  crypt_decrypt_entry = { "org.crypt", "decrypt_entry", desc = "Decrypt entry" },
+  crypt_encrypt_entries = {
+    "org.crypt",
+    "encrypt_entries",
+    desc = "Encrypt all entries matching crypt.tag_matcher",
+  },
+  crypt_decrypt_entries = {
+    "org.crypt",
+    "decrypt_entries",
+    desc = "Decrypt all entries matching crypt.tag_matcher",
+  },
+
   -- timers
   timer_start = { "org.timer", "start", desc = "Start relative timer" },
   timer_stop = { "org.timer", "stop", desc = "Stop timer" },

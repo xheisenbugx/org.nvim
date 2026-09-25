@@ -44,6 +44,7 @@ function M.attach(bufnr)
   try("org.ui.decorations", "attach", bufnr)
   try("org.table", "attach", bufnr)
   try("org.clock", "attach", bufnr)
+  try("org.crypt", "attach", bufnr)
 
   vim.b[bufnr].undo_ftplugin = (vim.b[bufnr].undo_ftplugin or "") .. "|lua require('org.buffer').detach(" .. bufnr .. ")"
 end
