@@ -182,14 +182,21 @@ local function clocking_pred()
   if not ok or type(clock.active) ~= "function" then
     return nil
   end
-  local ok2, a = pcall(clock.active)
-  if not ok2 or not a then
+  if not clock.state then
     return nil
   end
-  local af = a.file or a.filename
-  af = af and vim.fs.normalize(af)
+  -- the headline holding the open CLOCK: line
+  local ok2, bufnr, clnum = pcall(clock.find_open_clock)
+  if not ok2 or not bufnr then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(clnum)
+  if not hl then
+    return nil
+  end
+  local path = vim.fs.normalize(clock.state.path)
   return function(it)
-    return it.filename ~= nil and af ~= nil and vim.fs.normalize(it.filename) == af and it.lnum == a.lnum
+    return it.filename ~= nil and vim.fs.normalize(it.filename) == path and it.lnum == hl.line
   end
 end
 

@@ -1,0 +1,256 @@
+---@meta
+
+---Options for `require("org").setup()`. Every field is optional: dict options
+---are merged key by key into the defaults, lists replace the default list.
+---@class org.Config
+---Base directory for org files; relative paths are resolved against it.
+---(default: `"~/org"`)
+---@field org_directory? string
+---Files, directories and globs scanned by the agenda, refile and id lookups.
+---Directories are scanned recursively for `*.org` files. A single string is
+---also accepted. (Emacs `org-agenda-files`, default: `{ "~/org/**/*.org" }`)
+---@field agenda_files? string|string[]
+---Default target for capture templates without a `target`.
+---(Emacs `org-default-notes-file`, default: `"~/org/refile.org"`)
+---@field default_notes_file? string
+---TODO keyword sequences, like Emacs `org-todo-keywords`. Each string is one
+---sequence: `"TODO(t) NEXT(n!) | DONE(d@/!)"`; `(k)` is a fast-selection key,
+---`!` logs a timestamp, `@` asks for a note, `/x` is the flag used when
+---leaving the state. A flat list with a `"|"` element (or a single string)
+---is also accepted. (default: `{ "TODO(t) NEXT(n) | DONE(d)" }`)
+---@field todo_keywords? string|string[]
+---State a repeating task returns to when marked done: `nil` = the first
+---keyword of its sequence, `true` = the state it had before, or a keyword.
+---The `REPEAT_TO_STATE` property overrides it.
+---(Emacs `org-todo-repeat-to-state`, default: `nil`)
+---@field todo_repeat_to_state? true|string
+---Tag changes on TODO state changes. Keys are keywords, `"todo"`, `"done"`
+---or `""` (no keyword); values map tags to `true` (add) / `false` (remove):
+---`{ CANCELLED = { CANCELLED = true }, done = { WAITING = false } }`.
+---(Emacs `org-todo-state-tags-triggers`, default: `{}`)
+---@field todo_state_tags_triggers? table<string, table<string, boolean>>
+---Block marking an entry DONE while its children are not DONE.
+---(Emacs `org-enforce-todo-dependencies`, default: `false`)
+---@field enforce_todo_dependencies? boolean
+---Block marking an entry DONE while it has unchecked checkboxes.
+---(Emacs `org-enforce-todo-checkbox-dependencies`, default: `false`)
+---@field enforce_todo_checkbox_dependencies? boolean
+---Logging when an entry is marked DONE: `false`, `"time"` (add `CLOSED:`)
+---or `"note"` (`CLOSED:` plus a note). (Emacs `org-log-done`, default: `"time"`)
+---@field log_done? false|"time"|"note"
+---Logging when a repeating task is marked done.
+---(Emacs `org-log-repeat`, default: `"time"`)
+---@field log_repeat? false|"time"|"note"
+---Logging when SCHEDULED is changed.
+---(Emacs `org-log-reschedule`, default: `false`)
+---@field log_reschedule? false|"time"|"note"
+---Logging when DEADLINE is changed.
+---(Emacs `org-log-redeadline`, default: `false`)
+---@field log_redeadline? false|"time"|"note"
+---Ask for a note when clocking out.
+---(Emacs `org-log-note-clock-out`, default: `false`)
+---@field log_note_clock_out? boolean
+---Drawer for state changes, notes and clock lines: a drawer name, `true`
+---(= `"LOGBOOK"`) or `false` (no drawer).
+---(Emacs `org-log-into-drawer`, default: `"LOGBOOK"`)
+---@field log_into_drawer? string|boolean
+---Put the newest log entries first.
+---(Emacs `org-log-states-order-reversed`, default: `true`)
+---@field log_states_order_reversed? boolean
+---Highest priority letter. (Emacs `org-priority-highest`, default: `"A"`)
+---@field priority_highest? string
+---Lowest priority letter. (Emacs `org-priority-lowest`, default: `"C"`)
+---@field priority_lowest? string
+---Priority of entries without a cookie.
+---(Emacs `org-priority-default`, default: `"B"`)
+---@field priority_default? string
+---Global tag list offered for completion and fast tag selection. Strings
+---may contain fast keys (`"work(w)"`) and `"{"` ... `"}"` elements for
+---mutually exclusive groups. A file's `#+TAGS:` replaces it.
+---(Emacs `org-tag-alist`, default: `{}`)
+---@field tags? string[]
+---Column tags are aligned to; negative = right-align so tags end at that
+---column. (Emacs `org-tags-column`, default: `-77`)
+---@field tags_column? integer
+---Whether tags are inherited by sub-headings.
+---(Emacs `org-use-tag-inheritance`, default: `true`)
+---@field use_tag_inheritance? boolean
+---Tags that are never inherited.
+---(Emacs `org-tags-exclude-from-inheritance`, default: `{}`)
+---@field tags_exclude_from_inheritance? string[]
+---Property inheritance: `true`, `false`, or a list of property names that
+---inherit. (Emacs `org-use-property-inheritance`, default: `false`)
+---@field use_property_inheritance? boolean|string[]
+---Properties that apply to every entry, e.g.
+---`{ Effort_ALL = "0:10 0:30 1:00 2:00" }`.
+---(Emacs `org-global-properties`, default: `{}`)
+---@field global_properties? table<string, string>
+---Constants for table formulas (`$name`). `#+CONSTANTS:` lines in a file
+---take precedence. (Emacs `org-table-formula-constants`, default: `{}`)
+---@field table_formula_constants? table<string, string|number>
+---How `table_copy_down` (<S-CR>) increments numbers and dates: `true` (by
+---the difference to the field above, else 1), a number (fixed step) or
+---`false`. (Emacs `org-table-copy-increment`, default: `true`)
+---@field table_copy_increment? boolean|number
+---Property holding effort estimates.
+---(Emacs `org-effort-property`, default: `"Effort"`)
+---@field effort_property? string
+---Format of durations in clock tables, clock sums and efforts: `"d h:mm"`
+---writes `1d 2:30` from one day on, `"h:mm"` writes `26:30`.
+---(Emacs `org-duration-format`, default: `"d h:mm"`)
+---@field duration_format? "d h:mm"|"h:mm"
+---Column view format used when a file has no `#+COLUMNS:`.
+---(Emacs `org-columns-default-format`,
+---default: `"%25ITEM %TODO %3PRIORITY %TAGS"`)
+---@field columns_default_format? string
+---Initial visibility when a file is opened; `#+STARTUP:` overrides it.
+---(Emacs `org-startup-folded`, default: `"overview"`)
+---@field startup_folded? "overview"|"content"|"showall"|"showeverything"|"nofold"|"show2levels"|"show3levels"|"show4levels"|"show5levels"
+---Fold drawers when a file is opened (`#+STARTUP: hidedrawers` /
+---`nohidedrawers`). (Emacs `org-hide-drawer-startup`, default: `true`)
+---@field hide_drawer_startup? boolean
+---Fold `#+begin_...` blocks when a file is opened (`#+STARTUP: hideblocks`).
+---(Emacs `org-hide-block-startup`, default: `false`)
+---@field hide_block_startup? boolean
+---Let visibility cycling open subtrees tagged `:ARCHIVE:`.
+---(Emacs `org-cycle-open-archived-trees`, default: `false`)
+---@field cycle_open_archived_trees? boolean
+---Heading that collects footnote definitions (created when missing);
+---`false` puts each definition at the end of the reference's section.
+---(Emacs `org-footnote-section`, default: `"Footnotes"`)
+---@field footnote_section? string|false
+---Indent body text, planning lines and drawers to the headline level.
+---(Emacs `org-adapt-indentation`, default: `false`)
+---@field adapt_indentation? boolean
+---Indentation added to src block contents in the edit buffer.
+---(Emacs `org-edit-src-content-indentation`, default: `0`)
+---@field edit_src_content_indentation? integer
+---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `" …"`)
+---@field ellipsis? string
+---Blank line before new headings / list items. A single value applies to
+---headings. (Emacs `org-blank-before-new-entry`,
+---default: `{ heading = "auto", plain_list_item = false }`)
+---@field blank_before_new_entry? org.Config.BlankBeforeNewEntry|boolean|"auto"
+---Days before a deadline it starts showing up in the agenda.
+---(Emacs `org-deadline-warning-days`, default: `14`)
+---@field deadline_warning_days? integer
+---`{ rounding, step }`: minutes the current time is rounded to in date
+---prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
+---steps by exactly that many minutes).
+---(Emacs `org-time-stamp-rounding-minutes`, default: `{ 0, 5 }`)
+---@field time_stamp_rounding_minutes? integer[]
+---Where `archive_subtree` sends entries: `"file::heading"`, `%s` = current
+---file name. (Emacs `org-archive-location`, default: `"%s_archive::"`)
+---@field archive_location? string
+---Context saved as `ARCHIVE_*` properties on archived entries.
+---(Emacs `org-archive-save-context-info`,
+---default: `{ "time", "file", "olpath", "category", "todo", "itags" }`)
+---@field archive_save_context_info? ("time"|"file"|"olpath"|"category"|"todo"|"itags")[]
+---Heading of the sibling used by `archive_to_sibling`.
+---(Emacs `org-archive-sibling-heading`, default: `"Archive"`)
+---@field archive_sibling_heading? string
+---Add inherited tags to archived entries: `"infile"` (only when archiving
+---within the same file), `true` or `false`.
+---(Emacs `org-archive-subtree-add-inherited-tags`, default: `"infile"`)
+---@field archive_subtree_add_inherited_tags? "infile"|boolean
+---Window used for special buffers (src edit, capture, etc.).
+---(default: `"float"`)
+---@field win_split_mode? "float"|"split"|"vsplit"|"tab"|"current"
+---Border of floating windows, as accepted by `nvim_open_win()`.
+---(default: `"rounded"`)
+---@field win_border? "none"|"single"|"double"|"rounded"|"solid"|"shadow"|string|string[]
+---Agenda views.
+---@field agenda? org.Config.Agenda
+---Capture templates and capture window.
+---@field capture? org.Config.Capture
+---Refile targets and behaviour.
+---@field refile? org.Config.Refile
+---Clocking (time tracking).
+---@field clock? org.Config.Clock
+---Links: abbreviations, custom types, following.
+---@field links? org.Config.Links
+---`ID` property creation and lookup.
+---@field id? org.Config.Id
+---Attachments (`org-attach`).
+---@field attach? org.Config.Attach
+---Source block evaluation (Babel).
+---@field babel? org.Config.Babel
+---Export backends and options.
+---@field export? org.Config.Export
+---Appointment reminders for timed agenda entries.
+---@field notifications? org.Config.Notifications
+---Buffer appearance: concealing, bullets, faces.
+---@field ui? org.Config.UI
+---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
+---@field mappings? org.Config.Mappings
+
+---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
+---@class org.Config.BlankBeforeNewEntry
+---Before new headings: `true`, `false`, or `"auto"` (blank only when the
+---current heading is preceded by a blank line). (default: `"auto"`)
+---@field heading? boolean|"auto"
+---Before new plain list items: `true`, `false`, or `"auto"` (blank only
+---when the current item is preceded by a blank line). (default: `false`)
+---@field plain_list_item? boolean|"auto"
+
+---Payload passed to a custom `notifications.notifier`.
+---@class org.Config.Notifications.Event
+---Notification title: TODO keyword and headline.
+---@field title string
+---Notification body: kind, time, "in N min" and category.
+---@field body string
+---The agenda item the reminder is for.
+---@field item org.AgendaItem
+---Minutes until the entry starts (0 = now).
+---@field minutes integer
+
+---Appointment reminders for timed SCHEDULED, DEADLINE and plain timestamps
+---of today and tomorrow (Emacs `org-agenda-to-appt`).
+---@class org.Config.Notifications
+---Start the reminder timer on setup. (default: `false`)
+---@field enabled? boolean
+---Minutes before an entry's start to notify; one notification per offset.
+---A single number is also accepted. (default: `{ 10, 0 }`)
+---@field reminder_time? integer|integer[]
+---Seconds between checks. (default: `60`)
+---@field check_interval? integer
+---Also use the OS notifier (`osascript` / `notify-send`) when available.
+---(default: `true`)
+---@field system_notification? boolean
+---Custom notifier replacing the built-in `vim.notify` + OS notification.
+---(default: `nil`)
+---@field notifier? fun(event: org.Config.Notifications.Event)
+
+---Buffer appearance.
+---@class org.Config.UI
+---Conceal link brackets and show only descriptions (sets `conceallevel=2`).
+---(default: `true`)
+---@field conceal_links? boolean
+---Hide `*`, `/`, `_`, `=`, `~`, `+` around emphasized text.
+---(Emacs `org-hide-emphasis-markers`, default: `false`)
+---@field hide_emphasis_markers? boolean
+---Show only the last star of each headline.
+---(Emacs `org-hide-leading-stars`, default: `false`)
+---@field hide_leading_stars? boolean
+---Replace headline stars with symbols, one per level (cycled for deeper
+---levels), e.g. `{ "◉", "○", "✸", "✿" }`; `false` = off. (default: `false`)
+---@field bullets? string[]|false
+---Replace checkboxes with icons `{ unchecked, partial, checked }`, e.g.
+---`{ " ", "◐", "✓" }`; `false` = off. (default: `false`)
+---@field checkboxes? string[]|false
+---Virtual indentation of body text. (Emacs `org-indent-mode`, default: `false`)
+---@field indent_mode? boolean
+---Render entities like `\alpha` as unicode.
+---(Emacs `org-pretty-entities`, default: `false`)
+---@field pretty_entities? boolean
+---Dim the whole headline of DONE entries.
+---(Emacs `org-fontify-done-headline`, default: `true`)
+---@field fontify_done_headline? boolean
+---Highlight src blocks with their language's syntax.
+---(Emacs `org-src-fontify-natively`, default: `true`)
+---@field src_highlight? boolean
+---Per-keyword faces. Values are an Emacs-style face string
+---(`":foreground orange :weight bold"`), a highlight group name, or a
+---highlight definition table (`{ fg = "#ff9e64", bold = true }`).
+---(Emacs `org-todo-keyword-faces`, default: `{}`)
+---@field todo_keyword_faces? table<string, string|vim.api.keyset.highlight>

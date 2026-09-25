@@ -74,7 +74,11 @@ local function visual_selection()
   return table.concat(lines, "\n")
 end
 
---- Template selection dispatcher.
+--- Template selection menu, then capture with the chosen template. In
+--- visual mode the selection becomes `opts.initial` (`%i`). Must run inside
+--- a coroutine; `require("org").capture()` handles that.
+---@param opts? table `{ initial?: string, date?: table }`, as for `capture()`
+---@return integer|nil capture buffer (nil when cancelled)
 function M.prompt(opts)
   opts = opts or {}
   opts.initial = opts.initial or visual_selection()
@@ -90,7 +94,11 @@ function M.prompt(opts)
   return M.capture(key, opts)
 end
 
---- `:Org capture [key]`
+--- `:Org capture [key]`: capture with the template at `key` of
+--- `capture.templates`, or open the template menu when empty. Must run
+--- inside a coroutine; `require("org").capture(key)` handles that.
+---@param args? string template key
+---@return integer|nil capture buffer (nil when cancelled / unknown key)
 function M.command(args)
   local key = vim.trim(args or "")
   if key == "" then

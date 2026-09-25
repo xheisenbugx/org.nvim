@@ -412,3 +412,59 @@ describe("agenda skip helpers, deadlines and blocked tasks", function()
     config.opts.enforce_todo_dependencies = false
   end)
 end)
+
+describe("agenda config", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local path = dir .. "/c.org"
+  local view = require("org.agenda.view")
+  local clock = require("org.clock")
+  local function stamp(offset)
+    return "<" .. date.today():add(offset, "d"):to_string({ brackets = false }) .. ">"
+  end
+  local function open(opts, lines)
+    utils.writefile(path, lines)
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    config.setup(vim.tbl_extend("force", { agenda_files = { path }, org_directory = dir }, opts))
+    config.opts.clock.persist = false
+  end
+  local function line_of(title)
+    for l, it in pairs(view.state.line_items) do
+      if it.title == title then
+        return l
+      end
+    end
+  end
+  before_each(function()
+    clock.state = nil
+    pcall(view.quit, true)
+  end)
+
+  it("honours a top-level agenda.start_day", function()
+    open({ agenda = { start_day = "-3d" } }, { "* Past event", "  " .. stamp(-3) })
+    require("org.agenda").open_agenda({ span = "day" })
+    ok(line_of("Past event"), "event 3 days ago not shown")
+  end)
+
+  it("highlights the entry being clocked", function()
+    open({}, { "* TODO Clocked task", "  SCHEDULED: " .. stamp(0), "* TODO Other task", "  SCHEDULED: " .. stamp(0) })
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    clock.clock_in()
+    require("org.agenda").open_agenda({ span = "day" })
+    local ns = vim.api.nvim_create_namespace("org.agenda")
+    local function line_hl(l)
+      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, ns, { l - 1, 0 }, { l - 1, -1 }, { details = true })) do
+        if m[4].line_hl_group == "OrgAgendaClocking" then
+          return true
+        end
+      end
+      return false
+    end
+    ok(line_hl(line_of("Clocked task")), "clocked entry not highlighted")
+    ok(not line_hl(line_of("Other task")), "other entry highlighted")
+  end)
+end)

@@ -273,7 +273,9 @@ M.list = {
 }
 
 --- Resolve an action to its function.
----@return function|nil, org.Action|nil
+---@param name org.ActionName
+---@return function|nil fn nil when unknown or failing to load
+---@return org.Action|nil action the registry entry
 function M.get(name)
   local a = M.list[name]
   if not a then
@@ -292,7 +294,17 @@ function M.get(name)
   return fn, a
 end
 
---- Run an action inside a coroutine. Returns true when handled.
+--- Run an action inside a coroutine. Returns true when handled; false when
+--- the action reported it does not apply at the cursor (mappings then fall
+--- back to the key's default behaviour). Unknown actions report an error
+--- and count as handled.
+---
+--- ```lua
+--- require("org.actions").run("todo_next")
+--- ```
+---@param name org.ActionName key of `org.actions.list`
+---@param ... any passed to the action function
+---@return boolean handled
 function M.run(name, ...)
   local fn = M.get(name)
   if not fn then

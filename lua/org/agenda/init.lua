@@ -119,7 +119,13 @@ end
 --- "scheduled", "notscheduled", "deadline", "notdeadline", "timestamp",
 --- "nottimestamp", "regexp" RE, "notregexp" RE, "todo" KWS, "nottodo" KWS
 --- (KWS: a list of keywords, or "todo", "done" or "any").
----   skip = require("org.agenda").skip_entry_if("scheduled", "deadline")
+---
+--- ```lua
+--- skip = require("org.agenda").skip_entry_if("scheduled", "deadline")
+--- skip = require("org.agenda").skip_entry_if("todo", { "WAITING" }, "regexp", "@home")
+--- ```
+---@param ... string|string[] conditions, each followed by its argument where it takes one
+---@return fun(hl: org.Headline): boolean skip predicate for a block's `skip` option
 function M.skip_entry_if(...)
   local conds = parse_conditions(...)
   return function(hl)
@@ -134,6 +140,12 @@ end
 
 --- Like `skip_entry_if`, but skips the whole subtree of an entry for which
 --- a condition holds ("regexp" searches the whole subtree).
+---
+--- ```lua
+--- skip = require("org.agenda").skip_subtree_if("regexp", ":someday:")
+--- ```
+---@param ... string|string[] conditions, as for `skip_entry_if`
+---@return fun(hl: org.Headline): boolean skip predicate for a block's `skip` option
 function M.skip_subtree_if(...)
   local conds = parse_conditions(...)
   return function(hl)
@@ -414,7 +426,9 @@ function M.dispatch(key, restrict)
   end
 end
 
---- The agenda dispatcher (C-c a).
+--- The agenda dispatcher (C-c a): a menu of the built-in views and
+--- `agenda.custom_commands`. Must run inside a coroutine; call
+--- `require("org").agenda()` from mappings instead.
 function M.prompt()
   local restrict = nil
   local buf = vim.api.nvim_get_current_buf()
@@ -486,7 +500,14 @@ function M.prompt()
   end
 end
 
---- `:Org agenda [args]`
+--- `:Org agenda [args]`: open a view by key. `args` is a built-in key with
+--- optional arguments (`"a"`, `"t [KW|KW]"`, `"T KW"`, `"m MATCH"`,
+--- `"M MATCH"`, `"s TEXT"`, `"S TEXT"`, `"n"`, `"#"`, `"/ REGEXP"`), a span
+--- (`"day"`, `"week"`, `"fortnight"`, `"month"`, `"year"`, a number of days),
+--- a key of `agenda.custom_commands`, or a date understood by
+--- `org.date.read_date`. Empty opens the dispatcher. Must run inside a
+--- coroutine; `require("org").agenda(args)` handles that.
+---@param args? string
 function M.command(args)
   args = vim.trim(args or "")
   if args == "" then

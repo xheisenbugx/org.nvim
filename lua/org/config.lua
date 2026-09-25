@@ -8,7 +8,11 @@ local M = {}
 
 local data_dir = vim.fn.stdpath("data") .. "/org"
 
----@class org.Config
+--- Default options. The user-facing option types and docs live in
+--- `lua/org/_meta/` (class `org.Config`, every field optional) so that
+--- `require("org").setup({...})` gets completion and hover docs. Internal
+--- code reads `M.opts`, typed from this table, where every option is set.
+---@class org.config.Resolved
 M.defaults = {
   --- Base directory for org files. Used to resolve relative paths.
   org_directory = "~/org",
@@ -225,7 +229,8 @@ M.defaults = {
     out_when_done = true,
     into_drawer = true, -- true = log_into_drawer, or a drawer name
     out_remove_zero_time = true,
-    --- State to switch to on clock in: a keyword, or function(headline) -> keyword|nil
+    --- State to switch to on clock in: a keyword, or function(keyword) -> keyword|nil
+    --- (receives the task's current keyword, nil when it has none)
     in_switch_to_state = nil, -- e.g. "NEXT"
     --- State to switch to on clock out: a keyword, or function(keyword) -> keyword|nil
     out_switch_to_state = nil,
@@ -788,7 +793,7 @@ M.defaults = {
   },
 }
 
----@type org.Config
+---@type org.config.Resolved
 M.opts = vim.deepcopy(M.defaults)
 
 --- Replace `dst` contents with `src` merged on top, in place.
@@ -805,7 +810,12 @@ local function merge_into(dst, src)
   end
 end
 
----@param opts? table
+--- Merge user options into `M.opts`. Dict options merge key by key; lists
+--- (and `capture.templates`) replace the default; `{}` for a dict option
+--- keeps its defaults; `babel.languages = { lang = false }` removes a
+--- language.
+---@param opts? org.Config
+---@return org.config.Resolved
 function M.setup(opts)
   opts = opts or {}
   -- `capture.templates` and `agenda.custom_commands` are replaced wholesale

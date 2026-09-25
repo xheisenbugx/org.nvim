@@ -1742,7 +1742,9 @@ function M.classify_link(doc, path)
   local abbr, tag = path:match("^([%w_%-]+):(.*)$")
   if abbr and abbrevs[abbr] then
     local tpl = abbrevs[abbr]
-    if tpl:find("%s", 1, true) then
+    if type(tpl) == "function" then
+      path = tpl(tag)
+    elseif tpl:find("%s", 1, true) then
       path = tpl:gsub("%%s", (tag:gsub("%%", "%%%%")))
     else
       path = tpl .. tag

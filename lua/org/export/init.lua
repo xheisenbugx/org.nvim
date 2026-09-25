@@ -269,6 +269,15 @@ function M.export(format, opts)
 end
 
 --- Render a buffer to a string without writing anything (for tests / API).
+--- Only the native backends are supported (`html`, `md`/`markdown`,
+--- `txt`/`text`, `latex`/`tex`).
+---
+--- ```lua
+--- local html = require("org.export").to_string("html", { body_only = true })
+--- ```
+---@param format string
+---@param opts? { bufnr?: integer, lines?: string[], filename?: string, subtree_line?: integer, body_only?: boolean, options?: table }
+---@return string
 function M.to_string(format, opts)
   opts = opts or {}
   local bufnr = opts.bufnr or 0

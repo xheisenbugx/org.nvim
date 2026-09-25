@@ -575,8 +575,9 @@ function M.view(view, ctx)
     if block.type == "agenda" then
       local anchor = ctx.anchor
       local align = ctx.align
-      if not ctx.anchor_set and block.start_day then
-        local sd = date.read_date(block.start_day)
+      local start_day = block.start_day or acfg.start_day
+      if not ctx.anchor_set and start_day then
+        local sd = date.read_date(start_day)
         if sd then
           anchor = sd:days()
           align = false

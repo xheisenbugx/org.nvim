@@ -1,11 +1,19 @@
---- nvim-cmp source. Register with:
----   require("cmp").register_source("org", require("org.completion.cmp").new())
---- and add { name = "org" } to your sources for filetype org.
+---@mod org.completion.cmp nvim-cmp source
+---
+--- Register with:
+---
+--- ```lua
+--- require("cmp").register_source("org", require("org.completion.cmp").new())
+--- ```
+---
+--- and add `{ name = "org" }` to your sources for filetype org.
 local completion = require("org.completion")
 
 local Source = {}
 Source.__index = Source
 
+--- Create a source instance for `cmp.register_source`.
+---@return table source
 function Source.new()
   return setmetatable({}, Source)
 end

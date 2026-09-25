@@ -1,0 +1,398 @@
+---@meta
+-- LuaLS type definitions for the `agenda`, `capture` and `refile` sections of
+-- `require("org").setup()`. Annotations only; never loaded at runtime.
+
+---------------------------------------------------------------------------
+-- Agenda
+---------------------------------------------------------------------------
+
+---Agenda span: a named span or a number of days.
+---@alias org.Config.Agenda.Span "day"|"week"|"fortnight"|"month"|"year"|integer
+
+---Agenda sorting strategy (org-agenda-sorting-strategy). Unknown names are
+---ignored; `"category-keep"` (like any unmatched strategy) keeps the file order.
+---@alias org.Config.Agenda.SortingStrategy
+---| "time-up"
+---| "time-down"
+---| "priority-up"
+---| "priority-down"
+---| "urgency-up"
+---| "urgency-down"
+---| "category-up"
+---| "category-down"
+---| "category-keep"
+---| "todo-state-up"
+---| "todo-state-down"
+---| "alpha-up"
+---| "alpha-down"
+---| "habit-up"
+---| "habit-down"
+---| "deadline-up"
+---| "deadline-down"
+---| "scheduled-up"
+---| "scheduled-down"
+---| "tag-up"
+---| "tag-down"
+---| "effort-up"
+---| "effort-down"
+
+---Agenda block type. Emacs-style names are accepted as aliases:
+---`"tags-todo"` = `"tags_todo"`, `"alltodo"`/`"todo-tree"` = `"todo"`,
+---`"tags-tree"` = `"tags"`, `"stuck-projects"`/`"stuck_projects"` = `"stuck"`.
+---@alias org.Config.Agenda.BlockType
+---| "agenda"
+---| "todo"
+---| "tags"
+---| "tags_todo"
+---| "search"
+---| "stuck"
+---| "tags-todo"
+---| "alltodo"
+---| "todo-tree"
+---| "tags-tree"
+---| "stuck-projects"
+---| "stuck_projects"
+
+---Skip function (org-agenda-skip-function): return true to drop the entry.
+---See `require("org.agenda").skip_entry_if()` / `skip_subtree_if()`.
+---@alias org.Config.Agenda.SkipFunction fun(headline: org.Headline): boolean?
+
+---Agenda view options.
+---@class org.Config.Agenda
+---Default span of the agenda view (org-agenda-span). (default: `"week"`)
+---@field span? org.Config.Agenda.Span
+---Weekday that `week`/`fortnight` views start on, 1 = Monday ... 7 = Sunday;
+---`false` starts on today (org-agenda-start-on-weekday). (default: `1`)
+---@field start_on_weekday? integer|false
+---Offset like `"-3d"` for the first day (org-agenda-start-day). A block's
+---own `start_day` overrides it. (default: `nil`)
+---@field start_day? string
+---Hide scheduled entries that are DONE (org-agenda-skip-scheduled-if-done). (default: `false`)
+---@field skip_scheduled_if_done? boolean
+---Hide deadlines of DONE entries (org-agenda-skip-deadline-if-done). (default: `false`)
+---@field skip_deadline_if_done? boolean
+---Hide deadline pre-warnings when the entry is scheduled later
+---(org-agenda-skip-deadline-prewarning-if-scheduled). (default: `false`)
+---@field skip_deadline_prewarning_if_scheduled? boolean
+---Ignore a scheduled delay (`-2d`) when the entry has a deadline
+---(org-agenda-skip-scheduled-delay-if-deadline). (default: `false`)
+---@field skip_scheduled_delay_if_deadline? boolean
+---Show future occurrences of repeating timestamps; `"next"` only shows the
+---next one (org-agenda-show-future-repeats). (default: `true`)
+---@field show_future_repeats? boolean|"next"
+---Hide scheduled entries from TODO lists (org-agenda-todo-ignore-scheduled).
+---`true` = `"all"`; `"future"` = scheduled after today; `"past"` = today or
+---earlier. (default: `false`)
+---@field todo_ignore_scheduled? boolean|"all"|"future"|"past"
+---Hide entries with a deadline from TODO lists (org-agenda-todo-ignore-deadlines).
+---`true` = `"all"`; `"near"` = within the warning period; `"far"` = beyond it;
+---`"past"` = due today or earlier; `"future"` = due after today. (default: `false`)
+---@field todo_ignore_deadlines? boolean|"all"|"near"|"far"|"past"|"future"
+---Hide entries with any date (planning or timestamp) from TODO lists
+---(org-agenda-todo-ignore-with-date). (default: `false`)
+---@field todo_ignore_with_date? boolean
+---Time grid shown in day views (org-agenda-time-grid).
+---@field time_grid? org.Config.Agenda.TimeGrid
+---Text after the current-time line (org-agenda-current-time-string).
+---(default: `"← now ─────────────────────────────"`)
+---@field current_time_string? string
+---Sorting strategies per view type (org-agenda-sorting-strategy).
+---@field sorting? org.Config.Agenda.Sorting
+---Where the agenda opens. (default: `"current"`)
+---@field window? "current"|"split"|"vsplit"|"tab"|"float"
+---Items shown in log mode (org-agenda-log-mode-items). (default: `{ "closed", "clock" }`)
+---@field log_mode_items? ("closed"|"clock"|"state")[]
+---Habit display options (org-habit).
+---@field habits? org.Config.Agenda.Habits
+---Stuck project definition (org-stuck-projects).
+---@field stuck_projects? org.Config.Agenda.StuckProjects
+---Save source buffers after editing them from the agenda. (default: `true`)
+---@field save_after_edit? boolean
+---Character repeated to separate blocks (org-agenda-block-separator). (default: `"─"`)
+---@field block_separator? string
+---Show inherited tags on agenda lines (org-agenda-show-inherited-tags). (default: `true`)
+---@field show_inherited_tags? boolean
+---Hide tags on agenda lines (org-agenda-remove-tags). (default: `false`)
+---@field remove_tags? boolean
+---Custom agenda commands keyed by dispatcher key (org-agenda-custom-commands).
+---Keys may be several characters long; a string value only labels the group
+---of keys that start with that prefix. (default: `{}`)
+---@field custom_commands? table<string, org.Config.Agenda.CustomCommand|string>
+---Body lines shown under each entry in entry text mode (`E`)
+---(org-agenda-entry-text-maxlines). (default: `5`)
+---@field entry_text_maxlines? integer
+---Ask before `<C-k>` deletes an entry longer than this many lines
+---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
+---@field confirm_kill? integer|false
+---Start in log mode; `"all"` shows all log items (org-agenda-start-with-log-mode). (default: `false`)
+---@field start_with_log_mode? boolean|"all"
+---Start in follow mode (org-agenda-start-with-follow-mode). (default: `false`)
+---@field start_with_follow_mode? boolean
+---Start with the clock report shown (org-agenda-start-with-clockreport-mode). (default: `false`)
+---@field start_with_clockreport_mode? boolean
+---Start in entry text mode (org-agenda-start-with-entry-text-mode). (default: `false`)
+---@field start_with_entry_text_mode? boolean
+---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
+---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
+---@field dim_blocked_tasks? boolean|"invisible"
+
+---Agenda time grid (org-agenda-time-grid).
+---@class org.Config.Agenda.TimeGrid
+---Show the time grid at all. (default: `true`)
+---@field enabled? boolean
+---Hide the grid (same as `enabled = false`). (default: `nil`)
+---@field hidden? boolean
+---When to show the grid: `"daily"` in day views, `"weekly"` in multi-day views,
+---`"today"` on today's date, `"require-timed"` only on days with timed entries.
+---(default: `{ "daily", "today", "require-timed" }`)
+---@field type? ("daily"|"weekly"|"today"|"require-timed")[]
+---Grid times as HHMM integers. (default: `{ 800, 1000, 1200, 1400, 1600, 1800, 2000 }`)
+---@field times? integer[]
+---Separator after the time on grid lines. (default: `"┄┄┄┄┄"`)
+---@field separator? string
+---Text of grid lines. (default: `"┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"`)
+---@field time_string? string
+
+---Sorting strategies per view type (org-agenda-sorting-strategy).
+---@class org.Config.Agenda.Sorting
+---Date agenda views. (default: `{ "time-up", "priority-down", "category-keep" }`)
+---@field agenda? org.Config.Agenda.SortingStrategy[]
+---TODO lists. (default: `{ "priority-down", "category-keep" }`)
+---@field todo? org.Config.Agenda.SortingStrategy[]
+---Tags matches and stuck projects. (default: `{ "priority-down", "category-keep" }`)
+---@field tags? org.Config.Agenda.SortingStrategy[]
+---Search views. (default: `{ "category-keep" }`)
+---@field search? org.Config.Agenda.SortingStrategy[]
+
+---Habit display options (org-habit).
+---@class org.Config.Agenda.Habits
+---Column where the consistency graph starts (org-habit-graph-column). (default: `50`)
+---@field graph_column? integer
+---Days before today shown in the graph (org-habit-preceding-days). (default: `21`)
+---@field preceding_days? integer
+---Days after today shown in the graph (org-habit-following-days). (default: `7`)
+---@field following_days? integer
+---Show habits in the agenda. (default: `true`)
+---@field show_habits? boolean
+---Show habits on today even when not yet due (org-habit-show-all-today). (default: `false`)
+---@field show_all_today? boolean
+---Always color DONE days green (org-habit-show-done-always-green). (default: `false`)
+---@field show_done_always_green? boolean
+
+---Stuck project definition (org-stuck-projects).
+---@class org.Config.Agenda.StuckProjects
+---Match string selecting project headlines (see `:h org-match-syntax`). (default: `"+LEVEL=2/-DONE"`)
+---@field match? string
+---A project is not stuck if a descendant has one of these TODO keywords.
+---(default: `{ "TODO", "NEXT" }`)
+---@field todo_keywords? string[]
+---A project is not stuck if a descendant has one of these tags. (default: `{}`)
+---@field tags? string[]
+---Vim regexp; a project is not stuck if its subtree text matches it. (default: `nil`)
+---@field text? string
+
+---One block of an agenda custom command. Any `org.Config.Agenda` list/date
+---option set here (e.g. `skip_scheduled_if_done`, `todo_ignore_*`,
+---`show_future_repeats`, `log_mode_items`, `habits`) overrides the global
+---value for this block.
+---@class org.Config.Agenda.Block
+---Block type. (default: `"agenda"`)
+---@field type? org.Config.Agenda.BlockType
+---Match string (see `:h org-match-syntax`) for `tags`/`tags_todo`, TODO
+---keywords (`"KW1|KW2"`) for `todo`, or search text for `search`.
+---@field match? string
+---TODO keywords for a `todo` block (`"KW1|KW2"` or a list); overrides `match`.
+---@field keywords? string|string[]
+---Heading shown above the block (org-agenda-overriding-header).
+---@field header? string
+---Alias of `header`.
+---@field org_agenda_overriding_header? string
+---Span of an `agenda` block (org-agenda-span).
+---@field span? org.Config.Agenda.Span
+---Alias of `span`.
+---@field org_agenda_span? org.Config.Agenda.Span
+---First day of an `agenda` block, a date or offset like `"-3d"` (org-agenda-start-day).
+---@field start_day? string
+---Alias of `start_day`.
+---@field org_agenda_start_day? string
+---Files, directories or globs used instead of `agenda_files` (org-agenda-files).
+---@field files? string|string[]
+---Alias of `files`.
+---@field org_agenda_files? string|string[]
+---Return true to skip an entry (org-agenda-skip-function).
+---@field skip? org.Config.Agenda.SkipFunction
+---Alias of `skip`.
+---@field org_agenda_skip_function? org.Config.Agenda.SkipFunction
+---Sorting for this block (org-agenda-sorting-strategy).
+---@field sorting? org.Config.Agenda.SortingStrategy[]
+---Alias of `sorting`.
+---@field org_agenda_sorting_strategy? org.Config.Agenda.SortingStrategy[]
+---Restrict a `search` block to TODO entries.
+---@field todo_only? boolean
+---@field skip_scheduled_if_done? boolean
+---@field skip_deadline_if_done? boolean
+---@field skip_deadline_prewarning_if_scheduled? boolean
+---@field skip_scheduled_delay_if_deadline? boolean
+---@field show_future_repeats? boolean|"next"
+---@field todo_ignore_scheduled? boolean|"all"|"future"|"past"
+---@field todo_ignore_deadlines? boolean|"all"|"near"|"far"|"past"|"future"
+---@field todo_ignore_with_date? boolean
+---@field log_mode_items? ("closed"|"clock"|"state")[]
+---@field habits? org.Config.Agenda.Habits
+---Stuck project definition for a `stuck` block, merged over the global one.
+---@field stuck_projects? org.Config.Agenda.StuckProjects
+
+---An agenda custom command (org-agenda-custom-commands). Either a composite
+---view with `types`/`blocks`, or a single block given inline (set `type` and
+---the block options directly on the command). A table with none of `types`,
+---`blocks` or `type` only labels a key prefix group.
+---@class org.Config.Agenda.CustomCommand: org.Config.Agenda.Block
+---Label shown in the dispatcher and as the view title.
+---@field description? string
+---Blocks of a composite view.
+---@field types? org.Config.Agenda.Block[]
+---Alias of `types`.
+---@field blocks? org.Config.Agenda.Block[]
+
+---------------------------------------------------------------------------
+-- Capture
+---------------------------------------------------------------------------
+
+---Capture options.
+---@class org.Config.Capture
+---Templates keyed by selection key (org-capture-templates). Keys may be several
+---characters long; a string value only labels the group of keys that start
+---with that prefix. Setting this replaces the defaults instead of merging.
+---See `:h org-capture-templates`.
+---(default: `{ t = { description = "Task", template = "* TODO %?\n  %U" } }`)
+---@field templates? table<string, org.Config.CaptureTemplate|string>
+---Window used for the capture buffer. (default: `"float"`)
+---@field window? "float"|"split"|"vsplit"|"tab"|"current"
+
+---Context passed to a function `template`, also used for `%` expansions.
+---@class org.Config.CaptureContext
+---Path of the buffer capture was started from.
+---@field origin_file? string
+---Link to the origin location (`%l`).
+---@field link? string
+---Description of `link`.
+---@field link_desc? string
+---Formatted link with description (`%a`).
+---@field annotation? string
+---Initial content, e.g. the visual selection (`%i`). (default: `""`)
+---@field initial string
+---Date used for `%t`/`%T`/`%u`/`%U` and the datetree (from the agenda or `time_prompt`).
+---@field date? table
+---The target file.
+---@field target_file? org.File
+---@field keywords table
+
+---A capture template (an entry of org-capture-templates). At least one of
+---`template`, `type`, `target` or `file` must be set for the table to be
+---treated as a template rather than a group label.
+---@class org.Config.CaptureTemplate
+---Menu label.
+---@field description? string
+---Template text with `%` expansions (see `:h org-capture-expansions`): a
+---string, a list of lines, or a function returning either.
+---(default: depends on `type`, e.g. `"* %?"` for entries)
+---@field template? string|string[]|fun(ctx: org.Config.CaptureContext): string|string[]
+---What is captured. (default: `"entry"`)
+---@field type? "entry"|"item"|"checkitem"|"table-line"|"plain"
+---Target file (relative to `org_directory`), `"clock"` for the clocked task,
+---or a function returning either. (default: `default_notes_file`)
+---@field target? string|"clock"|fun(): string
+---Alias of `target`.
+---@field file? string|"clock"|fun(): string
+---Insert under the headline with this title, created when missing (file+headline).
+---@field headline? string
+---Outline path, a list or a `"A/B"` string; missing nodes are created (file+olp).
+---@field olp? string|string[]
+---Insert under the entry with this ID (id). Also locates the file when no `target` is set.
+---@field id? string
+---Vim regexp; insert after the first line that matches (file+regexp).
+---@field regexp? string
+---Called in the target buffer; returns the line of the headline to insert
+---under, or nil for top level (function).
+---@field func? fun(bufnr: integer): integer?
+---Alias of `func`.
+---@field ["function"]? fun(bufnr: integer): integer?
+---File the entry in a date tree (file+datetree), under the location above if any.
+---@field datetree? boolean|{ tree_type?: "day"|"week"|"month" }
+---Date tree type when `datetree = true`. (default: `"day"`)
+---@field tree_type? "day"|"week"|"month"
+---Insert as the first child / at the top instead of the end (:prepend).
+---@field prepend? boolean
+---Blank lines before and after the captured text (:empty-lines). (default: `0`)
+---@field empty_lines? integer
+---Blank lines before the captured text (:empty-lines-before).
+---@field empty_lines_before? integer
+---Blank lines after the captured text (:empty-lines-after).
+---@field empty_lines_after? integer
+---Properties added to a captured entry.
+---@field properties? table<string, string>
+---Store without opening the capture window (:immediate-finish).
+---@field immediate_finish? boolean
+---Jump to the captured entry after finishing (:jump-to-captured).
+---@field jump_to_captured? boolean
+---Clock in on the captured entry (:clock-in).
+---@field clock_in? boolean
+---With `clock_in`, log the capture time as a clock entry and return to the
+---previous clock (:clock-resume).
+---@field clock_resume? boolean
+---Ask for the date used by `%t`/`%T`/`%u`/`%U` and the datetree (:time-prompt).
+---@field time_prompt? boolean
+---Don't save the target file after capturing (:no-save).
+---@field no_save? boolean
+---Called with the capture buffer before its text is read (:prepare-finalize).
+---@field prepare_finalize? fun(bufnr: integer)
+---Called in the target before saving, with the captured line (:before-finalize).
+---@field before_finalize? fun(bufnr: integer, lnum: integer)
+---Called when the capture is done, with the captured line (:after-finalize).
+---@field after_finalize? fun(bufnr: integer, lnum: integer)
+
+---------------------------------------------------------------------------
+-- Refile
+---------------------------------------------------------------------------
+
+---Refile options.
+---@class org.Config.Refile
+---Deepest headline level offered as a target (without `targets`). (default: `3`)
+---@field max_level? integer
+---How targets are labelled (org-refile-use-outline-path): `"file"` (or
+---`"full-file-path"`) = `file.org/Parent/Child`, `true` = `Parent/Child`,
+---`false` = the title plus the file name. (default: `"file"`)
+---@field use_outline_path? "file"|"full-file-path"|boolean
+---Allow typing a new path like `file.org/Parent/New` to create missing parents
+---(org-refile-allow-creating-parent-nodes). (default: `false`)
+---@field allow_creating_parent_nodes? boolean
+---Also offer targets in the current file (without `targets`). (default: `true`)
+---@field include_current_file? boolean
+---Target specs like org-refile-targets; replaces `max_level` /
+---`include_current_file` when non-empty. See `:h org-refile`. (default: `{}`)
+---@field targets? org.Config.RefileTargetSpec[]
+---Return false to drop a target (org-refile-target-verify-function). (default: `nil`)
+---@field verify? fun(headline: org.Headline): boolean
+---Log refiling in the entry's logbook (org-log-refile). (default: `false`)
+---@field log? false|"time"|"note"
+---Refile as the first child instead of the last (org-reverse-note-order). (default: `false`)
+---@field reverse_note_order? boolean
+
+---A refile target spec (an entry of org-refile-targets).
+---@class org.Config.RefileTargetSpec
+---Where targets come from: `"agenda"` (agenda files), `"current"` (the current
+---file), a path/directory/glob, a list of them, or a function returning any of
+---these. (default: `"current"`)
+---@field files? "agenda"|"current"|string|string[]|fun(): (string|string[]|nil)
+---Only headlines up to this level (:maxlevel).
+---@field max_level? integer
+---Alias of `max_level`.
+---@field maxlevel? integer
+---Only headlines at exactly this level (:level).
+---@field level? integer
+---Only headlines with this tag (:tag).
+---@field tag? string
+---Only headlines with this TODO keyword (:todo).
+---@field todo? string
+---Only headlines matching this Vim regexp (:regexp).
+---@field regexp? string
