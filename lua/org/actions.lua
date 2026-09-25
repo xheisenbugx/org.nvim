@@ -142,6 +142,11 @@ M.list = {
   -- clock
   clock_in = { "org.clock", "clock_in", desc = "Clock in" },
   clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in last task" },
+  clock_resolve = { "org.clock", "resolve_clocks", desc = "Resolve dangling clocks" },
+  shift_control_up = { "org.context", "shift_control_up", desc = "Shift CLOCK timestamps up" },
+  shift_control_down = { "org.context", "shift_control_down", desc = "Shift CLOCK timestamps down" },
+  clock_modify_effort = { "org.clock", "modify_effort", desc = "Change effort of clocked task" },
+  inc_effort = { "org.clock", "inc_effort", desc = "Next allowed effort value" },
   set_effort = { "org.properties", "set_effort", desc = "Set effort" },
   clock_report = { "org.dblock", "insert_clocktable", desc = "Insert clock report" },
   clock_display = { "org.clock", "toggle_display", desc = "Display clock sums" },
