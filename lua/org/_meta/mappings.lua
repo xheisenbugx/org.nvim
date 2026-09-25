@@ -838,10 +838,34 @@
 ---@class org.Config.Mappings.Agenda
 --- Quit the agenda window. Default: `q`
 ---@field quit? org.MappingLhs
---- Exit the agenda and wipe agenda-opened buffers. Default: `x`
+--- Quit and delete the agenda buffer (org-agenda-Quit). Default: `Q`
+---@field quit_kill? org.MappingLhs
+--- Exit the agenda, deleting the agenda buffers and the unmodified buffers it loaded. Default: `x`
 ---@field exit? org.MappingLhs
---- Rebuild the agenda (refresh). Default: `r`
+--- Rebuild the agenda (refresh; count: TODO keyword N, or edit the query). Default: `r`
 ---@field redo? org.MappingLhs
+--- Rebuild all agenda buffers (org-agenda-redo-all). Emacs: `g`. Default: `gr`
+---@field redo_all? org.MappingLhs
+--- Show the entry and scroll its window down. Default: `<BS>`
+---@field show_scroll_down? org.MappingLhs
+--- Attach to the entry (org-agenda-attach). Default: `<C-c><C-a>`
+---@field attach? org.MappingLhs
+--- Stop the timer. Default: `<C-c><C-x>_`
+---@field timer_stop? org.MappingLhs
+--- Combined filter `+cat-tag<0:10-/re/` (org-agenda-filter). Default: `/`
+---@field filter? org.MappingLhs
+--- Limit the number of entries (count: remove the limits). Default: `~`
+---@field limit? org.MappingLhs
+--- Move the line down (the agenda text only). Default: `<M-Down>`
+---@field drag_line_forward? org.MappingLhs
+--- Move the line up (the agenda text only). Default: `<M-Up>`
+---@field drag_line_backward? org.MappingLhs
+--- Append another agenda view. Default: `A`
+---@field append? org.MappingLhs
+--- Toggle the agenda column view. Default: `<C-c><C-x><C-c>`
+---@field columns? org.MappingLhs
+--- Pick a date in the calendar and go there. Default: `c`
+---@field calendar? org.MappingLhs
 --- Go forward one span (day/week/...; count: that many). Default: `f`
 ---@field later? org.MappingLhs
 --- Go back one span (day/week/...; count: that many). Default: `b`
@@ -957,13 +981,13 @@
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
---- Filter by tags (`+tag` include, `-tag` exclude; empty clears). Default: `/`
+--- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`
 ---@field filter_tag? org.MappingLhs
---- Filter by the category at point (toggle). Default: `<`
+--- Filter by the category at point (toggle; count: exclude it). Default: `<`
 ---@field filter_category? org.MappingLhs
---- Filter by regexp (prefix `-` to exclude; empty clears). Default: `=`
+--- Filter by an Emacs regexp (count: hide matches; again clears). Default: `=`
 ---@field filter_regexp? org.MappingLhs
---- Filter by effort (e.g. `<1:00`, `>30`; empty clears). Default: `_`
+--- Filter by effort: an operator, then an Effort_ALL value. Default: `_`
 ---@field filter_effort? org.MappingLhs
 --- Filter by the item's top-level headline (toggle). Default: `^`
 ---@field filter_top_headline? org.MappingLhs
@@ -1007,7 +1031,7 @@
 ---@field backward_block? org.MappingLhs
 --- Save all modified org buffers. Default: `<C-x><C-s>`
 ---@field save_all? org.MappingLhs
---- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `c`
+--- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `K`
 ---@field capture? org.MappingLhs
 --- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`
 ---@field export? org.MappingLhs

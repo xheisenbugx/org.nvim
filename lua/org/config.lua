@@ -269,6 +269,9 @@ M.defaults = {
     sticky = false,
     --- Keep filters when another agenda is built (org-agenda-persistent-filter).
     persistent_filter = false,
+    --- function(tag) -> "+tag" | "-tag" | nil, applied by `\` <CR> and 3/
+    --- (org-agenda-auto-exclude-function).
+    auto_exclude_function = nil,
     --- Keep marks after a bulk action (org-agenda-persistent-marks).
     persistent_marks = false,
     --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
@@ -310,6 +313,8 @@ M.defaults = {
     --- file's (org-agenda-overriding-columns-format).
     overriding_columns_format = nil,
     view_columns_initially = false, -- org-agenda-view-columns-initially
+    --- Show column summaries on date lines (org-agenda-columns-show-summaries).
+    columns_show_summaries = true,
     --- Extra files for the search view; "agenda-archives" adds the archive
     --- files (org-agenda-text-search-extra-files).
     text_search_extra_files = {},

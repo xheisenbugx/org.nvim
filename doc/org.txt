@@ -558,7 +558,11 @@ Use |org-api| `require("org").statusline()` in your statusline.
 ==============================================================================
 11. AGENDA                                                        *org-agenda*
 
-<prefix>a opens the dispatcher:
+The agenda follows Emacs Org 9.8: the same entries, line layout, sorting
+and default options (the Emacs variable is named next to each option in
+`lua/org/config.lua` and |org-config|).
+
+<prefix>a opens the dispatcher (org-agenda):
 
   a   agenda for the current week (or `agenda.span`)
   t   global TODO list        T   TODO list for one keyword
@@ -568,7 +572,13 @@ Use |org-api| `require("org").statusline()` in your statusline.
   n   agenda and all TODOs    #   stuck projects
   /   multi-occur: a regexp in all agenda files, into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
+  >   remove the restriction and the restriction lock
+  e   export the agenda views of custom commands (|org-agenda-export|)
+  *   toggle sticky agenda buffers (`agenda.sticky`)
   ... custom commands from `agenda.custom_commands`
+
+:Org agenda a|t [KW|KW]|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|
+            *|>|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE
 
 Restriction lock (org-agenda-set-restriction-lock):
   <C-c><C-x><    lock every agenda command to the current subtree (to the
@@ -576,54 +586,145 @@ Restriction lock (org-agenda-set-restriction-lock):
                  in the agenda, from the entry at point
   <C-c><C-x>>    remove the lock
 Other keys in org buffers:
+  <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
 
-Agenda view contents:
-- Entries SCHEDULED for a day. Overdue, unfinished ones show
-  `Sched. Nx:` on today.
-- Deadlines from `deadline_warning_days` (or the `-Nd` warning) before they
-  are due: `In N d.:`, `N d. ago:`.
-- Active timestamps and ranges (`(1/3):`). Repeaters are expanded.
-- A time grid with a current-time line.
-- Habits (`:STYLE: habit` and a repeater) with a consistency graph.
-- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
+agenda is empty, like in Emacs, until files are added with <C-c>[ or the
+option is set.
 
-Agenda keys (all configurable under `mappings.agenda`):
+Agenda contents                                          *org-agenda-contents*
+
+For each day, per file, in this order (org-agenda-get-day-entries):
+- Deadlines, on their day (`Deadline:`) and in today's agenda from
+  `deadline_warning_days` (or the `-Nd` warning) before (`In N d.:`) and
+  after (`N d. ago:`, for `agenda.deadline_past_days`). Done entries show
+  on their day only.
+- Scheduled entries on their day (`Scheduled:`) and, while not done, in
+  today's agenda (`Sched.Nx:`, for `agenda.scheduled_past_days`). A delay
+  (`-2d`) hides the entry until it is over.
+- Date ranges on each of their days (`(2/3):`), with the start time on
+  the first day and the end time on the last.
+- Active timestamps. Repeaters show on every repeat up to today and, after
+  today, per `agenda.show_future_repeats` (true, false, "next");
+  `agenda.prefer_last_repeat` shows the last repeat instead of the base
+  date.
+- Diary sexps, `<%%(...)>` timestamps and `%%(...)` lines
+  (|org-agenda-diary-sexp|).
+- Habits (`:STYLE: habit` and a repeater) in today's agenda, without a
+  leader, with a consistency graph from column
+  `agenda.habits.graph_column` (40) that overwrites the end of the line
+  (org-habit).
+- A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
+  time; the `remove-match` flag hides grid lines at the time of an entry.
+- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+`agenda.entry_types` selects the kinds ("deadline", "scheduled",
+"timestamp", "sexp"; "deadline*" / "scheduled*" keep only timed ones).
+Skipping: `skip_scheduled_if_done`, `skip_deadline_if_done`,
+`skip_timestamp_if_done`, `skip_scheduled_if_deadline_is_shown` (true or
+"not-today"), `skip_timestamp_if_deadline_is_shown`,
+`skip_scheduled_repeats_after_deadline`,
+`skip_additional_timestamps_same_entry`,
+`skip_deadline_prewarning_if_scheduled` (true: no pre-warning when the
+entry is scheduled; N: warn N days before; "pre-scheduled": not before the
+scheduled date), `skip_scheduled_delay_if_deadline`. `show_all_dates =
+false` hides days without entries.
+
+Line format                                                *org-agenda-prefix*
+
+Each line is `agenda.prefix_format` (org-agenda-prefix-format) followed
+by the headline and its tags:
+  agenda  " %i %-12:c%?-12t% s"      todo, tags, search  " %i %-12:c"
+  %c  category          %i  icon (`agenda.category_icons`)
+  %t  time of day       %s  leader (Scheduled:, In 3 d., ...)
+  %e  effort            %l  level (spaces)
+  %b  breadcrumbs (outline path + `breadcrumbs_separator`)
+  %T  last tag          %(expr)  a Lua expression, with `item` and `hl`
+A width like `%-12` pads (no truncation), `%-12.10` also truncates, `%?`
+omits an empty field with its padding, and a character after the width
+(`:` in `%-12:c`) is added after a non-empty value. The leaders are
+`scheduled_leaders`, `deadline_leaders`, `timerange_leaders` and
+`inactive_leader`. A time of day in the headline ("Call Bob 10:00",
+"8pm") is used when the timestamp has none (`search_headline_for_time`)
+and removed from the text (`remove_times_when_in_prefix`, true or "beg").
+Times: `time_leading_zero`, `timegrid_use_ampm`,
+`default_appointment_duration` (minutes). The grid separator
+(`time_grid.separator`) follows the time of timed entries without an end.
+Tags show inherited tags first, then "::" and the entry's own tags
+(":ft::work:"); `hide_tags_regexp` (a Vim regexp) hides some,
+`remove_tags` removes them (true, or "prefix" when %T is used),
+`tags_column` places them ("auto" = right edge of the window). Day headers
+use `format_date` (a strftime format or a function) and show the ISO week
+on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight.
+
+Sorting                                                   *org-agenda-sorting*
+
+`agenda.sorting` (org-agenda-sorting-strategy) per view:
+  agenda  { "habit-down", "time-up", "urgency-down", "category-keep" }
+  todo, tags  { "urgency-down", "category-keep" }
+  search  { "category-keep" }
+Strategies: time-, urgency-, priority-, category-, todo-state-, alpha-,
+habit-, tag-, effort-, stats-, deadline-, scheduled-, timestamp-, ts-,
+tsia-, user-defined- (each -up or -down), and category-keep. Urgency is
+Emacs's: 99 + days late + priority for scheduled entries, priority + days
+overdue (minus days left) for deadlines in today's agenda, the priority
+for other entries (A = 2000, B = 1000, C = 0 with the default range) and
+org-habit-get-urgency for habits. "user-defined-*" call
+`agenda.cmp_user_defined(a, b)`, which returns -1, 1 or nil. An unknown
+strategy is an error. `sort_notime_is_late` and `sort_noeffort_is_high`
+place entries without a time or an effort.
+
+Agenda keys                                                  *org-agenda-keys*
+
+All configurable under `mappings.agenda`:
   f / b / .       later / earlier / today
-  vd vw vt vm vy  day / week / fortnight / month / year view
+  vd vw vt vm vy  day / week / fortnight / month / year view (the span
+                  starts at the day, week, month or year at point)
   v<Space>        reset the span to the default
-  gd              go to a date (calendar)
-  r               rebuild the view
+  gd              go to a date (Emacs j)
+  c               calendar: pick a date and go there
+  r               rebuild the view; with a count N in a TODO list, the
+                  Nth keyword of the hint line (a count past the last
+                  one = ALL); with a count in a tags or search view, edit
+                  the query (Emacs C-u r)
+  gr              rebuild all agenda buffers (Emacs g)
   <CR> <Tab>      open the entry here / in another window
-  <Space>         show the entry, keeping focus in the agenda
+  <Space> <BS>    show the entry, keeping focus in the agenda / and scroll
   L               show the entry and recenter its window
   o               close the other windows
   F               follow mode (also vf)
   n / p           next / previous item
   <C-c><C-n/p>    next / previous date line
   <C-Down/Up>     next / previous block
+  <M-Down/Up>     move the line down / up (the agenda text only)
   t               change TODO state; <C-S-Right/Left> cycle it
   , + -           set / raise / lower priority (also <S-Up/Down>)
   : / T           set tags / show tags
   <C-c><C-x>p     set a property
   s / d           schedule / deadline
-  <S-Right/Left>  move the date +1 / -1 day
-  >               prompt for a new date
+  <S-Right/Left>  move the date of the entry +1 / -1 day (a count moves
+                  more): the timestamp the line comes from; one step on a
+                  past date moves it to today
+  >               prompt for a new date for that timestamp (the time is
+                  kept)
   e               set effort
   I O X J         clock in / out / cancel / go to clocked entry
-  ;               start a countdown timer
+  ;               start a countdown timer; <C-c><C-x>_ stops the timer
   R               refile
   $               archive (also <C-c>$, <C-c><C-x><C-s>)
   a               archive after confirmation
   <C-c><C-x>A     move to the Archive sibling
   <C-c><C-x>a     toggle the ARCHIVE tag
+  <C-c><C-a>      attach (org-attach on the entry)
   <C-k>           delete the entry in its file (asks when it is longer
                   than `agenda.confirm_kill` lines)
   <C-c><C-o>      open a link of the entry (choose when there are several)
   z               add a note
-  c               capture, with the date at point as default date
-  l               log mode: closed items and clocks (also vl);
-                  vL also shows state changes
+  K               capture, with the date at point as default date
+                  (Emacs k)
+  A               append another view to this one
+  l               log mode: closed items and clocks (also vl); 1l also
+                  shows state changes, 2l only log items; vL all log items
   C               clock report mode (also vR): a clock table of the
                   agenda files for the shown days
                   (`agenda.clockreport_parameters`)
@@ -639,39 +740,141 @@ Agenda keys (all configurable under `mappings.agenda`):
                   `enforce_todo_dependencies` or
                   `enforce_todo_checkbox_dependencies`)
   va / vA         include archived trees / also the archive files
-  v[              include inactive timestamps
-  /               filter by tag (`+tag` / `-tag`; again to clear)
-  <               filter by category
-  =               filter by regexp
-  _               filter by effort: `<1:00`, `>30`, `=0:15` (entries
-                  without an effort count as infinitely long)
-  ^               filter by the top headline of the entry at point
-  |               remove all filters
+  v[              include inactive timestamps (`[` leader)
+  / \ < = _ ^ |   filters (|org-agenda-filter|)
+  ~               limit the number of entries (|org-agenda-limits|)
   [ ] { }         search view: add a +word / -word / +{regexp} /
                   -{regexp} term (tags views: a +tag / -tag term);
                   date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
   <M-m> * <M-*>   toggle mark / mark all / toggle all marks
   %               mark entries matching a regexp
-  B               bulk action on marked entries: t todo, s schedule,
-                  d deadline, S shift, + add tag, - remove tag,
-                  p priority, r refile, $ archive, A archive sibling,
-                  a ARCHIVE tag, f apply a Lua function
+  B               bulk action (|org-agenda-bulk|)
+  <C-c><C-x><C-c> column view (|org-agenda-columns|)
   <C-x><C-s>      save all modified org buffers
-  <C-x><C-w>      export the agenda buffer to a .txt or .html file
-  q / x           quit / quit and wipe the buffer
+  <C-x><C-w>      write the agenda to a file (|org-agenda-export|)
+  q               quit
+  Q               quit and delete the agenda buffer
+  x               quit, delete the agenda buffers and the unmodified
+                  buffers the agenda loaded
   g?              help
 Emacs-style aliases: <C-c><C-t> todo, <C-c><C-q> and <C-c><C-c> tags,
 <C-c>, priority, <C-c><C-x>e effort, <C-c><C-z> note, <C-c><C-x><C-i>
 <C-c><C-x><C-o> <C-c><C-x><C-x> <C-c><C-x><C-j> clock in / out / cancel /
 goto, <C-c><C-x><Right/Left> date later / earlier.
+A count stands for Emacs's prefix argument: 1 = C-u, 2 = C-u C-u, 3 =
+C-u C-u C-u.
 
-Options: `agenda.start_with_log_mode` (true or "all"),
+Like Emacs, edits made from the agenda leave the source buffers modified
+(`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
+Buffers are listed, so :qa asks before losing changes. Set
+`save_after_edit = true` to write them after every edit.
+
+Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_follow_mode`, `start_with_clockreport_mode`,
-`start_with_entry_text_mode`.
+`start_with_entry_text_mode`, `show_outline_path` (echo the outline path
+of the entry at point).
 
-Edits made from the agenda are saved to disk when `agenda.save_after_edit`
-is set.
+Windows and buffers                                        *org-agenda-window*
+
+`agenda.window` (org-agenda-window-setup): "split" (default, Emacs
+reorganize-frame: the current window and the agenda below it), "only"
+(only-window), "other" (other-window), "current", "vsplit", "tab"
+(other-tab), "float". `restore_windows_after_quit` restores the previous
+window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
+dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
+as it is when the command is run again (press r to refresh).
+
+Filtering                                                  *org-agenda-filter*
+
+Filters hide lines without rebuilding the view; they show in the window
+bar (Emacs shows them in the mode line).
+  /     org-agenda-filter: a combined filter such as `+work-John<0:10-/plot/`:
+        +/- a tag or category (tags win), an effort comparison (< means
+        at most, > at least), a /regexp/ (Emacs syntax). An empty answer
+        removes the filters; a leading `+` (`++work`) or a count of 2
+        adds to the current ones; a count of 1 negates the whole filter;
+        a count of 3 runs `agenda.auto_exclude_function`
+  \     filter by one tag: its selection key (#+TAGS / `tags` `(k)`
+        keys), <Tab> to type a tag, <Space> any tag, `?` untagged, `.` the
+        tags of the entry at point, `-` / `+` exclude / include the next
+        tag, <CR> `auto_exclude_function`, `\` removes the tag filter
+  <     keep the category of the entry at point (again to clear); with a
+        count, hide that category
+  =     keep entries matching an Emacs regexp; with a count 1, hide them;
+        again to clear
+  _     effort: `<`, `>` or `=`, then a digit selecting a value of
+        `global_properties.Effort_ALL` (default "0 0:10 0:30 1:00 2:00
+        3:00 4:00 5:00 6:00 7:00"); `_` again clears. Entries without
+        an effort count as infinitely long (`sort_noeffort_is_high`)
+  ^     keep the entries under the top headline of the entry at point
+  |     remove all filters
+`agenda.auto_exclude_function(tag)` returns "+tag", "-tag" or nil
+(org-agenda-auto-exclude-function). Custom commands may preset filters
+that stay on: `tag_filter_preset`, `category_filter_preset`,
+`regexp_filter_preset`, `effort_filter_preset` (lists like { "+work" }).
+`agenda.persistent_filter` keeps the filters when another agenda is
+built.
+
+Limits                                                     *org-agenda-limits*
+
+`agenda.max_entries`, `max_todos`, `max_tags` and `max_effort` (minutes)
+limit each day or list, as a number or per view type
+({ agenda = 5, todo = 10 }); a negative number keeps the entries without
+the property. `~` sets one interactively (e entries, t TODOs, T tags, E
+effort); with a count it removes them. Like Emacs, lines without the
+property (time grid lines too) are dropped while a limit is on.
+
+Bulk actions                                                 *org-agenda-bulk*
+
+B acts on the marked entries, or on the entry at point without marks
+(org-agenda-bulk-action):
+  $ archive     A archive to the Archive sibling    t TODO state
+  + / - add / remove a tag       r refile
+  s / d   (re)schedule / set the deadline: a date, or `++2d` to shift each
+          entry's own date; an empty answer opens the calendar
+  S       scatter: schedule each entry on a random day of the next N days
+          (with a count, weekend days are skipped)
+  f       apply a Lua function (`function(target, item) ... end`)
+  p       toggle persistent marks (`agenda.persistent_marks`: keep the
+          marks after the action), then choose the action
+  custom  keys of `agenda.bulk_custom_functions`:
+          { x = { fn = function(target, item, ...) end, desc = "...",
+          args = function() return { ... } end } }
+
+Column view                                               *org-agenda-columns*
+
+<C-c><C-x><C-c> in the agenda shows each entry as columns, like column
+view in an org buffer. The format is `agenda.overriding_columns_format`,
+else the COLUMNS property or #+COLUMNS of the entry at point (or of the
+first entry), else `columns_default_format`. Date lines and block headers
+show the summaries of the entries below them
+(`agenda.columns_show_summaries`). While it is on: `q` turns it off, `e`
+edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
+the next/previous allowed value, `v` shows the full value. Other agenda
+commands keep working on the entry at point.
+`agenda.view_columns_initially` turns it on for every new agenda.
+
+Exporting agenda views                                     *org-agenda-export*
+
+<C-x><C-w> in the agenda, or `:Org agenda export FILE`, writes the current
+view (org-agenda-write). The extension picks the format:
+  .txt        the agenda text
+  .html .htm  the agenda with its colours, as a <pre> block
+  .org        the subtrees of the entries in the view, as level-1 trees
+  .ics        iCalendar: an event per timestamp (deadlines of non-TODO
+              entries too), a VTODO per TODO entry
+Custom commands with `export_files = { "~/today.html", "~/today.txt" }`
+are written all at once by `e` in the dispatcher or `:Org agenda e`
+(org-store-agenda-views). From the shell (org-batch-agenda and
+org-batch-agenda-csv):
+  nvim --headless -c "lua require('org.agenda.export').batch('a',
+    { span = 'day' })" -c q
+  nvim --headless -c "lua require('org.agenda.export').batch_csv('t')" -c q
+The first argument is a custom command key, a dispatcher key, or a match
+string; the second one sets agenda options for the run. CSV records have
+Emacs's fields: category,head,type,todo,tags,date,time,extra,priority-l,
+priority-n,agenda-day.
 
 Custom commands                                   *org-agenda-custom-commands*
 >lua
@@ -684,17 +887,28 @@ Custom commands                                   *org-agenda-custom-commands*
             { type = "tags_todo", match = "+work/!", header = "Work" },
             { type = "todo", match = "WAITING" },
           },
+          settings = { prefix_format = " %-12:c %s" },
+          export_files = { "~/work.html" },
         },
         u = { description = "Urgent", type = "tags", match = "+urgent" },
+        p = { description = "Projects", type = "tags-tree",
+              match = "project" },
       },
     }
 <
 Block types: `agenda`, `todo`, `tags`, `tags_todo`, `search`, `stuck`.
+`tags-tree`, `todo-tree` and `occur-tree` make a sparse tree of the current
+org buffer instead (tags match, TODO keyword, Emacs regexp); they cannot
+be blocks of a composite command. A composite command (`types` /
+`blocks`) shows its blocks one after the other, separated by a blank line
+and `agenda.block_separator` (none with `compact_blocks`, which also drops
+the date agenda header). `settings` (Emacs's options list) applies to
+every block unless the block sets the option itself.
 Block options:
   match         match string (see |org-match-syntax|), TODO keywords for
                 `todo`, or text for `search`
-  header        heading shown above the block (also accepted as
-                `org_agenda_overriding_header`)
+  header        heading shown above the block; "" for none; a function
+                returning it (also `org_agenda_overriding_header`)
   span          span for `agenda` blocks
   start_day     first day for `agenda` blocks
   files         files to use instead of `agenda_files`
@@ -708,31 +922,133 @@ Block options:
                 notdeadline, timestamp, nottimestamp, regexp RE,
                 notregexp RE, todo KWS, nottodo KWS (KWS: a list of
                 keywords, or "todo", "done", "any")
-  todo_ignore_scheduled, todo_ignore_deadlines, todo_ignore_with_date
+  sorting       sorting strategies of this block
+  *_filter_preset  filters that stay on (|org-agenda-filter|)
+  any other `agenda` option (`prefix_format`, `entry_types`,
+  `todo_ignore_*`, `show_future_repeats`, `max_entries`, ...), also with
+  Emacs names: `org_agenda_entry_types`, `org_agenda_prefix_format`, ...
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
-:Org agenda a|t|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|day|week|
-            month|year|<key>
+TODO lists: `todo_ignore_scheduled` ("all", "future", "past" or days),
+`todo_ignore_deadlines` (true = "near": within the warning period, "far",
+"all", "future", "past" or days), `todo_ignore_timestamp`,
+`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*);
+tags-todo (M) views honour them only with
+`tags_todo_honor_ignore_options`. `todo_list_sublevels = false` skips the
+children of a listed TODO; `tags_match_list_sublevels = false` those of a
+match.
+
+Stuck projects                                         *org-stuck-projects*
+
+`agenda.stuck_projects` (org-stuck-projects): projects matching `match`
+("+LEVEL=2/-DONE") are stuck unless a heading of their subtree, the
+project heading included, has one of `todo_keywords` ({ "TODO", "NEXT",
+"NEXTACTION" }; "*" = any not-done keyword) or `tags` ("*" = any tag), or
+the subtree text matches the Vim regexp `text`.
+
+Search view                                            *org-agenda-search*
+
+A plain query is a phrase whose spaces match any whitespace, newlines
+included ("banana split" finds "banana\n  split"). A query starting with
+`+`, `-` or `{` is boolean: `+word` must and `-word` must not occur, "a
+phrase" in double quotes counts as one word, `{regexp}` is an Emacs
+regexp, and `word\ word` joins two words. A leading `*` searches
+headlines only, `!` TODO entries only, `:` makes words match whole words.
+Matching ignores case.
+  agenda.search_view_always_boolean    treat every query as boolean
+  agenda.search_view_force_full_words  words match whole words only
+  agenda.search_view_max_outline_level entries below this level are
+                                       searched as part of their ancestor
+                                       (0 = no limit)
+  agenda.text_search_extra_files       more files to search; include
+                                       "agenda-archives" for the archive
+                                       files
+
+Diary sexp entries                                  *org-agenda-diary-sexp*
+
+Emacs lets you put diary s-expressions in timestamps, `<%%(diary-float t 4
+2)>`, and on lines of their own at the start of a line, `%%(org-anniversary
+1990 5 17) Birthday of Joe (%d)`. Emacs evaluates them as Emacs Lisp.
+Neovim has no Lisp interpreter, so they are read with a small, safe
+s-expression reader and the common calendar functions are emulated,
+with the same results as Emacs:
+
+  org-anniversary Y M D          diary-anniversary M D [Y]
+  org-cyclic N Y M D             diary-cyclic N M D Y
+  org-block Y1 M1 D1 Y2 M2 D2    diary-block M1 D1 Y1 M2 D2 Y2
+  org-date Y M D                 diary-date M D Y
+  diary-float MONTH DAYNAME N [DAY]
+  org-class Y1 M1 D1 Y2 M2 D2 DAYNAME [ISO-WEEKS...]
+  and  or  not  list  quote
+
+The `diary-*` functions take their arguments in Emacs's default
+`calendar-date-style` order (american: month day year). The `org-*`
+variants use ISO order (year month day). In `diary-date`/`org-date`, `t`
+matches any value and a list `'(1 2)` matches any of its elements. In
+`diary-float`, MONTH may be `t` or a list, DAYNAME is 0 (Sunday) to 6,
+and a negative N counts from the end of the month. The entry text of
+anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
+(its ordinal suffix, "st", "nd", ...); a result with "; " gives several
+agenda lines.
+
+Not supported in the agenda                        *org-agenda-unsupported*
+
+- Arbitrary Emacs Lisp in sexps, `diary-remind`, `diary-offset`, other
+  calendars (Hebrew, Islamic, Chinese, ...) and the `holidays` argument
+  of `org-class`: they need Emacs's Lisp evaluator and calendar and
+  holiday libraries. An unsupported sexp is skipped with a message.
+- The Emacs diary file (org-agenda-include-diary) and the agenda keys
+  that use it (`i` insert a diary entry, `D` toggle the diary): the diary
+  is an Emacs file format and machinery with no Neovim counterpart.
+- Calendar conversions (`C`), moon phases (`M`), sunrise and sunset
+  (`S`) and holidays (`H`): they rely on Emacs's calendar, astronomy
+  and holiday code.
+- `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
+  indirect buffers or narrowing; <Tab> opens the entry instead.
+- PDF and PostScript agenda export (.pdf/.ps): Emacs prints them with
+  ps-print; export .html and print it from a browser instead.
+  org-agenda-exporter-settings is not used; pass options as the second
+  argument of batch()/batch_csv().
+- `?` (show the FLAGGED note of MobileOrg) and the Customize keys (`C`,
+  `!` in the dispatcher): there is no MobileOrg or Customize.
+- Group tags (`#+TAGS: [ Work : Lab ]`) are not expanded in matches and
+  filters.
+- Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
+  (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
+  `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
+  schedule and set deadlines (Emacs: save and day view; views are `vd`,
+  `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`).
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
 
 Used by the agenda (m, M, custom commands), sparse trees and clocktables.
+The syntax is Emacs's `org-make-tags-matcher':
 
   +work-boss            has `work` and not `boss`
+  work:boss             both tags (`:` and `&` are synonyms of `+`)
   work|home             either tag
-  work&urgent           both tags (`&` is optional between +terms)
-  {^proj}               tag matching a regexp
-  LEVEL>1               property comparison: = <> < <= > >=
-  PRIORITY="A"          string comparison
-  Effort<"1:00"         durations compare as minutes
-  CATEGORY={^work}      regexp match on a property
-  SCHEDULED<="<+2d>"    date comparison: "<today>", "<tomorrow>",
-                        "<+2d>", "<2026-01-01>"
+  {^proj}               a tag matching a regexp
+  LEVEL>1               property comparison: = == <> != /= < <= > >=
+  PRIORITY="A"          string comparison; a missing property is ""
+  Effort<2              numbers compare like `string-to-number': "1:30"
+                        is 1, a missing property is 0
+  Effort<*2             starred operators (<* <=* =* >=* >* <>* !=* /=*)
+                        only match entries that have the property
+  CATEGORY={^work}      regexp match on a property (<>, != and /= negate)
+  SCHEDULED<="<+2d>"    date comparison: "<now>", "<today>", "<tomorrow>",
+                        "<+2d>", "<-1w>", "<+1m>", "<2026-01-01>"
   +proj/NEXT|TODO       TODO keyword part after `/`
   +proj/!               only entries that aren't done
   /-DONE                exclude a keyword
+  work/{^W}             a regexp in the TODO part
+
+Regexps in `{...}' are written in Emacs syntax (`\(...\)', `\|', `+',
+`?', `\{m,n\}', `[[:alpha:]]', `\<', `\s-', ...), translated to Vim
+regexps, and ignore case, like Emacs. Text that does not start a new term
+ends the match, as in Emacs: "work -boss" is the same as "work" (write
+"work-boss").
 
 ==============================================================================
 13. SPARSE TREES                                             *org-sparse-tree*
@@ -1470,20 +1786,48 @@ Buffer ~
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
-  skip_scheduled_if_done, skip_deadline_if_done,
+  entry_types { "deadline", "scheduled", "timestamp", "sexp" },
+  include_deadlines true, skip_scheduled_if_done, skip_deadline_if_done,
+  skip_timestamp_if_done, skip_scheduled_if_deadline_is_shown,
+  skip_timestamp_if_deadline_is_shown, skip_scheduled_repeats_after_deadline,
+  skip_additional_timestamps_same_entry,
   skip_deadline_prewarning_if_scheduled, skip_scheduled_delay_if_deadline,
-  show_future_repeats (true|false|"next"),
-  todo_ignore_scheduled/deadlines/with_date,
-  time_grid { enabled, type, times, separator, time_string },
-  current_time_string, sorting { agenda, todo, tags, search },
-  window ("current"|"split"|"vsplit"|"tab"|"float"), log_mode_items,
-  habits { graph_column, preceding_days, following_days, show_habits,
-  show_all_today, show_done_always_green }, stuck_projects { match, todo_keywords, tags, text },
-  save_after_edit, block_separator, show_inherited_tags, remove_tags,
-  custom_commands, entry_text_maxlines 5, confirm_kill 1,
+  deadline_past_days 10000, scheduled_past_days 10000,
+  prefer_last_repeat false, show_future_repeats (true|false|"next"),
+  show_all_dates true, todo_ignore_scheduled/deadlines/timestamp/with_date,
+  tags_todo_honor_ignore_options false, todo_list_sublevels true,
+  tags_match_list_sublevels true,
+  time_grid { enabled, type, times, separator " ┄┄┄┄┄ ", time_string },
+  current_time_string, show_current_time_in_grid true,
+  prefix_format { agenda, todo, tags, search }, scheduled_leaders,
+  deadline_leaders, timerange_leaders, inactive_leader "[",
+  remove_times_when_in_prefix true, search_headline_for_time true,
+  default_appointment_duration nil, time_leading_zero false,
+  timegrid_use_ampm false, format_date nil, weekend_days { 6, 0 },
+  hide_tags_regexp nil, tags_column "auto", category_icons {},
+  show_outline_path true, breadcrumbs_separator "->",
+  sorting { agenda, todo, tags, search }, cmp_user_defined nil,
+  sort_notime_is_late true, sort_noeffort_is_high true,
+  max_entries/max_todos/max_tags/max_effort nil,
+  window "split" ("split"|"only"|"other"|"current"|"vsplit"|"tab"|"float"),
+  restore_windows_after_quit false, sticky false, persistent_filter false,
+  auto_exclude_function nil, persistent_marks false,
+  bulk_custom_functions {}, compact_blocks false, log_mode_items,
+  habits { graph_column 40, preceding_days 21, following_days 7,
+  show_habits, show_habits_only_for_today true, show_all_today,
+  show_done_always_green, scheduled_past_days, today_glyph "!",
+  completed_glyph "*" },
+  stuck_projects { match, todo_keywords { "TODO", "NEXT", "NEXTACTION" },
+  tags, text }, save_after_edit false, block_separator, show_inherited_tags,
+  remove_tags, custom_commands, overriding_columns_format,
+  view_columns_initially, columns_show_summaries true,
+  text_search_extra_files {}, search_view_always_boolean,
+  search_view_force_full_words, search_view_max_outline_level 0,
+  entry_text_maxlines 5, confirm_kill 1,
   dim_blocked_tasks true (true|false|"invisible"),
   start_with_log_mode, start_with_follow_mode,
   start_with_clockreport_mode, start_with_entry_text_mode
+  (see |org-agenda|)
 capture ~
   templates (|org-capture-templates|), window
 refile ~
@@ -1800,8 +2144,10 @@ After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
   limited to what the table formula Lisp evaluator implements.
 - Export is lenient: broken internal links are rendered in italics instead
   of stopping the export.
+- Diary sexps are emulated for the common calendar functions only, and
+  the Emacs diary, calendars and holidays are not available in the
+  agenda (|org-agenda-unsupported|).
 - Not implemented:
-  - diary sexps `<%%(...)>`
   - org-crypt, org-protocol, MobileOrg
   - inline image and LaTeX previews
 - Column view is a separate table buffer rather than overlays on the

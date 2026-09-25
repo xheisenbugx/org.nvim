@@ -9,8 +9,8 @@
 ---Agenda span: a named span or a number of days.
 ---@alias org.Config.Agenda.Span "day"|"week"|"fortnight"|"month"|"year"|integer
 
----Agenda sorting strategy (org-agenda-sorting-strategy). Unknown names are
----ignored; `"category-keep"` (like any unmatched strategy) keeps the file order.
+---Agenda sorting strategy (org-agenda-sorting-strategy). An unknown name is
+---an error, like in Emacs.
 ---@alias org.Config.Agenda.SortingStrategy
 ---| "time-up"
 ---| "time-down"
@@ -31,14 +31,25 @@
 ---| "deadline-down"
 ---| "scheduled-up"
 ---| "scheduled-down"
+---| "timestamp-up"
+---| "timestamp-down"
+---| "ts-up"
+---| "ts-down"
+---| "tsia-up"
+---| "tsia-down"
+---| "stats-up"
+---| "stats-down"
 ---| "tag-up"
 ---| "tag-down"
 ---| "effort-up"
 ---| "effort-down"
+---| "user-defined-up"
+---| "user-defined-down"
 
 ---Agenda block type. Emacs-style names are accepted as aliases:
----`"tags-todo"` = `"tags_todo"`, `"alltodo"`/`"todo-tree"` = `"todo"`,
----`"tags-tree"` = `"tags"`, `"stuck-projects"`/`"stuck_projects"` = `"stuck"`.
+---`"tags-todo"` = `"tags_todo"`, `"alltodo"` = `"todo"`,
+---`"stuck-projects"`/`"stuck_projects"` = `"stuck"`. `"tags-tree"`,
+---`"todo-tree"` and `"occur-tree"` make a sparse tree of the current buffer.
 ---@alias org.Config.Agenda.BlockType
 ---| "agenda"
 ---| "todo"
@@ -48,76 +59,227 @@
 ---| "stuck"
 ---| "tags-todo"
 ---| "alltodo"
----| "todo-tree"
----| "tags-tree"
 ---| "stuck-projects"
 ---| "stuck_projects"
+---| "tags-tree"
+---| "todo-tree"
+---| "occur-tree"
+
+---Kind of dated entry collected by the agenda (org-agenda-entry-types).
+---@alias org.Config.Agenda.EntryType "deadline"|"scheduled"|"timestamp"|"sexp"|"deadline*"|"scheduled*"
 
 ---Skip function (org-agenda-skip-function): return true to drop the entry.
 ---See `require("org.agenda").skip_entry_if()` / `skip_subtree_if()`.
 ---@alias org.Config.Agenda.SkipFunction fun(headline: org.Headline): boolean?
 
+---A limit per view type, or one number for all (org-agenda-max-entries etc.).
+---@alias org.Config.Agenda.Limit integer|{ agenda?: integer, todo?: integer, tags?: integer, search?: integer }
+
 ---Agenda view options.
 ---@class org.Config.Agenda
 ---Default span of the agenda view (org-agenda-span). (default: `"week"`)
 ---@field span? org.Config.Agenda.Span
----Weekday that `week`/`fortnight` views start on, 1 = Monday ... 7 = Sunday;
----`false` starts on today (org-agenda-start-on-weekday). (default: `1`)
+---Weekday that 7 and 14 day spans start on, 1 = Monday ... 7 = Sunday;
+---`false` starts on the start day (org-agenda-start-on-weekday). (default: `1`)
 ---@field start_on_weekday? integer|false
----Offset like `"-3d"` for the first day (org-agenda-start-day). A block's
----own `start_day` overrides it. (default: `nil`)
+---Offset like `"-3d"` or a date for the first day (org-agenda-start-day). A
+---block's own `start_day` overrides it. (default: `nil`)
 ---@field start_day? string
+---Kinds of dated entries collected (org-agenda-entry-types).
+---(default: `{ "deadline", "scheduled", "timestamp", "sexp" }`)
+---@field entry_types? org.Config.Agenda.EntryType[]
+---Include deadlines (org-agenda-include-deadlines). (default: `true`)
+---@field include_deadlines? boolean
 ---Hide scheduled entries that are DONE (org-agenda-skip-scheduled-if-done). (default: `false`)
 ---@field skip_scheduled_if_done? boolean
 ---Hide deadlines of DONE entries (org-agenda-skip-deadline-if-done). (default: `false`)
 ---@field skip_deadline_if_done? boolean
----Hide deadline pre-warnings when the entry is scheduled later
----(org-agenda-skip-deadline-prewarning-if-scheduled). (default: `false`)
----@field skip_deadline_prewarning_if_scheduled? boolean
+---Hide timestamps of DONE entries (org-agenda-skip-timestamp-if-done). (default: `false`)
+---@field skip_timestamp_if_done? boolean
+---Hide a scheduled entry when its deadline is shown that day; `"not-today"`
+---only for past scheduled dates (org-agenda-skip-scheduled-if-deadline-is-shown).
+---(default: `false`)
+---@field skip_scheduled_if_deadline_is_shown? boolean|"not-today"
+---Hide a timestamp when the entry's deadline is shown that day
+---(org-agenda-skip-timestamp-if-deadline-is-shown). (default: `false`)
+---@field skip_timestamp_if_deadline_is_shown? boolean
+---Hide repeats of a scheduled entry after its deadline
+---(org-agenda-skip-scheduled-repeats-after-deadline). (default: `false`)
+---@field skip_scheduled_repeats_after_deadline? boolean
+---Show only the first timestamp of an entry per day
+---(org-agenda-skip-additional-timestamps-same-entry). (default: `false`)
+---@field skip_additional_timestamps_same_entry? boolean
+---Deadline pre-warnings of scheduled entries
+---(org-agenda-skip-deadline-prewarning-if-scheduled): `true` = none, a
+---number = at most that many days before, `"pre-scheduled"` = not before
+---the scheduled date. (default: `false`)
+---@field skip_deadline_prewarning_if_scheduled? boolean|integer|"pre-scheduled"
 ---Ignore a scheduled delay (`-2d`) when the entry has a deadline
 ---(org-agenda-skip-scheduled-delay-if-deadline). (default: `false`)
----@field skip_scheduled_delay_if_deadline? boolean
+---@field skip_scheduled_delay_if_deadline? boolean|integer|"post-deadline"
+---Days an overdue deadline is shown in today's agenda (org-deadline-past-days).
+---(default: `10000`)
+---@field deadline_past_days? integer
+---Days a past scheduled entry is shown in today's agenda
+---(org-scheduled-past-days). (default: `10000`)
+---@field scheduled_past_days? integer
+---Show the last repeat instead of the base date; `true` or a list of TODO
+---keywords (org-agenda-prefer-last-repeat). (default: `false`)
+---@field prefer_last_repeat? boolean|string[]
 ---Show future occurrences of repeating timestamps; `"next"` only shows the
 ---next one (org-agenda-show-future-repeats). (default: `true`)
 ---@field show_future_repeats? boolean|"next"
----Hide scheduled entries from TODO lists (org-agenda-todo-ignore-scheduled).
----`true` = `"all"`; `"future"` = scheduled after today; `"past"` = today or
----earlier. (default: `false`)
----@field todo_ignore_scheduled? boolean|"all"|"future"|"past"
----Hide entries with a deadline from TODO lists (org-agenda-todo-ignore-deadlines).
----`true` = `"all"`; `"near"` = within the warning period; `"far"` = beyond it;
----`"past"` = due today or earlier; `"future"` = due after today. (default: `false`)
----@field todo_ignore_deadlines? boolean|"all"|"near"|"far"|"past"|"future"
----Hide entries with any date (planning or timestamp) from TODO lists
+---Show days without entries (org-agenda-show-all-dates). (default: `true`)
+---@field show_all_dates? boolean
+---Hide scheduled entries from TODO lists (org-agenda-todo-ignore-scheduled):
+---`true`/`"all"`, `"future"`, `"past"`, or a number of days. (default: `false`)
+---@field todo_ignore_scheduled? boolean|"all"|"future"|"past"|integer
+---Hide entries with a deadline from TODO lists (org-agenda-todo-ignore-deadlines):
+---`true`/`"near"` = within the warning period, `"far"`, `"all"`,
+---`"future"`, `"past"`, or a number of days. (default: `false`)
+---@field todo_ignore_deadlines? boolean|"all"|"near"|"far"|"past"|"future"|integer
+---Hide entries with a plain timestamp from TODO lists
+---(org-agenda-todo-ignore-timestamp). (default: `false`)
+---@field todo_ignore_timestamp? boolean|"future"|"past"|integer
+---Hide entries with any active date from TODO lists
 ---(org-agenda-todo-ignore-with-date). (default: `false`)
 ---@field todo_ignore_with_date? boolean
----Time grid shown in day views (org-agenda-time-grid).
+---Apply the todo_ignore_* options to tags-todo views
+---(org-agenda-tags-todo-honor-ignore-options). (default: `false`)
+---@field tags_todo_honor_ignore_options? boolean
+---List TODO children of listed TODOs (org-agenda-todo-list-sublevels). (default: `true`)
+---@field todo_list_sublevels? boolean
+---List matching children of matches (org-tags-match-list-sublevels). (default: `true`)
+---@field tags_match_list_sublevels? boolean
+---Time grid (org-agenda-time-grid, org-agenda-use-time-grid).
 ---@field time_grid? org.Config.Agenda.TimeGrid
----Text after the current-time line (org-agenda-current-time-string).
----(default: `"← now ─────────────────────────────"`)
+---Text of the current-time line (org-agenda-current-time-string).
+---(default: `"← now ───────────────────────────────────────────────"`)
 ---@field current_time_string? string
+---Show the current-time line (org-agenda-show-current-time-in-grid). (default: `true`)
+---@field show_current_time_in_grid? boolean
+---Line prefix (org-agenda-prefix-format): one string for all views or one
+---per view. `%c` category, `%i` icon, `%t` time, `%s` leader, `%e` effort,
+---`%l` level, `%b` breadcrumbs, `%T` last tag, `%(lua expression)`.
+---@field prefix_format? string|org.Config.Agenda.PrefixFormat
+---Scheduled leaders { on the day, past with `%d` days } (org-agenda-scheduled-leaders).
+---(default: `{ "Scheduled: ", "Sched.%2dx: " }`)
+---@field scheduled_leaders? string[]
+---Deadline leaders { due, in `%d` days, `%d` days ago } (org-agenda-deadline-leaders).
+---(default: `{ "Deadline:  ", "In %3d d.: ", "%2d d. ago: " }`)
+---@field deadline_leaders? string[]
+---Date range leaders { same day, `(%d/%d)` } (org-agenda-timerange-leaders).
+---(default: `{ "", "(%d/%d): " }`)
+---@field timerange_leaders? string[]
+---Leader of inactive timestamps (org-agenda-inactive-leader). (default: `"["`)
+---@field inactive_leader? string
+---Remove a time of day shown in the prefix from the headline; `"beg"` only
+---at its start (org-agenda-remove-times-when-in-prefix). (default: `true`)
+---@field remove_times_when_in_prefix? boolean|"beg"
+---Take the time of day from the headline when the timestamp has none
+---(org-agenda-search-headline-for-time). (default: `true`)
+---@field search_headline_for_time? boolean
+---Minutes added as end time to timed entries without one
+---(org-agenda-default-appointment-duration). (default: `nil`)
+---@field default_appointment_duration? integer
+---"09:00" instead of " 9:00" (org-agenda-time-leading-zero). (default: `false`)
+---@field time_leading_zero? boolean
+---Times as "9:00am" (org-agenda-timegrid-use-ampm). (default: `false`)
+---@field timegrid_use_ampm? boolean
+---Day header: a strftime format or a function (org-agenda-format-date).
+---(default: `nil`, "Friday     25 September 2026" with the week on Mondays)
+---@field format_date? string|fun(d: table): string
+---Weekend days, 0 = Sunday (org-agenda-weekend-days). (default: `{ 6, 0 }`)
+---@field weekend_days? integer[]
+---Vim regexp of tags not displayed (org-agenda-hide-tags-regexp). (default: `nil`)
+---@field hide_tags_regexp? string
+---Tag position: `"auto"` = right edge, N > 0 = start column, N < 0 = end
+---column (org-agenda-tags-column). (default: `"auto"`)
+---@field tags_column? "auto"|integer
+---`{ { vim_regexp, icon_text }, ... }` for `%i` (org-agenda-category-icon-alist).
+---(default: `{}`)
+---@field category_icons? { [1]: string, [2]: string }[]
+---Echo the outline path of the entry at point (org-agenda-show-outline-path).
+---(default: `true`)
+---@field show_outline_path? boolean
+---Separator of `%b` breadcrumbs (org-agenda-breadcrumbs-separator). (default: `"->"`)
+---@field breadcrumbs_separator? string
 ---Sorting strategies per view type (org-agenda-sorting-strategy).
 ---@field sorting? org.Config.Agenda.Sorting
----Where the agenda opens. (default: `"current"`)
----@field window? "current"|"split"|"vsplit"|"tab"|"float"
+---Comparator for "user-defined-up/down": returns -1, 1 or nil
+---(org-agenda-cmp-user-defined). (default: `nil`)
+---@field cmp_user_defined? fun(a: org.AgendaItem, b: org.AgendaItem): integer?
+---Entries without a time sort last (org-agenda-sort-notime-is-late). (default: `true`)
+---@field sort_notime_is_late? boolean
+---Entries without an effort count as longest (org-agenda-sort-noeffort-is-high).
+---(default: `true`)
+---@field sort_noeffort_is_high? boolean
+---Maximum entries per day or list (org-agenda-max-entries). (default: `nil`)
+---@field max_entries? org.Config.Agenda.Limit
+---Maximum TODO entries (org-agenda-max-todos). (default: `nil`)
+---@field max_todos? org.Config.Agenda.Limit
+---Maximum tagged entries (org-agenda-max-tags). (default: `nil`)
+---@field max_tags? org.Config.Agenda.Limit
+---Maximum total effort in minutes (org-agenda-max-effort). (default: `nil`)
+---@field max_effort? org.Config.Agenda.Limit
+---Where the agenda opens (org-agenda-window-setup); `"split"` is Emacs's
+---reorganize-frame. Emacs names ("reorganize-frame", "current-window",
+---"only-window", "other-window", "other-tab") are accepted. (default: `"split"`)
+---@field window? "split"|"only"|"other"|"current"|"vsplit"|"tab"|"float"
+---Restore the window layout when quitting (org-agenda-restore-windows-after-quit).
+---(default: `false`)
+---@field restore_windows_after_quit? boolean
+---One buffer per agenda command (org-agenda-sticky). (default: `false`)
+---@field sticky? boolean
+---Keep filters when another agenda is built (org-agenda-persistent-filter). (default: `false`)
+---@field persistent_filter? boolean
+---Tag filter computed per tag: returns "+tag", "-tag" or nil
+---(org-agenda-auto-exclude-function). (default: `nil`)
+---@field auto_exclude_function? fun(tag: string): string?
+---Keep marks after a bulk action (org-agenda-persistent-marks). (default: `false`)
+---@field persistent_marks? boolean
+---Extra bulk action keys (org-agenda-bulk-custom-functions). (default: `{}`)
+---@field bulk_custom_functions? table<string, org.Config.Agenda.BulkFunction|fun(target: org.Target, item: org.AgendaItem)>
+---No block headers and separators (org-agenda-compact-blocks). (default: `false`)
+---@field compact_blocks? boolean
 ---Items shown in log mode (org-agenda-log-mode-items). (default: `{ "closed", "clock" }`)
 ---@field log_mode_items? ("closed"|"clock"|"state")[]
 ---Habit display options (org-habit).
 ---@field habits? org.Config.Agenda.Habits
 ---Stuck project definition (org-stuck-projects).
 ---@field stuck_projects? org.Config.Agenda.StuckProjects
----Save source buffers after editing them from the agenda. (default: `true`)
+---Save source buffers after editing them from the agenda. Emacs never does.
+---(default: `false`)
 ---@field save_after_edit? boolean
----Character repeated to separate blocks (org-agenda-block-separator). (default: `"─"`)
----@field block_separator? string
+---Character repeated, or a whole line, separating blocks
+---(org-agenda-block-separator); `false` for none. (default: `"─"`)
+---@field block_separator? string|false
 ---Show inherited tags on agenda lines (org-agenda-show-inherited-tags). (default: `true`)
 ---@field show_inherited_tags? boolean
----Hide tags on agenda lines (org-agenda-remove-tags). (default: `false`)
----@field remove_tags? boolean
+---Hide tags on agenda lines; `"prefix"` when the prefix shows `%T`
+---(org-agenda-remove-tags). (default: `false`)
+---@field remove_tags? boolean|"prefix"
 ---Custom agenda commands keyed by dispatcher key (org-agenda-custom-commands).
 ---Keys may be several characters long; a string value only labels the group
 ---of keys that start with that prefix. (default: `{}`)
 ---@field custom_commands? table<string, org.Config.Agenda.CustomCommand|string>
+---Columns format of the agenda column view
+---(org-agenda-overriding-columns-format). (default: `nil`)
+---@field overriding_columns_format? string
+---Open every agenda in column view (org-agenda-view-columns-initially). (default: `false`)
+---@field view_columns_initially? boolean
+---Column summaries on date lines (org-agenda-columns-show-summaries). (default: `true`)
+---@field columns_show_summaries? boolean
+---More files for the search view; "agenda-archives" adds the archive files
+---(org-agenda-text-search-extra-files). (default: `{}`)
+---@field text_search_extra_files? string[]
+---Every search query is boolean (org-agenda-search-view-always-boolean). (default: `false`)
+---@field search_view_always_boolean? boolean
+---Search words match whole words (org-agenda-search-view-force-full-words). (default: `false`)
+---@field search_view_force_full_words? boolean
+---Deeper entries are searched with their ancestor at this level; 0 = no
+---limit (org-agenda-search-view-max-outline-level). (default: `0`)
+---@field search_view_max_outline_level? integer
 ---Body lines shown under each entry in entry text mode (`E`)
 ---(org-agenda-entry-text-maxlines). (default: `5`)
 ---@field entry_text_maxlines? integer
@@ -148,77 +310,114 @@
 ---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
 ---@field dim_blocked_tasks? boolean|"invisible"
 
+---Prefix formats per view (org-agenda-prefix-format).
+---@class org.Config.Agenda.PrefixFormat
+---(default: `" %i %-12:c%?-12t% s"`)
+---@field agenda? string
+---(default: `" %i %-12:c"`)
+---@field todo? string
+---(default: `" %i %-12:c"`)
+---@field tags? string
+---(default: `" %i %-12:c"`)
+---@field search? string
+
+---A custom bulk action (org-agenda-bulk-custom-functions).
+---@class org.Config.Agenda.BulkFunction
+---Called for each marked entry, with the values returned by `args`.
+---@field fn fun(target: org.Target, item: org.AgendaItem, ...)
+---Label in the bulk menu.
+---@field desc? string
+---Called once before the action; returns the extra arguments of `fn`.
+---@field args? fun(): any[]
+
 ---Agenda time grid (org-agenda-time-grid).
 ---@class org.Config.Agenda.TimeGrid
----Show the time grid at all. (default: `true`)
+---Show the time grid at all (org-agenda-use-time-grid). (default: `true`)
 ---@field enabled? boolean
 ---Hide the grid (same as `enabled = false`). (default: `nil`)
 ---@field hidden? boolean
----When to show the grid: `"daily"` in day views, `"weekly"` in multi-day views,
----`"today"` on today's date, `"require-timed"` only on days with timed entries.
+---When to show the grid: `"daily"` in day views, `"weekly"` in all views,
+---`"today"` on today's date, `"require-timed"` only on days with timed
+---entries; `"remove-match"` hides grid lines at the time of an entry.
 ---(default: `{ "daily", "today", "require-timed" }`)
----@field type? ("daily"|"weekly"|"today"|"require-timed")[]
+---@field type? ("daily"|"weekly"|"today"|"require-timed"|"remove-match")[]
 ---Grid times as HHMM integers. (default: `{ 800, 1000, 1200, 1400, 1600, 1800, 2000 }`)
 ---@field times? integer[]
----Separator after the time on grid lines. (default: `"┄┄┄┄┄"`)
+---Text after the time of grid lines and of timed entries without an end
+---time. (default: `" ┄┄┄┄┄ "`)
 ---@field separator? string
 ---Text of grid lines. (default: `"┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"`)
 ---@field time_string? string
 
 ---Sorting strategies per view type (org-agenda-sorting-strategy).
 ---@class org.Config.Agenda.Sorting
----Date agenda views. (default: `{ "time-up", "priority-down", "category-keep" }`)
+---Date agenda views. (default: `{ "habit-down", "time-up", "urgency-down", "category-keep" }`)
 ---@field agenda? org.Config.Agenda.SortingStrategy[]
----TODO lists. (default: `{ "priority-down", "category-keep" }`)
+---TODO lists. (default: `{ "urgency-down", "category-keep" }`)
 ---@field todo? org.Config.Agenda.SortingStrategy[]
----Tags matches and stuck projects. (default: `{ "priority-down", "category-keep" }`)
+---Tags matches and stuck projects. (default: `{ "urgency-down", "category-keep" }`)
 ---@field tags? org.Config.Agenda.SortingStrategy[]
 ---Search views. (default: `{ "category-keep" }`)
 ---@field search? org.Config.Agenda.SortingStrategy[]
 
 ---Habit display options (org-habit).
 ---@class org.Config.Agenda.Habits
----Column where the consistency graph starts (org-habit-graph-column). (default: `50`)
+---Column where the consistency graph starts; it overwrites the rest of
+---the line (org-habit-graph-column). (default: `40`)
 ---@field graph_column? integer
 ---Days before today shown in the graph (org-habit-preceding-days). (default: `21`)
 ---@field preceding_days? integer
 ---Days after today shown in the graph (org-habit-following-days). (default: `7`)
 ---@field following_days? integer
----Show habits in the agenda. (default: `true`)
+---Show habits in the agenda (org-habit-show-habits). (default: `true`)
 ---@field show_habits? boolean
+---Show habits on today only, not on future days
+---(org-habit-show-habits-only-for-today). (default: `true`)
+---@field show_habits_only_for_today? boolean
 ---Show habits on today even when not yet due (org-habit-show-all-today). (default: `false`)
 ---@field show_all_today? boolean
 ---Always color DONE days green (org-habit-show-done-always-green). (default: `false`)
 ---@field show_done_always_green? boolean
+---Past days a habit is shown instead of `scheduled_past_days`
+---(org-habit-scheduled-past-days). (default: `nil`)
+---@field scheduled_past_days? integer
+---Graph character for today (org-habit-today-glyph). (default: `"!"`)
+---@field today_glyph? string
+---Graph character for done days (org-habit-completed-glyph). (default: `"*"`)
+---@field completed_glyph? string
 
 ---Stuck project definition (org-stuck-projects).
 ---@class org.Config.Agenda.StuckProjects
 ---Match string selecting project headlines (see `:h org-match-syntax`). (default: `"+LEVEL=2/-DONE"`)
 ---@field match? string
----A project is not stuck if a descendant has one of these TODO keywords.
----(default: `{ "TODO", "NEXT" }`)
+---A project is not stuck if a heading of its subtree (itself included) has
+---one of these TODO keywords; `"*"` = any not-done keyword.
+---(default: `{ "TODO", "NEXT", "NEXTACTION" }`)
 ---@field todo_keywords? string[]
----A project is not stuck if a descendant has one of these tags. (default: `{}`)
+---A project is not stuck if a heading of its subtree has one of these tags;
+---`"*"` = any tag. (default: `{}`)
 ---@field tags? string[]
 ---Vim regexp; a project is not stuck if its subtree text matches it. (default: `nil`)
 ---@field text? string
 
----One block of an agenda custom command. Any `org.Config.Agenda` list/date
----option set here (e.g. `skip_scheduled_if_done`, `todo_ignore_*`,
----`show_future_repeats`, `log_mode_items`, `habits`) overrides the global
----value for this block.
----@class org.Config.Agenda.Block
+---One block of an agenda custom command. Any `org.Config.Agenda` option set
+---here (e.g. `prefix_format`, `entry_types`, `todo_ignore_*`,
+---`show_future_repeats`, `max_entries`, `habits`), also under its Emacs name
+---(`org_agenda_entry_types`, ...), applies to this block.
+---@class org.Config.Agenda.Block: org.Config.Agenda
 ---Block type. (default: `"agenda"`)
 ---@field type? org.Config.Agenda.BlockType
 ---Match string (see `:h org-match-syntax`) for `tags`/`tags_todo`, TODO
----keywords (`"KW1|KW2"`) for `todo`, or search text for `search`.
+---keywords (`"KW1|KW2"`) for `todo`, search text for `search`, an Emacs
+---regexp for `occur-tree`.
 ---@field match? string
 ---TODO keywords for a `todo` block (`"KW1|KW2"` or a list); overrides `match`.
 ---@field keywords? string|string[]
----Heading shown above the block (org-agenda-overriding-header).
----@field header? string
+---Heading shown above the block; `""` for none; a function returning it
+---(org-agenda-overriding-header).
+---@field header? string|fun(): string
 ---Alias of `header`.
----@field org_agenda_overriding_header? string
+---@field org_agenda_overriding_header? string|fun(): string
 ---Span of an `agenda` block (org-agenda-span).
 ---@field span? org.Config.Agenda.Span
 ---Alias of `span`.
@@ -241,18 +440,14 @@
 ---@field org_agenda_sorting_strategy? org.Config.Agenda.SortingStrategy[]
 ---Restrict a `search` block to TODO entries.
 ---@field todo_only? boolean
----@field skip_scheduled_if_done? boolean
----@field skip_deadline_if_done? boolean
----@field skip_deadline_prewarning_if_scheduled? boolean
----@field skip_scheduled_delay_if_deadline? boolean
----@field show_future_repeats? boolean|"next"
----@field todo_ignore_scheduled? boolean|"all"|"future"|"past"
----@field todo_ignore_deadlines? boolean|"all"|"near"|"far"|"past"|"future"
----@field todo_ignore_with_date? boolean
----@field log_mode_items? ("closed"|"clock"|"state")[]
----@field habits? org.Config.Agenda.Habits
----Stuck project definition for a `stuck` block, merged over the global one.
----@field stuck_projects? org.Config.Agenda.StuckProjects
+---Tag filter that stays on, e.g. `{ "+work" }` (org-agenda-tag-filter-preset).
+---@field tag_filter_preset? string[]
+---Category filter that stays on (org-agenda-category-filter-preset).
+---@field category_filter_preset? string[]
+---Regexp filter that stays on (org-agenda-regexp-filter-preset).
+---@field regexp_filter_preset? string[]
+---Effort filter that stays on, e.g. `{ "+<1:00" }` (org-agenda-effort-filter-preset).
+---@field effort_filter_preset? string[]
 
 ---An agenda custom command (org-agenda-custom-commands). Either a composite
 ---view with `types`/`blocks`, or a single block given inline (set `type` and
@@ -265,6 +460,13 @@
 ---@field types? org.Config.Agenda.Block[]
 ---Alias of `types`.
 ---@field blocks? org.Config.Agenda.Block[]
+---Options applied to every block of a composite view (Emacs's settings list).
+---@field settings? org.Config.Agenda.Block
+---Alias of `settings`.
+---@field options? org.Config.Agenda.Block
+---Files written by `e` in the dispatcher (org-store-agenda-views): .txt,
+---.html, .org or .ics.
+---@field export_files? string[]
 
 ---------------------------------------------------------------------------
 -- Capture
