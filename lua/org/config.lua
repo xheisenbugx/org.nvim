@@ -70,7 +70,17 @@ M.defaults = {
   -- Buffer behaviour
   ---------------------------------------------------------------------------
   --- "overview" | "content" | "showall" | "showeverything" | "nofold"
+  --- | "show2levels" .. "show5levels"
   startup_folded = "overview",
+  --- Fold drawers when the file is opened (#+STARTUP: hidedrawers / nohidedrawers).
+  hide_drawer_startup = true,
+  --- Fold `#+begin_...` blocks when the file is opened (#+STARTUP: hideblocks).
+  hide_block_startup = false,
+  --- Let visibility cycling open subtrees tagged :ARCHIVE:.
+  cycle_open_archived_trees = false,
+  --- Heading that collects footnote definitions (created when missing).
+  --- false = put each definition at the end of the reference's section.
+  footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
   --- Indentation added to src block contents in the edit buffer.
@@ -481,6 +491,7 @@ M.defaults = {
       show_branches = "<C-c><C-k>",
       show_children = "<C-c><Tab>",
       reveal = "<C-c><C-r>",
+      force_cycle_archived = "<C-c><C-Tab>",
       copy_visible = "<C-c><C-x>v",
       -- motion
       next_heading = "<C-c><C-n>",
@@ -543,6 +554,7 @@ M.defaults = {
       agenda_file_remove = "<C-c>]",
       -- search / export / special
       sparse_tree = "<C-c>/",
+      tags_sparse_tree = "<C-c>\\",
       export = "<C-c><C-e>",
       edit_special = "<C-c>'",
       -- tables

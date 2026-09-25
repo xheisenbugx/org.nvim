@@ -380,6 +380,60 @@ function M.demote_subtree()
   end
 end
 
+--- Promote (delta < 0) or demote (delta > 0) every headline in the
+--- Visual selection (org-metaleft / org-metaright with an active region).
+--- Returns false when the selection contains no headline.
+function M.change_level_region(delta)
+  local bufnr = buf()
+  local s, _, e = utils.visual_range()
+  exit_visual()
+  local file = files.get_buffer(bufnr)
+  local heads = {}
+  for _, hl in ipairs(file.headlines) do
+    if hl.line >= s and hl.line <= e then
+      heads[#heads + 1] = hl
+    end
+  end
+  if #heads == 0 then
+    return false
+  end
+  for _, hl in ipairs(heads) do
+    if hl.level + delta < 1 then
+      utils.warn("Cannot promote to level 0. Use toggle_heading to turn it into text")
+      return
+    end
+  end
+  -- bottom-up so body re-indentation keeps line numbers valid
+  for i = #heads, 1, -1 do
+    local hl = heads[i]
+    local lines = get_lines(bufnr, hl.line, hl.body_end)
+    local new = relevel(lines, delta, file.settings.todo)
+    for j = 2, #new do
+      if parser.headline_level(lines[j]) then
+        new[j] = lines[j]
+      end
+    end
+    set_lines(bufnr, hl.line, hl.body_end, new)
+  end
+end
+
+--- Drag the line at the cursor up (dir = -1) or down (dir = 1), count
+--- times (org-drag-line-backward / org-drag-line-forward, M-S-Up/Down).
+function M.drag_line(dir)
+  local bufnr = buf()
+  local pos = cursor()
+  local n = math.max(vim.v.count, 1)
+  local target = pos[1] + dir * n
+  if target < 1 or target > vim.api.nvim_buf_line_count(bufnr) then
+    utils.warn("Cannot move line " .. (dir < 0 and "up" or "down"))
+    return
+  end
+  local line = get_lines(bufnr, pos[1], pos[1])[1]
+  set_lines(bufnr, pos[1], pos[1], {})
+  set_lines(bufnr, target, target - 1, { line })
+  vim.api.nvim_win_set_cursor(0, { target, pos[2] })
+end
+
 ---------------------------------------------------------------------------
 -- Moving subtrees
 ---------------------------------------------------------------------------
@@ -602,6 +656,8 @@ local SORT_ITEMS = {
   { key = "p", label = "by priority", kind = "priority" },
   { key = "o", label = "by TODO order", kind = "todo" },
   { key = "r", label = "by property", kind = "property" },
+  { key = "k", label = "by clocking time", kind = "clock", only = "entries" },
+  { key = "x", label = "by checkbox status", kind = "checkbox", only = "items" },
 }
 
 local function plain(s)
@@ -669,6 +725,8 @@ local function headline_key(kind, prop)
         return nil
       end
       return tonumber(v) or v:lower()
+    elseif kind == "clock" then
+      return h:clocked_minutes(nil, nil, true)
     end
   end
 end
@@ -683,7 +741,7 @@ local function item_key(kind, _)
       return tonumber(text:match("^%s*(%-?%d+%.?%d*)"))
     elseif kind == "time" or kind == "scheduled" or kind == "deadline" or kind == "created" then
       return first_ts(table.concat(lines, " "), false)
-    elseif kind == "todo" then
+    elseif kind == "todo" or kind == "checkbox" then
       -- checked items last
       return it.checkbox == "X" and 2 or it.checkbox == "-" and 1 or 0
     end
@@ -707,9 +765,11 @@ function M.sort()
   local on_item = not parser.headline_level(line) and lists.item_at(bufnr, lnum)
   local items = {}
   for _, it in ipairs(SORT_ITEMS) do
-    items[#items + 1] = { key = it.key, label = it.label, value = { kind = it.kind, reverse = false } }
-    items[#items + 1] =
-      { key = it.key:upper(), label = it.label .. " (reverse)", value = { kind = it.kind, reverse = true } }
+    if not it.only or it.only == (on_item and "items" or "entries") then
+      items[#items + 1] = { key = it.key, label = it.label, value = { kind = it.kind, reverse = false } }
+      items[#items + 1] =
+        { key = it.key:upper(), label = it.label .. " (reverse)", value = { kind = it.kind, reverse = true } }
+    end
   end
   local choice = require("org.ui").menu({ title = on_item and "Sort list" or "Sort entries", items = items })
   if not choice then

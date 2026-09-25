@@ -154,6 +154,129 @@ function M.delete_property(target, name)
   return true
 end
 
+--- Remove a property from every entry of the buffer
+--- (org-delete-property-globally). Returns the number of entries changed.
+function M.delete_property_globally(bufnr, name)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local file = files.get_buffer(bufnr)
+  if not name then
+    local names, seen = {}, {}
+    for _, hl in ipairs(file.headlines) do
+      for k in pairs(hl.properties) do
+        if not seen[k] then
+          seen[k] = true
+          names[#names + 1] = k
+        end
+      end
+    end
+    table.sort(names)
+    if #names == 0 then
+      utils.notify("No properties in this buffer")
+      return nil
+    end
+    name = utils.input_complete("Globally remove property: ", names)
+    if not name or vim.trim(name) == "" then
+      return nil
+    end
+    name = vim.trim(name)
+  end
+  local lines = {}
+  for i = #file.headlines, 1, -1 do
+    local hl = file.headlines[i]
+    if hl.properties[name:upper()] ~= nil then
+      lines[#lines + 1] = hl.line
+    end
+  end
+  -- bottom-up, so earlier line numbers stay valid
+  for _, l in ipairs(lines) do
+    edit.set_property(bufnr, l, name, nil)
+  end
+  utils.notify(string.format("Property %s removed from %d entries", name, #lines))
+  return #lines
+end
+
+--- Property at line `lnum` when it is inside a headline's property
+--- drawer (org-at-property-p).
+---@return string|nil name, string|nil value, org.Headline|nil headline
+function M.at_property_line(bufnr, lnum)
+  bufnr = bufnr or 0
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+  local name, value = line:match("^%s*:([^%s:]+):%s*(.-)%s*$")
+  if not name or name:upper() == "END" or name:upper() == "PROPERTIES" then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  local r = hl and hl.properties_range
+  if not r or lnum <= r[1] or lnum >= r[2] then
+    return nil
+  end
+  return name, value, hl
+end
+
+--- Replace the value of the property at `lnum` (keeps name and indentation).
+local function set_value_at(bufnr, lnum, name, value)
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+  local indent = line:match("^(%s*)")
+  vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { indent .. ":" .. name .. ": " .. value })
+end
+
+--- Switch the property at the cursor to the next (dir = 1) or previous
+--- (dir = -1) allowed value (org-property-next-allowed-value). Returns
+--- false when the cursor is not on a property line.
+function M.next_allowed_value(dir)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local name, value, hl = M.at_property_line(bufnr, lnum)
+  if not name then
+    return false
+  end
+  local allowed = hl:get_allowed_values(name)
+  if not allowed or #allowed == 0 then
+    utils.warn("Allowed values for this property have not been defined")
+    return
+  end
+  local idx
+  for i, v in ipairs(allowed) do
+    if v == value then
+      idx = i
+    end
+  end
+  local new
+  if not idx then
+    new = dir > 0 and allowed[1] or allowed[#allowed]
+  else
+    new = allowed[((idx - 1 + dir) % #allowed) + 1]
+  end
+  set_value_at(bufnr, lnum, name, new)
+  return new
+end
+
+--- C-c C-c on a property line (org-property-action): set its value,
+--- delete it here or delete it from every entry of the buffer.
+function M.property_action()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local name, _, hl = M.at_property_line(bufnr, lnum)
+  if not name then
+    return false
+  end
+  local choice = require("org.ui").menu({
+    title = "Property " .. name,
+    items = {
+      { key = "s", label = "Set value", value = "s" },
+      { key = "d", label = "Delete from this entry", value = "d" },
+      { key = "D", label = "Delete from all entries", value = "D" },
+    },
+  })
+  if choice == "s" then
+    return M.set_property({ bufnr = bufnr, lnum = hl.line }, name)
+  elseif choice == "d" then
+    return M.delete_property({ bufnr = bufnr, lnum = hl.line }, name)
+  elseif choice == "D" then
+    return M.delete_property_globally(bufnr, name)
+  end
+end
+
 --- Set the effort estimate (org-set-effort).
 function M.set_effort(target, value)
   local bufnr, _, hl = edit.resolve_headline(target)
