@@ -134,6 +134,10 @@
 ---| "next_sibling" # Next sibling heading
 ---| "open_at_point" # Open link / footnote / date at point
 ---| "open_link_or_entry" # Open link at point / entry links
+---| "orgtbl_insert_radio_table" # Insert radio table template
+---| "orgtbl_mode" # Toggle orgtbl-mode
+---| "orgtbl_send_table" # Send radio table
+---| "orgtbl_toggle_comment" # Comment / uncomment table
 ---| "paste_special" # Paste table rectangle / subtree
 ---| "paste_subtree" # Paste subtree
 ---| "prev_heading" # Previous heading
@@ -163,11 +167,12 @@
 ---| "shift_right" # Next TODO / date +1 / bullet
 ---| "shift_up" # Priority up / timestamp up
 ---| "show_branches" # Show all branches of subtree
----| "show_children" # Show children
+---| "show_children" # Show children / shrink table column
 ---| "show_everything" # Show everything, including drawers
 ---| "sort" # Sort entries / items
 ---| "sparse_tree" # Sparse tree
 ---| "store_link" # Store link to current location
+---| "table_ascii_plot" # ASCII bar plot of table column
 ---| "table_blank_field" # Blank table field(s)
 ---| "table_coordinates" # Toggle table coordinates
 ---| "table_copy_down" # Copy table field down
@@ -175,21 +180,32 @@
 ---| "table_delete_column" # Delete table column
 ---| "table_delete_row" # Delete table row
 ---| "table_edit_field" # Edit table field
----| "table_export" # Export table to TSV/CSV file
+---| "table_edit_formulas" # Edit table formulas
+---| "table_el" # table.el tables (not supported)
+---| "table_expand" # Expand all table columns
+---| "table_export" # Export table with a translator
 ---| "table_field_info" # Table field info
+---| "table_follow_field_mode" # Toggle table follow-field mode
 ---| "table_formula" # Set column / field formula
+---| "table_formula_debugger" # Toggle table formula debugger
+---| "table_header_line_mode" # Toggle table header-line mode
 ---| "table_import" # Import file as table
 ---| "table_insert_column" # Insert table column
 ---| "table_insert_hline" # Insert table hline
 ---| "table_insert_row" # Insert table row
+---| "table_iterate" # Recalculate table until stable
 ---| "table_next_field" # Next table field
 ---| "table_next_row" # Next table row
+---| "table_plot" # Plot table with gnuplot
 ---| "table_prev_field" # Previous table field
 ---| "table_recalc" # Recalculate table formulas
 ---| "table_recalc_buffer" # Recalculate all tables
+---| "table_recalculate" # Recalculate table row (count: table / iterate)
 ---| "table_rotate_marks" # Rotate table recalculation mark
+---| "table_shrink" # Shrink table columns with width cookies
 ---| "table_sort" # Sort table by column
 ---| "table_sum" # Sum column / rectangle
+---| "table_toggle_column_width" # Shrink / expand table column
 ---| "table_transpose" # Transpose table
 ---| "tags_sparse_tree" # Tags / property match sparse tree
 ---| "timer_countdown" # Start countdown timer
@@ -604,7 +620,7 @@
 ---@field indirect_subtree? org.MappingLhs
 --- Show all branches of subtree. Default: `<C-c><C-k>`
 ---@field show_branches? org.MappingLhs
---- Show children. Default: `<C-c><Tab>`
+--- Show children / shrink table column. Default: `<C-c><Tab>`
 ---@field show_children? org.MappingLhs
 --- Reveal context around cursor. Default: `<C-c><C-r>`
 ---@field reveal? org.MappingLhs
@@ -764,6 +780,14 @@
 ---@field table_field_info? org.MappingLhs
 --- Rotate table recalculation mark. Default: `<C-#>`
 ---@field table_rotate_marks? org.MappingLhs
+--- Toggle table formula debugger. Default: `<C-c>{`
+---@field table_formula_debugger? org.MappingLhs
+--- ASCII bar plot of table column. Default: `<C-c>"a`
+---@field table_ascii_plot? org.MappingLhs
+--- Plot table with gnuplot. Default: `<C-c>"g`
+---@field table_plot? org.MappingLhs
+--- table.el tables (not supported). Default: `<C-c>~`
+---@field table_el? org.MappingLhs
 --- Execute src block. Default: `{ "<C-c><C-v>e", "<C-c><C-v><C-e>" }`
 ---@field babel_execute? org.MappingLhs
 --- Execute all src blocks. Default: `{ "<C-c><C-v>b", "<C-c><C-v><C-b>" }`

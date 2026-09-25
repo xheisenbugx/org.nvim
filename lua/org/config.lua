@@ -110,6 +110,9 @@ M.defaults = {
   --- Keep the first table row visible in the winbar when it scrolls out of
   --- view (org-table-header-line-p).
   table_header_line_p = false,
+  --- Leaving the table ends follow-field mode
+  --- (org-table-exit-follow-field-mode-when-leaving-table).
+  table_exit_follow_field_mode_when_leaving_table = true,
   --- A1-style references (B3) in formulas: "from" accepts them when typed,
   --- true also shows them in the formula editor, false never
   --- (org-table-use-standard-references).
@@ -833,6 +836,10 @@ M.defaults = {
       table_coordinates = "<C-c>}",
       table_field_info = "<C-c>?",
       table_rotate_marks = "<C-#>",
+      table_formula_debugger = "<C-c>{",
+      table_ascii_plot = '<C-c>"a',
+      table_plot = '<C-c>"g',
+      table_el = "<C-c>~",
       -- babel (C-c C-v)
       babel_execute = { "<C-c><C-v>e", "<C-c><C-v><C-e>" },
       babel_execute_buffer = { "<C-c><C-v>b", "<C-c><C-v><C-b>" },

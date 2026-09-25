@@ -1359,44 +1359,11 @@ function M.toggle_formula_debugger()
   return M.formula_debug
 end
 
---- Edit the #+TBLFM formulas of the table at cursor, one per line.
+--- Edit the formulas of the table at the cursor (or of the #+TBLFM line
+--- at the cursor) in the formula editor, see |org-table-formula-editor|.
+--- Emacs C-c ' (org-table-edit-formulas).
 function M.edit_formulas()
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local info = M.find(0, lnum)
-  if not info then
-    utils.warn("Not in a table")
-    return
-  end
-  local formulas = read_formulas(0, info)
-  local indent = info.lines[1]:match("^(%s*)")
-  local start_line, end_line
-  if #info.tblfm == 0 then
-    vim.api.nvim_buf_set_lines(0, info.finish, info.finish, false, { indent .. "#+TBLFM:" })
-    start_line, end_line = info.finish + 1, info.finish + 1
-  else
-    start_line, end_line = info.tblfm[1], info.tblfm[#info.tblfm]
-  end
-  local lines = formulas == "" and { "" } or vim.split(formulas, "::", { plain = true })
-  require("org.special").open({
-    source_buf = vim.api.nvim_get_current_buf(),
-    start_line = start_line,
-    end_line = end_line,
-    lines = lines,
-    name = "formulas",
-    to_source = function(new)
-      local parts = {}
-      for _, l in ipairs(new) do
-        l = vim.trim(l)
-        if l ~= "" then
-          parts[#parts + 1] = l
-        end
-      end
-      if #parts == 0 then
-        return {}
-      end
-      return { indent .. "#+TBLFM: " .. table.concat(parts, "::") }
-    end,
-  })
+  return require("org.table.fedit").open()
 end
 
 --- Rows (list of list of strings) of the table named `name` (#+NAME:).
@@ -1852,11 +1819,23 @@ function M.current_field_formula()
 end
 
 --- Edit the full content of the current field in a prompt, then realign.
+--- Count 4 (C-u) shows the field's column in full when it is shrunk; count
+--- 16 (C-u C-u) toggles follow-field mode (see |org-table-follow-field|).
 --- Emacs `C-c `` (org-table-edit-field).
-function M.edit_field()
+---@param count? integer
+function M.edit_field(count)
+  count = count or vim.v.count
   local info, row, field = current_field()
   if not info then
     return false
+  end
+  if count >= 16 then
+    return require("org.table.follow").toggle()
+  elseif count >= 4 then
+    local shrink = require("org.table.shrink")
+    local cols = shrink.get(0, info.start)
+    cols[field] = nil
+    return shrink.set(0, info.start, cols)
   end
   local t = info.tbl
   if t.rows[row].hline then
@@ -2551,7 +2530,29 @@ function M.toggle_column_width(count, ranges)
   return shrink.set(0, lnum, current)
 end
 
+--- Toggle follow-field mode (Emacs org-table-follow-field-mode).
+function M.toggle_follow_field_mode()
+  return require("org.table.follow").toggle()
+end
+
+--- Toggle header-line mode for the current buffer (Emacs
+--- org-table-header-line-mode).
+function M.header_line_mode()
+  local on = require("org.table.follow").header_line_mode(0)
+  utils.notify("Table header-line mode " .. (on and "enabled" or "disabled"))
+  return on
+end
+
+--- Tables in the table.el format (`+---+`) are not supported: explain
+--- (Emacs C-c ~, org-table-create-with-table.el).
+function M.table_el()
+  utils.warn("table.el tables are not supported (see :h org-differences)")
+end
+
 function M.attach(bufnr)
+  if require("org.config").opts.table_header_line_p then
+    require("org.table.follow").header_line_mode(bufnr, true)
+  end
   local startup = require("org.files").get_buffer(bufnr).settings.startup or {}
   if startup.shrink or (require("org.config").opts.startup_shrink_all_tables and not startup.noshrink) then
     vim.schedule(function()

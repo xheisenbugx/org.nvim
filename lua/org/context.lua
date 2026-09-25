@@ -55,6 +55,18 @@ function M.context_action()
     -- apply the formulas of this #+TBLFM line (org-table-calc-current-TBLFM)
     return require("org.table").calc_current_tblfm(0, lnum)
   end
+  if line:match("^%s*#%+[Pp][Ll][Oo][Tt]:") then
+    return require("org.table.plot").gnuplot(0, lnum)
+  end
+  if line:match("^%s*#%+[Oo][Rr][Gg][Tt][Bb][Ll]:") then
+    -- recalculate the table below and send it (org-ctrl-c-ctrl-c on a table)
+    local nxt = vim.api.nvim_buf_get_lines(0, lnum, lnum + 1, false)[1]
+    if nxt and in_table(nxt) then
+      require("org.table").recalc(0, lnum + 1)
+      require("org.table.orgtbl").send_table(0, lnum + 1, true)
+      return true
+    end
+  end
   if in_table(line) then
     return require("org.table").ctrl_c_ctrl_c()
   end
@@ -417,6 +429,16 @@ end
 
 local function in_visual()
   return vim.fn.mode():match("^[vV\22]") ~= nil
+end
+
+--- C-c TAB: in a table shrink or expand the column
+--- (org-table-toggle-column-width), else show the children.
+function M.ctrl_c_tab()
+  local _, _, line = cur()
+  if in_table(line) then
+    return require("org.table").toggle_column_width(vim.v.count)
+  end
+  return require("org.fold").show_children()
 end
 
 --- C-c *: in a table recalculate the current row (count 4: the table,

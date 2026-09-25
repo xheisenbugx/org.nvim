@@ -123,6 +123,9 @@
 ---Show the first row of a table in the winbar while it is scrolled out of
 ---view. (Emacs `org-table-header-line-p`, default: `false`)
 ---@field table_header_line_p? boolean
+---Leaving the table ends follow-field mode.
+---(Emacs `org-table-exit-follow-field-mode-when-leaving-table`, default: `true`)
+---@field table_exit_follow_field_mode_when_leaving_table? boolean
 ---A1-style references (`B3`) in formulas: `"from"` accepts them when
 ---typed, `true` also shows them in the formula editor, `false` never.
 ---(Emacs `org-table-use-standard-references`, default: `"from"`)
