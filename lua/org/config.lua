@@ -25,8 +25,15 @@ M.defaults = {
   --- `(k)` is a fast-selection key, `!` logs a timestamp, `@` asks for a note.
   --- A flat list containing a `"|"` element is also accepted.
   todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" },
-  --- State a repeating task returns to. nil = previous TODO state (or first).
+  --- State a repeating task returns to: nil = first keyword of its sequence,
+  --- true = the state it had before, or a keyword. The REPEAT_TO_STATE
+  --- property overrides it.
   todo_repeat_to_state = nil,
+  --- Tag changes on TODO state changes (org-todo-state-tags-triggers). Keys
+  --- are keywords, `"todo"`, `"done"` or `""` (no keyword); values map tags
+  --- to true (add) / false (remove):
+  --- `{ CANCELLED = { CANCELLED = true }, done = { WAITING = false } }`.
+  todo_state_tags_triggers = {},
   --- Block marking an entry DONE while children are not DONE.
   enforce_todo_dependencies = false,
   --- Block marking an entry DONE while it has unchecked checkboxes.
@@ -38,6 +45,8 @@ M.defaults = {
   --- Log changes of SCHEDULED / DEADLINE: false | "time" | "note".
   log_reschedule = false,
   log_redeadline = false,
+  --- Ask for a note when clocking out (org-log-note-clock-out).
+  log_note_clock_out = false,
   --- Drawer used for state changes, notes and clocks. `false` = no drawer.
   log_into_drawer = "LOGBOOK",
   --- Newest log entries first (Emacs default).
@@ -63,14 +72,30 @@ M.defaults = {
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},
+  --- S-RET (table_copy_down) increments numbers and dates: true (by the
+  --- difference to the field above, else 1), a number (fixed step) or false.
+  table_copy_increment = true,
   effort_property = "Effort",
+  --- Durations in clock tables, clock sums and efforts: "d h:mm" writes
+  --- "1d 2:30" from one day on (Emacs `org-duration-format`), "h:mm" "26:30".
+  duration_format = "d h:mm",
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 
   ---------------------------------------------------------------------------
   -- Buffer behaviour
   ---------------------------------------------------------------------------
   --- "overview" | "content" | "showall" | "showeverything" | "nofold"
+  --- | "show2levels" .. "show5levels"
   startup_folded = "overview",
+  --- Fold drawers when the file is opened (#+STARTUP: hidedrawers / nohidedrawers).
+  hide_drawer_startup = true,
+  --- Fold `#+begin_...` blocks when the file is opened (#+STARTUP: hideblocks).
+  hide_block_startup = false,
+  --- Let visibility cycling open subtrees tagged :ARCHIVE:.
+  cycle_open_archived_trees = false,
+  --- Heading that collects footnote definitions (created when missing).
+  --- false = put each definition at the end of the reference's section.
+  footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
   --- Indentation added to src block contents in the edit buffer.
@@ -81,9 +106,17 @@ M.defaults = {
   blank_before_new_entry = { heading = "auto", plain_list_item = false },
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- { rounding of the current time in date prompts, minute step of
+  --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
+  --- exactly that many minutes.
+  time_stamp_rounding_minutes = { 0, 5 },
   --- Where `archive_subtree` sends entries. `%s` = current file name.
   archive_location = "%s_archive::",
   archive_save_context_info = { "time", "file", "olpath", "category", "todo", "itags" },
+  --- Heading of the sibling used by `archive_to_sibling`.
+  archive_sibling_heading = "Archive",
+  --- Add inherited tags to archived entries: "infile" | true | false.
+  archive_subtree_add_inherited_tags = "infile",
   --- Window used for special buffers: "float" | "split" | "vsplit" | "tab" | "current"
   win_split_mode = "float",
   win_border = "rounded",
@@ -127,6 +160,7 @@ M.defaults = {
       following_days = 7,
       show_habits = true,
       show_all_today = false,
+      show_done_always_green = false,
     },
     stuck_projects = {
       match = "+LEVEL=2/-DONE",
@@ -140,6 +174,18 @@ M.defaults = {
     show_inherited_tags = true,
     remove_tags = false,
     custom_commands = {},
+    --- Body lines shown under each entry in entry text mode (E).
+    entry_text_maxlines = 5,
+    --- Ask before `<C-k>` deletes an entry longer than this many lines
+    --- (org-agenda-confirm-kill). false = never ask.
+    confirm_kill = 1,
+    start_with_log_mode = false, -- false | true | "all"
+    start_with_follow_mode = false,
+    start_with_clockreport_mode = false,
+    start_with_entry_text_mode = false,
+    --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
+    --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
+    dim_blocked_tasks = true,
   },
 
   ---------------------------------------------------------------------------
@@ -161,6 +207,15 @@ M.defaults = {
     use_outline_path = "file", -- "file" | true | false
     allow_creating_parent_nodes = false,
     include_current_file = true,
+    --- Target specs like org-refile-targets; replaces max_level /
+    --- include_current_file when non-empty. See `:h org-refile`.
+    targets = {},
+    --- function(headline) -> boolean, filters targets (org-refile-target-verify-function).
+    verify = nil,
+    --- Log refiling: false | "time" | "note" (org-log-refile).
+    log = false,
+    --- Refile as the first child instead of the last (org-reverse-note-order).
+    reverse_note_order = false,
   },
 
   ---------------------------------------------------------------------------
@@ -172,6 +227,14 @@ M.defaults = {
     out_remove_zero_time = true,
     --- State to switch to on clock in: a keyword, or function(headline) -> keyword|nil
     in_switch_to_state = nil, -- e.g. "NEXT"
+    --- State to switch to on clock out: a keyword, or function(keyword) -> keyword|nil
+    out_switch_to_state = nil,
+    --- Notify once when the clocked time reaches the task's effort.
+    notify_effort = true,
+    --- Number of tasks remembered for clock_in with a count (clock history).
+    history_length = 35,
+    --- Start a new clock where the last one stopped (org-clock-continuously).
+    continuously = false,
     statusline_icon = "⏱",
     clocktable_default = { maxlevel = 3, scope = "file", block = nil },
     persist = true,
@@ -405,6 +468,9 @@ M.defaults = {
       clock_cancel = "<prefix>xq",
       clock_goto = "<prefix>xj",
       set_effort = "<prefix>xe",
+      inc_effort = "<prefix>xE",
+      clock_modify_effort = "<prefix>xm",
+      clock_resolve = "<prefix>xz",
       clock_report = "<prefix>xr",
       clock_display = "<prefix>xd",
       dblock_update = "<prefix>xu",
@@ -416,8 +482,13 @@ M.defaults = {
       toggle_link_display = "<prefix>lt",
       next_link = "<prefix>ln",
       prev_link = "<prefix>lp",
+      insert_last_stored_link = "<prefix>lL",
+      insert_all_links = "<prefix>lA",
+      id_goto = "<prefix>lg",
+      id_copy = "<prefix>ly",
       -- refile / archive / attach
       refile = "<prefix>r",
+      refile_copy = "<prefix>R",
       archive_subtree = "<prefix>$",
       attach = "<prefix>A",
       -- search / export
@@ -432,6 +503,9 @@ M.defaults = {
       table_delete_row = "<prefix>TR",
       table_insert_column = "<prefix>Ti",
       table_delete_column = "<prefix>TI",
+      table_copy_down = "<S-CR>",
+      table_transpose = "<prefix>Tt",
+      table_rotate_marks = "<prefix>T#",
       -- babel
       edit_special = "<prefix>'",
       babel_execute = "<prefix>be",
@@ -441,13 +515,26 @@ M.defaults = {
       babel_remove_result = "<prefix>bk",
       babel_next_block = "<prefix>bn",
       babel_prev_block = "<prefix>bp",
+      babel_tangle_file = "<prefix>bf",
+      babel_expand = "<prefix>bv",
+      babel_view_info = "<prefix>bI",
+      babel_check = "<prefix>bc",
+      babel_insert_header_arg = "<prefix>bj",
+      babel_goto_named = "<prefix>bg",
+      babel_goto_named_result = "<prefix>br",
+      babel_goto_head = "<prefix>bu",
+      babel_open_result = "<prefix>bo",
+      babel_demarcate = "<prefix>bd",
+      babel_lob_ingest = "<prefix>bi",
     },
     --- Insert-mode mappings inside org buffers.
     org_insert = {
       meta_return = "<M-CR>",
-      table_next_field = "<Tab>",
+      --- table: next field; empty headline / item: cycle its level
+      insert_tab = "<Tab>",
       table_prev_field = "<S-Tab>",
       table_next_row = "<CR>",
+      table_copy_down = "<S-CR>",
     },
     --- Emacs Org keys (org-mode-map), on top of the Vim-style keys above.
     --- Set a section to `false` to disable it, or an entry to `false` to
@@ -481,6 +568,7 @@ M.defaults = {
       show_branches = "<C-c><C-k>",
       show_children = "<C-c><Tab>",
       reveal = "<C-c><C-r>",
+      force_cycle_archived = "<C-c><C-Tab>",
       copy_visible = "<C-c><C-x>v",
       -- motion
       next_heading = "<C-c><C-n>",
@@ -518,6 +606,11 @@ M.defaults = {
       clock_report = "<C-c><C-x><C-r>",
       clock_display = "<C-c><C-x><C-d>",
       set_effort = "<C-c><C-x>e",
+      inc_effort = "<C-c><C-x>E",
+      clock_modify_effort = "<C-c><C-x><C-e>",
+      clock_resolve = "<C-c><C-x><C-z>",
+      shift_control_up = "<C-S-Up>",
+      shift_control_down = "<C-S-Down>",
       dblock_update = "<C-c><C-x><C-u>",
       column_view = "<C-c><C-x><C-c>",
       insert_columnview = "<C-c><C-x>i",
@@ -531,18 +624,27 @@ M.defaults = {
       timer_countdown = "<C-c><C-x>;",
       -- links
       insert_link = "<C-c><C-l>",
-      open_at_point = "<C-c><C-o>",
+      open_link_or_entry = "<C-c><C-o>",
+      insert_last_stored_link = "<C-c><M-l>",
+      insert_all_links = "<C-c><C-M-l>",
+      mark_ring_goto = "<C-c>&",
       next_link = "<C-c><C-x><C-n>",
       prev_link = "<C-c><C-x><C-p>",
       -- refile / archive / attach / agenda files
       refile = "<C-c><C-w>",
-      archive_subtree = { "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
+      refile_copy = "<C-c><M-w>",
+      archive_subtree ={ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
       toggle_archive_tag = "<C-c><C-x>a",
+      archive_to_sibling = "<C-c><C-x>A",
       attach = "<C-c><C-a>",
       agenda_file_to_front = "<C-c>[",
       agenda_file_remove = "<C-c>]",
+      cycle_agenda_files = { "<C-'>", "<C-,>" },
+      agenda_set_restriction_lock = "<C-c><C-x><",
+      agenda_remove_restriction_lock = "<C-c><C-x>>",
       -- search / export / special
       sparse_tree = "<C-c>/",
+      tags_sparse_tree = "<C-c>\\",
       export = "<C-c><C-e>",
       edit_special = "<C-c>'",
       -- tables
@@ -553,6 +655,7 @@ M.defaults = {
       table_blank_field = "<C-c><Space>",
       table_coordinates = "<C-c>}",
       table_field_info = "<C-c>?",
+      table_rotate_marks = "<C-#>",
       -- babel (C-c C-v)
       babel_execute = { "<C-c><C-v>e", "<C-c><C-v><C-e>" },
       babel_execute_buffer = { "<C-c><C-v>b", "<C-c><C-v><C-b>" },
@@ -561,6 +664,17 @@ M.defaults = {
       babel_remove_result = "<C-c><C-v>k",
       babel_next_block = { "<C-c><C-v>n", "<C-c><C-v><C-n>" },
       babel_prev_block = { "<C-c><C-v>p", "<C-c><C-v><C-p>" },
+      babel_tangle_file = { "<C-c><C-v>f", "<C-c><C-v><C-f>" },
+      babel_expand = { "<C-c><C-v>v", "<C-c><C-v><C-v>" },
+      babel_view_info = "<C-c><C-v>I",
+      babel_check = { "<C-c><C-v>c", "<C-c><C-v><C-c>" },
+      babel_insert_header_arg = { "<C-c><C-v>j", "<C-c><C-v><C-j>" },
+      babel_goto_named = "<C-c><C-v>g",
+      babel_goto_named_result = { "<C-c><C-v>r", "<C-c><C-v><C-r>" },
+      babel_goto_head = { "<C-c><C-v>u", "<C-c><C-v><C-u>" },
+      babel_open_result = { "<C-c><C-v>o", "<C-c><C-v><C-o>" },
+      babel_demarcate = { "<C-c><C-v>d", "<C-c><C-v><C-d>" },
+      babel_lob_ingest = { "<C-c><C-v>i", "<C-c><C-v>l", "<C-c><C-v><C-l>" },
     },
     --- Insert-mode Emacs keys.
     emacs_insert = {
@@ -586,45 +700,80 @@ M.defaults = {
       fortnight_view = "vt",
       month_view = "vm",
       year_view = "vy",
+      reset_view = "v<Space>",
       goto = "<Tab>",
       switch_to = "<CR>",
       show = "<Space>",
-      follow_mode = "F",
-      todo = "t",
+      recenter = "L",
+      delete_other_windows = "o",
+      follow_mode = { "F", "vf" },
+      todo = { "t", "<C-c><C-t>" },
       todo_next = "<C-S-Right>",
       todo_prev = "<C-S-Left>",
-      priority = ",",
+      priority = { ",", "<C-c>," },
       priority_up = { "+", "<S-Up>" },
       priority_down = { "-", "<S-Down>" },
-      set_tags = ":",
+      set_tags = { ":", "<C-c><C-q>", "<C-c><C-c>" },
+      show_tags = "T",
+      set_property = "<C-c><C-x>p",
       schedule = { "<C-c><C-s>", "s" },
       deadline = { "<C-c><C-d>", "d" },
-      date_later = "<S-Right>",
-      date_earlier = "<S-Left>",
+      date_later = { "<S-Right>", "<C-c><C-x><Right>" },
+      date_earlier = { "<S-Left>", "<C-c><C-x><Left>" },
       date_prompt = ">",
-      clock_in = "I",
-      clock_out = "O",
-      clock_cancel = "X",
-      clock_goto = "J",
-      set_effort = "e",
+      clock_in = { "I", "<C-c><C-x><C-i>" },
+      clock_out = { "O", "<C-c><C-x><C-o>" },
+      clock_cancel = { "X", "<C-c><C-x><C-x>" },
+      clock_goto = { "J", "<C-c><C-x><C-j>" },
+      set_effort = { "e", "<C-c><C-x>e" },
+      timer = ";",
+      restriction_lock = "<C-c><C-x><",
+      remove_restriction_lock = "<C-c><C-x>>",
       refile = { "<C-c><C-w>", "R" },
-      archive = "$",
-      toggle_archive_tag = "a",
-      add_note = "z",
-      log_mode = "l",
-      clockreport_mode = "C",
+      archive = { "$", "<C-c>$", "<C-c><C-x><C-s>" },
+      archive_default = { "a", "<C-c><C-x><C-a>" },
+      archive_sibling = "<C-c><C-x>A",
+      toggle_archive_tag = "<C-c><C-x>a",
+      kill = "<C-k>",
+      open_link = "<C-c><C-o>",
+      add_note = { "z", "<C-c><C-z>" },
+      log_mode = { "l", "vl" },
+      log_all_mode = "vL",
+      clockreport_mode = { "C", "vR" },
+      entry_text_mode = { "E", "vE" },
+      archives_mode = "va",
+      archives_files_mode = "vA",
+      inactive_mode = "v[",
+      time_grid = { "G", "vG" },
+      toggle_deadlines = { "!", "v!" },
+      dim_blocked = "#",
       filter_tag = "/",
       filter_category = "<",
       filter_regexp = "=",
+      filter_effort = "_",
+      filter_top_headline = "^",
       filter_remove = "|",
+      query_add = "[",
+      query_subtract = "]",
+      query_add_re = "{",
+      query_subtract_re = "}",
       mark = "m",
       unmark = "u",
       unmark_all = "U",
+      toggle_mark = "<M-m>",
+      mark_all = "*",
+      toggle_mark_all = "<M-*>",
+      mark_regexp = "%",
       bulk_action = "B",
       next_item = "n",
       prev_item = "p",
+      next_date_line = "<C-c><C-n>",
+      prev_date_line = "<C-c><C-p>",
+      forward_block = "<C-Down>",
+      backward_block = "<C-Up>",
+      save_all = "<C-x><C-s>",
       capture = "c", -- Emacs: k (kept free for motion)
-      export = "E",
+      export = "<C-x><C-w>",
       help = "g?",
     },
     capture = {

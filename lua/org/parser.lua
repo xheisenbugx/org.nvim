@@ -525,9 +525,9 @@ function File:tag_definitions()
   local out = {}
   local function add(spec)
     for tok in spec:gmatch("%S+") do
-      if tok == "{" or tok == "}" or tok == "\\n" then
+      if tok == "{" or tok == "}" or tok == "\\n" or tok == "[" or tok == "]" then
         out[#out + 1] = { group = tok }
-      else
+      elseif tok ~= ":" then -- `:` separates a group tag from its members
         local name, key = tok:match("^([^%(]+)%((.)%)$")
         out[#out + 1] = { name = name or tok, key = key }
       end

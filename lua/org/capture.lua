@@ -311,6 +311,38 @@ function M.expand(text, ctx)
       }
       value = map[m1] or (ctx.keywords and ctx.keywords[m1]) or ""
       consumed = 1 + #m1
+    elseif rest:sub(1, 1) == "(" then
+      -- %(lua expression), like Emacs %(sexp)
+      local depth, j = 0, nil
+      for k = 1, #rest do
+        local ch = rest:sub(k, k)
+        if ch == "(" then
+          depth = depth + 1
+        elseif ch == ")" then
+          depth = depth - 1
+          if depth == 0 then
+            j = k
+            break
+          end
+        end
+      end
+      if j then
+        local expr = rest:sub(2, j - 1)
+        local chunk, err = loadstring("return " .. expr)
+        local ok_eval, res = false, err
+        if chunk then
+          ok_eval, res = pcall(chunk)
+        end
+        if not ok_eval then
+          utils.warn("Capture %(" .. expr .. "): " .. tostring(res))
+          res = ""
+        end
+        value = res == nil and "" or tostring(res)
+        consumed = j
+      else
+        value = "%"
+        consumed = 0
+      end
     elseif rest:match("^%[[^%]]+%]") then
       m1 = rest:match("^%[([^%]]+)%]")
       local lines = utils.readfile(utils.expand(m1)) or {}
@@ -355,7 +387,7 @@ function M.expand(text, ctx)
           if k == "k" then
             value = title
           else
-            local fname = task.filename or task.file
+            local fname = task.filename or task.file or task.path
             value = fname and ("[[file:" .. fname .. "::*" .. title .. "][" .. title .. "]]") or title
           end
         else
@@ -408,11 +440,34 @@ end
 -- Target resolution
 ---------------------------------------------------------------------------
 
+--- Buffer and headline line of the running clock (the `clock` target).
+---@return integer|nil bufnr, integer|nil lnum
+function M.clock_location()
+  local ok, clock = pcall(require, "org.clock")
+  if not ok or not clock.state then
+    return nil
+  end
+  local bufnr, lnum = clock.find_open_clock()
+  if not bufnr then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  return bufnr, hl and hl.line or nil
+end
+
 --- Absolute target file for a template.
 function M.target_path(tpl)
   local t = tpl.target or tpl.file
   if type(t) == "function" then
     t = t()
+  end
+  if t == "clock" then
+    local bufnr = M.clock_location()
+    return bufnr and vim.fs.normalize(vim.api.nvim_buf_get_name(bufnr)) or nil
+  end
+  if tpl.id and not t then
+    local loc = require("org.id").find(tpl.id)
+    return loc and loc.filename or nil
   end
   t = t or config.opts.default_notes_file
   return utils.expand(t)
@@ -483,7 +538,14 @@ end
 ---@return integer|nil parent_lnum, integer|nil anchor_line (file+regexp)
 function M.resolve_location(bufnr, tpl, ctx)
   local parent
-  if tpl.headline then
+  local t = tpl.target or tpl.file
+  if t == "clock" then
+    local _, line = M.clock_location()
+    parent = line
+  elseif tpl.id then
+    local hl = files.get_buffer(bufnr):find_by_id(tpl.id)
+    parent = hl and hl.line or nil
+  elseif tpl.headline then
     local file = files.get_buffer(bufnr)
     local hl = file:find_by_title(tpl.headline)
     parent = hl and hl.line or ensure_child(bufnr, nil, tpl.headline, 1)
@@ -693,6 +755,18 @@ local function save_if_hidden(bufnr)
   end
 end
 
+--- Call a template hook (:prepare-finalize, :before-finalize,
+--- :after-finalize), reporting errors without aborting the capture.
+local function run_hook(fn, ...)
+  if type(fn) ~= "function" then
+    return
+  end
+  local ok, err = pcall(fn, ...)
+  if not ok then
+    utils.error("Capture hook failed: " .. tostring(err))
+  end
+end
+
 local function first_headline_line(bufnr, start)
   local n = vim.api.nvim_buf_line_count(bufnr)
   for i = start, n do
@@ -713,6 +787,10 @@ function M.store(tpl, lines, ctx)
     return nil
   end
   local path = M.target_path(tpl)
+  if not path then
+    utils.warn("Capture target is gone, nothing stored")
+    return nil
+  end
   local bufnr = utils.load_buffer(path)
   local line = M.insert(bufnr, tpl, lines, ctx)
   local ttype = tpl.type or "entry"
@@ -732,7 +810,11 @@ function M.store(tpl, lines, ctx)
       end
     end
   end
-  save_if_hidden(bufnr)
+  require("org.refile").remember(bufnr, line)
+  run_hook(tpl.before_finalize, bufnr, line)
+  if not tpl.no_save then
+    save_if_hidden(bufnr)
+  end
   return bufnr, line
 end
 
@@ -767,16 +849,20 @@ function M.finalize(buf, opts)
     return
   end
   vim.cmd("stopinsert")
+  run_hook(s.template.prepare_finalize, buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local dbuf, dline
   if opts.refile then
-    local dest = require("org.refile").pick_target({ prompt = "Refile capture to" })
+    local refile = require("org.refile")
+    local dest = refile.pick_target({ prompt = "Refile capture to" })
     if not dest then
       return
     end
     close_session(buf)
     lines = trim_blank(lines)
-    dbuf, dline = require("org.refile").insert_subtree(lines, dest)
+    dbuf, dline = refile.insert_subtree(lines, dest)
+    refile.remember(dbuf, dline)
+    run_hook(s.template.before_finalize, dbuf, dline)
     save_if_hidden(dbuf)
     utils.notify("Captured and refiled to " .. dest.label:gsub("/$", ""))
   else
@@ -790,7 +876,46 @@ function M.finalize(buf, opts)
   if s.template.jump_to_captured and dbuf then
     utils.open_file(vim.api.nvim_buf_get_name(dbuf), dline)
   end
+  run_hook(s.template.after_finalize, dbuf, dline)
   return dbuf, dline
+end
+
+--- Jump to the location of the last capture or refile
+--- (org-capture-goto-last-stored, C-u C-u C-c c).
+function M.goto_last_stored()
+  return require("org.refile").goto_last_stored()
+end
+
+--- Choose a template and jump to its target location, creating missing
+--- headlines like a capture would (org-capture-goto-target, C-u C-c c).
+---@param key? string template key (prompted when nil)
+function M.goto_target(key)
+  if not key then
+    local items = M.menu_items()
+    if #items == 0 then
+      utils.warn("No capture templates configured")
+      return
+    end
+    key = ui.menu({ title = "Go to capture target", items = items })
+    if type(key) ~= "string" then
+      return
+    end
+  end
+  local tpl = M.get_template(key)
+  if not tpl then
+    utils.warn("No capture template for key: " .. key)
+    return
+  end
+  local path = M.target_path(tpl)
+  if not path then
+    utils.warn("Capture target not found")
+    return
+  end
+  local bufnr = utils.load_buffer(path)
+  local parent, anchor = M.resolve_location(bufnr, tpl, { date = date.today() })
+  vim.cmd("normal! m'")
+  utils.open_file(path, anchor or parent or 1)
+  return bufnr, anchor or parent or 1
 end
 
 --- Abort the capture.
@@ -929,6 +1054,12 @@ function M.capture(tpl_or_key, opts)
     end
   end
   local target_path = M.target_path(tpl)
+  if not target_path then
+    local t = tpl.target or tpl.file
+    local msg = t == "clock" and "No running clock to capture into" or ("Cannot find entry with ID " .. tostring(tpl.id))
+    utils.warn(msg)
+    return
+  end
   ctx.target_file = files.get(target_path)
   local ttype = tpl.type or "entry"
   local text = tpl.template
@@ -972,6 +1103,7 @@ function M.capture(tpl_or_key, opts)
       if tpl.jump_to_captured then
         utils.open_file(vim.api.nvim_buf_get_name(dbuf), dline)
       end
+      run_hook(tpl.after_finalize, dbuf, dline)
     end
     return dbuf, dline
   end

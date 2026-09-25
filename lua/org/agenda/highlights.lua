@@ -25,6 +25,8 @@ local links = {
   OrgAgendaClocking = "Visual",
   OrgAgendaLog = "Comment",
   OrgAgendaHint = "Comment",
+  OrgAgendaEntryText = "Comment",
+  OrgAgendaDimmed = "Comment",
   OrgSparseMatch = "Search",
 }
 
@@ -58,6 +60,10 @@ function M.define()
     OrgAgendaHabitReady = light and "#4df946" or "#1a6b18",
     OrgAgendaHabitAlert = light and "#f5f946" or "#8a8a0e",
     OrgAgendaHabitOverdue = light and "#f9372d" or "#8a1a14",
+    OrgAgendaHabitClearFuture = light and "#d6e4fc" or "#191970",
+    OrgAgendaHabitReadyFuture = light and "#acfca9" or "#006400",
+    OrgAgendaHabitAlertFuture = light and "#fafca9" or "#b8860b",
+    OrgAgendaHabitOverdueFuture = light and "#fc9590" or "#8b0000",
   }
   for group, bg in pairs(habit) do
     vim.api.nvim_set_hl(0, group, { bg = bg, fg = light and "#000000" or "#ffffff", default = true })

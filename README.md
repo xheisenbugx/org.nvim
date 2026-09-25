@@ -133,7 +133,8 @@ print(sum(range(1, 101)))
 ```
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
-supported, along with `:var`, `:noweb`, `#+CALL` and tangling.
+supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
+`src_lang{…}` blocks and tangling.
 
 ### Capture from anywhere
 
@@ -148,21 +149,21 @@ back to where you were.
 
 | | Area | Highlights |
 | --- | --- | --- |
-| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` visibility, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
+| 🌳 | **Outline** | Headline folding with Emacs-style `TAB`/`S-TAB` cycling, `#+STARTUP` and `VISIBILITY` visibility, archived subtrees that stay folded, motions (`]]` `[[` `g{`), and text objects (`ih` `ah` `ir` `ar`) |
 | ✂️ | **Structure editing** | A context-aware `M-RET`, promote and demote, move, cut/copy/paste/clone subtrees, sort, narrow, structure templates |
-| 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering |
-| ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, repeaters (`+1w`, `++1d`, `.+2d`), `ORDERED` dependencies, priorities |
-| 🏷️ | **Tags and properties** | Fast tag selection with groups, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values |
-| 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00` and `sep 15`; `SCHEDULED`/`DEADLINE`; `<C-a>`/`<C-x>` on any part of a timestamp |
-| 🗓️ | **Agenda** | Day to year views, a time grid, habits, log and clock-report modes, the full Emacs match syntax, custom composite commands, filters, bulk actions, follow mode |
-| 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp and function targets; all the common `%`-escapes |
-| 📦 | **Refile and archive** | Refile to any headline in the agenda files; archive with the `ARCHIVE_*` context properties |
-| 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `shell:`, `attachment:`, abbreviations, custom types, concealed display |
-| ⏱️ | **Clocking** | Clock in/out/cancel/jump, effort estimates, a statusline component, clocks that survive restarts, `clocktable` blocks, column view |
-| 🧮 | **Tables** | Automatic alignment, row and column editing, CSV/TSV import, and `#+TBLFM` formulas with ranges, `vsum`/`vmean` and Lua expressions |
-| 🧪 | **Babel** | Asynchronous execution in many languages, `:results`, `:var`, `:noweb`, `:dir`, `#+CALL`, tangling, and editing a block in its own buffer with `C-c '` |
-| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc |
-| 🎁 | **And more** | Footnotes, sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
+| 📋 | **Plain lists** | Every bullet style, checkboxes with a `[-]` partial state, `[2/5]` and `[40%]` statistics cookies, renumbering, `TAB` on a new item to indent it |
+| ✅ | **TODO** | Multiple keyword sequences, fast selection, `!`/`@` logging, `LOGGING` / `LOG_INTO_DRAWER` properties, repeaters (`+1w`, `++1d`, `.+2d`, `REPEAT_TO_STATE`), `ORDERED` / `NOBLOCKING` dependencies, tag triggers, priorities |
+| 🏷️ | **Tags and properties** | Fast tag selection with groups, tag changes over a selection, inheritance, `#+FILETAGS`, property drawers, `Effort`, `_ALL` values cycled with `S-Left`/`S-Right` |
+| 📅 | **Dates** | A floating calendar that understands `+2w`, `fri 14:00`, `sep 15` and `w39`; `SCHEDULED`/`DEADLINE` with warning and delay periods; `<C-a>`/`<C-x>` on any part of a timestamp, minutes rounded to 5 |
+| 🗓️ | **Agenda** | Day to year views, a time grid, habits, log, clock-report, entry-text and archive modes, the full Emacs match syntax, custom composite commands, tag/category/effort/regexp filters, bulk actions, follow mode, restriction lock |
+| 📥 | **Capture** | Grouped templates; entry, item, checkitem and table-line types; file, headline, outline-path, date-tree, regexp, ID, clock and function targets; all the common `%`-escapes |
+| 📦 | **Refile and archive** | Refile or copy to any headline in the agenda files, with Emacs-style target specs and refile logging; archive to a file, heading, date tree or Archive sibling with the `ARCHIVE_*` context properties |
+| 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
+| ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history, dangling-clock resolution, effort estimates with an overrun alert, a statusline component, clocks that survive restarts, `clocktable` blocks (`:step`, `:formula %`, `:properties`…), column view, relative and countdown timers |
+| 🧮 | **Tables** | Automatic alignment, row, column and cell editing, copy-down with increment, CSV/TSV import and export, and `#+TBLFM` formulas (also typed in a field as `=…` / `:=…`) with ranges, `vsum`/`vmean` and Lua expressions |
+| 🧪 | **Babel** | Asynchronous execution in many languages, inline `src_lang{…}` blocks, `:results`, `:var` (with `:colnames`, slices), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
+| 📤 | **Export** | Native HTML (with a TOC, section numbers and MathJax), Markdown, plain text and LaTeX, plus PDF, DOCX, ODT, EPUB and more through pandoc; `#+INCLUDE` (with `::*heading`), `#+SETUPFILE`, `#+MACRO`, most `#+OPTIONS` |
+| 🎁 | **And more** | Footnotes (sort, renumber, normalize), sparse trees, appointment notifications, attachments, IDs, timers, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
@@ -306,34 +307,38 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 
 | Key | Action |
 | --- | --- |
-| `<Tab>` / `<S-Tab>` | Cycle subtree / global visibility *(ctx: table fields in insert mode)* |
-| `<C-c><C-c>`, `<prefix><CR>` | Context action: toggle checkbox, align/recalc table, run src block, update dblock/clock line/cookie, set tags on headline… |
+| `<Tab>` / `<S-Tab>` | Cycle subtree / global visibility *(ctx: in insert mode, next table field or cycle the level of a new empty heading/item)* |
+| `<C-c><C-c>`, `<prefix><CR>` | Context action: toggle checkbox, align/recalc table, run src block, update dblock/clock line/cookie, set tags on headline, property menu on a property line, clear sparse-tree highlights… |
 | `<CR>`, `gx`, `<prefix>o` | Open link / footnote / date at point *(ctx)* |
 | `<M-CR>` / `<M-S-CR>` | New heading, item or row / new TODO heading or checkbox item |
 | `<prefix>ih` `it` `is` | Insert heading / TODO heading / subheading |
-| `<prefix>id` `ib` `if` | Insert drawer / block template / footnote |
+| `<prefix>id` `ib` `if` | Insert drawer / block template / footnote (on a footnote: jump; count: sort/renumber/normalize/delete menu) |
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
-| `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item; move table column *(ctx)* |
+| `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item (Visual: every headline); move table column *(ctx)* |
 | `<M-k>` `<M-j>` (also `<M-Up>` `<M-Down>`) | Move subtree, item or table row up / down *(ctx)* |
-| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row *(ctx)* |
+| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row; elsewhere drag the line up/down *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
 | `<prefix>hs` `hn` `hC` `hA` `hb` | Sort / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
 | `<prefix>*` / `<prefix>-` | Toggle heading / list item |
 | `cit` / `ciT` / `<prefix>T` | Next / previous / select TODO state |
-| `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; cycle bullet *(ctx)* |
-| `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down *(ctx)* |
-| `<prefix>,` `t` `p` `P` | Priority / tags / set property / delete property |
+| `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; next/previous allowed property value; cycle bullet *(ctx)* |
+| `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down; previous/next list item *(ctx)* |
+| `<prefix>,` `t` `p` `P` | Priority / tags (Visual: add/remove a tag on each headline; count: realign all) / set property / delete property |
 | `<prefix>s` `d` `i.` `i!` | Schedule / deadline / active / inactive timestamp |
-| `<C-Space>`, `<prefix>#` | Toggle checkbox / update statistics cookies |
-| `<prefix>xi` `xo` `xq` `xj` `xe` | Clock in / out / cancel / goto / set effort |
+| `<C-Space>`, `<prefix>#` | Toggle checkbox (Visual: every item; count 4: remove, 16: `[-]`) / update statistics cookies |
+| `<prefix>xi` `xo` `xq` `xj` | Clock in (count: pick from history) / out / cancel / goto |
+| `<prefix>xe` `xE` `xm` `xz` | Set effort / next allowed effort / change clocked effort / resolve dangling clocks |
 | `<prefix>xr` `xd` `xu` `xU` `C` | Insert clocktable / show clock sums / update dblock(s) / column view |
 | `<prefix>li` `ls` `lt` `ln` `lp` `lI` | Insert / store link, toggle link display, next/prev link, create ID |
-| `<prefix>r` `$` `A` | Refile / archive subtree / attachments |
+| `<prefix>lL` `lA` `lg` `ly` | Insert last / all stored links, go to ID, copy ID |
+| `<prefix>r` `R` `$` `A` | Refile / copy to a refile target / archive subtree / attachments |
 | `<prefix>/` `e` | Sparse tree / export dispatcher |
 | `<prefix>Tc` `T-` `Tf` `Ts` `Tr` `TR` `Ti` `TI` | Table: create/convert, hline, recalc, sort, insert/delete row, insert/delete column |
+| `<prefix>Tt` `T#`, `<S-CR>`, `<S-arrows>` | Table: transpose, rotate recalc mark, copy field down (with increment), swap field with neighbour |
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
 | `<prefix>be` `bb` `bs` `bt` `bk` `bn` `bp` | Babel: execute block/buffer/subtree, tangle, remove result, next/prev block |
+| `<prefix>bv` `bd` `bg` `br` `bo` `bj` `bi` | Babel: expand, split/wrap, go to named block/result, open result, insert header arg, ingest library |
 | `]]` `[[` `][` `[]` `g{` `<prefix>.` | Next/prev heading, next/prev sibling, parent, pick heading |
 | `ih` `ah` `ir` `ar` | Text objects: heading section / subtree |
 | `g?` | Show all keymaps |
@@ -347,15 +352,18 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | --- | --- | --- | --- |
 | `f` / `b` / `.` | later / earlier / today | `vd` `vw` `vt` `vm` `vy` | day / week / fortnight / month / year |
 | `gd` | go to date | `r` | redo |
-| `<CR>` / `<Tab>` / `<Space>` | switch to / go to / show entry | `F` | follow mode |
+| `<CR>` / `<Tab>` / `<Space>` / `L` | switch to / go to / show / show and recenter | `F` | follow mode |
 | `t`, `<C-S-Right/Left>` | change TODO | `,` `+` `-` | set/raise/lower priority |
-| `:` | tags | `s` / `d` | schedule / deadline |
-| `<S-Right>` / `<S-Left>` / `>` | date +1 / −1 / prompt | `e` | effort |
-| `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / ARCHIVE tag |
-| `z` | add note | `c` | capture |
-| `l` / `C` | log mode / clock report | `/` `<` `=` `\|` | filter tag / category / regexp / clear |
-| `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `n` / `p` | next / previous item |
-| `E` | export agenda | `q` / `x` | quit / quit and wipe |
+| `:` / `T` | set / show tags | `s` / `d` | schedule / deadline |
+| `<S-Right>` / `<S-Left>` / `>` | date +1 / −1 / prompt | `e` / `<C-c><C-x>p` | effort / property |
+| `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / archive with confirmation |
+| `<C-c><C-x>A` / `<C-c><C-x>a` | archive sibling / ARCHIVE tag | `<C-k>` / `<C-c><C-o>` | delete entry / open link |
+| `z` | add note | `c` | capture (at the date at point) |
+| `l` `vL` / `C` | log mode (all) / clock report | `E` / `G` | entry text / time grid |
+| `va` / `vA` / `v[` | archived trees / archive files / inactive timestamps | `/` `<` `=` `_` `^` `\|` | filter tag / category / regexp / effort / top headline / clear |
+| `[` `]` `{` `}` | add +word / -word / +{re} / -{re} to the query | `n` / `p`, `<C-c><C-n/p>` | next / previous item, date line |
+| `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `<M-m>` `*` `<M-*>` `%` | toggle / mark all / toggle all / mark regexp |
+| `<C-x><C-s>` / `<C-x><C-w>` | save org buffers / export agenda | `q` / `x` | quit / quit and wipe |
 
 </details>
 
@@ -439,10 +447,13 @@ Target options:
 - `olp`: an outline path, as a list of headlines.
 - `datetree`: `true`, or `{ tree_type = "week" | "month" }`.
 - `regexp`: insert under the first line matching this pattern.
+- `id`: insert under the entry with this ID.
+- `target = "clock"`: insert under the task being clocked.
 
 Other options: `type`, `prepend`, `empty_lines`, `properties`,
 `immediate_finish`, `jump_to_captured`, `clock_in`, `clock_resume`,
-`time_prompt`.
+`time_prompt`, `no_save`, and the `prepare_finalize`, `before_finalize`
+and `after_finalize` hook functions.
 
 <details>
 <summary><b>Template expansions</b> (click to expand)</summary>
@@ -463,6 +474,7 @@ Other options: `type`, `prepend`, `empty_lines`, `properties`,
 | `%^g` `%^G` | tags prompt |
 | `%^{PROP}p` | property prompt |
 | `%k` `%K` | the running clock's task / a link to it |
+| `%(expr)` | the value of a Lua expression (Emacs: elisp) |
 | `%%` | a literal `%` |
 
 </details>
@@ -490,6 +502,8 @@ agenda = {
 Block types: `agenda`, `todo`, `tags`, `tags_todo`, `search`, `stuck`.
 Per-block options: `match`, `header`, `span`, `start_day`, `files`,
 `skip = function(headline) … end`, and the `todo_ignore_*` flags.
+Like Emacs' `org-agenda-skip-entry-if`, `require("org.agenda").skip_entry_if("scheduled", "deadline")`
+and `skip_subtree_if("regexp", ":someday:")` build `skip` functions.
 
 The match syntax is the same as in Emacs. Some examples:
 
@@ -532,8 +546,8 @@ headings (`[[*`), custom IDs (`[[#`) and stored links.
 }
 ```
 
-While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`.
-It's empty otherwise.
+While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
+followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ---
 
@@ -544,16 +558,19 @@ The goal is feature parity for everyday use, but some things differ:
 - **Notes** (state-change notes, `z` in the agenda) are single-line prompts
   instead of a separate note buffer.
 - **Table formulas** are evaluated as Lua arithmetic, not Emacs Calc: there
-  is no symbolic math, no named fields (`$name`) and no `#+CONSTANTS`.
-  Elisp formulas are replaced by `'(lua expression)`.
+  is no symbolic math. Elisp formulas `'(...)` support the common Lisp
+  functions; anything else is a Lua expression.
+- **Tables:** width cookies (`<10>`) don't shrink columns, and there is no
+  formula debugger, `orgtbl-mode` or radio tables.
 - **Babel:**
-  - There are no `:session` or `:cache` options.
+  - There is no `:session` option.
   - Export uses existing `#+RESULTS` blocks and never runs code.
   - `elisp:` links and blocks can't run.
 - **Column view** opens as a separate table view instead of overlays.
 - **M-RET** always inserts after the current subtree or item; it never
   splits the line at the cursor.
-- Minute increments step by one minute (Emacs rounds to five).
+- **Plain list items don't fold** with `TAB`; only headlines, drawers and
+  blocks do.
 
 The features still missing are listed in the [Roadmap](#-roadmap).
 
@@ -566,12 +583,10 @@ first contribution:
 
 - [ ] Inline image and LaTeX previews
 - [ ] Clock idle detection
-- [ ] `clocktable` `:step`
-- [ ] Babel `:session` and `:cache`
+- [ ] Babel `:session`
 - [ ] Multi-line note buffers for state changes
 - [ ] Column view as overlays on headlines
 - [ ] Diary sexp timestamps `<%%(…)>`
-- [ ] Date-tree archive locations
 - [ ] `org-crypt` and `org-protocol`
 
 If there's something you'd like that isn't here,

@@ -163,6 +163,20 @@ function R:link(nd)
   return desc or ("<i>" .. esc(nd.path) .. "</i>")
 end
 
+--- Escaped code lines; lines with a coderef get an anchor.
+local function code_html(nd)
+  local out = {}
+  for i, l in ipairs(nd.lines) do
+    local label = nd.coderefs and nd.coderefs[i]
+    if label then
+      out[i] = string.format('<span id="coderef-%s" class="coderef-off">%s</span>', esc(ast.slug(label)), esc(l))
+    else
+      out[i] = esc(l)
+    end
+  end
+  return table.concat(out, "\n")
+end
+
 local function is_num(s)
   return s:match("^%s*[-+]?[%d.,]+%%?%s*$") ~= nil and s:match("%d") ~= nil
 end
@@ -202,11 +216,12 @@ function R:element(nd, out)
       esc(nd.lang),
       id,
       esc(nd.lang),
-      esc(table.concat(nd.lines, "\n"))
+      code_html(nd)
     )
     out[#out + 1] = "</div>"
   elseif t == "example" or t == "fixed" then
-    out[#out + 1] = '<pre class="example">' .. esc(table.concat(nd.lines, "\n")) .. "</pre>"
+    local cls = nd.properties and "properties" or "example"
+    out[#out + 1] = '<pre class="' .. cls .. '">' .. code_html(nd) .. "</pre>"
   elseif t == "quote" then
     out[#out + 1] = "<blockquote>"
     self:elements(nd.children, out)

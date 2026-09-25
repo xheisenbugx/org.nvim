@@ -45,6 +45,9 @@ local function parse_token(token)
   return kw
 end
 
+--- Parse one keyword token like `WAIT(w@/!)`.
+M.parse_token = parse_token
+
 --- Normalize user config into a list of sequence strings.
 ---@param spec string[]|string
 ---@return string[]

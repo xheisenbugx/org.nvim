@@ -196,13 +196,25 @@ local function match_results(line)
   if not line then
     return nil
   end
-  local _, name = line:match(RESULTS_PAT)
+  local hash, name = line:match(RESULTS_PAT)
   if name then
-    return name
+    return name, hash:sub(2, -2)
   end
   return line:match(RESULTS_PAT2)
 end
 M.match_results = match_results
+
+--- Lua pattern matching a coderef label such as `(ref:name)` at the end of
+--- a line (capture 1 = the label). `switches` may set another format with
+--- `-l "fmt"`, like Emacs.
+function M.coderef_pattern(switches)
+  local fmt = (switches or ""):match('%-l%s+"(.-)"') or "(ref:%s)"
+  local s, e = fmt:find("%s", 1, true)
+  if not s then
+    fmt, s, e = "(ref:%s)", 6, 7
+  end
+  return "%s*" .. vim.pesc(fmt:sub(1, s - 1)) .. "([%w_%-][%w_%- ]*)" .. vim.pesc(fmt:sub(e + 1)) .. "%s*$"
+end
 
 --- Unescape `,*` and `,#+` at line starts.
 function M.unescape(lines)
@@ -282,14 +294,14 @@ function M.parse_blocks(lines)
       while r <= n and lines[r]:match("^%s*$") do
         r = r + 1
       end
-      local rname = match_results(lines[r])
+      local rname, rhash = match_results(lines[r])
       if rname and (rname == "" or rname == block.name) then
-        block.results = { start = r, finish = results_end(lines, r), name = rname }
+        block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
         for x = 1, n do
-          local nm = match_results(lines[x])
+          local nm, h = match_results(lines[x])
           if nm and nm == block.name then
-            block.results = { start = x, finish = results_end(lines, x), name = nm }
+            block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
             break
           end
         end
@@ -323,9 +335,9 @@ function M.parse_blocks(lines)
       while r <= n and lines[r]:match("^%s*$") do
         r = r + 1
       end
-      local rname = match_results(lines[r])
+      local rname, rhash = match_results(lines[r])
       if rname then
-        block.results = { start = r, finish = results_end(lines, r), name = rname }
+        block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       end
       blocks[#blocks + 1] = block
       i = i + 1

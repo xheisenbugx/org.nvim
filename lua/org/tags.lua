@@ -47,7 +47,7 @@ function M.all_tags(bufnr)
   end
   for _, spec in ipairs(config.opts.tags or {}) do
     for tok in spec:gmatch("%S+") do
-      if tok ~= "{" and tok ~= "}" then
+      if not tok:match("^[{}%[%]:]$") and tok ~= "\\n" then
         add((tok:gsub("%(.%)$", "")))
       end
     end
@@ -219,6 +219,84 @@ function M.set_tags(target, tags)
   end
   edit.update_headline(bufnr, hl.line, { tags = tags })
   return tags
+end
+
+--- Add (`op = "add"`) or remove (`op = "remove"`) `tag` on every headline
+--- whose line is in [s, e] (org-change-tag-in-region). Returns the
+--- number of headlines changed.
+function M.change_tag_in_region(bufnr, s, e, op, tag)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local file = files.get_buffer(bufnr)
+  local changed = 0
+  for _, hl in ipairs(file.headlines) do
+    if hl.line >= s and hl.line <= e then
+      local tags = vim.deepcopy(hl.tags)
+      local has = vim.tbl_contains(tags, tag)
+      if op == "add" and not has then
+        tags[#tags + 1] = tag
+      elseif op == "remove" and has then
+        tags = vim.tbl_filter(function(t)
+          return t ~= tag
+        end, tags)
+      end
+      if #tags ~= #hl.tags then
+        edit.update_headline(bufnr, hl.line, { tags = tags })
+        changed = changed + 1
+      end
+    end
+  end
+  return changed
+end
+
+--- Set tags (C-c C-q). With a count, realign the tags of every headline
+--- (C-u C-c C-q). In Visual mode, add or remove one tag on every headline
+--- of the selection (org-change-tag-in-region).
+function M.set_tags_command()
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" or mode == "\22" then
+    local s, _, e = utils.visual_range()
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    local op = require("org.ui").menu({
+      title = "Change tag in region",
+      items = {
+        { key = "a", label = "Add a tag", value = "add" },
+        { key = "r", label = "Remove a tag", value = "remove" },
+      },
+    })
+    if not op then
+      return
+    end
+    local candidates = M.all_tags()
+    if op == "remove" then
+      local seen = {}
+      candidates = {}
+      for _, hl in ipairs(files.get_buffer(0).headlines) do
+        if hl.line >= s and hl.line <= e then
+          for _, t in ipairs(hl.tags) do
+            if not seen[t] then
+              seen[t] = true
+              candidates[#candidates + 1] = t
+            end
+          end
+        end
+      end
+    end
+    local tag = utils.input_complete((op == "add" and "Add" or "Remove") .. " tag: ", candidates)
+    tag = tag and M.parse_input(tag)[1]
+    if not tag then
+      return
+    end
+    local n = M.change_tag_in_region(0, s, e, op, tag)
+    local msg = op == "add" and "Added tag :%s: to %d headline(s)" or "Removed tag :%s: from %d headline(s)"
+    utils.notify(string.format(msg, tag, n))
+    return
+  end
+  if vim.v.count > 0 then
+    M.align_all()
+    utils.notify("All tags realigned")
+    return
+  end
+  return M.set_tags()
 end
 
 --- Toggle one tag on a headline.

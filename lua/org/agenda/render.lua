@@ -196,6 +196,85 @@ function M.item_parts(item, ctx)
   return parts
 end
 
+--- Body text of an entry for org-agenda-entry-text-mode: drawers, planning
+--- and properties removed, common indentation stripped.
+---@param hl org.Headline
+---@param max integer maximum number of lines
+---@return string[]
+function M.entry_text(hl, max)
+  local body = hl:body_lines()
+  local out = {}
+  local in_drawer = false
+  for _, l in ipairs(body) do
+    if in_drawer then
+      if l:match("^%s*:END:%s*$") then
+        in_drawer = false
+      end
+    elseif l:match("^%s*:[%w_%-]+:%s*$") then
+      in_drawer = true
+    elseif not l:match("^%s*CLOCK:") then
+      out[#out + 1] = l
+    end
+  end
+  while #out > 0 and vim.trim(out[1]) == "" do
+    table.remove(out, 1)
+  end
+  while #out > 0 and vim.trim(out[#out]) == "" do
+    table.remove(out)
+  end
+  local indent
+  for _, l in ipairs(out) do
+    if vim.trim(l) ~= "" then
+      local n = #l:match("^(%s*)")
+      indent = indent and math.min(indent, n) or n
+    end
+  end
+  local res = {}
+  for i = 1, math.min(#out, max) do
+    res[i] = out[i]:sub((indent or 0) + 1)
+  end
+  if #out > max then
+    res[#res + 1] = "..."
+  end
+  return res
+end
+
+--- Is the item a TODO blocked by its children, an ORDERED sibling or
+--- unchecked checkboxes (only with the enforce_todo_* options)?
+function M.is_blocked(it)
+  if not it.headline or not it.todo or it.done then
+    return false
+  end
+  local ok, todo = pcall(require, "org.todo")
+  if not ok or type(todo.blocked_reason) ~= "function" then
+    return false
+  end
+  local ok2, reason = pcall(todo.blocked_reason, it.headline)
+  return ok2 and reason ~= nil
+end
+
+--- Add an item line (plus its entry text in entry-text mode).
+function M.add_item(b, it, ctx)
+  local parts = M.item_parts(it, ctx)
+  if ctx.dim_blocked and M.is_blocked(it) then
+    if ctx.dim_blocked == "invisible" then
+      return
+    end
+    for _, p in ipairs(parts) do
+      if p[2] ~= "OrgAgendaCategory" then
+        p[2] = "OrgAgendaDimmed"
+      end
+    end
+  end
+  b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  if ctx.entry_text and it.headline then
+    local max = config.opts.agenda.entry_text_maxlines or 5
+    for _, l in ipairs(M.entry_text(it.headline, max)) do
+      b:text("    > " .. l, "OrgAgendaEntryText")
+    end
+  end
+end
+
 ---------------------------------------------------------------------------
 -- Blocks
 ---------------------------------------------------------------------------
@@ -205,7 +284,7 @@ local function grid_minutes(t)
 end
 
 local function show_grid(grid, d, today, span, has_timed)
-  if not grid or grid.enabled == false then
+  if not grid or grid.enabled == false or grid.hidden then
     return false
   end
   local types = grid.type or { "daily", "today", "require-timed" }
@@ -231,7 +310,7 @@ local function render_day(b, list, d, ctx)
     end
   end
   local rows = {}
-  if show_grid(grid, d, ctx.today, ctx.span, has_timed) then
+  if not ctx.time_grid_off and show_grid(grid, d, ctx.today, ctx.span, has_timed) then
     local timed, untimed = {}, {}
     local occupied = {}
     for _, it in ipairs(list) do
@@ -284,8 +363,7 @@ local function render_day(b, list, d, ctx)
     elseif r.kind == 2 then
       b:add({ { pad }, { fmt_min(r.min) .. " " .. (acfg.current_time_string or "now"), "OrgAgendaCurrentTime" } })
     else
-      local it = r.item
-      b:add(M.item_parts(it, ctx), it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+      M.add_item(b, r.item, ctx)
     end
   end
 end
@@ -385,6 +463,9 @@ function M.agenda_block(b, block, ctx)
   local by_day = items_mod.agenda(ctx.files, from, to, {
     today = ctx.today,
     log_mode = ctx.log_mode,
+    inactive = ctx.inactive,
+    no_deadlines = ctx.no_deadlines,
+    archives = ctx.archives,
     restrict = ctx.restrict,
     skip = block.skip,
     block = block,
@@ -425,6 +506,7 @@ function M.list_block(b, block, ctx)
   local t = block.type
   local list, header, sorting
   local hint
+  local lopts = { restrict = ctx.restrict, skip = block.skip, block = block, archives = ctx.archives }
   if t == "todo" then
     local kws = block.keywords
     if type(kws) == "string" then
@@ -433,7 +515,7 @@ function M.list_block(b, block, ctx)
     if not kws and block.match and block.match ~= "" then
       kws = vim.split(block.match, "[|%s]+", { trimempty = true })
     end
-    list = items_mod.todo(ctx.files, kws, { restrict = ctx.restrict, skip = block.skip, block = block })
+    list = items_mod.todo(ctx.files, kws, lopts)
     header = block.header
       or ("Global list of TODO items of type: " .. ((kws and #kws > 0) and table.concat(kws, "|") or "ALL"))
     local names = {}
@@ -448,16 +530,16 @@ function M.list_block(b, block, ctx)
       b:text("Invalid match: " .. tostring(err), "ErrorMsg")
       return
     end
-    list = items_mod.tags(ctx.files, pred, t == "tags_todo", { restrict = ctx.restrict, skip = block.skip, block = block })
+    list = items_mod.tags(ctx.files, pred, t == "tags_todo", lopts)
     header = block.header or ("Headlines with TAGS match: " .. (block.match or ""))
     sorting = block.sorting or (acfg.sorting or {}).tags
   elseif t == "search" then
-    local pred = require("org.agenda.search").compile_text(block.match or "")
-    list = items_mod.search(ctx.files, pred, { restrict = ctx.restrict, skip = block.skip, block = block })
+    local pred = require("org.agenda.search").compile_text((block.todo_only and "!" or "") .. (block.match or ""))
+    list = items_mod.search(ctx.files, pred, lopts)
     header = block.header or ("Search words: " .. (block.match or ""))
     sorting = block.sorting or (acfg.sorting or {}).search
   elseif t == "stuck" then
-    list = items_mod.stuck(ctx.files, { restrict = ctx.restrict, skip = block.skip, block = block })
+    list = items_mod.stuck(ctx.files, lopts)
     header = block.header or "List of stuck projects:"
     sorting = block.sorting or (acfg.sorting or {}).tags
   else
@@ -471,7 +553,7 @@ function M.list_block(b, block, ctx)
   list = filter_list(list, ctx)
   items_mod.sort(list, sorting or { "priority-down", "category-keep" })
   for _, it in ipairs(list) do
-    b:add(M.item_parts(it, ctx), it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+    M.add_item(b, it, ctx)
   end
 end
 

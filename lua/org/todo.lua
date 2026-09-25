@@ -16,10 +16,48 @@ local function now_inactive()
   return date.now():clone({ active = false })
 end
 
---- Effective logging setting, honouring #+STARTUP overrides.
+local LOGGING_WORDS = {
+  logdone = { "done", "time" },
+  lognotedone = { "done", "note" },
+  nologdone = { "done", false },
+  logrepeat = { "repeat", "time" },
+  lognoterepeat = { "repeat", "note" },
+  nologrepeat = { "repeat", false },
+}
+
+--- Per-entry logging from the (inherited) LOGGING property, like Emacs
+--- `org-local-logging`: `:LOGGING: nil`, `:LOGGING: lognotedone logrepeat`,
+--- `:LOGGING: WAIT(@) DONE(!)`. When the property is set, logging of done
+--- and repeat and the keyword flags all start from "off".
+---@param hl? org.Headline
+---@return { done: string|false, ["repeat"]: string|false, states: table<string, org.TodoKeyword> }|nil
+function M.local_logging(hl)
+  local value = hl and hl:get_property("LOGGING", true)
+  if not value then
+    return nil
+  end
+  local out = { done = false, ["repeat"] = false, states = {} }
+  local todo_cfg = hl.file.settings.todo
+  for w in value:gmatch("%S+") do
+    local spec = LOGGING_WORDS[w]
+    if spec then
+      out[spec[1]] = spec[2]
+    else
+      local kw = require("org.todo_keywords").parse_token(w)
+      if todo_cfg:is_keyword(kw.name) and (kw.log_enter or kw.log_leave) then
+        out.states[kw.name] = kw
+      end
+    end
+  end
+  return out
+end
+
+--- Effective logging setting, honouring #+STARTUP overrides and, when a
+--- headline is given, its LOGGING property.
 ---@param file org.File
----@param kind "done"|"repeat"|"reschedule"|"redeadline"
-function M.log_setting(file, kind)
+---@param kind "done"|"repeat"|"reschedule"|"redeadline"|"clock_out"
+---@param hl? org.Headline
+function M.log_setting(file, kind, hl)
   local cfg = config.opts
   local startup = file and file.settings.startup or {}
   local value = ({
@@ -27,15 +65,21 @@ function M.log_setting(file, kind)
     ["repeat"] = cfg.log_repeat,
     reschedule = cfg.log_reschedule,
     redeadline = cfg.log_redeadline,
+    clock_out = cfg.log_note_clock_out and "note" or false,
   })[kind]
-  if startup["log" .. kind] then
+  local word = kind == "clock_out" and "clock-out" or kind
+  if startup["log" .. word] then
     value = "time"
   end
-  if startup["lognote" .. kind] then
+  if startup["lognote" .. word] then
     value = "note"
   end
-  if startup["nolog" .. kind] then
+  if startup["nolog" .. word] or (kind == "clock_out" and startup["nolognote" .. word]) then
     value = false
+  end
+  local loc = (kind == "done" or kind == "repeat") and M.local_logging(hl)
+  if loc then
+    value = loc[kind]
   end
   if value == true then
     value = "time"
@@ -55,24 +99,44 @@ local function truthy_prop(v)
   return v ~= nil and v ~= "" and v:lower() ~= "nil"
 end
 
---- Reason the headline cannot be marked done, or nil.
+local function previous_sibling_blocking(hl)
+  local parent = hl.parent
+  if parent and truthy_prop(parent.properties.ORDERED) then
+    for _, sib in ipairs(parent.children) do
+      if sib == hl then
+        break
+      end
+      if sib:is_todo() or sib:has_undone_children() then
+        return sib
+      end
+    end
+  end
+end
+
+--- Reason the headline cannot be marked done, or nil
+--- (org-block-todo-from-children-or-siblings-or-parent).
 ---@param hl org.Headline
 function M.blocked_reason(hl)
   local cfg = config.opts
+  if hl.properties.NOBLOCKING then
+    return nil
+  end
   if cfg.enforce_todo_dependencies then
     if hl:has_undone_children() then
       return "has unfinished child tasks"
     end
-    local parent = hl.parent
-    if parent and truthy_prop(parent.properties.ORDERED) then
-      for _, sib in ipairs(parent.children) do
-        if sib == hl then
-          break
-        end
-        if sib:is_todo() or sib:has_undone_children() then
-          return "previous sibling (ORDERED) is not done: " .. sib:plain_title()
-        end
+    local sib = previous_sibling_blocking(hl)
+    if sib then
+      return "previous sibling (ORDERED) is not done: " .. sib:plain_title()
+    end
+    -- an ancestor TODO that is itself blocked by ORDERED siblings
+    local p = hl.parent
+    while p and p:is_todo() do
+      sib = previous_sibling_blocking(p)
+      if sib then
+        return "ancestor is blocked by ORDERED sibling: " .. sib:plain_title()
       end
+      p = p.parent
     end
   end
   if cfg.enforce_todo_checkbox_dependencies then
@@ -147,8 +211,82 @@ local function shift_repeaters(bufnr, hl, now)
     local ts = hl.planning[kind]
     if has_repeater(ts) then
       edit.set_planning(bufnr, hl.line, kind, date.apply_repeater(ts, now))
+    elseif kind == "scheduled" and ts and not ts.repeater then
+      -- a SCHEDULED date without repeater is no longer relevant
+      edit.set_planning(bufnr, hl.line, kind, nil)
     end
   end
+end
+
+--- State a repeating entry returns to (org-auto-repeat-maybe): the
+--- REPEAT_TO_STATE property, a string `todo_repeat_to_state`, the previous
+--- state when `todo_repeat_to_state` is true, else the first keyword of the
+--- previous state's sequence.
+local function repeat_to_state(hl, todo_cfg, old)
+  local rts = config.opts.todo_repeat_to_state
+  local to = hl:get_property("REPEAT_TO_STATE")
+  if not (to and todo_cfg:is_keyword(to)) then
+    to = nil
+    if type(rts) == "string" and todo_cfg:is_keyword(rts) then
+      to = rts
+    elseif rts and todo_cfg:is_keyword(old) then
+      to = old
+    end
+  end
+  if to then
+    return to
+  end
+  local kw = todo_cfg:get(old)
+  local seq = kw and todo_cfg.sequences[kw.seq]
+  return seq and seq[1].name or nil
+end
+
+--- Apply `todo_state_tags_triggers` for `state` (org-todo-trigger-tag-changes).
+local function trigger_tags(bufnr, lnum, todo_cfg, state)
+  local triggers = config.opts.todo_state_tags_triggers
+  if type(triggers) ~= "table" or vim.tbl_isempty(triggers) then
+    return
+  end
+  local changes = {}
+  local function collect(key)
+    local spec = key and triggers[key]
+    if type(spec) == "table" then
+      local names = vim.tbl_keys(spec)
+      table.sort(names)
+      for _, tag in ipairs(names) do
+        changes[#changes + 1] = { tag, spec[tag] and true or false }
+      end
+    end
+  end
+  collect(state or "")
+  if todo_cfg:is_todo(state) then
+    collect("todo")
+  elseif todo_cfg:is_done(state) then
+    collect("done")
+  end
+  if #changes == 0 then
+    return
+  end
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+  local p = require("org.parser").parse_headline_line(line, todo_cfg)
+  if not p then
+    return
+  end
+  local tags = vim.deepcopy(p.tags or {})
+  for _, c in ipairs(changes) do
+    local idx
+    for i, t in ipairs(tags) do
+      if t == c[1] then
+        idx = i
+      end
+    end
+    if c[2] and not idx then
+      tags[#tags + 1] = c[1]
+    elseif not c[2] and idx then
+      table.remove(tags, idx)
+    end
+  end
+  edit.update_headline(bufnr, lnum, { tags = tags })
 end
 
 ---@class org.TodoChangeResult
@@ -196,36 +334,43 @@ function M.change_state(target, new, opts)
     end
   end
 
+  -- keyword flags, or the LOGGING property's keyword specs when it is set
+  local loc = M.local_logging(hl)
   local new_kw, old_kw = todo_cfg:get(new), todo_cfg:get(old)
+  if loc then
+    new_kw, old_kw = loc.states[new or ""], loc.states[old or ""]
+  end
   local state_log = (new_kw and new_kw.log_enter) or (old_kw and old_kw.log_leave) or false
   if opts.no_log then
     state_log = false
   end
-  local log_done = opts.no_log and false or M.log_setting(file, "done")
+  local log_done = opts.no_log and false or M.log_setting(file, "done", hl)
   local now = date.now()
   local result = { old = old, new = new, bufnr = bufnr, lnum = lnum }
 
   if becomes_done and entry_repeats(hl) then
     -- repeating task: shift dates, return to a TODO state
-    local rep_log = opts.no_log and false or M.log_setting(file, "repeat")
+    local log_repeat = opts.no_log and false or M.log_setting(file, "repeat", hl)
+    local rep_log = log_repeat
     if state_log then
-      rep_log = state_log == "note" and "note" or (rep_log or "time")
+      rep_log = (state_log == "note" or log_repeat == "note") and "note" or "time"
     end
     local note = opts.note
     if rep_log == "note" and note == nil then
       note = utils.input({ prompt = "Note for state change to " .. new .. ": " })
     end
-    local final = cfg.todo_repeat_to_state
-    if not final or not todo_cfg:is_keyword(final) then
-      if old and todo_cfg:is_todo(old) then
-        final = old
-      else
-        final = todo_cfg:first_todo(new_kw and new_kw.seq or 1)
-      end
-    end
+    local final = repeat_to_state(hl, todo_cfg, old)
+    local has_clock = #hl.clocks > 0
     shift_repeaters(bufnr, hl, now)
+    trigger_tags(bufnr, lnum, todo_cfg, new)
     edit.update_headline(bufnr, lnum, { todo = final or false })
-    edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive():to_string())
+    if hl.planning.closed then
+      edit.set_planning(bufnr, lnum, "closed", nil)
+    end
+    trigger_tags(bufnr, lnum, todo_cfg, final)
+    if log_repeat or has_clock then
+      edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive():to_string())
+    end
     if rep_log then
       edit.add_log_entry(bufnr, lnum, edit.log_lines(M.state_log_header(new, old, now_inactive()), note))
     end
@@ -244,6 +389,7 @@ function M.change_state(target, new, opts)
     elseif not new_done and hl.planning.closed then
       edit.set_planning(bufnr, lnum, "closed", nil)
     end
+    trigger_tags(bufnr, lnum, todo_cfg, new)
     if state_log then
       edit.add_log_entry(bufnr, lnum, edit.log_lines(M.state_log_header(new, old, now_inactive()), note))
     elseif becomes_done and log_done == "note" then
@@ -251,10 +397,18 @@ function M.change_state(target, new, opts)
     end
   end
 
-  if becomes_done and (cfg.clock or {}).out_when_done ~= false then
+  -- org-clock-out-if-current: `out_when_done` is true or a list of states
+  local out_when = (cfg.clock or {}).out_when_done
+  local clock_out
+  if type(out_when) == "table" then
+    clock_out = vim.tbl_contains(out_when, new)
+  else
+    clock_out = out_when ~= false and new_done
+  end
+  if clock_out then
     local here, clock = clocked_here(bufnr, lnum)
     if here and clock then
-      pcall(clock.clock_out)
+      pcall(clock.clock_out, { switch_to_state = false, note = false })
     end
   end
   update_parent_statistics(bufnr, hl)
@@ -326,11 +480,17 @@ end
 
 --- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
 --- fast selection when keywords define keys, otherwise cycle to the next
---- state.
+--- state. A count N switches to the Nth keyword (org-todo with a numeric
+--- prefix).
 function M.select_or_cycle(target)
-  local bufnr, file = edit.resolve_headline(target)
+  local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
+  end
+  local n = target == nil and vim.v.count or 0
+  local names = file.settings.todo:names()
+  if n > 0 and names[n] then
+    return M.change_state({ bufnr = bufnr, lnum = hl.line }, names[n])
   end
   if file.settings.todo.has_fast_keys then
     return M.select(target)

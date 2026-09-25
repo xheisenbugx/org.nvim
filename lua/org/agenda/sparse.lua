@@ -18,6 +18,41 @@ function M.clear(bufnr)
   end
 end
 
+--- Are sparse-tree highlights shown in the buffer?
+function M.has_highlights(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  return #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { limit = 1 }) > 0
+end
+
+--- Sparse tree of the entries matching a tags/property `match` string
+--- (org-match-sparse-tree). `todo_only` keeps only TODO entries.
+function M.match(match, todo_only)
+  local pred, err = require("org.agenda.search").try_compile(match)
+  if not pred then
+    utils.error("Invalid match: " .. tostring(err))
+    return
+  end
+  return M.headlines(function(hl)
+    if todo_only and not hl:is_todo() then
+      return false
+    end
+    return pred(hl)
+  end, match)
+end
+
+--- Prompt for a match and show its sparse tree (C-c \). With a count,
+--- only TODO entries match.
+function M.tags_tree()
+  if not utils.ensure_org() then
+    return
+  end
+  local input = utils.input({ prompt = "Match: " })
+  if not input or input == "" then
+    return
+  end
+  return M.match(input, vim.v.count > 0)
+end
+
 --- Show matches. `matches` = list of { lnum, col?, end_col? } (1-based col).
 ---@param title string
 function M.show(matches, title)
@@ -158,6 +193,7 @@ function M.prompt()
     title = "Sparse tree",
     items = {
       { key = "/", label = "Regexp", value = "/" },
+      { key = "r", label = "Regexp", value = "/" },
       { key = "t", label = "TODO entries (not done)", value = "t" },
       { key = "T", label = "Specific TODO keyword(s)", value = "T" },
       { key = "m", label = "Tags / property match", value = "m" },

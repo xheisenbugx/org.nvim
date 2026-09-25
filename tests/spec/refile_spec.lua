@@ -60,6 +60,60 @@ describe("refile", function()
     eq({ "* Target", "** Existing", "** Move me", "text" }, utils.readfile(dir .. "/b.org"))
   end)
 
+  local function target(label)
+    for _, t in ipairs(refile.targets()) do
+      if t.label == label then
+        return t
+      end
+    end
+    error("no target " .. label)
+  end
+
+  it("copies a subtree, logs and honours reverse note order", function()
+    local dir = setup_files({ "* Copy me", "text" }, { "* Target", "** Existing" })
+    config.opts.refile.reverse_note_order = true
+    config.opts.refile.log = "time"
+    vim.cmd("edit! " .. dir .. "/a.org")
+    refile.refile_copy({ lnum = 1 }, { dest = target("b.org/Target") })
+    eq({ "* Copy me", "text" }, buf_lines())
+    local b = lines_of(dir .. "/b.org")
+    eq("* Target", b[1])
+    eq("** Copy me", b[2])
+    ok(b[3]:match("^:LOGBOOK:"), b[3])
+    ok(b[4]:match("^%- Refiled on %[%d%d%d%d%-%d%d%-%d%d %a+ %d%d:%d%d%]$"), b[4])
+    eq("** Existing", b[#b])
+    -- goto last stored jumps to the copy
+    vim.cmd("enew!")
+    refile.goto_last_stored()
+    eq("** Copy me", vim.api.nvim_get_current_line())
+    config.setup({})
+  end)
+
+  it("uses refile.targets specs and the verify function", function()
+    local dir = setup_files({ "* A :proj:", "** A2 :proj:", "* B", "** TODO B2" }, { "* C :proj:" })
+    config.opts.refile.targets = {
+      { files = "agenda", tag = "proj", max_level = 1 },
+      { files = "current", todo = "TODO" },
+    }
+    vim.cmd("edit! " .. dir .. "/a.org")
+    local labels = vim.tbl_map(function(t)
+      return t.label
+    end, refile.targets())
+    ok(vim.tbl_contains(labels, "a.org/A"))
+    ok(vim.tbl_contains(labels, "b.org/C"))
+    ok(vim.tbl_contains(labels, "a.org/B/B2"))
+    ok(not vim.tbl_contains(labels, "a.org/A/A2"))
+    ok(not vim.tbl_contains(labels, "a.org/B"))
+    config.opts.refile.verify = function(hl)
+      return hl.todo == nil
+    end
+    labels = vim.tbl_map(function(t)
+      return t.label
+    end, refile.targets())
+    ok(not vim.tbl_contains(labels, "a.org/B/B2"))
+    config.setup({})
+  end)
+
   it("creates parent nodes", function()
     local dir = setup_files({ "* X" }, { "* Top" })
     local t = { filename = dir .. "/b.org", lnum = 1, olp = { "Top" }, label = "b.org/Top" }

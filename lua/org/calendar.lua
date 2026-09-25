@@ -81,6 +81,10 @@ function M.pick(opts)
   local sel = (opts.default or date.today()):clone({ range_end = vim.NIL })
   if opts.with_time and not sel.hour then
     local now = date.now()
+    local r = (require("org.config").opts.time_stamp_rounding_minutes or {})[1] or 0
+    if r > 1 then
+      now = now:add(math.floor(now.min / r + 0.5) * r - now.min, "min")
+    end
     sel.hour, sel.min = now.hour, now.min
   end
   while true do

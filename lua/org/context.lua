@@ -37,15 +37,23 @@ end
 
 --- C-c C-c
 function M.context_action()
+  local sparse = require("org.agenda.sparse")
+  if sparse.has_highlights() then
+    -- like Emacs, the first C-c C-c after a sparse tree removes highlights
+    return sparse.clear()
+  end
   local lnum, col, line = cur()
+  if require("org.properties").at_property_line(0, lnum) then
+    return require("org.properties").property_action()
+  end
   if line:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:") then
     return require("org.table").recalc()
   end
   if in_table(line) then
-    return require("org.table").align()
+    return require("org.table").ctrl_c_ctrl_c()
   end
   local babel = require("org.babel")
-  if babel.at_block(0, lnum) then
+  if babel.at_block(0, lnum) or babel.inline_at_cursor() then
     return babel.execute_block()
   end
   local dblock = require("org.dblock")
@@ -114,6 +122,9 @@ function M.edit_special()
   if babel.at_block(0, lnum) then
     return babel.edit_special()
   end
+  if require("org.special").edit_element(0, lnum) ~= false then
+    return
+  end
   utils.warn("Nothing to edit here (place the cursor in a src block or table)")
 end
 
@@ -152,6 +163,23 @@ function M.meta_shift_return()
   end
   require("org.structure").meta_return_heading({ todo = true })
   after_insert(insert_mode)
+end
+
+--- Insert-mode TAB: next table field in a table; on an empty headline or
+--- list item (e.g. right after M-RET), cycle its level
+--- (org-cycle-level-after-item/entry-creation).
+function M.insert_tab()
+  local lnum, _, line = cur()
+  if in_table(line) then
+    return require("org.table").next_field()
+  end
+  if is_headline(line) then
+    return require("org.structure").cycle_level()
+  end
+  if list_item(lnum) then
+    return require("org.lists").cycle_item_indentation()
+  end
+  return false
 end
 
 ---------------------------------------------------------------------------
@@ -208,7 +236,14 @@ function M.demote_subtree()
   return false
 end
 
+local function visual_active()
+  return vim.fn.mode():match("^[vV\22]") ~= nil
+end
+
 function M.meta_left()
+  if visual_active() then
+    return require("org.structure").change_level_region(-1)
+  end
   local _, _, line = cur()
   if in_table(line) then
     return require("org.table").move_column(-1)
@@ -217,6 +252,9 @@ function M.meta_left()
 end
 
 function M.meta_right()
+  if visual_active() then
+    return require("org.structure").change_level_region(1)
+  end
   local _, _, line = cur()
   if in_table(line) then
     return require("org.table").move_column(1)
@@ -279,7 +317,7 @@ function M.shift_meta_up()
   if in_table(line) then
     return require("org.table").delete_row()
   end
-  return false
+  return require("org.structure").drag_line(-1)
 end
 
 function M.shift_meta_down()
@@ -287,7 +325,7 @@ function M.shift_meta_down()
   if in_table(line) then
     return require("org.table").insert_row(true)
   end
-  return false
+  return require("org.structure").drag_line(1)
 end
 
 ---------------------------------------------------------------------------
@@ -303,9 +341,15 @@ function M.shift_up()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(count())
   end
-  local _, _, line = cur()
+  local lnum, _, line = cur()
   if is_headline(line) then
     return require("org.priority").shift(nil, 1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("up")
+  end
+  if require("org.lists").parse_item_line(line) and list_item(lnum) then
+    return require("org.lists").prev_item()
   end
   return false
 end
@@ -314,9 +358,15 @@ function M.shift_down()
   if timestamp_under_cursor() then
     return require("org.timestamps").increment(-count())
   end
-  local _, _, line = cur()
+  local lnum, _, line = cur()
   if is_headline(line) then
     return require("org.priority").shift(nil, -1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("down")
+  end
+  if require("org.lists").parse_item_line(line) and list_item(lnum) then
+    return require("org.lists").next_item()
   end
   return false
 end
@@ -336,6 +386,15 @@ function M.shift_control_left()
     return false
   end
   return require("org.todo").next_sequence(nil, -1)
+end
+
+--- C-S-<Up>/<Down>: shift both timestamps of a CLOCK line.
+function M.shift_control_up()
+  return require("org.clock").timestamps_shift(count())
+end
+
+function M.shift_control_down()
+  return require("org.clock").timestamps_shift(-count())
 end
 
 local function in_visual()
@@ -358,7 +417,7 @@ end
 function M.ctrl_c_minus()
   local lnum, _, line = cur()
   if in_table(line) then
-    return require("org.table").insert_hline()
+    return require("org.table").insert_hline(vim.v.count > 0)
   end
   if not in_visual() and not is_headline(line) and list_item(lnum) then
     return require("org.lists").cycle_bullet(1)
@@ -417,8 +476,14 @@ function M.shift_right()
   if is_headline(line) then
     return require("org.todo").cycle_next()
   end
+  if require("org.properties").at_property_line(0, lnum) then
+    return require("org.properties").next_allowed_value(1)
+  end
   if list_item(lnum) then
     return require("org.lists").cycle_bullet(1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("right")
   end
   return false
 end
@@ -431,8 +496,14 @@ function M.shift_left()
   if is_headline(line) then
     return require("org.todo").cycle_prev()
   end
+  if require("org.properties").at_property_line(0, lnum) then
+    return require("org.properties").next_allowed_value(-1)
+  end
   if list_item(lnum) then
     return require("org.lists").cycle_bullet(-1)
+  end
+  if in_table(line) then
+    return require("org.table").move_cell("left")
   end
   return false
 end

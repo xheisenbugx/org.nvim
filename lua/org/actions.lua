@@ -20,6 +20,8 @@ M.list = {
   -- global
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
   capture = { "org.capture", "prompt", desc = "Capture", global = true },
+  capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
+  capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
   store_link = { "org.links", "store_link", desc = "Store link to current location", global = true },
   goto_heading = { "org.agenda.search", "goto_heading", desc = "Go to heading in agenda files", global = true },
   clock_goto = { "org.clock", "goto_clock", desc = "Go to clocked task", global = true },
@@ -33,6 +35,9 @@ M.list = {
   show_branches = { "org.fold", "show_branches", desc = "Show all branches of subtree" },
   show_children = { "org.fold", "show_children", desc = "Show children" },
   reveal = { "org.fold", "reveal", desc = "Reveal context around cursor" },
+  force_cycle_archived = { "org.fold", "force_cycle_archived", desc = "Cycle subtree, even when archived" },
+  set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
+  show_everything = { "org.fold", "show_everything", desc = "Show everything, including drawers" },
   copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
 
   -- context
@@ -41,6 +46,12 @@ M.list = {
 
   -- structure
   meta_return = { "org.context", "meta_return", desc = "New heading / item / row", modes = { "n", "i" } },
+  insert_tab = {
+    "org.context",
+    "insert_tab",
+    desc = "Table: next field / empty heading or item: cycle level",
+    modes = { "i" },
+  },
   meta_shift_return = {
     "org.context",
     "meta_shift_return",
@@ -57,13 +68,13 @@ M.list = {
     desc = "Insert block (#+begin_...)",
     modes = { "n", "x" },
   },
-  insert_footnote = { "org.footnotes", "new_footnote", desc = "Insert footnote" },
+  insert_footnote = { "org.footnotes", "footnote_action", desc = "Footnote: jump / new / menu (count)" },
   promote_heading = { "org.context", "promote", desc = "Promote heading / item" },
   demote_heading = { "org.context", "demote", desc = "Demote heading / item" },
   promote_subtree = { "org.context", "promote_subtree", desc = "Promote subtree" },
   demote_subtree = { "org.context", "demote_subtree", desc = "Demote subtree" },
-  meta_left = { "org.context", "meta_left", desc = "Promote / move column left" },
-  meta_right = { "org.context", "meta_right", desc = "Demote / move column right" },
+  meta_left = { "org.context", "meta_left", desc = "Promote / move column left", modes = { "n", "x" } },
+  meta_right = { "org.context", "meta_right", desc = "Demote / move column right", modes = { "n", "x" } },
   meta_up = { "org.context", "meta_up", desc = "Move subtree / item / row up" },
   meta_down = { "org.context", "meta_down", desc = "Move subtree / item / row down" },
   shift_meta_left = { "org.context", "shift_meta_left", desc = "Promote subtree / delete column" },
@@ -120,9 +131,14 @@ M.list = {
   increment = { "org.context", "increment", desc = "Increment timestamp / priority" },
   decrement = { "org.context", "decrement", desc = "Decrement timestamp / priority" },
   priority = { "org.priority", "set", desc = "Set priority" },
-  set_tags = { "org.tags", "set_tags", desc = "Set tags" },
+  set_tags = { "org.tags", "set_tags_command", desc = "Set tags (Visual: change tag in region)", modes = { "n", "x" } },
   set_property = { "org.properties", "set_property", desc = "Set property" },
   delete_property = { "org.properties", "delete_property", desc = "Delete property" },
+  delete_property_globally = {
+    "org.properties",
+    "delete_property_globally",
+    desc = "Delete a property from all entries",
+  },
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
 
   -- dates
@@ -133,15 +149,21 @@ M.list = {
   date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
   goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
+  toggle_timestamp_type = { "org.timestamps", "toggle_type", desc = "Toggle timestamp active/inactive" },
 
   -- lists
-  toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox" },
+  toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
   update_statistics = { "org.lists", "update_statistics", desc = "Update statistics cookies" },
   cycle_bullet = { "org.lists", "cycle_bullet", desc = "Cycle list bullet" },
 
   -- clock
   clock_in = { "org.clock", "clock_in", desc = "Clock in" },
   clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in last task" },
+  clock_resolve = { "org.clock", "resolve_clocks", desc = "Resolve dangling clocks" },
+  shift_control_up = { "org.context", "shift_control_up", desc = "Shift CLOCK timestamps up" },
+  shift_control_down = { "org.context", "shift_control_down", desc = "Shift CLOCK timestamps down" },
+  clock_modify_effort = { "org.clock", "modify_effort", desc = "Change effort of clocked task" },
+  inc_effort = { "org.clock", "inc_effort", desc = "Next allowed effort value" },
   set_effort = { "org.properties", "set_effort", desc = "Set effort" },
   clock_report = { "org.dblock", "insert_clocktable", desc = "Insert clock report" },
   clock_display = { "org.clock", "toggle_display", desc = "Display clock sums" },
@@ -158,22 +180,44 @@ M.list = {
   timer_insert = { "org.timer", "insert", desc = "Insert timer value" },
   timer_item = { "org.timer", "insert_item", desc = "Insert timer list item" },
   timer_countdown = { "org.timer", "countdown", desc = "Start countdown timer" },
+  timer_remaining = { "org.timer", "show_remaining", desc = "Show remaining countdown time" },
 
   -- links
   insert_link = { "org.links", "insert_link", desc = "Insert link", modes = { "n", "x" } },
   toggle_link_display = { "org.links", "toggle_link_display", desc = "Toggle link display" },
   next_link = { "org.links", "next_link", desc = "Next link" },
   prev_link = { "org.links", "prev_link", desc = "Previous link" },
+  insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
+  insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
+  open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
+  id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
+  id_copy = { "org.id", "copy", desc = "Copy entry ID" },
+  id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 
   -- refile / archive / attach
   refile = { "org.refile", "refile", desc = "Refile subtree" },
+  refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree to a refile target" },
+  refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
+  refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
   archive_subtree = { "org.archive", "archive_subtree", desc = "Archive subtree" },
+  archive_to_sibling = { "org.archive", "archive_to_sibling", desc = "Archive to Archive sibling" },
+  archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
   attach = { "org.attach", "menu", desc = "Attachments" },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
+  cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },
+  agenda_set_restriction_lock = { "org.agenda", "set_restriction_lock", desc = "Lock agenda to subtree / file" },
+  agenda_remove_restriction_lock = {
+    "org.agenda",
+    "remove_restriction_lock",
+    desc = "Remove agenda restriction lock",
+    global = true,
+  },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
 
   -- search / export
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
+  tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
 
   -- tables
@@ -195,16 +239,37 @@ M.list = {
   table_next_field = { "org.table", "next_field", desc = "Next table field", modes = { "i" } },
   table_prev_field = { "org.table", "prev_field", desc = "Previous table field", modes = { "i" } },
   table_next_row = { "org.table", "next_row", desc = "Next table row", modes = { "i" } },
+  table_copy_down = { "org.table", "copy_down", desc = "Copy table field down", modes = { "n", "i" } },
+  table_transpose = { "org.table", "transpose", desc = "Transpose table" },
+  table_rotate_marks = {
+    "org.table",
+    "rotate_recalc_marks",
+    desc = "Rotate table recalculation mark",
+    modes = { "n", "x" },
+  },
+  table_import = { "org.table", "import", desc = "Import file as table" },
+  table_export = { "org.table", "export", desc = "Export table to TSV/CSV file" },
 
   -- babel
   edit_special = { "org.context", "edit_special", desc = "Edit src block / table formulas" },
   babel_execute = { "org.babel", "execute_block", desc = "Execute src block" },
   babel_execute_buffer = { "org.babel", "execute_buffer", desc = "Execute all src blocks" },
   babel_execute_subtree = { "org.babel", "execute_subtree", desc = "Execute src blocks in subtree" },
-  babel_tangle = { "org.babel", "tangle", desc = "Tangle file" },
-  babel_remove_result = { "org.babel", "remove_result", desc = "Remove src block result" },
+  babel_tangle = { "org.babel", "tangle_action", desc = "Tangle file (count: block / its target)" },
+  babel_tangle_file = { "org.babel", "tangle_file", desc = "Tangle another file" },
+  babel_remove_result = { "org.babel", "remove_result", desc = "Remove src block result (count: all)" },
   babel_next_block = { "org.babel", "next_block", desc = "Next src block" },
   babel_prev_block = { "org.babel", "prev_block", desc = "Previous src block" },
+  babel_expand = { "org.babel", "expand_block", desc = "Show expanded src block" },
+  babel_view_info = { "org.babel", "view_info", desc = "Show src block info" },
+  babel_check = { "org.babel", "check_block", desc = "Check src block header args" },
+  babel_insert_header_arg = { "org.babel", "insert_header_arg", desc = "Insert header argument" },
+  babel_goto_named = { "org.babel", "goto_named_block", desc = "Go to named src block" },
+  babel_goto_named_result = { "org.babel", "goto_named_result", desc = "Go to named result" },
+  babel_goto_head = { "org.babel", "goto_block_head", desc = "Go to src block head" },
+  babel_open_result = { "org.babel", "open_result", desc = "Open src block result" },
+  babel_demarcate = { "org.babel", "demarcate_block", desc = "Split / wrap src block", modes = { "n", "x" } },
+  babel_lob_ingest = { "org.babel", "lob_ingest", desc = "Add file's blocks to Library of Babel" },
 }
 
 --- Resolve an action to its function.

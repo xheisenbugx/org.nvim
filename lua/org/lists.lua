@@ -512,16 +512,87 @@ local function fix_parent_checkboxes(bufnr, lnum)
   end
 end
 
+--- Add an empty checkbox to an item line.
+local function add_checkbox(line, item)
+  local prefix_len = item.content_col
+  if line:sub(prefix_len + 1) == "" then
+    return line:sub(1, prefix_len) .. "[ ]"
+  end
+  return line:sub(1, prefix_len) .. "[ ] " .. line:sub(prefix_len + 1)
+end
+
+--- Remove the checkbox of an item line.
+local function remove_checkbox(line)
+  local s, e = line:find("%[[ xX%-]%]%s?")
+  if not s then
+    return line
+  end
+  return line:sub(1, s - 1) .. line:sub(e + 1)
+end
+
+--- Toggle the checkboxes of the items starting in [s, e]
+--- (org-toggle-checkbox with an active region): when the first checkbox
+--- is checked, uncheck all, else check all. Items without a checkbox get
+--- one when none of them has a checkbox.
+local function toggle_checkbox_region(bufnr, s, e)
+  local _, all = M.section_lists(bufnr, s)
+  local items = {}
+  for _, it in ipairs(all) do
+    if it.lnum >= s and it.lnum <= e then
+      items[#items + 1] = it
+    end
+  end
+  if #items == 0 then
+    return false
+  end
+  local first
+  for _, it in ipairs(items) do
+    if it.checkbox then
+      first = first or it
+    end
+  end
+  for _, it in ipairs(items) do
+    local line = get_lines(bufnr, it.lnum, it.lnum)[1]
+    if not first then
+      set_lines(bufnr, it.lnum, it.lnum, { add_checkbox(line, it) })
+    elseif it.checkbox then
+      set_lines(bufnr, it.lnum, it.lnum, { set_checkbox(line, first.checkbox == "X" and " " or "X") })
+    end
+  end
+  fix_parent_checkboxes(bufnr, items[1].lnum)
+  M.update_statistics_for(bufnr, items[1].lnum)
+end
+
 --- Toggle the checkbox of the item at cursor. Items without a checkbox get
---- one. Returns false when not on a list item.
+--- one. With a count of 4 (C-u), add or remove the checkbox; with 16
+--- (C-u C-u), set it to `[-]`. In Visual mode, toggle every item of the
+--- selection. Returns false when not on a list item.
 function M.toggle_checkbox()
   local bufnr = vim.api.nvim_get_current_buf()
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" or mode == "\22" then
+    local s, _, e = utils.visual_range()
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    return toggle_checkbox_region(bufnr, s, e)
+  end
   local lnum = cursor_lnum()
   local item = M.item_at(bufnr, lnum)
   if not item then
     return false
   end
   local line = get_lines(bufnr, item.lnum, item.lnum)[1]
+  local count = vim.v.count
+  if count == 4 and item.checkbox then
+    set_lines(bufnr, item.lnum, item.lnum, { remove_checkbox(line) })
+    fix_parent_checkboxes(bufnr, item.lnum)
+    M.update_statistics_for(bufnr, item.lnum)
+    return
+  elseif count == 16 then
+    local new = item.checkbox and set_checkbox(line, "-") or add_checkbox(line, item):gsub("%[ %]", "[-]", 1)
+    set_lines(bufnr, item.lnum, item.lnum, { new })
+    M.update_statistics_for(bufnr, item.lnum)
+    return
+  end
   if not item.checkbox then
     -- add an empty checkbox after bullet (and counter)
     local prefix_len = item.content_col
@@ -680,6 +751,72 @@ function M.move_item(dir)
   end
   vim.api.nvim_win_set_cursor(0, { new_start + offset, vim.api.nvim_win_get_cursor(0)[2] })
   M.repair(bufnr, new_start)
+end
+
+--- Move to the next (dir = 1) or previous (dir = -1) item of the same
+--- list level (org-next-item / org-previous-item). Returns false when
+--- not on a list item.
+function M.goto_sibling_item(dir)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item = M.item_at(bufnr, cursor_lnum())
+  if not item then
+    return false
+  end
+  local target = item
+  for _ = 1, math.max(vim.v.count, 1) do
+    local sibs = M.siblings(target)
+    local idx
+    for i, s in ipairs(sibs) do
+      if s == target then
+        idx = i
+      end
+    end
+    if not sibs[idx + dir] then
+      break
+    end
+    target = sibs[idx + dir]
+  end
+  if target == item then
+    utils.warn(dir > 0 and "On last item" or "On first item")
+    return
+  end
+  vim.api.nvim_win_set_cursor(0, { target.lnum, target.indent })
+end
+
+--- On an empty item (only a bullet, maybe a checkbox), indent it under
+--- the previous item, or outdent it back when it can't go deeper
+--- (org-cycle-item-indentation, used by TAB right after M-RET). Returns
+--- false when the item is not empty.
+function M.cycle_item_indentation()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = cursor_lnum()
+  local line = vim.api.nvim_get_current_line()
+  local parsed = M.parse_item_line(line)
+  if not parsed or vim.trim(parsed.text) ~= "" or parser.headline_level(line) then
+    return false
+  end
+  local item = M.item_at(bufnr, lnum)
+  if not item or item.lnum ~= lnum or #item.children > 0 then
+    return false
+  end
+  local sibs = M.siblings(item)
+  if sibs[1] ~= item then
+    M.indent_item(1, true)
+  elseif item.parent then
+    M.indent_item(-1, true)
+  else
+    return false
+  end
+  local new = vim.api.nvim_get_current_line()
+  vim.api.nvim_win_set_cursor(0, { lnum, #new })
+end
+
+function M.next_item()
+  return M.goto_sibling_item(1)
+end
+
+function M.prev_item()
+  return M.goto_sibling_item(-1)
 end
 
 local BULLETS = { "-", "+", "*", "1.", "1)" }

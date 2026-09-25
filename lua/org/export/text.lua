@@ -69,7 +69,9 @@ function R:inline(nodes)
         out[#out + 1] = nd.value
       end
     elseif t == "target" then
-      out[#out + 1] = nd.value
+      if not nd.radio then -- a radio target's text follows it
+        out[#out + 1] = nd.value
+      end
     elseif t == "snippet" then
       if nd.backend == "ascii" or nd.backend == "txt" then
         out[#out + 1] = nd.value

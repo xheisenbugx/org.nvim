@@ -13,7 +13,11 @@ local utils = require("org.utils")
 
 local M = {}
 
-local function file_dir(file)
+local function file_dir(file, bufnr)
+  local name = bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_name(bufnr) or ""
+  if name ~= "" then
+    return vim.fn.fnamemodify(name, ":p:h")
+  end
   if file.filename then
     return vim.fn.fnamemodify(file.filename, ":p:h")
   end
@@ -30,7 +34,7 @@ function M.dir_for(target, create_id)
     return nil
   end
   local dir = hl:get_property("DIR", true)
-  local base = file_dir(file)
+  local base = file_dir(file, bufnr)
   if dir and dir ~= "" then
     dir = vim.fn.expand(dir)
     if not dir:match("^/") then
@@ -123,8 +127,11 @@ function M.attach_file(path, method, target)
         os.remove(path)
       end
     end
-  elseif method == "ln" or method == "lns" then
+  elseif method == "ln" then
     ok, err = vim.uv.fs_symlink(path, dest)
+  elseif method == "lns" then
+    -- symbolic link with a path relative to the attachment directory
+    ok, err = vim.uv.fs_symlink(M.relative_path(path, dir), dest)
   else
     ok, err = vim.uv.fs_copyfile(path, dest)
   end
@@ -138,6 +145,90 @@ function M.attach_file(path, method, target)
   end)
   utils.notify("Attached " .. name)
   return dest
+end
+
+--- `path` relative to directory `dir` (both absolute).
+function M.relative_path(path, dir)
+  local a = vim.split(vim.fs.normalize(path), "/", { plain = true })
+  local b = vim.split(vim.fs.normalize(dir), "/", { plain = true })
+  local i = 1
+  while a[i] and b[i] and a[i] == b[i] do
+    i = i + 1
+  end
+  local parts = {}
+  for _ = i, #b do
+    parts[#parts + 1] = ".."
+  end
+  for k = i, #a do
+    parts[#parts + 1] = a[k]
+  end
+  return table.concat(parts, "/")
+end
+
+--- Download `url` into the attachment directory (org-attach-url).
+---@return string|nil destination
+function M.attach_url(url, target)
+  local bufnr = edit.resolve(target)
+  local dir, hl = M.dir_for(target, true)
+  if not dir or not hl then
+    utils.warn("Not under a headline")
+    return nil
+  end
+  if vim.fn.executable("curl") == 0 then
+    utils.error("curl is needed to attach a URL")
+    return nil
+  end
+  local name = vim.trim(url):gsub("[?#].*$", ""):match("([^/]+)/*$") or "download"
+  vim.fn.mkdir(dir, "p")
+  local dest = dir .. "/" .. name
+  local res = vim.system({ "curl", "-fsSL", "-o", dest, url }, { text = true }):wait(120000)
+  if res.code ~= 0 then
+    utils.error("Download failed: " .. vim.trim(res.stderr or ""))
+    return nil
+  end
+  add_tag(bufnr, hl.line, "ATTACH")
+  utils.notify("Attached " .. name)
+  return dest
+end
+
+--- Save the contents of buffer `src` as an attachment (org-attach-buffer).
+---@return string|nil destination
+function M.attach_buffer(src, target, name)
+  local bufnr = edit.resolve(target)
+  local dir, hl = M.dir_for(target, true)
+  if not dir or not hl then
+    utils.warn("Not under a headline")
+    return nil
+  end
+  if not src or not vim.api.nvim_buf_is_valid(src) then
+    utils.warn("No such buffer")
+    return nil
+  end
+  local bname = vim.api.nvim_buf_get_name(src)
+  name = name or (bname ~= "" and vim.fn.fnamemodify(bname, ":t") or ("buffer-" .. src))
+  vim.fn.mkdir(dir, "p")
+  local dest = dir .. "/" .. name
+  utils.writefile(dest, vim.api.nvim_buf_get_lines(src, 0, -1, false))
+  add_tag(bufnr, hl.line, "ATTACH")
+  utils.notify("Attached " .. name)
+  return dest
+end
+
+--- Make the ATTACH tag match the attachment directory (org-attach-sync):
+--- tag the entry when it has files, untag it (and offer to delete the
+--- empty directory) otherwise.
+function M.sync(target)
+  local bufnr = edit.resolve(target)
+  local dir, hl = M.dir_for(target)
+  if not hl then
+    return
+  end
+  local has = dir and utils.is_dir(dir) and #M.list(target) > 0
+  add_tag(bufnr, hl.line, "ATTACH", not has)
+  if dir and utils.is_dir(dir) and not has and utils.confirm("Delete empty attachment directory " .. dir .. "?") then
+    vim.fn.delete(dir, "d")
+  end
+  return has
 end
 
 local function list_files(dir)
@@ -192,23 +283,63 @@ function M.menu()
       { key = "c", label = "Attach by copying", value = "c" },
       { key = "m", label = "Attach by moving", value = "m" },
       { key = "l", label = "Attach by symlink", value = "l" },
+      { key = "y", label = "Attach by relative symlink", value = "y" },
+      { key = "u", label = "Attach a file from a URL (curl)", value = "u" },
+      { key = "b", label = "Attach the contents of a buffer", value = "b" },
       { key = "n", label = "Create a new attachment file", value = "n" },
+      { key = "z", label = "Synchronize the ATTACH tag with the directory", value = "z" },
       { key = "o", label = "Open an attachment", value = "o" },
       { key = "O", label = "Open an attachment with the system app", value = "O" },
       { key = "f", label = "Open the attachment directory", value = "f" },
+      { key = "F", label = "Open the attachment directory with the system app", value = "F" },
       { key = "d", label = "Delete an attachment", value = "d" },
       { key = "D", label = "Delete all attachments", value = "D" },
       { key = "s", label = "Set a specific attachment directory (DIR)", value = "s" },
+      { key = "S", label = "Unset the attachment directory (remove DIR)", value = "S" },
     },
   })
   if not choice then
     return
   end
-  if choice == "a" or choice == "c" or choice == "m" or choice == "l" then
+  if choice == "a" or choice == "c" or choice == "m" or choice == "l" or choice == "y" then
     local path = prompt_path("File to attach: ")
     if path then
-      local method = ({ c = "cp", m = "mv", l = "ln" })[choice]
+      local method = ({ c = "cp", m = "mv", l = "ln", y = "lns" })[choice]
       M.attach_file(path, method, target)
+    end
+  elseif choice == "u" then
+    local url = utils.input({ prompt = "URL of the file to attach: " })
+    if url and vim.trim(url) ~= "" then
+      M.attach_url(vim.trim(url), target)
+    end
+  elseif choice == "b" then
+    local names, bufs = {}, {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.bo[b].buflisted and b ~= bufnr then
+        local n = vim.api.nvim_buf_get_name(b)
+        names[#names + 1] = n ~= "" and vim.fn.fnamemodify(n, ":~:.") or ("[No Name] #" .. b)
+        bufs[#bufs + 1] = b
+      end
+    end
+    if #names == 0 then
+      utils.warn("No other buffers")
+      return
+    end
+    local _, idx = utils.select(names, { prompt = "Buffer to attach" })
+    if idx then
+      M.attach_buffer(bufs[idx], target)
+    end
+  elseif choice == "z" then
+    M.sync(target)
+  elseif choice == "F" then
+    local dir = M.dir_for(target, true)
+    vim.fn.mkdir(dir, "p")
+    vim.ui.open(dir)
+  elseif choice == "S" then
+    if hl.properties.DIR then
+      require("org.properties").delete_property({ bufnr = bufnr, lnum = hl.line }, "DIR")
+    else
+      utils.notify("No DIR property on this entry")
     end
   elseif choice == "n" then
     local name = utils.input({ prompt = "New attachment file name: " })
