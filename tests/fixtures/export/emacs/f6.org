@@ -1,0 +1,14 @@
+#+TITLE: File title
+#+OPTIONS: toc:nil
+
+pre
+
+* Top
+:PROPERTIES:
+:EXPORT_TITLE: Sub Title
+:EXPORT_OPTIONS: num:nil
+:END:
+top body
+** Child
+child body
+* Other

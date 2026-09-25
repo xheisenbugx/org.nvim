@@ -55,7 +55,8 @@ It covers the parts of Org you use every day:
   - Clocking, effort estimates, clock tables and column view.
   - Spreadsheet tables with `#+TBLFM` formulas.
   - Source blocks that run asynchronously (Babel), and tangling.
-  - Export to HTML, Markdown, text and LaTeX, plus more formats via pandoc.
+  - Export to HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar,
+    publishing projects, plus more formats via pandoc.
 
 There are no dependencies: no tree-sitter parser, external binary or
 companion plugin.
@@ -2145,12 +2146,12 @@ Results of 10 or more lines (`babel.min_lines_for_block_output`) use an
 example block; shorter results use `: ` lines. Value results that look like a
 list of lists become a table.
 
-Export: with `babel.evaluate_on_export = true` (Emacs
+Export: with `babel.evaluate_on_export = true` (the default, Emacs
 `org-export-use-babel`) exporting first evaluates, in a copy of the buffer,
 the blocks and #+CALL lines with `:exports results|both`, inline src blocks
 and calls, and `:exports code|none` blocks that use a session. `:eval
-never-export|no-export` blocks keep their existing results. Otherwise export
-uses the `#+RESULTS` already in the buffer.
+never-export|no-export` blocks keep their existing results. When false,
+`:exports` is ignored and the buffer is exported as it is.
 
 ==============================================================================
 20. DYNAMIC BLOCKS                                               *org-dblocks*
@@ -2217,35 +2218,77 @@ Custom blocks: >lua
 ==============================================================================
 21. EXPORT                                                        *org-export*
 
-<prefix>e opens the export dispatcher:
-  h h  HTML file        h o  HTML and open      h H  HTML to a buffer
-  m m  Markdown file    m o  Markdown and open  m M  Markdown to a buffer
-  t a  plain text (UTF-8)
-  l l  LaTeX            l p  PDF
-  o o  ODT              d d  DOCX
-  p    other format via pandoc     O    Org buffer (noexport removed)
-  s    toggle subtree-only export
-  b    toggle body-only export
+The exporter is a port of Emacs Org 9.8.10 `ox.el` and its back-ends: the
+buffer is parsed into the same element tree as org-element, and each
+back-end turns it into text with the same transcoders, so the output of
+HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar matches Emacs.
+
+<prefix>e (Emacs `C-c C-e`) opens the export dispatcher:
+  b / s / v / a  toggle body only / subtree only / visible only / async
+  c f  iCalendar: current file   c a  every agenda file   c c  combined
+  h H  HTML buffer      h h  HTML file          h o  HTML file and open
+  l L  LaTeX buffer     l l  LaTeX file         l p  PDF   l o  PDF, open
+  l B  Beamer buffer    l b  Beamer file        l P  PDF   l O  PDF, open
+  m M  Markdown buffer  m m  Markdown file      m o  Markdown file, open
+  m G  GFM buffer       m g  GFM file
+  O O  Org buffer       O o  Org file           O v  Org file and open
+  o o  ODT (pandoc)     o O  ODT and open       d d  DOCX (pandoc)
+  t A/a  ASCII buffer/file   t L/l  Latin-1   t U/u  UTF-8
+  P f  publish file     P p  current project    P x  a project  P a  all
+  p    other format via pandoc
   #    insert the default export template
 
-`:Org export html|md|txt|latex|pdf|docx|odt|rst|epub|... [subtree] [body]
-[buffer] [open]`
+`:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
+format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
+beamer-pdf, org, ics or a pandoc format (docx, odt, rst, epub, ...).
+`:Org publish [project|file|current|all] [force]` publishes projects
+(|org-publish|). Lua: `require("org.export").export(format, opts)` returns
+the output path, `.to_string(format, opts)` the text.
 
-HTML, Markdown, text and LaTeX are native. Other formats run pandoc on an org
-file with noexport and COMMENT subtrees removed. PDF uses latexmk or
-pdflatex, falling back to pandoc.
+Output goes next to the source file (named after it or #+EXPORT_FILE_NAME),
+or to `export.output_dir`. PDF compiles the LaTeX file with
+`export.latex.pdf_process` (latexmk when available, else three runs of
+`export.latex.compiler`); it runs in the background with |vim.system()|
+unless `export.latex.async_compile` is false. DOCX, ODT and other pandoc
+formats run pandoc on the output of the Org back-end.
 
-Supported: `#+TITLE/AUTHOR/DATE/EMAIL`, `#+OPTIONS:` (toc num H todo tags pri
-^ author date timestamp \n e f tex | arch tasks stat prop c d, where
-`tasks:` / `d:` / `prop:` also take lists like `tasks:("TODO" "NEXT")` or
-`d:(not "LOGBOOK")`), select and exclude tags, COMMENT and ARCHIVE
-subtrees, headlines deeper than H: exported as lists, emphasis, links
-(internal links become anchors, image links become images), radio targets,
-footnotes, lists, checkboxes, tables, blocks, `#+RESULTS` according to
-`:exports`, `:noweb` expansion, line numbers (`-n`, `+n`) and coderefs
-(`-r`, `-l`), inline src blocks (`src_lang{…}`, exported by their
-`:exports`, default results), `#+HTML:` / `#+LATEX:` / `#+ASCII:` lines,
-`#+CAPTION`, `#+ATTR_HTML` and LaTeX fragments (MathJax in HTML).
+Export settings ~                                        *org-export-settings*
+`#+TITLE`, `#+SUBTITLE`, `#+AUTHOR`, `#+EMAIL`, `#+DATE`, `#+CREATOR`,
+`#+LANGUAGE`, `#+SELECT_TAGS`, `#+EXCLUDE_TAGS`, `#+EXPORT_FILE_NAME`,
+`#+KEYWORDS`, `#+DESCRIPTION` and back-end keywords (`#+HTML_HEAD`,
+`#+HTML_LINK_HOME`, `#+HTML_DOCTYPE`, `#+HTML_CONTAINER`, `#+LATEX_CLASS`,
+`#+LATEX_CLASS_OPTIONS`, `#+LATEX_HEADER`, `#+LATEX_HEADER_EXTRA`,
+`#+LATEX_COMPILER`, `#+BEAMER_THEME`, ...) as in Emacs. `#+OPTIONS:` takes
+every Emacs key: `':` `*:` `-:` `::` `<:` `\n:` `^:` `arch:` `author:`
+`broken-links:` `c:` `creator:` `d:` `date:` `e:` `email:` `f:` `H:`
+`inline:` `num:` `p:` `pri:` `prop:` `stat:` `tags:` `tasks:` `tex:`
+`timestamp:` `title:` `toc:` `todo:` `|:` and the back-end ones
+(`html-postamble:`, `html-preamble:`, `html-style:`, `html5-fancy:`,
+`html-link-use-abs-url:`, ...). Values are read like Emacs, so lists work:
+`tasks:("TODO" "NEXT")`, `d:(not "LOGBOOK")`. Every key has a default in
+`export` (|org-config-export|), named after the Emacs variable.
+When exporting a subtree, its EXPORT_TITLE, EXPORT_FILE_NAME,
+EXPORT_OPTIONS, EXPORT_AUTHOR, EXPORT_DATE, EXPORT_LATEX_CLASS, ...
+properties override the keywords. `#` in the dispatcher inserts the default
+template (`#+options:`, `#+title:` ... lines, or EXPORT_* properties in
+subtree mode).
+
+`#+LANGUAGE:` translates the generated strings ("Table of Contents",
+"Footnotes", "Figure", ...) with the Emacs dictionary, and smart quotes
+(`':t`) use that language's quotes.
+
+Select tags (`export`) export only the tagged subtrees; exclude tags
+(`noexport`) and COMMENT subtrees are removed; archived subtrees keep only
+their headline (`arch:`). Headlines deeper than `H:` become lists. Visible
+only (`v`) exports what is not folded.
+
+Links: internal links (`[[*Heading]]`, `[[#custom-id]]`, `[[name]]`,
+`[[target]]`, radio targets, `id:` links, coderefs) resolve to generated
+labels; a link that resolves to nothing stops the export with an error
+unless `broken-links:t` (drop it) or `broken-links:mark`. Links whose type
+has an `export` function in `links.types` use it, like
+`org-link-parameters :export`. `#+TOC: headlines 2 [local]`, `#+TOC:
+tables` and `#+TOC: listings` insert lists anywhere.
 
 `#+INCLUDE: "file.org"` includes a file; its headlines become children of
 the current one (or start at `:minlevel N`). Add `::*Heading`, `::#id` or
@@ -2255,19 +2298,187 @@ drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
 keywords of another file.
 
 Macros: `#+MACRO: name text $1 $2` (`$0` = all arguments, `\,` a literal
-comma, macros may use other macros) and the built-ins `{{{title}}}`,
-`{{{author}}}`, `{{{email}}}`, `{{{date(FMT)}}}`, `{{{time(FMT)}}}`,
-`{{{modification-time(FMT)}}}`, `{{{input-file}}}`, `{{{keyword(NAME)}}}`,
-`{{{property(NAME[,search])}}}`, `{{{n(name[,-|N])}}}` and
-`{{{results(…)}}}`.
+comma, macros may use other macros), `export.global_macros` (strings or Lua
+functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
+`{{{date(FMT)}}}`, `{{{time(FMT)}}}`, `{{{modification-time(FMT)}}}`,
+`{{{input-file}}}`, `{{{keyword(NAME)}}}`, `{{{property(NAME[,search])}}}`,
+`{{{n(name[,-|N])}}}` and `{{{results(...)}}}`.
 
-When exporting a subtree, its EXPORT_TITLE, EXPORT_FILE_NAME,
-EXPORT_OPTIONS, EXPORT_AUTHOR, EXPORT_DATE, EXPORT_EMAIL, EXPORT_SUBTITLE
-... properties override the file's keywords. `#` in the dispatcher inserts
-the default export template (`#+options:`, `#+title:` … lines, or EXPORT_*
-properties in subtree mode).
+Code blocks follow `:exports` when `babel.evaluate_on_export` is true (the
+default, Emacs `org-export-use-babel`): results are computed in a copy of
+the buffer, with the usual `babel.confirm_evaluate` question. When it is
+false the buffer is exported as it is.
 
-Output goes next to the source file, or to `export.output_dir`.
+Hooks and filters (Emacs `org-export-before-processing-functions`,
+`org-export-before-parsing-functions` and `org-export-filter-*-functions`)
+are Lua functions: >lua
+    export = {
+      hooks = { before_parsing = function(backend, lines) return lines end },
+      filters = {
+        ["final-output"] = function(text, backend, info) return text end,
+        headline = { function(text) return text end },
+      },
+    }
+<
+Back-ends ~                                              *org-export-backends*
+HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
+              `html5-fancy:t`), default CSS, MathJax, postamble "auto"
+              (author, date, creator, validation link), `#+ATTR_HTML`,
+              `#+HTML_HEAD`, info.js (`#+INFOJS_OPT`), inline images.
+              Source code is not fontified unless `export.html.fontify`
+              is a function(code, lang).
+LaTeX / PDF   ox-latex: classes (`export.latex.classes`, #+LATEX_CLASS),
+              packages, labels, figures and tables with `#+ATTR_LATEX`
+              (:width :float :placement :environment :mode :align
+              :booktabs :caption ...), math environments, special blocks
+              as environments, babel/polyglossia from #+LANGUAGE,
+              `src_block_backend` verbatim, listings or minted.
+Markdown      ox-md (headline_style "atx", "setext" or "mixed"); tables
+              and other constructs without Markdown syntax become HTML.
+GFM           GitHub flavoured Markdown (pipe tables, fenced code,
+              `- [ ]` task lists), format "gfm".
+ASCII         ox-ascii: `:Org export ascii`, latin1 or utf8;
+              `export.ascii.charset` sets the default ("ascii").
+Org           ox-org: the buffer after macro expansion, #+INCLUDE and
+              removal of non-exported subtrees.
+iCalendar     |org-export-icalendar|
+Beamer        |org-export-beamer|
+
+ASCII ~                                                     *org-export-ascii*
+`ascii` exports plain text like Emacs ox-ascii. Text is filled to
+`export.ascii.text_width` columns (default 72; the older
+`export.text_width` is still read) with two spaces after sentences.
+`center`, `justifyright` and `justifyleft` blocks align their text, and
+link targets are listed as notes after each section unless
+`export.ascii.links_to_notes` is false. `export.ascii.charset` ("ascii",
+"latin1" or "utf-8") picks the characters used for entities, bullets,
+checkboxes, rules and table borders; the Latin-1 and UTF-8 dispatcher
+entries override it. The other layout options (margins, spacing, bullets,
+underlines, caption position, verbatim format, drawer and inlinetask
+formatters) mirror the Emacs `org-ascii-*` variables of the same name.
+`table_use_ascii_art` (ascii-art-to-unicode) is not supported.
+
+Beamer ~                                                   *org-export-beamer*
+`:Org export beamer` (dispatcher: l B buffer, l b file, l P PDF, l O PDF and
+open) writes a Beamer presentation, derived from the LaTeX exporter like
+Emacs ox-beamer. Headlines at the frame level (`H:`, default
+`export.beamer.frame_level` = 1) become frames, shallower ones sections
+and deeper ones blocks. A headline with `BEAMER_env: frame` sets the
+frame level of its subtree. Properties:
+  BEAMER_env   block alertblock theorem definition example exampleblock
+               proof quote quotation verse structureenv onlyenv
+               beamercolorbox, frame fullframe note noteNH appendix
+               ignoreheading againframe columns column (plus
+               `export.beamer.environments_extra`)
+  BEAMER_act   overlay (`<2->`), or a default overlay in brackets `[<+->]`
+  BEAMER_opt   frame/block options (`allowframebreaks`, `label=x`, ...)
+  BEAMER_col   column width (fraction of \columnwidth)
+  BEAMER_ref   frame resumed by `againframe`
+  BEAMER_subtitle  frame subtitle
+Frames with code or verbatim text get the `fragile` option. An
+`@@beamer:<2->@@` snippet at the start of an item, bold text, link or
+radio target is its overlay; `#+ATTR_BEAMER: :overlay <+-> :options ...`
+applies to lists and images. Keywords: #+BEAMER_THEME,
+#+BEAMER_COLOR_THEME, #+BEAMER_FONT_THEME, #+BEAMER_INNER_THEME,
+#+BEAMER_OUTER_THEME (all accept `[options]name`), #+BEAMER_HEADER,
+#+BEAMER: (raw line), #+SUBTITLE, `#+TOC: headlines N [options]`. With
+`toc:` an outline frame titled `export.beamer.outline_frame_title` is
+added.
+
+iCalendar ~                                             *org-export-icalendar*
+Dispatcher keys (Emacs `C-c C-e c`): `c f` current file, `c a` every agenda
+file (one .ics each), `c c` all agenda files combined into
+`export.icalendar.combined_agenda_file` ("~/org.ics"). Lua:
+`require("org.export.icalendar").export_file()`, `.export_agenda_files()`,
+`.combine_agenda_files()`, `.to_string(lines)`.
+Entries become VEVENTs from active timestamps (`with_timestamps`, `<:`),
+DEADLINE ("DL: " prefix, `use_deadline`) and SCHEDULED ("S: ",
+`use_scheduled`); with `include_todo` TODO entries also become VTODOs
+(DTSTART/DUE, RRULE with UNTIL, PRIORITY from the priority cookie, STATUS).
+Repeaters (`+1w`) give RRULE; APPT_WARNTIME or `alarm_time` adds a VALARM;
+SUMMARY, LOCATION, DESCRIPTION, CLASS and TIMEZONE properties are honoured;
+the body is the DESCRIPTION (`include_body`). Tags and the category go to
+CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
+Files use CRLF line endings and 75-character folded lines (RFC 5545).
+Differences: entries without an ID get a UID derived from the file and the
+entry (stable across exports) instead of a random one; diary sexps
+(`%%(...)` lines and `<%%(...)>` timestamps) are skipped because Emacs
+converts them with its calendar library; `++`/`.+` repeaters give no RRULE
+(like Emacs); BBDB anniversaries are not supported.
+
+Citations ~                                                  *org-export-cite*
+Citations written as `[cite/STYLE:prefix @key suffix]` are rendered on
+export by a citation processor, chosen with `#+CITE_EXPORT: NAME [BIBSTYLE
+[CITESTYLE]]` or by `export.cite.export_processors` (default: "basic" for
+every back-end). Bibliography files come from `#+BIBLIOGRAPHY:` keywords
+(BibTeX .bib/.bibtex or CSL-JSON .json, relative to the exported file) and
+`export.cite.global_bibliography`. `#+PRINT_BIBLIOGRAPHY:` inserts the
+bibliography at that point. Processors:
+  basic     any back-end; styles author (a), noauthor (na), nocite (n),
+            text (t), note (ft), numeric (nb) and the default; variants
+            bare (b), caps (c), bare-caps (bc); bibliography styles
+            "plain", "numeric" or author-year (default).
+  natbib    LaTeX; \citep, \citet, ... and \bibliography.
+  biblatex  LaTeX; \autocite, \textcite, ..., multi-cite commands,
+            \printbibliography[OPTIONS] from ":key value" properties;
+            loads biblatex and adds \addbibresource lines.
+  bibtex    LaTeX; \cite, \nocite and \bibliography.
+Note styles turn a citation into a footnote, moving punctuation according
+to `export.cite.note_rules` and the document LANGUAGE. The CSL processor
+(citeproc) is not available (it needs the Emacs citeproc-el library); to
+use CSL styles, export to Org or Markdown and run `pandoc --citeproc`.
+
+Publishing ~                                                   *org-publish*
+Projects are set in `export.publish.projects` (org-publish-project-alist):
+>lua
+    export = { publish = { projects = {
+      site = { base_directory = "~/org/site", publishing_directory = "~/www",
+               recursive = true, publishing_function = "html",
+               auto_sitemap = true, sitemap_title = "My site",
+               makeindex = true },
+      static = { base_directory = "~/org/site", base_extension = "png\\|css",
+                 publishing_directory = "~/www", recursive = true,
+                 publishing_function = "attachment" },
+      all = { components = { "site", "static" } },
+    } } }
+<
+Keys are the Emacs plist properties with `_` for `-`. `publishing_function`
+is "html", "latex", "pdf", "beamer", "md", "gfm", "ascii", "latin1",
+"utf8", "org", "attachment", a Lua function(plist, file, pub_dir) or a list.
+`exclude` and `base_extension` are Vim regular expressions matched against
+file names relative to `base_directory`. Other keys (with_toc,
+html_postamble, ...) are export options for the project's files.
+Only files changed since they were last published (or whose #+INCLUDE
+files changed) are published; the timestamps live in
+`export.publish.timestamp_directory` (default stdpath("data")/org-timestamps/,
+Emacs uses ~/.org-timestamps/). With a site map (auto_sitemap) a
+"sitemap.org" listing the files ("tree" or "list" style, sorted with
+sitemap_sort_files / sitemap_sort_folders) is written and published;
+`makeindex` collects #+INDEX: entries into theindex.inc / theindex.org.
+Links to headlines of other project files point to the right anchor.
+Functions: `require("org.export.publish").publish_all(force)`,
+`publish_project(name, force)`, `publish_current_file(force)`,
+`publish_current_project(force)`.
+
+Not supported ~                                        *org-export-unsupported*
+These need Emacs Lisp or Emacs itself:
+- `#+BIND:` (sets Elisp variables) is ignored.
+- `(eval ...)` macros are left unexpanded; use `export.global_macros` with
+  a Lua function instead.
+- ODT has no native back-end (ox-odt writes with Emacs' nXML/zip
+  tooling); `o` exports through pandoc.
+- Source fontification (htmlize, engrave-faces): HTML code is plain unless
+  `export.html.fontify` is set; `src_block_backend = "engraved"` falls
+  back to verbatim.
+- LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
+  exported as MathJax/verbatim; there is no image conversion.
+- table.el tables are exported verbatim.
+- Asynchronous export (`a`) only makes PDF compilation asynchronous;
+  publishing runs on the editor's event loop.
+- Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
+- Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
+  content instead of random, so repeated exports give the same output.
+- The default creator string names Neovim and org.nvim instead of Emacs.
 
 ==============================================================================
 22. TIMERS AND NOTIFICATIONS                    *org-timers* *org-notifications*
@@ -2641,13 +2852,21 @@ attach ~
   sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH"
 babel ~
   confirm_evaluate true, min_lines_for_block_output 10, timeout 30000,
-  evaluate_on_export false, default_header_args, languages
-export ~
-  output_dir, with_toc, with_section_numbers, headline_levels 3,
-  with_author, with_date, with_todo_keywords, with_tags, with_priority,
-  with_drawers, with_planning, with_timestamps, select_tags { "export" },
-  exclude_tags { "noexport" }, open_after_export, html { style,
-  head_extra, mathjax }, text_width 72, pandoc { cmd, args }
+  evaluate_on_export true, default_header_args, languages
+export ~                                                   *org-config-export*
+  output_dir, open_after_export, and the Emacs org-export-* options:
+  with_toc true, with_section_numbers true, headline_levels 3,
+  with_author, with_date, with_title true, with_email, with_creator false,
+  with_todo_keywords true, with_tags true, with_priority false,
+  with_drawers { not = { "LOGBOOK" } }, with_properties, with_planning,
+  with_clocks false, with_timestamps true, with_tasks true,
+  with_archived_trees "headline", with_broken_links false,
+  with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
+  timestamp_file true, select_tags { "export" }, exclude_tags
+  { "noexport" }, default_language "en", author, email, creator,
+  global_macros, hooks, filters; back-end tables html, latex, md, org,
+  ascii, beamer, icalendar, publish, cite; pandoc { cmd, args }. See the
+  comments in config.lua for every key and its Emacs variable.
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil
@@ -2856,7 +3075,8 @@ Section `edit_src`: save_exit, abort.
                         |org-keymaps|). Without arguments, shows a picker.
 Additional subcommands:
   :Org agenda [key|view]     :Org capture [key]
-  :Org export [format] [subtree] [body] [buffer] [open]
+  :Org export [format] [subtree] [body] [visible] [buffer] [open]
+  :Org publish [project|file|current|all] [force]
   :Org tangle                :Org search {text}
   :Org tags_search {match}   :Org todo_list [KEYWORD]
   :Org clock_in_last         :Org refile_goto
@@ -3055,12 +3275,10 @@ Differences from Emacs:
   `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
 - Babel sessions exist for shells, python, js, ruby and lua only, and
-  are not full REPLs: each block runs as one request. Export runs code only
-  with `babel.evaluate_on_export` (Emacs evaluates by default). `elisp:`
+  are not full REPLs: each block runs as one request. `elisp:`
   links and emacs-lisp blocks are not supported; `:var` Lisp forms are
   limited to what the table formula Lisp evaluator implements.
-- Export is lenient: broken internal links are rendered in italics instead
-  of stopping the export.
+- Export: see |org-export-unsupported|.
 - Links (|org-links|):
   - `elisp:` links are not supported: they need an Emacs Lisp interpreter.
     Abbreviations using `%(my-function)` cannot call Elisp either; give

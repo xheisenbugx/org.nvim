@@ -1,0 +1,17 @@
+Default (Doe, John and Smith, Jane, 2020) and (Zed, Anna, 2019, Doe,
+John and Smith, Jane, 2020a).  Prefix (see Doe, John and Smith, Jane,
+2020 p. 3) and global (Glob Doe, John and Smith, Jane, 2020, Zed, Anna,
+2019 end).  Author Doe, John and Smith, Jane caps Alpha, Bob.  Noauthor
+(2020) bare 2019.  Text Doe, John and Smith, Jane (2020) caps Zed, Anna
+(2019) bare Alpha, Bob 2018.  Numeric (1-4) and (4).  Nocite here.  Bare
+Doe, John and Smith, Jane, 2020 caps (Doe, John And Smith, Jane, 2020).
+Unknown (??, ????) and (??, a).
+
+Alpha, Bob (2018). /Thesis/, Univ.
+
+Doe, John and Smith, Jane (2020). /On the TeXbook and $\alpha$ alpha
+things/, Journal of Tests.
+
+Doe, John and Smith, Jane (2020a). /Second report/, Tech Institute.
+
+Zed, Anna (2019). /A Book of Strings/, ACME Press.

@@ -1,0 +1,7 @@
+#+TITLE: T
+#+OPTIONS: toc:nil
+#+begin_src sh
+echo {{{title}}}
+#+end_src
+: fixed {{{title}}}
+verb =x {{{title}}}= and text {{{title}}}

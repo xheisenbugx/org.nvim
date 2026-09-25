@@ -61,9 +61,9 @@ See [[#first][the first]] and [[*Subsection]].
 
 : fixed width
 
+[fn:1] The footnote text.
+
 * Private stuff :noexport:
 secret
 * COMMENT commented
 hidden comment
-
-[fn:1] The footnote text.

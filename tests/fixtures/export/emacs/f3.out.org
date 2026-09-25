@@ -1,0 +1,12 @@
+#+subtitle: The sub
+#+language: fr
+#+description: desc here
+#+keywords: k1 k2
+#+html_head: <link rel="stylesheet" href="x.css">
+#+html_head_extra: <meta name="extra">
+#+html_link_home: index.html
+#+html_link_up: up.html
+* A
+** A1
+*** A11
+* B

@@ -1,0 +1,78 @@
+#+TITLE: Talk
+#+SUBTITLE: A subtitle
+#+AUTHOR: Jane
+#+DATE: 2026-09-23
+#+OPTIONS: H:2 toc:t timestamp:nil
+#+BEAMER_THEME: Madrid
+#+BEAMER_COLOR_THEME: [light]whale
+#+BEAMER_FONT_THEME: serif
+#+BEAMER_HEADER: \institute{Org}
+
+* Intro
+** First frame
+Some *important* text and /italic/.
+
+- item one
+- @@beamer:<2->@@ item two
+
+** Code frame
+#+begin_src sh
+echo hi
+#+end_src
+
+** Blocks
+*** A block
+Block text.
+*** An alert
+:PROPERTIES:
+:BEAMER_env: alertblock
+:BEAMER_act: <2->
+:END:
+Alert text.
+*** Theorem
+:PROPERTIES:
+:BEAMER_env: theorem
+:END:
+Statement.
+* Second section
+:PROPERTIES:
+:BEAMER_act: <3>
+:END:
+** Columns frame
+:PROPERTIES:
+:BEAMER_opt: allowframebreaks
+:END:
+*** Left
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+Left text.
+*** Right
+:PROPERTIES:
+:BEAMER_col: 0.5
+:BEAMER_env: block
+:END:
+Right text.
+** Notes :B_note:
+:PROPERTIES:
+:BEAMER_env: note
+:END:
+A note.
+** Full
+:PROPERTIES:
+:BEAMER_env: fullframe
+:BEAMER_act: [<+->]
+:END:
+- a
+- b
+** Again
+:PROPERTIES:
+:BEAMER_env: againframe
+:BEAMER_ref: *First frame
+:BEAMER_act: 3
+:END:
+** Ignored
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+Plain text after ignore.

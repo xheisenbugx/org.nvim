@@ -1,0 +1,28 @@
+#+TITLE: Misc
+#+OPTIONS: toc:2 num:2
+#+BEAMER_THEME: Boadilla
+#+LATEX_CLASS_OPTIONS: [bigger]
+* Section
+** Sub
+*** Deep frame
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+Text with @@beamer:<2>@@ *bold* and [[https://orgmode.org][site]].
+
+#+begin_example
+\begin{frame}
+inside
+\end{frame}
+#+end_example
+*** Other frame
+- @@beamer:<1->@@ first
+- second
+
+#+TOC: headlines 1 [currentsection]
+*** Hidden note
+:PROPERTIES:
+:BEAMER_env: noteNH
+:BEAMER_act: 2
+:END:
+Note body.

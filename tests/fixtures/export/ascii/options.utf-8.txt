@@ -1,0 +1,43 @@
+                      ━━━━━━━━━━
+                       OPTIONS
+
+                       Jane Doe
+                      ━━━━━━━━━━
+
+
+     First paragraph of the document that is
+  filled to a narrower width than the default one.
+     Second paragraph with a [link]
+  (<https://orgmode.org>) and a note[1].  Third
+  sentence.
+
+  1 Heading
+  ═════════
+         Drawer content.
+         Some text.  Another paragraph, right
+      after.
+
+      Table 1: Caption above
+      ━━━━━━━━
+       a    b 
+      ────────
+       l=>  x 
+      ━━━━━━━━
+
+      ┌────
+      │ echo one
+      └────
+
+        • item one
+        • item two
+
+  1.1 Sub
+  ───────
+        • ☐ list in sub
+
+
+
+  Footnotes
+  ─────────
+
+  [1] The note.

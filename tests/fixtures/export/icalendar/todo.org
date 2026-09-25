@@ -1,0 +1,37 @@
+#+TITLE: Tasks
+#+ICALENDAR_EXCLUDE_TAGS: private
+#+ICAL-TTL: PT1H
+
+* TODO [#A] Pay rent
+DEADLINE: <2026-10-01 Thu +1m>
+:PROPERTIES:
+:ID: rent
+:END:
+
+* DONE [#C] Old task
+CLOSED: [2026-09-01 Tue 10:00] SCHEDULED: <2026-08-30 Sun 09:00>
+:PROPERTIES:
+:ID: old
+:END:
+
+* TODO Repeat with until
+SCHEDULED: <2026-10-05 Mon 08:30 +1w> DEADLINE: <2026-12-01 Tue>
+:PROPERTIES:
+:ID: until
+:LOCATION: Office
+:END:
+
+* Secret :private:
+<2026-10-10 Sat>
+
+* Parent
+:PROPERTIES:
+:ID: parent
+:END:
+Body text with <2026-10-20 Tue 14:00>.
+*************** TODO Inline task
+:PROPERTIES:
+:ID: inline
+:END:
+<2026-10-21 Wed>
+*************** END

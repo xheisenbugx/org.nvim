@@ -1,0 +1,40 @@
+#+OPTIONS: toc:nil title:nil author:nil date:nil \n:nil
+
+#+begin_center
+A centered paragraph that is long enough to be wrapped over multiple lines
+so that each of them is centered on its own. Second sentence here.
+
+| centered | table |
+#+end_center
+
+#+begin_JUSTIFYRIGHT
+A right-justified paragraph that is long enough to be wrapped over
+multiple lines so every one of them ends at the right margin.
+#+end_JUSTIFYRIGHT
+
+#+begin_JUSTIFYLEFT
+Left.
+#+end_JUSTIFYLEFT
+
+#+begin_verse
+Great clouds overhead\\
+Tiny black birds rise and fall
+Snow covers Emacs
+#+end_verse
+
+1. item with a quote:
+   #+begin_quote
+   Quote inside a list item, long enough to need wrapping at the reduced width.
+   #+end_quote
+2. item with code:
+   #+begin_src sh
+   ls -l
+   #+end_src
+
+Hard line\\
+break inside a paragraph that is long enough so that the part after the break gets filled.
+
+* Headline with a note[fn:x] and =code=
+Body.
+
+[fn:x] Note in headline.

@@ -1,0 +1,40 @@
+  A centered paragraph that is long enough to be wrapped over multiple
+lines so that each of them is centered on its own. Second sentence here.
+
+			   ━━━━━━━━━━━━━━━━━
+			    centered  table 
+			   ━━━━━━━━━━━━━━━━━
+
+      A right-justified paragraph that is long enough to be wrapped over
+	   multiple lines so every one of them ends at the right margin.
+
+Left.
+
+      Great clouds overhead
+      Tiny black birds rise and fall
+      Snow covers Emacs
+
+1. item with a quote:
+         Quote inside a list item, long enough to need wrapping at
+         the reduced width.
+2. item with code:
+   ┌────
+   │ ls -l
+   └────
+
+Hard line
+break inside a paragraph that is long enough so that the part after the
+break gets filled.
+
+
+1 Headline with a note[1] and `code'
+════════════════════════════════════
+
+  Body.
+
+
+
+Footnotes
+─────────
+
+[1] Note in headline.
