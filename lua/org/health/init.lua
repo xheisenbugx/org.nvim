@@ -76,6 +76,36 @@ function M.check()
     h.ok("notify-send available for notifications")
   end
 
+  h.start("org.nvim image and LaTeX previews")
+  local images = require("org.ui.images")
+  local backend, why = images.status()
+  if backend then
+    h.ok("image backend: " .. backend)
+  elseif cfg.ui.images and cfg.ui.images.backend == false then
+    h.info(why)
+  else
+    local advice = {}
+    if vim.fn.has("nvim-0.13") == 0 then
+      advice[#advice + 1] =
+        "Neovim 0.13+ draws images itself (vim.ui.img) in terminals with the Kitty graphics protocol"
+    elseif vim.env.TMUX then
+      advice[#advice + 1] = "vim.ui.img can't reach the terminal through tmux: run Neovim outside tmux"
+    end
+    advice[#advice + 1] = "or install snacks.nvim (image) or image.nvim"
+    h.warn(why, advice)
+  end
+  local process, perr = images.latex_process()
+  if process then
+    h.ok("LaTeX previews render with: " .. process)
+  else
+    h.info("LaTeX previews: " .. perr)
+  end
+  if vim.fn.executable("magick") == 1 or vim.fn.executable("convert") == 1 then
+    h.ok("ImageMagick found (non-PNG images are converted for vim.ui.img)")
+  else
+    h.info("ImageMagick not found: only PNG images can be previewed with vim.ui.img")
+  end
+
   h.start("org.nvim completion")
   if pcall(require, "blink.cmp") then
     local ok_cfg, bcfg = pcall(require, "blink.cmp.config")

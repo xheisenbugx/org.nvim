@@ -46,6 +46,8 @@ function M.attach(bufnr)
   try("org.clock", "attach", bufnr)
   try("org.crypt", "attach", bufnr)
   try("org.speed", "attach", bufnr)
+  -- #+STARTUP: linkpreviews / latexpreview, ui.images.startup
+  try("org.ui.images", "setup_buffer", bufnr)
   -- custom timestamp display (display_custom_times, #+STARTUP: customtime)
   local ok_ts, ts = pcall(require, "org.timestamps")
   if ok_ts and ts.custom_display_enabled(bufnr) then
