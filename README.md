@@ -393,11 +393,7 @@ check the result:
 
 ![Exporting an Org file to a Markdown buffer](docs/media/export-md.gif)
 
-### And the rest
-
-| Markup, links, lists and properties | Export dispatcher |
-| --- | --- |
-| ![Inline markup, concealed links, checkboxes, tags and a property drawer](docs/media/markup.png) | ![The export dispatcher listing HTML, LaTeX, Markdown, ODT, DOCX and more](docs/media/export.png) |
+### Every key, one press away
 
 Lost? Press `g?` in any org or agenda buffer to list every keymap
 available there:
