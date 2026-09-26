@@ -158,22 +158,91 @@ function M.menu(opts)
   end
 end
 
---- Show a read-only help float listing key → description rows.
+---@class org.HelpRow
+---@field [1]? string|string[] key(s)
+---@field [2]? string description
+---@field heading? string section title; starts a new section
+
+--- Widest key column; longer key lists continue on the next lines.
+local HELP_KEYS_MAX = 34
+
+--- Show a read-only help float listing key → description rows, split into
+--- sections by `{ heading = "..." }` rows. Sections are separated by a
+--- blank line, so `{` / `}` jump between them.
 ---@param title string
----@param rows { [1]: string, [2]: string }[]
+---@param rows org.HelpRow[]
 function M.help(title, rows)
+  local keycol = 0
+  for _, r in ipairs(rows) do
+    if not r.heading then
+      for _, k in ipairs(type(r[1]) == "table" and r[1] or { r[1] }) do
+        keycol = math.max(keycol, utils.width(k))
+      end
+    end
+  end
+  -- widest single key, or a few short keys side by side
+  for _, r in ipairs(rows) do
+    if not r.heading and type(r[1]) == "table" then
+      keycol = math.max(keycol, math.min(HELP_KEYS_MAX, utils.width(table.concat(r[1], "  "))))
+    end
+  end
+  local lines, hls = {}, {}
+  local function add(line, hl)
+    lines[#lines + 1] = line
+    for _, h in ipairs(hl or {}) do
+      hls[#hls + 1] = { #lines - 1, h[1], h[2], h[3] }
+    end
+  end
+  for _, r in ipairs(rows) do
+    if r.heading then
+      if #lines > 0 then
+        add("")
+      end
+      add(" " .. r.heading, { { 1, 1 + #r.heading, "Title" } })
+    else
+      -- pack keys into lines no wider than the key column
+      local packed, cur = {}, {}
+      for _, k in ipairs(type(r[1]) == "table" and r[1] or { r[1] }) do
+        local joined = table.concat(cur, "  ")
+        if #cur > 0 and utils.width(joined) + 2 + utils.width(k) > keycol then
+          packed[#packed + 1] = cur
+          cur = {}
+        end
+        cur[#cur + 1] = k
+      end
+      packed[#packed + 1] = cur
+      for i, keys in ipairs(packed) do
+        local text = table.concat(keys, "  ")
+        local line = "   " .. utils.pad_right(text, keycol)
+        local hl, col = {}, 3
+        for _, k in ipairs(keys) do
+          hl[#hl + 1] = { col, col + #k, "Special" }
+          col = col + #k + 2
+        end
+        if i == 1 then
+          line = line .. "   " .. (r[2] or "")
+        end
+        add((line:gsub("%s+$", "")), hl)
+      end
+    end
+  end
   local width = 0
-  for _, r in ipairs(rows) do
-    width = math.max(width, utils.width(r[1]))
+  for _, l in ipairs(lines) do
+    width = math.max(width, utils.width(l) + 2)
   end
-  local lines = {}
-  for _, r in ipairs(rows) do
-    lines[#lines + 1] = " " .. utils.pad_right(r[1], width) .. "   " .. r[2]
+  local buf, win = M.float(lines, {
+    title = title,
+    width = width,
+    height = math.min(#lines, vim.o.lines - 6),
+    cursorline = true,
+  })
+  for _, h in ipairs(hls) do
+    vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4] })
   end
-  local buf, win = M.float(lines, { title = title, height = math.min(#lines, vim.o.lines - 6), cursorline = true })
-  for i = 0, #lines - 1 do
-    vim.api.nvim_buf_set_extmark(buf, ns, i, 1, { end_col = 1 + #rows[i + 1][1], hl_group = "Special" })
-  end
+  pcall(vim.api.nvim_win_set_config, win, {
+    footer = " q close  / search  { } sections ",
+    footer_pos = "center",
+  })
   for _, k in ipairs({ "q", "<Esc>", "g?" }) do
     vim.keymap.set("n", k, function()
       if vim.api.nvim_win_is_valid(win) then

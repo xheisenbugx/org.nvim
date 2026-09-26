@@ -396,7 +396,9 @@ check the result:
 ### Every key, one press away
 
 Lost? Press `g?` in any org or agenda buffer to list every keymap
-available there:
+available there, grouped by topic (visibility, structure, dates, clock,
+tables, Babel…), with each command's Vim and Emacs keys on one row. `/`
+searches it, and `{` / `}` jump between sections:
 
 ![The g? keymap help float](docs/media/keymaps.png)
 

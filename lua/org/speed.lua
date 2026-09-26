@@ -161,13 +161,23 @@ end
 function M.help()
   local rows = {}
   local cmds = M.commands()
+  local heading
   for _, e in ipairs(M.defaults) do
-    if e[2] and cmds[e[1]] then
+    if not e[2] then
+      heading = { heading = e[1] }
+    elseif cmds[e[1]] then
+      if heading then
+        rows[#rows + 1], heading = heading, nil
+      end
       rows[#rows + 1] = { e[1] == " " and "SPC" or e[1], e[3] }
     end
   end
+  heading = { heading = "User commands" }
   for key, v in pairs(require("org.config").opts.speed_commands or {}) do
     if v then
+      if heading then
+        rows[#rows + 1], heading = heading, nil
+      end
       rows[#rows + 1] = { key, type(v) == "string" and v or "user command" }
     end
   end
