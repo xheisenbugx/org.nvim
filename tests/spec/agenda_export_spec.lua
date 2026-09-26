@@ -1,5 +1,6 @@
 -- org-agenda-write, org-store-agenda-views, org-batch-agenda(-csv).
 local config = require("org.config")
+local date = require("org.date")
 local utils = require("org.utils")
 vim.g.org_test = true
 
@@ -21,7 +22,7 @@ local lines = {
   "  DEADLINE: <2026-09-25 Fri>",
   "** DONE Child",
 }
-local FRI = require("org.date").days_from_civil(2026, 9, 25)
+local FRI = date.days_from_civil(2026, 9, 25)
 
 local function setup(opts)
   utils.writefile(path, lines)
@@ -40,7 +41,18 @@ local function day_view()
 end
 
 describe("agenda export", function()
+  local real_today, real_now
+  before_each(function()
+    real_today, real_now = date.today, date.now
+    date.today = function()
+      return date.from_days(FRI)
+    end
+    date.now = function()
+      return date.from_days(FRI, { hour = 12, min = 0 })
+    end
+  end)
   after_each(function()
+    date.today, date.now = real_today, real_now
     pcall(view.quit, true)
   end)
 

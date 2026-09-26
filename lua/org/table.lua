@@ -27,7 +27,8 @@ M.is_tblfm = is_tblfm
 
 --- Split a table row line into trimmed cells.
 function M.split_cells(line)
-  local body = line:gsub("^%s*|", "")
+  -- Spaces/tabs after the closing delimiter are not an extra empty cell.
+  local body = line:gsub("[ \t]+$", ""):gsub("^%s*|", "")
   if body:sub(-1) == "|" then
     body = body:sub(1, -2)
   end

@@ -239,6 +239,16 @@ local function read_all(src)
   return forms
 end
 
+--- Read exactly one Lisp data form without evaluating it.
+--- Used for Org metadata containing quoted strings, symbols and numbers.
+function M.read(src)
+  local forms = read_all(src)
+  if #forms ~= 1 then
+    error("expected exactly one Lisp data form")
+  end
+  return forms[1][1]
+end
+
 -- Printer ----------------------------------------------------------------
 
 local function float_str(x)

@@ -1339,20 +1339,10 @@ function M.babel_process(lines, ctx)
     end
   end
   -- inline src blocks and inline calls
-  local in_block
+  local literal = blocks_mod.inline_literal_lines(out)
   for k, l in ipairs(out) do
-    local low = l:lower()
-    if in_block then
-      if low:match("^[ \t]*#%+end_" .. vim.pesc(in_block)) then
-        in_block = nil
-      end
-    else
-      local bt = low:match("^[ \t]*#%+begin_(%S+)")
-      if bt then
-        in_block = bt
-      elseif not l:match("^[ \t]*#%+") and not l:match("^[ \t]*: ") then
-        out[k] = M.babel_inline(l)
-      end
+    if not literal[k] and not l:match("^[ \t]*#%+") and not l:match("^[ \t]*: ") then
+      out[k] = M.babel_inline(l)
     end
   end
   return out

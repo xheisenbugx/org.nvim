@@ -99,7 +99,7 @@ function M.new(sequences)
       elseif tok ~= "" then
         local kw = parse_token(tok)
         -- without "|", the last keyword is the DONE state
-        kw.done = done or (not has_bar and ti == #tokens and #tokens > 1)
+        kw.done = done or (not has_bar and ti == #tokens)
         kw.seq = si
         if not self.by_name[kw.name] then
           kw.index = #self.keywords + 1

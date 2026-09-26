@@ -4,6 +4,7 @@ local config = require("org.config")
 local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
+local parser = require("org.parser")
 local utils = require("org.utils")
 
 local M = {}
@@ -224,7 +225,7 @@ function M.delete_property(target, name)
     if owner.properties_range then
       local lines = vim.api.nvim_buf_get_lines(bufnr, owner.properties_range[1], owner.properties_range[2] - 1, false)
       for _, l in ipairs(lines) do
-        local k = l:match("^%s*:([^%s:]+):")
+        local k = parser.parse_property_line(l)
         if k then
           names[#names + 1] = k
         end
@@ -290,7 +291,7 @@ end
 function M.at_property_line(bufnr, lnum)
   bufnr = bufnr or 0
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
-  local name, value = line:match("^%s*:([^%s:]+):%s*(.-)%s*$")
+  local name, value = parser.parse_property_line(line)
   if not name or name:upper() == "END" or name:upper() == "PROPERTIES" then
     return nil
   end

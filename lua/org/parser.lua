@@ -124,6 +124,25 @@ end
 -- File settings (#+KEYWORD: value)
 ---------------------------------------------------------------------------
 
+local LITERAL_BLOCKS = { SRC = true, EXAMPLE = true, EXPORT = true, COMMENT = true, VERSE = true }
+
+local function literal_block_end(lines, start)
+  local kind = lines[start]:upper():match("^%s*#%+BEGIN_(%S+)")
+  if not LITERAL_BLOCKS[kind] then
+    return nil
+  end
+  for i = start + 1, #lines do
+    -- An unescaped headline terminates the section: an unmatched BEGIN
+    -- is ordinary text, so subsequent keywords still take effect.
+    if M.headline_level(lines[i]) then
+      return nil
+    end
+    if lines[i]:upper():match("^%s*#%+END_" .. kind .. "%s*$") then
+      return i
+    end
+  end
+end
+
 local function parse_settings(lines, filename)
   local s = {
     keywords = {},
@@ -141,10 +160,14 @@ local function parse_settings(lines, filename)
     todo_sequences = {},
     priorities = nil,
   }
-  for _, line in ipairs(lines) do
+  local skip_to = 0
+  for i, line in ipairs(lines) do
     local b = line:byte(1)
     -- '#', or indentation before a keyword (valid in Emacs)
-    if b == 35 or ((b == 32 or b == 9) and line:find("^%s+#%+")) then
+    if i > skip_to and (b == 35 or ((b == 32 or b == 9) and line:find("^%s+#%+"))) then
+      -- org-collect-keywords only reads keyword elements. Configuration
+      -- examples inside literal blocks must not alter the containing file.
+      skip_to = literal_block_end(lines, i) or skip_to
       local key, value = line:match("^%s*#%+([%w_%-]+):%s*(.-)%s*$")
       if key then
         key = key:upper()
@@ -209,10 +232,10 @@ end
 local PLANNING_KEYS = { SCHEDULED = "scheduled", DEADLINE = "deadline", CLOSED = "closed" }
 
 local function parse_planning(line)
-  if not (line:find("SCHEDULED:", 1, true) or line:find("DEADLINE:", 1, true) or line:find("CLOSED:", 1, true)) then
-    return nil
-  end
-  if not line:match("^%s*[A-Z]+:") then
+  -- org-planning-line-re starts with a planning keyword. A body line
+  -- such as "NOTE: SCHEDULED: ..." must never become editable metadata.
+  local first = line:match("^%s*([A-Z]+):")
+  if not PLANNING_KEYS[first] then
     return nil
   end
   local planning = {}
@@ -227,6 +250,64 @@ local function parse_planning(line)
     end
   end
   return planning
+end
+
+--- Parse a property line, retaining colons in names such as header-args:sh.
+--- Like org-property-re, the delimiter is a colon followed by whitespace
+--- or the end of the line, and a property may have an empty value.
+---@return string|nil name, string|nil value
+function M.parse_property_line(line)
+  local key, value = line:match("^%s*:(%S+):%s+(.-)%s*$")
+  if not key then
+    key = line:match("^%s*:(%S+):%s*$")
+    value = key and "" or nil
+  end
+  return key, value
+end
+
+local function parse_property_drawer(lines, from, to)
+  if from > to or not lines[from]:match("^%s*:PROPERTIES:%s*$") then
+    return nil
+  end
+  local bases, extra, order = {}, {}, {}
+  local j = from + 1
+  while j <= to and not lines[j]:match("^%s*:END:%s*$") do
+    local key, value = M.parse_property_line(lines[j])
+    if not key then
+      return nil
+    end
+    local base = key:match("^(.-)%+$")
+    local k = (base or key):upper()
+    if not bases[k] and not extra[k] then
+      order[#order + 1] = k
+    end
+    if base then
+      extra[k] = extra[k] or {}
+      table.insert(extra[k], value)
+    else
+      bases[k] = value
+    end
+    j = j + 1
+  end
+  -- org-property-drawer-re requires only property lines and a closing
+  -- END. An incomplete drawer is ordinary text, not a source of IDs.
+  if j > to then
+    return nil
+  end
+  local drawer = { properties = {}, property_base = {}, properties_range = { from, j } }
+  for _, k in ipairs(order) do
+    local parts = { bases[k] }
+    vim.list_extend(parts, extra[k] or {})
+    drawer.properties[k] = table.concat(parts, " ")
+    if bases[k] ~= nil then
+      drawer.property_base[k] = true
+    else
+      -- only `KEY+:` here: inherited values are extended (org-entry-get)
+      drawer.properties_extend = drawer.properties_extend or {}
+      drawer.properties_extend[k] = true
+    end
+  end
+  return drawer
 end
 
 M.CLOCK_CLOSED_PATTERN = "^%s*CLOCK:%s*(%[[^%]]+%])%-%-(%[[^%]]+%])%s*=>%s*(%-?%d+):(%d+)"
@@ -255,7 +336,7 @@ function M.parse_clock_line(line)
   if s then
     local ds, de = date.parse(s), date.parse(e)
     if ds and de then
-      return { start = ds, ["end"] = de, minutes = de:minutes() - ds:minutes() }
+      return { start = ds, ["end"] = de, minutes = date.elapsed_minutes(ds, de) }
     end
   end
   s = line:match(M.CLOCK_OPEN_PATTERN)
@@ -304,49 +385,12 @@ local function parse_section(hl, lines, from, to, log_drawer)
     end
   end
   -- properties drawer
-  if i <= to and lines[i]:match("^%s*:PROPERTIES:%s*$") then
-    local start = i
-    local j = i + 1
-    -- like org-property-re, a name may contain colons (`:header-args:sh:`):
-    -- only the last colon followed by blanks or the end of line ends it
-    local bases, extra, order = {}, {}, {}
-    while j <= to and not lines[j]:match("^%s*:END:%s*$") do
-      local key, value = lines[j]:match("^%s*:(%S+):%s+(.-)%s*$")
-      if not key then
-        key, value = lines[j]:match("^%s*:(%S+):%s*$"), ""
-      end
-      if key then
-        local base = key:match("^(.-)%+$")
-        local k = (base or key):upper()
-        if not bases[k] and not extra[k] then
-          order[#order + 1] = k
-        end
-        if base then
-          extra[k] = extra[k] or {}
-          table.insert(extra[k], value)
-        else
-          bases[k] = value
-        end
-      end
-      j = j + 1
+  local drawer = parse_property_drawer(lines, i, to)
+  if drawer then
+    for key, value in pairs(drawer) do
+      hl[key] = value
     end
-    for _, k in ipairs(order) do
-      local parts = { bases[k] }
-      vim.list_extend(parts, extra[k] or {})
-      hl.properties[k] = table.concat(parts, " ")
-      if bases[k] ~= nil then
-        hl.property_base[k] = true
-      end
-      if bases[k] == nil then
-        -- only `KEY+:` here: inherited values are extended (org-entry-get)
-        hl.properties_extend = hl.properties_extend or {}
-        hl.properties_extend[k] = true
-      end
-    end
-    if j <= to then
-      hl.properties_range = { start, j }
-      i = j + 1
-    end
+    i = drawer.properties_range[2] + 1
   end
 
   -- rest of section: drawers, clocks, timestamps
@@ -545,29 +589,11 @@ function M.parse_file_drawer(file)
   while i <= file.preamble_end and (lines[i]:match("^%s*$") or lines[i]:match("^%s*#%s") or lines[i]:match("^%s*#$")) do
     i = i + 1
   end
-  if i > file.preamble_end or not lines[i]:match("^%s*:PROPERTIES:%s*$") then
-    return
-  end
-  local j = i + 1
-  while j <= file.preamble_end and not lines[j]:match("^%s*:END:%s*$") do
-    local key, value = lines[j]:match("^%s*:([^%s:]+):%s*(.-)%s*$")
-    if key then
-      local base = key:match("^(.-)%+$")
-      if base then
-        local k = base:upper()
-        file.properties[k] = file.properties[k] and (file.properties[k] .. " " .. value) or value
-      else
-        file.properties[key:upper()] = value
-        file.property_base[key:upper()] = true
-      end
+  local drawer = parse_property_drawer(lines, i, file.preamble_end)
+  if drawer then
+    for key, value in pairs(drawer) do
+      file[key] = value
     end
-    j = j + 1
-  end
-  if j <= file.preamble_end then
-    file.properties_range = { i, j }
-  else
-    file.properties = {}
-    file.property_base = {}
   end
 end
 
@@ -922,23 +948,32 @@ end
 --- Allowed values for a property (`PROP_ALL`), searched upward then globally.
 ---@return string[]|nil
 function Headline:get_allowed_values(name)
-  local key = name:upper() .. "_ALL"
-  local h = self
-  while h do
-    if h.properties[key] then
-      return vim.split(h.properties[key], "%s+", { trimempty = true })
-    end
-    h = h.parent
+  local value = self:get_property(name:upper() .. "_ALL", true)
+  if not value or not value:match("%S") then
+    return nil
   end
-  local v = (self.file.properties or {})[key] or self.file.settings.properties[key]
-  if not v then
-    for k, gv in pairs(require("org.config").opts.global_properties or {}) do
-      if k:upper() == key then
-        v = gv
-      end
+  -- org-property-get-allowed-values reads Lisp data: quoted strings may
+  -- contain spaces/escapes, and numbers and symbols become their names.
+  -- Reading (never evaluating) also keeps nested forms inert.
+  local elisp = require("org.table.elisp")
+  local valid, values = pcall(elisp.read, "(" .. value .. ")")
+  if not valid or not values then
+    return nil
+  end
+  local out = {}
+  for i = 1, values.n do
+    local v = values[i]
+    if v == nil then
+      out[#out + 1] = "nil"
+    elseif type(v) == "string" or type(v) == "number" or v == true or elisp.is_float(v) then
+      out[#out + 1] = elisp.to_string(v)
+    elseif type(v) == "table" and v.name then
+      out[#out + 1] = v.name
+    else
+      out[#out + 1] = "???"
     end
   end
-  return v and vim.split(v, "%s+", { trimempty = true }) or nil
+  return out
 end
 
 function Headline:scheduled()

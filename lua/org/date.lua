@@ -202,6 +202,12 @@ function Date:to_time()
   })
 end
 
+--- Actual elapsed minutes between local timestamps. Civil minutes remain
+--- useful for calendar arithmetic, but clock durations must account for DST.
+function M.elapsed_minutes(start, stop)
+  return (stop:to_time() - start:to_time()) / 60
+end
+
 --- os.date-style formatting.
 function Date:strftime(fmt)
   return os.date(fmt, self:to_time())
@@ -483,9 +489,9 @@ end
 ---@param fmt? "h:mm"|"d h:mm"
 function M.duration_to_string(minutes, fmt)
   fmt = fmt or require("org.config").opts.duration_format or "d h:mm"
-  local m = floor(math.abs(minutes) + 0.5)
+  local m = floor(math.abs(minutes))
   if fmt ~= "d h:mm" or m < 1440 then
-    return M.format_duration(minutes)
+    return (minutes < 0 and "-" or "") .. M.format_duration(m)
   end
   local days = floor(m / 1440)
   return (minutes < 0 and "-" or "") .. days .. "d " .. M.format_duration(m - days * 1440)
@@ -493,40 +499,38 @@ end
 
 --- Parse `H:MM`, `H:MM:SS`, `1h30min`, `90`, `1d 2h`, `1.5h` into minutes.
 function M.parse_duration(str)
-  if not str then
+  if type(str) == "number" then
+    return str
+  elseif type(str) ~= "string" then
     return nil
   end
   str = vim.trim(str)
   if str == "" then
-    return nil
-  end
-  local d, h, m = str:match("^(%d+)d%s+(%d+):(%d%d)$")
-  if d then
-    return tonumber(d) * 1440 + tonumber(h) * 60 + tonumber(m)
-  end
-  h, m = str:match("^(%d+):(%d%d)$")
-  if h then
-    return tonumber(h) * 60 + tonumber(m)
-  end
-  local sec
-  h, m, sec = str:match("^(%d+):(%d%d):(%d%d)$")
-  if h then
-    return tonumber(h) * 60 + tonumber(m) + tonumber(sec) / 60
+    return 0
   end
   if str:match("^%d+%.?%d*$") then
     return tonumber(str)
   end
-  local total, found = 0, false
-  local mult = { min = 1, m = 1, h = 60, d = 1440, w = 10080, mon = 43200, y = 525960 }
-  for num, unit in str:gmatch("(%d+%.?%d*)%s*(%a+)") do
+  local total = 0
+  local mult = { min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 }
+  while str ~= "" do
+    -- A duration may end in H:MM[:SS] after any number of unit terms.
+    local h, m, sec = str:match("^(%d+):(%d%d):(%d%d)$")
+    if not h then
+      h, m = str:match("^(%d+):(%d%d)$")
+    end
+    if h then
+      return total + tonumber(h) * 60 + tonumber(m) + (tonumber(sec) or 0) / 60
+    end
+    local num, unit, rest = str:match("^(%d+%.?%d*)[ \t]*(%a+)[ \t]*(.*)$")
     local f = mult[unit]
     if not f then
       return nil
     end
     total = total + tonumber(num) * f
-    found = true
+    str = rest
   end
-  return found and floor(total + 0.5) or nil
+  return total
 end
 
 ---------------------------------------------------------------------------

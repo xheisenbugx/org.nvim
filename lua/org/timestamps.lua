@@ -198,7 +198,7 @@ function M.evaluate_time_range(insert_result)
     return false
   end
   local a, b, havetime = range_bounds(item.date)
-  local diff = b:minutes() - a:minutes()
+  local diff = date.elapsed_minutes(a, b)
   local negative = diff < 0
   diff = math.abs(diff)
   local d, h, m
