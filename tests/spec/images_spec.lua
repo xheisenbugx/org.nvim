@@ -51,13 +51,14 @@ end
 local native = {
   name = "native",
   needs_png = true,
-  show = function(bufnr, p, row)
+  show = function(bufnr, p, row, col)
     local lines = {}
     for _ = 1, p.height do
       lines[#lines + 1] = { { "", "Normal" } }
     end
-    p.lines = vim.api.nvim_buf_set_extmark(bufnr, vim.api.nvim_create_namespace("org.images"), row, 0, {
+    p.lines = vim.api.nvim_buf_set_extmark(bufnr, vim.api.nvim_create_namespace("org.images"), row, col, {
       virt_lines = lines,
+      right_gravity = false,
     })
   end,
   hide = function(bufnr, p)
@@ -111,9 +112,51 @@ describe("image previews", function()
     eq(3, #images.find_image_links(buf, 1, 7, true))
   end)
 
-  it("reads #+ATTR_ORG: :width", function()
+  it("sizes images like org-image-actual-width", function()
+    local cfg = require("org.config").opts.ui.images
+    local saved = cfg.actual_width
     local buf = file_buffer("attr.org", { "#+ATTR_HTML: :width 900", "#+ATTR_ORG: :width 200", "[[file:cat.png]]" })
-    eq(200, images.find_image_links(buf, 1, 3)[1].width)
+    -- t (the default): the image's own size, #+ATTR ignored
+    eq(nil, images.find_image_links(buf, 1, 3)[1].width)
+    cfg.actual_width = false
+    eq({ px = 200 }, images.find_image_links(buf, 1, 3)[1].width)
+    cfg.actual_width = 300
+    eq({ px = 300 }, images.find_image_links(buf, 1, 3)[1].width)
+    cfg.actual_width = { 150 }
+    local w = function(attrs)
+      return images.image_width(buf, 3, attrs)
+    end
+    eq({ px = 150 }, w({}))
+    eq({ fraction = 0.5 }, w({ "#+ATTR_ORG: :width 50%" }))
+    eq({ fraction = 0.7 }, w({ "#+ATTR_LATEX: :width 0.7\\linewidth" }))
+    eq({ px = 300 }, w({ "#+ATTR_ORG: :width 300px" }))
+    eq(nil, w({ "#+ATTR_ORG: :width t" }))
+    -- unreadable ATTR_ORG: another ATTR_x, else the default
+    eq({ px = 900 }, w({ "#+ATTR_ORG: :width 4in", "#+ATTR_HTML: :width 900" }))
+    eq({ px = 150 }, w({ "#+ATTR_ORG: :width 4in" }))
+    cfg.actual_width = saved
+  end)
+
+  it("previews an image link used as a description", function()
+    local buf = file_buffer("desc.org", { "[[https://example.com][file:cat.png]]", "[[file:doc.pdf][<file:dog.png>]]" })
+    local found = images.find_image_links(buf, 1, 2)
+    eq({ dir .. "/cat.png", dir .. "/dog.png" }, { found[1].path, found[2].path })
+    -- with include_linked, the link's own target is used
+    eq(0, #images.find_image_links(buf, 1, 2, true))
+  end)
+
+  it("aligns stand-alone images like org-image-align", function()
+    local lines = {
+      "#+ATTR_ORG: :align center",
+      "[[file:cat.png]]",
+      "",
+      "text [[file:cat.png]]",
+      "#+ATTR_HTML: :center t",
+      "[[file:cat.png]]",
+    }
+    local buf = file_buffer("align.org", lines)
+    local found = images.find_image_links(buf, 1, 6)
+    eq({ "center", nil, "center" }, { found[1].align, found[2].align, found[3].align })
   end)
 
   it("finds LaTeX fragments and environments", function()
@@ -180,7 +223,19 @@ describe("image previews", function()
     images.link_preview()
     images.sync()
     eq(1, vim.tbl_count(img.live))
+    -- again on the entry: displayed again, not hidden (like Emacs)
     images.link_preview()
+    images.sync()
+    eq(1, vim.tbl_count(img.live))
+    -- on the link: toggled off
+    vim.api.nvim_win_set_cursor(0, { 2, 3 })
+    images.link_preview()
+    images.sync()
+    eq(0, vim.tbl_count(img.live))
+    -- 4 hides the entry
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.link_preview()
+    images.link_preview(4)
     images.sync()
     eq(0, vim.tbl_count(img.live))
     images.link_preview(16)
@@ -216,6 +271,208 @@ describe("image previews", function()
     local first = vim.fn.screenpos(0, 1, 1).row + 1
     -- dog.png is 10x5 cells, then cat.png under it
     eq({ first, first + 5 }, rows)
+  end)
+end)
+
+describe("latex fragments", function()
+  local function texts(buf, a, b)
+    return vim.tbl_map(function(x)
+      return x.text
+    end, images.find_latex_fragments(buf, a or 1, b or math.huge))
+  end
+
+  it("follows the org-element rules for dollars", function()
+    local buf = file_buffer("dollars.org", {
+      "a$x$ yes, $y$. yes, $ no$, $no $, $z$_no, $$w$$ yes, \\$5 and $6",
+    })
+    eq({ "$x$", "$y$", "$$w$$" }, texts(buf))
+  end)
+
+  it("spans lines of a paragraph, not blank lines", function()
+    local buf = file_buffer("multi.org", { "Here \\[ a +", "b \\] and $x", "and y$.", "", "\\(c", "", "d\\)" })
+    local f = images.find_latex_fragments(buf, 1, math.huge)
+    eq({ "\\[ a +\nb \\]", "$x\nand y$" }, texts(buf))
+    eq({ 1, 2, 2, 3 }, { f[1].row, f[1].end_row, f[2].row, f[2].end_row })
+  end)
+
+  it("skips verbatim, code, link targets, blocks and fixed-width lines", function()
+    local buf = file_buffer("skip.org", {
+      "=$a$= ~$b$~ [[file:$c$.png][$d$]]",
+      ": $e$",
+      "#+begin_src tex",
+      "$f$",
+      "#+end_src",
+      "#+begin_note",
+      "$g$",
+      "#+end_note",
+      "#+OPTIONS: $h$",
+      "#+TITLE: $i$",
+    })
+    eq({ "$d$", "$g$", "$i$" }, texts(buf))
+  end)
+
+  it("finds environments ended on their own line", function()
+    local buf = file_buffer("env.org", {
+      "\\begin{eq2}",
+      "x",
+      "\\END{eq2}  ",
+      "\\begin{align} a \\end{align}",
+      "\\begin{split}",
+      "* next",
+      "\\end{split}",
+    })
+    local f = images.find_latex_fragments(buf, 1, math.huge)
+    eq(1, #f)
+    eq({ 1, 3 }, { f[1].row, f[1].end_row })
+  end)
+end)
+
+describe("latex preview command", function()
+  local img, renders, saved_render
+  before_each(function()
+    img = fake_img()
+    images._img = img
+    images._backend = native
+    renders = {}
+    saved_render = images.render_latex
+    -- renders finish when the test says so
+    images.render_latex = function(text, _, cb)
+      renders[#renders + 1] = { text = text, cb = cb }
+    end
+    png("f.png", 60, 20)
+  end)
+  after_each(function()
+    images.render_latex = saved_render
+    images.clear(0)
+    images.sync()
+    images._img = nil
+    images._backend = nil
+  end)
+  local function finish_all()
+    for _, r in ipairs(renders) do
+      r.cb(dir .. "/f.png")
+    end
+    renders = {}
+  end
+  local function count()
+    return #vim.tbl_filter(function(m)
+      return m[4].virt_lines ~= nil
+    end, vim.api.nvim_buf_get_extmarks(0, vim.api.nvim_create_namespace("org.images"), 0, -1, { details = true }))
+  end
+
+  it("toggles the fragment at point only", function()
+    file_buffer("toggle_ltx.org", { "* A", "$a$ and $b$" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    images.latex_preview()
+    eq(1, #renders)
+    finish_all()
+    eq(1, count())
+    images.latex_preview()
+    eq(0, count())
+    -- on the entry: both, and again: displayed again
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.latex_preview()
+    finish_all()
+    eq(2, count())
+    images.latex_preview()
+    finish_all()
+    eq(2, count())
+    images.latex_preview(4)
+    eq(0, count())
+  end)
+
+  it("drops renders that finish after their preview was cleared or changed", function()
+    local buf = file_buffer("stale.org", { "* A", "$a$ and $b$" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.latex_preview()
+    images.latex_preview(64)
+    finish_all()
+    eq(0, count())
+    images.latex_preview()
+    vim.api.nvim_buf_set_text(buf, 1, 1, 1, 2, { "z" })
+    finish_all()
+    -- $a$ became $z$: only $b$ is shown
+    eq(1, count())
+  end)
+end)
+
+describe("preview upkeep", function()
+  local img
+  before_each(function()
+    img = fake_img()
+    images._img = img
+    images._backend = native
+    png("cat.png", 400, 200)
+  end)
+  after_each(function()
+    images.clear(0)
+    images.sync()
+    images._img = nil
+    images._backend = nil
+  end)
+
+  it("removes a preview when its link is edited", function()
+    local buf = file_buffer("edit.org", { "[[file:cat.png]]" })
+    images.show_links(buf, 1, 1)
+    vim.api.nvim_buf_set_text(buf, 0, 7, 0, 7, { "x" })
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
+    images.sync()
+    eq(0, vim.tbl_count(img.live))
+  end)
+
+  it("keeps the reserved rows with the link when its line is split", function()
+    local buf = file_buffer("split.org", { "see [[file:cat.png]]", "next" })
+    images.show_links(buf, 1, 2)
+    vim.api.nvim_buf_set_text(buf, 0, 4, 0, 4, { "", "" })
+    local ns = vim.api.nvim_create_namespace("org.images")
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].virt_lines then
+        eq(1, m[2])
+      end
+    end
+  end)
+
+  it("#+STARTUP: the last word of a pair wins", function()
+    local path = dir .. "/order.org"
+    vim.fn.writefile({ "#+STARTUP: linkpreviews nolinkpreviews", "[[file:cat.png]]" }, path)
+    vim.cmd("silent! %bwipeout!")
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    vim.wait(100)
+    images.sync()
+    eq(0, vim.tbl_count(img.live))
+  end)
+
+  it("TAB shows and folding hides previews with cycle_display", function()
+    local cfg = require("org.config").opts.ui.images
+    cfg.cycle_display = true
+    local buf = file_buffer("cycle.org", { "* A", "[[file:cat.png]]", "** B", "[[file:cat.png]]" })
+    images.cycle_display("children", 1, 4, 3)
+    images.sync()
+    eq(1, vim.tbl_count(img.live))
+    images.cycle_display("subtree", 1, 4, 3)
+    images.cycle_display("folded", 1, 4, 3)
+    images.sync()
+    eq(0, vim.tbl_count(img.live))
+    cfg.cycle_display = false
+    eq(0, #vim.api.nvim_buf_get_extmarks(buf, vim.api.nvim_create_namespace("org.images"), 0, -1, {}))
+  end)
+
+  it(":Org commands take a range", function()
+    png("small.png", 100, 40)
+    local buf = file_buffer("range.org", { "[[file:small.png]]", "", "[[file:small.png]]" })
+    vim.cmd("3Org link_preview_region")
+    images.sync()
+    eq(1, vim.tbl_count(img.live))
+    vim.cmd("Org link_preview_region")
+    images.sync()
+    eq(2, vim.tbl_count(img.live))
+    vim.cmd("1Org remove_inline_images")
+    images.sync()
+    eq(1, vim.tbl_count(img.live))
+    vim.cmd("Org link_preview_clear")
+    images.sync()
+    eq(0, vim.tbl_count(img.live))
+    eq(buf, vim.api.nvim_get_current_buf())
   end)
 end)
 

@@ -1414,34 +1414,64 @@ M.defaults = {
       --- Kitty graphics protocol) | "snacks" (Snacks.image) | "image.nvim" |
       --- false. "auto" uses the first that works.
       backend = "auto",
+      --- Width of images (org-image-actual-width): true = their own size;
+      --- a number = that many pixels; false or { n } = the `:width` of
+      --- #+ATTR_ORG (else of another #+ATTR_x), else n pixels. `:width`
+      --- takes pixels (300, 300px), a percentage or a fraction (0.5) of the
+      --- text width, or t. An ORG-IMAGE-ACTUAL-WIDTH property overrides it.
+      actual_width = true,
       --- Widest image (org-image-max-width): "fill-column" ('textwidth',
-      --- else 80), "window", a number of columns, or a fraction of the window.
+      --- else 70), "window", a number of pixels, a fraction of the window,
+      --- or false (the window).
       max_width = "fill-column",
       --- Tallest image, in rows.
       max_height = 24,
+      --- Alignment of images alone in their paragraph (org-image-align):
+      --- "left" | "center" | "right". #+ATTR_ORG: :align / :center t
+      --- override it.
+      align = "left",
       --- Preview image links when a file opens (org-startup-with-link-previews;
       --- #+STARTUP: linkpreviews / nolinkpreviews, inlineimages / noinlineimages).
       startup = false,
-      --- File extensions previewed (Emacs `image-types`).
-      extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "tif", "tiff", "avif" },
+      --- Preview the links of an entry when TAB shows it, and remove them
+      --- when it folds (org-cycle-link-previews-display).
+      cycle_display = false,
+      --- File extensions previewed (Emacs `image-file-name-regexp`).
+      extensions = {
+        "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "tif", "tiff", "avif",
+        "xbm", "xpm", "pbm", "pgm", "ppm", "pnm",
+      },
     },
     --- LaTeX fragment previews (org-latex-preview, <C-c><C-x><C-l>), drawn by
     --- the `images` backend.
     latex_preview = {
-      --- How fragments are rendered (org-preview-latex-default-process):
-      --- "auto" | "dvipng" (latex + dvipng) | "tectonic" (tectonic +
-      --- pdftocairo) | "pdflatex" (pdflatex + pdftocairo) | "imagemagick"
-      --- (pdflatex + magick). "auto" uses the first that is installed.
+      --- How fragments are rendered (org-preview-latex-default-process): a
+      --- name from `processes`, or "auto" for the first one installed
+      --- (dvipng, dvisvgm, tectonic, pdflatex, imagemagick).
       process = "auto",
+      --- Extra or replaced processes (org-preview-latex-process-alist), e.g.
+      --- { mine = { programs = { "latex", "dvipng" }, image_input_type = "dvi",
+      --- image_output_type = "png", latex_compiler = { "latex %f" },
+      --- image_converter = { "dvipng -D %D -T tight -o %O %f" } } }. Commands
+      --- run in a shell; %f %F %b %o %O %D %S as in Emacs. See `:h org-images`.
+      processes = {},
       --- Size of the formulas relative to the text (org-format-latex-options :scale).
       scale = 1.0,
-      --- Color of the formulas: "#rrggbb", or "auto" for the Normal foreground.
-      foreground = "auto",
-      --- LaTeX preamble (org-format-latex-header); #+LATEX_HEADER lines are
-      --- added to it. nil = a standalone class with amsmath, amssymb and xcolor.
+      --- Color of the formulas (:foreground): "default" (the Normal text),
+      --- "auto" (the text at the fragment), a color name or "#rrggbb".
+      foreground = "default",
+      --- Background (:background): "default" (Normal), "Transparent", a color
+      --- name or "#rrggbb".
+      background = "default",
+      --- LaTeX preamble (org-format-latex-header), with [DEFAULT-PACKAGES] and
+      --- [PACKAGES] replaced by `export.latex` packages and the file's
+      --- #+LATEX_HEADER lines added. nil = the Emacs header.
       header = nil,
-      --- Where rendered images are cached (org-preview-latex-image-directory).
-      --- nil = stdpath("cache") .. "/org/ltximg".
+      --- Where rendered images go (org-preview-latex-image-directory): relative
+      --- to the file's directory, or absolute. Buffers without a file use
+      --- stdpath("cache") .. "/org/ltximg".
+      image_directory = "ltximg/",
+      --- An absolute directory used instead of `image_directory` for every file.
       cache_dir = nil,
       --- Preview every fragment when a file opens (org-startup-with-latex-preview;
       --- #+STARTUP: latexpreview / nolatexpreview).

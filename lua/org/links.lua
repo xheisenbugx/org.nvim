@@ -2423,6 +2423,9 @@ local function real_links(line)
   end, M.parse_links(line))
 end
 
+M.verbatim_spans = verbatim_spans
+M.real_links = real_links
+
 M._search_failed = nil
 
 --- Move to the next (dir = 1) or previous (dir = -1) link of any kind.

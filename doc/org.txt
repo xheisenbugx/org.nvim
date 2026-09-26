@@ -3130,44 +3130,110 @@ Image links and LaTeX fragments can be shown as images under their line
                 previews off. |:checkhealth| org tells which one is used.
 With the native backend, virtual lines keep the space under the line free
 and the images are placed on the screen after every redraw, so they follow
-scrolling, folding, window splits and resizes. An image is shown once all
-of it fits in the window, and hidden under floating windows. Only PNG can
-be sent to the terminal: other formats are converted with ImageMagick
-(`magick`). Sizes come from the terminal's cell size in pixels.
+scrolling, folding, window splits and resizes, also in floating windows.
+An image is shown once all of it fits in the window, and hidden under
+floating windows and the popup menu. Only PNG can be sent to the
+terminal: other formats are converted with ImageMagick (`magick`). Sizes
+come from the terminal's cell size in pixels. Editing a previewed link or
+fragment removes its preview.
 
-<prefix>xv      Preview the image link at the cursor, the links of the
-<C-c><C-x><C-v> Visual selection, or of the current entry; again to hide
-                them (org-link-preview, link_preview). Image links are
-                `file:` and `attachment:` links, without a description,
-                to an existing file with an extension in
-                `ui.images.extensions`. A count like the Emacs prefix: 4
-                hides the entry's previews, 16 previews the whole buffer,
-                64 hides them all; 1 (entry) and 11 (buffer) also preview
-                links with a description.
-<prefix>xV      Preview every image link of the buffer again, e.g. after
-<C-c><C-x><C-M-v>  the files changed (org-link-preview-refresh).
-<prefix>xl      Render the LaTeX fragment at the cursor, or those of the
-<C-c><C-x><C-l> Visual selection or of the current entry, and show them
-                under their line; again to hide them (org-latex-preview,
-                latex_preview). Fragments are `$x$`, `$$x$$`, `\(x\)`,
-                `\[x\]` and `\begin{env}...\end{env}`. Count: 4 hides the
-                entry's previews, 16 previews the whole buffer, 64 hides
-                them all. Rendering runs in the background.
+<prefix>xv      org-link-preview (link_preview): on a link, toggle its
+<C-c><C-x><C-v> preview; else preview the links of the current entry, or
+                of the Visual selection, again when called again. A count
+                like the Emacs prefix: 4 hides the preview at the cursor,
+                else the entry's (or the selection's); 16 previews the
+                whole buffer, 64 hides them all; 1 also previews links
+                with a description (entry, link or selection), 11 in the
+                whole buffer, any other count in the whole buffer too.
+<prefix>xV      org-link-preview-refresh (link_preview_refresh): preview
+<C-c><C-x><C-M-v>  every image link of the buffer again.
+<prefix>xl      org-latex-preview (latex_preview): on a fragment, toggle
+<C-c><C-x><C-l> its preview; else render the fragments of the current
+                entry (or of the Visual selection). 4 hides the entry's
+                (or selection's) previews, 16 previews the whole buffer,
+                64 hides them all. Rendering runs in the background.
 
-`#+ATTR_ORG: :width 300` sets the width of an image in pixels (ATTR_HTML
-and ATTR_LATEX are used without ATTR_ORG). `#+STARTUP: linkpreviews`
-(`inlineimages`) and `latexpreview` preview a file when it opens, like
-`ui.images.startup` and `ui.latex_preview.startup`; the `no...` words turn
-that off. Editing a previewed link or fragment removes its preview.
+The same as ex commands; a range limits them, a number is the count:
+  :[range]Org link_preview [N]       :[range]Org latex_preview [N]
+  :[range]Org link_preview_region [linked]    (org-link-preview-region)
+  :[range]Org link_preview_clear              (org-link-preview-clear)
+  :Org link_preview_refresh
+  :[range]Org clear_latex_preview             (org-clear-latex-preview)
+Without a range the last three act on the whole buffer. The obsolete Emacs
+names work too: toggle_inline_images, remove_inline_images,
+redisplay_inline_images, toggle_latex_fragment, preview_latex_fragment.
 
-LaTeX is rendered with `ui.latex_preview.process`: "dvipng" (latex and
-dvipng, like Emacs), "tectonic" (tectonic and pdftocairo), "pdflatex"
-(pdflatex and pdftocairo) or "imagemagick" (pdflatex and magick); "auto"
-uses the first one installed. The document is a standalone class with
-amsmath, amssymb and xcolor (`ui.latex_preview.header`) plus the file's
-`#+LATEX_HEADER` lines, and the formulas take the Normal foreground
-(`foreground`) at about the height of a text line (`scale`). Images are
-cached in `stdpath("cache")/org/ltximg` (`cache_dir`).
+Which links: `file:` and `attachment:` links (bracket, plain or angle) to
+an existing file whose extension is in `ui.images.extensions`, with no
+description, or whose description is a sole `file:`/`attachment:` image
+link (`[[https://example.com][file:thumb.png]]` shows thumb.png). Links in
+src, example, export and comment blocks, comments, fixed-width lines and
+property drawers are left alone, like Emacs.
+
+Size (org-display-inline-image--width): `ui.images.actual_width` is
+  true         (default) the image's own size;
+  a number     that many pixels;
+  false, { n } the `:width` of the paragraph's #+ATTR_ORG, else of another
+               #+ATTR_x with a readable width, else n pixels (or the own
+               size). `:width` is pixels (300, 300px), a percentage (50%)
+               or a fraction from 0 to 2 (0.5, 0.7\linewidth) of the text
+               width ('textwidth', else the window), or t (own size).
+An ORG-IMAGE-ACTUAL-WIDTH property (inherited: t, nil, a number or (n))
+overrides it. `ui.images.max_width` (org-image-max-width) caps the width:
+"fill-column" ('textwidth', else 70 columns), "window", a number of pixels
+or a fraction of the window. `ui.images.max_height` caps the rows.
+
+Alignment (org-image-align): an image link alone in its paragraph is
+drawn at `ui.images.align` ("left", "center" or "right"), or as its
+#+ATTR_ORG (else #+ATTR_x) says with `:align center|right|left` or
+`:center t`. Native backend only.
+
+TAB cycling (org-cycle-link-previews-display): with `ui.images.cycle_display`,
+showing an entry's children previews its own links, showing the subtree
+previews all of them, and folding it removes them.
+
+At startup: `#+STARTUP: linkpreviews` (`inlineimages`) and `latexpreview`
+preview a file when it opens, like `ui.images.startup` and
+`ui.latex_preview.startup`; the `no...` words turn that off, and the last
+word of a pair wins.
+
+LaTeX fragments are those org-latex-preview renders: `$x$` (no blank
+after the opening or before the closing dollar, no `$` before it, a blank,
+punctuation or line end after it), `$$x$$`, `\(x\)` and `\[x\]`, which
+may span lines of a paragraph, and `\begin{env}` ... `\end{env}`
+environments with the `\end` alone on its line. Fragments in verbatim or
+code markup, link targets, blocks other than quote/verse/special blocks,
+and keywords other than TITLE, CAPTION, AUTHOR and DATE are skipped.
+
+Rendering follows org-create-formula-image with the process named by
+`ui.latex_preview.process` (org-preview-latex-default-process), from
+`processes` (org-preview-latex-process-alist):
+  "dvipng"       latex + dvipng (the Emacs default)
+  "dvisvgm"      latex + dvisvgm (SVG, converted to PNG for vim.ui.img)
+  "xelatex"      xelatex + dvisvgm
+  "imagemagick"  pdflatex + convert
+  "tectonic"     tectonic + pdftocairo (org.nvim)
+  "pdflatex"     pdflatex + pdftocairo (org.nvim)
+"auto" (default) uses the first of dvipng, dvisvgm, tectonic, pdflatex,
+imagemagick that is installed. A process is a table with `programs`,
+`message`, `image_input_type`, `image_output_type`, `image_size_adjust`
+({ buffer, html }), `latex_header`, `latex_compiler`, `image_converter` and
+`transparent_image_converter`; commands run in a shell in a temporary
+directory, with %f (input file), %F (its full path), %b (base name), %o
+(output directory), %O (output file), %D (DPI) and %S (scale, DPI / 140).
+`processes` adds or replaces entries.
+
+The document is `ui.latex_preview.header` (org-format-latex-header, the
+Emacs header by default) with [DEFAULT-PACKAGES] and [PACKAGES] filled
+from `export.latex` and the file's #+LATEX_HEADER lines (SETUPFILE too),
+like org-latex-make-preamble for snippets. `foreground` is "default" (the
+Normal text), "auto" (the text at the fragment) or a color; `background`
+is "default" (Normal), "Transparent" or a color (:foreground, :background).
+Formulas are about as tall as a text line times `scale`. Images are
+written to `ui.latex_preview.image_directory` (org-preview-latex-image-directory,
+"ltximg/" next to the file; buffers without a file use
+`stdpath("cache")/org/ltximg`), or to `cache_dir` when set. When a step
+fails, its output is in the *Org Preview LaTeX Output* buffer.
 
 Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
@@ -3903,10 +3969,15 @@ Differences from Emacs:
   - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
     staging/sync protocol is tied to Emacs; sync the files with any file
     sync tool instead.
-  - remote images (org-display-remote-inline-images) and link previews of
-    other link types (org-link-set-parameters :preview) are not shown.
+  - link previews of other link types (org-link-set-parameters :preview).
 - Image and LaTeX previews (|org-images|) are drawn under their line, not
   in place of the link or fragment, and need a terminal image backend.
+  `ui.images.max_width` is in columns for "fill-column" and fractions (as
+  Emacs) but its default fill column is 'textwidth' or 70; `max_height` is
+  an addition. LaTeX previews pick an installed process ("auto") where
+  Emacs always uses dvipng, and add "tectonic" and "pdflatex". Link
+  previews are made at once, not in batches (org-link-preview-batch-size),
+  and remote TRAMP images (org-display-remote-inline-images) are not shown.
 - Column view is a separate table buffer rather than overlays on the
   headlines. Like Emacs, digits 1-9 select allowed values there, so counts
   are not available in the view (0 keeps its Vim meaning).

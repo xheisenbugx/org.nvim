@@ -39,6 +39,43 @@ M.extra = {
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
   protocol = { "org.protocol", "handle", desc = "Handle an org-protocol:// URL: :Org protocol <url>" },
   lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
+  -- image and LaTeX previews: a range limits them, a number is the prefix count
+  link_preview = {
+    "org.ui.images",
+    "ex_link_preview",
+    desc = "Toggle image previews: :[range]Org link_preview [4|16|64|1|11]",
+  },
+  link_preview_region = {
+    "org.ui.images",
+    "ex_link_preview_region",
+    desc = "Preview image links (default the buffer): :[range]Org link_preview_region [linked]",
+  },
+  link_preview_clear = {
+    "org.ui.images",
+    "ex_link_preview_clear",
+    desc = "Remove image previews (default the buffer): :[range]Org link_preview_clear",
+  },
+  link_preview_refresh = { "org.ui.images", "ex_link_preview_refresh", desc = "Refresh image previews in the buffer" },
+  latex_preview = {
+    "org.ui.images",
+    "ex_latex_preview",
+    desc = "Toggle LaTeX previews: :[range]Org latex_preview [4|16|64]",
+  },
+  clear_latex_preview = {
+    "org.ui.images",
+    "ex_clear_latex_preview",
+    desc = "Remove LaTeX previews (default the buffer): :[range]Org clear_latex_preview",
+  },
+  -- obsolete Emacs names
+  toggle_inline_images = { "org.ui.images", "ex_toggle_inline_images", desc = "Obsolete: link_preview" },
+  remove_inline_images = { "org.ui.images", "ex_remove_inline_images", desc = "Obsolete: link_preview_clear" },
+  redisplay_inline_images = {
+    "org.ui.images",
+    "ex_redisplay_inline_images",
+    desc = "Obsolete: link_preview_refresh",
+  },
+  toggle_latex_fragment = { "org.ui.images", "ex_toggle_latex_fragment", desc = "Obsolete: latex_preview" },
+  preview_latex_fragment = { "org.ui.images", "ex_preview_latex_fragment", desc = "Obsolete: latex_preview" },
 }
 
 local function names()
@@ -75,7 +112,7 @@ function M.run(opts)
       utils.error(string.format("%s.%s is not available", extra[1], extra[2]))
       return
     end
-    utils.run(mod[extra[2]], rest)
+    utils.run(mod[extra[2]], rest, opts)
     return
   end
   if actions.list[name] then
