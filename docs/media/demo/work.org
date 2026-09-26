@@ -1,0 +1,33 @@
+#+TITLE: Work
+#+CATEGORY: work
+#+COLUMNS: %40ITEM %TODO %Effort{:} %CLOCKSUM %TAGS
+
+* Inbox
+* Meetings
+** TODO Standup                                                      :team:
+SCHEDULED: <{{0 09:30}}>
+** Lunch with the team
+<{{0 12:30-13:30}}>
+** TODO Review pull requests                                         :oss:
+SCHEDULED: <{{0 14:00-15:00}}>
+* Projects
+** NEXT Ship org.nvim v1.0                                           :oss:
+DEADLINE: <{{2}}>
+:PROPERTIES:
+:Effort:   6:00
+:END:
+:LOGBOOK:
+CLOCK: [{{-1 14:00}}]--[{{-1 16:30}}] =>  2:30
+CLOCK: [{{-2 09:15}}]--[{{-2 11:00}}] =>  1:45
+:END:
+** WAITING Design feedback
+SCHEDULED: <{{-2}}>
+:LOGBOOK:
+CLOCK: [{{-3 15:00}}]--[{{-3 15:45}}] =>  0:45
+:END:
+** TODO Plan the Q4 roadmap
+DEADLINE: <{{-1}}>
+:LOGBOOK:
+CLOCK: [{{-1 10:00}}]--[{{-1 11:20}}] =>  1:20
+:END:
+* Reports

@@ -1,0 +1,22 @@
+#+TITLE: Life
+#+CATEGORY: life
+
+* TODO Run 5k                                                        :habit:
+SCHEDULED: <{{0}} .+2d/3d>
+:PROPERTIES:
+:STYLE:    habit
+:LAST_REPEAT: [{{-2 07:30}}]
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"       [{{-2 07:30}}]
+- State "DONE"       from "TODO"       [{{-4 07:15}}]
+- State "DONE"       from "TODO"       [{{-7 07:40}}]
+- State "DONE"       from "TODO"       [{{-9 08:05}}]
+- State "DONE"       from "TODO"       [{{-12 07:20}}]
+- State "DONE"       from "TODO"       [{{-14 07:20}}]
+- State "DONE"       from "TODO"       [{{-18 07:20}}]
+:END:
+* TODO Renew passport                                                :home:
+DEADLINE: <{{8}}>
+* TODO Call mom
+SCHEDULED: <{{1}}>

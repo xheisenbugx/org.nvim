@@ -18,6 +18,10 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 **[Docs](doc/org.txt)** ·
 **[Contributing](CONTRIBUTING.md)**
 
+<br>
+
+<img src="docs/media/hero.gif" alt="Cycling an outline, ticking a checkbox and marking a task DONE from the agenda" width="900">
+
 </div>
 
 ---
@@ -74,75 +78,99 @@ nvim -u examples/minimal_init.lua examples/tutorial.org
 
 ## 🎬 A quick tour
 
+Everything below was recorded in a plain Neovim with only org.nvim
+installed. The tapes that produce these GIFs live in
+[`docs/media`](docs/media), so they can be re-recorded after every change.
+
+### Outlines that fold like Emacs
+
+`TAB` cycles a subtree through folded, children and everything.
+`S-TAB` does the same for the whole file. You can move a subtree with all
+of its children (`<leader>oK` / `<leader>oJ` or `M-k` / `M-j`), promote and
+demote it, or cut, paste and sort it.
+
+![Cycling visibility with TAB and S-TAB, then moving a subtree up and down](docs/media/outline.gif)
+
+### TODOs, checklists and priorities
+
+Ticking a checkbox updates the `[2/4]` and `[50%]` cookies of its parents.
+Marking a task DONE logs a `CLOSED:` timestamp and updates its parent's
+cookie. Set the state with `cit` or with the fast-selection menu
+(`<leader>oT`), and the priority with `<leader>o,`.
+
+![Ticking checkboxes, marking a task DONE and giving another one priority A](docs/media/todo.gif)
+
+### Dates with a real calendar
+
+`<leader>os` (schedule) and `<leader>od` (deadline) open a floating
+calendar. Move around it with `hjkl`, or press `i` and type a date the way
+you'd say it: `fri 14:00`, `+2w`, `sep 15`, `w39`.
+
+![Scheduling a task from the calendar and typing "fri 14:00" for a deadline](docs/media/dates.gif)
+
 ### A real agenda
 
-`<leader>oa` → `a`. This is actual output from org.nvim, not a mockup:
+`<leader>oa` → `a`. The day view has a time grid, a current-time line,
+deadline countdowns, overdue items and a habit consistency graph, the
+same as in Emacs. From the agenda you can change states, reschedule, clock
+in, refile, filter and run bulk actions. `vw` switches to the week.
 
-```text
-Day-agenda (W39):
-Thursday   24 September 2026 W39
-                8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-                8:20 ← now ─────────────────────────────
-  work:         9:30...... Scheduled: TODO Standup                          :team:
-               10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-               12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  work:        12:30-13:30 Lunch with the team
-  work:        14:00-15:00 Scheduled: TODO Review pull requests              :oss:
-               16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  work:        In   2 d.: NEXT Ship org.nvim v1.0                            :oss:
-  work:        Sched. 2x: WAITING Design feedback
-  life:        Scheduled: TODO Run 5k                         * ** ** *!   :habit:
-  life:        In   8 d.: TODO Renew passport
-```
+![The agenda day view: marking a task DONE, then switching to the week view](docs/media/agenda.gif)
 
-The time grid, current-time line, deadline countdowns, overdue items and
-habit consistency graph all work as they do in Emacs. From the agenda you
-can change states, reschedule, clock in, refile, filter and run bulk
-actions.
+<details>
+<summary>The week view</summary>
+
+![The agenda week view](docs/media/agenda-week.png)
+
+</details>
+
+### Capture from anywhere
+
+Press `<leader>oc` in any buffer and pick a template. Templates can be
+grouped under a prefix key (`w` → `t` here). Type the task and finish with
+`<C-c><C-c>` or `:w`. It's filed where the template says: under a
+headline, an outline path or a date tree.
+
+![Capturing a work task that lands under the Inbox heading of work.org](docs/media/capture.gif)
 
 ### Spreadsheet tables
 
-Type a rough table, press `<C-c><C-c>`, and it aligns itself and evaluates
-its formulas:
+Type a rough table, press `<C-c><C-c>` on its `#+TBLFM` line, and it
+aligns itself and evaluates its formulas with a Calc-compatible evaluator.
+Change a value, recalculate with `<leader>oTf`, and the totals follow.
 
-```org
-| Item     | Qty | Price | Total |
-|----------+-----+-------+-------|
-| Coffee   |   3 |   4.5 |  13.5 |
-| Keyboard |   1 |   120 |   120 |
-| Stickers |  10 |   0.8 |     8 |
-|----------+-----+-------+-------|
-| Sum      |     |       | 141.5 |
-#+TBLFM: @2$4..@4$4=$2*$3::@5$4=vsum(@2..@4)
-```
+![Typing a rough table, evaluating its formulas and recalculating after an edit](docs/media/tables.gif)
 
 ### Code that runs in your notes
 
 `<C-c><C-c>` on a source block runs it asynchronously and writes the
 output back into the file:
 
-```org
-#+begin_src python :results output
-import sys
-print(f"Hello from Python {sys.version_info.major}!")
-print(sum(range(1, 101)))
-#+end_src
-
-#+RESULTS:
-: Hello from Python 3!
-: 5050
-```
+![Running Python, shell and Lua blocks and inserting their results](docs/media/babel.gif)
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
 supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
 `src_lang{…}` blocks and tangling.
 
-### Capture from anywhere
+### Clocking, clock tables and column view
 
-Press `<leader>oc` → `t` in any buffer, type the task, then press
-`<C-c><C-c>` or `:w`. The task is filed where your template says:
-under a headline, an outline path or a date tree. The capture keeps a link
-back to where you were.
+`<leader>oxi` clocks in, and the statusline shows the running total
+against the effort estimate. `<leader>oxr` inserts a clock table that
+matches Emacs's output. `<leader>oC` opens column view, which sums
+efforts and clocked time up the tree.
+
+![Clocking in, inserting a clock table, then opening column view](docs/media/clock.gif)
+
+### And the rest
+
+| Markup, links, lists and properties | Export dispatcher |
+| --- | --- |
+| ![Inline markup, concealed links, checkboxes, tags and a property drawer](docs/media/markup.png) | ![The export dispatcher listing HTML, LaTeX, Markdown, ODT, DOCX and more](docs/media/export.png) |
+
+Lost? Press `g?` in any org or agenda buffer to list every keymap
+available there:
+
+![The g? keymap help float](docs/media/keymaps.png)
 
 ---
 
