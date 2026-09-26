@@ -1,0 +1,15 @@
+#+TITLE: Checklist
+#+STARTUP: showeverything
+#+OPTION: toc:nil
+
+* TODO Ship the release
+SCHEDULED: <2026-10-01>
+DEADLINE: <2026-10-02 Fri
+:PROPERTIES:
+:Effort: 1:00
+:END:
+See [[#missing-id][the notes]] and [[file:nowhere.org][this file]].
+
+#+begin_src
+echo "no language"
+#+end_src

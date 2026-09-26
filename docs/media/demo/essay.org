@@ -1,0 +1,5 @@
+#+TITLE: On plain text
+
+* Why plain text
+Plain text outlives the programs that wrote it. Org files from twenty
+years ago still open in any editor today.

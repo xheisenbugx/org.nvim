@@ -309,6 +309,65 @@ text around it.
 
 </details>
 
+### Jump to any heading
+
+`<leader>o.` (Emacs `C-c C-j`) jumps to a heading of the current file, and
+`<leader>og` to any heading of your agenda files. Both use
+`vim.ui.select`, so they get your picker: snacks.nvim here, or Telescope
+or fzf-lua.
+
+![Fuzzy-finding a heading in the file, then with the Emacs key](docs/media/goto-buffer.gif)
+
+![Jumping to headings in other agenda files](docs/media/goto-agenda.gif)
+
+### Timers
+
+`<C-c><C-x>0` starts a relative timer, and `<C-c><C-x>-` adds a list item
+with the elapsed time, handy for meeting notes. `<C-c><C-x>,` pauses and
+resumes it, and `<C-c><C-x>_` stops it. The running time is part of the
+statusline component.
+
+![Taking timed meeting notes, pausing and stopping the timer](docs/media/timers.gif)
+
+`<C-c><C-x>;` starts a countdown for the current entry and notifies you
+when it runs out:
+
+![A six-second countdown that ends with a "time out" notification](docs/media/countdown.gif)
+
+### Appointment reminders
+
+With `notifications.enabled` (or `:Org notifications_start`), org.nvim
+checks your agenda for timed entries and reminds you before they start,
+by default 12, 9, 6, 3 and 0 minutes before, through `vim.notify` and the
+system notifier (`osascript` or `notify-send`).
+
+![Reminders for a scheduled call and a deadline, then the same entries in the agenda](docs/media/reminders.gif)
+
+### Footnotes
+
+`<leader>oif` (`C-c C-x f`) inserts a footnote reference and its
+definition, in a Footnotes section or inline. `<C-c><C-c>` jumps between a
+reference and its definition. A count sorts, renumbers or normalizes them.
+
+![Inserting a footnote and jumping between reference and definition](docs/media/footnotes.gif)
+
+### Checking a file with org-lint
+
+`:Org lint` runs the org-lint checks, such as misplaced planning lines,
+broken property drawers, links to missing IDs or files and src blocks
+without a language, and lists the problems in the location list.
+
+![org-lint listing five problems of a file and jumping to one](docs/media/lint.gif)
+
+### Speed keys
+
+With `use_speed_commands = true`, single letters typed at the very start
+of a heading in Insert mode run commands, like Emacs's speed keys: `n` /
+`p` to move, `t` for the TODO state, `U` / `D` to move the subtree, `c` to
+cycle, and `?` for the full list.
+
+![Speed keys moving between headings, changing a TODO state, moving a subtree and listing every key](docs/media/speed-keys.gif)
+
 ### Links
 
 `<leader>ols` stores a link to the current heading (or file, line or ID),

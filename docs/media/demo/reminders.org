@@ -1,0 +1,6 @@
+#+TITLE: Today
+
+* TODO Call with the design team
+SCHEDULED: <{{now+1}}>
+* TODO Deploy the release
+DEADLINE: <{{now+1}}>
