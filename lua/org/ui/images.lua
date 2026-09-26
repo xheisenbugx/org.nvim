@@ -1351,6 +1351,11 @@ function M.backend()
     end
   end
   if native_img() then
+    if vim.env.TMUX or vim.env.ZELLIJ then
+      return nil,
+        (vim.env.TMUX and "tmux" or "zellij")
+          .. " does not pass vim.ui.img images to the terminal, and no other image backend is available"
+    end
     return nil, "this terminal does not support the Kitty graphics protocol (vim.ui.img)"
   end
   return nil, "no image backend: needs Neovim 0.13+ in a Kitty-graphics terminal, snacks.nvim (image) or image.nvim"

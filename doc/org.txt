@@ -3235,6 +3235,90 @@ written to `ui.latex_preview.image_directory` (org-preview-latex-image-directory
 `stdpath("cache")/org/ltximg`), or to `cache_dir` when set. When a step
 fails, its output is in the *Org Preview LaTeX Output* buffer.
 
+Where images work                              *org-images-troubleshooting*
+Previews depend on three things outside org.nvim: the Neovim version, the
+terminal, and what sits between them (tmux, zellij, SSH). |:checkhealth|
+org shows what it found and which backend it uses.
+
+Which backend draws the images ("auto"):
+  1. "native" (`vim.ui.img`) when Neovim is 0.13 or newer AND the terminal
+     answers the Kitty graphics query. The query is asked once, the first
+     time a preview is made, and waits up to 1 s when nothing answers.
+  2. else "snacks" when snacks.nvim is installed with its image module and
+     the terminal supports it with unicode placeholders;
+  3. else "image.nvim" when it is installed;
+  4. else no previews, with a message saying why.
+Set `ui.images.backend` to a name to skip the others (and the 1 s wait).
+
+Setups:
+  kitty, Ghostty (Neovim 0.13+)    native: everything below works.
+  WezTerm (Neovim 0.13+)           native. WezTerm's Kitty graphics support
+                                   is partial; snacks.nvim can't draw in it
+                                   (no unicode placeholders): with an older
+                                   Neovim use image.nvim.
+  Neovim 0.10 to 0.12              no `vim.ui.img`: snacks.nvim or
+                                   image.nvim, in a terminal they support.
+  tmux                             `vim.ui.img` writes straight to the
+                                   terminal and tmux drops it, so its query
+                                   gets no answer (the 1 s wait) and "auto"
+                                   falls back to snacks.nvim. It needs
+                                   `set -g allow-passthrough on` in
+                                   tmux.conf (snacks.nvim tries to set it).
+                                   Or run Neovim outside tmux.
+  zellij                           no passthrough: no backend can draw.
+  SSH                              native and snacks.nvim send the image
+                                   data through the connection. Images,
+                                   ImageMagick and the LaTeX programs must
+                                   be on the machine running Neovim.
+  Terminal.app, iTerm2, Alacritty, no Kitty graphics protocol: no native
+  Windows Terminal, GNU screen     or snacks.nvim previews. image.nvim may
+                                   still work there (e.g. with ueberzug on
+                                   Linux).
+
+What each backend does:
+                                   native      snacks        image.nvim
+  image under its link             yes         yes (1)       yes
+  :align / org-image-align         yes         no            no
+  follows scrolling and folds      yes         yes           yes
+  under floating windows, menus    hidden (2)  covered (4)   its backend
+  partly visible images            hidden (3)  cut           cut
+  several windows on one buffer    yes         yes           first only
+  (1) A link alone on its line gets its image at the link's column. With
+      text around the link, snacks.nvim draws the image at the start of
+      the next line and puts an icon at the link.
+  (2) So they don't cover menus; they come back when the float closes.
+  (3) `vim.ui.img` can't crop: an image is drawn once all of it fits.
+  (4) snacks.nvim draws images as text (unicode placeholders), so floats
+      cover them like any text.
+
+When it goes wrong:
+  "no image backend" or "does not support the Kitty graphics protocol"
+      Neovim is older than 0.13, the terminal lacks the protocol, or tmux
+      or zellij is in between (see above). Install snacks.nvim or
+      image.nvim, run Neovim outside tmux, or use another terminal.
+  Nothing happens for a second on the first preview
+      The terminal query waiting for an answer (tmux, unsupported
+      terminals). Set `ui.images.backend`.
+  Blank rows under the link but no image
+      The native backend reserved the rows but the image is not fully
+      visible, a float covers it, or the terminal ignored it. Scroll it
+      into view; check |:checkhealth| org.
+  An image is not where the link is, or everything looks centered
+      `:align` and `org-image-align` only work with the native backend;
+      with snacks.nvim see (1) above. Images starting where the link text
+      ends was a bug fixed in org.nvim (update).
+  "can't convert ... to PNG"
+      The native backend only sends PNG: install ImageMagick (`magick`)
+      for JPEG, SVG and the rest.
+  An image vanished (the terminal was cleared or reset)
+      `<prefix>xV` (link_preview_refresh) draws them again.
+  Images the wrong size after changing the font size
+      Sizes come from the terminal's cell size, read again when Neovim is
+      resized; `<prefix>xV` redraws them.
+  LaTeX: "no LaTeX renderer found" / "you need to install the programs"
+      Install latex and dvipng (or tectonic and poppler for pdftocairo).
+      When a render fails, its output is in *Org Preview LaTeX Output*.
+
 Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.

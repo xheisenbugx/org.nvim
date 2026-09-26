@@ -252,6 +252,29 @@ results are cached:
 These two were recorded in a real kitty window
 ([`docs/media/kitty`](docs/media/kitty)); VHS can't show Kitty graphics.
 
+<details>
+<summary><b>Where do image previews work?</b> (tmux, Neovim versions, terminals)</summary>
+
+Previews depend on the Neovim version, the terminal, and what sits
+between them. `:checkhealth org` shows what it found, and
+`:h org-images-troubleshooting` has the details.
+
+| Setup | What draws the images | Notes |
+| --- | --- | --- |
+| Neovim 0.13+ in kitty or Ghostty | `vim.ui.img` (built in) | Everything works, including `:align` |
+| Neovim 0.13+ in WezTerm | `vim.ui.img` | WezTerm's Kitty graphics support is partial |
+| Neovim 0.10–0.12 | snacks.nvim or image.nvim | `vim.ui.img` needs 0.13 |
+| Inside **tmux** | snacks.nvim | tmux drops `vim.ui.img`'s images. Add `set -g allow-passthrough on` and install snacks.nvim, or run Neovim outside tmux |
+| Inside zellij | nothing | zellij doesn't pass images through |
+| Over SSH | `vim.ui.img` or snacks.nvim | Images and LaTeX tools must be on the machine running Neovim |
+| Terminal.app, iTerm2, Alacritty | image.nvim at best | No Kitty graphics protocol |
+
+With snacks.nvim or image.nvim, `:align` / `org-image-align` are ignored,
+and snacks.nvim draws an image at the start of the line when the link has
+text around it.
+
+</details>
+
 ### Links
 
 `<leader>ols` stores a link to the current heading (or file, line or ID),
