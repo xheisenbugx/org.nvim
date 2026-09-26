@@ -129,14 +129,18 @@ point closer to many Emacs setups: >lua
 If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
-Run |:checkhealth| `org` to check paths and external tools. Inside tmux or
-Ghostty it also checks that the terminal can send the keys org maps: <C-CR>,
-<S-CR>, <C-,> and the like need extended keys (CSI u), which tmux passes on
-only with `set -s extended-keys on` and a `terminal-features` entry with
-`extkeys` for the outer terminal (read when a client attaches). In Ghostty it
-also looks for keybinds that take a mapped key (e.g. the default
-`ctrl+tab=next_tab`) and, on macOS, for `macos-option-as-alt` (needed by the
-<M-...> keys).
+Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
+Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
+send the keys org maps:
+- <C-CR>, <S-CR>, <C-,> and the like need extended keys (CSI u), which tmux
+  passes on only with `set -s extended-keys on` and a `terminal-features`
+  entry with `extkeys` for the outer terminal (read when a client attaches)
+- the terminal's keybinds must not take a mapped key: Ghostty's `ctrl+tab`,
+  kitty's `ctrl+shift+enter` and `ctrl+shift+arrows`, WezTerm's `ALT+Enter`
+  and `CTRL+SHIFT+arrows`, ... (read from the terminal itself when its CLI
+  is installed, else from its config file and the known defaults)
+- on macOS, Option must send Alt for the <M-...> keys
+Inside tmux the terminal is the one of the attached client.
 
 ==============================================================================
 3. DOCUMENT STRUCTURE                                          *org-structure*
