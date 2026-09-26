@@ -228,6 +228,20 @@ function M.confirm(msg)
 end
 
 --- Read one key (synchronous). Returns nil for <Esc>/<C-c>.
+--- Start Insert mode at the cursor, or after the end of the line when the
+--- cursor is past it or on its trailing space. Normal mode keeps the cursor
+--- on the last character, so on a new "- " or "** " line a plain
+--- `startinsert` would put the typed text before that space.
+function M.start_insert()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local line = vim.api.nvim_get_current_line()
+  if col >= #line or (col == #line - 1 and line:sub(-1) == " ") then
+    vim.cmd("startinsert!")
+  else
+    vim.cmd("startinsert")
+  end
+end
+
 function M.getchar(prompt)
   if prompt then
     vim.api.nvim_echo({ { prompt, "Question" } }, false, {})

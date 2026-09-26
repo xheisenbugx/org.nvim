@@ -9,7 +9,9 @@ whenever the UI changes.
 - `demo/init.lua`: the config the tapes start Neovim with. It copies
   `demo/*.org` into `$ORG_DEMO_DIR` (a directory under `/tmp`) and turns
   `{{N}}` into the date N days from today, so the agenda always has
-  something to show.
+  something to show. It also defines `:Cap` and `:Do`, which show the key
+  caption in the corner, and `:Do` presses keys that VHS can't send
+  (`<S-Right>`, `<M-Up>`…). The tapes type them hidden, after `<C-g>`.
 
 ## Re-recording
 

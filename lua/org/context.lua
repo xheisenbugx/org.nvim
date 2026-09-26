@@ -170,12 +170,7 @@ local function after_insert(insert_mode)
   if insert_mode then
     return
   end
-  local col = vim.api.nvim_win_get_cursor(0)[2]
-  if col >= #vim.api.nvim_get_current_line() then
-    vim.cmd("startinsert!")
-  else
-    vim.cmd("startinsert")
-  end
+  utils.start_insert()
 end
 
 --- Where M-RET acts: in Insert mode at the cursor (splitting the line

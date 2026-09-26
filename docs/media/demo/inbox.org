@@ -1,2 +1,6 @@
 #+TITLE: Inbox
 
+* TODO Book flights for the conference
+* TODO Renew the domain name
+* DONE Order a new keyboard
+CLOSED: [{{-1 18:20}}]

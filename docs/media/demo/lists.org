@@ -1,0 +1,15 @@
+#+TITLE: Lists
+
+* Groceries
+- milk
+- eggs
+- bread
+
+* Release steps
+1. Write the changelog
+2. Publish the release
+3. Tag the commit
+
+* Packing
+Passport
+Charger

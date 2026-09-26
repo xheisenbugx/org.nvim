@@ -1,0 +1,15 @@
+#+TITLE: Release notes
+#+AUTHOR: org.nvim
+#+OPTIONS: toc:nil
+
+* What's new
+- A *real* agenda with a time grid
+- Capture templates, clocking and /spreadsheet/ tables
+- Links like [[https://orgmode.org][Org mode]]
+
+* Getting started
+Install it with your plugin manager, then open a file:
+
+#+begin_src lua
+print("hello from org.nvim")
+#+end_src
