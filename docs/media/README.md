@@ -24,6 +24,12 @@ make media                          # every tape, in parallel
 vhs docs/media/tapes/agenda.tape    # a single one
 ```
 
+Some tapes set extras in the environment (see the top of
+`demo/init.lua`): `DEMO_SNACKS=1` uses snacks.nvim's picker and notifier
+(from `$SNACKS_PATH`, else the lazy.nvim directory), `DEMO_SPEED=1` turns
+on speed keys, and `DEMO_NOTIFY=1` adds `demo/reminders.org`, whose
+entries `{{now+1}}` put a minute from now, for the reminders demo.
+
 To try the demo setup by hand:
 
 ```sh

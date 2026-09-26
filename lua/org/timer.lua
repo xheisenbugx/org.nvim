@@ -342,7 +342,7 @@ function M.insert_item()
   local new = indent .. "- " .. value .. line:sub(#indent + 1)
   vim.api.nvim_buf_set_lines(buf, lnum - 1, lnum, false, { new })
   vim.api.nvim_win_set_cursor(0, { lnum, #indent + 2 + #value })
-  vim.cmd("startinsert")
+  utils.start_insert()
   return true
 end
 

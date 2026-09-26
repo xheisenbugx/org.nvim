@@ -121,6 +121,16 @@ describe("timer", function()
     local _ = msgs
   end)
 
+  it("text typed after timer_item on an empty line goes after the separator", function()
+    silence(function()
+      timer.start("0:00:05")
+      local buf = org_buffer({ "" }, { 1, 0 })
+      vim.api.nvim_feedkeys(vim.keycode("<C-c><C-x>-Ana<Esc>"), "xt", false)
+      eq("- 0:00:05 :: Ana", buf_lines(buf)[1])
+      timer.stop()
+    end)
+  end)
+
   it("shifts timer values in a region", function()
     local buf = org_buffer({ "- 0:01:10 :: a", "- 0:02:00 :: b" }, { 1, 0 })
     silence(function()
