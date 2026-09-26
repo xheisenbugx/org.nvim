@@ -392,7 +392,22 @@ end
 
 local TEST_KEY = "test a key in insert mode with <C-v> followed by the key: Neovim inserts what it received"
 
+--- Whether Neovim runs inside tmux, and whether in Ghostty as far as the
+--- environment tells (inside tmux, the attached client says so too).
+function M.terminal_env()
+  local tmux = (vim.env.TMUX or "") ~= ""
+  local ghostty = vim.env.TERM_PROGRAM == "ghostty"
+    or vim.env.TERM == "xterm-ghostty"
+    or (vim.env.GHOSTTY_RESOURCES_DIR or "") ~= ""
+  return tmux, ghostty
+end
+
+--- Only shown in tmux or Ghostty: the setups it knows how to check.
 local function check_terminal_keys(h)
+  local in_tmux, ghostty = M.terminal_env()
+  if not in_tmux and not ghostty then
+    return
+  end
   h.start("org.nvim terminal keys")
   local keys = M.mapped_keys()
   local needs = keys_by_need(keys)
@@ -412,11 +427,7 @@ local function check_terminal_keys(h)
     h.info("Keys that need extended key reporting (CSI u): " .. table.concat(needs.extended, " "))
   end
 
-  local ghostty = vim.env.TERM_PROGRAM == "ghostty"
-    or vim.env.TERM == "xterm-ghostty"
-    or vim.env.GHOSTTY_RESOURCES_DIR ~= nil
-
-  if vim.env.TMUX then
+  if in_tmux then
     local st = M.tmux_state()
     ghostty = ghostty or (st.termname or ""):match("ghostty") ~= nil
     local conf = st.config or "~/.tmux.conf"
@@ -500,11 +511,6 @@ local function check_terminal_keys(h)
     if #conflicts == 0 then
       h.ok("No Ghostty keybind takes a mapped key" .. (effective and "" or " (only the config file was checked)"))
     end
-  elseif vim.env.TERM_PROGRAM == "Apple_Terminal" and #needs.extended > 0 then
-    h.warn(
-      "Terminal.app has no extended key reporting: these mappings can't be typed: " .. describe(needs.extended),
-      { "Use a terminal with CSI u / kitty keyboard support (Ghostty, kitty, WezTerm, iTerm2), or remap them" }
-    )
   end
   h.info("If a mapping does nothing, " .. TEST_KEY)
 end

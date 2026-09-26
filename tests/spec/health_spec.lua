@@ -120,33 +120,87 @@ describe("health: terminal keys", function()
     eq({ "xterm*:clipboard", "xterm-ghostty:extkeys" }, st.terminal_features)
   end)
 
-  it(":checkhealth warns about tmux without extended keys", function()
-    local saved_state, saved_tmux = health.tmux_state, vim.env.TMUX
-    local saved_env = { vim.env.TERM_PROGRAM, vim.env.GHOSTTY_RESOURCES_DIR, vim.env.TERM }
-    health.tmux_state = function()
-      return {
-        version = 3.4,
-        extended_keys = "off",
-        xterm_keys = "off",
-        termname = "xterm-256color",
-        features = "RGB",
-        config = "~/.tmux.conf",
-        terminal_features = {},
-      }
+  --- `:checkhealth org` output with the given terminal environment and
+  --- (inside tmux) tmux state.
+  local function run_health(env, tmux_state)
+    local names = { "TMUX", "TERM_PROGRAM", "GHOSTTY_RESOURCES_DIR", "TERM" }
+    local saved_env, saved_state = {}, health.tmux_state
+    for _, n in ipairs(names) do
+      saved_env[n] = vim.env[n]
+      vim.env[n] = env[n]
     end
-    vim.env.TMUX = "/tmp/tmux-test,1,0"
-    vim.env.TERM_PROGRAM, vim.env.GHOSTTY_RESOURCES_DIR, vim.env.TERM = "tmux", nil, "tmux-256color"
-    local ok_, err = pcall(function()
+    health.tmux_state = function()
+      return tmux_state
+    end
+    local ok_, text = pcall(function()
       vim.cmd("checkhealth org")
-      local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
       vim.cmd("bwipeout!")
-      ok(text:find("tmux extended-keys is off", 1, true), text)
-      ok(text:find("set -s extended-keys on", 1, true), text)
-      ok(text:find("set -as terminal-features 'xterm-256color:extkeys'", 1, true), text)
-      ok(text:find("set -g xterm-keys on", 1, true), text)
+      return table.concat(lines, "\n")
     end)
-    health.tmux_state, vim.env.TMUX = saved_state, saved_tmux
-    vim.env.TERM_PROGRAM, vim.env.GHOSTTY_RESOURCES_DIR, vim.env.TERM = saved_env[1], saved_env[2], saved_env[3]
-    assert(ok_, err)
+    health.tmux_state = saved_state
+    for _, n in ipairs(names) do
+      vim.env[n] = saved_env[n]
+    end
+    assert(ok_, text)
+    return text
+  end
+
+  it(":checkhealth warns about tmux without extended keys", function()
+    local text = run_health({ TMUX = "/tmp/tmux-test,1,0", TERM_PROGRAM = "tmux", TERM = "tmux-256color" }, {
+      version = 3.4,
+      extended_keys = "off",
+      xterm_keys = "off",
+      termname = "xterm-256color",
+      features = "RGB",
+      config = "~/.tmux.conf",
+      terminal_features = {},
+    })
+    ok(text:find("org.nvim terminal keys", 1, true), text)
+    ok(text:find("tmux extended-keys is off", 1, true), text)
+    ok(text:find("set -s extended-keys on", 1, true), text)
+    ok(text:find("set -as terminal-features 'xterm-256color:extkeys'", 1, true), text)
+    ok(text:find("set -g xterm-keys on", 1, true), text)
+    ok(not text:find("Ghostty", 1, true), "no Ghostty checks outside Ghostty")
+  end)
+
+  it(":checkhealth shows the terminal keys section only in tmux or Ghostty", function()
+    for _, env in ipairs({
+      { TERM_PROGRAM = "Apple_Terminal", TERM = "xterm-256color" },
+      { TERM_PROGRAM = "WezTerm", TERM = "xterm-256color" },
+      { TERM = "xterm-kitty" },
+    }) do
+      local text = run_health(env)
+      ok(text:find("org.nvim external tools", 1, true), text)
+      ok(not text:find("terminal keys", 1, true), vim.inspect(env) .. "\n" .. text)
+    end
+    local text = run_health({ TERM_PROGRAM = "ghostty", TERM = "xterm-ghostty" })
+    ok(text:find("org.nvim terminal keys", 1, true), text)
+    ok(not text:find("tmux", 1, true), "no tmux checks outside tmux:\n" .. text)
+  end)
+
+  it("detects tmux and Ghostty from the environment", function()
+    local names = { "TMUX", "TERM_PROGRAM", "GHOSTTY_RESOURCES_DIR", "TERM" }
+    local saved = {}
+    for _, n in ipairs(names) do
+      saved[n] = vim.env[n]
+      vim.env[n] = nil
+    end
+    local results = {}
+    local function probe(env)
+      for _, n in ipairs(names) do
+        vim.env[n] = env[n]
+      end
+      results[#results + 1] = { health.terminal_env() }
+    end
+    probe({})
+    probe({ TMUX = "" })
+    probe({ TMUX = "/tmp/tmux-501/default,1,0" })
+    probe({ TERM = "xterm-ghostty" })
+    probe({ GHOSTTY_RESOURCES_DIR = "/Applications/Ghostty.app/Contents/Resources/ghostty" })
+    for _, n in ipairs(names) do
+      vim.env[n] = saved[n]
+    end
+    eq({ { false, false }, { false, false }, { true, false }, { false, true }, { false, true } }, results)
   end)
 end)
