@@ -1,0 +1,17 @@
+#+TITLE: Notebook
+
+* Code that runs in your notes
+#+begin_src python :results output
+import sys
+print(f"Hello from Python {sys.version_info.major}!")
+print(sum(range(1, 101)))
+#+end_src
+
+#+name: files
+#+begin_src sh :results table
+printf "notes.org\t%s\nwork.org\t%s\n" 12 34
+#+end_src
+
+#+begin_src lua
+return vim.version().major .. "." .. vim.version().minor
+#+end_src

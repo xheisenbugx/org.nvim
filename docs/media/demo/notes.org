@@ -1,0 +1,24 @@
+#+TITLE: Launch plan
+#+STARTUP: overview
+
+* Goals for the launch
+Ship a stable *1.0* and write /great/ docs. Read [[https://github.com/xheisenbugx/org.nvim][the repo]]
+and the [[*Release checklist][checklist]].
+** Reach 1,000 stars
+** Get featured in This Week in Neovim
+* TODO [#A] Release checklist [1/4]
+DEADLINE: <{{3}}>
+- [X] Freeze the API
+- [ ] Update the changelog
+- [ ] Tag =v1.0.0=
+- [ ] Announce it
+* NEXT Write the docs [33%]
+SCHEDULED: <{{0}}>
+** DONE Installation guide
+** TODO Configuration reference
+** TODO Screenshots for the README
+* WAITING Design feedback :design:
+* Ideas
+** Agenda themes
+** Org-roam style backlinks
+** A tree-sitter parser (optional)

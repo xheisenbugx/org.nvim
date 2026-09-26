@@ -1,0 +1,25 @@
+#+TITLE: Everything in one file
+#+STARTUP: showeverything
+
+* Markup and links
+Inline markup: *bold*, /italic/, _underlined_, =verbatim=, ~code~ and +strike+.
+Links show only their text: [[https://orgmode.org][Org mode]], [[file:notes.org][my notes]].
+* Lists and checkboxes
+- [-] Pack for the trip [1/3]
+  - [X] Passport
+  - [ ] Charger
+  - [ ] Toothbrush
+- Org :: a plain-text outliner
+- Neovim :: a hyperextensible text editor
+* TODO [#B] Tags, properties and dates                          :work:urgent:
+SCHEDULED: <{{0 10:00}}> DEADLINE: <{{4}} -2d>
+:PROPERTIES:
+:Effort:   1:30
+:END:
+* Blocks
+#+begin_quote
+Plain text is the most durable format there is.
+#+end_quote
+#+begin_src lua
+print("hello from org.nvim")
+#+end_src

@@ -225,4 +225,15 @@ describe("ui.menu", function()
   it("Esc quits", function()
     eq(nil, pick({ "a", "q" }, nil))
   end)
+  it("is wide enough for its longest label", function()
+    local label = string.rep("x", 60)
+    local width
+    local orig = utils.getchar
+    utils.getchar = function()
+      width = vim.api.nvim_win_get_width(0)
+    end
+    ui.menu({ title = "t", items = { { key = "a", label = label, value = "a" } } })
+    utils.getchar = orig
+    eq(true, width >= #(" [a]  " .. label))
+  end)
 end)
