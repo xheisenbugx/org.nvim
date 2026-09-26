@@ -1761,19 +1761,24 @@ local function track_source(bufnr, row, col, end_row, end_col, opts)
   return { mark = mark, text = text }
 end
 
+--- The tracked source's position, or nil and whether evaluation should
+--- stop: a deleted buffer ends the run, while a changed source only
+--- discards this result (with a warning) so later blocks still run.
 local function take_source(bufnr, source)
   if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
-    return nil
+    return nil, true
   end
   local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, { details = true })
   pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, source.mark)
   local detail = pos[3]
   if not detail or detail.invalid then
-    return nil
+    utils.warn("Source changed during evaluation; result discarded")
+    return nil, false
   end
   local text = vim.api.nvim_buf_get_text(bufnr, pos[1], pos[2], detail.end_row, detail.end_col, {})
   if not vim.deep_equal(text, source.text) then
-    return nil
+    utils.warn("Source changed during evaluation; result discarded")
+    return nil, false
   end
   return pos
 end
@@ -1828,9 +1833,9 @@ function M.execute(opts)
     virt_text_pos = "eol",
   })
   local function finish(result, info)
-    local pos = take_source(bufnr, source)
+    local pos, abort = take_source(bufnr, source)
     if not pos then
-      done(false, true)
+      done(false, abort)
       return
     end
     if info.skipped then
@@ -2062,9 +2067,9 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
   end
   local source = track_source(bufnr, lnum - 1, ib.s - 1, lnum - 1, ib.e)
   local function finish(result, info)
-    local pos = take_source(bufnr, source)
+    local pos, abort = take_source(bufnr, source)
     if not pos then
-      done(false, true)
+      done(false, abort)
       return
     end
     if info.skipped then

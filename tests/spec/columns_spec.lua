@@ -229,6 +229,28 @@ describe("column view", function()
     close_view()
   end)
 
+  it("a offers the raw allowed values, keeping quoted items", function()
+    local src = open_view({
+      "#+COLUMNS: %ITEM %Publisher",
+      "* Task",
+      ":PROPERTIES:",
+      ':Publisher_ALL: "Deutsche Grammophon" Philips EMI',
+      ":END:",
+    }, 2)
+    local default
+    with_stubs({
+      input = function(opts)
+        default = opts.default
+        return opts.default
+      end,
+    }, function()
+      keys(":3<CR>$a")
+    end)
+    eq('"Deutsche Grammophon" Philips EMI', default)
+    ok(vim.tbl_contains(buf_lines(src), ':Publisher_ALL: "Deutsche Grammophon" Philips EMI'))
+    close_view()
+  end)
+
   it("a edits the allowed values", function()
     local src = open_view({ "#+COLUMNS: %ITEM %Size", "* Task" }, 2)
     with_stubs({ input = answers({ "S M L" }) }, function()

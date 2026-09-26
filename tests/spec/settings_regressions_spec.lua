@@ -53,9 +53,20 @@ describe("single keyword TODO sequences", function()
     ok(file.headlines[1]:is_done())
   end)
 
-  it("keeps an explicitly separated open keyword open", function()
+  -- Emacs Org 9.8.10 (org-set-regexps-and-options): with no DONE state in
+  -- any sequence, the last keyword becomes the DONE state.
+  it("makes the last keyword done when no sequence has a done state", function()
     local file = parser.parse({ "#+TODO: WAIT |", "* WAIT Task" })
-    eq({}, file.settings.todo:done_names())
+    eq({ "WAIT" }, file.settings.todo:done_names())
+    ok(file.headlines[1]:is_done())
+    file = parser.parse({ "#+TODO: A |", "#+TODO: B |", "* A Task" })
+    eq({ "B" }, file.settings.todo:done_names())
+    eq({ "A" }, file.settings.todo:todo_names())
+  end)
+
+  it("keeps an explicitly separated keyword open when another is done", function()
+    local file = parser.parse({ "#+TODO: WAIT |", "#+TODO: TODO | DONE", "* WAIT Task" })
+    eq({ "DONE" }, file.settings.todo:done_names())
     ok(file.headlines[1]:is_todo())
   end)
 end)

@@ -460,7 +460,8 @@ end
 
 local function literal_end(lines, start, kind)
   for j = start + 1, #lines do
-    if lines[j]:match("^%*+%s") then
+    -- a headline needs a space after the stars (org-outline-regexp)
+    if lines[j]:match("^%*+ ") then
       break
     elseif lines[j]:lower():match("^%s*#%+end_" .. kind .. "%s*$") then
       return j

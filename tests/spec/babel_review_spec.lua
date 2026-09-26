@@ -37,7 +37,38 @@ describe("babel asynchronous source tracking", function()
     local expected = buf_lines(buf)
     pending[1]("stale", {})
     eq(expected, buf_lines(buf))
-    eq({ false, true }, completed)
+    eq({ false, false }, completed)
+  end)
+
+  it("keeps executing the buffer after discarding a changed block's result", function()
+    local buf = org_buffer({
+      "#+begin_src sh",
+      "echo one",
+      "#+end_src",
+      "",
+      "#+begin_src sh",
+      "echo two",
+      "#+end_src",
+    })
+    local completed
+    babel.execute_buffer({
+      bufnr = buf,
+      on_done = function(n)
+        completed = n
+      end,
+    })
+    vim.api.nvim_buf_set_text(buf, 1, 8, 1, 8, { " " })
+    pending[1]("one", {})
+    ok(vim.wait(1000, function()
+      return pending[2] ~= nil
+    end), "the second block still runs")
+    pending[2]("two", {})
+    ok(vim.wait(1000, function()
+      return completed ~= nil
+    end))
+    eq({ "", "#+RESULTS:", ": two" }, vim.list_slice(buf_lines(buf), 8))
+    ok(not vim.tbl_contains(buf_lines(buf), ": one"))
+    eq(2, completed)
   end)
 
   it("does not insert results for a source that changed during execution", function()
@@ -167,6 +198,12 @@ describe("babel literal source parity", function()
       eq(1, #found, kind)
       eq({ "echo active" }, found[1].body)
     end
+  end)
+
+  it("does not end a source block at stars followed by a tab", function()
+    local found = blocks.parse_blocks({ "#+begin_src sh", "echo b", "*\tx", "#+end_src" })
+    eq(1, #found)
+    eq({ "echo b", "*\tx" }, found[1].body)
   end)
 
   it("does not extend literal blocks across a heading", function()

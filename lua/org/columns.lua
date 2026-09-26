@@ -1067,8 +1067,9 @@ local function edit_allowed(state)
     where = where.parent
   end
   where = where or state.holder or r.hl
-  local cur = r.hl:get_allowed_values(prop)
-  local v = utils.input({ prompt = "Allowed: ", default = cur and table.concat(cur, " ") or "" })
+  -- the raw value keeps quoted items ("Deutsche Grammophon") intact
+  local cur = r.hl:get_property(key, true)
+  local v = utils.input({ prompt = "Allowed: ", default = cur or "" })
   if v == nil then
     return
   end
