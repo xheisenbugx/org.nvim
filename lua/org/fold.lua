@@ -695,6 +695,14 @@ local function emulate_tab(lnum, line)
   end
 end
 
+--- org-cycle-hook: image previews on TAB (ui.images.cycle_display).
+local function cycle_hook(state, hl)
+  if (config.opts.ui.images or {}).cycle_display then
+    local first_child = hl.children[1] and hl.children[1].line or nil
+    pcall(require("org.ui.images").cycle_display, state, hl.line, hl.end_line, first_child)
+  end
+end
+
 --- TAB. With a count: 16 restores the startup visibility, 64 shows
 --- everything (drawers too), any other N shows the whole subtree of the
 --- ancestor at level N (like C-u C-u TAB, C-u C-u C-u TAB and M-N TAB).
@@ -756,6 +764,7 @@ function M.cycle()
     close_drawers(hl.line, hl.body_end)
     refresh_ellipsis()
     set_last_cycle(lnum, "children")
+    cycle_hook("children", hl)
     if hide_archived(hl.line, hl.end_line) then
       vim.api.nvim_echo({ { archived_msg } }, false, {})
       return
@@ -770,6 +779,7 @@ function M.cycle()
     close_drawers(hl.line, hl.end_line)
     refresh_ellipsis()
     set_last_cycle(lnum, "subtree")
+    cycle_hook("subtree", hl)
     if hide_archived(hl.line, hl.end_line) then
       vim.api.nvim_echo({ { archived_msg } }, false, {})
       return
@@ -781,6 +791,7 @@ function M.cycle()
   close_at(lnum)
   refresh_ellipsis()
   set_last_cycle(lnum, "folded")
+  cycle_hook("folded", hl)
   vim.api.nvim_echo({ { "FOLDED" } }, false, {})
 end
 

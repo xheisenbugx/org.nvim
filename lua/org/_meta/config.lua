@@ -520,36 +520,65 @@
 ---Kitty graphics protocol), `"snacks"` (Snacks.image), `"image.nvim"`, or
 ---`false`. `"auto"` uses the first that works. (default: `"auto"`)
 ---@field backend? "auto"|"native"|"snacks"|"image.nvim"|false
----Widest image: `"fill-column"` ('textwidth', else 80), `"window"`, a number
----of columns, or a fraction of the window. (Emacs `org-image-max-width`,
----default: `"fill-column"`)
----@field max_width? "fill-column"|"window"|number
+---Image width: `true` = their own size, a number = pixels, `false` or
+---`{ n }` = the `:width` of `#+ATTR_ORG` (else another `#+ATTR_x`), else n
+---pixels. The ORG-IMAGE-ACTUAL-WIDTH property overrides it.
+---(Emacs `org-image-actual-width`, default: `true`)
+---@field actual_width? boolean|number|number[]
+---Widest image: `"fill-column"` ('textwidth', else 70), `"window"`, a
+---number of pixels, a fraction of the window, or `false` (the window).
+---(Emacs `org-image-max-width`, default: `"fill-column"`)
+---@field max_width? "fill-column"|"window"|number|false
 ---Tallest image, in rows. (default: `24`)
 ---@field max_height? integer
+---Alignment of images alone in their paragraph; `#+ATTR_ORG: :align` /
+---`:center t` override it. (Emacs `org-image-align`, default: `"left"`)
+---@field align? "left"|"center"|"right"
 ---Preview image links when a file opens (`#+STARTUP: linkpreviews` /
 ---`inlineimages`). (Emacs `org-startup-with-link-previews`, default: `false`)
 ---@field startup? boolean
----File extensions previewed. (Emacs `image-types`)
+---Preview an entry's links when TAB shows it, remove them when it folds.
+---(Emacs `org-cycle-link-previews-display`, default: `false`)
+---@field cycle_display? boolean
+---File extensions previewed. (Emacs `image-file-name-regexp`)
 ---@field extensions? string[]
 
+---@class org.Config.UI.LatexProcess
+---@field programs? string[] programs that must be installed
+---@field message? string shown when they are not
+---@field image_input_type? string what the compiler makes (dvi, xdv, pdf)
+---@field image_output_type? string png or svg
+---@field image_size_adjust? number[] { buffer, html } scale factors
+---@field latex_header? string header used instead of `latex_preview.header`
+---@field latex_compiler? string[] shell commands (%f %F %b %o %O)
+---@field image_converter? string[] shell commands (%f %F %b %o %O %D %S)
+---@field transparent_image_converter? string[] used with a transparent background
+
 ---@class org.Config.UI.LatexPreview
----How fragments are rendered: `"auto"`, `"dvipng"` (latex + dvipng),
----`"tectonic"` (tectonic + pdftocairo), `"pdflatex"` (pdflatex +
----pdftocairo) or `"imagemagick"` (pdflatex + magick).
+---The process from `processes` that renders fragments, or `"auto"` for the
+---first installed of dvipng, dvisvgm, tectonic, pdflatex, imagemagick.
 ---(Emacs `org-preview-latex-default-process`, default: `"auto"`)
----@field process? "auto"|"dvipng"|"tectonic"|"pdflatex"|"imagemagick"
+---@field process? string
+---Processes added to or replacing dvipng, dvisvgm, xelatex, imagemagick,
+---tectonic and pdflatex. (Emacs `org-preview-latex-process-alist`, default: `{}`)
+---@field processes? table<string, org.Config.UI.LatexProcess>
 ---Size of the formulas relative to the text.
 ---(Emacs `org-format-latex-options` `:scale`, default: `1.0`)
 ---@field scale? number
----Color of the formulas: `"#rrggbb"` or `"auto"` (the Normal foreground).
----(default: `"auto"`)
+---Color of the formulas: `"default"` (Normal), `"auto"` (the text at the
+---fragment), a color name or `"#rrggbb"`. (`:foreground`, default: `"default"`)
 ---@field foreground? string
----LaTeX preamble; `#+LATEX_HEADER` lines are added to it. `nil` = a
----standalone class with amsmath, amssymb and xcolor.
+---Background: `"default"` (Normal), `"Transparent"`, a color name or
+---`"#rrggbb"`. (`:background`, default: `"default"`)
+---@field background? string
+---LaTeX preamble with `[DEFAULT-PACKAGES]` / `[PACKAGES]`; `#+LATEX_HEADER`
+---lines are added. `nil` = the Emacs header.
 ---(Emacs `org-format-latex-header`, default: `nil`)
 ---@field header? string
----Where rendered images are cached. `nil` = `stdpath("cache")/org/ltximg`.
----(Emacs `org-preview-latex-image-directory`, default: `nil`)
+---Where rendered images go, relative to the file's directory or absolute.
+---(Emacs `org-preview-latex-image-directory`, default: `"ltximg/"`)
+---@field image_directory? string
+---An absolute directory used instead of `image_directory`. (default: `nil`)
 ---@field cache_dir? string
 ---Preview every fragment when a file opens (`#+STARTUP: latexpreview`).
 ---(Emacs `org-startup-with-latex-preview`, default: `false`)
