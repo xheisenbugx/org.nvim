@@ -501,11 +501,7 @@ local function start_insert()
   if vim.fn.mode():sub(1, 1) == "i" then
     return
   end
-  if cursor()[2] >= #vim.api.nvim_get_current_line() then
-    vim.cmd("startinsert!")
-  else
-    vim.cmd("startinsert")
-  end
+  utils.start_insert()
 end
 
 --- C-RET (org-insert-heading-respect-content).
