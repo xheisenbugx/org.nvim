@@ -510,3 +510,47 @@
 ---Faces of tags, by tag, like `todo_keyword_faces`.
 ---(Emacs `org-tag-faces`, default: `{}`)
 ---@field tag_faces? table<string, string|vim.api.keyset.highlight>
+---Inline image previews (`org-link-preview`). See `:h org-images`.
+---@field images? org.Config.UI.Images
+---LaTeX fragment previews (`org-latex-preview`), drawn by the `images` backend.
+---@field latex_preview? org.Config.UI.LatexPreview
+
+---@class org.Config.UI.Images
+---`"auto"`, `"native"` (`vim.ui.img`: Neovim 0.13+ in a terminal with the
+---Kitty graphics protocol), `"snacks"` (Snacks.image), `"image.nvim"`, or
+---`false`. `"auto"` uses the first that works. (default: `"auto"`)
+---@field backend? "auto"|"native"|"snacks"|"image.nvim"|false
+---Widest image: `"fill-column"` ('textwidth', else 80), `"window"`, a number
+---of columns, or a fraction of the window. (Emacs `org-image-max-width`,
+---default: `"fill-column"`)
+---@field max_width? "fill-column"|"window"|number
+---Tallest image, in rows. (default: `24`)
+---@field max_height? integer
+---Preview image links when a file opens (`#+STARTUP: linkpreviews` /
+---`inlineimages`). (Emacs `org-startup-with-link-previews`, default: `false`)
+---@field startup? boolean
+---File extensions previewed. (Emacs `image-types`)
+---@field extensions? string[]
+
+---@class org.Config.UI.LatexPreview
+---How fragments are rendered: `"auto"`, `"dvipng"` (latex + dvipng),
+---`"tectonic"` (tectonic + pdftocairo), `"pdflatex"` (pdflatex +
+---pdftocairo) or `"imagemagick"` (pdflatex + magick).
+---(Emacs `org-preview-latex-default-process`, default: `"auto"`)
+---@field process? "auto"|"dvipng"|"tectonic"|"pdflatex"|"imagemagick"
+---Size of the formulas relative to the text.
+---(Emacs `org-format-latex-options` `:scale`, default: `1.0`)
+---@field scale? number
+---Color of the formulas: `"#rrggbb"` or `"auto"` (the Normal foreground).
+---(default: `"auto"`)
+---@field foreground? string
+---LaTeX preamble; `#+LATEX_HEADER` lines are added to it. `nil` = a
+---standalone class with amsmath, amssymb and xcolor.
+---(Emacs `org-format-latex-header`, default: `nil`)
+---@field header? string
+---Where rendered images are cached. `nil` = `stdpath("cache")/org/ltximg`.
+---(Emacs `org-preview-latex-image-directory`, default: `nil`)
+---@field cache_dir? string
+---Preview every fragment when a file opens (`#+STARTUP: latexpreview`).
+---(Emacs `org-startup-with-latex-preview`, default: `false`)
+---@field startup? boolean

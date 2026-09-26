@@ -131,7 +131,10 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "lint" # Check the buffer for syntax problems (org-lint)
+---| "link_preview" # Toggle image previews (count: 4 hide, 16 buffer, 64 hide buffer)
+---| "link_preview_refresh" # Refresh image previews in the buffer
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
@@ -480,6 +483,12 @@
 ---@field clock_report? org.MappingLhs
 --- Display clock sums. Default: `<prefix>xd`
 ---@field clock_display? org.MappingLhs
+--- Toggle image previews. Default: `<prefix>xv`
+---@field link_preview? org.MappingLhs
+--- Refresh image previews in the buffer. Default: `<prefix>xV`
+---@field link_preview_refresh? org.MappingLhs
+--- Toggle LaTeX previews. Default: `<prefix>xl`
+---@field latex_preview? org.MappingLhs
 --- Update dynamic block. Default: `<prefix>xu`
 ---@field dblock_update? org.MappingLhs
 --- Update all dynamic blocks. Default: `<prefix>xU`
@@ -756,6 +765,12 @@
 ---@field clock_report? org.MappingLhs
 --- Display clock sums. Default: `<C-c><C-x><C-d>`
 ---@field clock_display? org.MappingLhs
+--- Toggle image previews. Default: `<C-c><C-x><C-v>`
+---@field link_preview? org.MappingLhs
+--- Refresh image previews in the buffer. Default: `<C-c><C-x><C-M-v>`
+---@field link_preview_refresh? org.MappingLhs
+--- Toggle LaTeX previews. Default: `<C-c><C-x><C-l>`
+---@field latex_preview? org.MappingLhs
 --- Set effort. Default: `<C-c><C-x>e`
 ---@field set_effort? org.MappingLhs
 --- Next allowed effort value. Default: `<C-c><C-x>E`

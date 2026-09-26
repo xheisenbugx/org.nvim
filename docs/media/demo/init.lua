@@ -20,6 +20,11 @@ for _, src in ipairs(vim.fn.glob(here .. "/*.org", false, true)) do
   end)
   vim.fn.writefile(vim.split(text, "\n"), dir .. "/" .. vim.fn.fnamemodify(src, ":t"))
 end
+-- images linked from the demo files
+vim.fn.mkdir(dir .. "/img", "p")
+for _, src in ipairs(vim.fn.glob(here .. "/img/*", false, true)) do
+  vim.uv.fs_copyfile(src, dir .. "/img/" .. vim.fn.fnamemodify(src, ":t"))
+end
 
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
@@ -59,6 +64,7 @@ require("org").setup({
   ui = {
     bullets = { "◉", "○", "✸", "✿" },
     checkboxes = { " ", "◐", "✓" },
+    images = { max_height = 12 },
   },
 })
 

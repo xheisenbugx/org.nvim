@@ -3116,6 +3116,59 @@ Options under `ui`:
                 (org-toggle-pretty-entities, toggle_pretty_entities).
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
 
+Images and LaTeX previews                                       *org-images*
+Image links and LaTeX fragments can be shown as images under their line
+(org-link-preview, org-latex-preview). A backend draws them, chosen with
+`ui.images.backend`:
+  "native"      `vim.ui.img`, Neovim 0.13+, in a terminal with the Kitty
+                graphics protocol (kitty, Ghostty, WezTerm...). Support is
+                checked once by asking the terminal. Not through tmux.
+  "snacks"      Snacks.image from snacks.nvim (also inside tmux, with
+                `allow-passthrough on`). For Neovim before 0.13.
+  "image.nvim"  3rd/image.nvim.
+  "auto"        (default) the first of these that works; `false` turns
+                previews off. |:checkhealth| org tells which one is used.
+With the native backend, virtual lines keep the space under the line free
+and the images are placed on the screen after every redraw, so they follow
+scrolling, folding, window splits and resizes. An image is shown once all
+of it fits in the window, and hidden under floating windows. Only PNG can
+be sent to the terminal: other formats are converted with ImageMagick
+(`magick`). Sizes come from the terminal's cell size in pixels.
+
+<prefix>xv      Preview the image link at the cursor, the links of the
+<C-c><C-x><C-v> Visual selection, or of the current entry; again to hide
+                them (org-link-preview, link_preview). Image links are
+                `file:` and `attachment:` links, without a description,
+                to an existing file with an extension in
+                `ui.images.extensions`. A count like the Emacs prefix: 4
+                hides the entry's previews, 16 previews the whole buffer,
+                64 hides them all; 1 (entry) and 11 (buffer) also preview
+                links with a description.
+<prefix>xV      Preview every image link of the buffer again, e.g. after
+<C-c><C-x><C-M-v>  the files changed (org-link-preview-refresh).
+<prefix>xl      Render the LaTeX fragment at the cursor, or those of the
+<C-c><C-x><C-l> Visual selection or of the current entry, and show them
+                under their line; again to hide them (org-latex-preview,
+                latex_preview). Fragments are `$x$`, `$$x$$`, `\(x\)`,
+                `\[x\]` and `\begin{env}...\end{env}`. Count: 4 hides the
+                entry's previews, 16 previews the whole buffer, 64 hides
+                them all. Rendering runs in the background.
+
+`#+ATTR_ORG: :width 300` sets the width of an image in pixels (ATTR_HTML
+and ATTR_LATEX are used without ATTR_ORG). `#+STARTUP: linkpreviews`
+(`inlineimages`) and `latexpreview` preview a file when it opens, like
+`ui.images.startup` and `ui.latex_preview.startup`; the `no...` words turn
+that off. Editing a previewed link or fragment removes its preview.
+
+LaTeX is rendered with `ui.latex_preview.process`: "dvipng" (latex and
+dvipng, like Emacs), "tectonic" (tectonic and pdftocairo), "pdflatex"
+(pdflatex and pdftocairo) or "imagemagick" (pdflatex and magick); "auto"
+uses the first one installed. The document is a standalone class with
+amsmath, amssymb and xcolor (`ui.latex_preview.header`) plus the file's
+`#+LATEX_HEADER` lines, and the formulas take the Normal foreground
+(`foreground`) at about the height of a text line (`scale`). Images are
+cached in `stdpath("cache")/org/ltximg` (`cache_dir`).
+
 Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.
@@ -3435,6 +3488,7 @@ Section `org` (default key: action):
   <prefix>xi xo xq xj xe  clock_in/out/cancel/goto, set_effort
   <prefix>xE xm xz  inc_effort, clock_modify_effort, clock_resolve
   <prefix>xr xd xu xU  clock_report, clock_display, dblock_update(_all)
+  <prefix>xv xV xl  link_preview, link_preview_refresh, latex_preview
   <prefix>C  column_view
   <prefix>li ls lt ln lp  insert/store_link, toggle_link_display,
                           next/prev_link
@@ -3535,6 +3589,8 @@ Clock, effort, dynamic blocks, timers:
   <C-c><C-x>e      effort               <C-c><C-x>E  next allowed effort
   <C-c><C-x><C-e>  change clocked effort <C-c><C-x><C-z>  resolve clocks
   <C-S-Up> <C-S-Down>  shift CLOCK line timestamps
+  <C-c><C-x><C-v>  image previews       <C-c><C-x><C-M-v>  refresh them
+  <C-c><C-x><C-l>  LaTeX previews
   <C-c><C-x><C-u>  update dblock
   <C-c><C-x><C-c>  column view          <C-c><C-x>i  columnview block
   <C-c><C-x>x      insert dynamic block
@@ -3653,6 +3709,8 @@ Targets are `{ bufnr = n, lnum = l }`.
              lognoteclock-out nolognoteclock-out logdrawer nologdrawer
              logstatesreversed nologstatesreversed
              customtime (custom timestamp display)
+             linkpreviews nolinkpreviews inlineimages noinlineimages
+             latexpreview nolatexpreview (|org-images|)
              shrink noshrink (table columns with width cookies)
   #+PROPERTY: NAME value                file-wide property; `NAME+` appends
   #+PROPERTY: header-args:python :results output
@@ -3845,10 +3903,10 @@ Differences from Emacs:
   - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
     staging/sync protocol is tied to Emacs; sync the files with any file
     sync tool instead.
-  - inline image and LaTeX previews: core Neovim has no image protocol
-    (org-link-preview, org-toggle-inline-images, org-image-max-width,
-    org-display-remote-inline-images); an image.nvim / snacks.image
-    integration could provide them in kitty or sixel terminals.
+  - remote images (org-display-remote-inline-images) and link previews of
+    other link types (org-link-set-parameters :preview) are not shown.
+- Image and LaTeX previews (|org-images|) are drawn under their line, not
+  in place of the link or fragment, and need a terminal image backend.
 - Column view is a separate table buffer rather than overlays on the
   headlines. Like Emacs, digits 1-9 select allowed values there, so counts
   are not available in the view (0 keeps its Vim meaning).

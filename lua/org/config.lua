@@ -1407,6 +1407,46 @@ M.defaults = {
     --- Faces of tags, like `todo_keyword_faces`: `{ urgent = ":foreground red" }`
     --- (org-tag-faces).
     tag_faces = {},
+    --- Inline image previews (org-link-preview, <C-c><C-x><C-v>). See
+    --- `:h org-images`.
+    images = {
+      --- "auto" | "native" (vim.ui.img: Neovim 0.13+ in a terminal with the
+      --- Kitty graphics protocol) | "snacks" (Snacks.image) | "image.nvim" |
+      --- false. "auto" uses the first that works.
+      backend = "auto",
+      --- Widest image (org-image-max-width): "fill-column" ('textwidth',
+      --- else 80), "window", a number of columns, or a fraction of the window.
+      max_width = "fill-column",
+      --- Tallest image, in rows.
+      max_height = 24,
+      --- Preview image links when a file opens (org-startup-with-link-previews;
+      --- #+STARTUP: linkpreviews / nolinkpreviews, inlineimages / noinlineimages).
+      startup = false,
+      --- File extensions previewed (Emacs `image-types`).
+      extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "tif", "tiff", "avif" },
+    },
+    --- LaTeX fragment previews (org-latex-preview, <C-c><C-x><C-l>), drawn by
+    --- the `images` backend.
+    latex_preview = {
+      --- How fragments are rendered (org-preview-latex-default-process):
+      --- "auto" | "dvipng" (latex + dvipng) | "tectonic" (tectonic +
+      --- pdftocairo) | "pdflatex" (pdflatex + pdftocairo) | "imagemagick"
+      --- (pdflatex + magick). "auto" uses the first that is installed.
+      process = "auto",
+      --- Size of the formulas relative to the text (org-format-latex-options :scale).
+      scale = 1.0,
+      --- Color of the formulas: "#rrggbb", or "auto" for the Normal foreground.
+      foreground = "auto",
+      --- LaTeX preamble (org-format-latex-header); #+LATEX_HEADER lines are
+      --- added to it. nil = a standalone class with amsmath, amssymb and xcolor.
+      header = nil,
+      --- Where rendered images are cached (org-preview-latex-image-directory).
+      --- nil = stdpath("cache") .. "/org/ltximg".
+      cache_dir = nil,
+      --- Preview every fragment when a file opens (org-startup-with-latex-preview;
+      --- #+STARTUP: latexpreview / nolatexpreview).
+      startup = false,
+    },
   },
 
   ---------------------------------------------------------------------------
@@ -1511,6 +1551,9 @@ M.defaults = {
       clock_resolve = "<prefix>xz",
       clock_report = "<prefix>xr",
       clock_display = "<prefix>xd",
+      link_preview = "<prefix>xv",
+      link_preview_refresh = "<prefix>xV",
+      latex_preview = "<prefix>xl",
       dblock_update = "<prefix>xu",
       dblock_update_all = "<prefix>xU",
       column_view = "<prefix>C",
@@ -1667,6 +1710,9 @@ M.defaults = {
       clock_goto = "<C-c><C-x><C-j>",
       clock_report = "<C-c><C-x><C-r>",
       clock_display = "<C-c><C-x><C-d>",
+      link_preview = "<C-c><C-x><C-v>",
+      link_preview_refresh = "<C-c><C-x><C-M-v>",
+      latex_preview = "<C-c><C-x><C-l>",
       set_effort = "<C-c><C-x>e",
       inc_effort = "<C-c><C-x>E",
       clock_modify_effort = "<C-c><C-x><C-e>",

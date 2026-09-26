@@ -230,6 +230,28 @@ efforts and clocked time up the tree.
 
 ![Clocking in, inserting a clock table, then opening column view](docs/media/clock.gif)
 
+### Images and LaTeX, right in your notes
+
+`<leader>oxv` (`C-c C-x C-v`) shows image links as images under their
+line, and `<leader>oxl` (`C-c C-x C-l`) renders LaTeX fragments. On Neovim
+0.13+ they're drawn by the built-in `vim.ui.img` in any terminal with the
+Kitty graphics protocol (kitty, Ghostty, WezTerm). They follow scrolling,
+folds and splits. On older Neovim, or inside tmux, org.nvim uses
+[snacks.nvim](https://github.com/folke/snacks.nvim)'s image module or
+[image.nvim](https://github.com/3rd/image.nvim) instead. `#+STARTUP:
+linkpreviews` and `latexpreview` turn them on when a file opens.
+
+![Previewing the images of an entry and then the whole buffer, scrolling and folding with them](docs/media/images.gif)
+
+LaTeX is rendered in the background with `latex` + `dvipng` like Emacs, or
+with `tectonic` / `pdflatex`, in your colorscheme's text color, and the
+results are cached:
+
+![Rendering an inline formula, a displayed integral and an align environment, then hiding one](docs/media/latex.gif)
+
+These two were recorded in a real kitty window
+([`docs/media/kitty`](docs/media/kitty)); VHS can't show Kitty graphics.
+
 ### Links
 
 `<leader>ols` stores a link to the current heading (or file, line or ID),
@@ -286,6 +308,7 @@ available there:
 | 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode and plots |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` (shells, Python, Node, Ruby, Lua), inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | A port of Emacs's export engine: HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar back-ends matching Emacs output, citations, publishing projects, every `#+OPTIONS` key, plus DOCX, ODT, EPUB and more through pandoc |
+| 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in the buffer (`org-link-preview`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `#+ATTR_ORG: :width`, `#+STARTUP: linkpreviews latexpreview`, dvipng / tectonic / pdflatex rendering with a cache |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -316,6 +339,9 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
   - `pandoc` for LaTeX, PDF, DOCX and ODT export.
   - `latexmk` or `pdflatex` for native PDF.
   - The language interpreters you want Babel to run.
+  - For image and LaTeX previews: Neovim 0.13+ in kitty, Ghostty or
+    WezTerm (or snacks.nvim / image.nvim), ImageMagick for non-PNG images,
+    and `latex` + `dvipng` or `tectonic` for LaTeX.
 
 ---
 
@@ -700,9 +726,10 @@ run in batch mode. What can't work the same way is listed with the reason in
   commands) have no counterpart; common diary sexps such as
   `%%(org-anniversary ...)`, `%%(diary-float ...)` and
   `%%(org-calendar-holiday)` (with Emacs's holiday lists) are emulated.
-- **Display:** inline image and LaTeX previews need an image protocol core
-  Neovim lacks; hiding body text between visible headlines needs Neovim
-  0.11 (`conceal_lines`); column view is a table view, not overlays.
+- **Display:** image and LaTeX previews are drawn under their line, not in
+  place of the link, and need a terminal image backend; hiding body text
+  between visible headlines needs Neovim 0.11 (`conceal_lines`); column
+  view is a table view, not overlays.
 - **Point vs cursor:** Emacs acts between characters, Normal mode on a
   character, so commands that insert "at point" act at the end of the line
   in Normal mode (at the cursor in Insert mode).
@@ -717,7 +744,7 @@ run in batch mode. What can't work the same way is listed with the reason in
 
 Ideas that would need more than core Neovim:
 
-- [ ] Inline image and LaTeX previews through image.nvim / snacks.image
+- [x] Inline image and LaTeX previews (`vim.ui.img`, snacks.image, image.nvim)
 - [ ] Column view as overlays on headlines
 - [ ] Async Babel sessions (`:async`)
 
