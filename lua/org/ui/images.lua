@@ -1182,7 +1182,10 @@ end
 
 ---@class org.images.Backend
 ---@field name string
----@field show fun(bufnr: integer, p: org.images.Preview, row: integer, col: integer)
+--- `row`/`col`: the end of the link or fragment (where the native backend
+--- reserves its rows); `x`: the column the image starts at; `start_row`:
+--- the first row of the link or fragment.
+---@field show fun(bufnr: integer, p: org.images.Preview, row: integer, col: integer, x: integer, start_row: integer)
 ---@field hide fun(bufnr: integer, p: org.images.Preview)
 ---@field needs_png? boolean
 
@@ -1246,9 +1249,11 @@ backends.native = {
 
 backends.snacks = {
   name = "snacks",
-  show = function(bufnr, p, row, col)
+  show = function(bufnr, p, row, col, x, start_row)
     p.handle = Snacks.image.placement.new(bufnr, p.src, {
-      pos = { row + 1, col },
+      pos = { start_row + 1, x },
+      -- the whole link: snacks then draws the image under it, at its column
+      range = { start_row + 1, x, row + 1, col },
       inline = true,
       auto_resize = true,
       max_width = p.width,
@@ -1265,7 +1270,7 @@ backends.snacks = {
 
 backends["image.nvim"] = {
   name = "image.nvim",
-  show = function(bufnr, p, row, col)
+  show = function(bufnr, p, row, _, x)
     local win = vim.fn.bufwinid(bufnr)
     if win == -1 then
       -- image.nvim needs a window; show it when the buffer is displayed
@@ -1277,7 +1282,7 @@ backends["image.nvim"] = {
       buffer = bufnr,
       inline = true,
       with_virtual_padding = true,
-      x = col,
+      x = x,
       y = row,
       width = p.width,
       height = p.height,
@@ -1486,6 +1491,18 @@ local function size_of(win, s)
   return M.fit(s.pw, s.ph, maxw, opts().max_height, want)
 end
 
+--- Show preview `p` with backend `b` where its extmark is now: the rows
+--- are reserved at the end of the link or fragment, the image starts at
+--- its first column (at the line start when it spans lines).
+local function show(b, bufnr, p)
+  local r, c, d = mark_pos(bufnr, p.mark)
+  local end_row = d and d.end_row or r
+  local line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
+  local end_col = math.min(d and d.end_col or c, #line)
+  local x = r == end_row and c or #line:match("^%s*")
+  return b.show(bufnr, p, end_row, end_col, x, r)
+end
+
 local function add(bufnr, kind, spec, src, backend)
   local win = vim.fn.bufwinid(bufnr)
   win = win ~= -1 and win or vim.api.nvim_get_current_win()
@@ -1518,8 +1535,7 @@ local function add(bufnr, kind, spec, src, backend)
       undo_restore = false,
     }),
   }
-  local line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
-  local ok, err = pcall(backend.show, bufnr, p, end_row, math.min(spec.end_col, #line))
+  local ok, err = pcall(show, backend, bufnr, p)
   if not ok then
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p.mark)
     return false, tostring(err)
@@ -1622,12 +1638,10 @@ function M.refit()
           local w, h = size_of(win, p.size)
           if w ~= p.width or h ~= p.height then
             p.width, p.height = w, h
-            local r, _, d = mark_pos(bufnr, p.mark)
             local b = backend_of(p)
-            if r and b then
+            if mark_pos(bufnr, p.mark) and b then
               pcall(b.hide, bufnr, p)
-              local line = vim.api.nvim_buf_get_lines(bufnr, d.end_row, d.end_row + 1, false)[1] or ""
-              pcall(b.show, bufnr, p, d.end_row, math.min(d.end_col, #line))
+              pcall(show, b, bufnr, p)
             end
           end
         end
@@ -1880,12 +1894,9 @@ function M.attach(bufnr)
       -- image.nvim previews made while no window showed the buffer
       for _, p in pairs(previews[bufnr] or {}) do
         local b = backend_of(p)
-        if p.deferred and b then
-          local _, _, d = mark_pos(bufnr, p.mark)
-          if d then
-            p.deferred = nil
-            pcall(b.show, bufnr, p, d.end_row, d.end_col)
-          end
+        if p.deferred and b and mark_pos(bufnr, p.mark) then
+          p.deferred = nil
+          pcall(show, b, bufnr, p)
         end
       end
     end,

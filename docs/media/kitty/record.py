@@ -90,9 +90,10 @@ def kitty(*args):
     subprocess.run(["kitty", "@", "--to", "unix:" + SOCK, *args], check=False, capture_output=True)
 
 
-def window_id(helper):
+def window_id(helper, pid):
+    # only the window of the kitty started here, not the user's own
     for _ in range(50):
-        out = run(helper, "kitty").strip()
+        out = run(helper, "kitty", str(pid)).strip()
         if out:
             return out.splitlines()[-1].split("\t")[0]
         time.sleep(0.2)
@@ -118,7 +119,7 @@ def record(name, helper, workdir):
         ],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    wid = window_id(helper)
+    wid = window_id(helper, proc.pid)
     time.sleep(2.5)
 
     stamps = []
