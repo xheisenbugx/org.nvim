@@ -30,3 +30,18 @@ To try the demo setup by hand:
 export ORG_DEMO_DIR=/tmp/org-nvim-demo
 nvim -u docs/media/demo/init.lua $ORG_DEMO_DIR/notes.org
 ```
+
+## Images (kitty)
+
+`images.gif` and `latex.gif` show images drawn with the Kitty graphics
+protocol, which VHS's terminal can't display. `kitty/record.py` records
+them in a real kitty window instead: it drives Neovim through kitty's
+remote control, captures the window with `screencapture` and builds the
+GIF with ffmpeg (and gifsicle when installed). macOS only; it needs kitty,
+ffmpeg, swiftc, Neovim 0.13+ and Screen Recording permission for the
+terminal that runs it. LaTeX needs `latex` + `dvipng` or `tectonic`.
+
+```sh
+python3 docs/media/kitty/record.py          # both
+python3 docs/media/kitty/record.py latex    # one
+```

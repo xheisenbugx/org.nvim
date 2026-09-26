@@ -1,0 +1,13 @@
+#+TITLE: Trip report
+
+* The offsite
+We met in Lisbon for three days.
+[[file:img/offsite.png]]
+
+* Growth
+#+ATTR_ORG: :width 540
+[[file:img/stars.png]]
+
+* The old logo
+A JPEG, converted to PNG with ImageMagick:
+[[file:img/wizard.jpg]]
