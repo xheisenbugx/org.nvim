@@ -387,11 +387,15 @@ function M.coderef_pattern(switches)
   return "%s*" .. vim.pesc(fmt:sub(1, s - 1)) .. "([%w_%-][%w_%- ]*)" .. vim.pesc(fmt:sub(e + 1)) .. "%s*$"
 end
 
---- Unescape `,*` and `,#+` at line starts.
+--- Remove one comma before `*` and `#+`, including nested escapes.
 function M.unescape(lines)
   local out = {}
   for i, l in ipairs(lines) do
-    out[i] = l:gsub("^(%s*),([%*#])", "%1%2")
+    if l:match("^%s*,+%*") or l:match("^%s*,+#%+") then
+      out[i] = l:gsub("^(%s*),", "%1", 1)
+    else
+      out[i] = l
+    end
   end
   return out
 end
@@ -454,6 +458,35 @@ function M.preserve_indentation(switches)
   return require("org.config").opts.src_preserve_indentation == true
 end
 
+local function literal_end(lines, start, kind)
+  for j = start + 1, #lines do
+    -- a headline needs a space after the stars (org-outline-regexp)
+    if lines[j]:match("^%*+ ") then
+      break
+    elseif lines[j]:lower():match("^%s*#%+end_" .. kind .. "%s*$") then
+      return j
+    end
+  end
+end
+
+--- Lines whose contents cannot contain inline Babel objects. Greater
+--- elements (quote, center, special) and verse blocks do contain objects.
+function M.inline_literal_lines(lines)
+  local hidden, i = {}, 1
+  while i <= #lines do
+    local kind = lines[i]:lower():match("^%s*#%+begin_(%S+)")
+    local literal = kind == "src" or kind == "example" or kind == "export" or kind == "comment"
+    local finish = literal and literal_end(lines, i, kind)
+    if finish then
+      for j = i, finish do
+        hidden[j] = true
+      end
+    end
+    i = finish and (finish + 1) or (i + 1)
+  end
+  return hidden
+end
+
 --- Parse all src blocks (and #+CALL lines) of a list of lines.
 ---@return table[] blocks
 function M.parse_blocks(lines)
@@ -464,14 +497,9 @@ function M.parse_blocks(lines)
     local line = lines[i]
     local indent, rest = line:match("^(%s*)#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc](.*)$")
     local call = not indent and line:match("^%s*#%+[Cc][Aa][Ll][Ll]:%s*(.-)%s*$")
-    if indent and (rest == "" or rest:match("^%s")) then
-      local j = i + 1
-      while j <= n and not lines[j]:match("^%s*#%+[Ee][Nn][Dd]_[Ss][Rr][Cc]") do
-        j = j + 1
-      end
-      if j > n then
-        break
-      end
+    local finish = indent and (rest == "" or rest:match("^%s")) and literal_end(lines, i, "src")
+    if finish then
+      local j = finish
       local lang, after = vim.trim(rest):match("^(%S+)%s*(.*)$")
       lang = lang or ""
       after = after or ""
@@ -580,7 +608,13 @@ function M.parse_blocks(lines)
       blocks[#blocks + 1] = block
       i = i + 1
     else
-      i = i + 1
+      -- These elements contain literal text, not nested Org elements.
+      -- In particular, examples documenting Babel must never be executed
+      -- or tangled (org-babel-active-location-p).
+      local kind = line:lower():match("^%s*#%+begin_(%S+)")
+      local literal = kind == "example" or kind == "export" or kind == "comment" or kind == "verse"
+      local finish = literal and literal_end(lines, i, kind)
+      i = finish and (finish + 1) or (i + 1)
     end
   end
   return blocks

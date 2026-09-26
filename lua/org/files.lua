@@ -10,7 +10,7 @@ local utils = require("org.utils")
 local M = {}
 
 local disk_cache = {} -- path -> { mtime, file }
-local buf_cache = {} -- bufnr -> { tick, file, todo_spec }
+local buf_cache = {} -- bufnr -> { tick, name, file, todo_spec }
 
 --- Parse a buffer (cached by changedtick).
 ---@param bufnr? integer
@@ -18,16 +18,19 @@ local buf_cache = {} -- bufnr -> { tick, file, todo_spec }
 function M.get_buffer(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local name = vim.api.nvim_buf_get_name(bufnr)
   local spec = require("org.config").opts.todo_keywords
   local c = buf_cache[bufnr]
-  if c and c.tick == tick and c.todo_spec == spec then
+  -- :file / :saveas and the first :write can rename a buffer without
+  -- changing its text. File-relative links and agenda locations must
+  -- immediately use the new filename.
+  if c and c.tick == tick and c.name == name and c.todo_spec == spec then
     return c.file
   end
-  local name = vim.api.nvim_buf_get_name(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local file = parser.parse(lines, name ~= "" and vim.fs.normalize(name) or nil)
   file.bufnr = bufnr
-  buf_cache[bufnr] = { tick = tick, file = file, todo_spec = spec }
+  buf_cache[bufnr] = { tick = tick, name = name, file = file, todo_spec = spec }
   return file
 end
 

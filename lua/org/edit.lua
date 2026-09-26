@@ -293,7 +293,7 @@ function M.set_property(bufnr, lnum, name, value)
     if value == nil then
       local removed = 0
       for i = e - 1, s + 1, -1 do
-        local key = file.lines[i]:match("^%s*:([^%s:]+):")
+        local key = parser.parse_property_line(file.lines[i])
         if key and (key:upper() == upper or key:upper() == upper .. "+") then
           vim.api.nvim_buf_set_lines(bufnr, i - 1, i, false, {})
           removed = removed + 1
@@ -306,7 +306,7 @@ function M.set_property(bufnr, lnum, name, value)
       return true
     end
     for i = s + 1, e - 1 do
-      local key = file.lines[i]:match("^%s*:([^%s:]+):")
+      local key = parser.parse_property_line(file.lines[i])
       if key and key:upper() == upper then
         vim.api.nvim_buf_set_lines(bufnr, i - 1, i, false, { M.property_line(indent, name, value) })
         return true

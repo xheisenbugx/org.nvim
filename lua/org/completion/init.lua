@@ -137,6 +137,45 @@ local function property_names(file)
   return out
 end
 
+--- Completion runs while the current property name is incomplete, when
+--- the strict document parser correctly does not expose drawer metadata.
+--- Recognize that editing context locally without publishing partial IDs
+--- or other properties to the rest of the document model.
+local function property_keys_at(file, lnum)
+  local hl = file:headline_at(lnum)
+  local first = hl and ((hl.planning_line or hl.line) + 1) or 1
+  local last = hl and hl.body_end or file.preamble_end
+  if not hl then
+    while
+      first <= last
+      and (
+        file.lines[first]:match("^%s*$")
+        or file.lines[first]:match("^%s*#%s")
+        or file.lines[first]:match("^%s*#$")
+      )
+    do
+      first = first + 1
+    end
+  end
+  if lnum <= first or not (file.lines[first] or ""):match("^%s*:PROPERTIES:%s*$") then
+    return nil
+  end
+  local keys = {}
+  for i = first + 1, last do
+    if file.lines[i]:match("^%s*:END:%s*$") then
+      return lnum < i and keys or nil
+    elseif i ~= lnum then
+      local name = require("org.parser").parse_property_line(file.lines[i])
+      if not name then
+        return nil
+      end
+      keys[(name:gsub("%+$", "")):upper()] = true
+    end
+  end
+  -- Also complete a property drawer that is still being written at EOF.
+  return keys
+end
+
 ---@class org.CompletionContext
 ---@field start integer 0-based byte column where the completed word starts
 ---@field items { word: string, kind: string, menu?: string }[]
@@ -282,13 +321,12 @@ function M.get(line, col, bufnr)
   local prop_lead = before:match("^%s*:([^%s:]*)$")
   if prop_lead then
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
-    local hl = file:headline_at(lnum)
-    local in_props = hl and hl.properties_range and lnum > hl.properties_range[1] and lnum < hl.properties_range[2]
+    local property_keys = property_keys_at(file, lnum)
     local list = {}
-    if in_props then
+    if property_keys then
       -- property names not yet set in this entry (pcomplete/org-mode/prop)
       for _, p in ipairs(property_names(file)) do
-        if hl.properties[p:upper()] == nil then
+        if not property_keys[p:upper()] then
           list[#list + 1] = p .. ": "
         end
       end

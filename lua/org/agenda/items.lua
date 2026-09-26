@@ -308,9 +308,33 @@ local function nth_occ(ts, k)
   elseif r.unit == "w" then
     return ts:days() + k * r.value * 7
   elseif r.unit == "h" then
-    return ts:days() + math.floor(k * r.value / 24)
+    return ts:days() + math.floor(((ts.hour or 0) + k * r.value) / 24)
   end
   return ts:add(k * r.value, r.unit):days()
+end
+
+--- Neighboring repeat days. Calendar units use actual month/year offsets;
+--- estimating months as 28 days can overshoot years-old repeaters.
+local function neighboring_occurrences(ts, day)
+  local r = ts.repeater
+  if r.unit == "h" then
+    -- org-closest-date evaluates hourly repeats at the effective start of
+    -- the agenda day, including org-extend-today-until.
+    local missing = (24 * (day - ts:days()) - (ts.hour or 0) + (config.opts.extend_today_until or 0)) % r.value
+    local before = missing == 0 and day or day - (1 + math.floor(missing / 24))
+    local after = day + math.floor((r.value - missing) / 24)
+    return before, after
+  end
+  local y, m = date.civil_from_days(day)
+  local elapsed = r.unit == "y" and (y - ts.year) or ((y - ts.year) * 12 + m - ts.month)
+  local k = math.max(0, math.floor(elapsed / r.value))
+  while k > 0 and nth_occ(ts, k) > day do
+    k = k - 1
+  end
+  while nth_occ(ts, k + 1) <= day do
+    k = k + 1
+  end
+  return nth_occ(ts, k), nth_occ(ts, k + 1)
 end
 
 --- Smallest occurrence day >= `day` (the base when it is later).
@@ -323,16 +347,9 @@ local function next_occ(ts, day)
   if r.unit == "d" or r.unit == "w" then
     local step = r.value * (r.unit == "w" and 7 or 1)
     return base + math.ceil((day - base) / step) * step
-  elseif r.unit == "h" then
-    return day
   end
-  local k = 0
-  local approx = r.unit == "y" and 365 * r.value or 28 * r.value
-  k = math.max(0, math.floor((day - base) / approx) - 1)
-  while nth_occ(ts, k) < day do
-    k = k + 1
-  end
-  return nth_occ(ts, k)
+  local before, after = neighboring_occurrences(ts, day)
+  return before == day and day or after
 end
 
 --- Largest occurrence day <= `day` (the base when it is later).
@@ -341,24 +358,13 @@ local function last_occ(ts, day)
   if not repeating(ts) or base >= day then
     return base
   end
-  local n = next_occ(ts, day)
-  if n == day then
-    return day
-  end
   local r = ts.repeater
   if r.unit == "d" or r.unit == "w" then
     local step = r.value * (r.unit == "w" and 7 or 1)
-    return n - step
-  elseif r.unit == "h" then
-    return day
+    return base + math.floor((day - base) / step) * step
   end
-  local k = 0
-  local approx = r.unit == "y" and 365 * r.value or 28 * r.value
-  k = math.max(0, math.floor((day - base) / approx) - 1)
-  while nth_occ(ts, k + 1) <= day do
-    k = k + 1
-  end
-  return nth_occ(ts, k)
+  local before, after = neighboring_occurrences(ts, day)
+  return after == day and day or before
 end
 M.next_occ, M.last_occ = next_occ, last_occ
 

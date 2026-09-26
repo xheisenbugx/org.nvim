@@ -499,6 +499,9 @@ describe("resolving clocks (Emacs)", function()
     config.opts.clock.idle_time = 10
     local buf = running()
     local asked
+    -- Seconds near :59 round the displayed 20.x idle minutes up to 21.0.
+    -- Pin seconds so this assertion does not depend on when the suite runs.
+    local real_os_date = os.date
     with(clock, {
       user_idle_seconds = function()
         return 20 * 60
@@ -510,7 +513,17 @@ describe("resolving clocks (Emacs)", function()
           return "S"
         end,
       }, function()
-        clock._tick()
+        with(os, {
+          date = function(fmt, epoch)
+            local value = real_os_date(fmt, epoch)
+            if fmt == "*t" then
+              value.sec = 30
+            end
+            return value
+          end,
+        }, function()
+          clock._tick()
+        end)
       end)
     end)
     ok(asked and asked:match("^Clocked in & idle for 20%.%d mins: A"), asked)

@@ -88,6 +88,7 @@ function M.new(sequences)
     has_fast_keys = false,
     has_log_flags = false,
   }, TodoConfig)
+  local last_name
   for si, seq in ipairs(M.normalize(sequences)) do
     local tokens = vim.split(vim.trim(seq), "%s+")
     local has_bar = vim.tbl_contains(tokens, "|")
@@ -99,8 +100,9 @@ function M.new(sequences)
       elseif tok ~= "" then
         local kw = parse_token(tok)
         -- without "|", the last keyword is the DONE state
-        kw.done = done or (not has_bar and ti == #tokens and #tokens > 1)
+        kw.done = done or (not has_bar and ti == #tokens)
         kw.seq = si
+        last_name = kw.name
         if not self.by_name[kw.name] then
           kw.index = #self.keywords + 1
           self.keywords[#self.keywords + 1] = kw
@@ -118,6 +120,15 @@ function M.new(sequences)
     if #list > 0 then
       self.sequences[#self.sequences + 1] = list
     end
+  end
+  -- Like Emacs (org-set-regexps-and-options): when no sequence has a DONE
+  -- state ("WAIT |"), the last keyword overall is the DONE state.
+  local any_done = false
+  for _, kw in ipairs(self.keywords) do
+    any_done = any_done or kw.done
+  end
+  if last_name and not any_done then
+    self.by_name[last_name].done = true
   end
   return self
 end

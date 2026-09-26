@@ -111,7 +111,7 @@ end
 
 --- Format a closed clock line (`=>` holds the duration as H:MM, like Emacs).
 function M.format_clock_line(indent, start, stop)
-  local minutes = stop:minutes() - start:minutes()
+  local minutes = date.elapsed_minutes(start, stop)
   local m = math.abs(minutes)
   return string.format(
     "%sCLOCK: %s--%s => %s",
@@ -167,7 +167,7 @@ function M.active()
   if not start then
     return nil
   end
-  local minutes = date.now():minutes() - start:minutes()
+  local minutes = date.elapsed_minutes(start, date.now())
   local clocked = minutes + (st.total or 0)
   return {
     path = st.path,
@@ -2247,10 +2247,23 @@ local function running_in(file)
   for _, hl in ipairs(file.headlines) do
     for _, c in ipairs(hl.clocks) do
       if not c["end"] and start and c.start:minutes() == start:minutes() then
-        return hl, start:minutes()
+        return hl, start
       end
     end
   end
+end
+
+--- Report bounds use civil minutes; convert them to local instants before
+--- clipping so a clock spanning a DST change retains its real duration.
+local function clipped_clock_minutes(start, stop, from_min, to_min)
+  local s, e = start:to_time(), stop:to_time()
+  if from_min then
+    s = math.max(s, at_minutes(from_min):to_time())
+  end
+  if to_min then
+    e = math.min(e, at_minutes(to_min):to_time())
+  end
+  return math.max(0, math.floor((e - s) / 60))
 end
 
 --- Clock sums of a file (org-clock-sum): for each headline in the scanned
@@ -2270,15 +2283,11 @@ function clock_sum(roots, ts, te, pred)
     local t = 0
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        local s, e = c.start:minutes(), c["end"]:minutes()
-        local dt = (te and math.min(e, te) or e) - (ts and math.max(s, ts) or s)
-        if dt > 0 then
-          t = t + dt
-        end
+        t = t + clipped_clock_minutes(c.start, c["end"], ts, te)
       end
     end
-    if hl == run_hl and run_start >= ts and run_start <= te then
-      t = t + math.max(0, date.now():minutes() - run_start)
+    if hl == run_hl and run_start:minutes() >= ts and run_start:minutes() <= te then
+      t = t + math.max(0, date.elapsed_minutes(run_start, date.now()))
     end
     return t
   end
@@ -2319,11 +2328,7 @@ function M.sum_minutes(hl, from_min, to_min, own_only)
     local total = 0
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        local s, e = c.start:minutes(), c["end"]:minutes()
-        local dt = (to_min and math.min(e, to_min) or e) - (from_min and math.max(s, from_min) or s)
-        if dt > 0 then
-          total = total + dt
-        end
+        total = total + clipped_clock_minutes(c.start, c["end"], from_min, to_min)
       end
     end
     return total

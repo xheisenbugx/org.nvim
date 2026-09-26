@@ -1740,6 +1740,49 @@ local function insert_results(bufnr, start, result, args, hash, lang, ctx)
 end
 M.insert_results = insert_results
 
+-- A point alone can slide onto a different block when its source is
+-- deleted. Track the complete source and check it before inserting an
+-- asynchronous result; edits outside the source may still move it.
+local function track_source(bufnr, row, col, end_row, end_col, opts)
+  local text = vim.api.nvim_buf_get_text(bufnr, row, col, end_row, end_col, {})
+  local mark = vim.api.nvim_buf_set_extmark(
+    bufnr,
+    ns,
+    row,
+    col,
+    vim.tbl_extend("force", opts or {}, {
+      end_row = end_row,
+      end_col = end_col,
+      right_gravity = true,
+      end_right_gravity = false,
+      invalidate = true,
+    })
+  )
+  return { mark = mark, text = text }
+end
+
+--- The tracked source's position, or nil and whether evaluation should
+--- stop: a deleted buffer ends the run, while a changed source only
+--- discards this result (with a warning) so later blocks still run.
+local function take_source(bufnr, source)
+  if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+    return nil, true
+  end
+  local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, source.mark, { details = true })
+  pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, source.mark)
+  local detail = pos[3]
+  if not detail or detail.invalid then
+    utils.warn("Source changed during evaluation; result discarded")
+    return nil, false
+  end
+  local text = vim.api.nvim_buf_get_text(bufnr, pos[1], pos[2], detail.end_row, detail.end_col, {})
+  if not vim.deep_equal(text, source.text) then
+    utils.warn("Source changed during evaluation; result discarded")
+    return nil, false
+  end
+  return pos
+end
+
 --- Read the existing result of a block (org-babel-read-result).
 local function read_block_result(bufnr, b)
   local lines = buf_lines(bufnr)
@@ -1784,17 +1827,17 @@ function M.execute(opts)
   if opts.handling then
     args.results_spec.handling = opts.handling
   end
-  -- track the block position across edits
-  local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, b.start - 1, 0, {
+  local last = vim.api.nvim_buf_get_lines(bufnr, b.finish - 1, b.finish, false)[1]
+  local source = track_source(bufnr, b.start - 1, 0, b.finish - 1, #last, {
     virt_text = { { "  ⏳ executing…", "Comment" } },
     virt_text_pos = "eol",
   })
   local function finish(result, info)
-    if not vim.api.nvim_buf_is_valid(bufnr) then
+    local pos, abort = take_source(bufnr, source)
+    if not pos then
+      done(false, abort)
       return
     end
-    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
-    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
     if info.skipped then
       done(false, info.abort)
       return
@@ -2022,13 +2065,13 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
     done(false, true)
     return
   end
-  local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, ib.e, { right_gravity = false })
+  local source = track_source(bufnr, lnum - 1, ib.s - 1, lnum - 1, ib.e)
   local function finish(result, info)
-    if not vim.api.nvim_buf_is_valid(bufnr) then
+    local pos, abort = take_source(bufnr, source)
+    if not pos then
+      done(false, abort)
       return
     end
-    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})
-    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
     if info.skipped then
       done(false, info.abort)
       return
@@ -2058,7 +2101,7 @@ function M.execute_inline_at(bufnr, lnum, ib, opts)
     end
     if pos and pos[1] then
       -- set_text keeps the extmarks of later inline elements of the line
-      local row, col = pos[1], pos[2]
+      local row, col = pos[3].end_row, pos[3].end_col
       local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
       local after = line:sub(col + 1)
       local ws = after:match("^(%s*)")
@@ -2108,14 +2151,10 @@ local function executables(bufnr, s, e)
       end
     end
   end
-  local in_block = false
+  local literal = blocks_mod.inline_literal_lines(lines)
   for i = s, math.min(e, #lines) do
     local l = lines[i]
-    if l:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_") then
-      in_block = true
-    elseif l:match("^%s*#%+[Ee][Nn][Dd]_") then
-      in_block = false
-    elseif not in_block and not covered[i] and not l:match("^%s*#%+") and not l:match("^%s*: ") then
+    if not literal[i] and not covered[i] and not l:match("^%s*#%+") and not l:match("^%s*: ") then
       for _, ib in ipairs(M.inline_all(l)) do
         jobs[#jobs + 1] = { line = i, col = ib.s, inline = true }
       end
@@ -2998,14 +3037,10 @@ function M.export_evaluate(bufnr, lines)
       end
     end
   end
-  -- inline src blocks and calls in the text (not inside blocks)
-  local in_block = false
+  -- Inline objects may occur in greater elements and verse blocks.
+  local literal = blocks_mod.inline_literal_lines(lines)
   for i, l in ipairs(lines) do
-    if l:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_") then
-      in_block = true
-    elseif l:match("^%s*#%+[Ee][Nn][Dd]_") then
-      in_block = false
-    elseif not in_block and not l:match("^%s*#%+") and not l:match("^%s*:") and not in_commented(file, i) then
+    if not literal[i] and not l:match("^%s*#%+") and not l:match("^%s*:") and not in_commented(file, i) then
       for _, ib in ipairs(M.inline_all(l)) do
         jobs[#jobs + 1] = { line = i, inline = ib, col = ib.s }
       end

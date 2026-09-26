@@ -31,18 +31,30 @@ local ns = vim.api.nvim_create_namespace("org.special")
 function M.open(opts)
   local src = opts.source_buf
   local object = opts.start_col ~= nil
-  -- extmarks around the region: start mark before the first line,
-  -- end mark at the end of the last line (or around an object)
-  local sm = vim.api.nvim_buf_set_extmark(src, ns, opts.start_line - 1, opts.start_col or 0, { right_gravity = false })
-  local end_row = math.max(opts.end_line, opts.start_line - 1)
-  local em
-  if object then
-    em = vim.api.nvim_buf_set_extmark(src, ns, opts.end_line - 1, opts.end_col, { right_gravity = true })
-  elseif opts.end_line >= opts.start_line then
-    local last = vim.api.nvim_buf_get_lines(src, end_row - 1, end_row, false)[1] or ""
-    em = vim.api.nvim_buf_set_extmark(src, ns, end_row - 1, #last, { right_gravity = true })
+  -- Track identity as well as position. Two point marks can collapse onto
+  -- unrelated text when the source region is deleted.
+  local mark, original
+  local function anchor(row, col, end_row, end_col)
+    if mark then
+      pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
+    end
+    local empty = row == end_row and col == end_col
+    mark = vim.api.nvim_buf_set_extmark(src, ns, row, col, {
+      end_row = end_row,
+      end_col = end_col,
+      right_gravity = not empty,
+      end_right_gravity = empty,
+      invalidate = true,
+    })
+    original = object and vim.api.nvim_buf_get_text(src, row, col, end_row, end_col, {})
+      or vim.api.nvim_buf_get_lines(src, row, end_row, false)
   end
-  local empty_region = not object and opts.end_line < opts.start_line
+  anchor(
+    opts.start_line - 1,
+    opts.start_col or 0,
+    object and (opts.end_line - 1) or math.max(opts.end_line, opts.start_line - 1),
+    opts.end_col or 0
+  )
 
   local buf = vim.api.nvim_create_buf(false, false)
   local base = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(src), ":t")
@@ -57,18 +69,21 @@ function M.open(opts)
     vim.bo[buf].filetype = ft
   end
 
-  local function region()
-    local s = vim.api.nvim_buf_get_extmark_by_id(src, ns, sm, {})
-    if empty_region then
-      return s[1] + 1, s[1]
-    end
-    local e = vim.api.nvim_buf_get_extmark_by_id(src, ns, em, {})
-    return s[1] + 1, e[1] + 1
-  end
-
   local function write_back()
-    if not vim.api.nvim_buf_is_valid(src) then
+    if not vim.api.nvim_buf_is_valid(src) or not vim.api.nvim_buf_is_loaded(src) then
       utils.error("Source buffer no longer exists")
+      return false
+    end
+    local pos = vim.api.nvim_buf_get_extmark_by_id(src, ns, mark, { details = true })
+    local detail = pos[3]
+    if not detail or detail.invalid then
+      utils.error("Source region was deleted; edit buffer kept open")
+      return false
+    end
+    local current = object and vim.api.nvim_buf_get_text(src, pos[1], pos[2], detail.end_row, detail.end_col, {})
+      or vim.api.nvim_buf_get_lines(src, pos[1], detail.end_row, false)
+    if not vim.deep_equal(current, original) then
+      utils.error("Source region changed; edit buffer kept open to preserve both versions")
       return false
     end
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -79,33 +94,13 @@ function M.open(opts)
       end
     end
     if object then
-      local s = vim.api.nvim_buf_get_extmark_by_id(src, ns, sm, {})
-      local e = vim.api.nvim_buf_get_extmark_by_id(src, ns, em, {})
-      vim.api.nvim_buf_set_text(src, s[1], s[2], e[1], e[2], lines)
-      vim.api.nvim_buf_del_extmark(src, ns, sm)
-      vim.api.nvim_buf_del_extmark(src, ns, em)
-      sm = vim.api.nvim_buf_set_extmark(src, ns, s[1], s[2], { right_gravity = false })
-      local erow = s[1] + #lines - 1
-      local ecol = (#lines == 1 and s[2] or 0) + #lines[#lines]
-      em = vim.api.nvim_buf_set_extmark(src, ns, erow, ecol, { right_gravity = true })
-      vim.bo[buf].modified = false
-      return true
-    end
-    local s, e = region()
-    vim.api.nvim_buf_set_lines(src, s - 1, e, false, lines)
-    -- re-anchor marks on the new region
-    vim.api.nvim_buf_del_extmark(src, ns, sm)
-    sm = vim.api.nvim_buf_set_extmark(src, ns, s - 1, 0, { right_gravity = false })
-    if #lines > 0 then
-      local last_row = s - 1 + #lines - 1
-      local last = vim.api.nvim_buf_get_lines(src, last_row, last_row + 1, false)[1] or ""
-      if em then
-        vim.api.nvim_buf_del_extmark(src, ns, em)
-      end
-      em = vim.api.nvim_buf_set_extmark(src, ns, last_row, #last, { right_gravity = true })
-      empty_region = false
+      vim.api.nvim_buf_set_text(src, pos[1], pos[2], detail.end_row, detail.end_col, lines)
+      local erow = pos[1] + math.max(#lines - 1, 0)
+      local ecol = (#lines <= 1 and pos[2] or 0) + #(lines[#lines] or "")
+      anchor(pos[1], pos[2], erow, ecol)
     else
-      empty_region = true
+      vim.api.nvim_buf_set_lines(src, pos[1], detail.end_row, false, lines)
+      anchor(pos[1], 0, pos[1] + #lines, 0)
     end
     vim.bo[buf].modified = false
     return true
@@ -118,10 +113,7 @@ function M.open(opts)
     end
     closed = true
     if vim.api.nvim_buf_is_valid(src) then
-      pcall(vim.api.nvim_buf_del_extmark, src, ns, sm)
-      if em then
-        pcall(vim.api.nvim_buf_del_extmark, src, ns, em)
-      end
+      pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
     end
     if opts.on_close then
       opts.on_close()
@@ -164,7 +156,9 @@ function M.open(opts)
   for _, lhs in ipairs(config.lhs_list(maps.save_exit)) do
     vim.keymap.set("n", lhs, function()
       if vim.bo[buf].modified then
-        write_back()
+        if not write_back() then
+          return
+        end
       end
       close()
     end, { buffer = buf, desc = "org: save and exit edit buffer" })
