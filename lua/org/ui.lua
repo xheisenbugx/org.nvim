@@ -116,7 +116,11 @@ function M.menu(opts)
     lines[#lines + 1] = ""
     lines[#lines + 1] = " [Esc]  Quit"
     hls[#hls + 1] = { #lines - 1, 1, 6, "Comment" }
-    local buf, win = M.float(lines, { title = title, width = math.max(40, 0) })
+    local width = 40
+    for _, l in ipairs(lines) do
+      width = math.max(width, utils.width(l) + 2)
+    end
+    local buf, win = M.float(lines, { title = title, width = width })
     for _, h in ipairs(hls) do
       vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[2], {
         end_col = h[3] == -1 and #lines[h[1] + 1] or h[3],
