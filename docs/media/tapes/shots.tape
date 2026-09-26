@@ -8,10 +8,6 @@ Sleep 2.5s
 Show
 Sleep 1s
 Sleep 500ms
-Screenshot docs/media/markup.png
-Type " oe" Sleep 1.5s
-Screenshot docs/media/export.png
-Escape Sleep 800ms
 Type "g?" Sleep 2s
 Screenshot docs/media/keymaps.png
 Sleep 1s
