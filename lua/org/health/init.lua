@@ -78,6 +78,28 @@ function M.check()
 
   h.start("org.nvim image and LaTeX previews")
   local images = require("org.ui.images")
+  -- what sits between Neovim and the terminal (:h org-images-troubleshooting)
+  local between = {}
+  if vim.env.TMUX then
+    between[#between + 1] = "tmux"
+  end
+  if vim.env.ZELLIJ then
+    between[#between + 1] = "zellij"
+  end
+  if vim.env.SSH_CONNECTION or vim.env.SSH_CLIENT then
+    between[#between + 1] = "SSH"
+  end
+  local native = pcall(function()
+    return assert(vim.ui.img)
+  end)
+  h.info(
+    string.format(
+      "Neovim %s (%s), running %s",
+      tostring(vim.version()),
+      native and "has vim.ui.img" or "no vim.ui.img: needs 0.13+",
+      #between > 0 and ("inside " .. table.concat(between, ", ")) or "directly in the terminal"
+    )
+  )
   local backend, why = images.status()
   if backend then
     h.ok("image backend: " .. backend)
@@ -85,14 +107,26 @@ function M.check()
     h.info(why)
   else
     local advice = {}
-    if vim.fn.has("nvim-0.13") == 0 then
+    if vim.env.ZELLIJ then
+      advice[#advice + 1] = "zellij does not pass images through: run Neovim outside it"
+    elseif not native then
       advice[#advice + 1] =
         "Neovim 0.13+ draws images itself (vim.ui.img) in terminals with the Kitty graphics protocol"
     elseif vim.env.TMUX then
       advice[#advice + 1] = "vim.ui.img can't reach the terminal through tmux: run Neovim outside tmux"
+    elseif vim.env.TERM_PROGRAM == "Apple_Terminal" then
+      advice[#advice + 1] = "Terminal.app has no Kitty graphics protocol: use a terminal that has it"
     end
-    advice[#advice + 1] = "or install snacks.nvim (image) or image.nvim"
+    if vim.env.TMUX then
+      advice[#advice + 1] = "or install snacks.nvim (image) and `set -g allow-passthrough on` in tmux.conf"
+    else
+      advice[#advice + 1] = "or install snacks.nvim (image) or image.nvim"
+    end
+    advice[#advice + 1] = "see :h org-images-troubleshooting"
     h.warn(why, advice)
+  end
+  if backend and backend ~= "native" then
+    h.info("with " .. backend .. ", :align / org-image-align are ignored (:h org-images-troubleshooting)")
   end
   local process, perr = images.latex_process()
   if process then
