@@ -476,6 +476,37 @@ describe("preview upkeep", function()
   end)
 end)
 
+describe("image backends", function()
+  after_each(function()
+    images.clear(0)
+    images._backend = nil
+  end)
+  it("start the image at the link, not after it", function()
+    png("pos.png", 100, 40)
+    local calls = {}
+    images._backend = {
+      name = "snacks",
+      show = function(_, _, row, col, x)
+        calls[#calls + 1] = { row, col, x }
+      end,
+      hide = function() end,
+    }
+    local buf = file_buffer("pos.org", { "* A", "  see [[file:pos.png]]", "  $a +", "  b$" })
+    images.show_links(buf, 1, 4)
+    -- the rows go under the end of the link, the image starts at its column
+    eq({ { 1, 22, 6 } }, calls)
+    calls = {}
+    local saved = images.render_latex
+    images.render_latex = function(_, _, cb)
+      cb(dir .. "/pos.png")
+    end
+    images.show_latex(buf, 1, 4)
+    images.render_latex = saved
+    -- a fragment over two lines: under its last line, at the line's indent
+    eq({ { 3, 4, 2 } }, calls)
+  end)
+end)
+
 describe("image backend", function()
   it("explains why there is none", function()
     local saved = vim.deepcopy(require("org.config").opts.ui.images)
