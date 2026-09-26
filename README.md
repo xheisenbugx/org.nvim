@@ -33,7 +33,7 @@ isn't a syntax file with a few keymaps on top. It reimplements Org's
 behaviour: the agenda, capture templates, repeaters, clock tables, table
 formulas, Babel and export.
 
-- 🪶 **No dependencies.** It's about 24k lines of Lua and needs no
+- 🪶 **No dependencies.** It's about 95k lines of Lua and needs no
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
@@ -43,7 +43,41 @@ formulas, Babel and export.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, `vim.ui.select` pickers and a lualine clock, and it works with
   any other setup too.
-- ✅ **Tested.** The headless test suite has 200+ tests across 23 specs.
+- ✅ **Tested.** The headless test suite has 2,000+ tests across 76 specs.
+
+---
+
+## 🤔 Why another Org plugin?
+
+There are already good ways to write Org files in Neovim, above all
+[nvim-orgmode](https://github.com/nvim-orgmode/orgmode), which has been
+around for years and is used by many people. If it does what you need,
+keep using it. [Neorg](https://github.com/nvim-neorg/neorg) is another
+fine option, though it uses its own format rather than Org.
+
+org.nvim exists because I wanted something those projects don't aim for:
+
+- **Full parity with Emacs Org.** The goal is to behave like Org 9.8,
+  including the parts that are hard to port: Babel with sessions and
+  `:var`, a port of the export engine, clock tables, `#+TBLFM` formulas
+  with a Calc-compatible evaluator, and image and LaTeX previews. Where
+  org.nvim differs, it says so ([Differences from Emacs Org
+  mode](#differences-from-emacs-org-mode) and `:h org-differences`).
+- **A different architecture.** It's pure Lua with its own Org parser,
+  where nvim-orgmode is built on a tree-sitter grammar. That's a
+  foundational choice, not something a pull request could change.
+- **Speed.** Adding everything above to an existing project would mean
+  big design changes and a slow review cycle, so I built it separately.
+- **Keys that feel right in both worlds.** The Emacs Org keys work as they
+  do in Emacs, and the Vim-style keys fall back to normal Vim behaviour
+  when they don't apply.
+
+**On AI:** org.nvim is written with AI assistance
+([Claude Code](https://claude.com/claude-code)). To keep that honest, its
+behaviour is checked against the Emacs Org source rather than guessed,
+every feature comes with headless tests (`make test`, 2,000+ of them), and
+I review and use every change myself. Bug reports are very welcome,
+especially where it doesn't match Emacs.
 
 ---
 
