@@ -81,6 +81,8 @@ nvim -u examples/minimal_init.lua examples/tutorial.org
 Everything below was recorded in a plain Neovim with only org.nvim
 installed. The tapes that produce these GIFs live in
 [`docs/media`](docs/media), so they can be re-recorded after every change.
+In the newer demos, the box in the bottom-right corner shows the key being
+pressed.
 
 ### Outlines that fold like Emacs
 
@@ -91,6 +93,16 @@ demote it, or cut, paste and sort it.
 
 ![Cycling visibility with TAB and S-TAB, then moving a subtree up and down](docs/media/outline.gif)
 
+### Structure editing
+
+`M-RET` adds a heading (or an item, or a table row) at the right level,
+and `<leader>oit` adds a TODO heading. `M-h` / `M-l` promote and demote.
+`<leader>ohs` sorts the children (alphabetically, by TODO state, priority,
+date and more), and `<leader>ohn` narrows to a subtree so you can edit it
+on its own.
+
+![Adding a heading, demoting and promoting it, adding a TODO heading, sorting children and narrowing to a subtree](docs/media/headings.gif)
+
 ### TODOs, checklists and priorities
 
 Ticking a checkbox updates the `[2/4]` and `[50%]` cookies of its parents.
@@ -100,6 +112,24 @@ cookie. Set the state with `cit` or with the fast-selection menu
 
 ![Ticking checkboxes, marking a task DONE and giving another one priority A](docs/media/todo.gif)
 
+### Plain lists
+
+`S-Right` / `S-Left` on an item cycles the bullet style of the whole list:
+`-`, `+`, `1.` and `1)`. `M-RET` adds an item and `M-S-RET` adds a
+checkbox item. `TAB` on a new empty item indents it. `M-Up` / `M-Down` move
+an item with its children, and numbered lists are renumbered as you go.
+`<leader>o-` turns plain lines into a list.
+
+![Cycling bullet styles, adding and indenting items, moving a numbered item, turning lines into a list and adding a checkbox](docs/media/lists.gif)
+
+### Tags and properties
+
+`<leader>ot` opens fast tag selection: one key per tag, with mutually
+exclusive groups like `{ @office @remote }`. `<leader>oxe` sets the effort
+from `Effort_ALL`, and `<leader>op` sets any property.
+
+![Setting three tags with fast keys, an effort and an OWNER property](docs/media/tags.gif)
+
 ### Dates with a real calendar
 
 `<leader>os` (schedule) and `<leader>od` (deadline) open a floating
@@ -107,6 +137,13 @@ calendar. Move around it with `hjkl`, or press `i` and type a date the way
 you'd say it: `fri 14:00`, `+2w`, `sep 15`, `w39`.
 
 ![Scheduling a task from the calendar and typing "fri 14:00" for a deadline](docs/media/dates.gif)
+
+You don't need the calendar to change a date. `S-Right` / `S-Left` move it
+by a day, `<C-a>` / `<C-x>` (or `S-Up` / `S-Down`) change the part under
+the cursor (year, month, day, hour or minutes, rounded to 5), and `<CR>`
+on a date opens the agenda for that day.
+
+![Shifting a date by days, changing the hour and minutes in place, then opening the agenda on a date range](docs/media/timestamps.gif)
 
 ### A real agenda
 
@@ -124,6 +161,11 @@ in, refile, filter and run bulk actions. `vw` switches to the week.
 
 </details>
 
+The dispatcher has the other Emacs views too: every TODO (`t`), a
+tags/property match (`m`, here `+oss`) and a word search (`s`).
+
+![The TODO list, a +oss tag match and a word search in the agenda](docs/media/agenda-views.gif)
+
 ### Capture from anywhere
 
 Press `<leader>oc` in any buffer and pick a template. Templates can be
@@ -133,6 +175,14 @@ headline, an outline path or a date tree.
 
 ![Capturing a work task that lands under the Inbox heading of work.org](docs/media/capture.gif)
 
+### Refile and archive
+
+`<leader>or` moves a subtree under any heading in your agenda files (here
+labelled with the file name). `<leader>o$` archives a finished subtree to
+`<file>_archive` and keeps its context in `ARCHIVE_*` properties.
+
+![Refiling an inbox task into work.org/Projects and archiving a DONE task](docs/media/refile.gif)
+
 ### Spreadsheet tables
 
 Type a rough table, press `<C-c><C-c>` on its `#+TBLFM` line, and it
@@ -140,6 +190,19 @@ aligns itself and evaluates its formulas with a Calc-compatible evaluator.
 Change a value, recalculate with `<leader>oTf`, and the totals follow.
 
 ![Typing a rough table, evaluating its formulas and recalculating after an edit](docs/media/tables.gif)
+
+Rows and columns are easy to edit. `<leader>oTr` / `<leader>oTi` insert a
+row or a column, `M-j` / `M-k` and `M-h` / `M-l` move them, and
+`<leader>oTR` / `<leader>oTI` delete them. Formulas in `#+TBLFM` are
+rewritten to follow the moves.
+
+![Inserting a row and a column, moving them, then deleting a column and a row](docs/media/table-edit.gif)
+
+`<leader>oTs` sorts the rows (alphabetically, numerically, by date or with
+a function), and `<leader>oTt` transposes the table. Type `:=` followed by
+a formula in a field to add a field formula to `#+TBLFM`.
+
+![Sorting rows by price, adding a Total row with a field formula, then transposing the table](docs/media/table-tools.gif)
 
 ### Code that runs in your notes
 
@@ -152,6 +215,12 @@ Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
 supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
 `src_lang{…}` blocks and tangling.
 
+`<leader>o'` opens a block in its own buffer with the language's filetype,
+so it gets that language's highlighting, indentation and filetype plugins.
+`<C-c>'` writes it back.
+
+![Editing a Lua block in its own buffer, writing it back and running it](docs/media/src-edit.gif)
+
 ### Clocking, clock tables and column view
 
 `<leader>oxi` clocks in, and the statusline shows the running total
@@ -160,6 +229,31 @@ matches Emacs's output. `<leader>oC` opens column view, which sums
 efforts and clocked time up the tree.
 
 ![Clocking in, inserting a clock table, then opening column view](docs/media/clock.gif)
+
+### Links
+
+`<leader>ols` stores a link to the current heading (or file, line or ID),
+and `<leader>oli` inserts it with completion. Links show only their
+description. `<CR>` follows them, and `<leader>olt` shows the raw text.
+
+![Storing a link to a heading, inserting it elsewhere, following it and showing the raw links](docs/media/links.gif)
+
+### Sparse trees
+
+`<leader>o/` folds the file down to what matters: TODO entries, a regexp,
+a tag or property match, or deadlines. The matches are highlighted, and
+`<C-c><C-c>` clears the highlights.
+
+![A sparse tree of TODO entries, then one for a regexp](docs/media/sparse.gif)
+
+### Export
+
+`<leader>oe` opens the export dispatcher. The HTML, LaTeX, Beamer,
+Markdown, ASCII, Org and iCalendar back-ends are ports of Emacs's, and
+pandoc handles DOCX, ODT, EPUB and more. You can export to a buffer to
+check the result:
+
+![Exporting an Org file to a Markdown buffer](docs/media/export-md.gif)
 
 ### And the rest
 

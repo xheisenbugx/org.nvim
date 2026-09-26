@@ -1,0 +1,8 @@
+#+TITLE: Tables
+
+* Office budget
+| Item     | Qty | Price |
+|----------+-----+-------|
+| Keyboard |   1 |   120 |
+| Coffee   |   3 |   4.5 |
+| Stickers |  10 |  0.85 |
