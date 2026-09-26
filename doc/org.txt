@@ -85,7 +85,9 @@ Conventions used in this manual:
   target      Many Lua functions accept `{ bufnr = n, lnum = l }` to act on
               a headline other than the one at the cursor.
 
-Press `g?` in an org or agenda buffer for a list of active keymaps.
+Press `g?` in an org or agenda buffer for a list of active keymaps, grouped
+by topic. Each row lists every key of one command; `i_` marks Insert-mode
+keys. `/` searches the list and `{` / `}` jump between sections.
 
 ==============================================================================
 2. INSTALLATION                                             *org-installation*

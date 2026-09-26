@@ -15,9 +15,26 @@ local M = {}
 ---@field modes? string[] default { "n" }
 ---@field global? boolean available outside org buffers
 ---@field sync? boolean call synchronously (no coroutine) - for text objects / expr
+---@field group? string section title in `g?` (set by `group`)
 
-M.list = {
-  -- global
+M.list = {}
+
+--- Section titles in the order `g?` lists them; each action's `group`
+--- is one of these.
+---@type string[]
+M.groups = {}
+
+---@param title string
+---@param actions table<string, org.Action>
+local function group(title, actions)
+  M.groups[#M.groups + 1] = title
+  for name, a in pairs(actions) do
+    a.group = title
+    M.list[name] = a
+  end
+end
+
+group("Anywhere", {
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
   capture = { "org.capture", "prompt", desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)", global = true },
   capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
@@ -35,8 +52,9 @@ M.list = {
   clock_out = { "org.clock", "clock_out", desc = "Clock out", global = true },
   clock_cancel = { "org.clock", "clock_cancel", desc = "Cancel clock", global = true },
   help = { "org.mappings", "show_help", desc = "Show org keymaps", global = true },
+})
 
-  -- visibility
+group("Visibility", {
   cycle = { "org.fold", "cycle", desc = "Cycle visibility" },
   global_cycle = { "org.fold", "global_cycle", desc = "Cycle global visibility" },
   show_branches = { "org.fold", "show_branches", desc = "Show all branches of subtree" },
@@ -46,12 +64,14 @@ M.list = {
   set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
   show_everything = { "org.fold", "show_everything", desc = "Show everything, including drawers" },
   copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
+})
 
-  -- context
+group("At point", {
   context_action = { "org.context", "context_action", desc = "Context action (C-c C-c)" },
   open_at_point = { "org.context", "open_at_point", desc = "Open link / footnote / date at point" },
+})
 
-  -- structure
+group("Structure", {
   meta_return = { "org.context", "meta_return", desc = "New heading / item / row", modes = { "n", "i" } },
   insert_tab = {
     "org.context",
@@ -120,7 +140,9 @@ M.list = {
   paste_special = { "org.context", "paste_special", desc = "Paste table rectangle / subtree" },
   ctrl_c_caret = { "org.context", "ctrl_c_caret", desc = "Sort table column / entries / items" },
   emphasize = { "org.structure", "emphasize", desc = "Emphasize selection / insert markers", modes = { "n", "x" } },
-  -- elements
+})
+
+group("Navigation & elements", {
   forward_element = { "org.element", "forward", desc = "Next element", modes = { "n", "x" } },
   backward_element = { "org.element", "backward", desc = "Previous element", modes = { "n", "x" } },
   up_element = { "org.element", "up", desc = "Parent element" },
@@ -145,8 +167,9 @@ M.list = {
   next_sibling = { "org.structure", "next_sibling", desc = "Next sibling heading", modes = { "n", "x", "o" } },
   prev_sibling = { "org.structure", "prev_sibling", desc = "Previous sibling heading", modes = { "n", "x", "o" } },
   buffer_goto = { "org.structure", "goto_heading", desc = "Go to heading in buffer" },
+})
 
-  -- todo / priority / tags / properties
+group("TODO, priority, tags & properties", {
   todo_next = { "org.todo", "cycle_next", desc = "Next TODO state" },
   todo_prev = { "org.todo", "cycle_prev", desc = "Previous TODO state" },
   shift_right = { "org.context", "shift_right", desc = "Next TODO / date +1 / bullet" },
@@ -186,8 +209,9 @@ M.list = {
     desc = "Delete a property from all entries",
   },
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
+})
 
-  -- dates
+group("Dates", {
   schedule = { "org.timestamps", "schedule", desc = "Schedule (Visual: all headlines)", modes = { "n", "x" } },
   deadline = { "org.timestamps", "deadline", desc = "Deadline (Visual: all headlines)", modes = { "n", "x" } },
   timestamp = { "org.timestamps", "insert_active", desc = "Insert active timestamp" },
@@ -201,13 +225,15 @@ M.list = {
     "toggle_custom_display",
     desc = "Toggle custom timestamp display (C-c C-x C-t)",
   },
+})
 
-  -- lists
+group("Lists", {
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
   update_statistics = { "org.lists", "update_statistics", desc = "Update statistics cookies" },
   cycle_bullet = { "org.lists", "cycle_bullet", desc = "Cycle list bullet" },
+})
 
-  -- clock
+group("Clock & effort", {
   clock_in = { "org.clock", "clock_in", desc = "Clock in" },
   clock_in_last = { "org.clock", "clock_in_last", desc = "Clock in last task" },
   clock_resolve = { "org.clock", "resolve_clocks", desc = "Resolve open clocks (count: dangling only)" },
@@ -225,6 +251,9 @@ M.list = {
     global = true,
   },
   clock_display = { "org.clock", "toggle_display", desc = "Display clock sums" },
+})
+
+group("Images & LaTeX", {
   link_preview = {
     "org.ui.images",
     "link_preview",
@@ -238,13 +267,17 @@ M.list = {
     desc = "Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)",
     modes = { "n", "x" },
   },
+})
+
+group("Columns & dynamic blocks", {
   dblock_update = { "org.dblock", "update_at_cursor", desc = "Update dynamic block" },
   dblock_update_all = { "org.dblock", "update_all", desc = "Update all dynamic blocks" },
   column_view = { "org.columns", "open", desc = "Column view" },
   insert_columnview = { "org.dblock", "insert_columnview", desc = "Insert columnview block" },
   insert_dblock = { "org.dblock", "insert_dblock", desc = "Insert dynamic block" },
+})
 
-  -- encryption
+group("Encryption", {
   crypt_encrypt_entry = { "org.crypt", "encrypt_entry", desc = "Encrypt entry" },
   crypt_decrypt_entry = { "org.crypt", "decrypt_entry", desc = "Decrypt entry" },
   crypt_encrypt_entries = {
@@ -257,8 +290,9 @@ M.list = {
     "decrypt_entries",
     desc = "Decrypt all entries matching crypt.tag_matcher",
   },
+})
 
-  -- timers
+group("Timers", {
   timer_start = { "org.timer", "start", desc = "Start relative timer" },
   timer_stop = { "org.timer", "stop", desc = "Stop timer" },
   timer_pause = { "org.timer", "pause_or_continue", desc = "Pause / continue timer" },
@@ -266,8 +300,9 @@ M.list = {
   timer_item = { "org.timer", "insert_item", desc = "Insert timer list item" },
   timer_countdown = { "org.timer", "countdown", desc = "Start countdown timer" },
   timer_remaining = { "org.timer", "show_remaining", desc = "Show remaining countdown time" },
+})
 
-  -- links
+group("Links", {
   insert_link = { "org.links", "insert_link", desc = "Insert link", modes = { "n", "x" } },
   toggle_link_display = { "org.links", "toggle_link_display", desc = "Toggle link display" },
   next_link = { "org.links", "next_link", desc = "Next link" },
@@ -279,8 +314,9 @@ M.list = {
   id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
   id_copy = { "org.id", "copy", desc = "Copy entry ID" },
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
+})
 
-  -- refile / archive / attach
+group("Refile, archive & attach", {
   refile = {
     "org.refile",
     "refile",
@@ -305,14 +341,16 @@ M.list = {
     global = true,
   },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
+})
 
-  -- search / export
+group("Search & export", {
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
   lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
+})
 
-  -- tables
+group("Tables", {
   table_create = { "org.table", "create_or_convert", desc = "Create table / convert region", modes = { "n", "x" } },
   table_insert_hline = { "org.table", "insert_hline", desc = "Insert table hline" },
   table_recalc = { "org.table", "recalc", desc = "Recalculate table formulas" },
@@ -362,8 +400,9 @@ M.list = {
   },
   orgtbl_send_table = { "org.table.orgtbl", "send_table", desc = "Send radio table", global = true },
   orgtbl_toggle_comment = { "org.table.orgtbl", "toggle_comment", desc = "Comment / uncomment table", global = true },
+})
 
-  -- babel
+group("Babel", {
   edit_special = { "org.context", "edit_special", desc = "Edit src block / table formulas" },
   babel_execute = { "org.babel", "execute_block", desc = "Execute src block" },
   babel_execute_buffer = { "org.babel", "execute_buffer", desc = "Execute all src blocks" },
@@ -396,7 +435,7 @@ M.list = {
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
   babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
-}
+})
 
 --- Resolve an action to its function.
 ---@param name org.ActionName
