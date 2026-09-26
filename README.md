@@ -10,6 +10,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 [![Pure Lua](https://img.shields.io/badge/100%25-Lua-2C2D72?style=for-the-badge&logo=lua&logoColor=white)](lua/org)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-zero-ff69b4?style=for-the-badge)](#requirements)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-orange?style=for-the-badge)](CONTRIBUTING.md)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/xheisenbugx)
 
 **[Install](#-install-in-30-seconds)** ·
 **[Tour](#-a-quick-tour)** ·
@@ -626,5 +627,7 @@ and how to add a feature.
 
 **If org.nvim makes your notes, tasks or agenda better, give it a ⭐.**
 It helps other Neovim users find it.
+
+You can also [buy me a coffee on Ko-fi ☕](https://ko-fi.com/xheisenbugx).
 
 </div>
