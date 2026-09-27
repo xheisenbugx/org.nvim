@@ -10,7 +10,8 @@ special-edit, capture, refile, and archive paths. It is a scoped behavioral
 review, not an exhaustive conformance score.
 
 Reference behavior was checked with local Emacs Org **9.8.7** source and
-batch probes. The [settings contract](https://orgmode.org/manual/In_002dbuffer-Settings.html)
+batch probes, and re-checked against Org **9.8.10** in the second review
+below. The [settings contract](https://orgmode.org/manual/In_002dbuffer-Settings.html)
 and [property commands](https://orgmode.org/manual/Property-Syntax.html) also
 describe the functionality implemented here.
 
@@ -22,13 +23,40 @@ describe the functionality implemented here.
 | Setting precedence and consumers | Repeated unique settings use the last value; conflicting STARTUP flags coexist; tables and image startup scan literal examples and miss imported settings. | First unique setting wins; the last mutually exclusive startup flag wins; consumers use parsed settings. Setup-file specs cover these paths. |
 | Property commands | File-level drawer actions and allowed-value cycling are ignored; compute-property is missing; global deletion skips the file drawer. | Shared file/headline context, `C-c C-c c` and `:Org compute_property_at_point`, file-drawer deletion and cycling. [Property-command specs](../tests/spec/property_commands_spec.lua). |
 | Column scope and format editing | Opening column view can rewrite unrelated siblings' summaries; malformed format text crashes; storing a format can edit a literal example. | Current-subtree scope unless a COLUMNS property defines a wider scope; safe format parsing; correct property/keyword destination and local overrides of imported formats. Property-command specs. |
-| Clock consistency and idle resolution | Civil-time arithmetic miscounts elapsed time across DST; future idle-resolution targets can be written. | Unix-time duration calculations, local-time gap allowances, validation before clock mutation. [DST specs](../tests/spec/clock_dst_spec.lua), [resolution specs](../tests/spec/clock_resolution_spec.lua). |
+| Clock consistency and idle resolution | The agenda clock check (`vc`) and idle/dangling resolution use civil-time arithmetic across DST (clock-line updates and clock display were already DST-correct); future idle-resolution targets can be written. | Unix-time duration calculations, local-time gap allowances, validation before clock mutation. [DST specs](../tests/spec/clock_dst_spec.lua), [resolution specs](../tests/spec/clock_resolution_spec.lua). |
 | Export escaping | Nested escapes such as `,,*` keep one comma too many. | Export shares Babel's single-comma unescape. [Export follow-up specs](../tests/spec/export_followups_spec.lua). |
 | Export setup collection | A separate collector evaluates Vim filename expressions, caps legitimate nesting at 10, and handles cycles/literal boundaries differently. | Export, publishing and preview preambles share the bounded, non-evaluating local settings collector. Export follow-up specs. |
 | Special editing | Fake ending delimiters truncate blocks; nested-looking literal text is edited as a different element; tab-after-colon paragraphs lose text; example indentation options are ignored. | Exact boundaries and containing-element lookup; fixed-width syntax validation; shared indentation rules. [Special-edit specs](../tests/spec/special_regressions_spec.lua). |
-| Special-edit conflict recovery | There is no intentional conflict overwrite, and failed write-and-quit commands can close unsaved edits. | `:write!`/`:wq!` overwrite content conflicts only while the source range remains intact; write failures retain the edit buffer. Special-edit specs. |
+| Special-edit conflict recovery | There is no intentional conflict overwrite. | `:write!`/`:wq!` overwrite content conflicts only while the source range remains intact. A failed `:wq`/`:wq!` already kept the edit buffer on main; the spec now guards it. Special-edit specs. |
 | Capture, archive and refile preservation | Capture cancellation can discard unrelated target edits; archive accepts destinations inside the source subtree; save errors are hidden before destructive follow-up actions. | Targeted capture rollback, destination validation, and persistence checks before source removal. [Data-preservation specs](../tests/spec/data_preservation_spec.lua). |
 | Agenda test reliability | On Sunday, tomorrow's meeting lies outside the current week, so the bulk-mark test fails. | Pin the fixture date and assert the intended target was found. [Agenda spec](../tests/spec/agenda_spec.lua). |
+
+## Second review (Org 9.8.10)
+
+Every claim above was reproduced on `main` with a headless script, compared
+with Emacs Org 9.8.10 (source and `emacs --batch` probes), and checked on the
+PR. All reproduced on main and are fixed, with these corrections: the DST
+fix is limited to the agenda clock check and resolution (see the table), and
+`:wq!` keeping a failed edit buffer is not a behavior change. Archiving into
+the source subtree is refused although Emacs `org-archive-subtree` has no
+guard (Emacs empties the buffer in that case); the check follows `org-refile`.
+
+The review also found issues in the first follow-up commit, fixed with
+regression specs (each fails on `0ba4940`):
+
+| Area | Problem in `0ba4940` | Fix |
+| --- | --- | --- |
+| Save errors | `save_buffer` raised, so failures showed a Lua traceback; agenda save-all stopped at the first read-only buffer; a refile copy to a hidden read-only target raised. | `save_buffer` returns `ok, err` with a one-line message; data-moving callers roll back, others warn and continue. |
+| Capture abort | Writing the target during a capture, then aborting, marked the buffer unmodified while the file still held the capture. | The flag is cleared only when the file matches the restored text. |
+| Special edit | Every failed `:w` showed a BufWriteCmd traceback and a hit-enter prompt. | One-line error; the buffer stays modified, so `:wq` still refuses. |
+| CATEGORY | The first value won, including one from a setup file. | Emacs `org-element--get-category`: the buffer's last `#+CATEGORY`, else the first collected, else the file name. |
+| COLUMNS | A setup file's format beat the buffer's own `#+COLUMNS`; an empty first `#+COLUMNS:` crashed column view. | Emacs `org-columns-get-format`: the first non-empty local keyword, then the collected default. Format edits change that local line. |
+| Column view | Subtree scope left no whole-file view; allowed values defined in the file drawer were copied to the entry. | A count opens the global view (`C-u` `org-columns`); `a` edits the file drawer (`org-columns-edit-allowed`). |
+| Setup paths | `$VAR` was expanded, unlike Emacs and lint; `a:b.setup` was treated as remote; each cached parse resolved every loaded buffer's real path. | Only `~` is expanded; URLs follow `org-url-p`; resolved names are cached per buffer (4.6 ms → 62 µs per cached parse with 300 buffers). |
+| Path expansion | `#+INCLUDE`, columnview/clocktable scopes and Babel paths went through `vim.fn.expand`, which evaluates backticks and `%`/`#`. | `utils.expand` expands only `~` and environment variables. |
+| Lint | The macro checker scanned setup files separately (literal blocks, unsaved buffers); INCLUDE searches ignored the target's setup files; its unescape dropped a comma before any comma. | Lint uses the shared keyword collector and Babel's unescape. |
+| Clock resolution errors | A rejected resolution (future target) raised a Lua traceback from `resolve_clocks` and the idle timer. | One-line error; clocking in stops when resolution fails, like Emacs. |
+| Clock rounding | Resolving "now" (keep all, `J`) skipped `rounding_minutes` (existing gap). | Clock out through the normal rounded path, like `org-clock-clock-out`. |
 
 ## Boundaries and remaining work
 
@@ -71,7 +99,7 @@ specific fixes above.
 
 | Check | Main (`a2f0ad7`) | Follow-up |
 | --- | --- | --- |
-| Unmodified full suite | 2,150 passed, 1 Sunday-dependent agenda failure | 2,227 passed, 0 failed on Neovim 0.12.5 and 0.13.0-dev-1473 |
+| Unmodified full suite | 2,150 passed, 1 Sunday-dependent agenda failure | 2,240 passed, 0 failed on Neovim 0.12.5 and 0.13.0-dev-1473 (after the second review) |
 | Same seven regression specs | 15 passed, 71 failed | 86 passed, 0 failed |
 | `make lint`, StyLua 2.3.1 | 91 files with style differences; 7 parser errors | 89 files with existing style differences; the same 7 parser errors; no new failing file |
 

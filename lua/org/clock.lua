@@ -520,9 +520,18 @@ local function tick()
       local bufnr, lnum = M.find_open_clock()
       if bufnr then
         local idle_start = now_minutes() - idle / 60
-        M.resolve({ bufnr = bufnr, lnum = lnum, start = date.parse(M.state.start), active = true }, function()
-          return string.format("Clocked in & idle for %.1f mins", now_minutes() - idle_start)
-        end, at_instant(idle_start):minutes(), { idle = true, last_valid_time = idle_start * 60 })
+        local ok, err = pcall(
+          M.resolve,
+          { bufnr = bufnr, lnum = lnum, start = date.parse(M.state.start), active = true },
+          function()
+            return string.format("Clocked in & idle for %.1f mins", now_minutes() - idle_start)
+          end,
+          at_instant(idle_start):minutes(),
+          { idle = true, last_valid_time = idle_start * 60 }
+        )
+        if not ok then
+          utils.error(tostring(err))
+        end
       end
     end
   end
@@ -890,7 +899,10 @@ function M.clock_in(target, opts)
   end
   if auto and (not interrupting or auto == true) and not resolving and not opts.clocking_in then
     M.leftover = nil
-    M.resolve_clocks(false, { clocking_in = true, quiet = true })
+    if not M.resolve_clocks(false, { clocking_in = true, quiet = true }) then
+      vim.api.nvim_buf_del_extmark(bufnr, mark_ns, mark)
+      return nil
+    end
   end
   if M.state and M.is_clocked_headline(bufnr, target_line()) then
     vim.api.nvim_buf_del_extmark(bufnr, mark_ns, mark)
@@ -1555,9 +1567,13 @@ function M.resolve_clocks(only_dangling, opts)
     if c and not c["end"] then
       d.lnum = pos[1] + 1
       d.active = d.active and M.state ~= nil
-      M.resolve(d, function(clock)
+      local ok, err = pcall(M.resolve, d, function(clock)
         return string.format("Dangling clock started %d mins ago", date.elapsed_minutes(clock.start, date.now()))
       end, d.start:minutes(), opts)
+      if not ok then
+        utils.error(tostring(err))
+        return false
+      end
     end
   end
   return true

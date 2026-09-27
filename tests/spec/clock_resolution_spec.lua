@@ -55,6 +55,33 @@ describe("clock resolution validation (Emacs)", function()
     rejects("g", "-10")
   end)
 
+  it("reports a rejected dangling-clock resolution as one line instead of raising", function()
+    local start = date.from_time(os.time() - 60 * 60, true):clone({ active = false })
+    local lines = { "* Work", "CLOCK: " .. start:to_string() }
+    local buf = org_buffer(lines, { 1, 0 })
+    vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. ".org")
+    ui.menu = function()
+      return "K"
+    end
+    utils.input = function()
+      return "600"
+    end
+    local errors = {}
+    local notify = vim.notify
+    vim.notify = function(msg, level)
+      if level == vim.log.levels.ERROR then
+        errors[#errors + 1] = msg
+      end
+    end
+    local done, result = pcall(clock.resolve_clocks, true, {})
+    vim.notify = notify
+    ok(done, result)
+    eq(false, result)
+    eq(1, #errors)
+    ok(errors[1]:find("must refer to a time in the past", 1, true) and not errors[1]:find("\n"), errors[1])
+    eq(lines, buf_lines(buf))
+  end)
+
   it("rounds a resolution that clocks out now, like a plain clock out", function()
     local real_time, real_now = os.time, date.now
     local now = real_time({ year = 2026, month = 6, day = 1, hour = 10, min = 7, sec = 0 })
