@@ -440,6 +440,7 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 - [Custom agenda commands](#custom-agenda-commands)
 - [Completion](#completion)
 - [Statusline](#statusline)
+- [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
 - [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
@@ -822,6 +823,48 @@ While a clock runs, it shows something like `⏱ [0:25/1:00] (Write report)`,
 followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ---
+
+## 📊 Parity with Emacs Org
+
+How much of Emacs Org 9.8 works the same way in org.nvim, as of the last
+review against **Org 9.8.10** (September 2026):
+
+| Lens | Parity | What it means |
+| --- | --- | --- |
+| **Everyday workflows** | `▰▰▰▰▰▰▰▰▰▱` **~90%** | Outlines, TODOs, tags, properties, agenda, capture, refile, archive, clocking, tables, links, Markdown and HTML export |
+| **Overall** | `▰▰▰▰▰▰▰▰▱▱` **~80%** | Every command and option, including rarely used features |
+| **Strict** | `▰▰▰▰▰▰▱▱▱▱` **~65–70%** | Also counts what needs Emacs Lisp and can never run in Neovim |
+
+By area:
+
+| Area | Parity | Notes and main gaps |
+| --- | --- | --- |
+| 🌳 Outline and structure editing | `▰▰▰▰▰▰▰▰▰▱` 95% | Only minor edge cases left; includes `org-num`, startup visibility and speed keys |
+| 📋 Plain lists | `▰▰▰▰▰▰▰▰▰▱` 95% | Every bullet type, checkboxes and statistics cookies |
+| ✅ TODO and priorities | `▰▰▰▰▰▰▰▰▰▱` 90% | `#+TYP_TODO` keywords cycle like a sequence instead of jumping to DONE |
+| 🏷️ Tags, properties and column view | `▰▰▰▰▰▰▰▰▱▱` 85% | Column view is a separate table, not overlays on the headlines |
+| 📅 Dates and timestamps | `▰▰▰▰▰▰▰▰▰▱` 90% | No configurable duration units or custom full date formats |
+| 🗓️ Agenda | `▰▰▰▰▰▰▰▰▱▱` 85% | Only common diary sexps; no PDF/PostScript output |
+| 📥 Capture | `▰▰▰▰▰▰▰▰▱▱` 85% | No `%(sexp)` escapes, `:unnarrowed` or extended-today dates |
+| 📦 Refile and archive | `▰▰▰▰▰▰▰▰▰▱` 95% | Same targets, logging and archive context as Emacs; only minor edge cases left |
+| 🔗 Links | `▰▰▰▰▰▰▰▰▱▱` 85% | No `elisp:` links or Emacs application links (Gnus, mu4e, BBDB) |
+| ⏱️ Clocking and timers | `▰▰▰▰▰▰▰▰▰▱` 90% | Clock tables match Emacs output; times in the repeated autumn DST hour stay ambiguous, as in Emacs |
+| 🧮 Tables and spreadsheet | `▰▰▰▰▰▰▰▰▱▱` 80% | Calc and Lisp formulas cover what tables commonly use, not all of GNU Calc |
+| 🧪 Babel | `▰▰▰▰▰▰▰▱▱▱` 70% | No Emacs Lisp blocks; sessions run each block as one request |
+| 📤 Export | `▰▰▰▰▰▰▰▰▱▱` 80% | HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar are native; ODT and Texinfo go through Pandoc; no `#+BIND` |
+| 🖼️ Images and LaTeX previews | `▰▰▰▰▰▰▰▰▱▱` 80% | Drawn below the line instead of replacing the link; needs an image-capable terminal |
+| 📰 Feeds and MobileOrg | `▱▱▱▱▱▱▱▱▱▱` 0% | RSS/Atom feeds (`org-feed`) and MobileOrg are not implemented |
+
+> [!NOTE]
+> These are **estimates, not measurements**. They come from reviewing each
+> area against Emacs Org 9.8.10 (its source and Emacs run in batch mode).
+> The test suite checks that implemented behaviour matches Emacs; it can't
+> measure what is still missing. The numbers are updated as parity work
+> lands. Gaps and their reasons are listed in
+> [Differences from Emacs Org mode](#differences-from-emacs-org-mode),
+> `:h org-differences` and the [parity review](docs/parity-review.md).
+> If something behaves differently from Emacs and isn't listed,
+> [please open an issue](https://github.com/xheisenbugx/org.nvim/issues).
 
 ## Differences from Emacs Org mode
 
