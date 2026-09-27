@@ -1051,6 +1051,32 @@ local function find_or_create_headline(bufnr, title)
   return put(bufnr, n, { "* " .. title }) + 1
 end
 
+--- Track only the text created while resolving a capture target. Abort
+--- must not reload a whole target buffer: it may have acquired other edits.
+local function track_target_changes(loc, before)
+  loc.original_lines = before
+  loc.changes = {}
+  local after = vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false)
+  local hunks =
+    vim.diff(table.concat(before, "\n") .. "\n", table.concat(after, "\n") .. "\n", { result_type = "indices" })
+  for _, h in ipairs(hunks) do
+    if h[4] > 0 then
+      local start = h[3] - 1
+      loc.changes[#loc.changes + 1] = {
+        original = vim.list_slice(before, h[1], h[1] + h[2] - 1),
+        created = vim.list_slice(after, h[3], h[3] + h[4] - 1),
+        mark = vim.api.nvim_buf_set_extmark(loc.bufnr, ns, start, 0, {
+          end_row = start + h[4],
+          end_col = 0,
+          right_gravity = true,
+          end_right_gravity = false,
+          invalidate = true,
+        }),
+      }
+    end
+  end
+end
+
 --- Resolve a template's target when the capture starts
 --- (org-capture-set-target-location). Headlines of file+headline and the
 --- date tree nodes are created now. Positions are tracked with extmarks.
@@ -1060,6 +1086,7 @@ end
 ---@return string|nil error
 function M.resolve_target(tpl, ctx)
   local bufnr, line, col, entry_p = nil, nil, 0, true
+  local before
   local loc = {}
   local t = tpl.target or tpl.file
   if ctx.here then
@@ -1101,6 +1128,7 @@ function M.resolve_target(tpl, ctx)
     loc.new_buffer = utils.find_buffer(path) == nil
     bufnr = utils.load_buffer(path)
     loc.was_modified = vim.bo[bufnr].modified
+    before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     if tpl.headline then
       local title = tpl.headline
       if type(title) == "function" then
@@ -1167,6 +1195,7 @@ function M.resolve_target(tpl, ctx)
   if loc.was_modified == nil and bufnr and vim.api.nvim_buf_is_valid(bufnr) then
     loc.was_modified = vim.bo[bufnr].modified
   end
+  before = before or vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   if tpl.datetree and not ctx.here then
     local tt = type(tpl.datetree) == "table" and tpl.datetree.tree_type or tpl.tree_type or "day"
     line = M.ensure_datetree(bufnr, entry_p and line or nil, ctx.date or date.today(), tt)
@@ -1177,6 +1206,7 @@ function M.resolve_target(tpl, ctx)
   end
   loc.bufnr = bufnr
   loc.target_entry_p = entry_p
+  track_target_changes(loc, before)
   if line then
     local len = #(get_line(bufnr, line) or "")
     local heading = entry_p and not loc.insert_here and files.get_buffer(bufnr):headline_on(line)
@@ -1222,8 +1252,44 @@ local function mark_pos(loc)
 end
 
 local function release(loc)
-  if loc and loc.mark and vim.api.nvim_buf_is_valid(loc.bufnr) then
-    pcall(vim.api.nvim_buf_del_extmark, loc.bufnr, ns, loc.mark)
+  if loc and vim.api.nvim_buf_is_valid(loc.bufnr) then
+    if loc.mark then
+      pcall(vim.api.nvim_buf_del_extmark, loc.bufnr, ns, loc.mark)
+    end
+    for _, change in ipairs(loc.changes or {}) do
+      pcall(vim.api.nvim_buf_del_extmark, loc.bufnr, ns, change.mark)
+    end
+  end
+end
+
+local function cleanup_target(loc)
+  if not loc or not vim.api.nvim_buf_is_valid(loc.bufnr) then
+    return
+  end
+  for i = #(loc.changes or {}), 1, -1 do
+    local change = loc.changes[i]
+    local pos = vim.api.nvim_buf_get_extmark_by_id(loc.bufnr, ns, change.mark, { details = true })
+    if pos[1] and not pos[3].invalid then
+      local first, last = pos[1], pos[3].end_row
+      local current = vim.api.nvim_buf_get_lines(loc.bufnr, first, last, false)
+      local owned = vim.deep_equal(current, change.created)
+      -- A user may have added text or children immediately after a generated
+      -- heading. Keep that heading too, so the surviving text keeps its parent.
+      if owned then
+        for _, hl in ipairs(files.get_buffer(loc.bufnr).headlines) do
+          if hl.line > first and hl.line <= last and hl.end_line > last then
+            owned = false
+            break
+          end
+        end
+      end
+      if owned then
+        vim.api.nvim_buf_set_lines(loc.bufnr, first, last, false, change.original)
+      end
+    end
+  end
+  if vim.deep_equal(vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false), loc.original_lines) then
+    vim.bo[loc.bufnr].modified = loc.was_modified == true
   end
 end
 
@@ -1767,6 +1833,17 @@ function M.store(tpl, lines, ctx)
   end
   lines = vim.split(shape(table.concat(lines, "\n"), ttype), "\n", { plain = true })
   local bufnr = loc.bufnr
+  local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local modified = vim.bo[bufnr].modified
+  local marks, owned = {}, { [loc.mark or false] = true }
+  for _, change in ipairs(loc.changes or {}) do
+    owned[change.mark] = true
+  end
+  for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })) do
+    if owned[mark[1]] and not mark[4].invalid then
+      marks[#marks + 1] = mark
+    end
+  end
   local ok, line = pcall(M.place, loc, tpl, lines)
   if not ok then
     utils.warn(tostring(line))
@@ -1776,17 +1853,43 @@ function M.store(tpl, lines, ctx)
     utils.warn("Capture target is gone, the text is kept in the capture buffer")
     return nil
   end
-  release(loc)
   if ttype == "entry" then
     line = first_headline_line(bufnr, line)
   end
-  if ctx.clock_start then
-    finish_clock(tpl, ctx, bufnr, line)
-  end
-  require("org.refile").remember(bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
   if not tpl.no_save then
-    utils.save_buffer(bufnr)
+    local saved, err = pcall(utils.save_buffer, bufnr)
+    if not saved then
+      utils.restore_buffer(bufnr, before, modified)
+      for _, mark in ipairs(marks) do
+        local details = mark[4]
+        vim.api.nvim_buf_set_extmark(bufnr, ns, mark[2], mark[3], {
+          id = mark[1],
+          end_row = details.end_row,
+          end_col = details.end_col,
+          right_gravity = details.right_gravity,
+          end_right_gravity = details.end_right_gravity,
+          invalidate = true,
+        })
+      end
+      utils.warn("Capture could not be saved; the text is kept in the capture buffer: " .. tostring(err))
+      return nil
+    end
+  end
+  release(loc)
+  require("org.refile").remember(bufnr, line)
+  if ctx.clock_start then
+    -- Clock state can be persisted outside this buffer, and may resume an
+    -- interrupted task. Only finalize it once the captured text is safe.
+    local clocked, err = pcall(function()
+      finish_clock(tpl, ctx, bufnr, line)
+      if not tpl.no_save then
+        utils.save_buffer(bufnr)
+      end
+    end)
+    if not clocked then
+      utils.warn("Capture was stored, but its clock changes could not be finalized: " .. tostring(err))
+    end
   end
   return bufnr, line
 end
@@ -1912,15 +2015,11 @@ function M.kill(buf)
   local s = M.sessions[buf]
   close_session(buf)
   local loc = s.ctx.loc
+  cleanup_target(loc)
   release(loc)
-  if loc and vim.api.nvim_buf_is_valid(loc.bufnr) and not loc.was_modified and vim.bo[loc.bufnr].modified then
-    -- drop the headlines / date tree nodes created for the capture
-    if loc.new_buffer and vim.fn.bufwinid(loc.bufnr) == -1 then
-      pcall(vim.api.nvim_buf_delete, loc.bufnr, { force = true })
-    else
-      pcall(vim.api.nvim_buf_call, loc.bufnr, function()
-        vim.cmd("silent! edit!")
-      end)
+  if loc and loc.new_buffer and vim.api.nvim_buf_is_valid(loc.bufnr) and not vim.bo[loc.bufnr].modified then
+    if vim.fn.bufwinid(loc.bufnr) == -1 then
+      pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
     end
   end
   utils.notify("Capture aborted")

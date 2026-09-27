@@ -744,7 +744,7 @@ function M.find_property(file, keyword, project)
     return nil
   end
   local ox = require("org.export.ox")
-  local kw = ox.collect_keywords(file_lines(file), vim.fn.fnamemodify(file, ":h"))
+  local kw = ox.collect_keywords(file_lines(file), vim.fn.fnamemodify(file, ":h"), nil, nil, file)
   local values = kw[keyword:upper()]
   if not values then
     return nil

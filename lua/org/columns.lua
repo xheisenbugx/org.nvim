@@ -69,7 +69,7 @@ function M.parse_format(fmt)
   end
   for _, spec in ipairs(specs) do
     local width, rest = spec:match("^%%(%d*)(.*)$")
-    local prop = rest:match("^([%w_%-]+)")
+    local prop = rest and rest:match("^([%w_%-]+)")
     if prop then
       rest = rest:sub(#prop + 1)
       local title = rest:match("^%(([^%)]*)%)")
@@ -490,7 +490,7 @@ function M.compute(roots, cols, opts)
 end
 
 --- Column format and roots for a buffer/cursor position, plus the headline
---- whose COLUMNS property defines the format (nil for the file format).
+--- or file whose COLUMNS property defines the format (nil for a keyword).
 local function scope_for(file, lnum)
   local hl = lnum and file:headline_at(lnum)
   local p = hl
@@ -500,7 +500,30 @@ local function scope_for(file, lnum)
     end
     p = p.parent
   end
-  return file.settings.columns or config.opts.columns_default_format, file.children
+  local inherited = file:get_property("COLUMNS", true)
+  if inherited then
+    return inherited, file.children, file
+  end
+  return file.settings.columns or config.opts.columns_default_format, hl and { hl } or file.children
+end
+
+--- Compute one property's columns, updating existing drawer values only.
+--- The first matching column determines whether/how values are written.
+function M.compute_property(file, lnum, name)
+  local fmt, roots = scope_for(file, lnum)
+  local cols = {}
+  for _, col in ipairs(M.parse_format(fmt)) do
+    if col.prop:upper() == name:upper() then
+      cols[#cols + 1] = col
+    end
+  end
+  local first = cols[1]
+  if not first or not first.summary or not summary_type(first.summary) then
+    utils.warn("No summary operator defined for property " .. name)
+    return nil
+  end
+  M.compute(roots, cols, { update = true })
+  return true
 end
 
 --- Column format as a string (Emacs org-columns-uncompile-format).
@@ -877,14 +900,22 @@ end
 local function store_format(state, cols)
   local fmt = M.format_string(cols)
   if state.holder then
-    require("org.edit").set_property(state.src, state.holder.line, "COLUMNS", fmt)
+    require("org.edit").set_property(state.src, state.holder.line or 1, "COLUMNS", fmt)
     return
   end
   local lines = vim.api.nvim_buf_get_lines(state.src, 0, -1, false)
-  for i, l in ipairs(lines) do
-    local pre = l:match("^(%s*#%+[Cc][Oo][Ll][Uu][Mm][Nn][Ss]:)")
-    if pre then
-      vim.api.nvim_buf_set_lines(state.src, i - 1, i, false, { pre .. " " .. fmt })
+  local file = files.get_buffer(state.src)
+  for _, entry in ipairs(file.settings.keyword_entries) do
+    if entry.key == "COLUMNS" then
+      if entry.filename == file.filename then
+        local pre = lines[entry.line]:match("^(%s*#%+[^:]+:)")
+        vim.api.nvim_buf_set_lines(state.src, entry.line - 1, entry.line, false, { pre .. " " .. fmt })
+      else
+        -- First COLUMNS wins: override the shared setup locally, before
+        -- the directive that imports it. Never rewrite the shared file.
+        local at = entry.source_line - 1
+        vim.api.nvim_buf_set_lines(state.src, at, at, false, { "#+COLUMNS: " .. fmt })
+      end
       return
     end
   end
@@ -1073,7 +1104,7 @@ local function edit_allowed(state)
   if v == nil then
     return
   end
-  require("org.edit").set_property(state.src, where.line, prop .. "_ALL", vim.trim(v))
+  require("org.edit").set_property(state.src, where.line or 1, prop .. "_ALL", vim.trim(v))
   refresh(state, ci)
 end
 
@@ -1337,4 +1368,3 @@ function M.open()
 end
 
 return M
-

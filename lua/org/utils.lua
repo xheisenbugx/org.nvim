@@ -500,14 +500,30 @@ function M.load_buffer(path)
   return b
 end
 
---- Write a buffer silently if it has changes.
+--- Restore a synchronous edit snapshot without replacing unchanged lines.
+--- This keeps unrelated extmarks and cursor locations intact on rollback.
+function M.restore_buffer(bufnr, lines, modified)
+  local current = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local hunks =
+    vim.diff(table.concat(current, "\n") .. "\n", table.concat(lines, "\n") .. "\n", { result_type = "indices" })
+  for i = #hunks, 1, -1 do
+    local h = hunks[i]
+    local start = h[2] == 0 and h[1] or h[1] - 1
+    vim.api.nvim_buf_set_lines(bufnr, start, start + h[2], false, vim.list_slice(lines, h[3], h[3] + h[4] - 1))
+  end
+  vim.bo[bufnr].modified = modified
+end
+
+--- Write a buffer silently if it has changes. Write failures propagate to
+--- callers: moving data must never continue after a failed destination save.
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
     vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd("silent! noautocmd keepalt write")
+      vim.cmd("silent noautocmd keepalt write")
     end)
     require("org.files").invalidate(vim.api.nvim_buf_get_name(bufnr))
   end
+  return true
 end
 
 --- Open `path` in the current window (or reuse a window showing it) at `lnum`.

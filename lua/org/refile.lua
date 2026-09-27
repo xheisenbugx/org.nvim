@@ -468,7 +468,7 @@ local function source_range(bufnr, lnum, range)
 end
 
 --- Move a subtree (or given lines, or the region `src.range`) to `dest`.
----@param src { bufnr?: integer, lnum?: integer, lines?: string[], range?: integer[] }
+---@param src { bufnr?: integer, lnum?: integer, lines?: string[], range?: integer[], save_destination?: boolean }
 ---@param dest org.RefileTarget
 ---@return integer bufnr, integer lnum of the moved headline
 function M.move(src, dest)
@@ -492,7 +492,20 @@ function M.move(src, dest)
     vim.api.nvim_buf_set_lines(sbuf, s - 1 + #lines, e + #lines, false, {})
     return b, l
   end
+  local before = vim.api.nvim_buf_get_lines(dbuf, 0, -1, false)
+  local modified = vim.bo[dbuf].modified
   local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
+  if src.save_destination and vim.fn.bufwinid(dbuf) == -1 then
+    local ok, err = pcall(utils.save_buffer, dbuf)
+    if not ok then
+      utils.restore_buffer(dbuf, before, modified)
+      local name = vim.api.nvim_buf_get_name(sbuf)
+      if name ~= "" then
+        require("org.id").register_lines(lines, vim.fs.normalize(name))
+      end
+      error(err, 0)
+    end
+  end
   vim.api.nvim_buf_set_lines(sbuf, s - 1, e, false, {})
   return b, l
 end
@@ -637,7 +650,12 @@ function M.refile(target, opts)
     local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
     ok, dbuf, dline = pcall(M.insert_subtree, lines, dest)
   else
-    ok, dbuf, dline = pcall(M.move, { bufnr = bufnr, lnum = hl.line, range = range and { s, e } }, dest)
+    ok, dbuf, dline = pcall(M.move, {
+      bufnr = bufnr,
+      lnum = hl.line,
+      range = range and { s, e },
+      save_destination = true,
+    }, dest)
   end
   if not ok then
     utils.error(tostring(dbuf))

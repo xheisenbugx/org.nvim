@@ -2397,45 +2397,6 @@ function Doc:element_at(lnum, col)
   end
 end
 
---- TODO keywords when #+SETUPFILE files define some (the buffer's own
---- settings do not follow setup files). nil otherwise.
-function M._setup_todo(lines, dir)
-  local seqs, from_setup = {}, false
-  local seen = {}
-  local function scan(ls, d, depth)
-    for _, l in ipairs(ls) do
-      local key, value = l:match("^#%+(%S-):[ \t]*(.-)[ \t]*$")
-      key = key and key:upper()
-      if key == "TODO" or key == "SEQ_TODO" or key == "TYP_TODO" then
-        seqs[#seqs + 1] = value
-        from_setup = from_setup or depth > 0
-      elseif key == "SETUPFILE" and depth < 5 then
-        local f = value:match('^"(.*)"$') or value
-        if not f:match("^%a[%w+%.%-]*://") then
-          if f:sub(1, 2) == "~/" then
-            f = (vim.uv.os_homedir() or "~") .. f:sub(2)
-          elseif not f:match("^/") then
-            f = d .. "/" .. f
-          end
-          f = vim.fs.normalize(f)
-          if not seen[f] and vim.uv.fs_stat(f) then
-            seen[f] = true
-            local ok, fl = pcall(vim.fn.readfile, f)
-            if ok then
-              scan(fl, vim.fn.fnamemodify(f, ":h"), depth + 1)
-            end
-          end
-        end
-      end
-    end
-  end
-  scan(lines, dir, 0)
-  if not from_setup then
-    return nil
-  end
-  return require("org.todo_keywords").new(seqs)
-end
-
 --- Parse buffer lines into a document.
 ---@param lines string[]
 ---@param opts? { file?: table, dir?: string, bufnr?: integer, filename?: string }
@@ -2466,7 +2427,8 @@ function M.parse(lines, opts)
     types[#types + 1] = t
   end
   doc.link_types = types
-  doc.todo = M._setup_todo(lines, opts.dir or vim.fn.getcwd())
+  doc.todo = opts.file and opts.file.settings.todo
+    or require("org.parser").parse(lines, opts.filename or ((opts.dir or vim.fn.getcwd()) .. "/.org-setup-context")).settings.todo
   doc.root = new_el("org-data", { begin = 1, post = 1, last = #lines, stop = #lines + 1 })
   local s = doc:skip_blank(1, #lines)
   doc:parse_region(s, #lines, "first-section", doc.root)

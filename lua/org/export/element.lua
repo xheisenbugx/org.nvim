@@ -751,11 +751,7 @@ end
 
 --- Remove the protective commas of a block body (org-unescape-code-in-string).
 local function unescape(lines)
-  local out = {}
-  for i, l in ipairs(lines) do
-    out[i] = l:gsub("^([ \t]*),([%*])", "%1%2"):gsub("^([ \t]*),(#%+)", "%1%2")
-  end
-  return out
+  return require("org.babel.blocks").unescape(lines)
 end
 M.unescape = unescape
 

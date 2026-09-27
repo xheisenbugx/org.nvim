@@ -8,6 +8,7 @@
 
 local date = require("org.date")
 local todo_keywords = require("org.todo_keywords")
+local keywords = require("org.keywords")
 
 local M = {}
 
@@ -45,6 +46,7 @@ M.Headline = Headline
 ---@field headlines org.Headline[]
 ---@field children org.Headline[]
 ---@field settings table
+---@field setup_dependencies table<string,string> signatures of local setup files
 local File = {}
 File.__index = File
 M.File = File
@@ -124,22 +126,49 @@ end
 -- File settings (#+KEYWORD: value)
 ---------------------------------------------------------------------------
 
-local LITERAL_BLOCKS = { SRC = true, EXAMPLE = true, EXPORT = true, COMMENT = true, VERSE = true }
-
-local function literal_block_end(lines, start)
-  local kind = lines[start]:upper():match("^%s*#%+BEGIN_(%S+)")
-  if not LITERAL_BLOCKS[kind] then
-    return nil
-  end
-  for i = start + 1, #lines do
-    -- An unescaped headline terminates the section: an unmatched BEGIN
-    -- is ordinary text, so subsequent keywords still take effect.
-    if M.headline_level(lines[i]) then
-      return nil
-    end
-    if lines[i]:upper():match("^%s*#%+END_" .. kind .. "%s*$") then
-      return i
-    end
+-- Org applies startup words in order, setting the same variable for each
+-- member of a group. Keep only its last word so boolean-map consumers agree.
+local STARTUP_GROUP = {}
+for _, group in ipairs({
+  {
+    "fold",
+    "overview",
+    "nofold",
+    "showall",
+    "show2levels",
+    "show3levels",
+    "show4levels",
+    "show5levels",
+    "showeverything",
+    "content",
+  },
+  { "indent", "noindent" },
+  { "num", "nonum" },
+  { "hidestars", "showstars" },
+  { "odd", "oddeven" },
+  { "align", "noalign" },
+  { "shrink", "noshrink" },
+  { "descriptivelinks", "literallinks" },
+  { "inlineimages", "noinlineimages", "linkpreviews", "nolinkpreviews" },
+  { "latexpreview", "nolatexpreview" },
+  { "logdone", "lognotedone", "nologdone" },
+  { "lognoteclock-out", "nolognoteclock-out", "nologclock-out" },
+  { "logrepeat", "lognoterepeat", "nologrepeat" },
+  { "logreschedule", "lognotereschedule", "nologreschedule" },
+  { "logredeadline", "lognoteredeadline", "nologredeadline" },
+  { "logrefile", "lognoterefile", "nologrefile" },
+  { "logdrawer", "nologdrawer" },
+  { "logstatesreversed", "nologstatesreversed" },
+  { "fninline", "nofninline" },
+  { "fnauto", "fnprompt", "fnconfirm", "fnplain", "fnanon" },
+  { "fnadjust", "nofnadjust" },
+  { "constcgs", "constsi" },
+  { "hideblocks", "nohideblocks" },
+  { "hidedrawers", "nohidedrawers" },
+  { "entitiespretty", "entitiesplain" },
+}) do
+  for _, word in ipairs(group) do
+    STARTUP_GROUP[word] = group
   end
 end
 
@@ -160,69 +189,64 @@ local function parse_settings(lines, filename)
     todo_sequences = {},
     priorities = nil,
   }
-  local skip_to = 0
-  for i, line in ipairs(lines) do
-    local b = line:byte(1)
-    -- '#', or indentation before a keyword (valid in Emacs)
-    if i > skip_to and (b == 35 or ((b == 32 or b == 9) and line:find("^%s+#%+"))) then
-      -- org-collect-keywords only reads keyword elements. Configuration
-      -- examples inside literal blocks must not alter the containing file.
-      skip_to = literal_block_end(lines, i) or skip_to
-      local key, value = line:match("^%s*#%+([%w_%-]+):%s*(.-)%s*$")
-      if key then
-        key = key:upper()
-        s.keywords[key] = s.keywords[key] or {}
-        table.insert(s.keywords[key], value)
-        if key == "TITLE" then
-          s.title = s.title and (s.title .. " " .. value) or value
-        elseif key == "TODO" or key == "SEQ_TODO" or key == "TYP_TODO" then
-          table.insert(s.todo_sequences, value)
-        elseif key == "FILETAGS" then
-          for tag in value:gmatch("[^:%s]+") do
-            table.insert(s.filetags, tag)
-          end
-        elseif key == "TAGS" then
-          table.insert(s.tags, value)
-        elseif key == "CATEGORY" then
-          s.category = value
-        elseif key == "STARTUP" then
-          for w in value:gmatch("%S+") do
-            s.startup[w] = true
-          end
-        elseif key == "PROPERTY" then
-          local pname, pval = value:match("^(%S+)%s*(.*)$")
-          if pname then
-            local plus = pname:match("^(.-)%+$")
-            if plus then
-              local k = plus:upper()
-              s.properties[k] = s.properties[k] and (s.properties[k] .. " " .. pval) or pval
-            else
-              s.properties[pname:upper()] = pval
-              s.property_base[pname:upper()] = true
-            end
-          end
-        elseif key == "LINK" then
-          local abbrev, url = value:match("^(%S+)%s+(.*)$")
-          if abbrev then
-            s.link_abbrevs[abbrev] = url
-          end
-        elseif key == "ARCHIVE" then
-          s.archive = value
-        elseif key == "COLUMNS" then
-          s.columns = value
-        elseif key == "PRIORITIES" then
-          local hi, lo, def = value:match("^(%S+)%s+(%S+)%s+(%S+)")
-          if hi then
-            s.priorities = { highest = hi, lowest = lo, default = def }
-          end
+  local entries, dependencies = keywords.collect(lines, filename)
+  s.keyword_entries = entries
+  for _, entry in ipairs(entries) do
+    local key, value = entry.key, entry.value
+    s.keywords[key] = s.keywords[key] or {}
+    table.insert(s.keywords[key], value)
+    if key == "TITLE" then
+      s.title = s.title and (s.title .. " " .. value) or value
+    elseif key == "TODO" or key == "SEQ_TODO" or key == "TYP_TODO" then
+      table.insert(s.todo_sequences, value)
+    elseif key == "FILETAGS" then
+      for tag in value:gmatch("[^:%s]+") do
+        table.insert(s.filetags, tag)
+      end
+    elseif key == "TAGS" then
+      table.insert(s.tags, value)
+    elseif key == "CATEGORY" and s.category == nil then
+      s.category = value
+    elseif key == "STARTUP" then
+      for w in value:gmatch("%S+") do
+        w = w:lower()
+        for _, other in ipairs(STARTUP_GROUP[w] or {}) do
+          s.startup[other] = nil
         end
+        s.startup[w] = true
+      end
+    elseif key == "PROPERTY" then
+      local pname, pval = value:match("^(%S+)%s*(.*)$")
+      if pname then
+        local plus = pname:match("^(.-)%+$")
+        if plus then
+          local k = plus:upper()
+          s.properties[k] = s.properties[k] and (s.properties[k] .. " " .. pval) or pval
+        else
+          s.properties[pname:upper()] = pval
+          s.property_base[pname:upper()] = true
+        end
+      end
+    elseif key == "LINK" then
+      local abbrev, url = value:match("^(%S+)%s+(.*)$")
+      if abbrev then
+        s.link_abbrevs[abbrev] = url
+      end
+    elseif key == "ARCHIVE" and s.archive == nil then
+      s.archive = value
+    elseif key == "COLUMNS" and s.columns == nil then
+      s.columns = value
+    elseif key == "PRIORITIES" and #s.keywords.PRIORITIES == 1 then
+      local hi, lo, def = value:match("^(%S+)%s+(%S+)%s+(%S+)")
+      if hi then
+        s.priorities = { highest = hi, lowest = lo, default = def }
       end
     end
   end
   if not s.category and filename then
     s.category = vim.fn.fnamemodify(filename, ":t:r")
   end
-  return s
+  return s, dependencies
 end
 
 ---------------------------------------------------------------------------
@@ -444,7 +468,7 @@ end
 ---@param filename? string absolute path
 ---@return org.File
 function M.parse(lines, filename)
-  local settings = parse_settings(lines, filename)
+  local settings, dependencies = parse_settings(lines, filename)
   local todo_cfg
   if #settings.todo_sequences > 0 then
     todo_cfg = todo_keywords.new(settings.todo_sequences)
@@ -459,6 +483,7 @@ function M.parse(lines, filename)
     headlines = {},
     children = {},
     settings = settings,
+    setup_dependencies = dependencies,
   }, File)
 
   local cfg = require("org.config").opts
@@ -870,6 +895,54 @@ local function should_inherit(name)
   return false
 end
 
+local function inherited_property(file, key, h)
+  -- org-entry-get-with-inheritance: `PROP+` values accumulate onto the
+  -- inherited value until a plain `PROP` definition is found
+  local parts = {}
+  local function take(props, base)
+    local v = props[key]
+    if v ~= nil then
+      table.insert(parts, 1, v)
+      return base[key] == true
+    end
+    return false
+  end
+  while h do
+    if take(h.properties, h.property_base) then
+      return table.concat(parts, " ")
+    end
+    h = h.parent
+  end
+  if take(file.properties or {}, file.property_base or {}) then
+    return table.concat(parts, " ")
+  end
+  if take(file.settings.properties, file.settings.property_base or {}) then
+    return table.concat(parts, " ")
+  end
+  local global = require("org.config").opts.global_properties or {}
+  for k, v in pairs(global) do
+    if k:upper() == key then
+      table.insert(parts, 1, v)
+      break
+    end
+  end
+  return #parts > 0 and table.concat(parts, " ") or nil
+end
+
+--- File drawer property, optionally inheriting keyword/global properties.
+---@param name string
+---@param inherit? boolean nil = use config `use_property_inheritance`
+function File:get_property(name, inherit)
+  local key = name:upper()
+  if inherit == nil then
+    inherit = should_inherit(key)
+  end
+  if not inherit then
+    return self.properties[key]
+  end
+  return inherited_property(self, key)
+end
+
 --- Property value (special properties included).
 ---@param name string
 ---@param inherit? boolean nil = use config `use_property_inheritance`
@@ -910,45 +983,10 @@ function Headline:get_property(name, inherit)
   if not inherit then
     return self.properties[key]
   end
-  -- org-entry-get-with-inheritance: `PROP+` values accumulate onto the
-  -- inherited value until a plain `PROP` definition is found
-  local parts = {}
-  local function take(props, base)
-    local v = props[key]
-    if v ~= nil then
-      table.insert(parts, 1, v)
-      return base[key] == true
-    end
-    return false
-  end
-  local h = self
-  while h do
-    if take(h.properties, h.property_base) then
-      return table.concat(parts, " ")
-    end
-    h = h.parent
-  end
-  local file = self.file
-  if take(file.properties or {}, file.property_base or {}) then
-    return table.concat(parts, " ")
-  end
-  if take(file.settings.properties, file.settings.property_base or {}) then
-    return table.concat(parts, " ")
-  end
-  local global = require("org.config").opts.global_properties or {}
-  for k, v in pairs(global) do
-    if k:upper() == key then
-      table.insert(parts, 1, v)
-      break
-    end
-  end
-  return #parts > 0 and table.concat(parts, " ") or nil
+  return inherited_property(self.file, key, self)
 end
 
---- Allowed values for a property (`PROP_ALL`), searched upward then globally.
----@return string[]|nil
-function Headline:get_allowed_values(name)
-  local value = self:get_property(name:upper() .. "_ALL", true)
+local function allowed_values(value)
   if not value or not value:match("%S") then
     return nil
   end
@@ -974,6 +1012,17 @@ function Headline:get_allowed_values(name)
     end
   end
   return out
+end
+
+--- Allowed values for a property (`PROP_ALL`), searched upward then globally.
+---@return string[]|nil
+function Headline:get_allowed_values(name)
+  return allowed_values(self:get_property(name:upper() .. "_ALL", true))
+end
+
+---@return string[]|nil
+function File:get_allowed_values(name)
+  return allowed_values(self:get_property(name:upper() .. "_ALL", true))
 end
 
 function Headline:scheduled()

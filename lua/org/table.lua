@@ -1163,9 +1163,9 @@ end
 --- buffer's `#+CONSTANTS: name=value ...` lines.
 local function formula_constants(bufnr)
   local out = vim.deepcopy(require("org.config").opts.table_formula_constants or {})
-  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    local body = line:match("^%s*#%+[Cc][Oo][Nn][Ss][Tt][Aa][Nn][Tt][Ss]:%s*(.*)$")
-    for k, v in (body or ""):gmatch("([%a_][%w_]*)=(%S+)") do
+  local constants = require("org.files").get_buffer(bufnr).settings.keywords.CONSTANTS or {}
+  for _, body in ipairs(constants) do
+    for k, v in body:gmatch("([%a_][%w_]*)=(%S+)") do
       out[k] = v
     end
   end

@@ -75,9 +75,9 @@ end
 --- `#+STARTUP` words of the buffer in order: the last of a pair wins.
 local function startup(bufnr)
   local links, latex = opts().startup, latex_opts().startup
-  for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    local words = l:match("^%s*#%+[sS][tT][aA][rR][tT][uU][pP]:(.*)$")
-    for w in (words or ""):gmatch("%S+") do
+  local settings = require("org.files").get_buffer(bufnr).settings.keywords.STARTUP or {}
+  for _, words in ipairs(settings) do
+    for w in words:lower():gmatch("%S+") do
       if w == "inlineimages" or w == "linkpreviews" then
         links = true
       elseif w == "noinlineimages" or w == "nolinkpreviews" then
@@ -975,7 +975,8 @@ local function preamble(bufnr, template)
     local latex = require("org.export.latex")
     local name = vim.api.nvim_buf_get_name(bufnr)
     local dir = name ~= "" and vim.fn.fnamemodify(name, ":p:h") or vim.fn.getcwd()
-    local keywords = ox.collect_keywords(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), dir)
+    local keywords =
+      ox.collect_keywords(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), dir, nil, nil, name ~= "" and name or nil)
     local info = ox.environment({
       keywords = keywords,
       backend = latex.backend,

@@ -77,10 +77,25 @@ local function persist()
   })
 end
 
---- A date (with time) for a number of minutes since the epoch.
+--- A date (with time) for a number of civil minutes since the epoch.
 local function at_minutes(m)
   m = math.floor(m)
   return date.from_days(math.floor(m / 1440)):add(m % 1440, "min"):clone({ active = false })
+end
+
+--- Resolve durations on the Unix timeline; public bounds and leftover time
+--- remain civil minutes, like Date:minutes(). Preserve fractional minutes
+--- here for the 45-second "barely started" idle-clock check.
+local function instant_minutes(m)
+  return at_minutes(m):to_time() / 60 + m % 1
+end
+
+local function at_instant(m)
+  return date.from_time(math.floor(m) * 60, true):clone({ active = false })
+end
+
+local function now_minutes()
+  return os.time() / 60
 end
 
 local function buf_path(bufnr)
@@ -504,13 +519,10 @@ local function tick()
     if idle > idle_min * 60 then
       local bufnr, lnum = M.find_open_clock()
       if bufnr then
-        local idle_start = date.now():minutes() - idle / 60
+        local idle_start = now_minutes() - idle / 60
         M.resolve({ bufnr = bufnr, lnum = lnum, start = date.parse(M.state.start), active = true }, function()
-          return string.format(
-            "Clocked in & idle for %.1f mins",
-            (date.now():minutes() + os.date("*t").sec / 60 - idle_start)
-          )
-        end, idle_start, { idle = true })
+          return string.format("Clocked in & idle for %.1f mins", now_minutes() - idle_start)
+        end, at_instant(idle_start):minutes(), { idle = true, last_valid_time = idle_start * 60 })
       end
     end
   end
@@ -927,10 +939,8 @@ function M.clock_in(target, opts)
     if out and out:minutes() <= date.now():minutes() then
       start = out
     elseif leftover then
-      local ago = date.now():minutes() - leftover
-      if
-        utils.confirm(string.format("You stopped another clock %d mins ago; start this one from then?", ago))
-      then
+      local ago = date.elapsed_minutes(at_minutes(leftover), date.now())
+      if utils.confirm(string.format("You stopped another clock %d mins ago; start this one from then?", ago)) then
         start = at_minutes(leftover)
       end
       M.leftover = nil
@@ -1334,10 +1344,10 @@ function M.dangling_clocks(with_active)
   return out
 end
 
---- Close the open CLOCK line of `clock` at `stop` (minutes).
+--- Close the open CLOCK line of `clock` at `stop` (Unix minutes).
 local function close_clock(clock, stop)
   if clock.active then
-    return M.clock_out({ at = at_minutes(stop), quiet = true })
+    return M.clock_out({ at = at_instant(stop), quiet = true })
   end
   -- like org-with-clock: clock out of the dangling clock as if it were the
   -- running one (state switch, note, 0:00 removal), then restore the
@@ -1350,7 +1360,7 @@ local function close_clock(clock, stop)
     start = clock.start:clone({ active = false }):to_string({ range = false }),
     title = hl and mode_line_heading(hl) or "?",
   }
-  local ok, err = pcall(M.clock_out, { at = at_minutes(stop), quiet = true })
+  local ok, err = pcall(M.clock_out, { at = at_instant(stop), quiet = true })
   M.state = saved
   if saved then
     persist()
@@ -1362,7 +1372,7 @@ local function close_clock(clock, stop)
 end
 
 --- Apply a resolution to an open clock (org-clock-resolve-clock).
---- `to` is nil (cancel), "now", or a time in minutes.
+--- `to` is nil (cancel), "now", or a time in Unix minutes.
 local function resolve_clock(clock, to, out_time, close, restart, ctx)
   local head = clock.head
   local function heading_target()
@@ -1381,19 +1391,22 @@ local function resolve_clock(clock, to, out_time, close, restart, ctx)
     end
   elseif to == "now" then
     if close or ctx.clocking_in then
-      close_clock(clock, date.now():minutes())
+      close_clock(clock, now_minutes())
     elseif not clock.active then
       M.clock_in(heading_target(), { resume = true, no_count = true, clocking_in = true })
     end
   else
+    if to > now_minutes() then
+      error("Clock resolution must refer to a time in the past", 0)
+    end
     close_clock(clock, out_time or to)
     if ctx.clocking_in then
       return
     elseif close then
-      M.leftover = not out_time and math.floor(to) or nil
+      M.leftover = not out_time and at_instant(to):minutes() or nil
     else
       M.clock_in(heading_target(), {
-        at = out_time and at_minutes(to) or nil,
+        at = out_time and at_instant(to) or nil,
         no_count = true,
         clocking_in = true,
         resolving_idle = ctx.idle,
@@ -1404,15 +1417,18 @@ end
 
 --- Ask how to resolve an open clock (org-clock-resolve). `clock` is
 --- `{ bufnr, lnum, start, active }`, `prompt` a function returning the
---- question, `last_valid` (minutes) the last time the clock was known to be
+--- question, `last_valid` (civil minutes) the last time the clock was known to be
 --- valid (its start for a dangling clock, the start of the idle time).
 ---
 --- Keys: k/K keep N minutes, t/T keep until a time, g/G got back N minutes
 --- ago, s/S subtract the idle time, C cancel, j/J jump, i/q ignore.
 --- Uppercase leaves the clock stopped.
----@param opts? { clocking_in?: boolean, idle?: boolean }
+---@param opts? { clocking_in?: boolean, idle?: boolean, last_valid_time?: number }
 function M.resolve(clock, prompt, last_valid, opts)
   opts = opts or {}
+  -- Idle detection already knows the exact instant; retain it through
+  -- repeated local times during the autumn DST transition.
+  last_valid = opts.last_valid_time and opts.last_valid_time / 60 or instant_minutes(last_valid)
   local ui = require("org.ui")
   clock.mark = vim.api.nvim_buf_set_extmark(clock.bufnr, mark_ns, clock.lnum - 1, 0, {})
   local hl = files.get_buffer(clock.bufnr):headline_at(clock.lnum)
@@ -1441,7 +1457,7 @@ function M.resolve(clock, prompt, last_valid, opts)
     if ch == nil or ch == "i" or ch == "q" then
       return
     end
-    local now = date.now():minutes()
+    local now = now_minutes()
     local default = math.floor(now - last_valid)
     local keep, gotback
     if ch == "k" or ch == "K" then
@@ -1452,11 +1468,11 @@ function M.resolve(clock, prompt, last_valid, opts)
       keep = tonumber(vim.trim(v)) or default
     elseif ch == "t" or ch == "T" then
       local v = utils.input({ prompt = "Keep until (date/time): " })
-      local d = v and v ~= "" and date.read_date(v, date.from_days(math.floor(last_valid / 1440)))
+      local d = v and v ~= "" and date.read_date(v, at_instant(last_valid):start_of("day"))
       if not d then
         return
       end
-      keep = math.floor(d:minutes() - last_valid)
+      keep = math.floor(d:to_time() / 60 - last_valid)
     elseif ch == "g" or ch == "G" then
       local v = utils.input({ prompt = string.format("Got back how many minutes ago (default %d): ", default) })
       if v == nil then
@@ -1474,7 +1490,7 @@ function M.resolve(clock, prompt, last_valid, opts)
     end
     local subtract = ch == "s" or ch == "S"
     -- less than 45 seconds on the clock before going away
-    local barely_started = (last_valid - clock.start:minutes()) < 0.75
+    local barely_started = (last_valid - clock.start:to_time() / 60) < 0.75
     local start_over = subtract and barely_started
     local to
     if ch == "C" or start_over then
@@ -1537,7 +1553,7 @@ function M.resolve_clocks(only_dangling, opts)
       d.lnum = pos[1] + 1
       d.active = d.active and M.state ~= nil
       M.resolve(d, function(clock)
-        return string.format("Dangling clock started %d mins ago", date.now():minutes() - clock.start:minutes())
+        return string.format("Dangling clock started %d mins ago", date.elapsed_minutes(clock.start, date.now()))
       end, d.start:minutes(), opts)
     end
   end

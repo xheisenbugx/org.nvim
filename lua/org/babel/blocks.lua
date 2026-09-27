@@ -469,6 +469,21 @@ local function literal_end(lines, start, kind)
   end
 end
 
+--- Find a block whose contents cannot contain nested block elements.
+--- Verse admits inline objects, but its block-looking text is still literal.
+function M.literal_block_at(lines, lnum)
+  local i = 1
+  while i <= lnum do
+    local kind = lines[i]:lower():match("^%s*#%+begin_(%S+)")
+    local literal = kind == "src" or kind == "example" or kind == "export" or kind == "comment" or kind == "verse"
+    local finish = literal and literal_end(lines, i, kind)
+    if finish and finish >= lnum then
+      return { start = i, finish = finish, kind = kind }
+    end
+    i = finish and (finish + 1) or (i + 1)
+  end
+end
+
 --- Lines whose contents cannot contain inline Babel objects. Greater
 --- elements (quote, center, special) and verse blocks do contain objects.
 function M.inline_literal_lines(lines)

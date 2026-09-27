@@ -587,38 +587,16 @@ function M.parse_option_line(line)
 end
 
 --- Collect in-buffer keywords: { KEY = { values... } } in buffer order,
---- including #+SETUPFILE files (recursively).
-function M.collect_keywords(lines, dir, depth, acc)
+--- including local SETUPFILE dependencies. The unused depth argument and
+--- accumulator remain accepted for callers of the former recursive scanner.
+function M.collect_keywords(lines, dir, _depth, acc, filename)
   acc = acc or {}
-  depth = depth or 0
-  local in_block = nil
-  for _, l in ipairs(lines) do
-    local low = l:lower()
-    if in_block then
-      if low:match("^[ \t]*#%+end_" .. vim.pesc(in_block) .. "[ \t]*$") then
-        in_block = nil
-      end
-    else
-      local b = low:match("^[ \t]*#%+begin_(%S+)")
-      if b then
-        in_block = b
-      else
-        local key, value = l:match("^[ \t]*#%+([^%s:]+):[ \t]*(.-)[ \t]*$")
-        if key then
-          key = key:upper()
-          if key == "SETUPFILE" and depth < 10 then
-            local path = value:match('^"(.*)"$') or value
-            local full = utils.expand(M.expand_env(path), dir)
-            local content = utils.readfile(full)
-            if content then
-              M.collect_keywords(content, vim.fn.fnamemodify(full, ":h"), depth + 1, acc)
-            end
-          else
-            acc[key] = acc[key] or {}
-            table.insert(acc[key], value)
-          end
-        end
-      end
+  local source = filename or ((dir or vim.fn.getcwd()) .. "/.org-export-keyword-context")
+  local entries = require("org.keywords").collect(lines, source)
+  for _, entry in ipairs(entries) do
+    if entry.key ~= "SETUPFILE" then
+      acc[entry.key] = acc[entry.key] or {}
+      table.insert(acc[entry.key], entry.value)
     end
   end
   return acc
@@ -3939,7 +3917,7 @@ function M.export_as(backend, lines, opts)
     end
   end
   -- keywords are read from the whole buffer
-  local keywords = M.collect_keywords(lines, dir)
+  local keywords = M.collect_keywords(lines, dir, nil, nil, filename)
   local subtree
   if opts.subtree_line then
     subtree = subtree_region(lines, opts.subtree_line, todo)

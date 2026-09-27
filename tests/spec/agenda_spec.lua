@@ -4,7 +4,8 @@ local items = require("org.agenda.items")
 local render = require("org.agenda.render")
 local parser = require("org.parser")
 
-local today = date.today()
+-- Keep tomorrow inside the displayed week even when run on a Sunday.
+local today = date.parse("<2026-09-25 Fri>")
 local T = today:days()
 local function ts(offset, extra, inactive)
   local d = today:add(offset, "d")
@@ -196,6 +197,20 @@ describe("agenda.render", function()
 end)
 
 describe("agenda.view", function()
+  local real_today, real_now
+  before_each(function()
+    real_today, real_now = date.today, date.now
+    date.today = function()
+      return today:clone()
+    end
+    date.now = function()
+      return today:clone({ hour = 12, min = 0 })
+    end
+  end)
+  after_each(function()
+    date.today, date.now = real_today, real_now
+    pcall(require("org.agenda.view").quit, true)
+  end)
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
   local path = dir .. "/a.org"
@@ -229,11 +244,14 @@ describe("agenda.view", function()
     view.actions.later()
     view.actions.today()
     -- bulk tag
+    local meeting_line
     for l, it in pairs(view.state.line_items) do
       if it.title == "Meeting" then
-        vim.api.nvim_win_set_cursor(0, { l, 0 })
+        meeting_line = l
       end
     end
+    ok(meeting_line, "tomorrow's Meeting appears in the current week")
+    vim.api.nvim_win_set_cursor(0, { meeting_line, 0 })
     view.actions.mark()
     eq(1, vim.tbl_count(view.state.marks))
     view.quit(true)
