@@ -1288,8 +1288,12 @@ local function cleanup_target(loc)
       end
     end
   end
-  if vim.deep_equal(vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false), loc.original_lines) then
-    vim.bo[loc.bufnr].modified = loc.was_modified == true
+  local lines = vim.api.nvim_buf_get_lines(loc.bufnr, 0, -1, false)
+  if vim.deep_equal(lines, loc.original_lines) and not loc.was_modified then
+    -- The target may have been written while capturing: only clear the
+    -- flag when the file still holds the restored text.
+    local name = vim.api.nvim_buf_get_name(loc.bufnr)
+    vim.bo[loc.bufnr].modified = name ~= "" and not vim.deep_equal(utils.readfile(name), lines)
   end
 end
 
@@ -1858,7 +1862,7 @@ function M.store(tpl, lines, ctx)
   end
   run_hook(tpl.before_finalize, bufnr, line)
   if not tpl.no_save then
-    local saved, err = pcall(utils.save_buffer, bufnr)
+    local saved, err = utils.save_buffer(bufnr)
     if not saved then
       utils.restore_buffer(bufnr, before, modified)
       for _, mark in ipairs(marks) do
@@ -1884,7 +1888,7 @@ function M.store(tpl, lines, ctx)
     local clocked, err = pcall(function()
       finish_clock(tpl, ctx, bufnr, line)
       if not tpl.no_save then
-        utils.save_buffer(bufnr)
+        assert(utils.save_buffer(bufnr))
       end
     end)
     if not clocked then
@@ -1917,8 +1921,9 @@ end
 local function kill_target(tpl, loc)
   if tpl.kill_buffer and loc and loc.new_buffer and vim.api.nvim_buf_is_valid(loc.bufnr) then
     if vim.fn.bufwinid(loc.bufnr) == -1 then
-      utils.save_buffer(loc.bufnr)
-      pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
+      if utils.save_buffer_or_warn(loc.bufnr) then
+        pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
+      end
     end
   end
 end

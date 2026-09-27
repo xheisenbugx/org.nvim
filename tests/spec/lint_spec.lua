@@ -427,3 +427,31 @@ describe("lint entry points", function()
     vim.cmd("lclose")
   end)
 end)
+
+describe("lint SETUPFILE settings", function()
+  it("checks INCLUDE searches with the target's own setup-file TODO keywords", function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir .. "/sub", "p")
+    vim.fn.writefile({ "#+TODO: WAIT | FIN" }, dir .. "/sub/todo.setup")
+    vim.fn.writefile({ "#+SETUPFILE: todo.setup", "* WAIT Task" }, dir .. "/sub/other.org")
+    local buf = org_buffer({ '#+INCLUDE: "sub/other.org::*Task"' })
+    vim.api.nvim_buf_set_name(buf, dir .. "/main.org")
+    local out = lint.lint(buf, { "wrong-include-link-parameter" })
+    vim.fn.delete(dir, "rf")
+    eq({}, out)
+  end)
+
+  it("ignores macros inside literal blocks of a setup file", function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({ "#+begin_example", "#+MACRO: fake x", "#+end_example" }, dir .. "/m.setup")
+    local buf = org_buffer({ "#+SETUPFILE: m.setup", "{{{fake}}}" })
+    vim.api.nvim_buf_set_name(buf, dir .. "/main.org")
+    local out = {}
+    for _, r in ipairs(lint.lint(buf, { "invalid-macro-argument-and-template" })) do
+      out[#out + 1] = r.message
+    end
+    vim.fn.delete(dir, "rf")
+    eq({ 'Undefined macro "fake"' }, out)
+  end)
+end)

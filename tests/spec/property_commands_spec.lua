@@ -301,4 +301,59 @@ describe("column scope regressions", function()
     eq("88", files.get_buffer(buf).headlines[3].properties.COST)
     ok(not table.concat(output, "\n"):find("Other", 1, true))
   end)
+
+  it("prefers the buffer's own COLUMNS line over a SETUPFILE format", function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({ "#+COLUMNS: %ITEM %Shared" }, dir .. "/shared.setup")
+    local buf = org_buffer({ "#+SETUPFILE: shared.setup", "#+COLUMNS: %ITEM %Local", "* Task" }, { 3, 0 })
+    vim.api.nvim_buf_set_name(buf, dir .. "/tasks.org")
+    columns.open()
+    local header = buf_lines()[1]
+    vim.api.nvim_win_close(0, true)
+    widen()
+    local actual = buf_lines(buf)
+    vim.fn.delete(dir, "rf")
+    ok(header:find("Local", 1, true) and not header:find("Shared", 1, true), header)
+    eq({ "#+SETUPFILE: shared.setup", "#+COLUMNS: %7ITEM %Local", "* Task" }, actual)
+  end)
+
+  it("edits allowed values where the file drawer defines them", function()
+    local buf = org_buffer({
+      ":PROPERTIES:",
+      ":Status_ALL: a b",
+      ":END:",
+      "#+COLUMNS: %ITEM %Status",
+      "* Task",
+      ":PROPERTIES:",
+      ":Status: a",
+      ":END:",
+    }, { 5, 0 })
+    local input = require("org.utils").input
+    require("org.utils").input = function()
+      return "a b c"
+    end
+    columns.open()
+    vim.api.nvim_feedkeys(vim.keycode(":3<CR>$a"), "xt", false)
+    vim.api.nvim_win_close(0, true)
+    require("org.utils").input = input
+    eq(":Status_ALL: a b c", buf_lines(buf)[2])
+    eq(8, #buf_lines(buf))
+  end)
+
+  it("skips an empty COLUMNS keyword instead of crashing", function()
+    org_buffer({ "#+COLUMNS:", "#+COLUMNS: %ITEM %Foo", "* TODO h" }, { 3, 0 })
+    eq(true, columns.open())
+    local header = buf_lines()[1]
+    vim.api.nvim_win_close(0, true)
+    ok(header:find("Foo", 1, true), header)
+  end)
+
+  it("shows the whole file with a count, like C-u in Emacs", function()
+    org_buffer({ "#+COLUMNS: %ITEM", "* Project", "** A", "* Other" }, { 2, 0 })
+    columns.open({ global = true })
+    local output = table.concat(buf_lines(), "\n")
+    vim.api.nvim_win_close(0, true)
+    ok(output:find("Other", 1, true), output)
+  end)
 end)

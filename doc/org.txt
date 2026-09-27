@@ -756,7 +756,11 @@ and `global_properties` set values for the whole file, in that order.
                 (`function(title, value)`) can change any shown value.
                 The view uses the nearest COLUMNS property's scope; with
                 a keyword/default format it covers the current subtree,
-                or the whole file before the first heading.
+                or the whole file before the first heading. A count
+                (`1<prefix>C`, like C-u in Emacs org-columns) always
+                shows the whole file with the file-level format. The
+                buffer's own first `#+COLUMNS` line takes precedence over
+                one imported with `#+SETUPFILE`.
                 Keys in the view:
                   e               edit the value (TODO, tags, dates, ...)
                   n / p           next / previous allowed value (also
@@ -1827,7 +1831,9 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
                 false). IDs of archived entries keep resolving
                 (|org-id|). With a count, 4 (C-u) runs `archive_all_done`
                 and 16 (C-u C-u) `archive_all_old`.
-                A destination inside the source subtree is rejected.
+                A destination inside the source subtree is rejected
+                (Emacs org-archive-subtree has no such guard and loses
+                the subtree; this follows org-refile's check).
                 Archive and hidden-target refile save failures keep the
                 source text in place and report the write error.
                 User autocmds `OrgArchive` (source buffer, before the
@@ -3913,8 +3919,11 @@ line numbers in the current document stay unchanged. Cycles stop at the
 repeated file; repeated imports outside a cycle are allowed.
 Imports are bounded to 64 nesting levels and 256 imports per parse.
 
-Settings are collected in directive order. ARCHIVE, CATEGORY, COLUMNS and
-PRIORITIES use the first value. Cached document metadata refreshes when
+Paths expand `~` but not environment variables (Emacs expand-file-name).
+Settings are collected in directive order. ARCHIVE, COLUMNS and PRIORITIES
+use the first value. CATEGORY is the buffer's own last `#+CATEGORY`, else
+the first one collected (org-element--get-category). Column view prefers
+the buffer's own first non-empty `#+COLUMNS` line (org-columns-get-format). Cached document metadata refreshes when
 setup dependencies change, appear, disappear, or have unsaved edits in a
 loaded buffer. Remote URLs are not fetched by the core parser. Missing
 or unreadable local setup files are ignored; lint reports missing paths.

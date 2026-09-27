@@ -504,7 +504,19 @@ local function scope_for(file, lnum)
   if inherited then
     return inherited, file.children, file
   end
-  return file.settings.columns or config.opts.columns_default_format, hl and { hl } or file.children
+  -- Emacs org-columns-get-format: the buffer's own first non-empty
+  -- #+COLUMNS line, then the first one collected from setup files.
+  local fmt = file.settings.columns
+  for _, entry in ipairs(file.settings.keyword_entries or {}) do
+    if entry.key == "COLUMNS" and entry.filename == file.filename and entry.value ~= "" then
+      fmt = entry.value
+      break
+    end
+  end
+  if fmt == "" then
+    fmt = nil
+  end
+  return fmt or config.opts.columns_default_format, hl and { hl } or file.children
 end
 
 --- Compute one property's columns, updating existing drawer values only.
@@ -803,7 +815,7 @@ end
 
 local function render(state)
   local file = files.get_buffer(state.src)
-  local fmt, roots, holder = scope_for(file, anchor_line(state))
+  local fmt, roots, holder = scope_for(file, not state.global and anchor_line(state) or nil)
   state.holder = holder
   state.cols = M.parse_format(fmt)
   -- like Emacs, summaries are written back to existing properties
@@ -905,19 +917,23 @@ local function store_format(state, cols)
   end
   local lines = vim.api.nvim_buf_get_lines(state.src, 0, -1, false)
   local file = files.get_buffer(state.src)
+  local imported
   for _, entry in ipairs(file.settings.keyword_entries) do
-    if entry.key == "COLUMNS" then
+    if entry.key == "COLUMNS" and entry.value ~= "" then
       if entry.filename == file.filename then
         local pre = lines[entry.line]:match("^(%s*#%+[^:]+:)")
         vim.api.nvim_buf_set_lines(state.src, entry.line - 1, entry.line, false, { pre .. " " .. fmt })
-      else
-        -- First COLUMNS wins: override the shared setup locally, before
-        -- the directive that imports it. Never rewrite the shared file.
-        local at = entry.source_line - 1
-        vim.api.nvim_buf_set_lines(state.src, at, at, false, { "#+COLUMNS: " .. fmt })
+        return
       end
-      return
+      imported = imported or entry
     end
+  end
+  if imported then
+    -- Override the shared setup locally, before the directive that imports
+    -- it. Never rewrite the shared file.
+    local at = imported.source_line - 1
+    vim.api.nvim_buf_set_lines(state.src, at, at, false, { "#+COLUMNS: " .. fmt })
+    return
   end
   local at = #lines
   for i, l in ipairs(lines) do
@@ -1097,6 +1113,9 @@ local function edit_allowed(state)
   while where and not where.properties[key] do
     where = where.parent
   end
+  if not where and files.get_buffer(state.src).properties[key] then
+    where = { line = 1 } -- inherited from the file-level drawer
+  end
   where = where or state.holder or r.hl
   -- the raw value keeps quoted items ("Deutsche Grammophon") intact
   local cur = r.hl:get_property(key, true)
@@ -1241,7 +1260,10 @@ local function move_row(state, dir)
 end
 
 --- Open column view for the current buffer.
-function M.open()
+---@param opts? { global?: boolean } global (or a count, like C-u in
+--- Emacs org-columns): the whole file, with the file-level format
+function M.open(opts)
+  local global = (opts and opts.global) or vim.v.count > 0
   local src = vim.api.nvim_get_current_buf()
   if vim.bo[src].filetype ~= "org" then
     utils.warn("Column view needs an org buffer")
@@ -1252,7 +1274,7 @@ function M.open()
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].filetype = "orgcolumns"
   local mark = vim.api.nvim_buf_set_extmark(src, ns, lnum - 1, 0, {})
-  local state = { src = src, mark = mark, buf = buf }
+  local state = { src = src, mark = mark, buf = buf, global = global }
   vim.cmd("botright split")
   vim.api.nvim_win_set_buf(0, buf)
   vim.wo.wrap = false

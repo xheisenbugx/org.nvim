@@ -377,10 +377,10 @@ function M.archive_subtree(target)
   local data = { bufnr = bufnr, lnum = s, title = title, archive_file = loc.filename }
   fire("OrgArchiveFinalize", vim.tbl_extend("force", data, { bufnr = abuf, lnum = lnum }))
   if not same then
-    local ok, err = pcall(utils.save_buffer, abuf)
+    local ok, err = utils.save_buffer(abuf)
     if not ok then
       utils.restore_buffer(abuf, original, modified)
-      utils.error(tostring(err))
+      utils.error("Archive not saved, subtree kept: " .. err)
       return
     end
   end

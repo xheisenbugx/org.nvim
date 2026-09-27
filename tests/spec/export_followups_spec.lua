@@ -106,6 +106,24 @@ describe("export SETUPFILE collection", function()
     eq({ "unsaved" }, ox.collect_keywords({ "#+SETUPFILE: common.setup" }, dir).HTML_HEAD)
   end)
 
+  it("resolves INCLUDE paths without evaluating Vim expressions", function()
+    vim.g.org_include_evaluated = nil
+    local name = "`=execute('let g:org_include_evaluated=1')`"
+    write(name, { "included text" })
+    local html = export.to_string("html", {
+      lines = { '#+INCLUDE: "' .. name .. '"' },
+      filename = dir .. "/main.org",
+      body_only = true,
+    })
+    eq(nil, vim.g.org_include_evaluated)
+    ok(html:find("included text", 1, true), html)
+  end)
+
+  it("treats a relative setup name with a colon as a local file", function()
+    write("a:b.setup", { "#+TITLE: Colon" })
+    eq({ "Colon" }, ox.collect_keywords({ "#+SETUPFILE: a:b.setup" }, dir).TITLE)
+  end)
+
   it("ignores remote setup URLs without attempting to fetch them", function()
     eq(
       { TITLE = { "Local" } },

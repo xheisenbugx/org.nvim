@@ -88,7 +88,7 @@ describe("local SETUPFILE settings", function()
     eq({ "TITLE", 1, dir .. "/common.setup", 1 }, { title.key, title.line, title.filename, title.source_line })
   end)
 
-  it("uses the first unique setting, whether it is local or inherited", function()
+  it("uses the first unique setting, whether it is local or inherited, except CATEGORY", function()
     write("common.setup", {
       "#+CATEGORY: Setup",
       "#+ARCHIVE: setup.org::",
@@ -102,7 +102,8 @@ describe("local SETUPFILE settings", function()
       "#+PRIORITIES: 1 5 2",
     }
     local before = parse(vim.list_extend({ "#+SETUPFILE: common.setup" }, local_settings))
-    eq("Setup", before:category())
+    -- org-element--get-category: the buffer's own last CATEGORY first
+    eq("Local", before:category())
     eq("setup.org::", before.settings.archive)
     eq("%ITEM %TODO", before.settings.columns)
     eq({ highest = "A", lowest = "E", default = "C" }, before:priorities())
@@ -115,8 +116,15 @@ describe("local SETUPFILE settings", function()
 
   it("preserves empty first values for unique settings", function()
     local file = parse({ "#+CATEGORY:", "#+CATEGORY: Later", "#+COLUMNS:", "#+COLUMNS: %ITEM" })
-    eq("", file:category())
+    eq("Later", file:category())
     eq("", file.settings.columns)
+  end)
+
+  it("takes the last local CATEGORY, else the first inherited one", function()
+    write("common.setup", { "#+CATEGORY: Setup", "#+CATEGORY: Setup2" })
+    eq("second", parse({ "#+CATEGORY: first", "#+CATEGORY: second", "* H" }):category())
+    eq("Setup", parse({ "#+SETUPFILE: common.setup", "* H" }):category())
+    eq("mine", parse({ "#+SETUPFILE: common.setup", "#+CATEGORY: mine", "* H" }):category())
   end)
 
   it("ignores SETUPFILE and settings inside literal blocks in either file", function()
@@ -202,13 +210,18 @@ describe("local SETUPFILE settings", function()
     eq(nil, vim.g.org_setup_evaluated)
   end)
 
-  it("expands environment paths without editor evaluation", function()
+  it("expands ~ but not environment variables, like expand-file-name", function()
     local path = write("common.setup", { "#+FILETAGS: :expanded:" })
-    local saved = vim.env.ORG_SETUP_TEST_DIR
-    vim.env.ORG_SETUP_TEST_DIR = dir
-    local expanded = parse({ "#+SETUPFILE: ${ORG_SETUP_TEST_DIR}/common.setup" })
-    vim.env.ORG_SETUP_TEST_DIR = saved
-    eq({ "expanded" }, expanded.settings.filetags)
+    local saved_var, saved_home = vim.env.ORG_SETUP_TEST_DIR, vim.env.HOME
+    vim.env.ORG_SETUP_TEST_DIR, vim.env.HOME = dir, dir
+    local env = parse({
+      "#+SETUPFILE: ${ORG_SETUP_TEST_DIR}/common.setup",
+      "#+SETUPFILE: $ORG_SETUP_TEST_DIR/common.setup",
+    })
+    local home = parse({ "#+SETUPFILE: ~/common.setup" })
+    vim.env.ORG_SETUP_TEST_DIR, vim.env.HOME = saved_var, saved_home
+    eq({}, env.settings.filetags)
+    eq({ "expanded" }, home.settings.filetags)
     eq({ "expanded" }, parse({ "#+SETUPFILE: " .. path }).settings.filetags)
   end)
 

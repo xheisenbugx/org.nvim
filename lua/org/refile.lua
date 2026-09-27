@@ -496,14 +496,14 @@ function M.move(src, dest)
   local modified = vim.bo[dbuf].modified
   local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
   if src.save_destination and vim.fn.bufwinid(dbuf) == -1 then
-    local ok, err = pcall(utils.save_buffer, dbuf)
+    local ok, err = utils.save_buffer(dbuf)
     if not ok then
       utils.restore_buffer(dbuf, before, modified)
       local name = vim.api.nvim_buf_get_name(sbuf)
       if name ~= "" then
         require("org.id").register_lines(lines, vim.fs.normalize(name))
       end
-      error(err, 0)
+      error("Refile target not saved, subtree kept: " .. err, 0)
     end
   end
   vim.api.nvim_buf_set_lines(sbuf, s - 1, e, false, {})
@@ -513,7 +513,7 @@ end
 --- Save a buffer that is not shown in any window (hidden target files).
 local function save_if_hidden(bufnr)
   if vim.fn.bufwinid(bufnr) == -1 then
-    utils.save_buffer(bufnr)
+    utils.save_buffer_or_warn(bufnr)
   end
 end
 
@@ -680,7 +680,7 @@ function M.refile(target, opts)
     save_if_hidden(dbuf)
   end
   if opts.save then
-    utils.save_buffer(bufnr)
+    utils.save_buffer_or_warn(bufnr)
   end
   local where = (dest.path or dest.label):gsub("/$", "")
   utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)

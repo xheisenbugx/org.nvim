@@ -586,7 +586,7 @@ local function hook_exit()
         local bufnr = M.find_open_clock()
         M.clock_out({})
         if bufnr then
-          utils.save_buffer(bufnr)
+          utils.save_buffer_or_warn(bufnr)
         end
       end
     end,
@@ -1345,9 +1345,12 @@ function M.dangling_clocks(with_active)
 end
 
 --- Close the open CLOCK line of `clock` at `stop` (Unix minutes).
+--- `stop` in Unix minutes; nil clocks out now, rounded like a plain clock
+--- out (org-clock-clock-out passes no time, org-clock-rounding-minutes).
 local function close_clock(clock, stop)
+  local at = stop and at_instant(stop) or nil
   if clock.active then
-    return M.clock_out({ at = at_instant(stop), quiet = true })
+    return M.clock_out({ at = at, quiet = true })
   end
   -- like org-with-clock: clock out of the dangling clock as if it were the
   -- running one (state switch, note, 0:00 removal), then restore the
@@ -1360,7 +1363,7 @@ local function close_clock(clock, stop)
     start = clock.start:clone({ active = false }):to_string({ range = false }),
     title = hl and mode_line_heading(hl) or "?",
   }
-  local ok, err = pcall(M.clock_out, { at = at_instant(stop), quiet = true })
+  local ok, err = pcall(M.clock_out, { at = at, quiet = true })
   M.state = saved
   if saved then
     persist()
@@ -1391,7 +1394,7 @@ local function resolve_clock(clock, to, out_time, close, restart, ctx)
     end
   elseif to == "now" then
     if close or ctx.clocking_in then
-      close_clock(clock, now_minutes())
+      close_clock(clock)
     elseif not clock.active then
       M.clock_in(heading_target(), { resume = true, no_count = true, clocking_in = true })
     end

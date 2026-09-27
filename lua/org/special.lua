@@ -143,8 +143,8 @@ function M.open(opts)
     callback = function()
       local saved, err = write_back(vim.v.cmdbang == 1)
       if not saved then
-        -- A failed :wq! must not close (and wipe) the unsaved edit buffer.
-        error(err, 0)
+        -- The buffer stays modified, so :wq/:wq!/:x refuse to close it.
+        utils.error(err)
       end
     end,
   })

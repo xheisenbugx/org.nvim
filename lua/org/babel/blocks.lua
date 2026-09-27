@@ -391,8 +391,8 @@ end
 function M.unescape(lines)
   local out = {}
   for i, l in ipairs(lines) do
-    if l:match("^%s*,+%*") or l:match("^%s*,+#%+") then
-      out[i] = l:gsub("^(%s*),", "%1", 1)
+    if l:match("^[ \t]*,+%*") or l:match("^[ \t]*,+#%+") then
+      out[i] = l:gsub("^([ \t]*),", "%1", 1)
     else
       out[i] = l
     end

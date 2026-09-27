@@ -9,14 +9,8 @@ local MAX_SETUP_DEPTH, MAX_SETUP_IMPORTS = 64, 256
 
 local function setup_path(path, dir)
   -- Never use fn.expand here: setup directives are document text, and Vim
-  -- expansion evaluates backticks/expressions and interprets % and #.
-  path = path
-    :gsub("%${([%w_]+)}", function(name)
-      return vim.env[name] or ("${" .. name .. "}")
-    end)
-    :gsub("%$([%w_]+)", function(name)
-      return vim.env[name] or ("$" .. name)
-    end)
+  -- expansion evaluates backticks/expressions and interprets % and #. Like
+  -- Emacs (expand-file-name), only `~` is expanded, not $VARIABLES.
   path = vim.fs.normalize(path, { expand_env = false })
   if not path:match("^/") and not path:match("^%a:[/\\]") then
     path = dir .. "/" .. path
@@ -41,10 +35,33 @@ local function literal_block_end(lines, start)
   end
 end
 
+-- bufnr -> { name, normalized, realpath }: a dependency check runs on every
+-- cached parse, so don't resolve every loaded buffer's name each time.
+local buf_names = {}
+
+--- utils.find_buffer, with buffer paths resolved once per buffer name.
+local function loaded_buffer(path)
+  path = vim.fs.normalize(path)
+  local real = vim.uv.fs_realpath(path)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(b)
+    if name ~= "" and vim.api.nvim_buf_is_loaded(b) then
+      local cached = buf_names[b]
+      if not cached or cached[1] ~= name then
+        cached = { name, vim.fs.normalize(name), vim.uv.fs_realpath(name) or false }
+        buf_names[b] = cached
+      end
+      if cached[2] == path or (real and cached[3] == real) then
+        return b
+      end
+    end
+  end
+end
+
 --- A dependency includes unloaded/missing files and unsaved visiting buffers.
 --- Keep nanoseconds separate: epoch nanoseconds exceed Lua's exact integers.
 local function source_state(path)
-  local buf = utils.find_buffer(path)
+  local buf = loaded_buffer(path)
   if buf then
     return "buffer:" .. buf .. ":" .. vim.api.nvim_buf_get_changedtick(buf), buf
   end
@@ -96,7 +113,8 @@ function M.collect(lines, filename)
             local path = value:match('^"(.*)"$') or value
             -- Loading a document never fetches a URL or invokes a remote
             -- file handler. Missing/local unreadable files are left to lint.
-            local remote = path:match("^%a[%w+%.%-]*:") and not path:match("^%a:[/\\]")
+            -- Like org-url-p (ffap-url-regexp): `a:b.setup` is a local file.
+            local remote = path:match("^%a[%w+%.%-]*://") or path:match("^mailto:") or path:match("^news:")
             if path ~= "" and not remote and depth < MAX_SETUP_DEPTH and imports < MAX_SETUP_IMPORTS then
               path = setup_path(path, dir)
               local id = identity(path)

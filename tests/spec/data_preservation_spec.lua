@@ -184,8 +184,9 @@ describe("capture, archive and refile data preservation", function()
     local target, path = file("save-readonly", { "* Original" }, true)
     vim.bo[target].readonly = true
     vim.api.nvim_buf_set_lines(target, 0, -1, false, { "* Unsaved" })
-    local success = pcall(utils.save_buffer, target)
-    eq(false, success)
+    local saved, err = utils.save_buffer(target)
+    eq(false, saved)
+    ok(err:match("^E45:") and not err:find("\n"), err)
     eq({ "* Original" }, utils.readfile(path))
     eq({ "* Unsaved" }, buf_lines(target))
   end)
@@ -210,5 +211,49 @@ describe("capture, archive and refile data preservation", function()
     eq("Precious", clock.state.title)
     eq(1, select(2, table.concat(utils.readfile(path), "\n"):gsub("%*%* Precious", "")))
     ok(table.concat(utils.readfile(path), "\n"):find("CLOCK:", 1, true))
+  end)
+
+  it("keeps the target modified when it was written during an aborted capture", function()
+    local target, path = file("saved-mid", { "* Inbox" }, true)
+    local buf = run(capture.capture, { template = "* Note", target = path, headline = "New" })
+    eq(true, utils.save_buffer(target))
+    capture.kill(buf)
+    eq({ "* Inbox" }, buf_lines(target))
+    eq({ "* Inbox", "* New" }, utils.readfile(path))
+    eq(true, vim.bo[target].modified)
+  end)
+
+  it("warns instead of raising when a refile copy cannot save a hidden target", function()
+    local src = file("copy-src", { "* Task", "body" }, true)
+    local target = file("copy-ro", { "* Target" })
+    vim.bo[target].readonly = true
+    local warned
+    local notify = vim.notify
+    vim.notify = function(msg, level)
+      if level == vim.log.levels.WARN then
+        warned = msg
+      end
+    end
+    local done, err = pcall(refile.refile_copy, { bufnr = src, lnum = 1 }, {
+      dest = { bufnr = target, lnum = 1, path = "Target", label = "Target" },
+    })
+    vim.notify = notify
+    ok(done, err)
+    ok(warned and warned:find("E45:", 1, true), warned)
+    eq({ "* Task", "body" }, buf_lines(src))
+  end)
+
+  it("keeps saving the other agenda buffers after one write fails", function()
+    local a = file("save-a", { "* A" })
+    local b, bpath = file("save-b", { "* B" })
+    vim.bo[a].readonly = true
+    vim.api.nvim_buf_set_lines(a, -1, -1, false, { "edit" })
+    vim.api.nvim_buf_set_lines(b, -1, -1, false, { "edit" })
+    local notify = vim.notify
+    vim.notify = function() end
+    local done, err = pcall(require("org.agenda.view").actions.save_all)
+    vim.notify = notify
+    ok(done, err)
+    eq({ "* B", "edit" }, utils.readfile(bpath))
   end)
 end)

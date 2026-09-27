@@ -54,4 +54,42 @@ describe("clock resolution validation (Emacs)", function()
   it("rejects returning a negative number of minutes ago without changing the clock", function()
     rejects("g", "-10")
   end)
+
+  it("rounds a resolution that clocks out now, like a plain clock out", function()
+    local real_time, real_now = os.time, date.now
+    local now = real_time({ year = 2026, month = 6, day = 1, hour = 10, min = 7, sec = 0 })
+    os.time = function(t)
+      return t and real_time(t) or now
+    end
+    date.now = function()
+      return date.parse("[2026-06-01 Mon 10:07]")
+    end
+    local opts = config.opts.clock
+    config.opts.clock = vim.tbl_extend("force", opts, { rounding_minutes = 15 })
+    local result = {}
+    for _, key in ipairs({ "K", "J" }) do
+      local buf = org_buffer({ "* Task", "CLOCK: [2026-06-01 Mon 09:00]" }, { 1, 0 })
+      vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. ".org")
+      clock.state = { path = vim.api.nvim_buf_get_name(buf), title = "Task", start = "[2026-06-01 Mon 09:00]" }
+      ui.menu = function()
+        return key
+      end
+      utils.input = function()
+        return ""
+      end
+      local success, err = pcall(clock.resolve, {
+        bufnr = buf,
+        lnum = 2,
+        start = date.parse("[2026-06-01 Mon 09:00]"),
+        active = true,
+      }, function()
+        return "Idle"
+      end, date.parse("[2026-06-01 Mon 09:30]"):minutes(), { idle = true })
+      result[key] = success and buf_lines(buf)[2] or tostring(err)
+      clock.state = nil
+    end
+    os.time, date.now, config.opts.clock = real_time, real_now, opts
+    eq("CLOCK: [2026-06-01 Mon 09:00]--[2026-06-01 Mon 10:00] =>  1:00", result.K)
+    eq("CLOCK: [2026-06-01 Mon 09:00]--[2026-06-01 Mon 10:00] =>  1:00", result.J)
+  end)
 end)

@@ -191,6 +191,7 @@ local function parse_settings(lines, filename)
   }
   local entries, dependencies = keywords.collect(lines, filename)
   s.keyword_entries = entries
+  local local_category, first_category
   for _, entry in ipairs(entries) do
     local key, value = entry.key, entry.value
     s.keywords[key] = s.keywords[key] or {}
@@ -205,8 +206,13 @@ local function parse_settings(lines, filename)
       end
     elseif key == "TAGS" then
       table.insert(s.tags, value)
-    elseif key == "CATEGORY" and s.category == nil then
-      s.category = value
+    elseif key == "CATEGORY" then
+      -- org-element--get-category: the buffer's last CATEGORY keyword, else
+      -- org-category, the first one collected (setup files included).
+      if entry.filename == filename then
+        local_category = value
+      end
+      first_category = first_category or value
     elseif key == "STARTUP" then
       for w in value:gmatch("%S+") do
         w = w:lower()
@@ -243,6 +249,7 @@ local function parse_settings(lines, filename)
       end
     end
   end
+  s.category = local_category or first_category
   if not s.category and filename then
     s.category = vim.fn.fnamemodify(filename, ":t:r")
   end

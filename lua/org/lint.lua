@@ -1191,11 +1191,7 @@ function Doc:babel_call(i, k, e, aff)
 end
 
 local function unescape_code(lines)
-  local out = {}
-  for i, l in ipairs(lines) do
-    out[i] = l:gsub("^([ \t]*),([*,])", "%1%2"):gsub("^([ \t]*),(#%+)", "%1%2")
-  end
-  return out
+  return require("org.babel.blocks").unescape(lines)
 end
 
 function Doc:block(i, k, e, aff, btype)
@@ -3619,8 +3615,9 @@ C["non-existent-setupfile-parameter"] = function(doc)
 end
 
 --- Does `search` (an org-link-search string) match in `lines`?
-local function link_search(lines, search)
-  local file = M.parse(lines, {})
+local function link_search(lines, search, filename)
+  -- the target's own SETUPFILE settings (TODO keywords) apply to its headlines
+  local file = M.parse(lines, filename and { filename = filename, dir = vim.fn.fnamemodify(filename, ":h") } or {})
   if search:sub(1, 1) == "*" then
     local want = trim(search:sub(2))
     for _, h in ipairs(map_type(file, "headline")) do
@@ -3676,18 +3673,18 @@ C["wrong-include-link-parameter"] = function(doc)
           if file and not is_remote(file) and not file_exists(doc, file) then
             out[#out + 1] = at_post(k, "Non-existent file argument in INCLUDE keyword")
           elseif search then
-            local lines
+            local lines, target
             if file then
-              local p = expand_home(file)
-              if not p:match("^/") then
-                p = (doc.dir or vim.fn.getcwd()) .. "/" .. p
+              target = expand_home(file)
+              if not target:match("^/") then
+                target = (doc.dir or vim.fn.getcwd()) .. "/" .. target
               end
-              local okr, l = pcall(vim.fn.readfile, p)
+              local okr, l = pcall(vim.fn.readfile, target)
               lines = okr and l or {}
             else
-              lines = doc.lines
+              lines, target = doc.lines, doc.filename ~= "" and doc.filename or nil
             end
-            if not link_search(lines, search) then
+            if not link_search(lines, search, target) then
               out[#out + 1] = at_post(k, string.format('Invalid search part "%s" in INCLUDE keyword', search))
             end
           end
@@ -3856,35 +3853,16 @@ C["invalid-macro-argument-and-template"] = function(doc)
   -- org-macro-initialize-templates: buffer (and SETUPFILE) definitions
   -- and built-ins
   local defined = {}
-  local seen_files = {}
-  local function collect(lines, dir)
-    for _, l in ipairs(lines) do
-      local key, value = l:match("^[ \t]*#%+(%S-):[ \t]*(.-)[ \t]*$")
-      key = key and key:upper()
-      if key == "MACRO" then
-        local name, tmpl = value:match("^(%S+)%s*(.*)$")
-        if name then
-          defined[#defined + 1] = { name, trim(tmpl) }
-        end
-      elseif key == "SETUPFILE" then
-        local f = expand_home(strip_quotes(value))
-        if not is_url(f) then
-          if not f:match("^/") then
-            f = dir .. "/" .. f
-          end
-          f = vim.fs.normalize(f)
-          if not seen_files[f] and vim.uv.fs_stat(f) then
-            seen_files[f] = true
-            local ok, flines = pcall(vim.fn.readfile, f)
-            if ok then
-              collect(flines, vim.fn.fnamemodify(f, ":h"))
-            end
-          end
-        end
+  local entries = doc.file and doc.file.settings.keyword_entries
+    or require("org.keywords").collect(doc.lines, doc.filename ~= "" and doc.filename or nil)
+  for _, entry in ipairs(entries) do
+    if entry.key == "MACRO" then
+      local name, tmpl = entry.value:match("^(%S+)%s*(.*)$")
+      if name then
+        defined[#defined + 1] = { name, trim(tmpl) }
       end
     end
   end
-  collect(doc.lines, doc.dir or vim.fn.getcwd())
   for _, n in ipairs({ "date", "title", "email", "author" }) do
     defined[#defined + 1] = { n, "" }
   end
