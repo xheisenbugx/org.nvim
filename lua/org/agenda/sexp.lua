@@ -14,9 +14,15 @@
 ---   org-calendar-holiday      (the holidays of `agenda.holidays`)
 ---   and, or, not, list, quote
 ---
+--- around a side-effect-free subset of Elisp: if/when/unless/cond/let/
+--- let*/progn, comparisons, arithmetic, list and string functions and the
+--- calendar.el date helpers, with `date` bound to (MONTH DAY YEAR) and
+--- `entry` to the entry text. There are no loops, lambdas or assignments,
+--- so every sexp terminates and has no side effects.
+---
 --- The `diary-*` functions use Emacs's default `calendar-date-style`
 --- (american: month day year); the `org-*` wrappers use ISO order (year month
---- day), exactly like Emacs. Anything else (arbitrary Elisp, other calendars'
+--- day), exactly like Emacs. Anything else (other Elisp, other calendars'
 --- diary entries, diary-remind, ...) is reported as an error so the caller can skip
 --- the entry.
 
@@ -358,6 +364,142 @@ local function fn_class(ctx, y1, m1, d1, y2, m2, d2, dayname, ...)
   return ctx.entry
 end
 
+--- Truthiness: only nil (and the empty list) is false in Elisp.
+local function truthy(v)
+  return v ~= NIL and v ~= nil
+end
+
+local function bool(v)
+  return v and true or NIL
+end
+
+--- A missing value (absent argument, index past the end) is nil.
+local function nilify(v)
+  if v == nil then
+    return NIL
+  end
+  return v
+end
+
+--- The items of a list value (nil is the empty list).
+local function items_of(v, fn)
+  if v == NIL or v == nil then
+    return {}
+  elseif is_list(v) then
+    return v.items
+  end
+  error("wrong-type-argument listp " .. vim.inspect(v) .. (fn and (" in " .. fn) or ""), 0)
+end
+
+local function list_of(items)
+  if #items == 0 then
+    return NIL
+  end
+  return { items = items }
+end
+
+local function num(v, fn)
+  if type(v) ~= "number" then
+    error("wrong-type-argument number-or-marker-p " .. vim.inspect(v) .. " in " .. fn, 0)
+  end
+  return v
+end
+
+--- `eq`/`eql`: numbers, symbols, t and nil by value, other objects by identity.
+local function eq(a, b)
+  if type(a) == "table" and type(b) == "table" and a.symbol and b.symbol then
+    return a.symbol == b.symbol
+  elseif type(a) == "string" then
+    return false
+  elseif (a == NIL or is_list(a) and #a.items == 0) and (b == NIL or is_list(b) and #b.items == 0) then
+    return true
+  end
+  return a == b
+end
+
+local function equal(a, b)
+  if type(a) == "table" and type(b) == "table" then
+    if a.symbol or b.symbol then
+      return a.symbol == b.symbol
+    end
+    local ia, ib = is_list(a) and a.items, is_list(b) and b.items
+    if ia and ib then
+      if #ia ~= #ib then
+        return false
+      end
+      for i = 1, #ia do
+        if not equal(ia[i], ib[i]) then
+          return false
+        end
+      end
+      return true
+    end
+  end
+  return eq(a, b) or (type(a) == "string" and a == b)
+end
+
+--- The date list (month day year) of an absolute day.
+local function date_list(day)
+  local m, d, y = mdy(day)
+  return { items = { m, d, y } }
+end
+
+--- (month day year) -> absolute day.
+local function from_date_list(v, fn)
+  local it = items_of(v, fn)
+  return abs_date(it[1], it[2], it[3])
+end
+
+local function compare(fn, op)
+  return function(_, ...)
+    local args = { ... }
+    for i = 1, #args do
+      num(args[i], fn)
+    end
+    for i = 1, #args - 1 do
+      if not op(args[i], args[i + 1]) then
+        return NIL
+      end
+    end
+    return true
+  end
+end
+
+local function arith(fn, op, unit, unary)
+  return function(_, ...)
+    local args = { ... }
+    if #args == 0 then
+      return unit
+    end
+    local acc = num(args[1], fn)
+    if #args == 1 and unary then
+      return unary(acc)
+    end
+    for i = 2, #args do
+      acc = op(acc, num(args[i], fn))
+    end
+    return acc
+  end
+end
+
+local function int(v, fn)
+  num(v, fn)
+  if v ~= math.floor(v) then
+    error("wrong-type-argument integerp " .. v .. " in " .. fn, 0)
+  end
+  return v
+end
+
+local function memq(_, x, l)
+  local it = items_of(l, "memq")
+  for i, v in ipairs(it) do
+    if eq(x, v) then
+      return list_of(vim.list_slice(it, i))
+    end
+  end
+  return NIL
+end
+
 local FUNCS = {
   ["diary-date"] = function(ctx, ...)
     return fn_date(ctx, "american", ...)
@@ -389,14 +531,223 @@ local FUNCS = {
   ["org-calendar-holiday"] = function(ctx)
     return require("org.agenda.holidays").org_calendar_holiday(ctx.day) or NIL
   end,
-  list = function(_, ...)
-    return { items = { ... } }
+
+  -- calendar.el helpers on (month day year) lists
+  ["calendar-day-of-week"] = function(_, d)
+    return dow(from_date_list(d, "calendar-day-of-week"))
   end,
+  ["calendar-extract-month"] = function(_, d)
+    return items_of(d, "calendar-extract-month")[1]
+  end,
+  ["calendar-extract-day"] = function(_, d)
+    return items_of(d, "calendar-extract-day")[2]
+  end,
+  ["calendar-extract-year"] = function(_, d)
+    return items_of(d, "calendar-extract-year")[3]
+  end,
+  ["calendar-absolute-from-gregorian"] = function(_, d)
+    -- calendar.el counts days from 1 Jan of year 1 (Gregorian) = day 1
+    return from_date_list(d, "calendar-absolute-from-gregorian") - date.days_from_civil(1, 1, 1) + 1
+  end,
+  ["calendar-gregorian-from-absolute"] = function(_, n)
+    return date_list(int(n, "calendar-gregorian-from-absolute") + date.days_from_civil(1, 1, 1) - 1)
+  end,
+  ["calendar-iso-from-absolute"] = function(_, n)
+    -- (week day year), day 0 = Sunday
+    local day = int(n, "calendar-iso-from-absolute") + date.days_from_civil(1, 1, 1) - 1
+    local thu = day - ((dow(day) + 6) % 7) + 3
+    return { items = { iso_week(day), dow(day), (date.civil_from_days(thu)) } }
+  end,
+  ["calendar-leap-year-p"] = function(_, y)
+    return bool(date.is_leap(int(y, "calendar-leap-year-p")))
+  end,
+  ["calendar-last-day-of-month"] = function(_, m, y)
+    return date.days_in_month(int(y, "calendar-last-day-of-month"), int(m, "calendar-last-day-of-month"))
+  end,
+  ["calendar-day-number"] = function(_, d)
+    local it = items_of(d, "calendar-day-number")
+    return from_date_list(d, "calendar-day-number") - date.days_from_civil(it[3], 1, 1) + 1
+  end,
+  ["calendar-nth-named-day"] = function(_, n, dayname, month, year, day)
+    return date_list(
+      nth_named_absday(
+        int(n, "calendar-nth-named-day"),
+        int(dayname, "calendar-nth-named-day"),
+        int(month, "calendar-nth-named-day"),
+        int(year, "calendar-nth-named-day"),
+        day ~= NIL and day or nil
+      )
+    )
+  end,
+  ["calendar-date-equal"] = function(_, a, b)
+    return bool(equal(a, b))
+  end,
+  ["calendar-date-compare"] = function(_, a, b)
+    -- (calendar-date-compare DATE1 DATE2): the dates are the cars
+    local fn = "calendar-date-compare"
+    return bool(from_date_list(items_of(a, fn)[1], fn) < from_date_list(items_of(b, fn)[1], fn))
+  end,
+
+  -- predicates and comparisons
   ["not"] = function(_, v)
-    return v == NIL or v == nil
+    return bool(not truthy(v))
   end,
   null = function(_, v)
-    return v == NIL or v == nil
+    return bool(not truthy(v))
+  end,
+  eq = function(_, a, b)
+    return bool(eq(a, b))
+  end,
+  eql = function(_, a, b)
+    return bool(eq(a, b))
+  end,
+  equal = function(_, a, b)
+    return bool(equal(a, b))
+  end,
+  ["string="] = function(_, a, b)
+    return bool(type(a) == "string" and a == b)
+  end,
+  ["string-equal"] = function(_, a, b)
+    return bool(type(a) == "string" and a == b)
+  end,
+  ["="] = compare("=", function(a, b)
+    return a == b
+  end),
+  ["/="] = compare("/=", function(a, b)
+    return a ~= b
+  end),
+  ["<"] = compare("<", function(a, b)
+    return a < b
+  end),
+  [">"] = compare(">", function(a, b)
+    return a > b
+  end),
+  ["<="] = compare("<=", function(a, b)
+    return a <= b
+  end),
+  [">="] = compare(">=", function(a, b)
+    return a >= b
+  end),
+  zerop = function(_, v)
+    return bool(num(v, "zerop") == 0)
+  end,
+  integerp = function(_, v)
+    return bool(type(v) == "number" and v == math.floor(v))
+  end,
+  numberp = function(_, v)
+    return bool(type(v) == "number")
+  end,
+  stringp = function(_, v)
+    return bool(type(v) == "string")
+  end,
+  listp = function(_, v)
+    return bool(v == NIL or is_list(v))
+  end,
+  consp = function(_, v)
+    return bool(is_list(v) and #v.items > 0)
+  end,
+
+  -- arithmetic (integer division truncates, like Elisp on integers)
+  ["+"] = arith("+", function(a, b)
+    return a + b
+  end, 0),
+  ["-"] = arith(
+    "-",
+    function(a, b)
+      return a - b
+    end,
+    0,
+    function(a)
+      return -a
+    end
+  ),
+  ["*"] = arith("*", function(a, b)
+    return a * b
+  end, 1),
+  ["/"] = arith("/", function(a, b)
+    if b == 0 then
+      error("arith-error", 0)
+    end
+    local q = a / b
+    if a == math.floor(a) and b == math.floor(b) then
+      q = q < 0 and math.ceil(q) or math.floor(q)
+    end
+    return q
+  end),
+  ["%"] = function(_, a, b)
+    if int(b, "%") == 0 then
+      error("arith-error", 0)
+    end
+    return math.fmod(int(a, "%"), b)
+  end,
+  mod = function(_, a, b)
+    if num(b, "mod") == 0 then
+      error("arith-error", 0)
+    end
+    return num(a, "mod") - math.floor(a / b) * b
+  end,
+  ["1+"] = function(_, v)
+    return num(v, "1+") + 1
+  end,
+  ["1-"] = function(_, v)
+    return num(v, "1-") - 1
+  end,
+  abs = function(_, v)
+    return math.abs(num(v, "abs"))
+  end,
+  max = arith("max", math.max),
+  min = arith("min", math.min),
+
+  -- lists
+  list = function(_, ...)
+    return list_of({ ... })
+  end,
+  car = function(_, l)
+    return nilify(items_of(l, "car")[1])
+  end,
+  cdr = function(_, l)
+    return list_of(vim.list_slice(items_of(l, "cdr"), 2))
+  end,
+  cadr = function(_, l)
+    return nilify(items_of(l, "cadr")[2])
+  end,
+  nth = function(_, n, l)
+    return nilify(items_of(l, "nth")[int(n, "nth") + 1])
+  end,
+  length = function(_, l)
+    if type(l) == "string" then
+      return vim.fn.strchars(l)
+    end
+    return #items_of(l, "length")
+  end,
+  memq = memq,
+  memql = memq,
+  member = function(_, x, l)
+    local it = items_of(l, "member")
+    for i, v in ipairs(it) do
+      if equal(x, v) then
+        return list_of(vim.list_slice(it, i))
+      end
+    end
+    return NIL
+  end,
+
+  -- strings
+  concat = function(_, ...)
+    local parts = {}
+    for i, v in ipairs({ ... }) do
+      parts[i] = type(v) == "string" and v or error("wrong-type-argument sequencep in concat", 0)
+    end
+    return table.concat(parts)
+  end,
+  format = function(_, fmt, ...)
+    if type(fmt) ~= "string" then
+      error("wrong-type-argument stringp in format", 0)
+    end
+    return format_entry(fmt, ...)
+  end,
+  ["number-to-string"] = function(_, v)
+    return tostring(num(v, "number-to-string"))
   end,
 }
 M.functions = vim.tbl_keys(FUNCS)
@@ -417,21 +768,132 @@ local function quoted(node)
   for i, x in ipairs(node.list) do
     items[i] = quoted(x)
   end
-  return { items = items }
+  return list_of(items)
 end
 
-local function eval_node(node, ctx)
+local eval_node
+
+local function progn(body, first, ctx)
+  local v = NIL
+  for i = first, #body do
+    v = nilify(eval_node(body[i], ctx))
+  end
+  return v
+end
+
+--- Bindings of `let`/`let*`: `((var value) var ...)`.
+local function let_form(items, ctx, sequential)
+  local spec = items[2]
+  local specs = type(spec) == "table" and spec.list
+  if spec ~= nil and not specs and not (type(spec) == "table" and spec.sym == "nil") then
+    error("wrong-type-argument listp in let", 0)
+  end
+  local scope = setmetatable({}, { __index = ctx.vars })
+  local inner = setmetatable({ vars = scope }, { __index = ctx })
+  for _, b in ipairs(specs or {}) do
+    local name, value
+    if type(b) == "table" and b.sym then
+      name, value = b.sym, NIL
+    elseif type(b) == "table" and b.list and b.list[1] and b.list[1].sym then
+      name = b.list[1].sym
+      value = NIL
+      if b.list[2] ~= nil then
+        value = nilify(eval_node(b.list[2], sequential and inner or ctx))
+      end
+    else
+      error("invalid let binding", 0)
+    end
+    scope[name] = value
+  end
+  return progn(items, 3, inner)
+end
+
+--- Special forms: their arguments are not evaluated first.
+local SPECIAL = {
+  quote = function(items)
+    return quoted(items[2])
+  end,
+  ["and"] = function(items, ctx)
+    local v = true
+    for i = 2, #items do
+      v = eval_node(items[i], ctx)
+      if not truthy(v) then
+        return NIL
+      end
+    end
+    return v
+  end,
+  ["or"] = function(items, ctx)
+    for i = 2, #items do
+      local v = eval_node(items[i], ctx)
+      if truthy(v) then
+        return v
+      end
+    end
+    return NIL
+  end,
+  ["if"] = function(items, ctx)
+    if truthy(eval_node(items[2], ctx)) then
+      return nilify(items[3] ~= nil and eval_node(items[3], ctx) or nil)
+    end
+    return progn(items, 4, ctx)
+  end,
+  when = function(items, ctx)
+    if truthy(eval_node(items[2], ctx)) then
+      return progn(items, 3, ctx)
+    end
+    return NIL
+  end,
+  unless = function(items, ctx)
+    if not truthy(eval_node(items[2], ctx)) then
+      return progn(items, 3, ctx)
+    end
+    return NIL
+  end,
+  cond = function(items, ctx)
+    for i = 2, #items do
+      local clause = items[i]
+      if type(clause) ~= "table" or not clause.list then
+        error("invalid cond clause", 0)
+      end
+      local v = clause.list[1] ~= nil and eval_node(clause.list[1], ctx) or NIL
+      if truthy(v) then
+        if #clause.list > 1 then
+          return progn(clause.list, 2, ctx)
+        end
+        return v
+      end
+    end
+    return NIL
+  end,
+  progn = function(items, ctx)
+    return progn(items, 2, ctx)
+  end,
+  let = function(items, ctx)
+    return let_form(items, ctx, false)
+  end,
+  ["let*"] = function(items, ctx)
+    return let_form(items, ctx, true)
+  end,
+}
+
+function eval_node(node, ctx)
   if type(node) ~= "table" then
     return node
   elseif node.sym then
-    if node.sym == "t" then
+    local name = node.sym
+    if name == "t" then
       return true
-    elseif node.sym == "nil" then
+    elseif name == "nil" then
       return NIL
-    elseif node.sym == "entry" then
-      return ctx.entry
+    elseif name:sub(1, 1) == ":" then
+      return { symbol = name } -- keywords evaluate to themselves
     end
-    error("void-variable " .. node.sym, 0)
+    local v = ctx.vars[name]
+    if v == nil then
+      error("void-variable " .. name, 0)
+    end
+    return v
   end
   local items = node.list
   if #items == 0 then
@@ -442,25 +904,8 @@ local function eval_node(node, ctx)
     error("invalid function", 0)
   end
   local name = head.sym
-  if name == "quote" then
-    return quoted(items[2])
-  elseif name == "and" then
-    local v = true
-    for i = 2, #items do
-      v = eval_node(items[i], ctx)
-      if v == NIL or v == nil then
-        return NIL
-      end
-    end
-    return v
-  elseif name == "or" then
-    for i = 2, #items do
-      local v = eval_node(items[i], ctx)
-      if v ~= NIL and v ~= nil then
-        return v
-      end
-    end
-    return NIL
+  if SPECIAL[name] then
+    return SPECIAL[name](items, ctx)
   end
   local f = FUNCS[name]
   if not f then
@@ -490,7 +935,9 @@ function M.eval(node, day, entry_text)
       return nil, err
     end
   end
-  local ctx = { day = day, entry = entry_text or "" }
+  local entry = entry_text or ""
+  -- the dynamic variables of a diary sexp: `date' (month day year), `entry'
+  local ctx = { day = day, entry = entry, vars = { date = date_list(day), entry = entry } }
   local ok, res = pcall(eval_node, node, ctx)
   if not ok then
     return nil, tostring(res)
@@ -498,9 +945,17 @@ function M.eval(node, day, entry_text)
   -- org-diary-sexp-entry: strings, (mark . "text"), other non-nil => entry
   local text
   if type(res) == "string" then
-    text = res
+    -- even "" is an entry: the agenda shows "SEXP entry returned empty string"
+    return res
   elseif type(res) == "table" and res.cons then
     text = type(res.cdr) == "string" and res.cdr or ctx.entry
+  elseif is_list(res) and type(res.items[1]) == "string" then
+    -- a list of strings: one entry each (joined for the "; " split)
+    local texts = {}
+    for i, v in ipairs(res.items) do
+      texts[i] = type(v) == "string" and v or ""
+    end
+    text = table.concat(texts, "; ")
   elseif res == NIL or res == nil then
     return false
   else

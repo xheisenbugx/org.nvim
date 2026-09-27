@@ -1400,6 +1400,29 @@ with the same results as Emacs:
   org-class Y1 M1 D1 Y2 M2 D2 DAYNAME [ISO-WEEKS...]
   and  or  not  list  quote
 
+Sexps can also combine these with a side-effect-free subset of Emacs
+Lisp, evaluated like Emacs with `date` bound to `(MONTH DAY YEAR)` and
+`entry` to the text after the sexp:
+
+  if when unless cond let let* progn
+  = /= < > <= >= eq eql equal memq memql member null not zerop
+  + - * / % mod 1+ 1- abs max min   car cdr cadr nth length
+  concat format number-to-string string= integerp numberp stringp
+  calendar-day-of-week  calendar-extract-month/-day/-year
+  calendar-absolute-from-gregorian  calendar-gregorian-from-absolute
+  calendar-iso-from-absolute  calendar-nth-named-day
+  calendar-last-day-of-month  calendar-leap-year-p  calendar-day-number
+>org
+    * Gym
+    %%(when (memq (calendar-day-of-week date) '(1 2 4 5)) "18:00 Gym")
+    * Payday
+    %%(= 0 (mod (- (calendar-absolute-from-gregorian date) (calendar-absolute-from-gregorian '(9 4 2026))) 14))
+<
+A string result replaces the entry text (the first example shows
+"18:00 Gym" at 18:00), a list of strings gives one line each, and any
+other non-nil value shows the text after the sexp. There are no loops,
+`lambda` or assignments, so every sexp finishes and changes nothing.
+
 The `diary-*` functions take their arguments in Emacs's default
 `calendar-date-style` order (american: month day year). The `org-*`
 variants use ISO order (year month day). In `diary-date`/`org-date`, `t`
@@ -1471,7 +1494,8 @@ Lisp forms become Lua functions here).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
-- Arbitrary Emacs Lisp in sexps, `diary-remind`, `diary-offset`, the
+- Emacs Lisp beyond the subset above (loops, `lambda`, `defun`,
+  assignments, other libraries), `diary-remind`, `diary-offset`, the
   diary functions of other calendars (`diary-hebrew-date`, ...) and the
   `holidays` argument of `org-class`: they need Emacs's Lisp evaluator
   and diary library. An unsupported sexp is skipped with a message (once
@@ -4096,8 +4120,9 @@ Differences from Emacs:
     no file-level ID property drawer is created.
   - Emacs wildcard file links (`file:*.org`) do not open a directory
     listing of the matches.
-- Diary sexps are emulated for the common calendar functions and
-  `org-calendar-holiday` (|org-agenda-holidays|) only, and the Emacs
+- Diary sexps are emulated for the common calendar functions,
+  `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
+  subset of Emacs Lisp (|org-agenda-diary-sexp|) only, and the Emacs
   diary is not available in the agenda (|org-agenda-unsupported|).
 - Not implemented:
   - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
