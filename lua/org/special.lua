@@ -3,7 +3,8 @@
 --- Used by `edit_special` (src blocks, tables formulas) and narrowing.
 --- The source range is tracked with extmarks, so edits elsewhere in the
 --- source buffer while the special buffer is open are safe. `:w` in the
---- special buffer writes back; the configured `save_exit` / `abort`
+--- special buffer writes back (`:w!` overrides a source content conflict);
+--- the configured `save_exit` / `abort`
 --- mappings leave it.
 
 local config = require("org.config")
@@ -69,28 +70,25 @@ function M.open(opts)
     vim.bo[buf].filetype = ft
   end
 
-  local function write_back()
+  local function write_back(force)
     if not vim.api.nvim_buf_is_valid(src) or not vim.api.nvim_buf_is_loaded(src) then
-      utils.error("Source buffer no longer exists")
-      return false
+      return false, "Source buffer no longer exists; edit buffer kept open"
     end
     local pos = vim.api.nvim_buf_get_extmark_by_id(src, ns, mark, { details = true })
     local detail = pos[3]
     if not detail or detail.invalid then
-      utils.error("Source region was deleted; edit buffer kept open")
-      return false
+      return false, "Source region was deleted or replaced; edit buffer kept open"
     end
     local current = object and vim.api.nvim_buf_get_text(src, pos[1], pos[2], detail.end_row, detail.end_col, {})
       or vim.api.nvim_buf_get_lines(src, pos[1], detail.end_row, false)
-    if not vim.deep_equal(current, original) then
-      utils.error("Source region changed; edit buffer kept open to preserve both versions")
-      return false
+    if not force and not vim.deep_equal(current, original) then
+      return false, "Source region changed; use :write! to overwrite it with this edit buffer"
     end
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     if opts.to_source then
       lines = opts.to_source(lines)
       if lines == nil then
-        return false
+        return false, "Cannot convert edits for the source; edit buffer kept open"
       end
     end
     if object then
@@ -143,7 +141,11 @@ function M.open(opts)
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = buf,
     callback = function()
-      write_back()
+      local saved, err = write_back(vim.v.cmdbang == 1)
+      if not saved then
+        -- The buffer stays modified, so :wq/:wq!/:x refuse to close it.
+        utils.error(err)
+      end
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -156,7 +158,9 @@ function M.open(opts)
   for _, lhs in ipairs(config.lhs_list(maps.save_exit)) do
     vim.keymap.set("n", lhs, function()
       if vim.bo[buf].modified then
-        if not write_back() then
+        local saved, err = write_back()
+        if not saved then
+          utils.error(err)
           return
         end
       end
@@ -174,19 +178,6 @@ function M.open(opts)
   vim.b[buf].org_special_kind = opts.kind
   vim.b[buf].org_special_switches = opts.switches
   return buf, win
-end
-
-local function common_indent(lines)
-  local min
-  for _, l in ipairs(lines) do
-    if l:match("%S") then
-      local n = #l:match("^(%s*)")
-      if not min or n < min then
-        min = n
-      end
-    end
-  end
-  return min or 0
 end
 
 local EXPORT_FT = { html = "html", latex = "tex", tex = "tex", md = "markdown", markdown = "markdown", ascii = "text" }
@@ -460,9 +451,47 @@ function M.edit_element(bufnr, lnum)
     return false
   end
   local line = lines[lnum]
+  -- Literal block bodies can contain text resembling other editable
+  -- elements. Resolve their containing block before fixed-width or LaTeX.
+  local block = blocks.literal_block_at(lines, lnum)
+  if block then
+    local kind, s, e = block.kind, block.start, block.finish
+    if kind == "src" or kind == "verse" then
+      return false -- source blocks and inline objects are handled elsewhere
+    end
+    local body = blocks.unescape(vim.list_slice(lines, s + 1, e - 1))
+    local switches = kind == "example" and lines[s]:match("^%s*#%+%a+_%a+%s*(.*)$") or nil
+    local preserve = kind == "example" and blocks.preserve_indentation(switches)
+    local ded = preserve and body or blocks.dedent(body)
+    local content_indent = kind == "example" and (config.opts.edit_src_content_indentation or 0) or 0
+    local prefix = preserve and "" or (lines[s]:match("^(%s*)") .. string.rep(" ", content_indent))
+    local ft = kind == "comment" and "org" or nil
+    if kind == "export" then
+      local backend = lines[s]:lower():match("^%s*#%+begin_export%s+(%S+)") or ""
+      ft = EXPORT_FT[backend] or backend
+    end
+    M.open({
+      source_buf = bufnr,
+      start_line = s + 1,
+      end_line = e - 1,
+      lines = #ded > 0 and ded or { "" },
+      filetype = ft,
+      name = kind,
+      kind = kind,
+      switches = switches,
+      to_source = function(new)
+        local out = {}
+        for i, x in ipairs(blocks.escape(new)) do
+          out[i] = x == "" and "" or prefix .. x
+        end
+        return out
+      end,
+    })
+    return
+  end
   -- fixed-width area
   local function fixed(l)
-    return l and (l:match("^%s*:%s") or l:match("^%s*:$"))
+    return l and (l:match("^[ \t]*: ") or l:match("^[ \t]*:$"))
   end
   if fixed(line) then
     local s, e = lnum, lnum
@@ -518,56 +547,7 @@ function M.edit_element(bufnr, lnum)
       break
     end
   end
-  -- example / export / comment blocks
-  for s = lnum, 1, -1 do
-    local l = lines[s]:lower()
-    if s < lnum and (l:match("^%s*#%+end_") or l:match("^%*+%s")) then
-      break
-    end
-    local kind, rest = l:match("^%s*#%+begin_(%S+)%s*(.*)$")
-    if kind then
-      if kind ~= "example" and kind ~= "export" and kind ~= "comment" then
-        break
-      end
-      local e = s + 1
-      while e <= #lines and not lines[e]:lower():match("^%s*#%+end_" .. vim.pesc(kind)) do
-        e = e + 1
-      end
-      if e > #lines or e < lnum then
-        break
-      end
-      local body = blocks.unescape(vim.list_slice(lines, s + 1, e - 1))
-      local n = common_indent(body)
-      local ded = {}
-      for i, x in ipairs(body) do
-        ded[i] = x:sub(n + 1)
-      end
-      local prefix = lines[s]:match("^(%s*)")
-      local ft = kind == "comment" and "org" or nil
-      if kind == "export" then
-        local backend = rest:match("^(%S+)") or ""
-        ft = EXPORT_FT[backend] or backend
-      end
-      M.open({
-        source_buf = bufnr,
-        start_line = s + 1,
-        end_line = e - 1,
-        lines = #ded > 0 and ded or { "" },
-        filetype = ft,
-        name = kind,
-        kind = kind,
-        switches = kind == "example" and lines[s]:match("^%s*#%+%a+_%a+%s*(.*)$") or nil,
-        to_source = function(new)
-          local out = {}
-          for i, x in ipairs(blocks.escape(new)) do
-            out[i] = x == "" and "" or prefix .. x
-          end
-          return out
-        end,
-      })
-      return
-    end
-  end
+
   return false
 end
 

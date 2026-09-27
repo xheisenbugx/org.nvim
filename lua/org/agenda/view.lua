@@ -1098,7 +1098,7 @@ M.call = call
 local function finish(bufs)
   if config.opts.agenda.save_after_edit then
     for _, b in ipairs(bufs or {}) do
-      utils.save_buffer(b)
+      utils.save_buffer_or_warn(b)
     end
   end
   if S.buf and vim.api.nvim_buf_is_valid(S.buf) then
@@ -2568,8 +2568,7 @@ M.actions = {
   save_all = function()
     local n = 0
     for _, b in ipairs(org_buffers()) do
-      if vim.bo[b].modified then
-        utils.save_buffer(b)
+      if vim.bo[b].modified and utils.save_buffer_or_warn(b) then
         n = n + 1
       end
     end

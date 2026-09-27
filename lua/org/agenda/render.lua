@@ -789,7 +789,12 @@ local function duration_minutes(v)
   return v and date.parse_duration(tostring(v)) or nil
 end
 
---- Does the gap [t1, t2] (minutes) contain one of the `ok` times of day?
+--- Convert agenda clock bounds (civil minutes) to Unix minutes.
+local function clock_time(minutes)
+  return date.from_days(math.floor(minutes / 1440)):add(minutes % 1440, "min"):to_time() / 60
+end
+
+--- Does the gap [t1, t2] (Unix minutes) contain one of the `ok` times of day?
 --- (org-agenda-check-clock-gap)
 local function gap_ok(t1, t2, ok)
   if not ok or #ok == 0 then
@@ -799,7 +804,8 @@ local function gap_ok(t1, t2, ok)
   if (t2 - t1) / 600 > 24 then
     return true
   end
-  local min1, min2 = t1 % 1440, t2 % 1440
+  local d1, d2 = date.from_time(t1 * 60, true), date.from_time(t2 * 60, true)
+  local min1, min2 = d1.hour * 60 + d1.min, d2.hour * 60 + d2.min
   if min2 < min1 then
     min2 = min2 + 1440
   end
@@ -821,25 +827,27 @@ end
 local function clock_issue(it, state)
   local checks = config.opts.agenda.clock_consistency_checks or {}
   local c = it.clock
+  local start = clock_time(c.start)
   if not c.stop then
-    return string.format("No end time: (%s)", date.duration_to_string(date.now():minutes() - c.start))
+    return string.format("No end time: (%s)", date.duration_to_string(date.now():to_time() / 60 - start))
   end
   local maxtime = duration_minutes(checks.max_duration or "24:00") or 1440
   local mintime = duration_minutes(checks.min_duration or 0) or 0
   local maxgap = duration_minutes(checks.max_gap or "30:00") or 1800
-  local dt = c.stop - c.start
+  local stop = clock_time(c.stop)
+  local dt = stop - start
   local tlend = state.tlend or 0
   local issue
   if dt > maxtime then
     issue = "Clocking interval is very long: " .. date.duration_to_string(dt)
   elseif dt < mintime then
     issue = "Clocking interval is very short: " .. date.duration_to_string(dt)
-  elseif tlend > 0 and c.start < tlend then
-    issue = string.format("Clocking overlap: %d minutes", tlend - c.start)
-  elseif tlend > 0 and c.start > tlend + maxgap and not gap_ok(tlend, c.start, checks.gap_ok_around) then
-    issue = string.format("Clocking gap: %d minutes", c.start - tlend)
+  elseif tlend > 0 and start < tlend then
+    issue = string.format("Clocking overlap: %d minutes", tlend - start)
+  elseif tlend > 0 and start > tlend + maxgap and not gap_ok(tlend, start, checks.gap_ok_around) then
+    issue = string.format("Clocking gap: %d minutes", start - tlend)
   end
-  state.tlend = c.stop
+  state.tlend = stop
   return issue
 end
 

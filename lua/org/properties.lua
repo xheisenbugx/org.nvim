@@ -55,8 +55,8 @@ function M.known_names(bufnr)
     add(name)
   end
   for _, f in ipairs(collect_files(bufnr or vim.api.nvim_get_current_buf())) do
-    for _, hl in ipairs(f.headlines) do
-      for k in pairs(hl.properties) do
+    for _, owner in ipairs(vim.list_extend({ f }, f.headlines)) do
+      for k in pairs(owner.properties) do
         add(k)
       end
     end
@@ -73,8 +73,8 @@ function M.known_values(name, bufnr)
   local seen, out = {}, {}
   local key = name:upper()
   for _, f in ipairs(collect_files(bufnr or vim.api.nvim_get_current_buf())) do
-    for _, hl in ipairs(f.headlines) do
-      local v = hl.properties[key]
+    for _, owner in ipairs(vim.list_extend({ f }, f.headlines)) do
+      local v = owner.properties[key]
       if v and not seen[v] then
         seen[v] = true
         out[#out + 1] = v
@@ -87,7 +87,7 @@ end
 
 --- Prompt for a value, offering allowed values when defined.
 local function prompt_value(hl, name, bufnr, file)
-  local allowed = hl and hl:get_allowed_values(name)
+  local allowed = (hl or file):get_allowed_values(name)
   local current
   if hl then
     current = hl.properties[name:upper()]
@@ -251,8 +251,8 @@ function M.delete_property_globally(bufnr, name)
   local file = files.get_buffer(bufnr)
   if not name then
     local names, seen = {}, {}
-    for _, hl in ipairs(file.headlines) do
-      for k in pairs(hl.properties) do
+    for _, owner in ipairs(vim.list_extend({ file }, file.headlines)) do
+      for k in pairs(owner.properties) do
         if not seen[k] then
           seen[k] = true
           names[#names + 1] = k
@@ -277,6 +277,9 @@ function M.delete_property_globally(bufnr, name)
       lines[#lines + 1] = hl.line
     end
   end
+  if file.properties[name:upper()] ~= nil then
+    lines[#lines + 1] = 1
+  end
   -- bottom-up, so earlier line numbers stay valid
   for _, l in ipairs(lines) do
     edit.set_property(bufnr, l, name, nil)
@@ -285,9 +288,9 @@ function M.delete_property_globally(bufnr, name)
   return #lines
 end
 
---- Property at line `lnum` when it is inside a headline's property
+--- Property at line `lnum` when it is inside a file or headline property
 --- drawer (org-at-property-p).
----@return string|nil name, string|nil value, org.Headline|nil headline
+---@return string|nil name, string|nil value, org.Headline|org.File|nil owner
 function M.at_property_line(bufnr, lnum)
   bufnr = bufnr or 0
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
@@ -295,12 +298,13 @@ function M.at_property_line(bufnr, lnum)
   if not name or name:upper() == "END" or name:upper() == "PROPERTIES" then
     return nil
   end
-  local hl = files.get_buffer(bufnr):headline_at(lnum)
-  local r = hl and hl.properties_range
+  local file = files.get_buffer(bufnr)
+  local owner = file:headline_at(lnum) or file
+  local r = owner.properties_range
   if not r or lnum <= r[1] or lnum >= r[2] then
     return nil
   end
-  return name, value, hl
+  return name, value, owner
 end
 
 --- Replace the value of the property at `lnum` (keeps name and indentation).
@@ -356,15 +360,31 @@ function M.property_action()
       { key = "s", label = "Set value", value = "s" },
       { key = "d", label = "Delete from this entry", value = "d" },
       { key = "D", label = "Delete from all entries", value = "D" },
+      { key = "c", label = "Compute from column summary", value = "c" },
     },
   })
   if choice == "s" then
-    return M.set_property({ bufnr = bufnr, lnum = hl.line }, name)
+    return M.set_property({ bufnr = bufnr, lnum = hl.line or 1 }, name)
   elseif choice == "d" then
-    return M.delete_property({ bufnr = bufnr, lnum = hl.line }, name)
+    return M.delete_property({ bufnr = bufnr, lnum = hl.line or 1 }, name)
   elseif choice == "D" then
     return M.delete_property_globally(bufnr, name)
+  elseif choice == "c" then
+    return M.compute_property_at_point()
   end
+end
+
+--- Summarize the property at point in the nearest column format's scope
+--- (org-compute-property-at-point). Other properties are left untouched.
+function M.compute_property_at_point()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local name = M.at_property_line(bufnr, lnum)
+  if not name then
+    utils.warn("Not at a property")
+    return nil
+  end
+  return require("org.columns").compute_property(files.get_buffer(bufnr), lnum, name)
 end
 
 --- Set the effort estimate (org-set-effort).

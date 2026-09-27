@@ -69,7 +69,7 @@ function M.parse_format(fmt)
   end
   for _, spec in ipairs(specs) do
     local width, rest = spec:match("^%%(%d*)(.*)$")
-    local prop = rest:match("^([%w_%-]+)")
+    local prop = rest and rest:match("^([%w_%-]+)")
     if prop then
       rest = rest:sub(#prop + 1)
       local title = rest:match("^%(([^%)]*)%)")
@@ -490,7 +490,7 @@ function M.compute(roots, cols, opts)
 end
 
 --- Column format and roots for a buffer/cursor position, plus the headline
---- whose COLUMNS property defines the format (nil for the file format).
+--- or file whose COLUMNS property defines the format (nil for a keyword).
 local function scope_for(file, lnum)
   local hl = lnum and file:headline_at(lnum)
   local p = hl
@@ -500,7 +500,42 @@ local function scope_for(file, lnum)
     end
     p = p.parent
   end
-  return file.settings.columns or config.opts.columns_default_format, file.children
+  local inherited = file:get_property("COLUMNS", true)
+  if inherited then
+    return inherited, file.children, file
+  end
+  -- Emacs org-columns-get-format: the buffer's own first non-empty
+  -- #+COLUMNS line, then the first one collected from setup files.
+  local fmt = file.settings.columns
+  for _, entry in ipairs(file.settings.keyword_entries or {}) do
+    if entry.key == "COLUMNS" and entry.filename == file.filename and entry.value ~= "" then
+      fmt = entry.value
+      break
+    end
+  end
+  if fmt == "" then
+    fmt = nil
+  end
+  return fmt or config.opts.columns_default_format, hl and { hl } or file.children
+end
+
+--- Compute one property's columns, updating existing drawer values only.
+--- The first matching column determines whether/how values are written.
+function M.compute_property(file, lnum, name)
+  local fmt, roots = scope_for(file, lnum)
+  local cols = {}
+  for _, col in ipairs(M.parse_format(fmt)) do
+    if col.prop:upper() == name:upper() then
+      cols[#cols + 1] = col
+    end
+  end
+  local first = cols[1]
+  if not first or not first.summary or not summary_type(first.summary) then
+    utils.warn("No summary operator defined for property " .. name)
+    return nil
+  end
+  M.compute(roots, cols, { update = true })
+  return true
 end
 
 --- Column format as a string (Emacs org-columns-uncompile-format).
@@ -780,7 +815,7 @@ end
 
 local function render(state)
   local file = files.get_buffer(state.src)
-  local fmt, roots, holder = scope_for(file, anchor_line(state))
+  local fmt, roots, holder = scope_for(file, not state.global and anchor_line(state) or nil)
   state.holder = holder
   state.cols = M.parse_format(fmt)
   -- like Emacs, summaries are written back to existing properties
@@ -877,16 +912,28 @@ end
 local function store_format(state, cols)
   local fmt = M.format_string(cols)
   if state.holder then
-    require("org.edit").set_property(state.src, state.holder.line, "COLUMNS", fmt)
+    require("org.edit").set_property(state.src, state.holder.line or 1, "COLUMNS", fmt)
     return
   end
   local lines = vim.api.nvim_buf_get_lines(state.src, 0, -1, false)
-  for i, l in ipairs(lines) do
-    local pre = l:match("^(%s*#%+[Cc][Oo][Ll][Uu][Mm][Nn][Ss]:)")
-    if pre then
-      vim.api.nvim_buf_set_lines(state.src, i - 1, i, false, { pre .. " " .. fmt })
-      return
+  local file = files.get_buffer(state.src)
+  local imported
+  for _, entry in ipairs(file.settings.keyword_entries) do
+    if entry.key == "COLUMNS" and entry.value ~= "" then
+      if entry.filename == file.filename then
+        local pre = lines[entry.line]:match("^(%s*#%+[^:]+:)")
+        vim.api.nvim_buf_set_lines(state.src, entry.line - 1, entry.line, false, { pre .. " " .. fmt })
+        return
+      end
+      imported = imported or entry
     end
+  end
+  if imported then
+    -- Override the shared setup locally, before the directive that imports
+    -- it. Never rewrite the shared file.
+    local at = imported.source_line - 1
+    vim.api.nvim_buf_set_lines(state.src, at, at, false, { "#+COLUMNS: " .. fmt })
+    return
   end
   local at = #lines
   for i, l in ipairs(lines) do
@@ -1066,6 +1113,9 @@ local function edit_allowed(state)
   while where and not where.properties[key] do
     where = where.parent
   end
+  if not where and files.get_buffer(state.src).properties[key] then
+    where = { line = 1 } -- inherited from the file-level drawer
+  end
   where = where or state.holder or r.hl
   -- the raw value keeps quoted items ("Deutsche Grammophon") intact
   local cur = r.hl:get_property(key, true)
@@ -1073,7 +1123,7 @@ local function edit_allowed(state)
   if v == nil then
     return
   end
-  require("org.edit").set_property(state.src, where.line, prop .. "_ALL", vim.trim(v))
+  require("org.edit").set_property(state.src, where.line or 1, prop .. "_ALL", vim.trim(v))
   refresh(state, ci)
 end
 
@@ -1210,7 +1260,10 @@ local function move_row(state, dir)
 end
 
 --- Open column view for the current buffer.
-function M.open()
+---@param opts? { global?: boolean } global (or a count, like C-u in
+--- Emacs org-columns): the whole file, with the file-level format
+function M.open(opts)
+  local global = (opts and opts.global) or vim.v.count > 0
   local src = vim.api.nvim_get_current_buf()
   if vim.bo[src].filetype ~= "org" then
     utils.warn("Column view needs an org buffer")
@@ -1221,7 +1274,7 @@ function M.open()
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].filetype = "orgcolumns"
   local mark = vim.api.nvim_buf_set_extmark(src, ns, lnum - 1, 0, {})
-  local state = { src = src, mark = mark, buf = buf }
+  local state = { src = src, mark = mark, buf = buf, global = global }
   vim.cmd("botright split")
   vim.api.nvim_win_set_buf(0, buf)
   vim.wo.wrap = false
@@ -1337,4 +1390,3 @@ function M.open()
 end
 
 return M
-

@@ -391,8 +391,8 @@ end
 function M.unescape(lines)
   local out = {}
   for i, l in ipairs(lines) do
-    if l:match("^%s*,+%*") or l:match("^%s*,+#%+") then
-      out[i] = l:gsub("^(%s*),", "%1", 1)
+    if l:match("^[ \t]*,+%*") or l:match("^[ \t]*,+#%+") then
+      out[i] = l:gsub("^([ \t]*),", "%1", 1)
     else
       out[i] = l
     end
@@ -466,6 +466,21 @@ local function literal_end(lines, start, kind)
     elseif lines[j]:lower():match("^%s*#%+end_" .. kind .. "%s*$") then
       return j
     end
+  end
+end
+
+--- Find a block whose contents cannot contain nested block elements.
+--- Verse admits inline objects, but its block-looking text is still literal.
+function M.literal_block_at(lines, lnum)
+  local i = 1
+  while i <= lnum do
+    local kind = lines[i]:lower():match("^%s*#%+begin_(%S+)")
+    local literal = kind == "src" or kind == "example" or kind == "export" or kind == "comment" or kind == "verse"
+    local finish = literal and literal_end(lines, i, kind)
+    if finish and finish >= lnum then
+      return { start = i, finish = finish, kind = kind }
+    end
+    i = finish and (finish + 1) or (i + 1)
   end
 end
 

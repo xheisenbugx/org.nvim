@@ -829,7 +829,11 @@ The goal is Emacs Org 9.8 parity: option defaults are Emacs's (so a fresh
 setup behaves like a fresh Emacs: no agenda files, `TODO | DONE`, nothing
 logged on DONE, files open expanded), and behaviour is checked against Emacs
 run in batch mode. What can't work the same way is listed with the reason in
-`:h org-differences`. The main points:
+`:h org-differences`.
+
+The [Org 9.8 review follow-up](docs/parity-review.md) records concrete
+regressions, implemented parity work, and remaining feature gaps.
+The main differences:
 
 - **No Emacs Lisp.** `elisp:` links, emacs-lisp Babel blocks, `%(sexp)` in
   capture templates, `#+BIND` and Elisp in header arguments can't run;

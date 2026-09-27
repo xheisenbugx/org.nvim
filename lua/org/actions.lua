@@ -203,6 +203,11 @@ group("TODO, priority, tags & properties", {
   set_property_and_value = { "org.properties", "set_property_and_value", desc = "Set property and value (C-c C-x P)" },
   toggle_tags_groups = { "org.tags", "toggle_groups", desc = "Toggle tag groups in matches (C-c C-x q)" },
   delete_property = { "org.properties", "delete_property", desc = "Delete property" },
+  compute_property_at_point = {
+    "org.properties",
+    "compute_property_at_point",
+    desc = "Compute property from column summary",
+  },
   delete_property_globally = {
     "org.properties",
     "delete_property_globally",

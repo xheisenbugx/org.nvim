@@ -275,7 +275,7 @@ local function set_value(it, prop, v)
     require("org.edit").set_property(target.bufnr, target.lnum, prop, v)
   end
   if config.opts.agenda.save_after_edit then
-    utils.save_buffer(target.bufnr)
+    utils.save_buffer_or_warn(target.bufnr)
   end
   return true
 end

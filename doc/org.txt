@@ -700,9 +700,16 @@ tags (org-use-tag-inheritance).
 <S-Right/Left>  (ctx) On a property line: next / previous allowed value
                 from `PROP_ALL` (org-property-next-allowed-value).
 <C-c><C-c>      (ctx) On a property line: menu to set the value, delete it
-                here or delete it from all entries (org-property-action).
+                here, delete it from all entries, or compute it with `c`
+                (org-property-action). Also works in file-level drawers.
 `:Org delete_property_globally` removes a property from every entry of the
-buffer.
+buffer, including its file-level drawer; keyword defaults are retained.
+`:Org compute_property_at_point` uses the first matching summary operator
+in the nearest COLUMNS format. It updates existing values of that property
+within the format's scope; other properties are unchanged. With only a
+`#+COLUMNS` or default format, that scope is the current subtree (the whole
+file before the first heading). An inherited COLUMNS property selects the
+subtree or file drawer where it is defined.
 <prefix>xe      Set the Effort property (stored as typed, e.g. `1h`).
 <prefix>lI      Create an ID property (or show the existing one).
 
@@ -747,6 +754,13 @@ and `global_properties` set values for the whole file, in that order.
                 SCHEDULED, DEADLINE and TIMESTAMP show as inactive
                 timestamps; `columns_modify_value_for_display_function`
                 (`function(title, value)`) can change any shown value.
+                The view uses the nearest COLUMNS property's scope; with
+                a keyword/default format it covers the current subtree,
+                or the whole file before the first heading. A count
+                (`1<prefix>C`, like C-u in Emacs org-columns) always
+                shows the whole file with the file-level format. The
+                buffer's own first `#+COLUMNS` line takes precedence over
+                one imported with `#+SETUPFILE`.
                 Keys in the view:
                   e               edit the value (TODO, tags, dates, ...)
                   n / p           next / previous allowed value (also
@@ -1686,11 +1700,15 @@ expansion character (`\%t`). Leading blank lines and trailing whitespace of
 the expanded text are removed.
 
 Capture window: `<C-c><C-c>` or `:w` finalizes (with a count, C-u C-c C-c,
-it then jumps to the entry), `<C-c><C-k>` aborts (the headlines created for
-an unmodified target are dropped again) and `<C-c><C-w>` finalizes and
+it then jumps to the entry), `<C-c><C-k>` aborts (unchanged text created
+for the target is dropped, preserving unrelated edits and generated
+headings with user-added content) and `<C-c><C-w>` finalizes and
 refiles the entry (entry templates only; also `<prefix>w`, `<prefix>k`,
 `<prefix>r`). The window splits the screen like Emacs (`capture.window`:
 "split", "float", "vsplit", "tab" or "current").
+If saving the target fails, the capture stays open and can be retried
+without inserting a duplicate entry. Clock/bookmark finalization waits
+until the captured text is stored.
 
 :Org capture_goto_target  choose a template and jump to its target
                           (C-u C-c c in Emacs)
@@ -1813,6 +1831,11 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
                 false). IDs of archived entries keep resolving
                 (|org-id|). With a count, 4 (C-u) runs `archive_all_done`
                 and 16 (C-u C-u) `archive_all_old`.
+                A destination inside the source subtree is rejected
+                (Emacs org-archive-subtree has no such guard and loses
+                the subtree; this follows org-refile's check).
+                Archive and hidden-target refile save failures keep the
+                source text in place and report the write error.
                 User autocmds `OrgArchive` (source buffer, before the
                 subtree is removed; org-archive-hook) and
                 `OrgArchiveFinalize` (archive buffer;
@@ -2591,6 +2614,13 @@ cursor (inline definitions cannot contain blank lines), a LaTeX fragment
 BIBLIOGRAPHY keyword, runs deadline / schedule on a planning line and the
 date prompt on a timestamp, and follows a link. Elsewhere: "No special
 environment to edit here".
+
+`:w` refuses conflicting edits to the source. Review both versions and use
+`:w!` to overwrite an intact tracked region, or `:wq!` to overwrite and close.
+Deleted or wholly replaced regions and wiped source buffers cannot be
+forced; copy the edit contents manually to the intended location. Example
+editing honors `-i`, `src_preserve_indentation`, and
+`edit_src_content_indentation`.
 
 Not supported ~
   - emacs-lisp (elisp) blocks cannot be evaluated: Neovim has no Emacs Lisp
@@ -3845,6 +3875,7 @@ Targets are `{ bufnr = n, lnum = l }`.
 30. IN-BUFFER SETTINGS                               *org-in-buffer-settings*
 
   #+TITLE: #+AUTHOR: #+DATE: #+EMAIL:   export metadata
+  #+SETUPFILE: "path/to/shared.org"     import file settings recursively
   #+TODO: / #+SEQ_TODO: / #+TYP_TODO:   keyword sequences (replace config)
   #+TAGS: work(w) home(h) { @a @b }     tag list, fast keys and groups
   #+FILETAGS: :proj:                    tags inherited by every entry
@@ -3879,6 +3910,23 @@ Targets are `{ bufnr = n, lnum = l }`.
   #+INCLUDE: "file.org"   #+MACRO: name text $1
 
 After editing a `#+` line, press <C-c><C-c> on it to refresh the buffer.
+
+Local setup files                                      *org-setupfile*
+`#+SETUPFILE: "path/to/shared setup.org"` imports core file settings as
+well as export settings. Nested paths resolve relative to the referring
+file; quotes allow spaces. Only settings are imported, so headings and
+line numbers in the current document stay unchanged. Cycles stop at the
+repeated file; repeated imports outside a cycle are allowed.
+Imports are bounded to 64 nesting levels and 256 imports per parse.
+
+Paths expand `~` but not environment variables (Emacs expand-file-name).
+Settings are collected in directive order. ARCHIVE, COLUMNS and PRIORITIES
+use the first value. CATEGORY is the buffer's own last `#+CATEGORY`, else
+the first one collected (org-element--get-category). Column view prefers
+the buffer's own first non-empty `#+COLUMNS` line (org-columns-get-format). Cached document metadata refreshes when
+setup dependencies change, appear, disappear, or have unsaved edits in a
+loaded buffer. Remote URLs are not fetched by the core parser. Missing
+or unreadable local setup files are ignored; lint reports missing paths.
 
 ==============================================================================
 31. LINTING                                                         *org-lint*

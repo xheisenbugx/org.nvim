@@ -25,6 +25,7 @@ local files = require("org.files")
 local utils = require("org.utils")
 
 local M = {}
+local archive_ns = vim.api.nvim_create_namespace("org.archive.source")
 
 --- The raw archive location for a headline.
 function M.location_for(hl)
@@ -330,7 +331,31 @@ function M.archive_subtree(target)
       end
     end
   end
+  -- Alternate spellings and symlinks can load the source buffer too.
+  same = abuf == bufnr
+  local original = vim.api.nvim_buf_get_lines(abuf, 0, -1, false)
+  local modified = vim.bo[abuf].modified
+  local source_mark = same
+    and vim.api.nvim_buf_set_extmark(bufnr, archive_ns, s - 1, 0, {
+      end_row = e,
+      end_col = 0,
+      right_gravity = true,
+      end_right_gravity = false,
+    })
   local at, level, blank = archive_point(abuf, loc, closed or date.today(), open_line)
+  if same then
+    local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, archive_ns, source_mark, { details = true })
+    local parent = files.get_buffer(abuf):headline_at(at)
+    while parent and parent.level >= level do
+      parent = parent.parent
+    end
+    vim.api.nvim_buf_del_extmark(bufnr, archive_ns, source_mark)
+    if parent and parent.line > pos[1] and parent.line <= pos[3].end_row then
+      utils.restore_buffer(abuf, original, modified)
+      utils.warn("Cannot archive to a position inside the source subtree")
+      return
+    end
+  end
   local new = edit.relevel(lines, level)
   if blank then
     table.insert(new, 1, "")
@@ -346,15 +371,20 @@ function M.archive_subtree(target)
     edit.update_headline(abuf, lnum, { tags = all_tags })
   end
   mark_done(abuf, lnum, file.settings.todo)
-  require("org.id").register_lines(new, vim.fs.normalize(loc.filename))
   for _, p in ipairs(props) do
     edit.set_property(abuf, lnum, p[1], p[2])
   end
   local data = { bufnr = bufnr, lnum = s, title = title, archive_file = loc.filename }
   fire("OrgArchiveFinalize", vim.tbl_extend("force", data, { bufnr = abuf, lnum = lnum }))
   if not same then
-    utils.save_buffer(abuf)
+    local ok, err = utils.save_buffer(abuf)
+    if not ok then
+      utils.restore_buffer(abuf, original, modified)
+      utils.error("Archive not saved, subtree kept: " .. err)
+      return
+    end
   end
+  require("org.id").register_lines(new, vim.fs.normalize(loc.filename))
   -- back in the source: the subtree moved when archiving above it
   if same and lnum <= s then
     local delta = vim.api.nvim_buf_line_count(bufnr) - before

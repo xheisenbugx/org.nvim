@@ -334,15 +334,19 @@ function M.expand(path, base)
   if not path or path == "" then
     return path
   end
-  if path:find("[%*%?%[]") then
-    -- vim.fn.expand() would expand wildcards (joining matches with newlines);
-    -- only expand ~ and environment variables for glob patterns
-    path = path:gsub("^~", vim.env.HOME or "~"):gsub("%$(%w+)", function(v)
+  -- Never vim.fn.expand(): paths often come from document text (INCLUDE,
+  -- :dir, :file, scopes), and Vim expansion evaluates `backticks` and
+  -- interprets %, # and wildcards. Expand only ~ and environment variables.
+  if path == "~" or path:match("^~[/\\]") then
+    path = (vim.env.HOME or "~") .. path:sub(2)
+  end
+  path = path
+    :gsub("%${([%w_]+)}", function(v)
+      return vim.env[v] or ("${" .. v .. "}")
+    end)
+    :gsub("%$([%w_]+)", function(v)
       return vim.env[v] or ("$" .. v)
     end)
-  else
-    path = vim.fn.expand(path)
-  end
   if not path:match("^/") and not path:match("^%a:[/\\]") then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path
@@ -500,14 +504,46 @@ function M.load_buffer(path)
   return b
 end
 
---- Write a buffer silently if it has changes.
+--- Restore a synchronous edit snapshot without replacing unchanged lines.
+--- This keeps unrelated extmarks and cursor locations intact on rollback.
+function M.restore_buffer(bufnr, lines, modified)
+  local current = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local hunks =
+    vim.diff(table.concat(current, "\n") .. "\n", table.concat(lines, "\n") .. "\n", { result_type = "indices" })
+  for i = #hunks, 1, -1 do
+    local h = hunks[i]
+    local start = h[2] == 0 and h[1] or h[1] - 1
+    vim.api.nvim_buf_set_lines(bufnr, start, start + h[2], false, vim.list_slice(lines, h[3], h[3] + h[4] - 1))
+  end
+  vim.bo[bufnr].modified = modified
+end
+
+--- Write a buffer silently if it has changes. Returns false and a one-line
+--- error when the write fails: moving data must never continue after a
+--- failed destination save, so callers check the result.
+---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    local ok, err
     vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd("silent! noautocmd keepalt write")
+      ok, err = pcall(vim.cmd, "silent noautocmd keepalt write")
     end)
+    if not ok then
+      err = tostring(err)
+      return false, err:match("E%d+:[^\n]*") or err:match("^[^\n]*")
+    end
     require("org.files").invalidate(vim.api.nvim_buf_get_name(bufnr))
   end
+  return true
+end
+
+--- Save a buffer and warn when the write fails. Returns whether it saved.
+function M.save_buffer_or_warn(bufnr)
+  local ok, err = M.save_buffer(bufnr)
+  if not ok then
+    M.warn(("Could not save %s: %s"):format(vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":~:."), err))
+  end
+  return ok
 end
 
 --- Open `path` in the current window (or reuse a window showing it) at `lnum`.
