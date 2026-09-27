@@ -844,7 +844,7 @@ By area:
 | ✅ TODO and priorities | `▰▰▰▰▰▰▰▰▰▱` 90% | `#+TYP_TODO` keywords cycle like a sequence instead of jumping to DONE |
 | 🏷️ Tags, properties and column view | `▰▰▰▰▰▰▰▰▱▱` 85% | Column view is a separate table, not overlays on the headlines |
 | 📅 Dates and timestamps | `▰▰▰▰▰▰▰▰▰▱` 90% | No configurable duration units or custom full date formats |
-| 🗓️ Agenda | `▰▰▰▰▰▰▰▰▱▱` 85% | Only common diary sexps; no PDF/PostScript output |
+| 🗓️ Agenda | `▰▰▰▰▰▰▰▰▱▱` 85% | Diary sexps cover the calendar functions plus side-effect-free Lisp, not arbitrary Elisp; no PDF/PostScript output |
 | 📥 Capture | `▰▰▰▰▰▰▰▰▱▱` 85% | No `%(sexp)` escapes, `:unnarrowed` or extended-today dates |
 | 📦 Refile and archive | `▰▰▰▰▰▰▰▰▰▱` 95% | Same targets, logging and archive context as Emacs; only minor edge cases left |
 | 🔗 Links | `▰▰▰▰▰▰▰▰▱▱` 85% | No `elisp:` links or Emacs application links (Gnus, mu4e, BBDB) |
@@ -886,7 +886,9 @@ The main differences:
 - **Emacs applications** (Gnus, mu4e, BBDB, the diary, the calendar's
   commands) have no counterpart; common diary sexps such as
   `%%(org-anniversary ...)`, `%%(diary-float ...)` and
-  `%%(org-calendar-holiday)` (with Emacs's holiday lists) are emulated.
+  `%%(org-calendar-holiday)` (with Emacs's holiday lists) are emulated,
+  and so is side-effect-free Lisp around them (`when`, `if`, `cond`,
+  `let`, `memq`, arithmetic, `calendar-day-of-week date`...).
 - **Display:** image and LaTeX previews are drawn under their line, not in
   place of the link, and need a terminal image backend; hiding body text
   between visible headlines needs Neovim 0.11 (`conceal_lines`); column
