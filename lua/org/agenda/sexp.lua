@@ -14,7 +14,9 @@
 ---   org-calendar-holiday      (the holidays of `agenda.holidays`)
 ---   diary-remind SEXP DAYS [MARKING]   diary-offset SEXP DAYS
 ---   diary-hebrew-date, diary-iso-date, ... (the date in other calendars)
----   diary-day-of-year
+---   diary-day-of-year, diary-lunar-phases, diary-sunrise-sunset
+---   diary-hebrew-birthday, -yahrzeit, -omer, -parasha, -rosh-hodesh,
+---   -sabbath-candles, diary-chinese-anniversary
 ---   and, or, not, list, quote
 ---
 --- around a side-effect-free subset of Elisp: if/when/unless/cond/let/
@@ -23,11 +25,10 @@
 --- `entry` to the entry text. There are no loops, lambdas or assignments,
 --- so every sexp terminates and has no side effects.
 ---
---- The `diary-*` functions use Emacs's default `calendar-date-style`
---- (american: month day year); the `org-*` wrappers use ISO order (year month
---- day), exactly like Emacs. Anything else (other Elisp, the anniversaries
---- of other calendars, ...) is reported as an error so the caller can skip
---- the entry.
+--- The `diary-*` functions take their dates in the order of
+--- `agenda.calendar_date_style` (calendar-date-style); the `org-*` wrappers
+--- use ISO order (year month day), exactly like Emacs. Anything else (other
+--- Elisp) is reported as an error so the caller can skip the entry.
 
 local date = require("org.date")
 
@@ -249,8 +250,15 @@ end
 local function make_date(style, a, b, c)
   if style == "iso" then
     return b, c, a
+  elseif style == "european" then
+    return b, a, c
   end
   return a, b, c
+end
+
+--- `agenda.calendar_date_style`, the argument order of the diary-* functions.
+local function diary_style()
+  return require("org.agenda.calendars").date_style()
 end
 
 local function fn_date(ctx, style, a, b, c)
@@ -505,25 +513,25 @@ end
 
 local FUNCS = {
   ["diary-date"] = function(ctx, ...)
-    return fn_date(ctx, "american", ...)
+    return fn_date(ctx, diary_style(), ...)
   end,
   ["org-date"] = function(ctx, ...)
     return fn_date(ctx, "iso", ...)
   end,
   ["diary-block"] = function(ctx, ...)
-    return fn_block(ctx, "american", ...)
+    return fn_block(ctx, diary_style(), ...)
   end,
   ["org-block"] = function(ctx, ...)
     return fn_block(ctx, "iso", ...)
   end,
   ["diary-anniversary"] = function(ctx, ...)
-    return fn_anniversary(ctx, "american", ...)
+    return fn_anniversary(ctx, diary_style(), ...)
   end,
   ["org-anniversary"] = function(ctx, ...)
     return fn_anniversary(ctx, "iso", ...)
   end,
   ["diary-cyclic"] = function(ctx, n, ...)
-    return fn_cyclic(ctx, "american", n, ...)
+    return fn_cyclic(ctx, diary_style(), n, ...)
   end,
   ["org-cyclic"] = function(ctx, n, ...)
     return fn_cyclic(ctx, "iso", n, ...)
@@ -984,7 +992,12 @@ local function remind(ctx, sexp, days)
     if type(entry) ~= "string" then
       error("wrong-type-argument sequencep in diary-remind", 0)
     end
-    return string.format("Reminder: Only %d day%s until %s", days, days > 1 and "s" or "", entry)
+    -- diary-remind-message: whole weeks as weeks
+    if math.fmod(days, 7) == 0 then
+      local weeks = math.floor(days / 7 + 0.5)
+      return string.format("Reminder: Only %d week%s until %s", weeks, days == 7 and "" or "s", entry)
+    end
+    return string.format("Reminder: Only %d day%s until %s", days, days == 1 and "" or "s", entry)
   elseif is_list(days) then
     local r = remind(ctx, sexp, days.items[1])
     if truthy(r) then
@@ -1073,6 +1086,347 @@ FUNCS["diary-sunrise-sunset"] = function(ctx)
   local location = acfg.calendar_location_name
   return require("org.agenda.calendars").sunrise_sunset_string(absolute(ctx.day), lat, lon, { location = location })
 end
+
+---------------------------------------------------------------------------
+-- Anniversaries and entries of other calendars (cal-hebrew.el, cal-china.el)
+---------------------------------------------------------------------------
+
+local DAY_NAMES = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
+
+local HEBREW_MONTHS = { "Nisan", "Iyar", "Sivan", "Tammuz", "Av", "Elul", "Tishri", "Heshvan", "Kislev", "Teveth" }
+HEBREW_MONTHS[11] = "Shevat"
+
+--- calendar-hebrew-month-name-array-leap-year / -common-year
+local function hebrew_month_names(year)
+  local names = vim.list_extend({}, HEBREW_MONTHS)
+  if require("org.agenda.holidays.hebrew").leap_year_p(year) then
+    return vim.list_extend(names, { "Adar I", "Adar II" })
+  end
+  names[12] = "Adar"
+  return names
+end
+M.hebrew_month_names = hebrew_month_names
+
+--- The Hebrew date of the civil date (diary-make-date A B C), the day
+--- after when AFTER-SUNSET is non-nil.
+local function hebrew_of_civil(a, b, c, after_sunset)
+  local m, d, y = make_date(diary_style(), a, b, c)
+  local abs = absolute(abs_date(m, d, y)) + (truthy(after_sunset) and 1 or 0)
+  return require("org.agenda.holidays.hebrew").from_absolute(abs)
+end
+
+--- calendar-hebrew-birthday: absolute date of the anniversary of Hebrew
+--- birth date M D Y in Hebrew YEAR.
+local function hebrew_birthday(m, d, y, year)
+  local H = require("org.agenda.holidays.hebrew")
+  if m == H.last_month_of_year(y) then
+    return H.to_absolute(H.last_month_of_year(year), d, year)
+  end
+  return H.to_absolute(m, 1, year) + d - 1
+end
+
+--- calendar-hebrew-yahrzeit: absolute date of the anniversary of Hebrew
+--- death date M D Y in Hebrew YEAR.
+local function hebrew_yahrzeit(m, d, y, year)
+  local H = require("org.agenda.holidays.hebrew")
+  if m == 8 and d == 30 and H.days_in_year(y + 1) % 10 ~= 5 then
+    return H.to_absolute(9, 1, year) - 1
+  elseif m == 9 and d == 30 and H.days_in_year(y + 1) % 10 == 3 then
+    return H.to_absolute(10, 1, year) - 1
+  elseif m == 13 then
+    return H.to_absolute(H.last_month_of_year(year), d, year)
+  elseif d == 30 and m == 12 and not H.leap_year_p(year) then
+    return H.to_absolute(11, 30, year)
+  end
+  return H.to_absolute(m, d, year)
+end
+
+--- diary-hebrew-birthday MONTH DAY YEAR [AFTER-SUNSET]: "ENTRY's 13th
+--- Hebrew birthday" on the Hebrew birthday, " (evening)" the day before.
+FUNCS["diary-hebrew-birthday"] = function(ctx, a, b, c, after_sunset)
+  local H = require("org.agenda.holidays.hebrew")
+  local hm, hd, hy = hebrew_of_civil(a, b, c, after_sunset)
+  local d = absolute(ctx.day)
+  local _, _, yr = H.from_absolute(d)
+  local age = yr - hy
+  local bday = hebrew_birthday(hm, hd, hy, yr)
+  if age > 0 and (bday == d or bday == d + 1) then
+    return string.format(
+      "%s's %d%s Hebrew birthday%s",
+      ctx.entry,
+      age,
+      M.ordinal_suffix(age),
+      bday == d and "" or " (evening)"
+    )
+  end
+  return NIL
+end
+
+--- diary-hebrew-yahrzeit MONTH DAY YEAR [MARK AFTER-SUNSET]: the Yahrzeit
+--- of the death on the civil date, and the evening before.
+FUNCS["diary-hebrew-yahrzeit"] = function(ctx, a, b, c, _, after_sunset)
+  local H = require("org.agenda.holidays.hebrew")
+  local hm, hd, hy = hebrew_of_civil(a, b, c, after_sunset)
+  local d = absolute(ctx.day)
+  local _, _, yr = H.from_absolute(d)
+  local diff = yr - hy
+  local y = hebrew_yahrzeit(hm, hd, hy, yr)
+  if diff > 0 and (y == d or y == d + 1) then
+    return cons(
+      string.format(
+        "Yahrzeit of %s%s: %d%s anniversary",
+        ctx.entry,
+        y == d and "" or " (evening)",
+        diff,
+        M.ordinal_suffix(diff)
+      )
+    )
+  end
+  return NIL
+end
+
+local SEFIROT = { "Hesed", "Gevurah", "Tiferet", "Netzach", "Hod", "Yesod", "Malchut" } -- diary-hebrew-omer-sefirot
+
+--- diary-hebrew-omer [MARK]: the count of the Omer, the 49 days after Passover.
+FUNCS["diary-hebrew-omer"] = function(ctx)
+  local _, _, gy = mdy(ctx.day)
+  local passover = require("org.agenda.holidays.hebrew").to_absolute(1, 15, gy + 3760)
+  local omer = absolute(ctx.day) - passover
+  if omer <= 0 or omer >= 50 then
+    return NIL
+  end
+  local week, day = math.floor(omer / 7), omer % 7
+  local weeks = ""
+  if week > 0 then
+    weeks = string.format(
+      ", that is, %d week%s%s",
+      week,
+      week == 1 and "" or "s",
+      day == 0 and "" or string.format(" and %d day%s", day, day == 1 and "" or "s")
+    )
+  end
+  return cons(
+    string.format(
+      "Day %d%s of the omer (until sunset) %s she'be'%s",
+      omer,
+      weeks,
+      SEFIROT[(6 + day) % 7 + 1],
+      SEFIROT[week + (day == 0 and -1 or 0) + 1]
+    )
+  )
+end
+
+--- diary-hebrew-rosh-hodesh [MARK]: Rosh Hodesh, the day before (Erev) and
+--- the Saturday before (Shabbat Mevarchim).
+FUNCS["diary-hebrew-rosh-hodesh"] = function(ctx)
+  local H = require("org.agenda.holidays.hebrew")
+  local d = absolute(ctx.day)
+  local hm, hd, hy = H.from_absolute(d)
+  local last_day = H.last_day_of_month(hm, hy)
+  local names = hebrew_month_names(hy)
+  local _, yesterday = H.from_absolute(d - 1)
+  -- the month after this one, Nisan after the last month of the year
+  local next_month = names[(hm == H.last_month_of_year(hy) and 0 or hm) + 1]
+  if hd == 30 or (hd == 1 and hm ~= 7) then
+    local what
+    if hd == 30 then
+      what = names[hm + 1] .. " (first day)"
+    elseif yesterday == 30 then
+      what = names[hm] .. " (second day)"
+    else
+      what = names[hm]
+    end
+    return cons("Rosh Hodesh " .. what)
+  elseif d % 7 == 6 then
+    if hd > 22 and hm ~= 6 and last_day == 29 then
+      return cons(string.format("Mevarchim Rosh Hodesh %s (%s)", next_month, DAY_NAMES[29 - hd + 1]))
+    elseif hd < 30 and hd > 22 and last_day == 30 then
+      return cons(
+        string.format(
+          "Mevarchim Rosh Hodesh %s (%s-%s)",
+          names[hm + 1],
+          hd == 29 and "tomorrow" or DAY_NAMES[29 - hd + 1],
+          DAY_NAMES[(30 - hd) % 7 + 1]
+        )
+      )
+    end
+  elseif hd == 29 and hm ~= 6 then
+    return cons("Erev Rosh Hodesh " .. next_month)
+  end
+  return NIL
+end
+
+-- stylua: ignore start
+-- calendar-hebrew-parashiot-names
+local PARASHIOT = {
+  "Bereshith", "Noah", "Lech L'cha", "Vayera", "Hayei Sarah", "Toledoth",
+  "Vayetze", "Vayishlah", "Vayeshev", "Mikketz", "Vayiggash", "Vayhi",
+  "Shemoth", "Vaera", "Bo", "Beshallah", "Yithro", "Mishpatim",
+  "Terumah", "Tetzavveh", "Ki Tissa", "Vayakhel", "Pekudei", "Vayikra",
+  "Tzav", "Shemini", "Tazria", "Metzora", "Aharei Moth", "Kedoshim",
+  "Emor", "Behar", "Behukkotai", "Bemidbar", "Naso", "Behaalot'cha",
+  "Shelah L'cha", "Korah", "Hukkath", "Balak", "Pinhas", "Mattoth",
+  "Masei", "Devarim", "Vaethanan", "Ekev", "Reeh", "Shofetim",
+  "Ki Tetze", "Ki Tavo", "Nitzavim", "Vayelech", "Haazinu",
+}
+-- stylua: ignore end
+
+-- The structure of the parashiot per year type (calendar-hebrew-year-*):
+-- one element per Saturday of the Hebrew year. `false` is nil, a number a
+-- parasha, V(a, b) a combined parasha (a vector) and P(a, b) a parasha
+-- that differs in the diaspora (a) and in Israel (b).
+local function V(a, b)
+  return { a, b }
+end
+local function P(a, b)
+  return { diaspora = a, israel = b }
+end
+local N = false
+local function seq(t, from, to)
+  for i = from, to do
+    t[#t + 1] = i
+  end
+  return t
+end
+local function cat(...)
+  local out = {}
+  for _, part in ipairs({ ... }) do
+    vim.list_extend(out, part)
+  end
+  return out
+end
+-- stylua: ignore start
+-- 23 24 nil 25 [26 27] [28 29] 30 [31 32] 33, the shared middle of the
+-- ordinary years
+local ORDINARY_MID = { 23, 24, N, 25, V(26, 27), V(28, 29), 30, V(31, 32), 33 }
+local ORDINARY_THU = { P(N, 34), P(34, 35), P(35, 36), P(36, 37), P(37, 38), P(V(38, 39), 39), 40, V(41, 42) }
+local LEAP_MID = seq({}, 21, 27)
+local LEAP_SAT = {
+  P(N, 28), P(28, 29), P(29, 30), P(30, 31), P(31, 32), P(32, 33), P(33, 34), P(34, 35), P(35, 36),
+  P(36, 37), P(37, 38), P(38, 39), P(39, 40), P(40, 41), P(V(41, 42), 42),
+}
+local PARASHA_YEARS = {
+  ["Saturday-incomplete-Sunday"] = cat({ N, 52, N, N }, seq({}, 0, 20), { V(21, 22) }, ORDINARY_MID, seq({}, 34, 40),
+    { V(41, 42) }, seq({}, 43, 50)),
+  ["Saturday-complete-Tuesday"] = cat({ N, 52, N, N }, seq({}, 0, 20), { V(21, 22) }, ORDINARY_MID, seq({}, 34, 40),
+    { V(41, 42) }, seq({}, 43, 49), { V(50, 51) }),
+  ["Monday-incomplete-Tuesday"] = cat({ 51, 52, N }, seq({}, 0, 20), { V(21, 22) }, ORDINARY_MID, seq({}, 34, 40),
+    { V(41, 42) }, seq({}, 43, 49), { V(50, 51) }),
+  ["Monday-complete-Thursday"] = cat({ 51, 52, N }, seq({}, 0, 20), { V(21, 22) }, ORDINARY_MID, ORDINARY_THU,
+    seq({}, 43, 49), { V(50, 51) }),
+  ["Tuesday-regular-Thursday"] = cat({ 51, 52, N }, seq({}, 0, 20), { V(21, 22) }, ORDINARY_MID, ORDINARY_THU,
+    seq({}, 43, 49), { V(50, 51) }),
+  ["Thursday-regular-Saturday"] = cat({ 52, N, N }, seq({}, 0, 20), { V(21, 22), 23, 24, N, P(N, 25),
+    P(25, V(26, 27)), P(V(26, 27), V(28, 29)), P(V(28, 29), 30), P(30, 31), P(V(31, 32), 32) }, seq({}, 33, 40),
+    { V(41, 42) }, seq({}, 43, 50)),
+  ["Thursday-complete-Sunday"] = cat({ 52, N, N }, seq({}, 0, 22), ORDINARY_MID, seq({}, 34, 40), { V(41, 42) },
+    seq({}, 43, 50)),
+  ["Saturday-incomplete-Tuesday"] = cat({ N, 52, N, N }, seq({}, 0, 20), LEAP_MID, { N }, seq({}, 28, 40),
+    { V(41, 42) }, seq({}, 43, 49), { V(50, 51) }),
+  ["Saturday-complete-Thursday"] = cat({ N, 52, N, N }, seq({}, 0, 20), LEAP_MID, { N }, seq({}, 28, 33), ORDINARY_THU,
+    seq({}, 43, 49), { V(50, 51) }),
+  ["Monday-incomplete-Thursday"] = cat({ 51, 52, N }, seq({}, 0, 20), LEAP_MID, { N }, seq({}, 28, 33), ORDINARY_THU,
+    seq({}, 43, 49), { V(50, 51) }),
+  ["Monday-complete-Saturday"] = cat({ 51, 52, N }, seq({}, 0, 20), LEAP_MID, { N }, LEAP_SAT, seq({}, 43, 50)),
+  ["Tuesday-regular-Saturday"] = cat({ 51, 52, N }, seq({}, 0, 20), LEAP_MID, { N }, LEAP_SAT, seq({}, 43, 50)),
+  ["Thursday-incomplete-Sunday"] = cat({ 52, N, N }, seq({}, 0, 28), { N }, seq({}, 29, 50)),
+  ["Thursday-complete-Tuesday"] = cat({ 52, N, N }, seq({}, 0, 28), { N }, seq({}, 29, 49), { V(50, 51) }),
+}
+-- stylua: ignore end
+M._parasha_years = PARASHA_YEARS
+
+--- calendar-hebrew-parasha-name
+local function parasha_name(p)
+  if type(p) == "table" then
+    return PARASHIOT[p[1] + 1] .. "/" .. PARASHIOT[p[2] + 1]
+  end
+  return PARASHIOT[p + 1]
+end
+
+--- diary-hebrew-parasha [MARK]: the weekly Torah portion, on Saturdays.
+FUNCS["diary-hebrew-parasha"] = function(ctx)
+  local H = require("org.agenda.holidays.hebrew")
+  local d = absolute(ctx.day)
+  if d % 7 ~= 6 then
+    return NIL
+  end
+  local _, _, hy = H.from_absolute(d)
+  local rosh_hashanah = H.to_absolute(7, 1, hy)
+  local passover = H.to_absolute(1, 15, hy)
+  local long_h = H.days_in_year(hy) % 10 == 5
+  local short_k = H.days_in_year(hy) % 10 == 3
+  local kind = (long_h and not short_k) and "complete" or (not long_h and short_k) and "incomplete" or "regular"
+  local key = DAY_NAMES[rosh_hashanah % 7 + 1] .. "-" .. kind .. "-" .. DAY_NAMES[passover % 7 + 1]
+  local format = PARASHA_YEARS[key]
+  if not format then
+    error("void-variable calendar-hebrew-year-" .. key, 0)
+  end
+  local first_saturday = rosh_hashanah + 6 - (rosh_hashanah + 6 - 6) % 7
+  local parasha = format[math.floor((d - first_saturday) / 7) + 1]
+  if parasha == nil then
+    error("args-out-of-range", 0)
+  elseif not parasha then
+    return NIL
+  end
+  local text
+  if type(parasha) == "table" and parasha.israel then
+    if parasha.diaspora then
+      text = parasha_name(parasha.diaspora) .. " (diaspora), " .. parasha_name(parasha.israel) .. " (Israel)"
+    else
+      text = parasha_name(parasha.israel) .. " (Israel)"
+    end
+  else
+    text = parasha_name(parasha)
+  end
+  return cons("Parashat " .. text)
+end
+
+--- diary-hebrew-sabbath-candles [MARK]: candle lighting on Fridays,
+--- `agenda.hebrew_sabbath_candles_minutes` before sunset.
+FUNCS["diary-hebrew-sabbath-candles"] = function(ctx)
+  local acfg = require("org.config").opts.agenda
+  local lat, lon = acfg.calendar_latitude, acfg.calendar_longitude
+  if type(lat) ~= "number" or type(lon) ~= "number" then
+    error("agenda.calendar_latitude and agenda.calendar_longitude are not set", 0)
+  end
+  if absolute(ctx.day) % 7 ~= 5 then
+    return NIL
+  end
+  local astro = require("org.agenda.holidays.astro")
+  local z = require("org.agenda.holidays.solar").system_zone()
+  local m, d, y = mdy(ctx.day)
+  local _, set, _, _, set_zone = astro.sunrise_sunset(z, lat, lon, m, d, y)
+  if not set then
+    return NIL
+  end
+  local minutes = acfg.hebrew_sabbath_candles_minutes or 18
+  return cons(astro.time_string(set - minutes / 60.0, set_zone) .. " Sabbath candle lighting")
+end
+
+--- diary-chinese-anniversary MONTH DAY [YEAR MARK]: like diary-anniversary
+--- for a Chinese date; YEAR is CYCLE * 100 + YEAR of the cycle.
+FUNCS["diary-chinese-anniversary"] = function(ctx, a, b, c)
+  local chinese = require("org.agenda.holidays.chinese")
+  local m, d, y = make_date(diary_style(), a, b, c)
+  local dc, dy, dm, dd
+  if y ~= nil and y ~= NIL then
+    -- calendar-chinese-to-absolute-for-diary
+    y = num(y, "diary-chinese-anniversary")
+    local abs = chinese.to_absolute(math.floor(y / 100), y % 100, m, d)
+    if not abs then
+      error("wrong-type-argument number-or-marker-p nil", 0)
+    end
+    dc, dy, dm, dd = chinese.from_absolute(abs)
+  else
+    dm, dd = m, d
+  end
+  local cc, cy, cm, cd = chinese.from_absolute(absolute(ctx.day))
+  local diff = (dc and dy) and (60 * (cc - dc) + (cy - dy)) or 100
+  if diff > 0 and (dm == cm or dm + 0.5 == cm) and dd == cd then
+    return cons(format_entry(ctx.entry, diff, M.ordinal_suffix(diff)))
+  end
+  return NIL
+end
 M.functions = vim.tbl_keys(FUNCS)
 
 --- Evaluate a sexp for a day (org.date day number).
@@ -1121,6 +1475,36 @@ function M.eval(node, day, entry_text)
     return true
   end
   return text
+end
+
+--- Evaluate a sexp of the Emacs diary file for a day (diary-sexp-entry):
+--- false when it does not apply, else the entry text: a string result, the
+--- string cdr of a (MARK . "text") result, or `entry_text` for any other
+--- non-nil value. On error returns nil and the error message.
+---@param node table|string parsed node or sexp text
+---@param day integer
+---@param entry_text string
+---@return string|false|nil, string|nil
+function M.eval_diary(node, day, entry_text)
+  if type(node) == "string" then
+    local err
+    node, err = M.parse(node)
+    if not node then
+      return nil, err
+    end
+  end
+  local ctx = { day = day, entry = entry_text, vars = { date = date_list(day), entry = entry_text } }
+  local ok, res = pcall(eval_node, node, ctx)
+  if not ok then
+    return nil, tostring(res)
+  elseif type(res) == "string" then
+    return res
+  elseif type(res) == "table" and res.cons and type(res.cdr) == "string" then
+    return res.cdr
+  elseif res == NIL or res == nil then
+    return false
+  end
+  return entry_text
 end
 
 ---------------------------------------------------------------------------
@@ -1186,6 +1570,8 @@ local function sexp_end(str, i)
   end
   return nil
 end
+
+M.sexp_end = sexp_end
 
 --- A diary sexp line, `%%(SEXP) text` or `&%%(SEXP) text` at the beginning
 --- of the line (org-agenda-get-sexps).

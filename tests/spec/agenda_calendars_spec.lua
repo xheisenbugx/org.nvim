@@ -264,3 +264,159 @@ describe("agenda calendars: agenda keys", function()
     eq({ "Don't know which date to convert" }, errors)
   end)
 end)
+
+-- The diary sexps of cal-hebrew.el and cal-china.el, and calendar-date-style.
+-- Expected values from Emacs 31 in batch (diary-sexp-entry with `entry`
+-- bound to "Joe"), TZ=America/New_York for the candles.
+describe("agenda calendars: Hebrew and Chinese diary sexps", function()
+  local sexp = require("org.agenda.sexp")
+  local date = require("org.date")
+  local config = require("org.config")
+
+  local function day(y, m, d)
+    return date.days_from_civil(y, m, d)
+  end
+
+  --- "YYYY-MM-DD result" for the days from..to where SEXP applies.
+  local function listing(s, from, to, entry)
+    local out = {}
+    for d = from, to do
+      local r, err = sexp.eval(s, d, entry or "Joe")
+      if r == nil then
+        error(s .. ": " .. tostring(err), 0)
+      end
+      if r then
+        local y, m, dd = date.civil_from_days(d)
+        out[#out + 1] = string.format("%04d-%02d-%02d %s", y, m, dd, r)
+      end
+    end
+    return out
+  end
+
+  after_each(function()
+    config.setup({})
+  end)
+
+  it("finds Hebrew birthdays and Yahrzeits (and the evening before)", function()
+    local from, to = day(2026, 1, 1), day(2026, 12, 31)
+    eq({
+      "2026-03-12 Joe's 36th Hebrew birthday (evening)",
+      "2026-03-13 Joe's 36th Hebrew birthday",
+    }, listing("(diary-hebrew-birthday 3 21 1990)", from, to))
+    eq({
+      "2026-03-13 Joe's 36th Hebrew birthday (evening)",
+      "2026-03-14 Joe's 36th Hebrew birthday",
+    }, listing("(diary-hebrew-birthday 3 21 1990 t)", from, to))
+    eq({
+      "2026-11-17 Yahrzeit of Joe (evening): 36th anniversary",
+      "2026-11-18 Yahrzeit of Joe: 36th anniversary",
+    }, listing("(diary-hebrew-yahrzeit 11 25 1990)", from, to))
+    eq({
+      "2026-11-18 Yahrzeit of Joe (evening): 36th anniversary",
+      "2026-11-19 Yahrzeit of Joe: 36th anniversary",
+    }, listing("(diary-hebrew-yahrzeit 11 25 1990 nil t)", from, to))
+    -- Adar of a leap year, Kislev 30
+    eq({
+      "2026-02-25 Yahrzeit of Joe (evening): 15th anniversary",
+      "2026-02-26 Yahrzeit of Joe: 15th anniversary",
+    }, listing("(diary-hebrew-yahrzeit 3 15 2011)", from, to))
+    eq({
+      "2026-12-02 Yahrzeit of Joe (evening): 16th anniversary",
+      "2026-12-03 Yahrzeit of Joe: 16th anniversary",
+    }, listing("(diary-hebrew-yahrzeit 11 30 2010)", from, to))
+  end)
+
+  it("counts the Omer and finds Rosh Hodesh and the parasha", function()
+    eq({
+      "2026-04-03 Day 1 of the omer (until sunset) Hesed she'be'Hesed",
+      "2026-04-04 Day 2 of the omer (until sunset) Gevurah she'be'Hesed",
+    }, listing("(diary-hebrew-omer)", day(2026, 4, 1), day(2026, 4, 4)))
+    eq({
+      "2026-04-09 Day 7, that is, 1 week of the omer (until sunset) Malchut she'be'Hesed",
+      "2026-04-10 Day 8, that is, 1 week and 1 day of the omer (until sunset) Hesed she'be'Gevurah",
+      "2026-04-11 Day 9, that is, 1 week and 2 days of the omer (until sunset) Gevurah she'be'Gevurah",
+    }, listing("(diary-hebrew-omer)", day(2026, 4, 9), day(2026, 4, 11)))
+    eq({
+      "2026-10-10 Mevarchim Rosh Hodesh Heshvan (tomorrow-Monday)",
+      "2026-10-11 Rosh Hodesh Heshvan (first day)",
+      "2026-10-12 Rosh Hodesh Heshvan (second day)",
+    }, listing("(diary-hebrew-rosh-hodesh)", day(2026, 10, 1), day(2026, 10, 20)))
+    eq({
+      "2026-09-05 Parashat Nitzavim/Vayelech",
+      "2026-09-19 Parashat Haazinu",
+      "2026-10-10 Parashat Bereshith",
+    }, listing("(diary-hebrew-parasha)", day(2026, 9, 1), day(2026, 10, 10)))
+    eq({
+      "1951-04-28 Parashat Aharei Moth (Israel)",
+      "1951-05-05 Parashat Aharei Moth (diaspora), Kedoshim (Israel)",
+    }, listing("(diary-hebrew-parasha)", day(1951, 4, 28), day(1951, 5, 5)))
+  end)
+
+  it("match Emacs over a century (all 14 year types of the parashiot)", function()
+    -- count and sha256 of Emacs's listing from 1950-01-01 for 36500 days
+    local expected = {
+      ["(diary-hebrew-parasha)"] = { 4928, "7a4d45743687001b3c06aa64a1bd5c1f3ea1481d6b98d8b4cbb4a46305ca92fd" },
+      ["(diary-hebrew-rosh-hodesh)"] = { 3882, "bcae619777f4d0479f428679b6b2c6b43b0d51dcd2797000bcdece6c1066bab3" },
+      ["(diary-hebrew-omer)"] = { 4900, "689df657e35663ccea124ac713f8efdfb055655daf275cadaa0c10a593690b48" },
+    }
+    local from = day(1950, 1, 1)
+    for s, want in pairs(expected) do
+      local lines = listing(s, from, from + 36499)
+      eq(want[1], #lines, s)
+      eq(want[2], vim.fn.sha256(table.concat(lines, "\n")), s)
+    end
+  end)
+
+  it("lights the Sabbath candles before sunset on Fridays", function()
+    local saved = vim.env.TZ
+    vim.env.TZ = "America/New_York"
+    solar.reset()
+    local loc = { calendar_latitude = 40.7, calendar_longitude = -74.0 }
+    config.setup({ agenda = loc })
+    local ok1, res1 = pcall(listing, "(diary-hebrew-sabbath-candles)", day(2026, 9, 20), day(2026, 10, 3))
+    config.setup({ agenda = vim.tbl_extend("force", loc, { hebrew_sabbath_candles_minutes = 40 }) })
+    local ok2, res2 = pcall(listing, "(diary-hebrew-sabbath-candles)", day(2026, 9, 25), day(2026, 9, 25))
+    vim.env.TZ = saved
+    solar.reset()
+    eq({
+      "2026-09-25 6:29pm (EDT) Sabbath candle lighting",
+      "2026-10-02 6:17pm (EDT) Sabbath candle lighting",
+    }, ok1 and res1 or tostring(res1))
+    eq({ "2026-09-25 6:07pm (EDT) Sabbath candle lighting" }, ok2 and res2 or tostring(res2))
+    -- no location: an error, the sexp is skipped
+    config.setup({})
+    local r, err = sexp.eval("(diary-hebrew-sabbath-candles)", day(2026, 9, 25), "")
+    eq(nil, r)
+    ok(err:match("calendar_latitude"), err)
+  end)
+
+  it("finds Chinese anniversaries", function()
+    eq(
+      { "2026-09-25 Joe 3rd" },
+      listing("(diary-chinese-anniversary 8 15 7840)", day(2026, 9, 1), day(2026, 9, 30), "Joe %d%s")
+    )
+    eq(
+      { "2026-02-17 Joe 100th" },
+      listing("(diary-chinese-anniversary 1 1)", day(2026, 1, 1), day(2026, 3, 1), "Joe %d%s")
+    )
+  end)
+
+  it("read diary-* arguments and show dates in calendar_date_style", function()
+    config.setup({ agenda = { calendar_date_style = "european" } })
+    local from, to = day(2026, 9, 20), day(2026, 10, 4)
+    eq({ "2026-09-30 Joe 36th" }, listing("(diary-anniversary 30 9 1990)", from, to, "Joe %d%s"))
+    eq({
+      "2026-09-29 Joe's 17th Hebrew birthday (evening)",
+      "2026-09-30 Joe's 17th Hebrew birthday",
+    }, listing("(diary-hebrew-birthday 7 10 2009)", from, to))
+    eq("Hebrew date (until sunset): 16 Tishri 5787", sexp.eval("(diary-hebrew-date)", day(2026, 9, 27), ""))
+    eq("Sunday, 27 September 2026", cal.gregorian_string(abs(9, 27, 2026)))
+    -- the org-* functions keep the ISO order
+    eq({ "2026-09-30 Joe 36th" }, listing("(org-anniversary 1990 9 30)", from, to, "Joe %d%s"))
+    config.setup({ agenda = { calendar_date_style = "iso" } })
+    eq({ "2026-09-30 Joe 36th" }, listing("(diary-anniversary 1990 9 30)", from, to, "Joe %d%s"))
+    eq("Julian date: 2026-09-14", sexp.eval("(diary-julian-date)", day(2026, 9, 27), ""))
+    eq("Bahá’í date: 183-11-01", sexp.eval("(diary-bahai-date)", day(2026, 9, 27), ""))
+    eq("2026-09-27", cal.gregorian_string(abs(9, 27, 2026)))
+  end)
+end)
