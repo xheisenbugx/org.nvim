@@ -550,6 +550,7 @@ M.DEFAULT_LINK_TYPES = {
   "file",
   "elisp",
   "doi",
+  "info",
 }
 
 function P:is_headline(l)
@@ -717,6 +718,18 @@ function P:fill_paragraph(node, ignore_first)
   local lines = M.remove_indentation(node.raw_lines, ignore_first)
   local text = table.concat(lines, "\n") .. "\n"
   node.contents = self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
+  -- Emacs only removes the common indentation from plain text
+  -- (org-element-normalize-contents): multi-line verbatim values keep it
+  local removed = #lines > 1 and #node.raw_lines[#lines] - #lines[#lines] or 0
+  if removed > 0 and node.raw_lines[#lines]:sub(1, removed):match("^ +$") then
+    local pad = "\n" .. string.rep(" ", removed)
+    local types = { verbatim = true, code = true, ["inline-src-block"] = true, ["latex-fragment"] = true }
+    M.map(node.contents, types, function(o)
+      if o.value and o.value:find("\n", 1, true) then
+        o.value = o.value:gsub("\n", pad)
+      end
+    end)
+  end
   node.raw_lines = nil
 end
 
@@ -1653,6 +1666,10 @@ function P:item(L, it, iend, struct, by_line, ltype)
   if body then
     -- sub-structure lines are offset: rebuild struct for the body
     M.adopt(node, self:parse_elements(body, 1, #body, nil, node, not_bol))
+  else
+    -- without contents, Emacs counts the lines from the item's own line
+    -- (count-lines begin end)
+    node.post_blank = iend - it.line + 1
   end
   return node
 end
@@ -1668,15 +1685,33 @@ end
 local PUNCT_CLOSE = "[ \t\n%-%.,;:!%?'\"%)}\\%[]"
 local EMPH = { ["*"] = "bold", ["/"] = "italic", ["_"] = "underline", ["+"] = "strike-through", ["="] = "verbatim", ["~"] = "code" }
 
+--- Non-ASCII characters with whitespace syntax in Emacs ([[:space:]]):
+--- no-break space, U+2000..U+200B, U+202F, U+205F and U+3000.
+local USPACES = { "\194\160", "\226\128\175", "\226\129\159", "\227\128\128" }
+for c = 0x80, 0x8b do
+  USPACES[#USPACES + 1] = "\226\128" .. string.char(c)
+end
+
+--- Does a Unicode space start (dir = 1) or end (dir = -1) at byte i?
+local function uspace_at(s, i, dir)
+  for _, u in ipairs(USPACES) do
+    local a = dir > 0 and i or (i - #u + 1)
+    if a >= 1 and s:sub(a, a + #u - 1) == u then
+      return true
+    end
+  end
+  return false
+end
+
 --- Emphasis at position p (org-element--parse-generic-emphasis).
 function P:emphasis(s, p)
   local mark = s:sub(p, p)
   local prev = p > 1 and s:sub(p - 1, p - 1) or "\n"
-  if not (prev:match("[ \t\n%-%(%{'\"]") or prev == "\n") then
+  if not (prev:match("[ \t\n%-%(%{'\"]") or prev == "\n" or uspace_at(s, p - 1, -1)) then
     return nil
   end
   local nxt = s:sub(p + 1, p + 1)
-  if nxt == "" or nxt:match("[ \t\n]") then
+  if nxt == "" or nxt:match("[ \t\n]") or uspace_at(s, p + 1, 1) then
     return nil
   end
   -- closing: (not space)(mark)(punct or eol)
@@ -1688,7 +1723,11 @@ function P:emphasis(s, p)
     end
     local before = s:sub(c - 1, c - 1)
     local after_c = s:sub(c + 1, c + 1)
-    if not before:match("[ \t\n]") and (after_c == "" or after_c:match(PUNCT_CLOSE)) then
+    if
+      not before:match("[ \t\n]")
+      and not uspace_at(s, c - 1, -1)
+      and (after_c == "" or after_c:match(PUNCT_CLOSE) or uspace_at(s, c + 1, 1))
+    then
       local inner = s:sub(p + 1, c - 1)
       local e = c + 1
       local ws = s:match("^[ \t]*", e)

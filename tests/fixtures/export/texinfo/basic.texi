@@ -1,0 +1,123 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename basic.info
+@settitle Sample Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@copying
+Copyright 2026.
+@end copying
+
+@dircategory Emacs
+@direntry
+* Sample: (basic).      A sample manual.
+@end direntry
+
+@finalout
+@titlepage
+@title Sample Manual
+@subtitle A test@comma{} really
+@author Jane Doe
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Sample Manual
+
+Intro text with @@ and @{braces@}@comma{} commas.
+
+@end ifnottex
+
+@menu
+* Getting Started::              How to start
+* Appendix::
+* Index::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Getting Started
+
+* Sub one::
+* Sub two::
+
+@end detailmenu
+@end menu
+
+@node Getting Started
+@chapter Getting Started
+
+Some @strong{bold}@comma{} @emph{italic}@comma{} @samp{verb}@comma{} @code{code} and under text. @LaTeX{} too@dots{}
+
+@menu
+* Sub one::
+* Sub two::
+@end menu
+
+@node Sub one
+@section Sub one
+
+@cindex sub one
+Text.
+
+@itemize
+@item
+a
+@item
+b
+
+@item
+one
+@item
+two
+
+@item Term
+definition
+@item Other
+more
+@end itemize
+
+@node Sub two
+@section Sub: two
+
+See @ref{Sub one} and @uref{https://orgmode.org, Org} and @uref{https://gnu.org}.
+Footnote here@footnote{The footnote.}.
+
+@multitable {a} {a}
+@headitem a
+@tab b
+@item 1
+@tab 2
+@end multitable
+
+@lisp
+(message "hi")
+@end lisp
+
+@example
+x @@ y
+@end example
+
+@quotation
+Quoted.
+
+@end quotation
+
+@node Appendix
+@appendix Appendix
+
+Extra.
+
+@node Index
+@chapter Index
+
+@printindex cp
+
+@bye

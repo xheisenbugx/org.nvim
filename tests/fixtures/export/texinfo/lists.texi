@@ -1,0 +1,78 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename lists.info
+@settitle 
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@dircategory Misc
+@direntry
+* (lists).              .
+@end direntry
+
+@finalout
+@titlepage
+@title 
+@author Ann Other
+@end titlepage
+
+@ifnottex
+@node Top
+@top 
+
+@table @asis
+@item a
+
+@item b
+
+
+@item c
+body
+@item d
+@end table
+
+Para.
+
+@enumerate
+@item
+x
+@item
+
+
+@item Key: C-x C-f
+
+@item Key: C-x C-s
+Save.
+@end enumerate
+
+@table @asis
+@item @kbd{C-a}
+@itemx @kbd{C-e} (@code{end})
+@kindex C-a
+@kindex C-e
+@findex end
+Move.
+
+@item
+one
+@item
+@itemx
+three
+@end table
+
+text with `quote' and ``double'' @LaTeX{}.
+
+@itemize
+@item
+item with @samp{multi
+  line verbatim} inside
+and more.
+@end itemize
+
+Search @samp{TODO}​``DONE''= and ~ ~ and @samp{x​= y}.
+@end ifnottex
+
+
+
+@bye

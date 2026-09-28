@@ -1,0 +1,128 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename structure.info
+@settitle 
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@dircategory Misc
+@direntry
+* Mine: (mine).         Ends with dot.
+@end direntry
+
+@finalout
+@titlepage
+@title 
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top 
+
+Top ``text'' with 'quotes' @*
+and a break. @*
+
+@end ifnottex
+
+@menu
+* Top: Top (1). 
+* top: top (1). 
+* Chapter one@comma{} two. Three: Chapter one two Three.  A rather long description that goes on
+* Second::
+* Inline::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Chapter: one@comma{} two. Three
+
+* (Paren) title: [Paren) title. 
+* Title with footnote and link::
+
+Second
+
+* Sub::
+
+@end detailmenu
+@end menu
+
+@node Top (1)
+@chapter Top
+
+Named top. @*
+
+@node top (1)
+@chapter top
+
+Lowercase. @*
+
+@node Chapter one two Three
+@chapter Chapter: one@comma{} two. Three
+
+@menu
+* (Paren) title: [Paren) title. 
+* Title with footnote and link::
+@end menu
+
+@node [Paren) title
+@unnumberedsec (Paren) title
+
+@node Title with footnote and link
+@unnumberedsec Title with footnote and link
+
+@anchor{Third}
+@subheading Third
+
+@itemize
+@item
+@anchor{Fourth}Fourth
+
+
+@itemize
+@item
+@anchor{Fifth}Fifth
+
+
+Deep. @*
+@end itemize
+@end itemize
+
+@node Second
+@chapter Second
+
+@menu
+* Sub::
+@end menu
+
+@node Sub
+@unnumberedsec Sub
+
+@anchor{Subsub}
+@subheading Subsub
+
+@itemize
+@item
+@anchor{Subsubsub}Subsubsub
+
+
+@itemize
+@item
+@anchor{Too deep}Too deep
+
+
+text @*
+@end itemize
+@end itemize
+
+@node Inline
+@chapter Inline
+
+@center @strong{TODO} Inline task:t:
+
+Body of task. @*
+After. @*
+
+@bye

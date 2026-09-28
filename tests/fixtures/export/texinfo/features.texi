@@ -1,0 +1,316 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename sample.info
+@settitle Features@comma{} all of them
+@documentencoding UTF-8
+@documentlanguage en
+@syncodeindex pg cp
+@c %**end of header
+
+@set VERSION 1.0
+@dircategory Texinfo documentation system
+@direntry
+* sample: (sample).     Features@comma{} all of them.
+@end direntry
+
+@finalout
+@titlepage
+@title The @emph{Printed} Title
+@subtitle for version 1.0
+@author A.U@. Thor (@email{au@@example.org})
+@author Second Author
+@author Third Author
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Features@comma{} all of them
+
+@cindex top entry
+
+This is the top node. See @ref{Target here} and @ref{Intro}.
+A sentence ending with a capital letter C@. Another one@comma{} also I@? Yes (see A@.) Ok.
+Special strings: a@-b@comma{} x -- y@comma{} x --- y@comma{} "quoted" and 'single'.
+Math: @math{a+b} and @math{x^2} and α@comma{} @arrow{}@comma{} @tie{}@comma{} @result{} and @w{ }spaced.
+H@math{_2O} and E=mc@math{^2} and \LaTeX{} and @TeX{}nical.
+
+@end ifnottex
+
+@menu
+* Intro::                        The intro, briefly
+* Blocks::
+* Links::
+* Unnumbered::
+* Variable Index::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Intro
+
+* Tasks::
+* Duplicate::
+* Duplicate: Duplicate (1). 
+* Lists::
+
+Lists
+
+* Deep level::
+
+@end detailmenu
+@end menu
+
+@node Intro
+@chapter Introduction
+
+@verbatim
+ALT_TITLE: Intro
+DESCRIPTION: The intro, briefly
+CUSTOM_ID: custom
+@end verbatim
+Some text with @anchor{Target here} target.
+A line@*
+break here.
+
+@anchor{para}
+A named paragraph.
+
+@menu
+* Tasks::
+* Duplicate::
+* Duplicate: Duplicate (1). 
+* Lists::
+@end menu
+
+@node Tasks
+@section @strong{TODO} Tasks :tag1:tag2:
+
+:FOO: bar
+Timestamps: @emph{<2026-01-02 Fri> } and @emph{[2026-01-03 Sat 10:00] } and @emph{<%%(diary-float t 4 2)>}.
+Cookie [1/2].
+
+@itemize
+@item
+done
+@item
+not done
+@end itemize
+
+@node Duplicate
+@section Duplicate
+
+First.
+
+@node Duplicate (1)
+@section Duplicate
+
+Second.
+
+@node Lists
+@section Lists
+
+@enumerate A
+@item
+Alpha
+@item
+Bravo
+
+@item
+five
+@item
+six
+@end enumerate
+
+@vtable @asis
+@item foo@comma{} bar
+This is the common text for variables foo and bar.
+@end vtable
+
+@ftable @code
+@item one
+@itemx two
+Shared body.
+@item three
+Own body.
+@end ftable
+
+@defun org-texinfo-drawer drawer contents info
+Transcode a DRAWER element from Org to Texinfo.
+@end defun
+
+@ftable @code
+@item @kbd{C-c C-c} (@code{do-something})
+@kindex C-c C-c
+@findex do-something
+This command does something.
+@item @kbd{M-x foo-bar}
+@findex foo-bar
+Run foo.
+@end ftable
+
+@defopt do-something-somehow
+This option controls how exactly @code{do-something} does its thing.
+@end defopt
+
+@ftable @code
+@item Normal
+item
+@end ftable
+
+@deffn Command my-cmd arg
+A command.
+@end deffn
+
+@menu
+* Deep level::
+@end menu
+
+@node Deep level
+@subsection Deep level
+
+Level three.
+
+@enumerate
+@item
+@anchor{Deeper level}Deeper level
+
+
+Level four@comma{} a list item now.
+
+@item
+@anchor{Another deep}Another deep
+
+
+Also.
+@end enumerate
+
+@node Blocks
+@chapter Blocks
+
+@float Table,tab:one
+@multitable @columnfractions .3 .7
+@headitem name
+@tab value
+@item x
+@tab 1.5e3
+@end multitable
+@caption{A long caption}
+@shortcaption{Short}
+@end float
+
+@multitable {aa} {aaaaaa} {aaaa}
+@item no
+@tab header
+@tab here
+@item a
+@tab bb
+@tab ccc
+@end multitable
+
+@float Listing,code1
+@example
+def f(x):
+    return @{x@comma{} "@@"@}
+@end example
+@caption{Code listing}
+@end float
+
+@lisp
+(+ 1 2)
+@end lisp
+
+@example
+fixed width @@ line
+  indented
+@end example
+
+@quotation Warning
+Striking your thumb.
+
+@author King Arthur
+@end quotation
+
+@display
+  Roses are red@comma{}
+Violets are blue.
+@end display
+
+@center Centered text
+@center second line
+
+@defun org-org-export-to-org ...
+A somewhat obsessive function name.
+@end defun
+
+@need800
+@auindex Johnson, Mark
+Inline @sc{snippet} here.
+@code{(foo@comma{} "bar")} inline.
+
+@example
+example @{block@}
+@end example
+
+@displaymath
+\begin{equation}
+x = y
+\end{equation}
+@end displaymath
+
+drawer body
+
+@listoffloats Table
+@listoffloats Listing
+
+Footnotes@footnote{Plain footnote.} and inline@footnote{ inline @emph{note}.} and a list one@footnote{Footnote with a list:
+@itemize
+@item
+a
+@item
+b
+@end itemize
+}.
+
+@node Links
+@chapter Links
+
+Mail @email{mailto:me@@example.org, me} and @email{mailto:x@@y.z}.
+File @uref{other.org, other} and @image{doc,,,,pdf} image-ish and @image{img,,,,png}.
+@anchor{fig1}
+@float Figure,fig1
+@image{pic,1in,,Alternate @i{text},png}
+@caption{A figure}
+@end float
+
+Radio @anchor{radio word}radio word here and @ref{radio word, , radio word} again.
+Reference to @ref{fig1} and @ref{code1, , the code} and @ref{para}.
+Link @ref{Intro, , to intro@comma{} with colon}.
+
+@node Unnumbered
+@unnumbered Unnumbered
+
+@verbatim
+UNNUMBERED: t
+@end verbatim
+Unnumbered text.
+
+@anchor{Not in toc}
+@heading Not in toc
+
+@verbatim
+UNNUMBERED: notoc
+@end verbatim
+Hidden.
+
+@node Variable Index
+@chapter Variable Index
+
+@verbatim
+INDEX: vr
+@end verbatim
+
+@printindex vr
+
+@bye

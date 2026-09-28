@@ -713,6 +713,59 @@
 ---(`org-latex-use-sans`) (default: `false`)
 ---@field use_sans? boolean
 
+---Texinfo back-end options (ox-texinfo).
+---@class org.Config.Export.Texinfo
+---(`org-texinfo-default-class`) (default: `"info"`)
+---@field default_class? string
+---(`org-texinfo-classes`): `{ { name, header, { numbered, unnumbered,
+---unnumbered_no_toc, appendix }, ... } }` with one list of `%s` formats per
+---level. (default: `nil` = the Emacs list)
+---@field classes? table[]
+---(`org-texinfo-coding-system`) (default: `"UTF-8"`)
+---@field coding_system? string
+---(`org-texinfo-node-description-column`) (default: `32`)
+---@field node_description_column? integer
+---(`org-texinfo-table-default-markup`) (default: `"@asis"`)
+---@field table_default_markup? string
+---(`org-texinfo-table-scientific-notation`) (default: `nil`)
+---@field table_scientific_notation? string
+---(`org-texinfo-compact-itemx`) (default: `false`)
+---@field compact_itemx? boolean
+---(`org-texinfo-with-latex`): `true`, `false` or `"detect"` (use `@math` when
+---makeinfo supports it). (default: `nil` = `"detect"` unless `export.with_latex`
+---is false)
+---@field with_latex? boolean|"detect"
+---(`org-texinfo-text-markup-alist`): `{ bold = "@strong{%s}", code = "code",
+---italic = "@emph{%s}", verbatim = "samp" }`; values are formats or `"code"`,
+---`"samp"`, `"verb"`. (default: the Emacs alist)
+---@field text_markup_alist? table<string, string>
+---(`org-texinfo-active-timestamp-format`) (default: `"@emph{%s}"`)
+---@field active_timestamp_format? string
+---(`org-texinfo-inactive-timestamp-format`) (default: `"@emph{%s}"`)
+---@field inactive_timestamp_format? string
+---(`org-texinfo-diary-timestamp-format`) (default: `"@emph{%s}"`)
+---@field diary_timestamp_format? string
+---(`org-texinfo-link-with-unknown-path-format`) (default: `"@indicateurl{%s}"`)
+---@field link_with_unknown_path_format? string
+---(`org-texinfo-format-headline-function`): fn(todo, todo_type, priority,
+---text, tags). (default: `nil`)
+---@field format_headline_function? function
+---(`org-texinfo-format-drawer-function`): fn(name, contents). (default: `nil`)
+---@field format_drawer_function? function
+---(`org-texinfo-format-inlinetask-function`): fn(todo, todo_type, priority,
+---title, tags, contents). (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-texinfo-info-process`): shell commands with `%f %F %b %o %O`, or a
+---function(file). (default: `nil` = `{ "makeinfo --no-split %f" }`)
+---@field info_process? string[]|function
+---(`org-texinfo-remove-logfiles`) (default: `true`)
+---@field remove_logfiles? boolean
+---(`org-texinfo-logfiles-extensions`) (default: `nil` = aux toc cp fn ky pg tp vr)
+---@field logfiles_extensions? string[]
+---Export Texinfo through pandoc instead of the native back-end.
+---(default: `false`)
+---@field use_pandoc? boolean
+
 ---Markdown back-end options (ox-md).
 ---@class org.Config.Export.Md
 ---(`org-md-headline-style`) (default: `"atx"`)
@@ -1005,6 +1058,7 @@
 ---@field filters? table<string, function|function[]>
 ---@field html? org.Config.Export.Html
 ---@field latex? org.Config.Export.Latex
+---@field texinfo? org.Config.Export.Texinfo
 ---@field md? org.Config.Export.Md
 ---@field org? org.Config.Export.Org
 ---@field beamer? org.Config.Export.Beamer

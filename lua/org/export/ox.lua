@@ -227,6 +227,7 @@ function M.get_backend(name)
       ascii = "org.export.ascii",
       org = "org.export.org",
       icalendar = "org.export.icalendar",
+      texinfo = "org.export.texinfo",
     })[name]
     if mod then
       require(mod)
@@ -2125,6 +2126,62 @@ function M.custom_protocol_maybe(link, desc, backend_name, info)
       return "[" .. desc .. "]" .. (info and info.ascii_links_to_notes and "" or (" (<" .. uri .. ">)"))
     end
     return uri
+  end
+  if t == "info" then
+    return M.info_link_export(link.path, desc, backend_name)
+  end
+  return nil
+end
+
+--- org-info-emacs-documents
+local INFO_EMACS_DOCUMENTS = {}
+for d in (
+  "ada-mode auth autotype bovine calc ccmode cl dbus dired-x ebrowse ede ediff edt efaq-w32 efaq eglot eieio "
+  .. "eintr elisp emacs-gnutls emacs-mime emacs epa erc ert eshell eudc eww flymake forms gnus htmlfontify "
+  .. "idlwave ido info mairix-el message mh-e modus-themes newsticker nxml-mode octave-mode org pcl-cvs pgg "
+  .. "rcirc reftex remember sasl sc semantic ses sieve smtpmail speedbar srecode todo-mode tramp transient url "
+  .. "use-package vhdl-mode vip viper vtable widget wisent woman"
+):gmatch("%S+") do
+  INFO_EMACS_DOCUMENTS[d] = true
+end
+
+--- org-info-other-documents
+local INFO_OTHER_DOCUMENTS = {
+  dir = "https://www.gnu.org/manual/manual.html",
+  libc = "https://www.gnu.org/software/libc/manual/html_mono/libc.html",
+  make = "https://www.gnu.org/software/make/manual/make.html",
+}
+
+--- Export an info: link (ol-info org-info-export): HTML and Texinfo only.
+function M.info_link_export(path, desc, backend_name)
+  -- org-info--link-file-node: "manual#node" or "manual::node"
+  local file, node = (path or ""):match("^([^#:]*)[#:]:?(.*)$")
+  file = trim(file or path or "")
+  node = trim(node or "")
+  file = file ~= "" and file or "dir"
+  node = node ~= "" and node or "Top"
+  if backend_name == "texinfo" then
+    return string.format("@ref{%s,%s,,%s,}", node, desc or "", file)
+  elseif backend_name == "html" then
+    local url = INFO_OTHER_DOCUMENTS[file]
+      or (INFO_EMACS_DOCUMENTS[file] and ("https://www.gnu.org/software/emacs/manual/html_mono/" .. file .. ".html"))
+      or (file .. ".html")
+    -- org-info--expand-node-name (HTML Xref Node Name Expansion)
+    local parts = {}
+    for _, c in ipairs(vim.fn.split(node:gsub("[ \t\n\r]+", " "), "\\zs")) do
+      if c == " " then
+        parts[#parts + 1] = "-"
+      elseif c:match("^[%w]$") then
+        parts[#parts + 1] = c
+      else
+        parts[#parts + 1] = string.format("_%04x", vim.fn.char2nr(c))
+      end
+    end
+    local n = table.concat(parts)
+    if n:match("^%d") then
+      n = "g_t" .. n
+    end
+    return string.format('<a href="%s#%s">%s</a>', url, n, desc or path)
   end
   return nil
 end

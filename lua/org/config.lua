@@ -1338,6 +1338,21 @@ M.defaults = {
       hyperref_template = nil, -- org-latex-hyperref-template (nil = the Emacs template)
       use_sans = false, -- org-latex-use-sans
     },
+    texinfo = {
+      default_class = "info", -- org-texinfo-default-class
+      classes = nil, -- org-texinfo-classes (nil = the Emacs list)
+      coding_system = "UTF-8", -- org-texinfo-coding-system (@documentencoding)
+      node_description_column = 32, -- org-texinfo-node-description-column
+      table_default_markup = "@asis", -- org-texinfo-table-default-markup
+      compact_itemx = false, -- org-texinfo-compact-itemx
+      --- org-texinfo-with-latex: true, false or "detect" (@math when makeinfo
+      --- supports it); nil = "detect" unless export.with_latex is false.
+      with_latex = nil,
+      info_process = nil, -- org-texinfo-info-process (nil = { "makeinfo --no-split %f" })
+      remove_logfiles = true, -- org-texinfo-remove-logfiles
+      --- Export Texinfo through pandoc instead of the native back-end.
+      use_pandoc = false,
+    },
     md = {
       headline_style = "atx", -- org-md-headline-style ("atx", "setext", "mixed")
       toplevel_hlevel = 1, -- org-md-toplevel-hlevel
