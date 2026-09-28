@@ -2,8 +2,9 @@
 ---
 --- - Translators (Emacs orgtbl-to-*): turn a table (rows of cells, or
 ---   "hline") into another format: `generic`, `tsv`, `csv`, `latex`,
----   `html`, `texinfo` and `orgtbl`, with the `orgtbl-to-generic`
----   parameters (:splice :skip :skipcols :hline :sep :hsep :tstart :tend
+---   `html`, `texinfo`, `orgtbl`, `table.el` and `unicode` (:narrow), with
+---   the `orgtbl-to-generic` parameters (:splice :skip :skipcols :hline
+---   :sep :hsep :tstart :tend
 ---   :lstart :lend :llstart :llend :hlstart :hlend :hllstart :hllend
 ---   :lfmt :llfmt :hlfmt :hllfmt :fmt :hfmt :efmt), plus :booktabs and
 ---   :environment (latex), :attributes (html) and :columns (texinfo).
@@ -88,9 +89,31 @@ local function is_special_row(r, special)
   return cookie
 end
 
+--- Whether a row only holds width/alignment cookies (and empty cells).
+local function is_cookie_row(r, special)
+  if r == "hline" then
+    return false
+  end
+  local cookie = false
+  for i, c in ipairs(r) do
+    if not (special and i == 1) then
+      if c:match("^<[lrc]?%d*>$") then
+        cookie = true
+      elseif c ~= "" then
+        return false
+      end
+    end
+  end
+  return cookie
+end
+
 --- Rows after :skip, :skipcols and the special rows/column, like the
---- export parse tree orgtbl-to-generic works on.
-local function prepare(rows, params)
+--- export parse tree orgtbl-to-generic works on. `opts.keep_special` keeps
+--- special and cookie rows (the org backend does); `opts.info` collects the column
+--- groups of a `/` row (`info.groups`) and the cookies of dropped cookie
+--- rows (`info.cookies[c] = "<l5>"`), as the ASCII export uses them.
+local function prepare(rows, params, opts)
+  opts = opts or {}
   rows = vim.deepcopy(rows)
   local skip = tonumber(params.skip)
   if skip then
@@ -99,13 +122,36 @@ local function prepare(rows, params)
     end
   end
   local special = has_special_column(rows)
+  local info = opts.info
   local out = {}
   for _, r in ipairs(rows) do
-    if not is_special_row(r, special) then
+    if info and r ~= "hline" and r[1] == "/" then
+      -- a column-groups row: always special for the ASCII export
+      local groups = vim.deepcopy(r)
+      if special then
+        table.remove(groups, 1)
+      else
+        groups[1] = ""
+      end
+      info.groups = groups
+    elseif opts.keep_special and is_special_row(r, special) then
+      if special then
+        table.remove(r, 1)
+      end
+      out[#out + 1] = r
+    elseif not is_special_row(r, special) then
       if r ~= "hline" and special then
         table.remove(r, 1)
       end
       out[#out + 1] = r
+    elseif info and is_cookie_row(r, special) then
+      info.cookies = info.cookies or {}
+      for c, v in ipairs(r) do
+        local col = special and c - 1 or c
+        if col >= 1 and v ~= "" and not info.cookies[col] then
+          info.cookies[col] = v
+        end
+      end
     end
   end
   local skipcols = params.skipcols
@@ -114,15 +160,32 @@ local function prepare(rows, params)
     for _, c in ipairs(skipcols) do
       drop[tonumber(c)] = true
     end
+    local function filter(r, n)
+      local kept = {}
+      for c = 1, n or #r do
+        if not drop[c] then
+          kept[#kept + 1] = r[c] or false
+        end
+      end
+      return kept
+    end
     for i, r in ipairs(out) do
       if r ~= "hline" then
-        local kept = {}
-        for c, v in ipairs(r) do
-          if not drop[c] then
-            kept[#kept + 1] = v
-          end
-        end
-        out[i] = kept
+        out[i] = filter(r)
+      end
+    end
+    if info and info.groups then
+      info.groups = filter(info.groups)
+    end
+    if info and info.cookies then
+      local n = 0
+      for c in pairs(info.cookies) do
+        n = math.max(n, c)
+      end
+      local cookies = filter(info.cookies, n)
+      info.cookies = {}
+      for c, v in ipairs(cookies) do
+        info.cookies[c] = v or nil
       end
     end
   end
@@ -696,7 +759,7 @@ end
 
 function M.translators.orgtbl(rows, params)
   params = params or {}
-  local prepared = prepare(rows, params)
+  local prepared = prepare(rows, params, { keep_special = true })
   local lines = {}
   for _, r in ipairs(prepared) do
     lines[#lines + 1] = r == "hline" and "|-" or ("| " .. table.concat(r, " | ") .. " |")
@@ -707,6 +770,125 @@ function M.translators.orgtbl(rows, params)
     body = frame(body, params)
   end
   return body
+end
+
+--- orgtbl-to-table.el: the aligned Org table with `+` where rules meet
+--- the column separators.
+M.translators["table.el"] = function(rows, params)
+  local body = M.translators.orgtbl(rows, params)
+  return (body:gsub("%-|", "-+"):gsub("|%-", "+-"))
+end
+
+--- Cell text as the ASCII export writes it (simplified): verbatim and
+--- code in `quotes', links as their description, entities as UTF-8.
+local function ascii_cell(s)
+  s = s:gsub("%[%[([^%]]+)%]%[([^%]]+)%]%]", "[%2]"):gsub("%[%[([^%]]+)%]%]", "<%1>")
+  local function quote(t)
+    return "`" .. t .. "'"
+  end
+  s = emphasis(s, {
+    ["="] = quote,
+    ["~"] = quote,
+    text = function(ch)
+      return ch
+    end,
+  })
+  return (s:gsub("\\(%a+)({?}?)", function(name, braces)
+    return require("org.entities").utf8(name) or ("\\" .. name .. braces)
+  end))
+end
+
+--- orgtbl-to-unicode: the table as the ASCII export draws it with UTF-8
+--- characters (heavy rules around the table, light ones for hlines,
+--- vertical bars at column groups). `:narrow t` cuts columns to their
+--- width cookie, ending cut cells with `=>`.
+function M.translators.unicode(rows, params)
+  params = params or {}
+  local info = {}
+  local data = prepare(rows, params, { info = info })
+  local ncols = 0
+  for _, r in ipairs(data) do
+    if r ~= "hline" then
+      ncols = math.max(ncols, #r)
+    end
+  end
+  if ncols == 0 then
+    return ""
+  end
+  local align = alignments(data)
+  local cookies = info.cookies or {}
+  local widths = {}
+  for c = 1, ncols do
+    local w = 0
+    for _, r in ipairs(data) do
+      if r ~= "hline" then
+        w = math.max(w, vim.fn.strdisplaywidth(ascii_cell(r[c] or "")))
+      end
+    end
+    local cookie = cookies[c]
+    local cw = cookie and tonumber(cookie:match("(%d+)"))
+    if cw then
+      w = params.narrow and cw or math.max(w, cw)
+    end
+    local ca = cookie and cookie:match("^<([lrc])")
+    if ca then
+      align[c] = ca
+    end
+    widths[c] = w
+  end
+  -- bar[c]: a vertical line before column c (ncols + 1: after the last)
+  local bar = {}
+  for c, g in ipairs(info.groups or {}) do
+    if g == "<" or g == "<>" then
+      bar[c] = true
+    end
+    if g == ">" or g == "<>" then
+      bar[c + 1] = true
+    end
+  end
+  local function rule(fill, left, mid, right)
+    local parts = {}
+    for c = 1, ncols do
+      parts[#parts + 1] = (bar[c] and (c == 1 and left or mid) or "") .. string.rep(fill, widths[c] + 2)
+    end
+    return table.concat(parts) .. (bar[ncols + 1] and right or "")
+  end
+  local function cell(text, c)
+    local w = widths[c]
+    local len = vim.fn.strdisplaywidth(text)
+    if len > w then
+      -- only with :narrow: cut to the cookie width, with an ellipsis
+      local cut = ""
+      for _, ch in ipairs(vim.fn.split(text, [[\zs]])) do
+        if vim.fn.strdisplaywidth(cut .. ch) > w - 2 then
+          break
+        end
+        cut = cut .. ch
+      end
+      text, len = cut .. "=>", vim.fn.strdisplaywidth(cut) + 2
+    end
+    local pad = w - len
+    if align[c] == "r" then
+      return string.rep(" ", pad) .. text
+    elseif align[c] == "c" then
+      return string.rep(" ", math.floor(pad / 2)) .. text .. string.rep(" ", pad - math.floor(pad / 2))
+    end
+    return text .. string.rep(" ", pad)
+  end
+  local out = { rule("━", "┍", "┯", "┑") }
+  for _, r in ipairs(data) do
+    if r == "hline" then
+      out[#out + 1] = rule("─", "├", "┼", "┤")
+    else
+      local parts = {}
+      for c = 1, ncols do
+        parts[#parts + 1] = (bar[c] and "│" or "") .. " " .. cell(ascii_cell(r[c] or ""), c) .. " "
+      end
+      out[#out + 1] = table.concat(parts) .. (bar[ncols + 1] and "│" or "")
+    end
+  end
+  out[#out + 1] = rule("━", "┕", "┷", "┙")
+  return table.concat(out, "\n")
 end
 
 --- The translator named `name` ("orgtbl-to-latex", "latex", or a global

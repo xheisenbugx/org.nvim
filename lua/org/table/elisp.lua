@@ -18,7 +18,8 @@
 ---   string-join mapconcat list car cdr nth nthcdr cons append reverse last
 ---   apply funcall mapcar identity number-sequence not null numberp
 ---   integerp floatp stringp listp consp symbolp zerop string-prefix-p
----   string-suffix-p symbol-name
+---   string-suffix-p symbol-name princ prin1 print terpri prin1-to-string
+---   (and with-output-to-string, for Babel emacs-lisp blocks without Emacs)
 
 local M = {}
 
@@ -744,6 +745,47 @@ S.setq = function(x, env)
   return v
 end
 -- (org-sbe "block" [header] (var value)...): a src block's result (ob-table)
+-- Output of princ, prin1, print and terpri inside with-output-to-string
+-- (elsewhere standard-output is the echo area: the output is dropped).
+local output_stack = {}
+S["with-output-to-string"] = function(x, env)
+  output_stack[#output_stack + 1] = {}
+  local ok, err = pcall(progn, x, 2, env)
+  local out = table.remove(output_stack)
+  if not ok then
+    error(err, 0)
+  end
+  return table.concat(out)
+end
+local function emit(text)
+  local out = output_stack[#output_stack]
+  if out then
+    out[#out + 1] = text
+  end
+end
+F.princ = function(v)
+  emit(print_value(v, false))
+  return v
+end
+F.prin1 = function(v)
+  emit(print_value(v, true))
+  return v
+end
+F.print = function(v)
+  emit("\n" .. print_value(v, true) .. "\n")
+  return v
+end
+F.terpri = function()
+  emit("\n")
+  return true
+end
+F["pp-to-string"] = function(v)
+  return print_value(v, true) .. "\n"
+end
+F["prin1-to-string"] = function(v, noescape)
+  return print_value(v, not truthy(noescape))
+end
+
 S["org-sbe"] = function(x)
   return require("org.babel").sbe_form(x)
 end

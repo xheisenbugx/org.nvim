@@ -296,6 +296,13 @@
 ---Vim regex; `shell:` links matching it run without confirmation
 ---(`org-link-shell-skip-confirm-regexp`). (default: `""`, none)
 ---@field shell_skip_confirm_regexp? string
+---Ask before running `elisp:` links (`org-link-elisp-confirm-function`):
+---`true`, `false`, or a function receiving the sexp and returning whether to
+---run it. (default: `true`)
+---@field confirm_elisp? boolean|fun(sexp: string): boolean
+---Vim regex; `elisp:` links matching it run without confirmation
+---(`org-link-elisp-skip-confirm-regexp`). (default: `""`, none)
+---@field elisp_skip_confirm_regexp? string
 ---Store links to headlines as `id:` links (`org-id-link-to-org-use-id`):
 ---`true` = always, creating an ID if needed; `"create-if-interactive"` =
 ---create only when storing interactively; `"create-if-interactive-and-no-custom-id"`
@@ -577,6 +584,12 @@
 ---cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
 ---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
+---How emacs-lisp blocks and `elisp:` links run: `command` (a string or an
+---argv list; `false` = never use Emacs) started with `args`, a separate
+---Emacs process for each evaluation. Without it, side-effect-free code runs
+---on the Lisp interpreter of table formulas.
+---(default: `{ command = "emacs", args = { "-Q", "--batch" } }`)
+---@field emacs_lisp? { command?: string|string[]|false, args?: string[] }
 
 ---------------------------------------------------------------------------
 -- Export
