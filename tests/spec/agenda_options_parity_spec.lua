@@ -319,3 +319,23 @@ describe("diary_sexp_prefix", function()
     eq({ " skip:                 Bday: John" }, item_lines())
   end)
 end)
+
+describe("start_with_archives_mode", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 with org-agenda-start-with-archives-mode 'trees: the
+  -- day agenda lists "TODO Keep" and the ARCHIVE-tagged "TODO Old".
+  it("opens agendas with archived trees included", function()
+    local lines = { "* TODO Keep", "  SCHEDULED: " .. ts(0), "* TODO Old :ARCHIVE:", "  SCHEDULED: " .. ts(0) }
+    open(lines)
+    eq(1, #item_lines())
+    view.quit(true)
+    open(lines, { agenda = { start_with_archives_mode = "trees" } })
+    eq("trees", view.state.archives)
+    local got = item_lines()
+    eq(2, #got)
+    ok(got[2]:find("^  skip:       Scheduled:  TODO Old%s+:ARCHIVE:$"), got[2])
+  end)
+end)

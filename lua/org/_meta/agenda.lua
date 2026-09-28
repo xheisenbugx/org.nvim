@@ -364,6 +364,9 @@
 ---@field clock_consistency_checks? org.Config.Agenda.ClockChecks
 ---Start in entry text mode (org-agenda-start-with-entry-text-mode). (default: `false`)
 ---@field start_with_entry_text_mode? boolean
+---Start with archived trees ("trees") or also the archive files (true)
+---included (org-agenda-start-with-archives-mode). (default: `false`)
+---@field start_with_archives_mode? boolean|"trees"|"files"
 ---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
 ---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
 ---@field dim_blocked_tasks? boolean|"invisible"

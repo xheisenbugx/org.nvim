@@ -1359,6 +1359,8 @@ All configurable under `mappings.agenda`:
                   `enforce_todo_dependencies` or
                   `enforce_todo_checkbox_dependencies`)
   va / vA         include archived trees / also the archive files
+                  (`agenda.start_with_archives_mode`: "trees" or true
+                  turns them on in new agendas)
   v[              include inactive timestamps (`[` leader)
   / \ < = _ ^ |   filters (|org-agenda-filter|)
   ~               limit the number of entries (|org-agenda-limits|)

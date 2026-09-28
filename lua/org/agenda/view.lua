@@ -864,7 +864,10 @@ function M.open(view, opts)
     S.clockreport = acfg.start_with_clockreport_mode or false
     S.entry_text = acfg.start_with_entry_text_mode or false
     S.follow = acfg.start_with_follow_mode or false
-    S.archives = false
+    -- org-agenda-start-with-archives-mode: "trees", or true / "files"
+    -- for the archive files too
+    local am = acfg.start_with_archives_mode
+    S.archives = (am == true or am == "files") and "files" or (am == "trees" and "trees") or false
     S.inactive = false
     S.time_grid_off = false
     S.no_deadlines = false

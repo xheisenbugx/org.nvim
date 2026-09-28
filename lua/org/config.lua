@@ -681,6 +681,9 @@ M.defaults = {
       gap_ok_around = { "4:00" },
     },
     start_with_entry_text_mode = false, -- org-agenda-start-with-entry-text-mode
+    --- false | "trees" (archived trees, `va`) | true (also the archive
+    --- files, `vA`) (org-agenda-start-with-archives-mode).
+    start_with_archives_mode = false,
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
