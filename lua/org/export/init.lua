@@ -4,7 +4,9 @@
 --- pdf through latexmk/pdflatex), beamer, md (ox-md), gfm (GitHub
 --- flavoured Markdown, plugin specific), ascii (plain text with the
 --- ascii, latin1 or utf-8 charset), org, icalendar, odt (OpenDocument Text,
---- ox-odt) and texinfo (and info through makeinfo). Other formats are
+--- ox-odt), texinfo (and info through makeinfo), koma-letter (KOMA-Script
+--- letters, ox-koma-letter, and their PDF) and man (ox-man, and man-pdf
+--- through groff). Other formats are
 --- produced by pandoc from the Org export of the buffer (odt too with
 --- `export.odt.use_pandoc`).
 
@@ -38,6 +40,11 @@ M.FORMATS = {
   texi = { "texinfo", "texi" },
   info = { "texinfo", "texi", info = true },
   odt = { "odt", "odt" },
+  koma = { "koma-letter", "tex" },
+  ["koma-letter"] = { "koma-letter", "tex" },
+  ["koma-pdf"] = { "koma-letter", "tex", pdf = true },
+  man = { "man", "man" },
+  ["man-pdf"] = { "man", "man", man_pdf = true },
 }
 
 --- Kept for backward compatibility: native formats -> module.
@@ -61,7 +68,6 @@ local PANDOC_EXT = {
   asciidoc = "adoc",
   mediawiki = "wiki",
   textile = "textile",
-  man = "man",
   jira = "jira",
   pptx = "pptx",
   typst = "typ",
@@ -74,6 +80,8 @@ local PANDOC_EXT = {
 
 local FILETYPES = { html = "html", md = "markdown", gfm = "markdown", ascii = "text", latex = "tex", beamer = "tex", org = "org", icalendar = "icalendar" }
 FILETYPES.texinfo = "texinfo"
+FILETYPES["koma-letter"] = "tex"
+FILETYPES.man = "nroff"
 
 local function cfg()
   return require("org.config").opts.export or {}
@@ -279,6 +287,9 @@ function M.export(format, opts)
   if spec.info then
     return M.compile_info(out, opts)
   end
+  if spec.man_pdf then
+    return M.compile_man_pdf(out, opts)
+  end
   utils.notify("Exported to " .. out)
   if opts.open or cfg().open_after_export then
     vim.ui.open(out)
@@ -402,6 +413,31 @@ function M.compile_info(texi, opts)
     return texi:gsub("%.texi$", "") .. ".info"
   end
   local result, err = texinfo.compile(texi)
+  done(result, err)
+  return result
+end
+
+--- Process a man file into a PDF with `export.man.pdf_process`
+--- (org-man-compile).
+function M.compile_man_pdf(file, opts)
+  opts = opts or {}
+  local man = require("org.export.man")
+  local function done(result, err)
+    if not result then
+      utils.error(err or "PDF file was not produced")
+      return
+    end
+    utils.notify("PDF file produced. " .. result)
+    if opts.open or cfg().open_after_export then
+      vim.ui.open(result)
+    end
+  end
+  if opts.async then
+    utils.notify("Processing Groff file " .. vim.fn.fnamemodify(file, ":t") .. " …")
+    man.compile(file, done)
+    return (file:gsub("%.[^/.]*$", "")) .. ".pdf"
+  end
+  local result, err = man.compile(file)
   done(result, err)
   return result
 end
@@ -608,6 +644,25 @@ function M.prompt()
         },
       },
       {
+        key = "k",
+        label = "Export with KOMA Scrlttr2",
+        items = {
+          { key = "L", label = "As LaTeX buffer", value = { fmt = "koma-letter", to_buffer = true } },
+          { key = "l", label = "As LaTeX file", value = { fmt = "koma-letter" } },
+          { key = "p", label = "As PDF file", value = { fmt = "koma-pdf" } },
+          { key = "o", label = "As PDF file and open", value = { fmt = "koma-pdf", open = true } },
+        },
+      },
+      {
+        key = "M",
+        label = "Export to MAN",
+        items = {
+          { key = "m", label = "As MAN file", value = { fmt = "man" } },
+          { key = "p", label = "As PDF file", value = { fmt = "man-pdf" } },
+          { key = "o", label = "As PDF file and open", value = { fmt = "man-pdf", open = true } },
+        },
+      },
+      {
         key = "m",
         label = "Export to Markdown",
         items = {
@@ -676,7 +731,19 @@ function M.prompt()
       state[choice.toggle] = not state[choice.toggle]
     elseif choice.template then
       local cats = { "default" }
-      for _, n in ipairs({ "ascii", "beamer", "html", "icalendar", "latex", "md", "odt", "org", "texinfo" }) do
+      for _, n in ipairs({
+        "ascii",
+        "beamer",
+        "html",
+        "icalendar",
+        "koma-letter",
+        "latex",
+        "man",
+        "md",
+        "odt",
+        "org",
+        "texinfo",
+      }) do
         cats[#cats + 1] = n
       end
       local cat = utils.input_complete("Options category: ", cats, "default")

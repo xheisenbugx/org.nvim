@@ -1,0 +1,49 @@
+#+TITLE: mytool
+#+DATE: 2026-09-28
+#+MAN_CLASS_OPTIONS: :section-id "8" :release "mytool 1.0" :header "User Commands"
+
+Text before the first headline.
+
+* NAME
+mytool - do things with a - dash and a back\slash
+* SYNOPSIS
+*mytool* [/options/] =file-name= ~code-x~
+* DESCRIPTION
+Paragraph one with +strike+ and _underline_ and H_2O and E=mc^2 \alpha.
+Line break here\\
+next line.
+
+** Options
+- -v :: verbose
+- [X] checked :: done
+- plain dash
+- another
+
++ plus item
+
+* star item
+
+1. first
+2. second
+
+- [ ] todo item
+- [-] partial
+- [X] done
+
+*** Deep
+Third level.
+**** Deeper
+Fourth level text.
+**** Another deeper
+Text.
+***** Deepest
+Five.
+* SEE ALSO
+[[https://orgmode.org][Org]] and [[https://example.com]] and [[file:foo.org]] and
+<<target>> and [[target]] and [[mailto:a@b.c][mail]].
+Footnote here[fn:1].
+<2026-09-28 Mon> timestamp.
+[1/2] cookie.
+"Quoted" text -- and --- dashes...
+
+[fn:1] Ignored footnote.

@@ -228,6 +228,8 @@ function M.get_backend(name)
       org = "org.export.org",
       icalendar = "org.export.icalendar",
       texinfo = "org.export.texinfo",
+      ["koma-letter"] = "org.export.koma",
+      man = "org.export.man",
     })[name]
     if mod then
       require(mod)

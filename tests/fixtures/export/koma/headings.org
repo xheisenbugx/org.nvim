@@ -1,0 +1,24 @@
+#+TITLE: Title as subject
+#+AUTHOR: Jane Doe
+#+DATE: 2026-09-28
+#+OPTIONS: timestamp:nil title-subject:t foldmarks:nil place:nil
+
+* To                                                                     :to:
+John Smith
+2 Side Road
+* From                                                                 :from:
+1 Main Street
+Springfield
+* Location                                                         :location:
+Room 5
+* Dear John,
+Body text of the letter.
+
+** Sub heading
+More text.
+* Yours sincerely,                                                  :closing:
+Jane Doe
+* After closing                                               :after_closing:
+\vspace{2em}
+* PS                                                                     :ps:
+A postscript.
