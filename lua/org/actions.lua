@@ -307,6 +307,11 @@ group("Timers", {
   timer_remaining = { "org.timer", "show_remaining", desc = "Show remaining countdown time" },
 })
 
+group("Feeds", {
+  feed_update_all = { "org.feed", "update_all", desc = "Update all RSS/Atom feeds" },
+  feed_goto_inbox = { "org.feed", "goto_inbox", desc = "Go to the inbox of a feed" },
+})
+
 group("Links", {
   insert_link = { "org.links", "insert_link", desc = "Insert link", modes = { "n", "x" } },
   toggle_link_display = { "org.links", "toggle_link_display", desc = "Toggle link display" },

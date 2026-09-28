@@ -396,6 +396,8 @@
 ---@field timer? org.Config.Timer
 ---org-protocol handling.
 ---@field protocol? org.Config.Protocol
+---RSS and Atom feeds (`org-feed`).
+---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
 ---`ID` property creation and lookup.

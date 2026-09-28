@@ -1815,6 +1815,76 @@ On macOS register the scheme with a small app bundle (an AppleScript
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
 
+RSS and Atom feeds                                                *org-feed*
+Items of RSS 2.0 and Atom feeds are added as children of an inbox headline
+(org-feed.el). List the feeds in `feed.feeds` (org-feed-alist): >lua
+    feed = {
+      feeds = {
+        { name = "Slashdot", url = "https://rss.slashdot.org/Slashdot/slashdot",
+          file = "~/org/feeds.org", headline = "Slashdot Entries" },
+        -- the positional Emacs form works too
+        { "Local", "file:///home/me/feed.xml", "~/org/feeds.org", "Local" },
+      },
+    }
+<
+`file` defaults to the current buffer's file; the `headline` (any level,
+tags allowed) is created at the end of the file when missing. Each update
+adds the items not seen before, one level below the inbox and after its
+last child, and records every item's GUID, a "handled" flag and a SHA-1 of
+the item in the `:FEEDSTATUS:` drawer of the inbox, as the Lisp list Emacs
+writes, so Emacs and Neovim can update the same file. Items removed from
+the feed are dropped from the drawer.
+
+Per-feed options (Emacs keyword in parentheses):
+  template         item template, default `feed.default_template` (:template)
+  formatter        function(entry) returning the Org text of the item,
+                   instead of the template (:formatter)
+  filter           function(entry) returning the entry (possibly modified)
+                   or nil to skip it; skipped items stay unhandled (:filter)
+  new_handler      function(entries, ctx) called with the new items instead
+                   of adding them; the cursor is on the inbox headline and
+                   `ctx` is { bufnr, lnum, feed } (:new-handler)
+  changed_handler  function(entries, ctx) called with handled items whose
+                   text changed (:changed-handler)
+  parse_feed       "rss", "atom" or function(text) returning entries with
+                   `guid` and `item_full_text` (:parse-feed)
+  parse_entry      "rss", "atom" or function(entry) adding the fields
+                   (:parse-entry)
+  drawer           status drawer, default `feed.drawer` (:drawer)
+  retrieve_method  like `feed.retrieve_method`, for this feed
+Without `parse_feed`, a feed with a `<feed>` root and no `<item>` is read
+as Atom, anything else as RSS. An entry is a table: RSS items have a field
+per `<tag>value</tag>` (`title`, `link`, `description`, `pubDate`, ...,
+entities decoded and CDATA unwrapped) and `guid_permalink`; Atom entries
+have `title`, `link` (the first `<link href>`), `description` (from
+`<content>`, else `<summary>`; xhtml content as markup), `id`, `updated`,
+`published` and `summary`. Both have `guid`, `item_full_text` and
+`handled`.
+
+Template escapes (org-feed-default-template, "\n* %h\n  %U\n  %description\n  %a\n"):
+  %h       the title, else the first line of the description
+  %t %T    date, date and time, from `pubDate` (else now), active
+  %u %U    the same, inactive
+  %a       `[[link]]` from the guid when it is a permalink, else `link`
+  %name    any field of the entry: `%title`, `%description`, `%pubDate`...;
+           alone on its line, its later lines get the same indentation
+  %(expr)  a Lua expression (the entry is `entry`), after the escapes
+           above; `\%` keeps a literal `%`
+
+Options: `feed.default_template`, `feed.drawer` ("FEEDSTATUS"),
+`feed.save_after_adding` (true) and `feed.retrieve_method` ("curl",
+"wget" or a function(url) returning the text; `file://` URLs and local
+paths are read directly). User autocmds `OrgFeedBeforeAdding` and
+`OrgFeedAfterAdding` (org-feed-before/after-adding-hook) fire around the
+changes with `data = { feed, file, bufnr, count? }`.
+
+<C-c><C-x>g  :Org feed_update_all     update every feed (org-feed-update-all)
+             :Org feed_update [name]  update one feed (org-feed-update)
+<C-c><C-x>G  :Org feed_goto_inbox [name]  go to a feed's inbox
+             :Org feed_show_raw [name]    show the feed's XML
+Without a name these prompt (goto_inbox and show_raw take the only feed
+when there is one). Retrieval is synchronous, like Emacs.
+
 ==============================================================================
 15. REFILE AND ARCHIVE                                *org-refile* *org-archive*
 
@@ -3704,6 +3774,9 @@ clock ~
   persist_file
 timer ~    format "%s ", default_timer "0"
 protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
+feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",
+           drawer "FEEDSTATUS", save_after_adding true,
+           retrieve_method "curl" (|org-feed|)
 crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
@@ -3915,6 +3988,7 @@ Clock, effort, dynamic blocks, timers:
   <C-c><C-x>x      insert dynamic block
   <C-c><C-x>0 _ ,  timer start / stop / pause-continue
   <C-c><C-x>. - ;  insert timer / timer item / countdown
+  <C-c><C-x>g G    update all feeds / go to a feed inbox (|org-feed|)
 
 Links, refile, archive, export:
   <C-c><C-l>  insert link    <C-c><C-o>  open at point (on a headline:
@@ -3985,6 +4059,8 @@ Additional subcommands:
   :Org toggle_timestamp_type
   :Org notifications_start | notifications_stop
   :Org lint [checker ...]    (|org-lint|)
+  :Org feed_update [name]    :Org feed_update_all   (|org-feed|)
+  :Org feed_goto_inbox [name]  :Org feed_show_raw [name]
 
 ==============================================================================
 29. LUA API                                                          *org-api*
@@ -4260,6 +4336,16 @@ Differences from Emacs:
   Headline lines are not made read-only. Like Emacs, digits 1-9 select
   allowed values on a column row, so counts are not available there (0
   keeps its Vim meaning; counts work on other lines).
+- Feeds (|org-feed|): feeds are fetched with curl (or wget, or a Lua
+  function) instead of url.el, and `:parse-feed`/`:filter`/handlers are Lua
+  functions. Fixes over org-feed.el: a multi-line `%field` alone on its line
+  is indented (Emacs means to but leaves the later lines at column 0), CDATA
+  in RSS fields is unwrapped, Atom `<content>` without a type is text (Emacs
+  writes "Unknown `nil' content."), `<summary>` is used when there is no
+  content and xhtml content is kept as markup rather than a Lisp form, the
+  filter also applies to changed items (Emacs passes the filtered new items
+  as changed ones) and `OrgFeedBeforeAdding` fires (Emacs never runs
+  org-feed-before-adding-hook). The inbox is not refolded after an update.
 - Structure editing:                               *org-structure-differences*
   - Emacs acts at point, between two characters; Normal mode has a cursor
     on a character. Commands that insert at point (<M-CR>, C-c RET,

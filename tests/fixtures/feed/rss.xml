@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Example</title>
+<item>
+<title>First &amp; best</title>
+<link>https://example.com/1</link>
+<guid isPermaLink="false">id-1</guid>
+<pubDate>Tue, 10 Jun 2003 04:00:00 GMT</pubDate>
+<description>Line one
+Line two</description>
+</item>
+<item>
+<title>Second</title>
+<link>https://example.com/2</link>
+<guid>https://example.com/2</guid>
+<description><![CDATA[<p>Hi</p>]]></description>
+</item>
+</channel>
+</rss>

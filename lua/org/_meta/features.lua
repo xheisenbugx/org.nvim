@@ -173,6 +173,45 @@
 ---@field order? string[]
 
 ---------------------------------------------------------------------------
+-- RSS / Atom feeds
+---------------------------------------------------------------------------
+
+---Feed options (`org-feed`).
+---@class org.Config.Feed
+---Feeds whose items are added to an inbox headline (`org-feed-alist`).
+---(default: `{}`)
+---@field feeds? (org.Config.FeedSpec|table)[]
+---Template of a new item (`org-feed-default-template`).
+---(default: `"\n* %h\n  %U\n  %description\n  %a\n"`)
+---@field default_template? string
+---Drawer holding the feed status (`org-feed-drawer`). (default: `"FEEDSTATUS"`)
+---@field drawer? string
+---Save the file after adding items (`org-feed-save-after-adding`).
+---(default: `true`)
+---@field save_after_adding? boolean
+---How URLs are fetched (`org-feed-retrieve-method`); `file://` URLs are
+---read directly. (default: `"curl"`)
+---@field retrieve_method? "curl"|"wget"|fun(url: string): string?
+
+---A feed. The positional Emacs form `{ name, url, file, headline }` works too.
+---@class org.Config.FeedSpec
+---@field name string
+---@field url string
+---Target file; the current buffer's file when nil.
+---@field file? string
+---Inbox headline, created when missing.
+---@field headline string
+---@field template? string
+---@field formatter? fun(entry: org.feed.Entry): string
+---@field filter? fun(entry: org.feed.Entry): org.feed.Entry?
+---@field new_handler? fun(entries: org.feed.Entry[], ctx: { bufnr: integer, lnum: integer, feed: table })
+---@field changed_handler? fun(entries: org.feed.Entry[], ctx: { bufnr: integer, lnum: integer, feed: table })
+---@field parse_feed? "rss"|"atom"|fun(text: string): org.feed.Entry[]
+---@field parse_entry? "rss"|"atom"|fun(entry: org.feed.Entry): org.feed.Entry
+---@field drawer? string
+---@field retrieve_method? "curl"|"wget"|fun(url: string): string?
+
+---------------------------------------------------------------------------
 -- Timers
 ---------------------------------------------------------------------------
 
