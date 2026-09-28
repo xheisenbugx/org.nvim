@@ -488,6 +488,29 @@ describe("babel parity: results", function()
     eq({ "A src_sh{printf 'a\\nb'} and src_sh{echo 3} end." }, out)
   end)
 
+  it("leaves inline code in verbatim, code, links, comments and tables alone", function()
+    local lines = {
+      "#+NAME: f",
+      "#+begin_src sh",
+      "echo F",
+      "#+end_src",
+      "",
+      "Verb =src_sh{echo V}= code ~src_sh{echo C}~ call =call_f()= *real src_sh{echo R}*.",
+      "Link [[https://x.org/src_sh{echo L}][desc src_sh{echo D}]] @@html:src_sh{echo S}@@ end.",
+      "# comment src_sh{echo K}",
+      "| src_sh{echo T} |",
+    }
+    local out = run(lines)
+    eq({
+      "Verb =src_sh{echo V}= code ~src_sh{echo C}~ call =call_f()= *real src_sh{echo R} {{{results(=R=)}}}*.",
+      "Link [[https://x.org/src_sh{echo L}][desc src_sh{echo D} {{{results(=D=)}}}]] @@html:src_sh{echo S}@@ end.",
+      "# comment src_sh{echo K}",
+      "| src_sh{echo T} |",
+    }, vim.list_slice(out, #out - 3))
+    eq({}, babel.inline_all("x =src_sh{echo V}= y"))
+    eq(8, babel.inline_all("a [fn::src_sh{1}] =call_f()= call_f()")[1].s)
+  end)
+
   it("joins several Lua return values with ', ' like ob-lua", function()
     local out = run({
       "#+begin_src lua",
