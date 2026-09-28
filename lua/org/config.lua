@@ -1294,6 +1294,17 @@ M.defaults = {
         null_to = "hline", -- org-babel-java-null-to
       },
       groovy = { cmd = "groovy" }, -- org-babel-groovy-command
+      -- Common Lisp: cmd evaluates in place of SLIME (org-babel-lisp-eval-fn);
+      -- dir_fmt: org-babel-lisp-dir-fmt
+      lisp = {
+        cmd = "sbcl --script",
+        ext = "lisp",
+        dir_fmt = "(cl:let ((cl:*default-pathname-defaults* #P%S\n)) %%s\n)",
+      },
+      -- impl: the implementation without a :scheme header (Geiser's
+      -- default); commands: implementation -> command; null_to:
+      -- org-babel-scheme-null-to
+      scheme = { impl = "guile", commands = {}, null_to = "hline" },
       julia = { cmd = "julia" }, -- org-babel-julia-command
       maxima = { cmd = "maxima" }, -- org-babel-maxima-command
       ocaml = { cmd = "ocaml" }, -- org-babel-ocaml-command
