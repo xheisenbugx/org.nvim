@@ -350,6 +350,17 @@
 ---Translate a link before following it (`org-link-translation-function`).
 ---(default: `nil`)
 ---@field translation_function? fun(type: string, path: string): string|nil, string|nil
+---A mouse click on a link follows it: `true`, `"double"`, the longest click
+---in ms, or `false` (`org-mouse-1-follows-link`). (default: `450`)
+---@field mouse_1_follows_link? boolean|"double"|integer
+---`<Tab>` on a link follows it (`org-tab-follows-link`). (default: `false`)
+---@field tab_follows_link? boolean
+---Links to a directory open its index.org
+---(`org-open-directory-means-index-dot-org`). (default: `false`)
+---@field open_directory_means_index_dot_org? boolean
+---External apps may open files that don't exist
+---(`org-open-non-existing-files`). (default: `false`)
+---@field open_non_existing_files? boolean
 
 ---------------------------------------------------------------------------
 -- IDs / attachments

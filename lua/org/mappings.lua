@@ -111,6 +111,8 @@ function M.attach(bufnr)
       end
     end
   end
+  -- a click on a link follows it (links.mouse_1_follows_link)
+  require("org.mouse").attach(bufnr)
   -- text objects (synchronous)
   local to = maps.text_objects or {}
   local objs = {

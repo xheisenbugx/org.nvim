@@ -128,7 +128,7 @@ function M.context_action()
 end
 
 --- Open link / follow footnote / show agenda for timestamp.
-function M.open_at_point()
+local function open_at_point()
   local links = require("org.links")
   if links.link_at_cursor() then
     return links.open_at_point()
@@ -143,6 +143,17 @@ function M.open_at_point()
     return require("org.agenda").open_day(ts.date)
   end
   return false
+end
+
+--- Open the link, footnote or timestamp at the cursor (org-open-at-point),
+--- then signal OrgFollowLink (org-follow-link-hook).
+function M.open_at_point()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local r = open_at_point()
+  if r ~= false then
+    require("org.links").run_follow_hook(bufnr)
+  end
+  return r
 end
 
 --- C-c ' : edit special

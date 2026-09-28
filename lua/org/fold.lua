@@ -967,6 +967,10 @@ end
 --- everything (drawers too), any other N shows the whole subtree of the
 --- ancestor at level N (like C-u C-u TAB, C-u C-u C-u TAB and M-N TAB).
 function M.cycle()
+  if (config.opts.links or {}).tab_follows_link and require("org.links").link_at_cursor() then
+    -- org-tab-follows-link: TAB on a link follows it
+    return require("org.context").open_at_point()
+  end
   local count = vim.v.count
   if count == 16 then
     return M.set_startup_visibility()

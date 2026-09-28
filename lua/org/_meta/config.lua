@@ -274,6 +274,12 @@
 ---Let visibility cycling open subtrees tagged `:ARCHIVE:`.
 ---(Emacs `org-cycle-open-archived-trees`, default: `false`)
 ---@field cycle_open_archived_trees? boolean
+---Sparse trees open subtrees tagged `:ARCHIVE:` to show matches in them.
+---(Emacs `org-sparse-tree-open-archived-trees`, default: `false`)
+---@field sparse_tree_open_archived_trees? boolean
+---Dates the before/after/range sparse trees look at; `nil` = SCHEDULED
+---and DEADLINE. (Emacs `org-sparse-tree-default-date-type`, default: `nil`)
+---@field sparse_tree_default_date_type? "all"|"active"|"inactive"|"scheduled"|"deadline"|"closed"|nil
 ---Heading that collects footnote definitions (created when missing);
 ---`false` puts each definition at the end of the reference's section.
 ---(Emacs `org-footnote-section`, default: `"Footnotes"`)
@@ -367,6 +373,17 @@
 ---tomorrow) or `false`. (Emacs `org-read-date-prefer-future`,
 ---default: `true`)
 ---@field read_date_prefer_future? boolean|"time"
+---Date prompts show the calendar; `false` = only a "Date+time [default]: "
+---prompt. (Emacs `org-read-date-popup-calendar`, default: `true`)
+---@field read_date_popup_calendar? boolean
+---Alias of `read_date_popup_calendar` (Emacs `org-popup-calendar-for-date-prompt`).
+---@field popup_calendar_for_date_prompt? boolean
+---Show what a typed date means while typing it in the calendar.
+---(Emacs `org-read-date-display-live`, default: `true`)
+---@field read_date_display_live? boolean
+---`<S-Down>` makes timestamps later and `<S-Up>` earlier.
+---(Emacs `org-edit-timestamp-down-means-later`, default: `false`)
+---@field edit_timestamp_down_means_later? boolean
 ---Display timestamps with `time_stamp_custom_formats`; toggled per buffer
 ---by `toggle_time_stamp_overlays`, `#+STARTUP: customtime` turns it on.
 ---Exports of a buffer with the display on use the formats too.
@@ -425,6 +442,13 @@
 ---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
+---Downloading remote resources (a URL in `#+INCLUDE`): `"prompt"`, `"safe"`,
+---`true` (always) or `false` (never).
+---(Emacs `org-resource-download-policy`, default: `"prompt"`)
+---@field resource_download_policy? "prompt"|"safe"|boolean
+---Vim regexes of safe URLs (also matched against "file://" .. the file).
+---(Emacs `org-safe-remote-resources`, default: `{}`)
+---@field safe_remote_resources? string[]
 ---`ID` property creation and lookup.
 ---@field id? org.Config.Id
 ---Attachments (`org-attach`).

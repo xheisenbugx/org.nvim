@@ -1178,6 +1178,10 @@ end
 local function open_file_link(path, search, o)
   o = o or {}
   local full = M.resolve_path(path, o.bufnr)
+  if lopts().open_directory_means_index_dot_org and utils.is_dir(full) then
+    -- org-open-directory-means-index-dot-org
+    full = full:gsub("/+$", "") .. "/index.org"
+  end
   -- a wildcard in the file name opens a listing of the matches
   -- (org-link-open-as-file: dired)
   if (vim.fn.fnamemodify(full, ":t")):find("[*?{]") and not utils.exists(full) then
@@ -1185,16 +1189,27 @@ local function open_file_link(path, search, o)
   end
   local ext = (full:match("%.([%w]+)$") or ""):lower()
   local apps = lopts().file_apps or {}
+  -- external apps might choke on a missing file (org-open-non-existing-files)
+  local function exists_for_app()
+    if lopts().open_non_existing_files or utils.exists(full) then
+      return true
+    end
+    utils.error("No such file: " .. full)
+    return false
+  end
   if o.app == "system" then
-    return vim.ui.open(full)
+    return exists_for_app() and vim.ui.open(full) or nil
   end
   if o.app ~= "vim" then
     local app = apps[ext]
     if app and app ~= "vim" and app ~= "emacs" then
+      if not exists_for_app() then
+        return nil
+      end
       return run_external(app, full)
     end
     if EXTERNAL_EXT[ext] and not app then
-      return vim.ui.open(full)
+      return exists_for_app() and vim.ui.open(full) or nil
     end
   end
   visit(full, o.how)
@@ -1558,6 +1573,83 @@ function M.open_at_point(arg)
     arg = arg,
     avoid = { link.lnum, link.start_col + 2 },
   }) ~= false or nil
+end
+
+--- Signal that a link was followed (org-follow-link-hook): the User event
+--- `OrgFollowLink`, with the buffer the link was followed from as `data`.
+---@param bufnr? integer
+function M.run_follow_hook(bufnr)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgFollowLink",
+    data = { bufnr = bufnr or vim.api.nvim_get_current_buf() },
+    modeline = false,
+  })
+end
+
+--- The URL or e-mail address around column `col` (1-based) of `line`, like
+--- thing-at-point 'url / 'email.
+local function thing_at(line, col)
+  local init = 1
+  while true do
+    local s, e = line:find("%a[%w+.%-]*://[^%s<>\"'()]+", init)
+    if not s then
+      break
+    end
+    if col >= s and col <= e then
+      return (line:sub(s, e):gsub("[.,;:!?]+$", ""))
+    end
+    init = e + 1
+  end
+  init = 1
+  while true do
+    local s, e = line:find("[%w._%%+%-]+@[%w.%-]+%.%a+", init)
+    if not s then
+      break
+    end
+    if col >= s and col <= e then
+      return "mailto:" .. line:sub(s, e)
+    end
+    init = e + 1
+  end
+end
+
+--- Follow an Org link or a timestamp in any buffer (org-open-at-point-global):
+--- a bracket, angle or plain link at the cursor, a timestamp (the agenda of
+--- that day), else a URL or an e-mail address. Internal links (headings,
+--- targets) are not searched outside Org, like Emacs. A count is the
+--- prefix argument. Returns false when there is nothing to follow.
+function M.open_at_point_global(arg)
+  arg = arg or vim.v.count
+  local link = M.link_at_cursor()
+  if link and link.type ~= "radio" then
+    return M.open(link.target, { arg = arg }) ~= false or nil
+  end
+  local _, col = utils.cursor()
+  local line = vim.api.nvim_get_current_line()
+  local ts = require("org.date").at_col(line, col)
+  if ts then
+    require("org.agenda").open_day(ts.date)
+    return true
+  end
+  local thing = thing_at(line, col)
+  if thing then
+    return M.open(thing, { arg = arg }) ~= false or nil
+  end
+  utils.warn("No link found")
+  return false
+end
+
+--- Search the agenda files for links to the cursor's location
+--- (org-occur-link-in-agenda-files): the link `store_link` would make,
+--- `[[file:...::*Heading][Heading]]`, is not stored, only searched for.
+function M.occur_link_in_agenda_files()
+  local l = M.link_to_location({})
+  if not l then
+    utils.error("Unable to create a link to here")
+    return nil
+  end
+  local text = M.format(l.link, l.desc)
+  return require("org.agenda").occur("\\V" .. vim.fn.escape(text, "\\"))
 end
 
 ---------------------------------------------------------------------------
@@ -2891,12 +2983,18 @@ function M.open_at_point_or_entry()
   if not require("org.parser").headline_level(line) then
     return false
   end
+  local bufnr = vim.api.nvim_get_current_buf()
   local _, col = utils.cursor()
   local tag = tag_at_cursor(line, col)
   if tag then
-    return require("org.agenda").open_tags(tag, arg > 0)
+    r = require("org.agenda").open_tags(tag, arg > 0)
+  else
+    r = M.open_entry_links(arg)
   end
-  return M.open_entry_links(arg)
+  if r ~= false then
+    M.run_follow_hook(bufnr)
+  end
+  return r
 end
 
 --- Export a link with its type's `export` function (org-link-parameters

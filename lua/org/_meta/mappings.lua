@@ -141,6 +141,10 @@
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
+---| "occur_link_in_agenda_files" # Find links to here in the agenda files
+---| "open_at_mouse" # Open the link clicked
+---| "open_at_point_global" # Follow an Org link, date or URL in any buffer
+---| "find_file_at_mouse" # Open the link clicked in Neovim
 ---| "mark_subtree" # Select subtree
 ---| "meta_down" # Move subtree / item / row / element down
 ---| "meta_left" # Promote / move column left
@@ -341,6 +345,10 @@
 ---@field context_action? org.MappingLhs
 --- Open link / footnote / date at point. Default: `{ "<CR>", "gx", "<prefix>o" }`
 ---@field open_at_point? org.MappingLhs
+--- Open the link clicked. Default: `<MiddleMouse>`
+---@field open_at_mouse? org.MappingLhs
+--- Open the link clicked in Neovim. Default: `<RightMouse>`
+---@field find_file_at_mouse? org.MappingLhs
 --- New heading / item / row. Default: `<M-CR>`
 ---@field meta_return? org.MappingLhs
 --- New TODO heading / checkbox item. Default: `<M-S-CR>`

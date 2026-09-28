@@ -1772,6 +1772,8 @@ M.defaults = {
       -- context / links
       context_action = { "<C-c><C-c>", "<prefix><CR>" },
       open_at_point = { "<CR>", "gx", "<prefix>o" },
+      open_at_mouse = "<MiddleMouse>",
+      find_file_at_mouse = "<RightMouse>",
       -- structure
       meta_return = "<M-CR>",
       meta_shift_return = "<M-S-CR>",
