@@ -551,6 +551,8 @@ function M.apply_repeater(ts, now)
   if n == 0 then
     return ts
   end
+  -- day repeaters count from org-today (`extend_today_until`)
+  local today = M.from_days(math.floor((now:minutes() - extend_today_until() * 60) / 1440))
   if r.type == "+" then
     return ts:add_with_range(n, unit)
   elseif r.type == "++" then
@@ -559,7 +561,7 @@ function M.apply_repeater(ts, now)
     local cmp_day = not ts:has_time() or unit ~= "h"
     while guard < 100000 do
       if cmp_day then
-        if nxt:days() > now:days() then
+        if nxt:days() > today:days() then
           break
         end
       elseif nxt:minutes() > now:minutes() then
@@ -574,7 +576,7 @@ function M.apply_repeater(ts, now)
     if unit == "h" then
       base = ts:clone({ year = now.year, month = now.month, day = now.day, hour = now.hour, min = now.min })
     else
-      base = ts:clone({ year = now.year, month = now.month, day = now.day })
+      base = ts:clone({ year = today.year, month = today.month, day = today.day })
     end
     local shifted = base:add(n, unit)
     if ts.range_end then

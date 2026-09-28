@@ -664,6 +664,16 @@ describe("clock display and tables (Emacs)", function()
     eq("week 2026-W39", text)
     _, _, text = clock.special_range("2026-09-23")
     eq("Wednesday, September 23, 2026", text)
+    -- blocks start at extend_today_until o'clock, like Emacs
+    local saved = config.opts.extend_today_until
+    config.opts.extend_today_until = 4
+    local from, to = clock.special_range("2026-09-23")
+    local from_m, to_m = clock.special_range("2026-09")
+    config.opts.extend_today_until = saved
+    eq(date.days_from_civil(2026, 9, 23) * 1440 + 240, from)
+    eq(date.days_from_civil(2026, 9, 24) * 1440 + 240, to)
+    eq(date.days_from_civil(2026, 9, 1) * 1440 + 240, from_m)
+    eq(date.days_from_civil(2026, 10, 1) * 1440 + 240, to_m)
     eq(date.today():minutes() - 7 * 1440, clock.matcher_time("<-1w>"))
     eq(date.days_from_civil(2026, 9, 22) * 1440 + 600, clock.matcher_time("<2026-09-22 Tue 10:00>"))
   end)

@@ -382,7 +382,8 @@ local function sum_start(hl)
   if cmt == "current" then
     return nil, true
   elseif cmt == "today" then
-    return date.today():minutes(), false
+    -- today starts at `extend_today_until` o'clock
+    return date.today():minutes() + (tonumber(config.opts.extend_today_until) or 0) * 60, false
   elseif cmt == "all" or ((cmt == "auto" or cmt == "") and not lr) then
     return nil, false
   elseif cmt == "repeat" or cmt == "auto" or cmt == "" then
@@ -2083,7 +2084,9 @@ function M.special_range(key, wstart, mstart)
   else
     error("No such time block " .. skey, 0)
   end
-  return s:minutes(), e:minutes(), text
+  -- the days of a block start at `extend_today_until` o'clock, like Emacs
+  local ext = (tonumber(config.opts.extend_today_until) or 0) * 60
+  return s:minutes() + ext, e:minutes() + ext, text
 end
 
 --- Kept for callers of the old API: the range of a `:block`, or nil.
@@ -2106,7 +2109,8 @@ end
 function M.matcher_time(s)
   s = tostring(s)
   local now = date.now():minutes()
-  local today = date.today():minutes()
+  -- the calendar day, not org-today (Emacs ignores extend_today_until here)
+  local today = date.now():days() * 1440
   if s == "<now>" then
     return now
   elseif s == "<today>" then
@@ -2728,7 +2732,10 @@ local function next_step(m, step, wstart, mstart)
   else
     nd = mkdate(d.year + 1, 1, 1)
   end
-  return nd:minutes()
+  -- days, weeks and years start at `extend_today_until` o'clock (Emacs
+  -- starts the other periods at midnight)
+  local ext = (step == "day" or step == "week" or step == "year") and tonumber(config.opts.extend_today_until) or 0
+  return nd:minutes() + ext * 60
 end
 
 local function ts_string(m, with_time)

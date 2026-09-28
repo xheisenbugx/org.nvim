@@ -38,6 +38,20 @@ describe("date", function()
     eq("2026-09-08", date.apply_repeater(date.parse("<2026-09-01 Tue +1w>"), now):to_date_string())
     eq("2026-09-29", date.apply_repeater(date.parse("<2026-09-01 Tue ++1w>"), now):to_date_string())
     eq("2026-09-30", date.apply_repeater(date.parse("<2026-09-01 Tue .+1w>"), now):to_date_string())
+    -- before extend_today_until o'clock, day repeaters count from yesterday
+    local config = require("org.config")
+    local saved = config.opts.extend_today_until
+    config.opts.extend_today_until = 4
+    local early = date.parse("<2026-09-23 Wed 02:00>")
+    local ok_, err = pcall(function()
+      eq("2026-09-29", date.apply_repeater(date.parse("<2026-09-01 Tue .+1w>"), early):to_date_string())
+      eq("2026-09-23", date.apply_repeater(date.parse("<2026-09-02 Wed ++1w>"), early):to_date_string())
+      -- hour repeaters count from the real time
+      local h = date.apply_repeater(date.parse("<2026-09-22 Tue 10:00 .+1h>"), early)
+      eq({ 23, 3 }, { h.day, h.hour })
+    end)
+    config.opts.extend_today_until = saved
+    assert(ok_, err)
   end)
   it("reads dates", function()
     local base = date.today()

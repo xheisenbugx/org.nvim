@@ -13,7 +13,9 @@
 --- inserts the template into the target right away): headlines and date
 --- tree nodes are created then, and the location is tracked with an
 --- extmark until the capture is finished. The text is edited in a separate
---- capture buffer and stored at that location on finalize.
+--- capture buffer and stored at that location on finalize, except with
+--- `unnarrowed`: the text then goes into the target buffer right away and
+--- is edited there, in a window showing the whole file.
 ---
 --- Template fields: see `:h org-capture-templates`.
 
@@ -266,6 +268,41 @@ local function pick_date(prompt, with_time, default)
   return v and date.read_date(v, default) or nil
 end
 
+local function extend_today_until()
+  return tonumber(config.opts.extend_today_until) or 0
+end
+
+--- The time used by %t %T %u %U and %<...> (the `time` of
+--- org-capture-fill-template): the capture date `d` (a date without a time
+--- is taken at `extend_today_until` o'clock, like the agenda's
+--- org-overriding-default-time) or now. Before `extend_today_until`
+--- o'clock it is 23:59 of the previous day.
+---@param d? org.Date
+---@return org.Date
+function M.default_time(d)
+  local ext = extend_today_until()
+  local t = d and (d.hour and d:clone() or d:clone({ hour = ext, min = 0 })) or date.now()
+  t = t:clone({ range_end = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
+  if t.hour < ext then
+    t = t:add(-1, "d"):clone({ hour = 23, min = 59 })
+  end
+  return t
+end
+
+--- The capture date of a date picked for `time_prompt` / C-1 without a
+--- time (org-capture-set-target-location): today's date keeps the current
+--- time, another date starts at `extend_today_until` o'clock.
+local function prompted_time(d)
+  if d.hour then
+    return d
+  end
+  local now = M.default_time()
+  if d:days() == now:days() then
+    return d:clone({ hour = now.hour, min = now.min })
+  end
+  return d:clone({ hour = extend_today_until(), min = 0 })
+end
+
 local function fmt_date(d, with_time, active)
   local c = d:clone({ active = active, repeater = vim.NIL, warning = vim.NIL, range_end = vim.NIL })
   if with_time then
@@ -469,7 +506,8 @@ end
 function M.expand(text, ctx)
   ctx = ctx or {}
   ctx.properties = ctx.properties or {}
-  local time = (ctx.date or date.now()):to_time()
+  local now = M.default_time(ctx.time or ctx.date)
+  local time = now:to_time()
   local base_date = ctx.date
   local annotation = ctx.annotation or ""
   if annotation == "[[]]" then
@@ -545,7 +583,7 @@ function M.expand(text, ctx)
           end)
         end
       elseif k == "t" or k == "T" or k == "u" or k == "U" then
-        val = fmt_date(base_date or date.now(), k == "T" or k == "U", k == "t" or k == "T")
+        val = fmt_date(now, k == "T" or k == "U", k == "t" or k == "T")
       elseif k == "x" then
         val = register("*") or register("+") or ""
       elseif k == "n" then
@@ -1754,9 +1792,17 @@ local function trim_blank(lines)
   return lines
 end
 
---- Call a template hook (:prepare-finalize, :before-finalize,
---- :after-finalize), reporting errors without aborting the capture.
+--- Call a template hook (:hook, :prepare-finalize, :before-finalize,
+--- :after-finalize): a function or a list of functions, like
+--- org-capture--run-template-functions. Errors are reported without
+--- aborting the capture.
 local function run_hook(fn, ...)
+  if type(fn) == "table" then
+    for _, f in ipairs(fn) do
+      run_hook(f, ...)
+    end
+    return
+  end
   if type(fn) ~= "function" then
     return
   end
@@ -1814,6 +1860,8 @@ local function finish_clock(tpl, ctx, bufnr, line)
     resume_interrupted(tpl, ctx)
   end
 end
+
+local stored
 
 --- Store the captured text at its target. Returns (bufnr, line), or nil
 --- when the text could not be stored (the target is gone).
@@ -1880,7 +1928,13 @@ function M.store(tpl, lines, ctx)
       return nil
     end
   end
-  release(loc)
+  return stored(tpl, ctx, bufnr, line)
+end
+
+--- The captured text is safely stored at (bufnr, line): remember the
+--- position and finish the clock.
+function stored(tpl, ctx, bufnr, line)
+  release(ctx.loc)
   require("org.refile").remember(bufnr, line)
   if ctx.clock_start then
     -- Clock state can be persisted outside this buffer, and may resume an
@@ -1898,9 +1952,35 @@ function M.store(tpl, lines, ctx)
   return bufnr, line
 end
 
+--- Restore the target buffer's own mappings replaced by an unnarrowed
+--- capture, and drop its marks.
+local function end_unnarrowed(s)
+  local bufnr = s.ctx.loc.bufnr
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  vim.api.nvim_buf_call(bufnr, function()
+    for _, m in ipairs(s.maps or {}) do
+      pcall(vim.keymap.del, "n", m.lhs, { buffer = bufnr })
+      if m.prev then
+        pcall(vim.fn.mapset, "n", false, m.prev)
+      end
+    end
+  end)
+  for _, mark in ipairs({ s.region, s.change and s.change.mark }) do
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
+  end
+  if s.win and vim.api.nvim_win_is_valid(s.win) then
+    vim.wo[s.win].winbar = s.winbar or ""
+  end
+end
+
 local function close_session(buf)
   local s = M.sessions[buf]
   M.sessions[buf] = nil
+  if s and s.unnarrowed then
+    end_unnarrowed(s)
+  end
   if s and s.win and vim.api.nvim_win_is_valid(s.win) then
     if #vim.api.nvim_list_wins() > 1 then
       pcall(vim.api.nvim_win_close, s.win, true)
@@ -1908,7 +1988,7 @@ local function close_session(buf)
       vim.api.nvim_win_set_buf(s.win, s.origin_buf)
     end
   end
-  if vim.api.nvim_buf_is_valid(buf) then
+  if vim.api.nvim_buf_is_valid(buf) and not (s and s.unnarrowed) then
     vim.bo[buf].modified = false
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
@@ -1925,6 +2005,75 @@ local function kill_target(tpl, loc)
         pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
       end
     end
+  end
+end
+
+---------------------------------------------------------------------------
+-- Unnarrowed captures (:unnarrowed)
+---------------------------------------------------------------------------
+
+--- Rows (1-based, inclusive) holding an unnarrowed capture's text, or nil
+--- when that text was deleted.
+local function unnarrowed_region(s)
+  local bufnr = s.ctx.loc.bufnr
+  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, s.region, { details = true })
+  if not ok or not pos[1] or pos[3].invalid or pos[3].end_row <= pos[1] then
+    return nil
+  end
+  return pos[1] + 1, pos[3].end_row
+end
+
+--- Finalize an unnarrowed capture: its text is already in the target, so
+--- only the finishing steps of `M.store` remain. The capture stays open
+--- when the text is empty or the target can't be saved.
+---@return integer|nil bufnr, integer|nil line
+local function store_unnarrowed(s)
+  local tpl, ctx = s.template, s.ctx
+  local bufnr = ctx.loc.bufnr
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    utils.warn("Capture target buffer is gone")
+    return nil
+  end
+  local first, last = unnarrowed_region(s)
+  local lines = first and vim.api.nvim_buf_get_lines(bufnr, first - 1, last, false) or {}
+  if #trim_blank(lines) == 0 then
+    utils.warn("Capture is empty, nothing stored")
+    return nil
+  end
+  local line = first
+  while line < last and is_blank(get_line(bufnr, line)) do
+    line = line + 1
+  end
+  local ttype = tpl.type or "entry"
+  if ttype == "entry" then
+    line = first_headline_line(bufnr, line)
+  elseif ttype == "table-line" then
+    pcall(require("org.table").align_at, bufnr, line)
+  end
+  pcall(require("org.lists").update_statistics_for, bufnr, line)
+  run_hook(tpl.before_finalize, bufnr, line)
+  if not tpl.no_save then
+    local saved, err = utils.save_buffer(bufnr)
+    if not saved then
+      utils.warn("Capture could not be saved; the capture stays open: " .. tostring(err))
+      return nil
+    end
+  end
+  return stored(tpl, ctx, bufnr, line)
+end
+
+--- Abort an unnarrowed capture: the lines its placement changed (the
+--- text, as edited since, and the blank lines around it) get their
+--- original text back. Edits elsewhere in the target are kept.
+local function remove_unnarrowed(s)
+  local bufnr = s.ctx.loc.bufnr
+  local c = s.change
+  if not (c and vim.api.nvim_buf_is_valid(bufnr)) then
+    return
+  end
+  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, c.mark, { details = true })
+  if ok and pos[1] and not pos[3].invalid then
+    vim.api.nvim_buf_set_lines(bufnr, pos[1], pos[3].end_row, false, c.original)
   end
 end
 
@@ -1951,9 +2100,14 @@ function M.finalize(buf, opts)
   end
   vim.cmd("stopinsert")
   run_hook(tpl.prepare_finalize, buf)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  -- store first: the capture buffer stays open when that fails
-  local dbuf, dline = M.store(tpl, lines, s.ctx)
+  local dbuf, dline
+  if s.unnarrowed then
+    dbuf, dline = store_unnarrowed(s)
+  else
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    -- store first: the capture buffer stays open when that fails
+    dbuf, dline = M.store(tpl, lines, s.ctx)
+  end
   if not dbuf then
     return
   end
@@ -2018,6 +2172,9 @@ function M.kill(buf)
   end
   vim.cmd("stopinsert")
   local s = M.sessions[buf]
+  if s.unnarrowed then
+    remove_unnarrowed(s)
+  end
   close_session(buf)
   local loc = s.ctx.loc
   cleanup_target(loc)
@@ -2040,17 +2197,238 @@ function M.refile(buf)
   return M.finalize(buf, { refile = true })
 end
 
-local function hint()
+local function hint(unnarrowed)
   local maps = config.opts.mappings.capture or {}
   local function first(v)
     return config.lhs_list(v)[1] or "-"
   end
   return string.format(
-    " Capture: finish %s  refile %s  abort %s  (:w finishes)",
+    " Capture: finish %s  refile %s  abort %s%s",
     first(maps.finalize),
     first(maps.refile),
-    first(maps.kill)
+    first(maps.kill),
+    unnarrowed and "" or "  (:w finishes)"
   ):gsub("%%", "%%%%")
+end
+
+--- Split the expanded text into lines, removing the cursor marker.
+---@return string[] lines, integer[]|nil cursor (row, col)
+local function split_cursor(text)
+  local lines = vim.split(text, "\n", { plain = true })
+  local cursor
+  for i, l in ipairs(lines) do
+    local c = l:find(CURSOR, 1, true)
+    if c and not cursor then
+      cursor = { i, c - 1 }
+    end
+    lines[i] = l:gsub(CURSOR, "")
+  end
+  return lines, cursor
+end
+
+--- Add the %^{PROP}p answers and the template's properties to an entry.
+local function with_properties(lines, props)
+  if #props == 0 or not parser.headline_level(lines[1] or "") then
+    return lines
+  end
+  local b = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
+  for _, p in ipairs(props) do
+    edit.set_property(b, 1, p[1], p[2])
+  end
+  lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+  vim.api.nvim_buf_delete(b, { force = true })
+  return lines
+end
+
+--- Call the mapping `m` (a maparg() dict) an unnarrowed capture replaced,
+--- or the keys themselves when there was none.
+local function call_mapping(m, lhs)
+  if m and m.callback then
+    local keys = m.callback()
+    if m.expr == 1 and type(keys) == "string" then
+      vim.api.nvim_feedkeys(vim.keycode(keys), m.noremap == 1 and "n" or "m", false)
+    end
+  elseif m and m.rhs and m.rhs ~= "" then
+    vim.api.nvim_feedkeys(vim.keycode(m.rhs), m.noremap == 1 and "n" or "m", false)
+  else
+    vim.api.nvim_feedkeys(vim.keycode(lhs), "n", false)
+  end
+end
+
+--- The capture keys of an unnarrowed capture live in the target buffer:
+--- they act in the capture window and call the buffer's own mappings in
+--- other windows. `end_unnarrowed` restores those mappings.
+local function map_unnarrowed(s)
+  local bufnr = s.ctx.loc.bufnr
+  local maps = config.opts.mappings.capture or {}
+  local actions = {
+    {
+      maps.finalize,
+      function()
+        utils.run(M.finalize, bufnr, { jump = vim.v.count > 0 })
+      end,
+      "org: finalize capture (count: and jump to it)",
+    },
+    {
+      maps.kill,
+      function()
+        M.kill(bufnr)
+      end,
+      "org: abort capture",
+    },
+    {
+      maps.refile,
+      function()
+        utils.run(M.refile, bufnr)
+      end,
+      "org: refile capture",
+    },
+  }
+  s.maps = {}
+  local seen = {}
+  vim.api.nvim_buf_call(bufnr, function()
+    for _, a in ipairs(actions) do
+      for _, lhs in ipairs(config.lhs_list(a[1])) do
+        if not seen[lhs] then
+          seen[lhs] = true
+          local prev = vim.fn.maparg(lhs, "n", false, true)
+          prev = not vim.tbl_isempty(prev) and prev or nil
+          s.maps[#s.maps + 1] = { lhs = lhs, prev = prev and prev.buffer == 1 and prev or nil }
+          vim.keymap.set("n", lhs, function()
+            if M.sessions[bufnr] == s and vim.api.nvim_get_current_win() == s.win then
+              a[2]()
+            else
+              call_mapping(prev, lhs)
+            end
+          end, { buffer = bufnr, desc = a[3] })
+        end
+      end
+    end
+  end)
+end
+
+local function start_insert(lines, cursor)
+  if cursor and not vim.g.org_test then
+    local len = #(lines[cursor[1]] or "")
+    if cursor[2] >= len then
+      vim.cmd("startinsert!")
+    else
+      vim.cmd("startinsert")
+    end
+  end
+end
+
+--- Start an unnarrowed capture (:unnarrowed): the text goes into the
+--- target buffer right away, like Emacs, and the capture window shows the
+--- whole target. Extmarks track the text and the lines its placement
+--- changed, so abort restores exactly those.
+local function open_unnarrowed(tpl, text, ctx)
+  local loc = ctx.loc
+  local bufnr = loc.bufnr
+  local function fail(msg)
+    cleanup_target(loc)
+    release(loc)
+    utils.warn(msg)
+    if ctx.clock_start then
+      resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
+    end
+  end
+  if M.sessions[bufnr] then
+    return fail("Another capture is editing this buffer; finish it first")
+  end
+  local lines = vim.split(text, "\n", { plain = true })
+  if (tpl.type or "entry") == "entry" then
+    lines = with_properties(lines, ctx.properties)
+  end
+  local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local modified = vim.bo[bufnr].modified
+  local ok, first = pcall(M.place, loc, tpl, lines)
+  if not ok or not first then
+    utils.restore_buffer(bufnr, before, modified)
+    return fail(ok and "Capture target not found" or tostring(first))
+  end
+  -- the lines the placement changed: the common prefix and suffix are
+  -- untouched (the span always covers the new text)
+  local after = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local last = first + #lines - 1
+  local p = 0
+  while p < first - 1 and p < #before and before[p + 1] == after[p + 1] do
+    p = p + 1
+  end
+  local q = 0
+  while q < #after - last and q < #before - p and before[#before - q] == after[#after - q] do
+    q = q + 1
+  end
+  -- whole lines, up to the start of the next one: text inserted inside
+  -- (also by `O` on the first line or `o` on the last) belongs to the span,
+  -- and the mark goes invalid only when all its lines are deleted
+  local function span(s0, e0)
+    return vim.api.nvim_buf_set_extmark(bufnr, ns, s0 - 1, 0, {
+      end_row = e0,
+      end_col = 0,
+      right_gravity = false,
+      end_right_gravity = false,
+      invalidate = true,
+    })
+  end
+  local s = {
+    template = tpl,
+    ctx = ctx,
+    unnarrowed = true,
+    change = { original = vim.list_slice(before, p + 1, #before - q), mark = span(p + 1, #after - q) },
+    region = span(first, last),
+    origin_buf = ctx.origin_buf or vim.api.nvim_get_current_buf(),
+    origin_win = vim.api.nvim_get_current_win(),
+  }
+  local cursor
+  for r = first, last do
+    local c = (get_line(bufnr, r) or ""):find(CURSOR, 1, true)
+    if c then
+      vim.api.nvim_buf_set_text(bufnr, r - 1, c - 1, r - 1, c, {})
+      cursor = { r, c - 1 }
+      break
+    end
+  end
+  M.sessions[bufnr] = s
+  local win = ui.open_buffer_window(bufnr, (config.opts.capture or {}).window or "split", {
+    title = "Capture: " .. (tpl.description or tpl.key or ""),
+  })
+  s.win = win
+  s.winbar = vim.wo[win].winbar
+  vim.wo[win].winbar = hint(true)
+  map_unnarrowed(s)
+  vim.api.nvim_create_autocmd("WinClosed", {
+    pattern = tostring(win),
+    once = true,
+    callback = function()
+      -- closing the window ends the capture; the text stays in the target
+      if M.sessions[bufnr] == s then
+        M.sessions[bufnr] = nil
+        s.win = nil
+        end_unnarrowed(s)
+        release(loc)
+        utils.notify("Capture window closed: the text stays in the target buffer")
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = bufnr,
+    once = true,
+    callback = function()
+      if M.sessions[bufnr] == s then
+        M.sessions[bufnr] = nil
+      end
+    end,
+  })
+  -- like org-fold-show-all in the capture buffer
+  pcall(vim.api.nvim_win_call, win, function()
+    vim.cmd("silent! normal! zR")
+  end)
+  pcall(vim.api.nvim_win_set_cursor, win, cursor or { first, 0 })
+  run_hook(tpl.hook, bufnr)
+  start_insert(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), cursor)
+  return bufnr, win
 end
 
 --- Open the capture buffer.
@@ -2064,15 +2442,7 @@ local function open_buffer(tpl, text, ctx)
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
-  local lines = vim.split(text, "\n", { plain = true })
-  local cursor
-  for i, l in ipairs(lines) do
-    local c = l:find(CURSOR, 1, true)
-    if c and not cursor then
-      cursor = { i, c - 1 }
-    end
-    lines[i] = l:gsub(CURSOR, "")
-  end
+  local lines, cursor = split_cursor(text)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   for _, p in ipairs(ctx.properties or {}) do
     if parser.headline_level(lines[1] or "") then
@@ -2131,15 +2501,9 @@ local function open_buffer(tpl, text, ctx)
   })
   if cursor then
     pcall(vim.api.nvim_win_set_cursor, win, cursor)
-    if not vim.g.org_test then
-      local len = #(lines[cursor[1]] or "")
-      if cursor[2] >= len then
-        vim.cmd("startinsert!")
-      else
-        vim.cmd("startinsert")
-      end
-    end
   end
+  run_hook(tpl.hook, buf)
+  start_insert(lines, cursor)
   return buf, win
 end
 
@@ -2165,6 +2529,7 @@ function M.capture(tpl_or_key, opts)
     if not ctx.date then
       return
     end
+    ctx.time = prompted_time(ctx.date)
   end
   -- the target is resolved (and headlines / date tree nodes created)
   -- before the template is expanded, like Emacs
@@ -2195,14 +2560,8 @@ function M.capture(tpl_or_key, opts)
   start_clock(tpl, ctx)
   if tpl.immediate_finish then
     local lines = vim.split((expanded:gsub(CURSOR, "")), "\n", { plain = true })
-    if #ctx.properties > 0 and ttype == "entry" then
-      local b = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
-      for _, p in ipairs(ctx.properties) do
-        edit.set_property(b, 1, p[1], p[2])
-      end
-      lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
-      vim.api.nvim_buf_delete(b, { force = true })
+    if ttype == "entry" then
+      lines = with_properties(lines, ctx.properties)
     end
     local dbuf, dline = M.store(tpl, lines, ctx)
     if dbuf then
@@ -2214,6 +2573,9 @@ function M.capture(tpl_or_key, opts)
       run_hook(tpl.after_finalize, dbuf, dline)
     end
     return dbuf, dline
+  end
+  if tpl.unnarrowed then
+    return open_unnarrowed(tpl, expanded, ctx)
   end
   return open_buffer(tpl, expanded, ctx)
 end

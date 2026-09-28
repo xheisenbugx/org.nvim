@@ -603,3 +603,201 @@ describe("capture buffer", function()
     eq({ "before:* Hooked", "after" }, calls)
   end)
 end)
+
+describe("unnarrowed capture (:unnarrowed)", function()
+  before_each(function()
+    base_setup()
+    vim.cmd("silent! only!")
+  end)
+  after_each(function()
+    for buf in pairs(capture.sessions) do
+      capture.kill(buf)
+    end
+  end)
+
+  it("edits the text in the target buffer and finalizes in place", function()
+    local p = tmpfile({ "* Inbox", "* Other" })
+    local tb = utils.load_buffer(p)
+    local calls = {}
+    local tpl = {
+      template = "* TODO %?\n  body",
+      target = p,
+      headline = "Inbox",
+      unnarrowed = true,
+      hook = function(b)
+        calls[#calls + 1] = b
+      end,
+    }
+    local buf, win = run(capture.capture, tpl)
+    eq(tb, buf)
+    ok(capture.sessions[tb].unnarrowed)
+    eq({ tb }, calls)
+    eq(tb, vim.api.nvim_win_get_buf(win))
+    -- the whole target is visible and already holds the text
+    eq({ "* Inbox", "** TODO ", "  body", "* Other" }, buf_lines(tb))
+    eq(2, vim.api.nvim_win_get_cursor(win)[1])
+    vim.api.nvim_buf_set_text(tb, 1, 8, 1, 8, { "Write tests" })
+    run(capture.finalize, tb, { jump = false })
+    eq(nil, capture.sessions[tb])
+    ok(vim.api.nvim_buf_is_valid(tb))
+    eq(false, vim.api.nvim_win_is_valid(win))
+    eq({ "* Inbox", "** TODO Write tests", "  body", "* Other" }, utils.readfile(p))
+    eq(false, vim.bo[tb].modified)
+    -- the target's own keys are back
+    eq(
+      "org: Show all branches of subtree",
+      vim.api.nvim_buf_call(tb, function()
+        return vim.fn.maparg("<C-c><C-k>", "n", false, true).desc
+      end)
+    )
+  end)
+
+  it("aborts by removing exactly the captured lines and keeps unrelated edits", function()
+    local p = tmpfile({ "* Inbox", "text", "* Other" })
+    local tb = utils.load_buffer(p)
+    run(capture.capture, { template = "* Note", target = p, headline = "New", unnarrowed = true, empty_lines = 1 })
+    eq({ "* Inbox", "text", "* Other", "* New", "", "** Note", "" }, buf_lines(tb))
+    -- the user edits the capture and, elsewhere, the rest of the file
+    vim.api.nvim_buf_set_lines(tb, 5, 6, false, { "** Note edited", "more captured text" })
+    vim.api.nvim_buf_set_lines(tb, 1, 2, false, { "changed text" })
+    vim.api.nvim_buf_set_lines(tb, -1, -1, false, { "* Later unsaved work" })
+    capture.kill(tb)
+    eq(nil, capture.sessions[tb])
+    eq({ "* Inbox", "changed text", "* Other", "* Later unsaved work" }, buf_lines(tb))
+    eq({ "* Inbox", "text", "* Other" }, utils.readfile(p))
+  end)
+
+  it("restores the target's own mappings and calls them outside the capture window", function()
+    local p = tmpfile({ "* Inbox" })
+    local tb = utils.load_buffer(p)
+    local hits = 0
+    vim.keymap.set("n", "<C-c><C-k>", function()
+      hits = hits + 1
+    end, { buffer = tb, desc = "mine" })
+    local _, win = run(capture.capture, { template = "* X", target = p, unnarrowed = true })
+    local map = vim.api.nvim_buf_call(tb, function()
+      return vim.fn.maparg("<C-c><C-k>", "n", false, true)
+    end)
+    eq("org: abort capture", map.desc)
+    -- another window showing the target: the buffer's own mapping
+    vim.cmd("split")
+    vim.api.nvim_win_set_buf(0, tb)
+    ok(vim.api.nvim_get_current_win() ~= win)
+    map.callback()
+    eq(1, hits)
+    ok(capture.sessions[tb])
+    -- the capture window: abort
+    vim.api.nvim_set_current_win(win)
+    map.callback()
+    eq(nil, capture.sessions[tb])
+    eq({ "* Inbox" }, buf_lines(tb))
+    eq(
+      "mine",
+      vim.api.nvim_buf_call(tb, function()
+        return vim.fn.maparg("<C-c><C-k>", "n", false, true).desc
+      end)
+    )
+    vim.keymap.del("n", "<C-c><C-k>", { buffer = tb })
+  end)
+
+  it("refiles the captured entry", function()
+    local p = tmpfile({ "* Inbox" })
+    local dest = tmpfile({ "* Projects" })
+    local tb = utils.load_buffer(p)
+    run(capture.capture, {
+      template = "* Moved",
+      target = p,
+      unnarrowed = true,
+      refile_targets = { { files = dest, level = 1 } },
+    })
+    eq({ "* Inbox", "* Moved" }, buf_lines(tb))
+    local restore = answer({ 1 })
+    run(capture.refile, tb)
+    restore()
+    eq({ "* Inbox" }, file_lines(p))
+    eq({ "* Projects", "** Moved" }, file_lines(dest))
+  end)
+
+  it("ends the capture keeping the text when its window is closed", function()
+    local p = tmpfile({ "* Inbox" })
+    local tb = utils.load_buffer(p)
+    local _, win = run(capture.capture, { template = "* Kept", target = p, unnarrowed = true })
+    vim.api.nvim_win_close(win, true)
+    eq(nil, capture.sessions[tb])
+    eq({ "* Inbox", "* Kept" }, buf_lines(tb))
+    eq(
+      "org: Context action (C-c C-c)",
+      vim.api.nvim_buf_call(tb, function()
+        return vim.fn.maparg("<C-c><C-c>", "n", false, true).desc
+      end)
+    )
+  end)
+
+  it("keeps the capture open while its text is empty and places items and table lines", function()
+    local p = tmpfile({ "* A", "- one" })
+    local tb = utils.load_buffer(p)
+    run(capture.capture, { type = "item", template = "- %?", target = p, headline = "A", unnarrowed = true })
+    eq({ "* A", "- one", "- " }, buf_lines(tb))
+    vim.api.nvim_buf_set_text(tb, 2, 0, 2, 2, { "" })
+    eq(nil, (run(capture.finalize, tb, { jump = false })))
+    ok(capture.sessions[tb])
+    vim.api.nvim_buf_set_text(tb, 2, 0, 2, 0, { "- two" })
+    run(capture.finalize, tb, { jump = false })
+    eq({ "* A", "- one", "- two" }, utils.readfile(p))
+    local p2 = tmpfile({ "* T", "| a | b |", "|---+---|" })
+    local tb2 = utils.load_buffer(p2)
+    local row = { type = "table-line", template = "| %? | y |", target = p2, headline = "T", unnarrowed = true }
+    run(capture.capture, row)
+    vim.api.nvim_buf_set_text(tb2, 3, 2, 3, 2, { "long" })
+    run(capture.finalize, tb2, { jump = false })
+    eq({ "* T", "| a    | b |", "|------+---|", "| long | y |" }, utils.readfile(p2))
+  end)
+end)
+
+describe("capture and extend_today_until", function()
+  before_each(function()
+    base_setup()
+  end)
+
+  it("dates captures before extend_today_until o'clock on the previous day at 23:59", function()
+    -- 24: every hour of the day still belongs to yesterday
+    base_setup({ extend_today_until = 24 })
+    local y = date.now():add(-1, "d"):clone({ hour = 23, min = 59 })
+    local ymd = string.format("%04d-%02d-%02d", y.year, y.month, y.day)
+    local text = run(capture.expand, "%T %U %t %<%Y-%m-%d %H:%M>", {})
+    local expected = {
+      y:clone({ active = true }):to_string(),
+      y:clone({ active = false }):to_string(),
+      y:clone({ active = true, hour = vim.NIL, min = vim.NIL }):to_string(),
+      ymd .. " 23:59",
+    }
+    eq(table.concat(expected, " "), text)
+    -- the date tree uses the same day (org-today)
+    local p = tmpfile({})
+    run(capture.capture, { target = p, datetree = true, template = "* J", immediate_finish = true })
+    ok(vim.tbl_contains(file_lines(p), "*** " .. ymd .. " " .. date.DAY_NAMES_LONG[y:weekday()]))
+  end)
+
+  it("takes a capture date without a time at extend_today_until o'clock", function()
+    base_setup({ extend_today_until = 4 })
+    eq("<2026-09-20 Sun 04:00>", run(capture.expand, "%T", { date = date.parse("<2026-09-20 Sun>") }))
+    eq("<2026-09-19 Sat 23:59>", run(capture.expand, "%T", { date = date.parse("<2026-09-20 Sun 03:00>") }))
+    eq("<2026-09-20 Sun 12:00>", run(capture.expand, "%T", { date = date.parse("<2026-09-20 Sun 12:00>") }))
+  end)
+
+  it("uses the time prompt's date at 00:00, or now for today", function()
+    local p = tmpfile({})
+    local orig = require("org.calendar").pick
+    require("org.calendar").pick = function()
+      return date.parse("<2025-01-02 Thu>")
+    end
+    run(capture.capture, { target = p, time_prompt = true, template = "* %T", immediate_finish = true })
+    require("org.calendar").pick = function()
+      return date.today()
+    end
+    local now = date.now()
+    run(capture.capture, { target = p, time_prompt = true, template = "* %U", immediate_finish = true })
+    require("org.calendar").pick = orig
+    eq({ "* <2025-01-02 Thu 00:00>", "* " .. now:clone({ active = false }):to_string() }, file_lines(p))
+  end)
+end)
