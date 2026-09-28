@@ -22,10 +22,10 @@ local M = {}
 ---@field lnum integer
 ---@field end_lnum integer last line of the item, children included (trailing blanks excluded)
 ---@field indent integer
----@field bullet string "-", "+", "*", "1." or "1)"
+---@field bullet string "-", "+", "*", "1.", "1)", or "a.", "A)"... (lists.allow_alphabetical)
 ---@field bullet_ws string the bullet with the whitespace after it
 ---@field is_ordered boolean
----@field counter integer|nil value of a [@N] counter
+---@field counter string|nil value of a [@N] or [@c] counter
 ---@field checkbox string|nil " ", "X" or "-"
 ---@field tag string|nil description list term
 ---@field text string text after bullet/counter/checkbox
@@ -57,24 +57,61 @@ local function first_nonblank(line)
   return b and j or nil
 end
 
+--- Plain list option `name` (config `lists`), falling back to its default.
+function M.opt(name)
+  local config = require("org.config")
+  local l = config.opts.lists
+  local v = l and l[name]
+  if v == nil then
+    v = config.defaults.lists[name]
+  end
+  return v
+end
+local lopt = M.opt
+
+--- Whether byte `b` is an ASCII letter.
+local function letter(b)
+  return b ~= nil and ((b >= 65 and b <= 90) or (b >= 97 and b <= 122))
+end
+
+--- Lua pattern of the ordered bullet terminator
+--- (org-plain-list-ordered-item-terminator).
+local function term_pattern()
+  local t = lopt("ordered_item_terminator")
+  if t == "." then
+    return "%."
+  elseif t == ")" then
+    return "%)"
+  end
+  return "[.)]"
+end
+
 --- Parse a single line as an item. Returns nil for non-items.
 function M.parse_item_line(line)
   -- most lines aren't items: look at the first character before matching
   -- (byte tests keep loops over large files compiled by LuaJIT)
   local j = first_nonblank(line)
   local b = j and line:byte(j)
+  local alpha = false
   if not (b == 45 or b == 43 or b == 42 or (b and b >= 48 and b <= 57)) then
-    return nil
+    if not (letter(b) and lopt("allow_alphabetical")) then
+      return nil
+    end
+    alpha = true
   end
-  local ind, bullet, gap, rest = line:match("^(%s*)([%-+*])(%s+)(.*)$")
-  if not ind then
-    ind, bullet = line:match("^(%s*)([%-+*])$")
-    gap, rest = "", ""
-  end
-  if not ind then
-    ind, bullet, gap, rest = line:match("^(%s*)(%d+[.)])(%s+)(.*)$")
+  local ind, bullet, gap, rest
+  if not alpha then
+    ind, bullet, gap, rest = line:match("^(%s*)([%-+*])(%s+)(.*)$")
     if not ind then
-      ind, bullet = line:match("^(%s*)(%d+[.)])$")
+      ind, bullet = line:match("^(%s*)([%-+*])$")
+      gap, rest = "", ""
+    end
+  end
+  if not ind then
+    local num = (alpha and "%a" or "%d+") .. term_pattern()
+    ind, bullet, gap, rest = line:match("^(%s*)(" .. num .. ")(%s+)(.*)$")
+    if not ind then
+      ind, bullet = line:match("^(%s*)(" .. num .. ")$")
       gap, rest = "", ""
     end
   end
@@ -93,12 +130,20 @@ function M.parse_item_line(line)
     indent = #ind,
     bullet = bullet,
     bullet_ws = bullet .. gap,
-    is_ordered = bullet:match("^%d") ~= nil,
+    is_ordered = bullet:match("^%w") ~= nil,
   }
   local col = #ind + #bullet + #gap
-  local counter, after = rest:match("^%[@(%d+)%]%s*(.*)$")
+  -- [@N], [@start:N] or [@c] (org-list-full-item-re)
+  local body = rest:match("^%[@start:([^%]]*%].*)$") or rest:match("^%[@([^%]]*%].*)$")
+  local counter, after
+  if body then
+    counter, after = body:match("^(%d+)%][ \t]*(.*)$")
+    if not counter then
+      counter, after = body:match("^(%a)%][ \t]*(.*)$")
+    end
+  end
   if counter then
-    item.counter = tonumber(counter)
+    item.counter = counter
     col = col + (#rest - #after)
     rest = after
   end
@@ -471,47 +516,134 @@ local function new_prev(struct, it)
   end
 end
 
---- Bullet with exactly one space after it (org-list-bullet-string).
-local function bullet_string(b)
-  local core = b:match("^(%S+)")
-  return core and (core .. " ") or b
+local two_spaces_cache = {}
+
+--- Whether `bullet` matches lists.two_spaces_after_bullet_regexp.
+local function two_spaces_p(bullet)
+  local re = lopt("two_spaces_after_bullet_regexp")
+  if not re or re == "" then
+    return false
+  end
+  local rx = two_spaces_cache[re]
+  if rx == nil then
+    local ok, r = pcall(vim.regex, require("org.agenda.search").emacs_regexp(re))
+    rx = ok and r or false
+    two_spaces_cache[re] = rx
+  end
+  return rx and rx:match_str(bullet) ~= nil or false
 end
 
---- org-list-inc-bullet-maybe.
+--- Bullet followed by one space, or two when it matches
+--- lists.two_spaces_after_bullet_regexp (org-list-bullet-string).
+local function bullet_string(b)
+  local core = b:match("^(%S+)")
+  if not core then
+    return b
+  end
+  return core .. (two_spaces_p(b) and "  " or " ")
+end
+M.bullet_string = bullet_string
+
+--- org-list-inc-bullet-maybe: "1." -> "2.", "a)" -> "b)".
 local function inc_bullet(b)
   local n = b:match("%d+")
   if n then
     return (b:gsub("%d+", tostring(tonumber(n) + 1), 1))
   end
+  local c = b:match("%a")
+  if c then
+    return (b:gsub("%a", string.char(c:byte() + 1), 1))
+  end
   return b
+end
+
+--- Siblings of `first` under the new parents, from `first` on.
+local function new_siblings_from(struct, first)
+  local out = {}
+  for i = first.idx, #struct.items do
+    local it = struct.items[i]
+    if it.par == first.par then
+      out[#out + 1] = it
+    end
+  end
+  return out
+end
+
+--- org-list-use-alpha-bul-p: whether the list starting at `first` can
+--- have alphabetical bullets (lists.allow_alphabetical, at most 26 items,
+--- counters included).
+local function use_alpha(struct, first)
+  if not lopt("allow_alphabetical") then
+    return false
+  end
+  local ascii = 64
+  for _, it in ipairs(new_siblings_from(struct, first)) do
+    local c = it.counter
+    if c and c:match("%a") then
+      ascii = c:upper():byte()
+    else
+      ascii = ascii + 1
+    end
+    if ascii > 90 then
+      return false
+    end
+  end
+  return true
+end
+
+--- The counter's letter in the case of the letter in `bul`.
+local function alpha_count(counter, bul)
+  if bul:match("%l") then
+    return counter:lower()
+  end
+  return counter:upper()
 end
 
 --- org-list-struct-fix-bul.
 local function fix_bul(struct)
   for _, it in ipairs(struct.items) do
     local prev = new_prev(struct, it)
+    local prev_bul = prev and prev.bul
+    local counter = it.counter
+    local bullet = it.bul
+    local alphap = not prev and use_alpha(struct, it)
     local b
-    if prev and it.counter and prev.bul:match("%d+") then
-      b = prev.bul:gsub("%d+", tostring(it.counter), 1)
+    if prev and counter and counter:match("%a") and prev_bul:match("%a") then
+      -- alpha counter in an alpha list
+      b = prev_bul:gsub("%a", alpha_count(counter, prev_bul), 1)
+    elseif prev and counter and counter:match("%d+") and prev_bul:match("%d+") then
+      -- numeric counter in a numbered list
+      b = prev_bul:gsub("%d+", counter, 1)
     elseif prev then
-      b = inc_bullet(prev.bul)
-    elseif it.counter and it.bul:match("%d+") then
-      b = it.bul:gsub("%d+", tostring(it.counter), 1)
-    elseif it.bul:match("%d+") then
-      b = it.bul:gsub("%d+", "1", 1)
+      b = inc_bullet(prev_bul)
+    elseif counter and use_alpha(struct, it) and counter:match("%a") and bullet:match("%a") then
+      b = bullet:gsub("%a", alpha_count(counter, bullet), 1)
+    elseif counter and counter:match("%d+") and bullet:match("%d+") then
+      b = bullet:gsub("%d+", counter, 1)
+    elseif alphap and bullet:match("%u") then
+      b = bullet:gsub("%u", "A", 1)
+    elseif alphap and bullet:match("%l") then
+      b = bullet:gsub("%l", "a", 1)
+    elseif bullet:match("^%d") then
+      b = bullet:gsub("%d+", "1", 1)
+    elseif bullet:match("^%a") then
+      -- more than 26 items: back to numbers
+      b = bullet:gsub("%a", "1", 1)
     else
-      b = it.bul
+      b = bullet
     end
     it.bul = bullet_string(b)
   end
 end
 
---- org-list-struct-fix-ind.
+--- org-list-struct-fix-ind: items align with their parent's text, plus
+--- lists.indent_offset.
 local function fix_ind(struct)
   local top_ind = struct.items[1].ind
+  local offset = lopt("indent_offset") or 0
   for _, it in ipairs(struct.items) do
     if it.par then
-      it.ind = it.par.ind + #it.par.bul
+      it.ind = it.par.ind + #it.par.bul + offset
     else
       it.ind = top_ind
     end
@@ -792,11 +924,16 @@ function M.todo_counts(file, hl)
   return done, total
 end
 
+--- Whether checkbox cookies of the entry with COOKIE_DATA `cookie_data`
+--- count every box below them (org-checkbox-hierarchical-statistics).
+local function checkbox_recursive(cookie_data)
+  return cookie_data:find("recursive") ~= nil or lopt("checkbox_hierarchical_statistics") == false
+end
+
 --- Counts for a headline cookie.
 local function headline_counts(file, hl)
   local cookie_data = (hl.properties.COOKIE_DATA or ""):lower()
-  local cfg = require("org.config").opts
-  local recursive = cookie_data:find("recursive") ~= nil or cfg.hierarchical_todo_statistics == false
+  local recursive = checkbox_recursive(cookie_data)
   local mode
   if cookie_data:find("todo") then
     mode = "todo"
@@ -831,10 +968,15 @@ local function update_section(bufnr, file, hl, from, to)
   local lines = file.lines
   local changes = {}
   local _, all = M.parse_region(lines, from, to)
-  for _, it in ipairs(all) do
-    if has_cookie(lines[it.lnum]) then
-      local d, t = count_checkboxes(it.children, false)
-      changes[it.lnum] = replace_cookies(lines[it.lnum], d, t)
+  local cookie_data = (hl and hl.properties.COOKIE_DATA or ""):lower()
+  -- COOKIE_DATA "todo": the entry's cookies count TODO children only
+  if not cookie_data:find("todo") then
+    local recursive = checkbox_recursive(cookie_data)
+    for _, it in ipairs(all) do
+      if has_cookie(lines[it.lnum]) then
+        local d, t = count_checkboxes(it.children, recursive)
+        changes[it.lnum] = replace_cookies(lines[it.lnum], d, t)
+      end
     end
   end
   if hl and has_cookie(lines[hl.line]) then
@@ -993,7 +1135,7 @@ function M.toggle_radio_button(arg)
     end
   end
   write_struct(struct, ordered_p(bufnr, lnum))
-  M.update_statistics_for(bufnr, lnum)
+  M.update_checkbox_count_maybe(bufnr, lnum)
 end
 
 --- Toggle org-list-checkbox-radio-mode in the current buffer: C-c C-c on
@@ -1007,7 +1149,62 @@ function M.checkbox_radio_mode()
   local on = not vim.b.org_checkbox_radio_mode
   vim.b.org_checkbox_radio_mode = on
   utils.notify("Org-List-Checkbox-Radio mode " .. (on and "enabled" or "disabled") .. " in current buffer")
+  -- org-list-checkbox-radio-mode-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgListCheckboxRadioMode",
+    data = { enabled = on, bufnr = vim.api.nvim_get_current_buf() },
+    modeline = false,
+  })
   return on
+end
+
+--- org-reset-checkbox-state-subtree: uncheck every checkbox of the
+--- subtree at the cursor (`[X]` and `[-]` become `[ ]`), show the
+--- subtree and update its statistics cookies.
+function M.reset_checkbox_state_subtree()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local file = files.get_buffer(bufnr)
+  local hl = file:headline_at(cursor_lnum())
+  if not hl then
+    utils.error("Not inside a tree")
+    return
+  end
+  local s, e = hl.line, hl.end_line
+  local verbatim = verbatim_lines(file.lines, s, e)
+  for l = s, e do
+    local line = file.lines[l]
+    local it = not verbatim[l] and M.parse_item_line(line)
+    if it and it.checkbox and it.checkbox ~= " " then
+      -- the box must be followed by whitespace (org-at-item-checkbox-p)
+      local p = it.indent + #it.bullet_ws
+      local q = p + #(line:sub(p + 1):match("^%[@[^%]]*%][ \t]*") or "")
+      if line:sub(q + 1, q + 3):match("^%[[xX%-]%]$") and line:sub(q + 4, q + 4):match("^[ \t]$") then
+        set_lines(bufnr, l, l, { line:sub(1, q) .. "[ ]" .. line:sub(q + 4) })
+      end
+    end
+  end
+  if vim.api.nvim_get_current_buf() == bufnr then
+    pcall(vim.cmd, s .. "," .. e .. "foldopen!")
+  end
+  if M.automatic_rule("checkbox") then
+    file = files.get_buffer(bufnr)
+    local hls = {}
+    for _, h in ipairs(file.headlines) do
+      if h.line >= s and h.line <= e then
+        hls[#hls + 1] = { line = h.line, level = h.level }
+      end
+    end
+    table.sort(hls, function(a, b)
+      return a.level > b.level
+    end)
+    for _, x in ipairs(hls) do
+      file = files.get_buffer(bufnr)
+      local h = file:headline_on(x.line)
+      if h then
+        update_section(bufnr, file, h, h.line + 1, h.body_end)
+      end
+    end
+  end
 end
 
 --- C-c C-c on an item (org-ctrl-c-ctrl-c): toggle its checkbox and
@@ -1047,7 +1244,7 @@ function M.ctrl_c_ctrl_c_item(item, arg)
     return
   end
   apply_struct(struct)
-  M.update_statistics_for(bufnr, item.lnum)
+  M.update_checkbox_count_maybe(bufnr, item.lnum)
   if block then
     utils.notify(string.format("Checkboxes were removed due to empty box at line %d", block.lnum))
   end
@@ -1117,7 +1314,7 @@ local function toggle_checkbox_range(bufnr, s, e, arg, singlep)
     end
     lnum = next_lnum
   end
-  M.update_statistics_for(bufnr, s)
+  M.update_checkbox_count_maybe(bufnr, s)
   return true
 end
 
@@ -1315,8 +1512,41 @@ function M.new_item(opts)
   end
   vim.api.nvim_win_set_cursor(0, { new_lnum, math.min(col, #final) })
   if opts.checkbox then
-    M.update_statistics_for(bufnr, new_lnum)
+    M.update_checkbox_count_maybe(bufnr, new_lnum)
   end
+end
+
+--- Whether the automatic list rule `name` ("checkbox" or "indent") is
+--- on (org-list-automatic-rules).
+function M.automatic_rule(name)
+  local rules = lopt("automatic_rules") or {}
+  return rules[name] ~= false
+end
+
+--- Update checkbox statistics after a list change when the `checkbox`
+--- automatic rule is on (org-update-checkbox-count-maybe).
+function M.update_checkbox_count_maybe(bufnr, lnum)
+  if M.automatic_rule("checkbox") then
+    M.update_statistics_for(bufnr, lnum)
+  end
+end
+
+--- The key of a bullet in lists.demote_modify_bullet ("-", "1.", "a)"...).
+local function demote_kind(b)
+  if b:match("^%u%.") then
+    return "A."
+  elseif b:match("^%u%)") then
+    return "A)"
+  elseif b:match("^%l%.") then
+    return "a."
+  elseif b:match("^%l%)") then
+    return "a)"
+  elseif b:match("^%d+%.") then
+    return "1."
+  elseif b:match("^%d+%)") then
+    return "1)"
+  end
+  return vim.trim(b)
 end
 
 --- Indent (delta > 0) or outdent (delta < 0) list items
@@ -1347,7 +1577,7 @@ function M.indent_item(delta, with_children, range)
   end
   return protected(function()
     local top = struct.items[1]
-    local specialp = not range and item == top
+    local specialp = not range and item == top and M.automatic_rule("indent")
     if specialp and not with_children then
       user_error("At first item: use S-M-<left/right> to move the whole list")
     end
@@ -1425,6 +1655,12 @@ function M.indent_item(delta, with_children, range)
               prev = sibs[i - 1]
             end
           end
+          -- lists.demote_modify_bullet
+          local kind = demote_kind(it.bul)
+          local to = (lopt("demote_modify_bullet") or {})[kind]
+          if to then
+            it.bul = bullet_string(to)
+          end
           if not prev and (not parent or parent.lnum < zs) then
             user_error("Cannot indent the first item of a list")
           elseif not prev then
@@ -1440,7 +1676,7 @@ function M.indent_item(delta, with_children, range)
       end
     end
     write_struct(struct, ordered_p(bufnr, lnum))
-    M.update_statistics_for(bufnr, lnum)
+    M.update_checkbox_count_maybe(bufnr, lnum)
     return true
   end)
 end
@@ -1448,6 +1684,45 @@ end
 --- Indentation step of the whole-list move (org-level-increment).
 function M.level_increment()
   return require("org.structure").odd_levels_only() and 2 or 1
+end
+
+--- With lists.use_circular_motion, moving the last item down sends it to
+--- the beginning of its list, and the first item up to the end
+--- (org-list-send-item). The blank lines separating items are kept.
+local function send_item_around(bufnr, item, sibs, dir)
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local offset = cursor_lnum() - item.lnum
+  local body = get_lines(bufnr, item.lnum, item.end_lnum)
+  local first, last = sibs[1], sibs[#sibs]
+  local new_lnum
+  if dir > 0 then
+    -- last item: remove it with the blank lines before it
+    local prev = sibs[#sibs - 1]
+    local nblank = item.lnum - prev.end_lnum - 1
+    set_lines(bufnr, prev.end_lnum + 1, item.end_lnum, {})
+    local ins = vim.deepcopy(body)
+    for _ = 1, nblank do
+      ins[#ins + 1] = ""
+    end
+    set_lines(bufnr, first.lnum, first.lnum - 1, ins)
+    new_lnum = first.lnum
+  else
+    -- first item: remove it with the blank lines after it
+    local nxt = sibs[2]
+    local nblank = nxt.lnum - item.end_lnum - 1
+    local removed = nxt.lnum - item.lnum
+    set_lines(bufnr, item.lnum, nxt.lnum - 1, {})
+    local ins = {}
+    for _ = 1, nblank do
+      ins[#ins + 1] = ""
+    end
+    vim.list_extend(ins, body)
+    local after = last.end_lnum - removed
+    set_lines(bufnr, after + 1, after, ins)
+    new_lnum = after + 1 + nblank
+  end
+  vim.api.nvim_win_set_cursor(0, { new_lnum + offset, col })
+  M.repair(bufnr, new_lnum)
 end
 
 --- Move the item (with children) up (-1) or down (1) among its siblings.
@@ -1466,6 +1741,12 @@ function M.move_item(dir)
     end
   end
   local other = sibs[idx + dir]
+  if not other and lopt("use_circular_motion") then
+    if #sibs > 1 then
+      send_item_around(bufnr, item, sibs, dir)
+    end
+    return
+  end
   if not other then
     utils.warn("Cannot move this item further " .. (dir < 0 and "up" or "down"))
     return
@@ -1492,14 +1773,16 @@ function M.move_item(dir)
 end
 
 --- Move to the next (dir = 1) or previous (dir = -1) item of the same
---- list level (org-next-item / org-previous-item). Returns false when
---- not on a list item.
+--- list level (org-next-item / org-previous-item). With
+--- lists.use_circular_motion, the last item is followed by the first.
+--- Returns false when not on a list item.
 function M.goto_sibling_item(dir)
   local bufnr = vim.api.nvim_get_current_buf()
   local item = M.item_at(bufnr, cursor_lnum())
   if not item then
     return false
   end
+  local circular = lopt("use_circular_motion")
   local target = item
   for _ = 1, math.max(vim.v.count, 1) do
     local sibs = M.siblings(target)
@@ -1509,16 +1792,94 @@ function M.goto_sibling_item(dir)
         idx = i
       end
     end
-    if not sibs[idx + dir] then
+    local nxt = sibs[idx + dir]
+    if not nxt and circular then
+      nxt = dir > 0 and sibs[1] or sibs[#sibs]
+    end
+    if not nxt then
       break
     end
-    target = sibs[idx + dir]
+    target = nxt
   end
-  if target == item then
+  if target == item and not circular then
     utils.warn(dir > 0 and "On last item" or "On first item")
     return
   end
   vim.api.nvim_win_set_cursor(0, { target.lnum, target.indent })
+end
+
+--- Line where `item` ends (org-list-get-item-end): the next item of its
+--- list structure after the blank lines following it, or the line after
+--- its last line.
+local function item_end_line(bufnr, item)
+  local struct = M.struct_at(bufnr, item.lnum)
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  local l = item.end_lnum + 1
+  while l <= n and l <= struct.last and is_blank(get_lines(bufnr, l, l)[1]) do
+    l = l + 1
+  end
+  if l <= struct.last then
+    return l
+  end
+  return item.end_lnum + 1
+end
+
+--- Put the cursor at the start of line `lnum`, or at the end of the
+--- buffer past its last line.
+local function goto_line_start(bufnr, lnum)
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  if lnum > n then
+    local last = get_lines(bufnr, n, n)[1]
+    vim.api.nvim_win_set_cursor(0, { n, math.max(0, #last) })
+  else
+    vim.api.nvim_win_set_cursor(0, { lnum, 0 })
+  end
+end
+
+--- The item containing the cursor, or an error "Not in an item".
+local function current_item(bufnr)
+  local item = M.item_at(bufnr, cursor_lnum())
+  if not item then
+    utils.error("Not in an item")
+  end
+  return item
+end
+
+--- org-beginning-of-item: the start of the item containing the cursor.
+function M.beginning_of_item()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item = current_item(bufnr)
+  if item then
+    goto_line_start(bufnr, item.lnum)
+  end
+end
+
+--- org-end-of-item: the end of the item containing the cursor.
+function M.end_of_item()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item = current_item(bufnr)
+  if item then
+    goto_line_start(bufnr, item_end_line(bufnr, item))
+  end
+end
+
+--- org-beginning-of-item-list: the first item of the current (sub-)list.
+function M.beginning_of_item_list()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item = current_item(bufnr)
+  if item then
+    goto_line_start(bufnr, M.siblings(item)[1].lnum)
+  end
+end
+
+--- org-end-of-item-list: the end of the current (sub-)list.
+function M.end_of_item_list()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item = current_item(bufnr)
+  if item then
+    local sibs = M.siblings(item)
+    goto_line_start(bufnr, item_end_line(bufnr, sibs[#sibs]))
+  end
 end
 
 --- On an empty item (only a bullet, maybe a checkbox), cycle its
@@ -1615,40 +1976,82 @@ function M.prev_item()
   return M.goto_sibling_item(-1)
 end
 
-local BULLETS = { "-", "+", "*", "1.", "1)" }
-
---- Cycle the bullet type of the list at cursor.
+--- Cycle the bullet type of the list at cursor (org-cycle-list-bullet)
+--- through `-`, `+`, `*` (not at column 0), `1.`, `1)` and, with
+--- lists.allow_alphabetical and at most 26 items, `a.`, `A.`, `a)`,
+--- `A)`. `dir` is 1 (next), -1
+--- (previous), a bullet string or a 0-based index into the sequence.
 function M.cycle_bullet(dir)
   dir = dir or 1
   local bufnr = vim.api.nvim_get_current_buf()
   local lnum = cursor_lnum()
-  local item = M.item_at(bufnr, lnum)
-  if not item then
+  local struct, item = M.struct_at(bufnr, lnum)
+  if not struct then
     return false
   end
-  local cur = item.is_ordered and ("1" .. item.bullet:sub(-1)) or item.bullet
-  local idx = 1
-  for i, b in ipairs(BULLETS) do
-    if b == cur then
-      idx = i
-    end
+  local first = M.siblings(item)[1]
+  local bullet = first.bullet
+  local alpha = use_alpha(struct, first)
+  local current
+  if bullet:match("^%l%.") then
+    current = "a."
+  elseif bullet:match("^%l%)") then
+    current = "a)"
+  elseif bullet:match("^%u%.") then
+    current = "A."
+  elseif bullet:match("^%u%)") then
+    current = "A)"
+  elseif bullet:match("%.") then
+    current = "1."
+  elseif bullet:match("%)") then
+    current = "1)"
+  else
+    current = bullet
   end
-  local nxt
-  for step = 1, #BULLETS do
-    local cand = BULLETS[((idx - 1 + dir * step) % #BULLETS) + 1]
-    if not (cand == "*" and item.indent == 0) then
-      nxt = cand
+  local term = lopt("ordered_item_terminator")
+  -- Emacs means to keep description lists unnumbered, but its test
+  -- (org-at-item-description-p) never matches here: they get numbered
+  local desc = false
+  local list = { "-", "+" }
+  if item.indent > 0 then
+    list[#list + 1] = "*"
+  end
+  if not desc and term ~= ")" then
+    list[#list + 1] = "1."
+  end
+  if not desc and term ~= "." then
+    list[#list + 1] = "1)"
+  end
+  if alpha and not desc and term ~= ")" then
+    list[#list + 1] = "a."
+    list[#list + 1] = "A."
+  end
+  if alpha and not desc and term ~= "." then
+    list[#list + 1] = "a)"
+    list[#list + 1] = "A)"
+  end
+  local n = #list
+  local idx = n -- `current` not in the list: as if after the last one
+  for i, b in ipairs(list) do
+    if b == current then
+      idx = i - 1
       break
     end
   end
-  local struct = M.struct_at(bufnr, lnum)
-  local first = M.siblings(item)[1]
-  for _, it in ipairs(struct.items) do
-    if it.lnum == first.lnum then
-      it.bul = nxt .. " "
-    end
+  local new
+  if type(dir) == "string" and vim.tbl_contains(list, dir) then
+    new = dir
+  elseif type(dir) == "string" then
+    new = list[(idx + 1) % n + 1]
+  elseif dir == 1 or dir == -1 then
+    new = list[(idx + dir) % n + 1]
+  else
+    new = list[dir % n + 1]
   end
-  write_struct(struct, ordered_p(bufnr, lnum))
+  first.bul = bullet_string(new)
+  fix_bul(struct)
+  fix_ind(struct)
+  apply_struct(struct)
 end
 
 --- Shift non-blank, non-headline lines of [s, e] so that the least

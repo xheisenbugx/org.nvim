@@ -348,6 +348,9 @@ function M.compute(bufnr, first, last, ui)
         if not pre then
           pre, box = line:match("^(%s*%d+[.)]%s+)(%[[ xX%-]%])")
         end
+        if not pre and line:match("^%s*%a[.)]") and require("org.lists").opt("allow_alphabetical") then
+          pre, box = line:match("^(%s*%a[.)]%s+)(%[[ xX%-]%])")
+        end
         if box then
           local state = box:sub(2, 2)
           local icon, grp

@@ -466,6 +466,12 @@ Unordered bullets are `-`, `+` and indented `*`. Ordered bullets are `1.` and
 `1)`. `[@N]` sets a counter. Description items look like `- term :: text`.
 Checkboxes are `[ ]`, `[-]` (partial) and `[X]`. Lines inside example,
 src, export and verse blocks are never items (org-list-forbidden-blocks).
+With `lists.allow_alphabetical`, `a.`, `A.`, `a)` and `A)` are ordered
+bullets too and `[@c]` a counter; like Emacs, a list of more than 26 items
+is numbered instead. `lists.ordered_item_terminator` ("." or ")") keeps
+only one kind of ordered bullet. The other `lists` options (|org-config|)
+set the bullet a demoted item gets, two spaces after some bullets, extra
+sub-list indentation, circular item motion and the automatic rules.
 
 <C-c><C-c>      On the first line of an item: toggle its checkbox and repair
                 the list (numbers, bullets, sub-list indentation, parent
@@ -495,6 +501,13 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 <C-c>-          (ctx) On an item: cycle the bullet style; elsewhere toggle
                 items (|org-structure|).
 <prefix>hb      Cycle the bullet style.
+:Org beginning_of_item / end_of_item    Go to the start / end of the item
+                (org-beginning-of-item, org-end-of-item; unbound, as in
+                Emacs).
+:Org beginning_of_item_list / end_of_item_list    Go to the first item /
+                the end of the current (sub-)list.
+:Org reset_checkbox_state_subtree    Uncheck every checkbox of the subtree
+                and update its cookies (org-reset-checkbox-state-subtree).
 <prefix>#       Update the statistics cookies of the current entry
 <C-c>#          (org-update-statistics-cookies): on a headline with child
                 entries, its TODO cookie; with a count (C-u), every cookie
@@ -502,7 +515,13 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 
 Statistics cookies on a headline count its checkboxes, or its child TODO
 entries when it has no checkboxes. `:COOKIE_DATA: todo|checkbox recursive`
-overrides this.
+overrides this. Checkbox cookies count direct children only; with
+`lists.checkbox_hierarchical_statistics = false` or `COOKIE_DATA:
+recursive` they count every box below them (items too).
+
+Toggling `checkbox_radio_mode` fires the User autocmd
+`OrgListCheckboxRadioMode` (org-list-checkbox-radio-mode-hook), with
+`data = { enabled, bufnr }`.
 
 ==============================================================================
 6. TODO ITEMS AND PRIORITIES                               *org-todo* *org-priority*
@@ -4418,7 +4437,18 @@ Structure and visibility ~
   tempo                     false     `<s` TAB expansion (org-tempo)
   tempo_keywords            { L = "latex", H = "html", A = "ascii",
                               i = "index" }
-  cycle_include_plain_lists true      TAB folds list items
+  cycle_include_plain_lists true      TAB folds list items; "integrate":
+                                      items are children of the headline
+  lists                     { allow_alphabetical = false,
+                              ordered_item_terminator = true ("."|")"),
+                              demote_modify_bullet = {} (e.g.
+                              { ["-"] = "+" }),
+                              two_spaces_after_bullet_regexp = nil,
+                              indent_offset = 0,
+                              automatic_rules = { checkbox = true,
+                                                  indent = true },
+                              use_circular_motion = false,
+                              checkbox_hierarchical_statistics = true }
   cycle_emulate_tab         true      TAB on text: true|"white"|
                                       "whitestart"|"exc-hl-bol"|false
   cycle_separator_lines     2         blank lines kept visible when folded

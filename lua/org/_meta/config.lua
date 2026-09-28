@@ -307,9 +307,12 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
----TAB on a list item folds its children and text.
+---TAB on a list item folds its children and text; `"integrate"` also
+---treats list items as children of their headline when cycling it.
 ---(Emacs `org-cycle-include-plain-lists`, default: `true`)
----@field cycle_include_plain_lists? boolean
+---@field cycle_include_plain_lists? boolean|"integrate"
+---Plain list options (Emacs `org-list-*`).
+---@field lists? org.Config.Lists
 ---Where TAB outside headlines, items, drawers and blocks indents the line:
 ---`true` (everywhere), `"white"`, `"whitestart"`, `"exc-hl-bol"` or `false`
 ---(then it cycles the entry). (Emacs `org-cycle-emulate-tab`, default: `true`)
@@ -441,6 +444,34 @@
 ---@field ui? org.Config.UI
 ---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
 ---@field mappings? org.Config.Mappings
+
+---Plain lists.
+---@class org.Config.Lists
+---Single-letter bullets `a.`, `A)` and counters `[@c]`.
+---(Emacs `org-list-allow-alphabetical`, default: `false`)
+---@field allow_alphabetical? boolean
+---Ordered bullet terminators: `true` (both), `"."` or `")"`.
+---(Emacs `org-plain-list-ordered-item-terminator`, default: `true`)
+---@field ordered_item_terminator? true|"."|")"
+---Bullet given to demoted items, keyed by the old bullet type (`"-"`,
+---`"+"`, `"*"`, `"1."`, `"1)"`, `"a."`, `"A)"`...).
+---(Emacs `org-list-demote-modify-bullet`, default: `{}`)
+---@field demote_modify_bullet? table<string, string>
+---Emacs regexp matching bullets followed by two spaces.
+---(Emacs `org-list-two-spaces-after-bullet-regexp`, default: `nil`)
+---@field two_spaces_after_bullet_regexp? string
+---Extra indentation of sub-lists. (Emacs `org-list-indent-offset`, default: `0`)
+---@field indent_offset? integer
+---`checkbox`: update statistics after checkbox changes; `indent`: the first
+---item moves the whole list and `*` becomes `-` at column 0.
+---(Emacs `org-list-automatic-rules`, default: `{ checkbox = true, indent = true }`)
+---@field automatic_rules? { checkbox?: boolean, indent?: boolean }
+---Item motions and moves wrap around the list.
+---(Emacs `org-list-use-circular-motion`, default: `false`)
+---@field use_circular_motion? boolean
+---Checkbox cookies count direct children only; `false` counts every box.
+---(Emacs `org-checkbox-hierarchical-statistics`, default: `true`)
+---@field checkbox_hierarchical_statistics? boolean
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry

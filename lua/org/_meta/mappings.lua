@@ -53,6 +53,8 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
+---| "beginning_of_item" # Go to the start of the item
+---| "beginning_of_item_list" # Go to the first item of the list
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
@@ -103,6 +105,8 @@
 ---| "drag_element_up" # Drag element up
 ---| "edit_special" # Edit src block / table formulas
 ---| "emphasize" # Emphasize selection / insert markers
+---| "end_of_item" # Go to the end of the item
+---| "end_of_item_list" # Go to the end of the list
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "feed_goto_inbox" # Go to the inbox of a feed
@@ -179,6 +183,7 @@
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
+---| "reset_checkbox_state_subtree" # Uncheck every checkbox of the subtree
 ---| "reveal" # Reveal context around cursor
 ---| "schedule" # Schedule (Visual: all headlines)
 ---| "set_effort" # Set effort

@@ -425,7 +425,8 @@ local function is_tableel_rule(l)
 end
 
 --- Item bullet of a line (org-item-re, alphabetical bullets when allowed).
-local function item_match(l, alpha)
+local function item_match(l, alpha, term)
+  term = term or "[%.%)]"
   local ind, bullet = l:match("^([ \t]*)([%-%+])[ \t]")
   if not ind then
     ind, bullet = l:match("^([ \t]*)([%-%+])$")
@@ -437,15 +438,15 @@ local function item_match(l, alpha)
     end
   end
   if not ind then
-    ind, bullet = l:match("^([ \t]*)(%d+[%.%)])[ \t]")
+    ind, bullet = l:match("^([ \t]*)(%d+" .. term .. ")[ \t]")
     if not ind then
-      ind, bullet = l:match("^([ \t]*)(%d+[%.%)])$")
+      ind, bullet = l:match("^([ \t]*)(%d+" .. term .. ")$")
     end
   end
   if not ind and alpha then
-    ind, bullet = l:match("^([ \t]*)(%a[%.%)])[ \t]")
+    ind, bullet = l:match("^([ \t]*)(%a" .. term .. ")[ \t]")
     if not ind then
-      ind, bullet = l:match("^([ \t]*)(%a[%.%)])$")
+      ind, bullet = l:match("^([ \t]*)(%a" .. term .. ")$")
     end
   end
   if ind then
@@ -510,7 +511,7 @@ P.__index = P
 
 --- Create a parser.
 ---@param opts table { todo = org.TodoConfig, link_types = string[], abbrevs = table, radio = string[],
----  inlinetask_min_level = integer, alpha = boolean, macro = function|nil, visible = function|nil }
+---  inlinetask_min_level = integer, alpha = boolean, term = string|nil, macro = function|nil, visible = function|nil }
 function M.new(opts)
   opts = opts or {}
   local self = setmetatable({ opts = opts }, P)
@@ -690,7 +691,7 @@ function P:paragraph_end(L, i, e)
       end) ~= nil
     elseif is_clock_line(l) then
       sep = true
-    elseif item_match(l, self.opts.alpha) then
+    elseif item_match(l, self.opts.alpha, self.opts.term) then
       sep = true
     end
     if sep then
@@ -885,7 +886,7 @@ function P:element_at(L, i, e, mode, parent, not_bol)
   if is_table_line(l) or self:is_tableel(L, i, e) then
     return self:table(L, i, e, aff)
   end
-  if item_match(l, self.opts.alpha) then
+  if item_match(l, self.opts.alpha, self.opts.term) then
     return self:plain_list(L, i, e, aff)
   end
   return self:paragraph(L, i, e, aff)
@@ -1498,7 +1499,7 @@ function P:list_struct(L, i, e)
       close_all(j - 1)
       break
     end
-    local ind = item_match(l, alpha)
+    local ind = item_match(l, alpha, self.opts.term)
     if ind then
       while #items > 0 and ind <= items[#items].ind do
         local it = table.remove(items)

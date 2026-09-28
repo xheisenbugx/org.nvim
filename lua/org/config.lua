@@ -299,8 +299,35 @@ M.defaults = {
   --- `{ by_length = function(h, lines) return #lines end }`.
   sort_functions = {},
   --- TAB on a list item folds its children and text
-  --- (org-cycle-include-plain-lists).
+  --- (org-cycle-include-plain-lists); "integrate" also treats items as
+  --- children of their headline when cycling it; false never folds items.
   cycle_include_plain_lists = true,
+  --- Plain lists (org-list-*).
+  lists = {
+    --- Single-letter bullets `a.`, `B)` and counters `[@c]`
+    --- (org-list-allow-alphabetical).
+    allow_alphabetical = false,
+    --- Ordered bullet terminators: true (both), "." or ")"
+    --- (org-plain-list-ordered-item-terminator).
+    ordered_item_terminator = true,
+    --- Bullet given to items when they are demoted, e.g.
+    --- `{ ["-"] = "+", ["+"] = "-" }` (org-list-demote-modify-bullet).
+    demote_modify_bullet = {},
+    --- Emacs regexp matching bullets followed by two spaces, or nil
+    --- (org-list-two-spaces-after-bullet-regexp).
+    two_spaces_after_bullet_regexp = nil,
+    --- Extra indentation of sub-lists (org-list-indent-offset).
+    indent_offset = 0,
+    --- Automatic rules (org-list-automatic-rules): `checkbox` updates
+    --- statistics cookies after checkbox changes, `indent` lets the first
+    --- item move the whole list and turns `*` into `-` at column 0.
+    automatic_rules = { checkbox = true, indent = true },
+    --- Item motions and moves wrap around the list (org-list-use-circular-motion).
+    use_circular_motion = false,
+    --- Checkbox cookies count direct children only; false counts every box
+    --- below (org-checkbox-hierarchical-statistics).
+    checkbox_hierarchical_statistics = true,
+  },
   --- Where TAB outside headlines, items, drawers and blocks indents the
   --- line (org-cycle-emulate-tab): true (everywhere), "white" (blank
   --- lines only), "whitestart" (before the first non-blank character),
