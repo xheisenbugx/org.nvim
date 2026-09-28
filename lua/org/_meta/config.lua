@@ -110,8 +110,8 @@
 ---@field use_effective_time? boolean
 ---In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands act
 ---on every headline of the selection: `true`, `"start-level"` (only
----headlines of the first one's level), a tags/property/todo match string
----(only the matching headlines) or `false`.
+---headlines of the first one's level) or `false`; a match string acts like
+---`true`, as in Emacs 9.8.
 ---(Emacs `org-loop-over-headlines-in-active-region`, default: `true`)
 ---@field loop_over_headlines_in_active_region? boolean|"start-level"|string
 ---Highest priority letter. (Emacs `org-priority-highest`, default: `"A"`)

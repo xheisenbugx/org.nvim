@@ -355,10 +355,10 @@ describe("archiving a Visual selection (org-loop-over-headlines-in-active-region
     eq({ "* P", "** C", "** Archive :ARCHIVE:", "*** A", "*** B" }, headings(buf_lines(buf)))
   end)
 
-  it("with a match string, acts on the matching headlines only", function()
+  it("with a match string, acts on every headline like Emacs", function()
     setup(tmpdir(), { loop_over_headlines_in_active_region = "+work" })
     local buf = org_buffer({ "* A :work:", "* B", "* C :work:" }, { 1, 0 })
     visual(1, "Vjj<C-c><C-x>a")
-    eq({ "* A :work:ARCHIVE:", "* B", "* C :work:ARCHIVE:" }, squeeze(buf_lines(buf)))
+    eq({ "* A :work:ARCHIVE:", "* B :ARCHIVE:", "* C :work:ARCHIVE:" }, squeeze(buf_lines(buf)))
   end)
 end)

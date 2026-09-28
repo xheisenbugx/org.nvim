@@ -563,10 +563,9 @@ cit / ciT       Next / previous TODO state.
 In Visual mode, <C-c><C-t>, <C-c><C-s>, <C-c><C-d> and the archiving
 commands (<C-c>$, <C-c><C-x>a, <C-c><C-x>A) act on every headline of the
 selection, skipping headlines hidden in closed folds
-(`loop_over_headlines_in_active_region`: true, false, "start-level" for
-only the headlines at the level of the first one, or a tags/property/todo
-match string as in the agenda tags view for only the matching headlines,
-e.g. "+work/TODO"). Archiving a subtree takes its children with it, and
+(`loop_over_headlines_in_active_region`: true, false, or "start-level" for
+only the headlines at the level of the first one; a match string acts like
+true, as in Emacs 9.8, whose commands pass nil as the match). Archiving a subtree takes its children with it, and
 archiving to the sibling skips entries already archived.
 
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
@@ -4986,10 +4985,6 @@ Differences from Emacs:
     `todo_statistics_hooks` are Lua functions (|org-todo|). The statistics
     hooks run after state changes and M-S-RET, not after capture,
     archiving or C-c #.
-  - `org-loop-over-headlines-in-active-region` as a match string selects
-    the matching headlines, as its documentation says; Emacs 9.8.10 in
-    fact ignores the string and acts on every headline (its commands
-    rebind the option to nil before passing it as the match).
   - The fast tag selection menu is a floating window read one key at a
     time; it does not show the tags on the headline while it is open.
   - Regexps in `use_tag_inheritance` and `use_property_inheritance` are Vim

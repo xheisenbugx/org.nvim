@@ -115,8 +115,8 @@ M.defaults = {
   use_effective_time = false,
   --- In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands
   --- act on every headline of the selection: `true`, `"start-level"` (only
-  --- headlines of the first one's level), a tags/property/todo match string
-  --- (only the matching ones) or `false`
+  --- headlines of the first one's level) or `false`; a match string acts
+  --- like `true`, as in Emacs 9.8
   --- (org-loop-over-headlines-in-active-region).
   loop_over_headlines_in_active_region = true,
 

@@ -52,8 +52,8 @@ local region_ns = vim.api.nvim_create_namespace("org.edit.region")
 --- a list of `{ bufnr, lnum = function }` whose `lnum()` follows edits.
 --- Headlines hidden in a closed fold are skipped, like Emacs skips
 --- invisible entries; with "start-level" only headlines of the first
---- headline's level are used, with a match string (tags/property/todo, as
---- in the agenda tags view) only the matching ones. `skip(hl)` leaves
+--- headline's level are used. A match string acts like true: Emacs 9.8
+--- documents it but its commands pass nil as the match. `skip(hl)` leaves
 --- more headlines out. Returns nil outside Visual mode.
 ---@param skip? fun(hl: org.Headline): boolean
 ---@return { bufnr: integer, lnum: fun(): integer|nil }[]|nil
@@ -63,7 +63,6 @@ function M.region_headlines(skip)
   if not loop or not (mode == "v" or mode == "V" or mode == "\22") then
     return nil
   end
-  local match = type(loop) == "string" and loop ~= "start-level" and require("org.agenda.search").compile(loop)
   local s, _, e = utils.visual_range()
   vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
   local bufnr = vim.api.nvim_get_current_buf()
@@ -76,7 +75,6 @@ function M.region_headlines(skip)
       if
         (fc == -1 or fc == hl.line)
         and (loop ~= "start-level" or hl.level == level)
-        and not (match and not match(hl))
         and not (skip and skip(hl))
       then
         local id = vim.api.nvim_buf_set_extmark(bufnr, region_ns, hl.line - 1, 0, {})
