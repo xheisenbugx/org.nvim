@@ -208,9 +208,203 @@ function M.elapsed_minutes(start, stop)
   return (stop:to_time() - start:to_time()) / 60
 end
 
---- os.date-style formatting.
+--- format-time-string of the date (see |M.format_time_string|).
 function Date:strftime(fmt)
-  return os.date(fmt, self:to_time())
+  return M.format_time_string(fmt, self:to_time())
+end
+
+---------------------------------------------------------------------------
+-- format-time-string
+---------------------------------------------------------------------------
+
+local WDAY_SHORT = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
+local WDAY_LONG = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
+
+--- UTC offset in seconds of the local zone at UNIX time T.
+local function utc_offset(t)
+  local l, u = os.date("*t", t), os.date("!*t", t)
+  return (M.days_from_civil(l.year, l.month, l.day) - M.days_from_civil(u.year, u.month, u.day)) * 86400
+    + (l.hour - u.hour) * 3600
+    + (l.min - u.min) * 60
+    + (l.sec - u.sec)
+end
+
+--- ISO 8601 week-based year and week number.
+local function iso_week(year, yday, wday)
+  local function p(y)
+    return (y + floor(y / 4) - floor(y / 100) + floor(y / 400)) % 7
+  end
+  local function weeks(y)
+    return (p(y) == 4 or p(y - 1) == 3) and 53 or 52
+  end
+  local isow = wday == 1 and 7 or wday - 1
+  local w = floor((yday - isow + 10) / 7)
+  if w < 1 then
+    return year - 1, weeks(year - 1)
+  elseif w > weeks(year) then
+    return year + 1, 1
+  end
+  return year, w
+end
+
+--- Emacs `format-time-string` of FMT at TIME (UNIX seconds, default now)
+--- in the local zone, with English names (Emacs in the C locale) and the
+--- same directives on every platform: %a %A %b %B %c %C %d %D %e %F %g %G
+--- %h %H %I %j %k %l %m %M %n %N %p %P %q %r %R %s %S %t %T %u %U %V %w %W
+--- %x %X %y %Y %z %:z %::z %Z %%, the flags `-` (no padding), `_` (spaces),
+--- `0` (zeros), `^` (upper case), `#` (swap case), a field width, and the
+--- ignored E / O modifiers.
+---@param fmt string
+---@param time? integer
+---@return string
+function M.format_time_string(fmt, time)
+  time = time or os.time()
+  local t = os.date("*t", time)
+  local out = {}
+  local i, n = 1, #fmt
+  while i <= n do
+    local pct = fmt:find("%", i, true)
+    if not pct then
+      out[#out + 1] = fmt:sub(i)
+      break
+    end
+    out[#out + 1] = fmt:sub(i, pct - 1)
+    local j = pct + 1
+    local flags = fmt:match("^[-_0^#]*", j)
+    j = j + #flags
+    local width = fmt:match("^%d+", j)
+    j = j + (width and #width or 0)
+    local colons = fmt:match("^:*", j)
+    j = j + #colons
+    local mod = fmt:match("^[EO]", j)
+    j = j + (mod and 1 or 0)
+    local c = fmt:sub(j, j)
+    local pad = flags:gsub("[%^#]", ""):sub(-1) -- the last padding flag wins
+    pad = pad ~= "" and pad or nil
+    local upcase, swapcase = flags:find("^", 1, true), flags:find("#", 1, true)
+    width = tonumber(width)
+    --- A number with its default digits and padding character.
+    local function num(v, digits, padch)
+      local w = width or digits
+      local s = tostring(v)
+      if pad == "-" then
+        return s
+      end
+      local ch = pad == "_" and " " or pad == "0" and "0" or padch or "0"
+      return string.rep(ch, w - #s) .. s
+    end
+    local value, is_text
+    if c == "a" then
+      value, is_text = WDAY_SHORT[t.wday], true
+    elseif c == "A" then
+      value, is_text = WDAY_LONG[t.wday], true
+    elseif c == "b" or c == "h" then
+      value, is_text = M.MONTH_NAMES[t.month], true
+    elseif c == "B" then
+      value, is_text = M.MONTH_NAMES_LONG[t.month], true
+    elseif c == "p" or c == "P" then
+      value, is_text = t.hour < 12 and "AM" or "PM", true
+      if c == "P" or swapcase then
+        value, swapcase = value:lower(), nil
+      end
+    elseif c == "Z" then
+      value, is_text = os.date("%Z", time), true
+      if swapcase then
+        value, swapcase = value:lower(), nil
+      end
+    elseif c == "c" then
+      value, is_text = M.format_time_string("%a %b %e %H:%M:%S %Y", time), true
+    elseif c == "D" or c == "x" then
+      value, is_text = M.format_time_string("%m/%d/%y", time), true
+    elseif c == "F" then
+      value, is_text = M.format_time_string("%Y-%m-%d", time), true
+    elseif c == "r" then
+      value, is_text = M.format_time_string("%I:%M:%S %p", time), true
+    elseif c == "R" then
+      value, is_text = M.format_time_string("%H:%M", time), true
+    elseif c == "T" or c == "X" then
+      value, is_text = M.format_time_string("%H:%M:%S", time), true
+    elseif c == "n" then
+      value = "\n"
+    elseif c == "t" then
+      value = "\t"
+    elseif c == "%" then
+      value = "%"
+    elseif c == "C" then
+      value = num(floor(t.year / 100), 2)
+    elseif c == "d" then
+      value = num(t.day, 2)
+    elseif c == "e" then
+      value = num(t.day, 2, " ")
+    elseif c == "g" or c == "G" then
+      local y = iso_week(t.year, t.yday, t.wday)
+      value = c == "g" and num(y % 100, 2) or num(y, 1)
+    elseif c == "H" then
+      value = num(t.hour, 2)
+    elseif c == "I" then
+      value = num((t.hour + 11) % 12 + 1, 2)
+    elseif c == "j" then
+      value = num(t.yday, 3)
+    elseif c == "k" then
+      value = num(t.hour, 2, " ")
+    elseif c == "l" then
+      value = num((t.hour + 11) % 12 + 1, 2, " ")
+    elseif c == "m" then
+      value = num(t.month, 2)
+    elseif c == "M" then
+      value = num(t.min, 2)
+    elseif c == "N" then
+      -- no sub-second precision: the width is the number of digits
+      value = string.rep("0", width or 9)
+    elseif c == "q" then
+      value = num(floor((t.month - 1) / 3) + 1, 1)
+    elseif c == "s" then
+      value = num(time, 1)
+    elseif c == "S" then
+      value = num(t.sec, 2)
+    elseif c == "u" then
+      value = num(t.wday == 1 and 7 or t.wday - 1, 1)
+    elseif c == "U" then
+      value = num(floor((t.yday - 1 + 7 - (t.wday - 1)) / 7), 2)
+    elseif c == "V" then
+      local _, w = iso_week(t.year, t.yday, t.wday)
+      value = num(w, 2)
+    elseif c == "w" then
+      value = num(t.wday - 1, 1)
+    elseif c == "W" then
+      value = num(floor((t.yday - 1 + 7 - (t.wday + 5) % 7) / 7), 2)
+    elseif c == "y" then
+      value = num(t.year % 100, 2)
+    elseif c == "Y" then
+      value = num(t.year, 1)
+    elseif c == "z" then
+      local off = utc_offset(time)
+      local sign = off < 0 and "-" or "+"
+      off = math.abs(off)
+      local h, m, s = floor(off / 3600), floor(off % 3600 / 60), off % 60
+      if colons == "" then
+        value = string.format("%s%02d%02d", sign, h, m)
+      elseif colons == ":" then
+        value = string.format("%s%02d:%02d", sign, h, m)
+      else
+        value = string.format("%s%02d:%02d:%02d", sign, h, m, s)
+      end
+    else
+      -- unknown directive: copied as is
+      value = fmt:sub(pct, j)
+    end
+    if is_text then
+      if width and pad ~= "-" then
+        value = string.rep(pad == "0" and "0" or " ", width - #value) .. value
+      end
+      if upcase or swapcase then
+        value = value:upper()
+      end
+    end
+    out[#out + 1] = value
+    i = j + 1
+  end
+  return table.concat(out)
 end
 
 --- Compare two dates. With `day_only`, the time is ignored.
@@ -482,55 +676,23 @@ function M.format_duration(minutes)
   return neg and "-" .. s or s
 end
 
---- Duration in org-duration style: `H:MM`, or `Nd H:MM` from one day on
---- when `duration_format` is "d h:mm" (the default, like Emacs
---- `org-duration-format`). `fmt` overrides the option.
+--- Duration string for minutes (org-duration-from-minutes), formatted by
+--- `fmt` or the `duration_format` option ("d h:mm" by default: `H:MM`, or
+--- `Nd H:MM` from one day on). See |org.duration|.
 ---@param minutes number
----@param fmt? "h:mm"|"d h:mm"
+---@param fmt? string|table
 function M.duration_to_string(minutes, fmt)
-  fmt = fmt or require("org.config").opts.duration_format or "d h:mm"
-  local m = floor(math.abs(minutes))
-  if fmt ~= "d h:mm" or m < 1440 then
-    return (minutes < 0 and "-" or "") .. M.format_duration(m)
-  end
-  local days = floor(m / 1440)
-  return (minutes < 0 and "-" or "") .. days .. "d " .. M.format_duration(m - days * 1440)
+  return require("org.duration").from_minutes(minutes, fmt)
 end
 
---- Parse `H:MM`, `H:MM:SS`, `1h30min`, `90`, `1d 2h`, `1.5h` into minutes.
+--- Minutes of a duration (org-duration-to-minutes): `H:MM`, `H:MM:SS`,
+--- `1h30min`, `90`, `1d 2:00`, `1.5h`, with the units of `duration_units`.
+--- nil when the string is not a duration.
 function M.parse_duration(str)
-  if type(str) == "number" then
-    return str
-  elseif type(str) ~= "string" then
+  if str == nil then
     return nil
   end
-  str = vim.trim(str)
-  if str == "" then
-    return 0
-  end
-  if str:match("^%d+%.?%d*$") then
-    return tonumber(str)
-  end
-  local total = 0
-  local mult = { min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 }
-  while str ~= "" do
-    -- A duration may end in H:MM[:SS] after any number of unit terms.
-    local h, m, sec = str:match("^(%d+):(%d%d):(%d%d)$")
-    if not h then
-      h, m = str:match("^(%d+):(%d%d)$")
-    end
-    if h then
-      return total + tonumber(h) * 60 + tonumber(m) + (tonumber(sec) or 0) / 60
-    end
-    local num, unit, rest = str:match("^(%d+%.?%d*)[ \t]*(%a+)[ \t]*(.*)$")
-    local f = mult[unit]
-    if not f then
-      return nil
-    end
-    total = total + tonumber(num) * f
-    str = rest
-  end
-  return total
+  return (require("org.duration").to_minutes(str))
 end
 
 ---------------------------------------------------------------------------

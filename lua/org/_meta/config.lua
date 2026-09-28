@@ -17,8 +17,9 @@
 ---sequence: `"TODO(t) NEXT(n!) | DONE(d@/!)"`; `(k)` is a fast-selection key,
 ---`!` logs a timestamp, `@` asks for a note, `/x` is the flag used when
 ---leaving the state. A flat list with a `"|"` element (or a single string)
----is also accepted. (default: `{ "TODO | DONE" }`)
----@field todo_keywords? string|string[]
+---is also accepted. `{ type = "Fred Sara | DONE" }` is a type sequence
+---(Emacs `(type ...)`, `#+TYP_TODO:`). (default: `{ "TODO | DONE" }`)
+---@field todo_keywords? string|(string|{ type?: string, sequence?: string })[]
 ---State a repeating task returns to when marked done: `nil` = the first
 ---keyword of its sequence, `true` = the state it had before, or a keyword.
 ---The `REPEAT_TO_STATE` property overrides it.
@@ -231,10 +232,17 @@
 ---Property holding effort estimates.
 ---(Emacs `org-effort-property`, default: `"Effort"`)
 ---@field effort_property? string
----Format of durations in clock tables, clock sums and efforts: `"d h:mm"`
----writes `1d 2:30` from one day on, `"h:mm"` writes `26:30`.
+---Format of durations in clock tables, clock sums, column summaries and
+---efforts: `"d h:mm"` writes `1d 2:30` from one day on, `"h:mm"` writes
+---`26:30`, `"h:mm:ss"` `26:30:00`; a list of `{ unit, required }` entries,
+---`{ "special", "h:mm"|"h:mm:ss"|decimals }` and `"compact"` builds unit
+---strings like `1d 2h 30min` or `26.50h`.
 ---(Emacs `org-duration-format`, default: `"d h:mm"`)
----@field duration_format? "d h:mm"|"h:mm"
+---@field duration_format? "d h:mm"|"h:mm"|"h:mm:ss"|table
+---Minutes per duration unit, e.g. `{ d = 480 }` for 8-hour days; new units
+---may be added. (Emacs `org-duration-units`, default:
+---`{ min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 }`)
+---@field duration_units? table<string, number>
 ---Column view format used when a file has no `#+COLUMNS:`.
 ---(Emacs `org-columns-default-format`,
 ---default: `"%25ITEM %TODO %3PRIORITY %TAGS"`)
@@ -346,10 +354,12 @@
 ---@field read_date_prefer_future? boolean|"time"
 ---Display timestamps with `time_stamp_custom_formats`; toggled per buffer
 ---by `toggle_time_stamp_overlays`, `#+STARTUP: customtime` turns it on.
+---Exports of a buffer with the display on use the formats too.
 ---(Emacs `org-display-custom-times`, default: `false`)
 ---@field display_custom_times? boolean
----`{ date format, date and time format }` (strftime) of the custom
----timestamp display. (Emacs `org-timestamp-custom-formats`,
+---`{ date format, date and time format }` (Emacs `format-time-string`,
+---e.g. `"%A %d %B %Y"`) of the custom timestamp display and exports;
+---surrounding brackets are dropped in the buffer and kept in exports. (Emacs `org-timestamp-custom-formats`,
 ---default: `{ "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }`)
 ---@field time_stamp_custom_formats? string[]
 ---Where `archive_subtree` sends entries: `"file::heading"`, `%s` = current

@@ -127,22 +127,10 @@ local function formula()
   return require("org.table.formula")
 end
 
---- Age in minutes as "Nd Nh Nmin" (zero parts dropped), like Emacs'
---- org-columns--format-age.
+--- Age in minutes as "Nd Nh Nmin" (zero parts dropped) in canonical
+--- units, like Emacs' org-columns--format-age.
 function M.format_age(minutes)
-  minutes = math.floor(minutes + 0.5)
-  local d, h, m = math.floor(minutes / 1440), math.floor(minutes % 1440 / 60), minutes % 60
-  local parts = {}
-  if d > 0 then
-    parts[#parts + 1] = d .. "d"
-  end
-  if h > 0 then
-    parts[#parts + 1] = h .. "h"
-  end
-  if m > 0 or #parts == 0 then
-    parts[#parts + 1] = m .. "min"
-  end
-  return table.concat(parts, " ")
+  return require("org.duration").from_minutes(minutes, { { "d", false }, { "h", false }, { "min", false } }, true)
 end
 
 --- Emacs `(format fmt number)` of a summary number.
@@ -180,23 +168,21 @@ local function duration_minutes(v)
   return date.parse_duration(v) or 0
 end
 
---- Whether every value is an H:MM duration (org-duration-h:mm-only-p).
+--- "h:mm" / "h:mm:ss" when every value is an H:MM[:SS] duration, else nil
+--- (org-duration-h:mm-only-p): the format of a duration summary.
 local function hmm_only(values)
-  for _, v in ipairs(values) do
-    if not vim.trim(v):match("^%d+:%d%d$") and not vim.trim(v):match("^%d+:%d%d:%d%d$") then
-      return false
-    end
-  end
-  return true
+  return require("org.duration").hmm_only_p(values)
 end
 
---- Age in minutes of a timestamp or duration (org-columns--age-to-minutes).
+--- Age in minutes of a timestamp or a canonical duration, ignoring
+--- `duration_units` (org-columns--age-to-minutes).
 local function age_minutes(v)
   local d = date.parse(v)
   if d then
     return os.time() / 60 - d:to_time() / 60
   end
-  return date.parse_duration(v) or 0
+  local duration = require("org.duration")
+  return duration.p(v) and duration.to_minutes(v, true) or 0
 end
 
 --- The summary functions (Emacs org-columns-summary-types-default).
@@ -274,28 +260,28 @@ M.SUMMARIES = {
     for _, v in ipairs(values) do
       s = s + duration_minutes(v)
     end
-    return date.duration_to_string(s, hmm_only(values) and "h:mm" or nil)
+    return date.duration_to_string(s, hmm_only(values))
   end,
   [":min"] = function(values)
     local r
     for _, v in ipairs(values) do
       r = math.min(r or math.huge, duration_minutes(v))
     end
-    return date.duration_to_string(r, hmm_only(values) and "h:mm" or nil)
+    return date.duration_to_string(r, hmm_only(values))
   end,
   [":max"] = function(values)
     local r
     for _, v in ipairs(values) do
       r = math.max(r or -math.huge, duration_minutes(v))
     end
-    return date.duration_to_string(r, hmm_only(values) and "h:mm" or nil)
+    return date.duration_to_string(r, hmm_only(values))
   end,
   [":mean"] = function(values)
     local s = 0
     for _, v in ipairs(values) do
       s = s + duration_minutes(v)
     end
-    return date.duration_to_string(s / #values, hmm_only(values) and "h:mm" or nil)
+    return date.duration_to_string(s / #values, hmm_only(values))
   end,
   ["@min"] = function(values)
     local r

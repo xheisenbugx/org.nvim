@@ -31,7 +31,8 @@ M.defaults = {
   ---------------------------------------------------------------------------
   --- Each string is a sequence, exactly like Emacs `org-todo-keywords`.
   --- `(k)` is a fast-selection key, `!` logs a timestamp, `@` asks for a note.
-  --- A flat list containing a `"|"` element is also accepted.
+  --- A flat list containing a `"|"` element is also accepted, and
+  --- `{ type = "Fred Sara | DONE" }` is a type sequence (Emacs `(type ...)`).
   todo_keywords = { "TODO | DONE" },
   --- State a repeating task returns to: nil = first keyword of its sequence,
   --- true = the state it had before, or a keyword. The REPEAT_TO_STATE
@@ -224,9 +225,17 @@ M.defaults = {
   --- (org-columns-checkbox-allowed-values).
   columns_checkbox_allowed_values = { "[ ]", "[X]" },
   effort_property = "Effort",
-  --- Durations in clock tables, clock sums and efforts: "d h:mm" writes
-  --- "1d 2:30" from one day on (Emacs `org-duration-format`), "h:mm" "26:30".
+  --- Durations in clock tables, clock sums, column summaries and efforts
+  --- (Emacs `org-duration-format`): "d h:mm" (the Emacs default
+  --- `(("d" . nil) (special . h:mm))`) writes "1d 2:30" from one day on,
+  --- "h:mm" "26:30", "h:mm:ss" "26:30:00", or a list of `{ unit, required }`
+  --- entries plus `{ "special", "h:mm" | "h:mm:ss" | decimals }` and
+  --- "compact", e.g. `{ { "h", true }, { "special", 2 } }` → "26.50h".
   duration_format = "d h:mm",
+  --- Minutes per duration unit (Emacs `org-duration-units`); add units or
+  --- change values, e.g. `d = 480` for 8-hour work days. min/h/d keep their
+  --- standard values for timestamp ages (canonical units).
+  duration_units = { min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 },
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 
   ---------------------------------------------------------------------------
@@ -344,10 +353,11 @@ M.defaults = {
   --- day/month means next month/year), `"time"` (also a past time today
   --- means tomorrow) or `false` (org-read-date-prefer-future).
   read_date_prefer_future = true,
-  --- Display timestamps with `time_stamp_custom_formats` (strftime
-  --- formats for dates and date+time, without brackets); toggled by
-  --- `toggle_time_stamp_overlays` (org-display-custom-times,
-  --- org-timestamp-custom-formats).
+  --- Display timestamps with `time_stamp_custom_formats` (format-time-string
+  --- formats for dates and date+time; brackets around them are dropped in
+  --- the buffer and kept in exports); toggled by `toggle_time_stamp_overlays`
+  --- (org-display-custom-times, org-timestamp-custom-formats). Exports of a
+  --- buffer with the display on use the formats (org-timestamp-translate).
   display_custom_times = false,
   time_stamp_custom_formats = { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" },
   --- Where `archive_subtree` sends entries. `%s` = current file name

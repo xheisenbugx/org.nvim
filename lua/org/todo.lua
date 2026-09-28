@@ -653,8 +653,36 @@ function M.select(target, opts)
   end)
 end
 
---- One `C-c C-t` on a headline; `arg` is the Emacs prefix argument.
-local function todo_command(target, arg, opts)
+--- The last `C-c C-t`: buffer, headline, changedtick and (at the cursor)
+--- cursor position right after it. A new one with all of them unchanged
+--- is a repetition (Emacs `(eq this-command last-command)`).
+local last_todo
+
+local function todo_repeated(bufnr, lnum, at_cursor)
+  local l = last_todo
+  return l ~= nil
+    and l.bufnr == bufnr
+    and l.lnum == lnum
+    and vim.api.nvim_buf_is_valid(bufnr)
+    and l.tick == vim.api.nvim_buf_get_changedtick(bufnr)
+    and (not at_cursor or vim.deep_equal(l.cursor, vim.api.nvim_win_get_cursor(0)))
+end
+
+local function todo_record(bufnr, lnum, at_cursor)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    last_todo = nil
+    return
+  end
+  last_todo = {
+    bufnr = bufnr,
+    lnum = lnum,
+    tick = vim.api.nvim_buf_get_changedtick(bufnr),
+    cursor = at_cursor and vim.api.nvim_win_get_cursor(0) or nil,
+  }
+end
+
+--- The state change of one `C-c C-t`; `repeated` when it follows another.
+local function todo_step(target, arg, opts, repeated)
   opts = vim.deepcopy(opts or {})
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
@@ -678,8 +706,21 @@ local function todo_command(target, arg, opts)
   if todo_cfg.has_fast_keys and config.opts.use_fast_todo_selection ~= false then
     return M.select(tgt, opts)
   end
-  local nxt = todo_cfg:cycle(hl.todo, 1, not hl.todo and recall_head(bufnr, hl.line) or nil)
+  local nxt = todo_cfg:cycle(hl.todo, 1, not hl.todo and recall_head(bufnr, hl.line) or nil, repeated)
   return M.change_state(tgt, nxt, opts)
+end
+
+--- One `C-c C-t` on a headline; `arg` is the Emacs prefix argument.
+local function todo_command(target, arg, opts)
+  local bufnr, _, hl = edit.resolve_headline(target)
+  if not bufnr then
+    return nil
+  end
+  local lnum = hl.line
+  local repeated = todo_repeated(bufnr, lnum, target == nil)
+  local res = todo_step(target, arg, opts, repeated)
+  todo_record(bufnr, lnum, target == nil)
+  return res
 end
 
 --- Emacs `C-c C-t` (org-todo with org-use-fast-todo-selection = auto):
