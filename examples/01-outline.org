@@ -58,7 +58,7 @@ checkbox icons, so your stars may be drawn as those symbols.
 | =<prefix>hn=             | narrow: edit the subtree in its own buffer   |
 | =<prefix>*= =<prefix>-=  | toggle heading / list item                   |
 | =<prefix>hC= =hA=        | toggle COMMENT keyword / ARCHIVE tag         |
-| =<prefix>id= =ib=        | insert drawer / block (structure template)   |
+| =<prefix>id= =ib=        | insert drawer / block (Visual: around it)    |
 
 * Headlines and levels
 A headline is a line that starts with one or more stars *in column 0*,
