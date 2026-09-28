@@ -1266,6 +1266,11 @@ M.defaults = {
         jar_path = "", -- org-ditaa-jar-path
         eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
       },
+      gnuplot = {
+        cmd = "gnuplot",
+        default_header_args = { results = "file", exports = "results" },
+        terms = { eps = "postscript eps" }, -- *org-babel-gnuplot-terms*
+      },
     },
     -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
     -- table formulas can't evaluate (macros, capture, diary sexps, headers)

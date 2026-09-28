@@ -227,6 +227,12 @@ function M.expand_generic(body, args, var_lines)
   return require("org.babel.langs").expand_generic(body, args, var_lines)
 end
 
+--- `default-directory` of a block of the current buffer (its :dir, else
+--- the file's directory).
+function M.default_directory(args)
+  return require("org.babel").block_cwd(vim.api.nvim_get_current_buf(), args)
+end
+
 --- The body as one string.
 function M.body_text(body)
   return type(body) == "table" and table.concat(body, "\n") or body
