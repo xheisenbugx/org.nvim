@@ -1669,7 +1669,9 @@ Diary sexp entries                                  *org-agenda-diary-sexp*
 
 Emacs lets you put diary s-expressions in timestamps, `<%%(diary-float t 4
 2)>`, and on lines of their own at the start of a line, `%%(org-anniversary
-1990 5 17) Birthday of Joe (%d)`. Emacs evaluates them as Emacs Lisp.
+1990 5 17) Birthday of Joe (%d)`. `agenda.diary_sexp_prefix` (an Emacs
+regexp, org-agenda-diary-sexp-prefix) moves its match in the text of a
+`%%(...)` line to the leader (`%s`). Emacs evaluates them as Emacs Lisp.
 Neovim has no Lisp interpreter, so they are read with a small, safe
 s-expression reader and the common calendar functions are emulated,
 with the same results as Emacs:

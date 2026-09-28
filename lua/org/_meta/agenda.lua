@@ -191,6 +191,9 @@
 ---Highlight group of a day header, or nil for the default
 ---(org-agenda-day-face-function). (default: `nil`)
 ---@field day_face_function? fun(date: table): string?
+---Emacs regexp: its match in the text of a %%(diary sexp) line becomes the
+---leader (org-agenda-diary-sexp-prefix). (default: `nil`)
+---@field diary_sexp_prefix? string
 ---Remove the date range from the text of block entries
 ---(org-agenda-remove-timeranges-from-blocks). (default: `false`)
 ---@field remove_timeranges_from_blocks? boolean

@@ -1314,6 +1314,7 @@ local NIL_OPTIONS = {
   export_html_style = true,
   skip_function_global = true,
   day_face_function = true,
+  diary_sexp_prefix = true,
 }
 
 --- Run `fn` with the agenda options set on `block` in effect, like the

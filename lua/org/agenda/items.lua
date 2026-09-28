@@ -638,6 +638,17 @@ function M.agenda(files, from, to, opts)
             -- a string result is split on "; " into several entries
             local texts = type(res) == "string" and vim.split(res, "; ", { plain = true }) or (res and { e.text })
             for _, text in ipairs(texts or {}) do
+              local extra = ""
+              local prefix = acfg.diary_sexp_prefix
+              if type(prefix) == "string" and prefix ~= "" then
+                -- org-agenda-diary-sexp-prefix: the match becomes the leader
+                local ok_re, pat = pcall(require("org.agenda.search").emacs_regexp, prefix)
+                local m = ok_re and vim.fn.matchstrpos(text, "\\C" .. pat) or { "", -1, -1 }
+                if m[2] >= 0 then
+                  extra = m[1]
+                  text = text:sub(1, m[2]) .. text:sub(m[3] + 1)
+                end
+              end
               if not text:match("%S") then
                 text = "SEXP entry returned empty string"
               end
@@ -645,7 +656,7 @@ function M.agenda(files, from, to, opts)
                 type = "sexp",
                 ts_type = "sexp",
                 title = text,
-                extra = "",
+                extra = extra,
                 sexp = e.sexp,
                 lnum_sexp = i,
                 face = "OrgAgendaTimestamp",

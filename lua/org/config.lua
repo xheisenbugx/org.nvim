@@ -507,6 +507,9 @@ M.defaults = {
     --- function(date) -> highlight group or nil for a day header
     --- (org-agenda-day-face-function).
     day_face_function = nil,
+    --- Emacs regexp: its match in the text of a %%(diary sexp) entry is
+    --- shown as the leader (org-agenda-diary-sexp-prefix).
+    diary_sexp_prefix = nil,
     --- Remove the date range from the text of block entries
     --- (org-agenda-remove-timeranges-from-blocks).
     remove_timeranges_from_blocks = false,

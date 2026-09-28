@@ -300,3 +300,22 @@ describe("agenda line format options", function()
     eq("*", m[4].virt_text[1][1])
   end)
 end)
+
+describe("diary_sexp_prefix", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10, prefix format " %-12:c%-10s": with the regexp "^Bday: *"
+  -- the line is " skip:       Bday:     John"; "^bday: *" does not match
+  -- (case-sensitive): " skip:                 Bday: John"
+  it("moves the matching part of a diary sexp's text to the leader", function()
+    local d = today
+    local lines = { "* Dates", string.format("%%%%(diary-date %d %d %d) Bday: John", d.month, d.day, d.year) }
+    open(lines, { agenda = { diary_sexp_prefix = "^Bday: *", prefix_format = { agenda = " %-12:c%-10s" } } })
+    eq({ " skip:       Bday:     John" }, item_lines())
+    view.quit(true)
+    open(lines, { agenda = { diary_sexp_prefix = "^bday: *", prefix_format = { agenda = " %-12:c%-10s" } } })
+    eq({ " skip:                 Bday: John" }, item_lines())
+  end)
+end)
