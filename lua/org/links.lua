@@ -511,6 +511,54 @@ local function url_hex(s)
   end))
 end
 
+-- `%(function)` expansions by abbreviation and tag, and the functions
+-- Emacs refused (org-link-expand-abbrev then disables the abbreviation)
+local abbrev_calls, abbrev_refused = {}, {}
+
+--- An abbreviation `rpl` containing `%(function)` for `tag`: FUNCTION is
+--- called with the tag in a separate Emacs (`babel.emacs_lisp`, whose
+--- `args` can load the function), where Emacs only calls functions whose
+--- `org-link-abbrev-safe` or `pure` property is t. Returns nil (the link
+--- stays as it is) when it can't be called.
+---@return string|nil
+function M.abbrev_call(rpl, tag)
+  local s, e, fname = rpl:find("%%%(([^)]+)%)")
+  if not s or abbrev_refused[fname] then
+    return nil
+  end
+  local key = rpl .. "\0" .. tag
+  if abbrev_calls[key] then
+    return abbrev_calls[key]
+  end
+  local elisp = require("org.babel.elisp")
+  local printed, err
+  if elisp.command() then
+    printed, err = elisp.eval_external(
+      string.format(
+        [[(let ((f (intern-soft %s)))
+  (if (or (eq t (get f 'org-link-abbrev-safe)) (eq t (get f 'pure)))
+      (let ((v (funcall f %s)))
+        (if (stringp v) v (error "%%s did not return a string: %%S" f v)))
+    (error "Disabling unsafe link abbrev: %%s
+You may mark function safe via (put '%%s 'org-link-abbrev-safe t)" %s f)))]],
+        elisp.lisp_string(fname),
+        elisp.lisp_string(tag),
+        elisp.lisp_string(rpl)
+      )
+    )
+  else
+    err = "link abbreviation " .. rpl .. " needs an Emacs to call " .. fname .. " (babel.emacs_lisp)"
+  end
+  local ok, v = pcall(require("org.table.elisp").read, printed or "")
+  if not printed or not ok or type(v) ~= "string" then
+    abbrev_refused[fname] = true
+    utils.warn(tostring(err or printed))
+    return nil
+  end
+  abbrev_calls[key] = rpl:sub(1, s - 1) .. v .. rpl:sub(e + 1)
+  return abbrev_calls[key]
+end
+
 --- Expand link abbreviations (org-link-expand-abbrev): `gh:user/repo` or
 --- `gh::user/repo` -> `https://github.com/user/repo`; a bare `gh` expands
 --- with an empty tag.
@@ -523,6 +571,10 @@ function M.expand_abbrev(target, file)
   local tag = rest:match("^::?(.*)$") or ""
   if type(def) == "function" then
     return def(tag)
+  end
+  if def:find("%(", 1, true) then
+    local expanded = M.abbrev_call(def, tag)
+    return expanded or target
   end
   if def:find("%s", 1, true) then
     return (def:gsub("%%s", function()
@@ -1168,9 +1220,9 @@ local function open_elisp(sexp, bufnr)
       return false
     end
   end
-  if not sexp:match("^%s*%(") then
+  if not sexp:match("^%s*%(") and not require("org.babel.elisp").command() then
     -- Emacs calls a command name interactively: there is no Emacs to call it in
-    utils.warn("elisp: " .. sexp .. ": Emacs commands cannot be called from Neovim")
+    utils.warn("elisp: " .. sexp .. ": Emacs commands need an Emacs (babel.emacs_lisp)")
     return false
   end
   local value, err = require("org.babel.elisp").eval_link(sexp, base_dir(bufnr))

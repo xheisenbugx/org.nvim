@@ -151,6 +151,15 @@ function M.call_args(str)
   return out
 end
 
+-- Header arguments whose value may be a Lisp form, evaluated when the
+-- header is read like org-babel-parse-header-arguments (`:dir (concat ...)`);
+-- :var forms are evaluated when the variable is resolved.
+local LISP_HEADERS = {}
+for _, k in ipairs({ "dir", "file", "output-dir", "file-desc", "file-ext", "tangle", "results", "exports",
+  "session", "cmdline", "prologue", "epilogue", "wrap", "shebang", "mkdirp", "eval", "cache", "noweb", "comments" }) do
+  LISP_HEADERS[k] = true
+end
+
 --- Merge header pairs into an args table (later wins; vars accumulate;
 --- :results merges by category, like org-babel-merge-params). Positional
 --- `:var` pairs replace the values of the variables in order; `state`
@@ -161,6 +170,9 @@ function M.merge(args, pairs_list, state)
   args.results_spec = args.results_spec or {}
   state = state or { pos = 0 }
   for _, p in ipairs(pairs_list) do
+    if LISP_HEADERS[p.key] and type(p.value) == "string" and p.value:match("^%(") then
+      p = { key = p.key, value = require("org.babel.elisp").header_value(p.value) }
+    end
     if p.key == "var" and p.positional then
       state.pos = state.pos + 1
       local target = args.vars[state.pos]

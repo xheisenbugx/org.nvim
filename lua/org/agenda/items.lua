@@ -15,6 +15,8 @@ local M = {}
 
 -- sexps already reported as bad (org agenda warns once per session)
 M._warned_sexps = {}
+-- results of the sexps evaluated in Emacs, by sexp, entry and day range
+M._emacs_sexps = {}
 
 ---@class org.AgendaItem
 ---@field type string scheduled|deadline|timestamp|range|sexp|closed|clock|state|todo|tags|search|stuck
@@ -550,24 +552,36 @@ function M.agenda(files, from, to, opts)
       end)
     end
   end
+  -- beyond the emulation: evaluate the sexp for the whole range in Emacs
+  local function eval_in_emacs(s, day, text, err)
+    local key = table.concat({ s, text or "", from, to }, "\0")
+    local by_day = M._emacs_sexps[key]
+    if by_day == nil and require("org.babel.elisp").command() then
+      by_day = sexp_mod.eval_emacs(s, from, to, text or "") or false
+      M._emacs_sexps[key] = by_day
+    end
+    if by_day and by_day[day] ~= nil then
+      return by_day[day]
+    end
+    warn_once(s, err)
+    return nil
+  end
   local function eval_sexp(s, day, text)
     sexp_mod = sexp_mod or require("org.agenda.sexp")
     local node = parsed[s]
+    local err
     if node == nil then
-      local n, err = sexp_mod.parse(s)
-      node = n or false
+      node, err = sexp_mod.parse(s)
+      node = node or false
       parsed[s] = node
-      if not n then
-        warn_once(s, err)
-      end
     end
     if not node then
-      return nil
+      return eval_in_emacs(s, day, text, err or "invalid sexp")
     end
-    local ok, res, err = pcall(sexp_mod.eval, node, day, text or "")
+    local ok, res
+    ok, res, err = pcall(sexp_mod.eval, node, day, text or "")
     if not ok or (res == nil and err) then
-      warn_once(s, ok and err or res)
-      return nil
+      return eval_in_emacs(s, day, text, ok and err or res)
     end
     return res
   end

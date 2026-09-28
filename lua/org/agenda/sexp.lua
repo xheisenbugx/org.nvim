@@ -1123,6 +1123,70 @@ function M.eval(node, day, entry_text)
   return text
 end
 
+--- Evaluate `sexp` (the text of the sexp) for the days `from`..`to` in a
+--- separate Emacs (`babel.emacs_lisp`) with diary-lib loaded, the way
+--- org-diary-sexp-entry does: `(let ((entry ENTRY) (date '(M D Y))) SEXP)`.
+--- For the sexps the emulation can't evaluate; one Emacs runs for the
+--- whole range. Returns the results by day like |M.eval| (a day whose
+--- evaluation fails is false, as Emacs skips it).
+---@return table<integer, string|boolean>|nil results, string|nil err
+function M.eval_emacs(sexp, from, to, entry_text)
+  local elisp = require("org.babel.elisp")
+  if not elisp.command() then
+    return nil, "no Emacs"
+  end
+  entry_text = entry_text or ""
+  local dates = {}
+  for day = from, to do
+    local m, d, y = mdy(day)
+    dates[#dates + 1] = string.format("(%d %d %d)", m, d, y)
+  end
+  local printed, err = elisp.run_program({
+    "(require 'org)",
+    "(require 'diary-lib)",
+    "(defvar date nil)",
+    "(defvar entry nil)",
+    "(let ((form (car (read-from-string " .. elisp.lisp_string(sexp) .. ")))",
+    "      (res nil))",
+    "  (dolist (d '(" .. table.concat(dates, " ") .. "))",
+    "    (push (condition-case nil",
+    "              (let ((r (eval `(let ((entry ," .. elisp.lisp_string(entry_text) .. ") (date ',d)) ,form) t)))",
+    "                (cond ((stringp r) (list :str r))",
+    "                      ((and (consp r) (not (consp (cdr r))) (stringp (cdr r))) (list :text (cdr r)))",
+    "                      ((and (consp r) (stringp (car r)))",
+    "                       (list :text (mapconcat (lambda (x) (if (stringp x) x \"\")) r \"; \")))",
+    "                      (r (list :entry))))",
+    "            (error nil))",
+    "          res))",
+    "  (org-nvim--result (prin1-to-string (nreverse res))))",
+  })
+  if not printed then
+    return nil, err
+  end
+  local ok, list = pcall(require("org.table.elisp").read, printed)
+  if not ok then
+    return nil, tostring(list)
+  end
+  local out = {}
+  local items = list or { n = 0 }
+  for i = 1, items.n do
+    local r = items[i]
+    local day = from + i - 1
+    if r == nil then
+      out[day] = false
+    else
+      local kind = r[1].name
+      if kind == ":str" then
+        out[day] = r[2]
+      else
+        local text = kind == ":text" and r[2] or entry_text
+        out[day] = text == "" and true or text
+      end
+    end
+  end
+  return out
+end
+
 ---------------------------------------------------------------------------
 -- Finding sexps in text
 ---------------------------------------------------------------------------

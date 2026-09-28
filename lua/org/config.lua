@@ -1198,9 +1198,9 @@ M.defaults = {
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
     },
-    -- emacs-lisp blocks and elisp: links run in a separate Emacs process
-    -- (`command` false: never; without Emacs, side-effect-free code runs on
-    -- the Lisp interpreter of table formulas)
+    -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
+    -- table formulas can't evaluate (macros, capture, diary sexps, headers)
+    -- run in a separate Emacs process (`command` false: never)
     emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } },
   },
 
@@ -1264,6 +1264,9 @@ M.defaults = {
     creator = nil, -- org-export-creator-string; nil = "Neovim X.Y.Z (org.nvim ...)"
     --- org-export-global-macros: { name = "template $1" | function(...) }.
     global_macros = {},
+    --- org-export-allow-bind-keywords: honor #+BIND: (org-export-* and
+    --- back-end variables become these options during the export).
+    allow_bind_keywords = false,
     snippet_translation = {}, -- org-export-snippet-translation-alist
     inlinetask_min_level = 15, -- org-inlinetask-min-level
     table_number_fraction = 0.5, -- org-table-number-fraction

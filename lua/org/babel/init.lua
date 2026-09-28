@@ -698,6 +698,11 @@ function M.resolve_var(bufnr, raw, args, meta, opts)
     end
   end
   local ok, out = pcall(lisp.read, raw)
+  if not ok and raw:match("^[(`']") and require("org.babel.elisp").command() then
+    -- a form the interpreter does not implement: evaluate it in Emacs
+    local v, err = require("org.babel.elisp").eval(raw, { requires = { "org" } })
+    ok, out = err == nil, err or lisp.from_elisp(v)
+  end
   if not ok then
     error("cannot evaluate " .. raw .. ": " .. tostring(out), 0)
   end
