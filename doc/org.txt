@@ -2595,8 +2595,16 @@ formula is evaluated, so:
   multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
   Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`),
-  fractions `3:4` (`F` flag), vectors `[1, 2]` (`|` concatenates, `*` of
-  two vectors is the dot product).
+  fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
+  `4 mod 7`, `makemod(10, 7)`).
+- Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
+  4]]`. `+ -` work elementwise, a number scales, `*` is the matrix product
+  (of two plain vectors the dot product), `^` a matrix power (`^-1` the
+  inverse), `/` by a square matrix solves, `|` concatenates. Functions:
+  trn det inv tr cross head tail rhead rtail cons rcons append vconcat rev
+  sort rsort rdup index cvec idn diag arrange vflat find subvec mrow mcol
+  getdiag rnorm cnorm abs (the length) vlen vcov vpcov vcorr map reduce.
+  A range `$1..$3` is a vector, so `[$1..$3]` is a one-row matrix.
 - Dates: `<2024-01-10 Wed>` (also `[...]` fields) is a date; subtracting
   two gives days (`$2-$1`), adding a number gives a date (written as an
   inactive timestamp), `date(<...>)` gives the day number.
@@ -2613,16 +2621,28 @@ formula is evaluated, so:
   term), `usimplify(1 in / 1 cm)` is 2.54, `usimplify(3 m * 2 m / 4 s)`
   is `1.5 m^2 / s`, for common units (m, in, ft, yd, mi, nmi, g, lb, oz,
   t, s, min, hr, day, wk, yr, Hz, l, gal, qt, pt, cup, ha, acre, mph,
-  kph, knot, N, lbf, J, cal, Wh, eV, W, hp, Pa, bar, atm, psi, A, V,
-  ohm, ...) with SI prefixes (km, mA, kWh). Elsewhere units are plain
-  symbols, as in Calc (`3 m + 20 cm` stays).
-- Text stays symbolic: `$1*2` on `x` gives `2 x`, `sqrt(x)` stays,
-  `if($1>3, big, small)` returns `big`/`small`; `pi` and `e` stay
-  symbols (`evalv(pi)` is 3.1415927). With `N` a non-numeric result is
-  #ERROR.
+  kph, knot, N, lbf, J, cal, Btu, Wh, eV, W, hp, Pa, bar, atm, Torr,
+  psi, A, V, ohm, S, F, T, Wb, mol, ...) with SI prefixes (km, mA, kWh),
+  and temperature differences (K, degC, degF: `usimplify(1 K + 1 degC)`
+  is `2 K`). As in Calc, `usimplify` is the only unit function of
+  formulas (Calc's unit conversion is a keyboard command), and elsewhere
+  units are plain symbols (`3 m + 20 cm` stays).
+- Formulas with variables are Calc's symbolic algebra: text stays symbolic
+  and is normalized like Calc (`$1*2` on `x` gives `2 x`, `x*y/x` is `y`,
+  `(x+1)*2` is `2 x + 2`); `if($1>3, big, small)` returns `big`/`small`;
+  `pi` and `e` stay symbols (`evalv(pi)` is 3.1415927); `a = b` is an
+  equation. simplify(x*y - y*x) is 0, expand((x+1)^2) is
+  `x^2 + 2 x + 1`, collect(a x + b x, x) is `(a + b) x`, subst(x^2, x, 3)
+  is `3^2`, deriv(x^2, x) is `2 x` (trig derivatives in degrees:
+  `cos(x) pi / 180`), integ(x^2, x) is `x^3 / 3` (also definite:
+  integ(x^2, x, 0, 1)), solve(x^2 - 4 = 0, x) is `x = 2` (one solution,
+  like Calc; linear to quartic polynomials, inverse functions,
+  inequalities: solve(x + 1 < 3, x) is `x < 2`), nroot(x, 3) is `x^1:3`.
+  With `N` a non-numeric result is #ERROR.
 - Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vpsdev vvar
   vpvar vgmean vhmean vlen rev sort, abs sqrt nroot exp ln log (also
   `log(x, b)`) log10 exp10 floor ceil round rounde roundu trunc frac
+  (a float as a fraction: `frac(0.25)` is `1:4`)
   float fdiv idiv mod `\` gcd lcm fact dfact choose perm gamma prime
   nextprime prevprime totient sign min max hypot, sin cos tan sec csc cot
   arcsin arccos arctan arctan2 sinh cosh tanh arcsinh arccosh arctanh deg
@@ -4634,14 +4654,23 @@ Differences from Emacs:
   (`note_buffer`).
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
   (|org-table-calc|): numbers, dates, complex numbers, HMS forms, error
-  forms, intervals, `usimplify` with a table of common units and the
-  functions listed there. Calc's symbolic algebra (simplification,
-  solving, derivatives), modulo forms, matrices, unit conversion beyond
-  `usimplify` (temperatures, `convert` is a keyboard command in Calc)
-  and its other functions are not: results that are not numbers are
-  symbolic text with only a few simplifications (`x + x` is `2 x`;
-  Emacs's `vmean` of symbols is left as `(1 + x + 3) / 3`,
-  `usimplify(x m + 2 m)` is `(x + 2) m` where Calc writes `m*(x + 2)`).
+  forms, intervals, modulo forms, vectors and matrices, `usimplify` with
+  a table of common units, the symbolic algebra (Calc's normalization of
+  formulas, simplify, expand, collect, subst, deriv, integ, solve) and the
+  functions listed there. What still differs: `simplify` has Calc's rules
+  for + - * / ^, sqrt, exp, trigonometric inverses and equations, not its
+  whole rule set (nor `esimplify`, `factor`, rewrite rules); `integ`
+  handles polynomials, powers, exp, ln, sin, cos, tan, sinh, cosh of a
+  linear argument and parts by polynomial times exp/sin/cos, not Calc's
+  rule-based integrator (its results can differ in form: integ(sin(2 x),
+  x) is `-90 cos(2 x) / pi` where Calc writes `(180 sin(x)^2 - 90) / pi`;
+  what it can't do stays `integ(...)`); `solve` finds one solution
+  (Calc's default) up to quartic polynomials, not by numeric search for
+  higher degrees, and no systems of equations; division by a matrix may
+  differ from Calc in the last float digits; `usimplify` knows a subset
+  of Calc's units; fsolve, roots, taylor, the polynomial functions
+  (pdiv, pgcd, factor), spn/midi/freq, lud, kron, histogram and other
+  rarer functions stay symbolic.
   Quoted strings (`"big"`) are kept as text; Calc makes them vectors of
   character codes. Emacs Lisp formulas `'(...)` run on a small
   Lisp interpreter (the functions listed in `lua/org/table/elisp.lua`),
