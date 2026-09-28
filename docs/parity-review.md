@@ -123,11 +123,38 @@ where Emacs output could be produced, specs compare against it.
 | MobileOrg and attach-git | `org-mobile` push/pull/apply with byte-identical staging files, encryption and flagged agenda; `org-attach-git` commits and git-annex. [Specs](../tests/spec/mobile_spec.lua), [attach-git](../tests/spec/attach_git_spec.lua). | The staging directory must be local. git-annex paths were not exercised (not installed). |
 | Babel, Calc and tables | emacs-lisp blocks and `elisp:` links in a separate `emacs --batch` (Lisp-subset fallback); Calc complex numbers, HMS, error forms, intervals, units and ~40 functions; orgtbl-to-unicode, orgtbl-to-table.el; radar plots. [Specs](../tests/spec/babel_elisp_spec.lua), [Calc](../tests/spec/calc_ext_spec.lua). | No symbolic algebra, matrices or modulo forms; `'(...)` table formulas stay on the internal interpreter. |
 
-Still out of reach: Elisp that must run inside the editor (`#+BIND`,
-`%(sexp)` capture escapes, arbitrary diary sexps), Emacs applications
-(Gnus, mu4e, BBDB), table.el-format tables, and Babel sessions as full
-REPLs.
+Still out of reach after this round: Elisp that must run inside the
+editor (`#+BIND`, `%(sexp)` capture escapes, arbitrary diary sexps), Emacs
+applications (Gnus, mu4e, BBDB), table.el-format tables, and Babel
+sessions as full REPLs. The [fourth round](#fourth-round-roadmap-and-org-differences)
+closed all of these except the Emacs applications.
 
 The branches were developed in parallel and merged; the full suite on
 the merged branch is reported in the pull request. StyLua was not run
 (the local version differs from the one the repository uses).
+
+## Fourth round: roadmap and `org-differences`
+
+This round took every roadmap item and every fixable entry of
+`:h org-differences`. Each area was compared with Org 9.8.10 (and Emacs 31
+for Calc, table.el and the calendar libraries) using the source and
+`emacs -Q --batch` probes; the specs' expected strings come from those
+probes.
+
+| Area | Implemented | Remaining difference |
+| --- | --- | --- |
+| Calc in table formulas | Ports of Calc's normalization and printing, `simplify`, `expand`, `collect`, `subst`, `deriv`, `solve` (up to quartics, inequalities); vectors and matrices (`det`, `inv`, LU division, `trn`, `cross`, `map`/`reduce`...); modulo forms; temperature and more units in `usimplify`; `frac` fixed. 306 formulas identical to `calc-eval`. [Spec](../tests/spec/calc_symbolic_spec.lua). | `integ` is a custom integrator (other forms, fewer integrals); no `factor`, polynomial functions, `taylor`, `fsolve` or degree-5 roots; a few last-digit float differences. |
+| Babel sessions | Live REPLs in terminal buffers named like Emacs (`*Python*`, `*shell*`...) for shells, python, ruby (irb), node and R; state shared with typed input; ob-comint style markers; kill/exit handling. [Spec](../tests/spec/babel_repl_spec.lua). | A block reaches the REPL as one "run this file" line; shells start without rc files; no julia/SQL sessions; R and fish untested here (not installed). |
+| Diary | `diary-hebrew-birthday`/`-yahrzeit`/`-omer`/`-rosh-hodesh`/`-parasha`/`-sabbath-candles`, `diary-chinese-anniversary`, `calendar_date_style`; the Emacs diary file in the agenda (`include_diary`, `D`, `#include`, other-calendar entries). Parasha, Rosh Hodesh and Omer match Emacs over 1950–2049; eight agendas match line for line. [Specs](../tests/spec/agenda_diary_file_spec.lua), [calendars](../tests/spec/agenda_calendars_spec.lua). | No `i` key; custom `diary-date-forms` and comments; a bad `#include` warns instead of stopping. |
+| table.el tables | Recognized like org-element and left alone by Org table commands; `C-c ~` both ways and `table-insert`; `C-c '` editor with realignment; HTML/Markdown/LaTeX export byte-identical to Emacs on 18 tables. [Spec](../tests/spec/table_el_spec.lua). | The editor realigns on leaving Insert mode, never shrinks cells and has no table.el cell commands; double-width characters break the grid. |
+| Display | Custom timestamp formats in the date prompt preview; multi-line LaTeX fragments drawn in place (0.11+); column view moves a column at a time and refuses typing on its rows. [Specs](../tests/spec/images_spec.lua), [columns](../tests/spec/columns_overlay_spec.lua), [calendar](../tests/spec/calendar_spec.lua). | The plain preview shows repeaters; image.nvim draws below; column rows can still be changed by edits started elsewhere (Visual, Ex, API). |
+| Emacs Lisp | `#+BIND` (`export.allow_bind_keywords`); `(eval ...)` macros with `$1..$n` bound as in 9.8.10 and `org-texinfo-kbd-macro`; capture `%(sexp)` as Lisp; diary sexps, `%(fn)` abbreviations, `elisp:` commands and header forms in a separate Emacs when the interpreter can't. [Specs](../tests/spec/export_bind_spec.lua), [macros](../tests/spec/export_macro_eval_spec.lua), [capture](../tests/spec/capture_sexp_spec.lua), [fallbacks](../tests/spec/elisp_fallback_spec.lua). | The separate Emacs has no editor state; `#+BIND` only sets variables with an org.nvim option; an unsupported `(eval)` macro without Emacs exports empty with a warning. |
+| Smaller differences | Clock-out and refile notes in `*Org Note*` (C-c C-k logs nothing); file-level `id:` links before the first heading; the Emacs `org-id-locations-file` format; wildcard `file:` listings; `*Org Shell Output*`; archiving over a Visual selection; `checkbox_radio_mode`; `refile.use_cache`; TODO default/statistics hooks. [Spec](../tests/spec/log_notes_spec.lua) and existing specs. | The note is taken before the change is applied; the ID file is last-writer-wins; the refile cache stores line numbers; the wildcard listing is not Dired. |
+
+A match string in `loop_over_headlines_in_active_region` now acts like
+`true`: the option's docstring describes matching, but a probe showed that
+Emacs 9.8.10's commands pass nil as the match and change every headline.
+
+Validation: the merged branch passes the full suite (2508 passed, 0
+failed, Neovim 0.13.0-dev). StyLua was not run (the local version differs
+from the one the repository uses); new code is formatted by hand.
