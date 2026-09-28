@@ -1,111 +1,184 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 45 900 900" width="512" height="512" role="img" aria-labelledby="title">
   <title id="title">org.nvim</title>
   <defs>
-    <radialGradient id="tile" cx="0.4" cy="0.35" r="0.8">
-      <stop offset="0" stop-color="#25226A"/>
-      <stop offset="1" stop-color="#0C0B22"/>
+    <radialGradient id="tile" cx="0.42" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#1F1D5C"/>
+      <stop offset="0.6" stop-color="#121137"/>
+      <stop offset="1" stop-color="#0A0A1E"/>
     </radialGradient>
-    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#B062F5"/>
-      <stop offset="1" stop-color="#5563F2"/>
+    <linearGradient id="tileEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5D58E0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#3A36A8" stop-opacity="0.2"/>
     </linearGradient>
-    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#EEF0FF"/>
-      <stop offset="1" stop-color="#8E98F5"/>
+    <linearGradient id="frame" gradientUnits="userSpaceOnUse" x1="160" y1="700" x2="720" y2="220">
+      <stop offset="0" stop-color="#7C4DF0"/>
+      <stop offset="0.3" stop-color="#B06AF7"/>
+      <stop offset="0.65" stop-color="#6E62F2"/>
+      <stop offset="1" stop-color="#4C86F6"/>
     </linearGradient>
-    <linearGradient id="green" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#7CE8A4"/>
-      <stop offset="1" stop-color="#9EF0C0"/>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15143A"/>
+      <stop offset="1" stop-color="#0B0B20"/>
     </linearGradient>
-    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#C77DF7"/>
-      <stop offset="1" stop-color="#A58BFA"/>
+    <linearGradient id="fold" gradientUnits="userSpaceOnUse" x1="600" y1="185" x2="700" y2="300">
+      <stop offset="0" stop-color="#F2F2FF"/>
+      <stop offset="0.5" stop-color="#C5C9FF"/>
+      <stop offset="1" stop-color="#7C8AF6"/>
     </linearGradient>
-    <linearGradient id="fur" x1="0" y1="0" x2="0.4" y2="1">
+    <linearGradient id="green" gradientUnits="userSpaceOnUse" x1="355" y1="0" x2="575" y2="0">
+      <stop offset="0" stop-color="#9BEFBE"/>
+      <stop offset="1" stop-color="#7AD9A5"/>
+    </linearGradient>
+    <linearGradient id="violet" gradientUnits="userSpaceOnUse" x1="385" y1="0" x2="575" y2="0">
+      <stop offset="0" stop-color="#D98AF2"/>
+      <stop offset="1" stop-color="#9F7CF6"/>
+    </linearGradient>
+    <linearGradient id="slate" gradientUnits="userSpaceOnUse" x1="395" y1="0" x2="540" y2="0">
+      <stop offset="0" stop-color="#7C82D6"/>
+      <stop offset="1" stop-color="#5D63B8"/>
+    </linearGradient>
+
+    <radialGradient id="fur" cx="0.35" cy="0.28" r="0.85">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#D6CFF6"/>
+      <stop offset="0.45" stop-color="#EAE5FE"/>
+      <stop offset="1" stop-color="#A898E6"/>
+    </radialGradient>
+    <radialGradient id="hoof" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#7B5CF0"/>
+      <stop offset="1" stop-color="#3A2796"/>
+    </radialGradient>
+    <linearGradient id="horn" x1="0" y1="0" x2="1" y2="0.3">
+      <stop offset="0" stop-color="#FFF1C2"/>
+      <stop offset="0.5" stop-color="#F8D27A"/>
+      <stop offset="1" stop-color="#E3A546"/>
     </linearGradient>
-    <linearGradient id="horn" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#F2A43A"/>
-      <stop offset="1" stop-color="#FFE8A3"/>
+    <linearGradient id="maneViolet" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#B58AF7"/>
+      <stop offset="1" stop-color="#6E45DA"/>
     </linearGradient>
+    <linearGradient id="manePink" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#F5B3E4"/>
+      <stop offset="1" stop-color="#D679D6"/>
+    </linearGradient>
+    <linearGradient id="maneTeal" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#7FD8F2"/>
+      <stop offset="1" stop-color="#3FA6D8"/>
+    </linearGradient>
+
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="9"/>
+      <feGaussianBlur stdDeviation="14"/>
     </filter>
     <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="4"/>
+      <feGaussianBlur stdDeviation="6"/>
     </filter>
-    <clipPath id="hornClip"><path d="M325 294 L331 242 L345 292 Z"/></clipPath>
-    <path id="star" d="M0 -20 V20 M-17.3 -10 L17.3 10 M-17.3 10 L17.3 -10" fill="none" stroke-width="10" stroke-linecap="round"/>
-    <path id="sparkle" d="M0 -1 Q0 0 1 0 Q0 0 0 1 Q0 0 -1 0 Q0 0 0 -1 Z"/>
+    <filter id="blur2" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+
+    <clipPath id="maneClip"><path d="M706 576 C736 556 784 566 800 604 C812 632 812 664 800 684 C792 696 776 694 766 680 C770 698 756 712 738 718 C722 704 712 684 708 662 C704 636 700 600 706 576 Z"/></clipPath>
+    <clipPath id="tileClip"><rect x="22" y="45" width="900" height="900" rx="200"/></clipPath>
+    <clipPath id="hornClip2"><path d="M625 476 Q627 466 634 472 L674 540 Q656 558 633 554 Z"/></clipPath>
+    <path id="star" d="M0 -40 V40 M-34.6 -20 L34.6 20 M-34.6 20 L34.6 -20" fill="none" stroke-width="23" stroke-linecap="round"/>
+    <path id="sparkle" d="M0 -1 Q0.13 -0.13 1 0 Q0.13 0.13 0 1 Q-0.13 0.13 -1 0 Q-0.13 -0.13 0 -1 Z"/>
+    <path id="doc" d="M540 728 L265 764 Q193 776 189 700 L173 322 Q170 246 245 237 L592 196"/>
   </defs>
 
   <!-- tile -->
-  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
-  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#5B55D6" stroke-opacity="0.35" stroke-width="3"/>
+  <rect x="22" y="45" width="900" height="900" rx="200" fill="url(#tile)"/>
+  <g clip-path="url(#tileClip)">
+    <ellipse cx="440" cy="470" rx="330" ry="300" fill="#3B35B0" opacity="0.18" filter="url(#glow)"/>
+  </g>
+  <rect x="25" y="48" width="894" height="894" rx="197" fill="none" stroke="url(#tileEdge)" stroke-width="5"/>
 
   <!-- org document -->
-  <g transform="rotate(-3 232 256)">
-    <path d="M130 108 H328 L376 156 V364 Q376 404 336 404 H130 Q90 404 90 364 V148 Q90 108 130 108 Z" fill="none" stroke="url(#edge)" stroke-width="18" filter="url(#glow)" opacity="0.8"/>
-    <path d="M130 108 H328 L376 156 V364 Q376 404 336 404 H130 Q90 404 90 364 V148 Q90 108 130 108 Z" fill="#100F26" stroke="url(#edge)" stroke-width="16" stroke-linejoin="round"/>
-    <path d="M324 104 L380 160 H346 Q324 160 324 138 Z" fill="url(#fold)" stroke="url(#fold)" stroke-width="6" stroke-linejoin="round"/>
-
-    <use href="#star" x="140" y="178" stroke="#7CE8A4"/>
-    <rect x="169" y="165" width="144" height="26" rx="13" fill="url(#green)"/>
-
-    <use href="#star" x="142" y="244" stroke="#E27BEA"/>
-    <rect x="171" y="231" width="142" height="26" rx="13" fill="url(#violet)"/>
-
-    <rect x="124" y="290" width="40" height="40" rx="9" fill="none" stroke="#A9B6FF" stroke-width="6"/>
-    <path d="M134 311 L142 319 L155 302" fill="none" stroke="#A9B6FF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    <line x1="190" y1="310" x2="290" y2="310" stroke="#6C70C9" stroke-width="24" stroke-linecap="round"/>
+  <path d="M265 764 Q193 776 189 700 L173 322 Q170 246 245 237 L592 196 L703 300 L707 705 L540 728 Z" fill="url(#paper)"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#doc" stroke="url(#frame)" stroke-width="54" opacity="0.55" filter="url(#glow)"/>
+    <line x1="703" y1="300" x2="706" y2="482" stroke="url(#frame)" stroke-width="54" opacity="0.55" filter="url(#glow)"/>
+    <use href="#doc" stroke="url(#frame)" stroke-width="52"/>
+    <line x1="703" y1="300" x2="706" y2="482" stroke="url(#frame)" stroke-width="52"/>
   </g>
+  <path d="M580 176 C640 172 700 238 722 304 C694 306 664 300 642 290 C618 278 604 250 598 220 C594 202 588 188 580 176 Z" fill="url(#fold)"/>
+  <path d="M598 220 C604 250 618 278 642 290 C664 300 694 306 722 304" fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- headlines -->
+  <g transform="rotate(-4 282 380)"><use href="#star" x="282" y="380" stroke="#8BE8B2"/></g>
+  <line x1="378" y1="355" x2="552" y2="337" stroke="url(#green)" stroke-width="46" stroke-linecap="round"/>
+
+  <g transform="rotate(-4 288 492)"><use href="#star" x="288" y="492" stroke="#E07EE6"/></g>
+  <line x1="386" y1="478" x2="554" y2="458" stroke="url(#violet)" stroke-width="44" stroke-linecap="round"/>
+
+  <g transform="rotate(-4 304 617)" fill="none" stroke="#A9B8FF" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="263" y="576" width="82" height="82" rx="16" stroke-width="12"/>
+    <path d="M282 618 L298 634 L326 602" stroke-width="12"/>
+  </g>
+  <line x1="400" y1="596" x2="536" y2="578" stroke="url(#slate)" stroke-width="40" stroke-linecap="round"/>
 
   <!-- sparkles -->
-  <use href="#sparkle" transform="translate(418 210) scale(24)" fill="#C4B5FD"/>
-  <use href="#sparkle" transform="translate(448 248) scale(15)" fill="#93C5FD"/>
-  <use href="#sparkle" transform="translate(412 264) scale(10)" fill="#93C5FD"/>
+  <g filter="url(#blur2)" opacity="0.6">
+    <use href="#sparkle" transform="translate(784 397) scale(36 44)" fill="#C9A6FF"/>
+    <use href="#sparkle" transform="translate(834 466) scale(26 32)" fill="#7EC8FF"/>
+  </g>
+  <use href="#sparkle" transform="translate(784 397) scale(34 42)" fill="#CDB0FF"/>
+  <use href="#sparkle" transform="translate(834 466) scale(24 30)" fill="#8CCEFF"/>
+  <use href="#sparkle" transform="translate(772 492) scale(16 20)" fill="#8FB8FF"/>
 
   <!-- unicorn -->
-  <g>
-    <ellipse cx="352" cy="392" rx="70" ry="44" fill="#07061A" opacity="0.55" filter="url(#soft)"/>
-    <!-- tail -->
-    <g fill="none" stroke-linecap="round">
-      <path d="M394 396 C424 372 452 392 444 414 C438 432 414 430 414 414" stroke="#F0A6EE" stroke-width="20"/>
-      <path d="M396 404 C420 390 438 402 434 416" stroke="#9C7CF4" stroke-width="10"/>
-      <path d="M404 420 C414 430 432 428 438 420" stroke="#6BD9F2" stroke-width="7"/>
-    </g>
-    <!-- body and legs -->
-    <ellipse cx="352" cy="384" rx="46" ry="40" fill="url(#fur)"/>
-    <ellipse cx="386" cy="398" rx="24" ry="20" fill="url(#fur)"/>
-    <ellipse cx="400" cy="416" rx="15" ry="9" fill="#4E3A9E"/>
-    <rect x="310" y="372" width="24" height="46" rx="12" fill="url(#fur)"/>
-    <rect x="338" y="378" width="24" height="42" rx="12" fill="url(#fur)"/>
-    <ellipse cx="322" cy="416" rx="14" ry="9" fill="#4E3A9E"/>
-    <ellipse cx="350" cy="418" rx="14" ry="9" fill="#4E3A9E"/>
-    <!-- mane down the neck -->
-    <g fill="none" stroke-linecap="round">
-      <path d="M362 294 C394 298 402 332 386 356" stroke="#9C7CF4" stroke-width="22"/>
-      <path d="M374 314 C396 326 394 352 380 366" stroke="#F0A6EE" stroke-width="14"/>
-      <path d="M366 336 C382 346 380 366 368 376" stroke="#6BD9F2" stroke-width="10"/>
-    </g>
-    <!-- head -->
-    <ellipse cx="338" cy="326" rx="42" ry="36" fill="url(#fur)"/>
-    <ellipse cx="310" cy="340" rx="24" ry="18" fill="#F6F3FF"/>
-    <ellipse cx="297" cy="338" rx="3" ry="2.2" fill="#B3A6E6"/>
-    <path d="M364 304 L386 276 L382 318 Z" fill="url(#fur)" stroke="#E6E0FB" stroke-width="4" stroke-linejoin="round"/>
-    <path d="M370 304 L382 288 L380 310 Z" fill="#F5C8F4"/>
-    <!-- horn -->
-    <path d="M325 294 L331 242 L345 292 Z" fill="url(#horn)" stroke="url(#horn)" stroke-width="4" stroke-linejoin="round"/>
-    <g clip-path="url(#hornClip)" stroke="#C97C1E" stroke-opacity="0.45" stroke-width="3">
-      <line x1="322" y1="282" x2="348" y2="274"/>
-      <line x1="324" y1="266" x2="346" y2="258"/>
-    </g>
-    <!-- forelock -->
-    <path d="M312 304 C314 284 346 274 368 292 C352 290 338 298 332 312 C326 304 318 302 312 304 Z" fill="#9C7CF4"/>
-    <path d="M336 300 C344 290 358 288 368 292 C356 294 346 300 340 308 Z" fill="#C79BF7"/>
-    <!-- face -->
-    <path d="M338 324 Q346 314 354 324" fill="none" stroke="#3A2A6E" stroke-width="4" stroke-linecap="round"/>
-    <ellipse cx="358" cy="338" rx="8" ry="5" fill="#F7A8D8" opacity="0.7"/>
+  <ellipse cx="690" cy="798" rx="150" ry="16" fill="#05051A" opacity="0.75" filter="url(#soft)"/>
+
+  <!-- tail -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M738 742 C752 710 792 696 818 708 C840 718 848 746 834 770" stroke="url(#manePink)" stroke-width="30"/>
+    <path d="M742 756 C758 730 796 722 814 738 C828 750 828 772 814 786" stroke="url(#maneViolet)" stroke-width="20"/>
+    <path d="M746 774 C760 750 790 744 804 758 C812 766 812 780 804 788" stroke="url(#maneTeal)" stroke-width="15"/>
   </g>
+
+  <!-- back mane -->
+  <path d="M706 576 C736 556 784 566 800 604 C812 632 812 664 800 684 C792 696 776 694 766 680 C770 698 756 712 738 718 C722 704 712 684 708 662 C704 636 700 600 706 576 Z" fill="url(#maneViolet)"/>
+  <g clip-path="url(#maneClip)" fill="none" stroke-linecap="round">
+    <path d="M722 580 C766 580 792 616 794 660" stroke="url(#manePink)" stroke-width="30"/>
+    <path d="M712 612 C750 610 780 640 792 678" stroke="url(#maneViolet)" stroke-width="16"/>
+    <path d="M704 642 C738 640 770 660 792 694" stroke="url(#maneTeal)" stroke-width="30"/>
+    <path d="M702 684 C714 704 730 716 746 722" stroke="#3F2FB0" stroke-width="30"/>
+  </g>
+
+  <!-- rear leg, behind the chest -->
+  <ellipse cx="580" cy="702" rx="17" ry="27" transform="rotate(28 580 702)" fill="url(#hoof)"/>
+
+  <!-- body -->
+  <path d="M620 650 C598 664 586 688 587 712 C588 738 602 762 622 777 C642 791 680 796 712 792 C740 788 752 768 748 744 C744 716 728 690 708 668 C700 658 690 652 680 652 Z" fill="url(#fur)"/>
+  <ellipse cx="692" cy="748" rx="52" ry="46" fill="url(#fur)"/>
+
+  <!-- front legs -->
+  <path d="M600 698 C585 712 573 732 567 750 L599 770 C605 750 613 732 621 716 Z" fill="url(#fur)"/>
+  <path d="M626 728 C621 746 621 764 625 780 L664 782 C665 764 662 746 656 730 Z" fill="url(#fur)"/>
+  <ellipse cx="579" cy="764" rx="27" ry="21" transform="rotate(-30 579 764)" fill="url(#hoof)"/>
+  <ellipse cx="644" cy="786" rx="30" ry="18" transform="rotate(-5 644 786)" fill="url(#hoof)"/>
+  <ellipse cx="571" cy="758" rx="9" ry="5" transform="rotate(-30 571 758)" fill="#A58FFA" opacity="0.55"/>
+  <ellipse cx="634" cy="780" rx="11" ry="4.5" fill="#A58FFA" opacity="0.55"/>
+
+  <!-- head -->
+  <path d="M606 574 C592 580 580 592 574 604 C568 618 572 634 584 642 C596 650 612 656 630 662 C654 670 686 668 708 652 C726 638 730 612 720 592 C712 580 700 574 690 572 Z" fill="url(#fur)"/>
+  <path d="M702 598 C710 576 728 556 754 544 C760 566 756 590 744 606 Z" fill="url(#fur)"/>
+  <path d="M714 594 C720 580 734 566 748 558 C750 574 746 588 738 598 Z" fill="#DDD5FA"/>
+
+  <!-- forelock -->
+  <path d="M650 560 C652 530 676 508 704 508 C728 508 744 526 742 550 C740 566 728 574 712 574 C690 574 668 572 650 560 Z" fill="url(#maneViolet)"/>
+  <path d="M598 574 C602 556 622 544 646 544 C664 544 684 552 700 566 C680 574 660 580 640 582 C624 584 612 584 604 588 C598 586 597 580 598 574 Z" fill="url(#maneViolet)"/>
+  <path d="M672 522 C686 512 706 510 720 516 C730 520 736 528 738 538" fill="none" stroke="#E6B0F4" stroke-width="7" stroke-linecap="round" opacity="0.85"/>
+  <path d="M606 568 C614 556 630 550 648 550" fill="none" stroke="#D2B0FB" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- horn -->
+  <path d="M625 476 Q627 466 634 472 L674 540 Q656 558 633 554 Z" fill="#FFD27A" opacity="0.55" filter="url(#soft)"/>
+  <path d="M625 476 Q627 466 634 472 L674 540 Q656 558 633 554 Z" fill="url(#horn)"/>
+  <g clip-path="url(#hornClip2)" fill="none" stroke="#D39A3E" stroke-opacity="0.7" stroke-width="4.5" stroke-linecap="round">
+    <path d="M622 532 C640 530 656 524 674 512"/>
+    <path d="M622 510 C636 508 648 502 662 490"/>
+    <path d="M622 490 C630 489 638 485 648 476"/>
+  </g>
+
+  <!-- face -->
+  <ellipse cx="656" cy="640" rx="15" ry="9" fill="#F5A3CF" opacity="0.55" filter="url(#blur2)"/>
+  <path d="M630 617 Q640 600 656 611 Q659 615 658 623" fill="none" stroke="#2A1E5C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="596" cy="624" rx="5" ry="3.2" transform="rotate(-20 596 624)" fill="#BBA9EE"/>
 </svg>
