@@ -574,7 +574,11 @@ function M.environment(ctx)
     if not seen2[o[1]] then
       seen2[o[1]] = true
       if o[3] then
-        by_option[o[3]] = by_option[o[3]] or o
+        -- every property read from the same OPTIONS item is set
+        -- (org-export--parse-option-keyword), e.g. koma-letter's
+        -- :with-email and :inbuffer-with-email
+        by_option[o[3]] = by_option[o[3]] or {}
+        table.insert(by_option[o[3]], o)
       end
       if o[2] then
         by_keyword[o[2]] = by_keyword[o[2]] or {}
@@ -585,16 +589,16 @@ function M.environment(ctx)
   local function apply_options(line)
     local parsed = M.parse_option_line(line)
     for key, v in pairs(parsed) do
-      local o = by_option[key]
-      if not o then
+      local list = by_option[key]
+      if not list then
         -- case-insensitive match (assoc-string ... t)
         for k2, o2 in pairs(by_option) do
           if k2:lower() == key:lower() then
-            o = o2
+            list = o2
           end
         end
       end
-      if o then
+      for _, o in ipairs(list or {}) do
         info[o[1]] = v
       end
     end
