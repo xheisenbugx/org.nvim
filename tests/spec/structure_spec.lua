@@ -188,6 +188,23 @@ describe("structure: sort", function()
     eq("* [#C] x", buf_lines(buf)[1])
   end)
 
+  it("sorts children when the last one is followed by a blank line", function()
+    local buf = org_buffer({ "* P", "** c", "** a", "** b", "", "* Q" }, { 1, 0 })
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function(opts)
+      for _, it in ipairs(opts.items) do
+        if it.key == "a" then
+          return it.value
+        end
+      end
+    end
+    local ok, err = pcall(structure.sort)
+    ui.menu = orig
+    assert(ok, err)
+    eq({ "* P", "** a", "** b", "** c", "", "* Q" }, buf_lines(buf))
+  end)
+
   it("sorts list items", function()
     local buf = org_buffer({ "- b", "- c", "- a" }, { 1, 0 })
     local ui = require("org.ui")
