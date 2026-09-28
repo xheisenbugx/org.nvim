@@ -745,6 +745,9 @@ local function from_absolute(date)
   return floor((c_year - 1) / 60), 1 + (c_year - 1) % 60, list[i][1], 1 + (date - list[i][2])
 end
 
+M.to_absolute = to_absolute
+M.from_absolute = from_absolute
+
 local STEMS = { "Jia", "Yi", "Bing", "Ding", "Wu", "Ji", "Geng", "Xin", "Ren", "Gui" }
 local BRANCHES = { "Zi", "Chou", "Yin", "Mao", "Chen", "Si", "Wu", "Wei", "Shen", "You", "Xu", "Hai" }
 

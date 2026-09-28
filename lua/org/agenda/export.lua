@@ -3,8 +3,10 @@
 --- A port of `org-agenda-write`, `org-store-agenda-views`,
 --- `org-batch-agenda` and `org-batch-agenda-csv`. The file type follows the
 --- extension: `.txt` (plain text), `.html`/`.htm` (coloured HTML, like
---- htmlize), `.org` (the entries' subtrees) and `.ics` (iCalendar).
---- PDF and PostScript output need Emacs's ps-print and are not supported.
+--- htmlize), `.org` (the entries' subtrees), `.ics` (iCalendar) and
+--- `.ps`/`.pdf` (paged like Emacs's ps-print, see |org.agenda.print|).
+--- `agenda.exporter_settings` (org-agenda-exporter-settings) holds ps-print
+--- settings and agenda options that apply while views are written.
 
 local config = require("org.config")
 local date = require("org.date")
@@ -65,8 +67,9 @@ local function css_for(group, cache)
   return cache[group]
 end
 
---- The agenda buffer as an HTML page, coloured from its highlights.
-function M.html(buf, lines)
+--- Highlight spans of the agenda buffer: 0-based row -> { s, e, group }
+--- (byte columns; line highlights cover the whole line).
+function M.spans(buf, lines)
   local ns = vim.api.nvim_create_namespace("org.agenda")
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
   local by_row = {}
@@ -76,9 +79,16 @@ function M.html(buf, lines)
     if group then
       by_row[row] = by_row[row] or {}
       local e = d.end_col or (d.line_hl_group and #(lines[row + 1] or "")) or col
-      table.insert(by_row[row], { s = d.line_hl_group and 0 or col, e = e, group = group })
+      local line = (d.line_hl_group and not d.hl_group) or nil
+      table.insert(by_row[row], { s = d.line_hl_group and 0 or col, e = e, group = group, line = line })
     end
   end
+  return by_row
+end
+
+--- The agenda buffer as an HTML page, coloured from its highlights.
+function M.html(buf, lines)
+  local by_row = M.spans(buf, lines)
   local cache, classes, used = {}, {}, {}
   local function class_of(group)
     if not classes[group] then
@@ -334,12 +344,47 @@ end
 -- org-agenda-write
 ---------------------------------------------------------------------------
 
+--- `agenda.exporter_settings` split in print settings (ps-print variables,
+--- `ps_*`) and agenda options; `extra` (a custom command's settings) is
+--- merged on top.
+local function exporter_settings(extra)
+  local print_opts, agenda_opts = {}, {}
+  local printer = require("org.agenda.print")
+  for _, t in ipairs({ config.opts.agenda.exporter_settings or {}, extra or {} }) do
+    for k, v in pairs(t) do
+      if printer.is_setting(k) then
+        print_opts[k] = v
+      elseif t ~= extra then
+        agenda_opts[k] = v
+      end
+    end
+  end
+  return print_opts, agenda_opts
+end
+
+local with_agenda_options
+
 --- Write the current agenda view to `path` (org-agenda-write). The format
---- follows the extension; anything else is plain text.
+--- follows the extension; anything else is plain text. The agenda options
+--- of `agenda.exporter_settings` apply while writing unless `nosettings`.
 ---@param path? string prompted for when nil
----@param opts? { open?: boolean, lines?: string[] }
+---@param opts? { open?: boolean, lines?: string[], nosettings?: boolean, print?: table }
 ---@return boolean ok
 function M.write(path, opts)
+  opts = opts or {}
+  if opts.nosettings then
+    return M.write_now(path, opts)
+  end
+  local _, agenda_opts = exporter_settings()
+  local ok
+  with_agenda_options(agenda_opts, function()
+    ok = M.write_now(path, opts)
+  end)
+  return ok
+end
+
+--- org-agenda-write without binding the exporter settings.
+function M.write_now(path, opts)
   opts = opts or {}
   local S, lines = current()
   if not S then
@@ -360,8 +405,17 @@ function M.write(path, opts)
   local ext = (path:match("%.([^./]+)$") or ""):lower()
   local out, msg
   if ext == "pdf" or ext == "ps" then
-    utils.error("PDF/PostScript agenda export is not supported (it needs Emacs's ps-print)")
-    return false
+    local print_opts = exporter_settings(opts.print)
+    local ok, err = pcall(require("org.agenda.print").write, path, ext, lines, M.spans(S.buf, lines), print_opts)
+    if not ok then
+      utils.error("Cannot write agenda to file " .. path .. ": " .. tostring(err))
+      return false
+    end
+    utils.notify((ext == "ps" and "Postscript" or "PDF") .. " written to " .. path)
+    if opts.open then
+      pcall(vim.ui.open, path)
+    end
+    return true
   elseif ext == "org" then
     out, msg = M.org_lines(S, #lines), "Org file written to "
   elseif ext == "html" or ext == "htm" then
@@ -399,7 +453,7 @@ end
 M.export_files = export_files
 
 --- Temporarily merge `overrides` into `config.opts.agenda` while `fn` runs.
-local function with_agenda_options(overrides, fn)
+with_agenda_options = function(overrides, fn)
   if not overrides or vim.tbl_isempty(overrides) then
     return fn()
   end
@@ -416,7 +470,9 @@ end
 
 --- Run every custom command with `export_files` and write its view to
 --- each file (org-store-agenda-views). Relative paths are resolved against
---- the current directory, like Emacs.
+--- the current directory, like Emacs. The agenda options of
+--- `agenda.exporter_settings` apply to the views (`overrides` win), and the
+--- ps-print settings of a command's `settings` to its .ps/.pdf files.
 ---@return integer number of files written
 function M.store_views(overrides)
   local agenda = require("org.agenda")
@@ -429,10 +485,13 @@ function M.store_views(overrides)
     if type(cmd) == "table" then
       local fl = export_files(cmd)
       if #fl > 0 then
-        with_agenda_options(overrides, function()
+        local _, agenda_opts = exporter_settings()
+        local opts = vim.tbl_extend("force", agenda_opts, overrides or {})
+        with_agenda_options(opts, function()
           agenda.open_custom(key)
           for _, f in ipairs(fl) do
-            if M.write(vim.fn.fnamemodify(vim.fn.expand(f), ":p")) then
+            local path = vim.fn.fnamemodify(vim.fn.expand(f), ":p")
+            if M.write(path, { nosettings = true, print = cmd.settings or cmd.options }) then
               n = n + 1
             end
           end
