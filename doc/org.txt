@@ -880,7 +880,9 @@ Timestamps:
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
                 The end minute of a time range moves by 1. On a bracket,
-                switch the timestamp between active and inactive.
+                switch the timestamp between active and inactive. With
+                `edit_timestamp_down_means_later`, <S-Down> is later and
+                <S-Up> earlier.
 <S-Right/Left>  (ctx) Day +1 / -1.
 :Org toggle_timestamp_type   Switch the timestamp at the cursor between
                 active and inactive (in a range, only that end).
@@ -923,13 +925,30 @@ The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
+  <C-v>  <M-v>   three months later / earlier: on today when it is within
+                 a month of that month, else on its 1st (Emacs calendar)
   .              today
   i  t           type a date (see below); a date moved to in the calendar
-                 is part of the answer, like Emacs
+                 is part of the answer, like Emacs. While typing, the
+                 calendar shows the date the answer means ("=> <date>",
+                 "(=>F)" when it was taken in the future), like the Emacs
+                 overlay (`read_date_display_live`, default on)
   T              set a time
+  !              show the agenda of the selected date (Emacs: the diary
+                 entries); the windows come back when the prompt ends
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
+  <LeftMouse>    select the day clicked (<MiddleMouse> too)
   q  <Esc>       cancel
+With `read_date_popup_calendar = false` (org-read-date-popup-calendar, or
+its alias `popup_calendar_for_date_prompt`) date prompts are a plain
+"Date+time [2026-09-28]: " prompt instead; an empty answer takes the date
+in brackets.
+
+<C-c><          Insert the date the calendar was last left on (by a date
+                prompt or `:Org goto_calendar`), today before that; on a
+                timestamp, change only its date, keeping the time, repeater
+                and warning (org-date-from-calendar).
 A count of 4 (`C-u`) before the schedule/deadline key removes the date; a
 count of 16 (`C-u C-u`) instead asks for a date and sets the warning period
 (DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
@@ -4403,6 +4422,8 @@ Buffer ~
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
+  sparse_tree_open_archived_trees  false  sparse trees open :ARCHIVE: trees
+  sparse_tree_default_date_type    nil  |org-sparse-tree| date types
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
   edit_src_content_indentation  2
@@ -4435,6 +4456,9 @@ Structure and visibility ~
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
+  read_date_popup_calendar  true      false: a plain prompt |org-calendar|
+  read_date_display_live    true      show the typed date's meaning
+  edit_timestamp_down_means_later  false  <S-Down> makes timestamps later
   display_custom_times      false     |org-dates|
   time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
   archive_location          "%s_archive::"
@@ -4539,7 +4563,12 @@ links ~
   search_must_match_exact_headline "query-to-create" (true|false),
   frame_setup { file = "other-window" } ("current"|"split"|"vsplit"|"tab"|
   function), make_description nil, doi_server_url "https://doi.org/",
-  search_functions {}, translation_function nil
+  search_functions {}, translation_function nil, mouse_1_follows_link 450
+  (true|"double"|ms|false), tab_follows_link false,
+  open_directory_means_index_dot_org false, open_non_existing_files false
+  (|org-links-mouse|)
+resource_download_policy "prompt" (true|"safe"|false),
+safe_remote_resources {} (|org-remote-resources|)
 id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,

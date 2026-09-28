@@ -266,6 +266,14 @@ M.defaults = {
   --- Let visibility cycling open subtrees tagged :ARCHIVE:
   --- (org-cycle-open-archived-trees).
   cycle_open_archived_trees = false,
+  --- Sparse trees open subtrees tagged :ARCHIVE: to show matches in them;
+  --- false keeps them folded (org-sparse-tree-open-archived-trees).
+  sparse_tree_open_archived_trees = false,
+  --- Dates the before/after/range sparse trees look at: nil (SCHEDULED and
+  --- DEADLINE), "all", "active", "inactive", "scheduled", "deadline" or
+  --- "closed"; `c` in the sparse-tree menu cycles them
+  --- (org-sparse-tree-default-date-type).
+  sparse_tree_default_date_type = nil,
   --- Heading that collects footnote definitions (created when missing)
   --- (org-footnote-section; #+STARTUP: fnlocal).
   --- false = put each definition at the end of the reference's section.
@@ -366,6 +374,16 @@ M.defaults = {
   --- day/month means next month/year), `"time"` (also a past time today
   --- means tomorrow) or `false` (org-read-date-prefer-future).
   read_date_prefer_future = true,
+  --- Date prompts show the calendar; false = only a "Date+time [default]: "
+  --- prompt (org-read-date-popup-calendar; the Emacs alias
+  --- `popup_calendar_for_date_prompt = false` works too).
+  read_date_popup_calendar = true,
+  --- Show what a typed date means while typing it in the calendar
+  --- (org-read-date-display-live).
+  read_date_display_live = true,
+  --- <S-Down> makes timestamps later and <S-Up> earlier
+  --- (org-edit-timestamp-down-means-later).
+  edit_timestamp_down_means_later = false,
   --- Display timestamps with `time_stamp_custom_formats` (format-time-string
   --- formats for dates and date+time; brackets around them are dropped in
   --- the buffer and kept in exports); toggled by `toggle_time_stamp_overlays`
@@ -1026,7 +1044,30 @@ M.defaults = {
     --- function(type, path) -> type, path applied before following a link
     --- (org-link-translation-function).
     translation_function = nil,
+    --- A mouse click on a link follows it: true, "double" (a double click)
+    --- or the longest click in ms that still follows it; false = never
+    --- (org-mouse-1-follows-link). Middle click opens the link, right
+    --- click opens it in Neovim (org-open-at-mouse, org-find-file-at-mouse).
+    mouse_1_follows_link = 450,
+    --- <Tab> on a link follows it instead of cycling (org-tab-follows-link).
+    tab_follows_link = false,
+    --- Links to a directory open its index.org
+    --- (org-open-directory-means-index-dot-org).
+    open_directory_means_index_dot_org = false,
+    --- Let external apps (file_apps) open files that don't exist; false =
+    --- an error (org-open-non-existing-files).
+    open_non_existing_files = false,
   },
+  --- Downloading remote resources (a URL in #+INCLUDE on export)
+  --- (org-resource-download-policy): "prompt" asks for URLs that are not
+  --- safe, "safe" only fetches safe ones, true always fetches (dangerous),
+  --- false never does.
+  resource_download_policy = "prompt",
+  --- Vim regexes of safe URLs, matched against the URL and against
+  --- "file://" .. the requesting file (org-safe-remote-resources). Answers
+  --- `!`, `d` and `f` at the prompt add to it and are remembered in
+  --- stdpath("data")/org/safe-remote-resources.json.
+  safe_remote_resources = {},
   id = {
     --- Where the ID -> file database is kept (org-id-locations-file). Point
     --- it at Emacs's file (`~/.emacs.d/.org-id-locations`) to share it.

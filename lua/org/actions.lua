@@ -239,7 +239,7 @@ group("Dates", {
   deadline = { "org.timestamps", "deadline", desc = "Deadline (Visual: all headlines)", modes = { "n", "x" } },
   timestamp = { "org.timestamps", "insert_active", desc = "Insert active timestamp" },
   timestamp_inactive = { "org.timestamps", "insert_inactive", desc = "Insert inactive timestamp" },
-  date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
+  date_today = { "org.timestamps", "insert_today", desc = "Insert the calendar's date (today)" },
   goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
   toggle_timestamp_type = { "org.timestamps", "toggle_type", desc = "Toggle timestamp active/inactive" },

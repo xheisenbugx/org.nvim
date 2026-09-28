@@ -486,9 +486,15 @@ end
 -- Shift arrows / increment
 ---------------------------------------------------------------------------
 
+--- S-Up / S-Down on a timestamp: later / earlier, the other way round with
+--- `edit_timestamp_down_means_later` (org-edit-timestamp-down-means-later).
+local function timestamp_direction()
+  return require("org.config").opts.edit_timestamp_down_means_later and -1 or 1
+end
+
 function M.shift_up()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(count())
+    return require("org.timestamps").increment(timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(count()) then
     return true
@@ -508,7 +514,7 @@ end
 
 function M.shift_down()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(-count())
+    return require("org.timestamps").increment(-timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(-count()) then
     return true
