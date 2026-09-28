@@ -761,6 +761,20 @@ and `global_properties` set values for the whole file, in that order.
                 shows the whole file with the file-level format. The
                 buffer's own first `#+COLUMNS` line takes precedence over
                 one imported with `#+SETUPFILE`.
+                Like Emacs, the view is drawn over the headlines of the
+                org buffer itself: every headline in scope shows its
+                column row (summaries on parents) in place of its text,
+                the column titles are in the window's winbar (Emacs
+                header-line) and the window gets 'nowrap' and
+                'virtualedit' so the cursor reaches every column. The
+                buffer text is not changed; body lines stay as they are.
+                The keys below act on the headline and column under the
+                cursor, and keep their usual meaning on other lines;
+                leaving the window or `q` restores the buffer, its
+                mappings and the window options. Rows follow edits of the
+                text; `r` recomputes. With `columns_view = "table"` the
+                view is a table in a split instead (with <CR> to jump to
+                the headline). Groups: OrgColumn, OrgColumnTitle.
                 Keys in the view:
                   e               edit the value (TODO, tags, dates, ...)
                   n / p           next / previous allowed value (also
@@ -781,7 +795,10 @@ and `global_properties` set values for the whole file, in that order.
                   <C-c><C-c>      toggle a checkbox value, else quit
                   <C-c><C-t>      change the TODO state
                   <C-c><C-o>      open the link in the field
-                  v view value, <CR> jump, r refresh, q quit.
+                  c / o           contents / overview visibility
+                                  (overlay view)
+                  v view value, r / g refresh, q quit (<CR> jumps to the
+                  headline in the table view).
                 Format changes are saved to the COLUMNS property or the
                 `#+COLUMNS:` line the view comes from.
 
@@ -1293,7 +1310,8 @@ first entry), else `columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
 (`agenda.columns_show_summaries`). While it is on: `q` turns it off, `e`
 edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
-the next/previous allowed value, `v` shows the full value. Other agenda
+the next/previous allowed value, `v` shows the full value. The column
+titles are in the window's winbar (Emacs header-line). Other agenda
 commands keep working on the entry at point.
 `agenda.view_columns_initially` turns it on for every new agenda.
 
@@ -3481,6 +3499,7 @@ Priorities, tags, properties ~
   effort_property           "Effort"
   duration_format           "d h:mm"  or "h:mm"
   columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
+  columns_view              "overlay" "overlay" (over the headlines) | "table"
   columns_summary_types     {}        extra summary operators
   columns_modify_value_for_display_function  nil  function(title, value)
   columns_dblock_formatter  nil       function(rows, params) → lines
@@ -4172,9 +4191,12 @@ Differences from Emacs:
   Emacs always uses dvipng, and add "tectonic" and "pdflatex". Link
   previews are made at once, not in batches (org-link-preview-batch-size),
   and remote TRAMP images (org-display-remote-inline-images) are not shown.
-- Column view is a separate table buffer rather than overlays on the
-  headlines. Like Emacs, digits 1-9 select allowed values there, so counts
-  are not available in the view (0 keeps its Vim meaning).
+- Column view: the overlays cover each headline line but the cursor still
+  moves by character (Emacs puts one column on each character, so a
+  motion jumps a column); the column is the one drawn under the cursor.
+  Headline lines are not made read-only. Like Emacs, digits 1-9 select
+  allowed values on a column row, so counts are not available there (0
+  keeps its Vim meaning; counts work on other lines).
 - Structure editing:                               *org-structure-differences*
   - Emacs acts at point, between two characters; Normal mode has a cursor
     on a character. Commands that insert at point (<M-CR>, C-c RET,

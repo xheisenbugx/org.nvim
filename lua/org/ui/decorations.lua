@@ -390,6 +390,11 @@ function M.compute(bufnr)
       end
     end
   end
+  -- column view rows stand for the whole line (Emacs turns org-num off)
+  local colview = package.loaded["org.columns"]
+  for lnum in pairs(colview and colview.overlay_lines(bufnr) or {}) do
+    rows[lnum - 1] = nil
+  end
   return rows
 end
 

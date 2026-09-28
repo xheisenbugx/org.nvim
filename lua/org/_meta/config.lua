@@ -207,6 +207,11 @@
 ---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
 ---(Emacs `orgtbl-radio-table-templates`)
 ---@field orgtbl_radio_table_templates? table<string, string>
+---Column view display: `"overlay"` draws the column rows over the
+---headlines of the org buffer (with the titles in the winbar), like Emacs
+---`org-columns`; `"table"` shows them as a table in a split.
+---(default: `"overlay"`)
+---@field columns_view? "overlay"|"table"
 ---Extra column view summary operators: operator → `fun(values: string[],
 ---format?: string): string`. (Emacs `org-columns-summary-types`,
 ---default: `{}`)

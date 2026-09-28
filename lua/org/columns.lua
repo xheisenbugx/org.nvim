@@ -1,6 +1,7 @@
 ---@mod org.columns Column view
 ---
---- `open()` shows headlines and their properties as a table in a split.
+--- `open()` shows headlines and their properties as columns drawn over the
+--- headlines (like Emacs), or as a table in a split (`columns_view`).
 --- The format comes from the nearest COLUMNS property, `#+COLUMNS:`, or
 --- `columns_default_format`. Summary operators: {+} {$} {:} {X} {X/} {X%}
 --- {min} {max} {mean} {:min} {:max} {:mean} {@min} {@max} {@mean} {est+}
@@ -803,17 +804,18 @@ local function anchor_line(state)
 end
 
 --- Text of cell `i` of row `r` in the view: the displayed value; ITEM
---- with its stars and links shown as their descriptions.
-local function view_text(r, i, col)
+--- with its stars (the leading ones blank with `hide`, like Emacs with
+--- org-hide-leading-stars) and links shown as their descriptions.
+local function view_text(r, i, col, hide)
   local v = r.display[i] or ""
   if col.prop:upper() == "ITEM" and v == r.cells[i] then
     v = v:gsub("%[%[([^%]]-)%]%[(.-)%]%]", "%2"):gsub("%[%[([^%]]-)%]%]", "%1")
-    v = string.rep("*", r.hl.level) .. " " .. v
+    v = string.rep(hide and " " or "*", r.hl.level - 1) .. "* " .. v
   end
   return v
 end
 
-local function render(state)
+local function render_table(state)
   local file = files.get_buffer(state.src)
   local fmt, roots, holder = scope_for(file, not state.global and anchor_line(state) or nil)
   state.holder = holder
@@ -869,7 +871,7 @@ local function render(state)
 end
 
 --- Row and column index under the cursor (in the view window).
-local function current(state)
+local function table_current(state)
   local row = vim.api.nvim_win_get_cursor(0)[1]
   local col = vim.api.nvim_win_get_cursor(0)[2]
   local r = state.rows[row - 2]
@@ -884,7 +886,7 @@ local function current(state)
 end
 
 --- Put the cursor on view line `lnum`, column `ci`.
-local function goto_cell(state, lnum, ci)
+local function table_goto(state, lnum, ci)
   lnum = math.max(1, math.min(lnum, vim.api.nvim_buf_line_count(state.buf)))
   local line = vim.api.nvim_buf_get_lines(state.buf, lnum - 1, lnum, false)[1] or ""
   local col, n = 0, 1
@@ -896,6 +898,212 @@ local function goto_cell(state, lnum, ci)
     col, n = e + 1, n + 1
   end
   vim.api.nvim_win_set_cursor(0, { lnum, col })
+end
+
+-- Overlay view (the default, Emacs org-columns): the column row is drawn
+-- over every headline of the org buffer itself, as an overlay extmark
+-- blanking the rest of the line; the column titles are in the window's
+-- winbar (Emacs header-line). Like Emacs' truncate-lines the window gets
+-- 'nowrap', and 'virtualedit' so the cursor reaches every column of a
+-- short headline.
+
+local ns_ov = vim.api.nvim_create_namespace("org.columns.overlay")
+
+--- Active overlay views by org buffer.
+local views = {}
+
+--- Default links of the column view groups (Emacs org-column and
+--- org-column-title).
+local OV_HL = { OrgColumn = "Pmenu", OrgColumnTitle = "TabLineSel" }
+
+--- Lines (1-based, as keys) showing a column row in `bufnr`, or nil. The
+--- decorations leave these lines alone (Emacs turns org-num-mode off).
+function M.overlay_lines(bufnr)
+  local state = views[bufnr]
+  return state and state.row_at
+end
+
+--- Is the overlay column view shown in `bufnr` (default: the current
+--- buffer)?
+function M.active(bufnr)
+  return views[bufnr or vim.api.nvim_get_current_buf()] ~= nil
+end
+
+--- Faces of a cell (org-columns--overlay-text): the TODO keyword, priority
+--- or tag face, else the level face of the headline, over OrgColumn.
+local function cell_hl(r, col, value)
+  local key = col.prop:upper()
+  local v = vim.trim(value or "")
+  local ui = config.opts.ui or {}
+  local group = "OrgHeadlineLevel" .. (((r.hl.level - 1) % 8) + 1)
+  if key == "TODO" and v ~= "" then
+    if (ui.todo_keyword_faces or {})[v] then
+      group = "orgTodoKw_" .. v:gsub("[^%w_]", "_")
+    else
+      group = r.hl.file.settings.todo:is_done(v) and "OrgDone" or "OrgTodo"
+    end
+  elseif key == "PRIORITY" and v ~= "" then
+    if (ui.priority_faces or {})[v] then
+      group = require("org.highlights").face_group("orgPriorityFace_", v)
+    else
+      group = ({ A = "OrgPriorityA", B = "OrgPriorityB", C = "OrgPriorityC" })[v] or "OrgPriority"
+    end
+  elseif key == "TAGS" and v ~= "" then
+    group = "OrgTags"
+  end
+  return { "OrgColumn", group }
+end
+
+--- Emacs overlay text of a cell: "%-W.Ws | ", "%-W.Ws |" for the last one.
+local function overlay_cell(v, w, last)
+  return utils.pad_right(utils.truncate(v, w), w) .. (last and " |" or " | ")
+end
+
+--- `s` without its first `n` display cells.
+local function drop_cells(s, n)
+  local i, w, len = 0, 0, vim.fn.strchars(s)
+  while i < len and w < n do
+    w = w + utils.width(vim.fn.strcharpart(s, i, 1))
+    i = i + 1
+  end
+  return vim.fn.strcharpart(s, i)
+end
+
+--- Show the column titles in the view window's winbar, after the number
+--- and sign columns and scrolled along with the text (org-columns-hscroll-title).
+local function update_winbar(state)
+  local win = state.win
+  if not state.saved_opts or not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= state.src then
+    return
+  end
+  local info = vim.fn.getwininfo(win)[1] or {}
+  local leftcol = vim.api.nvim_win_call(win, function()
+    return vim.fn.winsaveview().leftcol
+  end)
+  local title = drop_cells(state.title or "", leftcol):gsub("%%", "%%%%")
+  local bar = "%#Normal#" .. string.rep(" ", info.textoff or 0) .. "%#OrgColumnTitle#" .. title .. "%#Normal#"
+  vim.api.nvim_set_option_value("winbar", bar, { scope = "local", win = win })
+end
+
+--- Draw the column rows over the headlines of the view's scope. With
+--- `update`, summaries are written back to existing properties (on open
+--- and redo, like Emacs org-columns-compute-all).
+local function overlay_render(state, update)
+  local src = state.src
+  local file = files.get_buffer(src)
+  local fmt, roots, holder = scope_for(file, not state.global and anchor_line(state) or nil)
+  state.holder = holder
+  state.cols = M.parse_format(fmt)
+  local rows = M.compute(roots, state.cols, { update = update })
+  state.rows = rows
+  local hide = require("org.ui.decorations").ui_options(src).hide_leading_stars
+  local texts = {}
+  for k, r in ipairs(rows) do
+    texts[k] = {}
+    for i, c in ipairs(state.cols) do
+      texts[k][i] = view_text(r, i, c, hide)
+    end
+  end
+  -- widths: the format's, else the widest value or title (org-columns--set-widths)
+  local widths = {}
+  for i, c in ipairs(state.cols) do
+    local w = utils.width(c.title)
+    for k = 1, #rows do
+      w = math.max(w, utils.width(texts[k][i]))
+    end
+    widths[i] = c.width and math.max(c.width, 1) or w
+  end
+  state.widths = widths
+  for group, link in pairs(OV_HL) do
+    vim.api.nvim_set_hl(0, group, { link = link, default = true })
+  end
+  vim.api.nvim_buf_clear_namespace(src, ns_ov, 0, -1)
+  local lines = vim.api.nvim_buf_get_lines(src, 0, -1, false)
+  state.row_at = {}
+  for k, r in ipairs(rows) do
+    local lnum = r.hl.line
+    state.row_at[lnum] = r
+    local chunks, total = {}, 0
+    for i, c in ipairs(state.cols) do
+      local s = overlay_cell(texts[k][i], widths[i], i == #state.cols)
+      chunks[i] = { s, cell_hl(r, c, r.cells[i]) }
+      total = total + utils.width(s)
+    end
+    -- make the rest of the line disappear
+    local lw = vim.fn.strdisplaywidth(lines[lnum] or "")
+    if lw > total then
+      chunks[#chunks + 1] = { string.rep(" ", lw - total), "Normal" }
+    end
+    pcall(vim.api.nvim_buf_set_extmark, src, ns_ov, lnum - 1, 0, {
+      virt_text = chunks,
+      virt_text_pos = "overlay",
+      hl_mode = "replace",
+      priority = 1000,
+    })
+  end
+  local titles = {}
+  for i, c in ipairs(state.cols) do
+    titles[i] = overlay_cell(c.title, widths[i], i == #state.cols)
+  end
+  state.title = table.concat(titles)
+  update_winbar(state)
+  require("org.ui.decorations").render(src)
+end
+
+--- Row and column index under the cursor in the org buffer.
+local function overlay_current(state)
+  if vim.api.nvim_get_current_buf() ~= state.src then
+    return nil
+  end
+  local r = state.row_at and state.row_at[vim.api.nvim_win_get_cursor(0)[1]]
+  if not r then
+    return nil
+  end
+  local vcol = vim.fn.virtcol(".") - 1
+  local x = 0
+  for i, w in ipairs(state.widths) do
+    x = x + w + 3
+    if vcol < x then
+      return r, i
+    end
+  end
+  return r, #state.cols
+end
+
+--- Put the cursor on buffer line `lnum`, at the start of column `ci`.
+local function overlay_goto(state, lnum, ci)
+  lnum = math.max(1, math.min(lnum, vim.api.nvim_buf_line_count(state.src)))
+  local x = 0
+  for i = 1, math.min(ci or 1, #state.widths) - 1 do
+    x = x + state.widths[i] + 3
+  end
+  vim.api.nvim_win_set_cursor(0, { lnum, 0 })
+  if x > 0 then
+    vim.cmd("normal! " .. (x + 1) .. "|")
+  end
+end
+
+local function render(state)
+  if state.mode == "overlay" then
+    overlay_render(state, true)
+  else
+    render_table(state)
+  end
+end
+
+local function current(state)
+  if state.mode == "overlay" then
+    return overlay_current(state)
+  end
+  return table_current(state)
+end
+
+local function goto_cell(state, lnum, ci)
+  if state.mode == "overlay" then
+    overlay_goto(state, lnum, ci)
+  else
+    table_goto(state, lnum, ci)
+  end
 end
 
 --- Re-render, keeping the cursor on its line, in column `ci`.
@@ -1234,7 +1442,7 @@ local function move_row(state, dir)
   if not r then
     return
   end
-  local win = vim.fn.win_findbuf(state.src)[1]
+  local win = state.mode == "overlay" and vim.api.nvim_get_current_win() or vim.fn.win_findbuf(state.src)[1]
   if not win then
     utils.warn("The org buffer is not shown in a window")
     return
@@ -1253,59 +1461,22 @@ local function move_row(state, dir)
   render(state)
   for i, row in ipairs(state.rows) do
     if row.hl.line == line then
-      goto_cell(state, i + 2, ci)
+      goto_cell(state, state.mode == "overlay" and line or i + 2, ci)
       return
     end
   end
 end
 
---- Open column view for the current buffer.
----@param opts? { global?: boolean } global (or a count, like C-u in
---- Emacs org-columns): the whole file, with the file-level format
-function M.open(opts)
-  local global = (opts and opts.global) or vim.v.count > 0
-  local src = vim.api.nvim_get_current_buf()
-  if vim.bo[src].filetype ~= "org" then
-    utils.warn("Column view needs an org buffer")
-    return nil
-  end
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].filetype = "orgcolumns"
-  local mark = vim.api.nvim_buf_set_extmark(src, ns, lnum - 1, 0, {})
-  local state = { src = src, mark = mark, buf = buf, global = global }
-  vim.cmd("botright split")
-  vim.api.nvim_win_set_buf(0, buf)
-  vim.wo.wrap = false
-  vim.wo.cursorline = true
-  vim.wo.number = false
-  vim.wo.relativenumber = false
-  render(state)
-  vim.api.nvim_win_set_height(0, math.min(#state.rows + 3, math.floor(vim.o.lines / 2)))
-  vim.api.nvim_create_autocmd("BufWipeout", {
-    buffer = buf,
-    once = true,
-    callback = function()
-      if vim.api.nvim_buf_is_valid(src) then
-        pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
-      end
-    end,
-  })
-  local function map(lhs, fn, desc)
-    for _, l in ipairs(type(lhs) == "table" and lhs or { lhs }) do
-      vim.keymap.set("n", l, fn, { buffer = buf, nowait = true, desc = "org columns: " .. desc })
-    end
-  end
+
+--- Bind the column view keys with `map(lhs, fn, desc)`; `quit` leaves the
+--- view.
+local function bind_keys(state, map, quit)
   --- Mapping callback running `fn(state, ...)` in a coroutine (prompts).
   local function run(fn, ...)
     local args = { ... }
     return function()
       utils.run(fn, state, unpack(args))
     end
-  end
-  local function quit()
-    vim.api.nvim_win_close(0, true)
   end
   map("q", quit, "quit")
   map({ "r", "g" }, function()
@@ -1329,7 +1500,9 @@ function M.open(opts)
     local target = value:match("%[%[(.-)%]%]") or value:match("%[%[(.-)%]%[") or value:match("%a[%w+.-]*:%S+")
     if target then
       target = target:match("^(.-)%]%[") or target
-      vim.cmd("wincmd p")
+      if state.mode ~= "overlay" then
+        vim.cmd("wincmd p")
+      end
       require("org.links").open(target, { bufnr = state.src })
     else
       utils.warn("No link in this field")
@@ -1365,6 +1538,222 @@ function M.open(opts)
       end)
     end
   end, "change TODO state")
+  map("v", function()
+    local r, ci = current(state)
+    if r then
+      utils.notify(state.cols[ci].title .. ": " .. (r.cells[ci] or ""))
+    end
+  end, "show value")
+end
+
+--- Remove the overlay view of `state`: its overlays, winbar and window
+--- options and its keys (the buffer's own mappings come back).
+local function quit_overlay(state)
+  if views[state.src] ~= state then
+    return
+  end
+  views[state.src] = nil
+  pcall(vim.api.nvim_del_augroup_by_id, state.group)
+  local src = state.src
+  if vim.api.nvim_buf_is_valid(src) then
+    vim.api.nvim_buf_clear_namespace(src, ns_ov, 0, -1)
+    pcall(vim.api.nvim_buf_del_extmark, src, ns, state.mark)
+    for _, lhs in ipairs(state.lhs or {}) do
+      pcall(vim.keymap.del, "n", lhs, { buffer = src })
+    end
+    vim.api.nvim_buf_call(src, function()
+      for _, m in pairs(state.saved_maps or {}) do
+        if m.buffer == 1 then
+          pcall(vim.fn.mapset, "n", false, m)
+        end
+      end
+    end)
+    require("org.ui.decorations").render(src)
+  end
+  if state.saved_opts and vim.api.nvim_win_is_valid(state.win) then
+    for name, value in pairs(state.saved_opts) do
+      pcall(vim.api.nvim_set_option_value, name, value, { scope = "local", win = state.win })
+    end
+  end
+end
+
+--- Leave the overlay column view of `bufnr` (default: the current buffer).
+function M.quit(bufnr)
+  local state = views[bufnr or vim.api.nvim_get_current_buf()]
+  if state then
+    quit_overlay(state)
+  end
+end
+
+--- Run action `idx` of the overlay view of `bufnr` (from its mappings).
+function M._key(bufnr, idx)
+  local state = views[bufnr]
+  local fn = state and state.actions[idx]
+  if fn then
+    fn()
+  end
+end
+
+--- Run the mapping that key `idx` of the overlay view of `bufnr` shadows
+--- (the key was typed outside a column row).
+function M._fallback(bufnr, idx)
+  local state = views[bufnr]
+  local m = state and state.saved_maps[idx]
+  if not m then
+    return
+  end
+  local keys
+  if m.callback then
+    keys = m.callback()
+    keys = m.expr == 1 and type(keys) == "string" and keys or nil
+  elseif m.rhs then
+    keys = m.expr == 1 and vim.api.nvim_eval(m.rhs) or m.rhs
+  end
+  if type(keys) == "string" and keys ~= "" then
+    vim.api.nvim_feedkeys(vim.keycode(keys), m.noremap == 1 and "n" or "m", false)
+  end
+end
+
+--- A `map` for `bind_keys` in the org buffer: on a column row the key runs
+--- its column view action (Emacs binds them on the overlays), elsewhere it
+--- keeps its usual meaning.
+local function overlay_mapper(state)
+  local src = state.src
+  state.actions, state.saved_maps, state.lhs = {}, {}, {}
+  return function(lhs, fn, desc)
+    for _, l in ipairs(type(lhs) == "table" and lhs or { lhs }) do
+      local idx = #state.actions + 1
+      state.actions[idx] = fn
+      local prev = vim.fn.maparg(l, "n", false, true)
+      if prev and prev.lhs then
+        state.saved_maps[idx] = prev
+      end
+      state.lhs[#state.lhs + 1] = l
+      vim.keymap.set("n", l, function()
+        local st = views[src]
+        if st and st.row_at and st.row_at[vim.api.nvim_win_get_cursor(0)[1]] then
+          return string.format("<Cmd>lua require('org.columns')._key(%d, %d)<CR>", src, idx)
+        elseif st and st.saved_maps[idx] then
+          return string.format("<Cmd>lua require('org.columns')._fallback(%d, %d)<CR>", src, idx)
+        end
+        return l
+      end, { buffer = src, expr = true, nowait = true, desc = "org columns: " .. desc })
+    end
+  end
+end
+
+--- Turn on the overlay view in the current window (Emacs org-columns).
+local function open_overlay(src, lnum, global)
+  if views[src] then
+    quit_overlay(views[src])
+  end
+  local win = vim.api.nvim_get_current_win()
+  local mark = vim.api.nvim_buf_set_extmark(src, ns, lnum - 1, 0, {})
+  local state = { mode = "overlay", src = src, mark = mark, global = global, win = win }
+  overlay_render(state, true)
+  if #state.rows == 0 then
+    vim.api.nvim_buf_clear_namespace(src, ns_ov, 0, -1)
+    pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
+    return nil
+  end
+  views[src] = state
+  state.saved_opts = {}
+  for name, value in pairs({ wrap = false, virtualedit = "all", winbar = "" }) do
+    state.saved_opts[name] = vim.api.nvim_get_option_value(name, { scope = "local", win = win })
+    vim.api.nvim_set_option_value(name, value, { scope = "local", win = win })
+  end
+  update_winbar(state)
+  require("org.ui.decorations").render(src)
+  local map = overlay_mapper(state)
+  bind_keys(state, map, function()
+    quit_overlay(state)
+  end)
+  -- Emacs org-columns-content / org-overview
+  map("c", function()
+    require("org.fold").content()
+  end, "contents view")
+  map("o", function()
+    require("org.fold").overview()
+  end, "overview")
+  local group = vim.api.nvim_create_augroup("org.columns.overlay." .. src, { clear = true })
+  state.group = group
+  -- keep the rows on their headlines when the text changes
+  vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
+    group = group,
+    buffer = src,
+    callback = function()
+      vim.schedule(function()
+        if views[src] == state and vim.api.nvim_buf_is_valid(src) then
+          overlay_render(state, false)
+        end
+      end)
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "WinScrolled", "WinResized" }, {
+    group = group,
+    callback = function()
+      if views[src] == state then
+        update_winbar(state)
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "BufWinLeave", "BufWipeout", "BufUnload" }, {
+    group = group,
+    buffer = src,
+    callback = function()
+      quit_overlay(state)
+    end,
+  })
+  return true
+end
+
+--- Open column view for the current buffer: over its headlines (Emacs
+--- org-columns), or as a table in a split with `columns_view = "table"`.
+---@param opts? { global?: boolean, view?: "overlay"|"table" } global (or
+--- a count, like C-u in Emacs org-columns): the whole file, with the
+--- file-level format; view: overrides `columns_view`
+function M.open(opts)
+  opts = opts or {}
+  local global = opts.global or vim.v.count > 0
+  local src = vim.api.nvim_get_current_buf()
+  if vim.bo[src].filetype ~= "org" then
+    utils.warn("Column view needs an org buffer")
+    return nil
+  end
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  if (opts.view or config.opts.columns_view) ~= "table" then
+    return open_overlay(src, lnum, global)
+  end
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = "orgcolumns"
+  local mark = vim.api.nvim_buf_set_extmark(src, ns, lnum - 1, 0, {})
+  local state = { mode = "table", src = src, mark = mark, buf = buf, global = global }
+  vim.cmd("botright split")
+  vim.api.nvim_win_set_buf(0, buf)
+  vim.wo.wrap = false
+  vim.wo.cursorline = true
+  vim.wo.number = false
+  vim.wo.relativenumber = false
+  render(state)
+  vim.api.nvim_win_set_height(0, math.min(#state.rows + 3, math.floor(vim.o.lines / 2)))
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      if vim.api.nvim_buf_is_valid(src) then
+        pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
+      end
+    end,
+  })
+  local function map(lhs, fn, desc)
+    for _, l in ipairs(type(lhs) == "table" and lhs or { lhs }) do
+      vim.keymap.set("n", l, fn, { buffer = buf, nowait = true, desc = "org columns: " .. desc })
+    end
+  end
+  bind_keys(state, map, function()
+    vim.api.nvim_win_close(0, true)
+  end)
   map("<CR>", function()
     local r = current(state)
     if not r then
@@ -1379,12 +1768,6 @@ function M.open(opts)
       vim.cmd("normal! zv")
     end
   end, "jump to headline")
-  map("v", function()
-    local r, ci = current(state)
-    if r then
-      utils.notify(state.cols[ci].title .. ": " .. (r.cells[ci] or ""))
-    end
-  end, "show value")
   vim.api.nvim_win_set_cursor(0, { math.min(3, vim.api.nvim_buf_line_count(buf)), 0 })
   return true
 end

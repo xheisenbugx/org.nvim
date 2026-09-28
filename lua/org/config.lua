@@ -204,6 +204,10 @@ M.defaults = {
     org = "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n"
       .. "#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n",
   },
+  --- Column view display: "overlay" draws the columns over the headlines
+  --- of the org buffer like Emacs org-columns, "table" shows a table in a
+  --- split.
+  columns_view = "overlay",
   --- Extra summary operators for column view: a map from the operator to
   --- `fun(values: string[], format?: string): string`, e.g.
   --- `{ ["+|"] = function(v) ... end }` (org-columns-summary-types).

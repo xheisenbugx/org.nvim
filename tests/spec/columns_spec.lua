@@ -35,7 +35,7 @@ end
 --- source buffer (the view window is current).
 local function open_view(lines, lnum)
   local src = org_buffer(lines, { lnum or 1, 0 })
-  columns.open()
+  columns.open({ view = "table" })
   return src
 end
 
