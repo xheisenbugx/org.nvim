@@ -51,7 +51,7 @@ nvim -u examples/minimal_init.lua examples/03-lists.org
 | =<prefix>*=                 | turn the item into a headline              |
 | =<C-c><C-*>=                | turn the whole list into a subtree         |
 | =<prefix>hs=                | sort the list                              |
-| =:Org toggle_radio_button=  | toggle a radio button                      |
+| =<C-c><C-x><C-r>=           | toggle a radio button                      |
 
 * Unordered lists
 An item starts with a bullet followed by a space: =-=, =+=, or =*= (a star
@@ -506,16 +506,16 @@ entries, =<prefix>#= sets it to =[0/0]= or =[100%]=.
 A radio list allows only one checked item: checking one unchecks the
 others. Mark the list with =#+attr_org: :radio t= on the line above it;
 then =<C-c><C-c>= and =<C-Space>= work like radio buttons.
-=:Org toggle_radio_button= toggles a radio button in any list, and
-=:Org checkbox_radio_mode= makes =<C-c><C-c>= behave that way in every
-list of the buffer.
+=<C-c><C-x><C-r>= (=:Org toggle_radio_button=) toggles a radio button in
+any list, and =:Org checkbox_radio_mode= makes =<C-c><C-c>= behave that
+way in every list of the buffer.
 
 *Try:* in "Coffee size", press =<C-c><C-c>= on "Large".
 
 *Expect:* "Large" is checked and "Medium" is unchecked.
 
-*Try:* in "Normal list", put the cursor on "red" and run
-=:Org toggle_radio_button=.
+*Try:* in "Normal list", put the cursor on "red" and press
+=<C-c><C-x><C-r>=.
 
 *Expect:* "red" is checked and "green" unchecked, although this list has no
 =:radio= attribute.

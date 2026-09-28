@@ -280,4 +280,58 @@ describe("default keymaps", function()
     eq({}, prefix_clashes(section_entries({ "agenda" })))
     eq({}, prefix_clashes(section_entries({ "global", "emacs_global", "edit_src" })))
   end)
+
+  -- The modes org.mappings maps an action in, per section.
+  local function modes_for(section, name, a)
+    if section == "org_insert" or section == "emacs_insert" then
+      return { "i" }
+    end
+    local out = {}
+    for _, mode in ipairs(a.modes or { "n" }) do
+      if mode ~= "i" or (section == "org" and (name == "meta_return" or name == "meta_shift_return")) then
+        out[#out + 1] = mode
+      end
+    end
+    return out
+  end
+  --- "mode lhs: a and b" for every lhs two actions of `sections` share.
+  local function duplicates(sections)
+    local config = require("org.config")
+    local actions = require("org.actions").list
+    local maps = config.defaults.mappings
+    local seen, dups = {}, {}
+    for _, section in ipairs(sections) do
+      for name, value in pairs(maps[section] or {}) do
+        local a = actions[name]
+        if a then
+          for _, lhs in ipairs(config.lhs_list(value)) do
+            for _, mode in ipairs(modes_for(section, name, a)) do
+              local key = mode .. " " .. vim.keycode(lhs)
+              local owner = name -- the same action in two sections is fine
+              if seen[key] and seen[key] ~= owner then
+                dups[#dups + 1] = string.format("%s %s: %s and %s", mode, lhs, seen[key], owner)
+              end
+              seen[key] = seen[key] or owner
+            end
+          end
+        end
+      end
+    end
+    table.sort(dups)
+    return dups
+  end
+  -- A context-dependent key is one action dispatching internally (e.g.
+  -- ctrl_c_ctrl_c), so two actions on one lhs always shadow each other.
+  it("give no two buffer-local actions the same key in the same mode", function()
+    eq({}, duplicates({ "org", "emacs", "org_insert", "emacs_insert" }))
+  end)
+  it("give no two global actions the same key in the same mode", function()
+    eq({}, duplicates({ "global", "emacs_global" }))
+  end)
+  it("<C-c><C-x><C-r> toggles a radio button, as in Emacs", function()
+    local buf = org_buffer({ "- [ ] one", "- [X] two", "- [ ] three" }, { 1, 0 })
+    eq("org: Toggle radio button", vim.fn.maparg("<C-c><C-x><C-r>", "n", false, true).desc)
+    vim.api.nvim_feedkeys(vim.keycode("<C-c><C-x><C-r>"), "xt", false)
+    eq({ "- [X] one", "- [ ] two", "- [ ] three" }, buf_lines(buf))
+  end)
 end)

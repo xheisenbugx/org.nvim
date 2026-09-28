@@ -4739,7 +4739,8 @@ Clock, effort, dynamic blocks, timers:
   <C-c><C-x><C-i>, <C-c><C-x><Tab>  clock in
   <C-c><C-x><C-x>  clock in last task   <C-c><C-x><C-o>  clock out
   <C-c><C-x><C-q>  cancel clock         <C-c><C-x><C-j>  go to clock
-  <C-c><C-x><C-r>  clock report         <C-c><C-x><C-d>  clock sums
+  <C-c><C-x><C-d>  clock sums (clock report: <prefix>xr, or <C-c><C-x>x;
+                   <C-c><C-x><C-r> is the radio button, as in Emacs)
   <C-c><C-x>e      effort               <C-c><C-x>E  next allowed effort
   <C-c><C-x><C-e>  change clocked effort <C-c><C-x><C-z>  resolve clocks
   <C-S-Up> <C-S-Down>  shift CLOCK line timestamps
