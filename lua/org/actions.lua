@@ -89,7 +89,12 @@ group("Structure", {
   insert_heading = { "org.structure", "insert_heading", desc = "Insert heading after subtree" },
   insert_todo_heading = { "org.structure", "insert_todo_heading", desc = "Insert TODO heading" },
   insert_subheading = { "org.structure", "insert_subheading", desc = "Insert subheading" },
-  insert_drawer = { "org.structure", "insert_drawer", desc = "Insert drawer" },
+  insert_drawer = {
+    "org.structure",
+    "insert_drawer",
+    desc = "Insert drawer (Visual: around the selection)",
+    modes = { "n", "x" },
+  },
   insert_structure_template = {
     "org.structure",
     "insert_structure_template",

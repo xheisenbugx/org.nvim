@@ -125,7 +125,7 @@
 ---| "insert_all_links" # Insert all stored links
 ---| "insert_columnview" # Insert columnview block
 ---| "insert_dblock" # Insert dynamic block
----| "insert_drawer" # Insert drawer
+---| "insert_drawer" # Insert drawer (Visual: around the selection)
 ---| "insert_footnote" # Footnote: jump / new / menu (count)
 ---| "insert_heading" # Insert heading after subtree
 ---| "insert_last_stored_link" # Insert last stored link

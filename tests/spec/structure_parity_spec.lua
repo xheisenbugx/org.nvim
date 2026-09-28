@@ -1856,6 +1856,42 @@ describe("emacs parity: T2", function()
       "c",
     }
   )
+  -- the same region through the Visual-mode keys (C-c C-x d with an
+  -- active region in Emacs)
+  case(
+    "drawer-region-key",
+    "* H\n|a\nb\n\nc",
+    function()
+      h.stub_input({"NOTES"})
+      h.keys("Vjj<C-c><C-x>d")
+    end,
+    {
+      "* H",
+      ":NOTES:",
+      "a",
+      "b",
+      ":END:",
+      "",
+      "c",
+    }
+  )
+  case(
+    "drawer-region-prefix-key",
+    "* H\n|a\nb\n\nc",
+    function()
+      h.stub_input({"NOTES"})
+      h.keys("Vjj<Leader>oid")
+    end,
+    {
+      "* H",
+      ":NOTES:",
+      "a",
+      "b",
+      ":END:",
+      "",
+      "c",
+    }
+  )
   case(
     "drawer-prop",
     "* H|\nbody",
