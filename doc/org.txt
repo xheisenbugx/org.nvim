@@ -1320,6 +1320,13 @@ All configurable under `mappings.agenda`:
   B               bulk action (|org-agenda-bulk|)
   <C-c><C-x><C-c> column view (|org-agenda-columns|)
   <C-x><C-s>      save all modified org buffers
+  <C-_> <C-/> <C-x>u  undo the last edit made from the agenda in its
+                  file and rebuild the view; again for the edit before
+                  (org-agenda-undo). `r` forgets the edits, like Emacs;
+                  an edit is only undone while its file has not changed
+                  since (Emacs undoes the file's last change regardless),
+                  and an undone edit is dropped (a later undo that is not
+                  a repetition does not redo it)
   <C-x><C-w>      write the agenda to a file (|org-agenda-export|)
   q               quit
   Q               quit and delete the agenda buffer

@@ -867,6 +867,7 @@ function M.open(view, opts)
     end
     S.marks = {}
     S.limits = {}
+    M.undo_list = {}
     if acfg.persistent_filter and prev and prev ~= S then
       S.filters = vim.deepcopy(prev.filters)
     elseif not acfg.persistent_filter then
@@ -1145,6 +1146,77 @@ local function finish(bufs)
   end
 end
 
+---------------------------------------------------------------------------
+-- Remote undo (org-agenda-undo, org-with-remote-undo)
+---------------------------------------------------------------------------
+
+--- Source edits made from the agenda, newest first:
+--- `{ cmd, line, bufnr, before, after }` with the undo sequence numbers of
+--- the buffer before and after the command. Cleared when the agenda is
+--- built or rebuilt with `r` (like org-agenda-undo-list).
+M.undo_list = {}
+
+--- Close the current undo block of `bufnr` (API edits otherwise join the
+--- block of the previous command) and return its undo sequence number.
+local function undo_seq(bufnr)
+  return vim.api.nvim_buf_call(bufnr, function()
+    vim.cmd("let &l:undolevels = &l:undolevels")
+    return vim.fn.undotree().seq_cur
+  end)
+end
+
+--- Run `fn` and remember the change it made to `bufnr` for `M.undo`.
+local function with_remote_undo(bufnr, fn)
+  local ok, before = pcall(undo_seq, bufnr)
+  local line = S.win and vim.api.nvim_win_is_valid(S.win) and vim.api.nvim_win_get_cursor(S.win)[1] or 1
+  fn()
+  if ok and vim.api.nvim_buf_is_valid(bufnr) then
+    local after = undo_seq(bufnr)
+    if after ~= before then
+      table.insert(M.undo_list, 1, {
+        cmd = M.this_command or "edit",
+        line = line,
+        bufnr = bufnr,
+        before = before,
+        after = after,
+      })
+    end
+  end
+end
+M.with_remote_undo = with_remote_undo
+
+--- Undo the last source edit made from the agenda (org-agenda-undo): the
+--- change in the entry's buffer is undone and the agenda rebuilt. Pressed
+--- again, it undoes the edit before that one.
+function M.undo()
+  local e = table.remove(M.undo_list, 1)
+  if not e then
+    utils.error("No further undo information")
+    return false
+  end
+  if not vim.api.nvim_buf_is_valid(e.bufnr) then
+    utils.error("The buffer of this change is gone")
+    return false
+  end
+  local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(e.bufnr), ":t")
+  if undo_seq(e.bufnr) ~= e.after then
+    table.insert(M.undo_list, 1, e)
+    utils.error(string.format("%s was changed after `%s'; undo it there", name, e.cmd))
+    return false
+  end
+  vim.api.nvim_buf_call(e.bufnr, function()
+    vim.cmd("silent undo " .. e.before)
+  end)
+  if S.buf and vim.api.nvim_buf_is_valid(S.buf) then
+    M.refresh()
+    if S.win and vim.api.nvim_win_is_valid(S.win) then
+      pcall(vim.api.nvim_win_set_cursor, S.win, { math.min(e.line, vim.api.nvim_buf_line_count(S.buf)), 0 })
+    end
+  end
+  utils.notify(string.format("`%s' undone (buffer %s)", e.cmd, name))
+  return true
+end
+
 --- Wrap `fn(target, item)` as an action on the entry at point.
 local function on_item(fn)
   return function()
@@ -1166,7 +1238,9 @@ local function on_item(fn)
     if not target then
       return
     end
-    fn(target, item)
+    with_remote_undo(target.bufnr, function()
+      fn(target, item)
+    end)
     finish({ target.bufnr })
   end
 end
@@ -1459,7 +1533,9 @@ local function bulk(fn, persistent)
     -- a %%(sexp) line before the first heading has no entry to act on
     local target = item.headline and M.resolve_target(item)
     if target then
-      fn(target, item)
+      with_remote_undo(target.bufnr, function()
+        fn(target, item)
+      end)
       bufs[target.bufnr] = true
       n = n + 1
     end
@@ -2215,7 +2291,11 @@ M.actions = {
         end
       end
     end
+    M.undo_list = {}
     M.redo()
+  end,
+  undo = function()
+    M.undo()
   end,
   redo_all = function()
     M.redo_all()

@@ -2180,6 +2180,7 @@ M.defaults = {
       sunrise_sunset = "S",
       holidays = "H",
       save_all = "<C-x><C-s>",
+      undo = { "<C-_>", "<C-/>", "<C-x>u" }, -- org-agenda-undo (Emacs undo keys)
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",

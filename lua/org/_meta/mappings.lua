@@ -1164,6 +1164,8 @@
 ---@field backward_block? org.MappingLhs
 --- Save all modified org buffers. Default: `<C-x><C-s>`
 ---@field save_all? org.MappingLhs
+--- Undo the last source edit made from the agenda (org-agenda-undo). Default: `{ "<C-_>", "<C-/>", "<C-x>u" }`
+---@field undo? org.MappingLhs
 --- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `K`
 ---@field capture? org.MappingLhs
 --- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`

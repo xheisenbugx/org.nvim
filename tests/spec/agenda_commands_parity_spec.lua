@@ -134,3 +134,55 @@ describe("agenda hour and minute date shifts", function()
     eq("  " .. ts(-2), source_lines()[2])
   end)
 end)
+
+--- Run `fn` with utils.notify / utils.error captured.
+local function capture_msgs(fn)
+  local msgs, errs = {}, {}
+  local notify, uerr = utils.notify, utils.error
+  utils.notify = function(m)
+    msgs[#msgs + 1] = m
+  end
+  utils.error = function(m)
+    errs[#errs + 1] = m
+  end
+  local ok, err = pcall(fn, msgs, errs)
+  utils.notify, utils.error = notify, uerr
+  if not ok then
+    error(err, 0)
+  end
+end
+
+describe("agenda remote undo", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10: priority up then date later, then undo twice restores
+  -- each step, and a third undo errors "No further undo information".
+  it("undoes source edits one command at a time", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0), "* TODO B", "  SCHEDULED: " .. ts(0) })
+    goto_title("A")
+    view.run_action("priority_up")
+    goto_title("A")
+    view.run_action("date_later")
+    eq({ "* TODO [#B] A", "  SCHEDULED: " .. ts(1) }, vim.list_slice(source_lines(), 1, 2))
+    capture_msgs(function(msgs, errs)
+      press("<C-_>")
+      eq({ "* TODO [#B] A", "  SCHEDULED: " .. ts(0) }, vim.list_slice(source_lines(), 1, 2))
+      eq("`date_later' undone (buffer c.org)", msgs[#msgs])
+      press("<C-_>")
+      eq({ "* TODO A", "  SCHEDULED: " .. ts(0) }, vim.list_slice(source_lines(), 1, 2))
+      press("<C-_>")
+      eq("No further undo information", errs[#errs])
+    end)
+  end)
+
+  it("r forgets the undo information", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0) })
+    goto_title("A")
+    view.run_action("priority_up")
+    eq(1, #view.undo_list)
+    view.run_action("redo")
+    eq(0, #view.undo_list)
+  end)
+end)
