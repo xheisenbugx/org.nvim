@@ -1258,6 +1258,14 @@ M.defaults = {
         args = { "-headless" }, -- org-plantuml-args
         svg_text_to_path = false, -- org-babel-plantuml-svg-text-to-path
       },
+      ditaa = {
+        default_header_args = { results = "file graphics", exports = "results", ["file-ext"] = "png" },
+        exec_mode = "jar", -- org-ditaa-default-exec-mode: "jar" or "ditaa"
+        exec = "ditaa", -- org-ditaa-exec
+        java_exec = "java", -- org-ditaa-java-exec
+        jar_path = "", -- org-ditaa-jar-path
+        eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
+      },
     },
     -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
     -- table formulas can't evaluate (macros, capture, diary sexps, headers)
