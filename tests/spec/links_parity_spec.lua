@@ -670,17 +670,44 @@ describe("links parity", function()
       end)
       links.open_at_point(0)
       eq("Execute echo '50% #1' && pwd in shell?", asked)
-      local term = vim.api.nvim_get_current_buf()
-      local function text()
-        return table.concat(vim.api.nvim_buf_get_lines(term, 0, -1, false), "")
-      end
+      -- the output goes to a new *Org Shell Output* buffer, shown in a
+      -- window since it has two lines
+      local out = vim.fn.bufnr("*Org Shell Output*")
+      ok(out > 0)
       vim.wait(5000, function()
-        return text():find(dir, 1, true) ~= nil
+        return vim.fn.bufwinid(out) ~= -1
       end)
-      ok(text():find("50% #1", 1, true), vim.inspect(vim.api.nvim_buf_get_lines(term, 0, -1, false)))
-      ok(text():find(dir, 1, true), text())
-      vim.cmd("bwipeout!")
-      -- org-link-shell-skip-confirm-regexp
+      eq({ "50% #1", vim.uv.fs_realpath(dir) }, {
+        vim.api.nvim_buf_get_lines(out, 0, 1, false)[1],
+        vim.uv.fs_realpath(vim.api.nvim_buf_get_lines(out, 1, 2, false)[1]),
+      })
+      eq(vim.fn.bufnr(p), vim.api.nvim_get_current_buf())
+      -- one line of output is only echoed; the next buffer is <2>
+      local messages = {}
+      stub(utils, "notify", function(m)
+        messages[#messages + 1] = m
+      end)
+      links.open("shell:echo one")
+      local out2 = vim.fn.bufnr("*Org Shell Output*<2>")
+      vim.wait(5000, function()
+        return messages[#messages] == "one"
+      end)
+      eq({ "Executing echo one", "one" }, messages)
+      eq(-1, vim.fn.bufwinid(out2))
+      eq({ "one" }, vim.api.nvim_buf_get_lines(out2, 0, -1, false))
+      -- a command ending in & shows the buffer at once
+      links.open("shell:printf 'a\\nb' &")
+      local out3 = vim.fn.bufnr("*Org Shell Output*<3>")
+      ok(vim.fn.bufwinid(out3) ~= -1)
+      vim.wait(5000, function()
+        return #vim.api.nvim_buf_get_lines(out3, 0, -1, false) == 2
+      end)
+      eq({ "a", "b" }, vim.api.nvim_buf_get_lines(out3, 0, -1, false))
+      for _, b in ipairs({ out, out2, out3 }) do
+        vim.api.nvim_buf_delete(b, { force = true })
+      end
+      -- links.shell_output = "terminal"; org-link-shell-skip-confirm-regexp
+      config.opts.links.shell_output = "terminal"
       config.opts.links.shell_skip_confirm_regexp = "^echo skip"
       stub(utils, "confirm", function()
         error("must not ask")
@@ -693,6 +720,31 @@ describe("links parity", function()
         return table.concat(vim.api.nvim_buf_get_lines(t2, 0, -1, false), ""):find("skipped") ~= nil
       end)
       vim.cmd("bwipeout!")
+    end)
+
+    it("opens a listing of the files matching a wildcard file link", function()
+      local dir = tmpdir()
+      write(dir, "notes/a.org", { "* A" })
+      write(dir, "notes/b.org", { "* B" })
+      write(dir, "notes/c.txt", { "c" })
+      local p = write(dir, "w.org", { "[[file:notes/*.org]]", "[[file:notes/*.md]]" })
+      edit(p, { 1, 3 })
+      ok(links.open_at_point(0))
+      eq({ "  " .. dir .. "/notes:", "  wildcard *.org", "  a.org", "  b.org" }, buf_lines())
+      eq(dir .. "/notes/*.org", vim.api.nvim_buf_get_name(0))
+      eq(3, cursor()[1])
+      vim.api.nvim_win_set_cursor(0, { 4, 0 })
+      vim.fn.maparg("<CR>", "n", false, true).callback()
+      eq(dir .. "/notes/b.org", real(vim.api.nvim_buf_get_name(0)))
+      -- no match: a warning, nothing opens
+      local warned
+      stub(utils, "warn", function(m)
+        warned = m
+      end)
+      edit(p, { 2, 3 })
+      ok(not links.open_at_point(0))
+      eq("No files match " .. dir .. "/notes/*.md", warned)
+      eq(p, vim.api.nvim_buf_get_name(0))
     end)
 
     it("uses the DOI server, translation function, file apps and counts", function()

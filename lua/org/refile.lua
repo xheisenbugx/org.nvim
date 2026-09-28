@@ -10,7 +10,6 @@
 --- agenda files (plus the current file) up to that level.
 
 local config = require("org.config")
-local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
 local utils = require("org.utils")
@@ -145,7 +144,28 @@ local function default_buffer()
   return bufnr
 end
 
---- All refile targets.
+--- Cached targets per current file and outline style (org-refile-cache).
+local cache = {}
+
+--- Clear the refile cache (org-refile-cache-clear).
+function M.cache_clear()
+  cache = {}
+  utils.notify("Refile cache has been cleared")
+end
+
+--- Remove the targets inside the excluded subtree.
+local function without(targets, exclude)
+  if not exclude then
+    return targets
+  end
+  return vim.tbl_filter(function(t)
+    return not (t.lnum and t.filename == exclude.filename and t.lnum >= exclude.s and t.lnum <= exclude.e)
+  end, targets)
+end
+
+--- All refile targets. With `refile.use_cache`, the targets of the
+--- configured specs are computed once per current file and outline style
+--- (org-refile-use-cache).
 ---@param opts? { exclude?: { filename: string, s: integer, e: integer }, targets?: table[], bufnr?: integer }
 ---@return org.RefileTarget[]
 function M.targets(opts)
@@ -156,6 +176,12 @@ function M.targets(opts)
   local verify = rcfg.verify
   local current = vim.api.nvim_buf_get_name(bufnr)
   current = current ~= "" and vim.fs.normalize(current) or nil
+  local key = rcfg.use_cache and not opts.targets and ((current or "") .. "\n" .. tostring(style)) or nil
+  if not rcfg.use_cache then
+    cache = {}
+  elseif key and cache[key] then
+    return without(vim.deepcopy(cache[key]), opts.exclude)
+  end
   local extra = style and "/" or ""
   local out = {}
   local seen = {}
@@ -177,13 +203,9 @@ function M.targets(opts)
       seen[f.filename] = true
       local other = style ~= "file" and style ~= "full-file-path" and style ~= "title" and f.filename ~= current
       for _, hl in ipairs(f.headlines) do
-        local excluded = opts.exclude
-          and opts.exclude.filename == f.filename
-          and hl.line >= opts.exclude.s
-          and hl.line <= opts.exclude.e
-        local key = f.filename .. ":" .. hl.line
-        if not excluded and not seen[key] and src.pred(hl) and (not verify or verify(hl)) then
-          seen[key] = true
+        local id = f.filename .. ":" .. hl.line
+        if not seen[id] and src.pred(hl) and (not verify or verify(hl)) then
+          seen[id] = true
           local olp = hl:outline_path()
           olp[#olp + 1] = hl:plain_title()
           local label
@@ -214,12 +236,36 @@ function M.targets(opts)
             level = hl.level,
             label = label,
             path = path,
+            -- the headline, to find it again when the cache is stale
+            raw = key and hl.raw or nil,
           }
         end
       end
     end
   end
-  return out
+  if key then
+    cache[key] = vim.deepcopy(out)
+  end
+  return without(out, opts.exclude)
+end
+
+--- A cached target whose headline moved (the cache keeps line numbers
+--- where Emacs keeps markers) is found again by its text; one that is
+--- gone is an error, like Emacs.
+local function check_position(dest)
+  if not (dest.raw and dest.lnum) then
+    return dest
+  end
+  local file = files.get_buffer(dest.bufnr or utils.load_buffer(dest.filename))
+  if file.lines[dest.lnum] == dest.raw then
+    return dest
+  end
+  for _, hl in ipairs(file.headlines) do
+    if hl.raw == dest.raw then
+      return vim.tbl_extend("force", dest, { lnum = hl.line })
+    end
+  end
+  error("Invalid refile position, please clear the cache with `C-u C-u C-u C-c C-w' before refiling", 0)
 end
 
 --- Split an outline path label into its components ("a\/b" is one).
@@ -472,6 +518,7 @@ end
 ---@param dest org.RefileTarget
 ---@return integer bufnr, integer lnum of the moved headline
 function M.move(src, dest)
+  dest = check_position(dest)
   if src.lines then
     return M.insert_subtree(src.lines, dest)
   end
@@ -535,13 +582,16 @@ local function log_refile(bufnr, lnum, mode)
   end
   local note
   if mode == "note" then
-    note = utils.input({ prompt = "Refile note: " })
+    note = utils.input_note({ prompt = "Refile note: ", purpose = edit.note_purpose("refile") })
     if note == nil then
-      note = ""
+      -- C-c C-k in the note buffer: no log entry (org-note-abort)
+      return
     end
   end
-  local ts = date.now():clone({ active = false }):to_string()
-  edit.add_log_entry(bufnr, lnum, edit.log_lines("- Refiled on " .. ts, note))
+  local entry = edit.log_entry("refile", note)
+  if entry then
+    edit.add_log_entry(bufnr, lnum, entry)
+  end
 end
 
 local function with_note_order(dest)
@@ -577,8 +627,9 @@ end
 --- lines are refiled; they must start with a headline and form a sequence
 --- of subtrees (with `refile.active_region_within_subtree`, the first line
 --- is made a headline). A count works like Emacs's prefix argument: 4
---- (C-u) jumps to a target, 16 (C-u C-u) to the last refiled entry, 2
---- refiles under the running clock and 3 copies (org-refile-keep).
+--- (C-u) jumps to a target, 16 (C-u C-u) to the last refiled entry, 64
+--- (C-u C-u C-u) clears the target cache, 2 refiles under the running
+--- clock and 3 copies (org-refile-keep).
 ---@param target? org.Target
 ---@param opts? table { dest?: org.RefileTarget, save?, copy?, targets?: table[], range?: integer[], count? }
 function M.refile(target, opts)
@@ -591,6 +642,8 @@ function M.refile(target, opts)
     return M.goto()
   elseif count == 16 then
     return M.goto_last_stored()
+  elseif count == 64 then
+    return M.cache_clear()
   end
   local copy = opts.copy or count == 3
   local range = opts.range or (target == nil and visual_lines() or nil)

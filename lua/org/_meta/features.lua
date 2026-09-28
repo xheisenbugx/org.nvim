@@ -296,6 +296,11 @@
 ---Vim regex; `shell:` links matching it run without confirmation
 ---(`org-link-shell-skip-confirm-regexp`). (default: `""`, none)
 ---@field shell_skip_confirm_regexp? string
+---Where `shell:` links run: `"buffer"` collects the output in a new
+---`*Org Shell Output*` buffer like Emacs (a one-line output is only echoed,
+---a command ending in `&` shows the buffer at once), `"terminal"` runs the
+---command in a terminal window. (default: `"buffer"`)
+---@field shell_output? "buffer"|"terminal"
 ---Ask before running `elisp:` links (`org-link-elisp-confirm-function`):
 ---`true`, `false`, or a function receiving the sexp and returning whether to
 ---run it. (default: `true`)
@@ -352,9 +357,17 @@
 
 ---ID options.
 ---@class org.Config.Id
----JSON file mapping IDs to files (`org-id-locations-file`; not shared with Emacs).
+---File mapping IDs to files (`org-id-locations-file`); point it at Emacs's
+---`~/.emacs.d/.org-id-locations` to share the database.
 ---(default: `stdpath("data") .. "/org/id-locations.json"`)
 ---@field locations_file? string
+---Format of `locations_file`: `"auto"` (detected from the contents, else
+---JSON for a `.json` name and Emacs's alist otherwise), `"json"` or
+---`"emacs"`. (default: `"auto"`)
+---@field locations_format? "auto"|"json"|"emacs"
+---Emacs format: file names relative to the database's directory
+---(`org-id-locations-file-relative`). (default: `false`)
+---@field locations_file_relative? boolean
 ---How new IDs are generated (`org-id-method`): `"uuid"`, `"ts"` (a time
 ---stamp like `20240101T120000.123456`) or `"org"` (a compact time based
 ---ID). (default: `"uuid"`)

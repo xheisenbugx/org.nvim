@@ -1,7 +1,8 @@
 ---@mod org.id Entry IDs (org-id)
 ---
---- IDs are stored in the `:ID:` property. A JSON database
---- (`config.id.locations_file`) maps ids to files so `id:` links resolve
+--- IDs are stored in the `:ID:` property. A database
+--- (`config.id.locations_file`, JSON or Emacs's org-id-locations format)
+--- maps ids to files so `id:` links resolve
 --- quickly; it is rebuilt from the agenda files, their archives
 --- (`id.search_archives`), `id.extra_files`, the loaded org buffers and the
 --- files already known when an id is not found (org-id-update-id-locations).
@@ -17,12 +18,156 @@ local db = nil
 
 local function db_path()
   local id = config.opts.id or {}
-  return id.locations_file or (vim.fn.stdpath("data") .. "/org/id-locations.json")
+  return vim.fs.normalize(id.locations_file or (vim.fn.stdpath("data") .. "/org/id-locations.json"))
+end
+
+--- Format of the database file: `id.locations_format` ("json" or "emacs"),
+--- or with "auto" (the default) what the file holds, else JSON for a
+--- `.json` file name and Emacs's format for any other.
+local function db_format(path, text)
+  local fmt = (config.opts.id or {}).locations_format
+  if fmt == "json" or fmt == "emacs" then
+    return fmt
+  end
+  local first = text and text:match("^%s*(%S)")
+  if first == "{" or first == "[" then
+    return "json"
+  elseif first then
+    return "emacs"
+  end
+  return path:match("%.json$") and "json" or "emacs"
+end
+
+local function read_text(path)
+  local lines = utils.readfile(path)
+  return lines and table.concat(lines, "\n") or nil
+end
+
+--- Read the Lisp string whose opening quote is at `i`; returns it and the
+--- index after the closing quote.
+local function read_lisp_string(text, i)
+  local out = {}
+  local j = i + 1
+  while j <= #text do
+    local c = text:sub(j, j)
+    if c == '"' then
+      return table.concat(out), j + 1
+    elseif c == "\\" then
+      local n = text:sub(j + 1, j + 1)
+      if n == "n" then
+        out[#out + 1] = "\n"
+      elseif n == "t" then
+        out[#out + 1] = "\t"
+      elseif n ~= "\n" then
+        -- \" and \\ stand for the character; an escaped newline is dropped
+        out[#out + 1] = n
+      end
+      j = j + 2
+    else
+      out[#out + 1] = c
+      j = j + 1
+    end
+  end
+  error("unterminated string")
+end
+
+--- Parse Emacs's `org-id-locations-file`: an alist printed with `print`,
+--- `(("~/org/a.org" "id1" "id2") ...)`. `~` is expanded and relative file
+--- names are relative to `base` (the database's directory), as in
+--- org-id-locations-load. Returns id -> file.
+---@param text string
+---@param base? string
+---@return table<string, string>
+function M.parse_emacs_locations(text, base)
+  local out = {}
+  local depth, entry = 0, nil
+  local i = 1
+  while i <= #text do
+    local c = text:sub(i, i)
+    if c == "(" then
+      depth = depth + 1
+      entry = depth == 2 and {} or entry
+      i = i + 1
+    elseif c == ")" then
+      if depth == 2 and entry and entry[1] then
+        local file = entry[1]:gsub("^~", vim.env.HOME or "~")
+        if base and not file:match("^/") and not file:match("^%a:[/\\]") then
+          file = base .. "/" .. file
+        end
+        file = vim.fs.normalize(file)
+        for k = 2, #entry do
+          out[entry[k]] = file
+        end
+      end
+      depth = depth - 1
+      i = i + 1
+    elseif c == '"' then
+      local str
+      str, i = read_lisp_string(text, i)
+      if depth == 2 and entry then
+        entry[#entry + 1] = str
+      end
+    elseif c == ";" then
+      i = (text:find("\n", i, true) or #text) + 1
+    else
+      i = i + 1
+    end
+  end
+  return out
+end
+
+local function lisp_string(str)
+  return '"' .. str:gsub('[\\"]', "\\%0") .. '"'
+end
+
+--- Print id -> file like org-id-locations-save: one `("file" "id" ...)`
+--- per file, file names abbreviated with `~` (abbreviate-file-name) or,
+--- with `id.locations_file_relative`, relative to `base`.
+---@param map table<string, string>
+---@param base? string
+---@return string
+function M.format_emacs_locations(map, base)
+  local by_file, names = {}, {}
+  for id, file in pairs(map) do
+    if not by_file[file] then
+      by_file[file] = {}
+      names[#names + 1] = file
+    end
+    table.insert(by_file[file], id)
+  end
+  table.sort(names)
+  local home = vim.env.HOME and vim.fs.normalize(vim.env.HOME) or nil
+  local relative = (config.opts.id or {}).locations_file_relative
+  local items = {}
+  for _, file in ipairs(names) do
+    local ids = by_file[file]
+    table.sort(ids)
+    local name = file
+    if relative and base and name:sub(1, #base + 1) == base .. "/" then
+      name = name:sub(#base + 2)
+    elseif home and name:sub(1, #home + 1) == home .. "/" then
+      name = "~" .. name:sub(#home + 1)
+    end
+    local item = { lisp_string(name) }
+    for _, id in ipairs(ids) do
+      item[#item + 1] = lisp_string(id)
+    end
+    items[#items + 1] = "(" .. table.concat(item, " ") .. ")"
+  end
+  return "(" .. table.concat(items, " ") .. ")"
 end
 
 local function load_db()
   if not db then
-    db = utils.read_json(db_path()) or {}
+    local path = db_path()
+    local text = read_text(path)
+    if text and db_format(path, text) == "emacs" then
+      local ok, parsed = pcall(M.parse_emacs_locations, text, vim.fs.dirname(path))
+      db = ok and parsed or {}
+    else
+      local ok, parsed = pcall(vim.json.decode, text or "")
+      db = ok and parsed or {}
+    end
     if type(db) ~= "table" then
       db = {}
     end
@@ -31,7 +176,13 @@ local function load_db()
 end
 
 local function save_db()
-  pcall(utils.write_json, db_path(), db or {})
+  local path = db_path()
+  if db_format(path, read_text(path)) == "emacs" then
+    -- `print` puts a newline before and after the object
+    pcall(utils.writefile, path, { "", M.format_emacs_locations(db or {}, vim.fs.dirname(path)) })
+  else
+    pcall(utils.write_json, path, db or {})
+  end
 end
 
 --- Record `id` as living in `filename`.
@@ -114,14 +265,14 @@ function M.get_create(target, force)
   if force == nil and target == nil then
     force = vim.v.count > 0
   end
-  local bufnr, file, hl = edit.resolve_headline(target)
-  if not hl then
-    return nil
-  end
-  local id = hl.properties.ID
+  local bufnr, file, hl = edit.resolve(target)
+  -- before the first headline: the file-level property drawer, like
+  -- org-id-get at point-min
+  local props = hl and hl.properties or file.properties
+  local id = props.ID
   if force or not id or not id:match("%S") then
     id = M.new_id()
-    edit.set_property(bufnr, hl.line, "ID", id)
+    edit.set_property(bufnr, hl and hl.line or 1, "ID", id)
   end
   if file.filename then
     M.register(id, file.filename)
@@ -134,8 +285,8 @@ end
 
 --- Only get an existing ID (nil if none).
 function M.get(target)
-  local _, _, hl = edit.resolve(target)
-  return hl and hl.properties.ID or nil
+  local _, file, hl = edit.resolve(target)
+  return (hl and hl.properties or file.properties).ID
 end
 
 local function search_file(path, id)
@@ -146,6 +297,9 @@ local function search_file(path, id)
   local hl = f:find_by_id(id)
   if hl then
     return { filename = f.filename or path, lnum = hl.line, headline = hl }
+  end
+  if f.properties and f.properties.ID == id then
+    return { filename = f.filename or path, lnum = 1 }
   end
 end
 
@@ -201,6 +355,11 @@ function M.update_locations()
   for _, p in ipairs(M.files()) do
     local f = files.get(p)
     if f then
+      local fid = f.properties and f.properties.ID
+      if fid and fid ~= "" then
+        count = count + (new[fid] and 0 or 1)
+        new[fid] = f.filename or p
+      end
       for _, hl in ipairs(f.headlines) do
         local id = hl.properties.ID
         if id then
@@ -229,6 +388,9 @@ function M.find(id)
     local hl = f:find_by_id(id)
     if hl then
       return { filename = f.filename, lnum = hl.line, headline = hl, bufnr = vim.api.nvim_get_current_buf() }
+    end
+    if f.properties.ID == id then
+      return { filename = f.filename, lnum = 1, bufnr = vim.api.nvim_get_current_buf() }
     end
   end
   local path = load_db()[id]
@@ -291,13 +453,11 @@ end
 --- heading adds a search string (`id:ID::name`).
 function M.store_link()
   local bufnr = vim.api.nvim_get_current_buf()
-  local _, _, hl = edit.resolve_headline({ bufnr = bufnr, lnum = vim.api.nvim_win_get_cursor(0)[1] })
-  if not hl then
-    return
-  end
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local _, file, hl = edit.resolve({ bufnr = bufnr, lnum = lnum })
   if vim.api.nvim_buf_get_name(bufnr) == "" then
-    local id = M.get_create({ bufnr = bufnr, lnum = hl.line })
-    return require("org.links").store("id:" .. id, hl.title)
+    local id = M.get_create({ bufnr = bufnr, lnum = hl and hl.line or lnum })
+    return require("org.links").store("id:" .. id, hl and hl.title or file.settings.title)
   end
   return require("org.links").store_id_link()
 end
