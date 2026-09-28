@@ -156,6 +156,9 @@ M.defaults = {
   property_format = "%-10s %s",
   --- Properties that apply to every entry (e.g. `Effort_ALL`).
   global_properties = {},
+  --- Properties hidden and shown again by
+  --- toggle_custom_properties_visibility (org-custom-properties).
+  custom_properties = {},
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},
@@ -281,6 +284,10 @@ M.defaults = {
   src_preserve_indentation = false,
   --- Text appended to folded headlines (org-ellipsis).
   ellipsis = "...",
+  --- Entities of your own, before the built-in ones (org-entities-user):
+  --- `{ { name, latex, latex_math, html, ascii, latin1, utf8 } }`, e.g.
+  --- `{ { "snowman", "\\diamond", true, "&#9731;", "[snowman]", "", "☃" } }`.
+  entities_user = {},
   --- Blank line handling before new headlines and list items: true | false |
   --- "auto" (org-blank-before-new-entry).
   blank_before_new_entry = { heading = "auto", plain_list_item = "auto" },
@@ -313,6 +320,45 @@ M.defaults = {
   --- first), "show-and-error" or "smart" (unfold, and refuse edits in
   --- text that was hidden) (org-fold-catch-invisible-edits).
   catch_invisible_edits = "smart",
+  --- The edits catch_invisible_edits checks, by command: `self_insert`
+  --- (typed text), `delete_backward_char` (<BS> in Insert mode),
+  --- `delete_char` (<Del>), `return` (<CR>) or any action name, each
+  --- "insert", "delete" or "delete-backward"; false removes one
+  --- (org-fold-catch-invisible-edits-commands).
+  catch_invisible_edits_commands = {
+    self_insert = "insert",
+    delete_backward_char = "delete-backward",
+    delete_char = "delete",
+    meta_return = "insert",
+    ["return"] = "insert",
+  },
+  --- TAB at the very start of the buffer, not on a headline, cycles the
+  --- global visibility (org-cycle-global-at-bob).
+  cycle_global_at_bob = false,
+  --- Deepest level cycled as a headline; deeper ones are text for TAB.
+  --- nil = all (org-cycle-max-level).
+  cycle_max_level = nil,
+  --- TAB on an entry without children goes from FOLDED straight to
+  --- SUBTREE (org-cycle-skip-children-state-if-no-children).
+  cycle_skip_children_state_if_no_children = true,
+  --- How much is shown around a location reached by a jump, per context
+  --- (agenda, org-goto, occur-tree, tags-tree, link-search, mark-goto,
+  --- bookmark-jump, isearch, default): "minimal", "local", "ancestors",
+  --- "ancestors-full", "lineage", "tree" or "canonical"; or one of them
+  --- for every context (org-fold-show-context-detail).
+  fold_show_context_detail = {
+    agenda = "local",
+    ["bookmark-jump"] = "lineage",
+    isearch = "lineage",
+    default = "ancestors",
+  },
+  --- Sparse-tree regexp searches ignore case: true, false or "smart"
+  --- (only when the regexp has no upper case) (org-occur-case-fold-search).
+  occur_case_fold_search = true,
+  --- Any change to the buffer removes the highlights of sparse-tree
+  --- searches and clock_display; else C-c C-c does
+  --- (org-remove-highlights-with-change).
+  remove_highlights_with_change = true,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,

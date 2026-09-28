@@ -1807,7 +1807,10 @@ function M.attach(bufnr)
     buffer = bufnr,
     group = vim.api.nvim_create_augroup("org.clock.buf." .. bufnr, { clear = true }),
     callback = function()
-      vim.api.nvim_buf_clear_namespace(bufnr, display_ns, 0, -1)
+      -- org-remove-highlights-with-change
+      if require("org.config").opts.remove_highlights_with_change ~= false then
+        vim.api.nvim_buf_clear_namespace(bufnr, display_ns, 0, -1)
+      end
     end,
   })
   vim.api.nvim_set_hl(0, "OrgClockSum", { link = "Comment", default = true })

@@ -2198,7 +2198,7 @@ function M.goto_heading()
   })
   if choice then
     jump(choice.line)
-    vim.cmd("normal! zv")
+    require("org.fold").reveal_cursor("org-goto")
   end
 end
 

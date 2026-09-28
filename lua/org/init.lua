@@ -35,6 +35,10 @@ function M.setup(opts)
   require("org.mappings").setup_global()
   require("org.highlights").setup()
   local cfg = require("org.config").opts
+  if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
+    -- org-entities-user
+    require("org.entities").apply_user()
+  end
   if cfg.notifications.enabled then
     vim.schedule(function()
       local ok, n = pcall(require, "org.agenda.notifications")

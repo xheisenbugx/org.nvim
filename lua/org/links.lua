@@ -792,7 +792,7 @@ local function goto_pos(lnum, col, stealth)
   local last = vim.api.nvim_buf_line_count(0)
   vim.api.nvim_win_set_cursor(0, { math.max(1, math.min(lnum, last)), col or 0 })
   if not stealth then
-    pcall(vim.cmd, "normal! zv")
+    require("org.fold").reveal_cursor("link-search")
   end
 end
 

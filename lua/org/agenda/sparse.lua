@@ -37,7 +37,7 @@ function M.match(match, todo_only)
       return false
     end
     return pred(hl)
-  end, match)
+  end, match, "tags")
 end
 
 --- Prompt for a match and show its sparse tree (C-c \). With a count,
@@ -54,8 +54,14 @@ function M.tags_tree()
 end
 
 --- Show matches. `matches` = list of { lnum, col?, end_col? } (1-based col).
+--- `kind` "tags" is a tags/property match (org-match-sparse-tree), anything
+--- else a search like org-occur: its highlights go away with the next
+--- change (`remove_highlights_with_change`) and the OrgOccur User autocmd
+--- runs after it (org-occur-hook).
 ---@param title string
-function M.show(matches, title)
+---@param kind? "occur"|"tags"
+function M.show(matches, title, kind)
+  local occur = kind ~= "tags"
   require("org.agenda.highlights").setup()
   local bufnr = vim.api.nvim_get_current_buf()
   M.clear(bufnr)
@@ -85,7 +91,7 @@ function M.show(matches, title)
       })
     end
     vim.api.nvim_win_set_cursor(0, { m.lnum, 0 })
-    fold.show_context(m.lnum, "ancestors")
+    fold.show_context_for(m.lnum, occur and "occur-tree" or "tags-tree")
     loc[#loc + 1] = { bufnr = bufnr, lnum = m.lnum, col = m.col or 1, text = line }
   end
   vim.fn.setloclist(0, {}, "r", { title = "Sparse tree: " .. title, items = loc })
@@ -95,18 +101,30 @@ function M.show(matches, title)
     vim.fn.winrestview(view)
   end
   utils.notify(string.format("%d match%s for %s", #matches, #matches == 1 and "" or "es", title))
-  -- clear highlights on the next change
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-    buffer = bufnr,
-    once = true,
-    callback = function()
-      M.clear(bufnr)
-    end,
-  })
+  if occur and require("org.config").opts.remove_highlights_with_change ~= false then
+    -- clear highlights on the next change (org-remove-highlights-with-change)
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+      buffer = bufnr,
+      group = vim.api.nvim_create_augroup("org.sparse." .. bufnr, { clear = true }),
+      once = true,
+      callback = function()
+        M.clear(bufnr)
+      end,
+    })
+  end
+  if occur then
+    -- org-occur-hook
+    pcall(vim.api.nvim_exec_autocmds, "User", {
+      pattern = "OrgOccur",
+      data = { bufnr = bufnr, title = title, matches = #matches },
+      modeline = false,
+    })
+  end
 end
 
 --- Headline matches for a predicate.
-function M.headlines(pred, title)
+---@param kind? "occur"|"tags" (see `show`)
+function M.headlines(pred, title, kind)
   local file = files.get_buffer(0)
   local out = {}
   for _, hl in ipairs(file.headlines) do
@@ -114,13 +132,29 @@ function M.headlines(pred, title)
       out[#out + 1] = { lnum = hl.line }
     end
   end
-  M.show(out, title)
+  M.show(out, title, kind)
   return out
+end
+
+--- Does `pattern` search case-insensitively (org-occur-case-fold-search)?
+--- An explicit `\c` or `\C` in the pattern wins.
+local function occur_case_fold(pattern)
+  local opt = require("org.config").opts.occur_case_fold_search
+  if opt == "smart" then
+    -- like isearch-no-upper-case-p: upper case after a backslash is a
+    -- character class (\S, \W), not a letter
+    return not pattern:gsub("\\.", ""):find("%u")
+  end
+  return opt ~= false
 end
 
 --- Regexp (Vim regex) occurrences.
 function M.regexp(pattern)
-  local ok, re = pcall(vim.regex, pattern)
+  local re_pattern = pattern
+  if not pattern:find("\\[cC]") then
+    re_pattern = (occur_case_fold(pattern) and "\\c" or "\\C") .. pattern
+  end
+  local ok, re = pcall(vim.regex, re_pattern)
   if not ok then
     utils.error("Invalid regexp: " .. pattern)
     return
@@ -262,7 +296,7 @@ function M.prompt()
         return false
       end
       return pred(hl)
-    end, input)
+    end, input, "tags")
   elseif choice == "d" then
     M.deadlines()
   elseif choice == "b" or choice == "a" then
