@@ -1037,6 +1037,7 @@ function M.agenda_block(b, block, ctx)
     log_mode = ctx.log_mode,
     inactive = ctx.inactive,
     no_deadlines = ctx.no_deadlines,
+    include_diary = ctx.include_diary,
     archives = ctx.archives,
     restrict = ctx.restrict,
     skip = block.skip,

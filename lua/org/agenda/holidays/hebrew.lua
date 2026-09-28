@@ -124,6 +124,11 @@ function M.from_absolute(abs)
   return month, 1 + abs - M.to_absolute(month, 1, year), year
 end
 
+M.leap_year_p = leap_year_p
+M.last_month_of_year = last_month_of_year
+M.last_day_of_month = last_day_of_month
+M.days_in_year = days_in_year
+
 ---------------------------------------------------------------------------
 -- Holidays (the *-window functions evaluate Emacs's function in a window)
 

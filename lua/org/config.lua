@@ -625,6 +625,29 @@ M.defaults = {
     calendar_latitude = nil,
     calendar_longitude = nil,
     calendar_location_name = nil,
+    --- How dates are written in the diary file and in diary sexp arguments,
+    --- and shown by the calendar strings: "american" (month/day/year),
+    --- "european" (day/month/year) or "iso" (calendar-date-style).
+    calendar_date_style = "american",
+    --- Minutes before sunset of `%%(diary-hebrew-sabbath-candles)`
+    --- (diary-hebrew-sabbath-candles-minutes).
+    hebrew_sabbath_candles_minutes = 18,
+    --- Show the entries of the Emacs diary file in the date agenda
+    --- (org-agenda-include-diary); `D` toggles it.
+    include_diary = false,
+    --- The Emacs diary file (diary-file); nil = ~/diary if it exists, else
+    --- the diary file of the Emacs user directory (~/.emacs.d/diary or
+    --- ~/.config/emacs/diary).
+    diary_file = nil,
+    --- Show the day's holidays as diary entries (diary-show-holidays-flag).
+    diary_show_holidays = true,
+    --- Read `#include "FILE"` lines of the diary file (Emacs:
+    --- diary-include-other-diary-files in diary-list-entries-hook).
+    diary_include_files = false,
+    --- Also read Hebrew (H), Islamic (I), Bahá’í (B) and Chinese (C) date
+    --- entries: a list of "hebrew", "islamic", "bahai", "chinese"
+    --- (diary-nongregorian-listing-hook).
+    diary_nongregorian = {},
     --- Holidays shown by `%%(org-calendar-holiday)` (calendar-holidays): one
     --- list per holiday-*-holidays variable, with Emacs's defaults. Set a
     --- group to `{}` to drop it; add your own to `local`/`other`. See
@@ -2109,6 +2132,7 @@ M.defaults = {
       inactive_mode = "v[",
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
+      toggle_diary = "D",
       dim_blocked = "#",
       filter = "/",
       filter_tag = "\\",

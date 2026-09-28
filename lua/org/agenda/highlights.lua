@@ -13,6 +13,7 @@ local links = {
   OrgAgendaDeadline = "ErrorMsg",
   OrgAgendaDeadlineUpcoming = "WarningMsg",
   OrgAgendaTimestamp = "Normal",
+  OrgAgendaDiary = "Normal",
   OrgAgendaDone = "Comment",
   OrgAgendaTimeGrid = "Comment",
   OrgAgendaCurrentTime = "Special",

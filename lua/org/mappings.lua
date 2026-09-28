@@ -278,6 +278,7 @@ local agenda_help = {
       { "inactive_mode", "Toggle inactive timestamps" },
       { "time_grid", "Toggle the time grid" },
       { "toggle_deadlines", "Toggle upcoming deadlines" },
+      { "toggle_diary", "Toggle the Emacs diary" },
       { "dim_blocked", "Toggle dimming blocked tasks" },
     },
   },

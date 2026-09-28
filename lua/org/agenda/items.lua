@@ -496,7 +496,7 @@ local SOURCE_RANK = {
 ---@param from integer
 ---@param to integer
 ---@param opts? { today?: integer, log_mode?: boolean|string, restrict?: table, skip?: function, block?: table,
----  inactive?: boolean, no_deadlines?: boolean, archives?: string|boolean }
+---  inactive?: boolean, no_deadlines?: boolean, archives?: string|boolean, include_diary?: boolean }
 ---@return table<integer, org.AgendaItem[]> items by day
 function M.agenda(files, from, to, opts)
   opts = opts or {}
@@ -1070,6 +1070,47 @@ function M.agenda(files, from, to, opts)
       end
     end
   end)
+  -- the Emacs diary after the files (org-agenda-include-diary); Emacs adds
+  -- it in every log mode too
+  local include_diary = opts.include_diary
+  if include_diary == nil then
+    include_diary = acfg.include_diary
+  end
+  if include_diary then
+    local diary = require("org.agenda.diary")
+    -- org-get-entries-from-diary binds org-agenda-search-headline-for-time
+    local dcfg = vim.tbl_extend("force", acfg, { search_headline_for_time = true })
+    local cache = {}
+    for d = from, to do
+      for _, l in ipairs(diary.day_lines(d, cache)) do
+        local f = l.entry and l.entry.file
+        order = order + 1
+        local item = {
+          type = "diary",
+          ts_type = "diary",
+          filename = f and f.path or nil,
+          -- holidays have no location
+          lnum = f and l.entry.lnum or 0,
+          raw = f and diary._line_text(f, l.entry.lnum) or "",
+          title = vim.trim(l.text),
+          category = "Diary",
+          tags = {},
+          done = false,
+          level = 0,
+          order = order,
+          prio = 0,
+          urgency = 0,
+          extra = "",
+          face = "OrgAgendaDiary",
+          day = d,
+          fidx = #files + 1,
+        }
+        set_time(item, nil, dcfg)
+        by_day[d] = by_day[d] or {}
+        table.insert(by_day[d], item)
+      end
+    end
+  end
   -- Emacs collects per file: deadlines, log items, scheduled, date
   -- ranges, timestamps, then sexps (org-agenda-get-day-entries)
   for _, list in pairs(by_day) do

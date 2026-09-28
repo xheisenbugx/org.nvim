@@ -1102,6 +1102,8 @@
 ---@field time_grid? org.MappingLhs
 --- Toggle showing deadlines. Default: `{ "!", "v!" }`
 ---@field toggle_deadlines? org.MappingLhs
+--- Toggle including the Emacs diary file (org-agenda-toggle-diary). Default: `D`
+---@field toggle_diary? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
 --- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`

@@ -1161,6 +1161,8 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   date.
 - Diary sexps, `<%%(...)>` timestamps and `%%(...)` lines
   (|org-agenda-diary-sexp|), including holidays (|org-agenda-holidays|).
+- With `agenda.include_diary`, the entries of the Emacs diary file
+  (|org-agenda-diary-file|).
 - Habits (`:STYLE: habit` and a repeater) in today's agenda, without a
   leader, with a consistency graph from column
   `agenda.habits.graph_column` (40) that overwrites the end of the line
@@ -1288,6 +1290,8 @@ All configurable under `mappings.agenda`:
                   entry (`agenda.entry_text_maxlines`) (also vE)
   G               toggle the time grid (also vG)
   !               show / hide deadlines (also v!)
+  D               include / leave out the Emacs diary file
+                  (|org-agenda-diary-file|)
   #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
@@ -1582,6 +1586,10 @@ with the same results as Emacs:
   diary-astro-day-number  diary-french-date  diary-mayan-date
   diary-coptic-date  diary-ethiopic-date  diary-persian-date
   diary-day-of-year  diary-lunar-phases  diary-sunrise-sunset
+  diary-hebrew-birthday M D Y [AFTER-SUNSET]
+  diary-hebrew-yahrzeit M D Y [MARK AFTER-SUNSET]
+  diary-hebrew-omer  diary-hebrew-parasha  diary-hebrew-rosh-hodesh
+  diary-hebrew-sabbath-candles  diary-chinese-anniversary M D [Y]
   and  or  not  list  quote
 
 Sexps can also combine these with a side-effect-free subset of Emacs
@@ -1607,18 +1615,19 @@ A string result replaces the entry text (the first example shows
 other non-nil value shows the text after the sexp. There are no loops,
 `lambda` or assignments, so every sexp finishes and changes nothing.
 
-A sexp beyond this subset (other Lisp functions, `cl-*`, the anniversaries
-of other calendars such as `diary-hebrew-birthday`, ...) is evaluated in a
-separate `emacs --batch` when there is one (`babel.emacs_lisp`), like
+A sexp beyond this subset (other Lisp functions, `cl-*`, ...) is evaluated
+in a separate `emacs --batch` when there is one (`babel.emacs_lisp`), like
 org-diary-sexp-entry: `(let ((entry ENTRY) (date '(M D Y))) SEXP)` with
 Org and diary-lib loaded. One Emacs runs per sexp and agenda span (all the
 days at once, under half a second), and the results are kept for the
 session. Without Emacs the entry is skipped with a message.
 
-The `diary-*` functions take their arguments in Emacs's default
-`calendar-date-style` order (american: month day year). The `org-*`
-variants use ISO order (year month day). In `diary-date`/`org-date`, `t`
-matches any value and a list `'(1 2)` matches any of its elements. In
+The `diary-*` functions take their arguments in the order of
+`agenda.calendar_date_style` (calendar-date-style): "american" (month day
+year, the default), "european" (day month year) or "iso" (year month
+day). The `org-*` variants always use ISO order (year month day). In
+`diary-date`/`org-date`, `t` matches any value and a list `'(1 2)`
+matches any of its elements. In
 `diary-float`, MONTH may be `t` or a list, DAYNAME is 0 (Sunday) to 6,
 and a negative N counts from the end of the month. The entry text of
 anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
@@ -1626,8 +1635,9 @@ anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
 agenda lines.
 
 `diary-remind` shows the entry of a quoted SEXP on its day and "Reminder:
-Only N days until ENTRY" DAYS days before (DAYS may be a list, or -N for
-1 to N days); MARKING only matters for the Emacs calendar and is ignored.
+Only N days until ENTRY" DAYS days before ("2 weeks" for whole weeks;
+DAYS may be a list, or -N for 1 to N days); MARKING only matters for the
+Emacs calendar and is ignored.
 `diary-offset` shows SEXP's entry DAYS days later (earlier when negative):
 >org
     * Taxes
@@ -1636,11 +1646,31 @@ Only N days until ENTRY" DAYS days before (DAYS may be a list, or -N for
     %%(diary-offset '(diary-float t 4 -1) 1) Retro, the day after
 <
 The `diary-*-date` functions show the day in another calendar, e.g.
-"Hebrew date (until sunset): Tishri 16, 5787", like Emacs.
-`diary-lunar-phases` shows the phases of the moon and
-`diary-sunrise-sunset` sunrise and sunset at `agenda.calendar_latitude`
-and `agenda.calendar_longitude` (|org-agenda-calendar-keys|; without
-them the sexp is skipped with a message), in the system time zone.
+"Hebrew date (until sunset): Tishri 16, 5787", like Emacs (in the date
+form of `agenda.calendar_date_style`: "16 Tishri 5787" in european style,
+"5787-07-16" in iso style). `diary-lunar-phases` shows the phases of the
+moon and `diary-sunrise-sunset` sunrise and sunset at
+`agenda.calendar_latitude` and `agenda.calendar_longitude`
+(|org-agenda-calendar-keys|; without them the sexp is skipped with a
+message), in the system time zone.
+
+The entries of the Hebrew calendar are Emacs's (cal-hebrew.el):
+`diary-hebrew-birthday` ("Joe's 13th Hebrew birthday", and " (evening)"
+the day before; the entry text is the name) and `diary-hebrew-yahrzeit`
+("Yahrzeit of Joe: 5th anniversary") take the civil date of birth or
+death, the day after with AFTER-SUNSET; `diary-hebrew-omer` counts the
+Omer, `diary-hebrew-parasha` names the weekly parasha on Saturdays (with
+the Israel and diaspora readings when they differ),
+`diary-hebrew-rosh-hodesh` shows Rosh Hodesh, Erev Rosh Hodesh and
+Shabbat Mevarchim, and `diary-hebrew-sabbath-candles` the candle lighting
+time on Fridays, `agenda.hebrew_sabbath_candles_minutes` (18) before
+sunset at the calendar location. `diary-chinese-anniversary` is
+`diary-anniversary` for a date of the Chinese calendar, with the year
+written CYCLE * 100 + YEAR (7843 for year 43 of cycle 78):
+>org
+    %%(diary-hebrew-yahrzeit 11 25 1990) Grandpa
+    %%(diary-chinese-anniversary 8 15 7840) Moon cake %d%s
+<
 
 Like Emacs, `%%(...)` lines are found in the whole file: lines before the
 first heading give entries with the file's category and FILETAGS. They
@@ -1735,23 +1765,91 @@ sunset need a location:
 When they are unset, `S` asks for them (Emacs's solar-setup) and keeps
 the answers for the session. Times use the system time zone and its
 daylight saving rules, like Emacs's calendar-time-zone. The strings are
-Emacs's (american `calendar-date-display-form`); `calendar-date-style`,
-`lunar-phase-names` and `calendar-time-display-form` are not configurable.
+Emacs's, with the default `calendar-date-display-form` of
+`agenda.calendar_date_style` (american "Sunday, September 27, 2026",
+european "Sunday, 27 September 2026", iso "2026-09-27");
+`calendar-date-display-form` itself, `lunar-phase-names` and
+`calendar-time-display-form` are not configurable.
+
+The Emacs diary file                                *org-agenda-diary-file*
+
+With `agenda.include_diary` (org-agenda-include-diary), or after `D` in
+the agenda, each day of a date agenda also lists the entries of the Emacs
+diary file for that day, with category "Diary", like Emacs:
+>lua
+    agenda = {
+      include_diary = true,
+      diary_file = "~/.emacs.d/diary",  -- default: ~/diary if it exists,
+                                        -- else the Emacs user directory's
+      calendar_date_style = "american", -- "european", "iso"
+      diary_show_holidays = true,       -- diary-show-holidays-flag
+      diary_include_files = false,      -- read #include "FILE" lines
+      diary_nongregorian = {},          -- "hebrew", "islamic", "bahai",
+                                        -- "chinese" (H, I, B, C entries)
+    }
+<
+The file is read the way Emacs's `diary-list-entries` reads it: an entry
+starts at the beginning of a line with a date in one of the forms of
+`calendar_date_style` (diary-date-forms), followed by its text; indented
+lines below continue it:
+>
+    9/27 Weekly review            MONTH/DAY
+    9/27/2026 Dentist 10:30       MONTH/DAY/YEAR (or a two-digit year)
+    Sep 27 Birthday               MONTHNAME DAY (full or three letters,
+    September 27, 2026 Party        with or without a period)
+                                  MONTHNAME DAY, YEAR
+    Tuesday 10am Meeting          DAYNAME (full or abbreviated): weekly
+    * 15 Pay day                  `*` matches any day, month or year
+    &10/3 Not marked              the `&` (non-marking) prefix
+    10/4                          a date alone: the indented lines are
+      Trip to Boston                the entry
+      2pm Meeting
+    %%(diary-float t 4 -1) Last Thursday   a sexp entry
+<
+European style reads DAY/MONTH, DAY/MONTH/YEAR, DAY MONTHNAME and DAY
+MONTHNAME YEAR; iso style MONTH/DAY, YEAR-MONTH-DAY (or /), MONTHNAME DAY
+and YEAR MONTHNAME DAY. The diary `%%(...)` sexps use the same functions
+as Org's, evaluated with `date` and `entry` bound.
+
+The agenda lines are Emacs's: the day's holidays (`agenda.holidays`,
+unless `diary_show_holidays` is false) come first, then the sexp entries,
+then the dated entries (one date form after the other), the entries of
+other calendars and the included files; the lines of an entry are joined
+with "; " except the lines starting with a time, which become entries of
+their own. A time at the start of a line ("10:30", "2pm", "8:30-9:15")
+goes to the time column and the time grid; face attributes such as
+`[foreground:red]` are removed. `D` toggles the diary for the current
+agenda (org-agenda-toggle-diary); a block of `agenda.custom_commands`
+can set `include_diary` too. <Tab> and <CR> on a diary line jump to the
+line of the diary file (the last line of the entry, like Emacs); the
+commands that change an Org entry (`t`, `s`, `:`, ...) report "Command
+not allowed in this line", as do jumps from a holiday line.
+
+With `diary_include_files`, `#include "FILE"` lines (relative to the
+diary file's directory) add the entries of other diary files, recursively
+(Emacs: diary-include-other-diary-files in diary-list-entries-hook). With
+`diary_nongregorian`, entries prefixed with H, I, B or C are dates of the
+Hebrew, Islamic, Bahá’í or Chinese calendar, in the same forms with that
+calendar's month names (not abbreviated): `HTishri 16 Sukkot`,
+`IRamadan 1 Fast`, `C8/15 Mid-autumn` (diary-nongregorian-listing-hook).
+Differences: customized `diary-date-forms`, `diary-comment-start`,
+`diary-list-include-blanks` and `diary-face-attrs` are not supported, the
+`i` key (insert a diary entry) is not available, and a missing or
+recursive include is skipped with a message (Emacs stops with an error).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
 - Without an Emacs executable, Emacs Lisp beyond the subset above
-  (loops, `lambda`, `defun`, assignments, other libraries), the
-  anniversaries and other entries of other calendars
-  (`diary-hebrew-birthday`, `diary-chinese-anniversary`, ...) and the
+  (loops, `lambda`, `defun`, assignments, other libraries) and the
   `holidays` argument of `org-class`: an unsupported sexp is skipped with
   a message (once per session). With one, they run in a separate Emacs
   that has none of your session's state (variables, functions you
-  defined, `calendar-date-style`) unless `babel.emacs_lisp.args` loads
-  it. Holidays are supported (|org-agenda-holidays|).
-- The Emacs diary file (org-agenda-include-diary) and the agenda keys
-  that use it (`i` insert a diary entry, `D` toggle the diary): the diary
-  is an Emacs file format and machinery with no Neovim counterpart.
+  defined; `calendar-date-style` is set from `agenda.calendar_date_style`) unless `babel.emacs_lisp.args` loads it. Holidays
+  (|org-agenda-holidays|) and the entries of other calendars
+  (|org-agenda-diary-sexp|) are supported.
+- The agenda key `i` (insert an entry into the diary file,
+  org-agenda-diary-entry). The diary file itself is read
+  (|org-agenda-diary-file|).
 - `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
   indirect buffers or narrowing; <Tab> opens the entry instead.
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
@@ -4365,8 +4463,13 @@ agenda ~
   entry_text_maxlines 5, confirm_kill 1,
   dim_blocked_tasks true (true|false|"invisible"),
   start_with_log_mode, start_with_follow_mode,
-  start_with_clockreport_mode, start_with_entry_text_mode
-  (see |org-agenda|)
+  start_with_clockreport_mode, start_with_entry_text_mode,
+  calendar_latitude/longitude/location_name nil,
+  calendar_date_style "american" ("european"|"iso"),
+  hebrew_sabbath_candles_minutes 18, include_diary false,
+  diary_file nil, diary_show_holidays true, diary_include_files false,
+  diary_nongregorian {}, holidays (|org-agenda-holidays|)
+  (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
   template), templates_contexts {} (|org-capture-contexts|),
@@ -4991,11 +5094,15 @@ Differences from Emacs:
   - Wildcard file links (`file:*.org`) list the names of the matches in a
     scratch buffer instead of a Dired buffer (no `ls -l` details or Dired
     commands).
-- Diary sexps are emulated for the common calendar functions,
+- Diary sexps are emulated for the calendar functions of Emacs's diary
+  library (all the `diary-*` sexp functions of diary-lib, cal-hebrew,
+  cal-china, lunar and solar and the `diary-*-date` functions),
   `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
   subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
-  separate Emacs when there is one. The Emacs diary is not available in
-  the agenda (|org-agenda-unsupported|).
+  separate Emacs when there is one. The Emacs diary file is read by a
+  port of diary-lib (|org-agenda-diary-file|): custom `diary-date-forms`,
+  diary comments and the `i` key (insert a diary entry) are not supported
+  (|org-agenda-unsupported|).
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:
@@ -5088,7 +5195,8 @@ Differences from Emacs:
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,
     sunrise or diary entries in it; the agenda has the holidays, moon,
-    sunrise and date conversion keys, |org-agenda-calendar-keys|).
+    sunrise and date conversion keys, |org-agenda-calendar-keys|, and
+    shows the diary file, |org-agenda-diary-file|).
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.

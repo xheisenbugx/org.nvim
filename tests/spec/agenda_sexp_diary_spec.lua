@@ -44,6 +44,22 @@ describe("diary-remind and diary-offset", function()
     }, week("(diary-remind '(diary-date 10 2 2026) -3)", "Remind neg"))
   end)
 
+  it("count whole weeks in weeks (diary-remind-message)", function()
+    local out = {}
+    for i = 0, 20 do
+      local r = sexp.eval("(diary-remind '(diary-date 10 15 2026) '(7 14 1))", day(2026, 9, 25) + i, "Taxes")
+      if r then
+        out[#out + 1] = r
+      end
+    end
+    eq({
+      "Reminder: Only 2 weeks until Taxes",
+      "Reminder: Only 1 week until Taxes",
+      "Reminder: Only 1 day until Taxes",
+      "Taxes",
+    }, out)
+  end)
+
   it("format the entry of the reminded date", function()
     eq({ "2026-09-28 Reminder: Only 2 days until Anniv 26th", "2026-09-30 Anniv 26th" },
       week("(diary-remind '(diary-anniversary 9 30 2000) 2)", "Anniv %d%s"))
