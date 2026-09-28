@@ -127,10 +127,16 @@ parse = function(lines, s, e, parent, first_is_item_text)
     local post = j
     line = lines[post]
     local kind = starts(line)
+    local tableel = require("org.table.el").table_end(lines, post, e)
+    if tableel then
+      kind = "table.el"
+    end
     if first_is_item_text and post == s then
       kind = nil -- text on an item's first line
     end
-    if kind == "table" then
+    if kind == "table.el" then
+      add({ type = "table", first = first, post = post, clast = tableel })
+    elseif kind == "table" then
       local k = post
       while k + 1 <= e and (lines[k + 1]:match("^%s*|") or lines[k + 1]:match("^%s*#%+[Tt][Bb][Ll][Ff][Mm]:")) do
         k = k + 1
@@ -288,7 +294,8 @@ parse = function(lines, s, e, parent, first_is_item_text)
       local k = post
       while k + 1 <= e do
         local l = lines[k + 1]
-        if is_blank(l) or parser.headline_level(l) or starts(l) or affiliated(l) then
+        local rule = require("org.table.el").is_rule(l)
+        if is_blank(l) or parser.headline_level(l) or starts(l) or affiliated(l) or rule then
           break
         end
         k = k + 1

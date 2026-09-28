@@ -209,7 +209,7 @@
 ---| "table_delete_row" # Delete table row
 ---| "table_edit_field" # Edit table field
 ---| "table_edit_formulas" # Edit table formulas
----| "table_el" # table.el tables (not supported)
+---| "table_el" # Convert table to/from table.el, or insert one
 ---| "table_expand" # Expand all table columns
 ---| "table_export" # Export table with a translator
 ---| "table_field_info" # Table field info
@@ -875,7 +875,7 @@
 ---@field table_ascii_plot? org.MappingLhs
 --- Plot table with gnuplot. Default: `<C-c>"g`
 ---@field table_plot? org.MappingLhs
---- table.el tables (not supported). Default: `<C-c>~`
+--- Convert table to/from table.el, or insert one. Default: `<C-c>~`
 ---@field table_el? org.MappingLhs
 --- Execute src block. Default: `{ "<C-c><C-v>e", "<C-c><C-v><C-e>" }`
 ---@field babel_execute? org.MappingLhs

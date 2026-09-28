@@ -421,7 +421,7 @@ local function is_table_line(l)
 end
 
 local function is_tableel_rule(l)
-  return l:match("^[ \t]*%+%-+[%+%-]*%+[ \t]*$") ~= nil and l:match("^[ \t]*%+[%-%+]*%+[ \t]*$") ~= nil
+  return require("org.table.el").is_rule(l)
 end
 
 --- Item bullet of a line (org-item-re, alphabetical bullets when allowed).
