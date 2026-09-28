@@ -109,6 +109,11 @@
 ---Show only the first timestamp of an entry per day
 ---(org-agenda-skip-additional-timestamps-same-entry). (default: `false`)
 ---@field skip_additional_timestamps_same_entry? boolean
+---Leave out COMMENT subtrees (org-agenda-skip-comment-trees). (default: `true`)
+---@field skip_comment_trees? boolean
+---Returns true to leave an entry out of every agenda view, before a
+---block's `skip` (org-agenda-skip-function-global). (default: `nil`)
+---@field skip_function_global? fun(hl: org.Headline): boolean
 ---Deadline pre-warnings of scheduled entries
 ---(org-agenda-skip-deadline-prewarning-if-scheduled): `true` = none, a
 ---number = at most that many days before, `"pre-scheduled"` = not before

@@ -423,6 +423,11 @@ M.defaults = {
     skip_timestamp_if_deadline_is_shown = false, -- org-agenda-skip-timestamp-if-deadline-is-shown
     skip_scheduled_repeats_after_deadline = false, -- org-agenda-skip-scheduled-repeats-after-deadline
     skip_additional_timestamps_same_entry = false, -- org-agenda-skip-additional-timestamps-same-entry
+    --- Leave out COMMENT subtrees (org-agenda-skip-comment-trees).
+    skip_comment_trees = true,
+    --- function(headline) -> true to leave the entry out of every agenda
+    --- view, before a block's `skip` (org-agenda-skip-function-global).
+    skip_function_global = nil,
     --- true (no pre-warning when scheduled) | number of days | "pre-scheduled"
     --- (org-agenda-skip-deadline-prewarning-if-scheduled).
     skip_deadline_prewarning_if_scheduled = false,

@@ -1173,7 +1173,10 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   (org-habit).
 - A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
   time; the `remove-match` flag hides grid lines at the time of an entry.
-- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+- Entries under ARCHIVE-tagged or COMMENT headlines are excluded
+  (`agenda.skip_comment_trees = false` keeps COMMENT trees).
+  `agenda.skip_function_global(headline)` returning true leaves an entry
+  out of every view, built-in ones included (org-agenda-skip-function-global).
 `agenda.entry_types` selects the kinds ("deadline", "scheduled",
 "timestamp", "sexp"; "deadline*" / "scheduled*" keep only timed ones).
 Skipping: `skip_scheduled_if_done`, `skip_deadline_if_done`,

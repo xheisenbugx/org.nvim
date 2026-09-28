@@ -292,12 +292,14 @@ M.set_time = set_time
 -- Headline iteration
 ---------------------------------------------------------------------------
 
---- Is `hl` inside a COMMENT subtree, or an ARCHIVE-tagged one (unless
+--- Is `hl` inside a COMMENT subtree (with agenda.skip_comment_trees,
+--- org-agenda-skip-comment-trees), or an ARCHIVE-tagged one (unless
 --- archived trees are included, org-agenda-archives-mode)?
 local function hidden(hl, include_archived)
+  local skip_comments = config.opts.agenda.skip_comment_trees ~= false
   local h = hl
   while h do
-    if h.commented or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
+    if (skip_comments and h.commented) or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
       return true
     end
     h = h.parent
@@ -305,7 +307,9 @@ local function hidden(hl, include_archived)
   return false
 end
 
---- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees).
+--- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT
+--- subtrees and those `agenda.skip_function_global` or `opts.skip` skip,
+--- org-agenda-skip).
 ---@param files org.File[]
 ---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean }
 function M.each_headline(files, opts, fn)
@@ -316,6 +320,11 @@ function M.each_headline(files, opts, fn)
       local ok = not hidden(hl, opts.archives)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
+      end
+      local global = config.opts.agenda.skip_function_global
+      if ok and type(global) == "function" then
+        local s_ok, skip = pcall(global, hl)
+        ok = not (s_ok and skip)
       end
       if ok and opts.skip then
         local s_ok, skip = pcall(opts.skip, hl)

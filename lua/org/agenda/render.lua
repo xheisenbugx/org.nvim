@@ -1252,6 +1252,7 @@ local NIL_OPTIONS = {
   clock_report_header = true,
   auto_exclude_function = true,
   export_html_style = true,
+  skip_function_global = true,
 }
 
 --- Run `fn` with the agenda options set on `block` in effect, like the
