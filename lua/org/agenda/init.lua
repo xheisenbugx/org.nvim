@@ -525,6 +525,9 @@ function M.dispatch(key, restrict)
     end
   elseif key == "e" then
     return require("org.agenda.export").store_views()
+  elseif key == "?" then
+    -- the FLAGGED entries of MobileOrg
+    return require("org.mobile").flagged_agenda()
   elseif key == "*" then
     return M.toggle_sticky()
   elseif key == ">" then
@@ -563,6 +566,7 @@ function M.prompt()
       { key = "#", label = "List stuck projects", value = "#" },
       { key = "/", label = "Multi-occur in agenda files", value = "/" },
       { key = "e", label = "Export agenda views", value = "e" },
+      { key = "?", label = "Find :FLAGGED: entries", value = "?" },
       {
         key = "*",
         label = "Toggle sticky agenda views  [" .. (config.opts.agenda.sticky and "on" or "off") .. "]",
@@ -668,7 +672,7 @@ function M.command(args)
       return M.dispatch(key)
     end
     return M.open_search(rest, nil, key == "S")
-  elseif key == "#" or key == "n" or key == "*" or key == ">" then
+  elseif key == "#" or key == "n" or key == "*" or key == ">" or key == "?" then
     return M.dispatch(key)
   elseif key == "e" or key == "export" then
     if rest ~= "" then

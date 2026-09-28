@@ -42,6 +42,11 @@ M.extra = {
   feed_update = { "org.feed", "update_command", desc = "Update a feed: :Org feed_update [name]" },
   feed_goto_inbox = { "org.feed", "goto_inbox", desc = "Go to a feed's inbox: :Org feed_goto_inbox [name]" },
   feed_show_raw = { "org.feed", "show_raw", desc = "Show a feed's raw XML: :Org feed_show_raw [name]" },
+  mobile_push = { "org.mobile", "push", desc = "Stage files and agendas for MobileOrg (org-mobile-push)" },
+  mobile_pull = { "org.mobile", "pull", desc = "Get captured and flagged entries from MobileOrg (org-mobile-pull)" },
+  mobile_apply = { "org.mobile", "apply_command", desc = "Apply the MobileOrg change requests in the buffer" },
+  mobile_goto_inbox = { "org.mobile", "goto_inbox", desc = "Open the MobileOrg inbox (mobile.inbox_for_pull)" },
+  mobile_flagged = { "org.mobile", "flagged_agenda", desc = "Agenda of FLAGGED entries (dispatcher key ?)" },
   -- image and LaTeX previews: a range limits them, a number is the prefix count
   link_preview = {
     "org.ui.images",

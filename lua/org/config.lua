@@ -1029,6 +1029,71 @@ M.defaults = {
     archive_delete = false,
     --- Tag of entries with attachments; false for none (org-attach-auto-tag).
     auto_tag = "ATTACH",
+    --- Commit attachment changes to git (org-attach-git; Emacs turns it on
+    --- with `(require 'org-attach-git)`).
+    git = false,
+    --- Files of at least this many bytes go to git-annex when the
+    --- repository uses it; false never annexes (org-attach-git-annex-cutoff).
+    git_annex_cutoff = 32 * 1024,
+    --- Fetch missing git-annex content when opening an attachment:
+    --- "ask" | true | false (org-attach-git-annex-auto-get).
+    git_annex_auto_get = "ask",
+    --- Repository used: "default" (the one containing `dir`) or
+    --- "individual-repository" (the entry's attachment directory)
+    --- (org-attach-git-dir).
+    git_dir = "default",
+  },
+
+  ---------------------------------------------------------------------------
+  -- MobileOrg (org-mobile)
+  ---------------------------------------------------------------------------
+  mobile = {
+    --- Staging directory shared with the mobile application
+    --- (org-mobile-directory). Required by push and pull.
+    directory = nil,
+    --- Files to stage (org-mobile-files): "agenda_files",
+    --- "text_search_extra_files", files and directories (their `*.org`).
+    files = { "agenda_files" },
+    --- Emacs regexp of files not to stage (org-mobile-files-exclude-regexp).
+    files_exclude_regexp = "",
+    --- File the captured entries and edit requests are moved to on pull
+    --- (org-mobile-inbox-for-pull); relative to `org_directory`.
+    inbox_for_pull = "~/org/from-mobile.org",
+    --- Name of the index file (org-mobile-index-file).
+    index_file = "index.org",
+    --- The #+ALLPRIORITIES of the index file (org-mobile-allpriorities).
+    allpriorities = "A B C",
+    --- Agendas written to agendas.org (org-mobile-agendas): "default" (week
+    --- agenda and TODO list), "custom" (`agenda.custom_commands`), "all",
+    --- or a list of command keys.
+    agendas = "all",
+    --- Give every agenda entry an ID on push (org-mobile-force-id-on-agenda-items).
+    force_id_on_agenda_items = true,
+    --- Apply mobile edits even when the entry changed on the computer too
+    --- (org-mobile-force-mobile-change): true, false or a list of
+    --- "todo", "tags", "priority", "heading", "body".
+    force_mobile_change = false,
+    --- Encrypt the staged files with openssl (org-mobile-use-encryption).
+    use_encryption = false,
+    --- Password for the encryption; asked once per session when empty
+    --- (org-mobile-encryption-password).
+    encryption_password = "",
+    --- Program for file checksums; nil finds shasum, sha1sum, md5sum or md5
+    --- (org-mobile-checksum-binary).
+    checksum_binary = nil,
+    --- Extra `F(action:data)` actions (org-mobile-action-alist):
+    --- `{ name = function(data, old, new, target) end }`.
+    action_alist = {},
+    --- Show the flagged entries in an agenda after a pull.
+    show_flagged = true,
+    --- Hooks (functions; the User autocmds OrgMobilePrePush, OrgMobilePostPush,
+    --- OrgMobilePrePull, OrgMobileBeforeProcessCapture and OrgMobilePostPull
+    --- fire too).
+    pre_push_hook = nil,
+    post_push_hook = nil,
+    pre_pull_hook = nil,
+    before_process_capture_hook = nil,
+    post_pull_hook = nil,
   },
 
   ---------------------------------------------------------------------------
@@ -1997,6 +2062,9 @@ M.defaults = {
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",
+      show_flagging_note = "?",
+      mobile_pull = "<C-c><C-x><CR>g",
+      mobile_push = "<C-c><C-x><CR>p",
     },
     capture = {
       finalize = { "<C-c><C-c>", "<prefix>w" },

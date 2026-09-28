@@ -414,6 +414,8 @@
 ---@field id? org.Config.Id
 ---Attachments (`org-attach`).
 ---@field attach? org.Config.Attach
+---MobileOrg staging and sync (`org-mobile`).
+---@field mobile? org.Config.Mobile
 ---Source block evaluation (Babel).
 ---@field babel? org.Config.Babel
 ---Export backends and options.

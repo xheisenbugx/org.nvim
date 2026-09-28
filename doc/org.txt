@@ -1082,10 +1082,11 @@ and default options (the Emacs variable is named next to each option in
   >   remove the restriction and the restriction lock
   e   export the agenda views of custom commands (|org-agenda-export|)
   *   toggle sticky agenda buffers (`agenda.sticky`)
+  ?   the :FLAGGED: entries of MobileOrg (|org-mobile|)
   ... custom commands from `agenda.custom_commands`
 
 :Org agenda a|t [KW|KW]|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|
-            *|>|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE
+            *|>|?|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE
 
 Restriction lock (org-agenda-set-restriction-lock):
   <C-c><C-x><    lock every agenda command to the current subtree (to the
@@ -1268,6 +1269,9 @@ All configurable under `mappings.agenda`:
   x               quit, delete the agenda buffers and the unmodified
                   buffers the agenda loaded
   g?              help
+  ?               show the MobileOrg flagging note of the entry; again to
+                  remove the FLAGGED tag and the note (|org-mobile|)
+  <C-c><C-x><CR>g / <C-c><C-x><CR>p   MobileOrg pull / push
 Emacs-style aliases: <C-c><C-t> todo, <C-c><C-q> and <C-c><C-c> tags,
 <C-c>, priority, <C-c><C-x>e effort, <C-c><C-z> note, <C-c><C-x><C-i>
 <C-c><C-x><C-o> <C-c><C-x><C-x> <C-c><C-x><C-j> clock in / out / cancel /
@@ -1698,8 +1702,7 @@ Not supported in the agenda                        *org-agenda-unsupported*
   is an Emacs file format and machinery with no Neovim counterpart.
 - `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
   indirect buffers or narrowing; <Tab> opens the entry instead.
-- `?` (show the FLAGGED note of MobileOrg) and the Customize keys (`C`,
-  `!` in the dispatcher): there is no MobileOrg or Customize.
+- The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
   `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
@@ -2333,6 +2336,81 @@ source, false none). Other options: `dir_relative` (store DIR relative to
 the file), `sync_delete_empty_dir` ("query", true, false) and
 `archive_delete` (delete the attachments of archived entries: false, true,
 "query").
+
+Attachments in git (org-attach-git)                         *org-attach-git*
+
+With `attach.git = true` (Emacs: `(require 'org-attach-git)`), a change
+made through org-attach (attach, download, attach a buffer, delete one or
+all, sync) is committed when the attachment root (`attach.dir`, relative
+to the org file) is inside a git work tree: new and modified files are
+`git add`ed, deleted ones `git rm`ed, and a commit "Synchronized
+attachments" is made. `attach.git_dir = "individual-repository"` uses the
+entry's own attachment directory instead (org-attach-git-dir). When the
+repository has been set up with `git annex init`, files of at least
+`attach.git_annex_cutoff` bytes (32768; false: never) are added with `git
+annex add`, and opening an attachment (`o`/`O`) whose content is not
+present runs `git annex get` (`attach.git_annex_auto_get`: "ask", true or
+false). The Emacs hooks are User autocmds: `OrgAttachAfterChange` (data:
+`{ dir }`) and `OrgAttachOpen` (data: `{ path }`).
+
+MobileOrg (org-mobile)                                           *org-mobile*
+
+A port of Org Mobile, the protocol MobileOrg-style applications use to
+view and capture offline. Set `mobile.directory` to the staging directory
+the application syncs with (WebDAV, Dropbox, ...; when Neovim cannot write
+it directly, copy the files in `mobile.post_push_hook` and
+`mobile.pre_pull_hook`).
+
+:Org mobile_push    Copy `mobile.files` (default: the agenda files) into
+                    the staging directory, named relative to
+                    `org_directory`, and write `index.org` (#+TODO lines
+                    from `todo_keywords` and the files, #+TAGS,
+                    #+ALLPRIORITIES from `mobile.allpriorities`, links to
+                    the files), `agendas.org` (the agenda views chosen by
+                    `mobile.agendas`: "default" is the week agenda and the
+                    TODO list, "custom" the `agenda.custom_commands`, "all"
+                    both, or a list of keys; search, stuck and sparse-tree
+                    commands are left out) and `checksums.dat`. Agenda
+                    entries first get an ID
+                    (`mobile.force_id_on_agenda_items`; else agendas.org
+                    refers to them by outline path, `olp:`).
+:Org mobile_pull    Move the entries of `mobileorg.org` to the end of
+                    `mobile.inbox_for_pull` (emptying it), then apply the
+                    edit requests found there (below) and show the flagged
+                    entries of the changed files in an agenda.
+:Org mobile_apply   Apply the requests in the current buffer (Emacs
+                    org-mobile-apply).
+:Org mobile_goto_inbox   Open the inbox.
+:Org mobile_flagged Agenda of the FLAGGED entries (dispatcher `?`).
+In the agenda: `?` shows the flagging note of the entry in another window
+and copies it to the unnamed register; `?` again (without moving) offers
+to remove the FLAGGED tag and the note. <C-c><C-x><CR>g pulls,
+<C-c><C-x><CR>p pushes.
+
+Requests look like `* F(edit:todo) [[id:ID][title]]` with `** Old value` and
+`** New value` children. Edits of `todo` (the value "DONEARCHIVE" marks the
+entry done and archives it), `tags`, `priority`, `heading` and `body` are
+applied only when the entry still has the old value (or the new one);
+`mobile.force_mobile_change` (true or a list of those kinds) applies them
+anyway. `addheading` adds a child, `refile` moves the subtree to the entry
+of the new value (an `id:`/`olp:` link), `delete`, `archive` and
+`archive-sibling` do what they say. `* F() [[id:...]]` adds the FLAGGED tag
+and keeps the text of the request in the THEFLAGGINGNOTE property. Applied
+requests are removed from the inbox; the others stay, with the error after
+their stars ("BAD REFERENCE", "BAD FLAG", or why the edit was refused).
+Changed files get a `#+LAST_MOBILE_CHANGE:` line. `mobile.action_alist`
+adds actions: `{ name = function(data, old, new, target) end }` (raise an
+error to refuse).
+
+Encryption: `mobile.use_encryption = true` stores every staged file
+encrypted with `openssl enc -md md5 -aes-256-cbc` and
+`mobile.encryption_password` (asked once per session when empty), like
+Emacs. `mobile.checksum_binary` (shasum, sha1sum, md5sum or md5, the first
+found) computes the file checksums. Hooks: `mobile.pre_push_hook`,
+`post_push_hook`, `pre_pull_hook`, `before_process_capture_hook` (receives
+`{ bufnr, line }` of the new entries) and `post_pull_hook`, plus the User
+autocmds `OrgMobilePrePush`, `OrgMobilePostPush`, `OrgMobilePrePull`,
+`OrgMobileBeforeProcessCapture` and `OrgMobilePostPull`.
 
 ==============================================================================
 17. FOOTNOTES                                                  *org-footnotes*
@@ -3966,7 +4044,17 @@ attach ~
   dir "data/", method "cp"|"mv"|"ln"|"lns", id_to_path { "uuid", "ts",
   "fallback" }, use_inheritance "selective", dir_relative false,
   preferred_new_method "id", store_link "attached",
-  sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH"
+  sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH",
+  git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
+  git_dir "default" (|org-attach-git|)
+mobile ~ (|org-mobile|)
+  directory nil, files { "agenda_files" }, files_exclude_regexp "",
+  inbox_for_pull "~/org/from-mobile.org", index_file "index.org",
+  allpriorities "A B C", agendas "all", force_id_on_agenda_items true,
+  force_mobile_change false, use_encryption false, encryption_password "",
+  checksum_binary nil, action_alist {}, show_flagged true,
+  pre_push_hook, post_push_hook, pre_pull_hook,
+  before_process_capture_hook, post_pull_hook
 babel ~
   confirm_evaluate true (or a function), min_lines_for_block_output 10,
   timeout 30000, evaluate_on_export true, no_eval_on_ctrl_c_ctrl_c false,
@@ -4229,6 +4317,8 @@ Additional subcommands:
   :Org lint [checker ...]    (|org-lint|)
   :Org feed_update [name]    :Org feed_update_all   (|org-feed|)
   :Org feed_goto_inbox [name]  :Org feed_show_raw [name]
+  :Org mobile_push | mobile_pull | mobile_apply | mobile_goto_inbox |
+       mobile_flagged        (|org-mobile|)
 
 ==============================================================================
 29. LUA API                                                          *org-api*
@@ -4437,8 +4527,8 @@ Differences from Emacs:
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise.
 - The ID database is JSON, not Emacs's `org-id-locations-file` format, so
-  it can't be shared with Emacs. The org-attach git/annex extensions and
-  the refile cache (not needed) are not implemented; archiving does not
+  it can't be shared with Emacs. The refile cache (not needed) is not
+  implemented; archiving does not
   loop over a Visual selection (Emacs does only with
   `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
@@ -4481,10 +4571,13 @@ Differences from Emacs:
   `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
   subset of Emacs Lisp (|org-agenda-diary-sexp|) only, and the Emacs
   diary is not available in the agenda (|org-agenda-unsupported|).
-- Not implemented:
-  - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
-    staging/sync protocol is tied to Emacs; sync the files with any file
-    sync tool instead.
+- MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
+  (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
+  instead). agendas.org lists the custom commands in key order (Emacs:
+  the order of org-agenda-custom-commands) and its agenda lines look like
+  this agenda's. `force_mobile_change = { "priority" }` forces priority
+  edits (Emacs tests `tags` there). The new `#+LAST_MOBILE_CHANGE:` line
+  does not make the first edit of a file fail, as it does in Emacs 9.8.
 - Image and LaTeX previews (|org-images|) need a terminal image backend.
   They replace the link or fragment like Emacs, but a terminal line can't
   grow: the image's first row is on the line and the rest in virtual lines

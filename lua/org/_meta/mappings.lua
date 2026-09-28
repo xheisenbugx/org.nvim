@@ -1158,6 +1158,13 @@
 ---@field export? org.MappingLhs
 --- Show the agenda keymaps. Default: `g?`
 ---@field help? org.MappingLhs
+--- Show the MobileOrg flagging note of the entry; again to unflag it
+--- (org-agenda-show-the-flagging-note). Default: `?`
+---@field show_flagging_note? org.MappingLhs
+--- Pull from the mobile application (org-mobile-pull). Default: `<C-c><C-x><CR>g`
+---@field mobile_pull? org.MappingLhs
+--- Stage files for the mobile application (org-mobile-push). Default: `<C-c><C-x><CR>p`
+---@field mobile_push? org.MappingLhs
 
 --- Keys in the capture buffer (normal mode).
 ---@class org.Config.Mappings.Capture
