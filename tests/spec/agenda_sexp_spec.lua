@@ -227,6 +227,25 @@ describe("diary sexps", function()
     eq("", sexp.eval("(org-class 2026 9 1 2026 12 20 5)", d))
   end)
 
+  -- org-agenda-format-item searches the stamp text (DOTIME) for a time
+  -- before the headline
+  it("takes the agenda time of a <%%(...)> stamp from the sexp", function()
+    local file = require("org.parser").parse({
+      "* Workout plan :habits:",
+      [[<%%(when (memq(calendar-day-of-week date) '(1 2 4 5)) "18:00")>]],
+      "* TODO Class",
+      [[  SCHEDULED: <%%(when (= (calendar-day-of-week date) 1) "9:30am")>]],
+      "* Talk 10:00",
+      "  <%%(diary-date 9 28 2026)>",
+    }, "/tmp/sexp-time.org")
+    local T = date.days_from_civil(2026, 9, 28)
+    local got = {}
+    for _, it in ipairs(require("org.agenda.items").agenda({ file }, T, T, { today = T })[T]) do
+      got[it.title] = it.time or false
+    end
+    eq({ ["Workout plan"] = 18 * 60, Class = 9 * 60 + 30, ["Talk 10:00"] = 10 * 60 }, got)
+  end)
+
   it("formats %d and %s like Emacs", function()
     local d = date.days_from_civil(2026, 9, 25)
     eq("Joe is 36 years old", sexp.eval("(org-anniversary 1990 9 25)", d, "Joe is %d years old"))

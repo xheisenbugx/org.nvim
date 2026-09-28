@@ -245,7 +245,9 @@ end
 --- the stamp, the headline is searched for one
 --- (org-agenda-search-headline-for-time); a time found in the headline is
 --- removed from the displayed title (org-agenda-remove-times-when-in-prefix).
-local function set_time(item, stamp, acfg, remove_stamps)
+--- `sexp_stamp` is the text of a `<%%(...)>` stamp, searched for a time
+--- before the headline, as Emacs passes the stamp as DOTIME.
+local function set_time(item, stamp, acfg, remove_stamps, sexp_stamp)
   local title = item.title
   if remove_stamps then
     title = strip_active_timestamps(title)
@@ -261,8 +263,11 @@ local function set_time(item, stamp, acfg, remove_stamps)
     -- a timestamp item's time comes from the stamp, which is removed
     -- from the text anyway (org-stamp-time-of-day-regexp)
     found = not remove_stamps and { text = t } or nil
-  elseif acfg.search_headline_for_time ~= false then
-    found = M.find_time(strip_timestamps(title))
+  else
+    found = sexp_stamp and M.find_time(sexp_stamp)
+    if not found and acfg.search_headline_for_time ~= false then
+      found = M.find_time(strip_timestamps(title))
+    end
     if found then
       item.time, item.end_time = found.start, found.stop
     end
@@ -912,7 +917,7 @@ function M.agenda(files, from, to, opts)
                     sexp = m.sexp,
                     face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
                   })
-                  set_time(item, nil, acfg, true)
+                  set_time(item, nil, acfg, true, m.sexp)
                   add(d, item)
                 end
               end
@@ -942,7 +947,7 @@ function M.agenda(files, from, to, opts)
               face = kind == "deadline" and "OrgAgendaDeadline" or "OrgAgendaScheduled",
             })
             item.urgency = kind == "scheduled" and (99 + item.prio) or item.prio
-            set_time(item, nil, acfg)
+            set_time(item, nil, acfg, false, sx)
             add(d, item)
           end
         end
