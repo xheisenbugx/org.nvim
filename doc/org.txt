@@ -2115,7 +2115,32 @@ edit a file at a time.
                           (C-u C-c c in Emacs)
 :Org capture_goto_last    jump to the last captured (or refiled) entry
                           (C-u C-u C-c c)
-From the agenda, `K` captures with the date at point as the default date.
+:Org capture_string       ask for a string and capture it as the initial
+                          text `%i` (org-capture-string)
+From the agenda, `K` captures with the date at point as the default date
+(with a count of 1, C-1, at the time of the item at point or now). With
+`capture.use_agenda_date`, the global capture key does the same there.
+
+                                                    *org-capture-hooks*
+Besides the templates' `prepare_finalize`, `before_finalize` and
+`after_finalize` functions, every capture fires User autocmds, after the
+template's function, like Emacs's global hooks:
+  OrgCapturePrepareFinalize  capture buffer still open; data `{ buf }`
+                             (org-capture-prepare-finalize-hook)
+  OrgCaptureBeforeFinalize   entry stored, target not yet saved; data
+                             `{ bufnr, line }`
+                             (org-capture-before-finalize-hook)
+  OrgCaptureAfterFinalize    capture done; data `{ bufnr, line }`
+                             (org-capture-after-finalize-hook)
+Aborting (<C-c><C-k>) fires the prepare and after events with
+`aborted = true`, but not the before event, like org-capture-kill. >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgCaptureAfterFinalize",
+      callback = function(ev)
+        if not ev.data.aborted then vim.notify("captured") end
+      end,
+    })
+<
 
 org-protocol                                                  *org-protocol*
 `org-protocol://` URLs from a browser or another program capture, store
@@ -4497,7 +4522,8 @@ agenda ~
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
   template), templates_contexts {} (|org-capture-contexts|),
-  window "split"
+  window "split", use_agenda_date false (the global capture key in the
+  agenda uses the date at point, like the agenda's `K`)
 refile ~
   targets {} (empty = level-1 headlines of the current buffer),
   max_level nil, include_current_file nil, use_outline_path false,

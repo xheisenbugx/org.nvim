@@ -771,6 +771,11 @@ M.defaults = {
     --- Window of the capture buffer: "split" (Emacs splits the frame) |
     --- "float" | "vsplit" | "tab" | "current".
     window = "split",
+    --- Capturing from the agenda (the global capture key) uses the date at
+    --- point as the default date; with count 1 also the time of the item
+    --- at point or the current time (org-capture-use-agenda-date). The
+    --- agenda's own capture key always does.
+    use_agenda_date = false,
   },
 
   ---------------------------------------------------------------------------

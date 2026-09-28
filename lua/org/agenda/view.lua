@@ -1303,6 +1303,28 @@ function M.day_at_cursor()
   return nil
 end
 
+--- The date at the cursor for a capture (org-get-cursor-date): the day
+--- of the line; with `with_time`, at the time of the item at point, else
+--- the current time of day. Nil outside date-based blocks.
+---@param with_time? boolean
+---@return org.Date|nil
+function M.cursor_date(with_time)
+  local day = has_agenda_block() and M.day_at_cursor() or nil
+  if not day then
+    return nil
+  end
+  if not with_time then
+    return date.from_days(day)
+  end
+  local item = M.item_at_cursor()
+  local minutes = item and item.time
+  if not minutes then
+    local now = os.date("*t")
+    minutes = now.hour * 60 + now.min
+  end
+  return date.from_days(day, { hour = math.floor(minutes / 60), min = minutes % 60 })
+end
+
 --- Change the span (org-agenda-change-time-span): the span starts where
 --- `org-agenda-compute-starting-span` puts it for the day at point.
 local function set_span(span)
@@ -2726,8 +2748,7 @@ M.actions = {
     move_to_item(-1)
   end,
   capture = function()
-    local day = has_agenda_block() and M.day_at_cursor() or nil
-    call("org.capture", "prompt", { date = day and date.from_days(day) or nil })
+    call("org.capture", "prompt", { date = M.cursor_date(vim.v.count == 1) })
   end,
   columns = function()
     call("org.agenda.columns", "toggle")

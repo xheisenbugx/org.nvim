@@ -517,6 +517,9 @@
 ---Window used for the capture buffer; Emacs splits the frame.
 ---(default: `"split"`)
 ---@field window? "float"|"split"|"vsplit"|"tab"|"current"
+---The global capture key in the agenda uses the date at point (count 1: with
+---the time of the item at point) (org-capture-use-agenda-date). (default: `false`)
+---@field use_agenda_date? boolean
 
 ---An entry of `capture.templates_contexts`: `{ key, rules }` or
 ---`{ key, replacement_key, rules }`. `rules` is a list of conditions (any
