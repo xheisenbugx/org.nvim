@@ -1914,6 +1914,9 @@ function P:expand_abbrev(link)
     local ok, v = pcall(rpl, tag or "")
     return ok and v or link
   end
+  if rpl:find("%(", 1, true) then
+    return require("org.links").abbrev_call(rpl, tag or "") or link
+  end
   if rpl:find("%s", 1, true) then
     return (rpl:gsub("%%s", function()
       return tag or ""

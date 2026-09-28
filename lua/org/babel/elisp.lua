@@ -181,44 +181,46 @@ function M.run_internal(body, args, vars)
 end
 
 ---------------------------------------------------------------------------
--- elisp: links (org-link--open-elisp)
+-- Lisp forms outside of blocks (macros, capture, links, headers, diary)
 ---------------------------------------------------------------------------
 
---- Evaluate the sexp of an `elisp:` link in a separate Emacs (or on the
---- small interpreter without one) and return the printed value.
----@return string|nil value, string|nil err
-function M.eval_link(sexp, cwd)
+--- Run the Emacs Lisp `program` (a list of lines, which must write its
+--- result with `(org-nvim--result STRING)`) in a separate Emacs.
+---@param program string[]
+---@param opts? { cwd?: string, requires?: string[] }
+---@return string|nil result, string|nil err
+function M.run_program(program, opts)
+  opts = opts or {}
   local cmd = M.command()
   if not cmd then
-    local el = require("org.table.elisp")
-    local ok, v = pcall(el.eval, sexp)
-    if not ok then
-      return nil, tostring(v)
-    end
-    return lisp.prin1(lisp.from_elisp(v))
+    return nil, "no Emacs (babel.emacs_lisp)"
   end
   local result_file = vim.fn.tempname()
   local script = vim.fn.tempname() .. ".el"
-  local program = table.concat({
+  local head = {
     ";;; -*- lexical-binding: t; coding: utf-8 -*-",
-    "(setq inhibit-message t)",
-    "(condition-case err",
-    "    (let ((result (eval (read " .. lisp_string(sexp) .. ") t)))",
-    "      (let ((coding-system-for-write 'utf-8))",
-    "        (with-temp-file " .. lisp_string(result_file) .. " (insert (prin1-to-string result)))))",
-    "  (error (princ (error-message-string err) #'external-debugging-output)",
-    "         (kill-emacs 1)))",
-  }, "\n")
-  vim.fn.writefile(vim.split(program, "\n", { plain = true }), script)
+    "(setq inhibit-message t print-level nil print-length nil)",
+    "(defun org-nvim--result (s)",
+    "  (let ((coding-system-for-write 'utf-8))",
+    "    (with-temp-file " .. lisp_string(result_file) .. " (insert s))))",
+  }
+  for _, feature in ipairs(opts.requires or {}) do
+    head[#head + 1] = "(require '" .. feature .. " nil t)"
+  end
+  vim.fn.writefile(vim.list_extend(head, program), script)
   local argv = vim.deepcopy(cmd)
   vim.list_extend(argv, { "-l", script })
   local ok, obj = pcall(function()
-    return vim.system(argv, { cwd = cwd, text = true, timeout = require("org.config").opts.babel.timeout }):wait()
+    return vim.system(argv, { cwd = opts.cwd, text = true, timeout = require("org.config").opts.babel.timeout }):wait()
   end)
   os.remove(script)
   local value
   if vim.fn.filereadable(result_file) == 1 then
-    value = table.concat(vim.fn.readfile(result_file, "b"), "\n")
+    local fh = io.open(result_file, "rb")
+    if fh then
+      value = fh:read("*a")
+      fh:close()
+    end
     os.remove(result_file)
   end
   if not ok then
@@ -227,6 +229,127 @@ function M.eval_link(sexp, cwd)
     return nil, vim.trim(obj.stderr or "") ~= "" and vim.trim(obj.stderr) or ("emacs exited with " .. obj.code)
   end
   return value
+end
+
+--- A Lua value as a Lisp literal (strings, numbers, nil, t, lists).
+local function literal(v)
+  if type(v) == "string" then
+    return lisp_string(v)
+  elseif v == nil or v == false then
+    return "nil"
+  elseif v == true then
+    return "t"
+  end
+  return require("org.table.elisp").functions["prin1-to-string"](v)
+end
+
+--- `src` with `bindings` ({ { name, value }, ... }) bound around it by `let`.
+local function with_bindings(src, bindings)
+  if not bindings or #bindings == 0 then
+    return src
+  end
+  local parts = {}
+  for i, b in ipairs(bindings) do
+    parts[i] = "(" .. b[1] .. " " .. literal(b[2]) .. ")"
+  end
+  return "(let (" .. table.concat(parts, " ") .. ")\n" .. src .. ")"
+end
+
+--- Evaluate `src` in a separate Emacs, `(eval (read src) t)`, and return
+--- the printed value (`prin1`). An error is its message, or with
+--- `opts.condition` the printed condition (`(void-function f)`).
+---@param opts? { bindings?: table[], cwd?: string, requires?: string[], condition?: boolean }
+---@return string|nil printed, string|nil err
+function M.eval_external(src, opts)
+  opts = opts or {}
+  return M.run_program({
+    "(condition-case err",
+    "    (org-nvim--result (prin1-to-string (eval (read " .. lisp_string(with_bindings(src, opts.bindings)) .. ") t)))",
+    "  (error (princ " .. (opts.condition and "(prin1-to-string err)" or "(error-message-string err)"),
+    "                #'external-debugging-output)",
+    "         (kill-emacs 1)))",
+  }, opts)
+end
+
+--- Evaluate the Lisp form `src` like Emacs's `(eval (read src) t)`: on the
+--- small interpreter of table formulas, and when that fails (a function
+--- it does not implement, ...) in a separate Emacs when there is one
+--- (`babel.emacs_lisp`; `opts.emacs = false` never starts one). Returns an
+--- `org.table.elisp` value; what Emacs returns that cannot be read back
+--- (`#<buffer x>`) is its printed text.
+---@param opts? { bindings?: table[], cwd?: string, requires?: string[], emacs?: boolean, condition?: boolean }
+---@return any value, string|nil err
+function M.eval(src, opts)
+  opts = opts or {}
+  local el = require("org.table.elisp")
+  local ok, v = pcall(el.eval, src, opts.bindings)
+  if ok then
+    return v
+  end
+  if opts.emacs == false or not M.command() then
+    local msg = tostring(v):gsub("^[^\n]-:%d+: ", "")
+    return nil, opts.condition and ("(" .. msg .. ")") or msg
+  end
+  local printed, err = M.eval_external(src, opts)
+  if not printed then
+    return nil, err
+  end
+  local rok, value = pcall(el.read, printed)
+  return rok and value or printed
+end
+
+-- Header values evaluated in Emacs, kept for a moment: a block's header
+-- arguments are merged several times while it runs
+local header_cache = {}
+
+--- A header argument written as a Lisp form (`:dir (concat "a" "/b")`),
+--- evaluated like org-babel-read does when the header is parsed: its
+--- value as header text (`format "%s"`), or `value` itself when it can't
+--- be evaluated.
+---@param value string
+---@return string
+function M.header_value(value)
+  local now = vim.uv.now()
+  local hit = header_cache[value]
+  if hit and now - hit.at < 2000 then
+    return hit.text
+  end
+  local v, err = M.eval(value, { requires = { "org" } })
+  local text = value
+  if not err then
+    text = require("org.table.elisp").to_string(v)
+  end
+  header_cache[value] = { at = now, text = text }
+  return text
+end
+
+---------------------------------------------------------------------------
+-- elisp: links (org-link--open-elisp)
+---------------------------------------------------------------------------
+
+--- Evaluate the sexp of an `elisp:` link in a separate Emacs (or on the
+--- small interpreter without one) and return the printed value. A link
+--- naming a command (`elisp:emacs-version`) calls it interactively there,
+--- like org-link--open-elisp.
+---@return string|nil value, string|nil err
+function M.eval_link(sexp, cwd)
+  local command = not sexp:match("^%s*%(")
+  local cmd = M.command()
+  if not cmd then
+    if command then
+      return nil, "Emacs commands need an Emacs (babel.emacs_lisp)"
+    end
+    local el = require("org.table.elisp")
+    local ok, v = pcall(el.eval, sexp)
+    if not ok then
+      return nil, tostring(v)
+    end
+    return lisp.prin1(lisp.from_elisp(v))
+  end
+  if command then
+    sexp = "(call-interactively (quote " .. vim.trim(sexp) .. "))"
+  end
+  return M.eval_external(sexp, { cwd = cwd })
 end
 
 return M

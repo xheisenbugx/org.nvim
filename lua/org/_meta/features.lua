@@ -597,10 +597,12 @@
 ---cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
 ---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
----How emacs-lisp blocks and `elisp:` links run: `command` (a string or an
----argv list; `false` = never use Emacs) started with `args`, a separate
----Emacs process for each evaluation. Without it, side-effect-free code runs
----on the Lisp interpreter of table formulas.
+---How emacs-lisp blocks and `elisp:` links run, and the Lisp the
+---interpreter of table formulas can't evaluate (`(eval ...)` macros,
+---capture `%(sexp)`, diary sexps, header forms, `%(fn)` link
+---abbreviations): `command` (a string or an argv list; `false` = never use
+---Emacs) started with `args`, a separate Emacs process for each
+---evaluation. Without it, only the interpreter's subset works.
 ---(default: `{ command = "emacs", args = { "-Q", "--batch" } }`)
 ---@field emacs_lisp? { command?: string|string[]|false, args?: string[] }
 
@@ -1067,6 +1069,9 @@
 ---(`org-export-global-macros`): `{ name = "template $1" | function(...) }`.
 ---(default: `{}`)
 ---@field global_macros? table<string, string|function>
+---(`org-export-allow-bind-keywords`): honor `#+BIND:` keywords, which set
+---the export options of their Emacs variables for the export. (default: `false`)
+---@field allow_bind_keywords? boolean
 ---(`org-export-snippet-translation-alist`) (default: `{}`)
 ---@field snippet_translation? table<string, string>
 ---(`org-inlinetask-min-level`) (default: `15`)

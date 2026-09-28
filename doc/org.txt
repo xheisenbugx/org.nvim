@@ -1607,6 +1607,14 @@ A string result replaces the entry text (the first example shows
 other non-nil value shows the text after the sexp. There are no loops,
 `lambda` or assignments, so every sexp finishes and changes nothing.
 
+A sexp beyond this subset (other Lisp functions, `cl-*`, the anniversaries
+of other calendars such as `diary-hebrew-birthday`, ...) is evaluated in a
+separate `emacs --batch` when there is one (`babel.emacs_lisp`), like
+org-diary-sexp-entry: `(let ((entry ENTRY) (date '(M D Y))) SEXP)` with
+Org and diary-lib loaded. One Emacs runs per sexp and agenda span (all the
+days at once, under half a second), and the results are kept for the
+session. Without Emacs the entry is skipped with a message.
+
 The `diary-*` functions take their arguments in Emacs's default
 `calendar-date-style` order (american: month day year). The `org-*`
 variants use ISO order (year month day). In `diary-date`/`org-date`, `t`
@@ -1732,13 +1740,15 @@ Emacs's (american `calendar-date-display-form`); `calendar-date-style`,
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
-- Emacs Lisp beyond the subset above (loops, `lambda`, `defun`,
-  assignments, other libraries), the anniversaries and other entries of
-  other calendars (`diary-hebrew-birthday`, `diary-chinese-anniversary`,
-  `diary-hebrew-yahrzeit`, ...) and the `holidays` argument of
-  `org-class`: they need Emacs's Lisp evaluator and diary library. An
-  unsupported sexp is skipped with a message (once per session).
-  Holidays are supported (|org-agenda-holidays|).
+- Without an Emacs executable, Emacs Lisp beyond the subset above
+  (loops, `lambda`, `defun`, assignments, other libraries), the
+  anniversaries and other entries of other calendars
+  (`diary-hebrew-birthday`, `diary-chinese-anniversary`, ...) and the
+  `holidays` argument of `org-class`: an unsupported sexp is skipped with
+  a message (once per session). With one, they run in a separate Emacs
+  that has none of your session's state (variables, functions you
+  defined, `calendar-date-style`) unless `babel.emacs_lisp.args` loads
+  it. Holidays are supported (|org-agenda-holidays|).
 - The Emacs diary file (org-agenda-include-diary) and the agenda keys
   that use it (`i` insert a diary entry, `D` toggle the diary): the diary
   is an Emacs file format and machinery with no Neovim counterpart.
@@ -1957,11 +1967,24 @@ Template expansions:                               *org-capture-expansions*
   %:keyword    link information: %:link, %:description, %:annotation,
                %:initial, %:type
   %[file]      the contents of a file
-  %(expr)      the value of a Lua expression, e.g. %(os.getenv("HOST"))
-               (Emacs: an elisp sexp)
+  %(sexp)      an Emacs Lisp form, e.g. %(format-time-string "%Y"),
+               %(upcase "%i"); or a Lua expression, %(os.getenv("HOST"))
 Like Emacs, `%%` is not an escape: write `\%` for a literal "%" before an
 expansion character (`\%t`). Leading blank lines and trailing whitespace of
 the expanded text are removed.
+
+`%(sexp)` is evaluated like Emacs's org-capture-expand-embedded-elisp,
+after the other escapes (inside it, `%i`, `%:subject`, ... are quoted for a
+Lisp string): a string result is inserted, nil inserts nothing and an
+error inserts `%![Error: (void-function f)]`. It runs on the Lisp
+interpreter of table formulas (|org-table-calc|, which also knows
+`format-time-string`, `user-full-name`, `getenv`, `file-name-*`,
+`string-replace` and `replace-regexp-in-string`) and, for other functions,
+in a separate `emacs --batch` with Org loaded (`babel.emacs_lisp`; nothing
+of your Emacs session exists there, and it cannot prompt: no
+`org-read-date`). A form whose first word is not a Lisp function the
+interpreter knows but that compiles as Lua is a Lua expression (the older
+org.nvim syntax); Lisp is tried when the Lua fails.
 
 Capture window: `<C-c><C-c>` or `:w` finalizes (with a count, C-u C-c C-c,
 it then jumps to the entry), `<C-c><C-k>` aborts (unchanged text created
@@ -2244,14 +2267,17 @@ Targets:
                                       `cmd &` shows it at once and streams;
                                       `links.shell_output = "terminal"`
                                       runs it in a terminal instead
-  elisp:(sexp)                        evaluate in a separate Emacs, show
-                                      the value (asks first, see below)
+  elisp:(sexp)  elisp:command         evaluate in a separate Emacs, show
+                                      the value (asks first); a command
+                                      is called interactively there
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
   info:emacs#Top                      the `info` program in a terminal
   attachment:name                     file in the entry's attachment dir
   abbrev:tag  abbrev::tag  abbrev     `#+LINK:` or `links.abbreviations`
-                                      (`%s` = tag, `%h` = url-encoded)
+                                      (`%s` = tag, `%h` = url-encoded,
+                                      `%(fn)` = (fn tag) in Emacs, or a
+                                      Lua function(tag) as the value)
   custom:path                         `links.types` (see below)
 
 Searches (org-link-search) ignore case and runs of whitespace (a text
@@ -2267,6 +2293,14 @@ link itself. `*Heading` searches never fall back to text. `::/regexp/`
 takes an Emacs regexp: in Org files it shows a sparse tree
 (|org-sparse-tree|), elsewhere a location list (like `occur`); common
 Emacs syntax is translated to Vim regexps, see |org-differences|.
+
+An abbreviation such as `#+LINK: ex %(my-function)` calls the Emacs
+function with the tag in a separate `emacs --batch` (`babel.emacs_lisp`;
+load the function with its `args`, e.g. `{ "-Q", "--batch", "-l",
+"~/my-links.el" }`). Like Emacs, only functions whose `org-link-abbrev-safe`
+(or `pure`) property is t are called; another function, or one that does
+not return a string, gives a warning and the link is left as written.
+Results are kept for the session.
 
 <CR>, gx, <prefix>o  Open the link, footnote or date at the cursor.
 <C-c><C-o>      The same. On the tags of a headline, show a tags agenda for
@@ -3057,7 +3091,14 @@ blocks: `default_inline_header_args`, #+CALL: the called block's, then
 `header-args` and `header-args:LANG` properties (the nearest headline that
 sets one wins; `header-args+:` adds to the inherited value; `#+PROPERTY:`
 applies when no headline sets it), the `#+begin_src` line, then `#+HEADER:`
-lines (the last wins).
+lines (the last wins). Lisp in header arguments: like org-babel-read,
+`:var x=(+ 1 2)` and the values of :dir, :file, :output-dir, :file-desc,
+:file-ext, :tangle, :results, :exports, :session, :cmdline, :prologue,
+:epilogue, :wrap, :shebang, :mkdirp, :eval, :cache, :noweb and :comments
+that start with `(` (`:dir (concat (getenv "HOME") "/tmp")`) are
+evaluated: on the Lisp interpreter of table formulas, else in a separate
+`emacs --batch` with Org loaded (`babel.emacs_lisp`). A header value that
+can't be evaluated is kept as text; a `:var` form is an error.
   :results   output|value; replace|append|prepend|silent|none|discard;
              verbatim|scalar|table|vector|list|file; raw|org|drawer|html|
              latex|code|pp|link|graphics
@@ -3069,9 +3110,10 @@ lines (the last wins).
              name=block(1, 2), name=block[:results output](x=1),
              name=block(x=1)[0]; `name=block[]` is its body text. Other
              forms: file.org:name, an ID or CUSTOM_ID (the headline's
-             text), Emacs Lisp literals `'(1 2 3)` and simple forms
-             `(+ 1 2)`. Bash gets tables as associative arrays and lists
-             as arrays; sqlite/sql replace `$name`.
+             text), Emacs Lisp literals `'(1 2 3)` and forms `(+ 1 2)`
+             (see "Lisp in header arguments" above). Bash gets tables as
+             associative arrays and lists as arrays; sqlite/sql replace
+             `$name`.
   :hlines    yes: keep the hlines of table variables (None / nil / hline)
   :separator cell separator of tables given to shells (default: tab)
   :stdin     ref: feed a value to the stdin of a shell block
@@ -3185,9 +3227,10 @@ Not supported ~
   - emacs-lisp sessions, and emacs-lisp code that acts on the editor
     (buffers, windows, the Org document): it runs in a separate Emacs
     (see Languages above).
-  - Header values that are arbitrary Emacs Lisp (`:dir (concat ...)`,
-    `:var x=(some-function)`, `:results (if ...)`): only the forms the
-    table formula evaluator knows are evaluated.
+  - Header values in Lisp run without your Emacs session: functions and
+    variables you defined there don't exist (see "Lisp in header
+    arguments"), and without an Emacs executable only the forms the
+    table formula interpreter knows are evaluated.
   - `org-babel-load-file` for Emacs Lisp, and Emacs hook functions (hooks
     are `User` autocommands instead).
   - `:results xmp` (Ruby rcodetools),
@@ -3350,6 +3393,42 @@ functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
 `{{{date(FMT)}}}`, `{{{time(FMT)}}}`, `{{{modification-time(FMT)}}}`,
 `{{{input-file}}}`, `{{{keyword(NAME)}}}`, `{{{property(NAME[,search])}}}`,
 `{{{n(name[,-|N])}}}` and `{{{results(...)}}}`.
+`{{{modification-time(FMT,t)}}}` takes the date of the file's last Git
+commit (Emacs asks any VC back-end).
+
+`#+MACRO: name (eval FORM)` macros evaluate the Emacs Lisp FORM like
+org-macro: `$1`...`$N` are variables bound to the arguments (strings, nil
+when missing; a `$1` inside a string stays as it is) and the value is
+inserted with `format "%s"`. FORM runs on the Lisp interpreter of table
+formulas (|org-table-calc|), which also has `org-texinfo-kbd-macro` (the
+Org manual's `#+MACRO: kbd (eval (org-texinfo-kbd-macro $1))` works), and
+for other functions in a separate `emacs --batch` with Org and ox loaded
+(`babel.emacs_lisp`), started in the file's directory; results are kept
+for the export. Without Emacs such a macro gives a warning and exports as
+nothing (Emacs has no such case).
+
+`#+BIND: VARIABLE VALUE` sets an export variable for the export of the
+buffer when `export.allow_bind_keywords` is true (Emacs
+org-export-allow-bind-keywords, off by default for safety). The variable
+becomes the option it mirrors: `org-export-NAME` is `export.NAME`,
+`org-BACKEND-NAME` is `export.BACKEND.NAME` for html, latex, md, ascii,
+odt, texinfo, icalendar, beamer, org and cite (`-` becomes `_`),
+`user-full-name` / `user-mail-address` are `export.author` /
+`export.email`, and `org-export-creator-string`,
+`org-html-container-element`, `org-latex-packages-alist`,
+`org-latex-default-packages-alist`, `org-inlinetask-min-level` and
+`org-table-number-fraction` map to `creator`, `html.container`,
+`latex.packages`, `latex.default_packages`, `inlinetask_min_level` and
+`table_number_fraction`. VALUE is read, not evaluated, like Emacs:
+strings, numbers, t (true), nil (false), symbols (their name: `#+BIND:
+org-html-checkbox-type unicode`), lists (`("a" "b")`, `(not "LOGBOOK")`,
+`(1 . 2)`); `org-export-global-macros`,
+`org-export-snippet-translation-alist`, `org-html-postamble-format` and
+`org-html-preamble-format` take alists. Other variables are ignored (Emacs
+sets any variable), and so is a value in a shape the option does not use.
+Unlike Emacs, a quote before a list is dropped (`'("a")` is `("a")`).
+Options set in the file (#+OPTIONS, keywords) and passed to the export
+still override them, like Emacs.
 
 Code blocks follow `:exports` when `babel.evaluate_on_export` is true (the
 default, Emacs `org-export-use-babel`): results are computed in a copy of
@@ -3470,8 +3549,9 @@ Form:`, `Variable:`, `User Option:` become @defun, @deffn... blocks and
 make @float with @caption / @shortcaption; links become @ref, @uref,
 @email (and `info:` links @ref to the other manual); footnotes
 @footnote; LaTeX math @math / @displaymath when `with_latex` is true or
-makeinfo supports it. For key bindings use the Lua version of
-`org-texinfo-kbd-macro`:
+makeinfo supports it. Key bindings use `org-texinfo-kbd-macro` like the
+Org manual, `#+MACRO: kbd (eval (org-texinfo-kbd-macro $1))`, or its Lua
+version as a global macro:
 >lua
     export = { global_macros = { kbd = function(key)
       return require("org.export.texinfo").kbd_macro(key)
@@ -3616,9 +3696,14 @@ Functions: `require("org.export.publish").publish_all(force)`,
 
 Not supported ~                                        *org-export-unsupported*
 These need Emacs Lisp or Emacs itself:
-- `#+BIND:` (sets Elisp variables) is ignored.
-- `(eval ...)` macros are left unexpanded; use `export.global_macros` with
-  a Lua function instead.
+- `#+BIND:` sets only the export variables that have an option (see
+  |org-export| macros and #+BIND); other variables, and values that are
+  functions or must be evaluated, are ignored.
+- `(eval ...)` macros see nothing of an Emacs session: forms beyond the
+  Lisp interpreter run in a separate `emacs --batch` with an empty
+  scratch buffer (`buffer-file-name`, `org-with-point-at` and the like
+  don't see the document). Without Emacs they export as nothing, with a
+  warning.
 - Source fontification (htmlize, engrave-faces): HTML code is plain unless
   `export.html.fontify` is set; `src_block_backend = "engraved"` falls
   back to verbatim.
@@ -4371,7 +4456,7 @@ export ~                                                   *org-config-export*
   with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
-  global_macros, hooks, filters; back-end tables html, latex, md, org,
+  global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
 notifications ~
@@ -4821,8 +4906,8 @@ Differences from Emacs:
   The mode line entry is the |org-api| statusline component; clicking it
   has no menu. Timers use counts, so a countdown's C-u (default timer)
   has no count form: a count is always minutes.
-- Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
-  instead of Elisp.
+- Bulk action `f` and agenda skip functions take Lua instead of Elisp.
+  Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target
   (resolved when the capture starts) on finalize, instead of an indirect
   buffer narrowed to the text already inserted in the target (Neovim has
@@ -4864,16 +4949,24 @@ Differences from Emacs:
   `elisp:` links run in a separate `emacs --batch` process (or, without
   Emacs, on the table formula Lisp interpreter), not in the editor: they
   cannot see or change buffers, and nothing is kept between evaluations.
-  `:var` and header Lisp forms are limited to what the table formula
-  Lisp evaluator implements (see |org-babel|).
+  `:var` and header Lisp forms run on the table formula Lisp interpreter,
+  else in that separate Emacs (see |org-babel|).
+- Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
+  diary sexps, `%(function)` link abbreviations, header forms) runs on the
+  table formula Lisp interpreter when it can and otherwise in a separate
+  `emacs --batch` (`babel.emacs_lisp`) that knows nothing of your Emacs
+  configuration unless its `args` load it; without an Emacs executable
+  only the interpreter's subset works.
 - Export: see |org-export-unsupported|.
 - Links (|org-links|):
   - `elisp:(sexp)` links are evaluated in a separate `emacs --batch`
     (`babel.emacs_lisp`), not in the editor, after `links.confirm_elisp`
-    (a y/n prompt; `links.elisp_skip_confirm_regexp` skips it); links
-    naming a command (`elisp:org-agenda`) cannot run. Abbreviations using
-    `%(my-function)` cannot call Elisp; give `links.abbreviations` a Lua
-    function instead.
+    (a y/n prompt; `links.elisp_skip_confirm_regexp` skips it); a link
+    naming a command (`elisp:emacs-version`) calls it interactively there,
+    so commands that act on the editor (`elisp:org-agenda`) or prompt fail.
+    Abbreviations using `%(my-function)` call the function in that Emacs,
+    which must define it (load it with `babel.emacs_lisp.args`); a Lua
+    function as the abbreviation works too.
   - `help:` opens Vim's |:help|: Emacs `help:` links name Elisp functions
     and variables (describe-function), which do not exist here. `info:`
     runs the `info` program in a terminal, `man:` uses |:Man|.
@@ -4900,8 +4993,9 @@ Differences from Emacs:
     commands).
 - Diary sexps are emulated for the common calendar functions,
   `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
-  subset of Emacs Lisp (|org-agenda-diary-sexp|) only, and the Emacs
-  diary is not available in the agenda (|org-agenda-unsupported|).
+  subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
+  separate Emacs when there is one. The Emacs diary is not available in
+  the agenda (|org-agenda-unsupported|).
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:

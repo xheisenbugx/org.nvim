@@ -395,6 +395,7 @@ local function user_full_name()
   end
   return full_name
 end
+M.user_full_name = user_full_name
 
 local function register(name)
   local ok, v = pcall(vim.fn.getreg, name)
@@ -494,6 +495,48 @@ local function untabify(s)
       return table.concat(out)
     end)
   )
+end
+
+--- The value of a `%(expr)` of a template (`expr` is the text inside the
+--- parentheses, its escapes already expanded). Emacs Lisp like
+--- org-capture-expand-embedded-elisp: `%(format-time-string "%Y")` runs on
+--- the Lisp interpreter of table formulas or, for what it does not
+--- implement, in a separate Emacs (`babel.emacs_lisp`); a string is
+--- inserted, nil inserts nothing and an error `%![Error: ...]`. A Lua
+--- expression (`%(os.date("%Y"))`) is evaluated as Lua: forms whose head
+--- is a Lisp function the interpreter knows are Lisp, other text that
+--- compiles as Lua is Lua, and Lisp is tried when the Lua fails.
+---@param expr string
+---@return string
+function M.eval_sexp(expr)
+  local el = require("org.table.elisp")
+  local form = "(" .. expr .. ")"
+  local is_lisp = pcall(el.read, form)
+  local chunk, lua_err = loadstring("return " .. expr)
+  local function lisp()
+    local v, err = require("org.babel.elisp").eval(form, { condition = true, requires = { "org" } })
+    if err then
+      return "%![Error: " .. err .. "]"
+    elseif v ~= nil and type(v) ~= "string" then
+      utils.warn(string.format("Capture template sexp `%s' must evaluate to string or nil", form))
+      return ""
+    end
+    return v or ""
+  end
+  if is_lisp and (el.looks_like(form) or not chunk) then
+    return lisp()
+  end
+  local ok, res = false, lua_err
+  if chunk then
+    ok, res = pcall(chunk)
+  end
+  if ok then
+    return res == nil and "" or tostring(res)
+  elseif is_lisp then
+    return lisp()
+  end
+  utils.warn("Capture %(" .. expr .. "): " .. tostring(res))
+  return ""
 end
 
 --- Expand a template string like org-capture-fill-template: `%[file]`,
@@ -625,17 +668,7 @@ function M.expand(text, ctx)
   end)
   text = expand_simple(text)
   text = text:gsub("\31(%d+)\31", function(idx)
-    local expr = expand_simple(exprs[tonumber(idx)], true)
-    local chunk, err = loadstring("return " .. expr)
-    local ok, res = false, err
-    if chunk then
-      ok, res = pcall(chunk)
-    end
-    if not ok then
-      utils.warn("Capture %(" .. expr .. "): " .. tostring(res))
-      return ""
-    end
-    return res == nil and "" or tostring(res)
+    return M.eval_sexp(expand_simple(exprs[tonumber(idx)], true))
   end)
 
   -- prompts
