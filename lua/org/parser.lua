@@ -192,6 +192,7 @@ local function parse_settings(lines, filename)
   local entries, dependencies = keywords.collect(lines, filename)
   s.keyword_entries = entries
   local local_category, first_category
+  local todo_lines = {}
   for _, entry in ipairs(entries) do
     local key, value = entry.key, entry.value
     s.keywords[key] = s.keywords[key] or {}
@@ -199,7 +200,8 @@ local function parse_settings(lines, filename)
     if key == "TITLE" then
       s.title = s.title and (s.title .. " " .. value) or value
     elseif key == "TODO" or key == "SEQ_TODO" or key == "TYP_TODO" then
-      table.insert(s.todo_sequences, value)
+      todo_lines[key] = todo_lines[key] or {}
+      table.insert(todo_lines[key], key == "TYP_TODO" and { type = value } or value)
     elseif key == "FILETAGS" then
       for tag in value:gmatch("[^:%s]+") do
         table.insert(s.filetags, tag)
@@ -248,6 +250,10 @@ local function parse_settings(lines, filename)
         s.priorities = { highest = hi, lowest = lo, default = def }
       end
     end
+  end
+  -- like Emacs: type sequences first, then #+TODO:, then #+SEQ_TODO:
+  for _, key in ipairs({ "TYP_TODO", "TODO", "SEQ_TODO" }) do
+    vim.list_extend(s.todo_sequences, todo_lines[key] or {})
   end
   s.category = local_category or first_category
   if not s.category and filename then

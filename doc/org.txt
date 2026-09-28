@@ -504,6 +504,15 @@ Each string is a sequence, and keywords after `|` are done states: >lua
       "WAITING(w@/!) | CANCELLED(c@)",
     }
 <
+A sequence given as `{ type = "Fred Sara Lucy | DONE" }` (Emacs
+`(type ...)`, or per file `#+TYP_TODO:`) holds types, e.g. people, rather
+than states: C-c C-t goes from no keyword to the first type, from any type
+straight to the sequence's DONE keyword, and from its last keyword back to
+no keyword; repeated C-c C-t (nothing edited and the cursor not moved in
+between, like Emacs' repeated command) walks the types in order instead.
+Like Emacs, `#+TYP_TODO:` sequences come first, then `#+TODO:`, then
+`#+SEQ_TODO:` lines.
+
 In `(x!/@)`, `x` is the fast-selection key, the first flag applies when
 entering the state and the flag after `/` applies when leaving it: `!` logs a
 timestamp and `@` asks for a note. Log entries go into the `log_into_drawer`
@@ -740,8 +749,9 @@ and `global_properties` set values for the whole file, in that order.
                 printed like Emacs: `4.1`, `6`), {$} (2 decimals), {min}
                 {max} {mean} (mean is always a float: `3.0`), {:} {:min}
                 {:max} {:mean} (durations, in `duration_format` unless all
-                values are H:MM), {X} {X/} {X%} (checkboxes), {@min} {@max}
-                {@mean} (ages of timestamps), {est+} (low-high estimates).
+                values are H:MM, or H:MM:SS: then H:MM:SS), {X} {X/} {X%} (checkboxes), {@min} {@max}
+                {@mean} (ages of timestamps or durations in the standard
+                min/h/d units), {est+} (low-high estimates).
                 A format after `;`, `{+;%.1f}`, is applied to every value
                 of the column, leaves included. `columns_summary_types`
                 adds operators: `{ ["+|"] = function(values, fmt) ... end }`
@@ -824,9 +834,21 @@ Timestamps:
 <C-c><C-x><C-t> Toggle the custom display of timestamps
                 (org-toggle-timestamp-overlays): each timestamp is shown as
                 `time_stamp_custom_formats` (`09/25/26 Fri`) with conceal
-                and inline virtual text. `display_custom_times = true` or
+                and inline virtual text, inside the brackets, like Emacs; a
+                time-range end (`-11:30`) and a trailing repeater stay
+                visible. `display_custom_times = true` or
                 `#+STARTUP: customtime` turn it on; the real text shows in
-                Insert mode (see 'concealcursor').
+                Insert mode (see 'concealcursor'). The formats are Emacs
+                `format-time-string` formats, the first for dates and the
+                second for dates with a time, e.g.
+                `{ "%A %d %B %Y", "%A %d %B %Y, %H:%M" }`: %a %A %b %B %d
+                %e %m %y %Y %H %I %M %p %j %u %w %U %V %W %G %F %R %T %z
+                %Z ... with the flags `-` `_` `0` `^` `#` and a width, in
+                English on every system. Brackets around a format are
+                dropped in the buffer and kept in exports. While the
+                display is on in a buffer, exporting it writes its
+                timestamps with the formats (org-timestamp-translate; a
+                format without brackets exports without them).
 <CR>            On a timestamp: open the agenda for that day.
 
 The calendar                                                   *org-calendar*
@@ -991,9 +1013,35 @@ clock (the system idle time is used on macOS and with xprintidle). Keys:
   i / q   ignore
 `clock.auto_clockout_timer` clocks out after that many idle seconds.
 
-Durations in clock tables, clock sums and effort changes use `1d 2:30` from
-one day on, like Emacs `org-duration-format` (`duration_format = "h:mm"`
-writes `26:30`).
+Durations                                                    *org-durations*
+A duration is numbers with units, optionally ending in H:MM or H:MM:SS:
+`3:12`, `1:23:45`, `1y 3d 3h 4min`, `1d3h5min`, `3d 13:35`, `2.35h`; a bare
+number is minutes. The units and their minutes come from `duration_units`
+(Emacs `org-duration-units`): >lua
+    duration_units = { min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 }
+<
+Setting `d = 480`, `w = 2400` makes `1d` an 8-hour work day in efforts and
+column sums; new units can be added (`wd = 480`). Ages ({@min} ...) keep
+the standard min/h/d.
+
+Durations in clock tables, clock sums, the clock mode line, effort changes
+and column summaries are written with `duration_format` (Emacs
+`org-duration-format`):
+  "d h:mm"      `1d 2:30` from one day on, else `2:30` (the default, Emacs
+                `(("d" . nil) (special . h:mm))`)
+  "h:mm"        `26:30`          "h:mm:ss"     `26:30:00`
+  a list        of `{ unit, required }` entries, `{ "special", mode }` and
+                "compact": units with a zero value are dropped unless
+                required; mode "h:mm" / "h:mm:ss" writes the time below
+                the smallest unit above an hour as H:MM(:SS); a number of
+                decimals writes one unit with a fraction (the first
+                required unit or one not larger than the duration);
+                "compact" drops the spaces. Examples:
+                `{ { "d" }, { "h", true }, { "min", true } }` `1d 2h 30min`
+                `{ { "d" }, { "h" }, { "special", 2 } }`       `1.10d`
+                `{ { "h", true }, { "special", 2 } }`          `26.50h`
+                `{ { "w" }, { "special", "h:mm" }, "compact" }`  `1w32:00`
+                A dict form works too: `{ d = false, special = "h:mm" }`.
 
 Use |org-api| `require("org").statusline()` in your statusline.
 
@@ -3479,7 +3527,8 @@ Priorities, tags, properties ~
   property_format           "%-10s %s"
   global_properties         {}
   effort_property           "Effort"
-  duration_format           "d h:mm"  or "h:mm"
+  duration_format           "d h:mm"  |org-durations|
+  duration_units            { min = 1, h = 60, d = 1440, ... }  |org-durations|
   columns_default_format    "%25ITEM %TODO %3PRIORITY %TAGS"
   columns_summary_types     {}        extra summary operators
   columns_modify_value_for_display_function  nil  function(title, value)
@@ -4205,8 +4254,9 @@ Differences from Emacs:
     (cancel repeaters) have no count form and are the actions
     `todo_without_note` and `todo_cancel_repeaters`; a count of 4 always
     means C-u, so the 4th keyword cannot be picked by count.
-  - `#+TYP_TODO:` keywords cycle like a sequence; Emacs jumps to the done
-    keyword on the first C-c C-t of a series.
+  - A repeated C-c C-t on a `#+TYP_TODO:` keyword (which walks the types
+    instead of jumping to DONE) is one with no edit and no cursor motion
+    since the previous one, rather than Emacs' `last-command` test.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
     only `todo_blockers` (org-blocker-hook) can veto a change.
