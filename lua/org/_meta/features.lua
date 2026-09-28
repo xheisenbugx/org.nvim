@@ -197,6 +197,27 @@
 ---@field order? string[]
 
 ---------------------------------------------------------------------------
+-- yank-media / drag and drop
+---------------------------------------------------------------------------
+
+---Pasting clipboard images and dropped files, see `:h org-yank-media`.
+---@class org.Config.Yank
+---Where clipboard images go (`org-yank-image-save-method`): `"attach"`, a
+---directory, or a function returning one. (default: `"attach"`)
+---@field image_save_method? "attach"|string|fun(): string
+---Name of a pasted image, without extension (`org-yank-image-file-name-function`).
+---(default: `nil`: `"clipboard-%Y%m%dT%H%M%S.%6N"`)
+---@field image_file_name_function? fun(): string
+---What dropped / pasted files do (`org-yank-dnd-method`). (default: `"ask"`)
+---@field dnd_method? "attach"|"open"|"file-link"|"ask"
+---Attach method of dropped files (`org-yank-dnd-default-attach-method`);
+---nil = `attach.method`. (default: `nil`)
+---@field dnd_default_attach_method? "cp"|"mv"|"ln"|"lns"
+---A paste of existing file paths in an Org buffer counts as a drop.
+---(default: `true`)
+---@field dnd_paste? boolean
+
+---------------------------------------------------------------------------
 -- org-ctags
 ---------------------------------------------------------------------------
 

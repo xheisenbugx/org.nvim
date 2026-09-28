@@ -34,6 +34,7 @@ function M.setup(opts)
   require("org.commands").setup()
   require("org.mappings").setup_global()
   require("org.highlights").setup()
+  require("org.yank").setup_paste()
   local cfg = require("org.config").opts
   if cfg.notifications.enabled then
     vim.schedule(function()

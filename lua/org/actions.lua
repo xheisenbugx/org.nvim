@@ -350,6 +350,12 @@ group("Links", {
   id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
   id_copy = { "org.id", "copy", desc = "Copy entry ID" },
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
+  yank_media = {
+    "org.yank",
+    "yank_media",
+    desc = "Paste a clipboard image or copied files (link / attach)",
+    modes = { "n", "i" },
+  },
   ctags_find_tag_interactive = { "org.ctags", "find_tag_interactive", desc = "Jump to a tag (topic), or create it" },
   ctags_find_tag = { "org.ctags", "find_tag_prompt", desc = "Jump to a tag" },
   ctags_create_tags = { "org.ctags", "create_tags", desc = "Rebuild the tags file of this directory" },

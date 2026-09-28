@@ -220,7 +220,8 @@ local function store_link(source, dest)
       require("org.links").store(link, desc)
     end)
   end
-  return link or ("attachment:" .. vim.fn.fnamemodify(dest, ":t"))
+  local name = vim.fn.fnamemodify(dest, ":t")
+  return link or ("attachment:" .. name), desc or name
 end
 
 --- Attach a file (or directory) to the entry at target (org-attach-attach).
@@ -228,6 +229,8 @@ end
 ---@param method? "cp"|"mv"|"ln"|"lns" default `attach.method`: copy, move, hard link, symbolic link
 ---@param target? org.Target
 ---@return string|nil destination
+---@return string|nil link the link to it (org-attach-attach's LINK, per `attach.store_link`)
+---@return string|nil description
 function M.attach_file(path, method, target)
   method = method or cfg().method or "cp"
   path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(path), ":p")):gsub("/$", "")
@@ -270,9 +273,9 @@ function M.attach_file(path, method, target)
   end
   after_change(dir, target)
   set_tag(bufnr, hl.line)
-  store_link(path, dest)
+  local link, desc = store_link(path, dest)
   utils.notify(string.format('File "%s" is now an attachment', name))
-  return dest
+  return dest, link, desc
 end
 
 --- `path` relative to directory `dir` (both absolute).

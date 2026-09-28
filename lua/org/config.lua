@@ -979,6 +979,28 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- Pasting images and files (yank-media, drag and drop)
+  ---------------------------------------------------------------------------
+  yank = {
+    --- Where `yank_media` puts a clipboard image (org-yank-image-save-method):
+    --- "attach" (an attachment of the entry) | a directory (relative to the
+    --- file's) | function() returning one.
+    image_save_method = "attach",
+    --- function() returning the image's name without extension
+    --- (org-yank-image-file-name-function); nil = "clipboard-<time stamp>".
+    image_file_name_function = nil,
+    --- What a dropped or pasted file does (org-yank-dnd-method): "attach" |
+    --- "open" | "file-link" | "ask".
+    dnd_method = "ask",
+    --- Attach method for dropped files (org-yank-dnd-default-attach-method):
+    --- nil = `attach.method`, or "cp" | "mv" | "ln" | "lns".
+    dnd_default_attach_method = nil,
+    --- Treat a paste of existing file paths in an Org buffer (what a
+    --- terminal sends for a file drop) as a drop.
+    dnd_paste = true,
+  },
+
+  ---------------------------------------------------------------------------
   -- Plain links through tags files (org-ctags)
   ---------------------------------------------------------------------------
   ctags = {

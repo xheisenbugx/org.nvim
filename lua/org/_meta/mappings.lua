@@ -181,6 +181,7 @@
 ---| "archive_subtree_default" # Archive with archive_default_command
 ---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
 ---| "capture_string" # Capture a string typed at a prompt
+---| "yank_media" # Paste a clipboard image or copied files (link / attach)
 ---| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
 ---| "ctags_find_tag" # Jump to a tag
 ---| "ctags_create_tags" # Rebuild the tags file of this directory

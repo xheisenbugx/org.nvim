@@ -2663,6 +2663,30 @@ the file), `sync_delete_empty_dir` ("query", true, false) and
 `archive_delete` (delete the attachments of archived entries: false, true,
 "query").
 
+Pasting images and files                                    *org-yank-media*
+
+`:Org yank_media` (no default key; Emacs's `yank-media`) pastes what the
+system clipboard holds, read with wl-paste (Wayland), xclip (X11) or
+osascript (macOS):
+- an image: saved as `clipboard-<time stamp>.png` (or the name from
+  `yank.image_file_name_function`) and linked at the cursor. With
+  `yank.image_save_method = "attach"` (the default) it becomes an
+  attachment of the entry (`[[attachment:NAME][NAME]]`); a directory
+  (relative to the file's) or a function returning one saves it there
+  (`[[file:img/NAME.png]]`) (org-yank-image-save-method).
+- files copied in a file manager (GNOME, KDE, MATE, or a Finder file on
+  macOS): handled like dropped files; cut files are moved.
+When the clipboard holds neither, nothing happens.
+
+Dropping files on the terminal pastes their paths; in an Org buffer a
+paste made only of existing files (`file://` URIs or paths, quoted or
+escaped) is handled as a drop (`yank.dnd_paste`, true). `yank.dnd_method`
+(org-yank-dnd-method) says what to do: "attach" (with
+`yank.dnd_default_attach_method`, else `attach.method`; an image goes to
+the `yank.image_save_method` directory when that is one), "open", "file-link"
+(insert `[[/path/to/file]]`) or "ask" (the default; Esc pastes the text
+instead). Several files get a space after each link.
+
 Attachments in git (org-attach-git)                         *org-attach-git*
 
 With `attach.git = true` (Emacs: `(require 'org-attach-git)`), a change
@@ -4656,6 +4680,9 @@ clock ~
 timer ~    format "%s ", default_timer "0"
 protocol ~ default_template_key nil, projects {}, handlers {},
            data_separator [[/\+\|?]] (|org-protocol|)
+yank ~     image_save_method "attach", image_file_name_function nil,
+           dnd_method "ask", dnd_default_attach_method nil, dnd_paste true
+           (|org-yank-media|)
 ctags ~    enabled false, path_to_ctags nil, open_link_functions
            { "find_tag", "ask_rebuild_tags_file_then_find_tag",
            "ask_append_topic" }, new_topic_template "* <<%t>>\n\n\n\n\n\n",

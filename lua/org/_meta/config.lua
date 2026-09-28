@@ -436,6 +436,8 @@
 ---@field protocol? org.Config.Protocol
 ---Plain links through tags files (`org-ctags`).
 ---@field ctags? org.Config.Ctags
+---Pasting clipboard images and dropped files (`org-yank-*`).
+---@field yank? org.Config.Yank
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.
