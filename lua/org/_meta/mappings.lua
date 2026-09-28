@@ -104,6 +104,8 @@
 ---| "emphasize" # Emphasize selection / insert markers
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
+---| "feed_goto_inbox" # Go to the inbox of a feed
+---| "feed_update_all" # Update all RSS/Atom feeds
 ---| "force_cycle_archived" # Cycle subtree, even when archived
 ---| "forward_element" # Next element
 ---| "global_cycle" # Cycle global visibility
@@ -803,6 +805,10 @@
 ---@field timer_item? org.MappingLhs
 --- Start countdown timer. Default: `<C-c><C-x>;`
 ---@field timer_countdown? org.MappingLhs
+--- Update all RSS/Atom feeds. Default: `<C-c><C-x>g`
+---@field feed_update_all? org.MappingLhs
+--- Go to the inbox of a feed. Default: `<C-c><C-x>G`
+---@field feed_goto_inbox? org.MappingLhs
 --- Insert link. Default: `<C-c><C-l>`
 ---@field insert_link? org.MappingLhs
 --- Open link at point / entry links. Default: `<C-c><C-o>`

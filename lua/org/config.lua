@@ -874,6 +874,25 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- RSS / Atom feeds (org-feed)
+  ---------------------------------------------------------------------------
+  feed = {
+    --- Feeds (org-feed-alist): list of { name = "", url = "", file = "",
+    --- headline = "", ...options } or { name, url, file, headline, ... }.
+    --- See |org-feed| for the options.
+    feeds = {},
+    --- Template of a new item (org-feed-default-template).
+    default_template = "\n* %h\n  %U\n  %description\n  %a\n",
+    --- Drawer holding the feed status (org-feed-drawer).
+    drawer = "FEEDSTATUS",
+    --- Save the file after adding items (org-feed-save-after-adding).
+    save_after_adding = true,
+    --- "curl", "wget" or a function(url) returning the feed text
+    --- (org-feed-retrieve-method); file:// URLs are always read directly.
+    retrieve_method = "curl",
+  },
+
+  ---------------------------------------------------------------------------
   -- Timers
   ---------------------------------------------------------------------------
   timer = {
@@ -1760,6 +1779,9 @@ M.defaults = {
       timer_insert = "<C-c><C-x>.",
       timer_item = "<C-c><C-x>-",
       timer_countdown = "<C-c><C-x>;",
+      -- feeds
+      feed_update_all = "<C-c><C-x>g",
+      feed_goto_inbox = "<C-c><C-x>G",
       -- links
       insert_link = "<C-c><C-l>",
       open_link_or_entry = "<C-c><C-o>",
