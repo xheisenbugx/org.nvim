@@ -1721,6 +1721,14 @@ file+headline headlines and date tree nodes are created then, and the
 location is remembered even if the file changes (or the clock moves to
 another task) while you type. When the target is gone at the end (its
 headline was deleted), nothing is lost: the capture buffer stays open.
+With `unnarrowed`, the text is inserted into the target right away and
+the capture window shows the whole target file (see |org-capture-unnarrowed|).
+
+Capture dates follow `extend_today_until` like Emacs: before that hour,
+%t %T %u %U and %<...> use 23:59 of the previous day and the date tree
+files under the previous day. A capture date without a time (the agenda
+day) is taken at `extend_today_until` o'clock; a `time_prompt` date keeps
+the current time when it is today and starts at that hour otherwise.
 
                                                     *org-capture-templates*
 >lua
@@ -1797,10 +1805,14 @@ Template fields:
                      when the capture ends or is aborted
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
   no_save            don't save the target file after capturing
+  hook               function(capture_bufnr) run when the capture window
+                     opens (not with immediate_finish)
   prepare_finalize   function(capture_bufnr), before the text is read
   before_finalize    function(bufnr, lnum) in the target, before saving
   after_finalize     function(bufnr, lnum) when the capture is done
-  unnarrowed         not supported: see |org-differences|
+                     (every hook may also be a list of functions)
+  unnarrowed         edit the text in the target file itself, showing the
+                     whole file (|org-capture-unnarrowed|)
 
 An entry template without stars gets "* ", item templates get "- " (and
 continuation lines are indented under the bullet); in an existing list the
@@ -1868,6 +1880,18 @@ refiles the entry (entry templates only; also `<prefix>w`, `<prefix>k`,
 If saving the target fails, the capture stays open and can be retried
 without inserting a duplicate entry. Clock/bookmark finalization waits
 until the captured text is stored.
+
+                                                    *org-capture-unnarrowed*
+An `unnarrowed` capture inserts the expanded template into the target
+buffer when it starts, like Emacs, and opens the target buffer itself in
+the capture window, with the cursor at `%?`. The capture keys work in that
+window (in other windows showing the file, the file's own mappings keep
+working); `:w` just writes the file. Finalizing saves the file; aborting
+restores exactly the lines the capture inserted or changed (with whatever
+was typed into them), keeping edits elsewhere in the file, and drops
+headlines created for it. Closing the capture window ends the capture and
+leaves the text in the (unsaved) buffer. Only one unnarrowed capture can
+edit a file at a time.
 
 :Org capture_goto_target  choose a template and jump to its target
                           (C-u C-c c in Emacs)
@@ -3703,6 +3727,8 @@ TODO and logging ~
   log_states_order_reversed true
   log_note_headings         { done = "CLOSING NOTE %t", state = ... }
   extend_today_until        0         hours that still belong to yesterday
+                                      (agenda today, date prompts, capture
+                                      dates, repeaters, clock blocks)
   use_effective_time        false
   loop_over_headlines_in_active_region  true   true|false|"start-level"
 Priorities, tags, properties ~
@@ -4349,15 +4375,15 @@ Differences from Emacs:
   instead of Elisp.
 - Capture edits the text in a separate buffer that is stored at the target
   (resolved when the capture starts) on finalize, instead of an indirect
-  buffer narrowed to the text already inserted in the target. So
-  `:unnarrowed` (showing the rest of the target file while capturing) is
-  not supported, and the target file does not show the new text until the
-  capture is finished. Mail and news `%:keyword` values (`%:from`,
+  buffer narrowed to the text already inserted in the target (Neovim has
+  no indirect buffers), so the target file does not show the new text
+  until the capture is finished. `unnarrowed` captures do insert the text
+  into the target right away (|org-capture-unnarrowed|). Mail and news `%:keyword` values (`%:from`,
   `%:subject`, ...) come from Emacs link sources (Gnus, mu4e, ...) that
   have no Neovim counterpart; only `%:link`, `%:description`,
   `%:annotation`, `%:initial` and `%:type` exist. The last stored location
   (`org-capture-bookmark`, obsolete in Emacs) lasts for the session only.
-  `org-extend-today-until` is not applied to capture dates. With C-0
+  The `hook` template function doesn't run for `immediate_finish`. With C-0
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise.

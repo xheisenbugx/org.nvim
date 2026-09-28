@@ -607,12 +607,18 @@
 ---@field time_prompt? boolean
 ---Don't save the target file after capturing (:no-save).
 ---@field no_save? boolean
+---Edit the text in the target buffer itself, showing the whole file
+---(:unnarrowed). See `:h org-capture-unnarrowed`.
+---@field unnarrowed? boolean
+---Called with the capture buffer when the capture window opens (:hook).
+---Every hook may also be a list of functions.
+---@field hook? fun(bufnr: integer)|fun(bufnr: integer)[]
 ---Called with the capture buffer before its text is read (:prepare-finalize).
----@field prepare_finalize? fun(bufnr: integer)
+---@field prepare_finalize? fun(bufnr: integer)|fun(bufnr: integer)[]
 ---Called in the target before saving, with the captured line (:before-finalize).
----@field before_finalize? fun(bufnr: integer, lnum: integer)
+---@field before_finalize? fun(bufnr: integer, lnum: integer)|fun(bufnr: integer, lnum: integer)[]
 ---Called when the capture is done, with the captured line (:after-finalize).
----@field after_finalize? fun(bufnr: integer, lnum: integer)
+---@field after_finalize? fun(bufnr: integer, lnum: integer)|fun(bufnr: integer, lnum: integer)[]
 
 ---------------------------------------------------------------------------
 -- Refile

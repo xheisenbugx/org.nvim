@@ -159,6 +159,33 @@ describe("capture, archive and refile data preservation", function()
     eq({ "* Inbox", "** Precious" }, utils.readfile(path))
   end)
 
+  it("keeps an unnarrowed capture open after a write failure and retries without duplication", function()
+    local target, path = file("capture-unnarrowed-readonly", { "* Inbox" }, true)
+    vim.bo[target].readonly = true
+    run(capture.capture, { template = "* Precious", target = path, headline = "Inbox", unnarrowed = true })
+    pcall(capture.finalize, target, { jump = false })
+    ok(capture.sessions[target], "write failure must keep the capture open")
+    eq({ "* Inbox", "** Precious" }, buf_lines(target))
+    eq({ "* Inbox" }, utils.readfile(path))
+    vim.bo[target].readonly = false
+    ok(run(capture.finalize, target, { jump = false }))
+    eq({ "* Inbox", "** Precious" }, utils.readfile(path))
+  end)
+
+  it("aborts an unnarrowed date tree capture while retaining earlier and later edits", function()
+    local target, path = file("capture-unnarrowed-datetree", { "* Inbox" }, true)
+    vim.api.nvim_buf_set_lines(target, 0, 1, false, { "* Unsaved Inbox" })
+    run(capture.capture, { template = "* Note", target = path, datetree = true, unnarrowed = true }, {
+      date = date.parse("<2026-09-27 Sun>"),
+    })
+    eq("**** Note", buf_lines(target)[5])
+    vim.api.nvim_buf_set_text(target, 4, 9, 4, 9, { " typed", "more" })
+    vim.api.nvim_buf_set_lines(target, -1, -1, false, { "* Later unsaved work" })
+    capture.kill(target)
+    eq({ "* Unsaved Inbox", "* Later unsaved work" }, buf_lines(target))
+    eq(true, vim.bo[target].modified)
+  end)
+
   it("keeps moved ID locations at the source after a failed refile or archive save", function()
     local lines = { "* Task", ":PROPERTIES:", ":ID: preservation-test-id", ":END:", "valuable body" }
     local source, source_path = file("id-source", lines, true)
