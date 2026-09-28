@@ -1012,7 +1012,14 @@ local function overlay_render(state, update)
     local chunks, total = {}, 0
     for i, c in ipairs(state.cols) do
       local s = overlay_cell(texts[k][i], widths[i], i == #state.cols)
-      chunks[i] = { s, cell_hl(r, c, r.cells[i]) }
+      -- the cell face covers the value only: a keyword face with a
+      -- background or an italic priority face must not spill onto the
+      -- padding and the "|" separator
+      local v = utils.truncate(texts[k][i], widths[i]):gsub("%s+$", "")
+      if v ~= "" then
+        chunks[#chunks + 1] = { v, cell_hl(r, c, r.cells[i]) }
+      end
+      chunks[#chunks + 1] = { s:sub(#v + 1), "OrgColumn" }
       total = total + utils.width(s)
     end
     -- make the rest of the line disappear
@@ -1644,7 +1651,11 @@ local function open_overlay(src, lnum, global)
   end
   views[src] = state
   state.saved_opts = {}
-  for name, value in pairs({ wrap = false, virtualedit = "all", winbar = "" }) do
+  -- a headline with a closed fold (drawers, body) is drawn with Folded
+  -- across the window, a band under its column row: Emacs shows none
+  local whl = vim.api.nvim_get_option_value("winhighlight", { scope = "local", win = win })
+  whl = (whl == "" and "" or whl .. ",") .. "Folded:Normal"
+  for name, value in pairs({ wrap = false, virtualedit = "all", winbar = "", winhighlight = whl }) do
     state.saved_opts[name] = vim.api.nvim_get_option_value(name, { scope = "local", win = win })
     vim.api.nvim_set_option_value(name, value, { scope = "local", win = win })
   end
