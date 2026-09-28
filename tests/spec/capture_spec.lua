@@ -157,6 +157,18 @@ describe("capture.expand (org-capture-fill-template)", function()
     eq({ "home", "work" }, seen[1].candidates)
     eq("* H                 :work:new:", file_lines(p)[3])
   end)
+
+  it("still prompts for a %^{...} after %^g on the same heading", function()
+    local seen = {}
+    local restore = answer({ "work", "Hello", "Next" }, seen)
+    local text = run(capture.expand, "* H %^g %^{Something}\n%^{Other}", {})
+    restore()
+    local prompts = vim.tbl_map(function(s)
+      return s.prompt
+    end, seen)
+    eq({ "Tags: ", "Something: ", "Other: " }, prompts)
+    eq("* H :work: Hello\nNext", text)
+  end)
 end)
 
 describe("capture templates", function()
