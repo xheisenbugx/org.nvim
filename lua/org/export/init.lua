@@ -3,8 +3,9 @@
 --- Native back-ends ported from Emacs Org 9.8 (ox-*.el): html, latex (and
 --- pdf through latexmk/pdflatex), beamer, md (ox-md), gfm (GitHub
 --- flavoured Markdown, plugin specific), ascii (plain text with the
---- ascii, latin1 or utf-8 charset), org and icalendar. Other formats are
---- produced by pandoc from the Org export of the buffer.
+--- ascii, latin1 or utf-8 charset), org, icalendar and odt (OpenDocument
+--- Text, ox-odt). Other formats are produced by pandoc from the Org export
+--- of the buffer (odt too with `export.odt.use_pandoc`).
 
 local utils = require("org.utils")
 
@@ -32,6 +33,7 @@ M.FORMATS = {
   org = { "org", "org" },
   ics = { "icalendar", "ics" },
   icalendar = { "icalendar", "ics" },
+  odt = { "odt", "odt" },
 }
 
 --- Kept for backward compatibility: native formats -> module.
@@ -198,6 +200,13 @@ function M.export(format, opts)
     visible_only = opts.visible_only,
     ext = ext,
   }
+  if spec and spec[1] == "odt" then
+    if (cfg().odt or {}).use_pandoc then
+      spec = nil
+    else
+      return require("org.export.odt").export_file(lines, xopts, opts, src)
+    end
+  end
   if not spec then
     -- pandoc: convert the Org export of the buffer
     local text, _, err = render("org", lines, xopts)
@@ -320,6 +329,9 @@ function M.to_string(format, opts)
   end
   local lines = opts.lines or buffer_lines(bufnr)
   local ext = vim.tbl_extend("force", opts.ext or {}, opts.options or {})
+  if spec[1] == "odt" then
+    require("org.export.odt")
+  end
   if spec[3] then
     ext.ascii_charset = spec[3]
   end
@@ -370,6 +382,9 @@ function M.insert_template(opts)
   local backend = opts.backend or "default"
   local o = ox()
   local options = {}
+  if backend == "odt" then
+    require("org.export.odt")
+  end
   if backend ~= "default" then
     local b = o.get_backend(backend)
     if not b then
@@ -549,7 +564,7 @@ function M.prompt()
       },
       {
         key = "o",
-        label = "Export to ODT (pandoc)",
+        label = "Export to ODT",
         items = {
           { key = "o", label = "As ODT file", value = { fmt = "odt" } },
           { key = "O", label = "As ODT file and open", value = { fmt = "odt", open = true } },
@@ -596,7 +611,7 @@ function M.prompt()
       state[choice.toggle] = not state[choice.toggle]
     elseif choice.template then
       local cats = { "default" }
-      for _, n in ipairs({ "ascii", "beamer", "html", "icalendar", "latex", "md", "org" }) do
+      for _, n in ipairs({ "ascii", "beamer", "html", "icalendar", "latex", "md", "odt", "org" }) do
         cats[#cats + 1] = n
       end
       local cat = utils.input_complete("Options category: ", cats, "default")

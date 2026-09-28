@@ -1,0 +1,289 @@
+<office:body>
+    <office:text>
+      
+<text:sequence-decls>
+<text:sequence-decl text:display-outline-level="2" text:name="Table"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Illustration"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Text"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Equation"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Listing"/>
+</text:sequence-decls>
+    
+<text:p text:style-name="OrgTitle">
+<text:title>Third</text:title></text:p>
+
+<text:p text:style-name="OrgTitle"/>
+
+<text:p text:style-name="OrgSubtitle">2024-05-06</text:p><text:p text:style-name="OrgSubtitle"/>
+<text:table-of-content text:style-name="OrgIndexSection" text:protected="true" text:name="Table of Contents">
+  <text:table-of-content-source text:outline-level="3">
+    <text:index-title-template text:style-name="Contents_20_Heading">Table of Contents</text:index-title-template>
+
+      <text:table-of-content-entry-template text:outline-level="1" text:style-name="Contents_20_1">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="2" text:style-name="Contents_20_2">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="3" text:style-name="Contents_20_3">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="4" text:style-name="Contents_20_4">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="5" text:style-name="Contents_20_5">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="6" text:style-name="Contents_20_6">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="7" text:style-name="Contents_20_7">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="8" text:style-name="Contents_20_8">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="9" text:style-name="Contents_20_9">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="10" text:style-name="Contents_20_10">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+  </text:table-of-content-source>
+  <text:index-body>
+    <text:index-title text:style-name="Sect1" text:name="Table of Contents1_Head">
+      <text:p text:style-name="Contents_20_Heading">Table of Contents</text:p>
+    </text:index-title>
+
+<text:p text:style-name="Contents_20_1"><text:a xlink:type="simple" xlink:href="#org5af6260">One</text:a></text:p>
+
+<text:p text:style-name="Contents_20_1"><text:a xlink:type="simple" xlink:href="#org24fe98a">Two</text:a></text:p>
+
+<text:p text:style-name="Contents_20_2"><text:a xlink:type="simple" xlink:href="#org9c970a8">Two sub</text:a></text:p>
+  </text:index-body>
+</text:table-of-content>
+<text:h text:style-name="Heading_20_1_unnumbered" text:outline-level="1" text:is-list-header="true">
+<text:bookmark-start text:name="OrgXref.org5af6260"/>
+<text:bookmark text:name="org5af6260"/>One
+<text:bookmark-end text:name="OrgXref.org5af6260"/></text:h>
+<text:p text:style-name="Text_20_body">First line<text:line-break/>second line "quoted" &#x2013; done&#x2026;</text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:a xlink:type="simple" xlink:href="https://orgmode.org">
+
+<draw:frame draw:style-name="OrgInlineImage" svg:width="2.54cm" svg:height="1.27cm" text:anchor-type="as-char" draw:name="Frame1">
+
+<draw:image xlink:href="Images/0001.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>
+</draw:frame>
+</draw:a></text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:frame draw:style-name="OrgDisplayImage" svg:width="3.00cm" svg:height="1.50cm" text:anchor-type="page" draw:name="Frame2">
+
+<draw:image xlink:href="Images/0002.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>
+</draw:frame></text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:frame draw:style-name="OrgDisplayImage" svg:width="1.27cm" svg:height="0.64cm" text:anchor-type="paragraph" draw:name="Frame3">
+
+<draw:image xlink:href="Images/0003.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>
+</draw:frame></text:p>
+
+
+<text:p text:style-name="Text_20_body">Formula 
+<draw:frame draw:style-name="OrgInlineFormula" text:anchor-type="as-char" draw:name="Frame4">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0001/" xlink:type="simple"/>
+</draw:frame> inline.</text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:frame draw:style-name="OrgFormulaCaptionFrame" text:anchor-type="paragraph" draw:name="Frame6">
+
+<draw:text-box  fo:min-height="0.20cm" fo:min-width="0.20cm">
+<text:p text:style-name="Illustration">
+<draw:frame draw:style-name="OrgCaptionedFormula" text:anchor-type="paragraph" draw:name="Frame5">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0002/" xlink:type="simple"/>
+</draw:frame>
+<text:bookmark text:name="org440658e"/>Display formula</text:p>
+</draw:text-box>
+</draw:frame><text:tab/>
+<text:bookmark text:name="org440658e"/>(<text:sequence text:ref-name="org440658e" text:name="Text" text:formula="ooow:Text+1" style:num-format="1">1</text:sequence>)</text:p>
+
+
+<text:p text:style-name="Text_20_body">See <text:sequence-ref text:reference-format="text" text:ref-name="org440658e">(1)</text:sequence-ref>.</text:p>
+
+
+<text:p text:style-name="Quotations">Quote with <text:span text:style-name="Bold">bold</text:span>.</text:p>
+
+<text:h text:style-name="Heading_20_1_unnumbered" text:outline-level="1" text:is-list-header="true">
+<text:bookmark-start text:name="OrgXref.org24fe98a"/>
+<text:bookmark text:name="org24fe98a"/>Two
+<text:bookmark-end text:name="OrgXref.org24fe98a"/></text:h>
+<text:list text:style-name="OrgBulletedList" text:continue-numbering="false">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">a</text:p>
+
+<text:list text:style-name="OrgBulletedList" text:continue-numbering="true">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">b</text:p>
+
+<text:list text:style-name="OrgBulletedList" text:continue-numbering="true">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">c</text:p>
+
+</text:list-item>
+</text:list>
+
+</text:list-item>
+</text:list>
+
+</text:list-item>
+</text:list>
+
+<text:list text:style-name="OrgBulletedList" text:continue-numbering="false">
+
+<text:list-item>
+
+<text:p text:style-name="OrgCenter">in center</text:p>
+
+</text:list-item>
+</text:list>
+
+
+<text:table-of-content text:style-name="OrgIndexSection" text:protected="true" text:name="Table of Contents">
+  <text:table-of-content-source text:outline-level="1">
+      <text:table-of-content-entry-template text:outline-level="1" text:style-name="Contents_20_1">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="2" text:style-name="Contents_20_2">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="3" text:style-name="Contents_20_3">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="4" text:style-name="Contents_20_4">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="5" text:style-name="Contents_20_5">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="6" text:style-name="Contents_20_6">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="7" text:style-name="Contents_20_7">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="8" text:style-name="Contents_20_8">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="9" text:style-name="Contents_20_9">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+      <text:table-of-content-entry-template text:outline-level="10" text:style-name="Contents_20_10">
+       <text:index-entry-link-start text:style-name="Internet_20_link"/>
+       <text:index-entry-chapter/>
+       <text:index-entry-text/>
+       <text:index-entry-link-end/>
+      </text:table-of-content-entry-template>
+
+  </text:table-of-content-source>
+  <text:index-body>
+<text:p text:style-name="Contents_20_2"><text:a xlink:type="simple" xlink:href="#org9c970a8">Two sub</text:a></text:p>
+  </text:index-body>
+</text:table-of-content>
+
+<text:h text:style-name="Heading_20_2_unnumbered" text:outline-level="2" text:is-list-header="true">
+<text:bookmark-start text:name="OrgXref.org9c970a8"/>
+<text:bookmark text:name="org9c970a8"/>Two sub
+<text:bookmark-end text:name="OrgXref.org9c970a8"/></text:h>
+<text:p text:style-name="Text_20_body">x</text:p>
+</office:text>
+  </office:body>
+</office:document-content>

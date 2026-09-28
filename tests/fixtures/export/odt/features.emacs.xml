@@ -1,0 +1,343 @@
+<office:body>
+    <office:text>
+      
+<text:sequence-decls>
+<text:sequence-decl text:display-outline-level="2" text:name="Table"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Illustration"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Text"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Equation"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Listing"/>
+</text:sequence-decls>
+    
+<text:p text:style-name="OrgTitle">
+<text:title>Second</text:title></text:p>
+
+<text:p text:style-name="OrgTitle"/>
+
+<text:p text:style-name="OrgSubtitle"><text:a xlink:type="simple" xlink:href="mailto:jane@example.org"><text:initial-creator>Jane</text:initial-creator></text:a></text:p>
+<text:p text:style-name="OrgSubtitle"/>
+<text:h text:style-name="Heading_20_1" text:outline-level="1" text:is-list-header="false">
+<text:bookmark-start text:name="OrgXref.ID-1234-abcd"/>
+<text:bookmark text:name="ID-1234-abcd"/>
+<text:bookmark-end text:name="OrgXref.ID-1234-abcd"/>
+<text:bookmark-start text:name="OrgXref.orgd9f3106"/>
+<text:bookmark text:name="orgd9f3106"/><text:span text:style-name="OrgDone">DONE</text:span> <text:span text:style-name="OrgPriority-B">[#B]</text:span> Features<text:tab/><text:span text:style-name="OrgTags">[<text:span text:style-name="OrgTag">a</text:span> : <text:span text:style-name="OrgTag">b</text:span>]</text:span>
+<text:bookmark-end text:name="OrgXref.orgd9f3106"/></text:h>
+<text:p text:style-name="OrgPlanning"><text:span text:style-name="OrgClosedKeyword">CLOSED:</text:span><text:span text:style-name="OrgInactiveTimestamp">[2024-02-01 Thu 10:00] </text:span><text:span text:style-name="OrgScheduledKeyword">SCHEDULED:</text:span><text:span text:style-name="OrgActiveTimestamp">&lt;2024-01-30 Tue&gt;</text:span></text:p>
+<text:p text:style-name="OrgFixedWidthBlock">CUSTOM_ID: feat
+ID: 1234-abcd
+</text:p>
+
+<text:p text:style-name="Text_20_body">“Quoted” and ’single’ text 
+<text:bookmark-start text:name="OrgXref.org69f681c"/>
+<text:bookmark text:name="org69f681c"/>
+<text:bookmark-end text:name="OrgXref.org69f681c"/> with a target.</text:p>
+
+
+<text:list text:style-name="OrgDescriptionList" text:continue-numbering="false">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body_20_bold">term one</text:p>
+
+<text:list text:style-name="OrgDescriptionList" text:continue-numbering="true">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">first def</text:p>
+
+</text:list-item>
+</text:list>
+
+</text:list-item>
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body_20_bold"><text:span text:style-name="OrgCode">[ ] </text:span>term two</text:p>
+
+<text:list text:style-name="OrgDescriptionList" text:continue-numbering="true">
+
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">second def with more lines</text:p>
+
+</text:list-item>
+</text:list>
+
+</text:list-item>
+</text:list>
+
+
+<text:section text:style-name="OrgIndentedSection-Level-0" text:name="Section2">
+
+<table:table table:style-name="OrgTable2">
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellT">
+
+<text:p text:style-name="Text_20_body">Row 1</text:p>
+
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellT">
+
+<text:p text:style-name="Text_20_body">1.1</text:p>
+
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellT">
+
+<text:p text:style-name="Text_20_body">1.2</text:p>
+
+</table:table-cell>
+
+</table:table-row>
+
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCell">
+
+<text:p text:style-name="Text_20_body">Row 2</text:p>
+
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCell">
+
+<text:p text:style-name="Text_20_body">2.1</text:p>
+
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCell">
+
+<text:p text:style-name="Text_20_body">2.2</text:p>
+
+</table:table-cell>
+
+</table:table-row>
+
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCell">
+
+<text:p text:style-name="Text_20_body">partial</text:p>
+
+
+<text:section text:style-name="OrgIndentedSection-Level-0" text:name="Section1">
+
+<table:table table:style-name="OrgTable">
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-header-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableHeadingRight">x</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableHeadingRight">y</text:p>
+</table:table-cell>
+
+</table:table-row>
+</table:table-header-rows>
+
+<table:table-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableContentsRight">1</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableContentsRight">2</text:p>
+</table:table-cell>
+
+</table:table-row>
+</table:table-rows>
+</table:table>
+</text:section>
+
+<text:p text:style-name="Text_20_body">after table</text:p>
+
+</table:table-cell>
+
+</table:table-row>
+
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellB">
+
+<text:p text:style-name="Text_20_body">second item</text:p>
+
+</table:table-cell>
+
+</table:table-row>
+</table:table-rows>
+</table:table>
+</text:section>
+
+
+<text:section text:style-name="OrgIndentedSection-Level-0" text:name="Section3">
+
+<table:table table:style-name="OrgTable">
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-header-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableHeadingLeft">a</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTBL">
+
+<text:p text:style-name="OrgTableHeadingRight">b</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableHeadingCenter">c</text:p>
+</table:table-cell>
+
+</table:table-row>
+</table:table-header-rows>
+
+<table:table-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableContentsLeft">1</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTBL">
+
+<text:p text:style-name="OrgTableContentsRight">2</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="OrgTblCellTB">
+
+<text:p text:style-name="OrgTableContentsCenter">3</text:p>
+</table:table-cell>
+
+</table:table-row>
+</table:table-rows>
+</table:table>
+</text:section>
+
+
+
+<text:section text:style-name="OrgIndentedSection-Level-0" text:name="Section4">
+
+<table:table table:style-name="OrgTable4">
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-column table:style-name="OrgTableColumn"/>
+
+<table:table-rows>
+<table:table-row>
+
+<table:table-cell table:style-name="CustomFirstColumnTableCell">
+
+<text:p text:style-name="CustomFirstColumnTableParagraph">h1</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="CustomFirstRowTableCell">
+
+<text:p text:style-name="CustomFirstRowTableParagraph">h2</text:p>
+</table:table-cell>
+
+</table:table-row>
+
+<table:table-row>
+
+<table:table-cell table:style-name="CustomFirstColumnTableCell">
+
+<text:p text:style-name="CustomFirstColumnTableParagraph">v1</text:p>
+</table:table-cell>
+
+<table:table-cell table:style-name="CustomTableCell">
+
+<text:p text:style-name="CustomTableParagraph">v2</text:p>
+</table:table-cell>
+
+</table:table-row>
+</table:table-rows>
+</table:table>
+</text:section>
+
+
+<text:p text:style-name="Text_20_body">See <text:a xlink:type="simple" xlink:href="#org69f681c">(1)</text:a> and <text:bookmark-ref text:reference-format="chapter" text:ref-name="OrgXref.orgd9f3106">1</text:bookmark-ref> and <text:bookmark-ref text:reference-format="chapter" text:ref-name="OrgXref.orgd9f3106">1</text:bookmark-ref>.</text:p>
+
+
+<text:p text:style-name="Listing">
+<text:bookmark text:name="org93f2dde"/>Listing <text:sequence text:ref-name="org93f2dde" text:name="Listing" text:formula="ooow:Listing+1" style:num-format="1">1.1</text:sequence>: Listing cap</text:p>
+<text:p text:style-name="OrgFixedWidthBlockLastLine">(message "hi")</text:p>
+
+
+<text:p text:style-name="Text_20_body">Ref to <text:sequence-ref text:reference-format="value" text:ref-name="org93f2dde">1.1</text:sequence-ref>.</text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:frame draw:style-name="OrgTextbox" text:anchor-type="paragraph" draw:name="Frame1">
+
+<draw:text-box  fo:min-height="0.20cm" fo:min-width="0.20cm">
+<text:p text:style-name="Text_20_body">In a box.</text:p>
+
+</draw:text-box>
+</draw:frame></text:p>
+
+
+<text:p><office:annotation>
+<dc:creator>Jane</dc:creator>
+<text:p text:style-name="Text_20_body">A note.</text:p>
+
+</office:annotation></text:p>
+
+<text:p>raw</text:p>
+
+<text:p>kw</text:p>
+
+
+<text:p text:style-name="Text_20_body"><text:span>snip</text:span> and <text:span text:style-name="OrgCode">[3/4]</text:span> stat.</text:p>
+
+
+<text:p text:style-name="Text_20_body">Active <text:span text:style-name="OrgActiveTimestamp">&lt;2024-03-01 Fri 09:00&gt;&#x2013;&lt;2024-03-02 Sat 10:00&gt; </text:span> and inactive <text:span text:style-name="OrgInactiveTimestamp">[2024-03-05 Tue]</text:span>.</text:p>
+
+<text:h text:style-name="Heading_20_2" text:outline-level="2" text:is-list-header="false">
+<text:bookmark-start text:name="OrgXref.org24ee566"/>
+<text:bookmark text:name="org24ee566"/>Sub two
+<text:bookmark-end text:name="OrgXref.org24ee566"/></text:h>
+<text:p text:style-name="Text_20_body">Line one<text:line-break/>line two</text:p>
+
+<text:list text:style-name="OrgNumberedList" text:continue-numbering="false">
+<text:list-item>
+
+<text:p text:style-name="Text_20_body">
+<text:bookmark-start text:name="OrgXref.org8abfcc8"/>
+<text:bookmark text:name="org8abfcc8"/>Too deep
+<text:bookmark-end text:name="OrgXref.org8abfcc8"/></text:p>
+<text:p text:style-name="Text_20_body">Deep content.</text:p>
+
+</text:list-item></text:list>
+</office:text>
+  </office:body>
+</office:document-content>

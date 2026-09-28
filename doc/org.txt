@@ -55,8 +55,8 @@ It covers the parts of Org you use every day:
   - Clocking, effort estimates, clock tables and column view.
   - Spreadsheet tables with `#+TBLFM` formulas.
   - Source blocks that run asynchronously (Babel), and tangling.
-  - Export to HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar,
-    publishing projects, plus more formats via pandoc.
+  - Export to HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org, ODT and
+    iCalendar, publishing projects, plus more formats via pandoc.
 
 There are no dependencies: no tree-sitter parser, external binary or
 companion plugin.
@@ -94,7 +94,9 @@ keys. `/` searches the list and `{` / `}` jump between sections.
 
 Requires Neovim 0.10 or later. Optional tools:
 
-  pandoc               LaTeX, PDF, DOCX, ODT, EPUB, RST, ... export
+  pandoc               DOCX, EPUB, RST, ... export
+  LibreOffice          ODT conversion (`export.odt.preferred_output_format`)
+  unzip                ODT styles taken from an .odt/.ott file
   latexmk / pdflatex   native PDF export
   interpreters         whatever languages Babel should run
 
@@ -2775,7 +2777,7 @@ HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar matches Emacs.
   m M  Markdown buffer  m m  Markdown file      m o  Markdown file, open
   m G  GFM buffer       m g  GFM file
   O O  Org buffer       O o  Org file           O v  Org file and open
-  o o  ODT (pandoc)     o O  ODT and open       d d  DOCX (pandoc)
+  o o  ODT file         o O  ODT and open       d d  DOCX (pandoc)
   t A/a  ASCII buffer/file   t L/l  Latin-1   t U/u  UTF-8
   P f  publish file     P p  current project    P x  a project  P a  all
   p    other format via pandoc
@@ -2783,7 +2785,7 @@ HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar matches Emacs.
 
 `:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
 format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
-beamer-pdf, org, ics or a pandoc format (docx, odt, rst, epub, ...).
+beamer-pdf, org, ics, odt or a pandoc format (docx, rst, epub, ...).
 `:Org publish [project|file|current|all] [force]` publishes projects
 (|org-publish|). Lua: `require("org.export").export(format, opts)` returns
 the output path, `.to_string(format, opts)` the text.
@@ -2792,8 +2794,9 @@ Output goes next to the source file (named after it or #+EXPORT_FILE_NAME),
 or to `export.output_dir`. PDF compiles the LaTeX file with
 `export.latex.pdf_process` (latexmk when available, else three runs of
 `export.latex.compiler`); it runs in the background with |vim.system()|
-unless `export.latex.async_compile` is false. DOCX, ODT and other pandoc
-formats run pandoc on the output of the Org back-end.
+unless `export.latex.async_compile` is false. ODT is written natively
+(|org-export-odt|). DOCX and other pandoc formats run pandoc on the output
+of the Org back-end.
 
 Export settings ~                                        *org-export-settings*
 `#+TITLE`, `#+SUBTITLE`, `#+AUTHOR`, `#+EMAIL`, `#+DATE`, `#+CREATOR`,
@@ -2886,6 +2889,7 @@ Org           ox-org: the buffer after macro expansion, #+INCLUDE and
               removal of non-exported subtrees.
 iCalendar     |org-export-icalendar|
 Beamer        |org-export-beamer|
+ODT           |org-export-odt|
 
 ASCII ~                                                     *org-export-ascii*
 `ascii` exports plain text like Emacs ox-ascii. Text is filled to
@@ -2927,6 +2931,65 @@ applies to lists and images. Keywords: #+BEAMER_THEME,
 #+BEAMER: (raw line), #+SUBTITLE, `#+TOC: headlines N [options]`. With
 `toc:` an outline frame titled `export.beamer.outline_frame_title` is
 added.
+
+ODT ~                                                         *org-export-odt*
+`:Org export odt` (dispatcher: o o file, o O file and open) writes an
+OpenDocument Text file like Emacs ox-odt: content.xml, styles.xml (the
+factory OrgOdtStyles.xml of Emacs), meta.xml (title, author, date,
+keywords, description) and the manifest, zipped by a pure-Lua writer (no
+`zip` program needed). The transcoders are those of ox-odt: numbered and
+unnumbered headings (outline numbering follows `num:`), a table of
+contents (`toc:`, `#+TOC: headlines N [local]`), text styles, links
+(internal ones become cross-references showing the section, item or
+sequence number; `[[url][file:img.png]]` is a clickable image),
+ordered/unordered/description lists with checkboxes, headlines deeper than
+`H:` as lists, tables (header rows, column groups, `<l>`/`<r>`/`<c>`
+alignment, `<N>` widths as column ratios, tables in lists), src, example,
+quote, verse, center blocks, `textbox` and `annotation` special blocks,
+inline tasks, footnotes (native ODF notes), planning, clocks, timestamps,
+`#+ODT:` / `#+BEGIN_EXPORT odt` / `@@odt:...@@` raw XML, and captions
+("Table 1:", "Figure 1:", "Listing 1:" numbered per section down to
+`export.odt.display_outline_level`).
+Images (`[[file:img.png]]`, jpeg/jpg/png/gif/svg) are embedded under
+Images/; `#+ATTR_ODT: :width W :height H` (cm), `:scale S` and
+`:anchor as-char|paragraph|page` (`:style`, `:attributes`) size and place
+them; the pixel size comes from the file header (or ImageMagick
+`identify`) at `export.odt.pixels_per_inch`. Links to .mml/.mathml/.odf
+files embed the formula.
+LaTeX (`tex:`): with `export.odt.latex_to_mathml_convert_command` (e.g.
+"latexmlmath %i --presentationmathml=%o") fragments and environments
+become embedded MathML formulas; `tex:dvipng`, `tex:dvisvgm` or
+`tex:imagemagick` render them to pictures with the LaTeX preview
+processes; without the programs, or with `tex:verbatim`, they are kept as
+code (with a warning, like Emacs).
+Tables: `#+ATTR_ODT: :rel-width 50` sets the width in percent,
+`:style NAME` applies a template of `export.odt.table_styles`
+(org-odt-table-styles), `:header-columns N` styles the first columns as
+headers; `#+ATTR_ODT: :list-table t` turns a two-level list into a table.
+Source blocks are colorized with tree-sitter highlights when a parser is
+available (Emacs uses htmlfontify): one `OrgSrc<Capture>` text style per
+highlight capture, colored like the current colorscheme
+(`fontify_srcblocks`, `create_custom_styles_for_srcblocks`).
+Styles: `#+ODT_STYLES_FILE: "file"` (or `export.odt.styles_file`) uses a
+styles.xml, or the styles.xml of an .odt/.ott file, and
+`#+ODT_STYLES_FILE: ("file.ott" ("styles.xml" "image/hdr.png"))` also
+copies the other members into the document (reading .odt/.ott files needs
+`unzip`). `#+ODT_EXTRA_STYLES:` (or `export.odt.extra_styles`, a plugin
+addition) adds raw style XML to <office:styles>.
+`export.odt.preferred_output_format` ("pdf", "docx", "doc", ...) converts
+the result with `convert_process` ("LibreOffice": `soffice --headless
+--convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
+`require("org.export.odt").convert(file, format)` converts any file
+(org-odt-convert). `export.odt.use_pandoc = true` exports ODT with pandoc
+instead. Lua: `require("org.export").export("odt", opts)`;
+`to_string("odt")` returns content.xml.
+Differences: `use_date_fields`, `with_forbidden_chars`, the drawer,
+headline and inlinetask format functions work as in Emacs; the output
+matches Emacs except for a few Emacs slips that are not copied: labels
+of unnamed captioned images are not called "nil", `[[#custom-id][desc]]`
+links point to the heading's bookmark, meta.xml gets the title without
+markup, and inline source blocks (an error in Emacs) are exported as
+code. MathML is not cached in an ltxmathml/ directory.
 
 iCalendar ~                                             *org-export-icalendar*
 Dispatcher keys (Emacs `C-c C-e c`): `c f` current file, `c a` every agenda
@@ -3008,13 +3071,12 @@ These need Emacs Lisp or Emacs itself:
 - `#+BIND:` (sets Elisp variables) is ignored.
 - `(eval ...)` macros are left unexpanded; use `export.global_macros` with
   a Lua function instead.
-- ODT has no native back-end (ox-odt writes with Emacs' nXML/zip
-  tooling); `o` exports through pandoc.
 - Source fontification (htmlize, engrave-faces): HTML code is plain unless
   `export.html.fontify` is set; `src_block_backend = "engraved"` falls
   back to verbatim.
 - LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
-  exported as MathJax/verbatim; there is no image conversion.
+  exported as MathJax/verbatim by the HTML back-end; only ODT converts
+  them (|org-export-odt|).
 - table.el tables are exported verbatim.
 - Asynchronous export (`a`) only makes PDF compilation asynchronous;
   publishing runs on the editor's event loop.
@@ -3671,7 +3733,7 @@ export ~                                                   *org-config-export*
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
   global_macros, hooks, filters; back-end tables html, latex, md, org,
-  ascii, beamer, icalendar, publish, cite; pandoc { cmd, args }. See the
+  ascii, beamer, icalendar, odt, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,

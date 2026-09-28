@@ -1,0 +1,63 @@
+<office:body>
+    <office:text>
+      
+<text:sequence-decls>
+<text:sequence-decl text:display-outline-level="2" text:name="Table"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Illustration"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Text"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Equation"/>
+<text:sequence-decl text:display-outline-level="2" text:name="Listing"/>
+</text:sequence-decls>
+    
+<text:p text:style-name="OrgSubtitle"><text:initial-creator>Tester</text:initial-creator></text:p>
+<text:p text:style-name="OrgSubtitle"/>
+<text:h text:style-name="Heading_20_1" text:outline-level="1" text:is-list-header="false">
+<text:bookmark-start text:name="OrgXref.orgd53ef54"/>
+<text:bookmark text:name="orgd53ef54"/>Math
+<text:bookmark-end text:name="OrgXref.orgd53ef54"/></text:h>
+<text:p text:style-name="Text_20_body">Inline 
+<draw:frame draw:style-name="OrgInlineFormula" text:anchor-type="as-char" draw:name="Frame1">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0001/" xlink:type="simple"/><svg:title>Latex-Fragment</svg:title><svg:desc>$a+b$</svg:desc>
+</draw:frame> here.</text:p>
+
+
+<text:p text:style-name="Text_20_body">
+<draw:frame draw:style-name="OrgCaptionedFormula" text:anchor-type="paragraph" draw:name="Frame2">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0002/" xlink:type="simple"/>
+</draw:frame><text:tab/></text:p>
+
+
+<text:p text:style-name="OrgFormula">
+<draw:frame draw:style-name="OrgFormulaCaptionFrame" text:anchor-type="paragraph" draw:name="Frame4">
+
+<draw:text-box  fo:min-height="0.20cm" fo:min-width="0.20cm">
+<text:p text:style-name="Illustration">
+<draw:frame draw:style-name="OrgCaptionedFormula" text:anchor-type="paragraph" draw:name="Frame3">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0003/" xlink:type="simple"/><svg:title>Latex-Environment</svg:title><svg:desc>\begin{equation}
+E = mc^2
+\end{equation}
+</svg:desc>
+</draw:frame>
+<text:bookmark text:name="org9994213"/>Energy</text:p>
+</draw:text-box>
+</draw:frame><text:tab/>
+<text:bookmark text:name="org9994213"/>(<text:sequence text:ref-name="org9994213" text:name="Text" text:formula="ooow:Text+1" style:num-format="1">1.1</text:sequence>)</text:p>
+
+
+<text:p text:style-name="OrgFormula">
+<draw:frame draw:style-name="OrgCaptionedFormula" text:anchor-type="paragraph" draw:name="Frame5">
+
+<draw:object  xlink:show="embed" xlink:actuate="onLoad" xlink:href="Formula-0004/" xlink:type="simple"/><svg:title>Latex-Environment</svg:title><svg:desc>\begin{equation}
+F = ma
+\end{equation}
+</svg:desc>
+</draw:frame><text:tab/></text:p>
+
+
+<text:p text:style-name="Text_20_body">See <text:sequence-ref text:reference-format="text" text:ref-name="org9994213">(1.1)</text:sequence-ref>.</text:p>
+</office:text>
+  </office:body>
+</office:document-content>

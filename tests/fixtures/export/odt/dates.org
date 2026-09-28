@@ -1,0 +1,11 @@
+#+TITLE: Dates
+#+DATE: <2024-05-06 Mon 10:30>
+#+OPTIONS: toc:nil
+
+* Dates
+Active <2024-01-15 Mon +1w> and range <2024-01-15 Mon>--<2024-01-17 Wed>.
+Inactive [2024-01-15 Mon 09:00].
+
+#+BEGIN_annotation
+Annotated.
+#+END_annotation
