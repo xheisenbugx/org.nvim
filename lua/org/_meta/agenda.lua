@@ -283,6 +283,20 @@
 ---Body lines shown under each entry in entry text mode (`E`)
 ---(org-agenda-entry-text-maxlines). (default: `5`)
 ---@field entry_text_maxlines? integer
+---Emacs regexps whose matches are removed from the entry text
+---(org-agenda-entry-text-exclude-regexps). (default: `{}`)
+---@field entry_text_exclude_regexps? string[]
+---Text before each entry text line (org-agenda-entry-text-leaders). (default: `"    > "`)
+---@field entry_text_leaders? string
+---Body lines added under each entry of a written agenda
+---(org-agenda-add-entry-text-maxlines). (default: `0`)
+---@field add_entry_text_maxlines? integer
+---Called before the agenda is written: changes `lines` or returns new ones
+---(org-agenda-before-write-hook). (default: `nil`)
+---@field before_write_hook? fun(lines: string[], path: string): string[]?
+---Replaces the <style> section of agendas written as HTML
+---(org-agenda-export-html-style). (default: `nil`)
+---@field export_html_style? string
 ---Ask before `<C-k>` deletes an entry longer than this many lines
 ---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
 ---@field confirm_kill? integer|false

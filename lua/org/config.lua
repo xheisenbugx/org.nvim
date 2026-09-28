@@ -590,6 +590,21 @@ M.defaults = {
     --- Body lines shown under each entry in entry text mode (E)
     --- (org-agenda-entry-text-maxlines).
     entry_text_maxlines = 5,
+    --- Emacs regexps whose matches are removed from the entry text
+    --- (org-agenda-entry-text-exclude-regexps).
+    entry_text_exclude_regexps = {},
+    --- Text before each entry text line (org-agenda-entry-text-leaders).
+    entry_text_leaders = "    > ",
+    --- Body lines added under each entry when the agenda is written to a
+    --- file (org-agenda-add-entry-text-maxlines).
+    add_entry_text_maxlines = 0,
+    --- function(lines, path) run before the agenda is written: changes
+    --- `lines` or returns new ones (org-agenda-before-write-hook; the User
+    --- autocmd OrgAgendaBeforeWrite fires too).
+    before_write_hook = nil,
+    --- Replaces the <style> section of agendas written as HTML
+    --- (org-agenda-export-html-style).
+    export_html_style = nil,
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,

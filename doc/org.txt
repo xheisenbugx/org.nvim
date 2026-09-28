@@ -1318,7 +1318,10 @@ All configurable under `mappings.agenda`:
                   (gaps, overlaps, too long / short, no end time;
                   `agenda.clock_consistency_checks`)
   E               entry text mode: show the first body lines of each
-                  entry (`agenda.entry_text_maxlines`) (also vE)
+                  entry (`agenda.entry_text_maxlines`; a count N shows N
+                  lines) (also vE), after `entry_text_leaders`, without
+                  drawers, planning and CLOCK lines and the matches of
+                  `entry_text_exclude_regexps` (Emacs regexps)
   G               toggle the time grid (also vG)
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
@@ -1378,6 +1381,20 @@ Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_follow_mode`, `start_with_clockreport_mode`,
 `start_with_entry_text_mode`, `show_outline_path` (echo the outline path
 of the entry at point).
+
+User autocmds (the Emacs hooks): `OrgAgendaFinalize` after the agenda
+buffer is built or rebuilt (org-agenda-finalize-hook), `OrgAgendaFilter`
+after a filter changed (org-agenda-filter-hook), with `data.buf`,
+`data.filters` and `data.filter` (the filter text of the window bar);
+`OrgAgendaBeforeWrite` before a written agenda (|org-agenda-export|).
+Unlike Emacs, the agenda is rebuilt after edits from it, so
+`OrgAgendaFinalize` also fires then.
+>lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgAgendaFinalize",
+      callback = function(ev) vim.bo[ev.data.buf].textwidth = 0 end,
+    })
+<
 
 Windows and buffers                                        *org-agenda-window*
 
@@ -1476,6 +1493,15 @@ view (org-agenda-write). The extension picks the format:
   .ps .pdf    the agenda printed like Emacs's ps-print: Courier text with
               the highlight colours and bold/italic, paged, with a header
               box ("Agenda View", page n/m and the date) on every page
+The text of entry text mode (`E`) is not written, like Emacs's overlays;
+`agenda.add_entry_text_maxlines` (org-agenda-add-entry-text-maxlines,
+default 0) adds that many body lines under each entry ("    > ...").
+`agenda.before_write_hook(lines, path)` can then change the lines (or
+return new ones) and the User autocmd `OrgAgendaBeforeWrite` fires
+(org-agenda-before-write-hook); when the lines change, HTML and
+PostScript lose their colours. `agenda.export_html_style` replaces the
+<style> section of HTML files (org-agenda-export-html-style).
+
 PostScript and PDF are written by Neovim itself, no external program is
 needed. The layout is ps-print's (letter paper, 8.5 pt text, 72 lines of
 97 columns per page; long lines wrap), so pages break where Emacs breaks

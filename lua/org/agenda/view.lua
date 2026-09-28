@@ -525,6 +525,7 @@ function M.refresh()
   S.day_lines = b.day_lines or {}
   S.info = b.info or {}
   S.block_starts = b.block_starts or { 1 }
+  S.entry_text_lines = b.entry_text_lines or {}
   local buf = S.buf
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, b.lines)
@@ -548,6 +549,13 @@ function M.refresh()
   if ok then
     pcall(cols.refresh_if_active)
   end
+  -- hooks: org-agenda-filter-hook after the filters changed, else
+  -- org-agenda-finalize-hook after the agenda was built
+  local sig = vim.inspect(S.filters)
+  local event = (S.filter_sig ~= nil and sig ~= S.filter_sig) and "OrgAgendaFilter" or "OrgAgendaFinalize"
+  S.filter_sig = sig
+  local data = { buf = buf, filters = vim.deepcopy(S.filters), filter = M.filter_desc() }
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = event, data = data, modeline = false })
 end
 
 function M.render_marks()
@@ -2860,7 +2868,19 @@ M.actions = {
     M.bulk_action()
   end,
   entry_text_mode = function()
-    toggle("entry_text", "Entry text mode")
+    -- a count N turns it on with N lines (org-agenda-entry-text-mode N)
+    local count = vim.v.count
+    if count > 0 then
+      S.entry_text = count
+    else
+      S.entry_text = not S.entry_text
+    end
+    M.redo()
+    local max = type(S.entry_text) == "number" and S.entry_text or config.opts.agenda.entry_text_maxlines or 5
+    utils.notify(
+      "Entry text mode is "
+        .. (S.entry_text and string.format("on (maximum number of lines is %d)", max) or "off")
+    )
   end,
   archives_mode = function()
     toggle("archives", "Archived trees", "trees")
