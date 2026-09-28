@@ -687,6 +687,10 @@ end
 --- The expanded body (org-babel-expand-src-block): what `C-c C-v v`
 --- shows, what `:cache` hashes and what is tangled.
 function M.expand(lang, body, args, vars, colnames)
+  local handler = require("org.babel.ob").get(lang)
+  if handler and handler.expand then
+    return handler.expand(body, args, vars, lang)
+  end
   local fam = M.family(lang)
   if fam == "c" then
     return M.c_expand(lang, body, args, vars, colnames)

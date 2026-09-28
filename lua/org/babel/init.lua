@@ -815,6 +815,11 @@ local warned_session = {}
 --- session support, which then run without one).
 local function block_session(lang, args)
   local name = session_mod.name(args.session)
+  local handler = require("org.babel.ob").get(lang)
+  if handler then
+    -- ob-LANG ports read :session themselves (ob-screen)
+    return nil
+  end
   if name and not session_mod.supported(lang, langs.family(lang)) then
     if not warned_session[lang] then
       warned_session[lang] = true
@@ -1059,9 +1064,18 @@ local function run_steps(spec, cwd, sync, cb)
     end
     return step.cmd
   end
+  -- a `fn` step runs Lua (moving a file, a conversion done in Neovim): its
+  -- return value is the step's output, an error its failure
+  local function run_fn(step)
+    local ok, out = pcall(step.fn)
+    return { code = ok and 0 or 1, stdout = ok and (out or "") or "", stderr = not ok and tostring(out) or "" }
+  end
   if sync then
     for _, step in ipairs(spec.steps) do
       local ok, obj = pcall(function()
+        if step.fn then
+          return run_fn(step)
+        end
         return vim.system(argv(step), sys_opts(step)):wait()
       end)
       if not ok then
@@ -1078,6 +1092,10 @@ local function run_steps(spec, cwd, sync, cb)
     if not step then
       return cb(outs[#outs] or "", failed)
     end
+    if step.fn then
+      handle(run_fn(step))
+      return nxt()
+    end
     local ok, err = pcall(vim.system, argv(step), sys_opts(step), function(obj)
       vim.schedule(function()
         handle(obj)
@@ -1091,6 +1109,7 @@ local function run_steps(spec, cwd, sync, cb)
   end
   nxt()
 end
+M.run_steps = run_steps
 
 --- Run code and call `cb(r)` with `r = { result, error? }`: `result` is
 --- the Babel value `org-babel-execute:LANG` returns. With `opts.sync` the
@@ -1152,6 +1171,13 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
       end
       done({ result = value, error = failed or nil })
     end)
+    return result
+  end
+  local ob = require("org.babel.ob")
+  local handler = ob.get(lang)
+  if handler then
+    -- a language with its own port of ob-LANG.el (org.babel.lang.*)
+    ob.run(handler, lang, body, args, vars, { bufnr = bufnr, cwd = cwd, sync = sync }, done)
     return result
   end
   local cmd = lang_cmd(lang, args)

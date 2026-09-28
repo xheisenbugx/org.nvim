@@ -1248,6 +1248,16 @@ M.defaults = {
       cpp = { cmd = "g++", ext = "cpp" },
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
+      -- ports of ob-LANG.el (see |org-babel-languages|); the other keys are
+      -- that file's options
+      plantuml = {
+        default_header_args = { results = "file", exports = "results" },
+        exec_mode = "jar", -- org-plantuml-exec-mode: "jar" or "plantuml"
+        jar_path = "", -- org-plantuml-jar-path
+        executable_path = "plantuml", -- org-plantuml-executable-path
+        args = { "-headless" }, -- org-plantuml-args
+        svg_text_to_path = false, -- org-babel-plantuml-svg-text-to-path
+      },
     },
     -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
     -- table formulas can't evaluate (macros, capture, diary sexps, headers)
