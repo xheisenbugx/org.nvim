@@ -1278,6 +1278,13 @@ M.defaults = {
         jar_path = "", -- org-ditaa-jar-path
         eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
       },
+      -- backend (org-babel-clojure-backend): "babashka", "clojure-cli" or
+      -- "nbb"; nil picks babashka or clojure-cli when installed.
+      -- babashka_command / cli_command / nbb_command: ob-clojure-*-command
+      -- (nil: bb, clojure -M, nbb or npx nbb found on $PATH)
+      clojure = { ext = "clj", default_ns = "user" }, -- default_ns: org-babel-clojure-default-ns
+      -- backend (org-babel-clojurescript-backend): nil is nbb when installed
+      clojurescript = { ext = "cljs" },
       fortran = { cmd = "gfortran", ext = "F90" }, -- cmd: org-babel-fortran-compiler
       java = {
         default_header_args = { results = "output", dir = "." },
