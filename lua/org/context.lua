@@ -494,7 +494,7 @@ function M.shift_up()
     return true
   end
   local lnum, _, line = cur()
-  if is_headline(line) then
+  if is_headline(line) and require("org.priority").enabled(true) then
     return require("org.priority").shift(nil, 1)
   end
   if in_table(line) then
@@ -514,7 +514,7 @@ function M.shift_down()
     return true
   end
   local lnum, _, line = cur()
-  if is_headline(line) then
+  if is_headline(line) and require("org.priority").enabled(true) then
     return require("org.priority").shift(nil, -1)
   end
   if in_table(line) then

@@ -57,6 +57,13 @@
 ---C-c C-t opens the fast-selection menu when keywords have keys; `false`
 ---always cycles. (Emacs `org-use-fast-todo-selection`, default: `"auto"`)
 ---@field use_fast_todo_selection? "auto"|false
+---<S-Left>/<S-Right> on a headline are real state changes (logged and
+---blocked); `false` changes the keyword without logging or blocking.
+---(Emacs `org-treat-S-cursor-todo-selection-as-state-change`, default: `true`)
+---@field treat_S_cursor_todo_selection_as_state_change? boolean
+---M-S-RET / C-S-RET set the new heading's keyword as a logged state change.
+---(Emacs `org-treat-insert-todo-heading-as-state-change`, default: `false`)
+---@field treat_insert_todo_heading_as_state_change? boolean
 ---Which child headlines statistics cookies count: `true` (entries with a
 ---TODO keyword), `"all-headlines"`, a list of keywords (plus done ones) or
 ---`{ todo_keywords, done_keywords }`; `false` stops updating cookies on
@@ -71,6 +78,9 @@
 ---Logging when an entry is marked DONE: `false`, `"time"` (add `CLOSED:`)
 ---or `"note"` (`CLOSED:` plus a note). (Emacs `org-log-done`, default: `false`)
 ---@field log_done? false|"time"|"note"
+---`CLOSED:` records the time too; `false` records the date only.
+---(Emacs `org-log-done-with-time`, default: `true`)
+---@field log_done_with_time? boolean
 ---Logging when a repeating task is marked done.
 ---(Emacs `org-log-repeat`, default: `"time"`)
 ---@field log_repeat? false|"time"|"note"
@@ -90,6 +100,10 @@
 ---Put the newest log entries first.
 ---(Emacs `org-log-states-order-reversed`, default: `true`)
 ---@field log_states_order_reversed? boolean
+---Without a log drawer, notes go after the clock lines and drawers that
+---follow the headline. (Emacs `org-log-state-notes-insert-after-drawers`,
+---default: `false`)
+---@field log_state_notes_insert_after_drawers? boolean
 ---Type log notes in a small `*Org Note*` split (<C-c><C-c> stores,
 ---<C-c><C-k> cancels) like Emacs `org-add-log-note`; `false` asks with a
 ---one-line prompt. (default: `true`)
@@ -108,6 +122,9 @@
 ---hour as 23:59 of the previous day.
 ---(Emacs `org-use-effective-time`, default: `false`)
 ---@field use_effective_time? boolean
+---`CLOSED:` and log notes record the last clock-out time of the subtree.
+---(Emacs `org-use-last-clock-out-time-as-effective-time`, default: `false`)
+---@field use_last_clock_out_time_as_effective_time? boolean
 ---In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands act
 ---on every headline of the selection: `true`, `"start-level"` (only
 ---headlines of the first one's level) or `false`; a match string acts like
@@ -121,6 +138,17 @@
 ---Priority of entries without a cookie.
 ---(Emacs `org-priority-default`, default: `"B"`)
 ---@field priority_default? string
+---`false` disables the priority commands.
+---(Emacs `org-priority-enable-commands`, default: `true`)
+---@field priority_enable_commands? boolean
+---Shifting a headline without cookie starts at the default priority;
+---`false` starts one step past it.
+---(Emacs `org-priority-start-cycle-with-default`, default: `true`)
+---@field priority_start_cycle_with_default? boolean
+---Function receiving the headline line and returning the priority value
+---used for sorting (1000 per level). (Emacs
+---`org-priority-get-priority-function`, default: `nil`)
+---@field priority_get_priority_function? fun(line: string): number
 ---Tag groups (`[ GTD : Control Persp ]`) also match their members in tag
 ---searches and sparse trees; toggled by `toggle_tags_groups`.
 ---(Emacs `org-group-tags`, default: `true`)
@@ -132,6 +160,13 @@
 ---Show the TODO keywords with fast keys in the fast tag selection menu.
 ---(Emacs `org-fast-tag-selection-include-todo`, default: `false`)
 ---@field fast_tag_selection_include_todo? boolean
+---Fast tag selection: `"auto"` when some tag has a key, `true` always,
+---`false` never. (Emacs `org-use-fast-tag-selection`, default: `"auto"`)
+---@field use_fast_tag_selection? "auto"|boolean
+---How many tags fast selection shows, counting the tags with keys and the
+---tags in groups (always shown). (Emacs
+---`org-fast-tag-selection-maximum-tags`, default: `56`)
+---@field fast_tag_selection_maximum_tags? integer
 ---Tag completion offers the tags of every agenda file instead of the
 ---current buffer's. (Emacs `org-complete-tags-always-offer-all-agenda-tags`,
 ---default: `false`)
@@ -141,9 +176,22 @@
 ---mutually exclusive groups. A file's `#+TAGS:` replaces it.
 ---(Emacs `org-tag-alist`, default: `{}`)
 ---@field tags? string[]
+---Tags always available, in the format of `tags`, placed before `tags` or
+---`#+TAGS:`; `#+STARTUP: noptag` turns them off in a file.
+---(Emacs `org-tag-persistent-alist`, default: `{}`)
+---@field tags_persistent? string[]
+---Comparator (or list of comparators, the next one breaking ties) sorting
+---the tags set on a headline and the agenda's tag sorting.
+---(Emacs `org-tags-sort-function`, default: `nil`)
+---@field tags_sort_function? (fun(a: string, b: string): boolean)|(fun(a: string, b: string): boolean)[]
 ---Column tags are aligned to; negative = right-align so tags end at that
 ---column. (Emacs `org-tags-column`, default: `-77`)
 ---@field tags_column? integer
+---Realign tags after edits. (Emacs `org-auto-align-tags`, default: `true`)
+---@field auto_align_tags? boolean
+---Toggling ORDERED also toggles a tag: `true` (ORDERED) or a tag name.
+---(Emacs `org-track-ordered-property-with-tag`, default: `false`)
+---@field track_ordered_property_with_tag? boolean|string
 ---Whether tags are inherited by sub-headings: `true`, `false`, a list of the
 ---tags that inherit, or a regexp matching them.
 ---(Emacs `org-use-tag-inheritance`, default: `true`)
@@ -162,6 +210,14 @@
 ---`{ Effort_ALL = "0:10 0:30 1:00 2:00" }`.
 ---(Emacs `org-global-properties`, default: `{}`)
 ---@field global_properties? table<string, string>
+---Functions adjusting values given to `set_property`, by property name
+---(ignoring case); they get the value and `{ bufnr, lnum }`.
+---(Emacs `org-properties-postprocess-alist`, default: `{}`)
+---@field properties_postprocess? table<string, fun(value: string, target: table): string>
+---Separators joining `PROP` and `PROP+` values: `{ { names_or_regexp,
+---separator }, ... }`; a space otherwise.
+---(Emacs `org-property-separators`, default: `{}`)
+---@field property_separators? { [1]: string[]|string, [2]: string }[]
 ---Constants for table formulas (`$name`). `#+CONSTANTS:` lines in a file
 ---take precedence. (Emacs `org-table-formula-constants`, default: `{}`)
 ---@field table_formula_constants? table<string, string|number>

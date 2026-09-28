@@ -82,7 +82,7 @@ local function relevel(lines, delta, todo_cfg)
     if p then
       -- like org-promote / org-demote: change the stars, realign the tags
       out[i] = string.rep("*", math.max(1, p.level + delta)) .. l:sub(#l:match("^%*+") + 1)
-      if #p.tags > 0 then
+      if #p.tags > 0 and edit.auto_align_tags() then
         local s = out[i]:find("[ \t]+:[^%s]+:[ \t]*$")
         if s then
           out[i] = edit.with_tags(out[i]:sub(1, s - 1), p.tags)
@@ -393,7 +393,7 @@ function M.insert_heading_at_point(opts)
         if tb.text:sub(tb.point, tb:line_end() - 1):match("^[ \t]*$") then
           tb:delete(tb.point, tb:line_end())
         else
-          local new = edit.align_tags_line(tb:line(), todo_cfg())
+          local new = edit.auto_align_tags() and edit.align_tags_line(tb:line(), todo_cfg()) or tb:line()
           tb.text = tb.text:sub(1, bol - 1) .. new .. tb.text:sub(tb:line_end())
         end
         tb:goto(tb:line_end(bol))
@@ -497,7 +497,21 @@ function M.meta_return_heading(opts)
     local row = cursor()[1]
     local todo = require("org.todo")
     local kw = todo.default_state(todo_for_new_heading(bufnr, row, opts.arg), nil)
-    add_todo_keyword(bufnr, kw ~= "" and kw or nil)
+    if config.opts.treat_insert_todo_heading_as_state_change and kw ~= "" and kw then
+      -- org-treat-insert-todo-heading-as-state-change: a real state change,
+      -- logged like C-c C-t
+      local line = get_lines(bufnr, row, row)[1]
+      local stars = line and line:match("^%*+ ")
+      if stars and todo.change_state({ bufnr = bufnr, lnum = row }, kw) then
+        local now = get_lines(bufnr, row, row)[1]
+        if now == stars .. kw then
+          set_lines(bufnr, row, row, { now .. " " })
+        end
+        vim.api.nvim_win_set_cursor(0, { row, #stars + #kw + 1 })
+      end
+    else
+      add_todo_keyword(bufnr, kw ~= "" and kw or nil)
+    end
     require("org.lists").update_statistics_for(bufnr, cursor()[1])
     local hl = files.get_buffer(bufnr):headline_on(cursor()[1])
     if hl then
