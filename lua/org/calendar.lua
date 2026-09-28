@@ -10,6 +10,11 @@
 --- `.` today, `i`/`t` type a date (org-read-date syntax, e.g. "+3d",
 --- "fri 14:00", "2026-10-01"), `T` set/clear the time, <CR> select,
 --- `x`/<Del> remove, q/<Esc> cancel.
+---
+--- The float shows the month with ISO week numbers and the neighbouring
+--- months' days, today and the selection, and the chosen date in long
+--- form with its distance from today. Colors are the OrgCalendar*
+--- highlight groups (linked to standard groups; override them freely).
 
 local date = require("org.date")
 local utils = require("org.utils")
@@ -18,51 +23,186 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.calendar")
 
-local function render(sel, opts)
-  local today = date.today()
-  local first = date.Date.new({ year = sel.year, month = sel.month, day = 1 })
-  local lines = {}
-  local marks = {}
-  local header = string.format("%s %d", date.MONTH_NAMES_LONG[sel.month], sel.year)
-  local width = 22
-  lines[1] = string.rep(" ", math.floor((width - #header) / 2)) .. header
-  lines[2] = " Mo Tu We Th Fr Sa Su"
-  marks[#marks + 1] = { 0, 0, #lines[1], "Title" }
-  marks[#marks + 1] = { 1, 0, #lines[2], "Comment" }
-  local offset = first:weekday() - 1
-  local dim = date.days_in_month(sel.year, sel.month)
-  local row = string.rep("   ", offset)
-  local col_count = offset
-  for d = 1, dim do
-    local cell = string.format(" %2d", d)
-    local start = #row
-    row = row .. cell
-    local lnum = #lines
-    if d == sel.day then
-      marks[#marks + 1] = { lnum, start + 1, start + 3, "Visual", true }
+-- Highlight groups, linked to standard groups so any colorscheme works;
+-- override them with nvim_set_hl (they are defined with `default`).
+local HL = {
+  OrgCalendarTitle = { link = "Title" },
+  OrgCalendarArrow = { link = "Special" },
+  OrgCalendarWeekday = { link = "Comment" },
+  OrgCalendarWeekendHeader = { link = "Constant" },
+  OrgCalendarDay = { link = "Normal" },
+  OrgCalendarWeekend = { link = "Constant" },
+  OrgCalendarOutside = { link = "NonText" },
+  OrgCalendarWeekNumber = { link = "LineNr" },
+  OrgCalendarToday = { bold = true, underline = true },
+  OrgCalendarSelected = { link = "PmenuSel" },
+  OrgCalendarDate = { link = "Function" },
+  OrgCalendarTimestamp = { link = "String" },
+  OrgCalendarRelative = { link = "Comment" },
+  OrgCalendarSeparator = { link = "FloatBorder" },
+  OrgCalendarKey = { link = "Special" },
+  OrgCalendarHint = { link = "Comment" },
+}
+
+local function define_highlights()
+  for name, spec in pairs(HL) do
+    vim.api.nvim_set_hl(0, name, vim.tbl_extend("force", spec, { default = true }))
+  end
+end
+define_highlights()
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = vim.api.nvim_create_augroup("org.calendar", { clear = true }),
+  callback = define_highlights,
+})
+
+local CELL = 4 -- " 26 "
+local MARGIN = 1
+local WEEK = 4 -- " 39 " ISO week column
+M.WIDTH = MARGIN + WEEK + 7 * CELL + MARGIN
+
+--- ISO 8601 week number of a day number.
+local function iso_week(days)
+  local d = date.from_days(days)
+  local thursday = days - (d:weekday() - 1) + 3
+  local y = date.from_days(thursday).year
+  return math.floor((thursday - date.days_from_civil(y, 1, 1)) / 7) + 1
+end
+
+--- "today", "tomorrow", "in 3 days", "2 weeks ago"...
+function M.relative(days)
+  if days == 0 then
+    return "today"
+  elseif days == 1 then
+    return "tomorrow"
+  elseif days == -1 then
+    return "yesterday"
+  end
+  local n, unit = math.abs(days), "days"
+  if n >= 14 and n % 7 == 0 then
+    n, unit = n / 7, "weeks"
+  end
+  return days > 0 and string.format("in %d %s", n, unit) or string.format("%d %s ago", n, unit)
+end
+
+--- Lines and highlights of the calendar for the selected date `sel`.
+--- Marks are { row, start_col, end_col, hl_group, priority } (0-based, bytes).
+---@param sel table date
+---@param opts? { allow_remove?: boolean, today?: table }
+---@return string[] lines, table[] marks
+function M.render(sel, opts)
+  opts = opts or {}
+  local today = opts.today or date.today()
+  local lines, marks = {}, {}
+  local function add(line)
+    lines[#lines + 1] = line
+    return #lines - 1
+  end
+  local function mark(row, s, e, group, prio)
+    marks[#marks + 1] = { row, s, e, group, prio or 100 }
+  end
+  local pad = string.rep(" ", MARGIN)
+  local rule = pad .. string.rep("─", M.WIDTH - 2 * MARGIN)
+
+  -- ‹  September 2026  ›
+  add("")
+  local title = string.format("%s %d", date.MONTH_NAMES_LONG[sel.month], sel.year)
+  local inner = M.WIDTH - 2 * MARGIN - 2
+  local left = math.floor((inner - #title) / 2)
+  local line = pad .. "‹" .. string.rep(" ", left) .. title .. string.rep(" ", inner - left - #title) .. "›"
+  local row = add(line)
+  mark(row, MARGIN, MARGIN + #"‹", "OrgCalendarArrow")
+  local ts = MARGIN + #"‹" + left
+  mark(row, ts, ts + #title, "OrgCalendarTitle")
+  mark(row, #line - #"›", #line, "OrgCalendarArrow")
+  add("")
+
+  -- weekday header
+  line = pad .. " Wk "
+  local header = { "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su" }
+  row = #lines
+  local hmarks = { { MARGIN, MARGIN + WEEK, "OrgCalendarWeekNumber" } }
+  for i, name in ipairs(header) do
+    local s = #line + 1
+    line = line .. " " .. name .. " "
+    hmarks[#hmarks + 1] = { s, s + 2, i >= 6 and "OrgCalendarWeekendHeader" or "OrgCalendarWeekday" }
+  end
+  add(line)
+  for _, m in ipairs(hmarks) do
+    mark(row, m[1], m[2], m[3])
+  end
+
+  -- six weeks, starting on the Monday on or before the 1st
+  local first = date.days_from_civil(sel.year, sel.month, 1)
+  local start = first - (date.from_days(first):weekday() - 1)
+  local sel_days, today_days = sel:days(), today:days()
+  for w = 0, 5 do
+    local week_start = start + 7 * w
+    line = pad .. string.format(" %2d ", iso_week(week_start))
+    row = #lines
+    mark(row, MARGIN, MARGIN + WEEK, "OrgCalendarWeekNumber")
+    for i = 0, 6 do
+      local days = week_start + i
+      local d = date.from_days(days)
+      local s = #line
+      line = line .. string.format(" %2d ", d.day)
+      local group = d.month ~= sel.month and "OrgCalendarOutside"
+        or (i >= 5 and "OrgCalendarWeekend" or "OrgCalendarDay")
+      mark(row, s + 1, s + 3, group)
+      if days == today_days then
+        mark(row, s + 1, s + 3, "OrgCalendarToday", 150)
+      end
+      if days == sel_days then
+        mark(row, s, s + CELL, "OrgCalendarSelected", 200)
+      end
     end
-    if today.year == sel.year and today.month == sel.month and today.day == d then
-      marks[#marks + 1] = { lnum, start + 1, start + 3, "Special" }
+    add(line)
+  end
+
+  -- the selected date: long form, timestamp and distance from today
+  row = add(rule)
+  mark(row, MARGIN, #rule, "OrgCalendarSeparator")
+  local long = string.format(
+    "%s, %d %s %d",
+    date.DAY_NAMES_LONG[sel:weekday()],
+    sel.day,
+    date.MONTH_NAMES_LONG[sel.month],
+    sel.year
+  )
+  row = add(pad .. long)
+  mark(row, MARGIN, MARGIN + #long, "OrgCalendarDate")
+  local stamp = sel:to_string()
+  local rel = M.relative(sel_days - today_days)
+  local gap = math.max(1, M.WIDTH - 2 * MARGIN - vim.fn.strdisplaywidth(stamp) - #rel)
+  line = pad .. stamp .. string.rep(" ", gap) .. rel
+  row = add(line)
+  mark(row, MARGIN, MARGIN + #stamp, "OrgCalendarTimestamp")
+  mark(row, #line - #rel, #line, "OrgCalendarRelative")
+  row = add(rule)
+  mark(row, MARGIN, #rule, "OrgCalendarSeparator")
+
+  -- key hints: keys highlighted, descriptions dimmed
+  local hints = {
+    { { "hjkl", "day/week" }, { "HL", "month" }, { "JK", "year" } },
+    { { ".", "today" }, { "i", "type" }, { "T", "time" } },
+    { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { "esc", "cancel" } },
+  }
+  for _, group in ipairs(hints) do
+    line = pad
+    local hm = {}
+    for _, h in pairs(group) do
+      if #line > MARGIN then
+        line = line .. "  "
+      end
+      hm[#hm + 1] = { #line, #line + #h[1], "OrgCalendarKey" }
+      line = line .. h[1] .. " "
+      hm[#hm + 1] = { #line, #line + #h[2], "OrgCalendarHint" }
+      line = line .. h[2]
     end
-    col_count = col_count + 1
-    if col_count == 7 then
-      lines[#lines + 1] = row
-      row, col_count = "", 0
+    row = add(line)
+    for _, m in ipairs(hm) do
+      mark(row, m[1], m[2], m[3])
     end
   end
-  if row ~= "" then
-    lines[#lines + 1] = row
-  end
-  -- fix marks line numbers: marks were computed with lnum = index before push
-  lines[#lines + 1] = ""
-  lines[#lines + 1] = " " .. sel:to_string()
-  marks[#marks + 1] = { #lines - 1, 0, #lines[#lines], "String" }
-  lines[#lines + 1] = ""
-  local help = " hjkl move  HL month  JK year  . today"
-  lines[#lines + 1] = help
-  lines[#lines + 1] = " i type  T time  CR ok" .. (opts.allow_remove and "  x remove" or "") .. "  Esc quit"
-  marks[#marks + 1] = { #lines - 2, 0, #lines[#lines - 1], "Comment" }
-  marks[#marks + 1] = { #lines - 1, 0, #lines[#lines], "Comment" }
   return lines, marks
 end
 
@@ -88,19 +228,41 @@ function M.pick(opts)
     end
     sel.hour, sel.min = now.hour, now.min
   end
-  while true do
-    local lines, marks = render(sel, opts)
-    local buf, win = require("org.ui").float(lines, { title = opts.prompt or "Date", width = 38 })
+  -- one window for the whole session: redrawn in place on every key
+  local buf, win
+  local function draw()
+    local lines, marks = M.render(sel, opts)
+    if not (win and vim.api.nvim_win_is_valid(win)) then
+      buf, win = require("org.ui").float(lines, { title = opts.prompt or "Date", width = M.WIDTH, enter = false })
+      vim.wo[win].winhighlight = "Normal:NormalFloat"
+    else
+      vim.bo[buf].modifiable = true
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      vim.bo[buf].modifiable = false
+      vim.api.nvim_win_set_config(win, { height = #lines })
+    end
+    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
     for _, m in ipairs(marks) do
-      pcall(vim.api.nvim_buf_set_extmark, buf, ns, m[1], m[2], { end_col = m[3], hl_group = m[4], priority = m[5] and 200 or 100 })
+      pcall(vim.api.nvim_buf_set_extmark, buf, ns, m[1], m[2], { end_col = m[3], hl_group = m[4], priority = m[5] })
     end
     vim.cmd("redraw")
-    local ok, ch = pcall(vim.fn.getcharstr)
-    if vim.api.nvim_win_is_valid(win) then
+  end
+  local function close()
+    if win and vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
-    if not ok or ch == "\27" or ch == "\3" then
+    win = nil
+  end
+  while true do
+    draw()
+    local ok, ch = pcall(vim.fn.getcharstr)
+    if not ok or ch == "\27" or ch == "\3" or ch == "q" then
+      close()
       return nil
+    end
+    if ch == "i" or ch == "t" or ch == "T" or ch == "\r" or ch == "\n" or ch == "x" or ch == key("<Del>") then
+      -- prompts and results appear without the float in the way
+      close()
     end
     if ch == "\r" or ch == "\n" then
       return sel

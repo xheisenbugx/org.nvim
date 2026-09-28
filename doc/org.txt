@@ -830,7 +830,12 @@ Timestamps:
 <CR>            On a timestamp: open the agenda for that day.
 
 The calendar                                                   *org-calendar*
-Date prompts open a floating calendar:
+Date prompts open a floating calendar. It shows the month (with `‹ ›`
+around the title) as six weeks with ISO week numbers, so the days of the
+neighbouring months fill the grid, dimmed. Weekends are tinted, today is
+underlined and the selected day is highlighted. Below the grid are the
+selected date in full, its timestamp and its distance from today ("in 3
+days", "yesterday"), then the keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
@@ -845,6 +850,25 @@ A count of 4 (`C-u`) before the schedule/deadline key removes the date; a
 count of 16 (`C-u C-u`) instead asks for a date and sets the warning period
 (DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
 date, e.g. `<2026-10-10 Sat -5d>`. Other counts are ignored, like Emacs.
+
+The colors are highlight groups linked to standard ones, so they follow
+the colorscheme; override any of them with |nvim_set_hl()|:
+  OrgCalendarTitle     month and year        (Title)
+  OrgCalendarArrow     ‹ ›                   (Special)
+  OrgCalendarWeekday   Mo … Fr header        (Comment)
+  OrgCalendarWeekendHeader  Sa Su header     (Constant)
+  OrgCalendarDay       days of the month     (Normal)
+  OrgCalendarWeekend   Saturdays, Sundays    (Constant)
+  OrgCalendarOutside   other months' days    (NonText)
+  OrgCalendarWeekNumber  ISO week numbers    (LineNr)
+  OrgCalendarToday     today                 (bold, underline)
+  OrgCalendarSelected  the selected day      (PmenuSel)
+  OrgCalendarDate      the date in full      (Function)
+  OrgCalendarTimestamp its timestamp         (String)
+  OrgCalendarRelative  "in 3 days"           (Comment)
+  OrgCalendarSeparator rules                 (FloatBorder)
+  OrgCalendarKey       keys of the hints     (Special)
+  OrgCalendarHint      their descriptions    (Comment)
 
 Date input (like org-read-date)                                 *org-read-date*
 The typed text is read like Emacs org-read-date-analyze:
