@@ -161,6 +161,7 @@ function M.check()
   end
 
   require("org.health.terminal").check(h)
+  require("org.extensions").check(h)
 end
 
 return M

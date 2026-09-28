@@ -454,6 +454,7 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 - [Statusline](#statusline)
 - [Parity with Emacs Org](#-parity-with-emacs-org)
 - [Differences from Emacs Org mode](#differences-from-emacs-org-mode)
+- [Extensions](#-extensions)
 - [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
 
@@ -915,6 +916,24 @@ The main differences:
 - Captures without `:unnarrowed` are edited in a separate buffer and show
   up in the target file when they are finished (Neovim has no indirect
   buffers).
+
+---
+
+## 🧩 Extensions
+
+Optional features modelled on popular third-party Emacs Org packages ship
+with org.nvim but stay unloaded until you enable them in `extensions`:
+
+```lua
+require("org").setup({
+  extensions = {
+    roam = { directory = "~/roam" }, -- options are merged over its defaults
+  },
+})
+```
+
+`false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
+the enabled ones. See `:h org-extensions`.
 
 ---
 
