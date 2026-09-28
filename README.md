@@ -167,8 +167,10 @@ from `Effort_ALL`, and `<leader>op` sets any property.
 ### Dates with a real calendar
 
 `<leader>os` (schedule) and `<leader>od` (deadline) open a floating
-calendar. Move around it with `hjkl`, or press `i` and type a date the way
-you'd say it: `fri 14:00`, `+2w`, `sep 15`, `w39`.
+calendar with week numbers, today and weekends marked, and a preview of
+the chosen date ("in 3 days"). Move around it with `hjkl`, or press `i`
+and type a date the way you'd say it: `fri 14:00`, `+2w`, `sep 15`, `w39`.
+Its colors are `OrgCalendar*` highlight groups (`:h org-calendar`).
 
 ![Scheduling a task from the calendar and typing "fri 14:00" for a deadline](docs/media/dates.gif)
 
@@ -852,7 +854,7 @@ By area:
 | 🔗 Links | `▰▰▰▰▰▰▰▰▱▱` 85% | No `elisp:` links or Emacs application links (Gnus, mu4e, BBDB) |
 | ⏱️ Clocking and timers | `▰▰▰▰▰▰▰▰▰▱` 90% | Clock tables match Emacs output; times in the repeated autumn DST hour stay ambiguous, as in Emacs |
 | 🧮 Tables and spreadsheet | `▰▰▰▰▰▰▰▰▱▱` 80% | Calc and Lisp formulas cover what tables commonly use, not all of GNU Calc |
-| 🧪 Babel | `▰▰▰▰▰▰▰▱▱▱` 70% | No Emacs Lisp blocks; sessions run each block as one request |
+| 🧪 Babel | `▰▰▰▰▰▰▰▱▱▱` 75% | Every block runs in the background and `:session :async` works like Emacs; no Emacs Lisp blocks; sessions run each block as one request |
 | 📤 Export | `▰▰▰▰▰▰▰▰▱▱` 80% | HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar are native; ODT and Texinfo go through Pandoc; no `#+BIND` |
 | 🖼️ Images and LaTeX previews | `▰▰▰▰▰▰▰▰▱▱` 80% | Drawn below the line instead of replacing the link; needs an image-capable terminal |
 | 📰 Feeds and MobileOrg | `▱▱▱▱▱▱▱▱▱▱` 0% | RSS/Atom feeds (`org-feed`) and MobileOrg are not implemented |
@@ -907,13 +909,19 @@ The main differences:
 
 ## 🗺️ Roadmap
 
-Ideas that would need more than core Neovim:
+What's still missing, from the [parity](#-parity-with-emacs-org) gaps:
 
-- [x] Inline image and LaTeX previews (`vim.ui.img`, snacks.image, image.nvim)
-- [ ] Column view as overlays on headlines
-- [x] Async Babel sessions (`:async`): every block already runs in the
-      background; `:async` adds Emacs's placeholder result, so a
-      session's result lands even if you edit the block while it runs
+- [ ] Column view as overlays on the headlines (today it is a table view)
+- [ ] RSS/Atom feeds (`org-feed`)
+- [ ] Native ODT and Texinfo exporters (today they go through Pandoc)
+- [ ] Configurable duration units and custom full date formats
+- [ ] `#+TYP_TODO` keywords that jump straight to DONE, like Emacs
+- [ ] Capture `:unnarrowed` and extended-today dates
+- [ ] Images and LaTeX drawn in place of the link, not below it
+
+Anything that needs Emacs Lisp itself (`elisp:` links, Emacs Lisp Babel
+blocks, `%(sexp)` templates, `#+BIND`) can't run in Neovim and isn't
+planned; see [Differences from Emacs Org mode](#differences-from-emacs-org-mode).
 
 If there's something you'd like that isn't here,
 [open an issue](https://github.com/xheisenbugx/org.nvim/issues).
