@@ -47,6 +47,9 @@ end
 
 _G.it = function(name, fn)
   local full = table.concat(stack, " > ") .. " > " .. name
+  -- specs call commands directly, which read v:count: don't let one test's
+  -- count (e.g. a fed "3<C-c><C-s>") leak into the next
+  vim.cmd("normal! \27")
   local ok, err = pcall(function()
     for _, level in ipairs(befores) do
       for _, b in ipairs(level) do
