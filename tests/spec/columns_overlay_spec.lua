@@ -65,6 +65,7 @@ describe("overlay column view", function()
     eq(lines, buf_lines())
     ok(vim.wo.winbar:find("ITEM         | TODO | Effort |", 1, true), vim.wo.winbar)
     eq(false, vim.wo.wrap)
+    ok(vim.wo.winhighlight:find("Folded:Normal", 1, true), vim.wo.winhighlight)
     local rows = vim.tbl_keys(columns.overlay_lines(vim.api.nvim_get_current_buf()))
     table.sort(rows)
     eq({ 2, 3, 8, 13 }, rows)
@@ -72,7 +73,25 @@ describe("overlay column view", function()
     ok(not columns.active())
     eq(nil, row(2))
     eq("", vim.wo.winbar)
+    eq("", vim.wo.winhighlight)
     eq(wrap, vim.wo.wrap)
+  end)
+
+  it("keeps cell faces off the padding and separators", function()
+    org_buffer({ "#+COLUMNS: %12ITEM %TODO %PRIORITY", "* TODO [#B] Task" }, { 1, 0 })
+    columns.open()
+    local m = vim.api.nvim_buf_get_extmarks(0, ns, { 1, 0 }, { 1, -1 }, { details = true })[1]
+    local faced = {}
+    for _, chunk in ipairs(m[4].virt_text) do
+      local hl = type(chunk[2]) == "table" and chunk[2] or { chunk[2] }
+      if not vim.tbl_contains({ "OrgColumn", "Normal" }, hl[#hl]) then
+        faced[#faced + 1] = chunk[1]
+      end
+      if chunk[1]:find("|", 1, true) then
+        eq("OrgColumn", hl[#hl])
+      end
+    end
+    eq({ "* Task", "TODO", "B" }, faced)
   end)
 
   it("covers only the subtree at point when there is no COLUMNS above it", function()
