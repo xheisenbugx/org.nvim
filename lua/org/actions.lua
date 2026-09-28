@@ -15,6 +15,7 @@ local M = {}
 ---@field modes? string[] default { "n" }
 ---@field global? boolean available outside org buffers
 ---@field sync? boolean call synchronously (no coroutine) - for text objects / expr
+---@field toggle? boolean the function returns the new on/off state, so `false` (toggled off) is still handled
 ---@field group? string section title in `g?` (set by `group`)
 
 M.list = {}
@@ -129,6 +130,7 @@ group("Structure", {
     "toggle_archive_tag",
     desc = "Toggle ARCHIVE tag (Visual: all headlines)",
     modes = { "n", "x" },
+    toggle = true,
   },
   toggle_heading = { "org.structure", "toggle_heading", desc = "Toggle heading", modes = { "n", "x" } },
   toggle_item = { "org.lists", "toggle_item", desc = "Toggle list item", modes = { "n", "x" } },
@@ -167,6 +169,7 @@ group("Navigation & elements", {
     "org.lists",
     "checkbox_radio_mode",
     desc = "Toggle checkboxes as radio buttons (org-list-checkbox-radio-mode)",
+    toggle = true,
   },
   toggle_pretty_entities = { "org.ui.decorations", "toggle_pretty_entities", desc = "Toggle pretty entities" },
   num_mode = { "org.ui.decorations", "toggle_num_mode", desc = "Toggle headline numbering (org-num-mode)" },
@@ -264,6 +267,7 @@ group("Clock & effort", {
     "toggle_auto_clockout",
     desc = "Toggle auto clock-out after idle time",
     global = true,
+    toggle = true,
   },
   clock_display = { "org.clock", "toggle_display", desc = "Display clock sums" },
 })
@@ -415,10 +419,25 @@ group("Tables", {
   table_toggle_column_width = { "org.table", "toggle_column_width", desc = "Shrink / expand table column" },
   table_shrink = { "org.table", "shrink", desc = "Shrink table columns with width cookies" },
   table_expand = { "org.table", "expand", desc = "Expand all table columns" },
-  table_formula_debugger = { "org.table", "toggle_formula_debugger", desc = "Toggle table formula debugger" },
+  table_formula_debugger = {
+    "org.table",
+    "toggle_formula_debugger",
+    desc = "Toggle table formula debugger",
+    toggle = true,
+  },
   table_edit_formulas = { "org.table", "edit_formulas", desc = "Edit table formulas" },
-  table_follow_field_mode = { "org.table", "toggle_follow_field_mode", desc = "Toggle table follow-field mode" },
-  table_header_line_mode = { "org.table", "header_line_mode", desc = "Toggle table header-line mode" },
+  table_follow_field_mode = {
+    "org.table",
+    "toggle_follow_field_mode",
+    desc = "Toggle table follow-field mode",
+    toggle = true,
+  },
+  table_header_line_mode = {
+    "org.table",
+    "header_line_mode",
+    desc = "Toggle table header-line mode",
+    toggle = true,
+  },
   table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
   table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
   table_el = { "org.table", "table_el", desc = "Convert table to/from table.el, or insert one" },
@@ -493,7 +512,7 @@ end
 --- Run an action inside a coroutine. Returns true when handled; false when
 --- the action reported it does not apply at the cursor (mappings then fall
 --- back to the key's default behaviour). Unknown actions report an error
---- and count as handled.
+--- and count as handled, as do `toggle` actions whatever they return.
 ---
 --- ```lua
 --- require("org.actions").run("todo_next")
@@ -502,12 +521,12 @@ end
 ---@param ... any passed to the action function
 ---@return boolean handled
 function M.run(name, ...)
-  local fn = M.get(name)
+  local fn, a = M.get(name)
   if not fn then
     return true
   end
   local finished, result = require("org.utils").run(fn, ...)
-  return not (finished and result == false)
+  return a.toggle or not (finished and result == false)
 end
 
 return M
