@@ -139,12 +139,20 @@ function M.rp(args)
   return require("org.babel.results").result_params(args)
 end
 
---- `org-babel-result-cond`: keep `raw` as a string, or convert it with `fn`.
-function M.result_cond(args, raw, fn)
+--- `org-babel-result-cond`: keep `raw` as a string (or pass it to
+--- `scalar_fn`), or convert it with `fn`.
+function M.result_cond(args, raw, fn, scalar_fn)
   if require("org.babel.langs").scalar_result(args) then
-    return raw
+    return scalar_fn and scalar_fn(raw) or raw
   end
   return fn(raw)
+end
+
+--- `org-babel-read` (Lisp forms evaluated unless `inhibit_lisp`), keeping
+--- the text when it can't be read.
+function M.babel_read(s, inhibit_lisp)
+  local ok, v = pcall(lisp.read, s, inhibit_lisp)
+  return ok and v or s
 end
 
 --- `org-babel-script-escape` whose top-level elements pass through

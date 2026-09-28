@@ -1278,6 +1278,7 @@ M.defaults = {
         jar_path = "", -- org-ditaa-jar-path
         eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
       },
+      fortran = { cmd = "gfortran", ext = "F90" }, -- cmd: org-babel-fortran-compiler
       gnuplot = {
         cmd = "gnuplot",
         default_header_args = { results = "file", exports = "results" },
