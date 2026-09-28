@@ -981,6 +981,33 @@ end
 
 local file_cache = {}
 
+--- Entries of the bibliography file `real` (an absolute name), parsed
+--- again only when the file changed. Returns nil when it is unreadable.
+function M.read_bibliography_file(real)
+  local st = vim.uv.fs_stat(real)
+  if not st then
+    return nil
+  end
+  local cached = file_cache[real]
+  local mtime = st.mtime.sec * 1e9 + st.mtime.nsec
+  if not cached or cached.mtime ~= mtime or cached.size ~= st.size then
+    local lines = utils.readfile(real) or {}
+    local content = table.concat(lines, "\n")
+    local ext = real:match("%.([^./]+)$")
+    local entries
+    if ext == "json" then
+      entries = M.parse_json(content)
+    elseif ext == "bib" or ext == "bibtex" then
+      entries = M.parse_bibtex(content)
+    else
+      error(fmt("Unknown bibliography extension: %q", tostring(ext)), 0)
+    end
+    cached = { mtime = mtime, size = st.size, entries = entries }
+    file_cache[real] = cached
+  end
+  return cached.entries
+end
+
 --- Parsed bibliography: list of { file, entries } (org-cite-basic--parse-bibliography).
 function M.parse_bibliography(info)
   if info.cite_basic_bibliography then
@@ -990,26 +1017,9 @@ function M.parse_bibliography(info)
   for _, f in ipairs(info.bibliography or {}) do
     local path = M.bibliography_path(f, info)
     local real = vim.uv.fs_realpath(path) or path
-    local st = vim.uv.fs_stat(real)
-    if st then
-      local cached = file_cache[real]
-      local mtime = st.mtime.sec * 1e9 + st.mtime.nsec
-      if not cached or cached.mtime ~= mtime then
-        local lines = utils.readfile(real) or {}
-        local content = table.concat(lines, "\n")
-        local ext = real:match("%.([^./]+)$")
-        local entries
-        if ext == "json" then
-          entries = M.parse_json(content)
-        elseif ext == "bib" or ext == "bibtex" then
-          entries = M.parse_bibtex(content)
-        else
-          error(fmt("Unknown bibliography extension: %q", tostring(ext)), 0)
-        end
-        cached = { mtime = mtime, entries = entries }
-        file_cache[real] = cached
-      end
-      results[#results + 1] = { real, cached.entries }
+    local entries = M.read_bibliography_file(real)
+    if entries then
+      results[#results + 1] = { real, entries }
     end
   end
   info.cite_basic_bibliography = results
@@ -1345,6 +1355,16 @@ M.basic = basic
 M.processors.basic = {
   export_citation = basic.export_citation,
   export_bibliography = basic.export_bibliography,
+  -- { { style, shortcuts... }, { variant, shortcuts... }... } (:cite-styles)
+  cite_styles = {
+    { { "author", "a" }, { "caps", "c" } },
+    { { "noauthor", "na" }, { "bare", "b" } },
+    { { "nocite", "n" } },
+    { { "note", "ft" }, { "bare-caps", "bc" }, { "caps", "c" } },
+    { { "numeric", "nb" } },
+    { { "text", "t" }, { "bare-caps", "bc" }, { "caps", "c" } },
+    { { "nil" }, { "bare", "b" }, { "bare-caps", "bc" }, { "caps", "c" } },
+  },
 }
 
 ---------------------------------------------------------------------------
@@ -1432,6 +1452,30 @@ M.processors.natbib = {
   export_citation = natbib.export_citation,
   export_bibliography = natbib.export_bibliography,
   export_finalizer = natbib.finalize,
+  cite_styles = {
+    { { "author", "a" }, { "caps", "a" }, { "full", "f" } },
+    { { "noauthor", "na" }, { "bare", "b" } },
+    {
+      { "text", "t" },
+      { "bare", "b" },
+      { "caps", "c" },
+      { "full", "f" },
+      { "bare-caps", "bc" },
+      { "bare-full", "bf" },
+      { "caps-full", "cf" },
+      { "bare-caps-full", "bcf" },
+    },
+    {
+      { "nil" },
+      { "bare", "b" },
+      { "caps", "c" },
+      { "full", "f" },
+      { "bare-caps", "bc" },
+      { "bare-full", "bf" },
+      { "caps-full", "cf" },
+      { "bare-caps-full", "bcf" },
+    },
+  },
 }
 
 local bibtex = {}
@@ -1459,6 +1503,7 @@ end
 M.processors.bibtex = {
   export_citation = bibtex.export_citation,
   export_bibliography = bibtex.export_bibliography,
+  cite_styles = { { { "nocite", "n" } }, { { "nil" } } },
 }
 
 ---------------------------------------------------------------------------
@@ -1640,10 +1685,48 @@ function biblatex.finalize(output, _, files, style)
   return text_all:sub(1, point - 1) .. ins .. text_all:sub(point)
 end
 
+--- org-cite-biblatex-list-styles: styles having at least one variant, in
+--- table order; variants and shortcuts in reverse order, like Emacs.
+function biblatex.list_styles()
+  local shortcuts, variants, order = {}, {}, {}
+  local sc = opt("biblatex_style_shortcuts", M.BIBLATEX_SHORTCUTS)
+  local names = vim.tbl_keys(sc)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local full = sc[name]
+    shortcuts[full] = shortcuts[full] or {}
+    table.insert(shortcuts[full], 1, name)
+  end
+  for _, s in ipairs(opt("biblatex_styles", M.BIBLATEX_STYLES)) do
+    if s[2] then
+      local name = s[1] or "nil"
+      if not variants[name] then
+        variants[name] = {}
+        order[#order + 1] = name
+      end
+      table.insert(variants[name], 1, s[2])
+    end
+  end
+  local out = {}
+  for _, name in ipairs(order) do
+    local style = { name }
+    vim.list_extend(style, shortcuts[name ~= "nil" and name or ""] or {})
+    local entry = { style }
+    for _, v in ipairs(variants[name]) do
+      local variant = { v }
+      vim.list_extend(variant, shortcuts[v] or {})
+      entry[#entry + 1] = variant
+    end
+    out[#out + 1] = entry
+  end
+  return out
+end
+
 M.processors.biblatex = {
   export_citation = biblatex.export_citation,
   export_bibliography = biblatex.export_bibliography,
   export_finalizer = biblatex.finalize,
+  cite_styles = biblatex.list_styles,
 }
 
 ---------------------------------------------------------------------------

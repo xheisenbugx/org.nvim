@@ -2660,6 +2660,42 @@ with a blank line before each definition, like org-footnote-sort. The
 fnconfirm, fnplain, fnanon, fnadjust, nofnadjust, fninline and nofninline
 override the options for a file.
 
+Citations ~                                                        *org-cite*
+Citations `[cite/STYLE:prefix;@key suffix;...]` refer to entries of the
+bibliography files: `#+BIBLIOGRAPHY:` keywords (BibTeX .bib/.bibtex or
+CSL-JSON .json, relative to the file; setup files included) and
+`export.cite.global_bibliography`. See |org-export-cite| for export.
+
+<prefix>i@      Insert a citation at the cursor, or edit the one at the
+<C-c><C-x>@     cursor (org-cite-insert). Keys are chosen from the
+                bibliography, shown as author, year and title columns
+                (`export.cite.basic_author_column_end` 25,
+                `basic_column_separator` "  "); a new citation asks for keys
+                until the prompt is cancelled, or, with
+                `basic_complete_key_crm_separator` (a Vim regexp such as
+                "[ \t]*;;[ \t]*", or "dynamic" for ";;..."), reads them at one
+                prompt. On a key: replace it; right before its "@": add a
+                key before it; after the key: add one after it. On the
+                style part (`[cite/t:`): change the style; on the global
+                prefix / suffix: add a key first / last. With a count
+                (C-u): delete the reference or citation at the cursor, or
+                choose a style for a new citation.
+<CR>            On a citation: open the bibliography file at the entry of
+                the key (org-cite-follow); on the style or global affixes of
+                a citation with several keys, choose the key first.
+<LeftRelease>   A click on a known key opens its entry; on an unknown key,
+                replace it with a key at most
+                `export.cite.basic_max_key_distance` (2) edits away, or
+                insert one when none is close (Emacs mouse-1 on a key).
+
+Citations are highlighted with OrgCite and their keys with OrgCiteKey;
+keys missing from the bibliography get OrgCiteKeyUnknown (Emacs `error`
+face). `export.cite.activate_processor`, `follow_processor` and
+`insert_processor` ("basic") pick the processor of each capability; false
+turns insertion / following off, and highlights without checking keys.
+Other processors can be registered with
+`require("org.cite").register_processor(name, { activate, follow, insert })`.
+
 ==============================================================================
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
 
@@ -4586,6 +4622,10 @@ export ~                                                   *org-config-export*
   global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
+  cite also has the buffer options (|org-cite|): activate_processor,
+  follow_processor, insert_processor "basic", basic_max_key_distance 2,
+  basic_author_column_end 25, basic_column_separator "  ",
+  basic_complete_key_crm_separator nil.
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil
@@ -4616,6 +4656,7 @@ Section `org` (default key: action):
   <prefix>ih  insert_heading        <prefix>it  insert_todo_heading
   <prefix>is  insert_subheading     <prefix>id  insert_drawer
   <prefix>ib  insert_structure_template  <prefix>if  insert_footnote
+  <prefix>i@  cite_insert
   <<  promote_heading               >>  demote_heading
   <s  promote_subtree               >s  demote_subtree
   <M-h> <M-l> <M-k> <M-j>  meta_left/right/up/down
@@ -4697,6 +4738,7 @@ Structure and visibility:
   <C-c>;           toggle COMMENT       <C-c>@  mark (select) subtree
   <C-c><C-,>       structure template   <C-c><C-x>d  insert drawer
   <C-c><C-x>f      footnote             <C-c><C-x><C-f>  emphasize
+  <C-c><C-x>@      citation (cite_insert)  <LeftRelease>  cite_mouse_click
   <C-c>:           fixed-width          <C-c><C-*>  list to subtree
   <C-c><C-x><C-r>  radio button         <C-c><C-x>t  inline task
   <C-c><C-x>\      pretty entities      <C-M-t>  transpose elements
@@ -5043,6 +5085,14 @@ Differences from Emacs:
   The mode line entry is the |org-api| statusline component; clicking it
   has no menu. Timers use counts, so a countdown's C-u (default timer)
   has no count form: a count is always minutes.
+- Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
+  cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
+  is a Vim regexp read at an `input()` prompt (Emacs uses
+  completing-read-multiple with an Emacs regexp). Neovim has no mouse-over
+  faces or tooltips, so `org-cite-basic-mouse-over-key-face` and the
+  help-echo text over a key (the entry, or the close keys) have no
+  counterpart; `require("org.cite").key_help(bufnr, key)` returns that
+  text. Keys are highlighted everywhere, also in source blocks.
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target

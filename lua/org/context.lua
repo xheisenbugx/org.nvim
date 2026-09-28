@@ -129,6 +129,11 @@ end
 
 --- Open link / follow footnote / show agenda for timestamp.
 function M.open_at_point()
+  -- a citation (org-cite-follow)
+  local cite = require("org.cite")
+  if cite.at_point() then
+    return cite.follow()
+  end
   local links = require("org.links")
   if links.link_at_cursor() then
     return links.open_at_point()

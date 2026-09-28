@@ -102,6 +102,8 @@ group("Structure", {
     modes = { "n", "x" },
   },
   insert_footnote = { "org.footnotes", "footnote_action", desc = "Footnote: jump / new / menu (count)" },
+  cite_insert = { "org.cite", "insert", desc = "Insert / edit a citation (count: delete it, or pick a style)" },
+  cite_mouse_click = { "org.cite", "mouse_click", desc = "Mouse click on a citation key" },
   promote_heading = { "org.context", "promote", desc = "Promote heading / item" },
   demote_heading = { "org.context", "demote", desc = "Demote heading / item" },
   promote_subtree = { "org.context", "promote_subtree", desc = "Promote subtree" },

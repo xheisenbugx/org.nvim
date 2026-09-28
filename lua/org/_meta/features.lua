@@ -967,6 +967,20 @@
 ---@field biblatex_styles? table
 ---(`org-cite-biblatex-style-shortcuts`) (default: `nil` = the Emacs table)
 ---@field biblatex_style_shortcuts? table
+---(`org-cite-activate-processor`): false highlights without checking keys (default: `"basic"`)
+---@field activate_processor? string|false
+---(`org-cite-follow-processor`) (default: `"basic"`)
+---@field follow_processor? string|false
+---(`org-cite-insert-processor`) (default: `"basic"`)
+---@field insert_processor? string|false
+---(`org-cite-basic-max-key-distance`) (default: `2`)
+---@field basic_max_key_distance? integer
+---(`org-cite-basic-author-column-end`) (default: `25`)
+---@field basic_author_column_end? integer
+---(`org-cite-basic-column-separator`) (default: `"  "`)
+---@field basic_column_separator? string
+---(`org-cite-basic-complete-key-crm-separator`): a Vim regexp, `"dynamic"` or nil (default: `nil`)
+---@field basic_complete_key_crm_separator? string
 
 ---Pandoc options (ODT/DOCX/RST/EPUB export).
 ---@class org.Config.Export.Pandoc

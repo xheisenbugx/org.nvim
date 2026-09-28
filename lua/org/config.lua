@@ -1490,6 +1490,17 @@ M.defaults = {
       biblatex_options = nil, -- org-cite-biblatex-options
       biblatex_styles = nil, -- org-cite-biblatex-styles (nil = the Emacs table)
       biblatex_style_shortcuts = nil, -- org-cite-biblatex-style-shortcuts (nil = the Emacs table)
+      --- Processors of the buffer capabilities (false = none; for
+      --- activation, false = highlighting without checking keys).
+      activate_processor = "basic", -- org-cite-activate-processor
+      follow_processor = "basic", -- org-cite-follow-processor
+      insert_processor = "basic", -- org-cite-insert-processor
+      basic_max_key_distance = 2, -- org-cite-basic-max-key-distance
+      basic_author_column_end = 25, -- org-cite-basic-author-column-end
+      basic_column_separator = "  ", -- org-cite-basic-column-separator
+      --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
+      --- a Vim regexp separating keys typed at one prompt, or "dynamic".
+      basic_complete_key_crm_separator = nil,
     },
     ascii = {
       charset = "ascii", -- org-ascii-charset ("ascii", "latin1", "utf-8")
@@ -1740,6 +1751,7 @@ M.defaults = {
       insert_drawer = "<prefix>id",
       insert_structure_template = "<prefix>ib",
       insert_footnote = "<prefix>if",
+      cite_insert = "<prefix>i@",
       promote_heading = "<<",
       demote_heading = ">>",
       promote_subtree = "<s",
@@ -1904,6 +1916,8 @@ M.defaults = {
       insert_structure_template = "<C-c><C-,>",
       insert_drawer = "<C-c><C-x>d",
       insert_footnote = "<C-c><C-x>f",
+      cite_insert = "<C-c><C-x>@",
+      cite_mouse_click = "<LeftRelease>", -- mouse-1 on an activated citation key
       emphasize = "<C-c><C-x><C-f>",
       clone_subtree = "<C-c><C-x>c",
       copy_special = "<C-c><C-x><M-w>",
