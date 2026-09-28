@@ -1597,7 +1597,8 @@ local function entry_key(kind, prop, with_case, keyfn)
     return s
   end or string.lower
   return function(h, lines)
-    local body = table.concat(lines, "\n", 1, (h.body_end - h.line) + 1)
+    -- the last record stops before trailing blank lines that `body_end` counts
+    local body = table.concat(lines, "\n", 1, math.min((h.body_end - h.line) + 1, #lines))
     if kind == "alpha" then
       return case(visible_text(h.title))
     elseif kind == "numeric" then
