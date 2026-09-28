@@ -19,20 +19,44 @@ local function setup_path(path, dir)
 end
 
 local function literal_block_end(lines, start)
-  local kind = lines[start]:upper():match("^%s*#%+BEGIN_(%S+)")
+  local kind = lines[start]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  kind = kind and kind:upper()
   if not LITERAL_BLOCKS[kind] then
     return nil
   end
+  local end_pat = "^%s*#%+END_" .. kind .. "%s*$"
   for i = start + 1, #lines do
+    local l = lines[i]
+    local b = l:byte(1)
     -- An unescaped headline terminates the section: an unmatched BEGIN
     -- is ordinary text, so subsequent keywords still take effect.
-    if lines[i]:match("^%*+ ") then
+    if b == 42 and l:match("^%*+ ") then
       return nil
     end
-    if lines[i]:upper():match("^%s*#%+END_" .. kind .. "%s*$") then
+    if l:find("#+", 1, true) and l:upper():match(end_pat) then
       return i
     end
   end
+end
+
+--- Whether `line` starts with "#" or with whitespace and "#+" (checked
+--- byte by byte: pattern matching would keep LuaJIT from compiling the
+--- scan of a large file).
+local function keyword_candidate(line)
+  local b = line:byte(1)
+  if b == 35 then
+    return true
+  end
+  if b ~= 32 and b ~= 9 then
+    return false
+  end
+  local j = 2
+  b = line:byte(j)
+  while b == 32 or (b and b >= 9 and b <= 13) do
+    j = j + 1
+    b = line:byte(j)
+  end
+  return b == 35 and line:byte(j + 1) == 43
 end
 
 -- bufnr -> { name, normalized, realpath }: a dependency check runs on every
@@ -101,8 +125,7 @@ function M.collect(lines, filename)
   local function scan(content, dir, source, source_line, depth)
     local skip_to = 0
     for i, line in ipairs(content) do
-      local b = line:byte(1)
-      if i > skip_to and (b == 35 or ((b == 32 or b == 9) and line:find("^%s+#%+"))) then
+      if i > skip_to and keyword_candidate(line) then
         skip_to = literal_block_end(content, i) or skip_to
         local key, value = line:match("^%s*#%+([%w_%-]+):%s*(.-)%s*$")
         if key then

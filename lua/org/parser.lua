@@ -37,8 +37,72 @@ local M = {}
 ---@field children org.Headline[]
 ---@field index integer position in file.headlines
 local Headline = {}
-Headline.__index = Headline
 M.Headline = Headline
+
+-- A parse only finds the outline. The rest of a headline line (TODO
+-- keyword, priority, title, tags) and its section (planning, drawers,
+-- clocks, timestamps) are parsed the first time one of their fields is
+-- read or written, so commands that only need the structure of a large
+-- file don't pay for the whole of it.
+local HEAD_FIELDS = { todo = true, priority = true, commented = true, title = true, tags = true }
+local SECTION_FIELDS = {
+  planning = true,
+  planning_line = true,
+  properties = true,
+  property_base = true,
+  properties_extend = true,
+  properties_range = true,
+  drawers = true,
+  logbook = true,
+  clocks = true,
+  timestamps = true,
+  first_inactive = true,
+}
+
+local parse_section
+
+local function load_head(hl)
+  rawset(hl, "_lazy_head", nil)
+  local parts = M.parse_headline_line(rawget(hl, "raw"), rawget(hl, "file").settings.todo)
+  rawset(hl, "todo", parts.todo)
+  rawset(hl, "priority", parts.priority)
+  rawset(hl, "commented", parts.commented)
+  rawset(hl, "title", parts.title)
+  rawset(hl, "tags", parts.tags)
+end
+
+local function load_section(hl)
+  rawset(hl, "_lazy_section", nil)
+  local file = rawget(hl, "file")
+  parse_section(hl, file.lines, rawget(hl, "line") + 1, rawget(hl, "body_end"), file._log_drawer)
+end
+
+function Headline.__index(hl, key)
+  local method = Headline[key]
+  if method ~= nil then
+    return method
+  end
+  if HEAD_FIELDS[key] then
+    if rawget(hl, "_lazy_head") then
+      load_head(hl)
+      return rawget(hl, key)
+    end
+  elseif SECTION_FIELDS[key] and rawget(hl, "_lazy_section") then
+    load_section(hl)
+    return rawget(hl, key)
+  end
+end
+
+function Headline.__newindex(hl, key, value)
+  if HEAD_FIELDS[key] then
+    if rawget(hl, "_lazy_head") then
+      load_head(hl)
+    end
+  elseif SECTION_FIELDS[key] and rawget(hl, "_lazy_section") then
+    load_section(hl)
+  end
+  rawset(hl, key, value)
+end
 
 ---@class org.File
 ---@field filename string|nil
@@ -58,8 +122,15 @@ M.File = File
 --- Is `line` a headline? Returns the level.
 ---@return integer|nil
 function M.headline_level(line)
-  local stars = line:match("^(%*+) ")
-  return stars and #stars or nil
+  -- "^(%*+) ", byte by byte so that LuaJIT compiles loops over many lines
+  local n = 0
+  while line:byte(n + 1) == 42 do
+    n = n + 1
+  end
+  if n > 0 and line:byte(n + 1) == 32 then
+    return n
+  end
+  return nil
 end
 
 --- Split a headline line into components.
@@ -386,7 +457,10 @@ function M.parse_clock_line(line)
   return nil
 end
 
-local function parse_section(hl, lines, from, to, log_drawer)
+M.parse_planning = parse_planning
+M.parse_property_drawer = parse_property_drawer
+
+function parse_section(hl, lines, from, to, log_drawer)
   hl.planning = {}
   hl.properties = {}
   hl.property_base = {}
@@ -500,7 +574,7 @@ function M.parse(lines, filename)
   }, File)
 
   local cfg = require("org.config").opts
-  local log_drawer = (type(cfg.log_into_drawer) == "string" and cfg.log_into_drawer or "LOGBOOK"):upper()
+  file._log_drawer = (type(cfg.log_into_drawer) == "string" and cfg.log_into_drawer or "LOGBOOK"):upper()
 
   local stack = {}
   local headlines = file.headlines
@@ -508,7 +582,8 @@ function M.parse(lines, filename)
   local skip_to = 0
   for i, line in ipairs(lines) do
     if line:byte(1) == 42 and i > skip_to then -- '*'
-      local parts = M.parse_headline_line(line, todo_cfg)
+      local level = M.headline_level(line)
+      local parts = level and { level = level }
       if parts and min_inline and parts.level >= min_inline then
         -- an inline task (org-inlinetask): part of the entry's text, up to
         -- its END line when it has one
@@ -523,40 +598,32 @@ function M.parse(lines, filename)
             break
           end
         end
-        local hl = setmetatable({
+        local hl = {
           file = file,
           level = parts.level,
           line = i,
           raw = line,
-          todo = parts.todo,
-          priority = parts.priority,
-          commented = parts.commented,
-          title = parts.title,
-          tags = parts.tags,
+          _lazy_head = true,
           children = {},
           index = #headlines + 1,
           inlinetask = true,
           end_line = stop,
           parent = stack[#stack],
-        }, Headline)
+        }
         headlines[#headlines + 1] = hl
         skip_to = stop
         parts = nil
       end
       if parts then
-        local hl = setmetatable({
+        local hl = {
           file = file,
           level = parts.level,
           line = i,
           raw = line,
-          todo = parts.todo,
-          priority = parts.priority,
-          commented = parts.commented,
-          title = parts.title,
-          tags = parts.tags,
+          _lazy_head = true,
           children = {},
           index = #headlines + 1,
-        }, Headline)
+        }
         while #stack > 0 and stack[#stack].level >= hl.level do
           local closed = table.remove(stack)
           closed.end_line = i - 1
@@ -585,7 +652,8 @@ function M.parse(lines, filename)
       end
       hl.body_end = nxt and nxt.line - 1 or #lines
     end
-    parse_section(hl, lines, hl.line + 1, hl.body_end, log_drawer)
+    hl._lazy_section = true
+    setmetatable(hl, Headline)
   end
   local first = headlines[1]
   while first and first.inlinetask do

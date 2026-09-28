@@ -21,8 +21,16 @@ function M.from_buffer(bufnr, pos)
   pos = pos or vim.api.nvim_win_get_cursor(0)
   local self = setmetatable({ bufnr = bufnr, orig = lines }, M)
   self.text = table.concat(lines, "\n") .. "\n"
+  self.base, self.known = self.text, self.text
   self.point = self:pos_of(pos[1], pos[2])
   return self
+end
+
+--- Record an edit at byte `lo` that keeps the last `tail` bytes, so apply()
+--- only compares the lines around the edits (large buffers).
+function M:_changed(lo, tail)
+  self.lo = math.min(self.lo or lo, lo)
+  self.tail = math.min(self.tail or tail, tail)
 end
 
 --- Position of (row, col0).
@@ -130,7 +138,9 @@ function M:forward_line(n)
 end
 
 function M:insert(s)
+  self:_changed(self.point, #self.text - self.point + 1)
   self.text = self.text:sub(1, self.point - 1) .. s .. self.text:sub(self.point)
+  self.known = self.text
   self.point = self.point + #s
 end
 
@@ -140,7 +150,9 @@ function M:delete(a, b)
     a, b = b, a
   end
   local s = self.text:sub(a, b - 1)
+  self:_changed(a, #self.text - b + 1)
   self.text = self.text:sub(1, a - 1) .. self.text:sub(b)
+  self.known = self.text
   if self.point >= b then
     self.point = self.point - (b - a)
   elseif self.point > a then
@@ -167,13 +179,15 @@ end
 
 --- Is the line `n` lines away (-1 previous, 1 next) blank?
 function M:line_empty_p(n)
-  local row = self:rowcol()
-  local target = row + n
-  local lines = self:lines()
-  if target < 1 or target > #lines then
-    return false
+  local save = self.point
+  local res = false
+  if self:forward_line(n) == 0 then
+    -- past the final newline is not a line
+    local phantom = self.point > #self.text and self.text:sub(-1) == "\n"
+    res = not phantom and self:line():match("^%s*$") ~= nil
   end
-  return lines[target]:match("^%s*$") ~= nil
+  self.point = save
+  return res
 end
 
 --- Lines of the buffer text (without the implicit final newline).
@@ -188,9 +202,58 @@ end
 --- Write the changed lines back and put the cursor at point.
 ---@param set_cursor? boolean default true
 function M:apply(set_cursor)
-  local new = self:lines()
   local old = self.orig
-  local s = 1
+  -- the lines [first, #old - keep] that can differ, and their new text
+  local first, keep, mid = 1, 0, nil
+  if self.known == self.text and self.base then
+    if not self.lo then
+      mid = {}
+      first, keep = #old + 1, 0
+    else
+      -- rows before the first edited byte and rows inside the unchanged
+      -- tail, less one each for the rows the edits touch
+      local lo = self.lo
+      local tail = math.min(self.tail, #self.text - lo + 1, #self.base - lo + 1)
+      local acc, r = 0, 1
+      while r <= #old and acc + #old[r] + 1 < lo do
+        acc = acc + #old[r] + 1
+        r = r + 1
+      end
+      if r > 1 then
+        r = r - 1
+        acc = acc - #old[r] - 1
+      end
+      local tacc, k = 0, 0
+      while k < #old - r and tacc + #old[#old - k] + 1 <= tail do
+        tacc = tacc + #old[#old - k] + 1
+        k = k + 1
+      end
+      k = math.max(0, k - 1)
+      if self.base:sub(-1) ~= "\n" then
+        k = 0 -- the last line has no newline to count
+      end
+      tacc = 0
+      for i = #old - k + 1, #old do
+        tacc = tacc + #old[i] + 1
+      end
+      local t = self.text:sub(acc + 1, #self.text - tacc)
+      if t:sub(-1) == "\n" then
+        t = t:sub(1, -2)
+      end
+      first, keep = r, k
+      mid = vim.split(t, "\n", { plain = true })
+    end
+  end
+  local new
+  if mid then
+    new = {}
+    table.move(old, 1, first - 1, 1, new)
+    table.move(mid, 1, #mid, first, new)
+    table.move(old, #old - keep + 1, #old, first + #mid, new)
+  else
+    new = self:lines()
+  end
+  local s = first
   while s <= #old and s <= #new and old[s] == new[s] do
     s = s + 1
   end
@@ -202,6 +265,7 @@ function M:apply(set_cursor)
     vim.api.nvim_buf_set_lines(self.bufnr, s - 1, eo, false, vim.list_slice(new, s, en))
   end
   self.orig = new
+  self.base, self.known, self.lo, self.tail = self.text, self.text, nil, nil
   if set_cursor ~= false then
     local row, col = self:rowcol()
     row = math.min(row, #new)

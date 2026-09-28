@@ -35,6 +35,18 @@ M.conceal_supported = (function()
   return ok
 end)()
 
+--- The first non-blank byte of `line` (nil for a blank line). Checked
+--- before matching patterns, which LuaJIT doesn't compile.
+local function first_byte(line)
+  local j = 1
+  local b = line:byte(1)
+  while b == 32 or (b ~= nil and b >= 9 and b <= 13) do
+    j = j + 1
+    b = line:byte(j)
+  end
+  return b
+end
+
 local function is_drawer_start(line)
   local name = line:match("^%s*:([%w_%-]+):%s*$")
   return name ~= nil and name:upper() ~= "END"
@@ -141,8 +153,10 @@ function M.compute(lines)
     else
       local base = cur + (depth[i] or 0)
       local kind, bname
+      local fb = first_byte(line)
       -- (a results drawer keeps its own drawer fold)
-      local rstop = line:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss][%[:]")
+      local rstop = fb == 35
+        and line:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss][%[:]")
         and not is_drawer_start(lines[i + 1] or "")
         and require("org.babel.blocks").results_end(lines, i)
       if rstop and rstop > i then
@@ -158,9 +172,9 @@ function M.compute(lines)
         i = rstop + 1
         goto continue
       end
-      if is_drawer_start(line) then
+      if fb == 58 and is_drawer_start(line) then
         kind = "drawer"
-      else
+      elseif fb == 35 then
         bname = block_start(line)
         if bname then
           kind = "block"
@@ -168,12 +182,16 @@ function M.compute(lines)
       end
       local stop
       if kind then
+        local want = kind == "drawer" and 58 or 35
         for j = i + 1, n do
           local l = lines[j]
           if l:byte(1) == 42 and parser.headline_level(l) then
             break
           end
-          if (kind == "drawer" and is_drawer_end(l)) or (kind == "block" and is_block_end(l, bname)) then
+          if
+            first_byte(l) == want
+            and ((kind == "drawer" and is_drawer_end(l)) or (kind == "block" and is_block_end(l, bname)))
+          then
             stop = j
             break
           end
@@ -218,18 +236,243 @@ function M.compute(lines)
   return levels, regions
 end
 
+---------------------------------------------------------------------------
+-- Fold level cache
+--
+-- Levels are computed for the whole buffer once, then kept up to date per
+-- edit: an on_bytes callback shifts the cached levels and records the rows
+-- that changed, and the next lookup recomputes only the sections, from one
+-- outline headline to the next, around them. Fold levels never depend on
+-- text beyond the enclosing sections, so an edit in a large file costs the
+-- size of one entry, not of the file. (on_bytes, unlike on_lines, runs
+-- before Neovim evaluates 'foldexpr' for an edit. Undo and redo are the
+-- exception: they report their changes afterwards, so a lookup that finds
+-- the text changed since the last report recomputes everything.) Regions
+-- (drawers, blocks, ...) are only needed by commands and are computed for
+-- the whole buffer on demand.
+---------------------------------------------------------------------------
+
+local tracked = {} -- bufnr -> true while on_bytes reports its changes
+
+--- Options the levels depend on; a change forces a full recompute.
+local function signature()
+  return table.concat({
+    tostring(config.opts.cycle_include_plain_lists),
+    tostring(config.opts.cycle_separator_lines),
+    tostring(parser.inlinetask_min_level()),
+  }, "\0")
+end
+
+local function on_bytes(_, bufnr, tick, start_row, _, _, old_rows, _, _, new_rows)
+  if not tracked[bufnr] then
+    return true
+  end
+  local c = cache[bufnr]
+  if not c or c.late then
+    return
+  end
+  -- the changedtick before the edit: the edit makes it tick + 1
+  c.expect = tick + 1
+  -- 1-based lines [first, old_last] became [first, new_last]
+  local first = start_row + 1
+  local old_last, new_last = first + old_rows, first + new_rows
+  local delta = new_rows - old_rows
+  local levels, n = c.levels, c.n
+  if delta ~= 0 then
+    table.move(levels, old_last + 1, n + 1, old_last + 1 + delta)
+    for i = n + delta + 1, n do
+      levels[i] = nil
+    end
+    c.n = n + delta
+  end
+  -- a deletion or a new headline can change the line above
+  local ds, de = math.max(1, first - 1), new_last
+  local d = c.dirty
+  if d then
+    -- earlier dirty lines, where they are now
+    local function map(l)
+      if l < first then
+        return l
+      elseif l > old_last then
+        return l + delta
+      end
+      return new_last
+    end
+    ds, de = math.min(ds, map(d[1])), math.max(de, map(d[2]))
+  end
+  c.dirty = { ds, de }
+end
+
+local function track(bufnr)
+  if tracked[bufnr] then
+    return
+  end
+  tracked[bufnr] = vim.api.nvim_buf_attach(bufnr, false, {
+    on_bytes = on_bytes,
+    on_reload = function(_, b)
+      cache[b] = nil
+    end,
+    on_detach = function(_, b)
+      tracked[b] = nil
+      cache[b] = nil
+    end,
+  }) or nil
+end
+
+--- Writing or reading a file resets 'modified', which bumps changedtick
+--- without changing the text or reporting anything. Accept that bump when
+--- it is the only change since the levels were computed.
+local function accept_unchanged_tick(bufnr)
+  local c = cache[bufnr]
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  if c and not c.late and c.tick == tick - 1 and c.expect == tick - 1 then
+    c.tick, c.expect = tick, tick
+  end
+end
+
+local function outline_level(line, min_inline)
+  if line:byte(1) ~= 42 then
+    return nil
+  end
+  local lvl = parser.headline_level(line)
+  if lvl and min_inline and lvl >= min_inline then
+    return nil
+  end
+  return lvl
+end
+
+local CHUNK = 256
+
+--- The nearest outline headline at or above `lnum` (1 when there is none).
+local function headline_above(bufnr, lnum, min_inline)
+  local e = lnum
+  while e >= 1 do
+    local s = math.max(1, e - CHUNK + 1)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+    for i = #lines, 1, -1 do
+      if outline_level(lines[i], min_inline) then
+        return s + i - 1
+      end
+    end
+    e = s - 1
+  end
+  return 1
+end
+
+--- The nearest outline headline below `lnum` (the last line when none).
+local function headline_below(bufnr, lnum, n, min_inline)
+  local s = lnum + 1
+  while s <= n do
+    local e = math.min(n, s + CHUNK - 1)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+    for i, l in ipairs(lines) do
+      if outline_level(l, min_inline) then
+        return s + i - 1
+      end
+    end
+    s = e + 1
+  end
+  return n
+end
+
+--- Recompute the levels of the sections around the dirty lines.
+local function update(bufnr, c)
+  local n = c.n
+  local min_inline = parser.inlinetask_min_level()
+  local ds = math.max(1, math.min(c.dirty[1], n))
+  local de = math.max(ds, math.min(c.dirty[2], n))
+  c.dirty = nil
+  local hs = headline_above(bufnr, ds, min_inline)
+  if hs > 1 and hs >= ds - 1 then
+    -- the headline itself may have changed: the blank lines above it
+    -- (org-cycle-separator-lines) belong to the previous section
+    hs = headline_above(bufnr, hs - 1, min_inline)
+  end
+  -- up to and including the next headline, whose separator lines are ours
+  local he = headline_below(bufnr, de, n, min_inline)
+  local part = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false))
+  local levels = c.levels
+  for i = hs, he do
+    levels[i] = part[i - hs + 1]
+  end
+end
+
 local function get(bufnr)
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
   local c = cache[bufnr]
   if c and c.tick == tick then
     return c
   end
+  local sig = signature()
+  if
+    c
+    and not c.late
+    and c.expect == tick
+    and c.sig == sig
+    and tracked[bufnr]
+    and c.n == vim.api.nvim_buf_line_count(bufnr)
+  then
+    if c.dirty then
+      update(bufnr, c)
+    end
+    c.tick = tick
+    return c
+  end
+  track(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local levels, regions = M.compute(lines)
-  c = { tick = tick, levels = levels, regions = regions }
-  cache[bufnr] = c
-  return c
+  local fresh = { tick = tick, expect = tick, n = #lines, levels = levels, sig = sig }
+  fresh.regions, fresh.regions_tick = regions, tick
+  if c and (c.late or c.expect ~= tick) then
+    -- a change nothing reported (yet): undo and redo report theirs after
+    -- this lookup, for text these levels already reflect. Ignore reports
+    -- and recompute everything until the command is done.
+    fresh.late = true
+    vim.schedule(function()
+      if cache[bufnr] == fresh then
+        fresh.late, fresh.dirty = nil, nil
+        if not vim.api.nvim_buf_is_valid(bufnr) or vim.api.nvim_buf_get_changedtick(bufnr) ~= fresh.tick then
+          cache[bufnr] = nil
+        end
+      end
+    end)
+  end
+  cache[bufnr] = fresh
+  return fresh
 end
+
+--- Fold regions (drawers, blocks, items, ...) of the sections covering
+--- lines [s, e] (default: the whole buffer), possibly with others.
+---@param s? integer
+---@param e? integer
+---@return table[] list of {start, end, kind}
+local function regions(bufnr, s, e)
+  local c = get(bufnr)
+  if c.regions_tick == c.tick then
+    return c.regions
+  end
+  local n = c.n
+  s, e = math.max(1, s or 1), math.min(n, e or n)
+  if s > 1 or e < n then
+    -- only the sections around the range, like `update`
+    local min_inline = parser.inlinetask_min_level()
+    local hs = headline_above(bufnr, s, min_inline)
+    local he = headline_below(bufnr, e, n, min_inline)
+    if hs > 1 or he < n then
+      local _, r = M.compute(vim.api.nvim_buf_get_lines(bufnr, hs - 1, he, false))
+      for _, reg in ipairs(r) do
+        reg.start = reg.start + hs - 1
+        reg["end"] = reg["end"] and reg["end"] + hs - 1
+      end
+      return r
+    end
+  end
+  local _, r = M.compute(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+  c.regions, c.regions_tick = r, c.tick
+  return r
+end
+
+M._regions = regions
 
 function M.foldexpr(lnum)
   lnum = lnum or vim.v.lnum
@@ -287,9 +530,14 @@ function M.conceal(bufnr, s, e)
   end
   bufnr = (bufnr == nil or bufnr == 0) and curbuf() or bufnr
   local lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+  -- rows hidden already (one query for the range, not one per line)
+  local hidden = {}
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, ns_hide, { s - 1, 0 }, { e - 1, -1 }, {})) do
+    hidden[m[2]] = true
+  end
   for i, l in ipairs(lines) do
     local row = s + i - 2
-    if not M.is_concealed(bufnr, row + 1) then
+    if not hidden[row] then
       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_hide, row, 0, {
         end_row = row,
         end_col = #l,
@@ -392,9 +640,8 @@ end
 
 --- Close drawer folds in [s, e].
 local function close_drawers(s, e)
-  local c = get(vim.api.nvim_get_current_buf())
   -- innermost first doesn't matter: drawers don't nest
-  for _, r in ipairs(c.regions) do
+  for _, r in ipairs(regions(vim.api.nvim_get_current_buf(), s, e)) do
     if r.kind == "drawer" and r.start >= s and r["end"] <= e then
       if vim.fn.foldclosed(r.start) == -1 then
         close_at(r.start)
@@ -409,8 +656,7 @@ end
 
 --- Close the block folds (`#+begin_...`) in [s, e] (org-fold-hide-block-all).
 local function close_blocks(s, e)
-  local c = get(vim.api.nvim_get_current_buf())
-  for _, r in ipairs(c.regions) do
+  for _, r in ipairs(regions(vim.api.nvim_get_current_buf(), s, e)) do
     if r.kind == "block" and r.start >= s and r["end"] <= e then
       close_at(r.start)
     end
@@ -419,8 +665,7 @@ end
 
 --- Open the item folds in [s, e] (the text of an entry shows its lists).
 local function open_items(s, e)
-  local c = get(vim.api.nvim_get_current_buf())
-  for _, r in ipairs(c.regions) do
+  for _, r in ipairs(regions(vim.api.nvim_get_current_buf(), s, e)) do
     if r.kind == "item" and r.start >= s and r.start <= e then
       open_at(r.start)
     end
@@ -437,7 +682,14 @@ local function hide_archived(s, e)
   end
   local self_archived = false
   for _, hl in ipairs(file().headlines) do
-    if hl.line >= s and hl.line <= e and vim.tbl_contains(hl.tags, "ARCHIVE") and has_fold(hl) then
+    -- (the raw line first: reading `tags` parses the headline)
+    if
+      hl.line >= s
+      and hl.line <= e
+      and hl.raw:find(":ARCHIVE:", 1, true)
+      and vim.tbl_contains(hl.tags, "ARCHIVE")
+      and has_fold(hl)
+    then
       close_at(hl.line)
       if hl.line == s then
         self_archived = true
@@ -446,6 +698,8 @@ local function hide_archived(s, e)
   end
   return self_archived
 end
+
+local has_visibility_property
 
 local function hide_archived_all()
   hide_archived(1, vim.api.nvim_buf_line_count(0))
@@ -718,8 +972,7 @@ function M.cycle()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
   local bufnr = vim.api.nvim_get_current_buf()
-  local c = get(bufnr)
-  for _, r in ipairs(c.regions) do
+  for _, r in ipairs(regions(bufnr, lnum, lnum)) do
     if r.start == lnum and r.kind ~= "item" then
       if lnum_closed(lnum) then
         open_at(lnum)
@@ -984,10 +1237,21 @@ end
 -- Setup
 ---------------------------------------------------------------------------
 
+--- Whether any line of the buffer mentions a VISIBILITY property (reading
+--- every entry's properties would parse all of them).
+function has_visibility_property(bufnr)
+  local f = require("org.files").get_buffer(bufnr)
+  return table.concat(f.lines, "\n"):upper():find(":VISIBILITY:", 1, true) ~= nil
+end
+
 --- Apply the VISIBILITY property of every headline that has one
 --- (org-cycle-set-visibility-according-to-property): `folded`,
 --- `children`, `content` or `all`. The headline itself is revealed.
 function M.apply_visibility_properties()
+  if not has_visibility_property(0) then
+    refresh_ellipsis()
+    return
+  end
   local pos = vim.api.nvim_win_get_cursor(0)
   for _, hl in ipairs(file().headlines) do
     local state = hl.properties.VISIBILITY
@@ -1059,11 +1323,9 @@ local function startup_flag(startup, on, off, default)
   return default
 end
 
---- Apply #+STARTUP / startup_folded visibility in the current window,
---- then hide blocks (`hideblocks`), apply VISIBILITY properties, fold
---- archived subtrees and hide drawers (org-cycle-set-startup-visibility).
-function M.apply_startup(bufnr)
-  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+--- The startup visibility of a buffer (#+STARTUP or startup_folded) and
+--- its #+STARTUP words.
+local function startup_mode(bufnr)
   local f = require("org.files").get_buffer(bufnr)
   local startup = f.settings.startup or {}
   local mode = config.opts.startup_folded or "overview"
@@ -1075,8 +1337,30 @@ function M.apply_startup(bufnr)
   if mode == "fold" then
     mode = "overview"
   end
+  return mode, startup
+end
+
+--- Apply #+STARTUP / startup_folded visibility in the current window,
+--- then hide blocks (`hideblocks`), apply VISIBILITY properties, fold
+--- archived subtrees and hide drawers (org-cycle-set-startup-visibility).
+---@param first? boolean the buffer was just set up, with 'foldlevel' set
+--- for its startup visibility already (see `setup_buffer`)
+function M.apply_startup(bufnr, first)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local mode, startup = startup_mode(bufnr)
   local levels = tonumber(mode:match("^show(%d)levels$") or "")
-  if mode == "overview" then
+  local closed = false
+  if first and vim.b[bufnr].org_startup_foldlevel == mode then
+    -- 'foldlevel' was set for this mode before 'foldmethod' (zM or zR here
+    -- would compute the folds of the whole buffer, and :edit computes
+    -- them again once the file is loaded)
+    M.clear_hidden()
+    vim.b.org_global_cycle = mode == "overview" and "overview" or "showall"
+    if mode == "showeverything" then
+      return
+    end
+    closed = true
+  elseif mode == "overview" then
     M.overview()
   elseif mode == "content" then
     M.content()
@@ -1089,6 +1373,11 @@ function M.apply_startup(bufnr)
     vim.b.org_global_cycle = "showall"
   end
   if mode == "showeverything" then
+    return
+  end
+  if closed then
+    -- blocks and drawers are closed with everything else
+    hide_archived_all()
     return
   end
   local last = vim.api.nvim_buf_line_count(0)
@@ -1173,11 +1462,30 @@ end
 function M.setup_buffer(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local function setup_win(win)
+    local first = not vim.b[bufnr].org_startup_done
+    if first then
+      -- Set 'foldlevel' before 'foldmethod' when it alone gives the
+      -- startup visibility: the folds are then computed once, as the
+      -- file is displayed.
+      local mode = startup_mode(bufnr)
+      if mode == "overview" and not has_visibility_property(bufnr) then
+        vim.wo[win][0].foldlevel = 0
+        vim.b[bufnr].org_startup_foldlevel = mode
+      elseif mode == "showeverything" then
+        -- what zR sets: the deepest fold
+        local deepest = 0
+        for _, l in pairs(get(bufnr).levels) do
+          deepest = math.max(deepest, tonumber(type(l) == "string" and l:sub(2) or l) or 0)
+        end
+        vim.wo[win][0].foldlevel = deepest
+        vim.b[bufnr].org_startup_foldlevel = mode
+      end
+    end
     set_win_opts(win)
-    if not vim.b[bufnr].org_startup_done then
+    if first then
       vim.b[bufnr].org_startup_done = true
       vim.api.nvim_win_call(win, function()
-        M.apply_startup(bufnr)
+        M.apply_startup(bufnr, true)
       end)
     end
   end
@@ -1212,6 +1520,13 @@ function M.setup_buffer(bufnr)
       end,
     })
   end
+  vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter" }, {
+    buffer = bufnr,
+    group = group,
+    callback = function()
+      accept_unchanged_tick(bufnr)
+    end,
+  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     buffer = bufnr,
     once = true,

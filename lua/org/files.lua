@@ -43,6 +43,17 @@ function M.get_buffer(bufnr)
   return file
 end
 
+--- The parse of a buffer if one for its current text is cached, without
+--- parsing (for redraw-time code that must stay cheap in large files).
+---@param bufnr integer
+---@return org.File|nil
+function M.cached_buffer(bufnr)
+  local c = buf_cache[bufnr]
+  if c and c.tick == vim.api.nvim_buf_get_changedtick(bufnr) then
+    return c.file
+  end
+end
+
 --- Parse a file by path, preferring its loaded buffer.
 ---@param path string
 ---@return org.File|nil

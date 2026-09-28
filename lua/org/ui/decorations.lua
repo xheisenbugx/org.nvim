@@ -36,9 +36,13 @@ local SUB = {
 
 --- The `ui` options of a buffer: `#+STARTUP` words and the buffer toggles
 --- override the configuration.
-function M.ui_options(bufnr)
+---@param file? org.File the parsed buffer, when the caller has it
+function M.ui_options(bufnr, file)
   local ui = vim.deepcopy(require("org.config").opts.ui)
-  local ok, file = pcall(require("org.files").get_buffer, bufnr)
+  local ok = file ~= nil
+  if not ok then
+    ok, file = pcall(require("org.files").get_buffer, bufnr)
+  end
   local st = ok and file.settings.startup or {}
   local function flag(key, on, off)
     if st[on] then
@@ -181,14 +185,62 @@ local function numbering(lines, ui)
   return out
 end
 
+--- Headline level and whether a block is open at the start of row `first`
+--- (0-based): the state the loop in `compute` has when it gets there. Only
+--- the entry containing the row is read.
+local function context_at(bufnr, first, min_inline)
+  local parser = require("org.parser")
+  local function outline(l)
+    local lvl = l:byte(1) == 42 and parser.headline_level(l)
+    return lvl and not (min_inline and lvl >= min_inline) and lvl or nil
+  end
+  -- the nearest outline headline above
+  local start, e = 0, first
+  while e > 0 do
+    local s = math.max(0, e - 256)
+    local chunk = vim.api.nvim_buf_get_lines(bufnr, s, e, false)
+    for i = #chunk, 1, -1 do
+      if outline(chunk[i]) then
+        start = s + i - 1
+        e = 0
+        break
+      end
+    end
+    e = e > 0 and s or e
+  end
+  local level, in_block = 0, false
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, start, first, false)) do
+    local lvl = outline(line)
+    if lvl then
+      level, in_block = lvl, false
+    elseif not (line:byte(1) == 42 and parser.headline_level(line)) then
+      if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
+        in_block = true
+      elseif line:match("^%s*#%+[eE][nN][dD]_") then
+        in_block = false
+      end
+    end
+  end
+  return level, in_block
+end
+
+local num_cache = {} ---@type table<integer, { tick: integer, nums: table }>
+
 --- Decorations of a buffer, per 0-based row: `{ [row] = { { col, opts }, ... } }`.
+--- With `first` and `last` (0-based, inclusive), only rows in that range.
+---@param first? integer
+---@param last? integer
+---@param ui? table the buffer's `ui` options (see `ui_options`)
 ---@return table<integer, table[]>
-function M.compute(bufnr)
+function M.compute(bufnr, first, last, ui)
   local rows = {}
-  local ui = M.ui_options(bufnr)
+  ui = ui or M.ui_options(bufnr)
   if not enabled(ui) then
     return rows
   end
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  first = math.max(0, first or 0)
+  last = math.min(n - 1, last or n - 1)
   ---@param persist? boolean draw as a real extmark (see `is_persistent`)
   local function set(row, col, opts, persist)
     local r = rows[row]
@@ -198,19 +250,31 @@ function M.compute(bufnr)
     end
     r[#r + 1] = { col, opts, persist }
   end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local level = 0
-  local in_block = false
+  local min_inline = require("org.parser").inlinetask_min_level()
+  local level, in_block = 0, false
+  if first > 0 then
+    level, in_block = context_at(bufnr, first, min_inline)
+  end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
-  local nums = ui.num and numbering(lines, ui) or {}
+  local nums = {}
+  if ui.num then
+    -- numbers count every headline above: computed for the whole buffer
+    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+    local nc = num_cache[bufnr]
+    if not nc or nc.tick ~= tick or nc.ui ~= ui then
+      nc = { tick = tick, ui = ui, nums = numbering(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), ui) }
+      num_cache[bufnr] = nc
+    end
+    nums = nc.nums
+  end
   local scripts = ui.pretty_entities and ui.pretty_entities_include_sub_superscripts ~= false
     and ui.use_sub_superscripts ~= false
   local braces_only = ui.use_sub_superscripts == "{}"
   for i, line in ipairs(lines) do
-    local row = i - 1
+    local row = first + i - 1
     local stars = line:match("^(%*+) ")
-    local min_inline = require("org.parser").inlinetask_min_level()
     if stars and min_inline and #stars >= min_inline then
       -- inline task: only the last two stars show (org-inlinetask-fontify)
       if #stars > 2 then
@@ -425,12 +489,50 @@ end
 local attached = {} ---@type table<integer, boolean>
 local cache = {} ---@type table<integer, { tick: integer, rows: table<integer, table[]> }>
 
-local function rows_for(bufnr)
+--- The `ui` options the provider draws with. Reading `#+STARTUP` needs a
+--- parse of the buffer, too slow for every redraw of a large file: they
+--- are refreshed by `render` (attach, toggles, C-c C-c on a keyword), when
+--- the configuration changes and whenever a parse of the current text is
+--- cached anyway.
+local ui_cache = {} ---@type table<integer, { ui: table, cfg: table, file: org.File? }>
+
+local function provider_ui(bufnr)
+  local cfg = require("org.config").opts.ui
+  local c = ui_cache[bufnr]
+  local file = require("org.files").cached_buffer(bufnr)
+  if not c or c.cfg ~= cfg or (file and file ~= c.file) then
+    local ok, ui = pcall(M.ui_options, bufnr, file)
+    c = { ui = ok and ui or vim.deepcopy(cfg), cfg = cfg, file = file or require("org.files").cached_buffer(bufnr) }
+    ui_cache[bufnr] = c
+  end
+  return c.ui
+end
+
+--- Decorations of rows [top, bot] at the current changedtick, computed
+--- once per tick for the rows windows actually draw.
+local function rows_for(bufnr, top, bot)
   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local ui = provider_ui(bufnr)
   local c = cache[bufnr]
-  if not c or c.tick ~= tick then
-    c = { tick = tick, rows = M.compute(bufnr) }
+  if not c or c.tick ~= tick or c.ui ~= ui then
+    c = { tick = tick, ui = ui, rows = {}, done = {} }
     cache[bufnr] = c
+  end
+  local s = top
+  while s <= bot and c.done[s] do
+    s = s + 1
+  end
+  local e = bot
+  while e >= s and c.done[e] do
+    e = e - 1
+  end
+  if s <= e then
+    for row, marks in pairs(M.compute(bufnr, s, e, ui)) do
+      c.rows[row] = marks
+    end
+    for row = s, e do
+      c.done[row] = true
+    end
   end
   return c.rows
 end
@@ -438,10 +540,10 @@ end
 local current ---@type table<integer, table[]>?
 
 -- Inline virtual text (indent mode) can't be ephemeral, so those marks are
--- real extmarks in their own namespace, rebuilt before the window is drawn
--- whenever the text changed.
+-- real extmarks in their own namespace, rebuilt for the rows a window is
+-- about to draw whenever the text changed.
 local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
-local inline_tick = {} ---@type table<integer, integer>
+local inline_synced = {} ---@type table<integer, { tick: integer, rows: table<integer, boolean> }>
 
 --- Marks drawn as real extmarks instead of ephemeral ones: inline virtual
 --- text (which can't be ephemeral) and overlays that must be placed after
@@ -450,29 +552,44 @@ local function is_persistent(m)
   return m[3] or m[2].virt_text_pos == "inline"
 end
 
-local function sync_inline(bufnr, rows)
+local function sync_inline(bufnr, rows, top, bot)
   local tick = cache[bufnr].tick
-  if inline_tick[bufnr] == tick then
-    return
+  local synced = inline_synced[bufnr]
+  if not synced or synced.tick ~= tick then
+    synced = { tick = tick, rows = {} }
+    inline_synced[bufnr] = synced
   end
-  inline_tick[bufnr] = tick
-  vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
-  for row, marks in pairs(rows) do
-    for _, m in ipairs(marks) do
-      if is_persistent(m) then
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_inline, row, m[1], m[2])
+  local row = top
+  while row <= bot do
+    if synced.rows[row] then
+      row = row + 1
+    else
+      local e = row
+      while e + 1 <= bot and not synced.rows[e + 1] do
+        e = e + 1
       end
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, row, e + 1)
+      for r = row, e do
+        synced.rows[r] = true
+        for _, m in ipairs(rows[r] or {}) do
+          if is_persistent(m) then
+            pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_inline, r, m[1], m[2])
+          end
+        end
+      end
+      row = e + 1
     end
   end
 end
 
 vim.api.nvim_set_decoration_provider(ns, {
-  on_win = function(_, _, bufnr)
+  on_win = function(_, _, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
     end
-    current = rows_for(bufnr)
-    sync_inline(bufnr, current)
+    botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
+    current = rows_for(bufnr, toprow, botrow)
+    sync_inline(bufnr, current, toprow, botrow)
     return next(current) ~= nil
   end,
   on_line = function(_, _, bufnr, row)
@@ -495,7 +612,9 @@ function M.render(bufnr)
     return
   end
   cache[bufnr] = nil
-  inline_tick[bufnr] = nil
+  ui_cache[bufnr] = nil
+  num_cache[bufnr] = nil
+  inline_synced[bufnr] = nil
   vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
   pcall(vim.api.nvim__redraw, { buf = bufnr, valid = false })
 end
@@ -520,7 +639,9 @@ function M.attach(bufnr, force)
     callback = function()
       attached[bufnr] = nil
       cache[bufnr] = nil
-      inline_tick[bufnr] = nil
+      ui_cache[bufnr] = nil
+      num_cache[bufnr] = nil
+      inline_synced[bufnr] = nil
     end,
   })
   M.render(bufnr)
