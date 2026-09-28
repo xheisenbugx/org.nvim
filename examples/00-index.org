@@ -1,0 +1,82 @@
+#+TITLE: org.nvim feature examples
+#+STARTUP: showall
+#+CATEGORY: index
+
+* How to use these files
+Each file in this directory covers one feature area of org.nvim in depth.
+They are meant to be *worked through*, not just read: every section explains
+a feature, shows several examples, and ends with exercises.
+
+- Lines starting with *Try:* are exercises, with the exact keys to press.
+- Lines starting with *Expect:* say what you should see afterwards, so you can
+  check that the feature works.
+- Lines starting with =#= are Org comments that annotate the example next to
+  them. They are dimmed, and they are never exported.
+- Keys use =<prefix>= for the org.nvim prefix, =<leader>o= by default.
+  Press =g?= in any org buffer to list the keys of that buffer.
+- Nothing breaks if you make a mess: =u= undoes, and
+  =git checkout examples/= restores every file.
+
+Start Neovim from the repository root with the bundled init file, so the
+examples use a known configuration and your own notes are never touched:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/00-index.org
+#+end_src
+
+It points =agenda_files= at the files of this directory and sends captures to
+a scratch directory under =stdpath("state")=. Put the cursor on a link below
+and press =<CR>= to open that file. =<C-o>= brings you back here.
+
+The examples use dates around late September 2026. When they are in the
+past, press =<C-a>= on the day of a timestamp to move it forward.
+
+If you would rather take a quick tour of everything in one file first, start
+with [[file:tutorial.org][tutorial.org]].
+
+* The files
+** Writing and structure
+- [[file:01-outline.org][01 Outline]]: headlines, folding, motions, moving and sorting subtrees,
+  narrowing.
+- [[file:02-markup.org][02 Markup]]: emphasis, blocks, comments, entities, sub- and
+  superscripts.
+- [[file:03-lists.org][03 Lists]]: plain lists, bullets, counters, checkboxes and progress
+  cookies.
+
+** Tasks
+- [[file:04-todo.org][04 TODO items]]: keywords, logging, repeaters, habits, dependencies,
+  priorities.
+- [[file:05-tags.org][05 Tags]]: fast selection, groups, inheritance, file tags.
+- [[file:06-properties-columns.org][06 Properties and column view]]: drawers, allowed values, inheritance,
+  column summaries.
+- [[file:07-dates.org][07 Dates and times]]: timestamps, SCHEDULED and DEADLINE, the calendar,
+  date input.
+- [[file:08-clocking.org][08 Clocking]]: clocking in and out, effort estimates, clock tables.
+- [[file:20-timers-reminders.org][20 Timers and reminders]]: relative and countdown timers, appointment
+  notifications.
+
+** Finding things
+- [[file:09-agenda.org][09 Agenda]]: day and week views, the TODO list, matches, custom commands,
+  bulk actions.
+- [[file:10-sparse-trees.org][10 Sparse trees]]: folding a file down to matches, and the match syntax.
+
+** Collecting and organising
+- [[file:11-capture.org][11 Capture]]: templates, expansions, targets.
+- [[file:12-refile-archive.org][12 Refile and archive]]: moving subtrees around and out of the way.
+- [[file:13-links.org][13 Links]]: every link type, IDs, radio targets, attachments.
+- [[file:14-footnotes.org][14 Footnotes]]: inserting, jumping, renumbering.
+
+** Tables and code
+- [[file:15-tables.org][15 Tables]]: creating, aligning, editing, moving, sorting, importing.
+- [[file:16-spreadsheet.org][16 Spreadsheet]]: =#+TBLFM= formulas, references, functions, formats,
+  worked sheets.
+- [[file:17-babel.org][17 Babel]]: running source blocks, results, variables, noweb, tangling.
+- [[file:18-dynamic-blocks.org][18 Dynamic blocks]]: clock tables, column view blocks, custom blocks.
+
+** Publishing and display
+- [[file:19-export.org][19 Export]]: the dispatcher, back-ends, export settings.
+- [[file:21-images-latex.org][21 Images and LaTeX]]: inline image and LaTeX previews.
+
+** Everything else
+- [[file:22-extras.org][22 Extras]]: completion, org-lint, speed keys, inline tasks, encryption,
+  commands and health checks.

@@ -1,0 +1,555 @@
+#+TITLE: Footnotes
+#+STARTUP: overview
+#+CATEGORY: footnotes
+
+* How to use this file
+A footnote is a small note attached to a word: the text carries a short
+*reference* such as =[fn:N]=, and the note itself, the *definition*, lives
+somewhere else, usually in a =* Footnotes= heading at the end of the file.
+In export, references become numbers (superscripts in HTML) and the
+definitions are printed at the end of the document.
+
+This file teaches the four kinds of footnotes, how to jump between a
+reference and its definition, how to insert new footnotes, and how to sort,
+renumber, normalize and delete them.
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means your org prefix, =<leader>o= by default.
+- =u= undoes any edit; =git checkout examples/14-footnotes.org= restores
+  the file.
+- =g?= lists every key of the buffer.
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see. Lines starting with =# = are Org comments: they explain the example
+  next to them and are never exported.
+
+Start Neovim from the repository root with the bundled init file:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/14-footnotes.org
+#+end_src
+
+In the explanations, =N=, =NAME= and =TEXT= stand for a number, a name and
+some text. (Sorting, renumbering and normalizing act on a whole buffer, so
+those exercises happen in small *sandboxes*, explained in
+[[*The sandboxes][The sandboxes]], and never touch the rest of this file.)
+
+** Keys in this file
+| Key                    | Emacs           | What it does                  |
+|------------------------+-----------------+-------------------------------|
+| =<CR>= or =<C-c><C-c>= | =C-c C-c=       | on a footnote: jump to the    |
+|                        |                 | other end (reference or       |
+|                        |                 | definition)                   |
+| =<prefix>if=           | =C-c C-x f=     | on a footnote: the same jump; |
+|                        |                 | elsewhere: insert a new one   |
+| =4<prefix>if=          | =C-u C-c C-x f= | the menu: sort, renumber,     |
+|                        |                 | normalize, delete             |
+| =<C-o>= or =''=        |                 | jump back after a jump        |
+| =<prefix>'=            | =C-c '=         | on a reference: edit its      |
+|                        |                 | definition in its own window  |
+
+* The four kinds of footnotes
+| Syntax            | Kind              | Where the text is                  |
+|-------------------+-------------------+------------------------------------|
+| =[fn:N]=          | numbered          | a definition line =[fn:N] TEXT=    |
+| =[fn:NAME]=       | named             | a definition line =[fn:NAME] TEXT= |
+| =[fn:: TEXT]=     | inline, anonymous | right there, inside the brackets   |
+| =[fn:NAME: TEXT]= | inline, named     | right there; =[fn:NAME]= elsewhere |
+|                   |                   | refers to it again                 |
+
+A *definition* is a line that starts, in the very first column, with the
+label in brackets: =[fn:N]= or =[fn:NAME]=, then the text. It goes on until
+the next definition, the next heading, or two blank lines in a row. A label
+may be referenced as many times as you like.
+
+Here is a paragraph using all four kinds. The definitions of the first two
+are in the "Footnotes" heading near the end of this file.
+
+# One numbered, one named, one anonymous inline, one named inline footnote.
+# (Keep an inline footnote on one line: org.nvim finds them line by line.)
+Org mode was created by Carsten Dominik[fn:1] and is part of GNU
+Emacs[fn:emacs]. Its files are plain text[fn:: Any editor works.], so
+org.nvim can read them too[fn:nvim: A Lua port of Org for Neovim.].
+
+* Numbered footnotes =[fn:N]=
+The classic footnote: a number in the text, the definition elsewhere.
+
+# Two references, two definitions in "* Footnotes" at the end of the file.
+The first Org release was in 2003[fn:2]. It now ships with Emacs and has
+its own website[fn:3].
+
+# The same footnote can be referenced twice: both point to [fn:2].
+We said 2003 above; see again the note on the release year[fn:2].
+
+*Try:* put the cursor anywhere on =[fn:2]= in the first line of the
+example and press =<CR>=.
+
+*Expect:* the cursor jumps to the definition line that starts with
+=[fn:2]= in the "Footnotes" heading, which reads "The first version,
+4.x, appeared in 2003." (The Footnotes heading unfolds as needed.)
+
+*Try:* now, with the cursor on that =[fn:2]= at the start of the
+definition, press =<CR>= again.
+
+*Expect:* the cursor is back on the *first* reference to =[fn:2]=, in
+"The first Org release was in 2003". A definition always jumps back to the
+first reference, even if you came from the second.
+
+*Try:* on =[fn:3]= press =<C-c><C-c>=, then =<C-o>=.
+
+*Expect:* =<C-c><C-c>= jumps to "orgmode.org"; =<C-o>= (the jumplist)
+brings you back to the reference.
+
+* Named footnotes =[fn:NAME]=
+:PROPERTIES:
+:ID:       0f5e2d1c-7b3a-4e8f-9c6d-14f00e1d2c3b
+:END:
+A name is easier to remember than a number, and it never needs
+renumbering. Names use letters, digits, =-= and =_=.
+
+# Named footnotes; their definitions are in "* Footnotes" at the end.
+Tables in Org are also spreadsheets[fn:tables], and source blocks can be
+executed[fn:babel-intro]. More about tables: see the note again[fn:tables].
+
+*Try:* press =<CR>= on =[fn:babel-intro]=, and =<CR>= again on the
+definition.
+
+*Expect:* first the definition "Babel runs source blocks ..." in the
+Footnotes heading, then back here.
+
+This heading has an =ID= property: the file =13-links.org= links to it
+with an =id:= link, see
+[[file:13-links.org::*An ID in another file][An ID in another file]].
+
+* Inline footnotes =[fn:: TEXT]=
+An inline footnote carries its own text. There is no separate definition,
+so there is nothing to jump to: =<CR>= shows the text in the message area
+instead.
+
+# Anonymous inline footnotes: no label at all.
+Neovim started in 2014[fn:: As a fork of Vim.] and uses Lua for its
+configuration[fn:: Vimscript still works too.].
+
+*Try:* press =<CR>= on the first inline footnote above.
+
+*Expect:* the message =Inline footnote:  As a fork of Vim.= (the text
+after the second colon, including its leading space).
+
+* Named inline footnotes =[fn:NAME: TEXT]=
+A named inline footnote defines its text in place *and* gives it a name,
+so other places can refer to it with the short form =[fn:NAME]=.
+
+# The named inline footnote "vim-origin" is defined in the first line;
+# the second line refers to it again with the short form.
+Vim was released in 1991[fn:vim-origin: It began as a vi clone.].
+Neovim inherits that heritage[fn:vim-origin].
+
+*Try:* press =<CR>= on =[fn:vim-origin]= at the end of the second line.
+
+*Expect:* the cursor jumps to the named inline footnote in the first line
+(it is the definition of =vim-origin=).
+
+*Try:* press =<CR>= on the named inline footnote itself (on the word
+"vim-origin" in the first line).
+
+*Expect:* the cursor jumps to the short reference =[fn:vim-origin]= on
+the next line, the first other place using that name.
+
+* Longer definitions
+A definition can have several paragraphs and even lists: it ends only at
+the next definition, the next heading, or two blank lines in a row. See
+the definition of this footnote[fn:long] in the Footnotes heading: it has
+two paragraphs and a list.
+
+*Try:* press =<CR>= on =[fn:long]= and look at the definition.
+
+*Expect:* the definition starts with "This definition has more than one
+paragraph." and goes on with a second paragraph and a list, all part of
+the same footnote.
+
+** Editing a definition from its reference
+=<prefix>'= (=C-c '=) on a reference opens its definition in a separate
+window. Edit it and press =<C-c>'= (or =:w=) to write it back.
+
+*Try:* on =[fn:long]= in the paragraph above press =<prefix>'=, change a
+word, and press =<C-c>'=.
+
+*Expect:* a small window titled like =footnote-long= shows the text of the
+definition; after =<C-c>'= the window closes and the change is in the
+Footnotes heading. (On an anonymous inline footnote you get "Cannot edit
+remotely anonymous footnotes".)
+
+* Inserting a new footnote
+=<prefix>if= (=C-c C-x f=), when the cursor is *not* on a footnote, inserts
+a new one:
+
+1. The reference is inserted *after* the character under the cursor (so
+   put the cursor on the last letter of a word).
+2. The label is the first number not used anywhere in the file.
+3. An empty definition with the same label is added as the first entry of
+   the "Footnotes" heading (the heading is created at the end of the file
+   when it is missing).
+4. The cursor moves to that definition, in Insert mode, ready for you to
+   type the note. =<C-o>= in Normal mode brings you back.
+
+*Try:* put the cursor on the final "s" of "footnotes" at the end of the
+sentence below, and press =<prefix>if=. Type =My first note.= and press
+=<Esc>=.
+
+This sentence needs more footnotes
+
+*Expect:* the sentence ends with "more footnotes" and a new reference
+with the label =fn:4= (4, because 1, 2 and 3 are already used in this
+file), and the Footnotes heading now starts with the definition of =fn:4=,
+"My first note.". Press =<C-o>= to go back to the sentence; =<CR>= on
+the new reference goes to the definition again.
+
+*Try:* go back to the sentence, put the cursor on the "s" at the end of
+"This", and press =<prefix>if= again, then =<Esc>=.
+
+*Expect:* the sentence starts with "This" and a reference labeled =fn:5=,
+and the Footnotes heading now starts with an empty definition of =fn:5=,
+above the one of =fn:4=: new definitions always go *first*. (=u= a few
+times undoes both exercises.)
+
+** A reference without a definition
+If a reference has no definition anywhere, =<CR>= offers to create one.
+
+# This reference has no definition yet (":Org lint" reports it on purpose).
+The sky is blue[fn:sky].
+
+*Try:* press =<CR>= on =[fn:sky]= and answer =y= (Yes).
+
+*Expect:* the question "No definition for sky. Create one?", then a new
+definition line starting with =[fn:sky]= at the top of the Footnotes
+heading, with the cursor after it. Type a note, or =u= to undo.
+
+* The sandboxes
+Sorting, renumbering, normalizing and the footnote options act on a *whole
+buffer*. To try them without touching this file, each exercise below is an
+Org snippet in a =#+begin_src org= block. Put the cursor inside the block
+and press =<prefix>'= (=C-c '=): the snippet opens in its own Org buffer,
+where every footnote key works. When you are done:
+
+- =<C-c>'= (or =:w= then =:q=) writes the snippet back into the block, or
+- =:q!= throws your changes away.
+
+Inside the blocks, a heading is written =,* Heading= (the comma protects
+it, Org removes it in the edit buffer).
+
+*Try:* put the cursor on the line =Nothing to see here.= below and press
+=<prefix>'=, then =:q!=.
+
+#+begin_src org
+  Nothing to see here.
+#+end_src
+
+*Expect:* a window with the single line "Nothing to see here." (without
+the two spaces of indentation); =:q!= closes it and nothing changes.
+
+* Sorting, renumbering and normalizing
+With a count, =<prefix>if= (=4<prefix>if=, Emacs =C-u C-c C-x f=) opens
+the footnote menu:
+
+| Key | Action                                                      |
+|-----+-------------------------------------------------------------|
+| =s= | sort: put the definitions in the order of the references    |
+| =r= | renumber: relabel =fn:N= footnotes 1, 2, 3 ... in reference |
+|     | order (named footnotes keep their names)                    |
+| =S= | renumber, then sort                                         |
+| =n= | normalize: number *every* footnote (named and inline ones   |
+|     | too), turn inline footnotes into regular definitions, sort  |
+| =d= | delete the footnote at the cursor: every reference and the  |
+|     | definition                                                  |
+
+Sorting and normalizing rebuild the Footnotes heading at the *end* of the
+buffer, with a blank line before each definition.
+
+** Sort
+# Sandbox: the references are 3, 1, 2 but the definitions are 1, 2, 3.
+#+begin_src org
+  Apples[fn:3], pears[fn:1] and plums[fn:2].
+
+  ,* Footnotes
+  [fn:1] Pears are green.
+  [fn:2] Plums are purple.
+  [fn:3] Apples are red.
+#+end_src
+
+*Try:* =<prefix>'= in the block, then =4<prefix>if= and =s=.
+
+*Expect:* the definitions follow the order of the references (3, 1, 2),
+each after a blank line; the labels do not change:
+
+#+begin_example
+  Apples[fn:3], pears[fn:1] and plums[fn:2].
+
+  ,* Footnotes
+
+  [fn:3] Apples are red.
+
+  [fn:1] Pears are green.
+
+  [fn:2] Plums are purple.
+#+end_example
+
+** Renumber
+# Sandbox: the same snippet again.
+#+begin_src org
+  Apples[fn:3], pears[fn:1] and plums[fn:2].
+
+  ,* Footnotes
+  [fn:1] Pears are green.
+  [fn:2] Plums are purple.
+  [fn:3] Apples are red.
+#+end_src
+
+*Try:* =<prefix>'= in the block, then =4<prefix>if= and =r=.
+
+*Expect:* the first reference becomes =[fn:1]=, the second =[fn:2]=, the
+third =[fn:3]=, and every definition is relabeled to match. The
+definitions stay where they are, so they are now out of order:
+
+#+begin_example
+  Apples[fn:1], pears[fn:2] and plums[fn:3].
+
+  ,* Footnotes
+  [fn:2] Pears are green.
+  [fn:3] Plums are purple.
+  [fn:1] Apples are red.
+#+end_example
+
+*Try:* still in the edit buffer, =4<prefix>if= and =s= (or start over with
+=u= and use =S= to renumber and sort in one go).
+
+*Expect:* the definitions are now 1, 2, 3 with blank lines between them,
+and "[fn:1] Apples are red." comes first.
+
+** Normalize
+# Sandbox: an anonymous inline footnote, a named inline one that is
+# referenced twice, and a named definition that nobody references.
+#+begin_src org
+  Coffee[fn:: Strong, please.] with milk[fn:milk: Oat.].
+  Milk again[fn:milk].
+
+  ,* Footnotes
+  [fn:unused] Nobody refers to me.
+#+end_src
+
+*Try:* =<prefix>'= in the block, then =4<prefix>if= and =n=.
+
+*Expect:* every footnote is numbered in the order of its first reference,
+the inline texts became ordinary definitions, and the definition nobody
+references comes last:
+
+#+begin_example
+  Coffee[fn:1] with milk[fn:2].
+  Milk again[fn:2].
+
+  ,* Footnotes
+
+  [fn:1] Strong, please.
+
+  [fn:2] Oat.
+
+  [fn:3] Nobody refers to me.
+#+end_example
+
+** Delete
+# Sandbox: fn:b is referenced twice.
+#+begin_src org
+  One[fn:a], two[fn:b], and two again[fn:b].
+
+  ,* Footnotes
+  [fn:a] First.
+
+  [fn:b] Second.
+#+end_src
+
+*Try:* =<prefix>'= in the block, put the cursor on the first =[fn:b]= and
+press =4<prefix>if= then =d=.
+
+*Expect:* the message "1 definition(s) of and 2 reference(s) of footnote b
+removed", and the snippet becomes:
+
+#+begin_example
+  One[fn:a], two, and two again.
+
+  ,* Footnotes
+  [fn:a] First.
+
+#+end_example
+
+On an anonymous inline footnote, =d= removes just that footnote ("Anonymous
+footnote removed").
+
+* Options: labels, placement, automatic renumbering
+Four options change how =<prefix>if= creates footnotes. Each can be set in
+your config or, for one file, with a =#+STARTUP:= word:
+
+| Option                   | =#+STARTUP:= words      | Controls             |
+|--------------------------+-------------------------+----------------------|
+| =footnote_auto_label=    | =fnauto= =fnprompt=     | how the label is     |
+|                          | =fnconfirm= =fnplain=   | chosen               |
+|                          | =fnanon=                |                      |
+| =footnote_section=       | =fnlocal=               | where definitions go |
+| =footnote_define_inline= | =fninline= =nofninline= | inline definitions   |
+| =footnote_auto_adjust=   | =fnadjust= =nofnadjust= | renumber and sort    |
+|                          |                         | after each change    |
+
+- =fnauto= / =fnplain=: numbers (the default); =fnprompt=: ask for a
+  label; =fnconfirm=: ask, offering the next number; =fnanon=: anonymous
+  inline footnotes.
+- =fnlocal=: no Footnotes heading, definitions go at the end of the
+  current section.
+- =fninline=: the new footnote is =[fn:N: ]=, typed in place.
+- =fnadjust=: renumber and sort after every insertion or deletion.
+
+In the config, =footnote_auto_label= is =true= (numbers), =false= (ask),
+="confirm"=, ="random"= or ="anonymous"=; =footnote_section= is a heading
+title (="Footnotes"=) or =false=; =footnote_auto_adjust= is =true=,
+="sort"=, ="renumber"= or =false=.
+
+The sandboxes below start with a =#+STARTUP:= line, which applies to the
+edit buffer only.
+
+** =fninline=: define footnotes in place
+#+begin_src org
+  #+STARTUP: fninline
+  A word that needs a note.
+#+end_src
+
+*Try:* =<prefix>'= in the block, put the cursor on the final "d" of
+"word", press =<prefix>if= and type =Explained.=
+
+*Expect:* "A word[fn:1: Explained.] that needs a note.": no Footnotes
+heading is created, the text is typed right into the reference.
+
+** =fnlocal=: definitions at the end of the section
+#+begin_src org
+  #+STARTUP: fnlocal
+  ,* Chapter one
+  The first chapter.
+  ,* Chapter two
+  The second chapter.
+#+end_src
+
+*Try:* =<prefix>'= in the block, put the cursor on the "t" at the end of
+"first", press =<prefix>if=, type =About one.= and press =<Esc>=.
+
+*Expect:* no Footnotes heading: the definition goes at the end of
+"Chapter one", after a blank line:
+
+#+begin_example
+  ,* Chapter one
+  The first[fn:1] chapter.
+
+  [fn:1] About one.
+  ,* Chapter two
+  The second chapter.
+#+end_example
+
+** =fnprompt=: choose the label
+#+begin_src org
+  #+STARTUP: fnprompt
+  Cats and dogs.
+#+end_src
+
+*Try:* =<prefix>'= in the block, cursor on the "s" of "Cats",
+=<prefix>if=, and answer the prompt "Label (leave empty for anonymous):"
+with =cat=. Then do the same on "dogs" and answer =cat= again.
+
+*Expect:* the first time, a reference with the label =cat= after "Cats"
+and a new "Footnotes" heading at the end with its empty definition. The
+second time only a reference after "dogs", with the message "New
+reference to existing note". The snippet then reads:
+
+#+begin_example
+  #+STARTUP: fnprompt
+  Cats[fn:cat] and dogs[fn:cat].
+
+  ,* Footnotes
+
+  [fn:cat] 
+#+end_example
+
+An empty answer makes an anonymous inline footnote instead.
+
+** =fnadjust=: keep everything numbered and sorted
+#+begin_src org
+  #+STARTUP: fnadjust
+  Alpha[fn:1] and gamma[fn:2].
+
+  ,* Footnotes
+  [fn:1] First letter.
+
+  [fn:2] Third letter.
+#+end_src
+
+*Try:* =<prefix>'= in the block, put the cursor on the "d" at the end of
+"and", press =<prefix>if= and then =<Esc>= right away.
+
+*Expect:* the new footnote was inserted with the next free label, 3, and
+then everything was renumbered and sorted at once. The new note is now
+number 2, between the other two, with an empty definition:
+
+#+begin_example
+  #+STARTUP: fnadjust
+  Alpha[fn:1] and[fn:2] gamma[fn:3].
+
+  ,* Footnotes
+
+  [fn:1] First letter.
+
+  [fn:2] 
+
+  [fn:3] Third letter.
+#+end_example
+
+* Footnotes, lint and export
+- =:Org lint= checks footnotes: a reference without a definition
+  (=undefined-footnote-reference=), a definition nobody refers to
+  (=unreferenced-footnote-definition=), two definitions with the same
+  label (=duplicate-footnote-definition=), and anything that is not a
+  definition inside the Footnotes heading
+  (=extraneous-element-in-footnote-section=).
+- In export the references are numbered in order of appearance and the
+  definitions are printed at the end; the Footnotes heading itself is not
+  exported. =export.with_footnotes= (or =#+OPTIONS: f:nil=) turns
+  footnotes off.
+
+*Try:* run =:Org lint= in this file.
+
+*Expect:* one entry in the location list, for the reference =[fn:sky]=
+in "A reference without a definition": "undefined-footnote-reference:
+Missing definition for footnote [sky]" (unless you already created its
+definition in that exercise).
+
+* Footnotes
+[fn:1] Carsten Dominik started Org mode in 2003, as a Dutch astronomer.
+
+[fn:emacs] GNU Emacs is the extensible text editor Org was written for.
+
+[fn:2] The first version, 4.x, appeared in 2003.
+
+[fn:3] The home of Org mode is https://orgmode.org.
+
+[fn:tables] Formulas in =#+TBLFM:= lines recompute the table, see
+16-spreadsheet.org.
+
+[fn:babel-intro] Babel runs source blocks and puts their results in the
+file, see 17-babel.org.
+
+[fn:long] This definition has more than one paragraph.
+
+It goes on here, after a single blank line, and even has a list:
+- item one
+- item two
+
+* Further reading
+- =:h org-footnotes= :: the syntax, the keys and every option
+- =:h org-babel-edit-special= :: =<prefix>'= on footnotes and blocks
+- =:h org-lint= :: the footnote checks
+- [[file:19-export.org][19-export.org]] :: how footnotes are exported
+- [[file:13-links.org][13-links.org]] :: links, another way to point
+  somewhere else

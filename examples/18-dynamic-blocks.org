@@ -1,0 +1,861 @@
+#+TITLE: Dynamic blocks
+#+STARTUP: overview
+#+CATEGORY: dblocks
+#+TODO: TODO(t) NEXT(n) | DONE(d)
+#+PROPERTY: Effort_ALL 0:30 1:00 2:00 3:00 4:00
+
+* How to use this file
+A dynamic block is a region of the file that org.nvim writes for you. It
+starts with a =#+BEGIN: NAME PARAMETERS= line and ends with =#+END:=.
+Everything between the two lines is *generated*: updating the block throws
+the old content away and writes a fresh one, computed from the rest of the
+file. Two kinds are built in, =clocktable= (time you clocked) and
+=columnview= (a table of properties), and you can write your own in Lua.
+
+- The file starts folded. =<Tab>= on a heading opens it, =<S-Tab>= cycles
+  the whole buffer.
+- Nothing breaks if you make a mess: =u= undoes, and
+  =git checkout examples/18-dynamic-blocks.org= restores the file.
+- =<prefix>= means =<leader>o= (the default =mappings.prefix=). =g?= lists
+  every key of the buffer.
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see afterwards. Lines starting with =# = are Org comments that annotate
+  the examples.
+- The generated tables below were written by org.nvim itself. Updating a
+  block again gives the same table, except for the "Clock summary at"
+  time stamp, which is the time of the update.
+
+Start Neovim from the repo root with the bundled init file, so your own
+config is not involved:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/18-dynamic-blocks.org
+#+end_src
+
+** Keys in this file
+| Key                        | Emacs              | What it does                       |
+|----------------------------+--------------------+------------------------------------|
+| =<C-c><C-c>= on =#+BEGIN:= | =C-c C-c=          | update this block                  |
+| =<prefix>xu=               | =C-c C-x C-u=      | update the block around the cursor |
+| =<prefix>xU=               |                    | update every block of the file     |
+| =<prefix>xr=               | =C-c C-x C-r=      | insert / update a clock table      |
+| =:Org insert_columnview=   | =C-c C-x i=        | insert a column view block         |
+| =:Org insert_dblock=       | =C-c C-x x=        | insert a block, choosing its type  |
+| =<S-Left>= / =<S-Right>=   | =S-left= =S-right= | on a clocktable =#+BEGIN:= line:   |
+|                            |                    | shift its =:block= period          |
+| =<prefix>C=                | =C-c C-x C-c=      | the interactive column view        |
+
+* The sample data
+The clock tables and column views below read this data. It is a small
+project with clocked time in the week of Mon 2026-09-21, plus some admin
+work. Each task has an =Effort= estimate and an =OWNER=.
+
+** Website relaunch                                                 :project:
+:PROPERTIES:
+:ID:       dblocks-website
+:COLUMNS:  %ITEM %TODO %Effort{:} %OWNER %CLOCKSUM
+:END:
+*** DONE Design mockups                                              :design:
+:PROPERTIES:
+:Effort:   4:00
+:OWNER:    Ana
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-22 Tue 14:00]--[2026-09-22 Tue 15:15] =>  1:15
+CLOCK: [2026-09-21 Mon 09:00]--[2026-09-21 Mon 11:30] =>  2:30
+:END:
+*** NEXT Build the pages                                                :dev:
+**** DONE Home page
+:PROPERTIES:
+:Effort:   3:00
+:OWNER:    Ben
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 12:45] =>  2:45
+:END:
+**** TODO Contact form                                               :urgent:
+:PROPERTIES:
+:Effort:   2:00
+:OWNER:    Ben
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 13:00]--[2026-09-24 Thu 13:40] =>  0:40
+:END:
+**** TODO Blog
+:PROPERTIES:
+:Effort:   4:00
+:OWNER:    Cai
+:END:
+*** TODO Launch checklist                                               :ops:
+:PROPERTIES:
+:Effort:   1:00
+:OWNER:    Ana
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-25 Fri 16:00]--[2026-09-25 Fri 16:30] =>  0:30
+:END:
+** Admin                                                              :admin:
+*** Weekly review
+:LOGBOOK:
+CLOCK: [2026-09-25 Fri 17:00]--[2026-09-25 Fri 17:30] =>  0:30
+CLOCK: [2026-09-18 Fri 17:00]--[2026-09-18 Fri 17:45] =>  0:45
+:END:
+*** Email
+:LOGBOOK:
+CLOCK: [2026-09-21 Mon 08:30]--[2026-09-21 Mon 09:00] =>  0:30
+:END:
+
+# Totals, to check the tables below against:
+#   Design mockups 3:45, Home page 2:45, Contact form 0:40,
+#   Launch checklist 0:30, Weekly review 1:15 (0:30 of it in the week of
+#   Sep 21), Email 0:30. Whole file: 9:25. Week of Sep 21: 8:40.
+
+* How dynamic blocks work
+The general form is:
+
+: #+BEGIN: NAME :param1 value1 :param2 "a string" :param3 (a list)
+: ...generated content...
+: #+END:
+
+- =NAME= picks the writer: =clocktable=, =columnview=, or one you
+  register yourself (see "Your own dynamic blocks").
+- Parameters are =:key value= pairs. A value is a word or number, a
+  ="quoted string"= (for values with spaces), a =(list in parentheses)=,
+  =t= (true) or =nil= (false). A timestamp like =<2026-09-21 Mon>= may
+  contain spaces.
+- Updating replaces everything between the two lines. Don't edit the
+  content by hand: your edits are lost on the next update. (A =#+TBLFM:=
+  line under a table is the exception, see "Formulas that survive".)
+
+Ways to update:
+- =<C-c><C-c>= on the =#+BEGIN:= line updates that block.
+- =<prefix>xu= anywhere inside a block (Emacs =C-c C-x C-u=).
+- =<prefix>xU= updates every dynamic block of the file, from the last one
+  to the first, and reports "Updated N dynamic block(s)".
+
+This block is intentionally out of date: its content was typed by hand.
+
+#+BEGIN: clocktable :scope file :maxlevel 1
+| This text is stale | and will be replaced |
+#+END:
+
+*Try:* put the cursor on the =#+BEGIN:= line above and press =<C-c><C-c>=.
+
+*Expect:* the stale line is replaced by a table: a =#+CAPTION:= line
+("Clock summary at" and the current time), a header row
+=| Headline | Time |=, the row =| *Total time* | *9:25* |=, and one row
+per level-1 heading with clocked time; here only
+=| The sample data | 9:25 |= (all the clocks of this file are below that
+heading). Press =u= to see the old text again, and =<C-r>= to redo.
+
+*Try:* press =<prefix>xU=.
+
+*Expect:* the message "Updated 21 dynamic block(s)": every
+=clocktable= and =columnview= block of the file is rewritten, and only the
+"Clock summary at" times change. The blocks of "Your own dynamic blocks"
+fail until you run the Lua blocks there: three warnings "No writer for
+dynamic block: ..." and one error about =:formatter effort_list=.
+
+* Clock tables
+A =clocktable= block sums the =CLOCK:= lines of the file (or of other
+files) per heading. Clocking itself (clocking in and out, the logbook,
+effort) is covered in [[file:08-clocking.org][08-clocking.org]]; this section is about the
+table.
+
+=<prefix>xr= (Emacs =C-c C-x C-r=) inserts a new clock table below the
+cursor line (=:scope subtree :maxlevel 2=, or =:scope file= above the
+first heading), or updates the one the cursor is in. With a count
+(=1<prefix>xr=) it first jumps to the first clock table of the file.
+
+*Try:* put the cursor on the "Admin" heading in "The sample data" and
+press =<prefix>xr=.
+
+*Expect:* right under the heading line, a new block
+=#+BEGIN: clocktable :scope subtree :maxlevel 2= with =*Total time*=
+=*1:45*= and one row =\_  Admin= =1:45=. The children (level 3) are not
+listed: =:maxlevel= counts the stars of the headings, not the depth
+below the block. Press =u= to remove it again.
+
+** The basic table
+=:scope file= reads the whole file, =:maxlevel 3= shows headings down to
+level 3 (deeper levels are added to their parent).
+
+#+BEGIN: clocktable :scope file :maxlevel 3
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| Headline               | Time   |      |      |
+|------------------------+--------+------+------|
+| *Total time*           | *9:25* |      |      |
+|------------------------+--------+------+------|
+| The sample data        | 9:25   |      |      |
+| \_  Website relaunch   |        | 7:40 |      |
+| \_    Design mockups   |        |      | 3:45 |
+| \_    Build the pages  |        |      | 3:25 |
+| \_    Launch checklist |        |      | 0:30 |
+| \_  Admin              |        | 1:45 |      |
+| \_    Weekly review    |        |      | 1:15 |
+| \_    Email            |        |      | 0:30 |
+#+END:
+
+*Try:* change =:maxlevel 3= to =:maxlevel 2= and press =<C-c><C-c>= on the
+=#+BEGIN:= line.
+
+*Expect:* the level-3 rows (=Design mockups=, =Build the pages=,
+=Launch checklist=, =Weekly review=, =Email=) disappear; =Website
+relaunch= still shows =7:40= and =Admin= =1:45=: the time of the hidden
+children is still counted in their parents.
+
+** Limiting the period: :block, :tstart, :tend
+=:block= keeps only clocked time inside a period: =today=, =yesterday=,
+=thisweek=, =lastweek=, =thismonth=, =lastmonth=, =thisyear=, a fixed day
+=2026-09-23=, a week =2026-W39=, a month =2026-09=, a quarter =2026-Q3= or
+a year =2026=. The =this...= forms and =today= take an offset:
+=thisweek-1= is last week.
+
+# Only the week of Mon 2026-09-21 (ISO week 39). The 0:45 of the weekly
+# review on Fri Sep 18 is left out.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-W39
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21], for week 2026-W39.
+| Headline               | Time   |      |      |
+|------------------------+--------+------+------|
+| *Total time*           | *8:40* |      |      |
+|------------------------+--------+------+------|
+| The sample data        | 8:40   |      |      |
+| \_  Website relaunch   |        | 7:40 |      |
+| \_    Design mockups   |        |      | 3:45 |
+| \_    Build the pages  |        |      | 3:25 |
+| \_    Launch checklist |        |      | 0:30 |
+| \_  Admin              |        | 1:00 |      |
+| \_    Weekly review    |        |      | 0:30 |
+| \_    Email            |        |      | 0:30 |
+#+END:
+
+# One single day: Wed 2026-09-23.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09-23
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21], for Wednesday, September 23, 2026.
+| Headline              | Time   |      |      |
+|-----------------------+--------+------+------|
+| *Total time*          | *2:45* |      |      |
+|-----------------------+--------+------+------|
+| The sample data       | 2:45   |      |      |
+| \_  Website relaunch  |        | 2:45 |      |
+| \_    Build the pages |        |      | 2:45 |
+#+END:
+
+=:tstart= and =:tend= give any range (=:tend= is exclusive). They also
+accept =<today>=, =<now>=, =<-2d>= (two days ago), =<+1w>=, =<-3h>=.
+
+# From Mon 21 to (not including) Wed 23: Monday and Tuesday.
+#+BEGIN: clocktable :scope file :maxlevel 3 :tstart "<2026-09-21 Mon>" :tend "<2026-09-23 Wed>"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| Headline             | Time   |      |      |
+|----------------------+--------+------+------|
+| *Total time*         | *4:15* |      |      |
+|----------------------+--------+------+------|
+| The sample data      | 4:15   |      |      |
+| \_  Website relaunch |        | 3:45 |      |
+| \_    Design mockups |        |      | 3:45 |
+| \_  Admin            |        | 0:30 |      |
+| \_    Email          |        |      | 0:30 |
+#+END:
+
+*Try:* put the cursor on the =#+BEGIN:= line of the =2026-09-23= table and
+press =<S-Right>=.
+
+*Expect:* the line now reads =:block 2026-09-24= and the table is
+updated: =*Total time*= =*0:40*=, all in =Build the pages= (the
+0:40 of "Contact form", a level-4 entry). =<S-Left>= twice goes back to
+=2026-09-22= (=Design mockups= =1:15=). On =:block thisweek= the keys give
+=thisweek+1= / =thisweek-1=.
+
+** One table per day: :step
+=:step day= (or =week=, =semimonth=, =month=, =quarter=, =year=) splits
+the =:block= or =:tstart= / =:tend= range into periods and writes one table
+per period. =:stepskip0 t= leaves out the periods without time.
+
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-W39 :step day :stepskip0 t
+
+Daily report: [2026-09-21 Mon]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *3:00* |      |
+|----------------------+--------+------|
+| The sample data      | 3:00   |      |
+| \_  Website relaunch |        | 2:30 |
+| \_  Admin            |        | 0:30 |
+
+Daily report: [2026-09-22 Tue]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *1:15* |      |
+|----------------------+--------+------|
+| The sample data      | 1:15   |      |
+| \_  Website relaunch |        | 1:15 |
+
+Daily report: [2026-09-23 Wed]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *2:45* |      |
+|----------------------+--------+------|
+| The sample data      | 2:45   |      |
+| \_  Website relaunch |        | 2:45 |
+
+Daily report: [2026-09-24 Thu]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *0:40* |      |
+|----------------------+--------+------|
+| The sample data      | 0:40   |      |
+| \_  Website relaunch |        | 0:40 |
+
+Daily report: [2026-09-25 Fri]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *1:00* |      |
+|----------------------+--------+------|
+| The sample data      | 1:00   |      |
+| \_  Website relaunch |        | 0:30 |
+| \_  Admin            |        | 0:30 |
+
+#+END:
+
+*Try:* remove =:stepskip0 t= and update the block.
+
+*Expect:* seven daily tables, Monday to Sunday; the tables of Saturday
+2026-09-26 and Sunday 2026-09-27 only have the row
+=| *Total time* | *0:00* |=.
+
+** Choosing the entries: :match and :scope
+=:match= takes a tags/property match (the same syntax as the agenda's
+match views, =:h org-match-syntax=).
+
+# Only entries tagged :design: or :ops: (tags are inherited, but the
+# parents are shown to keep the outline).
+#+BEGIN: clocktable :scope file :maxlevel 3 :match "design|ops"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| Headline               | Time   |      |      |
+|------------------------+--------+------+------|
+| *Total time*           | *4:15* |      |      |
+|------------------------+--------+------+------|
+| The sample data        | 4:15   |      |      |
+| \_  Website relaunch   |        | 4:15 |      |
+| \_    Design mockups   |        |      | 3:45 |
+| \_    Launch checklist |        |      | 0:30 |
+#+END:
+
+# Only Ben's work, with the OWNER property shown as a column.
+#+BEGIN: clocktable :scope file :maxlevel 4 :match "OWNER=\"Ben\"" :properties ("OWNER")
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| OWNER | Headline              | Time   |      |      |      |
+|-------+-----------------------+--------+------+------+------|
+|       | *Total time*          | *3:25* |      |      |      |
+|-------+-----------------------+--------+------+------+------|
+|       | The sample data       | 3:25   |      |      |      |
+|       | \_  Website relaunch  |        | 3:25 |      |      |
+|       | \_    Build the pages |        |      | 3:25 |      |
+| Ben   | \_      Home page     |        |      |      | 2:45 |
+| Ben   | \_      Contact form  |        |      |      | 0:40 |
+#+END:
+
+=:scope= says which entries are read:
+| =:scope=               | reads                                        |
+|------------------------+----------------------------------------------|
+| =file=                 | this whole file                              |
+| =subtree=              | the subtree the block is in                  |
+| =tree= / =treeN=       | the level-1 (level-N) tree the block is in   |
+| =agenda=               | every agenda file (a =File= column is added) |
+| =agenda-with-archives= | the same, plus their archive files           |
+| =file-with-archives=   | this file and its archive                    |
+| =("a.org" "b.org")=    | the listed files                             |
+
+*Try:* on the =#+BEGIN:= line of "The basic table" change =:scope file= to
+=:scope agenda= and update it.
+
+*Expect:* with =examples/minimal_init.lua= the table covers every
+=examples/*.org= file. A =File= column comes first; the total row reads
+=ALL *Total time*=, and every file gets a =*File time*= row (=*0:00*= for
+files without clocks) followed by its headings. The
+=18-dynamic-blocks.org= part shows the same =9:25= as before. Change it
+back to =:scope file=.
+
+** Extra columns
+| Parameter             | Adds                                         |
+|-----------------------+----------------------------------------------|
+| =:tags t=             | a Tags column                                |
+| =:level t=            | a level column (the number of stars)         |
+| =:timestamp t=        | the first timestamp of the entry             |
+| =:properties ("P" …)= | one column per property (=:inherit-props t=) |
+| =:formula %=          | the percentage of the total time             |
+| =:link t=             | headings as links to the entries             |
+| =:emphasize t=        | level 1 in bold, level 2 in italic           |
+
+# Tags, efforts and percentages. The percentages are of the total time,
+# 9:25 (565 minutes).
+#+BEGIN: clocktable :scope file :maxlevel 3 :tags t :properties ("Effort") :formula %
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| Tags            | Effort | Headline               | Time   |      |      |     % |
+|-----------------+--------+------------------------+--------+------+------+-------|
+|                 |        | *Total time*           | *9:25* |      |      | 100.0 |
+|-----------------+--------+------------------------+--------+------+------+-------|
+|                 |        | The sample data        | 9:25   |      |      | 100.0 |
+| project         |        | \_  Website relaunch   |        | 7:40 |      |  81.4 |
+| project, design |   4:00 | \_    Design mockups   |        |      | 3:45 |  39.8 |
+| project, dev    |        | \_    Build the pages  |        |      | 3:25 |  36.3 |
+| project, ops    |   1:00 | \_    Launch checklist |        |      | 0:30 |   5.3 |
+| admin           |        | \_  Admin              |        | 1:45 |      |  18.6 |
+| admin           |        | \_    Weekly review    |        |      | 1:15 |  13.3 |
+| admin           |        | \_    Email            |        |      | 0:30 |   5.3 |
+#+END:
+
+*Try:* add =:link t= to the block above and update it.
+
+*Expect:* every heading in the table becomes a link to the entry: a
+=file:= link with the full path of this file and =::*Design mockups=
+(like Emacs, which also writes the absolute file name). The link shows as
+its description, =Design mockups=; =<C-c><C-c>= on it jumps to the
+entry.
+
+** Layout
+| Parameter        | Effect                                                       |
+|------------------+--------------------------------------------------------------|
+| =:compact t=     | one time column, headings indented (=\_=)                    |
+| =:indent nil=    | no =\_= indentation of sub-headings                          |
+| =:tcolumns N=    | at most N time columns (one per level by default)            |
+| =:narrow 20!=    | cut headings to 20 characters                                |
+| =:hidefiles t=   | no File column with =:scope agenda=                          |
+| =:fileskip0 t=   | skip files without clocked time                              |
+| =:sort (2 . ?T)= | sort the rows by column 2, time, descending (=?t= ascending) |
+| =:lang de=       | headers in German (also es, fr, nl, nn, pl, pt-BR, sk)       |
+| =:header "text"= | replace the =#+CAPTION:= line with your own text             |
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :compact t :header "#+CAPTION: Compact view\n"
+#+CAPTION: Compact view
+| Headline               |   Time |
+|------------------------+--------|
+| *Total time*           | *9:25* |
+|------------------------+--------|
+| The sample data        |   9:25 |
+| \_  Website relaunch   |   7:40 |
+| \_    Design mockups   |   3:45 |
+| \_    Build the pages  |   3:25 |
+| \_    Launch checklist |   0:30 |
+| \_  Admin              |   1:45 |
+| \_    Weekly review    |   1:15 |
+| \_    Email            |   0:30 |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :lang de :narrow 12!
+#+CAPTION: Erstellt am [2026-09-28 Mon 15:21]
+| Kopfzeile          | Dauer  |      |      |
+|--------------------+--------+------+------|
+| *Gesamtdauer*      | *9:25* |      |      |
+|--------------------+--------+------+------|
+| The...             | 9:25   |      |      |
+| \_  Website...     |        | 7:40 |      |
+| \_    Design...    |        |      | 3:45 |
+| \_    Build the... |        |      | 3:25 |
+| \_    Launch...    |        |      | 0:30 |
+| \_  Admin          |        | 1:45 |      |
+| \_    Weekly...    |        |      | 1:15 |
+| \_    Email        |        |      | 0:30 |
+#+END:
+
+** Formulas that survive
+=:formula "..."= adds a =#+TBLFM:= line to the table. A =#+TBLFM:= line you
+write yourself right under the table is kept on every update and
+re-applied. Here =:tcolumns 1= puts all times in one column and a formula
+converts them into hours as a decimal number (=;t= reads =H:MM= as
+hours):
+
+#+BEGIN: clocktable :scope file :maxlevel 2 :tcolumns 1 :formula "$3=$2;t"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:21]
+| Headline             |   Time |      |
+|----------------------+--------+------|
+| *Total time*         | *9:25* | 9.42 |
+|----------------------+--------+------|
+| The sample data      |   9:25 | 9.42 |
+| \_  Website relaunch |   7:40 | 7.67 |
+| \_  Admin            |   1:45 | 1.75 |
+#+TBLFM: $3=$2;t
+#+END:
+
+*Try:* update the block above twice.
+
+*Expect:* the =#+TBLFM: $3=$2;t= line is still there after each update,
+and the third column shows the hours as decimals: =9.42= for =9:25=,
+=7.67= for =7:40=, =1.75= for =1:45=.
+
+* Column view blocks
+A =columnview= block writes the column view of a subtree (or of the whole
+file) as a table: one row per heading, one column per property of the
+=COLUMNS= format. The format of "Website relaunch" is:
+
+: %ITEM %TODO %Effort{:} %OWNER %CLOCKSUM
+
+=%Effort{:}= sums the efforts of the children as times, =%CLOCKSUM= is the
+clocked time of the entry and its children. The interactive column view
+(=<prefix>C=, see [[file:06-properties-columns.org][06-properties-columns.org]]) shows the same data; a
+columnview block freezes it into the file, where it can be exported.
+
+=:Org insert_columnview= (Emacs =C-c C-x i=) inserts a new block and asks
+for the scope: =local=, =global= or the ID of an entry.
+
+** Choosing the subtree: :id
+| =:id=           | Captures                                                  |
+|-----------------+-----------------------------------------------------------|
+| =local=         | the subtree the block is in (the default)                 |
+| =global=        | the whole file                                            |
+| =file:path.org= | the whole of another file                                 |
+| =ID=            | the entry with that =ID= or =CUSTOM_ID= (any agenda file) |
+
+# The "Website relaunch" subtree, found by its ID. Its own COLUMNS
+# property gives the format.
+#+BEGIN: columnview :id dblocks-website
+| ITEM             | TODO | Effort | OWNER | CLOCKSUM |
+|------------------+------+--------+-------+----------|
+| Website relaunch |      |  14:00 |       |     7:40 |
+| Design mockups   | DONE |   4:00 | Ana   |     3:45 |
+| Build the pages  | NEXT |   9:00 |       |     3:25 |
+| Home page        | DONE |   3:00 | Ben   |     2:45 |
+| Contact form     | TODO |   2:00 | Ben   |     0:40 |
+| Blog             | TODO |   4:00 | Cai   |          |
+| Launch checklist | TODO |   1:00 | Ana   |     0:30 |
+#+END:
+
+*Try:* change the =Effort= of "Blog" (in "The sample data") from =4:00= to
+=2:00= with =<prefix>xe= or by editing the drawer, then update the block
+above.
+
+*Expect:* the =Blog= row shows =2:00=, =Build the pages= goes from =9:00=
+to =7:00= and =Website relaunch= from =14:00= to =12:00=.
+
+** The current subtree: :id local
+:PROPERTIES:
+:COLUMNS:  %ITEM %Pages{+} %Rating{mean} %Read
+:END:
+With =:id local= (or no =:id= at all) the block captures the subtree it is
+written in: this heading and its children. The format comes from this
+heading's own =COLUMNS= property. =%Pages{+}= sums the pages,
+=%Rating{mean}= averages the ratings.
+
+#+BEGIN: columnview :id local
+| ITEM                           | Pages | Rating | Read |
+|--------------------------------+-------+--------+------|
+| The current subtree: :id local |  1165 |    4.5 |      |
+| Dune                           |   412 |      5 | yes  |
+| Neuromancer                    |   271 |      4 | yes  |
+| Hyperion                       |   482 |        | no   |
+#+END:
+
+# The same subtree (this block is also directly under the heading),
+# with a hline before every entry (:hlines t) and column groups
+# (:vlines t): an empty first column and a last row of "/" and "<>"
+# markers, which draw vertical lines between the columns when exported.
+#+BEGIN: columnview :id local :vlines t :hlines t
+|   | ITEM                           | Pages | Rating | Read |
+|---+--------------------------------+-------+--------+------|
+|   | The current subtree: :id local |  1165 |    4.5 |      |
+|---+--------------------------------+-------+--------+------|
+|   | Dune                           |   412 |      5 | yes  |
+|---+--------------------------------+-------+--------+------|
+|   | Neuromancer                    |   271 |      4 | yes  |
+|---+--------------------------------+-------+--------+------|
+|   | Hyperion                       |   482 |        | no   |
+| / | <>                             |    <> |     <> | <>   |
+#+END:
+
+*** Dune
+:PROPERTIES:
+:Pages:    412
+:Rating:   5
+:Read:     yes
+:END:
+*** Neuromancer
+:PROPERTIES:
+:Pages:    271
+:Rating:   4
+:Read:     yes
+:END:
+*** Hyperion
+:PROPERTIES:
+:Pages:    482
+:Read:     no
+:END:
+
+*Try:* give "Hyperion" a rating: add the line =:Rating:   3= to its
+drawer (or press =<prefix>p= on the heading, type the property =Rating= and
+the value =3=),
+then update both blocks.
+
+*Expect:* the =Hyperion= row shows =3=, and the top row's =Rating= mean
+becomes =4= ((5 + 4 + 3) / 3) instead of =4.5=.
+
+** Depth and hlines: :maxlevel, :hlines
+=:maxlevel N= stops at level N. =:hlines t= puts a separator before every
+entry; =:hlines N= only before entries of level N or less.
+
+# Levels 1 to 3 of the file (so the level-4 pages are left out), and a
+# hline before every entry of level 3 or less.
+#+BEGIN: columnview :id dblocks-website :maxlevel 3 :hlines 3
+| ITEM             | TODO | Effort | OWNER | CLOCKSUM |
+|------------------+------+--------+-------+----------|
+| Website relaunch |      |  14:00 |       |     7:40 |
+|------------------+------+--------+-------+----------|
+| Design mockups   | DONE |   4:00 | Ana   |     3:45 |
+|------------------+------+--------+-------+----------|
+| Build the pages  | NEXT |   9:00 |       |     3:25 |
+|------------------+------+--------+-------+----------|
+| Launch checklist | TODO |   1:00 | Ana   |     0:30 |
+#+END:
+
+** Leaving rows out: :skip-empty-rows, :match, :exclude-tags
+- =:skip-empty-rows t= drops rows where every column but ITEM is empty.
+- =:match "..."= keeps the entries that match a tags/property match.
+- =:exclude-tags (tag ...)= drops entries with one of these tags
+  (inherited tags count).
+
+# Only the columns OWNER and Effort, and only rows that have one of them.
+#+BEGIN: columnview :id dblocks-website :format "%ITEM %OWNER %Effort" :skip-empty-rows t
+| ITEM             | OWNER | Effort |
+|------------------+-------+--------|
+| Design mockups   | Ana   |   4:00 |
+| Home page        | Ben   |   3:00 |
+| Contact form     | Ben   |   2:00 |
+| Blog             | Cai   |   4:00 |
+| Launch checklist | Ana   |   1:00 |
+#+END:
+
+# Only Ben's tasks.
+#+BEGIN: columnview :id dblocks-website :match "OWNER=\"Ben\""
+| ITEM         | TODO | Effort | OWNER | CLOCKSUM |
+|--------------+------+--------+-------+----------|
+| Home page    | DONE |   3:00 | Ben   |     2:45 |
+| Contact form | TODO |   2:00 | Ben   |     0:40 |
+#+END:
+
+# Everything except the :urgent: entries.
+#+BEGIN: columnview :id dblocks-website :exclude-tags (urgent)
+| ITEM             | TODO | Effort | OWNER | CLOCKSUM |
+|------------------+------+--------+-------+----------|
+| Website relaunch |      |  14:00 |       |     7:40 |
+| Design mockups   | DONE |   4:00 | Ana   |     3:45 |
+| Build the pages  | NEXT |   9:00 |       |     3:25 |
+| Home page        | DONE |   3:00 | Ben   |     2:45 |
+| Blog             | TODO |   4:00 | Cai   |          |
+| Launch checklist | TODO |   1:00 | Ana   |     0:30 |
+#+END:
+
+** Indentation and links: :indent, :link
+=:indent t= indents the ITEM column by level (=\_= like the clock table).
+=:link t= turns each item into a link to its heading.
+
+#+BEGIN: columnview :id dblocks-website :indent t :format "%ITEM %TODO %Effort{:}"
+| ITEM                 | TODO | Effort |
+|----------------------+------+--------|
+| Website relaunch     |      |  14:00 |
+| \_  Design mockups   | DONE |   4:00 |
+| \_  Build the pages  | NEXT |   9:00 |
+| \_    Home page      | DONE |   3:00 |
+| \_    Contact form   | TODO |   2:00 |
+| \_    Blog           | TODO |   4:00 |
+| \_  Launch checklist | TODO |   1:00 |
+#+END:
+
+*Try:* add =:link t= to the block above and update it. Then press
+=<C-c><C-c>= on the =Contact form= link.
+
+*Expect:* the items become =file:= links (the full path of this file,
+then =::*Contact form=), shown as their titles; following one jumps to
+that heading.
+
+** Your own format and formulas: :format, #+TBLFM
+=:format= overrides the =COLUMNS= format. Keywords above the table (like
+=#+NAME:=) and a =#+TBLFM:= line under it are kept when the block is
+updated, and the formula is applied again, so a column view can feed a
+computed column. Here the format has a fourth column, =Left=, for a
+property no entry has (so it starts empty), and the formula fills it with
+the effort minus the clocked time (=;U= writes the result as =HH:MM=):
+
+#+BEGIN: columnview :id dblocks-website :format "%ITEM %Effort{:} %CLOCKSUM %Left"
+#+NAME: effort-left
+| ITEM             | Effort | CLOCKSUM |  Left |
+|------------------+--------+----------+-------|
+| Website relaunch |  14:00 |     7:40 | 06:20 |
+| Design mockups   |   4:00 |     3:45 | 00:15 |
+| Build the pages  |   9:00 |     3:25 | 05:35 |
+| Home page        |   3:00 |     2:45 | 00:15 |
+| Contact form     |   2:00 |     0:40 | 01:20 |
+| Blog             |   4:00 |          | 04:00 |
+| Launch checklist |   1:00 |     0:30 | 00:30 |
+#+TBLFM: $4=$2-$3;U
+#+END:
+
+*Try:* change the =Effort= of "Contact form" (in "The sample data") from
+=2:00= to =3:00= and update the block above.
+
+*Expect:* the =#+NAME:= and =#+TBLFM:= lines are still there, and the
+=Contact form= row shows =3:00=, =0:40= and =02:20= left; =Build the
+pages= goes to =10:00= and =06:35=, =Website relaunch= to =15:00= and
+=07:20=.
+
+* Your own dynamic blocks
+A writer is a Lua function registered under a name. It receives the
+parameters of the =#+BEGIN:= line (a table: =:name "Ada"= gives
+=params.name == "Ada"=, =t= gives =true=, numbers are numbers) and a
+context =ctx= (=ctx.bufnr=, =ctx.start_line=, =ctx.end_line=,
+=ctx.content= with the current lines). It returns the new content as a
+list of lines.
+
+#+begin_src lua :eval no
+require("org.dblock").register("myblock", function(params, ctx)
+  return { "| generated | table |" }
+end)
+#+end_src
+
+Put the registration in your config (after =require("org").setup()=) to
+have the block everywhere. Here you can register writers for this session
+by running Lua source blocks (see [[file:17-babel.org][17-babel.org]]): the code runs inside
+Neovim.
+
+** A greeting
+#+begin_src lua :results silent
+require("org.dblock").register("greeting", function(params)
+  local who = params.name or "world"
+  local times = params.times or 1
+  local lines = {}
+  for i = 1, times do
+    lines[#lines + 1] = string.format("%d. Hello, %s!", i, who)
+  end
+  return lines
+end)
+#+end_src
+
+#+BEGIN: greeting :name "Ada" :times 3
+#+END:
+
+*Try:* first update the =greeting= block: =<C-c><C-c>= on its =#+BEGIN:=
+line.
+
+*Expect:* a warning "No writer for dynamic block: greeting": nothing is
+registered yet.
+
+*Try:* now put the cursor in the Lua block above, press =<C-c><C-c>= (and
+answer =y=), then update the =greeting= block again.
+
+*Expect:* three lines: =1. Hello, Ada!=, =2. Hello, Ada!= and
+=3. Hello, Ada!=. Change =:times 3= to =:times 1= and =:name "Ada"= to
+=:name "Linus"=, update again: one line, =1. Hello, Linus!=.
+
+** A table of contents
+Writers can read the buffer. This one lists the headings of the file up
+to =:maxlevel= as links, like a table of contents.
+
+#+begin_src lua :results silent
+require("org.dblock").register("toc", function(params, ctx)
+  local max = params.maxlevel or 1
+  local out = {}
+  for _, hl in ipairs(require("org.files").get_buffer(ctx.bufnr).headlines) do
+    if hl.level <= max then
+      local title = hl:plain_title()
+      out[#out + 1] = string.rep("  ", hl.level - 1)
+        .. "- [[*" .. title .. "][" .. title .. "]]"
+    end
+  end
+  return out
+end)
+#+end_src
+
+#+BEGIN: toc :maxlevel 1
+#+END:
+
+*Try:* run the Lua block above, then update the =toc= block. Then change
+=:maxlevel 1= to =:maxlevel 2= and update it again.
+
+*Expect:* first a list with one link per top-level heading of this file
+(=How to use this file=, =The sample data=, ...). With =:maxlevel 2= the
+second-level headings appear as indented sub-items.
+
+** A TODO summary
+The writer can return any Org text, for example a table:
+
+#+begin_src lua :results silent
+require("org.dblock").register("todo-summary", function(params, ctx)
+  local counts = {}
+  for _, hl in ipairs(require("org.files").get_buffer(ctx.bufnr).headlines) do
+    if hl.todo then
+      counts[hl.todo] = (counts[hl.todo] or 0) + 1
+    end
+  end
+  local lines = { "| State | Count |", "|-------+-------|" }
+  for _, state in ipairs({ "TODO", "NEXT", "DONE" }) do
+    lines[#lines + 1] = string.format("| %s | %d |", state, counts[state] or 0)
+  end
+  return lines
+end)
+#+end_src
+
+#+BEGIN: todo-summary
+#+END:
+
+*Try:* run the Lua block, update the =todo-summary= block, then mark
+"Contact form" (in "The sample data") DONE: on its heading press
+=<prefix>T= then =d=. Come back and update the block again.
+
+*Expect:* first =TODO 3=, =NEXT 1=, =DONE 2= (the table is not aligned: the
+writer did not pad it; press =<C-c><C-c>= inside it to align). After the
+change: =TODO 2=, =DONE 3=.
+
+** A column view in your own layout: :formatter
+A =columnview= block can hand its rows to your own Lua function instead of
+writing a table: =:formatter NAME= names a *global* Lua function
+=NAME(rows, params)= that returns the lines. =rows[1]= holds the column
+titles, =rows[2]= is the string ="hline"=, and each following row is a
+table with the cells (=row[1]=, =row[2]=, ...) and =row.level= (the
+heading level). The option =columns_dblock_formatter= sets a formatter for
+every columnview block.
+
+#+begin_src lua :results silent
+function _G.effort_list(rows, params)
+  local out = {}
+  for i = 3, #rows do
+    local r = rows[i]
+    local line = string.rep("  ", r.level - 2) .. "- " .. r[1] .. ": "
+      .. (r[2] ~= "" and r[2] or "no estimate")
+    if r[3] ~= "" then
+      line = line .. " (" .. r[3] .. ")"
+    end
+    out[#out + 1] = line
+  end
+  return out
+end
+#+end_src
+
+#+BEGIN: columnview :id dblocks-website :format "%ITEM %Effort{:} %OWNER" :formatter effort_list
+#+END:
+
+*Try:* run the Lua block above, then update the =columnview= block below
+it.
+
+*Expect:* a nested list instead of a table:
+=- Website relaunch: 14:00=, then indented items such as
+=- Design mockups: 4:00 (Ana)= and, one level deeper,
+=- Home page: 3:00 (Ben)=. Before the Lua block has run, updating gives
+an error that ends in "unknown :formatter effort_list".
+
+** Inserting a block of any type
+=:Org insert_dblock= (Emacs =C-c C-x x=) asks for a block type among the
+registered writers (=clocktable=, =columnview= and yours), inserts
+=#+BEGIN: NAME= / =#+END:= below the cursor line and fills it.
+
+*Try:* on the empty line below, run =:Org insert_dblock= and choose
+=greeting= (after registering it above).
+
+
+*Expect:* a =#+BEGIN: greeting= block with the content =1. Hello, world!=
+(no parameters: the defaults of the writer).
+
+* Further reading
+- =:h org-dblocks= (both built-in writers and all their parameters)
+- =:h org-clock= and [[file:08-clocking.org][08-clocking.org]] (clocking time)
+- =:h org-columns= and [[file:06-properties-columns.org][06-properties-columns.org]] (column view)
+- =:h org-match-syntax= (the =:match= parameter)
+- [[file:17-babel.org][17-babel.org]] (the Lua blocks used to register writers)

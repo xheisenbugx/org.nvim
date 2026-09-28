@@ -1,0 +1,1976 @@
+#+TITLE: Export: hands-on examples
+#+AUTHOR: org.nvim examples
+#+STARTUP: overview
+#+CATEGORY: export
+#+TODO: TODO NEXT | DONE CANCELLED
+# One file-wide option: a broken link is marked instead of stopping the
+# export. It lets you export this whole file; see "Broken links" below.
+#+OPTIONS: broken-links:mark
+# Used by the "Citations" section (the path is relative to this file).
+#+BIBLIOGRAPHY: ../tests/fixtures/export/cite/refs.bib
+
+* How to use this file
+Export turns an Org file (or one subtree of it) into another format: HTML,
+LaTeX/PDF, Beamer slides, Markdown, plain text, ODT, iCalendar, Texinfo,
+Org, or anything pandoc can write. This file walks through the dispatcher,
+every back-end, the export settings and the markup that only matters on
+export, with sample subtrees you export yourself and compare with the
+output quoted here.
+
+- The file opens folded (=#+STARTUP: overview=). =<Tab>= on a heading opens
+  it, =<S-Tab>= cycles the whole buffer.
+- =u= undoes anything; =git checkout examples/19-export.org= restores the
+  file.
+- =g?= lists every key of the current buffer. =<prefix>= is =<leader>o=
+  (with the bundled init, =<Space>o=). Emacs keys work too: =C-c C-e= is the
+  dispatcher.
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see. Lines starting with =# = (hash, space) are comments: they explain
+  the examples and are never exported.
+
+Start Neovim from the repo root with the bundled init, which keeps your own
+config and notes out of the way:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/19-export.org
+#+end_src
+
+(=examples/minimal_init.lua= sets the agenda files to =examples/*.org=, puts
+captures in a scratch directory under =stdpath("state")= and defines a few
+capture templates and agenda commands; none of that matters for export.)
+
+** Where does the output go?
+- *To a buffer* (the capital-letter keys: =h H=, =m M=, =t A=, =t U=,
+  =l L=, =l B=, =O O=, =m G=): the result opens in a vertical split, in a
+  scratch buffer named like "Org HTML Export #12". Nothing is written to
+  disk; close it with =:q=. *All exercises in this file use these keys.*
+- *To a file* (lower-case keys: =h h=, =m m=, =t a=, =l l=, =o o=, ...):
+  the file is written *next to this one, inside the repo*
+  (=examples/19-export.html= and friends, or =#+EXPORT_FILE_NAME=). Only a
+  few exercises do that and they say so; delete the files afterwards
+  (=git status= shows them as untracked) or set =export.output_dir= in
+  your config to send them elsewhere.
+
+** Why the samples are subtrees
+Almost every exercise exports *one subtree*: put the cursor anywhere inside
+a heading called "Sample: ..." and press =<prefix>e s= first (=s= toggles
+"export scope = subtree"), then the back-end keys. A subtree export:
+- uses only the body of that heading: its children become the top-level
+  sections of the output, and the heading itself is not a section;
+- reads =EXPORT_*= properties from the heading's =:PROPERTIES:= drawer
+  (=EXPORT_TITLE=, =EXPORT_OPTIONS=, ...). They override the =#+...=
+  keywords of the file, so every sample carries its own settings.
+
+*Important:* =#+TITLE:=, =#+OPTIONS:=, =#+HTML_HEAD:= and the other
+settings keywords apply to the *whole file*, wherever they are written,
+even when you export only a subtree. That is why this file shows
+file-level keywords inside =#+begin_src org= blocks (those are just code)
+and uses =EXPORT_*= properties for the samples. The only live settings
+keywords are the few at the top of this file and the =#+MACRO:= lines of
+the macros sample.
+
+Each "Sample: ..." heading is followed by an "Exercises: ..." heading with
+the *Try:* / *Expect:* steps. Keep the cursor *inside the sample* when you
+export: with the cursor in the Exercises heading you would export the
+exercise text instead.
+
+** Keys in this file
+| Keys                    | What it does                                |
+|-------------------------+---------------------------------------------|
+| =<prefix>e= (=C-c C-e=) | open the export dispatcher                  |
+| =s= =b= =v= =a=         | toggles: subtree, body only, visible, async |
+| =h H= / =m M= / =m G=   | HTML / Markdown / GFM to a buffer           |
+| =t A= / =t U= / =t L=   | ASCII / UTF-8 / Latin-1 text to a buffer    |
+| =l L= / =l B= / =O O=   | LaTeX / Beamer / Org to a buffer            |
+| =#=                     | insert the export settings template         |
+| =<Esc>=                 | close the dispatcher                        |
+| =:Org export ...=       | exports without the menu (see below)        |
+| =<Tab>=, =<S-Tab>=      | fold / unfold (matters for =v=)             |
+| =<prefix>'= (=C-c '=)   | edit a source or export block in a split    |
+
+* The export dispatcher
+=<prefix>e= (Emacs =C-c C-e=) opens a small menu. Each line shows a key in
+brackets; press the key, no =<CR>= needed. Keys with =…= open a sub-menu.
+
+The first four lines are *toggles*. Pressing one redraws the menu with the
+new value, so you can combine them before choosing a format:
+
+| Key | Toggle       | Effect when on                             |
+|-----+--------------+--------------------------------------------|
+| =b= | body only    | no preamble: no =<html>=/=<head>=, no      |
+|     |              | =\documentclass=, no title block           |
+| =s= | export scope | "subtree": only the subtree at the cursor  |
+| =v= | visible only | skip what is folded right now              |
+| =a= | async (PDF)  | compile PDFs in the background (see below) |
+
+Then one line per back-end (=h= HTML, =l= LaTeX/Beamer/PDF, =m= Markdown,
+=t= plain text, =O= Org, =o= ODT, =d= DOCX, =i= Texinfo, =c= iCalendar,
+=P= publish, =p= any pandoc format) and =#= (insert the settings template).
+The toggles are reset every time you open the dispatcher.
+
+The same exports without the menu, as an Ex command (the words after the
+format are optional and can be in any order):
+
+#+begin_src vim :eval no
+:Org export html subtree buffer      " like <prefix>e s h H
+:Org export md subtree body buffer   " subtree, body only, to a buffer
+:Org export ascii visible buffer     " only what is unfolded
+:Org export latex                    " whole file to examples/19-export.tex
+:Org export pdf async open           " compile in the background, then open
+:Org export                          " no format: opens the dispatcher
+#+end_src
+
+And from Lua (handy for mappings and scripts): =to_string= returns the text
+and writes nothing, =export= behaves like the dispatcher.
+
+#+begin_src lua :eval no
+local exp = require("org.export")
+local md = exp.to_string("md", { body_only = true })  -- whole buffer
+local line = vim.api.nvim_win_get_cursor(0)[1]
+local txt = exp.to_string("ascii", { subtree_line = line })
+exp.export("html", { subtree = true, to_buffer = true })
+exp.export("md", { output = "/tmp/notes.md" })   -- choose the file
+#+end_src
+
+** Sample: first export
+:PROPERTIES:
+:EXPORT_TITLE: My first export
+:EXPORT_AUTHOR: Ada
+:EXPORT_OPTIONS: toc:nil num:nil
+:END:
+# This is the body of the subtree. The heading above is not exported.
+Hello from a *subtree*. It has /emphasis/, =verbatim= and a [[https://neovim.io][link]].
+
+*** A child heading
+Children of the sample become the top-level headings of the output.
+
+** Exercises: first export
+*Try:* put the cursor on the line "Hello from a subtree" in the sample
+above. Press =<prefix>e=, then =s= (the menu now says "export scope =
+subtree"), then =m=, then =M=.
+
+*Expect:* a vertical split with a Markdown buffer. Its whole content is:
+
+#+begin_example
+Hello from a **subtree**. It has *emphasis*, `verbatim` and a [link](https://neovim.io).
+
+
+# A child heading
+
+Children of the sample become the top-level headings of the output.
+#+end_example
+
+The comment line (=# This is the body ...=) is not there, and Markdown has
+no title block, so =EXPORT_TITLE= and =EXPORT_AUTHOR= are not visible.
+Close the split with =:q=.
+
+*Try:* same subtree, =<prefix>e s t A= (plain ASCII to a buffer).
+
+*Expect:* now the title and author are centered at the top, and the link
+target is listed as a note after the paragraph:
+
+#+begin_example
+                           _________________
+
+                            MY FIRST EXPORT
+
+                                  Ada
+                           _________________
+
+
+Hello from a *subtree*. It has /emphasis/, `verbatim' and a [link].
+
+
+[link] <https://neovim.io>
+
+
+A child heading
+===============
+
+  Children of the sample become the top-level headings of the output.
+#+end_example
+
+*Try:* same subtree, =<prefix>e s b h H= (subtree, *body only*, HTML).
+
+*Expect:* no =<!DOCTYPE>=, =<head>= or title, just the body:
+
+#+begin_example
+<p>
+Hello from a <b>subtree</b>. It has <i>emphasis</i>, <code>verbatim</code> and a <a href="https://neovim.io">link</a>.
+</p>
+<div id="outline-container-org6793350" class="outline-2">
+<h2 id="org6793350">A child heading</h2>
+#+end_example
+
+(The =org6793350= ids are computed from the content, so they are the same
+on every export and change only when you edit the text.)
+
+*Try:* =<prefix>e h H= *without* =s=: the whole file is exported. Search
+the HTML buffer for =My first export= with =/=: it is not found, because
+=EXPORT_TITLE= only applies to subtree exports; the =<title>= is now
+"Export: hands-on examples", from the =#+TITLE:= line at the top.
+
+*Try:* =:Org export md subtree buffer= with the cursor in the sample: the
+same Markdown buffer as the first exercise, without the menu.
+
+** Visible only
+With =v= on, whatever is folded at that moment is left out: fold a
+subtree with =<Tab>= and its body disappears from the output (its heading
+line is visible, so it stays). Useful to export "just the outline" or to
+hide parts temporarily.
+
+In org.nvim, =v= applies to *whole-file* exports: combined with =s= it is
+ignored and the whole subtree is exported.
+
+** Sample: visible only
+:PROPERTIES:
+:EXPORT_TITLE: Visible only
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+The intro paragraph is always visible.
+
+*** Section one
+Text of section one.
+
+*** Section two
+Text of section two.
+
+** Exercises: visible only
+*Try:* open the sample above so you see both sections, then fold "Section
+one" with =<Tab>= on its heading. Press =<prefix>e v t A= (no =s=: the
+whole file, visible parts only). In the output, search with
+=/The intro paragraph=.
+
+*Expect:* the fold state of the whole file decides. Around the search hit
+you find (section numbers depend on what else is open):
+
+#+begin_example
+  The intro paragraph is always visible.
+
+
+2.4.1 Section one
+-----------------
+
+
+2.4.2 Section two
+-----------------
+
+  Text of section two.
+#+end_example
+
+"Text of section one." is missing because it was folded.
+
+*Try:* =<S-Tab>= until the buffer shows only the top-level headings
+(OVERVIEW), then =<prefix>e v t A= again: the output is little more than
+the table of contents and the numbered top-level headings.
+
+** Async
+=a= only concerns PDF: with it on, LaTeX compilation (=l p=, =l P=) runs in
+the background and a message says when the PDF is ready, so you can keep
+editing. With the default config it already does
+(=export.latex.async_compile = true=); =a= matters when you set that to
+=false=. The other formats are fast and always synchronous.
+=:Org export pdf async= is the command form.
+
+** The settings template (=#=)
+=<prefix>e #= asks for an option category (=default=, =html=, =latex=,
+=md=, ...; =<Tab>= completes) and inserts every option with its current
+value:
+- without =s=: =#+options:= lines and =#+title:=, =#+author:=, =#+date:=,
+  =#+email:=, =#+language:=, =#+select_tags:= ... keywords *at the cursor*;
+- with =s=: =EXPORT_OPTIONS=, =EXPORT_TITLE=, =EXPORT_AUTHOR=, ... properties
+  in the drawer of the current heading.
+
+*** Scratch heading for the template
+*Try:* put the cursor on the heading above, press =<prefix>e s #= and
+accept =default= with =<CR>=.
+
+*Expect:* a =:PROPERTIES:= drawer appears under "Scratch heading for the
+template". The values are the *defaults* (from your config), not what
+this file sets:
+
+#+begin_example
+:PROPERTIES:
+:EXPORT_OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t ...
+:EXPORT_TITLE: 19-export
+:EXPORT_DATE: <2026-09-28 Mon>
+:EXPORT_AUTHOR: (your name)
+:EXPORT_EMAIL:
+:EXPORT_LANGUAGE: en
+:EXPORT_SELECT_TAGS: export
+:EXPORT_EXCLUDE_TAGS: noexport
+:EXPORT_CREATOR: Neovim 0.x.y (org.nvim, Org mode 9.8 compatible)
+:EXPORT_CITE_EXPORT:
+:END:
+#+end_example
+
+(the date is the day you do it). Delete what you don't need and edit the
+rest; press =u= to take it all out again.
+
+*Try:* on the empty line below, =<prefix>e #= (no =s=) and =<CR>=.
+
+*Expect:* five =#+options:= lines, then =#+title: 19-export=, =#+date:
+<...>=, =#+author: ...=, =#+email:=, =#+language: en=, =#+select_tags:
+export=, =#+exclude_tags: noexport=, =#+creator: ...= and =#+cite_export:=,
+inserted at the cursor. Press =u=: left in place they would change every
+export of this file!
+
+
+* Back-ends and the tools they need
+Everything marked "none" is pure Lua and works out of the box. The =o=
+keys (=h o=, =m o=, =l o=, ...) also open the file with your system's
+viewer. =p= asks for a pandoc format name (=rst=, =epub=, =typst=,
+=mediawiki=, =asciidoc=, ...). PDF uses =export.latex.compiler=
+(=pdflatex= by default) through =latexmk= when it is installed. ODT is
+zipped in Lua; LibreOffice is only needed to convert it further (see
+=export.odt.preferred_output_format=).
+
+| Back-end        | Keys (buffer / file)    | External tool       |
+|-----------------+-------------------------+---------------------|
+| HTML            | =h H= / =h h=, =h o=    | none                |
+| Markdown        | =m M= / =m m=, =m o=    | none                |
+| GitHub Markdown | =m G= / =m g=           | none                |
+| ASCII           | =t A= / =t a=           | none                |
+| Latin-1         | =t L= / =t l=           | none                |
+| UTF-8           | =t U= / =t u=           | none                |
+| Org             | =O O= / =O o=, =O v=    | none                |
+| LaTeX           | =l L= / =l l=           | none                |
+| PDF             | - / =l p=, =l o=        | latexmk or pdflatex |
+| Beamer          | =l B= / =l b=           | none                |
+| Beamer PDF      | - / =l P=, =l O=        | latexmk or pdflatex |
+| ODT             | - / =o o=, =o O=        | none                |
+| DOCX            | - / =d d=, =d o=        | pandoc              |
+| other formats   | - / =p= + format name   | pandoc              |
+| Texinfo         | - / =i t=               | none                |
+| Info            | - / =i i=, =i o=        | makeinfo            |
+| iCalendar       | - / =c f=, =c a=, =c c= | none                |
+
+- ODT, DOCX, pandoc formats, Texinfo, PDF and iCalendar are always written
+  to *files* (there is no buffer variant). Only try them if you are happy
+  to get =examples/19-export.odt= etc. in the repo (delete them after).
+- =:checkhealth org= reports which of the optional tools are installed.
+- Pandoc exports first run the Org back-end (macros, =#+INCLUDE=,
+  =noexport= are handled by org.nvim), then pipe the result to pandoc.
+
+* Document keywords: title, author, date, ...
+These keywords fill the title block (HTML =<title>= and =<h1>=, LaTeX
+=\title{}=, the centered banner of the text export, ODT metadata):
+
+| Keyword               | Meaning                         | Property          |
+|-----------------------+---------------------------------+-------------------|
+| =#+TITLE:=            | document title                  | =EXPORT_TITLE=    |
+| =#+SUBTITLE:=         | subtitle (HTML, LaTeX, text)    | =..._SUBTITLE=    |
+| =#+AUTHOR:=           | author; default: your name      | =EXPORT_AUTHOR=   |
+| =#+EMAIL:=            | shown only with =email:t=       | =EXPORT_EMAIL=    |
+| =#+DATE:=             | any text or a timestamp         | =EXPORT_DATE=     |
+| =#+LANGUAGE:=         | translates generated words      | =..._LANGUAGE=    |
+| =#+CREATOR:=          | shown only with =creator:t=     | =..._CREATOR=     |
+| =#+KEYWORDS:=         | HTML/ODT metadata               | =..._KEYWORDS=    |
+| =#+DESCRIPTION:=      | HTML/ODT metadata               | =..._DESCRIPTION= |
+| =#+EXPORT_FILE_NAME:= | output file name (no extension) | =..._FILE_NAME=   |
+
+(=..._X= stands for =EXPORT_X=.) =#+LANGUAGE:= translates the words the
+exporter writes itself: "Table of Contents", "Footnotes", "Figure", ...
+In a file they look like this (an example only, not live settings):
+
+#+begin_src org
+,#+TITLE: Quarterly report
+,#+SUBTITLE: Third quarter 2026
+,#+AUTHOR: Ada Lovelace
+,#+EMAIL: ada@example.org
+,#+DATE: <2026-10-01 Thu>
+,#+LANGUAGE: en
+,#+OPTIONS: email:t toc:nil
+,#+EXPORT_FILE_NAME: q3-report
+#+end_src
+
+** Sample: title block
+:PROPERTIES:
+:EXPORT_TITLE: Quarterly report
+:EXPORT_SUBTITLE: Third quarter 2026
+:EXPORT_AUTHOR: Ada Lovelace
+:EXPORT_EMAIL: ada@example.org
+:EXPORT_DATE: <2026-10-01 Thu>
+:EXPORT_OPTIONS: email:t toc:nil num:nil
+:END:
+Revenue went up.
+
+** Exercises: title block
+*Try:* cursor on "Revenue went up.", =<prefix>e s t A=.
+
+*Expect:* a banner with the title, the subtitle, the author, the e-mail
+(because of =email:t=) and the date:
+
+#+begin_example
+                          ____________________
+
+                            QUARTERLY REPORT
+                           Third quarter 2026
+
+                              Ada Lovelace
+                            ada@example.org
+                          ____________________
+
+
+                            <2026-10-01 Thu>
+
+
+Revenue went up.
+#+end_example
+
+*Try:* =<prefix>e s h H= and look at the top of the HTML buffer.
+
+*Expect:* the title in =<head>=, and as the first heading with the
+subtitle under it:
+
+#+begin_example
+<title>Quarterly report</title>
+<meta name="author" content="Ada Lovelace" />
+...
+<h1 class="title">Quarterly report
+<br />
+<span class="subtitle">Third quarter 2026</span>
+</h1>
+#+end_example
+
+and at the end a postamble with the date, author, e-mail link and the
+creation time of the export (=timestamp:t=):
+
+#+begin_example
+<div id="postamble" class="status">
+<p class="date">Date: 2026-10-01 Thu 00:00</p>
+<p class="author">Author: Ada Lovelace</p>
+<p class="email">Email: <a href="mailto:ada@example.org">ada@example.org</a></p>
+<p class="date">Created: 2026-09-28 Mon 15:13</p>
+#+end_example
+
+*Try:* =<prefix>e s l L= (LaTeX to a buffer).
+
+*Expect:* the e-mail becomes a =\thanks=, the subtitle a second title line:
+
+#+begin_example
+\author{Ada Lovelace\thanks{ada@example.org}}
+\date{\textit{<2026-10-01 Thu>}}
+\title{Quarterly report\\\medskip
+\large Third quarter 2026}
+#+end_example
+
+*Try:* change =email:t= to =email:nil= in =EXPORT_OPTIONS= and export as
+ASCII again: the =ada@example.org= line disappears. With =date:nil= the
+date goes, with =author:nil= the author.
+
+** Sample: another language
+:PROPERTIES:
+:EXPORT_TITLE: Notes
+:EXPORT_LANGUAGE: fr
+:EXPORT_OPTIONS: toc:t num:t title:nil author:nil
+:END:
+# LANGUAGE translates the words the exporter generates itself.
+Voir la note[fn:fr].
+
+*** Première partie
+Du texte.
+
+[fn:fr] Une note de bas de page.
+
+** Exercises: another language
+*Try:* =<prefix>e s t U= (UTF-8 text to a buffer).
+
+*Expect:* the words the exporter generates are in French:
+
+#+begin_example
+Table des matières
+──────────────────
+
+1. Première partie
+
+
+Voir la note[1].
+
+
+1 Première partie
+═════════════════
+
+  Du texte.
+
+
+
+Notes de bas de page
+────────────────────
+
+[1] Une note de bas de page.
+#+end_example
+
+*Try:* =<prefix>e s t A= (plain ASCII): the table of contents is now
+titled =Sommaire=, the ASCII-only form of the French dictionary.
+
+*Try:* change =fr= to =de= and export again: =Inhaltsverzeichnis= and
+=Fußnoten=.
+
+* #+OPTIONS: the export switches
+=#+OPTIONS:= takes =key:value= pairs separated by spaces; in a subtree the
+same pairs go in =EXPORT_OPTIONS=. Several =#+OPTIONS:= lines add up. Values
+are Emacs Lisp: =t= (yes), =nil= (no), numbers, strings, lists like
+=("TODO" "NEXT")=. The defaults come from the =export= table of your
+config (=with_toc=, =headline_levels=, ...).
+
+| Option          | Default    | Meaning                                    |
+|-----------------+------------+--------------------------------------------|
+| =toc:=          | =t=        | table of contents; a number = its depth    |
+| =num:=          | =t=        | section numbers; a number = how deep       |
+| =H:=            | =3=        | deeper headings become list items          |
+| =^:=            | =t=        | =a_b=, =a^b=; ={}= only =a_{b}=; =nil= off |
+| =*:=            | =t=        | emphasis (=*bold*=, =/italic/=, ...)       |
+| =tags:=         | =t=        | headline tags; =not-in-toc=                |
+| =todo:=         | =t=        | TODO keywords                              |
+| =pri:=          | =nil=      | priority cookies =[#A]=                    |
+| =tasks:=        | =t=        | TODO entries: =nil=, =todo=, =done=, list  |
+| =stat:=         | =t=        | statistics cookies =[1/3]=                 |
+| =prop:=         | =nil=      | property drawers; =t= or a list of names   |
+| =d:=            | see below  | drawers: =t=, =nil=, list, =(not ...)=     |
+| =p:=            | =nil=      | SCHEDULED, DEADLINE and CLOSED lines       |
+| =c:=            | =nil=      | CLOCK lines                                |
+| =<:=            | =t=        | paragraphs made only of timestamps         |
+| =timestamp:=    | =t=        | creation time (HTML postamble)             |
+| =f:=            | =t=        | footnotes                                  |
+| =\n:=           | =nil=      | keep every line break                      |
+| =':=            | =nil=      | smart quotes                               |
+| =-:=            | =t=        | =--=, =---=, =...= as dashes and ellipsis  |
+| =e:=            | =t=        | entities like =\alpha=                     |
+| =tex:=          | =t=        | LaTeX fragments; =verbatim=, =nil=         |
+| =\vert:=        | =t=        | tables (the key is a pipe character)       |
+| =::=            | =t=        | fixed-width lines (=: text=)               |
+| =arch:=         | =headline= | archived trees: =t=, =nil=, =headline=     |
+| =inline:=       | =t=        | inline tasks                               |
+| =title:=        | =t=        | the title                                  |
+| =author:=       | =t=        | the author                                 |
+| =date:=         | =t=        | the date                                   |
+| =email:=        | =nil=      | the e-mail                                 |
+| =creator:=      | =nil=      | the creator string                         |
+| =broken-links:= | =nil=      | =nil= error, =t= drop, =mark= mark         |
+
+The default of =d:= is =(not "LOGBOOK")=: every drawer but LOGBOOK. In
+the table the pipe key is shown as =\vert:= because a bare =|= would
+split the cell; in =#+OPTIONS:= you write =|:nil=.
+
+** Sample: toc, num and H
+:PROPERTIES:
+:EXPORT_TITLE: Structure
+:EXPORT_OPTIONS: toc:2 num:t H:2 title:nil author:nil
+:END:
+# H:2 means: levels 1 and 2 are sections, level 3 becomes a list.
+Intro.
+
+*** Chapter
+**** Section
+***** Too deep to be a section
+This one becomes a list item.
+
+*** Another chapter
+Text.
+
+** Exercises: toc, num and H
+*Try:* =<prefix>e s t A=.
+
+*Expect:* a table of contents with two levels, numbered sections, and the
+third level turned into a list item (a =*= bullet) under 1.1:
+
+#+begin_example
+Table of Contents
+_________________
+
+1. Chapter
+.. 1. Section
+2. Another chapter
+
+
+Intro.
+
+
+1 Chapter
+=========
+
+1.1 Section
+~~~~~~~~~~~
+
+,* 1.1.1 Too deep to be a section
+
+  This one becomes a list item.
+
+
+2 Another chapter
+=================
+
+  Text.
+#+end_example
+
+*Try:* change =EXPORT_OPTIONS= to =toc:nil num:1 H:2 title:nil author:nil=
+and export again: no table of contents, and only the first level is
+numbered: =1 Chapter=, then =Section= without a number, then
+=* Too deep to be a section=, then =2 Another chapter=.
+
+*Try:* =H:3= instead of =H:2=: "Too deep to be a section" is a real
+(sub-sub)section again, underlined with dashes.
+
+** Sample: sub- and superscripts
+:PROPERTIES:
+:EXPORT_TITLE: Scripts
+:EXPORT_OPTIONS: ^:{} toc:nil title:nil author:nil
+:END:
+# With ^:{} only the braced forms are converted.
+file_name and x^2 stay as they are, but H_{2}O and E = mc^{2} are converted.
+
+** Exercises: sub- and superscripts
+*Try:* =<prefix>e s b m M= (body only, Markdown).
+
+*Expect:*
+
+#+begin_example
+file\_name and x^2 stay as they are, but H<sub>2</sub>O and E = mc<sup>2</sup> are converted.
+#+end_example
+
+*Try:* change =^:{}= to =^:t= and export again: =file_name= becomes
+=file<sub>name</sub>= and =x^2= becomes =x<sup>2</sup>= too. With =^:nil= nothing is converted. =^:{}= is
+the usual choice for documents full of snake_case names.
+
+** Sample: tags, TODO keywords and priorities
+:PROPERTIES:
+:EXPORT_TITLE: Tasks
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil tags:t todo:t pri:t
+:END:
+*** TODO [#A] Write the report                                    :work:
+*** DONE Book the room                                            :office:
+*** NEXT [#C] Plan the offsite [1/2]
+- [X] pick a date
+- [ ] pick a place
+
+** Exercises: tags, TODO keywords and priorities
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* keywords, priorities, cookies and tags are all there (the
+statistics cookie is wrapped in =<code>=, like Emacs does):
+
+#+begin_example
+# TODO [#A] Write the report     :work:
+
+
+# DONE Book the room     :office:
+
+
+# NEXT [#C] Plan the offsite <code>[1/2]</code>
+
+-   [X] pick a date
+-   [ ] pick a place
+#+end_example
+
+*Try:* set =EXPORT_OPTIONS= to =toc:nil num:nil title:nil author:nil
+tags:nil todo:nil pri:nil stat:nil= (one line) and export again: the
+headings become plain =# Write the report=, =# Book the room= and
+=# Plan the offsite=; the checklist stays.
+
+*Try:* replace =tags:t todo:t pri:t= by =tasks:todo=: only the not-done
+entries are exported (=# TODO Write the report     :work:= and
+=# NEXT Plan the offsite <code>[1/2]</code>=; the priority is gone too
+because =pri:= is =nil= by default). =tasks:done= keeps only "Book the
+room", =tasks:("NEXT")= only "Plan the offsite", =tasks:nil= drops all
+three.
+
+** Sample: drawers, planning, clocks and timestamps
+:PROPERTIES:
+:EXPORT_TITLE: Metadata
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+*** DONE Ship the release
+CLOSED: [2026-09-25 Fri 17:02] SCHEDULED: <2026-09-24 Thu>
+:PROPERTIES:
+:VERSION:  2.1
+:OWNER:    Ada
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 11:30] =>  2:30
+:END:
+:NOTES:
+Remember to tag the commit.
+:END:
+<2026-10-05 Mon>
+
+The release went out on time.
+
+** Exercises: drawers, planning, clocks and timestamps
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* by default only the heading, the NOTES drawer (every drawer but
+LOGBOOK is exported), the lone timestamp and the paragraph:
+
+#+begin_example
+DONE Ship the release
+=====================
+
+  Remember to tag the commit.
+  <2026-10-05 Mon>
+
+  The release went out on time.
+#+end_example
+
+*Try:* one at a time, add these to =EXPORT_OPTIONS= and export again
+(each adds or removes lines between the underline and "Remember to tag"):
+- =p:t= adds =CLOSED: [2026-09-25 Fri 17:02]  SCHEDULED: <2026-09-24 Thu>=;
+- =prop:t= adds =VERSION: 2.1= and =OWNER: Ada=; =prop:("OWNER")= only
+  =OWNER: Ada=;
+- =c:t= alone changes nothing: the clock line is inside LOGBOOK, which is
+  still excluded. =c:t d:t= (all drawers) shows
+  =CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 11:30]  =>  2:30=;
+- =d:nil= removes "Remember to tag the commit." (no drawers at all);
+  =d:("NOTES")= exports only the NOTES drawer (same output as now);
+- =<:nil= removes =<2026-10-05 Mon>=, the paragraph made only of a
+  timestamp (an empty line is left in its place).
+
+** Sample: line breaks, quotes, special strings
+:PROPERTIES:
+:EXPORT_TITLE: Text details
+:EXPORT_OPTIONS: toc:nil title:nil author:nil \n:t ':t -:t
+:END:
+Roses are red,
+violets are blue.
+"Quoted" text -- with an en dash --- and an em dash...
+
+** Exercises: line breaks, quotes, special strings
+*Try:* =<prefix>e s b h H=.
+
+*Expect:* each line ends with =<br />= (from =\n:t=), the quotes become
+curly (=':t=) and the dashes and dots entities (=-:t=):
+
+#+begin_example
+<p>
+Roses are red,<br />
+violets are blue.<br />
+&ldquo;Quoted&rdquo; text &ndash; with an en dash &mdash; and an em dash&hellip;<br />
+</p>
+#+end_example
+
+*Try:* set =EXPORT_OPTIONS= to =toc:nil title:nil author:nil \n:nil ':nil
+-:nil= and export again: the three lines come back as typed, with
+straight quotes, =--=, =---= and =...=, and no =<br />=.
+
+** Sample: what to leave out entirely
+:PROPERTIES:
+:EXPORT_TITLE: Omissions
+:EXPORT_OPTIONS: toc:nil title:nil author:nil f:nil |:nil ::nil *:nil e:nil
+:END:
+A *bold* claim\alpha with a footnote[fn:omit].
+
+| a table | is dropped |
+
+: fixed-width lines are dropped too
+
+[fn:omit] Not exported with f:nil.
+
+** Exercises: what to leave out entirely
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* only one line: the asterisks stay literal (=*:nil=), =\alpha=
+stays as typed (=e:nil=), no footnote, no table, no fixed-width line.
+Markdown escapes the characters that would otherwise be markup, so you see
+backslashes:
+
+#+begin_example
+A \*bold\* claim\\alpha with a footnote.
+#+end_example
+
+*Try:* remove =*:nil e:nil= and export again. Now the emphasis is
+converted and the entity is written as HTML:
+
+#+begin_example
+A **bold** claim&alpha; with a footnote.
+#+end_example
+
+* Choosing what is exported
+** Tags: noexport and export
+- A heading tagged =:noexport:= is removed with its whole subtree.
+- If *any* heading carries an =:export:= tag, *only* the tagged subtrees
+  are exported (in a whole-file export the text before the first heading
+  is kept too).
+- =#+EXCLUDE_TAGS:= / =#+SELECT_TAGS:= (or the =EXPORT_EXCLUDE_TAGS= /
+  =EXPORT_SELECT_TAGS= properties) replace those tag lists. Tags are
+  inherited: a child of a =:noexport:= heading goes too.
+
+** Sample: noexport
+:PROPERTIES:
+:EXPORT_TITLE: Noexport
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil tags:nil
+:END:
+*** Kept
+Public text.
+*** Draft notes                                                :noexport:
+Private text.
+**** Child of the draft
+Also private (inherits the tag).
+*** Also kept
+More public text.
+
+** Exercises: noexport
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* two headings only, "Kept" and "Also kept"; no "Private text":
+
+#+begin_example
+# Kept
+
+Public text.
+
+
+# Also kept
+
+More public text.
+#+end_example
+
+** Sample: select tags
+:PROPERTIES:
+:EXPORT_TITLE: Selected
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil tags:nil
+:EXPORT_SELECT_TAGS: keep
+:EXPORT_EXCLUDE_TAGS: secret
+:END:
+# The select tag here is "keep" (not the default "export") so that this
+# sample does not change what a whole-file export of 19-export.org shows.
+Intro text of the sample.
+*** Chosen                                                        :keep:
+In.
+*** Not chosen
+Out: no keep tag, and another heading has one.
+*** Chosen but secret                                        :keep:secret:
+Out: exclude tags win.
+
+** Exercises: select tags
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* only the heading "Chosen". Even the intro text is dropped: in a
+subtree export it belongs to the sample heading, which is not selected
+(Emacs does the same).
+
+#+begin_example
+# Chosen
+
+In.
+#+end_example
+
+*Try:* remove the =keep= tag from *both* "Chosen" headings (edit the
+lines, or =<prefix>t= on each heading and delete =keep= from the prompt).
+Now no heading is selected, so the select tags do not apply at all:
+
+#+begin_example
+Intro text of the sample.
+
+
+# Chosen
+
+In.
+
+
+# Not chosen
+
+Out: no keep tag, and another heading has one.
+#+end_example
+
+"Chosen but secret" is still excluded by its =secret= tag. Press =u= to
+restore the tags.
+
+** Sample: COMMENT headings, comment lines and blocks
+:PROPERTIES:
+:EXPORT_TITLE: Comments
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+Visible paragraph.
+# A comment line: never exported.
+#+begin_comment
+A comment block: never exported either.
+#+end_comment
+*** COMMENT Work in progress
+A COMMENT heading drops its subtree, like noexport.
+*** Finished part
+Done.
+
+** Exercises: COMMENT headings, comment lines and blocks
+*Try:* =<prefix>e s b m M=.
+
+*Expect:*
+
+#+begin_example
+Visible paragraph.
+
+
+# Finished part
+
+Done.
+#+end_example
+
+*Try:* put the cursor on the "COMMENT Work in progress" heading and press
+=<prefix>hC= (toggle COMMENT, Emacs =C-c ;=): the word COMMENT goes away.
+Export again: "Work in progress" and its text are now exported between
+"Visible paragraph." and "Finished part". Press =<prefix>hC= again to put
+it back.
+
+** Sample: archived trees
+:PROPERTIES:
+:EXPORT_TITLE: Archive
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil tags:nil
+:END:
+*** Current work
+Live.
+*** Old project                                                  :ARCHIVE:
+Old details.
+
+** Exercises: archived trees
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* "Old project" appears as a heading, but "Old details." is gone
+(=arch:headline=, the default):
+
+#+begin_example
+# Current work
+
+Live.
+
+
+# Old project
+#+end_example
+
+*Try:* add =arch:t= to =EXPORT_OPTIONS=: "Old details." comes back. With
+=arch:nil= the "Old project" heading goes too.
+
+* Subtree properties (EXPORT_*)
+When you export a subtree, every export keyword can be set in its drawer as
+=EXPORT_<KEYWORD>=: =EXPORT_TITLE=, =EXPORT_AUTHOR=, =EXPORT_DATE=,
+=EXPORT_EMAIL=, =EXPORT_OPTIONS=, =EXPORT_FILE_NAME=, =EXPORT_LANGUAGE=,
+=EXPORT_SELECT_TAGS=, =EXPORT_EXCLUDE_TAGS=, and the back-end ones
+(=EXPORT_HTML_HEAD=, =EXPORT_LATEX_CLASS=, =EXPORT_LATEX_HEADER=, ...).
+- =EXPORT_OPTIONS= is merged with =#+OPTIONS=: keys it names win, others
+  keep the file value.
+- Without =EXPORT_TITLE=, a subtree export is titled after the heading.
+- These properties are ignored when the whole file is exported.
+
+** Sample: a subtree is its own document
+:PROPERTIES:
+:EXPORT_FILE_NAME: /tmp/org-nvim-sample
+:EXPORT_OPTIONS: toc:nil num:nil
+:EXPORT_AUTHOR: Grace
+:EXPORT_HTML_HEAD: <meta name="robots" content="noindex" />
+:END:
+# No EXPORT_TITLE: the title is the heading text, "Sample: a subtree is
+# its own document".
+A standalone page made from one heading.
+
+** Exercises: a subtree is its own document
+*Try:* =<prefix>e s h H=.
+
+*Expect:* =<title>Sample: a subtree is its own document</title>=, the meta
+line from =EXPORT_HTML_HEAD= inside =<head>=, and "Author: Grace" in the
+postamble.
+
+*Try (writes a file outside the repo):* =<prefix>e s m m=. Because of
+=EXPORT_FILE_NAME=, the message says =Exported to /tmp/org-nvim-sample.md=
+(the extension is added for you). A relative name would be relative to
+this file, i.e. inside =examples/=.
+
+* Table of contents
+- =toc:t= / =toc:nil= / =toc:2= in =#+OPTIONS:= control the table at the
+  top.
+- =#+TOC: headlines 2= puts a table of contents *where the keyword is*;
+  add =local= for only the headings below the current one. =#+TOC: tables=
+  and =#+TOC: listings= list the captioned tables and source blocks.
+- A heading with =:UNNUMBERED: t= has no number; =:UNNUMBERED: notoc= also
+  keeps it out of the table of contents.
+
+** Sample: tables of contents
+:PROPERTIES:
+:EXPORT_TITLE: Contents demo
+:EXPORT_OPTIONS: toc:nil num:t title:nil author:nil
+:END:
+#+TOC: headlines 1
+*** Preface
+:PROPERTIES:
+:UNNUMBERED: t
+:END:
+No number here.
+*** Setup
+#+TOC: headlines 2 local
+**** Install
+**** Configure
+*** Colophon
+:PROPERTIES:
+:UNNUMBERED: notoc
+:END:
+Not in the table of contents.
+
+** Exercises: tables of contents
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* a first list with the level-1 headings (=Preface= without a
+number, =1. Setup=, no Colophon), then under "1 Setup" a local list with
+only its children:
+
+#+begin_example
+Table of Contents
+_________________
+
+Preface
+1. Setup
+
+
+Preface
+=======
+
+  No number here.
+
+
+1 Setup
+=======
+
+  .. 1. Install
+  .. 2. Configure
+
+
+1.1 Install
+~~~~~~~~~~~
+
+
+1.2 Configure
+~~~~~~~~~~~~~
+
+
+Colophon
+========
+
+  Not in the table of contents.
+#+end_example
+
+*Try:* change =#+TOC: headlines 1= to =#+TOC: headlines 2=: the first list
+now also shows =.. 1. Install= and =.. 2. Configure= under =1. Setup=.
+
+* Captions, names and cross-references
+- =#+CAPTION:= before a table, image or source block gives it a caption;
+  exported it is numbered: "Table 1:", "Figure 1:", "Listing 1:".
+- =#+NAME:= gives it a name; =[[name]]= links to it and is replaced by its
+  number on export.
+- =[[*Heading]]= links to a heading (by its text), =[[#my-id]]= to a
+  heading with =:CUSTOM_ID: my-id=, =<<target>>= is an anchor you link to
+  with =[[target]]=, and =<<<radio target>>>= turns every occurrence of
+  the words into a link.
+- A link with a description shows the description; without one, a link to
+  a numbered heading shows the section number, a link to a named table
+  its table number.
+
+** Sample: cross-references
+:PROPERTIES:
+:EXPORT_TITLE: References
+:EXPORT_OPTIONS: toc:nil num:t title:nil author:nil
+:END:
+*** Data
+:PROPERTIES:
+:CUSTOM_ID: data
+:END:
+#+CAPTION: Monthly sales
+#+NAME: tab:sales
+| Month | Units |
+|-------+-------|
+| Oct   |    12 |
+| Nov   |    17 |
+
+#+CAPTION: Doubling a number
+#+NAME: src:double
+#+begin_src lua :exports code
+return 2 * 21
+#+end_src
+
+The procedure:
+1. Collect the numbers.
+2. <<check>>Check the totals.
+
+*** Discussion
+See table [[tab:sales]], listing [[src:double]] and section [[*Data]]. The
+same section by id: [[#data][the data section]]. Never skip step [[check]].
+
+** Exercises: cross-references
+*Try:* =<prefix>e s b h H= and look for "Discussion".
+
+*Expect:* the captions are numbered, the named elements and the target get
+ids, and the links point to them. The heading with a =CUSTOM_ID= uses it
+as its id (=data=); the other ids look like =org= plus 7 hex digits:
+
+#+begin_example
+<h2 id="data"><span class="section-number-2">1.</span> Data</h2>
+<table id="orgc141a8c" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<caption class="t-above"><span class="table-number">Table 1:</span> Monthly sales</caption>
+...
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>Doubling a number</label><pre class="src src-lua" id="org608ce3d"><code>return 2 * 21
+...
+<li><a id="org7457e97"></a>Check the totals.</li>
+...
+See table <a href="#orgc141a8c">1</a>, listing <a href="#org608ce3d">1</a> and section <a href="#data">1</a>. The
+same section by id: <a href="#data">the data section</a>. Never skip step <a href="#org7457e97">2</a>.
+#+end_example
+
+A link to a =<<target>>= without a description shows the number of what
+holds the target: here the list item, so "step 2".
+
+(The generated ids are computed from the content, so they stay the same
+from one export to the next.)
+
+*Try:* =<prefix>e s b t A=: in plain text the references are just the
+numbers, and the table and the listing get their captions below them:
+
+#+begin_example
+   Month  Units
+  --------------
+   Oct       12
+   Nov       17
+  Table 1: Monthly sales
+
+  ,----
+  | return 2 * 21
+  `----
+  Listing 1: Doubling a number
+...
+  See table 1, listing 1 and section 1. The same section by id: [the
+  data section]. Never skip step 2.
+
+
+[the data section] See section 1
+#+end_example
+
+(The last line is the plain-text version of a described link: a note
+after the section.)
+
+*Try:* in the Discussion paragraph, replace =[[*Data]]= by =[[*Dataa]]= and
+export again: the link no longer resolves. Thanks to =broken-links:mark= at
+the top of this file you get =[BROKEN LINK: *Dataa]= instead of an error
+(see "Broken links" below). Press =u=.
+
+* Footnotes in export
+Footnotes are numbered in order of first reference and collected at the
+end of the document (HTML: a "Footnotes" section; LaTeX: real
+=\footnote{}=; Markdown: a "Footnotes" section with links; text: a
+"Footnotes" section). Named =[fn:name]=, anonymous inline =[fn::text]= and
+named inline =[fn:name:text]= footnotes all work. =f:nil= drops them.
+
+** Sample: footnotes
+:PROPERTIES:
+:EXPORT_TITLE: Footnotes
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+A named note[fn:sample], an inline one[fn::Defined right here.] and the
+named note again[fn:sample].
+
+[fn:sample] The definition of the named note.
+
+** Exercises: footnotes
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* references become =[1]= and =[2]= (the second use of =sample=
+is =[1]= again), with a footnotes section at the end:
+
+#+begin_example
+A named note[1], an inline one[2] and the named note again[1].
+...
+Footnotes
+_________
+
+[1] The definition of the named note.
+
+[2] Defined right here.
+#+end_example
+
+More on footnotes: [[file:14-footnotes.org][14-footnotes.org]].
+
+* Macros
+=#+MACRO: name replacement text= defines a macro; ={{{name}}}= uses it.
+=$1=, =$2= ... are the arguments (separated by commas; =\,= is a literal
+comma). Macros are expanded on export only, anywhere in the text.
+
+Built-in macros:
+| Macro                          | Expands to                                |
+|--------------------------------+-------------------------------------------|
+| ={{{title}}}=                  | the document title                        |
+| ={{{author}}}= ={{{email}}}=   | author, e-mail                            |
+| ={{{date}}}=, ={{{date(%Y)}}}= | the =#+DATE= (formatted if a timestamp)   |
+| ={{{time(%H:%M)}}}=            | the time of the export                    |
+| ={{{modification-time(%F)}}}=  | the file's modification time              |
+| ={{{input-file}}}=             | the file name                             |
+| ={{{keyword(NAME)}}}=          | the value of =#+NAME:=                    |
+| ={{{property(NAME)}}}=         | a property of the current heading         |
+| ={{{n}}}=, ={{{n(name)}}}=     | a counter (per name), =n(name,-)= repeats |
+| ={{{results(x)}}}=             | how inline babel results are wrapped      |
+
+Your config can define global ones: =export = { global_macros = { ... } }=
+(strings, or Lua functions receiving the arguments).
+
+** Sample: macros
+:PROPERTIES:
+:EXPORT_TITLE: Macro demo
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+# #+MACRO lines are not exported; they define macros for the whole file.
+#+MACRO: greet Hello, $1!
+#+MACRO: pair $2 before $1
+#+MACRO: kbd @@html:<kbd>$1</kbd>@@
+{{{greet(world)}}} {{{pair(one, two)}}}.
+This is "{{{title}}}" by {{{author}}}, exported from {{{input-file}}}.
+Step {{{n}}}, step {{{n}}}, step {{{n}}}; again step {{{n(,-)}}}.
+Press {{{kbd(C-c C-e)}}}.
+
+*** Owned part
+:PROPERTIES:
+:OWNER:    Charles
+:END:
+This part is owned by {{{property(OWNER)}}}.
+
+** Exercises: macros
+*Try:* =<prefix>e s b t A=.
+
+*Expect:*
+
+#+begin_example
+Hello, world!  two before one.  This is "Export: hands-on examples" by
+org.nvim examples, exported from 19-export.org.  Step 1, step 2, step 3;
+again step 3.  Press .
+
+
+Owned part
+==========
+
+  This part is owned by Charles.
+#+end_example
+
+Things to notice:
+- ={{{title}}}= and ={{{author}}}= are the file's =#+TITLE:= and
+  =#+AUTHOR:=, not the sample's =EXPORT_TITLE= (Emacs does the same).
+- The =kbd= macro produced nothing in plain text: it expands to an HTML
+  export snippet (next section). With =<prefix>e s b h H= the line reads
+  =Press <kbd>C-c C-e</kbd>.=
+- ={{{property(OWNER)}}}= reads the heading it is written under.
+
+*Try:* add a line ={{{greet(Neovim\, again)}}}= to the sample and export:
+=Hello, Neovim, again!= (the escaped comma is not an argument separator).
+
+* Raw output for one back-end
+Sometimes you want to write HTML or LaTeX directly. Three ways, all passed
+through untouched to *their* back-end and dropped by all others:
+- export snippets inside a paragraph: =@@html:<mark>@@text@@html:</mark>@@=,
+  =@@latex:\newpage@@=, =@@md:...@@=, =@@ascii:...@@=;
+- one-line keywords: =#+HTML: ...=, =#+LATEX: ...=, =#+ASCII: ...=,
+  =#+MD: ...=, =#+ODT: ...=, =#+BEAMER: ...=, =#+TEXINFO: ...=;
+- export blocks: =#+begin_export html= ... =#+end_export= (also =latex=,
+  =md=, =ascii=, =odt=, ...). Insert one with =<prefix>ib= (Emacs
+  =C-c C-,=) then =h= (html), =l= (latex), =a= (ascii) or =E= (asks for
+  the back-end); edit its content in a split with =<prefix>'=.
+
+** Sample: snippets and export blocks
+:PROPERTIES:
+:EXPORT_TITLE: Raw output
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+This word is @@html:<mark>@@highlighted@@html:</mark>@@ in HTML, @@latex:\emph{@@emphasized@@latex:}@@ in LaTeX.
+#+HTML: <hr class="fancy" />
+#+LATEX: \newpage
+#+begin_export html
+<div class="note">Only in HTML.</div>
+#+end_export
+#+begin_export latex
+\begin{center}Only in \LaTeX.\end{center}
+#+end_export
+#+begin_export ascii
+Only in plain text.
+#+end_export
+The end.
+
+** Exercises: snippets and export blocks
+*Try:* =<prefix>e s b h H=.
+
+*Expect:* the HTML parts only:
+
+#+begin_example
+<p>
+This word is <mark>highlighted</mark> in HTML, emphasized in LaTeX.
+</p>
+<hr class="fancy" />
+<div class="note">Only in HTML.</div>
+<p>
+The end.
+</p>
+#+end_example
+
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* no markup at all, and the =ascii= block:
+
+#+begin_example
+This word is highlighted in HTML, emphasized in LaTeX.
+Only in plain text.
+The end.
+#+end_example
+
+*Try:* =<prefix>e s b l L=.
+
+*Expect:* the LaTeX parts:
+
+#+begin_example
+This word is highlighted in HTML, \emph{emphasized} in LaTeX.
+\newpage
+\begin{center}Only in \LaTeX.\end{center}
+The end.
+#+end_example
+
+* HTML specifics: #+ATTR_HTML and #+HTML_HEAD
+- =#+ATTR_HTML: :class wide :style color: red= before a table, image,
+  link-only paragraph, list or block adds those HTML attributes. For a
+  link, the attributes go to the =<a>= (or =<img>=) element.
+- =#+HTML_HEAD:= and =#+HTML_HEAD_EXTRA:= add lines to =<head>= (CSS,
+  meta tags); in a subtree use =EXPORT_HTML_HEAD=.
+- =#+HTML_DOCTYPE: html5= and =#+OPTIONS: html5-fancy:t= give HTML5
+  elements (=<section>=, =<figure>=, ...). =html-postamble:nil= removes
+  the footer, =html-style:nil= the default CSS.
+- =#+HTML_LINK_HOME:= / =#+HTML_LINK_UP:= add navigation links,
+  =#+HTML_CONTAINER:= changes the =div= around sections.
+
+A file set up for HTML (example, not live):
+
+#+begin_src org
+,#+TITLE: Team page
+,#+HTML_DOCTYPE: html5
+,#+OPTIONS: html5-fancy:t html-postamble:nil toc:nil
+,#+HTML_HEAD: <link rel="stylesheet" href="style.css" />
+,#+HTML_HEAD_EXTRA: <meta name="theme-color" content="#336699" />
+#+end_src
+
+** Sample: HTML attributes
+:PROPERTIES:
+:EXPORT_TITLE: Attributes
+:EXPORT_OPTIONS: toc:nil num:nil html-postamble:nil
+:EXPORT_HTML_HEAD: <style>.wide { width: 100%; }</style>
+:END:
+#+ATTR_HTML: :class wide :id team
+| Name | Role    |
+|------+---------|
+| Ada  | analyst |
+
+#+ATTR_HTML: :target _blank :title Neovim home page
+[[https://neovim.io][Neovim]]
+
+#+ATTR_HTML: :class checklist
+- one
+- two
+
+** Exercises: HTML attributes
+*Try:* =<prefix>e s h H=.
+
+*Expect:* the style line at the end of =<head>=, and in the body:
+
+#+begin_example
+<style>.wide { width: 100%; }</style>
+</head>
+...
+<table id="team" border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" class="wide">
+...
+<p target="_blank" title="Neovim home page">
+<a href="https://neovim.io" target="_blank" title="Neovim home page">Neovim</a>
+</p>
+
+<ul class="org-ul checklist">
+#+end_example
+
+The =:id= replaced the generated table id, the =:class= was added to the
+default attributes (for lists, to the =org-ul= class). For a paragraph
+holding only a link, the attributes land on both the =<p>= and the =<a>=,
+exactly like Emacs. The page ends right after the content: no postamble
+(=html-postamble:nil=).
+
+* LaTeX and PDF specifics
+- =#+LATEX_CLASS: article= (default), =report=, =book=, =beamer= ... from
+  =export.latex.classes=; =#+LATEX_CLASS_OPTIONS: [a4paper,11pt]=.
+- =#+LATEX_HEADER: \usepackage{xcolor}= adds preamble lines
+  (=EXPORT_LATEX_HEADER= in a subtree); =#+LATEX_HEADER_EXTRA:= too.
+- =#+ATTR_LATEX:= before a table: =:environment longtable=, =:align
+  l|r=, =:booktabs t=, =:float nil=, =:placement [H]=, =:caption=; before
+  an image: =:width 0.5\textwidth=; before a list, =:options=.
+- LaTeX fragments (=$E=mc^2$=, =\(...\)=, =\begin{equation}=) pass through
+  to LaTeX; HTML shows them with MathJax.
+- PDF (=l p=) writes the .tex file next to this one and runs =latexmk=
+  (or =pdflatex= three times). Without a TeX installation you get an error
+  message and only the .tex file.
+
+** Sample: LaTeX attributes
+:PROPERTIES:
+:EXPORT_TITLE: LaTeX demo
+:EXPORT_LATEX_CLASS: report
+:EXPORT_LATEX_CLASS_OPTIONS: [a4paper]
+:EXPORT_LATEX_HEADER: \usepackage{booktabs}
+:EXPORT_OPTIONS: toc:nil
+:END:
+#+CAPTION: Results
+#+ATTR_LATEX: :align lr :booktabs t :placement [h]
+| Test | Score |
+|------+-------|
+| A    |    91 |
+
+Inline math $a^2 + b^2 = c^2$ and a display:
+\begin{equation}
+e^{i\pi} + 1 = 0
+\end{equation}
+
+** Exercises: LaTeX attributes
+*Try:* =<prefix>e s l L=.
+
+*Expect:* the class, its options and the extra package in the preamble:
+
+#+begin_example
+\documentclass[a4paper]{report}
+...
+\usepackage{booktabs}
+#+end_example
+
+and in the body a =table= float with =[h]=, the =lr= column spec and
+booktabs rules:
+
+#+begin_example
+\begin{table}[h]
+\caption{Results}
+\centering
+\begin{tabular}{lr}
+\toprule
+Test & Score\\
+\midrule
+A & 91\\
+\bottomrule
+\end{tabular}
+\end{table}
+#+end_example
+
+The math is copied as it is. With the =report= class, level-1 headings
+would be =\chapter= instead of =\section=.
+
+* Beamer slides
+Beamer is LaTeX for presentations. By default level-1 headings are frames
+(slides); =H:2= makes level 2 the frames and level 1 sections. Properties
+refine it: =BEAMER_env= (=block=, =alertblock=, =example=, =columns=,
+=column=, =note=, =ignoreheading=, ...), =BEAMER_col= (column width),
+=BEAMER_act= (overlay like =<2->=), =BEAMER_opt= (frame options).
+=#+BEAMER_THEME:= (=EXPORT_BEAMER_THEME=) picks the theme. =l B= exports
+to a buffer; =l P= makes a PDF (needs LaTeX).
+
+** Sample: slides
+:PROPERTIES:
+:EXPORT_TITLE: A tiny talk
+:EXPORT_AUTHOR: Ada
+:EXPORT_BEAMER_THEME: Madrid
+:EXPORT_OPTIONS: toc:nil H:1
+:END:
+*** First slide
+- point one
+- point two
+*** Two columns
+**** Left
+:PROPERTIES:
+:BEAMER_env: column
+:BEAMER_col: 0.5
+:END:
+Text on the left.
+**** Right
+:PROPERTIES:
+:BEAMER_env: alertblock
+:BEAMER_col: 0.5
+:END:
+Careful!
+
+** Exercises: slides
+*Try:* =<prefix>e s l B=.
+
+*Expect:* a Beamer document with the theme, a title frame, then one frame
+per level-1 heading of the sample:
+
+#+begin_example
+\documentclass[presentation]{beamer}
+...
+\usetheme{Madrid}
+\author{Ada}
+\date{\today}
+\title{A tiny talk}
+...
+\maketitle
+\begin{frame}[label={sec:orgcc50823}]{First slide}
+\begin{itemize}
+\item point one
+\item point two
+\end{itemize}
+\end{frame}
+\begin{frame}[label={sec:orgcd668b6}]{Two columns}
+\begin{columns}
+\begin{column}{0.5\columnwidth}
+Text on the left.
+\end{column}
+\begin{column}{0.5\columnwidth}
+\begin{alertblock}{Right}
+Careful!
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+#+end_example
+
+* Markdown, GFM, plain text and Org
+** Sample: a table and code everywhere
+:PROPERTIES:
+:EXPORT_TITLE: Formats
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+- [X] done item
+- [ ] open item
+
+| Tool | Needs   |
+|------+---------|
+| md   | nothing |
+
+#+begin_src python :exports code
+print("hi")
+#+end_src
+
+** Exercises: a table and code everywhere
+*Try:* =<prefix>e s b m M= (plain Markdown).
+
+*Expect:* Markdown has no table syntax, so the table is written as HTML;
+the code block is indented by four spaces:
+
+#+begin_example
+-   [X] done item
+-   [ ] open item
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+...
+    print("hi")
+#+end_example
+
+*Try:* =<prefix>e s b m G= (GitHub flavoured Markdown).
+
+*Expect:* task-list items, a pipe table (not padded, which GitHub does
+not need) and a fenced block with the language:
+
+#+begin_example
+- [x] done item
+- [ ] open item
+
+| Tool | Needs |
+|---|---|
+| md | nothing |
+
+```python
+print("hi")
+```
+#+end_example
+
+*Try:* =<prefix>e s b t A= (ASCII).
+
+*Expect:*
+
+#+begin_example
+- [X] done item
+- [ ] open item
+
+ Tool  Needs
+---------------
+ md    nothing
+
+,----
+| print("hi")
+`----
+#+end_example
+
+*Try:* =<prefix>e s b t U= (UTF-8).
+
+*Expect:* the same drawn with Unicode characters:
+
+#+begin_example
+• ☑ done item
+• ☐ open item
+
+━━━━━━━━━━━━━━━
+ Tool  Needs
+───────────────
+ md    nothing
+━━━━━━━━━━━━━━━
+
+┌────
+│ print("hi")
+└────
+#+end_example
+
+=t L= (Latin-1) sits in between: Latin-1 characters where they exist,
+ASCII otherwise.
+
+*Try:* =<prefix>e s b O O= (Org back-end).
+
+*Expect:* the subtree comes back as Org, after macros, =#+INCLUDE= and
+=noexport= have been processed (useful to see exactly what the other
+back-ends receive). Note the code indented by two spaces, like Emacs:
+
+#+begin_example
+- [X] done item
+- [ ] open item
+
+| Tool | Needs   |
+|------+---------|
+| md   | nothing |
+
+,#+begin_src python :exports code
+  print("hi")
+,#+end_src
+#+end_example
+
+* #+INCLUDE: pulling in other files
+=#+INCLUDE: "file"= is replaced by the file's content on export (never in
+the buffer). Variants:
+- =#+INCLUDE: "notes.org"=: an Org file; its headings are adjusted to the
+  current level (=:minlevel N= to choose).
+- =#+INCLUDE: "notes.org::*Heading"=: one subtree; =::#custom-id= or
+  =::name= also work; =:only-contents t= drops the heading line.
+- =#+INCLUDE: "init.lua" src lua=: as a source block; =example=,
+  =export html= also work.
+- =:lines "5-10"= (or ="5-"=, ="-10"=) takes a line range (the end is
+  exclusive, like Emacs: ="1-4"= is lines 1 to 3).
+
+** Sample: include
+:PROPERTIES:
+:EXPORT_TITLE: Includes
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+The first lines of the bundled init file:
+#+INCLUDE: "minimal_init.lua" src lua :lines "1-4"
+And a section of the tutorial:
+#+INCLUDE: "tutorial.org::*Export settings" :only-contents t :lines "1-3"
+
+** Exercises: include
+*Try:* =<prefix>e s b m M=.
+
+*Expect:* the three comment lines of =minimal_init.lua= as a code block,
+followed by the first two lines of the tutorial's "Export settings"
+section:
+
+#+begin_example
+The first lines of the bundled init file:
+
+    -- Try org.nvim without touching your own config:
+    --
+    --   nvim -u examples/minimal_init.lua examples/tutorial.org
+
+And a section of the tutorial:
+Export options go in `#+OPTIONS:` at the top of a file, for example
+`#+OPTIONS: toc:2 num:nil ^:{} todo:nil`. `#+TITLE:`, `#+AUTHOR:` and
+#+end_example
+
+=#+SETUPFILE: "other.org"= is related: it reads the settings keywords
+(=#+OPTIONS=, =#+MACRO=, =#+TODO=, ...) of another file.
+
+* Source blocks and :exports
+The =:exports= header argument decides what a code block contributes:
+| =:exports= | Exported                                   |
+|------------+--------------------------------------------|
+| =code=     | the code only (default for most languages) |
+| =results=  | the result only                            |
+| =both=     | code, then result                          |
+| =none=     | nothing                                    |
+
+With =babel.evaluate_on_export = true= (the default) blocks exporting
+=results= or =both= are *run again* during export, in a copy of the buffer
+(the buffer itself is not changed), after the usual "Evaluate?"
+confirmation. =:eval never-export= (or =no-export=) keeps the =#+RESULTS:=
+already in the buffer instead. More in [[file:17-babel.org][17-babel.org]].
+
+** Sample: exports
+:PROPERTIES:
+:EXPORT_TITLE: Exports
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+#+begin_src emacs-lisp :exports code
+(+ 1 2)
+#+end_src
+
+#+begin_src emacs-lisp :exports results
+(* 6 7)
+#+end_src
+
+#+begin_src emacs-lisp :exports both
+(concat "org" "." "nvim")
+#+end_src
+
+#+begin_src emacs-lisp :exports none
+(message "invisible")
+#+end_src
+
+#+begin_src emacs-lisp :exports results :eval never-export
+(* 100 100)
+#+end_src
+
+#+RESULTS:
+: stale value kept on export
+
+The answer is src_emacs-lisp[:exports results]{(* 6 7)}.
+
+** Exercises: exports
+*Try:* =<prefix>e s b t A=. You are asked "Evaluate this emacs-lisp code
+block on your system?" three times (the =results= block, the =both= block
+and the inline =src_= call): answer =y= each time. (Emacs Lisp runs in
+=emacs --batch= when Emacs is installed, otherwise on org.nvim's own Lisp
+interpreter, which handles these simple expressions.)
+
+*Expect:* code and results in the text back-end's boxes; the inline
+result is verbatim (=`42'=):
+
+#+begin_example
+,----
+| (+ 1 2)
+`----
+
+,----
+| 42
+`----
+
+,----
+| (concat "org" "." "nvim")
+`----
+
+,----
+| org.nvim
+`----
+
+,----
+| stale value kept on export
+`----
+
+The answer is `42'.
+#+end_example
+
+The =:exports none= block is absent, and the =never-export= block shows
+its old =#+RESULTS:= instead of =10000=. The buffer is not modified: no
+=#+RESULTS:= was added under the other blocks.
+
+*Try:* export again and answer =n= to every question: the =results=
+blocks then export nothing (they have no =#+RESULTS:= in the buffer), the
+=both= block only its code, and the inline call is left empty.
+
+* Citations
+Citations are written =[cite:@key]= (styles: =[cite/t:@key]= text,
+=[cite/a:@key]= author, =[cite/na:@key]= no author, ...; prefixes and
+suffixes: =[cite:see @key p. 3]=). =#+BIBLIOGRAPHY:= names a .bib or
+CSL-JSON file and =#+PRINT_BIBLIOGRAPHY:= prints the list. The "basic"
+processor works with every back-end; LaTeX can use =natbib=, =biblatex= or
+=bibtex= with =#+CITE_EXPORT:=. CSL styles (citeproc) are not supported;
+for those, export to Org or Markdown and run =pandoc --citeproc=.
+
+This file's header has =#+BIBLIOGRAPHY: ../tests/fixtures/export/cite/refs.bib=
+(a test fixture of the repo).
+
+** Sample: citations
+:PROPERTIES:
+:EXPORT_TITLE: Citations
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil
+:END:
+As shown before [cite:@doe2020], and in a book [cite:see @zed2019 p. 3].
+[cite/t:@alpha2018] wrote a thesis.
+
+#+PRINT_BIBLIOGRAPHY:
+
+** Exercises: citations
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* author-year citations, and the bibliography sorted by author
+where =#+PRINT_BIBLIOGRAPHY:= is:
+
+#+begin_example
+As shown before (Doe, John and Smith, Jane, 2020), and in a book (see
+Zed, Anna, 2019 p. 3).  Alpha, Bob (2018) wrote a thesis.
+
+Alpha, Bob (2018). /Thesis/, Univ.
+
+Doe, John and Smith, Jane (2020). /On the TeXbook and $\alpha$ alpha
+things/, Journal of Tests.
+
+Zed, Anna (2019). /A Book of Strings/, ACME Press.
+#+end_example
+
+*Try:* =<prefix>e s b h H=: the same text in =<p>= elements, with the
+titles in =<i>= and the =$\alpha$= of the .bib title as MathJax
+=\(\alpha\)=.
+
+*Try:* change =[cite:@doe2020]= to =[cite/na:@doe2020]= (no author):
+=As shown before (2020)=. And =[cite:see @zed2019 p. 3]= to
+=[cite/nb:@zed2019]= (numeric): =in a book (3)=, the entry's position in
+the bibliography.
+
+* Broken links
+A link that points nowhere (=[[*No such heading]]=) stops the export with
+an error by default: better than a silently dead link.
+=#+OPTIONS: broken-links:mark= writes =[BROKEN LINK: ...]= instead, and
+=broken-links:t= drops the link. This file sets =broken-links:mark= at
+the top so that a whole-file export works despite the sample below.
+
+** Sample: broken links
+:PROPERTIES:
+:EXPORT_TITLE: Broken
+:EXPORT_OPTIONS: toc:nil num:nil title:nil author:nil broken-links:mark
+:END:
+This points to [[*A heading that does not exist]].
+
+** Exercises: broken links
+*Try:* =<prefix>e s b t A=.
+
+*Expect:* =This points to [BROKEN LINK: *A heading that does not exist].=
+
+*Try:* change =broken-links:mark= to =broken-links:nil= in
+=EXPORT_OPTIONS= and export again. No buffer opens; instead:
+
+#+begin_example
+Export failed: Org export aborted.  Unable to resolve link: "*A heading that does not exist"
+See export.with_broken_links (org-export-with-broken-links)
+#+end_example
+
+*Try:* =broken-links:t=: the link simply disappears (=This points to .=).
+
+* iCalendar, ODT, DOCX, Texinfo and pandoc (file exports)
+These write files; there is no buffer variant. If you try them here, the
+files land in =examples/= (delete them afterwards).
+
+- iCalendar (=c f=): every entry with an active timestamp, SCHEDULED or
+  DEADLINE becomes a VEVENT (and TODOs a VTODO with
+  =export.icalendar.include_todo=). =c a= writes one .ics per agenda file,
+  =c c= combines them into =export.icalendar.combined_agenda_file=
+  (=~/org.ics= by default, outside the repo).
+- ODT (=o o=): a real OpenDocument file written in pure Lua; opens in
+  LibreOffice, Word, Google Docs. =export.odt.preferred_output_format =
+  "docx"= converts it with LibreOffice.
+- DOCX (=d d=) and other formats (=p=, then e.g. =rst=, =epub=, =typst=):
+  pandoc converts the Org back-end's output. The file is always named
+  after the Org file (=examples/19-export.docx=), even in a subtree with
+  =EXPORT_FILE_NAME=.
+- Texinfo (=i t=) writes a .texi manual; =i i= also runs =makeinfo=.
+
+** Sample: calendar entries
+:PROPERTIES:
+:EXPORT_TITLE: Events
+:END:
+*** Team meeting
+<2026-10-07 Wed 10:00-11:00>
+*** Submit the report
+DEADLINE: <2026-10-15 Thu>
+
+** Exercises: calendar entries
+*Try (writes examples/19-export.ics):* =<prefix>e c f=. The dispatcher's
+iCalendar entries always export the *whole file*, so the three
+"Evaluate?" questions of the =:exports= sample come up again: answer =n=.
+Open the file with =:e examples/19-export.ics=.
+
+*Expect:* among others
+
+#+begin_example
+BEGIN:VEVENT
+DTSTART:20261007T100000
+DTEND:20261007T110000
+SUMMARY:Team meeting
+...
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20261015
+DTEND;VALUE=DATE:20261016
+SUMMARY:DL: Submit the report
+#+end_example
+
+and an event for =<2026-10-05 Mon>= of the "Ship the release" sample. A
+TODO entry's deadline becomes a VTODO only with
+=export.icalendar.include_todo=; that is why "Submit the report" has no
+TODO keyword. Afterwards: =:!rm examples/19-export.ics=.
+
+*Try (writes examples/19-export.odt):* =<prefix>e s o o=, open the file in
+LibreOffice (or =<prefix>e s o O= to open it right away), then delete it.
+
+* Publishing projects
+Publishing exports whole directories at once (a website, a set of PDFs):
+projects are set in your config under =export.publish.projects=, and only
+files changed since the last run are exported again. Dispatcher: =P f=
+(this file), =P p= (its project), =P x= (choose one), =P a= (all). The
+commands are =:Org publish=, =:Org publish NAME=, =:Org publish all
+force= (=force= re-exports even unchanged files).
+
+This is configuration, not something to run from here:
+
+#+begin_src lua :eval no
+require("org").setup({
+  export = {
+    publish = {
+      projects = {
+        notes = {
+          base_directory = "~/org/site",   -- the .org sources
+          base_extension = "org",
+          publishing_directory = "~/public_html",
+          publishing_function = "html",    -- or "pdf", "md", "org", ...
+          recursive = true,
+          exclude = "^drafts/",            -- Vim regex, relative path
+          auto_sitemap = true,             -- writes sitemap.org + .html
+          sitemap_title = "My notes",
+          with_toc = false,                -- any export option
+          html_postamble = false,
+        },
+        static = {
+          base_directory = "~/org/site",
+          base_extension = "css\\|png\\|jpg",
+          publishing_directory = "~/public_html",
+          recursive = true,
+          publishing_function = "attachment", -- copy as is
+        },
+        site = { components = { "notes", "static" } },
+      },
+    },
+  },
+})
+#+end_src
+
+Then =:Org publish site= builds both. The timestamps of published files
+are kept in =export.publish.timestamp_directory=.
+
+*Try:* =<prefix>e P x=: with the bundled init no project is configured, so
+the prompt offers nothing to choose; press =<Esc>=.
+
+* Configuring defaults
+Every =#+OPTIONS= key has a config default under =export=, named after the
+Emacs variable: =with_toc=, =with_section_numbers=, =headline_levels=,
+=with_tags=, =with_todo_keywords=, =with_priority=, =with_drawers=,
+=with_properties=, =with_broken_links=, =select_tags=, =exclude_tags=,
+=author=, =email=, ... and per back-end tables (=export.html=,
+=export.latex=, =export.md=, =export.ascii=, =export.odt=, ...).
+
+#+begin_src lua :eval no
+require("org").setup({
+  export = {
+    output_dir = "~/exports",       -- instead of next to the source file
+    open_after_export = false,      -- open every exported file
+    with_toc = false,
+    with_section_numbers = false,
+    author = "Ada Lovelace",
+    global_macros = { year = function() return os.date("%Y") end },
+    html = { doctype = "html5", html5_fancy = true },
+    ascii = { charset = "utf-8", text_width = 80 },
+    md = { headline_style = "atx" },
+  },
+})
+#+end_src
+
+Filters and hooks (=export.filters=, =export.hooks=) run Lua functions on
+the text or the lines before parsing: see =:h org-export=.
+
+* Further reading
+- =:h org-export= (dispatcher, command and Lua API)
+- =:h org-export-settings= (keywords, =#+OPTIONS=, macros, =#+INCLUDE=)
+- =:h org-export-backends=, =:h org-export-ascii=, =:h org-export-beamer=,
+  =:h org-export-odt=, =:h org-export-texinfo=, =:h org-export-icalendar=
+- =:h org-export-cite= (citations), =:h org-publish=
+- =:h org-export-unsupported= (what needs Emacs)
+- Related example files: [[file:17-babel.org][17-babel.org]] (code
+  blocks), [[file:14-footnotes.org][14-footnotes.org]],
+  [[file:13-links.org][13-links.org]] (link types),
+  [[file:21-images-latex.org][21-images-latex.org]] (images and LaTeX
+  fragments), and the overview in [[file:00-index.org][00-index.org]].

@@ -1,0 +1,796 @@
+#+TITLE: Sparse trees and the match syntax
+#+STARTUP: overview
+#+CATEGORY: sparse-trees
+#+TODO: TODO NEXT WAITING | DONE CANCELLED
+#+TAGS: work(w) home(h) urgent(u) errand(e) phone(p) writing idea
+#+TAGS: [ Office : meeting email ]
+#+PROPERTY: Effort_ALL 0:15 0:30 1:00 2:00 4:00
+
+* How to use this file
+A /sparse tree/ folds the buffer so that only the entries you are looking
+for stay visible, together with the headlines above them (their "context").
+The matches are highlighted and collected in the window's location list,
+so you can jump from one to the next. Nothing in the file changes: a
+sparse tree is only a way of looking at it.
+
+This file has two halves:
+- the [[*Playground][Playground]], a small task list (an office move, a
+  household, side projects) that every exercise searches, and
+- one heading per kind of sparse tree and per part of the match syntax,
+  each with examples, exercises (*Try:*) and the exact result (*Expect:*).
+
+Working through it:
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means =<leader>o= (the default prefix), so =<prefix>/= is
+  =<leader>o/=. With =examples/minimal_init.lua= the leader is =<Space>=.
+- Press =g?= at any time to list every keymap of the buffer.
+- Sparse trees don't edit anything, but if you do change the Playground,
+  =u= undoes and =git checkout examples/10-sparse-trees.org= restores it.
+  The expected results below assume the Playground is unchanged.
+- Coming from Emacs? =C-c /= and =C-c \= work too (=:h org-emacs-keys=).
+
+Start Neovim from the root of the repository with the bundled config:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/10-sparse-trees.org
+#+end_src
+
+=examples/minimal_init.lua= loads org.nvim from this checkout, sets
+=<Space>= as the leader, points the agenda at =examples/*.org= and sends
+captures to a scratch directory. Sparse trees only look at the current
+buffer, so none of that matters here except the leader key.
+
+Every sparse tree prints a message like =4 matches for +urgent=. That
+number is the easiest thing to check, so each *Expect:* gives it.
+
+Today is Mon 2026-09-28 in these examples. Only the deadline tree (=d=) and
+the relative dates (=<today>=, =<+1w>=) depend on the real date; their
+*Expect:* lines say so.
+
+** Keys in this file
+| Key                        | Action                                    |
+|----------------------------+-------------------------------------------|
+| =<prefix>/=                | sparse tree menu (Emacs =C-c /=)          |
+| =<C-c>/=                   | the same menu, Emacs key                  |
+| =<C-c>\=                   | tags / property match tree, straight away |
+| =]l= =[l=                  | next / previous match (=:lnext= =:lprev=) |
+| =:lopen=                   | list every match in the location list     |
+| =<C-c><C-c>=               | remove the highlights (first press)       |
+| =<prefix>/= then =c=       | remove the highlights                     |
+| =<S-Tab>=, =:Org show_all= | unfold again                              |
+| =<C-c><C-x>q=              | turn tag groups on / off in matches       |
+
+In the menu of =<prefix>/=:
+
+- =/= or =r= :: lines matching a (Vim) regexp
+- =t= :: open TODO entries (not done)
+- =T= :: entries with the TODO keyword(s) you type (=NEXT|WAITING=)
+- =m= :: entries selected by a tags / property match
+- =M= :: the same, open TODO entries only
+- =p= :: entries with a property value (=ASSIGNEE=Bob=)
+- =d= :: deadlines past due or inside their warning period
+- =b= :: entries with a date before a date
+- =a= :: entries with a date after a date
+- =D= :: entries with a date between two dates
+- =c= :: clear the highlights
+
+* Playground
+# Every exercise searches this subtree. Please don't edit it while you
+# work through the file: the expected match counts assume it is unchanged.
+This is the data the exercises search. Open it once with =<Tab>= (and
+=<Tab>= again for everything) to see what is there. Notice:
+- the TODO keywords (=#+TODO: TODO NEXT WAITING | DONE CANCELLED=),
+- the tags, some of them inherited from a parent headline,
+- the =Effort=, =COST= and =ASSIGNEE= properties,
+- the =CATEGORY= of each group, and
+- the SCHEDULED / DEADLINE / CLOSED lines and plain timestamps.
+
+All the level-3 headlines of this file are here, so =LEVEL=3= finds
+exactly the tasks of the Playground.
+
+** Office move                                                         :work:
+:PROPERTIES:
+:CATEGORY: office
+:END:
+# The children below have no work tag of their own: they inherit it.
+All tasks of the office move inherit the =work= tag from this headline.
+*** TODO [#A] Sign the new lease                                     :urgent:
+DEADLINE: <2026-10-02 Fri>
+:PROPERTIES:
+:Effort:   1:00
+:COST:     1200
+:ASSIGNEE: Alice
+:END:
+The landlord sends the Invoice for the deposit after the signature.
+*** NEXT Book the movers                                              :phone:
+SCHEDULED: <2026-09-29 Tue>
+:PROPERTIES:
+:Effort:   0:30
+:COST:     450
+:ASSIGNEE: Bob
+:END:
+Ask for an invoice with the VAT number on it.
+*** WAITING Quote from the cleaning company                           :email:
+:PROPERTIES:
+:Effort:   0:15
+:ASSIGNEE: Carol
+:END:
+*** TODO Pack the archive room
+SCHEDULED: <2026-10-12 Mon>
+:PROPERTIES:
+:Effort:   4:00
+:ASSIGNEE: Bob
+:END:
+*** DONE Choose the new office
+CLOSED: [2026-09-18 Fri 16:00] DEADLINE: <2026-09-20 Sun>
+*** Team meeting about the move                                     :meeting:
+<2026-09-30 Wed 10:00-11:00>
+** Home                                                                :home:
+:PROPERTIES:
+:CATEGORY: household
+:END:
+*** TODO [#B] Fix the leaking tap                                    :urgent:
+DEADLINE: <2026-09-25 Fri>
+:PROPERTIES:
+:Effort:   0:45
+:COST:     80
+:END:
+*** TODO [#C] Paint the fence
+SCHEDULED: <2026-10-17 Sat>
+:PROPERTIES:
+:Effort:   5:00
+:COST:     150
+:ASSIGNEE: Alice
+:END:
+*** TODO Buy groceries                                               :errand:
+SCHEDULED: <2026-09-28 Mon>
+*** NEXT Call the plumber back                                :phone:urgent:
+Pay the plumber's invoice in cash.
+*** CANCELLED Repaint the garage
+CLOSED: [2026-09-10 Thu 09:00]
+*** DONE Renew the car insurance                                     :errand:
+CLOSED: [2026-09-22 Tue 18:30] DEADLINE: <2026-09-30 Wed>
+:PROPERTIES:
+:COST:     640
+:END:
+** Side projects
+:PROPERTIES:
+:CATEGORY: hobby
+:END:
+*** TODO Write a blog post about sparse trees                       :writing:
+DEADLINE: <2026-11-20 Fri>
+:PROPERTIES:
+:Effort:   2:00
+:END:
+*** TODO Submit the conference talk                         :writing:urgent:
+DEADLINE: <2026-10-30 Fri -40d>
+# The -40d cookie makes this deadline warn 40 days ahead instead of 14.
+*** Idea: a garden planner app                                         :idea:
+[2026-09-15 Tue] Noted while weeding the garden.
+*** WAITING Library book reservation                                 :errand:
+SCHEDULED: <2026-10-05 Mon>
+**** Pick up the book at the front desk
+# A level-4 headline: it inherits the errand tag of its parent.
+
+* Your first sparse tree: open TODO entries
+=<prefix>/= opens a small menu; each key builds a different sparse tree.
+The simplest one is =t=: every headline with a TODO keyword that is not
+done (=TODO=, =NEXT= and =WAITING= here; =DONE= and =CANCELLED= are done
+states because they come after the =|= in =#+TODO:=).
+
+What happens:
+1. the whole buffer is folded to its top-level headlines (OVERVIEW),
+2. each matching headline is shown with all its ancestors,
+3. the matching headlines are highlighted (the =Search= colour), and
+4. the location list of the window is filled with the matches, and the
+   cursor goes to the first one.
+
+*Try:* press =<prefix>/= then =t=.
+
+*Expect:* the message =11 matches for TODO entries=. Under "Playground"
+you see the three groups and, under them, these headlines highlighted:
+- Office move: Sign the new lease, Book the movers, Quote from the cleaning
+  company, Pack the archive room
+- Home: Fix the leaking tap, Paint the fence, Buy groceries, Call the
+  plumber back
+- Side projects: Write a blog post..., Submit the conference talk, Library
+  book reservation
+"Choose the new office" (DONE), "Repaint the garage" (CANCELLED), "Team
+meeting about the move" and "Idea: a garden planner app" (no keyword) are
+hidden. The other top-level headings of this file stay folded.
+
+* Getting back: moving, unfolding and clearing
+** Jumping from match to match
+The matches are in the /location list/ of the window, so the usual Vim
+commands move between them:
+- =]l= / =[l= (Neovim 0.11+ default mappings) or =:lnext= / =:lprev=,
+- =:lfirst= / =:llast=,
+- =:lopen= shows the list (its title is =Sparse tree: ...=); =<CR>= on a
+  line jumps there, =:lclose= closes it.
+
+*Try:* after the TODO tree above, press =]l= three times, then =[l= once.
+
+*Expect:* the cursor goes Sign the new lease → Book the movers → Quote from
+the cleaning company → Pack the archive room, then back to Quote from the
+cleaning company. =:lopen= lists 11 lines.
+
+** Showing everything again
+A sparse tree only changes the folds. Any visibility command undoes it:
+- =<S-Tab>= cycles the whole buffer (OVERVIEW → CONTENTS → SHOW ALL),
+- =:Org show_all= shows everything, =:Org overview= folds everything,
+- =<Tab>= on a folded headline opens just that one.
+
+** Removing the highlights
+The highlights stay until one of these:
+- the first =<C-c><C-c>= in the buffer only removes them (like Emacs, it
+  does nothing else that time),
+- =<prefix>/= then =c= removes them and empties the location list,
+- any change to the buffer removes them.
+
+*Try:* build the TODO tree again (=<prefix>/= =t=), then press =<C-c><C-c>=.
+
+*Expect:* the highlights disappear at once; the folds stay as they are.
+Press =<prefix>/= =t= again and then =<prefix>/= =c=: same result, and
+=:lopen= now shows an empty list.
+
+* Specific TODO keywords (T)
+=T= asks for one or more keywords, with completion on the keywords of the
+buffer. Separate several keywords with =|= (or spaces). Done keywords are
+allowed here, unlike with =t=.
+
+- =NEXT= :: 2 matches: Book the movers, Call the plumber back
+- =NEXT|WAITING= :: 4 matches: the two above, Quote from the cleaning
+  company, Library book reservation
+- =DONE CANCELLED= :: 3 matches: Choose the new office, Repaint the
+  garage, Renew the car insurance
+
+*Try:* =<prefix>/= =T=, type =NEXT|WAITING= and press =<CR>=.
+
+*Expect:* =4 matches for NEXT|WAITING=: Book the movers, Quote from the
+cleaning company, Call the plumber back and Library book reservation.
+
+*Try:* =<prefix>/= =T= and type =DONE=.
+
+*Expect:* =2 matches for DONE=: Choose the new office and Renew the car
+insurance. The keyword is compared exactly: =done= finds nothing.
+
+* Regexp sparse trees (/ or r)
+=/= (or =r=) asks for a regular expression and highlights every /line/ that
+matches, anywhere in the buffer: headlines, body text, drawers and these
+explanations too. Each match shows the lines of its entry and the
+headlines above it. Only the matching part of the line is highlighted.
+
+In the =<prefix>/= menu the regexp is a *Vim* regexp (=:h pattern=), and
+it is case-sensitive: add =\c= to ignore case. (Emacs uses an Emacs regexp
+and ignores case; see [[*Differences from Emacs][Differences from Emacs]].)
+
+# The patterns below use [x] brackets on purpose: a line that shows the
+# pattern, like the rows of this table, then does not match itself.
+| Pattern                 | Matches                                         |
+|-------------------------+-------------------------------------------------|
+| =[i]nvoice=             | 2 lines: Book the movers, Call the plumber back |
+| =\c[i]nvoice=           | 3 lines: the two above and Sign the new lease   |
+| =[I]nvoice=             | 1 line: the body of Sign the new lease          |
+| =^\*\+ [N]EXT=          | 2 headlines in the NEXT state                   |
+| =:[A]SSIGNEE: *Bob=     | 2 property lines: Book the movers, Pack ...     |
+| =SCHEDULED: <2026-1[0]= | 3 planning lines: scheduled in October          |
+
+*Try:* =<prefix>/= =/=, type =[i]nvoice= and press =<CR>=.
+
+*Expect:* =2 matches for /[i]nvoice/=. The body lines of "Book the movers"
+and "Call the plumber back" are visible under their headlines, with the
+word highlighted. The capitalised word in the body of "Sign the new lease"
+is not a match, because the pattern is case-sensitive.
+
+*Try:* the same with =\c[i]nvoice=.
+
+*Expect:* =3 matches for /\c[i]nvoice/=: the two lines above plus the body
+line of "Sign the new lease".
+
+*Try:* =<prefix>/= =r= and type =SCHEDULED: <2026-1[0]=.
+
+*Expect:* =3 matches=: the SCHEDULED lines of Pack the archive room,
+Paint the fence and Library book reservation. Press =]l= to walk through
+them; =:lopen= lists the three lines.
+
+* Tags and property matches (m, M and C-c \)
+=m= asks for a /match string/ (a tags / property / TODO query, the same
+syntax as the agenda's =m= view and clock tables) and shows every headline
+that it selects. =M= does the same but keeps only open TODO entries.
+=<C-c>\= skips the menu and asks for the match directly (Emacs
+=org-match-sparse-tree=). To keep only open TODO entries there, end the
+match with =/!= (see [[*Match syntax: the TODO part][the TODO part]]).
+
+Headlines are matched, not lines: the whole headline is highlighted.
+
+| Keys            | Match     | Result                                  |
+|-----------------+-----------+-----------------------------------------|
+| =<prefix>/= =m= | =+urgent= | 4 matches                               |
+| =<prefix>/= =M= | =+work=   | 4 matches (only the open TODO ones)     |
+| =<C-c>\=        | =+work=   | 7 matches (Office move and its 6 tasks) |
+| =<C-c>\=        | =+work/!= | 4 matches, like =M=                     |
+
+*Try:* =<prefix>/= =m=, type =+urgent= and press =<CR>=.
+
+*Expect:* =4 matches for +urgent=: Sign the new lease, Fix the leaking
+tap, Call the plumber back and Submit the conference talk.
+
+*Try:* =<C-c>\= and type =+work=, then =<C-c>\= again with =+work/!=.
+
+*Expect:* first =7 matches for +work= (Office move and every task under
+it, because tags are inherited), then =4 matches=: Sign the new lease,
+Book the movers, Quote from the cleaning company and Pack the archive
+room. The DONE task and the meeting (no keyword) are left out.
+
+The next sections go through the match syntax piece by piece. Use
+=<C-c>\= (or =<prefix>/= =m=) for every example.
+
+* Match syntax: tags
+A match string is a list of /terms/. For tags:
+
+- =work= :: tagged =work= (the =+= is optional)
+- =+work= :: tagged =work=
+- =-work= :: not tagged =work=
+- =+a+b= :: tagged =a= AND =b=
+- =a:b= and =a&b= :: the same: =:= and =&= also mean AND
+- =a|b= :: tagged =a= OR =b=
+- ={regexp}= :: a tag matching an (Emacs) regexp
+
+Rules worth remembering:
+- AND binds tighter than OR: =a+b|c= is "(a and b) or c". There are no
+  parentheses.
+- Tags are inherited: a child has the tags of its parents (and of
+  =#+FILETAGS:=). =tags_exclude_from_inheritance= and
+  =use_tag_inheritance= change that.
+- Tag names are compared exactly: =Work= does not find =work=. Regexps in
+  ={...}= ignore case.
+- A term cannot contain spaces. Text that does not start a new term ends
+  the match silently, as in Emacs: =work -urgent= is the same as =work=.
+
+** Simple tags, AND, NOT
+# Count = the number in the "N matches" message.
+- =+home= :: 7: Home and its 6 tasks
+- =+urgent+home= :: 2: Fix the leaking tap, Call the plumber back
+- =home:urgent= :: 2: the same
+- =home&urgent= :: 2: the same
+- =+work-urgent= :: 6: Office move and its tasks, except the lease
+- =+urgent-work= :: 3: Fix the leaking tap, Call the plumber back, Submit
+  the conference talk
+- =+phone= :: 2: Book the movers, Call the plumber back
+
+*Try:* =<C-c>\= with =+work-urgent=.
+
+*Expect:* =6 matches for +work-urgent=: Office move, Book the movers, Quote
+from the cleaning company, Pack the archive room, Choose the new office
+and Team meeting about the move. "Sign the new lease" is hidden.
+
+** OR, and how it mixes with AND
+- =work|home= :: 14: both groups and all their tasks
+- =phone|email= :: 3: Book the movers, Quote from the cleaning company,
+  Call the plumber back
+- =home+urgent|writing= :: 4: Fix the leaking tap, Call the plumber back,
+  the blog post, the conference talk
+- =+work+urgent|+home+errand= :: 3: Sign the new lease, Buy groceries,
+  Renew the car insurance
+
+*Try:* =<C-c>\= with =home+urgent|writing=.
+
+*Expect:* =4 matches=. Read it as "(home AND urgent) OR writing": Fix the
+leaking tap and Call the plumber back (home and urgent), Write a blog post
+about sparse trees and Submit the conference talk (writing).
+
+** Inheritance
+"Pick up the book at the front desk" has no tags of its own, but its
+parent "Library book reservation" is tagged =errand=.
+
+- =+errand= :: 4: Buy groceries, Renew the car insurance, Library book
+  reservation, Pick up the book at the front desk
+- =+work= :: 7: Office move and its 6 tasks, none of which has its own tag
+
+*Try:* =<C-c>\= with =+errand=.
+
+*Expect:* =4 matches=, the level-4 "Pick up the book at the front desk"
+among them.
+
+** Tag regexps
+={...}= holds an Emacs regexp that is compared with each tag (ignoring
+case). It can be negated with =-= like a tag.
+
+| Match        | Count | Headlines                                      |
+|--------------+-------+------------------------------------------------|
+| ={^w}=       |     9 | tags starting with w: work (7) and writing (2) |
+| ={ing$}=     |     3 | writing (2) and meeting: both end in "ing"     |
+| ={^e}=       |     5 | errand (4) and email (1)                       |
+| =+home-{^e}= |     5 | Home, Fix..., Paint..., Call..., Repaint...    |
+
+*Try:* =<C-c>\= with ={^w}=.
+
+*Expect:* =9 matches=: Office move and its six tasks, plus Write a blog post
+about sparse trees and Submit the conference talk.
+
+** Tag groups
+The second =#+TAGS:= line of this file defines a /group tag/:
+=[ Office : meeting email ]=. With =group_tags= on (the default), the
+match =Office= finds entries tagged =Office=, =meeting= or =email=, and
+=-Office= excludes all three. =<C-c><C-x>q= turns groups off and on.
+
+| Match          | Count | Headlines                                         |
+|----------------+-------+---------------------------------------------------|
+| =Office=       |     2 | Quote..., Team meeting about the move             |
+| =+work-Office= |     5 | Office move, Sign..., Book..., Pack..., Choose... |
+
+*Try:* =<C-c>\= with =Office=. Then press =<C-c><C-x>q= and run the same
+match again. Press =<C-c><C-x>q= once more to turn groups back on.
+
+*Expect:* =2 matches= with groups on; =0 matches for Office= with groups
+off (no headline has the tag =Office= itself).
+
+** Gotcha: spaces end the match
+*Try:* =<C-c>\= with =work -urgent= (with a space).
+
+*Expect:* =7 matches=, exactly like =work=: the space ends the match and
+=-urgent= is ignored without an error. Type =work-urgent= instead.
+
+* Match syntax: the TODO part
+Everything after the last =/= is matched against the TODO keyword.
+
+- =/NEXT= :: keyword is NEXT
+- =/NEXT|WAITING= :: NEXT or WAITING
+- =/-DONE= :: keyword is not DONE (entries without a keyword match too)
+- =/!= :: only open TODO entries (a not-done keyword)
+- =/!-WAITING= :: open TODO entries, except WAITING
+- =/{^W}= :: a keyword matching an Emacs regexp
+- =TAGS/TODO-PART= :: both parts must match
+
+Examples (the number is the match count):
+- =/NEXT= :: 2: Book the movers, Call the plumber back
+- =/NEXT|WAITING= :: 4: the two above, Quote..., Library book reservation
+- =/DONE|CANCELLED= :: 3: Choose..., Repaint..., Renew...
+- =/!= :: 11: the same as =<prefix>/= =t=
+- =/!-WAITING= :: 9: the 11 open entries minus the 2 WAITING ones
+- =/{^W}= :: 2: Quote..., Library book reservation
+- =+home/!= :: 4: Fix..., Paint..., Buy groceries, Call...
+- =+work/-DONE= :: 6: the Office move group, minus Choose the new office
+- =+urgent/TODO= :: 3: Sign..., Fix..., Submit the conference talk
+- =-home/!= :: 7: the open entries outside Home
+
+*Try:* =<C-c>\= with =+home/!=.
+
+*Expect:* =4 matches for +home/!=: Fix the leaking tap, Paint the fence,
+Buy groceries and Call the plumber back. The DONE and CANCELLED tasks and
+the Home headline itself (no keyword) are not shown.
+
+*Try:* =<C-c>\= with =+work/-DONE=.
+
+*Expect:* =6 matches=: Office move, Sign the new lease, Book the movers,
+Quote from the cleaning company, Pack the archive room and Team meeting
+about the move. =-DONE= keeps headlines without any keyword; use =/!= when
+you only want open tasks.
+
+* Match syntax: properties
+A term can also compare a property: =NAME OPERATOR VALUE=.
+
+Operators: === (or ====), =<>= (or =!== or =/==), =<=, =<==, =>=, =>==.
+The value decides the kind of comparison:
+- ="text"= in double quotes: a string comparison,
+- a number (=100=, =2.5=): a numeric comparison,
+- ={regexp}=: an Emacs regexp, ignoring case (=<>= means "does not match"),
+- ="[2026-10-01 Thu]"=, ="<today>"= ...: a date comparison (next section).
+
+A missing property counts as the empty string =""= in string comparisons
+and as =0= in numeric ones. Add =*= after the operator (=<*=, =>=*=,
+=<>*=, ...) to match only entries that have the property.
+
+Properties are not inherited in matches unless =use_property_inheritance=
+says so (it is =false= by default). =CATEGORY= is special: it always comes
+from the nearest =:CATEGORY:= above, or from =#+CATEGORY:=.
+
+** Strings
+| Match                    | Count | Headlines                              |
+|--------------------------+-------+----------------------------------------|
+| =ASSIGNEE="Bob"=         |     2 | Book the movers, Pack the archive room |
+| =ASSIGNEE="bob"=         |     0 | strings are compared exactly           |
+| =ASSIGNEE<>*"Bob"=       |     3 | Sign..., Quote..., Paint the fence     |
+| =Effort="1:00"=          |     1 | Sign the new lease                     |
+| =+home+ASSIGNEE="Alice"= |     1 | Paint the fence                        |
+
+*Try:* =<C-c>\= with =ASSIGNEE="Bob"=, then with =ASSIGNEE<>*"Bob"=.
+
+*Expect:* =2 matches=, then =3 matches=: Sign the new lease (Alice), Quote
+from the cleaning company (Carol) and Paint the fence (Alice). Without the
+star (=ASSIGNEE<>"Bob"=) every headline without an ASSIGNEE would match
+too, the headings of this tutorial included.
+
+** Numbers
+Numbers are read like Emacs's =string-to-number=: the leading number of
+the value, so ="1:30"= is =1= and ="0:45"= is =0=. Use them for plain
+numbers such as =COST=; for efforts, see the strings above or compare
+whole hours.
+
+| Match           | Count | Headlines                                               |
+|-----------------+-------+---------------------------------------------------------|
+| =COST>100=      |     4 | Sign (1200), Book (450), Paint (150), Renew (640)       |
+| =COST>=*500=    |     2 | Sign the new lease, Renew the car insurance             |
+| =COST<=*100=    |     1 | Fix the leaking tap (80)                                |
+| =COST>100+home= |     2 | Paint the fence, Renew the car insurance                |
+| =Effort>=*2=    |     3 | Pack... (4:00), Paint... (5:00), Write a blog... (2:00) |
+| =Effort<*1=     |     3 | Book... (0:30), Quote... (0:15), Fix... (0:45)          |
+
+*Try:* =<C-c>\= with =COST>=*500=.
+
+*Expect:* =2 matches=: Sign the new lease and Renew the car insurance.
+
+*Try:* =<C-c>\= with =COST<=100= (no star).
+
+*Expect:* many more matches than you might think: Fix the leaking tap, and
+every headline without a COST (it counts as 0), the headings of this
+tutorial included. Now try =COST<=*100=: =1 match=.
+
+** Regexps on property values
+| Match                       | Count | Headlines                                        |
+|-----------------------------+-------+--------------------------------------------------|
+| =ASSIGNEE={^[ab]}=          |     4 | Alice (2) and Bob (2): regexps ignore case       |
+| =ASSIGNEE={o}=              |     3 | Bob (2) and Carol                                |
+| =ASSIGNEE<>{^b}+Effort>=*1= |     3 | Sign..., Paint..., Write a blog... (no ASSIGNEE) |
+
+*Try:* =<C-c>\= with =ASSIGNEE={^[ab]}=.
+
+*Expect:* =4 matches=: Sign the new lease, Book the movers, Pack the
+archive room and Paint the fence.
+
+** Special properties
+Some property names are computed from the headline:
+
+| Name                            | Value                                              |
+|---------------------------------+----------------------------------------------------|
+| =LEVEL=                         | the number of stars                                |
+| =TODO=                          | the TODO keyword                                   |
+| =PRIORITY=                      | the priority letter; =B= when there is no cookie   |
+| =CATEGORY=                      | the category (inherited, see above)                |
+| =ITEM=                          | the headline text, without stars, keyword and tags |
+| =TAGS= =ALLTAGS=                | own tags / all tags, as =:a:b:=                    |
+| =SCHEDULED= =DEADLINE= =CLOSED= | the planning dates                                 |
+| =TIMESTAMP= =TIMESTAMP_IA=      | the first active / inactive timestamp              |
+
+- =LEVEL=3= :: 16: every task of the Playground
+- =LEVEL>3= :: 1: Pick up the book at the front desk
+- =LEVEL=2+work= :: 1: Office move
+- =TODO="NEXT"= :: 2: Book the movers, Call the plumber back
+- =PRIORITY="A"= :: 1: Sign the new lease
+- =PRIORITY<"C"+LEVEL=3= :: 15: every task but Paint the fence (=[#C]=):
+  a task without a cookie has priority B
+- =CATEGORY="household"= :: 7: Home and its 6 tasks
+- =CATEGORY="hobby"/!= :: 3: the blog post, the conference talk, the
+  library book
+- =ITEM={lease\|plumber}= :: 2: Sign the new lease, Call the plumber back
+  (=\|= is "or" in an Emacs regexp)
+- =ALLTAGS={:phone:}= :: 2: Book the movers, Call the plumber back
+
+*Try:* =<C-c>\= with =PRIORITY="A"=, then =LEVEL>3=, then
+=CATEGORY="hobby"/!=.
+
+*Expect:* =1 match= (Sign the new lease), =1 match= (Pick up the book at
+the front desk), =3 matches= (Write a blog post about sparse trees, Submit
+the conference talk, Library book reservation).
+
+* Match syntax: dates
+Put a date in double quotes, inside angle or square brackets, and the
+property is compared as a date. Works with =SCHEDULED=, =DEADLINE=,
+=CLOSED=, =TIMESTAMP= (the first active timestamp of the entry),
+=TIMESTAMP_IA= (the first inactive one) and any property holding a
+timestamp. An entry without the date never matches.
+
+Angle brackets work as well as square ones (the Emacs manual uses angle
+brackets, like ="<today>"= below). The examples use square
+brackets: written in this file, an angle-bracket date would itself be an
+active timestamp of the explanation headings, and date searches would find
+them.
+
+| Date value                 | Means                                                 |
+|----------------------------+-------------------------------------------------------|
+| ="[2026-10-01 Thu]"=       | that day at 00:00                                     |
+| ="[2026-10-01 Thu 14:00]"= | that day at 14:00                                     |
+| ="<today>"=                | today at 00:00                                        |
+| ="<tomorrow>"=             | tomorrow; ="<yesterday>"= also works                  |
+| ="<now>"=                  | now, with the time                                    |
+| ="<+2d>"= ="<-1w>"=        | today plus / minus days, weeks, months (m), years (y) |
+
+** Absolute dates (always the same result)
+| Match                             | Count | Headlines                                      |
+|-----------------------------------+-------+------------------------------------------------|
+| =SCHEDULED<"[2026-10-01 Thu]"=    |     2 | Book the movers, Buy groceries                 |
+| =SCHEDULED>="[2026-10-05 Mon]"=   |     3 | Pack..., Paint..., Library book reservation    |
+| =DEADLINE<="[2026-10-02 Fri]"=    |     4 | Sign..., Choose..., Fix..., Renew...           |
+| =DEADLINE<="[2026-10-02 Fri]"/!=  |     2 | Sign the new lease, Fix the leaking tap        |
+| =CLOSED>="[2026-09-15 Tue]"=      |     2 | Choose the new office, Renew the car insurance |
+| =TIMESTAMP>="[2026-09-30 Wed]"=   |     1 | Team meeting about the move                    |
+| =TIMESTAMP_IA<"[2026-10-01 Thu]"= |     1 | Idea: a garden planner app                     |
+
+*Try:* =<C-c>\= with =DEADLINE<="[2026-10-02 Fri]"/!=.
+
+*Expect:* =2 matches=: Sign the new lease (due Oct 2) and Fix the leaking
+tap (due Sep 25). The DONE entries with an early deadline are left out by
+=/!=.
+
+*Try:* =<C-c>\= with =CLOSED>="[2026-09-15 Tue]"=, then with
+=TIMESTAMP>="[2026-09-30 Wed]"=.
+
+*Expect:* =2 matches= (Choose the new office, Renew the car insurance),
+then =1 match= (Team meeting about the move: its plain timestamp is its
+TIMESTAMP; SCHEDULED and DEADLINE dates don't count as TIMESTAMP).
+
+** Relative dates
+These depend on the day you run them. On Mon 2026-09-28:
+
+| Match                     | Count | Headlines                               |
+|---------------------------+-------+-----------------------------------------|
+| =SCHEDULED<="<today>"=    |     1 | Buy groceries                           |
+| =SCHEDULED<="<tomorrow>"= |     2 | Buy groceries, Book the movers          |
+| =DEADLINE<"<+1w>"/!=      |     2 | Sign the new lease, Fix the leaking tap |
+| =SCHEDULED>"<+2w>"=       |     1 | Paint the fence (Oct 17)                |
+
+*Try:* =<C-c>\= with =SCHEDULED<="<tomorrow>"=.
+
+*Expect:* on 2026-09-28, =2 matches=. On a later day, every entry
+scheduled up to tomorrow matches, so the count only grows.
+
+* Property value (p)
+=p= is a shortcut for a single property: type =NAME=value= and it builds
+the match =NAME="value"= for you (quotes are added when missing).
+
+*Try:* =<prefix>/= =p= and type =ASSIGNEE=Bob=.
+
+*Expect:* =2 matches for ASSIGNEE="Bob"=: Book the movers and Pack the
+archive room.
+
+*Try:* =<prefix>/= =p= and type =COST=450=.
+
+*Expect:* =1 match=: Book the movers. (The comparison is a string one, so
+=COST=450.0= finds nothing.)
+
+* Deadlines (d)
+=d= shows the open entries whose deadline is past or inside its warning
+period: =deadline_warning_days= (14 by default) before the date, or the
+entry's own =-Nd= cookie (the =-40d= in the DEADLINE of "Submit the
+conference talk" warns 40 days ahead). Done entries are never shown.
+
+*Try:* =<prefix>/= =d=.
+
+*Expect:* on Mon 2026-09-28, =3 matches for deadlines=:
+- Sign the new lease (due in 4 days),
+- Fix the leaking tap (3 days overdue),
+- Submit the conference talk (due in 32 days, but the =-40d= cookie
+  warns 40 days ahead).
+Not shown: Write a blog post (Nov 20 is 53 days away), Choose the new
+office and Renew the car insurance (done). On a later date more entries
+fall inside their warning period.
+
+* Dates before, after and between (b, a, D)
+=b=, =a= and =D= open the calendar to pick a date (=D= asks twice: from,
+to). In the calendar, =h= =l= =j= =k= move by day / week, =<= =>= by
+month, =.= goes to today, =i= lets you type a date (like =2026-10-01=,
+=+3d= or =fri=), and =<CR>= selects.
+
+An entry matches when its SCHEDULED, DEADLINE or one of its active
+timestamps is:
+- =b=: strictly before the date,
+- =a=: strictly after the date,
+- =D=: between the two dates, both included.
+CLOSED dates and inactive timestamps (like the one under the Idea) are
+not used.
+
+*Try:* =<prefix>/= =b=; in the calendar press =i=, type =2026-10-01= and
+press =<CR>= (the typed date is taken at once).
+
+*Expect:* =6 matches for before 2026-10-01=: Book the movers (Sep 29),
+Choose the new office (deadline Sep 20), Team meeting about the move
+(Sep 30), Fix the leaking tap (Sep 25), Buy groceries (Sep 28) and Renew
+the car insurance (deadline Sep 30).
+
+*Try:* =<prefix>/= =a=, then =i=, =2026-10-15=, =<CR>=.
+
+*Expect:* =3 matches for after 2026-10-15=: Paint the fence (Oct 17),
+Write a blog post (Nov 20) and Submit the conference talk (Oct 30).
+
+*Try:* =<prefix>/= =D=, then =i=, =2026-10-01=, =<CR>= (the first
+calendar) and =i=, =2026-10-12=, =<CR>= (the second one).
+
+*Expect:* =3 matches for between 2026-10-01 and 2026-10-12=: Sign the new
+lease (Oct 2), Pack the archive room (Oct 12, the last day is included)
+and Library book reservation (Oct 5).
+
+* More ways to get a sparse tree
+** From a link
+A link to a file with =::/regexp/= after the name opens the file as a
+regexp sparse tree. Here the regexp is an Emacs regexp.
+
+- [[file:10-sparse-trees.org::/ASSIGNEE: +Alice/][All of Alice's tasks]]
+
+# In an Emacs regexp " +" means "one or more spaces", so the link text
+# itself (which has a literal +) is not a match.
+*Try:* put the cursor on the link above and press =<CR>= (or =gx=).
+
+*Expect:* =2 matches=: the ASSIGNEE lines in the property drawers of Sign
+the new lease and Paint the fence, highlighted. Unlike the =/= menu entry,
+this regexp ignores case, like Emacs.
+
+** From an agenda custom command
+The agenda's =custom_commands= can build a sparse tree of the current
+buffer instead of an agenda: =tags_tree= (a match string), =todo_tree= (a
+TODO keyword) and =occur_tree= (an Emacs regexp). They can't be blocks of a
+composite command. For example, in your config:
+
+#+begin_src lua :eval no
+require("org").setup({
+  agenda = {
+    custom_commands = {
+      -- <prefix>a then U: the urgent open tasks of the current buffer
+      U = { description = "Urgent tree", type = "tags_tree",
+            match = "+urgent/!" },
+      -- <prefix>a then N: every NEXT entry of the current buffer
+      N = { description = "NEXT tree", type = "todo_tree", match = "NEXT" },
+      -- <prefix>a then I: the lines about bills (an Emacs regexp)
+      I = { description = "Bills", type = "occur_tree", match = "[i]nvoice" },
+    },
+  },
+})
+#+end_src
+
+=examples/minimal_init.lua= does not define these, so this one is only to
+read. With them, =<prefix>a= =U= in this file shows =3 matches= (Sign the
+new lease, Fix the leaking tap, Submit the conference talk).
+
+** Speed key
+With =use_speed_commands = true=, pressing =/= with the cursor on the
+first star of a headline opens the sparse tree menu (like =<prefix>/=).
+
+* Common mistakes
+- =work -urgent= :: same as =work=: the space ends the match. Write
+  =work-urgent=.
+- =Work= :: 0 matches: tags are compared exactly. Write =work= (or
+  ={^work$}=, which ignores case).
+- =(a|b)+c= :: parentheses are not part of the syntax. Write =a+c|b+c=.
+- =COST<100= :: entries without a COST match too (a missing number is
+  0). Write =COST<*100=.
+- =Effort<"1:00"= :: entries without an Effort match too (="" < "1:00"=).
+  Write =Effort<*"1:00"=.
+- =Effort<1:30= :: read as =Effort<1= AND a tag named =30=: 0 matches.
+  Write =Effort<*"1:30"=.
+- =ASSIGNEE=Bob= :: without quotes it is not a comparison: a search for
+  the tag =ASSIGNEE= that stops at ===, so 0 matches. Write
+  =ASSIGNEE="Bob"=.
+- =[i]nvoice= in the =/= menu :: a case-sensitive Vim regexp. Write
+  =\c[i]nvoice= to ignore case.
+
+*Try:* =<C-c>\= with =Effort<*"1:00"=.
+
+*Expect:* =3 matches=: Book the movers (="0:30"=), Quote from the cleaning
+company (="0:15"=) and Fix the leaking tap (="0:45"=).
+
+* Differences from Emacs
+- In the =<prefix>/= menu, =/= and =r= take a /Vim/ regexp and are
+  case-sensitive (Emacs: an Emacs regexp, ignoring case). =\c= makes it
+  ignore case. Links with =::/regexp/= and =occur_tree= commands take an
+  Emacs regexp.
+- =c= in the menu clears the highlights. In Emacs =c= cycles the kind of
+  date used by =b=, =a= and =D= (scheduled/deadline, all timestamps, only
+  deadlines, ...). Here =b=, =a= and =D= always look at SCHEDULED,
+  DEADLINE and the active timestamps of each entry, and match whole
+  headlines.
+- =p= asks for =NAME=value= in one prompt (Emacs asks for the property,
+  then the value).
+- Folding uses Vim folds and hidden lines: with Neovim 0.10 the siblings
+  of a match stay visible (=:h org-hidden-lines=).
+
+* Further reading
+- =:h org-sparse-tree= — the menu and =<C-c>\=
+- =:h org-match-syntax= — the whole match syntax
+- =:h org-tag-groups= — group tags in matches
+- =:h org-agenda-custom-commands= — =tags_tree=, =todo_tree=, =occur_tree=
+- =:h org-hidden-lines= — how the folds of a sparse tree are made
+- =:h org-read-date= — what you can type in the calendar with =i=
+- [[file:05-tags.org][05-tags.org]] and
+  [[file:06-properties-columns.org][06-properties-columns.org]]: tags and
+  properties themselves
+- [[file:09-agenda.org][09-agenda.org]]: the same match syntax in the agenda

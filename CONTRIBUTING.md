@@ -11,8 +11,9 @@ you need to get started.
 - **Compare with Emacs.** If org.nvim does something differently from Emacs
   Org mode and the doc doesn't mention it
   ([`:h org-differences`](doc/org.txt)), please open an issue.
-- **Improve the docs.** The README, `doc/org.txt` and
-  `examples/tutorial.org` are all fair game.
+- **Improve the docs.** The README, `doc/org.txt`,
+  `examples/tutorial.org` and the per-feature files in `examples/` are all
+  fair game.
 - **Build a feature.** The [Roadmap](README.md#-roadmap) lists what's
   missing. Check the issues first, or open one, so work isn't duplicated.
 
