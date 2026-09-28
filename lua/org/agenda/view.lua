@@ -632,7 +632,7 @@ local function ensure_buf(name)
       end
       if S.follow then
         vim.schedule(function()
-          M.show_item(false)
+          M.follow_show()
         end)
       end
       show_outline_path()
@@ -1097,6 +1097,182 @@ function M.show_item(focus)
   return w
 end
 
+--- Show the subtree of the entry at point in an edit buffer in the other
+--- window (org-agenda-tree-to-indirect-buffer, C-c C-x b). The previous
+--- one is closed unless it has unsaved changes, like Emacs kills its last
+--- indirect buffer.
+---@return integer? buf
+function M.tree_to_indirect_buffer()
+  local item = M.item_at_cursor()
+  if not item then
+    utils.warn("No agenda entry on this line")
+    return nil
+  end
+  if item.type == "diary" or not item.headline then
+    utils.error("Command not allowed in this line")
+    return nil
+  end
+  local target = M.resolve_target(item)
+  if not target then
+    return nil
+  end
+  local old = S.indirect_buf
+  local w = other_window()
+  local buf
+  vim.api.nvim_win_call(w, function()
+    vim.api.nvim_win_set_buf(w, target.bufnr)
+    vim.api.nvim_win_set_cursor(w, { target.lnum, 0 })
+    buf = require("org.structure").tree_to_indirect_buffer("current")
+  end)
+  if old and old ~= buf and vim.api.nvim_buf_is_valid(old) and not vim.bo[old].modified then
+    pcall(vim.api.nvim_buf_delete, old, { force = true })
+  end
+  S.indirect_buf = buf
+  return buf
+end
+
+--- Move the cursor to the agenda line under the mouse (mouse-set-point);
+--- false when the click was outside the agenda window.
+function M.mouse_set_point()
+  local pos = vim.fn.getmousepos()
+  if not (S.win and pos.winid == S.win and pos.line > 0) then
+    return false
+  end
+  vim.api.nvim_set_current_win(S.win)
+  pcall(vim.api.nvim_win_set_cursor, S.win, { pos.line, math.max(pos.column - 1, 0) })
+  return true
+end
+
+--- The window of the last `show` (org-agenda-show-window).
+M.show_window = nil
+
+--- Scroll `win` a page: `dir` > 0 forward (scroll-up), < 0 back.
+local function scroll_page(win, dir)
+  pcall(vim.api.nvim_win_call, win, function()
+    vim.cmd("normal! " .. (dir > 0 and "\6" or "\2"))
+  end)
+end
+
+--- Show the entry at point in the other window, its drawers open; pressed
+--- again right after, scroll that window a page forward
+--- (org-agenda-show-and-scroll-up, <Space>). With `fold_drawers` (a
+--- count, Emacs C-u) the drawers stay folded.
+---@param fold_drawers? boolean
+function M.show_and_scroll_up(fold_drawers)
+  local sw = M.show_window
+  if sw and vim.api.nvim_win_is_valid(sw) and M.last_command == "show" then
+    scroll_page(sw, 1)
+    return sw
+  end
+  local w = M.show_item(false)
+  if w then
+    local item = M.item_at_cursor()
+    local hl = item and item.headline
+    if hl and not fold_drawers then
+      -- org-fold-show-entry, then all drawers of the entry
+      pcall(vim.api.nvim_win_call, w, function()
+        local last = hl.children[1] and (hl.children[1].line - 1) or hl.end_line
+        vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, math.max(hl.line, last)))
+      end)
+    end
+    M.show_window = w
+  end
+  return w
+end
+
+--- Scroll the window of the last `show` back a page
+--- (org-agenda-show-scroll-down, <BS>).
+function M.show_scroll_down()
+  local sw = M.show_window
+  if sw and vim.api.nvim_win_is_valid(sw) then
+    scroll_page(sw, -1)
+  end
+end
+
+--- Show the entry at point in the other window with `level` of detail
+--- (org-agenda-show-1): 0 folds the subtree, 1 shows the entry, 2 its
+--- children, 3 its subtree, 4 its subtree and drawers. `verbose` echoes
+--- the "Remote: ..." message of level 1 too.
+---@param level integer
+---@param verbose? boolean
+function M.show_1(level, verbose)
+  local w = M.show_item(false)
+  local item = M.item_at_cursor()
+  local hl = item and item.headline
+  if not (w and hl) then
+    return nil
+  end
+  local target = M.resolve_target(item)
+  local msg
+  vim.api.nvim_win_call(w, function()
+    local file = files.get_buffer(target.bufnr)
+    hl = file:headline_at(target.lnum) or hl
+    vim.api.nvim_win_set_cursor(w, { hl.line, 0 })
+    vim.cmd("normal! zt")
+    if level == 0 then
+      vim.cmd(string.format("silent! %d,%dfoldclose!", hl.line, hl.line))
+      msg = "Remote: FOLDED"
+    elseif level == 1 then
+      msg = verbose and "Remote: show with default settings" or nil
+    elseif level == 2 then
+      vim.cmd(string.format("silent! %dfoldopen", hl.line))
+      for _, ch in ipairs(hl.children) do
+        if ch.end_line > ch.line then
+          vim.cmd(string.format("silent! %dfoldclose", ch.line))
+        end
+      end
+      msg = "Remote: CHILDREN"
+    elseif level == 3 then
+      vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, hl.end_line))
+      msg = "Remote: SUBTREE"
+    else
+      vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, hl.end_line))
+      msg = "Remote: SUBTREE AND ALL DRAWERS"
+    end
+  end)
+  if msg then
+    utils.notify(msg)
+  end
+  return msg
+end
+
+--- Visibility level of the last cycle_show.
+M.cycle_counter = nil
+
+--- Show the entry at point; pressed again right after, cycle its
+--- visibility: children, subtree, folded (org-agenda-cycle-show). A count
+--- is passed to `show_1` as the level.
+---@param n? integer
+function M.cycle_show(n)
+  if n then
+    M.cycle_counter = n
+  elseif M.last_command ~= "cycle_show" then
+    M.cycle_counter = 1
+  elseif M.cycle_counter == 0 then
+    M.cycle_counter = 2
+  else
+    M.cycle_counter = (M.cycle_counter or 0) + 1
+    if M.cycle_counter > 3 then
+      M.cycle_counter = 0
+    end
+  end
+  return M.show_1(M.cycle_counter)
+end
+
+--- What follow mode shows for the entry at point: the entry, or its
+--- subtree in an edit buffer with `agenda.follow_indirect`
+--- (org-agenda-follow-indirect).
+function M.follow_show()
+  if config.opts.agenda.follow_indirect then
+    local item = M.item_at_cursor()
+    if item and item.headline and item.type ~= "diary" then
+      return M.tree_to_indirect_buffer()
+    end
+    return nil
+  end
+  return M.show_item(false)
+end
+
 --- Open the entry in the agenda window itself (RET).
 function M.switch_to()
   local item = M.item_at_cursor()
@@ -1394,6 +1570,62 @@ local function do_date_shift(sign)
       M.shift_item(target, item, sign * math.max(count, 1), sign < 0 or count > 0)
     end
   end)
+end
+
+--- The type of the block at the cursor ("agenda", "todo", ...).
+local function block_type_at_cursor()
+  if not (S.view and S.win and vim.api.nvim_win_is_valid(S.win)) then
+    return nil
+  end
+  local lnum = vim.api.nvim_win_get_cursor(S.win)[1]
+  local idx = 1
+  for i, l in ipairs(S.block_starts or { 1 }) do
+    if l <= lnum then
+      idx = i
+    end
+  end
+  local b = S.view.blocks[idx] or S.view.blocks[1]
+  return b and b.type
+end
+M.block_type_at_cursor = block_type_at_cursor
+
+--- org-agenda-check-type: error unless the block at point is a date agenda.
+local function check_agenda_type()
+  local t = block_type_at_cursor()
+  if t == "agenda" then
+    return true
+  end
+  local names = { tags_todo = "tags", stuck = "tags" }
+  utils.error(string.format("Not allowed in ’%s’-type agenda buffer or component", names[t] or t or "nil"))
+  return false
+end
+
+--- Toggle the display of habits (org-habit-toggle-habits).
+function M.toggle_habits()
+  if not check_agenda_type() then
+    return
+  end
+  local h = config.opts.agenda.habits
+  h.show_habits = not h.show_habits
+  M.redo()
+  utils.notify("Habits turned " .. (h.show_habits and "on" or "off"))
+end
+
+--- Toggle habits, or with `all_today` whether today shows all habits or
+--- only the ones due (org-habit-toggle-display-in-agenda, Emacs `K` and
+--- `C-u K`).
+function M.toggle_habits_display(all_today)
+  if not all_today then
+    return M.toggle_habits()
+  end
+  if not check_agenda_type() then
+    return
+  end
+  local h = config.opts.agenda.habits
+  h.show_all_today = not h.show_all_today
+  if h.show_habits then
+    M.redo()
+  end
 end
 
 local function move_to_item(dir)
@@ -2365,22 +2597,36 @@ M.actions = {
   switch_to = function()
     M.switch_to()
   end,
+  tree_to_indirect_buffer = function()
+    M.tree_to_indirect_buffer()
+  end,
   show = function()
-    M.show_item(false)
+    M.show_and_scroll_up(vim.v.count > 0)
   end,
   show_scroll_down = function()
-    local w = M.show_item(false)
-    if w then
-      pcall(vim.api.nvim_win_call, w, function()
-        vim.cmd("normal! \x19")
-      end)
+    M.show_scroll_down()
+  end,
+  goto_mouse = function()
+    if M.mouse_set_point() then
+      M.show_item(true)
     end
+  end,
+  show_mouse = function()
+    if M.mouse_set_point() then
+      M.show_item(false)
+    end
+  end,
+  show_1 = function()
+    M.show_1(math.max(vim.v.count, 1), true)
+  end,
+  cycle_show = function()
+    M.cycle_show(vim.v.count > 0 and vim.v.count or nil)
   end,
   follow_mode = function()
     S.follow = not S.follow
     utils.notify("Follow mode " .. (S.follow and "on" or "off"))
     if S.follow then
-      M.show_item(false)
+      M.follow_show()
     end
   end,
   todo = on_item(function(target)
@@ -2643,6 +2889,12 @@ M.actions = {
     S.include_diary = not on
     M.redo()
     utils.notify("Diary inclusion turned " .. (S.include_diary and "on" or "off"))
+  end,
+  toggle_habits = function()
+    M.toggle_habits()
+  end,
+  toggle_habits_display = function()
+    M.toggle_habits_display(vim.v.count > 0)
   end,
   dim_blocked = function()
     S.dim_blocked = not S.dim_blocked
@@ -3085,6 +3337,9 @@ setup_mappings = function(buf)
     for _, lhs in ipairs(config.lhs_list(value)) do
       all[#all + 1] = { name = name, lhs = lhs }
     end
+  end
+  if config.opts.agenda.mouse_1_follows_link then
+    all[#all + 1] = { name = "goto_mouse", lhs = "<LeftMouse>" }
   end
   for _, m in ipairs(all) do
     local fn = M.actions[m.name]

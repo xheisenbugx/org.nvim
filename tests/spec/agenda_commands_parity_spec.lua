@@ -53,7 +53,7 @@ local function move_away()
 end
 
 local function press(keys)
-  vim.cmd('exe "normal ' .. keys:gsub("<", "\\<") .. '"')
+  vim.api.nvim_feedkeys(vim.keycode(keys), "mx", false)
 end
 
 describe("agenda hour and minute date shifts", function()
@@ -184,5 +184,139 @@ describe("agenda remote undo", function()
     eq(1, #view.undo_list)
     view.run_action("redo")
     eq(0, #view.undo_list)
+  end)
+end)
+
+local function titles()
+  local out = {}
+  local lines = vim.tbl_keys(view.state.line_items)
+  table.sort(lines)
+  for _, l in ipairs(lines) do
+    out[#out + 1] = view.state.line_items[l].title
+  end
+  return out
+end
+
+describe("agenda habit toggles", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local lines = {
+    "* TODO Water",
+    "  SCHEDULED: " .. ts(2, ".+3d"),
+    "  :PROPERTIES:",
+    "  :STYLE: habit",
+    "  :END:",
+    "* TODO Other",
+    "  SCHEDULED: " .. ts(0),
+  }
+
+  -- Emacs 9.8.10: C-u K shows the habit that is not due yet on today, K
+  -- then turns habits off ("Habits turned off"); in a TODO list it errors.
+  it("vh with a count shows all habits today, vh turns habits off", function()
+    open(lines)
+    eq({ "Other" }, titles())
+    press("1vh")
+    eq({ "Other", "Water" }, titles())
+    capture_msgs(function(msgs)
+      press("vh")
+      eq("Habits turned off", msgs[#msgs])
+    end)
+    eq({ "Other" }, titles())
+    eq(false, config.opts.agenda.habits.show_habits)
+  end)
+
+  it("is refused outside a date agenda", function()
+    open(lines)
+    view.quit(true)
+    agenda.open_todo()
+    capture_msgs(function(_, errs)
+      view.run_action("toggle_habits")
+      eq("Not allowed in ’todo’-type agenda buffer or component", errs[#errs])
+    end)
+  end)
+end)
+
+describe("agenda show commands", function()
+  after_each(function()
+    pcall(view.quit, true)
+    pcall(vim.cmd, "silent! only")
+  end)
+
+  local lines = { "* TODO A", "  SCHEDULED: " .. ts(0), "** B", "   text" }
+
+  -- Emacs 9.8.10 (org-agenda-cycle-show pressed six times): the levels are
+  -- 1, 2, 3, 0, 2, 3 with "Remote: CHILDREN", "Remote: SUBTREE",
+  -- "Remote: FOLDED", ...; org-agenda-show-1 4 says "Remote: SUBTREE AND
+  -- ALL DRAWERS".
+  it("cycle_show cycles children, subtree, folded when repeated", function()
+    open(lines, { mappings = { agenda = { cycle_show = "gz" } } })
+    goto_title("A")
+    capture_msgs(function(msgs)
+      local levels = {}
+      for _ = 1, 6 do
+        press("gz")
+        levels[#levels + 1] = view.cycle_counter
+      end
+      eq({ 1, 2, 3, 0, 2, 3 }, levels)
+      eq({ "Remote: CHILDREN", "Remote: SUBTREE", "Remote: FOLDED", "Remote: CHILDREN", "Remote: SUBTREE" }, msgs)
+      view.show_1(4)
+      eq("Remote: SUBTREE AND ALL DRAWERS", msgs[#msgs])
+    end)
+  end)
+
+  it("<Space> shows the entry, and pressed again scrolls it", function()
+    local long = { "* TODO A", "  SCHEDULED: " .. ts(0) }
+    for i = 1, 200 do
+      long[#long + 1] = "  line " .. i
+    end
+    open(long)
+    goto_title("A")
+    press("<Space>")
+    local w = view.show_window
+    ok(w and vim.api.nvim_win_is_valid(w))
+    eq(vim.api.nvim_get_current_win(), view.state.win)
+    local top = vim.fn.getwininfo(w)[1].topline
+    press("<Space>")
+    ok(vim.fn.getwininfo(w)[1].topline > top, "scrolled forward")
+    local top2 = vim.fn.getwininfo(w)[1].topline
+    press("<BS>")
+    ok(vim.fn.getwininfo(w)[1].topline < top2, "scrolled back")
+  end)
+
+  it("<C-c><C-x>b shows the subtree in an edit buffer in the other window", function()
+    open(lines)
+    goto_title("A")
+    press("<C-c><C-x>b")
+    local buf = view.state.indirect_buf
+    ok(buf and vim.api.nvim_buf_is_valid(buf))
+    eq(lines, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+    eq(vim.api.nvim_get_current_win(), view.state.win)
+    ok(#vim.fn.win_findbuf(buf) == 1)
+  end)
+
+  it("follow_indirect makes follow mode show the subtree buffer", function()
+    open(lines, { agenda = { follow_indirect = true } })
+    goto_title("A")
+    view.run_action("follow_mode")
+    local buf = view.state.indirect_buf
+    ok(buf and vim.api.nvim_buf_is_valid(buf))
+    eq("* TODO A", vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1])
+  end)
+
+  it("a middle click goes to the entry under the mouse", function()
+    open(lines)
+    local l = goto_title("A")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    local getmousepos = vim.fn.getmousepos
+    vim.fn.getmousepos = function()
+      return { winid = view.state.win, line = l, column = 5 }
+    end
+    local okc, err = pcall(view.run_action, "goto_mouse")
+    vim.fn.getmousepos = getmousepos
+    assert(okc, err)
+    eq(utils.find_buffer(path), vim.api.nvim_get_current_buf())
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
   end)
 end)

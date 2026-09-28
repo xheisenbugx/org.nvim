@@ -601,6 +601,12 @@ M.defaults = {
     --- (org-agenda-log-mode-add-notes).
     log_mode_add_notes = true,
     start_with_follow_mode = false, -- org-agenda-start-with-follow-mode
+    --- Follow mode shows the entry's subtree in an edit buffer
+    --- (org-agenda-follow-indirect).
+    follow_indirect = false,
+    --- A left click goes to the entry like a middle click
+    --- (org-agenda-mouse-1-follows-link).
+    mouse_1_follows_link = false,
     start_with_clockreport_mode = false, -- org-agenda-start-with-clockreport-mode
     --- Clocktable parameters of the clock report mode
     --- (org-agenda-clockreport-parameter-plist); :scope and the time range
@@ -2092,9 +2098,14 @@ M.defaults = {
       switch_to = "<CR>",
       show = "<Space>",
       show_scroll_down = "<BS>",
+      show_1 = false, -- Emacs: unbound
+      cycle_show = false, -- Emacs: unbound
+      goto_mouse = "<MiddleMouse>", -- Emacs: mouse-2
+      show_mouse = "<RightMouse>", -- Emacs: mouse-3
       recenter = "L",
       delete_other_windows = "o",
       follow_mode = { "F", "vf" },
+      tree_to_indirect_buffer = "<C-c><C-x>b",
       todo = { "t", "<C-c><C-t>" },
       todo_next = "<C-S-Right>",
       todo_prev = "<C-S-Left>",
@@ -2143,6 +2154,8 @@ M.defaults = {
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
       toggle_diary = "D",
+      toggle_habits_display = "vh", -- Emacs: K (capture here)
+      toggle_habits = false, -- Emacs: unbound
       dim_blocked = "#",
       filter = "/",
       filter_tag = "\\",

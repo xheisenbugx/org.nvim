@@ -1248,7 +1248,25 @@ All configurable under `mappings.agenda`:
                   the query (Emacs C-u r)
   gr              rebuild all agenda buffers (Emacs g)
   <CR> <Tab>      open the entry here / in another window
-  <Space> <BS>    show the entry, keeping focus in the agenda / and scroll
+  <Space> <BS>    show the entry (its drawers open; with a count they stay
+                  folded), keeping focus in the agenda; <Space> again
+                  scrolls that window a page forward, <BS> a page back
+                  (org-agenda-show-and-scroll-up / -show-scroll-down)
+  cycle_show      (no default key) show the entry; again right away,
+                  cycle it through children, subtree, folded; a count is
+                  the level of `show_1` (org-agenda-cycle-show)
+  show_1          (no default key) show the entry with the detail of the
+                  count: 1 the entry, 2 its children, 3 its subtree, 4
+                  also the drawers (org-agenda-show-1; level 0, fold,
+                  has no count form: `require("org.agenda.view").show_1(0)`)
+  <MiddleMouse>   go to the entry clicked (org-agenda-goto-mouse); with
+                  `agenda.mouse_1_follows_link` also <LeftMouse>
+  <RightMouse>    show the entry clicked (org-agenda-show-mouse)
+  <C-c><C-x>b     edit the entry's subtree in the other window (the
+                  subtree edit buffer of |org-narrow|, since Neovim has no
+                  indirect buffers; org-agenda-tree-to-indirect-buffer).
+                  The previous one is closed unless modified.
+                  `agenda.follow_indirect` makes follow mode show it
   L               show the entry and recenter its window
   o               close the other windows
   F               follow mode (also vf)
@@ -1303,6 +1321,12 @@ All configurable under `mappings.agenda`:
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
                   (|org-agenda-diary-file|)
+  vh              turn habits off / on (`agenda.habits.show_habits`); with
+                  a count, toggle whether today shows every habit, due or
+                  not (`habits.show_all_today`)
+                  (org-habit-toggle-display-in-agenda, Emacs K / C-u K);
+                  the action `toggle_habits` (no default key) never takes
+                  the count
   #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
@@ -1868,15 +1892,14 @@ Not supported in the agenda                        *org-agenda-unsupported*
 - The agenda key `i` (insert an entry into the diary file,
   org-agenda-diary-entry). The diary file itself is read
   (|org-agenda-diary-file|).
-- `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
-  indirect buffers or narrowing; <Tab> opens the entry instead.
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
   `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
   schedule and set deadlines (Emacs: save and day view; views are `vd`,
   `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`,
-  so the calendar conversion is `gC`).
+  so the calendar conversion is `gC`), and habits are toggled with `vh`
+  (Emacs `K`, which is capture here).
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*

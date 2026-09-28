@@ -961,8 +961,18 @@
 ---@field redo? org.MappingLhs
 --- Rebuild all agenda buffers (org-agenda-redo-all). Emacs: `g`. Default: `gr`
 ---@field redo_all? org.MappingLhs
---- Show the entry and scroll its window down. Default: `<BS>`
+--- Scroll the window of the last shown entry a page back (org-agenda-show-scroll-down). Default: `<BS>`
 ---@field show_scroll_down? org.MappingLhs
+--- Show the entry with the detail given by the count, 1-4 (org-agenda-show-1). Default: unmapped
+---@field show_1? org.MappingLhs
+--- Show the entry; repeated, cycle its visibility (org-agenda-cycle-show). Default: unmapped
+---@field cycle_show? org.MappingLhs
+--- Go to the entry under the mouse (org-agenda-goto-mouse). Default: `<MiddleMouse>`
+---@field goto_mouse? org.MappingLhs
+--- Show the entry under the mouse (org-agenda-show-mouse). Default: `<RightMouse>`
+---@field show_mouse? org.MappingLhs
+--- Edit the entry's subtree in the other window (org-agenda-tree-to-indirect-buffer). Default: `<C-c><C-x>b`
+---@field tree_to_indirect_buffer? org.MappingLhs
 --- Attach to the entry (org-agenda-attach). Default: `<C-c><C-a>`
 ---@field attach? org.MappingLhs
 --- Stop the timer. Default: `<C-c><C-x>_`
@@ -1112,6 +1122,10 @@
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle including the Emacs diary file (org-agenda-toggle-diary). Default: `D`
 ---@field toggle_diary? org.MappingLhs
+--- Toggle habits; with a count, whether today shows all habits (org-habit-toggle-display-in-agenda, Emacs `K`). Default: `vh`
+---@field toggle_habits_display? org.MappingLhs
+--- Toggle habits (org-habit-toggle-habits). Default: unmapped
+---@field toggle_habits? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
 --- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`

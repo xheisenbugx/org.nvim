@@ -297,6 +297,12 @@
 ---@field log_mode_add_notes? boolean
 ---Start in follow mode (org-agenda-start-with-follow-mode). (default: `false`)
 ---@field start_with_follow_mode? boolean
+---Follow mode shows the entry's subtree in an edit buffer
+---(org-agenda-follow-indirect). (default: `false`)
+---@field follow_indirect? boolean
+---A left click goes to the entry like a middle click
+---(org-agenda-mouse-1-follows-link). (default: `false`)
+---@field mouse_1_follows_link? boolean
 ---Start with the clock report shown (org-agenda-start-with-clockreport-mode). (default: `false`)
 ---@field start_with_clockreport_mode? boolean
 ---Clocktable parameters of the clock report
