@@ -2493,6 +2493,44 @@ Results are kept for the session.
                 repeating a failed search wraps around the buffer.
 <C-c>&          Jump back to where you followed a link from (<C-o> works
                 too).
+:Org open_at_point_global  Follow the Org link at the cursor in any buffer
+                (org-open-at-point-global): a bracket, angle or plain link,
+                a timestamp (the agenda of that day), else a URL or an
+                e-mail address. It has no key, like Emacs; map it with
+                `mappings.global.open_at_point_global = "gX"`. Internal
+                links (headings, targets) are not searched outside Org.
+:Org occur_link_in_agenda_files  Search the agenda files for the link
+                <prefix>ls would store here, `[[file:…::*Heading][Heading]]`
+                (org-occur-link-in-agenda-files); the matches go to the
+                quickfix list. The link is not stored.
+
+                                                            *org-links-mouse*
+<MiddleMouse>   Open the link clicked (org-open-at-mouse).
+<RightMouse>    Open the link clicked in Neovim, even when `file_apps`
+                names another program, internal links in another window
+                (org-find-file-at-mouse). Away from a link both clicks do
+                what they normally do.
+<LeftMouse>     With `links.mouse_1_follows_link` (org-mouse-1-follows-link,
+                default 450), a click on a link follows it: a click held
+                longer than that many ms, or a drag, only moves the cursor;
+                true follows on any click, "double" on a double click,
+                false never.
+<Tab>           With `links.tab_follows_link` (org-tab-follows-link), <Tab>
+                on a link follows it instead of cycling.
+Following a link, footnote or date with <CR>, <C-c><C-o>, <Tab> or the
+mouse fires the `User` event `OrgFollowLink` (org-follow-link-hook), with
+`data.bufnr` the buffer it was followed from: >lua
+  vim.api.nvim_create_autocmd("User", {
+    pattern = "OrgFollowLink",
+    callback = function() vim.cmd("normal! zz") end,
+  })
+<
+A `file:` link to a directory opens the directory, or its index.org with
+`links.open_directory_means_index_dot_org`
+(org-open-directory-means-index-dot-org). An external program (`file_apps`
+or the system application) is not started for a file that doesn't exist
+("No such file: …") unless `links.open_non_existing_files`
+(org-open-non-existing-files); Neovim opens missing files as new ones.
 <C-c>'          On `#+INCLUDE:`, `#+SETUPFILE:` or `#+BIBLIOGRAPHY:`, visit
                 the file.
 
@@ -3540,6 +3578,25 @@ drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
 `export BACKEND` to include it as a block. `#+SETUPFILE:` reads the
 keywords of another file.
 
+                                                       *org-remote-resources*
+`#+INCLUDE: https://…` downloads the file (with curl) only when
+`resource_download_policy` allows it (org-resource-download-policy):
+"prompt" (default) downloads URLs matching `safe_remote_resources` and asks
+about the others, "safe" downloads only those, true downloads everything
+(dangerous) and false only the safe ones (like Emacs). A URL is safe when
+it, or "file://" followed by the exporting file's name, matches one of the
+Vim regexes of `safe_remote_resources` (org-safe-remote-resources). The
+question offers, like Emacs:
+  y  <Space>   download it, just this once
+  n            skip it: the export stops with "The remote resource … is
+               considered unsafe, and will not be downloaded."
+  !            download it and mark the URL safe
+  d            download it and mark its domain (`https://example.com`) safe
+  f            download it and mark everything the file requests safe
+The URLs, domains and files marked safe are kept in
+stdpath("data")/org/safe-remote-resources.json (Emacs saves them with
+customize). A download is reused for the rest of the session.
+
 Macros: `#+MACRO: name text $1 $2` (`$0` = all arguments, `\,` a literal
 comma, macros may use other macros), `export.global_macros` (strings or Lua
 functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
@@ -3869,7 +3926,7 @@ These need Emacs Lisp or Emacs itself:
   fails.
 - Asynchronous export (`a`) only makes PDF compilation asynchronous;
   publishing runs on the editor's event loop.
-- Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
+- Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
 - The default creator string names Neovim and org.nvim instead of Emacs.
@@ -5272,6 +5329,20 @@ Differences from Emacs:
     sunrise or diary entries in it; the agenda has the holidays, moon,
     sunrise and date conversion keys, |org-agenda-calendar-keys|, and
     shows the diary file, |org-agenda-diary-file|).
+  - The calendar shows one month (Emacs three): <C-v>/<M-v> move the
+    selection as Emacs moves its cursor, `!` shows the day's agenda
+    instead of the diary entries, and the live interpretation of a typed
+    date is drawn in the calendar instead of after the prompt. With
+    `read_date_popup_calendar = false` no interpretation is shown, like
+    Emacs. The calendar is not kept open after a prompt: <C-c>< inserts the
+    date it was last left on, and today (not an error) before any calendar
+    was shown.
+  - `links.mouse_1_follows_link` times the click from press to release in
+    the Org buffer; `open_at_point_global` reads links on the line (and
+    bracket links over nearby lines), not the whole paragraph.
+  - `#+SETUPFILE:` URLs are never downloaded (|org-setupfile|), so
+    `resource_download_policy` only applies to `#+INCLUDE:` URLs; Emacs
+    also asks about remote setup files when a buffer is opened.
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.
