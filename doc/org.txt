@@ -2025,6 +2025,7 @@ function (follow) or a table: >lua
       export = function(path, desc, backend) end,  -- "html", "md", "latex", "ascii"
       face = "DiagnosticWarn",
       insert_description = function(link, desc) return link:sub(6) end,
+      preview = function(path, ctx) end,   -- image file: see |org-images|
     } } }
 <
 `links.make_description(link, desc)` gives other links a default
@@ -3208,9 +3209,9 @@ Options under `ui`:
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
 
 Images and LaTeX previews                                       *org-images*
-Image links and LaTeX fragments can be shown as images under their line
-(org-link-preview, org-latex-preview). A backend draws them, chosen with
-`ui.images.backend`:
+Image links and LaTeX fragments can be shown as images in place of their
+text, like Emacs (org-link-preview, org-latex-preview). A backend draws
+them, chosen with `ui.images.backend`:
   "native"      `vim.ui.img`, Neovim 0.13+, in a terminal with the Kitty
                 graphics protocol (kitty, Ghostty, WezTerm...). Support is
                 checked once by asking the terminal. Not through tmux.
@@ -3219,14 +3220,34 @@ Image links and LaTeX fragments can be shown as images under their line
   "image.nvim"  3rd/image.nvim.
   "auto"        (default) the first of these that works; `false` turns
                 previews off. |:checkhealth| org tells which one is used.
-With the native backend, virtual lines keep the space under the line free
-and the images are placed on the screen after every redraw, so they follow
-scrolling, folding, window splits and resizes, also in floating windows.
+With the native backend, the text of the link is concealed behind blank
+inline text as wide as the image, virtual lines keep the rows the image
+needs under the line free, and the images are placed on the screen after
+every redraw, so they follow scrolling, folding, window splits and
+resizes, also in floating windows.
 An image is shown once all of it fits in the window, and hidden under
 floating windows and the popup menu. Only PNG can be sent to the
 terminal: other formats are converted with ImageMagick (`magick`). Sizes
 come from the terminal's cell size in pixels. Editing a previewed link or
 fragment removes its preview.
+
+Placement, `ui.images.placement`:
+  "inline"      (default) the image replaces the link or fragment: its
+                top row is on the line, at the link's column, and the
+                text after the link moves right to make room. The rows
+                under the line are shared by the images of that line
+                (side by side). An image is at most as wide as the
+                columns left after the text before it. On the cursor line
+                of the current window the text shows again, in every
+                mode, with the image under the line, so it can be edited;
+                moving off the line puts the image back in place. The
+                windows showing the buffer get 'conceallevel' 2.
+                Inline math (`$x$`, `\(x\)`) is scaled to one row, as
+                tall as the text; other fragments keep their size.
+                Fragments and environments over several lines, and
+                image.nvim, always use "below".
+  "below"       under the line, at the link's column, the text left as
+                it is (images of one line are stacked).
 
 <prefix>xv      org-link-preview (link_preview): on a link, toggle its
 <C-c><C-x><C-v> preview; else preview the links of the current entry, or
@@ -3254,12 +3275,47 @@ Without a range the last three act on the whole buffer. The obsolete Emacs
 names work too: toggle_inline_images, remove_inline_images,
 redisplay_inline_images, toggle_latex_fragment, preview_latex_fragment.
 
-Which links: `file:` and `attachment:` links (bracket, plain or angle) to
-an existing file whose extension is in `ui.images.extensions`, with no
-description, or whose description is a sole `file:`/`attachment:` image
-link (`[[https://example.com][file:thumb.png]]` shows thumb.png). Links in
-src, example, export and comment blocks, comments, fixed-width lines and
-property drawers are left alone, like Emacs.
+Which links: links of a type with a preview function (org-link-set-parameters
+:preview), with no description, or whose description is a sole plain or
+angle link of such a type (`[[https://example.com][file:thumb.png]]` shows
+thumb.png); with a count of 1 (or `linked`) the links with a description
+are previewed by their own target. Built in: `file:` and `attachment:`
+links (bracket, plain or angle) to an existing file whose extension is in
+`ui.images.extensions`, and http(s) links to such a file name when
+`ui.images.remote` allows. Links in src, example, export and comment
+blocks, comments, fixed-width lines and property drawers are left alone,
+like Emacs.
+
+Preview functions (org-link-set-parameters :preview) come from
+`links.types.<type>.preview`, else from |org.ui.images.set_preview()|:
+>lua
+    require("org.ui.images").set_preview("thumb", function(path, ctx)
+      return vim.fn.expand("~/thumbs/" .. path .. ".png")
+    end)
+<
+The function gets the link's path and a context { bufnr, row (1-based),
+col, end_col (0-based), type, link, refresh, callback } and returns the
+image file to show, nil or false for none, or true when it calls
+`ctx.callback(file)` later (after a download, say). A type org.nvim does
+not know becomes a link type (`links.types`), and a function registered
+for `file` or `attachment` replaces the built-in one.
+                                            *org.ui.images.set_preview()*
+set_preview({type}, {fn}) registers {fn} for {type} links, or removes it
+when {fn} is nil.
+
+Remote images (org-display-remote-inline-images), `ui.images.remote`:
+  "skip"        (default) http(s) links are not previewed;
+  "download"    the image is fetched with curl on every preview;
+  "cache"       fetched once into `stdpath("cache")/org/remote-images`,
+                and again by link_preview_refresh.
+Emacs applies this to TRAMP files; org.nvim has no TRAMP and uses it for
+http(s) image links instead.
+
+Batches (org-link-preview-batch-size, org-link-preview-delay): the first
+`ui.images.batch_size` links (6) are previewed at once, the others in
+batches of that size every `ui.images.preview_delay` seconds (0.05), so
+a long file stays responsive; 0 previews all at once. Clearing previews
+(or editing the link) drops the links still waiting.
 
 Size (org-display-inline-image--width): `ui.images.actual_width` is
   true         (default) the image's own size;
@@ -3368,6 +3424,7 @@ Setups:
 
 What each backend does:
                                    native      snacks        image.nvim
+  image in place of its link       yes         yes (5)       no (below)
   image under its link             yes         yes (1)       yes
   :align / org-image-align         yes         no            no
   follows scrolling and folds      yes         yes           yes
@@ -3381,6 +3438,8 @@ What each backend does:
   (3) `vim.ui.img` can't crop: an image is drawn once all of it fits.
   (4) snacks.nvim draws images as text (unicode placeholders), so floats
       cover them like any text.
+  (5) snacks.nvim conceals the text itself; an image with text after it
+      on a line may go under the line with an icon at the link.
 
 When it goes wrong:
   "no image backend" or "does not support the Kitty graphics protocol"
@@ -3390,7 +3449,7 @@ When it goes wrong:
   Nothing happens for a second on the first preview
       The terminal query waiting for an answer (tmux, unsupported
       terminals). Set `ui.images.backend`.
-  Blank rows under the link but no image
+  Blank rows under the link (or a blank gap in place of it) but no image
       The native backend reserved the rows but the image is not fully
       visible, a float covers it, or the terminal ignored it. Scroll it
       into view; check |:checkhealth| org.
@@ -4163,15 +4222,19 @@ Differences from Emacs:
   - MobileOrg (org-mobile): the MobileOrg apps are unmaintained and the
     staging/sync protocol is tied to Emacs; sync the files with any file
     sync tool instead.
-  - link previews of other link types (org-link-set-parameters :preview).
-- Image and LaTeX previews (|org-images|) are drawn under their line, not
-  in place of the link or fragment, and need a terminal image backend.
-  `ui.images.max_width` is in columns for "fill-column" and fractions (as
-  Emacs) but its default fill column is 'textwidth' or 70; `max_height` is
-  an addition. LaTeX previews pick an installed process ("auto") where
-  Emacs always uses dvipng, and add "tectonic" and "pdflatex". Link
-  previews are made at once, not in batches (org-link-preview-batch-size),
-  and remote TRAMP images (org-display-remote-inline-images) are not shown.
+- Image and LaTeX previews (|org-images|) need a terminal image backend.
+  They replace the link or fragment like Emacs, but a terminal line can't
+  grow: the image's first row is on the line and the rest in virtual lines
+  under it, and the text shows again (with the image under the line) while
+  the cursor is on the line so it can be edited. Fragments over several
+  lines and image.nvim images stay under the line. `ui.images.max_width`
+  is in columns for "fill-column" and fractions (as Emacs) but its default
+  fill column is 'textwidth' or 70; `max_height` is an addition. LaTeX
+  previews pick an installed process ("auto") where Emacs always uses
+  dvipng, and add "tectonic" and "pdflatex". Preview functions return an
+  image file (or call back with one) instead of filling an overlay.
+  `ui.images.remote` (org-display-remote-inline-images) applies to http(s)
+  image links, since there are no TRAMP files.
 - Column view is a separate table buffer rather than overlays on the
   headlines. Like Emacs, digits 1-9 select allowed values there, so counts
   are not available in the view (0 keeps its Vim meaning).

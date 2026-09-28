@@ -10,10 +10,14 @@
 ---                 terminals the native backend can't reach (tmux).
 ---   "image.nvim"  3rd/image.nvim.
 ---
---- "auto" (the default) uses the first one that works. With the native
---- backend, the space under a line is reserved with virtual lines and the
---- images are placed on the screen after every redraw, so they follow
---- scrolling, folding and window changes.
+--- "auto" (the default) uses the first one that works. Like Emacs, an image
+--- is drawn in place of its link or fragment (`ui.images.placement`
+--- "inline"): the text is concealed behind blank inline text as wide as
+--- the image, and shows again (with the image under it) while the cursor is
+--- on its line. With the native backend, the rows the image needs under the
+--- line are reserved with virtual lines and the images are placed on the
+--- screen after every redraw, so they follow scrolling, folding and window
+--- changes.
 
 local config = require("org.config")
 local utils = require("org.utils")
@@ -53,6 +57,10 @@ M.IMAGE_EXTENSIONS = {
 ---@field align? "center"|"right"
 ---@field size table what the size was computed from (see `size_of`)
 ---@field lines? integer extmark reserving the space under the line (native)
+---@field inline? boolean drawn in place of its text (on one line)
+---@field revealed? boolean its text shown (the cursor is on it): drawn below
+---@field pad? integer extmark concealing the text in place (native)
+---@field shown? boolean shown by the native backend
 ---@field handle? any snacks / image.nvim object
 ---@field backend string
 
@@ -555,27 +563,177 @@ local function link_file(bufnr, row, lk)
   end
 end
 
---- A description that is a sole plain or angle file/attachment link.
-local function description_link(desc)
-  local d = vim.trim(desc or "")
-  local target = d:match("^<([^<>]+)>$") or d
-  local scheme, rest = target:match("^(%a+):(%S+)$")
-  if scheme and (scheme:lower() == "file" or scheme:lower() == "attachment") then
-    return { type = scheme:lower(), path = rest }
+---------------------------------------------------------------------------
+-- Preview functions (org-link-set-parameters :preview)
+---------------------------------------------------------------------------
+
+---@class org.images.PreviewContext
+---@field bufnr integer
+---@field row integer 1-based
+---@field col integer 0-based start of the link
+---@field end_col integer 0-based, exclusive
+---@field type string the link type
+---@field link table the link (org.Link, or { type, path } for a description link)
+---@field refresh boolean asked again with link_preview_refresh
+---@field callback fun(file: string?) for a preview that returned true
+
+--- Preview functions registered with `set_preview`, by link type.
+local preview_fns = {}
+
+--- Register `fn` as the preview function of `type` links (the `:preview`
+--- parameter of org-link-set-parameters), or remove it with nil. A
+--- `preview` function in `links.types.<type>` is used first.
+--- `fn(path, ctx)` gets the link's path and an `org.images.PreviewContext`
+--- and returns the image file to show, nil or false when there is nothing
+--- to show, or true when it will call `ctx.callback(file)` later. A type
+--- org.nvim does not know becomes a link type (`links.types.<type>`), like
+--- with org-link-set-parameters.
+---@param type string
+---@param fn? fun(path: string, ctx: org.images.PreviewContext): string|boolean|nil
+function M.set_preview(type, fn)
+  preview_fns[type] = fn
+  local lo = config.opts.links
+  if fn and lo and not require("org.links").URL_SCHEMES[type] then
+    lo.types = lo.types or {}
+    lo.types[type] = lo.types[type] or {}
   end
 end
 
---- Image links of rows `first..last` (1-based), in the range `range`
+--- file: and attachment: links to an existing image file
+--- (org-link-preview-file, org-attach-preview-file).
+local function file_preview(path, ctx)
+  local file = link_file(ctx.bufnr, ctx.row, { type = ctx.type, path = path })
+  if file and is_image(file, opts().extensions or M.IMAGE_EXTENSIONS) and vim.uv.fs_stat(file) then
+    return file
+  end
+end
+
+local function remote_dir()
+  local dir = vim.fn.stdpath("cache") .. "/org/remote-images"
+  vim.fn.mkdir(dir, "p")
+  return dir
+end
+
+--- Download `url` to the file `out` and call `cb(ok, err)` (replaced in the
+--- tests).
+function M._fetch(url, out, cb)
+  if not executable("curl") then
+    return cb(false, "curl is needed to show remote images")
+  end
+  local tmp = out .. ".part"
+  vim.system({ "curl", "-fsSL", "--max-time", "30", "-o", tmp, url }, {}, function(res)
+    vim.schedule(function()
+      if res.code == 0 and vim.uv.fs_stat(tmp) then
+        vim.uv.fs_rename(tmp, out)
+        cb(true)
+      else
+        os.remove(tmp)
+        cb(false, "can't download " .. url)
+      end
+    end)
+  end)
+end
+
+-- Downloads under way: fetching[out] = callbacks
+local fetching = {}
+
+--- http(s) links to an image (org-display-remote-inline-images): nothing
+--- with "skip", else the image downloaded into the cache, at once with
+--- "download", once (and on refresh) with "cache".
+local function remote_preview(path, ctx)
+  local mode = opts().remote
+  if not mode or mode == "skip" then
+    return nil
+  end
+  local url = ctx.type .. ":" .. path
+  local ext = path:gsub("[?#].*$", ""):match("%.(%w+)$")
+  if not ext or not is_image("x." .. ext, opts().extensions or M.IMAGE_EXTENSIONS) then
+    return nil
+  end
+  local out = remote_dir() .. "/" .. vim.fn.sha256(url):sub(1, 32) .. "." .. ext:lower()
+  if mode ~= "download" and not ctx.refresh and vim.uv.fs_stat(out) then
+    return out
+  end
+  if fetching[out] then
+    table.insert(fetching[out], ctx.callback)
+    return true
+  end
+  fetching[out] = { ctx.callback }
+  M._fetch(url, out, function(ok, err)
+    local cbs = fetching[out] or {}
+    fetching[out] = nil
+    if not ok and err then
+      utils.warn(err)
+    end
+    for _, cb in ipairs(cbs) do
+      cb(ok and out or nil)
+    end
+  end)
+  return true
+end
+
+local builtin_previews = {
+  file = file_preview,
+  attachment = file_preview,
+  http = remote_preview,
+  https = remote_preview,
+}
+
+--- The preview function of `type` links, and whether it is the built-in
+--- file one.
+local function preview_for(type)
+  local def = require("org.links").link_type(type)
+  local fn = (def and def.preview) or preview_fns[type]
+  if fn then
+    return fn, false
+  end
+  fn = builtin_previews[type]
+  if fn == remote_preview and (not opts().remote or opts().remote == "skip") then
+    return nil, false
+  end
+  return fn, fn == file_preview
+end
+
+--- A description that is a sole plain or angle link of a type that can be
+--- previewed.
+local function description_link(desc)
+  local d = vim.trim(desc or "")
+  local target = d:match("^<([^<>]+)>$") or d
+  local scheme, rest = target:match("^([%a][%w+%-]*):(%S+)$")
+  if scheme then
+    local links = require("org.links")
+    local t = links.URL_SCHEMES[scheme:lower()] and scheme:lower() or scheme
+    if preview_for(t) then
+      return { type = t, path = rest }
+    end
+  end
+end
+
+--- Links of rows `first..last` (1-based) to preview, in the range `range`
 --- ({ row, col, end_row, end_col }, 0-based columns) when given. Like
---- org-link-preview-region: file and attachment links to image files,
---- without a description unless `include_linked`, or whose description is
---- a sole image link.
----@return { row: integer, col: integer, end_col: integer, path: string, text: string, width?: table, align?: string }[]
+--- org-link-preview-region: links of a type with a preview function, without
+--- a description unless `include_linked`, or whose description is a sole
+--- such link. File and attachment links are resolved now (`path` is the
+--- image file) and dropped when they are not images; other types carry
+--- their `preview` function and the link's `link_path`.
+---@class org.images.LinkSpec
+---@field row integer
+---@field col integer
+---@field end_col integer
+---@field text string
+---@field type string
+---@field link table
+---@field path? string
+---@field width? table
+---@field align? string
+---@field preview? function
+---@field link_path? string
+
+---@return org.images.LinkSpec[]
 function M.find_image_links(bufnr, first, last, include_linked, range)
   local links = require("org.links")
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local info, paras = M.scan(lines)
-  local exts = opts().extensions or M.IMAGE_EXTENSIONS
   local out = {}
   for row = math.max(1, first), math.min(last, #lines) do
     local line = lines[row]
@@ -595,19 +753,27 @@ function M.find_image_links(bufnr, first, last, include_linked, range)
           else
             target = description_link(lk.desc)
           end
-          local path = target and link_file(bufnr, row, target)
-          if path and is_image(path, exts) and vim.uv.fs_stat(path) then
+          local fn, builtin = nil, false
+          if target then
+            fn, builtin = preview_for(target.type)
+          end
+          local spec
+          if fn then
+            local path = (target.path or ""):gsub("::.*$", "")
+            spec = { row = row, col = col, end_col = end_col, type = target.type, link = target }
+            if builtin then
+              spec.path = fn(path, { bufnr = bufnr, row = row, type = target.type })
+              spec = spec.path and spec or nil
+            else
+              spec.preview, spec.link_path = fn, target.path or ""
+            end
+          end
+          if spec then
             local para = info[row].para and paras[info[row].para]
-            local spec = { row = row, col = col, end_col = end_col }
-            out[#out + 1] = {
-              row = row,
-              col = col,
-              end_col = end_col,
-              path = path,
-              text = line:sub(col + 1, end_col),
-              width = M.image_width(bufnr, row, para and para.attrs),
-              align = M.image_align(lines, spec, para),
-            }
+            spec.text = line:sub(col + 1, end_col)
+            spec.width = M.image_width(bufnr, row, para and para.attrs)
+            spec.align = M.image_align(lines, spec, para)
+            out[#out + 1] = spec
           end
         end
       end
@@ -1189,8 +1355,20 @@ end
 ---@field show fun(bufnr: integer, p: org.images.Preview, row: integer, col: integer, x: integer, start_row: integer)
 ---@field hide fun(bufnr: integer, p: org.images.Preview)
 ---@field needs_png? boolean
+---@field inline? boolean can draw images in place of their text
 
 local backends = {}
+M._backends = backends
+
+--- Position of extmark `mark`: row, col, details (nil when it was deleted
+--- or its text was).
+local function mark_pos(bufnr, mark)
+  local m = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, { details = true })
+  if not m[1] or (m[3] and m[3].invalid) then
+    return nil
+  end
+  return m[1], m[2], m[3]
+end
 
 local function native_img()
   local ok, img = pcall(function()
@@ -1221,41 +1399,141 @@ local function native_supported()
   return native_ok
 end
 
+--- Whether preview `p` is drawn in place of its text right now.
+local function in_place(p)
+  return p.inline and not p.revealed
+end
+
+--- Hidden text needs 'conceallevel' 2 in the windows showing `bufnr`.
+local function ensure_conceal(bufnr)
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    if vim.wo[win].conceallevel < 2 then
+      vim.wo[win].conceallevel = 2
+    end
+  end
+end
+
+--- The row the native rows of `p` hang from (the last row of its text).
+local function anchor_of(bufnr, p)
+  local r, _, d = mark_pos(bufnr, p.mark)
+  return r and (d and d.end_row or r)
+end
+
+--- Reserve the rows under `row` for its native previews: images in place
+--- of their text share the rows under the line (the tallest one's height
+--- less the line itself), images below the line are stacked after them.
+--- The virtual lines sit at the end of each link, so splitting the line
+--- before it moves them along.
+local function restack(bufnr, row)
+  if not row or not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  local items = {}
+  for _, q in pairs(previews[bufnr] or {}) do
+    if q.shown and q.backend == "native" and anchor_of(bufnr, q) == row then
+      items[#items + 1] = q
+    end
+  end
+  table.sort(items, function(a, b)
+    return a.id < b.id
+  end)
+  local extra, carrier = 0, nil
+  for _, q in ipairs(items) do
+    if in_place(q) then
+      carrier = carrier or q
+      extra = math.max(extra, q.height - 1)
+    end
+  end
+  local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+  for _, q in ipairs(items) do
+    local n = q.height
+    if in_place(q) then
+      n = q == carrier and extra or 0
+    end
+    if n == 0 then
+      if q.lines then
+        pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, q.lines)
+        q.lines = nil
+      end
+    else
+      local vl = {}
+      for _ = 1, n do
+        vl[#vl + 1] = { { "", "Normal" } }
+      end
+      local _, c, d = mark_pos(bufnr, q.mark)
+      q.lines = vim.api.nvim_buf_set_extmark(bufnr, ns, row, math.min(d and d.end_col or c, #line), {
+        id = q.lines,
+        virt_lines = vl,
+        right_gravity = false,
+        invalidate = true,
+        undo_restore = false,
+      })
+    end
+  end
+end
+
+--- Restack every row of `bufnr` holding native previews.
+local function restack_all(bufnr)
+  local rows = {}
+  for _, q in pairs(previews[bufnr] or {}) do
+    local r = q.shown and anchor_of(bufnr, q)
+    if r then
+      rows[r] = true
+    end
+  end
+  for r in pairs(rows) do
+    restack(bufnr, r)
+  end
+end
+
 -- Native: images are placed on the screen by `sync()`; `show`/`hide` only
--- reserve (or free) the rows under the line. The reservation sits at the
--- end of the link, so splitting the line before it moves both.
+-- hide the text of an image drawn in place (concealed, with blank inline
+-- text as wide as the image) and reserve (or free) the rows under the line.
 backends.native = {
   name = "native",
   needs_png = true,
-  show = function(bufnr, p, row, col)
-    local vl = {}
-    for _ = 1, p.height do
-      vl[#vl + 1] = { { "", "Normal" } }
+  inline = true,
+  show = function(bufnr, p, row, col, x, start_row)
+    if in_place(p) then
+      p.pad = vim.api.nvim_buf_set_extmark(bufnr, ns, start_row, x, {
+        id = p.pad,
+        end_row = row,
+        end_col = col,
+        conceal = "",
+        virt_text = { { string.rep(" ", p.width) } },
+        virt_text_pos = "inline",
+        invalidate = true,
+        undo_restore = false,
+      })
+      ensure_conceal(bufnr)
     end
-    p.lines = vim.api.nvim_buf_set_extmark(bufnr, ns, row, col, {
-      id = p.lines,
-      virt_lines = vl,
-      right_gravity = false,
-      invalidate = true,
-      undo_restore = false,
-    })
+    p.shown = true
+    restack(bufnr, row)
   end,
   hide = function(bufnr, p)
-    if p.lines then
-      pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p.lines)
-      p.lines = nil
+    local row = anchor_of(bufnr, p)
+    p.shown = false
+    for _, key in ipairs({ "pad", "lines" }) do
+      if p[key] then
+        pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p[key])
+        p[key] = nil
+      end
     end
+    restack(bufnr, row)
   end,
 }
 
 backends.snacks = {
   name = "snacks",
+  inline = true,
   show = function(bufnr, p, row, col, x, start_row)
     p.handle = Snacks.image.placement.new(bufnr, p.src, {
       pos = { start_row + 1, x },
       -- the whole link: snacks then draws the image under it, at its column
       range = { start_row + 1, x, row + 1, col },
       inline = true,
+      -- in place: snacks hides the text and draws over it
+      conceal = in_place(p),
       auto_resize = true,
       max_width = p.width,
       max_height = p.height,
@@ -1375,17 +1653,13 @@ end
 -- LaTeX renders waiting for their image: pending[bufnr][mark] = text
 local pending = {}
 
+-- Link previews waiting for their batch or their image (a download):
+-- lqueue[bufnr] = items in order, lwaiting[bufnr][mark] = item
+local lqueue, lwaiting, batch_timer = {}, {}, {}
+
 local function buf_previews(bufnr)
   previews[bufnr] = previews[bufnr] or {}
   return previews[bufnr]
-end
-
-local function mark_pos(bufnr, mark)
-  local m = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, { details = true })
-  if not m[1] or (m[3] and m[3].invalid) then
-    return nil
-  end
-  return m[1], m[2], m[3]
 end
 
 --- The text of an extmark's range now.
@@ -1427,37 +1701,53 @@ local function overlaps(r1, r2)
   return not a_before_b and not b_before_a
 end
 
+--- Whether the extmark at `r`, `c` (details `d`) is in rows `first..last`
+--- (1-based), or overlaps `range` ({ row, col, end_row, end_col }, 0-based)
+--- when given (a zero-width range: the mark holds its column).
+local function mark_in(r, c, d, first, last, range)
+  local mr = { row = r, col = c, end_row = d and d.end_row or r, end_col = d and d.end_col or c }
+  if range then
+    return overlaps(mr, range)
+      or (
+        range.row == range.end_row
+        and range.col == range.end_col
+        and mr.row == range.row
+        and mr.col <= range.col
+        and mr.end_col >= range.col
+      )
+  end
+  return mr.end_row + 1 >= first and mr.row + 1 <= last
+end
+
 --- Previews of `kind` in rows `first..last` (1-based), or overlapping
 --- `range` ({ row, col, end_row, end_col }, 0-based) when given.
 local function previews_in(bufnr, first, last, kind, range)
   local out = {}
   for id, p in pairs(previews[bufnr] or {}) do
     local r, c, d = mark_pos(bufnr, p.mark)
-    if (not kind or p.kind == kind) and r then
-      local mr = { row = r, col = c, end_row = d and d.end_row or r, end_col = d and d.end_col or c }
-      local hit
-      if range then
-        hit = overlaps(mr, range)
-          or (
-            range.row == range.end_row
-            and range.col == range.end_col
-            and mr.row == range.row
-            and mr.col <= range.col
-            and mr.end_col >= range.col
-          )
-      else
-        hit = mr.end_row + 1 >= first and mr.row + 1 <= last
-      end
-      if hit then
-        out[#out + 1] = id
-      end
+    if (not kind or p.kind == kind) and r and mark_in(r, c, d, first, last, range) then
+      out[#out + 1] = id
     end
   end
   return out
 end
 
+--- Drop the link previews still waiting in rows `first..last` (or
+--- `range`); all of them when `first` is nil.
+local function drop_waiting(bufnr, first, last, range)
+  for mark, item in pairs(lwaiting[bufnr] or {}) do
+    local r, c, d = mark_pos(bufnr, mark)
+    if not first or not r or mark_in(r, c, d, first, last, range) then
+      item.cancelled = true
+      pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
+      lwaiting[bufnr][mark] = nil
+    end
+  end
+end
+
 --- Remove the previews of `kind` (all when nil) in rows `first..last`,
---- or overlapping `range`. Pending LaTeX renders there are dropped too.
+--- or overlapping `range`. Pending LaTeX renders and link previews
+--- waiting there are dropped too (org-link-preview-clear).
 function M.clear(bufnr, first, last, kind, range)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   first, last = first or 1, last or math.huge
@@ -1474,13 +1764,29 @@ function M.clear(bufnr, first, last, kind, range)
       end
     end
   end
+  if kind ~= "latex" then
+    drop_waiting(bufnr, first, last, range)
+  end
   return #ids
 end
 
---- The cells an image takes: its size spec -> width, height.
+--- The cells an image takes: its size spec -> width, height. An image in
+--- place of its text fits in the columns after it (`indent`); `max_h`
+--- caps the rows (1 for inline LaTeX: as tall as the line).
 local function size_of(win, s)
+  local maxh = opts().max_height
+  if s.max_h then
+    maxh = math.min(maxh or s.max_h, s.max_h)
+  end
+  local maxw = max_width(win)
+  if s.kind == "latex" then
+    maxw = text_columns(win) - 1
+  end
+  if s.indent then
+    maxw = math.max(1, math.min(maxw, text_columns(win) - 1 - s.indent))
+  end
   if not s.pw then
-    return max_width(win), math.min(opts().max_height or 24, 10)
+    return maxw, math.min(maxh or 24, 10)
   end
   local want
   if s.width and s.width.px then
@@ -1490,11 +1796,7 @@ local function size_of(win, s)
     local base = vim.bo[bufnr].textwidth > 0 and vim.bo[bufnr].textwidth or text_columns(win)
     want = math.max(1, math.floor(s.width.fraction * base + 0.5))
   end
-  local maxw = max_width(win)
-  if s.kind == "latex" then
-    maxw = text_columns(win) - 1
-  end
-  return M.fit(s.pw, s.ph, maxw, opts().max_height, want)
+  return M.fit(s.pw, s.ph, maxw, maxh, want)
 end
 
 --- Show preview `p` with backend `b` where its extmark is now: the rows
@@ -1509,6 +1811,21 @@ local function show(b, bufnr, p)
   return b.show(bufnr, p, end_row, end_col, x, r)
 end
 
+--- Whether the cursor of the current window is on rows `r..er` (0-based)
+--- of `bufnr`: the text of an image drawn in place shows there.
+local function cursor_on(bufnr, r, er)
+  if vim.api.nvim_get_current_buf() ~= bufnr then
+    return false
+  end
+  local l = vim.api.nvim_win_get_cursor(0)[1] - 1
+  return l >= r and l <= er
+end
+
+--- Inline LaTeX (`$..$`, `\(..\)`) is drawn as tall as the line.
+local function inline_math(text)
+  return text:match("^%$[^$]") ~= nil or text:match("^\\%(") ~= nil
+end
+
 local function add(bufnr, kind, spec, src, backend)
   local win = vim.fn.bufwinid(bufnr)
   win = win ~= -1 and win or vim.api.nvim_get_current_win()
@@ -1519,10 +1836,20 @@ local function add(bufnr, kind, spec, src, backend)
       return false, "can't convert " .. vim.fn.fnamemodify(src, ":t") .. " to PNG (install ImageMagick)"
     end
   end
+  local end_row = (spec.end_row or spec.row) - 1
+  -- in place of the text (org-link-preview's display property) when the
+  -- backend can and the text is on one line
+  local inline = opts().placement ~= "below" and backend.inline == true and end_row == spec.row - 1
   local pw, ph = M.png_size(file)
   local size = { pw = pw, ph = ph, width = spec.width, kind = kind }
+  if inline then
+    local line = vim.api.nvim_buf_get_lines(bufnr, spec.row - 1, spec.row, false)[1] or ""
+    size.indent = vim.fn.strdisplaywidth(line:sub(1, spec.col))
+    if kind == "latex" and inline_math(spec.text or "") then
+      size.max_h = 1
+    end
+  end
   local w, h = size_of(win, size)
-  local end_row = (spec.end_row or spec.row) - 1
   next_id = next_id + 1
   local p = {
     id = next_id,
@@ -1534,6 +1861,8 @@ local function add(bufnr, kind, spec, src, backend)
     size = size,
     backend = backend.name,
     text = spec.text,
+    inline = inline,
+    revealed = inline and cursor_on(bufnr, spec.row - 1, end_row),
     mark = vim.api.nvim_buf_set_extmark(bufnr, ns, spec.row - 1, spec.col, {
       end_row = end_row,
       end_col = spec.end_col,
@@ -1541,20 +1870,124 @@ local function add(bufnr, kind, spec, src, backend)
       undo_restore = false,
     }),
   }
+  local list = buf_previews(bufnr)
+  list[p.id] = p
   local ok, err = pcall(show, backend, bufnr, p)
   if not ok then
+    list[p.id] = nil
+    pcall(backend.hide, bufnr, p)
     pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p.mark)
     return false, tostring(err)
   end
-  buf_previews(bufnr)[p.id] = p
   M.attach(bufnr)
   M._schedule_sync()
   return true
 end
 
+--- Make the preview of a waiting link `item` with the image `file` (nil:
+--- nothing to show), if its link is still there unchanged.
+local function place_link(bufnr, item, file)
+  local waiting = lwaiting[bufnr]
+  if waiting then
+    waiting[item.mark] = nil
+  end
+  local ok_valid = vim.api.nvim_buf_is_valid(bufnr)
+  local r, c, d
+  if ok_valid then
+    r, c, d = mark_pos(bufnr, item.mark)
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, item.mark)
+  end
+  if item.cancelled or not file or not r or not d then
+    return false
+  end
+  local ok_t, t = pcall(vim.api.nvim_buf_get_text, bufnr, r, c, d.end_row, d.end_col, {})
+  if not ok_t or table.concat(t, "\n") ~= item.spec.text then
+    return false
+  end
+  local spec = vim.tbl_extend("force", item.spec, { row = r + 1, col = c, end_col = d.end_col })
+  local ok, err = add(bufnr, "link", spec, file, item.backend)
+  if not ok then
+    utils.warn(err)
+  end
+  return ok
+end
+
+--- Run the preview function of a waiting link: its image now, later (the
+--- function returned true), or none.
+local function run_link(bufnr, item)
+  if item.cancelled then
+    return
+  end
+  local spec = item.spec
+  if not spec.preview then
+    return place_link(bufnr, item, spec.path)
+  end
+  local r, c = mark_pos(bufnr, item.mark)
+  if not r then
+    return place_link(bufnr, item, nil)
+  end
+  local done = false
+  local ctx = {
+    bufnr = bufnr,
+    row = r + 1,
+    col = c,
+    end_col = spec.end_col,
+    type = spec.type,
+    link = spec.link,
+    refresh = item.refresh == true,
+    callback = function(file)
+      if done then
+        return
+      end
+      done = true
+      vim.schedule(function()
+        place_link(bufnr, item, type(file) == "string" and file or nil)
+      end)
+    end,
+  }
+  local ok, res = pcall(spec.preview, spec.link_path, ctx)
+  if not ok then
+    utils.warn("link preview (" .. tostring(spec.type) .. "): " .. tostring(res))
+    return place_link(bufnr, item, nil)
+  elseif res ~= true then
+    done = true
+    return place_link(bufnr, item, type(res) == "string" and res or nil)
+  end
+end
+
+--- Preview the next batch of queued links of `bufnr`, and schedule the
+--- one after (org-link-preview--process-queue).
+local function process_queue(bufnr)
+  batch_timer[bufnr] = nil
+  local queue = lqueue[bufnr]
+  if not queue or not vim.api.nvim_buf_is_valid(bufnr) then
+    lqueue[bufnr] = nil
+    return
+  end
+  local size = opts().batch_size or 6
+  local n = 0
+  while #queue > 0 and (size <= 0 or n < size) do
+    local item = table.remove(queue, 1)
+    if not item.cancelled then
+      n = n + 1
+      run_link(bufnr, item)
+    end
+  end
+  if #queue == 0 then
+    lqueue[bufnr] = nil
+  else
+    batch_timer[bufnr] = true
+    vim.defer_fn(function()
+      process_queue(bufnr)
+    end, math.floor((opts().preview_delay or 0.05) * 1000))
+  end
+end
+
 --- Show the image links of rows `first..last` (or of `range`), replacing
---- the previews there. Returns the number shown.
-function M.show_links(bufnr, first, last, include_linked, range)
+--- the previews there. The first `ui.images.batch_size` links are shown at
+--- once, the others in batches after. `refresh` asks remote images again.
+--- Returns the number shown or on their way.
+function M.show_links(bufnr, first, last, include_linked, range, refresh)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local b, why = M.backend()
   if not b then
@@ -1563,19 +1996,34 @@ function M.show_links(bufnr, first, last, include_linked, range)
   end
   ask_cell_size()
   M.clear(bufnr, first, last, "link", range)
-  local n, failed = 0, nil
+  M.attach(bufnr)
+  lwaiting[bufnr] = lwaiting[bufnr] or {}
+  local queue = lqueue[bufnr] or {}
+  lqueue[bufnr] = queue
+  local items = {}
   for _, lk in ipairs(M.find_image_links(bufnr, first, last, include_linked, range)) do
-    local ok, err = add(bufnr, "link", lk, lk.path, b)
-    if ok then
+    -- remember where the link is while it waits
+    local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, lk.row - 1, lk.col, {
+      end_row = lk.row - 1,
+      end_col = lk.end_col,
+      invalidate = true,
+      undo_restore = false,
+    })
+    local item = { mark = mark, spec = lk, backend = b, refresh = refresh }
+    lwaiting[bufnr][mark] = item
+    queue[#queue + 1] = item
+    items[#items + 1] = item
+  end
+  if not batch_timer[bufnr] then
+    process_queue(bufnr)
+  end
+  local n = 0
+  for _, item in ipairs(items) do
+    if not item.cancelled and (lwaiting[bufnr] or {})[item.mark] then
       n = n + 1
-    else
-      failed = err
     end
   end
-  if failed then
-    utils.warn(failed)
-  end
-  return n
+  return n + #previews_in(bufnr, first, last, "link", range)
 end
 
 --- Render and show the LaTeX fragments of rows `first..last` (or of
@@ -1704,19 +2152,98 @@ end
 --- Screen row (1-based) of the first line after the text of `lnum` in
 --- `win`, or nil when it is not visible. Counts wrapped and virtual lines
 --- with nvim_win_text_height, so concealed text is taken into account.
+--- The virtual lines under a line count as filler above the next one: the
+--- rows from the top line through `lnum` hold those of the lines before
+--- it, not its own; of the filler above the top line only the part
+--- scrolled into view (topfill) shows.
 local function row_after(win, info, lnum)
   if lnum < info.topline or lnum > info.botline then
     return nil
   end
-  local above = 0
-  if lnum > info.topline then
-    above = vim.api.nvim_win_text_height(win, { start_row = info.topline - 1, end_row = lnum - 2 }).all
-  end
-  local own = vim.api.nvim_win_text_height(win, { start_row = lnum - 1, end_row = lnum - 1 })
-  return info.winrow + (info.winbar or 0) + above + (own.all - own.fill)
+  local rows = vim.api.nvim_win_text_height(win, { start_row = info.topline - 1, end_row = lnum - 1 })
+  local top = vim.api.nvim_win_text_height(win, { start_row = info.topline - 1, end_row = info.topline - 1 })
+  local topfill = vim.api.nvim_win_call(win, function()
+    return vim.fn.winsaveview().topfill or 0
+  end)
+  return info.winrow + (info.winbar or 0) + rows.all - top.fill + topfill
 end
 
---- Where every native preview should be on the screen right now.
+-- concealed_before() results: key -> columns
+local hidden_cache, hidden_count = {}, 0
+
+--- Screen columns hidden before byte `col` of line `lnum` in `win`, which
+--- screenpos() still counts: text concealed by syntax (the brackets and
+--- targets of links) and the text of images drawn in place (in `list`).
+local function concealed_before(win, bufnr, lnum, col, list)
+  local level = vim.wo[win].conceallevel
+  if col == 0 or level < 2 then
+    return 0
+  end
+  local ranges = {}
+  for _, q in pairs(list) do
+    if q.pad then
+      local r, c, d = mark_pos(bufnr, q.mark)
+      if r == lnum - 1 and d and d.end_col <= col then
+        ranges[#ranges + 1] = { c, d.end_col }
+      end
+    end
+  end
+  -- the cursor line shows its text in the modes not in 'concealcursor'
+  local syntax = true
+  if win == vim.api.nvim_get_current_win() and vim.api.nvim_win_get_cursor(win)[1] == lnum then
+    local mode = vim.fn.mode():sub(1, 1)
+    mode = (mode == "V" or mode == "\22") and "v" or mode
+    syntax = vim.wo[win].concealcursor:find(mode, 1, true) ~= nil
+  end
+  local parts = { win, bufnr, vim.b[bufnr].changedtick, lnum, col, level, tostring(syntax) }
+  for _, r in ipairs(ranges) do
+    parts[#parts + 1] = r[1] .. "-" .. r[2]
+  end
+  local key = table.concat(parts, ":")
+  if hidden_cache[key] then
+    return hidden_cache[key]
+  end
+  local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+  local hidden = 0
+  vim.api.nvim_win_call(win, function()
+    local i, region = 0, nil
+    while i < math.min(col, #line) do
+      local len = vim.str_utf_end(line, i + 1) + 1
+      local w = vim.fn.strdisplaywidth(line:sub(i + 1, i + len))
+      local mine = false
+      for _, r in ipairs(ranges) do
+        mine = mine or (i >= r[1] and i < r[2])
+      end
+      if mine then
+        hidden = hidden + w
+        region = nil
+      elseif syntax then
+        local sc = vim.fn.synconcealed(lnum, i + 1)
+        if sc[1] == 1 then
+          hidden = hidden + w
+          -- level 2 shows a replacement character once per region
+          if level == 2 and sc[2] ~= "" and sc[3] ~= region then
+            hidden = hidden - vim.fn.strdisplaywidth(sc[2])
+          end
+          region = sc[3]
+        else
+          region = nil
+        end
+      end
+      i = i + len
+    end
+  end)
+  if hidden_count > 500 then
+    hidden_cache, hidden_count = {}, 0
+  end
+  hidden_cache[key], hidden_count = hidden, hidden_count + 1
+  return hidden
+end
+
+--- Where every native preview should be on the screen right now: an image
+--- in place of its text at the text's screen position, the rows under it
+--- shared with the other images in place on the line; images below the
+--- line stacked after those rows.
 ---@return table<string, { src: string, opts: table }>
 function M._layout()
   local want = {}
@@ -1753,31 +2280,41 @@ function M._layout()
             return a.row < b.row or (a.row == b.row and a.col < b.col)
           end)
           for _, it in ipairs(items) do
+            if in_place(it.p) then
+              y = math.max(y, row_after(win, info, lnum) + it.p.height - 1)
+            end
+          end
+          for _, it in ipairs(items) do
             local p = it.p
+            local sp = vim.fn.screenpos(win, it.row + 1, it.col + 1)
+            local py = y
+            if in_place(p) then
+              py = sp.row > 0 and sp.row or nil
+            else
+              y = y + p.height
+            end
             local x
             if p.align == "center" then
               x = left + math.floor((right - left + 1 - p.width) / 2)
             elseif p.align == "right" then
               x = right - p.width + 1
             else
-              local sp = vim.fn.screenpos(win, it.row + 1, it.col + 1)
-              x = sp.col > 0 and sp.col or left
+              x = sp.col > 0 and sp.col - concealed_before(win, bufnr, it.row + 1, it.col, list) or left
             end
             x = math.max(left, math.min(x, right - p.width + 1))
-            local visible = y >= top and y + p.height - 1 <= bottom
+            local visible = py ~= nil and py >= top and py + p.height - 1 <= bottom
             for _, r in ipairs(rects) do
               -- a float covers the windows under it, not itself
-              if r.win ~= win and (not is_float or r.z > (cfg.zindex or 50)) then
-                visible = visible and not hidden_by(r, y, x, p.width, p.height)
+              if visible and r.win ~= win and (not is_float or r.z > (cfg.zindex or 50)) then
+                visible = not hidden_by(r, py, x, p.width, p.height)
               end
             end
             if visible then
               want[win .. ":" .. p.id] = {
                 src = p.src,
-                opts = { row = y, col = x, width = p.width, height = p.height, zindex = 50 },
+                opts = { row = py, col = x, width = p.width, height = p.height, zindex = 50 },
               }
             end
-            y = y + p.height
           end
         end
       end
@@ -1871,6 +2408,38 @@ vim.api.nvim_set_decoration_provider(ns, {
   end,
 })
 
+--- Show the text of the images drawn in place on the cursor line of the
+--- current window (their image goes under the line, so the link or
+--- fragment can be edited), and hide it again on the other lines.
+function M._update_reveal()
+  for bufnr, list in pairs(previews) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      for _, p in pairs(list) do
+        local r, _, d = p.inline and mark_pos(bufnr, p.mark)
+        if r then
+          local want = cursor_on(bufnr, r, d and d.end_row or r)
+          if want ~= (p.revealed == true) then
+            local b = backend_of(p)
+            pcall(b.hide, bufnr, p)
+            p.revealed = want
+            pcall(show, b, bufnr, p)
+            M._schedule_sync()
+          end
+        end
+      end
+    end
+  end
+end
+
+vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufEnter", "WinEnter" }, {
+  group = vim.api.nvim_create_augroup("org.images.reveal", { clear = true }),
+  callback = function()
+    if next(previews) then
+      M._update_reveal()
+    end
+  end,
+})
+
 local attached = {}
 
 --- Watch the buffer: an edit inside a previewed link or fragment removes
@@ -1891,6 +2460,9 @@ function M.attach(bufnr)
           remove(bufnr, id)
         end
       end
+      -- lines split or joined: the rows under them again
+      restack_all(bufnr)
+      M._update_reveal()
     end,
   })
   vim.api.nvim_create_autocmd("BufWinEnter", {
@@ -1916,6 +2488,8 @@ function M.attach(bufnr)
       end
       previews[bufnr] = nil
       pending[bufnr] = nil
+      drop_waiting(bufnr)
+      lwaiting[bufnr], lqueue[bufnr] = nil, nil
       attached[bufnr] = nil
       pcall(vim.api.nvim_del_augroup_by_id, group)
     end,
@@ -2107,7 +2681,7 @@ end
 function M.link_preview_refresh()
   local bufnr = vim.api.nvim_get_current_buf()
   data_cache = {}
-  M.show_links(bufnr, 1, math.huge)
+  M.show_links(bufnr, 1, math.huge, nil, nil, true)
   M.sync(true)
 end
 
