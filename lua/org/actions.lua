@@ -490,6 +490,12 @@ group("Babel", {
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
   babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
+  -- commands of ob-LANG ports (org.babel.lang.*)
+  babel_haskell_export_to_lhs = {
+    "org.babel.lang.haskell",
+    "export_to_lhs",
+    desc = "Export Haskell blocks to .lhs (count: lhs2tex to .tex)",
+  },
 })
 
 --- Resolve an action to its function.

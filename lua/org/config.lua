@@ -1299,6 +1299,15 @@ M.defaults = {
         null_to = "hline", -- org-babel-java-null-to
       },
       groovy = { cmd = "groovy" }, -- org-babel-groovy-command
+      -- cmd: the interpreter of blocks (Emacs: an inf-haskell session);
+      -- compiler: org-babel-haskell-compiler (:compile yes);
+      -- lhs2tex: org-babel-haskell-lhs2tex-command
+      haskell = {
+        default_header_args = { padline = "no" },
+        cmd = "ghci -v0 -ignore-dot-ghci",
+        compiler = "ghc",
+        lhs2tex = "lhs2tex",
+      },
       -- Common Lisp: cmd evaluates in place of SLIME (org-babel-lisp-eval-fn);
       -- dir_fmt: org-babel-lisp-dir-fmt
       lisp = {

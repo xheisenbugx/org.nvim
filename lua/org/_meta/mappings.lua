@@ -36,6 +36,7 @@
 ---| "babel_goto_head" # Go to src block head
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
+---| "babel_haskell_export_to_lhs" # Export Haskell blocks to .lhs (count: lhs2tex to .tex)
 ---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
