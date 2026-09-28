@@ -367,6 +367,68 @@
 ---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
 ---(default: `"ATTACH"`)
 ---@field auto_tag? string|false
+---Commit attachment changes with git (`org-attach-git`): after attaching,
+---deleting or syncing, new/changed files are added, deleted ones removed and
+---a commit "Synchronized attachments" is made. (default: `false`)
+---@field git? boolean
+---Files of at least this many bytes are added with `git annex add` when the
+---repository uses git-annex (`org-attach-git-annex-cutoff`); `false` never.
+---(default: `32768`)
+---@field git_annex_cutoff? integer|false
+---Run `git annex get` for a missing attachment before opening it
+---(`org-attach-git-annex-auto-get`): `"ask"`, `true` or `false`. (default: `"ask"`)
+---@field git_annex_auto_get? "ask"|boolean
+---Repository to commit to (`org-attach-git-dir`): `"default"` (the one
+---containing `dir`) or `"individual-repository"` (the entry's attachment
+---directory). (default: `"default"`)
+---@field git_dir? "default"|"individual-repository"
+
+---MobileOrg options (`org-mobile`).
+---@class org.Config.Mobile
+---Staging directory shared with the mobile application (`org-mobile-directory`).
+---@field directory? string
+---Files to stage (`org-mobile-files`): `"agenda_files"`,
+---`"text_search_extra_files"`, files and directories. (default: `{ "agenda_files" }`)
+---@field files? string[]
+---Emacs regexp of files not to stage (`org-mobile-files-exclude-regexp`). (default: `""`)
+---@field files_exclude_regexp? string
+---Inbox for captured entries and edit requests (`org-mobile-inbox-for-pull`).
+---(default: `"~/org/from-mobile.org"`)
+---@field inbox_for_pull? string
+---Name of the index file (`org-mobile-index-file`). (default: `"index.org"`)
+---@field index_file? string
+---`#+ALLPRIORITIES` of the index file (`org-mobile-allpriorities`). (default: `"A B C"`)
+---@field allpriorities? string
+---Agendas written to agendas.org (`org-mobile-agendas`): `"default"`,
+---`"custom"`, `"all"` or a list of custom command keys. (default: `"all"`)
+---@field agendas? "default"|"custom"|"all"|string[]
+---Give agenda entries an ID on push (`org-mobile-force-id-on-agenda-items`). (default: `true`)
+---@field force_id_on_agenda_items? boolean
+---Apply mobile edits even when the entry changed on the computer
+---(`org-mobile-force-mobile-change`): `true`, `false` or a list of `"todo"`,
+---`"tags"`, `"priority"`, `"heading"`, `"body"`. (default: `false`)
+---@field force_mobile_change? boolean|string[]
+---Encrypt staged files with openssl AES-256 (`org-mobile-use-encryption`). (default: `false`)
+---@field use_encryption? boolean
+---Encryption password; asked once per session when empty
+---(`org-mobile-encryption-password`). (default: `""`)
+---@field encryption_password? string
+---Checksum program; nil finds shasum, sha1sum, md5sum or md5 (`org-mobile-checksum-binary`).
+---@field checksum_binary? string
+---Extra `F(action:data)` actions (`org-mobile-action-alist`).
+---@field action_alist? table<string, fun(data: string?, old: string?, new: string?, target: org.Target): any>
+---Show the flagged entries in an agenda after a pull. (default: `true`)
+---@field show_flagged? boolean
+---Run before a push (`org-mobile-pre-push-hook`).
+---@field pre_push_hook? fun()
+---Run after a push, e.g. to upload the staging directory (`org-mobile-post-push-hook`).
+---@field post_push_hook? fun()
+---Run before a pull, e.g. to download mobileorg.org (`org-mobile-pre-pull-hook`).
+---@field pre_pull_hook? fun()
+---Run when the new entries are in the inbox (`org-mobile-before-process-capture-hook`).
+---@field before_process_capture_hook? fun(data: { bufnr: integer, line: integer })
+---Run after a pull with new entries (`org-mobile-post-pull-hook`).
+---@field post_pull_hook? fun()
 
 ---------------------------------------------------------------------------
 -- Babel

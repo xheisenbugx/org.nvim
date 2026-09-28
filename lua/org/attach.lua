@@ -130,6 +130,31 @@ function M.dir_for(target, create_id)
   return nil, hl
 end
 
+--- Files were added to or removed from `dir` (org-attach-after-change-hook):
+--- fire the User autocmd `OrgAttachAfterChange` (data: `{ dir }`) and, with
+--- `attach.git`, commit the attachment repository (org-attach-git-commit).
+local function after_change(dir, target)
+  local data = { dir = dir }
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAttachAfterChange", data = data, modeline = false })
+  local vcs = require("org.attach_git")
+  if vcs.enabled() then
+    local bufnr, file = edit.resolve(target)
+    vcs.commit(vcs.dir(dir, absolute(cfg().dir or "data/", file_dir(file, bufnr))))
+  end
+end
+
+--- An attachment is about to be opened (org-attach-open-hook): fire the
+--- User autocmd `OrgAttachOpen` (data: `{ path }`) and, with `attach.git`,
+--- fetch its git-annex content when missing (org-attach-git-annex-get-maybe).
+local function before_open(path, dir, target)
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAttachOpen", data = { path = path }, modeline = false })
+  local vcs = require("org.attach_git")
+  if vcs.enabled() then
+    local bufnr, file = edit.resolve(target)
+    vcs.annex_get_maybe(path, vcs.dir(dir, absolute(cfg().dir or "data/", file_dir(file, bufnr))))
+  end
+end
+
 --- Full path of an attachment name for the entry at `opts` (bufnr/lnum).
 function M.resolve_attachment(name, opts)
   opts = opts or {}
@@ -243,6 +268,7 @@ function M.attach_file(path, method, target)
     utils.error("Attach failed: " .. tostring(err))
     return nil
   end
+  after_change(dir, target)
   set_tag(bufnr, hl.line)
   store_link(path, dest)
   utils.notify(string.format('File "%s" is now an attachment', name))
@@ -288,6 +314,7 @@ function M.attach_url(url, target)
     utils.error("Download failed: " .. vim.trim(res.stderr or ""))
     return nil
   end
+  after_change(dir, target)
   set_tag(bufnr, hl.line)
   store_link(url, dest)
   utils.notify(string.format('File "%s" is now an attachment', name))
@@ -317,6 +344,7 @@ function M.attach_buffer(src, target, name)
   end
   set_tag(bufnr, hl.line)
   utils.writefile(dest, vim.api.nvim_buf_get_lines(src, 0, -1, false))
+  after_change(dir, target)
   return dest
 end
 
@@ -354,6 +382,7 @@ function M.sync(target)
     set_tag(bufnr, hl.line, true)
     return false
   end
+  after_change(dir, target)
   local has = #list_files(dir) > 0
   set_tag(bufnr, hl.line, not has)
   local del = cfg().sync_delete_empty_dir
@@ -451,6 +480,7 @@ function M.delete_all(target, force)
     return false
   end
   utils.notify("Attachment directory removed")
+  after_change(dir, target)
   set_tag(bufnr, hl.line, true)
   return true
 end
@@ -563,8 +593,9 @@ function M.menu()
       end
     end
   elseif choice == "o" or choice == "O" then
-    local path = choose_attachment(target, "Open attachment")
+    local path, dir = choose_attachment(target, "Open attachment")
     if path then
+      before_open(path, dir, target)
       if choice == "O" then
         vim.cmd("edit " .. vim.fn.fnameescape(path))
       else
@@ -572,9 +603,10 @@ function M.menu()
       end
     end
   elseif choice == "d" then
-    local path = choose_attachment(target, "Delete attachment")
+    local path, dir = choose_attachment(target, "Delete attachment")
     if path then
       vim.fn.delete(path, utils.is_dir(path) and "rf" or "")
+      after_change(dir, target)
     end
   elseif choice == "D" then
     M.delete_all(target)

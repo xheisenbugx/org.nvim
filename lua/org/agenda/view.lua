@@ -2662,6 +2662,19 @@ M.actions = {
   help = function()
     require("org.mappings").show_help()
   end,
+  -- MobileOrg (org-agenda-show-the-flagging-note, org-mobile-pull/push)
+  show_flagging_note = function()
+    call("org.mobile", "show_flagging_note")
+  end,
+  mobile_pull = function()
+    if call("org.mobile", "pull") then
+      M.redo()
+    end
+  end,
+  mobile_push = function()
+    call("org.mobile", "push")
+    M.redo()
+  end,
 }
 
 --- Show day `day` (a day number) in the agenda (org-agenda-goto-date).
