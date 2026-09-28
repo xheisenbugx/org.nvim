@@ -65,7 +65,7 @@ Each of these is explained in its own section below.
 |----------------------------+---------------+-----------------------------|
 | =cit= / =ciT=              |               | next / previous TODO state  |
 | =<S-Right>= =<S-Left>=     | same          | same, cursor on a headline  |
-| =<C-c><C-t>=, =<prefix>T=  | =C-c C-t=     | pick a state (fast keys)    |
+| =<C-c><C-t>=, =<prefix>S=  | =C-c C-t=     | pick a state (fast keys)    |
 | =4<C-c><C-t>=              | =C-u C-c C-t= | change state, force a note  |
 | =<C-S-Right>= =<C-S-Left>= | same          | next / previous keyword set |
 | =<M-S-CR>=, =<prefix>it=   | =<C-S-CR>=    | insert a new TODO heading   |
@@ -137,18 +137,12 @@ the last keyword), with a =CLOSED: [...]= line and a line
 =- State "FIXED"      from ""           [2026-09-28 Mon 15:08]= under it
 (=""= because there was no previous keyword).
 
-** Fast selection with <prefix>T and C-c C-t
+** Fast selection with <prefix>S and C-c C-t
 The letters in parentheses in =#+TODO: TODO(t) NEXT(n) ...= are fast
-selection keys. =<C-c><C-t>= (or =<prefix>T=) opens a small menu with
+selection keys. =<C-c><C-t>= (or =<prefix>S=) opens a small menu with
 the keywords of each sequence and their keys; press one key to jump
 straight to that state, or =<Space>= to remove the keyword. =<Esc>=
-cancels.
-
-# Careful with <prefix>T: <prefix>Tc, Tt, Tr, Ts, Tf, Ti ... are table keys.
-Typed quickly, =<prefix>T= followed by =c=, =t=, =r=, =f=, =s= or =i= runs
-a table command (=<prefix>Tc= creates a table!). After =<prefix>T=, wait
-for the menu to appear before pressing the key, or use =<C-c><C-t>=, which
-has no such clash. The exercises below use =<C-c><C-t>=.
+cancels. The exercises below use =<C-c><C-t>=; =<prefix>S= works the same.
 
 | Key | State     | Key | State      |
 |-----+-----------+-----+------------|

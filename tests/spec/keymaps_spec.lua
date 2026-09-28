@@ -169,3 +169,77 @@ describe("g? help", function()
     ok(vim.tbl_contains(lines, " Bulk"))
   end)
 end)
+
+describe("default keymaps", function()
+  local config = require("org.config")
+
+  --- Pairs where one lhs is a strict prefix of another in the same mode:
+  --- the shorter one then only fires after 'timeoutlen', and typing the
+  --- longer one quickly never reaches it.
+  local function prefix_clashes(entries)
+    local clashes = {}
+    for _, a in ipairs(entries) do
+      for _, b in ipairs(entries) do
+        if a.mode == b.mode and #b.key > #a.key and b.key:sub(1, #a.key) == a.key then
+          clashes[#clashes + 1] = string.format("%s: %s (%s) < %s (%s)", a.mode, a.lhs, a.name, b.lhs, b.name)
+        end
+      end
+    end
+    table.sort(clashes)
+    return clashes
+  end
+
+  local function section_entries(sections)
+    local entries = {}
+    for _, sec in ipairs(sections) do
+      for name, value in pairs(config.opts.mappings[sec] or {}) do
+        for _, lhs in ipairs(config.lhs_list(value)) do
+          entries[#entries + 1] = { mode = "n", key = vim.keycode(lhs), lhs = lhs, name = sec .. "." .. name }
+        end
+      end
+    end
+    return entries
+  end
+
+  --- The org keymaps active in the current buffer (global + buffer-local).
+  local function org_buffer_entries()
+    local entries = {}
+    for _, mode in ipairs({ "n", "x", "o", "i" }) do
+      local seen = {}
+      local maps = vim.list_extend(vim.api.nvim_buf_get_keymap(0, mode), vim.api.nvim_get_keymap(mode))
+      for _, m in ipairs(maps) do
+        local key = vim.keycode(m.lhs)
+        if m.desc and m.desc:match("^org: ") and not seen[key] then
+          seen[key] = true
+          entries[#entries + 1] = { mode = mode, key = key, lhs = m.lhs, name = m.desc }
+        end
+      end
+    end
+    return entries
+  end
+
+  it("no org buffer mapping is a prefix of another", function()
+    org_buffer({ "* A" }, { 1, 0 })
+    eq({}, prefix_clashes(org_buffer_entries()))
+  end)
+  it("todo_select and the table keys are both reachable", function()
+    org_buffer({ "* A" }, { 1, 0 })
+    eq("org: Select TODO state", vim.fn.maparg(config.lhs_list("<prefix>S")[1], "n", false, true).desc)
+    eq("", vim.fn.maparg(config.lhs_list("<prefix>T")[1], "n"))
+    eq("org: Create table / convert region", vim.fn.maparg(config.lhs_list("<prefix>Tc")[1], "n", false, true).desc)
+  end)
+  it("no capture buffer mapping is a prefix of another", function()
+    org_buffer({ "* A" }, { 1, 0 })
+    local entries = section_entries({ "capture" })
+    for _, e in ipairs(org_buffer_entries()) do
+      if e.mode == "n" then
+        entries[#entries + 1] = e
+      end
+    end
+    eq({}, prefix_clashes(entries))
+  end)
+  it("no agenda or edit_src mapping is a prefix of another", function()
+    eq({}, prefix_clashes(section_entries({ "agenda" })))
+    eq({}, prefix_clashes(section_entries({ "global", "emacs_global", "edit_src" })))
+  end)
+end)

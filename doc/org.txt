@@ -542,7 +542,7 @@ cit / ciT       Next / previous TODO state.
 <S-Right/Left>  (ctx) Same, on a headline. Like Emacs, this walks every
                 keyword of every sequence in order, with no keyword before
                 the first and after the last one.
-<prefix>T       Select a state (fast keys when defined).
+<prefix>S       Select a state (fast keys when defined).
 <C-c><C-t>      Fast selection when the keywords have keys (turn it off
                 with `use_fast_todo_selection = false`), otherwise cycle
                 within the sequence: after its last keyword the headline
@@ -4629,7 +4629,7 @@ Section `org` (default key: action):
   <prefix>v  mark_element           <prefix>nb / ne  narrow_block / element
   g{  goto_parent                   ]] [[  next/prev_heading
   ][ []  next/prev_sibling          <prefix>.  buffer_goto
-  cit / ciT  todo_next / todo_prev  <prefix>T  todo_select
+  cit / ciT  todo_next / todo_prev  <prefix>S  todo_select
   <S-Right>/<S-Left>  shift_right/shift_left
   <S-Up>/<S-Down>  shift_up/shift_down
   <C-a>/<C-x>  increment/decrement  <prefix>,  priority

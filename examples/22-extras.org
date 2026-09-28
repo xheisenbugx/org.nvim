@@ -728,7 +728,7 @@ the line visits the file.
 *Try:* add this line at the top of this file, below =#+TAGS:=, and press
 =<C-c><C-c>= on it:
 : #+SETUPFILE: tutorial.org
-Then put the cursor on any headline of this file and press =<prefix>T=.
+Then put the cursor on any headline of this file and press =<prefix>S=.
 *Expect:* the TODO keyword menu now offers =TODO=, =NEXT=, =WAITING=,
 =DONE= and =CANCELLED=: the =#+TODO:= line of [[file:tutorial.org][tutorial.org]]
 was imported. Press =<Esc>=, delete the line again and press
@@ -937,7 +937,7 @@ ones and their Vim-style equivalents:
 | Emacs                 | Vim-style key               | Action                   |
 |-----------------------+-----------------------------+--------------------------|
 | =C-c C-c=             | =<prefix><CR>=              | act on the context       |
-| =C-c C-t=             | =cit= / =<prefix>T=         | change TODO state        |
+| =C-c C-t=             | =cit= / =<prefix>S=         | change TODO state        |
 | =C-c C-s= / =C-c C-d= | =<prefix>s= / =<prefix>d=   | schedule / deadline      |
 | =C-c .= / =C-c !=     | =<prefix>i.= / =<prefix>i!= | timestamps               |
 | =C-c C-q=             | =<prefix>t=                 | set tags                 |

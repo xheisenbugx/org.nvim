@@ -798,7 +798,7 @@ end)
 
 *Try:* run the Lua block, update the =todo-summary= block, then mark
 "Contact form" (in "The sample data") DONE: on its heading press
-=<prefix>T= then =d=. Come back and update the block again.
+=<prefix>S= then =d=. Come back and update the block again.
 
 *Expect:* first =TODO 3=, =NEXT 1=, =DONE 2= (the table is not aligned: the
 writer did not pad it; press =<C-c><C-c>= inside it to align). After the

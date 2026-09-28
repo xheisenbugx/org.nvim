@@ -251,7 +251,7 @@ says exactly what you get when you do it on 2026-09-28. The dates are in the
 past on purpose (the tasks are overdue).
 
 To mark a task DONE: cursor on the headline, =<C-c><C-t>= then =d= (or
-=<prefix>T= then =d=).
+=<prefix>S= then =d=).
 
 *** TODO Water the plants (cumulative +1w)
 SCHEDULED: <2026-09-07 Mon +1w>

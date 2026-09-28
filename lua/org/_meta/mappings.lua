@@ -433,7 +433,7 @@
 ---@field shift_right? org.MappingLhs
 --- Previous TODO / date -1 / bullet. Default: `<S-Left>`
 ---@field shift_left? org.MappingLhs
---- Select TODO state. Default: `<prefix>T`
+--- Select TODO state. Default: `<prefix>S`
 ---@field todo_select? org.MappingLhs
 --- Priority up / timestamp up. Default: `<S-Up>`
 ---@field shift_up? org.MappingLhs
