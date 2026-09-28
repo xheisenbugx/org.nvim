@@ -147,6 +147,8 @@ local function defaults()
     OrgSuperscript = { link = "Special" },
     OrgSubscript = { link = "Special" },
     OrgInlinetask = { link = "Comment" },
+    -- org-warning, on the first star of inline tasks (inlinetask_show_first_star)
+    OrgInlinetaskFirstStar = { link = first_existing({ "@comment.warning" }, "WarningMsg") },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }

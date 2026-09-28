@@ -361,7 +361,9 @@ items inside the text of an entry, optionally closed by an END line: >org
 <
 They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
-line (never below the minimum level) and show only their last two stars.
+line (never below the minimum level) and show only their last two stars
+(also the first one, as a marker, with `inlinetask_show_first_star`,
+org-inlinetask-show-first-star).
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -4060,7 +4062,13 @@ Options under `ui`:
   indent_mode            virtual indentation like org-indent-mode: the
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
-                         hide_leading_stars (#+STARTUP: indent / noindent)
+                         hide_leading_stars and turns adapt_indentation off
+                         in the buffer (indent_mode_turns_off_adapt_-
+                         indentation) (#+STARTUP: indent / noindent)
+  indent_indentation_per_level  columns per level of indent_mode (2):
+                         the text of a level-n entry starts after
+                         n + (per - 1)(n - 1) + 1 columns, headlines after
+                         (per - 1)(n - 1); 0 = no indentation
   pretty_entities        `\alpha` → α for every entity of Emacs'
                          org-entities (#+STARTUP: entitiespretty /
                          entitiesplain); `x^2` → x², `a_{ij}` → aᵢⱼ
@@ -4098,6 +4106,12 @@ replaces built-in ones, for display, completion and export: >lua
     }
 <
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
+:Org indent_mode  Toggle virtual indentation in the buffer
+                (org-indent-mode).
+                                                *OrgIndentMode* *OrgNumMode*
+Turning indent mode or numbering on or off, also when a buffer starts
+with them, runs the User autocmd `OrgIndentMode` or `OrgNumMode`
+(org-indent-mode-hook, org-num-mode-hook), `data.enabled` telling which.
 
 Images and LaTeX previews                                       *org-images*
 Image links and LaTeX fragments can be shown as images in place of their
@@ -4514,6 +4528,7 @@ Structure and visibility ~
   speed_commands            {}        { key = action | function | false }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
   inlinetask_default_state  nil
+  inlinetask_show_first_star  false   show the first star of inline tasks
   footnote_auto_label       true      true|false|"confirm"|"random"|
                                       "plain"|"anonymous"
   footnote_auto_adjust      false     false|true|"sort"|"renumber"

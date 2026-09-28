@@ -181,6 +181,7 @@ group("Navigation & elements", {
   },
   toggle_pretty_entities = { "org.ui.decorations", "toggle_pretty_entities", desc = "Toggle pretty entities" },
   num_mode = { "org.ui.decorations", "toggle_num_mode", desc = "Toggle headline numbering (org-num-mode)" },
+  indent_mode = { "org.ui.decorations", "toggle_indent_mode", desc = "Toggle virtual indentation (org-indent-mode)" },
   entities_help = { "org.entities", "help", desc = "List all entities", global = true },
   inlinetask_insert = { "org.inlinetask", "insert", desc = "Insert inline task" },
   goto_parent = { "org.structure", "goto_parent", desc = "Go to parent heading" },

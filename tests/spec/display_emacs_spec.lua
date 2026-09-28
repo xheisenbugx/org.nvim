@@ -442,3 +442,120 @@ describe("entities_user and entities_help", function()
     eq(nil, require("org.export.ast").ENTITIES.snowman)
   end)
 end)
+
+describe("indent mode and inline tasks", function()
+  local deco = require("org.ui.decorations")
+  local saved_ui
+  before_each(function()
+    saved_ui = vim.deepcopy(config.opts.ui)
+  end)
+  after_each(function()
+    config.opts.ui = saved_ui
+    config.opts.adapt_indentation = false
+    config.opts.inlinetask_min_level = false
+    config.opts.inlinetask_show_first_star = false
+  end)
+
+  --- Width of the inline prefix of each row.
+  local function prefixes(buf)
+    local rows = deco.compute(buf)
+    local out = {}
+    for row = 0, vim.api.nvim_buf_line_count(buf) - 1 do
+      local w = 0
+      for _, m in ipairs(rows[row] or {}) do
+        if m[2].virt_text_pos == "inline" and m[1] == 0 then
+          for _, chunk in ipairs(m[2].virt_text) do
+            w = w + vim.fn.strdisplaywidth(chunk[1])
+          end
+        end
+      end
+      out[#out + 1] = w
+    end
+    return out
+  end
+
+  local lines = { "* A", "text", "** B", "b text", "*** C", "c" }
+
+  it("indents by indent_indentation_per_level columns per level", function()
+    config.opts.ui.indent_mode = true
+    -- Emacs 9.8.10 line-prefix lengths (org-indent-indentation-per-level 2, 3, 0)
+    eq({ 0, 2, 1, 4, 2, 6 }, prefixes(org_buffer(lines)))
+    config.opts.ui.indent_indentation_per_level = 3
+    eq({ 0, 2, 2, 5, 4, 8 }, prefixes(org_buffer(lines)))
+    config.opts.ui.indent_indentation_per_level = 0
+    eq({ 0, 0, 0, 0, 0, 0 }, prefixes(org_buffer(lines)))
+  end)
+
+  it("indent_mode toggles in the buffer and runs OrgIndentMode", function()
+    local buf = org_buffer(lines)
+    local states = {}
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgIndentMode",
+      callback = function(ev)
+        states[#states + 1] = ev.data.enabled
+      end,
+    })
+    deco.toggle_indent_mode()
+    eq({ 0, 2, 1, 4, 2, 6 }, prefixes(buf))
+    eq(true, deco.ui_options(buf).hide_leading_stars)
+    deco.toggle_indent_mode()
+    eq({ 0, 0, 0, 0, 0, 0 }, prefixes(buf))
+    vim.api.nvim_del_autocmd(id)
+    eq({ true, false }, states)
+  end)
+
+  it("num_mode runs OrgNumMode", function()
+    org_buffer(lines)
+    local states = {}
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgNumMode",
+      callback = function(ev)
+        states[#states + 1] = ev.data.enabled
+      end,
+    })
+    deco.toggle_num_mode()
+    deco.toggle_num_mode()
+    vim.api.nvim_del_autocmd(id)
+    eq({ true, false }, states)
+  end)
+
+  it("indent mode turns adapt_indentation off in its buffer", function()
+    config.opts.adapt_indentation = true
+    local buf = org_buffer(lines)
+    eq(true, deco.adapt_indentation(buf))
+    vim.b[buf].org_indent_mode = true
+    -- Emacs: org-adapt-indentation is nil once org-indent-mode is on
+    eq(false, deco.adapt_indentation(buf))
+    eq("", require("org.edit").body_indent(1))
+    config.opts.ui.indent_mode_turns_off_adapt_indentation = false
+    eq(true, deco.adapt_indentation(buf))
+  end)
+
+  it("inlinetask_show_first_star shows the first star as a marker", function()
+    config.opts.inlinetask_min_level = 5
+    config.opts.inlinetask_show_first_star = true
+    local buf = org_buffer({ "* A", "***** TODO inline" })
+    -- Emacs 9.8.10 faces: org-warning, org-hide, org-hide, then org-inlinetask
+    local rows = deco.compute(buf)
+    local overlay
+    for _, m in ipairs(rows[1]) do
+      if m[2].virt_text_pos == "overlay" then
+        overlay = m[2].virt_text
+      end
+    end
+    eq({ { "*", "OrgInlinetaskFirstStar" }, { "  ", "OrgHiddenStars" } }, overlay)
+    -- in indent mode the prefix carries the star: "*" + 3 columns
+    config.opts.ui.indent_mode = true
+    rows = deco.compute(buf)
+    local inline
+    for _, m in ipairs(rows[1]) do
+      if m[2].virt_text_pos == "inline" then
+        inline = m[2].virt_text
+      elseif m[2].virt_text_pos == "overlay" then
+        overlay = m[2].virt_text
+      end
+    end
+    eq({ { "*", "OrgInlinetaskFirstStar" }, { "   ", "OrgHiddenStars" } }, inline)
+    eq({ { "   ", "OrgHiddenStars" } }, overlay)
+  end)
+end)

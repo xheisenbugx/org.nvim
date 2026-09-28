@@ -361,6 +361,9 @@
 ---without the org-inlinetask module; 15 once it is loaded).
 ---(Emacs `org-inlinetask-min-level`, default: `false`)
 ---@field inlinetask_min_level? integer|false
+---Show the first star of inline tasks as a marker.
+---(Emacs `org-inlinetask-show-first-star`, default: `false`)
+---@field inlinetask_show_first_star? boolean
 ---TODO keyword of new inline tasks.
 ---(Emacs `org-inlinetask-default-state`, default: `nil`)
 ---@field inlinetask_default_state? string
@@ -530,6 +533,12 @@
 ---Virtual indentation of body text (`#+STARTUP: indent` / `noindent`).
 ---(Emacs `org-indent-mode` / `org-startup-indented`, default: `false`)
 ---@field indent_mode? boolean
+---Columns of virtual indentation per level in indent mode; `0` = none.
+---(Emacs `org-indent-indentation-per-level`, default: `2`)
+---@field indent_indentation_per_level? integer
+---Indent mode turns `adapt_indentation` off in its buffer.
+---(Emacs `org-indent-mode-turns-off-org-adapt-indentation`, default: `true`)
+---@field indent_mode_turns_off_adapt_indentation? boolean
 ---Render entities like `\alpha` as unicode (`#+STARTUP: entitiespretty` /
 ---`entitiesplain`, toggle_pretty_entities).
 ---(Emacs `org-pretty-entities`, default: `false`)

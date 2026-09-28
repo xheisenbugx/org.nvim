@@ -75,7 +75,7 @@ end
 --- Rewrite headline lines in `lines` with level delta, realigning tags and
 --- shifting body indentation when `adapt_indentation` is on.
 local function relevel(lines, delta, todo_cfg)
-  local adapt = config.opts.adapt_indentation
+  local adapt = require("org.ui.decorations").adapt_indentation(0)
   local out = {}
   for i, l in ipairs(lines) do
     local p = parser.parse_headline_line(l, todo_cfg)

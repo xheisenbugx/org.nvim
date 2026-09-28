@@ -368,6 +368,9 @@ M.defaults = {
   --- (org-inlinetask-min-level). false turns inline tasks off, like Emacs
   --- without the org-inlinetask module; Emacs uses 15 once it is loaded.
   inlinetask_min_level = false,
+  --- Show the first star of inline tasks as a marker
+  --- (org-inlinetask-show-first-star).
+  inlinetask_show_first_star = false,
   --- TODO keyword of new inline tasks (org-inlinetask-default-state).
   inlinetask_default_state = nil,
   --- Block types offered by insert_structure_template, by key
@@ -1629,6 +1632,12 @@ M.defaults = {
     --- Virtual indentation of body text (org-indent-mode, org-startup-indented;
     --- #+STARTUP: indent / noindent).
     indent_mode = false,
+    --- Columns of virtual indentation per level in indent mode; 0 turns
+    --- it off (org-indent-indentation-per-level).
+    indent_indentation_per_level = 2,
+    --- Indent mode turns adapt_indentation off in its buffer
+    --- (org-indent-mode-turns-off-org-adapt-indentation).
+    indent_mode_turns_off_adapt_indentation = true,
     --- Render \alpha etc. as unicode (org-pretty-entities; #+STARTUP:
     --- entitiespretty / entitiesplain, toggle with toggle_pretty_entities).
     pretty_entities = false,
