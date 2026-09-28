@@ -100,6 +100,14 @@ describe("koma-letter export", function()
     golden("headings-noopening", "headings")
   end)
 
+  it("prefers special headings with export.koma_letter.prefer_special_headings", function()
+    -- same as special-headings:t in prefer.org
+    local lines = { "#+OPTIONS: timestamp:nil", "#+TO_ADDRESS: Keyword", "* To :to:", "Heading" }
+    has(koma(lines), "\\begin{letter}{%\nKeyword}")
+    config.opts.export.koma_letter = vim.tbl_extend("force", saved_koma or {}, { prefer_special_headings = true })
+    has(koma(lines), "\\begin{letter}{%\nHeading}")
+  end)
+
   it("sets every property of an OPTIONS item (email:t)", function()
     local s = koma({ "#+OPTIONS: email:t timestamp:nil", "Body." })
     -- in-buffer setting: after the LCO file

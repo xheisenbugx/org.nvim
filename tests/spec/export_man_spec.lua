@@ -123,6 +123,11 @@ describe("man export", function()
     eq("HL lisp\n(a \\b)\n.RS\n.nf\n\\fCx \\ey\n\\m[]\\fP\n.fi\n.RE\n", s)
   end)
 
+  it("completes the new formats for :Org export", function()
+    eq({ "man", "man-pdf" }, require("org.commands").complete("ma", "Org export ma"))
+    eq({ "koma-letter", "koma-pdf" }, require("org.commands").complete("ko", "Org export ko"))
+  end)
+
   it("exports with the dispatcher formats man and man-pdf (fake groff pipeline)", function()
     local d = tmpdir()
     local src = d .. "/tool.org"
