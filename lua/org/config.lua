@@ -1279,6 +1279,13 @@ M.defaults = {
         eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
       },
       fortran = { cmd = "gfortran", ext = "F90" }, -- cmd: org-babel-fortran-compiler
+      java = {
+        default_header_args = { results = "output", dir = "." },
+        cmd = "java", -- org-babel-java-command
+        compiler = "javac", -- org-babel-java-compiler
+        hline_to = "null", -- org-babel-java-hline-to
+        null_to = "hline", -- org-babel-java-null-to
+      },
       gnuplot = {
         cmd = "gnuplot",
         default_header_args = { results = "file", exports = "results" },
