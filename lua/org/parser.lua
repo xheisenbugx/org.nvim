@@ -460,6 +460,36 @@ end
 M.parse_planning = parse_planning
 M.parse_property_drawer = parse_property_drawer
 
+-- Blocks whose contents are not parsed into objects (org-element).
+local VERBATIM_BLOCKS = { src = true, example = true, export = true, comment = true }
+
+--- When `lines[i]` opens a src, example, export or comment block closed by
+--- line `to`, the line of its #+end_ and the block's lower-cased name.
+---@return integer|nil, string|nil
+function M.verbatim_block_end(lines, i, to)
+  local name = lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  name = name and name:lower()
+  if not (name and VERBATIM_BLOCKS[name]) then
+    return nil
+  end
+  local close = "^%s*#%+end_" .. vim.pesc(name) .. "%s*$"
+  for k = i + 1, to do
+    if lines[k]:lower():match(close) then
+      return k, name
+    end
+  end
+end
+
+--- Whether `line` is a comment, a fixed-width line or a keyword (other
+--- than CAPTION): Emacs finds no timestamp objects there.
+local function no_objects(line)
+  if line:match("^%s*[#:]%s") or line:match("^%s*[#:]$") then
+    return true
+  end
+  local key = line:match("^%s*#%+(%S-):")
+  return key ~= nil and not key:upper():match("^CAPTION")
+end
+
 function parse_section(hl, lines, from, to, log_drawer)
   hl.planning = {}
   hl.properties = {}
@@ -506,9 +536,12 @@ function parse_section(hl, lines, from, to, log_drawer)
 
   -- rest of section: drawers, clocks, timestamps
   local in_drawer = nil
+  local verbatim_end = 0
   while i <= to do
     local line = lines[i]
-    if in_drawer then
+    if i <= verbatim_end then
+      -- inside a src/example/export/comment block: no timestamps
+    elseif in_drawer then
       if line:match("^%s*:END:%s*$") then
         in_drawer["end"] = i
         hl.drawers[#hl.drawers + 1] = in_drawer
@@ -519,9 +552,12 @@ function parse_section(hl, lines, from, to, log_drawer)
       end
     else
       local dname = line:match("^%s*:([%w_%-]+):%s*$")
-      if dname and dname:upper() ~= "END" then
+      local block_end = line:find("^%s*#%+") and M.verbatim_block_end(lines, i, to)
+      if block_end then
+        verbatim_end = block_end
+      elseif dname and dname:upper() ~= "END" then
         in_drawer = { name = dname, start = i }
-      else
+      elseif not (line:find("^%s*[#:]") and no_objects(line)) then
         local is_clock = line:find("CLOCK:", 1, true) and line:match("^%s*CLOCK:")
         for _, item in ipairs(date.parse_all(line)) do
           if not item.date.active and not hl.first_inactive and not is_clock then

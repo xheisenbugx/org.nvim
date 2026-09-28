@@ -593,11 +593,19 @@ function M.agenda(files, from, to, opts)
 
   --- %%(sexp) lines first..last of `file` (org-agenda-get-sexps). `hl` is
   --- nil before the first heading: the items then have the file's category.
+  --- Like org-agenda-skip, lines inside src blocks are left out.
   local function add_sexps(hl, file, first, last)
     local lines = file.lines
+    local block_end, in_src = 0, false
     for i = first, last do
       local line = lines[i] or ""
-      if line:match("^&?%%%%%(") then
+      if i > block_end and line:find("^%s*#%+") then
+        local e, name = require("org.parser").verbatim_block_end(lines, i, last)
+        if e then
+          block_end, in_src = e, name == "src"
+        end
+      end
+      if not (in_src and i <= block_end) and line:match("^&?%%%%%(") then
         sexp_mod = sexp_mod or require("org.agenda.sexp")
         local e = sexp_mod.line_entry(line)
         if e then

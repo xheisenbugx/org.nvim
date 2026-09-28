@@ -47,13 +47,15 @@ file therefore show up in your agenda while you work through it.
    computed by org.nvim on that day. If you read this later, relative
    inputs (=+3d=, =fri=, ...) give dates relative to /your/ today: the rule
    stays the same, only the result moves.
-2. Every active =<...>= timestamp in a file is an agenda entry, even inside
-   an example block or a table. So that the expected results written in
-   this file don't show up in your agenda, *an expected active timestamp is
-   written without its angle brackets*: "Expect: =SCHEDULED: 2026-10-02 Fri="
-   means the buffer shows =SCHEDULED:= followed by the date in =<>=.
-   Exercises that don't need the agenda use inactive =[...]= timestamps:
-   every key works the same on both kinds.
+2. Every active =<...>= timestamp in the text of a file is an agenda
+   entry, even inside a list or a table (as in Emacs, only comments, =: =
+   lines, keywords and src, example, export and comment blocks are left
+   out). So that the expected results written in this file don't show up
+   in your agenda, *an expected active timestamp is written without its
+   angle brackets*: "Expect: =SCHEDULED: 2026-10-02 Fri=" means the buffer
+   shows =SCHEDULED:= followed by the date in =<>=. Exercises that don't
+   need the agenda use inactive =[...]= timestamps: every key works the
+   same on both kinds.
 
 ** Keys in this file
 | Key                          | Emacs key         | What it does                            |
