@@ -1792,7 +1792,7 @@ names the columns under it:
 | # | Desk  |   1 |   300 |   300 |
 |---+-------+-----+-------+-------|
 | # | Total |     |       |   860 |
-#+TBLFM: $total=$qty*$price::@>$5=vsum(@I..@II)
+#+TBLFM: $total=$qty*$price::@>$total=vsum(@I..@II)
 
 # Practice copy: total is blank on purpose.
 |   | Item  | qty | price | total |
@@ -1803,7 +1803,7 @@ names the columns under it:
 | # | Desk  |   1 |   300 |       |
 |---+-------+-----+-------+-------|
 | # | Total |     |       |       |
-#+TBLFM: $total=$qty*$price::@>$5=vsum(@I..@II)
+#+TBLFM: $total=$qty*$price::@>$total=vsum(@I..@II)
 
 *Expect:* =80=, =480=, =300=, Total =860=. The =!= row sits above the
 first horizontal line, in the header, so it is not part of the range
@@ -1812,11 +1812,11 @@ into the formula =total + 860=). The =!= row itself is never changed,
 and with a marks column the column formulas only touch rows marked =#= or
 =*= (see "Automatic recalculation" below).
 
-On the /left/ side, Emacs accepts only column numbers (=$5==); =$total== is
-an org.nvim extension. Formulas run in the order of their left sides
-compared as text, so with several named left sides (=$total==, =$net==)
-they run in alphabetical order of the names, not left to right. Use
-numbers on the left when one column formula needs another one's result.
+On the /left/ side, Emacs accepts only column numbers (=$5==, =@>$5==);
+=$total== and =@>$total== are org.nvim extensions. Formulas run in the
+order of their left sides compared as text, and a column name counts as
+its number there: =$total== runs where =$5== would, so named column
+formulas run left to right, like numbered ones.
 
 ** Parameters: the $ row
 A row marked =$= defines /parameters/ as =name=value= fields; formulas use

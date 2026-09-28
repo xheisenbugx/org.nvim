@@ -321,6 +321,13 @@ local function parse_ref(s, i)
     end
     if not m then
       if spec.row then
+        -- `@3$name`: a row and a column name (Emacs substitutes column
+        -- names anywhere in a formula)
+        local name = rest:match("^([%a_][%w_]*)")
+        if name then
+          spec.name = name
+          return spec, j + 1 + #name
+        end
         return spec, j
       end
       return nil
@@ -401,6 +408,14 @@ local function resolve_name(m, spec, ctx, lhs)
     return spec
   end
   local name, names = spec.name, m.names
+  if spec.row then
+    -- after a row reference only a column name fits
+    local n = names.cols[name] or names.header[name]
+    if not n then
+      error("unknown column name: $" .. name)
+    end
+    return { row = spec.row, col = { kind = "abs", n = n } }
+  end
   if names.cols[name] then
     return { col = { kind = "abs", n = names.cols[name] } }
   end
@@ -926,6 +941,29 @@ local function may_create_columns(ctx)
   return false
 end
 
+--- The text Emacs sorts formula `lhs` by (org-table-recalculate sorts
+--- with `string<`). Emacs keeps a named field `$name=` as `name`; column
+--- names on the left side are an org.nvim extension and sort as the column
+--- number they stand for, so `$total=` runs where `$5=` would.
+local function sort_key(m, lhs, ctx)
+  local name = lhs:match("^%$([%a_][%w_]*)$")
+  if name then
+    local ok, spec = pcall(resolve_name, m, { name = name }, ctx, true)
+    if ok and spec and spec.row then
+      return name
+    elseif ok and spec and spec.col then
+      return "$" .. spec.col.n
+    end
+    return lhs
+  end
+  return (
+    lhs:gsub("%$([%a_][%w_]*)", function(n)
+      local c = m.names.cols[n] or m.names.header[n]
+      return c and ("$" .. c) or nil
+    end)
+  )
+end
+
 --- Apply formulas to parsed table `t` in place.
 ---@param t table from org.table.parse
 ---@param formulas table from parse_tblfm
@@ -945,11 +983,11 @@ function M.apply(t, formulas, ctx)
   -- like Emacs, formulas run in the order of their sorted left sides
   local sorted = {}
   for i, f in ipairs(formulas) do
-    sorted[i] = { f = f, i = i }
+    sorted[i] = { f = f, i = i, key = sort_key(m, f.lhs, ctx) }
   end
   table.sort(sorted, function(a, b)
-    if a.f.lhs ~= b.f.lhs then
-      return a.f.lhs < b.f.lhs
+    if a.key ~= b.key then
+      return a.key < b.key
     end
     return a.i < b.i
   end)

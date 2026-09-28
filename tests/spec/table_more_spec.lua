@@ -237,3 +237,56 @@ describe("table import / export", function()
     eq(false, tbl.ctrl_c_ctrl_c())
   end)
 end)
+
+describe("column names on the left side of formulas", function()
+  it("a field formula can name its column after the row (@>$total=)", function()
+    local buf = org_buffer({
+      "|   | Item | total |",
+      "| ! |      | total |",
+      "|---+------+-------|",
+      "| # | a    |     1 |",
+      "| # | b    |     2 |",
+      "|---+------+-------|",
+      "| # | T    |       |",
+      "#+TBLFM: @>$total=vsum(@I..@II)",
+    })
+    tbl.recalc(buf, 1)
+    eq("| # | T    |     3 |", buf_lines(buf)[7])
+  end)
+
+  it("a field reference can name its column after the row (@3$qty)", function()
+    local buf = org_buffer({
+      "|   | qty | x |",
+      "| ! | qty | x |",
+      "| # |   7 |   |",
+      "#+TBLFM: @3$3=@3$qty*2",
+    })
+    tbl.recalc(buf, 1)
+    eq("| # | 7   | 14 |", buf_lines(buf)[3])
+  end)
+
+  it("header names work after a row too (org.nvim extension)", function()
+    local buf = org_buffer({
+      "| a | total |",
+      "|---+-------|",
+      "| 1 |     1 |",
+      "| 2 |     2 |",
+      "| T |       |",
+      "#+TBLFM: @>$total=vsum(@2..@-1)",
+    })
+    tbl.recalc(buf, 1)
+    eq("| T |     3 |", buf_lines(buf)[5])
+  end)
+
+  it("named column formulas run in column order, not alphabetically", function()
+    -- Emacs sorts formulas by their left side; `$zz=` sorts as `$3`
+    local buf = org_buffer({
+      "|   | a | zz | bb |",
+      "| ! | a | zz | bb |",
+      "| # | 1 |    |    |",
+      "#+TBLFM: $bb=$zz*10::$zz=$a+1",
+    })
+    tbl.recalc(buf, 1)
+    eq("| # | 1 | 2  | 20 |", buf_lines(buf)[3])
+  end)
+end)
