@@ -719,7 +719,7 @@ function M.expand(text, ctx)
       local line = out:sub(ls, le)
       if parser.headline_level(line) then
         local todo = ctx.target_file and ctx.target_file.settings.todo or nil
-        local aligned = edit.align_tags_line(line, todo)
+        local aligned = edit.auto_align_tags() and edit.align_tags_line(line, todo) or line
         -- resume right after the tags: a later %^{...} on the line still prompts
         local rest = out:sub(i, le)
         out = out:sub(1, ls - 1) .. aligned .. out:sub(le + 1)

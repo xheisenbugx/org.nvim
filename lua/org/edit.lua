@@ -163,15 +163,26 @@ function M.align_tags_line(line, todo_cfg)
   return M.build_headline(p)
 end
 
+--- Are tags realigned after edits (org-auto-align-tags)?
+function M.auto_align_tags()
+  return require("org.config").opts.auto_align_tags ~= false
+end
+
 --- Update components of the headline at `lnum`.
 --- `changes` keys: todo, priority, title, tags, level, commented.
---- Use `false` to remove todo/priority.
+--- Use `false` to remove todo/priority. New tags are sorted with
+--- `tags_sort_function`. With `auto_align_tags` off, the space before the
+--- tags is kept, and new tags follow the title after one space.
 function M.update_headline(bufnr, lnum, changes)
   local file = files.get_buffer(bufnr)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local p = parser.parse_headline_line(line, file.settings.todo)
   if not p then
     return false
+  end
+  local old_tags = p.tags or {}
+  if changes.tags then
+    changes = vim.tbl_extend("force", changes, { tags = require("org.tags").sort(changes.tags) })
   end
   for k, v in pairs(changes) do
     if v == false and (k == "todo" or k == "priority") then
@@ -180,7 +191,16 @@ function M.update_headline(bufnr, lnum, changes)
       p[k] = v
     end
   end
-  local new = M.build_headline(p)
+  local new
+  if M.auto_align_tags() or not p.tags or #p.tags == 0 then
+    new = M.build_headline(p)
+  else
+    local gap = line:match("(%s+):[^%s]+:%s*$")
+    if not gap or not vim.deep_equal(old_tags, p.tags) then
+      gap = " "
+    end
+    new = M.build_headline(vim.tbl_extend("force", p, { tags = {} })) .. gap .. ":" .. table.concat(p.tags, ":") .. ":"
+  end
   if new ~= line then
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new })
   end
@@ -379,7 +399,99 @@ function M.log_drawer_name(hl)
   return d or nil
 end
 
+--- Vim regex (very nomagic) matching a state-change note item, built from
+--- the `state` entry of `log_note_headings` (org-skip-over-state-notes).
+local function state_note_regex()
+  local headings = require("org.config").opts.log_note_headings or {}
+  local fmt = headings.state or M.DEFAULT_LOG_NOTE_HEADINGS.state
+  local out, i = { "\\V\\^\\s\\*-\\s\\+" }, 1
+  while i <= #fmt do
+    local c = fmt:sub(i, i)
+    local esc, conv = fmt:match("^(%%%-?[%d.]*)(%a)", i)
+    if esc then
+      if conv == "s" or conv == "S" then
+        out[#out + 1] = '\\%("\\S\\+"\\)\\='
+      elseif conv == "t" or conv == "d" then
+        out[#out + 1] = "[\\d\\{4}-\\d\\d-\\d\\d\\[^]]\\*]"
+      elseif conv == "T" or conv == "D" then
+        out[#out + 1] = "<\\d\\{4}-\\d\\d-\\d\\d\\[^>]\\*>"
+      else
+        out[#out + 1] = "\\.\\{-}"
+      end
+      i = i + #esc + 1
+    elseif c:match("%s") then
+      out[#out + 1] = "\\s\\+"
+      i = #fmt:match("^%s+", i) + i
+    else
+      out[#out + 1] = c == "\\" and "\\\\" or c
+      i = i + 1
+    end
+  end
+  return vim.regex(table.concat(out))
+end
+
+--- Where a log note goes in an entry without log drawer (org-log-beginning):
+--- after the planning line and property drawer (with
+--- `log_state_notes_insert_after_drawers`, also after clock lines and
+--- drawers), then past blank lines; with the oldest notes first, after the
+--- existing state notes. Returns the line the note is inserted before and
+--- whether that line is a blank line the note replaces.
+---@param lines string[]
+---@param hl org.Headline
+---@param reversed boolean
+---@return integer lnum, boolean replace
+local function log_beginning(lines, hl, reversed)
+  local last = hl.body_end
+  local function blank(l)
+    return lines[l] ~= nil and lines[l]:match("^%s*$") ~= nil
+  end
+  local i = M.meta_end(hl) + 1
+  if require("org.config").opts.log_state_notes_insert_after_drawers then
+    -- org-end-of-meta-data with FULL = t
+    while i <= last do
+      local l = lines[i]
+      if l:match("^%s*$") or l:match("^%s*CLOCK:") then
+        i = i + 1
+      elseif l:match("^%s*:[%w_-]+:%s*$") then
+        local j = i + 1
+        while j <= last and not lines[j]:match("^%s*:[eE][nN][dD]:%s*$") do
+          j = j + 1
+        end
+        if j > last then
+          break
+        end
+        i = j + 1
+      else
+        break
+      end
+    end
+  end
+  local endpos = i
+  while i <= last and blank(i) do
+    i = i + 1
+  end
+  if not reversed then
+    local re = state_note_regex()
+    while i <= last and re:match_str(lines[i]) do
+      local n = #lines[i]:match("^(%s*)")
+      i = i + 1
+      while i <= last and (blank(i) or #lines[i]:match("^(%s*)") > n) do
+        i = i + 1
+      end
+    end
+    while i - 1 > hl.line and blank(i - 1) do
+      i = i - 1
+    end
+    if i < endpos then
+      i = endpos
+    end
+    return i, i <= last and blank(i)
+  end
+  return i, false
+end
+
 --- Add a log entry (list of lines, first starts with "- ") to the headline.
+--- Fires the `OrgNoteStored` User autocmd (org-after-note-stored-hook).
 function M.add_log_entry(bufnr, lnum, entry_lines)
   if not entry_lines or #entry_lines == 0 then
     return
@@ -397,6 +509,7 @@ function M.add_log_entry(bufnr, lnum, entry_lines)
   elseif file.settings.startup.nologstatesreversed then
     reversed = false
   end
+  local first
   if drawer then
     local s, e = M.ensure_drawer(bufnr, hl.line, drawer)
     local indent = vim.api.nvim_buf_get_lines(bufnr, s - 1, s, false)[1]:match("^(%s*)")
@@ -405,17 +518,26 @@ function M.add_log_entry(bufnr, lnum, entry_lines)
     end, entry_lines)
     if reversed then
       vim.api.nvim_buf_set_lines(bufnr, s, s, false, lines)
+      first = s + 1
     else
       vim.api.nvim_buf_set_lines(bufnr, e - 1, e - 1, false, lines)
+      first = e
     end
   else
     local indent = M.body_indent(hl.level)
     local lines = vim.tbl_map(function(l)
       return indent .. l
     end, entry_lines)
-    local at = M.meta_end(hl)
-    vim.api.nvim_buf_set_lines(bufnr, at, at, false, lines)
+    local at, replace = log_beginning(file.lines, hl, reversed)
+    vim.api.nvim_buf_set_lines(bufnr, at - 1, replace and at or at - 1, false, lines)
+    first = at
   end
+  -- org-after-note-stored-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgNoteStored",
+    data = { bufnr = bufnr, lnum = first, headline = hl.line },
+    modeline = false,
+  })
 end
 
 --- Emacs default note headings (org-log-note-headings).

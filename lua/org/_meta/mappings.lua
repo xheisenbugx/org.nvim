@@ -255,6 +255,7 @@
 ---| "todo_prev_sequence" # Previous TODO keyword set
 ---| "todo_select" # Select TODO state
 ---| "todo_without_note" # Change TODO state without a note (C-0 C-c C-t)
+---| "todo_yesterday" # Change TODO state as if at 23:59 yesterday (org-todo-yesterday)
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag (Visual: all headlines)
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword

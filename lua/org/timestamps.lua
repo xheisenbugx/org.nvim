@@ -624,7 +624,8 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
       return
     end
   end
-  edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old))
+  local time = require("org.date").effective_now(file:headline_at(lnum))
+  edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old, time))
 end
 
 --- Set (or remove with nil) a date of an entry.

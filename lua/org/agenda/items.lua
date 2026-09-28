@@ -53,6 +53,9 @@ local function pvalue(p)
 end
 
 local function priority_value(hl)
+  if type(config.opts.priority_get_priority_function) == "function" then
+    return require("org.priority").get_priority(hl)
+  end
   local pr = hl.file:priorities()
   local p = hl.priority or pr.default
   return 1000 * (pvalue(pr.lowest) - pvalue(p))
@@ -1534,6 +1537,16 @@ local function tag_cmp(a, b)
     return 1
   elseif not tb then
     return -1
+  end
+  if config.opts.tags_sort_function then
+    -- org-cmp-tag compares with org-tags-sort
+    local tags = require("org.tags")
+    if tags.sort_less(ta, tb) then
+      return -1
+    elseif tags.sort_less(tb, ta) then
+      return 1
+    end
+    return nil
   end
   return string_cmp(ta:lower(), tb:lower())
 end

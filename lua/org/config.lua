@@ -65,6 +65,13 @@ M.defaults = {
   --- C-c C-t uses the fast-selection menu when keywords have keys
   --- (org-use-fast-todo-selection `auto`); `false` always cycles.
   use_fast_todo_selection = "auto",
+  --- <S-Left>/<S-Right> on a headline are real state changes (logged and
+  --- blocked); `false` changes the keyword without logging or blocking
+  --- (org-treat-S-cursor-todo-selection-as-state-change).
+  treat_S_cursor_todo_selection_as_state_change = true,
+  --- M-S-RET / C-S-RET set the new heading's keyword as a state change, so
+  --- it is logged (org-treat-insert-todo-heading-as-state-change).
+  treat_insert_todo_heading_as_state_change = false,
   --- Which child headlines statistics cookies count
   --- (org-provide-todo-statistics): `true` (entries with a TODO keyword),
   --- `"all-headlines"`, a list of keywords, or `{ todo_list, done_list }`.
@@ -78,6 +85,9 @@ M.defaults = {
   closed_keep_when_no_todo = false,
   --- `false`, `"time"` (add CLOSED:) or `"note"` (CLOSED: + note).
   log_done = false,
+  --- CLOSED records the time too; `false` records the date only
+  --- (org-log-done-with-time).
+  log_done_with_time = true,
   --- Logging when a repeated task is marked done: false | "time" | "note".
   log_repeat = "time",
   --- Log changes of SCHEDULED / DEADLINE: false | "time" | "note".
@@ -89,6 +99,9 @@ M.defaults = {
   log_into_drawer = false,
   --- Newest log entries first (Emacs default).
   log_states_order_reversed = true,
+  --- Without a log drawer, notes go after the clock lines and drawers
+  --- that follow the headline (org-log-state-notes-insert-after-drawers).
+  log_state_notes_insert_after_drawers = false,
   --- Log notes are typed in a small `*Org Note*` split (<C-c><C-c> stores,
   --- <C-c><C-k> cancels) like Emacs org-add-log-note; `false` asks with a
   --- one-line prompt.
@@ -113,6 +126,9 @@ M.defaults = {
   --- With `extend_today_until`, record CLOSED and log times before that
   --- hour as 23:59 of the previous day (org-use-effective-time).
   use_effective_time = false,
+  --- CLOSED and log notes of a TODO state change record the last clock-out
+  --- time of the subtree (org-use-last-clock-out-time-as-effective-time).
+  use_last_clock_out_time_as_effective_time = false,
   --- In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands
   --- act on every headline of the selection: `true`, `"start-level"` (only
   --- headlines of the first one's level) or `false`; a match string acts
@@ -126,6 +142,14 @@ M.defaults = {
   priority_highest = "A",
   priority_lowest = "C",
   priority_default = "B",
+  --- `false` disables the priority commands (org-priority-enable-commands).
+  priority_enable_commands = true,
+  --- Shifting a headline without cookie starts at the default priority;
+  --- `false` starts one step past it (org-priority-start-cycle-with-default).
+  priority_start_cycle_with_default = true,
+  --- fn(headline_line) -> number replacing the priority value used for
+  --- sorting (org-priority-get-priority-function); nil uses the cookie.
+  priority_get_priority_function = nil,
   --- Tag groups (`[ GTD : Control Persp ]` in #+TAGS / `tags`) also match
   --- their members in tag searches (org-group-tags); toggled by
   --- `toggle_tags_groups`.
@@ -136,14 +160,31 @@ M.defaults = {
   --- Show the TODO keywords with fast keys in the fast tag selection menu
   --- (org-fast-tag-selection-include-todo).
   fast_tag_selection_include_todo = false,
+  --- Fast tag selection (org-use-fast-tag-selection): `"auto"` when some
+  --- tag has a key, `true` always, `false` never.
+  use_fast_tag_selection = "auto",
+  --- Tags without a key shown by fast selection, counting the tags with
+  --- keys and the tags in groups (org-fast-tag-selection-maximum-tags).
+  fast_tag_selection_maximum_tags = 56,
   --- Tag completion offers the tags of every agenda file instead of the
   --- current buffer's (org-complete-tags-always-offer-all-agenda-tags).
   complete_tags_always_offer_all_agenda_tags = false,
   --- Global tag list offered for completion. Strings may contain fast keys,
   --- e.g. `"work(w)"`, and `"{" ... "}"` for mutually exclusive groups.
   tags = {},
+  --- Tags always available, like `tags` but not replaced by #+TAGS
+  --- (org-tag-persistent-alist); `#+STARTUP: noptag` turns them off.
+  tags_persistent = {},
+  --- Comparator fn(a, b) -> boolean, or a list of them, sorting the tags
+  --- set on a headline (org-tags-sort-function); nil keeps their order.
+  tags_sort_function = nil,
   --- Column tags are aligned to. Negative = right-align to that column.
   tags_column = -77,
+  --- Realign tags after edits (org-auto-align-tags).
+  auto_align_tags = true,
+  --- Toggling ORDERED (C-c C-x o) also toggles a tag: `true` (ORDERED) or
+  --- a tag name (org-track-ordered-property-with-tag).
+  track_ordered_property_with_tag = false,
   --- Tag inheritance (org-use-tag-inheritance): true, false, a list of the
   --- tags that inherit, or a regexp matching them.
   use_tag_inheritance = true,
@@ -156,6 +197,14 @@ M.defaults = {
   property_format = "%-10s %s",
   --- Properties that apply to every entry (e.g. `Effort_ALL`).
   global_properties = {},
+  --- Functions adjusting values set with set_property, by property name:
+  --- `{ Remaining = function(value) return ... end }`
+  --- (org-properties-postprocess-alist).
+  properties_postprocess = {},
+  --- Separators joining `PROP` and `PROP+` values: a list of
+  --- `{ { "NAME", ... } or "regexp", "separator" }`; a space otherwise
+  --- (org-property-separators).
+  property_separators = {},
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},

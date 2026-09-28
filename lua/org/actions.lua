@@ -203,6 +203,12 @@ group("TODO, priority, tags & properties", {
     modes = { "n", "x" },
   },
   todo_without_note = { "org.todo", "todo_without_note", desc = "Change TODO state without a note (C-0 C-c C-t)" },
+  todo_yesterday = {
+    "org.todo",
+    "todo_yesterday",
+    desc = "Change TODO state as if at 23:59 yesterday (org-todo-yesterday)",
+    modes = { "n", "x" },
+  },
   todo_cancel_repeaters = {
     "org.todo",
     "todo_cancel_repeaters",

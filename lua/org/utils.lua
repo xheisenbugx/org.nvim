@@ -168,6 +168,12 @@ function M.input_note(opts)
         finish(nil)
       end,
     })
+    -- org-log-buffer-setup-hook
+    pcall(vim.api.nvim_exec_autocmds, "User", {
+      pattern = "OrgLogBufferSetup",
+      data = { bufnr = buf, purpose = what },
+      modeline = false,
+    })
   end)
 end
 

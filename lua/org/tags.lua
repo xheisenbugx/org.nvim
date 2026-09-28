@@ -22,6 +22,78 @@ function M.parse_input(str)
   return out
 end
 
+--- Is `a` sorted before `b` by `tags_sort_function` (org-tags-sort)? The
+--- option is a comparator `fn(a, b) -> boolean` or a list of them: when a
+--- function finds two tags equal (neither sorts first), the next one
+--- decides. Without the option, tags compare by byte order (org-string<).
+---@param a string
+---@param b string
+---@param fns? (fun(a: string, b: string): boolean)[]
+---@return boolean
+function M.sort_less(a, b, fns)
+  if not fns then
+    local opt = config.opts.tags_sort_function
+    if type(opt) == "function" then
+      fns = { opt }
+    elseif type(opt) == "table" and #opt > 0 then
+      fns = opt
+    else
+      fns = {
+        function(x, y)
+          return x < y
+        end,
+      }
+    end
+  end
+  for _, fn in ipairs(fns) do
+    if fn(a, b) then
+      return true
+    elseif fn(b, a) then
+      return false
+    end
+  end
+  return false
+end
+
+--- `tags` sorted with `tags_sort_function` (a stable sort, like Emacs
+--- `sort`), or unchanged when the option is not set (org-set-tags).
+---@param tags string[]
+---@return string[]
+function M.sort(tags)
+  if not config.opts.tags_sort_function or #tags < 2 then
+    return tags
+  end
+  local out = {}
+  for _, t in ipairs(tags) do
+    local i = #out + 1
+    while i > 1 and M.sort_less(t, out[i - 1]) do
+      i = i - 1
+    end
+    table.insert(out, i, t)
+  end
+  return out
+end
+
+--- Tag definitions of the `tags` and `tags_persistent` options, as
+--- `File:tag_definitions` returns them (when no buffer is at hand).
+---@return { name?: string, key?: string, group?: string }[]
+function M.option_definitions()
+  local defs = {}
+  for _, list in ipairs({ config.opts.tags_persistent or {}, config.opts.tags or {} }) do
+    for _, spec in ipairs(list) do
+      for tok in spec:gmatch("%S+") do
+        if tok:match("^[{}%[%]:]$") or tok == "\\n" then
+          defs[#defs + 1] = { group = tok }
+        else
+          local name, key = tok:match("^([^%(]+)%((.)%)$")
+          defs[#defs + 1] = { name = name or tok, key = key }
+        end
+      end
+    end
+  end
+  return defs
+end
+
 --- Is `name` a regexp member of a tag group (`{P@.+}`)?
 local function is_regexp_tag(name)
   return name:match("^{.*}$") ~= nil
@@ -58,13 +130,7 @@ function M.all_tags(bufnr)
   local defined = false
   local defs = file and file:tag_definitions() or {}
   if not file then
-    for _, spec in ipairs(config.opts.tags or {}) do
-      for tok in spec:gmatch("%S+") do
-        if not tok:match("^[{}%[%]:]$") and tok ~= "\\n" then
-          defs[#defs + 1] = { name = (tok:gsub("%(.%)$", "")) }
-        end
-      end
-    end
+    defs = M.option_definitions()
   end
   for _, d in ipairs(defs) do
     if d.name then
@@ -134,17 +200,7 @@ function M.match_groups()
   if vim.bo[b].filetype == "org" then
     M.groups_from_definitions(files.get_buffer(b):tag_definitions(), groups)
   end
-  local defs = {}
-  for _, spec in ipairs(config.opts.tags or {}) do
-    for tok in spec:gmatch("%S+") do
-      if tok:match("^[{}%[%]:]$") then
-        defs[#defs + 1] = { group = tok }
-      else
-        defs[#defs + 1] = { name = (tok:gsub("%(.%)$", "")) }
-      end
-    end
-  end
-  M.groups_from_definitions(defs, groups)
+  M.groups_from_definitions(M.option_definitions(), groups)
   local ok, list = pcall(files.agenda_files)
   for _, f in ipairs(ok and list or {}) do
     if #f.settings.tags > 0 then
@@ -207,17 +263,29 @@ M.FAST_KEYS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ{|}~"
 --- The fast selection table: entries in display order with their keys.
 --- Tags without a key get one automatically, like Emacs: the first letter
 --- (after a leading `@`) when it is free, else the first free character of
---- `FAST_KEYS`.
+--- `FAST_KEYS`. Tags with a key and tags in groups are always shown; the
+--- others only while fewer than `fast_tag_selection_maximum_tags` tags are
+--- shown (org-fast-tag-selection-maximum-tags).
 ---@return table[] entries, table<string, table> by_key, string[][] groups
 local function fast_table(defs, todo_keys)
   local explicit = {}
+  local left = config.opts.fast_tag_selection_maximum_tags or #M.FAST_KEYS
+  local grouped = false
   for _, d in ipairs(defs) do
-    if d.key then
+    if d.group == "{" or d.group == "[" then
+      grouped = true
+    elseif d.group == "}" or d.group == "]" then
+      grouped = false
+    elseif d.key then
       explicit[d.key] = true
+      left = left - 1
+    elseif d.name and grouped then
+      left = left - 1
     end
   end
   for _, t in ipairs(todo_keys or {}) do
     explicit[t.key] = true
+    left = left - 1
   end
   local used = {}
   local pool = vim.split(M.FAST_KEYS, "")
@@ -244,31 +312,39 @@ local function fast_table(defs, todo_keys)
     elseif d.group then
       entries[#entries + 1] = { newline = true }
     elseif d.name and not is_regexp_tag(d.name) then
-      local key = d.key
-      if not key then
-        local auto = d.name:gsub("^@", ""):sub(1, 1):lower()
-        if auto ~= "" and not used[auto] and not explicit[auto] then
-          key = auto
-        else
-          while pool[1] and (used[pool[1]] or explicit[pool[1]]) do
-            table.remove(pool, 1)
+      local shown = true
+      if not d.key and not in_group and not in_taggroup then
+        left = left - 1
+        shown = left > 0
+      end
+      if shown then
+        local key = d.key
+        if not key then
+          local auto = d.name:gsub("^@", ""):sub(1, 1):lower()
+          if auto ~= "" and not used[auto] and not explicit[auto] then
+            key = auto
+          else
+            while pool[1] and (used[pool[1]] or explicit[pool[1]]) do
+              table.remove(pool, 1)
+            end
+            key = pool[1] or " "
           end
-          key = pool[1] or " "
         end
+        local e = { name = d.name, key = key, group = in_group, in_taggroup = in_taggroup, index = i }
+        if in_group then
+          in_group[#in_group + 1] = d.name
+        end
+        used[key] = true
+        if key ~= " " and not by_key[key] then
+          by_key[key] = e
+        end
+        entries[#entries + 1] = e
       end
-      local e = { name = d.name, key = key, group = in_group, in_taggroup = in_taggroup, index = i }
-      if in_group then
-        in_group[#in_group + 1] = d.name
-      end
-      used[key] = true
-      if key ~= " " and not by_key[key] then
-        by_key[key] = e
-      end
-      entries[#entries + 1] = e
     end
   end
   return entries, by_key, groups
 end
+M._fast_table = fast_table
 
 --- Add or remove a tag; adding a tag of an exclusive group removes the
 --- other tags of that group (org--add-or-remove-tag).
@@ -480,8 +556,10 @@ function M.fast_select(current, defs, inherited, opts)
 end
 
 --- Set tags for a headline (org-set-tags-command). Fast selection is used
---- when some tag has a key (org-use-fast-tag-selection `auto`); with
---- `no_fast`, the tags are typed with completion.
+--- per `use_fast_tag_selection` (org-use-fast-tag-selection): `"auto"` when
+--- some tag has a key, `true` always (over the tags used in the buffer when
+--- none are defined), `false` never; with `no_fast`, the tags are typed with
+--- completion.
 ---@param target? org.Target
 ---@param tags? string[] set directly without prompting
 ---@param no_fast? boolean
@@ -492,13 +570,23 @@ function M.set_tags(target, tags, no_fast)
   end
   if not tags then
     local defs = file:tag_definitions()
-    local has_keys = false
+    local has_keys, has_names = false, false
     for _, d in ipairs(defs) do
       if d.key then
         has_keys = true
       end
+      has_names = has_names or d.name ~= nil
     end
-    if has_keys and not no_fast then
+    local mode = config.opts.use_fast_tag_selection
+    if mode == nil then
+      mode = "auto"
+    end
+    if mode == true and not has_names then
+      defs = vim.tbl_map(function(t)
+        return { name = t }
+      end, M.all_tags(bufnr))
+    end
+    if not no_fast and (mode == true or (mode and has_keys)) then
       local lnum = hl.line
       local todo_keys
       if config.opts.fast_tag_selection_include_todo then
@@ -526,6 +614,7 @@ function M.set_tags(target, tags, no_fast)
     end
     hl = files.get_buffer(bufnr):headline_at(hl.line)
   end
+  tags = M.sort(tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
   return tags
 end
