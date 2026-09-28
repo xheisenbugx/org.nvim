@@ -5022,7 +5022,11 @@ or unreadable local setup files are ignored; lint reports missing paths.
                         list (title "org-lint", entries "checker: message",
                         E for high trust, W for low trust). With checker
                         names (completed), only those run (Emacs C-u C-u).
-                        No default key, as in Emacs.
+                        No default key, as in Emacs. In the location list
+                        window, as in Emacs's report buffer: `h` hides the
+                        reports of the checker under the cursor, `i` also
+                        ignores that checker when refreshing
+                        (org-lint--ignore-checker), `g` lints again.
 
 Lua: `require("org.lint").lint(bufnr, checkers?)` returns the reports
 `{ lnum, col, checker, message, trust }` sorted by position, and
