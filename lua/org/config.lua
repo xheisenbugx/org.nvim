@@ -1665,6 +1665,20 @@ M.defaults = {
     num_format_function = nil,
     --- Dim the whole headline of DONE entries (org-fontify-done-headline).
     fontify_done_headline = true,
+    --- Highlight the text of TODO headlines with OrgHeadlineTodo
+    --- (org-fontify-todo-headline).
+    fontify_todo_headline = false,
+    --- The headline level color on the stars only (org-level-color-stars-only).
+    level_color_stars_only = false,
+    --- Keywords shown without their "#+KEYWORD:" part: any of "title",
+    --- "subtitle", "author", "date", "email" (org-hidden-keywords).
+    hidden_keywords = {},
+    --- Hide the {{{ }}} around macro calls (org-hide-macro-markers).
+    hide_macro_markers = false,
+    --- LaTeX-related syntax highlighted: any of "latex" (fragments and
+    --- environments, OrgLatex), "native" (the same with the tex syntax),
+    --- "script" (sub/superscripts), "entities" (org-highlight-latex-and-related).
+    highlight_latex_and_related = {},
     --- Syntax-include the languages of src blocks for highlighting
     --- (org-src-fontify-natively).
     src_highlight = true,

@@ -552,6 +552,21 @@
 ---Number headlines with virtual text (`#+STARTUP: num` / `nonum`, num_mode).
 ---(Emacs `org-num-mode` / `org-startup-numerated`, default: `false`)
 ---@field num? boolean
+---Highlight the text of TODO headlines (OrgHeadlineTodo).
+---(Emacs `org-fontify-todo-headline`, default: `false`)
+---@field fontify_todo_headline? boolean
+---The headline level color on the stars only.
+---(Emacs `org-level-color-stars-only`, default: `false`)
+---@field level_color_stars_only? boolean
+---Keywords shown without their `#+KEYWORD:` part.
+---(Emacs `org-hidden-keywords`, default: `{}`)
+---@field hidden_keywords? ("title"|"subtitle"|"author"|"date"|"email")[]
+---Hide the `{{{ }}}` around macro calls.
+---(Emacs `org-hide-macro-markers`, default: `false`)
+---@field hide_macro_markers? boolean
+---LaTeX-related syntax highlighted: `"latex"`, `"native"`, `"script"`,
+---`"entities"`. (Emacs `org-highlight-latex-and-related`, default: `{}`)
+---@field highlight_latex_and_related? ("latex"|"native"|"script"|"entities")[]
 ---Deepest numbered level; `nil` = all. (Emacs `org-num-max-level`, default: `nil`)
 ---@field num_max_level? integer
 ---Don't number COMMENT subtrees. (Emacs `org-num-skip-commented`, default: `false`)

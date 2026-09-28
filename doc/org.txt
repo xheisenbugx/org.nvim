@@ -4086,6 +4086,22 @@ Options under `ui`:
                          num_format_function(numbers) -> text follow the
                          org-num options
   fontify_done_headline  dim DONE headlines
+  fontify_todo_headline  highlight the text of TODO headlines with
+                         OrgHeadlineTodo (org-fontify-todo-headline)
+  level_color_stars_only the level color on the stars only
+                         (org-level-color-stars-only)
+  hidden_keywords        keywords shown without their "#+KEYWORD:" part:
+                         { "title", "subtitle", "author", "date", "email" }
+                         (org-hidden-keywords)
+  hide_macro_markers     hide the {{{ }}} of macro calls
+                         (org-hide-macro-markers)
+  highlight_latex_and_related  what LaTeX-related syntax is highlighted
+                         (org-highlight-latex-and-related), none by
+                         default like Emacs: "latex" (fragments $..$,
+                         \(..\), \[..\], $$..$$ and \begin{..}
+                         environments, OrgLatex), "native" (the same with
+                         Vim's tex syntax inside), "script" (x^2, a_{i}),
+                         "entities" (\alpha)
   src_highlight          highlight src blocks with the language syntax
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name

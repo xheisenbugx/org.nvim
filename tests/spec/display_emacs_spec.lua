@@ -559,3 +559,123 @@ describe("indent mode and inline tasks", function()
     eq({ { "   ", "OrgHiddenStars" } }, overlay)
   end)
 end)
+
+-- Faces and invisible text from font-lock-ensure in Emacs 9.8.10 with
+-- each option let-bound (see the comments for what Emacs showed).
+describe("font-lock options", function()
+  local saved_ui
+  before_each(function()
+    saved_ui = vim.deepcopy(config.opts.ui)
+  end)
+  after_each(function()
+    config.opts.ui = saved_ui
+  end)
+
+  --- Syntax group (lower case: group names ignore case) at column `c`.
+  local function syn(l, c)
+    return vim.fn.synIDattr(vim.fn.synID(l, c, 1), "name"):lower()
+  end
+
+  --- Highlight group (after links) at each column of line `l`.
+  local function groups(l)
+    local out = {}
+    for c = 1, #vim.fn.getline(l) do
+      out[#out + 1] = vim.fn.synIDattr(vim.fn.synIDtrans(vim.fn.synID(l, c, 1)), "name")
+    end
+    return out
+  end
+
+  --- The line as shown with 'conceallevel' 2.
+  local function shown(l)
+    local s, line = "", vim.fn.getline(l)
+    for c = 1, #line do
+      if vim.fn.synconcealed(l, c)[1] == 0 then
+        s = s .. line:sub(c, c)
+      end
+    end
+    return s
+  end
+
+  it("hidden_keywords hides #+TITLE: and the like", function()
+    config.opts.ui.hidden_keywords = { "title", "author" }
+    org_buffer({ "#+TITLE: Hello", "#+AUTHOR: Me", "#+DATE: today" })
+    -- Emacs: "#+TITLE:" invisible, the space and the title shown
+    eq(" Hello", shown(1))
+    eq(" Me", shown(2))
+    eq("#+DATE: today", shown(3))
+  end)
+
+  it("hide_macro_markers hides the braces of macros", function()
+    config.opts.ui.hide_macro_markers = true
+    org_buffer({ "a {{{m(1)}}} b" })
+    -- Emacs: {{{ and }}} invisible, all of it org-macro
+    eq("a m(1) b", shown(1))
+    eq("orgmacro", syn(1, 6))
+    config.opts.ui.hide_macro_markers = false
+    org_buffer({ "a {{{m(1)}}} b" })
+    eq("a {{{m(1)}}} b", shown(1))
+  end)
+
+  it("level_color_stars_only colors only the stars", function()
+    config.opts.ui.level_color_stars_only = true
+    org_buffer({ "** TODO Head :t:" })
+    local g = groups(1)
+    local level = vim.fn.synIDattr(vim.fn.synIDtrans(vim.fn.hlID("OrgHeadlineLevel2")), "name")
+    -- Emacs: "** " org-level-2, TODO org-todo, "Head" no face, the tag org-tag
+    eq({ level, level, level }, { g[1], g[2], g[3] })
+    eq("orgtodo", syn(1, 4))
+    ok(g[9] ~= level, "the title has no level color")
+  end)
+
+  it("fontify_todo_headline highlights the text after a TODO keyword", function()
+    config.opts.ui.fontify_todo_headline = true
+    org_buffer({ "* TODO Head x", "* DONE y" })
+    -- Emacs: org-headline-todo from "H" to the end, not on DONE headlines
+    eq("orgheadlinetodo", syn(1, 8))
+    eq("orgheadlinetodo", syn(1, 13))
+    ok(syn(1, 3) ~= "orgheadlinetodo")
+    ok(syn(2, 8) ~= "orgheadlinetodo")
+  end)
+
+  it("highlight_latex_and_related picks what is highlighted", function()
+    local text = { "x $a+b$ \\alpha, y_1" }
+    local function names()
+      local out = {}
+      for c = 1, #text[1] do
+        out[c] = syn(1, c)
+      end
+      return out
+    end
+    -- Emacs: nothing by default
+    config.opts.ui.highlight_latex_and_related = {}
+    org_buffer(text)
+    for _, n in ipairs(names()) do
+      ok(not n:match("^orglatex"), n)
+    end
+    -- latex: $a+b$
+    config.opts.ui.highlight_latex_and_related = { "latex" }
+    org_buffer(text)
+    local n = names()
+    eq({ "orglatex", "orglatex", "", "" }, { n[3], n[7], n[9], n[18] })
+    -- entities: \alpha and the comma after it
+    config.opts.ui.highlight_latex_and_related = { "entities" }
+    org_buffer(text)
+    n = names()
+    eq({ "", "orglatexentity", "orglatexentity", "" }, { n[3], n[9], n[15], n[16] })
+    -- script: _1
+    config.opts.ui.highlight_latex_and_related = { "script" }
+    org_buffer(text)
+    n = names()
+    eq({ "", "orglatexscript", "orglatexscript" }, { n[17], n[18], n[19] })
+  end)
+
+  it("highlight_latex_and_related native uses the tex syntax inside fragments", function()
+    config.opts.ui.highlight_latex_and_related = { "native" }
+    org_buffer({ "see \\(\\frac{a}{b}\\) here" })
+    local stack = vim.tbl_map(function(id)
+      return vim.fn.synIDattr(id, "name"):lower()
+    end, vim.fn.synstack(1, 8))
+    ok(vim.tbl_contains(stack, "orglatex"), vim.inspect(stack))
+    ok(#stack > 1 and stack[#stack]:match("^tex"), vim.inspect(stack))
+  end)
+end)

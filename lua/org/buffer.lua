@@ -35,7 +35,9 @@ function M.attach(bufnr)
   bo.textwidth = bo.textwidth ~= 0 and bo.textwidth or 0
 
   vim.api.nvim_buf_call(bufnr, function()
-    vim.wo.conceallevel = config.opts.ui.conceal_links and 2 or vim.wo.conceallevel
+    local ui = config.opts.ui
+    local hides = ui.conceal_links or ui.hide_macro_markers or #(ui.hidden_keywords or {}) > 0
+    vim.wo.conceallevel = hides and math.max(vim.wo.conceallevel, 2) or vim.wo.conceallevel
     vim.wo.concealcursor = vim.wo.concealcursor == "" and "nc" or vim.wo.concealcursor
   end)
 
