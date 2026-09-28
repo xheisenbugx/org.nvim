@@ -72,6 +72,7 @@ local function insert(active)
     default = default,
     prompt = active and "Timestamp" or "Inactive timestamp",
     with_time = with_time,
+    inactive = not active,
   })
   if not picked or picked.remove then
     return nil

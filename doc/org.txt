@@ -877,7 +877,11 @@ around the title) as six weeks with ISO week numbers, so the days of the
 neighbouring months fill the grid, dimmed. Weekends are tinted, today is
 underlined and the selected day is highlighted. Below the grid are the
 selected date in full, its timestamp and its distance from today ("in 3
-days", "yesterday"), then the keys:
+days", "yesterday"), then the keys. With `display_custom_times = true` the
+timestamp is shown in `time_stamp_custom_formats` (`<09/27/26 Sun>`, `[...]`
+for an inactive timestamp), like the Emacs "=> ..." preview; as in Emacs,
+a buffer's own toggle or `#+STARTUP: customtime` doesn't change it.
+The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1

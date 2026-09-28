@@ -54,6 +54,25 @@ describe("calendar", function()
     )
   end)
 
+  it("previews with the custom formats when display_custom_times is on", function()
+    local config = require("org.config")
+    local saved = { config.opts.display_custom_times, config.opts.time_stamp_custom_formats }
+    config.opts.display_custom_times = true
+    local lines, marks = render("<2026-09-27 Sun>", "<2026-09-27 Sun>")
+    eq({ "<09/27/26 Sun>" }, marked(lines, marks, "OrgCalendarTimestamp"))
+    lines, marks = render("<2026-09-27 Sun 14:00-15:30>", "<2026-09-27 Sun>", { inactive = true })
+    eq({ "[09/27/26 Sun 14:00-15:30]" }, marked(lines, marks, "OrgCalendarTimestamp"))
+    -- brackets in a format are dropped, the prompt's own ones are used
+    config.opts.time_stamp_custom_formats = { "<%A %d %B %Y>", "<%d.%m.%Y %H:%M>" }
+    eq("<Sunday 27 September 2026>", calendar.preview(date.parse("<2026-09-27 Sun>")))
+    eq("[27.09.2026 09:05]", calendar.preview(date.parse("<2026-09-27 Sun 09:05>"), true))
+    -- only the option counts, like the Emacs minibuffer
+    config.opts.display_custom_times = false
+    eq("<2026-09-27 Sun>", calendar.preview(date.parse("<2026-09-27 Sun>")))
+    eq("[2026-09-27 Sun]", calendar.preview(date.parse("<2026-09-27 Sun>"), true))
+    config.opts.display_custom_times, config.opts.time_stamp_custom_formats = saved[1], saved[2]
+  end)
+
   it("lists the remove key only when the date can be removed", function()
     local lines = render("<2026-09-26 Sat>", "<2026-09-26 Sat>")
     ok(not table.concat(lines, "\n"):find("remove", 1, true))
