@@ -310,3 +310,42 @@ describe("calc extensions", function()
     end
   end)
 end)
+
+-- Calc adds floats exactly in decimal and keeps a date's time of day to the
+-- working precision; expected values are Emacs 31 Calc / Org 9.8.10 output.
+describe("calc decimal sums and dates with times", function()
+  it("leaves no binary noise when a float sum cancels", function()
+    eq("0.699306", calc.eval("739890 - 739889.300694"))
+    eq("0.354166", calc.eval("739891.270833 - 739890.916667"))
+    eq("0.3", calc.eval("100.3 - 100"))
+  end)
+
+  it("rounds a time of day to the working precision", function()
+    eq("0.354166", calc.eval("<2026-10-02 Fri 06:30> - <2026-10-01 Thu 22:00>"))
+    eq("8.499984", calc.eval("(<2026-10-02 Fri 06:30> - <2026-10-01 Thu 22:00>)*24"))
+    eq("0.699306", calc.eval("<2026-10-01 Thu 00:00> - <2026-09-30 Wed 07:13>"))
+    eq("7", calc.eval("minute(<2026-10-01 Thu 00:07>)"))
+    eq("28", calc.eval("minute(<2026-10-01 Thu 00:28>)"))
+    eq("22", calc.eval("hour(<2026-10-01 Thu 22:00>)"))
+  end)
+
+  it("keeps the zeros Calc keeps", function()
+    -- a float that rounds to fewer digits for display keeps its zeros in Calc
+    eq("8.5000000", calc.eval("exp(ln(8.5))"))
+    eq("8.500", calc.eval("8.5", { float_format = { "fix", 3 } }))
+  end)
+
+  it("computes time differences in a table like Org", function()
+    local tbl = require("org.table")
+    local input = {
+      "| <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> |  |  |  |  |  |",
+      "#+TBLFM: $3=$2-$1::$4=($2-$1)*24::$5=($2-$1)*1440::$6=($2-$1)*24;%.2f::$7=($2-$1)*1440;%d",
+    }
+    local buf = org_buffer(input, { 1, 0 })
+    tbl.recalc(buf, 1)
+    eq({
+      "| <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> | 0.354166 | 8.499984 | 509.99904 | 8.50 | 509 |",
+      input[2],
+    }, buf_lines(buf))
+  end)
+end)
