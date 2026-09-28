@@ -1,0 +1,120 @@
+.TH "blocks" "3" "" "" 
+.SH "EXAMPLES"
+ex1
+.br
+.RS
+.nf
+a \e backslash
+  indented
+
+.fi
+.RE
+.RS
+.nf
+\fCecho "a\eb" -n
+\fP
+.fi
+.RE
+.PP
+Inline .RS
+.nf
+\fC
+ls -l
+\fP
+.fi
+.RE
+ here.
+\fC
+fixed width
+  line two
+\fP
+q1
+.br
+.RS
+Quoted text.
+
+.RE
+.RS
+.ft I
+Verse line one
+Verse two
+
+.ft
+.RE
+.ce 2
+.nf
+Centered
+text
+
+.fi
+Special block.
+.\" raw man
+.\" keyword
+.PP
+\fBsnippet\fP 
+.SH "TABLES"
+.TS
+ ,box;
+
+l r .
+Name	Value
+_
+a	1.5*10^3
+b	2
+.TE
+.TB ""
+.TS
+ expand,allbox;
+cb|cb|
+r|r|.
+x	y
+1	2
+.TE
+.TB "\fRA caption\fP"
+.TS
+ center,box;
+
+l l .
+T{
+long
+T}	T{
+cells
+T}	
+_
+T{
+c1
+T}	T{
+c2
+T}	
+.TE
+.TB ""
+.nf
+\fC| v | w |
+|---+---|
+| 1 | 2 |\fP
+.fi
+.TS
+ ,box;
+
+l r c .
+_
+left	right	center
+_
+.TE
+.TB ""
+.TS
+ ,box;
+
+l |l l |.
+a	b	c
+.TE
+.TB ""
+.SH "DRAWERS"
+.RS
+.nf
+CUSTOM: val
+EMPTY: 
+
+.fi
+.RE
+Drawer text.

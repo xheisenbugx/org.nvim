@@ -794,6 +794,87 @@
 ---(default: `false`)
 ---@field use_pandoc? boolean
 
+---KOMA-Script letter back-end options (ox-koma-letter).
+---@class org.Config.Export.KomaLetter
+---(`org-koma-letter-default-class`), a class of `export.latex.classes` or
+---"default-koma-letter". (default: `"default-koma-letter"`)
+---@field default_class? string
+---(`org-koma-letter-class-option-file`), also `#+LCO:`. (default: `"NF"`)
+---@field class_option_file? string
+---(`org-koma-letter-author`): a string, a function returning one, or false.
+---(default: `nil` = `export.author` / the user's full name)
+---@field author? string|fun(): string|false
+---(`org-koma-letter-email`): a string, a function returning one, or false.
+---(default: `nil` = `export.email`)
+---@field email? string|fun(): string|false
+---(`org-koma-letter-from-address`), also `#+FROM_ADDRESS:`. (default: `""`)
+---@field from_address? string
+---(`org-koma-letter-phone-number`), also `#+PHONE_NUMBER:`. (default: `""`)
+---@field phone_number? string
+---(`org-koma-letter-url`), also `#+URL:`. (default: `""`)
+---@field url? string
+---(`org-koma-letter-from-logo`), also `#+FROM_LOGO:`. (default: `""`)
+---@field from_logo? string
+---(`org-koma-letter-place`), also `#+PLACE:`. (default: `""`)
+---@field place? string
+---(`org-koma-letter-location`), also `#+LOCATION:`. (default: `""`)
+---@field location? string
+---(`org-koma-letter-opening`), also `#+OPENING:`. (default: `""`)
+---@field opening? string
+---(`org-koma-letter-closing`), also `#+CLOSING:`. (default: `""`)
+---@field closing? string
+---(`org-koma-letter-signature`), also `#+SIGNATURE:`. (default: `""`)
+---@field signature? string
+---(`org-koma-letter-prefer-special-headings`), also `special-headings:`.
+---(default: `false`)
+---@field prefer_special_headings? boolean
+---(`org-koma-letter-subject-format`): true, false or a list of subject
+---options, also `subject:`. (default: `true`)
+---@field subject_format? boolean|string[]
+---(`org-koma-letter-use-backaddress`), also `backaddress:`. (default: `false`)
+---@field use_backaddress? boolean
+---(`org-koma-letter-use-foldmarks`): true, false or a list of marks, also
+---`foldmarks:`. (default: `true`)
+---@field use_foldmarks? boolean|string[]
+---(`org-koma-letter-use-phone`), also `phone:`. (default: `false`)
+---@field use_phone? boolean
+---(`org-koma-letter-use-url`), also `url:`. (default: `false`)
+---@field use_url? boolean
+---(`org-koma-letter-use-from-logo`), also `from-logo:`. (default: `false`)
+---@field use_from_logo? boolean
+---(`org-koma-letter-use-email`), also `email:`. (default: `false`)
+---@field use_email? boolean
+---(`org-koma-letter-use-place`), also `place:`. (default: `true`)
+---@field use_place? boolean
+---(`org-koma-letter-headline-is-opening-maybe`) (default: `true`)
+---@field headline_is_opening_maybe? boolean
+---(`org-koma-letter-prefer-subject`), also `title-subject:`. (default: `false`)
+---@field prefer_subject? boolean
+
+---Man page back-end options (ox-man).
+---@class org.Config.Export.Man
+---(`org-man-tables-centered`) (default: `true`)
+---@field tables_centered? boolean
+---(`org-man-tables-verbatim`) (default: `false`)
+---@field tables_verbatim? boolean
+---(`org-man-table-scientific-notation`), two `%s` for mantissa and exponent,
+---or false. (default: `"%sE%s"`)
+---@field table_scientific_notation? string|false
+---(`org-man-source-highlight`): highlight source blocks with GNU
+---source-highlight. (default: `false`)
+---@field source_highlight? boolean
+---(`org-man-source-highlight-langs`): Org language -> source-highlight
+---language. (default: `nil` = the Emacs map)
+---@field source_highlight_langs? table<string, string>
+---(`org-man-pdf-process`): shell commands with `%f %F %b %o %O`, or a
+---function(file). (default: `nil` = three runs of
+---`tbl %f | eqn | groff -man | ps2pdf - > %b.pdf`)
+---@field pdf_process? string[]|function
+---(`org-man-logfiles-extensions`) (default: `{ "log", "out", "toc" }`)
+---@field logfiles_extensions? string[]
+---(`org-man-remove-logfiles`) (default: `true`)
+---@field remove_logfiles? boolean
+
 ---Markdown back-end options (ox-md).
 ---@class org.Config.Export.Md
 ---(`org-md-headline-style`) (default: `"atx"`)
@@ -1090,6 +1171,8 @@
 ---@field html? org.Config.Export.Html
 ---@field latex? org.Config.Export.Latex
 ---@field texinfo? org.Config.Export.Texinfo
+---@field koma_letter? org.Config.Export.KomaLetter
+---@field man? org.Config.Export.Man
 ---@field md? org.Config.Export.Md
 ---@field org? org.Config.Export.Org
 ---@field beamer? org.Config.Export.Beamer

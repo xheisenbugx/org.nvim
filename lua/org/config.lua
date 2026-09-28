@@ -1417,6 +1417,53 @@ M.defaults = {
       --- Export Texinfo through pandoc instead of the native back-end.
       use_pandoc = false,
     },
+    koma_letter = {
+      default_class = "default-koma-letter", -- org-koma-letter-default-class
+      class_option_file = "NF", -- org-koma-letter-class-option-file (#+LCO)
+      --- org-koma-letter-author: a string, a function returning one, or false
+      --- (nil = export.author / the user's full name)
+      author = nil,
+      --- org-koma-letter-email: a string, a function returning one, or false
+      --- (nil = export.email)
+      email = nil,
+      from_address = "", -- org-koma-letter-from-address
+      phone_number = "", -- org-koma-letter-phone-number
+      url = "", -- org-koma-letter-url
+      from_logo = "", -- org-koma-letter-from-logo
+      place = "", -- org-koma-letter-place
+      location = "", -- org-koma-letter-location
+      opening = "", -- org-koma-letter-opening
+      closing = "", -- org-koma-letter-closing
+      signature = "", -- org-koma-letter-signature
+      prefer_special_headings = false, -- org-koma-letter-prefer-special-headings
+      --- org-koma-letter-subject-format: true, false or a list of
+      --- "afteropening", "beforeopening", "centered", "left", "right",
+      --- "titled", "underlined", "untitled"
+      subject_format = true,
+      use_backaddress = false, -- org-koma-letter-use-backaddress
+      --- org-koma-letter-use-foldmarks: true, false or a list of marks
+      --- ("B", "b", "H", "h", "L", "l", "M", "m", "P", "p", "T", "t", "V", "v")
+      use_foldmarks = true,
+      use_phone = false, -- org-koma-letter-use-phone
+      use_url = false, -- org-koma-letter-use-url
+      use_from_logo = false, -- org-koma-letter-use-from-logo
+      use_email = false, -- org-koma-letter-use-email
+      use_place = true, -- org-koma-letter-use-place
+      headline_is_opening_maybe = true, -- org-koma-letter-headline-is-opening-maybe
+      prefer_subject = false, -- org-koma-letter-prefer-subject
+    },
+    man = {
+      tables_centered = true, -- org-man-tables-centered
+      tables_verbatim = false, -- org-man-tables-verbatim
+      table_scientific_notation = "%sE%s", -- org-man-table-scientific-notation (false = none)
+      source_highlight = false, -- org-man-source-highlight (GNU source-highlight)
+      source_highlight_langs = nil, -- org-man-source-highlight-langs (nil = the Emacs map)
+      --- org-man-pdf-process: shell commands with %f %F %b %o %O, or a
+      --- function(file) (nil = three runs of "tbl %f | eqn | groff -man | ps2pdf - > %b.pdf")
+      pdf_process = nil,
+      logfiles_extensions = { "log", "out", "toc" }, -- org-man-logfiles-extensions
+      remove_logfiles = true, -- org-man-remove-logfiles
+    },
     md = {
       headline_style = "atx", -- org-md-headline-style ("atx", "setext", "mixed")
       toplevel_hlevel = 1, -- org-md-toplevel-hlevel
