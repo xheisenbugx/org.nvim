@@ -94,6 +94,24 @@
 ---Default parameters for clock tables (`org-clocktable-defaults`); block
 ---parameters override them. (default: `{ maxlevel = 2, scope = "file" }`)
 ---@field clocktable_default? org.Config.Clock.ClocktableDefault
+---Parameters written into the header of a new clock table
+---(`org-clock-clocktable-default-properties`). (default: `{ maxlevel = 2 }`)
+---@field clocktable_default_properties? table<string, any>
+---Function writing clock tables instead of the default, receiving
+---`{ { file, time, entries = { { level, headline, tags, timestamp, time, properties } } } }`
+---and the block parameters; returns the lines (`org-clock-clocktable-formatter`).
+---(default: `nil`)
+---@field clocktable_formatter? fun(tables: table[], params: table): string[]|string
+---Format of the total time cells (`org-clock-total-time-cell-format`). (default: `"*%s*"`)
+---@field total_time_cell_format? string
+---Format of the "File time" cells (`org-clock-file-time-cell-format`). (default: `"*%s*"`)
+---@field file_time_cell_format? string
+---Resolve clocks with a prompt, without the help window
+---(`org-clock-resolve-expert`). (default: `false`)
+---@field resolve_expert? boolean
+---Program printing the X11 idle time in milliseconds
+---(`org-clock-x11idle-program-name`). (default: `nil`: xprintidle, else x11idle)
+---@field x11idle_program_name? string
 ---Persist the running clock and clock history across restarts
 ---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
 ---(default: `true`)
@@ -101,6 +119,9 @@
 ---Ask before resuming a clock after a restart
 ---(`org-clock-persist-query-resume`). (default: `true`)
 ---@field persist_query_resume? boolean
+---Ask on exit whether to keep the running clock for the next session
+---(`org-clock-persist-query-save`). (default: `false`)
+---@field persist_query_save? boolean
 ---File where the clock state is persisted (`org-clock-persist-file`).
 ---(default: `stdpath("data") .. "/org/clock.json"`)
 ---@field persist_file? string

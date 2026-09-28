@@ -1013,7 +1013,15 @@ same date again is not logged.
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
                 first headline; update it when on one. With a count,
-                update the first clock table of the buffer.
+                update the first clock table of the buffer. A new block
+                gets `clock.clocktable_default_properties`. The total
+                and file time cells use `clock.total_time_cell_format` /
+                `clock.file_time_cell_format` ("*%s*").
+                `clock.clocktable_formatter` replaces the table writer:
+                `function(tables, params)` gets `{ { file, time, entries
+                = { { level, headline, tags, timestamp, time (minutes),
+                properties } } } }` and the block parameters, and
+                returns the lines of the block (org-clock-clocktable-formatter).
 <C-c><C-c>      On a CLOCK line: recompute its duration.
 <C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
                 the cursor, keeping the duration.
@@ -4567,8 +4575,16 @@ clock ~
   goto_before_context 2, display_default_range "thisyear",
   ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
+  clocktable_default_properties { maxlevel = 2 } (header of a new clock
+  table: `:scope` first, then `:maxlevel`, then the others by name),
+  clocktable_formatter nil (function(tables, params) -> lines, see
+  |org-clocktable|), total_time_cell_format "*%s*",
+  file_time_cell_format "*%s*", resolve_expert false (resolve clocks at
+  a one-line prompt, no help window), x11idle_program_name nil
+  (xprintidle when installed, else x11idle),
   persist false (true | "clock" | "history"), persist_query_resume true,
-  persist_file
+  persist_query_save false (ask on exit whether to keep the running
+  clock for the next session), persist_file
 timer ~    format "%s ", default_timer "0"
 protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
 feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",

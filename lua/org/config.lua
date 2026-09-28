@@ -902,12 +902,34 @@ M.defaults = {
     statusline_icon = "⏱",
     --- Parameters for clocktables that don't set them (org-clocktable-defaults).
     clocktable_default = { maxlevel = 2, scope = "file", block = nil },
+    --- Parameters written into the header of a new clock table
+    --- (org-clock-clocktable-default-properties); `scope` defaults to
+    --- "subtree" on a headline and "file" before the first one.
+    clocktable_default_properties = { maxlevel = 2 },
+    --- function(tables, params) -> string[] writing clock tables instead of
+    --- the default (org-clock-clocktable-formatter); nil = the default.
+    clocktable_formatter = nil,
+    --- Format of the total time cells ("Total time" and its time), and of
+    --- the "File time" cells (org-clock-total-time-cell-format,
+    --- org-clock-file-time-cell-format).
+    total_time_cell_format = "*%s*",
+    file_time_cell_format = "*%s*",
+    --- Resolve clocks without the help window, just a prompt
+    --- (org-clock-resolve-expert).
+    resolve_expert = false,
+    --- Program printing the X11 idle time in milliseconds
+    --- (org-clock-x11idle-program-name); nil = xprintidle when installed,
+    --- else x11idle.
+    x11idle_program_name = nil,
     --- Keep the running clock and the clock history across restarts:
     --- true (both), "clock", "history" or false (org-clock-persist).
     persist = false,
     --- Ask before resuming a saved clock after a restart
     --- (org-clock-persist-query-resume).
     persist_query_resume = true,
+    --- Ask on exit whether to keep the running clock for the next session
+    --- (org-clock-persist-query-save).
+    persist_query_save = false,
     persist_file = data_dir .. "/clock.json",
   },
 
