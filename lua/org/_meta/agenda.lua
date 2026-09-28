@@ -190,7 +190,7 @@
 ---@field deadline_faces? { [1]: number, [2]: string }[]
 ---Highlight group of a day header, or nil for the default
 ---(org-agenda-day-face-function). (default: `nil`)
----@field day_face_function? fun(date: org.Date): string?
+---@field day_face_function? fun(date: table): string?
 ---Remove the date range from the text of block entries
 ---(org-agenda-remove-timeranges-from-blocks). (default: `false`)
 ---@field remove_timeranges_from_blocks? boolean
