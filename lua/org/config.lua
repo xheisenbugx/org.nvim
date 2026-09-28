@@ -1418,6 +1418,19 @@ M.defaults = {
       --- Kitty graphics protocol) | "snacks" (Snacks.image) | "image.nvim" |
       --- false. "auto" uses the first that works.
       backend = "auto",
+      --- Where images go: "inline" draws them in place of the link or
+      --- fragment (its text is hidden until the cursor is on the line, like
+      --- Emacs), "below" under the line with the text left as it is.
+      placement = "inline",
+      --- Links previewed at once; the rest follow in batches every
+      --- `preview_delay` seconds (org-link-preview-batch-size,
+      --- org-link-preview-delay). 0 = all at once.
+      batch_size = 6,
+      preview_delay = 0.05,
+      --- Images of http(s) links (org-display-remote-inline-images): "skip",
+      --- "download" (fetched with curl on every preview) or "cache" (fetched
+      --- once into stdpath("cache"), again on link_preview_refresh).
+      remote = "skip",
       --- Width of images (org-image-actual-width): true = their own size;
       --- a number = that many pixels; false or { n } = the `:width` of
       --- #+ATTR_ORG (else of another #+ATTR_x), else n pixels. `:width`

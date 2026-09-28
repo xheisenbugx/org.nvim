@@ -531,3 +531,287 @@ describe("image backend", function()
     require("org.config").opts.ui.latex_preview.process = saved
   end)
 end)
+
+local nsid = vim.api.nvim_create_namespace("org.images")
+local icfg = require("org.config").opts.ui.images
+
+--- Use the real native backend (only extmarks and the fake vim.ui.img)
+--- and restore `ui.images` after each test. Returns a getter of the fake.
+local function real_native()
+  local img, saved
+  before_each(function()
+    img = fake_img()
+    images._img = img
+    images._backend = images._backends.native
+    saved = vim.deepcopy(icfg)
+    png("cat.png", 400, 200)
+    png("dog.png", 100, 100)
+  end)
+  after_each(function()
+    images.clear(0)
+    images.sync()
+    images._img = nil
+    images._backend = nil
+    for k in pairs(icfg) do
+      icfg[k] = nil
+    end
+    for k, v in pairs(saved) do
+      icfg[k] = v
+    end
+  end)
+  return function()
+    return img
+  end
+end
+
+describe("images in place of the link", function()
+  local get = real_native()
+
+  --- Concealed ranges, blank inline columns and reserved rows of `buf`.
+  local function marks(buf)
+    local out = { conceal = {}, pad = 0, lines = 0 }
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, nsid, 0, -1, { details = true })) do
+      local d = m[4]
+      if d.conceal then
+        out.conceal[#out.conceal + 1] = { m[2], m[3], d.end_col }
+        out.pad = out.pad + vim.fn.strdisplaywidth(d.virt_text[1][1])
+      end
+      out.lines = out.lines + #(d.virt_lines or {})
+    end
+    table.sort(out.conceal, function(a, b)
+      return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2])
+    end)
+    return out
+  end
+
+  --- The images on the screen, left to right.
+  local function live()
+    local out = {}
+    for _, o in pairs(get().live) do
+      out[#out + 1] = o
+    end
+    table.sort(out, function(a, b)
+      return a.row < b.row or (a.row == b.row and a.col < b.col)
+    end)
+    return out
+  end
+
+  it("hides the link and draws the image where it was", function()
+    local buf = file_buffer("inplace.org", { "* Pictures", "[[file:cat.png]]", "after" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    eq(1, images.show_links(buf, 1, 3))
+    -- 40x10 cells: the link's line is the first row, 9 more under it
+    eq({ conceal = { { 1, 0, 16 } }, pad = 40, lines = 9 }, marks(buf))
+    ok(vim.wo.conceallevel >= 2)
+    images.sync()
+    local o = live()[1]
+    local sp = vim.fn.screenpos(0, 2, 1)
+    eq({ sp.row, sp.col, 40, 10 }, { o.row, o.col, o.width, o.height })
+  end)
+
+  it("shows the text again on the cursor line, with the image under it", function()
+    local buf = file_buffer("reveal.org", { "* Pictures", "[[file:dog.png]]", "after" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.show_links(buf, 1, 3)
+    images.sync()
+    local row = live()[1].row
+    vim.api.nvim_win_set_cursor(0, { 2, 3 })
+    images._update_reveal()
+    eq({ conceal = {}, pad = 0, lines = 5 }, marks(buf))
+    images.sync()
+    eq(row + 1, live()[1].row)
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    images._update_reveal()
+    eq({ conceal = { { 1, 0, 16 } }, pad = 10, lines = 4 }, marks(buf))
+    images.sync()
+    eq(row, live()[1].row)
+    -- a preview made on the cursor line starts with its text shown
+    images.clear(buf)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    images.show_links(buf, 2, 2)
+    eq({ conceal = {}, pad = 0, lines = 5 }, marks(buf))
+  end)
+
+  it("puts images of one line side by side, sharing the rows under it", function()
+    local buf = file_buffer("side.org", { "see [[file:dog.png]] and [[file:cat.png]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    eq(2, images.show_links(buf, 1, 2))
+    local m = marks(buf)
+    -- dog is 10x5 cells, cat 40x10
+    eq({ { 0, 4, 20 }, { 0, 25, 41 } }, m.conceal)
+    eq({ 50, 9 }, { m.pad, m.lines })
+    images.sync()
+    local l = live()
+    local y = vim.fn.screenpos(0, 1, 1).row
+    eq({ y, 5 }, { l[1].row, l[1].col })
+    -- "see " + 10 columns of image + " and "
+    eq({ y, 20 }, { l[2].row, l[2].col })
+  end)
+
+  it("fits an image in the columns left after the text before it", function()
+    local buf = file_buffer("narrow.org", { string.rep("x", 60) .. " [[file:cat.png]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    images.show_links(buf, 1, 1)
+    eq(vim.api.nvim_win_get_width(0) - 1 - 61, marks(buf).pad)
+  end)
+
+  it("draws images under the line with placement = below", function()
+    icfg.placement = "below"
+    local buf = file_buffer("below.org", { "* Pictures", "[[file:cat.png]]", "after" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.show_links(buf, 1, 3)
+    eq({ conceal = {}, pad = 0, lines = 10 }, marks(buf))
+    images.sync()
+    eq(vim.fn.screenpos(0, 2, 1).row + 1, live()[1].row)
+  end)
+
+  it("stacks an image under its revealed line after the rows of one in place", function()
+    local buf = file_buffer("mixed.org", { "[[file:dog.png]]", "[[file:cat.png]]" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    images.show_links(buf, 1, 2)
+    images.sync()
+    local l = live()
+    local y1 = vim.fn.screenpos(0, 1, 1).row
+    -- dog in place on line 1 and the 4 rows under it; line 2 then cat
+    eq(y1, l[1].row)
+    eq(y1 + 5, vim.fn.screenpos(0, 2, 1).row)
+    eq(y1 + 6, l[2].row)
+  end)
+
+  it("draws inline LaTeX as tall as the line, in place of the fragment", function()
+    png("f.png", 60, 40)
+    local saved_render = images.render_latex
+    images.render_latex = function(_, _, cb)
+      cb(dir .. "/f.png")
+    end
+    local buf = file_buffer("ltx.org", { "Euler $e$ here", "", "\\[ x \\]", "", "$a +", "b$", "" })
+    vim.api.nvim_win_set_cursor(0, { 7, 0 })
+    images.show_latex(buf, 1, 6)
+    images.render_latex = saved_render
+    local m = marks(buf)
+    -- $e$ scaled to one row (3 columns), \[ x \] its own size (6x2), the
+    -- fragment over two lines under its last line (2 rows)
+    eq({ { 0, 6, 9 }, { 2, 0, 7 } }, m.conceal)
+    eq({ 9, 1 + 2 }, { m.pad, m.lines })
+    images.sync()
+    local l = live()
+    eq({ vim.fn.screenpos(0, 1, 1).row, 7, 3, 1 }, { l[1].row, l[1].col, l[1].width, l[1].height })
+  end)
+
+  it("puts the image after the text shown, not counting concealed link parts", function()
+    local buf = file_buffer("hidden.org", { "[[https://orgmode.org][site]] [[file:dog.png]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    images.show_links(buf, 1, 1)
+    images.sync()
+    local concealed = vim.fn.synconcealed(1, 1)[1] == 1
+    -- only "site " shows before the image
+    eq(concealed and 6 or 31, live()[1].col)
+  end)
+end)
+
+describe("link preview functions", function()
+  local get = real_native()
+
+  it("previews links of a type registered with set_preview", function()
+    local seen
+    images.set_preview("thumb", function(path, ctx)
+      seen = { path, ctx.type, ctx.row, ctx.col }
+      return path == "dog" and dir .. "/dog.png" or nil
+    end)
+    local buf = file_buffer("thumb.org", { "[[thumb:dog]] [[thumb:cat]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    eq(1, images.show_links(buf, 1, 1))
+    eq({ "cat", "thumb", 1, 14 }, seen)
+    images.sync()
+    eq(1, vim.tbl_count(get().live))
+    images.set_preview("thumb", nil)
+  end)
+
+  it("uses a preview function of links.types, possibly later", function()
+    local types = require("org.config").opts.links.types
+    local later
+    types.pic = {
+      preview = function(_, ctx)
+        later = ctx.callback
+        return true
+      end,
+    }
+    local buf = file_buffer("pic.org", { "[[pic:x]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    -- on its way
+    eq(1, images.show_links(buf, 1, 1))
+    images.sync()
+    eq(0, vim.tbl_count(get().live))
+    later(dir .. "/dog.png")
+    vim.wait(20)
+    images.sync()
+    eq(1, vim.tbl_count(get().live))
+    -- cleared while waiting: never shown
+    images.clear(buf)
+    images.show_links(buf, 1, 1)
+    images.clear(buf)
+    later(dir .. "/dog.png")
+    vim.wait(20)
+    images.sync()
+    eq(0, vim.tbl_count(get().live))
+    types.pic = nil
+  end)
+
+  it("downloads remote images with ui.images.remote", function()
+    local fetched = {}
+    local saved_fetch = images._fetch
+    images._fetch = function(url, out, cb)
+      fetched[#fetched + 1] = url
+      vim.uv.fs_copyfile(dir .. "/dog.png", out)
+      cb(true)
+    end
+    local url = "https://example.com/" .. vim.fn.sha256(dir):sub(1, 12) .. "/dog.png"
+    local buf = file_buffer("remote.org", { "[[" .. url .. "]] [[https://example.com/page.html]]", "" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    -- "skip" (the default): not even looked at
+    eq(0, images.show_links(buf, 1, 1))
+    icfg.remote = "cache"
+    eq(1, images.show_links(buf, 1, 1))
+    vim.wait(20)
+    images.sync()
+    eq(1, vim.tbl_count(get().live))
+    eq({ url }, fetched)
+    -- cached: not fetched again, but again on refresh
+    images.show_links(buf, 1, 1)
+    eq(1, #fetched)
+    images.link_preview_refresh()
+    eq(2, #fetched)
+    icfg.remote = "download"
+    images.show_links(buf, 1, 1)
+    eq(3, #fetched)
+    images._fetch = saved_fetch
+  end)
+
+  it("previews links in batches", function()
+    png("s.png", 20, 20)
+    icfg.batch_size = 2
+    icfg.preview_delay = 0.01
+    local lines = {}
+    for i = 1, 5 do
+      lines[i] = "[[file:s.png]]"
+    end
+    lines[6] = ""
+    local buf = file_buffer("batch.org", lines)
+    vim.api.nvim_win_set_cursor(0, { 6, 0 })
+    eq(5, images.show_links(buf, 1, 5))
+    images.sync()
+    eq(2, vim.tbl_count(get().live))
+    vim.wait(500, function()
+      images.sync()
+      return vim.tbl_count(get().live) == 5
+    end)
+    eq(5, vim.tbl_count(get().live))
+    -- clearing drops the links still waiting
+    images.clear(buf)
+    images.show_links(buf, 1, 5)
+    images.clear(buf, 1, 5, "link")
+    vim.wait(100)
+    images.sync()
+    eq(0, vim.tbl_count(get().live))
+  end)
+end)
