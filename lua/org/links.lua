@@ -2690,6 +2690,7 @@ end
 
 M.verbatim_spans = verbatim_spans
 M.real_links = real_links
+M.ignored_lines = ignored_lines
 
 M._search_failed = nil
 

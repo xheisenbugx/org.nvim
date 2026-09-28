@@ -1920,7 +1920,19 @@ ends the match, as in Emacs: "work -boss" is the same as "work" (write
   / r  regexp   t  TODO entries     T  specific keyword
   m  match      M  match, TODO only p  property value
   d  deadlines due or overdue       b  before date
-  a  after date D  between dates    c  clear
+  a  after date D  between dates    c  cycle date types
+  C  clear
+
+The date trees (b, a, D) highlight each timestamp before the date, on or
+after it, or from the first date up to (not including) the second, like
+Emacs. Which timestamps count is the date type shown in the menu's title,
+`sparse_tree_default_date_type` at first (org-sparse-tree-default-date-type);
+`c` cycles it: SCHEDULED/DEADLINE (nil), "all", "scheduled", "deadline",
+"active", "inactive", "closed". The planning types look at the planning
+line; the others at timestamps in the text, not in planning or clock lines,
+property drawers, blocks, comments or verbatim. Subtrees tagged :ARCHIVE:
+stay folded, with their headline visible, unless
+`sparse_tree_open_archived_trees` (org-sparse-tree-open-archived-trees).
 
 <C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
                 With a count, only TODO entries match.

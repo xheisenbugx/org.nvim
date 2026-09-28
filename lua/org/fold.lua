@@ -676,8 +676,8 @@ end
 --- [s, e], so visibility cycling never opens them
 --- (org-cycle-hide-archived-subtrees). Returns true when the headline at
 --- `s` itself is archived.
-local function hide_archived(s, e)
-  if config.opts.cycle_open_archived_trees or M._force_archived then
+local function hide_archived(s, e, always)
+  if not always and (config.opts.cycle_open_archived_trees or M._force_archived) then
     return false
   end
   local self_archived = false
@@ -703,6 +703,12 @@ local has_visibility_property
 
 local function hide_archived_all()
   hide_archived(1, vim.api.nvim_buf_line_count(0))
+end
+
+--- Fold every subtree tagged :ARCHIVE: (org-fold-hide-archived-subtrees),
+--- whatever `cycle_open_archived_trees` says.
+function M.hide_archived_subtrees()
+  hide_archived(1, vim.api.nvim_buf_line_count(0), true)
 end
 
 --- Hide the text of an entry (the lines between its headline and its
