@@ -935,6 +935,14 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+- **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
+  `(and (todo "NEXT") (tags "work"))` or `todo:NEXT tags:work !done`,
+  `:Org ql_search`, named views, `org-ql` agenda custom commands and
+  `#+BEGIN: org-ql` blocks (`:h org-extensions-ql`).
+- **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
+  group agenda days and lists by time grid, deadline, tag, priority,
+  category and more, with auto groups (`:h org-extensions-super-agenda`).
+
 ---
 
 ## 🗺️ Roadmap
