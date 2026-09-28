@@ -854,7 +854,14 @@ local function get_session(bufnr, lang, args, name)
       error("Executable not found: " .. cmd[1], 0)
     end
   end
-  return session_mod.get({ lang = lang, family = fam, name = name, cmd = cmd, cwd = block_cwd(bufnr, args) })
+  return session_mod.get({
+    lang = lang,
+    family = fam,
+    name = name,
+    cmd = cmd,
+    cwd = block_cwd(bufnr, args),
+    explicit = fam == "ruby" and args.ruby ~= nil,
+  })
 end
 
 ---------------------------------------------------------------------------
@@ -999,6 +1006,10 @@ local function run_in_session(bufnr, lang, body, args, vars, name, done, sync, g
       raw = tostring(sres.status or "")
     elseif mode == "value" then
       raw = type(sres.value) == "string" and sres.value or ""
+      if fam == "r" and not langs.scalar_result(args) then
+        -- the value was written as a tab-separated table (ob-R)
+        return { result = lisp.import_table(raw, "tab"), error = sres.error }
+      end
     else
       raw = sres.output or ""
     end

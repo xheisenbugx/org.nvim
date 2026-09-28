@@ -2865,21 +2865,47 @@ lines), lists as tables (with `:results list` as a plain list), `raw`,
 result and stays when the result is replaced.
 
 Sessions ~
-`:session [name]` runs the block in a long-lived interpreter shared by every
-block with the same language and name (no name = `default`), so variables,
-imports, functions and the working directory persist between blocks.
-Supported: shells (sh, bash, zsh, fish), python, js/node, ruby and lua (lua
-sessions keep their globals inside Neovim). Other languages ignore
-`:session` with a warning.
-  - `:results value` is the value of the last expression (python, ruby,
-    js), formatted like Emacs, or the returned value (lua); shells use their
-    output unless `:results value` is explicit, which gives the exit status.
-  - stderr is merged into the output, like an Emacs REPL buffer.
-  - Each session has a transcript buffer (`org-babel-session://lang/name`)
-    showing what ran; type at its prompt to evaluate a line in the session.
-    Wiping that buffer kills the session.
-  - The session starts in the block's `:dir`. A top-level `let`/`const` in
-    a js session becomes `var`, so blocks can be evaluated again.
+`:session [name]` runs the block in a live interpreter (a REPL) shared by
+every block with the same language and name (no name = `default`), so
+variables, imports, functions and the working directory persist between
+blocks, like Emacs' comint sessions. Supported: shells (sh, bash, zsh,
+fish), python, js/node, ruby (irb), R and lua (lua sessions keep their
+globals inside Neovim). Other languages ignore `:session` with a warning.
+  - The REPL runs in a terminal buffer named like Emacs: `*shell*`,
+    `*Python*`, `*ruby*`, `*Javascript REPL*`, `*R*` (`*lua*` for lua)
+    for the default session, `*name*` for `:session name` (a name that
+    already has earmuffs is used as is, so `:session *Python*` is the
+    default python session). <prefix>bz (C-c C-v C-z) shows it; type into
+    it (Insert mode) to use the REPL: what you define there is seen by
+    the next block, and the other way round. A session of another language
+    with the same name gets `*name*<2>`.
+  - Each evaluation is written to a file and the REPL is sent one line
+    that runs it and prints begin / end-of-evaluation markers (like
+    ob-comint's eoe indicator); the result is what the code printed
+    between them. Shells `.` (source) the file, so `cd`, variables and
+    functions stay. python, ruby, node and R define a small helper at
+    start-up that evaluates the file in the REPL's global scope (irb's own
+    binding, so irb locals are shared). A line half-typed at the prompt is
+    discarded (C-u) before a block is sent.
+  - `:results value` is the value of the last expression, formatted like
+    Emacs (python uses ob-python's `__org_babel_python_format_value`;
+    R writes it as a tab-separated table like ob-R), or the returned value
+    (lua); shells use their output unless `:results value` is explicit,
+    which gives the exit status. `:results output` is what the REPL
+    printed, with stderr merged, prompts and the input echo left out.
+  - The session starts in the block's `:dir`. Shells start without their
+    start-up files (bash `--norc`, zsh `-f`, fish `--no-config`) for a
+    predictable prompt; python runs `python3 -i` (your PYTHONSTARTUP is
+    still loaded), ruby runs `irb` next to the configured `ruby` (a `:ruby`
+    header argument is the REPL command itself, like Emacs), js runs a
+    node REPL, R runs `R` next to the configured `Rscript`. A top-level
+    `let`/`const` in a js session becomes `var`, so blocks can be
+    evaluated again.
+  - <prefix>bl (C-c C-v C-l) runs the block in its session and shows it.
+    <prefix>bK kills the session: the interpreter is stopped and its
+    buffer wiped, like killing the session buffer in Emacs; wiping the
+    buffer yourself does the same. When the interpreter exits (`exit()`),
+    the next block starts a new one.
   - Every evaluation runs in the background, so Neovim never blocks (in
     Emacs only `:async` evaluations do); requests to one session run in
     order. Without `:async`, a result is discarded (with a warning) when
@@ -4689,9 +4715,22 @@ Differences from Emacs:
   loop over a Visual selection (Emacs does only with
   `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
   stay on until toggled off.
-- Babel sessions exist for shells, python, js, ruby and lua only, and
-  are not full REPLs: each block runs as one request. Lua blocks run
-  inside Neovim instead of an external `lua`. emacs-lisp blocks and
+- Babel sessions (|org-babel| Sessions) are live REPLs in terminal
+  buffers for shells, python, js/node, ruby (irb) and R; there are no
+  sessions for julia, SQL engines or other languages. Lua blocks run
+  inside Neovim instead of an external `lua` (lua sessions are a Neovim
+  environment with a prompt buffer). Differences from comint: the code
+  of a block reaches the REPL as one line that runs it from a file, not
+  line by line, so the REPL shows that line instead of the code, and a
+  python/node block's intermediate expression values are not echoed
+  (as with python.el's file sending). Shells start without their rc
+  files and a shell session named `x` is the buffer `*x*` (Emacs names
+  it `x`). The R session is a plain `R` console, not ESS (no
+  `ess-ask-for-ess-directory`, graphics devices or `:results output
+  graphics` handling beyond what the code does itself). C-c C-v C-l
+  runs the block in the session; Emacs only inserts it at the prompt.
+  Timeouts (`babel.timeout`) give up on the result but do not interrupt
+  the REPL. emacs-lisp blocks and
   `elisp:` links run in a separate `emacs --batch` process (or, without
   Emacs, on the table formula Lisp interpreter), not in the editor: they
   cannot see or change buffers, and nothing is kept between evaluations.
