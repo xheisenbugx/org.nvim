@@ -199,6 +199,16 @@ describe("display: pretty entities, scripts, numbering", function()
     eq("²|½|α|ᵢ|ⱼ", conceals(rows, 1))
   end)
 
+  it("uses the first entry of a duplicate entity and skips multi-character ones", function()
+    -- org-entity-get is `assoc` (\deg is the degree sign); org-fontify-entities
+    -- only composes entities whose UTF-8 form is one character (\sin stays)
+    local buf = org_buffer({ "#+STARTUP: entitiespretty", "\\deg{} \\sin x \\Pr \\alpha" })
+    local rows = deco.compute(buf)
+    eq("°|α", conceals(rows, 1))
+    eq("°", require("org.entities").utf8("deg"))
+    eq("\\textdegree{}", require("org.entities").by_name.deg[2])
+  end)
+
   it("toggle_pretty_entities switches the buffer", function()
     local buf = org_buffer({ "\\alpha" })
     silence(function()

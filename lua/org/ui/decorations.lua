@@ -394,12 +394,14 @@ function M.compute(bufnr, first, last, ui)
           end
         end
         local after = line:sub(e + 1, e + 1)
-        if sym and not after:match("%a") and not in_ranges(protected, s) then
+        -- only one-character replacements are shown (org-fontify-entities
+        -- skips \sin, \deg-like operators and other multi-character UTF-8)
+        if sym and vim.fn.strchars(sym) == 1 and not after:match("%a") and not in_ranges(protected, s) then
           local stop = e
           if line:sub(e + 1, e + 2) == "{}" then
             stop = e + 2
           end
-          set(row, s - 1, { end_col = stop, conceal = vim.fn.strcharpart(sym, 0, 1) })
+          set(row, s - 1, { end_col = stop, conceal = sym })
         end
         init = e + 1
       end

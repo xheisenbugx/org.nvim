@@ -425,10 +425,14 @@ M.list = {
 }
 -- stylua: ignore end
 
---- name -> { name, latex, math, html, ascii, latin1, utf8 }
+--- name -> { name, latex, math, html, ascii, latin1, utf8 }. The first
+--- entry wins for a duplicate name, like `assoc` in org-entity-get
+--- (\deg is the degree sign, not the math operator listed later).
 M.by_name = {}
 for _, e in ipairs(M.list) do
-  M.by_name[e[1]] = e
+  if not M.by_name[e[1]] then
+    M.by_name[e[1]] = e
+  end
 end
 
 --- The UTF-8 text shown for entity `name` (pretty_entities), or nil.
