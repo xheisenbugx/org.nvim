@@ -2163,9 +2163,19 @@ links and open files in a running Neovim, like Emacs `org-protocol.el`:
       open the local file behind a published URL (`protocol.projects`,
       like org-protocol-project-alist: base_url, working_directory,
       online_suffix, working_suffix, rewrites)
-Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, and
-`protocol.handlers` adds sub-protocols. Call it from Lua with
-`require("org.protocol").handle(url)` or `:Org protocol <url>`.
+Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, their data
+split on `protocol.data_separator` (a Vim regex, `/+` or `?` by default;
+org-protocol-data-separator), and `protocol.handlers` adds sub-protocols.
+Call it from Lua with `require("org.protocol").handle(url)` or
+`:Org protocol <url>`.
+:Org protocol_create    ask for a base URL, working directory and suffixes
+                        and add a `protocol.projects` entry
+                        (org-protocol-create). It lasts for the session;
+                        the Lua to add to your setup() is shown (Emacs
+                        saves it to the custom file).
+:Org protocol_create_for_org
+                        the same with the defaults of the publishing
+                        project of the current file (org-protocol-create-for-org)
 
 Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
 |v:servername|) and the OS must send `org-protocol:` URLs to a handler
@@ -4612,7 +4622,8 @@ clock ~
   persist_query_save false (ask on exit whether to keep the running
   clock for the next session), persist_file
 timer ~    format "%s ", default_timer "0"
-protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
+protocol ~ default_template_key nil, projects {}, handlers {},
+           data_separator [[/\+\|?]] (|org-protocol|)
 feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",
            drawer "FEEDSTATUS", save_after_adding true,
            retrieve_method "curl" (|org-feed|)

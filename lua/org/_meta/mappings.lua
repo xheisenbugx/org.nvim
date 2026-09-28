@@ -181,6 +181,8 @@
 ---| "archive_subtree_default" # Archive with archive_default_command
 ---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
 ---| "capture_string" # Capture a string typed at a prompt
+---| "protocol_create" # Create an org-protocol project
+---| "protocol_create_for_org" # Create an org-protocol project for this file's publishing project
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture

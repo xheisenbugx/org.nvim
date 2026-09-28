@@ -969,6 +969,9 @@ M.defaults = {
     --- Extra sub-protocols (org-protocol-protocol-alist): list of
     --- { protocol = "name", fn = function(params) end, order? = { keys } }.
     handlers = {},
+    --- Vim regex splitting the data of old-style URLs
+    --- (`org-protocol://sub://a/b/c`) (org-protocol-data-separator).
+    data_separator = [[/\+\|?]],
   },
 
   ---------------------------------------------------------------------------

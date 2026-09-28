@@ -183,6 +183,9 @@
 ---@field projects? { base_url: string, working_directory: string, online_suffix?: string, working_suffix?: string, rewrites?: table<string, string> }[]
 ---Extra sub-protocols (`org-protocol-protocol-alist`). (default: `{}`)
 ---@field handlers? org.Config.ProtocolHandler[]
+---Vim regex splitting the data of old-style URLs (`org-protocol-data-separator`).
+---(default: `[[/\+\|?]]`)
+---@field data_separator? string
 
 ---A custom org-protocol sub-protocol.
 ---@class org.Config.ProtocolHandler
