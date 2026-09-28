@@ -2193,6 +2193,35 @@ On macOS register the scheme with a small app bundle (an AppleScript
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
 
+Plain links through tags files                                   *org-ctags*
+Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
+`ctags.enabled = true` (Emacs: org-ctags-enable), a plain link `[[foo]]`
+(also `[[#id]]`, `[[*heading]]`, `[[(ref)]]`) first goes through
+`ctags.open_link_functions`, tried in order until one handles it:
+  "find_tag"            jump to the tag with |:tag| (CTRL-T goes back)
+  "ask_rebuild_tags_file_then_find_tag"   ask, rebuild the tags file,
+                        then look again (also without asking:
+                        "rebuild_tags_file_then_find_tag")
+  "ask_append_topic"    ask, then append a new topic `* <<Foo>>` to the
+                        buffer (`ctags.new_topic_template`, `%t` = the
+                        capitalized name; "append_topic" does not ask)
+  "ask_visit_buffer_or_file" / "visit_buffer_or_file"   visit NAME.org
+                        (asking to create it)
+  "fail_silently"       stop here (no search in the buffer)
+or functions of the link text. When none handles it, the link is searched
+in the buffer as usual. Tags come from Neovim's 'tags' option (by default
+the `tags` file next to the file or above it); Emacs uses `TAGS` files.
+:Org ctags_create_tags  run `ctags.path_to_ctags` (Exuberant or Universal
+                        ctags) on the file's directory, writing its `tags`
+                        file with the Org targets (`ctags.tag_regexp`)
+:Org ctags_find_tag_interactive   choose a tag (completed) and jump to
+                        it; an unknown one goes through the functions
+                        above (org-ctags-find-tag-interactive)
+:Org ctags_find_tag, ctags_get_filename_for_tag, ctags_all_tags,
+ctags_open_file, ctags_visit_buffer_or_file, ctags_append_topic
+                        the other org-ctags commands, asking for their
+                        argument
+
 RSS and Atom feeds                                                *org-feed*
 Items of RSS 2.0 and Atom feeds are added as children of an inbox headline
 (org-feed.el). List the feeds in `feed.feeds` (org-feed-alist): >lua
@@ -4627,6 +4656,10 @@ clock ~
 timer ~    format "%s ", default_timer "0"
 protocol ~ default_template_key nil, projects {}, handlers {},
            data_separator [[/\+\|?]] (|org-protocol|)
+ctags ~    enabled false, path_to_ctags nil, open_link_functions
+           { "find_tag", "ask_rebuild_tags_file_then_find_tag",
+           "ask_append_topic" }, new_topic_template "* <<%t>>\n\n\n\n\n\n",
+           tag_regexp [[/<<([^<>]+)>>/\1/d,definition/]] (|org-ctags|)
 feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",
            drawer "FEEDSTATUS", save_after_adding true,
            retrieve_method "curl" (|org-feed|)

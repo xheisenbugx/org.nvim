@@ -434,6 +434,8 @@
 ---@field timer? org.Config.Timer
 ---org-protocol handling.
 ---@field protocol? org.Config.Protocol
+---Plain links through tags files (`org-ctags`).
+---@field ctags? org.Config.Ctags
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.

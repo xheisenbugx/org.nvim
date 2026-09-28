@@ -979,6 +979,26 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- Plain links through tags files (org-ctags)
+  ---------------------------------------------------------------------------
+  ctags = {
+    --- Look up plain links in the tags files (Emacs: org-ctags-enable).
+    enabled = false,
+    --- The ctags program (org-ctags-path-to-ctags); nil = ctags-exuberant
+    --- when installed, else ctags.
+    path_to_ctags = nil,
+    --- Tried in order for a plain link until one returns true
+    --- (org-ctags-open-link-functions): names from
+    --- `require("org.ctags").link_functions` or function(name).
+    open_link_functions = { "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" },
+    --- Text of a new topic, `%t` = the capitalized title
+    --- (org-ctags-new-topic-template).
+    new_topic_template = "* <<%t>>\n\n\n\n\n\n",
+    --- The --regex-orgmode given to ctags (org-ctags-tag-regexp).
+    tag_regexp = [[/<<([^<>]+)>>/\1/d,definition/]],
+  },
+
+  ---------------------------------------------------------------------------
   -- RSS / Atom feeds (org-feed)
   ---------------------------------------------------------------------------
   feed = {

@@ -181,6 +181,14 @@
 ---| "archive_subtree_default" # Archive with archive_default_command
 ---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
 ---| "capture_string" # Capture a string typed at a prompt
+---| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
+---| "ctags_find_tag" # Jump to a tag
+---| "ctags_create_tags" # Rebuild the tags file of this directory
+---| "ctags_all_tags" # List the tags of the tags files
+---| "ctags_get_filename_for_tag" # Show where a tag is defined
+---| "ctags_open_file" # Open a file and add a new topic
+---| "ctags_visit_buffer_or_file" # Visit NAME.org
+---| "ctags_append_topic" # Append a new topic to the buffer
 ---| "protocol_create" # Create an org-protocol project
 ---| "protocol_create_for_org" # Create an org-protocol project for this file's publishing project
 ---| "refile_cache_clear" # Clear the refile target cache

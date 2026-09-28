@@ -1512,6 +1512,11 @@ function M.open(target, opts)
     return open_file_link(full, search, { bufnr = bufnr, how = how, app = app })
   end
   -- internal links: custom-id, heading, coderef, fuzzy
+  -- org-open-link-functions (org-ctags); `*heading` is a fuzzy path in Emacs
+  local hook_path = t == "heading" and ("*" .. link.path) or link.path
+  if t ~= "radio" and require("org.ctags").open_link(hook_path) then
+    return true
+  end
   if bufnr ~= vim.api.nvim_get_current_buf() and vim.api.nvim_buf_is_valid(bufnr) then
     -- followed from elsewhere (the agenda): search the link's buffer
     visit(nil, how, bufnr)

@@ -197,6 +197,30 @@
 ---@field order? string[]
 
 ---------------------------------------------------------------------------
+-- org-ctags
+---------------------------------------------------------------------------
+
+---Plain links through tags files (`org-ctags`), see `:h org-ctags`.
+---@class org.Config.Ctags
+---Look up plain links that fail in the buffer in the tags files (Emacs:
+---`org-ctags-enable`). (default: `false`)
+---@field enabled? boolean
+---The ctags program (`org-ctags-path-to-ctags`). (default: `nil`: ctags-exuberant
+---when installed, else ctags)
+---@field path_to_ctags? string
+---Tried in order for a plain link, until one returns true
+---(`org-ctags-open-link-functions`): names of `require("org.ctags").link_functions`
+---or functions of the link text.
+---(default: `{ "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" }`)
+---@field open_link_functions? (string|fun(name: string): boolean)[]
+---Text of a new topic, `%t` = the capitalized title (`org-ctags-new-topic-template`).
+---(default: `"* <<%t>>\n\n\n\n\n\n"`)
+---@field new_topic_template? string
+---The `--regex-orgmode` given to ctags (`org-ctags-tag-regexp`).
+---(default: `[[/<<([^<>]+)>>/\1/d,definition/]]`)
+---@field tag_regexp? string
+
+---------------------------------------------------------------------------
 -- RSS / Atom feeds
 ---------------------------------------------------------------------------
 

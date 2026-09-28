@@ -350,6 +350,14 @@ group("Links", {
   id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
   id_copy = { "org.id", "copy", desc = "Copy entry ID" },
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
+  ctags_find_tag_interactive = { "org.ctags", "find_tag_interactive", desc = "Jump to a tag (topic), or create it" },
+  ctags_find_tag = { "org.ctags", "find_tag_prompt", desc = "Jump to a tag" },
+  ctags_create_tags = { "org.ctags", "create_tags", desc = "Rebuild the tags file of this directory" },
+  ctags_all_tags = { "org.ctags", "all_tags_command", desc = "List the tags of the tags files" },
+  ctags_get_filename_for_tag = { "org.ctags", "get_filename_for_tag_prompt", desc = "Show where a tag is defined" },
+  ctags_open_file = { "org.ctags", "open_file_prompt", desc = "Open a file and add a new topic" },
+  ctags_visit_buffer_or_file = { "org.ctags", "visit_buffer_or_file_prompt", desc = "Visit NAME.org" },
+  ctags_append_topic = { "org.ctags", "append_topic_prompt", desc = "Append a new topic to the buffer" },
 })
 
 group("Refile, archive & attach", {
