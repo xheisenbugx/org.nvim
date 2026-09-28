@@ -398,6 +398,12 @@ group("Refile, archive & attach", {
     global = true,
   },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
+  edit_agenda_file_list = {
+    "org.files",
+    "edit_agenda_file_list",
+    desc = "Edit the list of agenda files",
+    global = true,
+  },
 })
 
 group("Search & export", {

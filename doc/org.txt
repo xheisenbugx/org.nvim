@@ -1183,7 +1183,18 @@ Restriction lock (org-agenda-set-restriction-lock):
   <C-c><C-x>>    remove the lock
 Other keys in org buffers:
   <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
+                 (org-agenda-file-to-front, org-remove-file); a count
+                 (C-u) adds or moves it to the end instead of the front
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
+:Org edit_agenda_file_list  edit the list: the list file when
+                 `agenda_files` names one, else a buffer with the list;
+                 `:w` installs it (org-edit-agenda-file-list)
+Like Emacs, these changes are saved: when `agenda_files` is the name of a
+file listing the agenda files, that file is rewritten; otherwise the new
+list (directories and globs expanded to their files) is saved in
+stdpath("data")/org/agenda-files.json and replaces the configured list at
+startup for as long as `agenda_files` in setup() keeps the value it was
+made from (Emacs saves it with Customize).
 
 With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
 agenda is empty, like in Emacs, until files are added with <C-c>[ or the
@@ -4805,7 +4816,7 @@ Links, refile, archive, export:
   <C-c><M-w>  copy to a refile target
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
-  <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-c>[ <C-c>]  add / remove file from agenda files (saved)
   <C-'> <C-,>  next agenda file   <C-c><C-x>< >  set / remove agenda lock
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
   <C-c>\  tags / property match sparse tree
