@@ -720,8 +720,14 @@ function M.expand(text, ctx)
       if parser.headline_level(line) then
         local todo = ctx.target_file and ctx.target_file.settings.todo or nil
         local aligned = edit.align_tags_line(line, todo)
+        -- resume right after the tags: a later %^{...} on the line still prompts
+        local rest = out:sub(i, le)
         out = out:sub(1, ls - 1) .. aligned .. out:sub(le + 1)
-        i = ls + #aligned
+        if rest ~= "" and aligned:sub(-#rest) == rest then
+          i = ls + #aligned - #rest
+        else
+          i = ls + #aligned
+        end
       end
       return out, i
     elseif key == "C" or key == "L" then

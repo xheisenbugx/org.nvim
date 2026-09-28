@@ -468,9 +468,9 @@ default effort) and =work:urgent=.
 : :Effort:   0:30
 : :END:
 
-# Keep %^g last on its line: see the note below.
-Put =%^g= at the end of the headline. A prompt that follows =%^g= on the
-same line is currently left unexpanded in org.nvim.
+Put =%^g= at the end of the headline: tags only count as tags at the end
+of a heading, so text after them keeps them from being aligned or found.
+A prompt that follows =%^g= on the same line is still asked, as in Emacs.
 
 ** Dates, files and links (=ef=)
 The =ef= template shows most non-interactive escapes at once:
