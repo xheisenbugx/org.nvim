@@ -3615,8 +3615,18 @@ HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
               `html5-fancy:t`), default CSS, MathJax, postamble "auto"
               (author, date, creator, validation link), `#+ATTR_HTML`,
               `#+HTML_HEAD`, info.js (`#+INFOJS_OPT`), inline images.
-              Source code is not fontified unless `export.html.fontify`
-              is a function(code, lang).
+              Source code is coloured from its tree-sitter highlights
+              (Emacs uses htmlize): `export.html.htmlize_output_type`
+              "inline-css" (default) puts the colour scheme's colours in
+              style attributes, "css" writes classes named
+              `htmlize_font_prefix` ("org-") + the Emacs face (org-keyword,
+              org-string, org-comment, org-function-name, ...), false
+              leaves the code plain. `:Org html_htmlize_generate_css`
+              (org-html-htmlize-generate-css) shows the stylesheet of
+              those classes in a "*html*" buffer. A language without a
+              tree-sitter parser stays plain, like a language without an
+              Emacs mode. `export.html.fontify`, a function(code, lang),
+              replaces the built-in highlighting.
 LaTeX / PDF   ox-latex: classes (`export.latex.classes`, #+LATEX_CLASS),
               packages, labels, figures and tables with `#+ATTR_LATEX`
               (:width :float :placement :environment :mode :align
@@ -3842,7 +3852,10 @@ Projects are set in `export.publish.projects` (org-publish-project-alist):
 Keys are the Emacs plist properties with `_` for `-`. `publishing_function`
 is "html", "latex", "pdf", "beamer", "md", "gfm", "ascii", "latin1",
 "utf8", "org", "texinfo", "attachment", a Lua function(plist, file,
-pub_dir) or a list.
+pub_dir) or a list. With "org" and `htmlized_source = true`, the source is
+also written as coloured HTML, FILE.org.html, by Neovim's |:TOhtml| (Emacs
+uses htmlize); `export.org.htmlized_css_url` (org-org-htmlized-css-url)
+links that stylesheet instead of embedding the styles.
 `exclude` and `base_extension` are Vim regular expressions matched against
 file names relative to `base_directory`. Other keys (with_toc,
 html_postamble, ...) are export options for the project's files.

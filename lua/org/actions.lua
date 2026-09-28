@@ -388,6 +388,12 @@ group("Search & export", {
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
   export_stack = { "org.export", "stack_show", desc = "Export stack: results of background exports", global = true },
+  html_htmlize_generate_css = {
+    "org.export.html",
+    "htmlize_generate_css",
+    desc = "Stylesheet of the source code highlighting classes (htmlize)",
+    global = true,
+  },
   export_stack_clear = {
     "org.export",
     "stack_clear",

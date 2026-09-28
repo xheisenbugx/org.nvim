@@ -1388,9 +1388,15 @@ M.defaults = {
       --- false leaves the math as text.
       mathjax = true,
       mathjax_options = nil, -- org-html-mathjax-options ({ path = ..., scale = 1.0, ... })
-      --- function(code, lang) -> HTML to highlight source code (Emacs uses
-      --- htmlize; nil = no highlighting).
+      --- function(code, lang) -> HTML to highlight source code, used instead
+      --- of the built-in highlighting (plugin option).
       fontify = nil,
+      --- org-html-htmlize-output-type: how source code is coloured from its
+      --- tree-sitter highlights (Emacs uses htmlize): "inline-css" (style
+      --- attributes with the colour scheme's colours), "css" (classes, see
+      --- :Org html_htmlize_generate_css) or false (plain text).
+      htmlize_output_type = "inline-css",
+      htmlize_font_prefix = "org-", -- org-html-htmlize-font-prefix (CSS class prefix)
       allow_name_attribute_in_anchors = false, -- org-html-allow-name-attribute-in-anchors
       coding_system = "utf-8", -- org-html-coding-system (charset of the <meta> and XML declaration)
       datetime_formats = { "%F", "%FT%T" }, -- org-html-datetime-formats ({ date, date and time })
@@ -1529,6 +1535,9 @@ M.defaults = {
     },
     org = {
       with_special_rows = true, -- org-org-with-special-rows
+      --- org-org-htmlized-css-url: stylesheet linked instead of the embedded
+      --- one in FILE.org.html of `htmlized_source` publishing.
+      htmlized_css_url = nil,
     },
     beamer = {
       frame_level = 1, -- org-beamer-frame-level

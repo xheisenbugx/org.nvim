@@ -684,9 +684,16 @@
 ---@field mathjax? boolean
 ---(`org-html-mathjax-options`) (default: Emacs value)
 ---@field mathjax_options? table
----Highlight source code (Emacs uses htmlize): `function(code, lang)`
----returning HTML. (default: `nil`)
+---Highlight source code with your own `function(code, lang)` returning
+---HTML, instead of the built-in highlighting. (default: `nil`)
 ---@field fontify? fun(code: string, lang: string): string
+---How source code is coloured from its tree-sitter highlights
+---(`org-html-htmlize-output-type`; Emacs uses htmlize): `"inline-css"` (style
+---attributes), `"css"` (classes) or `false` (plain). (default: `"inline-css"`)
+---@field htmlize_output_type? "inline-css"|"css"|false
+---CSS class prefix of `"css"` highlighting (`org-html-htmlize-font-prefix`).
+---(default: `"org-"`)
+---@field htmlize_font_prefix? string
 ---(`org-html-allow-name-attribute-in-anchors`) (default: `false`)
 ---@field allow_name_attribute_in_anchors? boolean
 ---(`org-html-coding-system`) (default: `"utf-8"`)
@@ -938,6 +945,9 @@
 ---@class org.Config.Export.Org
 ---(`org-org-with-special-rows`) (default: `true`)
 ---@field with_special_rows? boolean
+---Stylesheet linked instead of the embedded one in the `FILE.org.html` of
+---`htmlized_source` publishing (`org-org-htmlized-css-url`). (default: `nil`)
+---@field htmlized_css_url? string
 
 ---Beamer back-end options (ox-beamer).
 ---@class org.Config.Export.Beamer
