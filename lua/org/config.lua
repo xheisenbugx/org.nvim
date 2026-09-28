@@ -1285,6 +1285,11 @@ M.defaults = {
       clojure = { ext = "clj", default_ns = "user" }, -- default_ns: org-babel-clojure-default-ns
       -- backend (org-babel-clojurescript-backend): nil is nbb when installed
       clojurescript = { ext = "cljs" },
+      -- org-babel-csharp-*: compiler; default_target_framework (nil: "netN.0"
+      -- of the newest SDK); additional_project_flags (XML); functions
+      -- generate_compile_command(project, bin_dir) and
+      -- generate_restore_command(project) returning shell commands
+      csharp = { ext = "cs", compiler = "dotnet" },
       fortran = { cmd = "gfortran", ext = "F90" }, -- cmd: org-babel-fortran-compiler
       java = {
         default_header_args = { results = "output", dir = "." },

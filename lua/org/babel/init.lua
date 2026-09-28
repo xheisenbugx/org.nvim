@@ -1060,11 +1060,15 @@ local function run_steps(spec, cwd, sync, cb)
   local function sys_opts(step)
     return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = { PWD = cwd } }
   end
-  local function handle(obj)
+  local function handle(obj, step)
     local stderr = obj.stderr or ""
     local code = obj.code
     if obj.signal and obj.signal ~= 0 and code == 0 then
       code = 128 + obj.signal
+    end
+    if step and step.after then
+      -- a look at the step's output (ob-csharp checks the build log)
+      step.after(obj)
     end
     if code ~= 0 or stderr ~= "" then
       failed = true
@@ -1096,7 +1100,7 @@ local function run_steps(spec, cwd, sync, cb)
         M.error_notify(nil, tostring(obj))
         return cb(nil, true)
       end
-      handle(obj)
+      handle(obj, step)
     end
     return cb(outs[#outs] or "", failed)
   end
@@ -1107,12 +1111,12 @@ local function run_steps(spec, cwd, sync, cb)
       return cb(outs[#outs] or "", failed)
     end
     if step.fn then
-      handle(run_fn(step))
+      handle(run_fn(step), step)
       return nxt()
     end
     local ok, err = pcall(vim.system, argv(step), sys_opts(step), function(obj)
       vim.schedule(function()
-        handle(obj)
+        handle(obj, step)
         nxt()
       end)
     end)
