@@ -1,0 +1,17 @@
+#+OPTIONS: toc:nil tex:t
+* Math
+Inline $a+b$ here.
+
+$x^2$
+
+#+CAPTION: Energy
+#+NAME: eq:e
+\begin{equation}
+E = mc^2
+\end{equation}
+
+\begin{equation}
+F = ma
+\end{equation}
+
+See [[eq:e]].

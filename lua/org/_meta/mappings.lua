@@ -104,6 +104,8 @@
 ---| "emphasize" # Emphasize selection / insert markers
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
+---| "feed_goto_inbox" # Go to the inbox of a feed
+---| "feed_update_all" # Update all RSS/Atom feeds
 ---| "force_cycle_archived" # Cycle subtree, even when archived
 ---| "forward_element" # Next element
 ---| "global_cycle" # Cycle global visibility
@@ -803,6 +805,10 @@
 ---@field timer_item? org.MappingLhs
 --- Start countdown timer. Default: `<C-c><C-x>;`
 ---@field timer_countdown? org.MappingLhs
+--- Update all RSS/Atom feeds. Default: `<C-c><C-x>g`
+---@field feed_update_all? org.MappingLhs
+--- Go to the inbox of a feed. Default: `<C-c><C-x>G`
+---@field feed_goto_inbox? org.MappingLhs
 --- Insert link. Default: `<C-c><C-l>`
 ---@field insert_link? org.MappingLhs
 --- Open link at point / entry links. Default: `<C-c><C-o>`
@@ -973,6 +979,14 @@
 ---@field columns? org.MappingLhs
 --- Pick a date in the calendar and go there. Default: `c`
 ---@field calendar? org.MappingLhs
+--- The date at point in other calendars (org-agenda-convert-date). Default: `gC`
+---@field convert_date? org.MappingLhs
+--- Phases of the moon around the date at point (org-agenda-phases-of-moon). Default: `M`
+---@field phases_of_moon? org.MappingLhs
+--- Sunrise and sunset on the date at point (org-agenda-sunrise-sunset). Default: `S`
+---@field sunrise_sunset? org.MappingLhs
+--- Holidays around the date at point (org-agenda-holidays). Default: `H`
+---@field holidays? org.MappingLhs
 --- Go forward one span (day/week/...; count: that many). Default: `f`
 ---@field later? org.MappingLhs
 --- Go back one span (day/week/...; count: that many). Default: `b`
@@ -1144,6 +1158,13 @@
 ---@field export? org.MappingLhs
 --- Show the agenda keymaps. Default: `g?`
 ---@field help? org.MappingLhs
+--- Show the MobileOrg flagging note of the entry; again to unflag it
+--- (org-agenda-show-the-flagging-note). Default: `?`
+---@field show_flagging_note? org.MappingLhs
+--- Pull from the mobile application (org-mobile-pull). Default: `<C-c><C-x><CR>g`
+---@field mobile_pull? org.MappingLhs
+--- Stage files for the mobile application (org-mobile-push). Default: `<C-c><C-x><CR>p`
+---@field mobile_push? org.MappingLhs
 
 --- Keys in the capture buffer (normal mode).
 ---@class org.Config.Mappings.Capture

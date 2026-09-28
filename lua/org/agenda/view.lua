@@ -181,22 +181,40 @@ function M.top_key(it)
 end
 
 --- Test of one tag filter element ("+tag", "-tag", "+" = any tag,
---- "+{regexp}") (org-agenda-filter-make-matcher-tag-exp).
-local function tag_element(x, tags)
+--- "+{regexp}") (org-agenda-filter-make-matcher-tag-exp). With `groups`
+--- (group_tags on), a group tag stands for itself and its members
+--- (org-agenda-filter-expand-tags): "+Group" needs any of them, "-Group"
+--- none.
+local function any_regexp(re_src, tags)
+  local ok, re = pcall(require("org.agenda.search").compile_emacs_regexp, re_src)
+  if ok then
+    for _, t in ipairs(tags) do
+      if re:match_str(t) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function tag_element(x, tags, groups)
   local op, tag = x:sub(1, 1), x:sub(2)
   local r
+  local group = groups and tag ~= "" and not tag:match("^{.*}$") and require("org.tags").expand_group(tag, groups)
   if tag == "" then
     r = #tags > 0
   elseif tag:match("^{.*}$") then
+    r = any_regexp(tag:sub(2, -2), tags)
+  elseif group then
     r = false
-    local ok, re = pcall(require("org.agenda.search").compile_emacs_regexp, tag:sub(2, -2))
-    if ok then
-      for _, t in ipairs(tags) do
-        if re:match_str(t) then
-          r = true
-          break
-        end
+    for _, t in ipairs(tags) do
+      if group.names[t] then
+        r = true
+        break
       end
+    end
+    for _, re in ipairs(group.regexps) do
+      r = r or any_regexp(re, tags)
     end
   else
     r = vim.tbl_contains(tags, tag)
@@ -244,10 +262,14 @@ local function item_filter()
     local op, v = x:sub(2, 2), x:sub(3)
     efs[#efs + 1] = { neg = x:sub(1, 1) == "-", op = op, minutes = date.parse_duration(v) or tonumber(v) or 0 }
   end
+  local groups = #tag > 0 and require("org.tags").match_groups() or nil
+  if groups and vim.tbl_isempty(groups) then
+    groups = nil
+  end
   return function(it)
     local tags = it.tags or {}
     for _, x in ipairs(tag) do
-      if not tag_element(x, tags) then
+      if not tag_element(x, tags, groups) then
         return false
       end
     end
@@ -1118,6 +1140,11 @@ local function on_item(fn)
       utils.warn("No agenda entry on this line")
       return
     end
+    if not item.headline then
+      -- a %%(sexp) line before the first heading (Emacs: org-back-to-heading)
+      utils.error("Before first headline at line " .. item.lnum)
+      return
+    end
     local target = M.resolve_target(item)
     if not target then
       return
@@ -1318,6 +1345,21 @@ local function all_tags_in_view()
   return out
 end
 
+--- Tags offered by the tag filter: the view's and, with group_tags, the
+--- group tags (which filter for their members, org-agenda-filter-expand-tags).
+local function filter_tag_names()
+  local set = {}
+  for _, t in ipairs(all_tags_in_view()) do
+    set[t] = true
+  end
+  for g in pairs(require("org.tags").match_groups() or {}) do
+    set[g] = true
+  end
+  local out = vim.tbl_keys(set)
+  table.sort(out)
+  return out
+end
+
 local function all_categories_in_view()
   local set = {}
   for _, it in pairs(S.line_items) do
@@ -1348,7 +1390,8 @@ local function bulk(fn, persistent)
   local bufs = {}
   local n = 0
   for _, item in ipairs(list) do
-    local target = M.resolve_target(item)
+    -- a %%(sexp) line before the first heading has no entry to act on
+    local target = item.headline and M.resolve_target(item)
     if target then
       fn(target, item)
       bufs[target.bufnr] = true
@@ -1529,7 +1572,7 @@ end
 --- filter lists. Tags win over categories.
 function M.parse_filter(s, negate)
   local tags, cats = {}, {}
-  for _, t in ipairs(all_tags_in_view()) do
+  for _, t in ipairs(filter_tag_names()) do
     tags[t] = true
   end
   for _, c in ipairs(all_categories_in_view()) do
@@ -1662,7 +1705,7 @@ function M.filter_by_tag(count)
       M.redo()
       return
     elseif ch == "\t" then
-      tag = utils.input_complete("Tag: ", all_tags_in_view())
+      tag = utils.input_complete("Tag: ", filter_tag_names())
       if not tag or tag == "" then
         return
       end
@@ -2142,6 +2185,18 @@ M.actions = {
     if d then
       M.goto_date(d:days())
     end
+  end,
+  convert_date = function()
+    M.convert_date()
+  end,
+  phases_of_moon = function()
+    M.phases_of_moon()
+  end,
+  sunrise_sunset = function()
+    M.sunrise_sunset(vim.v.count > 0)
+  end,
+  holidays = function()
+    M.holidays()
   end,
   day_view = function()
     set_span("day")
@@ -2662,7 +2717,122 @@ M.actions = {
   help = function()
     require("org.mappings").show_help()
   end,
+  -- MobileOrg (org-agenda-show-the-flagging-note, org-mobile-pull/push)
+  show_flagging_note = function()
+    call("org.mobile", "show_flagging_note")
+  end,
+  mobile_pull = function()
+    if call("org.mobile", "pull") then
+      M.redo()
+    end
+  end,
+  mobile_push = function()
+    call("org.mobile", "push")
+    M.redo()
+  end,
 }
+
+---------------------------------------------------------------------------
+-- Calendar commands on the date at point (org-agenda-convert-date, ...)
+---------------------------------------------------------------------------
+
+--- The Emacs absolute date of the day at point, or nil after an error
+--- `msg` (org-agenda-execute-calendar-command needs a `day` property).
+local function calendar_abs(msg)
+  local day = M.day_at_cursor()
+  if not day then
+    utils.error(msg or "Don't know which date to use for the calendar command")
+    return nil
+  end
+  return day + require("org.agenda.calendars").EPOCH_ABS
+end
+
+--- Show `lines` in a float closed by q / <Esc> (Emacs's temporary buffer).
+local function show_calendar_text(title, lines)
+  local buf, win = require("org.ui").float(lines, { title = title })
+  for _, k in ipairs({ "q", "<Esc>" }) do
+    vim.keymap.set("n", k, function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+    end, { buffer = buf, nowait = true })
+  end
+  return buf, win
+end
+
+--- The date at point in other calendars (org-agenda-convert-date).
+function M.convert_date()
+  local abs = calendar_abs("Don't know which date to convert")
+  if abs then
+    return show_calendar_text("Dates", require("org.agenda.calendars").convert_lines(abs))
+  end
+end
+
+--- The quarters of the moon in the three months around the date at point
+--- (org-agenda-phases-of-moon).
+function M.phases_of_moon()
+  local abs = calendar_abs()
+  if abs then
+    local title, lines = require("org.agenda.calendars").phases_lines(abs)
+    return show_calendar_text(title, lines)
+  end
+end
+
+--- The holidays of the three months around the date at point
+--- (org-agenda-holidays).
+function M.holidays()
+  local abs = calendar_abs()
+  if not abs then
+    return
+  end
+  local title, lines = require("org.agenda.calendars").holidays_lines(abs)
+  if #lines == 0 then
+    utils.notify("Looking up holidays...none found")
+    return
+  end
+  return show_calendar_text(title, lines)
+end
+
+--- Read a number of degrees (solar-get-number), nil when cancelled.
+local function read_degrees(prompt)
+  local s = utils.input({ prompt = prompt })
+  return s and tonumber(s)
+end
+
+--- Sunrise and sunset on the date at point (org-agenda-sunrise-sunset).
+--- The location is `agenda.calendar_latitude/longitude`; it is asked for
+--- when unset or with `ask` (a count, Emacs's prefix argument).
+---@param ask? boolean
+---@return string? message
+function M.sunrise_sunset(ask)
+  local abs = calendar_abs()
+  if not abs then
+    return
+  end
+  local ac = config.opts.agenda
+  local lat, lon, name = ac.calendar_latitude, ac.calendar_longitude, ac.calendar_location_name
+  if ask then
+    lat, lon, name = nil, nil, "the given coordinates"
+  end
+  -- solar-setup: answers without a count are kept for the session
+  lon = lon or read_degrees("Enter longitude (decimal fraction; + east, - west): ")
+  if not lon then
+    return
+  end
+  lat = lat or read_degrees("Enter latitude (decimal fraction; + north, - south): ")
+  if not lat then
+    return
+  end
+  if not ask then
+    ac.calendar_latitude, ac.calendar_longitude = lat, lon
+  end
+  local cal = require("org.agenda.calendars")
+  local msg = cal.gregorian_string(abs, true, true)
+    .. ": "
+    .. cal.sunrise_sunset_string(abs, lat, lon, { location = name })
+  utils.notify(msg)
+  return msg
+end
 
 --- Show day `day` (a day number) in the agenda (org-agenda-goto-date).
 function M.goto_date(day)

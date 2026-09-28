@@ -3947,52 +3947,9 @@ C["obsolete-properties-drawer"] = function(doc)
   return out
 end
 
+--- org-duration-p, with the units of `duration_units`.
 local function duration_p(s)
-  local units = { "min", "h", "d", "w", "m", "y" }
-  local function unit_prefix(str, p)
-    local n = str:match("^%d+%.?%d*", p)
-    if not n then
-      return nil
-    end
-    local q = p + #n
-    q = q + #str:match("^[ \t]*", q)
-    local best
-    for _, u in ipairs(units) do
-      if str:sub(q, q + #u - 1) == u and (not best or #u > #best) then
-        best = u
-      end
-    end
-    if not best then
-      return nil
-    end
-    return q + #best
-  end
-  -- full: (?:[ \t]*UNIT)+[ \t]*
-  local function units_run(str, p)
-    local q = p
-    local count = 0
-    while true do
-      local ws = str:match("^[ \t]*", q)
-      local nq = unit_prefix(str, q + #ws)
-      if not nq then
-        break
-      end
-      q = nq
-      count = count + 1
-    end
-    return count > 0 and q or nil
-  end
-  local q = units_run(s, 1)
-  if q and s:sub(q):match("^[ \t]*$") then
-    return true
-  end
-  if q then
-    local rest = s:sub(q):match("^[ \t]*(.*)$")
-    if rest:match("^%d+:%d%d[ \t]*$") or rest:match("^%d+:%d%d:%d%d[ \t]*$") then
-      return true
-    end
-  end
-  return s:match("^[ \t]*%d+:%d%d[ \t]*$") ~= nil or s:match("^[ \t]*%d+:%d%d:%d%d[ \t]*$") ~= nil
+  return require("org.duration").p(s)
 end
 M._duration_p = duration_p
 

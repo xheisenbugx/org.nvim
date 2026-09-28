@@ -229,7 +229,7 @@ end)
 
 describe("column scope regressions", function()
   local function widen()
-    columns.open()
+    columns.open({ view = "table" })
     vim.api.nvim_feedkeys(vim.keycode(":3<CR>0>"), "xt", false)
     vim.api.nvim_win_close(0, true)
   end
@@ -294,7 +294,7 @@ describe("column scope regressions", function()
       ":Cost: 3",
       ":END:",
     }, { 2, 0 })
-    columns.open()
+    columns.open({ view = "table" })
     local output = buf_lines()
     vim.api.nvim_win_close(0, true)
     eq("2", files.get_buffer(buf).headlines[1].properties.COST)
@@ -308,7 +308,7 @@ describe("column scope regressions", function()
     vim.fn.writefile({ "#+COLUMNS: %ITEM %Shared" }, dir .. "/shared.setup")
     local buf = org_buffer({ "#+SETUPFILE: shared.setup", "#+COLUMNS: %ITEM %Local", "* Task" }, { 3, 0 })
     vim.api.nvim_buf_set_name(buf, dir .. "/tasks.org")
-    columns.open()
+    columns.open({ view = "table" })
     local header = buf_lines()[1]
     vim.api.nvim_win_close(0, true)
     widen()
@@ -333,7 +333,7 @@ describe("column scope regressions", function()
     require("org.utils").input = function()
       return "a b c"
     end
-    columns.open()
+    columns.open({ view = "table" })
     vim.api.nvim_feedkeys(vim.keycode(":3<CR>$a"), "xt", false)
     vim.api.nvim_win_close(0, true)
     require("org.utils").input = input
@@ -343,7 +343,7 @@ describe("column scope regressions", function()
 
   it("skips an empty COLUMNS keyword instead of crashing", function()
     org_buffer({ "#+COLUMNS:", "#+COLUMNS: %ITEM %Foo", "* TODO h" }, { 3, 0 })
-    eq(true, columns.open())
+    eq(true, columns.open({ view = "table" }))
     local header = buf_lines()[1]
     vim.api.nvim_win_close(0, true)
     ok(header:find("Foo", 1, true), header)
@@ -351,7 +351,7 @@ describe("column scope regressions", function()
 
   it("shows the whole file with a count, like C-u in Emacs", function()
     org_buffer({ "#+COLUMNS: %ITEM", "* Project", "** A", "* Other" }, { 2, 0 })
-    columns.open({ global = true })
+    columns.open({ global = true, view = "table" })
     local output = table.concat(buf_lines(), "\n")
     vim.api.nvim_win_close(0, true)
     ok(output:find("Other", 1, true), output)

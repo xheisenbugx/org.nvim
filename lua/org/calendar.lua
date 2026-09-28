@@ -226,6 +226,10 @@ function M.pick(opts)
     if r > 1 then
       now = now:add(math.floor(now.min / r + 0.5) * r - now.min, "min")
     end
+    if not opts.default and now.hour < (tonumber(require("org.config").opts.extend_today_until) or 0) then
+      -- still yesterday (org-read-date): its last minute
+      now = now:clone({ hour = 23, min = 59 })
+    end
     sel.hour, sel.min = now.hour, now.min
   end
   -- one window for the whole session: redrawn in place on every key

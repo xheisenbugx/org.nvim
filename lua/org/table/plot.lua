@@ -6,8 +6,9 @@
 --- - `gnuplot()` (C-c " g, or C-c C-c on a `#+PLOT:` line) plots the
 ---   table with gnuplot (`plot_gnuplot_program`), using the `#+PLOT:`
 ---   options above it: title, ind, deps, type (2d, 3d, grid), with, file,
----   labels, line, set, map, script, timefmt, transpose. The radar type of
----   Emacs is not supported.
+---   labels, line, set, map, script, timefmt, transpose, and for the radar
+---   type (a spider chart; the first column names the axes) min, max and
+---   ticks.
 
 local utils = require("org.utils")
 
@@ -256,6 +257,351 @@ function M.grid_data(rows, opts)
   return table.concat(out), ylabels
 end
 
+---------------------------------------------------------------------------
+-- Radar plots (org--plot/radar)
+---------------------------------------------------------------------------
+
+--- `format "%s"` of an Emacs number.
+local function num_str(v)
+  if type(v) == "number" and v == math.floor(v) then
+    return string.format("%d", v)
+  end
+  return tostring(v)
+end
+
+--- An Emacs float printed like `format "%s"` (`2.0`, `0.5`).
+local function float_str(x)
+  return require("org.babel.lisp").float_str(x)
+end
+
+--- Emacs string-to-number of a cell (an integer or a float).
+local function cell_number(s)
+  local n = require("org.table.formula").string_to_number(s or "")
+  return n or 0
+end
+
+--- Rounding half to even, like Emacs `round` on floats.
+local function round_even(x)
+  local f = math.floor(x)
+  local d = x - f
+  if d > 0.5 or (d == 0.5 and f % 2 == 1) then
+    return f + 1
+  end
+  return f
+end
+
+--- org--plot/values-stats: min, max and "nice" ends of the numbers.
+local function values_stats(nums, hard_min, hard_max)
+  local minimum, maximum = hard_min, hard_max
+  if not minimum then
+    minimum = math.huge
+    for _, n in ipairs(nums) do
+      minimum = math.min(minimum, n)
+    end
+  end
+  if not maximum then
+    maximum = -math.huge
+    for _, n in ipairs(nums) do
+      maximum = math.max(maximum, n)
+    end
+  end
+  local range = maximum - minimum
+  local order = range == 0 and 0 or math.ceil(1 - math.log10(range))
+  local factor = 10 ^ order
+  local nice_min, nice_max
+  if range == 0 then
+    nice_min, nice_max = nums[1], nums[1]
+  else
+    nice_min = { float = math.floor(minimum * factor) / factor }
+    nice_max = { float = math.ceil(maximum * factor) / factor }
+  end
+  local function value(v)
+    return type(v) == "table" and v.float or v
+  end
+  return {
+    range_factor = factor,
+    nice_min = nice_min,
+    nice_max = nice_max,
+    nice_range = value(nice_max) - value(nice_min),
+  }
+end
+
+--- org--plot/prime-factors: the prime factors, largest first.
+local function prime_factors(value)
+  local factors, i = {}, 1
+  while value > 1 do
+    i = i + 1
+    if value % i == 0 then
+      table.insert(factors, 1, i)
+      value = value / i
+      i = i - 1
+    end
+  end
+  return factors
+end
+
+--- org--plot/item-frequencies (normalized), in order of first appearance.
+local function item_frequencies(values)
+  local out, index = {}, {}
+  for _, v in ipairs(values) do
+    if not index[v] then
+      out[#out + 1] = { v, 0 }
+      index[v] = out[#out]
+    end
+    index[v][2] = index[v][2] + 1 / #values
+  end
+  return out
+end
+
+--- org--plot/merge-alists with + and 0 (key order of cl-union).
+local function merge_alists(lists)
+  if #lists == 1 then
+    return lists[1]
+  end
+  local a1 = lists[1]
+  local a2 = #lists > 2 and merge_alists(vim.list_slice(lists, 2)) or lists[2]
+  local function lookup(key, alist)
+    for _, p in ipairs(alist) do
+      if p[1] == key then
+        return p[2]
+      end
+    end
+    return 0
+  end
+  local k1, k2 = {}, {}
+  for _, p in ipairs(a1) do
+    k1[#k1 + 1] = p[1]
+  end
+  for _, p in ipairs(a2) do
+    k2[#k2 + 1] = p[1]
+  end
+  local keys
+  if #k1 == 0 then
+    keys = k2
+  elseif #k2 == 0 or vim.deep_equal(k1, k2) then
+    keys = k1
+  else
+    if #k1 < #k2 then
+      k1, k2 = k2, k1
+    end
+    keys = {}
+    for _, k in ipairs(k2) do
+      if not vim.tbl_contains(k1, k) then
+        keys[#keys + 1] = k
+      end
+    end
+    vim.list_extend(keys, k1)
+  end
+  local out = {}
+  for _, k in ipairs(keys) do
+    out[#out + 1] = { k, lookup(k, a1) + lookup(k, a2) }
+  end
+  return out
+end
+
+--- org--plot/nice-frequency-pick.
+local function nice_frequency_pick(freqs)
+  if #freqs == 0 then
+    return { 1 }
+  elseif #freqs == 1 then
+    return { freqs[1][1] }
+  elseif #freqs == 2 then
+    if freqs[1][2] / freqs[2][2] >= 3 then
+      return { freqs[1][1], freqs[1][1] }
+    end
+    return { freqs[1][1], freqs[2][1] }
+  end
+  local total = 0
+  for _, f in ipairs(freqs) do
+    total = total + f[2]
+  end
+  local n = {}
+  for i, f in ipairs(freqs) do
+    n[i] = { f[1], f[2] / total }
+  end
+  local pick = { n[1][1] }
+  local r12, r23 = n[1][2] / n[2][2], n[2][2] / n[3][2]
+  local r13 = r12 * r23
+  local function product()
+    local p = 1
+    for _, x in ipairs(pick) do
+      p = p * x
+    end
+    return p
+  end
+  if r12 > 4 then
+    table.insert(pick, 1, n[1][1])
+  end
+  if r12 < n[2][1] and product() * n[2][1] < 30 then
+    table.insert(pick, 1, n[2][1])
+  end
+  if r13 < n[3][1] and product() * n[3][1] < 30 then
+    table.insert(pick, 1, n[3][1])
+  end
+  return pick
+end
+
+--- org--plot/sensible-tick-num: a number of ticks for the rows' values.
+local function sensible_tick_num(rows, hard_min, hard_max)
+  local lists = {}
+  for _, r in ipairs(rows) do
+    local nums = {}
+    for c = 2, #r do
+      nums[#nums + 1] = cell_number(r[c])
+    end
+    local st = values_stats(nums, hard_min, hard_max)
+    local val = round_even(st.range_factor * st.nice_range)
+    if val % 10 == 0 then
+      val = val / 10
+    end
+    lists[#lists + 1] = item_frequencies(prime_factors(val))
+  end
+  local weighted = merge_alists(lists)
+  -- a stable sort by decreasing weight
+  for i, p in ipairs(weighted) do
+    p[3] = i
+  end
+  table.sort(weighted, function(a, b)
+    if a[2] ~= b[2] then
+      return a[2] > b[2]
+    end
+    return a[3] < b[3]
+  end)
+  local p = 1
+  for _, x in ipairs(nice_frequency_pick(weighted)) do
+    p = p * x
+  end
+  return p
+end
+
+local RADAR_TEMPLATE = [[
+### spider plot/chart with gnuplot
+# also known as: radar chart, web chart, star chart, cobweb chart,
+#                radar plot,  web plot,  star plot,  cobweb plot,  etc. ...
+set datafile separator ' '
+set size square
+unset tics
+set angles degree
+set key bmargin center horizontal
+unset border
+
+# Load data and setup
+load "@SETUP@"
+
+# General settings
+DataColCount = words($Data[1])-1
+AxesCount = |$Data|-HeaderLines-1
+AngleOffset = 90
+Max = 1
+d=0.1*Max
+Direction = -1   # counterclockwise=1, clockwise = -1
+
+# Tic settings
+TicCount = @TICKS@
+TicOffset = 0.1
+TicValue(axis,i) = real(i)*(word($Settings[axis],3)-word($Settings[axis],2)) \
+	  / word($Settings[axis],4)+word($Settings[axis],2)
+TicLabelPosX(axis,i) = PosX(axis,i/TicCount) + PosY(axis, TicOffset)
+TicLabelPosY(axis,i) = PosY(axis,i/TicCount) - PosX(axis, TicOffset)
+TicLen = 0.03
+TicdX(axis,i) = 0.5*TicLen*cos(alpha(axis)-90)
+TicdY(axis,i) = 0.5*TicLen*sin(alpha(axis)-90)
+
+# Label
+LabOffset = 0.10
+LabX(axis) = PosX(axis+1,Max+2*d) + PosY(axis, LabOffset)
+LabY(axis) = PosY($0+1,Max+2*d)
+
+# Functions
+alpha(axis) = (axis-1)*Direction*360.0/AxesCount+AngleOffset
+PosX(axis,R) = R*cos(alpha(axis))
+PosY(axis,R) = R*sin(alpha(axis))
+Scale(axis,value) = real(value-word($Settings[axis],2))/(word($Settings[axis],3)-word($Settings[axis],2))
+
+# Spider settings
+set style arrow 1 dt 1 lw 1.0 @fgal head filled size 0.06,25     # style for axes
+set style arrow 2 dt 2 lw 0.5 @fgal nohead   # style for weblines
+set style arrow 3 dt 1 lw 1 @fgal nohead     # style for axis tics
+set samples AxesCount
+set isosamples TicCount
+set urange[1:AxesCount]
+set vrange[1:TicCount]
+set style fill transparent solid 0.2
+
+set xrange[-Max-4*d:Max+4*d]
+set yrange[-Max-4*d:Max+4*d]
+plot \
+    '+' u (0):(0):(PosX($0,Max+d)):(PosY($0,Max+d)) w vec as 1 not, \
+    $Data u (LabX($0)): \
+	(LabY($0)):1 every ::HeaderLines w labels center enhanced @fgt not, \
+    for [i=1:DataColCount] $Data u (PosX($0+1,Scale($0+1,column(i+1)))): \
+	(PosY($0+1,Scale($0+1,column(i+1)))) every ::HeaderLines w filledcurves lt i title word($Data[1],i+1), \
+@TICKLINES@
+#    '++' u (PosX($1,$2/TicCount)-TicdX($1,$2/TicCount)): \
+#        (PosY($1,$2/TicCount)-TicdY($1,$2/TicCount)): \
+#        (2*TicdX($1,$2/TicCount)):(2*TicdY($1,$2/TicCount)) \
+#        w vec as 3 not, \
+### end of code
+]]
+
+local RADAR_TICKS = [[
+    '++' u (PosX($1,$2/TicCount)):(PosY($1,$2/TicCount)): \
+	(PosX($1+1,$2/TicCount)-PosX($1,$2/TicCount)):  \
+	(PosY($1+1,$2/TicCount)-PosY($1,$2/TicCount)) w vec as 2 not, \
+    '++' u (TicLabelPosX(@A@,$2)):(TicLabelPosY(@A@,$2)): \
+	(sprintf('%g',TicValue(@A@,$2))) w labels font ',8' @fgat not]]
+
+--- The setup text (data and per-axis scales) and the gnuplot code of a
+--- radar plot of `rows` (the first cell of a row names its axis).
+function M.radar(rows, opts)
+  local labels = opts.labels or {}
+  local closed = vim.list_extend(vim.deepcopy(rows), { rows[1] })
+  local data = { '"' .. table.concat(labels, '" "') .. '"' }
+  for _, r in ipairs(closed) do
+    data[#data + 1] = string.format('"%s" %s', r[1] or "", table.concat(vim.list_slice(r, 2), " "))
+  end
+  local ymin, ymax = tonumber(opts.ymin), tonumber(opts.ymax)
+  local ticks = tonumber(opts.ticks) or sensible_tick_num(rows, ymin, ymax)
+  local tic_count = ticks == 0 and 2 or ticks
+  local settings = {}
+  for _, r in ipairs(closed) do
+    local nums = {}
+    for c = 2, #r do
+      nums[#nums + 1] = cell_number(r[c])
+    end
+    local st = values_stats(nums)
+    local function show(v)
+      return type(v) == "table" and float_str(v.float) or num_str(v)
+    end
+    settings[#settings + 1] = string.format(
+      '"%s" %s %s %s',
+      r[1] or "",
+      ymin and num_str(ymin) or show(st.nice_min),
+      ymax and num_str(ymax) or show(st.nice_max),
+      num_str(tic_count)
+    )
+  end
+  local setup = "# Data\n$Data <<HEREHAVESOMEDATA\n"
+    .. table.concat(data, "\n")
+    .. "\nHEREHAVESOMEDATA\nHeaderLines = 1\n\n"
+    .. "# Settings for scale and offset adjustments\n"
+    .. "# axis min max tics axisLabelXoff axisLabelYoff\n"
+    .. "$Settings <<EOD\n"
+    .. table.concat(settings, "\n")
+    .. "\nEOD\n"
+  local axis = (ymin and ymax) and "1" or "$1"
+  local tick_lines = ticks == 0 and "" or RADAR_TICKS:gsub("@A@", axis)
+  local setup_file = opts.setup_file or (vim.fn.tempname() .. "-org-plot-setup")
+  local code = RADAR_TEMPLATE:gsub("@SETUP@", function()
+    return setup_file
+  end)
+    :gsub("@TICKS@", num_str(tic_count))
+    :gsub("@TICKLINES@", function()
+      return tick_lines
+    end)
+  return code, setup, setup_file
+end
+
 --- The gnuplot script for `rows` (org-plot/gnuplot-script).
 function M.script(rows, data_file, ncols, opts)
   local lines = { "reset" }
@@ -333,6 +679,14 @@ function M.script(rows, data_file, ncols, opts)
     add(string.format("splot '%s' matrix with %s title ''", data_file, tostring(opts.with)))
   elseif ptype == "grid" then
     add(string.format("splot '%s' with pm3d title ''", data_file))
+  elseif ptype == "radar" then
+    local code, setup, setup_file = M.radar(rows, opts)
+    local fh = io.open(setup_file, "wb")
+    if fh then
+      fh:write(setup)
+      fh:close()
+    end
+    add(code)
   else
     error("Org-plot type `" .. ptype .. "' is undefined")
   end
@@ -409,7 +763,7 @@ function M.gnuplot(bufnr, lnum)
     return false
   end
   local ptype = tostring(opts.plot_type)
-  if ptype ~= "2d" and ptype ~= "3d" and ptype ~= "grid" then
+  if ptype ~= "2d" and ptype ~= "3d" and ptype ~= "grid" and ptype ~= "radar" then
     utils.warn("Org-plot type `" .. ptype .. "' is not supported")
     return false
   end

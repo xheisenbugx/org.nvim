@@ -635,6 +635,9 @@ M.functions = {
     end
     return target
   end,
+  texinfo = function(plist, filename, pub_dir)
+    return M.org_to("texinfo", filename, ".texi", plist, pub_dir)
+  end,
   beamer = function(plist, filename, pub_dir)
     return M.org_to("beamer", filename, ".tex", plist, pub_dir)
   end,

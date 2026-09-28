@@ -173,6 +173,45 @@
 ---@field order? string[]
 
 ---------------------------------------------------------------------------
+-- RSS / Atom feeds
+---------------------------------------------------------------------------
+
+---Feed options (`org-feed`).
+---@class org.Config.Feed
+---Feeds whose items are added to an inbox headline (`org-feed-alist`).
+---(default: `{}`)
+---@field feeds? (org.Config.FeedSpec|table)[]
+---Template of a new item (`org-feed-default-template`).
+---(default: `"\n* %h\n  %U\n  %description\n  %a\n"`)
+---@field default_template? string
+---Drawer holding the feed status (`org-feed-drawer`). (default: `"FEEDSTATUS"`)
+---@field drawer? string
+---Save the file after adding items (`org-feed-save-after-adding`).
+---(default: `true`)
+---@field save_after_adding? boolean
+---How URLs are fetched (`org-feed-retrieve-method`); `file://` URLs are
+---read directly. (default: `"curl"`)
+---@field retrieve_method? "curl"|"wget"|fun(url: string): string?
+
+---A feed. The positional Emacs form `{ name, url, file, headline }` works too.
+---@class org.Config.FeedSpec
+---@field name string
+---@field url string
+---Target file; the current buffer's file when nil.
+---@field file? string
+---Inbox headline, created when missing.
+---@field headline string
+---@field template? string
+---@field formatter? fun(entry: org.feed.Entry): string
+---@field filter? fun(entry: org.feed.Entry): org.feed.Entry?
+---@field new_handler? fun(entries: org.feed.Entry[], ctx: { bufnr: integer, lnum: integer, feed: table })
+---@field changed_handler? fun(entries: org.feed.Entry[], ctx: { bufnr: integer, lnum: integer, feed: table })
+---@field parse_feed? "rss"|"atom"|fun(text: string): org.feed.Entry[]
+---@field parse_entry? "rss"|"atom"|fun(entry: org.feed.Entry): org.feed.Entry
+---@field drawer? string
+---@field retrieve_method? "curl"|"wget"|fun(url: string): string?
+
+---------------------------------------------------------------------------
 -- Timers
 ---------------------------------------------------------------------------
 
@@ -257,6 +296,13 @@
 ---Vim regex; `shell:` links matching it run without confirmation
 ---(`org-link-shell-skip-confirm-regexp`). (default: `""`, none)
 ---@field shell_skip_confirm_regexp? string
+---Ask before running `elisp:` links (`org-link-elisp-confirm-function`):
+---`true`, `false`, or a function receiving the sexp and returning whether to
+---run it. (default: `true`)
+---@field confirm_elisp? boolean|fun(sexp: string): boolean
+---Vim regex; `elisp:` links matching it run without confirmation
+---(`org-link-elisp-skip-confirm-regexp`). (default: `""`, none)
+---@field elisp_skip_confirm_regexp? string
 ---Store links to headlines as `id:` links (`org-id-link-to-org-use-id`):
 ---`true` = always, creating an ID if needed; `"create-if-interactive"` =
 ---create only when storing interactively; `"create-if-interactive-and-no-custom-id"`
@@ -367,6 +413,68 @@
 ---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
 ---(default: `"ATTACH"`)
 ---@field auto_tag? string|false
+---Commit attachment changes with git (`org-attach-git`): after attaching,
+---deleting or syncing, new/changed files are added, deleted ones removed and
+---a commit "Synchronized attachments" is made. (default: `false`)
+---@field git? boolean
+---Files of at least this many bytes are added with `git annex add` when the
+---repository uses git-annex (`org-attach-git-annex-cutoff`); `false` never.
+---(default: `32768`)
+---@field git_annex_cutoff? integer|false
+---Run `git annex get` for a missing attachment before opening it
+---(`org-attach-git-annex-auto-get`): `"ask"`, `true` or `false`. (default: `"ask"`)
+---@field git_annex_auto_get? "ask"|boolean
+---Repository to commit to (`org-attach-git-dir`): `"default"` (the one
+---containing `dir`) or `"individual-repository"` (the entry's attachment
+---directory). (default: `"default"`)
+---@field git_dir? "default"|"individual-repository"
+
+---MobileOrg options (`org-mobile`).
+---@class org.Config.Mobile
+---Staging directory shared with the mobile application (`org-mobile-directory`).
+---@field directory? string
+---Files to stage (`org-mobile-files`): `"agenda_files"`,
+---`"text_search_extra_files"`, files and directories. (default: `{ "agenda_files" }`)
+---@field files? string[]
+---Emacs regexp of files not to stage (`org-mobile-files-exclude-regexp`). (default: `""`)
+---@field files_exclude_regexp? string
+---Inbox for captured entries and edit requests (`org-mobile-inbox-for-pull`).
+---(default: `"~/org/from-mobile.org"`)
+---@field inbox_for_pull? string
+---Name of the index file (`org-mobile-index-file`). (default: `"index.org"`)
+---@field index_file? string
+---`#+ALLPRIORITIES` of the index file (`org-mobile-allpriorities`). (default: `"A B C"`)
+---@field allpriorities? string
+---Agendas written to agendas.org (`org-mobile-agendas`): `"default"`,
+---`"custom"`, `"all"` or a list of custom command keys. (default: `"all"`)
+---@field agendas? "default"|"custom"|"all"|string[]
+---Give agenda entries an ID on push (`org-mobile-force-id-on-agenda-items`). (default: `true`)
+---@field force_id_on_agenda_items? boolean
+---Apply mobile edits even when the entry changed on the computer
+---(`org-mobile-force-mobile-change`): `true`, `false` or a list of `"todo"`,
+---`"tags"`, `"priority"`, `"heading"`, `"body"`. (default: `false`)
+---@field force_mobile_change? boolean|string[]
+---Encrypt staged files with openssl AES-256 (`org-mobile-use-encryption`). (default: `false`)
+---@field use_encryption? boolean
+---Encryption password; asked once per session when empty
+---(`org-mobile-encryption-password`). (default: `""`)
+---@field encryption_password? string
+---Checksum program; nil finds shasum, sha1sum, md5sum or md5 (`org-mobile-checksum-binary`).
+---@field checksum_binary? string
+---Extra `F(action:data)` actions (`org-mobile-action-alist`).
+---@field action_alist? table<string, fun(data: string?, old: string?, new: string?, target: org.Target): any>
+---Show the flagged entries in an agenda after a pull. (default: `true`)
+---@field show_flagged? boolean
+---Run before a push (`org-mobile-pre-push-hook`).
+---@field pre_push_hook? fun()
+---Run after a push, e.g. to upload the staging directory (`org-mobile-post-push-hook`).
+---@field post_push_hook? fun()
+---Run before a pull, e.g. to download mobileorg.org (`org-mobile-pre-pull-hook`).
+---@field pre_pull_hook? fun()
+---Run when the new entries are in the inbox (`org-mobile-before-process-capture-hook`).
+---@field before_process_capture_hook? fun(data: { bufnr: integer, line: integer })
+---Run after a pull with new entries (`org-mobile-post-pull-hook`).
+---@field post_pull_hook? fun()
 
 ---------------------------------------------------------------------------
 -- Babel
@@ -476,6 +584,12 @@
 ---cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
 ---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
+---How emacs-lisp blocks and `elisp:` links run: `command` (a string or an
+---argv list; `false` = never use Emacs) started with `args`, a separate
+---Emacs process for each evaluation. Without it, side-effect-free code runs
+---on the Lisp interpreter of table formulas.
+---(default: `{ command = "emacs", args = { "-Q", "--batch" } }`)
+---@field emacs_lisp? { command?: string|string[]|false, args?: string[] }
 
 ---------------------------------------------------------------------------
 -- Export
@@ -611,6 +725,59 @@
 ---@field hyperref_template? string
 ---(`org-latex-use-sans`) (default: `false`)
 ---@field use_sans? boolean
+
+---Texinfo back-end options (ox-texinfo).
+---@class org.Config.Export.Texinfo
+---(`org-texinfo-default-class`) (default: `"info"`)
+---@field default_class? string
+---(`org-texinfo-classes`): `{ { name, header, { numbered, unnumbered,
+---unnumbered_no_toc, appendix }, ... } }` with one list of `%s` formats per
+---level. (default: `nil` = the Emacs list)
+---@field classes? table[]
+---(`org-texinfo-coding-system`) (default: `"UTF-8"`)
+---@field coding_system? string
+---(`org-texinfo-node-description-column`) (default: `32`)
+---@field node_description_column? integer
+---(`org-texinfo-table-default-markup`) (default: `"@asis"`)
+---@field table_default_markup? string
+---(`org-texinfo-table-scientific-notation`) (default: `nil`)
+---@field table_scientific_notation? string
+---(`org-texinfo-compact-itemx`) (default: `false`)
+---@field compact_itemx? boolean
+---(`org-texinfo-with-latex`): `true`, `false` or `"detect"` (use `@math` when
+---makeinfo supports it). (default: `nil` = `"detect"` unless `export.with_latex`
+---is false)
+---@field with_latex? boolean|"detect"
+---(`org-texinfo-text-markup-alist`): `{ bold = "@strong{%s}", code = "code",
+---italic = "@emph{%s}", verbatim = "samp" }`; values are formats or `"code"`,
+---`"samp"`, `"verb"`. (default: the Emacs alist)
+---@field text_markup_alist? table<string, string>
+---(`org-texinfo-active-timestamp-format`) (default: `"@emph{%s}"`)
+---@field active_timestamp_format? string
+---(`org-texinfo-inactive-timestamp-format`) (default: `"@emph{%s}"`)
+---@field inactive_timestamp_format? string
+---(`org-texinfo-diary-timestamp-format`) (default: `"@emph{%s}"`)
+---@field diary_timestamp_format? string
+---(`org-texinfo-link-with-unknown-path-format`) (default: `"@indicateurl{%s}"`)
+---@field link_with_unknown_path_format? string
+---(`org-texinfo-format-headline-function`): fn(todo, todo_type, priority,
+---text, tags). (default: `nil`)
+---@field format_headline_function? function
+---(`org-texinfo-format-drawer-function`): fn(name, contents). (default: `nil`)
+---@field format_drawer_function? function
+---(`org-texinfo-format-inlinetask-function`): fn(todo, todo_type, priority,
+---title, tags, contents). (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-texinfo-info-process`): shell commands with `%f %F %b %o %O`, or a
+---function(file). (default: `nil` = `{ "makeinfo --no-split %f" }`)
+---@field info_process? string[]|function
+---(`org-texinfo-remove-logfiles`) (default: `true`)
+---@field remove_logfiles? boolean
+---(`org-texinfo-logfiles-extensions`) (default: `nil` = aux toc cp fn ky pg tp vr)
+---@field logfiles_extensions? string[]
+---Export Texinfo through pandoc instead of the native back-end.
+---(default: `false`)
+---@field use_pandoc? boolean
 
 ---Markdown back-end options (ox-md).
 ---@class org.Config.Export.Md
@@ -904,6 +1071,7 @@
 ---@field filters? table<string, function|function[]>
 ---@field html? org.Config.Export.Html
 ---@field latex? org.Config.Export.Latex
+---@field texinfo? org.Config.Export.Texinfo
 ---@field md? org.Config.Export.Md
 ---@field org? org.Config.Export.Org
 ---@field beamer? org.Config.Export.Beamer

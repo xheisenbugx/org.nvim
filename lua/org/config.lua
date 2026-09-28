@@ -31,7 +31,8 @@ M.defaults = {
   ---------------------------------------------------------------------------
   --- Each string is a sequence, exactly like Emacs `org-todo-keywords`.
   --- `(k)` is a fast-selection key, `!` logs a timestamp, `@` asks for a note.
-  --- A flat list containing a `"|"` element is also accepted.
+  --- A flat list containing a `"|"` element is also accepted, and
+  --- `{ type = "Fred Sara | DONE" }` is a type sequence (Emacs `(type ...)`).
   todo_keywords = { "TODO | DONE" },
   --- State a repeating task returns to: nil = first keyword of its sequence,
   --- true = the state it had before, or a keyword. The REPEAT_TO_STATE
@@ -204,6 +205,10 @@ M.defaults = {
     org = "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n"
       .. "#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n",
   },
+  --- Column view display: "overlay" draws the columns over the headlines
+  --- of the org buffer like Emacs org-columns, "table" shows a table in a
+  --- split.
+  columns_view = "overlay",
   --- Extra summary operators for column view: a map from the operator to
   --- `fun(values: string[], format?: string): string`, e.g.
   --- `{ ["+|"] = function(v) ... end }` (org-columns-summary-types).
@@ -220,9 +225,17 @@ M.defaults = {
   --- (org-columns-checkbox-allowed-values).
   columns_checkbox_allowed_values = { "[ ]", "[X]" },
   effort_property = "Effort",
-  --- Durations in clock tables, clock sums and efforts: "d h:mm" writes
-  --- "1d 2:30" from one day on (Emacs `org-duration-format`), "h:mm" "26:30".
+  --- Durations in clock tables, clock sums, column summaries and efforts
+  --- (Emacs `org-duration-format`): "d h:mm" (the Emacs default
+  --- `(("d" . nil) (special . h:mm))`) writes "1d 2:30" from one day on,
+  --- "h:mm" "26:30", "h:mm:ss" "26:30:00", or a list of `{ unit, required }`
+  --- entries plus `{ "special", "h:mm" | "h:mm:ss" | decimals }` and
+  --- "compact", e.g. `{ { "h", true }, { "special", 2 } }` → "26.50h".
   duration_format = "d h:mm",
+  --- Minutes per duration unit (Emacs `org-duration-units`); add units or
+  --- change values, e.g. `d = 480` for 8-hour work days. min/h/d keep their
+  --- standard values for timestamp ages (canonical units).
+  duration_units = { min = 1, h = 60, d = 1440, w = 10080, m = 43200, y = 525960 },
   columns_default_format = "%25ITEM %TODO %3PRIORITY %TAGS",
 
   ---------------------------------------------------------------------------
@@ -340,10 +353,11 @@ M.defaults = {
   --- day/month means next month/year), `"time"` (also a past time today
   --- means tomorrow) or `false` (org-read-date-prefer-future).
   read_date_prefer_future = true,
-  --- Display timestamps with `time_stamp_custom_formats` (strftime
-  --- formats for dates and date+time, without brackets); toggled by
-  --- `toggle_time_stamp_overlays` (org-display-custom-times,
-  --- org-timestamp-custom-formats).
+  --- Display timestamps with `time_stamp_custom_formats` (format-time-string
+  --- formats for dates and date+time; brackets around them are dropped in
+  --- the buffer and kept in exports); toggled by `toggle_time_stamp_overlays`
+  --- (org-display-custom-times, org-timestamp-custom-formats). Exports of a
+  --- buffer with the display on use the formats (org-timestamp-translate).
   display_custom_times = false,
   time_stamp_custom_formats = { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" },
   --- Where `archive_subtree` sends entries. `%s` = current file name
@@ -591,6 +605,13 @@ M.defaults = {
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
+    --- Location for sunrise and sunset (`S` in the agenda): degrees, north
+    --- and east positive (calendar-latitude, calendar-longitude); asked for
+    --- when unset. The name defaults to "40.7N, 74.0W"
+    --- (calendar-location-name).
+    calendar_latitude = nil,
+    calendar_longitude = nil,
+    calendar_location_name = nil,
     --- Holidays shown by `%%(org-calendar-holiday)` (calendar-holidays): one
     --- list per holiday-*-holidays variable, with Emacs's defaults. Set a
     --- group to `{}` to drop it; add your own to `local`/`other`. See
@@ -874,6 +895,25 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- RSS / Atom feeds (org-feed)
+  ---------------------------------------------------------------------------
+  feed = {
+    --- Feeds (org-feed-alist): list of { name = "", url = "", file = "",
+    --- headline = "", ...options } or { name, url, file, headline, ... }.
+    --- See |org-feed| for the options.
+    feeds = {},
+    --- Template of a new item (org-feed-default-template).
+    default_template = "\n* %h\n  %U\n  %description\n  %a\n",
+    --- Drawer holding the feed status (org-feed-drawer).
+    drawer = "FEEDSTATUS",
+    --- Save the file after adding items (org-feed-save-after-adding).
+    save_after_adding = true,
+    --- "curl", "wget" or a function(url) returning the feed text
+    --- (org-feed-retrieve-method); file:// URLs are always read directly.
+    retrieve_method = "curl",
+  },
+
+  ---------------------------------------------------------------------------
   -- Timers
   ---------------------------------------------------------------------------
   timer = {
@@ -900,6 +940,12 @@ M.defaults = {
     --- Vim regex: shell: links matching it run without asking; "" = none
     --- (org-link-shell-skip-confirm-regexp).
     shell_skip_confirm_regexp = "",
+    --- Ask before running elisp: links: true, false or function(sexp) ->
+    --- boolean (org-link-elisp-confirm-function).
+    confirm_elisp = true,
+    --- Vim regex: elisp: links matching it run without asking; "" = none
+    --- (org-link-elisp-skip-confirm-regexp).
+    elisp_skip_confirm_regexp = "",
     --- Store links to headlines as id: links (org-id-link-to-org-use-id):
     --- false | true | "create-if-interactive" |
     --- "create-if-interactive-and-no-custom-id" | "use-existing".
@@ -989,6 +1035,71 @@ M.defaults = {
     archive_delete = false,
     --- Tag of entries with attachments; false for none (org-attach-auto-tag).
     auto_tag = "ATTACH",
+    --- Commit attachment changes to git (org-attach-git; Emacs turns it on
+    --- with `(require 'org-attach-git)`).
+    git = false,
+    --- Files of at least this many bytes go to git-annex when the
+    --- repository uses it; false never annexes (org-attach-git-annex-cutoff).
+    git_annex_cutoff = 32 * 1024,
+    --- Fetch missing git-annex content when opening an attachment:
+    --- "ask" | true | false (org-attach-git-annex-auto-get).
+    git_annex_auto_get = "ask",
+    --- Repository used: "default" (the one containing `dir`) or
+    --- "individual-repository" (the entry's attachment directory)
+    --- (org-attach-git-dir).
+    git_dir = "default",
+  },
+
+  ---------------------------------------------------------------------------
+  -- MobileOrg (org-mobile)
+  ---------------------------------------------------------------------------
+  mobile = {
+    --- Staging directory shared with the mobile application
+    --- (org-mobile-directory). Required by push and pull.
+    directory = nil,
+    --- Files to stage (org-mobile-files): "agenda_files",
+    --- "text_search_extra_files", files and directories (their `*.org`).
+    files = { "agenda_files" },
+    --- Emacs regexp of files not to stage (org-mobile-files-exclude-regexp).
+    files_exclude_regexp = "",
+    --- File the captured entries and edit requests are moved to on pull
+    --- (org-mobile-inbox-for-pull); relative to `org_directory`.
+    inbox_for_pull = "~/org/from-mobile.org",
+    --- Name of the index file (org-mobile-index-file).
+    index_file = "index.org",
+    --- The #+ALLPRIORITIES of the index file (org-mobile-allpriorities).
+    allpriorities = "A B C",
+    --- Agendas written to agendas.org (org-mobile-agendas): "default" (week
+    --- agenda and TODO list), "custom" (`agenda.custom_commands`), "all",
+    --- or a list of command keys.
+    agendas = "all",
+    --- Give every agenda entry an ID on push (org-mobile-force-id-on-agenda-items).
+    force_id_on_agenda_items = true,
+    --- Apply mobile edits even when the entry changed on the computer too
+    --- (org-mobile-force-mobile-change): true, false or a list of
+    --- "todo", "tags", "priority", "heading", "body".
+    force_mobile_change = false,
+    --- Encrypt the staged files with openssl (org-mobile-use-encryption).
+    use_encryption = false,
+    --- Password for the encryption; asked once per session when empty
+    --- (org-mobile-encryption-password).
+    encryption_password = "",
+    --- Program for file checksums; nil finds shasum, sha1sum, md5sum or md5
+    --- (org-mobile-checksum-binary).
+    checksum_binary = nil,
+    --- Extra `F(action:data)` actions (org-mobile-action-alist):
+    --- `{ name = function(data, old, new, target) end }`.
+    action_alist = {},
+    --- Show the flagged entries in an agenda after a pull.
+    show_flagged = true,
+    --- Hooks (functions; the User autocmds OrgMobilePrePush, OrgMobilePostPush,
+    --- OrgMobilePrePull, OrgMobileBeforeProcessCapture and OrgMobilePostPull
+    --- fire too).
+    pre_push_hook = nil,
+    post_push_hook = nil,
+    pre_pull_hook = nil,
+    before_process_capture_hook = nil,
+    post_pull_hook = nil,
   },
 
   ---------------------------------------------------------------------------
@@ -1087,6 +1198,10 @@ M.defaults = {
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
     },
+    -- emacs-lisp blocks and elisp: links run in a separate Emacs process
+    -- (`command` false: never; without Emacs, side-effect-free code runs on
+    -- the Lisp interpreter of table formulas)
+    emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } },
   },
 
   ---------------------------------------------------------------------------
@@ -1233,6 +1348,21 @@ M.defaults = {
       hyperref_template = nil, -- org-latex-hyperref-template (nil = the Emacs template)
       use_sans = false, -- org-latex-use-sans
     },
+    texinfo = {
+      default_class = "info", -- org-texinfo-default-class
+      classes = nil, -- org-texinfo-classes (nil = the Emacs list)
+      coding_system = "UTF-8", -- org-texinfo-coding-system (@documentencoding)
+      node_description_column = 32, -- org-texinfo-node-description-column
+      table_default_markup = "@asis", -- org-texinfo-table-default-markup
+      compact_itemx = false, -- org-texinfo-compact-itemx
+      --- org-texinfo-with-latex: true, false or "detect" (@math when makeinfo
+      --- supports it); nil = "detect" unless export.with_latex is false.
+      with_latex = nil,
+      info_process = nil, -- org-texinfo-info-process (nil = { "makeinfo --no-split %f" })
+      remove_logfiles = true, -- org-texinfo-remove-logfiles
+      --- Export Texinfo through pandoc instead of the native back-end.
+      use_pandoc = false,
+    },
     md = {
       headline_style = "atx", -- org-md-headline-style ("atx", "setext", "mixed")
       toplevel_hlevel = 1, -- org-md-toplevel-hlevel
@@ -1331,6 +1461,37 @@ M.defaults = {
       --- fn(todo, todo_type, priority, name, tags, contents, width, inlinetask, info)
       format_inlinetask_function = nil,
     },
+    odt = {
+      --- Export ODT with pandoc instead of the native back-end (plugin option).
+      use_pandoc = false,
+      --- org-odt-styles-file: nil (factory styles), a styles.xml, .odt or
+      --- .ott file, or { "file.ott", { "styles.xml", "image/hdr.png" } }.
+      styles_file = nil,
+      extra_styles = nil, -- XML added to <office:styles> (plugin option, also #+ODT_EXTRA_STYLES)
+      content_template_file = nil, -- org-odt-content-template-file (nil = OrgOdtContentTemplate.xml)
+      display_outline_level = 2, -- org-odt-display-outline-level
+      fontify_srcblocks = true, -- org-odt-fontify-srcblocks (tree-sitter highlights)
+      create_custom_styles_for_srcblocks = true, -- org-odt-create-custom-styles-for-srcblocks
+      pixels_per_inch = 96, -- org-odt-pixels-per-inch
+      use_date_fields = false, -- org-odt-use-date-fields
+      with_forbidden_chars = "", -- org-odt-with-forbidden-chars (replacement, true = keep, false = error)
+      with_latex = nil, -- org-odt-with-latex (nil = export.with_latex; true/"mathml", "dvipng", ..., "verbatim")
+      --- org-latex-to-mathml-convert-command, e.g. "latexmlmath %i --presentationmathml=%o"
+      --- (%i fragment, %I input file, %o output file, %j jar file).
+      latex_to_mathml_convert_command = nil,
+      latex_to_mathml_jar_file = nil, -- org-latex-to-mathml-jar-file
+      inline_image_rules = nil, -- org-odt-inline-image-rules ({ file = { "png", ... } })
+      inline_formula_rules = nil, -- org-odt-inline-formula-rules ({ file = { "mathml", "mml", "odf" } })
+      table_styles = nil, -- org-odt-table-styles ({ { name, template, { use_first_row_styles = true, ... } } })
+      category_map_alist = nil, -- org-odt-category-map-alist ({ __Figure__ = { "Illustration", "value", "Figure" } })
+      format_drawer_function = nil, -- org-odt-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-odt-format-headline-function: fn(todo, todo_type, priority, text, tags)
+      format_inlinetask_function = nil, -- org-odt-format-inlinetask-function: fn(todo, type, pri, name, tags, contents)
+      preferred_output_format = nil, -- org-odt-preferred-output-format (e.g. "pdf", "docx")
+      convert_process = "LibreOffice", -- org-odt-convert-process
+      convert_processes = nil, -- org-odt-convert-processes ({ { name, cmd }, ... }; nil = Emacs list)
+      convert_capabilities = nil, -- org-odt-convert-capabilities (nil = Emacs list)
+    },
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },
@@ -1414,6 +1575,19 @@ M.defaults = {
       --- Kitty graphics protocol) | "snacks" (Snacks.image) | "image.nvim" |
       --- false. "auto" uses the first that works.
       backend = "auto",
+      --- Where images go: "inline" draws them in place of the link or
+      --- fragment (its text is hidden until the cursor is on the line, like
+      --- Emacs), "below" under the line with the text left as it is.
+      placement = "inline",
+      --- Links previewed at once; the rest follow in batches every
+      --- `preview_delay` seconds (org-link-preview-batch-size,
+      --- org-link-preview-delay). 0 = all at once.
+      batch_size = 6,
+      preview_delay = 0.05,
+      --- Images of http(s) links (org-display-remote-inline-images): "skip",
+      --- "download" (fetched with curl on every preview) or "cache" (fetched
+      --- once into stdpath("cache"), again on link_preview_refresh).
+      remote = "skip",
       --- Width of images (org-image-actual-width): true = their own size;
       --- a number = that many pixels; false or { n } = the `:width` of
       --- #+ATTR_ORG (else of another #+ATTR_x), else n pixels. `:width`
@@ -1760,6 +1934,9 @@ M.defaults = {
       timer_insert = "<C-c><C-x>.",
       timer_item = "<C-c><C-x>-",
       timer_countdown = "<C-c><C-x>;",
+      -- feeds
+      feed_update_all = "<C-c><C-x>g",
+      feed_goto_inbox = "<C-c><C-x>G",
       -- links
       insert_link = "<C-c><C-l>",
       open_link_or_entry = "<C-c><C-o>",
@@ -1933,10 +2110,17 @@ M.defaults = {
       append = "A",
       columns = "<C-c><C-x><C-c>",
       calendar = "c",
+      convert_date = "gC", -- Emacs: C (the clock report here)
+      phases_of_moon = "M",
+      sunrise_sunset = "S",
+      holidays = "H",
       save_all = "<C-x><C-s>",
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",
+      show_flagging_note = "?",
+      mobile_pull = "<C-c><C-x><CR>g",
+      mobile_push = "<C-c><C-x><CR>p",
     },
     capture = {
       finalize = { "<C-c><C-c>", "<prefix>w" },

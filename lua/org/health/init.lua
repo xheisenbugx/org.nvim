@@ -57,6 +57,11 @@ function M.check()
   else
     h.warn("pandoc not found: export to LaTeX/PDF/DOCX/ODT via pandoc unavailable (HTML/Markdown/text work)")
   end
+  if vim.fn.executable("makeinfo") == 1 then
+    h.ok("makeinfo found (Texinfo to Info export)")
+  else
+    h.info("makeinfo not found: Texinfo export works, Info files can't be built")
+  end
   local seen = {}
   for lang, spec in pairs(cfg.babel.languages or {}) do
     local cmd = type(spec) == "table" and spec.cmd

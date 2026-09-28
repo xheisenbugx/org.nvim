@@ -39,6 +39,14 @@ M.extra = {
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
   protocol = { "org.protocol", "handle", desc = "Handle an org-protocol:// URL: :Org protocol <url>" },
   lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
+  feed_update = { "org.feed", "update_command", desc = "Update a feed: :Org feed_update [name]" },
+  feed_goto_inbox = { "org.feed", "goto_inbox", desc = "Go to a feed's inbox: :Org feed_goto_inbox [name]" },
+  feed_show_raw = { "org.feed", "show_raw", desc = "Show a feed's raw XML: :Org feed_show_raw [name]" },
+  mobile_push = { "org.mobile", "push", desc = "Stage files and agendas for MobileOrg (org-mobile-push)" },
+  mobile_pull = { "org.mobile", "pull", desc = "Get captured and flagged entries from MobileOrg (org-mobile-pull)" },
+  mobile_apply = { "org.mobile", "apply_command", desc = "Apply the MobileOrg change requests in the buffer" },
+  mobile_goto_inbox = { "org.mobile", "goto_inbox", desc = "Open the MobileOrg inbox (mobile.inbox_for_pull)" },
+  mobile_flagged = { "org.mobile", "flagged_agenda", desc = "Agenda of FLAGGED entries (dispatcher key ?)" },
   -- image and LaTeX previews: a range limits them, a number is the prefix count
   link_preview = {
     "org.ui.images",
@@ -147,6 +155,8 @@ function M.complete(arglead, cmdline)
       "beamer-pdf",
       "org",
       "ics",
+      "texinfo",
+      "info",
       "docx",
       "odt",
       "rst",
@@ -168,6 +178,10 @@ function M.complete(arglead, cmdline)
     return out
   elseif sub == "capture" then
     return vim.tbl_keys(require("org.config").opts.capture.templates or {})
+  elseif sub == "feed_update" or sub == "feed_goto_inbox" or sub == "feed_show_raw" then
+    return vim.tbl_filter(function(n)
+      return n:find(arglead, 1, true) == 1
+    end, require("org.feed").names())
   elseif sub == "lint" then
     local out = {}
     for _, c in ipairs(require("org.lint").checkers) do

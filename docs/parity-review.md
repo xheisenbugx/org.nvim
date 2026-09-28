@@ -77,18 +77,9 @@ record `1:00` instead of `2:00` after resolution. The elapsed-time fixes and
 tests cover unambiguous local timestamps crossing DST transitions; they
 do not add timezone/fold identity to the stored Org timestamp model.
 
-The following findings from PR #36 remain outside this implementation:
-
-| Gap | Current boundary / next work |
-| --- | --- |
-| RSS/Atom (`org-feed`) | No ingestion, update-all/inbox commands or feed-status deduplication. This is portable missing functionality. |
-| Native export backends | ODT and Texinfo remain Pandoc conversions. Native backend option fixtures, `BIND`/eval macro behavior, and broader async export need separate work. |
-| Babel | No emacs-lisp execution; persistent sessions cover shell/fish, Python, JS, Ruby and Lua with per-request semantics. |
-| Calc/Lisp | The built-in evaluators implement subsets; symbolic algebra, complex numbers, units and arbitrary Emacs Lisp are not fully implemented. |
-| Dates and TODO types | Configurable duration units/full formats and distinct `TYP_TODO` type cycling remain missing. |
-| Agenda | Arbitrary diary sexps and PDF/PostScript output remain unsupported. |
-| Capture/editor integrations | Indirect buffers/`:unnarrowed`, extended-today capture dates, column overlays, some link previews, attachment Git/annex and MobileOrg remain different or absent. |
-| Conformance measurement | A finite regression suite is not a complete feature/option/command inventory. No parity percentage is claimed. |
+The findings from PR #36 that remained outside this implementation were
+addressed in the [third round](#third-round-closing-the-roadmap-gaps)
+below, except where noted there.
 
 See [`:h org-differences`](../doc/org.txt) for the existing detailed
 compatibility notes. Each larger missing feature needs its own contract,
@@ -111,3 +102,32 @@ New regression files and the shared keyword collector pass StyLua, and
 The isolated runtimes emit a missing Markdown Tree-sitter parser diagnostic;
 write-failure tests intentionally emit write errors. These are local tests,
 not a claim about CI or every supported Neovim release/operating system.
+
+## Third round: closing the roadmap gaps
+
+This round implemented the roadmap and the remaining PR #36 gaps. Each
+area was compared with Org 9.8.10 source and `emacs -Q --batch` probes;
+where Emacs output could be produced, specs compare against it.
+
+| Area | Implemented | Remaining difference |
+| --- | --- | --- |
+| Column view | Overlays over the headlines (default, `columns_view = "table"` keeps the old view), winbar header, all in-view keys; agenda header in the winbar. [Spec](../tests/spec/columns_overlay_spec.lua). | The cursor moves by character, not by column; headlines are not read-only. |
+| RSS/Atom (`org-feed`) | Full port: `feed.feeds`, templates, filters and handlers, RSS 2.0 and Atom, FEEDSTATUS drawers byte-identical to Emacs (SHA-1 included), `C-c C-x g` / `G`. [Spec](../tests/spec/feed_spec.lua). | Fetched with curl/wget instead of url.el. Some org-feed.el bugs are fixed, not copied (listed in `:h org-differences`). |
+| ODT export | Native port of ox-odt with a pure-Lua zip writer; content.xml matches Emacs on four fixtures; MathML/picture LaTeX, styles files, LibreOffice conversion. [Spec](../tests/spec/export_odt_spec.lua). | Pandoc is optional (`export.odt.use_pandoc`). Real LaTeX pictures and soffice conversion were tested with fake processes only. |
+| Texinfo export | Native port of ox-texinfo; golden files from Emacs; the whole Org manual exports identically. Info through makeinfo. [Spec](../tests/spec/export_texinfo_spec.lua). | `(eval (org-texinfo-kbd-macro ...))` needs a Lua macro. makeinfo was not installed for the tests. |
+| Durations and dates | `org-duration` port (`duration_units`, every `duration_format` form) used by clocks, clock tables, efforts and columns; `format-time-string` port; custom timestamps in export like `org-timestamp-translate`. [Specs](../tests/spec/duration_spec.lua), [custom time](../tests/spec/custom_time_spec.lua). | The date-prompt preview does not use the custom format. |
+| `#+TYP_TODO` | Type sequences jump to DONE; a repeated `C-c C-t` walks the types. [Spec](../tests/spec/todo_type_spec.lua). | "Repeated" means no edit or cursor motion since the last press, not `last-command`. |
+| Capture | `:unnarrowed` edits the capture in the target buffer with targeted rollback; `org-extend-today-until` for capture dates, clock blocks, clocktable steps and repeaters; `:hook`. [Spec](../tests/spec/capture_spec.lua). | Narrowed captures still use a separate buffer (no indirect buffers). |
+| Images and LaTeX | Drawn in place of the link (`ui.images.placement`), text shown on the cursor line; per-link-type preview functions; remote http(s) images; batching. [Spec](../tests/spec/images_spec.lua). | Multi-line fragments and image.nvim stay below the line. Not verified in a real kitty terminal in this round. |
+| Agenda | Pure-Lua PostScript/PDF output in ps-print's layout, `agenda.exporter_settings`; `gC`/`M`/`S`/`H` calendar commands with 14 calendars; group tags in the tag filter; sexps before the first heading; `diary-remind`, `diary-offset` and the other calendars' `diary-*-date`. [Specs](../tests/spec/agenda_print_spec.lua), [calendars](../tests/spec/agenda_calendars_spec.lua). | `gC` instead of `C` (the clock report). Anniversary sexps of other calendars and the Emacs diary file are missing. |
+| MobileOrg and attach-git | `org-mobile` push/pull/apply with byte-identical staging files, encryption and flagged agenda; `org-attach-git` commits and git-annex. [Specs](../tests/spec/mobile_spec.lua), [attach-git](../tests/spec/attach_git_spec.lua). | The staging directory must be local. git-annex paths were not exercised (not installed). |
+| Babel, Calc and tables | emacs-lisp blocks and `elisp:` links in a separate `emacs --batch` (Lisp-subset fallback); Calc complex numbers, HMS, error forms, intervals, units and ~40 functions; orgtbl-to-unicode, orgtbl-to-table.el; radar plots. [Specs](../tests/spec/babel_elisp_spec.lua), [Calc](../tests/spec/calc_ext_spec.lua). | No symbolic algebra, matrices or modulo forms; `'(...)` table formulas stay on the internal interpreter. |
+
+Still out of reach: Elisp that must run inside the editor (`#+BIND`,
+`%(sexp)` capture escapes, arbitrary diary sexps), Emacs applications
+(Gnus, mu4e, BBDB), table.el-format tables, and Babel sessions as full
+REPLs.
+
+The branches were developed in parallel and merged; the full suite on
+the merged branch is reported in the pull request. StyLua was not run
+(the local version differs from the one the repository uses).

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An Atom feed for the org-feed tests -->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom</title>
+  <id>urn:uuid:feed</id>
+  <updated>2024-05-02T08:00:00Z</updated>
+  <entry>
+    <title>Atom &lt;one&gt;</title>
+    <link rel="alternate" href="https://example.org/one"/>
+    <id>urn:uuid:one</id>
+    <updated>2024-05-01T10:20:30Z</updated>
+    <content type="text">Plain &amp; simple</content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[Two & more]]></title>
+    <link href="https://example.org/two"/>
+    <id>urn:uuid:two</id>
+    <updated>2024-05-02T08:00:00Z</updated>
+    <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>Rich <b>text</b></p></div></content>
+  </entry>
+</feed>

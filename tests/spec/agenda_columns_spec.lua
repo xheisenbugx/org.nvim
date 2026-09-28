@@ -67,9 +67,12 @@ describe("agenda column view", function()
     -- the agenda entry under the cursor is unchanged
     vim.api.nvim_win_set_cursor(0, { l, 0 })
     eq("Write report", view.item_at_cursor().title)
+    -- the titles are in the winbar (Emacs header-line)
+    ok(vim.wo.winbar:find("ITEM                      | TODO | Effort |", 1, true), vim.wo.winbar)
     cols.toggle()
     ok(not cols.active())
     eq(nil, overlay_text(l))
+    eq("", vim.wo.winbar)
     view.quit(true)
   end)
 

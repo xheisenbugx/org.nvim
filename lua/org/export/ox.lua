@@ -55,22 +55,6 @@ function M.normalize_string(s)
 end
 
 local WEEKDAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
-local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
-local MONTHS_FULL = {
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-}
-local WEEKDAYS_FULL = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
 
 --- Day of week (1 = Sunday) of a date.
 local function weekday(y, m, d)
@@ -79,92 +63,9 @@ local function weekday(y, m, d)
 end
 M.weekday = weekday
 
---- format-time-string for the common directives, English names (Emacs in
---- the C locale).
+--- format-time-string (Emacs in the C locale), see org.date.format_time_string.
 function M.format_time(fmt, t)
-  t = t or os.time()
-  local d = os.date("*t", t)
-  local function pad(n, w)
-    return string.format("%0" .. (w or 2) .. "d", n)
-  end
-  local out = {}
-  local i = 1
-  while i <= #fmt do
-    local ch = fmt:sub(i, i)
-    if ch ~= "%" then
-      out[#out + 1] = ch
-      i = i + 1
-    else
-      local flag = fmt:sub(i + 1, i + 1)
-      if flag == "-" or flag == "_" then
-        i = i + 1
-      else
-        flag = ""
-      end
-      local c = fmt:sub(i + 1, i + 1)
-      i = i + 2
-      local v
-      if c == "%" then
-        v = "%"
-      elseif c == "Y" then
-        v = tostring(d.year)
-      elseif c == "y" then
-        v = pad(d.year % 100)
-      elseif c == "m" then
-        v = pad(d.month)
-      elseif c == "d" then
-        v = pad(d.day)
-      elseif c == "e" then
-        v = string.format("%2d", d.day)
-      elseif c == "H" then
-        v = pad(d.hour)
-      elseif c == "I" then
-        v = pad(((d.hour + 11) % 12) + 1)
-      elseif c == "M" then
-        v = pad(d.min)
-      elseif c == "S" then
-        v = pad(d.sec)
-      elseif c == "p" then
-        v = d.hour < 12 and "AM" or "PM"
-      elseif c == "a" then
-        v = WEEKDAYS[d.wday]
-      elseif c == "A" then
-        v = WEEKDAYS_FULL[d.wday]
-      elseif c == "b" or c == "h" then
-        v = MONTHS[d.month]
-      elseif c == "B" then
-        v = MONTHS_FULL[d.month]
-      elseif c == "F" then
-        v = string.format("%04d-%02d-%02d", d.year, d.month, d.day)
-      elseif c == "T" then
-        v = string.format("%02d:%02d:%02d", d.hour, d.min, d.sec)
-      elseif c == "R" then
-        v = string.format("%02d:%02d", d.hour, d.min)
-      elseif c == "j" then
-        v = pad(d.yday, 3)
-      elseif c == "u" then
-        v = tostring(d.wday == 1 and 7 or d.wday - 1)
-      elseif c == "w" then
-        v = tostring(d.wday - 1)
-      elseif c == "Z" then
-        v = os.date("%Z", t)
-      elseif c == "z" then
-        v = os.date("%z", t)
-      elseif c == "s" then
-        v = tostring(t)
-      else
-        v = "%" .. flag .. c
-        flag = ""
-      end
-      if flag == "-" then
-        v = v:gsub("^0+(%d)", "%1")
-      elseif flag == "_" then
-        v = v:gsub("^0", " ")
-      end
-      out[#out + 1] = v
-    end
-  end
-  return table.concat(out)
+  return require("org.date").format_time_string(fmt, t)
 end
 
 ---------------------------------------------------------------------------
@@ -226,11 +127,38 @@ function M.interpret_timestamp(ts)
     .. tail
 end
 
---- Timestamp as displayed in exports (org-timestamp-translate without
---- custom display formats).
-function M.timestamp_translate(ts)
-  -- org-element-interpret-data keeps the trailing blanks.
-  return M.interpret_timestamp(ts) .. string.rep(" ", ts.post_blank or 0)
+--- Whether the buffer being exported shows custom timestamps
+--- (org-display-custom-times there); set by |M.export_as|.
+M.display_custom_times = false
+
+--- Timestamp as displayed in exports (org-timestamp-translate): in
+--- `time_stamp_custom_formats` when custom times are on (brackets in the
+--- formats are kept), else in Org syntax. `boundary` ("start" / "end")
+--- translates only that part of a range.
+---@param boundary? "start"|"end"
+function M.timestamp_translate(ts, boundary)
+  if not M.display_custom_times or ts.ts_type == "diary" or not ts.year_start then
+    -- org-element-interpret-data keeps the trailing blanks.
+    return M.interpret_timestamp(ts) .. string.rep(" ", ts.post_blank or 0)
+  end
+  local fmts = require("org.config").opts.time_stamp_custom_formats or {}
+  local fmt = M.timestamp_has_time_p(ts) and (fmts[2] or "%m/%d/%y %a %H:%M") or (fmts[1] or "%m/%d/%y %a")
+  if not boundary and (ts.ts_type == "active-range" or ts.ts_type == "inactive-range") then
+    return M.format_timestamp(ts, fmt) .. "--" .. M.format_timestamp(ts, fmt, true)
+  end
+  return M.format_timestamp(ts, fmt, boundary == "end")
+end
+
+--- org-display-custom-times of an exported buffer: its C-c C-x C-t toggle,
+--- else `#+STARTUP: customtime`, else `display_custom_times`.
+local function custom_times_p(bufnr, file)
+  if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.b[bufnr].org_custom_times ~= nil then
+    return vim.b[bufnr].org_custom_times == true
+  end
+  if file.settings.startup.customtime then
+    return true
+  end
+  return require("org.config").opts.display_custom_times == true
 end
 
 function M.timestamp_has_time_p(ts)
@@ -299,6 +227,7 @@ function M.get_backend(name)
       ascii = "org.export.ascii",
       org = "org.export.org",
       icalendar = "org.export.icalendar",
+      texinfo = "org.export.texinfo",
     })[name]
     if mod then
       require(mod)
@@ -2198,6 +2127,62 @@ function M.custom_protocol_maybe(link, desc, backend_name, info)
     end
     return uri
   end
+  if t == "info" then
+    return M.info_link_export(link.path, desc, backend_name)
+  end
+  return nil
+end
+
+--- org-info-emacs-documents
+local INFO_EMACS_DOCUMENTS = {}
+for d in (
+  "ada-mode auth autotype bovine calc ccmode cl dbus dired-x ebrowse ede ediff edt efaq-w32 efaq eglot eieio "
+  .. "eintr elisp emacs-gnutls emacs-mime emacs epa erc ert eshell eudc eww flymake forms gnus htmlfontify "
+  .. "idlwave ido info mairix-el message mh-e modus-themes newsticker nxml-mode octave-mode org pcl-cvs pgg "
+  .. "rcirc reftex remember sasl sc semantic ses sieve smtpmail speedbar srecode todo-mode tramp transient url "
+  .. "use-package vhdl-mode vip viper vtable widget wisent woman"
+):gmatch("%S+") do
+  INFO_EMACS_DOCUMENTS[d] = true
+end
+
+--- org-info-other-documents
+local INFO_OTHER_DOCUMENTS = {
+  dir = "https://www.gnu.org/manual/manual.html",
+  libc = "https://www.gnu.org/software/libc/manual/html_mono/libc.html",
+  make = "https://www.gnu.org/software/make/manual/make.html",
+}
+
+--- Export an info: link (ol-info org-info-export): HTML and Texinfo only.
+function M.info_link_export(path, desc, backend_name)
+  -- org-info--link-file-node: "manual#node" or "manual::node"
+  local file, node = (path or ""):match("^([^#:]*)[#:]:?(.*)$")
+  file = trim(file or path or "")
+  node = trim(node or "")
+  file = file ~= "" and file or "dir"
+  node = node ~= "" and node or "Top"
+  if backend_name == "texinfo" then
+    return string.format("@ref{%s,%s,,%s,}", node, desc or "", file)
+  elseif backend_name == "html" then
+    local url = INFO_OTHER_DOCUMENTS[file]
+      or (INFO_EMACS_DOCUMENTS[file] and ("https://www.gnu.org/software/emacs/manual/html_mono/" .. file .. ".html"))
+      or (file .. ".html")
+    -- org-info--expand-node-name (HTML Xref Node Name Expansion)
+    local parts = {}
+    for _, c in ipairs(vim.fn.split(node:gsub("[ \t\n\r]+", " "), "\\zs")) do
+      if c == " " then
+        parts[#parts + 1] = "-"
+      elseif c:match("^[%w]$") then
+        parts[#parts + 1] = c
+      else
+        parts[#parts + 1] = string.format("_%04x", vim.fn.char2nr(c))
+      end
+    end
+    local n = table.concat(parts)
+    if n:match("^%d") then
+      n = "g_t" .. n
+    end
+    return string.format('<a href="%s#%s">%s</a>', url, n, desc or path)
+  end
   return nil
 end
 
@@ -3908,6 +3893,7 @@ function M.export_as(backend, lines, opts)
   local dir = filename and vim.fn.fnamemodify(filename, ":p:h") or vim.fn.getcwd()
   local file0 = parser_mod.parse(lines, filename)
   local todo = file0.settings.todo
+  M.display_custom_times = custom_times_p(opts.bufnr, file0)
   local hooks = c.hooks or {}
   -- before-processing hook (org-export-before-processing-functions)
   for _, f in ipairs(M.as_list(hooks.before_processing)) do

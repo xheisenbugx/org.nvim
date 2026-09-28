@@ -161,7 +161,7 @@ describe("column view keys", function()
       ":Status: new",
       ":END:",
     }, { 1, 0 })
-    columns.open()
+    columns.open({ view = "table" })
     local view = vim.api.nvim_get_current_buf()
     vim.api.nvim_win_set_cursor(0, { 3, #vim.api.nvim_get_current_line() - 1 })
     vim.api.nvim_feedkeys("3", "xt", false)
@@ -174,7 +174,7 @@ describe("column view keys", function()
 
   it("<C-c><C-o> opens the link in the field", function()
     org_buffer({ "* A", ":PROPERTIES:", ":COLUMNS: %ITEM %Url", ":Url: [[https://example.org][site]]", ":END:" }, { 1, 0 })
-    columns.open()
+    columns.open({ view = "table" })
     vim.api.nvim_win_set_cursor(0, { 3, #vim.api.nvim_get_current_line() - 1 })
     local links = require("org.links")
     local open, seen = links.open, nil

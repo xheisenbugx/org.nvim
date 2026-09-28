@@ -1,0 +1,195 @@
+#+TITLE: Features, all of them
+#+SUBTITLE: for version 1.0
+#+AUTHOR: A.U. Thor
+#+SUBAUTHOR: Second Author
+#+SUBAUTHOR: Third Author
+#+EMAIL: au@example.org
+#+OPTIONS: email:t H:3 tex:t prop:t
+#+LANGUAGE: en
+#+TEXINFO_FILENAME: sample.info
+#+TEXINFO_HEADER: @syncodeindex pg cp
+#+TEXINFO_POST_HEADER: @set VERSION 1.0
+#+TEXINFO_DIR_CATEGORY: Texinfo documentation system
+#+TEXINFO_DIR_NAME: sample
+#+TEXINFO_PRINTED_TITLE: The @emph{Printed} Title
+#+CINDEX: top entry
+
+This is the top node. See [[Target here]] and [[#custom]].
+A sentence ending with a capital letter C. Another one, also I? Yes (see A.) Ok.
+Special strings: a\-b, x -- y, x --- y, "quoted" and 'single'.
+Math: $a+b$ and \(x^2\) and \alpha, \to, \nbsp, \rArr and \_ spaced.
+H_2O and E=mc^2 and \LaTeX{} and TeXnical.
+
+* Introduction
+:PROPERTIES:
+:ALT_TITLE: Intro
+:DESCRIPTION: The intro, briefly
+:CUSTOM_ID: custom
+:END:
+Some text with <<Target here>> target.
+A line\\
+break here.
+
+#+NAME: para
+A named paragraph.
+
+** TODO [#A] Tasks :tag1:tag2:
+DEADLINE: <2026-10-01 Thu> SCHEDULED: <2026-09-30 Wed>
+CLOCK: [2026-09-01 Tue 10:00]--[2026-09-01 Tue 11:00] =>  1:00
+:PROPERTIES:
+:FOO: bar
+:END:
+Timestamps: <2026-01-02 Fri> and [2026-01-03 Sat 10:00] and <%%(diary-float t 4 2)>.
+Cookie [1/2].
+
+- [X] done
+- [ ] not done
+
+** Duplicate
+First.
+** Duplicate
+Second.
+
+** Lists
+#+ATTR_TEXINFO: :enum A
+1. Alpha
+2. Bravo
+
+3) [@5] five
+4) six
+
+#+ATTR_TEXINFO: :table-type vtable :sep , :indic asis
+- foo, bar :: This is the common text for variables foo and bar.
+
+#+ATTR_TEXINFO: :table-type ftable :indic code :compact t
+- one ::
+- two ::
+  Shared body.
+- three :: Own body.
+
+- Function: org-texinfo-drawer drawer contents info ::
+  Transcode a DRAWER element from Org to Texinfo.
+- Key: C-c C-c (do-something) ::
+  This command does something.
+- Key: M-x foo-bar ::
+  Run foo.
+- User Option: do-something-somehow ::
+  This option controls how exactly ~do-something~ does its thing.
+- Normal :: item
+- Command: my-cmd arg ::
+  A command.
+
+*** Deep level
+Level three.
+**** Deeper level
+Level four, a list item now.
+**** Another deep
+Also.
+
+* Blocks
+#+CAPTION[Short]: A long caption
+#+NAME: tab:one
+#+ATTR_TEXINFO: :columns .3 .7
+| name | value |
+|------+-------|
+| x    |   1.5e3 |
+
+| no | header | here |
+| a  | bb     | ccc  |
+
+#+CAPTION: Code listing
+#+NAME: code1
+#+begin_src python
+def f(x):
+    return {x, "@"}
+#+end_src
+
+#+begin_src lisp
+(+ 1 2)
+#+end_src
+
+: fixed width @ line
+:   indented
+
+#+ATTR_TEXINFO: :tag Warning :author King Arthur
+#+begin_quote
+Striking your thumb.
+#+end_quote
+
+#+begin_verse
+  Roses are red,
+Violets are blue.
+#+end_verse
+
+#+begin_center
+Centered text
+second line
+#+end_center
+
+#+ATTR_TEXINFO: :options org-org-export-to-org ...
+#+begin_defun
+A somewhat obsessive function name.
+#+end_defun
+
+#+TEXINFO: @need800
+#+begin_export texinfo
+  @auindex Johnson, Mark
+#+end_export
+Inline @@texinfo:@sc{@@snippet@@texinfo:}@@ here.
+src_emacs-lisp{(foo, "bar")} inline.
+
+#+begin_example
+example {block}
+#+end_example
+
+\begin{equation}
+x = y
+\end{equation}
+
+:LOGBOOK:
+- note
+:END:
+
+:MYDRAWER:
+drawer body
+:END:
+
+#+TOC: tables
+#+TOC: listings
+
+Footnotes[fn:2] and inline[fn:: inline /note/.] and a list one[fn:3].
+
+* Links
+Mail [[mailto:me@example.org][me]] and [[mailto:x@y.z]].
+File [[file:other.org][other]] and [[./doc.pdf]] image-ish and [[file:img.png]].
+#+CAPTION: A figure
+#+NAME: fig1
+#+ATTR_TEXINFO: :width 1in :alt Alternate @i{text}
+[[file:pic.png]]
+
+Radio <<<radio word>>> here and radio word again.
+Reference to [[fig1]] and [[code1][the code]] and [[para]].
+Link [[*Introduction][to intro, with: colon]].
+
+* Unnumbered
+:PROPERTIES:
+:UNNUMBERED: t
+:END:
+Unnumbered text.
+
+** Not in toc
+:PROPERTIES:
+:UNNUMBERED: notoc
+:END:
+Hidden.
+
+* Variable Index
+:PROPERTIES:
+:INDEX: vr
+:END:
+
+[fn:2] Plain footnote.
+
+[fn:3] Footnote with a list:
+- a
+- b

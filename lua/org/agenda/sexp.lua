@@ -12,6 +12,9 @@
 ---   diary-float MONTH DAYNAME N [DAY]
 ---   org-class Y1 M1 D1 Y2 M2 D2 DAYNAME [SKIP-WEEKS...]
 ---   org-calendar-holiday      (the holidays of `agenda.holidays`)
+---   diary-remind SEXP DAYS [MARKING]   diary-offset SEXP DAYS
+---   diary-hebrew-date, diary-iso-date, ... (the date in other calendars)
+---   diary-day-of-year
 ---   and, or, not, list, quote
 ---
 --- around a side-effect-free subset of Elisp: if/when/unless/cond/let/
@@ -22,8 +25,8 @@
 ---
 --- The `diary-*` functions use Emacs's default `calendar-date-style`
 --- (american: month day year); the `org-*` wrappers use ISO order (year month
---- day), exactly like Emacs. Anything else (other Elisp, other calendars'
---- diary entries, diary-remind, ...) is reported as an error so the caller can skip
+--- day), exactly like Emacs. Anything else (other Elisp, the anniversaries
+--- of other calendars, ...) is reported as an error so the caller can skip
 --- the entry.
 
 local date = require("org.date")
@@ -750,7 +753,6 @@ local FUNCS = {
     return tostring(num(v, "number-to-string"))
   end,
 }
-M.functions = vim.tbl_keys(FUNCS)
 
 --- Convert a quoted form to a value.
 local function quoted(node)
@@ -918,6 +920,160 @@ function eval_node(node, ctx)
   end
   return f(ctx, unpack(args, 1, nargs))
 end
+
+---------------------------------------------------------------------------
+-- Diary functions that evaluate a quoted sexp (diary-lib.el)
+---------------------------------------------------------------------------
+
+--- A quoted value back as a form (the inverse of `quoted`).
+local function to_node(v)
+  if v == true then
+    return { sym = "t" }
+  elseif v == NIL or v == nil then
+    return { sym = "nil" }
+  elseif type(v) == "table" and v.symbol then
+    return { sym = v.symbol }
+  elseif is_list(v) then
+    local list = {}
+    for i, x in ipairs(v.items) do
+      list[i] = to_node(x)
+    end
+    return { list = list }
+  elseif type(v) == "table" then
+    error("invalid-function", 0)
+  end
+  return v
+end
+
+--- Evaluate the form `v` with `date` bound to DAY (Emacs rebinds the
+--- dynamic variable `date`; `entry` is unchanged).
+local function eval_on(ctx, v, day)
+  local vars = setmetatable({ date = date_list(day) }, { __index = ctx.vars })
+  return eval_node(to_node(v), setmetatable({ day = day, vars = vars }, { __index = ctx }))
+end
+
+--- diary-offset SEXP DAYS: SEXP applies DAYS days earlier.
+FUNCS["diary-offset"] = function(ctx, sexp, days)
+  if type(days) ~= "number" or days ~= math.floor(days) then
+    error("Days must be an integer", 0)
+  end
+  return eval_on(ctx, sexp, ctx.day - days)
+end
+
+--- diary-remind SEXP DAYS [MARKING]: the entry on its date, and "Reminder:
+--- Only N days until ENTRY" DAYS days before (a list of days, or -N for 1..N).
+local function remind(ctx, sexp, days)
+  if type(days) == "number" and days < 0 and days == math.floor(days) then
+    local l = {}
+    for i = 1, -days do
+      l[i] = i
+    end
+    days = list_of(l)
+  end
+  local entry = eval_on(ctx, sexp, ctx.day)
+  if truthy(entry) then
+    return entry
+  elseif type(days) == "number" and days == math.floor(days) then
+    entry = eval_on(ctx, sexp, ctx.day + days)
+    if not truthy(entry) then
+      return NIL
+    end
+    if type(entry) == "table" and entry.cons then
+      entry = entry.cdr
+    end
+    if type(entry) ~= "string" then
+      error("wrong-type-argument sequencep in diary-remind", 0)
+    end
+    return string.format("Reminder: Only %d day%s until %s", days, days > 1 and "s" or "", entry)
+  elseif is_list(days) then
+    local r = remind(ctx, sexp, days.items[1])
+    if truthy(r) then
+      return r
+    end
+    return remind(ctx, sexp, list_of(vim.list_slice(days.items, 2)))
+  end
+  return NIL
+end
+FUNCS["diary-remind"] = function(ctx, sexp, days)
+  return remind(ctx, sexp, days)
+end
+
+---------------------------------------------------------------------------
+-- The date in other calendars (diary-hebrew-date, diary-iso-date, ...)
+---------------------------------------------------------------------------
+
+--- Emacs absolute day number (calendar-absolute-from-gregorian) of `day`.
+local function absolute(day)
+  return day - date.days_from_civil(1, 1, 1) + 1
+end
+
+--- { function, calendars.lua converter, format, text when it is "" }
+local OTHER_DATES = {
+  { "diary-hebrew-date", "hebrew_string", "Hebrew date (until sunset): %s" },
+  { "diary-islamic-date", "islamic_string", "Islamic date (until sunset): %s", "Date is pre-Islamic" },
+  { "diary-bahai-date", "bahai_string", "Bahá’í date: %s" },
+  { "diary-chinese-date", "chinese_string", "Chinese date: %s" },
+  { "diary-julian-date", "julian_string", "Julian date: %s" },
+  { "diary-iso-date", "iso_string", "ISO date: %s" },
+  { "diary-astro-day-number", "astro_string", "Astronomical (Julian) day number at noon UTC: %s.0" },
+  { "diary-french-date", "french_string", "French Revolutionary date: %s", "Date is pre-French Revolution" },
+  { "diary-mayan-date", "mayan_string", "Mayan date: %s" },
+  { "diary-coptic-date", "coptic_string", "Coptic date: %s", "Date is pre-Coptic calendar" },
+  { "diary-ethiopic-date", "ethiopic_string", "Ethiopic date: %s", "Date is pre-Ethiopic calendar" },
+  { "diary-persian-date", "persian_string", "Persian date: %s" },
+}
+for _, spec in ipairs(OTHER_DATES) do
+  local name, conv, fmt, empty = spec[1], spec[2], spec[3], spec[4]
+  FUNCS[name] = function(ctx)
+    local s = require("org.agenda.calendars")[conv](absolute(ctx.day))
+    if s == nil then
+      error("There was no year zero", 0)
+    elseif s == "" and empty then
+      return empty
+    end
+    return (fmt:gsub("%%s", function()
+      return s
+    end))
+  end
+end
+
+--- diary-day-of-year (calendar-day-of-year-string).
+FUNCS["diary-day-of-year"] = function(ctx)
+  local y = date.civil_from_days(ctx.day)
+  local n = ctx.day - date.days_from_civil(y, 1, 1) + 1
+  local left = date.days_from_civil(y, 12, 31) - ctx.day
+  return string.format("Day %d of %d; %d day%s remaining in the year", n, y, left, left == 1 and "" or "s")
+end
+--- diary-lunar-phases [MARK]: the phase of the moon on the day (lunar.el).
+FUNCS["diary-lunar-phases"] = function(ctx)
+  local cal, astro = require("org.agenda.calendars"), require("org.agenda.holidays.astro")
+  local z = require("org.agenda.holidays.solar").system_zone()
+  local abs = absolute(ctx.day)
+  local m, d, y = mdy(ctx.day)
+  -- lunar-index
+  local index = 4 * astro.truncate(12.3685 * (y + astro.day_number(m, d, y) / 366.0 + -1900))
+  local p = cal.lunar_phase(z, index)
+  while p.abs < abs do
+    index = index + 1
+    p = cal.lunar_phase(z, index)
+  end
+  if p.abs ~= abs then
+    return NIL
+  end
+  return cons(cal.phase_names[p.phase + 1] .. " " .. p.time .. (p.eclipse ~= "" and (" " .. p.eclipse) or ""))
+end
+
+--- diary-sunrise-sunset: at `agenda.calendar_latitude`/`calendar_longitude`.
+FUNCS["diary-sunrise-sunset"] = function(ctx)
+  local acfg = require("org.config").opts.agenda
+  local lat, lon = acfg.calendar_latitude, acfg.calendar_longitude
+  if type(lat) ~= "number" or type(lon) ~= "number" then
+    error("agenda.calendar_latitude and agenda.calendar_longitude are not set", 0)
+  end
+  local location = acfg.calendar_location_name
+  return require("org.agenda.calendars").sunrise_sunset_string(absolute(ctx.day), lat, lon, { location = location })
+end
+M.functions = vim.tbl_keys(FUNCS)
 
 --- Evaluate a sexp for a day (org.date day number).
 --- Returns false when it does not match, true when it matches without text,

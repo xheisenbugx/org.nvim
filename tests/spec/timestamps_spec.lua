@@ -344,15 +344,25 @@ describe("timestamps: scheduling like Emacs", function()
   end)
 
   it("custom timestamp display", function()
-    local buf = org_buffer({ "* X <2026-09-25 Fri 10:00>--<2026-09-26 Sat> [2026-01-02 Fri +1w]" }, { 1, 0 })
+    -- Emacs displays the custom text over the inside of the brackets and
+    -- keeps a time-range end and a trailing repeater visible.
+    local buf = org_buffer({
+      "* X <2026-09-25 Fri 10:00>--<2026-09-26 Sat> [2026-01-02 Fri +1w] <2026-01-02 Fri 09:00-10:30 .+2d/3d>",
+    }, { 1, 0 })
     ts.toggle_custom_display()
     local ns = vim.api.nvim_get_namespaces()["org.timestamps.custom"]
     local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
     local texts = {}
+    local line = buf_lines(buf)[1]
     for _, m in ipairs(marks) do
-      texts[#texts + 1] = m[3] .. ":" .. m[4].virt_text[1][1] .. ":" .. m[4].conceal
+      texts[#texts + 1] = line:sub(m[3] + 1, m[4].end_col) .. "=" .. m[4].virt_text[1][1] .. ":" .. m[4].conceal
     end
-    eq({ "4:09/25/26 Fri 10:00:", "28:09/26/26 Sat:", "45:01/02/26 Fri:" }, texts)
+    eq({
+      "2026-09-25 Fri 10:00=09/25/26 Fri 10:00:",
+      "2026-09-26 Sat=09/26/26 Sat:",
+      "2026-01-02 Fri=01/02/26 Fri:",
+      "2026-01-02 Fri 09:00=01/02/26 Fri 09:00:",
+    }, texts)
     ts.toggle_custom_display()
     eq({}, vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}))
   end)

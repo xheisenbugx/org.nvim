@@ -506,10 +506,20 @@ function M.custom_text(d)
   return d:strftime(fmt)
 end
 
---- Redraw the custom display of every timestamp of the buffer: each one
---- (both ends of a range) is concealed and its custom text shown inline,
---- like Emacs displays it over the timestamp. Editing shows the real text
---- (the concealment follows 'concealcursor').
+--- Byte range (1-based, inclusive) of a timestamp's text that the custom
+--- format replaces (org-display-custom-time): inside the brackets, less a
+--- trailing time-range end (`-11:30`) and repeater (` +1w`, ` .+2d/3d`).
+local function custom_span(line, s, e)
+  local inner = line:sub(s + 1, e - 1)
+  local rep = inner:match(" [.+]?%+%d+[hdwmy]/%d+[hdwmy]$") or inner:match(" [.+]?%+%d+[hdwmy]$") or ""
+  local tr = inner:sub(1, #inner - #rep):match("%-%d+:%d+$") or ""
+  return s + 1, e - 1 - #rep - #tr
+end
+
+--- Redraw the custom display of every timestamp of the buffer: the text of
+--- each one (both ends of a range) inside its brackets is concealed and its
+--- custom text shown inline, like Emacs displays it over the timestamp.
+--- Editing shows the real text (the concealment follows 'concealcursor').
 function M.refresh_custom_display(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -532,8 +542,13 @@ function M.refresh_custom_display(bufnr)
             }
           end
         end
+        -- like Emacs, not in a link's brackets ("[[2024-...]]")
+        if line:sub(item.start_col - 1, item.start_col - 1) == "[" then
+          parts = {}
+        end
         for _, part in ipairs(parts) do
-          local d, s, e = part[1], part[2], part[3]
+          local d = part[1]
+          local s, e = custom_span(line, part[2], part[3])
           pcall(vim.api.nvim_buf_set_extmark, bufnr, custom_ns, i - 1, s - 1, {
             end_col = e,
             conceal = "",

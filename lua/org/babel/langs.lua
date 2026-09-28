@@ -690,6 +690,8 @@ function M.expand(lang, body, args, vars, colnames)
   local fam = M.family(lang)
   if fam == "c" then
     return M.c_expand(lang, body, args, vars, colnames)
+  elseif lang == "emacs-lisp" or lang == "elisp" then
+    return require("org.babel.elisp").expand_body(body, args, vars)
   elseif fam == "sqlite" or fam == "sql" then
     local parts = {}
     parts[#parts + 1] = args.prologue and unq(args.prologue) or ""

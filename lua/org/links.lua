@@ -1145,6 +1145,43 @@ local function open_shell(cmd, bufnr)
   return run_in_terminal(argv, base_dir(bufnr))
 end
 
+--- Run an `elisp:` link after confirmation (org-link--open-elisp). The sexp
+--- is evaluated in a separate `emacs --batch` (babel.emacs_lisp), not in
+--- the editor; without Emacs, on the Lisp interpreter of table formulas.
+local function open_elisp(sexp, bufnr)
+  local skip = lopts().elisp_skip_confirm_regexp
+  local skipped = false
+  if type(skip) == "string" and skip ~= "" then
+    local ok, re = pcall(vim.regex, skip)
+    skipped = ok and re:match_str(sexp) ~= nil
+  end
+  local confirm = lopts().confirm_elisp
+  if not skipped and confirm ~= false then
+    local yes
+    if type(confirm) == "function" then
+      yes = confirm(sexp)
+    else
+      yes = utils.confirm("Execute " .. sexp .. " as Elisp?")
+    end
+    if not yes then
+      utils.warn("Abort")
+      return false
+    end
+  end
+  if not sexp:match("^%s*%(") then
+    -- Emacs calls a command name interactively: there is no Emacs to call it in
+    utils.warn("elisp: " .. sexp .. ": Emacs commands cannot be called from Neovim")
+    return false
+  end
+  local value, err = require("org.babel.elisp").eval_link(sexp, base_dir(bufnr))
+  if not value then
+    utils.error("elisp: " .. tostring(err))
+    return false
+  end
+  utils.notify(sexp .. " => " .. value)
+  return true
+end
+
 --- Show an internal link's buffer in another window (C-u C-c C-o).
 local function other_window_same_buffer()
   local buf = vim.api.nvim_get_current_buf()
@@ -1240,8 +1277,7 @@ function M.open(target, opts)
   elseif t == "shell" then
     return open_shell(link.path, bufnr)
   elseif t == "elisp" then
-    utils.warn("elisp: links are not supported in Neovim (they need an Emacs Lisp interpreter)")
-    return false
+    return open_elisp(link.path, bufnr)
   elseif t == "help" then
     local ok, err = pcall(vim.cmd.help, link.path)
     if not ok then

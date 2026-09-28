@@ -121,15 +121,9 @@ describe("agenda export", function()
     ok(c:find("BEGIN:VTODO\r\nUID:TODO-", 1, true))
     ok(c:find("DUE;VALUE=DATE:20260925", 1, true))
     ok(c:find("PRIORITY:1\r", 1, true), c)
-    -- PDF / PostScript need Emacs's ps-print
-    local orig = utils.error
-    local msg
-    utils.error = function(m)
-      msg = m
-    end
-    ok(not export.write(dir .. "/a.pdf"))
-    utils.error = orig
-    ok(msg:find("not supported"))
+    -- PDF / PostScript (|org.agenda.print|, tested in agenda_print_spec)
+    ok(export.write(dir .. "/a.pdf"))
+    ok(utils.readfile(dir .. "/a.pdf")[1] == "%PDF-1.4")
   end)
 
   it("stores views of custom commands with export files", function()

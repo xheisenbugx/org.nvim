@@ -12,6 +12,7 @@ local M = {}
 ---@field key string|nil
 ---@field done boolean
 ---@field seq integer sequence index
+---@field seq_type "sequence"|"type" kind of its sequence
 ---@field index integer position in the flat keyword list
 ---@field log_enter "time"|"note"|nil
 ---@field log_leave "time"|"note"|nil
@@ -48,9 +49,23 @@ end
 --- Parse one keyword token like `WAIT(w@/!)`.
 M.parse_token = parse_token
 
---- Normalize user config into a list of sequence strings.
----@param spec string[]|string
----@return string[]
+--- The keywords and kind of a sequence entry: a string, or a table
+--- `{ type = "Fred Sara | DONE" }` / `{ sequence = "TODO | DONE" }`.
+---@return string text, "sequence"|"type" kind
+function M.sequence_spec(entry)
+  if type(entry) == "table" then
+    if entry.type then
+      return entry.type, "type"
+    end
+    return entry.sequence or entry[1] or "", "sequence"
+  end
+  return entry, "sequence"
+end
+
+--- Normalize user config into a list of sequences: strings, or tables
+--- `{ type = "..." }` for type sequences (Emacs `(type ...)`).
+---@param spec (string|table)[]|string
+---@return (string|table)[]
 function M.normalize(spec)
   if type(spec) == "string" then
     return { spec }
@@ -68,7 +83,7 @@ function M.normalize(spec)
   -- a list of single-word keywords without "|" is also a single sequence
   local single_words = #spec > 0
   for _, v in ipairs(spec) do
-    if v:find("%s") then
+    if type(v) ~= "string" or v:find("%s") then
       single_words = false
     end
   end
@@ -89,7 +104,8 @@ function M.new(sequences)
     has_log_flags = false,
   }, TodoConfig)
   local last_name
-  for si, seq in ipairs(M.normalize(sequences)) do
+  for si, entry in ipairs(M.normalize(sequences)) do
+    local seq, kind = M.sequence_spec(entry)
     local tokens = vim.split(vim.trim(seq), "%s+")
     local has_bar = vim.tbl_contains(tokens, "|")
     local list = {}
@@ -102,6 +118,8 @@ function M.new(sequences)
         -- without "|", the last keyword is the DONE state
         kw.done = done or (not has_bar and ti == #tokens)
         kw.seq = si
+        -- "type": the keywords are types (people); C-c C-t jumps to DONE
+        kw.seq_type = kind
         last_name = kw.name
         if not self.by_name[kw.name] then
           kw.index = #self.keywords + 1
@@ -213,9 +231,13 @@ end
 --- keyword of the sequence, nothing after its last keyword, and from no
 --- keyword the first keyword of `head`'s sequence (the sequence the
 --- headline was last in) or of the first sequence. `dir = -1` walks back.
+--- In a type sequence (`#+TYP_TODO:`), any keyword but the last goes
+--- straight to the sequence's first DONE keyword, unless `repeated` (the
+--- previous command was also C-c C-t), which walks the names in order.
 ---@param head? string remembered sequence head for an empty state
+---@param repeated? boolean
 ---@return string|nil
-function TodoConfig:cycle(current, dir, head)
+function TodoConfig:cycle(current, dir, head, repeated)
   dir = dir or 1
   local kw = self:get(current)
   if not kw then
@@ -232,6 +254,9 @@ function TodoConfig:cycle(current, dir, head)
     if k.name == kw.name then
       pos = i
     end
+  end
+  if kw.seq_type == "type" and dir > 0 and not repeated and pos < #list then
+    return self:first_done(kw.name)
   end
   local nxt = list[pos + dir]
   return nxt and nxt.name or nil

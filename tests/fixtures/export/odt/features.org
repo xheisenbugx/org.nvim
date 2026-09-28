@@ -1,0 +1,82 @@
+#+TITLE: Second
+#+AUTHOR: Jane
+#+EMAIL: jane@example.org
+#+OPTIONS: toc:nil num:t H:2 email:t p:t c:t pri:t ':t prop:t
+#+KEYWORDS: alpha beta
+#+DESCRIPTION: A description
+
+* DONE [#B] Features :a:b:
+CLOSED: [2024-02-01 Thu 10:00] SCHEDULED: <2024-01-30 Tue>
+:PROPERTIES:
+:CUSTOM_ID: feat
+:ID: 1234-abcd
+:END:
+:LOGBOOK:
+CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:30] =>  1:30
+:END:
+"Quoted" and 'single' text <<tgt>> with a target.
+
+- term one :: first def
+- [ ] term two :: second def
+  with more lines
+
+#+ATTR_ODT: :list-table t
+- Row 1
+  - 1.1
+  - 1.2
+- Row 2
+  - 2.1
+  - 2.2
+
+1. [-] partial
+   | x | y |
+   |---+---|
+   | 1 | 2 |
+   after table
+2. second item
+
+| / | <   |   > |
+| <l> | <r> | <c> |
+| a | b   |   c |
+|---+-----+-----|
+| 1 | 2   |   3 |
+
+#+ATTR_ODT: :rel-width 50 :style TableWithHeaderRowAndColumn
+| h1 | h2 |
+| v1 | v2 |
+
+See [[tgt]] and [[#feat]] and [[id:1234-abcd]].
+
+#+CAPTION: Listing cap
+#+NAME: src1
+#+BEGIN_SRC emacs-lisp
+(message "hi")
+#+END_SRC
+
+Ref to [[src1]].
+
+#+ATTR_ODT: :style OrgTextbox
+#+BEGIN_textbox
+In a box.
+#+END_textbox
+
+#+BEGIN_annotation
+A note.
+#+END_annotation
+
+#+BEGIN_EXPORT odt
+<text:p>raw</text:p>
+#+END_EXPORT
+
+#+ODT: <text:p>kw</text:p>
+
+@@odt:<text:span>snip</text:span>@@ and [3/4] stat.
+
+Active <2024-03-01 Fri 09:00>--<2024-03-02 Sat 10:00> and inactive [2024-03-05 Tue].
+
+** Sub two
+Line one\\
+line two
+
+*** Too deep
+Deep content.

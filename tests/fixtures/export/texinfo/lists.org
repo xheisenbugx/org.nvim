@@ -1,0 +1,37 @@
+#+AUTHOR: Ann Other
+#+OPTIONS: toc:nil
+
+- a ::
+- b ::
+
+- c ::
+  body
+- d ::
+
+Para.
+
+1. x
+2.
+
+- Key: C-x C-f ::
+- Key: C-x C-s ::
+  Save.
+
+#+ATTR_TEXINFO: :compact t
+- Key: C-a ::
+- Key: C-e (end) ::
+  Move.
+
+- one
+-
+- three
+
+text with `quote' and "double" LaTeX.
+
+#+OPTIONS: ':t
+
+- item with =multi
+  line verbatim= inside
+  and more.
+
+Search =TODO=​"DONE"= and ~ ~ and =x​= y=.

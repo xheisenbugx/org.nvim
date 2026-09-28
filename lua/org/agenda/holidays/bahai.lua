@@ -374,5 +374,6 @@ end
 
 M.to_absolute = to_absolute
 M.from_absolute = from_absolute
+M.leap_year_p = leap_year_p
 
 return M

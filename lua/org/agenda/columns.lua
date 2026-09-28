@@ -7,7 +7,8 @@
 --- overlay is virtual text, so the entry under the cursor is still the
 --- agenda entry. While active, `q` removes the column view, `e` edits the
 --- value under the cursor, `n`/`p` (`<S-Right>`/`<S-Left>`) switch to the
---- next/previous allowed value and `v` shows the full value.
+--- next/previous allowed value and `v` shows the full value. The column
+--- titles are in the window's winbar (Emacs header-line).
 
 local columns = require("org.columns")
 local config = require("org.config")
@@ -214,12 +215,22 @@ function M.apply()
   for i, c in ipairs(cols) do
     titles[i] = c.title
   end
-  pcall(vim.api.nvim_buf_set_extmark, buf, ns, 0, 0, {
-    virt_lines = { { { row_text(titles, widths), "OrgAgendaColumnTitle" } } },
-    virt_lines_above = true,
-  })
   local was = A
   A = { buf = buf, cols = cols, widths = widths, cells = cells, fmt = fmt, maps = was and was.buf == buf and was.maps }
+  -- the titles in the agenda window's winbar (Emacs header-line), after
+  -- the number and sign columns
+  local win = S.win
+  if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+    local saved = was and was.buf == buf and was.win == win and was.saved_winbar
+    if not saved then
+      saved = vim.api.nvim_get_option_value("winbar", { scope = "local", win = win })
+    end
+    A.win, A.saved_winbar = win, saved
+    local textoff = (vim.fn.getwininfo(win)[1] or {}).textoff or 0
+    local title = row_text(titles, widths):gsub("%%", "%%%%")
+    local bar = "%#Normal#" .. string.rep(" ", textoff) .. "%#OrgAgendaColumnTitle#" .. title .. "%#Normal#"
+    vim.api.nvim_set_option_value("winbar", bar, { scope = "local", win = win })
+  end
   if not A.maps then
     M.map_keys(buf)
   end
@@ -405,6 +416,9 @@ function M.quit()
   end
   local buf = A.buf
   clear(buf)
+  if A.win and A.saved_winbar and vim.api.nvim_win_is_valid(A.win) then
+    pcall(vim.api.nvim_set_option_value, "winbar", A.saved_winbar, { scope = "local", win = A.win })
+  end
   if vim.api.nvim_buf_is_valid(buf) then
     for _, lhs in ipairs(KEYS) do
       pcall(vim.keymap.del, "n", lhs, { buffer = buf })
