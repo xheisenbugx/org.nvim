@@ -3433,7 +3433,8 @@ HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar and Texinfo matches
 Emacs.
 
 <prefix>e (Emacs `C-c C-e`) opens the export dispatcher:
-  b / s / v / a  toggle body only / subtree only / visible only / async
+  b / s / v / f / a  toggle body only / subtree only / visible only /
+                 force publishing / async (also <C-b> <C-s> <C-v> <C-f> <C-a>)
   c f  iCalendar: current file   c a  every agenda file   c c  combined
   h H  HTML buffer      h h  HTML file          h o  HTML file and open
   i t  Texinfo file     i i  Info file          i o  Info file and open
@@ -3446,9 +3447,50 @@ Emacs.
   t A/a  ASCII buffer/file   t L/l  Latin-1   t U/u  UTF-8
   P f  publish file     P p  current project    P x  a project  P a  all
   p    other format via pandoc
+  &    the export stack (|org-export-stack|)
   #    insert the default export template
 
-`:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
+The toggles start from `export.initial_scope` ("buffer" or "subtree"),
+`export.body_only`, `export.visible_only`, `export.force_publishing` and
+`export.in_background` (Emacs org-export-initial-scope, -body-only,
+-visible-only, -force-publishing, -in-background). With
+`export.dispatch_use_expert_ui` (org-export-dispatch-use-expert-ui) there is
+no menu, only the prompt "Export command (C-bvsfa) [keys]: " with the
+active options highlighted; `?` switches to the menu. "As ... buffer"
+exports show their buffer in a split unless
+`export.show_temporary_export_buffer` is false (the buffer is still made).
+`export.copy_to_kill_ring` (true, "if-interactive" or false) also puts the
+output in the unnamed register and the clipboard. `export.coding_system`
+(org-export-coding-system) is the encoding of exported files, an |iconv()|
+name such as "latin1"; nil is UTF-8. `export.process_citations = false`
+leaves citations to the back-end (they export as nothing, like Emacs) and
+`export.replace_macros = false` keeps macros unexpanded (they also export
+as nothing; with Babel on, a macro other than {{{results}}} stops the
+export, like Emacs). `export.smart_quotes_alist` gives the smart quotes of a
+language (org-export-smart-quotes-alist); a language set there replaces its
+entry of the Emacs table.
+
+Asynchronous export                                      *org-export-stack*
+With the dispatcher's `a` toggle, `export.in_background` or `:Org export
+{format} async`, the dispatcher returns at once and the result is not shown
+but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
+lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
+`v` views the entry at the cursor (a file with the system opener, with a
+count in Neovim), `d` removes it from the stack, `C` clears the stack
+(`:Org export_stack_clear`), `g` refreshes, `q` closes. PDF and Info files
+are compiled by external processes; the export itself runs on the main loop
+right after the dispatcher closes (Emacs starts a separate Emacs process).
+
+Convert region                                   *org-export-convert-region*
+In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
+`_ascii`, `_utf8` and `_texinfo` (Emacs org-html-convert-region-to-html,
+org-latex-convert-region-to-latex, ...) replace the selection with its
+body-only export, the selection being exported on its own like a
+temporary Org buffer. `:[range]Org convert_region {format}` does the same for
+lines (any native format), and `:[range]Org export_region_to_html` (latex,
+md, ascii, utf8, texinfo) are the Emacs org-export-region-to-* aliases.
+
+`:Org export {format} [subtree] [body] [visible] [buffer] [open] [async]` where
 format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
 beamer-pdf, org, ics, odt, texinfo (or texi), info or a pandoc format
 (docx, rst, epub, ...).
@@ -4583,9 +4625,41 @@ export ~                                                   *org-config-export*
   with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
-  global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
+  global_macros, allow_bind_keywords false, hooks, filters,
+  initial_scope "buffer", body_only, visible_only, force_publishing,
+  in_background, dispatch_use_expert_ui false,
+  show_temporary_export_buffer true, copy_to_kill_ring false,
+  coding_system nil, process_citations, replace_macros true,
+  smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
+  Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
+  value): html allow_name_attribute_in_anchors, coding_system "utf-8",
+  datetime_formats { "%F", "%FT%T" }, divs, footnotes_section,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, home_up_format, infojs_template,
+  inline_image_rules, klipsify_src, klipse_css, klipse_js,
+  klipse_selection_script, mathjax_template, meta_tags, scripts,
+  table_align_individual_fields, table_data_tags, table_header_tags,
+  table_default_attributes, table_row_open_tag, table_row_close_tag,
+  table_use_header_tags_for_first_column, tag_class_prefix,
+  todo_kwd_class_prefix, text_markup_alist, viewport, xml_declaration;
+  latex active_timestamp_format, inactive_timestamp_format,
+  diary_timestamp_format, compiler_file_string, known_warnings,
+  custom_lang_environments, default_footnote_command,
+  default_quote_environment, footnote_defined_format, footnote_separator,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, image_default_scale, image_default_height,
+  image_default_option, inline_image_rules, inputenc_alist,
+  link_with_unknown_path_format, listings_langs, listings_options,
+  listings_src_omit_language, logfiles_extensions, minted_langs,
+  minted_options, subtitle_format, subtitle_separate,
+  table_scientific_notation, text_markup_alist, toc_include_unnumbered;
+  texinfo logfiles_extensions, active_timestamp_format,
+  inactive_timestamp_format, diary_timestamp_format,
+  link_with_unknown_path_format, tables_verbatim,
+  table_scientific_notation, text_markup_alist, format_headline_function,
+  format_drawer_function, format_inlinetask_function.
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil

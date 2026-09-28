@@ -387,6 +387,49 @@ group("Search & export", {
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
+  export_stack = { "org.export", "stack_show", desc = "Export stack: results of background exports", global = true },
+  export_stack_clear = {
+    "org.export",
+    "stack_clear",
+    desc = "Remove every entry from the export stack",
+    global = true,
+  },
+  convert_region_to_html = {
+    "org.export",
+    "convert_region_to_html",
+    desc = "Replace the region by its HTML export",
+    modes = { "x" },
+  },
+  convert_region_to_latex = {
+    "org.export",
+    "convert_region_to_latex",
+    desc = "Replace the region by its LaTeX export",
+    modes = { "x" },
+  },
+  convert_region_to_md = {
+    "org.export",
+    "convert_region_to_md",
+    desc = "Replace the region by its Markdown export",
+    modes = { "x" },
+  },
+  convert_region_to_ascii = {
+    "org.export",
+    "convert_region_to_ascii",
+    desc = "Replace the region by its ASCII export",
+    modes = { "x" },
+  },
+  convert_region_to_utf8 = {
+    "org.export",
+    "convert_region_to_utf8",
+    desc = "Replace the region by its UTF-8 text export",
+    modes = { "x" },
+  },
+  convert_region_to_texinfo = {
+    "org.export",
+    "convert_region_to_texinfo",
+    desc = "Replace the region by its Texinfo export",
+    modes = { "x" },
+  },
   lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
 })
 

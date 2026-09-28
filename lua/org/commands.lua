@@ -15,6 +15,21 @@ M.extra = {
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
   export = { "org.export", "command", desc = "Export: :Org export [html|md|gfm|ascii|latex|pdf|beamer|org|ics|docx|...]" },
   publish = { "org.export", "publish_command", desc = "Publish: :Org publish [project|file|current|all] [force]" },
+  convert_region = {
+    "org.export",
+    "convert_region_command",
+    desc = "Replace lines by their export: :[range]Org convert_region html|latex|md|ascii|utf8|texinfo",
+  },
+  export_region_to_html = { "org.export", "export_region_to_html", desc = "Alias: :[range]Org convert_region html" },
+  export_region_to_latex = { "org.export", "export_region_to_latex", desc = "Alias: :[range]Org convert_region latex" },
+  export_region_to_md = { "org.export", "export_region_to_md", desc = "Alias: :[range]Org convert_region md" },
+  export_region_to_ascii = { "org.export", "export_region_to_ascii", desc = "Alias: :[range]Org convert_region ascii" },
+  export_region_to_utf8 = { "org.export", "export_region_to_utf8", desc = "Alias: :[range]Org convert_region utf8" },
+  export_region_to_texinfo = {
+    "org.export",
+    "export_region_to_texinfo",
+    desc = "Alias: :[range]Org convert_region texinfo",
+  },
   tangle = { "org.babel", "tangle_command", desc = "Tangle current file" },
   detangle = { "org.babel", "detangle_command", desc = "Send tangled file edits back to Org: :Org detangle [file]" },
   tangle_jump = { "org.babel", "jump_to_org", desc = "From a tangled file, jump to its Org src block" },
@@ -138,7 +153,7 @@ function M.complete(arglead, cmdline)
     end, names())
   end
   local sub = cmdline:match("^%S+%s+(%S+)")
-  if sub == "export" then
+  if sub == "export" or sub == "convert_region" then
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1
     end, {

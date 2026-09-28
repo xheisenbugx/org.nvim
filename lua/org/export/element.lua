@@ -707,6 +707,8 @@ function P:paragraph(L, i, e, aff, not_bol)
   local lines = vim.list_slice(L, i, last)
   local pb, nxt = after(L, last, e)
   local node = attach(M.node("paragraph", { post_blank = pb, raw_lines = lines }), aff)
+  -- text without a final newline (a region ending inside a line)
+  node.no_final_newline = self.opts.no_final_newline and last == #L or nil
   -- the first line of a paragraph starting an item or a footnote
   -- definition does not count for the common indentation
   self:fill_paragraph(node, not_bol)
@@ -716,7 +718,7 @@ end
 --- Fill a paragraph (or verse) node with objects.
 function P:fill_paragraph(node, ignore_first)
   local lines = M.remove_indentation(node.raw_lines, ignore_first)
-  local text = table.concat(lines, "\n") .. "\n"
+  local text = table.concat(lines, "\n") .. (node.no_final_newline and "" or "\n")
   node.contents = self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
   -- Emacs only removes the common indentation from plain text
   -- (org-element-normalize-contents): multi-line verbatim values keep it

@@ -677,6 +677,38 @@ function M.make_preamble(info, template, snippet)
   return guess_polyglossia_language(guess_babel_language(guess_inputenc(ox.normalize_string(header)), info), info)
 end
 
+--- The "% Intended LaTeX compiler" line (org-latex-compiler-file-string,
+--- export.latex.compiler_file_string), for pdflatex, xelatex and lualatex.
+function M.compiler_file_string(info)
+  local compiler = info.latex_compiler
+  local f = lcfg().compiler_file_string
+  if f == nil then
+    f = "%% Intended LaTeX compiler: %s\n"
+  end
+  if not (f and nw(f) and COMPILERS[compiler or ""]) then
+    return nil
+  end
+  return (f:gsub("%%(.)", function(c)
+    return c == "s" and compiler or c == "%" and "%" or "%" .. c
+  end))
+end
+
+--- Known warnings found in a LaTeX log (org-latex--collect-warnings with
+--- org-latex-known-warnings), or "error" when the log has an error.
+function M.log_warnings(text)
+  local warnings = {}
+  if text:match("\n!") and not text:match("\n![^\n]*Unicode character") then
+    return "error"
+  end
+  for _, w in ipairs(lcfg().known_warnings or data.known_warnings) do -- org-latex-known-warnings
+    local re = vim.regex(w[1])
+    if re:match_str(text) then
+      warnings[#warnings + 1] = w[2]
+    end
+  end
+  return warnings
+end
+
 local function template(contents, info)
   local title = ox.data(info.title, info)
   local spec = format_spec(info)
@@ -684,10 +716,7 @@ local function template(contents, info)
   if info.time_stamp_file then
     out[#out + 1] = ox.format_time("%% Created %Y-%m-%d %a %H:%M\n")
   end
-  local compiler = info.latex_compiler
-  if COMPILERS[compiler or ""] then
-    out[#out + 1] = fmt("%% Intended LaTeX compiler: %s\n", compiler)
-  end
+  out[#out + 1] = M.compiler_file_string(info)
   out[#out + 1] = M.make_preamble(info)
   if type(info.section_numbers) == "number" then
     out[#out + 1] = fmt("\\setcounter{secnumdepth}{%d}\n", info.section_numbers)
@@ -2223,17 +2252,7 @@ function M.compile(texfile, on_done)
         os.remove(dir .. "/" .. base .. "." .. ext)
       end
     end
-    local warnings = {}
-    if text:match("\n!") and not text:match("\n![^\n]*Unicode character") then
-      warnings = "error"
-    else
-      for _, w in ipairs(data.known_warnings) do
-        local re = vim.regex(w[1])
-        if re:match_str(text) then
-          warnings[#warnings + 1] = w[2]
-        end
-      end
-    end
+    local warnings = M.log_warnings(text)
     local err
     if not produced then
       err = "PDF file " .. out .. " wasn't produced. See the compilation log."

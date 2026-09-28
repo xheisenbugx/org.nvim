@@ -22,6 +22,14 @@ local function opt(name, default)
 end
 
 local nw = ox.nw
+
+--- org-html-klipse-selection-script
+local KLIPSE_SELECTION_SCRIPT = [[window.klipse_settings = {selector_eval_html: '.src-html',
+                             selector_eval_js: '.src-js',
+                             selector_eval_python_client: '.src-python',
+                             selector_eval_scheme: '.src-scheme',
+                             selector: '.src-clojure',
+                             selector_eval_ruby: '.src-ruby'};]]
 local trim = ox.trim
 local fmt = string.format
 
@@ -164,7 +172,9 @@ local function format_timestamp(ts, info)
   local tag = fancy and "time" or "span"
   local attrs = 'class="timestamp"'
   if fancy then
-    local f = ox.timestamp_has_time_p(ts) and "%FT%T" or "%F"
+    -- org-html-datetime-formats: { date-only, date-and-time }
+    local formats = opt("datetime_formats", { "%F", "%FT%T" })
+    local f = ox.timestamp_has_time_p(ts) and formats[2] or formats[1]
     attrs = attrs .. fmt(' datetime="%s"', ox.format_timestamp(ts, f))
   end
   local s = fmt("<%s %s>%s</%s>", tag, attrs, M.plain_text(ox.timestamp_translate(ts), info), tag)
@@ -653,41 +663,76 @@ local function infojs_install(info)
     return info
   end
   local o = info.infojs_opt or ""
+  if o:match("%f[%w]view:nil%f[^%w]") and use == "when-configured" then
+    return info
+  end
+  if info.export_options and info.export_options.body_only then
+    return info
+  end
+  -- org-html-infojs-opts-table / org-html-infojs-options defaults
   local table_ = {
     { "path", "PATH", "https://orgmode.org/org-info.js" },
     { "view", "VIEW", "info" },
-    { "toc", "TOC", info.with_toc and "1" or "0" },
+    { "toc", "TOC", info.with_toc },
     { "ftoc", "FIXED_TOC", "0" },
     { "tdepth", "TOC_DEPTH", "max" },
     { "sdepth", "SECTION_DEPTH", "max" },
     { "mouse", "MOUSE_HINT", "underline" },
     { "buttons", "VIEW_BUTTONS", "0" },
     { "ltoc", "LOCAL_TOC", "1" },
-    { "up", "LINK_UP", info.html_link_up or "" },
-    { "home", "LINK_HOME", info.html_link_home or "" },
+    { "up", "LINK_UP", info.html_link_up },
+    { "home", "LINK_HOME", info.html_link_home },
   }
-  local template = data.infojs_template
-  local options = {}
-  local path
+  local template = opt("infojs_template", data.infojs_template) -- org-html-infojs-template
+  local ptoc = info.with_toc
+  local hlevels = info.headline_levels or 3
+  local sdepth = hlevels
+  local tdepth = type(ptoc) == "number" and math.min(ptoc, hlevels) or hlevels
+  local style = {}
   for _, e in ipairs(table_) do
-    local val = o:match("%f[%w]" .. e[1] .. ":(%S+)") or e[3]
+    local val = o:match("%f[%w]" .. e[1] .. ":(%S+)")
+    if val == nil then
+      val = e[3]
+    end
     if e[1] == "path" then
-      path = val
-    else
-      if e[1] == "sdepth" or e[1] == "tdepth" then
-        if val == "max" then
-          val = tostring(info.headline_levels)
+      template = template:gsub("%%SCRIPT_PATH", function()
+        return val
+      end)
+    elseif e[1] == "sdepth" or e[1] == "tdepth" then
+      local n = tonumber(val)
+      if n and math.floor(n) == n then
+        if e[1] == "sdepth" then
+          sdepth = math.min(n, sdepth)
+        else
+          tdepth = math.min(n, tdepth)
         end
-      elseif e[1] == "toc" then
-        info.with_toc = val == "1" or val == "t"
       end
-      options[#options + 1] = fmt('org_html_manager.set("%s", "%s");', e[2], val)
+    else
+      if val == true or val == "t" then
+        val = "1"
+      elseif val == nil or val == false or val == "nil" then
+        val = "0"
+      end
+      table.insert(style, 1, { e[2], tostring(val) })
     end
   end
-  template = template:gsub("%%SCRIPT_PATH", path):gsub("%%MANAGER_OPTIONS", table.concat(options, "\n"))
-  info.html_head_extra = (info.html_head_extra or "") .. "\n" .. template
+  -- the generated TOC goes as deep as the splitting (SDEPTH); TDEPTH only
+  -- limits how much of it is shown
+  info.with_toc = sdepth
+  tdepth = math.min(tdepth, sdepth)
+  table.insert(style, 1, { "TOC_DEPTH", tostring(tdepth) })
+  local lines = {}
+  for _, kv in ipairs(style) do
+    lines[#lines + 1] = fmt('org_html_manager.set("%s", "%s");', kv[1], kv[2])
+  end
+  local a, b = template:find("%MANAGER_OPTIONS", 1, true)
+  if a then
+    template = template:sub(1, a - 1) .. table.concat(lines, "\n") .. template:sub(b + 1)
+    info.html_head_extra = (info.html_head_extra or "") .. "\n" .. template
+  end
   return info
 end
+
 M.infojs_install = infojs_install
 
 local function inner_template(contents, info)
@@ -1849,7 +1894,7 @@ local function defaults()
     { "html_klipsify_src", nil, nil, v("klipsify_src", false) },
     { "html_klipse_css", nil, nil, v("klipse_css", "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css") },
     { "html_klipse_js", nil, nil, v("klipse_js", "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js") },
-    { "html_klipse_selection_script", nil, nil, v("klipse_selection_script", "") },
+    { "html_klipse_selection_script", nil, nil, v("klipse_selection_script", KLIPSE_SELECTION_SCRIPT) },
     { "html_scripts", nil, nil, v("scripts", data.scripts) },
     { "infojs_opt", "INFOJS_OPT", nil, nil },
     { "creator", "CREATOR", nil, v("creator_string", nil) or ox.creator_string() },
