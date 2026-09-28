@@ -2493,6 +2493,17 @@ sessions keep their globals inside Neovim). Other languages ignore
     Wiping that buffer kills the session.
   - The session starts in the block's `:dir`. A top-level `let`/`const` in
     a js session becomes `var`, so blocks can be evaluated again.
+  - Every evaluation runs in the background, so Neovim never blocks (in
+    Emacs only `:async` evaluations do); requests to one session run in
+    order. Without `:async`, a result is discarded (with a warning) when
+    its block was edited during the run.
+  - `:async` (or `:async yes`) on a session block works like Emacs
+    (org-babel-comint-async): `#+RESULTS:` gets a placeholder id at
+    once, and the result replaces that placeholder when it arrives, even
+    if the block was edited or moved meanwhile. Deleting the placeholder
+    discards the result. `:async no`, `:session none`, export, `:var`
+    references and `:results silent`/`none`/`append`/`prepend` run
+    without a placeholder; lua sessions finish at once and ignore it.
 
 Languages ~
 `babel.languages` maps a language name to `{ cmd = "...", ext = "...",
@@ -2655,7 +2666,7 @@ Not supported ~
     table formula evaluator knows are evaluated.
   - `org-babel-load-file` for Emacs Lisp, and Emacs hook functions (hooks
     are `User` autocommands instead).
-  - Asynchronous sessions (`:async`), `:results xmp` (Ruby rcodetools),
+  - `:results xmp` (Ruby rcodetools),
     Indium js sessions, and SQL sessions and `:dbconnection` (Emacs'
     `sql-connection-alist`).
   - Attachment links for `:file` results inside the attachment directory
