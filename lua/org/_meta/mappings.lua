@@ -1033,6 +1033,8 @@
 ---@field follow_mode? org.MappingLhs
 --- Change the item's TODO state (fast selection when keys are defined, else cycle). Default: `{ "t", "<C-c><C-t>" }`
 ---@field todo? org.MappingLhs
+--- Change the TODO state, logged at 23:59 of yesterday (org-agenda-todo-yesterday). Default: unmapped
+---@field todo_yesterday? org.MappingLhs
 --- Cycle the item's TODO state forward. Default: `<C-S-Right>`
 ---@field todo_next? org.MappingLhs
 --- Cycle the item's TODO state backward. Default: `<C-S-Left>`

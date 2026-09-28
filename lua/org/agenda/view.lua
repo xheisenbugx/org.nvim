@@ -2633,6 +2633,19 @@ M.actions = {
     -- org-agenda-todo runs org-todo: fast selection or cycling in the set
     call("org.todo", "select_or_cycle", target)
   end),
+  -- org-agenda-todo-yesterday: org-agenda-todo with the effective time
+  -- 23:59 of yesterday (use_effective_time, extend_today_until = hour + 1)
+  todo_yesterday = on_item(function(target)
+    local opts = config.opts
+    local saved = { opts.use_effective_time, opts.extend_today_until }
+    opts.use_effective_time = true
+    opts.extend_today_until = tonumber(os.date("%H")) + 1
+    local ok, err = pcall(call, "org.todo", "select_or_cycle", target)
+    opts.use_effective_time, opts.extend_today_until = saved[1], saved[2]
+    if not ok then
+      error(err, 0)
+    end
+  end),
   todo_next = on_item(function(target)
     call("org.todo", "cycle_next", target)
   end),

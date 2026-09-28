@@ -2107,6 +2107,7 @@ M.defaults = {
       follow_mode = { "F", "vf" },
       tree_to_indirect_buffer = "<C-c><C-x>b",
       todo = { "t", "<C-c><C-t>" },
+      todo_yesterday = false, -- Emacs: unbound
       todo_next = "<C-S-Right>",
       todo_prev = "<C-S-Left>",
       priority = { ",", "<C-c>," },

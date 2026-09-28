@@ -320,3 +320,41 @@ describe("agenda show commands", function()
     eq(1, vim.api.nvim_win_get_cursor(0)[1])
   end)
 end)
+
+describe("agenda todo_yesterday", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10 (org-log-done 'time), run on 2026-09-28:
+  --   * DONE A
+  --   CLOSED: [2026-09-27 Sun 23:59] SCHEDULED: <2026-09-28 Mon>
+  --   * TODO R
+  --   SCHEDULED: <2026-09-29 Tue .+2d>
+  --   :PROPERTIES:
+  --   :LAST_REPEAT: [2026-09-27 Sun 23:59]
+  --   :END:
+  --   - State "DONE"       from "TODO"       [2026-09-27 Sun 23:59]
+  it("records 23:59 of yesterday as the time of the change", function()
+    open(
+      { "* TODO A", "SCHEDULED: " .. ts(0), "* TODO R", "SCHEDULED: " .. ts(0, ".+2d") },
+      { log_done = "time", mappings = { agenda = { todo_yesterday = "gy" } } }
+    )
+    local y = "[" .. today:add(-1, "d"):to_string({ brackets = false }) .. " 23:59]"
+    goto_title("A")
+    press("gy")
+    goto_title("R")
+    press("gy")
+    eq({
+      "* DONE A",
+      "CLOSED: " .. y .. " SCHEDULED: " .. ts(0),
+      "* TODO R",
+      "SCHEDULED: " .. ts(1, ".+2d"),
+      ":PROPERTIES:",
+      ":LAST_REPEAT: " .. y,
+      ":END:",
+      '- State "DONE"       from "TODO"       ' .. y,
+    }, source_lines())
+    eq(false, config.opts.use_effective_time)
+  end)
+end)

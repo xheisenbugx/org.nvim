@@ -1275,6 +1275,8 @@ All configurable under `mappings.agenda`:
   <C-Down/Up>     next / previous block
   <M-Down/Up>     move the line down / up (the agenda text only)
   t               change TODO state; <C-S-Right/Left> cycle it
+  todo_yesterday  (no default key) like t, but the change is logged at
+                  23:59 of yesterday (org-agenda-todo-yesterday)
   , + -           set / raise / lower priority (also <S-Up/Down>)
   : / T           set tags / show tags
   <C-c><C-x>p     set a property
