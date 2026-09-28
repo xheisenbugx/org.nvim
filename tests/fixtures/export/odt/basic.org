@@ -1,0 +1,68 @@
+#+TITLE: Test *Doc*
+#+SUBTITLE: Sub
+#+AUTHOR: John Doe
+#+DATE: <2024-01-15 Mon>
+#+EMAIL: j@x.org
+#+OPTIONS: toc:2 H:3 num:2
+
+* Intro :tag1:
+Some *bold* /italic/ _under_ +strike+ =verb= ~code~ text -- dash... x^2 H_2O \alpha
+A line with  two   spaces.
+Link to [[https://orgmode.org][Org]] and <https://example.com> and [[Second]] and [[*Second][desc]].
+Footnote here[fn:1] and again[fn:1] and inline[fn::inline def].
+
+** TODO [#A] Sub heading
+- item one
+- [X] item two
+  1. nested a
+  2. nested b
+- term :: definition
+
+#+CAPTION: A table
+#+NAME: tab1
+| a | b   |   c |
+|---+-----+-----|
+| 1 | foo | 2.5 |
+| 2 | bar |  10 |
+
+See table [[tab1]].
+
+* Second
+#+BEGIN_SRC python -n
+def f(x):  # (ref:l1)
+    return x
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+ex  <a>
+#+END_EXAMPLE
+
+#+BEGIN_QUOTE
+Quoted text.
+#+END_QUOTE
+
+#+BEGIN_VERSE
+  Verse one
+Verse two
+#+END_VERSE
+
+#+BEGIN_CENTER
+Centered.
+#+END_CENTER
+
+#+CAPTION: An image
+#+NAME: fig:img
+#+ATTR_ODT: :width 5
+[[file:img.png]]
+
+Inline $a+b$ math and \(x^2\).
+
+\begin{equation}
+E = mc^2
+\end{equation}
+
+**** Deep one
+text deep
+**** Deep two
+-----
+[fn:1] The footnote.

@@ -1451,6 +1451,37 @@ M.defaults = {
       --- fn(todo, todo_type, priority, name, tags, contents, width, inlinetask, info)
       format_inlinetask_function = nil,
     },
+    odt = {
+      --- Export ODT with pandoc instead of the native back-end (plugin option).
+      use_pandoc = false,
+      --- org-odt-styles-file: nil (factory styles), a styles.xml, .odt or
+      --- .ott file, or { "file.ott", { "styles.xml", "image/hdr.png" } }.
+      styles_file = nil,
+      extra_styles = nil, -- XML added to <office:styles> (plugin option, also #+ODT_EXTRA_STYLES)
+      content_template_file = nil, -- org-odt-content-template-file (nil = OrgOdtContentTemplate.xml)
+      display_outline_level = 2, -- org-odt-display-outline-level
+      fontify_srcblocks = true, -- org-odt-fontify-srcblocks (tree-sitter highlights)
+      create_custom_styles_for_srcblocks = true, -- org-odt-create-custom-styles-for-srcblocks
+      pixels_per_inch = 96, -- org-odt-pixels-per-inch
+      use_date_fields = false, -- org-odt-use-date-fields
+      with_forbidden_chars = "", -- org-odt-with-forbidden-chars (replacement, true = keep, false = error)
+      with_latex = nil, -- org-odt-with-latex (nil = export.with_latex; true/"mathml", "dvipng", ..., "verbatim")
+      --- org-latex-to-mathml-convert-command, e.g. "latexmlmath %i --presentationmathml=%o"
+      --- (%i fragment, %I input file, %o output file, %j jar file).
+      latex_to_mathml_convert_command = nil,
+      latex_to_mathml_jar_file = nil, -- org-latex-to-mathml-jar-file
+      inline_image_rules = nil, -- org-odt-inline-image-rules ({ file = { "png", ... } })
+      inline_formula_rules = nil, -- org-odt-inline-formula-rules ({ file = { "mathml", "mml", "odf" } })
+      table_styles = nil, -- org-odt-table-styles ({ { name, template, { use_first_row_styles = true, ... } } })
+      category_map_alist = nil, -- org-odt-category-map-alist ({ __Figure__ = { "Illustration", "value", "Figure" } })
+      format_drawer_function = nil, -- org-odt-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-odt-format-headline-function: fn(todo, todo_type, priority, text, tags)
+      format_inlinetask_function = nil, -- org-odt-format-inlinetask-function: fn(todo, type, pri, name, tags, contents)
+      preferred_output_format = nil, -- org-odt-preferred-output-format (e.g. "pdf", "docx")
+      convert_process = "LibreOffice", -- org-odt-convert-process
+      convert_processes = nil, -- org-odt-convert-processes ({ { name, cmd }, ... }; nil = Emacs list)
+      convert_capabilities = nil, -- org-odt-convert-capabilities (nil = Emacs list)
+    },
     --- Legacy alias of ascii.text_width (org-ascii-text-width).
     text_width = 72,
     pandoc = { cmd = "pandoc", args = {} },
