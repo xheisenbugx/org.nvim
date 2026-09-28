@@ -449,6 +449,52 @@
 ---extension's defaults.
 ---@class org.Config.Extensions
 ---@field [string] table|boolean
+---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
+---@field present? org.Config.Extensions.Present|boolean
+
+---Options of the `present` extension (Emacs org-present).
+---@class org.Config.Extensions.Present
+---@field enabled? boolean
+---Headlines of this level or less start a slide. (default: `1`)
+---@field slide_level? integer
+---Show the lines before the first headline (#+TITLE, #+AUTHOR, ...) as a
+---first slide when they have anything to show. (default: `true`)
+---@field title_slide? boolean
+---Slide width in columns, or a fraction of the screen (0 < w <= 1); the
+---slide is centered. (default: `80`)
+---@field width? number
+---Blank lines above the slide. (default: `2`)
+---@field padding_top? integer
+---Start read-only; `present_toggle_read_only` switches to editing, and edits
+---are written back to the source buffer. (default: `true`)
+---@field read_only? boolean
+---Hide the cursor while read-only (org-present-hide-cursor). (default: `true`)
+---@field hide_cursor? boolean
+---Hide headline stars (org-present-hide-stars-in-headings). (default: `true`)
+---@field hide_stars? boolean
+---Hide `#+KEY:` lines other than TITLE, SUBTITLE, AUTHOR, DATE and EMAIL,
+---and the keyword part of those. (default: `true`)
+---@field hide_keywords? boolean
+---Hide emphasis markers on slides. (default: `true`)
+---@field hide_emphasis_markers? boolean
+---Draw a rule under the slide's headline. (default: `true`)
+---@field heading_underline? boolean
+---Preview image links when an image backend is available. (default: `true`)
+---@field show_images? boolean
+---Show `3/12` in the window bar. (default: `true`)
+---@field counter? boolean
+---Keys always active in the slide buffer: `next`, `prev`, `first`, `last`,
+---`quit`, `toggle_read_only` -> lhs, a list of lhs or `false`.
+---@field keys? table<string, string|string[]|false>
+---Keys active only while read-only (same names as `keys`).
+---@field read_only_keys? table<string, string|string[]|false>
+---Called with the presentation state when it starts (org-present-mode-hook).
+---@field on_start? fun(state: table)
+---Called when it ends (org-present-mode-quit-hook).
+---@field on_quit? fun(state: table)
+---Called with the slide number after each move
+---(org-present-after-navigate-functions).
+---@field on_slide? fun(n: integer, state: table)
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry

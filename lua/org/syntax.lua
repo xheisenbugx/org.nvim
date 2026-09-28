@@ -164,7 +164,12 @@ function M.apply(bufnr)
   local file = require("org.files").get_buffer(bufnr)
   local todo = file.settings.todo
   local ui = config.ui or {}
-  local conceal_emph = ui.hide_emphasis_markers and " concealends" or ""
+  local hide_emph = ui.hide_emphasis_markers
+  -- a buffer can override it (presentation slides do)
+  if vim.b[bufnr].org_hide_emphasis_markers ~= nil then
+    hide_emph = vim.b[bufnr].org_hide_emphasis_markers
+  end
+  local conceal_emph = hide_emph and " concealends" or ""
   -- org-link-descriptive; toggle_link_display sets the buffer variable
   local conceal_links = ui.conceal_links ~= false
   if vim.b[bufnr].org_link_descriptive ~= nil then

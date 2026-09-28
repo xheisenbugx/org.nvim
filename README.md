@@ -935,6 +935,10 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+| Extension | Like Emacs | What it does |
+| --- | --- | --- |
+| `present` | org-present | `:Org present` shows the buffer as a slideshow, one top-level heading per slide, in its own tab ([`:h org-extensions-present`](doc/org.txt)) |
+
 ---
 
 ## 🗺️ Roadmap

@@ -5273,4 +5273,80 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `setup`      `function(opts)`, called after the above are registered
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
 
+------------------------------------------------------------------------------
+Presentations (org-present)                           *org-extensions-present*
+
+`present` shows an org buffer as a slideshow, like Emacs org-present:
+>lua
+    require("org").setup({ extensions = { present = { width = 90 } } })
+<
+`:Org present [N]` (action `present_start`) opens the presentation in a new
+tab at the slide under the cursor, or at slide N. Every headline of level
+`slide_level` or less (default 1) starts a slide that runs to the next such
+headline, so deeper subtrees stay on their parent's slide. The lines before
+the first headline are a title slide when they show anything: the values of
+#+TITLE, #+SUBTITLE, #+AUTHOR, #+DATE and #+EMAIL, and any text.
+
+Slides are copies of the source lines in a scratch buffer, centered in a
+floating window `width` columns wide. Stars, emphasis markers and other
+`#+KEY:` lines are hidden, the headline gets a rule under it, and the tab
+line, status line and ruler are turned off until the presentation ends.
+Image links are previewed when an image backend is available
+(|org-images|). The source buffer, its folds and window options are not
+touched; quitting closes the tab, restores the options and puts the cursor
+on the slide you were on.
+
+Keys in the slide buffer (actions after the arrow) ~
+  <Right>  n  <Space>      next slide       -> `present_next`
+  <Left>   p  <BS>         previous slide   -> `present_prev`
+  <C-c><   gg  <           first slide      -> `present_first`
+  <C-c>>   G   >           last slide       -> `present_last`
+  <C-c><C-q>  q  <Esc>     quit             -> `present_quit`
+  <C-c><C-r>               toggle editing   -> `present_toggle_read_only`
+
+The single-letter keys are only mapped while the slides are read-only.
+Change them with `keys` and `read_only_keys`.
+
+Editing ~
+Slides are read-only by default and the cursor is hidden (`hide_cursor`).
+With `<C-c><C-r>` (or `read_only = false`) the slide can be edited: edits
+are written back to the source buffer when you change slides, toggle back
+or quit, and `:w` in the slide buffer writes the source file.
+
+Hooks ~
+`on_start(state)`, `on_quit(state)` and `on_slide(n, state)` are called as
+the presentation starts, ends and moves (org-present-mode-hook,
+org-present-mode-quit-hook, org-present-after-navigate-functions). The
+`User` autocmds `OrgPresentStart`, `OrgPresentQuit` and `OrgPresentSlide`
+fire at the same points with `data = { source, slide, total }`.
+
+Options ~
+  `slide_level`            headline level that starts slides (1)
+  `title_slide`            show the preamble as a first slide (true)
+  `width`                  columns, or a fraction of the screen (80)
+  `padding_top`            blank lines above the slide (2)
+  `read_only`              start read-only (true)
+  `hide_cursor`            hide the cursor while read-only (true)
+  `hide_stars`             hide headline stars (true)
+  `hide_keywords`          hide `#+KEY:` lines and title keywords (true)
+  `hide_emphasis_markers`  hide `*` `/` `_` ... markers (true)
+  `heading_underline`      rule under the slide's headline (true)
+  `show_images`            preview image links (true)
+  `counter`                `3/12` in the window bar (true)
+
+Highlights: `OrgPresentHeading`, `OrgPresentUnderline`, `OrgPresentTitle`,
+`OrgPresentAuthor`, `OrgPresentDate`, `OrgPresentCounter`.
+
+Differences from Emacs org-present ~
+  - A terminal cannot change its font size, so there is no
+    `org-present-big`/`small` and no `org-present-text-scale`. Use the
+    hooks to call your terminal instead, e.g. kitty's
+    `kitten @ set-font-size +4` in `on_start` and `0` in `on_quit`.
+  - Hiding the cursor needs a terminal or GUI that honours a fully blended
+    cursor highlight.
+  - `org-present-toggle-one-big-page` and `org-present-startup-folded` are
+    not implemented.
+  - In-buffer settings outside the slide (#+TODO, #+STARTUP) don't apply to
+    it; it is highlighted with the global keywords.
+
  vim:tw=78:ts=8:ft=help:norl:

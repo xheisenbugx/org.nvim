@@ -1099,6 +1099,11 @@ end
 
 --- Directory used to resolve relative paths of links in `bufnr`.
 local function base_dir(bufnr)
+  -- set on buffers that show another file's text (presentation slides)
+  local dir = vim.b[bufnr or 0].org_base_dir
+  if dir then
+    return dir
+  end
   local name = vim.api.nvim_buf_get_name(bufnr or 0)
   if name ~= "" and not name:match("^%a[%w+%-]*://") then
     return vim.fn.fnamemodify(name, ":p:h")
