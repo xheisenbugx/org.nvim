@@ -935,6 +935,11 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+- **roam**: org-roam v2 notes in the same file format: find and insert
+  nodes, a backlinks and reflinks window, aliases, refs and tags, capture
+  templates, extracting and refiling subtrees, and daily notes, over a
+  JSON index that updates incrementally (`:h org-extensions-roam`).
+
 ---
 
 ## 🗺️ Roadmap

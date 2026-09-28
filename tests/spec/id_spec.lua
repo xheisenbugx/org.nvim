@@ -38,6 +38,18 @@ describe("org-id", function()
     ok(a ~= id.new_id() or true)
   end)
 
+  it("registers several ids at once and finds them outside the agenda files", function()
+    local dir = tmpdir()
+    setup(dir)
+    local other = tmpdir() .. "/note.org"
+    utils.writefile(other, { ":PROPERTIES:", ":ID: file-x", ":END:", "* H", ":PROPERTIES:", ":ID: head-x", ":END:" })
+    id.register_many({ ["file-x"] = other, ["head-x"] = other })
+    id._reset()
+    eq(other, utils.read_json(dir .. "/ids.json")["head-x"])
+    eq(4, id.find("head-x").lnum)
+    eq(other, id.find("file-x").filename)
+  end)
+
   it("creates an ID once, and a new one when forced (C-u)", function()
     local dir = tmpdir()
     setup(dir)

@@ -1909,6 +1909,18 @@ function M.store(tpl, lines, ctx)
   lines = trim_blank(vim.deepcopy(lines))
   local ttype = tpl.type or "entry"
   if #lines == 0 then
+    if tpl.allow_empty and ctx.loc then
+      -- nothing to insert, but the target (a new file's head) is kept
+      local bufnr = ctx.loc.bufnr
+      if not tpl.no_save then
+        local saved, err = utils.save_buffer(bufnr)
+        if not saved then
+          utils.warn("Capture could not be saved: " .. tostring(err))
+          return nil
+        end
+      end
+      return stored(tpl, ctx, bufnr, mark_pos(ctx.loc) or 1)
+    end
     utils.warn("Capture is empty, nothing stored")
     return nil
   end
@@ -2075,10 +2087,12 @@ local function store_unnarrowed(s)
   end
   local first, last = unnarrowed_region(s)
   local lines = first and vim.api.nvim_buf_get_lines(bufnr, first - 1, last, false) or {}
-  if #trim_blank(lines) == 0 then
+  if #trim_blank(lines) == 0 and not tpl.allow_empty then
     utils.warn("Capture is empty, nothing stored")
     return nil
   end
+  first = first or vim.api.nvim_buf_line_count(bufnr)
+  last = last or first
   local line = first
   while line < last and is_blank(get_line(bufnr, line)) do
     line = line + 1
@@ -2224,6 +2238,7 @@ function M.kill(buf)
     end
   end
   utils.notify("Capture aborted")
+  run_hook(s.template.on_abort, loc and loc.bufnr)
   if s.ctx.clock_start then
     -- nothing was clocked; :clock-resume restarts the interrupted clock
     resume_interrupted(vim.tbl_extend("force", s.template, { clock_keep = false }), s.ctx)

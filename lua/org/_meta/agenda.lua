@@ -639,6 +639,10 @@
 ---@field before_finalize? fun(bufnr: integer, lnum: integer)|fun(bufnr: integer, lnum: integer)[]
 ---Called when the capture is done, with the captured line (:after-finalize).
 ---@field after_finalize? fun(bufnr: integer, lnum: integer)|fun(bufnr: integer, lnum: integer)[]
+---Finish an empty capture by saving the target anyway (default: refused).
+---@field allow_empty? boolean
+---Called with the target buffer when the capture is aborted.
+---@field on_abort? fun(bufnr: integer)|fun(bufnr: integer)[]
 
 ---------------------------------------------------------------------------
 -- Refile

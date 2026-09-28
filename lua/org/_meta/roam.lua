@@ -1,0 +1,66 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { roam = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---org-roam: linked notes, backlinks and daily notes (`:h org-extensions-roam`).
+---@field roam? org.Config.Extensions.Roam|boolean
+
+---@class org.Config.Extensions.Roam
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The notes directory; every `.org` file below it is indexed
+---(org-roam-directory, default: `"~/org/roam"`).
+---@field directory? string
+---Lua patterns: files whose path relative to `directory` matches one are
+---not indexed (org-roam-file-exclude-regexp, default: `{ "^data/" }`).
+---@field exclude? string[]
+---Where the index is cached (default: stdpath("data")/org/roam-index.json).
+---@field index_file? string
+---Re-index a roam file when it is written (default: `true`).
+---@field update_on_save? boolean
+---Order of node candidates: `"mtime"` (default), `"title"` or `"none"`.
+---@field sort? "mtime"|"title"|"none"
+---Show the outline path before headline nodes (default: `false`).
+---@field display_olp? boolean
+---Candidate text (org-roam-node-display-template); `name` is the title or alias.
+---@field node_display? fun(node: org.roam.Node, name: string): string
+---Description of an inserted link (org-roam-node-formatter).
+---@field link_description? fun(node: org.roam.Node, name: string): string
+---Templates for new nodes, by key (org-roam-capture-templates).
+---@field capture_templates? table<string, org.Config.Extensions.Roam.CaptureTemplate>
+---Where an extracted subtree goes (org-roam-extract-new-file-path,
+---default: `"%<%Y%m%d%H%M%S>-${slug}.org"`).
+---@field extract_new_file_path? string
+---Follow `roam:Title` links (default: `true`).
+---@field roam_links? boolean
+---The backlinks window.
+---@field buffer? org.Config.Extensions.Roam.Buffer
+---Daily notes (org-roam-dailies).
+---@field dailies? org.Config.Extensions.Roam.Dailies
+
+---A capture template (`:h org-capture-templates`) whose `target` is a file
+---relative to the roam directory. `${key}` / `${key=default}` are filled in.
+---@class org.Config.Extensions.Roam.CaptureTemplate: org.Config.CaptureTemplate
+---File name, relative to the roam (or dailies) directory.
+---@field target string|fun(node: table): string
+---Text written at the top of a new file.
+---@field head? string|fun(node: table): string
+---Headlines (created when missing) the text and the node go under.
+---@field olp? string|string[]
+
+---@class org.Config.Extensions.Roam.Buffer
+---`"right"` (default), `"left"` or `"bottom"`.
+---@field position? "right"|"left"|"bottom"
+---@field width? integer
+---@field height? integer
+---Sections, in order (default: `{ "backlinks", "reflinks" }`).
+---@field sections? ("backlinks"|"reflinks")[]
+---Lines of context per link (default: `5`).
+---@field preview_lines? integer
+
+---@class org.Config.Extensions.Roam.Dailies
+---Relative to the roam directory (default: `"daily/"`).
+---@field directory? string
+---Templates for daily notes, targets relative to `dailies.directory`.
+---@field capture_templates? table<string, org.Config.Extensions.Roam.CaptureTemplate>

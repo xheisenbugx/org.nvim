@@ -2011,11 +2011,14 @@ Template fields:
                      when the capture ends or is aborted
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
   no_save            don't save the target file after capturing
+  allow_empty        finishing with no text still saves the target (by
+                     default an empty capture is refused)
   hook               function(capture_bufnr) run when the capture window
                      opens (not with immediate_finish)
   prepare_finalize   function(capture_bufnr), before the text is read
   before_finalize    function(bufnr, lnum) in the target, before saving
   after_finalize     function(bufnr, lnum) when the capture is done
+  on_abort           function(target_bufnr) when the capture is aborted
                      (every hook may also be a list of functions)
   unnarrowed         edit the text in the target file itself, showing the
                      whole file (|org-capture-unnarrowed|)
@@ -5272,5 +5275,170 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `mappings`   default keys by section: `{ global = { name = lhs } }`
   `setup`      `function(opts)`, called after the above are registered
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
+
+------------------------------------------------------------------------------
+org-roam                                                *org-extensions-roam*
+
+A network of linked notes, modelled on Emacs org-roam v2. Every `.org` file
+under `directory` is indexed. A node is a file with a file-level `:ID:`
+property, or a headline with an `:ID:`; nodes link to each other with
+`id:` links. The file format is org-roam's, so a directory can be shared
+with Emacs.
+>lua
+    require("org").setup({
+      extensions = { roam = { directory = "~/org/roam" } },
+    })
+<
+A node's title is `#+title` (else its path relative to `directory`) or the
+headline text. Other properties it reads:
+
+  `ROAM_ALIASES`  more titles, e.g. `Alpha "The A"` (quote spaces)
+  `ROAM_REFS`     URLs and citation keys the node is about: `https://...`,
+                `@key`, `[cite:@key]`
+  `ROAM_EXCLUDE`  any value: the headline (or file) is not a node
+
+Tags are `#+filetags` for a file node, and a headline's tags (inherited
+too, see `use_tag_inheritance`) for a headline node.
+
+The index ~
+The index is a JSON file (`index_file`, by default in stdpath("data")) that
+holds every file's nodes, links and citations with its mtime. Each command
+that reads it first re-parses the files that changed, and with
+`update_on_save` a roam file is re-indexed when it is written.
+`:Org roam_db_sync` updates it by hand, `:Org roam_db_sync force` rebuilds
+it. Node IDs are also added to the ID locations (|org-links|), so `id:`
+links into roam files work from anywhere.
+
+Commands ~
+Keys are under `<prefix>m`, because `<prefix>r` is refile. Global:
+
+  `<prefix>mf`  roam_node_find: find a node by title or alias and visit it.
+              The "+ New node" candidate (or `:Org roam_node_find Title`
+              for a missing title) creates one with a capture template.
+  `<prefix>mi`  roam_node_insert: insert `[[id:...][Title]]` at the cursor,
+              creating the node when it is new. In Visual mode the
+              selection is the default title and the description, and is
+              replaced by the link.
+  `<prefix>ml`  roam_buffer_toggle: toggle the backlinks window.
+  `<prefix>mc`  roam_capture: choose a node (or name a new one) and capture
+              into it with a template.
+  `<prefix>mr`  roam_node_random: visit a random node.
+
+In org buffers, acting on the node at point (the nearest headline with an
+ID, else the file):
+
+  `<prefix>ma`  roam_alias_add (and roam_alias_remove)
+  `<prefix>mR`  roam_ref_add (and roam_ref_remove)
+  `<prefix>mt`  roam_tag_add (and roam_tag_remove): `#+filetags` for a file
+              node, the headline's tags otherwise
+  `<prefix>mx`  roam_extract_subtree: move the subtree at point into a new
+              file (`extract_new_file_path`) whose properties, `#+title`
+              and `#+filetags` come from the headline
+  `<prefix>mw`  roam_refile: move the subtree (or Visual lines) under a
+              node, at the end of a file node or as the last child of a
+              headline node
+
+The `:Org` forms of these take the value as an argument, e.g.
+`:Org roam_alias_add The A`. Candidates are chosen with |vim.ui.select()|,
+so a picker such as telescope, fzf-lua or snacks gives fuzzy search.
+
+Capture templates ~
+`capture_templates` are |org-capture-templates| with a file `target`
+relative to `directory`, a `head` written into a new file, and an optional
+`olp` created when missing. The default:
+>lua
+    capture_templates = {
+      d = {
+        description = "default",
+        type = "plain",
+        template = "%?",
+        target = "%<%Y%m%d%H%M%S>-${slug}.org",
+        head = "#+title: ${title}\n",
+        unnarrowed = true,
+      },
+    },
+<
+`${title}`, `${slug}` (the title lower-cased, with `_` for anything but
+letters and digits), `${id}` and `${file}` come from the node; any other
+`${key}` or `${key=default}` is asked for once. `%` escapes work as in
+capture. The capture location (the file, or the `olp` headline) gets the
+node's `:ID:`. An aborted capture leaves no new file behind, and a node
+with no text beyond its head is stored.
+
+`roam:Title` links open the node with that title or alias, and create it
+when there is none (`roam_links`).
+
+The backlinks window ~
+`roam_buffer_toggle` opens a side window (`buffer.position`, `width`,
+`height`) listing the backlinks of the node at point (`id:` links to it)
+and its reflinks (links and citations to one of its `ROAM_REFS`), grouped
+by the node they come from, with the outline path and a few lines of
+context (`buffer.preview_lines`). It follows the cursor. `<CR>` opens a
+link's location, `r` refreshes, `q` closes.
+
+Daily notes ~
+One file per day in `dailies.directory` (default "daily/" under
+`directory`), made from `dailies.capture_templates`:
+>lua
+    dailies = {
+      directory = "daily/",
+      capture_templates = {
+        d = {
+          description = "default",
+          type = "entry",
+          template = "* %?",
+          target = "%<%Y-%m-%d>.org",
+          head = "#+title: %<%Y-%m-%d>\n",
+        },
+      },
+    },
+<
+  `<prefix>mdt`  roam_dailies_goto_today (also _goto_yesterday and
+               _goto_tomorrow, `<prefix>mdy` and `<prefix>mdT`; a count
+               moves that many days)
+  `<prefix>mdd`  roam_dailies_goto_date: a date from the calendar or the
+               argument
+  `<prefix>mj`   roam_dailies_capture_today (also _capture_yesterday,
+               _capture_tomorrow and _capture_date)
+  `<prefix>mdn`  roam_dailies_goto_next_note (`<prefix>mdp` the previous)
+
+roam_dailies_find_directory opens the directory.
+
+Options ~
+  `directory`              notes directory ("~/org/roam")
+  `exclude`                Lua patterns of paths relative to `directory`
+                         that are not indexed ({ "^data/" }); hidden files
+                         and directories are always skipped
+  `index_file`             the JSON index
+                         (stdpath("data")/org/roam-index.json)
+  `update_on_save`         re-index a roam file when it is written (true)
+  `sort`                   candidates: "mtime" (recent files first),
+                         "title" or "none"
+  `display_olp`            show the outline path of headline nodes (false)
+  `node_display`           `function(node, name)` giving a candidate's text
+  `link_description`       `function(node, name)` giving an inserted link's
+                         description (default the chosen title or alias)
+  `capture_templates`      see above
+  `extract_new_file_path`  "%<%Y%m%d%H%M%S>-${slug}.org"
+  `roam_links`             follow `roam:` links (true)
+  `buffer`                 { position, width, height, sections,
+                         preview_lines }
+  `dailies`                { directory, capture_templates }
+
+Differences from Emacs org-roam ~
+  - The index is JSON, not SQLite, and there is no `org-roam-db-query`.
+    Changes are found by file mtime, not content hash.
+  - `exclude` takes Lua patterns, not an Emacs regexp.
+  - Node candidates come from |vim.ui.select()|: a new node is made with
+    the "+ New node" candidate instead of by typing a title that matches
+    nothing.
+  - Unlinked references, `org-roam-graph`, org-roam-ui and the
+    org-roam-protocol `roam-ref` handler are not implemented, and the
+    backlinks window has no collapsible sections.
+  - Capture targets are fields (`target`, `head`, `olp`) instead of
+    `(file+head ...)` forms; `file+datetree` and `node` targets are not
+    supported.
+  - Refiling does not delete a source file left empty.
+  - `roam:` links are followed but not rewritten to `id:` links on save.
 
  vim:tw=78:ts=8:ft=help:norl:
