@@ -246,3 +246,83 @@ describe("babel :session", function()
     eq("default", session.name(""))
   end)
 end)
+
+describe("babel :async sessions (org-babel-comint-async)", function()
+  local UUID = "%x+%-%x+%-4%x+%-%x+%-%x+"
+  before_each(function()
+    config.opts.babel.confirm_evaluate = false
+    session.kill_all()
+  end)
+
+  local function start(lines, lnum)
+    local buf = org_buffer(lines, { lnum or 1, 0 })
+    local finished
+    babel.execute({
+      bufnr = buf,
+      lnum = lnum or 1,
+      on_done = function(success)
+        finished = success
+      end,
+    })
+    local function wait()
+      local done = vim.wait(10000, function()
+        return finished ~= nil
+      end, 20)
+      ok(done, "block did not finish")
+      return finished
+    end
+    return buf, wait
+  end
+
+  it("writes a placeholder at once and replaces it, even after the block was edited", function()
+    local buf, wait = start({
+      "#+begin_src sh :session async1 :async yes :results output",
+      "sleep 0.3; echo done",
+      "#+end_src",
+    })
+    local placeholder = buf_lines(buf)[6]
+    ok(placeholder and placeholder:match("^: " .. UUID .. "$"), vim.inspect(buf_lines(buf)))
+    -- edit the block and add text above it while it runs
+    vim.api.nvim_buf_set_lines(buf, 1, 2, false, { "sleep 0.3; echo done # edited" })
+    vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "* Heading", "" })
+    eq(true, wait())
+    eq({
+      "* Heading",
+      "",
+      "#+begin_src sh :session async1 :async yes :results output",
+      "sleep 0.3; echo done # edited",
+      "#+end_src",
+      "",
+      "#+RESULTS:",
+      ": done",
+    }, buf_lines(buf))
+  end)
+
+  it("discards the result when its placeholder was deleted", function()
+    local buf, wait = start({
+      "#+begin_src sh :session async2 :async :results output",
+      "sleep 0.3; echo done",
+      "#+end_src",
+    })
+    ok(buf_lines(buf)[6]:match(UUID), vim.inspect(buf_lines(buf)))
+    vim.api.nvim_buf_set_lines(buf, 3, -1, false, {})
+    local warned
+    local notify = vim.notify
+    vim.notify = function(msg)
+      warned = msg
+    end
+    eq(false, wait())
+    vim.notify = notify
+    ok(warned and warned:find("placeholder", 1, true), warned)
+    eq({ "#+begin_src sh :session async2 :async :results output", "sleep 0.3; echo done", "#+end_src" }, buf_lines(buf))
+  end)
+
+  it("keeps the normal asynchronous run without :async, with :async no or without a session", function()
+    for _, header in ipairs({ ":session async3", ":session async3 :async no", ":async yes" }) do
+      local buf, wait = start({ "#+begin_src sh " .. header .. " :results output", "echo plain", "#+end_src" })
+      eq(3, #buf_lines(buf), header)
+      eq(true, wait())
+      eq(": plain", buf_lines(buf)[6], header)
+    end
+  end)
+end)

@@ -1651,6 +1651,9 @@ function M.evaluate(bufnr, src, args, opts, cb)
       M.run(bufnr, lang, body, args, vars, nil, { sync = true, colnames = colnames, graphics_file = graphics_file })
     )
   else
+    if opts.on_start then
+      opts.on_start()
+    end
     M.run(bufnr, lang, body, args, vars, after, { colnames = colnames, graphics_file = graphics_file })
   end
   return ret_result, ret_info
@@ -1797,6 +1800,47 @@ local function read_block_result(bufnr, b)
   return v
 end
 
+--- org-babel-comint-use-async: `:async` (not "no") on a session block,
+--- outside export. Lua sessions run in-process and finish at once.
+local function use_async(args, lang, opts)
+  local async = args.async
+  if async == nil or vim.trim(async) == "no" or opts.sync or opts.export then
+    return false
+  end
+  local fam = langs.family(lang)
+  local rp = results.result_params(args)
+  return session_mod.name(args.session) ~= nil
+    and session_mod.supported(lang, fam)
+    and fam ~= "lua"
+    and args.results_spec.handling == "replace"
+    and not (rp.silent or rp.none)
+end
+
+--- A random placeholder id, like org-id-uuid.
+local function async_uuid()
+  local h = vim.fn.sha256(tostring(vim.uv.hrtime()) .. tostring(math.random()))
+  local variant = ("89ab"):sub(tonumber(h:sub(17, 17), 16) % 4 + 1, tonumber(h:sub(17, 17), 16) % 4 + 1)
+  return table.concat({ h:sub(1, 8), h:sub(9, 12), "4" .. h:sub(14, 16), variant .. h:sub(18, 20), h:sub(21, 32) }, "-")
+end
+
+--- The start line of the block whose result contains `uuid`
+--- (org-babel-comint-async--find-src), or nil when it was removed.
+local function find_async_block(bufnr, uuid)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return nil
+  end
+  local lines = buf_lines(bufnr)
+  for _, x in ipairs(blocks_mod.parse_blocks(lines)) do
+    if x.results then
+      for i = x.results.start, x.results.finish or x.results.start do
+        if lines[i] and lines[i]:find(uuid, 1, true) then
+          return x.start
+        end
+      end
+    end
+  end
+end
+
 --- Execute the block at (bufnr, lnum). `on_done(ok)` is called when done.
 --- With `sync` the evaluation blocks and results are inserted before return.
 ---@param opts? { bufnr?: integer, lnum?: integer, skip_confirm?: boolean, sync?: boolean, handling?: string, on_done?: fun(ok: boolean), export?: boolean, force?: boolean, params?: string }
@@ -1832,8 +1876,26 @@ function M.execute(opts)
     virt_text = { { "  ⏳ executing…", "Comment" } },
     virt_text_pos = "eol",
   })
+  local uuid, lost
   local function finish(result, info)
-    local pos, abort = take_source(bufnr, source)
+    local pos, abort
+    if lost then
+      done(false, not vim.api.nvim_buf_is_valid(bufnr))
+      return
+    elseif uuid then
+      -- :async: the result replaces its placeholder wherever the block is
+      -- now, even when the source was edited meanwhile (like Emacs)
+      pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, source.mark)
+      local start = find_async_block(bufnr, uuid)
+      if not start then
+        utils.warn("Async result placeholder " .. uuid .. " not found; result discarded")
+        done(false, not vim.api.nvim_buf_is_valid(bufnr))
+        return
+      end
+      pos = { start - 1, 0 }
+    else
+      pos, abort = take_source(bufnr, source)
+    end
     if not pos then
       done(false, abort)
       return
@@ -1872,6 +1934,25 @@ function M.execute(opts)
       return b.results and read_block_result(bufnr, b)
     end,
   }
+  if use_async(args, src.lang, opts) then
+    eopts.on_start = function()
+      -- org-babel-comint-async: write a placeholder result right away
+      local start = take_source(bufnr, source)
+      if not start then
+        lost = true
+        return
+      end
+      uuid = async_uuid()
+      source = track_source(bufnr, start[1], 0, start[1], 0, {
+        virt_text = { { "  ⏳ executing…", "Comment" } },
+        virt_text_pos = "eol",
+      })
+      local pargs = vim.deepcopy(args)
+      pargs.results_spec.type = nil
+      pargs.file, pargs.wrap = nil, nil
+      insert_results(bufnr, start[1] + 1, uuid, pargs, nil, src.lang, { base_dir = buf_dir(bufnr) })
+    end
+  end
   if opts.sync then
     local result, info = M.evaluate(bufnr, src, args, eopts)
     finish(result, info)

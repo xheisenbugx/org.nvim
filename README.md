@@ -247,7 +247,9 @@ output back into the file:
 
 Python, shell, Lua (in-process), Node, Ruby, R, Go, SQLite and more are
 supported, along with `:var`, `:noweb`, `:wrap`, `:cache`, `#+CALL`, inline
-`src_lang{…}` blocks and tangling.
+`src_lang{…}` blocks and tangling. Nothing blocks the editor while code
+runs; `:session` keeps an interpreter alive between blocks, and
+`:session :async` writes a placeholder result right away, as in Emacs.
 
 `<leader>o'` opens a block in its own buffer with the language's filetype,
 so it gets that language's highlighting, indentation and filetype plugins.
@@ -420,7 +422,7 @@ searches it, and `{` / `}` jump between sections:
 | 🔗 | **Links** | `file:` with `::line`, `::*heading`, `::#id` and `::/regex/`; `id:`, `<<targets>>`, `<<<radio targets>>>`, coderefs, `shell:`, `attachment:`, abbreviations, custom types, concealed display, store/insert last/all links |
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history with default and interrupted tasks, Emacs's clock resolution (keep, subtract, got-back) for dangling clocks and idle time, auto clock-out, effort estimates with an overrun alert, a statusline component, `clocktable` blocks matching Emacs output (`:step`, `:formula`, `:sort`, `:lang`…), agenda clock check, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode and plots |
-| 🧪 | **Babel** | Asynchronous execution in many languages, `:session` (shells, Python, Node, Ruby, Lua), inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
+| 🧪 | **Babel** | Asynchronous execution in many languages, `:session` (shells, Python, Node, Ruby, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '` |
 | 📤 | **Export** | A port of Emacs's export engine: HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar back-ends matching Emacs output, citations, publishing projects, every `#+OPTIONS` key, plus DOCX, ODT, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in the buffer (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/` |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments, IDs, dynamic blocks, completion, `:checkhealth org` |
@@ -909,7 +911,9 @@ Ideas that would need more than core Neovim:
 
 - [x] Inline image and LaTeX previews (`vim.ui.img`, snacks.image, image.nvim)
 - [ ] Column view as overlays on headlines
-- [ ] Async Babel sessions (`:async`)
+- [x] Async Babel sessions (`:async`): every block already runs in the
+      background; `:async` adds Emacs's placeholder result, so a
+      session's result lands even if you edit the block while it runs
 
 If there's something you'd like that isn't here,
 [open an issue](https://github.com/xheisenbugx/org.nvim/issues).
