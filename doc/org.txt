@@ -4069,9 +4069,9 @@ Options under `ui`:
   indent_mode            virtual indentation like org-indent-mode: the
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
-                         hide_leading_stars and turns adapt_indentation off
-                         in the buffer (indent_mode_turns_off_adapt_-
-                         indentation) (#+STARTUP: indent / noindent)
+                         hide_leading_stars (#+STARTUP: indent / noindent)
+  indent_mode_turns_off_adapt_indentation  adapt_indentation is off in
+                         buffers with indent_mode (true)
   indent_indentation_per_level  columns per level of indent_mode (2):
                          the text of a level-n entry starts after
                          n + (per - 1)(n - 1) + 1 columns, headlines after
@@ -4125,13 +4125,14 @@ Options under `ui`:
 replaces built-in ones, for display, completion and export: >lua
     entities_user = {
       -- name, LaTeX, LaTeX needs math mode, HTML, ASCII, Latin-1, UTF-8
-      { "snowman", "\\diamond", true, "&#9731;", "[snowman]", "[snowman]", "☃" },
+      { "snowman", "\\diamond", true, "&#9731;", "[snow]", "[snow]", "☃" },
     }
 <
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
 :Org indent_mode  Toggle virtual indentation in the buffer
                 (org-indent-mode).
-                                                *OrgIndentMode* *OrgNumMode*
+                                                       *OrgIndentMode*
+                                                          *OrgNumMode*
 Turning indent mode or numbering on or off, also when a buffer starts
 with them, runs the User autocmd `OrgIndentMode` or `OrgNumMode`
 (org-indent-mode-hook, org-num-mode-hook), `data.enabled` telling which.
