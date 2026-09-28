@@ -252,7 +252,8 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                 selected lines.
 <prefix>K / J   Move subtree up / down.
 <M-K> / <M-J>   (ctx) Outside tables: drag the line at the cursor up / down
-                (org-drag-line-backward / forward). Count repeats.
+                (org-drag-line-backward / forward). Count repeats. On a
+                CLOCK timestamp: see |org-clock| (S-M-Up/Down).
 
                                                          *org-kill-subtree*
 <prefix>hy      Copy subtree (count: that many siblings).
@@ -1016,9 +1017,10 @@ same date again is not logged.
 <C-c><C-c>      On a CLOCK line: recompute its duration.
 <C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
                 the cursor, keeping the duration.
-<S-M-Up/Down>   On a CLOCK timestamp: change it and move the touching
-                timestamp of the previous (on a clock-in) or next (on a
-                clock-out) task in the clock history by the same amount.
+<M-K> / <M-J>   On a CLOCK timestamp (Emacs S-M-Up/Down): change it and
+                move the touching timestamp of the previous (on a clock-in)
+                or next (on a clock-out) task in the clock history by the
+                same amount.
 <S-arrows>      On a `#+BEGIN: clocktable` line: shift its :block
                 (today -> today-1, 2026-W39 -> 2026-W40, ...).
 :Org clock_in_last   Clock in the last clocked entry again (count: pick
@@ -4731,7 +4733,7 @@ Dates:
   <C-c>. <C-c>!    active / inactive timestamp (count: with time; count
                    16: now, no prompt)
   <C-c><           insert today         <C-c>>  open calendar
-  <C-c><C-y>       evaluate time range (count: insert `=> H:MM`)
+  <C-c><C-y>       evaluate time range (count: insert ` 2d 03:30`)
 
 Clock, effort, dynamic blocks, timers:
   <C-c><C-x><C-i>, <C-c><C-x><Tab>  clock in
