@@ -136,6 +136,9 @@ point closer to many Emacs setups: >lua
 If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
+`:Org version` shows the org.nvim release, its git version and where it is
+installed (org-version); with a count it inserts that at the cursor.
+
 Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
 send the keys org maps:

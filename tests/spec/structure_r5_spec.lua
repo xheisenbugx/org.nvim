@@ -131,3 +131,27 @@ describe("level conversion", function()
     eq({ "* A", "** B" }, buf_lines(buf))
   end)
 end)
+
+describe("version", function()
+  it("shows the release, git version and install directory (org-version)", function()
+    local v = require("org.version")
+    local msg
+    with_stub(vim, "notify", function(m)
+      msg = m
+    end, function()
+      require("org.actions").run("version")
+    end)
+    -- like Emacs: "Org mode version 9.8.10 (release_9.8.10 @ /dir/)"
+    ok(msg:find("^org%.nvim version " .. vim.pesc(v.release) .. " %(.+ @ .+/%)$"), msg)
+    ok(msg:find(v.root(), 1, true), msg)
+  end)
+
+  it("inserts it at the cursor with a count", function()
+    local buf = org_buffer({ "x" }, { 1, 0 })
+    vim.keymap.set("n", "<F9>", function()
+      require("org.actions").run("version")
+    end, { buffer = buf })
+    vim.api.nvim_feedkeys(vim.keycode("4<F9>"), "xt", false)
+    ok(buf_lines(buf)[1]:find("org.nvim version", 1, true), buf_lines(buf)[1])
+  end)
+end)

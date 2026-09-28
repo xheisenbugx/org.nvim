@@ -53,6 +53,7 @@ group("Anywhere", {
   clock_out = { "org.clock", "clock_out", desc = "Clock out", global = true },
   clock_cancel = { "org.clock", "clock_cancel", desc = "Cancel clock", global = true },
   help = { "org.mappings", "show_help", desc = "Show org keymaps", global = true },
+  version = { "org.version", "show", desc = "Show the org.nvim version (count: insert it)", global = true },
 })
 
 group("Visibility", {
