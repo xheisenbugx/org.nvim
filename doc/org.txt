@@ -3731,8 +3731,13 @@ Placement, `ui.images.placement`:
                 windows showing the buffer get 'conceallevel' 2.
                 Inline math (`$x$`, `\(x\)`) is scaled to one row, as
                 tall as the text; other fragments keep their size.
-                Fragments and environments over several lines, and
-                image.nvim, always use "below".
+                A fragment or environment over several lines is drawn
+                in place too (Neovim 0.11+): its other lines are hidden
+                (`conceal_lines`), the image starts on its first line
+                and the text after it on its last line follows the
+                image; the cursor on any of its lines shows the text
+                again, with the image under its last line. Before 0.11
+                such fragments use "below", and image.nvim always does.
   "below"       under the line, at the link's column, the text left as
                 it is (images of one line are stacked).
 
@@ -4748,8 +4753,11 @@ Differences from Emacs:
   They replace the link or fragment like Emacs, but a terminal line can't
   grow: the image's first row is on the line and the rest in virtual lines
   under it, and the text shows again (with the image under the line) while
-  the cursor is on the line so it can be edited. Fragments over several
-  lines and image.nvim images stay under the line. `ui.images.max_width`
+  the cursor is on the line so it can be edited. A fragment over several
+  lines has its other lines hidden and its image drawn from its first line
+  (Neovim 0.11+; before that, and with image.nvim, images stay under the
+  line); the text after it on its last line follows the image without its
+  highlighting. `ui.images.max_width`
   is in columns for "fill-column" and fractions (as Emacs) but its default
   fill column is 'textwidth' or 70; `max_height` is an addition. LaTeX
   previews pick an installed process ("auto") where Emacs always uses

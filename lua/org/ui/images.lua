@@ -14,7 +14,8 @@
 --- is drawn in place of its link or fragment (`ui.images.placement`
 --- "inline"): the text is concealed behind blank inline text as wide as
 --- the image, and shows again (with the image under it) while the cursor is
---- on its line. With the native backend, the rows the image needs under the
+--- on its line. The other lines of a fragment over several lines are hidden
+--- (`conceal_lines`, Neovim 0.11+). With the native backend, the rows the image needs under the
 --- line are reserved with virtual lines and the images are placed on the
 --- screen after every redraw, so they follow scrolling, folding and window
 --- changes.
@@ -57,9 +58,11 @@ M.IMAGE_EXTENSIONS = {
 ---@field align? "center"|"right"
 ---@field size table what the size was computed from (see `size_of`)
 ---@field lines? integer extmark reserving the space under the line (native)
----@field inline? boolean drawn in place of its text (on one line)
+---@field inline? boolean drawn in place of its text
+---@field multi? boolean its text spans several lines
 ---@field revealed? boolean its text shown (the cursor is on it): drawn below
 ---@field pad? integer extmark concealing the text in place (native)
+---@field fold? integer extmark hiding the other lines of its text (native)
 ---@field shown? boolean shown by the native backend
 ---@field handle? any snacks / image.nvim object
 ---@field backend string
@@ -1413,9 +1416,14 @@ local function ensure_conceal(bufnr)
   end
 end
 
---- The row the native rows of `p` hang from (the last row of its text).
+--- The row the native rows of `p` hang from: the last row of its text, or
+--- its first row when a fragment over several lines is drawn in place (its
+--- other lines are hidden).
 local function anchor_of(bufnr, p)
   local r, _, d = mark_pos(bufnr, p.mark)
+  if r and p.multi and in_place(p) then
+    return r
+  end
   return r and (d and d.end_row or r)
 end
 
@@ -1494,7 +1502,36 @@ backends.native = {
   needs_png = true,
   inline = true,
   show = function(bufnr, p, row, col, x, start_row)
-    if in_place(p) then
+    if in_place(p) and row > start_row then
+      -- over several lines: the first line's text from the fragment on is
+      -- concealed behind the blank columns (and the text after the
+      -- fragment on its last line), the other lines are not drawn
+      local first = vim.api.nvim_buf_get_lines(bufnr, start_row, start_row + 1, false)[1] or ""
+      local last = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+      local vt = { { string.rep(" ", p.width) } }
+      if col < #last then
+        vt[2] = { last:sub(col + 1) }
+      end
+      p.pad = vim.api.nvim_buf_set_extmark(bufnr, ns, start_row, x, {
+        id = p.pad,
+        end_row = start_row,
+        end_col = #first,
+        conceal = "",
+        virt_text = vt,
+        virt_text_pos = "inline",
+        invalidate = true,
+        undo_restore = false,
+      })
+      p.fold = vim.api.nvim_buf_set_extmark(bufnr, ns, start_row + 1, 0, {
+        id = p.fold,
+        end_row = row,
+        end_col = #last,
+        conceal_lines = "",
+        invalidate = true,
+        undo_restore = false,
+      })
+      ensure_conceal(bufnr)
+    elseif in_place(p) then
       p.pad = vim.api.nvim_buf_set_extmark(bufnr, ns, start_row, x, {
         id = p.pad,
         end_row = row,
@@ -1508,12 +1545,12 @@ backends.native = {
       ensure_conceal(bufnr)
     end
     p.shown = true
-    restack(bufnr, row)
+    restack(bufnr, anchor_of(bufnr, p))
   end,
   hide = function(bufnr, p)
     local row = anchor_of(bufnr, p)
     p.shown = false
-    for _, key in ipairs({ "pad", "lines" }) do
+    for _, key in ipairs({ "pad", "fold", "lines" }) do
       if p[key] then
         pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, p[key])
         p[key] = nil
@@ -1532,7 +1569,8 @@ backends.snacks = {
       -- the whole link: snacks then draws the image under it, at its column
       range = { start_row + 1, x, row + 1, col },
       inline = true,
-      -- in place: snacks hides the text and draws over it
+      -- in place: snacks hides the text and draws over it (the lines of
+      -- a fragment over several lines too)
       conceal = in_place(p),
       auto_resize = true,
       max_width = p.width,
@@ -1801,13 +1839,14 @@ end
 
 --- Show preview `p` with backend `b` where its extmark is now: the rows
 --- are reserved at the end of the link or fragment, the image starts at
---- its first column (at the line start when it spans lines).
+--- its first column (under a fragment over several lines shown as text, at
+--- the start of its last line).
 local function show(b, bufnr, p)
   local r, c, d = mark_pos(bufnr, p.mark)
   local end_row = d and d.end_row or r
   local line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
   local end_col = math.min(d and d.end_col or c, #line)
-  local x = r == end_row and c or #line:match("^%s*")
+  local x = (r == end_row or in_place(p)) and c or #line:match("^%s*")
   return b.show(bufnr, p, end_row, end_col, x, r)
 end
 
@@ -1837,9 +1876,12 @@ local function add(bufnr, kind, spec, src, backend)
     end
   end
   local end_row = (spec.end_row or spec.row) - 1
+  local multi = end_row > spec.row - 1
   -- in place of the text (org-link-preview's display property) when the
-  -- backend can and the text is on one line
-  local inline = opts().placement ~= "below" and backend.inline == true and end_row == spec.row - 1
+  -- backend can; text over several lines needs `conceal_lines` (0.11)
+  local inline = opts().placement ~= "below"
+    and backend.inline == true
+    and (not multi or vim.fn.has("nvim-0.11") == 1)
   local pw, ph = M.png_size(file)
   local size = { pw = pw, ph = ph, width = spec.width, kind = kind }
   if inline then
@@ -1862,6 +1904,7 @@ local function add(bufnr, kind, spec, src, backend)
     backend = backend.name,
     text = spec.text,
     inline = inline,
+    multi = multi,
     revealed = inline and cursor_on(bufnr, spec.row - 1, end_row),
     mark = vim.api.nvim_buf_set_extmark(bufnr, ns, spec.row - 1, spec.col, {
       end_row = end_row,
@@ -2261,9 +2304,9 @@ function M._layout()
       local rows = {}
       for _, p in pairs(list) do
         if p.backend == "native" then
-          local r, c, d = mark_pos(bufnr, p.mark)
+          local r, c = mark_pos(bufnr, p.mark)
           if r then
-            local anchor = d and d.end_row or r
+            local anchor = anchor_of(bufnr, p)
             rows[anchor] = rows[anchor] or {}
             table.insert(rows[anchor], { p = p, row = r, col = c })
           end
@@ -2415,7 +2458,10 @@ function M._update_reveal()
   for bufnr, list in pairs(previews) do
     if vim.api.nvim_buf_is_valid(bufnr) then
       for _, p in pairs(list) do
-        local r, _, d = p.inline and mark_pos(bufnr, p.mark)
+        local r, _, d
+        if p.inline then
+          r, _, d = mark_pos(bufnr, p.mark)
+        end
         if r then
           local want = cursor_on(bufnr, r, d and d.end_row or r)
           if want ~= (p.revealed == true) then
