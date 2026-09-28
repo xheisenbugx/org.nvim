@@ -17,9 +17,12 @@
 ---   and `usimplify` of expressions with units (`3 m + 20 cm`, a table of
 ---   common units with Calc's conversion factors).
 --- - Symbols and unknown functions stay symbolic, like Calc: `x*2` is
----   `2 x`, `sqrt(x)` stays `sqrt(x)`, `pi` stays `pi`. Only a few algebraic
----   simplifications are done (collecting `x + x`, `x x`); Calc's rewrite
----   engine is not implemented.
+---   `2 x`, `sqrt(x)` stays `sqrt(x)`, `pi` stays `pi`. Formulas are
+---   normalized the way Calc's math-normalize does it (ports of
+---   math-add-symb-fancy, math-mul-symb-fancy, ...): `x*y/x` is `y`,
+---   `(x+1)*2` is `2 x + 2`. simplify, expand, collect, deriv, integ and
+---   solve live in org.table.calc_alg, matrices in org.table.calc_vec.
+--- - Modulo forms `3 mod 7`.
 --- - Quoted strings (`"big"`) are an extension: Calc turns them into
 ---   vectors of character codes, this module keeps them as text.
 
@@ -492,6 +495,44 @@ local function starts_factor(t)
     or (t.kind == "op" and (t.value == "(" or t.value == "["))
 end
 
+--- Run `f` inside parentheses (`vector` false) or brackets (true): in the
+--- brackets of a vector, a space separates elements (`[1 2]`, `[1 -2]`).
+function Parser:nested(vector, f, ...)
+  self.ctx[#self.ctx + 1] = vector
+  local r = f(self, ...)
+  self.ctx[#self.ctx] = nil
+  return r
+end
+
+function Parser:in_vector()
+  return self.ctx[#self.ctx] == true
+end
+
+--- Whether the brackets being read contain a comma at their own level.
+function Parser:has_comma()
+  local depth = 0
+  for i = self.i, #self.toks do
+    local t = self.toks[i]
+    if t.kind == "op" then
+      if t.value == "(" or t.value == "[" then
+        depth = depth + 1
+      elseif t.value == ")" or t.value == "]" then
+        if depth == 0 then
+          return false
+        end
+        depth = depth - 1
+      elseif t.value == "," and depth == 0 then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function is_sign(t)
+  return t.kind == "op" and (t.value == "-" or t.value == "+")
+end
+
 function Parser:args(close)
   local out = {}
   local t = self:peek()
@@ -533,9 +574,10 @@ function Parser:factor()
     return { k = "val", v = d }
   elseif t.kind == "id" then
     local nxt = self:peek()
-    if nxt.kind == "op" and nxt.value == "(" and not nxt.space then
+    if nxt.kind == "op" and nxt.value == "(" and not (nxt.space and self:in_vector()) then
+      -- a function call, also with a space: `f (x)`
       self:next()
-      return { k = "call", name = t.value, args = self:args(")") }
+      return { k = "call", name = t.value, args = self:nested(false, self.args, ")") }
     end
     return { k = "sym", name = t.value }
   elseif t.kind == "hms" then
@@ -546,46 +588,10 @@ function Parser:factor()
     return { k = "hms", h = p[1], m = p[2], s = p[3] }
   elseif t.kind == "op" then
     if t.value == "(" then
-      local e = self:level(0)
-      local c = self:next()
-      if c.kind == "op" and c.value == "," then
-        -- a complex number (re, im)
-        local im = self:level(0)
-        self:expect(")")
-        return { k = "cplx", re = e, im = im }
-      elseif c.kind == "op" and c.value == ";" then
-        -- a polar complex number (r; theta)
-        local theta = self:level(0)
-        self:expect(")")
-        return { k = "polar", r = e, t = theta }
-      elseif c.kind == "op" and c.value == ".." then
-        return self:interval(e, false)
-      elseif not (c.kind == "op" and c.value == ")") then
-        error("syntax error: expected )")
-      end
-      return e
+      return self:nested(false, self.paren)
     elseif t.value == "[" then
-      local nxt = self:peek()
-      if nxt.kind == "op" and nxt.value == "]" then
-        self:next()
-        return { k = "vec", items = {} }
-      end
-      local first = self:level(0)
-      nxt = self:peek()
-      if nxt.kind == "op" and nxt.value == ".." then
-        self:next()
-        return self:interval(first, true)
-      end
-      local items = { first }
-      while true do
-        local c = self:next()
-        if c.kind == "op" and c.value == "]" then
-          return { k = "vec", items = items }
-        elseif not (c.kind == "op" and c.value == ",") then
-          error("syntax error: expected , or ]")
-        end
-        items[#items + 1] = self:level(0)
-      end
+      -- without commas, spaces separate the elements (math-read-brackets)
+      return self:nested(not self:has_comma(), self.bracket)
     elseif t.value == "-" then
       return { k = "neg", a = self:level(197) }
     elseif t.value == "+" then
@@ -595,6 +601,58 @@ function Parser:factor()
     end
   end
   error("syntax error near " .. tostring(t.value or "end of formula"))
+end
+
+--- The rest of a parenthesized formula, complex number or interval.
+function Parser:paren()
+  local e = self:level(0)
+  local c = self:next()
+  if c.kind == "op" and c.value == "," then
+    -- a complex number (re, im)
+    local im = self:level(0)
+    self:expect(")")
+    return { k = "cplx", re = e, im = im }
+  elseif c.kind == "op" and c.value == ";" then
+    -- a polar complex number (r; theta)
+    local theta = self:level(0)
+    self:expect(")")
+    return { k = "polar", r = e, t = theta }
+  elseif c.kind == "op" and c.value == ".." then
+    return self:interval(e, false)
+  elseif not (c.kind == "op" and c.value == ")") then
+    error("syntax error: expected )")
+  end
+  return e
+end
+
+--- The rest of a vector or interval after `[`.
+function Parser:bracket()
+  local nxt = self:peek()
+  if nxt.kind == "op" and nxt.value == "]" then
+    self:next()
+    return { k = "vec", items = {} }
+  end
+  local first = self:level(0)
+  nxt = self:peek()
+  if nxt.kind == "op" and nxt.value == ".." then
+    self:next()
+    return self:interval(first, true)
+  end
+  local items = { first }
+  while true do
+    local c = self:peek()
+    if c.kind == "op" and c.value == "]" then
+      self:next()
+      return { k = "vec", items = items }
+    elseif c.kind == "op" and c.value == "," then
+      self:next()
+    elseif
+      not (self:in_vector() and c.space and (starts_factor(c) or is_sign(c)))
+    then
+      error("syntax error: expected , or ]")
+    end
+    items[#items + 1] = self:level(0)
+  end
 end
 
 --- The rest of an interval `[lo .. hi]` after `..`; `closed_lo` tells the
@@ -613,7 +671,17 @@ function Parser:level(prec)
   while true do
     local t = self:peek()
     local op, lp, rp
-    if t.kind == "op" then
+    if
+      t.space
+      and self:in_vector()
+      and not (t.kind == "id" and t.value == "mod")
+      and (starts_factor(t) or (is_sign(t) and not self.toks[self.i + 1].space))
+    then
+      break -- the next element of a vector
+    elseif t.kind == "id" and t.value == "mod" then
+      -- the modulo form operator: `3 mod 7`
+      op, lp, rp = "mod", 400, 400
+    elseif t.kind == "op" then
       op = t.value
       if op == "!" then
         -- postfix factorial
@@ -662,7 +730,7 @@ end
 
 --- Parse a Calc algebraic formula into a syntax tree.
 function M.parse(s)
-  local p = setmetatable({ toks = tokenize(s), i = 1 }, Parser)
+  local p = setmetatable({ toks = tokenize(s), i = 1, ctx = {} }, Parser)
   local e = p:level(0)
   if p:peek().kind ~= "eof" then
     error("syntax error near " .. tostring(p:peek().value))
@@ -716,34 +784,97 @@ local function negative(v)
 end
 
 local add, sub, mul, div, pow, neg
-local FANCY_TAGS = { cplx = true, polar = true, hms = true, sdev = true, intv = true }
--- arithmetic on complex numbers, HMS forms, error forms and intervals
--- (defined with the functions below); nil when neither operand is one
+local FANCY_TAGS = { cplx = true, polar = true, hms = true, sdev = true, intv = true, mod = true }
+-- arithmetic on complex numbers, HMS forms, error forms, intervals and
+-- modulo forms (defined with the functions below); nil when neither operand
+-- is one
 local ext_op
+-- matrix products and powers (defined with the vector functions below)
+local mat_mul, mat_div, mat_pow
 
---- Numeric coefficient and rest of a symbolic product (`2 x` → 2, x).
-local function split_coef(v)
-  if tag(v) == "op" and v.op == "*" and is_real(v.a) then
-    return v.a, v.b
-  elseif tag(v) == "neg" then
-    local c, r = split_coef(v.a)
-    return neg(c), r
-  end
-  return 1, v
+local F = {}
+
+local function to_float_early(v)
+  return float(tofloat(v))
 end
 
 local function same(a, b)
   return vim.deep_equal(a, b)
 end
 
-local function elementwise(f, a, b)
+-- Calc's type predicates (calc-macs.el): Math-objectp, Math-numberp, ...
+local function is_object(v)
+  return is_real(v) or FANCY_TAGS[tag(v)] or tag(v) == "date"
+end
+
+local function is_objvec(v)
+  return is_object(v) or tag(v) == "vec"
+end
+
+local function is_number(v)
+  return is_real(v) or tag(v) == "cplx" or tag(v) == "polar"
+end
+
+local function is_angle(v)
+  return is_real(v) or tag(v) == "hms"
+end
+
+local function equal_int(v, n)
+  return v == n or (tag(v) == "float" and v.v == n)
+end
+
+--- math-looks-negp: a negative number, `-x`, or a product, quotient or
+--- difference that starts with one.
+local function looks_neg(v)
+  local t = tag(v)
+  if is_real(v) then
+    return negative(v)
+  elseif t == "neg" then
+    return true
+  elseif t == "op" and (v.op == "*" or v.op == "/") then
+    return looks_neg(v.a) or looks_neg(v.b)
+  elseif t == "op" and v.op == "-" then
+    return looks_neg(v.a)
+  end
+  return false
+end
+
+-- What Calc knows of a formula without declarations: only numbers and the
+-- constants have a known sign or type (math-known-nonnegp, ...).
+local POSITIVE_CONSTS = { pi = true, e = true, phi = true, gamma = true }
+local function known_nonneg(v)
+  if is_real(v) then
+    return not negative(v)
+  end
+  return tag(v) == "sym" and POSITIVE_CONSTS[v.name] or false
+end
+
+local function known_num_integer(v)
+  return is_int(v) or (tag(v) == "float" and v.v == math.floor(v.v))
+end
+
+local function known_even(v)
+  return type(v) == "number" and v % 2 == 0
+end
+
+local function known_odd(v)
+  return type(v) == "number" and v % 2 == 1
+end
+
+--- math-known-scalarp: numbers and, with `assume`, anything but a vector.
+local function known_scalar(v, assume)
+  if assume then
+    return tag(v) ~= "vec"
+  end
+  return is_object(v) or (tag(v) == "sym" and POSITIVE_CONSTS[v.name]) or false
+end
+
+local function map_vec2(f, a, b)
   local out = { tag = "vec" }
   local ta, tb = tag(a), tag(b)
   if ta == "vec" and tb == "vec" then
-    if #a ~= #b then
-      error("dimension error")
-    end
-    for i = 1, #a do
+    -- the shorter length, like math-map-vec-2
+    for i = 1, math.min(#a, #b) do
       out[i] = f(a[i], b[i])
     end
   elseif ta == "vec" then
@@ -756,6 +887,211 @@ local function elementwise(f, a, b)
     end
   end
   return out
+end
+
+-- the `e` of exp(x) in math-combine-prod (compared by identity)
+local COMBINE_E = { tag = "sym", name = "e" }
+
+-- true while `simplify` runs (Calc's math-simplifying): products then
+-- combine any powers of the same base and trigonometric pairs
+local simplifying = false
+
+--- Two sums with the same terms in any order (math-commutative-equal).
+local function commutative_equal(a, b)
+  local function is_sum(x)
+    return tag(x) == "op" and (x.op == "+" or x.op == "-")
+  end
+  if not is_sum(a) then
+    return same(a, b)
+  elseif not is_sum(b) then
+    return false
+  end
+  local function terms(x, negate, out)
+    if tag(x) == "op" and x.op == "+" then
+      terms(x.a, negate, out)
+      terms(x.b, negate, out)
+    elseif tag(x) == "op" and x.op == "-" then
+      terms(x.a, negate, out)
+      terms(x.b, not negate, out)
+    else
+      out[#out + 1] = negate and neg(x) or x
+    end
+    return out
+  end
+  local at, bt = terms(a, false, {}), terms(b, false, {})
+  if #at ~= #bt then
+    return false
+  end
+  for _, x in ipairs(at) do
+    local found
+    for i, y in ipairs(bt) do
+      if same(x, y) then
+        found = i
+        break
+      end
+    end
+    if not found then
+      return false
+    end
+    table.remove(bt, found)
+  end
+  return true
+end
+
+-- products of trigonometric functions of the same argument
+-- (math-combine-prod-trig): { a, b, result } (nil result: 1)
+local TRIG_PRODUCTS = {
+  { "sin", "csc" },
+  { "sin", "sec", "tan" },
+  { "sin", "cot", "cos" },
+  { "cos", "sec" },
+  { "cos", "csc", "cot" },
+  { "cos", "tan", "sin" },
+  { "tan", "cot" },
+  { "tan", "csc", "sec" },
+  { "sec", "cot", "csc" },
+  { "sinh", "csch" },
+  { "sinh", "sech", "tanh" },
+  { "sinh", "coth", "cosh" },
+  { "cosh", "sech" },
+  { "cosh", "csch", "coth" },
+  { "cosh", "tanh", "sinh" },
+  { "tanh", "coth" },
+  { "tanh", "csch", "sech" },
+  { "sech", "coth", "csch" },
+}
+local function combine_prod_trig(a, b)
+  if tag(a) ~= "call" or tag(b) ~= "call" or not same(a.args, b.args) then
+    return nil
+  end
+  for _, t in ipairs(TRIG_PRODUCTS) do
+    if a.name == t[1] and b.name == t[2] then
+      return t[3] and call(t[3], a.args) or 1
+    end
+  end
+  return nil
+end
+
+--- math-combine-sum: `a` and `b` as one term when they differ only by a
+--- numeric factor (`2 x + 3 x` is `5 x`), else nil.
+local function combine_sum(a, b, nega, negb, scalar_ok)
+  if scalar_ok and is_objvec(a) and is_objvec(b) then
+    if nega then
+      a = neg(a)
+    end
+    if negb then
+      b = neg(b)
+    end
+    -- objects that don't combine here (an HMS form and an interval) stay
+    -- two terms
+    local r = add(a, b)
+    return is_objvec(r) and r or nil
+  end
+  local function split(x)
+    local t = tag(x)
+    if t == "op" and x.op == "*" and is_object(x.a) then
+      return x.a, x.b
+    elseif t == "op" and x.op == "/" and is_object(x.b) then
+      return is_int(x.b) and make_frac(1, x.b) or div(1, x.b), x.a
+    elseif t == "neg" then
+      return -1, x.a
+    end
+    return 1, x
+  end
+  local am, ar = split(a)
+  local bm, br = split(b)
+  if not same(ar, br) then
+    return nil
+  end
+  if nega then
+    am = neg(am)
+  end
+  if negb then
+    bm = neg(bm)
+  end
+  return mul(add(am, bm), ar)
+end
+
+local function frac_half(v, sign)
+  return tag(v) == "frac" and v.n == sign and v.d == 2
+end
+
+--- math-combine-prod: `a` and `b` (each maybe inverted) as one factor when
+--- they are powers of the same base (`x^2 x` is `x^3`), else nil.
+local function combine_prod(a, b, inva, invb, scalar_ok)
+  if (inva and is_zero(a)) or (invb and is_zero(b)) then
+    return nil
+  end
+  if scalar_ok and is_objvec(a) and is_objvec(b) then
+    local r
+    if inva then
+      r = invb and div(div(1, a), b) or div(b, a)
+    else
+      r = invb and div(a, b) or mul(a, b)
+    end
+    return is_objvec(r) and r or nil
+  end
+  if tag(a) == "op" and a.op == "^" and inva and looks_neg(a.b) then
+    return mul(pow(a.a, neg(a.b)), b)
+  end
+  if tag(b) == "op" and b.op == "^" and invb and looks_neg(b.b) then
+    return mul(a, pow(b.a, neg(b.b)))
+  end
+  if simplifying then
+    local r = combine_prod_trig(a, b)
+    if r ~= nil then
+      return r
+    end
+  end
+  local function split(x)
+    local t = tag(x)
+    local base, p = x, 1
+    if t == "op" and x.op == "^" and (simplifying or is_number(x.b)) then
+      base, p = x.a, x.b
+    elseif t == "call" and x.name == "sqrt" and #x.args == 1 then
+      base, p = x.args[1], make_frac(1, 2)
+    elseif t == "call" and x.name == "exp" and #x.args == 1 and (simplifying or is_number(x.args[1])) then
+      base, p = COMBINE_E, x.args[1]
+    end
+    if tag(base) == "frac" and base.n < base.d then
+      base, p = div(1, base), neg(p)
+    end
+    return base, p
+  end
+  local apow, bpow
+  a, apow = split(a)
+  b, bpow = split(b)
+  if inva then
+    apow = neg(apow)
+  end
+  if invb then
+    bpow = neg(bpow)
+  end
+  if (simplifying and commutative_equal(a, b)) or same(a, b) then
+    local sumpow = add(apow, bpow)
+    if not is_int(a) or is_zero(sumpow) or ((tag(apow) == "frac") == (tag(bpow) == "frac")) then
+      if looks_neg(sumpow) and (is_int(a) or tag(a) == "frac") and not negative(a) then
+        a, sumpow = div(1, a), neg(sumpow)
+      end
+      if frac_half(sumpow, 1) then
+        return call("sqrt", { a })
+      elseif frac_half(sumpow, -1) then
+        return div(1, call("sqrt", { a }))
+      elseif rawequal(a, COMBINE_E) and rawequal(b, COMBINE_E) then
+        return call("exp", { sumpow })
+      end
+      return pow(a, sumpow)
+    end
+  end
+  if same(apow, bpow) and is_int(a) and is_int(b) and not negative(a) and not negative(b) then
+    if frac_half(apow, 1) then
+      return call("sqrt", { mul(a, b) })
+    elseif frac_half(apow, -1) then
+      return div(1, call("sqrt", { mul(a, b) }))
+    end
+    return pow(mul(a, b), apow)
+  end
+  return nil
 end
 
 neg = function(a)
@@ -776,17 +1112,36 @@ neg = function(a)
       out[i] = neg(a[i])
     end
     return out
-  elseif t == "neg" then
-    return a.a
   elseif FANCY_TAGS[t] then
     return ext_op("neg", a)
-  elseif t == "op" and a.op == "*" and is_real(a.a) then
-    return mul(neg(a.a), a.b)
+  elseif t == "str" or t == "date" then
+    error("bad argument for negation")
   end
-  if t == "sym" or t == "call" or t == "op" then
-    return { tag = "neg", a = a }
+  -- math-neg-fancy
+  if t == "op" then
+    local o = a.op
+    local function okay_neg(x)
+      return looks_neg(x) or (tag(x) == "op" and x.op == "-")
+    end
+    if o == "+" then
+      return sub(neg(a.a), a.b)
+    elseif o == "-" then
+      return sub(a.b, a.a)
+    elseif o == "*" or o == "/" then
+      if okay_neg(a.a) then
+        return op(o, neg(a.a), a.b)
+      elseif okay_neg(a.b) then
+        return op(o, a.a, neg(a.b))
+      elseif is_object(a.a) or (tag(a.a) == "op" and a.a.op == "*" and is_object(a.a.a)) then
+        return op(o, neg(a.a), a.b)
+      elseif o == "/" and (is_object(a.b) or (tag(a.b) == "op" and a.b.op == "*" and is_object(a.b.a))) then
+        return op(o, a.a, neg(a.b))
+      end
+    end
+  elseif t == "neg" then
+    return a.a
   end
-  error("bad argument for negation")
+  return { tag = "neg", a = a }
 end
 
 local function int_op(f, bigf, a, b)
@@ -863,15 +1218,231 @@ local function real_div(a, b)
   return float(n / d)
 end
 
+--- A zero of the type of `a` combined with `b`: `0 * 2.` is `0.`.
+local function zero_like(z, other)
+  if tag(other) == "float" and is_real(z) and tag(z) ~= "float" then
+    return float(0)
+  end
+  return z
+end
+
+local function is_float_obj(v)
+  local t = tag(v)
+  if t == "float" then
+    return true
+  elseif t == "cplx" then
+    return tag(v.re) == "float" or tag(v.im) == "float"
+  end
+  return false
+end
+
+--- math-add-symb-fancy: the sum of two formulas, not both numbers.
+local function add_symb(a, b)
+  local tb, ta = tag(b), tag(a)
+  if tb == "op" and b.op == "+" then
+    return add(add(a, b.a), b.b)
+  elseif tb == "op" and b.op == "-" then
+    return sub(add(a, b.a), b.b)
+  elseif tb == "neg" and tag(b.a) == "op" and b.a.op == "+" then
+    return sub(sub(a, b.a.a), b.a.b)
+  end
+  if (ta == "vec" and known_scalar(b)) or (tb == "vec" and known_scalar(a)) then
+    return map_vec2(add, a, b)
+  end
+  local temp
+  if ta == "op" and (a.op == "+" or a.op == "-") then
+    temp = combine_sum(a.b, b, a.op == "-", false, true)
+    if temp ~= nil then
+      return add(a.a, temp)
+    end
+  elseif not (is_object(a) and is_object(b)) then
+    temp = combine_sum(a, b, false, false, false)
+    if temp ~= nil then
+      return temp
+    end
+  end
+  if looks_neg(b) then
+    return op("-", a, neg(b))
+  elseif looks_neg(a) then
+    return op("-", b, neg(a))
+  end
+  return op("+", a, b)
+end
+
+--- math-mul-symb-fancy: the product of two formulas, not both numbers.
+local function mul_symb(a, b)
+  if equal_int(a, 1) then
+    return b
+  elseif equal_int(a, -1) then
+    return neg(b)
+  end
+  local ta, tb = tag(a), tag(b)
+  if (ta == "vec" and known_scalar(b)) or (tb == "vec" and known_scalar(a)) then
+    return map_vec2(mul, a, b)
+  end
+  if is_object(b) and not is_object(a) then
+    return mul(b, a)
+  end
+  if ta == "neg" then
+    return neg(mul(a.a, b))
+  elseif tb == "neg" then
+    return neg(mul(a, b.a))
+  end
+  local aop = ta == "op" and a.op
+  local bop = tb == "op" and b.op
+  if aop == "*" then
+    return mul(a.a, mul(a.b, b))
+  end
+  if aop == "^" and looks_neg(a.b) and not (bop == "^" and looks_neg(b.b)) and known_scalar(b, true) then
+    return div(b, pow(a.a, neg(a.b)))
+  end
+  if bop == "^" and looks_neg(b.b) and not (aop == "^" and looks_neg(a.b)) and tag(b.a) ~= "vec" then
+    return div(a, pow(b.a, neg(b.b)))
+  end
+  if aop == "/" and (known_scalar(a, true) or known_scalar(b, true)) then
+    local temp = combine_prod(a.b, b, true, false, true)
+    if temp ~= nil then
+      return mul(a.a, temp)
+    end
+    return div(mul(a.a, b), a.b)
+  end
+  if bop == "/" then
+    return div(mul(a, b.a), b.b)
+  end
+  if (bop == "+" or bop == "-") and is_number(a) and (is_number(b.a) or is_number(b.b)) then
+    local f = bop == "+" and add or sub
+    return f(mul(a, b.a), mul(a, b.b))
+  end
+  if bop == "*" and is_number(b.a) and not is_number(a) then
+    return mul(b.a, mul(a, b.b))
+  end
+  if looks_neg(b) then
+    return mul(neg(a), neg(b))
+  end
+  if bop == "-" and looks_neg(a) then
+    return mul(neg(a), neg(b))
+  end
+  local temp
+  if bop == "*" then
+    temp = combine_prod(a, b.a, false, false, true)
+    if temp ~= nil then
+      return mul(temp, b.b)
+    end
+  else
+    temp = combine_prod(a, b, false, false, false)
+    if temp ~= nil then
+      return temp
+    end
+  end
+  return op("*", a, b)
+end
+
+--- math-div-symb-fancy: the quotient of two formulas, not both numbers.
+local function div_symb(a, b)
+  if equal_int(b, 1) then
+    return a
+  elseif equal_int(b, -1) then
+    return neg(a)
+  end
+  local ta, tb = tag(a), tag(b)
+  if ta == "vec" and known_scalar(b) then
+    return map_vec2(div, a, b)
+  end
+  local aop = ta == "op" and a.op
+  local bop = tb == "op" and b.op
+  if bop == "^" and (looks_neg(b.b) or equal_int(a, 1)) then
+    return mul(a, pow(b.a, neg(b.b)))
+  end
+  if ta == "neg" then
+    return neg(div(a.a, b))
+  elseif tb == "neg" then
+    return neg(div(a, b.a))
+  end
+  if aop == "/" then
+    return div(a.a, mul(a.b, b))
+  end
+  if bop == "/" then
+    return div(mul(a, b.b), b.a)
+  end
+  if tb == "frac" then
+    return mul(make_frac(b.d, b.n), a)
+  end
+  if (aop == "+" or aop == "-") and (is_number(a.a) or is_number(a.b)) and is_number(b) then
+    local f = aop == "+" and add or sub
+    return f(div(a.a, b), div(a.b, b))
+  end
+  if (aop == "-" or looks_neg(a)) and looks_neg(b) then
+    return div(neg(a), neg(b))
+  end
+  if bop == "-" and looks_neg(a) then
+    return div(neg(a), neg(b))
+  end
+  local c
+  if aop == "*" then
+    if bop == "*" then
+      c = combine_prod(a.a, b.a, false, true, true)
+      if c ~= nil then
+        return div(mul(c, a.b), b.b)
+      end
+    else
+      c = combine_prod(a.a, b, false, true, true)
+      if c ~= nil then
+        return mul(c, a.b)
+      end
+    end
+  elseif bop == "*" then
+    c = combine_prod(a, b.a, false, true, true)
+    if c ~= nil then
+      return div(c, b.b)
+    end
+  else
+    c = combine_prod(a, b, false, true, false)
+    if c ~= nil then
+      return c
+    end
+  end
+  return op("/", a, b)
+end
+
+--- The symbolic part of math-pow-fancy.
+local function pow_symb(a, b)
+  local ta = tag(a)
+  local aop = ta == "op" and a.op
+  if aop == "*" and (known_num_integer(b) or known_nonneg(a.a) or known_nonneg(a.b)) then
+    return mul(pow(a.a, b), pow(a.b, b))
+  elseif aop == "/" and (known_num_integer(b) or known_nonneg(a.b)) then
+    return div(pow(a.a, b), pow(a.b, b))
+  elseif aop == "/" and known_nonneg(a.a) and not equal_int(a.a, 1) then
+    return mul(pow(a.a, b), pow(div(1, a.b), b))
+  elseif aop == "^" and (known_num_integer(b) or known_nonneg(a.a)) then
+    return pow(a.a, mul(a.b, b))
+  elseif ta == "call" and a.name == "sqrt" and #a.args == 1 and (known_num_integer(b) or known_nonneg(a.args[1])) then
+    return pow(a.args[1], div(b, 2))
+  elseif looks_neg(a) and is_int(b) then
+    if known_even(b) then
+      return pow(neg(a), b)
+    elseif known_odd(b) then
+      return neg(pow(neg(a), b))
+    end
+  end
+  return op("^", a, b)
+end
+
 add = function(a, b)
   local ta, tb = tag(a), tag(b)
   if is_nan(a) or is_nan(b) then
     return float(0 / 0)
   end
-  if ta == "vec" or tb == "vec" then
-    return elementwise(add, a, b)
-  elseif is_real(a) and is_real(b) then
+  if is_real(a) and is_real(b) then
     return real_add(a, b)
+  end
+  if is_zero(a) then
+    return (tag(a) == "float" and is_real(b)) and to_float_early(b) or b
+  elseif is_zero(b) then
+    return (tag(b) == "float" and is_real(a)) and to_float_early(a) or a
+  end
+  if ta == "vec" and tb == "vec" then
+    return map_vec2(add, a, b)
   end
   local x = ext_op("+", a, b)
   if x ~= nil then
@@ -882,22 +1453,10 @@ add = function(a, b)
     return { tag = "date", v = b.v + tofloat(a) }
   elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" then
     error("bad argument for +")
+  elseif (ta == "vec" or tb == "vec") and is_objvec(a) and is_objvec(b) then
+    return map_vec2(add, a, b)
   end
-  -- symbolic
-  if is_zero(a) then
-    return b
-  elseif is_zero(b) then
-    return a
-  end
-  if negative(b) then
-    return op("-", a, neg(b))
-  end
-  local ca, ra = split_coef(a)
-  local cb, rb = split_coef(b)
-  if not is_real(ra) and same(ra, rb) then
-    return mul(add(ca, cb), ra)
-  end
-  return op("+", a, b)
+  return add_symb(a, b)
 end
 
 sub = function(a, b)
@@ -905,9 +1464,7 @@ sub = function(a, b)
   if is_nan(a) or is_nan(b) then
     return float(0 / 0)
   end
-  if ta == "vec" or tb == "vec" then
-    return elementwise(sub, a, b)
-  elseif is_real(a) and is_real(b) then
+  if is_real(a) and is_real(b) then
     return real_add(a, neg(b))
   end
   local x = ext_op("-", a, b)
@@ -921,20 +1478,7 @@ sub = function(a, b)
   elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" then
     error("bad argument for -")
   end
-  if is_zero(b) then
-    return a
-  elseif is_zero(a) then
-    return neg(b)
-  end
-  if negative(b) then
-    return add(a, neg(b))
-  end
-  local ca, ra = split_coef(a)
-  local cb, rb = split_coef(b)
-  if not is_real(ra) and same(ra, rb) then
-    return mul(sub(ca, cb), ra)
-  end
-  return op("-", a, b)
+  return add(a, neg(b))
 end
 
 mul = function(a, b)
@@ -942,48 +1486,29 @@ mul = function(a, b)
   if is_nan(a) or is_nan(b) then
     return float(0 / 0)
   end
-  if ta == "vec" and tb == "vec" then
-    -- Calc multiplies two vectors as a dot product
-    if #a ~= #b then
-      error("dimension error")
-    end
-    local s = 0
-    for i = 1, #a do
-      s = add(s, mul(a[i], b[i]))
-    end
-    return s
-  elseif ta == "vec" or tb == "vec" then
-    return elementwise(mul, a, b)
-  elseif is_real(a) and is_real(b) then
+  if is_real(a) and is_real(b) then
     return real_mul(a, b)
+  end
+  if ta == "str" or tb == "str" or ta == "date" or tb == "date" then
+    error("bad argument for *")
+  end
+  if is_zero(a) and tb ~= "mod" and tb ~= "vec" and not FANCY_TAGS[tb] then
+    return (is_float_obj(a) or is_float_obj(b)) and float(0) or 0
+  elseif is_zero(b) and ta ~= "mod" and ta ~= "vec" and not FANCY_TAGS[ta] then
+    return (is_float_obj(a) or is_float_obj(b)) and float(0) or 0
+  end
+  if ta == "vec" or tb == "vec" then
+    if ta == "vec" and tb == "vec" then
+      return mat_mul(a, b)
+    elseif is_object(a) or is_object(b) then
+      return map_vec2(mul, a, b)
+    end
   end
   local x = ext_op("*", a, b)
   if x ~= nil then
     return x
-  elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" then
-    error("bad argument for *")
   end
-  if is_real(b) and not is_real(a) then
-    a, b = b, a
-  end
-  if is_real(a) then
-    if is_zero(a) and tag(a) == "int" then
-      return 0
-    elseif is_one(a) or (tag(a) == "float" and a.v == 1) then
-      return b
-    elseif a == -1 then
-      return neg(b)
-    end
-    local cb, rb = split_coef(b)
-    if cb ~= 1 then
-      return mul(real_mul(a, cb), rb)
-    end
-    return op("*", a, b)
-  end
-  if same(a, b) then
-    return pow(a, 2)
-  end
-  return op("*", a, b)
+  return mul_symb(a, b)
 end
 
 div = function(a, b)
@@ -991,25 +1516,32 @@ div = function(a, b)
   if is_nan(a) or is_nan(b) then
     return float(0 / 0)
   end
-  if ta == "vec" and not (tb == "vec") then
-    return elementwise(div, a, b)
-  elseif is_real(a) and is_real(b) then
+  if is_real(a) and is_real(b) then
     local r = real_div(a, b)
     if r == nil then
       return op("/", a, b) -- Calc leaves division by zero alone
     end
     return r
   end
+  if ta == "str" or tb == "str" or ta == "date" or tb == "date" then
+    error("bad argument for /")
+  end
+  if is_zero(b) then
+    return op("/", a, b)
+  end
+  if is_zero(a) and tb ~= "mod" and tb ~= "vec" then
+    return (tag(a) ~= "float" and is_float_obj(b)) and float(0) or a
+  end
+  if tb == "vec" and is_objvec(a) then
+    return mat_div(a, b)
+  elseif ta == "vec" and is_object(b) then
+    return map_vec2(div, a, b)
+  end
   local x = ext_op("/", a, b)
   if x ~= nil then
     return x
-  elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" or ta == "vec" or tb == "vec" then
-    error("bad argument for /")
   end
-  if is_one(b) then
-    return a
-  end
-  return op("/", a, b)
+  return div_symb(a, b)
 end
 
 local function int_pow(a, n)
@@ -1026,13 +1558,32 @@ local function int_pow(a, n)
   return r
 end
 
+--- The exact n-th root of a non-negative integer or fraction, or nil.
+local function exact_root(a, n)
+  local function iroot(x)
+    if type(x) ~= "number" or x < 0 then
+      return nil
+    end
+    local r = math.floor(x ^ (1 / n) + 0.5)
+    return int_pow(r, n) == x and r or nil
+  end
+  if tag(a) == "frac" then
+    local rn, rd = iroot(a.n), iroot(a.d)
+    return rn and rd and make_frac(rn, rd) or nil
+  end
+  return iroot(a)
+end
+
 pow = function(a, b)
   local ta, tb = tag(a), tag(b)
   if is_nan(a) or is_nan(b) then
     return float(0 / 0)
   end
-  if ta == "vec" and is_real(b) then
-    return elementwise(pow, a, b)
+  if ta == "str" or tb == "str" or ta == "date" or tb == "date" then
+    error("bad argument for ^")
+  end
+  if ta == "vec" and is_int(b) then
+    return mat_pow(a, b)
   end
   local ext = ext_op("^", a, b)
   if ext ~= nil then
@@ -1057,24 +1608,33 @@ pow = function(a, b)
       -- a complex root, like Calc: (-8)^(1:3) is (1., 1.7320508)
       return ext_op("^", { tag = "cplx", re = a, im = 0 }, b)
     end
+    if tb == "frac" and b.d <= 10 and ta ~= "float" then
+      -- exact roots: 4^(1:2) is 2, 8^(2:3) is 4
+      local root = exact_root(a, b.d)
+      if root then
+        return pow(root, b.n)
+      end
+    end
     return float(x ^ y)
   end
-  if ta == "str" or tb == "str" or ta == "date" or tb == "date" then
-    error("bad argument for ^")
-  end
-  if is_one(b) then
+  -- math-pow
+  if is_zero(a) then
+    if is_real(b) and not negative(b) and not is_zero(b) then
+      return tag(b) == "float" and to_float_early(a) or a
+    end
+    return op("^", a, b)
+  elseif equal_int(a, 1) or equal_int(b, 1) then
     return a
-  elseif tb == "int" and b == 0 then
-    return 1
+  elseif is_zero(b) then
+    return (is_float_obj(a) or tag(b) == "float") and float(1) or 1
   end
-  return op("^", a, b)
+  return pow_symb(a, b)
 end
 
 ---------------------------------------------------------------------------
 -- Functions
 ---------------------------------------------------------------------------
 
-local F = {}
 
 local function flatten(args)
   local out = {}
@@ -1104,6 +1664,23 @@ end
 -- nil to leave the call symbolic); filled below.
 local EXT_FN = {}
 
+-- the functions Calc applies to each element of a vector (the others stay
+-- symbolic: `sqrt([4, 9])`)
+local VEC_MAP = {
+  floor = true,
+  ceil = true,
+  trunc = true,
+  round = true,
+  frac = true,
+  rounde = true,
+  roundu = true,
+  float = true,
+  re = true,
+  im = true,
+  conj = true,
+  arg = true,
+}
+
 --- Apply a numeric function, leaving it symbolic for symbolic arguments.
 local function numeric(name, fn)
   return function(args)
@@ -1118,7 +1695,7 @@ local function numeric(name, fn)
     end
     for _, a in ipairs(args) do
       if not is_real(a) then
-        if tag(a) == "vec" and #args == 1 then
+        if tag(a) == "vec" and #args == 1 and VEC_MAP[name] then
           local out = { tag = "vec" }
           for i, x in ipairs(a) do
             out[i] = F[name]({ x })
@@ -1209,9 +1786,14 @@ F.log10 = numeric("log10", function(x)
   end
   return float(math.log10(v))
 end)
-F.exp10 = numeric("exp10", function(x)
-  return pow(10, x)
-end)
+-- exp10(x) is 10.^x (a float, like Calc's calcFunc-exp10)
+F.exp10 = function(args)
+  local x = args[1]
+  if #args ~= 1 or FANCY_TAGS[tag(x)] or tag(x) == "str" or tag(x) == "date" then
+    return call("exp10", args)
+  end
+  return pow(float(10), x)
+end
 local function rounding(name, f)
   F[name] = numeric(name, function(x, n)
     if n ~= nil then
@@ -1311,11 +1893,29 @@ F.sign = numeric("sign", function(x)
   local v = tofloat(x)
   return v > 0 and 1 or (v < 0 and -1 or 0)
 end)
+-- frac(x): a float as the simplest fraction equal to it at the working
+-- precision (calcFunc-frac, by continued fractions)
 F.frac = numeric("frac", function(x)
-  if is_int(x) then
-    return 0
+  if tag(x) ~= "float" then
+    return x
   end
-  return sub(x, F.trunc({ x }))
+  local v = x.v
+  local target = round_sig(v, modes.prec)
+  local h0, h1, k0, k1 = 0, 1, 1, 0
+  local r = math.abs(v)
+  for _ = 1, 64 do
+    local a = math.floor(r)
+    h0, h1 = h1, a * h1 + h0
+    k0, k1 = k1, a * k1 + k0
+    if round_sig((v < 0 and -h1 or h1) / k1, modes.prec) == target or r == a then
+      break
+    end
+    r = 1 / (r - a)
+  end
+  if math.abs(h1) >= MAX_EXACT or k1 >= MAX_EXACT then
+    return x
+  end
+  return make_frac(v < 0 and -h1 or h1, k1)
 end)
 -- exact results for exact arguments, like Calc: sin/cos of multiples of
 -- 90 degrees, the inverse functions of -1, 0 and 1
@@ -1416,6 +2016,18 @@ F.min = min_max("min", function(a, b)
   return a < b
 end)
 F.vmax, F.vmin = F.max, F.min
+-- max and min of a vector stay symbolic in Calc (vmax, vmin take vectors)
+for _, name in ipairs({ "max", "min" }) do
+  local f = F[name]
+  F[name] = function(args)
+    for _, a in ipairs(args) do
+      if tag(a) == "vec" then
+        return call(name, args)
+      end
+    end
+    return f(args)
+  end
+end
 
 F.vsum = function(args)
   local r = 0
@@ -1496,6 +2108,35 @@ end
 F.vpsdev = function(args)
   local v = variance(args, true)
   return v and F.sqrt({ v }) or call("vpsdev", args)
+end
+-- covariance and correlation of two vectors of numbers
+local function covariance(name, a, b, pop)
+  if tag(a) ~= "vec" or tag(b) ~= "vec" or #a ~= #b or #a < 2 then
+    return nil
+  end
+  for i = 1, #a do
+    if not (is_real(a[i]) and is_real(b[i])) then
+      return nil
+    end
+  end
+  local ma, mb = div(F.vsum({ a }), #a), div(F.vsum({ b }), #b)
+  local s = 0
+  for i = 1, #a do
+    s = add(s, mul(sub(a[i], ma), sub(b[i], mb)))
+  end
+  return div(s, pop and #a or #a - 1)
+end
+for name, pop in pairs({ vcov = false, vpcov = true }) do
+  F[name] = function(args)
+    return covariance(name, args[1], args[2], pop) or call(name, args)
+  end
+end
+F.vcorr = function(args)
+  local c = covariance("vcorr", args[1], args[2], false)
+  if not c then
+    return call("vcorr", args)
+  end
+  return float(tofloat(div(c, F.sqrt({ mul(variance({ args[1] }, false), variance({ args[2] }, false)) }))))
 end
 F.rev = function(args)
   local v = args[1]
@@ -1929,10 +2570,90 @@ local function intv_binary(o, a, b)
   return nil
 end
 
+-- Modulo forms
+
+--- math-make-mod: `n mod m` for real numbers, the modulus positive.
+local function make_mod(n, m)
+  if not is_real(m) or not (tofloat(m) > 0) then
+    error("bad modulus")
+  end
+  if negative(n) or num_cmp(n, m) >= 0 then
+    n = modulo(n, m)
+  end
+  return { tag = "mod", n = n, m = m }
+end
+
+--- a / b modulo m for integers (math-div-mod), or nil without a solution.
+local function div_mod(a, b, m)
+  if not (type(a) == "number" and type(b) == "number" and type(m) == "number") then
+    return nil
+  end
+  local u1, u3, v1, v3 = 1, b, 0, m
+  while v3 ~= 0 do
+    local q = math.floor(u3 / v3)
+    u1, u3, v1, v3 = v1, v3, u1 - v1 * q, u3 - v3 * q
+  end
+  if a % u3 ~= 0 then
+    return nil
+  end
+  return (a / u3 * u1) % m
+end
+
+--- a^b modulo m (math-pow-mod).
+local function pow_mod(a, b, m)
+  if type(a) == "number" and type(b) == "number" and type(m) == "number" and m < 2 ^ 26 then
+    if b < 0 then
+      local p = pow_mod(a, -b, m)
+      return p and div_mod(1, p, m)
+    end
+    local r, base, n = 1, a % m, b
+    while n > 0 do
+      if n % 2 == 1 then
+        r = r * base % m
+      end
+      base, n = base * base % m, math.floor(n / 2)
+    end
+    return r
+  end
+  return modulo(pow(a, b), m)
+end
+
+local function mod_binary(o, a, b)
+  local ta, tb = tag(a), tag(b)
+  local m, x, y
+  if ta == "mod" and tb == "mod" then
+    if not same(a.m, b.m) then
+      return nil
+    end
+    m, x, y = a.m, a.n, b.n
+  elseif ta == "mod" and is_real(b) then
+    m, x, y = a.m, a.n, b
+  elseif tb == "mod" and is_real(a) then
+    m, x, y = b.m, a, b.n
+  else
+    return nil
+  end
+  local r
+  if o == "+" then
+    r = add(x, y)
+  elseif o == "-" then
+    r = sub(x, y)
+  elseif o == "*" then
+    r = mul(x, y)
+  elseif o == "/" then
+    r = div_mod(x, y, m)
+  elseif o == "^" then
+    r = pow_mod(x, y, m)
+  end
+  return r ~= nil and make_mod(r, m) or nil
+end
+
 ext_op = function(o, a, b)
   local ta = tag(a)
   if o == "neg" then
-    if ta == "cplx" then
+    if ta == "mod" then
+      return is_zero(a.n) and a or make_mod(sub(a.m, a.n), a.m)
+    elseif ta == "cplx" then
       return cplx(neg(a.re), neg(a.im))
     elseif ta == "polar" then
       return polar(a.r, add(a.t, half_turn()))
@@ -1952,7 +2673,9 @@ ext_op = function(o, a, b)
   if not ((FANCY_TAGS[ta] or is_real(a)) and (FANCY_TAGS[tb] or is_real(b))) then
     return nil -- symbolic
   end
-  if ta == "hms" or tb == "hms" then
+  if ta == "mod" or tb == "mod" then
+    return mod_binary(o, a, b)
+  elseif ta == "hms" or tb == "hms" then
     return hms_binary(o, a, b)
   elseif ta == "sdev" or tb == "sdev" then
     return sdev_binary(o, a, b)
@@ -1962,12 +2685,55 @@ ext_op = function(o, a, b)
   return c_binary(o, a, b)
 end
 
+--- makemod(n, m), `n mod m`: a formula spreads the modulus over its terms
+--- (math-make-mod), `x mod 7` is `(1 mod 7) x`.
+local function make_mod_expr(n, m)
+  local t = tag(n)
+  if is_real(n) then
+    return make_mod(n, m)
+  elseif t == "vec" then
+    local out = { tag = "vec" }
+    for i, x in ipairs(n) do
+      out[i] = make_mod_expr(x, m)
+    end
+    return out
+  elseif t == "neg" then
+    return neg(make_mod_expr(n.a, m))
+  elseif t == "op" and (n.op == "+" or n.op == "-" or n.op == "/") then
+    local f = ({ ["+"] = add, ["-"] = sub, ["/"] = div })[n.op]
+    return f(make_mod_expr(n.a, m), make_mod_expr(n.b, m))
+  elseif t == "op" and n.op == "*" and is_real(n.a) then
+    return mul(make_mod(n.a, m), n.b)
+  elseif t == "sym" or (t == "op" and (n.op == "*" or n.op == "^")) then
+    return mul(make_mod(1, m), n)
+  end
+  error("bad argument for mod")
+end
+F.makemod = function(args)
+  local n, m = args[1], args[2]
+  if #args == 2 and is_real(m) and tofloat(m) > 0 then
+    return make_mod_expr(tag(n) == "mod" and n.n or n, m)
+  end
+  return call("makemod", args)
+end
+
 -- Complex functions: the real ones that give complex results too
 local real_sqrt, real_ln, real_log10 = F.sqrt, F.ln, F.log10
 F.sqrt = function(args)
   local x = args[1]
   if #args == 1 and is_real(x) and negative(x) then
     return imaginary(real_sqrt({ neg(x) }))
+  elseif #args == 1 and tag(x) == "op" then
+    -- the square root of a product or quotient with a known non-negative
+    -- part splits (math-sqrt): sqrt(4 x) is 2 sqrt(x)
+    local a, b = x.a, x.b
+    if x.op == "*" and (known_nonneg(a) or known_nonneg(b)) then
+      return mul(F.sqrt({ a }), F.sqrt({ b }))
+    elseif x.op == "/" and known_nonneg(b) then
+      return div(F.sqrt({ a }), F.sqrt({ b }))
+    elseif x.op == "/" and known_nonneg(a) and not equal_int(a, 1) then
+      return mul(F.sqrt({ a }), F.sqrt({ div(1, b) }))
+    end
   end
   return real_sqrt(args)
 end
@@ -1975,6 +2741,8 @@ F.ln = function(args)
   local x = args[1]
   if #args == 1 and is_real(x) and negative(x) then
     return cplx(float(math.log(-tofloat(x))), float(math.pi))
+  elseif #args == 1 and tag(x) == "sym" and x.name == "e" then
+    return 1
   end
   return real_ln(args)
 end
@@ -2000,6 +2768,12 @@ F.log = function(args)
     end
     if is_real(x) and is_real(b) and tofloat(x) > 0 and tofloat(b) > 0 then
       return float(math.log(tofloat(x)) / math.log(tofloat(b)))
+    elseif x == 1 then
+      return 0
+    elseif tag(b) == "sym" and b.name == "e" then
+      return F.ln({ x })
+    elseif same(x, b) then
+      return 1
     end
     return call("log", args)
   end
@@ -2096,6 +2870,56 @@ for name, f in pairs({ sin = c_sin, cos = c_cos, tan = false, sec = false, csc =
     return c_binary("/", c, s)
   end
 end
+-- arcsin, arccos and arctan of complex numbers, and of reals beyond
+-- [-1, 1] (math-arcsin-raw: -i ln(i z + sqrt(1 - z^2)))
+local function c_arcsin_raw(x, y)
+  local ra, ia = 1 - (x * x - y * y), -2 * x * y
+  local d = math.sqrt(ra * ra + ia * ia)
+  local sr, si = math.sqrt((d + ra) / 2), math.sqrt((d - ra) / 2)
+  if ia < 0 then
+    si = -si
+  end
+  local wr, wi = -y + sr, x + si
+  return math.atan2(wi, wr), -math.log(math.sqrt(wr * wr + wi * wi))
+end
+local function c_from_radians(re, im)
+  local k = modes.deg and 180 / math.pi or 1
+  return c_clean(float(re * k), float(im * k))
+end
+local C_INVERSE_TRIG = {
+  arcsin = c_arcsin_raw,
+  arccos = function(x, y)
+    local re, im = c_arcsin_raw(x, y)
+    return math.pi / 2 - re, -im
+  end,
+  arctan = function(x, y)
+    -- (ln(1 + i z) - ln(1 - i z)) / 2i
+    local ar, ai = 1 - y, x
+    local br, bi = 1 + y, -x
+    local lr = math.log(math.sqrt(ar * ar + ai * ai)) - math.log(math.sqrt(br * br + bi * bi))
+    local li = math.atan2(ai, ar) - math.atan2(bi, br)
+    return li / 2, -lr / 2
+  end,
+}
+for name, f in pairs(C_INVERSE_TRIG) do
+  EXT_FN[name] = function(z)
+    if tag(z) == "cplx" or tag(z) == "polar" then
+      local re, im = rect_parts(z)
+      return c_from_radians(f(tofloat(re), tofloat(im)))
+    end
+  end
+  if name ~= "arctan" then
+    local real_fn = F[name]
+    F[name] = function(args)
+      local x = args[1]
+      if #args == 1 and is_real(x) and math.abs(tofloat(x)) > 1 then
+        return c_from_radians(f(tofloat(x), 0))
+      end
+      return real_fn(args)
+    end
+  end
+end
+F.asin, F.acos = F.arcsin, F.arccos
 EXT_FN.arg = function(x)
   return c_arg(x)
 end
@@ -2197,6 +3021,17 @@ F.nroot = numeric("nroot", function(x, n)
   end
   return float(r)
 end)
+-- nroot of a formula is a fractional power: nroot(x, 3) is x^1:3
+local real_nroot = F.nroot
+F.nroot = function(args)
+  local x, n = args[1], args[2]
+  if #args == 2 and type(n) == "number" and n >= 1 and n == math.floor(n) and not is_real(x) then
+    if is_symbolic(x) or tag(x) == "vec" then
+      return pow(x, make_frac(1, n))
+    end
+  end
+  return real_nroot(args)
+end
 F.vgmean = function(args)
   local vals = flatten(args)
   for _, v in ipairs(vals) do
@@ -2586,304 +3421,361 @@ end
 -- Calc), and the dimensions. Outside usimplify units are plain symbols, as
 -- in Calc (`3 m + 20 cm` stays).
 
-local INCH = "254*10^-2*10^-2"
-local POUND = "16*28349523125*10^-9"
-local GALLON_PT = "2*8*2*3*492892159375*10^-11*10^-3*10^-3"
-local GFORCE = "980665*10^-5"
-local function dims(l, m, t, i)
-  return { L = l, M = m, T = t, I = i }
-end
-local LEN, MASS, TIME = dims(1), dims(nil, 1), dims(nil, nil, 1)
-local VOL, AREA, SPEED = dims(3), dims(2), dims(1, nil, -1)
-local FORCE, ENERGY, POWER = dims(1, 1, -2), dims(2, 1, -2), dims(2, 1, -3)
-local UNITS = {
-  m = { "1", LEN },
-  ["in"] = { INCH, LEN },
-  ft = { "12*" .. INCH, LEN },
-  yd = { "3*12*" .. INCH, LEN },
-  mi = { "5280*12*" .. INCH, LEN },
-  fath = { "6*12*" .. INCH, LEN },
-  nmi = { "1852", LEN },
-  au = { "149597870700", LEN },
-  Ang = { "10^-10", LEN },
-  g = { "1", MASS },
-  lb = { POUND, MASS },
-  oz = { "28349523125*10^-9", MASS },
-  t = { "1000*10^3", MASS },
-  ton = { "2000*" .. POUND, MASS },
-  s = { "1", TIME },
-  sec = { "1", TIME },
-  min = { "60", TIME },
-  hr = { "60*60", TIME },
-  day = { "24*60*60", TIME },
-  wk = { "7*24*60*60", TIME },
-  yr = { "36525*10^-2*24*60*60", TIME },
-  Hz = { "1", dims(nil, nil, -1) },
-  l = { "10^-3", VOL },
-  L = { "10^-3", VOL },
-  gal = { "4*2*" .. GALLON_PT, VOL },
-  qt = { "2*" .. GALLON_PT, VOL },
-  pt = { GALLON_PT, VOL },
-  cup = { "8*2*3*492892159375*10^-11*10^-3*10^-3", VOL },
-  ozfl = { "2*3*492892159375*10^-11*10^-3*10^-3", VOL },
-  tbsp = { "3*492892159375*10^-11*10^-3*10^-3", VOL },
-  tsp = { "492892159375*10^-11*10^-3*10^-3", VOL },
-  a = { "100", AREA },
-  ha = { "10^2*100", AREA },
-  acre = { "(1/640)*(5280*12*" .. INCH .. ")^2", AREA },
-  mph = { "5280*12*" .. INCH .. "/(60*60)", SPEED },
-  kph = { "10^3/(60*60)", SPEED },
-  knot = { "1852/(60*60)", SPEED },
-  c = { "299792458", SPEED },
-  N = { "10^3", FORCE },
-  dyn = { "10^-5*10^3", FORCE },
-  lbf = { GFORCE .. "*" .. POUND, FORCE },
-  J = { "10^3", ENERGY },
-  erg = { "10^-7*10^3", ENERGY },
-  cal = { "41868*10^-4*10^3", ENERGY },
-  Wh = { "10^3*60*60", ENERGY },
-  eV = { "1.60217663e-19*10^3", ENERGY },
-  W = { "10^3", POWER },
-  hp = { "550*(12*" .. INCH .. ")*" .. GFORCE .. "*" .. POUND, POWER },
-  Pa = { "10^3", dims(-1, 1, -2) },
-  bar = { "10^5*10^3", dims(-1, 1, -2) },
-  atm = { "101325*10^3", dims(-1, 1, -2) },
-  psi = { GFORCE .. "*" .. POUND .. "/(" .. INCH .. ")^2", dims(-1, 1, -2) },
-  mmHg = { "10^-3*1000*(1/760)*101325*10^3", dims(-1, 1, -2) },
-  A = { "1", dims(nil, nil, nil, 1) },
-  C = { "1", dims(nil, nil, 1, 1) },
-  V = { "10^3", dims(2, 1, -3, -1) },
-  ohm = { "10^3", dims(2, 1, -3, -2) },
-}
-local PREFIXES = {
-  Q = 30, R = 27, Y = 24, Z = 21, E = 18, P = 15, T = 12, G = 9, M = 6, k = 3, K = 3, h = 2, H = 2, D = 1,
-  d = -1, c = -2, m = -3, u = -6, n = -9, p = -12, f = -15, a = -18, z = -21, y = -24, r = -27, q = -30,
-}
-
-local unit_cache = {}
-
---- The { factor, dims, base, prefix } of a unit name (with an SI prefix:
---- `base` is the name without it, `prefix` its power of ten), or nil.
-local function unit_info(name)
-  if unit_cache[name] ~= nil then
-    return unit_cache[name] or nil
+do
+  local INCH = "254*10^-2*10^-2"
+  local POUND = "16*28349523125*10^-9"
+  local GALLON_PT = "2*8*2*3*492892159375*10^-11*10^-3*10^-3"
+  local GFORCE = "980665*10^-5"
+  local function dims(l, m, t, i, k, n)
+    return { L = l, M = m, T = t, I = i, K = k, N = n }
   end
-  local base, prefix = name, 0
-  local def = UNITS[name]
-  if not def then
-    local p, rest = PREFIXES[name:sub(1, 1)], name:sub(2)
-    if name:sub(1, 2) == "μ" then
-      p, rest = -6, name:sub(3)
+  local LEN, MASS, TIME = dims(1), dims(nil, 1), dims(nil, nil, 1)
+  local VOL, AREA, SPEED = dims(3), dims(2), dims(1, nil, -1)
+  local FORCE, ENERGY, POWER = dims(1, 1, -2), dims(2, 1, -2), dims(2, 1, -3)
+  local TEMP = dims(nil, nil, nil, nil, 1)
+  local UNITS = {
+    m = { "1", LEN },
+    ["in"] = { INCH, LEN },
+    ft = { "12*" .. INCH, LEN },
+    yd = { "3*12*" .. INCH, LEN },
+    mi = { "5280*12*" .. INCH, LEN },
+    fath = { "6*12*" .. INCH, LEN },
+    nmi = { "1852", LEN },
+    au = { "149597870700", LEN },
+    Ang = { "10^-10", LEN },
+    g = { "1", MASS },
+    lb = { POUND, MASS },
+    oz = { "28349523125*10^-9", MASS },
+    t = { "1000*10^3", MASS },
+    ton = { "2000*" .. POUND, MASS },
+    s = { "1", TIME },
+    sec = { "1", TIME },
+    min = { "60", TIME },
+    hr = { "60*60", TIME },
+    day = { "24*60*60", TIME },
+    wk = { "7*24*60*60", TIME },
+    yr = { "36525*10^-2*24*60*60", TIME },
+    Hz = { "1", dims(nil, nil, -1) },
+    l = { "10^-3", VOL },
+    L = { "10^-3", VOL },
+    gal = { "4*2*" .. GALLON_PT, VOL },
+    qt = { "2*" .. GALLON_PT, VOL },
+    pt = { GALLON_PT, VOL },
+    cup = { "8*2*3*492892159375*10^-11*10^-3*10^-3", VOL },
+    ozfl = { "2*3*492892159375*10^-11*10^-3*10^-3", VOL },
+    tbsp = { "3*492892159375*10^-11*10^-3*10^-3", VOL },
+    tsp = { "492892159375*10^-11*10^-3*10^-3", VOL },
+    a = { "100", AREA },
+    ha = { "10^2*100", AREA },
+    acre = { "(1/640)*(5280*12*" .. INCH .. ")^2", AREA },
+    mph = { "5280*12*" .. INCH .. "/(60*60)", SPEED },
+    kph = { "10^3/(60*60)", SPEED },
+    knot = { "1852/(60*60)", SPEED },
+    c = { "299792458", SPEED },
+    N = { "10^3", FORCE },
+    dyn = { "10^-5*10^3", FORCE },
+    lbf = { GFORCE .. "*" .. POUND, FORCE },
+    J = { "10^3", ENERGY },
+    erg = { "10^-7*10^3", ENERGY },
+    cal = { "41868*10^-4*10^3", ENERGY },
+    Wh = { "10^3*60*60", ENERGY },
+    eV = { "1.60217663e-19*10^3", ENERGY },
+    W = { "10^3", POWER },
+    hp = { "550*(12*" .. INCH .. ")*" .. GFORCE .. "*" .. POUND, POWER },
+    Pa = { "10^3", dims(-1, 1, -2) },
+    bar = { "10^5*10^3", dims(-1, 1, -2) },
+    atm = { "101325*10^3", dims(-1, 1, -2) },
+    psi = { GFORCE .. "*" .. POUND .. "/(" .. INCH .. ")^2", dims(-1, 1, -2) },
+    mmHg = { "10^-3*1000*(1/760)*101325*10^3", dims(-1, 1, -2) },
+    A = { "1", dims(nil, nil, nil, 1) },
+    C = { "1", dims(nil, nil, 1, 1) },
+    V = { "10^3", dims(2, 1, -3, -1) },
+    ohm = { "10^3", dims(2, 1, -3, -2) },
+    -- temperature differences (usimplify converts intervals, as Calc)
+    K = { "1", TEMP },
+    degC = { "1", TEMP },
+    dC = { "1", TEMP },
+    degF = { "5/9", TEMP },
+    dF = { "5/9", TEMP },
+    fur = { "660*12*" .. INCH, LEN },
+    mil = { "(1/1000)*" .. INCH, LEN },
+    point = { "(1/72)*" .. INCH, LEN },
+    lyr = { "299792458*36525*10^-2*24*60*60", LEN },
+    b = { "10^-28", AREA },
+    galUK = { "454609*10^-5*10^-3", VOL },
+    ga = { GFORCE, dims(1, nil, -2) },
+    ct = { "(2/10)", MASS },
+    tonUK = { "10160469088*10^-7*10^3", MASS },
+    gf = { GFORCE, FORCE },
+    kip = { "1000*" .. GFORCE .. "*" .. POUND, FORCE },
+    calth = { "4184*10^-3*10^3", ENERGY },
+    Cal = { "1000*41868*10^-4*10^3", ENERGY },
+    Btu = { "105505585262*10^-8*10^3", ENERGY },
+    therm = { "105506000*10^3", ENERGY },
+    Ws = { "10^3", ENERGY },
+    Torr = { "(1/760)*101325*10^3", dims(-1, 1, -2) },
+    inHg = { "254*10^-1*10^-3*1000*(1/760)*101325*10^3", dims(-1, 1, -2) },
+    P = { "(1/10)*10^3", dims(-1, 1, -1) },
+    St = { "10^-4", dims(2, nil, -1) },
+    S = { "10^-3", dims(-2, -1, 3, 2) },
+    mho = { "10^-3", dims(-2, -1, 3, 2) },
+    F = { "10^-3", dims(-2, -1, 4, 2) },
+    Wb = { "10^3", dims(2, 1, -2, -1) },
+    T = { "10^3", dims(nil, 1, -2, -1) },
+    Gs = { "10^-4*10^3", dims(nil, 1, -2, -1) },
+    H = { "10^3", dims(2, 1, -2, -2) },
+    Bq = { "1", dims(nil, nil, -1) },
+    Ci = { "37*10^9", dims(nil, nil, -1) },
+    Gy = { "1", dims(2, nil, -2) },
+    Sv = { "1", dims(2, nil, -2) },
+    rd = { "(1/100)", dims(2, nil, -2) },
+    rem = { "(1/100)", dims(2, nil, -2) },
+    mol = { "1", dims(nil, nil, nil, nil, nil, 1) },
+  }
+  local PREFIXES = {
+    Q = 30, R = 27, Y = 24, Z = 21, E = 18, P = 15, T = 12, G = 9, M = 6, k = 3, K = 3, h = 2, H = 2, D = 1,
+    d = -1, c = -2, m = -3, u = -6, n = -9, p = -12, f = -15, a = -18, z = -21, y = -24, r = -27, q = -30,
+  }
+
+  local unit_cache = {}
+
+  --- The { factor, dims, base, prefix } of a unit name (with an SI prefix:
+  --- `base` is the name without it, `prefix` its power of ten), or nil.
+  local function unit_info(name)
+    if unit_cache[name] ~= nil then
+      return unit_cache[name] or nil
     end
-    def = p and UNITS[rest]
+    local base, prefix = name, 0
+    local def = UNITS[name]
+    if not def then
+      local p, rest = PREFIXES[name:sub(1, 1)], name:sub(2)
+      if name:sub(1, 2) == "μ" then
+        p, rest = -6, name:sub(3)
+      end
+      def = p and UNITS[rest]
+      if def then
+        base, prefix = rest, p
+      end
+    end
+    local info = false
     if def then
-      base, prefix = rest, p
+      local factor = eval(M.parse(def[1]))
+      if prefix ~= 0 then
+        factor = mul(pow(10, prefix), factor)
+      end
+      info = { factor = factor, dims = def[2], base = base, prefix = prefix }
     end
+    unit_cache[name] = info
+    return info or nil
   end
-  local info = false
-  if def then
-    local factor = eval(M.parse(def[1]))
-    if prefix ~= 0 then
-      factor = mul(pow(10, prefix), factor)
-    end
-    info = { factor = factor, dims = def[2], base = base, prefix = prefix }
-  end
-  unit_cache[name] = info
-  return info or nil
-end
 
-local function same_dims(a, b)
-  for _, k in ipairs({ "L", "M", "T", "I" }) do
-    if (a[k] or 0) ~= (b[k] or 0) then
-      return false
-    end
-  end
-  return true
-end
-
---- `v` as a coefficient times a product of units ({ coef, units = { { name,
---- power }, ... } }), or nil.
-local function monomial(v)
-  local t = tag(v)
-  if t == "sym" and unit_info(v.name) then
-    return { coef = 1, units = { { v.name, 1 } } }
-  elseif is_real(v) or t == "sym" or t == "call" then
-    return { coef = v, units = {} }
-  elseif t == "neg" then
-    local r = monomial(v.a)
-    if r then
-      r.coef = neg(r.coef)
-    end
-    return r
-  elseif t == "op" and v.op == "^" and tag(v.a) == "sym" and type(v.b) == "number" then
-    if unit_info(v.a.name) then
-      return { coef = 1, units = { { v.a.name, v.b } } }
-    end
-    return { coef = v, units = {} }
-  elseif t == "op" and (v.op == "*" or v.op == "/") then
-    local a, b = monomial(v.a), monomial(v.b)
-    if not a or not b then
-      return nil
-    end
-    local sign = v.op == "*" and 1 or -1
-    local r = { coef = sign == 1 and mul(a.coef, b.coef) or div(a.coef, b.coef), units = {} }
-    for _, u in ipairs(a.units) do
-      r.units[#r.units + 1] = { u[1], u[2] }
-    end
-    for _, u in ipairs(b.units) do
-      r.units[#r.units + 1] = { u[1], u[2] * sign }
-    end
-    return r
-  end
-  return nil
-end
-
---- Merge equal units and cancel a unit against another of the same
---- dimension with the opposite power (`in / cm` is 2.54).
-local function simplify_monomial(mono)
-  local units = {}
-  for _, u in ipairs(mono.units) do
-    local found = false
-    for _, x in ipairs(units) do
-      if x[1] == u[1] then
-        x[2], found = x[2] + u[2], true
-        break
+  local function same_dims(a, b)
+    for _, k in ipairs({ "L", "M", "T", "I", "K", "N" }) do
+      if (a[k] or 0) ~= (b[k] or 0) then
+        return false
       end
     end
-    if not found then
-      units[#units + 1] = { u[1], u[2] }
-    end
+    return true
   end
-  local coef = mono.coef
-  -- the same unit with different prefixes: into the last one (km m is
-  -- 1000 m^2), by exact powers of ten when they are positive, like Calc
-  for i, x in ipairs(units) do
-    local ux = unit_info(x[1])
-    for j = i + 1, #units do
-      local y = units[j]
-      local uy = unit_info(y[1])
-      if x[2] ~= 0 and y[2] ~= 0 and ux.base == uy.base then
-        coef = mul(coef, pow(10, (ux.prefix - uy.prefix) * x[2]))
-        y[2], x[2] = y[2] + x[2], 0
-        break
+
+  --- `v` as a coefficient times a product of units ({ coef, units = { { name,
+  --- power }, ... } }), or nil.
+  local function monomial(v)
+    local t = tag(v)
+    if t == "sym" and unit_info(v.name) then
+      return { coef = 1, units = { { v.name, 1 } } }
+    elseif is_real(v) or t == "sym" or t == "call" then
+      return { coef = v, units = {} }
+    elseif t == "neg" then
+      local r = monomial(v.a)
+      if r then
+        r.coef = neg(r.coef)
       end
-    end
-  end
-  -- other units of the same dimension with opposite powers (in / cm)
-  for i, x in ipairs(units) do
-    for j = i + 1, #units do
-      local y = units[j]
-      if x[2] ~= 0 and x[2] == -y[2] then
-        local ux, uy = unit_info(x[1]), unit_info(y[1])
-        if same_dims(ux.dims, uy.dims) then
-          local ratio = x[2] > 0 and div(ux.factor, uy.factor) or div(uy.factor, ux.factor)
-          coef = mul(coef, pow(ratio, math.abs(x[2])))
-          x[2], y[2] = 0, 0
-        end
+      return r
+    elseif t == "op" and v.op == "^" and tag(v.a) == "sym" and type(v.b) == "number" then
+      if unit_info(v.a.name) then
+        return { coef = 1, units = { { v.a.name, v.b } } }
       end
-    end
-  end
-  local out = {}
-  for _, x in ipairs(units) do
-    if x[2] ~= 0 then
-      out[#out + 1] = x
-    end
-  end
-  return { coef = coef, units = out }
-end
-
-local function units_factor(units)
-  local f = 1
-  for _, u in ipairs(units) do
-    f = mul(f, pow(unit_info(u[1]).factor, u[2]))
-  end
-  return f
-end
-
-local function units_dims(units)
-  local d = {}
-  for _, u in ipairs(units) do
-    for k, n in pairs(unit_info(u[1]).dims) do
-      d[k] = (d[k] or 0) + n * u[2]
-    end
-  end
-  return d
-end
-
---- A monomial as a Calc expression: `1.5 m^2 / s`.
-local function build(mono)
-  local num, den
-  if not (mono.coef == 1 and #mono.units > 0) then
-    num = mono.coef
-  end
-  for _, u in ipairs(mono.units) do
-    local p = math.abs(u[2])
-    local f = p == 1 and sym(u[1]) or op("^", sym(u[1]), p)
-    if u[2] > 0 then
-      num = num and op("*", num, f) or f
-    else
-      den = den and op("*", den, f) or f
-    end
-  end
-  if den then
-    return op("/", num or 1, den)
-  end
-  return num
-end
-
-local function usimplify(v)
-  if tag(v) == "vec" then
-    local out = { tag = "vec" }
-    for i, x in ipairs(v) do
-      out[i] = usimplify(x)
-    end
-    return out
-  end
-  -- the terms of a sum
-  local terms = {}
-  local function collect(x, sign)
-    if tag(x) == "op" and (x.op == "+" or x.op == "-") then
-      collect(x.a, sign)
-      collect(x.b, x.op == "-" and -sign or sign)
-    else
-      terms[#terms + 1] = { x, sign }
-    end
-  end
-  collect(v, 1)
-  local monos = {}
-  for i, t in ipairs(terms) do
-    local m = monomial(t[1])
-    if not m then
-      return v
-    end
-    m = simplify_monomial(m)
-    if t[2] < 0 then
-      m.coef = neg(m.coef)
-    end
-    monos[i] = m
-  end
-  local first = monos[1]
-  if #monos == 1 then
-    return build(first)
-  end
-  -- a sum: every term in the units of the first one, like Calc
-  local fdims, ffactor = units_dims(first.units), units_factor(first.units)
-  local coef = first.coef
-  for i = 2, #monos do
-    local m = monos[i]
-    if not same_dims(fdims, units_dims(m.units)) then
-      local r = build(first)
-      for j = 2, #monos do
-        r = add(r, build(monos[j]))
+      return { coef = v, units = {} }
+    elseif t == "op" and (v.op == "*" or v.op == "/") then
+      local a, b = monomial(v.a), monomial(v.b)
+      if not a or not b then
+        return nil
+      end
+      local sign = v.op == "*" and 1 or -1
+      local r = { coef = sign == 1 and mul(a.coef, b.coef) or div(a.coef, b.coef), units = {} }
+      for _, u in ipairs(a.units) do
+        r.units[#r.units + 1] = { u[1], u[2] }
+      end
+      for _, u in ipairs(b.units) do
+        r.units[#r.units + 1] = { u[1], u[2] * sign }
       end
       return r
     end
-    coef = add(coef, div(mul(m.coef, units_factor(m.units)), ffactor))
+    return nil
   end
-  return build({ coef = coef, units = first.units })
-end
-F.usimplify = function(args)
-  return usimplify(args[1])
+
+  --- Merge equal units and cancel a unit against another of the same
+  --- dimension with the opposite power (`in / cm` is 2.54).
+  local function simplify_monomial(mono)
+    local units = {}
+    for _, u in ipairs(mono.units) do
+      local found = false
+      for _, x in ipairs(units) do
+        if x[1] == u[1] then
+          x[2], found = x[2] + u[2], true
+          break
+        end
+      end
+      if not found then
+        units[#units + 1] = { u[1], u[2] }
+      end
+    end
+    local coef = mono.coef
+    -- the same unit with different prefixes: into the last one (km m is
+    -- 1000 m^2), by exact powers of ten when they are positive, like Calc
+    for i, x in ipairs(units) do
+      local ux = unit_info(x[1])
+      for j = i + 1, #units do
+        local y = units[j]
+        local uy = unit_info(y[1])
+        if x[2] ~= 0 and y[2] ~= 0 and ux.base == uy.base then
+          coef = mul(coef, pow(10, (ux.prefix - uy.prefix) * x[2]))
+          y[2], x[2] = y[2] + x[2], 0
+          break
+        end
+      end
+    end
+    -- other units of the same dimension with opposite powers (in / cm)
+    for i, x in ipairs(units) do
+      for j = i + 1, #units do
+        local y = units[j]
+        if x[2] ~= 0 and x[2] == -y[2] then
+          local ux, uy = unit_info(x[1]), unit_info(y[1])
+          if same_dims(ux.dims, uy.dims) then
+            local ratio = x[2] > 0 and div(ux.factor, uy.factor) or div(uy.factor, ux.factor)
+            coef = mul(coef, pow(ratio, math.abs(x[2])))
+            x[2], y[2] = 0, 0
+          end
+        end
+      end
+    end
+    local out = {}
+    for _, x in ipairs(units) do
+      if x[2] ~= 0 then
+        out[#out + 1] = x
+      end
+    end
+    return { coef = coef, units = out }
+  end
+
+  local function units_factor(units)
+    local f = 1
+    for _, u in ipairs(units) do
+      f = mul(f, pow(unit_info(u[1]).factor, u[2]))
+    end
+    return f
+  end
+
+  local function units_dims(units)
+    local d = {}
+    for _, u in ipairs(units) do
+      for k, n in pairs(unit_info(u[1]).dims) do
+        d[k] = (d[k] or 0) + n * u[2]
+      end
+    end
+    return d
+  end
+
+  --- A monomial as a Calc expression: `1.5 m^2 / s`.
+  local function build(mono)
+    local nums, dens = {}, {}
+    if not (mono.coef == 1 and #mono.units > 0) then
+      nums[1] = mono.coef
+    end
+    -- the units in Calc's canonical order (by name)
+    local units = { unpack(mono.units) }
+    table.sort(units, function(x, y)
+      return x[1] < y[1]
+    end)
+    for _, u in ipairs(units) do
+      local p = math.abs(u[2])
+      local f = p == 1 and sym(u[1]) or op("^", sym(u[1]), p)
+      table.insert(u[2] > 0 and nums or dens, f)
+    end
+    if #nums > 1 and is_symbolic(nums[1]) and tag(nums[1]) ~= "sym" then
+      -- a formula coefficient goes after the units: m*(x + 2)
+      table.insert(nums, table.remove(nums, 1))
+    end
+    -- products nest to the right, as Calc builds them
+    local function product(list)
+      local r = list[#list]
+      for i = #list - 1, 1, -1 do
+        r = op("*", list[i], r)
+      end
+      return r
+    end
+    local num, den = product(nums), product(dens)
+    if den then
+      return op("/", num or 1, den)
+    end
+    return num
+  end
+
+  local function usimplify(v)
+    if tag(v) == "vec" then
+      local out = { tag = "vec" }
+      for i, x in ipairs(v) do
+        out[i] = usimplify(x)
+      end
+      return out
+    end
+    -- the terms of a sum
+    local terms = {}
+    local function collect(x, sign)
+      if tag(x) == "op" and (x.op == "+" or x.op == "-") then
+        collect(x.a, sign)
+        collect(x.b, x.op == "-" and -sign or sign)
+      else
+        terms[#terms + 1] = { x, sign }
+      end
+    end
+    collect(v, 1)
+    local monos = {}
+    for i, t in ipairs(terms) do
+      local m = monomial(t[1])
+      if not m then
+        return v
+      end
+      m = simplify_monomial(m)
+      if t[2] < 0 then
+        m.coef = neg(m.coef)
+      end
+      monos[i] = m
+    end
+    local first = monos[1]
+    if #monos == 1 then
+      return build(first)
+    end
+    -- a sum: every term in the units of the first one, like Calc
+    local fdims, ffactor = units_dims(first.units), units_factor(first.units)
+    local coef = first.coef
+    for i = 2, #monos do
+      local m = monos[i]
+      if not same_dims(fdims, units_dims(m.units)) then
+        local r = build(first)
+        for j = 2, #monos do
+          r = add(r, build(monos[j]))
+        end
+        return r
+      end
+      coef = add(coef, div(mul(m.coef, units_factor(m.units)), ffactor))
+    end
+    return build({ coef = coef, units = first.units })
+  end
+  F.usimplify = function(args)
+    return usimplify(args[1])
+  end
 end
 
 -- Logic
@@ -2942,6 +3834,8 @@ end
 local function concat(a, b)
   if tag(a) == "str" and tag(b) == "str" then
     return { tag = "str", s = a.s .. b.s }
+  elseif not (is_objvec(a) or tag(a) == "str") or not (is_objvec(b) or tag(b) == "str") then
+    return op("|", a, b)
   end
   local out = { tag = "vec" }
   for _, v in ipairs({ a, b }) do
@@ -3012,6 +3906,17 @@ eval = function(node)
   elseif k == "bin" then
     local a, b = eval(node.a), eval(node.b)
     local o = node.op
+    local arith = ({ ["+"] = add, ["-"] = sub, ["*"] = mul, ["/"] = div, ["^"] = pow, ["**"] = pow })[o]
+    if arith and (tag(a) == "vec" or tag(b) == "vec") then
+      -- vectors of the wrong sizes: Calc leaves the operation alone
+      local ok, r = pcall(arith, a, b)
+      if ok then
+        return r
+      elseif tostring(r):find("dimension error") then
+        return op(o == "**" and "^" or o, a, b)
+      end
+      error(r, 0)
+    end
     if o == "+" then
       return add(a, b)
     elseif o == "-" then
@@ -3030,6 +3935,8 @@ eval = function(node)
       return concat(a, b)
     elseif o == "+/-" then
       return F.sdev({ a, b })
+    elseif o == "mod" then
+      return F.makemod({ a, b })
     elseif o == "&&" then
       local ta, tb = truth(a), truth(b)
       if ta == nil or tb == nil then
@@ -3169,15 +4076,20 @@ local function format_float(x, fmt, prec)
   return str .. "e" .. (eadj - scale)
 end
 
--- display precedences: { left, right } of each operator
+-- display precedences: { left, right, text } of each operator (Calc's
+-- math-standard-opers); a fourth field is the precedence that decides the
+-- parentheses when it is not the smaller of the two
 local DISPLAY = {
-  ["+/-"] = { 300, 300, " +/- " },
+  ["mod"] = { 400, 400, " mod ", 185 },
+  ["+/-"] = { 300, 300, " +/- ", 185 },
   ["^"] = { 201, 200, "^" },
   ["*"] = { 196, 195, " " },
   ["/"] = { 190, 191, " / " },
   ["%"] = { 190, 191, " % " },
+  ["\\"] = { 190, 191, " \\ " },
   ["+"] = { 180, 181, " + " },
   ["-"] = { 180, 181, " - " },
+  ["|"] = { 170, 171, " | " },
   ["<"] = { 160, 161, " < " },
   [">"] = { 160, 161, " > " },
   ["<="] = { 160, 161, " <= " },
@@ -3187,6 +4099,21 @@ local DISPLAY = {
   ["&&"] = { 110, 111, " && " },
   ["||"] = { 100, 101, " || " },
 }
+-- functions Calc writes as operators
+local CALL_OPS = {
+  idiv = "\\",
+  mod = "%",
+  vconcat = "|",
+  eq = "==",
+  neq = "!=",
+  lt = "<",
+  gt = ">",
+  leq = "<=",
+  geq = ">=",
+  land = "&&",
+  lor = "||",
+}
+local POSTFIX = { fact = { "!", 210 }, dfact = { "!!", 210 }, percent = { "%", 1100 } }
 
 local display
 
@@ -3203,19 +4130,54 @@ local function display_real(v, fmt, prec)
   end
 end
 
-display = function(v, fmt, prec, ctx)
+--- The last factor of a product (math-prod-last-term).
+local function last_factor(v)
+  while tag(v) == "op" and v.op == "*" do
+    v = v.b
+  end
+  return v
+end
+
+--- A binary operator (math-compose-expr): `div` is set for the right side
+--- of `/`, where a product needs parentheses.
+local function display_binary(o, a, b, fmt, prec, ctx, div_rhs)
+  local d = DISPLAY[o]
+  if ctx > (d[4] or math.min(d[1], d[2])) or (div_rhs and o == "*") then
+    return "(" .. display_binary(o, a, b, fmt, prec, 0) .. ")"
+  end
+  local lhs = display(a, fmt, prec, d[1])
+  local rhs = display(b, fmt, prec, d[2], o == "/")
+  if o == "^" then
+    if lhs:sub(1, 1) == "-" then
+      lhs = "(" .. lhs .. ")"
+    end
+    return lhs .. "^" .. rhs
+  elseif o == "*" then
+    -- juxtaposition, unless it would read as a function call: `x*(y + 1)`
+    local nextc = rhs:sub(1, 1)
+    if nextc:match("[%w._#%(%[{]") and not (tag(last_factor(a)) == "sym" and nextc == "(") then
+      return lhs .. " " .. rhs
+    end
+    return lhs .. "*" .. rhs
+  elseif o == "/" and known_num_integer(a) and is_int(b) then
+    return lhs .. "/" .. rhs
+  end
+  return lhs .. d[3] .. rhs
+end
+
+display = function(v, fmt, prec, ctx, div_rhs)
   ctx = ctx or 0
   local t = tag(v)
   if is_real(v) then
-    local s = display_real(v, fmt, prec)
-    if ctx > 180 and s:sub(1, 1) == "-" then
-      return "(" .. s .. ")"
-    end
-    return s
+    return display_real(v, fmt, prec)
   elseif t == "vec" then
     local parts = {}
     for i, x in ipairs(v) do
       parts[i] = display(x, fmt, prec, 0)
+    end
+    if #v == 1 and tag(v[1]) == "op" and v[1].op == "*" then
+      -- `[(x y)]`: without parentheses it would read as `[x, y]`
+      return "[(" .. parts[1] .. ")]"
     end
     return "[" .. table.concat(parts, ", ") .. "]"
   elseif t == "str" then
@@ -3233,8 +4195,9 @@ display = function(v, fmt, prec, ctx)
     local s = string.format("%s@ %s' %s\"", display(v.h, fmt, prec), display(v.m, fmt, prec), display(v.s, fmt, prec))
     return ctx > 197 and "(" .. s .. ")" or s
   elseif t == "sdev" then
-    local s = display(v.x, fmt, prec, 0) .. " +/- " .. display(v.s, fmt, prec, 0)
-    return ctx > 300 and "(" .. s .. ")" or s
+    return display_binary("+/-", v.x, v.s, fmt, prec, ctx)
+  elseif t == "mod" then
+    return display_binary("mod", v.n, v.m, fmt, prec, ctx)
   elseif t == "intv" then
     return (math.floor(v.mask / 2) == 1 and "[" or "(")
       .. display(v.lo, fmt, prec, 0)
@@ -3244,6 +4207,24 @@ display = function(v, fmt, prec, ctx)
   elseif t == "sym" then
     return v.name
   elseif t == "call" then
+    local n = #v.args
+    if CALL_OPS[v.name] and n == 2 then
+      return display_binary(CALL_OPS[v.name], v.args[1], v.args[2], fmt, prec, ctx, div_rhs)
+    elseif POSTFIX[v.name] and n == 1 then
+      local o, p = POSTFIX[v.name][1], POSTFIX[v.name][2]
+      local s = display(v.args[1], fmt, prec, p) .. (#o > 1 and " " or "") .. o
+      return ctx > p and "(" .. s .. ")" or s
+    elseif v.name == "lnot" and n == 1 then
+      local s = "!" .. display(v.args[1], fmt, prec, 1000)
+      return ctx > 1000 and "(" .. s .. ")" or s
+    elseif v.name == "if" and n == 3 then
+      local s = display(v.args[1], fmt, prec, 91)
+        .. " ? "
+        .. display(v.args[2], fmt, prec, 0)
+        .. " : "
+        .. display(v.args[3], fmt, prec, 90)
+      return ctx > 90 and "(" .. s .. ")" or s
+    end
     local parts = {}
     for i, x in ipairs(v.args) do
       parts[i] = display(x, fmt, prec, 0)
@@ -3253,16 +4234,7 @@ display = function(v, fmt, prec, ctx)
     local s = "-" .. display(v.a, fmt, prec, 197)
     return ctx > 197 and "(" .. s .. ")" or s
   elseif t == "op" then
-    local d = DISPLAY[v.op]
-    local sep = d[3]
-    if v.op == "/" and is_real(v.a) and is_real(v.b) then
-      sep = "/"
-    end
-    local s = display(v.a, fmt, prec, d[1]) .. sep .. display(v.b, fmt, prec, d[2])
-    if d[1] < ctx then
-      return "(" .. s .. ")"
-    end
-    return s
+    return display_binary(v.op, v.a, v.b, fmt, prec, ctx, div_rhs)
   end
   return tostring(v)
 end
@@ -3281,6 +4253,7 @@ function M.eval(s, opts)
   opts = opts or {}
   local saved = modes
   modes = { prec = opts.prec or 12, frac = opts.frac or false, deg = opts.deg ~= false }
+  simplifying = false
   local ok, res = pcall(function()
     local v = eval(M.parse(s))
     if opts.num and not is_real(v) then
@@ -3294,6 +4267,55 @@ function M.eval(s, opts)
   end
   return res
 end
+
+-- Vectors and matrices (org.table.calc_vec) and symbolic algebra
+-- (org.table.calc_alg) work on the values above through these internals.
+local K = {
+  F = F,
+  tag = tag,
+  is_real = is_real,
+  is_int = is_int,
+  is_object = is_object,
+  is_number = is_number,
+  is_symbolic = is_symbolic,
+  is_zero = is_zero,
+  negative = negative,
+  looks_neg = looks_neg,
+  equal_int = equal_int,
+  num_cmp = num_cmp,
+  tofloat = tofloat,
+  float = float,
+  make_frac = make_frac,
+  same = same,
+  add = add,
+  sub = sub,
+  mul = mul,
+  div = div,
+  pow = pow,
+  neg = neg,
+  op = op,
+  sym = sym,
+  call = call,
+  concat = concat,
+  compare = compare,
+  is_objvec = is_objvec,
+  known_scalar = known_scalar,
+  combine_sum = combine_sum,
+  combine_prod = combine_prod,
+  modes = function()
+    return modes
+  end,
+  --- Turn Calc's math-simplifying on or off; returns the previous state.
+  set_simplifying = function(on)
+    local old = simplifying
+    simplifying = on
+    return old
+  end,
+}
+local V = require("org.table.calc_vec")(K)
+mat_mul, mat_div, mat_pow = V.mat_mul, V.mat_div, V.mat_pow
+K.is_matrix = V.is_matrix
+require("org.table.calc_alg")(K)
 
 M._format_float = format_float
 M._days_from_civil = days_from_civil
