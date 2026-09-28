@@ -625,6 +625,11 @@ local function ensure_buf(name)
       if states[buf] then
         use(states[buf])
       end
+      local lr = M._last_run
+      if lr and (lr.buf ~= buf or lr.lnum ~= vim.api.nvim_win_get_cursor(0)[1]) then
+        -- a motion ends a sequence of repeated commands (last-command)
+        M._last_run = nil
+      end
       if S.follow then
         vim.schedule(function()
           M.show_item(false)
@@ -1212,9 +1217,14 @@ end
 
 --- Shift the date of the item at point by `n` days (org-agenda-date-later):
 --- the timestamp the item comes from. With
---- org-agenda-move-date-from-past-immediately-to-today, a single step on a
---- past date moves it to today.
-function M.shift_item(target, item, n, explicit_count)
+--- `agenda.move_date_from_past_immediately_to_today`, a single step on a
+--- past date moves it to today. `unit` "h" shifts by hours and "min" by
+--- steps of `time_stamp_rounding_minutes[2]` minutes
+--- (org-agenda-date-later-hours / -minutes); a timestamp without a time
+--- keeps none (Emacs shifts its midnight).
+---@param unit? "d"|"h"|"min"
+function M.shift_item(target, item, n, explicit_count, unit)
+  unit = unit or "d"
   if item.sexp or item.inactive or item.log or not item.day then
     utils.warn("Cannot change this date from the agenda line")
     return
@@ -1224,14 +1234,35 @@ function M.shift_item(target, item, n, explicit_count)
     utils.warn("No timestamp to shift")
     return
   end
-  if not explicit_count and n == 1 and not d.range_end then
+  if unit == "d" and not explicit_count and n == 1 and not d.range_end
+    and config.opts.agenda.move_date_from_past_immediately_to_today ~= false then
     local today = date.today_days()
     if d:days() < today then
       n = today - d:days()
     end
   end
   local t = vim.tbl_extend("force", target, { ts_index = item.ts_index })
-  call("org.timestamps", "shift", t, kind, n, "d")
+  if unit == "d" then
+    call("org.timestamps", "shift", t, kind, n, "d")
+    return
+  end
+  if unit == "min" then
+    n = n * math.max((config.opts.time_stamp_rounding_minutes or { 0, 5 })[2] or 5, 1)
+  else
+    n = n * 60
+  end
+  local function shift(x)
+    local new = x:add(n, "min")
+    if not x.hour then
+      new = new:clone({ hour = vim.NIL, min = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
+    end
+    return new
+  end
+  local new = shift(d)
+  if d.range_end then
+    new.range_end = shift(d.range_end)
+  end
+  call("org.timestamps", "set_date", t, kind, new)
 end
 
 --- Change the date of the item at point (org-agenda-date-prompt): the time
@@ -1266,6 +1297,29 @@ function M.date_prompt(target, item)
     new.range_end = d.range_end:add(new:days() - d:days(), "d")
   end
   call("org.timestamps", "set_date", vim.tbl_extend("force", target, { ts_index = item.ts_index }), "timestamp", new)
+end
+
+local HOUR_SHIFTS = { date_later_hours = true, date_earlier_hours = true }
+local MINUTE_SHIFTS = { date_later_minutes = true, date_earlier_minutes = true }
+
+--- S-Right / S-Left (org-agenda-do-date-later / -earlier): a count shifts
+--- by that many days, except 4 (C-u), one hour, and 16 (C-u C-u), one
+--- rounding step of minutes. Right after an hour or minute shift (no
+--- cursor motion since), the keys keep shifting in that unit.
+local function do_date_shift(sign)
+  return on_item(function(target, item)
+    local count = vim.v.count
+    local dir = sign > 0 and "later" or "earlier"
+    if count == 16 or MINUTE_SHIFTS[M.last_command] then
+      M.this_command = "date_" .. dir .. "_minutes"
+      M.shift_item(target, item, sign, true, "min")
+    elseif count == 4 or HOUR_SHIFTS[M.last_command] then
+      M.this_command = "date_" .. dir .. "_hours"
+      M.shift_item(target, item, sign, true, "h")
+    else
+      M.shift_item(target, item, sign * math.max(count, 1), sign < 0 or count > 0)
+    end
+  end)
 end
 
 local function move_to_item(dir)
@@ -2277,11 +2331,19 @@ M.actions = {
   deadline = on_item(function(target)
     call("org.timestamps", "deadline", target)
   end),
-  date_later = on_item(function(target, item)
-    M.shift_item(target, item, math.max(vim.v.count, 1), vim.v.count > 0)
+  date_later = do_date_shift(1),
+  date_earlier = do_date_shift(-1),
+  date_later_hours = on_item(function(target, item)
+    M.shift_item(target, item, math.max(vim.v.count, 1), true, "h")
   end),
-  date_earlier = on_item(function(target, item)
-    M.shift_item(target, item, -math.max(vim.v.count, 1), true)
+  date_earlier_hours = on_item(function(target, item)
+    M.shift_item(target, item, -math.max(vim.v.count, 1), true, "h")
+  end),
+  date_later_minutes = on_item(function(target, item)
+    M.shift_item(target, item, math.max(vim.v.count, 1), true, "min")
+  end),
+  date_earlier_minutes = on_item(function(target, item)
+    M.shift_item(target, item, -math.max(vim.v.count, 1), true, "min")
   end),
   date_prompt = on_item(function(target, item)
     M.date_prompt(target, item)
@@ -2901,6 +2963,41 @@ end
 -- Mappings
 ---------------------------------------------------------------------------
 
+--- The previous agenda action, when the cursor has not moved since it
+--- ran (Emacs's `last-command`), and the running one (`this-command`,
+--- which an action may change).
+M.last_command = nil
+M.this_command = nil
+M._last_run = nil
+
+--- Run the agenda action `name` like a key press.
+---@param name string
+function M.run_action(name)
+  local fn = M.actions[name]
+  if not fn then
+    utils.error("Unknown agenda action: " .. tostring(name))
+    return
+  end
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local buf = vim.api.nvim_get_current_buf()
+  local lr = M._last_run
+  M.last_command = (lr and lr.buf == buf and lr.lnum == lnum) and lr.name or nil
+  M.this_command = name
+  M._last_run = nil
+  return utils.run(function()
+    local ok, err = pcall(fn)
+    M.last_command = nil
+    M._last_run = {
+      name = M.this_command,
+      buf = vim.api.nvim_get_current_buf(),
+      lnum = vim.api.nvim_win_get_cursor(0)[1],
+    }
+    if not ok then
+      error(err, 0)
+    end
+  end)
+end
+
 setup_mappings = function(buf)
   local maps = config.opts.mappings.agenda or {}
   local all = {}
@@ -2922,7 +3019,7 @@ setup_mappings = function(buf)
         end
       end
       vim.keymap.set("n", m.lhs, function()
-        utils.run(fn)
+        M.run_action(m.name)
       end, { buffer = buf, nowait = not prefix_of_other, desc = "org agenda: " .. m.name:gsub("_", " ") })
     end
   end

@@ -593,6 +593,9 @@ M.defaults = {
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,
+    --- One <S-Right> on a date in the past moves it to today
+    --- (org-agenda-move-date-from-past-immediately-to-today).
+    move_date_from_past_immediately_to_today = true,
     start_with_log_mode = false, -- false | true | "all" | "clockcheck" (org-agenda-start-with-log-mode)
     --- Add the first line of a clock or state note to log items
     --- (org-agenda-log-mode-add-notes).
@@ -2105,6 +2108,11 @@ M.defaults = {
       deadline = { "<C-c><C-d>", "d" },
       date_later = { "<S-Right>", "<C-c><C-x><Right>" },
       date_earlier = { "<S-Left>", "<C-c><C-x><Left>" },
+      -- Emacs: unbound (C-u / C-u C-u <S-Right>, here counts 4 / 16)
+      date_later_hours = false,
+      date_earlier_hours = false,
+      date_later_minutes = false,
+      date_earlier_minutes = false,
       date_prompt = ">",
       clock_in = { "I", "<C-c><C-x><C-i>" },
       clock_out = { "O", "<C-c><C-x><C-o>" },

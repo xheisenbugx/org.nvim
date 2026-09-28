@@ -1043,10 +1043,18 @@
 ---@field schedule? org.MappingLhs
 --- Set the item's deadline. Default: `{ "<C-c><C-d>", "d" }`
 ---@field deadline? org.MappingLhs
---- Shift the item's date one day later (count: days). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
+--- Shift the item's date one day later (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
 ---@field date_later? org.MappingLhs
---- Shift the item's date one day earlier (count: days). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
+--- Shift the item's date one day earlier (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
 ---@field date_earlier? org.MappingLhs
+--- Shift the item's time later by hours (count: hours; <S-Right> with count 4). Default: unmapped
+---@field date_later_hours? org.MappingLhs
+--- Shift the item's time earlier by hours (count: hours; <S-Left> with count 4). Default: unmapped
+---@field date_earlier_hours? org.MappingLhs
+--- Shift the item's time later by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Right> with count 16). Default: unmapped
+---@field date_later_minutes? org.MappingLhs
+--- Shift the item's time earlier by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Left> with count 16). Default: unmapped
+---@field date_earlier_minutes? org.MappingLhs
 --- Change the item's date via prompt (deadline or scheduled, by item kind). Default: `>`
 ---@field date_prompt? org.MappingLhs
 --- Clock in the item. Default: `{ "I", "<C-c><C-x><C-i>" }`

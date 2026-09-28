@@ -286,6 +286,9 @@
 ---Ask before `<C-k>` deletes an entry longer than this many lines
 ---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
 ---@field confirm_kill? integer|false
+---One `<S-Right>` on a past date moves it to today
+---(org-agenda-move-date-from-past-immediately-to-today). (default: `true`)
+---@field move_date_from_past_immediately_to_today? boolean
 ---Start in log mode; `"all"` shows all log items, `"clockcheck"` the clock
 ---check (org-agenda-start-with-log-mode). (default: `false`)
 ---@field start_with_log_mode? boolean|"all"|"clockcheck"

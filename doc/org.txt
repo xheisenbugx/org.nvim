@@ -1264,6 +1264,13 @@ All configurable under `mappings.agenda`:
   <S-Right/Left>  move the date of the entry +1 / -1 day (a count moves
                   more): the timestamp the line comes from; one step on a
                   past date moves it to today
+                  (`agenda.move_date_from_past_immediately_to_today`).
+                  A count of 4 (C-u) moves the time one hour, 16 (C-u
+                  C-u) one `time_stamp_rounding_minutes` step; the keys
+                  keep that unit when pressed again without moving the
+                  cursor. The actions `date_later_hours`,
+                  `date_earlier_hours`, `date_later_minutes` and
+                  `date_earlier_minutes` (no default keys) take a count
   >               prompt for a new date for that timestamp (the time is
                   kept)
   e               set effort
