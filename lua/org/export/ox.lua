@@ -1852,7 +1852,9 @@ local function keep_spaces(data, info)
     if prev.value:match("[ \t\r\n]$") then
       return nil
     end
-  elseif (prev.post_blank or 0) > 0 then
+  elseif prev.post_blank ~= nil then
+    -- In Emacs any :post-blank of an object is non-nil, 0 included, so
+    -- spaces are never kept after another object.
     return nil
   end
   return string.rep(" ", pb)

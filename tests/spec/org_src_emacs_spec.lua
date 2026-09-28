@@ -512,3 +512,15 @@ describe("links.info_other_documents", function()
     ok(h:find('<a href="https://ex.org/foo.html#Node-X">d</a>', 1, true), h)
   end)
 end)
+
+describe("export: spaces after dropped objects (org-export--keep-spaces)", function()
+  it("keeps no spaces after an object that follows another object", function()
+    local ox = require("org.export.ox")
+    local function ascii(s)
+      return (ox.export_as("ascii", { s }, { body_only = true, ext = { ascii_charset = "utf-8" } }))
+    end
+    -- Emacs 9.8.10: "Text c" and "Foo. Bar"
+    eq("Text c", vim.trim(ascii("Text @@html:a@@@@html:b@@ c")))
+    eq("Foo. Bar", vim.trim(ascii("Foo.@@html:a@@ Bar")))
+  end)
+end)
