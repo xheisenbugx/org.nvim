@@ -935,6 +935,13 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+- **gcal** (Emacs [org-gcal](https://github.com/kidd/org-gcal.el)):
+  two-way Google Calendar sync. Events are written as org-gcal entries in
+  the files of `fetch_file_alist` and show in the agenda; `:Org gcal_sync`
+  fetches changes and pushes entries you manage in Org,
+  `:Org gcal_post_at_point` creates or updates an event. Needs `curl` and
+  your own Google OAuth client (`:h org-extensions-gcal`).
+
 ---
 
 ## 🗺️ Roadmap

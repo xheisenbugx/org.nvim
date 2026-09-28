@@ -549,6 +549,19 @@ function parse_section(hl, lines, from, to, log_drawer)
           hl.logbook = { start = in_drawer.start, ["end"] = i }
         end
         in_drawer = nil
+      elseif line:find("<", 1, true) and not line:match("^%s*CLOCK:") and not line:find("^%s*#") then
+        -- drawer contents are ordinary text: active timestamps in them
+        -- (e.g. org-gcal's :org-gcal: drawer) show in the agenda
+        for _, item in ipairs(date.parse_all(line)) do
+          if item.date.active then
+            hl.timestamps[#hl.timestamps + 1] = {
+              date = item.date,
+              line = i,
+              start_col = item.start_col,
+              end_col = item.end_col,
+            }
+          end
+        end
       end
     else
       local dname = line:match("^%s*:([%w_%-]+):%s*$")

@@ -449,6 +449,54 @@
 ---extension's defaults.
 ---@class org.Config.Extensions
 ---@field [string] table|boolean
+---Google Calendar sync in the format of Emacs org-gcal (`:h org-extensions-gcal`).
+---@field gcal? org.Config.Extensions.Gcal|boolean
+
+---@class org.Config.Extensions.Gcal
+---@field enabled? boolean
+---OAuth client ID of a "Desktop app" client from the Google Cloud console.
+---@field client_id? string
+---Its client secret, or a function returning it (e.g. from a password manager).
+---@field client_secret? string|fun(): string
+---Calendar ID -> org file receiving its events. (Emacs `org-gcal-fetch-file-alist`)
+---@field fetch_file_alist? table<string, string>
+---Days before today to fetch. (Emacs `org-gcal-up-days`, default: `30`)
+---@field up_days? integer
+---Days after today to fetch. (Emacs `org-gcal-down-days`, default: `60`)
+---@field down_days? integer
+---Where OAuth and sync tokens are kept (mode 0600).
+---(default: `stdpath("data") .. "/org/gcal-token.json"`)
+---@field token_file? string
+---Entries of events cancelled on the server: `false` keeps them, `"ask"`
+---asks, `true` removes them. (Emacs `org-gcal-remove-api-cancelled-events`,
+---default: `"ask"`)
+---@field remove_api_cancelled_events? boolean|"ask"
+---TODO keyword for kept cancelled entries, `false` for none.
+---(Emacs `org-gcal-cancelled-todo-keyword`, default: `"CANCELLED"`)
+---@field cancelled_todo_keyword? string|false
+---`org-gcal-managed` of fetched entries: `"gcal"` or `"org"`. (default: `"gcal"`)
+---@field managed_newly_fetched_mode? "gcal"|"org"
+---`org-gcal-managed` of updated entries. (default: `"gcal"`)
+---@field managed_update_existing_mode? "gcal"|"org"
+---`org-gcal-managed` of entries posted as new events. (default: `"org"`)
+---@field managed_create_from_entry_mode? "gcal"|"org"
+---Archive entries of events that ended before the fetch window.
+---(Emacs `org-gcal-auto-archive`, default: `false`)
+---@field auto_archive? boolean
+---Report what each fetch or post did. (default: `true`)
+---@field notify? boolean
+---IANA zone sent as `timeZone` with posted timed events, e.g.
+---`"Europe/Berlin"`. (Emacs `org-gcal-local-timezone`, default: `nil`)
+---@field local_timezone? string
+---Fixed offset from UTC in minutes for converting event times; `nil` uses
+---the system zone. (default: `nil`)
+---@field utc_offset? integer
+---Minutes a posted event lasts when its timestamp has no end time. (default: `0`)
+---@field default_duration? integer
+---curl executable. (default: `"curl"`)
+---@field curl? string
+---Seconds before a request is abandoned. (default: `60`)
+---@field timeout? integer
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry
