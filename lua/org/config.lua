@@ -900,6 +900,12 @@ M.defaults = {
     --- Vim regex: shell: links matching it run without asking; "" = none
     --- (org-link-shell-skip-confirm-regexp).
     shell_skip_confirm_regexp = "",
+    --- Ask before running elisp: links: true, false or function(sexp) ->
+    --- boolean (org-link-elisp-confirm-function).
+    confirm_elisp = true,
+    --- Vim regex: elisp: links matching it run without asking; "" = none
+    --- (org-link-elisp-skip-confirm-regexp).
+    elisp_skip_confirm_regexp = "",
     --- Store links to headlines as id: links (org-id-link-to-org-use-id):
     --- false | true | "create-if-interactive" |
     --- "create-if-interactive-and-no-custom-id" | "use-existing".
@@ -1087,6 +1093,10 @@ M.defaults = {
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
     },
+    -- emacs-lisp blocks and elisp: links run in a separate Emacs process
+    -- (`command` false: never; without Emacs, side-effect-free code runs on
+    -- the Lisp interpreter of table formulas)
+    emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } },
   },
 
   ---------------------------------------------------------------------------

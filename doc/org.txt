@@ -1926,6 +1926,8 @@ Targets:
   <<target>>  text                    dedicated target, `#+NAME`, headline
   shell:cmd                           run in a terminal in the file's
                                       directory (asks first)
+  elisp:(sexp)                        evaluate in a separate Emacs, show
+                                      the value (asks first, see below)
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
   info:emacs#Top                      the `info` program in a terminal
@@ -2263,15 +2265,36 @@ formula is evaluated, so:
 - Dates: `<2024-01-10 Wed>` (also `[...]` fields) is a date; subtracting
   two gives days (`$2-$1`), adding a number gives a date (written as an
   inactive timestamp), `date(<...>)` gives the day number.
+- Complex numbers `(2, 3)` and polar `(2; 30)` (angle in the angle mode):
+  `sqrt(-4)` is `(0, 2)`, `ln(-1)` is `(0., 3.1415927)`, `(1,2)*(3,4)`
+  is `(-5, 10)`; abs arg re im conj polar rect, exp ln log10 sqrt sin cos
+  tan and powers work on them. `i` is only a symbol, as in Calc.
+- HMS forms `2@ 30' 15"`: added (to each other or to hours), multiplied
+  and divided by numbers, compared; `hms(2.5)` and `hms(2, 30, 0)` make
+  one, `deg(2@ 30')` is 2.5, trig functions take them as degrees.
+- Error forms `3 +/- 0.5` propagate through + - * / ^ sqrt exp ln abs;
+  intervals `[1 .. 3)`, `(0 .. 1]` through + - * and / by a number.
+- Units: `usimplify(3 m + 20 cm)` is `3.2 m` (the units of the first
+  term), `usimplify(1 in / 1 cm)` is 2.54, `usimplify(3 m * 2 m / 4 s)`
+  is `1.5 m^2 / s`, for common units (m, in, ft, yd, mi, nmi, g, lb, oz,
+  t, s, min, hr, day, wk, yr, Hz, l, gal, qt, pt, cup, ha, acre, mph,
+  kph, knot, N, lbf, J, cal, Wh, eV, W, hp, Pa, bar, atm, psi, A, V,
+  ohm, ...) with SI prefixes (km, mA, kWh). Elsewhere units are plain
+  symbols, as in Calc (`3 m + 20 cm` stays).
 - Text stays symbolic: `$1*2` on `x` gives `2 x`, `sqrt(x)` stays,
   `if($1>3, big, small)` returns `big`/`small`; `pi` and `e` stay
-  symbols. With `N` a non-numeric result is #ERROR.
+  symbols (`evalv(pi)` is 3.1415927). With `N` a non-numeric result is
+  #ERROR.
 - Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vpsdev vvar
-  vpvar vlen rev sort, abs sqrt exp ln log log10 exp10 floor ceil round
-  trunc frac idiv mod `\` gcd lcm fact choose perm sign min max hypot, sin
-  cos tan arcsin arccos arctan arctan2 sinh cosh tanh deg rad (degrees
-  unless `R`), if lnot, date year month day hour minute second weekday
-  now. Unknown functions stay symbolic, e.g. `foo(x)`.
+  vpvar vgmean vhmean vlen rev sort, abs sqrt nroot exp ln log (also
+  `log(x, b)`) log10 exp10 floor ceil round rounde roundu trunc frac
+  float fdiv idiv mod `\` gcd lcm fact dfact choose perm gamma prime
+  nextprime prevprime totient sign min max hypot, sin cos tan sec csc cot
+  arcsin arccos arctan arctan2 sinh cosh tanh arcsinh arccosh arctanh deg
+  rad (degrees unless `R`), and or xor diff not lsh rsh ash (32-bit
+  words), if lnot evalv, date year month day hour minute second weekday
+  now incmonth incyear newmonth newyear newweek julian unixtime (local
+  time zone). Unknown functions stay symbolic, e.g. `foo(x)`.
 Flags after `;` (org-table-eval-formula): Calc modes `p20` (precision),
 `n3` (significant digits), `f2` (fixed), `s3` / `e3` (scientific /
 engineering), `N` (fields as numbers), `E` (keep empty fields, as `nan` in
@@ -2282,8 +2305,8 @@ Calc), `R` / `D` (radians / degrees), `F` (fractions), `T` / `t` / `U`
 which is a printf format applied to the result: `%.2f`, `%.1f%%`, `%d`.
 Lisp formulas: `'(+ $1 $2);N`, `'(concat $1 "-" $2)`: fields become Lisp
 strings, numbers with `N`, verbatim text with `L`; ranges become several
-arguments; a list result is #ERROR. See |org-differences| for the Lisp
-subset. Lua formulas (extension): `$3='(string.upper($1))` (a `'(...)`
+arguments; a list result is #ERROR. They run on a small Lisp interpreter,
+never in Emacs (see |org-differences|). Lua formulas (extension): `$3='(string.upper($1))` (a `'(...)`
 that is not Lisp).
 Errors show as #ERROR.
 
@@ -2342,7 +2365,10 @@ the first visible line).
                                             *org-table-translators* *orgtbl*
 Translators turn a table into another format (Emacs orgtbl-to-*):
 `orgtbl-to-tsv`, `-csv`, `-latex` (:booktabs, :environment), `-html`
-(:attributes), `-texinfo` (:columns), `-orgtbl` and `-generic`. Parameters
+(:attributes), `-texinfo` (:columns), `-orgtbl`, `-table.el` (the aligned
+table with `+` crossings), `-unicode` (drawn like the ASCII export with
+UTF-8 rules and column-group bars; `:narrow t` cuts columns to their width
+cookie with `=>`) and `-generic`. Parameters
 of orgtbl-to-generic: :splice, :skip N (rows, hlines included), :skipcols
 (2 3), :hline, :sep, :hsep, :tstart :tend, :lstart :lend, :llstart :llend,
 :hlstart :hlend :hllstart :hllend, :lfmt :llfmt :hlfmt :hllfmt, :fmt :hfmt
@@ -2379,10 +2405,12 @@ table with gnuplot (`plot_gnuplot_program`, `plot_gnuplot_script_preamble`,
     #+PLOT: title:"Sales" ind:1 deps:(2 3) type:2d with:lines
     #+PLOT: file:"sales.png" set:"yrange [0:]" labels:("x" "a" "b")
 <
-Options: type (2d, 3d, grid), title, ind, deps, with, file, labels, line,
-set, map, script (a gnuplot script; `$datafile` is replaced), timefmt,
-transpose. The header row gives the labels; an independent column of
-timestamps is plotted as time. The radar type is not supported.
+Options: type (2d, 3d, grid, radar), title, ind, deps, with, file,
+labels, line, set, map, script (a gnuplot script; `$datafile` is
+replaced), timefmt, transpose, and for radar min, max and ticks. The
+header row gives the labels; an independent column of timestamps is
+plotted as time. `type:radar` draws a spider chart like Emacs: each row
+is an axis named by its first cell, each other column a series.
 
 ==============================================================================
 19. SOURCE BLOCKS (BABEL)                                          *org-babel*
@@ -2535,8 +2563,19 @@ default_header_args = {...} }`. `default_header_args` are that language's
 defaults (Emacs `org-babel-default-header-args:LANG`). Emacs enables only
 emacs-lisp (`org-babel-load-languages`); the plugin enables shells, python,
 lua, js/ts, ruby, perl, php, R, go, rust, sqlite, sql, C, C++/cpp, D and awk
-because emacs-lisp cannot run in Neovim (see below). `:python`, `:ruby` and
-`:cmd` (js) choose the interpreter of one block, like Emacs.
+as well. `:python`, `:ruby` and `:cmd` (js) choose the interpreter of one
+block, like Emacs.
+  - emacs-lisp (elisp): run in a separate Emacs, `emacs -Q --batch`
+    (`babel.emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } }`;
+    drop `-Q` to load your init file), wrapped like ob-emacs-lisp: `:var`
+    values are bound as quoted Lisp data, `:lexical`, `:prologue` and
+    `:epilogue` apply, the value is printed with `prin1` and read back
+    (lists become tables), `:results output` collects what `princ` /
+    `print` write, `pp`/`code` use `pp-to-string`. That Emacs is not the
+    editor: each evaluation starts a fresh process, so there are no
+    buffers, no state between blocks and no sessions. Without Emacs
+    (`command = false` or not installed) side-effect-free code runs on the
+    Lisp interpreter of table formulas (|org-table-calc|).
   - python: `:return expr` (the value of `expr`), `:preamble`, and
     `:results graphics file :file x.png` (the matplotlib figure is saved).
   - C, C++ (cpp) and D (ob-C): compiled with gcc / g++ (rdmd for D) and
@@ -2682,9 +2721,9 @@ editing honors `-i`, `src_preserve_indentation`, and
 `edit_src_content_indentation`.
 
 Not supported ~
-  - emacs-lisp (elisp) blocks cannot be evaluated: Neovim has no Emacs Lisp
-    interpreter (the small evaluator used by table formulas only knows
-    arithmetic, strings and lists). They can still be tangled and exported.
+  - emacs-lisp sessions, and emacs-lisp code that acts on the editor
+    (buffers, windows, the Org document): it runs in a separate Emacs
+    (see Languages above).
   - Header values that are arbitrary Emacs Lisp (`:dir (concat ...)`,
     `:var x=(some-function)`, `:results (if ...)`): only the forms the
     table formula evaluator knows are evaluated.
@@ -3630,7 +3669,8 @@ crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
   abbreviations {}, types {}, confirm_shell true (or a function),
-  shell_skip_confirm_regexp "", use_id false (true|"create-if-interactive"|
+  shell_skip_confirm_regexp "", confirm_elisp true (or a function),
+  elisp_skip_confirm_regexp "", use_id false (true|"create-if-interactive"|
   "create-if-interactive-and-no-custom-id"|"use-existing"), file_apps {}
   ("vim" forces Neovim), context_for_files true (or a number of lines),
   file_path_type "adaptive" ("relative"|"absolute"|"noabbrev"|function),
@@ -3657,7 +3697,8 @@ babel ~
   noweb_wrap_end ">>", tangle_use_relative_file_links true,
   tangle_comment_format_beg / _end, tangle_default_file_mode "644",
   tangle_lang_exts {}, tangle_save_buffer true,
-  tangle_uncomment_comments false, languages (see |org-babel|)
+  tangle_uncomment_comments false, languages (see |org-babel|),
+  emacs_lisp { command = "emacs", args = { "-Q", "--batch" } }
 src_preserve_indentation false (org-src-preserve-indentation)
 export ~                                                   *org-config-export*
   output_dir, open_after_export, and the Emacs org-export-* options:
@@ -4067,17 +4108,20 @@ Differences from Emacs:
   state change and schedule notes use a `*Org Note*` split like Emacs
   (`note_buffer`).
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
-  (|org-table-calc|); its symbolic algebra (simplification, solving,
-  derivatives), units, complex numbers (`sqrt(-4)` stays `sqrt(-4)`
-  instead of `(0, 2)`), HMS forms, intervals, error forms and its ~1000
-  other functions are not: Calc is a large Emacs package, and results
-  here are exact integers, fractions, 12-digit floats, dates or symbolic
-  text with only a few simplifications (`x + x` is `2 x`; Emacs's
-  `vmean` of symbols is left as `(1 + x + 3) / 3`). Quoted strings
-  (`"big"`) are kept as text; Calc makes them vectors of character codes.
-  Emacs Lisp formulas `'(...)` run on a small Lisp interpreter (the
-  functions listed in `lua/org/table/elisp.lua`): arbitrary Emacs Lisp
-  cannot run without Emacs. Any other `'(...)` is a Lua expression.
+  (|org-table-calc|): numbers, dates, complex numbers, HMS forms, error
+  forms, intervals, `usimplify` with a table of common units and the
+  functions listed there. Calc's symbolic algebra (simplification,
+  solving, derivatives), modulo forms, matrices, unit conversion beyond
+  `usimplify` (temperatures, `convert` is a keyboard command in Calc)
+  and its other functions are not: results that are not numbers are
+  symbolic text with only a few simplifications (`x + x` is `2 x`;
+  Emacs's `vmean` of symbols is left as `(1 + x + 3) / 3`,
+  `usimplify(x m + 2 m)` is `(x + 2) m` where Calc writes `m*(x + 2)`).
+  Quoted strings (`"big"`) are kept as text; Calc makes them vectors of
+  character codes. Emacs Lisp formulas `'(...)` run on a small
+  Lisp interpreter (the functions listed in `lua/org/table/elisp.lua`),
+  not in Emacs: starting an Emacs for every field would be far too slow.
+  Any other `'(...)` is a Lua expression.
 - Table formula errors: Emacs stops the whole recalculation on some errors
   (a reference outside the table, `$2=` defined twice, unknown remote
   tables); here the field shows #ERROR (the last definition wins) and the
@@ -4089,9 +4133,9 @@ Differences from Emacs:
   Shrunk columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
-  needs gnuplot.el; the radar plot type is missing). The orgtbl-to-unicode
-  and orgtbl-to-table.el translators are missing, and translators convert
-  Org markup in cells with a simplified exporter.
+  needs gnuplot.el). Translators convert Org markup in cells with a
+  simplified exporter (orgtbl-to-unicode: verbatim, links and entities
+  only).
 - Clocking (|org-clock|): the idle time comes from the system on macOS
   (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
   own input, so time spent in other applications counts as idle there.
@@ -4122,15 +4166,20 @@ Differences from Emacs:
   stay on until toggled off.
 - Babel sessions exist for shells, python, js, ruby and lua only, and
   are not full REPLs: each block runs as one request. Lua blocks run
-  inside Neovim instead of an external `lua`. `elisp:` links and
-  emacs-lisp blocks are not supported; `:var` and header Lisp forms are
-  limited to what the table formula Lisp evaluator implements (see
-  |org-babel|).
+  inside Neovim instead of an external `lua`. emacs-lisp blocks and
+  `elisp:` links run in a separate `emacs --batch` process (or, without
+  Emacs, on the table formula Lisp interpreter), not in the editor: they
+  cannot see or change buffers, and nothing is kept between evaluations.
+  `:var` and header Lisp forms are limited to what the table formula
+  Lisp evaluator implements (see |org-babel|).
 - Export: see |org-export-unsupported|.
 - Links (|org-links|):
-  - `elisp:` links are not supported: they need an Emacs Lisp interpreter.
-    Abbreviations using `%(my-function)` cannot call Elisp either; give
-    `links.abbreviations` a Lua function instead.
+  - `elisp:(sexp)` links are evaluated in a separate `emacs --batch`
+    (`babel.emacs_lisp`), not in the editor, after `links.confirm_elisp`
+    (a y/n prompt; `links.elisp_skip_confirm_regexp` skips it); links
+    naming a command (`elisp:org-agenda`) cannot run. Abbreviations using
+    `%(my-function)` cannot call Elisp; give `links.abbreviations` a Lua
+    function instead.
   - `help:` opens Vim's |:help|: Emacs `help:` links name Elisp functions
     and variables (describe-function), which do not exist here. `info:`
     runs the `info` program in a terminal, `man:` uses |:Man|.

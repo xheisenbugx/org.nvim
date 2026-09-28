@@ -1115,9 +1115,27 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
     return result
   end
   if lang == "emacs-lisp" or lang == "elisp" then
-    local msg = "emacs-lisp blocks cannot be evaluated in Neovim (there is no Emacs Lisp interpreter)"
-    utils.error(msg)
-    done({ error = msg })
+    -- in a separate `emacs --batch`, else on the table formula interpreter
+    local elisp = require("org.babel.elisp")
+    local ecmd = elisp.command()
+    if not ecmd then
+      local res = elisp.run_internal(body, args, vars)
+      if res.error then
+        -- a Lisp error: like Emacs, no result is inserted
+        M.error_notify(nil, res.error)
+        res.abort = true
+      end
+      done(res)
+      return result
+    end
+    local spec = elisp.prepare(ecmd, body, args, vars)
+    run_steps(spec, cwd, sync, function(stdout, failed)
+      local value = stdout and elisp.convert(spec, args)
+      if stdout == nil or (failed and value == nil) then
+        return done({ error = true, abort = true })
+      end
+      done({ result = value, error = failed or nil })
+    end)
     return result
   end
   local cmd = lang_cmd(lang, args)
