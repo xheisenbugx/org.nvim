@@ -1603,6 +1603,13 @@ Block options:
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
+`agenda.custom_commands_contexts` (org-agenda-custom-commands-contexts)
+offers commands only in some buffers, with the rules of
+|org-capture-contexts|: `{ "p", { { in_mode = "org" } } }` keeps `p` only
+in org buffers, `{ "p", "r", { rules } }` runs the command of `r` under
+`p` where a rule holds (and hides `r`). It applies to the dispatcher,
+`:Org agenda KEY` and `A`.
+
 TODO lists: `todo_ignore_scheduled` ("all", "future", "past" or days),
 `todo_ignore_deadlines` (true = "near": within the warning period, "far",
 "all", "future", "past" or days), `todo_ignore_timestamp`,

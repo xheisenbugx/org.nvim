@@ -268,6 +268,9 @@
 ---Keys may be several characters long; a string value only labels the group
 ---of keys that start with that prefix. (default: `{}`)
 ---@field custom_commands? table<string, org.Config.Agenda.CustomCommand|string>
+---Rules offering custom commands only in some buffers, like
+---`capture.templates_contexts` (org-agenda-custom-commands-contexts). (default: `{}`)
+---@field custom_commands_contexts? org.Config.CaptureContextRule[]
 ---Columns format of the agenda column view
 ---(org-agenda-overriding-columns-format). (default: `nil`)
 ---@field overriding_columns_format? string

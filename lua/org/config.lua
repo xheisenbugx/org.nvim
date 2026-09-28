@@ -580,6 +580,10 @@ M.defaults = {
     --- true | false | "prefix" (org-agenda-remove-tags).
     remove_tags = false,
     custom_commands = {}, -- org-agenda-custom-commands
+    --- Rules offering custom commands only in some buffers
+    --- (org-agenda-custom-commands-contexts), e.g.
+    --- `{ { "p", { { in_mode = "org" } } }, { "q", "r", { { in_file = "work" } } } }`.
+    custom_commands_contexts = {},
     --- Columns format of the agenda column view; nil = the first agenda
     --- file's (org-agenda-overriding-columns-format).
     overriding_columns_format = nil,

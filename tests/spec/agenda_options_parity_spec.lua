@@ -84,3 +84,32 @@ describe("agenda skipping", function()
     end
   end)
 end)
+
+describe("custom command contexts", function()
+  -- Emacs 9.8.10 (org-contextualize-keys in a fundamental-mode buffer):
+  -- p (only in text-mode) is dropped, q runs r's command, r is hidden, z
+  -- has no rule and stays: ((q R cmd tags x) (z Z alltodo ""))
+  it("filters and remaps custom commands by the current buffer", function()
+    config.setup({
+      agenda = {
+        custom_commands = {
+          p = { description = "P cmd", type = "todo" },
+          r = { description = "R cmd", type = "tags", match = "x" },
+          q = { description = "Q cmd", type = "search" },
+          z = { description = "Z", type = "todo" },
+        },
+        custom_commands_contexts = {
+          { "p", { { in_mode = "^text$" } } },
+          { "q", "r", { { not_in_mode = "^text$" } } },
+        },
+      },
+    })
+    vim.cmd("enew")
+    local cmds = agenda.custom_commands()
+    eq({ "q", "z" }, vim.fn.sort(vim.tbl_keys(cmds)))
+    eq("R cmd", cmds.q.description)
+    vim.bo.filetype = "text"
+    eq({ "p", "r", "z" }, vim.fn.sort(vim.tbl_keys(agenda.custom_commands())))
+    vim.cmd("bwipe!")
+  end)
+end)

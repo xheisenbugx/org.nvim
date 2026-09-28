@@ -2453,7 +2453,7 @@ function M.append()
     { key = "S", label = "Like s, but only TODO entries", value = "S" },
     { key = "#", label = "List stuck projects", value = { type = "stuck" } },
   }
-  for key, cmd in pairs(config.opts.agenda.custom_commands or {}) do
+  for key, cmd in pairs(require("org.agenda").custom_commands()) do
     if type(cmd) == "table" and (cmd.type or cmd.types or cmd.blocks) then
       items[#items + 1] = { key = key, label = cmd.description or key, value = { custom = key } }
     end
@@ -2477,7 +2477,7 @@ function M.append()
     end
     blocks = { { type = "search", match = t, todo_only = choice == "S" or nil } }
   elseif type(choice) == "table" and choice.custom then
-    local cmd = config.opts.agenda.custom_commands[choice.custom]
+    local cmd = require("org.agenda").custom_commands()[choice.custom]
     blocks = cmd.type and { cmd } or (cmd.blocks or cmd.types)
   elseif type(choice) == "table" then
     blocks = { choice }

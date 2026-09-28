@@ -455,8 +455,96 @@ local function ask_match(prompt)
   end)
 end
 
+---------------------------------------------------------------------------
+-- Custom command contexts (org-agenda-custom-commands-contexts)
+---------------------------------------------------------------------------
+
+local function rx_match(str, re)
+  return str ~= nil and str ~= "" and vim.fn.match(str, re) >= 0
+end
+
+--- Does a context rule hold in the current buffer
+--- (org-contextualize-validate-key)?
+local function rule_ok(rule)
+  if type(rule) == "function" then
+    return rule() and true or false
+  elseif type(rule) ~= "table" then
+    return false
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local file = (name ~= "" and vim.bo[bufnr].buftype == "") and name or nil
+  local mode = vim.bo[bufnr].filetype
+  local bname = name ~= "" and vim.fn.fnamemodify(name, ":t") or ""
+  return (rule.in_file and file and rx_match(file, rule.in_file))
+    or (rule.in_mode and rx_match(mode, rule.in_mode))
+    or (rule.in_buffer and rx_match(bname, rule.in_buffer))
+    or (rule.not_in_file and file and not rx_match(file, rule.not_in_file))
+    or (rule.not_in_mode and not rx_match(mode, rule.not_in_mode))
+    or (rule.not_in_buffer and not rx_match(bname, rule.not_in_buffer))
+    or false
+end
+
+--- The custom commands offered in the current buffer: `custom_commands`
+--- filtered and remapped by `agenda.custom_commands_contexts`
+--- (org-contextualize-keys). A rule list `{ key, rules }` keeps `key`
+--- only where a rule holds; `{ key, other, rules }` runs the command of
+--- `other` under `key` there (and hides `other`).
+---@return table<string, table|string>
+function M.custom_commands()
+  local cmds = config.opts.agenda.custom_commands or {}
+  local contexts = {}
+  for _, c in ipairs(config.opts.agenda.custom_commands_contexts or {}) do
+    local key, repl, rules = c[1], c[2], c[3]
+    if type(repl) ~= "string" or repl == "" then
+      rules, repl = type(repl) == "string" and c[3] or c[2], key
+    end
+    if type(rules) == "function" or (type(rules) == "table" and not vim.islist(rules)) then
+      rules = { rules }
+    end
+    contexts[#contexts + 1] = { key = key, repl = repl, rules = rules or {} }
+  end
+  if #contexts == 0 then
+    return cmds
+  end
+  local out, hidden = {}, {}
+  for key, cmd in pairs(cmds) do
+    local mine = vim.tbl_filter(function(c)
+      return c.key == key
+    end, contexts)
+    if #mine == 0 then
+      out[key] = cmd
+    else
+      local valid, repl = false, nil
+      for _, c in ipairs(mine) do
+        for _, r in ipairs(c.rules) do
+          if rule_ok(r) then
+            valid = true
+            if c.repl ~= c.key then
+              repl = c.repl
+            end
+          end
+        end
+      end
+      if valid and not repl then
+        out[key] = cmd
+      elseif valid then
+        if cmds[repl] == nil then
+          error(string.format("Undefined key `%s' as contextual replacement for `%s'", repl, key), 0)
+        end
+        out[key] = cmds[repl]
+        hidden[repl] = true
+      end
+    end
+  end
+  for k in pairs(hidden) do
+    out[k] = nil
+  end
+  return out
+end
+
 local function open_custom(key, restrict)
-  local cmd = (config.opts.agenda.custom_commands or {})[key]
+  local cmd = M.custom_commands()[key]
   if type(cmd) ~= "table" or not (cmd.types or cmd.blocks or cmd.type) then
     utils.error("No agenda custom command for key: " .. key)
     return
@@ -548,7 +636,7 @@ function M.prompt()
   if is_org then
     cur_hl = require("org.files").get_buffer(buf):headline_at(vim.api.nvim_win_get_cursor(0)[1])
   end
-  local custom = config.opts.agenda.custom_commands or {}
+  local custom = M.custom_commands()
   while true do
     local rlabel = "Restrict to buffer / subtree  [" .. (M.lock and "lock" or "none") .. "]"
     if restrict then
@@ -645,7 +733,7 @@ function M.command(args)
     return M.prompt()
   end
   local key, rest = args:match("^(%S+)%s*(.*)$")
-  local custom = config.opts.agenda.custom_commands or {}
+  local custom = M.custom_commands()
   if custom[key] and type(custom[key]) == "table" then
     return open_custom(key)
   end
