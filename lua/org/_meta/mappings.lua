@@ -979,6 +979,14 @@
 ---@field columns? org.MappingLhs
 --- Pick a date in the calendar and go there. Default: `c`
 ---@field calendar? org.MappingLhs
+--- The date at point in other calendars (org-agenda-convert-date). Default: `gC`
+---@field convert_date? org.MappingLhs
+--- Phases of the moon around the date at point (org-agenda-phases-of-moon). Default: `M`
+---@field phases_of_moon? org.MappingLhs
+--- Sunrise and sunset on the date at point (org-agenda-sunrise-sunset). Default: `S`
+---@field sunrise_sunset? org.MappingLhs
+--- Holidays around the date at point (org-agenda-holidays). Default: `H`
+---@field holidays? org.MappingLhs
 --- Go forward one span (day/week/...; count: that many). Default: `f`
 ---@field later? org.MappingLhs
 --- Go back one span (day/week/...; count: that many). Default: `b`

@@ -749,7 +749,8 @@ function M.apply_limits(list, kind, ctx)
   local max_entries = get("max_entries")
   if max_entries then
     list = limit_entries(list, function(e)
-      return e.headline
+      -- a %%(sexp) line before the first heading counts too
+      return e.headline or e.lnum_sexp
     end, max_entries)
   end
   return list

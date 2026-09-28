@@ -1142,7 +1142,10 @@ All configurable under `mappings.agenda`:
   v<Space>        reset the span to the default
   gd              go to a date (Emacs j)
   c               calendar: pick a date and go there
-  r               rebuild the view; with a count N in a TODO list, the
+  gC M S H        the date at point in other calendars / phases of the
+                  moon / sunrise and sunset / holidays
+                  (|org-agenda-calendar-keys|; Emacs C M S H)
+  r            rebuild the view; with a count N in a TODO list, the
                   Nth keyword of the hint line (a count past the last
                   one = ALL); with a count in a tags or search view, edit
                   the query (Emacs C-u r)
@@ -1257,7 +1260,11 @@ bar (Emacs shows them in the mode line).
   \     filter by one tag: its selection key (#+TAGS / `tags` `(k)`
         keys), <Tab> to type a tag, <Space> any tag, `?` untagged, `.` the
         tags of the entry at point, `-` / `+` exclude / include the next
-        tag, <CR> `auto_exclude_function`, `\` removes the tag filter
+        tag, <CR> `auto_exclude_function`, `\` removes the tag filter.
+        With `group_tags` on, a group tag (`#+TAGS: [ Work : Lab ]`,
+        |org-tag-groups|) keeps the entries with the group tag or any of
+        its members, recursively (`-Work` hides them all); <Tab> and `/`
+        offer the group tags too (org-agenda-filter-expand-tags)
   <     keep the category of the entry at point (again to clear); with a
         count, hide that category
   =     keep entries matching an Emacs regexp; with a count 1, hide them;
@@ -1324,6 +1331,41 @@ view (org-agenda-write). The extension picks the format:
   .org        the subtrees of the entries in the view, as level-1 trees
   .ics        iCalendar: an event per timestamp (deadlines of non-TODO
               entries too), a VTODO per TODO entry
+  .ps .pdf    the agenda printed like Emacs's ps-print: Courier text with
+              the highlight colours and bold/italic, paged, with a header
+              box ("Agenda View", page n/m and the date) on every page
+PostScript and PDF are written by Neovim itself, no external program is
+needed. The layout is ps-print's (letter paper, 8.5 pt text, 72 lines of
+97 columns per page; long lines wrap), so pages break where Emacs breaks
+them. Characters outside Latin-1 are replaced (box drawing by `-`/`|`/`+`,
+typographic dashes and quotes by ASCII ones, others by `?`).
+
+`agenda.exporter_settings` (org-agenda-exporter-settings) applies when
+views are written: ps-print variables (`-` may be written `_`) set up the
+printout, other keys are agenda options for the views that
+org-store-agenda-views builds. A custom command's `settings` may hold
+ps-print variables for its own files.
+>lua
+    agenda = {
+      exporter_settings = {
+        ps_paper_type = "a4",           -- letter legal a3 a4small b4 b5 ...
+        ps_landscape_mode = false,
+        ps_number_of_columns = 1,       -- columns per sheet
+        ps_font_size = { 7, 8.5 },      -- { landscape, portrait } or a number
+        ps_print_header = true,         -- the header box
+        ps_print_header_frame = true,
+        ps_print_color_p = true,        -- false/"black-white": no colours
+        ps2pdf = false,                 -- make .pdf with ps2pdf, like Emacs
+      },
+    }
+<
+Also: ps_header_font_size, ps_header_title_font_size, ps_header_lines,
+ps_left_header and ps_right_header (lists of strings or functions
+(page, pages)), ps_show_n_of_n, and the margins ps_left_margin,
+ps_right_margin, ps_top_margin, ps_bottom_margin, ps_header_offset and
+ps_inter_column (points). With `ps2pdf = true` and ps2pdf installed, the
+.pdf is made from the PostScript by ps2pdf, as in Emacs.
+
 Custom commands with `export_files = { "~/today.html", "~/today.txt" }`
 are written all at once by `e` in the dispatcher or `:Org agenda e`
 (org-store-agenda-views). From the shell (org-batch-agenda and
@@ -1440,6 +1482,12 @@ with the same results as Emacs:
   org-date Y M D                 diary-date M D Y
   diary-float MONTH DAYNAME N [DAY]
   org-class Y1 M1 D1 Y2 M2 D2 DAYNAME [ISO-WEEKS...]
+  diary-remind SEXP DAYS [MARKING]   diary-offset SEXP DAYS
+  diary-hebrew-date  diary-islamic-date  diary-bahai-date
+  diary-chinese-date  diary-julian-date  diary-iso-date
+  diary-astro-day-number  diary-french-date  diary-mayan-date
+  diary-coptic-date  diary-ethiopic-date  diary-persian-date
+  diary-day-of-year  diary-lunar-phases  diary-sunrise-sunset
   and  or  not  list  quote
 
 Sexps can also combine these with a side-effect-free subset of Emacs
@@ -1474,6 +1522,29 @@ and a negative N counts from the end of the month. The entry text of
 anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
 (its ordinal suffix, "st", "nd", ...); a result with "; " gives several
 agenda lines.
+
+`diary-remind` shows the entry of a quoted SEXP on its day and "Reminder:
+Only N days until ENTRY" DAYS days before (DAYS may be a list, or -N for
+1 to N days); MARKING only matters for the Emacs calendar and is ignored.
+`diary-offset` shows SEXP's entry DAYS days later (earlier when negative):
+>org
+    * Taxes
+    %%(diary-remind '(diary-date 4 15 t) -7) File the taxes
+    * Retro
+    %%(diary-offset '(diary-float t 4 -1) 1) Retro, the day after
+<
+The `diary-*-date` functions show the day in another calendar, e.g.
+"Hebrew date (until sunset): Tishri 16, 5787", like Emacs.
+`diary-lunar-phases` shows the phases of the moon and
+`diary-sunrise-sunset` sunrise and sunset at `agenda.calendar_latitude`
+and `agenda.calendar_longitude` (|org-agenda-calendar-keys|; without
+them the sexp is skipped with a message), in the system time zone.
+
+Like Emacs, `%%(...)` lines are found in the whole file: lines before the
+first heading give entries with the file's category and FILETAGS. They
+have no heading, so <Tab>/<CR> jump to the line and commands that change
+an entry (`t`, `s`, `:`, ...) report "Before first headline". (Org 9.8.10
+itself stops the agenda with that error when such a line matches.)
 
 Holidays                                              *org-agenda-holidays*
 
@@ -1534,37 +1605,59 @@ like Emacs's calendar-time-zone. A bad item is reported once and skipped.
 Differences: Emacs evaluates each item as Lisp (`holiday-sexp` and other
 Lisp forms become Lua functions here).
 
+Calendar commands                                *org-agenda-calendar-keys*
+
+Emacs's calendar commands on the date at point of a date agenda (a date
+line or an item of that day):
+
+  gC   the date in other calendars (org-agenda-convert-date, Emacs C):
+       Gregorian, ISO week, day of the year, Julian, astronomical day
+       number, Hebrew, Islamic, French Revolutionary, Bahá’í, Mayan,
+       Coptic, Ethiopic, Persian and Chinese
+  M    the phases of the moon in the three months around the date, with
+       possible eclipses (org-agenda-phases-of-moon)
+  S    sunrise, sunset and hours of daylight on the date
+       (org-agenda-sunrise-sunset); with a count, ask for the location
+  H    the holidays of the three months around the date, from
+       `agenda.holidays` (org-agenda-holidays)
+
+`gC`, `M` and `H` show a float (q closes it), `S` a message. Sunrise and
+sunset need a location:
+>lua
+    agenda = {
+      calendar_latitude = 40.7,    -- calendar-latitude, north positive
+      calendar_longitude = -74.0,  -- calendar-longitude, east positive
+      calendar_location_name = "New York",  -- default "40.7N, 74.0W"
+    }
+<
+When they are unset, `S` asks for them (Emacs's solar-setup) and keeps
+the answers for the session. Times use the system time zone and its
+daylight saving rules, like Emacs's calendar-time-zone. The strings are
+Emacs's (american `calendar-date-display-form`); `calendar-date-style`,
+`lunar-phase-names` and `calendar-time-display-form` are not configurable.
+
 Not supported in the agenda                        *org-agenda-unsupported*
 
 - Emacs Lisp beyond the subset above (loops, `lambda`, `defun`,
-  assignments, other libraries), `diary-remind`, `diary-offset`, the
-  diary functions of other calendars (`diary-hebrew-date`, ...) and the
-  `holidays` argument of `org-class`: they need Emacs's Lisp evaluator
-  and diary library. An unsupported sexp is skipped with a message (once
-  per session). Holidays are supported (|org-agenda-holidays|).
+  assignments, other libraries), the anniversaries and other entries of
+  other calendars (`diary-hebrew-birthday`, `diary-chinese-anniversary`,
+  `diary-hebrew-yahrzeit`, ...) and the `holidays` argument of
+  `org-class`: they need Emacs's Lisp evaluator and diary library. An
+  unsupported sexp is skipped with a message (once per session).
+  Holidays are supported (|org-agenda-holidays|).
 - The Emacs diary file (org-agenda-include-diary) and the agenda keys
   that use it (`i` insert a diary entry, `D` toggle the diary): the diary
   is an Emacs file format and machinery with no Neovim counterpart.
-- Calendar conversions (`C`), moon phases (`M`), sunrise and sunset
-  (`S`) and holidays (`H`): they rely on Emacs's calendar, astronomy
-  and holiday code.
 - `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
   indirect buffers or narrowing; <Tab> opens the entry instead.
-- PDF and PostScript agenda export (.pdf/.ps): Emacs prints them with
-  ps-print; export .html and print it from a browser instead.
-  org-agenda-exporter-settings is not used; pass options as the second
-  argument of batch()/batch_csv().
-- `%%(...)` sexp lines before the first heading of a file: agenda
-  entries belong to a heading here, so write them under one.
 - `?` (show the FLAGGED note of MobileOrg) and the Customize keys (`C`,
   `!` in the dispatcher): there is no MobileOrg or Customize.
-- Group tags (`#+TAGS: [ Work : Lab ]`) are expanded in match strings
-  (|org-tag-groups|) but not by the agenda tag filter (`\`, `/`).
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
   `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
   schedule and set deadlines (Emacs: save and day view; views are `vd`,
-  `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`).
+  `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`,
+  so the calendar conversion is `gC`).
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
@@ -4393,7 +4486,8 @@ Differences from Emacs:
   - The date prompt refuses text it cannot read at all instead of using the
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,
-    sunrise or diary entries in it).
+    sunrise or diary entries in it; the agenda has the holidays, moon,
+    sunrise and date conversion keys, |org-agenda-calendar-keys|).
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.

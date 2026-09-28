@@ -595,6 +595,13 @@ M.defaults = {
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
+    --- Location for sunrise and sunset (`S` in the agenda): degrees, north
+    --- and east positive (calendar-latitude, calendar-longitude); asked for
+    --- when unset. The name defaults to "40.7N, 74.0W"
+    --- (calendar-location-name).
+    calendar_latitude = nil,
+    calendar_longitude = nil,
+    calendar_location_name = nil,
     --- Holidays shown by `%%(org-calendar-holiday)` (calendar-holidays): one
     --- list per holiday-*-holidays variable, with Emacs's defaults. Set a
     --- group to `{}` to drop it; add your own to `local`/`other`. See
@@ -1972,6 +1979,10 @@ M.defaults = {
       append = "A",
       columns = "<C-c><C-x><C-c>",
       calendar = "c",
+      convert_date = "gC", -- Emacs: C (the clock report here)
+      phases_of_moon = "M",
+      sunrise_sunset = "S",
+      holidays = "H",
       save_all = "<C-x><C-s>",
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",

@@ -309,6 +309,12 @@
 ---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
 ---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
 ---@field dim_blocked_tasks? boolean|"invisible"
+---Latitude for sunrise and sunset (`S`), north positive (calendar-latitude).
+---@field calendar_latitude? number
+---Longitude for sunrise and sunset (`S`), east positive (calendar-longitude).
+---@field calendar_longitude? number
+---Name of the location (calendar-location-name). (default: `"40.7N, 74.0W"` style)
+---@field calendar_location_name? string
 ---Holidays of `%%(org-calendar-holiday)` (calendar-holidays), see
 ---`:h org-agenda-holidays`.
 ---@field holidays? org.Config.Agenda.Holidays

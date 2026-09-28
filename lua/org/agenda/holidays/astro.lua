@@ -628,6 +628,9 @@ end
 ---@param z org.agenda.holidays.Zone
 ---@return number? rise
 ---@return number? set
+---@return number length hours of daylight
+---@return string? rise_zone the zone name of the sunrise time
+---@return string? set_zone
 function M.sunrise_sunset(z, latitude, longitude, month, day, year)
   local nm, nd, ny, nut = exact_local_noon(month, day, year, longitude)
   local t0 = julian_ut_centuries(nm, nd, ny)
@@ -636,21 +639,21 @@ function M.sunrise_sunset(z, latitude, longitude, month, day, year)
   -- latitude 1 always has both a rise and a set).
   local _, _, eq_length = sunrise_and_sunset(t0, nut, 1.0, longitude, 0, sid, false, z.tz)
   local northern = eq_length > 12
-  local rise, set = sunrise_and_sunset(t0, nut, latitude, longitude, -0.61, sid, northern, z.tz)
-  local adj_rise, adj_set
+  local rise, set, length = sunrise_and_sunset(t0, nut, latitude, longitude, -0.61, sid, northern, z.tz)
+  local adj_rise, adj_set, rise_zone, set_zone
   if rise then
-    local m, d, y, t = dst_adjust_time(z, month, day, year, rise)
+    local m, d, y, t, zone = dst_adjust_time(z, month, day, year, rise)
     if m == month and d == day and y == year then
-      adj_rise = t
+      adj_rise, rise_zone = t, zone
     end
   end
   if set then
-    local m, d, y, t = dst_adjust_time(z, month, day, year, set)
+    local m, d, y, t, zone = dst_adjust_time(z, month, day, year, set)
     if m == month and d == day and y == year then
-      adj_set = t
+      adj_set, set_zone = t, zone
     end
   end
-  return adj_rise, adj_set
+  return adj_rise, adj_set, length, rise_zone, set_zone
 end
 
 -- solar-data-list

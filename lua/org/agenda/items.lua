@@ -85,6 +85,35 @@ local function new_item(hl, fields)
 end
 M.new_item = new_item
 
+--- An item for line `lnum` of `file` outside any entry (a %%(sexp) line
+--- before the first heading): no headline, the file's category and tags.
+local function file_item(file, lnum, fields)
+  order = order + 1
+  local pr = file:priorities()
+  local inherit = config.opts.use_tag_inheritance ~= false
+  local item = {
+    filename = file.filename,
+    bufnr = file.bufnr,
+    lnum = lnum,
+    raw = file.lines[lnum],
+    title = "",
+    category = (file.properties or {}).CATEGORY or file:category(),
+    tags = inherit and vim.deepcopy(file.settings.filetags or {}) or {},
+    done = false,
+    level = 0,
+    order = order,
+    prio = 1000 * (pvalue(pr.lowest) - pvalue(pr.default)),
+  }
+  for k, v in pairs(fields or {}) do
+    item[k] = v
+  end
+  if item.urgency == nil then
+    item.urgency = item.prio
+  end
+  return item
+end
+M.file_item = file_item
+
 local function acfg_for(opts)
   return vim.tbl_extend("force", config.opts.agenda, (opts or {}).block or {})
 end
@@ -543,6 +572,52 @@ function M.agenda(files, from, to, opts)
     return res
   end
 
+  --- %%(sexp) lines first..last of `file` (org-agenda-get-sexps). `hl` is
+  --- nil before the first heading: the items then have the file's category.
+  local function add_sexps(hl, file, first, last)
+    local lines = file.lines
+    for i = first, last do
+      local line = lines[i] or ""
+      if line:match("^&?%%%%%(") then
+        sexp_mod = sexp_mod or require("org.agenda.sexp")
+        local e = sexp_mod.line_entry(line)
+        if e then
+          for d = from, to do
+            local res = eval_sexp(e.sexp, d, e.text)
+            -- a string result is split on "; " into several entries
+            local texts = type(res) == "string" and vim.split(res, "; ", { plain = true }) or (res and { e.text })
+            for _, text in ipairs(texts or {}) do
+              if not text:match("%S") then
+                text = "SEXP entry returned empty string"
+              end
+              local fields = {
+                type = "sexp",
+                ts_type = "sexp",
+                title = text,
+                extra = "",
+                sexp = e.sexp,
+                lnum_sexp = i,
+                face = "OrgAgendaTimestamp",
+              }
+              local item = hl and new_item(hl, fields) or file_item(file, i, fields)
+              item.todo, item.priority, item.done = nil, nil, false
+              set_time(item, nil, acfg)
+              add(d, item)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- sexp lines before the first heading (Emacs searches the whole buffer)
+  if types.sexp and not (opts.restrict and opts.restrict.range) then
+    for fidx, file in ipairs(files) do
+      cur_fidx = fidx
+      add_sexps(nil, file, 1, file.preamble_end or 0)
+    end
+  end
+
   M.each_headline(files, opts, function(hl, _, fidx)
     cur_fidx = fidx
     local done = hl:is_done()
@@ -835,38 +910,7 @@ function M.agenda(files, from, to, opts)
 
     -- %%(sexp) entries (org-agenda-get-sexps) ---------------------------
     if types.sexp then
-      local lines = hl.file.lines
-      for i = hl.line + 1, hl.body_end do
-        local line = lines[i] or ""
-        if line:match("^&?%%%%%(") then
-          sexp_mod = sexp_mod or require("org.agenda.sexp")
-          local e = sexp_mod.line_entry(line)
-          if e then
-            for d = from, to do
-              local res = eval_sexp(e.sexp, d, e.text)
-              -- a string result is split on "; " into several entries
-              local texts = type(res) == "string" and vim.split(res, "; ", { plain = true }) or (res and { e.text })
-              for _, text in ipairs(texts or {}) do
-                if not text:match("%S") then
-                  text = "SEXP entry returned empty string"
-                end
-                local item = new_item(hl, {
-                  type = "sexp",
-                  ts_type = "sexp",
-                  title = text,
-                  extra = "",
-                  sexp = e.sexp,
-                  lnum_sexp = i,
-                  face = "OrgAgendaTimestamp",
-                })
-                item.todo, item.priority, item.done = nil, nil, false
-                set_time(item, nil, acfg)
-                add(d, item)
-              end
-            end
-          end
-        end
-      end
+      add_sexps(hl, hl.file, hl.line + 1, hl.body_end)
     end
     -- sexp planning dates: SCHEDULED/DEADLINE: <%%(...)>
     for _, kind in ipairs({ "scheduled", "deadline" }) do
