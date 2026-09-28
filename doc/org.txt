@@ -55,8 +55,8 @@ It covers the parts of Org you use every day:
   - Clocking, effort estimates, clock tables and column view.
   - Spreadsheet tables with `#+TBLFM` formulas.
   - Source blocks that run asynchronously (Babel), and tangling.
-  - Export to HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org and iCalendar,
-    publishing projects, plus more formats via pandoc.
+  - Export to HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org, iCalendar and
+    Texinfo/Info, publishing projects, plus more formats via pandoc.
 
 There are no dependencies: no tree-sitter parser, external binary or
 companion plugin.
@@ -96,6 +96,7 @@ Requires Neovim 0.10 or later. Optional tools:
 
   pandoc               LaTeX, PDF, DOCX, ODT, EPUB, RST, ... export
   latexmk / pdflatex   native PDF export
+  makeinfo             Info export (Texinfo files need nothing)
   interpreters         whatever languages Babel should run
 
 lazy.nvim / LazyVim: >lua
@@ -2764,12 +2765,14 @@ Custom blocks: >lua
 The exporter is a port of Emacs Org 9.8.10 `ox.el` and its back-ends: the
 buffer is parsed into the same element tree as org-element, and each
 back-end turns it into text with the same transcoders, so the output of
-HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar matches Emacs.
+HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar and Texinfo matches
+Emacs.
 
 <prefix>e (Emacs `C-c C-e`) opens the export dispatcher:
   b / s / v / a  toggle body only / subtree only / visible only / async
   c f  iCalendar: current file   c a  every agenda file   c c  combined
   h H  HTML buffer      h h  HTML file          h o  HTML file and open
+  i t  Texinfo file     i i  Info file          i o  Info file and open
   l L  LaTeX buffer     l l  LaTeX file         l p  PDF   l o  PDF, open
   l B  Beamer buffer    l b  Beamer file        l P  PDF   l O  PDF, open
   m M  Markdown buffer  m m  Markdown file      m o  Markdown file, open
@@ -2783,7 +2786,8 @@ HTML, LaTeX, Beamer, Markdown, ASCII, Org and iCalendar matches Emacs.
 
 `:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
 format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
-beamer-pdf, org, ics or a pandoc format (docx, odt, rst, epub, ...).
+beamer-pdf, org, ics, texinfo (or texi), info or a pandoc format (docx,
+odt, rst, epub, ...).
 `:Org publish [project|file|current|all] [force]` publishes projects
 (|org-publish|). Lua: `require("org.export").export(format, opts)` returns
 the output path, `.to_string(format, opts)` the text.
@@ -2886,6 +2890,7 @@ Org           ox-org: the buffer after macro expansion, #+INCLUDE and
               removal of non-exported subtrees.
 iCalendar     |org-export-icalendar|
 Beamer        |org-export-beamer|
+Texinfo       |org-export-texinfo|
 
 ASCII ~                                                     *org-export-ascii*
 `ascii` exports plain text like Emacs ox-ascii. Text is filled to
@@ -2927,6 +2932,51 @@ applies to lists and images. Keywords: #+BEAMER_THEME,
 #+BEAMER: (raw line), #+SUBTITLE, `#+TOC: headlines N [options]`. With
 `toc:` an outline frame titled `export.beamer.outline_frame_title` is
 added.
+
+Texinfo ~                                                 *org-export-texinfo*
+`:Org export texinfo` (dispatcher `i t`, Emacs `C-c C-e i t`) writes a
+Texinfo manual like Emacs ox-texinfo; `info` (`i i`, `i o` to open it with
+`info`) then runs `export.texinfo.info_process` (default
+`makeinfo --no-split %f`) and removes the index log files. The document
+gets the header (@setfilename, @settitle, class header with
+@documentencoding / @documentlanguage), a @direntry, the title page,
+@contents (`toc:`), the Top node holding the text before the first
+headline, and a master @menu with a detailed node listing. Each headline
+is a @node with the sectioning command of the class (numbered,
+unnumbered, @heading-like when excluded from the TOC, appendix); deeper
+ones (`H:`) become list items. Keywords:
+  TEXINFO_FILENAME  Info file name (@setfilename)
+  TEXINFO_CLASS     class in `export.texinfo.classes` (default "info")
+  TEXINFO_HEADER    lines added to the header (repeatable)
+  TEXINFO_POST_HEADER  lines added after the header
+  SUBTITLE, SUBAUTHOR  title page
+  TEXINFO_DIR_CATEGORY, TEXINFO_DIR_NAME (or _TITLE), TEXINFO_DIR_DESC
+                    the @dircategory and @direntry of the Info directory
+  TEXINFO_PRINTED_TITLE  @title of the printed manual
+  CINDEX FINDEX KINDEX PINDEX TINDEX VINDEX  index entries; TEXINFO raw
+Headline properties: COPYING (contents become @copying, shown on the
+title page), APPENDIX, INDEX (cp, fn, ky, pg, tp, vr: adds @printindex),
+ALT_TITLE (menu entry and node name), DESCRIPTION (menu description).
+Emphasis maps to @strong, @emph, @code and @samp
+(`export.texinfo.text_markup_alist`); `@`, `{`, `}` and commas are
+escaped. `#+ATTR_TEXINFO:` options: lists `:enum`, `:table-type`
+(ftable, vtable), `:indic`, `:sep`, `:compact` (or `compact-itemx:t`);
+tables `:columns` (@columnfractions, else the widest cells); images
+`:width :height :alt`; quotes `:tag :author`; special blocks `:options`.
+Description items named `Function:`, `Command:`, `Macro:`, `Special
+Form:`, `Variable:`, `User Option:` become @defun, @deffn... blocks and
+`Key: C-c C-c (command)` items get @kbd, @kindex and @findex. Captions
+make @float with @caption / @shortcaption; links become @ref, @uref,
+@email (and `info:` links @ref to the other manual); footnotes
+@footnote; LaTeX math @math / @displaymath when `with_latex` is true or
+makeinfo supports it. For key bindings use the Lua version of
+`org-texinfo-kbd-macro`:
+>lua
+    export = { global_macros = { kbd = function(key)
+      return require("org.export.texinfo").kbd_macro(key)
+    end } }
+<
+Set `export.texinfo.use_pandoc = true` to go through pandoc instead.
 
 iCalendar ~                                             *org-export-icalendar*
 Dispatcher keys (Emacs `C-c C-e c`): `c f` current file, `c a` every agenda
@@ -2987,7 +3037,8 @@ Projects are set in `export.publish.projects` (org-publish-project-alist):
 <
 Keys are the Emacs plist properties with `_` for `-`. `publishing_function`
 is "html", "latex", "pdf", "beamer", "md", "gfm", "ascii", "latin1",
-"utf8", "org", "attachment", a Lua function(plist, file, pub_dir) or a list.
+"utf8", "org", "texinfo", "attachment", a Lua function(plist, file,
+pub_dir) or a list.
 `exclude` and `base_extension` are Vim regular expressions matched against
 file names relative to `base_directory`. Other keys (with_toc,
 html_postamble, ...) are export options for the project's files.
@@ -3671,7 +3722,7 @@ export ~                                                   *org-config-export*
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
   global_macros, hooks, filters; back-end tables html, latex, md, org,
-  ascii, beamer, icalendar, publish, cite; pandoc { cmd, args }. See the
+  ascii, beamer, icalendar, texinfo, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,

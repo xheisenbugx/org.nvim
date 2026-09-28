@@ -147,6 +147,8 @@ function M.complete(arglead, cmdline)
       "beamer-pdf",
       "org",
       "ics",
+      "texinfo",
+      "info",
       "docx",
       "odt",
       "rst",

@@ -1,0 +1,32 @@
+#+OPTIONS: toc:2 num:1 ':t \n:t author:nil
+#+TEXINFO_DIR_NAME: * Mine: (mine)
+#+TEXINFO_DIR_DESC: Ends with dot.
+
+Top "text" with 'quotes'
+and a break.
+
+* Top
+Named top.
+* top
+Lowercase.
+* Chapter: one, two. Three
+:PROPERTIES:
+:DESCRIPTION: A rather long description that goes on
+:END:
+** (Paren) title
+** Title with footnote[fn:: here] and [[https://x.org][link]]
+*** Third
+**** Fourth
+***** Fifth
+Deep.
+* Second
+** Sub
+*** Subsub
+**** Subsubsub
+***** Too deep
+text
+* Inline
+*************** TODO [#B] Inline task :t:
+Body of task.
+*************** END
+After.

@@ -3,8 +3,9 @@
 --- Native back-ends ported from Emacs Org 9.8 (ox-*.el): html, latex (and
 --- pdf through latexmk/pdflatex), beamer, md (ox-md), gfm (GitHub
 --- flavoured Markdown, plugin specific), ascii (plain text with the
---- ascii, latin1 or utf-8 charset), org and icalendar. Other formats are
---- produced by pandoc from the Org export of the buffer.
+--- ascii, latin1 or utf-8 charset), org, icalendar and texinfo (and info
+--- through makeinfo). Other formats are produced by pandoc from the Org
+--- export of the buffer.
 
 local utils = require("org.utils")
 
@@ -32,6 +33,9 @@ M.FORMATS = {
   org = { "org", "org" },
   ics = { "icalendar", "ics" },
   icalendar = { "icalendar", "ics" },
+  texinfo = { "texinfo", "texi" },
+  texi = { "texinfo", "texi" },
+  info = { "texinfo", "texi", info = true },
 }
 
 --- Kept for backward compatibility: native formats -> module.
@@ -67,6 +71,7 @@ local PANDOC_EXT = {
 }
 
 local FILETYPES = { html = "html", md = "markdown", gfm = "markdown", ascii = "text", latex = "tex", beamer = "tex", org = "org", icalendar = "icalendar" }
+FILETYPES.texinfo = "texinfo"
 
 local function cfg()
   return require("org.config").opts.export or {}
@@ -186,6 +191,9 @@ function M.export(format, opts)
   local src = vim.api.nvim_buf_get_name(bufnr)
   src = src ~= "" and src or nil
   local spec = M.FORMATS[format]
+  if spec and spec[1] == "texinfo" and not spec.info and (cfg().texinfo or {}).use_pandoc then
+    spec = nil -- pandoc fallback (export.texinfo.use_pandoc)
+  end
   if spec and spec[1] == "icalendar" then
     return require("org.export.icalendar").export_file(bufnr, opts)
   end
@@ -235,6 +243,15 @@ function M.export(format, opts)
   if charset then
     ext.ascii_charset = charset
   end
+  if backend == "texinfo" and not opts.to_buffer and ext.output_file == nil then
+    -- @setfilename / @direntry name the output file (relative to the source)
+    ext.texinfo_output_file = function(info)
+      local out = opts.output or M.output_file_name(src, extension, info)
+      local dir = src and vim.fn.fnamemodify(src, ":p:h") or vim.fn.getcwd()
+      local rel = ox().relative_path(out, dir)
+      return rel:match("^%.%./") and out or rel
+    end
+  end
   local text, info, err = render(backend, lines, xopts)
   if not text then
     utils.error("Export failed: " .. err)
@@ -249,6 +266,9 @@ function M.export(format, opts)
   write_text(out, text)
   if spec.pdf then
     return M.compile_pdf(out, opts)
+  end
+  if spec.info then
+    return M.compile_info(out, opts)
   end
   utils.notify("Exported to " .. out)
   if opts.open or cfg().open_after_export then
@@ -336,6 +356,42 @@ function M.to_string(format, opts)
     visible_only = opts.visible_only,
     ext = ext,
   }))
+end
+
+--- Process a .texi file into an Info file with makeinfo
+--- (org-texinfo-export-to-info). With `opts.open` the manual is shown with
+--- `info` in a terminal window.
+function M.compile_info(texi, opts)
+  opts = opts or {}
+  local texinfo = require("org.export.texinfo")
+  local function done(result, err)
+    if not result then
+      utils.error(err or "Info file was not produced")
+      return
+    end
+    utils.notify("Exported to " .. result)
+    if opts.open or cfg().open_after_export then
+      if vim.fn.executable("info") == 1 and #vim.api.nvim_list_uis() > 0 then
+        vim.cmd("new")
+        if vim.fn.has("nvim-0.11") == 1 then
+          vim.fn.jobstart({ "info", "-f", result }, { term = true })
+        else
+          vim.fn.termopen({ "info", "-f", result })
+        end
+        vim.cmd("startinsert")
+      else
+        vim.ui.open(result)
+      end
+    end
+  end
+  if opts.async then
+    utils.notify("Processing Texinfo file " .. vim.fn.fnamemodify(texi, ":t") .. " …")
+    texinfo.compile(texi, done)
+    return texi:gsub("%.texi$", "") .. ".info"
+  end
+  local result, err = texinfo.compile(texi)
+  done(result, err)
+  return result
 end
 
 ---------------------------------------------------------------------------
@@ -528,6 +584,15 @@ function M.prompt()
         },
       },
       {
+        key = "i",
+        label = "Export to Texinfo",
+        items = {
+          { key = "t", label = "As TEXI file", value = { fmt = "texinfo" } },
+          { key = "i", label = "As INFO file", value = { fmt = "info" } },
+          { key = "o", label = "As INFO file and open", value = { fmt = "info", open = true } },
+        },
+      },
+      {
         key = "m",
         label = "Export to Markdown",
         items = {
@@ -596,7 +661,7 @@ function M.prompt()
       state[choice.toggle] = not state[choice.toggle]
     elseif choice.template then
       local cats = { "default" }
-      for _, n in ipairs({ "ascii", "beamer", "html", "icalendar", "latex", "md", "org" }) do
+      for _, n in ipairs({ "ascii", "beamer", "html", "icalendar", "latex", "md", "org", "texinfo" }) do
         cats[#cats + 1] = n
       end
       local cat = utils.input_complete("Options category: ", cats, "default")

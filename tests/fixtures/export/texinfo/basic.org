@@ -1,0 +1,67 @@
+#+TITLE: Sample Manual
+#+AUTHOR: Jane Doe
+#+EMAIL: jane@example.com
+#+SUBTITLE: A test, really
+#+TEXINFO_DIR_CATEGORY: Emacs
+#+TEXINFO_DIR_TITLE: Sample
+#+TEXINFO_DIR_DESC: A sample manual
+
+Intro text with @ and {braces}, commas.
+
+* Copying
+:PROPERTIES:
+:COPYING: t
+:END:
+Copyright 2026.
+
+* Getting Started
+:PROPERTIES:
+:DESCRIPTION: How to start
+:END:
+Some *bold*, /italic/, =verb=, ~code~ and _under_ text. LaTeX too...
+
+** Sub one
+#+CINDEX: sub one
+Text.
+
+- a
+- b
+
+1. one
+2. two
+
+- Term :: definition
+- Other :: more
+
+** Sub: two
+See [[*Sub one]] and [[https://orgmode.org][Org]] and https://gnu.org.
+Footnote here[fn:1].
+
+| a | b |
+|---+---|
+| 1 | 2 |
+
+#+begin_src emacs-lisp
+(message "hi")
+#+end_src
+
+#+begin_example
+x @ y
+#+end_example
+
+#+begin_quote
+Quoted.
+#+end_quote
+
+* Appendix
+:PROPERTIES:
+:APPENDIX: t
+:END:
+Extra.
+
+* Index
+:PROPERTIES:
+:INDEX: cp
+:END:
+
+[fn:1] The footnote.
