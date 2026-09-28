@@ -784,7 +784,11 @@ and `global_properties` set values for the whole file, in that order.
                 The keys below act on the headline and column under the
                 cursor, and keep their usual meaning on other lines;
                 leaving the window or `q` restores the buffer, its
-                mappings and the window options. Rows follow edits of the
+                mappings and the window options. Like Emacs, the headline
+                lines are read-only while the view is on: on a column
+                row the keys that change text (i A O x d D S J ~ . ...)
+                and entering Insert mode only say "Text is read-only:
+                Type ‘e’ to edit property"; the view's own keys edit. Rows follow edits of the
                 text; `r` recomputes. With `columns_view = "table"` the
                 view is a table in a split instead (with <CR> to jump to
                 the headline). Groups: OrgColumn, OrgColumnTitle.
@@ -810,6 +814,10 @@ and `global_properties` set values for the whole file, in that order.
                   <C-c><C-o>      open the link in the field
                   c / o           contents / overview visibility
                                   (overlay view)
+                  h l  w b        previous / next column (also <Left>
+                                  <Right> <BS> <Space> <M-b> <M-f>),
+                                  `$` the last one (overlay view: Emacs
+                                  gives each column one character)
                   v view value, r / g refresh, q quit (<CR> jumps to the
                   headline in the table view).
                 Format changes are saved to the COLUMNS property or the
@@ -877,7 +885,11 @@ around the title) as six weeks with ISO week numbers, so the days of the
 neighbouring months fill the grid, dimmed. Weekends are tinted, today is
 underlined and the selected day is highlighted. Below the grid are the
 selected date in full, its timestamp and its distance from today ("in 3
-days", "yesterday"), then the keys:
+days", "yesterday"), then the keys. With `display_custom_times = true` the
+timestamp is shown in `time_stamp_custom_formats` (`<09/27/26 Sun>`, `[...]`
+for an inactive timestamp), like the Emacs "=> ..." preview; as in Emacs,
+a buffer's own toggle or `#+STARTUP: customtime` doesn't change it.
+The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
@@ -3727,8 +3739,13 @@ Placement, `ui.images.placement`:
                 windows showing the buffer get 'conceallevel' 2.
                 Inline math (`$x$`, `\(x\)`) is scaled to one row, as
                 tall as the text; other fragments keep their size.
-                Fragments and environments over several lines, and
-                image.nvim, always use "below".
+                A fragment or environment over several lines is drawn
+                in place too (Neovim 0.11+): its other lines are hidden
+                (`conceal_lines`), the image starts on its first line
+                and the text after it on its last line follows the
+                image; the cursor on any of its lines shows the text
+                again, with the image under its last line. Before 0.11
+                such fragments use "below", and image.nvim always does.
   "below"       under the line, at the link's column, the text left as
                 it is (images of one line are stacked).
 
@@ -4744,8 +4761,11 @@ Differences from Emacs:
   They replace the link or fragment like Emacs, but a terminal line can't
   grow: the image's first row is on the line and the rest in virtual lines
   under it, and the text shows again (with the image under the line) while
-  the cursor is on the line so it can be edited. Fragments over several
-  lines and image.nvim images stay under the line. `ui.images.max_width`
+  the cursor is on the line so it can be edited. A fragment over several
+  lines has its other lines hidden and its image drawn from its first line
+  (Neovim 0.11+; before that, and with image.nvim, images stay under the
+  line); the text after it on its last line follows the image without its
+  highlighting. `ui.images.max_width`
   is in columns for "fill-column" and fractions (as Emacs) but its default
   fill column is 'textwidth' or 70; `max_height` is an addition. LaTeX
   previews pick an installed process ("auto") where Emacs always uses
@@ -4753,10 +4773,14 @@ Differences from Emacs:
   image file (or call back with one) instead of filling an overlay.
   `ui.images.remote` (org-display-remote-inline-images) applies to http(s)
   image links, since there are no TRAMP files.
-- Column view: the overlays cover each headline line but the cursor still
-  moves by character (Emacs puts one column on each character, so a
-  motion jumps a column); the column is the one drawn under the cursor.
-  Headline lines are not made read-only. Like Emacs, digits 1-9 select
+- Column view: the overlays cover each headline line and the column is the
+  one drawn under the cursor. Emacs puts one column on each character, so
+  every motion jumps a column; here h l w b <Left> <Right> <BS> <Space> $
+  are remapped on the rows, other motions (f, t, /, mouse) still move by
+  character. The headline lines are read-only through their keys and
+  Insert mode: a change started from another line (`J` on the line
+  above, `dk` below, a Visual selection, an Ex command, the agenda) still
+  reaches them, where Emacs refuses it. Like Emacs, digits 1-9 select
   allowed values on a column row, so counts are not available there (0
   keeps its Vim meaning; counts work on other lines).
 - Feeds (|org-feed|): feeds are fetched with curl (or wget, or a Lua
