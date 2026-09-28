@@ -41,8 +41,31 @@ M.forbidden_blocks = { example = true, verse = true, src = true, export = true }
 -- Parsing
 ---------------------------------------------------------------------------
 
+--- Whether byte `b` is whitespace (%s).
+local function space(b)
+  return b == 32 or (b ~= nil and b >= 9 and b <= 13)
+end
+
+--- Column (1-based) of the first non-blank character of `line`, or nil.
+local function first_nonblank(line)
+  local j = 1
+  local b = line:byte(1)
+  while space(b) do
+    j = j + 1
+    b = line:byte(j)
+  end
+  return b and j or nil
+end
+
 --- Parse a single line as an item. Returns nil for non-items.
 function M.parse_item_line(line)
+  -- most lines aren't items: look at the first character before matching
+  -- (byte tests keep loops over large files compiled by LuaJIT)
+  local j = first_nonblank(line)
+  local b = j and line:byte(j)
+  if not (b == 45 or b == 43 or b == 42 or (b and b >= 48 and b <= 57)) then
+    return nil
+  end
   local ind, bullet, gap, rest = line:match("^(%s*)([%-+*])(%s+)(.*)$")
   if not ind then
     ind, bullet = line:match("^(%s*)([%-+*])$")
@@ -96,11 +119,12 @@ function M.parse_item_line(line)
 end
 
 local function indent_of(line)
-  return #(line:match("^(%s*)"))
+  local j = first_nonblank(line)
+  return j and j - 1 or #line
 end
 
 local function is_blank(line)
-  return line == nil or line:match("^%s*$") ~= nil
+  return line == nil or first_nonblank(line) == nil
 end
 
 --- Lines strictly inside a forbidden block within lines[from..to]:
@@ -109,7 +133,8 @@ local function verbatim_lines(lines, from, to)
   local set = {}
   local i = from
   while i <= to do
-    local name = lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+    local j = first_nonblank(lines[i])
+    local name = j and lines[i]:byte(j) == 35 and lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
     if name and M.forbidden_blocks[name:lower()] then
       local close = "^%s*#%+[Ee][Nn][Dd]_" .. vim.pesc(name) .. "%s*$"
       local stop
@@ -217,11 +242,68 @@ function M.siblings(item)
   return item.parent and item.parent.children or item.list.items
 end
 
+--- The lines of the section containing `lnum` (see `section_bounds`),
+--- indexed by line number, and its bounds. Without inline tasks a section
+--- runs from one headline to the next, so it is read from the buffer
+--- around `lnum` instead of parsing the whole file (large files).
+---@return table<integer, string> lines, integer from, integer to
+local function section_text(bufnr, lnum)
+  if parser.inlinetask_min_level() then
+    local file = files.get_buffer(bufnr)
+    local from, to = section_bounds(file, lnum)
+    return file.lines, from, to
+  end
+  local n = vim.api.nvim_buf_line_count(bufnr)
+  local CHUNK = 256
+  local from, to = 1, n
+  local e = math.min(lnum, n)
+  while e >= 1 do
+    local s = math.max(1, e - CHUNK + 1)
+    local chunk = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false)
+    local found
+    for i = #chunk, 1, -1 do
+      if chunk[i]:byte(1) == 42 and parser.headline_level(chunk[i]) then
+        found = s + i - 1
+        break
+      end
+    end
+    if found then
+      from = found + 1
+      break
+    end
+    e = s - 1
+  end
+  local s = math.max(from, lnum + 1)
+  while s <= n do
+    local e2 = math.min(n, s + CHUNK - 1)
+    local chunk = vim.api.nvim_buf_get_lines(bufnr, s - 1, e2, false)
+    local found
+    for i, l in ipairs(chunk) do
+      if l:byte(1) == 42 and parser.headline_level(l) then
+        found = s + i - 1
+        break
+      end
+    end
+    if found then
+      to = found - 1
+      break
+    end
+    s = e2 + 1
+  end
+  local lines = {}
+  if from <= to then
+    for i, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, from - 1, to, false)) do
+      lines[from + i - 1] = l
+    end
+  end
+  return lines, from, to
+end
+
 --- Whether `lnum` is inside an example, verse, src or export block.
 function M.in_forbidden_block(bufnr, lnum)
-  local file = files.get_buffer(bufnr)
-  local from, to = section_bounds(file, lnum)
-  return verbatim_lines(file.lines, from, to)[lnum] == true
+  bufnr = bufnr or 0
+  local lines, from, to = section_text(bufnr, lnum)
+  return verbatim_lines(lines, from, to)[lnum] == true
 end
 
 --- Item containing `lnum` (innermost), or nil (org-in-item-p).
@@ -232,12 +314,11 @@ function M.item_at(bufnr, lnum)
   if not line or parser.headline_level(line) then
     return nil
   end
-  local file = files.get_buffer(bufnr)
-  local from, to = section_bounds(file, lnum)
-  if verbatim_lines(file.lines, from, to)[lnum] then
+  local lines, from, to = section_text(bufnr, lnum)
+  if verbatim_lines(lines, from, to)[lnum] then
     return nil
   end
-  local _, all = M.parse_region(file.lines, from, to)
+  local _, all = M.parse_region(lines, from, to)
   local found
   for _, it in ipairs(all) do
     if it.lnum <= lnum and lnum <= it.end_lnum then
@@ -297,8 +378,23 @@ M._protected = protected
 
 --- The ORDERED property of the entry containing `lnum`.
 local function ordered_p(bufnr, lnum)
-  local hl = files.get_buffer(bufnr):headline_at(lnum)
-  local v = hl and hl.properties and hl.properties.ORDERED
+  local v
+  if parser.inlinetask_min_level() then
+    local hl = files.get_buffer(bufnr):headline_at(lnum)
+    v = hl and hl.properties and hl.properties.ORDERED
+  else
+    -- read only the entry's property drawer, after its headline and
+    -- planning line (like parse_section)
+    local lines, from, to = section_text(bufnr, lnum)
+    if from > 1 then
+      local i = from
+      if i <= to and parser.parse_planning(lines[i]) then
+        i = i + 1
+      end
+      local drawer = parser.parse_property_drawer(lines, i, to)
+      v = drawer and drawer.properties.ORDERED
+    end
+  end
   return v ~= nil and v ~= "" and v ~= "nil"
 end
 

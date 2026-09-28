@@ -308,7 +308,10 @@ function M.insert_heading_at_point(opts)
   opts = opts or {}
   local bufnr = buf()
   local tb = textbuf.from_buffer(bufnr, opts.pos)
-  local file = files.get_buffer(bufnr)
+  -- parsed only to split a headline (its TODO keywords)
+  local function todo_cfg()
+    return files.get_buffer(bufnr).settings.todo
+  end
   local arg = opts.arg
   local blank = heading_blank_p(tb, arg == 16)
   local current_level = tb_current_level(tb)
@@ -382,7 +385,7 @@ function M.insert_heading_at_point(opts)
       tb:goto(tb:line_end())
     else
       local bol = tb:line_beg()
-      local ts, te = title_range(tb:line(), file.settings.todo)
+      local ts, te = title_range(tb:line(), todo_cfg())
       local col = tb.point - bol + 1
       if split and ts and col >= ts and col <= te then
         -- move the rest of the title to the new headline, keep the tags
@@ -390,7 +393,7 @@ function M.insert_heading_at_point(opts)
         if tb.text:sub(tb.point, tb:line_end() - 1):match("^[ \t]*$") then
           tb:delete(tb.point, tb:line_end())
         else
-          local new = edit.align_tags_line(tb:line(), file.settings.todo)
+          local new = edit.align_tags_line(tb:line(), todo_cfg())
           tb.text = tb.text:sub(1, bol - 1) .. new .. tb.text:sub(tb:line_end())
         end
         tb:goto(tb:line_end(bol))
