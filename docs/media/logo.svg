@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="title">
+  <title id="title">org.nvim</title>
+  <defs>
+    <radialGradient id="tile" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#25226A"/>
+      <stop offset="1" stop-color="#0C0B22"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#B062F5"/>
+      <stop offset="1" stop-color="#5563F2"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EEF0FF"/>
+      <stop offset="1" stop-color="#8E98F5"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7CE8A4"/>
+      <stop offset="1" stop-color="#9EF0C0"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C77DF7"/>
+      <stop offset="1" stop-color="#A58BFA"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D6CFF6"/>
+    </linearGradient>
+    <linearGradient id="horn" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#F2A43A"/>
+      <stop offset="1" stop-color="#FFE8A3"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <clipPath id="hornClip"><path d="M325 294 L331 242 L345 292 Z"/></clipPath>
+    <path id="star" d="M0 -20 V20 M-17.3 -10 L17.3 10 M-17.3 10 L17.3 -10" fill="none" stroke-width="10" stroke-linecap="round"/>
+    <path id="sparkle" d="M0 -1 Q0 0 1 0 Q0 0 0 1 Q0 0 -1 0 Q0 0 0 -1 Z"/>
+  </defs>
+
+  <!-- tile -->
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#5B55D6" stroke-opacity="0.35" stroke-width="3"/>
+
+  <!-- org document -->
+  <g transform="rotate(-3 232 256)">
+    <path d="M130 108 H328 L376 156 V364 Q376 404 336 404 H130 Q90 404 90 364 V148 Q90 108 130 108 Z" fill="none" stroke="url(#edge)" stroke-width="18" filter="url(#glow)" opacity="0.8"/>
+    <path d="M130 108 H328 L376 156 V364 Q376 404 336 404 H130 Q90 404 90 364 V148 Q90 108 130 108 Z" fill="#100F26" stroke="url(#edge)" stroke-width="16" stroke-linejoin="round"/>
+    <path d="M324 104 L380 160 H346 Q324 160 324 138 Z" fill="url(#fold)" stroke="url(#fold)" stroke-width="6" stroke-linejoin="round"/>
+
+    <use href="#star" x="140" y="178" stroke="#7CE8A4"/>
+    <rect x="169" y="165" width="144" height="26" rx="13" fill="url(#green)"/>
+
+    <use href="#star" x="142" y="244" stroke="#E27BEA"/>
+    <rect x="171" y="231" width="142" height="26" rx="13" fill="url(#violet)"/>
+
+    <rect x="124" y="290" width="40" height="40" rx="9" fill="none" stroke="#A9B6FF" stroke-width="6"/>
+    <path d="M134 311 L142 319 L155 302" fill="none" stroke="#A9B6FF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="190" y1="310" x2="290" y2="310" stroke="#6C70C9" stroke-width="24" stroke-linecap="round"/>
+  </g>
+
+  <!-- sparkles -->
+  <use href="#sparkle" transform="translate(418 210) scale(24)" fill="#C4B5FD"/>
+  <use href="#sparkle" transform="translate(448 248) scale(15)" fill="#93C5FD"/>
+  <use href="#sparkle" transform="translate(412 264) scale(10)" fill="#93C5FD"/>
+
+  <!-- unicorn -->
+  <g>
+    <ellipse cx="352" cy="392" rx="70" ry="44" fill="#07061A" opacity="0.55" filter="url(#soft)"/>
+    <!-- tail -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M394 396 C424 372 452 392 444 414 C438 432 414 430 414 414" stroke="#F0A6EE" stroke-width="20"/>
+      <path d="M396 404 C420 390 438 402 434 416" stroke="#9C7CF4" stroke-width="10"/>
+      <path d="M404 420 C414 430 432 428 438 420" stroke="#6BD9F2" stroke-width="7"/>
+    </g>
+    <!-- body and legs -->
+    <ellipse cx="352" cy="384" rx="46" ry="40" fill="url(#fur)"/>
+    <ellipse cx="386" cy="398" rx="24" ry="20" fill="url(#fur)"/>
+    <ellipse cx="400" cy="416" rx="15" ry="9" fill="#4E3A9E"/>
+    <rect x="310" y="372" width="24" height="46" rx="12" fill="url(#fur)"/>
+    <rect x="338" y="378" width="24" height="42" rx="12" fill="url(#fur)"/>
+    <ellipse cx="322" cy="416" rx="14" ry="9" fill="#4E3A9E"/>
+    <ellipse cx="350" cy="418" rx="14" ry="9" fill="#4E3A9E"/>
+    <!-- mane down the neck -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M362 294 C394 298 402 332 386 356" stroke="#9C7CF4" stroke-width="22"/>
+      <path d="M374 314 C396 326 394 352 380 366" stroke="#F0A6EE" stroke-width="14"/>
+      <path d="M366 336 C382 346 380 366 368 376" stroke="#6BD9F2" stroke-width="10"/>
+    </g>
+    <!-- head -->
+    <ellipse cx="338" cy="326" rx="42" ry="36" fill="url(#fur)"/>
+    <ellipse cx="310" cy="340" rx="24" ry="18" fill="#F6F3FF"/>
+    <ellipse cx="297" cy="338" rx="3" ry="2.2" fill="#B3A6E6"/>
+    <path d="M364 304 L386 276 L382 318 Z" fill="url(#fur)" stroke="#E6E0FB" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M370 304 L382 288 L380 310 Z" fill="#F5C8F4"/>
+    <!-- horn -->
+    <path d="M325 294 L331 242 L345 292 Z" fill="url(#horn)" stroke="url(#horn)" stroke-width="4" stroke-linejoin="round"/>
+    <g clip-path="url(#hornClip)" stroke="#C97C1E" stroke-opacity="0.45" stroke-width="3">
+      <line x1="322" y1="282" x2="348" y2="274"/>
+      <line x1="324" y1="266" x2="346" y2="258"/>
+    </g>
+    <!-- forelock -->
+    <path d="M312 304 C314 284 346 274 368 292 C352 290 338 298 332 312 C326 304 318 302 312 304 Z" fill="#9C7CF4"/>
+    <path d="M336 300 C344 290 358 288 368 292 C356 294 346 300 340 308 Z" fill="#C79BF7"/>
+    <!-- face -->
+    <path d="M338 324 Q346 314 354 324" fill="none" stroke="#3A2A6E" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="358" cy="338" rx="8" ry="5" fill="#F7A8D8" opacity="0.7"/>
+  </g>
+</svg>
