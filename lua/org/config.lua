@@ -487,6 +487,29 @@ M.defaults = {
     --- org-agenda-timerange-leaders: { same day, "(day/days)" }.
     timerange_leaders = { "", "(%d/%d): " },
     inactive_leader = "[", -- org-agenda-inactive-leader
+    --- Format of the TODO keyword, e.g. "%-12s"; "" hides it
+    --- (org-agenda-todo-keyword-format).
+    todo_keyword_format = "%-1s",
+    --- Highlight priorities: "cookies" (the cookie), true (from the cookie
+    --- to the end of the line), a table { A = face, ... } (faces like
+    --- `ui.priority_faces`, to the end of the line) or false
+    --- (org-agenda-fontify-priorities). The highest priority is bold, the
+    --- lowest italic.
+    fontify_priorities = "cookies",
+    --- { fraction, highlight group } pairs for deadline lines: the first
+    --- whose fraction is at most the part of the warning period that has
+    --- passed (org-agenda-deadline-faces).
+    deadline_faces = {
+      { 1.0, "OrgAgendaDeadline" },
+      { 0.5, "OrgAgendaDeadlineUpcoming" },
+      { 0.0, "OrgAgendaDeadlineDistant" },
+    },
+    --- function(date) -> highlight group or nil for a day header
+    --- (org-agenda-day-face-function).
+    day_face_function = nil,
+    --- Remove the date range from the text of block entries
+    --- (org-agenda-remove-timeranges-from-blocks).
+    remove_timeranges_from_blocks = false,
     --- Remove a time shown in the prefix from the headline text: true |
     --- false | "beg" (org-agenda-remove-times-when-in-prefix).
     remove_times_when_in_prefix = true,
@@ -545,6 +568,7 @@ M.defaults = {
     auto_exclude_function = nil,
     --- Keep marks after a bulk action (org-agenda-persistent-marks).
     persistent_marks = false,
+    bulk_mark_char = ">", -- org-agenda-bulk-mark-char
     --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
     --- (org-agenda-bulk-custom-functions).
     bulk_custom_functions = {},

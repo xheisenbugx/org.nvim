@@ -171,3 +171,132 @@ describe("dispatcher custom command lines", function()
     }, menu_lines({ menu_show_matcher = false, menu_two_columns = true }))
   end)
 end)
+
+describe("agenda line format options", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function d(o)
+    return today:add(o, "d"):to_string({ brackets = false })
+  end
+  local lines = {
+    "* Trip <" .. d(-1) .. " 10:00>--<" .. d(1) .. " 12:00> now",
+    "* TODO [#A] Hi prio",
+    "  SCHEDULED: " .. ts(0),
+    "* TODO [#C] Low prio",
+    "  SCHEDULED: " .. ts(0),
+    "* TODO Upcoming",
+    "  DEADLINE: " .. ts(3),
+    "* TODO Far",
+    "  DEADLINE: " .. ts(10),
+  }
+
+  --- Highlight groups of the agenda line `lnum` (0-based ranges).
+  local function groups_at(lnum)
+    local ns = vim.api.nvim_create_namespace("org.agenda")
+    local out = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(view.state.buf, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {
+      details = true,
+    })) do
+      if m[4].hl_group then
+        out[#out + 1] = { m[3], m[4].end_col, m[4].hl_group }
+      end
+    end
+    return out
+  end
+
+  local function has(list, want)
+    for _, g in ipairs(list) do
+      if vim.deep_equal(g, want) then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function line_of(text)
+    for l, s in ipairs(buf_text()) do
+      if s:find(text, 1, true) then
+        return l, s
+      end
+    end
+    error("no line with " .. text)
+  end
+
+  -- Emacs 9.8.10 (org-agenda-list for the day, default options):
+  --   "  block:      Scheduled:  TODO [#A] Hi prio"
+  --   "  block:      (2/3):  Trip <...>--<...> now"
+  --   "  block:      In   3 d.:  TODO Upcoming"
+  --   "  block:      In  10 d.:  TODO Far"
+  --   "  block:      Scheduled:  TODO [#C] Low prio"
+  -- with overlays (26 30 (bold org-priority)) on [#A] and (italic
+  -- org-priority) on [#C], and the faces org-upcoming-deadline (3 days of
+  -- 14) and org-upcoming-distant-deadline (10 days).
+  it("defaults: cookies bold / italic, deadline faces by closeness", function()
+    open(vim.list_extend({}, lines), {}, nil)
+    eq({
+      "  skip:       Scheduled:  TODO [#A] Hi prio",
+      "  skip:       (2/3):  Trip <" .. d(-1) .. " 10:00>--<" .. d(1) .. " 12:00> now",
+      "  skip:       In   3 d.:  TODO Upcoming",
+      "  skip:       In  10 d.:  TODO Far",
+      "  skip:       Scheduled:  TODO [#C] Low prio",
+    }, item_lines())
+    local hi = line_of("[#A]")
+    ok(has(groups_at(hi), { 31, 35, "OrgAgendaPriorityHighest" }), vim.inspect(groups_at(hi)))
+    local lo = line_of("[#C]")
+    ok(has(groups_at(lo), { 31, 35, "OrgAgendaPriorityLowest" }), vim.inspect(groups_at(lo)))
+    local up = line_of("Upcoming")
+    ok(has(groups_at(up), { 31, 39, "OrgAgendaDeadlineUpcoming" }), vim.inspect(groups_at(up)))
+    local far = line_of("Far")
+    ok(has(groups_at(far), { 31, 34, "OrgAgendaDeadlineDistant" }), vim.inspect(groups_at(far)))
+  end)
+
+  -- Emacs 9.8.10 with org-agenda-remove-timeranges-from-blocks t and
+  -- org-agenda-todo-keyword-format "%-6s":
+  --   "  block:      Scheduled:  TODO   [#A] Hi prio"
+  --   "  block:      (2/3):  Trip  now"
+  -- and with the format "": "  block:      Scheduled:  [#A] Hi prio"
+  it("remove_timeranges_from_blocks and todo_keyword_format", function()
+    open(vim.list_extend({}, lines), { agenda = { remove_timeranges_from_blocks = true, todo_keyword_format = "%-6s" } })
+    local got = item_lines()
+    eq("  skip:       Scheduled:  TODO   [#A] Hi prio", got[1])
+    eq("  skip:       (2/3):  Trip  now", got[2])
+    view.quit(true)
+    open(vim.list_extend({}, lines), { agenda = { todo_keyword_format = "" } })
+    eq("  skip:       Scheduled:  [#A] Hi prio", item_lines()[1])
+  end)
+
+  it("fontify_priorities = true faces the line from the cookie", function()
+    open(vim.list_extend({}, lines), { agenda = { fontify_priorities = true } })
+    local hi, s = line_of("[#A]")
+    ok(has(groups_at(hi), { 31, #s, "OrgAgendaPriorityHighest" }), vim.inspect(groups_at(hi)))
+  end)
+
+  it("fontify_priorities = false leaves the cookie to the entry face", function()
+    open(vim.list_extend({}, lines), { agenda = { fontify_priorities = false } })
+    local hi = line_of("[#A]")
+    for _, g in ipairs(groups_at(hi)) do
+      ok(not g[3]:find("Priority"), g[3])
+    end
+  end)
+
+  it("day_face_function and bulk_mark_char", function()
+    open(vim.list_extend({}, lines), {
+      agenda = {
+        day_face_function = function(day)
+          return day:days() == today:days() and "ErrorMsg" or nil
+        end,
+        bulk_mark_char = "*",
+      },
+    })
+    local l = line_of(today.year .. " W")
+    eq({ { 0, #buf_text()[l], "ErrorMsg" } }, groups_at(l))
+    local hi = line_of("[#A]")
+    vim.api.nvim_win_set_cursor(0, { hi, 0 })
+    view.actions.mark()
+    local ns = vim.api.nvim_create_namespace("org.agenda.marks")
+    local m = vim.api.nvim_buf_get_extmarks(view.state.buf, ns, 0, -1, { details = true })[1]
+    eq("*", m[4].virt_text[1][1])
+  end)
+end)

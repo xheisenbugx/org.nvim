@@ -59,6 +59,21 @@ local function priority_value(hl)
 end
 M.priority_value = priority_value
 
+--- The face of a deadline line (org-agenda-deadline-face): the first of
+--- `agenda.deadline_faces` ({ fraction, group } pairs) whose fraction is at
+--- most `fraction`, the part of the warning period that has passed (1 on
+--- the day, more when overdue).
+---@param fraction number
+---@return string?
+function M.deadline_face(fraction)
+  for _, f in ipairs(config.opts.agenda.deadline_faces or {}) do
+    if f[1] <= fraction then
+      return f[2]
+    end
+  end
+  return nil
+end
+
 local function new_item(hl, fields)
   order = order + 1
   local item = {
@@ -717,7 +732,7 @@ function M.agenda(files, from, to, opts)
             date = (c == base or kind == "repeat") and at_day(dl, c) or dl,
             ts_date = base,
             extra = leader,
-            face = done and "OrgAgendaDone" or (upcoming and "OrgAgendaDeadlineUpcoming" or "OrgAgendaDeadline"),
+            face = done and "OrgAgendaDone" or M.deadline_face(1 - diff / math.max(warn, 1)),
             reminder = c ~= base and kind ~= "repeat" or nil,
             overdue = c == today and base < today or nil,
             upcoming = upcoming and diff or nil,
@@ -853,6 +868,15 @@ function M.agenda(files, from, to, opts)
               extra = string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, n),
               face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
             })
+            if acfg.remove_timeranges_from_blocks and t.line == hl.line and t.start_col then
+              -- org-agenda-remove-timeranges-from-blocks: drop the range
+              -- from the headline text
+              local text = (hl.file.lines[t.line] or ""):sub(t.start_col, t.end_col)
+              local s, e = item.title:find(text, 1, true)
+              if s then
+                item.title = item.title:sub(1, s - 1) .. item.title:sub(e + 1)
+              end
+            end
             if d == a and d == b then
               set_time(item, ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min })
                 or ts, acfg)

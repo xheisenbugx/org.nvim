@@ -1217,7 +1217,23 @@ Tags show inherited tags first, then "::" and the entry's own tags
 `remove_tags` removes them (true, or "prefix" when %T is used),
 `tags_column` places them ("auto" = right edge of the window). Day headers
 use `format_date` (a strftime format or a function) and show the ISO week
-on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight.
+on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight, and
+`day_face_function(date)` may return another highlight group
+(org-agenda-day-face-function).
+`todo_keyword_format` ("%-1s"; "%-12s" aligns the keywords, "" hides
+them) formats the TODO keyword (org-agenda-todo-keyword-format).
+`fontify_priorities` (org-agenda-fontify-priorities): "cookies" (default)
+highlights the cookie, the highest priority bold
+(OrgAgendaPriorityHighest) and the lowest italic
+(OrgAgendaPriorityLowest), or with `ui.priority_faces`; true does so from
+the cookie to the end of the line; a table `{ A = face, ... }` (faces as
+in `ui.priority_faces`) sets the faces; false turns it off.
+`deadline_faces` (org-agenda-deadline-faces) picks the highlight of a
+deadline line by the part of its warning period that has passed:
+`{ { 1.0, "OrgAgendaDeadline" }, { 0.5, "OrgAgendaDeadlineUpcoming" },
+{ 0.0, "OrgAgendaDeadlineDistant" } }`.
+`remove_timeranges_from_blocks` removes a `<...>--<...>` range from the
+headline text of its entries (org-agenda-remove-timeranges-from-blocks).
 
 Sorting                                                   *org-agenda-sorting*
 
@@ -1467,6 +1483,7 @@ B acts on the marked entries, or on the entry at point without marks
   S       scatter: schedule each entry on a random day of the next N days
           (with a count, weekend days are skipped)
   f       apply a Lua function (`function(target, item) ... end`)
+  (marked lines show `agenda.bulk_mark_char`, ">", org-agenda-bulk-mark-char)
   p       toggle persistent marks (`agenda.persistent_marks`: keep the
           marks after the action), then choose the action
   custom  keys of `agenda.bulk_custom_functions`:

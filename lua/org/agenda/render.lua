@@ -519,6 +519,42 @@ local function drop_columns(parts, n)
   return after
 end
 
+--- The highlight of an item's priority cookie (org-agenda-fontify-priorities):
+--- nil when `agenda.fontify_priorities` is false, else the group of
+--- `ui.priority_faces`, of a `fontify_priorities` table, italic for the
+--- lowest priority, bold for the highest, or OrgAgendaPriority.
+---@return string?
+function M.priority_group(item)
+  local fp = config.opts.agenda.fontify_priorities
+  if fp == nil then
+    fp = "cookies"
+  end
+  if not fp then
+    return nil
+  end
+  local p = tostring(item.priority)
+  local hls = require("org.highlights")
+  local ui = config.opts.ui or {}
+  if (ui.priority_faces or {})[p] then
+    return hls.face_group("orgPriorityFace_", p)
+  end
+  if type(fp) == "table" and fp[p] ~= nil then
+    local group = hls.face_group("OrgAgendaPriorityFace_", p)
+    pcall(vim.api.nvim_set_hl, 0, group, hls.hl_from_face(fp[p]))
+    return group
+  end
+  local file = item.headline and item.headline.file
+  local pr = file and file.priorities and file:priorities() or nil
+  local highest = pr and pr.highest or config.opts.priority_highest
+  local lowest = pr and pr.lowest or config.opts.priority_lowest
+  if p == tostring(lowest) then
+    return "OrgAgendaPriorityLowest"
+  elseif p == tostring(highest) then
+    return "OrgAgendaPriorityHighest"
+  end
+  return "OrgAgendaPriority"
+end
+
 --- Build the parts for an item line.
 ---@param item org.AgendaItem
 ---@param ctx { agenda?: boolean, kind?: string, width: integer, today: integer }
@@ -555,11 +591,18 @@ function M.item_parts(item, ctx)
     push(prefix)
   end
   if item.todo then
-    push(item.todo, item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword")
-    push(" ")
+    -- org-agenda-todo-keyword-format ("" drops the keyword and its space)
+    local fmt = acfg.todo_keyword_format or "%-1s"
+    if fmt ~= "" then
+      local ok, kw = pcall(string.format, fmt, item.todo)
+      push(ok and kw or item.todo, item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword")
+      push(" ")
+    end
   end
   if item.priority then
-    push("[#" .. item.priority .. "]", "OrgAgendaPriority")
+    local group = M.priority_group(item)
+    parts.priority_index = #parts + 1
+    push("[#" .. item.priority .. "]", group or item.face)
     push(" ")
   end
   push(display_title(item.display_title or item.title or ""), item.face)
@@ -691,7 +734,19 @@ function M.add_item(b, it, ctx)
       end
     end
   end
-  b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local row = b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local fp = config.opts.agenda.fontify_priorities
+  if parts.priority_index and (fp == true or type(fp) == "table") then
+    -- the priority face from the cookie to the end of the line
+    local col = 0
+    for i = 1, parts.priority_index - 1 do
+      col = col + #(parts[i][1] or "")
+    end
+    local group = M.priority_group(it)
+    if group then
+      b.hls[#b.hls + 1] = { row - 1, col, #b.lines[row], group, 115 }
+    end
+  end
   if ctx.entry_text and it.headline then
     local acfg = config.opts.agenda
     -- a number: the count given to `E` (org-agenda-entry-text-mode N)
@@ -1088,7 +1143,12 @@ function M.agenda_block(b, block, ctx)
     local list = filter_list(by_day[d] or {}, ctx)
     if #list > 0 or acfg.show_all_dates ~= false then
       local group = "OrgAgendaDate"
-      if d == ctx.today then
+      local dff = acfg.day_face_function
+      local custom = type(dff) == "function" and dff(date.from_days(d)) or nil
+      if type(custom) == "string" and custom ~= "" then
+        -- org-agenda-day-face-function
+        group = custom
+      elseif d == ctx.today then
         group = "OrgAgendaDateToday"
       elseif is_weekend(d) then
         group = "OrgAgendaDateWeekend"
@@ -1253,6 +1313,7 @@ local NIL_OPTIONS = {
   auto_exclude_function = true,
   export_html_style = true,
   skip_function_global = true,
+  day_face_function = true,
 }
 
 --- Run `fn` with the agenda options set on `block` in effect, like the

@@ -178,6 +178,22 @@
 ---@field timerange_leaders? string[]
 ---Leader of inactive timestamps (org-agenda-inactive-leader). (default: `"["`)
 ---@field inactive_leader? string
+---Format of the TODO keyword, e.g. "%-12s"; "" hides it
+---(org-agenda-todo-keyword-format). (default: `"%-1s"`)
+---@field todo_keyword_format? string
+---Highlight priorities: "cookies", true (to the end of the line), a table
+---of faces per priority, or false (org-agenda-fontify-priorities). (default: `"cookies"`)
+---@field fontify_priorities? "cookies"|boolean|table<string, string|table>
+---{ fraction, highlight group } pairs for deadline lines
+---(org-agenda-deadline-faces).
+---(default: `{ { 1.0, "OrgAgendaDeadline" }, { 0.5, "OrgAgendaDeadlineUpcoming" }, { 0.0, "OrgAgendaDeadlineDistant" } }`)
+---@field deadline_faces? { [1]: number, [2]: string }[]
+---Highlight group of a day header, or nil for the default
+---(org-agenda-day-face-function). (default: `nil`)
+---@field day_face_function? fun(date: org.Date): string?
+---Remove the date range from the text of block entries
+---(org-agenda-remove-timeranges-from-blocks). (default: `false`)
+---@field remove_timeranges_from_blocks? boolean
 ---Remove a time of day shown in the prefix from the headline; `"beg"` only
 ---at its start (org-agenda-remove-times-when-in-prefix). (default: `true`)
 ---@field remove_times_when_in_prefix? boolean|"beg"
@@ -243,6 +259,8 @@
 ---@field auto_exclude_function? fun(tag: string): string?
 ---Keep marks after a bulk action (org-agenda-persistent-marks). (default: `false`)
 ---@field persistent_marks? boolean
+---Glyph of marked lines (org-agenda-bulk-mark-char). (default: `">"`)
+---@field bulk_mark_char? string
 ---Extra bulk action keys (org-agenda-bulk-custom-functions). (default: `{}`)
 ---@field bulk_custom_functions? table<string, org.Config.Agenda.BulkFunction|fun(target: org.Target, item: org.AgendaItem)>
 ---No block headers and separators (org-agenda-compact-blocks). (default: `false`)
