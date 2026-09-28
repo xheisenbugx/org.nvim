@@ -285,7 +285,8 @@ local function title_range(line, todo_cfg)
   end
   local e
   local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
-  if tags_s and tags_s >= s then
+  -- with no title, the tags follow the keyword's separating space
+  if tags_s and tags_s >= s - 1 then
     e = tags_s
   else
     e = line:find("[ \t]*$")
@@ -545,6 +546,128 @@ function M.insert_subheading()
     vim.api.nvim_win_set_cursor(0, { row, #l + #add })
   end
   start_insert()
+end
+
+--- org-insert-todo-subheading: insert a TODO heading like M-S-RET (at the
+--- end of the line) and demote it; on a list item, insert a checkbox item
+--- and indent it. A count is the C-u prefix of org-insert-todo-heading.
+function M.insert_todo_subheading()
+  local lnum = cursor()[1]
+  local lists = require("org.lists")
+  local line = vim.api.nvim_get_current_line()
+  local c = vim.v.count
+  if not parser.headline_level(line) and lists.item_at(0, lnum) then
+    lists.new_item({ checkbox = true, pos = { lnum, #line }, split = false })
+    lists.indent_item(1, false)
+  else
+    M.meta_return_heading({
+      todo = true,
+      arg = c > 0 and (c >= 16 and 16 or 4) or nil,
+      pos = { lnum, #line },
+      split = false,
+    })
+    local row = cursor()[1]
+    local l = get_lines(0, row, row)[1]
+    local add = string.rep("*", M.level_increment())
+    set_lines(0, row, row, { add .. l })
+    vim.api.nvim_win_set_cursor(0, { row, #l + #add })
+  end
+  start_insert()
+end
+
+--- org-edit-headline: edit the title of the current headline (keeping its
+--- TODO keyword, priority and tags) in a prompt, or set it to `heading`.
+---@param heading? string
+function M.edit_headline(heading)
+  local bufnr = buf()
+  local hl, file = current_headline()
+  if not hl then
+    utils.warn("Before first headline")
+    return
+  end
+  local todo_cfg = file.settings.todo
+  local line = get_lines(bufnr, hl.line, hl.line)[1]
+  local ts, te = title_range(line, todo_cfg)
+  local old = ts and line:sub(ts, te - 1) or nil
+  local new = heading
+  if new == nil then
+    new = utils.input({ prompt = "Edit: ", default = old or "" })
+    if new == nil then
+      return
+    end
+  end
+  new = vim.trim(new)
+  if new == old or (old == nil and new == "") then
+    return
+  end
+  if old then
+    line = line:sub(1, ts - 1) .. new .. line:sub(te)
+  else
+    -- after the stars, TODO keyword and priority, before the tags
+    local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
+    local before = (tags_s and line:sub(1, tags_s - 1) or line):gsub("[ \t]+$", "")
+    line = before .. " " .. new .. (tags_s and line:sub(tags_s) or "")
+  end
+  line = edit.align_tags_line(line, todo_cfg):gsub("[ \t]+$", "")
+  set_lines(bufnr, hl.line, hl.line, { line })
+end
+
+--- Relevel every headline of the buffer to `new_level(level)`, like
+--- org-demote / org-promote on each of them.
+local function relevel_buffer(new_level)
+  local bufnr = buf()
+  local file = files.get_buffer(bufnr)
+  local todo_cfg = file.settings.todo
+  local pos = cursor()
+  for i = #file.headlines, 1, -1 do
+    local hl = file.headlines[i]
+    local delta = new_level(hl.level) - hl.level
+    if delta ~= 0 then
+      local lines = get_lines(bufnr, hl.line, hl.body_end)
+      local new = relevel(lines, delta, todo_cfg)
+      for j = 2, #new do
+        if parser.headline_level(lines[j]) then
+          new[j] = lines[j]
+        end
+      end
+      set_lines(bufnr, hl.line, hl.body_end, new)
+    end
+  end
+  local l = get_lines(bufnr, pos[1], pos[1])[1] or ""
+  vim.api.nvim_win_set_cursor(0, { pos[1], math.min(pos[2], math.max(#l - 1, 0)) })
+end
+
+--- org-convert-to-odd-levels: level 2 becomes 3, 3 becomes 5, ... (after
+--- confirmation).
+function M.convert_to_odd_levels()
+  if not utils.confirm("Are you sure you want to globally change levels to odd? ") then
+    return
+  end
+  relevel_buffer(function(level)
+    return 2 * level - 1
+  end)
+end
+
+--- org-convert-to-oddeven-levels: level 3 becomes 2, 5 becomes 3, ...
+--- Refused when the file has a headline of even level.
+function M.convert_to_oddeven_levels()
+  local file = files.get_buffer(buf())
+  for _, hl in ipairs(file.headlines) do
+    if hl.level % 2 == 0 then
+      vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+      pcall(vim.cmd, "normal! zv")
+      utils.error("Not all levels are odd in this file.  Conversion not possible")
+      return
+    end
+  end
+  if not utils.confirm("Are you sure you want to globally change levels to odd-even? ") then
+    return
+  end
+  relevel_buffer(function(level)
+    return (level + 1) / 2
+  end)
+  -- like Emacs, which searched for even levels from the start
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
 end
 
 ---------------------------------------------------------------------------

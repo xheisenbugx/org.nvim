@@ -31,6 +31,10 @@ function M.attach(bufnr)
   bo.formatoptions = bo.formatoptions:gsub("[tc]", "") .. "nql"
   bo.formatlistpat = [[^\s*\(\(\d\+\|\a\)[.)]\|[-+]\|\s\+\*\)\s\+\(\[[ xX-]\]\s\+\)\?]]
   bo.omnifunc = "v:lua.require'org.completion'.omnifunc"
+  -- org-indent-line / org-fill-paragraph
+  bo.indentexpr = "v:lua.require'org.indent'.indentexpr()"
+  bo.indentkeys = "o,O,!^F"
+  bo.formatexpr = "v:lua.require'org.fill'.formatexpr()"
   bo.expandtab = true
   bo.textwidth = bo.textwidth ~= 0 and bo.textwidth or 0
 

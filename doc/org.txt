@@ -203,6 +203,14 @@ stars alone is text, like in Emacs): >org
 <prefix>is      Insert a subheading: a headline below the current line,
                 demoted (org-insert-subheading). In a list: an item,
                 indented.
+:Org insert_todo_subheading  The same with a TODO keyword, or a checkbox
+                item in a list (org-insert-todo-subheading).
+:Org edit_headline  Edit the title of the current headline in a prompt,
+                keeping its keyword, priority and tags (org-edit-headline).
+:Org convert_to_odd_levels  Rewrite the file to odd levels only: level 2
+                becomes 3, 3 becomes 5... (org-convert-to-odd-levels).
+:Org convert_to_oddeven_levels  The reverse (org-convert-to-oddeven-levels);
+                refused when the file has an even level. Both ask first.
 <prefix>id      Insert a drawer at the cursor (Insert mode splits the line,
 <C-c><C-x>d     like Emacs), or around the Visual selection. With a count
                 (C-u), a property drawer.
@@ -349,6 +357,40 @@ the item.
                 (org-transpose-element).
 <C-c><M-f>      Next / previous `#+begin_` block (org-next-block /
 <C-c><M-b>      org-previous-block); a count skips blocks.
+
+Indentation and filling                               *org-indent* *org-fill*
+'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
+are indented like in Emacs: headlines, footnote definitions and diary sexps
+at column 0; the first line of an element like its previous sibling, else
+like the contents of its parent (after the bullet of an item; at the
+headline level + 1 with `adapt_indentation`); other lines like the line
+above. List items keep their indentation (move them with <M-h> / <M-l>),
+and `=` keeps the contents of example, export and verse blocks. Lines of a
+src block keep their relative indentation at the block's content
+indentation (Emacs asks the language's major mode). <Tab> in body text
+indents the same way (`cycle_emulate_tab`).
+:Org indent_region  Indent the Visual selection, or the buffer, like
+                org-indent-region: lists, example and export blocks move
+                as a whole, node properties are aligned
+                (`property_format`).
+:Org indent_block   Indent the block at the cursor (on its `#+begin` line;
+                org-indent-block).
+:Org indent_drawer  Indent the drawer at the cursor (on its first line;
+                org-indent-drawer).
+:Org unindent_buffer  Remove the common indentation of every element of
+                every section, keeping relative indentation
+                (org-unindent-buffer).
+'formatexpr' follows org-fill-paragraph, so `gq` and `gw` fill paragraphs
+(also in items, drawers, quote blocks and footnote definitions), comments
+and the text of comment blocks, and realign tables. Headlines, keywords,
+planning lines, drawers' markers and other blocks are left alone. Lines are
+filled to 'textwidth' (79 when it is 0; Emacs uses fill-column); items
+continue at their body column; a sentence end at the end of a joined line
+gets two spaces, and lines are not broken after a period followed by one
+space, before text that would start a new element (a bullet, `#`, `|`,
+...), after `\\` or inside a timestamp. `\\` line breaks are kept. On a
+blank line, `gqq` fills the element after it. Typing past 'textwidth'
+(formatoptions `t`) never wraps headlines, keywords, tables or blocks.
 
                                                         *org-inlinetask*
 Inline tasks (the org-inlinetask module, off like in Emacs): with
@@ -5198,6 +5240,18 @@ Differences from Emacs:
     characters are used when they exist, else a highlight.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
+  - Indentation (|org-indent|): `=` indents line by line with
+    org-indent-line, so a list or an example block is not moved as a
+    whole like org-indent-region (C-M-\) does; `:Org indent_region` does
+    that. Src block code keeps its own relative indentation instead of
+    being indented by the language's major mode (Emacs's
+    org-src-tab-acts-natively).
+  - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
+    fill-column (70); src blocks are not filled (Emacs uses the language's
+    major mode); `gq` over a comment of several paragraphs fills each of
+    them (Emacs's region fill only fills the last one); only whitespace
+    is used as a fill prefix (Emacs also takes `>` and other
+    adaptive-fill-regexp characters).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't
