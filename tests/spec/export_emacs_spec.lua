@@ -365,4 +365,42 @@ describe("export (Emacs features)", function()
     has(h, "shown body")
     vim.bo[buf].modified = false
   end)
+
+  it("applies visible_only to a subtree export", function()
+    local buf = org_buffer({ "* S", "intro", "** One", "hidden body", "** Two", "shown body" }, { 1, 0 })
+    vim.wo.foldmethod = "manual"
+    vim.cmd("normal! zE")
+    vim.cmd("3,4fold")
+    local h = export.to_string("html", { bufnr = buf, subtree_line = 1, body_only = true, visible_only = true })
+    has(h, "intro")
+    has(h, "One")
+    hasnt(h, "hidden body")
+    has(h, "shown body")
+    -- a folded subtree root hides its whole body
+    vim.cmd("normal! zE")
+    vim.cmd("1,6fold")
+    h = export.to_string("html", { bufnr = buf, subtree_line = 1, body_only = true, visible_only = true })
+    hasnt(h, "intro")
+    hasnt(h, "One")
+    vim.bo[buf].modified = false
+  end)
+
+  it("reads {{{property}}} from the exported subtree's own heading", function()
+    local lines = {
+      "* Top",
+      "** Sub",
+      ":PROPERTIES:",
+      ":OWNER: Charles",
+      ":END:",
+      "Owner: {{{property(OWNER)}}}; item {{{property(ITEM)}}}.",
+      "*** Kid",
+      ":PROPERTIES:",
+      ":OWNER: Ada",
+      ":END:",
+      "Kid owner: {{{property(OWNER)}}}.",
+    }
+    local h = html(lines, { subtree_line = 6 })
+    has(h, "Owner: Charles; item Sub.")
+    has(h, "Kid owner: Ada.")
+  end)
 end)

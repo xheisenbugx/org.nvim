@@ -219,8 +219,9 @@ subtree with =<Tab>= and its body disappears from the output (its heading
 line is visible, so it stays). Useful to export "just the outline" or to
 hide parts temporarily.
 
-In org.nvim, =v= applies to *whole-file* exports: combined with =s= it is
-ignored and the whole subtree is exported.
+Combined with =s=, only the visible part of the subtree is exported; if
+the subtree's own heading is folded, its body is empty (Emacs does the
+same).
 
 ** Sample: visible only
 :PROPERTIES:
@@ -1247,7 +1248,9 @@ Things to notice:
 - The =kbd= macro produced nothing in plain text: it expands to an HTML
   export snippet (next section). With =<prefix>e s b h H= the line reads
   =Press <kbd>C-c C-e</kbd>.=
-- ={{{property(OWNER)}}}= reads the heading it is written under.
+- ={{{property(OWNER)}}}= reads the heading it is written under. Text
+  right under the exported heading reads that heading's own drawer: in the
+  sample, ={{{property(EXPORT_TITLE)}}}= would give =Macro demo=.
 
 *Try:* add a line ={{{greet(Neovim\, again)}}}= to the sample and export:
 =Hello, Neovim, again!= (the escaped comma is not an argument separator).

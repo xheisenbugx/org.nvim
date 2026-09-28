@@ -3887,12 +3887,14 @@ local function subtree_region(lines, line, todo)
     end
     b = k + 1
   end
-  return { lines = vim.list_slice(lines, b, e - 1), props = props, title = parts.title, line = s }
+  return { lines = vim.list_slice(lines, b, e - 1), props = props, title = parts.title, line = s, first = b }
 end
 
---- Hidden lines of a buffer's current window (closed folds), for
---- visible-only export.
-function M.visible_lines(bufnr, lines)
+--- `lines` without the ones hidden in a buffer's current window (closed
+--- folds), for visible-only export. `lines[1]` is buffer line `first`
+--- (default 1), so a subtree slice is checked against its own lines.
+function M.visible_lines(bufnr, lines, first)
+  local off = (first or 1) - 1
   local win
   for _, w in ipairs(vim.api.nvim_list_wins()) do
     if vim.api.nvim_win_get_buf(w) == bufnr then
@@ -3907,16 +3909,17 @@ function M.visible_lines(bufnr, lines)
   vim.api.nvim_win_call(win, function()
     local i = 1
     while i <= #lines do
-      local fc = vim.fn.foldclosed(i)
+      local fc = vim.fn.foldclosed(i + off)
       if fc == -1 then
         out[#out + 1] = lines[i]
         i = i + 1
       else
-        -- a folded headline stays visible, its contents are hidden
-        if lines[i]:match("^%*+ ") then
+        -- a folded headline stays visible, its contents are hidden; a fold
+        -- opened above the slice (folded subtree root) hides everything
+        if fc == i + off and lines[i]:match("^%*+ ") then
           out[#out + 1] = lines[i]
         end
-        i = vim.fn.foldclosedend(i) + 1
+        i = vim.fn.foldclosedend(i + off) - off + 1
       end
     end
   end)
@@ -3976,8 +3979,9 @@ function export_as(backend, lines, opts)
     subtree = subtree_region(lines, opts.subtree_line, todo)
   end
   local work = subtree and subtree.lines or lines
-  if opts.visible_only and opts.bufnr and not subtree then
-    work = M.visible_lines(opts.bufnr, work)
+  if opts.visible_only and opts.bufnr then
+    -- org-export-as parses the narrowed subtree with visible-only too
+    work = M.visible_lines(opts.bufnr, work, subtree and subtree.first or 1)
   end
   local expand_env = true
   work = M.expand_includes(work, dir, { includer = filename, expand_env = expand_env, todo = todo })
@@ -4066,6 +4070,12 @@ function export_as(backend, lines, opts)
         return h.priority
       end
       return h.props and h.props[name]
+    end
+    -- before the first child of an exported subtree, point is in the
+    -- subtree's own entry (org-entry-get nil NAME 'selective)
+    local root = subtree and file0:headline_on(subtree.line)
+    if root then
+      return root:get_property(name)
     end
     return file0.settings.properties[name]
   end
