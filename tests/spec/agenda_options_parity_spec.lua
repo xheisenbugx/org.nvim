@@ -113,3 +113,61 @@ describe("custom command contexts", function()
     vim.cmd("bwipe!")
   end)
 end)
+
+describe("dispatcher custom command lines", function()
+  -- org-agenda-get-restriction-and-command (Emacs 9.8.10): the
+  -- description, or a name for the type, then ": MATCH" with
+  -- org-agenda-menu-show-matcher; two columns split the lines in halves.
+  local function menu_lines(opts)
+    config.setup({
+      agenda = vim.tbl_extend("force", {
+        custom_commands = {
+          p = { description = "Projects", type = "tags", match = "+project" },
+          w = { type = "todo", match = "WAITING" },
+          x = { type = "search" },
+          y = { description = "Block", types = { { type = "agenda" } } },
+        },
+      }, opts or {}),
+    })
+    local shown
+    local ui = require("org.ui")
+    local float = ui.float
+    ui.float = function(lines, o)
+      shown = lines
+      return float(lines, o)
+    end
+    local getchar = utils.getchar
+    utils.getchar = function()
+      return nil
+    end
+    local ok2, err = pcall(agenda.prompt)
+    ui.float, utils.getchar = float, getchar
+    assert(ok2, err)
+    local out = {}
+    local on = false
+    for _, l in ipairs(shown) do
+      if l == "Custom commands" then
+        on = true
+      elseif on and l ~= "" and not l:find("Esc", 1, true) then
+        out[#out + 1] = l
+      end
+    end
+    return out
+  end
+
+  it("shows the match after the description", function()
+    eq({
+      " [p]  Projects: +project",
+      " [w]  TODO keyword: WAITING",
+      " [x]  Word search",
+      " [y]  Block",
+    }, menu_lines())
+  end)
+
+  it("menu_show_matcher = false hides it; menu_two_columns pairs the lines", function()
+    eq({
+      " [p]  Projects                            [x]  Word search",
+      " [w]  TODO keyword                        [y]  Block",
+    }, menu_lines({ menu_show_matcher = false, menu_two_columns = true }))
+  end)
+end)

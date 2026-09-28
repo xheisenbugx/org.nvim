@@ -584,6 +584,12 @@ M.defaults = {
     --- (org-agenda-custom-commands-contexts), e.g.
     --- `{ { "p", { { in_mode = "org" } } }, { "q", "r", { { in_file = "work" } } } }`.
     custom_commands_contexts = {},
+    --- Show the match of custom commands in the dispatcher
+    --- (org-agenda-menu-show-matcher).
+    menu_show_matcher = true,
+    --- Custom commands in two columns in the dispatcher
+    --- (org-agenda-menu-two-columns).
+    menu_two_columns = false,
     --- Columns format of the agenda column view; nil = the first agenda
     --- file's (org-agenda-overriding-columns-format).
     overriding_columns_format = nil,

@@ -271,6 +271,12 @@
 ---Rules offering custom commands only in some buffers, like
 ---`capture.templates_contexts` (org-agenda-custom-commands-contexts). (default: `{}`)
 ---@field custom_commands_contexts? org.Config.CaptureContextRule[]
+---Show the match of custom commands in the dispatcher
+---(org-agenda-menu-show-matcher). (default: `true`)
+---@field menu_show_matcher? boolean
+---Custom commands in two columns in the dispatcher
+---(org-agenda-menu-two-columns). (default: `false`)
+---@field menu_two_columns? boolean
 ---Columns format of the agenda column view
 ---(org-agenda-overriding-columns-format). (default: `nil`)
 ---@field overriding_columns_format? string

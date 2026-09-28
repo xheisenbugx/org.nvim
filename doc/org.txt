@@ -1129,7 +1129,10 @@ and default options (the Emacs variable is named next to each option in
   e   export the agenda views of custom commands (|org-agenda-export|)
   *   toggle sticky agenda buffers (`agenda.sticky`)
   ?   the :FLAGGED: entries of MobileOrg (|org-mobile|)
-  ... custom commands from `agenda.custom_commands`
+  ... custom commands from `agenda.custom_commands`: the description (or
+      a name for the type) and ": MATCH" (`agenda.menu_show_matcher`,
+      org-agenda-menu-show-matcher); `agenda.menu_two_columns` lists
+      them in two columns (org-agenda-menu-two-columns)
 
 :Org agenda a|t [KW|KW]|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|
             *|>|?|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE

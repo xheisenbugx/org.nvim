@@ -625,6 +625,38 @@ function M.dispatch(key, restrict)
   end
 end
 
+local DEFAULT_DESCRIPTIONS = {
+  agenda = "Agenda for current week or day",
+  todo = "List of all TODO entries",
+  search = "Word search",
+  stuck = "List of stuck projects",
+  tags = "Tags query",
+  tags_todo = "Tags (TODO)",
+  tags_tree = "Tags tree",
+  todo_tree = "TODO kwd tree",
+  occur_tree = "Occur tree",
+}
+
+--- The dispatcher line of a custom command: its description (or one for
+--- its type) and, with `agenda.menu_show_matcher`, ": MATCH"
+--- (org-agenda-get-restriction-and-command).
+function M.menu_label(cmd)
+  local label = cmd.description
+  if not (label and label:match("%S")) then
+    local t = cmd.type and (TYPE_ALIASES[cmd.type] or cmd.type)
+    if t == "todo" and cmd.match and cmd.match ~= "" then
+      label = "TODO keyword"
+    else
+      label = t and DEFAULT_DESCRIPTIONS[t] or "???"
+    end
+  end
+  local match = cmd.type and cmd.match
+  if config.opts.agenda.menu_show_matcher ~= false and type(match) == "string" and match:match("%S") then
+    label = label .. ": " .. match
+  end
+  return label
+end
+
 --- The agenda dispatcher (C-c a): a menu of the built-in views and
 --- `agenda.custom_commands`. Must run inside a coroutine; call
 --- `require("org").agenda()` from mappings instead.
@@ -680,13 +712,25 @@ function M.prompt()
       elseif type(cmd) == "table" and not (cmd.types or cmd.blocks or cmd.type) then
         entries[#entries + 1] = { key = key, label = cmd.description or key }
       elseif type(cmd) == "table" then
-        entries[#entries + 1] = { key = key, label = cmd.description or key, value = { custom = key } }
+        entries[#entries + 1] = { key = key, label = M.menu_label(cmd), value = { custom = key } }
       end
     end
     if #entries > 0 then
       items[#items + 1] = { heading = true, label = "" }
       items[#items + 1] = { heading = true, label = "Custom commands" }
-      vim.list_extend(items, require("org.ui").tree_from_keys(entries))
+      local tree = require("org.ui").tree_from_keys(entries)
+      if config.opts.agenda.menu_two_columns then
+        -- org-agenda-menu-two-columns: the first half on the left
+        local n1 = math.ceil(#tree / 2)
+        for i = 1, n1 do
+          items[#items + 1] = tree[i]
+          if tree[i + n1] then
+            items[#items + 1] = vim.tbl_extend("force", tree[i + n1], { column = 2 })
+          end
+        end
+      else
+        vim.list_extend(items, tree)
+      end
     end
     local choice = require("org.ui").menu({ title = "Org Agenda", items = items })
     if choice == nil then
