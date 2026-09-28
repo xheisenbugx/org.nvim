@@ -928,7 +928,9 @@ Timestamps:
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
                 The end minute of a time range moves by 1. On a bracket,
-                switch the timestamp between active and inactive.
+                switch the timestamp between active and inactive. With
+                `edit_timestamp_down_means_later`, <S-Down> is later and
+                <S-Up> earlier.
 <S-Right/Left>  (ctx) Day +1 / -1.
 :Org toggle_timestamp_type   Switch the timestamp at the cursor between
                 active and inactive (in a range, only that end).
@@ -971,13 +973,30 @@ The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
+  <C-v>  <M-v>   three months later / earlier: on today when it is within
+                 a month of that month, else on its 1st (Emacs calendar)
   .              today
   i  t           type a date (see below); a date moved to in the calendar
-                 is part of the answer, like Emacs
+                 is part of the answer, like Emacs. While typing, the
+                 calendar shows the date the answer means ("=> <date>",
+                 "(=>F)" when it was taken in the future), like the Emacs
+                 overlay (`read_date_display_live`, default on)
   T              set a time
+  !              show the agenda of the selected date (Emacs: the diary
+                 entries); the windows come back when the prompt ends
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
+  <LeftMouse>    select the day clicked (<MiddleMouse> too)
   q  <Esc>       cancel
+With `read_date_popup_calendar = false` (org-read-date-popup-calendar, or
+its alias `popup_calendar_for_date_prompt`) date prompts are a plain
+"Date+time [2026-09-28]: " prompt instead; an empty answer takes the date
+in brackets.
+
+<C-c><          Insert the date the calendar was last left on (by a date
+                prompt or `:Org goto_calendar`), today before that; on a
+                timestamp, change only its date, keeping the time, repeater
+                and warning (org-date-from-calendar).
 A count of 4 (`C-u`) before the schedule/deadline key removes the date; a
 count of 16 (`C-u C-u`) instead asks for a date and sets the warning period
 (DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
@@ -1949,7 +1968,19 @@ ends the match, as in Emacs: "work -boss" is the same as "work" (write
   / r  regexp   t  TODO entries     T  specific keyword
   m  match      M  match, TODO only p  property value
   d  deadlines due or overdue       b  before date
-  a  after date D  between dates    c  clear
+  a  after date D  between dates    c  cycle date types
+  C  clear
+
+The date trees (b, a, D) highlight each timestamp before the date, on or
+after it, or from the first date up to (not including) the second, like
+Emacs. Which timestamps count is the date type shown in the menu's title,
+`sparse_tree_default_date_type` at first (org-sparse-tree-default-date-type);
+`c` cycles it: SCHEDULED/DEADLINE (nil), "all", "scheduled", "deadline",
+"active", "inactive", "closed". The planning types look at the planning
+line; the others at timestamps in the text, not in planning or clock lines,
+property drawers, blocks, comments or verbatim. Subtrees tagged :ARCHIVE:
+stay folded, with their headline visible, unless
+`sparse_tree_open_archived_trees` (org-sparse-tree-open-archived-trees).
 
 <C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
                 With a count, only TODO entries match.
@@ -2510,6 +2541,44 @@ Results are kept for the session.
                 repeating a failed search wraps around the buffer.
 <C-c>&          Jump back to where you followed a link from (<C-o> works
                 too).
+:Org open_at_point_global  Follow the Org link at the cursor in any buffer
+                (org-open-at-point-global): a bracket, angle or plain link,
+                a timestamp (the agenda of that day), else a URL or an
+                e-mail address. It has no key, like Emacs; map it with
+                `mappings.global.open_at_point_global = "gX"`. Internal
+                links (headings, targets) are not searched outside Org.
+:Org occur_link_in_agenda_files  Search the agenda files for the link
+                <prefix>ls would store here, `[[file:…::*Heading][Heading]]`
+                (org-occur-link-in-agenda-files); the matches go to the
+                quickfix list. The link is not stored.
+
+                                                            *org-links-mouse*
+<MiddleMouse>   Open the link clicked (org-open-at-mouse).
+<RightMouse>    Open the link clicked in Neovim, even when `file_apps`
+                names another program, internal links in another window
+                (org-find-file-at-mouse). Away from a link both clicks do
+                what they normally do.
+<LeftMouse>     With `links.mouse_1_follows_link` (org-mouse-1-follows-link,
+                default 450), a click on a link follows it: a click held
+                longer than that many ms, or a drag, only moves the cursor;
+                true follows on any click, "double" on a double click,
+                false never.
+<Tab>           With `links.tab_follows_link` (org-tab-follows-link), <Tab>
+                on a link follows it instead of cycling.
+Following a link, footnote or date with <CR>, <C-c><C-o>, <Tab> or the
+mouse fires the `User` event `OrgFollowLink` (org-follow-link-hook), with
+`data.bufnr` the buffer it was followed from: >lua
+  vim.api.nvim_create_autocmd("User", {
+    pattern = "OrgFollowLink",
+    callback = function() vim.cmd("normal! zz") end,
+  })
+<
+A `file:` link to a directory opens the directory, or its index.org with
+`links.open_directory_means_index_dot_org`
+(org-open-directory-means-index-dot-org). An external program (`file_apps`
+or the system application) is not started for a file that doesn't exist
+("No such file: …") unless `links.open_non_existing_files`
+(org-open-non-existing-files); Neovim opens missing files as new ones.
 <C-c>'          On `#+INCLUDE:`, `#+SETUPFILE:` or `#+BIBLIOGRAPHY:`, visit
                 the file.
 
@@ -3559,6 +3628,25 @@ drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
 `export BACKEND` to include it as a block. `#+SETUPFILE:` reads the
 keywords of another file.
 
+                                                       *org-remote-resources*
+`#+INCLUDE: https://…` downloads the file (with curl) only when
+`resource_download_policy` allows it (org-resource-download-policy):
+"prompt" (default) downloads URLs matching `safe_remote_resources` and asks
+about the others, "safe" downloads only those, true downloads everything
+(dangerous) and false only the safe ones (like Emacs). A URL is safe when
+it, or "file://" followed by the exporting file's name, matches one of the
+Vim regexes of `safe_remote_resources` (org-safe-remote-resources). The
+question offers, like Emacs:
+  y  <Space>   download it, just this once
+  n            skip it: the export stops with "The remote resource … is
+               considered unsafe, and will not be downloaded."
+  !            download it and mark the URL safe
+  d            download it and mark its domain (`https://example.com`) safe
+  f            download it and mark everything the file requests safe
+The URLs, domains and files marked safe are kept in
+stdpath("data")/org/safe-remote-resources.json (Emacs saves them with
+customize). A download is reused for the rest of the session.
+
 Macros: `#+MACRO: name text $1 $2` (`$0` = all arguments, `\,` a literal
 comma, macros may use other macros), `export.global_macros` (strings or Lua
 functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
@@ -3949,7 +4037,7 @@ These need Emacs Lisp or Emacs itself:
   fails.
 - Asynchronous export (`a`) only makes PDF compilation asynchronous;
   publishing runs on the editor's event loop.
-- Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
+- Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
 - The default creator string names Neovim and org.nvim instead of Emacs.
@@ -4532,6 +4620,8 @@ Buffer ~
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
+  sparse_tree_open_archived_trees  false  sparse trees open :ARCHIVE: trees
+  sparse_tree_default_date_type    nil  |org-sparse-tree| date types
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
   edit_src_content_indentation  2
@@ -4564,6 +4654,9 @@ Structure and visibility ~
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
+  read_date_popup_calendar  true      false: a plain prompt |org-calendar|
+  read_date_display_live    true      show the typed date's meaning
+  edit_timestamp_down_means_later  false  <S-Down> makes timestamps later
   display_custom_times      false     |org-dates|
   time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
   archive_location          "%s_archive::"
@@ -4668,7 +4761,12 @@ links ~
   search_must_match_exact_headline "query-to-create" (true|false),
   frame_setup { file = "other-window" } ("current"|"split"|"vsplit"|"tab"|
   function), make_description nil, doi_server_url "https://doi.org/",
-  search_functions {}, translation_function nil
+  search_functions {}, translation_function nil, mouse_1_follows_link 450
+  (true|"double"|ms|false), tab_follows_link false,
+  open_directory_means_index_dot_org false, open_non_existing_files false
+  (|org-links-mouse|)
+resource_download_policy "prompt" (true|"safe"|false),
+safe_remote_resources {} (|org-remote-resources|)
 id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
@@ -5367,6 +5465,20 @@ Differences from Emacs:
     sunrise or diary entries in it; the agenda has the holidays, moon,
     sunrise and date conversion keys, |org-agenda-calendar-keys|, and
     shows the diary file, |org-agenda-diary-file|).
+  - The calendar shows one month (Emacs three): <C-v>/<M-v> move the
+    selection as Emacs moves its cursor, `!` shows the day's agenda
+    instead of the diary entries, and the live interpretation of a typed
+    date is drawn in the calendar instead of after the prompt. With
+    `read_date_popup_calendar = false` no interpretation is shown, like
+    Emacs. The calendar is not kept open after a prompt: <C-c>< inserts the
+    date it was last left on, and today (not an error) before any calendar
+    was shown.
+  - `links.mouse_1_follows_link` times the click from press to release in
+    the Org buffer; `open_at_point_global` reads links on the line (and
+    bracket links over nearby lines), not the whole paragraph.
+  - `#+SETUPFILE:` URLs are never downloaded (|org-setupfile|), so
+    `resource_download_policy` only applies to `#+INCLUDE:` URLs; Emacs
+    also asks about remote setup files when a buffer is opened.
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.

@@ -143,6 +143,8 @@ end)
 
 describe("emacs: dates", function()
   it("inserts today", function()
+    -- no calendar shown yet (C-c < inserts the calendar's date)
+    require("org.calendar").cursor_date = nil
     local buf = org_buffer({ "Due " }, { 1, 3 })
     timestamps.insert_today()
     eq("Due " .. date.today():to_string(), buf_lines(buf)[1])

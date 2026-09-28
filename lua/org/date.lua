@@ -1038,6 +1038,16 @@ end
 ---@param default? table default date (defaults to now)
 ---@return table|nil
 function M.read_date(input, default)
+  return (M.read_date_analyze(input, default))
+end
+
+--- `read_date`, also returning whether the date was pushed into the future
+--- by `read_date_prefer_future` (org-read-date-analyze-futurep, shown as
+--- "(=>F)" by the live date prompt).
+---@param input string
+---@param default? table
+---@return table|nil date, boolean futurep
+function M.read_date_analyze(input, default)
   local now = M.now()
   local prefer = require("org.config").opts.read_date_prefer_future
   if prefer == nil then
@@ -1255,9 +1265,11 @@ function M.read_date(input, default)
     and (tl.hour < now.hour or (tl.hour == now.hour and tl.min and tl.min < now.min))
   then
     day = day + 1
+    futurep = true
   end
 
   if iso_week then
+    futurep = false
     year = iso_year or year
     local d = iso_weekday or wday or 1
     local jan4 = M.days_from_civil(year, 1, 4)
@@ -1265,6 +1277,7 @@ function M.read_date(input, default)
     local abs = monday1 + (iso_week - 1) * 7 + (d == 0 and 6 or d - 1)
     year, month, day = M.civil_from_days(abs)
   elseif deltan then
+    futurep = false
     if not deltadef then
       day, month, year = now.day, now.month, now.year
     end
@@ -1301,7 +1314,7 @@ function M.read_date(input, default)
       result.end_hour, result.end_min = end_hour, end_min
     end
   end
-  return result
+  return result, futurep
 end
 
 return M

@@ -940,11 +940,12 @@ function M.expand_includes(lines, dir, opts)
         local is_url = file:match("^%a[%w+.-]*://") ~= nil
         local content
         if is_url then
-          local res = vim.system({ "curl", "-fsSL", file }, { text = true }):wait(30000)
-          if res.code ~= 0 then
-            error("Cannot include file " .. file)
+          -- asked for or refused per resource_download_policy (org-file-contents)
+          local err
+          content, err = require("org.resources").contents(file, opts.includer)
+          if not content then
+            error(err or ("Cannot include file " .. file))
           end
-          content = vim.split((res.stdout or ""):gsub("\n$", ""), "\n", { plain = true })
         else
           content = utils.readfile(file)
           if not content then

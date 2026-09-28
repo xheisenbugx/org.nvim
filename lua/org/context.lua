@@ -128,7 +128,7 @@ function M.context_action()
 end
 
 --- Open link / follow footnote / show agenda for timestamp.
-function M.open_at_point()
+local function open_at_point()
   local links = require("org.links")
   if links.link_at_cursor() then
     return links.open_at_point()
@@ -143,6 +143,17 @@ function M.open_at_point()
     return require("org.agenda").open_day(ts.date)
   end
   return false
+end
+
+--- Open the link, footnote or timestamp at the cursor (org-open-at-point),
+--- then signal OrgFollowLink (org-follow-link-hook).
+function M.open_at_point()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local r = open_at_point()
+  if r ~= false then
+    require("org.links").run_follow_hook(bufnr)
+  end
+  return r
 end
 
 --- C-c ' : edit special
@@ -486,9 +497,15 @@ end
 -- Shift arrows / increment
 ---------------------------------------------------------------------------
 
+--- S-Up / S-Down on a timestamp: later / earlier, the other way round with
+--- `edit_timestamp_down_means_later` (org-edit-timestamp-down-means-later).
+local function timestamp_direction()
+  return require("org.config").opts.edit_timestamp_down_means_later and -1 or 1
+end
+
 function M.shift_up()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(count())
+    return require("org.timestamps").increment(timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(count()) then
     return true
@@ -508,7 +525,7 @@ end
 
 function M.shift_down()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(-count())
+    return require("org.timestamps").increment(-timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(-count()) then
     return true
