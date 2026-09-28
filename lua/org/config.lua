@@ -359,6 +359,10 @@ M.defaults = {
   --- Define new footnotes inline, `[fn:N: text]` at the reference
   --- (org-footnote-define-inline). #+STARTUP: fninline / nofninline.
   footnote_define_inline = false,
+  --- Refill the paragraphs that lost an inline footnote when normalizing
+  --- (org-footnote-fill-after-inline-note-extraction), at `textwidth`
+  --- (70 when 0).
+  footnote_fill_after_inline_note_extraction = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
   --- { rounding of the current time in date prompts, minute step of

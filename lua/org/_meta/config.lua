@@ -357,6 +357,9 @@
 ---Define new footnotes inline (`[fn:N: text]`); `#+STARTUP: fninline`.
 ---(Emacs `org-footnote-define-inline`, default: `false`)
 ---@field footnote_define_inline? boolean
+---Refill the paragraphs that lost an inline footnote when normalizing.
+---(Emacs `org-footnote-fill-after-inline-note-extraction`, default: `false`)
+---@field footnote_fill_after_inline_note_extraction? boolean
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer

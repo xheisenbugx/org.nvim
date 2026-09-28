@@ -4520,6 +4520,9 @@ Structure and visibility ~
                                       "plain"|"anonymous"
   footnote_auto_adjust      false     false|true|"sort"|"renumber"
   footnote_define_inline    false
+  footnote_fill_after_inline_note_extraction  false  normalizing refills
+                                      the paragraphs of inline notes
+                                      (at `textwidth`, 70 when 0)
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
