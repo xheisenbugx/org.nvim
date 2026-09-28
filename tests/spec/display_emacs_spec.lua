@@ -679,3 +679,62 @@ describe("font-lock options", function()
     ok(#stack > 1 and stack[#stack]:match("^tex"), vim.inspect(stack))
   end)
 end)
+
+describe("speed_command_hook", function()
+  with_config({
+    use_speed_commands = true,
+    speed_command_hook = { "org-speed-command-activate", "org-babel-speed-command-activate" },
+  })
+  local speed = require("org.speed")
+  local lines = {
+    "* A",
+    "#+begin_src sh",
+    "echo 1",
+    "#+end_src",
+    "text",
+    "#+begin_src sh",
+    "echo 2",
+    "#+end_src",
+  }
+
+  it("runs the Babel keys at the start of a src block", function()
+    local buf = org_buffer(lines, { 2, 0 })
+    speed.attach(buf)
+    -- n: org-babel-next-src-block
+    vim.api.nvim_feedkeys(vim.keycode("in"), "xt", false)
+    vim.wait(100, function()
+      return vim.api.nvim_win_get_cursor(0)[1] == 6
+    end)
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "xt", false)
+    eq(lines, buf_lines(buf))
+    eq(6, vim.api.nvim_win_get_cursor(0)[1])
+    -- not on the #+begin_src line: typed
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    eq(nil, speed.lookup("n"))
+  end)
+
+  it("tries the hook functions in order", function()
+    org_buffer(lines, { 5, 0 })
+    local seen
+    config.opts.speed_command_hook = {
+      function(key)
+        seen = key
+        if key == "q" then
+          return "next_heading"
+        end
+      end,
+      "org-speed-command-activate",
+    }
+    ok(speed.lookup("q"))
+    eq("q", seen)
+    eq(nil, speed.lookup("x"))
+    -- without the Babel function, the src block keys are plain letters
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    eq(nil, speed.lookup("n"))
+    config.opts.speed_command_hook = { "org-babel-speed-command-activate" }
+    ok(speed.lookup("n"))
+    -- nor the headline ones
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    eq(nil, speed.lookup("n"))
+  end)
+end)

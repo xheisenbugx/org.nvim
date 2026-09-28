@@ -380,7 +380,14 @@ view, U D move subtree, r l R L demote / promote (subtree), i insert heading,
 t TODO, , priority (0 remove, 1 2 3 highest, default, lowest), : tags,
 e E effort, W APPT_WARNTIME, v agenda, / sparse tree, o open link,
 < > agenda restriction lock, ? help. `speed_commands` adds or changes keys:
-`{ x = "archive_subtree", n = false }`. `use_speed_commands` may also be a
+`{ x = "archive_subtree", n = false }`. At the very start of a
+`#+begin_src` line the letters of the Babel keys (<C-c><C-v> x) run their
+command too (org-babel-speed-command-activate): p n e o v u g r b s d t f
+c j l i I z a h x k. `speed_command_hook` (org-speed-command-hook) lists
+the functions deciding what a key runs, tried in order: the names
+"org-speed-command-activate" and "org-babel-speed-command-activate" for
+the built-in ones, or functions of the key returning an action name, a
+function or nil. `use_speed_commands` may also be a
 function deciding where they apply.
 
 ==============================================================================
@@ -4542,6 +4549,8 @@ Structure and visibility ~
                                       clock_display highlights
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
+  speed_command_hook        { "org-speed-command-activate",
+                              "org-babel-speed-command-activate" }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
   inlinetask_default_state  nil
   inlinetask_show_first_star  false   show the first star of inline tasks

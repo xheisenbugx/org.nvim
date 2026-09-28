@@ -364,6 +364,11 @@ M.defaults = {
   use_speed_commands = false,
   --- Extra or changed speed commands: `{ key = action name | function | false }`.
   speed_commands = {},
+  --- Functions(key) deciding which speed command a key runs, tried in
+  --- order until one returns a command (an action name or a function); the
+  --- names of the built-in ones: headline commands and the Babel keys at a
+  --- `#+begin_src` line (org-speed-command-hook).
+  speed_command_hook = { "org-speed-command-activate", "org-babel-speed-command-activate" },
   --- Headlines of this level or deeper are inline tasks
   --- (org-inlinetask-min-level). false turns inline tasks off, like Emacs
   --- without the org-inlinetask module; Emacs uses 15 once it is loaded.

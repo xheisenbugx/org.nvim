@@ -357,6 +357,11 @@
 ---Extra or changed speed commands: an action name, a function, or `false`.
 ---(Emacs `org-speed-commands`, default: `{}`)
 ---@field speed_commands? table<string, string|fun()|false>
+---Functions of a key returning the speed command it runs (an action name or
+---a function) or nil, tried in order; `"org-speed-command-activate"` and
+---`"org-babel-speed-command-activate"` name the built-in ones.
+---(Emacs `org-speed-command-hook`)
+---@field speed_command_hook? (string|fun(key: string): (string|fun())?)[]
 ---Headlines of this level or deeper are inline tasks; `false` = off (Emacs
 ---without the org-inlinetask module; 15 once it is loaded).
 ---(Emacs `org-inlinetask-min-level`, default: `false`)
