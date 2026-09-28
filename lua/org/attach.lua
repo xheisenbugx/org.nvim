@@ -508,111 +508,272 @@ local function choose_attachment(target, prompt)
   return name and (dir .. "/" .. name) or nil, dir
 end
 
---- The org-attach dispatcher (keys as in org-attach-commands).
+--- Attach a file with `method` (nil = `attach.method`), asking for it.
+local function attach_prompted(method)
+  return function(target)
+    local path = prompt_path("File to keep as an attachment: ")
+    if path then
+      M.attach_file(path, method, target)
+    end
+  end
+end
+
+local function attach_buffer_prompted(target)
+  local names, bufs = {}, {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.bo[b].buflisted and b ~= target.bufnr then
+      local n = vim.api.nvim_buf_get_name(b)
+      names[#names + 1] = n ~= "" and vim.fn.fnamemodify(n, ":~:.") or ("[No Name] #" .. b)
+      bufs[#bufs + 1] = b
+    end
+  end
+  if #names == 0 then
+    utils.warn("No other buffers")
+    return
+  end
+  local _, idx = utils.select(names, { prompt = "Buffer whose contents should be attached" })
+  if idx then
+    M.attach_buffer(bufs[idx], target)
+  end
+end
+
+local function reveal(in_nvim)
+  return function(target)
+    local dir = M.dir_for(target, true)
+    if dir then
+      vim.fn.mkdir(dir, "p")
+      if in_nvim then
+        vim.cmd("edit " .. vim.fn.fnameescape(dir))
+      else
+        vim.ui.open(dir)
+      end
+    end
+  end
+end
+
+local function new_attachment(target)
+  local name = utils.input({ prompt = "Create attachment named: " })
+  if name and vim.trim(name) ~= "" then
+    local dir, hl = M.dir_for(target, true)
+    if dir then
+      vim.fn.mkdir(dir, "p")
+      set_tag(target.bufnr, hl.line)
+      vim.cmd("split " .. vim.fn.fnameescape(dir .. "/" .. vim.trim(name)))
+    end
+  end
+end
+
+local function open_attachment(in_nvim)
+  return function(target)
+    local path, dir = choose_attachment(target, "Open attachment")
+    if path then
+      before_open(path, dir, target)
+      if in_nvim then
+        vim.cmd("edit " .. vim.fn.fnameescape(path))
+      else
+        require("org.links").open("file:" .. path, { bufnr = target.bufnr })
+      end
+    end
+  end
+end
+
+local function delete_one(target)
+  local path, dir = choose_attachment(target, "Delete attachment")
+  if path then
+    vim.fn.delete(path, utils.is_dir(path) and "rf" or "")
+    after_change(dir, target)
+  end
+end
+
+--- The built-in dispatcher commands (org-attach-commands): key, label,
+--- function(target).
+local function builtin_commands()
+  return {
+    { "a", "Attach a file (" .. (cfg().method or "cp") .. ")", attach_prompted(nil) },
+    { "c", "Attach by copying", attach_prompted("cp") },
+    { "m", "Attach by moving", attach_prompted("mv") },
+    { "l", "Attach by hard link", attach_prompted("ln") },
+    { "y", "Attach by symbolic link", attach_prompted("lns") },
+    {
+      "u",
+      "Attach a file from a URL (curl)",
+      function(target)
+        local url = utils.input({ prompt = "URL of the file to attach: " })
+        if url and vim.trim(url) ~= "" then
+          M.attach_url(vim.trim(url), target)
+        end
+      end,
+    },
+    { "b", "Attach the contents of a buffer", attach_buffer_prompted },
+    { "n", "Create a new attachment file", new_attachment },
+    { "z", "Synchronize the ATTACH tag with the directory", M.sync },
+    { "o", "Open an attachment (system app / file_apps)", open_attachment(false) },
+    { "O", "Open an attachment in Neovim", open_attachment(true) },
+    { "f", "Open the attachment directory (system app)", reveal(false) },
+    { "F", "Open the attachment directory in Neovim", reveal(true) },
+    { "d", "Delete an attachment", delete_one },
+    {
+      "D",
+      "Delete all attachments",
+      function(target)
+        M.delete_all(target)
+      end,
+    },
+    {
+      "s",
+      "Set a specific attachment directory (DIR)",
+      function(target)
+        M.set_directory(target)
+      end,
+    },
+    { "S", "Unset the attachment directory (remove DIR)", M.unset_directory },
+  }
+end
+
+--- The dispatcher's commands: the built-ins with `attach.commands` on top
+--- (a key set to false removes that command).
+---@return { [1]: string, [2]: string, [3]: fun(target: org.Target) }[]
+function M.commands()
+  local list, index = {}, {}
+  for _, c in ipairs(builtin_commands()) do
+    list[#list + 1] = c
+    index[c[1]] = #list
+  end
+  local extra = cfg().commands or {}
+  local keys = vim.tbl_keys(extra)
+  table.sort(keys)
+  for _, key in ipairs(keys) do
+    local c = extra[key]
+    if c == false then
+      if index[key] then
+        list[index[key]] = false
+      end
+    elseif type(c) == "table" and type(c[1] or c.fn) == "function" then
+      local entry = { key, c.desc or c[2] or key, c.fn or c[1] }
+      if index[key] then
+        list[index[key]] = entry
+      else
+        list[#list + 1] = entry
+        index[key] = #list
+      end
+    end
+  end
+  return vim.tbl_filter(function(c)
+    return c ~= false
+  end, list)
+end
+
+--- The org-attach dispatcher: the commands of `M.commands()` in a menu,
+--- or, with `attach.expert`, at a one-line prompt.
 function M.menu()
   local bufnr, _, hl = edit.resolve_headline()
   if not hl then
     return
   end
   local target = { bufnr = bufnr, lnum = hl.line }
-  local choice = ui.menu({
-    title = "Attach",
-    items = {
-      { key = "a", label = "Attach a file (" .. (cfg().method or "cp") .. ")", value = "a" },
-      { key = "c", label = "Attach by copying", value = "c" },
-      { key = "m", label = "Attach by moving", value = "m" },
-      { key = "l", label = "Attach by hard link", value = "l" },
-      { key = "y", label = "Attach by symbolic link", value = "y" },
-      { key = "u", label = "Attach a file from a URL (curl)", value = "u" },
-      { key = "b", label = "Attach the contents of a buffer", value = "b" },
-      { key = "n", label = "Create a new attachment file", value = "n" },
-      { key = "z", label = "Synchronize the ATTACH tag with the directory", value = "z" },
-      { key = "o", label = "Open an attachment (system app / file_apps)", value = "o" },
-      { key = "O", label = "Open an attachment in Neovim", value = "O" },
-      { key = "f", label = "Open the attachment directory (system app)", value = "f" },
-      { key = "F", label = "Open the attachment directory in Neovim", value = "F" },
-      { key = "d", label = "Delete an attachment", value = "d" },
-      { key = "D", label = "Delete all attachments", value = "D" },
-      { key = "s", label = "Set a specific attachment directory (DIR)", value = "s" },
-      { key = "S", label = "Unset the attachment directory (remove DIR)", value = "S" },
-    },
-  })
+  local commands = M.commands()
+  local by_key = {}
+  for _, c in ipairs(commands) do
+    by_key[c[1]] = c
+  end
+  local choice
+  if cfg().expert then
+    local keys = table.concat(vim.tbl_map(function(c)
+      return c[1]
+    end, commands)) .. "q"
+    choice = utils.getchar("Select command: [" .. keys .. "]")
+    if choice == "q" then
+      utils.notify("Abort")
+      return
+    end
+    if choice and not by_key[choice] then
+      utils.error("No such attachment command: " .. choice)
+      return
+    end
+  else
+    choice = ui.menu({
+      title = "Attach",
+      items = vim.tbl_map(function(c)
+        return { key = c[1], label = c[2], value = c[1] }
+      end, commands),
+    })
+  end
   if not choice then
     return
   end
-  if choice == "a" or choice == "c" or choice == "m" or choice == "l" or choice == "y" then
-    local path = prompt_path("File to keep as an attachment: ")
-    if path then
-      local method = ({ c = "cp", m = "mv", l = "ln", y = "lns" })[choice]
-      M.attach_file(path, method, target)
+  by_key[choice][3](target)
+end
+
+--- The files selected in a file manager buffer: netrw's marked files (else
+--- the file under the cursor), oil.nvim's Visual selection or the entry
+--- under the cursor. Nil when the buffer is not a file manager.
+---@return string[]|nil
+function M.file_manager_selection()
+  local ft = vim.bo.filetype
+  if ft == "netrw" then
+    local ok, marked = pcall(vim.fn["netrw#Expose"], "netrwmarkfilelist")
+    if ok and type(marked) == "table" and #marked > 0 then
+      return marked
     end
-  elseif choice == "u" then
-    local url = utils.input({ prompt = "URL of the file to attach: " })
-    if url and vim.trim(url) ~= "" then
-      M.attach_url(vim.trim(url), target)
+    local dir = vim.b.netrw_curdir
+    local name = vim.trim(vim.fn.getline(".")):gsub("[*@/=|]$", "")
+    if not dir or name == "" or name == ".." or name == "." or not utils.exists(dir .. "/" .. name) then
+      return {}
     end
-  elseif choice == "b" then
-    local names, bufs = {}, {}
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.bo[b].buflisted and b ~= bufnr then
-        local n = vim.api.nvim_buf_get_name(b)
-        names[#names + 1] = n ~= "" and vim.fn.fnamemodify(n, ":~:.") or ("[No Name] #" .. b)
-        bufs[#bufs + 1] = b
+    return { vim.fs.normalize(dir .. "/" .. name) }
+  elseif ft == "oil" then
+    local ok, oil = pcall(require, "oil")
+    if not ok then
+      return nil
+    end
+    local dir = oil.get_current_dir()
+    local out = {}
+    local mode = vim.fn.mode()
+    local first, last = vim.fn.line("."), vim.fn.line(".")
+    if mode == "v" or mode == "V" then
+      first, last = math.min(vim.fn.line("v"), first), math.max(vim.fn.line("v"), last)
+    end
+    for l = first, last do
+      local entry = oil.get_entry_on_line(0, l)
+      if entry and dir then
+        out[#out + 1] = dir .. entry.name
       end
     end
-    if #names == 0 then
-      utils.warn("No other buffers")
-      return
-    end
-    local _, idx = utils.select(names, { prompt = "Buffer whose contents should be attached" })
-    if idx then
-      M.attach_buffer(bufs[idx], target)
-    end
-  elseif choice == "z" then
-    M.sync(target)
-  elseif choice == "f" or choice == "F" then
-    local dir = M.dir_for(target, true)
-    if dir then
-      vim.fn.mkdir(dir, "p")
-      if choice == "f" then
-        vim.ui.open(dir)
-      else
-        vim.cmd("edit " .. vim.fn.fnameescape(dir))
-      end
-    end
-  elseif choice == "S" then
-    M.unset_directory(target)
-  elseif choice == "n" then
-    local name = utils.input({ prompt = "Create attachment named: " })
-    if name and vim.trim(name) ~= "" then
-      local dir = M.dir_for(target, true)
-      if dir then
-        vim.fn.mkdir(dir, "p")
-        set_tag(bufnr, hl.line)
-        vim.cmd("split " .. vim.fn.fnameescape(dir .. "/" .. vim.trim(name)))
-      end
-    end
-  elseif choice == "o" or choice == "O" then
-    local path, dir = choose_attachment(target, "Open attachment")
-    if path then
-      before_open(path, dir, target)
-      if choice == "O" then
-        vim.cmd("edit " .. vim.fn.fnameescape(path))
-      else
-        require("org.links").open("file:" .. path, { bufnr = bufnr })
-      end
-    end
-  elseif choice == "d" then
-    local path, dir = choose_attachment(target, "Delete attachment")
-    if path then
-      vim.fn.delete(path, utils.is_dir(path) and "rf" or "")
-      after_change(dir, target)
-    end
-  elseif choice == "D" then
-    M.delete_all(target)
-  elseif choice == "s" then
-    M.set_directory(target)
+    return out
   end
+  return nil
+end
+
+--- Attach the files selected in a netrw or oil.nvim buffer to the entry at
+--- the cursor of a window showing an Org buffer, with `attach.method`
+--- (org-attach-dired-to-subtree).
+---@param paths? string[] default: `file_manager_selection()`
+function M.attach_from_file_manager(paths)
+  paths = paths or M.file_manager_selection()
+  if not paths then
+    utils.error("This command must be triggered in a netrw or oil buffer")
+    return
+  end
+  local win
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if w ~= vim.api.nvim_get_current_win() and vim.bo[vim.api.nvim_win_get_buf(w)].filetype == "org" then
+      win = w
+      break
+    end
+  end
+  if not win then
+    utils.error("Can't attach to subtree.  No window displaying an Org buffer")
+    return
+  end
+  local target = { bufnr = vim.api.nvim_win_get_buf(win), lnum = vim.api.nvim_win_get_cursor(win)[1] }
+  local done = {}
+  for _, p in ipairs(paths) do
+    done[#done + 1] = M.attach_file(p, nil, target)
+  end
+  if (cfg().method or "cp") == "mv" and vim.bo.filetype == "netrw" then
+    pcall(vim.cmd, "edit")
+  end
+  return done
 end
 
 return M

@@ -385,6 +385,12 @@ group("Refile, archive & attach", {
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
   archive_all_old = { "org.archive", "archive_all_old", desc = "Archive children with old time stamps" },
   attach = { "org.attach", "menu", desc = "Attachments" },
+  attach_from_file_manager = {
+    "org.attach",
+    "attach_from_file_manager",
+    desc = "Attach the netrw / oil files to the entry in the Org window",
+    global = true,
+  },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
   cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },
   agenda_set_restriction_lock = { "org.agenda", "set_restriction_lock", desc = "Lock agenda to subtree / file" },

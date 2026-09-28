@@ -179,6 +179,7 @@
 ---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
 ---| "datetree_cleanup" # Move date tree entries under the day of their time stamp
 ---| "archive_subtree_default" # Archive with archive_default_command
+---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
 ---| "capture_string" # Capture a string typed at a prompt
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target

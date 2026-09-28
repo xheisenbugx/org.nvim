@@ -2582,6 +2582,21 @@ its ancestor's ID (`id:ID::*Child`).
   d  delete one              D  delete all
   s  set the DIR property    S  remove the DIR property
 Directories can be attached too (copied recursively with "cp").
+`attach.commands` adds commands to the dispatcher or replaces them
+(org-attach-commands): `{ x = { fn = function(target) ... end, desc =
+"..." } }`, where `target` is `{ bufnr, lnum }` of the entry; `false`
+removes a built-in key. With `attach.expert` (org-attach-expert) the
+dispatcher asks for the key at a one-line prompt instead of showing the
+menu.
+
+:Org attach_from_file_manager
+                In a netrw or oil.nvim buffer: attach the marked files
+                (netrw), the Visual selection (oil) or the file under the
+                cursor to the entry at the cursor of a window showing an
+                Org buffer, with `attach.method`
+                (org-attach-dired-to-subtree). Map it in those buffers,
+                e.g. `vim.keymap.set("n", "<C-c><C-x>a", ...)` in a
+                `FileType netrw` autocmd.
 
 The directory is the DIR property (or the older ATTACH_DIR), else it
 comes from the ID: `attach.dir` + a folder from `attach.id_to_path`
@@ -4615,7 +4630,7 @@ attach ~
   "fallback" }, use_inheritance "selective", dir_relative false,
   preferred_new_method "id", store_link "attached",
   sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH",
-  git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
+  commands {} (extra dispatcher commands), expert false, git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
   git_dir "default" (|org-attach-git|)
 mobile ~ (|org-mobile|)
   directory nil, files { "agenda_files" }, files_exclude_regexp "",

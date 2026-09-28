@@ -1124,6 +1124,13 @@ M.defaults = {
     archive_delete = false,
     --- Tag of entries with attachments; false for none (org-attach-auto-tag).
     auto_tag = "ATTACH",
+    --- Extra dispatcher commands (org-attach-commands), by key:
+    --- `{ fn = function(target) end, desc = "..." }`; `false` removes a
+    --- built-in command.
+    commands = {},
+    --- Ask for the dispatcher key at a one-line prompt instead of showing
+    --- the command menu (org-attach-expert).
+    expert = false,
     --- Commit attachment changes to git (org-attach-git; Emacs turns it on
     --- with `(require 'org-attach-git)`).
     git = false,

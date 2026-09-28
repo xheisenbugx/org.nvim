@@ -447,6 +447,13 @@
 ---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
 ---(default: `"ATTACH"`)
 ---@field auto_tag? string|false
+---Extra dispatcher commands by key (`org-attach-commands`):
+---`{ fn = function(target) end, desc = "..." }`, or `false` to remove a
+---built-in one. (default: `{}`)
+---@field commands? table<string, { fn: fun(target: org.Target), desc?: string }|false>
+---Ask for the dispatcher key at a prompt instead of showing the menu
+---(`org-attach-expert`). (default: `false`)
+---@field expert? boolean
 ---Commit attachment changes with git (`org-attach-git`): after attaching,
 ---deleting or syncing, new/changed files are added, deleted ones removed and
 ---a commit "Synchronized attachments" is made. (default: `false`)
