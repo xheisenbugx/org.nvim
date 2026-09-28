@@ -410,6 +410,13 @@
 ---Store `id:` links with an ancestor's ID plus a search string instead of
 ---creating an ID (`org-id-link-consider-parent-id`). (default: `false`)
 ---@field link_consider_parent_id? boolean
+---Add `@` and the host name to new `"ts"` and `"org"` IDs
+---(`org-id-include-domain`). (default: `false`)
+---@field include_domain? boolean
+---Headings offered when completing an `id:` link, as refile target specs
+---(`files = "id"`: the files holding known IDs) (`org-id-completion-targets`).
+---(default: `{ { files = "current" }, { files = "id" } }`)
+---@field completion_targets? table[]
 
 ---Attachment options.
 ---@class org.Config.Attach

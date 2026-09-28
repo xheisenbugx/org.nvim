@@ -2554,6 +2554,16 @@ scan. Refiled and archived entries are recorded at their new place.
 New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
 stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
+`id.include_domain` (org-id-include-domain) adds "@" and the host name
+(a name without a dot gets ".mail-host-address-is-not-set", like Emacs)
+to "ts" and "org" IDs.
+Typing `id:` alone in |org-insert-link| completes a heading, not an ID
+(org-id-completion-targets): the headings of `id.completion_targets`,
+refile target specs (|org-refile|) that default to every heading of the
+buffer and of the files holding known IDs (`files = "id"`), as outline
+paths; the chosen heading gets an ID when it has none. In a buffer
+without a file only the specs naming files count; with no heading to
+offer you type the link.
 Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
 Before the first heading the ID goes into a file-level property drawer at
@@ -4591,7 +4601,8 @@ clock ~
   ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
   clocktable_default_properties { maxlevel = 2 } (header of a new clock
-  table: `:scope` first, then `:maxlevel`, then the others by name),
+  table: `:scope` first, then `:maxlevel`, then the others by name;
+  merged with the default, false leaves a key out),
   clocktable_formatter nil (function(tables, params) -> lines, see
   |org-clocktable|), total_time_cell_format "*%s*",
   file_time_cell_format "*%s*", resolve_expert false (resolve clocks at
@@ -4624,7 +4635,8 @@ id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
   ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
-  link_use_context true, link_consider_parent_id false
+  link_use_context true, link_consider_parent_id false, include_domain
+  false, completion_targets { { files = "current" }, { files = "id" } }
 attach ~
   dir "data/", method "cp"|"mv"|"ln"|"lns", id_to_path { "uuid", "ts",
   "fallback" }, use_inheritance "selective", dir_relative false,

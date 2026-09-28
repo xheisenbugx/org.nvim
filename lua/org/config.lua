@@ -1078,6 +1078,13 @@ M.defaults = {
     locations_file_relative = false,
     --- How new IDs are made (org-id-method): "uuid" | "ts" | "org".
     method = "uuid",
+    --- Add "@" and the host name to new "ts" and "org" IDs
+    --- (org-id-include-domain).
+    include_domain = false,
+    --- Headings offered when completing an id: link, as refile target specs
+    --- (`:h org-refile`; `files = "id"` = the files holding known IDs); the
+    --- chosen heading gets an ID when it has none (org-id-completion-targets).
+    completion_targets = { { files = "current" }, { files = "id" } },
     --- Prefix of new IDs (org-id-prefix), e.g. "Org".
     prefix = nil,
     --- Time stamp format of "ts" IDs (org-id-ts-format; %6N = microseconds).

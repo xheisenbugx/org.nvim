@@ -2375,6 +2375,46 @@ local function complete_file_link(bufnr, absolute)
   return "file:" .. file
 end
 
+--- Complete an id: link by heading (org-id-complete): choose a heading
+--- among `id.completion_targets` (refile target specs; in a buffer without
+--- a file, the "current" ones are dropped) and link to its ID, creating
+--- one when needed. With no targets, ask for the link text.
+---@param bufnr integer
+---@return string|nil
+function M.complete_id(bufnr)
+  local idcfg = config.opts.id or {}
+  local specs = idcfg.completion_targets or { { files = "current" }, { files = "id" } }
+  if vim.api.nvim_buf_get_name(bufnr) == "" then
+    specs = vim.tbl_filter(function(s)
+      return s.files ~= nil and s.files ~= "current"
+    end, specs)
+  end
+  local rcfg = config.opts.refile
+  local saved = { rcfg.use_outline_path, rcfg.verify, rcfg.use_cache }
+  -- org-id-get-with-outline-path-completion: outline paths (with the file
+  -- when the first spec names files), no verify function
+  local first = specs[1]
+  rcfg.use_outline_path = (first and first.files ~= nil and first.files ~= "current") and "file" or true
+  rcfg.verify, rcfg.use_cache = nil, false
+  local refile = require("org.refile")
+  local ok, found, dest = pcall(function()
+    local any = #specs > 0 and #refile.targets({ targets = specs, bufnr = bufnr }) > 0
+    return any, any and refile.pick_target({ prompt = "Entry", targets = specs, bufnr = bufnr }) or nil
+  end)
+  rcfg.use_outline_path, rcfg.verify, rcfg.use_cache = saved[1], saved[2], saved[3]
+  if not ok then
+    error(found, 0)
+  end
+  if not found then
+    return utils.input({ prompt = "Link: ", default = "id:" })
+  elseif not dest then
+    return nil
+  end
+  local tbuf = dest.bufnr or utils.load_buffer(dest.filename)
+  local id = require("org.id").get_create({ bufnr = tbuf, lnum = dest.lnum or 1 }, false)
+  return id and ("id:" .. id) or nil
+end
+
 --- Completion for a link type entered alone (org-link--try-special-completion).
 local function special_completion(scheme, bufnr)
   local t = M.link_type(scheme)
@@ -2384,10 +2424,7 @@ local function special_completion(scheme, bufnr)
   if scheme == "file" then
     return complete_file_link(bufnr)
   elseif scheme == "id" then
-    local idm = require("org.id")
-    local ids = idm.known_ids and idm.known_ids() or {}
-    local id = utils.input_complete("ID: ", ids)
-    return id and vim.trim(id) ~= "" and ("id:" .. vim.trim(id)) or nil
+    return M.complete_id(bufnr)
   elseif scheme == "attachment" then
     local list = require("org.attach").list({ bufnr = bufnr, lnum = vim.api.nvim_win_get_cursor(0)[1] })
     local names = vim.tbl_map(function(p)

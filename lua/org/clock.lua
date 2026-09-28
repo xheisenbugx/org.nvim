@@ -1327,18 +1327,18 @@ end
 
 --- The parameters of a new clock table (org-clock-clocktable-default-properties):
 --- `:scope` first (`scope` unless the properties give one), then `:maxlevel`,
---- then the others by name. Values: true is `t`, a list `( ... )`, anything
---- else as written.
+--- then the others by name. Values: true is `t`, a list `( ... )`, false
+--- leaves the key out, anything else as written.
 ---@param scope string
 ---@return string
 function M.default_properties_string(scope)
   local props = clock_cfg().clocktable_default_properties or {}
   local out = " :scope " .. lisp_value(props.scope == nil and scope or props.scope)
-  if props.maxlevel ~= nil then
+  if props.maxlevel ~= nil and props.maxlevel ~= false then
     out = out .. " :maxlevel " .. lisp_value(props.maxlevel)
   end
   local keys = vim.tbl_filter(function(k)
-    return k ~= "scope" and k ~= "maxlevel"
+    return k ~= "scope" and k ~= "maxlevel" and props[k] ~= false
   end, vim.tbl_keys(props))
   table.sort(keys)
   for _, k in ipairs(keys) do

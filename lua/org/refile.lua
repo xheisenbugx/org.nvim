@@ -34,6 +34,9 @@ local function spec_files(v, bufnr)
     return utils.is_org(bufnr) and { files.get_buffer(bufnr) } or {}
   elseif v == "agenda" then
     return files.agenda_files()
+  elseif v == "id" then
+    -- the files holding known IDs (org-id-files)
+    v = require("org.id").id_files()
   end
   local out = {}
   for _, p in ipairs(utils.glob_org_files(type(v) == "table" and v or { v })) do
