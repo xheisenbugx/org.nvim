@@ -2079,8 +2079,72 @@ function M.inline_at(line, col)
   end
 end
 
---- Every inline src block and inline call of `line`, left to right.
+--- Start columns of the inline src blocks and inline calls that the object
+--- parser finds in `line`, like `org-element-context`: none inside verbatim,
+--- code, link paths, export snippets, macros or another inline block.
+---@return table<integer, boolean>
+function M.inline_object_starts(line)
+  local element = require("org.export.element")
+  local parser = element.new()
+  local starts = {}
+  local function walk(s, offset, R)
+    local p, n = 1, #s
+    while p <= n do
+      local node, e = parser:object_at(s, p, R)
+      if node then
+        local span = s:sub(p, e - 1 - (node.post_blank or 0))
+        local inner, at
+        if node.type == "inline-src-block" or node.type == "inline-babel-call" then
+          starts[offset + p] = true
+        elseif node.inner then
+          -- emphasis, sub/superscript: the contents end the object
+          inner = node.inner
+          local k = span:find(inner, 1, true)
+          while k do
+            at = k
+            k = span:find(inner, k + 1, true)
+          end
+        elseif node.type == "link" and node.format == "bracket" then
+          at, inner = span:match("^%[%[.-%]%[()(.*)%]%]$")
+        elseif node.type == "footnote-reference" and node.fn_type == "inline" then
+          at, inner = span:match("^%[fn:[^:%]]*:()(.*)%]$")
+        end
+        if inner and at then
+          walk(inner, offset + p + at - 2, element.RESTRICTIONS[node.type] or element.RESTRICTIONS.paragraph)
+        end
+        p = e
+      else
+        p = p + 1
+      end
+    end
+  end
+  walk(line, 0, element.RESTRICTIONS.paragraph)
+  return starts
+end
+
+--- Every inline src block and inline call of `line`, left to right. Like
+--- Emacs, only real objects count: not text in verbatim, code, link paths
+--- and the like, nor comment, fixed-width and table lines.
 function M.inline_all(line)
+  local list = M.inline_candidates(line)
+  if #list == 0 then
+    return list
+  end
+  if line:match("^%s*#%s") or line:match("^%s*#$") or line:match("^%s*:%s") or line:match("^%s*:$") then
+    return {}
+  end
+  -- table cells can't contain inline Babel code (org-element-object-restrictions)
+  if line:match("^%s*|") then
+    return {}
+  end
+  local starts = M.inline_object_starts(line)
+  return vim.tbl_filter(function(ib)
+    return starts[ib.s] == true
+  end, list)
+end
+
+--- Everything in `line` that looks like an inline src block or call.
+function M.inline_candidates(line)
   local list = {}
   local init = 1
   while true do

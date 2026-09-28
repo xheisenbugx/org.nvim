@@ -1260,6 +1260,11 @@ function M.babel_inline(l)
   if not (l:find("src_", 1, true) or l:find("call_", 1, true)) then
     return l
   end
+  -- only real objects: not text in verbatim, code, link paths... (org-element-context)
+  local real = {}
+  for _, ib in ipairs(require("org.babel").inline_all(l)) do
+    real[ib.s] = true
+  end
   local result = {}
   local pos = 1
   local n = #l
@@ -1272,7 +1277,7 @@ function M.babel_inline(l)
     end
     local prev = s > 1 and l:sub(s - 1, s - 1) or ""
     local handled = false
-    if not prev:match("%w") then
+    if real[s] and not prev:match("%w") then
       if l:sub(s, s + 3) == "src_" then
         local lang = l:match("^src_([^ \t%[{]+)", s)
         if lang then

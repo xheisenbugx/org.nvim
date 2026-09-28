@@ -194,6 +194,11 @@ describe("export (Emacs features)", function()
     has(h, "res\n</pre>")
     hasnt(h, "none")
     has(h, 'Sum: <code>2</code> and <code class="src src-sh">ls</code>.')
+    -- text in verbatim, code and link paths is not Babel code
+    local h1 = html({ "V =src_sh{echo v}= C ~call_f()~ [[https://x.org/src_sh{p}][d]] R src_sh{r} {{{results(=r=)}}}." })
+    has(h1, "V <code>src_sh{echo v}</code> C <code>call_f()</code>")
+    has(h1, 'href="https://x.org/src_sh%7Bp%7D"')
+    has(h1, "R <code>r</code>.")
     -- without Babel on export every block and result is exported, like Emacs
     config.opts.babel.evaluate_on_export = false
     local h2 = html({ "#+begin_src sh :exports none", "echo none", "#+end_src" })
