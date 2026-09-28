@@ -724,7 +724,8 @@ local function plan(target, kind, arg)
   if not new then
     utils.notify(kind == "deadline" and "Entry no longer has a deadline." or "Entry is no longer scheduled.")
   end
-  return new or false
+  -- true after a removal: `false` would mean "not applicable" to key mappings
+  return new or true
 end
 
 --- Schedule or set a deadline on the headline at the cursor, or on every

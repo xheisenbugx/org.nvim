@@ -384,7 +384,6 @@ Keys (on a headline or anywhere in its body):
 - A new SCHEDULED or DEADLINE date removes a =CLOSED:= line.
 
 *** TODO Something to schedule
-# The removals below use the Emacs keys <C-c><C-s> / <C-c><C-d>.
 *Try:* on this headline press =<prefix>s=, then =i=, type =fri= and press
 =<CR>=.
 
@@ -400,13 +399,13 @@ Keys (on a headline or anywhere in its body):
 *Expect:* =DEADLINE: 2026-10-12 Mon -7d=: Oct 5 is 7 days before the
 deadline, so the warning period is 7 days.
 
-*Try:* press =4<C-c><C-s>=.
+*Try:* press =4<prefix>s=.
 
 *Expect:* the SCHEDULED part is gone and the message says
 =Entry is no longer scheduled.=; only =DEADLINE: 2026-10-12 Mon -7d=
 remains.
 
-*Try:* press =<C-c><C-d>= and then =x= in the calendar.
+*Try:* press =<prefix>d= and then =x= in the calendar.
 
 *Expect:* the planning line is gone: =Entry no longer has a deadline.=
 
