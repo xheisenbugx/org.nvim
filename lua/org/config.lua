@@ -1225,14 +1225,21 @@ M.defaults = {
       bash = { cmd = "bash" },
       zsh = { cmd = "zsh" },
       fish = { cmd = "fish" },
-      python = { cmd = "python3", ext = "py" },
+      -- hline_to: an hline of a table variable (org-babel-python-hline-to);
+      -- None_to: a None of a list result (org-babel-python-None-to);
+      -- session_cmd: the REPL of sessions, as it is (org-babel-python-command-session)
+      python = { cmd = "python3", ext = "py", hline_to = "None", None_to = "hline", session_cmd = nil },
       python3 = { cmd = "python3", ext = "py" },
-      lua = { cmd = "nvim", ext = "lua" }, -- evaluated inside Neovim
+      -- evaluated inside Neovim; another cmd ("lua", "luajit") runs it
+      -- like ob-lua (org-babel-lua-command). hline_to / None_to /
+      -- multiple_values_separator: org-babel-lua-*
+      lua = { cmd = "nvim", ext = "lua", hline_to = "None", None_to = "hline", multiple_values_separator = ", " },
       js = { cmd = "node", ext = "js" },
       javascript = { cmd = "node", ext = "js" },
       typescript = { cmd = "npx tsx", ext = "ts" },
       ts = { cmd = "npx tsx", ext = "ts" },
-      ruby = { cmd = "ruby", ext = "rb" },
+      -- org-babel-ruby-hline-to / org-babel-ruby-nil-to
+      ruby = { cmd = "ruby", ext = "rb", hline_to = "nil", nil_to = "hline" },
       perl = { cmd = "perl", ext = "pl" },
       php = { cmd = "php", ext = "php" },
       r = { cmd = "Rscript", ext = "R" },

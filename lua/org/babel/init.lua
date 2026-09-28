@@ -855,8 +855,15 @@ end
 local function get_session(bufnr, lang, args, name)
   local fam = langs.family(lang)
   local cmd = {}
+  local explicit = fam == "ruby" and args.ruby ~= nil
+  -- org-babel-python-command-session: the REPL command, used as it is
+  local py_session = fam == "python" and not args.python and langs.lang_opt(lang, "session_cmd")
   if fam ~= "lua" then
-    cmd = lang_cmd(lang, args)
+    if py_session then
+      cmd, explicit = split_cmd(py_session), true
+    else
+      cmd = lang_cmd(lang, args)
+    end
     if not cmd then
       error("No babel command configured for language: " .. tostring(lang), 0)
     end
@@ -870,7 +877,7 @@ local function get_session(bufnr, lang, args, name)
     name = name,
     cmd = cmd,
     cwd = block_cwd(bufnr, args),
-    explicit = fam == "ruby" and args.ruby ~= nil,
+    explicit = explicit,
   })
 end
 
@@ -968,6 +975,10 @@ local function lua_result(res, args)
   local rp = results.result_params(args)
   if args.results_spec.collection == "output" then
     local out = res.output or ""
+    if not langs.scalar_result(args) then
+      -- `:results output table`: read like org-babel-lua-table-or-string
+      return langs.lua_table_or_string(vim.trim(out))
+    end
     return out ~= "" and (out .. "\n") or out
   end
   if res.value == nil then
@@ -1136,7 +1147,7 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
     return result
   end
   local cwd = block_cwd(bufnr, args)
-  if fam == "lua" then
+  if fam == "lua" and not langs.lua_external() then
     local res = langs.run_lua(body, args, vars)
     if res.error then
       M.error_notify(nil, res.error)
