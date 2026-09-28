@@ -1038,6 +1038,20 @@ local function unique_links(el, info)
   return out
 end
 
+-- `format "%s"' of an ordinal: a target inside a list item or a
+-- headline section gets a list of numbers, which Emacs prints in Lisp
+-- syntax, e.g. "(1 2)".
+local function ordinal_string(n)
+  if type(n) == "table" then
+    local parts = {}
+    for i, x in ipairs(n) do
+      parts[i] = tostring(x)
+    end
+    return "(" .. table.concat(parts, " ") .. ")"
+  end
+  return tostring(n)
+end
+
 local function describe_datum(datum, info)
   local t = datum.type
   if t == "plain-text" then
@@ -1078,11 +1092,11 @@ local function describe_datum(datum, info)
   elseif not number then
     return translate("Unknown reference", info)
   elseif et == "paragraph" then
-    return (translate("See figure %s", info):gsub("%%s", tostring(number)))
+    return (translate("See figure %s", info):gsub("%%s", ordinal_string(number)))
   elseif et == "src-block" then
-    return (translate("See listing %s", info):gsub("%%s", tostring(number)))
+    return (translate("See listing %s", info):gsub("%%s", ordinal_string(number)))
   elseif et == "table" then
-    return (translate("See table %s", info):gsub("%%s", tostring(number)))
+    return (translate("See table %s", info):gsub("%%s", ordinal_string(number)))
   end
   return translate("Unknown reference", info)
 end
