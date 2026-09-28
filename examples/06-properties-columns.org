@@ -1,0 +1,986 @@
+#+TITLE: Properties and column view
+#+STARTUP: overview
+#+CATEGORY: properties
+#+PROPERTY: Effort_ALL 0:15 0:30 1:00 2:00 4:00
+#+PROPERTY: Owner_ALL Alice Bob Carol
+#+PROPERTY: Status_ALL "Not started" "In progress" Done
+#+PROPERTY: Team platform
+#+COLUMNS: %30ITEM %TODO %3PRIORITY %Owner %Effort{:} %TAGS
+
+* How to use this file
+Properties are key/value pairs attached to an entry, stored in a
+=:PROPERTIES:= drawer right below the headline. Column view shows the
+entries of a subtree as a table of their properties, with totals and other
+summaries computed over the children. This file walks through both, with
+exercises you can check.
+
+Start Neovim from the root of the repository with the bundled init file:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/06-properties-columns.org
+#+end_src
+
+=examples/minimal_init.lua= makes =<leader>= the =<Space>= key, so
+=<prefix>= (the default =<leader>o=) is =<Space>o=, and lists all
+=examples/*.org= files as agenda files. It keeps the default
+=use_property_inheritance = false=.
+
+- The file opens folded. =<Tab>= on a heading opens it, =<S-Tab>= cycles
+  the whole buffer. =<Tab>= on a =:PROPERTIES:= line folds the drawer.
+- =u= undoes anything; =git checkout examples/06-properties-columns.org=
+  restores the original file. Opening column view can write computed
+  totals into the file (see [[*Summaries are written back]]): that is
+  expected, =u= undoes it too.
+- =g?= lists every key of the buffer; the usual Emacs keys work as well.
+- *Try:* marks an exercise, *Expect:* says exactly what you should see.
+- Lines starting with =#= and a space are Org comments: notes for you.
+
+Options that only exist in Lua are shown as small =lua= source blocks:
+put the cursor in the block, press =<C-c><C-c>= and answer =y=. They run
+inside Neovim and last until you quit.
+
+** The settings of this file
+#+begin_example
+#+PROPERTY: Effort_ALL 0:15 0:30 1:00 2:00 4:00
+#+PROPERTY: Owner_ALL Alice Bob Carol
+#+PROPERTY: Status_ALL "Not started" "In progress" Done
+#+PROPERTY: Team platform
+#+COLUMNS: %30ITEM %TODO %3PRIORITY %Owner %Effort{:} %TAGS
+#+end_example
+
+- The =_ALL= lines list the allowed values of =Effort=, =Owner= and
+  =Status=; values with spaces are quoted.
+- =#+PROPERTY: Team platform= gives every entry of the file the property
+  =Team= (as a default that entries inherit).
+- =#+COLUMNS:= is the default layout of column view in this file.
+
+* Keys in this file
+| Key                    | Emacs key         | What it does                    |
+|------------------------+-------------------+---------------------------------|
+| =<prefix>p=            | =C-c C-x p=       | set a property                  |
+|                        | =C-c C-x P=       | set from one =NAME: value=      |
+| =<prefix>P=            |                   | delete a property               |
+| =<C-c><C-c>=           | =C-c C-c=         | menu, cursor on a property line |
+| =<S-Right>= =<S-Left>= | same              | next / previous allowed value   |
+| =<prefix>xe=           | =C-c C-x e=       | set the Effort                  |
+| =<prefix>C=            | =C-c C-x C-c=     | column view of this subtree     |
+| =1<prefix>C=           | =C-u C-c C-x C-c= | column view of the whole file   |
+| =<prefix>/= then =p=   | =C-c / p=         | sparse tree for =PROP=value=    |
+| =<prefix>/= then =m=   | =C-c / m=         | sparse tree for a match         |
+| =<prefix>xu=           | =C-c C-x C-u=     | update the dynamic block        |
+
+Keys inside column view are in [[*Keys in column view]].
+
+* Property drawers
+** Syntax
+The drawer comes right after the headline (and after its =SCHEDULED:= /
+=DEADLINE:= line, if any), starts with =:PROPERTIES:= and ends with
+=:END:=. Each line is =:NAME: value=. Names are case insensitive
+(=:owner:= and =:Owner:= are the same property) and can't contain spaces;
+a value may be empty.
+
+*** A task with properties
+:PROPERTIES:
+:Owner:    Alice
+:Status:   In progress
+:Effort:   1:00
+:Room:     4.12
+:END:
+# Four properties. Press <Tab> on the :PROPERTIES: line to fold them.
+
+*** A task with a date and properties
+SCHEDULED: <2026-10-05 Mon>
+:PROPERTIES:
+:Owner:    Bob
+:END:
+# The drawer follows the SCHEDULED line; that is still "right below".
+
+*** Not a property drawer
+Some text first.
+:PROPERTIES:
+:Owner:    Nobody
+:END:
+# Text before it: this is an ordinary drawer, not the entry's properties.
+# :Org lint reports it ("obsolete-properties-drawer").
+
+** Properties of the whole file
+Properties for every entry of the file come from =#+PROPERTY: NAME value=
+lines (this file has =Team=, and the =_ALL= lists), from a property
+drawer at the very top of the file (before any other line except
+comments), or from =global_properties= in your config. They act as
+defaults: an entry gets them when it looks them up with inheritance.
+
+#+begin_example
+:PROPERTIES:
+:Client:   Initech
+:END:
+#+TITLE: A file whose first lines are a property drawer
+#+end_example
+
+* Setting and deleting properties
+** <prefix>p: set a property
+=<prefix>p= (Emacs =<C-c><C-x>p=) asks for the property name, with
+completion of the names used in this buffer and the agenda files, then
+for the value. When the property has allowed values (=Owner_ALL=,
+=Status_ALL=, ...) you pick one from a list; otherwise you type it, with
+completion of the values already used. The drawer is created when needed
+and every line is written as =:NAME:= padded to 10 characters, then the
+value (=property_format= ="%-10s %s"=).
+
+*** TODO Rewrite the onboarding guide
+*Try:* on this heading press =<prefix>p=, type =Owner=, =<CR>=, and pick
+=Carol=.
+*Expect:* a new drawer below the heading:
+#+begin_example
+:PROPERTIES:
+:Owner:    Carol
+:END:
+#+end_example
+
+*Try:* press =<prefix>p= again, type =Budget=, =<CR>=, type =1200= and
+=<CR>=.
+*Expect:* a line =:Budget:   1200= is added to the same drawer.
+
+*Try:* press =<prefix>p=, type =Status= and pick =In progress=.
+*Expect:* =:Status:   In progress= (the quotes of =Status_ALL= are not
+written).
+
+** C-c C-x P: name and value in one answer
+=<C-c><C-x>P= asks one question, =NAME: value=, and sets it. A count
+(=1<C-c><C-x>P=) repeats the last pair on another heading without asking.
+
+*Try:* on "Fix the flaky test" press =<C-c><C-x>P=, type =Owner: Bob= and
+=<CR>=. Then on "Update the CI image" press =1<C-c><C-x>P=.
+*Expect:* both entries now have =:Owner:    Bob=.
+
+*** TODO Fix the flaky test
+*** TODO Update the CI image
+
+** Special properties set the headline
+A few special property names change the headline instead of the drawer:
+=TODO=, =PRIORITY=, =SCHEDULED= and =DEADLINE= (an empty value removes
+them). The other special properties (=ITEM=, =TAGS=, ...) can't be set.
+
+*** Plan the release party
+*Try:* press =<prefix>p=, type =TODO=, =<CR>=, type =TODO=, =<CR>=.
+*Expect:* the heading becomes =TODO Plan the release party=; no drawer.
+
+*Try:* press =<prefix>p=, type =DEADLINE=, =<CR>=, type =2026-10-30= and
+=<CR>=.
+*Expect:* a line =DEADLINE:= with =2026-10-30 Fri= in angle brackets is
+added below the heading.
+
+*Try:* press =<prefix>p=, type =PRIORITY=, =<CR>=, =A=, =<CR>=.
+*Expect:* the heading reads =TODO [#A] Plan the release party=.
+
+** Deleting properties
+- =<prefix>P= asks which property of the entry to delete (Emacs
+  =org-delete-property=). The drawer is removed when it becomes empty.
+- =:Org delete_property_globally= removes a property from every entry of
+  the buffer.
+
+*Try:* on "Old task with leftovers" press =<prefix>P= and pick =Owner=.
+*Expect:* only =:Legacy:   yes= is left in its drawer.
+
+*Try:* type =:Org delete_property_globally=, =<CR>=, then =Legacy=,
+=<CR>=.
+*Expect:* the message =Property Legacy removed from 2 entries= (both
+tasks below; their drawers disappear because they are empty now).
+
+*** TODO Old task with leftovers
+:PROPERTIES:
+:Owner:    Alice
+:Legacy:   yes
+:END:
+*** TODO Another old task
+:PROPERTIES:
+:Legacy:   yes
+:END:
+
+** C-c C-c on a property line
+With the cursor on a property line, =<C-c><C-c>= opens a menu:
+
+| Key | Action                                                     |
+|-----+------------------------------------------------------------|
+| =s= | set a new value (list of allowed values when there is one) |
+| =d= | delete the property from this entry                        |
+| =D= | delete it from every entry of the buffer                   |
+| =c= | compute it from the column summary of its children         |
+
+*** TODO Review the contract
+:PROPERTIES:
+:Owner:    Bob
+:END:
+*Try:* on the =:Owner:= line press =<C-c><C-c>=, then =s= and pick
+=Alice=.
+*Expect:* =:Owner:    Alice=.
+
+** Effort estimates: <prefix>xe
+=Effort= is the property for time estimates (=effort_property=). It is
+used by the agenda, the clock (see =08-clocking.org=) and by column view
+sums. =<prefix>xe= (Emacs =<C-c><C-x>e=) sets it, offering =Effort_ALL=
+(here =0:15= to =4:00=). Values are durations: =0:45=, =2:30=, =1h=,
+=90min=, =1d 2h=, stored exactly as typed.
+
+*** TODO Prepare the demo
+*Try:* press =<prefix>xe= and pick =2:00=.
+*Expect:* =:Effort:   2:00= in a new drawer.
+
+*Try:* press =<prefix>xe= again and pick another value.
+*Expect:* the line is updated in place.
+
+* Allowed values
+** _ALL lists and S-Right / S-Left
+A property =NAME_ALL= lists the values allowed for =NAME=. It can be set
+for the file (=#+PROPERTY: Owner_ALL Alice Bob Carol=) or in a drawer, in
+which case it applies to that subtree (=_ALL= is always inherited). Values
+with spaces are written in double quotes.
+
+With the cursor on a property line, =<S-Right>= / =<S-Left>= switch to the
+next / previous allowed value, wrapping around at the end. =<prefix>p=,
+=<prefix>xe= and the =s= of =<C-c><C-c>= offer these values as a list.
+
+*** TODO Negotiate the office lease
+:PROPERTIES:
+:Owner:    Alice
+:Status:   Not started
+:Effort:   1:00
+:Room:     4.12
+:END:
+*Try:* put the cursor on the =:Owner:= line and press =<S-Right>= three
+times.
+*Expect:* =Bob=, =Carol=, then =Alice= again.
+
+*Try:* on the =:Status:= line press =<S-Right>= twice, then =<S-Left>=.
+*Expect:* =In progress=, =Done=, then =In progress= again.
+
+*Try:* on the =:Effort:= line press =<S-Left>=.
+*Expect:* =0:30=.
+
+*Try:* on the =:Room:= line press =<S-Right>=.
+*Expect:* the warning "Allowed values for this property have not been
+defined". Nothing changes.
+
+** Allowed values for one subtree
+*** Colours of the new logo
+:PROPERTIES:
+:Color_ALL: red green blue
+:END:
+*Try:* on the =:Color:= line of "Draft two", press =<S-Right>=.
+*Expect:* =red= (after =blue= it wraps to the first value). The list
+comes from =Color_ALL= on the parent.
+
+**** Draft one
+:PROPERTIES:
+:Color:    red
+:END:
+**** Draft two
+:PROPERTIES:
+:Color:    blue
+:END:
+
+* Inheritance
+** Most properties are not inherited by default
+With the default =use_property_inheritance = false=, a property belongs
+only to the entry that has it: a search for =Client="ACME"= finds the
+entry with the drawer, not its children. Some properties are always
+looked up in the parents: =CATEGORY=, =COLUMNS=, =LOGGING=,
+=LOG_INTO_DRAWER=, =ARCHIVE=, the =_ALL= lists and a few others that
+Org itself uses.
+
+*** Website for ACME
+:PROPERTIES:
+:Client:   ACME
+:CATEGORY: acme
+:END:
+*Try:* press =<prefix>/= then =p=, type =Client=ACME= and =<CR>=.
+*Expect:* the message "1 match for Client="ACME"": only "Website for
+ACME". (The children don't have the property.)
+
+*Try:* press =<prefix>a= then =t=.
+*Expect:* the two tasks show the category =acme= in the first column:
+=CATEGORY= is inherited even without inheritance switched on.
+
+**** TODO Design the landing page
+**** TODO Set up hosting
+
+** Switching inheritance on
+=use_property_inheritance= can be =true= (every property), a list of
+names, or a Vim regexp matching names (Emacs
+=org-use-property-inheritance=). Run the block to make =Client= and
+=Team= inherited in this session:
+
+#+begin_src lua :results silent
+require("org.config").opts.use_property_inheritance = { "Client", "Team" }
+#+end_src
+
+*Try:* run the block, then press =<prefix>/= =p= with =Client=ACME= again.
+*Expect:* "3 matches": "Website for ACME" and its two tasks.
+
+*Try:* =<prefix>/= =p= with =Team=platform=.
+*Expect:* every heading of the file matches: =#+PROPERTY: Team platform=
+is the default for all of them, unless a subtree sets its own =Team=
+(see the next section).
+
+# Run this to go back to the default:
+#+begin_src lua :results silent
+require("org.config").opts.use_property_inheritance = false
+#+end_src
+
+** Overriding and appending (NAME+)
+A child's own value replaces the inherited one. =:NAME+: value= appends to
+the inherited value (or to an earlier line of the same drawer) with a
+space in between; =#+PROPERTY: NAME+ value= appends at file level.
+
+*** Mobile team
+:PROPERTIES:
+:Team:     mobile
+:Tools:    git
+:END:
+*Try:* run the inheritance block above again but with
+={ "Client", "Team", "Tools" }=, then =<prefix>/= =m= with
+=Tools={xcode}=.
+*Expect:* only "iOS app": its =Tools= value is =git xcode=.
+
+*Try:* =<prefix>/= =m= with =Tools="git gradle kotlin"=.
+*Expect:* only "Android app".
+
+*Try:* =<prefix>/= =p= with =Team=mobile=.
+*Expect:* "Mobile team" and its two children; the rest of the file has
+=platform=.
+
+**** iOS app
+:PROPERTIES:
+:Tools+:   xcode
+:END:
+**** Android app
+:PROPERTIES:
+:Tools+:   gradle kotlin
+:END:
+
+* Special properties
+Some property names are computed from the entry instead of read from the
+drawer. They can be used in searches and in column view:
+
+| Name           | Value                                             |
+|----------------+---------------------------------------------------|
+| =ITEM=         | the headline text (no keyword, priority or tags)  |
+| =TODO=         | the TODO keyword                                  |
+| =PRIORITY=     | the priority letter (=B= when there is no cookie) |
+| =TAGS=         | the entry's own tags, like =:work:urgent:=        |
+| =ALLTAGS=      | own and inherited tags                            |
+| =CATEGORY=     | the category (property, =#+CATEGORY=, file name)  |
+| =LEVEL=        | the number of stars (in searches)                 |
+| =FILE=         | the file name                                     |
+| =SCHEDULED=    | the =SCHEDULED:= timestamp                        |
+| =DEADLINE=     | the =DEADLINE:= timestamp                         |
+| =CLOSED=       | the =CLOSED:= timestamp                           |
+| =TIMESTAMP=    | the first active timestamp in the entry           |
+| =TIMESTAMP_IA= | the first inactive timestamp in the entry         |
+| =CLOCKSUM=     | the time clocked in the subtree                   |
+| =CLOCKSUM_T=   | the time clocked today                            |
+| =BLOCKED=      | =t= when the entry can't be marked DONE yet       |
+
+Don't put special names in a drawer: they are ignored there and
+=:Org lint= reports them.
+
+** Special properties in column view
+*** Release checklist                                               :release:
+:PROPERTIES:
+:COLUMNS:  %20ITEM %TODO %PRIORITY %TAGS %ALLTAGS %CLOCKSUM
+:END:
+*Try:* put the cursor on "Release checklist" and press =<prefix>C=.
+*Expect:* the four headlines of this subtree turn into rows; the column
+titles are in the window bar at the top. The values, shown here as a
+table (with the stars left out and sub-entries indented):
+#+begin_example
+ITEM                | TODO | PRIORITY | TAGS      | ALLTAGS        | CLOCKSUM
+Release checklist   |      | B        | :release: | :release:      | 3:15
+  Tag the release   | TODO | A        | :git:     | :release:git:  |
+  Write the chang…  | DONE | B        |           | :release:      | 2:30
+  Announce it       | TODO | B        | :blog:    | :release:blog: | 0:45
+#+end_example
+- =ITEM= is the title without keyword, priority and tags (cut to the
+  width of 20 from =%20ITEM=);
+- =PRIORITY= is =B= (the default) where there is no cookie;
+- =TAGS= are the entry's own tags, =ALLTAGS= include the inherited ones;
+- =CLOCKSUM= of the parent is the total of its subtree (=2:30 + 0:45=).
+Press =q= to leave column view.
+
+**** TODO [#A] Tag the release                                          :git:
+**** DONE Write the changelog
+CLOSED: [2026-09-24 Thu 17:00]
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 14:00]--[2026-09-24 Thu 16:30] =>  2:30
+:END:
+**** TODO Announce it                                                  :blog:
+:LOGBOOK:
+CLOCK: [2026-09-25 Fri 09:00]--[2026-09-25 Fri 09:45] =>  0:45
+:END:
+
+** Dates in column view
+*** Conference trip
+:PROPERTIES:
+:COLUMNS:  %20ITEM %SCHEDULED %DEADLINE %TIMESTAMP %CLOSED
+:END:
+*Try:* on "Conference trip" press =<prefix>C=.
+*Expect:* dates are shown as inactive timestamps (in square brackets):
+- "Book the flight": DEADLINE =[2026-10-09 Fri]=;
+- "Hotel": SCHEDULED =[2026-10-12 Mon]=;
+- "Talk": TIMESTAMP =[2026-11-03 Tue 14:00]=;
+- "Register": CLOSED =[2026-09-21 Mon 10:15]=.
+=TIMESTAMP= is the first active timestamp of the entry text.
+
+**** TODO Book the flight
+DEADLINE: <2026-10-09 Fri>
+**** TODO Hotel
+SCHEDULED: <2026-10-12 Mon>
+**** Talk
+The talk is on <2026-11-03 Tue 14:00>.
+**** DONE Register
+CLOSED: [2026-09-21 Mon 10:15]
+
+* Searching by property
+Properties can be used in match strings: in sparse trees
+(=<prefix>/ m=, =<C-c>\=), in the agenda (=<prefix>a m=) and in custom
+agenda commands. =<prefix>/ p= is a shortcut that asks for =NAME=value=
+and adds the quotes.
+
+| Match               | Finds entries whose ...                          |
+|---------------------+--------------------------------------------------|
+| =Owner="Alice"=     | Owner is exactly Alice                           |
+| =Owner<>"Alice"=    | Owner is not Alice (missing counts as different) |
+| =Effort>1=          | Effort is more than 1 (see below)                |
+| =Effort<*2=         | Effort exists and is less than 2 hours           |
+| =Status={progress}= | Status matches the regexp =progress=             |
+| =PRIORITY="A"=      | priority is A                                    |
+| =LEVEL=4=           | are at level 4                                   |
+| =TODO="DONE"=       | keyword is DONE                                  |
+| =+Owner="Bob"/TODO= | Owner is Bob and keyword TODO                    |
+| =DEADLINE<"<+1w>"=  | deadline is less than one week away              |
+
+Numbers compare as numbers, a missing property is =0= for numbers and
+=""= for strings. The starred operators (=<*=, =>*=, ...) only match
+entries that have the property. Like Emacs, a value is read as a number
+up to the first character that isn't part of one: =1:30= is =1=, =90min=
+is =90=, =1d= is =1=. So =Effort>1= works for =H:MM= values but not for
+mixed units.
+
+** Search playground
+# The expectations count only the four tasks of this subtree; the other
+# sections of the file have matches too.
+*Try:* =<prefix>/= =m= with =Owner="Alice"=.
+*Expect:* "Migrate the database" and "Write the runbook".
+
+*Try:* =<prefix>/= =p= with =Owner=Bob= (no quotes needed here).
+*Expect:* "Rotate the API keys".
+
+*Try:* =<prefix>/= =m= with =Effort>1=.
+*Expect:* "Migrate the database" (=4:00=) and "Write the runbook"
+(=2:00=).
+
+*Try:* =<prefix>/= =m= with =Effort<2=, then with =Effort<*2=.
+*Expect:* first "Rotate the API keys" and "Talk to the vendor" (no
+Effort: counts as 0); then only "Rotate the API keys".
+
+*Try:* =<prefix>/= =m= with =Status={progress}=.
+*Expect:* "Migrate the database".
+
+*Try:* =<prefix>/= =m= with =Owner<>"Alice"=.
+*Expect:* "Rotate the API keys" and "Talk to the vendor".
+
+*** TODO Migrate the database
+:PROPERTIES:
+:Owner:    Alice
+:Effort:   4:00
+:Status:   In progress
+:END:
+*** TODO Rotate the API keys
+:PROPERTIES:
+:Owner:    Bob
+:Effort:   0:30
+:Status:   Not started
+:END:
+*** TODO Write the runbook
+:PROPERTIES:
+:Owner:    Alice
+:Effort:   2:00
+:Status:   Done
+:END:
+*** TODO Talk to the vendor
+:PROPERTIES:
+:Owner:    Carol
+:END:
+
+* Column view
+** Opening and leaving column view
+=<prefix>C= (Emacs =<C-c><C-x><C-c>=) turns the headlines of the current
+subtree into rows of a table: each column shows a property, the column
+titles go into the window bar at the top. The text of the file does not
+change; body lines stay visible between the rows. =q= leaves the view.
+
+Which entries and which columns:
+- the format comes from the nearest =COLUMNS= property of the entry or
+  its parents, else from =#+COLUMNS:= (here
+  =%30ITEM %TODO %3PRIORITY %Owner %Effort{:} %TAGS=), else from
+  =columns_default_format=;
+- with a =COLUMNS= property, the view covers the subtree that has it;
+  otherwise the subtree at the cursor (the whole file when the cursor is
+  before the first heading);
+- =1<prefix>C= always shows the whole file with the file format.
+
+*** TODO Organise the team day                                         :work:
+*Try:* put the cursor on "Organise the team day" and press =<prefix>C=.
+*Expect:* five rows; the Effort column of "Organise the team day" shows
+=3:45=, the sum of its four children (=1:00 + 0:30 + 2:00 + 0:15=).
+The window bar shows the titles =ITEM=, =TODO=, =PR…=, =Owner=, =Effort=
+and =TAGS= (the =%3PRIORITY= column is 3 characters wide, so its title is
+cut). Press =q=.
+
+*Try:* press =1<prefix>C=.
+*Expect:* every headline of the file is a row now, with the =#+COLUMNS:=
+format; each top-level heading shows the Effort total of its subtree
+(e.g. "Column view" and "Summary operators"). =q= again.
+
+If you prefer a separate window, =columns_view = "table"= shows the view
+as a table in a split (=<CR>= there jumps to the entry):
+
+#+begin_src lua :results silent
+require("org.config").opts.columns_view = "table"
+#+end_src
+
+*Try:* run the block and press =<prefix>C= on "Organise the team day".
+*Expect:* a split at the bottom with the same five rows, drawn with
+=│= separators. =q= closes it. Set the option back to ="overlay"= to
+return to the default.
+
+**** TODO Book the venue
+:PROPERTIES:
+:Owner:    Alice
+:Effort:   1:00
+:END:
+**** TODO Order the food
+:PROPERTIES:
+:Owner:    Bob
+:Effort:   0:30
+:END:
+**** TODO Plan the games                                                :fun:
+:PROPERTIES:
+:Owner:    Carol
+:Effort:   2:00
+:END:
+**** DONE Send the invitations
+:PROPERTIES:
+:Owner:    Alice
+:Effort:   0:15
+:END:
+
+** The format: %[width]PROPERTY[(title)][{summary}]
+Each column is =%= followed by an optional width, the property name, an
+optional title in parentheses and an optional summary operator in
+braces: =%25ITEM= is the headline, 25 characters wide;
+=%Effort(Time){:}= shows =Effort= under the title =Time= and sums it as
+durations. A format after =;= in the braces (=%Cost{+;%.2f}=) is applied
+to every value of the column.
+
+** Keys in column view
+| Key                    | Action                                     |
+|------------------------+--------------------------------------------|
+| =e=                    | edit the value (also TODO, tags, dates)    |
+| =n= =p=                | next / previous allowed value              |
+| =<S-Right>= =<S-Left>= | same as =n= / =p=                          |
+| =1= .. =9=             | pick the N-th allowed value                |
+| =a=                    | edit the allowed values (=NAME_ALL=)       |
+| =v=                    | show the full value                        |
+| =<C-c><C-c>=           | toggle a checkbox value (else quit)        |
+| =<C-c><C-t>=           | change the TODO state                      |
+| =<C-c><C-o>=           | open the link in the field                 |
+| =h= =l=                | previous / next column (also arrow keys)   |
+| =<= =>=                | narrow / widen the column                  |
+| =<M-h>= =<M-l>=        | move the column left / right               |
+| =<M-L>= =<M-H>=        | add a column / delete the column           |
+| =s=                    | edit the column (property, title, summary) |
+| =<M-k>= =<M-j>=        | move the entry up / down                   |
+| =c= =o=                | contents / overview visibility             |
+| =r= =g=                | recompute                                  |
+| =q=                    | quit                                       |
+
+Changes to the layout (width, order, new columns) are saved back to the
+=COLUMNS= property or the =#+COLUMNS:= line the view comes from.
+
+*** TODO Move to the cloud
+:PROPERTIES:
+:COLUMNS:  %25ITEM %TODO %Owner %Status %Effort{:}
+:END:
+*Try:* on "Move to the cloud" press =<prefix>C=. Move to the =Owner=
+column of "Pick a provider" (=j= / =k= move between rows, =l= / =h=
+between columns) and press =n=.
+*Expect:* =Carol=, and the drawer of "Pick a provider" now says
+=:Owner:    Carol=.
+
+*Try:* in the =Status= column of the same row press =1=.
+*Expect:* =Not started= (the first allowed value).
+
+*Try:* in the =Effort= column of "Migrate the mail server" press =p=.
+*Expect:* =2:00=, and the total on "Move to the cloud" changes from =7:00=
+to =5:00=.
+
+*Try:* in the =TODO= column press =n=.
+*Expect:* the entry becomes =DONE=.
+
+*Try:* press =>= three times (one key at a time) in the =Owner= column,
+then =q=.
+*Expect:* the =COLUMNS= property of "Move to the cloud" now starts
+=%25ITEM %TODO %8Owner=: the width was saved.
+
+**** TODO Inventory the servers
+:PROPERTIES:
+:Owner:    Alice
+:Status:   Done
+:Effort:   1:00
+:END:
+**** TODO Pick a provider
+:PROPERTIES:
+:Owner:    Bob
+:Status:   In progress
+:Effort:   2:00
+:END:
+**** TODO Migrate the mail server
+:PROPERTIES:
+:Owner:    Carol
+:Status:   Not started
+:Effort:   4:00
+:END:
+
+* Summary operators
+A summary operator in braces computes a value for every entry with
+children, from the values of its children (and their children, bottom
+up). The entry's own value is not added: a parent shows the summary of
+its children. Each subtree below has its own =COLUMNS= property; press
+=<prefix>C= on its first heading to see the numbers of the *Expect:*
+lines.
+
+** Numbers: {+} {$} {min} {max} {mean}
+| Operator   | Result                                        |
+|------------+-----------------------------------------------|
+| ={+}=      | sum (=6=, =19.5=: printed like Emacs)         |
+| ={+;%.1f}= | sum, every value with one decimal             |
+| ={$}=      | sum with two decimals (money)                 |
+| ={min}=    | smallest value                                |
+| ={max}=    | largest value                                 |
+| ={mean}=   | arithmetic mean (always shown with a decimal) |
+
+*** Books to buy
+:PROPERTIES:
+:COLUMNS:  %20ITEM %Pages{+} %Price{$} %Rating(Low){min} %Rating(Avg){mean} %Rating(High){max}
+:END:
+*Try:* on "Books to buy" press =<prefix>C=.
+*Expect:*
+#+begin_example
+ITEM            | Pages | Price | Low | Avg | High
+Books to buy    | 1363  | 29.49 | 3   | 4.0 | 5
+  Dune          | 612   | 9.99  | 5   | 5   | 5
+  Neuromancer   | 271   | 7.5   | 4   | 4   | 4
+  Snow Crash    | 480   | 12    | 3   | 3   | 3
+#+end_example
+- =Pages{+}=: 612 + 271 + 480 = 1363;
+- =Price{$}=: 9.99 + 7.5 + 12 = =29.49=, always with two decimals;
+- the same property =Rating= appears three times with different
+  operators and titles: min =3=, mean =4.0= (a mean always has a
+  decimal), max =5=. Leaves show their own value.
+
+**** Dune
+:PROPERTIES:
+:Pages:    612
+:Price:    9.99
+:Rating:   5
+:END:
+**** Neuromancer
+:PROPERTIES:
+:Pages:    271
+:Price:    7.5
+:Rating:   4
+:END:
+**** Snow Crash
+:PROPERTIES:
+:Pages:    480
+:Price:    12
+:Rating:   3
+:END:
+
+** Durations: {:} {:min} {:max} {:mean}
+*** Sprint 42
+:PROPERTIES:
+:COLUMNS:  %16ITEM %Effort(Total){:} %Effort(Min){:min} %Effort(Max){:max} %Effort(Mean){:mean}
+:END:
+*Try:* on "Sprint 42" press =<prefix>C=.
+*Expect:* on the "Sprint 42" row: Total =6:15=, Min =0:45=, Max =4:00=,
+Mean =2:05= (375 minutes / 3 = 125 minutes).
+
+**** Design
+:PROPERTIES:
+:Effort:   1:30
+:END:
+**** Build
+:PROPERTIES:
+:Effort:   4:00
+:END:
+**** Test
+:PROPERTIES:
+:Effort:   0:45
+:END:
+
+*** Long project
+:PROPERTIES:
+:COLUMNS:  %16ITEM %Effort{:}
+:END:
+*Try:* on "Long project" press =<prefix>C=.
+*Expect:* =1d 21:30= on "Long project": 1 day + 20 hours + 90 minutes.
+Values in units (=1d=, =20h=, =90min=) are added up and written with
+=duration_format= (default ="d h:mm"=: days, then hours and minutes).
+When every value is =H:MM=, the total stays =H:MM= even past 24 hours.
+
+**** Research
+:PROPERTIES:
+:Effort:   1d
+:END:
+**** Prototype
+:PROPERTIES:
+:Effort:   20h
+:END:
+**** Review
+:PROPERTIES:
+:Effort:   90min
+:END:
+
+** Checkboxes: {X} {X/} {X%}
+*** Packing list
+:PROPERTIES:
+:COLUMNS:  %16ITEM %Packed(All){X} %Packed(Count){X/} %Packed(Pct){X%}
+:END:
+*Try:* on "Packing list" press =<prefix>C=.
+*Expect:* on "Packing list": All =[-]= (some but not all are =[X]=),
+Count =[2/4]=, Pct =[50%]=.
+
+*Try:* in the view, go to the =All= column of "Charger" and press
+=<C-c><C-c>= (or =n=).
+*Expect:* Charger's value becomes =[X]= (its drawer too), and the parent
+row shows =[-]=, =[3/4]=, =[75%]=.
+
+**** Passport
+:PROPERTIES:
+:Packed:   [X]
+:END:
+**** Tickets
+:PROPERTIES:
+:Packed:   [X]
+:END:
+**** Charger
+:PROPERTIES:
+:Packed:   [ ]
+:END:
+**** Sunscreen
+:PROPERTIES:
+:Packed:   [ ]
+:END:
+
+** Ages: {@min} {@max} {@mean}
+*** Waiting times
+:PROPERTIES:
+:COLUMNS:  %16ITEM %Wait(Shortest){@min} %Wait(Longest){@max} %Wait(Average){@mean}
+:END:
+*Try:* on "Waiting times" press =<prefix>C=.
+*Expect:* Shortest =12h=, Longest =5d=, Average =2d 12h= (7.5 days / 3).
+
+The =@= operators are meant for ages: a value that is a timestamp, such
+as =[2026-09-01 Tue]=, counts as the time elapsed since then, so the
+result changes every day. Durations like the ones above give fixed
+results.
+
+**** Support ticket
+:PROPERTIES:
+:Wait:     2d
+:END:
+**** Refund
+:PROPERTIES:
+:Wait:     5d
+:END:
+**** Password reset
+:PROPERTIES:
+:Wait:     12h
+:END:
+
+** Estimates: {est+}
+*** Kitchen remodel
+:PROPERTIES:
+:COLUMNS:  %18ITEM %Estimate{est+}
+:END:
+*Try:* on "Kitchen remodel" press =<prefix>C=.
+*Expect:* =10-14= on "Kitchen remodel". Each =low-high= value is treated
+as a range: the result adds up the midpoints (3 + 2 + 7 = 12) and
+widens them by the combined spread (the square root of the summed
+variances, about 2.4), rounded to whole numbers.
+
+**** Cabinets
+:PROPERTIES:
+:Estimate: 2-4
+:END:
+**** Plumbing
+:PROPERTIES:
+:Estimate: 1-3
+:END:
+**** Flooring
+:PROPERTIES:
+:Estimate: 5-9
+:END:
+
+** Nested summaries
+*** Company offsite
+:PROPERTIES:
+:COLUMNS:  %24ITEM %Cost{+;%.2f} %Effort{:}
+:END:
+*Try:* on "Company offsite" press =<prefix>C=.
+*Expect:*
+#+begin_example
+ITEM                | Cost    | Effort
+Company offsite     | 1800.00 | 2:30
+  Travel            | 300.00  | 0:30
+    Train tickets   | 240.00  | 0:30
+    Taxi            | 60.00   |
+  Venue             | 1500.00 | 2:00
+#+end_example
+Summaries are computed bottom up: "Travel" sums its children, then
+"Company offsite" sums "Travel" and "Venue". "Taxi" has no Effort and
+is simply left out. The =;%.2f= after =+= formats every value of the
+column, the entries' own values too, not just the sums.
+
+**** Travel
+***** Train tickets
+:PROPERTIES:
+:Cost:     240
+:Effort:   0:30
+:END:
+***** Taxi
+:PROPERTIES:
+:Cost:     60
+:END:
+**** Venue
+:PROPERTIES:
+:Cost:     1500
+:Effort:   2:00
+:END:
+
+** Summaries are written back
+Like Emacs, opening column view (or updating a =columnview= block) writes
+each computed summary into the entry's own property *when the entry
+already has that property*, even an empty one, and its value differs.
+This keeps totals in the file up to date.
+
+*** Garden project
+:PROPERTIES:
+:COLUMNS:  %20ITEM %Cost{+}
+:Cost:
+:END:
+*Try:* on "Garden project" press =<prefix>C=, then =q=.
+*Expect:* the drawer of "Garden project" now reads =:COST:     155=:
+the sum was written into the empty =Cost= property (its name upper-cased,
+like Emacs).
+
+*Try:* in the drawer of "Seeds" change =35= to =50=, then on the
+=:COST:= line of "Garden project" press =<C-c><C-c>= and =c= (compute).
+*Expect:* =170=: =:Org compute_property_at_point= recomputes just this
+property without opening column view.
+
+**** Seeds
+:PROPERTIES:
+:Cost:     35
+:END:
+**** Tools
+:PROPERTIES:
+:Cost:     120
+:END:
+
+** Your own summary operator
+=columns_summary_types= adds operators. Each is a Lua function receiving
+the list of child values (strings) and returning the summary. This one
+counts the children that have a value:
+
+#+begin_src lua :results silent
+require("org.config").opts.columns_summary_types = {
+  count = function(values) return tostring(#values) end,
+}
+#+end_src
+
+*** Bug triage
+:PROPERTIES:
+:COLUMNS:  %20ITEM %Severity{count}
+:END:
+*Try:* run the block, then on "Bug triage" press =<prefix>C=.
+*Expect:* the =Severity= column of "Bug triage" shows =3=.
+
+**** Crash on start
+:PROPERTIES:
+:Severity: high
+:END:
+**** Typo in menu
+:PROPERTIES:
+:Severity: low
+:END:
+**** Slow search
+:PROPERTIES:
+:Severity: medium
+:END:
+
+* Column view as a table (columnview dynamic block)
+A =columnview= dynamic block writes the column view into the file as an
+Org table that you can export or use in formulas. =<C-c><C-x>i= inserts
+one; =<C-c><C-c>= on the =#+BEGIN:= line (or =<prefix>xu=) updates it.
+Parameters: =:id local= (this subtree), =global= (the whole file), =file:path=
+or an =ID=; =:maxlevel N=; =:hlines N=; =:indent t=; =:skip-empty-rows t=;
+=:match "tags"=; =:exclude-tags (a b)=; =:format "..."=. See
+=18-dynamic-blocks.org= for everything about dynamic blocks.
+
+*** Offsite budget
+:PROPERTIES:
+:COLUMNS:  %20ITEM %Owner %Cost{+}
+:END:
+#+BEGIN: columnview :id local :indent t
+#+END:
+*Try:* put the cursor on the =#+BEGIN:= line and press =<C-c><C-c>=.
+*Expect:* the block is filled with:
+#+begin_example
+| <20>           |       |      |
+| ITEM           | Owner | Cost |
+|----------------+-------+------|
+| Offsite budget |       | 1150 |
+| \_  Catering   | Alice |  800 |
+| \_  Bus        | Bob   |  350 |
+#+end_example
+The first row holds the width =<20>= from =%20ITEM=, and that column is
+shrunk to 20 characters on screen. =\_= marks the indentation of
+sub-entries (=:indent t=). Change a =Cost= and update the block again.
+
+**** Catering
+:PROPERTIES:
+:Owner:    Alice
+:Cost:     800
+:END:
+**** Bus
+:PROPERTIES:
+:Owner:    Bob
+:Cost:     350
+:END:
+
+* Column view in the agenda
+In the agenda, =<C-c><C-x><C-c>= shows the agenda entries in column view
+too (with the format of each entry's file); see =09-agenda.org=.
+
+* Further reading
+- =:h org-properties= and =:h org-columns=
+- =:h org-match-syntax= – property matches
+- =:h org-dblocks= – the columnview block
+- =:h org-agenda-columns= – column view in the agenda
+- Related example files: [[file:04-todo.org][04-todo]],
+  [[file:05-tags.org][05-tags]], [[file:08-clocking.org][08-clocking]],
+  [[file:09-agenda.org][09-agenda]],
+  [[file:18-dynamic-blocks.org][18-dynamic-blocks]].

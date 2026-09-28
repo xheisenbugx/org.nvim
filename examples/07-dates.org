@@ -1,0 +1,992 @@
+#+TITLE: Dates and times
+#+STARTUP: overview
+#+CATEGORY: dates
+#+TODO: TODO(t) | DONE(d)
+
+* How to use this file
+Org keeps dates in the text itself, as /timestamps/ like
+=<2026-11-16 Mon>=. A timestamp can carry a time, a time range, a repeater
+and a warning period; two of them joined by =--= make a date range. Put one
+after =SCHEDULED:= or =DEADLINE:= under a headline and the entry becomes a
+task for that day. The agenda ([[file:09-agenda.org][09-agenda.org]]) collects them from all
+your files.
+
+This file walks through everything org.nvim does with dates: the syntax,
+inserting and editing timestamps, the calendar popup, the date input
+language, shifting dates, computing durations and diary sexps.
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it, =<S-Tab>= to cycle the whole file.
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see afterwards. Lines starting with =#= are comments about the example
+  next to them.
+- Nothing breaks if you make a mess: =u= undoes, and
+  =git checkout examples/07-dates.org= restores the file.
+- =<prefix>= means =<leader>o= (the default =mappings.prefix=). =g?= lists
+  every key of the buffer. Emacs keys (=C-c .=, =C-c C-s=, ...) work too;
+  they are written =<C-c>.= and =<C-c><C-s>= here.
+- A /count/ is a number typed before a key: =4<prefix>i.= means press =4=,
+  then =<leader>oi.=. Counts stand in for Emacs's =C-u= (=4=) and
+  =C-u C-u= (=16=).
+
+Start Neovim from the repository root with the bundled init file, so the
+agenda sees these files and your own notes are untouched:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/07-dates.org
+#+end_src
+
+=examples/minimal_init.lua= sets =agenda_files= to =examples/*.org= (plus a
+scratch directory under =stdpath("state")= for captures), and adds a few
+capture templates and custom agenda commands. The live timestamps of this
+file therefore show up in your agenda while you work through it.
+
+*Two conventions of this file:*
+
+1. *Today is assumed to be Mon 2026-09-28.* Every "you get" date was
+   computed by org.nvim on that day. If you read this later, relative
+   inputs (=+3d=, =fri=, ...) give dates relative to /your/ today: the rule
+   stays the same, only the result moves.
+2. Every active =<...>= timestamp in a file is an agenda entry, even inside
+   an example block or a table. So that the expected results written in
+   this file don't show up in your agenda, *an expected active timestamp is
+   written without its angle brackets*: "Expect: =SCHEDULED: 2026-10-02 Fri="
+   means the buffer shows =SCHEDULED:= followed by the date in =<>=.
+   Exercises that don't need the agenda use inactive =[...]= timestamps:
+   every key works the same on both kinds.
+
+** Keys in this file
+| Key                          | Emacs key         | What it does                            |
+|------------------------------+-------------------+-----------------------------------------|
+| =<prefix>i.=                 | =<C-c>.=          | insert / change an active timestamp     |
+| =<prefix>i!=                 | =<C-c>!=          | insert / change an inactive timestamp   |
+| =<prefix>s=                  | =<C-c><C-s>=      | SCHEDULED (count 4: remove, 16: delay)  |
+| =<prefix>d=                  | =<C-c><C-d>=      | DEADLINE (count 4: remove, 16: warning) |
+| =<S-Right>= =<S-Left>=       |                   | timestamp one day later / earlier       |
+| =<S-Up>= =<S-Down>=          |                   | the part under the cursor +1 / -1       |
+| =<C-a>= =<C-x>=              |                   | same as =<S-Up>= / =<S-Down>=           |
+| =<C-c><C-c>=                 | =<C-c><C-c>=      | normalize the timestamp (fix weekday)   |
+| =<CR>=                       |                   | open the agenda on that day             |
+| (none)                       | =<C-c><C-y>=      | length of a range (count: insert it)    |
+| (none)                       | =<C-c><=          | insert today's date                     |
+| (none)                       | =<C-c>>=          | open the calendar, just to look         |
+| (none)                       | =<C-c><C-x><C-t>= | custom timestamp display on / off       |
+| =:Org toggle_timestamp_type= |                   | switch =<...>= and =[...]=              |
+
+* Timestamp anatomy
+A timestamp is a date in angle or square brackets:
+
+#+begin_example
+<2026-11-16 Mon>          active: shows up in the agenda
+[2026-11-16 Mon]          inactive: a plain note of when something happened
+#+end_example
+
+- The date is always =YYYY-MM-DD=. The weekday name after it is only for
+  you to read: org.nvim writes it, but ignores it when reading, so a wrong
+  or missing weekday does not change the date (see "Normalizing" below).
+- *Active* =<...>= timestamps anywhere in an entry (headline, body)
+  make the entry appear in the agenda on that day.
+- *Inactive* =[...]= timestamps never do. Use them for "created on",
+  "last contacted", log notes, and so on. CLOCK lines and CLOSED use them.
+- The rest (time, repeater, warning) goes inside the brackets, after the
+  weekday, separated by spaces.
+
+The full shape, every part after the weekday optional:
+
+#+begin_example
+<2026-12-03 Thu 10:00-11:30 +1w -2d>
+ |          |   |     |     |   `-- warning / delay period
+ |          |   |     |     `------ repeater
+ |          |   |     `------------ end time (a time range)
+ |          |   `------------------ start time, 24-hour HH:MM
+ |          `---------------------- weekday name (informational)
+ `--------------------------------- date
+#+end_example
+
+** Live examples
+# These two stamps are real: the first one shows in the agenda on Oct 1,
+# the second one never does.
+- Team offsite <2026-10-01 Thu>
+- Bought the tickets [2026-09-27 Sun]
+
+*Try:* put the cursor on the =<= of the offsite timestamp and press
+=<S-Up>=.
+
+*Expect:* the line becomes =- Team offsite [2026-10-01 Thu]=: on a bracket,
+=<S-Up>= / =<S-Down>= switch between active and inactive. Press =<S-Up>=
+again to switch back.
+
+*Try:* with the cursor anywhere inside the second timestamp, run
+=:Org toggle_timestamp_type=.
+
+*Expect:* the brackets become angle brackets (=- Bought the tickets= with
+=2026-09-27 Sun= in =<>=). Run it again to restore the square brackets.
+
+** Normalizing: wrong weekdays and short dates
+Typing a timestamp by hand is fine: org.nvim reads =[2026-10-1]= (no
+padding, no weekday) and =[2026-10-01 Mon]= (wrong weekday) as the date
+2026-10-01. =<C-c><C-c>= on a timestamp rewrites it in the canonical form.
+
+# Both of these are "wrong" on purpose: October 1st 2026 is a Thursday.
+# They are plain lines, not list items: in a list item, <C-c><C-c> acts on
+# the item (its checkbox) instead.
+Wrong weekday: [2026-10-01 Mon]
+
+No padding, no weekday: [2026-10-1]
+
+*Try:* put the cursor on the first timestamp and press =<C-c><C-c>=. Do the
+same on the second one.
+
+*Expect:* both become =[2026-10-01 Thu]=.
+
+Every edit made with the keys of this file (=<S-Right>=, =<C-a>=, the date
+prompt) also writes the correct weekday.
+
+* Times and time ranges
+Add a time after the weekday, in 24-hour =HH:MM=. Add =-HH:MM= for an end
+time on the same day:
+
+#+begin_example
+<2026-11-19 Thu 09:30>         at 09:30
+<2026-11-19 Thu 14:00-15:30>   from 14:00 to 15:30
+[2026-09-27 Sun 18:45]         an inactive stamp with a time
+#+end_example
+
+In the agenda, timed entries are sorted by time and placed on the time
+grid; a time range shows as =14:00-15:30=.
+
+# Live: this meeting shows in the agenda of Oct 1 at 14:00-15:30.
+- Design review <2026-10-01 Thu 14:00-15:30>
+
+*Try:* put the cursor on the =15= of =15:30= and press =<C-a>=.
+
+*Expect:* the time part reads =14:00-16:30=: the end hour moved, the start
+stayed.
+
+*Try:* now put the cursor on the =14= and press =<C-x>=.
+
+*Expect:* =13:00-15:30=: changing the /start/ hour moves the end along with
+it, so the range keeps its length. Press =u= twice to get back to
+=14:00-15:30=.
+
+* Date ranges
+Two timestamps joined by two dashes, with nothing between them, are a
+/date range/: the agenda shows the entry on every day of the range, with
+=(1/5):=, =(2/5):=, ... in front of it.
+
+#+begin_example
+<2026-11-23 Mon>--<2026-11-27 Fri>                 five days
+<2026-11-23 Mon 09:00>--<2026-11-25 Wed 17:30>     with times at both ends
+[2026-09-01 Tue]--[2026-09-15 Tue]                 inactive range (a note)
+#+end_example
+
+# Live: Mon Oct 5 to Fri Oct 9 in the agenda.
+- Conference week <2026-10-05 Mon>--<2026-10-09 Fri>
+
+*Try:* put the cursor inside the /second/ timestamp (on the =09=) and press
+=<S-Right>=.
+
+*Expect:* the end becomes =2026-10-10 Sat=, the start stays =2026-10-05
+Mon=: only the end you are on moves. =<S-Left>= brings it back.
+
+*Try:* with the cursor inside the second timestamp, run
+=:Org toggle_timestamp_type=.
+
+*Expect:* the second timestamp becomes =[2026-10-09 Fri]=, the first one
+stays active: only that end changes. Run it again to restore it.
+
+** Making a range
+There is no special command: a range is just two timestamps with =--= in
+between. Insert the second timestamp after the first one, then replace
+the space between them. (The date keys insert /after/ the cursor, and with
+the cursor on a timestamp they change that timestamp instead, so first add
+a space to stand on.)
+
+- Trip to Lisbon [2026-11-02 Mon]
+
+*Try:* on the line above, press =A=, type a space and =<Esc>=. Then press
+=<prefix>i!=, =i=, type =nov 6= and =<CR>=.
+
+*Expect:* =- Trip to Lisbon [2026-11-02 Mon] [2026-11-06 Fri]=: two
+separate timestamps.
+
+*Try:* put the cursor on the space between =]= and =[= and press =s--<Esc>=
+(replace the space with two dashes).
+
+*Expect:* =- Trip to Lisbon [2026-11-02 Mon]--[2026-11-06 Fri]=, a range.
+Check it with =<C-c><C-y>= (see "Computing durations"): the message is
+=4 days=.
+
+* Repeaters
+A repeater makes a timestamp come back. It goes after the date (and time):
+a mark, a number and a unit (=h= hours, =d= days, =w= weeks, =m= months,
+=y= years).
+
+| Repeater | Name       | When the task is marked DONE, the date moves ...   |
+|----------+------------+----------------------------------------------------|
+| =+1w=    | cumulative | by exactly 1w from the old date (maybe still past) |
+| =++1w=   | catch-up   | by 1w steps until it is after today                |
+| =.+1w=   | restart    | to today + 1w                                      |
+
+In the agenda, a repeating timestamp shows up on /every/ occurrence (each
+week for =+1w=), not only on the next one.
+
+#+begin_example
+<2026-12-07 Mon 09:00 +1w>       every Monday at 09:00
+<2026-12-31 Thu +1y>             every year on December 31
+<2026-12-01 Tue +1m>             on the 1st of every month
+<2026-12-01 Tue 08:00 +2h>       every two hours
+SCHEDULED: <2026-12-01 Tue .+2d/4d>   a habit: every 2 to 4 days
+#+end_example
+
+The =/4d= after a =.+= repeater is the maximum interval of a /habit/ (an
+entry with =:STYLE: habit=): see [[file:04-todo.org][04-todo.org]] and
+[[file:09-agenda.org][09-agenda.org]].
+
+** What happens on DONE
+Marking a repeating task DONE does not leave it DONE: org.nvim logs the
+change, puts the TODO keyword back, and moves every repeating timestamp of
+the entry forward. How far depends on the kind of repeater. Each task below
+says exactly what you get when you do it on 2026-09-28. The dates are in the
+past on purpose (the tasks are overdue).
+
+To mark a task DONE: cursor on the headline, =<C-c><C-t>= then =d= (or
+=<prefix>T= then =d=).
+
+*** TODO Water the plants (cumulative +1w)
+SCHEDULED: <2026-09-07 Mon +1w>
+
+*Try:* mark it DONE.
+
+*Expect:* the keyword stays =TODO=, the planning line reads
+=SCHEDULED: 2026-09-14 Mon +1w= (one week later, /still in the past/), and
+below it you get a =:PROPERTIES:= drawer with
+=:LAST_REPEAT: [2026-09-28 Mon HH:MM]= and a line
+=- State "DONE"       from "TODO"       [2026-09-28 Mon HH:MM]=. Every
+missed week has to be done once: that is what =+= means. Mark it DONE two
+more times: =2026-09-21 Mon=, then =2026-09-28 Mon=.
+
+*** TODO Weekly review (catch-up ++1w)
+SCHEDULED: <2026-09-07 Mon ++1w>
+
+*Try:* mark it DONE.
+
+*Expect:* =SCHEDULED: 2026-10-05 Mon ++1w=: whole weeks are added until the
+date is after today, so it stays on Mondays but skips the missed ones.
+
+*** TODO Change the water filter (restart .+3d)
+SCHEDULED: <2026-09-20 Sun .+3d>
+
+*Try:* mark it DONE.
+
+*Expect:* =SCHEDULED: 2026-10-01 Thu .+3d=: three days from /today/, no
+matter when it was due.
+
+*** TODO Pay the phone bill (monthly, with a warning)
+DEADLINE: <2026-09-30 Wed +1m -3d>
+
+*Try:* mark it DONE.
+
+*Expect:* =DEADLINE: 2026-10-30 Fri +1m -3d=: the repeater and the warning
+period are kept.
+
+*** TODO Month-end report (the 31st problem)
+SCHEDULED: <2026-01-31 Sat +1m>
+
+# January 31 + 1 month = "February 31", which does not exist.
+*Try:* mark it DONE.
+
+*Expect:* =SCHEDULED: 2026-03-03 Tue +1m=: like Emacs, a day past the end
+of the month rolls over into the next one (February 2026 has 28 days, so
+"Feb 31" is March 3).
+
+*** Hour repeaters
+A =.+Nh= repeater counts from the current minute: a task with
+=SCHEDULED: <... 08:00 .+2h>= marked DONE at 15:09 gets 17:09 of the same
+day, while =+2h= would have added two hours to 08:00 (10:00). There is no
+live example here: an hour repeater shows up on every day of the agenda.
+
+* Warning and delay periods
+The last part of a timestamp, =-Nd= (or =-Nw=, =-Nm=, =-Ny=), changes
+/when/ a SCHEDULED or DEADLINE entry starts showing in the agenda.
+
+- On a *DEADLINE*, it is the warning period: the entry is listed on today
+  N days before it is due, with =In   N d.:= in front. Without one,
+  =deadline_warning_days= (14) is used.
+- On a *SCHEDULED* date, it is a delay: the entry is hidden until N days
+  /after/ the scheduled day.
+- With a repeater, =--= (two dashes) applies the period only to the first
+  occurrence; a single =-= applies it to every one.
+- Months and years count as 30.4 and 365.25 days.
+
+#+begin_example
+DEADLINE: <2026-11-19 Thu -3d>        warn from Nov 16
+DEADLINE: <2026-11-19 Thu -0d>        no warning at all, only on the day
+DEADLINE: <2026-12-24 Thu -2w>        warn two weeks ahead
+SCHEDULED: <2026-11-16 Mon -2d>       hidden until Nov 18
+SCHEDULED: <2026-12-07 Mon +1w -1d>   every Monday, each shown on Tuesday
+SCHEDULED: <2026-12-07 Mon +1w --1d>  only the first one delayed
+#+end_example
+
+*** TODO Submit the conference talk
+DEADLINE: <2026-10-02 Fri -2d>
+
+# Due Friday Oct 2, warning 2 days: listed on "today" from Wed Sep 30 on.
+*Try:* open the agenda with =<prefix>a= then =a= (the week view).
+
+*Expect:* today (Mon 28) it is /not/ listed under today: it is 4 days away
+and warns only 2 days ahead. It is listed on its own day, Fri 2, as
+=Deadline:   TODO Submit the conference talk=.
+
+*Try:* press =q=, delete =-2d= (and the space before it) from the
+timestamp, open the agenda again.
+
+*Expect:* now it is also listed under today as
+=In   4 d.:  TODO Submit the conference talk=: the default warning of 14
+days applies. Press =u= in this file afterwards to put the =-2d= back.
+
+*** TODO Renew the car insurance
+DEADLINE: <2026-12-18 Fri -2m>
+
+# -2m is about 61 days: the warning starts mid October, so it is not
+# listed today yet.
+
+* SCHEDULED and DEADLINE
+=SCHEDULED:= and =DEADLINE:= go on the line right after the headline (the
+/planning line/). Both can be on the same line. =CLOSED:= is added there
+when a task is marked done (with =log_done=, or =#+STARTUP: logdone=).
+
+#+begin_example
+,* TODO Write the report
+DEADLINE: <2026-11-19 Thu> SCHEDULED: <2026-11-16 Mon>
+#+end_example
+
+- *SCHEDULED* means "start working on it on that day". The entry shows up
+  in the agenda on that day and, until it is done, on today too
+  (=Sched.Nx:=, N days late).
+- *DEADLINE* means "must be done by that day". It shows up before the day
+  (the warning period) and keeps showing after it (=N d. ago:=).
+
+Keys (on a headline or anywhere in its body):
+
+- =<prefix>s= (=<C-c><C-s>=) asks for a date and sets SCHEDULED.
+- =<prefix>d= (=<C-c><C-d>=) asks for a date and sets DEADLINE.
+- On an entry that already has one, the prompt starts at that date, and
+  the repeater, the warning and the time of the old date are kept when
+  you don't type new ones.
+- In the calendar, =x= (or =<Del>=) removes the date.
+- =4<prefix>s= / =4<prefix>d= remove the date without a prompt.
+- =16<prefix>s= / =16<prefix>d= ask for a second date and set the delay /
+  warning period to the number of days between the two.
+- Other counts (=2<prefix>s=, ...) are ignored, like Emacs.
+- In Visual mode, =<prefix>s= / =<prefix>d= set the date of every headline
+  in the selection (the date prompt comes once per headline).
+- A new SCHEDULED or DEADLINE date removes a =CLOSED:= line.
+
+*** TODO Something to schedule
+# The removals below use the Emacs keys <C-c><C-s> / <C-c><C-d>.
+*Try:* on this headline press =<prefix>s=, then =i=, type =fri= and press
+=<CR>=.
+
+*Expect:* a new line =SCHEDULED: 2026-10-02 Fri= right under the headline.
+
+*Try:* press =<prefix>d=, then =i=, type =+2w= and =<CR>=.
+
+*Expect:* the planning line becomes
+=DEADLINE: 2026-10-12 Mon SCHEDULED: 2026-10-02 Fri=.
+
+*Try:* press =16<prefix>d=, then =i=, type =oct 5= and =<CR>=.
+
+*Expect:* =DEADLINE: 2026-10-12 Mon -7d=: Oct 5 is 7 days before the
+deadline, so the warning period is 7 days.
+
+*Try:* press =4<C-c><C-s>=.
+
+*Expect:* the SCHEDULED part is gone and the message says
+=Entry is no longer scheduled.=; only =DEADLINE: 2026-10-12 Mon -7d=
+remains.
+
+*Try:* press =<C-c><C-d>= and then =x= in the calendar.
+
+*Expect:* the planning line is gone: =Entry no longer has a deadline.=
+
+*** TODO Move me relative to my own date
+SCHEDULED: <2026-10-15 Thu 09:00>
+
+In the date prompt, =+3d= counts from /today/, =++3d= from the date being
+changed (see "Date input" below). The time of the old date is kept when you
+type only a date.
+
+*Try:* press =<prefix>s=, =i=, type =++3d= and =<CR>=.
+
+*Expect:* =SCHEDULED: 2026-10-18 Sun 09:00=.
+
+*Try:* press =<prefix>s=, =i=, type =+3d= and =<CR>=.
+
+*Expect:* =SCHEDULED: 2026-10-01 Thu 09:00= (three days from today).
+
+*** TODO Delay me
+SCHEDULED: <2026-10-15 Thu>
+
+*Try:* press =16<prefix>s=, =i=, type =++2d= and =<CR>=.
+
+*Expect:* =SCHEDULED: 2026-10-15 Thu -2d=: Oct 17 is two days after the
+scheduled date, so the entry now appears in the agenda on Oct 17 instead
+of Oct 15. (Only the distance counts: =--2d= gives the same result.)
+
+*** DONE Finished, but it comes back
+CLOSED: [2026-09-27 Sun 10:00] SCHEDULED: <2026-09-20 Sun>
+
+*Try:* press =<prefix>s=, =i=, type =+1d= and =<CR>=.
+
+*Expect:* =SCHEDULED: 2026-09-29 Tue= and the =CLOSED:= part is gone (a
+new date means it is not closed any more). The keyword stays =DONE=.
+
+*** Three at once
+**** TODO Book the flights
+**** TODO Book the hotel
+**** TODO Rent a car
+
+*Try:* put the cursor on "Book the flights", press =Vjj= to select the
+three headlines, then =<prefix>s=. Answer each of the three date prompts
+with =i=, =nov 2=, =<CR>=.
+
+*Expect:* each of the three gets =SCHEDULED: 2026-11-02 Mon=.
+
+** Logging changes of dates
+With =log_reschedule= / =log_redeadline= (or =#+STARTUP: logreschedule=,
+=logredeadline=, and =lognotereschedule= / =lognoteredeadline= to be asked
+for a note), every change of an existing date is recorded under the entry.
+Setting the same date again is not logged.
+
+This file does not turn it on. To try it: add =logreschedule= to the
+=#+STARTUP:= line at the top, press =<C-c><C-c>= on that line (it reloads
+the settings), then change the date of "Move me relative to my own date"
+with =<prefix>s=, =i=, =++1d=, =<CR>=. A line like this appears under the
+planning line (inside a =:LOGBOOK:= drawer with =logdrawer=):
+
+#+begin_example
+- Rescheduled from "[2026-10-15 Thu]" on [2026-09-28 Mon 15:08]
+#+end_example
+
+* Inserting timestamps
+- =<prefix>i.= (=<C-c>.=) opens the calendar and inserts an active
+  timestamp after the cursor.
+- =<prefix>i!= (=<C-c>!=) does the same for an inactive one.
+- With any count (=4<prefix>i.=), the prompt includes the current time
+  (rounded to the first value of =time_stamp_rounding_minutes=; 0 = not
+  rounded).
+- With a count of 16 (=16<prefix>i.=), there is no prompt: the current
+  date and time are inserted.
+- With the cursor /on/ a timestamp, the same keys change that timestamp
+  instead of inserting a new one. The prompt starts at its date, and its
+  repeater is kept.
+- =<C-c><= inserts today's date, without a prompt.
+- =<C-c>>= opens the calendar at the date under the cursor, just to look:
+  the date you pick is only shown as a message.
+
+Scratch lines for the exercises:
+
+- Call Ana
+- Last haircut
+- Dentist at
+- Payday [2026-10-15 Thu +1m]
+- Today is
+
+*Try:* on "Call Ana", press =$= then =<prefix>i.= and =<CR>= (accept the
+selected day, today).
+
+*Expect:* =- Call Ana= followed by =2026-09-28 Mon= in =<>=.
+
+*Try:* on "Last haircut", press =$= then =<prefix>i!=, =i=, type
+=fri 14:00= and =<CR>=.
+
+*Expect:* =- Last haircut [2026-10-02 Fri 14:00]=.
+
+*Try:* on "Dentist at", press =$= then =16<prefix>i!=.
+
+*Expect:* =- Dentist at [2026-09-28 Mon HH:MM]= with the current time, and
+no prompt.
+
+*Try:* on "Payday", put the cursor inside the timestamp and press
+=<prefix>i!=, =i=, type =++2d= and =<CR>=.
+
+*Expect:* =- Payday [2026-10-17 Sat +1m]=: the stamp was replaced, not
+duplicated, =++2d= counted from its old date, and the =+1m= repeater
+survived.
+
+*Try:* on "Today is", press =$= then =<C-c><=.
+
+*Expect:* =- Today is= followed by =2026-09-28 Mon= in =<>=, without a
+prompt.
+
+* The calendar popup
+Every date prompt (=<prefix>i.=, =<prefix>s=, =<prefix>d=, the agenda's
+date commands, capture's =%^t=) opens a floating calendar. It shows six
+weeks with ISO week numbers on the left; days of the neighbouring months
+are dimmed, weekends tinted, today underlined and the selected day
+highlighted. Below the grid: the selected date in full, the timestamp it
+will write, and how far it is from today ("in 3 days", "yesterday").
+
+| Key                | Action                                           |
+|--------------------+--------------------------------------------------|
+| =h= =l=            | day -1 / +1 (also =<Left>= =<Right>=)            |
+| =k= =j=            | week -1 / +1 (also =<Up>= =<Down>=)              |
+| =H= =L= or =<= =>= | month -1 / +1                                    |
+| =K= =J= or =[= =]= | year -1 / +1                                     |
+| =.=                | back to today                                    |
+| =i= or =t=         | type a date (the date input language below)      |
+| =T=                | set a time: =15:30=, =10:00-11:00=; empty clears |
+| =x= or =<Del>=     | remove the date (SCHEDULED / DEADLINE only)      |
+| =<CR>=             | accept the selected date                         |
+| =q= or =<Esc>=     | cancel, nothing changes                          |
+
+Keys and typing combine: if you move in the calendar and then press =i=,
+the typed text is read /together with/ the selected date, like Emacs. So
+moving to next Friday and typing =14:00= gives next Friday at 14:00.
+
+The colors are highlight groups (=OrgCalendarToday=,
+=OrgCalendarSelected=, ...) linked to standard groups, so they follow your
+colorscheme; see =:h org-calendar=.
+
+Scratch lines:
+
+- Picked with the keys
+- Picked with a time
+- Picked by moving and typing
+
+*Try:* on "Picked with the keys", press =$=, =<prefix>i!=, then =l=, =l=,
+=j= and =<CR>=.
+
+*Expect:* =[2026-10-07 Wed]=: two days (Sep 30), then one week later.
+
+*Try:* on "Picked with a time", press =$=, =<prefix>i!=, then =L= (next
+month), =T=, type =15:30=, =<CR>= (closes the time prompt), then =<CR>=
+again to accept.
+
+*Expect:* =[2026-10-28 Wed 15:30]=.
+
+*Try:* on "Picked by moving and typing", press =$=, =<prefix>i!=, then
+=llll= (Friday Oct 2), =i=, type =14:00= and =<CR>=.
+
+*Expect:* =[2026-10-02 Fri 14:00]=.
+
+*Try:* press =<C-c>>= anywhere, move around, press =q=.
+
+*Expect:* nothing in the buffer changes; the calendar was only for looking.
+
+* Date input
+When you press =i= in the calendar you get a =Date:= prompt. It reads what
+you type like Emacs's =org-read-date=. Parts you leave out come from the
+/default/: the date being changed (an existing timestamp or
+SCHEDULED/DEADLINE date), or today. Text it cannot read at all is refused
+with the warning =Cannot parse date: ...= (Emacs silently uses the default
+date instead).
+
+With =read_date_prefer_future= (on by default), a day or month typed
+without a year is taken in the future: on Sep 28, =15= is Oct 15 and
+=sep 15= is next year's Sep 15.
+
+** Reference table
+Results for today = Mon 2026-09-28, with no default date (e.g.
+=<prefix>i.= on a line without a timestamp). The "You get" column is the
+inside of the timestamp that is written.
+
+| You type             | You get                    | Why                                     |
+|----------------------+----------------------------+-----------------------------------------|
+| (nothing) or =.=     | 2026-09-28 Mon             | today                                   |
+| =+0=  =today=        | 2026-09-28 Mon             | today                                   |
+| =tomorrow=           | 2026-09-29 Tue             | an extension: Emacs ignores it          |
+| =yesterday=          | 2026-09-27 Sun             | an extension                            |
+| =now=                | 2026-09-28 Mon HH:MM       | the current time                        |
+| =+3d=  =+3=          | 2026-10-01 Thu             | 3 days from today; d is the default     |
+| =-2w=                | 2026-09-14 Mon             | two weeks ago                           |
+| =+1m=                | 2026-10-28 Wed             | one month from today                    |
+| =+1y=                | 2027-09-28 Tue             | one year from today                     |
+| =+2h=                | 2026-09-28 Mon HH:MM       | two hours from now (15:05 → 17:05)      |
+| =fri=                | 2026-10-02 Fri             | the next Friday                         |
+| =mon=                | 2026-10-05 Mon             | a weekday name is never today           |
+| =+2fri=  =2fri=      | 2026-10-09 Fri             | the second Friday from today            |
+| =-mon=               | 2026-09-21 Mon             | the last Monday                         |
+| =2026-10-01=         | 2026-10-01 Thu             | ISO date                                |
+| =26-10-01=           | 2026-10-01 Thu             | two-digit year                          |
+| =10-01=              | 2026-10-01 Thu             | month-day, this year                    |
+| =10/1=  =10/1/2026=  | 2026-10-01 Thu             | American month/day[/year]               |
+| =12/25=              | 2026-12-25 Fri             |                                         |
+| =3/4/27=             | 2027-03-04 Thu             | month/day/two-digit year                |
+| =15=                 | 2026-10-15 Thu             | the 15th: Sep 15 is past                |
+| =3=                  | 2026-10-03 Sat             | the next 3rd                            |
+| =15.3.=  =15.3.2027= | 2027-03-15 Mon             | European day.month.[year]               |
+| =oct=                | 2026-10-28 Wed             | a month alone keeps today's day         |
+| =nov=                | 2026-11-28 Sat             |                                         |
+| =dec 25=  =25 dec=   | 2026-12-25 Fri             | month names, in either order            |
+| =sep 15=             | 2027-09-15 Wed             | Sep 15 2026 is past: next year          |
+| =1 jan=              | 2027-01-01 Fri             |                                         |
+| =15 sep 2027=        | 2027-09-15 Wed             | with a year                             |
+| =2027=               | 2027-09-28 Tue             | a year alone keeps month and day        |
+| =feb 30=             | 2027-03-02 Tue             | out of range: rolls over                |
+| =w40=                | 2026-09-28 Mon             | Monday of ISO week 40 (this week)       |
+| =w39=                | 2026-09-21 Mon             | weeks are not moved to the future       |
+| =w40 fri=            | 2026-10-02 Fri             | a weekday of that week                  |
+| =2026-w39-5=         | 2026-09-25 Fri             | ISO year-week-day (5 = Friday)          |
+| =2027-w01=           | 2027-01-04 Mon             | the first ISO week of 2027              |
+| =14:00=  =2pm=       | 2026-09-28 Mon 14:00       | a time alone: today                     |
+| =9am=                | 2026-09-28 Mon 09:00       |                                         |
+| =15h30=              | 2026-09-28 Mon 15:30       |                                         |
+| =24:00=              | 2026-09-29 Tue 00:00       | the next day                            |
+| =fri 14:00=          | 2026-10-02 Fri 14:00       | a date and a time                       |
+| =tomorrow 9:30=      | 2026-09-29 Tue 09:30       |                                         |
+| =sep 15 9am=         | 2027-09-15 Wed 09:00       |                                         |
+| =+1w 16:00=          | 2026-10-05 Mon 16:00       | a relative date and a time              |
+| =10:00-11:30=        | 2026-09-28 Mon 10:00-11:30 | a time range                            |
+| =10am-11am=          | 2026-09-28 Mon 10:00-11:00 |                                         |
+| =10:00+1:30=         | 2026-09-28 Mon 10:00-11:30 | a start and a duration                  |
+| =fri 10:00-11:30=    | 2026-10-02 Fri 10:00-11:30 |                                         |
+| =2026-10-01T10:00=   | 2026-10-01 Thu 10:00       | ISO date and time                       |
+| =2026-10-01 Thu +1w= | 2026-10-01 Thu             | a pasted timestamp: extra words ignored |
+| =next week=          | (refused)                  | =Cannot parse date: next week=          |
+
+** Relative to the date being changed
+When the prompt has a default (you are changing an existing timestamp or
+a SCHEDULED/DEADLINE date), =++= and =--= count from /that/ date, while a
+single =+= / =-= still counts from today. Missing parts of a typed date
+come from the default too. With the default =2026-10-15 Thu 09:00=:
+
+| You type     | You get                    | Why                             |
+|--------------+----------------------------+---------------------------------|
+| (nothing)    | 2026-10-15 Thu 09:00       | the default itself              |
+| =.=          | 2026-09-28 Mon 09:00       | today (the time is kept)        |
+| =++1d=       | 2026-10-16 Fri 09:00       | one day after the default       |
+| =++3d=       | 2026-10-18 Sun 09:00       |                                 |
+| =--1w=       | 2026-10-08 Thu 09:00       | one week before the default     |
+| =++1m=       | 2026-11-15 Sun 09:00       | one month after the default     |
+| =+1d=        | 2026-09-29 Tue 09:00       | one day after /today/           |
+| =20=         | 2026-10-20 Tue 09:00       | month and year from the default |
+| =nov=        | 2026-11-15 Sun 09:00       | the day from the default        |
+| =14:00=      | 2026-10-15 Thu 14:00       | only the time changes           |
+| =2pm-3pm=    | 2026-10-15 Thu 14:00-15:00 |                                 |
+| =11:00+0:45= | 2026-10-15 Thu 11:00-11:45 |                                 |
+
+The time =09:00= stays when you type no time, because the prompt keeps the
+time of the old date (Emacs pre-fills it).
+
+** Practice
+# The default for these prompts is the date already in the timestamp.
+- Quarterly planning [2026-10-15 Thu 09:00]
+- Scratch line for typing:
+
+*Try:* on the "Scratch line", press =$=, =<prefix>i!=, =i=, and type
+=w40 fri 10:00-11:30= then =<CR>=.
+
+*Expect:* =[2026-10-02 Fri 10:00-11:30]= at the end of the line.
+
+*Try:* on the "Quarterly planning" timestamp, press =<prefix>i!=, =i=, type
+=--1w= and =<CR>=.
+
+*Expect:* =[2026-10-08 Thu 09:00]=.
+
+*Try:* again =<prefix>i!=, =i=, type =14:00= and =<CR>=.
+
+*Expect:* =[2026-10-08 Thu 14:00]=: only the time changed.
+
+*Try:* in any date prompt, type =next week= and =<CR>=.
+
+*Expect:* the warning =Cannot parse date: next week=, and the calendar
+stays open; press =q= to leave. (=+1w= is how you say "next week".)
+
+** Options that change the reading
+- =read_date_prefer_future = false=: missing parts are taken as they are,
+  without moving into the future: on Sep 28, =15= is Sep 15 2026 and
+  =sep 15= is Sep 15 2026.
+- =read_date_prefer_future = "time"=: additionally, a time earlier than
+  now means tomorrow: at 15:05, =14:00= is tomorrow 14:00, while =23:00=
+  stays today.
+- =extend_today_until = 4=: before 4 am, "today" in prompts (and in the
+  agenda) is still the previous day, for night owls.
+
+* Shifting dates
+With the cursor on a timestamp (in a paragraph, a list item, a planning
+line or a CLOCK line):
+
+- =<S-Right>= / =<S-Left>= move the timestamp one day later / earlier,
+  whatever part of it the cursor is on. A count moves by that many days.
+- =<S-Up>= / =<S-Down>= (and =<C-a>= / =<C-x>=, the same thing) change the
+  /part under the cursor/:
+  - the year, the month, the day or the weekday name: that unit +1 / -1;
+  - the hour: one hour; on a time range the end moves too;
+  - the minutes: to the next multiple of 5 (the second value of
+    =time_stamp_rounding_minutes=); with a count, by exactly that many
+    minutes;
+  - the end time of a range: only the end, by one hour / one minute;
+  - a repeater (=+1w=) or warning (=-3d=) number: +1 / -1 (a repeater
+    stays at least 1, a warning at least 0);
+  - the unit letter of a repeater or warning: cycles =d= → =w= → =m= →
+    =y=;
+  - the bracket =<= or =>=: switch active / inactive.
+- Only plain =+N= repeaters and =-N= warnings are changed, like Emacs: on
+  =++1w=, =.+1d= or =--2d= the number keys do nothing.
+- The weekday name is always rewritten to match the new date.
+- The cursor on the character right /after/ a part (the =-=, =:= or space
+  that follows it) changes that part, like point in Emacs.
+- On a CLOCK line, the duration after ==>= is recomputed (see
+  [[file:08-clocking.org][08-clocking.org]]).
+
+When the cursor is /not/ on a timestamp, these keys do their other jobs
+(TODO state and priority on headlines, bullets in lists, table cells, and
+Vim's own motions and number increment elsewhere).
+
+** Examples to shift
+# Each line is used by the exercises below, in order.
+- Shift A [2026-10-01 Thu 10:07]
+- Shift B [2026-10-15 Thu +1w -3d]
+- Shift C [2026-10-01 Thu 10:00-11:30]
+- Shift D [2026-10-15 Thu ++1w]
+
+*Try:* on Shift A, put the cursor on the day =01= and press =<C-a>=.
+
+*Expect:* =[2026-10-02 Fri 10:07]= (the weekday follows).
+
+*Try:* on Shift A, cursor on the minutes =07=, press =<S-Up>=, then
+=<S-Up>= again.
+
+*Expect:* =10:10= (rounded up to the next multiple of 5), then =10:15=.
+
+*Try:* still on the minutes, press =3<C-a>=.
+
+*Expect:* =10:18= (a count steps by exactly that many minutes).
+
+*Try:* on Shift A, cursor on the month =10=, press =<C-x>=.
+
+*Expect:* =[2026-09-02 Wed 10:18]=.
+
+*Try:* on Shift A, anywhere in the timestamp, press =5<S-Right>=.
+
+*Expect:* =[2026-09-07 Mon 10:18]=: five days later.
+
+*Try:* on Shift B, cursor on the =1= of =+1w=, press =<C-a>=; then on the
+=w=, press =<C-a>=.
+
+*Expect:* =[2026-10-15 Thu +2w -3d]=, then =[2026-10-15 Thu +2m -3d]=.
+
+*Try:* on Shift B, cursor on the =3= of =-3d=, press =<C-x>=; then on the
+=d= after it, press =<C-a>=.
+
+*Expect:* =-2d=, then =-2w=: =[2026-10-15 Thu +2m -2w]=.
+
+*Try:* on Shift C, cursor on the end hour =11=, press =<C-a>=; then on its
+minutes =30=, press =<S-Up>=.
+
+*Expect:* =10:00-12:30=, then =10:00-12:31= (the end minute moves by 1).
+
+*Try:* on Shift C, cursor on the start hour =10=, press =<C-a>=.
+
+*Expect:* =11:00-13:31=: the start moves the end along.
+
+*Try:* on Shift D, cursor on the =1= of =++1w=, press =<C-a>=.
+
+*Expect:* nothing changes (only =+N= repeaters are edited). Put the cursor
+on the day =15= and press =<C-a>=: =[2026-10-16 Fri ++1w]=; that works.
+
+** Shifting SCHEDULED and DEADLINE
+The same keys work on the planning line: the cursor has to be on the
+timestamp, not on the word =SCHEDULED:=.
+
+*** TODO Pushed back a day at a time
+DEADLINE: <2026-10-09 Fri> SCHEDULED: <2026-10-05 Mon>
+
+*Try:* put the cursor inside the SCHEDULED timestamp and press =<S-Right>=
+three times.
+
+*Expect:* =SCHEDULED: 2026-10-08 Thu=; the DEADLINE did not move.
+
+*Try:* put the cursor on the =D= of =DEADLINE:= and press =<S-Right>=.
+
+*Expect:* the date does not change (the cursor is not on a timestamp, so
+=<S-Right>= is just Vim's word motion there).
+
+* <CR> on a date: jump to the agenda
+=<CR>= on a timestamp (outside a link) opens the agenda day view on that
+date, with every entry of the agenda files for that day.
+
+- Hackathon <2026-10-01 Thu>
+
+*Try:* put the cursor on the timestamp above and press =<CR>=.
+
+*Expect:* a day agenda =Day-agenda (W40):= for =Thursday    1 October
+2026=. An entry is listed by its /headline/, so from this file you see,
+among others: =14:00-15:30 Times and time ranges= (the Design review),
+=Live examples= (the Team offsite), =<CR> on a date: jump to the agenda=
+(this Hackathon) and =Book club (first Thursday of each month)= (a diary
+sexp, see below). Press =q= to close it.
+
+* Computing durations
+=<C-c><C-y>= (Emacs =org-evaluate-time-range=, no =<prefix>= key) shows how
+long the range at the cursor is (or the first range on the line):
+
+- For dates without times: whole days, e.g. =4 days=.
+- With times: days, hours and minutes, e.g. =2 days 8 hours 30 minutes=.
+- A single timestamp with a time range, =[... 10:00-11:20]=, works too (an
+  org.nvim extension): =1 hour 20 minutes=.
+
+With a count (=4<C-c><C-y>=), the result is written after the range instead:
+=2d 08:30=, =4d= or =01:20=. An older result right after the range in the
+=[Nd ]HH:MM= form is replaced, so you can run it again after changing a
+date. (A result of whole days, like =4d=, has no =HH:MM= part and is not
+recognized, so it is added again: delete the old one first. Emacs does the
+same.)
+
+On a CLOCK line, =<C-c><C-y>= recomputes the clock duration instead.
+
+# Three ranges to measure; the cursor can be anywhere on the line.
+- Holiday [2026-12-21 Mon]--[2026-12-25 Fri]
+- Workshop [2026-10-05 Mon 09:00]--[2026-10-07 Wed 17:30]
+- Standup [2026-10-01 Thu 10:00-11:20]
+
+*Try:* on each of the three lines press =<C-c><C-y>=.
+
+*Expect:* the messages =4 days=, =2 days 8 hours 30 minutes= and =1 hour 20
+minutes=.
+
+*Try:* on "Workshop" press =4<C-c><C-y>=.
+
+*Expect:* the line ends in =[2026-10-07 Wed 17:30] 2d 08:30= and the
+message is =Time difference inserted=.
+
+*Try:* put the cursor on the =17= and press =<C-a>=, then =4<C-c><C-y>=
+again.
+
+*Expect:* =... [2026-10-07 Wed 18:30] 2d 09:30=: the old result was
+replaced, not added.
+
+*Try:* on "Standup" press =4<C-c><C-y>=.
+
+*Expect:* =... [2026-10-01 Thu 10:00-11:20] 01:20=.
+
+Durations like these (=1:20=, =2d 08:30=, =90min=) are also what clocking,
+efforts and column view use: see [[file:08-clocking.org][08-clocking.org]].
+In tables, formulas can compute with dates and times: see
+[[file:16-spreadsheet.org][16-spreadsheet.org]].
+
+* Custom timestamp display
+The text of a timestamp is always ISO (=2026-10-01 Thu=), but it can be
+/displayed/ differently. =<C-c><C-x><C-t>= (or
+=:Org toggle_time_stamp_overlays=) toggles the custom display in the
+buffer: each timestamp is shown with =time_stamp_custom_formats=, by
+default =%m/%d/%y %a= for dates and =%m/%d/%y %a %H:%M= for dates with a
+time. The file itself is not changed.
+
+| In the file                    | Displayed as                 |
+|--------------------------------+------------------------------|
+| =[2026-10-01 Thu]=             | =[10/01/26 Thu]=             |
+| =[2026-10-01 Thu 10:00-11:30]= | =[10/01/26 Thu 10:00-11:30]= |
+| =[2026-12-25 Fri]=             | =[12/25/26 Fri]=             |
+| =[2026-10-01 Thu 09:00 +1w]=   | =[10/01/26 Thu 09:00 +1w]=   |
+
+The end of a time range and a trailing repeater stay visible, like Emacs.
+
+- Start with it on: =display_custom_times = true= in the setup, or
+  =#+STARTUP: customtime= in a file.
+- The formats are Emacs =format-time-string= formats, e.g.
+  =time_stamp_custom_formats = { "%A %d %B %Y", "%A %d %B %Y, %H:%M" }=.
+- The real text shows in Insert mode (the display uses conceal).
+- While it is on, exporting the buffer writes the timestamps with the
+  custom formats too.
+
+# Timestamps to watch change.
+- Display me [2026-10-01 Thu]
+- And me [2026-10-01 Thu 10:00-11:30]
+- And me too [2026-12-25 Fri]
+
+*Try:* press =<C-c><C-x><C-t>=.
+
+*Expect:* the stamps above read =[10/01/26 Thu]=,
+=[10/01/26 Thu 10:00-11:30]= and =[12/25/26 Fri]= (and every other
+timestamp of the file changes the same way). Press =i= on one of the lines:
+the real text comes back while you are in Insert mode. =<Esc>=, then
+=<C-c><C-x><C-t>= again turns the display off.
+
+* Diary sexp timestamps
+For dates that are not a fixed repeat ("the first Thursday of every
+month", "every other Friday since Sep 4"), Org accepts Emacs /diary
+s-expressions/ instead of a date:
+
+- inside a timestamp: =<%%(diary-float t 4 1)>=, also after =SCHEDULED:=
+  or =DEADLINE:=;
+- or on a line of its own starting with =%%(=, followed by the text to
+  show: =%%(org-anniversary 2019 10 3) Wedding anniversary (%d years)=.
+
+Emacs evaluates them as Emacs Lisp. org.nvim has its own emulation of the
+calendar functions of Emacs's diary library (=diary-float=, =diary-block=,
+=diary-date=, =diary-anniversary=, =diary-cyclic=, =diary-remind=,
+=diary-offset=, =org-anniversary=, =org-block=, =org-cyclic=, =org-date=,
+the Hebrew, Chinese, lunar and solar functions, ...) plus a small, safe
+subset of Emacs Lisp (=when=, =memq=, =and=, =or=, arithmetic,
+=calendar-day-of-week=, ...) with the same results as Emacs. Other Lisp
+runs in a separate =emacs --batch= when Emacs is installed; otherwise the
+entry is skipped with a message. The full list is in
+=:h org-agenda-diary-sexp=.
+
+- Diary sexps only matter to the agenda: the date keys of this file
+  (=<S-Right>=, =<C-a>=, the prompt) don't edit them.
+- Argument order: the =diary-*= functions follow
+  =agenda.calendar_date_style=, American by default (MONTH DAY YEAR); the
+  =org-*= functions always take YEAR MONTH DAY.
+- In =diary-float=, the day of the week is 0 (Sunday) to 6, =t= means any
+  month, and a negative N counts from the end of the month.
+
+** Book club (first Thursday of each month)
+<%%(diary-float t 4 1)>
+# t = any month, 4 = Thursday, 1 = the first one: Oct 1, Nov 5, Dec 3.
+
+** Retro (last Friday of each month)
+<%%(diary-float t 5 -1)>
+# -1 = the last one: Oct 30, Nov 27, Dec 25.
+
+** Gym (Monday, Wednesday and Friday mornings)
+<%%(when (memq (calendar-day-of-week date) '(1 3 5)) "07:00")>
+# The sexp returns the string "07:00" on those days: the entry lands on
+# the time grid at 7:00.
+
+** Autumn school
+<%%(org-block 2026 10 12 2026 10 16)>
+# org-block: YEAR MONTH DAY of the first and of the last day (Oct 12-16).
+
+** Payday
+<%%(org-cyclic 14 2026 9 4)>
+# Every 14 days counted from Fri 2026-09-04: Sep 18, Oct 2, Oct 16, ...
+
+** Anniversaries and reminders
+%%(org-anniversary 2019 10 3) Wedding anniversary (%d years)
+%%(diary-remind '(diary-date 10 31 2026) 3) Halloween party
+# Line 1 shows "Wedding anniversary (7 years)" on Sat Oct 3.
+# Line 2 shows "Halloween party" on Oct 31, and "Reminder: Only 3 days
+# until Halloween party" on Wed Oct 28.
+
+*Try:* open the week agenda with =<prefix>a= then =a=.
+
+*Expect:* from this section: "Gym" at =7:00= on Mon 28, Wed 30 and Fri 2,
+"Book club" on Thu 1, "Payday" on Fri 2 and "Wedding anniversary (7
+years)" on Sat 3.
+
+*Try:* press =f= (next week) twice.
+
+*Expect:* the week of Oct 12: "Autumn school" on each day from Mon 12 to
+Fri 16, "Payday" on Fri 16, and Gym on Mon, Wed and Fri. Press =f= twice
+more for the Halloween reminder on Wed 28 and the Retro on Fri 30.
+
+* Further reading
+- =:h org-dates=: timestamps, the insertion and editing keys, the custom
+  display.
+- =:h org-calendar=: the calendar popup and its highlight groups.
+- =:h org-read-date=: the date input language.
+- =:h org-repeat=: repeated tasks; =:h org-todo-events= for logging.
+- =:h org-agenda-diary-sexp=: every supported diary function.
+- =:h org-durations=: durations and their formats.
+- =:h org-config=: =deadline_warning_days=, =read_date_prefer_future=,
+  =time_stamp_rounding_minutes=, =display_custom_times=,
+  =time_stamp_custom_formats=, =extend_today_until=, =log_reschedule=.
+- The other example files: [[file:04-todo.org][04-todo.org]] (repeating
+  tasks and habits), [[file:08-clocking.org][08-clocking.org]] (clocking),
+  [[file:09-agenda.org][09-agenda.org]] (the agenda) and
+  [[file:20-timers-reminders.org][20-timers-reminders.org]] (reminders for
+  timed entries).

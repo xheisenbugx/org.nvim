@@ -1,0 +1,886 @@
+#+TITLE: Links, IDs and attachments
+#+STARTUP: overview
+#+CATEGORY: links
+#+LINK: gh https://github.com/%s
+#+LINK: ddg https://duckduckgo.com/?q=%h
+#+LINK: wiki https://en.wikipedia.org/wiki/
+#+LINK: ex file:./%s
+
+* How to use this file
+Links turn an Org file into a web of notes: a link can point to a heading of
+this file, to a line of another file, to a web page, to a heading with an
+=ID= wherever it lives, or to a file attached to an entry. This file shows
+every link type org.nvim supports, how to follow, store and insert links,
+and how IDs and attachments work. Almost every example is a real, clickable
+link: press =<CR>= on it and see where you land.
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means your org prefix, =<leader>o= by default (so =<prefix>li=
+  is =<Space>oli= with the bundled init file).
+- =u= undoes any edit; =git checkout examples/13-links.org= restores the
+  file. The attachment exercises create files under =examples/data/=:
+  remove them with =rm -rf examples/data= when you are done.
+- =g?= lists every key of the buffer; =/link= in that list finds the link
+  keys.
+- =:Org lint= checks the file. It reports a few links here *on purpose*:
+  deliberately broken ones, =id:...::search= links, a wildcard and a
+  URL-encoded abbreviation. Comments next to them say so.
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see. Lines starting with =# = are Org comments: they explain the example
+  next to them and are never exported.
+
+Start Neovim from the repository root with the bundled init file, which
+sets the agenda files to =examples/*.org= (the ID links below search those
+files), keeps the ID database in a scratch directory and never touches your
+own notes:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/13-links.org
+#+end_src
+
+After following a link to another place, =<C-o>= (or =<C-c>&=) brings you
+back here, so you can wander freely.
+
+** Keys in this file
+Emacs keys work too: =C-c C-o= opens, =C-c C-l= inserts, =C-c l= stores,
+=C-c M-l= / =C-c C-M-l= insert the last / all stored links, =C-c C-x C-n=
+and =C-c C-x C-p= move between links, =C-c C-a= attaches.
+
+| Key                       | What it does                              |
+|---------------------------+-------------------------------------------|
+| =<CR>= =gx= =<prefix>o=   | open the link under the cursor            |
+| =<C-c><C-o>= on a heading | pick one of the entry's links             |
+| =<C-o>= or =<C-c>&=       | jump back after following a link          |
+| =<prefix>ln= =<prefix>lp= | next / previous link                      |
+| =<prefix>lt=              | show / hide the raw link text             |
+| =<prefix>ls=              | store a link to this place (any buffer)   |
+| =<prefix>li=              | insert a link, or edit the one here       |
+| =<prefix>lL=              | insert the last stored link               |
+| =<prefix>lA=              | insert all stored links                   |
+| =<prefix>lI=              | get or create the entry's =ID=            |
+| =<prefix>lg=              | go to an entry by ID                      |
+| =<prefix>ly=              | copy the entry's ID                       |
+| =<prefix>A=               | attachment menu                           |
+| =<prefix>'=               | on a link: follow it                      |
+| =<C-x><C-o>= after =[[=   | complete link types, headings, custom IDs |
+
+* Anatomy of a link
+:PROPERTIES:
+:CUSTOM_ID: anatomy
+:END:
+An Org link has one of three shapes:
+
+1. A *bracket link* with a description: =[[target][description]]=. Only the
+   description is shown; the target is hidden (concealed).
+2. A *bracket link* without a description: =[[target]]=. The target is
+   shown.
+3. A *plain link*: a URL written as it is, such as =https://orgmode.org=,
+   or an *angle link* like =<https://orgmode.org>=.
+
+Examples, one per line:
+
+# A bracket link with a description: only "the Org manual" is visible.
+- [[https://orgmode.org/manual/][the Org manual]]
+# A bracket link without a description: the target itself is visible.
+- [[https://neovim.io]]
+# A plain link: recognised on its own.
+- https://neovim.io/doc/
+# Balanced parentheses are part of a plain link, the final dot is not.
+- https://en.wikipedia.org/wiki/Org-mode_(disambiguation).
+# An angle link: the < > delimit it, so it may be followed by text.
+- <https://github.com/xheisenbugx/org.nvim>and more text
+
+A bracket link may even span two lines, like this one: [[*Following
+links][the section about following links]].
+
+** Seeing the raw text
+By default org.nvim conceals the brackets and the target of described links
+(the =ui.conceal_links= option, Emacs' =org-link-descriptive=). The cursor
+line still shows the full text in Insert mode, and =<prefix>lt= toggles the
+concealment for the whole buffer (links only: emphasis markers stay as they
+are).
+
+*Try:* press =<prefix>lt= now.
+
+*Expect:* the first example above now reads
+=[[https://orgmode.org/manual/][the Org manual]]= in full. Press
+=<prefix>lt= again and it shrinks back to "the Org manual".
+
+** What is not a link
+Link syntax inside verbatim or code markup, comment lines and blocks is
+not a link for Org: it is not exported as a link and =<prefix>ln= (next
+link) skips it.
+
+# Links inside verbatim or code markup are just text.
+- In =verbatim [[*Anatomy of a link]]= or ~code https://x.org~ a link is text.
+# Comment lines are not scanned for links either:
+# [[*Anatomy of a link]] <- not a link, this line is a comment
+
+#+begin_example
+[[*Anatomy of a link]]  <- inside an example block: not a link either
+#+end_example
+
+The real link: [[*Anatomy of a link]].
+
+*Try:* put the cursor on the heading "What is not a link" and press
+=<prefix>ln=.
+
+*Expect:* the cursor skips the three fake links and lands on the =[[= of
+the real link in the line "The real link: ...". (In org.nvim, =<CR>= on
+the text of a fake link still follows it.)
+
+* Following links
+:PROPERTIES:
+:CUSTOM_ID: following
+:END:
+=<CR>=, =gx= and =<prefix>o= all run the same action, =open_at_point=
+(Emacs =C-c C-o=). It opens whatever is under the cursor: a link, a
+footnote reference or a timestamp (which opens the agenda for that day).
+
+- *Web and mail* links open in the system browser / mail client
+  (=vim.ui.open()=).
+- *File* and *ID* links open the file in another window, splitting the
+  screen when there is only one (=links.frame_setup=).
+- *Internal* links (headings, targets, custom IDs) move the cursor inside
+  the current buffer.
+
+After an internal jump, =<C-o>= goes back (org.nvim records the jump in the
+jumplist), and =<C-c>&= does the same like Emacs' mark ring.
+
+** Counts change where things open
+| Key      | Emacs         | Effect                                    |
+|----------+---------------+-------------------------------------------|
+| =<CR>=   | =C-c C-o=     | normal behaviour                          |
+| =4<CR>=  | =C-u C-c C-o= | internal links: in another window;        |
+|          |               | files: always in Neovim                   |
+| =16<CR>= | =C-u C-u ...= | files: always with the system application |
+
+# A count also works with gx and <prefix>o: 4gx is C-u C-c C-o.
+*Try:* on the link [[*Radio targets][Radio targets]] press =4<CR>=.
+
+*Expect:* the window splits; the new window shows the "Radio targets"
+heading, the old one stays here. Close it with =:q=.
+
+** Links of a headline: =<C-c><C-o>=
+On a *headline* (not on a link), =<C-c><C-o>= lists the links in the entry
+and lets you pick one, or "Open all links". On the tags of a headline it
+opens a tags agenda for the tag under the cursor instead.
+
+*** Three links in one entry                                    :demo:links:
+# <C-c><C-o> on the headline above offers these three links.
+- [[*Anatomy of a link][Anatomy]]
+- [[#following][Following links]]
+- [[https://orgmode.org][orgmode.org]]
+
+*Try:* put the cursor on the words "Three links in one entry" and press
+=<C-c><C-o>=.
+
+*Expect:* a menu with the three links and "Open all links". Pick
+"Anatomy": the cursor lands on "* Anatomy of a link".
+
+*Try:* now put the cursor on the =demo= tag of that headline and press
+=<C-c><C-o>=.
+
+*Expect:* an agenda "Headlines with TAGS match: demo" listing
+"links: Three links in one entry" (and the entries tagged =demo= in the
+other example files). Press =q= to close it.
+
+** Following a link from =<prefix>'=
+=<prefix>'= (=C-c '=, the "edit special" key) follows the link under the
+cursor too, which is handy if you have remapped =<CR>=.
+
+*Try:* on [[#anatomy][this link]] press =<prefix>'=.
+
+*Expect:* the cursor is on "* Anatomy of a link". =<C-o>= comes back.
+
+* Moving between links
+=<prefix>ln= and =<prefix>lp= (Emacs =C-c C-x C-n= / =C-c C-x C-p=) jump to
+the next and previous link. They skip links in source and example blocks,
+comments and verbatim text. A count jumps over several links, and when no
+link is left, pressing the key again wraps around the buffer.
+
+# Four links on three lines, for practice:
+- Link one: [[*Anatomy of a link]] and link two: https://neovim.io
+- Link three: [[#following][Following links]]
+- Link four: <https://orgmode.org>
+
+*Try:* put the cursor on "Link one" and press =<prefix>ln= four times.
+
+*Expect:* the cursor lands on the start of each link in turn: the =[[= of
+link one, the =h= of the URL of link two, the =[[= of link three and the
+=<= of link four. Then press =<prefix>lp= to walk back. =2<prefix>ln=
+skips a link.
+
+* Internal links
+Internal links point into the current file. Their target decides what they
+search for:
+
+| Target          | Finds                                              |
+|-----------------+----------------------------------------------------|
+| =*Heading text= | a headline with exactly that text                  |
+| =#custom-id=    | the headline whose =CUSTOM_ID= property matches    |
+| =(label)=       | a coderef =(ref:label)= in a source/example block  |
+| =some words=    | a =<<some words>>= target, a =#+NAME:=, a headline |
+
+Searches ignore case and extra whitespace, and headline searches ignore the
+TODO keyword, the priority, =COMMENT=, tags and statistics cookies.
+
+** Headline links
+# All four point to the same heading "Target practice" below:
+- Exact title: [[*Target practice]]
+- Different case and spacing: [[*target    PRACTICE]]
+- With a description: [[*Target practice][jump to the practice area]]
+- The heading has a TODO keyword, priority, cookie and tags, which are
+  ignored: [[*Target practice][still the same heading]]
+
+*Try:* press =<CR>= on each of the links above, then =<C-o>= to return.
+
+*Expect:* every one lands on the line
+"Target practice" (the one with =TODO=, =[#B]=, a =[0/0]=
+cookie and the tag =:practice:=).
+
+** TODO [#B] Target practice [0/0]                                :practice:
+This heading is the destination of the links in the previous section.
+
+** Custom IDs
+A =CUSTOM_ID= property gives a heading a stable name that you choose. Links
+to it start with =#=. The headings "Anatomy of a link" and "Following
+links" above have the custom IDs =anatomy= and =following=.
+
+- [[#anatomy][Go to "Anatomy of a link"]]
+- [[#following]]
+# This custom ID does not exist: the link reports an error.
+# (:Org lint reports it too, on purpose.)
+- [[#no-such-id][A broken custom ID link]]
+
+*Try:* follow each link.
+
+*Expect:* the first two land on their headings; the last one shows the
+message "No match for custom ID: no-such-id" and the cursor stays here.
+
+** Dedicated targets =<<...>>=
+A dedicated target is =<<text>>= anywhere in the text; a link =[[text]]=
+jumps to it. The target itself is shown in a special colour.
+
+# The link and its target:
+- A link to the [[parking spot]] further down.
+- The same target, found despite the capitals: [[PARKING SPOT][here]].
+
+Some filler text so the jump is visible. Lorem ipsum dolor sit amet,
+consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore.
+
+# The target itself is on the next line (targets are not exported).
+This line is the <<parking spot>>, where the two links above land.
+
+*Try:* press =<CR>= on "parking spot" in the first item.
+
+*Expect:* the cursor is on the =<<parking spot>>= target in the last
+paragraph.
+
+** Named elements =#+NAME:=
+A link can also point to any element with a =#+NAME:= line: a table, a
+block, a list, a paragraph.
+
+- Jump to the table named [[prices]].
+- Jump to the block named [[hello-block][the hello block]].
+
+#+NAME: prices
+| Item   | Price |
+|--------+-------|
+| Coffee |  2.50 |
+| Tea    |  1.80 |
+
+#+NAME: hello-block
+#+begin_src sh :eval no
+echo "hello"
+#+end_src
+
+*Try:* press =<CR>= on "prices" in the first item.
+
+*Expect:* the cursor lands on the =#+NAME: prices= line above the table.
+
+** Coderefs =(label)=
+Inside a source or example block, a line can end with =(ref:label)=. The
+link =[[(label)]]= jumps to that line.
+
+#+begin_src lua :eval no
+local total = 0
+for i = 1, 10 do          (ref:loop)
+  total = total + i       (ref:add)
+end
+print(total)
+#+end_src
+
+In line [[(loop)]] we start the loop, and line [[(add)][the addition]] adds
+each number.
+
+*Try:* press =<CR>= on =(loop)= in the sentence above.
+
+*Expect:* the cursor jumps to the line =for i = 1, 10 do (ref:loop)= in
+the block.
+
+** Links whose target is missing
+When a =[[words]]= link finds no target, name or headline, org.nvim asks
+"No match - create this as a new heading?" (the default of
+=links.search_must_match_exact_headline=, ="query-to-create"=). Answer =y=
+and the heading is added at the end of this file; answer =n= and you get
+"No match for fuzzy expression: ...".
+
+# This link has no target in this file:
+# (:Org lint reports it as an unknown fuzzy location, on purpose.)
+- [[A heading that does not exist yet]]
+
+*Try:* press =<CR>= on the link above and answer =n=.
+
+*Expect:* the message "No match for fuzzy expression: A heading that does
+not exist yet". Do it again and answer =y=: a new heading
+"A heading that does not exist yet" appears at the very end of the file
+and the cursor is on it. Press =u= to remove it again.
+
+* Radio targets
+A radio target has *three* angle brackets: =<<<radio word>>>=. Every other
+occurrence of those words in the file becomes a link to the target
+automatically, with no brackets at all (and also in export). Case does not
+matter, but the words must stand alone.
+
+This paragraph defines the radio target <<<Org mode>>>. From now on, any
+"org mode" in this file is a link to it.
+
+# Each of these is a radio link, underlined like a normal link:
+- Org mode is a plain-text format.
+- Many people use ORG MODE for notes.
+- The words may even be split over lines: Emacs Org
+  mode is where the format comes from.
+# Not a radio link: "org modes" is not the same word.
+- "Org modes" is not a match, because "modes" is a different word.
+
+*Try:* put the cursor on "Org mode" in the first item and press =<CR>=.
+
+*Expect:* the cursor jumps to =<<<Org mode>>>= in the paragraph above.
+
+*Try:* type a new line below with the text "I like org mode.". It is not
+highlighted as a link yet. Put the cursor on =<<<Org mode>>>= and press
+=<C-c><C-c>=: the radio links are refreshed and the new text is a link too.
+
+* File links
+=file:= links open a file. Relative paths are relative to the directory of
+this file (=examples/=).
+
+# Other example files (these open in another window):
+- [[file:00-index.org][The index of all example files]]
+- [[file:14-footnotes.org][Footnotes]] (the next file in the series)
+- [[file:tutorial.org][The broad tutorial]]
+# Without file: a path is still a file link when it starts with ./ ../ / or ~
+- [[./minimal_init.lua][the bundled init file]]
+- [[../README.md][the project README]]
+# A plain file link:
+- file:minimal_init.lua
+
+*Try:* press =<CR>= on "the bundled init file".
+
+*Expect:* a second window opens with =examples/minimal_init.lua=. Close it
+with =:q=.
+
+** Search options =::=
+Add =::something= after the file name to jump somewhere inside the file:
+
+| Option         | Jumps to                                            |
+|----------------+-----------------------------------------------------|
+| =::42=         | line 42                                             |
+| =::*Heading=   | the headline "Heading" (Org files)                  |
+| =::#custom-id= | the headline with that =CUSTOM_ID=                  |
+| =::(label)=    | a coderef                                           |
+| =::/regexp/=   | every match: a sparse tree in Org files, a location |
+|                | list elsewhere                                      |
+| =::some text=  | a target, name or headline "some text"; in other    |
+|                | files the first line containing the text            |
+
+# Line numbers:
+- [[file:minimal_init.lua::18][line 18 of the init file]]
+# A headline in another Org file:
+- [[file:tutorial.org::*Tables][the Tables section of the tutorial]]
+- [[file:14-footnotes.org::*How to use this file][start of the footnotes file]]
+# A custom ID in another Org file:
+- [[file:tutorial.org::#tutorial-footnotes][the tutorial's footnotes]]
+# Plain text in a non-Org file: the first line that contains it.
+- [[file:minimal_init.lua::agenda_files][where agenda_files is set]]
+# A regexp in a non-Org file: a location list with every match.
+- [[file:minimal_init.lua::/description = /][every description line]]
+# A regexp in this very file: a sparse tree of the matches.
+- [[file:13-links.org::/radio/][every "radio" in this file]]
+
+*Try:* follow "line 18 of the init file".
+
+*Expect:* =minimal_init.lua= opens in another window with the cursor on
+line 18, =vim.opt.termguicolors = true=.
+
+*Try:* follow "every description line".
+
+*Expect:* the init file opens and a location list lists the lines
+containing =description = = (one per capture template and custom agenda
+command), and the message "8 matches for description = ".
+
+*Try:* follow "every "radio" in this file".
+
+*Expect:* this buffer turns into a sparse tree: only the headings with a
+match are unfolded and the matches are highlighted. =<S-Tab>= brings back
+the normal view.
+
+** Wildcards, system apps and Neovim
+- A file name with a wildcard (=*=, =?=, ={=) lists the matching files:
+  [[file:*.org][all Org files in examples/]]. In the list, =<CR>= opens the
+  file on the line and =q= closes it.
+- =file+sys:path= always uses the system application and
+  =file+emacs:path= always opens the file in Neovim. Emacs considers both
+  deprecated (=:Org lint= says so): prefer a count on an ordinary =file:=
+  link, =4<CR>= for Neovim and =16<CR>= for the system application.
+- Files Neovim cannot show (images, PDF, office documents, HTML) open with
+  the system application: [[file:../docs/media/columns.png][a screenshot]].
+  =links.file_apps= changes that per extension.
+
+*Try:* press =<CR>= on "all Org files in examples/".
+
+*Expect:* a scratch buffer that starts with the directory name and
+"wildcard *.org", then lists =00-index.org=, =01-outline.org= ...
+=tutorial.org=, one per line. Put the cursor on =14-footnotes.org= and
+press =<CR>= to open it; =q= closes the list.
+
+* Web and other external links
+| Type           | Example                      | Opens with                 |
+|----------------+------------------------------+----------------------------|
+| =http= =https= | =https://orgmode.org=        | browser                    |
+| =mailto=       | =mailto:someone@example.com= | mail client                |
+| =doi=          | =doi:10.1000/182=            | browser, via doi.org       |
+| =help=         | =help:org-links=             | Vim's =:help=              |
+| =man=          | =man:printf(3)=              | =:Man=                     |
+| =info=         | =info:emacs#Top=             | the =info= program         |
+| =shell=        | =shell:ls -la=               | a shell (asks first)       |
+| =elisp=        | =elisp:(+ 1 2)=              | a separate Emacs (asks)    |
+| =attachment=   | =attachment:notes.txt=       | the entry's attachment dir |
+
+# Web and mail (these leave Neovim for your browser / mail client):
+- [[https://orgmode.org/worg/][Worg, the Org community site]]
+- [[mailto:someone@example.com][Write to someone]]
+- [[doi:10.1000/182][The DOI handbook]]
+# Vim help and man pages stay inside Neovim:
+- [[help:org-links][:h org-links]]
+- [[help:org-id]]
+# (:Org lint does not know the man: type and reports these two; they work.)
+- [[man:ls][the ls man page]]
+- [[man:ls::-l][ls, at the -l option]]
+
+*Try:* press =<CR>= on ":h org-links".
+
+*Expect:* a help window opens at the section "16. LINKS, IDS AND
+ATTACHMENTS". =:q= closes it.
+
+** Shell and Emacs Lisp links
+=shell:= links run a command in the directory of this file. For safety,
+org.nvim asks first (=links.confirm_shell=). The output goes to a new
+=*Org Shell Output*= buffer, or is echoed when it is one line.
+
+# One line of output: it is echoed in the command line.
+- [[shell:echo "hello from a link"][say hello]]
+# Several lines: they go to an *Org Shell Output* buffer.
+- [[shell:ls -1 *.org][list the example files]]
+
+*Try:* press =<CR>= on "say hello" and answer =y=.
+
+*Expect:* the question =Execute echo "hello from a link" in shell?= and,
+after =y=, the message =hello from a link=.
+
+*Try:* press =<CR>= on "list the example files" and answer =y=.
+
+*Expect:* a window =*Org Shell Output*= with one file name per line
+(=00-index.org=, =01-outline.org=, ...).
+
+=elisp:= links evaluate Emacs Lisp in a *separate* =emacs --batch= process
+(you need Emacs installed; it cannot touch your Neovim buffers). They ask
+first too (=links.confirm_elisp=):
+
+- [[elisp:(+ 1 2 3)][add 1 + 2 + 3 in Emacs]]
+
+*Expect:* the question =Execute (+ 1 2 3) as Elisp?= and, after =y=, the
+message =(+ 1 2 3) => 6=.
+
+* Link abbreviations =#+LINK:=
+The =#+LINK:= lines at the top of this file define short prefixes:
+
+#+begin_example
+,#+LINK: gh https://github.com/%s
+,#+LINK: ddg https://duckduckgo.com/?q=%h
+,#+LINK: wiki https://en.wikipedia.org/wiki/
+,#+LINK: ex file:./%s
+#+end_example
+
+- =%s= is replaced by the text after the colon (the "tag").
+- =%h= is the same, but URL-encoded (spaces become =%20=).
+- Without =%s= or =%h=, the tag is appended at the end.
+
+# gh:  https://github.com/xheisenbugx/org.nvim
+- [[gh:xheisenbugx/org.nvim][org.nvim on GitHub]]
+# ddg: https://duckduckgo.com/?q=org%20mode%20tables
+# (:Org lint warns about the %20 in the expanded link, like Emacs; it works.)
+- [[ddg:org mode tables][search the web for "org mode tables"]]
+# wiki: https://en.wikipedia.org/wiki/Org-mode
+- [[wiki:Org-mode][Org mode on Wikipedia]]
+# ex:  file:./14-footnotes.org::*How to use this file  (a local file!)
+- [[ex:14-footnotes.org::*How to use this file][footnotes, via "ex:"]]
+# A double colon works too: gh::user/repo
+- [[gh::neovim/neovim][Neovim on GitHub]]
+
+Abbreviations for every file go in =links.abbreviations= in your config:
+={ gh = "https://github.com/%s" }=, or a Lua function that receives the tag.
+
+*Try:* press =<CR>= on "footnotes, via "ex:"".
+
+*Expect:* =14-footnotes.org= opens in another window on its
+"How to use this file" heading.
+
+*Try:* press =<prefix>lt= and look at the raw links above; then add your
+own =#+LINK:= line at the top of the file, press =<C-c><C-c>= on it so the
+buffer re-reads the settings, and use it in a link below.
+
+* Storing and inserting links
+The usual way to make a link is in two steps: *store* a link to where you
+are (=<prefix>ls=), then *insert* it where you want it (=<prefix>li=).
+
+** =<prefix>ls=: store a link
+=<prefix>ls= works in any buffer, not only Org files. What it stores
+depends on where you are:
+
+| Where                          | Stored link                        |
+|--------------------------------+------------------------------------|
+| on a =<<target>>=              | =file:13-links.org::target=        |
+| on a =#+NAME:= element         | =file:...::name=                   |
+| on a headline with =CUSTOM_ID= | =file:...::#id= (and =::*Heading=) |
+| on any headline                | =file:...::*Heading=               |
+| in a Visual selection          | the selection as search text       |
+| in a non-Org file              | =file:path::current line text=     |
+| in a =:help= buffer            | =help:tag=                         |
+| in the agenda                  | a link to the item's entry         |
+
+With =links.use_id = true= headings are stored as =id:= links instead (and
+get an =ID= property).
+
+** =<prefix>li=: insert a link
+=<prefix>li= asks for the link. The prompt completes stored links, link
+types (=https:=, =file:=, =id:=, =gh:= ...) and file names. An empty answer
+inserts the last stored link. Then it asks for a description, pre-filled
+with the stored one: edit it, or clear it with =<C-u>= for none.
+
+- On an existing link, =<prefix>li= *edits* it: the prompt starts with its
+  target, then its description.
+- In Visual mode, the selected text becomes the description.
+- Stored links are removed from the list once inserted
+  (=links.keep_stored_after_insertion=).
+- Links to places in the same file are shortened: =file:13-links.org::*X=
+  is inserted as =[[*X]]=.
+
+** Exercises
+*** Store and insert a heading link
+*Try:*
+1. Put the cursor on the heading "Target practice" (in "Internal links")
+   and press =<prefix>ls=.
+2. Come back here with =<C-o>=, go to the empty line below the next
+   comment, and press =<prefix>li=.
+3. The prompt shows =Insert link (default file:...::*Target practice)=;
+   press =<CR>= to take the default. The description prompt is pre-filled
+   with "Target practice": press =<C-u>= to clear it, type =practice= and
+   press =<CR>=.
+
+*Expect:* the message =Stored: Target practice= after step 1, and after
+step 3 the new text =[[*Target practice][practice]]=, shown as "practice".
+Press =<CR>= on it to check it works.
+
+# Insert your link on the empty line below this comment:
+
+
+*** Store and insert a link to a line of another file
+*Try:*
+1. Open [[file:minimal_init.lua][the init file]], put the cursor on the
+   line =org_directory = scratch,= and press =<prefix>ls=.
+2. Come back (=<C-o>= or =:b 13-links.org=) and press =<prefix>lL= on the
+   empty line below.
+
+*Expect:* after step 1 the message
+=Stored: file:~/.../minimal_init.lua::org_directory = scratch,=
+and after step 2 the line
+=[[file:minimal_init.lua::org_directory = scratch,][<no description>]]=
+followed by a new line. =<prefix>lL= inserts the last stored link at once,
+without prompts; the path became relative to this file, and a link
+without a description gets =<no description>=, like in Emacs.
+
+# Insert here:
+
+
+*** Store several, insert them all
+*Try:* store links to the three headings "Anatomy of a link", "Following
+links" and "Radio targets" with =<prefix>ls= on each. Then press
+=<prefix>lA= on the empty line below.
+
+*Expect:* three list items, the most recently stored first:
+
+#+begin_example
+- [[*Radio targets][Radio targets]]
+- [[#following][Following links]]
+- [[#anatomy][Anatomy of a link]]
+#+end_example
+
+Headings with a =CUSTOM_ID= are linked by their custom ID. =4<prefix>lA=
+keeps the links in the stored list instead of forgetting them.
+
+# Insert here:
+
+
+*** Edit an existing link
+# Edit this link:
+- [[https://example.com][an example site]]
+
+*Try:* on the link above press =<prefix>li=, change the target to
+=https://example.org= and the description to =another site=.
+
+*Expect:* the item now reads =- [[https://example.org][another site]]=.
+
+*** Turn selected text into a link
+*Try:* select the words "Neovim homepage" below in Visual mode (=v= and
+move), press =<prefix>li=, type =https://neovim.io= and press =<CR>=
+twice (the description prompt is pre-filled with the selection).
+
+*Expect:* the words become =[[https://neovim.io][Neovim homepage]]=.
+
+The Neovim homepage is a good place to start.
+
+*** Store a link in a help buffer
+*Try:* run =:help org-footnotes=, press =<prefix>ls= in the help window,
+close it, and press =<prefix>lL= on the empty line below.
+
+*Expect:* the message "Stored: help:org-footnotes", then the line
+=[[help:org-footnotes][<no description>]]=.
+
+# Insert here:
+
+
+** Completing links while typing
+In Insert mode, after =[[= press =<C-x><C-o>= (or let blink.cmp / nvim-cmp
+do it): link types and stored links are offered; after =[[*= the headings
+of this file; after =[[#= the custom IDs.
+
+*Try:* on the empty line below, type =[[*Rad= in Insert mode and press
+=<C-x><C-o>=.
+
+*Expect:* "Radio targets" is offered. Accept it and close the link with
+=]]=.
+
+
+* IDs
+An =ID= property is a globally unique name for an entry. Links of the form
+=[[id:...]]= find the entry *wherever it is*: in this file, in another
+agenda file, even after you refiled it to a different file. That makes
+them the most robust links to headings.
+
+| Key                        | Action                                        |
+|----------------------------+-----------------------------------------------|
+| =<prefix>lI=               | give the entry an =ID= (or show its ID);      |
+|                            | =4<prefix>lI= replaces it with a new one      |
+| =<prefix>ly=               | copy the entry's ID, creating it              |
+| =<prefix>lg=               | go to an entry by ID (IDs are completed)      |
+| =:Org id_update_locations= | rebuild the ID database from the agenda files |
+| =:Org id_store_link=       | store an =id:= link even without =use_id=     |
+
+The ID database (=id.locations_file=) remembers which file holds which ID;
+with the bundled init file it lives in a scratch directory. When an ID is
+not where the database says, org.nvim scans the agenda files for it.
+
+** An entry with an ID
+:PROPERTIES:
+:ID:       7f3c9a52-1d2e-4c6b-9a0f-13a1b2c3d4e5
+:END:
+This entry has an =ID=. Links to it:
+
+- [[id:7f3c9a52-1d2e-4c6b-9a0f-13a1b2c3d4e5][this entry, by ID]]
+# id:ID::search runs the search inside that entry's subtree. (:Org lint
+# calls these two "Unknown ID", like Emacs' org-lint does; they work.)
+- [[id:7f3c9a52-1d2e-4c6b-9a0f-13a1b2c3d4e5::*A child without an ID][its child]]
+- [[id:7f3c9a52-1d2e-4c6b-9a0f-13a1b2c3d4e5::hidden spot][a target inside]]
+
+This line holds the <<hidden spot>> the third link goes to.
+
+*Try:* follow the three links (from here, or after moving this entry
+around with =<M-j>=: IDs don't care where the entry is).
+
+*Expect:* the first lands on the heading "An entry with an ID", the
+second on its child "A child without an ID", the third on the line "This
+line holds the ...".
+
+*** A child without an ID
+Found through the ID of its parent plus =::*A child without an ID=.
+
+** An ID in another file
+The footnotes example file has an entry with the ID
+=0f5e2d1c-7b3a-4e8f-9c6d-14f00e1d2c3b=:
+
+- [[id:0f5e2d1c-7b3a-4e8f-9c6d-14f00e1d2c3b][a footnote entry, by ID]]
+
+*Try:* follow the link.
+
+*Expect:* =14-footnotes.org= opens in another window, on the heading
+"Named footnotes" (org.nvim scanned the agenda files to find the ID and
+recorded where it is).
+
+** Create, copy and go to IDs
+*** Give me an ID
+*Try:* on the heading above, press =<prefix>lI=.
+
+*Expect:* a =:PROPERTIES:= drawer appears under the heading with a line
+like =:ID: 3c1b9a...= (a new UUID), and the ID is echoed. Press =<prefix>lI=
+again: the same ID is shown, nothing changes. =4<prefix>lI= replaces it.
+
+*Try:* press =<prefix>ly= on the same heading, then =p= on an empty line.
+
+*Expect:* the message "Copied ID ..." and =p= pastes the ID (it went to
+the clipboard and the unnamed register).
+
+*Try:* run =:Org id_update_locations= (it scans the agenda files, here
+=examples/*.org=, and reports how many IDs it found). Then press
+=<prefix>lg=, type =7f3c= and complete with =<Tab>=; press =<CR>=.
+
+*Expect:* the cursor jumps to the heading "An entry with an ID". (=<prefix>lg=
+completes the IDs of the database, which starts empty with the bundled
+init file: that is why the update comes first.)
+
+*** Store id: links automatically
+*Try:* =:lua require("org.config").opts.links.use_id = true=, then press
+=<prefix>ls= on the heading "Give me an ID" and =<prefix>lL= on the empty
+line below. Set the option back to =false= afterwards.
+
+*Expect:* an =[[id:...][Give me an ID]]= link using the ID created before.
+
+# Insert here:
+
+
+* Attachments
+An entry can have files *attached*: they live in a directory that belongs
+to the entry, and =[[attachment:name]]= links refer to them by name. The
+directory is:
+
+1. the entry's =DIR= property, when it has one (relative to this file), or
+2. =attach.dir= (default =data/=) plus a folder made from the entry's
+   =ID=: the ID =7f3c9a52-...= gives =data/7f/3c9a52-...=.
+
+When an entry has neither, attaching gives it an =ID=. Attaching also adds
+the =ATTACH= tag and stores an =attachment:= link (=<prefix>lL= inserts it).
+
+** The attachment menu =<prefix>A=
+=<prefix>A= (=C-c C-a=) on a headline opens this menu:
+
+| Key             | Action                                            |
+|-----------------+---------------------------------------------------|
+| =a=             | attach a file (=attach.method=: =cp= by default)  |
+| =c= =m= =l= =y= | attach by copy / move / hard link / symbolic link |
+| =u=             | download a URL into the directory (=curl=)        |
+| =b=             | attach the contents of another buffer             |
+| =n=             | create a new file in the directory and edit it    |
+| =z=             | synchronise the =ATTACH= tag with the directory   |
+| =o= / =O=       | open an attachment (system app / Neovim)          |
+| =f= / =F=       | open the directory (system app / Neovim)          |
+| =d= / =D=       | delete one attachment / all of them               |
+| =s= / =S=       | set / remove the =DIR= property                   |
+
+** An entry whose DIR is an existing folder
+:PROPERTIES:
+:DIR:      ../docs/media
+:END:
+# DIR points at the screenshots of the project. Do NOT use d or D here:
+# they would delete real files of the repository.
+This entry's attachment directory is =docs/media= of the repository, so
+these links work without attaching anything first:
+
+- [[attachment:columns.png][the column view screenshot]]
+- [[attachment:README.md][the media README]]
+
+*Try:* press =<CR>= on "the media README".
+
+*Expect:* =docs/media/README.md= opens in another window.
+
+*Try:* on this entry's headline, press =<prefix>A= then =F=.
+
+*Expect:* the =docs/media= directory opens in Neovim (netrw or your file
+explorer).
+
+** Attach something yourself
+*** Notes for the trip
+*Try:*
+1. On the heading "Notes for the trip" press =<prefix>A=, then =n=, and
+   type =packing.txt=.
+2. A split opens on the new file; type a few words and =:wq=.
+
+*Expect:* the heading now has an =ID= (in a new property drawer) and the
+tag =:ATTACH:=, and the file =examples/data/xx/yyyy.../packing.txt= exists
+(=xx/yyyy...= is the ID split after two characters).
+
+*Try:* on the heading press =<prefix>A= then =O= and pick =packing.txt=.
+
+*Expect:* the file opens in Neovim.
+
+*Try:* type =[[attachment:packing.txt]]= in the body of "Notes for the
+trip" (below the property drawer) and press =<CR>= on it.
+
+*Expect:* =packing.txt= opens again.
+
+*Try:* =<prefix>A= then =d=, pick =packing.txt=; then =<prefix>A= then =z=.
+
+*Expect:* the file is deleted (with a single attachment there is nothing
+to pick). =z= then asks "Attachment directory is empty.  Delete?"; after
+=y= the =ATTACH= tag is gone from the heading (the =ID= stays).
+Finally clean up with =rm -rf examples/data=.
+
+* Custom link types
+You can add your own link types in the config, under =links.types=
+(Emacs' =org-link-set-parameters=). A type is a follow function, or a table
+with =follow=, =complete=, =store=, =export=, =face=,
+=insert_description= and =preview=:
+
+#+begin_src lua :eval no
+require("org").setup({
+  links = {
+    types = {
+      -- [[issue:123]] opens the GitHub issue 123 of org.nvim
+      issue = function(path)
+        vim.ui.open("https://github.com/xheisenbugx/org.nvim/issues/" .. path)
+      end,
+    },
+  },
+})
+#+end_src
+
+After that, =[[issue:1]]= follows with =<CR>=, is completed after =[[=,
+and exports as a link. Simpler cases are better served by a =#+LINK:=
+abbreviation (see [[*Link abbreviations =#+LINK:=][Link abbreviations]]).
+
+Other hooks: =links.make_description(link, desc)= gives inserted links a
+default description, =links.search_functions= handle =::search= options
+first, and =links.translation_function(type, path)= rewrites links before
+they are followed.
+
+* What is not supported
+- =help:= opens Vim's =:help=, not Emacs' describe-function.
+- Links to Emacs applications (=gnus:=, =rmail:=, =bbdb:=, =irc:=, =eww:=,
+  =w3m:=, =calendar:= ...) cannot be followed or stored.
+- =elisp:= links run in a separate Emacs process, never inside Neovim, so
+  commands acting on the editor fail.
+- Wildcard =file:= links list the matches in a scratch buffer instead of
+  Emacs' Dired.
+- =::/regexp/= searches translate Emacs regexps to Vim regexps; exotic
+  Emacs syntax is approximated.
+See =:h org-differences= for the full list.
+
+* Further reading
+- =:h org-links= :: syntax, every link type, the keys
+- =:h org-id= :: IDs and the ID database
+- =:h org-attach= and =:h org-attach-git= :: attachments
+- =:h org-completion= :: link completion
+- =:h org-images= :: previewing image links, see also
+  [[file:21-images-latex.org][21-images-latex.org]]
+- =:h org-differences= :: what differs from Emacs

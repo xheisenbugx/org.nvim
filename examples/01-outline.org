@@ -1,0 +1,1055 @@
+#+TITLE: Outline: headlines, visibility and structure editing
+#+STARTUP: overview
+#+CATEGORY: outline
+#+TODO: TODO(t) NEXT(n) WAITING(w) | DONE(d) CANCELLED(c)
+
+* How to use this file
+This file teaches the outline: headlines, folding, moving around and
+reshaping the tree. Each top-level heading is one topic, going from simple
+to advanced. Every topic explains the idea, shows examples, and ends with
+exercises:
+
+- *Try:* lines tell you exactly which keys to press, and where.
+- *Expect:* lines tell you exactly what you should see afterwards.
+- Lines starting with =# = are Org comments: notes for you, right next to
+  the examples. They are never exported.
+
+Start Neovim from the root of the repository with the bundled config, so
+nothing touches your own setup:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/01-outline.org
+#+end_src
+
+=examples/minimal_init.lua= sets =<leader>= to =<Space>=, points the agenda
+at =examples/*.org= and sends captures to a scratch directory. It also turns
+on =enforce_todo_dependencies=, pretty headline bullets (=◉ ○ ✸ ✿=) and
+checkbox icons, so your stars may be drawn as those symbols.
+
+- The file opens folded (=#+STARTUP: overview=). Put the cursor on a heading
+  and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means =<leader>o= (so =<Space>o= with the bundled config).
+- =g?= lists every key of the current buffer.
+- Coming from Emacs? The =C-c= keys work too; they are shown next to the
+  Vim-style keys, e.g. =<C-c><C-n>=.
+- You can't break anything: =u= undoes, and
+  =git checkout examples/01-outline.org= restores the file.
+- Many exercises depend on the cursor *column*. "On the title" means: put
+  the cursor on the headline's text (for example with =$=), not on the
+  stars.
+
+** Keys in this file
+| Key                      | What it does                                 |
+|--------------------------+----------------------------------------------|
+| =<Tab>= / =<S-Tab>=      | cycle a subtree / the whole buffer           |
+| =]]= =[[= =][= =[]= =g{= | next/prev heading, next/prev sibling, parent |
+| =<prefix>.=              | jump to any headline (picker)                |
+| =ih= =ah= =ir= =ar=      | text objects: section / subtree              |
+| =<M-CR>= =<M-S-CR>=      | new heading (or TODO heading) / item / row   |
+| =<prefix>ih= =it= =is=   | insert heading / TODO heading / subheading   |
+| =<<= =>>= =<s= =>s=      | promote / demote heading, subtree            |
+| =<M-h>= =<M-l>=          | promote / demote the heading                 |
+| =<M-H>= =<M-L>=          | promote / demote the subtree                 |
+| =<M-k>= =<M-j>=          | move subtree (or element) up / down          |
+| =<M-K>= =<M-J>=          | drag the current line up / down              |
+| =<prefix>hy= =hd= =hp=   | copy / cut / paste subtree                   |
+| =<prefix>hc=             | clone subtree with a time shift              |
+| =<prefix>hs=             | sort the children of the heading             |
+| =<prefix>hn=             | narrow: edit the subtree in its own buffer   |
+| =<prefix>*= =<prefix>-=  | toggle heading / list item                   |
+| =<prefix>hC= =hA=        | toggle COMMENT keyword / ARCHIVE tag         |
+| =<prefix>id= =ib=        | insert drawer / block (structure template)   |
+
+* Headlines and levels
+A headline is a line that starts with one or more stars *in column 0*,
+followed by a space. The number of stars is the level. Everything below a
+headline, up to the next headline of the same or a higher level, belongs to
+it: that is its *subtree*. The text right under it (before its first child)
+is its *section* or *body*.
+
+#+begin_example
+  * TODO [#A] Headline title                            :tag1:tag2:
+    ~~~~ ~~~~ ~~~~~~~~~~~~~~                            ~~~~~~~~~~~
+    |    |    the title                                 tags
+    |    priority cookie (optional)
+    TODO keyword (optional)
+  ** A child (level 2)
+  Body text of the child.
+  *** A grandchild (level 3)
+#+end_example
+(The example is indented so that its stars are not real headlines of this
+file: inside a block, a line starting with =*= in column 0 would still end
+the block and start a headline.)
+
+A few lines that are *not* headlines, even when they start in column 0
+(shown here as fixed-width lines):
+
+: *bold at the start of a line*   no space after the star: bold text
+: ***                             stars alone: plain text
+:   * indented star               a list item, not a headline
+
+The TODO keywords of this file come from the =#+TODO:= line at the top
+(see [[file:04-todo.org][04-todo.org]]); tags are explained in
+[[file:05-tags.org][05-tags.org]].
+
+*Try:* open the tree below with =<Tab>= on "Example tree" (press it until
+everything shows).
+
+*Expect:* "Three stars", "Four stars" and "Five stars" are headlines, each
+highlighted for its level (drawn with a bullet symbol by the bundled
+config). The =***= line and the =*not a headline*= line are plain text in
+the body of "Five stars".
+
+** Example tree
+# This heading has two stars; its descendants go deeper.
+*** Three stars
+Body text of "Three stars".
+**** Four stars
+***** Five stars
+***
+*not a headline* (no space after the star)
+
+** Odd levels only
+With =#+STARTUP: odd= (or =odd_levels_only = true=) the outline uses only
+odd levels: 1, 3, 5... Promoting or demoting then adds or removes *two*
+stars. =#+STARTUP: oddeven= is the default. This file uses every level.
+
+* Visibility cycling
+Folding hides parts of the outline so you see the structure. A folded
+headline ends with =...= (the =ellipsis= option).
+
+** Cycling one subtree with Tab
+=<Tab>= on a headline cycles through three states:
+
+1. FOLDED: only the headline.
+2. CHILDREN: the body and the direct children (folded).
+3. SUBTREE: everything below the headline.
+
+A headline without children goes from FOLDED straight to SUBTREE.
+
+*Try:* on "Solar system" below, press =<Tab>= three times, pausing after
+each press.
+
+*Expect:* first press: "Inner planets" and "Outer planets" appear (folded,
+with =...=) along with the text "Planets orbit the Sun." Second press: every
+planet shows up. Third press: back to just "Solar system...".
+
+*** Solar system
+Planets orbit the Sun.
+**** Inner planets
+***** Mercury
+***** Venus
+***** Earth
+The only one with known life.
+***** Mars
+**** Outer planets
+***** Jupiter
+***** Saturn
+***** Uranus
+***** Neptune
+
+** Cycling the whole buffer with S-Tab
+=<S-Tab>= (anywhere) cycles the whole buffer:
+
+1. OVERVIEW: only top-level headlines.
+2. CONTENTS: every headline, no body text.
+3. SHOW ALL: everything (drawers stay folded).
+
+With a count, =<S-Tab>= shows the headlines up to that level:
+=2<S-Tab>= shows levels 1 and 2.
+
+The same states have commands: =:Org overview=, =:Org content=,
+=:Org show_all= and =:Org show_everything= (which also opens drawers).
+
+*Try:* press =<S-Tab>= three times.
+
+*Expect:* OVERVIEW shows only the lines starting with one star, such as
+"* Visibility cycling". CONTENTS shows all headlines of the file (like a
+table of contents). SHOW ALL shows the whole text.
+
+*Try:* press =2<S-Tab>=, then =3<S-Tab>=.
+
+*Expect:* with =2= you see "Visibility cycling" and its children like
+"Cycling one subtree with Tab", but not "Solar system". With =3= you also
+see level-3 headlines such as "Solar system" and "Three stars".
+
+** Tab with a count
+=<Tab>= also takes a count (it stands in for Emacs' =C-u=):
+
+| Keys      | Result                                               |
+|-----------+------------------------------------------------------|
+| =16<Tab>= | back to the startup visibility (=#+STARTUP:= and the |
+|           | =VISIBILITY= properties)                             |
+| =64<Tab>= | show everything, drawers included                    |
+| =N<Tab>=  | show the whole subtree of the ancestor at level N    |
+
+*Try:* inside "Solar system" (for example on "Mars"), press =2<Tab>=.
+
+*Expect:* the whole subtree of the level-2 ancestor, "Cycling one subtree
+with Tab", is open: every planet is visible.
+
+*Try:* press =16<Tab>=.
+
+*Expect:* the file is back to how it looked when you opened it (only
+top-level headlines, plus the "VISIBILITY property" demo further down,
+which opens itself).
+
+** Showing parts without the body
+These keep the body text hidden and only show headlines:
+
+- =<C-c><Tab>= shows the children of the entry (a count: that many levels).
+- =<C-c><C-k>= shows every headline of the subtree (its branches).
+- =<C-c><C-r>= reveals the context of the cursor: the headlines above it.
+- =<C-c><C-x>v= copies only the visible text of the buffer (to the
+  unnamed register), e.g. to paste an outline somewhere else.
+
+*Try:* fold "Solar system" with =<Tab>= until it shows only its headline,
+then press =<C-c><C-k>= on it.
+
+*Expect:* all headlines of the subtree (Inner planets, Mercury ... Neptune)
+are visible, but "Planets orbit the Sun." and "The only one with known
+life." stay hidden.
+
+** Folding drawers and blocks
+Drawers (=:NAME:= ... =:END:=) and blocks (=#+begin_...= ... =#+end_...=)
+fold on their own. =<Tab>= on their first line toggles them. Drawers start
+folded (=hidedrawers=, the default).
+
+*Try:* press =<Tab>= on the =:PROPERTIES:= line below, then on the
+=#+begin_example= line.
+
+*Expect:* the drawer opens and shows =:COLOR: blue=; pressing =<Tab>= again
+folds it. The example block folds into a single line.
+
+*** Entry with a drawer and a block
+:PROPERTIES:
+:COLOR:    blue
+:END:
+#+begin_example
+This is an example block.
+It folds on its own.
+#+end_example
+
+** Tab in body text
+On a line that is not a headline, item, drawer or block, =<Tab>= indents the
+line like Emacs' =org-cycle-emulate-tab= (=cycle_emulate_tab = true=). Set
+it to =false= to make =<Tab>= cycle the entry from anywhere.
+
+** Blank lines between subtrees
+When a subtree ends with at least two blank lines, the last one stays
+visible when the subtree is folded (=cycle_separator_lines = 2=). This
+keeps groups visually separate in the folded view.
+
+* Startup visibility
+When a file is opened, its visibility comes from the =#+STARTUP:= line (or
+the =startup_folded= option when there is none):
+
+| =#+STARTUP:=     | Opens with                                    |
+|------------------+-----------------------------------------------|
+| =overview=       | top-level headlines only                      |
+| =content=        | all headlines, no text                        |
+| =show2levels=    | headlines of levels 1-2 (up to =show5levels=) |
+| =showall=        | everything except drawers                     |
+| =showeverything= | everything, drawers included, no folding      |
+| =nofold=         | no folding at all                             |
+
+Extra words can be combined on the same line:
+- =hideblocks= folds every =#+begin_= block, =nohideblocks= doesn't.
+- =hidedrawers= (default) folds drawers, =nohidedrawers= leaves them open.
+
+For example, =#+STARTUP: content hideblocks= opens with all headlines and
+every block folded.
+
+*Try:* change the second line of this file to =#+STARTUP: content=, press
+=<C-c><C-c>= on it, then press =16<Tab>= on any headline.
+
+*Expect:* every headline of the file is visible, without the body text.
+Change the line back to =overview= and press =<C-c><C-c>= and =16<Tab>=
+again to restore it.
+
+** VISIBILITY property
+:PROPERTIES:
+:VISIBILITY: children
+:END:
+# This heading opens itself at startup because of the property above.
+A =VISIBILITY= property sets the startup visibility of one subtree, on top
+of =#+STARTUP:=. Values: =folded=, =children=, =content= and =all=.
+Because this heading has =:VISIBILITY: children=, it opened by itself when
+the file was loaded, showing this text and its children.
+
+*** Folded child
+This line stays hidden until you open "Folded child" with =<Tab>=.
+*** Open child
+:PROPERTIES:
+:VISIBILITY: all
+:END:
+This child says =all=, so this line was visible from the start.
+
+** Archived subtrees
+A subtree tagged =:ARCHIVE:= stays folded when you cycle with =<Tab>= or
+=<S-Tab>=, so old material doesn't get in the way. You can still open it:
+
+- =<C-c><C-Tab>= (or =:Org force_cycle_archived=) cycles it anyway.
+- =<prefix>hA= (Emacs =<C-c><C-x>a=) toggles the =ARCHIVE= tag on the
+  current headline.
+- Set =cycle_open_archived_trees = true= to open them normally.
+
+Moving subtrees to an archive file is explained in
+[[file:12-refile-archive.org][12-refile-archive.org]].
+
+*Try:* press =<Tab>= on "Old project" below.
+
+*Expect:* it doesn't open. Press =<C-c><C-Tab>= on it: now it opens and
+shows "Old notes that nobody reads anymore."
+
+*Try:* on "Current project", press =<prefix>hA=.
+
+*Expect:* =:ARCHIVE:= is added at the end of the line (right-aligned), and
+from now on =<Tab>= refuses to open it. Press =<prefix>hA= again to remove
+the tag.
+
+*** Old project                                                     :ARCHIVE:
+Old notes that nobody reads anymore.
+**** Some old child
+*** Current project
+Work in progress.
+
+* Moving around
+** Headline motions
+| Key         | Emacs key    | Moves to                                  |
+|-------------+--------------+-------------------------------------------|
+| =]]=        | =<C-c><C-n>= | next visible headline                     |
+| =[[=        | =<C-c><C-p>= | previous visible headline                 |
+| =][=        | =<C-c><C-f>= | next sibling (same level, same parent)    |
+| =[]=        | =<C-c><C-b>= | previous sibling                          |
+| =g{=        | =<C-c><C-u>= | parent headline                           |
+| =<prefix>.= | =<C-c><C-j>= | any headline of the buffer, from a picker |
+
+Motions take counts: =3]]= moves three headlines down.
+
+*Try:* put the cursor on "Alpha" below and press =][= twice, then =[]=.
+
+*Expect:* =][= jumps over Alpha's child "Alpha child" to "Beta", then to
+"Gamma". =[]= goes back to "Beta".
+
+*Try:* on "Alpha child", press =g{=.
+
+*Expect:* the cursor goes to "Alpha".
+
+*Try:* press =<prefix>.= and type =gamma= in the picker, then =<CR>=.
+
+*Expect:* the cursor lands on "Gamma".
+
+*** Alpha
+**** Alpha child
+*** Beta
+*** Gamma
+
+** Text objects for sections and subtrees
+Four text objects work with any operator (=d=, =y=, =c=, =v=, ...):
+
+| Object | Selects                                               |
+|--------+-------------------------------------------------------|
+| =ih=   | the section: the body under the headline, no children |
+| =ah=   | the section with its headline line                    |
+| =ir=   | the subtree without its headline line                 |
+| =ar=   | the whole subtree, headline included                  |
+
+*Try:* on "Recipe" below, press =vih=.
+
+*Expect:* the two lines "Mix flour and water." and "Bake for 20 minutes."
+are selected, but not "Variations". Press =<Esc>=.
+
+*Try:* on "Recipe", press =dar=, then =u=.
+
+*Expect:* "Recipe" and everything under it (Variations, With cheese)
+disappears; =u= brings it back.
+
+*Try:* on "Recipe", press =yir=, move to the empty line at the end of this
+topic and press =p=.
+
+*Expect:* a copy of the body and the children of "Recipe" (without the
+"Recipe" line itself) is pasted.
+
+*** Recipe
+Mix flour and water.
+Bake for 20 minutes.
+**** Variations
+***** With cheese
+
+** Element motions
+Org also knows *elements*: paragraphs, lists, tables, blocks, drawers...
+- =<M-}>= / =<M-{>= jump to the next / previous element at the same level.
+- =<C-c><C-^>= goes up to the parent element, =<C-c><C-_>= down into it.
+- =<prefix>v= selects the element at the cursor; press it again in Visual
+  mode to add the next element.
+- =<C-c>@= selects the whole subtree.
+- =<C-c><M-f>= / =<C-c><M-b>= jump to the next / previous block.
+
+*Try:* in the paragraph "First paragraph..." below, press =<prefix>v=.
+
+*Expect:* the whole paragraph (both lines) and the blank line after it are
+selected. Press =<prefix>v= again: the quote block below is added to the
+selection.
+
+*Try:* press =<Esc>=, go back to "First paragraph" and press =<M-}>= twice.
+
+*Expect:* the cursor jumps to =#+begin_quote=, then to "Last paragraph.".
+
+*** Some elements
+First paragraph, which spans
+two lines.
+
+#+begin_quote
+A quote block.
+#+end_quote
+
+Last paragraph.
+
+* Inserting headlines
+** M-CR: a new headline, item or row
+=<M-CR>= (Meta-Return, usually =Alt+Enter=) is context-aware: on a headline
+it inserts a headline, on a list item an item (see
+[[file:03-lists.org][03-lists.org]]), in a table a row. The new line is at
+the same level and you are left in Insert mode.
+
+Where the new headline goes depends on the mode and the cursor:
+- In Normal mode on the title: right below the headline line.
+- In Normal mode in column 0 of a headline: *above* it.
+- On a folded headline: after its whole subtree.
+- In Insert mode: at the cursor. In the middle of the title, the rest of the
+  title moves to the new headline (the tags stay where they are).
+- =4<M-CR>= always inserts after the current subtree; =16<M-CR>= at the end
+  of the parent's subtree.
+
+=<M-S-CR>= does the same but adds a TODO keyword (the one of the current
+entry, or the first one of the file).
+
+*Try:* on "Monday" below, press =$= then =<M-CR>=, type =Tuesday= and
+press =<Esc>=.
+
+*Expect:* a new headline right under "Monday":
+: *** Tuesday
+
+*Try:* on "Monday", press =0= (column 0) then =<M-CR>=, type =Sunday=.
+
+*Expect:* the new headline appears *above* Monday:
+: *** Sunday
+: *** Monday
+
+*Try:* on "Plan the trip" press =$= and =<M-S-CR>=, type =Pack=, =<Esc>=.
+
+*Expect:* a TODO headline under "Plan the trip":
+: *** TODO Pack
+
+*Try:* on "Split me here", put the cursor on the =h= of "here", press =i=
+then =<M-CR>=, and =<Esc>=.
+
+*Expect:* two headlines; the tag stays on the first one:
+: *** Split me                                                           :demo:
+: *** here
+# No blank line above these headings on purpose: see "Blank lines before
+# new entries" below.
+*** Monday
+*** TODO Plan the trip
+*** Split me here                                                      :demo:
+
+** Heading commands that respect the subtree
+These always put the new headline *after the subtree* of the current one:
+
+| Key          | Emacs key   | Inserts                                     |
+|--------------+-------------+---------------------------------------------|
+| =<prefix>ih= | =<C-CR>=    | a headline after the subtree                |
+| =<prefix>it= | =<C-S-CR>=  | a TODO headline after the subtree           |
+| =<prefix>is= |             | a subheading: one level deeper, right below |
+|              | =<C-c><CR>= | a headline (like =<M-CR>=)                  |
+
+*Try:* on "Chapter 1" below, press =<prefix>ih=, type =Chapter 2=, =<Esc>=.
+
+*Expect:* "Chapter 2" is inserted after "Section 1.2", not between
+"Chapter 1" and its sections:
+: **** Section 1.2
+: *** Chapter 2
+
+*Try:* on "Chapter 1", press =<prefix>is=, type =Introduction=, =<Esc>=.
+
+*Expect:* "Introduction" appears right below "Chapter 1", as its first
+child (four stars):
+: *** Chapter 1
+: **** Introduction
+: **** Section 1.1
+# No blank line above this heading, so no blank lines are added.
+*** Chapter 1
+**** Section 1.1
+**** Section 1.2
+
+** Choosing the level while typing
+Right after =<M-CR>=, while the new headline is still empty, =<Tab>= in
+Insert mode cycles its level: first a child of the previous entry, then up
+the hierarchy, then back. So =<M-CR><Tab>= is the quickest way to create a
+subheading.
+
+*Try:* on "Project" below, press =A= (Insert mode at the end of the line),
+then =<M-CR>=, then =<Tab>=, type =Task A=, and =<Esc>=.
+
+*Expect:* "Task A" has four stars: a child of "Project".
+
+*Try:* press =u=, and do it again but press =<Tab>= several times before
+typing, watching the stars.
+
+*Expect:* the level cycles 4, 2, 1 and back to 3 (a sibling of
+"Project"): child, then up the hierarchy, then where it started.
+*** Project
+
+** Blank lines before new entries
+If the headline you are on is separated from the one above by a blank line,
+new headlines get one too (=blank_before_new_entry = { heading = "auto" }=).
+
+*Try:* on "Spaced one" press =$= and =<M-CR>=, type =Spaced two=.
+
+*Expect:* a blank line is inserted before the new headline:
+: *** Spaced one
+:
+: *** Spaced two
+
+*** Spaced one
+
+* Promoting and demoting
+Promoting moves a headline one level up (one star less), demoting one level
+down (one star more).
+
+| Key             | Emacs key              | Changes           |
+|-----------------+------------------------+-------------------|
+| =<<= / =>>=     |                        | the headline only |
+| =<M-h>= =<M-l>= | =M-Left= =M-Right=     | the headline only |
+| =<s= / =>s=     |                        | the whole subtree |
+| =<M-H>= =<M-L>= | =M-S-Left= =M-S-Right= | the whole subtree |
+
+- A count repeats: =2>>= demotes twice.
+- In Visual mode, =<M-h>= / =<M-l>= change every headline of the selection.
+- Tags stay right-aligned after the change.
+- On a list item the same keys indent / outdent the item.
+
+*Try:* on "Child to promote" below, press =<<=.
+
+*Expect:* "Child to promote" loses a star and becomes a sibling of "Parent".
+Its child keeps its five stars (it is now two levels below):
+: *** Parent
+: *** Child to promote
+: ***** Grandchild
+
+*Try:* press =u=, then =<s= on "Child to promote".
+
+*Expect:* the whole subtree moved up one level:
+: *** Child to promote
+: **** Grandchild
+
+*Try:* on "Demote me twice" press =2>>=.
+
+*Expect:* two more stars:
+: ***** Demote me twice
+
+*Try:* select the three "Visual" lines with =V= and =2j=, then press
+=<M-l>=.
+
+*Expect:* all three get one more star.
+
+*** Parent
+**** Child to promote
+***** Grandchild
+*** Demote me twice
+*** Visual one
+*** Visual two
+*** Visual three
+
+* Moving subtrees and lines
+** Moving subtrees up and down
+=<M-k>= / =<M-j>= (also =<M-Up>= / =<M-Down>=, or =<prefix>K= /
+=<prefix>J=) swap the subtree at the cursor with the previous / next
+sibling. Children always travel with their parent. A count moves past that
+many siblings.
+
+*Try:* put these steps in order: on "Step 3" press =<M-j>= twice; on
+"Step 1" press =<M-k>=.
+
+*Expect:* the order is Step 1, Step 2, Step 3, Step 4. "Detail of step 2"
+stays under "Step 2".
+
+*Try:* on "Step 4", press =3<M-k>=.
+
+*Expect:* Step 4 jumps to the top, above Step 1.
+
+*** Step 3
+*** Step 2
+**** Detail of step 2
+*** Step 1
+*** Step 4
+
+** Dragging elements and lines
+Outside headlines, =<M-k>= / =<M-j>= drag the whole element (paragraph,
+list, block, table...) past the previous / next one. =<M-K>= / =<M-J>=
+drag just the current line, like a line-swap command.
+
+*Try:* on the paragraph "Second." below, press =<M-k>=.
+
+*Expect:* "Second." and "First." swap places.
+
+*Try:* on the line "line b" press =<M-J>=.
+
+*Expect:* "line b" and "line c" swap: the order is a, c, b.
+
+*** Elements to drag
+First.
+
+Second.
+
+line a
+line b
+line c
+
+* Cut, copy, paste and clone
+** Copy, cut and paste subtrees
+| Key          | Emacs key         | Action            |
+|--------------+-------------------+-------------------|
+| =<prefix>hy= | =<C-c><C-x><M-w>= | copy the subtree  |
+| =<prefix>hd= | =<C-c><C-x><C-w>= | cut the subtree   |
+| =<prefix>hp= | =<C-c><C-x><C-y>= | paste the subtree |
+
+The subtree is also put in the =""= register. When pasting, the level is
+adjusted:
+- in column 0 of a headline, the subtree goes *before* it, at its level;
+- elsewhere, before the next visible headline, at the deeper level of the
+  headlines around it;
+- =4<prefix>hp= pastes after the current subtree at its level;
+- =16<prefix>hp= pastes as the first child.
+
+Vim works too: =dar= / =yar= and =p= (but =p= does not change levels).
+
+*Try:* on "Milk" (in "Shopping") press =<prefix>hd=. Then go to "Bakery"
+and press =16<prefix>hp=.
+
+*Expect:* "Milk" disappears from "Shopping" and becomes the first child of
+"Bakery":
+: *** Bakery
+: **** Milk
+: **** Bread
+
+*Try:* on "Shopping" press =<prefix>hy=, move to "Bakery" and press
+=4<prefix>hp=.
+
+*Expect:* a copy of "Shopping" with its children is pasted after the
+"Bakery" subtree, at level 3.
+
+*** Shopping
+**** Milk
+**** Eggs
+*** Bakery
+**** Bread
+
+** Cloning with a time shift
+=<prefix>hc= (Emacs =<C-c><C-x>c=) makes N copies of the subtree, right
+after it. When the subtree contains timestamps, you are asked for a shift
+(=+1w=, =+2d=, =-3d=, =+1h=...) and each copy moves one step further.
+Clones lose their CLOCK lines and get a new ID (if they had one).
+
+*Try:* on "Team sync" press =<prefix>hc=, answer =3= copies and a shift of
+=+1w=.
+
+*Expect:* three new "Team sync" headlines after it, dated
+=<2026-10-12 Mon 10:00-10:30>=, =<2026-10-19 Mon 10:00-10:30>= and
+=<2026-10-26 Mon 10:00-10:30>=.
+
+*** Team sync
+<2026-10-05 Mon 10:00-10:30>
+Agenda: status, blockers.
+
+* Sorting
+=<prefix>hs= (Emacs =<C-c>^=) sorts the *children* of the headline under
+the cursor. A menu asks how:
+
+| Key | Sorts by                                                       |
+|-----+----------------------------------------------------------------|
+| =a= | title, alphabetically (links count by their description)       |
+| =n= | the number at the start of the title (no number = 0)           |
+| =p= | priority (no priority = the default, B)                        |
+| =r= | a property you name (compared as text)                         |
+| =o= | TODO order: open keywords, then none, then done keywords       |
+| =t= | first active timestamp (else inactive) in the entry            |
+| =s= | SCHEDULED date                                                 |
+| =d= | DEADLINE date                                                  |
+| =c= | creation time: first inactive timestamp at the start of a line |
+| =k= | clocked time                                                   |
+| =f= | a function you give                                            |
+
+- An uppercase key sorts in reverse (=A=, =N=, =P=...).
+- With a count (=4<prefix>hs=) =a= is case-sensitive.
+- For =t=, =s=, =d= and =c=, an entry without the date counts as *now*.
+- In Visual mode, the selected entries are sorted; before the first
+  headline, the top-level entries.
+- Sorting is stable: entries with equal keys keep their order.
+
+** Alphabetically
+*Try:* on "Fruit" press =<prefix>hs= then =a=.
+
+*Expect:* apple, Banana, cherry, date. (Case is ignored.)
+
+*Try:* now press =4<prefix>hs= then =a=.
+
+*Expect:* Banana, apple, cherry, date: with a count, upper case sorts
+before lower case.
+
+*Try:* press =<prefix>hs= then =A=.
+
+*Expect:* date, cherry, Banana, apple.
+
+*** Fruit
+**** cherry
+**** Banana
+**** date
+**** apple
+** Numerically
+Alphabetical sorting puts "10" before "9"; numeric sorting reads the number.
+
+*Try:* on "Chapters" press =<prefix>hs= then =a=, look, then =<prefix>hs=
+and =n=.
+
+*Expect:* =a= gives 10, 2, 9, Preface. =n= gives Preface (no number, so 0),
+2, 9, 10.
+
+*** Chapters
+**** 10 Epilogue
+**** 2 The journey
+**** Preface
+**** 9 The return
+** By priority
+*Try:* on "Bugs" press =<prefix>hs= then =p=.
+
+*Expect:* =[#A]= first, then "No priority" and =[#B]= (both count as B, so
+they keep their order), then =[#C]=.
+
+*** Bugs
+**** [#C] Typo in the footer
+**** No priority
+**** [#A] Crash on startup
+**** [#B] Slow search
+** By TODO order
+The order is: open keywords in the order of =#+TODO:= (TODO, NEXT,
+WAITING), then entries without a keyword, then done keywords. Among done
+keywords, the one listed *last* comes first (CANCELLED before DONE), exactly
+like Emacs.
+
+*Try:* on "Tasks" press =<prefix>hs= then =o=.
+
+*Expect:* TODO Write, NEXT Review, WAITING Approval, Plain note,
+CANCELLED Old idea, DONE Draft.
+
+*** Tasks
+**** DONE Draft
+**** Plain note
+**** WAITING Approval
+**** CANCELLED Old idea
+**** TODO Write
+**** NEXT Review
+** By property
+=r= asks for a property name. Values are compared as *text*, so pad numbers
+(=03=, =10=) if you want them in numeric order.
+
+*Try:* on "Hotels" press =<prefix>hs=, =r=, type =CITY= and =<CR>=.
+
+*Expect:* Berlin, Lisbon, Oslo (the hotel names: Adlon, Tivoli, Grand).
+
+*** Hotels
+**** Grand
+:PROPERTIES:
+:CITY:     Oslo
+:END:
+**** Adlon
+:PROPERTIES:
+:CITY:     Berlin
+:END:
+**** Tivoli
+:PROPERTIES:
+:CITY:     Lisbon
+:END:
+** By the first timestamp
+=t= looks at the first active timestamp anywhere in the entry (an inactive
+one if there is no active one).
+
+*Try:* on "Events" press =<prefix>hs= then =t=.
+
+*Expect:* Kickoff (Oct 1), Workshop (Oct 14), Retro (Nov 2).
+
+*** Events
+**** Retro
+<2026-11-02 Mon>
+**** Kickoff
+<2026-10-01 Thu>
+**** Workshop
+<2026-10-14 Wed>
+** By SCHEDULED or DEADLINE
+=s= and =d= only look at the =SCHEDULED:= and =DEADLINE:= dates of the
+planning line.
+
+*Try:* on "Chores" press =<prefix>hs= then =s=, and afterwards
+=<prefix>hs= then =d=.
+
+*Expect:* by =s= (SCHEDULED): Laundry (Sep 29), Groceries (Oct 2),
+Taxes (Oct 20). By =d= (DEADLINE): Taxes (Oct 9), Laundry (Oct 16),
+Groceries (Nov 16).
+
+*** Chores
+**** TODO Taxes
+SCHEDULED: <2026-10-20 Tue> DEADLINE: <2026-10-09 Fri>
+**** TODO Groceries
+SCHEDULED: <2026-10-02 Fri> DEADLINE: <2026-11-16 Mon>
+**** TODO Laundry
+SCHEDULED: <2026-09-29 Tue> DEADLINE: <2026-10-16 Fri>
+** By creation time
+=c= looks for the first inactive timestamp at the start of a line of the
+entry, which is where capture templates usually put the creation time.
+
+*Try:* on "Ideas" press =<prefix>hs= then =c=.
+
+*Expect:* the oldest idea first: "Write a book" (Sep 14), "Learn Lua"
+(Sep 21), "Plant a tree" (Sep 25).
+
+*** Ideas
+**** Plant a tree
+[2026-09-25 Fri 18:00]
+**** Write a book
+[2026-09-14 Mon 09:00]
+**** Learn Lua
+[2026-09-21 Mon 12:30]
+** By clocked time
+=k= sorts by the time clocked in each entry (see
+[[file:08-clocking.org][08-clocking.org]]), smallest first.
+
+*Try:* on "Time spent" press =<prefix>hs= then =k=, then =<prefix>hs= and
+=K=.
+
+*Expect:* =k=: Email (0:20), Coding (1:30), Meetings (2:15). =K=: the
+reverse, Meetings first.
+
+*** Time spent
+**** Coding
+:LOGBOOK:
+CLOCK: [2026-09-22 Tue 09:00]--[2026-09-22 Tue 10:30] =>  1:30
+:END:
+**** Meetings
+:LOGBOOK:
+CLOCK: [2026-09-22 Tue 13:00]--[2026-09-22 Tue 14:00] =>  1:00
+CLOCK: [2026-09-21 Mon 13:00]--[2026-09-21 Mon 14:15] =>  1:15
+:END:
+**** Email
+:LOGBOOK:
+CLOCK: [2026-09-22 Tue 08:40]--[2026-09-22 Tue 09:00] =>  0:20
+:END:
+** With a function
+=f= asks for a key function: a name from the =sort_functions= option, or a
+Lua expression returning =function(headline, lines)=. A second prompt asks
+for an optional compare function (=<CR>= for the default).
+
+*Try:* on "Notes of different sizes" press =<prefix>hs= then =f= and type
+this at the first prompt, then =<CR>= twice:
+
+#+begin_example
+function(h, lines) return #lines end
+#+end_example
+
+*Expect:* the entries are sorted by their number of lines: Short (1 line),
+Medium (2), Long (3).
+
+*** Notes of different sizes
+**** Long
+line one
+line two
+**** Short
+**** Medium
+one line
+* Narrowing
+Narrowing shows just one part of the file so you can focus on it. In
+org.nvim the part opens in its own buffer (a floating window by default):
+
+| Key           | Narrows to                     |
+|---------------+--------------------------------|
+| =<prefix>hn=  | the current subtree            |
+| =<prefix>nb=  | the block at the cursor        |
+| =<prefix>ne=  | the element at the cursor      |
+| =<C-c><C-x>b= | the subtree, in a split window |
+
+In that buffer =:w= writes your changes back to this file, and =<C-c>'=
+saves and closes it.
+
+*Try:* on "Narrow me" press =<prefix>hn=. Change "draft" to "final", then
+press =<C-c>'=.
+
+*Expect:* a window with only the "Narrow me" subtree opens. After =<C-c>'=
+it closes and the text here reads "This is the final text.".
+
+*** Narrow me
+This is the draft text.
+**** A child that comes along
+
+* Converting and toggling
+** Headline, text and list item
+| Key         | Emacs key | On a...   | Becomes                              |
+|-------------+-----------+-----------+--------------------------------------|
+| =<prefix>*= | =<C-c>*=  | text line | a headline (child of the entry)      |
+| =<prefix>*= | =<C-c>*=  | headline  | plain text (stars removed)           |
+| =<prefix>*= | =<C-c>*=  | list item | a headline; boxes become TODO / DONE |
+| =<prefix>-= | =<C-c>-=  | headline  | a list item (tags etc. dropped)      |
+| =<prefix>-= | =<C-c>-=  | text line | a list item                          |
+
+In Visual mode every line of the selection is converted.
+=<C-c><C-*>= turns the whole list at the cursor into a subtree.
+
+*Try:* on the line "Buy stamps" below, press =<prefix>*=. Press it again.
+
+*Expect:* it becomes a child headline of "Text to convert":
+: **** Buy stamps
+The second press turns it back into the text line "Buy stamps".
+
+*Try:* on "- [X] Call the bank" press =<prefix>*=.
+
+*Expect:* a child headline of "Items to convert", with the checkbox turned
+into a keyword. The other item stays a list item:
+: **** DONE Call the bank
+: - [ ] Water the plants
+
+*Try:* on "Became a list item" press =<prefix>-=.
+
+*Expect:* =- Became a list item= (the =:demo:= tag is dropped).
+
+*** Text to convert
+Buy stamps
+*** Items to convert
+- [X] Call the bank
+- [ ] Water the plants
+*** Became a list item                                                 :demo:
+
+** COMMENT keyword
+A headline whose title starts with =COMMENT= is commented out: it and its
+subtree are left out of the export and the agenda. =<prefix>hC= (Emacs
+=<C-c>;=) toggles it.
+
+*Try:* on "Private notes" press =<prefix>hC=.
+
+*Expect:* the keyword appears and the headline is dimmed. Press it again
+to remove it:
+: *** COMMENT Private notes
+
+*** Private notes
+
+** Fixed-width lines
+=<C-c>:= toggles the fixed-width marker =: = on the line (or every line of
+the Visual selection). See [[file:02-markup.org][02-markup.org]].
+
+* Drawers
+A drawer is a named container inside an entry: =:NAME:= on its own line,
+some lines, and =:END:=. Drawers fold (they start folded) and are not
+exported by default. Org itself uses =:PROPERTIES:= (see
+[[file:06-properties-columns.org][06-properties-columns.org]]) and
+=:LOGBOOK:= (state changes and clocks). You can make your own. A drawer
+cannot contain a headline.
+
+- =<prefix>id= (Emacs =<C-c><C-x>d=) asks for a name and inserts an empty
+  drawer. In Normal mode it goes below the current line (in column 0:
+  above it); in Insert mode at the cursor.
+- =4<prefix>id= on a headline inserts (or jumps into) its property drawer.
+
+*Try:* on the line "Here comes a drawer." press =$= then =<prefix>id=, type
+=NOTES= and =<CR>=, then type =a hidden note= and =<Esc>=.
+
+*Expect:*
+#+begin_example
+Here comes a drawer.
+:NOTES:
+a hidden note
+:END:
+#+end_example
+(Normal mode at the end of a line also leaves a blank line after =:END:=,
+like Emacs.) Press =<Tab>= on =:NOTES:= to fold it.
+
+*Try:* on "Needs properties" press =4<prefix>id=.
+
+*Expect:* an empty =:PROPERTIES:= / =:END:= drawer right below the headline.
+
+*** Drawer playground
+Here comes a drawer.
+*** Needs properties
+
+* Structure templates (blocks)
+Blocks are inserted with =<prefix>ib= (Emacs =<C-c><C-,>=). A menu offers
+the block types of =structure_template_alist=:
+
+| Key | Block          | Key | Block          |
+|-----+----------------+-----+----------------|
+| =a= | =export ascii= | =l= | =export latex= |
+| =c= | =center=       | =q= | =quote=        |
+| =C= | =comment=      | =s= | =src=          |
+| =e= | =example=      | =v= | =verse=        |
+| =E= | =export=       | =h= | =export html=  |
+
+=<Tab>= in the menu asks for any other type. In Visual mode the selected
+lines are wrapped in the block. For =src= the cursor stops after
+=#+begin_src = so you can type the language. What each block means is
+explained in [[file:02-markup.org][02-markup.org]].
+
+*Try:* on the line "Quote me." press =<prefix>ib= then =q=.
+
+*Expect:* an empty =#+begin_quote= / =#+end_quote= pair below the line.
+
+*Try:* select the two "wrap" lines with =Vj=, press =<prefix>ib= then =e=.
+
+*Expect:* the lines are now inside an example block:
+: #+begin_example
+: wrap line one
+: wrap line two
+: #+end_example
+
+*** Template playground
+Quote me.
+wrap line one
+wrap line two
+
+** Tempo: <s then Tab
+Emacs' =org-tempo= module expands =<s= + =<Tab>= into a src block. org.nvim
+has it too, off by default like in Emacs. Turn it on with =tempo = true= in
+your setup, or for this session with:
+
+#+begin_example
+:lua require("org.config").opts.tempo = true
+#+end_example
+
+Then type, in Insert mode at the start of an empty line, =<= plus a key of
+the table above and press =<Tab>=. =<L=, =<H=, =<A= and =<i= insert the
+keywords =#+latex: =, =#+html: =, =#+ascii: = and =#+index: =; =<I= asks
+for a file to =#+include:=.
+
+*Try:* turn tempo on as shown, then on the empty line below type =<q= and
+press =<Tab>=.
+
+*Expect:* =<q= is replaced by =#+begin_quote= / =#+end_quote=.
+
+*** Tempo playground
+
+
+* Inline tasks and speed commands
+Inline tasks (very deep headlines used as TODO items inside the text of an
+entry) and speed commands (single-letter commands at the start of a
+headline) are optional modules, off by default. Both are covered in
+[[file:22-extras.org][22-extras.org]].
+
+* Further reading
+- =:h org-structure= :: headlines, =<M-CR>=, promote/demote, move, sort
+- =:h org-meta-return= :: every case of =<M-CR>=
+- =:h org-folding= :: cycling, startup visibility, =VISIBILITY=
+- =:h org-hidden-lines= :: how CONTENTS views hide body text in Neovim
+- =:h org-archived-trees= :: the =ARCHIVE= tag and folding
+- =:h org-motions= and =:h org-textobj= :: motions and text objects
+- =:h org-elements= :: element motions and selection
+- =:h org-kill-subtree= :: copy, cut, paste, clone
+- =:h org-sort= :: every sort key
+- =:h org-narrow= :: narrowing
+- =:h org-tempo= :: =<s<Tab>= expansion
+- =:h org-structure-differences= :: where org.nvim differs from Emacs

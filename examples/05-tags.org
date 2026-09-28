@@ -1,0 +1,541 @@
+#+TITLE: Tags
+#+STARTUP: overview
+#+CATEGORY: tags
+#+FILETAGS: :tagsdemo:
+#+TAGS: work(w) home(h) errand(e) urgent(u) someday(s)
+#+TAGS: { @office(o) @home(H) @phone(p) @car(c) }
+#+TAGS: [ Sports(S) : running(r) swimming(i) cycling(y) ]
+#+TAGS: [ Health : Sports diet(d) ]
+#+TAGS: [ Clients : {C@.+} ]
+#+TAGS: project idea
+
+* How to use this file
+Tags are short labels at the end of a headline, like =:work:urgent:=. They
+group entries across the outline: you can search by tag, filter the
+agenda by tag, and they are inherited by the children of an entry. This
+file shows how to set them, how to define a tag list with fast keys and
+groups, how inheritance works, how to search by tag and which tags have a
+special meaning.
+
+Start Neovim from the root of the repository with the bundled init file:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/05-tags.org
+#+end_src
+
+That init file (=examples/minimal_init.lua=) makes =<leader>= the =<Space>=
+key, so =<prefix>= (the default =<leader>o=) is =<Space>o=; it lists all
+=examples/*.org= files as agenda files, and sets
+=tags_exclude_from_inheritance = { "project" }= (see
+[[*Excluding tags from inheritance]]).
+
+- The file opens folded. =<Tab>= on a heading opens it, =<S-Tab>= cycles
+  the whole buffer.
+- =u= undoes anything; =git checkout examples/05-tags.org= restores the
+  original file.
+- =g?= lists every key of the buffer. Emacs keys work too.
+- *Try:* marks an exercise, *Expect:* says exactly what you should see.
+- Lines starting with =#= and a space are Org comments: notes for you.
+
+Options that only exist in Lua are shown as small =lua= source blocks:
+put the cursor in the block, press =<C-c><C-c>= and answer =y=. They run
+inside Neovim and last until you quit.
+
+** The settings of this file
+#+begin_example
+#+FILETAGS: :tagsdemo:
+#+TAGS: work(w) home(h) errand(e) urgent(u) someday(s)
+#+TAGS: { @office(o) @home(H) @phone(p) @car(c) }
+#+TAGS: [ Sports(S) : running(r) swimming(i) cycling(y) ]
+#+TAGS: [ Health : Sports diet(d) ]
+#+TAGS: [ Clients : {C@.+} ]
+#+TAGS: project idea
+#+end_example
+
+- =#+FILETAGS:= gives every entry of the file the tag =tagsdemo=.
+- =#+TAGS:= lists the tags of the file with their fast keys; ={ }= is a
+  group of mutually exclusive tags, =[ ]= defines group tags.
+Each line is explained in its own section below.
+
+* Keys in this file
+| Key                  | Emacs key         | What it does                  |
+|----------------------+-------------------+-------------------------------|
+| =<prefix>t=          | =C-c C-q=         | set the tags of the headline  |
+| =<C-c><C-c>=         | =C-c C-c=         | same, cursor on a headline    |
+| =4<prefix>t=         | =C-u C-c C-q=     | realign all tags of the file  |
+| =16<prefix>t=        | =C-u C-u C-c C-q= | type tags (no fast menu)      |
+| ={Visual}<prefix>t=  |                   | add/remove a tag on a region  |
+| =<C-c><C-x>q=        | =C-c C-x q=       | toggle group tags in searches |
+| =<prefix>/= then =m= | =C-c / m=         | sparse tree for a tag match   |
+| =<C-c>\=             | =C-c \=           | same, straight to the prompt  |
+| =<prefix>a= then =m= | =C-c a m=         | agenda: tags/property match   |
+| =<prefix>hA=         | =C-c C-x a=       | toggle the ARCHIVE tag        |
+| =<C-c><C-Tab>=       | =C-c C-TAB=       | open an ARCHIVE subtree       |
+
+In the fast tag menu: a key toggles its tag, =<Tab>= types a tag with
+completion, =<Space>= removes all tags, =<CR>= accepts, =!= toggles the
+exclusive groups, =<C-c>= toggles "exit after the next change", =<Esc>=
+(or =q= when it isn't a tag key) cancels.
+
+* Tag syntax
+** Where tags go and what they may contain
+Tags are written at the end of the headline, between colons, several in a
+row: =:work:urgent:=. A tag may contain letters, digits, =_=, =@=, =#= and
+=%=. Anything else (a dash, a dot, a space) means it is not a tag, and the
+whole =:...:= stays part of the title.
+
+*Try:* put the cursor on "Not a tag: a-b contains a dash" below and press
+=<prefix>t= then =u= and =<CR>=.
+*Expect:* the line ends with =:a-b: :urgent:=: =:a-b:= stays part of the
+title and =:urgent:= is the real tag. (There is just one space before it:
+the title is too long for the tag to end at column 77.)
+
+*** Headline with one tag                                              :work:
+*** Headline with three tags                            :work:urgent:someday:
+*** Tags may use @, _, # and %                          :@office:q3_2026:#42:
+*** Not a tag: a-b contains a dash                                     :a-b:
+*** Not a tag either: the colons must end the line :work: here
+
+** Tags are aligned at the right margin
+With the default =tags_column = -77=, tags are right-aligned so that they
+end in column 77. A positive value would start them at that column.
+Setting or changing tags realigns that line; =:Org align_tags= or
+=4<prefix>t= (Emacs =C-u C-c C-q=) realigns every headline of the buffer.
+
+# The three headlines below are misaligned on purpose.
+*Try:* press =4<prefix>t= anywhere in the buffer.
+*Expect:* the message "All tags realigned", and the tags of the three
+headlines below end in column 77, like every other tag of this file.
+
+*** These tags are not aligned :home:
+*** Neither are these                  :errand:urgent:
+*** Nor this one                                                         :work:
+
+* Setting tags
+** The fast tag selection menu
+=<prefix>t= (Emacs =<C-c><C-q>=, or =<C-c><C-c>= on a headline) sets the
+tags of the current headline. Because the =#+TAGS:= lines of this file
+give tags keys, a menu opens:
+
+#+begin_example
+Inherited: :tagsdemo:
+Current:
+
+  [w] work       [h] home       [e] errand     [u] urgent
+  [s] someday
+{ [o] @office    [H] @home      [p] @phone     [c] @car
+  }
+[ [S] Sports :   [r] running    [i] swimming   [y] cycling
+  ]
+[ [a] Health :   [b] Sports     [d] diet       ]
+[ [f] Clients :  ]
+  [g] project    [j] idea
+
+[a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit [!] groups [C-c]:multi
+#+end_example
+This is the menu in an 80 column window; wider windows put more tags on a
+row. Tags already on the headline are highlighted; inherited ones are
+listed on the first line.
+
+| Key         | Effect                                                 |
+|-------------+--------------------------------------------------------|
+| a tag's key | toggle that tag                                        |
+| =<Tab>=     | type a tag name (with completion), for tags not listed |
+| =<Space>=   | remove all tags                                        |
+| =<CR>=      | accept and close the menu                              |
+| =!=         | switch off / on the exclusivity of ={ }= groups        |
+| =<C-c>=     | exit right after the next change                       |
+| =<Esc>= =q= | cancel, nothing changes                                |
+
+*** Buy a new desk
+*Try:* on "Buy a new desk", press =<prefix>t=, then =w=, =u= and =<CR>=.
+*Expect:* the headline ends with =:work:urgent:= at the right margin.
+
+*Try:* press =<prefix>t=, then =u= (toggles urgent off), =e=, =<CR>=.
+*Expect:* =:work:errand:=. Tags are always written in the order of the
+=#+TAGS:= lines, whatever order you pressed the keys in.
+
+*Try:* press =<prefix>t=, =<Space>=, =<CR>=.
+*Expect:* all tags are gone.
+
+*** Call the bank                                                      :home:
+*Try:* press =<C-c><C-c>= on the headline, then =<Tab>=, type =finance=
+and press =<CR>= twice (once for the tag, once for the menu).
+*Expect:* =:home:finance:=: =finance= is not in the tag list, but you can
+still add it with =<Tab>=.
+
+*Try:* press =<prefix>t=, then =<Esc>=.
+*Expect:* nothing changes.
+
+** Keys for tags without a key
+Tags listed in =#+TAGS:= without =(k)= still get a key in the menu, like
+Emacs: their first letter (after a leading =@=) when it is free, otherwise
+the first free character of =a-z=, then =A-Z= and ={ | } ~=, in the order
+of the list. In this file (see the menu above):
+- =Health= gets =a=: =h= is =home='s key, =a= is the first free one;
+- the second =Sports= (inside =Health=) gets =b=; both =S= and =b= toggle
+  the same tag;
+- =Clients= gets =f=, =project= gets =g= (=p= is =@phone=) and =idea= gets
+  =j= (=i= is =swimming=).
+Giving every tag its own =(k)= avoids surprises when you edit the list.
+
+*** Write the design document
+*Try:* press =<prefix>t=, then =j= and =g=, then =<CR>=.
+*Expect:* the headline ends with =:project:idea:=.
+
+** Typing tags with completion
+When no tag of the file has a key (and no =tags= option with keys is
+set), =<prefix>t= asks for the tags on the command line instead, with
+completion. You type them separated by colons or spaces: =work:urgent= or
+=work urgent=. =16<prefix>t= (Emacs =C-u C-u C-c C-q=) always uses this
+prompt, even with fast keys.
+
+*** Book the train tickets
+*Try:* press =16<prefix>t=, type =errand:urgent= and press =<CR>=.
+*Expect:* =:errand:urgent:=. The prompt starts with the current tags, so
+it is also a quick way to edit them as text.
+
+** Changing a tag on many headlines at once
+In Visual mode, =<prefix>t= adds or removes *one* tag on every headline
+of the selection (Emacs =org-change-tag-in-region=). A small menu asks
+=a= (add) or =r= (remove), then the tag name.
+
+*** Groceries
+*Try:* open "Groceries" with =<Tab>=, put the cursor on "Milk", press
+=Vjj= to select the three items, then =<prefix>t=, =a=, type =errand= and
+=<CR>=.
+*Expect:* the message "Added tag :errand: to 3 headline(s)", and each of
+Milk, Bread and Coffee ends with =:errand:=.
+
+*Try:* select the three again (=gv=), press =<prefix>t=, =r=, =errand=,
+=<CR>=.
+*Expect:* "Removed tag :errand: from 3 headline(s)".
+
+**** Milk
+**** Bread
+**** Coffee
+
+** Exit after one key (fast_tag_selection_single_key)
+With =fast_tag_selection_single_key = true=, the menu closes after the
+first change: one key press sets one tag. ="expert"= even hides the menu
+until you press =<C-c>=. In the normal (multi) mode, =<C-c>= in the menu
+turns single mode on for the next change.
+
+#+begin_src lua :results silent
+require("org.config").opts.fast_tag_selection_single_key = true
+#+end_src
+
+*** Water the garden
+*Try:* run the block above, then on "Water the garden" press =<prefix>t=
+then =h=.
+*Expect:* the menu closes at once and the headline has =:home:=.
+
+# Run this to go back to the default:
+#+begin_src lua :results silent
+require("org.config").opts.fast_tag_selection_single_key = false
+#+end_src
+
+** TODO keywords in the tag menu (fast_tag_selection_include_todo)
+=fast_tag_selection_include_todo = true= adds the TODO keywords that have
+fast keys to the top of the tag menu, so one menu sets both. This file
+uses only =TODO= and =DONE= (no keys), so this option shows nothing here;
+see =04-todo.org= for keywords with keys.
+
+* Defining the tag list (#+TAGS)
+** Fast keys
+=#+TAGS: work(w) home(h)= defines the tags offered by =<prefix>t= and their
+keys. Several =#+TAGS:= lines are allowed; each starts a new row in the
+menu. The same list can come from your config for all files:
+
+#+begin_src lua :eval no
+require("org").setup({
+  tags = { "work(w)", "home(h)", "{", "@office(o)", "@home(H)", "}" },
+})
+#+end_src
+
+A file with its own =#+TAGS:= uses only that list. After editing a
+=#+TAGS:= line, press =<C-c><C-c>= on it (message "Local setup has been
+refreshed") so the buffer picks up the change.
+
+*** Plan the holiday
+*Try:* go to the first =#+TAGS:= line at the top of the file and change
+=someday(s)= to =someday(z)=, press =<C-c><C-c>= on that line, come back
+here and press =<prefix>t=.
+*Expect:* =someday= now has the key =z= in the menu. Press =<Esc>=, and
+=u= to undo the edit (then =<C-c><C-c>= on the line again).
+
+** Mutually exclusive tags { }
+Tags between ={= and =}= exclude each other: selecting one in the menu
+removes the others of the group. Here =@office=, =@home=, =@phone= and
+=@car= are contexts: a task happens in exactly one place.
+
+*** Prepare the slides                                         :@office:work:
+*Try:* press =<prefix>t=, then =H=, then =<CR>=.
+*Expect:* =:work:@home:=: =@office= was removed because =@home= is in the
+same group. =work= is not in the group and stays.
+
+*Try:* press =<prefix>t=, then =!= (groups off), =o=, =<CR>=.
+*Expect:* =:work:@office:@home:=, both contexts: after =!= the group is
+not exclusive in this menu (the next menu is exclusive again).
+
+Exclusivity only applies in the menu. Typing tags (=16<prefix>t=) or
+editing the line by hand can still put two of them on one headline.
+
+** Several rows and \n
+Each =#+TAGS:= line is one row of the menu. Inside one line, =\n= starts
+a new row too:
+
+#+begin_example
+#+TAGS: work(w) home(h) \n errand(e) urgent(u)
+#+end_example
+
+* Group tags (tag hierarchies)
+** Defining a group tag
+Between =[= and =]=, the tag before =:= is a /group tag/ and the ones
+after it are its members:
+
+#+begin_example
+#+TAGS: [ Sports(S) : running(r) swimming(i) cycling(y) ]
+#+end_example
+
+In searches (sparse trees, the agenda =m= match, agenda filters), a group
+tag also matches its members: searching =Sports= finds entries tagged
+=Sports=, =running=, =swimming= or =cycling=. =-Sports= excludes all
+four. The group tag is still an ordinary tag you can put on a headline.
+
+** Nested groups
+A member can be a group itself: here =Health= contains =Sports= (and so
+=running=, =swimming=, =cycling=) and =diet=.
+
+** Regexp members
+A member between braces is a regular expression (Emacs syntax): with
+=[ Clients : {C@.+} ]=, the group =Clients= matches every tag starting
+with =C@=, e.g. =C@acme= and =C@globex=.
+
+** Try the groups
+*Try:* press =<prefix>/= then =m=, type =Sports= and press =<CR>=.
+*Expect:* the message "5 matches for Sports" and only "Morning run", "Pool
+on Thursday", "Bike to work" and "Club membership fee" visible in this
+subtree, plus "Swim 1 km" in the next section.
+Press =<C-c><C-c>= to remove the highlights.
+
+*Try:* =<prefix>/= =m= with =Health=.
+*Expect:* the same four, plus "Less sugar" (=diet=) and "Swim 1 km".
+
+*Try:* =<prefix>/= =m= with =Clients=.
+*Expect:* "Meeting with ACME" and "Invoice Globex".
+
+*Try:* =<prefix>/= =m= with =work-Sports=.
+*Expect:* entries tagged =work= that are not in the Sports group: "Weekly
+report" is shown, "Bike to work" is not.
+
+*Try:* press =<C-c><C-x>q= (message "Groups tags support has been turned
+off"), then =<prefix>/= =m= with =Sports= again.
+*Expect:* only "Club membership fee": without group support =Sports= is
+just a tag. Press =<C-c><C-x>q= again to turn groups back on.
+
+*** Morning run                                                     :running:
+*** Pool on Thursday                                               :swimming:
+*** Bike to work                                               :cycling:work:
+*** Less sugar                                                         :diet:
+*** Club membership fee                                              :Sports:
+*** Meeting with ACME                                                :C@acme:
+*** Invoice Globex                                                 :C@globex:
+*** Weekly report                                                      :work:
+
+** Group tags in the agenda
+*** TODO Swim 1 km                                                 :swimming:
+*Try:* press =<prefix>a= then =m=, type =Sports= and =<CR>=.
+*Expect:* the agenda lists the entries of all example files tagged with
+Sports or one of its members, among them "Swim 1 km". It is the only
+TODO entry of this file in the group, so =<prefix>a M= (TODO entries
+only) with =Sports= shows just this one from this file.
+
+* Tag inheritance
+** Children inherit their parents' tags
+Every tag of a headline also applies to all headlines below it: a match
+for =work= finds the children of a =:work:= heading too, even though the
+tag isn't written on them. =#+FILETAGS:= tags are inherited by every
+entry of the file (here =tagsdemo=).
+
+*Try:* on "Buy a label printer", press =<prefix>t= and look at the first
+line of the menu, then press =<Esc>=.
+*Expect:* =Inherited: :tagsdemo:work:= and =Current: :urgent:=.
+
+*Try:* press =<prefix>/= =m=, type =work= and =<CR>=.
+*Expect:* "Move the office" and all three entries below it are matches,
+plus the other =:work:= entries of this file.
+
+*Try:* press =<prefix>/= =m=, type =errand+urgent= and =<CR>=.
+*Expect:* no match in this subtree: "Order boxes" has =errand= but not
+=urgent=, "Buy a label printer" the other way round.
+
+*** Move the office                                                    :work:
+**** Order boxes                                                     :errand:
+**** Label the cables
+***** Buy a label printer                                            :urgent:
+
+** Excluding tags from inheritance
+Some tags describe only the entry they are on. =examples/minimal_init.lua=
+sets =tags_exclude_from_inheritance = { "project" }=: a =:project:= heading
+is a project, but its tasks are not projects themselves.
+
+*Try:* press =<prefix>/= =m=, type =project= and =<CR>=.
+*Expect:* only "Build a garden shed" (and the other =:project:= headings
+of this file) are matches, not "Draw the plan" or "Buy the wood".
+
+*Try:* on "Buy the wood" press =<prefix>t= and read the first line.
+*Expect:* =Inherited: :tagsdemo:=: =project= isn't inherited. Press
+=<Esc>=.
+
+*** Build a garden shed                                             :project:
+**** TODO Draw the plan
+**** TODO Buy the wood                                               :errand:
+
+** Turning inheritance off or limiting it
+=use_tag_inheritance= is =true= by default. =false= switches inheritance
+off (=#+FILETAGS:= included); a list of tags or a Vim regexp makes only
+those tags inherit (Emacs =org-use-tag-inheritance=).
+
+#+begin_src lua :results silent
+require("org.config").opts.use_tag_inheritance = { "work" }
+#+end_src
+
+*Try:* run the block, then on "A child entry" press =<prefix>t=.
+*Expect:* =Inherited: :work:=: =home= and =tagsdemo= are not inherited
+any more. Press =<Esc>=.
+
+*** Only work is inherited now                                    :work:home:
+**** A child entry
+
+# Run this to restore the default:
+#+begin_src lua :results silent
+require("org.config").opts.use_tag_inheritance = true
+#+end_src
+
+* Searching by tag
+** Match strings
+The same match syntax is used by sparse trees (=<prefix>/ m=, =<C-c>\=),
+the agenda (=<prefix>a m=, =<prefix>a M=) and custom agenda commands:
+
+| Match          | Finds entries...                                     |
+|----------------+------------------------------------------------------|
+| =work=         | tagged =work= (own or inherited)                     |
+| =+work+urgent= | with both tags (=work:urgent= and =work&urgent= too) |
+| =+work-urgent= | with =work= but not =urgent=                         |
+| ={^@}=         | with a tag matching a regexp (here: starting with @) |
+| =work/TODO=    | tagged =work= whose keyword is TODO                  |
+| =work/!=       | tagged =work= that are not done                      |
+| =-work=        | without =work=                                       |
+
+=work|home= finds entries with either tag (the =|= can't be shown in the
+table: it would split the cell).
+
+Note that a space ends the match: =work -urgent= means just =work=.
+=<prefix>/ M= and =<C-c>\= with a count (=4<C-c>\=) only match TODO
+entries. See =10-sparse-trees.org= and =09-agenda.org= for more.
+
+** Search playground
+# All the expectations below count only the entries of this subtree.
+*Try:* =<prefix>/= =m= with =+work+urgent=.
+*Expect:* in this subtree only "Fix the printer". Elsewhere in the file
+"Headline with three tags" and "Buy a label printer" (=work= inherited
+from "Move the office") match too.
+
+*Try:* =<prefix>/= =m= with =home|errand=.
+*Expect:* "Call mum", "Buy flowers" and "Wash the car" in this subtree.
+
+*Try:* =<prefix>/= =m= with ={^@}=.
+*Expect:* all entries with a context tag: "Fix the printer", "Answer
+emails", "Call mum", "Wash the car".
+
+*Try:* =<prefix>/= =m= with =urgent/!=.
+*Expect:* "Fix the printer" but not "Buy flowers" (it is DONE).
+
+*Try:* =<prefix>/= =M= (TODO only) with =@office=.
+*Expect:* "Fix the printer" and "Answer emails".
+
+*Try:* =<prefix>a= =m= with =+work/TODO=.
+*Expect:* an agenda with "Fix the printer" and "Answer emails" from this
+file (category =tags=) and the =work= TODO entries of the other example
+files.
+
+*** TODO Fix the printer                                :work:urgent:@office:
+*** TODO Answer emails                                         :work:@office:
+*** TODO Call mum                                               :home:@phone:
+*** DONE Buy flowers                                          :errand:urgent:
+CLOSED: [2026-09-25 Fri 18:00]
+*** TODO Wash the car                                             :home:@car:
+*** Someday: learn the cello                                        :someday:
+
+* Special tags
+** ARCHIVE: folded and hidden from the agenda
+A subtree tagged =:ARCHIVE:= stays folded when you cycle visibility
+(=<Tab>=, =<S-Tab>=, startup) and is left out of the agenda: it is out of
+the way but still in the file.
+=<prefix>hA= (Emacs =<C-c><C-x>a=) toggles the tag; =<C-c><C-Tab>= opens
+an archived subtree anyway. Archiving to another file or to an =Archive=
+sibling is in =12-refile-archive.org=.
+
+*Try:* on "Old project notes", press =<Tab>=.
+*Expect:* it stays folded, with the message "Subtree is archived and
+stays closed (use force_cycle_archived to cycle it)". Press
+=<C-c><C-Tab>= to open it.
+
+*Try:* on "Current project notes", press =<prefix>hA=.
+*Expect:* the heading gets =:ARCHIVE:= and folds, message "Subtree
+archived". Press it again: "Subtree unarchived".
+
+*Try:* =<prefix>a t= (global TODO list).
+*Expect:* "Something to do this week" is listed, "Something nobody will
+do" is not.
+
+*** Old project notes                                               :ARCHIVE:
+**** TODO Something nobody will do
+These lines stay hidden when you cycle with =<Tab>= or =<S-Tab>=.
+
+*** Current project notes
+**** TODO Something to do this week
+
+** noexport: left out when exporting
+Subtrees tagged =:noexport:= are left out of every export (HTML, LaTeX,
+ASCII, ...); =#+EXCLUDE_TAGS:= changes that list. The opposite,
+=#+SELECT_TAGS:= (default =export=), exports only the subtrees with that
+tag when some subtree has it. More in =19-export.org=.
+
+*Try:* put the cursor on "Export test", press =<prefix>e=, then =s=
+(scope: subtree), =t= (plain text) and =A= (ASCII to a buffer).
+*Expect:* a buffer with the title =EXPORT TEST=, the text "This paragraph
+is exported." and a section "1 Public part" with "Everyone can read
+this.". "Private notes" is nowhere, not even in the table of contents.
+
+*** Export test
+This paragraph is exported.
+**** Public part
+Everyone can read this.
+**** Private notes                                                 :noexport:
+Nobody should see this.
+
+** How tags look (ui.tag_faces)
+Tags get the =OrgTags= highlight. =ui.tag_faces= gives single tags their own
+highlight, like =ui.todo_keyword_faces= for keywords:
+
+#+begin_src lua :eval no
+require("org").setup({
+  ui = { tag_faces = { urgent = { fg = "#ff5555", bold = true } } },
+})
+#+end_src
+
+* Further reading
+- =:h org-tags= – setting tags, alignment, inheritance
+- =:h org-fast-tag-selection= – the tag menu
+- =:h org-tag-groups= – group tags
+- =:h org-match-syntax= – match strings
+- =:h org-sparse-tree= – sparse trees
+- =:h org-archived-trees= – the ARCHIVE tag
+- Related example files: [[file:04-todo.org][04-todo]],
+  [[file:06-properties-columns.org][06-properties-columns]],
+  [[file:09-agenda.org][09-agenda]],
+  [[file:10-sparse-trees.org][10-sparse-trees]],
+  [[file:12-refile-archive.org][12-refile-archive]],
+  [[file:19-export.org][19-export]].

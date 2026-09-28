@@ -75,6 +75,8 @@ with a throwaway config (agenda and capture included), run from the plugin
 directory: >sh
     nvim -u examples/minimal_init.lua examples/tutorial.org
 <
+`examples/00-index.org` links to one file per feature area, each with
+many examples, exercises and the result they should produce.
 
 Conventions used in this manual:
 
@@ -2111,7 +2113,7 @@ edit a file at a time.
                           (C-u C-c c in Emacs)
 :Org capture_goto_last    jump to the last captured (or refiled) entry
                           (C-u C-u C-c c)
-From the agenda, `c` captures with the date at point as the default date.
+From the agenda, `K` captures with the date at point as the default date.
 
 org-protocol                                                  *org-protocol*
 `org-protocol://` URLs from a browser or another program capture, store

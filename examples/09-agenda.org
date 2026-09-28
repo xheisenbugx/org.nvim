@@ -1,0 +1,1231 @@
+#+TITLE: The agenda
+#+STARTUP: overview
+#+CATEGORY: agenda
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+TAGS: work(w) home(h) errand(e) urgent(u) project(p) habit
+#+PROPERTY: Effort_ALL 0:10 0:30 1:00 2:00 4:00
+#+COLUMNS: %40ITEM %TODO %3PRIORITY %Effort{:} %TAGS
+
+* How to use this file
+The agenda collects the dated entries and the TODO items of all your
+=agenda_files= into one read-only buffer: a calendar of days, a TODO list, the
+result of a tag or text search. From that buffer you can act on the entries
+(change their state, reschedule them, clock in, refile ...) without visiting
+the files. This file teaches every agenda view and key, with a data set whose
+agenda output is written out below, line by line, so you can compare.
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a heading
+  and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- Keys assume the default prefix: =<prefix>= means =<leader>o= (Space o with
+  the bundled init file). Emacs keys such as =C-c a= work too
+  (=:h org-emacs-keys=).
+- =g?= lists the keys of the current buffer: in an org buffer the org keys,
+  in the agenda the agenda keys.
+- Nothing breaks if you make a mess: =u= in this buffer undoes, and
+  =git checkout examples/09-agenda.org= restores the file. Edits made from the
+  agenda change this buffer but do not save it; quit with =:qa!= to throw
+  them away.
+- Lines starting with *Try:* are exercises. *Expect:* says what you should
+  see, for the file as it is in git: after changing entries, the agenda
+  changes too. =git checkout examples/09-agenda.org= (then =:e!=) resets it.
+- Lines starting with =# = are Org comments that annotate the examples.
+
+Start Neovim from the repository root with the bundled init file:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/09-agenda.org
+#+end_src
+
+=examples/minimal_init.lua= sets =agenda_files= to *every* =.org= file of
+=examples/= (plus the capture scratch directory), defines the custom agenda
+commands =w= and =u=, turns on =enforce_todo_dependencies=, and says that a
+project is a heading tagged =:project:= (=agenda.stuck_projects=).
+
+Because all the example files are agenda files, a plain agenda mixes the
+entries of every file. *Restrict the agenda to this file* (next section):
+press =<prefix>a=, then =<=, then the view key. The expected output in this
+file assumes you did.
+
+Today, in this file, is *Monday 2026-09-28*. On another day the "In N d."
+counts and the "today" lines differ: the time grid, the =Sched.= and =In N
+d.= lines and the habit graph are always drawn for the real today.
+
+* Keys in this file
+| Where      | Key                     | What it does                          |
+|------------+-------------------------+---------------------------------------|
+| org buffer | =<prefix>a=             | open the agenda dispatcher            |
+| dispatcher | =<=                     | restrict to the file (again: subtree) |
+| dispatcher | =a= =t= =m= =s= =#=     | week, TODO list, match, search, stuck |
+| dispatcher | =w= =u=                 | custom commands of minimal_init.lua   |
+| agenda     | =f= =b= =.= =gd=        | later, earlier, today, go to a date   |
+| agenda     | =vd= =vw= =vm= =vy=     | day, week, month, year span           |
+| agenda     | =<CR>= =<Tab>= =F=      | open entry, other window, follow mode |
+| agenda     | =t= =,= =:= =e=         | TODO state, priority, tags, effort    |
+| agenda     | =s= =d= =<S-Right>= =>= | schedule, deadline, +1 day, new date  |
+| agenda     | =I= =O= =z= =R= =$=     | clock in / out, note, refile, archive |
+| agenda     | =m= =*= =B=             | mark, mark all, bulk action           |
+| agenda     | =/= =\= =<= ~=~ =_= =^= | filters                               |
+| agenda     | =<Bar>= (the bar key)   | remove all filters                    |
+| agenda     | =l= =C= =E= =v[= =va=   | log, clock report, entry text ...     |
+| agenda     | =r= =q= =g?=            | rebuild, quit, help                   |
+| org buffer | =<C-c><C-x><= and =>=   | lock / unlock the agenda to a subtree |
+
+* Opening the agenda
+** The dispatcher
+=<prefix>a= (Emacs =C-c a=) opens a menu, the dispatcher. Press one key to
+pick a view:
+
+| Key     | View                                                    |
+|---------+---------------------------------------------------------|
+| =a=     | the agenda: a week of days (=agenda.span=)              |
+| =t=     | every open TODO entry                                   |
+| =T=     | TODO entries with the keywords you type (=WAITING=)     |
+| =m=     | a tags / property match                                 |
+| =M=     | a match, TODO entries only                              |
+| =s=     | search for words or a regexp                            |
+| =S=     | search, TODO entries only                               |
+| =n=     | the agenda and all TODOs, one after the other           |
+| =#=     | stuck projects                                          |
+| =/=     | a regexp in all agenda files, into the quickfix list    |
+| =<=     | restrict to the current file; again: current subtree    |
+| =>=     | remove the restriction (and the restriction lock)       |
+| =e=     | write the views of custom commands with =export_files=  |
+| =*=     | toggle sticky agenda buffers                            |
+| =?=     | the =:FLAGGED:= entries of MobileOrg                    |
+| =w= =u= | custom commands (here from =examples/minimal_init.lua=) |
+
+=<Esc>= closes the menu without doing anything. In the agenda =q=
+quits and =g?= lists every agenda key.
+
+** Restricting to this file
+=<= in the dispatcher restricts the next view to the current buffer. The
+label next to =<= shows the state: =[buffer]=. Press =<= a second time to
+restrict to the subtree at the cursor (=[subtree]=), a third time to remove
+the restriction. The restriction applies to every view, custom commands
+included, and stays while you move around in the agenda (=f=, =b=, =r=).
+
+*Try:* put the cursor anywhere in this file and press =<prefix>a= then =a=.
+*Expect:* a week agenda with lines from many files: the category column on
+the left shows =agenda:=, =tutorial:= and the categories of the other example
+files. Press =q=.
+
+*Try:* now press =<prefix>a=, then =<=, then =a=.
+*Expect:* only the categories =agenda:= and =holiday:= (the holidays of this
+file, see below). Compare with [[*The week at a glance][The week at a glance]].
+
+*Try:* put the cursor on the heading "Tasks without dates" below, press
+=<prefix>a=, =<=, =<= (the label says =[subtree]=) and =t=.
+*Expect:* a TODO list with only the six open tasks of that subtree, from
+"Fix the production outage" to "Clean the garage".
+
+Another way to see only this file's entries is a category filter: in any
+agenda, put the cursor on a line starting with =agenda:= and press =<= (in
+the agenda buffer, =<= keeps only the category at point). This file's
+category is =agenda= (=#+CATEGORY:= at the top); the Holidays subtree has its
+own category =holiday= and disappears with that filter.
+
+** The Org agenda command
+Every view can also be opened with a command, handy for mappings:
+
+| Command                  | Opens                                      |
+|--------------------------+--------------------------------------------|
+| =:Org agenda=            | the dispatcher                             |
+| =:Org agenda a=          | the agenda                                 |
+| =:Org agenda day=        | the agenda, one day (also =week=, =month=) |
+| =:Org agenda 2026-10-05= | the agenda at a date                       |
+| =:Org agenda t=          | all TODOs                                  |
+| =:Org agenda T WAITING=  | TODOs in the WAITING state                 |
+| =:Org agenda m +work=    | a match                                    |
+| =:Org agenda s budget=   | a search                                   |
+| =:Org agenda #=          | stuck projects                             |
+| =:Org agenda w=          | the custom command =w=                     |
+
+These are not restricted to one file; use the dispatcher's =<= or the
+restriction lock ([[*The restriction lock][The restriction lock]]) for that.
+
+*Try:* =:Org agenda T WAITING=.
+*Expect:* "WAITING Reply from the landlord" (this file) and the WAITING
+entries of the other example files.
+
+* What shows up in the agenda
+Everything below this heading is the data set of the date agenda. Each
+group explains what the agenda makes of its entries. The week of Monday
+2026-09-28:
+
+|   Mon |   Tue |   Wed |   Thu |   Fri |   Sat |   Sun |
+|-------+-------+-------+-------+-------+-------+-------|
+| 09-28 | 09-29 | 09-30 | 10-01 | 10-02 | 10-03 | 10-04 |
+
+** Scheduled entries
+=SCHEDULED:= says when you plan to *start* working on an entry. It shows on
+its day with the leader =Scheduled:=, and, while it is not done, every later
+day in *today's* agenda as =Sched. Nx:= (scheduled N days ago). A time in the
+timestamp puts it in the time grid. A delay (=-2d= after the date) hides the
+entry until the delay is over.
+
+# Scheduled today, no time: "Scheduled:" in Monday's list.
+*** TODO Call the plumber                                              :home:
+SCHEDULED: <2026-09-28 Mon>
+The kitchen tap drips.
+Ask about the boiler as well.
+# Scheduled today at 09:30: in the time grid (and a clock line for log mode).
+*** TODO Team standup                                                  :work:
+SCHEDULED: <2026-09-28 Mon 09:30>
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 09:30]--[2026-09-28 Mon 09:45] =>  0:15
+:END:
+# Scheduled last Friday: today it says "Sched. 3x:".
+*** TODO Return the library books                                    :errand:
+SCHEDULED: <2026-09-25 Fri>
+# Scheduled Thursday with a 2-day delay: shown since Saturday, "Sched. 4x:".
+*** TODO Clean the gutters                                             :home:
+SCHEDULED: <2026-09-24 Thu -2d>
+# Scheduled Sunday with a 3-day delay: hidden until Wednesday.
+*** TODO Draft the newsletter                                          :work:
+SCHEDULED: <2026-09-27 Sun -3d>
+# Done entries still show on their day, but never as "Sched. Nx:".
+*** DONE Pay the electricity bill                                      :home:
+CLOSED: [2026-09-28 Mon 08:05] SCHEDULED: <2026-09-28 Mon>
+
+** Deadlines
+=DEADLINE:= says when an entry is *due*. It shows on its day as =Deadline:=,
+and in today's agenda from =deadline_warning_days= (14) days before as =In
+N d.:=, and after the date as =N d. ago:= until it is done. A warning period
+in the timestamp (=-30d=) replaces the 14 days for that entry.
+
+# Due Friday: "In 4 d.:" today, "Deadline:" on Friday.
+*** TODO Renew the passport                                            :home:
+DEADLINE: <2026-10-02 Fri>
+Photos are in the top drawer. Bring the old passport.
+# Due in 22 days but warns 30 days ahead: "In 22 d.:" today.
+*** TODO Submit the grant report                                       :work:
+DEADLINE: <2026-10-20 Tue -30d>
+# Due in 32 days, beyond the 14-day warning: only on its own day, Oct 30.
+*** TODO File the insurance claim                                      :home:
+DEADLINE: <2026-10-30 Fri>
+# Missed last Thursday: "4 d. ago:" today.
+*** TODO Send the birthday card                                      :errand:
+DEADLINE: <2026-09-24 Thu>
+# Both: "In 7 d.:" today, "Scheduled:" Wednesday, "Deadline:" next Monday.
+*** TODO Book the venue                                                :work:
+DEADLINE: <2026-10-05 Mon> SCHEDULED: <2026-09-30 Wed>
+
+** Timestamps and ranges
+A plain active timestamp (angle brackets) anywhere in an entry makes it an
+appointment on that day. A time goes to the time column, a time range too. A
+date range (two timestamps joined by =--=) shows on every day of the range
+with =(i/n):=. A time of day written in the headline is used when the
+timestamp has none, and is removed from the text. Inactive timestamps
+(square brackets) never show, unless you press =v[= in the agenda.
+
+# Tuesday 12:30-13:30 in the time column.
+*** Lunch with Sam
+<2026-09-29 Tue 12:30-13:30>
+At the noodle bar on Main Street.
+# The time comes from the headline: Wednesday "14:00 ... Dentist".
+*** 14:00 Dentist
+<2026-09-30 Wed>
+# Three days: (1/3) Thursday, (2/3) Friday, (3/3) Saturday.
+*** Conference                                                         :work:
+<2026-10-01 Thu>--<2026-10-03 Sat>
+The slides are on the laptop. Remember the power adapter.
+# Across midnight: (1/2) Sunday at 22:00, (2/2) Monday at 6:30.
+*** Night train
+<2026-10-04 Sun 22:00>--<2026-10-05 Mon 06:30>
+# Two timestamps: one line on Tuesday and one on Thursday.
+*** Piano lessons
+<2026-09-29 Tue 17:00> <2026-10-01 Thu 17:00>
+# Inactive: hidden, except with v[ (Tuesday, leader "[").
+*** Idea about the garden
+[2026-09-29 Tue]
+
+** Repeaters
+A repeater (=+2d=, =+1w=, =+1m=, =++1w=, =.+1d=) makes a timestamp recur.
+The agenda shows every occurrence, also in the future
+(=agenda.show_future_repeats=). Marking a repeating TODO done moves its date
+to the next occurrence instead of closing it.
+
+# Every other day: Mon, Wed, Fri, Sun, ...
+*** Water the plants                                                   :home:
+<2026-09-28 Mon +2d>
+# Every Friday at 16:00.
+*** TODO Weekly review                                                 :work:
+SCHEDULED: <2026-10-02 Fri 16:00 +1w>
+# Due on the 1st of every month: "In 3 d.:" today, "Deadline:" Thursday.
+*** TODO Pay the rent                                                  :home:
+DEADLINE: <2026-10-01 Thu +1m>
+
+** Habits
+A TODO with =:STYLE: habit= and a repeating =SCHEDULED:= is a habit. It shows
+in today's agenda only, with a consistency graph from column 40 of the line:
+one character per day, the 21 days before today, today, and 7 days after.
+=*= is a day it was done (from the state changes in its log), =!= is today,
+and the colours show whether it was on time (blue: too early, green: on
+time, yellow: last chance, red: overdue).
+
+# Graph today: "* ** **!" -- done Mon 21, Wed 23, Thu 24, Sat 26, Sun 27.
+*** TODO Stretch                                                      :habit:
+SCHEDULED: <2026-09-28 Mon .+1d>
+:PROPERTIES:
+:STYLE:    habit
+:LAST_REPEAT: [2026-09-27 Sun 07:10]
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-09-27 Sun 07:10]
+- State "DONE"       from "TODO"       [2026-09-26 Sat 07:30]
+- State "DONE"       from "TODO"       [2026-09-24 Thu 07:05]
+- State "DONE"       from "TODO"       [2026-09-23 Wed 07:00]
+- State "DONE"       from "TODO"       [2026-09-21 Mon 07:15]
+:END:
+
+** Diary sexps
+Emacs diary s-expressions compute dates: a timestamp whose date is =%%=
+followed by a sexp, or a line of its own starting with =%%= and the sexp at
+column 0 (the rest of the line is the text). org.nvim evaluates the common
+calendar functions without Emacs (=:h org-agenda-diary-sexp=).
+
+# diary-float t 4 1 = the first Thursday of every month: Thu 2026-10-01.
+*** Book club
+<%%(diary-float t 4 1)>
+# Born 1990-10-02: Friday shows "Ana turns 36".
+*** Birthdays
+%%(org-anniversary 1990 10 2) Ana turns %d
+# Every Tuesday (2) from 2026-09-01 to 2026-12-18.
+*** Evening class
+<%%(org-class 2026 9 1 2026 12 18 2)>
+# Mon, Wed and Fri at 18:00: the string result becomes the line.
+*** Gym
+%%(when (memq (calendar-day-of-week date) '(1 3 5)) "18:00 Gym")
+
+** Holidays
+:PROPERTIES:
+:CATEGORY: holiday
+:END:
+The line below lists the holidays of each day (=agenda.holidays=, the Emacs
+defaults: US, Christian, Hebrew, Islamic, ...). This week has Shemini Atzeret
+(Saturday) and Simchat Torah (Sunday); October also has Columbus Day (Mon 12)
+and Halloween (Sat 31).
+%%(org-calendar-holiday)
+
+** Hidden from the agenda
+Entries under a heading tagged =:ARCHIVE:= and =COMMENT= headings never show
+(=va= in the agenda includes the archived ones).
+
+*** TODO Archived task                                              :ARCHIVE:
+SCHEDULED: <2026-09-28 Mon>
+*** COMMENT Commented task
+SCHEDULED: <2026-09-28 Mon>
+
+** Sandbox
+Three tasks scheduled today to practise on: reschedule them, mark them, bulk
+edit them. =git checkout examples/09-agenda.org= resets them.
+
+*** TODO Tidy the desk                                                 :home:
+SCHEDULED: <2026-09-28 Mon>
+*** TODO Sort the photos                                               :home:
+SCHEDULED: <2026-09-28 Mon>
+*** TODO Back up the laptop                                            :work:
+SCHEDULED: <2026-09-28 Mon>
+
+* Tasks without dates
+TODO entries without a date never show in the date agenda, only in the TODO
+list and in matches. Their priorities, efforts and the =CLIENT= property are
+used by the sorting, filter and match examples.
+
+** NEXT [#A] Fix the production outage                         :work:urgent:
+:PROPERTIES:
+:Effort:   1:00
+:CLIENT:   ACME
+:END:
+** TODO [#B] Review the pull request                                   :work:
+:PROPERTIES:
+:Effort:   0:30
+:CLIENT:   Initech
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 10:00]--[2026-09-28 Mon 11:00] =>  1:00
+:END:
+** TODO [#C] Clean the garage                                          :home:
+:PROPERTIES:
+:Effort:   4:00
+:END:
+** WAITING Reply from the landlord                                     :home:
+:LOGBOOK:
+- State "WAITING"    from "TODO"       [2026-09-25 Fri 18:00] \\
+  Asked about the heating.
+:END:
+** TODO Buy kumquats                                                 :errand:
+:PROPERTIES:
+:Effort:   0:10
+:END:
+For the marmalade recipe.
+** TODO Order new glasses                                     :errand:urgent:
+** CANCELLED Migrate the wiki                                          :work:
+CLOSED: [2026-09-20 Sun 11:00]
+
+* The week at a glance
+This is the agenda of this file (=<prefix>a <= a=) on Monday 2026-09-28, in
+an 80-column window. A line starts with the category (=agenda:=), then the
+time or the leader (=Scheduled:=, =In 4 d.:= ...), then the headline and its
+tags. The tags are aligned to the right edge of the window, so they move
+with your window width. The =┄┄┄┄┄= lines are the time grid, drawn in
+today's agenda only; the =← now= line sits at the current time (written
+=HH:MM= here). Within a day, timed entries come first, then the others by
+urgency.
+
+#+begin_example
+Week-agenda (W40):
+Monday     28 September 2026 W40
+               8:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  agenda:      9:30 ┄┄┄┄┄ Scheduled:  TODO Team standup                  :work:
+              10:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              12:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              14:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              HH:MM ┄┄┄┄┄ ← now ───────────────────────────────────────────────
+              16:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  agenda:     18:00 ┄┄┄┄┄ Gym
+              18:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+              20:00 ┄┄┄┄┄ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  agenda:     Sched. 4x:  TODO Clean the gutters                         :home:
+  agenda:     Sched. 3x:  TODO Return the library books                :errand:
+  agenda:     Scheduled:  TODO Call the plumber                          :home:
+  agenda:     Scheduled:  DONE Pay the electricity bill                  :home:
+  agenda:     Scheduled:  TODO Tidy the desk                             :home:
+  agenda:     Scheduled:  TODO Sort the photos                           :home:
+  agenda:     Scheduled:  TODO Back up the laptop                        :work:
+  agenda:      4 d. ago:  TODO Send the birthday card                  :errand:
+  agenda:     Water the plants                                           :home:
+  agenda:     In   3 d.:  TODO Pay the rent                              :home:
+  agenda:     In   4 d.:  TODO Renew the passport                        :home:
+  agenda:     In   7 d.:  TODO Book the venue                            :work:
+  agenda:     In  22 d.:  TODO Submit the grant report                   :work:
+  agenda:     TODO Stretch                            * ** **!          :habit:
+Tuesday    29 September 2026
+  agenda:     12:30-13:30 Lunch with Sam
+  agenda:     17:00 ┄┄┄┄┄ Piano lessons
+  agenda:     Evening class
+Wednesday  30 September 2026
+  agenda:     14:00 ┄┄┄┄┄ Dentist
+  agenda:     18:00 ┄┄┄┄┄ Gym
+  agenda:     Scheduled:  TODO Book the venue                            :work:
+  agenda:     Water the plants                                           :home:
+Thursday    1 October 2026
+  agenda:     17:00 ┄┄┄┄┄ Piano lessons
+  agenda:     Deadline:   TODO Pay the rent                              :home:
+  agenda:     (1/3):  Conference                                         :work:
+  agenda:     Book club
+Friday      2 October 2026
+  agenda:     16:00 ┄┄┄┄┄ Scheduled:  TODO Weekly review                 :work:
+  agenda:     18:00 ┄┄┄┄┄ Gym
+  agenda:     Deadline:   TODO Renew the passport                        :home:
+  agenda:     (2/3):  Conference                                         :work:
+  agenda:     Water the plants                                           :home:
+  agenda:     Ana turns 36
+Saturday    3 October 2026
+  agenda:     (3/3):  Conference                                         :work:
+  holiday:    Shemini Atzeret
+Sunday      4 October 2026
+  agenda:     22:00 ┄┄┄┄┄ (1/2):  Night train
+  agenda:     Water the plants                                           :home:
+  holiday:    Simchat Torah
+#+end_example
+
+Things to notice:
+- "Clean the gutters" is =Sched. 4x:= but "Draft the newsletter" is missing:
+  its =-3d= delay is not over until Wednesday.
+- "Pay the electricity bill" is DONE: it shows on its day only.
+- "File the insurance claim" is not in today's list: its deadline is more
+  than 14 days away. It shows on 2026-10-30 (see the month below).
+- "Book the venue" is there twice: its deadline warning today, its
+  scheduled date on Wednesday.
+- The =ARCHIVE= and =COMMENT= tasks and "Idea about the garden" (inactive)
+  are missing.
+- "Stretch" has its habit graph at column 40.
+
+*Try:* =<prefix>a <= a= and compare, line by line.
+
+* Moving around in time
+| Key                       | Does                                             |
+|---------------------------+--------------------------------------------------|
+| =f= =b=                   | the next / previous span (week, day, month)      |
+| =.=                       | back to today                                    |
+| =gd=                      | go to a date (Emacs =j=), picked in the calendar |
+| =c=                       | pick a date in the calendar and go there         |
+| =vd= =vw=                 | day / week span                                  |
+| =vt= =vm= =vy=            | fortnight / month / year span                    |
+| =v<Space>=                | back to the default span (a week)                |
+| =n= =p=                   | next / previous item (=j= =k= move by line)      |
+| =<C-c><C-n>= =<C-c><C-p>= | next / previous date line                        |
+
+The span starts at the day, week, month or year of the line under the
+cursor. In the calendar of =gd=, move with =h= =j= =k= =l= (=H= =L= change
+the month) and press =<CR>=, or press =i= and type a date such as
+=2026-10-12=.
+
+*Try:* in the agenda of this file press =vd=.
+*Expect:* only Monday 28 September, with the time grid, under the header
+=Day-agenda (W40):=. Press =f=: Tuesday, with "Lunch with Sam", "Piano
+lessons" and "Evening class". Press =.= to come back to today and =vw= for
+the week.
+
+*Try:* in the week of Monday 2026-09-28 press =f= (the next week, 5 to 11
+October) and then =vm=.
+*Expect:* =Month-agenda (W40-W44):=, the month of the cursor line: Thursday
+1 October to Saturday 31 October. The second week reads:
+
+#+begin_example
+Monday      5 October 2026 W41
+  agenda:      6:30 ┄┄┄┄┄ (2/2):  Night train
+  agenda:     18:00 ┄┄┄┄┄ Gym
+  agenda:     Deadline:   TODO Book the venue                            :work:
+Tuesday     6 October 2026
+  agenda:     Water the plants                                           :home:
+  agenda:     Evening class
+Wednesday   7 October 2026
+  agenda:     18:00 ┄┄┄┄┄ Gym
+Thursday    8 October 2026
+  agenda:     Water the plants                                           :home:
+Friday      9 October 2026
+  agenda:     16:00 ┄┄┄┄┄ Scheduled:  TODO Weekly review                 :work:
+  agenda:     18:00 ┄┄┄┄┄ Gym
+Saturday   10 October 2026
+  agenda:     Water the plants                                           :home:
+Sunday     11 October 2026
+#+end_example
+
+At the end, =Friday 30 October 2026= has =Deadline:   TODO File the
+insurance claim= and =Saturday 31 October 2026= has =holiday: Halloween=.
+"Water the plants" is on every other day, "Weekly review" on every Friday,
+"Evening class" on every Tuesday, "Gym" on Mondays, Wednesdays and Fridays.
+
+*Try:* press =v<Space>= and =.=.
+*Expect:* the week of today again.
+
+* Opening and following entries
+| Key          | Does                                                     |
+|--------------+----------------------------------------------------------|
+| =<CR>=       | open the entry in this window                            |
+| =<Tab>=      | open the entry in another window                         |
+| =<Space>=    | show the entry in the other window, keep the cursor here |
+| =L=          | show the entry and centre it                             |
+| =F=          | follow mode: the other window follows the cursor (=vf=)  |
+| =o=          | close the other windows                                  |
+| =T=          | show the tags of the entry (inherited ones too)          |
+| =<C-c><C-o>= | open a link of the entry                                 |
+
+*Try:* in the week agenda, move to "Call the plumber" and press =<Tab>=.
+*Expect:* this file opens in another window at "Call the plumber". Go back
+to the agenda (=<C-w>p=) and press =F=, then =n= a few times: the other
+window follows each item. =F= again turns it off.
+
+* Changing entries from the agenda
+Every change is made in the org buffer (not saved: save with =<C-x><C-s>= in
+the agenda or =:wall=) and the agenda line is updated. There is no undo key
+in the agenda: jump to the entry with =<Tab>= and press =u= there, or restore
+the file with git.
+
+** State, priority, tags, effort and properties
+| Key                        | Does                                          |
+|----------------------------+-----------------------------------------------|
+| =t=                        | change the TODO state (fast keys of =#+TODO=) |
+| =<C-S-Right>= =<C-S-Left>= | next / previous state                         |
+| =,=                        | set the priority (A, B, C; Space removes it)  |
+| =+= =-=                    | raise / lower it (=<S-Up>= =<S-Down>=)        |
+| =:=                        | set the tags                                  |
+| =e=                        | set the effort                                |
+| =<C-c><C-x>p=              | set a property                                |
+
+*Try:* on "Sort the photos" (Sandbox, Monday) press =t= then =d=.
+*Expect:* the line becomes =Scheduled:  DONE Sort the photos=, and in this
+file a log line appears under its =SCHEDULED:= line:
+=- State "DONE"       from "TODO"       [2026-09-28 Mon HH:MM]= (the =!= in
+=DONE(d!)= asks for it).
+
+*Try:* on "Tidy the desk" press =+=.
+*Expect:* =TODO [#B] Tidy the desk=: an entry without a priority starts at
+the default, B. Press =+= again for =[#A]=, then =,= and =<Space>= to remove
+it.
+
+*Try:* on "Back up the laptop" press =,= then =A=.
+*Expect:* =TODO [#A] Back up the laptop=, and the line moves up to the first
+of the Scheduled lines (a higher priority sorts first).
+
+*Try:* on "Weekly review" (Friday) press =t= then =d=.
+*Expect:* it is a repeating task: it stays TODO and its date jumps a week,
+to Friday 2026-10-09 16:00 (still =+1w=); the Friday line is gone from this
+week. =f= shows it on Friday 9 October.
+
+*Try:* on "Order new glasses" (in the TODO list, =<prefix>a <= t=) press =e=,
+type =2= (the number of =0:30= in the list) and =<CR>=.
+*Expect:* the entry gets =:Effort:   0:30= in its property drawer.
+
+** Scheduling and moving dates
+| Key         | Does                                                    |
+|-------------+---------------------------------------------------------|
+| =s=         | schedule (=<C-c><C-s>=): pick a date in the calendar    |
+| =d=         | set a deadline (=<C-c><C-d>=)                           |
+| =<S-Right>= | move the date of the line one day later (a count: more) |
+| =<S-Left>=  | move it one day earlier                                 |
+| =>=         | pick a new date for that timestamp (the time is kept)   |
+
+=<S-Right>=, =<S-Left>= and =>= change the timestamp the line comes from: on
+a =Deadline:= line the deadline, on a =Scheduled:= line the scheduled date,
+on an appointment its timestamp. On a date in the past, one =<S-Right>=
+moves it straight to today.
+
+*Try:* on "Call the plumber" press =<S-Right>=.
+*Expect:* the line leaves Monday and appears on Tuesday as =Scheduled:=; in
+this file its =SCHEDULED:= date is now 2026-09-29 Tue. =<S-Left>= moves it
+back.
+
+*Try:* on "Return the library books" (=Sched. 3x:=) press =<S-Right>=.
+*Expect:* the past date moves to today in one step: =Scheduled:  TODO Return
+the library books=, scheduled 2026-09-28 Mon in the file.
+
+*Try:* on "Lunch with Sam" (Tuesday) press =>=, then =l= in the calendar (the
+next day) and =<CR>=.
+*Expect:* lunch moves to Wednesday, still =12:30-13:30=: the file reads
+2026-09-30 Wed 12:30-13:30.
+
+*Try:* on "Buy kumquats" in the TODO list press =s=, pick a day with the
+calendar and =<CR>=. Then open the week agenda.
+*Expect:* "Buy kumquats" on that day with =Scheduled:=.
+
+** Clocking
+| Key | Does                                      |
+|-----+-------------------------------------------|
+| =I= | clock in on the entry (=<C-c><C-x><C-i>=) |
+| =O= | clock out (=<C-c><C-x><C-o>=)             |
+| =X= | cancel the running clock                  |
+| =J= | jump to the clocked entry                 |
+| =;= | start a countdown timer for the entry     |
+
+*Try:* on "Return the library books" press =I=, wait a minute, press =O=.
+*Expect:* "Clock starts at [...]", then "Clock stopped at [...] after 0:01".
+The entry now has a =:LOGBOOK:= drawer with a =CLOCK:= line. With log mode
+(=l=, below) the agenda shows it as =Clocked:=.
+
+** Notes, refile, archive, delete
+| Key           | Does                                               |
+|---------------+----------------------------------------------------|
+| =z=           | add a note to the entry (=<C-c><C-z>=)             |
+| =R=           | refile the entry (=<C-c><C-w>=)                    |
+| =$=           | archive the subtree to the archive file (=<C-c>$=) |
+| =a=           | archive after a confirmation                       |
+| =<C-c><C-x>A= | move it under an =Archive= sibling                 |
+| =<C-c><C-x>a= | toggle the =ARCHIVE= tag                           |
+| =<C-k>=       | delete the entry in its file                       |
+| =K=           | capture, with the date at point as default date    |
+| =<C-c><C-a>=  | attachments                                        |
+
+*Try:* on "Tidy the desk" press =z=, type "Found the lost pen." and finish the
+note with =<C-c><C-c>=.
+*Expect:* under "Tidy the desk" in this file, a line
+=- Note taken on [2026-09-28 Mon HH:MM] \\= followed by your text.
+
+*Try:* on "Order new glasses" in the TODO list press =<C-c><C-x>a=.
+*Expect:* the headline in this file ends with =:errand:urgent:ARCHIVE:=; after
+=r= the entry is no longer listed. Press =va= to include archived trees, then
+=<C-c><C-x>a= on it once more to remove the tag.
+
+Refiling and archiving move text around, and archiving creates a new file;
+[[file:12-refile-archive.org][12-refile-archive.org]] covers both in depth.
+
+* Marks and bulk actions
+Mark several lines and act on all of them at once.
+
+| Key     | Does                               |
+|---------+------------------------------------|
+| =m=     | mark the entry                     |
+| =u= =U= | unmark the entry / unmark all      |
+| =<M-m>= | toggle the mark                    |
+| =*=     | mark all entries                   |
+| =%=     | mark the entries matching a regexp |
+| =B=     | bulk action on the marked entries  |
+
+The actions after =B=: =$= archive, =A= archive to the sibling, =t= TODO
+state, =+= / =-= add / remove a tag, =r= refile, =s= schedule, =d= deadline,
+=S= scatter over the next N days, =f= a Lua function, =p= keep the marks
+afterwards. =s= and =d= take a date, or =++1d= to shift each entry's own
+date. Without marks, =B= acts on the entry at point.
+
+*Try:* in the week agenda, press =m= on "Tidy the desk", "Sort the photos"
+and "Back up the laptop" (each gets a mark), then =B=, =s=, type =++1d= and
+=<CR>=.
+*Expect:* "3 entries processed"; the three lines move from Monday to Tuesday,
+and their =SCHEDULED:= dates are now 2026-09-29 Tue.
+
+*Try:* in the day agenda (=vd=) press =%=, type =Sched= and =<CR>=.
+*Expect:* "8 entries marked" (in the unchanged file): every line whose text
+contains "Sched" (=Scheduled:= and =Sched. Nx:=, the standup at 9:30 too).
+=U= unmarks them.
+
+* Filters
+Filters hide lines without rebuilding the view. They show in the window bar
+(the top line of the window). =|= removes all of them.
+
+| Key     | Filter                                                     |
+|---------+------------------------------------------------------------|
+| =/=     | combined: =+work-urgent=, =<0:30=, =/regexp/=, a category  |
+| =\=     | one tag, by its key from =#+TAGS=                          |
+| =<=     | the category of the line at point (again: off)             |
+| ~=~     | an Emacs regexp on the text (again: off)                   |
+| =_=     | effort: =<=, =>= or ~=~, then a digit                      |
+| =^=     | the entries under the same top-level heading               |
+| =<Bar>= | remove all filters (=<Bar>= is Vim's name for the bar key) |
+
+A count changes a filter: =1\= (Emacs =C-u \=) *excludes* the tag, =2/= adds
+to the current filters. In =/=, =+tag= and =-tag= keep or hide a tag (or a
+category), =<1:00= keeps efforts of at most one hour, =>1:00= at least, and
+=/text/= is a regexp. After =\=, =<Space>= means "any tag", =?= "no tag"
+and =.= "the tags of this line".
+
+The =_= digits pick a value of the global =Effort_ALL= list
+=0 0:10 0:30 1:00 2:00 3:00 4:00 5:00 6:00 7:00= (1 is =0=, 2 is =0:10=, 3
+is =0:30=, ...), not the =#+PROPERTY:= of this file. Entries without an
+effort count as infinitely long.
+
+All the examples below start from the TODO list of this file,
+=<prefix>a <= t=, and end by removing the filters with =|=.
+
+*Try:* =\= then =w=.
+*Expect:* the ten =work= entries, from "Fix the production outage" to
+"Build the prototype". The last two show =:work::=: they inherit the tag from
+"Project Alpha" (inherited tags come before the =::=).
+
+*Try:* =1\= then =h=.
+*Expect:* every entry *except* the =home= ones: "Call the plumber", "Clean the
+gutters", "Renew the passport" ... are gone; fifteen remain.
+
+*Try:* =_=, =<=, =3=.
+*Expect:* only the entries with an effort of at most 0:30:
+
+#+begin_example
+  agenda:     TODO [#B] Review the pull request                          :work:
+  agenda:     TODO Buy kumquats                                        :errand:
+#+end_example
+
+*Try:* =/= and type =+work<1:00= =<CR>=.
+*Expect:* work entries with an effort of at most one hour: "Fix the production
+outage" (1:00) and "Review the pull request" (0:30).
+
+*Try:* =/= and type =-work/the/= =<CR>=.
+*Expect:* the entries without the =work= tag whose text contains "the":
+eleven lines, from "Call the plumber" to "Clean the garage".
+
+*Try:* ~=~ and type =garage= =<CR>=.
+*Expect:* only "Clean the garage". ~=~ again removes the regexp filter.
+
+*Try:* move to "Write the spec" and press =^=.
+*Expect:* "Write the spec" and "Build the prototype": the open TODOs under
+the same top-level heading ("Stuck projects").
+
+*Try:* in the week agenda without restriction (=<prefix>a a=), put the cursor
+on a line starting with =agenda:= and press =<=.
+*Expect:* only this file's lines remain (minus the =holiday:= ones). =<=
+again shows everything.
+
+* Limits
+=~= limits the number of lines: =e= entries, =t= TODOs, =T= tagged entries,
+=E= a total effort in minutes. A count (=1~=) removes the limits. Lines
+without the property (the time grid too) disappear while a limit is on.
+
+*Try:* in the TODO list of this file press =~=, =e=, type =3= and =<CR>=.
+*Expect:* only the first three entries: "Fix the production outage", "Call the
+plumber", "Team standup". =1~= shows all of them again.
+
+* Display modes
+| Key       | Mode                                                        |
+|-----------+-------------------------------------------------------------|
+| =l=       | log mode: closed entries and clock lines of each day (=vl=) |
+| =vL=      | log mode with every log item (state changes, notes)         |
+| =C=       | clock report: a clock table below the agenda (=vR=)         |
+| =vc=      | clock check: only clocked entries and their problems        |
+| =E=       | entry text: the first body lines under each line (=vE=)     |
+| =v[=      | include inactive timestamps                                 |
+| =va= =vA= | include archived trees / also the archive files             |
+| =G=       | time grid on / off (=vG=)                                   |
+| =!=       | deadlines on / off (=v!=)                                   |
+| =#=       | dim blocked TODOs on / off                                  |
+| =D=       | the Emacs diary file on / off                               |
+
+Each key toggles its mode and says so (=Log mode on=, ...).
+
+** Log mode
+*Try:* in the week agenda of this file press =l=.
+*Expect:* three new lines in Monday's time grid (and a clock line for any
+task you clocked yourself):
+
+#+begin_example
+  agenda:      8:05 ┄┄┄┄┄ Closed:     DONE Pay the electricity bill      :home:
+  agenda:      9:30-9:45  Clocked:   (0:15) TODO Team standup            :work:
+  agenda:     10:00-11:00 Clocked:   (1:00) TODO [#B] Review the pull request :work:
+#+end_example
+
+=l= again turns log mode off. =vL= also shows state changes and notes: press
+=b= for the previous week and find the WAITING change of "Reply from the
+landlord" on Friday 25 September.
+
+** Clock report
+*Try:* press =vd= (today only) and then =C=.
+*Expect:* below the agenda, a clock table of the shown day for the files of
+the agenda (only this file, since it is restricted). The headlines are links
+to the entries; here they are written with their descriptions only:
+
+#+begin_example
+| File          | Headline                    | Time   |      |
+|---------------+-----------------------------+--------+------|
+|               | ALL *Total time*            | *1:15* |      |
+|---------------+-----------------------------+--------+------|
+| 09-agenda.org | *File time*                 | *1:15* |      |
+|               | What shows up in the agenda | 0:15   |      |
+|               | \_  Scheduled entries       |        | 0:15 |
+|               | Tasks without dates         | 1:00   |      |
+|               | \_  Review the pull request |        | 1:00 |
+#+end_example
+
+The parameters come from =agenda.clockreport_parameters=
+(={ link = true, maxlevel = 2 }=). =C= again removes the table.
+
+** Entry text
+*Try:* in the week agenda press =E=.
+*Expect:* under some lines, the first lines of the entry body, prefixed by
+=>=. Under "Call the plumber":
+
+#+begin_example
+  agenda:     Scheduled:  TODO Call the plumber                          :home:
+    > The kitchen tap drips.
+    > Ask about the boiler as well.
+#+end_example
+
+and under "Renew the passport", "Lunch with Sam" and "Conference" their
+notes. =agenda.entry_text_maxlines= (5) limits the lines.
+
+** Inactive timestamps, archives, deadlines, grid
+*Try:* in the week agenda press =v[=.
+*Expect:* on Tuesday a new line =agenda:     [ Idea about the garden=, the
+inactive timestamp with the leader =[=. =v[= again hides it.
+
+*Try:* press =va=.
+*Expect:* "Archived task" on Monday as =Scheduled:  TODO Archived task=.
+=va= again hides it. The COMMENT task never shows.
+
+*Try:* press =!=.
+*Expect:* every =Deadline:=, =In N d.:= and =N d. ago:= line disappears
+("Deadlines hidden"). =!= again brings them back. =G= does the same for the
+time grid of today.
+
+** Dimmed blocked tasks
+"Project Alpha" below has the property =:ORDERED: t= and
+=enforce_todo_dependencies= is on: "Build the prototype" is blocked until
+"Write the spec" is done. The agenda shows blocked tasks dimmed (grey); =#=
+in the agenda toggles the dimming.
+
+*Try:* in the TODO list of this file look at "Build the prototype", then
+press =#= twice.
+*Expect:* dimmed, then normal, then dimmed again.
+
+* Column view in the agenda
+=<C-c><C-x><C-c>= shows every line of the agenda as columns, like column view
+in an org buffer. The format comes from the =#+COLUMNS:= line of this file:
+=%40ITEM %TODO %3PRIORITY %Effort{:} %TAGS=. The column titles are in the
+window bar. While it is on, =e= edits the value under the cursor, =n= / =p=
+(=<S-Right>= / =<S-Left>=) cycle through the allowed values (=Effort_ALL=),
+=v= shows the full value and =q= turns it off.
+
+*Try:* =<prefix>a <= t=, then =<C-c><C-x><C-c>=.
+*Expect:* the window bar reads =ITEM | TODO | PR… | Effort | TAGS=; "Fix the
+production outage" shows =A= as priority and =1:00= as effort.
+
+*Try:* move to the Effort column of "Clean the garage" and press =p=.
+*Expect:* its effort goes from =4:00= to =2:00= (the previous value of
+=Effort_ALL=); the =:Effort:= property of the entry changes too. =q= leaves
+column view.
+
+* The TODO list
+=t= in the dispatcher lists every entry with a not-done TODO keyword, dated
+or not, sorted by urgency (priority A first), then in file order. =T= asks
+for keywords (=WAITING=, or several: =NEXT|WAITING=).
+
+*Try:* =<prefix>a <= t=.
+*Expect:*
+
+#+begin_example
+Global list of TODO items of type: ALL
+Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)... (2)...
+                      ... (the numbered TODO keywords)
+  agenda:     NEXT [#A] Fix the production outage                 :work:urgent:
+  agenda:     TODO Call the plumber                                      :home:
+  agenda:     TODO Team standup                                          :work:
+  agenda:     TODO Return the library books                            :errand:
+  agenda:     TODO Clean the gutters                                     :home:
+  agenda:     TODO Draft the newsletter                                  :work:
+  agenda:     TODO Renew the passport                                    :home:
+  agenda:     TODO Submit the grant report                               :work:
+  agenda:     TODO File the insurance claim                              :home:
+  agenda:     TODO Send the birthday card                              :errand:
+  agenda:     TODO Book the venue                                        :work:
+  agenda:     TODO Weekly review                                         :work:
+  agenda:     TODO Pay the rent                                          :home:
+  agenda:     TODO Stretch                                              :habit:
+  agenda:     TODO Tidy the desk                                         :home:
+  agenda:     TODO Sort the photos                                       :home:
+  agenda:     TODO Back up the laptop                                    :work:
+  agenda:     TODO [#B] Review the pull request                          :work:
+  agenda:     WAITING Reply from the landlord                            :home:
+  agenda:     TODO Buy kumquats                                        :errand:
+  agenda:     TODO Order new glasses                            :errand:urgent:
+  agenda:     TODO Write the spec                                       :work::
+  agenda:     TODO Build the prototype                                  :work::
+  agenda:     TODO [#C] Clean the garage                                 :home:
+#+end_example
+
+The two header lines number the keywords: =N r= (e.g. =2 r=) rebuilds the
+list for the Nth keyword, =0 r= for all of them. The numbers depend on the
+keywords of the files in the view, so read them from the header. "Stretch"
+is a TODO too; "Pay the electricity bill" (DONE) and "Migrate the wiki"
+(CANCELLED) are not listed.
+
+*Try:* in the TODO list, press the number shown before =WAITING= and =r=.
+*Expect:* only "WAITING Reply from the landlord".
+
+*Try:* =<prefix>a <= T= and type =NEXT|WAITING= =<CR>=.
+*Expect:* two lines: "NEXT [#A] Fix the production outage" and "WAITING
+Reply from the landlord".
+
+Options that hide dated entries from the TODO list:
+=agenda.todo_ignore_scheduled=, =todo_ignore_deadlines=,
+=todo_ignore_timestamp= and =todo_ignore_with_date=.
+
+* Tags and property matches
+=m= in the dispatcher asks for a match string and lists the headings that
+match (TODO or not); =M= lists only the not-done TODO entries. The match
+syntax is shared with sparse trees and clock tables
+([[file:10-sparse-trees.org][10-sparse-trees.org]] covers it in depth).
+=<Tab>= at the prompt completes tags and property names.
+
+| Match                 | Means                                     |
+|-----------------------+-------------------------------------------|
+| =+work=               | tagged work (inherited tags count)        |
+| =+home-habit=         | home and not habit                        |
+| =work+urgent=         | work and urgent                           |
+| ={^err}=              | a tag matching a regexp                   |
+| =CLIENT="ACME"=       | a property value                          |
+| =TODO="WAITING"=      | a TODO state                              |
+| =PRIORITY="A"=        | priority A                                |
+| =LEVEL=2+errand=      | second-level headings tagged errand       |
+| =Effort<*1=           | an effort below 1 (=1:00= counts as 1)    |
+| =Effort>=2=           | an effort of 2 hours or more              |
+| =SCHEDULED<"<today>"= | scheduled before today                    |
+| =DEADLINE<="<+1w>"=   | due within a week (or overdue)            |
+| =+work/NEXT=          | work, in the NEXT state                   |
+| =+work/!=             | work, not done                            |
+| =+home/-TODO=         | home, a keyword other than TODO (or none) |
+| =+project=            | the project headings                      |
+
+=|= means "or": =errand|urgent= finds either tag.
+
+In matches, a number such as =1:00= compares as its leading number (1), and
+a quoted value (="1:00"=) compares as a string, where a missing property is
+the empty string. So =Effort<"1:00"= also matches every heading *without*
+an effort; use =Effort<*1= (the =*= requires the property to exist).
+
+*Try:* =<prefix>a <= m= and type =CLIENT="ACME"= =<CR>=.
+*Expect:* one line, =NEXT [#A] Fix the production outage=.
+
+*Try:* =<prefix>a <= m= and type =errand|urgent= =<CR>=.
+*Expect:*
+
+#+begin_example
+  agenda:     NEXT [#A] Fix the production outage                 :work:urgent:
+  agenda:     TODO Return the library books                            :errand:
+  agenda:     TODO Send the birthday card                              :errand:
+  agenda:     TODO Buy kumquats                                        :errand:
+  agenda:     TODO Order new glasses                            :errand:urgent:
+#+end_example
+
+*Try:* =m= with =Effort<*1=, then with =Effort>=2=.
+*Expect:* "Review the pull request" and "Buy kumquats"; then "Write the spec"
+and "Clean the garage".
+
+*Try:* =m= with =DEADLINE<="<+1w>"=.
+*Expect:* "Renew the passport", "Send the birthday card", "Book the venue",
+"Pay the rent" (due by 2026-10-05, or overdue).
+
+*Try:* =m= with =SCHEDULED<"<today>"=.
+*Expect:* "Return the library books", "Clean the gutters", "Draft the
+newsletter".
+
+*Try:* =m= with =LEVEL=2+errand=.
+*Expect:* "Buy kumquats" and "Order new glasses" (the other errands are at
+level 3).
+
+*Try:* =m= with =+home/-TODO=.
+*Expect:* "DONE Pay the electricity bill", "Water the plants" (no keyword)
+and "WAITING Reply from the landlord".
+
+*Try:* =M= with =+work=.
+*Expect:* the ten open work TODOs, as with the =\= =w= filter above. With =m=
+instead, "Conference", "Migrate the wiki", "Project Alpha" and "Kick-off
+meeting" are listed too (they are not open TODOs).
+
+In a match view, =[= and =]= add a =+tag= / =-tag= term to the query and
+rebuild it; =1 r= edits the query.
+
+* Search view
+=s= searches the text of the entries (headline and body) and lists the
+entries that match. Matching ignores case.
+
+- A plain query is a phrase: =noodle bar= finds "noodle bar"; the spaces
+  match any whitespace, line breaks included.
+- A query starting with =+=, =-= or ={= is boolean: =+word= must occur,
+  =-word= must not, ={regexp}= is an Emacs regexp, a phrase in double quotes
+  is one word.
+- A leading =*= searches headlines only, =!= TODO entries only (like =S=),
+  and =:= matches whole words only (in a boolean query).
+
+This section contains the words it searches for, so its own heading, "Search
+view", is found as well.
+
+*Try:* =<prefix>a <= s= and type =kitchen= =<CR>=.
+*Expect:* four lines: "Call the plumber" (its note mentions the kitchen
+tap), "Entry text" (it quotes that note), "Search view" and "Notes about the
+budget".
+
+*Try:* =s= with =+kitchen -tap=.
+*Expect:* "Notes about the budget" only: the plumber note, "Entry text" and
+this section all mention the tap.
+
+*Try:* =s= with ={marmal[a-z]+}=.
+*Expect:* "Buy kumquats" (its note says "For the marmalade recipe") and
+"Search view".
+
+*Try:* =s= with =*kumquats=, then with =*kitchen=.
+*Expect:* "TODO Buy kumquats"; then nothing, since no headline contains
+"kitchen".
+
+*Try:* =S= with =kitchen=.
+*Expect:* only "TODO Call the plumber" (TODO entries only).
+
+*Try:* =s= with =+adapt=, then with =:+adapt=.
+*Expect:* "Conference" (its note mentions the power adapter) and "Search
+view"; then only "Search view", because "adapter" does not contain the whole
+word "adapt" (this paragraph does).
+
+In the search view, =[= / =]= add a =+word= / =-word= term, ={= / =}= a
+=+{regexp}= / =-{regexp}= term, and =1 r= starts a fresh search.
+
+* Stuck projects
+A project is stuck when nothing in it is ready to be worked on.
+=examples/minimal_init.lua= sets:
+
+#+begin_src lua :eval no
+agenda = { stuck_projects = { match = "+project/-DONE" } }
+-- and, at the top level: tags_exclude_from_inheritance = { "project" }
+#+end_src
+
+so a project is a heading tagged =:project:= that is not DONE, and it is stuck
+unless a heading of its subtree has one of the keywords =TODO=, =NEXT= or
+=NEXTACTION= (=stuck_projects.todo_keywords=). The =project= tag is not
+inherited, so the tasks of a project are not projects themselves.
+
+*Try:* =<prefix>a <= #=.
+*Expect:* one line:
+
+#+begin_example
+  agenda:     Project Beta                                            :project:
+#+end_example
+
+"Project Alpha" has TODO tasks, "Project Gamma" is DONE.
+
+*Try:* on "Notes about the budget" below press =cit= (the next TODO state) to
+make it a TODO. Then =<prefix>a <= #= again.
+*Expect:* the list is empty: "Project Beta" is no longer stuck.
+
+** Project Alpha                                                :project:work:
+:PROPERTIES:
+:ORDERED:  t
+:END:
+# ORDERED: "Build the prototype" is blocked until "Write the spec" is done.
+*** TODO Write the spec
+:PROPERTIES:
+:Effort:   2:00
+:END:
+*** TODO Build the prototype
+*** DONE Kick-off meeting
+CLOSED: [2026-09-21 Mon 10:00]
+** Project Beta                                                     :project:
+# No TODO in this subtree: stuck.
+*** Notes about the budget
+The budget for the kitchen is 2000.
+** DONE Project Gamma                                               :project:
+CLOSED: [2026-09-15 Tue 17:00]
+
+* More dispatcher entries
+- =n=: the agenda and the TODO list in one buffer (two blocks).
+- =/=: a regexp searched in every line of every agenda file, into the
+  quickfix list (=:copen=, =:cnext=). Not restricted by =<=.
+- =*=: sticky agenda buffers: each view keeps its own buffer
+  (=org://agenda(KEY)=) and is shown as it was when you open it again (=r=
+  refreshes it).
+- =A= inside an agenda appends another view to the current buffer.
+
+*Try:* =<prefix>a /= and type =kumquat= =<CR>=.
+*Expect:* the quickfix window with the lines that contain "kumquat": in this
+file the headline, the search examples ..., and lines of any other example
+file that mentions it.
+
+*Try:* =<prefix>a <= n=.
+*Expect:* the week agenda, a separator line of =─=, then the TODO list of this
+file. =<C-Down>= / =<C-Up>= jump between the two blocks.
+
+* Custom commands
+Custom commands combine views and options under a key of the dispatcher.
+=examples/minimal_init.lua= defines two:
+
+#+begin_src lua :eval no
+agenda = {
+  custom_commands = {
+    -- a block agenda: three views in one buffer
+    w = {
+      description = "Work overview",
+      types = {
+        { type = "agenda", span = "day", header = "Today" },
+        { type = "tags_todo", match = "+work/!", header = "Open work tasks" },
+        { type = "todo", match = "WAITING", header = "Waiting for" },
+      },
+    },
+    -- a single tags view
+    u = { description = "Urgent", type = "tags", match = 'PRIORITY="A"|+urgent' },
+  },
+}
+#+end_src
+
+*Try:* =<prefix>a <= u=.
+*Expect:*
+
+#+begin_example
+Headlines with TAGS match: PRIORITY="A"|+urgent
+Press ‘1 r’ to search again
+  agenda:     NEXT [#A] Fix the production outage                 :work:urgent:
+  agenda:     TODO Order new glasses                            :errand:urgent:
+#+end_example
+
+*Try:* =<prefix>a <= w=.
+*Expect:* three blocks separated by a line of =─=. First "Today": the day
+agenda of today, as in [[*The week at a glance][The week at a glance]] for
+Monday. Then:
+
+#+begin_example
+Open work tasks
+  agenda:     NEXT [#A] Fix the production outage                 :work:urgent:
+  agenda:     TODO Team standup                                          :work:
+  agenda:     TODO Draft the newsletter                                  :work:
+  agenda:     TODO Submit the grant report                               :work:
+  agenda:     TODO Book the venue                                        :work:
+  agenda:     TODO Weekly review                                         :work:
+  agenda:     TODO Back up the laptop                                    :work:
+  agenda:     TODO [#B] Review the pull request                          :work:
+  agenda:     TODO Write the spec                                       :work::
+  agenda:     TODO Build the prototype                                  :work::
+
+───────────────────────────────────────────────────────────────────────────────
+Waiting for
+  agenda:     WAITING Reply from the landlord                            :home:
+#+end_example
+
+More options for your own config (=:h org-agenda-custom-commands=):
+
+#+begin_src lua :eval no
+agenda = {
+  custom_commands = {
+    p = "Personal",                     -- a group: press p, then a key
+    pa = {
+      description = "Three days, home only",
+      type = "agenda",
+      span = 3,
+      start_day = "-1",                 -- start yesterday
+      tag_filter_preset = { "+home" },  -- a filter that stays on
+    },
+    pn = { description = "NEXT actions", type = "todo", match = "NEXT" },
+    ps = { description = "Garden notes", type = "search", match = "garden" },
+    pt = { description = "Work tree", type = "tags-tree", match = "+work" },
+    r = {
+      description = "Review",
+      types = {
+        { type = "agenda", span = "week", header = "This week" },
+        { type = "stuck", header = "Stuck" },
+        {
+          type = "todo",
+          header = "Unscheduled",
+          skip = require("org.agenda").skip_entry_if("scheduled", "deadline"),
+        },
+      },
+      settings = { prefix_format = " %-10:c %s" },
+      export_files = { "~/review.html", "~/review.txt" },
+    },
+  },
+}
+#+end_src
+
+- =types= (or =blocks=) makes a block agenda; =type= a single view. Types:
+  =agenda=, =todo=, =tags=, =tags_todo=, =search=, =stuck=, and the sparse
+  trees =tags-tree=, =todo-tree=, =occur-tree= of the current buffer.
+- =skip= hides entries; =require("org.agenda").skip_entry_if= and
+  =skip_subtree_if= take conditions like Emacs's org-agenda-skip-entry-if:
+  =scheduled=, =notscheduled=, =deadline=, =timestamp=, =regexp=, =todo= ...
+- =settings= apply to every block; =export_files= are written by =e= in the
+  dispatcher.
+
+* The restriction lock
+The dispatcher's =<= restricts one view. The restriction lock restricts
+*every* agenda command until you remove it, =:Org agenda= commands included.
+
+| Key           | Where      | Does                                      |
+|---------------+------------+-------------------------------------------|
+| =<C-c><C-x><= | org buffer | lock the agenda to the subtree at point   |
+| =<C-c><C-x>>= | org buffer | remove the lock                           |
+| =<C-c><C-x><= | agenda     | lock to the subtree of the entry at point |
+| =>=           | dispatcher | remove the restriction and the lock       |
+
+On a line before the first heading, or with a count, the lock takes the
+whole file.
+
+*Try:* put the cursor on the heading "Tasks without dates" and press
+=<C-c><C-x><=.
+*Expect:* the message =Agenda restricted to subtree "Tasks without dates"=.
+Now =<prefix>a t= (no =<= needed) lists only the six open tasks of that
+subtree, and =<prefix>a a= shows an empty week (those tasks have no dates),
+only the time grid of today. Press =<C-c><C-x>>= to remove the lock.
+
+* Exporting the agenda
+=<C-x><C-w>= in the agenda writes the current view to a file; the extension
+picks the format: =.txt= (the text), =.html= (with colours), =.org= (the
+subtrees of the entries), =.ics= (iCalendar), =.ps= / =.pdf= (printed like
+Emacs, without external programs). =:Org agenda export FILE= does the same.
+
+*Try:* in the day agenda of this file (=<prefix>a <= a= then =vd=), press
+=<C-x><C-w>= and type =/tmp/today.txt=.
+*Expect:* "Plain text written to /tmp/today.txt"; the file holds the agenda
+text, starting with =Day-agenda (W40):=. Try =/tmp/today.html= and
+=/tmp/today.ics= as well ("iCalendar written to ...").
+
+Custom commands with =export_files= are all written at once by =e= in the
+dispatcher, or from the shell:
+
+#+begin_src sh :eval no
+nvim --headless -u examples/minimal_init.lua \
+  -c "lua require('org.agenda.export').batch('a', { span = 'day' })" -c q
+#+end_src
+
+* Further reading
+- =:h org-agenda= the dispatcher, =:h org-agenda-contents= what shows up
+- =:h org-agenda-keys= every key, =:h org-agenda-filter=,
+  =:h org-agenda-limits=, =:h org-agenda-bulk=, =:h org-agenda-columns=
+- =:h org-agenda-prefix= the line format, =:h org-agenda-sorting=
+- =:h org-agenda-custom-commands=, =:h org-stuck-projects=,
+  =:h org-agenda-search=, =:h org-match-syntax=
+- =:h org-agenda-diary-sexp=, =:h org-agenda-holidays=,
+  =:h org-agenda-calendar-keys= (=gC=, =M=, =S=, =H= on a date)
+- =:h org-agenda-export=, =:h org-agenda-window=
+- =:h org-agenda-unsupported= what the agenda does not do

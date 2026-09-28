@@ -1,0 +1,1370 @@
+#+TITLE: Clocking, effort and clock tables
+#+STARTUP: overview
+#+CATEGORY: clocking
+#+TODO: TODO NEXT | DONE
+#+TAGS: work(w) home(h) meeting(m)
+#+PROPERTY: Effort_ALL 0:15 0:30 1:00 2:00 3:00 4:00 6:00
+#+COLUMNS: %45ITEM %TODO %Effort{:} %CLOCKSUM %CLOCKSUM_T
+
+* How to use this file
+Org mode can record how long you spend on each task. You /clock in/ on a
+headline when you start working on it and /clock out/ when you stop. Each
+session becomes a =CLOCK:= line in the entry's =:LOGBOOK:= drawer. From
+those lines org.nvim sums up time per subtree, shows the running clock in
+your statusline, compares it with an /effort/ estimate and builds /clock
+tables/ (reports) for any period.
+
+This file is a hands-on workbook. Every top-level heading covers one part
+of clocking, from the basics to clock tables with many parameters. Nothing
+breaks if you make a mess:
+
+- =u= undoes; =git checkout examples/08-clocking.org= restores the file.
+- The file starts folded (=#+STARTUP: overview=). =<Tab>= on a heading
+  opens it, =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means the key prefix, =<leader>o= by default (so with
+  =<leader>= = space, =<prefix>xi= is =<Space>oxi=).
+- =g?= lists every keymap of the buffer.
+- Coming from Emacs? The =C-c C-x ...= keys work too; they are given next
+  to the Vim-style keys below (=:h org-emacs-keys=).
+- Lines starting with *Try:* are exercises, and *Expect:* tells you what
+  you should see afterwards.
+- Lines starting with =# = are Org comments: notes for you that are not
+  exported.
+
+Start Neovim with the bundled init file from the repository root, so the
+clock history and the running clock are kept in a scratch directory and
+never touch your own setup:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/08-clocking.org
+#+end_src
+
+=examples/minimal_init.lua= sets =agenda_files= to =examples/*.org= (so the
+clocks of this file also show up in the agenda's log mode and in
+=:scope agenda= clock tables), a scratch =org_directory= for captures,
+some capture templates, custom agenda commands and
+=clock.persist_file= in that scratch directory.
+
+The dates in this file are chosen relative to *Mon 2026-09-28*: the sample
+data covers August and September 2026 up to Sun 2026-09-27, so the clock
+tables with a fixed period show exactly the numbers printed here.
+
+** Keys in this file
+| Key                     | Emacs key           | What it does                           |
+|-------------------------+---------------------+----------------------------------------|
+| =<prefix>xi=            | =C-c C-x C-i=       | clock in on the entry                  |
+| =<prefix>xo=            | =C-c C-x C-o=       | clock out (from any buffer)            |
+| =<prefix>xq=            | =C-c C-x C-q=       | cancel the running clock               |
+| =<prefix>xj=            | =C-c C-x C-j=       | jump to the clocked entry              |
+| =:Org clock_in_last=    | =C-c C-x C-x=       | clock in the last task again           |
+| =<prefix>xe=            | =C-c C-x e=         | set the effort                         |
+| =<prefix>xE=            | =C-c C-x E=         | next value of =Effort_ALL=             |
+| =<prefix>xm=            | =C-c C-x C-e=       | change the clocked task's effort       |
+| =<prefix>xz=            | =C-c C-x C-z=       | resolve open (dangling) clocks         |
+| =<prefix>xd=            | =C-c C-x C-d=       | clock sums next to the headlines       |
+| =<prefix>xr=            | =C-c C-x C-r=       | insert / update a clock table          |
+| =<prefix>xu=            | =C-c C-x C-u=       | update the block at the cursor         |
+| =<prefix>xU=            |                     | update every block of the file         |
+| =<C-c><C-c>=            | =C-c C-c=           | CLOCK line: fix duration; update block |
+| =<C-a>= =<C-x>=         | =S-Up= =S-Down=     | change the timestamp part              |
+| =<C-S-Up>= =<C-S-Down>= | same                | move both CLOCK timestamps             |
+| =<M-K>= =<M-J>=         | =S-M-Up= =S-M-Down= | ... and the touching clock             |
+| =<S-Left>= =<S-Right>=  | same                | on a clocktable: shift its =:block=    |
+
+* Clocking in and out
+The three basic commands:
+
+- =<prefix>xi= (=C-c C-x C-i=) *clocks in* on the headline the cursor is
+  in (anywhere in its body works too). A line =CLOCK: [2026-09-28 Mon 15:04]=
+  is added to the entry's =:LOGBOOK:= drawer, created when missing. A clock
+  that is already running elsewhere is clocked out first: only one clock
+  runs at a time.
+- =<prefix>xo= (=C-c C-x C-o=) *clocks out*. The open line is closed and
+  the duration is written after ~=>~:
+  =CLOCK: [2026-09-28 Mon 15:04]--[2026-09-28 Mon 15:31] =>  0:27=.
+  =<prefix>xo= is a global key: it also works from other buffers, and so
+  do =<prefix>xq= and =<prefix>xj=.
+- =<prefix>xq= (=C-c C-x C-q=) *cancels* the clock: the open =CLOCK:= line
+  is deleted as if you never clocked in (and an emptied drawer too).
+
+Clocking in on the entry that is already clocked does nothing except say
+"Clock continues in ...". Marking the clocked entry DONE clocks it out
+(=clock.out_when_done=).
+
+** TODO Practice task: make tea
+# No LOGBOOK yet: clocking in creates it right below the headline.
+
+*Try:* put the cursor on the headline above and press =<prefix>xi=.
+
+*Expect:* the message =Clock starts at [2026-09-28 Mon HH:MM] - showing
+entire task time.= and three new lines under the headline: =:LOGBOOK:=,
+then the open clock =CLOCK: [2026-09-28 Mon 15:04]= (today's date and the
+current time, no end yet) and =:END:=. The drawer may be folded: press
+=<Tab>= on =:LOGBOOK:= to open it.
+
+*Try:* wait a minute, then press =<prefix>xo=.
+
+*Expect:* the line becomes
+=CLOCK: [2026-09-28 Mon 15:04]--[2026-09-28 Mon 15:05] =>  0:01= and the
+message says =Clock stopped at [2026-09-28 Mon 15:05] after 0:01=.
+
+*Try:* press =<prefix>xi= again and then =<prefix>xq=.
+
+*Expect:* the new open =CLOCK:= line disappears again and the older,
+closed one stays.
+
+** TODO Practice task: answer e-mail
+*Try:* clock in on "make tea" above, then move here and press =<prefix>xi=.
+
+*Expect:* "make tea" is clocked out automatically (its line gets an end
+time) and a new clock starts here. Clock out with =<prefix>xo= when done.
+
+** TODO Practice task: write the report
+*Try:* clock in here, then mark the task done: press =cit= twice (TODO
+-> NEXT -> DONE, the keywords of this file), or =<prefix>T= and pick DONE.
+
+*Expect:* the state becomes DONE /and/ the clock stops: marking the
+clocked entry done clocks it out (=clock.out_when_done = true=).
+
+* The LOGBOOK drawer
+Clock lines live in a drawer so they don't clutter the entry. Which drawer
+is used is decided, in this order, by:
+
+1. the =CLOCK_INTO_DRAWER= property (inherited from parents, or set for
+   the whole file with =#+PROPERTY: CLOCK_INTO_DRAWER ...=):
+   - =nil= :: no drawer, the =CLOCK:= lines go right under the headline;
+   - =t= :: the log drawer (=LOGBOOK=);
+   - a number N :: loose lines until there are N of them, then all of
+     them are moved into the drawer;
+   - any other word :: a drawer with that name, e.g. =CLOCKING=;
+2. the option =clock.into_drawer= (default =true=);
+3. the log drawer (=log_into_drawer=, else =LOGBOOK=).
+
+New lines are added at the top (=log_states_order_reversed = true=), so the
+most recent session comes first.
+
+A CLOCK line has a fixed format: an inactive start timestamp, =--=, the end
+timestamp, =" => "= and the duration as H:MM, right-aligned to 5 chars.
+: CLOCK: [2026-09-23 Wed 09:30]--[2026-09-23 Wed 11:00] =>  1:30
+: CLOCK: [2026-09-24 Thu 23:30]--[2026-09-25 Fri 00:30] =>  1:00
+The first is a normal session, the second crosses midnight (clock tables
+split it correctly between days). A running clock has only the start:
+=CLOCK: [2026-09-28 Mon 15:04]=.
+
+** TODO No drawer for this one
+:PROPERTIES:
+:CLOCK_INTO_DRAWER: nil
+:END:
+*Try:* =<prefix>xi= then =<prefix>xo= here.
+
+*Expect:* the =CLOCK:= line is inserted right after the =:PROPERTIES:=
+drawer, with no =:LOGBOOK:= around it.
+
+** TODO Drawer only from the second clock on
+:PROPERTIES:
+:CLOCK_INTO_DRAWER: 2
+:END:
+*Try:* clock in and out once (=<prefix>xi=, =<prefix>xo=), then a second
+time.
+
+*Expect:* after the first session there is one loose =CLOCK:= line. When
+you clock in the second time, both lines are moved into a new
+=:LOGBOOK:= drawer, the new one on top.
+
+** TODO A drawer with its own name
+:PROPERTIES:
+:CLOCK_INTO_DRAWER: CLOCKING
+:END:
+*Try:* clock in and out here.
+
+*Expect:* the line goes into a =:CLOCKING:= drawer instead of =:LOGBOOK:=.
+
+** Notes when clocking out
+With =log_note_clock_out = true= in your setup (or =#+STARTUP:
+lognoteclock-out= at the top of a file), clocking out opens a small buffer
+for a note, which is stored under the =CLOCK:= line:
+: :LOGBOOK:
+: CLOCK: [2026-09-28 Mon 15:04]--[2026-09-28 Mon 15:40] =>  0:36
+: - Finished the outline, stuck on the conclusion.
+: :END:
+This file doesn't turn it on; add =#+STARTUP: lognoteclock-out= to the
+header and reopen the file (=:e!=) to try it.
+
+* Jumping to the clock and the clock history
+- =<prefix>xj= (=C-c C-x C-j=) jumps to the entry that is being clocked,
+  from any buffer. Without a running clock it goes to the most recently
+  clocked entry and says so ("No running clock, this is the most recently
+  clocked task").
+- =:Org clock_in_last= (=C-c C-x C-x=) clocks in the last clocked task
+  again, wherever you are: handy after a break.
+- org.nvim remembers the recently clocked tasks (=clock.history_length=,
+  5 by default). A count before =<prefix>xi= (any count from 1 to 15, e.g.
+  =4<prefix>xi= which is Emacs' =C-u C-c C-x C-i=) opens a menu of them:
+  - =d= :: the default task (see below),
+  - =i= :: the task that was interrupted by the current clock,
+  - =c= :: the task being clocked now,
+  - =1= .. =9=, =A= .. =Z= :: recent tasks, newest first.
+- =16<prefix>xi= (=C-u C-u=) clocks in on the entry and also marks it as
+  the /default task/, offered as =d= in the menu. =:Org
+  clock_mark_default_task= marks it without clocking in.
+- =64<prefix>xi= (=C-u C-u C-u=) starts the new clock at the time the last
+  one stopped, so there is no gap between the two.
+- A count before =<prefix>xj= also asks which task of the history to jump
+  to.
+
+With =clock.persist = true= (the default is =false=; =minimal_init.lua=
+keeps the history file in the scratch directory) the running clock and the
+history survive a restart of Neovim.
+
+** TODO History task A
+** TODO History task B
+** TODO History task C
+
+*Try:* clock in on "History task A", then B, then C (=<prefix>xi= on each;
+every new clock stops the previous one). Clock out with =<prefix>xo=.
+
+*Expect:* the three LOGBOOKs each have one closed line; B started exactly
+when A stopped and C when B stopped.
+
+*Try:* press =4<prefix>xi= anywhere in this section.
+
+*Expect:* a menu titled "Clock-in on task" with a section "Recent Tasks"
+listing =1= History task C, =2= History task B, =3= History task A (and
+any tasks you clocked before). Press =2= to clock in on B.
+
+*Try:* go to the top of the file (=gg=) and press =<prefix>xj=.
+
+*Expect:* the cursor jumps back to "History task B", the clocked entry.
+
+*Try:* clock out, go to another heading and run =:Org clock_in_last=.
+
+*Expect:* "Clocking back: History task B (in 08-clocking.org)" and B is
+clocked again. Clock out afterwards.
+
+* Editing CLOCK lines
+CLOCK lines are plain text: you can fix a forgotten clock-out or a wrong
+start time by editing them. Afterwards the ~=>~ duration must match the
+timestamps again:
+
+- =<C-c><C-c>= (=C-c C-c=) on a CLOCK line recomputes its duration. So
+  does =C-c C-y= (=org-evaluate-time-range=) on it.
+- =<C-a>= / =<C-x>= (=S-Up= / =S-Down= in Emacs, also =<S-Up>= /
+  =<S-Down>= here) on the year, month, day, hour or minute of a CLOCK
+  timestamp change that part /and/ update the duration at once.
+- =<C-S-Up>= / =<C-S-Down>= move /both/ timestamps by the part under the
+  cursor, keeping the duration: "this happened an hour earlier".
+- =<M-K>= / =<M-J>= (Alt-Shift-k / Alt-Shift-j; the Emacs key is
+  =S-M-Up= / =S-M-Down=) on a CLOCK timestamp change it /and/ move the
+  touching timestamp of the previous (on a clock-in) or next (on a
+  clock-out) task of the clock history by the same amount, so two
+  back-to-back sessions stay back to back.
+
+The examples below are dated July 2026 so they don't change the numbers of
+the September clock tables further down.
+
+** Recompute a wrong duration
+:LOGBOOK:
+# Line 1: the duration says 0:00 but the session lasted 1:30.
+CLOCK: [2026-07-06 Mon 09:00]--[2026-07-06 Mon 10:30] =>  0:00
+# Line 2: someone typed the end time by hand and forgot the duration.
+CLOCK: [2026-07-06 Mon 13:00]--[2026-07-06 Mon 14:10]
+# Line 3: across midnight.
+CLOCK: [2026-07-06 Mon 22:00]--[2026-07-07 Tue 01:15] =>  9:99
+:END:
+
+*Try:* open the drawer (=<Tab>= on =:LOGBOOK:=), put the cursor on each
+CLOCK line and press =<C-c><C-c>=.
+
+*Expect:*
+: CLOCK: [2026-07-06 Mon 09:00]--[2026-07-06 Mon 10:30] =>  1:30
+: CLOCK: [2026-07-06 Mon 13:00]--[2026-07-06 Mon 14:10] =>  1:10
+: CLOCK: [2026-07-06 Mon 22:00]--[2026-07-07 Tue 01:15] =>  3:15
+Only the part after ~=>~ changes; the timestamps are the truth. With
+=C-c C-y= instead, the message line also shows =Clock: 3:15=.
+
+** Change one timestamp
+:LOGBOOK:
+CLOCK: [2026-07-08 Wed 10:00]--[2026-07-08 Wed 11:30] =>  1:30
+:END:
+
+*Try:* put the cursor on the =11= of the end time and press =<C-a>=.
+
+*Expect:* =CLOCK: [2026-07-08 Wed 10:00]--[2026-07-08 Wed 12:30] =>  2:30=.
+The duration follows immediately. Press =<C-x>= to go back.
+
+*Try:* put the cursor on the =00= minutes of the start time and press
+=15<C-a>=.
+
+*Expect:* the start becomes =10:15= and the duration =>  1:15=.
+
+** Shift the whole session
+:LOGBOOK:
+CLOCK: [2026-07-09 Thu 14:00]--[2026-07-09 Thu 15:45] =>  1:45
+:END:
+
+*Try:* cursor on the =14= (hour of the start), press =<C-S-Down>= twice.
+
+*Expect:* =CLOCK: [2026-07-09 Thu 12:00]--[2026-07-09 Thu 13:45] =>  1:45=:
+both times moved two hours earlier, the duration is unchanged.
+
+*Try:* cursor on the day =09=, press =<C-S-Up>=.
+
+*Expect:* both timestamps move to =2026-07-10 Fri= (the weekday is fixed
+for you).
+
+Note: some terminals don't send =<C-S-Up>=; then use =<C-a>= on each
+timestamp and =<C-c><C-c>=, or remap the action =shift_control_up=.
+
+** Move the boundary between two sessions
+=<M-K>= / =<M-J>= need two tasks in the clock history, so first create them:
+
+*** TODO Boundary task one
+*** TODO Boundary task two
+
+*Try:*
+1. Clock in on "Boundary task one" (=<prefix>xi=), wait a minute, then
+   clock in on "Boundary task two" and clock out. The end of one's clock
+   is now the start of two's.
+2. In "Boundary task two", put the cursor on the /minutes/ of its
+   start time and press =5<M-J>= (five minutes earlier).
+
+*Expect:* two's clock now starts 5 minutes earlier, and the message
+"Clock adjusted in 08-clocking.org for heading: Boundary task one" tells
+you that one's clock-out moved 5 minutes earlier too. Both durations are
+recomputed.
+
+* Effort estimates
+An effort estimate is how long you think a task will take. It is the
+=Effort= property (=effort_property=), written as a duration: =0:30=,
+=1:15=, =2:00=, =1d 2:00=, =90= (minutes), =1h 30min=, =2.5h=
+(=:h org-durations=).
+
+- =<prefix>xe= (=C-c C-x e=) asks for the effort of the entry at the
+  cursor. When =Effort_ALL= is set (here: in the file header, =#+PROPERTY:
+  Effort_ALL 0:15 0:30 1:00 2:00 3:00 4:00 6:00=) you pick from those
+  values in a selection list.
+- =<prefix>xE= (=C-c C-x E=) sets the effort to the next value of
+  =Effort_ALL= (the first one when there is none yet).
+- =<prefix>xm= (=C-c C-x C-e=) changes the effort of the task that is being
+  clocked, wherever you are; without a running clock, of the entry at the
+  cursor. Type =1:00= to set it, =+0:15= to add a quarter of an hour,
+  =-10= to take ten minutes off.
+- Column view (=<prefix>C=) shows Effort next to the clocked time; see
+  [[file:06-properties-columns.org][06-properties-columns.org]]. The =#+COLUMNS:= line of this file
+  already has =%Effort{:}= and =%CLOCKSUM=.
+
+** TODO Estimate me
+*Try:* press =<prefix>xe= here and choose =1:00=.
+
+*Expect:* a =:PROPERTIES:= drawer appears with =:Effort:   1:00=.
+
+*Try:* press =<prefix>xE= three times.
+
+*Expect:* the effort goes =2:00=, =3:00=, =4:00=.
+
+*Try:* press =<prefix>xm= and type =+0:30=.
+
+*Expect:* the message "Effort is now 4:30" and =:Effort:   4:30=.
+=<prefix>xE= now warns =Unknown value "4:30" among allowed values=, since
+4:30 is not in =Effort_ALL=.
+
+** TODO Effort vs. the clock
+:PROPERTIES:
+:Effort:   0:02
+:END:
+:LOGBOOK:
+CLOCK: [2026-07-10 Fri 09:00]--[2026-07-10 Fri 09:01] =>  0:01
+:END:
+# The effort is tiny on purpose: you reach it after one more minute.
+
+*Try:* clock in here and wait about a minute and a half.
+
+*Expect:* once the time clocked (the earlier 0:01 plus the running clock)
+reaches the effort of 0:02, you get a notification once
+(=clock.notify_effort=): "Task 'Effort vs. the clock' should be finished
+by now. (0:02)". Clock out afterwards.
+
+* The clock in your statusline
+While a clock runs, =require("org").statusline()= returns a string such as
+#+begin_example
+⏱ [0:12/1:00] (Write the blog post)
+#+end_example
+that is: the icon (=clock.statusline_icon=), the time clocked on the task
+(=0:12=), its effort when it has one (=/1:00=) and the heading. It returns
+=""= when no clock (and no timer, see [[file:20-timers-reminders.org][20-timers-reminders.org]]) runs.
+
+Put it in the built-in statusline:
+#+begin_src lua :eval no
+vim.o.statusline = "%f %m%=%{v:lua.require'org'.statusline()} %l:%c "
+#+end_src
+or in lualine:
+#+begin_src lua :eval no
+require("lualine").setup({
+  sections = {
+    lualine_x = { function() return require("org").statusline() end },
+  },
+})
+#+end_src
+
+What the first number counts is chosen by =clock.mode_line_total= or the
+=CLOCK_MODELINE_TOTAL= property of the entry (inherited):
+- =current= :: only the running session,
+- =today= :: everything clocked on the task today,
+- =repeat= :: since the =LAST_REPEAT= property (the last time a repeating
+  task was marked done),
+- =all= :: all the time ever clocked on the task and its children,
+- =auto= (default) :: =repeat= for tasks that have been repeated, else
+  =all=.
+
+Other options: =clock.string_limit= (cut the text), =clock.heading_function=
+(a Lua function returning the text), =clock.task_overrun_text= (put
+before the text once the effort is exceeded).
+
+** TODO Statusline: all time
+:PROPERTIES:
+:Effort:   2:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-07-13 Mon 10:00]--[2026-07-13 Mon 11:15] =>  1:15
+:END:
+
+** TODO Statusline: current session only
+:PROPERTIES:
+:Effort:   2:00
+:CLOCK_MODELINE_TOTAL: current
+:END:
+:LOGBOOK:
+CLOCK: [2026-07-13 Mon 13:00]--[2026-07-13 Mon 14:15] =>  1:15
+:END:
+
+*Try:* with the statusline set up (or run =:lua
+print(require("org").statusline())=), clock in on "Statusline: all time".
+
+*Expect:* =⏱ [1:15/2:00] (Statusline: all time)= - the 1:15 already on the
+task is included, growing by the minute.
+
+*Try:* clock in on "Statusline: current session only".
+
+*Expect:* =⏱ [0:00/2:00] (Statusline: current session only)=: the earlier
+1:15 is not counted. The clock-in message also says "showing time in
+current clock instance". Clock out afterwards.
+
+* Clock sums next to the headlines
+=<prefix>xd= (=C-c C-x C-d=) shows, at the end of every headline line, the
+time clocked in its subtree, and in the message area the total of the
+file. The range is =clock.display_default_range= (=thisyear=). With a
+count:
+- =4<prefix>xd= :: only today's time ("Total file time for today: ..."),
+- =16<prefix>xd= :: asks for a range (today, yesterday, thisweek,
+  lastweek, thismonth, lastmonth, thisyear, lastyear, untilnow),
+- =64<prefix>xd= :: only prints the total, without the sums.
+
+Editing the buffer, =<C-c><C-c>= or =<prefix>xd= again hides the sums.
+
+*Try:* press =<S-Tab>= until you see all headlines (CONTENTS), then
+=<prefix>xd=.
+
+*Expect:* a row of dots and the sum at the end of every headline with
+time: =15:15= for "Project Alpha", =11:00= for "Build the prototype",
+=5:30= for "Project Beta", =2:50= for "Home" (sums of 2026, the default
+range), and the message
+=Total file time: 1d 11:16 (35 hours and 16 minutes)=, plus anything you
+clocked while doing the exercises. Press =<prefix>xd= again to hide it.
+
+*Try:* =16<prefix>xd= and answer =lastmonth=.
+
+*Expect:* (on Mon 2026-09-28, "last month" is August) only August's clocks
+count: "Project Alpha" and "Write the spec" show =2:30=, "Project Beta"
+and "Research competitors ..." =1:30=, and the message says
+=Total file time (custom): 4:00 (4 hours and 0 minutes)=.
+
+* Resolving clocks and idle time
+A CLOCK line without an end time that is /not/ the running clock is a
+/dangling/ clock: Neovim crashed, you quit without clocking out, the file
+was edited elsewhere. org.nvim finds such lines:
+
+- when you clock in (=clock.auto_clock_resolution=, default
+  ="when-no-clock-is-running"=; =true= = always, =false= = never),
+- with =<prefix>xz= (=C-c C-x C-z=); =4<prefix>xz= looks only at dangling
+  clocks, not at the running one.
+
+For each one it asks what to do with the time since the clock started:
+| Key       | Meaning                                                     |
+|-----------+-------------------------------------------------------------|
+| =k= / =K= | keep N minutes (default: all) and stay clocked in / out     |
+| =t= / =T= | keep the time until a given time (=15:30=)                  |
+| =g= / =G= | back N minutes ago: clock out then, in again (G: stay out)  |
+| =s= / =S= | subtract the idle time and clock in again now (S: stay out) |
+| =C=       | cancel the clock (delete the line)                          |
+| =j= / =J= | jump to the clock (J: clock it out first)                   |
+| =i= / =q= | ignore, decide later                                        |
+
+Idle detection: with =clock.idle_time = 10= (minutes) you get the same
+prompt about the /running/ clock after ten idle minutes. The system idle
+time is used on macOS (=ioreg=) and on X11 (=xprintidle=); elsewhere it is
+Neovim's own input, so time in other programs counts as idle.
+=clock.auto_clockout_timer = 600= (seconds) simply clocks out after that
+much idle time, and =:Org clock_toggle_auto_clockout= turns this on and
+off for the session.
+
+#+begin_src lua :eval no
+require("org").setup({
+  clock = {
+    idle_time = 10,                 -- ask after 10 idle minutes
+    auto_clock_resolution = true,   -- also check when a clock is running
+    persist = true,                 -- keep the clock over restarts
+  },
+})
+#+end_src
+
+** TODO A task with a forgotten clock
+# There is no open CLOCK line in the file as shipped, so the resolver
+# doesn't bother you in the other exercises. You create one below.
+
+*Try:*
+1. Copy the line below (=yy= on it), go to the heading line of this entry
+   and paste it under it (=p=). Then press =0= and =2x= to delete the
+   leading =: = so the line starts with =CLOCK:=.
+   : CLOCK: [2026-09-28 Mon 08:00]
+2. Make sure no clock is running (=<prefix>xo=), then press =<prefix>xz=.
+
+*Expect:* a prompt for "A task with a forgotten clock" asking how to
+resolve the clock started at 08:00. Press =K= and type =45=.
+
+*Expect:* the line becomes
+=CLOCK: [2026-09-28 Mon 08:00]--[2026-09-28 Mon 08:45] =>  0:45= and no
+clock runs. Delete the line afterwards (=dd=) to keep the file tidy.
+
+* Clock tables
+A clock table is a /dynamic block/ (see [[file:18-dynamic-blocks.org][18-dynamic-blocks.org]]): the lines
+between =#+BEGIN: clocktable ...= and =#+END:= are generated from the clock
+lines, and regenerated whenever you ask.
+
+- =<C-c><C-c>= (or =<prefix>xu=, =C-c C-x C-u=) on the =#+BEGIN:= line
+  updates that one block; =<prefix>xU= updates every block in the file.
+- =<prefix>xr= (=C-c C-x C-r=) inserts a new clock table for the entry at
+  the cursor (=:scope subtree=), or for the whole file when the cursor is
+  before the first headline. On an existing clock table it updates it.
+  =4<prefix>xr= updates the first clock table in the buffer.
+- =<S-Left>= / =<S-Right>= on the =#+BEGIN:= line move its =:block= one
+  period back / forward and update the table: =2026-09= becomes
+  =2026-08=, =2026-W39= becomes =2026-W38=, =today= becomes =today-1=.
+
+The tables below were generated by org.nvim itself. The ones with a fixed
+period (=2026-09=, =2026-W38=, =:tstart= / =:tend= before Sep 28) always
+show these numbers; the ones marked "live" depend on today's date and on
+what you clocked in the exercises above.
+
+The data they read is in the last trees of the file, after "Sample
+data": open them to see the LOGBOOKs.
+
+** A first clock table
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                                  |    Time |       |
+|-------------------------------------------+---------+-------|
+| *Total time*                              | *19:35* |       |
+|-------------------------------------------+---------+-------|
+| Project Alpha                             |   12:45 |       |
+| \_  Write the spec                        |         |  1:00 |
+| \_  Build the prototype                   |         | 11:00 |
+| \_  Review with the team                  |         |  0:45 |
+| Project Beta                              |    4:00 |       |
+| \_  Research competitors and summarize... |         |  1:00 |
+| \_  Draft the budget                      |         |  1:30 |
+| \_  Weekly sync                           |         |  1:00 |
+| Home                                      |    2:50 |       |
+| \_  Fix the bike                          |         |  1:45 |
+| \_  Plan the garden                       |         |  1:05 |
+#+END:
+
+- The =#+CAPTION:= line tells what was measured and when (a clock table
+  has no date of its own: the caption records when you generated it).
+- The first row is the file total, then one row per headline down to
+  =:maxlevel=, children indented with =\_=. The time of a headline
+  includes its children; the "Time" columns put each level in its own
+  column, so you can see which number belongs to which level.
+
+*Try:* change =:maxlevel 2= to =:maxlevel 3= and press =<C-c><C-c>= on the
+=#+BEGIN:= line.
+
+*Expect:* the level-3 entries appear as well: =\_    Database layer=
+(1:30) and =\_    UI mockups= (1:10) below "Build the prototype", whose
+11:00 is its own 8:20 plus these 2:40. The TODO keywords are not shown.
+
+*Try:* on the =#+BEGIN:= line press =<S-Left>=.
+
+*Expect:* =:block 2026-08= and a table of August: Project Alpha 2:30,
+Project Beta 1:30, total 4:00. =<S-Right>= brings September back.
+
+** Choosing the period
+*** :block with a fixed period
+=:block= takes a day =2026-09-23=, an ISO week =2026-W39=, a month
+=2026-09=, a quarter =2026-Q3= or a year =2026=.
+
+# One day: only Wednesday 2026-09-23.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09-23
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for Wednesday, September 23, 2026.
+| Headline                | Time   |      |      |
+|-------------------------+--------+------+------|
+| *Total time*            | *1:30* |      |      |
+|-------------------------+--------+------+------|
+| Project Alpha           | 1:30   |      |      |
+| \_  Build the prototype |        | 1:30 |      |
+| \_    Database layer    |        |      | 1:30 |
+#+END:
+
+# ISO week 38: Mon 2026-09-14 .. Sun 2026-09-20.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-W38
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for week 2026-W38.
+| Headline                | Time   |      |
+|-------------------------+--------+------|
+| *Total time*            | *4:15* |      |
+|-------------------------+--------+------|
+| Project Alpha           | 4:15   |      |
+| \_  Write the spec      |        | 1:00 |
+| \_  Build the prototype |        | 3:15 |
+#+END:
+
+# The third quarter: July, August and September.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-Q3
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for 3rd quarter of 2026.
+| Headline                                  |       Time |       |
+|-------------------------------------------+------------+-------|
+| *Total time*                              | *1d 11:16* |       |
+|-------------------------------------------+------------+-------|
+| Editing CLOCK lines                       |       9:10 |       |
+| \_  Recompute a wrong duration            |            |  5:55 |
+| \_  Change one timestamp                  |            |  1:30 |
+| \_  Shift the whole session               |            |  1:45 |
+| Effort estimates                          |       0:01 |       |
+| \_  Effort vs. the clock                  |            |  0:01 |
+| The clock in your statusline              |       2:30 |       |
+| \_  Statusline: all time                  |            |  1:15 |
+| \_  Statusline: current session only      |            |  1:15 |
+| Project Alpha                             |      15:15 |       |
+| \_  Write the spec                        |            |  3:30 |
+| \_  Build the prototype                   |            | 11:00 |
+| \_  Review with the team                  |            |  0:45 |
+| Project Beta                              |       5:30 |       |
+| \_  Research competitors and summarize... |            |  2:30 |
+| \_  Draft the budget                      |            |  1:30 |
+| \_  Weekly sync                           |            |  1:00 |
+| Home                                      |       2:50 |       |
+| \_  Fix the bike                          |            |  1:45 |
+| \_  Plan the garden                       |            |  1:05 |
+#+END:
+
+*Try:* on the =2026-W38= table press =<S-Right>= (W39) and =<S-Right>= again
+(W40).
+
+*Expect:* W39 (Sep 21-27) is the busiest week of the sample data; W40,
+the current week, only shows what you clocked today.
+
+*** :block relative to today (live)
+=today=, =yesterday=, =thisweek=, =lastweek=, =thismonth=, =lastmonth=,
+=thisq=, =lastq=, =thisyear=, =lastyear= and =untilnow=. The =this...=
+forms and =today= take an offset: =today-2=, =thisweek-1= (= =lastweek=),
+=thismonth+1=.
+
+# Live: on Mon 2026-09-28 "lastweek" is 2026-W39 (Sep 21-27).
+#+BEGIN: clocktable :scope file :maxlevel 2 :block lastweek
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for week 2026-W39.
+| Headline                 |    Time |      |
+|--------------------------+---------+------|
+| *Total time*             | *12:35* |      |
+|--------------------------+---------+------|
+| Project Alpha            |    8:30 |      |
+| \_  Build the prototype  |         | 7:45 |
+| \_  Review with the team |         | 0:45 |
+| Project Beta             |    3:00 |      |
+| \_  Draft the budget     |         | 1:30 |
+| \_  Weekly sync          |         | 1:00 |
+| Home                     |    1:05 |      |
+| \_  Plan the garden      |         | 1:05 |
+#+END:
+
+# Live: today. Empty until you clock something today.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block today
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for Monday, September 28, 2026.
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+#+END:
+
+*Try:* clock in and out on one of the practice tasks at the top, then
+update the =:block today= table with =<C-c><C-c>=.
+
+*Expect:* the practice task's section and your minutes appear.
+
+*** :tstart and :tend
+Any start and end: timestamps, or relative ones: =<now>=, =<today>=,
+=<yesterday>=, =<tomorrow>=, =<-2d>=, =<+1w>=, =<-3h>= (hours count from
+now, days/weeks/months/years from today). The end is exclusive: a range
+ending =<2026-09-24 Thu>= stops at midnight before the 24th. When =:block=
+is also given, =:block= wins.
+
+# From Monday 2026-09-21 00:00 to Thursday 2026-09-24 00:00.
+#+BEGIN: clocktable :scope file :maxlevel 3 :tstart "<2026-09-21 Mon>" :tend "<2026-09-24 Thu>"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14]
+| Headline                |   Time |      |      |
+|-------------------------+--------+------+------|
+| *Total time*            | *6:15* |      |      |
+|-------------------------+--------+------+------|
+| Project Alpha           |   4:15 |      |      |
+| \_  Build the prototype |        | 4:15 |      |
+| \_    Database layer    |        |      | 1:30 |
+| Project Beta            |   2:00 |      |      |
+| \_  Draft the budget    |        | 1:30 |      |
+#+END:
+
+# With times: the afternoon of Friday 2026-09-25 only. Of Friday's
+# 2:25 (see the daily tables below) only UI mockups (15:00-16:10) counts.
+#+BEGIN: clocktable :scope file :maxlevel 3 :tstart "<2026-09-25 Fri 12:00>" :tend "<2026-09-25 Fri 18:00>"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14]
+| Headline                | Time   |      |      |
+|-------------------------+--------+------+------|
+| *Total time*            | *1:10* |      |      |
+|-------------------------+--------+------+------|
+| Project Alpha           | 1:10   |      |      |
+| \_  Build the prototype |        | 1:10 |      |
+| \_    UI mockups        |        |      | 1:10 |
+#+END:
+
+*** One table per day or week: :step
+=:step day= (or =week=, =semimonth=, =month=, =quarter=, =year=) splits the
+=:block= or =:tstart=/=:tend= range into periods and writes one table for
+each. =:stepskip0 t= leaves out the periods without any time. =:wstart=
+sets the first day of a week (1 = Monday, the default).
+
+# Every day of week 39 that has clocked time. Note Thursday and Friday:
+# the 23:30-00:30 session is split, 0:30 on each day.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-W39 :step day :stepskip0 t
+
+Daily report: [2026-09-21 Mon]
+| Headline             | Time   |      |
+|----------------------+--------+------|
+| *Total time*         | *1:30* |      |
+|----------------------+--------+------|
+| Project Beta         | 1:30   |      |
+| \_  Draft the budget |        | 1:30 |
+
+Daily report: [2026-09-22 Tue]
+| Headline                |   Time |      |
+|-------------------------+--------+------|
+| *Total time*            | *3:15* |      |
+|-------------------------+--------+------|
+| Project Alpha           |   2:45 |      |
+| \_  Build the prototype |        | 2:45 |
+| Project Beta            |   0:30 |      |
+
+Daily report: [2026-09-23 Wed]
+| Headline                | Time   |      |
+|-------------------------+--------+------|
+| *Total time*            | *1:30* |      |
+|-------------------------+--------+------|
+| Project Alpha           | 1:30   |      |
+| \_  Build the prototype |        | 1:30 |
+
+Daily report: [2026-09-24 Thu]
+| Headline                |   Time |      |
+|-------------------------+--------+------|
+| *Total time*            | *2:50* |      |
+|-------------------------+--------+------|
+| Project Alpha           |   1:50 |      |
+| \_  Build the prototype |        | 1:50 |
+| Project Beta            |   1:00 |      |
+| \_  Weekly sync         |        | 1:00 |
+
+Daily report: [2026-09-25 Fri]
+| Headline                 | Time   |      |
+|--------------------------+--------+------|
+| *Total time*             | *2:25* |      |
+|--------------------------+--------+------|
+| Project Alpha            | 2:25   |      |
+| \_  Build the prototype  |        | 1:40 |
+| \_  Review with the team |        | 0:45 |
+
+Daily report: [2026-09-26 Sat]
+| Headline            | Time   |      |
+|---------------------+--------+------|
+| *Total time*        | *0:40* |      |
+|---------------------+--------+------|
+| Home                | 0:40   |      |
+| \_  Plan the garden |        | 0:40 |
+
+Daily report: [2026-09-27 Sun]
+| Headline            | Time   |      |
+|---------------------+--------+------|
+| *Total time*        | *0:25* |      |
+|---------------------+--------+------|
+| Home                | 0:25   |      |
+| \_  Plan the garden |        | 0:25 |
+#+END:
+
+# Weekly tables for September. Weeks start on Monday.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09 :step week
+
+Weekly report starting on: [2026-09-01 Tue]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Weekly report starting on: [2026-09-07 Mon]
+| Headline                                  |   Time |      |
+|-------------------------------------------+--------+------|
+| *Total time*                              | *2:45* |      |
+|-------------------------------------------+--------+------|
+| Project Beta                              |   1:00 |      |
+| \_  Research competitors and summarize... |        | 1:00 |
+| Home                                      |   1:45 |      |
+| \_  Fix the bike                          |        | 1:45 |
+
+Weekly report starting on: [2026-09-14 Mon]
+| Headline                | Time   |      |
+|-------------------------+--------+------|
+| *Total time*            | *4:15* |      |
+|-------------------------+--------+------|
+| Project Alpha           | 4:15   |      |
+| \_  Write the spec      |        | 1:00 |
+| \_  Build the prototype |        | 3:15 |
+
+Weekly report starting on: [2026-09-21 Mon]
+| Headline                 |    Time |      |
+|--------------------------+---------+------|
+| *Total time*             | *12:35* |      |
+|--------------------------+---------+------|
+| Project Alpha            |    8:30 |      |
+| \_  Build the prototype  |         | 7:45 |
+| \_  Review with the team |         | 0:45 |
+| Project Beta             |    3:00 |      |
+| \_  Draft the budget     |         | 1:30 |
+| \_  Weekly sync          |         | 1:00 |
+| Home                     |    1:05 |      |
+| \_  Plan the garden      |         | 1:05 |
+
+Weekly report starting on: [2026-09-28 Mon]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+#+END:
+
+** What is in the table
+*** :scope - which files and subtrees
+- =file= (the default) :: the whole current file,
+- =subtree= :: the subtree the block is in,
+- =tree= / =tree1=, =tree2=, ... :: the whole level-1 (level-N) tree
+  around the block,
+- =agenda= :: every agenda file, one section per file,
+- =file-with-archives=, =agenda-with-archives= :: including the archive
+  files,
+- =("a.org" "b.org")= :: a list of files (relative to this file).
+
+# Only this file, as a list: the file name gets its own column.
+#+BEGIN: clocktable :scope ("08-clocking.org") :maxlevel 1 :block 2026-09
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| File            | Headline         |    Time |
+|-----------------+------------------+---------|
+|                 | ALL *Total time* | *19:35* |
+|-----------------+------------------+---------|
+| 08-clocking.org | *File time*      | *19:35* |
+|                 | Project Alpha    |   12:45 |
+|                 | Project Beta     |    4:00 |
+|                 | Home             |    2:50 |
+#+END:
+
+*Try:* go to the Project Alpha heading near the end of the file, put the
+cursor on its =:END:= line and press =<prefix>xr=.
+
+*Expect:* a new block =#+BEGIN: clocktable :scope subtree :maxlevel 2= is
+inserted there, showing only Project Alpha (all of its time: 15:15, with
+the tasks below it). Delete it with =u= afterwards.
+
+*Try:* change the =("08-clocking.org")= table above to =:scope agenda=.
+
+*Expect:* one section per file in =examples/= that has clocked time in
+September (the tutorial, the other example files).
+
+*** :match and :tags - filter by tags and properties
+=:match= takes a match string, like the agenda (=:h org-match-syntax=):
+=work=, =+work-meeting=, =home|meeting=, =Effort>"1:00"=, =TODO="NEXT"=.
+Only the clocks of matching entries count; their parents are listed to
+show where they are. =:tags t= adds a column with each headline's tags.
+
+# Only the home tree.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :match "home" :tags t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Tags | Headline            | Time   |      |
+|------+---------------------+--------+------|
+|      | *Total time*        | *2:50* |      |
+|------+---------------------+--------+------|
+| home | Home                | 2:50   |      |
+| home | \_  Fix the bike    |        | 1:45 |
+| home | \_  Plan the garden |        | 1:05 |
+#+END:
+
+# Work, but not meetings.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :match "+work-meeting" :tags t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Tags | Headline                                  |    Time |       |      |
+|------+-------------------------------------------+---------+-------+------|
+|      | *Total time*                              | *15:00* |       |      |
+|------+-------------------------------------------+---------+-------+------|
+| work | Project Alpha                             |   12:00 |       |      |
+| work | \_  Write the spec                        |         |  1:00 |      |
+| work | \_  Build the prototype                   |         | 11:00 |      |
+| work | \_    Database layer                      |         |       | 1:30 |
+| work | \_    UI mockups                          |         |       | 1:10 |
+| work | Project Beta                              |    3:00 |       |      |
+| work | \_  Research competitors and summarize... |         |  1:00 |      |
+| work | \_  Draft the budget                      |         |  1:30 |      |
+#+END:
+
+# Only entries in state NEXT.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :match "TODO=\"NEXT\""
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                | Time   |      |
+|-------------------------+--------+------|
+| *Total time*            | *8:20* |      |
+|-------------------------+--------+------|
+| Project Alpha           | 8:20   |      |
+| \_  Build the prototype |        | 8:20 |
+#+END:
+
+*** :maxlevel, :level and :compact
+- =:maxlevel N= :: headlines up to level N (default 2); deeper time is
+  added to its parent.
+- =:level t= :: a "Lev" column with the level instead of one time column
+  per level.
+- =:compact t= :: one time column, indented headlines and headlines cut
+  at 40 characters: good for narrow windows.
+- =:indent nil= :: no =\_= indentation.
+- =:tcolumns N= :: at most N time columns.
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :level t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| L | Headline                                  |    Time |       |      |
+|---+-------------------------------------------+---------+-------+------|
+|   | *Total time*                              | *19:35* |       |      |
+|---+-------------------------------------------+---------+-------+------|
+| 1 | Project Alpha                             |   12:45 |       |      |
+| 2 | \_  Write the spec                        |         |  1:00 |      |
+| 2 | \_  Build the prototype                   |         | 11:00 |      |
+| 3 | \_    Database layer                      |         |       | 1:30 |
+| 3 | \_    UI mockups                          |         |       | 1:10 |
+| 2 | \_  Review with the team                  |         |  0:45 |      |
+| 1 | Project Beta                              |    4:00 |       |      |
+| 2 | \_  Research competitors and summarize... |         |  1:00 |      |
+| 2 | \_  Draft the budget                      |         |  1:30 |      |
+| 2 | \_  Weekly sync                           |         |  1:00 |      |
+| 1 | Home                                      |    2:50 |       |      |
+| 2 | \_  Fix the bike                          |         |  1:45 |      |
+| 2 | \_  Plan the garden                       |         |  1:05 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :compact t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                                  |    Time |
+|-------------------------------------------+---------|
+| *Total time*                              | *19:35* |
+|-------------------------------------------+---------|
+| Project Alpha                             |   12:45 |
+| \_  Write the spec                        |    1:00 |
+| \_  Build the prototype                   |   11:00 |
+| \_    Database layer                      |    1:30 |
+| \_    UI mockups                          |    1:10 |
+| \_  Review with the team                  |    0:45 |
+| Project Beta                              |    4:00 |
+| \_  Research competitors and summarize... |    1:00 |
+| \_  Draft the budget                      |    1:30 |
+| \_  Weekly sync                           |    1:00 |
+| Home                                      |    2:50 |
+| \_  Fix the bike                          |    1:45 |
+| \_  Plan the garden                       |    1:05 |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :tcolumns 1 :indent nil
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                              |    Time |
+|---------------------------------------+---------|
+| *Total time*                          | *19:35* |
+|---------------------------------------+---------|
+| Project Alpha                         |   12:45 |
+| Write the spec                        |    1:00 |
+| Build the prototype                   |   11:00 |
+| Database layer                        |    1:30 |
+| UI mockups                            |    1:10 |
+| Review with the team                  |    0:45 |
+| Project Beta                          |    4:00 |
+| Research competitors and summarize... |    1:00 |
+| Draft the budget                      |    1:30 |
+| Weekly sync                           |    1:00 |
+| Home                                  |    2:50 |
+| Fix the bike                          |    1:45 |
+| Plan the garden                       |    1:05 |
+#+END:
+
+*** :properties and :timestamp - extra columns
+=:properties ("Effort" "OWNER")= adds one column per property;
+=:inherit-props t= also takes inherited values. =:timestamp t= adds the
+entry's SCHEDULED, DEADLINE or first timestamp.
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :properties ("Effort" "OWNER")
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Effort | OWNER | Headline                                  |    Time |       |      |
+|--------+-------+-------------------------------------------+---------+-------+------|
+|        |       | *Total time*                              | *19:35* |       |      |
+|--------+-------+-------------------------------------------+---------+-------+------|
+|        | Ana   | Project Alpha                             |   12:45 |       |      |
+|   3:00 |       | \_  Write the spec                        |         |  1:00 |      |
+|   6:00 |       | \_  Build the prototype                   |         | 11:00 |      |
+|        |       | \_    Database layer                      |         |       | 1:30 |
+|        |       | \_    UI mockups                          |         |       | 1:10 |
+|   1:00 |       | \_  Review with the team                  |         |  0:45 |      |
+|        |       | Project Beta                              |    4:00 |       |      |
+|   2:00 |       | \_  Research competitors and summarize... |         |  1:00 |      |
+|   1:00 |       | \_  Draft the budget                      |         |  1:30 |      |
+|        |       | \_  Weekly sync                           |         |  1:00 |      |
+|        |       | Home                                      |    2:50 |       |      |
+|        |       | \_  Fix the bike                          |         |  1:45 |      |
+|        |       | \_  Plan the garden                       |         |  1:05 |      |
+#+END:
+
+# OWNER is set on "Project Alpha" only; with :inherit-props t its
+# tasks show it too.
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :properties ("OWNER") :inherit-props t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| OWNER | Headline                                  |    Time |       |      |
+|-------+-------------------------------------------+---------+-------+------|
+|       | *Total time*                              | *19:35* |       |      |
+|-------+-------------------------------------------+---------+-------+------|
+| Ana   | Project Alpha                             |   12:45 |       |      |
+| Ana   | \_  Write the spec                        |         |  1:00 |      |
+| Ana   | \_  Build the prototype                   |         | 11:00 |      |
+| Ana   | \_    Database layer                      |         |       | 1:30 |
+| Ana   | \_    UI mockups                          |         |       | 1:10 |
+| Ana   | \_  Review with the team                  |         |  0:45 |      |
+|       | Project Beta                              |    4:00 |       |      |
+|       | \_  Research competitors and summarize... |         |  1:00 |      |
+|       | \_  Draft the budget                      |         |  1:30 |      |
+|       | \_  Weekly sync                           |         |  1:00 |      |
+|       | Home                                      |    2:50 |       |      |
+|       | \_  Fix the bike                          |         |  1:45 |      |
+|       | \_  Plan the garden                       |         |  1:05 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :timestamp t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Timestamp        | Headline                                  |    Time |       |      |
+|------------------+-------------------------------------------+---------+-------+------|
+|                  | *Total time*                              | *19:35* |       |      |
+|------------------+-------------------------------------------+---------+-------+------|
+|                  | Project Alpha                             |   12:45 |       |      |
+|                  | \_  Write the spec                        |         |  1:00 |      |
+| <2026-09-16 Wed> | \_  Build the prototype                   |         | 11:00 |      |
+|                  | \_    Database layer                      |         |       | 1:30 |
+|                  | \_    UI mockups                          |         |       | 1:10 |
+| <2026-10-02 Fri> | \_  Review with the team                  |         |  0:45 |      |
+|                  | Project Beta                              |    4:00 |       |      |
+|                  | \_  Research competitors and summarize... |         |  1:00 |      |
+|                  | \_  Draft the budget                      |         |  1:30 |      |
+|                  | \_  Weekly sync                           |         |  1:00 |      |
+|                  | Home                                      |    2:50 |       |      |
+|                  | \_  Fix the bike                          |         |  1:45 |      |
+|                  | \_  Plan the garden                       |         |  1:05 |      |
+#+END:
+
+** How the table looks
+*** :formula - percentages and your own formulas
+=:formula %= adds a column with each row's share of the total.
+
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09 :formula %
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                                  |    Time |       |     % |
+|-------------------------------------------+---------+-------+-------|
+| *Total time*                              | *19:35* |       | 100.0 |
+|-------------------------------------------+---------+-------+-------|
+| Project Alpha                             |   12:45 |       |  65.1 |
+| \_  Write the spec                        |         |  1:00 |   5.1 |
+| \_  Build the prototype                   |         | 11:00 |  56.2 |
+| \_  Review with the team                  |         |  0:45 |   3.8 |
+| Project Beta                              |    4:00 |       |  20.4 |
+| \_  Research competitors and summarize... |         |  1:00 |   5.1 |
+| \_  Draft the budget                      |         |  1:30 |   7.7 |
+| \_  Weekly sync                           |         |  1:00 |   5.1 |
+| Home                                      |    2:50 |       |  14.5 |
+| \_  Fix the bike                          |         |  1:45 |   8.9 |
+| \_  Plan the garden                       |         |  1:05 |   5.5 |
+#+END:
+
+=:formula "..."= writes a =#+TBLFM:= line and computes it. A =#+TBLFM:=
+line you put under the table yourself survives updates too. Here a third
+column gets the time as decimal hours (the =;t= flag):
+
+#+BEGIN: clocktable :scope file :maxlevel 1 :block 2026-09 :formula "$3=$2;t"
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline      |    Time |       |
+|---------------+---------+-------|
+| *Total time*  | *19:35* | 19.58 |
+|---------------+---------+-------|
+| Project Alpha |   12:45 | 12.75 |
+| Project Beta  |    4:00 |  4.00 |
+| Home          |    2:50 |  2.83 |
+#+TBLFM: $3=$2;t
+#+END:
+
+*** :sort - order the rows
+=:sort (COLUMN . ?TYPE)= sorts the rows below the total like
+=org-table-sort-lines=: =?a= / =?A= alphabetically up / down, =?n= / =?N=
+numerically, =?t= / =?T= by time. Like in Emacs, the rows are sorted as
+plain table lines, children included: use it with =:maxlevel 1=, or see
+the second table, where the =\_= rows end up together at the end.
+
+# Biggest first (column 2 is the time, ?T = by time, descending).
+#+BEGIN: clocktable :scope file :maxlevel 1 :block 2026-09 :sort (2 . ?T)
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline      |    Time |
+|---------------+---------|
+| *Total time*  | *19:35* |
+|---------------+---------|
+| Project Alpha |   12:45 |
+| Project Beta  |    4:00 |
+| Home          |    2:50 |
+#+END:
+
+# Alphabetically by headline (column 1). With :maxlevel 2 the task rows
+# are sorted too and no longer sit under their project.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09 :sort (1 . ?a)
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                                  |    Time |       |
+|-------------------------------------------+---------+-------|
+| *Total time*                              | *19:35* |       |
+|-------------------------------------------+---------+-------|
+| Home                                      |    2:50 |       |
+| Project Alpha                             |   12:45 |       |
+| Project Beta                              |    4:00 |       |
+| \_  Build the prototype                   |         | 11:00 |
+| \_  Draft the budget                      |         |  1:30 |
+| \_  Fix the bike                          |         |  1:45 |
+| \_  Plan the garden                       |         |  1:05 |
+| \_  Research competitors and summarize... |         |  1:00 |
+| \_  Review with the team                  |         |  0:45 |
+| \_  Weekly sync                           |         |  1:00 |
+| \_  Write the spec                        |         |  1:00 |
+#+END:
+
+*** :link, :emphasize, :narrow, :header, :lang
+- =:link t= :: the headlines are links: =<CR>= on one jumps to the entry.
+- =:emphasize t= :: level-1 rows in bold, level-2 in italics.
+- =:narrow 25!= :: cut headlines at 25 characters (=40!= is used with
+  =:compact= and =:link=); =:narrow 25= (without =!=) adds a row of width
+  cookies =<25>= instead, which shrinks the column in the display.
+- =:header "..."= :: replaces the =#+CAPTION:= line (use ="\n"= for none).
+- =:lang de= :: the header words in German (also es, fr, nl, nn, pl,
+  pt-BR, sk).
+- =:hidefiles t= :: no file column with =:scope agenda=; =:fileskip0 t=
+  skips files with no time; =:filetitle t= shows =#+TITLE= instead of
+  the file name.
+
+# Not pre-generated on purpose: each link holds the absolute path of this
+# file on your machine. Press <C-c><C-c> on the #+BEGIN: line.
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09 :link t
+#+END:
+
+*Try:* press =<C-c><C-c>= on the =#+BEGIN:= line above to fill the table,
+then put the cursor on "Project Beta" in it and press =<CR>=.
+
+*Expect:* the cursor jumps to the Project Beta heading near the end.
+Come back with =<C-o>=.
+
+#+BEGIN: clocktable :scope file :maxlevel 2 :block 2026-09 :emphasize t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                                    | Time    |         |
+|---------------------------------------------+---------+---------|
+| *Total time*                                | *19:35* |         |
+|---------------------------------------------+---------+---------|
+| *Project Alpha*                             | *12:45* |         |
+| \_  /Write the spec/                        |         | /1:00/  |
+| \_  /Build the prototype/                   |         | /11:00/ |
+| \_  /Review with the team/                  |         | /0:45/  |
+| *Project Beta*                              | *4:00*  |         |
+| \_  /Research competitors and summarize.../ |         | /1:00/  |
+| \_  /Draft the budget/                      |         | /1:30/  |
+| \_  /Weekly sync/                           |         | /1:00/  |
+| *Home*                                      | *2:50*  |         |
+| \_  /Fix the bike/                          |         | /1:45/  |
+| \_  /Plan the garden/                       |         | /1:05/  |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-09 :narrow 25!
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for September 2026.
+| Headline                    |    Time |       |      |
+|-----------------------------+---------+-------+------|
+| *Total time*                | *19:35* |       |      |
+|-----------------------------+---------+-------+------|
+| Project Alpha               |   12:45 |       |      |
+| \_  Write the spec          |         |  1:00 |      |
+| \_  Build the prototype     |         | 11:00 |      |
+| \_    Database layer        |         |       | 1:30 |
+| \_    UI mockups            |         |       | 1:10 |
+| \_  Review with the team    |         |  0:45 |      |
+| Project Beta                |    4:00 |       |      |
+| \_  Research competitors... |         |  1:00 |      |
+| \_  Draft the budget        |         |  1:30 |      |
+| \_  Weekly sync             |         |  1:00 |      |
+| Home                        |    2:50 |       |      |
+| \_  Fix the bike            |         |  1:45 |      |
+| \_  Plan the garden         |         |  1:05 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 1 :block 2026-09 :header "#+CAPTION: September, by area\n" :lang de
+#+CAPTION: September, by area
+| Kopfzeile     |   Dauer |
+|---------------+---------|
+| *Gesamtdauer* | *19:35* |
+|---------------+---------|
+| Project Alpha |   12:45 |
+| Project Beta  |    4:00 |
+| Home          |    2:50 |
+#+END:
+
+*** Putting it together
+A weekly report of the work trees: tasks with their tags and effort,
+percentages, without the =\_= marks.
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block 2026-W39 :match "work" :properties ("Effort") :formula % :indent nil :tags t
+#+CAPTION: Clock summary at [2026-09-28 Mon 15:14], for week 2026-W39.
+| Tags          | Effort | Headline             |    Time |      |      |     % |
+|---------------+--------+----------------------+---------+------+------+-------|
+|               |        | *Total time*         | *11:30* |      |      | 100.0 |
+|---------------+--------+----------------------+---------+------+------+-------|
+| work          |        | Project Alpha        |    8:30 |      |      |  73.9 |
+| work          |   6:00 | Build the prototype  |         | 7:45 |      |  67.4 |
+| work          |        | Database layer       |         |      | 1:30 |  13.0 |
+| work          |        | UI mockups           |         |      | 1:10 |  10.1 |
+| work, meeting |   1:00 | Review with the team |         | 0:45 |      |   6.5 |
+| work          |        | Project Beta         |    3:00 |      |      |  26.1 |
+| work          |   1:00 | Draft the budget     |         | 1:30 |      |  13.0 |
+| work, meeting |        | Weekly sync          |         | 1:00 |      |   8.7 |
+#+END:
+
+*Try:* change =:block 2026-W39= into =:block thisweek= and update, then
+clock ten minutes on "Practice task: write the report" and add =work= to
+its tags (=<prefix>t=). Update again.
+
+*Expect:* the table of the current week only lists what you clocked on
+work-tagged entries.
+
+** Setting defaults
+Parameters left out come from =clock.clocktable_default= (Emacs
+=org-clocktable-defaults=), by default =maxlevel = 2, scope = "file"=:
+#+begin_src lua :eval no
+require("org").setup({
+  clock = { clocktable_default = { maxlevel = 3, scope = "file", block = "thisweek" } },
+})
+#+end_src
+=clock.report_include_clocking_task = true= also counts the running clock
+in the tables and sums. The agenda has its own clock report mode (=R= in
+the agenda, see [[file:09-agenda.org][09-agenda.org]]).
+
+* Sample data
+The clock tables above read the three top-level trees that follow:
+"Project Alpha", "Project Beta" and "Home" (open them to see the
+LOGBOOKs; =<prefix>xd= shows their sums). All sessions are in August and
+September 2026, the last one on Sun 2026-09-27. Totals, to check the
+tables against:
+| Tree          | August | September |
+|---------------+--------+-----------|
+| Project Alpha |   2:30 |     12:45 |
+| Project Beta  |   1:30 |      4:00 |
+| Home          |        |      2:50 |
+
+* Project Alpha                                                        :work:
+:PROPERTIES:
+:OWNER:    Ana
+:END:
+** DONE Write the spec
+CLOSED: [2026-09-15 Tue 15:00]
+:PROPERTIES:
+:Effort:   3:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-15 Tue 14:00]--[2026-09-15 Tue 15:00] =>  1:00
+CLOCK: [2026-08-25 Tue 09:00]--[2026-08-25 Tue 11:30] =>  2:30
+:END:
+** NEXT Build the prototype
+SCHEDULED: <2026-09-16 Wed>
+:PROPERTIES:
+:Effort:   6:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 23:30]--[2026-09-25 Fri 00:30] =>  1:00
+CLOCK: [2026-09-24 Thu 10:00]--[2026-09-24 Thu 11:20] =>  1:20
+CLOCK: [2026-09-22 Tue 13:00]--[2026-09-22 Tue 15:45] =>  2:45
+CLOCK: [2026-09-16 Wed 09:00]--[2026-09-16 Wed 12:15] =>  3:15
+:END:
+*** Database layer
+:LOGBOOK:
+CLOCK: [2026-09-23 Wed 09:30]--[2026-09-23 Wed 11:00] =>  1:30
+:END:
+*** UI mockups
+:LOGBOOK:
+CLOCK: [2026-09-25 Fri 15:00]--[2026-09-25 Fri 16:10] =>  1:10
+:END:
+** TODO Review with the team                                         :meeting:
+DEADLINE: <2026-10-02 Fri>
+:PROPERTIES:
+:Effort:   1:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-25 Fri 10:00]--[2026-09-25 Fri 10:45] =>  0:45
+:END:
+
+* Project Beta                                                         :work:
+:LOGBOOK:
+CLOCK: [2026-09-22 Tue 11:00]--[2026-09-22 Tue 11:30] =>  0:30
+:END:
+# The 0:30 above is Beta's own time (a kick-off), not a task's.
+** TODO Research competitors and summarize their pricing pages
+:PROPERTIES:
+:Effort:   2:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-08 Tue 09:00]--[2026-09-08 Tue 10:00] =>  1:00
+CLOCK: [2026-08-27 Thu 13:00]--[2026-08-27 Thu 14:30] =>  1:30
+:END:
+** TODO Draft the budget
+:PROPERTIES:
+:Effort:   1:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-21 Mon 16:00]--[2026-09-21 Mon 17:30] =>  1:30
+:END:
+** Weekly sync                                                      :meeting:
+:LOGBOOK:
+CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 10:00] =>  1:00
+:END:
+
+* Home                                                                 :home:
+** DONE Fix the bike
+CLOSED: [2026-09-12 Sat 11:45]
+:LOGBOOK:
+CLOCK: [2026-09-12 Sat 10:00]--[2026-09-12 Sat 11:45] =>  1:45
+:END:
+** TODO Plan the garden
+:LOGBOOK:
+CLOCK: [2026-09-27 Sun 18:00]--[2026-09-27 Sun 18:25] =>  0:25
+CLOCK: [2026-09-26 Sat 09:00]--[2026-09-26 Sat 09:40] =>  0:40
+:END:
+
+* Further reading
+- =:h org-clock= :: clocking and effort, the keys and options.
+- =:h org-clock-resolve= :: resolving dangling clocks, idle time.
+- =:h org-durations= :: duration syntax, =duration_format=.
+- =:h org-dblocks= :: every clocktable parameter.
+- =:h org-api= :: =require("org").statusline()=.
+- =:h org-config= :: the =clock= options.
+- [[file:07-dates.org][07-dates.org]] :: timestamps and how to edit them.
+- [[file:20-timers-reminders.org][20-timers-reminders.org]] :: timers, countdowns (a pomodoro) and
+  reminders.
+- [[file:09-agenda.org][09-agenda.org]] :: log mode (=l=) and the clock report (=R=) in the agenda.

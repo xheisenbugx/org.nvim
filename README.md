@@ -108,6 +108,12 @@ config or your notes, run it from a checkout with the bundled init file:
 nvim -u examples/minimal_init.lua examples/tutorial.org
 ```
 
+To go deeper into one feature, open
+[`examples/00-index.org`](examples/00-index.org). It links to one file per
+feature area (outlines, TODOs, the agenda, tables, spreadsheet formulas,
+Babel, export and more), each with many examples, exercises and the result
+you should expect.
+
 ---
 
 ## 🎬 A quick tour

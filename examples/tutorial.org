@@ -1,6 +1,6 @@
 #+TITLE: org.nvim hands-on tour
 #+AUTHOR: org.nvim
-#+STARTUP: overview
+#+STARTUP: overview logdone logdrawer
 #+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
 #+TAGS: work(w) home(h) { @office(o) @remote(r) } urgent(u) project(p)
 #+FILETAGS: :tutorial:
@@ -469,7 +469,7 @@ The =-10d= shows the deadline in the agenda ten days before it is due
 
 *** TODO Something to plan
 *Try:* press =<prefix>s= on this headline to schedule it and =<prefix>d= to
-give it a deadline. =2<prefix>s= removes the date again, and
+give it a deadline. =4<C-c><C-s>= removes the date again, and
 =16<prefix>d= asks for the day the deadline starts warning (=-5d=).
 
 ** The calendar and date input
@@ -627,7 +627,7 @@ the same match syntax as Emacs:
 | =+work/NEXT=           | work entries in the NEXT state               |
 | =+work/!=              | work entries that are not done               |
 | =PRIORITY="A"=         | priority A                                   |
-| =Effort<"1:00"=        | effort under an hour                         |
+| =Effort<*1=            | effort under an hour (and set)               |
 | =LEVEL=2=              | second-level headlines                       |
 | =CLIENT="ACME"=        | a property value                             |
 | =SCHEDULED<="<+2d>"=   | scheduled in the next two days (or overdue)  |
@@ -823,7 +823,7 @@ inline footnotes[fn::defined right here, no definition needed].
 
 * Tables
 ** Editing
-Type =|Name|Age=, press =<CR>=, type =|-= and press =<Tab>= in Insert mode:
+Type =|Name|Age=, press =<Esc>o=, type =|-= and press =<Tab>= in Insert mode:
 the table is aligned and a separator appears.
 
 - Insert mode: =<Tab>= / =<S-Tab>= next / previous field (a new row is added

@@ -1,0 +1,1784 @@
+#+TITLE: Tables: creating, editing, sorting and shaping
+#+STARTUP: overview
+#+CATEGORY: tables
+
+* How to use this file
+Org tables are plain text: every line that starts with =|= is a table row,
+and org.nvim keeps the columns lined up for you while you type. This file
+covers everything you can do with a table *without* formulas: creating
+tables (by typing, from CSV/TSV text, from a file), aligning, moving around,
+adding, deleting and moving rows and columns, horizontal lines, copying a
+series down, sorting, transposing, alignment and width cookies, shrinking
+columns, column groups, links and markup in cells, names and captions,
+exporting a table to a file and table.el tables.
+
+Formulas (=#+TBLFM:=, ~$3=$1*$2~, ~vsum(@2..@-1)~ ...) have their own file:
+[[file:16-spreadsheet.org][16-spreadsheet.org]].
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means your org prefix, =<leader>o= by default (with the
+  bundled init file the leader is =<Space>=, so =<prefix>Tc= is
+  =<Space>oTc=). Emacs keys (=<C-c>|=, =<C-c>^= ...) work too.
+- The exercises change the tables in place. =u= undoes an exercise, so you
+  can press =u= and do the next one on the original table. =git checkout
+  examples/15-tables.org= restores the whole file.
+- =g?= lists every key of the buffer; type =/table= in that list to see the
+  table keys.
+- Lines starting with *Try:* are exercises. *Expect:* shows the exact result.
+  Expected tables are shown inside =#+begin_example= blocks so that they are
+  plain text (the table commands leave them alone).
+- Lines starting with =# = are Org comments: they explain the example next
+  to them and are never exported.
+
+Start Neovim from the repository root with the bundled init file (it sets
+the agenda files to =examples/*.org= and a scratch =org_directory=, so your
+own notes are never touched):
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/15-tables.org
+#+end_src
+
+Two things about keys before you start:
+
+- =<prefix>T= alone is "select TODO keyword", and every table key under the
+  prefix starts with it (=<prefix>Tc=, =<prefix>Ts= ...). Type the whole
+  key without pausing: if you wait longer than ='timeoutlen'= after =T=, the
+  TODO menu opens instead (=<Esc>= closes it).
+- The =<M-...>= keys need a terminal that sends Alt. If =<M-j>= does
+  nothing, the arrow forms =<M-Down>= =<M-Up>= =<M-Left>= =<M-Right>= do the
+  same thing. =<S-CR>= needs a terminal that can tell it from =<CR>= (see
+  "Copy down" below for tmux).
+
+** Keys in this file
+The "Emacs" column names the same command in Emacs Org. All the =C-c ...=
+ones are mapped in org.nvim too, as =<C-c>...=; for the others use the key
+in the first column.
+
+| Key                          | Emacs            | What it does              |
+|------------------------------+------------------+---------------------------|
+| =<C-c><C-c>=, =<prefix><CR>= | C-c C-c          | align the table           |
+| =<Esc>= (leaving Insert)     |                  | align the table           |
+| =<Tab>= / =<S-Tab>= (Insert) | TAB / S-TAB      | next / previous field     |
+| =<CR>= (Insert)              | RET              | same column, next row     |
+| =<prefix>Tc=                 | C-c \vert{}      | new table / convert lines |
+| =:Org table_import=          |                  | file → table              |
+| =:Org table_export=          |                  | table → file              |
+| =<prefix>T-= or =<C-c>-=     | C-c -            | hline (count: above)      |
+| =<C-c><CR>=                  | C-c RET          | hline and move below it   |
+| =<M-k>= / =<M-j>=            | M-up / M-down    | move the row              |
+| =<M-h>= / =<M-l>=            | M-left / M-right | move the column           |
+| =<M-K>= or =<prefix>TR=      | M-S-up           | delete the row            |
+| =<M-J>=                      | M-S-down         | insert a row above        |
+| =<M-CR>= or =<prefix>Tr=     | M-RET            | insert a row below        |
+| =<M-H>= or =<prefix>TI=      | M-S-left         | delete the column         |
+| =<M-L>= or =<prefix>Ti=      | M-S-right        | insert a column           |
+| =<S-Up>= =<S-Down>= ...      | S-up ...         | swap one field            |
+| =<S-CR>=                     | S-RET            | copy the field down       |
+| =<prefix>Ts= or =<C-c>^=     | C-c ^            | sort the rows             |
+| =<prefix>Tt=                 |                  | transpose                 |
+| =<C-c><Space>=               | C-c SPC          | blank the field(s)        |
+| =<C-c>?=                     | C-c ?            | field reference           |
+| =<C-c>}=                     | C-c }            | show row/column numbers   |
+| =<C-c>+=                     | C-c +            | sum the column            |
+| =<C-c><C-x><M-w>=            | C-c C-x M-w      | copy a rectangle          |
+| =<C-c><C-x><C-w>=            | C-c C-x C-w      | cut a rectangle           |
+| =<C-c><C-x><C-y>=            | C-c C-x C-y      | paste a rectangle         |
+| =<C-c>`=                     | C-c `            | edit the field            |
+| =16<C-c>`=                   | C-u C-u C-c `    | follow-field mode         |
+| =<C-c><Tab>=                 | C-c TAB          | shrink / expand column    |
+| =<C-c>~=                     | C-c ~            | table.el conversion       |
+
+* Anatomy of a table
+A table is a block of consecutive lines that start with =|= (spaces before
+the =|= are allowed). Inside a line, =|= separates the *fields*. A line
+that starts with =|-= is a *horizontal line* (an "hline"); it has no fields.
+The rows above the first hline are the *header*: they are exported as
+column titles. The first line that does not start with =|= ends the table.
+
+# A complete table: one header row, one hline, four data rows.
+#+NAME: planets
+| Planet  | Moons | Radius (km) | Ringed |
+|---------+-------+-------------+--------|
+| Mercury |     0 |        2440 | no     |
+| Earth   |     1 |        6371 | no     |
+| Jupiter |    95 |       69911 | yes    |
+| Saturn  |   146 |       58232 | yes    |
+
+What you see above:
+
+- Every row has the same number of fields, padded with spaces so the =|=
+  line up. You never type that padding yourself: org.nvim *aligns* the
+  table.
+- Columns where at least half the non-empty fields are numbers
+  ("Moons", "Radius") are right-aligned; the others are left-aligned.
+- The hline =|---------+-------+...|= has a =+= where a =|= would be.
+- A table can have several hlines; they split it into sections (the sort
+  command uses them, see "Sorting rows").
+
+A table does not need a header or an hline. This is a table too:
+
+| apples  | 3 |
+| pears   | 5 |
+| cherries | 12 |
+
+# ↑ That little table is deliberately NOT aligned: see the next section.
+
+* Aligning a table
+Any table command aligns the table it works on. You can also align on
+demand:
+
+- =<C-c><C-c>= (or =<prefix><CR>=) with the cursor anywhere in the table.
+- Leaving Insert mode (=<Esc>=) inside a table aligns it.
+- Aligning adds the missing fields of short rows, turns =|-= into a full
+  hline, and trims extra spaces in fields.
+
+*Try:* put the cursor on "cherries" in the little table at the end of the
+previous section and press =<C-c><C-c>=.
+
+*Expect:* the fields line up and 12 is right-aligned:
+#+begin_example
+| apples   |  3 |
+| pears    |  5 |
+| cherries | 12 |
+#+end_example
+
+The table below is a real mess on purpose: fields of different widths, a
+row with a missing field, a row with an extra field, a bare =|-= line and a
+row without a closing =|=.
+
+# Deliberately broken table: align it.
+#+NAME: messy
+|Name|Language|Stars
+|-
+|org.nvim|Lua|42|
+|  neorg   |Lua|
+|orgmode|Lua|3100|extra|
+
+*Try:* put the cursor anywhere in the table and press =<C-c><C-c>=.
+
+*Expect:* five columns (the "extra" field made the table wider), every short
+row padded, the =|-= turned into a full line:
+#+begin_example
+| Name     | Language | Stars |       |
+|----------+----------+-------+-------|
+| org.nvim | Lua      |    42 |       |
+| neorg    | Lua      |       |       |
+| orgmode  | Lua      |  3100 | extra |
+#+end_example
+
+*Try:* in the aligned table, put the cursor on "Lua" in the first data row,
+press =ea= (append at the end of the word), type = and Neovim=, then press
+=<Esc>=.
+
+*Expect:* leaving Insert mode widened the "Language" column:
+#+begin_example
+| Name     | Language       | Stars |       |
+|----------+----------------+-------+-------|
+| org.nvim | Lua and Neovim |    42 |       |
+| neorg    | Lua            |       |       |
+| orgmode  | Lua            |  3100 | extra |
+#+end_example
+
+* Creating tables
+** By typing
+Start a line with =|= and type the fields separated by =|=. The first
+=<Tab>= (or =<Esc>=, or =<C-c><C-c>=) aligns it. A row made of just =|-=
+becomes an hline when you press =<Tab>= on it, and =<Tab>= moves to (and
+creates) the row below.
+
+# Practice area: put the cursor on the empty line between the two comments.
+
+# End of the practice area.
+
+*Try:* on the empty line of the practice area above, type exactly:
+=i|Name|Age= =<Esc>= =o|-= =<Tab>= =Ada= =<Tab>= =36= =<Tab>= =Bob=
+=<Tab>= =41= =<Esc>=
+
+(that is: Insert, the header row, leave Insert, open a line below, type
+=|-=, then =<Tab>= converts it into an hline and jumps to a new row where you
+type "Ada", =<Tab>=, "36", =<Tab>= makes another row ...)
+
+*Expect:*
+#+begin_example
+| Name | Age |
+|------+-----|
+| Ada  |  36 |
+| Bob  |  41 |
+#+end_example
+
+Note: inside a table, =<CR>= in Insert mode always goes to the next row
+(creating one when needed), even at the end of the line. To type something
+under a table, leave Insert mode and open a line with =o= on the last row;
+text that does not start with =|= is no longer part of the table.
+
+** An empty table: =<prefix>Tc=
+On a line outside any table, =<prefix>Tc= (Emacs =C-c |=) asks
+=Table size Columns x Rows [e.g. 5x2]:= with =5x2= already filled in.
+=<CR>= accepts it; to type another size, clear the prompt with =<C-u>= first.
+The first row is a header and an hline follows it. On a blank line the
+table replaces the line; on a line with text it goes below that line. The
+cursor lands in the first field.
+
+# Practice area: the empty line below.
+
+# End of the practice area.
+
+*Try:* on the empty line of the practice area, press =<prefix>Tc= and =<CR>=.
+
+*Expect:* 5 columns, 2 rows (header + one data row):
+#+begin_example
+|   |   |   |   |   |
+|---+---+---+---+---|
+|   |   |   |   |   |
+#+end_example
+
+*Try:* =u=, then =<prefix>Tc= =<C-u>= =3x4= =<CR>=.
+
+*Expect:* 3 columns, 4 rows:
+#+begin_example
+|   |   |   |
+|---+---+---|
+|   |   |   |
+|   |   |   |
+|   |   |   |
+#+end_example
+
+*Try:* put the cursor on the text line "Shopping list:" below and press
+=<prefix>Tc= =<C-u>= =2x3= =<CR>=.
+
+Shopping list:
+
+*Expect:* the text stays and the table appears below it:
+#+begin_example
+Shopping list:
+|   |   |
+|---+---|
+|   |   |
+|   |   |
+#+end_example
+
+=<prefix>Tc= inside an existing table just aligns it.
+
+** Converting CSV, TSV and whitespace text
+Select lines of text in Visual mode (=V=) and press =<prefix>Tc=: each line
+becomes a row. The separator is guessed from the selection:
+
+1. a Tab anywhere → split on Tabs (TSV);
+2. else a comma anywhere → split as CSV (with ="quoted, fields"= and =""=
+   for a literal quote);
+3. else → split on runs of spaces.
+
+A count before =<prefix>Tc= (typed in Visual mode, after selecting) forces
+the separator: =4= comma, =16= Tab, any other N "N or more spaces" (so
+single spaces stay inside fields). A =|= in the data becomes =\vert{}=.
+There is no hline in a converted table; add one with =<prefix>T-=
+(see "Horizontal lines").
+
+*** CSV
+# The next three lines are plain text, not a table (yet).
+name,role,city
+Ada Lovelace,engineer,London
+"Doe, Jane",cook,"New ""Old"" York"
+
+*Try:* put the cursor on "name,role,city", press =V2j= to select the three
+lines, then =<prefix>Tc=.
+
+*Expect:* the quotes are gone and "Doe, Jane" stays one field:
+#+begin_example
+| name         | role     | city           |
+| Ada Lovelace | engineer | London         |
+| Doe, Jane    | cook     | New "Old" York |
+#+end_example
+
+*** TSV
+# The two lines below are separated by real Tab characters.
+city	country	population
+São Paulo	Brazil	12.33
+
+*Try:* =V= on "city", =j=, =<prefix>Tc=.
+
+*Expect:* (the space in "São Paulo" is kept, the Tabs split)
+#+begin_example
+| city      | country | population |
+| São Paulo | Brazil  |      12.33 |
+#+end_example
+
+*** Whitespace
+# Plain words separated by spaces.
+alpha beta   gamma
+1 2       3
+
+*Try:* =V= on "alpha", =j=, =<prefix>Tc=.
+
+*Expect:*
+#+begin_example
+| alpha | beta | gamma |
+|     1 |    2 |     3 |
+#+end_example
+
+*** Two or more spaces (a count)
+Columns of text copied from a terminal often contain single spaces inside a
+field. Split on "2 or more spaces" instead:
+
+# "New York" must stay one field.
+New York     8.3   USA
+Los Angeles  3.9   USA
+Mexico City  9.2   Mexico
+
+*Try:* =V= on "New York", =2j=, then =2<prefix>Tc= (the =2= is the count).
+
+*Expect:*
+#+begin_example
+| New York    | 8.3 | USA    |
+| Los Angeles | 3.9 | USA    |
+| Mexico City | 9.2 | Mexico |
+#+end_example
+
+*Try:* =u= and do it again without the count (=V2j<prefix>Tc=).
+
+*Expect:* every single space splits too, so the city names are cut in two:
+#+begin_example
+| New    | York    | 8.3 | USA    |
+| Los    | Angeles | 3.9 | USA    |
+| Mexico | City    | 9.2 | Mexico |
+#+end_example
+
+Press =u= to get the text back.
+
+*** Forcing CSV with a count
+# The spaces here must not split: force comma with a count of 4.
+first name,last name
+Grace Brewster,Hopper
+
+*Try:* =V= on "first name", =j=, =4<prefix>Tc=.
+
+*Expect:*
+#+begin_example
+| first name     | last name |
+| Grace Brewster | Hopper    |
+#+end_example
+
+(Without the count this would also work, because the comma is found; the
+count matters when the text has both Tabs and commas.)
+
+** Importing a file: =:Org table_import=
+=:Org table_import= asks for a file name and inserts the file as a table
+below the cursor line (replacing the line when it is blank). The separator
+is guessed like above (Tab, else comma, else spaces).
+
+*Try:* first make a small CSV file. Run this Ex command (copy it):
+
+#+begin_example
+:call writefile(['item,qty,price', 'apple,3,0.50', '"melon, big",1,2.25'], '/tmp/org15-fruit.csv')
+#+end_example
+
+Then put the cursor on the empty line of the practice area below, run
+=:Org table_import=, type =/tmp/org15-fruit.csv= and press =<CR>=.
+
+# Practice area: the empty line below.
+
+# End of the practice area.
+
+*Expect:*
+#+begin_example
+| item       | qty | price |
+| apple      |   3 |  0.50 |
+| melon, big |   1 |  2.25 |
+#+end_example
+
+* Moving around in Insert mode
+While you are in Insert mode inside a table:
+
+| Key       | Moves to                                                      |
+|-----------+---------------------------------------------------------------|
+| =<Tab>=   | the next field; after the last field, the next row's first    |
+| =<S-Tab>= | the previous field; before the first, the previous row's last |
+| =<CR>=    | the same column in the next row                               |
+
+- Every move aligns the table first, so the columns grow as you type.
+- Hlines are skipped.
+- =<Tab>= in the last field of the last row *adds a row*.
+- =<CR>= on the last row, or on a row followed by an hline, *inserts an
+  empty row* below it.
+- The cursor lands at the start of the field. What you type is inserted
+  before the text already there; to replace a field, empty it first with
+  =<C-c><Space>= in Normal mode (see "Field helpers").
+
+#+NAME: nav
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+
+*Try:* put the cursor on "Review", press =A= (end of the line), then
+=<Tab>= and type =Wed=, =<Tab>= =Deploy=, =<Tab>= =3=, =<Esc>=.
+
+*Expect:* =<Tab>= after the last field created the "Wed" row:
+#+begin_example
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+| Wed | Deploy      |     3 |
+#+end_example
+
+*Try:* =u=. Put the cursor on "Mon", press =i=, then =<CR>= twice and type
+=Fri=, =<Esc>=.
+
+*Expect:* the first =<CR>= went to "Tue"; the second one found no row below
+and inserted one:
+#+begin_example
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+| Fri |             |       |
+#+end_example
+
+*Try:* =u=. Put the cursor on "Day" (the header), press =i=, =<CR>=, type
+=Sun=, =<Esc>=.
+
+*Expect:* the header is followed by the hline, so =<CR>= inserted a new row
+right under the header, above the hline:
+#+begin_example
+| Day | Task        | Hours |
+| Sun |             |       |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+#+end_example
+
+*Try:* =u=. Put the cursor on "1" (the Hours of Tue), press =i=, then
+=<S-Tab>= three times and type =Big =, =<Esc>=.
+
+*Expect:* =<S-Tab>= went back Task, Day, then to the last field of the
+previous row (Mon's Hours), where "Big " was inserted before "2":
+#+begin_example
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs | Big 2 |
+| Tue | Review      | 1     |
+#+end_example
+
+* Horizontal lines (hlines)
+Ways to make an hline:
+
+- Type =|-= on a new line and press =<Tab>= (Insert mode) or =<C-c><C-c>=.
+- =<prefix>T-= or =<C-c>-=: insert an hline *below* the current row.
+- =1<C-c>-= (any count): insert it *above* the current row.
+- =<C-c><CR>=: insert an hline below the current row and move to the row
+  under it, creating an empty row when there is none.
+
+An hline is a row like any other for =<M-k>= / =<M-j>= (move) and =<M-K>=
+(delete).
+
+#+NAME: hlines
+| Quarter | Revenue |
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+| Total   |     310 |
+
+*Try:* cursor on "Quarter", press =<prefix>T-=.
+
+*Expect:* a header line now separates the titles:
+#+begin_example
+| Quarter | Revenue |
+|---------+---------|
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+| Total   |     310 |
+#+end_example
+
+*Try:* (keep the result) cursor on "Total", press =1<C-c>-=.
+
+*Expect:* an hline above "Total":
+#+begin_example
+| Quarter | Revenue |
+|---------+---------|
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+|---------+---------|
+| Total   |     310 |
+#+end_example
+
+*Try:* =u= =u=. Cursor on "Total", press =<C-c><CR>=.
+
+*Expect:* an hline below Total and a new empty row, with the cursor in it:
+#+begin_example
+| Quarter | Revenue |
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+| Total   |     310 |
+|---------+---------|
+|         |         |
+#+end_example
+
+*Try:* =u=. On the empty line of the practice area below, type
+=i|Col A|Col B= =<Esc>=, then =o|-= =<Esc>=, then =<C-c><C-c>=.
+
+# Practice area: the empty line below.
+
+# End of the practice area.
+
+*Expect:*
+#+begin_example
+| Col A | Col B |
+|-------+-------|
+#+end_example
+
+* Rows: move, insert, delete
+All in Normal mode, with the cursor anywhere in the row:
+
+| Key                     | Action                                       |
+|-------------------------+----------------------------------------------|
+| =<M-k>= / =<M-Up>=      | move the row up (it swaps with an hline too) |
+| =<M-j>= / =<M-Down>=    | move the row down                            |
+| =<M-K>= / =<prefix>TR=  | delete the row (or the hline)                |
+| =<M-J>=                 | insert an empty row *above*                  |
+| =<M-CR>= / =<prefix>Tr= | insert an empty row *below*                  |
+
+=<M-CR>= also works in Insert mode. Plain Vim works as well: =dd= deletes
+the row, =p= pastes it, =yyp= duplicates it; the table is aligned by the
+next table command.
+
+#+NAME: rows
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+
+*Try:* cursor on "Apple", press =<M-j>=.
+
+*Expect:* Apple and Banana swapped; the cursor stays on Apple:
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Banana |  12 |  0.25 |
+| Apple  |   3 |  0.50 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Cherry", press =<M-k>= twice.
+
+*Expect:* Cherry is the first data row:
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Cherry |  40 |  0.10 |
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+#+end_example
+
+*Try:* =u= =u=. Cursor on "Apple", press =<M-k>= once.
+
+*Expect:* Apple swapped places with the hline: it is now part of the header.
+#+begin_example
+| Fruit  | Qty | Price |
+| Apple  |   3 |  0.50 |
+|--------+-----+-------|
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Banana", press =<M-K>= (or =<prefix>TR=).
+
+*Expect:*
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Banana", press =<M-J>=.
+
+*Expect:* an empty row above Banana (the cursor is in it):
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+|        |     |       |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Banana", press =<M-CR>= (or =<prefix>Tr=).
+
+*Expect:* an empty row below Banana:
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+|        |     |       |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Apple", press =i= (Insert mode), then =<M-CR>=, type
+=Kiwi=, =<Tab>=, =5=, =<Esc>=.
+
+*Expect:*
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Kiwi   |   5 |       |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+* Columns: move, insert, delete
+Normal mode, cursor anywhere in the column:
+
+| Key                    | Action                                    |
+|------------------------+-------------------------------------------|
+| =<M-h>= / =<M-Left>=   | move the column left                      |
+| =<M-l>= / =<M-Right>=  | move the column right                     |
+| =<M-H>= / =<prefix>TI= | delete the column                         |
+| =<M-L>= / =<prefix>Ti= | insert an empty column left of the cursor |
+
+#+NAME: cols
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+
+*Try:* cursor on "Fruit", press =<M-l>=.
+
+*Expect:* the Fruit column moved one place right:
+#+begin_example
+| Qty | Fruit  | Price |
+|-----+--------+-------|
+|   3 | Apple  |  0.50 |
+|  12 | Banana |  0.25 |
+|  40 | Cherry |  0.10 |
+#+end_example
+
+*Try:* (keep it) press =<M-l>= again, then =<M-h>= twice.
+
+*Expect:* back to the original table: the cursor follows the column.
+
+*Try:* cursor on "Qty", press =<M-H>= (or =<prefix>TI=).
+
+*Expect:*
+#+begin_example
+| Fruit  | Price |
+|--------+-------|
+| Apple  |  0.50 |
+| Banana |  0.25 |
+| Cherry |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "Qty", press =<M-L>= (or =<prefix>Ti=).
+
+*Expect:* an empty column appeared where Qty was, and Qty moved right:
+#+begin_example
+| Fruit  |   | Qty | Price |
+|--------+---+-----+-------|
+| Apple  |   |   3 |  0.50 |
+| Banana |   |  12 |  0.25 |
+| Cherry |   |  40 |  0.10 |
+#+end_example
+
+*Try:* =<M-h>= on the first column, or =<M-l>= on the last one.
+
+*Expect:* the message "Cannot move column further" and no change.
+
+* Swapping single fields: =<S-arrows>=
+=<S-Up>= =<S-Down>= =<S-Left>= =<S-Right>= swap the *field* under the
+cursor with its neighbour and follow it. Only that one field moves; the rest
+of the row stays. Hlines are jumped over. Exception: on a timestamp, the
+=<S-arrows>= change the date instead (as everywhere in Org).
+
+#+NAME: swap
+| Mon  | Tue  | Wed  |
+|------+------+------|
+| gym  | swim | yoga |
+| read | code | cook |
+
+*Try:* cursor on "gym", press =<S-Right>= twice.
+
+*Expect:* "gym" travelled to the Wed column; swim and yoga moved left:
+#+begin_example
+| Mon  | Tue  | Wed  |
+|------+------+------|
+| swim | yoga | gym  |
+| read | code | cook |
+#+end_example
+
+*Try:* =u= =u=. Cursor on "gym", press =<S-Down>=.
+
+*Expect:*
+#+begin_example
+| Mon  | Tue  | Wed  |
+|------+------+------|
+| read | swim | yoga |
+| gym  | code | cook |
+#+end_example
+
+*Try:* =u=. Cursor on "swim", press =<S-Up>=.
+
+*Expect:* it jumped over the hline and swapped with the header "Tue":
+#+begin_example
+| Mon  | swim | Wed  |
+|------+------+------|
+| gym  | Tue  | yoga |
+| read | code | cook |
+#+end_example
+
+* Copy down and series: =<S-CR>=
+=<S-CR>= (Normal or Insert mode) copies the current field into the row
+below and moves there, adding a row when the table ends (or an hline
+follows). While copying it *increments*:
+
+- a number: +1, or +the difference to the field above when that field is a
+  number too (so 5, 10 continues 15, 20);
+- text that starts or ends with a number (=Item 1=, =Room 101=,
+  =3 apples=): that number, same rule;
+- a timestamp: +1 day, or +the difference in days to a timestamp above
+  (so a weekly series stays weekly);
+- anything else is copied unchanged.
+
+In an *empty* field, =<S-CR>= fills it from the nearest non-empty field
+above (with a count N: the Nth one above) and stays in that row.
+
+Set =table_copy_increment = false= to copy without incrementing, or to a
+number to use that step.
+
+Note for tmux: =<S-CR>= arrives as =<CR>= unless extended keys are on
+(=set -s extended-keys on= and =set -as terminal-features 'xterm*:extkeys'=).
+
+#+NAME: series
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+
+*Try:* cursor on "1" (the Step), press =<S-CR>= three times.
+
+*Expect:*
+#+begin_example
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|    2 |        |                  |
+|    3 |        |                  |
+|    4 |        |                  |
+#+end_example
+
+*Try:* =u= (three times) and do the same on "Item 1", twice.
+
+*Expect:*
+#+begin_example
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|      | Item 2 |                  |
+|      | Item 3 |                  |
+#+end_example
+
+*Try:* =u= =u=. Now on the date, twice.
+
+*Expect:* one day at a time, with the right weekday:
+#+begin_example
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|      |        | <2026-10-06 Tue> |
+|      |        | <2026-10-07 Wed> |
+#+end_example
+
+The next table already has two rows, so the *difference* is repeated.
+
+#+NAME: series2
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+
+*Try:* cursor on "10", press =<S-CR>= twice.
+
+*Expect:* steps of 5:
+#+begin_example
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+| 15 |          |                  |
+| 20 |          |                  |
+#+end_example
+
+*Try:* =u= =u=. On "Room 103", twice.
+
+*Expect:* steps of 2:
+#+begin_example
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+|    | Room 105 |                  |
+|    | Room 107 |                  |
+#+end_example
+
+*Try:* =u= =u=. On "<2026-10-12 Mon>", twice.
+
+*Expect:* a weekly series:
+#+begin_example
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+|    |          | <2026-10-19 Mon> |
+|    |          | <2026-10-26 Mon> |
+#+end_example
+
+In an empty field =<S-CR>= fetches the value from above:
+
+#+NAME: series3
+| Colour | Size |
+|--------+------|
+| red    | S    |
+| blue   | M    |
+|        |      |
+
+*Try:* cursor in the empty Colour field of the last row, press =<S-CR>=.
+
+*Expect:* "blue" copied into it, and no new row:
+#+begin_example
+| Colour | Size |
+|--------+------|
+| red    | S    |
+| blue   | M    |
+| blue   |      |
+#+end_example
+
+*Try:* =u=, then in the same empty field press =2<S-CR>=.
+
+*Expect:* the 2nd non-empty field above ("red"):
+#+begin_example
+| Colour | Size |
+|--------+------|
+| red    | S    |
+| blue   | M    |
+| red    |      |
+#+end_example
+
+* Sorting rows
+=<prefix>Ts= (Emacs =C-c ^=) sorts rows by the column under the cursor.
+A menu asks for the kind of sort:
+
+| Key       | Sort                                                         |
+|-----------+--------------------------------------------------------------|
+| =a= / =A= | alphabetically / reversed (case-insensitive; markup ignored) |
+| =n= / =N= | numerically / reversed                                       |
+| =t= / =T= | by time: timestamps, durations, =H:MM= / reversed            |
+| =f= / =F= | with a Lua function that computes the sort key / reversed    |
+
+Only the rows between the hlines around the cursor are sorted: the header
+and the other sections stay where they are. Rows that compare equal keep
+their order.
+
+** The sort kinds
+#+NAME: people
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+
+*Try:* cursor on "charlie", press =<prefix>Ts= then =a=.
+
+*Expect:* A-Z ignoring case; "*Dave*" sorts as "Dave" (the =*= of bold
+markup is ignored):
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+#+end_example
+
+*Try:* =u=. Same place, =<prefix>Ts= =A=.
+
+*Expect:*
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+#+end_example
+
+*Try:* =u=. Cursor on "35" (Age), =<prefix>Ts= =n=.
+
+*Expect:* 7, 35, 42, 120 (alphabetically it would be 120, 35, 42, 7):
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+#+end_example
+
+*Try:* =u=. Cursor on "9.5" (Score), =<prefix>Ts= =N=.
+
+*Expect:* largest first; negative numbers and decimals are understood:
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+#+end_example
+
+*Try:* =u=. Cursor on the first date, =<prefix>Ts= =t=.
+
+*Expect:* chronological order; active =<...>= and inactive =[...]= dates
+mix:
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+#+end_example
+
+*Try:* =u=. Cursor on "1:30" (Time), =<prefix>Ts= =t=.
+
+*Expect:* by duration: 0:45, 1:30, 2:00, 12:05 (alphabetically 12:05 would
+come before 2:00):
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+#+end_example
+
+** Case-sensitive sorting
+With a count, =a= / =A= respect case: uppercase letters sort before
+lowercase ones.
+
+*Try:* =u=. Cursor on "charlie", press =1<prefix>Ts= =a=.
+
+*Expect:* Alice and Dave (capitals) first, then bob and charlie:
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+#+end_example
+
+** Sorting with a function
+=f= asks for two things, both Lua:
+
+1. =Function for extracting keys:= a function that receives the field text
+   (trimmed) and returns the value to sort by, e.g.
+   =function(s) return #s end= (the length of the text);
+2. =Function for comparing keys (empty for default):= press =<CR>= for the
+   normal =<= comparison, or give a function =function(a, b) ... end= that
+   returns true when =a= goes first.
+
+*Try:* =u=. Cursor on "charlie", =<prefix>Ts= =f=, type
+=function(s) return #s end=, =<CR>=, then =<CR>= again at the second prompt.
+
+*Expect:* shortest name first (bob=3, Alice=5, *Dave*=6, charlie=7):
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+#+end_example
+
+*Try:* =u=. Cursor on "charlie", =<prefix>Ts= =f=, type
+=function(s) return s:sub(-1) end= =<CR>= and =<CR>=.
+
+*Expect:* sorted by the *last character* ("*", "b", "e", "e"); charlie and
+Alice tie on "e" and keep their order:
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+#+end_example
+
+*Try:* =u=. =<prefix>Ts= =f=, key =function(s) return s:lower() end=,
+comparison =function(a, b) return a > b end=.
+
+*Expect:* Z to A:
+#+begin_example
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+#+end_example
+
+** Sorting one section
+Hlines divide a table into sections; sorting stays inside the section of
+the cursor.
+
+#+NAME: sections
+| Group | Item  | Qty |
+|-------+-------+-----|
+| B     | pear  |   4 |
+| A     | apple |  10 |
+| C     | fig   |   1 |
+|-------+-------+-----|
+| Z     | melon |   2 |
+| X     | lime  |  30 |
+| Y     | grape |   7 |
+
+*Try:* cursor on "melon", =<prefix>Ts= =a=.
+
+*Expect:* only the second section is sorted, by Item (the column of the
+cursor):
+#+begin_example
+| Group | Item  | Qty |
+|-------+-------+-----|
+| B     | pear  |   4 |
+| A     | apple |  10 |
+| C     | fig   |   1 |
+|-------+-------+-----|
+| Y     | grape |   7 |
+| X     | lime  |  30 |
+| Z     | melon |   2 |
+#+end_example
+
+*Try:* =u=. Cursor on "4" (Qty of pear), =<prefix>Ts= =N=.
+
+*Expect:* the first section, largest quantity first:
+#+begin_example
+| Group | Item  | Qty |
+|-------+-------+-----|
+| A     | apple |  10 |
+| B     | pear  |   4 |
+| C     | fig   |   1 |
+|-------+-------+-----|
+| Z     | melon |   2 |
+| X     | lime  |  30 |
+| Y     | grape |   7 |
+#+end_example
+
+Tip: to sort only some rows of a table, fence them with temporary hlines
+(=<prefix>T-= and =1<C-c>-=), sort, then delete the hlines with =<M-K>=.
+
+* Transposing: =<prefix>Tt=
+=<prefix>Tt= turns rows into columns and columns into rows. Hlines are
+dropped (add one again with =<prefix>T-= if you want a header).
+
+#+NAME: transpose
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+
+*Try:* cursor anywhere in the table, =<prefix>Tt=.
+
+*Expect:*
+#+begin_example
+| Fruit | Apple | Banana | Cherry |
+| Qty   |     3 |     12 |     40 |
+| Price |  0.50 |   0.25 |   0.10 |
+#+end_example
+
+*Try:* =<prefix>Tt= again.
+
+*Expect:* the original table, minus its hline.
+
+* Field helpers
+#+NAME: helpers
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+
+** Blank a field: =<C-c><Space>=
+Empties the field under the cursor. In Visual mode (=v= or =<C-v>=) it
+empties every field the selection touches.
+
+*Try:* cursor on "12", =<C-c><Space>=.
+
+*Expect:*
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+*Try:* =u=. Cursor on "3", press =<C-v>j= (a block over "3" and "12"), then
+=<C-c><Space>=.
+
+*Expect:*
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |     |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |  0.10 |
+#+end_example
+
+** Where am I? =<C-c>?= and =<C-c>}=
+=<C-c>?= shows the reference of the field in the message area; these
+references are what formulas use (see
+[[file:16-spreadsheet.org][16-spreadsheet.org]]).
+=<C-c>}= toggles virtual text with the row numbers (=@1=, =@2= ... at the end
+of each data row; hlines are not counted) and the column numbers (=$1=,
+=$2= ... above the table).
+
+*Try:* cursor on "12", =<C-c>?=.
+
+*Expect:* the message =line @3, col $2, ref @3$2 or B3=.
+
+*Try:* =<C-c>}=, look, and =<C-c>}= again.
+
+*Expect:* =@1= after the header row, =@2= =@3= =@4= after the data rows,
+and a virtual line =$1 $2 $3= above the table, each over its column. The
+second =<C-c>}= removes them. The file text is not changed.
+
+** Quick sum: =<C-c>+=
+=<C-c>+= adds the numbers of the current column (or of the Visual
+selection) and puts the result into the unnamed register, ready for =p=.
+This is not a formula: nothing is written into the table.
+
+*Try:* cursor on "12", =<C-c>+=.
+
+*Expect:* the message =Sum of 3 items: 55=; =p= would paste =55=.
+
+** Rectangles: copy, cut and paste fields
+- =<C-c><C-x><M-w>= copies the fields covered by the Visual selection (or
+  the current field) into a table clipboard;
+- =<C-c><C-x><C-w>= does the same and blanks them;
+- =<C-c><C-x><C-y>= pastes the rectangle with its top-left corner at the
+  current field, overwriting fields and adding rows or columns when needed.
+
+*Try:* cursor on "Apple", =<C-v>j10l= (a block from Apple over into the Qty
+column of Banana), =<C-c><C-x><M-w>=. Then put the cursor on "Cherry" and
+press =<C-c><C-x><C-y>=.
+
+*Expect:* the 2x2 block was pasted from Cherry on, adding a row:
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Apple  |   3 |  0.10 |
+| Banana |  12 |       |
+#+end_example
+
+*Try:* =u=. Cursor on "3", =<C-v>j= and =<C-c><C-x><C-w>=, then cursor on
+"0.10" and =<C-c><C-x><C-y>=.
+
+*Expect:* the quantities left their column and went to Price:
+#+begin_example
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |     |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |     3 |
+|        |     |    12 |
+#+end_example
+
+* Editing a field
+** In a prompt: =<C-c>`=
+=<C-c>`= (backtick) opens a prompt =Field @2$1: = holding the full text of
+the field. Change it and press =<CR>=; =<Esc>= cancels. This is handy for
+long fields and for shrunk columns (see "Column widths"). A =|= you type is
+stored as =\vert{}= so it does not split the field.
+
+#+NAME: editfield
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+
+*Try:* cursor on "Apple", =<C-c>`=, =<C-u>= (clears the prompt), type
+=Green apple=, =<CR>=.
+
+*Expect:*
+#+begin_example
+| Fruit       | Qty | Price |
+|-------------+-----+-------|
+| Green apple |   3 |  0.50 |
+| Banana      |  12 |  0.25 |
+#+end_example
+
+*Try:* =u=. =<C-c>`= on "Apple" again, =<C-u>=, type =in|out=, =<CR>=.
+
+*Expect:* the pipe was escaped:
+#+begin_example
+| Fruit        | Qty | Price |
+|--------------+-----+-------|
+| in\vert{}out |   3 |  0.50 |
+| Banana       |  12 |  0.25 |
+#+end_example
+
+** Follow-field mode: =16<C-c>`=
+Follow-field mode opens a small window below the table that always shows
+the full text of the field under the cursor. Edit the text in that window
+and write it back with =<C-c><C-c>= or =:w=; moving to another field also
+writes a changed field back. Leaving the table ends the mode. =16<C-c>`=
+(Emacs =C-u C-u C-c `=) or =:Org table_follow_field_mode= toggles it.
+
+*Try:* cursor on "Apple", =16<C-c>`=.
+
+*Expect:* the message "Table follow-field mode enabled" and a window below
+with the single line =Apple=; its winbar says
+=Field @2$1  (<C-c><C-c> or :w writes it back)=. Move the cursor with =l=
+and =j= in the table: the window follows. Go into the window (=<C-w>j=),
+change the text, press =<C-c><C-c>=, come back with =<C-w>k=: the field
+has the new text and the table is aligned. Move the cursor out of the table
+to end the mode.
+
+** Header-line mode
+In a long table the header scrolls away. =:Org table_header_line_mode=
+shows the first row of the table in the window's winbar whenever that row
+is scrolled above the top of the window (=table_header_line_p = true= turns
+it on for every buffer).
+
+*Try:* =:Org table_header_line_mode=, then put the cursor on "Banana" in
+the table of "In a prompt" above and press =zt= (scroll that line to the
+top of the window).
+
+*Expect:* the winbar shows the header row of the table. Scroll back up
+(=<C-y>=) until the header line itself is visible: the winbar empties. Run
+the command again to turn it off.
+
+* Alignment: numbers and =<l>= =<c>= =<r>= cookies
+** Automatic: numbers go right
+A column is right-aligned when at least half (=table_number_fraction=,
+0.5) of its non-empty fields look like numbers; otherwise it is
+left-aligned. Empty fields do not count. "Numbers" include =-7=, =3.5=,
+=1e3=, =12%=, =1:30=, =>5=; =1,000=, =$12= and =n/a= are not.
+
+# Each column below has a text header and one value: it is right-aligned
+# exactly when the value counts as a number (1 of 2 fields = half).
+#+NAME: numbers
+|  A |   B |   C |   D |    E |  F | G     | H   | I   | J    |
+|----+-----+-----+-----+------+----+-------+-----+-----+------|
+| -7 | 3.5 | 1e3 | 12% | 1:30 | >5 | 1,000 | $12 | n/a | 0x1F |
+
+*Try:* put the cursor in the table and press =<C-c><C-c>=.
+
+*Expect:* nothing changes: the file shows the result already. Columns A to
+F are right-aligned (numbers), G to J left-aligned (text: =0x1F= is not a
+number for the alignment either).
+
+# The header counts as a (non-number) field: "Mostly" has 3 numbers among
+# its 6 fields, exactly half: right. "Rarely" has 2 of 6: left.
+#+NAME: fraction
+| Mostly | Rarely |
+|--------+--------|
+|     10 | 10     |
+|    n/a | n/a    |
+|     30 | 30     |
+|     40 | n/a    |
+|    n/a | n/a    |
+
+*Try:* in "Rarely", replace the second =n/a= with =20= (put the cursor on
+it, =ciW20<Esc>=).
+
+*Expect:* now 3 of its 6 fields are numbers and the column jumps to the
+right:
+#+begin_example
+| Mostly | Rarely |
+|--------+--------|
+|     10 |     10 |
+|    n/a |    n/a |
+|     30 |     30 |
+|     40 |     20 |
+|    n/a |    n/a |
+#+end_example
+
+** Fixed: alignment cookies
+To choose the alignment yourself, put a *cookie* in any field of the column:
+=<l>= left, =<c>= centred, =<r>= right. The cookie usually sits in a row of
+its own (a row made only of cookies). A cookie row is not exported, and
+the cookies themselves are aligned like their column.
+
+# Deliberately not aligned yet.
+#+NAME: cookies
+|Left|Center|Right|Auto|
+|<l>|<c>|<r>||
+|-
+|a|b|c|1|
+|longer text|mid|x|22|
+|1|2|3|abc|
+
+*Try:* =<C-c><C-c>= in the table.
+
+*Expect:* "Left" stays left even though it has a number, "Center" is
+centred, "Right" is right-aligned although it is all letters, and "Auto"
+follows the numbers rule (2 of its 4 non-empty fields, header included,
+are numbers):
+#+begin_example
+| Left        | Center | Right | Auto |
+| <l>         |  <c>   |   <r> |      |
+|-------------+--------+-------+------|
+| a           |   b    |     c |    1 |
+| longer text |  mid   |     x |   22 |
+| 1           |   2    |     3 |  abc |
+#+end_example
+
+* Column widths and shrinking
+A *width cookie* =<N>= (or =<lN>=, =<cN>=, =<rN>= with an alignment)
+limits how much of a column is *shown*. It never cuts your text: the table
+is aligned to the full text, and the column is only narrowed on screen when
+you *shrink* it:
+
+- =<C-c><Tab>= in a column: shrink it, or show it again. A column with a
+  width cookie shows its first N characters followed by =…=; a column
+  without a cookie collapses to just =…=.
+- =4<C-c><Tab>=: shrink every column that has a width cookie, expand the
+  others (Emacs =org-table-shrink=).
+- =16<C-c><Tab>=: expand every column.
+- =<C-c><Tab>= with the cursor before the first =|= (press =0= first):
+  asks =Column ranges (e.g. 2-4 6-):= and toggles those columns.
+- =#+STARTUP: shrink= in a file (or =startup_shrink_all_tables = true=)
+  shrinks the cookie columns of every table when the file opens.
+
+Shrinking uses conceal and virtual text, so it sets ='conceallevel'= to 2.
+The text in the file never changes (=:set conceallevel=0= shows it). In
+Insert mode the table is shown in full, and it shrinks again when you leave
+Insert mode. =4<C-c>`= shows the column of the cursor in full; =<C-c>`= on
+a shrunk field lets you read and edit the whole text.
+
+#+NAME: widths
+| Task                    | <12>                            | Owner    | Est |
+|-------------------------+---------------------------------+----------+-----|
+| Write the release notes | Needs the list of merged PRs    | Ada      | 3h  |
+| Review pull requests    | Two big ones from the core team | Linus    | 1h  |
+| Plan the Q4 roadmap     | Talk to support first           | Margaret | 2h  |
+
+*Try:* cursor on "Needs", =<C-c><Tab>=.
+
+*Expect:* the second column now shows 12 characters and =…= on each line:
+#+begin_example
+| Task                    | <12>        …| Owner    | Est |
+|-------------------------+-------------…+----------+-----|
+| Write the release notes | Needs the li…| Ada      | 3h  |
+| Review pull requests    | Two big ones…| Linus    | 1h  |
+| Plan the Q4 roadmap     | Talk to supp…| Margaret | 2h  |
+#+end_example
+
+*Try:* =<C-c><Tab>= again (still in that column).
+
+*Expect:* the full column again.
+
+*Try:* cursor on "Ada", =<C-c><Tab>=.
+
+*Expect:* "Owner" has no cookie, so it collapses to =…=:
+#+begin_example
+| Task                    | <12>                            |…| Est |
+|-------------------------+---------------------------------+…+-----|
+| Write the release notes | Needs the list of merged PRs    |…| 3h  |
+| Review pull requests    | Two big ones from the core team |…| 1h  |
+| Plan the Q4 roadmap     | Talk to support first           |…| 2h  |
+#+end_example
+
+*Try:* =16<C-c><Tab>= (everything back), then =4<C-c><Tab>=.
+
+*Expect:* only the cookie column (2) is shrunk, as in the first result.
+
+*Try:* =16<C-c><Tab>=. Put the cursor on the =|= at the start of a row
+(=0=), press =<C-c><Tab>=, type =3-4= and =<CR>=.
+
+*Expect:* columns 3 and 4 collapse to =…=.
+
+*Try:* with a column shrunk, put the cursor in it and press =i=.
+
+*Expect:* while you are in Insert mode the columns show in full; =<Esc>=
+shrinks them again. =16<C-c><Tab>= to finish.
+
+* Column groups
+A row whose first field is =/= defines *column groups* for export: in the
+other fields of that row, =<= starts a group, =>= ends one, and =<>= makes a
+column a group of its own. Exporters draw vertical lines between groups
+(HTML uses =<colgroup>= elements, LaTeX =|= in the column spec, ASCII =|=).
+Inside the editor the row is an ordinary row; like a cookie row, it is not
+exported as data.
+
+#+NAME: groups
+| N | N^2 | N^3 | N^4 | sqrt(n) | sqrt[4](N) |
+| / |   < |     |   > |       < |          > |
+|---+-----+-----+-----+---------+------------|
+| 1 |   1 |   1 |   1 |       1 |          1 |
+| 2 |   4 |   8 |  16 |  1.4142 |     1.1892 |
+| 3 |   9 |  27 |  81 |  1.7321 |     1.3161 |
+
+This makes three groups: N alone (the first column always starts a group),
+the powers N^2 to N^4, and the two roots.
+
+*Try:* with the cursor in this section, press =<prefix>e= (the export
+menu), =s= (scope: this subtree), =t= (plain text), =A= (as an ASCII
+buffer). Find the table in the new buffer; =:q= closes it.
+
+*Expect:* vertical bars only between the groups:
+#+begin_example
+ N | N^2  N^3  N^4 | sqrt(n)  sqrt[4](N) |
+---+---------------+---------------------+
+ 1 |   1    1    1 |       1           1 |
+ 2 |   4    8   16 |  1.4142      1.1892 |
+ 3 |   9   27   81 |  1.7321      1.3161 |
+#+end_example
+
+* Rich content in fields
+Fields can hold links, emphasis, code, timestamps, entities and non-ASCII
+text:
+
+- Links are aligned by what you *see*: while link brackets are concealed
+  (=ui.conceal_links=, the default), =[[https://orgmode.org][Org]]= counts
+  as 3 characters wide. That is why the raw text of a row with links looks
+  misaligned with =:set conceallevel=0=, and fine with the default.
+- Emphasis markers (=*bold*=, =/italic/=, ~=code=~) count as characters.
+- Wide characters (CJK, emoji) count as two columns, accented letters as
+  one.
+- A literal =|= cannot be typed into a field (it would split it); write
+  =\vert{}= instead, which exports as =|=.
+
+#+NAME: rich
+| What      | Example                              |
+|-----------+--------------------------------------|
+| link      | [[https://orgmode.org][Org]]                                  |
+| bare link | [[https://neovim.io]]                    |
+| markup    | *bold*, /italic/, =verbatim=, ~code~ |
+| date      | <2026-12-24 Thu>                     |
+| entity    | \alpha + \beta, 30\deg               |
+| unicode   | José, Zürich, 東京                   |
+| pipe      | a \vert{} b                          |
+
+*Try:* =<C-c><C-c>= in the table.
+
+*Expect:* no change: the table is already aligned as org.nvim aligns it
+(the "link" rows look short in the file text, but line up on screen).
+
+*Try:* cursor on "24" in the date, =<S-Up>=.
+
+*Expect:* the date becomes =<2026-12-25 Fri>= (on a timestamp the
+=<S-arrows>= change the date; they do not swap fields). =u= to undo.
+
+* Tables inside lists and indented tables
+A table can be indented, for instance under a list item; every command
+keeps the indentation of its first line.
+
+- Shopping for the party:
+  | Item  | Qty |
+  |-------+-----|
+  | chips |   3 |
+  | salsa |   2 |
+- Guests:
+  |Name|Plus one|
+  |Ada|yes|
+  |Bob|no|
+
+*Try:* cursor on "Ada" in the second (unaligned) table, =<C-c><C-c>=.
+
+*Expect:* aligned, still indented by two spaces:
+#+begin_example
+- Guests:
+  | Name | Plus one |
+  | Ada  | yes      |
+  | Bob  | no       |
+#+end_example
+
+*Try:* cursor on "salsa", =<M-CR>=, then =i= and type =dip=, =<Esc>=.
+
+*Expect:* the new row is indented like the table:
+#+begin_example
+- Shopping for the party:
+  | Item  | Qty |
+  |-------+-----|
+  | chips |   3 |
+  | salsa |   2 |
+  | dip   |     |
+#+end_example
+
+* Names, captions and export attributes
+Keywords directly above a table belong to it:
+
+- =#+NAME: name= gives the table a name. Links =[[name]]= jump to it,
+  formulas read it with =remote(name, ...)= and code blocks with
+  =:var x=name= (see [[file:16-spreadsheet.org][16-spreadsheet.org]] and
+  [[file:17-babel.org][17-babel.org]]).
+- =#+CAPTION: text= is the caption shown by exporters ("Table 1: text").
+- =#+ATTR_HTML:=, =#+ATTR_LATEX:=, =#+ATTR_ODT:= ... pass options to one
+  exporter, e.g. =:border 2 :rules all :frame border= for HTML,
+  =:environment longtable :align l|r= for LaTeX.
+
+#+NAME: budget
+#+CAPTION: Monthly budget
+#+ATTR_HTML: :border 2 :rules all :frame border
+#+ATTR_LATEX: :environment longtable :align l|r
+| Item      | Amount |
+|-----------+--------|
+| Rent      |    900 |
+| Groceries |    350 |
+
+*Try:* put the cursor on this link and press =<CR>=: [[budget]]
+
+*Expect:* the cursor jumps to the =#+NAME: budget= line. =<C-o>= brings
+you back.
+
+*Try:* cursor on the =#+NAME: budget= line, press =<prefix>ls= (store a
+link); come back here and insert it with =<prefix>lL= on the empty line
+below.
+
+# Practice area: the empty line below.
+
+# End of the practice area.
+
+*Expect:* the link =[[budget]]= is inserted.
+
+*Try:* with the cursor in this section, press =<prefix>e= =s= (this
+subtree) =h= =H= (HTML, as a buffer), and find the =<table>=.
+
+*Expect:* the table is exported with the caption and the attributes (the
+=id= is generated from the table):
+#+begin_example
+<table id="org362de52" border="2" cellspacing="0" cellpadding="6" rules="all" frame="border">
+<caption class="t-above"><span class="table-number">Table 1:</span> Monthly budget</caption>
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Item</th>
+<th scope="col" class="org-right">Amount</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">Rent</td>
+<td class="org-right">900</td>
+</tr>
+
+<tr>
+<td class="org-left">Groceries</td>
+<td class="org-right">350</td>
+</tr>
+</tbody>
+</table>
+#+end_example
+
+and =<prefix>e= =s= =l= =L= (LaTeX, as a buffer) shows the =longtable=
+environment with the column spec =l|r= (again with a generated label):
+#+begin_example
+\begin{longtable}{l|r}
+\caption{\label{tab:org362de52}Monthly budget}
+\\
+Item & Amount\\
+\hline
+\endfirsthead
+\multicolumn{2}{l}{Continued from previous page} \\
+\hline
+
+Item & Amount \\
+
+\hline
+\endhead
+\hline\multicolumn{2}{r}{Continued on next page} \\
+\endfoot
+\endlastfoot
+\hline
+Rent & 900\\
+Groceries & 350\\
+\end{longtable}
+#+end_example
+
+* Exporting a table to a file: =:Org table_export=
+=:Org table_export= writes the table under the cursor to a file with a
+*translator*: =orgtbl-to-tsv=, =orgtbl-to-csv=, =orgtbl-to-latex=,
+=orgtbl-to-html=, =orgtbl-to-texinfo=, =orgtbl-to-orgtbl=,
+=orgtbl-to-generic= (plus parameters, e.g. =orgtbl-to-latex :splice t=).
+It asks for the file name, then for the format, suggesting the one matching
+the file extension (=.csv= → =orgtbl-to-csv=), else
+=table_export_default_format= (=orgtbl-to-tsv=). Hlines are dropped in
+CSV/TSV.
+
+The file name and the format can instead come from the properties
+=TABLE_EXPORT_FILE= and =TABLE_EXPORT_FORMAT= of the entry (inherited from
+parents): then there is no question at all.
+
+#+NAME: export-me
+| item       | qty | price |
+|------------+-----+-------|
+| apple      |   3 |  0.50 |
+| melon, big |   1 |  2.25 |
+
+*Try:* cursor in the table, =:Org table_export=, type =/tmp/org15-out.csv=,
+=<CR>=, accept the suggested format =orgtbl-to-csv= with =<CR>=. Then
+=:split /tmp/org15-out.csv=.
+
+*Expect:* the message "Export done: /tmp/org15-out.csv" and the file:
+#+begin_example
+item,qty,price
+apple,3,0.50
+"melon, big",1,2.25
+#+end_example
+
+** Export with properties
+:PROPERTIES:
+:TABLE_EXPORT_FILE: /tmp/org15-budget.tex
+:TABLE_EXPORT_FORMAT: orgtbl-to-latex :splice t
+:END:
+This entry sets both properties, so the command asks nothing.
+
+| Item      | Amount |
+|-----------+--------|
+| Rent      |    900 |
+| Groceries |    350 |
+
+*Try:* cursor in the table, =:Org table_export=, then
+=:split /tmp/org15-budget.tex=.
+
+*Expect:* with =:splice t= only the rows are written (no =\begin{tabular}=),
+ready to be included in a hand-written LaTeX table:
+#+begin_example
+Item & Amount\\
+\hline
+Rent & 900\\
+Groceries & 350\\
+#+end_example
+
+* table.el tables
+Emacs has a second table package, table.el, whose tables are grids of =+=,
+=-= and =|= in which a cell can span several rows or columns and hold
+several lines. Org files may contain them. org.nvim recognises them, leaves
+them alone for the normal table commands, and offers:
+
+- =<C-c>~= on an Org table: convert it to a table.el table (after a
+  confirmation). Hlines are dropped and every row gets a border.
+- =<C-c>~= on a table.el table: convert it back to an Org table (the border
+  lines are removed; spanned and multi-line cells are split, as in Emacs).
+- =<C-c>~= elsewhere: insert a new table.el table after asking for the
+  number of columns and rows and the cell widths and heights.
+- =<C-c>'= on a table.el table: edit it in a separate buffer where the grid
+  is realigned when you leave Insert mode; =<C-c><C-c>= writes it back,
+  =<C-c><C-k>= aborts.
+- =<Tab>= and =<C-c><C-c>= on a table.el table only print a hint.
+
+# A table.el table: the "0" cell spans two columns, the "1" cell two rows.
++-----+--+
+|0    |1 |
++--+--+  |
+|2 |3 |  |
++--+--+--+
+
+*Try:* cursor on the "0" cell, =<C-c><C-c>=.
+
+*Expect:* the message "Use C-c ' to edit table.el tables".
+
+#+NAME: to-tableel
+| Fruit  | Qty |
+|--------+-----|
+| Apple  |   3 |
+| Banana |  12 |
+
+*Try:* cursor on "Apple", =<C-c>~=, answer =y=.
+
+*Expect:*
+#+begin_example
++--------+-----+
+| Fruit  | Qty |
++--------+-----+
+| Apple  |   3 |
++--------+-----+
+| Banana |  12 |
++--------+-----+
+#+end_example
+
+*Try:* =<C-c>~= again (on the new grid) and answer =y=.
+
+*Expect:* an Org table again; the hline is gone:
+#+begin_example
+| Fruit  | Qty |
+| Apple  |   3 |
+| Banana |  12 |
+#+end_example
+
+*Try:* =u=. On the empty line of the practice area below, press =<C-c>~=
+and answer the prompts: =2= columns, =2= rows, width =6=, height =1= (type
+each number and =<CR>=).
+
+# Practice area: the empty line below.
+
+# End of the practice area.
+
+*Expect:*
+#+begin_example
++------+------+
+|      |      |
++------+------+
+|      |      |
++------+------+
+#+end_example
+
+*Try:* cursor in the new grid, =<C-c>'=; in the new buffer type some text
+into a cell (in Insert mode, without =|=), press =<Esc>= and then
+=<C-c><C-c>=.
+
+*Expect:* the grid grew to fit the text and was written back to this file.
+
+* Tables in other filetypes: orgtbl-mode
+=:Org orgtbl_mode= turns on the table editor in a buffer of any filetype
+(Emacs orgtbl-mode), for instance in a Markdown or text file: on lines
+starting with =|=, =<Tab>=, =<S-Tab>=, =<CR>= (Insert mode), =<S-CR>=,
+=<C-c><C-c>=, =<C-c>-=, =<C-c>^=, =<M-hjkl>=, =<M-HJKL>= ... work as in
+Org buffers; elsewhere the keys keep their normal meaning.
+
+*Try:* =:enew=, =:set filetype=markdown=, =:Org orgtbl_mode=, then type
+=i|a|b= =<Tab>= =1= =<Tab>= =2= =<Esc>=.
+
+*Expect:*
+#+begin_example
+| a | b |
+| 1 | 2 |
+#+end_example
+
+Radio tables (a table that is sent, translated to LaTeX or HTML, into
+another part of the file whenever it changes) are described in
+=:h org-radio-tables=.
+
+* Formulas
+Everything computed (=#+TBLFM:=, column and field formulas, =vsum=, dates
+arithmetic, the formula editor =<prefix>'=, recalculation with
+=<prefix>Tf=, the =#= / =*= recalculation marks with =<prefix>T#=, plots)
+is in [[file:16-spreadsheet.org][16-spreadsheet.org]].
+
+* Further reading
+- =:h org-tables= — the table keys and commands
+- =:h org-table-shrink= — shrinking columns
+- =:h org-table-follow-field= — follow-field and header-line modes
+- =:h org-table-translators= — the =orgtbl-to-*= translators used by
+  =:Org table_export=
+- =:h orgtbl-mode= — tables in other filetypes, radio tables
+- =:h org-table.el= — table.el tables
+- =:h org-keymaps= and =:h org-emacs-keys= — every key
+- =:h org-differences= — where org.nvim differs from Emacs

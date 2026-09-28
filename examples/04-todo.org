@@ -1,0 +1,1005 @@
+#+TITLE: TODO items, logging, repeaters and priorities
+#+STARTUP: overview logdone
+#+CATEGORY: todo
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+SEQ_TODO: REPORT(r) BUG(b) KNOWNCAUSE(k) | FIXED(f!)
+#+PRIORITIES: A E C
+
+* How to use this file
+This file is a hands-on course on TODO items in org.nvim: keywords and
+states, logging, repeating tasks, habits, dependencies, progress cookies,
+tag triggers and priorities. Every top-level heading covers one topic and
+goes from simple to advanced.
+
+Start Neovim from the root of the repository with the bundled init file,
+so nothing touches your own configuration or notes:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/04-todo.org
+#+end_src
+
+What that init file sets up (read =examples/minimal_init.lua=):
+- =<leader>= is =<Space>=, so =<prefix>= (the default =<leader>o=) is
+  =<Space>o=. Everywhere below, =<prefix>a= means =<Space>oa=.
+- =agenda_files= are all the =examples/*.org= files, so the entries of this
+  file show up in the agenda (=<prefix>a=).
+- =enforce_todo_dependencies = true=: a task can't be marked DONE while it
+  has open subtasks (see [[*Dependencies][Dependencies]]).
+- Captures go to a scratch directory, never into this folder.
+
+How to move around:
+- The file opens folded (=#+STARTUP: overview=). =<Tab>= on a heading
+  opens it, =<S-Tab>= cycles the whole buffer.
+- =u= undoes anything. =git checkout examples/04-todo.org= restores the
+  original file when you are done experimenting.
+- =g?= lists every key of the buffer. The usual Emacs keys work too
+  (=C-c C-t= is written =<C-c><C-t>= here).
+- *Try:* marks an exercise, *Expect:* says exactly what you should see.
+  Times like =[2026-09-28 Mon 15:08]= stand for "the date and time when
+  you press the key".
+- Lines starting with =#= and a space are Org comments: notes for you,
+  never exported.
+
+Some options can only be set from Lua. Where an exercise needs one, there
+is a small =lua= source block: put the cursor in it, press =<C-c><C-c>= and
+answer =y=. Lua blocks run inside Neovim, so the change lasts until you quit
+(restart Neovim to go back to the defaults).
+
+** The settings of this file
+The lines at the very top of this file configure it:
+
+#+begin_example
+#+STARTUP: overview logdone
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+SEQ_TODO: REPORT(r) BUG(b) KNOWNCAUSE(k) | FIXED(f!)
+#+PRIORITIES: A E C
+#+end_example
+
+- =logdone= adds a =CLOSED:= timestamp when a task is done.
+- Two keyword sequences: a GTD-style workflow and a bug-tracking workflow.
+- Priorities go from =A= (highest) to =E= (lowest); =C= is the default.
+Each of these is explained in its own section below.
+
+* Keys in this file
+| Key                        | Emacs key     | What it does                |
+|----------------------------+---------------+-----------------------------|
+| =cit= / =ciT=              |               | next / previous TODO state  |
+| =<S-Right>= =<S-Left>=     | same          | same, cursor on a headline  |
+| =<C-c><C-t>=, =<prefix>T=  | =C-c C-t=     | pick a state (fast keys)    |
+| =4<C-c><C-t>=              | =C-u C-c C-t= | change state, force a note  |
+| =<C-S-Right>= =<C-S-Left>= | same          | next / previous keyword set |
+| =<M-S-CR>=, =<prefix>it=   | =<C-S-CR>=    | insert a new TODO heading   |
+| =<C-c><C-z>=               | =C-c C-z=     | add a note to the entry     |
+| =<C-c><C-x>o=              | =C-c C-x o=   | toggle the ORDERED property |
+| =<prefix>#=                | =C-c #=       | update statistics cookies   |
+| =<S-Up>= =<S-Down>=        | same          | raise / lower the priority  |
+| =<C-a>= =<C-x>=            |               | same, cursor on =[#A]=      |
+| =<prefix>,=                | =C-c ,=       | set the priority with a key |
+| =<prefix>/= then =t=       | =C-c / t=     | sparse tree of open TODOs   |
+| =<prefix>a= then =t=       | =C-c a t=     | agenda: global TODO list    |
+
+In the =*Org Note*= window that opens for notes: =<C-c><C-c>= stores the
+note, =<C-c><C-k>= cancels it.
+
+* Keywords: the basics
+** What makes a heading a TODO item
+A heading is a TODO item when its first word is one of the file's TODO
+keywords. Keywords are case sensitive and must come right after the stars
+and a space.
+
+Keywords after the =|= in the definition are "done" states (here =DONE= and
+=CANCELLED=, =FIXED=), the others are "todo" (open) states. The agenda,
+sparse trees and dependencies all use this distinction.
+
+*Try:* put the cursor on "Todo lower-case keywords are just text" and press
+=<S-Right>=.
+*Expect:* the heading becomes =TODO Todo lower-case keywords are just
+text=: the keyword is added in front, the old word stays part of the title.
+
+# These four are TODO items (their keyword is highlighted):
+*** TODO Buy printer paper
+*** NEXT Call the plumber
+*** WAITING Parts for the bike
+*** DONE Renew the library card
+# These three are NOT TODO items:
+*** Todo lower-case keywords are just text
+*** Remember: TODO in the middle of a title is just text
+*** TODOLIST is one word, not the keyword TODO
+
+** Cycling through states with cit / ciT and S-Right / S-Left
+=cit= (or =<S-Right>= with the cursor on a headline) moves to the next
+keyword, =ciT= (or =<S-Left>=) to the previous one. Like Emacs, these
+walk /every/ keyword of /every/ sequence of the file in order, with "no
+keyword" before the first and after the last:
+
+#+begin_example
+(none) → TODO → NEXT → WAITING → DONE → CANCELLED
+       → REPORT → BUG → KNOWNCAUSE → FIXED → (none)
+#+end_example
+
+Entering some states logs something (see [[*Logging state changes]]):
+- entering =WAITING= or =CANCELLED= opens the =*Org Note*= window for a
+  note. Type a note and press =<C-c><C-c>=, or press =<C-c><C-k>= to skip
+  it (the state still changes, nothing is logged);
+- entering =DONE= or =FIXED= adds a =CLOSED:= line and a log line.
+
+*** Cycle me
+# Start here: this heading has no keyword yet.
+*Try:* on "Cycle me", press =cit= twice.
+*Expect:* the heading reads =NEXT Cycle me= (first TODO, then NEXT).
+
+*Try:* press =ciT= twice.
+*Expect:* back to =Cycle me= with no keyword.
+
+*Try:* press =ciT= once more.
+*Expect:* =FIXED Cycle me= (going backwards from "no keyword" wraps to
+the last keyword), with a =CLOSED: [...]= line and a line
+=- State "FIXED"      from ""           [2026-09-28 Mon 15:08]= under it
+(=""= because there was no previous keyword).
+
+** Fast selection with <prefix>T and C-c C-t
+The letters in parentheses in =#+TODO: TODO(t) NEXT(n) ...= are fast
+selection keys. =<C-c><C-t>= (or =<prefix>T=) opens a small menu with
+the keywords of each sequence and their keys; press one key to jump
+straight to that state, or =<Space>= to remove the keyword. =<Esc>=
+cancels.
+
+# Careful with <prefix>T: <prefix>Tc, Tt, Tr, Ts, Tf, Ti ... are table keys.
+Typed quickly, =<prefix>T= followed by =c=, =t=, =r=, =f=, =s= or =i= runs
+a table command (=<prefix>Tc= creates a table!). After =<prefix>T=, wait
+for the menu to appear before pressing the key, or use =<C-c><C-t>=, which
+has no such clash. The exercises below use =<C-c><C-t>=.
+
+| Key | State     | Key | State      |
+|-----+-----------+-----+------------|
+| =t= | TODO      | =r= | REPORT     |
+| =n= | NEXT      | =b= | BUG        |
+| =w= | WAITING   | =k= | KNOWNCAUSE |
+| =d= | DONE      | =f= | FIXED      |
+| =c= | CANCELLED |     |            |
+
+*** TODO Water the office plants
+*Try:* on "Water the office plants", press =<C-c><C-t>= then =n=.
+*Expect:* =NEXT Water the office plants=.
+
+*Try:* press =<C-c><C-t>= then =d=.
+*Expect:* =DONE Water the office plants=, followed by
+=CLOSED: [2026-09-28 Mon 15:08]= and
+=- State "DONE"       from "NEXT"       [2026-09-28 Mon 15:08]=.
+
+*Try:* press =<C-c><C-t>= then =<Space>=.
+*Expect:* the keyword is gone and so is the =CLOSED:= line (the log line
+stays: it is history).
+
+*** A count picks the keyword by number
+=<C-c><C-t>= takes a count like Emacs' prefix argument. A plain number
+=N= jumps to the N-th keyword of the file (in the order shown above), but
+4, 16 and 64 mean =C-u=, =C-u C-u= and =C-u C-u C-u=:
+
+| Count | Emacs         | Effect                                       |
+|-------+---------------+----------------------------------------------|
+| =2=   | =C-2 C-c C-t= | the 2nd keyword (NEXT)                       |
+| =4=   | =C-u C-c C-t= | change the state and always ask for a note   |
+| =16=  | =C-u C-u ...= | switch to the first keyword of the next set  |
+| =64=  | =C-u C-u C-u= | change the state even if the task is blocked |
+
+**** TODO Try the counts on me
+*Try:* on "Try the counts on me", press =2<C-c><C-t>=.
+*Expect:* =NEXT Try the counts on me= (no menu: the count chose).
+
+*Try:* press =16<C-c><C-t>=.
+*Expect:* =REPORT Try the counts on me= and the message
+=Keyword-Set 2/2: REPORT BUG KNOWNCAUSE FIXED=.
+
+*** Without fast keys, C-c C-t cycles inside one sequence
+When no keyword has a key (or with =use_fast_todo_selection = false=),
+=<C-c><C-t>= cycles within the current sequence only: after its last
+keyword the heading has no keyword, and the next =<C-c><C-t>= starts that
+same sequence again. Run this block to switch fast selection off for this
+session:
+
+#+begin_src lua :results silent
+require("org.config").opts.use_fast_todo_selection = false
+#+end_src
+
+**** BUG The login page is slow
+*Try:* run the block above (=<C-c><C-c>= inside it, answer =y=), then on
+"The login page is slow" press =<C-c><C-t>= three times.
+*Expect:* =KNOWNCAUSE=, then =FIXED= (with =CLOSED:= and a log line), then
+no keyword at all. One more =<C-c><C-t>= gives =REPORT=: the bug sequence
+starts again, it does not jump to =TODO=.
+
+# To turn fast selection back on, change false to "auto" above and run it.
+
+** Several keyword sequences
+A file (or your config) can define several sequences. Here the first is a
+personal workflow and the second tracks bugs:
+
+#+begin_example
+#+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+#+SEQ_TODO: REPORT(r) BUG(b) KNOWNCAUSE(k) | FIXED(f!)
+#+end_example
+
+=#+SEQ_TODO:= is a synonym of =#+TODO:=. Each line is one sequence; you can
+also put several on separate =#+TODO:= lines. =<C-S-Right>= /
+=<C-S-Left>= jump to the first keyword of the next / previous sequence
+(this switch is never logged).
+
+*** REPORT Crash when saving an empty file
+*Try:* on "Crash when saving an empty file", press =<C-S-Right>=.
+*Expect:* =TODO Crash when saving an empty file= and the message
+=Keyword-Set 1/2: TODO NEXT WAITING DONE CANCELLED=. Press it again to
+get =REPORT= back.
+
+# Note: some terminals don't send <C-S-Right>. 16<C-c><C-t> does the same.
+
+*** The same sequences in your config
+In Lua the same definition is a list of strings, one per sequence. File
+lines replace the configured keywords for that file.
+
+#+begin_src lua :eval no
+require("org").setup({
+  todo_keywords = {
+    "TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)",
+    "REPORT(r) BUG(b) KNOWNCAUSE(k) | FIXED(f!)",
+  },
+})
+#+end_src
+
+Without any =|=, the last keyword of a sequence is its done state:
+=#+TODO: TODO DOING DONE= has =DONE= as done state.
+
+** Type keywords (#+TYP_TODO)
+A /type/ sequence lists kinds of tasks (often people) instead of steps:
+=#+TYP_TODO: FRED SARA LUCY | DELEGATED=. Then =<C-c><C-t>= goes from no
+keyword to =FRED=, from any person *straight* to =DELEGATED= (the task is
+done, whoever did it), and from =DELEGATED= back to no keyword. Pressing
+=<C-c><C-t>= several times in a row (without moving or editing in between)
+walks the names instead: =FRED=, =SARA=, =LUCY=, ...
+
+Type sequences come first in the list of keywords (Emacs puts
+=#+TYP_TODO:= before =#+TODO:= and =#+SEQ_TODO:=), and =<C-c><C-t>= only
+cycles when no keyword has a fast key, so this exercise switches fast
+selection off first.
+
+# Remove "# " from the next line to enable the type sequence:
+# #+TYP_TODO: FRED SARA LUCY | DELEGATED
+
+#+begin_src lua :results silent
+require("org.config").opts.use_fast_todo_selection = false
+#+end_src
+
+*** Review the budget
+*Try:* delete the =#= and the space in front of =#+TYP_TODO:= above,
+press =<C-c><C-c>= on that line (message "Local setup has been
+refreshed"), run the Lua block, then on "Review the budget" press
+=<C-c><C-t>=.
+*Expect:* =FRED Review the budget=.
+
+*Try:* press =$= (the cursor moves, so the next one is a new command), then
+press =<C-c><C-t>= once.
+*Expect:* =DELEGATED Review the budget= with a =CLOSED:= line: from a
+type it jumps straight to the done state.
+
+*Try:* press =<C-c><C-t>= to clear it, then =<C-c><C-t>= three times
+without moving.
+*Expect:* =FRED=, then =SARA=, then =LUCY=.
+
+When you are done, put the =#= and a space back in front of the
+=#+TYP_TODO:= line and press =<C-c><C-c>= on it again (or =u= until it is
+back).
+
+** Inserting new TODO headings
+- =<M-S-CR>= (Emacs =<C-S-CR>=) on a heading inserts a sibling TODO heading
+  after its subtree, using the first keyword of the first sequence (=TODO=).
+- =<prefix>it= does the same from Normal mode.
+- =<M-CR>= / =<prefix>ih= insert a plain heading; add a keyword later.
+
+*** TODO Pack the suitcase
+*Try:* on "Pack the suitcase", press =<M-S-CR>= and type =Book a taxi=,
+then =<Esc>=.
+*Expect:* a new heading =TODO Book a taxi= after the text of "Pack the
+suitcase" (a new heading always goes after the whole subtree).
+
+* Logging state changes
+** CLOSED timestamps (logdone)
+With =logdone= (on the =#+STARTUP:= line of this file, or =log_done =
+"time"= in your config), entering a done state adds a =CLOSED:= line right
+under the heading. Going back to an open state removes it again.
+
+*** TODO Send the invoice
+*Try:* on "Send the invoice", press =<C-c><C-t>= then =d=.
+*Expect:* three lines:
+#+begin_example
+,*** DONE Send the invoice
+CLOSED: [2026-09-28 Mon 15:08]
+- State "DONE"       from "TODO"       [2026-09-28 Mon 15:08]
+#+end_example
+The =CLOSED:= line comes from =logdone=; the =- State= line comes from the
+=!= in =DONE(d!)=, see the next section.
+
+*Try:* press =<C-c><C-t>= then =t=.
+*Expect:* =TODO Send the invoice=; the =CLOSED:= line is gone (the
+state line stays).
+
+*** DONE Archived last week
+CLOSED: [2026-09-21 Mon 17:30]
+# An already finished task, as it looks in a real file. The agenda log view
+# (<prefix>a a, then l) shows it on Mon 2026-09-21.
+
+Other =#+STARTUP:= words for the same setting:
+| Word          | Effect when a task becomes done          |
+|---------------+------------------------------------------|
+| =logdone=     | add =CLOSED: [timestamp]=                |
+| =lognotedone= | add =CLOSED:= and ask for a closing note |
+| =nologdone=   | nothing (unless the keyword itself logs) |
+
+Like Emacs, =CLOSED:= is only added when =logdone= (or =log_done=) is on:
+a =!= on the DONE keyword alone gives the =- State= line but no
+=CLOSED:=. =closed_keep_when_no_todo = true= keeps =CLOSED:= when the
+keyword is removed completely.
+
+** Timestamps (!) and notes (@) per keyword
+In a keyword definition, the part in parentheses is =(key enter/leave)=:
+
+| Spec            | Meaning                                               |
+|-----------------+-------------------------------------------------------|
+| =DONE(d!)=      | key =d=, log a timestamp when entering DONE           |
+| =CANCELLED(c@)= | key =c=, ask for a note when entering CANCELLED       |
+| =WAITING(w@/!)= | note when entering WAITING, timestamp when leaving it |
+| =NEXT(n)=       | key =n=, nothing logged                               |
+| =X(/!)=         | no key, only log the time when leaving X              |
+
+A logged state change is one list item under the heading:
+#+begin_example
+- State "WAITING"    from "TODO"       [2026-09-22 Tue 09:12] \\
+  Emailed the landlord about the heating.
+#+end_example
+The =\\= ends the heading of the item; the note follows, indented.
+
+*** TODO Get the car repaired
+*Try:* on "Get the car repaired", press =<C-c><C-t>= then =w=. In the
+=*Org Note*= window type =Garage opens on Monday= and press =<C-c><C-c>=.
+*Expect:*
+#+begin_example
+,*** WAITING Get the car repaired
+- State "WAITING"    from "TODO"       [2026-09-28 Mon 15:08] \\
+  Garage opens on Monday
+#+end_example
+
+*Try:* now press =<C-c><C-t>= then =n=.
+*Expect:* a new line on top of the first one (newest first):
+=- State "NEXT"       from "WAITING"    [2026-09-28 Mon 15:08]=. There was
+no note: leaving WAITING only logs the time (=/!=).
+
+*** TODO Old gym membership
+*Try:* press =<C-c><C-t>= then =c=, and in the note window press
+=<C-c><C-k>= (cancel).
+*Expect:* =CANCELLED Old gym membership= with a =CLOSED:= line, but no
+=- State= line: a cancelled note logs nothing, the state change stays.
+
+*** WAITING Reply from the landlord
+- State "WAITING"    from "TODO"       [2026-09-22 Tue 09:12] \\
+  Emailed the landlord about the heating.
+# This is what the result of such a note looks like in a real file.
+
+** Forcing or skipping the note
+- =4<C-c><C-t>= (Emacs =C-u C-c C-t=) asks for a note for this change even
+  if the keyword has no =@=.
+- =:Org todo_without_note= (Emacs =C-0 C-c C-t=) changes the state and
+  records a timestamp where a note would be asked.
+- =<C-c><C-z>= adds a free-form note to the entry at any time.
+
+In the note window, lines starting with =#= and a space are dropped, so
+you can keep reminders there.
+
+*** TODO Plan the team dinner
+*Try:* on "Plan the team dinner", press =4<C-c><C-t>= then =n=, type
+=Waiting for the head count= and press =<C-c><C-c>=.
+*Expect:* =NEXT Plan the team dinner= and a log item
+=- State "NEXT"       from "TODO"       [...] \\= followed by the note.
+
+*Try:* press =<C-c><C-z>=, type =Booked Luigi's for Friday=,
+=<C-c><C-c>=.
+*Expect:* a new item on top:
+=- Note taken on [2026-09-28 Mon 15:08] \\= and your text below it.
+
+*Try:* type =:Org todo_without_note= and press =<CR>=, then =w=.
+*Expect:* =WAITING= with a line
+=- State "WAITING"    from "NEXT"       [...]= and no note window.
+
+** Logging into a drawer (LOG_INTO_DRAWER)
+By default the log items go directly under the heading. They can go into
+a drawer instead, which folds away:
+- =:LOG_INTO_DRAWER: t= on an entry (inherited by its children) uses the
+  =:LOGBOOK:= drawer; =:LOG_INTO_DRAWER: NOTES= uses a drawer called
+  =:NOTES:=; =nil= turns it off again for a subtree;
+- =#+STARTUP: logdrawer= / =nologdrawer= does it for the whole file;
+- =log_into_drawer = true= (or a drawer name) in your config does it
+  everywhere.
+
+*** Tasks that log into LOGBOOK
+:PROPERTIES:
+:LOG_INTO_DRAWER: t
+:END:
+# The property above is inherited by the two tasks below.
+
+**** TODO Order new business cards
+*Try:* on "Order new business cards", press =<C-c><C-t>= then =d=.
+*Expect:* below the heading, the =CLOSED:= line, then a new drawer: a line
+=:LOGBOOK:=, the line =- State "DONE"       from "TODO"       [...]= and a
+line =:END:=. =<Tab>= on the =:LOGBOOK:= line folds the drawer.
+
+**** TODO Update the website
+:LOGBOOK:
+- State "TODO"       from "NEXT"       [2026-09-24 Thu 11:02]
+- State "NEXT"       from "TODO"       [2026-09-23 Wed 16:40]
+:END:
+*Try:* press =<C-c><C-t>= then =w=, type a note, =<C-c><C-c>=.
+*Expect:* the new item appears at the *top* of the existing =:LOGBOOK:=
+(newest first, =log_states_order_reversed = true=, like Emacs;
+=#+STARTUP: nologstatesreversed= appends at the end instead).
+
+** Logging per subtree (LOGGING property)
+The =LOGGING= property overrides logging for a whole subtree (it is
+inherited). Its value is a list of words:
+- =nil= turns logging off completely (no =CLOSED:=, no =- State= lines);
+- =logdone=, =lognotedone=, =nologdone=, =logrepeat=, =lognoterepeat=,
+  =nologrepeat= set done/repeat logging;
+- keyword specs like =WAITING(@) DONE(!)= replace the flags of the
+  keyword definitions. Keywords not listed log nothing here.
+
+*** Quiet area
+:PROPERTIES:
+:LOGGING:  nil
+:END:
+**** TODO Nothing is logged here
+*Try:* press =<C-c><C-t>= then =w= (no note window!), then =<C-c><C-t>= =d=.
+*Expect:* =DONE Nothing is logged here= and nothing else: no note
+window, no =CLOSED:=, no =- State= lines.
+
+*** Notes when done
+:PROPERTIES:
+:LOGGING:  lognotedone
+:END:
+**** TODO Write the release notes
+*Try:* press =<C-c><C-t>= then =d=, type =Published on the blog=,
+=<C-c><C-c>=.
+*Expect:*
+#+begin_example
+,**** DONE Write the release notes
+CLOSED: [2026-09-28 Mon 15:08]
+- CLOSING NOTE [2026-09-28 Mon 15:08] \\
+  Published on the blog
+#+end_example
+The =!= of =DONE(d!)= doesn't apply here: =LOGGING= replaced it.
+
+*** Only DONE is logged, with a timestamp
+:PROPERTIES:
+:LOGGING:  DONE(!) logdone
+:END:
+**** TODO Clean the whiteboard
+*Try:* press =<C-c><C-t>= then =w=.
+*Expect:* no note window (WAITING has no flag in this subtree) and no log.
+
+*Try:* press =<C-c><C-t>= then =d=.
+*Expect:* a =CLOSED:= line and the line
+=- State "DONE"       from "WAITING"    [...]=.
+
+* Repeating tasks
+** Repeaters: +, ++ and .+
+A =SCHEDULED:= or =DEADLINE:= timestamp (or any active timestamp in the
+entry) can carry a repeater. When the task is marked done, org.nvim moves
+the date forward and puts the task back into the first state of its
+sequence (=TODO=), instead of leaving it done.
+
+| Repeater | Meaning                                        | Typical use    |
+|----------+------------------------------------------------+----------------|
+| =+1w=    | shift by 1 week, once                          | pay the rent   |
+| =++1w=   | shift by weeks until the date is in the future | weekly meeting |
+|          | (the weekday stays the same)                   |                |
+| =.+2d=   | shift to 2 days after /today/                  | water plants   |
+
+Units: =h= hours, =d= days, =w= weeks, =m= months, =y= years. Months keep
+the day of the month and roll over like Emacs: January 31 with =+1m=
+becomes March 3.
+
+The change is logged (=log_repeat = "time"=, the default, or
+=#+STARTUP: logrepeat=): a =- State "DONE" from "TODO"= line and a
+=LAST_REPEAT= property with the time. =nologrepeat= / =lognoterepeat=
+switch this off / ask for a note. No =CLOSED:= line is added.
+
+The expected dates below assume you do the exercises on Mon 2026-09-28.
+On another day, =+= gives the same result; for =++= and =.+= the result is
+computed from your today.
+
+*** TODO Pay the rent
+DEADLINE: <2026-10-01 Thu +1m>
+*Try:* on "Pay the rent", press =<C-c><C-t>= then =d=.
+*Expect:* the heading is =TODO= again (not DONE), the deadline shows
+=2026-11-01 Sun +1m=, and under it:
+#+begin_example
+:PROPERTIES:
+:LAST_REPEAT: [2026-09-28 Mon 15:08]
+:END:
+- State "DONE"       from "TODO"       [2026-09-28 Mon 15:08]
+#+end_example
+
+*** TODO Weekly team meeting notes
+SCHEDULED: <2026-09-07 Mon ++1w>
+*Try:* mark "Weekly team meeting notes" done.
+*Expect:* =SCHEDULED:= shows =2026-10-05 Mon ++1w=: three weeks were
+missed, and =++= jumped over all of them to the first Monday after today.
+A plain =+1w= would have given 2026-09-14, still in the past.
+
+*** TODO Water the plants
+SCHEDULED: <2026-09-21 Mon .+3d>
+*Try:* mark "Water the plants" done.
+*Expect:* =SCHEDULED:= shows =2026-10-01 Thu .+3d=: three days after
+/today/, no matter when it was last scheduled.
+
+*** TODO Submit the monthly report
+DEADLINE: <2026-09-30 Wed +1m -5d>
+# -5d is the warning period: the agenda warns 5 days before the deadline.
+*Try:* mark it done.
+*Expect:* =DEADLINE:= shows =2026-10-30 Fri +1m -5d= (the warning period
+stays).
+
+*** TODO Renew the passport
+SCHEDULED: <2026-10-12 Mon +1y> DEADLINE: <2026-11-15 Sun +1y>
+*Try:* mark it done.
+*Expect:* both dates move one year: =2027-10-12 Tue +1y= and
+=2027-11-15 Mon +1y= (org.nvim writes =DEADLINE:= first on the line).
+
+*** TODO Stretching break
+SCHEDULED: <2026-09-28 Mon 10:00 +2h>
+*Try:* mark it done.
+*Expect:* =2026-09-28 Mon 12:00 +2h=, two hours later on the same day.
+
+*** TODO Book club
+Meets on <2026-10-06 Tue 19:00 +1w>.
+*Try:* mark it done.
+*Expect:* the timestamp in the body becomes =2026-10-13 Tue 19:00 +1w=:
+plain active timestamps with a repeater shift too.
+
+** Choosing the state after a repeat (REPEAT_TO_STATE)
+The =REPEAT_TO_STATE= property (or =todo_repeat_to_state= in your config)
+picks the state a repeating task returns to. =todo_repeat_to_state = true=
+returns to the state it had before it was marked done.
+
+*** NEXT Stand-up notes
+SCHEDULED: <2026-09-28 Mon +1d>
+:PROPERTIES:
+:REPEAT_TO_STATE: NEXT
+:END:
+*Try:* mark it done.
+*Expect:* =NEXT Stand-up notes= (not TODO), scheduled
+=2026-09-29 Tue +1d=, and a =LAST_REPEAT= line in the drawer.
+
+** Finishing a repeating task for good
+Marking a repeating task done always repeats it. To stop the series,
+remove the repeater, or use =:Org todo_cancel_repeaters= (Emacs
+=C-- 1 C-c C-t=): it sets every repeater of the entry to 0 and then
+changes the state, so the task stays done.
+
+*** TODO Physiotherapy exercises
+SCHEDULED: <2026-09-29 Tue .+1d>
+*Try:* type =:Org todo_cancel_repeaters= and press =<CR>=, then =d=.
+*Expect:* =DONE Physiotherapy exercises=, and the planning line reads
+=CLOSED: [2026-09-28 Mon 15:08] SCHEDULED:= followed by
+=2026-09-29 Tue .+0d= in angle brackets: the task no longer repeats.
+
+** Habits
+A habit is a repeating task with =:STYLE: habit=. It is scheduled with a
+=.+= repeater, optionally with a maximum interval (=.+2d/4d=: at least
+every 2 days, at most every 4). The agenda draws a consistency graph from
+the past done dates of the entry (the =- State "DONE"= lines):
+
+| Color  | Meaning                                    |
+|--------+--------------------------------------------|
+| blue   | before the scheduled date: not due yet     |
+| green  | due, still within the interval             |
+| yellow | the last day of the interval               |
+| red    | overdue                                    |
+| =*=    | a day the habit was done (=!= marks today) |
+
+Habits show only in today's agenda, and only in the agenda (not in this
+buffer). Habits log into a drawer so the history stays folded.
+
+*** TODO Go for a run
+SCHEDULED: <2026-09-28 Mon .+2d/4d>
+:PROPERTIES:
+:STYLE:    habit
+:LOG_INTO_DRAWER: t
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2026-09-26 Sat 07:30]
+- State "DONE"       from "TODO"       [2026-09-23 Wed 07:10]
+- State "DONE"       from "TODO"       [2026-09-20 Sun 08:05]
+- State "DONE"       from "TODO"       [2026-09-17 Thu 07:20]
+- State "DONE"       from "TODO"       [2026-09-13 Sun 07:45]
+:END:
+*Try:* press =<prefix>a= then =a= (week agenda), go to today.
+*Expect:* under today, a line =todo:       TODO Go for a run= followed by
+a graph starting at column 40 (=agenda.habits.graph_column=), 21 days back
+and 7 ahead: =*= on the five days of the =:LOGBOOK:= and =!= on today,
+colored as in the table above. On a later day the last days turn red: the
+habit is overdue.
+
+*Try:* back here, mark the habit done, then refresh the agenda (=r=).
+*Expect:* =SCHEDULED:= becomes two days from today, and a new
+=- State "DONE"= line is at the top of the =:LOGBOOK:=. The habit is gone
+from today's agenda: it is not due again before that date (habits are only
+shown for today, =agenda.habits.show_habits_only_for_today=).
+
+* Dependencies
+** Children block their parent
+With =enforce_todo_dependencies = true= (set in =examples/minimal_init.lua=)
+a task can't be marked done while any of its child tasks is still open.
+Children without a keyword don't count.
+
+*** TODO Move to the new flat
+*Try:* on "Move to the new flat", press =<C-c><C-t>= then =d=.
+*Expect:* the message
+=TODO state change from TODO to DONE blocked (by has unfinished child
+tasks)= and the heading is unchanged.
+
+*Try:* mark "Hire the movers" done, then "Move to the new flat".
+*Expect:* both are DONE now.
+
+*Try:* on a blocked parent press =64<C-c><C-t>= (Emacs =C-u C-u C-u C-c
+C-t=) and pick =d=.
+*Expect:* the change goes through even though children are open.
+
+**** DONE Sign the lease
+CLOSED: [2026-09-20 Sun 11:00]
+**** TODO Hire the movers
+**** Notes about the neighbourhood
+# No keyword: this child never blocks.
+
+** Ordered subtasks (ORDERED)
+With =:ORDERED: t= on the parent, each child can only be marked done once
+all the siblings before it are done. =<C-c><C-x>o= toggles the property
+(message "Subtasks must be completed in sequence").
+
+*** TODO Bake bread
+:PROPERTIES:
+:ORDERED:  t
+:END:
+*Try:* mark "Bake for 40 minutes" done.
+*Expect:* the message
+=TODO state change from TODO to DONE blocked (by previous sibling
+(ORDERED) is not done: Mix the dough)=: it names the first open sibling.
+
+*Try:* mark "Mix the dough" done, then "Let it rise", then "Bake for 40
+minutes", then "Bake bread".
+*Expect:* each one works in this order.
+
+*Try:* on "Bake bread", press =<C-c><C-x>o=.
+*Expect:* the =:ORDERED:= line disappears and the message
+"Subtasks can be completed in arbitrary order".
+
+**** TODO Mix the dough
+**** TODO Let it rise
+**** TODO Bake for 40 minutes
+
+** The BLOCKED special property and NOBLOCKING
+The special property =BLOCKED= is =t= for an open task that can't be
+marked done right now, empty otherwise. Use it in searches, e.g. the
+agenda match =BLOCKED="t"= (=<prefix>a= then =m=). A =:NOBLOCKING: t=
+property switches blocking off for one entry.
+
+*** TODO Launch the website
+:PROPERTIES:
+:NOBLOCKING: t
+:END:
+*Try:* mark "Launch the website" done.
+*Expect:* it works although its child is open, thanks to =NOBLOCKING=.
+
+**** TODO Write the privacy page
+
+*** TODO Paint the fence
+*Try:* press =<prefix>a= then =m=, type =BLOCKED="t"= and =<CR>=.
+*Expect:* "Paint the fence" is listed (its child is open), "Buy paint" is
+not.
+
+**** TODO Buy paint
+
+** Checkboxes can block too
+=enforce_todo_checkbox_dependencies = true= also blocks a task while its
+body has unchecked (=[ ]=) or partial (=[-]=) checkboxes. It is off by
+default; run this block to switch it on for this session:
+
+#+begin_src lua :results silent
+require("org.config").opts.enforce_todo_checkbox_dependencies = true
+#+end_src
+
+*** TODO Pack for the trip [1/3]
+- [X] Passport
+- [ ] Charger
+- [ ] Toothbrush
+*Try:* run the block, then mark "Pack for the trip" done.
+*Expect:* =... blocked (by contained checkboxes)=.
+
+*Try:* check the other two boxes with =<C-Space>= on each, then mark it
+done.
+*Expect:* the cookie shows =[3/3]= and the task becomes DONE.
+
+* Progress: statistics cookies
+** Counting child tasks: [/] and [%]
+A =[/]= or =[%]= cookie anywhere in a heading shows how many of its direct
+children with a TODO keyword are done. It is updated whenever a child
+changes state; =<prefix>#= (=<C-c>#=) or =<C-c><C-c>= on the cookie
+updates it by hand, and =4<prefix>#= updates every cookie of the buffer.
+
+*** TODO Organise the conference [1/4]
+Done states all count as done, CANCELLED included.
+
+*Try:* on the cookie =[1/4]= press =<C-c><C-c>=.
+*Expect:* =[2/4]=: the cookie was out of date on purpose (CANCELLED is a
+done state too).
+
+*Try:* mark "Invite the speakers" done.
+*Expect:* =[3/4]=.
+
+**** DONE Choose a venue
+CLOSED: [2026-09-15 Tue 10:00]
+**** TODO Invite the speakers
+**** TODO Open registration
+**** CANCELLED Print T-shirts
+CLOSED: [2026-09-16 Wed 09:00]
+**** Ideas for the logo
+# No keyword: not counted.
+
+*** TODO Renovate the kitchen [0%]
+*Try:* mark the children done one by one.
+*Expect:* =[33%]=, =[66%]=, =[100%]= (percentages are rounded down).
+
+**** TODO Remove the old cabinets
+**** TODO Install the new sink
+**** TODO Paint the walls
+
+*** Both cookies on one heading [/] [%]
+*Try:* press =<C-c><C-c>= on either cookie.
+*Expect:* =[1/2] [50%]=.
+
+**** DONE Step one
+CLOSED: [2026-09-25 Fri 12:00]
+**** TODO Step two
+
+*** A cookie on a leaf [/]
+*Try:* with the cursor on this heading, press =<prefix>#=.
+*Expect:* =[0/0]=: no children, nothing to count.
+
+** Counting the whole subtree (COOKIE_DATA recursive)
+By default only direct children count. =:COOKIE_DATA: recursive= on the
+heading counts every TODO of its subtree; the option
+=hierarchical_todo_statistics = false= does it for all cookies.
+
+*** TODO Release version 2.0 [0/5]
+:PROPERTIES:
+:COOKIE_DATA: recursive
+:END:
+# The five TODO entries below the heading (all levels) are counted.
+
+*Try:* press =<C-c><C-c>= on =[0/5]=.
+*Expect:* =[1/5]= (one of the five is done).
+
+*Try:* mark "Linux" done.
+*Expect:* =[2/5]=; "Test on all platforms" can now be marked done too.
+
+**** TODO Freeze the features
+***** DONE Merge the last pull requests
+CLOSED: [2026-09-24 Thu 18:00]
+***** TODO Update the changelog
+**** TODO Test on all platforms
+***** TODO Linux
+
+** Checkboxes vs TODO children (COOKIE_DATA todo / checkbox)
+When the body of a heading has checkboxes, its cookie counts the
+checkboxes instead (see =03-lists.org=). =:COOKIE_DATA: todo= forces
+counting child tasks, =:COOKIE_DATA: checkbox= forces checkboxes.
+
+*** TODO Prepare the talk [0/2]
+:PROPERTIES:
+:COOKIE_DATA: todo
+:END:
+- [X] Pick a title
+- [X] Write the abstract
+- [X] Book the room
+*Try:* press =<C-c><C-c>= on the cookie.
+*Expect:* still =[0/2]=: the two child tasks are counted, not the three
+checked boxes. Delete the =:COOKIE_DATA:= line (and the now empty drawer),
+press =<C-c><C-c>= on the cookie again: =[3/3]=.
+
+**** TODO Write the slides
+**** TODO Rehearse
+
+** Automatic parent state (after_todo_statistics_hooks)
+Emacs users often add =org-summary-todo=, which marks the parent DONE when
+all its children are done. In org.nvim this is the Lua option
+=after_todo_statistics_hooks=. Run the block to try it:
+
+#+begin_src lua :results silent
+require("org.config").opts.after_todo_statistics_hooks = {
+  function(n_done, n_not_done, target)
+    require("org.todo").change_state(target,
+      n_not_done == 0 and "DONE" or "TODO", { no_log = true })
+  end,
+}
+#+end_src
+
+*** TODO Weekend chores [0/2]
+*Try:* run the block, then mark "Vacuum" and "Laundry" done.
+*Expect:* after the second one, the parent turns into
+=DONE Weekend chores [2/2]= by itself. Set a child back to TODO and
+the parent goes back to TODO.
+
+# Run this to turn it off again:
+#+begin_src lua :results silent
+require("org.config").opts.after_todo_statistics_hooks = {}
+#+end_src
+
+**** TODO Vacuum
+**** TODO Laundry
+
+* Tags that follow the state (todo_state_tags_triggers)
+=todo_state_tags_triggers= adds or removes tags when the state changes
+(Emacs =org-todo-state-tags-triggers=). The keys are a keyword, ="todo"=
+(any open state), ="done"= (any done state) or =""= (no keyword); the
+values map tags to =true= (add) or =false= (remove). The changes of the
+keyword itself are applied first, then those of ="todo"= / ="done"=, so a
+="todo"= entry that removes =waiting= would also undo =WAITING='s own
+tag: that is why the block below names =TODO= and =NEXT= instead. It is a
+Lua option; run the block to set it for this session:
+
+#+begin_src lua :results silent
+require("org.config").opts.todo_state_tags_triggers = {
+  WAITING = { waiting = true },
+  CANCELLED = { cancelled = true },
+  TODO = { waiting = false, cancelled = false },
+  NEXT = { waiting = false, cancelled = false },
+  done = { waiting = false },
+}
+#+end_src
+
+** TODO Ask for the reimbursement
+*Try:* run the block, then on "Ask for the reimbursement" press
+=<C-c><C-t>= =w= (type any note, =<C-c><C-c>=).
+*Expect:* the heading gets the tag =:waiting:= at the right margin.
+
+*Try:* press =<C-c><C-t>= =t=.
+*Expect:* the =:waiting:= tag is removed again.
+
+*Try:* press =<C-c><C-t>= =c= (any note).
+*Expect:* the tag =:cancelled:= is added.
+
+* Reacting to state changes (autocmds)
+Every state change fires the =User= autocmd =OrgTodoStateChange= (Emacs
+=org-after-todo-state-change-hook=); a repeating task marked done also
+fires =OrgTodoRepeat=. =ev.data= has =from=, =to=, =done=, =repeated=,
+=bufnr= and =lnum=.
+
+#+begin_src lua :results silent
+vim.api.nvim_create_autocmd("User", {
+  pattern = "OrgTodoStateChange",
+  callback = function(ev)
+    local d = ev.data
+    vim.notify(("%s -> %s"):format(d.from or "none", d.to or "none"))
+  end,
+})
+#+end_src
+
+** TODO Watch the message line
+*Try:* run the block, then press =cit= on "Watch the message line".
+*Expect:* the message =TODO -> NEXT=.
+
+* Priorities
+** Priority cookies and the range
+A priority is a cookie like =[#A]= right after the keyword (or right after
+the stars when there is no keyword). By default the range is =A= (highest)
+to =C= (lowest) and a heading without a cookie counts as =B=. This file
+widens it with:
+
+#+begin_example
+#+PRIORITIES: A E C
+#+end_example
+
+i.e. highest =A=, lowest =E=, default =C=. In your config:
+=priority_highest = "A"=, =priority_lowest = "E"=,
+=priority_default = "C"=.
+
+Priorities sort the agenda: in the global TODO list (=<prefix>a t=) the
+tasks below come in the order A, B, C (the one without cookie), D. The
+=[#E]= heading has no keyword, so it is not a TODO item and isn't listed.
+
+*** TODO [#A] Fix the production outage
+*** TODO [#B] Review the pull request
+*** TODO [#D] Clean up the downloads folder
+*** [#E] A heading without keyword can have a priority too
+*** TODO No priority: treated as the default C
+
+** Changing it: S-Up / S-Down, C-a / C-x, <prefix>,
+- =<S-Up>= / =<S-Down>= on a headline raise / lower the priority. From no
+  cookie, the first press sets the default (=C= here). Past =A= (or past
+  =E=) the cookie is removed, and one more press in the same direction
+  wraps around to the other end.
+- =<C-a>= / =<C-x>= with the cursor *on* the =[#B]= cookie do the same.
+- =<prefix>,= (=<C-c>,=) asks for a letter: =a= to =e= set it (upper or
+  lower case), =<Space>= removes it.
+- =4<prefix>,= (=C-u C-c ,=) and =:Org priority_show= show the priority
+  value Emacs sorts by: 1000 × (lowest − priority). Here =E= is the
+  lowest, so =[#A]= is =4000=, =[#C]= (and no cookie) =2000=.
+
+*** TODO Call the insurance
+*Try:* on "Call the insurance", press =<S-Up>=.
+*Expect:* =TODO [#C] Call the insurance= (the default).
+
+*Try:* press =<S-Up>= twice more, then once more.
+*Expect:* =[#B]=, =[#A]=, then the cookie is removed (message "Priority
+removed").
+
+*Try:* press =<S-Up>= again.
+*Expect:* =[#E]=: it wrapped around to the lowest priority.
+
+*** TODO [#B] Order a new keyboard
+*Try:* put the cursor on the =B= of =[#B]= and press =<C-x>=, then =<C-a>=
+twice.
+*Expect:* =[#C]=, then =[#B]=, then =[#A]=.
+
+*Try:* press =<prefix>,= then =d=.
+*Expect:* =[#D]=. With =<prefix>,= then =<Space>= the cookie disappears.
+=<prefix>,= then =z= says "Priority must be between A and E".
+
+*Try:* press =4<prefix>,=.
+*Expect:* the message "Priority is 1000" for =[#D]= (1000 × (E − D)).
+
+** Numeric priorities
+Priorities can also be numbers from 0 to 64, like Emacs:
+=#+PRIORITIES: 1 10 5= uses =[#1]= (highest) .. =[#10]= (lowest), default
+=[#5]=. With a two-digit range, =<prefix>,= asks for the number in a
+prompt.
+
+*** TODO A task for numeric priorities
+*Try:* change the header line of this file to =#+PRIORITIES: 1 10 5=,
+press =<C-c><C-c>= on it, then on this heading press =<prefix>,=, type =3=
+and press =<CR>=.
+*Expect:* =TODO [#3] A task for numeric priorities=.
+
+*Try:* press =<S-Down>=, then =<S-Up>= twice.
+*Expect:* =[#4]=, then =[#3]=, then =[#2]=.
+
+Put the header back to =#+PRIORITIES: A E C= (and =<C-c><C-c>= on it)
+afterwards; with the numeric range, the letter cookies of this file are
+out of range, and =:Org lint= reports them.
+
+* Finding TODO items
+- =<prefix>/= then =t= (Emacs =<C-c>/ t=): sparse tree of every open TODO
+  in this buffer; =T= asks for keywords, e.g. =WAITING|NEXT=.
+- =<prefix>a= then =t=: the global TODO list of all agenda files; =T=
+  asks for keywords. In the list, =t= changes the state of the entry at
+  point, =,= its priority.
+- =<prefix>a= then =m=: a tags/property match, e.g. =TODO="WAITING"= or
+  =PRIORITY="A"=, or =+work/NEXT= (tag work, keyword NEXT).
+See =10-sparse-trees.org= and =09-agenda.org=.
+
+*Try:* press =<prefix>/= then =t=.
+*Expect:* the buffer folds so that only open TODO entries (and their
+parents) are visible, highlighted. =<C-c><C-c>= removes the highlights.
+
+*Try:* press =<prefix>/= then =T=, type =WAITING= and =<CR>=.
+*Expect:* only the WAITING entries of this file are shown.
+
+* Further reading
+- =:h org-todo= – keywords, logging, =C-c C-t= counts
+- =:h org-logging-property= – the LOGGING property
+- =:h org-todo-tags-triggers= and =:h org-todo-events= – triggers, autocmds
+- =:h org-repeat= – repeaters
+- =:h org-todo-dependencies= and =:h org-todo-statistics=
+- =:h org-priority= (in the same section as =org-todo=)
+- =:h org-agenda-contents= – habits in the agenda
+- =:h org-differences= – what differs from Emacs Org
+- Related example files: [[file:03-lists.org][03-lists]] (checkboxes),
+  [[file:05-tags.org][05-tags]], [[file:07-dates.org][07-dates]]
+  (scheduling), [[file:09-agenda.org][09-agenda]],
+  [[file:10-sparse-trees.org][10-sparse-trees]].

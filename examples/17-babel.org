@@ -1,0 +1,1584 @@
+#+TITLE: Source blocks (Babel) in depth
+#+STARTUP: overview
+#+CATEGORY: babel
+#+PROPERTY: header-args:lua :exports both
+
+* How to use this file
+Babel runs the code in =#+begin_src= blocks and writes what the code returns
+or prints back into the file, under a =#+RESULTS:= line. Blocks can take
+arguments (=:var=), call each other, include each other (noweb), share a
+live interpreter (=:session=) and be written out to source files
+(tangling). This file walks through all of it, from the first
+=<C-c><C-c>= to tangling a small program.
+
+- The file starts folded. =<Tab>= on a heading opens it, =<S-Tab>= cycles
+  the whole buffer.
+- Nothing breaks if you make a mess: =u= undoes, and
+  =git checkout examples/17-babel.org= restores the file.
+- =<prefix>= means =<leader>o= (the default =mappings.prefix=). =g?= lists
+  every key of the buffer, =<prefix>bh= only the Babel ones.
+- The Emacs keys work too: =C-c C-v e=, =C-c C-v t= ... (=:h org-emacs-keys=).
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see afterwards. Lines starting with =# = are Org comments that annotate the
+  examples; they are never exported.
+- Most blocks already show a =#+RESULTS:=, produced by org.nvim itself.
+  Running them again replaces the result with the same text (unless the
+  block prints the time or a random number). Remove a result with
+  =<prefix>bk= to watch it come back.
+
+Start Neovim from the repo root with the bundled init file, so your own
+config is not involved:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/17-babel.org
+#+end_src
+
+Tangling writes files into =examples/17-babel-out/=, a directory next to
+this file. Delete it when you are done: =rm -r examples/17-babel-out=.
+
+** Which interpreters you need
+Lua blocks run *inside Neovim*: they always work, need nothing installed,
+and can use the whole =vim= API. =sh= needs a POSIX shell, which every
+Unix-like system has. All the exercises use one of these two. A few
+examples show other languages; they only run when the interpreter is on
+your =$PATH=:
+
+| Language     | Interpreter                 | Notes                          |
+|--------------+-----------------------------+--------------------------------|
+| =lua=        | none (inside Neovim)        | =print= goes to the output     |
+| =sh= =bash=  | =sh= / =bash=               | also =zsh=, =fish=             |
+| =python=     | =python3=                   | =:python= picks another binary |
+| =js=         | =node=                      | =:cmd= picks another binary    |
+| =ruby=       | =ruby= (=irb= for sessions) |                                |
+| =sqlite=     | =sqlite3=                   | =:db= names the database       |
+| =awk= =perl= | =awk= / =perl=              |                                |
+| =C= =cpp=    | =gcc= / =g++=               | compiled, then run             |
+| =emacs-lisp= | =emacs --batch=             | runs in a separate Emacs       |
+
+=:checkhealth org= reports which of them it found.
+
+** Keys in this file
+| Key                         | Emacs               | What it does                        |
+|-----------------------------+---------------------+-------------------------------------|
+| =<C-c><C-c>= / =<prefix>be= | =C-c C-v e=         | run the block / #+CALL / inline src |
+| =<prefix>bb=                | =C-c C-v b=         | run every block of the buffer       |
+| =<prefix>bs=                | =C-c C-v s=         | run every block of the subtree      |
+| =<prefix>bk=                | =C-c C-v k=         | remove the result                   |
+| =<prefix>bn= / =<prefix>bp= | =C-c C-v n/p=       | next / previous block               |
+| =<prefix>bu=                | =C-c C-v u=         | go to the =#+begin_src= line        |
+| =<prefix>bg= / =<prefix>br= | =C-c C-v g/r=       | go to a named block / result        |
+| =<prefix>'=                 | =C-c '=             | edit the block in its own buffer    |
+| =<prefix>bv=                | =C-c C-v v=         | show the expanded body              |
+| =<prefix>bI=                | =C-c C-v I=         | show the merged header arguments    |
+| =<prefix>bc=                | =C-c C-v c=         | check for misspelt header args      |
+| =<prefix>bj=                | =C-c C-v j=         | insert a header argument            |
+| =<prefix>bd=                | =C-c C-v d=         | split / wrap / insert a block       |
+| =<prefix>ba=                | =C-c C-v a=         | show the block's hash               |
+| =<prefix>bo=                | =C-c C-v o=         | open the result                     |
+| =<prefix>bm=                | =C-c C-v C-M-h=     | select the block body               |
+| =<prefix>bt= / =<prefix>bf= | =C-c C-v t/f=       | tangle this file / another file     |
+| =<prefix>bi=                | =C-c C-v i=         | add blocks to the Library of Babel  |
+| =<prefix>bz= / =<prefix>bZ= | =C-c C-v C-z= / =z= | show the session                    |
+| =<prefix>bl=                | =C-c C-v l=         | run in the session and show it      |
+| =<prefix>bK=                |                     | kill the session                    |
+| =<Tab>= on =#+RESULTS:=     |                     | fold / unfold the result            |
+
+* Running a block
+A source block starts with =#+begin_src LANG= followed by optional header
+arguments, and ends with =#+end_src=. Put the cursor *anywhere* in it (on
+the =#+begin_src= line, in the body, or on =#+end_src=) and press
+=<C-c><C-c>= (or =<prefix>be=). The block runs in the background; while it
+runs, =⏳ executing…= is shown at the end of the =#+end_src= line.
+
+The simplest block: a Lua expression. Its value is the result.
+
+#+begin_src lua
+1 + 2
+#+end_src
+
+#+RESULTS:
+: 3
+
+A Lua block can also =return= a value, and use the =vim= API:
+
+#+begin_src lua
+return "Neovim " .. vim.version().major .. "." .. vim.version().minor
+#+end_src
+
+#+RESULTS:
+: Neovim 0.13
+
+*Try:* put the cursor on the =1 + 2= line above and press =<C-c><C-c>=.
+Answer =y= to the question "Evaluate this lua code block on your system?".
+
+*Expect:* the block below it now reads =#+RESULTS:= followed by =: 3=. The
+=: = prefix marks a one-line fixed-width result.
+
+*Try:* change =1 + 2= to =6 * 7= and run it again.
+
+*Expect:* the old result is *replaced* by =: 42=; it does not pile up.
+
+** The confirmation prompt
+By default you are asked before every evaluation (Emacs
+=org-confirm-babel-evaluate=). This is the option =babel.confirm_evaluate=:
+
+#+begin_src lua :eval no
+require("org").setup({
+  babel = {
+    -- never ask:
+    confirm_evaluate = false,
+    -- or: ask for everything except Lua
+    -- confirm_evaluate = function(lang, body) return lang ~= "lua" end,
+  },
+})
+#+end_src
+
+*Try:* to stop the prompts for this session only, run this command:
+=:lua require("org.config").opts.babel.confirm_evaluate = false=
+
+*Expect:* =<C-c><C-c>= on a block runs it at once, without a question.
+Restart Neovim to get the prompt back.
+
+The =:eval= header argument controls one block:
+
+| =:eval=        | Effect                                      |
+|----------------+---------------------------------------------|
+| (none) / =yes= | ask if =confirm_evaluate= says so, then run |
+| =query=        | always ask, even when prompts are off       |
+| =no= / =never= | never run (also =:noeval=)                  |
+| =never-export= | run by hand, but not when exporting         |
+| =query-export= | ask when exporting                          |
+
+# This block can never run: C-c C-c does nothing but warn.
+#+begin_src lua :eval no
+return "you will never see me"
+#+end_src
+
+*Try:* press =<C-c><C-c>= in the =:eval no= block above.
+
+*Expect:* nothing is inserted; a message says evaluation is disabled.
+
+** Removing and folding results
+- =<prefix>bk= in a block deletes its result. With a count
+  (=1<prefix>bk=, Emacs =C-u C-c C-v k=) it deletes every result in the
+  buffer.
+- =<Tab>= on a =#+RESULTS:= line folds the result;
+  =:Org babel_hide_all_results= folds all of them.
+
+#+begin_src lua
+return { "alpha", "beta", "gamma", "delta" }
+#+end_src
+
+#+RESULTS:
+| alpha | beta | gamma | delta |
+
+*Try:* put the cursor in the block above and press =<prefix>bk=.
+
+*Expect:* the =#+RESULTS:= line and the four-column table under it are
+gone. Press =<C-c><C-c>= to bring them back, then =<Tab>= on the
+=#+RESULTS:= line to fold and unfold them.
+
+** Running many blocks at once
+- =<prefix>bb= runs every block (and =#+CALL:= line and inline block) of
+  the buffer, from top to bottom.
+- =<prefix>bs= runs every block of the current subtree.
+
+Each one is confirmed unless prompts are off. Blocks with =:eval no= are
+skipped. Don't use =<prefix>bb= on this whole file before the "Library of
+Babel" exercise: its =#+CALL:= lines stop the run with an error until the
+library is loaded, and the session blocks start shells.
+
+*Try:* on the "Running a block" heading press =<prefix>bs=.
+
+*Expect:* every block of this section runs once (answer =y= each time);
+the =:eval no= blocks are skipped and keep having no result.
+
+** Moving between blocks
+| Key          | Moves to                               |
+|--------------+----------------------------------------|
+| =<prefix>bn= | the next =#+begin_src= line            |
+| =<prefix>bp= | the previous =#+begin_src= line        |
+| =<prefix>bu= | the head of the block the cursor is in |
+| =<prefix>bg= | a named block (asks for the name)      |
+| =<prefix>br= | a named result (asks for the name)     |
+| =<prefix>bm= | selects the block body in Visual mode  |
+
+*Try:* on this line press =<prefix>bp= twice, then =<prefix>bn=.
+
+*Expect:* the cursor jumps from =#+begin_src= line to =#+begin_src= line.
+=<prefix>bg= then =square= jumps to the =square= block in "Named blocks".
+
+* Languages
+The language after =#+begin_src= picks the interpreter. The plugin enables
+shells, python, lua, js/ts, ruby, perl, php, R, go, rust, sqlite, sql, C,
+C++, D, awk and emacs-lisp out of the box (=babel.languages=).
+
+** Lua: runs inside Neovim
+Lua needs nothing installed. A block that is a single expression returns
+its value; otherwise use =return=. =print= goes to the output (see
+"Results").
+
+#+begin_src lua
+local words = vim.split("the quick brown fox", " ")
+return #words .. " words, longest: " .. vim.iter(words):fold("", function(a, w)
+  return #w > #a and w or a
+end)
+#+end_src
+
+#+RESULTS:
+: 4 words, longest: quick
+
+Several return values are joined with =, =; =nil= gives =nil=:
+
+#+begin_src lua
+return "a", 2, true
+#+end_src
+
+#+RESULTS:
+: a, 2, true
+
+#+begin_src lua
+return nil
+#+end_src
+
+#+RESULTS:
+: nil
+
+A Lua table that is a list becomes an Org list-table (one row); a list of
+lists becomes a table; a table with keys becomes a two-column table sorted
+by key:
+
+#+begin_src lua
+return { { "x", "x²" }, { 1, 1 }, { 2, 4 }, { 3, 9 } }
+#+end_src
+
+#+RESULTS:
+| x | x² |
+| 1 |  1 |
+| 2 |  4 |
+| 3 |  9 |
+
+#+begin_src lua
+return { lang = "lua", version = 5.1, jit = jit ~= nil }
+#+end_src
+
+#+RESULTS:
+| jit     | true |
+| lang    | lua  |
+| version | 5.1  |
+
+*Try:* in the key/value block above add =, os = jit.os= before the closing brace and
+press =<C-c><C-c>=.
+
+*Expect:* a fourth row appears, sorted between =lang= and =version=, with
+your OS name (=OSX=, =Linux= or =Windows=).
+
+Because the code runs in the editor, a block can act on the editor. This
+one counts the headings of this very file:
+
+#+begin_src lua
+local n = 0
+for _, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+  if l:match("^%*+ ") then n = n + 1 end
+end
+return n .. " headings in this file"
+#+end_src
+
+#+RESULTS:
+: 50 headings in this file
+
+(=os.exit()= or an endless loop would affect Neovim itself, and
+=babel.timeout= cannot stop Lua code.)
+
+** Shell
+Shell blocks run =sh= (or =bash=, =zsh=, =fish=). By default their
+*output* is the result, and it is read like data: one line stays text,
+several lines become a table split at tabs, commas or runs of spaces.
+
+#+begin_src sh
+echo "hello from sh"
+#+end_src
+
+#+RESULTS:
+: hello from sh
+
+#+begin_src sh
+printf 'apples 3\nbananas 12\ncherries 7\n'
+#+end_src
+
+#+RESULTS:
+| apples   |  3 |
+| bananas  | 12 |
+| cherries |  7 |
+
+Add =:results output= to keep the text as it is (see "Results"):
+
+#+begin_src sh :results output
+printf 'apples 3\nbananas 12\ncherries 7\n'
+#+end_src
+
+#+RESULTS:
+: apples 3
+: bananas 12
+: cherries 7
+
+*Try:* in the block above, change =:results output= to =:results value=
+and run it.
+
+*Expect:* the result becomes =: 0=: for shells, the "value" is the exit
+status. Put back =output=.
+
+Errors: what a program writes to stderr (and a non-zero exit code) goes to
+the =*Org-Babel Error Output*= buffer in a split; the result keeps only the
+standard output.
+
+#+begin_src sh :results output
+echo "this goes to the result"
+echo "this goes to the error buffer" >&2
+exit 3
+#+end_src
+
+*Try:* run the block above.
+
+*Expect:* =: this goes to the result= under =#+RESULTS:=, and a split
+named =*Org-Babel Error Output*= that shows the stderr line and the exit
+code 3.
+
+** Other languages (need their interpreter)
+These show the same idea in other languages. They only run when the
+interpreter is installed; the results here were produced by org.nvim.
+
+# Needs python3. A Python *value* block: the body is a function body.
+#+begin_src python
+return [[n, n**2] for n in range(1, 4)]
+#+end_src
+
+#+RESULTS:
+| 1 | 1 |
+| 2 | 4 |
+| 3 | 9 |
+
+# Needs node.
+#+begin_src js :results output
+console.log(["a", "b", "c"].map((s) => s.toUpperCase()).join("-"))
+#+end_src
+
+#+RESULTS:
+: A-B-C
+
+# Needs ruby.
+#+begin_src ruby
+[1, 2, 3].sum * 10
+#+end_src
+
+#+RESULTS:
+: 60
+
+# Needs sqlite3. :colnames yes keeps the column names as a header.
+#+begin_src sqlite :colnames yes
+select 'Mon' as day, 3 as tasks union all select 'Tue', 5;
+#+end_src
+
+#+RESULTS:
+| day | tasks |
+|-----+-------|
+| Mon |     3 |
+| Tue |     5 |
+
+# Needs awk.
+#+begin_src awk :results output
+BEGIN { for (i = 1; i <= 3; i++) printf "%d%s", i * i, (i < 3 ? " " : "\n") }
+#+end_src
+
+#+RESULTS:
+: 1 4 9
+
+Emacs-lisp blocks run in a separate =emacs --batch= (not in the editor),
+and fall back to the formula interpreter of tables when Emacs is missing.
+
+* Results
+The =:results= header argument decides four things, which can be combined
+in one value (=:results output table replace=):
+
+| Group      | Values                                                        |
+|------------+---------------------------------------------------------------|
+| collection | =value= (default), =output=                                   |
+| type       | =table= (=vector=), =list=, =verbatim=, =scalar=, =file=      |
+| format     | =raw=, =org=, =drawer=, =html=, =latex=, =code=, =pp=, =link= |
+| handling   | =replace= (default), =append=, =prepend=, =silent=, =none=    |
+
+** value versus output
+=value= is what the code returns, =output= what it prints.
+
+# The value of this block is the returned string; print is ignored.
+#+begin_src lua :results value
+print("printed")
+return "returned"
+#+end_src
+
+#+RESULTS:
+: returned
+
+# The same block with :results output: only the printed text.
+#+begin_src lua :results output
+print("printed")
+return "returned"
+#+end_src
+
+#+RESULTS:
+: printed
+
+** Types: table, list, verbatim, scalar
+A list-like value becomes a table unless you ask otherwise.
+
+# Default: a Lua list becomes a one-row table.
+#+begin_src lua
+return { "red", "green", "blue" }
+#+end_src
+
+#+RESULTS:
+| red | green | blue |
+
+# :results list: a plain Org list.
+#+begin_src lua :results list
+return { "red", "green", "blue" }
+#+end_src
+
+#+RESULTS:
+- red
+- green
+- blue
+
+# :results verbatim: the text as it is, never turned into a table.
+#+begin_src sh :results verbatim
+printf 'a b\nc d\n'
+#+end_src
+
+#+RESULTS:
+: a b
+: c d
+
+# :results table: a single value becomes a one-cell table. (A single
+# line of shell output is never split into cells.)
+#+begin_src sh :results table
+echo "one two three"
+#+end_src
+
+#+RESULTS:
+| one two three |
+
+# :results scalar: the list is shown as text (its Lisp form, as in Emacs)
+# instead of a table.
+#+begin_src lua :results scalar
+return { 1, 2, 3 }
+#+end_src
+
+#+RESULTS:
+: (1 2 3)
+
+Long text (=babel.min_lines_for_block_output=, 10 lines by default) goes
+into an example block instead of =: = lines:
+
+#+begin_src lua :results output
+for i = 1, 12 do print("line " .. i) end
+#+end_src
+
+#+RESULTS:
+#+begin_example
+line 1
+line 2
+line 3
+line 4
+line 5
+line 6
+line 7
+line 8
+line 9
+line 10
+line 11
+line 12
+#+end_example
+** Formats: raw, org, drawer, html, code
+By default text is quoted with =: =. Other formats insert it differently:
+
+# raw: inserted as Org text. The *bold* is real markup now.
+#+begin_src lua :results raw
+return "This is *bold* and /italic/."
+#+end_src
+
+#+RESULTS:
+This is *bold* and /italic/.
+
+# drawer: raw text inside :results: ... :end:, so it can be replaced
+# cleanly later (raw text has no clear end).
+#+begin_src lua :results drawer
+return "- item one\n- item two"
+#+end_src
+
+#+RESULTS:
+:results:
+- item one
+- item two
+:end:
+
+# org: inside #+begin_src org ... #+end_src (exported as Org text).
+#+begin_src lua :results org
+return "| a | b |\n| 1 | 2 |"
+#+end_src
+
+#+RESULTS:
+#+begin_src org
+| a | b |
+| 1 | 2 |
+#+end_src
+
+# html: inside #+begin_export html (passed through by the HTML export).
+#+begin_src lua :results html
+return "<b>bold</b>"
+#+end_src
+
+#+RESULTS:
+#+begin_export html
+<b>bold</b>
+#+end_export
+
+# code: inside a src block of the same language.
+#+begin_src lua :results code
+return "print('generated code')"
+#+end_src
+
+#+RESULTS:
+#+begin_src lua
+print('generated code')
+#+end_src
+
+*Try:* run the =raw= block above twice.
+
+*Expect:* the text appears *twice*: a raw result has no end marker, so it
+cannot be found and replaced. That is what =drawer= is for: run the drawer
+block twice and it stays single.
+
+** :wrap
+=:wrap= wraps the result in any block: =:wrap= alone uses
+=#+begin_results=, =:wrap src json= a JSON src block, =:wrap example= an
+example block, =:wrap export html= an export block. Avoid =:wrap quote= or
+=:wrap center=: like in Emacs, those blocks are not recognised as a result,
+so every run adds another one instead of replacing it.
+
+#+begin_src lua :wrap src json
+return vim.json.encode({ answer = 42 })
+#+end_src
+
+#+RESULTS:
+#+begin_src json
+{"answer":42}
+#+end_src
+
+#+begin_src sh :results output :wrap example
+echo "an example block"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+an example block
+#+end_example
+
+# :wrap with no value: a #+begin_results block. (:Org lint reports the
+# empty value with low trust; it is valid and means "results".)
+#+begin_src lua :wrap
+return "Wrapped in a results block."
+#+end_src
+
+#+RESULTS:
+#+begin_results
+Wrapped in a results block.
+#+end_results
+
+** Handling: replace, append, prepend, silent, none
+- =replace= (the default) replaces the old result.
+- =append= / =prepend= add the new result after / before the old one.
+- =silent= shows the value as a message and writes nothing.
+- =none= neither shows nor writes (useful for side effects).
+
+#+begin_src lua :results append
+return os.date("%H:%M:%S")
+#+end_src
+
+#+RESULTS:
+: 15:07:56
+
+*Try:* press =<C-c><C-c>= three times in the block above, a few seconds
+apart.
+
+*Expect:* three more times appear under =#+RESULTS:=, each below the
+previous one. Change =append= to =prepend= and the newest goes on top.
+
+#+begin_src lua :results silent
+return "shown in the message area only"
+#+end_src
+
+*Try:* run the =silent= block.
+
+*Expect:* the message ="shown in the message area only"= (quoted, like
+Emacs' =%S=) and no =#+RESULTS:= line.
+
+** :cache
+With =:cache yes= the result is stored with a hash of the body and header
+arguments: =#+RESULTS[hash]:=. Running the block again does nothing while
+the hash matches. Change the body and it runs again.
+
+#+begin_src lua :cache yes
+return "computed at " .. os.date("%Y-%m-%d")
+#+end_src
+
+#+RESULTS[08598fbe8d9cbf2f571308bc70288b1e1b5e15e9]:
+: computed at 2026-09-28
+
+*Try:* press =<C-c><C-c>= in the block above.
+
+*Expect:* nothing changes in the buffer: the hash still matches and the
+cached value is reused. =<prefix>ba= shows the same hash as in
+=#+RESULTS[...]:=. Now add a space at the end of the
+=return= line and run it again: the hash changes and the date is today's.
+A count forces a run: =1<prefix>be= (Emacs =C-u C-c C-c=).
+
+** :file results
+With =:results file= and =:file NAME= the result is written to a file and a
+link to it is inserted. =:output-dir= says where (and is created).
+=<prefix>bo= opens the file.
+
+#+begin_src sh :results output file :output-dir 17-babel-out :file hello.txt
+echo "Written by babel on a Monday"
+#+end_src
+
+*Try:* run the block above, then press =<prefix>bo= in it.
+
+*Expect:* =#+RESULTS:= followed by =[[file:17-babel-out/hello.txt]]=, and
+=<prefix>bo= opens that file with the text "Written by babel on a Monday".
+
+* Variables: :var
+=:var name=value= defines a variable in the block. Values can be literals,
+tables, lists, or the results of other blocks.
+
+** Literals
+Numbers stay numbers, quoted text is a string. Several =:var= can be given
+on one line or in separate =:var= arguments.
+
+#+begin_src lua :var x=6 :var y=7
+return x * y
+#+end_src
+
+#+RESULTS:
+: 42
+
+#+begin_src lua :var name="Ada" greeting="Hello"
+return greeting .. ", " .. name .. "!"
+#+end_src
+
+#+RESULTS:
+: Hello, Ada!
+
+In a shell, variables are shell variables:
+
+#+begin_src sh :var who="world" n=3
+i=0
+while [ "$i" -lt "$n" ]; do echo "hello $who"; i=$((i + 1)); done
+#+end_src
+
+#+RESULTS:
+| hello | world |
+| hello | world |
+| hello | world |
+
+*Try:* change =n=3= to =n=5= in the =#+begin_src= line above and run it.
+
+*Expect:* five =hello world= rows.
+
+A value that looks like an Emacs Lisp list is a list; a form like =(+ 1 2)=
+is evaluated:
+
+#+begin_src lua :var xs='(1 2 3) :var total=(+ 1 2 3)
+return "#xs = " .. #xs .. ", total = " .. total
+#+end_src
+
+#+RESULTS:
+: #xs = 3, total = 6
+
+** Tables and lists as input
+A =#+NAME:= makes a table (or a list) available by name. A table arrives as
+a list of rows. The header row above the first hline is removed from the
+data by default.
+
+# The named table used by the next examples.
+#+NAME: fruit
+| name    | qty | price |
+|---------+-----+-------|
+| apples  |  12 |  0.50 |
+| bananas |   6 |  0.25 |
+| cherry  | 100 |  0.05 |
+
+#+begin_src lua :var rows=fruit
+local total = 0
+for _, r in ipairs(rows) do total = total + r[2] * r[3] end
+return string.format("%d rows, total %.2f", #rows, total)
+#+end_src
+
+#+RESULTS:
+: 3 rows, total 12.50
+
+A named plain list arrives as a list of strings:
+
+#+NAME: shopping
+- milk
+- eggs
+- bread
+
+#+begin_src lua :var items=shopping
+return table.concat(items, " + ")
+#+end_src
+
+#+RESULTS:
+: milk + eggs + bread
+
+*Try:* add a line =- butter= to the =shopping= list and run the block again.
+
+*Expect:* =: milk + eggs + bread + butter=.
+
+In a shell, a one-column value is a string with one item per line, a table
+is lines of tab-separated cells:
+
+#+begin_src sh :var items=shopping :results output
+echo "$items" | sort
+#+end_src
+
+#+RESULTS:
+: bread
+: eggs
+: milk
+
+** Slices and indexes
+=name[i]= picks row =i=, =name[i,j]= one cell, =name[i:j]= a range of rows
+(both ends included), =name[,j]= a column and =name[i:j,k:l]= a
+rectangle. Indexes are 0-based; negative ones count from the end.
+
+These examples use a table without a header, so row 0 is the first line:
+
+#+NAME: grid
+| 11 | 12 | 13 |
+| 21 | 22 | 23 |
+| 31 | 32 | 33 |
+
+# Row 1 (the second row):
+#+begin_src lua :var r=grid[1]
+return r
+#+end_src
+
+#+RESULTS:
+| 21 | 22 | 23 |
+
+# One cell: row 0, column 2.
+#+begin_src lua :var c=grid[0,2]
+return c
+#+end_src
+
+#+RESULTS:
+: 13
+
+# Column 1 of every row.
+#+begin_src lua :var col=grid[,1]
+return col
+#+end_src
+
+#+RESULTS:
+| 12 | 22 | 32 |
+
+# Rows 1 to 2.
+#+begin_src lua :var rows=grid[1:2]
+return rows
+#+end_src
+
+#+RESULTS:
+| 21 | 22 | 23 |
+| 31 | 32 | 33 |
+
+# A rectangle: rows 0-1, columns 1-2.
+#+begin_src lua :var box=grid[0:1,1:2]
+return box
+#+end_src
+
+#+RESULTS:
+| 12 | 13 |
+| 22 | 23 |
+
+# The last row:
+#+begin_src lua :var last=grid[-1]
+return last
+#+end_src
+
+#+RESULTS:
+| 31 | 32 | 33 |
+
+*Try:* change =grid[-1]= to =grid[0:1]= and run it.
+
+*Expect:* a two-row table: =| 11 | 12 | 13 |= and =| 21 | 22 | 23 |=.
+
+In a table *with a header*, like =fruit=, the header row is row 0 and the
+hline is row 1 (as in Emacs), so the first data row is row 2:
+
+# fruit[2] is "apples", fruit[2:3] apples and bananas.
+#+begin_src lua :var first=fruit[2]
+return first
+#+end_src
+
+#+RESULTS:
+| apples | 12 | 0.5 |
+
+# A column of a table with a header: the header and hline are dropped.
+#+begin_src lua :var names=fruit[,0]
+return names
+#+end_src
+
+#+RESULTS:
+| apples | bananas | cherry |
+
+# The last cell of the last row.
+#+begin_src lua :var p=fruit[-1,-1]
+return p
+#+end_src
+
+#+RESULTS:
+: 0.05
+
+** :colnames, :rownames and :hlines
+- =:colnames yes= takes the first row as column names and puts them back
+  on a table result of the same width. =:colnames no= keeps the header as
+  a data row.
+- =:rownames yes= does the same for the first column.
+- =:hlines yes= keeps the hlines of the input (in Lua they are the string
+  ="hline"=).
+
+# The table is given back with every price doubled. With :colnames yes
+# the header "name | qty | price" is put back on the result.
+#+begin_src lua :var t=fruit :colnames yes
+for _, r in ipairs(t) do r[3] = r[3] * 2 end
+return t
+#+end_src
+
+#+RESULTS:
+| name    | qty | price |
+|---------+-----+-------|
+| apples  |  12 |     1 |
+| bananas |   6 |   0.5 |
+| cherry  | 100 |   0.1 |
+
+# Without :colnames yes (the default): the header is dropped from both.
+#+begin_src lua :var t=fruit
+return t
+#+end_src
+
+#+RESULTS:
+| apples  |  12 |  0.5 |
+| bananas |   6 | 0.25 |
+| cherry  | 100 | 0.05 |
+
+# :colnames no: the header is an ordinary row (the hline is gone).
+#+begin_src lua :var t=fruit :colnames no
+return #t .. " rows, first cell: " .. t[1][1]
+#+end_src
+
+#+RESULTS:
+: 4 rows, first cell: name
+
+# :rownames yes: the first column (the names) is kept aside, so in the
+# block r[1] is the qty. It is put back on the result.
+#+begin_src lua :var t=fruit :colnames yes :rownames yes
+for _, r in ipairs(t) do r[1] = r[1] * 10 end
+return t
+#+end_src
+
+#+RESULTS:
+| name    |  qty | price |
+|---------+------+-------|
+| apples  |  120 |   0.5 |
+| bananas |   60 |  0.25 |
+| cherry  | 1000 |  0.05 |
+
+#+NAME: sections
+| a | 1 |
+|---+---|
+| b | 2 |
+|---+---|
+| c | 3 |
+
+# :hlines yes keeps the separators.
+#+begin_src lua :var t=sections :hlines yes
+return t
+#+end_src
+
+#+RESULTS:
+| a | 1 |
+|---+---|
+| b | 2 |
+|---+---|
+| c | 3 |
+
+** Results of other blocks
+A =:var= that names a *block* runs that block and uses its result. The
+block does not need a =#+RESULTS:=; arguments can be passed like a call.
+
+#+NAME: square
+#+begin_src lua :var n=2
+return n * n
+#+end_src
+
+#+RESULTS: square
+: 4
+
+# square is run twice: with its default n=2, and with n=5.
+#+begin_src lua :var a=square :var b=square(n=5)
+return a + b
+#+end_src
+
+#+RESULTS:
+: 29
+
+A block can produce a table that another block consumes:
+
+#+NAME: make-table
+#+begin_src lua
+local t = {}
+for i = 1, 4 do t[#t + 1] = { i, i * i, i * i * i } end
+return t
+#+end_src
+
+#+RESULTS: make-table
+| 1 |  1 |  1 |
+| 2 |  4 |  8 |
+| 3 |  9 | 27 |
+| 4 | 16 | 64 |
+
+# Sum column 2 (0-based) of the generated table.
+#+begin_src lua :var cubes=make-table[,2]
+local s = 0
+for _, v in ipairs(cubes) do s = s + v end
+return s
+#+end_src
+
+#+RESULTS:
+: 100
+
+=name[]= gives the *body text* of a block instead of its result:
+
+#+begin_src lua :var code=square[]
+return vim.trim(code)
+#+end_src
+
+#+RESULTS:
+: return n * n
+
+*Try:* change the body of =square= to =return n * n * n= and run the
+=a + b= block again (without running =square=).
+
+*Expect:* =: 133= (8 + 125): the referenced block is always evaluated.
+
+* Named blocks and #+CALL
+=#+NAME: x= above a block names it. =#+CALL: x(args)= runs it with other
+arguments and writes the result under the =#+CALL:= line.
+
+#+NAME: greet
+#+begin_src lua :var who="world" :var punct="!"
+return "Hello, " .. who .. punct
+#+end_src
+
+#+RESULTS: greet
+: Hello, world!
+
+#+CALL: greet(who="Ada")
+
+#+RESULTS:
+: Hello, Ada!
+
+# Arguments without a name fill the variables in order.
+#+CALL: greet("Linus", "?")
+
+#+RESULTS:
+: Hello, Linus?
+
+# Header arguments written after the arguments apply to the call's
+# result (here: raw text instead of ": "). In brackets right after the
+# name, greet[:results output](...), they apply to the called block.
+#+CALL: greet(who="Grace") :results raw
+
+#+RESULTS:
+Hello, Grace!
+
+*Try:* put the cursor on =#+CALL: greet(who="Ada")= and press
+=<C-c><C-c>=. Then change ="Ada"= to ="Margaret"= and run it again.
+
+*Expect:* the line under its =#+RESULTS:= changes to
+=: Hello, Margaret!=.
+
+A =#+NAME:= above a =#+CALL:= names its result, so the call itself can be
+used as a =:var= value:
+
+#+NAME: ada
+#+CALL: greet(who="Ada")
+
+#+RESULTS: ada
+: Hello, Ada!
+
+#+begin_src lua :var s=ada
+return s:upper()
+#+end_src
+
+#+RESULTS:
+: HELLO, ADA!
+
+*Try:* =<prefix>br= then =ada=.
+
+*Expect:* the cursor jumps to the =#+RESULTS: ada= line.
+
+** Inline source blocks and calls
+Inside a paragraph, a small block is written =src_= followed by the
+language and the code in braces, and a call is written =call_= followed by
+the block name and its arguments in parentheses. Header arguments go in
+square brackets after the language. =<C-c><C-c>= on one of them inserts
+the result right after it, wrapped in a ={{{results(...)}}}= macro (which
+exports as the bare value).
+
+# Three inline blocks with their results: a lua block, a call of the
+# square block (see "Results of other blocks") and a sh block with a
+# header argument.
+Two times three is src_lua{return 2 * 3} {{{results(=6=)}}} and the square
+of nine is call_square(n=9) {{{results(=81=)}}}. Header arguments go in
+brackets: src_sh[:results output]{echo "hi from sh"} {{{results(=hi from sh=)}}}.
+
+*Try:* in the paragraph above, delete the first ={{{results(...)}}}= (the
+one with the 6), put the cursor on the inline lua block before it and
+press =<C-c><C-c>=.
+
+*Expect:* the same ={{{results(...)}}}= with =6= comes back. Running it
+again replaces it rather than adding a second one.
+
+# With :results raw only the bare value is inserted.
+Raw: src_lua[:results raw]{return 6 * 7}
+
+*Try:* press =<C-c><C-c>= on the raw block in the line above.
+
+*Expect:* the line reads =Raw:= then the block, then a space and a bare
+=42=. A table or list result cannot be inlined: changing the code to
+return ={1, 2}= gives the message "Inline error: list result cannot be
+used".
+
+* Noweb: blocks inside blocks
+With =:noweb yes=, a line containing =<<name>>= is replaced by the body of
+the block named =name= (before running and when tangling). This is
+"literate programming": write the parts where they are explained, and
+assemble them elsewhere.
+
+#+NAME: helper-functions
+#+begin_src lua :eval no
+local function shout(s) return s:upper() .. "!" end
+#+end_src
+
+#+begin_src lua :noweb yes
+<<helper-functions>>
+return shout("noweb works")
+#+end_src
+
+#+RESULTS:
+: NOWEB WORKS!
+
+*Try:* in the second block press =<prefix>bv=.
+
+*Expect:* a split with the expanded body: the =local function shout= line
+in place of =<<helper-functions>>=. Close it with =:q=.
+
+The text before a reference is repeated on every inserted line (handy for
+comments or indentation):
+
+#+NAME: two-lines
+#+begin_src sh :eval no
+echo one
+echo two
+#+end_src
+
+#+begin_src sh :noweb yes :results output
+<<two-lines>>
+# prefix: <<two-lines>>
+#+end_src
+
+#+RESULTS:
+: one
+: two
+
+# (The second reference expands to two comment lines, so only one set of
+# "one"/"two" is printed.)
+
+** Inserting a result: <<name(args)>>
+With parentheses, the reference is replaced by the *result* of running the
+block, not its body:
+
+#+begin_src lua :noweb yes
+return "square(7) = <<square(n=7)>>"
+#+end_src
+
+#+RESULTS:
+: square(7) = 49
+
+** :noweb-ref: collecting blocks
+Several blocks can share a =:noweb-ref= instead of a name; a reference then
+inserts all of them, joined with a newline (=:noweb-sep= changes it).
+
+#+begin_src sh :noweb-ref steps :eval no
+echo "step 1: fetch"
+#+end_src
+
+#+begin_src sh :noweb-ref steps :eval no
+echo "step 2: build"
+#+end_src
+
+#+begin_src sh :noweb yes :results output
+<<steps>>
+echo "done"
+#+end_src
+
+#+RESULTS:
+: step 1: fetch
+: step 2: build
+: done
+
+*Try:* copy one of the two =:noweb-ref steps= blocks, change its text to
+="step 3: test"= and run the last block.
+
+*Expect:* four lines of output: step 1, step 2, step 3, done.
+
+** When noweb applies
+| =:noweb=       | Expanded when...             | On export             |
+|----------------+------------------------------+-----------------------|
+| =no= (default) | never                        | =<<ref>>= kept        |
+| =yes=          | running, tangling, exporting | expanded              |
+| =tangle=       | tangling only                | =<<ref>>= kept        |
+| =eval=         | running only                 | kept                  |
+| =no-export=    | running and tangling         | =<<ref>>= kept        |
+| =strip-export= | running and tangling         | the reference removed |
+| =strip-tangle= | running and exporting        | removed on tangle     |
+| =tangle-eval=  | running and tangling         | =<<ref>>= kept        |
+
+# With :noweb tangle, running the block does NOT expand the reference:
+#+begin_src sh :noweb tangle :results output
+echo "before"
+<<two-lines>>
+#+end_src
+
+*Try:* run the =:noweb tangle= block above.
+
+*Expect:* the result is =: before=, and the =*Org-Babel Error Output*=
+split shows a syntax error about =<<two-lines>>= (it is not valid shell)
+and "exited with code 2". Change =tangle= to =yes= and it prints =before=,
+=one= and =two=.
+
+* Sessions
+Without a session every run starts a fresh interpreter. With
+=:session [name]= blocks of the same language and name share a live
+interpreter (a REPL), so variables and functions persist between blocks.
+
+** Lua sessions
+A Lua session keeps its globals inside Neovim (nothing to install):
+
+#+begin_src lua :session demo
+counter = (counter or 0) + 1
+return "counter is " .. counter
+#+end_src
+
+#+RESULTS:
+: counter is 1
+
+#+begin_src lua :session demo
+return "the other block sees counter = " .. counter
+#+end_src
+
+#+RESULTS:
+: the other block sees counter = 1
+
+*Try:* run the first block three times, then the second one.
+
+*Expect:* the first block shows =counter is 1=, then =2=, then =3= (each
+Neovim starts with a fresh session). The second block then shows
+=the other block sees counter = 3=: they share =counter=. Without =:session=
+the second block would fail (=counter= would be nil).
+
+** Shell sessions
+A shell session keeps the working directory, variables and functions. It
+runs in a terminal buffer named =*name*= (=*shell*= for the default
+session).
+
+#+begin_src sh :session work :results output
+cd /tmp
+greeting="set in the first block"
+#+end_src
+
+#+begin_src sh :session work :results output
+pwd
+echo "$greeting"
+#+end_src
+
+*Try:* run the two blocks above in order.
+
+*Expect:* the first one gets an empty =#+RESULTS:= (it prints nothing);
+the second one prints =/tmp= and =set in the first block=.
+Without the session it would print the directory of this file and an
+empty line.
+
+*Try:* in the second block press =<prefix>bz=.
+
+*Expect:* a split with the =*work*= terminal buffer. Enter Insert mode,
+type =echo $greeting= and =<CR>=: the REPL answers "set in the first
+block". Define =x=5= there; a block with =:session work= running
+=echo $x= now prints =5=.
+
+Other session keys:
+- =<prefix>bZ= shows the session and also opens the edit buffer.
+- =<prefix>bl= sends the block to its session and shows the session.
+- =<prefix>bK= kills the session (the next run starts a fresh one).
+
+** :async
+Every evaluation already runs in the background, so Neovim never freezes.
+With =:async yes= (or just =:async=) on a session block, a placeholder id
+is written into =#+RESULTS:= at once and replaced by the result when it
+arrives, even if you keep editing in between (Lua sessions finish at once
+and ignore it).
+
+#+begin_src sh :session work :async yes :results output
+sleep 3
+echo "finished after 3 seconds"
+#+end_src
+
+*Try:* run the block above and keep typing elsewhere in the file.
+
+*Expect:* first a =#+RESULTS:= line with a long random id under it, then
+after three seconds that id becomes =: finished after 3 seconds=.
+
+* Header arguments at every level
+Header arguments can be set in many places. From weakest to strongest:
+
+1. the defaults (=babel.default_header_args=, per language in
+   =babel.languages.LANG.default_header_args=),
+2. =#+PROPERTY: header-args[:LANG] ...= at the top of the file,
+3. a =header-args[:LANG]= property of a heading (the nearest heading that
+   sets one wins; =header-args+= adds to the inherited value),
+4. the =#+begin_src= line,
+5. =#+HEADER:= lines above the block (the last one wins).
+
+This file starts with =#+PROPERTY: header-args:lua :exports both=, so every
+Lua block of the file is exported with its code and its results.
+
+*Try:* in any Lua block of this file (outside the next subtree, which
+sets its own) press =<prefix>bI=.
+
+*Expect:* a message listing the merged header arguments. Under
+"Properties" a line reads =:header-args:lua= followed by =:exports both=,
+and under "Header Arguments" there is =:exports both= (with =:cache no=,
+=:results replace=, =:session none= and the other defaults). In a =sh=
+block the =:header-args:sh= line says =nil= and =:exports= is =code=.
+
+** A subtree with its own header arguments
+:PROPERTIES:
+:header-args:lua: :var base=100 :results verbatim
+:END:
+
+Every Lua block below this heading gets =base= and =:results verbatim=.
+The heading's =header-args:lua= *replaces* the file's
+=#+PROPERTY: header-args:lua :exports both= (the nearest one wins), so
+=<prefix>bI= here shows =:exports code=. Writing the property as
+=:header-args:lua+:= would add to the inherited value instead.
+
+#+begin_src lua
+return base + 1
+#+end_src
+
+#+RESULTS:
+: 101
+
+# The block line wins over the heading: base is 5 here.
+#+begin_src lua :var base=5
+return base + 1
+#+end_src
+
+#+RESULTS:
+: 6
+
+# #+HEADER: lines are merged too; handy for long header lists.
+#+HEADER: :var extra=1000
+#+begin_src lua
+return base + extra
+#+end_src
+
+#+RESULTS:
+: 1100
+
+*Try:* change =:var base=100= in the =:PROPERTIES:= drawer to
+=:var base=200= and run the first block of this subtree.
+
+*Expect:* =: 201=.
+
+** Checking and inserting header arguments
+- =<prefix>bj= inserts a header argument on the =#+begin_src= line, with
+  completion of names and values.
+- =<prefix>bc= reports a header argument that looks like a misspelt one.
+
+# :resluts is a typo of :results.
+#+begin_src lua :resluts output
+print("typo")
+#+end_src
+
+*Try:* press =<prefix>bc= in the block above.
+
+*Expect:* the error =Supplied header "resluts" is suspiciously close to
+"results"=. Fix the typo and press it again: "No suspicious header
+arguments found."
+
+*Try:* in the same block press =<prefix>bj=, pick =results=, then =silent=.
+
+*Expect:* = :results silent= is appended to the =#+begin_src= line.
+
+** :dir, :prologue, :epilogue, :cmdline
+- =:dir PATH= runs the block in that directory (=:mkdirp yes= creates it).
+- =:prologue= / =:epilogue= add code before / after the body.
+- =:cmdline= passes arguments to the interpreter.
+
+#+begin_src sh :dir /tmp :results output
+pwd
+#+end_src
+
+#+RESULTS:
+: /tmp
+
+#+begin_src sh :prologue "echo start" :epilogue "echo end" :results output
+echo middle
+#+end_src
+
+#+RESULTS:
+: start
+: middle
+: end
+
+# :cmdline: the script gets two arguments, $1 and $2.
+#+begin_src sh :cmdline "alpha beta" :results output
+echo "$# arguments: $1 and $2"
+#+end_src
+
+#+RESULTS:
+: 2 arguments: alpha and beta
+
+* Editing blocks
+** Edit in a special buffer: <prefix>'
+=<prefix>'= (Emacs =C-c '=) opens the body of the block in a separate
+buffer whose filetype matches the language, so you get that language's
+indentation, completion and LSP. Save with =:w=, or press =<prefix>'= /
+=<C-c>'= again to save and close.
+
+#+begin_src lua
+local function add(a, b)
+return a + b
+end
+return add(20, 22)
+#+end_src
+
+#+RESULTS:
+: 42
+
+*Try:* in the block above press =<prefix>'=, then =gg=G= to reindent, then
+=<prefix>'=.
+
+*Expect:* you are back in this file. The body is now indented by two
+spaces (=edit_src_content_indentation=, 2 like Emacs) and the
+=return a + b= line one level more than the other lines. The same key
+edits example blocks, =: = fixed-width lines, LaTeX fragments and
+footnote definitions.
+
+=<prefix>bx= does the same without opening a window: it asks for Normal
+mode keys, runs them in the edit buffer and writes the result back
+(=gg=G= reindents the block in one go).
+
+** Split, wrap and insert blocks: <prefix>bd
+=<prefix>bd= (=org-babel-demarcate-block=):
+- inside a block: split it in two at the cursor line,
+- on a Visual selection outside blocks: wrap the lines in a new block,
+- elsewhere: insert an empty block (it asks for the language).
+
+#+begin_src lua :results output
+print("first half")
+print("second half")
+#+end_src
+
+*Try:* put the cursor on =print("second half")= and press =<prefix>bd=.
+
+*Expect:* two blocks, both =#+begin_src lua :results output=, with one
+=print= each.
+
+*Try:* select the next two lines with =V= and =j=, then press =<prefix>bd=.
+At the =Lang:= prompt (it proposes the language of the block above), type
+=sh= and press =<CR>=.
+
+echo "wrap me"
+echo "me too"
+
+*Expect:* the two lines are now inside =#+begin_src sh= ... =#+end_src=.
+
+** Show the expanded block: <prefix>bv
+=<prefix>bv= shows what would actually run: noweb references expanded,
+=:var= assignments, =:prologue= and =:epilogue= added.
+
+#+begin_src sh :var n=3 :prologue "set -e" :noweb yes
+<<two-lines>>
+#+end_src
+
+*Try:* press =<prefix>bv= in the block above.
+
+*Expect:* a split with =n=3=, =set -e=, =echo one= and =echo two=.
+
+* Tangling
+Tangling writes blocks out to source files. =:tangle FILE= says where
+(relative to this Org file); =:tangle yes= uses this file's name with the
+language's extension (it would create =examples/17-babel.lua=, so it is
+not used here); =:tangle no= (the default) skips the block.
+
+| Key           | Tangles                                               |
+|---------------+-------------------------------------------------------|
+| =<prefix>bt=  | every block of this file (=:Org tangle=)              |
+| =1<prefix>bt= | only the block at the cursor (Emacs =C-u C-c C-v t=)  |
+| =2<prefix>bt= | the blocks with the same =:tangle= file as the cursor |
+| =<prefix>bf=  | another Org file (asks for its name)                  |
+
+The blocks below write into =examples/17-babel-out/=. =:mkdirp yes=
+creates the directory. Delete it afterwards with =rm -r examples/17-babel-out=.
+
+** A small shell script
+# :shebang goes on line 1 and makes the file executable.
+#+begin_src sh :tangle 17-babel-out/hello.sh :mkdirp yes :shebang "#!/bin/sh"
+echo "Hello from a tangled script"
+#+end_src
+
+# A second block with the same :tangle file is appended to it.
+#+begin_src sh :tangle 17-babel-out/hello.sh
+echo "Second block, same file"
+#+end_src
+
+*Try:* press =<prefix>bt=, then in a shell run
+=sh examples/17-babel-out/hello.sh= (or =:!sh %:h/17-babel-out/hello.sh=).
+
+*Expect:* the message says the files were tangled; the script prints both
+lines. =:e examples/17-babel-out/hello.sh= shows =#!/bin/sh= on line 1, then
+the two =echo= lines separated by a blank line (=:padline no= removes it).
+
+** A Lua module with link comments and noweb
+=:comments link= wraps each block in comments that link back here, so
+=:Org tangle_jump= in the tangled file jumps to the Org block and
+=:Org detangle= copies edits back. =:comments org= also writes the Org text
+before the block as comments.
+
+#+NAME: mod-helpers
+#+begin_src lua :eval no
+local function double(x) return 2 * x end
+#+end_src
+
+#+begin_src lua :tangle 17-babel-out/mymod.lua :mkdirp yes :comments link :noweb yes
+local M = {}
+<<mod-helpers>>
+function M.quadruple(x) return double(double(x)) end
+return M
+#+end_src
+
+*Try:* with the cursor in the block above press =1<prefix>bt= (tangle only
+this block). Open =examples/17-babel-out/mymod.lua=.
+
+*Expect:* the file starts with
+=-- [[file:../17-babel.org::*A Lua module with link comments and noweb][A Lua module with link comments and noweb:2]]=
+(=:2= because it is the second block of that heading), has
+=local function double= where =<<mod-helpers>>= was, and ends with a
+=-- A Lua module with link comments and noweb:2 ends here= line. In that
+file, put the cursor inside the code and run =:Org tangle_jump=: you land
+back on this block.
+
+*Try:* now load the module from a Lua block:
+
+#+begin_src lua
+local path = vim.fn.expand("%:p:h") .. "/17-babel-out/mymod.lua"
+if vim.fn.filereadable(path) == 0 then return "tangle it first" end
+return dofile(path).quadruple(10)
+#+end_src
+
+*Expect:* =: 40= once tangled, =: tangle it first= before.
+
+* Library of Babel
+Named blocks of *other* files can be added to the Library of Babel with
+=<prefix>bi= (=C-c C-v i=). Then =#+CALL:=, =:var= and noweb find them from
+any file, for the rest of the session.
+
+This block tangles a small library file (an Org file with two named Lua
+blocks). The commas in front of =#+= lines inside an =org= block are
+escapes; tangling removes them.
+
+#+begin_src org :tangle 17-babel-out/library.org :mkdirp yes
+,#+NAME: lib-add
+,#+begin_src lua :var a=1 b=2
+return a + b
+,#+end_src
+
+,#+NAME: lib-shout
+,#+begin_src lua :var s="hi"
+return s:upper() .. "!"
+,#+end_src
+#+end_src
+
+# These calls fail with "no block named lib-add" until the library is
+# ingested.
+#+CALL: lib-add(a=40, b=2)
+
+#+CALL: lib-shout(s="library")
+
+*Try:*
+1. In the =org= block press =1<prefix>bt= (writes
+   =examples/17-babel-out/library.org=).
+2. Press =<prefix>bi= and answer =examples/17-babel-out/library.org=
+   (the path is relative to the directory Neovim was started in).
+3. Put the cursor on each =#+CALL:= line and press =<C-c><C-c>=.
+
+*Expect:* step 2 says "2 src blocks added to Library of Babel"; step 3
+writes =: 42= and =: LIBRARY!= under the calls. =<prefix>bi= with an
+empty answer ingests the current buffer.
+
+* Exporting code and results
+=:exports= says what the export shows: =code= (the default), =results=,
+=both= or =none=. When exporting, blocks with =:exports results= or =both=
+are evaluated first (=babel.evaluate_on_export=, asked like any
+evaluation). This file sets =:exports both= for Lua (see "Header arguments
+at every level").
+
+#+begin_src sh :exports results
+echo "only this line appears in the export"
+#+end_src
+
+#+RESULTS:
+: only this line appears in the export
+
+*Try:* turn off the prompts first (export evaluates every Lua block of
+this file, which has =:exports both=):
+=:lua require("org.config").opts.babel.confirm_evaluate = false=. Then
+export to plain text with =<prefix>e= then =t= then =A= (ASCII to a
+buffer) and search for "only this line" with =/only this line=.
+
+*Expect:* the output shows the line in a box, but not the =echo= command.
+With =babel.evaluate_on_export = false= nothing is evaluated and
+=:exports= is ignored (as in Emacs with =org-export-use-babel= nil): the
+code and the existing =#+RESULTS:= are both exported. See
+[[file:19-export.org][19-export.org]] for the exporters.
+
+* Further reading
+- =:h org-babel= (running, results, sessions, languages, header arguments)
+- =:h org-babel-edit-special= (=<prefix>'=)
+- =:h org-keymaps= (the Babel keys), =:h org-emacs-keys= (=C-c C-v= keys)
+- =:h org-table-calc= (Lisp forms in header arguments, =org-sbe=)
+- [[file:15-tables.org][15-tables.org]], [[file:16-spreadsheet.org][16-spreadsheet.org]] (tables that blocks read)
+- [[file:18-dynamic-blocks.org][18-dynamic-blocks.org]] (other generated content)

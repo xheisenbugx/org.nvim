@@ -1,0 +1,879 @@
+#+TITLE: Capture: file a note from anywhere
+#+STARTUP: overview
+#+CATEGORY: capture
+#+TAGS: work(w) home(h) meeting(m) errand(e) idea(i)
+
+* How to use this file
+Capture is Org's quick-entry tool. Wherever you are (a source file, a mail,
+another note), you press one key, pick a /template/, type a few words, and
+the note is filed at the template's /target/ (a file, a headline, a date
+tree, a list, a table...) without leaving what you were doing. A link back
+to where you were can come along for free.
+
+Start Neovim from the repo root with the bundled init file:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/11-capture.org
+#+end_src
+
+=examples/minimal_init.lua= matters a lot for this file:
+- it defines the capture templates =t=, =w= (a group: =wt=, =wm=), =j=, =s=
+  and =x= that the first part of this file walks through;
+- it sets =org_directory= to a scratch directory,
+  =stdpath("state") .. "/org-tutorial"= (on Linux and macOS usually
+  =~/.local/state/nvim/org-tutorial=), so every capture lands there and your
+  real notes are never touched. =:echo stdpath("state")= prints the base;
+- it sets =agenda_files= to =examples/*.org= plus that scratch directory, so
+  what you capture also shows up in the agenda.
+
+How to move around:
+- The file starts folded (=#+STARTUP: overview=). =<Tab>= on a heading opens
+  it, =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means =<leader>o= (the leader is =<Space>= in minimal_init), so
+  =<prefix>c= is =<Space>oc=. Emacs users: =<C-c>c= does the same.
+- =g?= lists every key of the current buffer (also in the capture window).
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see. Times in the expectations are written =HH:MM=: yours is the current
+  time.
+- =u= undoes an edit here, and =git checkout examples/11-capture.org=
+  restores this file. To start the scratch files over, delete the directory
+  (=:!rm -r ~/.local/state/nvim/org-tutorial=, adjust the path to yours).
+
+** Keys in this file
+| Key / command                 | What it does                                  |
+|-------------------------------+-----------------------------------------------|
+| =<prefix>c= (=<C-c>c=)        | open the template menu, then capture          |
+| =:Org capture KEY=            | capture with template KEY, no menu            |
+| =<C-c><C-c>= =:w= =<prefix>w= | (capture window) finish and file the note     |
+| =<C-c><C-k>= =<prefix>k=      | (capture window) abort, nothing is filed      |
+| =<C-c><C-w>= =<prefix>r=      | (capture window) finish, then refile it       |
+| =4<prefix>c=                  | jump to a template's target instead           |
+| =16<prefix>c=                 | jump to the last captured entry               |
+| =1<prefix>c=                  | ask for the date of a date tree entry         |
+| =:Org capture_here=           | insert the template at the cursor             |
+| =:Org capture_goto_target=    | like =4<prefix>c=                             |
+| =:Org capture_goto_last=      | like =16<prefix>c=                            |
+| =K= in the agenda             | capture with the agenda date as default date  |
+
+* The capture menu
+=<prefix>c= opens a small menu with one line per template: its key and its
+description. Press the key. Keys can be several characters long: a /group/
+label such as =w = "Work"= in the config shows as one line, and pressing =w=
+opens a second menu with =t= (Work task) and =m= (Meeting). =<Esc>= or =q=
+closes the menu without capturing.
+
+Other ways to start a capture:
+- =:Org capture t= skips the menu (the command completes the keys).
+- In Visual mode, =<prefix>c= passes the selected text to the template,
+  where =%i= inserts it.
+- A count works like Emacs's prefix argument:
+  - =4<prefix>c= (=C-u C-c c=) asks for a template and *jumps to its
+    target* instead of capturing (creating a missing headline on the way);
+  - =16<prefix>c= (=C-u C-u C-c c=) jumps to the entry captured last;
+  - =1<prefix>c= (=C-1 C-c c=) asks for the date a date tree template
+    files under (instead of today).
+- =:Org capture_here= (=C-0 C-c c=) inserts the template at the cursor of
+  the current org buffer: an entry becomes a sibling of the headline there.
+
+*Try:* press =<prefix>c=.
+*Expect:* a menu listing =t Task=, =w Work=, =j Journal=, =s Shopping item=
+and =x Expense=. Press =w=: the menu changes to =t Work task= and =m Meeting=.
+Press =<Esc>= to close it.
+
+*Try:* =4<prefix>c= then =t=.
+*Expect:* Neovim opens =inbox.org= in the scratch directory (empty if you
+have not captured anything yet). Come back here with =<C-o>=.
+
+* The capture window
+After you pick a template, a window opens below the current one with the
+expanded template. The cursor is where the template had =%?=, in Insert
+mode. The window bar reminds you of the keys:
+: Capture: finish <C-c><C-c>  refile <C-c><C-w>  abort <C-c><C-k>  (:w finishes)
+
+| Key (Normal mode)             | Action                                         |
+|-------------------------------+------------------------------------------------|
+| =<C-c><C-c>= =<prefix>w= =:w= | finish: store the text at the target and close |
+| =2<C-c><C-c>=                 | finish, then jump to the stored entry          |
+| =<C-c><C-k>= =<prefix>k=      | abort: close the window, file nothing          |
+| =<C-c><C-w>= =<prefix>r=      | finish, then refile the entry elsewhere        |
+
+A few details worth knowing:
+- The target is resolved when the capture *starts*: a missing headline or
+  date tree node is created then, and the spot is remembered even if you
+  edit the target file (or clock another task) while typing.
+- Aborting removes the text created for this capture again: a headline the
+  target needed is dropped if nothing else was added under it.
+- If saving the target fails, the window stays open, nothing is lost and
+  you can simply finish again.
+- Leading blank lines and trailing whitespace of the text are removed.
+- =capture.window= picks the window: ="split"= (default), ="float"=,
+  ="vsplit"=, ="tab"= or ="current"=.
+- Refiling (=<C-c><C-w>=) only works for entry templates. It uses
+  =refile.targets=, or the template's own =refile_targets=; with the
+  minimal_init config (no targets set) that is the level-1 headlines of the
+  file the entry was stored in. See
+  [[file:12-refile-archive.org][12-refile-archive.org]].
+
+*Try:* =<prefix>c= =t=, type =Buy stamps=, press =<Esc>= then =<C-c><C-k>=.
+*Expect:* the window closes with the message "Capture aborted". Nothing was
+added: check with =4<prefix>c= =t=.
+
+*Try:* =<prefix>c= =t=, type =Buy stamps=, =<Esc>=, then =:w=.
+*Expect:* the message "Captured to ~/.local/state/nvim/org-tutorial/inbox.org"
+(your path may differ). =16<prefix>c= jumps to the new entry.
+
+* The templates of minimal_init.lua
+Each subsection below explains one template of =examples/minimal_init.lua=:
+what it asks, what the capture window shows, and exactly what ends up in
+which file of the scratch directory. Relative targets such as ="inbox.org"=
+are relative to =org_directory=.
+
+** Task (t)
+A TODO entry with a timestamp, a link back and the Visual selection.
+#+begin_src lua :eval no
+t = { description = "Task", template = "* TODO %?\n  %U\n  %a\n  %i", target = "inbox.org" },
+#+end_src
+- =* TODO %?= : an entry (a headline) in the TODO state; you type the title.
+- =%U= : the current date and time as an inactive timestamp.
+- =%a= : a link to where you were when you pressed =<prefix>c=. From an org
+  headline that is a =file:...::*Heading= search link.
+- =%i= : the text selected in Visual mode (empty otherwise). Because the
+  line is =  %i=, every line of the selection gets the same two-space
+  indent.
+- =target = "inbox.org"= and nothing else: the entry is appended at the end
+  of the file, as a level-1 headline.
+
+*Try:* put the cursor on the heading "Task (t)" above, press =<prefix>c=
+=t=, type =Call the plumber=, =<Esc>=, =<C-c><C-c>=.
+*Expect:* at the end of =inbox.org=:
+: * TODO Call the plumber
+:   [2026-09-28 Mon HH:MM]
+:   [[file:~/Workspace/orgmode/examples/11-capture.org::*Task (t)][Task (t)]]
+(with the path of your checkout; =~= when it is under your home). The link
+points back to this heading: =<CR>= on it in =inbox.org= brings you here.
+The =%i= line was dropped because it was empty and trailing.
+
+*Try:* select the two lines below with =Vj=, press =<prefix>c= =t=, type
+=Quote=, then =<Esc>= and =:w=.
+: line one of the selection
+: line two of the selection
+*Expect:* the entry ends with the two selected lines, each indented by two
+spaces (the leading =: = comes along since it is part of the text):
+:   : line one of the selection
+:   : line two of the selection
+
+** Work task (wt)
+A TODO entry under a headline that is created when missing.
+#+begin_src lua :eval no
+w = "Work",  -- a group label: the menu shows "w Work", then t and m
+wt = { description = "Work task", template = "* TODO %? :work:",
+       target = "work.org", headline = "Inbox" },
+#+end_src
+- =headline = "Inbox"= files the entry as the /last child/ of the first
+  headline titled "Inbox" (its TODO keyword, priority and tags are
+  ignored when matching). If there is none, "* Inbox" is created at the end
+  of the file when the capture starts. The file itself is created too.
+- An entry template's stars are adjusted: =* TODO= becomes =** TODO= one
+  level below "Inbox".
+- The literal =:work:= after =%?= is just text: the tag ends up after what
+  you type (it is not re-aligned).
+
+*Try:* =<prefix>c= =w= =t=, type =Send the report=, =<Esc>=, =<C-c><C-c>=.
+*Expect:* =work.org= now contains
+: * Inbox
+: ** TODO Send the report :work:
+
+** Meeting (wm)
+An outline path, a prompt, tags, and the clock.
+#+begin_src lua :eval no
+wm = { description = "Meeting", template = "* %^{Who} %^g\n  %T\n  %?",
+       target = "work.org", olp = { "Meetings" }, clock_in = true },
+#+end_src
+- =olp = { "Meetings" }= is an /outline path/ (Emacs =file+olp=): every
+  headline of the path must already exist, so a first try fails with
+  "Heading not found on level 1: Meetings". This is like Emacs.
+- =%^{Who}= asks "Who: " before the window opens and inserts the answer.
+- =%^g= asks for tags (completing the tags already used in =work.org=);
+  type them separated by =:=. Tags on a headline are aligned.
+- =%T= inserts the current date and time as an /active/ timestamp, so the
+  meeting shows up in the agenda.
+- =clock_in = true= starts the clock on the new entry while you type
+  (stopping a running clock), and logs the time when you finish.
+
+*Try:* =<prefix>c= =w= =m=.
+*Expect:* the warning "Heading not found on level 1: Meetings". Now make the
+node: =4<prefix>c= =w= =t= jumps to "Inbox" in =work.org=; press =G=, =o=,
+type =* Meetings=, =<Esc>=, =:w=, and come back with =<C-o>=.
+
+*Try:* =<prefix>c= =w= =m=, answer =Alice= for "Who", =work:meeting= for the
+tags, type =Agreed on the plan=, wait a minute, =<Esc>=, =<C-c><C-c>=.
+*Expect:* in =work.org=, under "Meetings":
+: ** Alice                                                  :work:meeting:
+: :LOGBOOK:
+: CLOCK: [2026-09-28 Mon HH:MM]--[2026-09-28 Mon HH:MM] =>  0:01
+: :END:
+:   <2026-09-28 Mon HH:MM>
+:   Agreed on the plan
+The clock ran while the capture window was open.
+
+** Journal (j)
+An entry in a date tree.
+#+begin_src lua :eval no
+j = { description = "Journal", template = "* %<%H:%M> %?",
+      target = "journal.org", datetree = true },
+#+end_src
+- =datetree = true= files the entry under year / month / day headlines,
+  creating the missing ones in date order (Emacs =file+olp+datetree=).
+- =%<%H:%M>= is a =strftime= format: the current hour and minute.
+- The date is today, unless you start the capture with =1<prefix>c= (asks
+  for the date) or with =K= from the agenda (the agenda day).
+
+*Try:* =<prefix>c= =j=, type =Wrote the capture examples=, =<Esc>=, =:w=.
+Then capture a second journal entry the same way.
+*Expect:* =journal.org= (a new file starts with an empty line, like Emacs):
+: * 2026
+: ** 2026-09 September
+: *** 2026-09-28 Monday
+: **** HH:MM Wrote the capture examples
+: **** HH:MM ...your second entry
+
+*Try:* =1<prefix>c= =j=; in the calendar press =i=, type =oct 15=, =<CR>=.
+Type =Planned ahead=, =<Esc>=, =:w=.
+*Expect:* a new branch =** 2026-10 October= / =*** 2026-10-15 Thursday=
+after the September one, with =**** 00:00 Planned ahead= under it: a
+picked day other than today starts at =extend_today_until= o'clock (0 by
+default), so =%<%H:%M>= gives =00:00=.
+
+** Shopping item (s)
+A checkbox item in a list.
+#+begin_src lua :eval no
+s = { description = "Shopping item", type = "checkitem", template = "[ ] %?",
+      target = "inbox.org", headline = "Shopping" },
+#+end_src
+- =type = "checkitem"= adds a checkbox item to the first plain list of the
+  target entry (creating the list when there is none). An item template
+  without a bullet gets "- ".
+
+*Try:* =<prefix>c= =s=, type =Milk=, =:w=; again with =Eggs=.
+*Expect:* in =inbox.org=:
+: * Shopping
+: - [ ] Milk
+: - [ ] Eggs
+
+** Expense (x)
+A table row, stored without opening a window.
+#+begin_src lua :eval no
+x = { description = "Expense", type = "table-line",
+      template = "| %u | %^{Amount} | %^{What} |",
+      target = "inbox.org", headline = "Expenses", immediate_finish = true },
+#+end_src
+- =type = "table-line"= appends a row to the first table of the entry. When
+  there is no table yet, one is created with an empty header row, like
+  Emacs.
+- =immediate_finish = true= stores the text right after the prompts: no
+  capture window opens.
+- =%u= is today's date as an inactive timestamp.
+
+*Try:* =<prefix>c= =x=, answer =12.50= and =Lunch=. Then again, =3= and =Bus=.
+*Expect:* no capture window; in =inbox.org=:
+: * Expenses
+: |                  |       |       |
+: |------------------+-------+-------|
+: | [2026-09-28 Mon] | 12.50 | Lunch |
+: | [2026-09-28 Mon] |     3 | Bus   |
+
+* A playground with more templates
+The minimal_init templates cover the common cases. To try every expansion
+and target type, the Lua block below adds a group =e= ("Examples of
+11-capture.org") to =capture.templates= *for this Neovim session only*, and
+(re)writes the file =playground.org= in the scratch directory with a few
+headlines to capture into. Run it again at any time to reset the
+playground.
+
+*Try:* put the cursor inside the block and press =<C-c><C-c>=; answer =y=
+to the "Evaluate this lua code block" question.
+*Expect:* the message "Playground ready: .../org-tutorial/playground.org".
+=<prefix>c= now also lists =e Examples of 11-capture.org=; press =e= to see
+its templates. Look at the file with =:Org capture_goto_target= then =e= =a=.
+
+#+name: capture-playground
+#+begin_src lua :results silent
+-- Lua blocks run inside Neovim: this changes the running config.
+local config = require("org.config")
+local dir = vim.fn.expand(config.opts.org_directory)
+local path = dir .. "/playground.org"
+local text = {
+  "#+TITLE: Capture playground (reset by 11-capture.org)",
+  "* Inbox",
+  "** An older note",
+  "* Ideas",
+  "- The first idea",
+  "* Notes",
+  "Some text of the Notes entry.",
+  "** A child of Notes",
+  "* Projects",
+  "** Neovim",
+  "*** TODO An existing task",
+  "* Reading list",
+  "* Log",
+  "* Budget",
+  "| Date             | Amount | What         |",
+  "|------------------+--------+--------------|",
+  "| [2026-09-01 Tue] |   9.00 | Coffee beans |",
+  "|------------------+--------+--------------|",
+  "| Total            |        |              |",
+}
+local b = vim.fn.bufadd(path)
+vim.fn.bufload(b)
+vim.api.nvim_buf_set_lines(b, 0, -1, false, text)
+vim.api.nvim_buf_call(b, function() vim.cmd("silent write") end)
+
+local T = config.opts.capture.templates
+local P = "playground.org"
+T.e = "Examples of 11-capture.org"
+-- prompts, a default, completion, and %\1 %\2 to repeat the answers
+T.ea = { description = "Ask questions", target = P, headline = "Inbox",
+  template = "* %^{Who|Bob|Alice|Carol} called about %^{Topic}\n"
+    .. "  Call %\\1 back about %\\2.\n  %U" }
+-- a property prompt, then tags; no window
+T.eg = { description = "Property and tags", target = P, headline = "Inbox",
+  template = "* TODO %^{Task} %^{Effort|0:30}p%^g", immediate_finish = true }
+-- dates, file names and links
+T.ef = { description = "Dates, files, links", target = P, headline = "Inbox",
+  template = "* Captured from %f\n  weekday: %<%A>  iso: %<%Y-%m-%d>\n"
+    .. "  %t %u %T %U\n  a: %a\n  l: %l\n  L: %L\n  F: %F\n  %?" }
+-- the last yank (%c)
+T.ey = { description = "Last yank", target = P, headline = "Inbox",
+  template = "* Yanked: %c\n  %?" }
+-- %(...): Emacs Lisp, or a Lua expression
+T.el = { description = "Lisp and Lua", target = P, headline = "Inbox",
+  template = '* %(upcase "shout") %(number-to-string (+ 40 2))'
+    .. ' %(string.rep("ab", 3))\n  %?' }
+-- the template is a Lua function returning the text
+T.eF = { description = "From a function", target = P, headline = "Inbox",
+  template = function() return "* Built by Lua\n  %?" end }
+-- target types
+T.ei = { description = "Item in Ideas", type = "item", target = P,
+  headline = "Ideas", template = "%?" }
+T.ep = { description = "Plain text in Notes", type = "plain", target = P,
+  headline = "Notes", template = "%U %?" }
+T.eP = { description = "Prepended entry", target = P, headline = "Inbox",
+  prepend = true, template = "* Newest note %?" }
+T.eo = { description = "Outline path", target = P,
+  olp = { "Projects", "Neovim" }, template = "* TODO %?" }
+T.ew = { description = "Week tree", target = P, olp = { "Log" },
+  datetree = { tree_type = "week" }, template = "* %?" }
+T.em = { description = "Month tree", target = P,
+  datetree = { tree_type = "month" }, template = "* %<%d> %?" }
+T.er = { description = "After a regexp", type = "item", target = P,
+  regexp = "^\\* Reading list", template = "- [ ] %^{Book}",
+  immediate_finish = true }
+T.et = { description = "Table line", type = "table-line", target = P,
+  headline = "Budget", table_line_pos = "II-1",
+  template = "| %u | %^{Amount} | %^{What} |", immediate_finish = true }
+T.ek = { description = "Under the clock", target = "clock",
+  template = "* Note about %k\n  %K\n  %?" }
+-- options
+T.eR = { description = "Property, jump", target = P, headline = "Inbox",
+  properties = { SOURCE = "capture" }, jump_to_captured = true,
+  immediate_finish = true, template = "* %^{Title}" }
+T.eT = { description = "Ask for the date", target = P, headline = "Inbox",
+  time_prompt = true, template = "* Appointment %?\n  %T" }
+T.eu = { description = "Unnarrowed", target = P, headline = "Inbox",
+  unnarrowed = true, template = "* Seen in context %?" }
+-- for org-protocol URLs: %:description and %:link come from the URL
+T.eW = { description = "Web page (org-protocol)", target = P,
+  headline = "Inbox", template = "* %:description\n  %:link\n  %?" }
+-- a template that only shows up in this file (capture contexts)
+T.ec = { description = "Only in 11-capture.org", target = P,
+  headline = "Inbox", template = "* From the capture tutorial %?" }
+config.opts.capture.templates_contexts = {
+  { "ec", { { in_buffer = "^11-capture\\.org$" } } },
+}
+vim.notify("Playground ready: " .. path)
+#+end_src
+
+The subsections below use these templates. Each *Expect:* shows the lines
+the capture adds to =playground.org=; open it with =16<prefix>c= right
+after a capture, or =4<prefix>c= and a template key.
+
+* Template expansions
+The template text may contain /%-escapes/ that are replaced when the
+capture starts. Everything here works in the =template= string of any
+template type.
+
+** Reference
+| Escape                   | Replaced by                                             |
+|--------------------------+---------------------------------------------------------|
+| =%?=                     | nothing; the cursor goes here                           |
+| =%t= =%T=                | today as an active timestamp / with the time            |
+| =%u= =%U=                | the same, inactive (=[...]=)                            |
+| =%^t= =%^T= =%^u= =%^U=  | ask for the date with the calendar                      |
+| =%<fmt>=                 | =strftime= format, e.g. =%<%Y-%m-%d>=, =%<%H:%M>=       |
+| =%a=                     | a link to where the capture started                     |
+| =%A=                     | the same, asking for the link description               |
+| =%l=                     | that link without its description                       |
+| =%L=                     | the bare link target (no brackets)                      |
+| =%i=                     | the Visual selection (text before =%i= repeats per line) |
+| =%x=                     | the clipboard (register =*=, else =+=)                  |
+| =%c=                     | the last yank (register ="=)                            |
+| =%f= =%F=                | the name / full path of the file you started from       |
+| =%n=                     | your full name (=$NAME=, the account name, the login)   |
+| =%k= =%K=                | the title of / a link to the task being clocked         |
+| =%^{Prompt}=             | ask for a string (see below for defaults and choices)   |
+| =%\1= =%\2= ...          | the answer to the 1st, 2nd ... =%^{...}= prompt         |
+| =%\*1= ...               | the answer to the Nth prompt of any kind (=%^t=, =%^g=) |
+| =%^g= =%^G=              | ask for tags (target file's tags / all agenda files')   |
+| =%^{PROP}p=              | ask for a property value; sets =:PROP:= on the entry    |
+| =%^C= =%^L=              | pick a clipboard value (=%^L= makes it a link)          |
+| =%:keyword=              | link data: =%:link=, =%:description=, =%:type=, ...    |
+| =%[file]=                | the contents of a file                                  |
+| =%(sexp)=                | an Emacs Lisp form, or a Lua expression                 |
+
+=%^{Who|Bob|Alice|Carol}= asks "Who [Bob]: ", offers =Alice= and =Carol= as
+completions, and takes =Bob= for an empty answer.
+
+Note: =%%= is *not* an escape (like Emacs). To write a literal percent sign
+before an escape letter, use a backslash: =\%t= stays =%t=.
+
+** Prompts and back-references (=ea=)
+The =ea= template is
+: * %^{Who|Bob|Alice|Carol} called about %^{Topic}
+:   Call %\1 back about %\2.
+:   %U
+- =%^{Who|Bob|Alice|Carol}=: the prompt "Who [Bob]: " completes =Alice= and
+  =Carol=; an empty answer takes the default =Bob=.
+- =%\1= and =%\2= repeat the first and second answers.
+
+*Try:* =<prefix>c= =e= =a=, press =<CR>= at "Who [Bob]", type =the invoice=
+at "Topic", then =:w= in the capture window.
+*Expect:* under =* Inbox= of the playground:
+: ** Bob called about the invoice
+:   Call Bob back about the invoice.
+:   [2026-09-28 Mon HH:MM]
+
+** Property and tag prompts (=eg=)
+The =eg= template is =* TODO %^{Task} %^{Effort|0:30}p%^g= with
+=immediate_finish=. =%^{Effort|0:30}p= asks for the =Effort= property (an
+empty answer takes =0:30=) and puts it in a =:PROPERTIES:= drawer; when the
+target entry has an =Effort_ALL= property its values are offered. =%^g= asks
+for tags, completing the tags of the target file; separate several with
+=:=.
+
+*Try:* =<prefix>c= =e= =g=, answer =Write the docs=, =<CR>= (for the
+default effort) and =work:urgent=.
+*Expect:* no window, and in the playground under =* Inbox=:
+: ** TODO Write the docs                                        :work:urgent:
+: :PROPERTIES:
+: :Effort:   0:30
+: :END:
+
+# Keep %^g last on its line: see the note below.
+Put =%^g= at the end of the headline. A prompt that follows =%^g= on the
+same line is currently left unexpanded in org.nvim.
+
+** Dates, files and links (=ef=)
+The =ef= template shows most non-interactive escapes at once:
+: * Captured from %f
+:   weekday: %<%A>  iso: %<%Y-%m-%d>
+:   %t %u %T %U
+:   a: %a
+:   l: %l
+:   L: %L
+:   F: %F
+:   %?
+
+*Try:* with the cursor on the heading "Dates, files and links (=ef=)",
+press =<prefix>c= =e= =f= and look at the capture window before finishing
+with =:w=.
+*Expect:*
+: * Captured from 11-capture.org
+:   weekday: Monday  iso: 2026-09-28
+:   <2026-09-28 Mon> [2026-09-28 Mon] <2026-09-28 Mon HH:MM> [2026-09-28 Mon HH:MM]
+:   a: [[file:~/.../examples/11-capture.org::*Dates, files and links (=ef=)][Dates, files and links (=ef=)]]
+:   l: [[file:~/.../examples/11-capture.org::*Dates, files and links (=ef=)]]
+:   L: file:~/.../examples/11-capture.org::*Dates, files and links (=ef=)
+:   F: /full/path/to/examples/11-capture.org
+(On another day, the dates and weekday are those of that day.)
+
+** The Visual selection, the clipboard and the last yank
+- =%i= is the text selected when you pressed =<prefix>c= in Visual mode
+  (see the =t= template above).
+- =%c= is the last yank, =%x= the system clipboard.
+
+*Try:* put the cursor on the word banana in this sentence and yank it with
+=yiw=; then =<prefix>c= =e= =y= and =:w=.
+*Expect:* the capture window, and then the playground, show
+=** Yanked: banana=.
+
+** Lisp and Lua expressions (=el=)
+=%(...)= evaluates an expression after the other escapes are replaced. It
+is Emacs Lisp by default (a small built-in interpreter that knows the
+common string and number functions, and =emacs --batch= for the rest when
+Emacs is installed); a form that is valid Lua is run as Lua. The result
+must be a string (or nil).
+: * %(upcase "shout") %(number-to-string (+ 40 2)) %(string.rep("ab", 3))
+
+*Try:* =<prefix>c= =e= =l=, then =:w=.
+*Expect:* =** SHOUT 42 ababab=.
+
+# A number is not a string: this is the error you would get.
+With =%(+ 40 2)= instead, you get the warning "Capture template sexp `(+
+40 2)' must evaluate to string or nil" and nothing is inserted there, as in
+Emacs.
+
+** Templates made by a function (=eF=)
+=template= may be a Lua function returning the template text (escapes in it
+are still expanded), a list of lines, or ={ file = "path" }= to read it
+from a file relative to =org_directory=.
+
+*Try:* =<prefix>c= =e= =F=, type =done=, =:w=.
+*Expect:* =** Built by Lua= followed by =  done=.
+
+* Target types
+The /target/ says where the text goes; the /type/ says what kind of text it
+is. The keys of a template that choose them:
+
+| Field                         | Emacs target      | Text goes...                                |
+|-------------------------------+-------------------+---------------------------------------------|
+| =target = "f.org"= only       | =file=            | at the end of the file                      |
+| =target = ""= or no =target=  | =file= (notes)    | into =default_notes_file=                   |
+| =headline = "H"=              | =file+headline=   | under the first headline "H" (created)      |
+| =olp = { "A", "B" }=          | =file+olp=        | under A / B (all must exist)                |
+| =datetree = true=             | =file+olp+datetree= | under year / month / day nodes            |
+| =regexp = "..."=              | =file+regexp=     | where the first match ends                  |
+| =id = "..."=                  | =id=              | under the entry with that ID                |
+| =func = function(bufnr)=      | =file+function=   | at the line the function returns           |
+| =location = function()=       | =function=        | buffer, line, column the function returns   |
+| =target = "clock"=            | =clock=           | under the task being clocked                |
+
+| =type=         | Inserts                                | Default template |
+|----------------+----------------------------------------+------------------|
+| ="entry"=      | a headline (its level is adjusted)     | =* %?\n  %a=     |
+| ="item"=       | a plain list item in the first list    | =- %?=           |
+| ="checkitem"=  | a checkbox item                        | =- [ ] %?=       |
+| ="table-line"= | a row of the first table               | a =%?= cell      |
+| ="plain"=      | plain text at the end of the entry     |                  |
+
+** A plain list item (=ei=)
+*Try:* =<prefix>c= =e= =i=, type =A second idea=, =:w=.
+*Expect:* the list under =* Ideas= becomes
+: - The first idea
+: - A second idea
+The item takes the bullet and indentation of the existing list.
+
+** Plain text (=ep=)
+="plain"= text goes at the end of the entry's own text, before its
+children. The =ep= template is =%U %?=.
+
+*Try:* =<prefix>c= =e= =p=, type =appended text=, =:w=.
+*Expect:*
+: * Notes
+: Some text of the Notes entry.
+: [2026-09-28 Mon HH:MM] appended text
+: ** A child of Notes
+
+** First instead of last: =prepend= (=eP=)
+Entries normally become the /last/ child of the target. =prepend = true=
+makes them the first.
+
+*Try:* =<prefix>c= =e= =P=, type =!=, =:w=.
+*Expect:* right under =* Inbox=, before "An older note":
+: * Inbox
+: ** Newest note !
+: ** An older note
+
+** An outline path (=eo=)
+=olp = { "Projects", "Neovim" }= (or the string ="Projects/Neovim"=) finds
+"Neovim" under "Projects". Every node must exist.
+
+*Try:* =<prefix>c= =e= =o=, type =Write the plugin=, =:w=.
+*Expect:*
+: ** Neovim
+: *** TODO An existing task
+: *** TODO Write the plugin
+
+** Date trees: day, week, month (=j=, =ew=, =em=)
+=datetree = true= makes a day tree (=j= above). =tree_type= changes the
+levels: ="day"= (year, month, day), ="week"= (year, ISO week, day),
+="month"= (year, month), or a list of ="year"=, ="quarter"=, ="month"=,
+="week"=, ="day"=. With =olp= or =headline=, the tree is built under that
+headline; without, at the top level of the file.
+
+*Try:* =<prefix>c= =e= =w=, type =Week entry=, =:w=.
+*Expect:* under =* Log=:
+: * Log
+: ** 2026
+: *** 2026-W40
+: **** 2026-09-28 Monday
+: ***** Week entry
+
+*Try:* =<prefix>c= =e= =m=, type =Month entry=, =:w=.
+*Expect:* at the end of the playground (a top-level tree):
+: * 2026
+: ** 2026-09 September
+: *** 28 Month entry
+
+** After a regexp match (=er=)
+=regexp= is a Vim regexp; the text goes where the first match ends (where
+it starts, with =prepend=). When the match is on a headline, an entry
+becomes its child and an item goes into its list.
+
+*Try:* =<prefix>c= =e= =r=, answer =Dune=.
+*Expect:* no window (=immediate_finish=), and
+: * Reading list
+: - [ ] Dune
+
+** A table row at a given position (=et=)
+=table_line_pos = "II-1"= means "the line just before the 2nd horizontal
+rule", so the row lands above the =Total= line. ="I+1"= would put it right
+after the first rule (the top of the data).
+
+*Try:* =<prefix>c= =e= =t=, answer =4.20= and =Tea=.
+*Expect:*
+: | Date             | Amount | What         |
+: |------------------+--------+--------------|
+: | [2026-09-01 Tue] |   9.00 | Coffee beans |
+: | [2026-09-28 Mon] |   4.20 | Tea          |
+: |------------------+--------+--------------|
+: | Total            |        |              |
+
+** Under the running clock (=ek=)
+=target = "clock"= files under whatever task is being clocked; =%k= is its
+title and =%K= a link to it.
+
+*Try:* first =<prefix>c= =e= =k= with no clock running.
+*Expect:* the warning "No running clock that could be used as capture
+target".
+
+*Try:* =4<prefix>c= =e= =o= (jumps to "Neovim" in the playground), go down
+to "An existing task", clock in with =<prefix>xi=, come back with =<C-o>=.
+Then =<prefix>c= =e= =k=, type =remember this=, =:w=. Clock out later with
+=<prefix>xo= (on the task) or =<C-c><C-x><C-o>=.
+*Expect:* a child of the clocked task:
+: **** Note about An existing task
+:   [[file:...playground.org::*An existing task][An existing task]]
+:   remember this
+
+* Template options
+| Option              | Effect                                                    |
+|---------------------+-----------------------------------------------------------|
+| =immediate_finish=  | store right after the prompts, no window                  |
+| =jump_to_captured=  | jump to the entry after finishing                         |
+| =properties=        | a table of properties added to the entry                  |
+| =empty_lines=       | blank lines around the text (also =_before= / =_after=)   |
+| =clock_in=          | clock the entry while capturing                           |
+| =clock_keep=        | with =clock_in=: keep the clock running afterwards        |
+| =clock_resume=      | with =clock_in=: clock the interrupted task in again      |
+| =time_prompt=       | ask for the date used by =%t %T %u %U= and the date tree  |
+| =unnarrowed=        | edit in the target file itself, showing the whole file    |
+| =no_save=           | do not save the target file                               |
+| =kill_buffer=       | unload the target file afterwards if capture loaded it    |
+| =refile_targets=    | the refile targets for =<C-c><C-w>= in the capture window |
+| =hook=              | =function(bufnr)= run when the window opens               |
+| =prepare_finalize=  | =function(bufnr)= before the text is read                 |
+| =before_finalize=   | =function(bufnr, lnum)= in the target, before saving      |
+| =after_finalize=    | =function(bufnr, lnum)= when the capture is done          |
+
+** Properties and jumping (=eR=)
+*Try:* =<prefix>c= =e= =R=, answer =Saved with a property=.
+*Expect:* no window; Neovim jumps to the new entry in the playground:
+: ** Saved with a property
+: :PROPERTIES:
+: :SOURCE:   capture
+: :END:
+
+** Asking for the date (=eT=)
+With =time_prompt=, the calendar opens first. The picked date replaces
+"now" for =%t=, =%T=, =%u=, =%U= and the date tree.
+
+*Try:* =<prefix>c= =e= =T=; in the calendar press =i=, type =fri 14:30=,
+=<CR>=. Type =at the dentist=, =:w=.
+*Expect:*
+: ** Appointment at the dentist
+:   <2026-10-02 Fri 14:30>
+
+** Editing in the target file (=eu=)
+An =unnarrowed= capture inserts the text into the target buffer right away
+and shows the whole target file in the capture window, cursor at =%?=.
+=<C-c><C-c>= finishes and saves; =<C-c><C-k>= removes exactly what the
+capture inserted; =:w= only writes the file.
+
+*Try:* =<prefix>c= =e= =u=, look around the whole playground, type =ok=,
+=<Esc>=, =<C-c><C-c>=.
+*Expect:* =** Seen in context ok= as the last child of =* Inbox=.
+
+* Capture contexts
+=capture.templates_contexts= shows some templates only in some buffers
+(Emacs =org-capture-templates-contexts=). Each rule is ={ key, rules }=, or
+={ key, other_key, rules }= to use =other_key='s template under =key= there.
+A rule is a table with one of =in_file=, =not_in_file=, =in_mode=
+(filetype), =not_in_mode=, =in_buffer=, =not_in_buffer= (Vim regexps), or a
+function returning true.
+
+#+begin_src lua :eval no
+capture = {
+  templates_contexts = {
+    { "m", { { in_mode = "^mail$" } } },          -- m only in mail buffers
+    { "t", "p", { { in_file = "project" } } },    -- in *project* files, t
+                                                  -- runs template p
+    { "ec", { { in_buffer = "^11-capture\\.org$" } } },
+  },
+}
+#+end_src
+
+The playground block sets the last rule.
+
+*Try:* =<prefix>c= =e= here.
+*Expect:* the list includes =c Only in 11-capture.org=.
+
+*Try:* open another file (=:e examples/tutorial.org=), =<prefix>c= =e=.
+*Expect:* no =c= entry. Come back with =<C-^>=.
+
+* Capturing from the agenda
+In the agenda, =K= (Emacs =k=) starts a capture whose default date is the
+day under the cursor: a date tree template files under that day, and =%t=
+/ =%T= use it.
+
+*Try:* =<prefix>a= =a=, move to the line of Thursday 2026-10-01 (=n= / =j=
+or =f= for the next week), press =K= then =j=, type =From the agenda=, =:w=.
+*Expect:* in =journal.org=, a =*** 2026-10-01 Thursday= node with
+=**** 00:00 From the agenda= (a day without a time is taken at
+=extend_today_until= o'clock, 0 by default).
+
+* Writing templates: a Lua reference
+Every kind of template, as it would appear in your =setup()= call. This
+block is for reading, not running (=:eval no=).
+
+#+begin_src lua :eval no
+require("org").setup({
+  org_directory = "~/org",
+  default_notes_file = "~/org/inbox.org",   -- used when target is "" / nil
+  capture = {
+    window = "split",                        -- "float" "vsplit" "tab" "current"
+    templates = {
+      -- file: at the end of the file
+      n = { description = "Note", template = "* %?\n  %U", target = "notes.org" },
+      -- file+headline: created when missing
+      t = { description = "Task", template = "* TODO %?\n  %a",
+            target = "todo.org", headline = "Tasks" },
+      -- a group label and its templates (keys "p", then "pt" / "pi")
+      p = "Projects",
+      pt = { description = "Project task", template = "* TODO %?",
+             target = "projects.org", olp = { "Projects", "Neovim" } },
+      pi = { description = "Project idea", template = "* %?",
+             target = "projects.org", olp = "Projects/Ideas", prepend = true },
+      -- file+olp+datetree: day tree, or week / month / a list / a function
+      j = { description = "Journal", template = "* %<%H:%M> %?",
+            target = "journal.org", datetree = true },
+      J = { description = "Weekly log", template = "* %?",
+            target = "journal.org", olp = { "Weekly" },
+            datetree = { tree_type = "week" } },
+      q = { description = "Quarterly", template = "* %?",
+            target = "journal.org",
+            datetree = { tree_type = { "year", "quarter", "month" } } },
+      -- file+regexp
+      r = { description = "Reading", type = "item", template = "- [ ] %^{Book}",
+            target = "books.org", regexp = "^\\* To read" },
+      -- id: under the entry with this ID
+      i = { description = "Under an ID", template = "* %?",
+            id = "5d9f6e2a-1111-2222-3333-444455556666" },
+      -- file+function: return the line (and column) to insert at
+      f = { description = "Top headline", template = "* %?",
+            target = "notes.org",
+            func = function(bufnr) return 1 end },
+      -- (function f): choose buffer, line and column yourself
+      h = { description = "Here", template = "- %?", type = "item",
+            location = function()
+              return vim.api.nvim_get_current_buf(), vim.fn.line("."), 0
+            end },
+      -- clock: under the clocked task
+      c = { description = "Clock note", template = "* %?\n  %K",
+            target = "clock" },
+      -- other types
+      s = { description = "Shopping", type = "checkitem", template = "[ ] %?",
+            target = "inbox.org", headline = "Shopping" },
+      x = { description = "Expense", type = "table-line",
+            template = "| %u | %^{Amount} | %^{What} |", target = "money.org",
+            headline = "Expenses", table_line_pos = "I+1",
+            immediate_finish = true },
+      l = { description = "Log line", type = "plain", template = "%U %?",
+            target = "log.org" },
+      -- template from a file, or from a function
+      m = { description = "Meeting notes", template = { file = "tpl/meeting.org" },
+            target = "work.org", headline = "Meetings", clock_in = true,
+            clock_resume = true },
+      d = { description = "Dynamic", target = "notes.org",
+            template = function() return "* " .. vim.fn.expand("%:t") .. " %?" end },
+      -- options
+      a = { description = "Appointment", template = "* %?\n  %^T",
+            target = "calendar.org", time_prompt = false,
+            properties = { CATEGORY = "appt" }, empty_lines = 1,
+            jump_to_captured = true,
+            after_finalize = function(bufnr, lnum) vim.notify("filed") end },
+      -- org-protocol (see below): the browser sends url, title and body
+      w = { description = "Web page", target = "inbox.org",
+            template = "* %:description\n  %:link\n  %i" },
+    },
+    templates_contexts = {
+      { "w", { { not_in_mode = "^mail$" } } },
+    },
+  },
+})
+#+end_src
+
+When =templates= is empty, Emacs's fallback is used: =t= "Task"
+(="* TODO %?\n  %u\n  %a"=) under =* Tasks= of =default_notes_file=.
+
+* org-protocol (briefly)
+=org-protocol://= URLs let a browser or another program capture into a
+running Neovim, like Emacs's =org-protocol.el=:
+: org-protocol://capture?template=w&url=URL&title=TITLE&body=TEXT
+: org-protocol://store-link?url=URL&title=TITLE
+: org-protocol://open-source?url=URL
+In the capture template, =%:link= and =%a= come from =url=, =%:description=
+from =title=, =%i= from =body=, and any other parameter is =%:name=.
+Neovim must listen on a socket (=nvim --listen ~/.cache/nvim/org.sock=)
+and the operating system must hand =org-protocol:= URLs to a small handler
+that runs =require'org.protocol'.handle(url)= in it (see =:h org-protocol=
+for the desktop file, macOS and a bookmarklet).
+
+You can try the handler without a browser once the playground templates
+are loaded:
+
+*Try:* run the command below (the playground template =eW= is
+=* %:description\n  %:link\n  %?=):
+: :Org protocol org-protocol://capture?template=eW&url=https://neovim.io&title=Neovim
+*Expect:* a capture window with
+: * Neovim
+:   https://neovim.io
+The link was also stored: =<prefix>li= in any org buffer offers it. Abort
+with =<C-c><C-k>= or finish with =:w=.
+
+* RSS and Atom feeds (briefly)
+=org-feed= adds the items of RSS/Atom feeds as children of an inbox
+headline and remembers which items it has seen in a =:FEEDSTATUS:= drawer:
+
+#+begin_src lua :eval no
+feed = {
+  feeds = {
+    { name = "Neovim news", url = "https://neovim.io/news.xml",
+      file = "~/org/feeds.org", headline = "Neovim news" },
+  },
+}
+#+end_src
+
+=<C-c><C-x>g= (=:Org feed_update_all=) updates every feed, =:Org
+feed_update NAME= one of them, =<C-c><C-x>G= (=:Org feed_goto_inbox=) jumps
+to the inbox headline. Each item becomes an entry from
+=feed.default_template= (title, date, description and link).
+
+* Further reading
+- =:h org-capture= : keys, counts, the target and capture window
+- =:h org-capture-templates= : every template field
+- =:h org-capture-expansions= : every %-escape
+- =:h org-capture-contexts= and =:h org-capture-unnarrowed=
+- =:h org-protocol= and =:h org-feed=
+- =:h org-read-date= : what you can type in date prompts
+- [[file:12-refile-archive.org][12-refile-archive.org]] for moving entries after capturing them
+- [[file:09-agenda.org][09-agenda.org]] to see captured entries in the agenda

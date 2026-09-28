@@ -1,0 +1,2761 @@
+#+TITLE: The spreadsheet: table formulas (#+TBLFM)
+#+STARTUP: overview
+#+CATEGORY: spreadsheet
+#+CONSTANTS: vat=0.20 hourly=45 g=9.81
+
+* How to use this file
+Org tables are also spreadsheets. You write formulas on a =#+TBLFM:= line
+right below a table, and org.nvim fills in the fields: sums, averages,
+prices with tax, dates, durations, grades, running balances... This file
+teaches every part of it, from a one-cell formula to complete worked
+sheets. See [[file:15-tables.org][15-tables.org]] for editing tables
+(moving rows, sorting, aligning) and this file for computing them.
+
+Start Neovim from the repository root with the bundled init file, so
+nothing touches your own configuration:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/16-spreadsheet.org
+#+end_src
+
+=examples/minimal_init.lua= sets =<leader>= to =<Space>=, points the
+agenda at =examples/*.org= and sends captures to a scratch directory. For
+this file only the table keys matter.
+
+- The file starts folded. Put the cursor on a heading and press =<Tab>= to
+  open it; =<S-Tab>= cycles the whole buffer.
+- =<prefix>= means =<leader>o= (the default key prefix), so =<prefix>Tf=
+  is =<Space>oTf= with this init file.
+- Emacs keys work too: =<C-c><C-c>= is =C-c C-c=, =<C-c>*= is =C-c *=.
+  Emacs' =C-u= prefix is a count in Neovim: =C-u C-c *= is =4<C-c>*= and
+  =C-u C-u C-c *= is =16<C-c>*=.
+- =u= undoes anything, and =git checkout examples/16-spreadsheet.org=
+  restores the whole file.
+- =g?= lists every key of the current buffer.
+- Lines starting with *Try:* are exercises; *Expect:* says exactly what you
+  should see afterwards.
+
+** Solved tables and practice copies
+Almost every example comes twice:
+
+1. A *solved* table. Its results were computed by org.nvim itself and
+   pasted here, so recalculating it must change nothing. If a value
+   changes when you press =<C-c><C-c>= on its =#+TBLFM:= line, you found a
+   bug. (Tables that need several passes are marked with a comment
+   =# Solved with 16<C-c>*=; one table in "Ranges" changes on purpose and
+   says so.)
+2. A *practice copy* right below it, announced by a comment line starting
+   with =# Practice copy=. Its result fields are empty on purpose. You
+   compute them and compare with the solved table and the *Expect:* text.
+
+Comment lines (=# ...= at column 0) are notes for you; they are never part
+of a table or exported.
+
+** Keys in this file
+| Key                        | What it does                                |
+|----------------------------+---------------------------------------------|
+| =<C-c><C-c>= on =#+TBLFM:= | apply that formula line to the table        |
+| =<prefix>Tf=               | recalculate the whole table at the cursor   |
+| =<C-c><C-c>= in a table    | realign; recalculate a =#= row              |
+| =4<C-c><C-c>= in a table   | recalculate the whole table                 |
+| =<C-c>*=                   | recalculate the current row                 |
+| =4<C-c>*=  =16<C-c>*=      | whole table / iterate until stable          |
+| =:Org table_iterate=       | iterate the table until stable              |
+| =:Org table_recalc_buffer= | recalculate every table of the buffer       |
+| =<C-c>==                   | set the column formula (count: field)       |
+| ~=$1*2~ then =<Tab>=       | type a column formula into a field          |
+| ~:=vsum(@I..@II)~ =<Tab>=  | type a field formula into a field           |
+| =<prefix>'= or =<C-c>'=    | open the formula editor                     |
+| =<C-c>?=                   | show the reference and formula of the field |
+| =<C-c>}=                   | show row/column numbers on the table        |
+| =<C-c>{=                   | toggle the formula debugger                 |
+| =<prefix>T#= or =<C-#>=    | rotate the row mark (=#= =*= =!= =$= ...)   |
+| =<C-c>+=                   | sum the column into the unnamed register    |
+| =<C-c>"a=                  | add an ASCII bar plot of the column         |
+| =<C-c>"g=                  | plot with gnuplot (needs gnuplot)           |
+
+* A first spreadsheet
+A =#+TBLFM:= line holds one or more formulas separated by =::=. Each
+formula says /where/ the result goes (the left side) and /how/ to compute it
+(the right side):
+
+- =$4=$2*$3= : in every row, column 4 is column 2 times column 3.
+- =@>$4=vsum(@I..@II)= : in the last row (=@>=), column 4 is the sum of
+  the rows between the first (=@I=) and the second (=@II=) horizontal line.
+- =;%.2f= after a formula formats the result with two decimals.
+
+Rows are counted from the top starting at 1 (=@1= is the header line);
+horizontal lines (=|---+---|=) are not counted. Columns are counted from
+the left starting at 1.
+
+| Item     | Qty | Price |  Total |
+|----------+-----+-------+--------|
+| Coffee   |   3 |  4.50 |  13.50 |
+| Keyboard |   1 |   120 | 120.00 |
+| Stickers |  10 |  0.80 |   8.00 |
+|----------+-----+-------+--------|
+| Sum      |     |       | 141.50 |
+#+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+
+# Practice copy: the Total column is empty on purpose.
+| Item     | Qty | Price | Total |
+|----------+-----+-------+-------|
+| Coffee   |   3 |  4.50 |       |
+| Keyboard |   1 |   120 |       |
+| Stickers |  10 |  0.80 |       |
+|----------+-----+-------+-------|
+| Sum      |     |       |       |
+#+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+
+*Try:* in the practice copy, put the cursor on its =#+TBLFM:= line and
+press =<C-c><C-c>=.
+
+*Expect:* Total becomes =13.50=, =120.00=, =8.00= and the Sum row shows
+=141.50=, exactly like the solved table above. The Sum row gets no
+=$2*$3= product: a column formula such as =$4=...= is overridden by a field
+formula such as =@>$4=...= on the same field.
+
+*Try:* in the practice copy change Coffee's Qty from =3= to =5= (=ciw= on
+the number), then press =<prefix>Tf= anywhere inside the table.
+
+*Expect:* Coffee's Total becomes =22.50= and Sum becomes =150.50=.
+
+*Try:* put the cursor on the Total of Keyboard and press =<C-c>?=.
+
+*Expect:* the message =line @3, col $4, ref @3$4 or D3, formula:
+$4=$2*$3;%.2f=. =@3$4= is the address of the field (row 3, column 4) and
+=D3= the same address spreadsheet-style.
+
+* Recalculating
+Nothing is recomputed while you type: you ask for it. The ways to do so:
+
+| Key / command                | Recalculates                              |
+|------------------------------+-------------------------------------------|
+| =<C-c><C-c>= on =#+TBLFM:=   | the table, with the formulas of that line |
+| =<prefix>Tf=                 | the table at the cursor (one pass)        |
+| =4<C-c><C-c>= in the table   | the table at the cursor (one pass)        |
+| =4<C-c>*=                    | the table at the cursor (one pass)        |
+| =<C-c>*=                     | the current row, plus every field formula |
+| =16<C-c>*= or =16<C-c><C-c>= | the table, again and again until stable   |
+| =:Org table_iterate=         | the same as =16<C-c>*=                    |
+| =:Org table_recalc_buffer=   | every table with formulas in the buffer   |
+| =<Tab>= =<CR>= =<C-c><C-c>=  | a row marked =#= (see "Automatic ...")    |
+
+One pass is enough for most tables. Formulas run row by row, column
+formulas first, then field formulas. When a formula reads a field that a
+/later/ formula computes, one pass leaves it stale: iterate
+(=16<C-c>*=), which recalculates until nothing changes (at most 10 times)
+and reports "Convergence after N iterations".
+
+=:Org table_recalc_buffer= would also fill every practice copy of this
+file. Try it if you like, then press =u= once to get them back.
+
+** Several #+TBLFM lines: alternatives
+Only the /first/ =#+TBLFM:= line under a table is its formula line. You can
+keep alternatives on more lines below it: =<C-c><C-c>= on any of them
+applies that line once, without making it the active one.
+
+| n | result |
+|---+--------|
+| 1 |      2 |
+| 2 |      4 |
+| 3 |      6 |
+| 4 |      8 |
+#+TBLFM: $2=$1*2
+#+TBLFM: $2=$1^2
+#+TBLFM: $2=$1*100;%d%%
+
+# Practice copy: results are blank on purpose.
+| n | result |
+|---+--------|
+| 1 |        |
+| 2 |        |
+| 3 |        |
+| 4 |        |
+#+TBLFM: $2=$1*2
+#+TBLFM: $2=$1^2
+#+TBLFM: $2=$1*100;%d%%
+
+*Try:* in the practice copy press =<C-c><C-c>= on the /second/ =#+TBLFM:=
+line.
+
+*Expect:* squares: =1=, =4=, =9=, =16=.
+
+*Try:* now =<C-c><C-c>= on the third line, then =<prefix>Tf= inside the
+table.
+
+*Expect:* first =100%=, =200%=, =300%=, =400%=; then =<prefix>Tf= uses
+the first line again and gives =2=, =4=, =6=, =8=.
+
+** Recalculating a single row
+=<C-c>*= without a count recalculates only the column formulas of the row
+under the cursor (field formulas always run).
+
+# Practice copy: results are blank on purpose.
+| a | b | a*b |
+|---+---+-----|
+| 2 | 3 |     |
+| 4 | 5 |     |
+| 6 | 7 |     |
+#+TBLFM: $3=$1*$2
+
+*Try:* put the cursor on the row =| 4 | 5 |= and press =<C-c>*=.
+
+*Expect:* only that row gets a result, =20=; the other two stay empty.
+Then press =4<C-c>*=: =6= and =42= appear as well.
+
+** Iterating until stable
+Formulas run top to bottom, column formulas first. In the table below the
+Share column divides each row by the total in the last row, but that total
+is a field formula, so it is computed /after/ the shares. The first pass
+therefore divides by an empty field; a second pass uses the fresh total.
+
+# Solved with 16<C-c>* (iterated until stable).
+| Name  | Hours |  Share |
+|-------+-------+--------|
+| Alice |    12 |  30.0% |
+| Bob   |     8 |  20.0% |
+| Carol |    20 |  50.0% |
+|-------+-------+--------|
+| Total |    40 | 100.0% |
+#+TBLFM: $3=100*$2/@>$2;%.1f%%::@>$2=vsum(@I..@II)
+
+# Practice copy: results are blank on purpose.
+| Name  | Hours | Share |
+|-------+-------+-------|
+| Alice |    12 |       |
+| Bob   |     8 |       |
+| Carol |    20 |       |
+|-------+-------+-------|
+| Total |       |       |
+#+TBLFM: $3=100*$2/@>$2;%.1f%%::@>$2=vsum(@I..@II)
+
+*Try:* in the practice copy press =<prefix>Tf= /once/.
+
+*Expect:* nonsense shares =1200.0%=, =800.0%=, =2000.0%= and =0.0%= in the
+Total row: the total was still empty (an empty field counts as 0, and a
+division by 0 stays unevaluated, of which =%.1f= keeps only the leading
+number). The Hours total =40= is there now.
+
+*Try:* press =<prefix>Tf= a second time.
+
+*Expect:* =30.0%=, =20.0%=, =50.0%= and =100.0%= (the column formula also
+runs on the Total row). A third =<prefix>Tf= changes nothing.
+
+*Try:* undo back to the empty copy (=u= a few times) and press =16<C-c>*=.
+
+*Expect:* the same final values in one go, and the message "Convergence
+after 3 iterations" (two passes that change something and a third that
+confirms nothing changes).
+
+Note the order in =100*$2/@>$2=. Written as =$2/@>$2*100= it would be
+wrong: in Calc, =/= binds looser than =*=, so that means
+=$2/(@>$2*100)= (see "Arithmetic" below).
+
+* References: pointing at fields
+A reference names a field (or a group of fields) of the table. Before a
+formula is evaluated, every reference is replaced by the text of its field,
+in parentheses: with =3= in =$2=, =$2*10= becomes =(3)*10=.
+
+| Reference      | Means                                             |
+|----------------+---------------------------------------------------|
+| =$3=           | column 3, in the row being computed               |
+| =@2=           | row 2, in the column being computed               |
+| =@2$3=         | the field in row 2, column 3                      |
+| =$-1= =$+2=    | one column left / two columns right               |
+| =@-1= =@+1=    | the row above / below                             |
+| =@<= =@>=      | the first / last row                              |
+| =$<= =$>=      | the first / last column                           |
+| =@<<= =@>>=    | the second / second-to-last row                   |
+| =$<<= =$>>=    | the second / second-to-last column                |
+| =@I= =@II= ... | the 1st, 2nd ... horizontal line                  |
+| =@-I=          | the nearest horizontal line above                 |
+| =@0= =$0=      | the current row / column (same as leaving it out) |
+| =@#= =$#=      | the /number/ of the current row / column          |
+
+** Absolute references: @row$column
+In the table below every number tells you where it lives: =23= is in row
+2, column 3; =45= in row 4, column 5. The first column holds labels (and
+the header row is row 1).
+
+|       | c2 | c3 | c4 | out |
+|-------+----+----+----+-----|
+| row 2 | 22 | 23 | 24 |  43 |
+| row 3 | 32 | 33 | 34 |  66 |
+| row 4 | 42 | 43 | 44 |  86 |
+| row 5 | 52 | 53 | 54 |  76 |
+#+TBLFM: @2$5=@4$3::@3$5=$2+$4::@4$5=@2*2::@5$5=@3$2+@4$4
+
+# Practice copy: the out column is blank on purpose.
+|       | c2 | c3 | c4 | out |
+|-------+----+----+----+-----|
+| row 2 | 22 | 23 | 24 |     |
+| row 3 | 32 | 33 | 34 |     |
+| row 4 | 42 | 43 | 44 |     |
+| row 5 | 52 | 53 | 54 |     |
+#+TBLFM: @2$5=@4$3::@3$5=$2+$4::@4$5=@2*2::@5$5=@3$2+@4$4
+
+How each result comes about:
+- =@2$5=@4$3= copies the field of row 4, column 3: =43=.
+- =@3$5=$2+$4= uses columns 2 and 4 /of its own row/ (row 3): 32+34 = =66=.
+- =@4$5=@2*2= uses row 2 /of its own column/ ($5), which the first formula
+  just set to 43: 43*2 = =86=.
+- =@5$5=@3$2+@4$4= = 32+44 = =76=.
+
+*Try:* press =<C-c><C-c>= on the practice copy's =#+TBLFM:= line.
+
+*Expect:* out = =43=, =66=, =86=, =76=.
+
+*Try:* change =43= (row 4, c3) in the practice copy to =100=, recalculate
+with =<prefix>Tf=.
+
+*Expect:* out = =100=, =66=, =200=, =76=: the first formula copies the new
+value, and =@4$5= doubles it.
+
+*Try:* press =<C-c>}= inside the table.
+
+*Expect:* virtual text shows the row numbers (=@1=, =@2= ...) at the left of
+each row and the column numbers (=$1=, =$2= ...) above the table.
+=<C-c>}= again removes them. Horizontal lines get no number.
+
+** Relative references: @-1 $+1
+A signed number counts from the field being computed. They are most useful
+in column formulas, where the same formula runs on every row.
+
+Here is a change column that compares each row with the row above it.
+
+| Month | Visitors | Change |
+|-------+----------+--------|
+| Sep   |     1200 |        |
+| Oct   |     1350 |    150 |
+| Nov   |     1310 |    -40 |
+| Dec   |     1600 |    290 |
+#+TBLFM: @3$3..@>$3=$2-@-1$2
+
+# Practice copy: Change is blank on purpose.
+| Month | Visitors | Change |
+|-------+----------+--------|
+| Sep   |     1200 |        |
+| Oct   |     1350 |        |
+| Nov   |     1310 |        |
+| Dec   |     1600 |        |
+#+TBLFM: @3$3..@>$3=$2-@-1$2
+
+The left side =@3$3..@>$3= is a /range/: the formula fills rows 3 to the
+last row of column 3. Row 2 (Sep) has no row above it with a number, so it
+is left out.
+
+*Try:* recalculate the practice copy (=<C-c><C-c>= on =#+TBLFM:=).
+
+*Expect:* Change = (empty), =150=, =-40=, =290=.
+
+*Try:* change Nov's visitors to =1400= and press =<prefix>Tf=.
+
+*Expect:* Change = =150=, =50=, =200=.
+
+** First, last and second-to-last: @< @> $< $> @<< $>>
+These keep working when rows or columns are added, which absolute numbers
+do not. This table has no header, so row 1 is the first line.
+
+| 11 | 12 | 13 | 11 |
+| 21 | 22 | 23 | 41 |
+| 31 | 32 | 33 | 23 |
+| 41 | 42 | 43 | 32 |
+#+TBLFM: @1$4=@<$<::@2$4=@>$<::@3$4=@<<$>>::@4$4=@>>$2
+
+# Practice copy: column 4 is blank on purpose.
+| 11 | 12 | 13 |   |
+| 21 | 22 | 23 |   |
+| 31 | 32 | 33 |   |
+| 41 | 42 | 43 |   |
+#+TBLFM: @1$4=@<$<::@2$4=@>$<::@3$4=@<<$>>::@4$4=@>>$2
+
+- =@<$<= first row, first column: =11=.
+- =@>$<= last row, first column: =41=.
+- =@<<$>>= second row, second-to-last column (=$3=; =$4= is the last): =23=.
+- =@>>$2= second-to-last row, column 2: =32=.
+
+*Expect:* after =<C-c><C-c>= on the practice =#+TBLFM:=, column 4 reads
+=11=, =41=, =23=, =32=.
+
+*Try:* on the row =| 41 | 42 | ...= of the practice copy press =<M-CR>= to
+add an empty row below it (the cursor moves there), press =i= and type
+=51= =<Tab>= =52= =<Tab>= =53=, then =<Esc>=, and recalculate with
+=<prefix>Tf=.
+
+*Expect:* =@>$<= now finds the new last row: =51=; =@>>$2= finds =42=. The
+other two stay =11= and =23=.
+
+** The last row and column: totals with @>$>
+=@>$>= is the bottom-right corner, the classic place for a grand total.
+
+| Region | Q3 | Q4 | Year |
+|--------+----+----+------|
+| North  | 40 | 55 |   95 |
+| South  | 35 | 30 |   65 |
+|--------+----+----+------|
+| Total  | 75 | 85 |  160 |
+#+TBLFM: $>=vsum($2..$3)::@>$2=vsum(@I..@II)::@>$3=vsum(@I..@II)::@>$>=vsum(@I$>..@II$>)
+
+# Practice copy: the sums are blank on purpose.
+| Region | Q3 | Q4 | Year |
+|--------+----+----+------|
+| North  | 40 | 55 |      |
+| South  | 35 | 30 |      |
+|--------+----+----+------|
+| Total  |    |    |      |
+#+TBLFM: $>=vsum($2..$3)::@>$2=vsum(@I..@II)::@>$3=vsum(@I..@II)::@>$>=vsum(@I$>..@II$>)
+
+=$>=...= is a column formula for the last column. It runs on the Total row
+too, but the field formula =@>$>= overrides it there.
+
+*Expect:* Year = =95=, =65=; Total row = =75=, =85=, =160=.
+
+* Horizontal lines: @I @II @III and @-I
+Horizontal lines divide a table into sections, and =@I=, =@II=, =@III= ...
+name them in order. The header line on top is not counted, so in a
+table with a header, =@I= is the line under the header. As a range end,
+=@I..@II= means "the rows between the first and the second line".
+
+- =@I+1= is the first row below line I; =@II-1= the last row above line II.
+- =@-I= is the nearest line /above the current row/: in a column formula
+  =@-I+1= (or just =@-I=) is the first row of the current section.
+
+| Month | Sales |
+|-------+-------|
+| Oct   |   120 |
+| Nov   |   135 |
+| Dec   |   160 |
+|-------+-------|
+| Q4    |       |
+|-------+-------|
+| Jan   |   415 |
+| Feb   |   110 |
+|-------+-------|
+| Total |   940 |
+#+TBLFM: @6$2=vsum(@I..@II)::@>$2=@6$2+vsum(@III..@IIII)
+
+# Practice copy: Q4 and Total are blank on purpose.
+| Month | Sales |
+|-------+-------|
+| Oct   |   120 |
+| Nov   |   135 |
+| Dec   |   160 |
+|-------+-------|
+| Q4    |       |
+|-------+-------|
+| Jan   |    90 |
+| Feb   |   110 |
+|-------+-------|
+| Total |       |
+#+TBLFM: @6$2=vsum(@I..@II)::@>$2=@6$2+vsum(@III..@IIII)
+
+*This example contains a deliberate mistake.* Count the rows: horizontal
+lines are skipped, so the rows are @1 Month, @2 Oct, @3 Nov, @4 Dec, @5 Q4,
+@6 Jan, @7 Feb, @8 Total. =@6$2= is Jan, not Q4, so the formulas overwrite
+Jan with the Q4 sum. Look at the solved table: Jan shows =415=, Q4 stays
+empty and the Total (415 + 415 + 110 = 940) is wrong.
+
+*Try:* fix the practice copy: open the formula line and change both =@6$2=
+to =@5$2= so it reads
+=#+TBLFM: @5$2=vsum(@I..@II)::@>$2=@5$2+vsum(@III..@IIII)=, then
+=<C-c><C-c>= on it.
+
+*Expect:* Q4 = =415=, Jan stays =90=, Total = =615= (415 + 90 + 110).
+Lesson: use =<C-c>?= or =<C-c>}= to check a row number before you type it.
+
+** Section-relative formulas with @-I
+Each row compares its weight with the first row of its own section.
+
+| Week | Weight | Since start |
+|------+--------+-------------|
+|    1 |   80.0 |         0.0 |
+|    2 |   79.2 |        -0.8 |
+|    3 |   78.9 |        -1.1 |
+|------+--------+-------------|
+|    4 |   78.1 |         0.0 |
+|    5 |   77.5 |        -0.6 |
+#+TBLFM: $3=$2-@-I$2;%.1f
+
+# Practice copy: Since start is blank on purpose.
+| Week | Weight | Since start |
+|------+--------+-------------|
+|    1 |   80.0 |             |
+|    2 |   79.2 |             |
+|    3 |   78.9 |             |
+|------+--------+-------------|
+|    4 |   78.1 |             |
+|    5 |   77.5 |             |
+#+TBLFM: $3=$2-@-I$2;%.1f
+
+*Expect:* =0.0=, =-0.8=, =-1.1= in the first section and =0.0=, =-0.6= in
+the second: week 4 is the start of its own section.
+
+*Try:* in the practice copy delete the middle horizontal line (=dd= on
+it) and recalculate.
+
+*Expect:* now there is one section: =0.0=, =-0.8=, =-1.1=, =-1.9=, =-2.5=.
+
+* Ranges: many fields at once
+Two references joined by =..= form a range. Functions like =vsum= and
+=vmean= take a range and reduce it to one value.
+
+| Range            | Fields                                       |
+|------------------+----------------------------------------------|
+| =@2$1..@5$1=     | rows 2 to 5 of column 1                      |
+| =$2..$4=         | columns 2 to 4 of the current row            |
+| =@2..@5=         | rows 2 to 5 of the current column            |
+| =@I..@II=        | rows between line I and line II, this column |
+| =@2$2..@4$4=     | a rectangle: rows 2-4 times columns 2-4      |
+| =@I$2..@II$4=    | the rectangle between two lines              |
+| =@<$1..@>$1=     | all of column 1, header included             |
+| =@-1$-1..@+1$+1= | the 3x3 block around the current field       |
+
+Empty fields are dropped from ranges (see the flags =E= and =N= to keep
+them), so =vmean= averages only the fields that hold something.
+
+| Product | Oct | Nov | Dec | Total |   Avg |
+|---------+-----+-----+-----+-------+-------|
+| Tea     |  10 |  12 |  14 |    36 |  12.0 |
+| Coffee  |  20 |  18 |  25 |    63 |  21.0 |
+| Cocoa   |   5 |     |   9 |    14 |   7.0 |
+|---------+-----+-----+-----+-------+-------|
+| Sum     |  35 |  30 |  48 |   113 | 14.12 |
+#+TBLFM: $5=vsum($2..$4)::$6=vmean($2..$4);%.1f::@>$2..@>$5=vsum(@I..@II)::@>$6=vmean(@I$2..@II$4);%.2f
+
+# Practice copy: Total, Avg and Sum are blank on purpose.
+| Product | Oct | Nov | Dec | Total | Avg |
+|---------+-----+-----+-----+-------+-----|
+| Tea     |  10 |  12 |  14 |       |     |
+| Coffee  |  20 |  18 |  25 |       |     |
+| Cocoa   |   5 |     |   9 |       |     |
+|---------+-----+-----+-----+-------+-----|
+| Sum     |     |     |     |       |     |
+#+TBLFM: $5=vsum($2..$4)::$6=vmean($2..$4);%.1f::@>$2..@>$5=vsum(@I..@II)::@>$6=vmean(@I$2..@II$4);%.2f
+
+- =$5=vsum($2..$4)= sums Oct..Dec of each row (a horizontal range).
+- =$6=vmean($2..$4)= averages them; Cocoa has two values, so (5+9)/2 = 7.
+- =@>$2..@>$5=vsum(@I..@II)= is one formula for four fields: each sums
+  its own column between the lines.
+- =@>$6= is the mean of the whole 3x3 rectangle of monthly numbers (8
+  values, the empty one is dropped): 113/8 = 14.125.
+
+*Expect:* Total = =36=, =63=, =14=; Avg = =12.0=, =21.0=, =7.0=; Sum row =
+=35=, =30=, =48=, =113=, =14.12=. (14.125 is exactly halfway; =%.2f=
+rounds such a tie to the even digit, as C's printf does.)
+
+*Try:* type =7= into Cocoa's empty Nov field and =<prefix>Tf=.
+
+*Expect:* Cocoa Total =21=, Avg =7.0= (still: 21/3), Nov sum =37=, Total
+sum =120=, and the overall mean =13.33= (120/9).
+
+** The block around a field
+=@-1$-1..@+1$+1= is the 3x3 block around the field being computed (the
+field itself is empty, so it is dropped).
+
+# Deliberately unstable: recalculating it changes the result, see below.
+| 1 |  2 | 3 |
+| 4 | 40 | 6 |
+| 7 |  8 | 9 |
+#+TBLFM: @2$2=vsum(@-1$-1..@+1$+1)
+
+*Expect:* the centre field is =40= (1+2+3+4+6+7+8+9).
+
+*Try:* press =<C-c><C-c>= on that =#+TBLFM:= line again.
+
+*Expect:* =80=! The field is no longer empty, so the second time it is part
+of its own block: 40 + 40. A formula that reads its own field changes on
+every recalculation. Such a table never becomes stable: =16<C-c>*= gives up
+with "No convergence after 10 iterations". Press =u= to get =40= back.
+
+* Row and column numbers: @# $#, @0 $0
+=@#= is the number of the row being computed and =$#= the number of its
+column. Use them to number rows or build tables from their coordinates.
+=@0= and =$0= mean "this row" and "this column"; =@0$1= is the same as
+=$1=, but =@1$0= (row 1, this column) is handy in 2D formulas.
+
+| No. | Name    |
+|-----+---------|
+|   1 | Ada     |
+|   2 | Grace   |
+|   3 | Linus   |
+|   4 | Barbara |
+#+TBLFM: $1=@#-1
+
+# Practice copy: No. is blank on purpose.
+| No. | Name    |
+|-----+---------|
+|     | Ada     |
+|     | Grace   |
+|     | Linus   |
+|     | Barbara |
+#+TBLFM: $1=@#-1
+
+*Expect:* No. = =1=, =2=, =3=, =4= (the header is row 1, hence the =-1=).
+
+*Try:* in the practice copy move Linus up with =<M-k>= and recalculate.
+
+*Expect:* the names move but the numbers stay =1= to =4=, in order.
+
+** A multiplication table from coordinates
+One range formula fills a whole rectangle. =@0$1= is column 1 of the
+current row, =@1$0= row 1 (the header) of the current column.
+
+| x | 1 |  2 |  3 |  4 |  5 |
+|---+---+----+----+----+----|
+| 1 | 1 |  2 |  3 |  4 |  5 |
+| 2 | 2 |  4 |  6 |  8 | 10 |
+| 3 | 3 |  6 |  9 | 12 | 15 |
+| 4 | 4 |  8 | 12 | 16 | 20 |
+| 5 | 5 | 10 | 15 | 20 | 25 |
+#+TBLFM: @2$2..@>$>=@0$1*@1$0
+
+# Practice copy: the products are blank on purpose.
+| x | 1 | 2 | 3 | 4 | 5 |
+|---+---+---+---+---+---|
+| 1 |   |   |   |   |   |
+| 2 |   |   |   |   |   |
+| 3 |   |   |   |   |   |
+| 4 |   |   |   |   |   |
+| 5 |   |   |   |   |   |
+#+TBLFM: @2$2..@>$>=@0$1*@1$0
+
+*Expect:* the usual multiplication table; the bottom-right field is =25=.
+
+*Try:* change the header =5= to =10= and the row label =5= to =10=,
+recalculate.
+
+*Expect:* the last column becomes =10=, =20=, =30=, =40=, =100=, and the
+last row =10=, =20=, =30=, =40=, =100=.
+
+The same table without any labels, only from =@#= and =$#=:
+
+| 1 | 2 | 3 |  4 |
+|---+---+---+----|
+| 1 | 2 | 3 |  4 |
+| 2 | 4 | 6 |  8 |
+| 3 | 6 | 9 | 12 |
+#+TBLFM: @1$1..@1$>=$#::@2$1..@>$1=@#-1::@2$2..@>$>=(@#-1)*$#
+
+*Expect:* header =1 2 3 4=, first column =1 2 3=, and row /r/ column /c/
+holds (r-1)*c, so the last row is =3 6 9 12=. The three formulas fill the
+header, the first column and the rest; =@1$1..@1$>= is a range /inside the
+header row/, which column formulas never touch.
+
+* Column, field and range formulas
+The left side of a formula decides which fields it fills:
+
+| Left side        | Kind           | Fills                                  |
+|------------------+----------------+----------------------------------------|
+| =$3==            | column formula | column 3 of every row below the header |
+| =$>==  =$name==  | column formula | the last / a named column              |
+| =@4$3==          | field formula  | one field                              |
+| =@>$3==  =@>$>== | field formula  | the last row / bottom-right corner     |
+| =@2$3..@5$3==    | range formula  | a block of fields, row by row          |
+| =@2$2..@>$>==    | range formula  | everything but the first row/column    |
+
+Rules to remember:
+
+1. Column formulas skip the header: they run on the rows below the first
+   horizontal line. A table without any horizontal line has no header, so
+   they run on every row.
+2. A field formula wins over a column formula on the same field: the column
+   formulas run first, then the field and range formulas overwrite.
+3. Formulas run in order, top to bottom and in the order of their sorted
+   left sides, so a formula can use a field an earlier formula just filled.
+4. A column formula for a column that does not exist yet (=$4== on a
+   3-column table) adds the column.
+
+** Column formula vs. field formula
+| Item | Price | x10 |
+|------+-------+-----|
+| A    |     1 |  10 |
+| B    |     2 | 999 |
+| C    |     3 |  30 |
+#+TBLFM: $3=$2*10::@3$3=999
+
+# Practice copy: x10 is blank on purpose.
+| Item | Price | x10 |
+|------+-------+-----|
+| A    |     1 |     |
+| B    |     2 |     |
+| C    |     3 |     |
+#+TBLFM: $3=$2*10::@3$3=999
+
+*Expect:* =10=, =999=, =30=: the field formula for row 3 (item B) beats the
+column formula. The header =x10= is never touched.
+
+*Try:* remove =::@3$3=999= from the practice copy's formula line and
+recalculate.
+
+*Expect:* =10=, =20=, =30=.
+
+** A table without a header
+Without a horizontal line, the column formula runs on /every/ row.
+
+| 1 | 1 |
+| 2 | 4 |
+| 3 | 9 |
+#+TBLFM: $2=$1*$1
+
+# Practice copy: column 2 is blank on purpose.
+| 1 |   |
+| 2 |   |
+| 3 |   |
+#+TBLFM: $2=$1*$1
+
+*Expect:* =1=, =4=, =9=.
+
+*Try:* in the practice copy put the cursor on the first row and press
+=<prefix>T-= to insert a horizontal line below it. Recalculate.
+
+*Expect:* the first row is now a header: its =1= stays, only rows 2 and 3
+get =4= and =9=.
+
+** Range formulas
+A range on the left fills each field of the block; relative references
+inside it (=$1=, =@-1=) are relative to each field in turn.
+
+| a |    b | c |
+|---+------+---|
+| 1 |  100 | 2 |
+| 2 |  200 | 4 |
+| 3 | 3000 | 6 |
+| 4 | 4000 | 8 |
+#+TBLFM: @2$2..@3$2=$1*100::@4$2..@5$2=$1*1000::@2$3..@>$3=$1*2
+
+# Practice copy: b and c are blank on purpose.
+| a | b | c |
+|---+---+---|
+| 1 |   |   |
+| 2 |   |   |
+| 3 |   |   |
+| 4 |   |   |
+#+TBLFM: @2$2..@3$2=$1*100::@4$2..@5$2=$1*1000::@2$3..@>$3=$1*2
+
+*Expect:* b = =100=, =200=, =3000=, =4000=; c = =2=, =4=, =6=, =8=.
+
+** Order of evaluation matters
+Formulas are applied in a fixed order: all column formulas (row by row),
+then field and range formulas sorted by their left side (row first, then
+column). A formula that reads a field computed by a /later/ formula sees
+the old value. Here =c= adds =a= and =b=, but the range formula for =c=
+(=@2$3..=) sorts before the one filling rows 4-5 of =b= (=@4$2..=):
+
+# Practice copy: b and c are blank on purpose (this one needs two passes).
+| a | b | c |
+|---+---+---|
+| 1 |   |   |
+| 2 |   |   |
+| 3 |   |   |
+| 4 |   |   |
+#+TBLFM: @2$2..@3$2=$1*100::@4$2..@5$2=$1*1000::@2$3..@>$3=$1+$2
+
+*Try:* press =<C-c><C-c>= on its =#+TBLFM:= line once.
+
+*Expect:* b = =100=, =200=, =3000=, =4000= but c = =101=, =202=, =3=, =4=:
+when c was computed for rows 4 and 5, b was still empty there.
+
+*Try:* press =<C-c><C-c>= on it again (or =16<C-c>*= from the start).
+
+*Expect:* c = =101=, =202=, =3003=, =4004=, and further passes change
+nothing.
+
+** A formula that adds a column
+| a | b |    |
+|---+---+----|
+| 2 | 3 |  6 |
+| 4 | 5 | 20 |
+#+TBLFM: $3=$1*$2
+
+# Practice copy: there is no third column yet, on purpose.
+| a | b |
+|---+---|
+| 2 | 3 |
+| 4 | 5 |
+#+TBLFM: $3=$1*$2
+
+*Expect:* after =<C-c><C-c>= on the practice =#+TBLFM:=, a third column
+appears with =6= and =20=; its header is empty (type one in if you like).
+
+A /field/ formula outside the table is an error instead (see the option
+=table_formula_create_columns=): try =#+TBLFM: @2$4=1= on the copy and you
+get "Table formula error: Missing columns in the table.  Aborting".
+
+* Typing formulas into the table
+You do not have to write the =#+TBLFM:= line by hand.
+
+** =formula and :=formula in a field
+In Insert mode, type a formula /into a field/ and leave the field with
+=<Tab>=, =<CR>= or =<C-c><C-c>=:
+
+- ~=$1*2~ becomes the /column/ formula of that column (=$2=$1*2=).
+- ~:=vsum(@I..@II)~ becomes a /field/ formula for that one field.
+
+The formula moves to the =#+TBLFM:= line (created if needed) and the field
+is computed at once. Other fields of the column are updated on the next
+recalculation (=<prefix>Tf=).
+
+# Practice copy: type the formulas yourself.
+| n | double |
+|---+--------|
+| 1 |        |
+| 2 |        |
+| 3 |        |
+|---+--------|
+|   |        |
+
+*Try:* put the cursor in the first empty field of "double" (row 2), press
+=i=, type ~=$1*2~ and press =<Tab>=, then =<Esc>=.
+
+*Expect:* a line =#+TBLFM: $2=$1*2= appears under the table and that one
+field shows =2=; the other rows are still empty.
+
+*Try:* now go to the bottom field of the "double" column (the row below
+the second line), press =i=, type ~:=vsum(@I..@II)~, press =<Esc>= and
+then =<C-c><C-c>=. (In the last field of a table =<Tab>= would also add a
+new row, so =<Esc>= and =<C-c><C-c>= is the cleaner way here.)
+
+*Expect:* the formula line becomes =#+TBLFM: $2=$1*2::@5$2=vsum(@I..@II)=
+and the field shows =2= (the only value computed so far).
+
+*Try:* press =<prefix>Tf=.
+
+*Expect:* =2=, =4=, =6= and =12= in the bottom field: the field formula
+=@5$2= wins over the column formula there.
+
+** <C-c>= : set a formula with a prompt
+In Normal mode on a field:
+
+- =<C-c>== asks for the /column/ formula ("Column formula $2=") and
+  computes the field. The current formula is offered as the default; an
+  empty answer removes the formula.
+- =4<C-c>== (Emacs =C-u C-c ==) asks for a /field/ formula for this field
+  ("Field formula @3$2=").
+- =16<C-c>== puts the formula that is active in this field into the field
+  as ~=...~ (or ~:=...~) so you can edit it in place and press =<Tab>=.
+
+# Practice copy: no formulas yet.
+| Celsius | Fahrenheit |
+|---------+------------|
+|       0 |            |
+|      20 |            |
+|      37 |            |
+|     100 |            |
+
+*Try:* on the first empty Fahrenheit field press =<C-c>==, type
+=$1*9/5+32= and =<CR>=. Then =<prefix>Tf=.
+
+*Expect:* =#+TBLFM: $2=$1*9/5+32= appears; the values are =32=, =68=,
+=98.6=, =212=.
+
+Careful with Calc's precedence: =/= binds /looser/ than =*=. =$1*9/5= is
+=($1*9)/5=, fine; but =$1/5*9= would be =$1/(5*9)=, which is wrong. Write
+=$1*9/5= or use parentheses: =($1/5)*9=.
+
+** The formula editor: <prefix>' (C-c ')
+=<prefix>'= in a table, or on its =#+TBLFM:= line, opens every formula of
+the table in a split below, one per line, sorted into sections. For the
+first table of this file ("A first spreadsheet") it shows:
+
+#+begin_example
+# Column Formulas
+$4 = $2*$3;%.2f
+
+# Field and Range Formulas
+@>$4 = vsum(@I..@II);%.2f
+#+end_example
+
+Edit freely, then:
+
+| Key in the editor                          | Action                                    |
+|--------------------------------------------+-------------------------------------------|
+| =<C-c><C-c>= =<C-c>'= =:w=                 | store the formulas                        |
+| =4<C-c><C-c>=                              | store and recalculate the table           |
+| =<C-c><C-q>=                               | abort, nothing changes                    |
+| =<C-c>?=                                   | show the reference under the cursor       |
+| =<S-Up>= =<S-Down>= =<S-Left>= =<S-Right>= | shift the reference at the cursor         |
+| =<M-S-Up>= =<M-S-Down>=                    | pick the row used to show column formulas |
+| =<M-Up>= =<M-Down>=                        | scroll the table window                   |
+| =<Tab>=                                    | pretty-print a Lisp formula               |
+| =<C-c><C-r>=                               | show references as =B3= or =@3$2=         |
+| =<C-c>}=                                   | toggle the table coordinates              |
+
+While the cursor moves over a formula, the fields it refers to are
+highlighted in the table window, and the target field is highlighted too.
+A line starting with a blank continues the formula above, so long Lisp
+formulas can be split over several lines.
+
+# Practice copy: edit its formulas in the editor.
+| Item  | Qty | Price | Total |
+|-------+-----+-------+-------|
+| Apple |   3 |  0.50 |       |
+| Pear  |   2 |  0.75 |       |
+|-------+-----+-------+-------|
+| Sum   |     |       |       |
+#+TBLFM: $4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+
+*Try:* put the cursor in this practice copy and press =<prefix>'=. Move the
+cursor over =$2= and =$3= of the first formula.
+
+*Expect:* a split titled like the example above; the Qty and Price fields
+of one row light up in the table.
+
+*Try:* in the editor change =%.2f= of the column formula to =%.1f=, and
+press =4<C-c><C-c>=.
+
+*Expect:* the editor closes, the =#+TBLFM:= line now reads
+=$4=$2*$3;%.1f::@>$4=vsum(@I..@II);%.2f=, and Total shows =1.5=, =1.5=
+with Sum =3.00=.
+
+** The formula debugger: <C-c>{
+=<C-c>{= toggles the debugger. While it is on, every formula evaluation
+opens a =*Substitution History*= window showing the steps and asks
+"Debugging Formula.  Continue to next?". Answer =y= to go on, =n= to
+stop. For =$2=$1*10;%.1f= on a field =2= it shows:
+
+#+begin_example
+Substitution history of formula
+Orig:   $1*10
+$xyz->  $1*10
+@r$c->  (2)*10
+$1->    (2)*10
+Result: 20
+Format: %.1f
+Final:  20.0
+#+end_example
+
+- =Orig= is the formula as written, =$xyz->= after names were replaced,
+  =@r$c->= after references were replaced by field values in parentheses.
+- =Result= is the Calc result, =Format= the printf format, =Final= the
+  text written into the field.
+
+# Practice copy: results are blank on purpose.
+| x | x*10 |
+|---+------|
+| 2 |      |
+| 3 |      |
+#+TBLFM: $2=$1*10;%.1f
+
+*Try:* put the cursor in the table, press =<C-c>{= ("Formula debugging has
+been turned on"), then =<C-c><C-c>= on the =#+TBLFM:= line. Answer =n= to
+the question. Press =<C-c>{= again to turn the debugger off.
+
+*Expect:* the window shows exactly the history above. After =n= the
+recalculation stops: the field that was just computed keeps its =20.0=,
+but the row with =3= stays empty. Recalculate normally to fill it (=30.0=).
+
+* Arithmetic the Calc way
+Formulas without a leading ='= are GNU Calc expressions, evaluated by a Lua
+reimplementation of Calc. Most things work as you expect; a few are
+surprising and worth learning once:
+
+- Integers are exact and can be huge: =2^100= is all 31 digits.
+- Floats are shown with up to 8 significant digits: =1/3= is
+  =0.33333333=. A float that happens to be whole keeps a trailing dot:
+  =3.5*2= is =7.=. Use a format like =;%.2f= to control the look.
+- =/= binds looser than =*=: =10/4*2= is =10/(4*2)= = =1.25=.
+- =^= binds tighter than a minus sign: =-2^2= is =-4=.
+- =%= after a number is "percent": =25%= is =0.25=. Between two numbers
+  it is the remainder: =17 % 5= is =2=.
+- Two things side by side multiply: =2 3= is =6=.
+
+Each row of this "calculator" computes the expression shown in the first
+column with a field formula. The left column is plain text; only the
+=#+TBLFM:= line matters.
+
+| Expression   |                          Result |
+|--------------+---------------------------------|
+| 7 + 5        |                              12 |
+| 7 - 10       |                              -3 |
+| 6 * 7        |                              42 |
+| 7 / 2        |                             3.5 |
+| 6 / 3        |                               2 |
+| 1 / 3        |                      0.33333333 |
+| 3.5 * 2      |                              7. |
+| 10 / 4 * 2   |                            1.25 |
+| (10 / 4) * 2 |                              5. |
+| 2 ^ 10       |                            1024 |
+| -2 ^ 2       |                              -4 |
+| (-2) ^ 2     |                               4 |
+| 2 ^ 100      | 1267650600228229401496703205376 |
+| 17 % 5       |                               2 |
+| 25%          |                            0.25 |
+| 2 3          |                               6 |
+| 0.1 + 0.2    |                             0.3 |
+#+TBLFM: @2$2=7+5::@3$2=7-10::@4$2=6*7::@5$2=7/2::@6$2=6/3::@7$2=1/3::@8$2=3.5*2::@9$2=10/4*2::@10$2=(10/4)*2::@11$2=2^10::@12$2=-2^2::@13$2=(-2)^2::@14$2=2^100::@15$2=17 % 5::@16$2=25%::@17$2=2 3::@18$2=0.1+0.2
+
+# Practice copy: results are blank on purpose.
+| Expression   | Result |
+|--------------+--------|
+| 7 + 5        |        |
+| 7 - 10       |        |
+| 6 * 7        |        |
+| 7 / 2        |        |
+| 6 / 3        |        |
+| 1 / 3        |        |
+| 3.5 * 2      |        |
+| 10 / 4 * 2   |        |
+| (10 / 4) * 2 |        |
+| 2 ^ 10       |        |
+| -2 ^ 2       |        |
+| (-2) ^ 2     |        |
+| 2 ^ 100      |        |
+| 17 % 5       |        |
+| 25%          |        |
+| 2 3          |        |
+| 0.1 + 0.2    |        |
+#+TBLFM: @2$2=7+5::@3$2=7-10::@4$2=6*7::@5$2=7/2::@6$2=6/3::@7$2=1/3::@8$2=3.5*2::@9$2=10/4*2::@10$2=(10/4)*2::@11$2=2^10::@12$2=-2^2::@13$2=(-2)^2::@14$2=2^100::@15$2=17 % 5::@16$2=25%::@17$2=2 3::@18$2=0.1+0.2
+
+*Expect:* exactly the results of the solved table. Note =6/3= is the
+integer =2=, =7/2= the float =3.5=, =3.5*2= is =7.= and =0.1+0.2= is
+=0.3= (Calc works in decimal, so there is no =0.30000000000000004=).
+
+*Try:* add a row to the practice copy with the text =2 ^ 0.5= and the field
+formula =::@19$2=2^0.5= at the end of the =#+TBLFM:= line.
+
+*Expect:* =1.4142136=.
+
+* Statistics over ranges: vsum, vmean, vmedian ...
+The =v= functions take a range (a /vector/ in Calc) and reduce it. Empty
+fields are dropped from ranges before the function sees them.
+
+| Function      | Result                                     |
+|---------------+--------------------------------------------|
+| =vsum=        | sum                                        |
+| =vmean=       | average                                    |
+| =vmedian=     | middle value (mean of the two middle ones) |
+| =vmin= =vmax= | smallest / largest                         |
+| =vcount=      | number of (non-empty) values               |
+| =vprod=       | product                                    |
+| =vsdev=       | sample standard deviation                  |
+| =vpsdev=      | population standard deviation              |
+| =vvar=        | sample variance                            |
+| =vpvar=       | population variance                        |
+| =vgmean=      | geometric mean                             |
+| =vhmean=      | harmonic mean                              |
+
+The data are in rows 2-9 of column 2; every result row applies one
+function to =@I..@II= (the rows between the two horizontal lines).
+
+| Stat    |  Score |
+|---------+--------|
+| Ann     |     72 |
+| Ben     |     85 |
+| Cid     |     91 |
+| Dora    |     64 |
+| Eli     |     85 |
+| Fay     |        |
+| Gus     |     78 |
+| Hana    |     99 |
+|---------+--------|
+| vsum    |    574 |
+| vmean   |     82 |
+| vmedian |     85 |
+| vmin    |     64 |
+| vmax    |     99 |
+| vcount  |      7 |
+| vsdev   |  11.75 |
+| vvar    | 138.00 |
+| vpsdev  |  10.88 |
+#+TBLFM: @10$2=vsum(@I..@II)::@11$2=vmean(@I..@II)::@12$2=vmedian(@I..@II)::@13$2=vmin(@I..@II)::@14$2=vmax(@I..@II)::@15$2=vcount(@I..@II)::@16$2=vsdev(@I..@II);%.2f::@17$2=vvar(@I..@II);%.2f::@18$2=vpsdev(@I..@II);%.2f
+
+# Practice copy: the results are blank on purpose.
+| Stat    | Score |
+|---------+-------|
+| Ann     |    72 |
+| Ben     |    85 |
+| Cid     |    91 |
+| Dora    |    64 |
+| Eli     |    85 |
+| Fay     |       |
+| Gus     |    78 |
+| Hana    |    99 |
+|---------+-------|
+| vsum    |       |
+| vmean   |       |
+| vmedian |       |
+| vmin    |       |
+| vmax    |       |
+| vcount  |       |
+| vsdev   |       |
+| vvar    |       |
+| vpsdev  |       |
+#+TBLFM: @10$2=vsum(@I..@II)::@11$2=vmean(@I..@II)::@12$2=vmedian(@I..@II)::@13$2=vmin(@I..@II)::@14$2=vmax(@I..@II)::@15$2=vcount(@I..@II)::@16$2=vsdev(@I..@II);%.2f::@17$2=vvar(@I..@II);%.2f::@18$2=vpsdev(@I..@II);%.2f
+
+Fay has no score, so she is ignored: there are 7 values, not 8.
+
+*Expect:* vsum =574=, vmean =82=, vmedian =85=, vmin =64=, vmax =99=,
+vcount =7=, vsdev =11.75=, vvar =138.00=, vpsdev =10.88=.
+
+*Try:* give Fay a score of =82= and recalculate.
+
+*Expect:* vsum =656=, vmean =82= (unchanged: 82 is the old mean), vmedian
+=83.5=, vcount =8=, vsdev =10.88=, vvar =118.29=, vpsdev =10.17=.
+
+*Try:* change the formula of vmean to =vmean(@I..@II);EN= (keep empty
+fields, as 0) with Fay's score empty again.
+
+*Expect:* =71.75= (574/8): the =E= flag keeps the empty field, =N= turns it
+into 0.
+
+** vsum over text and a quick sum with <C-c>+
+Ranges may hold text; Calc keeps words as symbols, so =vsum= of =a=, =3=,
+=b= is =a + b + 3=. That is rarely what you want, so keep text out of the
+ranges you sum.
+
+=<C-c>+= is not a formula: it sums the numbers of the current column (or
+of a Visual block) and puts the sum into the unnamed register, so =p=
+pastes it.
+
+*Try:* put the cursor on a score of the practice copy, press =<C-c>+=, then
+=:echo @"=.
+
+*Expect:* the message "Sum of 7 items: 574" (the header and the empty
+field are skipped) and =574= in the register. Do it before you recalculate
+the practice copy: afterwards the result rows are numbers too and are
+added in.
+
+* Mathematical functions
+| Function            | Example           |    Result |
+|---------------------+-------------------+-----------|
+| abs                 | abs(-7.5)         |       7.5 |
+| sqrt                | sqrt(2)           | 1.4142136 |
+| round (to n digits) | round(3.14159, 2) |      3.14 |
+| round               | round(2.5)        |         3 |
+| round               | round(-2.5)       |        -3 |
+| rounde (to even)    | rounde(2.5)       |         2 |
+| floor               | floor(2.7)        |         2 |
+| ceil                | ceil(2.1)         |         3 |
+| trunc               | trunc(-2.7)       |        -2 |
+| mod                 | mod(17, 5)        |         2 |
+| idiv (integer div)  | idiv(17, 5)       |         3 |
+| min / max           | max(3, 9, 4)      |         9 |
+| exp                 | exp(1)            | 2.7182818 |
+| ln                  | ln(10)            | 2.3025851 |
+| log10               | log10(1000)       |         3 |
+| log (base)          | log(8, 2)         |         3 |
+| fact                | fact(10)          |   3628800 |
+| choose              | choose(5, 2)      |        10 |
+| gcd / lcm           | lcm(4, 6)         |        12 |
+| hypot               | hypot(3, 4)       |         5 |
+| sign                | sign(-12)         |        -1 |
+| pi (needs evalv)    | evalv(pi)         | 3.1415927 |
+#+TBLFM: @2$3=abs(-7.5)::@3$3=sqrt(2)::@4$3=round(3.14159, 2)::@5$3=round(2.5)::@6$3=round(-2.5)::@7$3=rounde(2.5)::@8$3=floor(2.7)::@9$3=ceil(2.1)::@10$3=trunc(-2.7)::@11$3=mod(17, 5)::@12$3=idiv(17, 5)::@13$3=max(3, 9, 4)::@14$3=exp(1)::@15$3=ln(10)::@16$3=log10(1000)::@17$3=log(8, 2)::@18$3=fact(10)::@19$3=choose(5, 2)::@20$3=lcm(4, 6)::@21$3=hypot(3, 4)::@22$3=sign(-12)::@23$3=evalv(pi)
+
+# Practice copy: the results are blank on purpose.
+| Function            | Example           | Result |
+|---------------------+-------------------+--------|
+| abs                 | abs(-7.5)         |        |
+| sqrt                | sqrt(2)           |        |
+| round (to n digits) | round(3.14159, 2) |        |
+| round               | round(2.5)        |        |
+| round               | round(-2.5)       |        |
+| rounde (to even)    | rounde(2.5)       |        |
+| floor               | floor(2.7)        |        |
+| ceil                | ceil(2.1)         |        |
+| trunc               | trunc(-2.7)       |        |
+| mod                 | mod(17, 5)        |        |
+| idiv (integer div)  | idiv(17, 5)       |        |
+| min / max           | max(3, 9, 4)      |        |
+| exp                 | exp(1)            |        |
+| ln                  | ln(10)            |        |
+| log10               | log10(1000)       |        |
+| log (base)          | log(8, 2)         |        |
+| fact                | fact(10)          |        |
+| choose              | choose(5, 2)      |        |
+| gcd / lcm           | lcm(4, 6)         |        |
+| hypot               | hypot(3, 4)       |        |
+| sign                | sign(-12)         |        |
+| pi (needs evalv)    | evalv(pi)         |        |
+#+TBLFM: @2$3=abs(-7.5)::@3$3=sqrt(2)::@4$3=round(3.14159, 2)::@5$3=round(2.5)::@6$3=round(-2.5)::@7$3=rounde(2.5)::@8$3=floor(2.7)::@9$3=ceil(2.1)::@10$3=trunc(-2.7)::@11$3=mod(17, 5)::@12$3=idiv(17, 5)::@13$3=max(3, 9, 4)::@14$3=exp(1)::@15$3=ln(10)::@16$3=log10(1000)::@17$3=log(8, 2)::@18$3=fact(10)::@19$3=choose(5, 2)::@20$3=lcm(4, 6)::@21$3=hypot(3, 4)::@22$3=sign(-12)::@23$3=evalv(pi)
+
+*Expect:* the same results as the solved table. Note that =round= rounds
+halves away from zero (=3=, =-3=) while =rounde= rounds them to the even
+neighbour (=2=), and that =pi= on its own stays the symbol =pi=; =evalv=
+turns it into a number.
+
+** Trigonometry: degrees by default
+Calc's trigonometric functions work in /degrees/ unless you add the =R=
+flag (radians). =D= forces degrees.
+
+| Angle | sin(deg) | cos(deg) | tan(deg) | sin(rad) | arcsin(0.5) | arcsin rad |
+|-------+----------+----------+----------+----------+-------------+------------|
+|     0 |   0.0000 |   1.0000 |   0.0000 |   0.0000 |         30. | 0.52359878 |
+|    30 |   0.5000 |   0.8660 |   0.5774 |  -0.9880 |         30. | 0.52359878 |
+|    45 |   0.7071 |   0.7071 |   1.0000 |   0.8509 |         30. | 0.52359878 |
+|    60 |   0.8660 |   0.5000 |   1.7321 |  -0.3048 |         30. | 0.52359878 |
+#+TBLFM: $2=sin($1);%.4f::$3=cos($1);%.4f::$4=tan($1);%.4f::$5=sin($1);R%.4f::$6=arcsin(0.5)::$7=arcsin(0.5);R
+
+# Practice copy: results are blank on purpose.
+| Angle | sin(deg) | cos(deg) | tan(deg) | sin(rad) | arcsin(0.5) | arcsin rad |
+|-------+----------+----------+----------+----------+-------------+------------|
+|     0 |          |          |          |          |             |            |
+|    30 |          |          |          |          |             |            |
+|    45 |          |          |          |          |             |            |
+|    60 |          |          |          |          |             |            |
+#+TBLFM: $2=sin($1);%.4f::$3=cos($1);%.4f::$4=tan($1);%.4f::$5=sin($1);R%.4f::$6=arcsin(0.5)::$7=arcsin(0.5);R
+
+*Expect:* sin 30 = =0.5000=, cos 60 = =0.5000=, tan 45 = =1.0000=,
+sin(30 radians) =
+=-0.9880=, arcsin(0.5) = =30.= degrees or =0.52359878= radians. The flags
+and the format share the part after =;=: =R%.4f= is "radians, 4 decimals".
+
+* Conditions: if, comparisons, and, or
+=if(condition, then, else)= picks a value. Conditions use =<= =<= =>=
+=>== ==== (equal) and =!== (not equal); combine them with =&&= (and),
+=||= (or) and =!= (not). A true condition is =1=, a false one =0=, so
+you can also add conditions up.
+
+Words in the result (=pass=, =fail=) are Calc symbols and are written
+as they are. Quoted strings (="late"=) are also kept as text.
+
+| Name | Score | Absences | Result | Flag              | Both |
+|------+-------+----------+--------+-------------------+------|
+| Ann  |    72 |        1 | pass   | ok                |    1 |
+| Ben  |    45 |        0 | fail   | ok                |    0 |
+| Cid  |    91 |        6 | pass   | too many absences |    0 |
+| Dora |    50 |        2 | pass   | ok                |    1 |
+#+TBLFM: $4=if($2 >= 50, pass, fail)::$5=if($3 > 5, "too many absences", ok)::$6=$2 >= 50 && $3 <= 5
+
+# Practice copy: Result, Flag and Both are blank on purpose.
+| Name | Score | Absences | Result | Flag | Both |
+|------+-------+----------+--------+------+------|
+| Ann  |    72 |        1 |        |      |      |
+| Ben  |    45 |        0 |        |      |      |
+| Cid  |    91 |        6 |        |      |      |
+| Dora |    50 |        2 |        |      |      |
+#+TBLFM: $4=if($2 >= 50, pass, fail)::$5=if($3 > 5, "too many absences", ok)::$6=$2 >= 50 && $3 <= 5
+
+*Expect:* Result =pass=, =fail=, =pass=, =pass=; Flag =ok=, =ok=,
+=too many absences=, =ok=; Both =1=, =0=, =0=, =1=.
+
+*Try:* change Ben's score to =50=.
+
+*Expect:* after =<prefix>Tf=, Ben gets =pass= and Both =1=.
+
+** Nested if: letter grades
+| Student | Score | Grade |
+|---------+-------+-------|
+| Ann     |    93 | A     |
+| Ben     |    85 | B     |
+| Cid     |    71 | C     |
+| Dora    |    64 | D     |
+| Eli     |    80 | B     |
+#+TBLFM: $3=if($2 >= 90, A, if($2 >= 80, B, if($2 >= 70, C, if($2 >= 60, D, F))))
+
+# Practice copy: Grade is blank on purpose.
+| Student | Score | Grade |
+|---------+-------+-------|
+| Ann     |    93 |       |
+| Ben     |    85 |       |
+| Cid     |    71 |       |
+| Dora    |    64 |       |
+| Eli     |    80 |       |
+#+TBLFM: $3=if($2 >= 90, A, if($2 >= 80, B, if($2 >= 70, C, if($2 >= 60, D, F))))
+
+*Expect:* =A=, =B=, =C=, =D=, =B= (80 is a B: =>== includes the limit).
+
+*Try:* change Dora's score to =59=.
+
+*Expect:* =F=.
+
+** Counting with conditions
+Because a true condition is =1= and a false one =0=, a column of
+conditions can simply be summed to count the rows where it holds.
+
+| Item      | Stock | Low? |
+|-----------+-------+------|
+| Bolts     |   120 |    0 |
+| Nuts      |     8 |    1 |
+| Screws    |     3 |    1 |
+| Washers   |    40 |    0 |
+|-----------+-------+------|
+| Low items |       |    2 |
+#+TBLFM: $3=$2 < 10::@>$3=vsum(@I..@II)
+
+*Expect:* Low? = =0=, =1=, =1=, =0=; Low items = =2=.
+
+* Text in formulas: Calc's symbolic side
+Calc is a computer-algebra system: text that is not a number is a
+/variable/. =x*2= is written as =2 x=, =x+x= as =2 x=. This is why a
+formula over a text field does not give an error but a formula.
+
+| a     | b | a * b   | a + a   | b / a     |
+|-------+---+---------+---------+-----------|
+| x     | 3 | 3 x     | 2 x     | 3 / x     |
+| apple | 2 | 2 apple | 2 apple | 2 / apple |
+| 4     | 2 | 8       | 8       | 0.5       |
+#+TBLFM: $3=$1*$2::$4=$1+$1::$5=$2/$1
+
+*Expect:* =3 x=, =2 x=, =3 / x=; =2 apple=, =2 apple=, =2 / apple=; and
+for the numeric row =8=, =8=, =0.5=.
+
+To turn this into an error instead, add the =N= flag (fields are read as
+numbers; text counts as 0): =$3=$1*$2;N= gives =0= for =x=.
+
+* Formats and mode flags: the part after ;
+Anything after the last =;= of a formula is a list of /mode flags/ plus an
+optional printf-style /format/. The flag letters are removed first; what
+remains is the format.
+
+| Flag / format | Meaning                                             |
+|---------------+-----------------------------------------------------|
+| =%.2f=        | fixed, 2 decimals (=%.0f= rounds to an integer)     |
+| =%d=          | integer (the fraction is cut off)                   |
+| =%.1f%%=      | 1 decimal followed by a literal =%= sign            |
+| =%.3e=        | scientific notation, 3 decimals                     |
+| =%8.2f=       | right-aligned in 8 characters (alignment hides it)  |
+| =p20=         | compute with 20 significant digits (Calc precision) |
+| =n3=          | show 3 significant digits (Calc "normal" format)    |
+| =f2=          | show 2 decimals (Calc "fixed" format)               |
+| =s3= =e3=     | scientific / engineering notation with 3 digits     |
+| =N=           | read every field as a number (text and empty = 0)   |
+| =E=           | keep empty fields (in ranges, and as =nan=)         |
+| =D= =R=       | angles in degrees (default) / radians               |
+| =F=           | fractions: =1/3= stays =1:3=                        |
+| =T= =t= =U=   | durations: H:MM:SS / hours / H:MM (see "Durations") |
+| =L=           | Lisp formulas: insert fields literally              |
+
+Emacs also has the =S= flag (symbolic mode); org.nvim does not support it.
+
+** Number formats
+|        x |    %.2f |   %d | %.0f |    %.1f%% |       %.3e |      n3 |      f2 |      s3 |
+|----------+---------+------+------+-----------+------------+---------+---------+---------|
+|  2.71828 |    2.72 |    2 |    3 |    271.8% |  2.718e+00 |    2.72 |    2.72 |  2.72e0 |
+|   1234.5 | 1234.50 | 1234 | 1234 | 123450.0% |  1.234e+03 |   1230. | 1234.50 |  1.23e3 |
+| 0.000456 |    0.00 |    0 |    0 |      0.0% |  4.560e-04 | 4.56e-4 |  4.6e-4 | 4.56e-4 |
+|     -7.5 |   -7.50 |   -7 |   -8 |   -750.0% | -7.500e+00 |    -7.5 |   -7.50 |  -7.5e0 |
+#+TBLFM: $2=$1;%.2f::$3=$1;%d::$4=$1;%.0f::$5=$1*100;%.1f%%::$6=$1;%.3e::$7=$1*1;n3::$8=$1*1;f2::$9=$1*1;s3
+
+# Practice copy: results are blank on purpose.
+|        x | %.2f | %d | %.0f | %.1f%% | %.3e | n3 | f2 | s3 |
+|----------+------+----+------+--------+------+----+----+----|
+|  2.71828 |      |    |      |        |      |    |    |    |
+|   1234.5 |      |    |      |        |      |    |    |    |
+| 0.000456 |      |    |      |        |      |    |    |    |
+|     -7.5 |      |    |      |        |      |    |    |    |
+#+TBLFM: $2=$1;%.2f::$3=$1;%d::$4=$1;%.0f::$5=$1*100;%.1f%%::$6=$1;%.3e::$7=$1*1;n3::$8=$1*1;f2::$9=$1*1;s3
+
+*Expect:* the solved table's values: for =2.71828= that is =2.72=, =2=, =3=,
+=271.8%=, =2.718e+00=, =2.72=, =2.72=, =2.72e0=.
+
+Small numbers switch to Calc's scientific notation (=4.56e-4=) in the Calc
+formats, and =%d= cuts =-7.5= to =-7= while =%.0f= rounds it to =-8=.
+
+*Try:* in the practice copy change the flag of column 7 from =n3= to =n5=
+and recalculate.
+
+*Expect:* column 7 shows =2.7183=, =1234.5=, =4.56e-4=, =-7.5=.
+
+** Precision: p20
+=p20= asks Calc for 20 significant digits instead of 12 while computing.
+The display still shows at most 8 significant digits, so on its own it
+changes nothing you can see:
+
+| Expression |    default |        p20 |
+|------------+------------+------------|
+| 2/3        | 0.66666667 | 0.66666667 |
+| sqrt(2)    |  1.4142136 |  1.4142136 |
+#+TBLFM: @2$2=2/3::@2$3=2/3;p20::@3$2=sqrt(2)::@3$3=sqrt(2);p20
+
+*Expect:* =0.66666667= and =1.4142136= in both columns. (org.nvim computes
+with Lua floating-point numbers, so it cannot really go beyond about 16
+digits; Emacs' Calc can.)
+
+** Fractions: F
+| a | b |        a/b | a/b;F | sum of both;F |
+|---+---+------------+-------+---------------|
+| 1 | 3 | 0.33333333 |   1:3 |           1:2 |
+| 3 | 4 |       0.75 |   3:4 |         11:12 |
+| 6 | 8 |       0.75 |   3:4 |         11:12 |
+#+TBLFM: $3=$1/$2::$4=$1/$2;F::$5=$1/$2+1/6;F
+
+*Expect:* =0.33333333=, =1:3=, =1:2=; =0.75=, =3:4=, =11:12=; =0.75=, =3:4=,
+=11:12= (=6/8= is reduced). =1:3= is Calc's way of writing the fraction 1/3.
+
+** Empty fields: E and N
+By default:
+- an empty field used on its own counts as =0=;
+- an empty field inside a range is dropped (so =vmean= and =vcount= ignore
+  it).
+
+The =E= flag keeps empty fields: alone or in a range they become =nan=
+(Calc's "not a number"), which spreads to the result. =EN= keeps them and
+turns them into =0=. =N= reads every field as a number, text included
+(=abc= is 0).
+
+| a | b   |     a+b |   a+b;E | a+b;N | vmean(a..b) | vmean;EN | vcount;E |
+|---+-----+---------+---------+-------+-------------+----------+----------|
+| 4 | 6   |      10 |      10 |    10 |           5 |        5 |        2 |
+| 4 |     |       4 |     nan |     4 |           4 |        2 |        2 |
+| 4 | abc | 4 + abc | 4 + abc |     4 | 2 + abc / 2 |        2 |        2 |
+#+TBLFM: $3=$1+$2::$4=$1+$2;E::$5=$1+$2;N::$6=vmean($1..$2)::$7=vmean($1..$2);EN::$8=vcount($1..$2);E
+
+# Practice copy: results are blank on purpose.
+| a | b   | a+b | a+b;E | a+b;N | vmean(a..b) | vmean;EN | vcount;E |
+|---+-----+-----+-------+-------+-------------+----------+----------|
+| 4 | 6   |     |       |       |             |          |          |
+| 4 |     |     |       |       |             |          |          |
+| 4 | abc |     |       |       |             |          |          |
+#+TBLFM: $3=$1+$2::$4=$1+$2;E::$5=$1+$2;N::$6=vmean($1..$2)::$7=vmean($1..$2);EN::$8=vcount($1..$2);E
+
+*Expect:* row 1 is plain: =10= everywhere, means =5=, count =2=.
+- Row 2 (=b= empty): =4= (empty alone is 0), =nan= (=E= keeps it), =4=;
+  =vmean= =4= (the empty field is dropped), =2= with =EN= ((4+0)/2), and
+  =vcount= =2= with =E=.
+- Row 3 (=b= is the word =abc=): =4 + abc= twice (a symbol, see "Text in
+  formulas"), =4= with =N=; =vmean= gives the formula =2 + abc / 2=, with
+  =EN= =2=, and =vcount= =2=.
+
+* Dates and times
+Timestamps in fields, active =<...>= or inactive =[...]=, are dates to
+Calc:
+
+- date - date = number of days between them (a fraction if times are
+  involved: 6 hours = 0.25);
+- date + number = a new date, written as an inactive timestamp with its
+  weekday;
+- =year()= =month()= =day()= =hour()= =minute()= =weekday()= (0 = Sunday)
+  take a date apart; =date(...)= is the day number; =incmonth(d, n)= and
+  =incyear(d, n)= move by months and years;
+- =now()= is the current date and time.
+
+Today is Mon 28 September 2026 in these examples.
+
+| From             | To               | Days | Weeks | +10 days         | Weekday |
+|------------------+------------------+------+-------+------------------+---------|
+| <2026-09-28 Mon> | <2026-10-01 Thu> |    3 |   0.4 | [2026-10-11 Sun] |       4 |
+| <2026-09-28 Mon> | <2026-12-25 Fri> |   88 |  12.6 | [2027-01-04 Mon] |       5 |
+| [2026-10-05 Mon] | [2026-11-16 Mon] |   42 |   6.0 | [2026-11-26 Thu] |       1 |
+| <2026-12-24 Thu> | <2026-12-31 Thu> |    7 |   1.0 | [2027-01-10 Sun] |       4 |
+#+TBLFM: $3=$2-$1::$4=($2-$1)/7;%.1f::$5=$2+10::$6=weekday($2)
+
+# Practice copy: results are blank on purpose.
+| From             | To               | Days | Weeks | +10 days | Weekday |
+|------------------+------------------+------+-------+----------+---------|
+| <2026-09-28 Mon> | <2026-10-01 Thu> |      |       |          |         |
+| <2026-09-28 Mon> | <2026-12-25 Fri> |      |       |          |         |
+| [2026-10-05 Mon] | [2026-11-16 Mon] |      |       |          |         |
+| <2026-12-24 Thu> | <2026-12-31 Thu> |      |       |          |         |
+#+TBLFM: $3=$2-$1::$4=($2-$1)/7;%.1f::$5=$2+10::$6=weekday($2)
+
+*Expect:* Days =3=, =88=, =42=, =7=; +10 days =[2026-10-11 Sun]=,
+=[2027-01-04 Mon]=, =[2026-11-26 Thu]=, =[2027-01-10 Sun]=; Weekday =4=
+(Thursday), =5=, =1=, =4=.
+
+*Try:* in the practice copy, change the first "To" date to
+=<2026-10-31 Sat>= and recalculate.
+
+*Expect:* Days =33=, Weeks =4.7=, +10 days =[2026-11-10 Tue]=, Weekday =6=.
+
+** Dates written in the formula
+A date can be written directly in a formula:
+
+| What                         |           Result |
+|------------------------------+------------------|
+| 1 Oct minus 28 Sep           |                3 |
+| days until Christmas         |               88 |
+| four weeks from today        | [2026-10-26 Mon] |
+| one month after 31 Jan       | [2026-02-28 Sat] |
+| year / month / day of a date |         20261113 |
+#+TBLFM: @2$2=<2026-10-01 Thu> - <2026-09-28 Mon>::@3$2=<2026-12-25 Fri> - <2026-09-28 Mon>::@4$2=<2026-09-28 Mon> + 28::@5$2=incmonth(<2026-01-31 Sat>, 1)::@6$2=year(<2026-11-13 Fri>)*10000+month(<2026-11-13 Fri>)*100+day(<2026-11-13 Fri>)
+
+*Expect:* =3=, =88=, =[2026-10-26 Mon]=, =[2026-02-28 Sat]= (=incmonth=
+clamps to the end of February), =20261113=.
+
+** Times of day
+With a time in both timestamps, the difference is a fraction of a day;
+multiply by 24 for hours or by 1440 for minutes.
+
+| Start                  | End                    |   Days | Hours | Minutes |
+|------------------------+------------------------+--------+-------+---------|
+| <2026-10-01 Thu 09:30> | <2026-10-01 Thu 14:00> | 0.1875 |  4.50 |     270 |
+| <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> | 0.3542 |  8.50 |     510 |
+#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%d
+
+# Practice copy: results are blank on purpose.
+| Start                  | End                    | Days | Hours | Minutes |
+|------------------------+------------------------+------+-------+---------|
+| <2026-10-01 Thu 09:30> | <2026-10-01 Thu 14:00> |      |       |         |
+| <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> |      |       |         |
+#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%d
+
+*Expect:* =0.1875=, =4.50=, =270=; =0.3542=, =8.50=, =510=.
+
+** now()
+=now()= is the moment of the recalculation, so this example cannot be
+pre-computed.
+
+# Practice copy: results are blank on purpose.
+| What                      | Value |
+|---------------------------+-------|
+| now                       |       |
+| days until New Year's Eve |       |
+#+TBLFM: @2$2=now()::@3$2=floor(<2026-12-31 Thu> - now())
+
+*Try:* press =<C-c><C-c>= on the =#+TBLFM:= line.
+
+*Expect:* the current date and time as an inactive timestamp, e.g.
+=[2026-09-28 Mon 15:06]=, and the whole days left until 31 December (=93=
+on 28 September 2026).
+
+* Durations: T, t and U
+Times like =1:30= or =2:15:30= need a flag, or Calc reads =1:30= as the
+/fraction/ one-thirtieth! With a duration flag, each =H:MM= or =H:MM:SS=
+field is converted to seconds, and the result is converted back:
+
+- =T= writes =H:MM:SS= (hours zero-padded: =03:00:00=),
+- =U= writes =H:MM=,
+- =t= writes decimal hours (=1.50=).
+
+A plain number in a formula is then a number of /seconds/.
+
+| Task    |    Start |      End |        T |     U |    t |
+|---------+----------+----------+----------+-------+------|
+| Email   |    09:00 |    09:40 | 00:40:00 | 00:40 | 0.67 |
+| Coding  |    09:40 |    12:15 | 02:35:00 | 02:35 | 2.58 |
+| Meeting |    13:00 |    13:45 | 00:45:00 | 00:45 | 0.75 |
+| Report  | 14:05:30 | 16:00:00 | 01:54:30 | 01:54 | 1.91 |
+|---------+----------+----------+----------+-------+------|
+| Total   |          |          | 05:54:30 | 05:54 | 5.91 |
+#+TBLFM: $4=$3-$2;T::$5=$3-$2;U::$6=$3-$2;t::@>$4=vsum(@I..@II);T::@>$5=vsum(@I..@II);U::@>$6=vsum(@I$4..@II$4);t
+
+# Practice copy: results are blank on purpose.
+| Task    |    Start |      End | T | U | t |
+|---------+----------+----------+---+---+---|
+| Email   |    09:00 |    09:40 |   |   |   |
+| Coding  |    09:40 |    12:15 |   |   |   |
+| Meeting |    13:00 |    13:45 |   |   |   |
+| Report  | 14:05:30 | 16:00:00 |   |   |   |
+|---------+----------+----------+---+---+---|
+| Total   |          |          |   |   |   |
+#+TBLFM: $4=$3-$2;T::$5=$3-$2;U::$6=$3-$2;t::@>$4=vsum(@I..@II);T::@>$5=vsum(@I..@II);U::@>$6=vsum(@I$4..@II$4);t
+
+The =t= total sums the =T= column (=@I$4..@II$4=), not its own column:
+=0.67= is a plain number, and with a duration flag plain numbers are
+/seconds/, so =vsum(@I..@II);t= would give =0.00= hours.
+
+*Expect:* Email =00:40:00=, =00:40=, =0.67=; Coding =02:35:00=, =02:35=,
+=2.58=; Meeting =00:45:00=, =00:45=, =0.75=; Report =01:54:30=, =01:54=,
+=1.91=; Total =05:54:30=, =05:54=, =5.91=.
+
+*Try:* change the end of Meeting to =14:30= and recalculate.
+
+*Expect:* Meeting =01:30:00=, =01:30=, =1.50=; Total =06:39:30=, =06:39=,
+=6.66=.
+
+** Arithmetic on durations
+| Duration | x2 (no flag!) |     x2;T | +45 min;T |  +0:45;T | minutes;t |
+|----------+---------------+----------+-----------+----------+-----------|
+|     1:30 |          1:15 | 03:00:00 |  02:15:00 | 01:30:00 |     90.00 |
+|     0:20 |             0 | 00:40:00 |  01:05:00 | 00:20:00 |     20.00 |
+|  2:05:30 |          13:3 | 04:11:00 |  02:50:30 | 02:05:30 |    125.50 |
+#+TBLFM: $2=$1*2::$3=$1*2;T::$4=$1+45*60;T::$5=$1+0:45;T::$6=$1*60;t
+
+*Expect:*
+- =x2 (no flag!)=: =1:15= for =1:30= (Calc read 1:30 as the fraction 1/30
+  and doubled it to 1/15), =0= for =0:20= (0/20) and =13:3= for =2:05:30=
+  (the mixed fraction 2 5/30, doubled). Always use a flag with durations.
+- =x2;T=: =03:00:00=, =00:40:00=, =04:11:00=.
+- =+45 min;T=: add 2700 seconds: =02:15:00=, =01:05:00=, =02:50:30=.
+- =+0:45;T=: /no change/! In the formula text, =0:45= is still the fraction
+  0/45 = 0; only fields are converted. Write seconds (=45*60=) instead.
+- the last column shows the minutes: with =t= the result is in hours, so
+  multiplying the duration by 60 gives minutes as "hours": =90.00=,
+  =20.00=, =125.50=.
+
+The =t= output unit is set by the option =table_duration_custom_format=
+(="hours"= by default, or ="minutes"=, ="seconds"=, ="days"=), and
+=table_duration_hour_zero_padding= (default true) decides between =03:00:00=
+and =3:00:00= for =T= and =U=.
+
+* Units with usimplify
+Calc knows physical units. In a formula they are plain symbols, except
+inside =usimplify(...)=, which converts and simplifies them.
+
+| Expression      | Result       |
+|-----------------+--------------|
+| 3 m + 20 cm     | 3.2 m        |
+| 1 in / 1 cm     | 2.54         |
+| 100 km / 2 hr   | 50 km / hr   |
+| 5 kWh / 2 hr    | 2.5 kWh / hr |
+| 3 m * 2 m / 4 s | 1.5 m^2 / s  |
+| 1 K + 1 degC    | 2 K          |
+#+TBLFM: @2$2=usimplify(3 m + 20 cm)::@3$2=usimplify(1 in / 1 cm)::@4$2=usimplify(100 km / 2 hr)::@5$2=usimplify(5 kWh / 2 hr)::@6$2=usimplify(3 m * 2 m / 4 s)::@7$2=usimplify(1 K + 1 degC)
+
+*Expect:* =3.2 m= (the unit of the first term wins), =2.54= (inches per
+centimetre: a plain number), =50 km / hr=, =2.5 kWh / hr=, =1.5 m^2 / s=
+and =2 K= (temperature differences).
+
+With a field holding a number and a unit in the formula:
+
+| Distance (km) | In miles |
+|---------------+----------|
+|            10 |     6.21 |
+|          42.2 |    26.22 |
+#+TBLFM: $2=usimplify($1 km / mi);%.2f
+
+*Expect:* =6.21= and =26.22=.
+
+* Lisp formulas: '(...)
+A formula starting with ='(= is an Emacs Lisp expression. org.nvim does not
+start Emacs: it has a small Lisp interpreter with the common functions
+(=+ - * /=, =concat=, =format=, =substring=, =upcase=, =downcase=,
+=length=, =string-to-number=, =if=, =cond=, =let=, =string==, =mapconcat=,
+=org-sbe= and more; the list is in =lua/org/table/elisp.lua=).
+
+How fields are passed in:
+- by default each reference becomes a Lisp /string/: with =3= in =$1=,
+  ='(concat $1 "x")= sees ="3"=;
+- with =N= each becomes a /number/ (text and empty fields are 0);
+- with =L= the field text is pasted in /literally/, as Lisp code, so =3=
+  is the number 3 and =(+ 1 2)= would be a form;
+- a range becomes several arguments: ='(+ $1..$3);N= is =(+ 1 2 3)=.
+
+** Strings (no flag)
+| First | Last     | Full name    | Initials | Upper    | Length |
+|-------+----------+--------------+----------+----------+--------|
+| Ada   | Lovelace | Ada Lovelace | AL       | LOVELACE |     12 |
+| Alan  | Turing   | Alan Turing  | AT       | TURING   |     11 |
+| Grace | Hopper   | Grace Hopper | GH       | HOPPER   |     12 |
+#+TBLFM: $3='(concat $1 " " $2)::$4='(concat (substring $1 0 1) (substring $2 0 1))::$5='(upcase $2)::$6='(length $3)
+
+# Practice copy: results are blank on purpose.
+| First | Last     | Full name | Initials | Upper | Length |
+|-------+----------+-----------+----------+-------+--------|
+| Ada   | Lovelace |           |          |       |        |
+| Alan  | Turing   |           |          |       |        |
+| Grace | Hopper   |           |          |       |        |
+#+TBLFM: $3='(concat $1 " " $2)::$4='(concat (substring $1 0 1) (substring $2 0 1))::$5='(upcase $2)::$6='(length $3)
+
+*Expect:* =Ada Lovelace=, =AL=, =LOVELACE=, =12=; =Alan Turing=, =AT=,
+=TURING=, =11=; =Grace Hopper=, =GH=, =HOPPER=, =12=.
+
+*Try:* in the practice copy change Grace to =Margaret=, Hopper to
+=Hamilton=.
+
+*Expect:* =Margaret Hamilton=, =MH=, =HAMILTON=, =17=.
+
+** Numbers: N
+| a | b | sum | product | max | cond   |
+|---+---+-----+---------+-----+--------|
+| 3 | 4 |   7 |      12 |   4 | small  |
+| 9 | 2 |  11 |      18 |   9 | big    |
+| 5 |   |   5 |       0 |   5 | medium |
+#+TBLFM: $3='(+ $1 $2);N::$4='(* $1 $2);N::$5='(max $1..$2);N::$6='(cond ((> $1 8) "big") ((> $1 4) "medium") (t "small"));N
+
+# Practice copy: results are blank on purpose.
+| a | b | sum | product | max | cond |
+|---+---+-----+---------+-----+------|
+| 3 | 4 |     |         |     |      |
+| 9 | 2 |     |         |     |      |
+| 5 |   |     |         |     |      |
+#+TBLFM: $3='(+ $1 $2);N::$4='(* $1 $2);N::$5='(max $1..$2);N::$6='(cond ((> $1 8) "big") ((> $1 4) "medium") (t "small"));N
+
+*Expect:* =7=, =12=, =4=, =small=; =11=, =18=, =9=, =big=; =5=, =0=, =5=,
+=medium= (the empty =b= is 0 with =N=; in the range =$1..$2= it is dropped).
+
+Without =N=, ='(+ $1 $2)= would try to add two strings and give =#ERROR=.
+
+** Formatting with format
+Lisp's =format= gives full control over the text of a result:
+
+| Item | Qty | Price | Line          |
+|------+-----+-------+---------------|
+| Pen  |   3 |   1.2 | 3 x 0 = 3.60  |
+| Pad  |  10 |   0.5 | 10 x 0 = 5.00 |
+#+TBLFM: $4='(format "%d x %s = %.2f" $2 $1 (* $2 $3));N
+
+*Expect:* =3 x 0 = 3.60= and =10 x 0 = 5.00=. With =N= /every/ field is a
+number, so the item name =Pen= became =0=. Mixing text and numbers needs
+the conversion done by hand, without =N=:
+
+| Item | Qty | Price | Line            |
+|------+-----+-------+-----------------|
+| Pen  |   3 |   1.2 | 3 x Pen = 3.60  |
+| Pad  |  10 |   0.5 | 10 x Pad = 5.00 |
+#+TBLFM: $4='(format "%s x %s = %.2f" $2 $1 (* (string-to-number $2) (string-to-number $3)))
+
+*Expect:* =3 x Pen = 3.60= and =10 x Pad = 5.00=.
+
+** Literal fields: L
+With =L= the text of the field is inserted as Lisp source. That is the
+only way to write a field that holds a Lisp /form/, and makes numbers
+numbers without =N=:
+
+| x | expr    | x squared | value of expr |
+|---+---------+-----------+---------------|
+| 3 | (+ 1 2) |         9 |             3 |
+| 7 | (* 6 7) |        49 |            42 |
+#+TBLFM: $3='(* $1 $1);L::$4='(+ 0 $2);L
+
+*Expect:* =9= and =3=; =49= and =42=.
+
+* Lua formulas (an org.nvim extension)
+A ='(...)= formula that is not Lisp is evaluated as a /Lua expression/.
+References become Lua strings (numbers with =N=), ranges become Lua lists
+(={...}=). Available: =math=, =string=, =table=, =os.date=, =os.time=,
+=tonumber=, =tostring=, =type=, =ipairs=, =pairs=, =select=, =unpack=
+and a helper =concat(list, sep)=. A =true= / =false= result is written as
+=1= / =0=, a list as its elements separated by spaces.
+
+These formulas only work in org.nvim; Emacs would try them as Lisp.
+
+| Name  | Score | Upper | Stars | Rounded | Max of row |
+|-------+-------+-------+-------+---------+------------|
+| ada   |  3.14 | ADA   | ***   |       3 |       3.14 |
+| linus |  2.72 | LINUS | **    |       3 |          3 |
+| grace |   4.5 | GRACE | ****  |       5 |          5 |
+#+TBLFM: $3='(string.upper($1))::$4='(string.rep("*", math.floor($2)))::$5='(math.floor($2 + 0.5));N::$6='(math.max(unpack($2..$5)));N
+
+# Practice copy: results are blank on purpose.
+| Name  | Score | Upper | Stars | Rounded | Max of row |
+|-------+-------+-------+-------+---------+------------|
+| ada   |  3.14 |       |       |         |            |
+| linus |  2.72 |       |       |         |            |
+| grace |   4.5 |       |       |         |            |
+#+TBLFM: $3='(string.upper($1))::$4='(string.rep("*", math.floor($2)))::$5='(math.floor($2 + 0.5));N::$6='(math.max(unpack($2..$5)));N
+
+- =string.upper($1)=: =$1= is the Lua string ="ada"=.
+- =math.floor($2)=: Lua turns the string ="3.14"= into a number for
+  arithmetic, so no flag is needed here.
+- =math.max(unpack($2..$5))= with =N=: the range is a list of numbers; the
+  text fields (=Upper=, =Stars=) count as 0.
+
+*Expect:* =ADA=, =***=, =3=, =3.14=; =LINUS=, =**=, =3=, =3=; =GRACE=,
+=****=, =5=, =5=.
+
+*Try:* change grace's score to =9.6=.
+
+*Expect:* =*********= (nine stars), Rounded =10=, Max =10=.
+
+** Lua with strings and lists
+| Words         | Joined        | Reversed      | Count | Has "o"? |
+|---------------+---------------+---------------+-------+----------|
+| one two three | one-two-three | eerht owt eno |     3 |        1 |
+| red green     | red-green     | neerg der     |     2 |        0 |
+#+TBLFM: $2='(($1):gsub(" ", "-"))::$3='(($1):reverse())::$4='(select(2, ($1):gsub("%S+", "")))::$5='(($1):find("o") ~= nil)
+
+*Expect:* =one-two-three=, =eerht owt eno=, =3=, =1=; =red-green=,
+=neerg der=, =2=, =0=. Note: =gsub= returns two values; only the first
+one is used, except where =select(2, ...)= picks the count.
+
+* Names instead of numbers
+Numbers like =$4= break when you move columns around and are hard to read.
+Org offers several kinds of names; they are looked up in this order:
+=!= row column names, =^= / =_= field names, =$= row parameters,
+=#+CONSTANTS:=, and (an org.nvim extension) the header row.
+
+** Header names (org.nvim extension)
+Without any =!= row, =$Name= refers to the column whose header, above the
+first horizontal line, is =Name=. Emacs does not support this; use a =!=
+row if the file must also work there.
+
+| Qty | Price | Total |
+|-----+-------+-------|
+|   2 |  3.50 |  7.00 |
+|   4 |  1.25 |  5.00 |
+|  10 |  0.99 |  9.90 |
+#+TBLFM: $Total=$Qty*$Price;%.2f
+
+# Practice copy: Total is blank on purpose.
+| Qty | Price | Total |
+|-----+-------+-------|
+|   2 |  3.50 |       |
+|   4 |  1.25 |       |
+|  10 |  0.99 |       |
+#+TBLFM: $Total=$Qty*$Price;%.2f
+
+*Expect:* =7.00=, =5.00=, =9.90=.
+
+*Try:* in the practice copy swap the Qty and Price columns (cursor in Qty,
+=<M-l>=) and recalculate.
+
+*Expect:* the same totals: the formula follows the names, not positions.
+
+** The marks column and ! rows
+If the first column of a table holds only marks (=!=, =$=, =^=, =_=,
+=#=, =*=, =/= or nothing), it is a /marks column/. A row marked =!=
+names the columns under it:
+
+|   | Item  | qty | price | total |
+| ! |       | qty | price | total |
+|---+-------+-----+-------+-------|
+| # | Lamp  |   2 |    40 |    80 |
+| # | Chair |   4 |   120 |   480 |
+| # | Desk  |   1 |   300 |   300 |
+|---+-------+-----+-------+-------|
+| # | Total |     |       |   860 |
+#+TBLFM: $total=$qty*$price::@>$5=vsum(@I..@II)
+
+# Practice copy: total is blank on purpose.
+|   | Item  | qty | price | total |
+| ! |       | qty | price | total |
+|---+-------+-----+-------+-------|
+| # | Lamp  |   2 |    40 |       |
+| # | Chair |   4 |   120 |       |
+| # | Desk  |   1 |   300 |       |
+|---+-------+-----+-------+-------|
+| # | Total |     |       |       |
+#+TBLFM: $total=$qty*$price::@>$5=vsum(@I..@II)
+
+*Expect:* =80=, =480=, =300=, Total =860=. The =!= row sits above the
+first horizontal line, in the header, so it is not part of the range
+=@I..@II= (a word like =total= inside a summed range would turn the sum
+into the formula =total + 860=). The =!= row itself is never changed,
+and with a marks column the column formulas only touch rows marked =#= or
+=*= (see "Automatic recalculation" below).
+
+On the /left/ side, Emacs accepts only column numbers (=$5==); =$total== is
+an org.nvim extension. Formulas run in the order of their left sides
+compared as text, so with several named left sides (=$total==, =$net==)
+they run in alphabetical order of the names, not left to right. Use
+numbers on the left when one column formula needs another one's result.
+
+** Parameters: the $ row
+A row marked =$= defines /parameters/ as =name=value= fields; formulas use
+them as =$name=.
+
+|   | Item     |      net |  gross |
+|---+----------+----------+--------|
+| ! |          |      net |  gross |
+| # | Lamp     |       40 |  51.04 |
+| # | Chair    |      120 | 153.12 |
+| # | Desk     |      300 | 382.80 |
+|---+----------+----------+--------|
+| $ | tax=0.16 | rate=1.1 |        |
+#+TBLFM: $gross=$net*(1+$tax)*$rate;%.2f
+
+# Practice copy: gross is blank on purpose.
+|   | Item     |      net | gross |
+|---+----------+----------+-------|
+| ! |          |      net | gross |
+| # | Lamp     |       40 |       |
+| # | Chair    |      120 |       |
+| # | Desk     |      300 |       |
+|---+----------+----------+-------|
+| $ | tax=0.16 | rate=1.1 |       |
+#+TBLFM: $gross=$net*(1+$tax)*$rate;%.2f
+
+*Expect:* =51.04=, =153.12=, =382.80=.
+
+*Try:* in the practice copy change =rate=1.1= to =rate=1= and
+recalculate.
+
+*Expect:* =46.40=, =139.20=, =348.00=.
+
+** Constants: #+CONSTANTS
+=#+CONSTANTS:= lines anywhere in the file define names for every table of
+the file. This file starts with
+
+: #+CONSTANTS: vat=0.20 hourly=45 g=9.81
+
+(and =table_formula_constants= in your setup can define global ones). A
+=$= row or =!= name of the table wins over a constant of the same name.
+
+| Hours |   Pay | Pay + VAT |
+|-------+-------+-----------|
+|     8 |   360 |    432.00 |
+|  12.5 | 562.5 |    675.00 |
+#+TBLFM: $2=$1*$hourly::$3=$2*(1+$vat);%.2f
+
+# Practice copy: results are blank on purpose.
+| Hours | Pay | Pay + VAT |
+|-------+-----+-----------|
+|     8 |     |           |
+|  12.5 |     |           |
+#+TBLFM: $2=$1*$hourly::$3=$2*(1+$vat);%.2f
+
+*Expect:* Pay =360= and =562.5=; with VAT =432.00= and =675.00=. (A whole
+float like 625.0 would show as =625.=, Calc's way of saying "float".)
+
+*Try:* change =hourly=45= to =hourly=50= on the =#+CONSTANTS:= line at the
+top of the file, then come back and press =<C-c><C-c>= on the practice
+=#+TBLFM:=.
+
+*Expect:* =400=, =625.=; =480.00=, =750.00=. (Put =45= back afterwards.)
+
+Falling objects, with =g=:
+
+| Seconds | Speed (m/s) | Distance (m) |
+|---------+-------------+--------------|
+|       1 |        9.81 |          4.9 |
+|       2 |       19.62 |         19.6 |
+|       3 |       29.43 |         44.1 |
+#+TBLFM: $2=$g*$1;%.2f::$3=$g*$1^2/2;%.1f
+
+*Expect:* =9.81=, =19.62=, =29.43=; =4.9=, =19.6=, =44.1=.
+
+** Properties: $PROP_Name
+=$PROP_Name= is the value of the property =Name= of the entry the table is
+in (inherited from parents too).
+
+*** Holiday budget
+:PROPERTIES:
+:Nights:   5
+:Rate:     85
+:END:
+| What  | Cost |
+|-------+------|
+| Hotel |  425 |
+| Meals |  150 |
+|-------+------|
+| Total |  575 |
+#+TBLFM: @2$2=$PROP_Nights*$PROP_Rate::@3$2=$PROP_Nights*30::@>$2=vsum(@I..@II)
+
+*Expect:* Hotel =425=, Meals =150=, Total =575=.
+
+*Try:* change =:Nights:= to =7= and recalculate.
+
+*Expect:* =595=, =210=, =805=.
+
+** Field names: the ^ and _ rows
+A =^= row names the fields of the row /above/ it; a =_= row names the
+fields of the row /below/ it. Use them for single important fields such as
+a total. Formulas see the value a named field had /before/ the
+recalculation, so a formula that uses a freshly computed named field needs
+a second pass (=16<C-c>*= iterates).
+
+# Solved with 16<C-c>* (iterated until stable).
+|   | Person |  Spent |  Share |
+|---+--------+--------+--------|
+| # | Ann    |    120 | -13.33 |
+| # | Ben    |     80 | -53.33 |
+| # | Cid    |    200 |  66.67 |
+|---+--------+--------+--------|
+|   | Total  |    400 |        |
+| ^ |        |  total |        |
+| _ |        |   each |        |
+|   | Each   | 133.33 |        |
+#+TBLFM: $4=$3-$each;%.2f::$total=vsum(@I..@II)::$each=$total/3;%.2f
+
+# Practice copy: the totals and Share are blank on purpose.
+|   | Person | Spent | Share |
+|---+--------+-------+-------|
+| # | Ann    |   120 |       |
+| # | Ben    |    80 |       |
+| # | Cid    |   200 |       |
+|---+--------+-------+-------|
+|   | Total  |       |       |
+| ^ |        | total |       |
+| _ |        |  each |       |
+|   | Each   |       |       |
+#+TBLFM: $4=$3-$each;%.2f::$total=vsum(@I..@II)::$each=$total/3;%.2f
+
+Read it as: =total= is the Spent field of the Total row (the =^= row
+names the field above it), =each= is the Spent field of the Each row (the
+=_= row names the field below it). =$total=...= and =$each=...= are
+/named field formulas/. The Share column says how much each person paid
+above (+) or below (-) an even split. The Total and Each rows have no mark,
+so the column formula for Share skips them.
+
+*Try:* press =16<C-c>*= in the practice copy.
+
+*Expect:* Total =400=, Each =133.33=, Share =-13.33=, =-53.33=, =66.67=.
+
+The message says "Convergence after 4 iterations".
+
+*Try:* press =u= until the copy is empty again, then =<prefix>Tf= three
+times, watching the table after each press.
+
+*Expect:*
+1. Total =400=, but Each and all shares =#ERROR=: formulas read a named
+   field as it was /before/ the pass, and =total= and =each= were empty.
+2. Each =133.33=; the shares are still =#ERROR= (=each= was empty before
+   this pass).
+3. The shares =-13.33=, =-53.33=, =66.67=. A fourth pass changes nothing.
+
+* Automatic recalculation: # and * rows
+In a table with a marks column:
+
+| Mark    | Meaning                                                                                            |
+|---------+----------------------------------------------------------------------------------------------------|
+| =#=     | recalculated automatically when you leave the row with =<Tab>=, =<CR>= or press =<C-c><C-c>= in it |
+| =*=     | recalculated only when the whole table is (=<prefix>Tf=, =4<C-c>*=)                                |
+| (none)  | never touched by column formulas                                                                   |
+| =!=     | column names                                                                                       |
+| =$=     | parameters                                                                                         |
+| =^= =_= | field names for the row above / below                                                              |
+| =/=     | not exported, never changed                                                                        |
+
+=<prefix>T#= (Emacs =C-#=) rotates the mark of the current row through
+=#=, =*=, =!=, =$=, =_=, =^= and blank, adding a marks column to a table
+that has none; in Visual mode it asks for one mark to set on every selected
+row. Each press shows what the mark means.
+
+|   | Item   | Qty | Price | Total |
+|---+--------+-----+-------+-------|
+| ! |        | qty | price | total |
+| # | Apples |   4 |  0.50 |  2.00 |
+| * | Pears  |   2 |  0.80 |  1.60 |
+|   | Plums  |   5 |  0.30 |       |
+#+TBLFM: $total=$qty*$price;%.2f
+
+In the solved table the =#= and =*= rows are computed and the unmarked
+Plums row is not: column formulas skip it.
+
+# Practice copy: Total is blank on purpose.
+|   | Item   | Qty | Price | Total |
+|---+--------+-----+-------+-------|
+| ! |        | qty | price | total |
+| # | Apples |   4 |  0.50 |       |
+| * | Pears  |   2 |  0.80 |       |
+|   | Plums  |   5 |  0.30 |       |
+#+TBLFM: $total=$qty*$price;%.2f
+
+*Try:* in the practice copy put the cursor on Apples' Qty and press
+=<C-c><C-c>=.
+
+*Expect:* only Apples gets =2.00=: a =#= row recalculates itself.
+
+*Try:* change Apples' Qty to =6= in Insert mode and press =<Tab>= to leave
+the field.
+
+*Expect:* Apples' total becomes =3.00= at once.
+
+*Try:* put the cursor on Pears and press =<C-c><C-c>=.
+
+*Expect:* nothing is computed: =*= rows wait for a full recalculation.
+Press =<prefix>Tf=: Pears gets =1.60=, Plums stays empty.
+
+*Try:* on Plums press =<prefix>T#=.
+
+*Expect:* the mark becomes =#= and the message "Automatically recalculate
+this line upon TAB, RET, and C-c C-c in the line". =<C-c><C-c>= on the row
+now gives =1.50=. Press =<prefix>T#= again to see =*=, then =!=, =$=,
+=_=, =^= and blank.
+
+*Try:* in the "Keys in this file" table at the top (it has no marks
+column), press =<prefix>T#= and then =u=.
+
+*Expect:* a new first column appears with =#= in the current row; =u=
+removes it again.
+
+* Other tables: remote()
+=remote(name, reference)= reads a field or a range of /another/ table that
+has a =#+NAME:= line. The name may also be the =ID= or =CUSTOM_ID= of an
+entry, whose first table is used. The reference is evaluated in that
+table, so =@>$>= is /its/ bottom-right corner.
+
+#+NAME: price-list
+| Fruit  | Price |
+|--------+-------|
+| Apple  |  0.50 |
+| Banana |  0.25 |
+| Cherry |  4.00 |
+| Mango  |  1.75 |
+
+An order form that looks prices up by row:
+
+# Solved with 16<C-c>* (iterated until stable).
+| Order   | Qty | Unit price | Total |
+|---------+-----+------------+-------|
+| Apples  |  12 |        0.5 |  6.00 |
+| Bananas |   6 |       0.25 |  1.50 |
+| Mangos  |   2 |       1.75 |  3.50 |
+|---------+-----+------------+-------|
+| Sum     |     |            | 11.00 |
+#+TBLFM: @2$3=remote(price-list, @2$2)::@3$3=remote(price-list, @3$2)::@4$3=remote(price-list, @5$2)::$4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+
+# Practice copy: Unit price, Total and Sum are blank on purpose.
+| Order   | Qty | Unit price | Total |
+|---------+-----+------------+-------|
+| Apples  |  12 |            |       |
+| Bananas |   6 |            |       |
+| Mangos  |   2 |            |       |
+|---------+-----+------------+-------|
+| Sum     |     |            |       |
+#+TBLFM: @2$3=remote(price-list, @2$2)::@3$3=remote(price-list, @3$2)::@4$3=remote(price-list, @5$2)::$4=$2*$3;%.2f::@>$4=vsum(@I..@II);%.2f
+
+Unit prices show as =0.5=, =0.25=, =1.75=: the referenced text =0.50= is
+read as a number, and Calc writes it back without the trailing zero.
+
+*Expect:* after =<prefix>Tf= twice (see the note below): Unit price =0.5=,
+=0.25=, =1.75=; Total =6.00=, =1.50=, =3.50=; Sum =11.00=.
+
+Note: the column formula =$4= runs /before/ the field formulas that fill
+the unit prices, so on the very first pass the Totals are computed with
+empty prices (=0.00=). Press =<prefix>Tf= again, or =16<C-c>*=.
+
+*Try:* change Mango's price in =price-list= to =2.25=, then recalculate the
+order form (practice copy) twice.
+
+*Expect:* Mangos' unit price =2.25=, Total =4.50=, Sum =12.00=.
+
+** Ranges and totals from another table
+#+NAME: q3-sales
+| Region | Jul | Aug | Sep | Total |
+|--------+-----+-----+-----+-------|
+| North  |  40 |  42 |  51 |   133 |
+| South  |  35 |  30 |  38 |   103 |
+| West   |  22 |  25 |  31 |    78 |
+|--------+-----+-----+-----+-------|
+| All    |  97 |  97 | 120 |   314 |
+#+TBLFM: $5=vsum($2..$4)::@>$2..@>$5=vsum(@I..@II)
+
+A summary table that reads from =q3-sales=:
+
+| Figure                   | Value |
+|--------------------------+-------|
+| Grand total              |   314 |
+| North, whole quarter     |   133 |
+| Best month (all regions) |   120 |
+| Mean of all 9 figures    | 34.89 |
+| Regions                  |     3 |
+#+TBLFM: @2$2=remote(q3-sales, @>$>)::@3$2=remote(q3-sales, @2$5)::@4$2=vmax(remote(q3-sales, @>$2..@>$4))::@5$2=vmean(remote(q3-sales, @I$2..@II$4));%.2f::@6$2=vcount(remote(q3-sales, @I$1..@II$1))
+
+# Practice copy: Value is blank on purpose.
+| Figure                   | Value |
+|--------------------------+-------|
+| Grand total              |       |
+| North, whole quarter     |       |
+| Best month (all regions) |       |
+| Mean of all 9 figures    |       |
+| Regions                  |       |
+#+TBLFM: @2$2=remote(q3-sales, @>$>)::@3$2=remote(q3-sales, @2$5)::@4$2=vmax(remote(q3-sales, @>$2..@>$4))::@5$2=vmean(remote(q3-sales, @I$2..@II$4));%.2f::@6$2=vcount(remote(q3-sales, @I$1..@II$1))
+
+*Expect:* =314=, =133=, =120= (September), =34.89=, =3=.
+
+*Try:* change South's September to =58= in =q3-sales=. Recalculate
+=q3-sales= first (=<C-c><C-c>= on its =#+TBLFM:=), then the practice copy.
+
+*Expect:* =334=, =133=, =140=, =37.11=, =3=. If you recalculate only the
+summary, it still reads the /old/ totals of =q3-sales=: remote() reads the
+other table as it is, it does not recalculate it. =:Org
+table_recalc_buffer= recalculates every table of the buffer, repeating
+until nothing changes, which settles chains like this one.
+
+* Worked sheets
+Complete, realistic spreadsheets that combine everything above. Each one
+has a solved table, a practice copy and exercises.
+
+** Monthly budget with categories and percentages
+# Solved with 16<C-c>* (iterated until stable).
+| Category  | Planned | Actual | Diff | % of spent | Status |
+|-----------+---------+--------+------+------------+--------|
+| Rent      |    1200 |   1200 |    0 |       45.1 | ok     |
+| Groceries |     450 |    512 |   62 |       19.2 | over   |
+| Transport |     120 |     95 |  -25 |        3.6 | ok     |
+| Utilities |     180 |    204 |   24 |        7.7 | over   |
+| Fun       |     200 |    150 |  -50 |        5.6 | ok     |
+| Savings   |     500 |    500 |    0 |       18.8 | ok     |
+|-----------+---------+--------+------+------------+--------|
+| Total     |    2650 |   2661 |   11 |      100.0 |        |
+#+TBLFM: $4=$3-$2::$5=100*$3/@>$3;%.1f::@2$6..@7$6=if($3 > $2, over, ok)::@>$2=vsum(@I..@II)::@>$3=vsum(@I..@II)::@>$4=vsum(@I..@II)
+
+# Practice copy: results are blank on purpose (needs 16<C-c>*).
+| Category  | Planned | Actual | Diff | % of spent | Status |
+|-----------+---------+--------+------+------------+--------|
+| Rent      |    1200 |   1200 |      |            |        |
+| Groceries |     450 |    512 |      |            |        |
+| Transport |     120 |     95 |      |            |        |
+| Utilities |     180 |    204 |      |            |        |
+| Fun       |     200 |    150 |      |            |        |
+| Savings   |     500 |    500 |      |            |        |
+|-----------+---------+--------+------+------------+--------|
+| Total     |         |        |      |            |        |
+#+TBLFM: $4=$3-$2::$5=100*$3/@>$3;%.1f::@2$6..@7$6=if($3 > $2, over, ok)::@>$2=vsum(@I..@II)::@>$3=vsum(@I..@II)::@>$4=vsum(@I..@II)
+
+- Diff: positive means you spent more than planned.
+- =% of spent= divides by the Actual total in the last row, so it needs a
+  second pass (=16<C-c>*=).
+- Status is a range formula for rows 2-7 (=@2$6..@7$6=), so the Total row
+  gets no status.
+
+*Expect:* Diff =0=, =62=, =-25=, =24=, =-50=, =0=; % =45.1=, =19.2=, =3.6=,
+=7.7=, =5.6=, =18.8=; Status =ok=, =over=, =ok=, =over=, =ok=, =ok=;
+Total =2650=, =2661=, =11=, =100.0=.
+
+*Try:* change Fun's Actual to =260= and press =16<C-c>*=.
+
+*Expect:* Fun Diff =60=, Status =over=; totals =2650=, =2771=, =121=; the
+percentages all shift: =43.3=, =18.5=, =3.4=, =7.4=, =9.4=, =18.0=.
+
+** Invoice with VAT
+Uses the constant =vat=0.20= from the top of the file and a =$= row for the
+discount.
+
+|   | Description        | Qty |  Unit |     Net |
+|---+--------------------+-----+-------+---------|
+| ! |                    | qty |  unit |     net |
+|---+--------------------+-----+-------+---------|
+| # | Consulting (hours) |  12 | 95.00 | 1140.00 |
+| # | Travel             |   1 | 180.0 |  180.00 |
+| # | Licence            |   3 | 49.90 |  149.70 |
+|---+--------------------+-----+-------+---------|
+|   | Subtotal           |     |       | 1469.70 |
+|   | Discount           |     |       |  -73.48 |
+|   | VAT                |     |       |  279.24 |
+|   | Total due          |     |       | 1675.46 |
+|---+--------------------+-----+-------+---------|
+| $ | disc=0.05          |     |       |         |
+#+TBLFM: $5=$qty*$unit;%.2f::@6$5=vsum(@II..@III);%.2f::@7$5=-@6$5*$disc;%.2f::@8$5=(@6$5+@7$5)*$vat;%.2f::@9$5=@6$5+@7$5+@8$5;%.2f
+
+# Practice copy: Net is blank on purpose.
+|   | Description        | Qty |  Unit | Net |
+|---+--------------------+-----+-------+-----|
+| ! |                    | qty |  unit | net |
+|---+--------------------+-----+-------+-----|
+| # | Consulting (hours) |  12 | 95.00 |     |
+| # | Travel             |   1 | 180.0 |     |
+| # | Licence            |   3 | 49.90 |     |
+|---+--------------------+-----+-------+-----|
+|   | Subtotal           |     |       |     |
+|   | Discount           |     |       |     |
+|   | VAT                |     |       |     |
+|   | Total due          |     |       |     |
+|---+--------------------+-----+-------+-----|
+| $ | disc=0.05          |     |       |     |
+#+TBLFM: $5=$qty*$unit;%.2f::@6$5=vsum(@II..@III);%.2f::@7$5=-@6$5*$disc;%.2f::@8$5=(@6$5+@7$5)*$vat;%.2f::@9$5=@6$5+@7$5+@8$5;%.2f
+
+Rows: @1 header, @2 the =!= row, @3-@5 items, @6 Subtotal, @7 Discount,
+@8 VAT, @9 Total due, @10 the =$= row. The items are between lines II and
+III. The field formulas run in row order, so each one can use the rows
+above it in the same pass. The left sides use column numbers (=$5=,
+=@6$5=): names work on the right side, and Emacs only allows numbers on
+the left.
+
+*Expect:* Net =1140.00=, =180.00=, =149.70=; Subtotal =1469.70=, Discount
+=-73.48=, VAT =279.24=, Total due =1675.46=. (5% of 1469.70 is 73.485;
+floating point makes it a hair less, so it rounds down. Each row uses the
+already rounded value of the rows above, as a printed invoice would.)
+
+*Try:* change =disc=0.05= to =disc=0.10= and recalculate.
+
+*Expect:* Discount =-146.97=, VAT =264.55=, Total due =1587.28=.
+
+** Grade book with averages and letter grades
+Weights: homework 30%, midterm 30%, final 40%. The average row uses
+=vmean=, the grade a nested =if=.
+
+| Student | Homework | Midterm | Final | Weighted | Grade |
+|---------+----------+---------+-------+----------+-------|
+| Ann     |       92 |      88 |    95 |     92.0 | A     |
+| Ben     |       75 |      68 |    72 |     71.7 | C     |
+| Cid     |       60 |      55 |    48 |     53.7 | F     |
+| Dora    |       85 |      91 |    89 |     88.4 | B     |
+| Eli     |       98 |      79 |    83 |     86.3 | B     |
+|---------+----------+---------+-------+----------+-------|
+| Average |     82.0 |    76.2 |  77.4 |     78.4 |       |
+| Best    |       98 |      91 |    95 |      92. |       |
+#+TBLFM: $5=0.3*$2+0.3*$3+0.4*$4;%.1f::@2$6..@6$6=if($5 >= 90, A, if($5 >= 80, B, if($5 >= 70, C, if($5 >= 60, D, F))))::@7$2..@7$5=vmean(@I..@II);%.1f::@8$2..@8$5=vmax(@I..@II)
+
+# Practice copy: results are blank on purpose.
+| Student | Homework | Midterm | Final | Weighted | Grade |
+|---------+----------+---------+-------+----------+-------|
+| Ann     |       92 |      88 |    95 |          |       |
+| Ben     |       75 |      68 |    72 |          |       |
+| Cid     |       60 |      55 |    48 |          |       |
+| Dora    |       85 |      91 |    89 |          |       |
+| Eli     |       98 |      79 |    83 |          |       |
+|---------+----------+---------+-------+----------+-------|
+| Average |          |         |       |          |       |
+| Best    |          |         |       |          |       |
+#+TBLFM: $5=0.3*$2+0.3*$3+0.4*$4;%.1f::@2$6..@6$6=if($5 >= 90, A, if($5 >= 80, B, if($5 >= 70, C, if($5 >= 60, D, F))))::@7$2..@7$5=vmean(@I..@II);%.1f::@8$2..@8$5=vmax(@I..@II)
+
+*Expect:* Weighted =92.0=, =71.7=, =53.7=, =88.4=, =86.3=; Grade =A=,
+=C=, =F=, =B=, =B=; Average =82.0=, =76.2=, =77.4=, =78.4=; Best =98=,
+=91=, =95=, =92.= (the maximum of the floats =92.0= ... is the float 92,
+written =92.= because that formula has no format).
+
+*Try:* Cid retakes the final and gets =78=. Recalculate.
+
+*Expect:* Cid =65.7= and =D=; the Final average becomes =83.4=, the
+Weighted average =80.8=.
+
+** Timesheet with durations
+# Solved with 16<C-c>* (iterated until stable).
+| Day              |    In |   Out | Break | Worked | Overtime |
+|------------------+-------+-------+-------+--------+----------|
+| <2026-09-28 Mon> | 08:45 | 17:30 |  0:45 |  08:00 |    00:00 |
+| <2026-09-29 Tue> | 09:00 | 18:15 |  1:00 |  08:15 |    00:15 |
+| <2026-09-30 Wed> | 08:30 | 16:00 |  0:30 |  07:00 |   -01:00 |
+| <2026-10-01 Thu> | 09:15 | 19:00 |  0:45 |  09:00 |    01:00 |
+| <2026-10-02 Fri> | 08:00 | 14:00 |  0:00 |  06:00 |   -02:00 |
+|------------------+-------+-------+-------+--------+----------|
+| Week             |       |       | 03:00 |  38:15 |   -01:45 |
+#+TBLFM: $5=$3-$2-$4;U::$6=$5-8*3600;U::@>$4..@>$6=vsum(@I..@II);U
+
+# Practice copy: results are blank on purpose.
+| Day              |    In |   Out | Break | Worked | Overtime |
+|------------------+-------+-------+-------+--------+----------|
+| <2026-09-28 Mon> | 08:45 | 17:30 |  0:45 |        |          |
+| <2026-09-29 Tue> | 09:00 | 18:15 |  1:00 |        |          |
+| <2026-09-30 Wed> | 08:30 | 16:00 |  0:30 |        |          |
+| <2026-10-01 Thu> | 09:15 | 19:00 |  0:45 |        |          |
+| <2026-10-02 Fri> | 08:00 | 14:00 |  0:00 |        |          |
+|------------------+-------+-------+-------+--------+----------|
+| Week             |       |       |       |        |          |
+#+TBLFM: $5=$3-$2-$4;U::$6=$5-8*3600;U::@>$4..@>$6=vsum(@I..@II);U
+
+- =Worked = Out - In - Break=, written as =H:MM= by the =U= flag.
+- =8*3600= is 8 hours in seconds (with a duration flag plain numbers are
+  seconds). Overtime can be negative.
+
+*Expect:* Worked =08:00=, =08:15=, =07:00=, =09:00=, =06:00=; Overtime
+=00:00=, =00:15=, =-01:00=, =01:00=, =-02:00=; Week =03:00= (breaks),
+=38:15= (worked), =-01:45= (overtime).
+
+*Try:* on Friday change Out to =17:00=.
+
+*Expect:* Friday =09:00=, overtime =01:00=; Week =41:15= worked, =01:15=
+overtime.
+
+** Running balance
+| Date             | Description |   In |  Out | Balance |
+|------------------+-------------+------+------+---------|
+| <2026-10-01 Thu> | Opening     | 1500 |      | 1500.00 |
+| <2026-10-01 Thu> | Rent        |      |  950 |  550.00 |
+| <2026-10-02 Fri> | Groceries   |      | 84.3 |  465.70 |
+| <2026-10-09 Fri> | Salary      | 2800 |      | 3265.70 |
+| <2026-10-12 Mon> | Electricity |      | 61.2 | 3204.50 |
+| <2026-10-15 Thu> | Refund      | 25.5 |      | 3230.00 |
+#+TBLFM: @2$5=$3-$4;%.2f::@3$5..@>$5=@-1+$3-$4;%.2f
+
+# Practice copy: Balance is blank on purpose.
+| Date             | Description |   In |  Out | Balance |
+|------------------+-------------+------+------+---------|
+| <2026-10-01 Thu> | Opening     | 1500 |      |         |
+| <2026-10-01 Thu> | Rent        |      |  950 |         |
+| <2026-10-02 Fri> | Groceries   |      | 84.3 |         |
+| <2026-10-09 Fri> | Salary      | 2800 |      |         |
+| <2026-10-12 Mon> | Electricity |      | 61.2 |         |
+| <2026-10-15 Thu> | Refund      | 25.5 |      |         |
+#+TBLFM: @2$5=$3-$4;%.2f::@3$5..@>$5=@-1+$3-$4;%.2f
+
+=@-1= alone is "the row above, this column": the previous balance. Empty
+In/Out fields count as 0.
+
+*Expect:* =1500.00=, =550.00=, =465.70=, =3265.70=, =3204.50=, =3230.00=.
+
+*Try:* add a row at the end: put the cursor on the Refund row, press
+=<M-CR>= (a new empty row appears below), press =i= and fill in
+=<2026-10-19 Mon>= =<Tab>= =Phone= =<Tab>= =<Tab>= =39.99=, then =<Esc>=
+and =<prefix>Tf=.
+
+*Expect:* the new balance =3190.01=. The range =@3$5..@>$5= grows with the
+table because it ends at =@>=.
+
+** Loan payment and compound interest
+The monthly payment of a loan of /P/ at a yearly rate /r/ over /n/ months
+is P * i / (1 - (1+i)^-n) with i = r/12.
+
+|   |   Loan | Rate % | Years | Payment | Total paid |  Interest |
+|---+--------+--------+-------+---------+------------+-----------|
+| ! |      p |      r |     y |     pay |        tot |       int |
+|---+--------+--------+-------+---------+------------+-----------|
+| # |  10000 |      6 |     3 |  304.22 |   10951.92 |    951.92 |
+| # | 200000 |    4.5 |    30 | 1013.37 |  364813.20 | 164813.20 |
+| # |  15000 |    0.9 |     5 |  255.76 |   15345.60 |    345.60 |
+#+TBLFM: $5=$p*($r/1200)/(1-(1+$r/1200)^(-12*$y));%.2f::$6=$pay*12*$y;%.2f::$7=$tot-$p;%.2f
+
+# Practice copy: results are blank on purpose.
+|   |   Loan | Rate % | Years | Payment | Total paid | Interest |
+|---+--------+--------+-------+---------+------------+----------|
+| ! |      p |      r |     y | pay     | tot        | int      |
+|---+--------+--------+-------+---------+------------+----------|
+| # |  10000 |      6 |     3 |         |            |          |
+| # | 200000 |    4.5 |    30 |         |            |          |
+| # |  15000 |    0.9 |     5 |         |            |          |
+#+TBLFM: $5=$p*($r/1200)/(1-(1+$r/1200)^(-12*$y));%.2f::$6=$pay*12*$y;%.2f::$7=$tot-$p;%.2f
+
+Watch the parentheses: =$p*($r/1200)/(...)= is fine because the division
+comes last; =$p*$r/1200/(...)= would divide by the product of =1200= and
+=(...)=, which happens to be the same, but =$p/(...)*...= would not be.
+
+*Expect:* Payment =304.22=, =1013.37=, =255.76=; Total =10951.92=,
+=364813.20=, =15345.60=; Interest =951.92=, =164813.20=, =345.60=.
+
+*Try:* change the second loan to =25= years.
+
+*Expect:* Payment =1111.66=, Total =333498.00=, Interest =133498.00=.
+
+Compound interest year by year, each row growing the row above:
+
+| Year | Balance |
+|------+---------|
+|    0 |    1000 |
+|    1 | 1050.00 |
+|    2 | 1102.50 |
+|    3 | 1157.62 |
+|    4 | 1215.50 |
+|    5 | 1276.28 |
+|------+---------|
+| Rate |       5 |
+#+TBLFM: @3$2..@7$2=@-1*(1+@>$2/100);%.2f
+
+# Practice copy: Balance is blank on purpose.
+| Year | Balance |
+|------+---------|
+|    0 |    1000 |
+|    1 |         |
+|    2 |         |
+|    3 |         |
+|    4 |         |
+|    5 |         |
+|------+---------|
+| Rate |       5 |
+#+TBLFM: @3$2..@7$2=@-1*(1+@>$2/100);%.2f
+
+*Expect:* =1050.00=, =1102.50=, =1157.62=, =1215.50=, =1276.28=. Each
+row multiplies the /rounded/ text of the row above (the field holds
+=1102.50=, not more digits), and 1157.625 is rounded to even by =%.2f=.
+
+*Try:* change the rate to =7=.
+
+*Expect:* =1070.00=, =1144.90=, =1225.04=, =1310.79=, =1402.55=.
+
+** Inventory with conditional flags
+The Action column uses a nested =if= with words; the Order? column is the
+bare condition =$st < $min=, which is =1= or =0=, so its sum counts the
+items to order. (Avoid a hyphen in words: =ORDER-NOW= would be read as the
+subtraction =ORDER - NOW=.)
+
+|   | Item     | Stock | Min | Unit cost | Value | Action  | Order? |
+|---+----------+-------+-----+-----------+-------+---------+--------|
+| ! |          |    st | min |      cost |   val | act     |   need |
+|---+----------+-------+-----+-----------+-------+---------+--------|
+| # | Bolts M6 |   420 | 200 |      0.08 | 33.60 | ok      |      0 |
+| # | Nuts M6  |   150 | 200 |      0.05 |  7.50 | reorder |      1 |
+| # | Washers  |    90 | 100 |      0.02 |  1.80 | reorder |      1 |
+| # | Brackets |    12 |  10 |      3.40 | 40.80 | ok      |      0 |
+| # | Hinges   |     0 |  20 |      5.75 |  0.00 | urgent  |      1 |
+|---+----------+-------+-----+-----------+-------+---------+--------|
+|   | Total    |       |     |           | 83.70 |         |      3 |
+#+TBLFM: $6=$st*$cost;%.2f::$7=if($st == 0, urgent, if($st < $min, reorder, ok))::$8=$st < $min::@>$6=vsum(@II..@III);%.2f::@>$8=vsum(@II..@III)
+
+# Practice copy: Value, Action, Order? and the totals are blank on purpose.
+|   | Item     | Stock | Min | Unit cost | Value | Action | Order? |
+|---+----------+-------+-----+-----------+-------+--------+--------|
+| ! |          |    st | min |      cost | val   | act    | need   |
+|---+----------+-------+-----+-----------+-------+--------+--------|
+| # | Bolts M6 |   420 | 200 |      0.08 |       |        |        |
+| # | Nuts M6  |   150 | 200 |      0.05 |       |        |        |
+| # | Washers  |    90 | 100 |      0.02 |       |        |        |
+| # | Brackets |    12 |  10 |      3.40 |       |        |        |
+| # | Hinges   |     0 |  20 |      5.75 |       |        |        |
+|---+----------+-------+-----+-----------+-------+--------+--------|
+|   | Total    |       |     |           |       |        |        |
+#+TBLFM: $6=$st*$cost;%.2f::$7=if($st == 0, urgent, if($st < $min, reorder, ok))::$8=$st < $min::@>$6=vsum(@II..@III);%.2f::@>$8=vsum(@II..@III)
+
+*Expect:* Value =33.60=, =7.50=, =1.80=, =40.80=, =0.00=, Total =83.70=;
+Action =ok=, =reorder=, =reorder=, =ok=, =urgent=; Order? =0=, =1=, =1=,
+=0=, =1=, and =3= items to order.
+
+*Try:* a delivery brings 300 nuts: set Nuts' Stock to =450=; then, with the
+cursor still on the Nuts row, press =<C-c><C-c>= (the row is marked =#=).
+
+*Expect:* only that row is recalculated: Value =22.50=, Action =ok=,
+Order? =0=. The totals still show =83.70= and =3= until =<prefix>Tf=
+makes them =98.70= and =2=.
+
+** Fibonacci numbers with @-1 and @-2
+Each number is the sum of the two above it.
+
+|  n | Fibonacci | Ratio to previous |
+|----+-----------+-------------------|
+|  1 |         1 |                   |
+|  2 |         1 |                   |
+|  3 |         2 |          2.000000 |
+|  4 |         3 |          1.500000 |
+|  5 |         5 |          1.666667 |
+|  6 |         8 |          1.600000 |
+|  7 |        13 |          1.625000 |
+|  8 |        21 |          1.615385 |
+|  9 |        34 |          1.619048 |
+| 10 |        55 |          1.617647 |
+| 11 |        89 |          1.618182 |
+| 12 |       144 |          1.617978 |
+#+TBLFM: @4$2..@>$2=@-1+@-2::@4$3..@>$3=$2/@-1$2;%.6f
+
+# Practice copy: results are blank on purpose.
+|  n | Fibonacci | Ratio to previous |
+|----+-----------+-------------------|
+|  1 |         1 |                   |
+|  2 |         1 |                   |
+|  3 |           |                   |
+|  4 |           |                   |
+|  5 |           |                   |
+|  6 |           |                   |
+|  7 |           |                   |
+|  8 |           |                   |
+|  9 |           |                   |
+| 10 |           |                   |
+| 11 |           |                   |
+| 12 |           |                   |
+#+TBLFM: @4$2..@>$2=@-1+@-2::@4$3..@>$3=$2/@-1$2;%.6f
+
+The ratio range starts at row 4, like the Fibonacci range. Starting it at
+row 3 would /break/ it: =@3$3..= sorts before =@4$2..=, so the ratios would
+be computed before the numbers exist (all =0.000000= on the first pass).
+
+*Expect:* =1 1 2 3 5 8 13 21 34 55 89 144=; the ratio approaches the
+golden ratio: the last one is =1.618056=.
+
+*Try:* change the two starting values to =2= and =1= (the Lucas numbers).
+
+*Expect:* =2 1 3 4 7 11 18 29 47 76 123 199=.
+
+** Date schedule
+A project plan: each task starts the day after the previous one ends. The
+duration is in days; dates come out as inactive timestamps.
+
+# Solved with 16<C-c>* (iterated until stable).
+| Task        | Days | Start            | End              |
+|-------------+------+------------------+------------------|
+| Research    |    5 | [2026-10-05 Mon] | [2026-10-09 Fri] |
+| Design      |    8 | [2026-10-10 Sat] | [2026-10-17 Sat] |
+| Build       |   15 | [2026-10-18 Sun] | [2026-11-01 Sun] |
+| Test        |    6 | [2026-11-02 Mon] | [2026-11-07 Sat] |
+| Launch prep |    3 | [2026-11-08 Sun] | [2026-11-10 Tue] |
+|-------------+------+------------------+------------------|
+| Total       |   37 |                  | 37               |
+#+TBLFM: $4=$3+$2-1::@3$3..@6$3=@-1$4+1::@>$2=vsum(@I..@II)::@>$4=@-1$4-@2$3+1
+
+# Practice copy: Start (except the first) and End are blank on purpose.
+| Task        | Days | Start            | End |
+|-------------+------+------------------+-----|
+| Research    |    5 | [2026-10-05 Mon] |     |
+| Design      |    8 |                  |     |
+| Build       |   15 |                  |     |
+| Test        |    6 |                  |     |
+| Launch prep |    3 |                  |     |
+|-------------+------+------------------+-----|
+| Total       |      |                  |     |
+#+TBLFM: $4=$3+$2-1::@3$3..@6$3=@-1$4+1::@>$2=vsum(@I..@II)::@>$4=@-1$4-@2$3+1
+
+The column formula for End runs first, when the later Starts are still
+empty, so this sheet needs iterating: press =16<C-c>*= (or =<prefix>Tf=
+five times).
+
+*Expect:* Ends =[2026-10-09 Fri]=, =[2026-10-17 Sat]=, =[2026-11-01 Sun]=,
+=[2026-11-07 Sat]=, =[2026-11-10 Tue]=; Starts =[2026-10-10 Sat]=,
+=[2026-10-18 Sun]=, =[2026-11-02 Mon]=, =[2026-11-08 Sun]=; Total =37=
+days, and the last field =37= (days from the first start to the last end).
+
+*Try:* change Build to =20= days and =16<C-c>*=.
+
+*Expect:* Build ends =[2026-11-06 Fri]=, Launch prep ends
+=[2026-11-15 Sun]=, Total =42=.
+
+A weekly meeting series, simpler: one date plus 7 days, row after row.
+
+| Meeting | Date             |
+|---------+------------------|
+|       1 | <2026-10-06 Tue> |
+|       2 | [2026-10-13 Tue] |
+|       3 | [2026-10-20 Tue] |
+|       4 | [2026-10-27 Tue] |
+|       5 | [2026-11-03 Tue] |
+#+TBLFM: @3$2..@>$2=@-1+7
+
+*Expect:* =[2026-10-13 Tue]=, =[2026-10-20 Tue]=, =[2026-10-27 Tue]=,
+=[2026-11-03 Tue]=.
+
+* When things go wrong
+** #ERROR and its causes
+A field shows =#ERROR= when its formula cannot be evaluated. The other
+fields are still computed. Common causes, each shown in a row below:
+
+| Case                       | x | Result |
+|----------------------------+---+--------|
+| unbalanced parentheses     | 3 | #ERROR |
+| column that does not exist | 3 | #ERROR |
+| row that does not exist    | 3 | #ERROR |
+| unknown name               | 3 | #ERROR |
+| Lisp: adding a string      | 3 | #ERROR |
+| Lua: calling a nil value   | 3 | #ERROR |
+#+TBLFM: @2$3=$2*(2::@3$3=$9+1::@4$3=@20$2::@5$3=$nope*2::@6$3='(+ $2 1)::@7$3='(math.nothing($2))
+
+*Expect:* =#ERROR= in every row. The fixes: close the parenthesis; use a
+column that exists; use =@>= instead of guessing the last row; define the
+name (=!= row, =$= row, =#+CONSTANTS:=); add the =N= flag
+(='(+ $2 1);N= gives =4=); call a function that exists
+(='(math.floor($2))=).
+
+# Practice copy: fix the formulas one by one.
+| Case                       | x | Result |
+|----------------------------+---+--------|
+| unbalanced parentheses     | 3 |        |
+| column that does not exist | 3 |        |
+| row that does not exist    | 3 |        |
+| unknown name               | 3 |        |
+| Lisp: adding a string      | 3 |        |
+| Lua: calling a nil value   | 3 |        |
+#+TBLFM: @2$3=$2*(2::@3$3=$9+1::@4$3=@20$2::@5$3=$nope*2::@6$3='(+ $2 1)::@7$3='(math.nothing($2))
+
+*Try:* in the practice copy change =$2*(2= to =$2*(2)=, =$9= to =$2=,
+=@20$2= to =@>$2=, =$nope= to =$vat= (a constant of this file), add =;N=
+after ='(+ $2 1)= and change =math.nothing= to =math.floor=. Recalculate.
+
+*Expect:* =6=, =4=, =3=, =0.4= (0.20*2), =4=, =3=.
+
+** Results that are not errors but still wrong
+These give a result, just not the one you meant. All were explained in
+earlier sections:
+
+| Symptom                           | Cause and fix                                                          |
+|-----------------------------------+------------------------------------------------------------------------|
+| =2 x=, =a + b + 3=                | text in a field: Calc treats it as a variable; use =N= or fix the data |
+| =1:15= from =1:30*2=              | durations without a flag: add =T=, =U= or =t=                          |
+| =0.0%= from =$2/@>$2*100=         | =/= binds looser than =*=: write =100*$2/@>$2=                         |
+| a total that lags one step behind | the formula reads a field computed later: =16<C-c>*=                   |
+| a field that grows on every pass  | the formula reads its own field (e.g. a range that includes it)        |
+| the header row got overwritten    | a field or range formula aimed at =@1=; column formulas never do       |
+| =7.= instead of =7=               | a whole float; add a format such as =%d= or =%.2f=                     |
+| =1200 / 0= style nonsense         | division by an empty field (it counts as 0)                            |
+| nothing happens on a marked row   | the row is =*= or unmarked: use =<prefix>Tf=                           |
+| =ORDER - NOW=                     | a hyphen in a word is a minus sign: use =ORDER_NOW= or quotes          |
+
+** Circular references
+Two formulas that read each other never settle. One pass computes each
+from the /old/ value of the other; iterating repeats that until the limit.
+
+# Practice copy: results are blank on purpose.
+| a | b | c |
+|---+---+---|
+| 1 |   |   |
+#+TBLFM: $2=$3+1::$3=$2+1
+
+*Try:* press =<C-c><C-c>= on the =#+TBLFM:= line, then again, then
+=16<C-c>*=.
+
+*Expect:* first =1= and =2= (=$3= was empty, i.e. 0, when =$2= was
+computed); then =3= and =4=; then after ten more passes the warning "No
+convergence after 10 iterations" and =23= / =24=. There is no right answer:
+rewrite one formula so it does not depend on the other.
+
+** Missing columns
+A /field/ formula that points beyond the last column is refused (unless
+=table_formula_create_columns= is set):
+
+# Practice copy: this formula line is broken on purpose.
+| a | b |
+|---+---|
+| 1 |   |
+| 2 |   |
+#+TBLFM: $2=$1*10::@2$3=99
+
+*Try:* =<C-c><C-c>= on the =#+TBLFM:= line.
+
+*Expect:* the error "Table formula error: Missing columns in the table.
+Aborting", while the column formula did its job: =10= and =20=. Remove
+=::@2$3=99= (or add a third column: cursor in column b, =<prefix>Ti=) and
+the error goes away.
+
+** Diagnosing, step by step
+1. =<C-c>?= on the field: is the reference the one you think, and which
+   formula is active there? ("line @3, col $4, ref @3$4 or D3, formula:
+   ...")
+2. =<C-c>}=: show all row and column numbers on the table.
+3. =<prefix>'=: open the formula editor; moving over a formula highlights
+   the fields it uses.
+4. =<C-c>{=: turn on the debugger and recalculate; the =*Substitution
+   History*= window shows the formula after the references were replaced,
+   so you see exactly what Calc was asked to compute.
+5. Recalculate twice. If the second pass changes something, you have an
+   ordering problem; =16<C-c>*= solves it (or a circular reference, which it
+   cannot).
+
+*Try:* put the cursor on the =Result= field of the row "unknown name" in
+the #ERROR practice copy (before fixing it), press =<C-c>{=, then
+=<C-c><C-c>= on its =#+TBLFM:= line and step with =y= through the
+questions until you reach the =$nope*2= formula.
+
+*Expect:* for =$nope*2= the window shows an =Error:= line instead of
+=Result:=. Press =<C-c>{= to switch the debugger off when done.
+
+* Plotting
+** ASCII bar plots: <C-c>"a
+=<C-c>"a= on a column of numbers adds a new column after it with a bar per
+row, drawn by a Lisp formula =orgtbl-ascii-draw= that becomes part of the
+=#+TBLFM:= line, so the bars follow the numbers when you recalculate. The
+bars go from the column's minimum to its maximum, 12 characters wide (a
+count sets another width, =4<C-c>"a= asks).
+
+| Month | Sales | Bar          |
+|-------+-------+--------------|
+| Oct   |   120 | WWWWW.       |
+| Nov   |   135 | WWWWWWWh     |
+| Dec   |   160 | WWWWWWWWWWWW |
+| Jan   |    90 |              |
+| Feb   |   110 | WWWc         |
+#+TBLFM: $3='(orgtbl-ascii-draw $2 90 160 12)
+
+Characters =W= are full cells; the last character of a bar is a partial
+cell (from =.= up to =h=). The smallest value gets an empty bar.
+
+# Practice copy: no plot column yet.
+| Month | Sales |
+|-------+-------|
+| Oct   |   120 |
+| Nov   |   135 |
+| Dec   |   160 |
+| Jan   |    90 |
+| Feb   |   110 |
+
+*Try:* put the cursor on any number in the Sales column of the practice
+copy and press =<C-c>"a=.
+
+*Expect:* a third column (with an empty header) appears with the same
+bars as the solved table above, and below the table the line
+=#+TBLFM: $3='(orgtbl-ascii-draw $2 90 160 12)=.
+
+*Try:* change Jan to =150= and press =<C-c><C-c>= on the new =#+TBLFM:=
+line.
+
+*Expect:* Jan's bar grows to =WWWWWWWWWW;= (the minimum and maximum in the
+formula stay 90 and 160; press =u= and =<C-c>"a= again to rescale).
+
+Unicode versions: replace =orgtbl-ascii-draw= by =orgtbl-uc-draw-grid= or
+=orgtbl-uc-draw-cont= for block characters.
+
+| Item | Value | Grid         | Continuous   |
+|------+-------+--------------+--------------|
+| A    |     2 | ▉▉▍          | ██▍          |
+| B    |     5 | ▉▉▉▉▉▉       | ██████       |
+| C    |    10 | ▉▉▉▉▉▉▉▉▉▉▉▉ | ████████████ |
+#+TBLFM: $3='(orgtbl-uc-draw-grid $2 0 10 12)::$4='(orgtbl-uc-draw-cont $2 0 10 12)
+
+** Graphs with gnuplot: #+PLOT
+With [[https://gnuplot.info][gnuplot]] installed (the =gnuplot=
+executable, option =plot_gnuplot_program=), =#+PLOT:= lines above a table
+describe a chart, and =<C-c><C-c>= on a =#+PLOT:= line (or =<C-c>"g= in
+the table) draws it. Without gnuplot you only get an error message.
+
+#+PLOT: title:"Monthly sales" ind:1 deps:(2 3) type:2d with:linespoints
+#+PLOT: set:"yrange [0:]"
+| Month | North | South |
+|-------+-------+-------|
+|     1 |    40 |    35 |
+|     2 |    42 |    30 |
+|     3 |    51 |    38 |
+|     4 |    47 |    44 |
+
+- =ind:1= the independent (x) column; =deps:(2 3)= the columns to plot;
+- =type:= =2d=, =3d=, =grid= or =radar=; =with:= a gnuplot style
+  (=lines=, =linespoints=, =boxes=, =histograms= ...);
+- =title:=, =labels:("x" "a" "b")=, =set:"..."= (any gnuplot =set=
+  command), =file:"sales.png"= to write an image instead of opening a
+  window, =timefmt:= for date columns, =script:= a gnuplot script file.
+
+*Try:* if you have gnuplot, press =<C-c><C-c>= on the first =#+PLOT:=
+line above.
+
+*Expect:* a gnuplot window with two rising lines named North and South
+(the header row gives the names).
+
+* Further reading
+- =:h org-tables= the table editor and every table key.
+- =:h org-table-formulas= references, names, the order of evaluation.
+- =:h org-table-calc= the Calc functions, flags and formats.
+- =:h org-table-formula-editor= and =:h org-table-debugger=.
+- =:h org-plot= ASCII and gnuplot plots.
+- =:h org-differences= what differs from Emacs (Calc, Lisp formulas).
+- [[file:15-tables.org][15-tables.org]] editing, sorting, importing and
+  exporting tables.
+- [[file:17-babel.org][17-babel.org]] tables as input and output of code
+  blocks.
+- [[file:18-dynamic-blocks.org][18-dynamic-blocks.org]] clock tables and
+  column view, tables that are generated for you.

@@ -1,1 +1,10 @@
 doc/tags
+
+# Files created by the exercises in examples/
+examples/*_archive
+examples/17-babel-out/
+examples/17-babel.lua
+examples/19-export.*
+!examples/19-export.org
+examples/data/
+examples/ltximg/

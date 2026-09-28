@@ -1,0 +1,853 @@
+#+TITLE: Refile and archive
+#+AUTHOR: org.nvim
+#+STARTUP: overview
+#+CATEGORY: refile
+#+TODO: TODO NEXT WAITING | DONE CANCELLED
+#+TAGS: home(h) work(w) errands(e) target(t)
+#+ARCHIVE: %s_archive::
+
+* How to use this file
+This file teaches the two ways Org moves a finished or misplaced subtree
+out of the way:
+
+- *Refile* moves (or copies) a subtree under another headline, in this file
+  or in any other org file. It is how you empty an inbox.
+- *Archive* moves a subtree to an archive file (or an archive heading) and
+  records where it came from, or just tags it =:ARCHIVE:= so it stays in
+  place but out of sight.
+
+Everything here is a sandbox: refile and archive the example entries as
+much as you like.
+
+- The file starts folded (=#+STARTUP: overview=). Put the cursor on a
+  heading and press =<Tab>= to open it; =<S-Tab>= cycles the whole buffer.
+- =u= undoes a refile or an archive in this buffer (the archive file is a
+  separate file, see below).
+- =git checkout examples/12-refile-archive.org= restores this file.
+- =g?= lists every key of the current buffer.
+- =<prefix>= is =<leader>o= (with the example init: =<Space>o=).
+- Lines starting with *Try:* are exercises, *Expect:* says what you should
+  see afterwards.
+
+Start Neovim from the repository root with the bundled init file, so your
+own configuration and notes are never touched:
+
+#+begin_src sh :eval no
+nvim -u examples/minimal_init.lua examples/12-refile-archive.org
+#+end_src
+
+=examples/minimal_init.lua= sets =agenda_files= to =examples/*.org= (plus a
+scratch directory under =stdpath("state")/org-tutorial= for captures) and
+does *not* configure =refile=, so refiling uses the defaults: the targets
+are the level-1 headlines of the current buffer.
+
+# The #+ARCHIVE line at the top is the default location, written out so
+# you can see it. It is what makes <prefix>$ create the file below.
+*Archiving creates a file.* With the =#+ARCHIVE: %s_archive::= line at the
+top of this file, =<prefix>$= moves entries into
+=examples/12-refile-archive.org_archive=, next to this file. It is a plain
+org file: open it to look at the archived entries, and delete it when you
+are done (=rm examples/12-refile-archive.org_archive=). It does not end in
+=.org=, so it is not one of the agenda files. Some exercises below archive
+into this same file instead, under an "Archived entries" heading.
+
+** Keys in this file
+| Key            | Emacs             | Action                             |
+|----------------+-------------------+------------------------------------|
+| =<prefix>r=    | =C-c C-w=         | refile the subtree (or selection)  |
+| =<prefix>R=    | =C-c M-w=         | copy the subtree to a target       |
+| =3<prefix>r=   | =C-3 C-c C-w=     | refile and keep the original       |
+| =4<prefix>r=   | =C-u C-c C-w=     | jump to a refile target            |
+| =16<prefix>r=  | =C-u C-u C-c C-w= | jump to the last refiled entry     |
+| =2<prefix>r=   | =C-2 C-c C-w=     | refile under the running clock     |
+| =<prefix>$=    | =C-c $=           | archive the subtree                |
+| =4<prefix>$=   | =C-u C-c $=       | archive every child with no TODO   |
+| =16<prefix>$=  | =C-u C-u C-c $=   | archive every child with old dates |
+| =<prefix>hA=   | =C-c C-x a=       | toggle the =ARCHIVE= tag           |
+| =<C-c><C-x>A=  | =C-c C-x A=       | move under the "Archive" sibling   |
+| =<C-c><C-Tab>= | =C-c C-TAB=       | open an archived subtree anyway    |
+
+Commands: =:Org refile_goto=, =:Org refile_goto_last=,
+=:Org refile_cache_clear=, =:Org archive_all_done=, =:Org archive_all_old=.
+Other Emacs spellings of archive: =<C-c><C-x><C-s>= and =<C-c><C-x><C-a>=.
+
+A count is typed before the key, like any Vim count: =4<Space>or= is
+"C-u C-c C-w".
+
+* Refiling: the basics
+=<prefix>r= (Emacs =C-c C-w=, org-refile) asks for a target headline and
+moves the subtree at the cursor there, as its *last child*. The subtree
+keeps its body, drawers and children, and its level is adjusted to fit
+under the target.
+
+The cursor may be anywhere in the entry: on the headline or in its body.
+
+*Which targets?* Without a =refile= section in your config (as with the
+example init) the targets are the *level-1 headlines of the current
+buffer*, shown by their heading text. In this file that is every
+=*= heading: "How to use this file", "Refiling: the basics", ... and the
+four sandbox targets near the end:
+
+- =Target: Projects=
+- =Target: Someday=
+- =Target: Reading list=
+- =Target: Shopping=
+
+The prompt uses =vim.ui.select=. With the built-in menu, type the number of
+the target and press =<CR>=; with a picker plugin (telescope, fzf-lua,
+snacks, mini.pick, ...), type part of the name. =<Esc>= cancels and changes
+nothing.
+
+The message line confirms the move, e.g. =Refiled "Buy a bike lock" to
+Target: Projects=.
+
+** Inbox (refile these)
+# Each child below is a stray note waiting to be filed.
+*** TODO Buy a bike lock
+Needed before the new bike arrives.
+*** Read "The Mythical Man-Month"
+Recommended by Dana.
+*** TODO Call the plumber about the kitchen tap
+*** Learn to juggle
+Maybe one day.
+*** TODO Buy olive oil
+
+** Exercises
+*Try:* open "Inbox (refile these)" above, put the cursor on
+=TODO Buy a bike lock=, press =<prefix>r= and pick =Target: Projects=.
+
+*Expect:* the entry disappears from the inbox and becomes the last child of
+"Target: Projects", with its body line. It lost one star: it was level 3
+under "Inbox", it is level 2 under a level-1 target. The message reads
+=Refiled "Buy a bike lock" to Target: Projects=. =u= puts it back.
+
+*Try:* refile =Read "The Mythical Man-Month"= to =Target: Reading list=
+and =Learn to juggle= to =Target: Someday=.
+
+*Expect:* "Target: Reading list" now has three children, the refiled book
+being the last one; "Target: Someday" has two.
+
+*Try:* put the cursor on the body line "Needed before the new bike
+arrives." (after undoing the first exercise) and press =<prefix>r=.
+
+*Expect:* the whole entry is refiled, not just the line: refile always
+works on the subtree around the cursor.
+
+*Try:* put the cursor on "Refiling: the basics" (this section's own
+headline), press =<prefix>r= and look at the list of targets.
+
+*Expect:* "Refiling: the basics" is not offered: a subtree can't be
+refiled into itself. Press =<Esc>= to cancel.
+
+* Refiling several subtrees at once
+In Visual mode, =<prefix>r= refiles the selected lines. The selection must
+start on a headline and cover whole subtrees (siblings one after the
+other); the refiled headlines keep their order.
+
+If the selection does not start on a headline, or leaves a subtree
+half-selected across a parent, you get
+=The region is not a (sequence of) subtree(s)= and nothing moves.
+
+** Groceries to file
+# Select the three siblings below with V and refile them together.
+*** Apples
+*** Bread
+*** Coffee beans
+Arabica, whole beans.
+
+** Exercises
+*Try:* on =Apples= press =V=, move down to the line "Arabica, whole
+beans." (=3j=), press =<prefix>r= and pick =Target: Shopping=.
+
+*Expect:* =Apples=, =Bread= and =Coffee beans= are now the last three
+children of "Target: Shopping" (level 2), in that order, and
+"Groceries to file" is empty. The message names the first one:
+=Refiled "Apples" to Target: Shopping=.
+
+*Try:* undo (=u=), then select only the line "Arabica, whole beans." with
+=V= and press =<prefix>r=.
+
+*Expect:* the warning =The region is not a (sequence of) subtree(s)=;
+nothing moves.
+
+# With `refile.active_region_within_subtree = true` the first selected
+# line is turned into a headline instead of giving that warning.
+With the option =refile.active_region_within_subtree = true=, a selection
+that starts on a body line is refiled anyway: its first line becomes a
+headline one level below the entry it was in (Emacs's
+org-refile-active-region-within-subtree).
+
+* Copying instead of moving
+=<prefix>R= (Emacs =C-c M-w=, org-refile-copy) copies the subtree to the
+target and leaves the original where it is. A count of 3 on =<prefix>r=
+(=3<prefix>r=) does the same thing (Emacs org-refile-keep).
+
+Use it for templates, checklists you reuse, or a note that belongs in two
+places.
+
+** Packing checklist
+- [ ] Passport
+- [ ] Charger
+- [ ] Toothbrush
+
+** Exercises
+*Try:* on =Packing checklist= press =<prefix>R= and pick
+=Target: Someday=.
+
+*Expect:* the message =Copied "Packing checklist" to Target: Someday=; the
+checklist is still here *and* a copy of it, with its three checkboxes, is
+the last child of "Target: Someday".
+
+*Try:* do it again with =3<prefix>r= and pick =Target: Projects=.
+
+*Expect:* the same result under "Target: Projects": the original stays
+put. The prompt starts with =Refile (and keep)=.
+
+* Jumping to targets and to the last refile
+Refiling doesn't move the cursor. To go and look:
+
+| Key / command           | Emacs             | Goes to                    |
+|-------------------------+-------------------+----------------------------|
+| =4<prefix>r=            | =C-u C-c C-w=     | a target you pick          |
+| =:Org refile_goto=      |                   | same, from any buffer      |
+| =16<prefix>r=           | =C-u C-u C-c C-w= | the entry refiled last     |
+| =:Org refile_goto_last= |                   | same (or the last capture) |
+
+Both jumps set the =''= mark, so =''= (or =<C-o>=) takes you back.
+
+=2<prefix>r= refiles the subtree under the entry that is being *clocked*
+(Emacs =C-2 C-c C-w=): handy to file notes under the task you are working
+on. Without a running clock it asks for a target as usual.
+
+** Exercises
+*Try:* refile any inbox entry from "Refiling: the basics", then press
+=16<prefix>r=.
+
+*Expect:* the cursor lands on the refiled headline, under its new parent.
+=''= jumps back.
+
+*Try:* press =4<prefix>r= and pick =Target: Reading list=.
+
+*Expect:* the cursor is on the headline "Target: Reading list"; nothing
+was moved.
+
+*Try:* put the cursor on =Target: Projects=, clock in with =<prefix>xi=,
+then go to =TODO Buy olive oil= in the inbox and press =2<prefix>r=.
+
+*Expect:* no prompt: "Buy olive oil" becomes the last child of
+"Target: Projects". Clock out with =<prefix>xo= (and =u= a few times to
+remove the =:LOGBOOK:= if you like).
+
+* Choosing refile targets
+The =refile= section of your config decides which headlines are targets
+and how they are shown. It mirrors Emacs's =org-refile-targets= and its
+companions. Nothing here changes this file: they are Lua settings.
+
+#+begin_src lua :eval no
+require("org").setup({
+  refile = {
+    -- A list of specs; a headline is a target when it matches any spec.
+    targets = {
+      -- this file, headlines of level 1 and 2
+      { files = "current", max_level = 2 },
+      -- every agenda file, only headlines tagged :project: (own tag)
+      { files = "agenda", tag = "project" },
+      -- one file (a path or glob, or a list), level-1 headlines only
+      { files = "~/org/someday.org", level = 1 },
+      -- headlines with a given TODO keyword, or matching a Vim regexp
+      { files = "agenda", todo = "NEXT" },
+      { files = "current", regexp = [[\<Meetings\>]] },
+      -- `files` may also be a function returning a list of paths
+    },
+    -- Shortcut instead of `targets`: the agenda files plus the current
+    -- file, headlines up to this level.
+    -- max_level = 3,
+    -- include_current_file = false,  -- with max_level: agenda files only
+
+    use_outline_path = "file",  -- false | true | "file" | "full-file-path"
+                                -- | "title" | "buffer-name"
+    outline_path_complete_in_steps = true, -- pick one level at a time
+    allow_creating_parent_nodes = "confirm", -- true | "confirm" | false
+    verify = function(headline) -- drop targets (return false)
+      return headline.todo ~= "DONE"
+    end,
+    log = "time",              -- false | "time" | "note"
+    reverse_note_order = false, -- true: refile as the FIRST child
+    use_cache = false,          -- keep the target list between refiles
+    active_region_within_subtree = false,
+  },
+})
+#+end_src
+
+Notes on each spec key:
+- =files=: ="current"= (default), ="agenda"= (the =agenda_files=), a path
+  or glob, a list of them, or a function returning paths.
+- =level= keeps headlines of exactly that level, =max_level= those up to
+  it.
+- =tag= needs the headline's *own* tag (not an inherited one).
+- =todo= needs that exact TODO keyword.
+- =regexp= is a Vim regexp matched against the whole headline line.
+
+How targets look with =use_outline_path=:
+| Value              | A target in this file looks like                 |
+|--------------------+--------------------------------------------------|
+| =false= (default)  | =Garden= (other files: =Garden (todo.org)=)      |
+| =true=             | =Target: Projects/Garden/=                       |
+| ="file"=           | =12-refile-archive.org/Target: Projects/Garden/= |
+| ="title"=          | =Refile and archive/Target: Projects/Garden/=    |
+| ="full-file-path"= | the absolute path instead of the file name       |
+| ="buffer-name"=    | like ="file"=                                    |
+
+With ="file"=, ="title"=, ="full-file-path"= and ="buffer-name"= the files
+themselves are targets too (=12-refile-archive.org/=): refiling there makes
+the subtree a level-1 entry at the end of the file. A =/= inside a heading
+is shown as =\/=.
+
+With an outline path and =outline_path_complete_in_steps= (the default),
+you pick one level at a time: first the top headline, then its child, and
+so on; the entry marked =(here)= refiles right at that level.
+
+** Trying the options for this session
+You can change an option for the running Neovim only, without editing any
+config, with =:lua=. The new value is used at the next refile. Restart
+Neovim to get the defaults back.
+
+*Try:* run this command, then refile an inbox entry with =<prefix>r=:
+: :lua require("org.config").opts.refile = { targets = { { files = "current", max_level = 2 } }, use_outline_path = true }
+
+*Expect:* the menu first offers the level-1 paths such as
+=Target: Projects/=; choosing it offers =Target: Projects/  (here)=
+(refile right under it) and its children =Target: Projects/Garden/= and
+=Target: Projects/Kitchen/=. Pick =Garden= to file the entry at level 3
+under "Garden".
+
+*Try:* only headlines with the =:target:= tag (their own tag):
+: :lua require("org.config").opts.refile = { targets = { { files = "current", tag = "target" } } }
+
+*Expect:* exactly three targets: =Garden=, =Kitchen= and =Novels=.
+
+*Try:* headlines whose line matches a Vim regexp:
+: :lua require("org.config").opts.refile = { targets = { { files = "current", regexp = [[^\* Target:]] } } }
+
+*Expect:* only the four =Target: ...= headlines.
+
+*Try:* back to the defaults:
+: :lua require("org.config").opts.refile = {}
+
+** Creating new parent headings while refiling
+With =allow_creating_parent_nodes = true= (or ="confirm"= to be asked
+first) the prompt becomes a text input with completion instead of a menu.
+Type an existing target followed by =/= and new heading names: the missing
+headings are created as the last children of that target, and the subtree
+goes under the last one.
+
+*Try:*
+: :lua require("org.config").opts.refile = { allow_creating_parent_nodes = "confirm" }
+Then refile =TODO Call the plumber about the kitchen tap= from the inbox:
+at the =Refile subtree ... to:= prompt type
+=Target: Projects/Bathroom/Plumbing= and press =<CR>=, then answer =y= to
+=Create new node "Bathroom/Plumbing"?=.
+
+*Expect:* at the end of "Target: Projects" a new level-2 heading
+"Bathroom", a new level-3 heading "Plumbing" under it, and the task under
+"Plumbing" at level 4.
+# Known glitch: the message currently glues the path together, e.g.
+# 'Refiled "..." to Target: ProjectsBathroom/Plumbing'; the tree is right.
+
+*Expect (if you mistype):* a name that doesn't start with an existing
+target gives =Invalid target location: ...= and nothing moves.
+
+** Logging refiles
+=refile.log = "time"= adds a line =- Refiled on [DATE]= to the moved entry
+(Emacs org-log-refile). ="note"= also asks for a note in an =*Org Note*=
+buffer (=<C-c><C-c>= stores it, =<C-c><C-k>= skips the note). The line
+goes where your state-change notes go: into a =:LOGBOOK:= drawer with
+=log_into_drawer=, else right under the headline.
+
+*Try:*
+: :lua require("org.config").opts.refile = { log = "time" }
+then refile =TODO Buy olive oil= to =Target: Shopping=.
+
+*Expect:* under the refiled headline, a line like
+=- Refiled on [2026-09-28 Mon 14:05]= (today's date and time).
+
+** First child instead of last
+=reverse_note_order = true= puts refiled entries at the *top* of the
+target, right after its body (Emacs org-reverse-note-order). Handy for a
+"newest first" log.
+
+*Try:*
+: :lua require("org.config").opts.refile = { reverse_note_order = true }
+then refile an entry to =Target: Reading list=.
+
+*Expect:* it becomes the *first* child, above "Dune".
+
+** The target cache
+With =use_cache = true= the list of targets is built once and reused
+(fast in big files). Headlines you add afterwards are not offered until the
+cache is cleared with =64<prefix>r= (Emacs =C-u C-u C-u C-c C-w=) or
+=:Org refile_cache_clear=, which prints =Refile cache has been cleared=.
+
+* Refiling to other files
+With =files = "agenda"= (or a =max_level= shortcut) the targets of other
+files are listed too. Without an outline path they show the file name in
+parentheses: =Inbox (work.org)=. A refile into a file that is not open in
+a window is saved right away; the source buffer stays modified until you
+write it, like Emacs.
+
+With the example init, every =examples/*.org= file is an agenda file, so
+
+: :lua require("org.config").opts.refile = { targets = { { files = "agenda", level = 1 } }, use_outline_path = "file" }
+
+offers the level-1 headlines of all the example files, grouped by file in
+the step-by-step menu. Look, but refile only into this file (or undo in
+the other file) to keep the other examples intact. =:lua
+require("org.config").opts.refile = {}= restores the defaults.
+
+Capture (=<prefix>c=) uses the same machinery: =<C-c><C-w>= in a capture
+window refiles the new entry instead of filing it at the template's target
+(see [[file:11-capture.org][11-capture.org]]).
+
+* Archiving a subtree
+=<prefix>$= (Emacs =C-c $= or =C-c C-x C-s=, org-archive-subtree) moves the
+subtree at the cursor to the *archive location* and removes it here. The
+location is looked up in this order:
+
+1. the =ARCHIVE= property of the entry or of any ancestor (it is inherited),
+2. the =#+ARCHIVE:= line of the file (the first one counts),
+3. the =archive_location= option (default ="%s_archive::"=).
+
+This file has =#+ARCHIVE: %s_archive::=: =%s= is this file's path, and the
+empty part after =::= means "at the top level". So entries go to
+=examples/12-refile-archive.org_archive= as level-1 headlines.
+
+The first archive into a new file writes a small header,
+=Archived entries from file /path/to/12-refile-archive.org=
+(option =archive_file_header_format=, =false= for none). Each archived
+entry is separated from the previous one by a blank line. The archive file
+is saved at once; this buffer is left modified.
+
+** DONE Renew the library card                                      :errands:
+CLOSED: [2026-09-25 Fri 17:40]
+Renewed at the front desk; valid until 2028.
+
+** Old errands                                                      :errands:
+*** DONE Return the drill to Sam                                       :home:
+CLOSED: [2026-09-21 Mon 18:10]
+
+** Exercises
+*Try:* on =DONE Renew the library card= press =<prefix>$=.
+
+*Expect:* the entry is gone from this file and the message reads
+=Subtree "Renew the library card" archived in
+~/.../examples/12-refile-archive.org_archive=. Open that file
+(=:e %_archive= from this buffer) and you find:
+
+# The exact time and path depend on when and where you run it.
+#+begin_example
+#    -*- mode: org -*-
+
+
+Archived entries from file /home/you/src/orgmode/examples/12-refile-archive.org
+
+
+,* DONE Renew the library card                                      :errands:
+CLOSED: [2026-09-25 Fri 17:40]
+:PROPERTIES:
+:ARCHIVE_TIME: 2026-09-28 Mon 14:10
+:ARCHIVE_FILE: ~/src/orgmode/examples/12-refile-archive.org
+:ARCHIVE_OLPATH: Archiving a subtree
+:ARCHIVE_CATEGORY: refile
+:ARCHIVE_TODO: DONE
+:END:
+Renewed at the front desk; valid until 2028.
+#+end_example
+The first line is an Emacs mode line: the archive file's name does not end
+in =.org=, so it says "this is an Org file". Then comes the header of
+=archive_file_header_format= with the full path of this file, and the
+entry, now at level 1, with its =ARCHIVE_*= properties right after the
+planning line.
+
+*Try:* open "Old errands" and archive =DONE Return the drill to Sam=.
+
+*Expect:* in the archive file it is a level-1 entry (it was level 3 here),
+tagged only =:home:= (its own tag), with
+=:ARCHIVE_OLPATH: Archiving a subtree/Old errands= and
+=:ARCHIVE_ITAGS: errands= recording the tag it inherited from
+"Old errands". When archiving into the *same* file, the inherited tags are
+added as local tags instead (option
+=archive_subtree_add_inherited_tags = "infile"=, the default).
+
+Delete the archive file when you are done experimenting (or keep it for
+the next sections): =rm examples/12-refile-archive.org_archive=.
+
+* The context saved with an archived entry
+Archiving adds =ARCHIVE_*= properties so you know where the entry lived.
+Which ones is set by =archive_save_context_info= (Emacs
+org-archive-save-context-info); the default is
+={ "time", "file", "olpath", "category", "todo", "itags" }=.
+
+| Key          | Property           | Value                          |
+|--------------+--------------------+--------------------------------|
+| ="time"=     | =ARCHIVE_TIME=     | when it was archived           |
+| ="file"=     | =ARCHIVE_FILE=     | the source file (=~= for home) |
+| ="olpath"=   | =ARCHIVE_OLPATH=   | parent headings, joined by =/= |
+| ="category"= | =ARCHIVE_CATEGORY= | the entry's category           |
+| ="todo"=     | =ARCHIVE_TODO=     | its TODO keyword, if any       |
+| ="itags"=    | =ARCHIVE_ITAGS=    | inherited tags                 |
+| ="ltags"=    | =ARCHIVE_LTAGS=    | its own tags (not default)     |
+| ="olid"=     | =ARCHIVE_OLID=     | parent's =ID= (not default)    |
+
+Empty values are not written: a level-1 entry has no =ARCHIVE_OLPATH=, an
+entry without a keyword no =ARCHIVE_TODO=.
+
+#+begin_src lua :eval no
+require("org").setup({
+  archive_save_context_info = { "time", "file", "olpath", "ltags" },
+})
+#+end_src
+
+*Try:* open "Project Phoenix" below, archive =CANCELLED Migrate the old
+wiki= with =<prefix>$= and look at it in the archive file.
+
+*Expect:*
+#+begin_example
+,* CANCELLED Migrate the old wiki
+:PROPERTIES:
+:ARCHIVE_TIME: 2026-09-28 Mon 14:12
+:ARCHIVE_FILE: ~/src/orgmode/examples/12-refile-archive.org
+:ARCHIVE_OLPATH: The context saved with an archived entry/Project Phoenix
+:ARCHIVE_CATEGORY: phoenix
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: work
+:END:
+#+end_example
+The category comes from the parent's =CATEGORY= property, the inherited
+tag =work= from the parent's tag.
+
+** Project Phoenix                                                     :work:
+:PROPERTIES:
+:CATEGORY: phoenix
+:END:
+*** CANCELLED Migrate the old wiki
+
+* Choosing where entries are archived
+The location is a string ="FILE::HEADING"=:
+
+| Location                           | Archives to                         |
+|------------------------------------+-------------------------------------|
+| ="%s_archive::"=                   | =FILE_archive=, top level (default) |
+| ="::* Archived entries"=           | this file, under that heading       |
+| ="%s_archive::* From the kitchen"= | =FILE_archive=, under that heading  |
+| ="~/org/old.org::* %s"=            | =~/org/old.org=, under a heading    |
+|                                    | named after this file (=%s=)        |
+| ="%s_archive::datetree/"=          | =FILE_archive=, in a date tree      |
+| ="%s_archive::datetree/* Notes"=   | ... under "Notes" inside the day    |
+
+- =%s= in the file part is this file's path; a relative file name is
+  relative to this file's directory.
+- The heading is created when it is missing. Its stars give its level;
+  without stars it is level 1. The entry becomes its last child.
+- The date tree uses the entry's =CLOSED= date, or today when there is
+  none.
+- A location inside the subtree you are archiving is refused:
+  =Cannot archive to a position inside the source subtree=.
+
+Set it for the whole file with =#+ARCHIVE:= (as at the top of this file),
+for a subtree with an =ARCHIVE= property (inherited by everything below
+it), or for all files with the =archive_location= option.
+
+** Kitchen                                                             :home:
+:PROPERTIES:
+:ARCHIVE:  ::* Archived entries
+:END:
+# Every entry under "Kitchen" archives into THIS file, under the level-1
+# heading "Archived entries" near the end.
+*Try:* archive =DONE Descale the kettle= (below) with =<prefix>$=.
+
+*Expect:* no new file: the entry moves to the end of this file, as a
+level-2 child of "Archived entries", now tagged =:home:= itself (the
+inherited tag became a local tag because it stays in the same file),
+with =:ARCHIVE_OLPATH: Choosing where entries are archived/Kitchen=. The
+message says =Subtree "Descale the kettle" archived in
+~/.../examples/12-refile-archive.org=.
+
+*** DONE Descale the kettle
+CLOSED: [2026-09-26 Sat 09:00]
+*** DONE Sharpen the knives
+CLOSED: [2026-09-27 Sun 11:30]
+
+** Receipts
+:PROPERTIES:
+:ARCHIVE:  %s_archive::datetree/
+:END:
+# Entries here go to the archive file, filed by their CLOSED date.
+*Try:* archive both receipts below.
+
+*Expect:* in =12-refile-archive.org_archive= a date tree:
+#+begin_example
+,* 2026
+,** 2026-09 September
+,*** 2026-09-02 Wednesday
+,**** DONE Pay the electricity bill
+...
+,*** 2026-09-21 Monday
+,**** DONE Pay the internet bill
+...
+#+end_example
+Each receipt is filed under the day it was closed, at level 4, with its
+=ARCHIVE_*= properties.
+
+*** DONE Pay the electricity bill
+CLOSED: [2026-09-02 Wed 08:15]
+*** DONE Pay the internet bill
+CLOSED: [2026-09-21 Mon 19:45]
+
+** Garage
+:PROPERTIES:
+:ARCHIVE:  %s_archive::* From the garage
+:END:
+*Try:* archive =DONE Fix the bike's flat tyre= (below).
+
+*Expect:* the archive file gets a level-1 heading "From the garage"
+(created on first use) with the entry below it at level 2.
+
+*** DONE Fix the bike's flat tyre
+CLOSED: [2026-09-20 Sun 16:00]
+
+* The ARCHIVE tag: archive in place
+Sometimes you want a subtree out of the way but *in place*.
+=<prefix>hA= (Emacs =C-c C-x a=, org-toggle-archive-tag) toggles the
+=:ARCHIVE:= tag on the headline. An archived subtree:
+
+- stays folded when you cycle with =<Tab>= or =<S-Tab>=; =<C-c><C-Tab>=
+  opens it anyway (option =cycle_open_archived_trees = true= turns that
+  off);
+- is left out of every agenda view (=va= in the agenda brings archived
+  trees back);
+- is still a normal headline otherwise: you can refile into it, link to it
+  and edit it.
+
+** Home renovation 2025                                             :ARCHIVE:
+This subtree is already archived: =<Tab>= on its headline won't open it.
+*** DONE Paint the living room
+*** DONE Replace the front door
+
+** Car stuff
+*** DONE Winter tyres on
+*** TODO Book the annual service
+
+** Exercises
+*Try:* press =<Tab>= on "Home renovation 2025", then =<C-c><C-Tab>=.
+
+*Expect:* =<Tab>= leaves it folded and says =Subtree is archived and stays
+closed (use force_cycle_archived to cycle it)=; =<C-c><C-Tab>= (the
+=force_cycle_archived= action) shows its children.
+
+*Try:* on "Car stuff" press =<prefix>hA=.
+
+*Expect:* the headline gets the tag =:ARCHIVE:= at the right edge, the
+subtree folds, and the message says =Subtree archived=. Press =<prefix>hA=
+again: the tag goes away (=Subtree unarchived=).
+# Known issue: removing the tag with the <prefix>hA key currently also
+# replays the keys as normal-mode input, which opens a new line and types
+# "hA" (you end up in Insert mode). Press <Esc> and u to remove that line.
+# Adding the tag, and removing it from the agenda, are not affected.
+
+*Try:* on "The ARCHIVE tag: archive in place" (this section's headline),
+press =4<prefix>hA= (a count: Emacs =C-u C-c C-x a=).
+
+*Expect:* for each child without open TODO entries, a confirmation
+=Set ARCHIVE tag? (no open TODO items) Exercises= and so on. "Car stuff"
+is not offered (it has a TODO); "Home renovation 2025" is skipped (already
+archived). The message counts the tagged trees: =1 trees archived= if you
+answer =y= once.
+
+* The Archive sibling
+=<C-c><C-x>A= (org-archive-to-archive-sibling) moves the subtree under a
+sibling headline called =Archive= that carries the =:ARCHIVE:= tag, at the
+same level. The sibling is created at the end of the parent's subtree the
+first time. Everything stays in this file, grouped and folded. The moved
+entry gets an =ARCHIVE_TIME= property.
+
+The name comes from =archive_sibling_heading= (default ="Archive"=).
+There is no =<prefix>= key for it by default.
+
+** Weekly chores
+*** DONE Take out the recycling
+*** DONE Water the plants
+*** TODO Vacuum the stairs
+
+** Exercises
+*Try:* open "Weekly chores", put the cursor on =DONE Take out the
+recycling= and press =<C-c><C-x>A=.
+
+*Expect:* a new child "Archive", tagged =:ARCHIVE:=, at the end of "Weekly
+chores" (level 3, folded). It holds "DONE Take out the recycling" at
+level 4, with an =:ARCHIVE_TIME:= property. The
+message is =Subtree "Take out the recycling" moved to archive sibling=.
+
+*Try:* do the same with =DONE Water the plants=.
+
+*Expect:* it joins the existing "Archive" sibling (as its last child); no
+second sibling is created. Press =<C-c><C-Tab>= on "Archive" to see both.
+
+* Archiving many entries at once
+** Every finished child
+=:Org archive_all_done= (or =4<prefix>$=, Emacs =C-u C-c C-x C-s=) looks at
+each child of the headline at the cursor (each level-1 tree when the
+cursor is not on a headline) and asks, bottom-up, whether to archive the
+ones that have *no open TODO* anywhere in their subtree.
+
+*Try:* put the cursor on the headline =Sprint 41= and press =4<prefix>$=.
+
+*Expect:* three questions, from the bottom up:
+=Move subtree to archive? (no open TODO items) Team lunch notes=, then
+=... Write the release notes=, then =... Upgrade the CI runners=. Answer
+=y= to each: they go to the archive file and the message is
+=3 trees archived=. "Fix the flaky login test" stays (it is still TODO).
+
+*** Sprint 41
+**** DONE Upgrade the CI runners
+**** DONE Write the release notes
+**** TODO Fix the flaky login test
+**** Team lunch notes
+Nothing to do here, just notes.
+
+** Every child with an old date
+=:Org archive_all_old= (or =16<prefix>$=, Emacs =C-u C-u C-c C-x C-s=) asks
+about the children whose *first active timestamp* lies before today (for a
+range, the end must be before today too). Children without an active
+timestamp are left alone.
+
+*Try:* put the cursor on the headline =Events= below and press
+=16<prefix>$=.
+
+*Expect:* two questions, bottom-up, each naming the timestamp that made
+the child old: first =Move subtree to archive? (old timestamp ...)
+Team offsite= with the whole range, then the same for =Dentist=. "Concert"
+(in the future) and "Undated idea" are not offered. (If you do this after
+2026-10-12, "Concert" is old too.) Answer =y= twice: =2 trees archived=.
+
+# Today is Mon 2026-09-28 in the dates below.
+*** Events
+**** Dentist
+<2026-09-14 Mon 10:00>
+**** Team offsite
+<2026-09-21 Mon>--<2026-09-25 Fri>
+**** Concert
+<2026-10-12 Mon 20:00>
+**** Undated idea
+
+** Every selected headline
+In Visual mode =<prefix>$=, =<prefix>hA= and =<C-c><C-x>A= act on each
+headline of the selection (option =loop_over_headlines_in_active_region=,
+=true= by default). A headline inside an already-selected subtree moves
+with its parent and isn't archived twice.
+
+*Try:* on =DONE Old note A= below press =V=, then =2j=, then =<prefix>hA=.
+
+*Expect:* all three headlines get the =:ARCHIVE:= tag. =u= undoes.
+
+*** DONE Old note A
+*** DONE Old note B
+*** DONE Old note C
+
+* Other archive options
+#+begin_src lua :eval no
+require("org").setup({
+  archive_location = "%s_archive::",   -- where <prefix>$ sends entries
+  archive_reversed_order = false,      -- true: newest first
+  archive_mark_done = false,           -- true or "DONE": mark archived
+                                       -- entries done (without logging)
+  archive_subtree_add_inherited_tags = "infile", -- true | false
+  archive_file_header_format = "\nArchived entries from file %s\n\n",
+  archive_sibling_heading = "Archive",
+  archive_save_context_info = { "time", "file", "olpath", "category",
+                                "todo", "itags" },
+  cycle_open_archived_trees = false,   -- let <Tab> open :ARCHIVE: trees
+})
+#+end_src
+
+Hooks run as =User= autocommands with
+=data = { bufnr, lnum, title, archive_file }=: =OrgArchive= in the source
+buffer before the subtree is removed (org-archive-hook) and
+=OrgArchiveFinalize= in the archive buffer (org-archive-finalize-hook).
+
+#+begin_src lua :eval no
+vim.api.nvim_create_autocmd("User", {
+  pattern = "OrgArchive",
+  callback = function(ev)
+    vim.notify("archiving " .. ev.data.title .. " to " .. ev.data.archive_file)
+  end,
+})
+#+end_src
+
+IDs of archived entries keep working: =id:= links find them in the archive
+file. With =attach.archive_delete= the attachments of an archived entry
+can be deleted.
+
+* Refiling and archiving from the agenda
+The same actions work on the entry under the cursor in the agenda
+(see [[file:09-agenda.org][09-agenda.org]]):
+
+| Agenda key            | Action                                         |
+|-----------------------+------------------------------------------------|
+| =R= (=<C-c><C-w>=)    | refile the entry                               |
+| =$= (=<C-c>$=)        | archive it to its archive location             |
+| =a=                   | archive after a confirmation                   |
+| =<C-c><C-x>A=         | move it to its Archive sibling                 |
+| =<C-c><C-x>a=         | toggle its =ARCHIVE= tag                       |
+| =B r= / =B $= / =B A= | bulk refile / archive / archive to sibling the |
+|                       | marked entries (mark with =m=)                 |
+| =va= / =vA=           | show archived trees / also the archive files   |
+
+In the agenda the default targets are the level-1 headlines of the file
+of the entry at the cursor.
+
+*Try:* =<prefix>a= then =<= (restrict to this file) then =t= for the TODO
+list. Put the cursor on "Vacuum the stairs" and press =$=.
+
+*Expect:* the entry leaves the TODO list, and it is now in
+=12-refile-archive.org_archive=. This buffer is modified (=:w= to save).
+
+* Speed commands
+With =use_speed_commands = true= in your config, single letters typed at
+the very start of a headline (before the stars) run commands: =w= refiles,
+=a= archives and =g= jumps to a refile target. They are off by default and
+in the example init.
+
+* Target: Projects
+# Sandbox target. Refiled entries arrive at the end of this subtree.
+** Garden                                                            :target:
+*** Plant the tulip bulbs
+** Kitchen                                                           :target:
+*** Replace the tap washer
+
+* Target: Someday
+** Learn the accordion
+
+* Target: Reading list
+** Dune
+** Novels                                                            :target:
+*** The Left Hand of Darkness
+
+* Target: Shopping
+** Light bulbs
+
+* Archived entries
+# "Kitchen" (above) has :ARCHIVE: ::* Archived entries, so its archived
+# entries land here. This heading is created automatically when missing.
+
+* Further reading
+- =:h org-refile= and =:h org-archive= (the whole chapter).
+- =:h org-config= (section "refile" and the =archive_*= options).
+- =:h org-archived-trees= (folding of =:ARCHIVE:= subtrees).
+- =:h org-agenda-keys= and =:h org-agenda-bulk= (refile/archive from the
+  agenda).
+- =:h org-speed-commands=.
+- [[file:11-capture.org][11-capture.org]]: capture, and refiling from the capture
+  window.
+- [[file:05-tags.org][05-tags.org]]: tags and tag inheritance.
+- [[file:06-properties-columns.org][06-properties-columns.org]]: properties such as =ARCHIVE= and
+  =CATEGORY=.
