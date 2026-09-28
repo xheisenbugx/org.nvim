@@ -121,7 +121,7 @@ time) and a new clock starts here. Clock out with =<prefix>xo= when done.
 
 ** TODO Practice task: write the report
 *Try:* clock in here, then mark the task done: press =cit= twice (TODO
--> NEXT -> DONE, the keywords of this file), or =<prefix>T= and pick DONE.
+-> NEXT -> DONE, the keywords of this file), or =<prefix>S= and pick DONE.
 
 *Expect:* the state becomes DONE /and/ the clock stops: marking the
 clocked entry done clocks it out (=clock.out_when_done = true=).

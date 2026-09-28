@@ -267,7 +267,7 @@ ask for a note when entering WAITING, log a timestamp when leaving it.
 ** TODO Cycle my state
 - =cit= / =ciT= (or =<S-Right>= / =<S-Left>= on the headline) cycles through
   the states.
-- =<prefix>T= opens fast selection: press =d= for DONE, =w= for WAITING...
+- =<prefix>S= opens fast selection: press =d= for DONE, =w= for WAITING...
 
 *Try:* mark this entry DONE. A =CLOSED:= timestamp is added and the state
 change is logged in a =:LOGBOOK:= drawer. Set it to WAITING and you are

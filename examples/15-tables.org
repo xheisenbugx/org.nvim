@@ -41,10 +41,9 @@ nvim -u examples/minimal_init.lua examples/15-tables.org
 
 Two things about keys before you start:
 
-- =<prefix>T= alone is "select TODO keyword", and every table key under the
-  prefix starts with it (=<prefix>Tc=, =<prefix>Ts= ...). Type the whole
-  key without pausing: if you wait longer than ='timeoutlen'= after =T=, the
-  TODO menu opens instead (=<Esc>= closes it).
+- Every table key under the prefix starts with =T= (=<prefix>Tc=,
+  =<prefix>Ts= ...); =<prefix>T= itself does nothing, so you can pause after
+  it (which-key, if installed, then lists the table keys).
 - The =<M-...>= keys need a terminal that sends Alt. If =<M-j>= does
   nothing, the arrow forms =<M-Down>= =<M-Up>= =<M-Left>= =<M-Right>= do the
   same thing. =<S-CR>= needs a terminal that can tell it from =<CR>= (see

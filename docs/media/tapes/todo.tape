@@ -13,7 +13,7 @@ Ctrl+C Ctrl+C Sleep 800ms
 Type "j" Ctrl+C Ctrl+C Sleep 800ms
 Type "j" Ctrl+C Ctrl+C Sleep 1.2s
 Type "/Configuration" Enter Sleep 600ms
-Type " oT" Sleep 1.5s
+Type " oS" Sleep 1.5s
 Type "d" Sleep 1.5s
 Type "/Screenshots" Enter Sleep 600ms
 Type "cit" Sleep 1s

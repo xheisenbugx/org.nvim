@@ -148,7 +148,7 @@ on its own.
 Ticking a checkbox updates the `[2/4]` and `[50%]` cookies of its parents.
 Marking a task DONE logs a `CLOSED:` timestamp and updates its parent's
 cookie. Set the state with `cit` or with the fast-selection menu
-(`<leader>oT`), and the priority with `<leader>o,`.
+(`<leader>oS`), and the priority with `<leader>o,`.
 
 ![Ticking checkboxes, marking a task DONE and giving another one priority A](docs/media/todo.gif)
 
@@ -597,7 +597,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
 | `<prefix>hs` `hn` `hC` `hA` `hb` | Sort / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
 | `<prefix>*` / `<prefix>-` | Toggle heading / list item |
-| `cit` / `ciT` / `<prefix>T` | Next / previous / select TODO state |
+| `cit` / `ciT` / `<prefix>S` | Next / previous / select TODO state |
 | `<S-Right>` `<S-Left>` | Next/previous TODO; date ±1 day; next/previous allowed property value; cycle bullet *(ctx)* |
 | `<S-Up>` `<S-Down>`, `<C-a>` `<C-x>` | Priority or timestamp part up/down; previous/next list item *(ctx)* |
 | `<prefix>,` `t` `p` `P` | Priority / tags (Visual: add/remove a tag on each headline; count: realign all) / set property / delete property |
