@@ -315,6 +315,26 @@
 ---@field calendar_longitude? number
 ---Name of the location (calendar-location-name). (default: `"40.7N, 74.0W"` style)
 ---@field calendar_location_name? string
+---How dates are written in the diary file and diary sexp arguments, and
+---shown by the calendar strings (calendar-date-style). (default: `"american"`)
+---@field calendar_date_style? "american"|"european"|"iso"
+---Minutes before sunset of `diary-hebrew-sabbath-candles`
+---(diary-hebrew-sabbath-candles-minutes). (default: `18`)
+---@field hebrew_sabbath_candles_minutes? number
+---Show the entries of the Emacs diary file in the date agenda
+---(org-agenda-include-diary); `D` toggles it. (default: `false`)
+---@field include_diary? boolean
+---The Emacs diary file (diary-file). (default: `~/diary` if it exists, else
+---the Emacs user directory's `diary`)
+---@field diary_file? string
+---Show the day's holidays as diary entries (diary-show-holidays-flag). (default: `true`)
+---@field diary_show_holidays? boolean
+---Read `#include "FILE"` lines of the diary file
+---(diary-include-other-diary-files). (default: `false`)
+---@field diary_include_files? boolean
+---Also read the Hebrew (H), Islamic (I), Bahá’í (B) and Chinese (C) date
+---entries (diary-nongregorian-listing-hook). (default: `{}`)
+---@field diary_nongregorian? ("hebrew"|"islamic"|"bahai"|"chinese")[]
 ---Holidays of `%%(org-calendar-holiday)` (calendar-holidays), see
 ---`:h org-agenda-holidays`.
 ---@field holidays? org.Config.Agenda.Holidays
@@ -657,6 +677,9 @@
 ---@field log? false|"time"|"note"
 ---Refile as the first child instead of the last (org-reverse-note-order). (default: `false`)
 ---@field reverse_note_order? boolean
+---Keep the targets between refiles (org-refile-use-cache); a count of 64
+---(C-u C-u C-u C-c C-w) or `:Org refile_cache_clear` clears the cache. (default: `false`)
+---@field use_cache? boolean
 
 ---A refile target spec (an entry of org-refile-targets).
 ---@class org.Config.RefileTargetSpec

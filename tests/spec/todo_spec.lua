@@ -432,6 +432,61 @@ describe("todo: Emacs org-todo parity", function()
     eq({ "OrgTodoRepeat:TODO>TODO", "OrgTodoStateChange:TODO>TODO" }, events)
   end)
 
+  it("todo_get_default_hooks pick the new state (org-todo-get-default-hook)", function()
+    local seen = {}
+    with_opts({
+      todo_get_default_hooks = {
+        function(new, old)
+          seen[#seen + 1] = tostring(new) .. "<" .. tostring(old)
+          return nil
+        end,
+        function(new)
+          if new == "DONE" then
+            return ""
+          end
+        end,
+      },
+    }, function()
+      local buf = org_buffer({ "* TODO X" }, { 1, 0 })
+      todo.change_state(nil, "DONE")
+      eq("* X", hl1(buf))
+      -- M-S-RET asks with no old state
+      buf = org_buffer({ "* TODO X" }, { 1, 3 })
+      require("org.structure").meta_return_heading({ todo = true })
+      eq({ "* TODO X", "* TODO " }, buf_lines(buf))
+    end)
+    eq({ "DONE<TODO", "TODO<nil" }, seen)
+  end)
+
+  it("after_todo_statistics_hooks and todo_statistics_hooks (org-summary-todo)", function()
+    local calls, stats = {}, {}
+    with_opts({
+      after_todo_statistics_hooks = {
+        function(n_done, n_not_done, target)
+          calls[#calls + 1] = { n_done, n_not_done, target.lnum }
+          todo.change_state(target, n_not_done == 0 and "DONE" or "TODO", { no_log = true })
+        end,
+      },
+      todo_statistics_hooks = {
+        function(target)
+          stats[#stats + 1] = target.lnum
+        end,
+      },
+    }, function()
+      local buf = org_buffer({ "* TODO P [/]", "** TODO A", "** TODO B", "* TODO Q", "** TODO C" }, { 2, 0 })
+      todo.change_state(nil, "DONE")
+      eq("* TODO P [1/2]", hl1(buf))
+      todo.change_state({ bufnr = buf, lnum = 3 }, "DONE")
+      eq({ "* DONE P [2/2]", "** DONE A", "** DONE B" }, vim.list_slice(buf_lines(buf), 1, 3))
+      eq({ { 1, 1, 1 }, { 2, 0, 1 } }, calls)
+      -- no cookie: only todo_statistics_hooks run
+      todo.change_state({ bufnr = buf, lnum = 5 }, "DONE")
+      eq(2, #calls)
+      -- P's own change (from the hook) runs them before B's returns
+      eq({ 2, 1, 3, 5 }, stats)
+    end)
+  end)
+
   it("checkbox blocking: counters, partial boxes, not inside blocks", function()
     with_opts({ enforce_todo_checkbox_dependencies = true }, function()
       org_buffer({ "* TODO P", "1. [@3] [ ] a" }, { 1, 0 })

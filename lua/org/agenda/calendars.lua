@@ -6,8 +6,8 @@
 --- calendar.el, cal-iso.el, cal-julian.el, cal-hebrew.el, cal-islam.el,
 --- cal-french.el, cal-bahai.el, cal-mayan.el, cal-coptic.el, cal-persia.el and
 --- cal-china.el, the quarters of the moon of lunar.el and the sunrise/sunset
---- string of solar.el. The output matches Emacs's with the default
---- `calendar-date-display-form' (american style).
+--- string of solar.el. Dates follow `agenda.calendar_date_style`
+--- (calendar-date-style and its default `calendar-date-display-form').
 ---
 --- Dates are Emacs "absolute" day numbers (days since the imaginary
 --- 1 BC-12-31); `abs = org.date day number + 719163`.
@@ -49,9 +49,22 @@ local function day_of_week(abs)
   return abs % 7
 end
 
---- The `calendar-date-display-form' (american) of MONTHNAME DAY, YEAR,
---- with ", "-separated DAYNAME before it when given.
-local function display_form(monthname, day, year, dayname)
+--- `agenda.calendar_date_style` (calendar-date-style).
+function M.date_style()
+  local style = require("org.config").opts.agenda.calendar_date_style
+  return (style == "european" or style == "iso") and style or "american"
+end
+
+--- The `calendar-date-display-form' of `calendar_date_style' for MONTH
+--- (number) / MONTHNAME, DAY and YEAR, with DAYNAME when given:
+--- "Sunday, September 27, 2026", "Sunday, 27 September 2026", "2026-09-27".
+local function display_form(monthname, day, year, dayname, month)
+  local style = M.date_style()
+  if style == "iso" then
+    return string.format("%s-%.2d-%.2d", year, month, day)
+  elseif style == "european" then
+    return (dayname and (dayname .. ", ") or "") .. day .. " " .. monthname .. " " .. year
+  end
   return (dayname and (dayname .. ", ") or "") .. monthname .. " " .. day .. ", " .. year
 end
 
@@ -68,7 +81,7 @@ function M.gregorian_string(abs, abbreviate, nodayname)
     month = month:sub(1, 3)
     dayname = dayname and dayname:sub(1, 3)
   end
-  return display_form(month, d, y, dayname)
+  return display_form(month, d, y, dayname, m)
 end
 
 ---------------------------------------------------------------------------
@@ -114,7 +127,7 @@ end
 ---@return string
 function M.julian_string(abs)
   local m, d, y = require("org.agenda.holidays.julian").from_absolute(abs)
-  return display_form(MONTH_NAMES[m], d, y)
+  return display_form(MONTH_NAMES[m], d, y, nil, m)
 end
 
 --- calendar-astro-date-string: the astronomical (Julian) day number after
@@ -143,7 +156,7 @@ function M.hebrew_string(abs)
     local leap = (1 + 7 * y) % 19 < 7
     name = leap and (m == 12 and "Adar I" or "Adar II") or "Adar"
   end
-  return display_form(name, d, y)
+  return display_form(name, d, y, nil, m)
 end
 
 local ISLAMIC_MONTHS = {
@@ -169,7 +182,7 @@ function M.islamic_string(abs)
   if y < 1 then
     return ""
   end
-  return display_form(ISLAMIC_MONTHS[m], d, y)
+  return display_form(ISLAMIC_MONTHS[m], d, y, nil, m)
 end
 
 local BAHAI_MONTHS = {
@@ -194,6 +207,9 @@ local BAHAI_MONTHS = {
   "‘Alá’",
 }
 
+M.MONTH_NAMES, M.DAY_NAMES = MONTH_NAMES, DAY_NAMES
+M.ISLAMIC_MONTHS, M.BAHAI_MONTHS = ISLAMIC_MONTHS, BAHAI_MONTHS
+
 --- calendar-bahai-date-string (before sunset; "" before the epoch).
 ---@param abs integer
 ---@return string
@@ -204,9 +220,9 @@ function M.bahai_string(abs)
     return ""
   end
   if m == 19 and d <= 0 then
-    return display_form("Ayyám-i-Há", d + (bahai.leap_year_p(y) and 5 or 4), y)
+    return display_form("Ayyám-i-Há", d + (bahai.leap_year_p(y) and 5 or 4), y, nil, m)
   end
-  return display_form(BAHAI_MONTHS[m], d, y)
+  return display_form(BAHAI_MONTHS[m], d, y, nil, m)
 end
 
 ---------------------------------------------------------------------------
@@ -445,7 +461,7 @@ local function coptic_string(abs, epoch, names)
   if year < 1 then
     return ""
   end
-  return display_form(names[month], abs - (to_absolute(month, 1, year) - 1), year)
+  return display_form(names[month], abs - (to_absolute(month, 1, year) - 1), year, nil, month)
 end
 
 --- calendar-coptic-date-string: "Tut 17, 1743".
@@ -528,7 +544,7 @@ function M.persian_string(abs)
   while abs > persian_to_absolute(month, persian_last_day_of_month(month, year), year) do
     month = month + 1
   end
-  return display_form(PERSIAN_MONTHS[month], abs - (persian_to_absolute(month, 1, year) - 1), year)
+  return display_form(PERSIAN_MONTHS[month], abs - (persian_to_absolute(month, 1, year) - 1), year, nil, month)
 end
 
 ---------------------------------------------------------------------------

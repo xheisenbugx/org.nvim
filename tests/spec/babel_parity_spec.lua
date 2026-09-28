@@ -960,7 +960,7 @@ describe("babel parity: edit special", function()
   it("shows the session with C-u C-c ' on a :session block", function()
     org_buffer({ "#+begin_src lua :session ed", "x = 1", "#+end_src" }, { 2, 0 })
     babel.edit_special({ session = true })
-    ok(vim.api.nvim_buf_get_name(0):find("org-babel-session://lua/ed", 1, true), vim.api.nvim_buf_get_name(0))
+    ok(vim.api.nvim_buf_get_name(0):find("*ed*", 1, true), vim.api.nvim_buf_get_name(0))
     require("org.babel.session").kill_all()
   end)
 

@@ -87,7 +87,7 @@ end
 --- Lines and highlights of the calendar for the selected date `sel`.
 --- Marks are { row, start_col, end_col, hl_group, priority } (0-based, bytes).
 ---@param sel table date
----@param opts? { allow_remove?: boolean, today?: table }
+---@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean }
 ---@return string[] lines, table[] marks
 function M.render(sel, opts)
   opts = opts or {}
@@ -170,7 +170,7 @@ function M.render(sel, opts)
   )
   row = add(pad .. long)
   mark(row, MARGIN, MARGIN + #long, "OrgCalendarDate")
-  local stamp = sel:to_string()
+  local stamp = M.preview(sel, opts.inactive)
   local rel = M.relative(sel_days - today_days)
   local gap = math.max(1, M.WIDTH - 2 * MARGIN - vim.fn.strdisplaywidth(stamp) - #rel)
   line = pad .. stamp .. string.rep(" ", gap) .. rel
@@ -206,6 +206,29 @@ function M.render(sel, opts)
   return lines, marks
 end
 
+--- The selected date as the prompt previews it (org-read-date-display):
+--- its timestamp (`[]` for an inactive prompt), or with
+--- `display_custom_times` on, the date in `time_stamp_custom_formats` within
+--- the brackets, like Emacs. As in Emacs, only the option counts: the
+--- minibuffer doesn't see a buffer's own toggle or `#+STARTUP: customtime`.
+---@param sel table date
+---@param inactive? boolean
+---@return string
+function M.preview(sel, inactive)
+  if require("org.config").opts.display_custom_times ~= true then
+    return (inactive ~= nil and sel:clone({ active = not inactive }) or sel):to_string()
+  end
+  local txt = require("org.timestamps").custom_text(sel)
+  if sel.end_hour then
+    -- the end time goes right after the time, like Emacs
+    local e = select(2, txt:find("%d?%d:%d%d"))
+    if e then
+      txt = txt:sub(1, e) .. string.format("-%02d:%02d", sel.end_hour, sel.end_min or 0) .. txt:sub(e + 1)
+    end
+  end
+  return inactive and "[" .. txt .. "]" or "<" .. txt .. ">"
+end
+
 local K = {}
 local function key(k)
   if not K[k] then
@@ -214,7 +237,7 @@ local function key(k)
   return K[k]
 end
 
----@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean }
+---@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean }
 ---@return table|nil
 function M.pick(opts)
   opts = opts or {}

@@ -511,6 +511,54 @@ local function url_hex(s)
   end))
 end
 
+-- `%(function)` expansions by abbreviation and tag, and the functions
+-- Emacs refused (org-link-expand-abbrev then disables the abbreviation)
+local abbrev_calls, abbrev_refused = {}, {}
+
+--- An abbreviation `rpl` containing `%(function)` for `tag`: FUNCTION is
+--- called with the tag in a separate Emacs (`babel.emacs_lisp`, whose
+--- `args` can load the function), where Emacs only calls functions whose
+--- `org-link-abbrev-safe` or `pure` property is t. Returns nil (the link
+--- stays as it is) when it can't be called.
+---@return string|nil
+function M.abbrev_call(rpl, tag)
+  local s, e, fname = rpl:find("%%%(([^)]+)%)")
+  if not s or abbrev_refused[fname] then
+    return nil
+  end
+  local key = rpl .. "\0" .. tag
+  if abbrev_calls[key] then
+    return abbrev_calls[key]
+  end
+  local elisp = require("org.babel.elisp")
+  local printed, err
+  if elisp.command() then
+    printed, err = elisp.eval_external(
+      string.format(
+        [[(let ((f (intern-soft %s)))
+  (if (or (eq t (get f 'org-link-abbrev-safe)) (eq t (get f 'pure)))
+      (let ((v (funcall f %s)))
+        (if (stringp v) v (error "%%s did not return a string: %%S" f v)))
+    (error "Disabling unsafe link abbrev: %%s
+You may mark function safe via (put '%%s 'org-link-abbrev-safe t)" %s f)))]],
+        elisp.lisp_string(fname),
+        elisp.lisp_string(tag),
+        elisp.lisp_string(rpl)
+      )
+    )
+  else
+    err = "link abbreviation " .. rpl .. " needs an Emacs to call " .. fname .. " (babel.emacs_lisp)"
+  end
+  local ok, v = pcall(require("org.table.elisp").read, printed or "")
+  if not printed or not ok or type(v) ~= "string" then
+    abbrev_refused[fname] = true
+    utils.warn(tostring(err or printed))
+    return nil
+  end
+  abbrev_calls[key] = rpl:sub(1, s - 1) .. v .. rpl:sub(e + 1)
+  return abbrev_calls[key]
+end
+
 --- Expand link abbreviations (org-link-expand-abbrev): `gh:user/repo` or
 --- `gh::user/repo` -> `https://github.com/user/repo`; a bare `gh` expands
 --- with an empty tag.
@@ -523,6 +571,10 @@ function M.expand_abbrev(target, file)
   local tag = rest:match("^::?(.*)$") or ""
   if type(def) == "function" then
     return def(tag)
+  end
+  if def:find("%(", 1, true) then
+    local expanded = M.abbrev_call(def, tag)
+    return expanded or target
   end
   if def:find("%s", 1, true) then
     return (def:gsub("%%s", function()
@@ -1063,7 +1115,14 @@ function M.resolve_path(path, bufnr)
       return vim.fs.normalize(name)
     end
   end
-  path = vim.fn.expand(path)
+  if vim.fn.fnamemodify(path, ":t"):find("[*?{%[]") then
+    -- expand() would expand the wildcard too
+    path = path:gsub("^~/", (vim.env.HOME or "~") .. "/"):gsub("%$(%w+)", function(v)
+      return vim.env[v]
+    end)
+  else
+    path = vim.fn.expand(path)
+  end
   if not path:match("^/") and not path:match("^%a:[/\\]") then
     path = base_dir(bufnr) .. "/" .. path
   end
@@ -1076,11 +1135,54 @@ local function warn_err(err)
   end
 end
 
+--- A listing of the files matching a wildcard file name (`file:*.org`),
+--- like the Dired buffer Emacs opens for it: <CR> opens the file on the
+--- line, `q` closes the listing.
+local function open_wildcard(pattern, how)
+  local dir, glob = pattern:match("^(.*)/([^/]*)$")
+  dir = dir ~= "" and dir or "/"
+  local matches = vim.fn.glob(pattern, false, true)
+  if #matches == 0 then
+    utils.warn("No files match " .. pattern)
+    return false
+  end
+  table.sort(matches)
+  local lines = { "  " .. dir .. ":", "  wildcard " .. glob }
+  for _, m in ipairs(matches) do
+    lines[#lines + 1] = "  " .. vim.fn.fnamemodify(m, ":t") .. (utils.is_dir(m) and "/" or "")
+  end
+  if type(how) ~= "function" then
+    visit(nil, how)
+  end
+  local buf = vim.api.nvim_create_buf(true, true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  pcall(vim.api.nvim_buf_set_name, buf, pattern)
+  vim.api.nvim_set_current_buf(buf)
+  vim.api.nvim_win_set_cursor(0, { 3, 2 })
+  vim.b[buf].org_wildcard_files = matches
+  vim.keymap.set("n", "<CR>", function()
+    local i = vim.api.nvim_win_get_cursor(0)[1] - 2
+    local file = matches[i]
+    if file then
+      vim.cmd("edit " .. vim.fn.fnameescape(file))
+    end
+  end, { buffer = buf, desc = "org: open file" })
+  vim.keymap.set("n", "q", "<Cmd>bwipeout<CR>", { buffer = buf, desc = "org: close listing" })
+  return true
+end
+
 --- Open a file link (org-open-file). `app` is "vim" (C-u: always in
 --- Neovim), "system" (C-u C-u) or nil.
 local function open_file_link(path, search, o)
   o = o or {}
   local full = M.resolve_path(path, o.bufnr)
+  -- a wildcard in the file name opens a listing of the matches
+  -- (org-link-open-as-file: dired)
+  if (vim.fn.fnamemodify(full, ":t")):find("[*?{]") and not utils.exists(full) then
+    return open_wildcard(full, o.how)
+  end
   local ext = (full:match("%.([%w]+)$") or ""):lower()
   local apps = lopts().file_apps or {}
   if o.app == "system" then
@@ -1140,9 +1242,98 @@ local function open_shell(cmd, bufnr)
   end
   local argv = { vim.o.shell }
   vim.list_extend(argv, vim.split(vim.o.shellcmdflag, "%s+", { trimempty = true }))
-  argv[#argv + 1] = cmd
   utils.notify("Executing " .. cmd)
-  return run_in_terminal(argv, base_dir(bufnr))
+  if lopts().shell_output == "terminal" then
+    argv[#argv + 1] = cmd
+    return run_in_terminal(argv, base_dir(bufnr))
+  end
+  local async = cmd:match("^(.-)%s*&%s*$")
+  argv[#argv + 1] = async or cmd
+  return M.shell_to_buffer(argv, base_dir(bufnr), async ~= nil)
+end
+
+--- A new `*Org Shell Output*` buffer (generate-new-buffer: `<2>`, `<3>`,
+--- ... when the name is taken).
+local function new_output_buffer()
+  local buf = vim.api.nvim_create_buf(true, true)
+  local name, n = "*Org Shell Output*", 1
+  while not pcall(vim.api.nvim_buf_set_name, buf, name) do
+    n = n + 1
+    name = "*Org Shell Output*<" .. n .. ">"
+  end
+  return buf
+end
+
+local function show_buffer(buf)
+  if vim.fn.bufwinid(buf) == -1 then
+    vim.cmd("botright split")
+    vim.api.nvim_win_set_buf(0, buf)
+    vim.cmd("wincmd p")
+  end
+end
+
+--- Run `argv` in `cwd` with stdout and stderr collected in a new
+--- `*Org Shell Output*` buffer, like shell-command with an output buffer:
+--- a one-line output is echoed (display-message-or-buffer), a longer one
+--- shows the buffer. `async` (a command ending in `&`) shows the buffer
+--- at once and appends the output as it arrives (async-shell-command).
+--- Returns the buffer and the vim.system object.
+function M.shell_to_buffer(argv, cwd, async)
+  local buf = new_output_buffer()
+  local got = false
+  local function append(data)
+    if not data or data == "" or not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    local lines = vim.split(data:gsub("\r\n", "\n"), "\n", { plain = true })
+    local last = vim.api.nvim_buf_get_lines(buf, -2, -1, false)[1] or ""
+    lines[1] = last .. lines[1]
+    vim.api.nvim_buf_set_lines(buf, got and -2 or 0, -1, false, lines)
+    got = true
+  end
+  if async then
+    show_buffer(buf)
+  end
+  local on_data
+  if async then
+    on_data = function(_, data)
+      vim.schedule(function()
+        append(data)
+      end)
+    end
+  end
+  local proc = vim.system(argv, { cwd = cwd, text = true, stdout = on_data, stderr = on_data }, function(res)
+    vim.schedule(function()
+      if not async then
+        -- without streaming callbacks, vim.system collects the output
+        append(res.stdout)
+        append(res.stderr)
+      end
+      -- the final newline of the output ends the last line
+      if got and vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_lines(buf, -2, -1, false)[1] == "" then
+        vim.api.nvim_buf_set_lines(buf, -2, -1, false, {})
+      end
+      if async then
+        utils.notify(res.code == 0 and "Shell command finished" or ("Shell command exited with code " .. res.code))
+        return
+      end
+      local lines = vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_lines(buf, 0, -1, false) or {}
+      while #lines > 0 and lines[#lines] == "" do
+        table.remove(lines)
+      end
+      if #lines == 0 then
+        utils.notify(
+          res.code == 0 and "(Shell command succeeded with no output)"
+            or string.format("(Shell command failed with code %d and no output)", res.code)
+        )
+      elseif #lines == 1 then
+        utils.notify(lines[1])
+      else
+        show_buffer(buf)
+      end
+    end)
+  end)
+  return buf, proc
 end
 
 --- Run an `elisp:` link after confirmation (org-link--open-elisp). The sexp
@@ -1168,9 +1359,9 @@ local function open_elisp(sexp, bufnr)
       return false
     end
   end
-  if not sexp:match("^%s*%(") then
+  if not sexp:match("^%s*%(") and not require("org.babel.elisp").command() then
     -- Emacs calls a command name interactively: there is no Emacs to call it in
-    utils.warn("elisp: " .. sexp .. ": Emacs commands cannot be called from Neovim")
+    utils.warn("elisp: " .. sexp .. ": Emacs commands need an Emacs (babel.emacs_lisp)")
     return false
   end
   local value, err = require("org.babel.elisp").eval_link(sexp, base_dir(bufnr))
@@ -1582,6 +1773,44 @@ local function id_to_store(bufnr, hl, create, ctx)
   end
 end
 
+--- `id:` link to the file before its first headline: the ID lives in the
+--- file-level property drawer, created at the top of the file (after
+--- leading comments) like Emacs 9.8. The description is the #+TITLE, else
+--- the file name.
+local function file_id_store_link(bufnr, file, lnum, region, ctx, interactive, force)
+  local use = config.opts.links.use_id
+  local id = file.properties.ID
+  if id == "" then
+    id = nil
+  end
+  local create = force
+    or use == true
+    or (
+      interactive
+      and (
+        use == "create-if-interactive"
+        or (use == "create-if-interactive-and-no-custom-id" and not file.properties.CUSTOM_ID)
+      )
+    )
+  if not create and not (use and id) then
+    return nil
+  end
+  local idc = config.opts.id or {}
+  -- the search string is computed before the drawer moves the lines
+  local precise = ctx and idc.link_use_context ~= false and precise_target(bufnr, lnum, region, ctx) or nil
+  id = id or require("org.id").get_create({ bufnr = bufnr, lnum = lnum })
+  if not id then
+    return nil
+  end
+  local link = "id:" .. id
+  local desc = file.settings.title or vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":t")
+  if precise and (precise.pos[1] > 1 or precise.pos[2] > 1) then
+    link = link .. "::" .. precise.search
+    desc = precise.desc
+  end
+  return { link = link, desc = desc }
+end
+
 --- `id:` link to the entry at `lnum` when `links.use_id` asks for one
 --- (org-id-store-link-maybe / org-id-store-link).
 local function id_store_link(bufnr, lnum, region, ctx, interactive, force)
@@ -1591,7 +1820,7 @@ local function id_store_link(bufnr, lnum, region, ctx, interactive, force)
   local file = files.get_buffer(bufnr)
   local hl = file:headline_at(lnum)
   if not hl then
-    return nil
+    return file_id_store_link(bufnr, file, lnum, region, ctx, interactive, force)
   end
   local use = config.opts.links.use_id
   local create = force

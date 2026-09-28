@@ -421,7 +421,7 @@ local function is_table_line(l)
 end
 
 local function is_tableel_rule(l)
-  return l:match("^[ \t]*%+%-+[%+%-]*%+[ \t]*$") ~= nil and l:match("^[ \t]*%+[%-%+]*%+[ \t]*$") ~= nil
+  return require("org.table.el").is_rule(l)
 end
 
 --- Item bullet of a line (org-item-re, alphabetical bullets when allowed).
@@ -1913,6 +1913,9 @@ function P:expand_abbrev(link)
   if type(rpl) == "function" then
     local ok, v = pcall(rpl, tag or "")
     return ok and v or link
+  end
+  if rpl:find("%(", 1, true) then
+    return require("org.links").abbrev_call(rpl, tag or "") or link
   end
   if rpl:find("%s", 1, true) then
     return (rpl:gsub("%%s", function()

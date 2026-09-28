@@ -52,12 +52,15 @@ local region_ns = vim.api.nvim_create_namespace("org.edit.region")
 --- a list of `{ bufnr, lnum = function }` whose `lnum()` follows edits.
 --- Headlines hidden in a closed fold are skipped, like Emacs skips
 --- invisible entries; with "start-level" only headlines of the first
---- headline's level are used. Returns nil outside Visual mode.
+--- headline's level are used. A match string acts like true: Emacs 9.8
+--- documents it but its commands pass nil as the match. `skip(hl)` leaves
+--- more headlines out. Returns nil outside Visual mode.
+---@param skip? fun(hl: org.Headline): boolean
 ---@return { bufnr: integer, lnum: fun(): integer|nil }[]|nil
-function M.region_headlines()
+function M.region_headlines(skip)
   local loop = require("org.config").opts.loop_over_headlines_in_active_region
   local mode = vim.fn.mode()
-  if loop == false or not (mode == "v" or mode == "V" or mode == "\22") then
+  if not loop or not (mode == "v" or mode == "V" or mode == "\22") then
     return nil
   end
   local s, _, e = utils.visual_range()
@@ -69,7 +72,11 @@ function M.region_headlines()
     if hl.line >= s and hl.line <= e then
       local fc = vim.fn.foldclosed(hl.line)
       level = level or hl.level
-      if (fc == -1 or fc == hl.line) and (loop ~= "start-level" or hl.level == level) then
+      if
+        (fc == -1 or fc == hl.line)
+        and (loop ~= "start-level" or hl.level == level)
+        and not (skip and skip(hl))
+      then
         local id = vim.api.nvim_buf_set_extmark(bufnr, region_ns, hl.line - 1, 0, {})
         out[#out + 1] = {
           bufnr = bufnr,
@@ -423,6 +430,31 @@ M.DEFAULT_LOG_NOTE_HEADINGS = {
   refile = "Refiled on %t",
   ["clock-out"] = "",
 }
+
+--- What the `*Org Note*` buffer says the note is for, per purpose (the
+--- "# Insert note for ..." line of org-add-log-note).
+local NOTE_PURPOSES = {
+  ["clock-out"] = "stopped clock",
+  done = "closed todo item",
+  reschedule = "rescheduling",
+  delschedule = "no longer scheduled",
+  redeadline = "changing deadline",
+  deldeadline = "removing deadline",
+  refile = "refiling",
+  note = "this entry",
+}
+
+--- Description of a note of `purpose` for the note buffer; a state change
+--- names both states.
+---@param purpose string
+---@param state? string new state
+---@param previous? string previous state
+function M.note_purpose(purpose, state, previous)
+  if purpose == "state" then
+    return string.format('state change from "%s" to "%s"', previous or "", state or "")
+  end
+  return NOTE_PURPOSES[purpose] or purpose
+end
 
 --- Quote a state or timestamp for a note heading (%s / %S): timestamps
 --- are made inactive.

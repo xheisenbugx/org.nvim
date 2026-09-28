@@ -1399,6 +1399,44 @@ function M.macro_expander(ctx)
   end
   local counters = {}
   local file = ctx.filename
+  -- (eval FORM) templates (org-macro--set-templates): FORM runs with $1..$N
+  -- bound to the arguments (strings, nil when missing), N being the
+  -- highest $N of the template, on the Lisp interpreter of table formulas
+  -- or in a separate Emacs for what it does not implement. The value is
+  -- inserted with `format "%s"`; one that can't be evaluated (Emacs stops
+  -- the export) is left unexpanded, with a warning.
+  local evaluated = {}
+  local function eval_macro(t, args)
+    local ok = pcall(require("org.table.elisp").read, t)
+    local body = ok and t:match("^%(eval(.*)%)%s*$")
+    if not body then
+      return nil
+    end
+    local max = 0
+    for d in t:gmatch("%$(%d+)") do
+      max = math.max(max, tonumber(d))
+    end
+    local bindings, key = {}, { body }
+    for i = 1, max do
+      bindings[i] = { "$" .. i, args[i] }
+      key[#key + 1] = args[i] or "\1"
+    end
+    key = table.concat(key, "\0")
+    if evaluated[key] == nil then
+      local v, err = require("org.babel.elisp").eval(body, {
+        bindings = bindings,
+        cwd = file and vim.fn.fnamemodify(file, ":p:h") or nil,
+        requires = { "org", "ox" },
+      })
+      if err then
+        require("org.utils").warn("Macro " .. t .. ": " .. err)
+        evaluated[key] = false
+      else
+        evaluated[key] = require("org.table.elisp").to_string(v)
+      end
+    end
+    return evaluated[key] or nil
+  end
   local builtin = {
     keyword = function(args)
       return kwval((args[1] or ""):upper(), true) or ""
@@ -1436,7 +1474,17 @@ function M.macro_expander(ctx)
       return vim.fn.fnamemodify(file, ":t")
     end
     builtin["modification-time"] = function(args)
-      return M.format_time(args[1] or "", vim.fn.getftime(file))
+      local t = vim.fn.getftime(file)
+      if M.nw(args[2]) then
+        -- the date of the file's last commit (org-macro--vc-modified-time; Git only)
+        local ok, obj = pcall(function()
+          local dir = vim.fn.fnamemodify(file, ":p:h")
+          return vim.system({ "git", "log", "-1", "--format=%ct", "--", file }, { cwd = dir, text = true }):wait()
+        end)
+        local vc = ok and obj.code == 0 and tonumber(vim.trim(obj.stdout or ""))
+        t = vc or t
+      end
+      return M.format_time(args[1] or "", t)
     end
   end
   return function(node, parser)
@@ -1448,9 +1496,8 @@ function M.macro_expander(ctx)
         local ok, v = pcall(t, unpack(args))
         return ok and tostring(v or "") or ""
       end
-      if t:match("^%(eval[%s)]") then
-        -- Emacs Lisp macros cannot run here: keep the call as-is
-        return nil
+      if t:match("^%(eval%f[^%w]") then
+        return eval_macro(t, args)
       end
       return (t:gsub("%$(%d+)", function(d)
         return args[tonumber(d)] or ""
@@ -3876,6 +3923,8 @@ function M.visible_lines(bufnr, lines)
   return out
 end
 
+local export_as
+
 --- Export Org lines to a string with `backend`.
 ---@param backend string|table
 ---@param lines string[]
@@ -3883,6 +3932,24 @@ end
 ---@return string output, table info
 function M.export_as(backend, lines, opts)
   opts = opts or {}
+  -- #+BIND: sets the options for this export (org-export-get-environment)
+  local restore
+  if cfg().allow_bind_keywords then
+    local dir = opts.filename and vim.fn.fnamemodify(opts.filename, ":p:h") or vim.fn.getcwd()
+    restore = require("org.export.bind").install(M.collect_keywords(lines, dir, nil, nil, opts.filename))
+  end
+  if not restore then
+    return export_as(backend, lines, opts)
+  end
+  local ok, out, info = pcall(export_as, backend, lines, opts)
+  restore()
+  if not ok then
+    error(out, 0)
+  end
+  return out, info
+end
+
+function export_as(backend, lines, opts)
   backend = M.get_backend(backend)
   if not backend then
     error("Unknown export back-end", 0)

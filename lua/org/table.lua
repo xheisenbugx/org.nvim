@@ -88,7 +88,7 @@ function M.find(bufnr, lnum)
     lnum = l - 1
     line = get(lnum)
   end
-  if lnum < 1 or not is_table_line(line) then
+  if lnum < 1 or not is_table_line(line) or require("org.table.el").at(bufnr, lnum) then
     return nil
   end
   local s, e = lnum, lnum
@@ -2546,10 +2546,10 @@ function M.header_line_mode()
   return on
 end
 
---- Tables in the table.el format (`+---+`) are not supported: explain
---- (Emacs C-c ~, org-table-create-with-table.el).
+--- C-c ~ (org-table-create-with-table.el): convert between Org and
+--- table.el tables, or insert a new table.el table (see `org.table.el`).
 function M.table_el()
-  utils.warn("table.el tables are not supported (see :h org-differences)")
+  return require("org.table.el").create_or_convert()
 end
 
 function M.attach(bufnr)

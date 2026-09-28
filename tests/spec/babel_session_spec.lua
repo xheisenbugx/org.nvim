@@ -212,7 +212,7 @@ describe("babel :session", function()
     eq(nil, session.find("lua", "tr"))
   end)
 
-  it("switch to session copies the body; typing at the prompt evaluates", function()
+  it("switch to session copies the body and shows the REPL terminal", function()
     if not has("python3") then
       return
     end
@@ -224,7 +224,8 @@ describe("babel :session", function()
     babel.switch_to_session()
     eq("z = 7", vim.fn.getreg('"'))
     local tbuf = vim.api.nvim_get_current_buf()
-    eq("prompt", vim.bo[tbuf].buftype)
+    eq("terminal", vim.bo[tbuf].buftype)
+    eq("*rp*", vim.fn.fnamemodify(vim.api.nvim_buf_get_name(tbuf), ":t"))
     local sess = session.find("python", "rp")
     local res = session.eval_sync(sess, "6 * 7", "repl", { timeout = 5000 })
     eq("42", vim.trim(res.output))

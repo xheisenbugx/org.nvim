@@ -311,3 +311,54 @@ describe("archive", function()
     eq("** Old :ARCHIVE:", buf_lines()[2])
   end)
 end)
+
+describe("archiving a Visual selection (org-loop-over-headlines-in-active-region)", function()
+  after_each(function()
+    config.setup({})
+  end)
+
+  local function visual(first, keys)
+    vim.api.nvim_win_set_cursor(0, { first, 0 })
+    vim.api.nvim_feedkeys(vim.keycode(keys), "xt", false)
+  end
+
+  local function squeeze(lines)
+    return vim.tbl_map(function(l)
+      return (l:gsub("%s+:", " :"))
+    end, lines)
+  end
+
+  local function headings(lines)
+    return squeeze(vim.tbl_filter(function(l)
+      return l:match("^%*") ~= nil
+    end, lines))
+  end
+
+  it("archives every selected subtree; children move with their parent", function()
+    local dir = tmpdir()
+    setup(dir, { archive_location = "%s_archive::" })
+    local p = dir .. "/s.org"
+    utils.writefile(p, { "* Keep", "* A", "** A1", "* B", "text", "* C" })
+    vim.cmd("edit! " .. p)
+    visual(2, "Vjj<C-c>$")
+    eq({ "* Keep", "* C" }, buf_lines())
+    eq({ "* A", "** A1", "* B" }, headings(lines_of(p .. "_archive")))
+  end)
+
+  it("toggles the ARCHIVE tag and archives to the sibling on each headline", function()
+    setup(tmpdir())
+    local buf = org_buffer({ "* P", "** A", "** B", "** C" }, { 2, 0 })
+    visual(2, "Vj<C-c><C-x>a")
+    eq({ "* P", "** A :ARCHIVE:", "** B :ARCHIVE:", "** C" }, squeeze(buf_lines(buf)))
+    buf = org_buffer({ "* P", "** A", "** B", "** C" }, { 2, 0 })
+    visual(2, "Vj<C-c><C-x>A")
+    eq({ "* P", "** C", "** Archive :ARCHIVE:", "*** A", "*** B" }, headings(buf_lines(buf)))
+  end)
+
+  it("with a match string, acts on every headline like Emacs", function()
+    setup(tmpdir(), { loop_over_headlines_in_active_region = "+work" })
+    local buf = org_buffer({ "* A :work:", "* B", "* C :work:" }, { 1, 0 })
+    visual(1, "Vjj<C-c><C-x>a")
+    eq({ "* A :work:ARCHIVE:", "* B :ARCHIVE:", "* C :work:ARCHIVE:" }, squeeze(buf_lines(buf)))
+  end)
+end)

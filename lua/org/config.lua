@@ -51,6 +51,17 @@ M.defaults = {
   --- receives `{ type = "todo-state-change", from, to, bufnr, lnum }` and
   --- blocks the change by returning `false`.
   todo_blockers = {},
+  --- Functions(new, old) -> string|nil choosing the state a change goes to
+  --- (org-todo-get-default-hook): the first string returned replaces the
+  --- new state ("" = no keyword). Also used for M-S-RET (old is nil).
+  todo_get_default_hooks = {},
+  --- Functions(n_done, n_not_done, target) called for every ancestor whose
+  --- TODO statistics cookie is updated after a state change, with the
+  --- ancestor as `target` { bufnr, lnum } (org-after-todo-statistics-hook).
+  after_todo_statistics_hooks = {},
+  --- Functions(target) called after each state change that updates TODO
+  --- statistics, even without a cookie (org-todo-statistics-hook).
+  todo_statistics_hooks = {},
   --- C-c C-t uses the fast-selection menu when keywords have keys
   --- (org-use-fast-todo-selection `auto`); `false` always cycles.
   use_fast_todo_selection = "auto",
@@ -102,9 +113,11 @@ M.defaults = {
   --- With `extend_today_until`, record CLOSED and log times before that
   --- hour as 23:59 of the previous day (org-use-effective-time).
   use_effective_time = false,
-  --- In Visual mode, C-c C-t, C-c C-s and C-c C-d act on every headline of
-  --- the selection: `true`, `"start-level"` (only headlines of the first
-  --- one's level) or `false` (org-loop-over-headlines-in-active-region).
+  --- In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands
+  --- act on every headline of the selection: `true`, `"start-level"` (only
+  --- headlines of the first one's level) or `false`; a match string acts
+  --- like `true`, as in Emacs 9.8
+  --- (org-loop-over-headlines-in-active-region).
   loop_over_headlines_in_active_region = true,
 
   ---------------------------------------------------------------------------
@@ -612,6 +625,29 @@ M.defaults = {
     calendar_latitude = nil,
     calendar_longitude = nil,
     calendar_location_name = nil,
+    --- How dates are written in the diary file and in diary sexp arguments,
+    --- and shown by the calendar strings: "american" (month/day/year),
+    --- "european" (day/month/year) or "iso" (calendar-date-style).
+    calendar_date_style = "american",
+    --- Minutes before sunset of `%%(diary-hebrew-sabbath-candles)`
+    --- (diary-hebrew-sabbath-candles-minutes).
+    hebrew_sabbath_candles_minutes = 18,
+    --- Show the entries of the Emacs diary file in the date agenda
+    --- (org-agenda-include-diary); `D` toggles it.
+    include_diary = false,
+    --- The Emacs diary file (diary-file); nil = ~/diary if it exists, else
+    --- the diary file of the Emacs user directory (~/.emacs.d/diary or
+    --- ~/.config/emacs/diary).
+    diary_file = nil,
+    --- Show the day's holidays as diary entries (diary-show-holidays-flag).
+    diary_show_holidays = true,
+    --- Read `#include "FILE"` lines of the diary file (Emacs:
+    --- diary-include-other-diary-files in diary-list-entries-hook).
+    diary_include_files = false,
+    --- Also read Hebrew (H), Islamic (I), Bahá’í (B) and Chinese (C) date
+    --- entries: a list of "hebrew", "islamic", "bahai", "chinese"
+    --- (diary-nongregorian-listing-hook).
+    diary_nongregorian = {},
     --- Holidays shown by `%%(org-calendar-holiday)` (calendar-holidays): one
     --- list per holiday-*-holidays variable, with Emacs's defaults. Set a
     --- group to `{}` to drop it; add your own to `local`/`other`. See
@@ -770,6 +806,9 @@ M.defaults = {
     log = false,
     --- Refile as the first child instead of the last (org-reverse-note-order).
     reverse_note_order = false,
+    --- Keep the targets between refiles (org-refile-use-cache); a count of
+    --- 64 (C-u C-u C-u C-c C-w) or `:Org refile_cache_clear` clears it.
+    use_cache = false,
   },
 
   ---------------------------------------------------------------------------
@@ -940,6 +979,11 @@ M.defaults = {
     --- Vim regex: shell: links matching it run without asking; "" = none
     --- (org-link-shell-skip-confirm-regexp).
     shell_skip_confirm_regexp = "",
+    --- Where shell: links run: "buffer" collects the output in a new
+    --- `*Org Shell Output*` buffer like Emacs' shell-command (one line is
+    --- only echoed; a command ending in `&` shows the buffer at once),
+    --- "terminal" runs the command in a terminal window.
+    shell_output = "buffer",
     --- Ask before running elisp: links: true, false or function(sexp) ->
     --- boolean (org-link-elisp-confirm-function).
     confirm_elisp = true,
@@ -984,9 +1028,16 @@ M.defaults = {
     translation_function = nil,
   },
   id = {
-    --- Where the ID -> file database is kept (org-id-locations-file; JSON,
-    --- not shared with Emacs).
+    --- Where the ID -> file database is kept (org-id-locations-file). Point
+    --- it at Emacs's file (`~/.emacs.d/.org-id-locations`) to share it.
     locations_file = data_dir .. "/id-locations.json",
+    --- Format of `locations_file`: "auto" (what the file holds; else JSON
+    --- for a `.json` name and Emacs's `print`ed alist otherwise), "json"
+    --- or "emacs".
+    locations_format = "auto",
+    --- Emacs format: store file names relative to the database's
+    --- directory (org-id-locations-file-relative).
+    locations_file_relative = false,
     --- How new IDs are made (org-id-method): "uuid" | "ts" | "org".
     method = "uuid",
     --- Prefix of new IDs (org-id-prefix), e.g. "Org".
@@ -1198,9 +1249,9 @@ M.defaults = {
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
     },
-    -- emacs-lisp blocks and elisp: links run in a separate Emacs process
-    -- (`command` false: never; without Emacs, side-effect-free code runs on
-    -- the Lisp interpreter of table formulas)
+    -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
+    -- table formulas can't evaluate (macros, capture, diary sexps, headers)
+    -- run in a separate Emacs process (`command` false: never)
     emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } },
   },
 
@@ -1264,6 +1315,9 @@ M.defaults = {
     creator = nil, -- org-export-creator-string; nil = "Neovim X.Y.Z (org.nvim ...)"
     --- org-export-global-macros: { name = "template $1" | function(...) }.
     global_macros = {},
+    --- org-export-allow-bind-keywords: honor #+BIND: (org-export-* and
+    --- back-end variables become these options during the export).
+    allow_bind_keywords = false,
     snippet_translation = {}, -- org-export-snippet-translation-alist
     inlinetask_min_level = 15, -- org-inlinetask-min-level
     table_number_fraction = 0.5, -- org-table-number-fraction
@@ -2078,6 +2132,7 @@ M.defaults = {
       inactive_mode = "v[",
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
+      toggle_diary = "D",
       dim_blocked = "#",
       filter = "/",
       filter_tag = "\\",

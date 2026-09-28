@@ -690,12 +690,58 @@ describe("images in place of the link", function()
     images.render_latex = saved_render
     local m = marks(buf)
     -- $e$ scaled to one row (3 columns), \[ x \] its own size (6x2), the
-    -- fragment over two lines under its last line (2 rows)
-    eq({ { 0, 6, 9 }, { 2, 0, 7 } }, m.conceal)
-    eq({ 9, 1 + 2 }, { m.pad, m.lines })
+    -- fragment over two lines in place of its first line (one row)
+    eq({ { 0, 6, 9 }, { 2, 0, 7 }, { 4, 0, 4 } }, m.conceal)
+    eq({ 3 + 6 + 3, 1 }, { m.pad, m.lines })
     images.sync()
     local l = live()
     eq({ vim.fn.screenpos(0, 1, 1).row, 7, 3, 1 }, { l[1].row, l[1].col, l[1].width, l[1].height })
+  end)
+
+  it("draws a fragment over several lines in place, hiding its other lines", function()
+    png("eq.png", 120, 80)
+    local saved_render = images.render_latex
+    images.render_latex = function(_, _, cb)
+      cb(dir .. "/eq.png")
+    end
+    local lines = { "Text", "\\begin{equation}", "x = 1", "\\end{equation}", "see \\[ a +", "b \\] now", "after" }
+    local buf = file_buffer("env.org", lines)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    images.show_latex(buf, 1, 7)
+    images.render_latex = saved_render
+    -- 12x4 cells each: the first line's text from the fragment on is
+    -- concealed behind them, then comes the text after the fragment; the
+    -- rows under the image hang from the first line
+    local m = marks(buf)
+    eq({ { 1, 0, 16 }, { 4, 4, 10 } }, m.conceal)
+    eq({ 12 + 12, 3 + 3 }, { m.pad, m.lines })
+    local tail
+    for _, e in ipairs(vim.api.nvim_buf_get_extmarks(buf, nsid, { 4, 0 }, { 4, -1 }, { details = true })) do
+      tail = tail or (e[4].conceal and e[4].virt_text[2] and e[4].virt_text[2][1])
+    end
+    eq(" now", tail)
+    images.sync()
+    local l = live()
+    local y = vim.fn.screenpos(0, 2, 1).row
+    eq({ y, 1, 12, 4 }, { l[1].row, l[1].col, l[1].width, l[1].height })
+    -- the other lines are not drawn: the next line comes after the image
+    eq(y + 4, vim.fn.screenpos(0, 5, 1).row)
+    eq({ y + 4, 5 }, { l[2].row, l[2].col })
+    eq(y + 8, vim.fn.screenpos(0, 7, 1).row)
+    -- the cursor on the fragment shows its text, with the image under it
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    images._update_reveal()
+    eq({ { 4, 4, 10 } }, marks(buf).conceal)
+    images.sync()
+    local end_y = vim.fn.screenpos(0, 4, 1).row
+    eq(y + 2, end_y)
+    eq({ end_y + 1, 1 }, { live()[1].row, live()[1].col })
+    eq(end_y + 5, vim.fn.screenpos(0, 5, 1).row)
+    vim.api.nvim_win_set_cursor(0, { 7, 0 })
+    images._update_reveal()
+    eq({ { 1, 0, 16 }, { 4, 4, 10 } }, marks(buf).conceal)
+    images.sync()
+    eq(y + 4, vim.fn.screenpos(0, 5, 1).row)
   end)
 
   it("puts the image after the text shown, not counting concealed link parts", function()

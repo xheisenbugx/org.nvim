@@ -40,6 +40,20 @@
 ---`{ type = "todo-state-change", from, to, bufnr, lnum }` and blocks the
 ---change by returning `false`. (Emacs `org-blocker-hook`, default: `{}`)
 ---@field todo_blockers? (fun(change: table): boolean?)[]
+---Functions receiving the new and old state (nil for none); the first
+---string returned becomes the new state (`""` = no keyword). Also asked for
+---the keyword of M-S-RET (old is nil). (Emacs `org-todo-get-default-hook`,
+---default: `{}`)
+---@field todo_get_default_hooks? (fun(new: string?, old: string?): string?)[]
+---Functions called with the numbers of done and not-done children and the
+---ancestor `{ bufnr, lnum }` for each ancestor whose TODO statistics cookie
+---is updated after a state change. (Emacs
+---`org-after-todo-statistics-hook`, default: `{}`)
+---@field after_todo_statistics_hooks? (fun(n_done: integer, n_not_done: integer, target: table))[]
+---Functions called with the changed entry `{ bufnr, lnum }` whenever TODO
+---statistics are updated, even without a cookie. (Emacs
+---`org-todo-statistics-hook`, default: `{}`)
+---@field todo_statistics_hooks? (fun(target: table))[]
 ---C-c C-t opens the fast-selection menu when keywords have keys; `false`
 ---always cycles. (Emacs `org-use-fast-todo-selection`, default: `"auto"`)
 ---@field use_fast_todo_selection? "auto"|false
@@ -94,11 +108,12 @@
 ---hour as 23:59 of the previous day.
 ---(Emacs `org-use-effective-time`, default: `false`)
 ---@field use_effective_time? boolean
----In Visual mode, C-c C-t, C-c C-s and C-c C-d act on every headline of the
----selection: `true`, `"start-level"` (only headlines of the first one's
----level) or `false`.
+---In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands act
+---on every headline of the selection: `true`, `"start-level"` (only
+---headlines of the first one's level) or `false`; a match string acts like
+---`true`, as in Emacs 9.8.
 ---(Emacs `org-loop-over-headlines-in-active-region`, default: `true`)
----@field loop_over_headlines_in_active_region? boolean|"start-level"
+---@field loop_over_headlines_in_active_region? boolean|"start-level"|string
 ---Highest priority letter. (Emacs `org-priority-highest`, default: `"A"`)
 ---@field priority_highest? string
 ---Lowest priority letter. (Emacs `org-priority-lowest`, default: `"C"`)

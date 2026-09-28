@@ -19,6 +19,11 @@
 ---   apply funcall mapcar identity number-sequence not null numberp
 ---   integerp floatp stringp listp consp symbolp zerop string-prefix-p
 ---   string-suffix-p symbol-name princ prin1 print terpri prin1-to-string
+---   string-empty-p string-replace replace-regexp-in-string
+---   format-time-string float-time user-full-name user-login-name
+---   system-name getenv file-name-nondirectory file-name-directory
+---   file-name-extension file-name-sans-extension file-name-base
+---   org-texinfo-kbd-macro
 ---   (and with-output-to-string, for Babel emacs-lisp blocks without Emacs)
 
 local M = {}
@@ -1202,6 +1207,91 @@ end
 F.zerop = function(v)
   return bool(num(v) == 0)
 end
+F["string-empty-p"] = function(s)
+  return bool(str(s) == "")
+end
+F["string-replace"] = function(from, to, s)
+  from, to, s = str(from), str(to), str(s)
+  if from == "" then
+    error("wrong-length-argument")
+  end
+  return (s:gsub(vim.pesc(from), (to:gsub("%%", "%%%%"))))
+end
+F["replace-regexp-in-string"] = function(re, rep, s, _, literal)
+  local pat = regex_to_pattern(str(re))
+  rep = str(rep)
+  return (str(s):gsub(pat, function(whole)
+    if truthy(literal) then
+      return rep
+    end
+    return (rep:gsub("\\([&\\])", function(c)
+      return c == "&" and whole or "\\"
+    end))
+  end))
+end
+
+-- Environment: the functions capture templates and macros use most
+
+--- An Emacs time value (nil = now, seconds, (HIGH LOW [USEC PSEC]), a
+--- float) as UNIX seconds.
+local function time_arg(v)
+  if v == nil then
+    return os.time()
+  elseif is_list(v) then
+    return num(v[1]) * 65536 + num(v[2] or 0)
+  end
+  return math.floor(num(v))
+end
+F["format-time-string"] = function(fmt, time, zone)
+  local t = time_arg(time)
+  if zone == true or zone == 0 or (type(zone) == "string" and (zone == "UTC" or zone == "UTC0")) then
+    -- the UTC fields, formatted as if they were local time (%z is not UTC)
+    t = os.time(os.date("!*t", t))
+  end
+  return require("org.date").format_time_string(str(fmt), t)
+end
+F["float-time"] = function(time)
+  return M.float(time == nil and os.time() or time_arg(time))
+end
+F["user-full-name"] = function()
+  return require("org.capture").user_full_name()
+end
+F["user-login-name"] = function()
+  return vim.env.USER or vim.env.USERNAME or ""
+end
+F["system-name"] = function()
+  return vim.fn.hostname()
+end
+F.getenv = function(name)
+  local v = vim.env[str(name)]
+  return v
+end
+F["file-name-nondirectory"] = function(f)
+  return (str(f):match("[^/]*$"))
+end
+F["file-name-directory"] = function(f)
+  return str(f):match("^(.*/)")
+end
+F["file-name-extension"] = function(f, period)
+  local base = str(f):match("[^/]*$")
+  local ext = base:match("^.+%.([^.]*)$")
+  if truthy(period) then
+    return ext and ("." .. ext) or ""
+  end
+  return ext
+end
+F["file-name-sans-extension"] = function(f)
+  f = str(f)
+  local dir, base = f:match("^(.-)([^/]*)$")
+  return dir .. (base:match("^(.+)%.[^.]*$") or base)
+end
+F["file-name-base"] = function(f)
+  return F["file-name-sans-extension"](F["file-name-nondirectory"](f))
+end
+-- The `kbd` macro of the Org manual: `(eval (org-texinfo-kbd-macro $1))`
+F["org-texinfo-kbd-macro"] = function(key, noquote)
+  return require("org.export.texinfo").kbd_macro(str(key), truthy(noquote))
+end
 
 -- Public API -------------------------------------------------------------
 
@@ -1219,13 +1309,17 @@ function M.looks_like(src)
 end
 
 --- Read and evaluate `src` (one or more forms; the last value is returned).
+--- `bindings` ({ { name, value }, ... }) are variables bound around it.
 --- Raises a Lua error on read or evaluation failure.
-function M.eval(src)
+function M.eval(src, bindings)
   local forms = read_all(src)
   if #forms == 0 then
     error("end-of-file during parsing")
   end
   local env, res = new_env(nil), nil
+  for _, b in ipairs(bindings or {}) do
+    bind(env, b[1], b[2])
+  end
   for _, f in ipairs(forms) do
     res = eval(f[1], env)
   end

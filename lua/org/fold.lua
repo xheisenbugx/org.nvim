@@ -730,6 +730,9 @@ function M.cycle()
     end
   end
   if not parser.headline_level(line) then
+    if line:match("^[ \t]*[|+]") and require("org.table.el").at(bufnr, lnum) then
+      return require("org.table.el").hint()
+    end
     if config.opts.cycle_include_plain_lists ~= false then
       local item = require("org.lists").item_on(bufnr, lnum)
       if item then

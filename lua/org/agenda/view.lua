@@ -39,6 +39,7 @@ local function new_state()
     inactive = false,
     time_grid_off = false,
     no_deadlines = false,
+    include_diary = nil, -- nil = agenda.include_diary (`D` toggles it)
     dim_blocked = true, -- true | false | "invisible"
     filters = empty_filters(),
     limits = {},
@@ -481,6 +482,7 @@ function M.build(width)
     inactive = S.inactive,
     time_grid_off = S.time_grid_off,
     no_deadlines = S.no_deadlines,
+    include_diary = S.include_diary,
     dim_blocked = S.dim_blocked,
     restrict = S.restrict and { range = S.restrict.range } or nil,
     filter = item_filter(),
@@ -853,6 +855,7 @@ function M.open(view, opts)
     S.inactive = false
     S.time_grid_off = false
     S.no_deadlines = false
+    S.include_diary = nil
     S.dim_blocked = acfg.dim_blocked_tasks
     if S.dim_blocked == nil then
       S.dim_blocked = true
@@ -991,6 +994,11 @@ end
 ---@return org.Target|nil
 function M.resolve_target(item)
   local bufnr
+  if item.type == "diary" and not item.filename then
+    -- a holiday line of the diary (org-agenda-error)
+    utils.error("Command not allowed in this line")
+    return nil
+  end
   if item.filename then
     bufnr = utils.find_buffer(item.filename)
     if not bufnr then
@@ -1140,7 +1148,11 @@ local function on_item(fn)
       utils.warn("No agenda entry on this line")
       return
     end
-    if not item.headline then
+    if item.type == "diary" then
+      -- org-agenda-check-no-diary
+      utils.error("Command not allowed in this line")
+      return
+    elseif not item.headline then
       -- a %%(sexp) line before the first heading (Emacs: org-back-to-heading)
       utils.error("Before first headline at line " .. item.lnum)
       return
@@ -2480,6 +2492,15 @@ M.actions = {
     S.no_deadlines = not S.no_deadlines
     M.redo()
     utils.notify("Deadlines " .. (S.no_deadlines and "hidden" or "shown"))
+  end,
+  toggle_diary = function()
+    local on = S.include_diary
+    if on == nil then
+      on = config.opts.agenda.include_diary
+    end
+    S.include_diary = not on
+    M.redo()
+    utils.notify("Diary inclusion turned " .. (S.include_diary and "on" or "off"))
   end,
   dim_blocked = function()
     S.dim_blocked = not S.dim_blocked

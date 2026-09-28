@@ -72,6 +72,7 @@ local function insert(active)
     default = default,
     prompt = active and "Timestamp" or "Inactive timestamp",
     with_time = with_time,
+    inactive = not active,
   })
   if not picked or picked.remove then
     return nil
@@ -617,7 +618,11 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
   end
   local note
   if setting == "note" then
-    note = utils.input_note({ prompt = "Note: ", purpose = new and "rescheduling" or "removing the date" })
+    note = utils.input_note({ prompt = "Note: ", purpose = edit.note_purpose(purpose) })
+    if note == nil then
+      -- cancelled (C-c C-k): nothing is logged (org-note-abort)
+      return
+    end
   end
   edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old))
 end

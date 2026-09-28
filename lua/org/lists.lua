@@ -654,37 +654,13 @@ local function count_checkboxes(items, recursive)
   return done, total
 end
 
---- Counts for a headline cookie.
-local function headline_counts(file, hl)
+--- Done and total counts of the child entries of `hl` that a TODO
+--- statistics cookie counts (org-provide-todo-statistics).
+---@return integer done, integer total
+function M.todo_counts(file, hl)
   local cookie_data = (hl.properties.COOKIE_DATA or ""):lower()
   local cfg = require("org.config").opts
   local recursive = cookie_data:find("recursive") ~= nil or cfg.hierarchical_todo_statistics == false
-  local mode
-  if cookie_data:find("todo") then
-    mode = "todo"
-  elseif cookie_data:find("checkbox") then
-    mode = "checkbox"
-  end
-  local lists = M.parse_region(file.lines, hl.line + 1, hl.body_end)
-  if not mode then
-    local d, t = 0, 0
-    for _, l in ipairs(lists) do
-      local a, b = count_checkboxes(l.items, recursive)
-      d, t = d + a, t + b
-    end
-    if t > 0 then
-      return d, t
-    end
-    mode = "todo"
-  end
-  if mode == "checkbox" then
-    local d, t = 0, 0
-    for _, l in ipairs(lists) do
-      local a, b = count_checkboxes(l.items, recursive)
-      d, t = d + a, t + b
-    end
-    return d, t
-  end
   -- which headlines count (org-provide-todo-statistics): true = TODO
   -- keywords, "all-headlines", a list of keywords (plus done keywords) or
   -- { todo keywords, done keywords }
@@ -718,6 +694,40 @@ local function headline_counts(file, hl)
   end
   walk(hl.children)
   return done, total
+end
+
+--- Counts for a headline cookie.
+local function headline_counts(file, hl)
+  local cookie_data = (hl.properties.COOKIE_DATA or ""):lower()
+  local cfg = require("org.config").opts
+  local recursive = cookie_data:find("recursive") ~= nil or cfg.hierarchical_todo_statistics == false
+  local mode
+  if cookie_data:find("todo") then
+    mode = "todo"
+  elseif cookie_data:find("checkbox") then
+    mode = "checkbox"
+  end
+  local lists = M.parse_region(file.lines, hl.line + 1, hl.body_end)
+  if not mode then
+    local d, t = 0, 0
+    for _, l in ipairs(lists) do
+      local a, b = count_checkboxes(l.items, recursive)
+      d, t = d + a, t + b
+    end
+    if t > 0 then
+      return d, t
+    end
+    mode = "todo"
+  end
+  if mode == "checkbox" then
+    local d, t = 0, 0
+    for _, l in ipairs(lists) do
+      local a, b = count_checkboxes(l.items, recursive)
+      d, t = d + a, t + b
+    end
+    return d, t
+  end
+  return M.todo_counts(file, hl)
 end
 
 --- Update cookies in list items of lines[from..to] and in headline `hl`.
@@ -890,13 +900,27 @@ function M.toggle_radio_button(arg)
   M.update_statistics_for(bufnr, lnum)
 end
 
+--- Toggle org-list-checkbox-radio-mode in the current buffer: C-c C-c on
+--- an item then toggles it like a radio button in every list, as if each
+--- had `#+attr_org: :radio t`. Returns whether the mode is now on.
+function M.checkbox_radio_mode()
+  if not utils.is_org() then
+    utils.error("Cannot turn this mode outside org-mode buffers")
+    return nil
+  end
+  local on = not vim.b.org_checkbox_radio_mode
+  vim.b.org_checkbox_radio_mode = on
+  utils.notify("Org-List-Checkbox-Radio mode " .. (on and "enabled" or "disabled") .. " in current buffer")
+  return on
+end
+
 --- C-c C-c on an item (org-ctrl-c-ctrl-c): toggle its checkbox and
 --- repair the list. `arg` 4 (C-u) adds or removes the checkbox, 16 (C-u
 --- C-u) sets it to `[-]`. A parent checkbox follows its children, so
 --- toggling it is refused. On an item without a checkbox, just repair.
 function M.ctrl_c_ctrl_c_item(item, arg)
   local bufnr = vim.api.nvim_get_current_buf()
-  if M.radio_list_p(bufnr, item) then
+  if M.radio_list_p(bufnr, item) or vim.b[bufnr].org_checkbox_radio_mode then
     return M.toggle_radio_button(arg)
   end
   local struct, it = M.struct_at(bufnr, item.lnum)

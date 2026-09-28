@@ -492,8 +492,14 @@ function M.meta_return_heading(opts)
   })
   if opts.todo then
     local row = cursor()[1]
-    add_todo_keyword(bufnr, todo_for_new_heading(bufnr, row, opts.arg))
+    local todo = require("org.todo")
+    local kw = todo.default_state(todo_for_new_heading(bufnr, row, opts.arg), nil)
+    add_todo_keyword(bufnr, kw ~= "" and kw or nil)
     require("org.lists").update_statistics_for(bufnr, cursor()[1])
+    local hl = files.get_buffer(bufnr):headline_on(cursor()[1])
+    if hl then
+      todo.run_statistics_hooks(bufnr, hl)
+    end
   end
 end
 

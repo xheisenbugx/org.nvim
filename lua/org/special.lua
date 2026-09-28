@@ -489,6 +489,10 @@ function M.edit_element(bufnr, lnum)
     })
     return
   end
+  -- table.el table (org-edit-table.el)
+  if line:match("^[ \t]*[|+]") and require("org.table.el").bounds(lines, lnum) then
+    return require("org.table.el").edit(bufnr, lnum)
+  end
   -- fixed-width area
   local function fixed(l)
     return l and (l:match("^[ \t]*: ") or l:match("^[ \t]*:$"))

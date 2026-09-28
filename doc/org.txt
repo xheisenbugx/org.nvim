@@ -482,6 +482,10 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 <C-c><C-x><C-r> Toggle a radio button: check this item, uncheck its
                 siblings (org-toggle-radio-button). In a list preceded by
                 `#+attr_org: :radio t`, <C-c><C-c> and <C-Space> do this.
+:Org checkbox_radio_mode  Toggle org-list-checkbox-radio-mode in the
+                buffer: <C-c><C-c> on an item then toggles it like a radio
+                button in every list (<C-c><C-x><C-b> still toggles one
+                checkbox, as in Emacs).
 <S-Up/Down>     (ctx) On an item: previous / next item of the same level
                 (org-previous-item / org-next-item).
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
@@ -526,7 +530,11 @@ the drawer named by the inherited
 entries come from `log_note_headings` (org-log-note-headings). Notes are
 typed in a small `*Org Note*` split, like Emacs: <C-c><C-c> stores the note
 (lines starting with "# " are dropped), <C-c><C-k> cancels it
-(`note_buffer = false` asks with a one-line prompt instead).
+(`note_buffer = false` asks with a one-line prompt instead). This holds for
+every note: state changes, rescheduling, `add_note` (<C-c><C-z>, and `z` in
+the agenda), clock-out notes (`log_note_clock_out`, stored right below the
+CLOCK line with the "clock-out" heading) and refile notes (`refile.log =
+"note"`); a cancelled note stores nothing.
 
 cit / ciT       Next / previous TODO state.
 <S-Right/Left>  (ctx) Same, on a headline. Like Emacs, this walks every
@@ -552,10 +560,13 @@ cit / ciT       Next / previous TODO state.
                 (C-- 1 C-c C-t, org-cancel-repeaters).
 
                                                      *org-loop-over-headlines*
-In Visual mode, <C-c><C-t>, <C-c><C-s> and <C-c><C-d> act on every headline
-of the selection, skipping headlines hidden in closed folds
-(`loop_over_headlines_in_active_region`: true, false or "start-level" for
-only the headlines at the level of the first one).
+In Visual mode, <C-c><C-t>, <C-c><C-s>, <C-c><C-d> and the archiving
+commands (<C-c>$, <C-c><C-x>a, <C-c><C-x>A) act on every headline of the
+selection, skipping headlines hidden in closed folds
+(`loop_over_headlines_in_active_region`: true, false, or "start-level" for
+only the headlines at the level of the first one; a match string acts like
+true, as in Emacs 9.8, whose commands pass nil as the match). Archiving a subtree takes its children with it, and
+archiving to the sibling skips entries already archived.
 
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
 going back to a TODO state removes it. Like Emacs, CLOSED is only touched
@@ -593,6 +604,22 @@ chosen), `done` and `repeated`: >lua
 `todo_blockers` is a list of functions (org-blocker-hook); each receives
 `{ type = "todo-state-change", from, to, bufnr, lnum }` and blocks the
 change by returning `false`.
+
+`todo_get_default_hooks` (org-todo-get-default-hook) are functions
+`(new, old)`: the first one returning a string picks the state the change
+really goes to ("" removes the keyword); M-S-RET asks them for the new
+heading's keyword with `old` nil.
+After a state change that updates TODO statistics,
+`after_todo_statistics_hooks` (org-after-todo-statistics-hook) are called
+as `fn(n_done, n_not_done, target)` for each ancestor whose statistics
+cookie is updated (`target` = `{ bufnr, lnum }` of the ancestor), then
+`todo_statistics_hooks` (org-todo-statistics-hook) as `fn(target)` with the
+changed entry, even without a cookie. Emacs's org-summary-todo: >lua
+    after_todo_statistics_hooks = { function(n_done, n_not_done, target)
+      require("org.todo").change_state(target, n_not_done == 0 and "DONE" or "TODO",
+        { no_log = true })
+    end },
+<
 
 Repeated tasks                                            *org-repeat*
 A SCHEDULED or DEADLINE timestamp with a repeater (`+1w`, `++1d`, `.+2d`)
@@ -784,7 +811,11 @@ and `global_properties` set values for the whole file, in that order.
                 The keys below act on the headline and column under the
                 cursor, and keep their usual meaning on other lines;
                 leaving the window or `q` restores the buffer, its
-                mappings and the window options. Rows follow edits of the
+                mappings and the window options. Like Emacs, the headline
+                lines are read-only while the view is on: on a column
+                row the keys that change text (i A O x d D S J ~ . ...)
+                and entering Insert mode only say "Text is read-only:
+                Type ‘e’ to edit property"; the view's own keys edit. Rows follow edits of the
                 text; `r` recomputes. With `columns_view = "table"` the
                 view is a table in a split instead (with <CR> to jump to
                 the headline). Groups: OrgColumn, OrgColumnTitle.
@@ -810,6 +841,10 @@ and `global_properties` set values for the whole file, in that order.
                   <C-c><C-o>      open the link in the field
                   c / o           contents / overview visibility
                                   (overlay view)
+                  h l  w b        previous / next column (also <Left>
+                                  <Right> <BS> <Space> <M-b> <M-f>),
+                                  `$` the last one (overlay view: Emacs
+                                  gives each column one character)
                   v view value, r / g refresh, q quit (<CR> jumps to the
                   headline in the table view).
                 Format changes are saved to the COLUMNS property or the
@@ -877,7 +912,11 @@ around the title) as six weeks with ISO week numbers, so the days of the
 neighbouring months fill the grid, dimmed. Weekends are tinted, today is
 underlined and the selected day is highlighted. Below the grid are the
 selected date in full, its timestamp and its distance from today ("in 3
-days", "yesterday"), then the keys:
+days", "yesterday"), then the keys. With `display_custom_times = true` the
+timestamp is shown in `time_stamp_custom_formats` (`<09/27/26 Sun>`, `[...]`
+for an inactive timestamp), like the Emacs "=> ..." preview; as in Emacs,
+a buffer's own toggle or `#+STARTUP: customtime` doesn't change it.
+The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
@@ -1122,6 +1161,8 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   date.
 - Diary sexps, `<%%(...)>` timestamps and `%%(...)` lines
   (|org-agenda-diary-sexp|), including holidays (|org-agenda-holidays|).
+- With `agenda.include_diary`, the entries of the Emacs diary file
+  (|org-agenda-diary-file|).
 - Habits (`:STYLE: habit` and a repeater) in today's agenda, without a
   leader, with a consistency graph from column
   `agenda.habits.graph_column` (40) that overwrites the end of the line
@@ -1249,6 +1290,8 @@ All configurable under `mappings.agenda`:
                   entry (`agenda.entry_text_maxlines`) (also vE)
   G               toggle the time grid (also vG)
   !               show / hide deadlines (also v!)
+  D               include / leave out the Emacs diary file
+                  (|org-agenda-diary-file|)
   #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
@@ -1543,6 +1586,10 @@ with the same results as Emacs:
   diary-astro-day-number  diary-french-date  diary-mayan-date
   diary-coptic-date  diary-ethiopic-date  diary-persian-date
   diary-day-of-year  diary-lunar-phases  diary-sunrise-sunset
+  diary-hebrew-birthday M D Y [AFTER-SUNSET]
+  diary-hebrew-yahrzeit M D Y [MARK AFTER-SUNSET]
+  diary-hebrew-omer  diary-hebrew-parasha  diary-hebrew-rosh-hodesh
+  diary-hebrew-sabbath-candles  diary-chinese-anniversary M D [Y]
   and  or  not  list  quote
 
 Sexps can also combine these with a side-effect-free subset of Emacs
@@ -1568,10 +1615,19 @@ A string result replaces the entry text (the first example shows
 other non-nil value shows the text after the sexp. There are no loops,
 `lambda` or assignments, so every sexp finishes and changes nothing.
 
-The `diary-*` functions take their arguments in Emacs's default
-`calendar-date-style` order (american: month day year). The `org-*`
-variants use ISO order (year month day). In `diary-date`/`org-date`, `t`
-matches any value and a list `'(1 2)` matches any of its elements. In
+A sexp beyond this subset (other Lisp functions, `cl-*`, ...) is evaluated
+in a separate `emacs --batch` when there is one (`babel.emacs_lisp`), like
+org-diary-sexp-entry: `(let ((entry ENTRY) (date '(M D Y))) SEXP)` with
+Org and diary-lib loaded. One Emacs runs per sexp and agenda span (all the
+days at once, under half a second), and the results are kept for the
+session. Without Emacs the entry is skipped with a message.
+
+The `diary-*` functions take their arguments in the order of
+`agenda.calendar_date_style` (calendar-date-style): "american" (month day
+year, the default), "european" (day month year) or "iso" (year month
+day). The `org-*` variants always use ISO order (year month day). In
+`diary-date`/`org-date`, `t` matches any value and a list `'(1 2)`
+matches any of its elements. In
 `diary-float`, MONTH may be `t` or a list, DAYNAME is 0 (Sunday) to 6,
 and a negative N counts from the end of the month. The entry text of
 anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
@@ -1579,8 +1635,9 @@ anniversaries and cycles may contain `%d` (years or repetitions) and `%s`
 agenda lines.
 
 `diary-remind` shows the entry of a quoted SEXP on its day and "Reminder:
-Only N days until ENTRY" DAYS days before (DAYS may be a list, or -N for
-1 to N days); MARKING only matters for the Emacs calendar and is ignored.
+Only N days until ENTRY" DAYS days before ("2 weeks" for whole weeks;
+DAYS may be a list, or -N for 1 to N days); MARKING only matters for the
+Emacs calendar and is ignored.
 `diary-offset` shows SEXP's entry DAYS days later (earlier when negative):
 >org
     * Taxes
@@ -1589,11 +1646,31 @@ Only N days until ENTRY" DAYS days before (DAYS may be a list, or -N for
     %%(diary-offset '(diary-float t 4 -1) 1) Retro, the day after
 <
 The `diary-*-date` functions show the day in another calendar, e.g.
-"Hebrew date (until sunset): Tishri 16, 5787", like Emacs.
-`diary-lunar-phases` shows the phases of the moon and
-`diary-sunrise-sunset` sunrise and sunset at `agenda.calendar_latitude`
-and `agenda.calendar_longitude` (|org-agenda-calendar-keys|; without
-them the sexp is skipped with a message), in the system time zone.
+"Hebrew date (until sunset): Tishri 16, 5787", like Emacs (in the date
+form of `agenda.calendar_date_style`: "16 Tishri 5787" in european style,
+"5787-07-16" in iso style). `diary-lunar-phases` shows the phases of the
+moon and `diary-sunrise-sunset` sunrise and sunset at
+`agenda.calendar_latitude` and `agenda.calendar_longitude`
+(|org-agenda-calendar-keys|; without them the sexp is skipped with a
+message), in the system time zone.
+
+The entries of the Hebrew calendar are Emacs's (cal-hebrew.el):
+`diary-hebrew-birthday` ("Joe's 13th Hebrew birthday", and " (evening)"
+the day before; the entry text is the name) and `diary-hebrew-yahrzeit`
+("Yahrzeit of Joe: 5th anniversary") take the civil date of birth or
+death, the day after with AFTER-SUNSET; `diary-hebrew-omer` counts the
+Omer, `diary-hebrew-parasha` names the weekly parasha on Saturdays (with
+the Israel and diaspora readings when they differ),
+`diary-hebrew-rosh-hodesh` shows Rosh Hodesh, Erev Rosh Hodesh and
+Shabbat Mevarchim, and `diary-hebrew-sabbath-candles` the candle lighting
+time on Fridays, `agenda.hebrew_sabbath_candles_minutes` (18) before
+sunset at the calendar location. `diary-chinese-anniversary` is
+`diary-anniversary` for a date of the Chinese calendar, with the year
+written CYCLE * 100 + YEAR (7843 for year 43 of cycle 78):
+>org
+    %%(diary-hebrew-yahrzeit 11 25 1990) Grandpa
+    %%(diary-chinese-anniversary 8 15 7840) Moon cake %d%s
+<
 
 Like Emacs, `%%(...)` lines are found in the whole file: lines before the
 first heading give entries with the file's category and FILETAGS. They
@@ -1688,21 +1765,91 @@ sunset need a location:
 When they are unset, `S` asks for them (Emacs's solar-setup) and keeps
 the answers for the session. Times use the system time zone and its
 daylight saving rules, like Emacs's calendar-time-zone. The strings are
-Emacs's (american `calendar-date-display-form`); `calendar-date-style`,
-`lunar-phase-names` and `calendar-time-display-form` are not configurable.
+Emacs's, with the default `calendar-date-display-form` of
+`agenda.calendar_date_style` (american "Sunday, September 27, 2026",
+european "Sunday, 27 September 2026", iso "2026-09-27");
+`calendar-date-display-form` itself, `lunar-phase-names` and
+`calendar-time-display-form` are not configurable.
+
+The Emacs diary file                                *org-agenda-diary-file*
+
+With `agenda.include_diary` (org-agenda-include-diary), or after `D` in
+the agenda, each day of a date agenda also lists the entries of the Emacs
+diary file for that day, with category "Diary", like Emacs:
+>lua
+    agenda = {
+      include_diary = true,
+      diary_file = "~/.emacs.d/diary",  -- default: ~/diary if it exists,
+                                        -- else the Emacs user directory's
+      calendar_date_style = "american", -- "european", "iso"
+      diary_show_holidays = true,       -- diary-show-holidays-flag
+      diary_include_files = false,      -- read #include "FILE" lines
+      diary_nongregorian = {},          -- "hebrew", "islamic", "bahai",
+                                        -- "chinese" (H, I, B, C entries)
+    }
+<
+The file is read the way Emacs's `diary-list-entries` reads it: an entry
+starts at the beginning of a line with a date in one of the forms of
+`calendar_date_style` (diary-date-forms), followed by its text; indented
+lines below continue it:
+>
+    9/27 Weekly review            MONTH/DAY
+    9/27/2026 Dentist 10:30       MONTH/DAY/YEAR (or a two-digit year)
+    Sep 27 Birthday               MONTHNAME DAY (full or three letters,
+    September 27, 2026 Party        with or without a period)
+                                  MONTHNAME DAY, YEAR
+    Tuesday 10am Meeting          DAYNAME (full or abbreviated): weekly
+    * 15 Pay day                  `*` matches any day, month or year
+    &10/3 Not marked              the `&` (non-marking) prefix
+    10/4                          a date alone: the indented lines are
+      Trip to Boston                the entry
+      2pm Meeting
+    %%(diary-float t 4 -1) Last Thursday   a sexp entry
+<
+European style reads DAY/MONTH, DAY/MONTH/YEAR, DAY MONTHNAME and DAY
+MONTHNAME YEAR; iso style MONTH/DAY, YEAR-MONTH-DAY (or /), MONTHNAME DAY
+and YEAR MONTHNAME DAY. The diary `%%(...)` sexps use the same functions
+as Org's, evaluated with `date` and `entry` bound.
+
+The agenda lines are Emacs's: the day's holidays (`agenda.holidays`,
+unless `diary_show_holidays` is false) come first, then the sexp entries,
+then the dated entries (one date form after the other), the entries of
+other calendars and the included files; the lines of an entry are joined
+with "; " except the lines starting with a time, which become entries of
+their own. A time at the start of a line ("10:30", "2pm", "8:30-9:15")
+goes to the time column and the time grid; face attributes such as
+`[foreground:red]` are removed. `D` toggles the diary for the current
+agenda (org-agenda-toggle-diary); a block of `agenda.custom_commands`
+can set `include_diary` too. <Tab> and <CR> on a diary line jump to the
+line of the diary file (the last line of the entry, like Emacs); the
+commands that change an Org entry (`t`, `s`, `:`, ...) report "Command
+not allowed in this line", as do jumps from a holiday line.
+
+With `diary_include_files`, `#include "FILE"` lines (relative to the
+diary file's directory) add the entries of other diary files, recursively
+(Emacs: diary-include-other-diary-files in diary-list-entries-hook). With
+`diary_nongregorian`, entries prefixed with H, I, B or C are dates of the
+Hebrew, Islamic, Bahá’í or Chinese calendar, in the same forms with that
+calendar's month names (not abbreviated): `HTishri 16 Sukkot`,
+`IRamadan 1 Fast`, `C8/15 Mid-autumn` (diary-nongregorian-listing-hook).
+Differences: customized `diary-date-forms`, `diary-comment-start`,
+`diary-list-include-blanks` and `diary-face-attrs` are not supported, the
+`i` key (insert a diary entry) is not available, and a missing or
+recursive include is skipped with a message (Emacs stops with an error).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
-- Emacs Lisp beyond the subset above (loops, `lambda`, `defun`,
-  assignments, other libraries), the anniversaries and other entries of
-  other calendars (`diary-hebrew-birthday`, `diary-chinese-anniversary`,
-  `diary-hebrew-yahrzeit`, ...) and the `holidays` argument of
-  `org-class`: they need Emacs's Lisp evaluator and diary library. An
-  unsupported sexp is skipped with a message (once per session).
-  Holidays are supported (|org-agenda-holidays|).
-- The Emacs diary file (org-agenda-include-diary) and the agenda keys
-  that use it (`i` insert a diary entry, `D` toggle the diary): the diary
-  is an Emacs file format and machinery with no Neovim counterpart.
+- Without an Emacs executable, Emacs Lisp beyond the subset above
+  (loops, `lambda`, `defun`, assignments, other libraries) and the
+  `holidays` argument of `org-class`: an unsupported sexp is skipped with
+  a message (once per session). With one, they run in a separate Emacs
+  that has none of your session's state (variables, functions you
+  defined; `calendar-date-style` is set from `agenda.calendar_date_style`) unless `babel.emacs_lisp.args` loads it. Holidays
+  (|org-agenda-holidays|) and the entries of other calendars
+  (|org-agenda-diary-sexp|) are supported.
+- The agenda key `i` (insert an entry into the diary file,
+  org-agenda-diary-entry). The diary file itself is read
+  (|org-agenda-diary-file|).
 - `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
   indirect buffers or narrowing; <Tab> opens the entry instead.
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
@@ -1918,11 +2065,24 @@ Template expansions:                               *org-capture-expansions*
   %:keyword    link information: %:link, %:description, %:annotation,
                %:initial, %:type
   %[file]      the contents of a file
-  %(expr)      the value of a Lua expression, e.g. %(os.getenv("HOST"))
-               (Emacs: an elisp sexp)
+  %(sexp)      an Emacs Lisp form, e.g. %(format-time-string "%Y"),
+               %(upcase "%i"); or a Lua expression, %(os.getenv("HOST"))
 Like Emacs, `%%` is not an escape: write `\%` for a literal "%" before an
 expansion character (`\%t`). Leading blank lines and trailing whitespace of
 the expanded text are removed.
+
+`%(sexp)` is evaluated like Emacs's org-capture-expand-embedded-elisp,
+after the other escapes (inside it, `%i`, `%:subject`, ... are quoted for a
+Lisp string): a string result is inserted, nil inserts nothing and an
+error inserts `%![Error: (void-function f)]`. It runs on the Lisp
+interpreter of table formulas (|org-table-calc|, which also knows
+`format-time-string`, `user-full-name`, `getenv`, `file-name-*`,
+`string-replace` and `replace-regexp-in-string`) and, for other functions,
+in a separate `emacs --batch` with Org loaded (`babel.emacs_lisp`; nothing
+of your Emacs session exists there, and it cannot prompt: no
+`org-read-date`). A form whose first word is not a Lisp function the
+interpreter knows but that compiles as Lua is a Lua expression (the older
+org.nvim syntax); Lisp is tried when the Lua fails.
 
 Capture window: `<C-c><C-c>` or `:w` finalizes (with a count, C-u C-c C-c,
 it then jumps to the entry), `<C-c><C-k>` aborts (unchanged text created
@@ -2065,13 +2225,18 @@ when there is one). Retrieval is synchronous, like Emacs.
                 sequence of subtrees. The subtree keeps its blank lines and
                 goes after the target's own blank lines, like Emacs. A
                 count works like Emacs's prefix argument: 4 (C-u) jumps to
-                a target, 16 (C-u C-u) to the last refiled entry, 2 refiles
-                under the running clock and 3 copies (org-refile-keep).
+                a target, 16 (C-u C-u) to the last refiled entry, 64
+                (C-u C-u C-u) clears the target cache (`refile.use_cache`),
+                2 refiles under the running clock and 3 copies
+                (org-refile-keep). With `refile.log = "note"`, the note is
+                typed in the `*Org Note*` buffer (`note_buffer`).
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
 :Org refile_goto_last  Jump to where the last refile or capture went
                        (C-u C-u C-c C-w).
+:Org refile_cache_clear  Clear the refile target cache
+                       (C-u C-u C-u C-c C-w).
 
 By default the targets are the level-1 headlines of the current buffer,
 shown by their heading (Emacs's org-refile-targets nil). Refile options:
@@ -2112,6 +2277,12 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
                       to the entry's logbook (org-log-refile); a region
                       only gets time stamps
   reverse_note_order  refile as the first child (org-reverse-note-order)
+  use_cache           keep the targets between refiles
+                      (org-refile-use-cache): new headlines are not
+                      offered until the cache is cleared with a count of
+                      64 (C-u C-u C-u C-c C-w) or `:Org refile_cache_clear`;
+                      a cached target that moved is found again by its
+                      heading, one that is gone is an error
 
 <prefix>$       Archive the subtree. The location comes from the ARCHIVE
                 property, then `#+ARCHIVE:`, then `archive_location`
@@ -2176,6 +2347,10 @@ Targets:
   doi:10.1000/x                       `links.doi_server_url` + path
   file:path  ./rel  ~/p  /abs          open a file; add a search option:
       ::42  ::*Heading  ::#custom-id  ::(coderef)  ::/regexp/  ::some text
+  file:notes/*.org                    a wildcard (`*?{`) in the file name
+                                      lists the matching files (Emacs
+                                      opens Dired); <CR> opens the file on
+                                      the line, `q` closes the list
   file+sys:path  file+emacs:path      system application / always Neovim
   id:UUID  id:UUID::search            headline with that ID (the search
                                       runs inside its subtree)
@@ -2183,16 +2358,24 @@ Targets:
   *Heading                            headline in the current file
   (label)                             coderef in a src/example block
   <<target>>  text                    dedicated target, `#+NAME`, headline
-  shell:cmd                           run in a terminal in the file's
-                                      directory (asks first)
-  elisp:(sexp)                        evaluate in a separate Emacs, show
-                                      the value (asks first, see below)
+  shell:cmd                           run in the file's directory (asks
+                                      first); the output goes to a new
+                                      `*Org Shell Output*` buffer, shown
+                                      unless it is one line (then echoed);
+                                      `cmd &` shows it at once and streams;
+                                      `links.shell_output = "terminal"`
+                                      runs it in a terminal instead
+  elisp:(sexp)  elisp:command         evaluate in a separate Emacs, show
+                                      the value (asks first); a command
+                                      is called interactively there
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
   info:emacs#Top                      the `info` program in a terminal
   attachment:name                     file in the entry's attachment dir
   abbrev:tag  abbrev::tag  abbrev     `#+LINK:` or `links.abbreviations`
-                                      (`%s` = tag, `%h` = url-encoded)
+                                      (`%s` = tag, `%h` = url-encoded,
+                                      `%(fn)` = (fn tag) in Emacs, or a
+                                      Lua function(tag) as the value)
   custom:path                         `links.types` (see below)
 
 Searches (org-link-search) ignore case and runs of whitespace (a text
@@ -2208,6 +2391,14 @@ link itself. `*Heading` searches never fall back to text. `::/regexp/`
 takes an Emacs regexp: in Org files it shows a sparse tree
 (|org-sparse-tree|), elsewhere a location list (like `occur`); common
 Emacs syntax is translated to Vim regexps, see |org-differences|.
+
+An abbreviation such as `#+LINK: ex %(my-function)` calls the Emacs
+function with the tag in a separate `emacs --batch` (`babel.emacs_lisp`;
+load the function with its `args`, e.g. `{ "-Q", "--batch", "-l",
+"~/my-links.el" }`). Like Emacs, only functions whose `org-link-abbrev-safe`
+(or `pure`) property is t are called; another function, or one that does
+not return a string, gives a warning and the link is left as written.
+Results are kept for the session.
 
 <CR>, gx, <prefix>o  Open the link, footnote or date at the cursor.
 <C-c><C-o>      The same. On the tags of a headline, show a tags agenda for
@@ -2293,7 +2484,14 @@ function (follow) or a table: >lua
 description. `links.search_functions` run first on search options and
 `links.translation_function(type, path)` rewrites links before they open.
 
-IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
+IDs are stored in `id.locations_file`: JSON by default, or Emacs's
+org-id-locations format (an alist `(("~/org/a.org" "id1" "id2") ...)`),
+detected from the file's contents (a new file is JSON when its name ends
+in `.json`) or forced with `id.locations_format` ("json" or "emacs"). Set
+`id.locations_file = "~/.emacs.d/.org-id-locations"` to share the
+database with Emacs; file names are written with `~` like Emacs, or
+relative to the database with `id.locations_file_relative`
+(org-id-locations-file-relative). `:Org id_update_locations` rebuilds
 it from the agenda files, their archive files (`id.search_archives`,
 default true), `id.extra_files`, the loaded org buffers and the files
 already known; an ID that is not where the database says triggers the same
@@ -2303,6 +2501,10 @@ stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
 Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
+Before the first heading the ID goes into a file-level property drawer at
+the top of the file (after leading `#` comments, before `#+TITLE`), like
+Emacs 9.8; the link is described by the #+TITLE or the file name, and
+from a later line it gets that line as search string (`id:ID::text`).
 `id:` links get a search string for a named element or a selection below
 the heading (`id:ID::tbl1`, `id.link_use_context`); with
 `id.link_consider_parent_id`, a heading without an ID is linked through
@@ -2595,8 +2797,16 @@ formula is evaluated, so:
   multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
   Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`),
-  fractions `3:4` (`F` flag), vectors `[1, 2]` (`|` concatenates, `*` of
-  two vectors is the dot product).
+  fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
+  `4 mod 7`, `makemod(10, 7)`).
+- Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
+  4]]`. `+ -` work elementwise, a number scales, `*` is the matrix product
+  (of two plain vectors the dot product), `^` a matrix power (`^-1` the
+  inverse), `/` by a square matrix solves, `|` concatenates. Functions:
+  trn det inv tr cross head tail rhead rtail cons rcons append vconcat rev
+  sort rsort rdup index cvec idn diag arrange vflat find subvec mrow mcol
+  getdiag rnorm cnorm abs (the length) vlen vcov vpcov vcorr map reduce.
+  A range `$1..$3` is a vector, so `[$1..$3]` is a one-row matrix.
 - Dates: `<2024-01-10 Wed>` (also `[...]` fields) is a date; subtracting
   two gives days (`$2-$1`), adding a number gives a date (written as an
   inactive timestamp), `date(<...>)` gives the day number.
@@ -2613,16 +2823,28 @@ formula is evaluated, so:
   term), `usimplify(1 in / 1 cm)` is 2.54, `usimplify(3 m * 2 m / 4 s)`
   is `1.5 m^2 / s`, for common units (m, in, ft, yd, mi, nmi, g, lb, oz,
   t, s, min, hr, day, wk, yr, Hz, l, gal, qt, pt, cup, ha, acre, mph,
-  kph, knot, N, lbf, J, cal, Wh, eV, W, hp, Pa, bar, atm, psi, A, V,
-  ohm, ...) with SI prefixes (km, mA, kWh). Elsewhere units are plain
-  symbols, as in Calc (`3 m + 20 cm` stays).
-- Text stays symbolic: `$1*2` on `x` gives `2 x`, `sqrt(x)` stays,
-  `if($1>3, big, small)` returns `big`/`small`; `pi` and `e` stay
-  symbols (`evalv(pi)` is 3.1415927). With `N` a non-numeric result is
-  #ERROR.
+  kph, knot, N, lbf, J, cal, Btu, Wh, eV, W, hp, Pa, bar, atm, Torr,
+  psi, A, V, ohm, S, F, T, Wb, mol, ...) with SI prefixes (km, mA, kWh),
+  and temperature differences (K, degC, degF: `usimplify(1 K + 1 degC)`
+  is `2 K`). As in Calc, `usimplify` is the only unit function of
+  formulas (Calc's unit conversion is a keyboard command), and elsewhere
+  units are plain symbols (`3 m + 20 cm` stays).
+- Formulas with variables are Calc's symbolic algebra: text stays symbolic
+  and is normalized like Calc (`$1*2` on `x` gives `2 x`, `x*y/x` is `y`,
+  `(x+1)*2` is `2 x + 2`); `if($1>3, big, small)` returns `big`/`small`;
+  `pi` and `e` stay symbols (`evalv(pi)` is 3.1415927); `a = b` is an
+  equation. simplify(x*y - y*x) is 0, expand((x+1)^2) is
+  `x^2 + 2 x + 1`, collect(a x + b x, x) is `(a + b) x`, subst(x^2, x, 3)
+  is `3^2`, deriv(x^2, x) is `2 x` (trig derivatives in degrees:
+  `cos(x) pi / 180`), integ(x^2, x) is `x^3 / 3` (also definite:
+  integ(x^2, x, 0, 1)), solve(x^2 - 4 = 0, x) is `x = 2` (one solution,
+  like Calc; linear to quartic polynomials, inverse functions,
+  inequalities: solve(x + 1 < 3, x) is `x < 2`), nroot(x, 3) is `x^1:3`.
+  With `N` a non-numeric result is #ERROR.
 - Functions: vsum vmean vmin vmax vcount vprod vmedian vsdev vpsdev vvar
   vpvar vgmean vhmean vlen rev sort, abs sqrt nroot exp ln log (also
   `log(x, b)`) log10 exp10 floor ceil round rounde roundu trunc frac
+  (a float as a fraction: `frac(0.25)` is `1:4`)
   float fdiv idiv mod `\` gcd lcm fact dfact choose perm gamma prime
   nextprime prevprime totient sign min max hypot, sin cos tan sec csc cot
   arcsin arccos arctan arctan2 sinh cosh tanh arcsinh arccosh arctanh deg
@@ -2728,6 +2950,36 @@ orgtbl_insert_radio_table` inserts a template for the filetype
 (`orgtbl_radio_table_templates`: tex, texinfo, html, org),
 `:Org orgtbl_toggle_comment` comments or uncomments the table with
 'commentstring', `:Org orgtbl_send_table` sends it.
+
+                                                              *org-table.el*
+Tables in the format of Emacs's table.el package are grids of `+`, `-` (or
+`=`) and `|` whose cells can span rows and columns and hold several lines:
+>org
+    +-----+--+
+    |0    |1 |
+    +--+--+  |
+    |2 |3 |  |
+    +--+--+--+
+<
+A table.el table starts and ends with a full rule (`+--+---+`). Org table
+commands leave it alone: <Tab> and <C-c><C-c> only say to use <C-c>'.
+<C-c>~ converts the Org table at the cursor to table.el after aligning it
+(horizontal rules are dropped, every row gets a border above and below),
+converts a table.el table back to Org by removing its border lines
+(spanned and multi-line cells are split, as in Emacs), and elsewhere
+inserts a new table.el table after asking for the number of columns and
+rows and the cell widths and heights (lists like `5 10` give each column
+its own width; the last value repeats). <C-c>' edits the table in a
+special buffer; when leaving Insert mode there and when writing it back,
+the grid is realigned: columns and rows grow so that the text of every
+cell fits, spanned cells are kept, and a copy of a line of a row adds a
+line to that row. A `|` typed in a cell, or a change that breaks the grid
+lines, is refused with an error (fix the grid or abort with <C-c><C-k>).
+Exports: HTML and Markdown get the `<table border="1">` table.el
+generates (`colspan`/`rowspan`, spaces as `&nbsp;`, every cell
+`align="left" valign="top"`), LaTeX its `tabular` with `\multicolumn` and
+`\cline`, ASCII, Org and Texinfo keep the text, ODT strips the table with
+a warning, as in Emacs.
 
                                                                   *org-plot*
 <C-c>"a (orgtbl-ascii-plot) adds a column after the current one with a bar
@@ -2865,21 +3117,47 @@ lines), lists as tables (with `:results list` as a plain list), `raw`,
 result and stays when the result is replaced.
 
 Sessions ~
-`:session [name]` runs the block in a long-lived interpreter shared by every
-block with the same language and name (no name = `default`), so variables,
-imports, functions and the working directory persist between blocks.
-Supported: shells (sh, bash, zsh, fish), python, js/node, ruby and lua (lua
-sessions keep their globals inside Neovim). Other languages ignore
-`:session` with a warning.
-  - `:results value` is the value of the last expression (python, ruby,
-    js), formatted like Emacs, or the returned value (lua); shells use their
-    output unless `:results value` is explicit, which gives the exit status.
-  - stderr is merged into the output, like an Emacs REPL buffer.
-  - Each session has a transcript buffer (`org-babel-session://lang/name`)
-    showing what ran; type at its prompt to evaluate a line in the session.
-    Wiping that buffer kills the session.
-  - The session starts in the block's `:dir`. A top-level `let`/`const` in
-    a js session becomes `var`, so blocks can be evaluated again.
+`:session [name]` runs the block in a live interpreter (a REPL) shared by
+every block with the same language and name (no name = `default`), so
+variables, imports, functions and the working directory persist between
+blocks, like Emacs' comint sessions. Supported: shells (sh, bash, zsh,
+fish), python, js/node, ruby (irb), R and lua (lua sessions keep their
+globals inside Neovim). Other languages ignore `:session` with a warning.
+  - The REPL runs in a terminal buffer named like Emacs: `*shell*`,
+    `*Python*`, `*ruby*`, `*Javascript REPL*`, `*R*` (`*lua*` for lua)
+    for the default session, `*name*` for `:session name` (a name that
+    already has earmuffs is used as is, so `:session *Python*` is the
+    default python session). <prefix>bz (C-c C-v C-z) shows it; type into
+    it (Insert mode) to use the REPL: what you define there is seen by
+    the next block, and the other way round. A session of another language
+    with the same name gets `*name*<2>`.
+  - Each evaluation is written to a file and the REPL is sent one line
+    that runs it and prints begin / end-of-evaluation markers (like
+    ob-comint's eoe indicator); the result is what the code printed
+    between them. Shells `.` (source) the file, so `cd`, variables and
+    functions stay. python, ruby, node and R define a small helper at
+    start-up that evaluates the file in the REPL's global scope (irb's own
+    binding, so irb locals are shared). A line half-typed at the prompt is
+    discarded (C-u) before a block is sent.
+  - `:results value` is the value of the last expression, formatted like
+    Emacs (python uses ob-python's `__org_babel_python_format_value`;
+    R writes it as a tab-separated table like ob-R), or the returned value
+    (lua); shells use their output unless `:results value` is explicit,
+    which gives the exit status. `:results output` is what the REPL
+    printed, with stderr merged, prompts and the input echo left out.
+  - The session starts in the block's `:dir`. Shells start without their
+    start-up files (bash `--norc`, zsh `-f`, fish `--no-config`) for a
+    predictable prompt; python runs `python3 -i` (your PYTHONSTARTUP is
+    still loaded), ruby runs `irb` next to the configured `ruby` (a `:ruby`
+    header argument is the REPL command itself, like Emacs), js runs a
+    node REPL, R runs `R` next to the configured `Rscript`. A top-level
+    `let`/`const` in a js session becomes `var`, so blocks can be
+    evaluated again.
+  - <prefix>bl (C-c C-v C-l) runs the block in its session and shows it.
+    <prefix>bK kills the session: the interpreter is stopped and its
+    buffer wiped, like killing the session buffer in Emacs; wiping the
+    buffer yourself does the same. When the interpreter exits (`exit()`),
+    the next block starts a new one.
   - Every evaluation runs in the background, so Neovim never blocks (in
     Emacs only `:async` evaluations do); requests to one session run in
     order. Without `:async`, a result is discarded (with a warning) when
@@ -2931,7 +3209,14 @@ blocks: `default_inline_header_args`, #+CALL: the called block's, then
 `header-args` and `header-args:LANG` properties (the nearest headline that
 sets one wins; `header-args+:` adds to the inherited value; `#+PROPERTY:`
 applies when no headline sets it), the `#+begin_src` line, then `#+HEADER:`
-lines (the last wins).
+lines (the last wins). Lisp in header arguments: like org-babel-read,
+`:var x=(+ 1 2)` and the values of :dir, :file, :output-dir, :file-desc,
+:file-ext, :tangle, :results, :exports, :session, :cmdline, :prologue,
+:epilogue, :wrap, :shebang, :mkdirp, :eval, :cache, :noweb and :comments
+that start with `(` (`:dir (concat (getenv "HOME") "/tmp")`) are
+evaluated: on the Lisp interpreter of table formulas, else in a separate
+`emacs --batch` with Org loaded (`babel.emacs_lisp`). A header value that
+can't be evaluated is kept as text; a `:var` form is an error.
   :results   output|value; replace|append|prepend|silent|none|discard;
              verbatim|scalar|table|vector|list|file; raw|org|drawer|html|
              latex|code|pp|link|graphics
@@ -2943,9 +3228,10 @@ lines (the last wins).
              name=block(1, 2), name=block[:results output](x=1),
              name=block(x=1)[0]; `name=block[]` is its body text. Other
              forms: file.org:name, an ID or CUSTOM_ID (the headline's
-             text), Emacs Lisp literals `'(1 2 3)` and simple forms
-             `(+ 1 2)`. Bash gets tables as associative arrays and lists
-             as arrays; sqlite/sql replace `$name`.
+             text), Emacs Lisp literals `'(1 2 3)` and forms `(+ 1 2)`
+             (see "Lisp in header arguments" above). Bash gets tables as
+             associative arrays and lists as arrays; sqlite/sql replace
+             `$name`.
   :hlines    yes: keep the hlines of table variables (None / nil / hline)
   :separator cell separator of tables given to shells (default: tab)
   :stdin     ref: feed a value to the stdin of a shell block
@@ -3059,9 +3345,10 @@ Not supported ~
   - emacs-lisp sessions, and emacs-lisp code that acts on the editor
     (buffers, windows, the Org document): it runs in a separate Emacs
     (see Languages above).
-  - Header values that are arbitrary Emacs Lisp (`:dir (concat ...)`,
-    `:var x=(some-function)`, `:results (if ...)`): only the forms the
-    table formula evaluator knows are evaluated.
+  - Header values in Lisp run without your Emacs session: functions and
+    variables you defined there don't exist (see "Lisp in header
+    arguments"), and without an Emacs executable only the forms the
+    table formula interpreter knows are evaluated.
   - `org-babel-load-file` for Emacs Lisp, and Emacs hook functions (hooks
     are `User` autocommands instead).
   - `:results xmp` (Ruby rcodetools),
@@ -3224,6 +3511,42 @@ functions) and the built-ins `{{{title}}}`, `{{{author}}}`, `{{{email}}}`,
 `{{{date(FMT)}}}`, `{{{time(FMT)}}}`, `{{{modification-time(FMT)}}}`,
 `{{{input-file}}}`, `{{{keyword(NAME)}}}`, `{{{property(NAME[,search])}}}`,
 `{{{n(name[,-|N])}}}` and `{{{results(...)}}}`.
+`{{{modification-time(FMT,t)}}}` takes the date of the file's last Git
+commit (Emacs asks any VC back-end).
+
+`#+MACRO: name (eval FORM)` macros evaluate the Emacs Lisp FORM like
+org-macro: `$1`...`$N` are variables bound to the arguments (strings, nil
+when missing; a `$1` inside a string stays as it is) and the value is
+inserted with `format "%s"`. FORM runs on the Lisp interpreter of table
+formulas (|org-table-calc|), which also has `org-texinfo-kbd-macro` (the
+Org manual's `#+MACRO: kbd (eval (org-texinfo-kbd-macro $1))` works), and
+for other functions in a separate `emacs --batch` with Org and ox loaded
+(`babel.emacs_lisp`), started in the file's directory; results are kept
+for the export. Without Emacs such a macro gives a warning and exports as
+nothing (Emacs has no such case).
+
+`#+BIND: VARIABLE VALUE` sets an export variable for the export of the
+buffer when `export.allow_bind_keywords` is true (Emacs
+org-export-allow-bind-keywords, off by default for safety). The variable
+becomes the option it mirrors: `org-export-NAME` is `export.NAME`,
+`org-BACKEND-NAME` is `export.BACKEND.NAME` for html, latex, md, ascii,
+odt, texinfo, icalendar, beamer, org and cite (`-` becomes `_`),
+`user-full-name` / `user-mail-address` are `export.author` /
+`export.email`, and `org-export-creator-string`,
+`org-html-container-element`, `org-latex-packages-alist`,
+`org-latex-default-packages-alist`, `org-inlinetask-min-level` and
+`org-table-number-fraction` map to `creator`, `html.container`,
+`latex.packages`, `latex.default_packages`, `inlinetask_min_level` and
+`table_number_fraction`. VALUE is read, not evaluated, like Emacs:
+strings, numbers, t (true), nil (false), symbols (their name: `#+BIND:
+org-html-checkbox-type unicode`), lists (`("a" "b")`, `(not "LOGBOOK")`,
+`(1 . 2)`); `org-export-global-macros`,
+`org-export-snippet-translation-alist`, `org-html-postamble-format` and
+`org-html-preamble-format` take alists. Other variables are ignored (Emacs
+sets any variable), and so is a value in a shape the option does not use.
+Unlike Emacs, a quote before a list is dropped (`'("a")` is `("a")`).
+Options set in the file (#+OPTIONS, keywords) and passed to the export
+still override them, like Emacs.
 
 Code blocks follow `:exports` when `babel.evaluate_on_export` is true (the
 default, Emacs `org-export-use-babel`): results are computed in a copy of
@@ -3344,8 +3667,9 @@ Form:`, `Variable:`, `User Option:` become @defun, @deffn... blocks and
 make @float with @caption / @shortcaption; links become @ref, @uref,
 @email (and `info:` links @ref to the other manual); footnotes
 @footnote; LaTeX math @math / @displaymath when `with_latex` is true or
-makeinfo supports it. For key bindings use the Lua version of
-`org-texinfo-kbd-macro`:
+makeinfo supports it. Key bindings use `org-texinfo-kbd-macro` like the
+Org manual, `#+MACRO: kbd (eval (org-texinfo-kbd-macro $1))`, or its Lua
+version as a global macro:
 >lua
     export = { global_macros = { kbd = function(key)
       return require("org.export.texinfo").kbd_macro(key)
@@ -3490,16 +3814,24 @@ Functions: `require("org.export.publish").publish_all(force)`,
 
 Not supported ~                                        *org-export-unsupported*
 These need Emacs Lisp or Emacs itself:
-- `#+BIND:` (sets Elisp variables) is ignored.
-- `(eval ...)` macros are left unexpanded; use `export.global_macros` with
-  a Lua function instead.
+- `#+BIND:` sets only the export variables that have an option (see
+  |org-export| macros and #+BIND); other variables, and values that are
+  functions or must be evaluated, are ignored.
+- `(eval ...)` macros see nothing of an Emacs session: forms beyond the
+  Lisp interpreter run in a separate `emacs --batch` with an empty
+  scratch buffer (`buffer-file-name`, `org-with-point-at` and the like
+  don't see the document). Without Emacs they export as nothing, with a
+  warning.
 - Source fontification (htmlize, engrave-faces): HTML code is plain unless
   `export.html.fontify` is set; `src_block_backend = "engraved"` falls
   back to verbatim.
 - LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
   exported as MathJax/verbatim by the HTML back-end; only ODT converts
   them (|org-export-odt|).
-- table.el tables are exported verbatim.
+- table.el tables: the HTML comment table.el puts before the table names
+  org.nvim instead of the Emacs version, and a grid table.el cannot read
+  is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
+  fails.
 - Asynchronous export (`a`) only makes PDF compilation asynchronous;
   publishing runs on the editor's event loop.
 - Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
@@ -3727,8 +4059,13 @@ Placement, `ui.images.placement`:
                 windows showing the buffer get 'conceallevel' 2.
                 Inline math (`$x$`, `\(x\)`) is scaled to one row, as
                 tall as the text; other fragments keep their size.
-                Fragments and environments over several lines, and
-                image.nvim, always use "below".
+                A fragment or environment over several lines is drawn
+                in place too (Neovim 0.11+): its other lines are hidden
+                (`conceal_lines`), the image starts on its first line
+                and the text after it on its last line follows the
+                image; the cursor on any of its lines shows the text
+                again, with the image under its last line. Before 0.11
+                such fragments use "below", and image.nvim always does.
   "below"       under the line, at the link's column, the text left as
                 it is (images of one line are stacked).
 
@@ -3992,6 +4329,9 @@ TODO and logging ~
   enforce_todo_dependencies           false
   enforce_todo_checkbox_dependencies  false
   todo_blockers             {}        functions returning false to block
+  todo_get_default_hooks    {}        functions(new, old) -> state
+  after_todo_statistics_hooks  {}     functions(n_done, n_not_done, target)
+  todo_statistics_hooks     {}        functions(target)
   use_fast_todo_selection   "auto"    or false (always cycle)
   provide_todo_statistics   true      |org-todo-statistics|
   hierarchical_todo_statistics  true
@@ -4008,7 +4348,8 @@ TODO and logging ~
                                       (agenda today, date prompts, capture
                                       dates, repeaters, clock blocks)
   use_effective_time        false
-  loop_over_headlines_in_active_region  true   true|false|"start-level"
+  loop_over_headlines_in_active_region  true   true|false|"start-level"|
+                                                 a match string
 Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
   tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
@@ -4142,8 +4483,13 @@ agenda ~
   entry_text_maxlines 5, confirm_kill 1,
   dim_blocked_tasks true (true|false|"invisible"),
   start_with_log_mode, start_with_follow_mode,
-  start_with_clockreport_mode, start_with_entry_text_mode
-  (see |org-agenda|)
+  start_with_clockreport_mode, start_with_entry_text_mode,
+  calendar_latitude/longitude/location_name nil,
+  calendar_date_style "american" ("european"|"iso"),
+  hebrew_sabbath_candles_minutes 18, include_diary false,
+  diary_file nil, diary_show_holidays true, diary_include_files false,
+  diary_nongregorian {}, holidays (|org-agenda-holidays|)
+  (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
   template), templates_contexts {} (|org-capture-contexts|),
@@ -4153,7 +4499,7 @@ refile ~
   max_level nil, include_current_file nil, use_outline_path false,
   outline_path_complete_in_steps true, allow_creating_parent_nodes false,
   active_region_within_subtree false, verify nil, log false,
-  reverse_note_order false
+  reverse_note_order false, use_cache false
 clock ~
   out_when_done true, into_drawer true (or a drawer name / number),
   out_remove_zero_time false, rounding_minutes 0, in_resume false,
@@ -4179,7 +4525,8 @@ crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
   abbreviations {}, types {}, confirm_shell true (or a function),
-  shell_skip_confirm_regexp "", confirm_elisp true (or a function),
+  shell_skip_confirm_regexp "", shell_output "buffer" ("terminal"),
+  confirm_elisp true (or a function),
   elisp_skip_confirm_regexp "", use_id false (true|"create-if-interactive"|
   "create-if-interactive-and-no-custom-id"|"use-existing"), file_apps {}
   ("vim" forces Neovim), context_for_files true (or a number of lines),
@@ -4190,7 +4537,8 @@ links ~
   function), make_description nil, doi_server_url "https://doi.org/",
   search_functions {}, translation_function nil
 id ~
-  locations_file, method "uuid"|"ts"|"org", prefix nil,
+  locations_file, locations_format "auto"|"json"|"emacs",
+  locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
   ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
   link_use_context true, link_consider_parent_id false
 attach ~
@@ -4231,7 +4579,7 @@ export ~                                                   *org-config-export*
   with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
-  global_macros, hooks, filters; back-end tables html, latex, md, org,
+  global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, publish, cite; pandoc { cmd, args }. See the
   comments in config.lua for every key and its Emacs variable.
 notifications ~
@@ -4422,7 +4770,7 @@ Tables:
   <C-c>}  toggle @row/$col overlays   <C-c><Space>  blank field(s)
   <C-c>{  formula debugger            <C-c>?  field info
   <C-#>   rotate recalculation mark   <C-c>"a <C-c>"g  ASCII / gnuplot plot
-  <C-c>~  table.el (not supported)
+  <C-c>~  convert to / from table.el, or insert a table.el table
 Actions without default keys: table_recalculate, table_iterate,
 table_recalc_buffer, table_toggle_column_width, table_shrink, table_expand,
 table_edit_formulas, table_follow_field_mode, table_header_line_mode,
@@ -4629,19 +4977,31 @@ Differences from Emacs:
 ==============================================================================
 32. DIFFERENCES FROM EMACS                                   *org-differences*
 
-- Agenda notes (`z`), clock-out and refile notes are single-line prompts;
-  state change and schedule notes use a `*Org Note*` split like Emacs
-  (`note_buffer`).
+- Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
+  a state change or rescheduling is applied once the note is stored or
+  cancelled (Emacs changes the entry first and opens the note buffer
+  after the command). As in Emacs, a cancelled note (C-c C-k) logs
+  nothing and the change itself stays. An empty `add_note` note stores
+  nothing (Emacs stores the bare "Note taken on" heading).
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
   (|org-table-calc|): numbers, dates, complex numbers, HMS forms, error
-  forms, intervals, `usimplify` with a table of common units and the
-  functions listed there. Calc's symbolic algebra (simplification,
-  solving, derivatives), modulo forms, matrices, unit conversion beyond
-  `usimplify` (temperatures, `convert` is a keyboard command in Calc)
-  and its other functions are not: results that are not numbers are
-  symbolic text with only a few simplifications (`x + x` is `2 x`;
-  Emacs's `vmean` of symbols is left as `(1 + x + 3) / 3`,
-  `usimplify(x m + 2 m)` is `(x + 2) m` where Calc writes `m*(x + 2)`).
+  forms, intervals, modulo forms, vectors and matrices, `usimplify` with
+  a table of common units, the symbolic algebra (Calc's normalization of
+  formulas, simplify, expand, collect, subst, deriv, integ, solve) and the
+  functions listed there. What still differs: `simplify` has Calc's rules
+  for + - * / ^, sqrt, exp, trigonometric inverses and equations, not its
+  whole rule set (nor `esimplify`, `factor`, rewrite rules); `integ`
+  handles polynomials, powers, exp, ln, sin, cos, tan, sinh, cosh of a
+  linear argument and parts by polynomial times exp/sin/cos, not Calc's
+  rule-based integrator (its results can differ in form: integ(sin(2 x),
+  x) is `-90 cos(2 x) / pi` where Calc writes `(180 sin(x)^2 - 90) / pi`;
+  what it can't do stays `integ(...)`); `solve` finds one solution
+  (Calc's default) up to quartic polynomials, not by numeric search for
+  higher degrees, and no systems of equations; division by a matrix may
+  differ from Calc in the last float digits; `usimplify` knows a subset
+  of Calc's units; fsolve, roots, taylor, the polynomial functions
+  (pdiv, pgcd, factor), spn/midi/freq, lud, kron, histogram and other
+  rarer functions stay symbolic.
   Quoted strings (`"big"`) are kept as text; Calc makes them vectors of
   character codes. Emacs Lisp formulas `'(...)` run on a small
   Lisp interpreter (the functions listed in `lua/org/table/elisp.lua`),
@@ -4652,10 +5012,21 @@ Differences from Emacs:
   tables); here the field shows #ERROR (the last definition wins) and the
   other fields are still computed. Left sides Emacs rejects are accepted:
   `$name=` for a named column, `$2..$3=` and `@I$2..@>$2=` ranges.
-- Tables in the table.el format (`+---+` grids, C-c ~, C-c ' on them) are
-  not supported: table.el is a separate large Emacs package; such tables
-  are left alone. <M-CR> inserts a row instead of splitting the field.
-  Shrunk columns use conceal and virtual text (|org-table-shrink|), the
+- Tables in the table.el format (|org-table.el|) are recognized,
+  converted, exported and edited, but the table.el editor itself (a
+  separate large Emacs package) is not reproduced: in the <C-c>' buffer
+  the grid is realigned when leaving Insert mode instead of while typing,
+  cells never shrink, text is not refilled to the cell width, and the
+  table.el cell commands (splitting, spanning and justifying cells,
+  inserting rows and columns) are missing. Columns count characters, so
+  double-width characters in cells break the grid. <C-c>~ outside a table
+  inserts the new table below a non-blank line (Emacs draws it over the
+  text at the cursor). Converting a table at the very start of the buffer
+  puts a border after every row (Emacs misses the one after the first).
+  Exported HTML cells are always `align="left" valign="top"` (Emacs too,
+  as the table is not recognized first).
+- <M-CR> in an Org table inserts a row instead of splitting the field
+  (org-table-wrap-region). Shrunk columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
   needs gnuplot.el). Translators convert Org markup in cells with a
@@ -4667,8 +5038,8 @@ Differences from Emacs:
   The mode line entry is the |org-api| statusline component; clicking it
   has no menu. Timers use counts, so a countdown's C-u (default timer)
   has no count form: a count is always minutes.
-- Capture `%(...)`, bulk action `f` and agenda skip functions take Lua
-  instead of Elisp.
+- Bulk action `f` and agenda skip functions take Lua instead of Elisp.
+  Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target
   (resolved when the capture starts) on finalize, instead of an indirect
   buffer narrowed to the text already inserted in the target (Neovim has
@@ -4683,37 +5054,61 @@ Differences from Emacs:
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise.
-- The ID database is JSON, not Emacs's `org-id-locations-file` format, so
-  it can't be shared with Emacs. The refile cache (not needed) is not
-  implemented; archiving does not
-  loop over a Visual selection (Emacs does only with
-  `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
-  stay on until toggled off.
-- Babel sessions exist for shells, python, js, ruby and lua only, and
-  are not full REPLs: each block runs as one request. Lua blocks run
-  inside Neovim instead of an external `lua`. emacs-lisp blocks and
+- The ID database can be Emacs's `org-id-locations-file` (|org-links|),
+  but Emacs keeps it in memory and writes it on exit, so the last editor
+  to save wins; files are sorted by name where Emacs keeps its hash order.
+  The refile cache (`refile.use_cache`) keeps line numbers instead of
+  markers: a target whose headline moved is found again by its text, and
+  C-0 C-c C-w (a count cannot be 0) is `:Org refile_cache_clear` or
+  C-u C-u C-u C-c C-w. Agenda archives-mode and view toggles (`va`, `v[`,
+  ...) stay on until toggled off.
+- Babel sessions (|org-babel| Sessions) are live REPLs in terminal
+  buffers for shells, python, js/node, ruby (irb) and R; there are no
+  sessions for julia, SQL engines or other languages. Lua blocks run
+  inside Neovim instead of an external `lua` (lua sessions are a Neovim
+  environment with a prompt buffer). Differences from comint: the code
+  of a block reaches the REPL as one line that runs it from a file, not
+  line by line, so the REPL shows that line instead of the code, and a
+  python/node block's intermediate expression values are not echoed
+  (as with python.el's file sending). Shells start without their rc
+  files and a shell session named `x` is the buffer `*x*` (Emacs names
+  it `x`). The R session is a plain `R` console, not ESS (no
+  `ess-ask-for-ess-directory`, graphics devices or `:results output
+  graphics` handling beyond what the code does itself). C-c C-v C-l
+  runs the block in the session; Emacs only inserts it at the prompt.
+  Timeouts (`babel.timeout`) give up on the result but do not interrupt
+  the REPL. emacs-lisp blocks and
   `elisp:` links run in a separate `emacs --batch` process (or, without
   Emacs, on the table formula Lisp interpreter), not in the editor: they
   cannot see or change buffers, and nothing is kept between evaluations.
-  `:var` and header Lisp forms are limited to what the table formula
-  Lisp evaluator implements (see |org-babel|).
+  `:var` and header Lisp forms run on the table formula Lisp interpreter,
+  else in that separate Emacs (see |org-babel|).
+- Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
+  diary sexps, `%(function)` link abbreviations, header forms) runs on the
+  table formula Lisp interpreter when it can and otherwise in a separate
+  `emacs --batch` (`babel.emacs_lisp`) that knows nothing of your Emacs
+  configuration unless its `args` load it; without an Emacs executable
+  only the interpreter's subset works.
 - Export: see |org-export-unsupported|.
 - Links (|org-links|):
   - `elisp:(sexp)` links are evaluated in a separate `emacs --batch`
     (`babel.emacs_lisp`), not in the editor, after `links.confirm_elisp`
-    (a y/n prompt; `links.elisp_skip_confirm_regexp` skips it); links
-    naming a command (`elisp:org-agenda`) cannot run. Abbreviations using
-    `%(my-function)` cannot call Elisp; give `links.abbreviations` a Lua
-    function instead.
+    (a y/n prompt; `links.elisp_skip_confirm_regexp` skips it); a link
+    naming a command (`elisp:emacs-version`) calls it interactively there,
+    so commands that act on the editor (`elisp:org-agenda`) or prompt fail.
+    Abbreviations using `%(my-function)` call the function in that Emacs,
+    which must define it (load it with `babel.emacs_lisp.args`); a Lua
+    function as the abbreviation works too.
   - `help:` opens Vim's |:help|: Emacs `help:` links name Elisp functions
     and variables (describe-function), which do not exist here. `info:`
     runs the `info` program in a terminal, `man:` uses |:Man|.
   - Links to Emacs applications (gnus, rmail, mhe, bbdb, irc/erc, eww,
     w3m, bibtex, calendar) can't be followed or stored: there is no such
     application in Neovim. `docview:` opens the file.
-  - `shell:` runs in a terminal window instead of collecting the output in
-    an `*Org Shell Output*` buffer; `links.confirm_shell` asks with a y/n
-    prompt.
+  - `shell:` runs asynchronously (Emacs's shell-command waits for the
+    command); its stdout and stderr are appended to `*Org Shell Output*`
+    one after the other rather than interleaved. `links.confirm_shell`
+    asks with a y/n prompt.
   - `::/regexp/` searches translate the common Emacs regexp syntax to Vim
     regexps; Emacs-only constructs (syntax classes other than whitespace
     and words, categories, backward references to point) are approximated
@@ -4725,14 +5120,18 @@ Differences from Emacs:
   - Files Neovim cannot display (images, media, office documents, PDF,
     HTML) open with the system application, where Emacs opens images and
     office documents itself (org-file-apps); `links.file_apps` overrides it.
-  - Storing an `id:` link before the first heading stores a `file:` link:
-    no file-level ID property drawer is created.
-  - Emacs wildcard file links (`file:*.org`) do not open a directory
-    listing of the matches.
-- Diary sexps are emulated for the common calendar functions,
+  - Wildcard file links (`file:*.org`) list the names of the matches in a
+    scratch buffer instead of a Dired buffer (no `ls -l` details or Dired
+    commands).
+- Diary sexps are emulated for the calendar functions of Emacs's diary
+  library (all the `diary-*` sexp functions of diary-lib, cal-hebrew,
+  cal-china, lunar and solar and the `diary-*-date` functions),
   `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
-  subset of Emacs Lisp (|org-agenda-diary-sexp|) only, and the Emacs
-  diary is not available in the agenda (|org-agenda-unsupported|).
+  subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
+  separate Emacs when there is one. The Emacs diary file is read by a
+  port of diary-lib (|org-agenda-diary-file|): custom `diary-date-forms`,
+  diary comments and the `i` key (insert a diary entry) are not supported
+  (|org-agenda-unsupported|).
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:
@@ -4744,8 +5143,11 @@ Differences from Emacs:
   They replace the link or fragment like Emacs, but a terminal line can't
   grow: the image's first row is on the line and the rest in virtual lines
   under it, and the text shows again (with the image under the line) while
-  the cursor is on the line so it can be edited. Fragments over several
-  lines and image.nvim images stay under the line. `ui.images.max_width`
+  the cursor is on the line so it can be edited. A fragment over several
+  lines has its other lines hidden and its image drawn from its first line
+  (Neovim 0.11+; before that, and with image.nvim, images stay under the
+  line); the text after it on its last line follows the image without its
+  highlighting. `ui.images.max_width`
   is in columns for "fill-column" and fractions (as Emacs) but its default
   fill column is 'textwidth' or 70; `max_height` is an addition. LaTeX
   previews pick an installed process ("auto") where Emacs always uses
@@ -4753,10 +5155,14 @@ Differences from Emacs:
   image file (or call back with one) instead of filling an overlay.
   `ui.images.remote` (org-display-remote-inline-images) applies to http(s)
   image links, since there are no TRAMP files.
-- Column view: the overlays cover each headline line but the cursor still
-  moves by character (Emacs puts one column on each character, so a
-  motion jumps a column); the column is the one drawn under the cursor.
-  Headline lines are not made read-only. Like Emacs, digits 1-9 select
+- Column view: the overlays cover each headline line and the column is the
+  one drawn under the cursor. Emacs puts one column on each character, so
+  every motion jumps a column; here h l w b <Left> <Right> <BS> <Space> $
+  are remapped on the rows, other motions (f, t, /, mouse) still move by
+  character. The headline lines are read-only through their keys and
+  Insert mode: a change started from another line (`J` on the line
+  above, `dk` below, a Visual selection, an Ex command, the agenda) still
+  reaches them, where Emacs refuses it. Like Emacs, digits 1-9 select
   allowed values on a column row, so counts are not available there (0
   keeps its Vim meaning; counts work on other lines).
 - Feeds (|org-feed|): feeds are fetched with curl (or wget, or a Lua
@@ -4785,8 +5191,8 @@ Differences from Emacs:
     Emacs would insert the letter); Normal mode keeps Vim's letters.
   - Pretty sub/superscripts can't be raised: Unicode super/subscript
     characters are used when they exist, else a highlight.
-  - The org-list-checkbox-radio-mode minor mode is not provided; use
-    `#+attr_org: :radio t` or <C-c><C-x><C-r>.
+  - org-list-checkbox-radio-mode is the buffer-local toggle
+    `:Org checkbox_radio_mode` (no mode line lighter).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't
@@ -4804,11 +5210,11 @@ Differences from Emacs:
     since the previous one, rather than Emacs' `last-command` test.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
-    only `todo_blockers` (org-blocker-hook) can veto a change.
-    org-todo-get-default-hook, org-todo-statistics-hook and
-    org-after-todo-statistics-hook have no equivalent.
-  - `org-loop-over-headlines-in-active-region` given as a match string is
-    not supported (true, false and "start-level" are).
+    `todo_blockers` (org-blocker-hook) can veto a change and
+    `todo_get_default_hooks`, `after_todo_statistics_hooks` and
+    `todo_statistics_hooks` are Lua functions (|org-todo|). The statistics
+    hooks run after state changes and M-S-RET, not after capture,
+    archiving or C-c #.
   - The fast tag selection menu is a floating window read one key at a
     time; it does not show the tags on the headline while it is open.
   - Regexps in `use_tag_inheritance` and `use_property_inheritance` are Vim
@@ -4818,7 +5224,8 @@ Differences from Emacs:
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,
     sunrise or diary entries in it; the agenda has the holidays, moon,
-    sunrise and date conversion keys, |org-agenda-calendar-keys|).
+    sunrise and date conversion keys, |org-agenda-calendar-keys|, and
+    shows the diary file, |org-agenda-diary-file|).
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.

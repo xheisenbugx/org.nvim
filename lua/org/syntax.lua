@@ -253,6 +253,8 @@ function M.apply(bufnr)
   -- Tables -------------------------------------------------------------------
   cmd([=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgBold,orgItalic,orgCode,orgVerbatim,@orgLinks,orgTimestamp,orgTimestampInactive]=])
   cmd([=[syntax match orgTableSeparator /|/ contained]=])
+  -- table.el borders (`+--+---+`), fontified like table lines in Emacs
+  cmd([=[syntax match orgTable /^\s*+-[-+].*$/]=])
   cmd([=[syntax match orgTableHline /^\s*|[-+]\+|\?\s*$/ contained]=])
   cmd([=[syntax match orgTableFormula /^\s*#+\ctblfm:.*$/]=])
 
