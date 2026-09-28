@@ -4,8 +4,8 @@ local ob = require("org.babel.ob")
 
 local M = {}
 
-function M.expand(body)
-  return ob.body_text(body)
+function M.expand(body, args)
+  return ob.expand_generic(type(body) == "table" and body or { body }, args, {})
 end
 
 local function ensure_jar(file)

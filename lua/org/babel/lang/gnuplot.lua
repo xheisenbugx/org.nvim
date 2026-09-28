@@ -97,8 +97,9 @@ local function labels(v)
   return table.concat(parts, ", ")
 end
 
----@param dir? string the block's directory (default-directory)
-function M.expand(body, args, vars, _, dir)
+---@param ectx? { dir?: string } dir: the block's directory (default-directory)
+function M.expand(body, args, vars, ectx)
+  local dir = ectx and ectx.dir
   local text = ob.body_text(body)
   local pvars = process_vars(vars, args)
   local out_file = ob.unq(args.file)
@@ -164,7 +165,7 @@ end
 function M.prepare(body, args, vars, ctx)
   local o = ctx.opts
   -- the script starts with `cd` to the block's directory
-  local script = ob.write(ob.temp(), M.expand(body, args, vars, nil, ctx.cwd) .. "\n")
+  local script = ob.write(ob.temp(), M.expand(body, args, vars, { dir = ctx.cwd }) .. "\n")
   local output = args.results_spec.collection == "output"
   return {
     steps = { { cmd = string.format('%s "%s" 2>&1', o.cmd or "gnuplot", script) } },

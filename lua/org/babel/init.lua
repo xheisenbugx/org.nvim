@@ -1191,7 +1191,8 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
   local handler = ob.get(lang)
   if handler then
     -- a language with its own port of ob-LANG.el (org.babel.lang.*)
-    ob.run(handler, lang, body, args, vars, { bufnr = bufnr, cwd = cwd, sync = sync }, done)
+    local octx = { bufnr = bufnr, cwd = cwd, sync = sync, colnames = opts.colnames }
+    ob.run(handler, lang, body, args, vars, octx, done)
     return result
   end
   local cmd = lang_cmd(lang, args)

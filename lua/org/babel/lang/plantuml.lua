@@ -14,11 +14,17 @@ local function var_lines(vars)
   return out
 end
 
+--- The expanded body (C-c C-v v, tangling): the generic expansion with
+--- `!define` lines.
+function M.expand(body, args, vars)
+  return ob.expand_generic(type(body) == "table" and body or { body }, args, var_lines(vars))
+end
+
 --- `org-babel-plantuml-make-body`: @startuml ... @enduml around a body
 --- that has no @startXXX.
-function M.expand(body, args, vars)
+function M.make_body(body, args, vars)
   local text = ob.body_text(body)
-  local full = ob.expand_generic(type(body) == "table" and body or { body }, args, var_lines(vars))
+  local full = M.expand(body, args, vars)
   if text:sub(1, 6):lower() == "@start" then
     return full
   end
@@ -76,7 +82,7 @@ function M.prepare(body, args, vars, ctx)
     parts[#parts + 1] = TYPES[ext]
   end
   vim.list_extend(parts, { "-p", cmdline, "<", ob.sh(in_file), ">", ob.sh(out_file) })
-  ob.write(in_file, M.expand(body, args, vars))
+  ob.write(in_file, M.make_body(body, args, vars))
   local steps = { { cmd = table.concat(parts, " ") } }
   if ext == "svg" and o.svg_text_to_path then
     steps[2] = { cmd = string.format("inkscape %s -T -l %s", out_file, out_file) }

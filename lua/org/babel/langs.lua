@@ -759,7 +759,7 @@ end
 function M.expand(lang, body, args, vars, colnames)
   local handler = require("org.babel.ob").get(lang)
   if handler and handler.expand then
-    return handler.expand(body, args, vars, lang)
+    return handler.expand(body, args, vars, { lang = lang, colnames = colnames })
   end
   local fam = M.family(lang)
   if fam == "c" then

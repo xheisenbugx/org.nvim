@@ -1286,6 +1286,10 @@ M.defaults = {
         hline_to = "null", -- org-babel-java-hline-to
         null_to = "hline", -- org-babel-java-null-to
       },
+      groovy = { cmd = "groovy" }, -- org-babel-groovy-command
+      julia = { cmd = "julia" }, -- org-babel-julia-command
+      maxima = { cmd = "maxima" }, -- org-babel-maxima-command
+      ocaml = { cmd = "ocaml" }, -- org-babel-ocaml-command
       gnuplot = {
         cmd = "gnuplot",
         default_header_args = { results = "file", exports = "results" },
