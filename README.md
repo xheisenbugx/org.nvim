@@ -592,7 +592,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
 | `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item (Visual: every headline); move table column *(ctx)* |
 | `<M-k>` `<M-j>` (also `<M-Up>` `<M-Down>`) | Move subtree, item or table row up / down *(ctx)* |
-| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row; elsewhere drag the line up/down *(ctx)* |
+| `<M-H>` `<M-L>` `<M-K>` `<M-J>` | Subtree promote/demote; table delete/insert column, delete/insert row; on a CLOCK timestamp move it and the touching clock; elsewhere drag the line up/down *(ctx)* |
 | `<prefix>K` / `<prefix>J` | Move subtree up / down |
 | `<prefix>hy` `hd` `hp` `hc` | Copy / cut / paste / clone subtree |
 | `<prefix>hs` `hn` `hC` `hA` `hb` | Sort / narrow / toggle COMMENT / toggle ARCHIVE tag / cycle bullet |
