@@ -784,7 +784,11 @@ and `global_properties` set values for the whole file, in that order.
                 The keys below act on the headline and column under the
                 cursor, and keep their usual meaning on other lines;
                 leaving the window or `q` restores the buffer, its
-                mappings and the window options. Rows follow edits of the
+                mappings and the window options. Like Emacs, the headline
+                lines are read-only while the view is on: on a column
+                row the keys that change text (i A O x d D S J ~ . ...)
+                and entering Insert mode only say "Text is read-only:
+                Type ‘e’ to edit property"; the view's own keys edit. Rows follow edits of the
                 text; `r` recomputes. With `columns_view = "table"` the
                 view is a table in a split instead (with <CR> to jump to
                 the headline). Groups: OrgColumn, OrgColumnTitle.
@@ -810,6 +814,10 @@ and `global_properties` set values for the whole file, in that order.
                   <C-c><C-o>      open the link in the field
                   c / o           contents / overview visibility
                                   (overlay view)
+                  h l  w b        previous / next column (also <Left>
+                                  <Right> <BS> <Space> <M-b> <M-f>),
+                                  `$` the last one (overlay view: Emacs
+                                  gives each column one character)
                   v view value, r / g refresh, q quit (<CR> jumps to the
                   headline in the table view).
                 Format changes are saved to the COLUMNS property or the
@@ -4765,10 +4773,14 @@ Differences from Emacs:
   image file (or call back with one) instead of filling an overlay.
   `ui.images.remote` (org-display-remote-inline-images) applies to http(s)
   image links, since there are no TRAMP files.
-- Column view: the overlays cover each headline line but the cursor still
-  moves by character (Emacs puts one column on each character, so a
-  motion jumps a column); the column is the one drawn under the cursor.
-  Headline lines are not made read-only. Like Emacs, digits 1-9 select
+- Column view: the overlays cover each headline line and the column is the
+  one drawn under the cursor. Emacs puts one column on each character, so
+  every motion jumps a column; here h l w b <Left> <Right> <BS> <Space> $
+  are remapped on the rows, other motions (f, t, /, mouse) still move by
+  character. The headline lines are read-only through their keys and
+  Insert mode: a change started from another line (`J` on the line
+  above, `dk` below, a Visual selection, an Ex command, the agenda) still
+  reaches them, where Emacs refuses it. Like Emacs, digits 1-9 select
   allowed values on a column row, so counts are not available there (0
   keeps its Vim meaning; counts work on other lines).
 - Feeds (|org-feed|): feeds are fetched with curl (or wget, or a Lua

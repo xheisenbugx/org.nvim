@@ -898,6 +898,10 @@ local ns_ov = vim.api.nvim_create_namespace("org.columns.overlay")
 --- Active overlay views by org buffer.
 local views = {}
 
+--- What changing a headline line of the view says (Emacs signals
+--- text-read-only with this).
+local READ_ONLY = "Text is read-only: Type ‘e’ to edit property"
+
 --- Default links of the column view groups (Emacs org-column and
 --- org-column-title).
 local OV_HL = { OrgColumn = "Pmenu", OrgColumnTitle = "TabLineSel" }
@@ -1672,8 +1676,38 @@ local function open_overlay(src, lnum, global)
   map("o", function()
     require("org.fold").overview()
   end, "overview")
+  -- Emacs puts one column on each character, so a motion moves by column
+  local function step(dir)
+    return function()
+      local r, ci = overlay_current(state)
+      if r then
+        overlay_goto(state, r.hl.line, math.max(1, math.min(#state.cols, ci + dir * vim.v.count1)))
+      end
+    end
+  end
+  map({ "l", "<Right>", "w", "<Space>", "<M-f>" }, step(1), "next column")
+  map({ "h", "<Left>", "b", "<BS>", "<M-b>" }, step(-1), "previous column")
+  map("$", step(math.huge), "last column")
+  -- the headline lines are read-only (Emacs gives them a read-only text
+  -- property): the keys that change text only say so there
+  local changes = { "i", "I", "A", "O", "C", "S", "x", "X", "d", "D", "R", "P", "J", "~", ".", "=", "!", "&" }
+  vim.list_extend(changes, { "<Del>", "<Insert>", "<C-a>", "<C-x>" })
+  map(changes, function()
+    utils.warn(READ_ONLY)
+  end, "read-only")
   local group = vim.api.nvim_create_augroup("org.columns.overlay." .. src, { clear = true })
   state.group = group
+  -- any other way into Insert mode on a column row is turned back
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    group = group,
+    buffer = src,
+    callback = function()
+      if views[src] == state and state.row_at[vim.api.nvim_win_get_cursor(0)[1]] then
+        vim.cmd("stopinsert")
+        utils.warn(READ_ONLY)
+      end
+    end,
+  })
   -- keep the rows on their headlines when the text changes
   vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
     group = group,
