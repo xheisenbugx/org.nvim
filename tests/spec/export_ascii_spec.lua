@@ -116,6 +116,31 @@ describe("ascii export", function()
       )
     end)
 
+    -- A target's ordinal is a list (item or headline number); Emacs
+    -- prints it with `format "%s"', i.e. in Lisp syntax.
+    it("links to a dedicated target", function()
+      local tail = { "", "See [[tgt]] and [[tgt][desc]]." }
+      local function doc(...)
+        return vim.list_extend({ ... }, tail)
+      end
+      eq(
+        "1 H\n===\n\n  Para here.\n\n  See 1 and [desc].\n\n\n[desc] See figure (1)\n",
+        exp(doc("* H", "Para <<tgt>> here."))
+      )
+      eq(
+        "1 H\n===\n\n1.1 I\n~~~~~\n\n  Para here.\n\n  See 1.1 and [desc].\n\n\n[desc] See figure (1 1)\n",
+        exp(doc("* H", "** I", "Para <<tgt>> here."))
+      )
+      eq("- a\n- b x\n\nSee 2 and [desc].\n\n\n[desc] See figure (2)\n", exp(doc("- a", "- b <<tgt>> x")))
+      eq(
+        " a  \nTable 1: cap\n\nSee 1 and [desc].\n\n\n[desc] See table 1\n",
+        exp(doc("#+CAPTION: cap", "| a <<tgt>> |"))
+      )
+      eq("Para here.\n\nSee ??? and [desc].\n\n\n[desc] Unknown reference\n", exp(doc("Para <<tgt>> here.")))
+      config.opts.export.ascii = { links_to_notes = false }
+      eq("- a\n- b x\n\nSee 2 and [desc] (See figure (2)).\n", exp(doc("- a", "- b <<tgt>> x")))
+    end)
+
     it("footnotes", function()
       eq("Text[1].\n\n\n\nFootnotes\n_________\n\n[1] Note.\n", exp({ "Text[fn:1].", "", "[fn:1] Note." }))
       eq("Text[1].\n\n\n\nFootnotes\n─────────\n\n[1] Note.\n", exp({ "Text[fn:1].", "", "[fn:1] Note." }, "utf-8"))
