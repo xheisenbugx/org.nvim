@@ -482,6 +482,10 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 <C-c><C-x><C-r> Toggle a radio button: check this item, uncheck its
                 siblings (org-toggle-radio-button). In a list preceded by
                 `#+attr_org: :radio t`, <C-c><C-c> and <C-Space> do this.
+:Org checkbox_radio_mode  Toggle org-list-checkbox-radio-mode in the
+                buffer: <C-c><C-c> on an item then toggles it like a radio
+                button in every list (<C-c><C-x><C-b> still toggles one
+                checkbox, as in Emacs).
 <S-Up/Down>     (ctx) On an item: previous / next item of the same level
                 (org-previous-item / org-next-item).
 <S-Right/Left>  (ctx) On an item: cycle the bullet style.
@@ -526,7 +530,11 @@ the drawer named by the inherited
 entries come from `log_note_headings` (org-log-note-headings). Notes are
 typed in a small `*Org Note*` split, like Emacs: <C-c><C-c> stores the note
 (lines starting with "# " are dropped), <C-c><C-k> cancels it
-(`note_buffer = false` asks with a one-line prompt instead).
+(`note_buffer = false` asks with a one-line prompt instead). This holds for
+every note: state changes, rescheduling, `add_note` (<C-c><C-z>, and `z` in
+the agenda), clock-out notes (`log_note_clock_out`, stored right below the
+CLOCK line with the "clock-out" heading) and refile notes (`refile.log =
+"note"`); a cancelled note stores nothing.
 
 cit / ciT       Next / previous TODO state.
 <S-Right/Left>  (ctx) Same, on a headline. Like Emacs, this walks every
@@ -552,10 +560,14 @@ cit / ciT       Next / previous TODO state.
                 (C-- 1 C-c C-t, org-cancel-repeaters).
 
                                                      *org-loop-over-headlines*
-In Visual mode, <C-c><C-t>, <C-c><C-s> and <C-c><C-d> act on every headline
-of the selection, skipping headlines hidden in closed folds
-(`loop_over_headlines_in_active_region`: true, false or "start-level" for
-only the headlines at the level of the first one).
+In Visual mode, <C-c><C-t>, <C-c><C-s>, <C-c><C-d> and the archiving
+commands (<C-c>$, <C-c><C-x>a, <C-c><C-x>A) act on every headline of the
+selection, skipping headlines hidden in closed folds
+(`loop_over_headlines_in_active_region`: true, false, "start-level" for
+only the headlines at the level of the first one, or a tags/property/todo
+match string as in the agenda tags view for only the matching headlines,
+e.g. "+work/TODO"). Archiving a subtree takes its children with it, and
+archiving to the sibling skips entries already archived.
 
 Entering a done state adds `CLOSED: [timestamp]` when `log_done` is set, and
 going back to a TODO state removes it. Like Emacs, CLOSED is only touched
@@ -593,6 +605,22 @@ chosen), `done` and `repeated`: >lua
 `todo_blockers` is a list of functions (org-blocker-hook); each receives
 `{ type = "todo-state-change", from, to, bufnr, lnum }` and blocks the
 change by returning `false`.
+
+`todo_get_default_hooks` (org-todo-get-default-hook) are functions
+`(new, old)`: the first one returning a string picks the state the change
+really goes to ("" removes the keyword); M-S-RET asks them for the new
+heading's keyword with `old` nil.
+After a state change that updates TODO statistics,
+`after_todo_statistics_hooks` (org-after-todo-statistics-hook) are called
+as `fn(n_done, n_not_done, target)` for each ancestor whose statistics
+cookie is updated (`target` = `{ bufnr, lnum }` of the ancestor), then
+`todo_statistics_hooks` (org-todo-statistics-hook) as `fn(target)` with the
+changed entry, even without a cookie. Emacs's org-summary-todo: >lua
+    after_todo_statistics_hooks = { function(n_done, n_not_done, target)
+      require("org.todo").change_state(target, n_not_done == 0 and "DONE" or "TODO",
+        { no_log = true })
+    end },
+<
 
 Repeated tasks                                            *org-repeat*
 A SCHEDULED or DEADLINE timestamp with a repeater (`+1w`, `++1d`, `.+2d`)
@@ -2077,13 +2105,18 @@ when there is one). Retrieval is synchronous, like Emacs.
                 sequence of subtrees. The subtree keeps its blank lines and
                 goes after the target's own blank lines, like Emacs. A
                 count works like Emacs's prefix argument: 4 (C-u) jumps to
-                a target, 16 (C-u C-u) to the last refiled entry, 2 refiles
-                under the running clock and 3 copies (org-refile-keep).
+                a target, 16 (C-u C-u) to the last refiled entry, 64
+                (C-u C-u C-u) clears the target cache (`refile.use_cache`),
+                2 refiles under the running clock and 3 copies
+                (org-refile-keep). With `refile.log = "note"`, the note is
+                typed in the `*Org Note*` buffer (`note_buffer`).
 <prefix>R       Copy the subtree to a refile target, keeping the original
                 (org-refile-copy, <C-c><M-w>).
 :Org refile_goto       Jump to a refile target (C-u C-c C-w).
 :Org refile_goto_last  Jump to where the last refile or capture went
                        (C-u C-u C-c C-w).
+:Org refile_cache_clear  Clear the refile target cache
+                       (C-u C-u C-u C-c C-w).
 
 By default the targets are the level-1 headlines of the current buffer,
 shown by their heading (Emacs's org-refile-targets nil). Refile options:
@@ -2124,6 +2157,12 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
                       to the entry's logbook (org-log-refile); a region
                       only gets time stamps
   reverse_note_order  refile as the first child (org-reverse-note-order)
+  use_cache           keep the targets between refiles
+                      (org-refile-use-cache): new headlines are not
+                      offered until the cache is cleared with a count of
+                      64 (C-u C-u C-u C-c C-w) or `:Org refile_cache_clear`;
+                      a cached target that moved is found again by its
+                      heading, one that is gone is an error
 
 <prefix>$       Archive the subtree. The location comes from the ARCHIVE
                 property, then `#+ARCHIVE:`, then `archive_location`
@@ -2188,6 +2227,10 @@ Targets:
   doi:10.1000/x                       `links.doi_server_url` + path
   file:path  ./rel  ~/p  /abs          open a file; add a search option:
       ::42  ::*Heading  ::#custom-id  ::(coderef)  ::/regexp/  ::some text
+  file:notes/*.org                    a wildcard (`*?{`) in the file name
+                                      lists the matching files (Emacs
+                                      opens Dired); <CR> opens the file on
+                                      the line, `q` closes the list
   file+sys:path  file+emacs:path      system application / always Neovim
   id:UUID  id:UUID::search            headline with that ID (the search
                                       runs inside its subtree)
@@ -2195,8 +2238,13 @@ Targets:
   *Heading                            headline in the current file
   (label)                             coderef in a src/example block
   <<target>>  text                    dedicated target, `#+NAME`, headline
-  shell:cmd                           run in a terminal in the file's
-                                      directory (asks first)
+  shell:cmd                           run in the file's directory (asks
+                                      first); the output goes to a new
+                                      `*Org Shell Output*` buffer, shown
+                                      unless it is one line (then echoed);
+                                      `cmd &` shows it at once and streams;
+                                      `links.shell_output = "terminal"`
+                                      runs it in a terminal instead
   elisp:(sexp)                        evaluate in a separate Emacs, show
                                       the value (asks first, see below)
   help:topic                          Vim :help
@@ -2305,7 +2353,14 @@ function (follow) or a table: >lua
 description. `links.search_functions` run first on search options and
 `links.translation_function(type, path)` rewrites links before they open.
 
-IDs are stored in `id.locations_file`. `:Org id_update_locations` rebuilds
+IDs are stored in `id.locations_file`: JSON by default, or Emacs's
+org-id-locations format (an alist `(("~/org/a.org" "id1" "id2") ...)`),
+detected from the file's contents (a new file is JSON when its name ends
+in `.json`) or forced with `id.locations_format` ("json" or "emacs"). Set
+`id.locations_file = "~/.emacs.d/.org-id-locations"` to share the
+database with Emacs; file names are written with `~` like Emacs, or
+relative to the database with `id.locations_file_relative`
+(org-id-locations-file-relative). `:Org id_update_locations` rebuilds
 it from the agenda files, their archive files (`id.search_archives`,
 default true), `id.extra_files`, the loaded org buffers and the files
 already known; an ID that is not where the database says triggers the same
@@ -2315,6 +2370,10 @@ stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
 Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
+Before the first heading the ID goes into a file-level property drawer at
+the top of the file (after leading `#` comments, before `#+TITLE`), like
+Emacs 9.8; the link is described by the #+TITLE or the file name, and
+from a later line it gets that line as search string (`id:ID::text`).
 `id:` links get a search string for a named element or a selection below
 the heading (`id:ID::tbl1`, `id.link_use_context`); with
 `id.link_consider_parent_id`, a heading without an ID is linked through
@@ -4068,6 +4127,9 @@ TODO and logging ~
   enforce_todo_dependencies           false
   enforce_todo_checkbox_dependencies  false
   todo_blockers             {}        functions returning false to block
+  todo_get_default_hooks    {}        functions(new, old) -> state
+  after_todo_statistics_hooks  {}     functions(n_done, n_not_done, target)
+  todo_statistics_hooks     {}        functions(target)
   use_fast_todo_selection   "auto"    or false (always cycle)
   provide_todo_statistics   true      |org-todo-statistics|
   hierarchical_todo_statistics  true
@@ -4084,7 +4146,8 @@ TODO and logging ~
                                       (agenda today, date prompts, capture
                                       dates, repeaters, clock blocks)
   use_effective_time        false
-  loop_over_headlines_in_active_region  true   true|false|"start-level"
+  loop_over_headlines_in_active_region  true   true|false|"start-level"|
+                                                 a match string
 Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
   tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
@@ -4229,7 +4292,7 @@ refile ~
   max_level nil, include_current_file nil, use_outline_path false,
   outline_path_complete_in_steps true, allow_creating_parent_nodes false,
   active_region_within_subtree false, verify nil, log false,
-  reverse_note_order false
+  reverse_note_order false, use_cache false
 clock ~
   out_when_done true, into_drawer true (or a drawer name / number),
   out_remove_zero_time false, rounding_minutes 0, in_resume false,
@@ -4255,7 +4318,8 @@ crypt ~    tag_matcher "crypt", key "" (or false), encrypt_on_save false,
            disable_auto_save "ask", gpg_program "gpg" (|org-crypt|)
 links ~
   abbreviations {}, types {}, confirm_shell true (or a function),
-  shell_skip_confirm_regexp "", confirm_elisp true (or a function),
+  shell_skip_confirm_regexp "", shell_output "buffer" ("terminal"),
+  confirm_elisp true (or a function),
   elisp_skip_confirm_regexp "", use_id false (true|"create-if-interactive"|
   "create-if-interactive-and-no-custom-id"|"use-existing"), file_apps {}
   ("vim" forces Neovim), context_for_files true (or a number of lines),
@@ -4266,7 +4330,8 @@ links ~
   function), make_description nil, doi_server_url "https://doi.org/",
   search_functions {}, translation_function nil
 id ~
-  locations_file, method "uuid"|"ts"|"org", prefix nil,
+  locations_file, locations_format "auto"|"json"|"emacs",
+  locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
   ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
   link_use_context true, link_consider_parent_id false
 attach ~
@@ -4705,9 +4770,12 @@ Differences from Emacs:
 ==============================================================================
 32. DIFFERENCES FROM EMACS                                   *org-differences*
 
-- Agenda notes (`z`), clock-out and refile notes are single-line prompts;
-  state change and schedule notes use a `*Org Note*` split like Emacs
-  (`note_buffer`).
+- Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
+  a state change or rescheduling is applied once the note is stored or
+  cancelled (Emacs changes the entry first and opens the note buffer
+  after the command). As in Emacs, a cancelled note (C-c C-k) logs
+  nothing and the change itself stays. An empty `add_note` note stores
+  nothing (Emacs stores the bare "Note taken on" heading).
 - Table formulas: GNU Calc is reimplemented in Lua for what tables use
   (|org-table-calc|): numbers, dates, complex numbers, HMS forms, error
   forms, intervals, `usimplify` with a table of common units and the
@@ -4770,12 +4838,14 @@ Differences from Emacs:
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
   0 and after it otherwise.
-- The ID database is JSON, not Emacs's `org-id-locations-file` format, so
-  it can't be shared with Emacs. The refile cache (not needed) is not
-  implemented; archiving does not
-  loop over a Visual selection (Emacs does only with
-  `org-loop-over-headlines-in-active-region`, off by default). Agenda archives-mode and view toggles (`va`, `v[`, ...)
-  stay on until toggled off.
+- The ID database can be Emacs's `org-id-locations-file` (|org-links|),
+  but Emacs keeps it in memory and writes it on exit, so the last editor
+  to save wins; files are sorted by name where Emacs keeps its hash order.
+  The refile cache (`refile.use_cache`) keeps line numbers instead of
+  markers: a target whose headline moved is found again by its text, and
+  C-0 C-c C-w (a count cannot be 0) is `:Org refile_cache_clear` or
+  C-u C-u C-u C-c C-w. Agenda archives-mode and view toggles (`va`, `v[`,
+  ...) stay on until toggled off.
 - Babel sessions (|org-babel| Sessions) are live REPLs in terminal
   buffers for shells, python, js/node, ruby (irb) and R; there are no
   sessions for julia, SQL engines or other languages. Lua blocks run
@@ -4811,9 +4881,10 @@ Differences from Emacs:
   - Links to Emacs applications (gnus, rmail, mhe, bbdb, irc/erc, eww,
     w3m, bibtex, calendar) can't be followed or stored: there is no such
     application in Neovim. `docview:` opens the file.
-  - `shell:` runs in a terminal window instead of collecting the output in
-    an `*Org Shell Output*` buffer; `links.confirm_shell` asks with a y/n
-    prompt.
+  - `shell:` runs asynchronously (Emacs's shell-command waits for the
+    command); its stdout and stderr are appended to `*Org Shell Output*`
+    one after the other rather than interleaved. `links.confirm_shell`
+    asks with a y/n prompt.
   - `::/regexp/` searches translate the common Emacs regexp syntax to Vim
     regexps; Emacs-only constructs (syntax classes other than whitespace
     and words, categories, backward references to point) are approximated
@@ -4825,10 +4896,9 @@ Differences from Emacs:
   - Files Neovim cannot display (images, media, office documents, PDF,
     HTML) open with the system application, where Emacs opens images and
     office documents itself (org-file-apps); `links.file_apps` overrides it.
-  - Storing an `id:` link before the first heading stores a `file:` link:
-    no file-level ID property drawer is created.
-  - Emacs wildcard file links (`file:*.org`) do not open a directory
-    listing of the matches.
+  - Wildcard file links (`file:*.org`) list the names of the matches in a
+    scratch buffer instead of a Dired buffer (no `ls -l` details or Dired
+    commands).
 - Diary sexps are emulated for the common calendar functions,
   `org-calendar-holiday` (|org-agenda-holidays|) and a side-effect-free
   subset of Emacs Lisp (|org-agenda-diary-sexp|) only, and the Emacs
@@ -4892,8 +4962,8 @@ Differences from Emacs:
     Emacs would insert the letter); Normal mode keeps Vim's letters.
   - Pretty sub/superscripts can't be raised: Unicode super/subscript
     characters are used when they exist, else a highlight.
-  - The org-list-checkbox-radio-mode minor mode is not provided; use
-    `#+attr_org: :radio t` or <C-c><C-x><C-r>.
+  - org-list-checkbox-radio-mode is the buffer-local toggle
+    `:Org checkbox_radio_mode` (no mode line lighter).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't
@@ -4911,11 +4981,15 @@ Differences from Emacs:
     since the previous one, rather than Emacs' `last-command` test.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
     `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
-    only `todo_blockers` (org-blocker-hook) can veto a change.
-    org-todo-get-default-hook, org-todo-statistics-hook and
-    org-after-todo-statistics-hook have no equivalent.
-  - `org-loop-over-headlines-in-active-region` given as a match string is
-    not supported (true, false and "start-level" are).
+    `todo_blockers` (org-blocker-hook) can veto a change and
+    `todo_get_default_hooks`, `after_todo_statistics_hooks` and
+    `todo_statistics_hooks` are Lua functions (|org-todo|). The statistics
+    hooks run after state changes and M-S-RET, not after capture,
+    archiving or C-c #.
+  - `org-loop-over-headlines-in-active-region` as a match string selects
+    the matching headlines, as its documentation says; Emacs 9.8.10 in
+    fact ignores the string and acts on every headline (its commands
+    rebind the option to nil before passing it as the match).
   - The fast tag selection menu is a floating window read one key at a
     time; it does not show the tags on the headline while it is open.
   - Regexps in `use_tag_inheritance` and `use_property_inheritance` are Vim

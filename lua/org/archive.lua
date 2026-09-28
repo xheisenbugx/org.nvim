@@ -274,12 +274,47 @@ local function delete_attachments(bufnr, lnum)
   attach.delete_all({ bufnr = bufnr, lnum = lnum }, mode == true)
 end
 
+--- In Visual mode with `loop_over_headlines_in_active_region`, run
+--- `fn(target)` on the headlines of the selection (like Emacs's
+--- org-map-entries over the region) and return true; nil otherwise.
+--- `whole_subtree` leaves out headlines inside an earlier one's subtree
+--- (it moves with it); `skip_archived` leaves out archived subtrees.
+local function loop_region(fn, whole_subtree, skip_archived)
+  local stop = 0
+  local targets = edit.region_headlines(function(hl)
+    if hl.line <= stop then
+      return true
+    end
+    if skip_archived and hl:is_archived() then
+      stop = hl.end_line
+      return true
+    end
+    if whole_subtree then
+      stop = hl.end_line
+    end
+    return false
+  end)
+  if not targets then
+    return nil
+  end
+  for _, t in ipairs(targets) do
+    local l = t.lnum()
+    if l then
+      fn({ bufnr = t.bufnr, lnum = l })
+    end
+  end
+  return true
+end
+
 --- Archive the subtree at target. A count works like Emacs's prefix
 --- argument: 4 (C-u) runs `archive_all_done`, 16 (C-u C-u)
 --- `archive_all_old`.
 ---@param target? org.Target
 function M.archive_subtree(target)
   if target == nil then
+    if loop_region(M.archive_subtree, true) then
+      return
+    end
     if vim.v.count == 4 then
       return M.archive_all_done()
     elseif vim.v.count == 16 then
@@ -410,6 +445,9 @@ end
 --- is created at the end of the parent's subtree when missing.
 ---@param target? org.Target
 function M.archive_to_sibling(target)
+  if target == nil and loop_region(M.archive_to_sibling, true, true) then
+    return
+  end
   local bufnr, file, hl = edit.resolve_headline(target)
   if not hl then
     return
@@ -578,6 +616,9 @@ end
 --- C-c C-x a), offer to tag every child without open TODOs instead.
 ---@param target? org.Target
 function M.toggle_archive_tag(target)
+  if target == nil and loop_region(M.toggle_archive_tag) then
+    return
+  end
   if target == nil and vim.v.count > 0 then
     return M.archive_all_done({ tag = true })
   end

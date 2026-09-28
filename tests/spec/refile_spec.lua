@@ -300,4 +300,34 @@ describe("refile", function()
     eq("* Note", l[#l - 1])
     eq("* Other", l[#l])
   end)
+
+  it("caches the targets until C-u C-u C-u C-c C-w (org-refile-use-cache)", function()
+    local dir = setup_files({ "* Move", "* Stay" }, { "* T1", "* T2" }, {
+      refile = { targets = { { files = "agenda", level = 1 } }, use_cache = true },
+    })
+    vim.cmd("edit! " .. dir .. "/a.org")
+    refile.cache_clear()
+    local before = labels()
+    -- a new headline is not a target until the cache is cleared
+    local b = utils.load_buffer(dir .. "/b.org")
+    vim.api.nvim_buf_set_lines(b, 0, 0, false, { "* New" })
+    eq(before, labels())
+    -- a cached target that moved is found again by its heading
+    refile.refile({ lnum = 1 }, { dest = target("T2 (b.org)") })
+    eq({ "* New", "* T1", "* T2", "** Move" }, vim.api.nvim_buf_get_lines(b, 0, -1, false))
+    -- one that is gone is an error
+    local t1 = target("T1 (b.org)")
+    vim.api.nvim_buf_set_lines(b, 1, 2, false, { "* Renamed" })
+    local ok_refile, err = pcall(refile.move, { lnum = 1 }, t1)
+    eq(false, ok_refile)
+    ok(tostring(err):match("Invalid refile position"), err)
+    -- count 64 clears the cache
+    refile.refile(nil, { count = 64 })
+    ok(vim.tbl_contains(labels(), "New (b.org)"))
+    ok(vim.tbl_contains(labels(), "Renamed (b.org)"))
+    -- without the option nothing is cached
+    config.opts.refile.use_cache = false
+    vim.api.nvim_buf_set_lines(b, 0, 0, false, { "* Newer" })
+    ok(vim.tbl_contains(labels(), "Newer (b.org)"))
+  end)
 end)

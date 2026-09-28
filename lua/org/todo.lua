@@ -8,6 +8,7 @@
 local config = require("org.config")
 local date = require("org.date")
 local edit = require("org.edit")
+local files = require("org.files")
 local utils = require("org.utils")
 
 local M = {}
@@ -247,15 +248,104 @@ local function clocked_here(bufnr, lnum)
   return clock.is_clocked_headline(bufnr, lnum), clock
 end
 
+--- The state a change to `new` from `old` really goes to: the first
+--- string returned by a `todo_get_default_hooks` function
+--- (org-todo-get-default-hook), else `new`. "" means no keyword.
+---@param new string|nil
+---@param old string|nil
+---@return string|nil
+function M.default_state(new, old)
+  for _, fn in ipairs(config.opts.todo_get_default_hooks or {}) do
+    local ok, res = pcall(fn, new, old)
+    if ok and type(res) == "string" then
+      return res
+    end
+  end
+  return new
+end
+
+--- The ancestors of `hl` whose TODO cookie org-update-parent-todo-statistics
+--- updates: the parent, or with recursive statistics every ancestor up to
+--- the one setting COOKIE_DATA (all of them when
+--- `hierarchical_todo_statistics` is false); one counting checkboxes stops
+--- the walk.
+local function statistics_ancestors(hl)
+  local parent = hl.parent
+  if not parent then
+    return {}
+  end
+  local recursive = config.opts.hierarchical_todo_statistics == false
+  local limit = 0
+  local h = parent
+  while h do
+    local data = h.properties.COOKIE_DATA
+    if data then
+      if not recursive and data:lower():find("recursive") then
+        recursive, limit = true, h.line
+      end
+      break
+    end
+    h = h.parent
+  end
+  local out = {}
+  h = parent
+  while h and h.line >= limit do
+    if (h.properties.COOKIE_DATA or ""):lower():find("checkbox") then
+      break
+    end
+    out[#out + 1] = h.line
+    if not recursive then
+      break
+    end
+    h = h.parent
+  end
+  return out
+end
+
+--- Run the statistics hooks after the TODO state of `hl` changed:
+--- `after_todo_statistics_hooks` (org-after-todo-statistics-hook) with the
+--- numbers of done and not-done children for every ancestor with a
+--- statistics cookie, then `todo_statistics_hooks`
+--- (org-todo-statistics-hook), even when there is no cookie.
+---@param bufnr integer
+---@param hl org.Headline
+function M.run_statistics_hooks(bufnr, hl)
+  local cfg = config.opts
+  local after = cfg.after_todo_statistics_hooks or {}
+  local lnum = hl.line
+  if #after > 0 then
+    for _, l in ipairs(statistics_ancestors(hl)) do
+      local file = files.get_buffer(bufnr)
+      local cur = file:headline_on(l)
+      if cur and (cur.raw:find("%[%d*%%%]") or cur.raw:find("%[%d*/%d*%]")) then
+        local done, total = require("org.lists").todo_counts(file, cur)
+        for _, fn in ipairs(after) do
+          local ok, err = pcall(fn, done, total - done, { bufnr = bufnr, lnum = cur.line })
+          if not ok then
+            utils.warn("after_todo_statistics_hooks: " .. tostring(err))
+          end
+        end
+      end
+    end
+  end
+  for _, fn in ipairs(cfg.todo_statistics_hooks or {}) do
+    local ok, err = pcall(fn, { bufnr = bufnr, lnum = lnum })
+    if not ok then
+      utils.warn("todo_statistics_hooks: " .. tostring(err))
+    end
+  end
+end
+
 local function update_parent_statistics(bufnr, hl)
   -- a parent counting checkboxes is left alone (org-update-parent-todo-statistics)
-  if not hl.parent or (hl.parent.properties.COOKIE_DATA or ""):lower():find("checkbox") then
-    return
+  if hl.parent and not (hl.parent.properties.COOKIE_DATA or ""):lower():find("checkbox") then
+    local ok, lists = pcall(require, "org.lists")
+    if ok and type(lists.update_statistics_for) == "function" then
+      pcall(lists.update_statistics_for, bufnr, hl.parent.line)
+    end
   end
-  local ok, lists = pcall(require, "org.lists")
-  if ok and type(lists.update_statistics_for) == "function" then
-    pcall(lists.update_statistics_for, bufnr, hl.parent.line)
-  end
+  local file = files.get_buffer(bufnr)
+  M.run_statistics_hooks(bufnr, file:headline_on(hl.line) or hl)
 end
 
 --- Shift every repeating timestamp of the entry (org-auto-repeat-maybe).
@@ -392,6 +482,7 @@ function M.change_state(target, new, opts)
   local todo_cfg = file.settings.todo
   local lnum = hl.line
   local old = hl.todo
+  new = M.default_state(new, old)
   if new == "" then
     new = nil
   end
@@ -468,7 +559,12 @@ function M.change_state(target, new, opts)
     end
     local note = opts.note
     if rep_log == "note" and note == nil then
-      note = utils.input_note({ prompt = "Note for state change to " .. new .. ": ", purpose = "state change to " .. new })
+      note = utils.input_note({
+        prompt = "Note for state change to " .. new .. ": ",
+        purpose = edit.note_purpose("state", new, old),
+      })
+      -- a cancelled note (C-c C-k) logs nothing (org-note-abort)
+      rep_log = note ~= nil and rep_log
     end
     local final = repeat_to_state(hl, todo_cfg, old)
     local has_clock = #hl.clocks > 0
@@ -491,11 +587,14 @@ function M.change_state(target, new, opts)
   else
     local note = opts.note
     local wants_note = (new ~= nil and state_log == "note") or (becomes_done and log_done == "note")
+    local aborted = false
     if wants_note and note == nil then
       note = utils.input_note({
         prompt = "Note for state change to " .. (new or "none") .. ": ",
-        purpose = "state change to " .. (new or "none"),
+        purpose = edit.note_purpose((new ~= nil and state_log) and "state" or "done", new, old),
       })
+      -- a cancelled note (C-c C-k) logs nothing (org-note-abort)
+      aborted = note == nil
     end
     edit.update_headline(bufnr, lnum, { todo = new or false })
     if logging_active then
@@ -509,9 +608,9 @@ function M.change_state(target, new, opts)
       end
     end
     trigger_tags(bufnr, lnum, todo_cfg, new)
-    if new and state_log then
+    if new and state_log and not aborted then
       edit.add_log_entry(bufnr, lnum, state_entry(new, old, note))
-    elseif becomes_done and log_done == "note" then
+    elseif becomes_done and log_done == "note" and not aborted then
       edit.add_log_entry(bufnr, lnum, edit.log_entry("done", note, new, old))
     end
   end
@@ -791,7 +890,7 @@ function M.add_note(target)
   if not bufnr then
     return nil
   end
-  local note = utils.input_note({ prompt = "Note: ", purpose = "note" })
+  local note = utils.input_note({ prompt = "Note: ", purpose = edit.note_purpose("note") })
   if not note or vim.trim(note) == "" then
     return nil
   end

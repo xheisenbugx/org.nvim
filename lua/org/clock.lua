@@ -684,12 +684,18 @@ function M.clock_out(opts)
     local cl = vim.api.nvim_buf_get_extmark_by_id(bufnr, mark_ns, clock_mark, {})[1] + 1
     hl = files.get_buffer(bufnr):headline_at(cl)
     if require("org.todo").log_setting(files.get_buffer(bufnr), "clock_out", hl) == "note" then
-      local note = opts.note or utils.input({ prompt = "Clock-out note (" .. st.title .. "): " })
-      if note and vim.trim(note) ~= "" then
-        local note_lines = vim.split(note, "\n")
-        local out = { indent .. "- " .. note_lines[1] }
-        for i = 2, #note_lines do
-          out[#out + 1] = indent .. "  " .. note_lines[i]
+      local note = opts.note
+      if note == nil then
+        note = utils.input_note({
+          prompt = "Clock-out note (" .. st.title .. "): ",
+          purpose = edit.note_purpose("clock-out"),
+        })
+      end
+      -- a cancelled note (C-c C-k) stores nothing, not even the heading
+      local out = note and edit.log_entry("clock-out", note)
+      if out then
+        for i, l in ipairs(out) do
+          out[i] = indent .. l
         end
         vim.api.nvim_buf_set_lines(bufnr, cl, cl, false, out)
       end

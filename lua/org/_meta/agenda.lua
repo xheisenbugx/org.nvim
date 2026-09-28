@@ -657,6 +657,9 @@
 ---@field log? false|"time"|"note"
 ---Refile as the first child instead of the last (org-reverse-note-order). (default: `false`)
 ---@field reverse_note_order? boolean
+---Keep the targets between refiles (org-refile-use-cache); a count of 64
+---(C-u C-u C-u C-c C-w) or `:Org refile_cache_clear` clears the cache. (default: `false`)
+---@field use_cache? boolean
 
 ---A refile target spec (an entry of org-refile-targets).
 ---@class org.Config.RefileTargetSpec

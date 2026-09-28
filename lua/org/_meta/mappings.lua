@@ -22,8 +22,8 @@
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
 ---| "archive_all_done" # Archive children without open TODOs
 ---| "archive_all_old" # Archive children with old time stamps
----| "archive_subtree" # Archive subtree
----| "archive_to_sibling" # Archive to Archive sibling
+---| "archive_subtree" # Archive subtree (Visual: all headlines)
+---| "archive_to_sibling" # Archive to Archive sibling (Visual: all headlines)
 ---| "attach" # Attachments
 ---| "babel_check" # Check src block header args
 ---| "babel_demarcate" # Split / wrap src block
@@ -58,6 +58,7 @@
 ---| "capture_goto_last" # Go to the last captured entry
 ---| "capture_here" # Capture at the cursor (C-0 C-c c)
 ---| "capture_goto_target" # Go to a capture template's target
+---| "checkbox_radio_mode" # Toggle checkboxes as radio buttons (org-list-checkbox-radio-mode)
 ---| "clock_cancel" # Cancel clock
 ---| "clock_display" # Display clock sums
 ---| "clock_goto" # Go to clocked task
@@ -175,6 +176,7 @@
 ---| "promote_subtree" # Promote subtree
 ---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
 ---| "refile_copy" # Copy subtree / region to a refile target
+---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
 ---| "reveal" # Reveal context around cursor
@@ -253,7 +255,7 @@
 ---| "todo_prev_sequence" # Previous TODO keyword set
 ---| "todo_select" # Select TODO state
 ---| "todo_without_note" # Change TODO state without a note (C-0 C-c C-t)
----| "toggle_archive_tag" # Toggle ARCHIVE tag
+---| "toggle_archive_tag" # Toggle ARCHIVE tag (Visual: all headlines)
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
 ---| "toggle_fixed_width" # Toggle fixed-width (:)
@@ -397,7 +399,7 @@
 ---@field narrow_subtree? org.MappingLhs
 --- Toggle COMMENT keyword. Default: `<prefix>hC`
 ---@field toggle_comment? org.MappingLhs
---- Toggle ARCHIVE tag. Default: `<prefix>hA`
+--- Toggle ARCHIVE tag (Visual: all headlines). Default: `<prefix>hA`
 ---@field toggle_archive_tag? org.MappingLhs
 --- Toggle heading. Default: `<prefix>*`
 ---@field toggle_heading? org.MappingLhs
@@ -519,7 +521,7 @@
 ---@field refile? org.MappingLhs
 --- Copy subtree to a refile target. Default: `<prefix>R`
 ---@field refile_copy? org.MappingLhs
---- Archive subtree. Default: `<prefix>$`
+--- Archive subtree (Visual: all headlines). Default: `<prefix>$`
 ---@field archive_subtree? org.MappingLhs
 --- Attachments. Default: `<prefix>A`
 ---@field attach? org.MappingLhs
@@ -827,11 +829,11 @@
 ---@field refile? org.MappingLhs
 --- Copy subtree to a refile target. Default: `<C-c><M-w>`
 ---@field refile_copy? org.MappingLhs
---- Archive subtree. Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
+--- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
 ---@field archive_subtree? org.MappingLhs
---- Toggle ARCHIVE tag. Default: `<C-c><C-x>a`
+--- Toggle ARCHIVE tag (Visual: all headlines). Default: `<C-c><C-x>a`
 ---@field toggle_archive_tag? org.MappingLhs
---- Archive to Archive sibling. Default: `<C-c><C-x>A`
+--- Archive to Archive sibling (Visual: all headlines). Default: `<C-c><C-x>A`
 ---@field archive_to_sibling? org.MappingLhs
 --- Attachments. Default: `<C-c><C-a>`
 ---@field attach? org.MappingLhs
