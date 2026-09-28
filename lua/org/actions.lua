@@ -400,7 +400,7 @@ group("Tables", {
   table_header_line_mode = { "org.table", "header_line_mode", desc = "Toggle table header-line mode" },
   table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
   table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
-  table_el = { "org.table", "table_el", desc = "table.el tables (not supported)" },
+  table_el = { "org.table", "table_el", desc = "Convert table to/from table.el, or insert one" },
   orgtbl_mode = { "org.table.orgtbl", "toggle", desc = "Toggle orgtbl-mode", global = true },
   orgtbl_insert_radio_table = {
     "org.table.orgtbl",

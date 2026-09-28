@@ -1716,9 +1716,11 @@ T.table = function(el, contents, info)
   return fmt("<table%s>\n%s\n%s\n%s</table>", a == "" and "" or (" " .. a), cap, table.concat(specs, "\n"), contents or "")
 end
 
---- table.el tables: rendered as preformatted text (Emacs uses table.el).
+--- table.el tables: the HTML table.el generates (org-html-table--table.el-table),
+--- or preformatted text when the grid cannot be read.
 function M.table_el(el)
-  return '<pre class="example">\n' .. encode(el.value) .. "</pre>"
+  local lines = vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })
+  return require("org.table.el").to_html(lines) or ('<pre class="example">\n' .. encode(el.value) .. "</pre>")
 end
 
 T.target = function(el, _, info)

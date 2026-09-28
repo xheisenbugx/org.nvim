@@ -23,8 +23,15 @@ local function is_headline(line)
   return require("org.parser").headline_level(line) ~= nil
 end
 
-local function in_table(line)
-  return line:match("^%s*|") ~= nil
+--- In an Org table (table.el tables have `|` lines too). `lnum` defaults
+--- to the cursor line.
+local function in_table(line, lnum)
+  return line:match("^%s*|") ~= nil and not require("org.table.el").at(0, lnum or utils.cursor())
+end
+
+--- In a table.el table (Emacs only suggests C-c ' there).
+local function in_table_el(line, lnum)
+  return line:match("^%s*[|+]") ~= nil and require("org.table.el").at(0, lnum or utils.cursor()) ~= nil
 end
 
 local function list_item(lnum)
@@ -61,7 +68,7 @@ function M.context_action()
   if line:match("^%s*#%+[Oo][Rr][Gg][Tt][Bb][Ll]:") then
     -- recalculate the table below and send it (org-ctrl-c-ctrl-c on a table)
     local nxt = vim.api.nvim_buf_get_lines(0, lnum, lnum + 1, false)[1]
-    if nxt and in_table(nxt) then
+    if nxt and in_table(nxt, lnum + 1) then
       require("org.table").recalc(0, lnum + 1)
       require("org.table.orgtbl").send_table(0, lnum + 1, true)
       return true
@@ -69,6 +76,9 @@ function M.context_action()
   end
   if in_table(line) then
     return require("org.table").ctrl_c_ctrl_c()
+  end
+  if in_table_el(line) then
+    return require("org.table.el").hint()
   end
   local babel = require("org.babel")
   if babel.at_block(0, lnum) or babel.inline_at_cursor() then
@@ -244,6 +254,9 @@ function M.insert_tab()
   local lnum, _, line = cur()
   if in_table(line) then
     return require("org.table").next_field()
+  end
+  if in_table_el(line) then
+    return require("org.table.el").hint()
   end
   if require("org.config").opts.tempo and require("org.structure").tempo_expand() then
     return

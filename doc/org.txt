@@ -2741,6 +2741,36 @@ orgtbl_insert_radio_table` inserts a template for the filetype
 `:Org orgtbl_toggle_comment` comments or uncomments the table with
 'commentstring', `:Org orgtbl_send_table` sends it.
 
+                                                              *org-table.el*
+Tables in the format of Emacs's table.el package are grids of `+`, `-` (or
+`=`) and `|` whose cells can span rows and columns and hold several lines:
+>org
+    +-----+--+
+    |0    |1 |
+    +--+--+  |
+    |2 |3 |  |
+    +--+--+--+
+<
+A table.el table starts and ends with a full rule (`+--+---+`). Org table
+commands leave it alone: <Tab> and <C-c><C-c> only say to use <C-c>'.
+<C-c>~ converts the Org table at the cursor to table.el after aligning it
+(horizontal rules are dropped, every row gets a border above and below),
+converts a table.el table back to Org by removing its border lines
+(spanned and multi-line cells are split, as in Emacs), and elsewhere
+inserts a new table.el table after asking for the number of columns and
+rows and the cell widths and heights (lists like `5 10` give each column
+its own width; the last value repeats). <C-c>' edits the table in a
+special buffer; when leaving Insert mode there and when writing it back,
+the grid is realigned: columns and rows grow so that the text of every
+cell fits, spanned cells are kept, and a copy of a line of a row adds a
+line to that row. A `|` typed in a cell, or a change that breaks the grid
+lines, is refused with an error (fix the grid or abort with <C-c><C-k>).
+Exports: HTML and Markdown get the `<table border="1">` table.el
+generates (`colspan`/`rowspan`, spaces as `&nbsp;`, every cell
+`align="left" valign="top"`), LaTeX its `tabular` with `\multicolumn` and
+`\cline`, ASCII, Org and Texinfo keep the text, ODT strips the table with
+a warning, as in Emacs.
+
                                                                   *org-plot*
 <C-c>"a (orgtbl-ascii-plot) adds a column after the current one with a bar
 plot of its numbers, drawn by `'(orgtbl-ascii-draw $2 MIN MAX 12)` (a
@@ -3537,7 +3567,10 @@ These need Emacs Lisp or Emacs itself:
 - LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
   exported as MathJax/verbatim by the HTML back-end; only ODT converts
   them (|org-export-odt|).
-- table.el tables are exported verbatim.
+- table.el tables: the HTML comment table.el puts before the table names
+  org.nvim instead of the Emacs version, and a grid table.el cannot read
+  is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
+  fails.
 - Asynchronous export (`a`) only makes PDF compilation asynchronous;
   publishing runs on the editor's event loop.
 - Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
@@ -4465,7 +4498,7 @@ Tables:
   <C-c>}  toggle @row/$col overlays   <C-c><Space>  blank field(s)
   <C-c>{  formula debugger            <C-c>?  field info
   <C-#>   rotate recalculation mark   <C-c>"a <C-c>"g  ASCII / gnuplot plot
-  <C-c>~  table.el (not supported)
+  <C-c>~  convert to / from table.el, or insert a table.el table
 Actions without default keys: table_recalculate, table_iterate,
 table_recalc_buffer, table_toggle_column_width, table_shrink, table_expand,
 table_edit_formulas, table_follow_field_mode, table_header_line_mode,
@@ -4695,10 +4728,21 @@ Differences from Emacs:
   tables); here the field shows #ERROR (the last definition wins) and the
   other fields are still computed. Left sides Emacs rejects are accepted:
   `$name=` for a named column, `$2..$3=` and `@I$2..@>$2=` ranges.
-- Tables in the table.el format (`+---+` grids, C-c ~, C-c ' on them) are
-  not supported: table.el is a separate large Emacs package; such tables
-  are left alone. <M-CR> inserts a row instead of splitting the field.
-  Shrunk columns use conceal and virtual text (|org-table-shrink|), the
+- Tables in the table.el format (|org-table.el|) are recognized,
+  converted, exported and edited, but the table.el editor itself (a
+  separate large Emacs package) is not reproduced: in the <C-c>' buffer
+  the grid is realigned when leaving Insert mode instead of while typing,
+  cells never shrink, text is not refilled to the cell width, and the
+  table.el cell commands (splitting, spanning and justifying cells,
+  inserting rows and columns) are missing. Columns count characters, so
+  double-width characters in cells break the grid. <C-c>~ outside a table
+  inserts the new table below a non-blank line (Emacs draws it over the
+  text at the cursor). Converting a table at the very start of the buffer
+  puts a border after every row (Emacs misses the one after the first).
+  Exported HTML cells are always `align="left" valign="top"` (Emacs too,
+  as the table is not recognized first).
+- <M-CR> in an Org table inserts a row instead of splitting the field
+  (org-table-wrap-region). Shrunk columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
   needs gnuplot.el). Translators convert Org markup in cells with a

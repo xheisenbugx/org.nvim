@@ -1862,7 +1862,10 @@ end
 T.table = function(el, contents, info)
   if el.table_type == "table.el" then
     local attr = ox.read_attribute("attr_latex", el)
-    local out = "\\begin{verbatim}\n" .. el.value .. "\\end{verbatim}"
+    -- The tabular table.el generates (org-latex--table.el-table); `:rmlines`
+    -- is ignored as in Emacs, whose loop removing rules never runs.
+    local lines = vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })
+    local out = require("org.table.el").to_latex(lines) or ("\\begin{verbatim}\n" .. el.value .. "\\end{verbatim}")
     return decorate_table(out, attr, M.caption_label_string(el, info), caption_above_p(el, info), info)
   end
   local mode = ox.read_attribute("attr_latex", el, "mode") or info.latex_default_table_mode
