@@ -62,7 +62,7 @@ tables with a fixed period show exactly the numbers printed here.
 | =<prefix>xm=            | =C-c C-x C-e=       | change the clocked task's effort       |
 | =<prefix>xz=            | =C-c C-x C-z=       | resolve open (dangling) clocks         |
 | =<prefix>xd=            | =C-c C-x C-d=       | clock sums next to the headlines       |
-| =<prefix>xr=            | =C-c C-x C-r=       | insert / update a clock table          |
+| =<prefix>xr=            | =C-c C-x x=         | insert / update a clock table          |
 | =<prefix>xu=            | =C-c C-x C-u=       | update the block at the cursor         |
 | =<prefix>xU=            |                     | update every block of the file         |
 | =<C-c><C-c>=            | =C-c C-c=           | CLOCK line: fix duration; update block |
@@ -542,7 +542,7 @@ lines, and regenerated whenever you ask.
 
 - =<C-c><C-c>= (or =<prefix>xu=, =C-c C-x C-u=) on the =#+BEGIN:= line
   updates that one block; =<prefix>xU= updates every block in the file.
-- =<prefix>xr= (=C-c C-x C-r=) inserts a new clock table for the entry at
+- =<prefix>xr= (Emacs: =C-c C-x x= then =clocktable=) inserts a new clock table for the entry at
   the cursor (=:scope subtree=), or for the whole file when the cursor is
   before the first headline. On an existing clock table it updates it.
   =4<prefix>xr= updates the first clock table in the buffer.

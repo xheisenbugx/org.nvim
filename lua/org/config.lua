@@ -1966,7 +1966,9 @@ M.defaults = {
       clock_out = "<C-c><C-x><C-o>",
       clock_cancel = "<C-c><C-x><C-q>",
       clock_goto = "<C-c><C-x><C-j>",
-      clock_report = "<C-c><C-x><C-r>",
+      -- no key in Emacs: C-c C-x C-r is org-toggle-radio-button (above);
+      -- insert a clocktable with <C-c><C-x>x or <prefix>xr
+      clock_report = false,
       clock_display = "<C-c><C-x><C-d>",
       link_preview = "<C-c><C-x><C-v>",
       link_preview_refresh = "<C-c><C-x><C-M-v>",

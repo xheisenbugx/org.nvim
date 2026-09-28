@@ -38,7 +38,7 @@ nvim -u examples/minimal_init.lua examples/18-dynamic-blocks.org
 | =<C-c><C-c>= on =#+BEGIN:= | =C-c C-c=          | update this block                  |
 | =<prefix>xu=               | =C-c C-x C-u=      | update the block around the cursor |
 | =<prefix>xU=               |                    | update every block of the file     |
-| =<prefix>xr=               | =C-c C-x C-r=      | insert / update a clock table      |
+| =<prefix>xr=               | =C-c C-x x=        | insert / update a clock table      |
 | =:Org insert_columnview=   | =C-c C-x i=        | insert a column view block         |
 | =:Org insert_dblock=       | =C-c C-x x=        | insert a block, choosing its type  |
 | =<S-Left>= / =<S-Right>=   | =S-left= =S-right= | on a clocktable =#+BEGIN:= line:   |
@@ -162,7 +162,7 @@ files) per heading. Clocking itself (clocking in and out, the logbook,
 effort) is covered in [[file:08-clocking.org][08-clocking.org]]; this section is about the
 table.
 
-=<prefix>xr= (Emacs =C-c C-x C-r=) inserts a new clock table below the
+=<prefix>xr= (Emacs: =C-c C-x x= then =clocktable=) inserts a new clock table below the
 cursor line (=:scope subtree :maxlevel 2=, or =:scope file= above the
 first heading), or updates the one the cursor is in. With a count
 (=1<prefix>xr=) it first jumps to the first clock table of the file.

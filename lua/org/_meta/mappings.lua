@@ -765,7 +765,7 @@
 ---@field clock_cancel? org.MappingLhs
 --- Go to clocked task. Default: `<C-c><C-x><C-j>`
 ---@field clock_goto? org.MappingLhs
---- Insert clock report. Default: `<C-c><C-x><C-r>`
+--- Insert clock report. No key in Emacs (`C-c C-x C-r` is the radio button). Default: `false` (disabled)
 ---@field clock_report? org.MappingLhs
 --- Display clock sums. Default: `<C-c><C-x><C-d>`
 ---@field clock_display? org.MappingLhs
