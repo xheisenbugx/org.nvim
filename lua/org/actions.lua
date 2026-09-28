@@ -339,6 +339,12 @@ group("Links", {
   insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
   insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
   open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  link_open_from_string = {
+    "org.links",
+    "open_from_string",
+    desc = "Open a link typed at a prompt",
+    global = true,
+  },
   mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
   id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
   id_copy = { "org.id", "copy", desc = "Copy entry ID" },
@@ -490,6 +496,29 @@ group("Babel", {
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
   babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
+  babel_remove_inline_result = {
+    "org.babel",
+    "remove_inline_result",
+    desc = "Remove the result of the inline src block / call",
+  },
+  babel_hash_at_point = { "org.babel", "hash_at_point", desc = "Copy the result hash at the cursor" },
+  escape_code_in_region = {
+    "org.special",
+    "escape_code_in_region",
+    desc = "Comma-escape * and #+ lines of the selection",
+    modes = { "n", "x" },
+  },
+  unescape_code_in_region = {
+    "org.special",
+    "unescape_code_in_region",
+    desc = "Remove comma escapes of the selection",
+    modes = { "n", "x" },
+  },
+  edit_src_continue = {
+    "org.special",
+    "continue_at_point",
+    desc = "Go back to the edit buffer of the region at the cursor",
+  },
 })
 
 --- Resolve an action to its function.

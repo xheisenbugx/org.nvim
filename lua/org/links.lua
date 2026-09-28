@@ -876,7 +876,7 @@ local function search_coderef(lines, label)
         switches = switches:sub(1, h - 1)
       end
       local pat = blocks.coderef_pattern(switches)
-      local fmt = switches:match('%-l%s+"(.-)"') or "(ref:%s)"
+      local fmt = blocks.coderef_format(switches)
       local j = i + 1
       while j <= #lines and not lines[j]:lower():match("^%s*#%+end_") do
         if lines[j]:match(pat) == label then
@@ -1529,6 +1529,39 @@ function M.open(target, opts)
   return ok
 end
 
+--- Open the link written in string `s`, as if it were in an Org buffer
+--- (org-link-open-from-string). Prompts for it without `s`. The string must
+--- start with a link (bracket, angle or plain) and hold nothing else but
+--- white space after it. `arg` is the count of `open_at_point`.
+---@param s? string
+---@param arg? integer
+function M.open_from_string(s, arg)
+  if s == nil then
+    s = utils.input({ prompt = "Link: " })
+    if s == nil then
+      return
+    end
+  end
+  local link = M.parse_links(s)[1]
+  if not link or link.start_col ~= 1 then
+    utils.error(string.format("No valid link in %q", s))
+    return
+  end
+  local rest = s:sub(link.end_col + 1)
+  local garbage = rest:gsub("^[ \t]+", "")
+  if garbage ~= "" then
+    utils.error(string.format("Garbage after link in %q (%q)", s, garbage))
+    return
+  end
+  return M.open(link.target, { arg = arg or vim.v.count })
+end
+
+--- :Org link_open_from_string [link]
+function M.open_from_string_command(args)
+  args = vim.trim(args or "")
+  return M.open_from_string(args ~= "" and args or nil)
+end
+
 --- Open the link under the cursor. Returns false when there is none. A
 --- count stands for the Emacs prefix argument: open files in Neovim even
 --- when an external app is configured and show internal links in another
@@ -1659,7 +1692,7 @@ local function coderef_link(bufnr, lnum, interactive)
     return nil
   end
   local pat = require("org.babel.blocks").coderef_pattern(vim.b[bufnr].org_special_switches)
-  local fmt = (vim.b[bufnr].org_special_switches or ""):match('%-l%s+"(.-)"') or "(ref:%s)"
+  local fmt = require("org.babel.blocks").coderef_format(vim.b[bufnr].org_special_switches)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
   local label = line:match(pat)
   if not label then

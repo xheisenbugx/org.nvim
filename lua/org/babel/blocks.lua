@@ -387,14 +387,21 @@ local function match_results(line)
 end
 M.match_results = match_results
 
+--- Coderef label format of a block with `switches`: its `-l "fmt"`, else
+--- `coderef_label_format` (org-src-coderef-format).
+function M.coderef_format(switches)
+  return (switches or ""):match('%-l%s+"(.-)"') or require("org.config").opts.coderef_label_format or "(ref:%s)"
+end
+
 --- Lua pattern matching a coderef label such as `(ref:name)` at the end of
 --- a line (capture 1 = the label). `switches` may set another format with
 --- `-l "fmt"`, like Emacs.
 function M.coderef_pattern(switches)
-  local fmt = (switches or ""):match('%-l%s+"(.-)"') or "(ref:%s)"
+  local fmt = M.coderef_format(switches)
   local s, e = fmt:find("%s", 1, true)
   if not s then
-    fmt, s, e = "(ref:%s)", 6, 7
+    fmt = "(ref:%s)"
+    s, e = fmt:find("%s", 1, true)
   end
   return "%s*" .. vim.pesc(fmt:sub(1, s - 1)) .. "([%w_%-][%w_%- ]*)" .. vim.pesc(fmt:sub(e + 1)) .. "%s*$"
 end

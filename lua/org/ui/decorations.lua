@@ -77,6 +77,7 @@ local function enabled(ui)
     or ui.indent_mode
     or ui.pretty_entities
     or ui.num
+    or next(ui.src_block_faces or {}) ~= nil
     or require("org.parser").inlinetask_min_level() ~= nil
 end
 
@@ -208,20 +209,40 @@ local function context_at(bufnr, first, min_inline)
     end
     e = e > 0 and s or e
   end
-  local level, in_block = 0, false
+  local level, in_block, src_lang = 0, false, nil
   for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, start, first, false)) do
     local lvl = outline(line)
     if lvl then
-      level, in_block = lvl, false
+      level, in_block, src_lang = lvl, false, nil
     elseif not (line:byte(1) == 42 and parser.headline_level(line)) then
       if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
         in_block = true
+        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
       elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block = false
+        in_block, src_lang = false, nil
       end
     end
   end
-  return level, in_block
+  return level, in_block, src_lang
+end
+
+--- Highlight groups of `ui.src_block_faces` by language (org-src-block-faces).
+local src_faces_defined
+local function src_face_groups(ui)
+  local faces = ui.src_block_faces
+  if not faces or next(faces) == nil then
+    return nil
+  end
+  local hl = require("org.highlights")
+  local groups = {}
+  for lang in pairs(faces) do
+    groups[lang] = hl.face_group("orgSrcBlockFace_", lang)
+  end
+  if src_faces_defined ~= faces then
+    src_faces_defined = faces
+    hl.apply_todo_faces()
+  end
+  return groups
 end
 
 local num_cache = {} ---@type table<integer, { tick: integer, nums: table }>
@@ -251,10 +272,11 @@ function M.compute(bufnr, first, last, ui)
     r[#r + 1] = { col, opts, persist }
   end
   local min_inline = require("org.parser").inlinetask_min_level()
-  local level, in_block = 0, false
+  local level, in_block, src_lang = 0, false, nil
   if first > 0 then
-    level, in_block = context_at(bufnr, first, min_inline)
+    level, in_block, src_lang = context_at(bufnr, first, min_inline)
   end
+  local src_faces = src_face_groups(ui)
   local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
@@ -286,7 +308,7 @@ function M.compute(bufnr, first, last, ui)
       set(row, #stars - 2, { end_col = #line, hl_group = "OrgInlinetask", priority = 150 })
     elseif stars then
       level = #stars
-      in_block = false
+      in_block, src_lang = false, nil
       local group = "OrgHeadlineLevel" .. (((level - 1) % 8) + 1)
       if ui.indent_mode and level > 1 then
         -- org-indent: headlines get level - 1 columns of prefix
@@ -332,8 +354,12 @@ function M.compute(bufnr, first, last, ui)
     else
       if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
         in_block = true
+        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
       elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block = false
+        in_block, src_lang = false, nil
+      elseif src_lang and src_faces and src_faces[src_lang] and line ~= "" then
+        -- body of a src block: its language's face (org-src-block-faces)
+        set(row, 0, { end_col = #line, hl_group = src_faces[src_lang], priority = 90 })
       end
       if ui.indent_mode and level > 0 and line ~= "" then
         -- org-indent: text of a level-n entry starts at column 2n

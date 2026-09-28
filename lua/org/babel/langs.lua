@@ -114,6 +114,22 @@ function M.ext(lang)
   return EXT[lang] or EXT[(lang or ""):lower()] or lang
 end
 
+--- Filetype of the edit buffer of a `lang` block (org-src-get-lang-mode):
+--- `src_lang_modes`, else the filetype of the language's extension, else
+--- the language name. "" means none.
+function M.filetype(lang)
+  lang = lang or ""
+  local modes = require("org.config").opts.src_lang_modes or {}
+  local ft = modes[lang]
+  if ft ~= nil then
+    return ft or ""
+  end
+  if lang == "" then
+    return ""
+  end
+  return vim.filetype.match({ filename = "x." .. M.ext(lang) }) or lang
+end
+
 --- Comment prefix used for tangle :comments (the language's comment-start).
 function M.comment_prefix(lang)
   local fam = M.family(lang)

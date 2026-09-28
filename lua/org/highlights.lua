@@ -205,6 +205,10 @@ function M.apply_todo_faces()
   for name, face in pairs(ui.tag_faces or {}) do
     vim.api.nvim_set_hl(0, M.face_group("orgTagFace_", name), hl_from_face(face))
   end
+  -- ui.src_block_faces (org-src-block-faces)
+  for lang, face in pairs(ui.src_block_faces or {}) do
+    vim.api.nvim_set_hl(0, M.face_group("orgSrcBlockFace_", lang), hl_from_face(face))
+  end
 end
 
 --- Highlight group for a per-priority or per-tag face: `prefix` plus the

@@ -36,6 +36,7 @@
 ---| "babel_goto_head" # Go to src block head
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
+---| "babel_hash_at_point" # Copy the result hash at the cursor
 ---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
@@ -45,6 +46,7 @@
 ---| "babel_next_block" # Next src block
 ---| "babel_open_result" # Open src block result
 ---| "babel_prev_block" # Previous src block
+---| "babel_remove_inline_result" # Remove the result of the inline src block / call
 ---| "babel_remove_result" # Remove src block result (count: all)
 ---| "babel_sha1_hash" # Show src block hash
 ---| "babel_switch_to_session" # Show src block session (count: assign vars)
@@ -102,7 +104,9 @@
 ---| "drag_element_down" # Drag element down
 ---| "drag_element_up" # Drag element up
 ---| "edit_special" # Edit src block / table formulas
+---| "edit_src_continue" # Go back to the edit buffer of the region at the cursor
 ---| "emphasize" # Emphasize selection / insert markers
+---| "escape_code_in_region" # Comma-escape * and #+ lines of the selection
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "feed_goto_inbox" # Go to the inbox of a feed
@@ -136,6 +140,7 @@
 ---| "insert_todo_heading" # Insert TODO heading
 ---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "lint" # Check the buffer for syntax problems (org-lint)
+---| "link_open_from_string" # Open a link typed at a prompt
 ---| "link_preview" # Toggle image previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "link_preview_refresh" # Refresh image previews in the buffer
 ---| "list_make_subtree" # Turn the list into a subtree
@@ -269,6 +274,7 @@
 ---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
+---| "unescape_code_in_region" # Remove comma escapes of the selection
 ---| "up_element" # Parent element
 ---| "update_statistics" # Update statistics cookies
 
@@ -1185,3 +1191,7 @@
 ---@field save_exit? org.MappingLhs
 --- Close the edit buffer, discarding changes. Default: `{ "<C-c><C-k>", "<prefix>k" }`
 ---@field abort? org.MappingLhs
+--- Send the edit buffer (Visual: the selected lines) to the `:session` of
+--- its block (edit buffers of blocks with a session only).
+--- Default: `{ "<C-c><C-c>", "<prefix>e" }`
+---@field send_to_session? org.MappingLhs

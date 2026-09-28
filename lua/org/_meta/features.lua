@@ -350,6 +350,10 @@
 ---Translate a link before following it (`org-link-translation-function`).
 ---(default: `nil`)
 ---@field translation_function? fun(type: string, path: string): string|nil, string|nil
+---URLs of Texinfo manuals for `info:` links exported to HTML, by manual
+---name, merged with the defaults (`org-info-other-documents`).
+---(default: `{ dir = ..., libc = ..., make = ... }`)
+---@field info_other_documents? table<string, string>
 
 ---------------------------------------------------------------------------
 -- IDs / attachments
@@ -591,6 +595,29 @@
 ---Write tangle comments without comment syntax
 ---(`org-babel-tangle-uncomment-comments`). (default: `false`)
 ---@field tangle_uncomment_comments? boolean
+---How an existing tangle target is overwritten
+---(`org-babel-tangle-remove-file-before-write`): `"auto"` deletes it first
+---only when it is read-only, `true` always deletes and recreates it,
+---`false` replaces its contents. (default: `"auto"`)
+---@field tangle_remove_file_before_write? "auto"|boolean
+---Function applied to the Org text of `:comments org|both`
+---(`org-babel-process-comment-text`); `nil` removes its common
+---indentation (`org-remove-indentation`). (default: `nil`)
+---@field process_comment_text? fun(text: string): string
+---Write `#+BEGIN_EXAMPLE` / `#+END_EXAMPLE` around results
+---(`org-babel-uppercase-example-markers`). (default: `false`)
+---@field uppercase_example_markers? boolean
+---Template of exported code blocks (`org-babel-exp-code-template`):
+---`%lang`, `%name`, `%body`, `%switches`, `%header-args`, and `%<arg>` for
+---each header argument. (default: `"#+begin_src %lang%switches%header-args\n%body\n#+end_src"`)
+---@field exp_code_template? string
+---Template of exported inline src blocks
+---(`org-babel-exp-inline-code-template`), same keys.
+---(default: `"src_%lang[%switches%header-args]{%body}"`)
+---@field exp_inline_code_template? string
+---Text exported in place of `#+CALL` lines and `call_` objects, with
+---`%line` for the call (`org-babel-exp-call-line-template`). (default: `""`)
+---@field exp_call_line_template? string
 ---Languages that can be evaluated, merged key by key with the defaults
 ---(sh, shell, bash, zsh, fish, python, python3, lua, js, javascript,
 ---typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, sql, C, C++,
