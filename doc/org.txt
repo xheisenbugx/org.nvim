@@ -361,7 +361,9 @@ items inside the text of an entry, optionally closed by an END line: >org
 <
 They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
-line (never below the minimum level) and show only their last two stars.
+line (never below the minimum level) and show only their last two stars
+(also the first one, as a marker, with `inlinetask_show_first_star`,
+org-inlinetask-show-first-star).
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -378,7 +380,14 @@ view, U D move subtree, r l R L demote / promote (subtree), i insert heading,
 t TODO, , priority (0 remove, 1 2 3 highest, default, lowest), : tags,
 e E effort, W APPT_WARNTIME, v agenda, / sparse tree, o open link,
 < > agenda restriction lock, ? help. `speed_commands` adds or changes keys:
-`{ x = "archive_subtree", n = false }`. `use_speed_commands` may also be a
+`{ x = "archive_subtree", n = false }`. At the very start of a
+`#+begin_src` line the letters of the Babel keys (<C-c><C-v> x) run their
+command too (org-babel-speed-command-activate): p n e o v u g r b s d t f
+c j l i I z a h x k. `speed_command_hook` (org-speed-command-hook) lists
+the functions deciding what a key runs, tried in order: the names
+"org-speed-command-activate" and "org-babel-speed-command-activate" for
+the built-in ones, or functions of the key returning an action name, a
+function or nil. `use_speed_commands` may also be a
 function deciding where they apply.
 
 ==============================================================================
@@ -419,6 +428,46 @@ subtree above is folded (org-cycle-separator-lines).
 <C-c><C-Tab>    Cycle the subtree even when it is archived
                 (`:Org force_cycle_archived`).
 <C-c><C-x>v     Copy the visible text (org-copy-visible).
+:Org hide_entry       Hide the text of the entry; its children stay as
+                      they are (org-fold-hide-entry).
+:Org hide_block_all   Fold every block (org-fold-hide-block-all).
+:Org hide_drawer_all  Fold every drawer, or those of the Visual selection
+                      (org-fold-hide-drawer-all).
+
+Cycling options: `cycle_global_at_bob` (org-cycle-global-at-bob) makes
+<Tab> at the very start of the buffer, not on a headline, cycle the global
+visibility; `cycle_max_level` (org-cycle-max-level) makes deeper headlines
+text for <Tab> (without it, one level less than `inlinetask_min_level`);
+`cycle_skip_children_state_if_no_children = false`
+(org-cycle-skip-children-state-if-no-children) gives entries without
+children a CHILDREN state too.
+                                                        *OrgCyclePre*
+                                                           *OrgCycle*
+Visibility cycling runs the User autocmds `OrgCyclePre` before it changes
+the visibility (org-cycle-pre-hook, and its old name org-pre-cycle-hook)
+and `OrgCycle` after (org-cycle-hook). `data.state` is the new state:
+"overview", "contents" or "all" for global cycling, "folded", "children"
+or "subtree" for a headline or item ("empty", before only, for an entry
+without text); `data.lnum` is the line cycled: >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgCycle",
+      callback = function(ev) print(ev.data.state) end,
+    })
+<
+                                              *org-show-context-detail*
+How much is shown around a location reached by a jump follows
+`fold_show_context_detail` (org-fold-show-context-detail), per context:
+`agenda` (showing an entry from the agenda), `org-goto` (goto_heading),
+`occur-tree` (sparse-tree searches), `tags-tree` (tags/property sparse
+trees), `link-search` (a link to a search in a file), and `default`. The
+spans are "minimal" (the headline, and the entry when not on it),
+"local" (the headline, its entry and the next headline), "ancestors"
+(the headline and the ones above it, and the entry when not on the
+headline), "ancestors-full" (the whole subtree and the headlines above),
+"lineage" (also the children of the headlines above, the entry and its
+first child), "tree" (all children) and "canonical" (also the text of the
+headlines above). A single span (or true = "canonical", false =
+"minimal") applies to every context.
 
                                                         *org-hidden-lines*
 Vim folds nest, so a fold that is open shows every line in it: they cannot
@@ -429,10 +478,18 @@ siblings of a sparse-tree match. Those lines are hidden with `conceal_lines`
 extmarks (Neovim 0.11 or later, 'conceallevel' 2, set by the plugin), and
 the headline gets the ellipsis. Hidden lines are never under the cursor:
 <j> / <k> skip them and other jumps show them (like Emacs, which never
-leaves point in invisible text). Typing on a hidden line follows
-`catch_invisible_edits` (org-fold-catch-invisible-edits): `"smart"` (the
-default) and `"show-and-error"` show the line and refuse the character,
-`"show"` shows it and types, `"error"` refuses, `false` types into it.
+leaves point in invisible text). Edits that touch hidden text follow
+`catch_invisible_edits` (org-fold-catch-invisible-edits): typing on a
+hidden line, typing, <CR> or <BS> at the end of a line followed by hidden
+lines, <Del> there, <BS> at the start of a line after hidden lines.
+`"smart"` (the default) shows the text around and lets typing and <BS> at
+the end of the visible line through, else refuses the edit;
+`"show-and-error"` shows it and refuses; `"show"` shows it and edits;
+`"error"` refuses; `false` edits. `catch_invisible_edits_commands`
+(org-fold-catch-invisible-edits-commands) says which edits are checked,
+by command: `self_insert` (typed text), `delete_backward_char` (<BS>),
+`delete_char` (<Del>), `return` (<CR>) and actions such as `meta_return`,
+each "insert", "delete" or "delete-backward" (false: not checked).
 Hidden lines are shared by the windows showing the buffer (like Emacs
 invisible text), while folds are per window. Vim's own fold commands (zo,
 zR, ...) don't show hidden lines; the org commands above do. Neovim 0.10
@@ -822,6 +879,12 @@ and `global_properties` set values for the whole file, in that order.
 `properties_postprocess` maps property names (ignoring case) to functions
 `function(value, target)` that adjust values given to <prefix>p
 (org-properties-postprocess-alist).
+
+`:Org toggle_custom_properties_visibility` hides the lines of the
+properties named in `custom_properties` in every property drawer of the
+buffer, and shows them again (org-toggle-custom-properties-visibility).
+Editing next to hidden ones asks whether to show them
+(|org-hidden-lines|). Needs Neovim 0.11.
 
 <prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
                 property or `columns_default_format`, for example
@@ -1987,7 +2050,15 @@ stay folded, with their headline visible, unless
 
 The buffer is folded so only matching entries are visible, the matches are
 highlighted, and the location list is filled (|:lnext|). The highlights go
-away with the next change or the next <C-c><C-c>.
+away with the next <C-c><C-c>, and those of searches (all but tag and
+property matches, like Emacs' org-occur) with the next change too
+(`remove_highlights_with_change`, org-remove-highlights-with-change).
+Regexp searches ignore case (`occur_case_fold_search`,
+org-occur-case-fold-search: true, false or "smart", only when the regexp
+has no upper case letter; `\c` / `\C` in the regexp win). How much shows
+around each match follows |org-show-context-detail| (`occur-tree` and
+`tags-tree`). After a search the User autocmd `OrgOccur` runs
+(org-occur-hook), with `data.matches` the number of matches.
 
 ==============================================================================
 14. CAPTURE                                                      *org-capture*
@@ -4198,6 +4269,12 @@ Options under `ui`:
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
                          hide_leading_stars (#+STARTUP: indent / noindent)
+  indent_mode_turns_off_adapt_indentation  adapt_indentation is off in
+                         buffers with indent_mode (true)
+  indent_indentation_per_level  columns per level of indent_mode (2):
+                         the text of a level-n entry starts after
+                         n + (per - 1)(n - 1) + 1 columns, headlines after
+                         (per - 1)(n - 1); 0 = no indentation
   pretty_entities        `\alpha` → α for every entity of Emacs'
                          org-entities (#+STARTUP: entitiespretty /
                          entitiesplain); `x^2` → x², `a_{ij}` → aᵢⱼ
@@ -4215,6 +4292,22 @@ Options under `ui`:
                          num_format_function(numbers) -> text follow the
                          org-num options
   fontify_done_headline  dim DONE headlines
+  fontify_todo_headline  highlight the text of TODO headlines with
+                         OrgHeadlineTodo (org-fontify-todo-headline)
+  level_color_stars_only the level color on the stars only
+                         (org-level-color-stars-only)
+  hidden_keywords        keywords shown without their "#+KEYWORD:" part:
+                         { "title", "subtitle", "author", "date", "email" }
+                         (org-hidden-keywords)
+  hide_macro_markers     hide the {{{ }}} of macro calls
+                         (org-hide-macro-markers)
+  highlight_latex_and_related  what LaTeX-related syntax is highlighted
+                         (org-highlight-latex-and-related), none by
+                         default like Emacs: "latex" (fragments $..$,
+                         \(..\), \[..\], $$..$$ and \begin{..}
+                         environments, OrgLatex), "native" (the same with
+                         Vim's tex syntax inside), "script" (x^2, a_{i}),
+                         "entities" (\alpha)
   src_highlight          highlight src blocks with the language syntax
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name
@@ -4224,7 +4317,24 @@ Options under `ui`:
 
 <C-c><C-x>\     Toggle pretty entities in the buffer
                 (org-toggle-pretty-entities, toggle_pretty_entities).
+:Org entities_help  List every entity with its LaTeX and HTML code
+                (org-entities-help).
+                                                      *org-entities-user*
+`entities_user` (org-entities-user) adds entities of your own, or
+replaces built-in ones, for display, completion and export: >lua
+    entities_user = {
+      -- name, LaTeX, LaTeX needs math mode, HTML, ASCII, Latin-1, UTF-8
+      { "snowman", "\\diamond", true, "&#9731;", "[snow]", "[snow]", "☃" },
+    }
+<
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
+:Org indent_mode  Toggle virtual indentation in the buffer
+                (org-indent-mode).
+                                                       *OrgIndentMode*
+                                                          *OrgNumMode*
+Turning indent mode or numbering on or off, also when a buffer starts
+with them, runs the User autocmd `OrgIndentMode` or `OrgNumMode`
+(org-indent-mode-hook, org-num-mode-hook), `data.enabled` telling which.
 
 Images and LaTeX previews                                       *org-images*
 Image links and LaTeX fragments can be shown as images in place of their
@@ -4584,6 +4694,8 @@ Priorities, tags, properties ~
   global_properties         {}
   properties_postprocess    {}        { Name = function(value) ... }
   property_separators       {}        { { { "A" } or "regexp", ", " } }
+  custom_properties         {}        hidden by
+                                      toggle_custom_properties_visibility
   effort_property           "Effort"
   duration_format           "d h:mm"  |org-durations|
   duration_units            { min = 1, h = 60, d = 1440, ... }  |org-durations|
@@ -4626,6 +4738,7 @@ Buffer ~
   adapt_indentation         false
   edit_src_content_indentation  2
   ellipsis                  "..."
+  entities_user             {}        your own entities |org-entities-user|
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
 Structure and visibility ~
   meta_return_split_line    true      M-RET splits the line (Insert mode);
@@ -4643,10 +4756,24 @@ Structure and visibility ~
   cycle_separator_lines     2         blank lines kept visible when folded
   catch_invisible_edits     "smart"   false|"error"|"show"|
                                       "show-and-error"|"smart"
+  catch_invisible_edits_commands  { self_insert = "insert", ... }
+                                      edits checked, by command
+  cycle_global_at_bob       false     TAB at buffer start cycles globally
+  cycle_max_level           nil       deepest level TAB cycles
+  cycle_skip_children_state_if_no_children  true
+  fold_show_context_detail  { agenda = "local", default = "ancestors",
+                              ... }   |org-show-context-detail|
+  occur_case_fold_search    true      sparse-tree regexps ignore case:
+                                      true|false|"smart"
+  remove_highlights_with_change  true edits remove sparse-tree and
+                                      clock_display highlights
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
+  speed_command_hook        { "org-speed-command-activate",
+                              "org-babel-speed-command-activate" }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
   inlinetask_default_state  nil
+  inlinetask_show_first_star  false   show the first star of inline tasks
   footnote_auto_label       true      true|false|"confirm"|"random"|
                                       "plain"|"anonymous"
   footnote_auto_adjust      false     false|true|"sort"|"renumber"
@@ -5430,8 +5557,14 @@ Differences from Emacs:
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't
   show hidden lines; linewise commands on a closed fold act on the whole
-  fold; `catch_invisible_edits` only watches typing on hidden lines (in a
-  closed fold the cursor is on its visible first line).
+  fold; `catch_invisible_edits` watches edits in Insert mode (Normal mode
+  commands such as `x` or `J` are not checked; Insert mode opens a closed
+  fold, so only hidden lines count as invisible), and <BS>, <Del> and
+  <CR> only when no mapping turns them into other keys (Neovim 0.11).
+- Sparse-tree searches leave the cursor on the first match; the default
+  org-occur-hook of Emacs (org-first-headline-recenter) moves it to the
+  first headline. The `OrgOccur` User autocmd runs after each search
+  (org-occur-hook).
 - TODO keywords, tags, properties and dates (see |org-todo|, |org-tags|,
   |org-properties|, |org-dates|):
   - C-c C-t prefix arguments are counts: `C-0` (no note) and `C-- 1`

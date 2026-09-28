@@ -136,25 +136,92 @@ function M.commands()
   return out
 end
 
---- Is the cursor where speed commands apply (org--speed-command-p)?
+--- Is the cursor where the headline speed commands apply
+--- (org-speed-command-activate)?
 function M.active()
   local use = require("org.config").opts.use_speed_commands
   if not use then
     return false
   end
-  if type(use) == "function" then
-    return use() and true or false
-  end
   local col = vim.api.nvim_win_get_cursor(0)[2]
-  return col == 0 and require("org.parser").headline_level(vim.api.nvim_get_current_line()) ~= nil
+  if col == 0 and require("org.parser").headline_level(vim.api.nvim_get_current_line()) ~= nil then
+    return true
+  end
+  return type(use) == "function" and use() and true or false
 end
 
---- The speed command for `char` at the cursor, or nil.
+--- The Babel speed keys at the head of a src block (org-babel-key-bindings,
+--- the letters of C-c C-v): key -> action name.
+M.babel_keys = {
+  p = "babel_prev_block",
+  n = "babel_next_block",
+  e = "babel_execute",
+  o = "babel_open_result",
+  v = "babel_expand",
+  u = "babel_goto_head",
+  g = "babel_goto_named",
+  r = "babel_goto_named_result",
+  b = "babel_execute_buffer",
+  s = "babel_execute_subtree",
+  d = "babel_demarcate",
+  t = "babel_tangle",
+  f = "babel_tangle_file",
+  c = "babel_check",
+  j = "babel_insert_header_arg",
+  l = "babel_load_in_session",
+  i = "babel_lob_ingest",
+  I = "babel_view_info",
+  z = "babel_switch_to_session_with_code",
+  a = "babel_sha1_hash",
+  h = "babel_describe_bindings",
+  x = "babel_do_key_sequence",
+  k = "babel_remove_result",
+}
+
+--- The built-in functions of `speed_command_hook`, by their Emacs names:
+--- each returns the command for `char` at the cursor, or nil.
+M.hooks = {
+  -- the headline speed commands (org-speed-command-activate)
+  ["org-speed-command-activate"] = function(char)
+    if M.active() then
+      return M.commands()[char]
+    end
+  end,
+  -- the Babel keys at the start of a `#+begin_src` line
+  -- (org-babel-speed-command-activate)
+  ["org-babel-speed-command-activate"] = function(char)
+    local name = M.babel_keys[char]
+    if not name or vim.api.nvim_win_get_cursor(0)[2] ~= 0 then
+      return nil
+    end
+    if not vim.api.nvim_get_current_line():match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc]") then
+      return nil
+    end
+    local el = require("org.element").at(0, vim.api.nvim_win_get_cursor(0)[1])
+    if el and el.type == "src-block" then
+      return run(name)
+    end
+  end,
+}
+
+--- The speed command for `char` at the cursor, or nil: the first command
+--- a function of `speed_command_hook` returns (org-speed-command-hook).
 function M.lookup(char)
-  if not M.active() then
+  local cfg = require("org.config").opts
+  if not cfg.use_speed_commands then
     return nil
   end
-  return M.commands()[char]
+  for _, h in ipairs(cfg.speed_command_hook or {}) do
+    local fn = type(h) == "string" and M.hooks[h] or h
+    if type(fn) == "function" then
+      local cmd = fn(char)
+      if type(cmd) == "string" then
+        return run(cmd)
+      elseif type(cmd) == "function" then
+        return cmd
+      end
+    end
+  end
 end
 
 --- org-speed-command-help.

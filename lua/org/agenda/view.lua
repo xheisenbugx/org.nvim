@@ -1062,7 +1062,7 @@ local function open_in_window(win, target, item)
       vim.api.nvim_set_current_buf(target.bufnr)
       vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
     end
-    pcall(vim.cmd, "normal! zv")
+    require("org.fold").reveal_cursor("agenda")
   end)
 end
 

@@ -31,6 +31,10 @@ M.links = {
   orgTodo = "OrgTodo",
   orgDone = "OrgDone",
   orgHeadlineDone = "OrgHeadlineDone",
+  orgHeadlineTodo = "OrgHeadlineTodo",
+  orgMacroMarker = "OrgMacro",
+  orgLatexEntity = "OrgLatex",
+  orgLatexScript = "OrgLatex",
   orgHeadlineComment = "OrgHeadlineComment",
   orgPriority = "OrgPriority",
   orgPriorityA = "OrgPriorityA",
@@ -96,6 +100,8 @@ local function defaults()
     OrgTodo = { link = first_existing({ "@comment.error", "DiagnosticError" }, "ErrorMsg") },
     OrgDone = { link = first_existing({ "@comment.note", "DiagnosticOk" }, "DiffAdd") },
     OrgHeadlineDone = { link = "Comment" },
+    -- org-headline-todo (fontify_todo_headline)
+    OrgHeadlineTodo = { link = first_existing({ "@string" }, "String") },
     OrgHeadlineComment = { link = "Comment" },
     OrgPriority = { link = "Special" },
     OrgPriorityA = { link = "DiagnosticError" },
@@ -147,6 +153,8 @@ local function defaults()
     OrgSuperscript = { link = "Special" },
     OrgSubscript = { link = "Special" },
     OrgInlinetask = { link = "Comment" },
+    -- org-warning, on the first star of inline tasks (inlinetask_show_first_star)
+    OrgInlinetaskFirstStar = { link = first_existing({ "@comment.warning" }, "WarningMsg") },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }

@@ -315,6 +315,54 @@ function M.at_property_line(bufnr, lnum)
   return name, value, owner
 end
 
+local ns_custom = vim.api.nvim_create_namespace("org.custom_properties")
+
+--- Are the `custom_properties` of the buffer hidden
+--- (org-custom-properties-overlays)?
+function M.custom_properties_hidden(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  return #vim.api.nvim_buf_get_extmarks(bufnr, ns_custom, 0, -1, { limit = 1 }) > 0
+end
+
+--- Hide the property lines named in `custom_properties` in every
+--- property drawer of the buffer, or show them again
+--- (org-toggle-custom-properties-visibility).
+function M.toggle_custom_properties_visibility()
+  local bufnr = vim.api.nvim_get_current_buf()
+  if M.custom_properties_hidden(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_custom, 0, -1)
+    return
+  end
+  local names = {}
+  for _, n in ipairs(config.opts.custom_properties or {}) do
+    names[n:upper()] = true
+  end
+  if next(names) == nil or not require("org.fold").conceal_supported then
+    return
+  end
+  local file = files.get_buffer(bufnr)
+  local owners = { file }
+  vim.list_extend(owners, file.headlines)
+  for _, owner in ipairs(owners) do
+    local r = owner.properties_range
+    if r then
+      for lnum = r[1] + 1, r[2] - 1 do
+        local line = file.lines[lnum]
+        local name = line and parser.parse_property_line(line)
+        if name and names[name:upper()] then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_custom, lnum - 1, 0, {
+            end_row = lnum - 1,
+            end_col = #line,
+            conceal_lines = "",
+            invalidate = true,
+            undo_restore = false,
+          })
+        end
+      end
+    end
+  end
+end
+
 --- Replace the value of the property at `lnum` (keeps name and indentation).
 local function set_value_at(bufnr, lnum, name, value)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]

@@ -218,6 +218,9 @@
 ---separator }, ... }`; a space otherwise.
 ---(Emacs `org-property-separators`, default: `{}`)
 ---@field property_separators? { [1]: string[]|string, [2]: string }[]
+---Properties hidden and shown by toggle_custom_properties_visibility.
+---(Emacs `org-custom-properties`, default: `{}`)
+---@field custom_properties? string[]
 ---Constants for table formulas (`$name`). `#+CONSTANTS:` lines in a file
 ---take precedence. (Emacs `org-table-formula-constants`, default: `{}`)
 ---@field table_formula_constants? table<string, string|number>
@@ -352,6 +355,10 @@
 ---@field src_preserve_indentation? boolean
 ---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `"..."`)
 ---@field ellipsis? string
+---Entities of your own, taking precedence over the built-in ones:
+---`{ name, latex, latex_math, html, ascii, latin1, utf8 }` entries.
+---(Emacs `org-entities-user`, default: `{}`)
+---@field entities_user? { [1]: string, [2]: string, [3]: boolean, [4]: string, [5]: string, [6]: string, [7]: string }[]
 ---Blank line before new headings / list items. A single value applies to
 ---headings. (Emacs `org-blank-before-new-entry`,
 ---default: `{ heading = "auto", plain_list_item = "auto" }`)
@@ -382,6 +389,29 @@
 ---Typing on hidden lines: `false`, `"error"`, `"show"`, `"show-and-error"`
 ---or `"smart"`. (Emacs `org-fold-catch-invisible-edits`, default: `"smart"`)
 ---@field catch_invisible_edits? false|"error"|"show"|"show-and-error"|"smart"
+---The edits `catch_invisible_edits` checks, by command: `self_insert`,
+---`delete_backward_char` (<BS>), `delete_char` (<Del>), `return` (<CR>) or
+---an action name, each `"insert"`, `"delete"` or `"delete-backward"`.
+---(Emacs `org-fold-catch-invisible-edits-commands`)
+---@field catch_invisible_edits_commands? table<string, "insert"|"delete"|"delete-backward"|false>
+---TAB at the very start of the buffer, not on a headline, cycles globally.
+---(Emacs `org-cycle-global-at-bob`, default: `false`)
+---@field cycle_global_at_bob? boolean
+---Deepest level cycled as a headline by TAB; `nil` = all.
+---(Emacs `org-cycle-max-level`, default: `nil`)
+---@field cycle_max_level? integer
+---TAB on an entry without children skips the CHILDREN state.
+---(Emacs `org-cycle-skip-children-state-if-no-children`, default: `true`)
+---@field cycle_skip_children_state_if_no_children? boolean
+---How much is shown around a location reached by a jump, per context, or
+---one span for all. (Emacs `org-fold-show-context-detail`)
+---@field fold_show_context_detail? string|boolean|table<string, "minimal"|"local"|"ancestors"|"ancestors-full"|"lineage"|"tree"|"canonical">
+---Sparse-tree regexp searches ignore case: `true`, `false` or `"smart"`.
+---(Emacs `org-occur-case-fold-search`, default: `true`)
+---@field occur_case_fold_search? boolean|"smart"
+---Changes remove sparse-tree and clock_display highlights.
+---(Emacs `org-remove-highlights-with-change`, default: `true`)
+---@field remove_highlights_with_change? boolean
 ---Single-letter commands typed in Insert mode at the start of a headline,
 ---or a function deciding where they apply.
 ---(Emacs `org-use-speed-commands`, default: `false`)
@@ -389,10 +419,18 @@
 ---Extra or changed speed commands: an action name, a function, or `false`.
 ---(Emacs `org-speed-commands`, default: `{}`)
 ---@field speed_commands? table<string, string|fun()|false>
+---Functions of a key returning the speed command it runs (an action name or
+---a function) or nil, tried in order; `"org-speed-command-activate"` and
+---`"org-babel-speed-command-activate"` name the built-in ones.
+---(Emacs `org-speed-command-hook`)
+---@field speed_command_hook? (string|fun(key: string): (string|fun())?)[]
 ---Headlines of this level or deeper are inline tasks; `false` = off (Emacs
 ---without the org-inlinetask module; 15 once it is loaded).
 ---(Emacs `org-inlinetask-min-level`, default: `false`)
 ---@field inlinetask_min_level? integer|false
+---Show the first star of inline tasks as a marker.
+---(Emacs `org-inlinetask-show-first-star`, default: `false`)
+---@field inlinetask_show_first_star? boolean
 ---TODO keyword of new inline tasks.
 ---(Emacs `org-inlinetask-default-state`, default: `nil`)
 ---@field inlinetask_default_state? string
@@ -580,6 +618,12 @@
 ---Virtual indentation of body text (`#+STARTUP: indent` / `noindent`).
 ---(Emacs `org-indent-mode` / `org-startup-indented`, default: `false`)
 ---@field indent_mode? boolean
+---Columns of virtual indentation per level in indent mode; `0` = none.
+---(Emacs `org-indent-indentation-per-level`, default: `2`)
+---@field indent_indentation_per_level? integer
+---Indent mode turns `adapt_indentation` off in its buffer.
+---(Emacs `org-indent-mode-turns-off-org-adapt-indentation`, default: `true`)
+---@field indent_mode_turns_off_adapt_indentation? boolean
 ---Render entities like `\alpha` as unicode (`#+STARTUP: entitiespretty` /
 ---`entitiesplain`, toggle_pretty_entities).
 ---(Emacs `org-pretty-entities`, default: `false`)
@@ -593,6 +637,21 @@
 ---Number headlines with virtual text (`#+STARTUP: num` / `nonum`, num_mode).
 ---(Emacs `org-num-mode` / `org-startup-numerated`, default: `false`)
 ---@field num? boolean
+---Highlight the text of TODO headlines (OrgHeadlineTodo).
+---(Emacs `org-fontify-todo-headline`, default: `false`)
+---@field fontify_todo_headline? boolean
+---The headline level color on the stars only.
+---(Emacs `org-level-color-stars-only`, default: `false`)
+---@field level_color_stars_only? boolean
+---Keywords shown without their `#+KEYWORD:` part.
+---(Emacs `org-hidden-keywords`, default: `{}`)
+---@field hidden_keywords? ("title"|"subtitle"|"author"|"date"|"email")[]
+---Hide the `{{{ }}}` around macro calls.
+---(Emacs `org-hide-macro-markers`, default: `false`)
+---@field hide_macro_markers? boolean
+---LaTeX-related syntax highlighted: `"latex"`, `"native"`, `"script"`,
+---`"entities"`. (Emacs `org-highlight-latex-and-related`, default: `{}`)
+---@field highlight_latex_and_related? ("latex"|"native"|"script"|"entities")[]
 ---Deepest numbered level; `nil` = all. (Emacs `org-num-max-level`, default: `nil`)
 ---@field num_max_level? integer
 ---Don't number COMMENT subtrees. (Emacs `org-num-skip-commented`, default: `false`)

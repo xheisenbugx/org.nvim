@@ -802,7 +802,7 @@ end
 local function contents_indentation(bufnr, el, lnum)
   if not el then
     local hl = files.get_buffer(bufnr):headline_at(lnum)
-    if hl and require("org.config").opts.adapt_indentation then
+    if hl and require("org.ui.decorations").adapt_indentation(bufnr) then
       return hl.level + 1
     end
     return 0

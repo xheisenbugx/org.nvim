@@ -100,7 +100,7 @@ end
 
 --- Indentation used for planning lines / drawers under a headline.
 function M.body_indent(level)
-  if require("org.config").opts.adapt_indentation then
+  if require("org.ui.decorations").adapt_indentation(0) then
     return string.rep(" ", level + 1)
   end
   return ""

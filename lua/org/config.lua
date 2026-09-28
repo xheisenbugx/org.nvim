@@ -205,6 +205,9 @@ M.defaults = {
   --- `{ { "NAME", ... } or "regexp", "separator" }`; a space otherwise
   --- (org-property-separators).
   property_separators = {},
+  --- Properties hidden and shown again by
+  --- toggle_custom_properties_visibility (org-custom-properties).
+  custom_properties = {},
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},
@@ -338,6 +341,10 @@ M.defaults = {
   src_preserve_indentation = false,
   --- Text appended to folded headlines (org-ellipsis).
   ellipsis = "...",
+  --- Entities of your own, before the built-in ones (org-entities-user):
+  --- `{ { name, latex, latex_math, html, ascii, latin1, utf8 } }`, e.g.
+  --- `{ { "snowman", "\\diamond", true, "&#9731;", "[snowman]", "", "☃" } }`.
+  entities_user = {},
   --- Blank line handling before new headlines and list items: true | false |
   --- "auto" (org-blank-before-new-entry).
   blank_before_new_entry = { heading = "auto", plain_list_item = "auto" },
@@ -370,15 +377,62 @@ M.defaults = {
   --- first), "show-and-error" or "smart" (unfold, and refuse edits in
   --- text that was hidden) (org-fold-catch-invisible-edits).
   catch_invisible_edits = "smart",
+  --- The edits catch_invisible_edits checks, by command: `self_insert`
+  --- (typed text), `delete_backward_char` (<BS> in Insert mode),
+  --- `delete_char` (<Del>), `return` (<CR>) or any action name, each
+  --- "insert", "delete" or "delete-backward"; false removes one
+  --- (org-fold-catch-invisible-edits-commands).
+  catch_invisible_edits_commands = {
+    self_insert = "insert",
+    delete_backward_char = "delete-backward",
+    delete_char = "delete",
+    meta_return = "insert",
+    ["return"] = "insert",
+  },
+  --- TAB at the very start of the buffer, not on a headline, cycles the
+  --- global visibility (org-cycle-global-at-bob).
+  cycle_global_at_bob = false,
+  --- Deepest level cycled as a headline; deeper ones are text for TAB.
+  --- nil = all (org-cycle-max-level).
+  cycle_max_level = nil,
+  --- TAB on an entry without children goes from FOLDED straight to
+  --- SUBTREE (org-cycle-skip-children-state-if-no-children).
+  cycle_skip_children_state_if_no_children = true,
+  --- How much is shown around a location reached by a jump, per context
+  --- (agenda, org-goto, occur-tree, tags-tree, link-search, mark-goto,
+  --- bookmark-jump, isearch, default): "minimal", "local", "ancestors",
+  --- "ancestors-full", "lineage", "tree" or "canonical"; or one of them
+  --- for every context (org-fold-show-context-detail).
+  fold_show_context_detail = {
+    agenda = "local",
+    ["bookmark-jump"] = "lineage",
+    isearch = "lineage",
+    default = "ancestors",
+  },
+  --- Sparse-tree regexp searches ignore case: true, false or "smart"
+  --- (only when the regexp has no upper case) (org-occur-case-fold-search).
+  occur_case_fold_search = true,
+  --- Any change to the buffer removes the highlights of sparse-tree
+  --- searches and clock_display; else C-c C-c does
+  --- (org-remove-highlights-with-change).
+  remove_highlights_with_change = true,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,
   --- Extra or changed speed commands: `{ key = action name | function | false }`.
   speed_commands = {},
+  --- Functions(key) deciding which speed command a key runs, tried in
+  --- order until one returns a command (an action name or a function); the
+  --- names of the built-in ones: headline commands and the Babel keys at a
+  --- `#+begin_src` line (org-speed-command-hook).
+  speed_command_hook = { "org-speed-command-activate", "org-babel-speed-command-activate" },
   --- Headlines of this level or deeper are inline tasks
   --- (org-inlinetask-min-level). false turns inline tasks off, like Emacs
   --- without the org-inlinetask module; Emacs uses 15 once it is loaded.
   inlinetask_min_level = false,
+  --- Show the first star of inline tasks as a marker
+  --- (org-inlinetask-show-first-star).
+  inlinetask_show_first_star = false,
   --- TODO keyword of new inline tasks (org-inlinetask-default-state).
   inlinetask_default_state = nil,
   --- Block types offered by insert_structure_template, by key
@@ -1720,6 +1774,12 @@ M.defaults = {
     --- Virtual indentation of body text (org-indent-mode, org-startup-indented;
     --- #+STARTUP: indent / noindent).
     indent_mode = false,
+    --- Columns of virtual indentation per level in indent mode; 0 turns
+    --- it off (org-indent-indentation-per-level).
+    indent_indentation_per_level = 2,
+    --- Indent mode turns adapt_indentation off in its buffer
+    --- (org-indent-mode-turns-off-org-adapt-indentation).
+    indent_mode_turns_off_adapt_indentation = true,
     --- Render \alpha etc. as unicode (org-pretty-entities; #+STARTUP:
     --- entitiespretty / entitiesplain, toggle with toggle_pretty_entities).
     pretty_entities = false,
@@ -1747,6 +1807,20 @@ M.defaults = {
     num_format_function = nil,
     --- Dim the whole headline of DONE entries (org-fontify-done-headline).
     fontify_done_headline = true,
+    --- Highlight the text of TODO headlines with OrgHeadlineTodo
+    --- (org-fontify-todo-headline).
+    fontify_todo_headline = false,
+    --- The headline level color on the stars only (org-level-color-stars-only).
+    level_color_stars_only = false,
+    --- Keywords shown without their "#+KEYWORD:" part: any of "title",
+    --- "subtitle", "author", "date", "email" (org-hidden-keywords).
+    hidden_keywords = {},
+    --- Hide the {{{ }}} around macro calls (org-hide-macro-markers).
+    hide_macro_markers = false,
+    --- LaTeX-related syntax highlighted: any of "latex" (fragments and
+    --- environments, OrgLatex), "native" (the same with the tex syntax),
+    --- "script" (sub/superscripts), "entities" (org-highlight-latex-and-related).
+    highlight_latex_and_related = {},
     --- Syntax-include the languages of src blocks for highlighting
     --- (org-src-fontify-natively).
     src_highlight = true,

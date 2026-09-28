@@ -65,6 +65,9 @@ group("Visibility", {
   set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
   show_everything = { "org.fold", "show_everything", desc = "Show everything, including drawers" },
   copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
+  hide_entry = { "org.fold", "hide_entry", desc = "Hide the text of the entry" },
+  hide_block_all = { "org.fold", "hide_block_all", desc = "Fold all blocks" },
+  hide_drawer_all = { "org.fold", "hide_drawer_all", desc = "Fold all drawers", modes = { "n", "x" } },
 })
 
 group("At point", {
@@ -178,6 +181,8 @@ group("Navigation & elements", {
   },
   toggle_pretty_entities = { "org.ui.decorations", "toggle_pretty_entities", desc = "Toggle pretty entities" },
   num_mode = { "org.ui.decorations", "toggle_num_mode", desc = "Toggle headline numbering (org-num-mode)" },
+  indent_mode = { "org.ui.decorations", "toggle_indent_mode", desc = "Toggle virtual indentation (org-indent-mode)" },
+  entities_help = { "org.entities", "help", desc = "List all entities", global = true },
   inlinetask_insert = { "org.inlinetask", "insert", desc = "Insert inline task" },
   goto_parent = { "org.structure", "goto_parent", desc = "Go to parent heading" },
   next_heading = { "org.structure", "next_heading", desc = "Next heading", modes = { "n", "x", "o" } },
@@ -236,6 +241,11 @@ group("TODO, priority, tags & properties", {
     "org.properties",
     "delete_property_globally",
     desc = "Delete a property from all entries",
+  },
+  toggle_custom_properties_visibility = {
+    "org.properties",
+    "toggle_custom_properties_visibility",
+    desc = "Hide / show custom_properties",
   },
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
 })
@@ -548,6 +558,10 @@ end
 function M.run(name, ...)
   local fn, a = M.get(name)
   if not fn then
+    return true
+  end
+  -- org-fold-catch-invisible-edits-commands
+  if not require("org.fold").check_invisible_edit_command(name) then
     return true
   end
   local finished, result = require("org.utils").run(fn, ...)

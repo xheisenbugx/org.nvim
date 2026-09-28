@@ -516,11 +516,15 @@ local function curbuf()
   return vim.api.nvim_get_current_buf()
 end
 
+-- custom properties hidden by toggle_custom_properties_visibility
+local ns_custom = vim.api.nvim_create_namespace("org.custom_properties")
+
 --- Is line `lnum` hidden by a conceal_lines mark?
 function M.is_concealed(bufnr, lnum)
   bufnr = (bufnr == nil or bufnr == 0) and curbuf() or bufnr
   local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_hide, { lnum - 1, 0 }, { lnum - 1, -1 }, { limit = 1 })
   return #marks > 0
+    or #vim.api.nvim_buf_get_extmarks(bufnr, ns_custom, { lnum - 1, 0 }, { lnum - 1, -1 }, { limit = 1 }) > 0
 end
 
 --- Hide lines [s, e] (1-based, inclusive).
@@ -816,6 +820,19 @@ local function show_all_but_drawers()
   vim.b.org_global_cycle = "showall"
 end
 
+--- Run the User autocmd `pattern` (OrgCyclePre, org-cycle-pre-hook, or
+--- OrgCycle, org-cycle-hook) with the new visibility `state`: "overview",
+--- "contents" or "all" after a global change, "folded", "children",
+--- "subtree" (or "empty", before only) after a local one.
+---@param lnum? integer the headline or item cycled (local cycling)
+local function run_cycle_hook(pattern, state, lnum)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = pattern,
+    data = { state = state, bufnr = curbuf(), lnum = lnum },
+    modeline = false,
+  })
+end
+
 function M.global_cycle()
   if vim.v.count > 0 then
     show_levels(vim.v.count)
@@ -824,14 +841,20 @@ function M.global_cycle()
   end
   local state = vim.b.org_global_cycle or "showall"
   if state == "showall" then
+    run_cycle_hook("OrgCyclePre", "overview")
     M.overview()
     vim.api.nvim_echo({ { "OVERVIEW" } }, false, {})
+    run_cycle_hook("OrgCycle", "overview")
   elseif state == "overview" then
+    run_cycle_hook("OrgCyclePre", "contents")
     M.content()
     vim.api.nvim_echo({ { "CONTENTS" } }, false, {})
+    run_cycle_hook("OrgCycle", "contents")
   else
+    run_cycle_hook("OrgCyclePre", "all")
     show_all_but_drawers()
     vim.api.nvim_echo({ { "SHOW ALL" } }, false, {})
+    run_cycle_hook("OrgCycle", "all")
   end
 end
 
@@ -897,9 +920,17 @@ local function cycle_item(lnum, item)
     return
   end
   local has_children = #item.children > 0
+  local skip = config.opts.cycle_skip_children_state_if_no_children ~= false
   local last = last_cycle_status(lnum)
-  if all_hidden_after(lnum, item.end_lnum) and has_children then
+  local hooks = file():headline_at(lnum) ~= nil
+  local function hook(pattern, state)
+    if hooks then
+      run_cycle_hook(pattern, state, lnum)
+    end
+  end
+  if all_hidden_after(lnum, item.end_lnum) and (has_children or not skip) then
     -- CHILDREN: the item text, its sub-items folded
+    hook("OrgCyclePre", "children")
     open_at(lnum)
     M.unconceal(0, lnum + 1, item.end_lnum)
     for _, ch in ipairs(item.children) do
@@ -909,16 +940,22 @@ local function cycle_item(lnum, item)
     end
     vim.api.nvim_echo({ { "CHILDREN" } }, false, {})
     set_last_cycle(lnum, "children")
+    hook("OrgCycle", "children")
   elseif (all_hidden_after(lnum, item.end_lnum) and not has_children) or last == "children" then
+    local skipped = all_hidden_after(lnum, item.end_lnum) and not has_children
+    hook("OrgCyclePre", "subtree")
     pcall(vim.cmd, lnum .. "," .. item.end_lnum .. "foldopen!")
     M.unconceal(0, lnum + 1, item.end_lnum)
     close_drawers(lnum, item.end_lnum)
-    vim.api.nvim_echo({ { has_children and "SUBTREE" or "SUBTREE (NO CHILDREN)" } }, false, {})
+    vim.api.nvim_echo({ { skipped and "SUBTREE (NO CHILDREN)" or "SUBTREE" } }, false, {})
     set_last_cycle(lnum, "subtree")
+    hook("OrgCycle", "subtree")
   else
+    hook("OrgCyclePre", "folded")
     close_at(lnum)
     vim.api.nvim_echo({ { "FOLDED" } }, false, {})
     set_last_cycle(lnum, "folded")
+    hook("OrgCycle", "folded")
   end
 end
 
@@ -944,6 +981,10 @@ local function emulate_tab(lnum, line)
     return require("org.element").indent_line(lnum)
   end
   local hl = file():headline_at(lnum)
+  local limit = M.cycle_limit_level()
+  while hl and limit and hl.level > limit do
+    hl = hl.parent
+  end
   if not hl then
     return false
   end
@@ -955,11 +996,30 @@ local function emulate_tab(lnum, line)
   end
 end
 
---- org-cycle-hook: image previews on TAB (ui.images.cycle_display).
+--- org-cycle-hook: image previews on TAB (ui.images.cycle_display), then
+--- the OrgCycle User autocmd.
 local function cycle_hook(state, hl)
   if (config.opts.ui.images or {}).cycle_display then
     local first_child = hl.children[1] and hl.children[1].line or nil
     pcall(require("org.ui.images").cycle_display, state, hl.line, hl.end_line, first_child)
+  end
+  run_cycle_hook("OrgCycle", state, hl.line)
+end
+
+--- The deepest level cycled as a headline (org-cycle-max-level, else one
+--- less than the inline task level), in stars; nil = every level.
+function M.cycle_limit_level()
+  local max = config.opts.cycle_max_level
+  if max ~= nil and max ~= false then
+    if type(max) ~= "number" or max < 1 or max % 1 ~= 0 then
+      error("`cycle_max_level' must be a positive integer", 0)
+    end
+    return config.opts.odd_levels_only and 2 * max - 1 or max
+  end
+  local min_inline = parser.inlinetask_min_level()
+  if min_inline then
+    max = min_inline - 1
+    return config.opts.odd_levels_only and 2 * max - 1 or max
   end
 end
 
@@ -979,9 +1039,20 @@ function M.cycle()
   elseif count > 0 then
     return show_ancestor_subtree(count)
   end
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local limit = M.cycle_limit_level()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  local lnum = pos[1]
   local line = vim.api.nvim_get_current_line()
   local bufnr = vim.api.nvim_get_current_buf()
+  local level = parser.headline_level(line)
+  if limit and level and level > limit then
+    -- deeper headlines are text for cycling (org-cycle-max-level)
+    level = nil
+  end
+  if config.opts.cycle_global_at_bob and lnum == 1 and pos[2] == 0 and not level then
+    -- org-cycle-global-at-bob
+    return M.global_cycle()
+  end
   for _, r in ipairs(regions(bufnr, lnum, lnum)) do
     if r.start == lnum and r.kind ~= "item" then
       if lnum_closed(lnum) then
@@ -992,7 +1063,7 @@ function M.cycle()
       return
     end
   end
-  if not parser.headline_level(line) then
+  if not level then
     if line:match("^[ \t]*[|+]") and require("org.table.el").at(bufnr, lnum) then
       return require("org.table.el").hint()
     end
@@ -1010,6 +1081,7 @@ function M.cycle()
     return false
   end
   if not has_fold(hl) then
+    run_cycle_hook("OrgCyclePre", "empty", lnum)
     vim.api.nvim_echo({ { "EMPTY ENTRY" } }, false, {})
     set_last_cycle(lnum, nil)
     return
@@ -1017,17 +1089,28 @@ function M.cycle()
   local archived_msg = "Subtree is archived and stays closed (use force_cycle_archived to cycle it)"
   local last = last_cycle_status(lnum)
   local hidden = all_hidden_after(lnum, hl.end_line)
-  if hidden and #hl.children > 0 then
+  local children = hl.children
+  local skip = config.opts.cycle_skip_children_state_if_no_children ~= false
+  if hidden and (#children > 0 or not skip) then
     -- CHILDREN: the entry text and the child headlines, folded
-    open_at(lnum)
-    for _, ch in ipairs(hl.children) do
-      if has_fold(ch) then
-        close_at(ch.line)
+    run_cycle_hook("OrgCyclePre", "children", lnum)
+    if limit and hl.level >= limit then
+      -- children deeper than cycle_max_level are text: all of it shows
+      -- (like Emacs, where they are no headlines for org-fold-show-children)
+      pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+      M.unconceal(0, hl.line + 1, hl.end_line)
+      close_drawers(hl.line, hl.end_line)
+    else
+      open_at(lnum)
+      for _, ch in ipairs(children) do
+        if has_fold(ch) then
+          close_at(ch.line)
+        end
       end
+      M.unconceal(0, hl.line + 1, hl.end_line)
+      open_items(hl.line + 1, hl.body_end)
+      close_drawers(hl.line, hl.body_end)
     end
-    M.unconceal(0, hl.line + 1, hl.end_line)
-    open_items(hl.line + 1, hl.body_end)
-    close_drawers(hl.line, hl.body_end)
     refresh_ellipsis()
     set_last_cycle(lnum, "children")
     cycle_hook("children", hl)
@@ -1038,8 +1121,10 @@ function M.cycle()
     vim.api.nvim_echo({ { "CHILDREN" } }, false, {})
     return
   end
-  if (hidden and #hl.children == 0) or last == "children" then
+  if (hidden and #children == 0) or last == "children" then
     -- SUBTREE
+    local skipped = hidden and #children == 0
+    run_cycle_hook("OrgCyclePre", "subtree", lnum)
     pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
     M.unconceal(0, hl.line + 1, hl.end_line)
     close_drawers(hl.line, hl.end_line)
@@ -1050,10 +1135,11 @@ function M.cycle()
       vim.api.nvim_echo({ { archived_msg } }, false, {})
       return
     end
-    vim.api.nvim_echo({ { #hl.children == 0 and "SUBTREE (NO CHILDREN)" or "SUBTREE" } }, false, {})
+    vim.api.nvim_echo({ { skipped and "SUBTREE (NO CHILDREN)" or "SUBTREE" } }, false, {})
     return
   end
   -- FOLDED
+  run_cycle_hook("OrgCyclePre", "folded", lnum)
   close_at(lnum)
   refresh_ellipsis()
   set_last_cycle(lnum, "folded")
@@ -1130,9 +1216,91 @@ function M.show_children()
   show_descendants(hl, math.max(vim.v.count, 1))
 end
 
+--- Hide the text of the entry at the cursor; its child headlines stay as
+--- they are (org-fold-hide-entry).
+function M.hide_entry()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local f = file()
+  local hl = f:headline_at(lnum)
+  if not hl then
+    -- before the first headline: the text above it
+    local first = f.headlines[1]
+    if first and first.line > 1 and M.conceal_supported then
+      M.conceal(0, 1, first.line - 1)
+      vim.api.nvim_win_set_cursor(0, { first.line, 0 })
+    end
+    return
+  end
+  if lnum_closed(hl.line) or hl.body_end <= hl.line then
+    -- folded already, or no text
+    return
+  end
+  if #hl.children == 0 then
+    close_at(hl.line)
+  else
+    hide_entry(hl)
+  end
+  if lnum > hl.line then
+    vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+  end
+  refresh_ellipsis()
+end
+
+--- Fold every block of the buffer (org-fold-hide-block-all).
+function M.hide_block_all()
+  close_blocks(1, vim.api.nvim_buf_line_count(0))
+end
+
+--- Fold every drawer of the buffer, or of the lines of the visual
+--- selection (org-fold-hide-drawer-all).
+function M.hide_drawer_all()
+  local s, e = 1, vim.api.nvim_buf_line_count(0)
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" or mode == "\22" then
+    s, _, e = require("org.utils").visual_range()
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  end
+  close_drawers(s, e)
+end
+
+--- The visibility span shown around a location reached in `context`
+--- (org-fold-show-context-detail): "agenda", "org-goto", "occur-tree",
+--- "tags-tree", "link-search", "mark-goto", "bookmark-jump", "isearch"
+--- or "default".
+---@param context? string
+---@return string
+function M.context_detail(context)
+  local opt = config.opts.fold_show_context_detail
+  if opt == true then
+    return "canonical"
+  elseif not opt then
+    return "minimal"
+  elseif type(opt) == "string" then
+    return opt
+  end
+  return (context and opt[context]) or opt.default or "minimal"
+end
+
+--- Show the context of line `lnum` for `context`, as set by
+--- `fold_show_context_detail` (org-fold-show-context).
+function M.show_context_for(lnum, context)
+  M.show_context(lnum, M.context_detail(context))
+end
+
+--- Make the cursor line visible after a jump in `context` (see
+--- `context_detail`), or open the folds around it (`zv`) in a window that
+--- doesn't fold like Org.
+function M.reveal_cursor(context)
+  local ok = vim.wo.foldexpr == "v:lua.require'org.fold'.foldexpr(v:lnum)"
+    and pcall(M.show_context_for, vim.api.nvim_win_get_cursor(0)[1], context)
+  if not ok then
+    pcall(vim.cmd, "normal! zv")
+  end
+end
+
 --- Show the context of line `lnum` (org-fold-show-set-visibility):
---- `detail` is "minimal", "ancestors", "lineage", "tree" or "canonical"
---- (see org-fold-show-context-detail).
+--- `detail` is "minimal", "local", "ancestors", "ancestors-full",
+--- "lineage", "tree" or "canonical" (see org-fold-show-context-detail).
 function M.show_context(lnum, detail)
   detail = detail or "ancestors"
   local f = file()
@@ -1143,8 +1311,20 @@ function M.show_context(lnum, detail)
   end
   local on_heading = hl.line == lnum
   show_heading_path(hl)
-  if not on_heading then
+  if detail == "ancestors-full" then
+    -- the whole subtree
+    pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+    M.unconceal(0, hl.line, hl.end_line)
+    close_drawers(hl.line, hl.end_line)
+  elseif not on_heading or detail == "local" then
     show_entry(hl)
+  end
+  if detail == "local" then
+    -- and the next headline
+    local nxt = f:headline_at(hl.body_end + 1)
+    if nxt and nxt.line == hl.body_end + 1 then
+      show_heading_path(nxt)
+    end
   end
   if detail == "lineage" or detail == "tree" or detail == "canonical" then
     -- the children of every ancestor
@@ -1447,26 +1627,129 @@ local function on_cursor_moved(bufnr)
   M.show_context(lnum, "lineage")
 end
 
---- org-fold-catch-invisible-edits for text typed on a hidden line.
-local function on_insert_char(bufnr)
+--- Is line `lnum` hidden: concealed, or inside a closed fold below its
+--- first line?
+local function line_hidden(lnum)
+  return lnum >= 1 and lnum <= vim.api.nvim_buf_line_count(0) and not M.line_visible(lnum)
+end
+
+--- org-fold-check-before-invisible-edit: `kind` ("insert", "delete" or
+--- "delete-backward") is about to edit at the cursor. When that touches
+--- hidden text (the cursor line is hidden, or the edit is at the end of a
+--- line followed by hidden lines, or at the start of a line after hidden
+--- ones), react as `catch_invisible_edits` says. Returns false when the
+--- edit must not happen.
+---@param kind "insert"|"delete"|"delete-backward"
+---@return boolean
+function M.check_invisible_edit(kind)
   local mode = config.opts.catch_invisible_edits
   if not mode then
-    return
+    return true
   end
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  if not M.is_concealed(bufnr, lnum) then
-    return
+  local pos = vim.api.nvim_win_get_cursor(0)
+  local lnum, col = pos[1], pos[2]
+  local line = vim.api.nvim_get_current_line()
+  local here = not M.line_visible(lnum)
+  local at = here or (col >= #line and line_hidden(lnum + 1))
+  local before = here or (col == 0 and line_hidden(lnum - 1))
+  if not (at or before) then
+    return true
   end
+  local msg = "Edit in invisible region aborted, repeat to confirm with text visible"
   if mode == "error" then
+    require("org.utils").warn("Editing in invisible areas is prohibited, make them visible first")
+    return false
+  end
+  local props = package.loaded["org.properties"]
+  if props and props.custom_properties_hidden and props.custom_properties_hidden(0) then
+    -- the hidden text may be custom properties (org-custom-properties)
+    if require("org.utils").confirm("Display invisible properties in this buffer?") then
+      props.toggle_custom_properties_visibility()
+      if mode == "smart" or mode == "show-and-error" then
+        require("org.utils").warn(msg)
+        return false
+      end
+      return true
+    end
+  end
+  M.show_context(lnum, "local")
+  if at and col >= #line and lnum < vim.api.nvim_buf_line_count(0) then
+    M.show_context(lnum + 1, "local")
+  end
+  if before and lnum > 1 then
+    M.show_context(lnum - 1, "local")
+  end
+  if mode == "show" then
+    require("org.utils").notify("Unfolding invisible region around point before editing")
+    return true
+  elseif mode == "smart" and at and not before and (kind == "insert" or kind == "delete-backward") then
+    require("org.utils").notify("Unfolding invisible region around point before editing")
+    return true
+  end
+  require("org.utils").warn(msg)
+  return false
+end
+
+--- The kind of edit `command` makes, when `catch_invisible_edits_commands`
+--- lists it (org-fold-catch-invisible-edits-commands).
+local function edit_kind(command)
+  local cmds = config.opts.catch_invisible_edits_commands
+  return type(cmds) == "table" and cmds[command] or nil
+end
+
+--- Check an action before it runs (see `check_invisible_edit`): false
+--- when it must not.
+function M.check_invisible_edit_command(command)
+  if vim.bo.filetype ~= "org" or not config.opts.catch_invisible_edits then
+    return true
+  end
+  local kind = edit_kind(command)
+  if not kind then
+    return true
+  end
+  return M.check_invisible_edit(kind)
+end
+
+--- Text typed in Insert mode (the self_insert command).
+local function on_insert_char()
+  local kind = edit_kind("self_insert")
+  if kind and not M.check_invisible_edit(kind) then
     vim.v.char = ""
-    require("org.utils").warn("Edit in invisible region aborted, repeat to confirm with text visible")
+  end
+end
+
+-- <BS>, <Del> and <CR> in Insert mode, checked before Vim runs them
+-- (delete_backward_char, delete_char and return).
+local key_ns
+local insert_keys
+local function watch_insert_keys()
+  if key_ns or vim.fn.has("nvim-0.11") == 0 then
     return
   end
-  M.show_context(lnum, "lineage")
-  if mode == "show-and-error" or mode == "smart" then
-    vim.v.char = ""
-    require("org.utils").warn("Edit in invisible region aborted, repeat to confirm with text visible")
-  end
+  insert_keys = {
+    [vim.keycode("<BS>")] = "delete_backward_char",
+    [vim.keycode("<C-h>")] = "delete_backward_char",
+    [vim.keycode("<Del>")] = "delete_char",
+    [vim.keycode("<CR>")] = "return",
+    [vim.keycode("<C-m>")] = "return",
+  }
+  key_ns = vim.on_key(function(key)
+    local command = insert_keys[key]
+    if not command or vim.bo.filetype ~= "org" or not config.opts.catch_invisible_edits then
+      return
+    end
+    local mode = vim.api.nvim_get_mode().mode
+    if mode ~= "i" and mode ~= "R" then
+      return
+    end
+    local kind = edit_kind(command)
+    if kind then
+      local ok, allowed = pcall(M.check_invisible_edit, kind)
+      if ok and not allowed then
+        return ""
+      end
+    end
+  end, vim.api.nvim_create_namespace("org.fold.keys"))
 end
 
 function M.setup_buffer(bufnr)
@@ -1526,9 +1809,10 @@ function M.setup_buffer(bufnr)
       buffer = bufnr,
       group = group,
       callback = function()
-        on_insert_char(bufnr)
+        on_insert_char()
       end,
     })
+    watch_insert_keys()
   end
   vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter" }, {
     buffer = bufnr,
