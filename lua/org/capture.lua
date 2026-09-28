@@ -1126,12 +1126,22 @@ function M.ensure_datetree(bufnr, parent_lnum, d, tree_type)
   end
   local level, s, e = 1, 1, vim.api.nvim_buf_line_count(bufnr)
   local line = parent_lnum
+  local count
   for _, h in ipairs(hier) do
     if line then
       local hl = files.get_buffer(bufnr):headline_at(line)
       level, s, e = hl.level + 1, hl.line + 1, hl.end_line
     end
+    count = vim.api.nvim_buf_line_count(bufnr)
     line = dt_subheading(bufnr, s, e, level, h[1], h[2])
+  end
+  local stamp = config.opts.datetree_add_timestamp
+  local grouping = type(tree_type) == "table" and tree_type or GROUPINGS[tree_type]
+  if stamp and grouping and vim.tbl_contains(grouping, "day") and vim.api.nvim_buf_line_count(bufnr) > count then
+    -- org-datetree-add-timestamp: a new day node gets its date
+    local ts = date.Date.new({ year = d.year, month = d.month, day = d.day, active = stamp ~= "inactive" })
+    local indent = config.opts.adapt_indentation == true and string.rep(" ", level + 1) or ""
+    vim.api.nvim_buf_set_lines(bufnr, line, line, false, { indent .. ts:to_string() })
   end
   return line
 end

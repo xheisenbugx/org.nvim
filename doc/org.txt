@@ -2305,7 +2305,9 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
   log                 false | "time" | "note": add "Refiled on [date]"
                       to the entry's logbook (org-log-refile); a region
                       only gets time stamps
-  reverse_note_order  refile as the first child (org-reverse-note-order)
+  reverse_note_order  refile as the first child (org-reverse-note-order);
+                      <C-c><C-M-w> (`refile_reverse`, org-refile-reverse)
+                      refiles with it inverted
   use_cache           keep the targets between refiles
                       (org-refile-use-cache): new headlines are not
                       offered until the cache is cleared with a count of
@@ -2354,6 +2356,22 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
 <C-c><C-x>A     Move the subtree under its "Archive" sibling
                 (`archive_sibling_heading`), which is created with the
                 ARCHIVE tag when missing (org-archive-to-archive-sibling).
+<C-c><C-x><C-a> Archive with `archive_default_command`
+                (org-archive-subtree-default): "archive_subtree" (the
+                default), "archive_to_sibling", "set_tag" (add the ARCHIVE
+                tag) or a function(target). The agenda's `a` uses it too.
+                `archive_subtree_save_file` (org-archive-subtree-save-file-p)
+                says when `archive_subtree` saves the archive file: true,
+                false, "from_org" (default: not when archiving from the
+                agenda) or "from_agenda" (only then).
+:Org datetree_cleanup
+                Move each entry of a date tree whose active time stamp
+                is not the date of its day node under the right day,
+                creating it (org-datetree-cleanup). Entries without a day
+                node as parent are left alone. Unlike Emacs, SCHEDULED
+                and DEADLINE stamps are skipped: Emacs's check for them
+                never matches, so it files entries by their planning
+                dates.
 :Org archive_all_done
                 Offer to archive each child of the headline at the cursor
                 (each top-level tree when not on a headline) that has no
@@ -4430,6 +4448,8 @@ Buffer ~
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
+  datetree_add_timestamp    false     "active"|"inactive": new date tree
+                                      day nodes get their date
   edit_src_content_indentation  2
   ellipsis                  "..."
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
@@ -4469,6 +4489,9 @@ Structure and visibility ~
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
   archive_reversed_order    false
   archive_mark_done         false     true|"DONEKEYWORD"
+  archive_default_command   "archive_subtree"  "archive_to_sibling"|
+                                      "set_tag"|function(target)
+  archive_subtree_save_file "from_org"  true|false|"from_agenda"
   archive_file_header_format  "\nArchived entries from file %s\n\n"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
@@ -4785,8 +4808,10 @@ Links, refile, archive, export:
   <C-c><M-l>  insert last stored link   <C-c><C-M-l>  insert all links
   <C-c>&      jump back from a followed link
   <C-c><C-x><C-n> <C-p>  next / previous link
-  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>  archive
+  <C-c><C-x><C-a>  archive with `archive_default_command`
   <C-c><M-w>  copy to a refile target
+  <C-c><C-M-w>  refile with `refile.reverse_note_order` inverted
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)

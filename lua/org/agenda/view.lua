@@ -2023,7 +2023,7 @@ function M.bulk_action()
     end, persistent)
   elseif choice == "$" then
     bulk(function(target)
-      call("org.archive", "archive_subtree", target)
+      call("org.archive", "archive_subtree", target, { from_agenda = true })
     end, persistent)
   elseif choice == "A" then
     bulk(function(target)
@@ -2329,7 +2329,7 @@ M.actions = {
     call("org.refile", "refile", target)
   end),
   archive = on_item(function(target)
-    call("org.archive", "archive_subtree", target)
+    call("org.archive", "archive_subtree", target, { from_agenda = true })
   end),
   toggle_archive_tag = on_item(function(target)
     call("org.archive", "toggle_archive_tag", target)
@@ -2714,7 +2714,7 @@ M.actions = {
     if not utils.confirm('Archive "' .. item.title .. '"?') then
       return
     end
-    call("org.archive", "archive_subtree", target)
+    call("org.archive", "archive_subtree_default", target, { from_agenda = true })
   end),
   archive_sibling = on_item(function(target)
     call("org.archive", "archive_to_sibling", target)

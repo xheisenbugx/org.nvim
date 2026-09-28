@@ -176,6 +176,10 @@
 ---| "promote_subtree" # Promote subtree
 ---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
 ---| "refile_copy" # Copy subtree / region to a refile target
+---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
+---| "datetree_cleanup" # Move date tree entries under the day of their time stamp
+---| "archive_subtree_default" # Archive with archive_default_command
+---| "capture_string" # Capture a string typed at a prompt
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
@@ -829,8 +833,12 @@
 ---@field refile? org.MappingLhs
 --- Copy subtree to a refile target. Default: `<C-c><M-w>`
 ---@field refile_copy? org.MappingLhs
---- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
+--- Refile with reverse_note_order inverted. Default: `<C-c><C-M-w>`
+---@field refile_reverse? org.MappingLhs
+--- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive_subtree? org.MappingLhs
+--- Archive with archive_default_command. Default: `<C-c><C-x><C-a>`
+---@field archive_subtree_default? org.MappingLhs
 --- Toggle ARCHIVE tag (Visual: all headlines). Default: `<C-c><C-x>a`
 ---@field toggle_archive_tag? org.MappingLhs
 --- Archive to Archive sibling (Visual: all headlines). Default: `<C-c><C-x>A`

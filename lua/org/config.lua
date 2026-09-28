@@ -272,6 +272,9 @@ M.defaults = {
   footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
+  --- A new day node of a date tree gets a time stamp of its date
+  --- (org-datetree-add-timestamp): false | "active" | "inactive".
+  datetree_add_timestamp = false,
   --- Indentation added to src block contents in the edit buffer
   --- (org-src-content-indentation).
   edit_src_content_indentation = 2,
@@ -387,6 +390,14 @@ M.defaults = {
   --- Archive as the first child of the archive heading instead of the last
   --- (org-archive-reversed-order).
   archive_reversed_order = false,
+  --- What `archive_subtree_default` (C-c C-x C-a, the agenda's `a`) does
+  --- (org-archive-default-command): "archive_subtree" | "archive_to_sibling"
+  --- | "set_tag" | function(target).
+  archive_default_command = "archive_subtree",
+  --- Save the archive file after `archive_subtree` (org-archive-subtree-save-file-p):
+  --- true | false | "from_org" (not from the agenda) | "from_agenda" (only
+  --- from the agenda). A location in the same buffer is never saved.
+  archive_subtree_save_file = "from_org",
   --- Mark archived entries done: false | true (first done keyword) | a done
   --- keyword (org-archive-mark-done).
   archive_mark_done = false,
@@ -2009,7 +2020,9 @@ M.defaults = {
       -- refile / archive / attach / agenda files
       refile = "<C-c><C-w>",
       refile_copy = "<C-c><M-w>",
-      archive_subtree ={ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
+      refile_reverse = "<C-c><C-M-w>",
+      archive_subtree = { "<C-c>$", "<C-c><C-x><C-s>" },
+      archive_subtree_default = "<C-c><C-x><C-a>",
       toggle_archive_tag = "<C-c><C-x>a",
       archive_to_sibling = "<C-c><C-x>A",
       attach = "<C-c><C-a>",
