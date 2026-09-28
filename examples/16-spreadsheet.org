@@ -1472,16 +1472,21 @@ multiply by 24 for hours or by 1440 for minutes.
 |------------------------+------------------------+--------+-------+---------|
 | <2026-10-01 Thu 09:30> | <2026-10-01 Thu 14:00> | 0.1875 |  4.50 |     270 |
 | <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> | 0.3542 |  8.50 |     510 |
-#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%d
+#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%.0f
 
 # Practice copy: results are blank on purpose.
 | Start                  | End                    | Days | Hours | Minutes |
 |------------------------+------------------------+------+-------+---------|
 | <2026-10-01 Thu 09:30> | <2026-10-01 Thu 14:00> |      |       |         |
 | <2026-10-01 Thu 22:00> | <2026-10-02 Fri 06:30> |      |       |         |
-#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%d
+#+TBLFM: $3=$2-$1;%.4f::$4=($2-$1)*24;%.2f::$5=($2-$1)*1440;%.0f
 
 *Expect:* =0.1875=, =4.50=, =270=; =0.3542=, =8.50=, =510=.
+
+The formats matter here: Calc keeps a time of day to 12 digits (22:00 is
+day =...916667=), so without them the second row shows =0.354166=,
+=8.499984= and =509.99904=, and =%d= (which cuts off the fraction) would
+give =509= minutes. =%.0f= rounds instead.
 
 ** now()
 =now()= is the moment of the recalculation, so this example cannot be

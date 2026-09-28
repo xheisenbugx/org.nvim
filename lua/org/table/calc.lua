@@ -220,6 +220,37 @@ local function float(x)
   return { tag = "float", v = round_sig(x, modes.prec) }
 end
 
+--- Decimal digits and exponent of x (x = digits * 10^exp) with `p`
+--- significant digits, trailing zeros removed.
+local function decompose(x, p)
+  local s = string.format("%." .. (p - 1) .. "e", x)
+  local d1, rest, e = s:match("^(%d)%.?(%d*)e([-+]%d+)$")
+  local digits = (d1 .. rest):gsub("0+$", "")
+  if digits == "" then
+    digits = "0"
+  end
+  return digits, tonumber(e) - (#digits - 1)
+end
+
+--- x + y as Calc adds floats (math-add-float): exactly in decimal, so the
+--- sum is snapped to the last decimal place of the operands. Without this,
+--- cancellation leaves binary noise in the low digits:
+--- 739890 - 739889.300694 would be 0.699305999908, not 0.699306.
+local function decimal_sum(x, y)
+  local s = x + y
+  if s ~= s or s == math.huge or s == -math.huge or x == 0 or y == 0 then
+    return s
+  end
+  local _, ex = decompose(math.abs(x), modes.prec)
+  local _, ey = decompose(math.abs(y), modes.prec)
+  local scale = 10 ^ -math.min(ex, ey)
+  local n = s * scale
+  if scale > 0 and math.abs(n) < 2 ^ 52 then
+    s = (n < 0 and -math.floor(-n + 0.5) or math.floor(n + 0.5)) / scale
+  end
+  return s
+end
+
 local function tofloat(v)
   local t = tag(v)
   if t == "int" then
@@ -322,7 +353,10 @@ local function parse_date(s)
   local v = days_from_civil(tonumber(y), tonumber(m), tonumber(d))
   local hh, mm = s:match("(%d%d?):(%d%d)", 11)
   if hh then
-    v = v + (tonumber(hh) * 60 + tonumber(mm)) / 1440
+    -- math-dt-to-date: the time is added as a float fraction of a day,
+    -- rounded to the working precision (22:00 of day 739890 is 739890.916667)
+    local frac = round_sig((tonumber(hh) * 3600 + tonumber(mm) * 60) / 86400, modes.prec)
+    v = round_sig(v + frac, modes.prec)
   end
   return { tag = "date", v = v }
 end
@@ -1163,7 +1197,7 @@ local function real_add(a, b)
       return x + y
     end, big_add, a, b)
   elseif ta == "float" or tb == "float" then
-    return float(tofloat(a) + tofloat(b))
+    return float(decimal_sum(tofloat(a), tofloat(b)))
   end
   local an, ad = as_frac(a)
   local bn, bd = as_frac(b)
@@ -1448,9 +1482,9 @@ add = function(a, b)
   if x ~= nil then
     return x
   elseif ta == "date" and is_real(b) then
-    return { tag = "date", v = a.v + tofloat(b) }
+    return { tag = "date", v = decimal_sum(a.v, tofloat(b)) }
   elseif tb == "date" and is_real(a) then
-    return { tag = "date", v = b.v + tofloat(a) }
+    return { tag = "date", v = decimal_sum(b.v, tofloat(a)) }
   elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" then
     error("bad argument for +")
   elseif (ta == "vec" or tb == "vec") and is_objvec(a) and is_objvec(b) then
@@ -1471,10 +1505,10 @@ sub = function(a, b)
   if x ~= nil then
     return x
   elseif ta == "date" and tb == "date" then
-    local d = a.v - b.v
+    local d = decimal_sum(a.v, -b.v)
     return d == math.floor(d) and d or float(d)
   elseif ta == "date" and is_real(b) then
-    return { tag = "date", v = a.v - tofloat(b) }
+    return { tag = "date", v = decimal_sum(a.v, -tofloat(b)) }
   elseif ta == "str" or tb == "str" or ta == "date" or tb == "date" then
     error("bad argument for -")
   end
@@ -2199,14 +2233,19 @@ end)
 date_part("weekday", function(v)
   return math.floor(v) % 7
 end)
+-- math-date-parts: the time of day in whole seconds, rounded (a date with a
+-- time is only accurate to the working precision, 22:00 is .916667)
+local function day_seconds(v)
+  return math.floor((v - math.floor(v)) * 86400 + 0.5)
+end
 date_part("hour", function(v)
-  return math.floor((v - math.floor(v)) * 24 + 1e-9)
+  return math.floor(day_seconds(v) / 3600)
 end)
 date_part("minute", function(v)
-  return math.floor((v - math.floor(v)) * 1440 + 1e-9) % 60
+  return math.floor(day_seconds(v) / 60) % 60
 end)
 date_part("second", function(v)
-  return math.floor((v - math.floor(v)) * 86400 + 0.5) % 60
+  return day_seconds(v) % 60
 end)
 F.now = function()
   local t = os.time()
@@ -3958,18 +3997,6 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-
---- Decimal digits and exponent of x (x = digits * 10^exp) with `p`
---- significant digits, trailing zeros removed.
-local function decompose(x, p)
-  local s = string.format("%." .. (p - 1) .. "e", x)
-  local d1, rest, e = s:match("^(%d)%.?(%d*)e([-+]%d+)$")
-  local digits = (d1 .. rest):gsub("0+$", "")
-  if digits == "" then
-    digits = "0"
-  end
-  return digits, tonumber(e) - (#digits - 1)
-end
 
 --- Round a digit string to `n` digits (n may be <= 0), half away from zero.
 --- Returns the new digit string and how many digits were dropped.
