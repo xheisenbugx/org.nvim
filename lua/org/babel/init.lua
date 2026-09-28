@@ -847,6 +847,9 @@ local function lang_cmd(lang, args)
   end
   if fam == "sql" then
     return {}
+  elseif fam == "shell" and lang_cfg == nil then
+    -- a shell of `babel.shell_names` runs as itself (org-babel-shell-initialize)
+    return { lang }
   end
   return nil
 end

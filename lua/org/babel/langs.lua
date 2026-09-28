@@ -41,7 +41,15 @@ local FAMILY = {
 }
 
 function M.family(lang)
-  return FAMILY[lang] or FAMILY[(lang or ""):lower()] or "generic"
+  local fam = FAMILY[lang] or FAMILY[(lang or ""):lower()]
+  if fam then
+    return fam
+  end
+  -- org-babel-shell-names: more shells run like sh
+  if vim.tbl_contains(require("org.config").opts.babel.shell_names or {}, lang) then
+    return "shell"
+  end
+  return "generic"
 end
 
 --- C variant of a language (ob-C): "c", "cpp" or "d".
@@ -705,10 +713,27 @@ end
 
 --- Is the value of this shell block its exit status? Shell blocks
 --- default to `:results output`; only an explicit `:results value` asks for
---- the exit status (`org-babel-shell-results-defaults-to-output`).
+--- the exit status, or a block without other `:results` words when
+--- `babel.shell_results_defaults_to_output` is false
+--- (`org-babel-shell-results-defaults-to-output`).
 function M.shell_exit_status(lang, args)
   local fam = M.family(lang)
-  return (fam == "shell" or fam == "fish") and args.results_spec.collection == "value" and not args.default_collection
+  if not (fam == "shell" or fam == "fish") or args.results_spec.collection ~= "value" then
+    return false
+  end
+  if not args.default_collection then
+    return true
+  end
+  if require("org.config").opts.babel.shell_results_defaults_to_output ~= false then
+    return false
+  end
+  -- Emacs: the result params are exactly ("replace")
+  for cat, w in pairs(args.results_spec) do
+    if cat ~= "collection" and not (cat == "handling" and w == "replace") then
+      return false
+    end
+  end
+  return not args.results_extra or #args.results_extra == 0
 end
 
 local function unq(v)

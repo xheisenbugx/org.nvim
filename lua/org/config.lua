@@ -1215,6 +1215,11 @@ M.defaults = {
     -- Write tangle comments as they are, without comment syntax
     -- (org-babel-tangle-uncomment-comments)
     tangle_uncomment_comments = false,
+    -- Languages run as a shell, like sh (org-babel-shell-names)
+    shell_names = { "sh", "bash", "zsh", "fish", "csh", "ash", "dash", "ksh", "mksh", "posh" },
+    -- Shell blocks without :results words give their output; false: their
+    -- exit status (org-babel-shell-results-defaults-to-output)
+    shell_results_defaults_to_output = true,
     -- Languages that can run, { cmd, ext, default_header_args }
     -- (org-babel-load-languages; default_header_args is
     -- org-babel-default-header-args:LANG). Emacs enables only emacs-lisp,
