@@ -135,6 +135,20 @@ describe("cycle options (Emacs 9.8.10)", function()
     eq(false, closed(3))
   end)
 
+  -- Emacs 9.8.10 (org-cycle-max-level 2, everything shown, TAB on
+  -- "*** B"): with #+STARTUP: odd the limit is 3 stars, so B folds
+  -- ("FOLDED", its lines hidden); without it B is text
+  it("cycle_max_level counts odd levels with #+STARTUP: odd", function()
+    config.opts.cycle_max_level = 2
+    local buf = org_buffer({ "#+STARTUP: odd", "* A", "*** B", "b", "***** C", "c" }, { 3, 0 })
+    fold.setup_buffer(buf)
+    vim.cmd("normal! zR")
+    local msgs = echoed(fold.cycle)
+    config.opts.cycle_max_level = nil
+    eq({ "FOLDED" }, msgs)
+    eq({ "#+STARTUP: odd", "* A", "*** B" }, visible())
+  end)
+
   it("cycle_max_level must be a positive integer", function()
     config.opts.cycle_max_level = 0
     org_buffer({ "* A", "b" }, { 1, 0 })

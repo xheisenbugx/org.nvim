@@ -1062,17 +1062,19 @@ end
 --- The deepest level cycled as a headline (org-cycle-max-level, else one
 --- less than the inline task level), in stars; nil = every level.
 function M.cycle_limit_level()
+  -- odd_levels_only or the buffer's #+STARTUP: odd / oddeven
+  local odd = require("org.structure").odd_levels_only()
   local max = config.opts.cycle_max_level
   if max ~= nil and max ~= false then
     if type(max) ~= "number" or max < 1 or max % 1 ~= 0 then
       error("`cycle_max_level' must be a positive integer", 0)
     end
-    return config.opts.odd_levels_only and 2 * max - 1 or max
+    return odd and 2 * max - 1 or max
   end
   local min_inline = parser.inlinetask_min_level()
   if min_inline then
     max = min_inline - 1
-    return config.opts.odd_levels_only and 2 * max - 1 or max
+    return odd and 2 * max - 1 or max
   end
 end
 
