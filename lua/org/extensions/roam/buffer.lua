@@ -81,6 +81,11 @@ local function outline(file, lnum)
   return table.concat(olp, " > ")
 end
 
+-- preview text as Org shows it: links as their descriptions
+local function display(text)
+  return require("org.links").display_format(text)
+end
+
 local function render(node)
   local lines, hls, targets = {}, {}, {}
   local function add(text, hl, target)
@@ -121,7 +126,7 @@ local function render(node)
           if f then
             add("    " .. outline(f, item.link.lnum), "Comment", target)
             for _, p in ipairs(M.preview(f, item.link.lnum)) do
-              add("      " .. p, nil, target)
+              add("      " .. display(p), nil, target)
             end
           end
         end
@@ -181,7 +186,7 @@ local function jump()
   else
     vim.api.nvim_set_current_win(win)
   end
-  utils.open_file(t.file, t.lnum, { col = t.col and math.max(0, t.col - 1) or 0 })
+  require("org.extensions.roam.node").open(t.file, t.lnum, { col = t.col and math.max(0, t.col - 1) or 0 })
 end
 
 local function create_buffer()

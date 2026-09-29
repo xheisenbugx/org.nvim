@@ -161,6 +161,20 @@ function M.read(opts)
   return choice
 end
 
+--- Open `path` at `lnum` like `utils.open_file`, reporting a failure (a
+--- modified buffer that can't be left, E37) as a warning.
+---@param path string
+---@param lnum? integer
+---@param o? table
+---@return boolean ok
+function M.open(path, lnum, o)
+  local ok, err = pcall(utils.open_file, path, lnum, o)
+  if not ok then
+    utils.warn("org-roam: " .. tostring(err):gsub("^.-(E%d+:)", "%1"))
+  end
+  return ok
+end
+
 --- Go to `node` (org-roam-node-visit).
 ---@param node org.roam.Node
 function M.visit(node)
@@ -174,7 +188,7 @@ function M.visit(node)
     lnum = hl and hl.line or lnum
   end
   vim.cmd("normal! m'")
-  utils.open_file(path, lnum)
+  M.open(path, lnum)
 end
 
 --- Find a node by title or alias and visit it, capturing a new one when

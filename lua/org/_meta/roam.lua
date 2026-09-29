@@ -12,13 +12,17 @@
 ---The notes directory; every `.org` file below it is indexed
 ---(org-roam-directory, default: `"~/org/roam"`).
 ---@field directory? string
----Lua patterns: files whose path relative to `directory` matches one are
----not indexed (org-roam-file-exclude-regexp, default: `{ "^data/" }`).
----@field exclude? string[]
+---Emacs regexps (or functions of the relative and absolute path): files
+---whose path relative to `directory` matches one are not indexed
+---(org-roam-file-exclude-regexp, default: `{ "data/" }`).
+---@field exclude? string|(string|fun(relpath: string, path: string): boolean)[]
 ---Where the index is cached (default: stdpath("data")/org/roam-index.json).
 ---@field index_file? string
 ---Re-index a roam file when it is written (default: `true`).
 ---@field update_on_save? boolean
+---How nodes are chosen: `"auto"` (default: snacks.nvim's picker when loaded,
+---else `"select"`), `"snacks"`, `"select"` (vim.ui.select) or `"input"`.
+---@field picker? "auto"|"snacks"|"select"|"input"
 ---Order of node candidates: `"mtime"` (default), `"title"` or `"none"`.
 ---@field sort? "mtime"|"title"|"none"
 ---Show the outline path before headline nodes (default: `false`).

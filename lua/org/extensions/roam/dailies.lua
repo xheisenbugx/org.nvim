@@ -168,7 +168,7 @@ local function step(n)
     utils.warn("org-roam: already at the newest note")
     return
   end
-  utils.open_file(list[target], 1)
+  require("org.extensions.roam.node").open(list[target], 1)
 end
 
 --- Go to the next daily note (org-roam-dailies-goto-next-note).

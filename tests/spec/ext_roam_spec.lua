@@ -80,6 +80,13 @@ describe("roam extension", function()
       eq("cafe_creme", slug("Café  Crème"))
       eq("a_b", slug("__a -- b__"))
       eq("日本語", slug("日本語"))
+      -- only the marks org-roam strips go: ł has none, ą's ogonek stays
+      eq("łodz_ąę", slug("Łódź ąę"))
+      eq("tieng_viet", slug("Tiếng Việt"))
+      eq("straße", slug("Straße"))
+      -- symbols and emoji are not alphanumeric
+      eq("5_off_deal", slug("5€ off 😀 deal"))
+      eq("ǫ", slug("ǭ"))
     end)
 
     it("splits and joins quoted property values", function()
@@ -402,7 +409,7 @@ describe("roam extension", function()
         "Backlinks (1)",
         "  Banana",
         "    Notes",
-        "      Apples are [[id:file-a][good]].",
+        "      Apples are good.",
         "      Really.",
         "",
         "Reflinks (0)",

@@ -13,14 +13,33 @@ local utils = require("org.utils")
 
 local M = {}
 
--- accented letters and the letter org-roam's NFD normalisation leaves
-local ACCENTS = {}
-local ACCENT_GROUPS =
-  "àáâãäåā=a çčć=c èéêëēě=e ìíîïī=i ñň=n òóôõöō=o ř=r šś=s ùúûüūů=u ýÿ=y žźż=z"
-for group in ACCENT_GROUPS:gmatch("%S+") do
-  local chars, base = group:match("^(.-)=(.)$")
+-- Precomposed Latin letters and what org-roam's slug leaves of them: it
+-- decomposes (NFD), drops these combining marks and recomposes (NFC):
+-- U+0300-0304 0306-030C 031B 0323-0325 0327 032D 032E 0330 0331.
+-- Generated from Unicode data; "abc=X" means a, b and c become X.
+local STRIP = {}
+for group in table.concat({
+  "ÀÁÂÃÄÅĀĂǍǞǠǺȦḀẠẢẤẦẨẪẬẮẰẲẴẶ=A ḂḄḆ=B ÇĆĈĊČḈ=C ",
+  "ĎḊḌḎḐḒ=D ÈÉÊËĒĔĖĚȨḔḖḘḚḜẸẺẼẾỀỂỄỆ=E Ḟ=F ",
+  "ĜĞĠĢǦǴḠ=G ĤȞḢḤḦḨḪ=H ÌÍÎÏĨĪĬİǏḬḮỈỊ=I Ĵ=J ĶǨḰḲḴ=K ",
+  "ĹĻĽḶḸḺḼ=L ḾṀṂ=M ÑŃŅŇǸṄṆṈṊ=N ",
+  "ÒÓÔÕÖŌŎŐƠǑȪȬȮȰṌṎṐṒỌỎỐỒỔỖỘỚỜỞỠỢ=O ṔṖ=P ",
+  "ŔŖŘṘṚṜṞ=R ŚŜŞŠṠṢṤṦṨ=S ŢŤṪṬṮṰ=T ",
+  "ÙÚÛÜŨŪŬŮŰƯǓǕǗǙǛṲṴṶṸṺỤỦỨỪỬỮỰ=U ṼṾ=V ŴẀẂẄẆẈ=W ",
+  "ẊẌ=X ÝŶŸȲẎỲỴỶỸ=Y ŹŻŽẐẒẔ=Z ",
+  "àáâãäåāăǎǟǡǻȧḁạảấầẩẫậắằẳẵặ=a ḃḅḇ=b çćĉċčḉ=c ",
+  "ďḋḍḏḑḓ=d èéêëēĕėěȩḕḗḙḛḝẹẻẽếềểễệ=e ḟ=f ",
+  "ĝğġģǧǵḡ=g ĥȟḣḥḧḩḫẖ=h ìíîïĩīĭǐḭḯỉị=i ĵǰ=j ķǩḱḳḵ=k ",
+  "ĺļľḷḹḻḽ=l ḿṁṃ=m ñńņňǹṅṇṉṋ=n ",
+  "òóôõöōŏőơǒȫȭȯȱṍṏṑṓọỏốồổỗộớờởỡợ=o ṕṗ=p ",
+  "ŕŗřṙṛṝṟ=r śŝşšṡṣṥṧṩ=s ţťṫṭṯṱẗ=t ",
+  "ùúûüũūŭůűưǔǖǘǚǜṳṵṷṹṻụủứừửữự=u ṽṿ=v ŵẁẃẅẇẉẘ=w ",
+  "ẋẍ=x ýÿŷȳẏẙỳỵỷỹ=y źżžẑẓẕ=z ǢǼ=Æ Ǿ=Ø ǣǽ=æ ǿ=ø ẛ=ſ Ǯ=Ʒ ",
+  "Ǭ=Ǫ ǭ=ǫ ǯ=ʒ ",
+}):gmatch("%S+") do
+  local chars, base = group:match("^(.+)=(.-)$")
   for _, ch in ipairs(vim.fn.split(chars, "\\zs")) do
-    ACCENTS[ch] = base
+    STRIP[ch] = base
   end
 end
 
@@ -29,28 +48,28 @@ end
 ---@field title? string
 ---@field file? string
 
---- A slug for `title` (org-roam-node-slug): accents dropped, runs of
---- anything but letters and digits turned into one `_`, lower-cased.
+--- A slug for `title` (org-roam-node-slug): marks dropped from accented
+--- letters, runs of anything but letters and digits turned into one `_`,
+--- lower-cased.
 ---@param title string
 ---@return string
 function M.slug(title)
   local out = {}
   for _, ch in ipairs(vim.fn.split(title, "\\zs")) do
-    local lower = vim.fn.tolower(ch)
-    local base = ACCENTS[lower]
-    if base then
-      out[#out + 1] = base
-    elseif #ch == 1 then
-      out[#out + 1] = ch:match("%w") and ch:lower() or "_"
+    ch = STRIP[ch] or ch
+    local alnum
+    if #ch == 1 then
+      alnum = ch:match("%w") ~= nil
     else
-      -- other non-ASCII: letters stay, general punctuation and symbols go
-      local cp = vim.fn.char2nr(ch)
-      local punct = (cp >= 0x2000 and cp <= 0x206F) or (cp >= 0x3000 and cp <= 0x303F) or cp == 0xA0
-      out[#out + 1] = punct and "_" or lower
+      -- 2 is a word character, above 3 a script (CJK, kana, ...); 1 is
+      -- punctuation and 3 emoji
+      local class = vim.fn.charclass(ch)
+      alnum = class == 2 or class > 3
     end
+    out[#out + 1] = alnum and ch or "_"
   end
   local s = table.concat(out):gsub("_+", "_"):gsub("^_", ""):gsub("_$", "")
-  return s
+  return vim.fn.tolower(s)
 end
 
 --- Expand `${key}` and `${key=default}` in `text` from `node` (and the

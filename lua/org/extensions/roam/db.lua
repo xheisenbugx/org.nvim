@@ -49,13 +49,23 @@ local function opts()
   return require("org.extensions").opts("roam") or require("org.extensions.roam").defaults
 end
 
+-- the resolved directory, cached for the option value it came from
+local dir_cache = { from = nil, dir = nil }
+
 --- The roam directory, absolute and without a trailing slash.
 ---@return string
 function M.directory()
-  local dir = vim.fs.normalize(utils.expand(opts().directory))
+  local from = opts().directory
+  if dir_cache.from == from and dir_cache.dir then
+    return dir_cache.dir
+  end
+  local dir = vim.fs.normalize(utils.expand(from))
   -- buffers are named by the resolved path when the directory is a symlink
-  dir = vim.uv.fs_realpath(dir) or dir
-  return (dir:gsub("/$", ""))
+  local real = vim.uv.fs_realpath(dir)
+  dir = (real or dir):gsub("/$", "")
+  -- a directory that doesn't exist yet is resolved again next time
+  dir_cache = { from = real and from or nil, dir = real and dir or nil }
+  return dir
 end
 
 local function index_path()
@@ -84,6 +94,33 @@ function M.relative(path)
   end
 end
 
+-- compiled `exclude` entries, cached for the option table they came from
+local exclude_cache = { from = nil, list = {} }
+
+local function excludes()
+  local ex = opts().exclude
+  if exclude_cache.from == ex then
+    return exclude_cache.list
+  end
+  local list = {}
+  for _, e in ipairs(type(ex) == "table" and ex or { ex }) do
+    if type(e) == "function" then
+      list[#list + 1] = e
+    elseif type(e) == "string" and e ~= "" then
+      local ok, re = pcall(vim.regex, require("org.agenda.search").emacs_regexp(e))
+      if ok then
+        list[#list + 1] = function(rel)
+          return re:match_str(rel) ~= nil
+        end
+      else
+        utils.warn("org-roam: invalid exclude regexp " .. e)
+      end
+    end
+  end
+  exclude_cache = { from = ex, list = list }
+  return list
+end
+
 --- Whether `path` is an org file indexed by roam (org-roam-file-p): below
 --- the directory, not hidden and not matching `exclude`.
 ---@param path string
@@ -101,8 +138,8 @@ function M.is_roam_file(path)
       return false
     end
   end
-  for _, pat in ipairs(opts().exclude or {}) do
-    if rel:find(pat) then
+  for _, fn in ipairs(excludes()) do
+    if fn(rel, path) then
       return false
     end
   end
@@ -117,10 +154,23 @@ function M.list_files()
     return {}
   end
   local out = {}
-  for _, p in ipairs(vim.fn.globpath(dir, "**/*.org", false, true)) do
-    p = vim.fs.normalize(p)
-    if M.is_roam_file(p) then
-      out[#out + 1] = p
+  local walk = vim.fs.dir(dir, {
+    depth = math.huge,
+    -- hidden directories (.git, ...) are never roam files: don't enter them
+    skip = function(name)
+      return not vim.fs.basename(name):match("^%.")
+    end,
+  })
+  for name, kind in walk do
+    if name:match("%.org$") then
+      local p = dir .. "/" .. name
+      if kind == "link" then
+        local st = vim.uv.fs_stat(p)
+        kind = st and st.type or kind
+      end
+      if kind == "file" and M.is_roam_file(p) then
+        out[#out + 1] = p
+      end
     end
   end
   table.sort(out)
@@ -370,7 +420,8 @@ local function register_ids(entries)
   local map = {}
   for _, e in ipairs(entries) do
     for _, n in ipairs(e.nodes) do
-      map[n.id] = n.file
+      local indexed = M.node(n.id)
+      map[n.id] = indexed and indexed.file or n.file
     end
   end
   if next(map) then
@@ -459,14 +510,22 @@ local function build()
     return lookup
   end
   local idx = load()
-  lookup = { nodes = {}, by_id = {}, backlinks = {}, reflinks = {} }
+  lookup = { nodes = {}, by_id = {}, backlinks = {}, reflinks = {}, duplicates = {} }
   local paths = vim.tbl_keys(idx.files)
   table.sort(paths)
   for _, path in ipairs(paths) do
     local e = idx.files[path]
     for _, n in ipairs(e.nodes or {}) do
-      lookup.nodes[#lookup.nodes + 1] = n
-      lookup.by_id[n.id] = n
+      local first = lookup.by_id[n.id]
+      if first then
+        -- org-roam's database refuses a second node with the same id
+        local d = lookup.duplicates[n.id] or { first }
+        d[#d + 1] = n
+        lookup.duplicates[n.id] = d
+      else
+        lookup.nodes[#lookup.nodes + 1] = n
+        lookup.by_id[n.id] = n
+      end
     end
     for _, l in ipairs(e.links or {}) do
       l.file = path
@@ -488,6 +547,15 @@ end
 function M.reset()
   index = nil
   lookup = nil
+  dir_cache = { from = nil, dir = nil }
+  exclude_cache = { from = nil, list = {} }
+end
+
+--- Ids used by more than one node: id -> the nodes, the indexed one first.
+--- Only the first node (in path order) of a duplicated id is indexed.
+---@return table<string, org.roam.Node[]>
+function M.duplicates()
+  return build().duplicates
 end
 
 --- All nodes, in file order.

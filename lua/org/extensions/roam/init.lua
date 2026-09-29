@@ -13,10 +13,11 @@ M.defaults = {
   --- The notes directory (org-roam-directory); every `.org` file below it
   --- is indexed.
   directory = "~/org/roam",
-  --- Lua patterns; files whose path relative to `directory` matches one
-  --- are not indexed (org-roam-file-exclude-regexp). Hidden files and
-  --- directories are always skipped.
-  exclude = { "^data/" },
+  --- Emacs regexps (or `fun(relpath, path): boolean`); files whose path
+  --- relative to `directory` matches one are not indexed
+  --- (org-roam-file-exclude-regexp, default org-attach-id-dir). Hidden
+  --- files and directories are always skipped.
+  exclude = { "data/" },
   --- Where the index is cached (default stdpath("data")/org/roam-index.json).
   index_file = nil,
   --- Re-index a roam file when it is written (org-roam-db-autosync-mode).
