@@ -1941,6 +1941,12 @@ function M.manipulate_query(sign, regexp, term)
       rest = rest:find("%s") and ('+"' .. rest .. '"') or ("+" .. rest)
     end
     b.match = vim.trim(flags .. rest .. " " .. add)
+    -- the query is kept in a register for custom commands
+    -- (org-agenda-query-register)
+    local reg = config.opts.agenda.query_register
+    if type(reg) == "string" and reg ~= "" then
+      pcall(vim.fn.setreg, reg, b.match)
+    end
   else
     local tags_part, todo_part = match:match("^(.-)(/.*)$")
     b.match = (tags_part or match) .. add .. (todo_part or "")

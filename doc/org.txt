@@ -1391,7 +1391,9 @@ All configurable under `mappings.agenda`:
   / \ < = _ ^ |   filters (|org-agenda-filter|)
   ~               limit the number of entries (|org-agenda-limits|)
   [ ] { }         search view: add a +word / -word / +{regexp} /
-                  -{regexp} term (tags views: a +tag / -tag term);
+                  -{regexp} term, the new query also going to register
+                  `o` (`agenda.query_register`, org-agenda-query-register)
+                  (tags views: a +tag / -tag term);
                   date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
   <M-m> * <M-*>   toggle mark / mark all / toggle all marks

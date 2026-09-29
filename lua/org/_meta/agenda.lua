@@ -317,6 +317,9 @@
 ---@field skip_unavailable_files? boolean
 ---Every search query is boolean (org-agenda-search-view-always-boolean). (default: `false`)
 ---@field search_view_always_boolean? boolean
+---Register receiving the search query built with [ ] { }
+---(org-agenda-query-register); false for none. (default: `"o"`)
+---@field query_register? string|false
 ---Search words match whole words (org-agenda-search-view-force-full-words). (default: `false`)
 ---@field search_view_force_full_words? boolean
 ---Deeper entries are searched with their ancestor at this level; 0 = no

@@ -652,6 +652,20 @@ describe("scheduled_delay_days", function()
   end)
 end)
 
+describe("query register", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("keeps the search query built with [ ] { } in register o", function()
+    open({ "* TODO Call mom", "* TODO Call work" }, {}, { type = "search", match = "call" })
+    vim.fn.setreg("o", "")
+    view.manipulate_query("-", false, "work")
+    eq(view.state.view.blocks[1].match, vim.fn.getreg("o"))
+    eq("+call -work", vim.fn.getreg("o"))
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

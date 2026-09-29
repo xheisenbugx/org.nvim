@@ -644,6 +644,9 @@ M.defaults = {
     --- them (org-agenda-skip-unavailable-files).
     skip_unavailable_files = false,
     search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
+    --- Register receiving the search query built with [ ] { }
+    --- (org-agenda-query-register); false for none.
+    query_register = "o",
     search_view_force_full_words = false, -- org-agenda-search-view-force-full-words
     search_view_max_outline_level = 0, -- org-agenda-search-view-max-outline-level
     --- Body lines shown under each entry in entry text mode (E)
