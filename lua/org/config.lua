@@ -1341,6 +1341,9 @@ M.defaults = {
     --- org-export-in-background: dispatcher "async" at start; results go to
     --- the export stack (:Org export_stack).
     in_background = false,
+    --- org-export-async-init-file: a Lua file run by the Neovim that makes
+    --- asynchronous exports (Lua functions of the options don't reach it).
+    async_init_file = nil,
     dispatch_use_expert_ui = false, -- org-export-dispatch-use-expert-ui (a prompt instead of the menu)
     show_temporary_export_buffer = true, -- org-export-show-temporary-export-buffer
     copy_to_kill_ring = false, -- org-export-copy-to-kill-ring (true, "if-interactive" or false)

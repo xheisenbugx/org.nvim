@@ -410,5 +410,31 @@ describe("export dispatch (Emacs parity)", function()
       ok(entry.source:match("/a%.txt$"), entry.source)
       eq(1, #export.stack_lines())
     end)
+
+    it("exports in a separate Neovim with export.async_init_file", function()
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      local marker = dir .. "/marker"
+      vim.fn.writefile({ string.format("vim.fn.writefile({ tostring(vim.fn.getpid()) }, %q)", marker) }, dir .. "/init.lua")
+      local buf = org_buffer({ "* H", "body text" }, { 1, 0 })
+      vim.api.nvim_buf_set_name(buf, dir .. "/b.org")
+      restore = set_export({ open_after_export = false, async_init_file = dir .. "/init.lua" })
+      local notify = utils.notify
+      utils.notify = function() end
+      local entry = export.export_async("ascii", { to_buffer = true, body_only = true })
+      vim.wait(5000, function()
+        return not entry.running
+      end)
+      utils.notify = notify
+      -- the init file ran in another process
+      local pid = tonumber((vim.fn.readfile(marker)[1]))
+      ok(pid and pid ~= vim.fn.getpid())
+      eq("number", type(entry.source))
+      local lines = vim.api.nvim_buf_get_lines(entry.source, 0, -1, false)
+      eq({ "1 H", "===", "", "  body text" }, lines)
+      -- not shown
+      eq(-1, vim.fn.bufwinid(entry.source))
+      vim.api.nvim_buf_delete(entry.source, { force = true })
+    end)
   end)
 end)

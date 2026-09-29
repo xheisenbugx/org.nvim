@@ -1307,6 +1307,10 @@
 ---Dispatcher "async" at start (`org-export-in-background`); results go to the
 ---export stack. (default: `false`)
 ---@field in_background? boolean
+---A Lua file run by the separate Neovim of asynchronous exports, which gets
+---the options without their Lua functions (`org-export-async-init-file`).
+---(default: `nil`)
+---@field async_init_file? string
 ---A one-line prompt instead of the dispatcher menu
 ---(`org-export-dispatch-use-expert-ui`). (default: `false`)
 ---@field dispatch_use_expert_ui? boolean

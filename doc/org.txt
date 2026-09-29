@@ -3477,9 +3477,14 @@ but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
 lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
 `v` views the entry at the cursor (a file with the system opener, with a
 count in Neovim), `d` removes it from the stack, `C` clears the stack
-(`:Org export_stack_clear`), `g` refreshes, `q` closes. PDF and Info files
-are compiled by external processes; the export itself runs on the main loop
-right after the dispatcher closes (Emacs starts a separate Emacs process).
+(`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
+org-export-async-start, a separate Neovim (`nvim --clean --headless`)
+exports a copy of the buffer with the session's options, minus their Lua
+functions (filters, hooks, format functions): `export.async_init_file`
+(org-export-async-init-file) is a Lua file it runs first to set them.
+Prompts are answered "no" there, so Babel blocks that need a confirmation
+keep their results. Visible-only exports need the folds and run in this
+Neovim instead, right after the dispatcher closes.
 
 Convert region                                   *org-export-convert-region*
 In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
@@ -3940,9 +3945,9 @@ These need Emacs Lisp or Emacs itself:
   org.nvim instead of the Emacs version, and a grid table.el cannot read
   is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
   fails.
-- Asynchronous export (`a`) runs the export on the editor's event loop
-  after the dispatcher closes (Emacs starts another Emacs); PDF and Info
-  compilation are external processes. Publishing runs on the event loop.
+- Asynchronous export (`a`) runs in a separate Neovim, like Emacs; a
+  visible-only export runs on the editor's event loop instead, and so does
+  publishing.
 - Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
@@ -4691,7 +4696,7 @@ export ~                                                   *org-config-export*
   { "noexport" }, default_language "en", author, email, creator,
   global_macros, allow_bind_keywords false, hooks, filters,
   initial_scope "buffer", body_only, visible_only, force_publishing,
-  in_background, dispatch_use_expert_ui false,
+  in_background, async_init_file nil, dispatch_use_expert_ui false,
   show_temporary_export_buffer true, copy_to_kill_ring false,
   coding_system nil, process_citations, replace_macros true,
   smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,

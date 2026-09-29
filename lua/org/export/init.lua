@@ -631,11 +631,105 @@ function M.stack_show()
   return buf
 end
 
---- Export in the background (dispatcher `a`, `export.in_background`): the
---- dispatcher returns at once and the result goes to the export stack
---- instead of being shown (org-export-async-start). The export itself runs
---- on the main loop right after; PDF and Info compilation run as external
---- processes.
+--- Lua source for a value (strings, numbers, booleans and tables; functions
+--- and other values are left out), for the configuration of the
+--- asynchronous export process.
+local function serialize(v, seen)
+  local t = type(v)
+  if t == "string" then
+    return string.format("%q", v)
+  elseif t == "number" or t == "boolean" then
+    return tostring(v)
+  elseif t ~= "table" or v == vim.NIL then
+    return "nil"
+  end
+  seen = seen or {}
+  if seen[v] then
+    return "nil"
+  end
+  seen[v] = true
+  local parts = {}
+  for k, x in pairs(v) do
+    local kt = type(k)
+    if (kt == "string" or kt == "number") and type(x) ~= "function" then
+      local val = serialize(x, seen)
+      if val ~= "nil" then
+        local keystr = kt == "number" and ("[" .. k .. "]") or string.format("[%q]", k)
+        parts[#parts + 1] = keystr .. "=" .. val
+      end
+    end
+  end
+  seen[v] = nil
+  return "{" .. table.concat(parts, ",") .. "}"
+end
+M._serialize = serialize
+
+local PLUGIN_ROOT = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h:h")
+
+--- The script run by the export process: set up org.nvim with the
+--- session's options (without Lua functions, like the -Q Emacs of
+--- org-export-async-start), answer no to every prompt (Babel blocks that
+--- need a confirmation keep their results), export and write the result.
+local CHILD_SCRIPT = [[
+local job = dofile(_G.arg[1])
+vim.opt.rtp:prepend(job.root)
+vim.opt.swapfile = false
+package.path = job.root .. "/lua/?.lua;" .. job.root .. "/lua/?/init.lua;" .. package.path
+local utils = require("org.utils")
+utils.input = function() return nil end
+utils.input_complete = function() return nil end
+utils.confirm = function() return false end
+utils.notify = function() end
+vim.fn.input = function() return "" end
+vim.fn.confirm = function() return 0 end
+vim.ui.select = function(_, _, cb) cb(nil) end
+require("org").setup(job.config)
+if job.init_file and job.init_file ~= "" then
+  dofile(vim.fn.expand(job.init_file))
+end
+local buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, job.lines)
+if job.filename then
+  pcall(vim.api.nvim_buf_set_name, buf, job.filename)
+end
+vim.api.nvim_set_current_buf(buf)
+vim.bo[buf].filetype = "org"
+local export = require("org.export")
+local result = {}
+local ok, err = pcall(function()
+  if job.to_buffer then
+    result.text = export.to_string(job.format, {
+      bufnr = buf,
+      filename = job.filename,
+      subtree_line = job.subtree_line,
+      body_only = job.body_only,
+    })
+    result.filetype = job.filetype
+  else
+    result.output = export.export(job.format, {
+      bufnr = buf,
+      subtree_line = job.subtree_line,
+      body_only = job.body_only,
+      output = job.output,
+      async = false,
+    })
+  end
+end)
+if not ok then
+  result.error = tostring(err)
+end
+local f = assert(io.open(job.result, "w"))
+f:write("return " .. export._serialize(result))
+f:close()
+]]
+
+--- Export in the background (dispatcher `a`, `export.in_background`,
+--- `:Org export FORMAT async`): like org-export-async-start, a separate
+--- Neovim process exports a copy of the buffer with the session's options
+--- (`export.async_init_file`, a Lua file, runs there first) and the result
+--- (a file, or a buffer for "as buffer" exports) goes to the export stack
+--- instead of being shown. Visible-only exports run in this Neovim, right
+--- after the dispatcher closes.
 function M.export_async(format, opts)
   opts = vim.tbl_extend("force", {}, opts or {})
   opts.bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
@@ -645,6 +739,65 @@ function M.export_async(format, opts)
   local spec = M.FORMATS[format]
   local backend = spec and spec[1] or format
   local entry = M.stack_add(nil, backend, true)
+  utils.notify("Initializing asynchronous export process")
+  local function finish(result)
+    M.stack_finish(entry, result)
+    if result and opts.open and type(result) == "string" then
+      vim.ui.open(result)
+    end
+  end
+  if not opts.visible_only then
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local src = vim.api.nvim_buf_get_name(opts.bufnr)
+    local job = {
+      root = PLUGIN_ROOT,
+      config = require("org.config").opts,
+      init_file = cfg().async_init_file,
+      lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false),
+      filename = src ~= "" and src or nil,
+      format = format,
+      subtree_line = opts.subtree_line,
+      body_only = opts.body_only,
+      output = opts.output,
+      to_buffer = opts.to_buffer,
+      filetype = spec and FILETYPES[spec[1]] or nil,
+      result = dir .. "/result.lua",
+    }
+    local jobfile, script = dir .. "/job.lua", dir .. "/run.lua"
+    local ok = pcall(function()
+      local f = assert(io.open(jobfile, "w"))
+      f:write("return " .. serialize(job))
+      f:close()
+      f = assert(io.open(script, "w"))
+      f:write(CHILD_SCRIPT)
+      f:close()
+    end)
+    local cmd = { vim.v.progpath, "--clean", "--headless", "-n", "-i", "NONE", "-l", script, jobfile }
+    local started = ok
+      and pcall(vim.system, cmd, { text = true, cwd = src ~= "" and vim.fn.fnamemodify(src, ":p:h") or nil }, function(res)
+        vim.schedule(function()
+          local okr, r = pcall(dofile, job.result)
+          vim.fn.delete(dir, "rf")
+          if not okr or type(r) ~= "table" or r.error then
+            local msg = okr and type(r) == "table" and r.error or (res.stderr ~= "" and res.stderr) or tostring(r)
+            utils.error("Asynchronous export failed: " .. tostring(msg))
+            return finish(nil)
+          end
+          if r.text then
+            local name = backend == "org" and "Org ORG Export" or ("Org " .. backend:upper() .. " Export")
+            local buf = open_scratch(r.text, r.filetype, name, true)
+            M.last_buffer = buf
+            return finish(buf)
+          end
+          finish(r.output and vim.fn.fnamemodify(r.output, ":p") or nil)
+        end)
+      end)
+    if started then
+      return entry
+    end
+  end
+  -- in this Neovim, right after the dispatcher (visible-only needs the folds)
   opts.hidden = true
   opts.async = true
   opts.interactive = nil -- output is not copied from asynchronous exports
@@ -652,7 +805,6 @@ function M.export_async(format, opts)
   opts.on_done = function(result)
     M.stack_finish(entry, result)
   end
-  utils.notify("Initializing asynchronous export process")
   vim.schedule(function()
     local ok, res = pcall(M.export, format, opts)
     if not ok or not res then
