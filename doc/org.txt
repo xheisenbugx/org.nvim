@@ -5272,6 +5272,8 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `mappings`   default keys by section: `{ global = { name = lhs } }`
   `setup`      `function(opts)`, called after the above are registered
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
+  `teardown`   `function()`, undoes `setup` when a later `setup()` turns
+               the extension off or sets it up again
 
 ------------------------------------------------------------------------------
 Google Calendar (org-gcal)                              *org-extensions-gcal*
