@@ -3180,8 +3180,8 @@ default_header_args = {...} }`. `default_header_args` are that language's
 defaults (Emacs `org-babel-default-header-args:LANG`). Emacs enables only
 emacs-lisp (`org-babel-load-languages`); the plugin enables shells, python,
 lua, js/ts, ruby, perl, php, R, go, rust, sqlite, sql, C, C++/cpp, D and awk
-as well. `:python`, `:ruby` and `:cmd` (js) choose the interpreter of one
-block, like Emacs.
+as well, and the ports of |org-babel-languages|. `:python`, `:ruby` and
+`:cmd` (js) choose the interpreter of one block, like Emacs.
   - emacs-lisp (elisp): run in a separate Emacs, `emacs -Q --batch`
     (`babel.emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } }`;
     drop `-Q` to load your init file), wrapped like ob-emacs-lisp: `:var`
@@ -3205,6 +3205,80 @@ block, like Emacs.
     (`:out-file`); without `:engine` the plugin runs sqlite3 with `:db`.
     `$name` in the body is replaced by `:var name` (a table becomes a CSV
     file name).
+  - Value conversion like ob-python / ob-ruby / ob-lua: `hline_to` is the
+    text an hline of a table variable becomes (python and lua "None",
+    ruby "nil"; in Neovim's Lua, `None` is nil), `None_to` (python, lua)
+    and `nil_to` (ruby) what a None / nil of a list result becomes
+    ("hline"); lua `multiple_values_separator` (", ") joins several
+    returned values. `lua = { cmd = "lua" }` (or luajit, ...) runs lua
+    blocks in that interpreter like ob-lua instead of inside Neovim.
+    `python = { session_cmd = "ipython -i" }` starts sessions with that
+    command as it is (org-babel-python-command-session).
+  - Shells: `babel.shell_names` (org-babel-shell-names: sh bash zsh fish
+    csh ash dash ksh mksh posh) run like sh, as the program of that name;
+    `babel.shell_results_defaults_to_output = false` makes a block
+    without `:results` words give its exit status.
+
+                                                    *org-babel-languages*
+Ports of Emacs ob-LANG.el, enabled by default; each `babel.languages`
+entry holds that file's options (named after the Emacs variables, see
+|org-config|). Programs that are missing give an error when a block
+runs. C-c C-v v shows the body as the Emacs expand function makes it.
+  - plantuml: to the `:file` (`-tpng`, `-tsvg`, ... from its extension;
+    `:results verbatim` gives the text), `:var` as `!define`, @startuml /
+    @enduml added. `exec_mode` "jar" (java -jar `jar_path`, `:java` options)
+    or "plantuml" (`executable_path`), `args` ({ "-headless" }),
+    `svg_text_to_path` (inkscape).
+  - ditaa: NAME.png by default (`:file-ext png`), `.svg` with --svg, `.eps`
+    and `.pdf` with DitaaEps.jar (and epstopdf); `exec_mode` "jar"
+    (`java_exec` -jar `jar_path`) or "ditaa" (`exec`), `:cmdline`, `:java`.
+  - gnuplot: `:file` (terminal from its extension, `terms`), `:term`,
+    `:title`, `:set '("grid")`, `:line`, `:xlabels`, `:ylabels`,
+    `:timefmt`, `:timeind`, `:missing`; a table variable is written to a
+    data file whose name replaces `$name`. `:results output` gives what
+    gnuplot printed.
+  - latex: the body is the result (`:results latex`); `:var` names are
+    replaced. With `:file`: .png like LaTeX previews (`process_alist.png`,
+    latex + dvipng; `:buffer no` draws black on transparent), .svg through
+    a PDF and `pdf_svg_process` (`preamble`, `begin_env`, `end_env`), .pdf
+    with the LaTeX export's compiler (`:fit`, `:border`, `:pdfheight`,
+    `:pdfwidth`, `:headers`, `:packages`), other images with
+    `:imagemagick yes` (`:iminoptions`, `:imoutoptions`), .html with
+    `htlatex`, .tikz as it is.
+  - lilypond: engraved to the `:file` (png, pdf or eps). Arrange mode
+    (`:Org babel_lilypond_toggle_arrange_mode`): evaluating a block tangles
+    all lilypond blocks to FILE.ly (`:Org babel_lilypond_tangle`), engraves
+    it (`gen_png`, `gen_html`, `gen_pdf`, `gen_svg`, `use_eps`), then opens
+    the PDF and plays the MIDI file with `commands`. Toggles:
+    `babel_lilypond_toggle_{arrange_mode,png_generation,html_generation,`
+    `pdf_generation,pdf_display,midi_play}`.
+  - java: the body is wrapped in a class and a main method (`:classname`,
+    `:imports`, a `package` line), compiled with javac (`:cmpflag`) and
+    run with java (`:cmdline`, `:cmdargs`); `:results value` returns the
+    value of the main method. Default `:results output :dir .`.
+  - csharp: a .NET project (`:usings '("System.Text")`, `:class`, `:main
+    no`, `:references`, `:framework`, `:nugetconfig`) restored, built and
+    run with dotnet.
+  - haskell: sent to ghci (`cmd`), or compiled with ghc for `:compile
+    yes` (`:flags`, `:libs`). `:Org babel_haskell_export_to_lhs` exports
+    the file to FILE.lhs (with a count, runs lhs2tex to FILE.tex).
+  - clojure, clojurescript: babashka, clojure-cli or nbb (`backend`, or
+    `:backend`), `:ns`, `:var` as `let` bindings.
+  - lisp (Common Lisp): evaluated by `cmd` (`sbcl --script`) with
+    `*default-pathname-defaults*` set to the block's directory (`dir_fmt`)
+    and `:package`.
+  - scheme: guile by default (`impl`, `:scheme chez|chicken|chibi|racket|
+    ...`, `commands`); the value of the last form, `:var` as `define`.
+  - fortran: compiled with gfortran (`cmd`), wrapped in `program main`;
+    `:flags`, `:cmdline`, `:includes`, `:defines`, `:main no`.
+  - julia, groovy, ocaml, maxima: `:var` and value results like their
+    ob-LANG.el (julia writes the value with CSV.jl and DataFrames.jl;
+    groovy ignores `:var` like Emacs; maxima `:batch`, `:graphics-pkg`).
+  - processing: HTML running the sketch with processing.js;
+    `:Org babel_processing_view_sketch` runs it with processing-java.
+  - screen: the block is pasted into the screen session `:session`
+    ("default"), started in `:terminal` (xterm) running `:cmd` (sh);
+    `:Org babel_screen_test` checks the setup.
 
 Header arguments ~
 Header arguments merge like Emacs: `babel.default_header_args` (inline
@@ -4569,7 +4643,15 @@ babel ~
   noweb_wrap_end ">>", tangle_use_relative_file_links true,
   tangle_comment_format_beg / _end, tangle_default_file_mode "644",
   tangle_lang_exts {}, tangle_save_buffer true,
-  tangle_uncomment_comments false, languages (see |org-babel|),
+  tangle_uncomment_comments false, shell_names { "sh", "bash", "zsh",
+  "fish", "csh", "ash", "dash", "ksh", "mksh", "posh" },
+  shell_results_defaults_to_output true, languages (see |org-babel|; the
+  entries of python, ruby, lua and the |org-babel-languages| ports hold
+  their ob-LANG options, e.g. `plantuml = { exec_mode = "jar", jar_path =
+  "", executable_path = "plantuml", args = { "-headless" },
+  svg_text_to_path = false }`, `java = { cmd = "java", compiler = "javac",
+  hline_to = "null", null_to = "hline" }`, `lua = { cmd = "nvim", hline_to
+  = "None", None_to = "hline", multiple_values_separator = ", " }`),
   emacs_lisp { command = "emacs", args = { "-Q", "--batch" } }
 src_preserve_indentation false (org-src-preserve-indentation)
 export ~                                                   *org-config-export*
@@ -5070,8 +5152,11 @@ Differences from Emacs:
 - Babel sessions (|org-babel| Sessions) are live REPLs in terminal
   buffers for shells, python, js/node, ruby (irb) and R; there are no
   sessions for julia, SQL engines or other languages. Lua blocks run
-  inside Neovim instead of an external `lua` (lua sessions are a Neovim
-  environment with a prompt buffer). Differences from comint: the code
+  inside Neovim instead of an external `lua` unless the `cmd` of
+  `babel.languages.lua` names one (lua sessions are a Neovim
+  environment with a prompt buffer; in Neovim a table variable is a
+  nested Lua table, where ob-lua
+  makes `key=value` of two-column rows). Differences from comint: the code
   of a block reaches the REPL as one line that runs it from a file, not
   line by line, so the REPL shows that line instead of the code, and a
   python/node block's intermediate expression values are not echoed
@@ -5088,6 +5173,21 @@ Differences from Emacs:
   cannot see or change buffers, and nothing is kept between evaluations.
   `:var` and header Lisp forms run on the table formula Lisp interpreter,
   else in that separate Emacs (see |org-babel|).
+- The ports of |org-babel-languages| run a new process for each block
+  where Emacs uses an Emacs package's REPL: gnuplot (gnuplot-mode
+  sessions), haskell (inf-haskell: ghci is fed the block and markers),
+  ocaml (tuareg: a new `ocaml` toplevel), julia (ESS), scheme (Geiser:
+  `impl`'s command evaluates the forms and writes the last value) and
+  Common Lisp (`org-babel-lisp-eval-fn` SLIME/SLY: `cmd`, default `sbcl
+  --script`, reads the form and prints its values like
+  swank:eval-and-grab-output). The cider, inf-clojure and slime Clojure
+  backends are not available. Julia table variables are written to a CSV
+  file read by `CSV.read` (Emacs puts the CSV text itself there). The
+  lilypond header arguments of arrange / basic mode apply as soon as the
+  mode is toggled (Emacs sets them while evaluating, so they apply from
+  the next block). LaTeX .png results use the Normal highlight's colors
+  (Emacs the default face's). ob-screen's `org-babel-screen-test` waits
+  at most `babel.timeout` (Emacs waits forever).
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate

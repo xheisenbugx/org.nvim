@@ -499,7 +499,10 @@
 ---list. The code is written to a temp file whose path is appended (sqlite
 ---gets the code on stdin, C/C++/D is the compiler, `sql` runs the client
 ---of its `:engine`). Required to evaluate a language not in the defaults;
----`lua` always runs inside Neovim.
+---`lua` runs inside Neovim unless `cmd` is another interpreter
+---(`org-babel-lua-command`). For the ports of ob-LANG.el it is that
+---language's command (java, julia, groovy, ocaml, maxima, gnuplot, ghci,
+---`sbcl --script`, the gfortran compiler, ...).
 ---@field cmd? string|string[]
 ---Extension of the temp file, e.g. `"py"`. Defaults to a built-in
 ---per-language table, else the language name. (`:tangle yes` files use
@@ -508,6 +511,41 @@
 ---Default header arguments of this language, merged after
 ---`default_header_args` (Emacs `org-babel-default-header-args:LANG`).
 ---@field default_header_args? org.Config.Babel.HeaderArgs
+---python, lua, ruby, java: text an hline of a table variable becomes
+---(`org-babel-{python,lua}-hline-to` "None", ruby "nil", java "null").
+---@field hline_to? string
+---python, lua: what a `None` of a list result becomes, a symbol name
+---("hline" the table rule; `org-babel-*-None-to`). (default: `"hline"`)
+---@field None_to? string
+---ruby: what a nil of a list result becomes (`org-babel-ruby-nil-to`).
+---@field nil_to? string
+---java, scheme: what a `null` / `()` of a list result becomes
+---(`org-babel-java-null-to`, `org-babel-scheme-null-to`).
+---@field null_to? string
+---lua: separator of several returned values
+---(`org-babel-lua-multiple-values-separator`). (default: `", "`)
+---@field multiple_values_separator? string
+---python: the command of sessions, used as it is, e.g. `"ipython -i"`
+---(`org-babel-python-command-session`). nil: `cmd -i`.
+---@field session_cmd? string
+---java (javac), haskell (ghc), csharp (dotnet): the compiler
+---(`org-babel-*-compiler`).
+---@field compiler? string
+---Other options of the ob-LANG ports, named after their Emacs variables
+---(see `:h org-babel-languages`): plantuml `exec_mode`, `jar_path`,
+---`executable_path`, `args`, `svg_text_to_path`; ditaa `exec_mode`,
+---`exec`, `java_exec`, `jar_path`, `eps_jar_path`; gnuplot `terms`; latex
+---`preamble`, `begin_env`, `end_env`, `htlatex`, `htlatex_packages`,
+---`pdf_svg_process`, `process_alist`; lilypond `commands`, `arrange_mode`,
+---`gen_png`, `gen_svg`, `gen_html`, `gen_pdf`, `use_eps`,
+---`compile_post_tangle`, `display_pdf_post_tangle`,
+---`play_midi_post_tangle`; clojure `backend`, `default_ns`,
+---`babashka_command`, `cli_command`, `nbb_command` (clojurescript
+---`backend`); csharp `default_target_framework`,
+---`additional_project_flags`, `generate_compile_command`,
+---`generate_restore_command`; lisp `dir_fmt`; scheme `impl`, `commands`;
+---haskell `lhs2tex`; processing `js_filename`; screen `location`.
+---@field [string] any
 
 ---Default header arguments (`org-babel-default-header-args`). Keys are
 ---header argument names without `:`; values are strings.
@@ -591,10 +629,19 @@
 ---Write tangle comments without comment syntax
 ---(`org-babel-tangle-uncomment-comments`). (default: `false`)
 ---@field tangle_uncomment_comments? boolean
+---Languages run like sh (`org-babel-shell-names`).
+---(default: `{ "sh", "bash", "zsh", "fish", "csh", "ash", "dash", "ksh", "mksh", "posh" }`)
+---@field shell_names? string[]
+---Shell blocks without `:results` words give their output; `false`: their
+---exit status (`org-babel-shell-results-defaults-to-output`). (default: `true`)
+---@field shell_results_defaults_to_output? boolean
 ---Languages that can be evaluated, merged key by key with the defaults
 ---(sh, shell, bash, zsh, fish, python, python3, lua, js, javascript,
 ---typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, sql, C, C++,
----cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
+---cpp, D, awk, and the ob-LANG ports: plantuml, ditaa, gnuplot, latex,
+---lilypond, java, csharp, haskell, clojure, clojurescript, lisp, scheme,
+---fortran, processing, screen, julia, groovy, ocaml, maxima). Emacs
+---enables only emacs-lisp, which cannot run in Neovim.
 ---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
 ---How emacs-lisp blocks and `elisp:` links run, and the Lisp the
