@@ -371,6 +371,12 @@ group("Links", {
   insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
   insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
   open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  link_open_from_string = {
+    "org.links",
+    "open_from_string",
+    desc = "Open a link typed at a prompt",
+    global = true,
+  },
   mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
   open_at_point_global = {
     "org.links",
@@ -403,6 +409,26 @@ group("Links", {
   ctags_open_file = { "org.ctags", "open_file_prompt", desc = "Open a file and add a new topic" },
   ctags_visit_buffer_or_file = { "org.ctags", "visit_buffer_or_file_prompt", desc = "Visit NAME.org" },
   ctags_append_topic = { "org.ctags", "append_topic_prompt", desc = "Append a new topic to the buffer" },
+})
+
+group("BibTeX", {
+  bibtex_export = { "org.bibtex", "export", desc = "Export the entries of the file to a .bib file" },
+  bibtex_check = { "org.bibtex", "check", desc = "Ask for missing BibTeX fields (count: optional too)" },
+  bibtex_check_all = { "org.bibtex", "check_all", desc = "Check the BibTeX fields of every headline" },
+  bibtex_create = { "org.bibtex", "create", desc = "New BibTeX entry headline (count: optional fields)" },
+  bibtex_create_in_current_entry = {
+    "org.bibtex",
+    "create_in_current_entry",
+    desc = "Add BibTeX data to the headline",
+  },
+  bibtex_export_to_kill_ring = { "org.bibtex", "export_to_kill_ring", desc = "Copy the headline as a BibTeX entry" },
+  bibtex_import_from_file = { "org.bibtex", "import_from_file", desc = "Insert the entries of a .bib file" },
+  bibtex_read = { "org.bibtex", "read", desc = "Read the BibTeX entry at the cursor", global = true },
+  bibtex_read_buffer = { "org.bibtex", "read_buffer", desc = "Read the BibTeX entries of a buffer", global = true },
+  bibtex_read_file = { "org.bibtex", "read_file", desc = "Read the BibTeX entries of a file", global = true },
+  bibtex_search = { "org.bibtex", "search", desc = "Search BibTeX entries in the agenda files", global = true },
+  bibtex_write = { "org.bibtex", "write", desc = "Insert the first read BibTeX entry as a headline" },
+  bibtex_yank = { "org.bibtex", "yank", desc = "Insert the yanked BibTeX entry (count: into this headline)" },
 })
 
 group("Refile, archive & attach", {
@@ -576,6 +602,29 @@ group("Babel", {
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
   babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
+  babel_remove_inline_result = {
+    "org.babel",
+    "remove_inline_result",
+    desc = "Remove the result of the inline src block / call",
+  },
+  babel_hash_at_point = { "org.babel", "hash_at_point", desc = "Copy the result hash at the cursor" },
+  escape_code_in_region = {
+    "org.special",
+    "escape_code_in_region",
+    desc = "Comma-escape * and #+ lines of the selection",
+    modes = { "n", "x" },
+  },
+  unescape_code_in_region = {
+    "org.special",
+    "unescape_code_in_region",
+    desc = "Remove comma escapes of the selection",
+    modes = { "n", "x" },
+  },
+  edit_src_continue = {
+    "org.special",
+    "continue_at_point",
+    desc = "Go back to the edit buffer of the region at the cursor",
+  },
 })
 
 --- Resolve an action to its function.

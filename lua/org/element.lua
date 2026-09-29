@@ -725,6 +725,7 @@ local function narrow(bufnr, s, e, name)
     lines = vim.api.nvim_buf_get_lines(bufnr, s - 1, e, false),
     filetype = "org",
     name = name,
+    narrow = true,
   })
 end
 
@@ -828,7 +829,16 @@ function M.indent_line(lnum)
   local bufnr = vim.api.nvim_get_current_buf()
   lnum = lnum or cursor()[1]
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
-  if not line or parser.headline_level(line) or is_blank(line) then
+  if not line or parser.headline_level(line) then
+    return
+  end
+  -- src block body: the language's indentation (org-src-tab-acts-natively)
+  if require("org.config").opts.src_tab_acts_natively ~= false then
+    if require("org.babel").indent_line_natively(bufnr, lnum) then
+      return
+    end
+  end
+  if is_blank(line) then
     return
   end
   local el = M.at(bufnr, lnum)

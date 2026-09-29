@@ -3442,7 +3442,7 @@ end
 
 local function coderef_resolves(doc, ref)
   for _, el in ipairs(map_type(doc, { ["src-block"] = true, ["example-block"] = true })) do
-    local fmt = el.label_fmt or "(ref:%s)"
+    local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
     local label = fmt:gsub("%%s", function()
       return ref
     end)

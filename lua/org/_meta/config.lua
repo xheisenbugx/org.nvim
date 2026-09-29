@@ -400,6 +400,34 @@
 ---evaluation, tangling or the edit buffer (the `-i` switch does it per
 ---block). (Emacs `org-src-preserve-indentation`, default: `false`)
 ---@field src_preserve_indentation? boolean
+---Show "Edit, then exit with ... or abort with ..." in the winbar of edit
+---buffers. (Emacs `org-edit-src-persistent-message`, default: `true`)
+---@field edit_src_persistent_message? boolean
+---Write an edit buffer back to the Org buffer after this many seconds
+---without changes; `0` = never.
+---(Emacs `org-edit-src-auto-save-idle-delay`, default: `0`)
+---@field edit_src_auto_save_idle_delay? number
+---Auto-save the contents of edit buffers to an `org-src-XXXXXX-%Y-%d-%m.txt`
+---file next to the Org file.
+---(Emacs `org-edit-src-turn-on-auto-save`, default: `false`)
+---@field edit_src_turn_on_auto_save? boolean
+---Ask before going back to the existing edit buffer of a block (`n`
+---discards it and opens a new one); `false` = go back at once.
+---(Emacs `org-src-ask-before-returning-to-edit-buffer`, default: `true`)
+---@field src_ask_before_returning_to_edit_buffer? boolean
+---Filetype, or a function of the buffer, for the edit buffer of `: `
+---fixed-width areas. (Emacs `org-edit-fixed-width-region-mode`, default: `nil`)
+---@field edit_fixed_width_region_mode? string|fun(bufnr: integer)
+---Filetype of the edit buffer and highlighting of src blocks by language,
+---merged with the defaults; `""` = none. (Emacs `org-src-lang-modes`,
+---default: `{ C = "c", ["C++"] = "cpp", elisp = "lisp", shell = "sh", ... }`)
+---@field src_lang_modes? table<string, string>
+---TAB on a src block line indents it with the language's indentation.
+---(Emacs `org-src-tab-acts-natively`, default: `true`)
+---@field src_tab_acts_natively? boolean
+---Default coderef label format; `-l "fmt"` overrides it per block.
+---(Emacs `org-coderef-label-format`, default: `"(ref:%s)"`)
+---@field coderef_label_format? string
 ---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `"..."`)
 ---@field ellipsis? string
 ---Entities of your own, taking precedence over the built-in ones:
@@ -607,6 +635,8 @@
 ---Vim regexes of safe URLs (also matched against "file://" .. the file).
 ---(Emacs `org-safe-remote-resources`, default: `{}`)
 ---@field safe_remote_resources? string[]
+---BibTeX entries as headlines (ol-bibtex).
+---@field bibtex? org.Config.Bibtex
 ---`ID` property creation and lookup.
 ---@field id? org.Config.Id
 ---Attachments (`org-attach`).
@@ -764,6 +794,10 @@
 ---Highlight src blocks with their language's syntax.
 ---(Emacs `org-src-fontify-natively`, default: `true`)
 ---@field src_highlight? boolean
+---Face of src block bodies by language (`""` = no language), like
+---`todo_keyword_faces`: `{ python = { bg = "#e5ffb8" } }`.
+---(Emacs `org-src-block-faces`, default: `{}`)
+---@field src_block_faces? table<string, string|vim.api.keyset.highlight>
 ---Per-keyword faces. Values are an Emacs-style face string
 ---(`":foreground orange :weight bold"`), a highlight group name, or a
 ---highlight definition table (`{ fg = "#ff9e64", bold = true }`).

@@ -330,8 +330,16 @@ function M.apply(bufnr)
 
   if ui.src_highlight ~= false then
     local included = {}
+    -- src_lang_modes (org-src-lang-modes) first, then the built-in aliases
+    local modes = config.src_lang_modes or {}
+    local function syntax_of(lang)
+      if modes[lang] ~= nil then
+        return modes[lang]
+      end
+      return M.lang_aliases[lang] or lang
+    end
     for lang in pairs(src_languages(bufnr)) do
-      local syn = M.lang_aliases[lang] or lang
+      local syn = syntax_of(lang)
       if syn ~= "" and not included[syn] and syn:match("^[%w_]+$") and has_syntax(syn) then
         included[syn] = true
         local cluster = "orgSrc_" .. syn
@@ -344,9 +352,13 @@ function M.apply(bufnr)
         vim.b.current_syntax = saved
         -- all aliases of this syntax
         local names = { esc(lang) }
-        for alias, target in pairs(M.lang_aliases) do
-          if target == syn and alias ~= lang then
-            names[#names + 1] = esc(alias)
+        local seen = { [lang] = true }
+        for _, map in ipairs({ modes, M.lang_aliases }) do
+          for alias in pairs(map) do
+            if not seen[alias] and syntax_of(alias) == syn then
+              seen[alias] = true
+              names[#names + 1] = esc(alias)
+            end
           end
         end
         cmd(string.format(

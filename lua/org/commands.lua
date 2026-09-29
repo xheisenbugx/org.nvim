@@ -38,6 +38,11 @@ M.extra = {
   align_tags = { "org.tags", "align_all", desc = "Align all tags in buffer" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target" },
   protocol = { "org.protocol", "handle", desc = "Handle an org-protocol:// URL: :Org protocol <url>" },
+  link_open_from_string = {
+    "org.links",
+    "open_from_string_command",
+    desc = "Open a link: :Org link_open_from_string [link]",
+  },
   lint = { "org.lint", "command", desc = "Check the buffer for syntax problems: :Org lint [checker ...]" },
   feed_update = { "org.feed", "update_command", desc = "Update a feed: :Org feed_update [name]" },
   feed_goto_inbox = { "org.feed", "goto_inbox", desc = "Go to a feed's inbox: :Org feed_goto_inbox [name]" },

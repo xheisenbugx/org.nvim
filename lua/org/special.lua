@@ -27,11 +27,142 @@ local ns = vim.api.nvim_create_namespace("org.special")
 ---@field window? string
 ---@field start_col? integer edit an object: 0-based byte column of its start on `start_line`
 ---@field end_col? integer 0-based byte column after its end on `end_line`
+---@field exact_filetype? boolean `filetype` is a filetype, not an extension
+---@field narrow? boolean a narrowed subtree or element: no edit-buffer message, reuse or auto-save
+---@field init? fun(buf: integer) called in the new edit buffer
+---@field kind? string
+---@field switches? string
+
+--- Open edit buffers by edit buffer number: { src, mark, win, close,
+--- discard, narrow }.
+---@type table<integer, table>
+M.edits = {}
+
+--- Range of an extmark of `ns` in `src`: row, col, end_row, end_col.
+local function mark_range(src, mark)
+  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, src, ns, mark, { details = true })
+  if not ok or not pos[1] or not pos[3] or pos[3].invalid then
+    return nil
+  end
+  return pos[1], pos[2], pos[3].end_row, pos[3].end_col
+end
+
+--- The open edit buffer of exactly this region of `src` (org-src--edit-buffer).
+local function edit_buffer_for(src, row, col, end_row, end_col)
+  for ebuf, e in pairs(M.edits) do
+    if e.src == src and not e.narrow and vim.api.nvim_buf_is_valid(ebuf) then
+      local r, c, er, ec = mark_range(src, e.mark)
+      if r == row and c == col and er == end_row and ec == end_col then
+        return ebuf
+      end
+    end
+  end
+end
+
+--- The winbar text of edit buffers (org-edit-src-persistent-message).
+function M.persistent_message()
+  local maps = config.opts.mappings.edit_src or {}
+  local exit = config.lhs_list(maps.save_exit)[1]
+  local abort = config.lhs_list(maps.abort)[1]
+  if not exit or not abort then
+    return nil
+  end
+  return string.format("Edit, then exit with ‘%s’ or abort with ‘%s’", exit, abort)
+end
+
+local function set_message(win)
+  if config.opts.edit_src_persistent_message == false or not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+  local msg = M.persistent_message()
+  if msg then
+    vim.api.nvim_set_option_value("winbar", (msg:gsub("%%", "%%%%")), { scope = "local", win = win })
+  end
+end
+
+--- Show edit buffer `ebuf` again: focus its window, or open one
+--- (org-src-switch-to-buffer).
+function M.switch_to(ebuf)
+  local e = M.edits[ebuf]
+  if not e or not vim.api.nvim_buf_is_valid(ebuf) then
+    return false
+  end
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_buf(w) == ebuf then
+      vim.api.nvim_set_current_win(w)
+      e.win = w
+      return ebuf
+    end
+  end
+  e.win = ui.open_buffer_window(ebuf, e.window or config.opts.win_split_mode, { title = e.name })
+  if not e.narrow then
+    set_message(e.win)
+  end
+  return ebuf
+end
+
+--- Go back to the edit buffer of the region at the cursor
+--- (org-edit-src-continue).
+function M.continue_at_point()
+  local src = vim.api.nvim_get_current_buf()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  local row, col = pos[1] - 1, pos[2]
+  for ebuf, e in pairs(M.edits) do
+    if e.src == src and vim.api.nvim_buf_is_valid(ebuf) then
+      local r, c, er, ec = mark_range(src, e.mark)
+      if r then
+        local inside
+        if ec == 0 and er > r and c == 0 then
+          -- lines r .. er - 1
+          inside = row >= r and row < er
+        else
+          inside = (row > r or (row == r and col >= c)) and (row < er or (row == er and col <= ec))
+        end
+        if inside then
+          return M.switch_to(ebuf)
+        end
+      end
+    end
+  end
+  utils.error("No sub-editing buffer for area at point")
+end
+
+--- Name of the auto-save file of an edit buffer (org-edit-src-turn-on-auto-save):
+--- org-src-XXXXXX-%Y-%d-%m.txt in the directory of the source buffer.
+local function auto_save_file(src)
+  local name = vim.api.nvim_buf_get_name(src)
+  local dir = name ~= "" and vim.fn.fnamemodify(name, ":p:h") or vim.fn.getcwd()
+  local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  local rand = {}
+  for i = 1, 6 do
+    local k = math.random(1, #chars)
+    rand[i] = chars:sub(k, k)
+  end
+  return dir .. "/org-src-" .. table.concat(rand) .. os.date("-%Y-%d-%m") .. ".txt"
+end
 
 ---@param opts org.SpecialOpts
 function M.open(opts)
   local src = opts.source_buf
   local object = opts.start_col ~= nil
+  local row0 = opts.start_line - 1
+  local col0 = opts.start_col or 0
+  local erow0 = object and (opts.end_line - 1) or math.max(opts.end_line, opts.start_line - 1)
+  local ecol0 = opts.end_col or 0
+  if not opts.narrow then
+    local old = edit_buffer_for(src, row0, col0, erow0, ecol0)
+    if old then
+      -- org-src-ask-before-returning-to-edit-buffer
+      if
+        config.opts.src_ask_before_returning_to_edit_buffer == false
+        or utils.confirm("Return to existing edit buffer ([n] will revert changes)? ")
+      then
+        M.switch_to(old)
+        return old, M.edits[old] and M.edits[old].win
+      end
+      M.edits[old].discard()
+    end
+  end
   -- Track identity as well as position. Two point marks can collapse onto
   -- unrelated text when the source region is deleted.
   local mark, original
@@ -50,12 +181,7 @@ function M.open(opts)
     original = object and vim.api.nvim_buf_get_text(src, row, col, end_row, end_col, {})
       or vim.api.nvim_buf_get_lines(src, row, end_row, false)
   end
-  anchor(
-    opts.start_line - 1,
-    opts.start_col or 0,
-    object and (opts.end_line - 1) or math.max(opts.end_line, opts.start_line - 1),
-    opts.end_col or 0
-  )
+  anchor(row0, col0, erow0, ecol0)
 
   local buf = vim.api.nvim_create_buf(false, false)
   local base = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(src), ":t")
@@ -66,9 +192,14 @@ function M.open(opts)
   vim.bo[buf].swapfile = false
   vim.bo[buf].modified = false
   if opts.filetype and opts.filetype ~= "" then
-    local ft = vim.filetype.match({ filename = "x." .. opts.filetype }) or opts.filetype
+    local ft = opts.exact_filetype and opts.filetype
+      or vim.filetype.match({ filename = "x." .. opts.filetype })
+      or opts.filetype
     vim.bo[buf].filetype = ft
   end
+
+  local state = { src = src, narrow = opts.narrow, window = opts.window, name = opts.name }
+  M.edits[buf] = state
 
   local function write_back(force)
     if not vim.api.nvim_buf_is_valid(src) or not vim.api.nvim_buf_is_loaded(src) then
@@ -100,9 +231,12 @@ function M.open(opts)
       vim.api.nvim_buf_set_lines(src, pos[1], detail.end_row, false, lines)
       anchor(pos[1], 0, pos[1] + #lines, 0)
     end
+    state.mark = mark
     vim.bo[buf].modified = false
     return true
   end
+  state.mark = mark
+  state.write_back = write_back
 
   local closed = false
   local function cleanup()
@@ -110,6 +244,12 @@ function M.open(opts)
       return
     end
     closed = true
+    M.edits[buf] = nil
+    if state.timer then
+      state.timer:stop()
+      state.timer:close()
+      state.timer = nil
+    end
     if vim.api.nvim_buf_is_valid(src) then
       pcall(vim.api.nvim_buf_del_extmark, src, ns, mark)
     end
@@ -119,13 +259,22 @@ function M.open(opts)
   end
 
   local win = ui.open_buffer_window(buf, opts.window or config.opts.win_split_mode, { title = opts.name })
+  state.win = win
   local prev_win = vim.fn.win_getid(vim.fn.winnr("#"))
+  local saved_winbar = vim.wo[win].winbar
+  if not opts.narrow then
+    set_message(win)
+  end
 
   local function close()
     cleanup()
-    if vim.api.nvim_win_is_valid(win) then
+    local w = state.win
+    if w and vim.api.nvim_win_is_valid(w) then
+      if not opts.narrow and vim.api.nvim_win_get_buf(w) == buf then
+        pcall(vim.api.nvim_set_option_value, "winbar", saved_winbar, { scope = "local", win = w })
+      end
       if #vim.api.nvim_list_wins() > 1 then
-        vim.api.nvim_win_close(win, true)
+        vim.api.nvim_win_close(w, true)
       else
         vim.api.nvim_set_current_buf(src)
       end
@@ -136,6 +285,14 @@ function M.open(opts)
     if prev_win and vim.api.nvim_win_is_valid(prev_win) then
       pcall(vim.api.nvim_set_current_win, prev_win)
     end
+  end
+  state.close = close
+  --- Close without writing back (org-edit-src-abort).
+  state.discard = function()
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.bo[buf].modified = false
+    end
+    close()
   end
 
   vim.api.nvim_create_autocmd("BufWriteCmd", {
@@ -153,6 +310,51 @@ function M.open(opts)
     once = true,
     callback = cleanup,
   })
+
+  if not opts.narrow then
+    -- org-edit-src-auto-save-idle-delay: write back after a pause
+    local delay = tonumber(config.opts.edit_src_auto_save_idle_delay) or 0
+    if delay > 0 then
+      state.timer = vim.uv.new_timer()
+      vim.api.nvim_buf_attach(buf, false, {
+        on_lines = function()
+          if closed or not state.timer then
+            return true
+          end
+          state.timer:stop()
+          state.timer:start(
+            math.floor(delay * 1000),
+            0,
+            vim.schedule_wrap(function()
+              if closed or not vim.api.nvim_buf_is_valid(buf) or not vim.bo[buf].modified then
+                return
+              end
+              local saved, err = write_back()
+              if not saved then
+                utils.error(err)
+              end
+            end)
+          )
+        end,
+      })
+    end
+    -- org-edit-src-turn-on-auto-save: save the contents to a file (like
+    -- Emacs auto-save-mode) when idle ('updatetime', like swap files)
+    if config.opts.edit_src_turn_on_auto_save then
+      state.auto_save_file = auto_save_file(src)
+      local saved_tick
+      vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+        buffer = buf,
+        callback = function()
+          local tick = vim.api.nvim_buf_get_changedtick(buf)
+          if vim.bo[buf].modified and tick ~= saved_tick then
+            saved_tick = tick
+            vim.fn.writefile(vim.api.nvim_buf_get_lines(buf, 0, -1, false), state.auto_save_file)
+          end
+        end,
+      })
+    end
+  end
 
   local maps = config.opts.mappings.edit_src or {}
   for _, lhs in ipairs(config.lhs_list(maps.save_exit)) do
@@ -177,7 +379,76 @@ function M.open(opts)
   vim.b[buf].org_special_source = src
   vim.b[buf].org_special_kind = opts.kind
   vim.b[buf].org_special_switches = opts.switches
+  if opts.init then
+    vim.api.nvim_buf_call(buf, function()
+      opts.init(buf)
+    end)
+  end
   return buf, win
+end
+
+---------------------------------------------------------------------------
+-- Escaping (org-escape-code-in-region / org-unescape-code-in-region)
+---------------------------------------------------------------------------
+
+--- Lines of the Visual selection (the last one in Normal mode).
+local function region_lines()
+  local srow, _, erow = utils.visual_range()
+  if srow == 0 or erow == 0 then
+    local l = vim.api.nvim_win_get_cursor(0)[1]
+    return l, l
+  end
+  return srow, erow
+end
+
+--- Escape lines starting with `*`, `#+`, `,*` or `,#+` by adding a comma
+--- (org-escape-code-in-string).
+function M.escape_lines(lines)
+  local out = {}
+  for i, l in ipairs(lines) do
+    local ind, rest = l:match("^([ \t]*)(,*[*].*)$")
+    if not ind then
+      ind, rest = l:match("^([ \t]*)(,*#%+.*)$")
+    end
+    out[i] = ind and (ind .. "," .. rest) or l
+  end
+  return out
+end
+
+--- Remove the last comma before `*` or `#+` of lines starting with `,*`,
+--- `,#+`, `,,*`, ... (org-unescape-code-in-string).
+function M.unescape_lines(lines)
+  local out = {}
+  for i, l in ipairs(lines) do
+    local pre, rest = l:match("^([ \t]*,*),([*].*)$")
+    if not pre then
+      pre, rest = l:match("^([ \t]*,*),(#%+.*)$")
+    end
+    out[i] = pre and (pre .. rest) or l
+  end
+  return out
+end
+
+local function on_region(fn)
+  local s, e = region_lines()
+  local lines = vim.api.nvim_buf_get_lines(0, s - 1, e, false)
+  local new = fn(lines)
+  if not vim.deep_equal(new, lines) then
+    vim.api.nvim_buf_set_lines(0, s - 1, e, false, new)
+  end
+  if vim.fn.mode():match("^[vV\22]") then
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+  end
+end
+
+--- Escape the lines of the selection (org-escape-code-in-region).
+function M.escape_code_in_region()
+  on_region(M.escape_lines)
+end
+
+--- Unescape the lines of the selection (org-unescape-code-in-region).
+function M.unescape_code_in_region()
+  on_region(M.unescape_lines)
 end
 
 local EXPORT_FT = { html = "html", latex = "tex", tex = "tex", md = "markdown", markdown = "markdown", ascii = "text" }
@@ -290,7 +561,8 @@ function M.edit_object(bufnr, lnum, col)
       start_col = open,
       end_col = ib.e - 1,
       lines = { ib.body },
-      filetype = ib.lang,
+      filetype = require("org.babel.langs").filetype(ib.lang),
+      exact_filetype = true,
       name = "inline-" .. ib.lang,
       kind = "inline-src",
       to_source = function(new)
@@ -506,6 +778,7 @@ function M.edit_element(bufnr, lnum)
       e = e + 1
     end
     local indent = lines[s]:match("^(%s*)")
+    local fw_mode = config.opts.edit_fixed_width_region_mode
     local content = {}
     for i = s, e do
       content[#content + 1] = lines[i]:match("^%s*: (.*)$") or ""
@@ -516,6 +789,10 @@ function M.edit_element(bufnr, lnum)
       end_line = e,
       lines = content,
       name = "fixed-width",
+      -- org-edit-fixed-width-region-mode: a filetype or a function
+      filetype = type(fw_mode) == "string" and fw_mode or nil,
+      exact_filetype = true,
+      init = type(fw_mode) == "function" and fw_mode or nil,
       to_source = function(new)
         local out = {}
         for i, l in ipairs(new) do

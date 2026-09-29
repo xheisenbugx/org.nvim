@@ -1871,6 +1871,7 @@ local function narrow(window)
     filetype = "org",
     name = "narrow " .. hl:plain_title(),
     window = window,
+    narrow = true,
   })
 end
 

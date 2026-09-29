@@ -390,6 +390,71 @@ M.defaults = {
   --- indentation is removed for evaluation, tangling or editing
   --- (org-src-preserve-indentation). The `-i` switch does it per block.
   src_preserve_indentation = false,
+  --- Show "Edit, then exit with ... or abort with ..." in the winbar of
+  --- edit buffers (org-edit-src-persistent-message).
+  edit_src_persistent_message = true,
+  --- Write an edit buffer back to the Org buffer after this many seconds
+  --- without changes; 0 = never (org-edit-src-auto-save-idle-delay).
+  edit_src_auto_save_idle_delay = 0,
+  --- Auto-save the contents of edit buffers to an org-src-XXXXXX-%Y-%d-%m.txt
+  --- file next to the Org file (org-edit-src-turn-on-auto-save).
+  edit_src_turn_on_auto_save = false,
+  --- C-c ' on a block that already has an edit buffer asks before going back
+  --- to it ("n" discards it and opens a new one); false = go back at once
+  --- (org-src-ask-before-returning-to-edit-buffer).
+  src_ask_before_returning_to_edit_buffer = true,
+  --- Filetype (or function(bufnr)) of the edit buffer of `: ` fixed-width
+  --- areas; nil = none (org-edit-fixed-width-region-mode; Emacs: artist-mode).
+  edit_fixed_width_region_mode = nil,
+  --- Filetype of the edit buffer and highlighting of src blocks by language;
+  --- "" = none (org-src-lang-modes). Other languages use the filetype of
+  --- their extension.
+  src_lang_modes = {
+    C = "c",
+    ["C++"] = "cpp",
+    asymptote = "asy",
+    beamer = "tex",
+    calc = "",
+    cpp = "cpp",
+    ditaa = "",
+    desktop = "desktop",
+    dot = "dot",
+    elisp = "lisp",
+    ocaml = "ocaml",
+    screen = "sh",
+    sqlite = "sql",
+    toml = "toml",
+    shell = "sh",
+    ash = "sh",
+    sh = "sh",
+    bash = "sh",
+    jsh = "sh",
+    bash2 = "sh",
+    dash = "sh",
+    dtksh = "sh",
+    ksh = "sh",
+    es = "sh",
+    rc = "sh",
+    itcsh = "tcsh",
+    tcsh = "tcsh",
+    jcsh = "csh",
+    csh = "csh",
+    ksh88 = "sh",
+    oash = "sh",
+    pdksh = "sh",
+    mksh = "sh",
+    posix = "sh",
+    wksh = "sh",
+    wsh = "sh",
+    zsh = "zsh",
+    rpm = "sh",
+  },
+  --- TAB on a line of a src block indents it with the language's indentation
+  --- (indentexpr of its filetype) (org-src-tab-acts-natively).
+  src_tab_acts_natively = true,
+  --- Default format of coderef labels in src and example blocks; `-l "fmt"`
+  --- overrides it per block (org-coderef-label-format).
+  coderef_label_format = "(ref:%s)",
   --- Text appended to folded headlines (org-ellipsis).
   ellipsis = "...",
   --- Entities of your own, before the built-in ones (org-entities-user):
@@ -1322,6 +1387,41 @@ M.defaults = {
     --- Let external apps (file_apps) open files that don't exist; false =
     --- an error (org-open-non-existing-files).
     open_non_existing_files = false,
+    --- URLs of Texinfo manuals for info: links exported to HTML, by manual
+    --- name (org-info-other-documents).
+    info_other_documents = {
+      dir = "https://www.gnu.org/manual/manual.html",
+      libc = "https://www.gnu.org/software/libc/manual/html_mono/libc.html",
+      make = "https://www.gnu.org/software/make/manual/make.html",
+    },
+  },
+  --- BibTeX entries as headlines (ol-bibtex, `:h org-bibtex`).
+  bibtex = {
+    --- Generate the keys of new entries (org-bibtex-autogen-keys).
+    autogen_keys = false,
+    --- Prefix of the field properties, e.g. "BIB_" (org-bibtex-prefix).
+    prefix = nil,
+    --- The headline is the title when there is no TITLE property
+    --- (org-bibtex-treat-headline-as-title).
+    treat_headline_as_title = true,
+    --- function(fields) -> headline text of written entries; nil = the
+    --- title (org-bibtex-headline-format-function).
+    headline_format_function = nil,
+    --- Export every prefixed property, not only BibTeX fields; needs
+    --- `prefix` (org-bibtex-export-arbitrary-fields).
+    export_arbitrary_fields = false,
+    --- Property holding the key (org-bibtex-key-property).
+    key_property = "CUSTOM_ID",
+    --- Tags added to new entries (org-bibtex-tags).
+    tags = {},
+    --- keywords field <-> tags (org-bibtex-tags-are-keywords).
+    tags_are_keywords = false,
+    --- Tags not exported as keywords (org-bibtex-no-export-tags).
+    no_export_tags = {},
+    --- Export inherited tags as keywords too (org-bibtex-inherit-tags).
+    inherit_tags = false,
+    --- Property holding the entry type (org-bibtex-type-property-name).
+    type_property_name = "btype",
   },
   --- Downloading remote resources (a URL in #+INCLUDE on export)
   --- (org-resource-download-policy): "prompt" asks for URLs that are not
@@ -1535,6 +1635,23 @@ M.defaults = {
     -- Write tangle comments as they are, without comment syntax
     -- (org-babel-tangle-uncomment-comments)
     tangle_uncomment_comments = false,
+    -- Overwrite an existing tangle target: "auto" (delete it first only when
+    -- read-only), true (always delete and recreate), false (replace the
+    -- contents) (org-babel-tangle-remove-file-before-write)
+    tangle_remove_file_before_write = "auto",
+    -- function(text) -> text applied to the Org text of :comments org|both;
+    -- nil removes its common indentation (org-babel-process-comment-text)
+    process_comment_text = nil,
+    -- Write #+BEGIN_EXAMPLE / #+END_EXAMPLE around results
+    -- (org-babel-uppercase-example-markers)
+    uppercase_example_markers = false,
+    -- Templates of exported code, filled with %lang, %name, %body, %switches,
+    -- %header-args and %<header argument> (org-babel-exp-code-template,
+    -- org-babel-exp-inline-code-template), and of exported #+CALL lines and
+    -- call_ objects, with %line (org-babel-exp-call-line-template)
+    exp_code_template = "#+begin_src %lang%switches%header-args\n%body\n#+end_src",
+    exp_inline_code_template = "src_%lang[%switches%header-args]{%body}",
+    exp_call_line_template = "",
     -- Languages that can run, { cmd, ext, default_header_args }
     -- (org-babel-load-languages; default_header_args is
     -- org-babel-default-header-args:LANG). Emacs enables only emacs-lisp,
@@ -2000,6 +2117,10 @@ M.defaults = {
     --- Syntax-include the languages of src blocks for highlighting
     --- (org-src-fontify-natively).
     src_highlight = true,
+    --- Per-language face of src block bodies, like `todo_keyword_faces`:
+    --- `{ python = { bg = "#e5ffb8" }, [""] = "CursorLine" }` ("" = blocks
+    --- without a language) (org-src-block-faces).
+    src_block_faces = {},
     --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
     --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
     todo_keyword_faces = {},
@@ -2578,6 +2699,9 @@ M.defaults = {
     edit_src = {
       save_exit = { "<C-c>'", "<prefix>'" },
       abort = { "<C-c><C-k>", "<prefix>k" },
+      -- the block has a :session: send the buffer (Visual: the lines) to it
+      -- (org-src-associate-babel-session)
+      send_to_session = { "<C-c><C-c>", "<prefix>e" },
     },
   },
 }

@@ -2637,6 +2637,12 @@ Targets:
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
   info:emacs#Top                      the `info` program in a terminal
+                                      (exported to HTML as a link to the
+                                      manual's URL in
+                                      `links.info_other_documents`, else
+                                      gnu.org or MANUAL.html)
+  bibtex:refs.bib::key                a file link to a BibTeX entry
+                                      (|org-bibtex|)
   attachment:name                     file in the entry's attachment dir
   abbrev:tag  abbrev::tag  abbrev     `#+LINK:` or `links.abbreviations`
                                       (`%s` = tag, `%h` = url-encoded,
@@ -2696,7 +2702,8 @@ Results are kept for the session.
                 `file:…::(label)` and adds a `(ref:label)` to the line when
                 it has none. Help buffers give `help:tag`, man pages
                 `man:page`, netrw/oil listings a link to the file under the
-                cursor.
+                cursor, BibTeX files `file:refs.bib::key` described by
+                the authors, year and title (|org-bibtex|).
                 A count of 4 (C-u) toggles `links.context_for_files`, 16
                 (C-u C-u) skips custom `store` functions, 64 stores one link
                 per selected line.
@@ -2764,6 +2771,11 @@ or the system application) is not started for a file that doesn't exist
 (org-open-non-existing-files); Neovim opens missing files as new ones.
 <C-c>'          On `#+INCLUDE:`, `#+SETUPFILE:` or `#+BIBLIOGRAPHY:`, visit
                 the file.
+:Org link_open_from_string [link]
+                Open a link typed at a prompt (or given), as if it were in
+                the buffer (org-link-open-from-string). The text must be
+                one link: "No valid link in ..." / "Garbage after link in
+                ...". Also the `link_open_from_string` action (unbound).
 
 Radio targets `<<<text>>>` make every occurrence of "text" a link to them
 (also in export): case is ignored, the words must stand alone and may be
@@ -2896,6 +2908,47 @@ escaped) is handled as a drop (`yank.dnd_paste`, true). `yank.dnd_method`
 the `yank.image_save_method` directory when that is one), "open", "file-link"
 (insert `[[/path/to/file]]`) or "ask" (the default; Esc pastes the text
 instead). Several files get a space after each link.
+
+BibTeX entries (ol-bibtex)                                     *org-bibtex*
+
+A headline can hold a BibTeX entry: its type in the `btype` property
+(`bibtex.type_property_name`), its key in CUSTOM_ID (`bibtex.key_property`)
+and each field in a property of its name (TITLE, AUTHOR, ...), with
+`bibtex.prefix` in front when set. When there is no TITLE, the headline is
+the title (`bibtex.treat_headline_as_title`). These actions (unbound, like
+Emacs; `:Org <name>` or a mapping) follow ol-bibtex:
+  bibtex_export           write the entries of every headline to a .bib
+                          file (asked for, default FILE.bib) (org-bibtex)
+  bibtex_export_to_kill_ring  copy the entry of the headline to the
+                          unnamed register
+  bibtex_check            ask for the missing required fields and the key;
+                          with a count (C-u) the optional fields too; a
+                          choice (editor or author) asks "Field: " first
+  bibtex_check_all        the same for every headline
+  bibtex_create           a new headline: type, title, required fields
+                          (count: optional ones too), key, `bibtex.tags`
+  bibtex_create_in_current_entry  the same data for the current headline
+  bibtex_read             in a .bib buffer: read the entry at the cursor
+  bibtex_read_buffer / bibtex_read_file  read every entry of a buffer /
+                          file ("Parsed N entries")
+  bibtex_write            insert the first entry read as a headline after
+                          the cursor line (org-bibtex-write)
+  bibtex_yank             insert the BibTeX entry of the unnamed register;
+                          with a count (C-u), into the current headline
+  bibtex_import_from_file insert every entry of a file
+  bibtex_search           search view of the agenda files for the entries
+                          that match a string (`STRING +{:btype:}`)
+Written headlines use `bibtex.headline_format_function(fields)` for their
+text (default the title). Keys are asked for ("id: ") unless
+`bibtex.autogen_keys` makes them like Emacs' bibtex-generate-autokey
+(`doe20:_big_title`). With `bibtex.tags_are_keywords` the `keywords` field
+becomes tags (spaces become `_`) and tags become keywords (not those in
+`bibtex.tags` or `bibtex.no_export_tags`; inherited ones too with
+`bibtex.inherit_tags`). `bibtex.export_arbitrary_fields` (with a prefix)
+exports every prefixed property instead of the fields of the type.
+Storing a link in a .bib buffer gives `file:refs.bib::key` described like
+"Doe & Roe 2020: Big Title"; following it puts the entry at the top of the
+window. `bibtex:` links open like `file:` links.
 
 Attachments in git (org-attach-git)                         *org-attach-git*
 
@@ -3462,6 +3515,14 @@ same results in both editors.
                    write the result back (e.g. `gg=G` to reindent).
 <Tab> on #+RESULTS Fold / unfold the result (org-babel-hide-result-toggle);
                    `:Org babel_hide_all_results` folds every result.
+<C-c><C-c> on the hash of `#+RESULTS[hash]:`
+                   Copy the hash to the unnamed register and show it
+                   (org-babel-hash-at-point, `:Org babel_hash_at_point`).
+:Org babel_remove_inline_result
+                   Remove the `{{{results(...)}}}` after the inline src
+                   block or inline call at the cursor, with the white
+                   space before it (org-babel-remove-inline-result;
+                   <prefix>bk does not remove inline results, like Emacs).
 #+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
                    `#+NAME:` above a call names its results. Arguments
                    without `name=` fill the block's variables in order:
@@ -3680,7 +3741,9 @@ Switches: `-i` keeps the indentation of the lines (like
 `src_preserve_indentation`, Emacs `org-src-preserve-indentation`),
 otherwise the common indentation of a block is removed before it runs;
 `-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs (always
-removed before a block runs).
+removed before a block runs). Labels are `(ref:name)` unless a block has
+`-l "fmt"` or `coderef_label_format` sets another default
+(org-coderef-label-format).
 
 Tangling ~
 `:tangle yes|FILE` writes a block to a file (`yes`: the Org file's name with
@@ -3697,7 +3760,14 @@ the extension of `babel.tangle_lang_exts` or the language name, as Emacs:
     `babel.tangle_use_relative_file_links`), `:comments org` writes the
     Org text before the block as comments, `both` does both, `noweb` also
     wraps every noweb expansion. The formats are
-    `babel.tangle_comment_format_beg` / `_end`.
+    `babel.tangle_comment_format_beg` / `_end`. The Org text of `:comments
+    org` loses its common indentation, or goes through the function
+    `babel.process_comment_text` (org-babel-process-comment-text).
+  - an existing target is overwritten in place; with
+    `babel.tangle_remove_file_before_write` = true it is deleted and
+    recreated (a symlink is replaced by a file), with "auto" (the
+    default) only when it is read-only, with false never
+    (org-babel-tangle-remove-file-before-write).
   - `:padline no` removes the blank line between blocks; `:shebang` goes
     on the first line and makes the file executable; `:mkdirp yes` creates
     the directory; `:tangle-mode o755`, `(identity #o755)`, `rwxr-xr-x` or
@@ -3732,6 +3802,18 @@ confirmed like any evaluation. `:eval never-export|no-export` blocks keep
 their existing results. With `false`, export uses the `#+RESULTS` already in
 the buffer.
 
+The exported code of a block is `babel.exp_code_template`
+(org-babel-exp-code-template, default
+`"#+begin_src %lang%switches%header-args\n%body\n#+end_src"`), of an
+inline src block `babel.exp_inline_code_template`; `%lang`, `%name`,
+`%body`, `%switches`, `%header-args` and `%ARG` for each header argument
+(printed like Emacs: `%exports` gives `"code"`, `%var` gives `(x . 1)`)
+are filled in. `babel.exp_call_line_template` (default `""`) is exported in
+place of `#+CALL` lines and `call_` objects, with `%line` for the call,
+e.g. `"\n: call: %line"`. Results with ten or more lines use
+`#+BEGIN_EXAMPLE` with `babel.uppercase_example_markers`
+(org-babel-uppercase-example-markers).
+
                                                         *org-babel-edit-special*
 <prefix>' (C-c ') also edits, like `org-edit-special`: example, export and
 comment blocks, LaTeX environments, `: ` fixed-width areas, the body of an
@@ -3748,6 +3830,39 @@ Deleted or wholly replaced regions and wiped source buffers cannot be
 forced; copy the edit contents manually to the intended location. Example
 editing honors `-i`, `src_preserve_indentation`, and
 `edit_src_content_indentation`.
+
+Edit buffers, like Emacs' org-src buffers:
+  - the winbar says "Edit, then exit with ‘<C-c>'’ or abort with
+    ‘<C-c><C-k>’" (the first `mappings.edit_src` keys;
+    `edit_src_persistent_message = false` hides it).
+  - <prefix>' on a region that already has an edit buffer asks "Return to
+    existing edit buffer ([n] will revert changes)?": yes shows it again,
+    no discards it and opens a new one. With
+    `src_ask_before_returning_to_edit_buffer = false` it goes back at once.
+    `:Org edit_src_continue` goes back without asking to the edit buffer of
+    the region at the cursor (org-edit-src-continue, Emacs' mouse-1 on it).
+  - `edit_src_auto_save_idle_delay = N` writes the edit buffer back to the
+    Org buffer after N seconds without changes (0: never).
+    `edit_src_turn_on_auto_save = true` saves its contents, when idle
+    ('updatetime'), to `org-src-XXXXXX-%Y-%d-%m.txt` next to the Org file,
+    like Emacs' auto-save; the file is left there, as in Emacs.
+  - the filetype comes from `src_lang_modes` (org-src-lang-modes: `C` →
+    `c`, `elisp` → `lisp`, the shells → `sh`, ...), else from the
+    language's extension; the same table picks the syntax used to
+    highlight blocks. `: ` areas get `edit_fixed_width_region_mode` (a
+    filetype or a function of the buffer; none by default).
+  - the edit buffer of a block with a `:session` is associated with it
+    (org-src-associate-babel-session): `mappings.edit_src.send_to_session`
+    (<C-c><C-c>, <prefix>e) sends the buffer, or in Visual mode the
+    selected lines, to the session (started when needed) and shows it.
+TAB on a line of a src block (`src_tab_acts_natively`, default true)
+indents it for its language, like a round trip through the edit buffer:
+the body gets the block's content indentation and the line the
+indentation that the filetype's 'indentexpr' (or 'cindent') computes, or
+that of the line above when the filetype has none.
+`:Org escape_code_in_region` / `unescape_code_in_region` add or remove
+the comma that protects lines starting with `*` or `#+` in the selected
+lines (org-escape-code-in-region).
 
 Not supported ~
   - emacs-lisp sessions, and emacs-lisp code that acts on the editor
@@ -4525,6 +4640,10 @@ Options under `ui`:
                          Vim's tex syntax inside), "script" (x^2, a_{i}),
                          "entities" (\alpha)
   src_highlight          highlight src blocks with the language syntax
+  src_block_faces        face of src block bodies by language, like
+                         todo_keyword_faces: { python = { bg = "#e5ffb8" } }
+                         ("" = blocks without a language)
+                         (org-src-block-faces)
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name
   priority_faces         the same per priority (org-priority-faces):
@@ -4972,6 +5091,16 @@ Buffer ~
   datetree_add_timestamp    false     "active"|"inactive": new date tree
                                       day nodes get their date
   edit_src_content_indentation  2
+  edit_src_persistent_message  true  exit/abort hint in the edit buffer's
+                                      winbar (|org-babel-edit-special|)
+  src_ask_before_returning_to_edit_buffer  true
+  edit_src_auto_save_idle_delay  0    write back after N idle seconds
+  edit_src_turn_on_auto_save  false   auto-save file of edit buffers
+  edit_fixed_width_region_mode  nil   filetype of `: ` area edit buffers
+  src_lang_modes            { C = "c", elisp = "lisp", shell = "sh", ... }
+  src_tab_acts_natively     true      TAB indents src block lines for
+                                      their language
+  coderef_label_format      "(ref:%s)"
   ellipsis                  "..."
   entities_user             {}        your own entities |org-entities-user|
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
@@ -5161,9 +5290,15 @@ links ~
   search_functions {}, translation_function nil, mouse_1_follows_link 450
   (true|"double"|ms|false), tab_follows_link false,
   open_directory_means_index_dot_org false, open_non_existing_files false
-  (|org-links-mouse|)
+  (|org-links-mouse|), info_other_documents { dir, libc, make } (URLs of
+  info manuals)
 resource_download_policy "prompt" (true|"safe"|false),
 safe_remote_resources {} (|org-remote-resources|)
+bibtex ~ (|org-bibtex|)
+  autogen_keys false, prefix nil, treat_headline_as_title true,
+  headline_format_function nil, export_arbitrary_fields false,
+  key_property "CUSTOM_ID", tags {}, tags_are_keywords false,
+  no_export_tags {}, inherit_tags false, type_property_name "btype"
 id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
@@ -5194,7 +5329,10 @@ babel ~
   noweb_wrap_end ">>", tangle_use_relative_file_links true,
   tangle_comment_format_beg / _end, tangle_default_file_mode "644",
   tangle_lang_exts {}, tangle_save_buffer true,
-  tangle_uncomment_comments false, languages (see |org-babel|),
+  tangle_uncomment_comments false, tangle_remove_file_before_write "auto",
+  process_comment_text nil, uppercase_example_markers false,
+  exp_code_template, exp_inline_code_template, exp_call_line_template "",
+  languages (see |org-babel|),
   emacs_lisp { command = "emacs", args = { "-Q", "--batch" } }
 src_preserve_indentation false (org-src-preserve-indentation)
 export ~                                                   *org-config-export*
@@ -5424,7 +5562,8 @@ Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
 ir, around_subtree ar.
 Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
-Section `edit_src`: save_exit, abort.
+Section `edit_src`: save_exit, abort, send_to_session (<C-c><C-c>,
+<prefix>e: blocks with a `:session`, |org-babel-edit-special|).
 
 ==============================================================================
 28. COMMANDS                                                    *org-commands*
@@ -5722,6 +5861,23 @@ Differences from Emacs:
   cannot see or change buffers, and nothing is kept between evaluations.
   `:var` and header Lisp forms run on the table formula Lisp interpreter,
   else in that separate Emacs (see |org-babel|).
+- Src edit buffers (|org-babel-edit-special|): the edited region of the
+  Org buffer is neither highlighted nor read-only (edits there make `:w`
+  refuse, see above) and a click on it does not return to the edit
+  buffer (use `:Org edit_src_continue`); the hint is in the winbar, not a
+  header line. `edit_fixed_width_region_mode` has no artist-mode: `: `
+  areas get no filetype unless one is set. `edit_src_turn_on_auto_save`
+  writes the auto-save file on 'updatetime' idle (Emacs: every 300
+  keystrokes or 30 idle seconds); the idle write-back
+  (`edit_src_auto_save_idle_delay`) counts from the last change of the
+  edit buffer. Association with a `:session` sends code with
+  `edit_src.send_to_session` (Emacs sets the language mode's own
+  "send to REPL" commands, like python.el's, to the session).
+  `src_tab_acts_natively` indents with the filetype's 'indentexpr' (Vim's
+  indentation rules, with the Org buffer's 'shiftwidth' unless the
+  filetype sets one), not Emacs' major modes, and always with spaces.
+  `C-c C-c` on a `#+RESULTS[hash]` hash works on the whole hash, which
+  is not shortened to 4 characters as Emacs displays it.
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate
@@ -5742,8 +5898,15 @@ Differences from Emacs:
     and variables (describe-function), which do not exist here. `info:`
     runs the `info` program in a terminal, `man:` uses |:Man|.
   - Links to Emacs applications (gnus, rmail, mhe, bbdb, irc/erc, eww,
-    w3m, bibtex, calendar) can't be followed or stored: there is no such
-    application in Neovim. `docview:` opens the file.
+    w3m, calendar) can't be followed or stored: there is no such
+    application in Neovim. `docview:` opens the file. BibTeX links
+    (|org-bibtex|) work: `bibtex:` opens the file and a link stored in a
+    .bib buffer finds the entry. `bibtex_yank` reads only the yanked text
+    (Emacs writes an older read entry when the yanked text has none),
+    `bibtex_export_to_kill_ring` on a headline without an entry type
+    warns (Emacs signals a type error), and `bibtex.autogen_keys` works
+    without a BibTeX buffer having been opened (in Emacs -Q it fails
+    until bibtex-mode has set up its dialect).
   - `shell:` runs asynchronously (Emacs's shell-command waits for the
     command); its stdout and stderr are appended to `*Org Shell Output*`
     one after the other rather than interleaved. `links.confirm_shell`

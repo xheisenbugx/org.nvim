@@ -55,6 +55,10 @@ function M.context_action()
     return true
   end
   local lnum, col, line = cur()
+  -- org-babel-hash-at-point: the hash of a #+RESULTS[hash] line
+  if line:find("^[ \t]*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss]%[") and require("org.babel").hash_at(line, col) then
+    return require("org.babel").hash_at_point()
+  end
   if require("org.properties").at_property_line(0, lnum) then
     return require("org.properties").property_action()
   end

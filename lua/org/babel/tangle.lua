@@ -264,7 +264,11 @@ local function org_comment(lines, file, b, prev_end)
   if from_line >= b.start then
     return ""
   end
-  -- org-remove-indentation
+  -- org-babel-process-comment-text (default: org-remove-indentation)
+  local process = require("org.config").opts.babel.process_comment_text
+  if type(process) == "function" then
+    return process(text)
+  end
   local tl = vim.split(text, "\n", { plain = true })
   tl = babel().dedent(tl)
   return table.concat(tl, "\n")
@@ -476,9 +480,13 @@ function M.tangle(opts)
       utils.error("Tangle: directory does not exist (use :mkdirp yes): " .. dir)
     else
       if read_bytes(target) ~= content then
-        -- org-babel-tangle-remove-file-before-write `auto': recreate
-        -- read-only targets
-        if utils.exists(target) and vim.fn.filewritable(target) ~= 1 then
+        -- org-babel-tangle-remove-file-before-write: "auto" recreates
+        -- read-only targets, true every target, false none
+        local remove = require("org.config").opts.babel.tangle_remove_file_before_write
+        if remove == nil then
+          remove = "auto"
+        end
+        if utils.exists(target) and (remove == true or (remove == "auto" and vim.fn.filewritable(target) ~= 1)) then
           os.remove(target)
         end
         local fh = io.open(target, "wb")
