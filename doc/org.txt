@@ -3934,6 +3934,9 @@ These need Emacs Lisp or Emacs itself:
 - Source fontification: HTML uses tree-sitter highlights instead of
   htmlize (|org-export-backends|), so the spans differ from Emacs'
   font-lock; `src_block_backend = "engraved"` falls back to verbatim.
+- `export.smart_quotes_alist` sets the quotes of the languages it lists
+  and keeps the Emacs table for the others (Emacs replaces the whole
+  alist).
 - `export.ascii.table_use_ascii_art` draws table.el tables with box
   characters; in Org 9.8.10 the option does nothing when
   ascii-art-to-unicode is installed (its package check is inverted) and
