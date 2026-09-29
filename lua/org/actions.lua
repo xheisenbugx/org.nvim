@@ -351,6 +351,26 @@ group("Links", {
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
 })
 
+group("BibTeX", {
+  bibtex_export = { "org.bibtex", "export", desc = "Export the entries of the file to a .bib file" },
+  bibtex_check = { "org.bibtex", "check", desc = "Ask for missing BibTeX fields (count: optional too)" },
+  bibtex_check_all = { "org.bibtex", "check_all", desc = "Check the BibTeX fields of every headline" },
+  bibtex_create = { "org.bibtex", "create", desc = "New BibTeX entry headline (count: optional fields)" },
+  bibtex_create_in_current_entry = {
+    "org.bibtex",
+    "create_in_current_entry",
+    desc = "Add BibTeX data to the headline",
+  },
+  bibtex_export_to_kill_ring = { "org.bibtex", "export_to_kill_ring", desc = "Copy the headline as a BibTeX entry" },
+  bibtex_import_from_file = { "org.bibtex", "import_from_file", desc = "Insert the entries of a .bib file" },
+  bibtex_read = { "org.bibtex", "read", desc = "Read the BibTeX entry at the cursor", global = true },
+  bibtex_read_buffer = { "org.bibtex", "read_buffer", desc = "Read the BibTeX entries of a buffer", global = true },
+  bibtex_read_file = { "org.bibtex", "read_file", desc = "Read the BibTeX entries of a file", global = true },
+  bibtex_search = { "org.bibtex", "search", desc = "Search BibTeX entries in the agenda files", global = true },
+  bibtex_write = { "org.bibtex", "write", desc = "Insert the first read BibTeX entry as a headline" },
+  bibtex_yank = { "org.bibtex", "yank", desc = "Insert the yanked BibTeX entry (count: into this headline)" },
+})
+
 group("Refile, archive & attach", {
   refile = {
     "org.refile",

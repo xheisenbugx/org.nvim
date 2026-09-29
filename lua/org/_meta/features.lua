@@ -355,6 +355,35 @@
 ---(default: `{ dir = ..., libc = ..., make = ... }`)
 ---@field info_other_documents? table<string, string>
 
+---BibTeX entries as headlines (ol-bibtex).
+---@class org.Config.Bibtex
+---Generate the keys of new entries (`org-bibtex-autogen-keys`). (default: `false`)
+---@field autogen_keys? boolean
+---Prefix of the field properties, e.g. `"BIB_"` (`org-bibtex-prefix`). (default: `nil`)
+---@field prefix? string
+---The headline is the title when there is no TITLE property
+---(`org-bibtex-treat-headline-as-title`). (default: `true`)
+---@field treat_headline_as_title? boolean
+---Headline text of written entries from their fields
+---(`org-bibtex-headline-format-function`); `nil` = the title. (default: `nil`)
+---@field headline_format_function? fun(fields: table<string, string>): string
+---Export every prefixed property, not only BibTeX fields; needs `prefix`
+---(`org-bibtex-export-arbitrary-fields`). (default: `false`)
+---@field export_arbitrary_fields? boolean
+---Property holding the key (`org-bibtex-key-property`). (default: `"CUSTOM_ID"`)
+---@field key_property? string
+---Tags added to new entries (`org-bibtex-tags`). (default: `{}`)
+---@field tags? string[]
+---The keywords field becomes tags and tags become keywords
+---(`org-bibtex-tags-are-keywords`). (default: `false`)
+---@field tags_are_keywords? boolean
+---Tags not exported as keywords (`org-bibtex-no-export-tags`). (default: `{}`)
+---@field no_export_tags? string[]
+---Export inherited tags as keywords too (`org-bibtex-inherit-tags`). (default: `false`)
+---@field inherit_tags? boolean
+---Property holding the entry type (`org-bibtex-type-property-name`). (default: `"btype"`)
+---@field type_property_name? string
+
 ---------------------------------------------------------------------------
 -- IDs / attachments
 ---------------------------------------------------------------------------

@@ -46,6 +46,7 @@ M.URL_SCHEMES = {
   info = true,
   irc = true,
   docview = true,
+  bibtex = true,
   ["file+sys"] = true,
   ["file+emacs"] = true,
 }
@@ -914,6 +915,10 @@ function M.search_in_buffer(search, sopts)
       return true
     end
   end
+  -- a key in a BibTeX file (org-execute-file-search-in-bibtex)
+  if require("org.bibtex").file_search(search) then
+    return true
+  end
   local normalized = search:gsub("\n[ \t]*", " ")
   local starred = normalized:sub(1, 1) == "*"
   local words = split_words(starred and search:sub(2) or search)
@@ -1414,7 +1419,7 @@ function M.open(target, opts)
     return vim.ui.open(expanded)
   elseif t == "doi" then
     return vim.ui.open((lopts().doi_server_url or "https://doi.org/") .. link.path)
-  elseif t == "file" or t == "file+sys" or t == "file+emacs" or t == "docview" then
+  elseif t == "file" or t == "file+sys" or t == "file+emacs" or t == "docview" or t == "bibtex" then
     local path, search = link.path, nil
     local p, s = link.path:match("^(.-)::(.*)$")
     if p then
@@ -2046,6 +2051,13 @@ function M.link_to_location(opts)
   local bt = vim.bo[bufnr].buftype
   if bt == "help" then
     return help_link(bufnr, lnum)
+  end
+  if vim.bo[bufnr].filetype == "bib" or name:match("%.bib$") then
+    -- the BibTeX entry at the cursor (org-bibtex-store-link)
+    local r = require("org.bibtex").store_link(bufnr, lnum)
+    if r then
+      return finish(r)
+    end
   end
   if vim.bo[bufnr].filetype == "man" then
     local page = name:match("^man://(.+)$")

@@ -1099,6 +1099,34 @@ M.defaults = {
       make = "https://www.gnu.org/software/make/manual/make.html",
     },
   },
+  --- BibTeX entries as headlines (ol-bibtex, `:h org-bibtex`).
+  bibtex = {
+    --- Generate the keys of new entries (org-bibtex-autogen-keys).
+    autogen_keys = false,
+    --- Prefix of the field properties, e.g. "BIB_" (org-bibtex-prefix).
+    prefix = nil,
+    --- The headline is the title when there is no TITLE property
+    --- (org-bibtex-treat-headline-as-title).
+    treat_headline_as_title = true,
+    --- function(fields) -> headline text of written entries; nil = the
+    --- title (org-bibtex-headline-format-function).
+    headline_format_function = nil,
+    --- Export every prefixed property, not only BibTeX fields; needs
+    --- `prefix` (org-bibtex-export-arbitrary-fields).
+    export_arbitrary_fields = false,
+    --- Property holding the key (org-bibtex-key-property).
+    key_property = "CUSTOM_ID",
+    --- Tags added to new entries (org-bibtex-tags).
+    tags = {},
+    --- keywords field <-> tags (org-bibtex-tags-are-keywords).
+    tags_are_keywords = false,
+    --- Tags not exported as keywords (org-bibtex-no-export-tags).
+    no_export_tags = {},
+    --- Export inherited tags as keywords too (org-bibtex-inherit-tags).
+    inherit_tags = false,
+    --- Property holding the entry type (org-bibtex-type-property-name).
+    type_property_name = "btype",
+  },
   id = {
     --- Where the ID -> file database is kept (org-id-locations-file). Point
     --- it at Emacs's file (`~/.emacs.d/.org-id-locations`) to share it.

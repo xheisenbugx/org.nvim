@@ -55,6 +55,19 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
+---| "bibtex_check" # Ask for missing BibTeX fields (count: optional too)
+---| "bibtex_check_all" # Check the BibTeX fields of every headline
+---| "bibtex_create" # New BibTeX entry headline (count: optional fields)
+---| "bibtex_create_in_current_entry" # Add BibTeX data to the headline
+---| "bibtex_export" # Export the entries of the file to a .bib file
+---| "bibtex_export_to_kill_ring" # Copy the headline as a BibTeX entry
+---| "bibtex_import_from_file" # Insert the entries of a .bib file
+---| "bibtex_read" # Read the BibTeX entry at the cursor
+---| "bibtex_read_buffer" # Read the BibTeX entries of a buffer
+---| "bibtex_read_file" # Read the BibTeX entries of a file
+---| "bibtex_search" # Search BibTeX entries in the agenda files
+---| "bibtex_write" # Insert the first read BibTeX entry as a headline
+---| "bibtex_yank" # Insert the yanked BibTeX entry (count: into this headline)
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry

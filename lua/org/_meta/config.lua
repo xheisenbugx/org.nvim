@@ -453,6 +453,8 @@
 ---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
+---BibTeX entries as headlines (ol-bibtex).
+---@field bibtex? org.Config.Bibtex
 ---`ID` property creation and lookup.
 ---@field id? org.Config.Id
 ---Attachments (`org-attach`).
