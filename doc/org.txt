@@ -4468,8 +4468,9 @@ drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
 keywords of another file.
 
                                                        *org-remote-resources*
-`#+INCLUDE: https://…` downloads the file (with curl) only when
-`resource_download_policy` allows it (org-resource-download-policy):
+`#+INCLUDE: https://…` (and `#+SETUPFILE:`, see |org-setupfile|)
+downloads the file (with curl) only when `resource_download_policy`
+allows it (org-resource-download-policy):
 "prompt" (default) downloads URLs matching `safe_remote_resources` and asks
 about the others, "safe" downloads only those, true downloads everything
 (dangerous) and false only the safe ones (like Emacs). A URL is safe when
@@ -6287,8 +6288,12 @@ use the first value. CATEGORY is the buffer's own last `#+CATEGORY`, else
 the first one collected (org-element--get-category). Column view prefers
 the buffer's own first non-empty `#+COLUMNS` line (org-columns-get-format). Cached document metadata refreshes when
 setup dependencies change, appear, disappear, or have unsaved edits in a
-loaded buffer. Remote URLs are not fetched by the core parser. Missing
-or unreadable local setup files are ignored; lint reports missing paths.
+loaded buffer. A URL is downloaded as `resource_download_policy` allows
+(|org-remote-resources|, like `#+INCLUDE:`), once a session: "prompt"
+asks the first time the file is read (with no UI to ask in, such as a
+headless Neovim, only `safe_remote_resources` URLs are fetched), and a
+refused or failed download isn't tried again. Missing or unreadable local
+setup files are ignored; lint reports missing paths.
 
 ==============================================================================
 31. LINTING                                                         *org-lint*
@@ -6732,9 +6737,6 @@ Differences from Emacs:
   - `links.mouse_1_follows_link` times the click from press to release in
     the Org buffer; `open_at_point_global` reads links on the line (and
     bracket links over nearby lines), not the whole paragraph.
-  - `#+SETUPFILE:` URLs are never downloaded (|org-setupfile|), so
-    `resource_download_policy` only applies to `#+INCLUDE:` URLs; Emacs
-    also asks about remote setup files when a buffer is opened.
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.

@@ -47,10 +47,15 @@ local function save_pattern(pat)
   pcall(vim.fn.writefile, { vim.json.encode(list) }, file)
 end
 
+--- URLs whose download was refused or failed this session, so that a
+--- parse doesn't ask again.
+M._refused = {}
+
 --- Forget the saved patterns (tests).
 function M._reset()
   saved = nil
   M._cache = {}
+  M._refused = {}
 end
 
 local function file_uri(file)
@@ -204,6 +209,35 @@ function M.contents(uri, file)
   end
   local lines = vim.split((text:gsub("\n$", "")), "\n", { plain = true })
   M._cache[uri] = lines
+  return lines
+end
+
+--- The lines of the remote setup file `uri` of `file` (org-file-contents
+--- from org-collect-keywords), or nil. It asks only once a session, and
+--- never without a UI or in a fast event (a parse can run anywhere);
+--- then only URLs allowed without asking are fetched.
+---@param uri string
+---@param file? string
+---@return string[]|nil
+function M.setup_contents(uri, file)
+  if M._cache[uri] then
+    return M._cache[uri]
+  end
+  if M._refused[uri] or vim.in_fast_event() then
+    return nil
+  end
+  local policy = config.opts.resource_download_policy
+  local can_ask = #vim.api.nvim_list_uis() > 0
+  if policy == "prompt" and not can_ask and not M.is_safe(uri, file) then
+    return nil
+  end
+  local lines, err = M.contents(uri, file)
+  if not lines then
+    M._refused[uri] = true
+    if err then
+      utils.warn(err)
+    end
+  end
   return lines
 end
 
