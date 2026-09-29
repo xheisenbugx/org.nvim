@@ -98,6 +98,22 @@ describe("csl processor options", function()
     assert(okp, out)
     ok(out:find("A [1].", 1, true) ~= nil, out)
   end)
+  it("reads locales from export.cite.csl_locales_dir", function()
+    local tmp = vim.fn.tempname()
+    vim.fn.mkdir(tmp, "p")
+    local src = root .. "/../etc/csl/locales-en-US.xml"
+    local lines = vim.fn.readfile(src)
+    for i, l in ipairs(lines) do
+      lines[i] = l:gsub('<term name="and">and</term>', '<term name="and">und</term>')
+    end
+    vim.fn.writefile(lines, tmp .. "/locales-en-US.xml")
+    local c = require("org.config").opts.export.cite
+    c.csl_locales_dir = tmp
+    local okp, out = pcall(export, "s1.org", "ascii")
+    c.csl_locales_dir = nil
+    assert(okp, out)
+    ok(out:find("Lamport und Doe", 1, true) ~= nil, out)
+  end)
   it("keeps title case with csl_bibtex_titles_to_sentence_case = false", function()
     local c = require("org.config").opts.export.cite
     c.csl_bibtex_titles_to_sentence_case = false
