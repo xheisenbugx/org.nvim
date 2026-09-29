@@ -232,6 +232,7 @@ group("Navigation & elements", {
   next_sibling = { "org.structure", "next_sibling", desc = "Next sibling heading", modes = { "n", "x", "o" } },
   prev_sibling = { "org.structure", "prev_sibling", desc = "Previous sibling heading", modes = { "n", "x", "o" } },
   buffer_goto = { "org.goto", "goto", desc = "Go to heading in buffer (org-goto)" },
+  imenu = { "org.goto", "imenu", desc = "Headlines in the location list (imenu)" },
 })
 
 group("TODO, priority, tags & properties", {

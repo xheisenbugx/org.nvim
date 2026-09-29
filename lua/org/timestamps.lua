@@ -152,6 +152,7 @@ function M.goto_calendar()
   local picked = require("org.calendar").pick({
     default = existing and existing.date or date.today(),
     prompt = "Calendar",
+    calendar = true,
   })
   if picked and not picked.remove then
     utils.notify(picked:to_string())

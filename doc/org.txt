@@ -377,6 +377,12 @@ g{              Parent headline.
                 With "outline-path-completion": pick a headline by its
                 outline path (|vim.ui.select()|), down to
                 `goto_max_level`. A count uses the other interface.
+gO              The headlines in the location list, indented by level,
+                down to `ui.imenu_depth` levels (default 2; reduced
+                levels with odd levels only), like gO in help and markdown
+                buffers: Emacs's imenu index (org-imenu-depth). The text is
+                the headline's without TODO keyword, priority, COMMENT and
+                tags, links shown by their description (`:Org imenu`).
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
@@ -1165,6 +1171,16 @@ The keys:
   T              set a time
   !              show the agenda of the selected date (Emacs: the diary
                  entries); the windows come back when the prompt ends
+  c              only in the calendar of `:Org goto_calendar`: close it and
+                 show the agenda from the week of the date
+                 (org-calendar-goto-agenda; the key is
+                 `calendar_to_agenda_key`: "default" is `c`, false none)
+  i              only in that calendar, when `agenda.diary_entry_file` is
+                 an Org file: close it and add a diary entry for the date
+                 there, as the agenda's `i` does
+                 (`calendar_insert_diary_entry_key`,
+                 org-calendar-insert-diary-entry-key); `t` still types a
+                 date
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   <LeftMouse>    select the day clicked (<MiddleMouse> too)
@@ -5695,6 +5711,9 @@ Structure and visibility ~
   read_date_prefer_future   true      true|false|"time"
   read_date_popup_calendar  true      false: a plain prompt |org-calendar|
   read_date_display_live    true      show the typed date's meaning
+  calendar_to_agenda_key    "default" the `goto_calendar` key showing the
+                                      agenda of the date: `c`, a key, false
+  calendar_insert_diary_entry_key  "i"  its key adding a diary entry
   edit_timestamp_down_means_later  false  <S-Down> makes timestamps later
   display_custom_times      false     |org-dates|
   time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }

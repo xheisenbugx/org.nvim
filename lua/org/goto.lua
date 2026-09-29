@@ -228,4 +228,42 @@ function M.goto()
   return M.completion()
 end
 
+--- The imenu index of the buffer (org-imenu-get-tree): headlines down to
+--- `ui.imenu_depth` levels (reduced levels with odd_levels_only), as
+--- { lnum, level, text } with the text of org-get-heading without TODO,
+--- priority, COMMENT and tags, links shown by their description.
+---@param bufnr? integer
+---@return { lnum: integer, level: integer, text: string }[]
+function M.imenu_index(bufnr)
+  bufnr = bufnr or 0
+  local depth = (config.opts.ui or {}).imenu_depth or 2
+  local odd = require("org.structure").odd_levels_only(bufnr)
+  local links = require("org.links")
+  local out = {}
+  for _, hl in ipairs(require("org.files").get_buffer(bufnr).headlines) do
+    local level = odd and math.floor((hl.level + 1) / 2) or hl.level
+    local text = vim.trim(links.display_format(hl.title or ""))
+    if level <= depth and text ~= "" then
+      out[#out + 1] = { lnum = hl.line, level = level, text = text }
+    end
+  end
+  return out
+end
+
+--- Show the imenu index in the location list, indented by level, like
+--- `gO` in Neovim's help and markdown buffers (Emacs: imenu).
+function M.imenu()
+  if not utils.ensure_org() then
+    return false
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  local items = {}
+  for _, e in ipairs(M.imenu_index(bufnr)) do
+    items[#items + 1] = { bufnr = bufnr, lnum = e.lnum, col = 1, text = string.rep("  ", e.level - 1) .. e.text }
+  end
+  vim.fn.setloclist(0, {}, " ", { title = "Imenu: " .. vim.fn.expand("%:t"), items = items })
+  vim.cmd("lopen")
+  return true
+end
+
 return M

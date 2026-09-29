@@ -689,6 +689,14 @@ M.defaults = {
   --- Show what a typed date means while typing it in the calendar
   --- (org-read-date-display-live).
   read_date_display_live = true,
+  --- Key of the calendar opened by `goto_calendar` that shows the agenda of
+  --- its date: "default" (`c`), another key, or false
+  --- (org-calendar-to-agenda-key).
+  calendar_to_agenda_key = "default",
+  --- Key of that calendar adding a diary entry for its date to
+  --- `agenda.diary_entry_file`, when that is an Org file
+  --- (org-calendar-insert-diary-entry-key).
+  calendar_insert_diary_entry_key = "i",
   --- <S-Down> makes timestamps later and <S-Up> earlier
   --- (org-edit-timestamp-down-means-later).
   edit_timestamp_down_means_later = false,
@@ -2752,6 +2760,7 @@ M.defaults = {
       next_sibling = "][",
       prev_sibling = "[]",
       buffer_goto = "<prefix>.",
+      imenu = "gO", -- like gO in help and markdown buffers
       -- todo / priority / tags / properties
       todo_next = "cit",
       todo_prev = "ciT",

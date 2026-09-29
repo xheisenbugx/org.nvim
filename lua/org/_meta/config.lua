@@ -619,6 +619,14 @@
 ---Show what a typed date means while typing it in the calendar.
 ---(Emacs `org-read-date-display-live`, default: `true`)
 ---@field read_date_display_live? boolean
+---Key of the `goto_calendar` calendar showing the agenda of its date:
+---`"default"` (`c`), another key, or `false`.
+---(Emacs `org-calendar-to-agenda-key`, default: `"default"`)
+---@field calendar_to_agenda_key? string|false
+---Key of that calendar adding a diary entry for its date to an Org
+---`agenda.diary_entry_file`.
+---(Emacs `org-calendar-insert-diary-entry-key`, default: `"i"`)
+---@field calendar_insert_diary_entry_key? string
 ---`<S-Down>` makes timestamps later and `<S-Up>` earlier.
 ---(Emacs `org-edit-timestamp-down-means-later`, default: `false`)
 ---@field edit_timestamp_down_means_later? boolean

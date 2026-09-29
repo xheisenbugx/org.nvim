@@ -193,11 +193,19 @@ function M.render(sel, opts)
   mark(row, MARGIN, #rule, "OrgCalendarSeparator")
 
   -- key hints: keys highlighted, descriptions dimmed
+  local cal = opts.calendar and M.calendar_keys() or {}
   local hints = {
     { { "hjkl", "day/week" }, { "HL", "month" }, { "JK", "year" } },
-    { { ".", "today" }, { "i", "type" }, { "T", "time" } },
+    { { ".", "today" }, { cal.diary == "i" and "t" or "i", "type" }, { "T", "time" } },
     { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { "esc", "cancel" } },
   }
+  if cal.agenda or cal.diary then
+    -- the Emacs calendar's Org keys (org--setup-calendar-bindings)
+    hints[#hints + 1] = {
+      cal.agenda and { vim.fn.keytrans(cal.agenda), "agenda" } or nil,
+      cal.diary and { vim.fn.keytrans(cal.diary), "diary entry" } or nil,
+    }
+  end
   for _, group in ipairs(hints) do
     line = pad
     local hm = {}
@@ -328,13 +336,45 @@ local function restore_windows(state)
   end
 end
 
+--- The Org keys of the calendar opened by `goto_calendar`
+--- (org--setup-calendar-bindings): `agenda` shows the agenda of the date
+--- (`calendar_to_agenda_key`, org-calendar-goto-agenda), `diary` adds a
+--- diary entry for it (`calendar_insert_diary_entry_key`) when
+--- `agenda.diary_entry_file` is an Org file. Keys as typed (keycodes).
+---@return { agenda?: string, diary?: string }
+function M.calendar_keys()
+  local o = require("org.config").opts
+  local out = {}
+  local k = o.calendar_to_agenda_key
+  if k == "default" then
+    out.agenda = "c"
+  elseif type(k) == "string" and k ~= "" then
+    out.agenda = vim.keycode(k)
+  end
+  local target = (o.agenda or {}).diary_entry_file
+  local d = o.calendar_insert_diary_entry_key
+  if target and target ~= "diary-file" and type(d) == "string" and d ~= "" then
+    out.diary = vim.keycode(d)
+  end
+  return out
+end
+
+--- org-calendar-goto-agenda: the agenda (default span) around day `days`.
+function M.goto_agenda(days)
+  local span = (require("org.config").opts.agenda or {}).span or "week"
+  local anchor = require("org.agenda.render").starting_day(span, days)
+  require("org.agenda").open_agenda({ anchor = anchor })
+end
+
 --- read_date_popup_calendar (or its alias popup_calendar_for_date_prompt)
 local function popup_calendar()
   local o = require("org.config").opts
   return o.read_date_popup_calendar ~= false and o.popup_calendar_for_date_prompt ~= false
 end
 
----@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean }
+--- `opts.calendar`: the calendar of `goto_calendar`, with its Org keys
+--- (`calendar_keys`).
+---@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean, calendar?: boolean }
 ---@return table|nil
 function M.pick(opts)
   opts = opts or {}
@@ -436,11 +476,23 @@ function M.pick(opts)
     return result
   end
   local live_display = require("org.config").opts.read_date_display_live ~= false
+  local cal = opts.calendar and M.calendar_keys() or {}
   while true do
     draw()
     local ok, ch = pcall(vim.fn.getcharstr)
     if not ok or ch == "\27" or ch == "\3" or ch == "q" then
       return finish(nil)
+    end
+    if ch == cal.agenda or ch == cal.diary then
+      -- the calendar's Org keys: the calendar closes (it is modal here)
+      local days = sel:days()
+      finish(nil)
+      if ch == cal.agenda then
+        M.goto_agenda(days)
+      else
+        require("org.agenda.diary_entry").calendar_entry(days)
+      end
+      return nil
     end
     local typing = ch == "i" or ch == "t"
     if (typing and not live_display) or ch == "T" or ch == "x" or ch == key("<Del>") then

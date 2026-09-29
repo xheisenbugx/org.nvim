@@ -160,6 +160,7 @@
 ---| "id_get_create" # Get or create ID
 ---| "id_goto" # Go to entry by ID
 ---| "id_store_link" # Store id: link to entry
+---| "imenu" # Headlines in the location list (imenu)
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
 ---| "indent_block" # Indent the block at point
@@ -521,6 +522,8 @@
 ---@field prev_sibling? org.MappingLhs
 --- Go to heading in buffer. Default: `<prefix>.`
 ---@field buffer_goto? org.MappingLhs
+--- Headlines in the location list (imenu). Default: `gO`
+---@field imenu? org.MappingLhs
 --- Next TODO state. Default: `cit`
 ---@field todo_next? org.MappingLhs
 --- Previous TODO state. Default: `ciT`
