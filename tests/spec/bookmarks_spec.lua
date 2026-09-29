@@ -45,6 +45,7 @@ describe("bookmarks", function()
     refile.remember(buf, 2, "last_refile")
     refile.remember(buf, 3, "last_capture")
     vim.cmd("silent bwipeout!")
+    vim.cmd("silent enew!")
     refile.last_stored = nil -- a new session
     refile.goto_last_stored()
     eq(file, vim.fs.normalize(vim.api.nvim_buf_get_name(0)))
