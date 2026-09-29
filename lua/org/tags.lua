@@ -475,7 +475,8 @@ end
 ---@param current string[]
 ---@param defs { name?: string, key?: string, group?: string }[]
 ---@param inherited string[]
----@param opts? { todo_keys?: { key: string, name: string }[], on_todo?: fun(kw: string), completion?: string[] }
+---@param opts? { todo_keys?: { key: string, name: string }[], on_todo?: fun(kw: string), completion?: string[], single?: boolean|"expert" }
+---@return string[]|nil tags, string|nil key the key that ended a single-key selection
 function M.fast_select(current, defs, inherited, opts)
   opts = opts or {}
   current = vim.deepcopy(current)
@@ -485,6 +486,9 @@ function M.fast_select(current, defs, inherited, opts)
     todo_by_key[t.key] = t.name
   end
   local single = config.opts.fast_tag_selection_single_key
+  if opts.single ~= nil then
+    single = opts.single
+  end
   local expert = single == "expert"
   local exit_next = single and true or false
   local groups_on = #groups > 0
@@ -550,7 +554,8 @@ function M.fast_select(current, defs, inherited, opts)
     end
     current = sort_tags(current, entries)
     if changed and exit_next then
-      return current
+      -- the key of the last change (org-last-tag-selection-key)
+      return current, ch
     end
   end
 end

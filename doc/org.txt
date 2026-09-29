@@ -4207,7 +4207,8 @@ HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar, Texinfo, KOMA-Script
 letters and man pages matches Emacs.
 
 <prefix>e (Emacs `C-c C-e`) opens the export dispatcher:
-  b / s / v / a  toggle body only / subtree only / visible only / async
+  b / s / v / f / a  toggle body only / subtree only / visible only /
+                 force publishing / async (also <C-b> <C-s> <C-v> <C-f> <C-a>)
   c f  iCalendar: current file   c a  every agenda file   c c  combined
   h H  HTML buffer      h h  HTML file          h o  HTML file and open
   i t  Texinfo file     i i  Info file          i o  Info file and open
@@ -4222,9 +4223,55 @@ letters and man pages matches Emacs.
   t A/a  ASCII buffer/file   t L/l  Latin-1   t U/u  UTF-8
   P f  publish file     P p  current project    P x  a project  P a  all
   p    other format via pandoc
+  &    the export stack (|org-export-stack|)
   #    insert the default export template
 
-`:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
+The toggles start from `export.initial_scope` ("buffer" or "subtree"),
+`export.body_only`, `export.visible_only`, `export.force_publishing` and
+`export.in_background` (Emacs org-export-initial-scope, -body-only,
+-visible-only, -force-publishing, -in-background). With
+`export.dispatch_use_expert_ui` (org-export-dispatch-use-expert-ui) there is
+no menu, only the prompt "Export command (C-bvsfa) [keys]: " with the
+active options highlighted; `?` switches to the menu. "As ... buffer"
+exports show their buffer in a split unless
+`export.show_temporary_export_buffer` is false (the buffer is still made).
+`export.copy_to_kill_ring` (true, "if-interactive" or false) also puts the
+output in the unnamed register and the clipboard. `export.coding_system`
+(org-export-coding-system) is the encoding of exported files, an |iconv()|
+name such as "latin1"; nil is UTF-8. `export.process_citations = false`
+leaves citations to the back-end (they export as nothing, like Emacs) and
+`export.replace_macros = false` keeps macros unexpanded (they also export
+as nothing; with Babel on, a macro other than {{{results}}} stops the
+export, like Emacs). `export.smart_quotes_alist` gives the smart quotes of a
+language (org-export-smart-quotes-alist); a language set there replaces its
+entry of the Emacs table.
+
+Asynchronous export                                      *org-export-stack*
+With the dispatcher's `a` toggle, `export.in_background` or `:Org export
+{format} async`, the dispatcher returns at once and the result is not shown
+but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
+lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
+`v` views the entry at the cursor (a file with the system opener, with a
+count in Neovim), `d` removes it from the stack, `C` clears the stack
+(`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
+org-export-async-start, a separate Neovim (`nvim --clean --headless`)
+exports a copy of the buffer with the session's options, minus their Lua
+functions (filters, hooks, format functions): `export.async_init_file`
+(org-export-async-init-file) is a Lua file it runs first to set them.
+Prompts are answered "no" there, so Babel blocks that need a confirmation
+keep their results. Visible-only exports need the folds and run in this
+Neovim instead, right after the dispatcher closes.
+
+Convert region                                   *org-export-convert-region*
+In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
+`_ascii`, `_utf8` and `_texinfo` (Emacs org-html-convert-region-to-html,
+org-latex-convert-region-to-latex, ...) replace the selection with its
+body-only export, the selection being exported on its own like a
+temporary Org buffer. `:[range]Org convert_region {format}` does the same for
+lines (any native format), and `:[range]Org export_region_to_html` (latex,
+md, ascii, utf8, texinfo) are the Emacs org-export-region-to-* aliases.
+
+`:Org export {format} [subtree] [body] [visible] [buffer] [open] [async]` where
 format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
 beamer-pdf, org, ics, odt, texinfo (or texi), info, koma-letter (or koma),
 koma-pdf, man, man-pdf or a pandoc format (docx, rst, epub, ...).
@@ -4368,8 +4415,29 @@ HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
               `html5-fancy:t`), default CSS, MathJax, postamble "auto"
               (author, date, creator, validation link), `#+ATTR_HTML`,
               `#+HTML_HEAD`, info.js (`#+INFOJS_OPT`), inline images.
-              Source code is not fontified unless `export.html.fontify`
-              is a function(code, lang).
+              LaTeX (`tex:`, `export.html.with_latex`, org-html-with-latex):
+              MathJax (t, "mathjax"), pictures in ltximg/ next to the
+              output with a LaTeX preview process ("dvipng", "dvisvgm",
+              "imagemagick", or one of `ui.latex_preview.processes`),
+              "html" runs `export.html.latex_to_html_convert_command`
+              (org-latex-to-html-convert-command, %i = the fragment) on
+              each fragment, "verbatim" or false keep the LaTeX.
+              Source code is coloured from its tree-sitter highlights
+              (Emacs uses htmlize): `export.html.htmlize_output_type`
+              "inline-css" (default) puts the colour scheme's colours in
+              style attributes, "css" writes classes named
+              `htmlize_font_prefix` ("org-") + the Emacs face (org-keyword,
+              org-string, org-comment, org-function-name, ...), false
+              leaves the code plain. `export.html.indent`
+              (org-html-indent) indents the document the way Emacs'
+              mhtml-mode does (CSS and JavaScript by bracket depth); a
+              body-only export takes the indentation of its first line,
+              like Emacs' fundamental-mode. `:Org html_htmlize_generate_css`
+              (org-html-htmlize-generate-css) shows the stylesheet of
+              those classes in a "*html*" buffer. A language without a
+              tree-sitter parser stays plain, like a language without an
+              Emacs mode. `export.html.fontify`, a function(code, lang),
+              replaces the built-in highlighting.
 LaTeX / PDF   ox-latex: classes (`export.latex.classes`, #+LATEX_CLASS),
               packages, labels, figures and tables with `#+ATTR_LATEX`
               (:width :float :placement :environment :mode :align
@@ -4403,7 +4471,10 @@ checkboxes, rules and table borders; the Latin-1 and UTF-8 dispatcher
 entries override it. The other layout options (margins, spacing, bullets,
 underlines, caption position, verbatim format, drawer and inlinetask
 formatters) mirror the Emacs `org-ascii-*` variables of the same name.
-`table_use_ascii_art` (ascii-art-to-unicode) is not supported.
+With `table_use_ascii_art` (org-ascii-table-use-ascii-art) table.el
+tables are drawn with box characters in UTF-8 exports, like the
+ascii-art-to-unicode package (every "-" and "|" of the table, and each "+"
+as the junction its neighbours need).
 
 Beamer ~                                                   *org-export-beamer*
 `:Org export beamer` (dispatcher: l B buffer, l b file, l P PDF, l O PDF and
@@ -4431,6 +4502,21 @@ applies to lists and images. Keywords: #+BEAMER_THEME,
 #+BEAMER: (raw line), #+SUBTITLE, `#+TOC: headlines N [options]`. With
 `toc:` an outline frame titled `export.beamer.outline_frame_title` is
 added.
+
+Beamer mode                                              *org-beamer-mode*
+`:Org beamer_mode` toggles org-beamer-mode in the buffer; it is on from the
+start with `startup_with_beamer_mode = true` (org-startup-with-beamer-mode)
+or `#+STARTUP: beamer`. While it is on, <C-c><C-b>
+(`mappings.beamer.beamer_select_environment`; it replaces "previous sibling"
+like in Emacs) runs `beamer_select_environment`
+(org-beamer-select-environment): a fast tag selection of B_ENV tags, one
+key per environment (f frame, b block, c column, C columns, n note, ...),
+sets BEAMER_env (pressing the key of the current environment removes it);
+`|` toggles BMCOL and asks for the column width (BEAMER_col), `A` makes an
+againframe and asks for BEAMER_ref and BEAMER_act. Setting BEAMER_env or
+BEAMER_col as a property also updates the B_ENV / BMCOL tags, which are
+highlighted with `OrgBeamerTag`. Toggling fires the `OrgBeamerMode` User
+autocmd (org-beamer-mode-hook), `data = { bufnr, enabled }`.
 
 Texinfo ~                                                 *org-export-texinfo*
 `:Org export texinfo` (dispatcher `i t`, Emacs `C-c C-e i t`) writes a
@@ -4526,7 +4612,13 @@ addition) adds raw style XML to <office:styles>.
 the result with `convert_process` ("LibreOffice": `soffice --headless
 --convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
 `require("org.export.odt").convert(file, format)` converts any file
-(org-odt-convert). `export.odt.use_pandoc = true` exports ODT with pandoc
+(org-odt-convert); `:Org odt_convert` asks for the file and the output
+format (with a count it opens the result).
+`:Org odt_export_as_odf` (org-odt-export-as-odf) converts a LaTeX fragment
+to MathML with `latex_to_mathml_convert_command` and writes it as an
+OpenDocument formula, FILE.odf; the fragment is the first one of the
+Visual selection (or typed at the prompt) and the file name is asked for.
+`odt_export_as_odf_and_open` also opens the file. `export.odt.use_pandoc = true` exports ODT with pandoc
 instead. Lua: `require("org.export").export("odt", opts)`;
 `to_string("odt")` returns content.xml.
 Differences: `use_date_fields`, `with_forbidden_chars`, the drawer,
@@ -4535,7 +4627,10 @@ matches Emacs except for a few Emacs slips that are not copied: labels
 of unnamed captioned images are not called "nil", `[[#custom-id][desc]]`
 links point to the heading's bookmark, meta.xml gets the title without
 markup, and inline source blocks (an error in Emacs) are exported as
-code. MathML is not cached in an ltxmathml/ directory.
+code. The MathML of each fragment is kept in
+`export.odt.latex_mathml_directory` ("ltxmathml/" next to the Org file,
+org-latex-mathml-directory) and reused while the fragment and the command
+are unchanged.
 
 KOMA-Script letters ~                                 *org-export-koma-letter*
 `:Org export koma-letter` (dispatcher `k L` buffer, `k l` file, `k p` PDF,
@@ -4612,10 +4707,17 @@ the body is the DESCRIPTION (`include_body`). Tags and the category go to
 CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
 Files use CRLF line endings and 75-character folded lines (RFC 5545).
 Differences: entries without an ID get a UID derived from the file and the
-entry (stable across exports) instead of a random one; diary sexps
-(`%%(...)` lines and `<%%(...)>` timestamps) are skipped because Emacs
-converts them with its calendar library; `++`/`.+` repeaters give no RRULE
-(like Emacs); BBDB anniversaries are not supported.
+entry (stable across exports) instead of a random one; `++`/`.+`
+repeaters give no RRULE (like Emacs); BBDB anniversaries are not supported.
+Diary sexps (`%%(...)` lines with `include_sexps`, and `<%%(...)>`
+timestamps) become VEVENTs with an RRULE like Emacs' diary iCalendar
+library does: diary-anniversary (yearly), diary-block (daily until the
+end), diary-cyclic (every N days), diary-float (the Nth weekday of a month)
+and diary-date (arguments in `agenda.calendar_date_style` order); a time
+(`<%%(...) 10:00-11:30>`) gives the start time and a DURATION. Recurrences
+start at their first date from January 1 of last year, like Emacs. Other
+sexps are skipped with a warning (Emacs cannot convert them either), and
+the UID is Org's (DS1-ID, TS1-ID) where Emacs 31 makes up its own.
 
 Citations ~                                                  *org-export-cite*
 Citations written as `[cite/STYLE:prefix @key suffix]` are rendered on
@@ -4675,7 +4777,10 @@ Projects are set in `export.publish.projects` (org-publish-project-alist):
 Keys are the Emacs plist properties with `_` for `-`. `publishing_function`
 is "html", "latex", "pdf", "beamer", "md", "gfm", "ascii", "latin1",
 "utf8", "org", "texinfo", "attachment", a Lua function(plist, file,
-pub_dir) or a list.
+pub_dir) or a list. With "org" and `htmlized_source = true`, the source is
+also written as coloured HTML, FILE.org.html, by Neovim's |:TOhtml| (Emacs
+uses htmlize); `export.org.htmlized_css_url` (org-org-htmlized-css-url)
+links that stylesheet instead of embedding the styles.
 `exclude` and `base_extension` are Vim regular expressions matched against
 file names relative to `base_directory`. Other keys (with_toc,
 html_postamble, ...) are export options for the project's files.
@@ -4701,18 +4806,26 @@ These need Emacs Lisp or Emacs itself:
   scratch buffer (`buffer-file-name`, `org-with-point-at` and the like
   don't see the document). Without Emacs they export as nothing, with a
   warning.
-- Source fontification (htmlize, engrave-faces): HTML code is plain unless
-  `export.html.fontify` is set; `src_block_backend = "engraved"` falls
-  back to verbatim.
-- LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
-  exported as MathJax/verbatim by the HTML back-end; only ODT converts
-  them (|org-export-odt|).
+- Source fontification: HTML uses tree-sitter highlights instead of
+  htmlize (|org-export-backends|), so the spans differ from Emacs'
+  font-lock; `src_block_backend = "engraved"` falls back to verbatim.
+- `export.smart_quotes_alist` sets the quotes of the languages it lists
+  and keeps the Emacs table for the others (Emacs replaces the whole
+  alist).
+- `export.ascii.table_use_ascii_art` draws table.el tables with box
+  characters; in Org 9.8.10 the option does nothing when
+  ascii-art-to-unicode is installed (its package check is inverted) and
+  fails when it is not.
+- LaTeX pictures in HTML (`tex:dvipng`, ...) are named
+  ltximg/FILE_HASH.png with a hash of their own; a failed conversion
+  warns and leaves the LaTeX out instead of stopping the export.
 - table.el tables: the HTML comment table.el puts before the table names
   org.nvim instead of the Emacs version, and a grid table.el cannot read
   is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
   fails.
-- Asynchronous export (`a`) only makes PDF compilation asynchronous;
-  publishing runs on the editor's event loop.
+- Asynchronous export (`a`) runs in a separate Neovim, like Emacs; a
+  visible-only export runs on the editor's event loop instead, and so does
+  publishing.
 - Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
@@ -5357,6 +5470,7 @@ Buffer ~
                                       "showall", "show2levels".."show5levels"
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
+  startup_with_beamer_mode  false     |org-beamer-mode| on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
   sparse_tree_open_archived_trees  false  sparse trees open :ARCHIVE: trees
   sparse_tree_default_date_type    nil  |org-sparse-tree| date types
@@ -5647,10 +5761,42 @@ export ~                                                   *org-config-export*
   with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
-  global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
+  global_macros, allow_bind_keywords false, hooks, filters,
+  initial_scope "buffer", body_only, visible_only, force_publishing,
+  in_background, async_init_file nil, dispatch_use_expert_ui false,
+  show_temporary_export_buffer true, copy_to_kill_ring false,
+  coding_system nil, process_citations, replace_macros true,
+  smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
   ascii, beamer, icalendar, odt, texinfo, koma_letter, man, publish, cite;
-  pandoc { cmd, args }. See the
-  comments in config.lua for every key and its Emacs variable.
+  pandoc { cmd, args }. See the comments in config.lua for every key and
+  its Emacs variable.
+  Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
+  value): html allow_name_attribute_in_anchors, coding_system "utf-8",
+  datetime_formats { "%F", "%FT%T" }, indent false, divs, footnotes_section,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, home_up_format, infojs_template,
+  inline_image_rules, klipsify_src, klipse_css, klipse_js,
+  klipse_selection_script, mathjax_template, meta_tags, scripts,
+  table_align_individual_fields, table_data_tags, table_header_tags,
+  table_default_attributes, table_row_open_tag, table_row_close_tag,
+  table_use_header_tags_for_first_column, tag_class_prefix,
+  todo_kwd_class_prefix, text_markup_alist, viewport, xml_declaration;
+  latex active_timestamp_format, inactive_timestamp_format,
+  diary_timestamp_format, compiler_file_string, known_warnings,
+  custom_lang_environments, default_footnote_command,
+  default_quote_environment, footnote_defined_format, footnote_separator,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, image_default_scale, image_default_height,
+  image_default_option, inline_image_rules, inputenc_alist,
+  link_with_unknown_path_format, listings_langs, listings_options,
+  listings_src_omit_language, logfiles_extensions, minted_langs,
+  minted_options, subtitle_format, subtitle_separate,
+  table_scientific_notation, text_markup_alist, toc_include_unnumbered;
+  texinfo logfiles_extensions, active_timestamp_format,
+  inactive_timestamp_format, diary_timestamp_format,
+  link_with_unknown_path_format, tables_verbatim,
+  table_scientific_notation, text_markup_alist, format_headline_function,
+  format_drawer_function, format_inlinetask_function.
   cite also has the buffer options (|org-cite|): activate_processor,
   follow_processor, insert_processor "basic", basic_max_key_distance 2,
   basic_author_column_end 25, basic_column_separator "  ",
@@ -5871,6 +6017,8 @@ Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
 Section `edit_src`: save_exit, abort, send_to_session (<C-c><C-c>,
 <prefix>e: blocks with a `:session`, |org-babel-edit-special|).
+Section `beamer`: beamer_select_environment <C-c><C-b>, only while
+|org-beamer-mode| is on.
 
 ==============================================================================
 28. COMMANDS                                                    *org-commands*

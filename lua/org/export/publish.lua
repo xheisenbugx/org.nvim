@@ -599,6 +599,71 @@ function M.org_to(backend, filename, extension, plist, pub_dir, ext_extra)
   return output
 end
 
+--- Write the Org source as coloured HTML next to its published copy
+--- (org-org-publish-to-org with :htmlized-source): FILE.org.html, rendered
+--- by Neovim's :TOhtml (Emacs uses htmlize). With
+--- `export.org.htmlized_css_url` (org-org-htmlized-css-url) the embedded
+--- stylesheet is replaced by a link to that URL.
+function M.htmlize_source(plist, filename, pub_dir)
+  local ok, tohtml = pcall(require, "tohtml")
+  if not ok then
+    pcall(vim.cmd.packadd, "nvim.tohtml")
+    ok, tohtml = pcall(require, "tohtml")
+  end
+  if not ok then
+    require("org.utils").warn("htmlized_source needs Neovim's tohtml (:TOhtml)")
+    return nil
+  end
+  local html_cfg = (require("org.config").opts.export or {}).html or {}
+  local ext = "." .. (plist.html_extension or html_cfg.extension or "html")
+  local buf = vim.fn.bufadd(filename)
+  vim.fn.bufload(buf)
+  if vim.bo[buf].filetype ~= "org" then
+    vim.bo[buf].filetype = "org"
+  end
+  local win = vim.api.nvim_open_win(buf, false, {
+    relative = "editor",
+    row = 0,
+    col = 0,
+    width = math.max(20, vim.o.columns - 2),
+    height = math.max(1, vim.o.lines - 4),
+    style = "minimal",
+    hide = true,
+  })
+  -- org-fold-show-all
+  vim.api.nvim_win_call(win, function()
+    pcall(vim.cmd, "normal! zR")
+  end)
+  local okh, lines = pcall(tohtml.tohtml, win, { title = vim.fn.fnamemodify(filename, ":t") })
+  vim.api.nvim_win_close(win, true)
+  if not okh then
+    require("org.utils").warn("htmlized_source: " .. tostring(lines))
+    return nil
+  end
+  local url = ((require("org.config").opts.export or {}).org or {}).htmlized_css_url
+  if url then
+    local s, e
+    for i, l in ipairs(lines) do
+      if not s and l:match("^%s*<style[ >]") then
+        s = i
+      elseif s and l:match("</style>") then
+        e = i
+        break
+      end
+    end
+    if s and e then
+      local new = vim.list_slice(lines, 1, s - 1)
+      new[#new + 1] = string.format('<link rel="stylesheet" type="text/css" href="%s">', url)
+      vim.list_extend(new, vim.list_slice(lines, e + 1))
+      lines = new
+    end
+  end
+  local out = as_dir(pub_dir) .. vim.fn.fnamemodify(filename, ":t") .. ext
+  vim.fn.mkdir(vim.fn.fnamemodify(out, ":h"), "p")
+  vim.fn.writefile(lines, out)
+  return out
+end
+
 --- Copy a file without transformation (org-publish-attachment).
 function M.attachment(_, filename, pub_dir)
   vim.fn.mkdir(pub_dir, "p")
@@ -657,7 +722,11 @@ M.functions = {
     return M.org_to("ascii", filename, ".txt", plist, pub_dir, { ascii_charset = "utf-8" })
   end,
   org = function(plist, filename, pub_dir)
-    return M.org_to("org", filename, ".org", plist, pub_dir)
+    local out = M.org_to("org", filename, ".org", plist, pub_dir)
+    if plist.htmlized_source then
+      M.htmlize_source(plist, filename, pub_dir)
+    end
+    return out
   end,
   attachment = function(plist, filename, pub_dir)
     return M.attachment(plist, filename, pub_dir)

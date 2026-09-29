@@ -374,6 +374,9 @@
 ---Fold `#+begin_...` blocks when a file is opened (`#+STARTUP: hideblocks`).
 ---(Emacs `org-hide-block-startup`, default: `false`)
 ---@field hide_block_startup? boolean
+---Turn on the Beamer editing mode (`:Org beamer_mode`) when a file is opened
+---(`#+STARTUP: beamer`). (Emacs `org-startup-with-beamer-mode`, default: `false`)
+---@field startup_with_beamer_mode? boolean
 ---Let visibility cycling open subtrees tagged `:ARCHIVE:`.
 ---(Emacs `org-cycle-open-archived-trees`, default: `false`)
 ---@field cycle_open_archived_trees? boolean

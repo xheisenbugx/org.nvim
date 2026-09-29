@@ -416,7 +416,7 @@ function M.global_options()
     { "with_timestamps", nil, "<", d(c.with_timestamps, true) },
     { "with_title", nil, "title", d(c.with_title, true) },
     { "with_todo_keywords", nil, "todo", d(c.with_todo_keywords, true) },
-    { "with_cite_processors", nil, nil, true },
+    { "with_cite_processors", nil, nil, d(c.process_citations, true) },
     { "cite_export", "CITE_EXPORT", nil, c.cite_export },
   }
 end
@@ -1497,6 +1497,22 @@ end
 --- Build the macro expander (org-macro-initialize-templates). Returns a
 --- function(macro_node, parser) -> expansion string or nil (undefined).
 function M.macro_expander(ctx)
+  if cfg().replace_macros == false then
+    -- org-export-replace-macros = nil: macros stay (and export as nothing);
+    -- with Babel, {{{results(...)}}} is still replaced, and like
+    -- org-macro-replace-all with only that template, any other macro
+    -- aborts the export.
+    local babel = (require("org.config").opts.babel or {}).evaluate_on_export
+    return function(node)
+      if babel then
+        if node.key == "results" then
+          return (node.args or {})[1] or ""
+        end
+        error("Undefined Org macro: " .. node.key .. "; aborting", 0)
+      end
+      return nil
+    end
+  end
   local kw = ctx.keywords
   local function kwval(name, collect)
     local v = kw[name]
@@ -3452,7 +3468,15 @@ function M.activate_smart_quotes(s, encoding, info, node)
   if not status then
     return s
   end
-  local quotes = require("org.export.dictionary").smart_quotes[info.language or "en"]
+  local lang = info.language or "en"
+  info.smart_quotes_table = info.smart_quotes_table or {}
+  local quotes = info.smart_quotes_table[lang]
+  if quotes == nil then
+    -- org-export-smart-quotes-alist: a language given by the user replaces
+    -- its Emacs entry
+    quotes = (cfg().smart_quotes_alist or {})[lang] or require("org.export.dictionary").smart_quotes[lang]
+    info.smart_quotes_table[lang] = quotes or false
+  end
   local i = 0
   return (s:gsub("['\"]", function(m)
     i = i + 1
@@ -4168,6 +4192,7 @@ function export_as(backend, lines, opts)
     abbrevs = abbrevs,
     radio = radio,
     macro = expander,
+    no_final_newline = opts.no_final_newline,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
     inlinetask_min_level = c.inlinetask_min_level or 15,
     alpha = require("org.lists").opt("allow_alphabetical"),

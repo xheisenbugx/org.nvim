@@ -22,6 +22,14 @@ local function opt(name, default)
 end
 
 local nw = ox.nw
+
+--- org-html-klipse-selection-script
+local KLIPSE_SELECTION_SCRIPT = [[window.klipse_settings = {selector_eval_html: '.src-html',
+                             selector_eval_js: '.src-js',
+                             selector_eval_python_client: '.src-python',
+                             selector_eval_scheme: '.src-scheme',
+                             selector: '.src-clojure',
+                             selector_eval_ruby: '.src-ruby'};]]
 local trim = ox.trim
 local fmt = string.format
 
@@ -164,7 +172,9 @@ local function format_timestamp(ts, info)
   local tag = fancy and "time" or "span"
   local attrs = 'class="timestamp"'
   if fancy then
-    local f = ox.timestamp_has_time_p(ts) and "%FT%T" or "%F"
+    -- org-html-datetime-formats: { date-only, date-and-time }
+    local formats = opt("datetime_formats", { "%F", "%FT%T" })
+    local f = ox.timestamp_has_time_p(ts) and formats[2] or formats[1]
     attrs = attrs .. fmt(' datetime="%s"', ox.format_timestamp(ts, f))
   end
   local s = fmt("<%s %s>%s</%s>", tag, attrs, M.plain_text(ox.timestamp_translate(ts), info), tag)
@@ -187,6 +197,50 @@ local CHECKBOXES = {
 -- Code
 ---------------------------------------------------------------------------
 
+--- Colour `code` like org-html-fontify-code with htmlize: tree-sitter
+--- captures become <span class="PREFIXface"> (org-html-htmlize-output-type
+--- "css", PREFIX = org-html-htmlize-font-prefix) or <span style="...">
+--- with the colours of the highlight groups ("inline-css"). Plain text
+--- without a language, with the output type false, or when the language
+--- has no tree-sitter parser (Emacs: no major mode).
+function M.htmlize(code, lang)
+  local ty = opt("htmlize_output_type", "inline-css")
+  if not lang or not ty then
+    return encode(code)
+  end
+  local F = require("org.export.fontify")
+  local runs = F.runs(code, lang)
+  if not runs then
+    return encode(code)
+  end
+  local prefix = opt("htmlize_font_prefix", "org-")
+  local tslang = F.ts_lang(lang)
+  local styles = {}
+  local out = {}
+  for i, line in ipairs(runs) do
+    local parts = {}
+    for _, r in ipairs(line) do
+      local text = encode(r[1])
+      local face = r[2] and F.face(r[2])
+      if face and ty == "css" then
+        text = fmt('<span class="%s%s">%s</span>', prefix, face, text)
+      elseif face then
+        local style = styles[r[2]]
+        if style == nil then
+          style = table.concat(F.css_specs(F.hl("@" .. r[2], tslang)), " ")
+          styles[r[2]] = style
+        end
+        if style ~= "" then
+          text = fmt('<span style="%s">%s</span>', style, text)
+        end
+      end
+      parts[#parts + 1] = text
+    end
+    out[i] = table.concat(parts)
+  end
+  return table.concat(out, "\n")
+end
+
 local function fontify(code, lang)
   local hl = hcfg().fontify
   if lang and type(hl) == "function" then
@@ -195,7 +249,77 @@ local function fontify(code, lang)
       return r
     end
   end
-  return encode(code)
+  return M.htmlize(code, lang)
+end
+
+--- The stylesheet of the htmlize classes (org-html-htmlize-generate-css):
+--- a <style> element with one rule per face, coloured like the highlight
+--- groups of the current colour scheme, to copy into a CSS file for
+--- `htmlize_output_type = "css"`.
+function M.htmlize_css()
+  local F = require("org.export.fontify")
+  local prefix = opt("htmlize_font_prefix", "org-")
+  -- one rule per face, from the first capture giving it
+  local rules = {}
+  for _, f in ipairs(F.FACES) do
+    local face = f[2]
+    if face and rules[face] == nil then
+      local specs = F.css_specs(F.hl("@" .. f[1]))
+      rules[face] = #specs > 0 and { "@" .. f[1], specs } or false
+    end
+  end
+  for face, r in pairs(rules) do
+    if not r then
+      rules[face] = nil
+    end
+  end
+  local names = vim.tbl_keys(rules)
+  table.sort(names)
+  local normal = F.hl("Normal")
+  local out = { '<style type="text/css">', "    <!--", "      body {" }
+  out[#out + 1] = fmt("        color: %s;", normal.fg and fmt("#%06x", normal.fg) or "#000000")
+  out[#out + 1] = fmt("        background-color: %s;", normal.bg and fmt("#%06x", normal.bg) or "#ffffff")
+  out[#out + 1] = "      }"
+  for _, face in ipairs(names) do
+    out[#out + 1] = fmt("      .%s%s {", prefix, face)
+    out[#out + 1] = fmt("        /* %s */", rules[face][1])
+    for _, s in ipairs(rules[face][2]) do
+      out[#out + 1] = "        " .. s
+    end
+    out[#out + 1] = "      }"
+  end
+  vim.list_extend(out, {
+    "",
+    "      a {",
+    "        color: inherit;",
+    "        background-color: inherit;",
+    "        font: inherit;",
+    "        text-decoration: inherit;",
+    "      }",
+    "      a:hover {",
+    "        text-decoration: underline;",
+    "      }",
+    "    -->",
+    "</style>",
+  })
+  return out
+end
+
+--- Show the htmlize stylesheet in a "*html*" buffer
+--- (org-html-htmlize-generate-css).
+function M.htmlize_generate_css()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":t") == "*html*" then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+  end
+  local lines = M.htmlize_css()
+  local buf = vim.api.nvim_create_buf(true, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_name(buf, "*html*")
+  vim.bo[buf].filetype = "html"
+  vim.api.nvim_set_current_buf(buf)
+  return buf
 end
 
 function M.do_format_code(code, lang, refs, retain_labels, num_start, wrap_lines)
@@ -653,41 +777,76 @@ local function infojs_install(info)
     return info
   end
   local o = info.infojs_opt or ""
+  if o:match("%f[%w]view:nil%f[^%w]") and use == "when-configured" then
+    return info
+  end
+  if info.export_options and info.export_options.body_only then
+    return info
+  end
+  -- org-html-infojs-opts-table / org-html-infojs-options defaults
   local table_ = {
     { "path", "PATH", "https://orgmode.org/org-info.js" },
     { "view", "VIEW", "info" },
-    { "toc", "TOC", info.with_toc and "1" or "0" },
+    { "toc", "TOC", info.with_toc },
     { "ftoc", "FIXED_TOC", "0" },
     { "tdepth", "TOC_DEPTH", "max" },
     { "sdepth", "SECTION_DEPTH", "max" },
     { "mouse", "MOUSE_HINT", "underline" },
     { "buttons", "VIEW_BUTTONS", "0" },
     { "ltoc", "LOCAL_TOC", "1" },
-    { "up", "LINK_UP", info.html_link_up or "" },
-    { "home", "LINK_HOME", info.html_link_home or "" },
+    { "up", "LINK_UP", info.html_link_up },
+    { "home", "LINK_HOME", info.html_link_home },
   }
-  local template = data.infojs_template
-  local options = {}
-  local path
+  local template = opt("infojs_template", data.infojs_template) -- org-html-infojs-template
+  local ptoc = info.with_toc
+  local hlevels = info.headline_levels or 3
+  local sdepth = hlevels
+  local tdepth = type(ptoc) == "number" and math.min(ptoc, hlevels) or hlevels
+  local style = {}
   for _, e in ipairs(table_) do
-    local val = o:match("%f[%w]" .. e[1] .. ":(%S+)") or e[3]
+    local val = o:match("%f[%w]" .. e[1] .. ":(%S+)")
+    if val == nil then
+      val = e[3]
+    end
     if e[1] == "path" then
-      path = val
-    else
-      if e[1] == "sdepth" or e[1] == "tdepth" then
-        if val == "max" then
-          val = tostring(info.headline_levels)
+      template = template:gsub("%%SCRIPT_PATH", function()
+        return val
+      end)
+    elseif e[1] == "sdepth" or e[1] == "tdepth" then
+      local n = tonumber(val)
+      if n and math.floor(n) == n then
+        if e[1] == "sdepth" then
+          sdepth = math.min(n, sdepth)
+        else
+          tdepth = math.min(n, tdepth)
         end
-      elseif e[1] == "toc" then
-        info.with_toc = val == "1" or val == "t"
       end
-      options[#options + 1] = fmt('org_html_manager.set("%s", "%s");', e[2], val)
+    else
+      if val == true or val == "t" then
+        val = "1"
+      elseif val == nil or val == false or val == "nil" then
+        val = "0"
+      end
+      table.insert(style, 1, { e[2], tostring(val) })
     end
   end
-  template = template:gsub("%%SCRIPT_PATH", path):gsub("%%MANAGER_OPTIONS", table.concat(options, "\n"))
-  info.html_head_extra = (info.html_head_extra or "") .. "\n" .. template
+  -- the generated TOC goes as deep as the splitting (SDEPTH); TDEPTH only
+  -- limits how much of it is shown
+  info.with_toc = sdepth
+  tdepth = math.min(tdepth, sdepth)
+  table.insert(style, 1, { "TOC_DEPTH", tostring(tdepth) })
+  local lines = {}
+  for _, kv in ipairs(style) do
+    lines[#lines + 1] = fmt('org_html_manager.set("%s", "%s");', kv[1], kv[2])
+  end
+  local a, b = template:find("%MANAGER_OPTIONS", 1, true)
+  if a then
+    template = template:sub(1, a - 1) .. table.concat(lines, "\n") .. template:sub(b + 1)
+    info.html_head_extra = (info.html_head_extra or "") .. "\n" .. template
+  end
   return info
 end
+
 M.infojs_install = infojs_install
 
 local function inner_template(contents, info)
@@ -1151,6 +1310,71 @@ local function latex_env_numbered_p(el)
   return not (env:match("%*$") or env == "displaymath")
 end
 
+--- org-html--unlabel-latex-environment: equation -> equation*.
+local function unlabel_latex_environment(frag)
+  frag = frag:gsub("^([ \t]*\\begin{)([^*}]+)(})", "%1%2*%3", 1)
+  local a, b, name = frag:find("\n[ \t]*\\end{([^*}]+)}[ \r\t\n]*$")
+  if not a then
+    a, b, name = frag:find("^[ \t]*\\end{([^*}]+)}[ \r\t\n]*$")
+  end
+  if a then
+    local s = frag:find("{", a, true)
+    frag = frag:sub(1, s) .. name .. "*" .. frag:sub(s + 1 + #name)
+  end
+  return frag
+end
+
+--- org-html-format-latex for a LaTeX image process (dvipng, dvisvgm,
+--- imagemagick, ...): the picture is made once in
+--- ltximg/<file>_<hash>.<ext> next to the output (org-format-latex); the
+--- link relative to it is returned, or nil.
+function M.latex_image(frag, process, info)
+  local odt = require("org.export.odt")
+  local spec = odt.latex_image_process(process)
+  if not spec then
+    return nil
+  end
+  local bfn = info.input_file or (vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/latex" .. tostring(vim.uv.hrtime()))
+  local ui = (require("org.config").opts.ui or {}).latex_preview or {}
+  local imgdir = ui.image_directory or "ltximg/"
+  if not imgdir:match("/$") then
+    imgdir = imgdir .. "/"
+  end
+  local prefix = imgdir .. vim.fn.fnamemodify(bfn, ":t:r")
+  local cache_dir = vim.fn.fnamemodify(info.output_file or bfn, ":p:h")
+  local hash = require("org.babel.sha1").hex(table.concat({ process, info.latex_header or "", frag }, "\0"))
+  local ext = spec.image_output_type or "png"
+  local linkfile = fmt("%s_%s.%s", prefix, hash, ext)
+  local movefile = imgdir:match("^/") and linkfile or (cache_dir .. "/" .. linkfile)
+  if not vim.uv.fs_stat(movefile) then
+    local made = odt.latex_to_image(frag, process, info)
+    if not made then
+      return nil
+    end
+    vim.fn.mkdir(vim.fn.fnamemodify(movefile, ":h"), "p")
+    vim.uv.fs_copyfile(made, movefile)
+    vim.fn.delete(vim.fn.fnamemodify(made, ":h"), "rf")
+  end
+  return linkfile
+end
+
+--- org-format-latex-as-html: the output of
+--- `export.html.latex_to_html_convert_command` (org-latex-to-html-convert-command,
+--- %i = the fragment), or the fragment when there is no command.
+function M.latex_to_html(frag)
+  local cmd = opt("latex_to_html_convert_command", nil)
+  if not nw(cmd) then
+    return frag
+  end
+  local odt = require("org.export.odt")
+  return odt.shell_command_to_string(odt.format_spec(cmd, { i = odt.shellescape(frag) }))
+end
+
+--- The <img> of a LaTeX picture; the alt text is the LaTeX source.
+local function latex_img(link, frag, attrs, info)
+  return M.format_image(link, attrs, info, encode(frag))
+end
+
 T["latex-environment"] = function(el, _, info)
   local ptype = info.with_latex
   local frag = table.concat(element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })), "\n")
@@ -1168,12 +1392,24 @@ T["latex-environment"] = function(el, _, info)
       return M.math_environment_p(l) and latex_env_numbered_p(l)
     end))
   end
-  return fmt(
-    '\n<div%s class="equation-container">\n%s%s\n</div>',
-    nw(label) and fmt(' id="%s"', label) or "",
-    fmt('<span class="equation">\n%s\n</span>', frag),
-    nw(caption) and fmt('\n<span class="equation-label">\n%s\n</span>', caption) or ""
-  )
+  local function wrap(contents)
+    return fmt(
+      '\n<div%s class="equation-container">\n%s%s\n</div>',
+      nw(label) and fmt(' id="%s"', label) or "",
+      fmt('<span class="equation">\n%s\n</span>', contents),
+      nw(caption) and fmt('\n<span class="equation-label">\n%s\n</span>', caption) or ""
+    )
+  end
+  if require("org.export.odt").latex_image_process(ptype) then
+    local src = unlabel_latex_environment(frag)
+    local link = M.latex_image(src, ptype, info)
+    if not link then
+      require("org.utils").warn("LaTeX to image conversion failed (" .. ptype .. ")")
+      return nil
+    end
+    return wrap(latex_img(link, src, ox.read_attribute("attr_html", el), info))
+  end
+  return wrap(frag)
 end
 
 --- $…$ and $$…$$ become \(…\) and \[…\] for MathJax (org-format-latex with
@@ -1187,10 +1423,23 @@ function M.mathjax_fragment(frag)
   return frag
 end
 
+--- org-html-with-latex (`tex:` / export.html.with_latex): true or "mathjax"
+--- (MathJax), "html" (latex_to_html_convert_command), a LaTeX image
+--- process ("dvipng", "dvisvgm", "imagemagick", ...: pictures), anything
+--- else (verbatim, false) leaves the LaTeX as it is.
 T["latex-fragment"] = function(el, _, info)
   local ptype = info.with_latex
   if ptype == true or ptype == "mathjax" then
     return M.mathjax_fragment(el.value)
+  elseif ptype == "html" then
+    return M.latex_to_html(el.value)
+  elseif require("org.export.odt").latex_image_process(ptype) then
+    local link = M.latex_image(el.value, ptype, info)
+    if not link then
+      require("org.utils").warn("LaTeX to image conversion failed (" .. ptype .. ")")
+      return nil
+    end
+    return latex_img(link, el.value, nil, info)
   end
   return el.value
 end
@@ -1254,8 +1503,8 @@ function M.standalone_image_p(el, info, predicate)
   return count == 1
 end
 
-function M.format_image(source, attrs, info)
-  local a = { _keys = { "src", "alt" }, src = source, alt = vim.fn.fnamemodify(source, ":t") }
+function M.format_image(source, attrs, info, alt)
+  local a = { _keys = { "src", "alt" }, src = source, alt = alt or vim.fn.fnamemodify(source, ":t") }
   if source:match("%.svg$") then
     set_attr(a, "class", "org-svg")
   end
@@ -1849,10 +2098,11 @@ local function defaults()
     { "html_klipsify_src", nil, nil, v("klipsify_src", false) },
     { "html_klipse_css", nil, nil, v("klipse_css", "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css") },
     { "html_klipse_js", nil, nil, v("klipse_js", "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js") },
-    { "html_klipse_selection_script", nil, nil, v("klipse_selection_script", "") },
+    { "html_klipse_selection_script", nil, nil, v("klipse_selection_script", KLIPSE_SELECTION_SCRIPT) },
     { "html_scripts", nil, nil, v("scripts", data.scripts) },
     { "infojs_opt", "INFOJS_OPT", nil, nil },
     { "creator", "CREATOR", nil, v("creator_string", nil) or ox.creator_string() },
+    { "with_latex", nil, "tex", v("with_latex", (require("org.config").opts.export or {}).with_latex) },
     { "latex_header", "LATEX_HEADER", nil, nil, "newline" },
   }
 end
@@ -1869,6 +2119,15 @@ M.backend = ox.define_backend("html", {
     ["parse-tree"] = {
       function(tree, _, info)
         return ox.insert_image_links(tree, info, info.html_inline_image_rules)
+      end,
+    },
+    -- org-html-final-function: org-html-indent
+    ["final-output"] = {
+      function(text)
+        if opt("indent", false) then
+          return require("org.export.html_indent").indent(text)
+        end
+        return text
       end,
     },
   },

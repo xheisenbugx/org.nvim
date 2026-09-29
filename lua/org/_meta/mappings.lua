@@ -366,6 +366,8 @@
 ---@field capture? org.Config.Mappings.Capture|false
 --- Keys in the src-block / special edit buffer (normal mode). Set to `false` to disable the whole section.
 ---@field edit_src? org.Config.Mappings.EditSrc|false
+--- Keys of the Beamer mode (org-beamer-mode-map), set while `beamer_mode` is on.
+---@field beamer? org.Config.Mappings.Beamer|false
 
 --- Global normal-mode keys, set on `setup()` (available everywhere).
 --- Besides the fields below, any `org.ActionName` is accepted as a key.
@@ -1275,6 +1277,10 @@
 ---@field refile? org.MappingLhs
 
 --- Keys in the src-block / special edit buffer (normal mode).
+---@class org.Config.Mappings.Beamer
+--- Select the Beamer environment of the entry. Default: `<C-c><C-b>`
+---@field beamer_select_environment? org.MappingLhs
+
 ---@class org.Config.Mappings.EditSrc
 --- Write the edit buffer back and close it. Default: `{ "<C-c>'", "<prefix>'" }`
 ---@field save_exit? org.MappingLhs

@@ -363,6 +363,9 @@ M.defaults = {
   --- Fold `#+begin_...` blocks when the file is opened (org-hide-block-startup;
   --- #+STARTUP: hideblocks).
   hide_block_startup = false,
+  --- Turn on the Beamer editing mode when a file is opened
+  --- (org-startup-with-beamer-mode; #+STARTUP: beamer).
+  startup_with_beamer_mode = false,
   --- Let visibility cycling open subtrees tagged :ARCHIVE:
   --- (org-cycle-open-archived-trees).
   cycle_open_archived_trees = false,
@@ -2006,6 +2009,27 @@ M.defaults = {
     --- ("paragraph", "plain-text", ...) plus "body", "final-output",
     --- "parse-tree" (fn(tree, backend, info)) and "options" (fn(info, backend)).
     filters = {},
+    initial_scope = "buffer", -- org-export-initial-scope: dispatcher scope at start ("buffer" or "subtree")
+    body_only = false, -- org-export-body-only: dispatcher "body only" at start
+    visible_only = false, -- org-export-visible-only: dispatcher "visible only" at start
+    force_publishing = false, -- org-export-force-publishing: dispatcher "force publishing" at start
+    --- org-export-in-background: dispatcher "async" at start; results go to
+    --- the export stack (:Org export_stack).
+    in_background = false,
+    --- org-export-async-init-file: a Lua file run by the Neovim that makes
+    --- asynchronous exports (Lua functions of the options don't reach it).
+    async_init_file = nil,
+    dispatch_use_expert_ui = false, -- org-export-dispatch-use-expert-ui (a prompt instead of the menu)
+    show_temporary_export_buffer = true, -- org-export-show-temporary-export-buffer
+    copy_to_kill_ring = false, -- org-export-copy-to-kill-ring (true, "if-interactive" or false)
+    coding_system = nil, -- org-export-coding-system (an iconv encoding of output files; nil = UTF-8)
+    process_citations = true, -- org-export-process-citations
+    replace_macros = true, -- org-export-replace-macros
+    --- org-export-smart-quotes-alist: { [lang] = { primary_opening = { ["utf-8"] =,
+    --- html =, latex =, texinfo = }, primary_closing, secondary_opening,
+    --- secondary_closing, apostrophe } }; a language set here replaces its
+    --- Emacs entry, the others keep the Emacs table.
+    smart_quotes_alist = nil,
     html = {
       doctype = "xhtml-strict", -- org-html-doctype
       html5_fancy = false, -- org-html-html5-fancy
@@ -2044,10 +2068,58 @@ M.defaults = {
       --- Load MathJax for LaTeX fragments (org-html-with-latex = mathjax);
       --- false leaves the math as text.
       mathjax = true,
+      --- org-html-with-latex: true/"mathjax", "html", "dvipng", "dvisvgm",
+      --- "imagemagick" (pictures in ltximg/), "verbatim" or false; nil =
+      --- export.with_latex. #+OPTIONS: tex: overrides it.
+      with_latex = nil,
+      --- org-latex-to-html-convert-command for tex:html, %i = the fragment
+      --- (shell-quoted), e.g. "latexmlmath %i --presentationmathml=-".
+      latex_to_html_convert_command = nil,
       mathjax_options = nil, -- org-html-mathjax-options ({ path = ..., scale = 1.0, ... })
-      --- function(code, lang) -> HTML to highlight source code (Emacs uses
-      --- htmlize; nil = no highlighting).
+      --- function(code, lang) -> HTML to highlight source code, used instead
+      --- of the built-in highlighting (plugin option).
       fontify = nil,
+      --- org-html-htmlize-output-type: how source code is coloured from its
+      --- tree-sitter highlights (Emacs uses htmlize): "inline-css" (style
+      --- attributes with the colour scheme's colours), "css" (classes, see
+      --- :Org html_htmlize_generate_css) or false (plain text).
+      htmlize_output_type = "inline-css",
+      htmlize_font_prefix = "org-", -- org-html-htmlize-font-prefix (CSS class prefix)
+      allow_name_attribute_in_anchors = false, -- org-html-allow-name-attribute-in-anchors
+      coding_system = "utf-8", -- org-html-coding-system (charset of the <meta> and XML declaration)
+      datetime_formats = { "%F", "%FT%T" }, -- org-html-datetime-formats ({ date, date and time })
+      indent = false, -- org-html-indent (indent the generated HTML like Emacs' mhtml-mode)
+      --- org-html-divs: { preamble = { "div", "preamble" }, content = { "div",
+      --- "content" }, postamble = { "div", "postamble" } } (nil = that value).
+      divs = nil,
+      footnotes_section = nil, -- org-html-footnotes-section (nil = the Emacs format)
+      format_drawer_function = nil, -- org-html-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-html-format-headline-function: fn(todo, todo_type, priority, text, tags, info)
+      --- org-html-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, text, tags, contents, info)
+      format_inlinetask_function = nil,
+      home_up_format = nil, -- org-html-home/up-format (nil = the Emacs format)
+      infojs_template = nil, -- org-html-infojs-template (nil = the Emacs template)
+      inline_image_rules = nil, -- org-html-inline-image-rules (nil = the Emacs rules)
+      klipsify_src = false, -- org-html-klipsify-src
+      klipse_css = "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css", -- org-html-klipse-css
+      klipse_js = "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js", -- org-html-klipse-js
+      klipse_selection_script = nil, -- org-html-klipse-selection-script (nil = the Emacs script)
+      mathjax_template = nil, -- org-html-mathjax-template (nil = the Emacs template)
+      meta_tags = nil, -- org-html-meta-tags ({ { attr, name, content }, ... } or function(info); nil = Emacs)
+      scripts = nil, -- org-html-scripts (nil = the Emacs script)
+      table_align_individual_fields = true, -- org-html-table-align-individual-fields
+      table_data_tags = { "<td%s>", "</td>" }, -- org-html-table-data-tags
+      table_header_tags = { '<th scope="%s"%s>', "</th>" }, -- org-html-table-header-tags
+      table_default_attributes = nil, -- org-html-table-default-attributes ({ { name, value }, ... }; nil = Emacs)
+      table_row_open_tag = "<tr>", -- org-html-table-row-open-tag (string or function)
+      table_row_close_tag = "</tr>", -- org-html-table-row-close-tag (string or function)
+      table_use_header_tags_for_first_column = false, -- org-html-table-use-header-tags-for-first-column
+      tag_class_prefix = "", -- org-html-tag-class-prefix
+      todo_kwd_class_prefix = "", -- org-html-todo-kwd-class-prefix
+      text_markup_alist = nil, -- org-html-text-markup-alist ({ bold = "<b>%s</b>", ... }; nil = Emacs)
+      viewport = nil, -- org-html-viewport ({ { name, value }, ... }; nil = Emacs, false = no tag)
+      xml_declaration = nil, -- org-html-xml-declaration ({ html = ..., php = ... }; nil = Emacs)
     },
     latex = {
       default_class = "article", -- org-latex-default-class
@@ -2076,6 +2148,42 @@ M.defaults = {
       toc_command = "\\tableofcontents\n\n", -- org-latex-toc-command
       hyperref_template = nil, -- org-latex-hyperref-template (nil = the Emacs template)
       use_sans = false, -- org-latex-use-sans
+      active_timestamp_format = "\\textit{%s}", -- org-latex-active-timestamp-format
+      inactive_timestamp_format = "\\textit{%s}", -- org-latex-inactive-timestamp-format
+      diary_timestamp_format = "\\textit{%s}", -- org-latex-diary-timestamp-format
+      --- org-latex-compiler-file-string: the "Intended LaTeX compiler" line
+      --- (%s = the compiler); false/"" = none.
+      compiler_file_string = "%% Intended LaTeX compiler: %s\n",
+      --- org-latex-known-warnings: { { vim_regex, message }, ... } reported
+      --- after a compilation (nil = the Emacs list).
+      known_warnings = nil,
+      custom_lang_environments = {}, -- org-latex-custom-lang-environments ({ [lang] = env | { ... } })
+      default_footnote_command = "\\footnote{%s%s}", -- org-latex-default-footnote-command
+      default_quote_environment = "quote", -- org-latex-default-quote-environment
+      footnote_defined_format = "\\textsuperscript{\\ref{%s}}", -- org-latex-footnote-defined-format
+      footnote_separator = "\\textsuperscript{,}\\,", -- org-latex-footnote-separator
+      format_drawer_function = nil, -- org-latex-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-latex-format-headline-function: fn(todo, todo_type, priority, text, tags, info)
+      --- org-latex-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, name, tags, contents, info)
+      format_inlinetask_function = nil,
+      image_default_scale = "", -- org-latex-image-default-scale
+      image_default_height = "", -- org-latex-image-default-height
+      image_default_option = "", -- org-latex-image-default-option
+      inline_image_rules = nil, -- org-latex-inline-image-rules (nil = the Emacs rules)
+      inputenc_alist = {}, -- org-latex-inputenc-alist ({ [coding] = inputenc })
+      link_with_unknown_path_format = "\\texttt{%s}", -- org-latex-link-with-unknown-path-format
+      listings_langs = nil, -- org-latex-listings-langs ({ { lang, listings_lang }, ... }; nil = Emacs)
+      listings_options = {}, -- org-latex-listings-options ({ { key, value }, ... })
+      listings_src_omit_language = false, -- org-latex-listings-src-omit-language
+      logfiles_extensions = nil, -- org-latex-logfiles-extensions (nil = the Emacs list)
+      minted_langs = nil, -- org-latex-minted-langs ({ { lang, minted_lang }, ... }; nil = Emacs)
+      minted_options = {}, -- org-latex-minted-options ({ { key, value }, ... })
+      subtitle_format = "\\\\\\medskip\n\\large %s", -- org-latex-subtitle-format
+      subtitle_separate = false, -- org-latex-subtitle-separate
+      table_scientific_notation = nil, -- org-latex-table-scientific-notation (e.g. "%s\\,(%s)")
+      text_markup_alist = nil, -- org-latex-text-markup-alist ({ bold = "\\textbf{%s}", ... }; nil = Emacs)
+      toc_include_unnumbered = false, -- org-latex-toc-include-unnumbered
     },
     texinfo = {
       default_class = "info", -- org-texinfo-default-class
@@ -2089,6 +2197,21 @@ M.defaults = {
       with_latex = nil,
       info_process = nil, -- org-texinfo-info-process (nil = { "makeinfo --no-split %f" })
       remove_logfiles = true, -- org-texinfo-remove-logfiles
+      logfiles_extensions = nil, -- org-texinfo-logfiles-extensions (nil = aux toc cp fn ky pg tp vr)
+      active_timestamp_format = "@emph{%s}", -- org-texinfo-active-timestamp-format
+      inactive_timestamp_format = "@emph{%s}", -- org-texinfo-inactive-timestamp-format
+      diary_timestamp_format = "@emph{%s}", -- org-texinfo-diary-timestamp-format
+      link_with_unknown_path_format = "@indicateurl{%s}", -- org-texinfo-link-with-unknown-path-format
+      tables_verbatim = false, -- org-texinfo-tables-verbatim
+      table_scientific_notation = nil, -- org-texinfo-table-scientific-notation
+      --- org-texinfo-text-markup-alist: { bold = "@strong{%s}", code = "code",
+      --- italic = "@emph{%s}", verbatim = "samp" } (nil = that value).
+      text_markup_alist = nil,
+      format_headline_function = nil, -- org-texinfo-format-headline-function: fn(todo, todo_type, priority, text, tags)
+      format_drawer_function = nil, -- org-texinfo-format-drawer-function: fn(name, contents)
+      --- org-texinfo-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, title, tags, contents)
+      format_inlinetask_function = nil,
       --- Export Texinfo through pandoc instead of the native back-end.
       use_pandoc = false,
     },
@@ -2148,6 +2271,9 @@ M.defaults = {
     },
     org = {
       with_special_rows = true, -- org-org-with-special-rows
+      --- org-org-htmlized-css-url: stylesheet linked instead of the embedded
+      --- one in FILE.org.html of `htmlized_source` publishing.
+      htmlized_css_url = nil,
     },
     beamer = {
       frame_level = 1, -- org-beamer-frame-level
@@ -2176,7 +2302,7 @@ M.defaults = {
       --- org-icalendar-include-todo: false, true, "unblocked", "all" or keywords.
       include_todo = false,
       todo_unscheduled_start = "recurring-deadline-warning", -- org-icalendar-todo-unscheduled-start
-      include_sexps = true, -- org-icalendar-include-sexps (diary sexps are not supported)
+      include_sexps = true, -- org-icalendar-include-sexps (diary-anniversary, -block, -cyclic, -float, -date)
       include_body = true, -- org-icalendar-include-body (true or a number of characters)
       store_uid = false, -- org-icalendar-store-UID
       timezone = nil, -- org-icalendar-timezone (nil = $TZ)
@@ -2250,7 +2376,7 @@ M.defaults = {
       links_to_notes = true, -- org-ascii-links-to-notes
       table_keep_all_vertical_lines = false, -- org-ascii-table-keep-all-vertical-lines
       table_widen_columns = true, -- org-ascii-table-widen-columns
-      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (not supported)
+      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (box characters for table.el tables, UTF-8)
       caption_above = false, -- org-ascii-caption-above
       verbatim_format = "`%s'", -- org-ascii-verbatim-format
       bullets = nil, -- org-ascii-bullets ({ ascii = {...}, latin1 = {...}, ["utf-8"] = {...} }; nil = Emacs)
@@ -2279,6 +2405,7 @@ M.defaults = {
       --- (%i fragment, %I input file, %o output file, %j jar file).
       latex_to_mathml_convert_command = nil,
       latex_to_mathml_jar_file = nil, -- org-latex-to-mathml-jar-file
+      latex_mathml_directory = "ltxmathml/", -- org-latex-mathml-directory (MathML cache, relative to the Org file)
       inline_image_rules = nil, -- org-odt-inline-image-rules ({ file = { "png", ... } })
       inline_formula_rules = nil, -- org-odt-inline-formula-rules ({ file = { "mathml", "mml", "odf" } })
       table_styles = nil, -- org-odt-table-styles ({ { name, template, { use_first_row_styles = true, ... } } })
@@ -2981,6 +3108,10 @@ M.defaults = {
       -- the block has a :session: send the buffer (Visual: the lines) to it
       -- (org-src-associate-babel-session)
       send_to_session = { "<C-c><C-c>", "<prefix>e" },
+    },
+    --- Keys of the Beamer mode (org-beamer-mode-map), only while it is on.
+    beamer = {
+      beamer_select_environment = "<C-c><C-b>",
     },
   },
 }
