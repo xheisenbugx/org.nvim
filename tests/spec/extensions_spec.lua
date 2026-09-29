@@ -66,6 +66,23 @@ describe("extensions", function()
     eq(nil, require("org.commands").extra.testext_cmd)
   end)
 
+  it("removes its global keys when turned off", function()
+    setup({ extensions = { testext = {} } })
+    local lhs = require("org.config").lhs_list("<prefix>zz")[1]
+    ok(vim.fn.maparg(lhs, "n", false, true).desc)
+    setup()
+    eq(nil, vim.fn.maparg(lhs, "n", false, true).desc)
+  end)
+
+  it("leaves a key the user remapped after setup", function()
+    setup({ extensions = { testext = {} } })
+    local lhs = require("org.config").lhs_list("<prefix>zz")[1]
+    vim.keymap.set("n", lhs, "<Nop>", { desc = "mine" })
+    setup()
+    eq("mine", vim.fn.maparg(lhs, "n", false, true).desc)
+    vim.keymap.del("n", lhs)
+  end)
+
   it("keeps a key the user set", function()
     setup({ mappings = { global = { testext_hello = false } }, extensions = { testext = {} } })
     eq(false, require("org.config").opts.mappings.global.testext_hello)
