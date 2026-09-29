@@ -676,7 +676,10 @@ function M.edit_headline(heading)
     local before = (tags_s and line:sub(1, tags_s - 1) or line):gsub("[ \t]+$", "")
     line = before .. " " .. new .. (tags_s and line:sub(tags_s) or "")
   end
-  line = edit.align_tags_line(line, todo_cfg):gsub("[ \t]+$", "")
+  if edit.auto_align_tags() then
+    line = edit.align_tags_line(line, todo_cfg)
+  end
+  line = line:gsub("[ \t]+$", "")
   set_lines(bufnr, hl.line, hl.line, { line })
 end
 

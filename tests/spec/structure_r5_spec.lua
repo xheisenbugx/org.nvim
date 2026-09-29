@@ -39,6 +39,27 @@ describe("edit_headline", function()
     eq({ "* New" }, buf_lines(buf))
   end)
 
+  -- Emacs 9.8.10 (org-auto-align-tags nil): the tags keep their place
+  it("leaves the tags alone without auto_align_tags", function()
+    local cfg = require("org.config").opts
+    cfg.auto_align_tags = false
+    local cases = {
+      { "* TODO Old :tag:", "Newer", "* TODO Newer :tag:" },
+      { "* TODO Old     :tag:", "N", "* TODO N     :tag:" },
+      { "* TODO :tag:", "New", "* TODO New :tag:" },
+      { "* TODO Old", "New", "* TODO New" },
+    }
+    local okr, err = pcall(function()
+      for _, c in ipairs(cases) do
+        local buf = org_buffer({ c[1] }, { 1, 0 })
+        require("org.structure").edit_headline(c[2])
+        eq(c[3], buf_lines(buf)[1])
+      end
+    end)
+    cfg.auto_align_tags = true
+    assert(okr, err)
+  end)
+
   it("prompts with the old title", function()
     local buf = org_buffer({ "** DONE Title :a:" }, { 1, 0 })
     local seen
