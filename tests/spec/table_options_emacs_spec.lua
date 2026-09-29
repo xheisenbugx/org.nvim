@@ -314,6 +314,87 @@ describe("table: auto_blank_field and overwriting padding", function()
   end)
 end)
 
+-- Emacs 9.8.10 (org-delete-char / org-delete-backward-char at column
+-- COL of the first line of a table, "| x | y |" below): the field loses
+-- the character and gets a space before its separator; on or right after
+-- a separator, or without one after the point, it is a plain deletion.
+describe("table: <Del> and <BS> keep the column width", function()
+  local DEL = {
+    { "| abc | x |", 3, "| ac  | x |" },
+    { "| abc  | x |", 3, "| ac   | x |" },
+    { "| abc | x |", 2, "| bc  | x |" },
+    { "| abc | x |", 5, "| abc | x |" },
+    { "| abc | x |", 1, "|abc  | x |" },
+    { "|abc|x|", 2, "|ac |x|" },
+    { "| abc | x |", 6, "| abc  x |" },
+    { "| abc | x |", 0, " abc | x |" },
+    { "| a b | x |", 3, "| ab  | x |" },
+    { "| abc | x", 3, "| ac  | x" },
+  }
+  local BS = {
+    { "| abc | x |", 3, "| bc  | x |", 2 },
+    { "| abc  | x |", 4, "| ac   | x |", 3 },
+    { "| abc | x |", 2, "|abc  | x |", 1 },
+    { "| abc | x |", 1, " abc | x |", 0 },
+    { "| abc | x |", 6, "| abc | x |", 5 },
+    { "| abc | x |", 7, "| abc  x |", 6 },
+    { "|abc|x|", 2, "|bc |x|", 1 },
+    { "| abc | x |", 8, "| abc |x  |", 7 },
+    { "| abc | x", 4, "| ac  | x", 3 },
+  }
+
+  -- Vim's own deletion between the key handler and TextChangedI
+  local function delete(buf, backward)
+    local typing = require("org.table.typing")
+    typing._on_delete(buf, backward)
+    local c = cursor()
+    local from = backward and c[2] - 1 or c[2]
+    vim.api.nvim_buf_set_text(buf, c[1] - 1, from, c[1] - 1, from + 1, { "" })
+    vim.api.nvim_win_set_cursor(0, { c[1], from })
+    typing._after_delete(buf)
+  end
+
+  it("<Del> like org-delete-char", function()
+    for _, t in ipairs(DEL) do
+      local buf = org_buffer({ t[1], "| x | y |" }, { 1, t[2] })
+      delete(buf, false)
+      eq(t[1] .. " " .. t[2] .. " -> " .. t[3], t[1] .. " " .. t[2] .. " -> " .. buf_lines(buf)[1])
+      eq(t[2], cursor()[2])
+    end
+  end)
+
+  it("<BS> like org-delete-backward-char", function()
+    for _, t in ipairs(BS) do
+      local buf = org_buffer({ t[1], "| x | y |" }, { 1, t[2] })
+      delete(buf, true)
+      eq(t[1] .. " " .. t[2] .. " -> " .. t[3], t[1] .. " " .. t[2] .. " -> " .. buf_lines(buf)[1])
+      eq(t[4], cursor()[2])
+    end
+  end)
+
+  it("pads the field when the keys are typed in Insert mode", function()
+    local buf = org_buffer({ "| abc | x |" }, { 1, 3 })
+    local seen = {}
+    _G.__org_seen = function()
+      seen[#seen + 1] = vim.api.nvim_get_current_line()
+    end
+    -- (TextChangedI waits for the typeahead to be empty: fire it here)
+    local changed = "<Cmd>doautocmd TextChangedI<CR><Cmd>lua __org_seen()<CR>"
+    vim.api.nvim_feedkeys("a", "nt", false)
+    vim.api.nvim_feedkeys(vim.keycode("<BS>" .. changed .. "<Del>" .. changed .. "<Esc>"), "tx", false)
+    _G.__org_seen = nil
+    eq({ "| ac  | x |", "| a   | x |" }, seen)
+    eq("| a | x |", buf_lines(buf)[1], "realigned on InsertLeave")
+  end)
+
+  -- Emacs: "|" is org-force-self-insert, a plain insertion ("| a|bc  | x |")
+  it("inserts | without taking the padding", function()
+    local buf = org_buffer({ "| abc  | x |" }, { 1, 3 })
+    type_chars(buf, "|")
+    eq("| a|bc  | x |", buf_lines(buf)[1])
+  end)
+end)
+
 describe("table: auto_blank_field = false", function()
   with_config({ table_auto_blank_field = false })
   it("inserts before the field text", function()

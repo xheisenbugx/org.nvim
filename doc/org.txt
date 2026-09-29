@@ -3385,7 +3385,10 @@ recalculated by <Tab> and <CR> unless
 typed right after
 one of them replaces the field's text (`table_auto_blank_field`), and a
 character typed into a field ending with two or more spaces takes the place
-of one of them, so the table stays aligned.
+of one of them, so the table stays aligned. <BS> and <Del> in Insert mode
+put a space before the field's separator for the character they delete
+(org-delete-backward-char, org-delete-char), and `|` is inserted as it is
+(org-force-self-insert).
 Normal mode:
   <C-c><C-c>      realign; in a row marked `#` recalculate that row; with a
                   count recalculate the table (4) or iterate it (16); on
