@@ -989,7 +989,13 @@
 ---Compile PDFs in the background with `vim.system`. (default: `true`)
 ---@field async_compile? boolean
 ---(`org-latex-src-block-backend`) (default: `"verbatim"`)
----@field src_block_backend? "verbatim"|"listings"|"minted"
+---@field src_block_backend? "verbatim"|"listings"|"minted"|"engraved"
+---(`org-latex-engraved-options`) (default: `nil` = the Emacs list)
+---@field engraved_options? string[][]
+---(`org-latex-engraved-preamble`) (default: `nil` = the Emacs preamble)
+---@field engraved_preamble? string
+---(`org-latex-engraved-theme`, `#+LATEX_ENGRAVED_THEME`) (default: `nil`)
+---@field engraved_theme? string|boolean
 ---(`org-latex-caption-above`) (default: `{ "table" }`)
 ---@field caption_above? boolean|string[]
 ---(`org-latex-prefer-user-labels`) (default: `false`)

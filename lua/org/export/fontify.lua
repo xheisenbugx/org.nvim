@@ -139,6 +139,56 @@ function M.runs(code, lang)
   return out
 end
 
+--- Split `code` into highlighted runs over the whole text, newlines
+--- included: a list of { text, capture } (capture nil for plain text), where
+--- a run spans lines when a capture does (a multi-line string). nil when the
+--- language has no tree-sitter parser or highlights query.
+---@param code string
+---@param lang string
+---@return table[]|nil
+function M.flat_runs(code, lang)
+  if not lang or lang == "" then
+    return nil
+  end
+  local tslang = M.ts_lang(lang)
+  local ok, parser = pcall(vim.treesitter.get_string_parser, code, tslang)
+  if not ok or not parser then
+    return nil
+  end
+  local okq, query = pcall(vim.treesitter.query.get, tslang, "highlights")
+  if not okq or not query then
+    return nil
+  end
+  local okp, trees = pcall(function()
+    return parser:parse()
+  end)
+  if not okp or not trees or not trees[1] then
+    return nil
+  end
+  local marks = {}
+  for id, node in query:iter_captures(trees[1]:root(), code, 0, -1) do
+    local name = query.captures[id]
+    if name and not name:match("^_") and name ~= "spell" and name ~= "nospell" and name ~= "conceal" then
+      local _, _, sb, _, _, eb = node:range(true)
+      for c = sb + 1, math.min(eb, #code) do
+        marks[c] = name
+      end
+    end
+  end
+  local out = {}
+  local c = 1
+  while c <= #code do
+    local cap = marks[c]
+    local e = c
+    while e < #code and marks[e + 1] == cap do
+      e = e + 1
+    end
+    out[#out + 1] = { code:sub(c, e), cap }
+    c = e + 1
+  end
+  return out
+end
+
 --- Resolved attributes of a highlight group (links followed), or {}.
 function M.hl(group, lang)
   local names = lang and { group .. "." .. lang, group } or { group }
