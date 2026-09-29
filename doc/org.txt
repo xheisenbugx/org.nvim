@@ -3814,10 +3814,29 @@ bibliography at that point. Processors:
             \printbibliography[OPTIONS] from ":key value" properties;
             loads biblatex and adds \addbibresource lines.
   bibtex    LaTeX; \cite, \nocite and \bibliography.
+  csl       any back-end; formats with a Citation Style Language style
+            (`#+CITE_EXPORT: csl [STYLE.csl]`, default the bundled
+            Chicago author-date style; relative names are looked up next
+            to the file, then in `export.cite.csl_styles_dir`). Styles
+            author (a), noauthor (na), year (y), text (t), title (ti),
+            bibentry, locators (l), nocite (n) with the variants bare,
+            caps, full... HTML back-ends get HTML, LaTeX back-ends LaTeX
+            (the `\cslbibliography` environment; its preamble,
+            `csl_latex_preamble`, is added before \begin{document}),
+            others Org markup. Locators are read from the suffix ("p.
+            12", "chap. 3", a bare number is a page). Note styles put
+            citations in footnotes. `#+PRINT_BIBLIOGRAPHY:` takes the
+            filters :type, :nottype, :csltype, :notcsltype, :keyword and
+            :notkeyword (sub-bibliographies). Options: csl_styles_dir,
+            csl_locales_dir (more locales; en-US is bundled),
+            csl_link_cites, csl_no_citelinks_backends { "ascii" },
+            csl_html_hanging_indent, csl_html_label_width_per_char,
+            csl_latex_hanging_indent, csl_latex_label_separator,
+            csl_latex_label_width_per_char, csl_latex_preamble and
+            csl_bibtex_titles_to_sentence_case (all under export.cite).
+            The formatting engine is a Lua port of citeproc-el.
 Note styles turn a citation into a footnote, moving punctuation according
-to `export.cite.note_rules` and the document LANGUAGE. The CSL processor
-(citeproc) is not available (it needs the Emacs citeproc-el library); to
-use CSL styles, export to Org or Markdown and run `pandoc --citeproc`.
+to `export.cite.note_rules` and the document LANGUAGE.
 
 Publishing ~                                                   *org-publish*
 Projects are set in `export.publish.projects` (org-publish-project-alist):
@@ -5093,6 +5112,13 @@ Differences from Emacs:
   help-echo text over a key (the entry, or the close keys) have no
   counterpart; `require("org.cite").key_help(bufnr, key)` returns that
   text. Keys are highlighted everywhere, also in source blocks.
+- The csl citation processor runs a Lua port of citeproc-el instead of the
+  Emacs library; it gives citeproc-el's output on 840 of the 845 tests of
+  the CSL test suite (the others are errors in citeproc-el and items
+  without an id). Sort keys compare by code point (Emacs uses the
+  system collation, which is the same on macOS but not on glibc
+  systems). BibTeX crossref inheritance copies every missing field
+  except the biblatex exclusions (parsebib has per-type rules).
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target

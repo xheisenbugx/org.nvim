@@ -1501,6 +1501,18 @@ M.defaults = {
       --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
       --- a Vim regexp separating keys typed at one prompt, or "dynamic".
       basic_complete_key_crm_separator = nil,
+      -- csl processor (oc-csl)
+      csl_styles_dir = nil, -- org-cite-csl-styles-dir
+      csl_locales_dir = nil, -- org-cite-csl-locales-dir (nil: en-US only)
+      csl_link_cites = true, -- org-cite-csl-link-cites
+      csl_no_citelinks_backends = { "ascii" }, -- org-cite-csl-no-citelinks-backends
+      csl_html_hanging_indent = "1.5em", -- org-cite-csl-html-hanging-indent
+      csl_html_label_width_per_char = "0.6em", -- org-cite-csl-html-label-width-per-char
+      csl_latex_hanging_indent = "1.5em", -- org-cite-csl-latex-hanging-indent
+      csl_latex_label_separator = "0.6em", -- org-cite-csl-latex-label-separator
+      csl_latex_label_width_per_char = "0.45em", -- org-cite-csl-latex-label-width-per-char
+      csl_latex_preamble = nil, -- org-cite-csl-latex-preamble (nil = the Emacs preamble)
+      csl_bibtex_titles_to_sentence_case = true, -- org-cite-csl-bibtex-titles-to-sentence-case
     },
     ascii = {
       charset = "ascii", -- org-ascii-charset ("ascii", "latin1", "utf-8")

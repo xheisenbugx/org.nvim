@@ -154,6 +154,7 @@ local function set_previous_post_blank(datum, blanks, info)
     set_post_blank(prev, blanks)
   end
 end
+M.set_previous_post_blank = set_previous_post_blank
 
 --- org-cite-concat: flatten strings, nodes and secondary strings.
 function M.concat(...)
@@ -1881,5 +1882,8 @@ end
 function M.export_citation(el, info, backend)
   return nil
 end
+
+-- csl processor (oc-csl.el), see org.export.cite_csl
+M.processors.csl = require("org.export.cite_csl")
 
 return M
