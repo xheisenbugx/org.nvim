@@ -7003,7 +7003,8 @@ source's in-buffer settings (#+TODO, #+TAGS, #+LINK, ...) apply to the
 slides, and image links are previewed when an image backend is available
 (|org-images|). The source buffer, its folds and window options are not
 touched; quitting closes the tab, restores the options and puts the cursor
-on the slide you were on.
+on the slide you were on. Closing the source buffer, or turning the
+extension off with a later `setup()`, ends the presentation.
 
 Keys in the slide buffer (actions after the arrow) ~
   <Right>  n  <Space>      next slide           -> `present_next`
@@ -7017,7 +7018,9 @@ Keys in the slide buffer (actions after the arrow) ~
   <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
 
 The single-letter keys are only mapped while the slides are read-only.
-Change them with `keys` and `read_only_keys`. `<Tab>` and the other org
+Change them with `keys` and `read_only_keys`. A key that starts a global
+mapping or your leader (`<Space>` with a space leader) waits for the rest
+of it; the others act at once. `<Tab>` and the other org
 keys work on the slide as in any org buffer.
 
 One big page ~
@@ -7051,7 +7054,8 @@ are written back to the source buffer when you change slides, toggle back
 or quit (`:q` included), and `:w` in the slide buffer writes the source
 file. When the source was changed elsewhere meanwhile, the edits go to the
 slide the text came from; if that slide's first line is gone they are not
-written, and the slide's text is left in the unnamed register.
+written, and the slide's text is left in the unnamed register. So is
+a slide's unwritten text when the source buffer is closed.
 
 Hooks ~
 `on_start(state)`, `on_quit(state)` and `on_slide(n, state, heading)` are
@@ -7086,8 +7090,11 @@ Differences from Emacs org-present ~
   - The font size is the terminal's: it changes for the whole terminal
     window, and only in kitty or through `font_command`. `present_small`
     resets it to the terminal's configured size.
-  - The cursor is hidden with a blended 'guicursor' highlight: the TUI
+  - The cursor is hidden with a blended 'guicursor' highlight, in Normal
+    and Visual mode only (the command line keeps its cursor): the TUI
     hides the terminal cursor, and GUIs that ignore blending show it.
+  - `<C-c><C-r>` toggles editing; there is no separate `<C-c><C-w>`
+    (org-present-read-write).
   - Slides are shown in their own tab rather than by narrowing the buffer,
     so `:q` on a slide ends the presentation instead of closing the file.
   - `#+begin_...` lines stay visible (org-present hides every `#+` line);

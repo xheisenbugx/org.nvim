@@ -146,6 +146,15 @@ function M.setup()
   vim.api.nvim_create_autocmd("ColorScheme", { group = augroup, callback = define_highlights })
 end
 
+--- Turned off (or set up again) by a later `setup()`: end the presentation
+--- and remove the autocmds.
+function M.teardown()
+  if M.state then
+    M.quit()
+  end
+  vim.api.nvim_clear_autocmds({ group = augroup })
+end
+
 function M.health(h)
   h.ok("present: :Org present in an org buffer")
 end
@@ -332,7 +341,7 @@ end
 
 --- Write edits of the shown slide back to the source buffer and re-split.
 local function sync(st)
-  if not vim.api.nvim_buf_is_valid(st.source) then
+  if not vim.api.nvim_buf_is_loaded(st.source) then
     return
   end
   local edited = vim.api.nvim_buf_is_valid(st.buf) and vim.b[st.buf].changedtick ~= st.tick
@@ -425,12 +434,38 @@ end
 
 local function set_keys(st)
   local config = require("org.config")
+  -- keys that a presentation key may start: global Normal-mode keys, the
+  -- leaders and the presentation's own keys. A key that starts one waits
+  -- for it (<Space> with a space leader); the others are nowait.
+  local longer = {}
+  for _, m in ipairs(vim.api.nvim_get_keymap("n")) do
+    longer[#longer + 1] = vim.keycode(m.lhs)
+  end
+  for _, leader in ipairs({ vim.g.mapleader or "\\", vim.g.maplocalleader or "\\" }) do
+    longer[#longer + 1] = vim.keycode(leader) .. "x"
+  end
+  for _, set in ipairs({ st.opts.keys or {}, st.read_only and st.opts.read_only_keys or {} }) do
+    for _, keys in pairs(set) do
+      for _, lhs in ipairs(config.lhs_list(keys)) do
+        longer[#longer + 1] = vim.keycode(lhs)
+      end
+    end
+  end
+  local function waits(lhs)
+    local kc = vim.keycode(lhs)
+    for _, other in ipairs(longer) do
+      if #other > #kc and other:sub(1, #kc) == kc then
+        return true
+      end
+    end
+    return false
+  end
   local function map(keys, name)
     local out = {}
     for _, lhs in ipairs(config.lhs_list(keys)) do
       vim.keymap.set("n", lhs, function()
         M[name]()
-      end, { buffer = st.buf, nowait = true, desc = "org present: " .. name:gsub("_", " ") })
+      end, { buffer = st.buf, nowait = not waits(lhs), desc = "org present: " .. name:gsub("_", " ") })
       out[#out + 1] = lhs
     end
     return out
@@ -453,6 +488,9 @@ end
 -- is the current one.
 local GLOBALS = { "showtabline", "laststatus", "ruler", "guicursor" }
 
+-- 'guicursor' entry hiding the cursor in the modes used on a read-only slide
+local HIDDEN_CURSOR = "n-v-ve-o:block-OrgPresentHiddenCursor"
+
 local function save_globals(st)
   st.saved = {}
   for _, name in ipairs(GLOBALS) do
@@ -471,7 +509,9 @@ local function apply_globals(st)
   vim.o.laststatus = 0
   vim.o.ruler = false
   if st.opts.hide_cursor and st.read_only then
-    vim.o.guicursor = "a:OrgPresentHiddenCursor"
+    -- on the slide only: the command line and Insert mode keep their cursor
+    local saved = st.saved.guicursor
+    vim.o.guicursor = (saved ~= "" and saved .. "," or "") .. HIDDEN_CURSOR
   else
     vim.o.guicursor = st.saved.guicursor
   end
@@ -523,10 +563,37 @@ local function set_font(st, delta)
   return false
 end
 
-local function goto_slide(n)
+--- The source buffer was unloaded or wiped out: end the presentation, and
+--- keep unwritten slide edits in the unnamed register.
+local function source_gone(st)
+  if M.state ~= st or vim.api.nvim_buf_is_loaded(st.source) then
+    -- ended already, or reloaded (:edit!)
+    return
+  end
+  if vim.api.nvim_buf_is_valid(st.buf) and vim.b[st.buf].changedtick ~= st.tick then
+    vim.fn.setreg('"', vim.api.nvim_buf_get_lines(st.buf, 0, -1, false), "l")
+    require("org.utils").warn('present: the presented buffer was closed; its edits are in register "')
+  end
+  M.quit()
+end
+
+--- The running presentation. When its source buffer is gone it ends
+--- here, and the second value is true (the action did something).
+---@return table|nil st
+---@return boolean ended
+local function current()
   local st = M.state
+  if st and not vim.api.nvim_buf_is_loaded(st.source) then
+    source_gone(st)
+    return nil, true
+  end
+  return st, false
+end
+
+local function goto_slide(n)
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   sync(st)
   st.big = false
@@ -706,6 +773,15 @@ function M.start(n)
       end
     end,
   })
+  vim.api.nvim_create_autocmd("BufUnload", {
+    group = augroup,
+    buffer = source,
+    callback = function()
+      vim.schedule(function()
+        source_gone(st)
+      end)
+    end,
+  })
   vim.api.nvim_create_autocmd("VimResized", {
     group = augroup,
     callback = function()
@@ -764,9 +840,9 @@ function M.focus()
 end
 
 function M.next()
-  local st = M.state
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   sync(st)
   leave_big(st)
@@ -774,9 +850,9 @@ function M.next()
 end
 
 function M.prev()
-  local st = M.state
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   sync(st)
   leave_big(st)
@@ -788,9 +864,9 @@ function M.first()
 end
 
 function M.last()
-  local st = M.state
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   sync(st)
   return goto_slide(#st.slides)
@@ -799,9 +875,9 @@ end
 --- Switch between read-only slides and editing them (org-present-read-only,
 --- org-present-read-write).
 function M.toggle_read_only()
-  local st = M.state
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   if not st.read_only then
     sync(st)
@@ -815,9 +891,9 @@ end
 --- Show the whole file, or go back to the slide under the cursor
 --- (org-present-toggle-one-big-page).
 function M.toggle_one_big_page()
-  local st = M.state
+  local st, ended = current()
   if not st then
-    return false
+    return ended
   end
   if st.big then
     leave_big(st)
@@ -884,7 +960,7 @@ function M.quit()
   end
   vim.api.nvim_clear_autocmds({
     group = augroup,
-    event = { "WinClosed", "WinEnter", "VimResized", "TabEnter", "TabLeave" },
+    event = { "WinClosed", "WinEnter", "VimResized", "TabEnter", "TabLeave", "BufUnload" },
   })
   if vim.api.nvim_tabpage_is_valid(st.tab) then
     if #vim.api.nvim_list_tabpages() > 1 then
