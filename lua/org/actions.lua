@@ -486,6 +486,12 @@ group("Refile, archive & attach", {
     global = true,
   },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
+  agenda_kill_all_buffers = {
+    "org.agenda.view",
+    "kill_all_agenda_buffers",
+    desc = "Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)",
+    global = true,
+  },
 })
 
 group("Search & export", {

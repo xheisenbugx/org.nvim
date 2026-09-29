@@ -1281,13 +1281,18 @@ and default options (the Emacs variable is named next to each option in
   s   search for words or a regexp
   S   like s, TODO entries only
   n   agenda and all TODOs    #   stuck projects
-  /   multi-occur: a regexp in all agenda files, into the quickfix list
+  /   multi-occur: a regexp in all agenda files and
+      `agenda.text_search_extra_files` (org-agenda-multi-occur-extra-files),
+      into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
   >   remove the restriction and the restriction lock
   e   export the agenda views of custom commands (|org-agenda-export|)
   *   toggle sticky agenda buffers (`agenda.sticky`)
   ?   the :FLAGGED: entries of MobileOrg (|org-mobile|)
-  ... custom commands from `agenda.custom_commands`
+  ... custom commands from `agenda.custom_commands`: the description (or
+      a name for the type) and ": MATCH" (`agenda.menu_show_matcher`,
+      org-agenda-menu-show-matcher); `agenda.menu_two_columns` lists
+      them in two columns (org-agenda-menu-two-columns)
 
 :Org agenda a|t [KW|KW]|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|
             *|>|?|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE
@@ -1297,13 +1302,19 @@ Restriction lock (org-agenda-set-restriction-lock):
                  file when not under a headline, or with a count); also
                  in the agenda, from the entry at point
   <C-c><C-x>>    remove the lock
+The locked subtree is highlighted with OrgAgendaRestrictionLock (only its
+headline with `agenda.restriction_lock_highlight_subtree = false`,
+org-agenda-restriction-lock-highlight-subtree).
 Other keys in org buffers:
   <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
 
 With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
 agenda is empty, like in Emacs, until files are added with <C-c>[ or the
-option is set.
+option is set. A listed file that does not exist is asked about when an
+agenda is built: `r` removes it from the list (for the session), any
+other key aborts (org-check-agenda-file); `agenda.skip_unavailable_files
+= true` skips such files silently (org-agenda-skip-unavailable-files).
 
 Agenda contents                                          *org-agenda-contents*
 
@@ -1314,7 +1325,9 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   on their day only.
 - Scheduled entries on their day (`Scheduled:`) and, while not done, in
   today's agenda (`Sched.Nx:`, for `agenda.scheduled_past_days`). A delay
-  (`-2d`) hides the entry until it is over.
+  (`-2d`) hides the entry until it is over; `scheduled_delay_days`
+  (org-scheduled-delay-days, 0) is the delay of entries without one, and a
+  negative value applies to all of them.
 - Date ranges on each of their days (`(2/3):`), with the start time on
   the first day and the end time on the last.
 - Active timestamps. Repeaters show on every repeat up to today and, after
@@ -1331,7 +1344,10 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   (org-habit).
 - A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
   time; the `remove-match` flag hides grid lines at the time of an entry.
-- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+- Entries under ARCHIVE-tagged or COMMENT headlines are excluded
+  (`agenda.skip_comment_trees = false` keeps COMMENT trees).
+  `agenda.skip_function_global(headline)` returning true leaves an entry
+  out of every view, built-in ones included (org-agenda-skip-function-global).
 `agenda.entry_types` selects the kinds ("deadline", "scheduled",
 "timestamp", "sexp"; "deadline*" / "scheduled*" keep only timed ones).
 Skipping: `skip_scheduled_if_done`, `skip_deadline_if_done`,
@@ -1369,7 +1385,23 @@ Tags show inherited tags first, then "::" and the entry's own tags
 `remove_tags` removes them (true, or "prefix" when %T is used),
 `tags_column` places them ("auto" = right edge of the window). Day headers
 use `format_date` (a strftime format or a function) and show the ISO week
-on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight.
+on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight, and
+`day_face_function(date)` may return another highlight group
+(org-agenda-day-face-function).
+`todo_keyword_format` ("%-1s"; "%-12s" aligns the keywords, "" hides
+them) formats the TODO keyword (org-agenda-todo-keyword-format).
+`fontify_priorities` (org-agenda-fontify-priorities): "cookies" (default)
+highlights the cookie, the highest priority bold
+(OrgAgendaPriorityHighest) and the lowest italic
+(OrgAgendaPriorityLowest), or with `ui.priority_faces`; true does so from
+the cookie to the end of the line; a table `{ A = face, ... }` (faces as
+in `ui.priority_faces`) sets the faces; false turns it off.
+`deadline_faces` (org-agenda-deadline-faces) picks the highlight of a
+deadline line by the part of its warning period that has passed:
+`{ { 1.0, "OrgAgendaDeadline" }, { 0.5, "OrgAgendaDeadlineUpcoming" },
+{ 0.0, "OrgAgendaDeadlineDistant" } }`.
+`remove_timeranges_from_blocks` removes a `<...>--<...>` range from the
+headline text of its entries (org-agenda-remove-timeranges-from-blocks).
 
 Sorting                                                   *org-agenda-sorting*
 
@@ -1406,7 +1438,25 @@ All configurable under `mappings.agenda`:
                   the query (Emacs C-u r)
   gr              rebuild all agenda buffers (Emacs g)
   <CR> <Tab>      open the entry here / in another window
-  <Space> <BS>    show the entry, keeping focus in the agenda / and scroll
+  <Space> <BS>    show the entry (its drawers open; with a count they stay
+                  folded), keeping focus in the agenda; <Space> again
+                  scrolls that window a page forward, <BS> a page back
+                  (org-agenda-show-and-scroll-up / -show-scroll-down)
+  cycle_show      (no default key) show the entry; again right away,
+                  cycle it through children, subtree, folded; a count is
+                  the level of `show_1` (org-agenda-cycle-show)
+  show_1          (no default key) show the entry with the detail of the
+                  count: 1 the entry, 2 its children, 3 its subtree, 4
+                  also the drawers (org-agenda-show-1; level 0, fold,
+                  has no count form: `require("org.agenda.view").show_1(0)`)
+  <MiddleMouse>   go to the entry clicked (org-agenda-goto-mouse); with
+                  `agenda.mouse_1_follows_link` also <LeftMouse>
+  <RightMouse>    show the entry clicked (org-agenda-show-mouse)
+  <C-c><C-x>b     edit the entry's subtree in the other window (the
+                  subtree edit buffer of |org-narrow|, since Neovim has no
+                  indirect buffers; org-agenda-tree-to-indirect-buffer).
+                  The previous one is closed unless modified.
+                  `agenda.follow_indirect` makes follow mode show it
   L               show the entry and recenter its window
   o               close the other windows
   F               follow mode (also vf)
@@ -1415,6 +1465,8 @@ All configurable under `mappings.agenda`:
   <C-Down/Up>     next / previous block
   <M-Down/Up>     move the line down / up (the agenda text only)
   t               change TODO state; <C-S-Right/Left> cycle it
+  todo_yesterday  (no default key) like t, but the change is logged at
+                  23:59 of yesterday (org-agenda-todo-yesterday)
   , + -           set / raise / lower priority (also <S-Up/Down>)
   : / T           set tags / show tags
   <C-c><C-x>p     set a property
@@ -1422,6 +1474,13 @@ All configurable under `mappings.agenda`:
   <S-Right/Left>  move the date of the entry +1 / -1 day (a count moves
                   more): the timestamp the line comes from; one step on a
                   past date moves it to today
+                  (`agenda.move_date_from_past_immediately_to_today`).
+                  A count of 4 (C-u) moves the time one hour, 16 (C-u
+                  C-u) one `time_stamp_rounding_minutes` step; the keys
+                  keep that unit when pressed again without moving the
+                  cursor. The actions `date_later_hours`,
+                  `date_earlier_hours`, `date_later_minutes` and
+                  `date_earlier_minutes` (no default keys) take a count
   >               prompt for a new date for that timestamp (the time is
                   kept)
   e               set effort
@@ -1429,7 +1488,10 @@ All configurable under `mappings.agenda`:
   ;               start a countdown timer; <C-c><C-x>_ stops the timer
   R               refile
   $               archive (also <C-c>$, <C-c><C-x><C-s>)
-  a               archive after confirmation
+  a               archive with `archive_default_command` after
+                  confirmation ("archive_subtree", "archive_to_sibling",
+                  "set_tag" or a function; org-archive-default-
+                  command); <C-c><C-x><C-a> without confirmation
   <C-c><C-x>A     move to the Archive sibling
   <C-c><C-x>a     toggle the ARCHIVE tag
   <C-c><C-a>      attach (org-attach on the entry)
@@ -1449,21 +1511,50 @@ All configurable under `mappings.agenda`:
                   (gaps, overlaps, too long / short, no end time;
                   `agenda.clock_consistency_checks`)
   E               entry text mode: show the first body lines of each
-                  entry (`agenda.entry_text_maxlines`) (also vE)
+                  entry (`agenda.entry_text_maxlines`; a count N shows N
+                  lines) (also vE), after `entry_text_leaders`, without
+                  drawers, planning and CLOCK lines and the matches of
+                  `entry_text_exclude_regexps` (Emacs regexps)
   G               toggle the time grid (also vG)
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
                   (|org-agenda-diary-file|)
+  i               add a diary entry for the date at point
+                  (org-agenda-diary-entry). With `agenda.diary_entry_file`
+                  = "diary-file" (default, org-agenda-diary-file) a line
+                  of the Emacs diary file (`agenda.diary_file`) is started,
+                  like the calendar's i commands: [d]ay [w]eekly
+                  [m]onthly [y]early [a]nniversary [b]lock [c]yclic, in
+                  `calendar_date_style`; a count makes it non-marking
+                  ("&"); type the text there. With an Org file: [d]ay
+                  (a headline with the date, placed by
+                  `insert_diary_strategy`: "date-tree", "date-tree-last"
+                  or "top-level"; `insert_diary_extract_time` moves a
+                  leading "10:30-11:00" into the timestamp), [a]nniversary
+                  (an org-anniversary line under "* Anniversaries"),
+                  [b]lock, [j]ump to the date tree. A block spans the days
+                  at both ends of a Visual selection (Emacs: point and
+                  mark)
+  vh              turn habits off / on (`agenda.habits.show_habits`); with
+                  a count, toggle whether today shows every habit, due or
+                  not (`habits.show_all_today`)
+                  (org-habit-toggle-display-in-agenda, Emacs K / C-u K);
+                  the action `toggle_habits` (no default key) never takes
+                  the count
   #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
                   `enforce_todo_checkbox_dependencies`)
   va / vA         include archived trees / also the archive files
+                  (`agenda.start_with_archives_mode`: "trees" or true
+                  turns them on in new agendas)
   v[              include inactive timestamps (`[` leader)
   / \ < = _ ^ |   filters (|org-agenda-filter|)
   ~               limit the number of entries (|org-agenda-limits|)
   [ ] { }         search view: add a +word / -word / +{regexp} /
-                  -{regexp} term (tags views: a +tag / -tag term);
+                  -{regexp} term, the new query also going to register
+                  `o` (`agenda.query_register`, org-agenda-query-register)
+                  (tags views: a +tag / -tag term);
                   date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
   <M-m> * <M-*>   toggle mark / mark all / toggle all marks
@@ -1471,6 +1562,13 @@ All configurable under `mappings.agenda`:
   B               bulk action (|org-agenda-bulk|)
   <C-c><C-x><C-c> column view (|org-agenda-columns|)
   <C-x><C-s>      save all modified org buffers
+  <C-_> <C-/> <C-x>u  undo the last edit made from the agenda in its
+                  file and rebuild the view; again for the edit before
+                  (org-agenda-undo). `r` forgets the edits, like Emacs;
+                  an edit is only undone while its file has not changed
+                  since (Emacs undoes the file's last change regardless),
+                  and an undone edit is dropped (a later undo that is not
+                  a repetition does not redo it)
   <C-x><C-w>      write the agenda to a file (|org-agenda-export|)
   q               quit
   Q               quit and delete the agenda buffer
@@ -1487,6 +1585,14 @@ goto, <C-c><C-x><Right/Left> date later / earlier.
 A count stands for Emacs's prefix argument: 1 = C-u, 2 = C-u C-u, 3 =
 C-u C-u C-u.
 
+In Visual mode, schedule, deadline, `>`, the TODO state, the archive
+commands, <C-k>, set property and set effort act on every entry of the
+selection (org-agenda-loop-over-headlines-in-active-region:
+`agenda.loop_over_headlines_in_active_region` true, false,
+"start-level" or an Emacs regexp the lines must match). The one-letter
+keys that are Visual motions (`t`, `$`, `e`, `a`) keep their Vim meaning
+there; use their <C-c> forms.
+
 Like Emacs, edits made from the agenda leave the source buffers modified
 (`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
 Buffers are listed, so :qa asks before losing changes. Set
@@ -1497,15 +1603,34 @@ Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_entry_text_mode`, `show_outline_path` (echo the outline path
 of the entry at point).
 
+User autocmds (the Emacs hooks): `OrgAgendaFinalize` after the agenda
+buffer is built or rebuilt (org-agenda-finalize-hook), `OrgAgendaFilter`
+after a filter changed (org-agenda-filter-hook), with `data.buf`,
+`data.filters` and `data.filter` (the filter text of the window bar);
+`OrgAgendaBeforeWrite` before a written agenda (|org-agenda-export|).
+Unlike Emacs, the agenda is rebuilt after edits from it, so
+`OrgAgendaFinalize` also fires then.
+>lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgAgendaFinalize",
+      callback = function(ev) vim.bo[ev.data.buf].textwidth = 0 end,
+    })
+<
+
 Windows and buffers                                        *org-agenda-window*
 
 `agenda.window` (org-agenda-window-setup): "split" (default, Emacs
 reorganize-frame: the current window and the agenda below it), "only"
 (only-window), "other" (other-window), "current", "vsplit", "tab"
-(other-tab), "float". `restore_windows_after_quit` restores the previous
+(other-tab), "float". The "split" window fits its lines, between
+`window_frame_fractions` ({ 0.5, 0.75 } of the editor height,
+org-agenda-window-frame-fractions; { 1.0, 1.0 } = the only window).
+`restore_windows_after_quit` restores the previous
 window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
 dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
-as it is when the command is run again (press r to refresh).
+as it is when the command is run again (press r to refresh); toggling it
+deletes the agenda buffers, like `:Org agenda_kill_all_buffers`
+(org-agenda-kill-all-agenda-buffers).
 
 Filtering                                                  *org-agenda-filter*
 
@@ -1562,6 +1687,7 @@ B acts on the marked entries, or on the entry at point without marks
   S       scatter: schedule each entry on a random day of the next N days
           (with a count, weekend days are skipped)
   f       apply a Lua function (`function(target, item) ... end`)
+  (marked lines show `agenda.bulk_mark_char`, ">", org-agenda-bulk-mark-char)
   p       toggle persistent marks (`agenda.persistent_marks`: keep the
           marks after the action), then choose the action
   custom  keys of `agenda.bulk_custom_functions`:
@@ -1575,7 +1701,10 @@ view in an org buffer. The format is `agenda.overriding_columns_format`,
 else the COLUMNS property or #+COLUMNS of the entry at point (or of the
 first entry), else `columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
-(`agenda.columns_show_summaries`). While it is on: `q` turns it off, `e`
+(`agenda.columns_show_summaries`); with
+`agenda.columns_add_appointments_to_effort_sum`, an appointment without
+an effort counts its duration (org-agenda-columns-add-appointments-to-
+effort-sum). While it is on: `q` turns it off, `e`
 edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
@@ -1594,6 +1723,15 @@ view (org-agenda-write). The extension picks the format:
   .ps .pdf    the agenda printed like Emacs's ps-print: Courier text with
               the highlight colours and bold/italic, paged, with a header
               box ("Agenda View", page n/m and the date) on every page
+The text of entry text mode (`E`) is not written, like Emacs's overlays;
+`agenda.add_entry_text_maxlines` (org-agenda-add-entry-text-maxlines,
+default 0) adds that many body lines under each entry ("    > ...").
+`agenda.before_write_hook(lines, path)` can then change the lines (or
+return new ones) and the User autocmd `OrgAgendaBeforeWrite` fires
+(org-agenda-before-write-hook); when the lines change, HTML and
+PostScript lose their colours. `agenda.export_html_style` replaces the
+<style> section of HTML files (org-agenda-export-html-style).
+
 PostScript and PDF are written by Neovim itself, no external program is
 needed. The layout is ps-print's (letter paper, 8.5 pt text, 72 lines of
 97 columns per page; long lines wrap), so pages break where Emacs breaks
@@ -1692,10 +1830,19 @@ Block options:
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
+`agenda.custom_commands_contexts` (org-agenda-custom-commands-contexts)
+offers commands only in some buffers, with the rules of
+|org-capture-contexts|: `{ "p", { { in_mode = "org" } } }` keeps `p` only
+in org buffers, `{ "p", "r", { rules } }` runs the command of `r` under
+`p` where a rule holds (and hides `r`). It applies to the dispatcher,
+`:Org agenda KEY` and `A`.
+
 TODO lists: `todo_ignore_scheduled` ("all", "future", "past" or days),
 `todo_ignore_deadlines` (true = "near": within the warning period, "far",
 "all", "future", "past" or days), `todo_ignore_timestamp`,
-`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*);
+`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*;
+they compare dates in days, or with the current time in seconds with
+`todo_ignore_time_comparison_use_seconds`);
 tags-todo (M) views honour them only with
 `tags_todo_honor_ignore_options`. `todo_list_sublevels = false` skips the
 children of a listed TODO; `tags_match_list_sublevels = false` those of a
@@ -1731,7 +1878,9 @@ Diary sexp entries                                  *org-agenda-diary-sexp*
 
 Emacs lets you put diary s-expressions in timestamps, `<%%(diary-float t 4
 2)>`, and on lines of their own at the start of a line, `%%(org-anniversary
-1990 5 17) Birthday of Joe (%d)`. Emacs evaluates them as Emacs Lisp.
+1990 5 17) Birthday of Joe (%d)`. `agenda.diary_sexp_prefix` (an Emacs
+regexp, org-agenda-diary-sexp-prefix) moves its match in the text of a
+`%%(...)` line to the leader (`%s`). Emacs evaluates them as Emacs Lisp.
 Neovim has no Lisp interpreter, so they are read with a small, safe
 s-expression reader and the common calendar functions are emulated,
 with the same results as Emacs:
@@ -1995,9 +2144,9 @@ Hebrew, Islamic, Bahá’í or Chinese calendar, in the same forms with that
 calendar's month names (not abbreviated): `HTishri 16 Sukkot`,
 `IRamadan 1 Fast`, `C8/15 Mid-autumn` (diary-nongregorian-listing-hook).
 Differences: customized `diary-date-forms`, `diary-comment-start`,
-`diary-list-include-blanks` and `diary-face-attrs` are not supported, the
-`i` key (insert a diary entry) is not available, and a missing or
-recursive include is skipped with a message (Emacs stops with an error).
+`diary-list-include-blanks` and `diary-face-attrs` are not supported, and
+a missing or recursive include is skipped with a message (Emacs stops
+with an error).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
@@ -2009,18 +2158,14 @@ Not supported in the agenda                        *org-agenda-unsupported*
   defined; `calendar-date-style` is set from `agenda.calendar_date_style`) unless `babel.emacs_lisp.args` loads it. Holidays
   (|org-agenda-holidays|) and the entries of other calendars
   (|org-agenda-diary-sexp|) are supported.
-- The agenda key `i` (insert an entry into the diary file,
-  org-agenda-diary-entry). The diary file itself is read
-  (|org-agenda-diary-file|).
-- `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
-  indirect buffers or narrowing; <Tab> opens the entry instead.
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
   `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
   schedule and set deadlines (Emacs: save and day view; views are `vd`,
   `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`,
-  so the calendar conversion is `gC`).
+  so the calendar conversion is `gC`), and habits are toggled with `vh`
+  (Emacs `K`, which is capture here).
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
@@ -5157,6 +5302,7 @@ Structure and visibility ~
                                       the paragraphs of inline notes
                                       (at `textwidth`, 70 when 0)
   deadline_warning_days     14
+  scheduled_delay_days      0         negative = also over -Nd cookies
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
   read_date_popup_calendar  true      false: a plain prompt |org-calendar|
@@ -5222,7 +5368,25 @@ agenda ~
   calendar_date_style "american" ("european"|"iso"),
   hebrew_sabbath_candles_minutes 18, include_diary false,
   diary_file nil, diary_show_holidays true, diary_include_files false,
-  diary_nongregorian {}, holidays (|org-agenda-holidays|)
+  diary_nongregorian {}, holidays (|org-agenda-holidays|),
+  move_date_from_past_immediately_to_today true, follow_indirect false,
+  mouse_1_follows_link false, skip_comment_trees true,
+  skip_function_global nil, todo_ignore_time_comparison_use_seconds false,
+  entry_text_exclude_regexps {}, entry_text_leaders "    > ",
+  add_entry_text_maxlines 0, before_write_hook nil, export_html_style nil,
+  custom_commands_contexts {}, menu_show_matcher true,
+  menu_two_columns false, todo_keyword_format "%-1s",
+  fontify_priorities "cookies" (true|false|table), deadline_faces,
+  day_face_function nil, diary_sexp_prefix nil,
+  remove_timeranges_from_blocks false, bulk_mark_char ">",
+  loop_over_headlines_in_active_region true (false|"start-level"|regexp),
+  start_with_archives_mode false (true|"trees"),
+  diary_entry_file "diary-file" (or an Org file),
+  insert_diary_strategy "date-tree" ("date-tree-last"|"top-level"),
+  insert_diary_extract_time false, skip_unavailable_files false,
+  query_register "o", restriction_lock_highlight_subtree true,
+  window_frame_fractions { 0.5, 0.75 },
+  columns_add_appointments_to_effort_sum false
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
@@ -5932,8 +6096,9 @@ Differences from Emacs:
   subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
   separate Emacs when there is one. The Emacs diary file is read by a
   port of diary-lib (|org-agenda-diary-file|): custom `diary-date-forms`,
-  diary comments and the `i` key (insert a diary entry) are not supported
-  (|org-agenda-unsupported|).
+  and diary comments are not supported. Entries added with `i` in the
+  agenda use `calendar_date_style` for the date forms where Emacs uses
+  `diary-date-insertion-form`.
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:

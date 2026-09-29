@@ -616,6 +616,10 @@ M.defaults = {
   footnote_fill_after_inline_note_extraction = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- Days a scheduled entry is hidden after its date unless it has its own
+  --- `-Nd` delay; a negative value applies even then
+  --- (org-scheduled-delay-days).
+  scheduled_delay_days = 0,
   --- { rounding of the current time in date prompts, minute step of
   --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.
@@ -699,6 +703,11 @@ M.defaults = {
     skip_timestamp_if_deadline_is_shown = false, -- org-agenda-skip-timestamp-if-deadline-is-shown
     skip_scheduled_repeats_after_deadline = false, -- org-agenda-skip-scheduled-repeats-after-deadline
     skip_additional_timestamps_same_entry = false, -- org-agenda-skip-additional-timestamps-same-entry
+    --- Leave out COMMENT subtrees (org-agenda-skip-comment-trees).
+    skip_comment_trees = true,
+    --- function(headline) -> true to leave the entry out of every agenda
+    --- view, before a block's `skip` (org-agenda-skip-function-global).
+    skip_function_global = nil,
     --- true (no pre-warning when scheduled) | number of days | "pre-scheduled"
     --- (org-agenda-skip-deadline-prewarning-if-scheduled).
     skip_deadline_prewarning_if_scheduled = false,
@@ -722,6 +731,9 @@ M.defaults = {
     --- false | true | "future" | "past" | days (org-agenda-todo-ignore-timestamp).
     todo_ignore_timestamp = false,
     todo_ignore_with_date = false, -- org-agenda-todo-ignore-with-date
+    --- The todo_ignore_* options compare times to now in seconds, not in
+    --- days (org-agenda-todo-ignore-time-comparison-use-seconds).
+    todo_ignore_time_comparison_use_seconds = false,
     --- Apply the todo_ignore_* options to tags-todo (M) views too
     --- (org-agenda-tags-todo-honor-ignore-options).
     tags_todo_honor_ignore_options = false,
@@ -758,6 +770,32 @@ M.defaults = {
     --- org-agenda-timerange-leaders: { same day, "(day/days)" }.
     timerange_leaders = { "", "(%d/%d): " },
     inactive_leader = "[", -- org-agenda-inactive-leader
+    --- Format of the TODO keyword, e.g. "%-12s"; "" hides it
+    --- (org-agenda-todo-keyword-format).
+    todo_keyword_format = "%-1s",
+    --- Highlight priorities: "cookies" (the cookie), true (from the cookie
+    --- to the end of the line), a table { A = face, ... } (faces like
+    --- `ui.priority_faces`, to the end of the line) or false
+    --- (org-agenda-fontify-priorities). The highest priority is bold, the
+    --- lowest italic.
+    fontify_priorities = "cookies",
+    --- { fraction, highlight group } pairs for deadline lines: the first
+    --- whose fraction is at most the part of the warning period that has
+    --- passed (org-agenda-deadline-faces).
+    deadline_faces = {
+      { 1.0, "OrgAgendaDeadline" },
+      { 0.5, "OrgAgendaDeadlineUpcoming" },
+      { 0.0, "OrgAgendaDeadlineDistant" },
+    },
+    --- function(date) -> highlight group or nil for a day header
+    --- (org-agenda-day-face-function).
+    day_face_function = nil,
+    --- Emacs regexp: its match in the text of a %%(diary sexp) entry is
+    --- shown as the leader (org-agenda-diary-sexp-prefix).
+    diary_sexp_prefix = nil,
+    --- Remove the date range from the text of block entries
+    --- (org-agenda-remove-timeranges-from-blocks).
+    remove_timeranges_from_blocks = false,
     --- Remove a time shown in the prefix from the headline text: true |
     --- false | "beg" (org-agenda-remove-times-when-in-prefix).
     remove_times_when_in_prefix = true,
@@ -802,9 +840,16 @@ M.defaults = {
     max_todos = nil,
     max_tags = nil,
     max_effort = nil,
+    --- Highlight the whole subtree of a restriction lock, not only its
+    --- headline (org-agenda-restriction-lock-highlight-subtree).
+    restriction_lock_highlight_subtree = true,
     --- Where the agenda opens: "split" (org-agenda-window-setup
     --- reorganize-frame), "vsplit", "current", "only", "tab", "float".
     window = "split",
+    --- { min, max } height of the "split" agenda window as fractions of
+    --- the editor height; it fits its lines in between
+    --- (org-agenda-window-frame-fractions).
+    window_frame_fractions = { 0.5, 0.75 },
     --- Restore the window layout when quitting (org-agenda-restore-windows-after-quit).
     restore_windows_after_quit = false,
     --- One buffer per agenda command, reused until refreshed (org-agenda-sticky).
@@ -816,6 +861,13 @@ M.defaults = {
     auto_exclude_function = nil,
     --- Keep marks after a bulk action (org-agenda-persistent-marks).
     persistent_marks = false,
+    bulk_mark_char = ">", -- org-agenda-bulk-mark-char
+    --- Commands (schedule, deadline, >, t, archive, <C-k>, set property /
+    --- effort) act on every entry of a Visual selection: true, false,
+    --- "start-level" (entries of the first one's level) or an Emacs regexp
+    --- the agenda lines must match
+    --- (org-agenda-loop-over-headlines-in-active-region).
+    loop_over_headlines_in_active_region = true,
     --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
     --- (org-agenda-bulk-custom-functions).
     bulk_custom_functions = {},
@@ -851,29 +903,72 @@ M.defaults = {
     --- true | false | "prefix" (org-agenda-remove-tags).
     remove_tags = false,
     custom_commands = {}, -- org-agenda-custom-commands
+    --- Rules offering custom commands only in some buffers
+    --- (org-agenda-custom-commands-contexts), e.g.
+    --- `{ { "p", { { in_mode = "org" } } }, { "q", "r", { { in_file = "work" } } } }`.
+    custom_commands_contexts = {},
+    --- Show the match of custom commands in the dispatcher
+    --- (org-agenda-menu-show-matcher).
+    menu_show_matcher = true,
+    --- Custom commands in two columns in the dispatcher
+    --- (org-agenda-menu-two-columns).
+    menu_two_columns = false,
     --- Columns format of the agenda column view; nil = the first agenda
     --- file's (org-agenda-overriding-columns-format).
     overriding_columns_format = nil,
     view_columns_initially = false, -- org-agenda-view-columns-initially
     --- Show column summaries on date lines (org-agenda-columns-show-summaries).
     columns_show_summaries = true,
+    --- In the agenda column view, an appointment without an effort counts
+    --- its duration as effort (org-agenda-columns-add-appointments-to-effort-sum).
+    columns_add_appointments_to_effort_sum = false,
     --- Extra files for the search view; "agenda-archives" adds the archive
     --- files (org-agenda-text-search-extra-files).
     text_search_extra_files = {},
+    --- Skip agenda files that do not exist instead of asking to remove
+    --- them (org-agenda-skip-unavailable-files).
+    skip_unavailable_files = false,
     search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
+    --- Register receiving the search query built with [ ] { }
+    --- (org-agenda-query-register); false for none.
+    query_register = "o",
     search_view_force_full_words = false, -- org-agenda-search-view-force-full-words
     search_view_max_outline_level = 0, -- org-agenda-search-view-max-outline-level
     --- Body lines shown under each entry in entry text mode (E)
     --- (org-agenda-entry-text-maxlines).
     entry_text_maxlines = 5,
+    --- Emacs regexps whose matches are removed from the entry text
+    --- (org-agenda-entry-text-exclude-regexps).
+    entry_text_exclude_regexps = {},
+    --- Text before each entry text line (org-agenda-entry-text-leaders).
+    entry_text_leaders = "    > ",
+    --- Body lines added under each entry when the agenda is written to a
+    --- file (org-agenda-add-entry-text-maxlines).
+    add_entry_text_maxlines = 0,
+    --- function(lines, path) run before the agenda is written: changes
+    --- `lines` or returns new ones (org-agenda-before-write-hook; the User
+    --- autocmd OrgAgendaBeforeWrite fires too).
+    before_write_hook = nil,
+    --- Replaces the <style> section of agendas written as HTML
+    --- (org-agenda-export-html-style).
+    export_html_style = nil,
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,
+    --- One <S-Right> on a date in the past moves it to today
+    --- (org-agenda-move-date-from-past-immediately-to-today).
+    move_date_from_past_immediately_to_today = true,
     start_with_log_mode = false, -- false | true | "all" | "clockcheck" (org-agenda-start-with-log-mode)
     --- Add the first line of a clock or state note to log items
     --- (org-agenda-log-mode-add-notes).
     log_mode_add_notes = true,
     start_with_follow_mode = false, -- org-agenda-start-with-follow-mode
+    --- Follow mode shows the entry's subtree in an edit buffer
+    --- (org-agenda-follow-indirect).
+    follow_indirect = false,
+    --- A left click goes to the entry like a middle click
+    --- (org-agenda-mouse-1-follows-link).
+    mouse_1_follows_link = false,
     start_with_clockreport_mode = false, -- org-agenda-start-with-clockreport-mode
     --- Clocktable parameters of the clock report mode
     --- (org-agenda-clockreport-parameter-plist); :scope and the time range
@@ -891,6 +986,9 @@ M.defaults = {
       gap_ok_around = { "4:00" },
     },
     start_with_entry_text_mode = false, -- org-agenda-start-with-entry-text-mode
+    --- false | "trees" (archived trees, `va`) | true (also the archive
+    --- files, `vA`) (org-agenda-start-with-archives-mode).
+    start_with_archives_mode = false,
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
@@ -915,6 +1013,16 @@ M.defaults = {
     --- the diary file of the Emacs user directory (~/.emacs.d/diary or
     --- ~/.config/emacs/diary).
     diary_file = nil,
+    --- Where `i` in the agenda adds entries (org-agenda-diary-file):
+    --- "diary-file" (the Emacs diary file, `diary_file`) or an Org file.
+    diary_entry_file = "diary-file",
+    --- Where entries go in an Org `diary_entry_file`: "date-tree" (first
+    --- child of the date), "date-tree-last" or "top-level"
+    --- (org-agenda-insert-diary-strategy).
+    insert_diary_strategy = "date-tree",
+    --- Move a time at the start of a day entry into its timestamp
+    --- (org-agenda-insert-diary-extract-time).
+    insert_diary_extract_time = false,
     --- Show the day's holidays as diary entries (diary-show-holidays-flag).
     diary_show_holidays = true,
     --- Read `#include "FILE"` lines of the diary file (Emacs:
@@ -2601,10 +2709,16 @@ M.defaults = {
       switch_to = "<CR>",
       show = "<Space>",
       show_scroll_down = "<BS>",
+      show_1 = false, -- Emacs: unbound
+      cycle_show = false, -- Emacs: unbound
+      goto_mouse = "<MiddleMouse>", -- Emacs: mouse-2
+      show_mouse = "<RightMouse>", -- Emacs: mouse-3
       recenter = "L",
       delete_other_windows = "o",
       follow_mode = { "F", "vf" },
+      tree_to_indirect_buffer = "<C-c><C-x>b",
       todo = { "t", "<C-c><C-t>" },
+      todo_yesterday = false, -- Emacs: unbound
       todo_next = "<C-S-Right>",
       todo_prev = "<C-S-Left>",
       priority = { ",", "<C-c>," },
@@ -2617,6 +2731,11 @@ M.defaults = {
       deadline = { "<C-c><C-d>", "d" },
       date_later = { "<S-Right>", "<C-c><C-x><Right>" },
       date_earlier = { "<S-Left>", "<C-c><C-x><Left>" },
+      -- Emacs: unbound (C-u / C-u C-u <S-Right>, here counts 4 / 16)
+      date_later_hours = false,
+      date_earlier_hours = false,
+      date_later_minutes = false,
+      date_earlier_minutes = false,
       date_prompt = ">",
       clock_in = { "I", "<C-c><C-x><C-i>" },
       clock_out = { "O", "<C-c><C-x><C-o>" },
@@ -2630,7 +2749,8 @@ M.defaults = {
       remove_restriction_lock = "<C-c><C-x>>",
       refile = { "<C-c><C-w>", "R" },
       archive = { "$", "<C-c>$", "<C-c><C-x><C-s>" },
-      archive_default = { "a", "<C-c><C-x><C-a>" },
+      archive_default = "<C-c><C-x><C-a>",
+      archive_default_confirm = "a",
       archive_sibling = "<C-c><C-x>A",
       toggle_archive_tag = "<C-c><C-x>a",
       kill = "<C-k>",
@@ -2647,6 +2767,9 @@ M.defaults = {
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
       toggle_diary = "D",
+      diary_entry = "i", -- org-agenda-diary-entry (also in Visual mode)
+      toggle_habits_display = "vh", -- Emacs: K (capture here)
+      toggle_habits = false, -- Emacs: unbound
       dim_blocked = "#",
       filter = "/",
       filter_tag = "\\",
@@ -2684,6 +2807,7 @@ M.defaults = {
       sunrise_sunset = "S",
       holidays = "H",
       save_all = "<C-x><C-s>",
+      undo = { "<C-_>", "<C-/>", "<C-x>u" }, -- org-agenda-undo (Emacs undo keys)
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",

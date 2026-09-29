@@ -62,6 +62,21 @@ local function priority_value(hl)
 end
 M.priority_value = priority_value
 
+--- The face of a deadline line (org-agenda-deadline-face): the first of
+--- `agenda.deadline_faces` ({ fraction, group } pairs) whose fraction is at
+--- most `fraction`, the part of the warning period that has passed (1 on
+--- the day, more when overdue).
+---@param fraction number
+---@return string?
+function M.deadline_face(fraction)
+  for _, f in ipairs(config.opts.agenda.deadline_faces or {}) do
+    if f[1] <= fraction then
+      return f[2]
+    end
+  end
+  return nil
+end
+
 local function new_item(hl, fields)
   order = order + 1
   local item = {
@@ -295,12 +310,14 @@ M.set_time = set_time
 -- Headline iteration
 ---------------------------------------------------------------------------
 
---- Is `hl` inside a COMMENT subtree, or an ARCHIVE-tagged one (unless
+--- Is `hl` inside a COMMENT subtree (with agenda.skip_comment_trees,
+--- org-agenda-skip-comment-trees), or an ARCHIVE-tagged one (unless
 --- archived trees are included, org-agenda-archives-mode)?
 local function hidden(hl, include_archived)
+  local skip_comments = config.opts.agenda.skip_comment_trees ~= false
   local h = hl
   while h do
-    if h.commented or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
+    if (skip_comments and h.commented) or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
       return true
     end
     h = h.parent
@@ -308,7 +325,9 @@ local function hidden(hl, include_archived)
   return false
 end
 
---- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees).
+--- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT
+--- subtrees and those `agenda.skip_function_global` or `opts.skip` skip,
+--- org-agenda-skip).
 ---@param files org.File[]
 ---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean }
 function M.each_headline(files, opts, fn)
@@ -319,6 +338,11 @@ function M.each_headline(files, opts, fn)
       local ok = not hidden(hl, opts.archives)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
+      end
+      local global = config.opts.agenda.skip_function_global
+      if ok and type(global) == "function" then
+        local s_ok, skip = pcall(global, hl)
+        ok = not (s_ok and skip)
       end
       if ok and opts.skip then
         local s_ok, skip = pcall(opts.skip, hl)
@@ -617,6 +641,17 @@ function M.agenda(files, from, to, opts)
             -- a string result is split on "; " into several entries
             local texts = type(res) == "string" and vim.split(res, "; ", { plain = true }) or (res and { e.text })
             for _, text in ipairs(texts or {}) do
+              local extra = ""
+              local prefix = acfg.diary_sexp_prefix
+              if type(prefix) == "string" and prefix ~= "" then
+                -- org-agenda-diary-sexp-prefix: the match becomes the leader
+                local ok_re, pat = pcall(require("org.agenda.search").emacs_regexp, prefix)
+                local m = ok_re and vim.fn.matchstrpos(text, "\\C" .. pat) or { "", -1, -1 }
+                if m[2] >= 0 then
+                  extra = m[1]
+                  text = text:sub(1, m[2]) .. text:sub(m[3] + 1)
+                end
+              end
               if not text:match("%S") then
                 text = "SEXP entry returned empty string"
               end
@@ -624,7 +659,7 @@ function M.agenda(files, from, to, opts)
                 type = "sexp",
                 ts_type = "sexp",
                 title = text,
-                extra = "",
+                extra = extra,
                 sexp = e.sexp,
                 lnum_sexp = i,
                 face = "OrgAgendaTimestamp",
@@ -711,7 +746,7 @@ function M.agenda(files, from, to, opts)
             date = (c == base or kind == "repeat") and at_day(dl, c) or dl,
             ts_date = base,
             extra = leader,
-            face = done and "OrgAgendaDone" or (upcoming and "OrgAgendaDeadlineUpcoming" or "OrgAgendaDeadline"),
+            face = done and "OrgAgendaDone" or M.deadline_face(1 - diff / math.max(warn, 1)),
             reminder = c ~= base and kind ~= "repeat" or nil,
             overdue = c == today and base < today or nil,
             upcoming = upcoming and diff or nil,
@@ -734,16 +769,32 @@ function M.agenda(files, from, to, opts)
       local is_habit = habits.is_habit(hl)
       local habit = is_habit and habits.parse(hl) or nil
       local base = prefers_last(acfg, hl.todo) and last_occ(s, today) or s:days()
-      local delay = 0
-      if s.warning then
-        delay = date.warning_days(s, 0)
-        if s.warning.type == "--" and base > s:days() then
-          -- a --Xd delay only applies to the first occurrence
-          delay = 0
-        elseif acfg.skip_scheduled_delay_if_deadline and hl.planning.deadline then
-          -- t, an integer or post-deadline: Emacs ends up with no delay
-          delay = 0
+      -- org-get-wdays with DELAY: a negative org-scheduled-delay-days is
+      -- enforced, else the -Nd cookie, else org-scheduled-delay-days
+      local tv = acfg.scheduled_delay_days or cfg.scheduled_delay_days or 0
+      local wd
+      if tv < 0 then
+        wd = -tv
+      elseif s.warning then
+        wd = date.warning_days(s, 0)
+      else
+        wd = tv
+      end
+      local max = math.huge
+      local sdd = acfg.skip_scheduled_delay_if_deadline
+      if sdd and hl.planning.deadline then
+        if int(sdd) then
+          max = -sdd
+        elseif sdd == "post-deadline" then
+          max = math.min(base - hl.planning.deadline:days(), tv)
+        else
+          max = 0
         end
+      end
+      local delay = math.min(max, wd)
+      if s.warning and s.warning.type == "--" and base > s:days() then
+        -- a --Xd delay only applies to the first occurrence
+        delay = 0
       end
       local past_days = (is_habit and habit_cfg.scheduled_past_days) or sc_past_days
       local days = { [base] = true }
@@ -847,6 +898,15 @@ function M.agenda(files, from, to, opts)
               extra = string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, n),
               face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
             })
+            if acfg.remove_timeranges_from_blocks and t.line == hl.line and t.start_col then
+              -- org-agenda-remove-timeranges-from-blocks: drop the range
+              -- from the headline text
+              local text = (hl.file.lines[t.line] or ""):sub(t.start_col, t.end_col)
+              local s, e = item.title:find(text, 1, true)
+              if s then
+                item.title = item.title:sub(1, s - 1) .. item.title:sub(e + 1)
+              end
+            end
             if d == a and d == b then
               set_time(item, ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min })
                 or ts, acfg)
@@ -1166,6 +1226,16 @@ end
 --- org-agenda-check-for-timestamp-as-reason-to-ignore-todo-item
 local function ignored_by_date(hl, acfg, today)
   local s, dl = hl.planning.scheduled, hl.planning.deadline
+  -- org-timestamp-to-now: days, or seconds with
+  -- org-agenda-todo-ignore-time-comparison-use-seconds
+  local seconds = acfg.todo_ignore_time_comparison_use_seconds
+  local now = os.time()
+  local function to_now(d)
+    if seconds then
+      return d:to_time() - now
+    end
+    return d:days() - today
+  end
   local iw = acfg.todo_ignore_with_date
   if iw then
     if (s and s.active) or (dl and dl.active) or #hl.timestamps > 0 then
@@ -1174,7 +1244,7 @@ local function ignored_by_date(hl, acfg, today)
   end
   local is = acfg.todo_ignore_scheduled
   if is and s then
-    local diff = s:days() - today
+    local diff = to_now(s)
     if is == "future" then
       if diff > 0 then
         return true
@@ -1193,9 +1263,10 @@ local function ignored_by_date(hl, acfg, today)
   end
   local id = acfg.todo_ignore_deadlines
   if id and dl then
-    local diff = dl:days() - today
+    local diff = to_now(dl)
     local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
-    local close = diff <= date.warning_days(dl, wdays) and not hl:is_done()
+    -- org-deadline-close-p always compares days
+    local close = dl:days() - today <= date.warning_days(dl, wdays) and not hl:is_done()
     if id == "all" then
       return true
     elseif id == "far" then
@@ -1221,7 +1292,7 @@ local function ignored_by_date(hl, acfg, today)
   end
   local it = acfg.todo_ignore_timestamp
   if it and hl.timestamps[1] then
-    local diff = hl.timestamps[1].date:days() - today
+    local diff = to_now(hl.timestamps[1].date)
     if it == "future" then
       return diff > 0
     elseif it == "past" then

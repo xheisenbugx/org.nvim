@@ -538,6 +538,9 @@
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer
+---Days a scheduled entry is hidden after its date unless it has its own
+---`-Nd` delay; negative: always (org-scheduled-delay-days). (default: `0`)
+---@field scheduled_delay_days? integer
 ---`{ rounding, step }`: minutes the current time is rounded to in date
 ---prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
 ---steps by exactly that many minutes).
@@ -586,7 +589,8 @@
 ---Archive as the first child of the archive heading instead of the last.
 ---(Emacs `org-archive-reversed-order`, default: `false`)
 ---@field archive_reversed_order? boolean
----What `archive_subtree_default` (C-c C-x C-a) does.
+---What `archive_subtree_default` (C-c C-x C-a, the agenda's `a` and
+---C-c C-x C-a) does.
 ---(Emacs `org-archive-default-command`, default: `"archive_subtree"`)
 ---@field archive_default_command? "archive_subtree"|"archive_to_sibling"|"set_tag"|fun(target: org.Target|nil)
 ---When `archive_subtree` saves the archive file: always, never, only from Org

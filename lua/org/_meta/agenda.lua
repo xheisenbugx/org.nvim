@@ -109,6 +109,11 @@
 ---Show only the first timestamp of an entry per day
 ---(org-agenda-skip-additional-timestamps-same-entry). (default: `false`)
 ---@field skip_additional_timestamps_same_entry? boolean
+---Leave out COMMENT subtrees (org-agenda-skip-comment-trees). (default: `true`)
+---@field skip_comment_trees? boolean
+---Returns true to leave an entry out of every agenda view, before a
+---block's `skip` (org-agenda-skip-function-global). (default: `nil`)
+---@field skip_function_global? fun(hl: org.Headline): boolean
 ---Deadline pre-warnings of scheduled entries
 ---(org-agenda-skip-deadline-prewarning-if-scheduled): `true` = none, a
 ---number = at most that many days before, `"pre-scheduled"` = not before
@@ -144,6 +149,9 @@
 ---Hide entries with any active date from TODO lists
 ---(org-agenda-todo-ignore-with-date). (default: `false`)
 ---@field todo_ignore_with_date? boolean
+---The todo_ignore_* options compare times to now in seconds
+---(org-agenda-todo-ignore-time-comparison-use-seconds). (default: `false`)
+---@field todo_ignore_time_comparison_use_seconds? boolean
 ---Apply the todo_ignore_* options to tags-todo views
 ---(org-agenda-tags-todo-honor-ignore-options). (default: `false`)
 ---@field tags_todo_honor_ignore_options? boolean
@@ -173,6 +181,25 @@
 ---@field timerange_leaders? string[]
 ---Leader of inactive timestamps (org-agenda-inactive-leader). (default: `"["`)
 ---@field inactive_leader? string
+---Format of the TODO keyword, e.g. "%-12s"; "" hides it
+---(org-agenda-todo-keyword-format). (default: `"%-1s"`)
+---@field todo_keyword_format? string
+---Highlight priorities: "cookies", true (to the end of the line), a table
+---of faces per priority, or false (org-agenda-fontify-priorities). (default: `"cookies"`)
+---@field fontify_priorities? "cookies"|boolean|table<string, string|table>
+---{ fraction, highlight group } pairs for deadline lines
+---(org-agenda-deadline-faces).
+---(default: `{ { 1.0, "OrgAgendaDeadline" }, { 0.5, "OrgAgendaDeadlineUpcoming" }, { 0.0, "OrgAgendaDeadlineDistant" } }`)
+---@field deadline_faces? { [1]: number, [2]: string }[]
+---Highlight group of a day header, or nil for the default
+---(org-agenda-day-face-function). (default: `nil`)
+---@field day_face_function? fun(date: table): string?
+---Emacs regexp: its match in the text of a %%(diary sexp) line becomes the
+---leader (org-agenda-diary-sexp-prefix). (default: `nil`)
+---@field diary_sexp_prefix? string
+---Remove the date range from the text of block entries
+---(org-agenda-remove-timeranges-from-blocks). (default: `false`)
+---@field remove_timeranges_from_blocks? boolean
 ---Remove a time of day shown in the prefix from the headline; `"beg"` only
 ---at its start (org-agenda-remove-times-when-in-prefix). (default: `true`)
 ---@field remove_times_when_in_prefix? boolean|"beg"
@@ -222,6 +249,12 @@
 ---@field max_tags? org.Config.Agenda.Limit
 ---Maximum total effort in minutes (org-agenda-max-effort). (default: `nil`)
 ---@field max_effort? org.Config.Agenda.Limit
+---Highlight the whole subtree of a restriction lock, not only its headline
+---(org-agenda-restriction-lock-highlight-subtree). (default: `true`)
+---@field restriction_lock_highlight_subtree? boolean
+---{ min, max } height of the "split" agenda window as fractions of the
+---editor height (org-agenda-window-frame-fractions). (default: `{ 0.5, 0.75 }`)
+---@field window_frame_fractions? number[]
 ---Where the agenda opens (org-agenda-window-setup); `"split"` is Emacs's
 ---reorganize-frame. Emacs names ("reorganize-frame", "current-window",
 ---"only-window", "other-window", "other-tab") are accepted. (default: `"split"`)
@@ -238,6 +271,12 @@
 ---@field auto_exclude_function? fun(tag: string): string?
 ---Keep marks after a bulk action (org-agenda-persistent-marks). (default: `false`)
 ---@field persistent_marks? boolean
+---Glyph of marked lines (org-agenda-bulk-mark-char). (default: `">"`)
+---@field bulk_mark_char? string
+---Visual-mode commands act on every selected entry: true, false,
+---"start-level" or an Emacs regexp the lines must match
+---(org-agenda-loop-over-headlines-in-active-region). (default: `true`)
+---@field loop_over_headlines_in_active_region? boolean|string
 ---Extra bulk action keys (org-agenda-bulk-custom-functions). (default: `{}`)
 ---@field bulk_custom_functions? table<string, org.Config.Agenda.BulkFunction|fun(target: org.Target, item: org.AgendaItem)>
 ---No block headers and separators (org-agenda-compact-blocks). (default: `false`)
@@ -263,6 +302,15 @@
 ---Keys may be several characters long; a string value only labels the group
 ---of keys that start with that prefix. (default: `{}`)
 ---@field custom_commands? table<string, org.Config.Agenda.CustomCommand|string>
+---Rules offering custom commands only in some buffers, like
+---`capture.templates_contexts` (org-agenda-custom-commands-contexts). (default: `{}`)
+---@field custom_commands_contexts? org.Config.CaptureContextRule[]
+---Show the match of custom commands in the dispatcher
+---(org-agenda-menu-show-matcher). (default: `true`)
+---@field menu_show_matcher? boolean
+---Custom commands in two columns in the dispatcher
+---(org-agenda-menu-two-columns). (default: `false`)
+---@field menu_two_columns? boolean
 ---Columns format of the agenda column view
 ---(org-agenda-overriding-columns-format). (default: `nil`)
 ---@field overriding_columns_format? string
@@ -270,11 +318,20 @@
 ---@field view_columns_initially? boolean
 ---Column summaries on date lines (org-agenda-columns-show-summaries). (default: `true`)
 ---@field columns_show_summaries? boolean
+---An appointment without an effort counts its duration as effort in the
+---agenda column view (org-agenda-columns-add-appointments-to-effort-sum). (default: `false`)
+---@field columns_add_appointments_to_effort_sum? boolean
 ---More files for the search view; "agenda-archives" adds the archive files
 ---(org-agenda-text-search-extra-files). (default: `{}`)
 ---@field text_search_extra_files? string[]
+---Skip agenda files that do not exist instead of asking to remove them
+---(org-agenda-skip-unavailable-files). (default: `false`)
+---@field skip_unavailable_files? boolean
 ---Every search query is boolean (org-agenda-search-view-always-boolean). (default: `false`)
 ---@field search_view_always_boolean? boolean
+---Register receiving the search query built with [ ] { }
+---(org-agenda-query-register); false for none. (default: `"o"`)
+---@field query_register? string|false
 ---Search words match whole words (org-agenda-search-view-force-full-words). (default: `false`)
 ---@field search_view_force_full_words? boolean
 ---Deeper entries are searched with their ancestor at this level; 0 = no
@@ -283,9 +340,26 @@
 ---Body lines shown under each entry in entry text mode (`E`)
 ---(org-agenda-entry-text-maxlines). (default: `5`)
 ---@field entry_text_maxlines? integer
+---Emacs regexps whose matches are removed from the entry text
+---(org-agenda-entry-text-exclude-regexps). (default: `{}`)
+---@field entry_text_exclude_regexps? string[]
+---Text before each entry text line (org-agenda-entry-text-leaders). (default: `"    > "`)
+---@field entry_text_leaders? string
+---Body lines added under each entry of a written agenda
+---(org-agenda-add-entry-text-maxlines). (default: `0`)
+---@field add_entry_text_maxlines? integer
+---Called before the agenda is written: changes `lines` or returns new ones
+---(org-agenda-before-write-hook). (default: `nil`)
+---@field before_write_hook? fun(lines: string[], path: string): string[]?
+---Replaces the <style> section of agendas written as HTML
+---(org-agenda-export-html-style). (default: `nil`)
+---@field export_html_style? string
 ---Ask before `<C-k>` deletes an entry longer than this many lines
 ---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
 ---@field confirm_kill? integer|false
+---One `<S-Right>` on a past date moves it to today
+---(org-agenda-move-date-from-past-immediately-to-today). (default: `true`)
+---@field move_date_from_past_immediately_to_today? boolean
 ---Start in log mode; `"all"` shows all log items, `"clockcheck"` the clock
 ---check (org-agenda-start-with-log-mode). (default: `false`)
 ---@field start_with_log_mode? boolean|"all"|"clockcheck"
@@ -294,6 +368,12 @@
 ---@field log_mode_add_notes? boolean
 ---Start in follow mode (org-agenda-start-with-follow-mode). (default: `false`)
 ---@field start_with_follow_mode? boolean
+---Follow mode shows the entry's subtree in an edit buffer
+---(org-agenda-follow-indirect). (default: `false`)
+---@field follow_indirect? boolean
+---A left click goes to the entry like a middle click
+---(org-agenda-mouse-1-follows-link). (default: `false`)
+---@field mouse_1_follows_link? boolean
 ---Start with the clock report shown (org-agenda-start-with-clockreport-mode). (default: `false`)
 ---@field start_with_clockreport_mode? boolean
 ---Clocktable parameters of the clock report
@@ -306,6 +386,9 @@
 ---@field clock_consistency_checks? org.Config.Agenda.ClockChecks
 ---Start in entry text mode (org-agenda-start-with-entry-text-mode). (default: `false`)
 ---@field start_with_entry_text_mode? boolean
+---Start with archived trees ("trees") or also the archive files (true)
+---included (org-agenda-start-with-archives-mode). (default: `false`)
+---@field start_with_archives_mode? boolean|"trees"|"files"
 ---Dim TODOs blocked by `enforce_todo_dependencies` / checkboxes; `"invisible"`
 ---hides them (org-agenda-dim-blocked-tasks). (default: `true`)
 ---@field dim_blocked_tasks? boolean|"invisible"
@@ -329,6 +412,15 @@
 ---@field diary_file? string
 ---Show the day's holidays as diary entries (diary-show-holidays-flag). (default: `true`)
 ---@field diary_show_holidays? boolean
+---Where `i` adds entries: "diary-file" (the Emacs diary file) or an Org
+---file (org-agenda-diary-file). (default: `"diary-file"`)
+---@field diary_entry_file? string
+---Where entries go in an Org `diary_entry_file`
+---(org-agenda-insert-diary-strategy). (default: `"date-tree"`)
+---@field insert_diary_strategy? "date-tree"|"date-tree-last"|"top-level"
+---Move a leading time of a day entry into its timestamp
+---(org-agenda-insert-diary-extract-time). (default: `false`)
+---@field insert_diary_extract_time? boolean
 ---Read `#include "FILE"` lines of the diary file
 ---(diary-include-other-diary-files). (default: `false`)
 ---@field diary_include_files? boolean

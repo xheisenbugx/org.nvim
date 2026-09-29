@@ -198,6 +198,8 @@ local function hl_from_face(face)
   return face
 end
 
+M.hl_from_face = hl_from_face
+
 --- Define highlight groups for `ui.todo_keyword_faces`.
 function M.apply_todo_faces()
   local ui = require("org.config").opts.ui

@@ -1882,10 +1882,12 @@ end
 --- Edit the current subtree in a split window (org-tree-to-indirect-buffer).
 --- Uses `win_split_mode` when it is a split / tab, otherwise a horizontal
 --- split. The buffer is an edit buffer like `narrow_subtree`: `:w` or the
---- save mapping writes it back.
-function M.tree_to_indirect_buffer()
-  local mode = config.opts.win_split_mode
-  if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" then
+--- save mapping writes it back. `window` ("current", "split", ...)
+--- overrides where it opens (the agenda shows it in its other window).
+---@param window? string
+function M.tree_to_indirect_buffer(window)
+  local mode = type(window) == "string" and window or config.opts.win_split_mode
+  if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" and mode ~= window then
     mode = "split"
   end
   return narrow(mode)

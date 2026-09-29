@@ -1016,8 +1016,18 @@
 ---@field redo? org.MappingLhs
 --- Rebuild all agenda buffers (org-agenda-redo-all). Emacs: `g`. Default: `gr`
 ---@field redo_all? org.MappingLhs
---- Show the entry and scroll its window down. Default: `<BS>`
+--- Scroll the window of the last shown entry a page back (org-agenda-show-scroll-down). Default: `<BS>`
 ---@field show_scroll_down? org.MappingLhs
+--- Show the entry with the detail given by the count, 1-4 (org-agenda-show-1). Default: unmapped
+---@field show_1? org.MappingLhs
+--- Show the entry; repeated, cycle its visibility (org-agenda-cycle-show). Default: unmapped
+---@field cycle_show? org.MappingLhs
+--- Go to the entry under the mouse (org-agenda-goto-mouse). Default: `<MiddleMouse>`
+---@field goto_mouse? org.MappingLhs
+--- Show the entry under the mouse (org-agenda-show-mouse). Default: `<RightMouse>`
+---@field show_mouse? org.MappingLhs
+--- Edit the entry's subtree in the other window (org-agenda-tree-to-indirect-buffer). Default: `<C-c><C-x>b`
+---@field tree_to_indirect_buffer? org.MappingLhs
 --- Attach to the entry (org-agenda-attach). Default: `<C-c><C-a>`
 ---@field attach? org.MappingLhs
 --- Stop the timer. Default: `<C-c><C-x>_`
@@ -1078,6 +1088,8 @@
 ---@field follow_mode? org.MappingLhs
 --- Change the item's TODO state (fast selection when keys are defined, else cycle). Default: `{ "t", "<C-c><C-t>" }`
 ---@field todo? org.MappingLhs
+--- Change the TODO state, logged at 23:59 of yesterday (org-agenda-todo-yesterday). Default: unmapped
+---@field todo_yesterday? org.MappingLhs
 --- Cycle the item's TODO state forward. Default: `<C-S-Right>`
 ---@field todo_next? org.MappingLhs
 --- Cycle the item's TODO state backward. Default: `<C-S-Left>`
@@ -1098,10 +1110,18 @@
 ---@field schedule? org.MappingLhs
 --- Set the item's deadline. Default: `{ "<C-c><C-d>", "d" }`
 ---@field deadline? org.MappingLhs
---- Shift the item's date one day later (count: days). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
+--- Shift the item's date one day later (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
 ---@field date_later? org.MappingLhs
---- Shift the item's date one day earlier (count: days). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
+--- Shift the item's date one day earlier (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
 ---@field date_earlier? org.MappingLhs
+--- Shift the item's time later by hours (count: hours; <S-Right> with count 4). Default: unmapped
+---@field date_later_hours? org.MappingLhs
+--- Shift the item's time earlier by hours (count: hours; <S-Left> with count 4). Default: unmapped
+---@field date_earlier_hours? org.MappingLhs
+--- Shift the item's time later by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Right> with count 16). Default: unmapped
+---@field date_later_minutes? org.MappingLhs
+--- Shift the item's time earlier by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Left> with count 16). Default: unmapped
+---@field date_earlier_minutes? org.MappingLhs
 --- Change the item's date via prompt (deadline or scheduled, by item kind). Default: `>`
 ---@field date_prompt? org.MappingLhs
 --- Clock in the item. Default: `{ "I", "<C-c><C-x><C-i>" }`
@@ -1124,8 +1144,10 @@
 ---@field refile? org.MappingLhs
 --- Archive the item's subtree. Default: `{ "$", "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive? org.MappingLhs
---- Archive the item's subtree, after confirmation. Default: `{ "a", "<C-c><C-x><C-a>" }`
+--- Archive the item with `archive_default_command` (org-agenda-archive-default). Default: `<C-c><C-x><C-a>`
 ---@field archive_default? org.MappingLhs
+--- Like archive_default, after confirmation (org-agenda-archive-default-with-confirmation). Default: `a`
+---@field archive_default_confirm? org.MappingLhs
 --- Move the item to its Archive sibling. Default: `<C-c><C-x>A`
 ---@field archive_sibling? org.MappingLhs
 --- Toggle the item's ARCHIVE tag. Default: `<C-c><C-x>a`
@@ -1159,6 +1181,12 @@
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle including the Emacs diary file (org-agenda-toggle-diary). Default: `D`
 ---@field toggle_diary? org.MappingLhs
+--- Add a diary entry for the date at point (org-agenda-diary-entry); also in Visual mode. Default: `i`
+---@field diary_entry? org.MappingLhs
+--- Toggle habits; with a count, whether today shows all habits (org-habit-toggle-display-in-agenda, Emacs `K`). Default: `vh`
+---@field toggle_habits_display? org.MappingLhs
+--- Toggle habits (org-habit-toggle-habits). Default: unmapped
+---@field toggle_habits? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
 --- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`
@@ -1211,6 +1239,8 @@
 ---@field backward_block? org.MappingLhs
 --- Save all modified org buffers. Default: `<C-x><C-s>`
 ---@field save_all? org.MappingLhs
+--- Undo the last source edit made from the agenda (org-agenda-undo). Default: `{ "<C-_>", "<C-/>", "<C-x>u" }`
+---@field undo? org.MappingLhs
 --- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `K`
 ---@field capture? org.MappingLhs
 --- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`
