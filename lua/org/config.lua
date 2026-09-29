@@ -1338,6 +1338,23 @@ M.defaults = {
       -- org-babel-scheme-null-to
       scheme = { impl = "guile", commands = {}, null_to = "hline" },
       julia = { cmd = "julia" }, -- org-babel-julia-command
+      -- commands: org-babel-lilypond-commands, { lilypond, PDF viewer, MIDI
+      -- player } (nil: the platform's default); the other keys are the
+      -- org-babel-lilypond-* variables the toggle commands change
+      lilypond = {
+        ext = "ly",
+        default_header_args = { results = "file", exports = "results" },
+        commands = nil,
+        arrange_mode = false,
+        gen_png = false,
+        gen_svg = false,
+        gen_html = false,
+        gen_pdf = false,
+        use_eps = false,
+        compile_post_tangle = true,
+        display_pdf_post_tangle = true,
+        play_midi_post_tangle = true,
+      },
       maxima = { cmd = "maxima" }, -- org-babel-maxima-command
       ocaml = { cmd = "ocaml" }, -- org-babel-ocaml-command
       gnuplot = {

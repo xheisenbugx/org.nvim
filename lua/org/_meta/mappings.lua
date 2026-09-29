@@ -40,6 +40,13 @@
 ---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
+---| "babel_lilypond_tangle" # Tangle LilyPond blocks and engrave
+---| "babel_lilypond_toggle_arrange_mode" # Toggle LilyPond arrange mode
+---| "babel_lilypond_toggle_html_generation" # Toggle LilyPond HTML generation
+---| "babel_lilypond_toggle_midi_play" # Toggle playing LilyPond MIDI
+---| "babel_lilypond_toggle_pdf_display" # Toggle showing the LilyPond PDF
+---| "babel_lilypond_toggle_pdf_generation" # Toggle LilyPond PDF generation
+---| "babel_lilypond_toggle_png_generation" # Toggle LilyPond PNG generation
 ---| "babel_load_in_session" # Load src block into its session
 ---| "babel_lob_ingest" # Add file's blocks to Library of Babel
 ---| "babel_mark_block" # Select src block body

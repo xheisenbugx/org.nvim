@@ -131,6 +131,16 @@ function M.comment_prefix(lang)
     return "// "
   elseif lang == "emacs-lisp" or lang == "elisp" or lang == "clojure" then
     return ";; "
+  elseif lang == "clojurescript" or lang == "lisp" or lang == "scheme" then
+    return ";; "
+  elseif lang == "lilypond" or lang == "latex" then
+    return "% "
+  elseif lang == "groovy" or lang == "csharp" or lang == "processing" then
+    return "// "
+  elseif lang == "fortran" then
+    return "! "
+  elseif lang == "plantuml" then
+    return "' "
   elseif lang == "vim" then
     return '" '
   end
