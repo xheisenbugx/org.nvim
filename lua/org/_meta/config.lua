@@ -943,13 +943,16 @@
 ---Start the reminder timer on setup. (default: `false`)
 ---@field enabled? boolean
 ---Minutes before an entry's start to notify; one notification per offset.
----A single number is also accepted. (default: `{ 10, 0 }`)
+---A single number is also accepted. (default: `{ 12, 9, 6, 3, 0 }`)
 ---@field reminder_time? integer|integer[]
 ---Seconds between checks. (default: `60`)
 ---@field check_interval? integer
 ---Also use the OS notifier (`osascript` / `notify-send`) when available.
 ---(default: `true`)
 ---@field system_notification? boolean
+---Send reminders from one Neovim only when several run with notifications
+---on, through a lock file in `stdpath("data")/org`. (default: `true`)
+---@field single_instance? boolean
 ---Custom notifier replacing the built-in `vim.notify` + OS notification.
 ---(default: `nil`)
 ---@field notifier? fun(event: org.Config.Notifications.Event)
