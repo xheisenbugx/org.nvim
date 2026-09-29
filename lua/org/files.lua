@@ -22,6 +22,10 @@ function M.get_buffer(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local cwd = name == "" and vim.fn.getcwd() or nil
   local spec = require("org.config").opts.todo_keywords
+  -- a buffer showing part of another one (presentation slides) takes its
+  -- in-buffer settings (#+TODO, #+TAGS, #+LINK, ...) from that buffer
+  local src = vim.b[bufnr].org_settings_source
+  local base = src and src ~= bufnr and vim.api.nvim_buf_is_valid(src) and M.get_buffer(src) or nil
   local c = buf_cache[bufnr]
   -- :file / :saveas and the first :write can rename a buffer without
   -- changing its text. File-relative links and agenda locations must
@@ -32,14 +36,15 @@ function M.get_buffer(bufnr)
     and c.name == name
     and c.cwd == cwd
     and c.todo_spec == spec
+    and c.base == base
     and keywords.dependencies_valid(c.file.setup_dependencies)
   then
     return c.file
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local file = parser.parse(lines, name ~= "" and vim.fs.normalize(name) or nil)
+  local file = parser.parse(lines, name ~= "" and vim.fs.normalize(name) or nil, base)
   file.bufnr = bufnr
-  buf_cache[bufnr] = { tick = tick, name = name, cwd = cwd, file = file, todo_spec = spec }
+  buf_cache[bufnr] = { tick = tick, name = name, cwd = cwd, file = file, todo_spec = spec, base = base }
   return file
 end
 

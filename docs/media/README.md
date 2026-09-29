@@ -12,6 +12,8 @@ whenever the UI changes.
   something to show. It also defines `:Cap` and `:Do`, which show the key
   caption in the corner, and `:Do` presses keys that VHS can't send
   (`<S-Right>`, `<M-Up>`…). The tapes type them hidden, after `<C-g>`.
+- `demo/roam.lua`: `init.lua` with the org-roam extension on, for
+  `roam.tape`; it copies `demo/roam/*.org` into `$ORG_DEMO_DIR/roam`.
 
 ## Re-recording
 
@@ -29,6 +31,9 @@ Some tapes set extras in the environment (see the top of
 (from `$SNACKS_PATH`, else the lazy.nvim directory), `DEMO_SPEED=1` turns
 on speed keys, and `DEMO_NOTIFY=1` adds `demo/reminders.org`, whose
 entries `{{now+1}}` put a minute from now, for the reminders demo.
+
+`demo/present.lua` is `init.lua` with the `present` extension turned on,
+for `present.tape`.
 
 To try the demo setup by hand:
 

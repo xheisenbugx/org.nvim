@@ -966,6 +966,22 @@ the enabled ones. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
+- **`present`** ([org-present](https://github.com/rlister/org-present)):
+  `:Org present` shows the buffer as a slideshow, one top-level heading per
+  slide, in its own tab (`:h org-extensions-present`).
+
+  <p align="center"><img src="docs/media/present.gif" alt="Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file" width="800"></p>
+
+- **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam v2 notes in the same file format: find and insert
+  nodes (typing a new title creates one), a backlinks, reflinks and
+  unlinked references window, aliases, refs and tags, capture templates
+  with org-roam's `:target` forms, extracting and refiling subtrees, daily
+  notes, `roam-ref` / `roam-node` org-protocol handlers and a Graphviz node
+  graph, over a JSON index that updates incrementally
+  (`:h org-extensions-roam`).
+
+  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
+
 ---
 
 ## 🗺️ Roadmap

@@ -2477,11 +2477,14 @@ Template fields:
                      when the capture ends or is aborted
   time_prompt        ask for the date used by %t/%T/%u/%U and the datetree
   no_save            don't save the target file after capturing
+  allow_empty        finishing with no text still saves the target (by
+                     default an empty capture is refused)
   hook               function(capture_bufnr) run when the capture window
                      opens (not with immediate_finish)
   prepare_finalize   function(capture_bufnr), before the text is read
   before_finalize    function(bufnr, lnum) in the target, before saving
   after_finalize     function(bufnr, lnum) when the capture is done
+  on_abort           function(target_bufnr) when the capture is aborted
                      (every hook may also be a list of functions)
   unnarrowed         edit the text in the target file itself, showing the
                      whole file (|org-capture-unnarrowed|)
@@ -6975,6 +6978,8 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `actions`    `{ name = { module, fn, desc = ... } }`, as in `org.actions`
   `commands`   `:Org` subcommands taking arguments, as in `org.commands`
   `mappings`   default keys by section: `{ global = { name = lhs } }`
+  `groups`     which-key labels for key groups under `mappings.prefix`:
+               `{ { "m", "roam" } }`
   `setup`      `function(opts)`, called after the above are registered
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
   `teardown`   `function()`, undoes `setup` when a later `setup()` turns
@@ -7219,5 +7224,367 @@ which Emacs does not support; `face` is a highlight group or attribute
 table; `transformer` is a Lua function, and the agenda's highlights are
 kept only for text it keeps unchanged; `:pred` and `:auto-map` receive the
 agenda item (a Lua table), not the item's text.
+
+------------------------------------------------------------------------------
+Presentations (org-present)                           *org-extensions-present*
+
+`present` shows an org buffer as a slideshow, like Emacs org-present:
+>lua
+    require("org").setup({ extensions = { present = { width = 90 } } })
+<
+`:Org present [N]` (action `present_start`) opens the presentation in a new
+tab at the slide under the cursor, or at slide N. Every headline of level
+`slide_level` or less (default 1) starts a slide that runs to the next such
+headline, so deeper subtrees stay on their parent's slide. The lines before
+the first headline are a title slide when they show anything: the values of
+#+TITLE, #+SUBTITLE, #+AUTHOR, #+DATE and #+EMAIL, and any text.
+
+Slides are copies of the source lines in a scratch buffer, centered in a
+floating window `width` columns wide. Stars, emphasis markers and other
+`#+KEY:` lines are hidden, the headline gets a rule under it, deeper
+headlines are indented two columns per level, and the tab line, status
+line and ruler are turned off while the presentation's tab is shown. The
+source's in-buffer settings (#+TODO, #+TAGS, #+LINK, ...) apply to the
+slides, and image links are previewed when an image backend is available
+(|org-images|). The source buffer, its folds and window options are not
+touched; quitting closes the tab, restores the options and puts the cursor
+on the slide you were on. Closing the source buffer, or turning the
+extension off with a later `setup()`, ends the presentation.
+
+Keys in the slide buffer (actions after the arrow) ~
+  <Right>  n  <Space>      next slide           -> `present_next`
+  <Left>   p  <BS>         previous slide       -> `present_prev`
+  <C-c><   gg  <           first slide          -> `present_first`
+  <C-c>>   G   >           last slide           -> `present_last`
+  <C-c><C-1>  1            toggle one big page  -> `present_toggle_one_big_page`
+  <C-c><C-=>  +  =         bigger font          -> `present_big`
+  <C-c><C-->  -            reset the font       -> `present_small`
+  <C-c><C-q>  q  <Esc>     quit                 -> `present_quit`
+  <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
+
+The single-letter keys are only mapped while the slides are read-only.
+Change them with `keys` and `read_only_keys`. A key that starts a global
+mapping or your leader (`<Space>` with a space leader) waits for the rest
+of it; the others act at once. `<Tab>` and the other org
+keys work on the slide as in any org buffer.
+
+One big page ~
+`present_toggle_one_big_page` shows the whole file, with the same markup
+hidden, at the slide you were on (org-present-toggle-one-big-page; the
+counter reads `all 12`). Toggling again, or moving to the next or previous
+slide, goes back to slides from the slide under the cursor.
+
+Folded slides ~
+With `startup_folded = true` each slide shows only its headline at first
+(org-present-startup-folded); `<Tab>` unfolds it step by step like any
+subtree, to reveal a slide bit by bit.
+
+Font size ~
+`present_big` makes the terminal font `font_scale` points bigger (4 when
+`font_scale` is 0) and `present_small` resets it (org-present-big and
+org-present-small). With `font_scale` above 0 the font grows as the
+presentation starts and is reset when it ends. This works in kitty with
+remote control on (`allow_remote_control yes` and `listen_on` in
+kitty.conf), or anywhere with `font_command`, a function called with `"+N"`
+or `"0"`:
+>lua
+    font_command = function(delta)
+      vim.system({ "my-terminal-font", delta }) -- your terminal's own tool
+    end,
+<
+Editing ~
+Slides are read-only by default and the cursor is hidden (`hide_cursor`).
+With `<C-c><C-r>` (or `read_only = false`) the slide can be edited: edits
+are written back to the source buffer when you change slides, toggle back
+or quit (`:q` included), and `:w` in the slide buffer writes the source
+file. When the source was changed elsewhere meanwhile, the edits go to the
+slide the text came from; if that slide's first line is gone they are not
+written, and the slide's text is left in the unnamed register. So is
+a slide's unwritten text when the source buffer is closed.
+
+Hooks ~
+`on_start(state)`, `on_quit(state)` and `on_slide(n, state, heading)` are
+called as the presentation starts, ends and moves (org-present-mode-hook,
+org-present-mode-quit-hook, org-present-after-navigate-functions, which
+also gets the headline). The `User` autocmds `OrgPresentStart`,
+`OrgPresentQuit` and `OrgPresentSlide` fire at the same points with
+`data = { source, slide, total, heading }`.
+
+Options ~
+  `slide_level`            headline level that starts slides (1)
+  `title_slide`            show the preamble as a first slide (true)
+  `width`                  columns, or a fraction of the screen (80)
+  `padding_top`            blank lines above the slide (2)
+  `read_only`              start read-only (true)
+  `hide_cursor`            hide the cursor while read-only (true)
+  `hide_stars`             hide headline stars (true)
+  `indent_subheadings`     indent deeper headlines (true)
+  `hide_keywords`          hide `#+KEY:` lines and title keywords (true)
+  `hide_emphasis_markers`  hide `*` `/` `_` ... markers (true)
+  `heading_underline`      rule under the slide's headline (true)
+  `show_images`            preview image links (true)
+  `counter`                `3/12` in the window bar (true)
+  `startup_folded`         show only the headline at first (false)
+  `font_scale`             points to grow the font while presenting (0)
+  `font_command`           function changing the font, see above (nil)
+
+Highlights: `OrgPresentHeading`, `OrgPresentUnderline`, `OrgPresentTitle`,
+`OrgPresentAuthor`, `OrgPresentDate`, `OrgPresentCounter`.
+
+Differences from Emacs org-present ~
+  - The font size is the terminal's: it changes for the whole terminal
+    window, and only in kitty or through `font_command`. `present_small`
+    resets it to the terminal's configured size.
+  - The cursor is hidden with a blended 'guicursor' highlight, in Normal
+    and Visual mode only (the command line keeps its cursor): the TUI
+    hides the terminal cursor, and GUIs that ignore blending show it.
+  - `<C-c><C-r>` toggles editing; there is no separate `<C-c><C-w>`
+    (org-present-read-write).
+  - Slides are shown in their own tab rather than by narrowing the buffer,
+    so `:q` on a slide ends the presentation instead of closing the file.
+  - `#+begin_...` lines stay visible (org-present hides every `#+` line);
+    other `#+KEY:` lines are hidden entirely.
+
+------------------------------------------------------------------------------
+org-roam                                                *org-extensions-roam*
+
+A network of linked notes, modelled on Emacs org-roam v2. Every `.org` file
+under `directory` is indexed. A node is a file with a file-level `:ID:`
+property, or a headline with an `:ID:`; nodes link to each other with
+`id:` links. The file format is org-roam's, so a directory can be shared
+with Emacs.
+>lua
+    require("org").setup({
+      extensions = { roam = { directory = "~/org/roam" } },
+    })
+<
+A node's title is `#+title` (else its path relative to `directory`) or the
+headline text. Other properties it reads:
+
+  `ROAM_ALIASES`  more titles, e.g. `Alpha "The A"` (quote spaces)
+  `ROAM_REFS`     URLs and citation keys the node is about: `https://...`,
+                `@key`, `[cite:@key]`
+  `ROAM_EXCLUDE`  any value: the headline (or file) is not a node
+
+Tags are `#+filetags` for a file node, and a headline's tags (inherited
+too, see `use_tag_inheritance`) for a headline node.
+
+The index ~
+The index is a JSON file (`index_file`, by default in stdpath("data")) that
+holds every file's nodes, links and citations with its mtime. Each command
+that reads it first re-parses the files that changed, and with
+`update_on_save` a roam file is re-indexed when it is written (the JSON
+file itself is rewritten a second later, once for all the saves in
+between, and on exit). `:Org roam_db_sync` updates it by hand,
+`:Org roam_db_sync force` rebuilds it. As in org-roam, links in verbatim
+blocks, comment and fixed-width lines, `ROAM_REFS` and `#+transclude:` are
+not indexed. Node IDs are also added to the ID locations (|org-links|), so `id:`
+links into roam files work from anywhere.
+
+Commands ~
+Keys are under `<prefix>m`, because `<prefix>r` is refile (which-key labels
+the group "roam", and `<prefix>md` "roam dailies"). Global:
+
+  `<prefix>mf`  roam_node_find: find a node by title or alias and visit it.
+              The "+ New node" candidate (or `:Org roam_node_find Title`
+              for a missing title) creates one with a capture template.
+  `<prefix>mi`  roam_node_insert: insert `[[id:...][Title]]` at the cursor,
+              creating the node when it is new. In Visual mode the
+              selection is the default title and the description, and is
+              replaced by the link.
+  `<prefix>ml`  roam_buffer_toggle: toggle the backlinks window.
+  `<prefix>mc`  roam_capture: choose a node (or name a new one) and capture
+              into it with a template.
+  `<prefix>mr`  roam_node_random: visit a random node.
+  `<prefix>mg`  roam_graph: show the node graph (see below).
+
+In org buffers, acting on the node at point (the nearest headline with an
+ID, else the file):
+
+  `<prefix>ma`  roam_alias_add (and roam_alias_remove)
+  `<prefix>mR`  roam_ref_add (and roam_ref_remove)
+  `<prefix>mt`  roam_tag_add (and roam_tag_remove): `#+filetags` for a file
+              node, the headline's tags otherwise
+  `<prefix>mx`  roam_extract_subtree: move the subtree at point into a new
+              file (`extract_new_file_path`) whose properties, `#+title`
+              and `#+filetags` come from the headline
+  `<prefix>mw`  roam_refile: move the subtree (or Visual lines) under a
+              node, at the end of a file node or as the last child of a
+              headline node
+
+The `:Org` forms of these take the value as an argument, e.g.
+`:Org roam_alias_add The A`.
+
+Choosing a node ~
+`picker` sets how nodes are chosen:
+
+  "auto"    snacks.nvim's picker when it is loaded, else "select" (default)
+  "snacks"  fuzzy search; confirming a query that matches no node creates a
+            node with that title (like completing-read in Emacs)
+  "select"  |vim.ui.select()|, with a "+ New node" candidate that asks for
+            the title
+  "input"   type the title, <Tab> completes titles and aliases; a title
+            that is no node's creates one
+
+A Visual selection given to roam_node_insert is the starting query.
+
+Capture templates ~
+`capture_templates` are |org-capture-templates| whose `target` says where
+the node goes, as a file relative to `directory` with `head` (written into
+a new file), `olp` (headlines created when missing) and `datetree` fields,
+or as one of org-roam's `:target` forms:
+
+  `{ "file", path }`
+  `{ "file+head", path, head }`
+  `{ "file+olp", path, { "Heading", "Sub" } }`
+  `{ "file+head+olp", path, head, { "Heading", "Sub" } }`
+  `{ "file+datetree", path, tree_type }`  "day" (default), "week" or "month"
+  `{ "node", title_or_id }`  capture under an existing node
+
+The default:
+>lua
+    capture_templates = {
+      d = {
+        description = "default",
+        type = "plain",
+        template = "%?",
+        target = "%<%Y%m%d%H%M%S>-${slug}.org",
+        head = "#+title: ${title}\n",
+        unnarrowed = true,
+      },
+    },
+<
+`${title}`, `${slug}` (the title lower-cased, with `_` for anything but
+letters and digits), `${id}` and `${file}` come from the node; any other
+`${key}` or `${key=default}` is asked for once. `%` escapes work as in
+capture. The capture location (the file, the `olp` headline or the date
+tree entry) gets the node's `:ID:`. An aborted capture leaves no new file
+behind, and a node with no text beyond its head is stored.
+
+`roam:Title` links open the node with that title or alias, and create it
+when there is none (`roam_links`). With `link_auto_replace` (the default),
+saving a roam file and following such a link turn `roam:` links to
+existing nodes into `id:` links (outside verbatim blocks);
+`:Org roam_link_replace_all` does it by hand.
+
+The backlinks window ~
+`roam_buffer_toggle` opens a side window (`buffer.position`, `width`,
+`height`) listing the backlinks of the node at point (`id:` links to it)
+and its reflinks (links and citations to one of its `ROAM_REFS`), grouped
+by the node they come from, with the outline path and a few lines of
+context (`buffer.preview_lines`), links shown as their descriptions. Add
+"unlinked" to `buffer.sections` for unlinked references: whole-word
+mentions of the node's title or aliases, ignoring case, outside brackets
+and outside the node's own file. It follows the cursor. `<CR>` opens a
+link's location, `r` refreshes, `q` closes.
+
+org-protocol ~
+While the extension is on, two |org-protocol| sub-protocols are handled:
+
+  `org-protocol://roam-ref?template=r&ref=URL&title=TITLE&body=TEXT`
+        capture a note about a web page with `capture_ref_templates`; the
+        new node gets `ROAM_REFS: URL`, and a page that already is a
+        node's ref is captured into that node. `${ref}` and `${body}` fill
+        from the URL, and `%a`, `%:link`, `%i` work as in a capture.
+  `org-protocol://roam-node?node=ID`
+        visit the node with that ID.
+
+The bookmarklet from the org-roam manual works unchanged:
+>js
+    javascript:location.href='org-protocol://roam-ref?template=r&ref='
+      + encodeURIComponent(location.href) + '&title='
+      + encodeURIComponent(document.title) + '&body='
+      + encodeURIComponent(window.getSelection())
+<
+The graph ~
+`:Org roam_graph` (`<prefix>mg`) draws the nodes and the links between
+them with Graphviz (`graph.executable`, "dot") into `graph.filetype`
+("svg") and opens it with `graph.viewer` (default |vim.ui.open()|). With a
+count N (`:Org roam_graph N`) it shows only the nodes within N links of
+the node at point; `:Org roam_graph local` (or a count of 0) its whole
+connected component. Nodes link to `org-protocol://roam-node`, so with an
+org-protocol handler clicking one opens it. Without Graphviz the `.dot`
+file is written to stdpath("cache")/org. `graph.extra_config`,
+`edge_extra_config`, `node_extra_config`, `link_hidden_types`,
+`max_title_length`, `shorten_titles` and `link_builder` are as in
+org-roam-graph.
+
+Daily notes ~
+One file per day in `dailies.directory` (default "daily/" under
+`directory`), made from `dailies.capture_templates`:
+>lua
+    dailies = {
+      directory = "daily/",
+      capture_templates = {
+        d = {
+          description = "default",
+          type = "entry",
+          template = "* %?",
+          target = "%<%Y-%m-%d>.org",
+          head = "#+title: %<%Y-%m-%d>\n",
+        },
+      },
+    },
+<
+  `<prefix>mdt`  roam_dailies_goto_today (also _goto_yesterday and
+               _goto_tomorrow, `<prefix>mdy` and `<prefix>mdT`; a count
+               moves that many days)
+  `<prefix>mdd`  roam_dailies_goto_date: a date from the calendar or the
+               argument
+  `<prefix>mj`   roam_dailies_capture_today (also _capture_yesterday,
+               _capture_tomorrow and _capture_date)
+  `<prefix>mdn`  roam_dailies_goto_next_note (`<prefix>mdp` the previous)
+
+roam_dailies_find_directory opens the directory.
+
+Options ~
+  `directory`              notes directory ("~/org/roam")
+  `exclude`                Emacs regexps (or `function(relpath, path)`) of
+                         paths relative to `directory` that are not
+                         indexed ({ "data/" }); hidden files and
+                         directories are always skipped
+  `index_file`             the JSON index
+                         (stdpath("data")/org/roam-index.json)
+  `update_on_save`         re-index a roam file when it is written (true)
+  `picker`                 "auto", "snacks", "select" or "input" (see above)
+  `sort`                   candidates: "mtime" (recent files first),
+                         "title" or "none"
+  `display_olp`            show the outline path of headline nodes (false)
+  `node_display`           `function(node, name)` giving a candidate's text
+  `link_description`       `function(node, name)` giving an inserted link's
+                         description (default the chosen title or alias)
+  `capture_templates`      see above
+  `capture_ref_templates`  roam-ref captures (a "r" template making
+                         "${slug}.org" with `#+title: ${title}`)
+  `protocol_store_links`   also store a roam-ref page's link (false)
+  `extract_new_file_path`  "%<%Y%m%d%H%M%S>-${slug}.org"
+  `roam_links`             follow `roam:` links (true)
+  `link_auto_replace`      turn `roam:` links into `id:` links (true)
+  `buffer`                 { position, width, height, sections,
+                         preview_lines }
+  `dailies`                { directory, capture_templates }
+  `graph`                  see "The graph"
+
+Differences from Emacs org-roam ~
+  - The index is JSON, not SQLite, so there is no `org-roam-db-query` or
+    SQL; the Lua API (`require("org.extensions.roam.db")`: `nodes()`,
+    `node(id)`, `by_title()`, `by_ref()`, `backlinks()`, `reflinks()`,
+    `links()`) covers the lookups. Changes are found by file mtime, not
+    content hash.
+  - Two nodes with the same ID: the first file (in path order) keeps it,
+    and `:checkhealth org` lists the others (org-roam's database refuses
+    the second).
+  - Unlinked references are found without ripgrep, and the backlinks
+    window has no collapsible sections. org-roam-ui (a separate package)
+    is not included.
+  - With |vim.ui.select()| (`picker = "select"`) a new node is made with the
+    "+ New node" candidate, since that picker can't return typed text.
+  - Symlinked directories inside `directory` are not followed (symlinked
+    files are).
+  - Only `.org` files are indexed: there is no `org-roam-file-extensions`,
+    so encrypted `.org.gpg` notes are left out.
+  - Titles are not completed while typing text
+    (`org-roam-completion-everywhere`); `roam:` links complete through
+    |org-links| insertion.
 
  vim:tw=78:ts=8:ft=help:norl:

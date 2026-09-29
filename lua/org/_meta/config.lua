@@ -748,6 +748,8 @@
 ---@field ql? org.Config.Extensions.Ql|boolean
 ---org-super-agenda groups in agenda views (`:h org-extensions-super-agenda`).
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
+---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
+---@field present? org.Config.Extensions.Present|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.
@@ -819,6 +821,63 @@
 ---between headers; `false` for none.
 ---(default: `{ toggle = "<Tab>", next = "gj", prev = "gk" }`)
 ---@field header_keys? { toggle?: string|false, next?: string|false, prev?: string|false }|false
+
+---Options of the `present` extension (Emacs org-present).
+---@class org.Config.Extensions.Present
+---@field enabled? boolean
+---Headlines of this level or less start a slide. (default: `1`)
+---@field slide_level? integer
+---Show the lines before the first headline (#+TITLE, #+AUTHOR, ...) as a
+---first slide when they have anything to show. (default: `true`)
+---@field title_slide? boolean
+---Slide width in columns, or a fraction of the screen (0 < w <= 1); the
+---slide is centered. (default: `80`)
+---@field width? number
+---Blank lines above the slide. (default: `2`)
+---@field padding_top? integer
+---Start read-only; `present_toggle_read_only` switches to editing, and edits
+---are written back to the source buffer. (default: `true`)
+---@field read_only? boolean
+---Hide the cursor while read-only (org-present-hide-cursor). (default: `true`)
+---@field hide_cursor? boolean
+---Hide headline stars (org-present-hide-stars-in-headings). (default: `true`)
+---@field hide_stars? boolean
+---Hide `#+KEY:` lines other than TITLE, SUBTITLE, AUTHOR, DATE and EMAIL,
+---and the keyword part of those. (default: `true`)
+---@field hide_keywords? boolean
+---Hide emphasis markers on slides. (default: `true`)
+---@field hide_emphasis_markers? boolean
+---Draw a rule under the slide's headline. (default: `true`)
+---@field heading_underline? boolean
+---Preview image links when an image backend is available. (default: `true`)
+---@field show_images? boolean
+---Show `3/12` in the window bar. (default: `true`)
+---@field counter? boolean
+---Show only a slide's headline at first; <Tab> unfolds it
+---(org-present-startup-folded). (default: `false`)
+---@field startup_folded? boolean
+---Indent headlines below the slide's own headline by two columns per level.
+---(default: `true`)
+---@field indent_subheadings? boolean
+---Grow the terminal font by this many points while presenting
+---(org-present-text-scale); 0 leaves it alone. Needs kitty with remote
+---control, or `font_command`. (default: `0`)
+---@field font_scale? integer
+---Changes the terminal font: called with `"+N"` or `"0"` (reset).
+---@field font_command? fun(delta: string)
+---Keys always active in the slide buffer: `next`, `prev`, `first`, `last`,
+---`quit`, `toggle_read_only`, `toggle_one_big_page`, `big`, `small` -> lhs,
+---a list of lhs or `false`.
+---@field keys? table<string, string|string[]|false>
+---Keys active only while read-only (same names as `keys`).
+---@field read_only_keys? table<string, string|string[]|false>
+---Called with the presentation state when it starts (org-present-mode-hook).
+---@field on_start? fun(state: table)
+---Called when it ends (org-present-mode-quit-hook).
+---@field on_quit? fun(state: table)
+---Called with the slide number, the state and the slide's headline after
+---each move (org-present-after-navigate-functions).
+---@field on_slide? fun(n: integer, state: table, heading: string)
 
 ---org-mouse (`:h org-mouse`).
 ---@class org.Config.Mouse
