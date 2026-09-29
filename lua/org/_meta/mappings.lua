@@ -223,6 +223,7 @@
 ---| "table_follow_field_mode" # Toggle table follow-field mode
 ---| "table_formula" # Set column / field formula
 ---| "table_formula_debugger" # Toggle table formula debugger
+---| "table_goto_column" # Go to column N (count) of the table row
 ---| "table_header_line_mode" # Toggle table header-line mode
 ---| "table_import" # Import file as table
 ---| "table_insert_column" # Insert table column
@@ -242,6 +243,7 @@
 ---| "table_sum" # Sum column / rectangle
 ---| "table_toggle_column_width" # Shrink / expand table column
 ---| "table_transpose" # Transpose table
+---| "table_wrap_region" # Wrap the selected column like a paragraph / split the field
 ---| "tags_sparse_tree" # Tags / property match sparse tree
 ---| "timer_countdown" # Start countdown timer
 ---| "timer_insert" # Insert timer value

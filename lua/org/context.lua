@@ -216,7 +216,13 @@ function M.meta_return()
   local lnum, _, line = cur()
   local arg = prefix_arg()
   if in_table(line) and not arg then
-    require("org.table").insert_row(false)
+    -- org-table-wrap-region: split the field at the cursor (Insert mode)
+    -- or go to the field below
+    local split = false
+    if insert_mode then
+      split = nil -- meta_return_split_line decides
+    end
+    require("org.table").wrap_region({ split = split })
     return
   end
   local item = not arg and list_item(lnum) and not is_headline(line)

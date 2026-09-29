@@ -455,6 +455,13 @@ group("Tables", {
   table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
   table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
   table_el = { "org.table", "table_el", desc = "Convert table to/from table.el, or insert one" },
+  table_goto_column = { "org.table", "goto_column", desc = "Go to column N (count) of the table row" },
+  table_wrap_region = {
+    "org.table",
+    "wrap_region",
+    desc = "Wrap the selected column like a paragraph / split the field",
+    modes = { "n", "x" },
+  },
   orgtbl_mode = { "org.table.orgtbl", "toggle", desc = "Toggle orgtbl-mode", global = true },
   orgtbl_insert_radio_table = {
     "org.table.orgtbl",

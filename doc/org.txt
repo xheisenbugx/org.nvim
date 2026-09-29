@@ -163,7 +163,8 @@ stars alone is text, like in Emacs): >org
     ** Child headline
 <
                                                           *org-meta-return*
-<M-CR>          (ctx) Insert a new headline, list item or table row, then
+<M-CR>          (ctx) Insert a new headline or list item (in a table: split
+                the field, see |org-tables|), then
                 enter Insert mode, like org-meta-return:
                 - In Insert mode it acts at the cursor: at the start of a
                   headline the new one goes above it; in the title the
@@ -2688,6 +2689,20 @@ aligned.
 Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
               <CR>           same column in the next row
               <S-CR>         copy the field down (see below)
+              <M-CR>         move the text after the cursor to the start
+                             of the field below (org-table-wrap-region;
+                             `meta_return_split_line` false or per context
+                             `{ table = false }`: just go to that field)
+Like Emacs, <Tab> jumps over hlines (`table_tab_jumps_over_hlines = false`
+adds a row before them instead). <Tab>, <S-Tab>, <CR> and leaving Insert
+mode realign the table; with `table_automatic_realign = false` only adding
+a row and <C-c><C-c> do (org-table-automatic-realign). A `#` row is
+recalculated by <Tab> and <CR> unless
+`table_allow_automatic_line_recalculation` is false. The first character
+typed right after
+one of them replaces the field's text (`table_auto_blank_field`), and a
+character typed into a field ending with two or more spaces takes the place
+of one of them, so the table stays aligned.
 Normal mode:
   <C-c><C-c>      realign; in a row marked `#` recalculate that row; with a
                   count recalculate the table (4) or iterate it (16); on
@@ -2700,7 +2715,12 @@ Normal mode:
   <M-k/j>         move row up / down (also <M-Up/Down>)
   <M-H>/<M-L>     delete / insert column
   <M-K>/<M-J>     delete row / insert row above
-  <M-CR>          insert row below
+  <M-CR>          go to the same field in the row below (adding one
+                  before an hline or at the end); in Visual mode (and
+                  `:Org table_wrap_region`) wrap the text of the selected
+                  column like a paragraph into as many lines (a count:
+                  that many); with a count, append the field to the field
+                  above (org-table-wrap-region)
   <S-Up/Down/Left/Right>  swap the field with its neighbour
   <S-CR>          copy the field one row down and move there; in an empty
                   field, copy the nearest non-empty field above (count: the
@@ -2718,8 +2738,11 @@ Normal mode:
                   column in full; count 16: follow-field mode
   <C-c>{          toggle the formula debugger (|org-table-debugger|)
   <C-c>"a <C-c>"g ASCII bar plot / gnuplot plot (|org-plot|)
-  <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
-                  (Visual mode; count 4: comma, 16: tab, N: N+ spaces)
+  <prefix>Tc      create a table (`table_default_size`, "5x2"), or convert
+                  CSV/TSV/whitespace (Visual mode; count 4: comma, 16:
+                  tab, N: N+ spaces; at most
+                  `table_convert_region_max_lines` lines, also for
+                  table_import)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
   <prefix>Tf      recalculate the whole table
   <prefix>Ts      sort rows (<C-c>^, see below)
@@ -2738,6 +2761,8 @@ Normal mode:
                       offered matches the file extension, else
                       `table_export_default_format`)
   :Org table_iterate  :Org table_recalc_buffer (all tables, iterated)
+  :Org table_goto_column  go to field N (the count) of the row
+                      (org-table-goto-column)
 
 Inserting, deleting and moving rows and columns rewrites the references of
 every `#+TBLFM` line below the table like Emacs org-table-fix-formulas:
@@ -2754,13 +2779,19 @@ typed as Lua (`function(s) return #s end`) with an optional comparison
 function; the uppercase letters sort in reverse.
 
 Alignment: a column is right-aligned when at least `table_number_fraction`
-(0.5) of its fields are numbers. `<l>`, `<r>` and `<c>` cookies (`<r10>`
+(0.5) of its fields are numbers, i.e. match `table_number_regexp` (an Emacs
+regexp, matched ignoring case; the default is Emacs's).
+`#+STARTUP: align` (or `startup_align_all_tables`) aligns every table when
+the file is opened (`noalign` turns it off). `<l>`, `<r>` and `<c>` cookies (`<r10>`
 with a width) fix the alignment; cookie cells are aligned like the column.
 
 Type `=formula` in a field and press <Tab>, <CR> or <C-c><C-c>: it becomes
 the column formula of that column (`:=formula` a field formula for that
 field), is stored in `#+TBLFM` and the field is computed (<C-c>* updates
 the rest). `table_formula_evaluate_inline` turns this off.
+Like Emacs, a formula computed this way (or with <C-c>=) replaces `$name`
+names only with `table_formula_use_constants` (true); recalculating the
+table always does.
 
 <C-c>= reads the formula of the current column (count: of the current field,
 or its `^`/`_` name; count 16: put the active formula into the field as
@@ -2806,7 +2837,11 @@ Column formulas run on the rows below the first hline (all rows without
 one); when the first column holds marks (`! $ ^ _ # *`), only on rows
 marked `#` or `*`. Rows marked `! ^ _ $ /` are never changed. Formulas run
 row by row in the order of their sorted left sides, column formulas first,
-then field formulas. A column formula beyond the last column adds the
+then field formulas. A relative row reference (`@-1`, `@+2`) may cross an
+hline (`table_relative_ref_may_cross_hline`: false stops at the row next to
+the hline, "error" stops the recalculation). `table_formula_field_format`
+("%s") formats every result, e.g. "~%s~".
+A column formula beyond the last column adds the
 column; a field formula does so only with `table_formula_create_columns`
 (true, "warn" or "prompt"; false: an error).
 
@@ -2819,7 +2854,9 @@ formula is evaluated, so:
   binds tighter than unary minus (`-2^2` is -4); `2 3` and `2(3+1)`
   multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
-  Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`),
+  Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`);
+  `calc_default_modes` (org-calc-default-modes) changes the precision,
+  the float display, the angle mode ("deg"/"rad") and fractions,
   fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
   `4 mod 7`, `makemod(10, 7)`).
 - Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
@@ -2940,7 +2977,11 @@ too). Leaving the table ends the mode
 Header-line mode (`:Org table_header_line_mode`, or `table_header_line_p`
 for every buffer): while the first row of the table at the top of the window
 is scrolled out of view, it is shown in the 'winbar' (Emacs draws it over
-the first visible line).
+the first visible line). Turning the modes on or off fires the User
+autocmds `OrgTableFollowFieldMode` and `OrgTableHeaderLineMode`
+(org-table-follow-field-mode-hook, org-table-header-line-mode-hook), with
+`data = { enabled, bufnr }`; orgtbl-mode fires `OrgtblMode`
+(orgtbl-mode-hook).
 
                                             *org-table-translators* *orgtbl*
 Translators turn a table into another format (Emacs orgtbl-to-*):
@@ -3015,6 +3056,21 @@ table with gnuplot (`plot_gnuplot_program`, `plot_gnuplot_script_preamble`,
     #+PLOT: title:"Sales" ind:1 deps:(2 3) type:2d with:lines
     #+PLOT: file:"sales.png" set:"yrange [0:]" labels:("x" "a" "b")
 <
+More types can be defined in `plot_preset_plot_types`
+(org-plot/preset-plot-types): >lua
+    plot_preset_plot_types = {
+      bars = {
+        plot_cmd = "plot",
+        plot_pre = "set style fill solid", -- or a function
+        plot_func = function(rows, data_file, ncols, opts, plot_str)
+          return { ("'%s' using 1:%d with boxes"):format(data_file, ncols) }
+        end,
+        -- data_dump = function(rows, data_file, ncols, opts) return text end,
+        -- check_ind_type = true, plot_str = "...",
+      },
+    }
+<
+The lines `plot_func` returns are joined in order.
 Options: type (2d, 3d, grid, radar), title, ind, deps, with, file,
 labels, line, set, map, script (a gnuplot script; `$datafile` is
 replaced), timefmt, transpose, and for radar min, max and ticks. The
@@ -4395,6 +4451,7 @@ Priorities, tags, properties ~
   columns_modify_value_for_display_function  nil  function(title, value)
   columns_dblock_formatter  nil       function(rows, params) → lines
   columns_checkbox_allowed_values  { "[ ]", "[X]" }
+  columns_ellipses          ".."      end of truncated fields
 Tables ~
   table_formula_constants   {}        `$name` constants for formulas
   table_copy_increment      true      <S-CR> step: true (difference to the
@@ -4407,8 +4464,23 @@ Tables ~
   table_duration_hour_zero_padding  true  `01:30:00`
   table_formula_evaluate_inline true  `=formula` typed into a field
   table_number_fraction     0.5       numbers needed to right-align
+  table_number_regexp       (Emacs's) Emacs regexp of numbers
+  table_automatic_realign   true      realign on <Tab>, <CR>, leaving Insert
+  table_tab_jumps_over_hlines  true   false: <Tab> adds a row before hlines
+  table_auto_blank_field    true      typing after <Tab> replaces the field
+  table_allow_automatic_line_recalculation  true  `#` rows on <Tab>/<CR>
+  table_default_size        "5x2"     new table size
+  table_convert_region_max_lines  999 largest region converted
+  table_formula_field_format  "%s"    format of formula results
+  table_formula_use_constants  true   `$name` in C-c = / inline formulas
+  table_relative_ref_may_cross_hline  true  true|false|"error"
+  calc_default_modes        { internal_prec = 12, float_format =
+                              { "float", 8 }, angle_mode = "deg",
+                              prefer_frac = false }
+  orgtbl_optimized          true      orgtbl-mode typing keeps alignment
   table_shrunk_column_indicator "…"
   startup_shrink_all_tables false     shrink tables on open (#+STARTUP)
+  startup_align_all_tables  false     align tables on open (#+STARTUP)
   table_header_line_p       false     header-line mode in every buffer
   table_exit_follow_field_mode_when_leaving_table  true
   table_use_standard_references "from"  B3 references: "from"|true|false
@@ -4416,6 +4488,7 @@ Tables ~
   orgtbl_radio_table_templates  { tex, texinfo, html, org }
   plot_gnuplot_program      "gnuplot"
   plot_gnuplot_script_preamble ""     plot_gnuplot_term_extra ""
+  plot_preset_plot_types    {}        extra plot types (|org-plot|)
 Buffer ~
   startup_folded            "showeverything"  also "overview", "content",
                                       "showall", "show2levels".."show5levels"
@@ -5060,8 +5133,10 @@ Differences from Emacs:
   puts a border after every row (Emacs misses the one after the first).
   Exported HTML cells are always `align="left" valign="top"` (Emacs too,
   as the table is not recognized first).
-- <M-CR> in an Org table inserts a row instead of splitting the field
-  (org-table-wrap-region). Shrunk columns use conceal and virtual text (|org-table-shrink|), the
+- <M-CR> in an Org table splits the field only in Insert mode (in Normal
+  mode it goes to the field below, as with `meta_return_split_line =
+  false`), and wrapping a column acts on the Visual selection. Shrunk
+  columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
   needs gnuplot.el). Translators convert Org markup in cells with a
