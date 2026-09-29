@@ -209,6 +209,8 @@ function M.search(q, o)
       return
     end
     open_opts.restrict = { bufnr = buf }
+    -- the buffer searched, for `save_view` (the current one changes later)
+    block.files_spec = buf
   elseif spec ~= "agenda" then
     local list = {}
     for _, f in ipairs(M.files(spec)) do
@@ -330,10 +332,9 @@ function M.save_view_command(name)
     return
   end
   local files = b.files_spec
-  if type(files) == "number" or files == "buffer" then
+  if type(files) == "number" then
     -- a buffer search is saved with its file
-    local buf = type(files) == "number" and files or vim.fn.bufnr("#")
-    local fname = buf > 0 and vim.api.nvim_buf_get_name(buf) or ""
+    local fname = vim.api.nvim_buf_is_valid(files) and vim.api.nvim_buf_get_name(files) or ""
     files = fname ~= "" and { fname } or nil
   end
   M.save_view(vim.trim(name), {
