@@ -1090,8 +1090,21 @@ function M.cycle()
   local last = last_cycle_status(lnum)
   local hidden = all_hidden_after(lnum, hl.end_line)
   local children = hl.children
-  local skip = config.opts.cycle_skip_children_state_if_no_children ~= false
-  if hidden and (#children > 0 or not skip) then
+  -- cycle_include_plain_lists = "integrate": list items count as children
+  local integrate = config.opts.cycle_include_plain_lists == "integrate"
+  local body_lists = integrate and require("org.lists").parse_region(f.lines, hl.line + 1, hl.body_end) or {}
+  local has_children = #children > 0 or #body_lists > 0
+  if integrate and not has_children then
+    for l = hl.line + 1, hl.end_line do
+      if require("org.lists").parse_item_line(f.lines[l]) then
+        has_children = true
+        break
+      end
+    end
+  end
+  -- no children: skip the CHILDREN state (org-cycle-skip-children-state-if-no-children)
+  local skipped = hidden and not has_children and config.opts.cycle_skip_children_state_if_no_children ~= false
+  if hidden and not skipped then
     -- CHILDREN: the entry text and the child headlines, folded
     run_cycle_hook("OrgCyclePre", "children", lnum)
     if limit and hl.level >= limit then
@@ -1109,6 +1122,14 @@ function M.cycle()
       end
       M.unconceal(0, hl.line + 1, hl.end_line)
       open_items(hl.line + 1, hl.body_end)
+      -- "integrate": every list shows its top-level items, folded
+      for _, list in ipairs(body_lists) do
+        for _, it in ipairs(list.items) do
+          if it.end_lnum > it.lnum then
+            close_at(it.lnum)
+          end
+        end
+      end
       close_drawers(hl.line, hl.body_end)
     end
     refresh_ellipsis()
@@ -1121,9 +1142,8 @@ function M.cycle()
     vim.api.nvim_echo({ { "CHILDREN" } }, false, {})
     return
   end
-  if (hidden and #children == 0) or last == "children" then
+  if skipped or last == "children" then
     -- SUBTREE
-    local skipped = hidden and #children == 0
     run_cycle_hook("OrgCyclePre", "subtree", lnum)
     pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
     M.unconceal(0, hl.line + 1, hl.end_line)

@@ -270,6 +270,15 @@ group("Lists", {
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
   update_statistics = { "org.lists", "update_statistics", desc = "Update statistics cookies" },
   cycle_bullet = { "org.lists", "cycle_bullet", desc = "Cycle list bullet" },
+  reset_checkbox_state_subtree = {
+    "org.lists",
+    "reset_checkbox_state_subtree",
+    desc = "Uncheck every checkbox of the subtree",
+  },
+  beginning_of_item = { "org.lists", "beginning_of_item", desc = "Go to the start of the item" },
+  end_of_item = { "org.lists", "end_of_item", desc = "Go to the end of the item" },
+  beginning_of_item_list = { "org.lists", "beginning_of_item_list", desc = "Go to the first item of the list" },
+  end_of_item_list = { "org.lists", "end_of_item_list", desc = "Go to the end of the list" },
 })
 
 group("Clock & effort", {
@@ -476,6 +485,13 @@ group("Tables", {
   table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
   table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
   table_el = { "org.table", "table_el", desc = "Convert table to/from table.el, or insert one" },
+  table_goto_column = { "org.table", "goto_column", desc = "Go to column N (count) of the table row" },
+  table_wrap_region = {
+    "org.table",
+    "wrap_region",
+    desc = "Wrap the selected column like a paragraph / split the field",
+    modes = { "n", "x" },
+  },
   orgtbl_mode = { "org.table.orgtbl", "toggle", desc = "Toggle orgtbl-mode", global = true },
   orgtbl_insert_radio_table = {
     "org.table.orgtbl",

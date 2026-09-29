@@ -249,6 +249,41 @@
 ---Minimum fraction of numbers in a column for it to be right-aligned.
 ---(Emacs `org-table-number-fraction`, default: `0.5`)
 ---@field table_number_fraction? number
+---Emacs regexp of the cells that count as numbers for right alignment.
+---(Emacs `org-table-number-regexp`, default: Emacs's)
+---@field table_number_regexp? string
+---Realign the table on <Tab>, <S-Tab>, <CR> and when leaving Insert mode.
+---(Emacs `org-table-automatic-realign`, default: `true`)
+---@field table_automatic_realign? boolean
+---<Tab> jumps over an hline instead of adding a row before it.
+---(Emacs `org-table-tab-jumps-over-hlines`, default: `true`)
+---@field table_tab_jumps_over_hlines? boolean
+---Typing right after <Tab>, <S-Tab> or <CR> replaces the field's text.
+---(Emacs `org-table-auto-blank-field`, default: `true`)
+---@field table_auto_blank_field? boolean
+---Recalculate a `#` row on <Tab>, <CR> and C-c C-c.
+---(Emacs `org-table-allow-automatic-line-recalculation`, default: `true`)
+---@field table_allow_automatic_line_recalculation? boolean
+---Size of a new table, "COLUMNSxROWS". (Emacs `org-table-default-size`, default: `"5x2"`)
+---@field table_default_size? string
+---Largest region converted to a table.
+---(Emacs `org-table-convert-region-max-lines`, default: `999`)
+---@field table_convert_region_max_lines? integer
+---Format of formula results, `%s` being the value.
+---(Emacs `org-table-formula-field-format`, default: `"%s"`)
+---@field table_formula_field_format? string
+---Replace `$name` names in formulas computed by C-c = or typed inline.
+---(Emacs `org-table-formula-use-constants`, default: `true`)
+---@field table_formula_use_constants? boolean
+---Relative row references crossing an hline: `true`, `false` (stop at the
+---hline) or `"error"`. (Emacs `org-table-relative-ref-may-cross-hline`, default: `true`)
+---@field table_relative_ref_may_cross_hline? boolean|"error"
+---Calc modes of table formulas.
+---(Emacs `org-calc-default-modes`, default: `{ internal_prec = 12, float_format = { "float", 8 }, angle_mode = "deg", prefer_frac = false }`)
+---@field calc_default_modes? { internal_prec?: integer, float_format?: { [1]: "float"|"fix"|"sci"|"eng", [2]: integer }, angle_mode?: "deg"|"rad", prefer_frac?: boolean }
+---In orgtbl-mode, typing keeps the table aligned and auto-blanks fields.
+---(Emacs `orgtbl-optimized`, default: `true`)
+---@field orgtbl_optimized? boolean
 ---Text shown at the end of a shrunk column.
 ---(Emacs `org-table-shrunk-column-indicator`, default: `"…"`)
 ---@field table_shrunk_column_indicator? string
@@ -256,6 +291,9 @@
 ---opened; `#+STARTUP: shrink` / `noshrink` override it.
 ---(Emacs `org-startup-shrink-all-tables`, default: `false`)
 ---@field startup_shrink_all_tables? boolean
+---Align every table when a file is opened; `#+STARTUP: align` / `noalign`
+---override it. (Emacs `org-startup-align-all-tables`, default: `false`)
+---@field startup_align_all_tables? boolean
 ---Show the first row of a table in the winbar while it is scrolled out of
 ---view. (Emacs `org-table-header-line-p`, default: `false`)
 ---@field table_header_line_p? boolean
@@ -278,6 +316,9 @@
 ---Extra `set term` options, e.g. `"size 1050,650"`.
 ---(Emacs `org-plot/gnuplot-term-extra`, default: `""`)
 ---@field plot_gnuplot_term_extra? string
+---Extra (or replaced) `#+PLOT: type:NAME` plot types.
+---(Emacs `org-plot/preset-plot-types`, default: `{}`; 2d, 3d, grid and radar are built in)
+---@field plot_preset_plot_types? table<string, { plot_func?: fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[], plot_cmd?: string, plot_str?: string, plot_pre?: string|fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?, data_dump?: fun(rows: table, data_file: string, ncols: integer, opts: table): string?, check_ind_type?: boolean }>
 ---Radio table templates inserted by `orgtbl_insert_radio_table`, per
 ---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
 ---(Emacs `orgtbl-radio-table-templates`)
@@ -303,6 +344,9 @@
 ---Values <S-Right> cycles through in checkbox columns.
 ---(Emacs `org-columns-checkbox-allowed-values`, default: `{ "[ ]", "[X]" }`)
 ---@field columns_checkbox_allowed_values? string[]
+---Text ending a truncated column view field.
+---(Emacs `org-columns-ellipses`, default: `".."`)
+---@field columns_ellipses? string
 ---Property holding effort estimates.
 ---(Emacs `org-effort-property`, default: `"Effort"`)
 ---@field effort_property? string
@@ -376,9 +420,12 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
----TAB on a list item folds its children and text.
+---TAB on a list item folds its children and text; `"integrate"` also
+---treats list items as children of their headline when cycling it.
 ---(Emacs `org-cycle-include-plain-lists`, default: `true`)
----@field cycle_include_plain_lists? boolean
+---@field cycle_include_plain_lists? boolean|"integrate"
+---Plain list options (Emacs `org-list-*`).
+---@field lists? org.Config.Lists
 ---Where TAB outside headlines, items, drawers and blocks indents the line:
 ---`true` (everywhere), `"white"`, `"whitestart"`, `"exc-hl-bol"` or `false`
 ---(then it cycles the entry). (Emacs `org-cycle-emulate-tab`, default: `true`)
@@ -559,6 +606,34 @@
 ---@field ui? org.Config.UI
 ---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
 ---@field mappings? org.Config.Mappings
+
+---Plain lists.
+---@class org.Config.Lists
+---Single-letter bullets `a.`, `A)` and counters `[@c]`.
+---(Emacs `org-list-allow-alphabetical`, default: `false`)
+---@field allow_alphabetical? boolean
+---Ordered bullet terminators: `true` (both), `"."` or `")"`.
+---(Emacs `org-plain-list-ordered-item-terminator`, default: `true`)
+---@field ordered_item_terminator? true|"."|")"
+---Bullet given to demoted items, keyed by the old bullet type (`"-"`,
+---`"+"`, `"*"`, `"1."`, `"1)"`, `"a."`, `"A)"`...).
+---(Emacs `org-list-demote-modify-bullet`, default: `{}`)
+---@field demote_modify_bullet? table<string, string>
+---Emacs regexp matching bullets followed by two spaces.
+---(Emacs `org-list-two-spaces-after-bullet-regexp`, default: `nil`)
+---@field two_spaces_after_bullet_regexp? string
+---Extra indentation of sub-lists. (Emacs `org-list-indent-offset`, default: `0`)
+---@field indent_offset? integer
+---`checkbox`: update statistics after checkbox changes; `indent`: the first
+---item moves the whole list and `*` becomes `-` at column 0.
+---(Emacs `org-list-automatic-rules`, default: `{ checkbox = true, indent = true }`)
+---@field automatic_rules? { checkbox?: boolean, indent?: boolean }
+---Item motions and moves wrap around the list.
+---(Emacs `org-list-use-circular-motion`, default: `false`)
+---@field use_circular_motion? boolean
+---Checkbox cookies count direct children only; `false` counts every box.
+---(Emacs `org-checkbox-hierarchical-statistics`, default: `true`)
+---@field checkbox_hierarchical_statistics? boolean
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry

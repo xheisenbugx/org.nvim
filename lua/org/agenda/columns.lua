@@ -83,7 +83,7 @@ local function row_text(cells, widths)
   local parts = {}
   for i, v in ipairs(cells) do
     local w = widths[i]
-    local s = utils.truncate(v or "", w)
+    local s = require("org.columns").add_ellipses(v or "", w)
     s = utils.pad_right(s, w)
     parts[#parts + 1] = s .. (i == #cells and " |" or " | ")
   end

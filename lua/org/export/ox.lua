@@ -4044,7 +4044,8 @@ function export_as(backend, lines, opts)
     macro = expander,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
     inlinetask_min_level = c.inlinetask_min_level or 15,
-    alpha = require("org.config").opts.lists and require("org.config").opts.lists.allow_alphabetical or false,
+    alpha = require("org.lists").opt("allow_alphabetical"),
+    term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
   }
   local parser = element.new(popts)
   -- {{{property(NAME[,search])}}}: the headline being parsed, or a searched one
