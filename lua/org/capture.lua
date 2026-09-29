@@ -2646,6 +2646,8 @@ function M.capture(tpl_or_key, opts)
     if ttype == "entry" then
       lines = with_properties(lines, ctx.properties)
     end
+    -- Emacs finalizes immediate captures too: no capture buffer here
+    emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
     if dbuf then
       utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))

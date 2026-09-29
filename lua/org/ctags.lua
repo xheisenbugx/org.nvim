@@ -178,7 +178,9 @@ function M.visit_buffer_or_file(name, create)
     utils.notify(string.format("Opening existing org file %q...", filename))
     vim.cmd("edit " .. vim.fn.fnameescape(filename))
     return true
-  elseif create == true or (create == "ask" and utils.confirm(string.format("File `%s.org' not found; create?", name))) then
+  elseif
+    create == true or (create == "ask" and utils.confirm(string.format("File `%s.org' not found; create?", name)))
+  then
     M.open_file(filename, name)
     return true
   end

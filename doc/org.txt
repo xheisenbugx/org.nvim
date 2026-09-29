@@ -2134,6 +2134,8 @@ Besides the templates' `prepare_finalize`, `before_finalize` and
 `after_finalize` functions, every capture fires User autocmds, after the
 template's function, like Emacs's global hooks:
   OrgCapturePrepareFinalize  capture buffer still open; data `{ buf }`
+                             (`{ immediate = true }` for `immediate_finish`
+                             templates, which have no capture buffer)
                              (org-capture-prepare-finalize-hook)
   OrgCaptureBeforeFinalize   entry stored, target not yet saved; data
                              `{ bufnr, line }`
@@ -5370,6 +5372,23 @@ Differences from Emacs:
     characters are used when they exist, else a highlight.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
+- Capture, clock, archive and other commands (parity round 5):
+  - The global capture hooks are User autocmds (|org-capture-hooks|); the
+    template functions are not called on abort as Emacs does, only the
+    events fire (with `aborted = true`).
+  - `datetree_cleanup` skips SCHEDULED/DEADLINE time stamps: Emacs's
+    check for them never matches (`\<DEADLINE:\>`), so it files entries by
+    their planning dates and leaves emptied day nodes behind.
+  - `protocol_create` adds the project for the session and shows the Lua
+    to put in `setup()`; Emacs saves it with Customize.
+  - org-ctags reads Vim `tags` files through the 'tags' option instead of
+    Emacs `TAGS` files; `ctags.enabled` replaces org-ctags-enable.
+  - Files cut in a file manager and pasted with `yank_media` are moved,
+    copied ones copied (Emacs swaps the two). A drop is a paste of file
+    paths in the terminal (`yank.dnd_paste`); attaching a dropped file uses
+    `yank.dnd_default_attach_method` (Emacs's `private` DND action).
+  - `attach_from_file_manager` works in netrw and oil.nvim buffers (Emacs:
+    org-attach-dired-to-subtree in Dired).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't

@@ -706,8 +706,10 @@ function M.renumber(bufnr)
 end
 
 local function paragraph_line(l)
-  return l ~= nil and l:match("%S") and not l:match("^%*+%s") and not l:match("^%s*#%+") and not l:match("^%s*|")
-    and not l:match("^%s*:%S*:%s*$")
+  if l == nil or not l:match("%S") or l:match("^%*+%s") or l:match("^%s*#%+") or l:match("^%s*|") then
+    return false
+  end
+  return not l:match("^%s*:%S*:%s*$")
 end
 
 --- Fill the paragraph around `lnum` of `lines` in place, like

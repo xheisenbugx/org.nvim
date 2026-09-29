@@ -42,22 +42,26 @@ end
 function M.clipboard()
   if vim.env.WAYLAND_DISPLAY and vim.fn.executable("wl-paste") == 1 then
     local out = run({ "wl-paste", "--list-types" })
-    return out
-      and {
-        types = vim.split(out, "\n", { trimempty = true }),
-        read = function(mime)
-          return run({ "wl-paste", "--no-newline", "--type", mime })
-        end,
-      }
+    if not out then
+      return nil
+    end
+    return {
+      types = vim.split(out, "\n", { trimempty = true }),
+      read = function(mime)
+        return run({ "wl-paste", "--no-newline", "--type", mime })
+      end,
+    }
   elseif vim.env.DISPLAY and vim.fn.executable("xclip") == 1 then
     local out = run({ "xclip", "-selection", "clipboard", "-t", "TARGETS", "-o" })
-    return out
-      and {
-        types = vim.split(out, "\n", { trimempty = true }),
-        read = function(mime)
-          return run({ "xclip", "-selection", "clipboard", "-t", mime, "-o" })
-        end,
-      }
+    if not out then
+      return nil
+    end
+    return {
+      types = vim.split(out, "\n", { trimempty = true }),
+      read = function(mime)
+        return run({ "xclip", "-selection", "clipboard", "-t", mime, "-o" })
+      end,
+    }
   elseif vim.fn.has("mac") == 1 and vim.fn.executable("osascript") == 1 then
     local info = run({ "osascript", "-e", "clipboard info" }) or ""
     local types = {}
