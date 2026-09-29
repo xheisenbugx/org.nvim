@@ -1194,19 +1194,15 @@ local function exp_code_fields(lang, body, switches, params, name, args)
   if var then
     fields.var = string.format("(%s . %s)", var.name, lisp_repr(var.value or ""))
   end
-  if args and args.results_spec then
-    local words = {}
-    for _, w in pairs(args.results_spec) do
-      words[#words + 1] = w
-    end
-    table.sort(words)
-    vim.list_extend(words, args.results_extra or {})
-    fields.results = lisp_repr(table.concat(words, " "))
+  if args and args.results_order then
+    -- the words as org-babel-merge-params orders them (no implied "value")
+    fields.results = lisp_repr(table.concat(args.results_order, " "))
   end
   fields.lang = lang or ""
   fields.body = body
   fields.switches = (switches and vim.trim(switches) ~= "") and (" " .. vim.trim(switches)) or ""
-  fields.flags = args and args.flags and (" " .. args.flags) or nil
+  -- a missing field of org-fill-template's alist is filled with ""
+  fields.flags = args and args.flags and (" " .. args.flags) or ""
   fields["header-args"] = (params and vim.trim(params) ~= "") and (" " .. vim.trim(params)) or ""
   fields.name = name or ""
   return fields

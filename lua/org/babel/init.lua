@@ -1475,7 +1475,13 @@ end
 -- :cache hashes (org-babel-sha1-hash)
 ---------------------------------------------------------------------------
 
-local HASH_SKIP = { vars = true, results_spec = true, results_extra = true, default_collection = true }
+local HASH_SKIP = {
+  vars = true,
+  results_spec = true,
+  results_extra = true,
+  results_order = true,
+  default_collection = true,
+}
 local HANDLING = { replace = true, silent = true, none = true, discard = true, append = true, prepend = true }
 
 --- `(name . value)` printed like Emacs.

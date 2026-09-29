@@ -168,6 +168,36 @@ describe("babel options", function()
     )
   end)
 
+  -- Emacs 9.8.10 (org-babel-exp-process-buffer with these templates): a
+  -- block without :flags gets "" for %flags, a field that isn't a header
+  -- stays literal, and %results lists the words in org-babel-merge-params'
+  -- order without an implied "value".
+  it("exp_code_template %flags and %results like org-babel-exp-code", function()
+    config.opts.babel.exp_code_template =
+      "#+begin_src %lang :flags %flags R=%results E=%exports X=%nosuch\n%body\n#+end_src"
+    config.opts.babel.exp_inline_code_template = "src_%lang[%switches%flags]{%body} R=%results"
+    local function exp(block)
+      return ox.babel_process(vim.split(block, "\n", { plain = true }), {})
+    end
+    local cases = {
+      { "#+begin_src sh", 'R="replace"' },
+      { "#+begin_src sh :results output", 'R="output replace"' },
+      { "#+begin_src sh :results output silent :exports code", 'R="silent output"' },
+    }
+    for _, c in ipairs(cases) do
+      eq(
+        { "#+begin_src sh :flags  " .. c[2] .. ' E="code" X=%nosuch', "echo hi", "#+end_src" },
+        exp(c[1] .. "\necho hi\n#+end_src")
+      )
+    end
+    eq(
+      { '#+begin_src sh :flags  -r R="replace" E="code" X=%nosuch', "echo hi", "#+end_src" },
+      exp("#+begin_src sh -n :flags -r\necho hi\n#+end_src")
+    )
+    eq({ 'Text src_sh[]{echo hi} R="raw replace" end' }, exp("Text src_sh[:results raw :exports code]{echo hi} end"))
+    eq({ 'Text src_sh[]{echo hi} R="replace" end' }, exp("Text src_sh[:exports code]{echo hi} end"))
+  end)
+
   it("exp_call_line_template replaces #+CALL lines and call_ objects", function()
     config.opts.babel.exp_call_line_template = "\n: call: %line"
     eq(
