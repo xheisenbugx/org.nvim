@@ -939,6 +939,8 @@ the enabled ones. See `:h org-extensions`.
 | --- | --- | --- |
 | `present` | org-present | `:Org present` shows the buffer as a slideshow, one top-level heading per slide, in its own tab ([`:h org-extensions-present`](doc/org.txt)) |
 
+<p align="center"><img src="docs/media/present.gif" alt="Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file" width="800"></p>
+
 ---
 
 ## 🗺️ Roadmap
