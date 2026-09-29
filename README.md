@@ -936,9 +936,14 @@ require("org").setup({
 the enabled ones. See `:h org-extensions`.
 
 - **roam**: org-roam v2 notes in the same file format: find and insert
-  nodes, a backlinks and reflinks window, aliases, refs and tags, capture
-  templates, extracting and refiling subtrees, and daily notes, over a
-  JSON index that updates incrementally (`:h org-extensions-roam`).
+  nodes (typing a new title creates one), a backlinks, reflinks and
+  unlinked references window, aliases, refs and tags, capture templates
+  with org-roam's `:target` forms, extracting and refiling subtrees, daily
+  notes, `roam-ref` / `roam-node` org-protocol handlers and a Graphviz node
+  graph, over a JSON index that updates incrementally
+  (`:h org-extensions-roam`).
+
+  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
 
 ---
 

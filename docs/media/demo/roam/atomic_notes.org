@@ -1,0 +1,9 @@
+:PROPERTIES:
+:ID:       9a41e2b0-atomic
+:END:
+#+title: Atomic notes
+#+filetags: :method:
+
+One idea per note, so a note can be linked from anywhere. Part of the
+[[id:7d2c1f60-zettel][Zettelkasten]] method; spaced repetition works the
+same way.

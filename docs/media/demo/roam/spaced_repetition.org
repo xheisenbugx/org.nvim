@@ -1,0 +1,8 @@
+:PROPERTIES:
+:ID:       51be7f0c-spaced
+:END:
+#+title: Spaced repetition
+#+filetags: :learning:
+
+Review a note just before you would forget it. Pairs well with
+[[id:9a41e2b0-atomic][atomic notes]]; I keep the deck in Neovim.
