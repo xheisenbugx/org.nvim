@@ -459,6 +459,9 @@ M.defaults = {
     --- false | true | "future" | "past" | days (org-agenda-todo-ignore-timestamp).
     todo_ignore_timestamp = false,
     todo_ignore_with_date = false, -- org-agenda-todo-ignore-with-date
+    --- The todo_ignore_* options compare times to now in seconds, not in
+    --- days (org-agenda-todo-ignore-time-comparison-use-seconds).
+    todo_ignore_time_comparison_use_seconds = false,
     --- Apply the todo_ignore_* options to tags-todo (M) views too
     --- (org-agenda-tags-todo-honor-ignore-options).
     tags_todo_honor_ignore_options = false,

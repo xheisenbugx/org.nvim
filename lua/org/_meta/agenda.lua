@@ -149,6 +149,9 @@
 ---Hide entries with any active date from TODO lists
 ---(org-agenda-todo-ignore-with-date). (default: `false`)
 ---@field todo_ignore_with_date? boolean
+---The todo_ignore_* options compare times to now in seconds
+---(org-agenda-todo-ignore-time-comparison-use-seconds). (default: `false`)
+---@field todo_ignore_time_comparison_use_seconds? boolean
 ---Apply the todo_ignore_* options to tags-todo views
 ---(org-agenda-tags-todo-honor-ignore-options). (default: `false`)
 ---@field tags_todo_honor_ignore_options? boolean

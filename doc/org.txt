@@ -1676,7 +1676,9 @@ in org buffers, `{ "p", "r", { rules } }` runs the command of `r` under
 TODO lists: `todo_ignore_scheduled` ("all", "future", "past" or days),
 `todo_ignore_deadlines` (true = "near": within the warning period, "far",
 "all", "future", "past" or days), `todo_ignore_timestamp`,
-`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*);
+`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*;
+they compare dates in days, or with the current time in seconds with
+`todo_ignore_time_comparison_use_seconds`);
 tags-todo (M) views honour them only with
 `tags_todo_honor_ignore_options`. `todo_list_sublevels = false` skips the
 children of a listed TODO; `tags_match_list_sublevels = false` those of a

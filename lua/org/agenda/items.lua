@@ -1223,6 +1223,16 @@ end
 --- org-agenda-check-for-timestamp-as-reason-to-ignore-todo-item
 local function ignored_by_date(hl, acfg, today)
   local s, dl = hl.planning.scheduled, hl.planning.deadline
+  -- org-timestamp-to-now: days, or seconds with
+  -- org-agenda-todo-ignore-time-comparison-use-seconds
+  local seconds = acfg.todo_ignore_time_comparison_use_seconds
+  local now = os.time()
+  local function to_now(d)
+    if seconds then
+      return d:to_time() - now
+    end
+    return d:days() - today
+  end
   local iw = acfg.todo_ignore_with_date
   if iw then
     if (s and s.active) or (dl and dl.active) or #hl.timestamps > 0 then
@@ -1231,7 +1241,7 @@ local function ignored_by_date(hl, acfg, today)
   end
   local is = acfg.todo_ignore_scheduled
   if is and s then
-    local diff = s:days() - today
+    local diff = to_now(s)
     if is == "future" then
       if diff > 0 then
         return true
@@ -1250,9 +1260,10 @@ local function ignored_by_date(hl, acfg, today)
   end
   local id = acfg.todo_ignore_deadlines
   if id and dl then
-    local diff = dl:days() - today
+    local diff = to_now(dl)
     local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
-    local close = diff <= date.warning_days(dl, wdays) and not hl:is_done()
+    -- org-deadline-close-p always compares days
+    local close = dl:days() - today <= date.warning_days(dl, wdays) and not hl:is_done()
     if id == "all" then
       return true
     elseif id == "far" then
@@ -1278,7 +1289,7 @@ local function ignored_by_date(hl, acfg, today)
   end
   local it = acfg.todo_ignore_timestamp
   if it and hl.timestamps[1] then
-    local diff = hl.timestamps[1].date:days() - today
+    local diff = to_now(hl.timestamps[1].date)
     if it == "future" then
       return diff > 0
     elseif it == "past" then

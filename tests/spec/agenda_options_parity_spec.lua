@@ -666,6 +666,31 @@ describe("query register", function()
   end)
 end)
 
+describe("todo_ignore_time_comparison_use_seconds", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10, org-agenda-todo-ignore-scheduled 'future: "TODO Late
+  -- today" (scheduled today 23:59) is listed when comparing days and
+  -- hidden when comparing seconds.
+  it("compares with the current time", function()
+    if os.date("%H:%M") >= "23:58" then
+      return
+    end
+    local lines = { "* TODO Late today", "  SCHEDULED: " .. ts(0, "23:59"), "* TODO Other" }
+    open(lines, { agenda = { todo_ignore_scheduled = "future" } }, { type = "todo" })
+    eq({ "  skip:       TODO Late today", "  skip:       TODO Other" }, item_lines())
+    view.quit(true)
+    open(
+      lines,
+      { agenda = { todo_ignore_scheduled = "future", todo_ignore_time_comparison_use_seconds = true } },
+      { type = "todo" }
+    )
+    eq({ "  skip:       TODO Other" }, item_lines())
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()
