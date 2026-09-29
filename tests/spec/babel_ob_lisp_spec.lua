@@ -27,7 +27,7 @@ describe("babel ob-lisp", function()
       "  (+ 1 2)",
       "#+end_src",
       "",
-      "#+begin_src lisp :var x=1 l='(1 \"a\") :prologue \";; pro\" :epilogue \";; epi\"",
+      '#+begin_src lisp :var x=1 l=\'(1 "a") :prologue ";; pro" :epilogue ";; epi"',
       "(list x l)",
       "#+end_src",
       "",
@@ -37,10 +37,7 @@ describe("babel ob-lisp", function()
     }
     -- Emacs 9.8.10
     eq("(+ 1 2)", h.expand(lines, 1))
-    eq(
-      "(cl:let ((x (cl:quote 1))\n      (l (cl:quote (1 \"a\"))))\n;; pro\n(list x l)\n;; epi\n)",
-      h.expand(lines, 2)
-    )
+    eq('(cl:let ((x (cl:quote 1))\n      (l (cl:quote (1 "a"))))\n;; pro\n(list x l)\n;; epi\n)', h.expand(lines, 2))
     eq("(cl:pprint (list 1 2))", h.expand(lines, 3))
   end)
 
@@ -49,7 +46,7 @@ describe("babel ob-lisp", function()
     h.set_lang("lisp", { cmd = h.fake(dir, "sbcl", FAKE_SBCL) })
     local out = h.run({
       "#+begin_src lisp :package my-pkg",
-      "(values (vector 1 2) \"s\")",
+      '(values (vector 1 2) "s")',
       "#+end_src",
       "",
       "#+begin_src lisp :results output",
@@ -64,7 +61,7 @@ describe("babel ob-lisp", function()
       .. dir
       .. '/\\"\n)) (princ \\"printed\\")\n)"))'
     ok(w:find(form, 1, true))
-    ok(w:find('~{~S~^~%~}', 1, true))
+    ok(w:find("~{~S~^~%~}", 1, true))
   end)
 end)
 
@@ -79,7 +76,7 @@ describe("babel ob-scheme", function()
     eq(
       ";; pro\n(define x '1)\n(define l '(1 \"a\"))\n(list x l)\n;; epi",
       h.expand({
-        "#+begin_src scheme :var x=1 l='(1 \"a\") :prologue \";; pro\" :epilogue \";; epi\"",
+        '#+begin_src scheme :var x=1 l=\'(1 "a") :prologue ";; pro" :epilogue ";; epi"',
         "(list x l)",
         "#+end_src",
       })

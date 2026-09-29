@@ -395,17 +395,26 @@ describe("ol-bibtex", function()
     it("generates keys like bibtex-generate-autokey", function()
       eq(
         "doe20:_big_title_every_else_here_now",
-        key("@article{x,\n  author={Doe, John and Roe, Jane},\n  title={The {Big} Title of Everything Else Here Now},\n  year={2020}\n}\n")
+        key(
+          "@article{x,\n  author={Doe, John and Roe, Jane},\n  title={The {Big} Title of Everything Else Here Now},\n  year={2020}\n}\n"
+        )
       )
-      eq("mueller99:_ueber_graph", key('@article{x,\n  author={M\\"uller, Hans},\n  title={\\"Uber Graphs: a study},\n  year={1999}\n}\n'))
+      eq(
+        "mueller99:_ueber_graph",
+        key('@article{x,\n  author={M\\"uller, Hans},\n  title={\\"Uber Graphs: a study},\n  year={1999}\n}\n')
+      )
       eq(
         "fontaine84:_fables",
-        key("@book{x,\n  editor={Jean de la Fontaine and Bob Smith and Carl Jones},\n  title={Fables},\n  year={(about 1984)}\n}\n")
+        key(
+          "@book{x,\n  editor={Jean de la Fontaine and Bob Smith and Carl Jones},\n  title={Fables},\n  year={(about 1984)}\n}\n"
+        )
       )
       eq("ERR Year or date field `' invalid", key("@misc{x,\n  title={No Year}\n}\n"))
       eq(
         "knuth74:_struc_progr_statem",
-        key("@misc{x,\n  author={Knuth, Donald E.},\n  title={Structured Programming with go to Statements},\n  year={1974}\n}\n")
+        key(
+          "@misc{x,\n  author={Knuth, Donald E.},\n  title={Structured Programming with go to Statements},\n  year={1974}\n}\n"
+        )
       )
       eq("author01:_short", key("@misc{x,\n  author={A. Author},\n  title={Short},\n  year={2001}\n}\n"))
     end)

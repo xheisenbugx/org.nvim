@@ -118,9 +118,7 @@ function M.confirm(uri, file)
     lines[#lines + 1] = " d to download this resource, and mark the domain (" .. domain .. ") as safe."
   end
   if current then
-    lines[#lines + 1] = " f to download this resource, and permanently mark all resources in "
-      .. current
-      .. " as safe."
+    lines[#lines + 1] = " f to download this resource, and permanently mark all resources in " .. current .. " as safe."
   end
   lines[#lines + 1] = " y to download this resource, just this once."
   lines[#lines + 1] = " n to skip this resource."

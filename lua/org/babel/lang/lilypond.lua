@@ -72,12 +72,9 @@ local function process_basic(body, args)
   local file_type = out_file:match("%.([^./]+)$") or ""
   local cmdline = ob.unq(args.cmdline) or ""
   local in_file = ob.temp()
-  ob.write(
-    in_file,
-    M.PAPER_SETTINGS:gsub("%%s", function()
-      return file_type
-    end) .. ob.expand_generic(type(body) == "table" and body or { body }, args, {})
-  )
+  ob.write(in_file, M.PAPER_SETTINGS:gsub("%%s", function()
+    return file_type
+  end) .. ob.expand_generic(type(body) == "table" and body or { body }, args, {}))
   local kind = ({ pdf = "--pdf ", eps = "--eps " })[file_type] or "--png "
   local cmd = M.commands()[1]
     .. " -dbackend=eps "

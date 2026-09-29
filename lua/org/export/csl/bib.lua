@@ -187,14 +187,14 @@ function M.parse_bibtex(content, strings)
     while pos <= n do
       local q = content:find('"', pos, true)
       if not q then
-        error("Opening \" has no closing \"", 0)
+        error('Opening " has no closing "', 0)
       end
       pos = q + 1
       if content:sub(q - 1, q - 1) ~= "\\" then
         return content:sub(start, q)
       end
     end
-    error("Opening \" has no closing \"", 0)
+    error('Opening " has no closing "', 0)
   end
 
   local function value()
@@ -207,7 +207,7 @@ function M.parse_bibtex(content, strings)
     end
     local id = content:match(IDENT, pos)
     if not id then
-      error("Expected {, \" or identifier", 0)
+      error('Expected {, " or identifier', 0)
     end
     pos = pos + #id
     return id
@@ -492,7 +492,8 @@ local COMM_LETTER = {
   vZ = "Ž",
 }
 
-local TO_UCS = { l = "ł", L = "Ł", o = "ø", O = "Ø", AA = "Å", aa = "å", AE = "Æ", ae = "æ", ss = "ß", i = "ı" }
+local TO_UCS =
+  { l = "ł", L = "Ł", o = "ø", O = "Ø", AA = "Å", aa = "å", AE = "Æ", ae = "æ", ss = "ß", i = "ı" }
 
 local DECODE_RE = table.concat({
   "{\\\\\\(?1:['`^~=.\"]\\)[[:space:]]*\\(?2:[[:alpha:]]\\)}",
@@ -738,13 +739,21 @@ function M.to_csl_names(n)
   return out
 end
 
-local MONTHS = { jan = 1, feb = 2, mar = 3, apr = 4, may = 5, jun = 6, jul = 7, aug = 8, sep = 9, oct = 10, nov = 11, dec = 12 }
+local MONTHS =
+  { jan = 1, feb = 2, mar = 3, apr = 4, may = 5, jun = 6, jul = 7, aug = 8, sep = 9, oct = 10, nov = 11, dec = 12 }
 
 --- citeproc-bt--to-csl-date
 function M.bt_to_csl_date(year, month)
   local m = R.match("[[:digit:]]+", year or "")
   if not m then
-    error(string.format("Couldn't parse year: '%s'%s as a date", tostring(year), month and (" and month: '" .. month .. "'") or ""), 0)
+    error(
+      string.format(
+        "Couldn't parse year: '%s'%s as a date",
+        tostring(year),
+        month and (" and month: '" .. month .. "'") or ""
+      ),
+      0
+    )
   end
   local y = U.to_number(m[0])
   local mo = month and MONTHS[U.downcase(month)]
@@ -905,7 +914,8 @@ local STANDARD_ALIST = {
   { "keywords", "keyword" },
   { "label", "citation-label" },
 }
-local TITLE_ALIST = { { "eventtitle", "event-title" }, { "origtitle", "original-title" }, { "series", "collection-title" } }
+local TITLE_ALIST =
+  { { "eventtitle", "event-title" }, { "origtitle", "original-title" }, { "series", "collection-title" } }
 
 local TITLECASE_LANGIDS = U.set({
   "american",
@@ -1136,7 +1146,8 @@ function M.blt_entry_to_csl(entry, omit_nocase, no_sentcase_wo_langid)
   else
     title = get_title("title")
   end
-  local subtitle = get_title(is_periodical and "issuesubtitle" or ((maintitle and not is_chapter) and "mainsubtitle" or "subtitle"))
+  local subtitle =
+    get_title(is_periodical and "issuesubtitle" or ((maintitle and not is_chapter) and "mainsubtitle" or "subtitle"))
   local title_addon = get_title((maintitle and not is_chapter) and "maintitleaddon" or "titleaddon")
   local volume_title = maintitle and get_title(is_chapter and "booktitle" or "title")
   local volume_subtitle = maintitle and get_title(is_chapter and "booksubtitle" or "subtitle")
@@ -1153,7 +1164,8 @@ function M.blt_entry_to_csl(entry, omit_nocase, no_sentcase_wo_langid)
   local container_title_addon = (is_periodical and get_title("titleaddon"))
     or (is_chapter and get_title("maintitleaddon"))
     or (is_chapter and get_title("booktitleaddon"))
-  local container_title_short = (is_periodical and not maintitle and get_title("titleaddon")) or get_title("shortjournal")
+  local container_title_short = (is_periodical and not maintitle and get_title("titleaddon"))
+    or get_title("shortjournal")
   local title_short = ((not maintitle or is_chapter) and get_title("shorttitle"))
     or ((subtitle or title_addon) and not maintitle and title)
   if title then
@@ -1165,7 +1177,9 @@ function M.blt_entry_to_csl(entry, omit_nocase, no_sentcase_wo_langid)
   if volume_title then
     push(
       "volume-title",
-      volume_title .. (volume_subtitle and (": " .. volume_subtitle) or "") .. (volume_title_addon and (". " .. volume_title_addon) or "")
+      volume_title
+        .. (volume_subtitle and (": " .. volume_subtitle) or "")
+        .. (volume_title_addon and (". " .. volume_title_addon) or "")
     )
   end
   if container_title then
@@ -1282,7 +1296,10 @@ function M.itemgetter_from_any(files, no_sentcase_wo_langid)
   bt_entries:each(function(key, entry)
     local ok, res = pcall(M.blt_entry_to_csl, entry, nil, no_sentcase_wo_langid)
     if not ok then
-      error(string.format("Couldn't parse the bib(la)tex entry with key '%s', the error was: %s", key, tostring(res)), 0)
+      error(
+        string.format("Couldn't parse the bib(la)tex entry with key '%s', the error was: %s", key, tostring(res)),
+        0
+      )
     end
     cache:put(key, res)
   end)

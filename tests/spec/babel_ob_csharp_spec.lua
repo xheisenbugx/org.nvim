@@ -11,7 +11,7 @@ local BLOCKS = {
   "Console.WriteLine(s);",
   "#+end_src",
   "",
-  "#+begin_src csharp :usings '(\"System.Text\") :class Foo :prologue \"// pro\" :epilogue \"// epi\"",
+  '#+begin_src csharp :usings \'("System.Text") :class Foo :prologue "// pro" :epilogue "// epi"',
   'Console.WriteLine("  a b");',
   'Console.WriteLine("  c d");',
   "#+end_src",
@@ -112,11 +112,8 @@ describe("babel ob-csharp", function()
   it("uses the configured command functions", function()
     local dir = h.tmpdir()
     local log = dir .. "/log"
-    local dotnet = h.fake(
-      dir,
-      "dotnet",
-      'echo "dotnet $*" >> ' .. log .. '\n[ "$1" = --list-sdks ] && echo "9.0.100 [/x]"'
-    )
+    local dotnet =
+      h.fake(dir, "dotnet", 'echo "dotnet $*" >> ' .. log .. '\n[ "$1" = --list-sdks ] && echo "9.0.100 [/x]"')
     h.set_lang("csharp", {
       compiler = dotnet,
       generate_restore_command = function(p)

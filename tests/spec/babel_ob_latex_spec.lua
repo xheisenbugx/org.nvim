@@ -96,11 +96,11 @@ describe("babel ob-latex", function()
     local out
     h.with_path(dir, function()
       out = h.run({
-        "#+begin_src latex :file b.svg :headers '(\"\\\\usepackage{tikz}\")",
+        '#+begin_src latex :file b.svg :headers \'("\\\\usepackage{tikz}")',
         "$y$",
         "#+end_src",
         "",
-        "#+begin_src latex :file c.pdf :fit yes :border 2pt :headers '(\"\\\\usepackage{x}\") :packages '((\"\" \"amsmath\"))",
+        '#+begin_src latex :file c.pdf :fit yes :border 2pt :headers \'("\\\\usepackage{x}") :packages \'(("" "amsmath"))',
         "$z$",
         "#+end_src",
         "",

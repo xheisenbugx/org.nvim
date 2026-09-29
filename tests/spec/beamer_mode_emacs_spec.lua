@@ -63,14 +63,17 @@ describe("beamer mode (Emacs parity)", function()
       ":BEAMER_act: <2>",
       ":END:",
     }, select({ "* Again" }, "A", { "*Frame", "<2>" }))
-    eq({ "* Again" }, select({
-      "* Again :B_againframe:",
-      ":PROPERTIES:",
-      ":BEAMER_env: againframe",
-      ":BEAMER_ref: *F",
-      ":BEAMER_act: <2>",
-      ":END:",
-    }, "A"))
+    eq(
+      { "* Again" },
+      select({
+        "* Again :B_againframe:",
+        ":PROPERTIES:",
+        ":BEAMER_env: againframe",
+        ":BEAMER_ref: *F",
+        ":BEAMER_act: <2>",
+        ":END:",
+      }, "A")
+    )
   end)
 
   it("tags the entry when BEAMER_env is set as a property", function()

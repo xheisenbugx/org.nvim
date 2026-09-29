@@ -36,8 +36,7 @@ function M.prepare(body, args, _, ctx)
   local use_eps_jar = eps or pdf
   local exec_form
   if (o.exec_mode or "jar") == "jar" or use_eps_jar then
-    local jar = use_eps_jar
-        and (o.eps_jar_path or (vim.fn.fnamemodify(o.jar_path or "", ":h") .. "/DitaaEps.jar"))
+    local jar = use_eps_jar and (o.eps_jar_path or (vim.fn.fnamemodify(o.jar_path or "", ":h") .. "/DitaaEps.jar"))
       or (o.jar_path or "")
     exec_form = (o.java_exec or "java")
       .. (java_options and (" " .. java_options) or "")

@@ -13,13 +13,13 @@ describe("babel ob-processing", function()
 
   it("gives HTML running the sketch with processing.js", function()
     local out = h.run({
-      "#+begin_src processing :var n=3 f=1.5 s=\"hi\" l='(1 2.5) m='((1 2) (3 4)) w='(\"a\" \"b\")",
+      '#+begin_src processing :var n=3 f=1.5 s="hi" l=\'(1 2.5) m=\'((1 2) (3 4)) w=\'("a" "b")',
       "size(100, 100);",
       "#+end_src",
     })
     -- Emacs 9.8.10
     eq({
-      "#+begin_src processing :var n=3 f=1.5 s=\"hi\" l='(1 2.5) m='((1 2) (3 4)) w='(\"a\" \"b\")",
+      '#+begin_src processing :var n=3 f=1.5 s="hi" l=\'(1 2.5) m=\'((1 2) (3 4)) w=\'("a" "b")',
       "size(100, 100);",
       "#+end_src",
       "",
@@ -89,11 +89,8 @@ describe("babel ob-screen", function()
     end
     local dir = h.tmpdir()
     -- a terminal: `-T title -e screen -c rc -mS session cmd`, run detached
-    local term = h.fake(
-      dir,
-      "term",
-      'echo "$*" > ' .. dir .. '/term.log\nshift 3\nexe=$1; shift\n"$exe" -c "$2" -dmS "$4" "$5"'
-    )
+    local term =
+      h.fake(dir, "term", 'echo "$*" > ' .. dir .. '/term.log\nshift 3\nexe=$1; shift\n"$exe" -c "$2" -dmS "$4" "$5"')
     local out = h.run({
       "#+begin_src screen :session " .. session .. " :terminal " .. term,
       "echo pasted > " .. dir .. "/out",

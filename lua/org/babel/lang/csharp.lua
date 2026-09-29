@@ -122,7 +122,7 @@ end
 --- `org-babel-csharp--generate-project-file`
 function M.project_file(refs, framework, cwd)
   local o = ob.opts("csharp") or {}
-  return "<Project Sdk=\"Microsoft.NET.Sdk\">\n\n  "
+  return '<Project Sdk="Microsoft.NET.Sdk">\n\n  '
     .. (refs and format_refs(refs, cwd) or "")
     .. "\n\n  <PropertyGroup>"
     .. "\n    <OutputType>Exe</OutputType>\n"

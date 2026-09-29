@@ -77,10 +77,7 @@ describe("man export", function()
   end)
 
   it("writes nil for empty sections and protects backslashes like Emacs", function()
-    eq(
-      '.SH "Empty"\nnil\n.SH "Two"\n.SS "Sub"\nnil\n',
-      manpage({ "* Empty", "* Two", "** Sub" }, { body_only = true })
-    )
+    eq('.SH "Empty"\nnil\n.SH "Two"\n.SS "Sub"\nnil\n', manpage({ "* Empty", "* Two", "** Sub" }, { body_only = true }))
     local s = manpage({
       "#+OPTIONS: title:nil date:nil",
       "#+TITLE: x",

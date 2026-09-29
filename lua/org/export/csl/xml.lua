@@ -12,20 +12,22 @@ local X = {}
 local ENTITIES = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'", nbsp = U.char(0xA0) }
 
 local function decode_entities(s, html)
-  return (s:gsub("&(#?[%w]+);", function(e)
-    if e:sub(1, 2) == "#x" or e:sub(1, 2) == "#X" then
-      local n = tonumber(e:sub(3), 16)
-      return n and U.char(n) or nil
-    elseif e:sub(1, 1) == "#" then
-      local n = tonumber(e:sub(2))
-      return n and U.char(n) or nil
-    end
-    local r = ENTITIES[e]
-    if not r and not html then
-      return nil
-    end
-    return r
-  end))
+  return (
+    s:gsub("&(#?[%w]+);", function(e)
+      if e:sub(1, 2) == "#x" or e:sub(1, 2) == "#X" then
+        local n = tonumber(e:sub(3), 16)
+        return n and U.char(n) or nil
+      elseif e:sub(1, 1) == "#" then
+        local n = tonumber(e:sub(2))
+        return n and U.char(n) or nil
+      end
+      local r = ENTITIES[e]
+      if not r and not html then
+        return nil
+      end
+      return r
+    end)
+  )
 end
 X.decode_entities = decode_entities
 

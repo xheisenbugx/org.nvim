@@ -15,9 +15,12 @@ end
 local function run(fn, ...)
   local res
   local args = { ... }
-  ok(utils.run(function()
-    res = { fn(unpack(args)) }
-  end), "coroutine did not finish")
+  ok(
+    utils.run(function()
+      res = { fn(unpack(args)) }
+    end),
+    "coroutine did not finish"
+  )
   return unpack(res or {})
 end
 

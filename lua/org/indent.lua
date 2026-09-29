@@ -569,11 +569,7 @@ function M.indent_region(bufnr, s, e)
       local col = expected(ctx, el, false, i)
       if t == "root" then
         l = l + 1
-      elseif
-        t == "export-block"
-        or t == "latex-environment"
-        or (t == "example-block" and not preserve(ctx, el))
-      then
+      elseif t == "export-block" or t == "latex-environment" or (t == "example-block" and not preserve(ctx, el)) then
         indent_rigidly(bufnr, el.first + o, el.last + o, col - ind(ctx, i))
         l = element_end
       elseif

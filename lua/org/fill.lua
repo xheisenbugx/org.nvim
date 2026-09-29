@@ -329,9 +329,11 @@ local function collect(bufnr, els, off, from, to, jobs)
       elseif t == "comment" then
         -- the comment paragraphs (between `#` lines) overlapping the range
         local lines = vim.api.nvim_buf_get_lines(bufnr, el.post + off - 1, e, false)
-        for _, r in ipairs(runs(lines, el.post + off, function(l)
-          return l:match("^%s*#%s*$") ~= nil
-        end)) do
+        for _, r in
+          ipairs(runs(lines, el.post + off, function(l)
+            return l:match("^%s*#%s*$") ~= nil
+          end))
+        do
           if overlaps(r[1], r[2], from, to) then
             jobs[#jobs + 1] = {
               r[1],

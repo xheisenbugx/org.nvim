@@ -272,7 +272,8 @@ local function layout_and_sort(frag)
   local kids = elements(frag)
   local sort_p = kids[1] and kids[1].tag == "sort"
   local layout_el = kids[sort_p and 2 or 1]
-  local out = { opts = frag.attrs, layout = layout_el and compile(layout_el), layout_attrs = layout_el and layout_el.attrs }
+  local out =
+    { opts = frag.attrs, layout = layout_el and compile(layout_el), layout_attrs = layout_el and layout_el.attrs }
   if sort_p then
     out.sort = compile(kids[1])
     local orders = {}
@@ -369,7 +370,10 @@ function M.set_opt_defaults(style)
     if not aget(cite_opts, "after-collapse-delimiter") then
       set_opt(style, "cite_opts", "after-collapse-delimiter", layout_dl)
     end
-    if (collapse == "year-suffix" or collapse == "year-suffix-ranged") and aget(cite_opts, "year-suffix-delimiter") == nil then
+    if
+      (collapse == "year-suffix" or collapse == "year-suffix-ranged")
+      and aget(cite_opts, "year-suffix-delimiter") == nil
+    then
       set_opt(style, "cite_opts", "year-suffix-delimiter", layout_dl)
     end
   end
@@ -408,7 +412,8 @@ end
 --- citeproc-style-bib-opts-to-formatting-params
 function M.bib_opts_to_formatting_params(bib_opts)
   local result = {}
-  local keys = { ["hanging-indent"] = true, ["line-spacing"] = true, ["entry-spacing"] = true, ["second-field-align"] = true }
+  local keys =
+    { ["hanging-indent"] = true, ["line-spacing"] = true, ["entry-spacing"] = true, ["second-field-align"] = true }
   for _, p in ipairs(bib_opts or {}) do
     if type(p) == "table" and keys[p[1]] then
       local v = p[2]

@@ -68,7 +68,8 @@ local function itd_rt_cite(itd, style)
   if itd.rc_uptodate then
     return itd.rawcite
   end
-  local rc = E.render_varlist_in_rt(acons("position", itd.disamb_pos, itd.varvals), style, "cite", "display", "no-links", true)
+  local rc =
+    E.render_varlist_in_rt(acons("position", itd.disamb_pos, itd.varvals), style, "cite", "display", "no-links", true)
   itd.rawcite = rc
   itd.rc_uptodate = true
   return rc
@@ -1409,7 +1410,14 @@ function M.render_bib(proc, format, internal_links, no_external_links)
   local filters = proc.bib_filters
   proc.itemdata:each(function(_, itd)
     itd.rawbibitem = rt.finalize(
-      E.render_varlist_in_rt(itd.varvals, style, "bib", "display", internal_links, fmt.no_external_links or no_external_links),
+      E.render_varlist_in_rt(
+        itd.varvals,
+        style,
+        "bib",
+        "display",
+        internal_links,
+        fmt.no_external_links or no_external_links
+      ),
       piq
     )
   end)

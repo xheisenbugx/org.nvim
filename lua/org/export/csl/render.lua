@@ -355,7 +355,9 @@ local function textcased(rts, case, ctx)
   elseif case == "title" then
     local locale = ctx and ctx.locale
     local language = ctx and M.var_value("language", ctx)
-    if (language and U.starts_with(language, "en")) or (not language and (not locale or U.starts_with(locale, "en"))) then
+    if
+      (language and U.starts_with(language, "en")) or (not language and (not locale or U.starts_with(locale, "en")))
+    then
       fn = title_case
     else
       return rts
@@ -442,7 +444,10 @@ end
 --- citeproc-context-int-link-attrval
 function M.int_link_attrval(style, internal_links, mode, cite_pos)
   local note = S.cite_note(style)
-  if (internal_links and internal_links ~= "auto" and internal_links ~= "bib-links") or (note and mode == "bib" and (not internal_links or internal_links == "auto")) then
+  if
+    (internal_links and internal_links ~= "auto" and internal_links ~= "bib-links")
+    or (note and mode == "bib" and (not internal_links or internal_links == "auto"))
+  then
     return nil
   end
   if note and internal_links ~= "bib-links" then
@@ -455,7 +460,11 @@ local STOP = {}
 
 --- citeproc-context-maybe-stop-rendering
 function M.maybe_stop_rendering(trigger, ctx, result, var)
-  if trigger == aget(ctx.vars, "stop-rendering-at") and (not var or var == trigger) and tcdr(result) == "present-var" then
+  if
+    trigger == aget(ctx.vars, "stop-rendering-at")
+    and (not var or var == trigger)
+    and tcdr(result) == "present-var"
+  then
     local r = tcar(result)
     if type(r) ~= "table" then
       r = { {}, r }
@@ -1079,7 +1088,8 @@ local function render_names(names, attrs, et_al_attrs, part_attrs, ctx)
     middle = M.join_formatted({ { "delimiter", delimiter }, { "prefix", delimiter } }, ms, ctx)
   end
   local last_after_inverted = sort_latters or (sort_o == "first" and middle == nil)
-  local last_delim = et_al and aget(all, "delimiter-precedes-et-al") or (not et_al and aget(all, "delimiter-precedes-last"))
+  local last_delim = et_al and aget(all, "delimiter-precedes-et-al")
+    or (not et_al and aget(all, "delimiter-precedes-last"))
   if last_delim == false then
     last_delim = nil
   end
@@ -1111,11 +1121,8 @@ local function render_names(names, attrs, et_al_attrs, part_attrs, ctx)
       ctx
     )
   else
-    last = M.join_formatted(
-      nil,
-      { delimiter, render_name(names[count], attrs, part_attrs, sort_latters, ctx), n = 2 },
-      ctx
-    )
+    last =
+      M.join_formatted(nil, { delimiter, render_name(names[count], attrs, part_attrs, sort_latters, ctx), n = 2 }, ctx)
   end
   return M.join_formatted(U.aremove(attrs, "delimiter"), { first, middle, last, n = 3 }, ctx)
 end
@@ -1151,7 +1158,17 @@ end
 M.name_render_var = render_var
 
 --- citeproc-name-render-vars
-function M.name_render_vars(varstring, attrs, name_attrs, part_attrs, et_al_attrs, with_label, label_before, label_attrs, ctx)
+function M.name_render_vars(
+  varstring,
+  attrs,
+  name_attrs,
+  part_attrs,
+  et_al_attrs,
+  with_label,
+  label_before,
+  label_attrs,
+  ctx
+)
   local vars = R.split(varstring or "", " ", false)
   local present = {}
   for _, v in ipairs(vars) do
@@ -1183,7 +1200,8 @@ function M.name_render_vars(varstring, attrs, name_attrs, part_attrs, et_al_attr
   if #present > 0 then
     local rendered = {}
     for _, v in ipairs(present) do
-      rendered[#rendered + 1] = render_var(v, name_attrs, part_attrs, et_al_attrs, with_label, label_before, label_attrs, ctx, ed_trans)
+      rendered[#rendered + 1] =
+        render_var(v, name_attrs, part_attrs, et_al_attrs, with_label, label_before, label_attrs, ctx, ed_trans)
     end
     return typed(M.join_formatted(attrs, rendered, ctx), "present-var")
   end

@@ -353,9 +353,12 @@ describe("org-src edit buffers", function()
     local ebuf = babel.edit_special()
     config.opts.edit_src_auto_save_idle_delay = 0
     vim.api.nvim_buf_set_lines(ebuf, 0, -1, false, { "x = 3" })
-    ok(vim.wait(2000, function()
-      return buf_lines(src)[3] == "  x = 3"
-    end, 10), vim.inspect(buf_lines(src)))
+    ok(
+      vim.wait(2000, function()
+        return buf_lines(src)[3] == "  x = 3"
+      end, 10),
+      vim.inspect(buf_lines(src))
+    )
     ok(not vim.bo[ebuf].modified)
     ok(vim.api.nvim_buf_is_valid(ebuf))
   end)

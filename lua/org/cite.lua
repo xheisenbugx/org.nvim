@@ -16,7 +16,7 @@ local utils = require("org.utils")
 local M = {}
 
 local function ccfg()
-  return ((require("org.config").opts.export or {}).cite) or {}
+  return (require("org.config").opts.export or {}).cite or {}
 end
 
 --- Report `msg` and abort the running action (Emacs user-error).
@@ -1337,8 +1337,19 @@ function M.key_help(bufnr, key)
         names[#names + 1] = vim.split(n, ", ", { plain = true })[1]
       end
     end
-    local from = field(entry, "publisher") or field(entry, "journal") or field(entry, "institution") or field(entry, "school")
-    return (table.concat(names, ", ") .. ". " .. (field(entry, "title") or "") .. (from and (", " .. from) or "") .. ", " .. (basic.year(entry) or "") .. "."):gsub("[{}]", "")
+    local from = field(entry, "publisher")
+      or field(entry, "journal")
+      or field(entry, "institution")
+      or field(entry, "school")
+    return (
+      table.concat(names, ", ")
+      .. ". "
+      .. (field(entry, "title") or "")
+      .. (from and (", " .. from) or "")
+      .. ", "
+      .. (basic.year(entry) or "")
+      .. "."
+    ):gsub("[{}]", "")
   end
   local close = basic.close_keys(key, basic.all_keys(bib))
   if #close > 0 then

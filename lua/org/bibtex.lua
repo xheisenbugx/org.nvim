@@ -322,11 +322,8 @@ function M.headline_entry(hl)
   for i, kv in ipairs(fields) do
     parts[i] = string.format("  %s={%s}", kv[1], kv[2])
   end
-  local lines = vim.split(
-    string.format("@%s{%s,\n%s\n}\n", btype, id or "nil", table.concat(parts, ",\n")),
-    "\n",
-    { plain = true }
-  )
+  local lines =
+    vim.split(string.format("@%s{%s,\n%s\n}\n", btype, id or "nil", table.concat(parts, ",\n")), "\n", { plain = true })
   if tags and #tags > 0 then
     local joined = table.concat(tags, ", ")
     local done = false
@@ -543,7 +540,7 @@ local function parse_entry_at(text, at)
     if c == close or c == "" or c == "@" then
       break
     end
-    local field, after = text:match("^([^%s=,{}()\"]+)[ \t\n]*=[ \t\n]*()", pos)
+    local field, after = text:match('^([^%s=,{}()"]+)[ \t\n]*=[ \t\n]*()', pos)
     if not field then
       break
     end

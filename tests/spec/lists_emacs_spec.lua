@@ -186,17 +186,16 @@ describe("lists: checkbox statistics", function()
   end)
 
   it("count every box with COOKIE_DATA recursive", function()
-    local buf = org_buffer(
-      { "* H", ":PROPERTIES:", ":COOKIE_DATA: recursive", ":END:", unpack(text, 2) },
-      { 5, 0 }
-    )
+    local buf = org_buffer({ "* H", ":PROPERTIES:", ":COOKIE_DATA: recursive", ":END:", unpack(text, 2) }, { 5, 0 })
     lists.update_statistics()
     eq("- [ ] top [3/4]", buf_lines(buf)[5])
   end)
 
   it("leave item cookies alone with COOKIE_DATA todo", function()
-    local buf =
-      org_buffer({ "* H", ":PROPERTIES:", ":COOKIE_DATA: todo", ":END:", "- [ ] top [/]", "  - [X] a" }, { 5, 0 })
+    local buf = org_buffer(
+      { "* H", ":PROPERTIES:", ":COOKIE_DATA: todo", ":END:", "- [ ] top [/]", "  - [X] a" },
+      { 5, 0 }
+    )
     lists.update_statistics()
     eq("- [ ] top [/]", buf_lines(buf)[5])
   end)

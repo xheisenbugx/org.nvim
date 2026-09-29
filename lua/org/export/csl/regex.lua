@@ -692,14 +692,16 @@ end
 
 --- Expand a replacement string with \N and \& (replace-match, not literal).
 local function expand(rep, md)
-  return (rep:gsub("\\([%d&\\])", function(c)
-    if c == "&" then
-      return md:str(0) or ""
-    elseif c == "\\" then
-      return "\\"
-    end
-    return md:str(tonumber(c)) or ""
-  end))
+  return (
+    rep:gsub("\\([%d&\\])", function(c)
+      if c == "&" then
+        return md:str(0) or ""
+      elseif c == "\\" then
+        return "\\"
+      end
+      return md:str(tonumber(c)) or ""
+    end)
+  )
 end
 
 --- replace-regexp-in-string: `rep` is a string (with \N unless `literal`)

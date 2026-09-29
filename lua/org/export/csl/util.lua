@@ -45,7 +45,10 @@ function U.codepoints(s)
     if b < 0x80 then
       cp, len = b, 1
     elseif b >= 0xF0 and i + 3 <= n then
-      cp = (b - 0xF0) * 0x40000 + (s:byte(i + 1) - 0x80) * 0x1000 + (s:byte(i + 2) - 0x80) * 0x40 + (s:byte(i + 3) - 0x80)
+      cp = (b - 0xF0) * 0x40000
+        + (s:byte(i + 1) - 0x80) * 0x1000
+        + (s:byte(i + 2) - 0x80) * 0x40
+        + (s:byte(i + 3) - 0x80)
       len = 4
     elseif b >= 0xE0 and i + 2 <= n then
       cp = (b - 0xE0) * 0x1000 + (s:byte(i + 1) - 0x80) * 0x40 + (s:byte(i + 2) - 0x80)
@@ -190,7 +193,7 @@ function U.is_alpha_cp(c)
   if c < 128 then
     return (c >= 65 and c <= 90) or (c >= 97 and c <= 122)
   end
-  if (c >= 0x300 and c <= 0x36F) then
+  if c >= 0x300 and c <= 0x36F then
     return false
   end
   return U.is_word_cp(c) and not (c >= 0x660 and c <= 0x669) and not (c >= 0xFF10 and c <= 0xFF19)

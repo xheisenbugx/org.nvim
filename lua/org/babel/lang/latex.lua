@@ -287,8 +287,10 @@ local function pdf_document(body, headers, pkgs, fit, border, height, width)
     .. (height and ("\n" .. string.format("\\pdfpageheight %s", height)) or "")
     .. (width and ("\n" .. string.format("\\pdfpagewidth %s", width)) or "")
     .. (#headers > 0 and ("\n" .. table.concat(headers, "\n") .. "\n") or "")
-    .. (fit and ("\n\\begin{document}\n\\begin{preview}\n" .. body .. "\n\\end{preview}\n\\end{document}\n")
-      or ("\n\\begin{document}\n" .. body .. "\n\\end{document}\n"))
+    .. (
+      fit and ("\n\\begin{document}\n\\begin{preview}\n" .. body .. "\n\\end{preview}\n\\end{document}\n")
+      or ("\n\\begin{document}\n" .. body .. "\n\\end{document}\n")
+    )
 end
 
 --- Compile `body` to `out_file` (absolute), like org-babel-execute:latex.
@@ -372,9 +374,7 @@ function M.make_file(body, args, out_file, bufnr, cwd)
     end
   else
     error(
-      "Can not create "
-        .. ext
-        .. " files, please specify a .png or .pdf file or try the :imagemagick header argument",
+      "Can not create " .. ext .. " files, please specify a .png or .pdf file or try the :imagemagick header argument",
       0
     )
   end

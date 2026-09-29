@@ -133,7 +133,12 @@ function M.attach(bufnr)
     M._press = now_pos()
     return "<LeftMouse>"
   end, vim.tbl_extend("force", o, { desc = "org: set point (a short click follows a link)" }))
-  vim.keymap.set("n", "<LeftRelease>", on_release, vim.tbl_extend("force", o, { desc = "org: follow the link clicked" }))
+  vim.keymap.set(
+    "n",
+    "<LeftRelease>",
+    on_release,
+    vim.tbl_extend("force", o, { desc = "org: follow the link clicked" })
+  )
 end
 
 return M

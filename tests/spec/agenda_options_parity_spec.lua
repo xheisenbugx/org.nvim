@@ -196,9 +196,11 @@ describe("agenda line format options", function()
   local function groups_at(lnum)
     local ns = vim.api.nvim_create_namespace("org.agenda")
     local out = {}
-    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(view.state.buf, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {
-      details = true,
-    })) do
+    for _, m in
+      ipairs(vim.api.nvim_buf_get_extmarks(view.state.buf, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {
+        details = true,
+      }))
+    do
       if m[4].hl_group then
         out[#out + 1] = { m[3], m[4].end_col, m[4].hl_group }
       end

@@ -190,7 +190,10 @@ describe("fold commands (Emacs 9.8.10)", function()
     fold.show_all()
     fold.hide_block_all()
     -- Emacs: the src and clocktable blocks hidden, drawers shown
-    eq({ "* A", ":PROPERTIES:", ":X: 1", ":END:", "#+begin_src sh", "#+BEGIN: clocktable", ":LOGBOOK:", "- n", ":END:" }, visible())
+    eq(
+      { "* A", ":PROPERTIES:", ":X: 1", ":END:", "#+begin_src sh", "#+BEGIN: clocktable", ":LOGBOOK:", "- n", ":END:" },
+      visible()
+    )
   end)
 
   it("hide_drawer_all folds every drawer", function()
@@ -199,7 +202,10 @@ describe("fold commands (Emacs 9.8.10)", function()
     fold.show_all()
     fold.hide_drawer_all()
     -- Emacs: the property drawer and the logbook hidden
-    eq({ "* A", ":PROPERTIES:", "#+begin_src sh", "echo", "#+end_src", "#+BEGIN: clocktable", "x", "#+END:", ":LOGBOOK:" }, visible())
+    eq(
+      { "* A", ":PROPERTIES:", "#+begin_src sh", "echo", "#+end_src", "#+BEGIN: clocktable", "x", "#+END:", ":LOGBOOK:" },
+      visible()
+    )
   end)
 
   it("are actions", function()

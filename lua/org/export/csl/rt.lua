@@ -992,7 +992,10 @@ local function locator_w_label_1(r, llpos)
   local local_llpos = aget(attrs, "l-l-pos")
   local out = { attrs }
   local nb = 0
-  if (llpos == "locator-first" and local_llpos == "label-only") or (llpos == "label-first" and local_llpos == "locator-only") then
+  if
+    (llpos == "locator-first" and local_llpos == "label-only")
+    or (llpos == "label-first" and local_llpos == "locator-only")
+  then
     nb = 1
   end
   local i = 2

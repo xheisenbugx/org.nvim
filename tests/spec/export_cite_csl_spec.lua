@@ -78,7 +78,12 @@ end)
 describe("csl processor options", function()
   it("reports a missing style file", function()
     local file = dir .. "s1.org"
-    local okp, err = pcall(ox.export_as, "html", { "#+cite_export: csl nope.csl", "#+bibliography: refs.bib", "", "[cite:@knuth1984]" }, { body_only = true, filename = file })
+    local okp, err = pcall(
+      ox.export_as,
+      "html",
+      { "#+cite_export: csl nope.csl", "#+bibliography: refs.bib", "", "[cite:@knuth1984]" },
+      { body_only = true, filename = file }
+    )
     eq(false, okp)
     ok(tostring(err):find('CSL style file not found: "nope.csl"', 1, true) ~= nil, tostring(err))
   end)
@@ -152,7 +157,10 @@ describe("csl engine", function()
   end)
   it("converts BibTeX names and markup like citeproc-el", function()
     local B = require("org.export.csl.bib")
-    eq({ { { "family", "Beethoven" }, { "non-dropping-particle", "van" }, { "given", "Ludwig" } } }, B.to_csl_names("Ludwig van Beethoven"))
+    eq(
+      { { { "family", "Beethoven" }, { "non-dropping-particle", "van" }, { "given", "Ludwig" } } },
+      B.to_csl_names("Ludwig van Beethoven")
+    )
     eq('The <span class="nocase">TeX</span>book', B.bt_to_csl("The {TeX}book", true))
     eq("Für", B.bt_to_csl('F{\\"u}r'))
   end)

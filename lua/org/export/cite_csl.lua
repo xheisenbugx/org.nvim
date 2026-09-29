@@ -20,7 +20,7 @@ local function ox()
 end
 
 local function copt(name, default)
-  local c = ((require("org.config").opts.export or {}).cite) or {}
+  local c = (require("org.config").opts.export or {}).cite or {}
   local v = c[name]
   if v == nil then
     return default
@@ -143,7 +143,11 @@ local LABEL_RE = (function()
   for i, a in ipairs(alts) do
     q[i] = a:gsub("[%.%*%+%?%^%$%[%]\\]", "\\%0")
   end
-  return "\\(?:^\\|[[:space:]]\\)\\(" .. table.concat(q, "\\|") .. "\\)[[:digit:]]*\\(?:\\>\\|$\\|[[:space:]]\\|" .. U.char(0xA0) .. "\\)"
+  return "\\(?:^\\|[[:space:]]\\)\\("
+    .. table.concat(q, "\\|")
+    .. "\\)[[:digit:]]*\\(?:\\>\\|$\\|[[:space:]]\\|"
+    .. U.char(0xA0)
+    .. "\\)"
 end)()
 
 local function label_of(s)
@@ -498,7 +502,10 @@ local function bibliography_filter(props)
           end
         elseif key == "type" or key == "csltype" then
           if value:find(",", 1, true) then
-            error(string.format('The "%s" print_bibliography option does not support comma-separated values', k.keyword), 0)
+            error(
+              string.format('The "%s" print_bibliography option does not support comma-separated values', k.keyword),
+              0
+            )
           end
           table.insert(result, 1, { key, value })
         end

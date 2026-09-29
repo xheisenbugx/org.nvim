@@ -24,7 +24,7 @@ describe("babel ob-gnuplot", function()
       '| 3 | "q"              |',
       "| 4 | <2024-01-02 Tue> |",
       "",
-      "#+begin_src gnuplot :var d=data :file out.png :title \"T\" :set '(\"grid\" \"key off\") :line '(\"lw 2\") "
+      '#+begin_src gnuplot :var d=data :file out.png :title "T" :set \'("grid" "key off") :line \'("lw 2") '
         .. ':missing "?" :xlabels \'((1 . "one") (2 . "two")) :timefmt "%Y" :prologue "reset" :epilogue "exit"',
       "plot $d using 1:2",
       "#+end_src",

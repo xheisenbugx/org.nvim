@@ -14,7 +14,7 @@ local BLOCKS = {
   '(println "hi")',
   "#+end_src",
   "",
-  "#+begin_src clojure :backend babashka :var x=1 y='(1 \"a\") :ns my.ns",
+  '#+begin_src clojure :backend babashka :var x=1 y=\'(1 "a") :ns my.ns',
   ";; comment",
   "(+ x 1)",
   "#+end_src",

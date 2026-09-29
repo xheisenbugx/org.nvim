@@ -415,7 +415,10 @@ describe("export dispatch (Emacs parity)", function()
       local dir = vim.fn.tempname()
       vim.fn.mkdir(dir, "p")
       local marker = dir .. "/marker"
-      vim.fn.writefile({ string.format("vim.fn.writefile({ tostring(vim.fn.getpid()) }, %q)", marker) }, dir .. "/init.lua")
+      vim.fn.writefile(
+        { string.format("vim.fn.writefile({ tostring(vim.fn.getpid()) }, %q)", marker) },
+        dir .. "/init.lua"
+      )
       local buf = org_buffer({ "* H", "body text" }, { 1, 0 })
       vim.api.nvim_buf_set_name(buf, dir .. "/b.org")
       restore = set_export({ open_after_export = false, async_init_file = dir .. "/init.lua" })
@@ -427,7 +430,7 @@ describe("export dispatch (Emacs parity)", function()
       end)
       utils.notify = notify
       -- the init file ran in another process
-      local pid = tonumber((vim.fn.readfile(marker)[1]))
+      local pid = tonumber(vim.fn.readfile(marker)[1])
       ok(pid and pid ~= vim.fn.getpid())
       eq("number", type(entry.source))
       local lines = vim.api.nvim_buf_get_lines(entry.source, 0, -1, false)

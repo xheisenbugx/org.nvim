@@ -90,7 +90,7 @@ end
 --- The input sent to ghci.
 function M.ghci_input(full, value)
   local eoe = 'putStrLn "' .. M.EOE .. '"'
-  local lines = { ":set prompt-cont \"\"" }
+  local lines = { ':set prompt-cont ""' }
   if value then
     vim.list_extend(lines, {
       "__LAST_VALUE_IMPROBABLE_NAME__=()::()",

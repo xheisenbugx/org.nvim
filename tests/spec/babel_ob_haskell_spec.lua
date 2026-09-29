@@ -22,7 +22,7 @@ describe("babel ob-haskell", function()
     -- Emacs 9.8.10
     eq(
       'let x = 1\nlet l = [1, 2]\nlet s = "a"\nx + 1',
-      h.expand({ "#+begin_src haskell :var x=1 l='(1 2) s=\"a\"", "x + 1", "#+end_src" })
+      h.expand({ '#+begin_src haskell :var x=1 l=\'(1 2) s="a"', "x + 1", "#+end_src" })
     )
   end)
 

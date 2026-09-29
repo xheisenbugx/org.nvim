@@ -95,7 +95,7 @@ local function first_form(s)
     end
     return s
   end
-  return s:match("^[^%s()\"]+") or s
+  return s:match('^[^%s()"]+') or s
 end
 
 --- Emacs `read` of the printed values (vectors #(...) read as lists).
@@ -121,9 +121,12 @@ function M.prepare(body, args, vars, ctx)
     dir = ctx.cwd:sub(-1) == "/" and ctx.cwd or (ctx.cwd .. "/")
   end
   local dir_fmt = ctx.opts.dir_fmt or "(cl:let ((cl:*default-pathname-defaults* #P%S\n)) %%s\n)"
-  local wrapped = dir_fmt:gsub("%%%%", "\0"):gsub("%%S", function()
-    return lisp.prin1(dir)
-  end):gsub("%z", "%%")
+  local wrapped = dir_fmt
+    :gsub("%%%%", "\0")
+    :gsub("%%S", function()
+      return lisp.prin1(dir)
+    end)
+    :gsub("%z", "%%")
   wrapped = wrapped:gsub("%%s", function()
     return M.expand(body, args, vars)
   end)

@@ -34,7 +34,7 @@ local BLOCKS = {
   "write (*,'(A)') trim(arg)",
   "#+end_src",
   "",
-  "#+begin_src fortran :includes '(\"a.h\" \"b.h\") :defines \"X 1\" :main no",
+  '#+begin_src fortran :includes \'("a.h" "b.h") :defines "X 1" :main no',
   "! nothing",
   "#+end_src",
 }

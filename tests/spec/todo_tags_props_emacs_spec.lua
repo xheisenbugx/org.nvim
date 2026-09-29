@@ -93,7 +93,10 @@ describe("logging options", function()
     eq("CLOSED: [2026-01-05 Mon 11:30]", buf_lines(buf)[2])
     -- a child's clock counts too; the note heading uses it
     config.opts.log_done = "note"
-    buf = org_buffer({ "* TODO A", "** Child", "CLOCK: [2026-01-05 Mon 10:00]--[2026-01-05 Mon 11:30] =>  1:30" }, { 1, 0 })
+    buf = org_buffer(
+      { "* TODO A", "** Child", "CLOCK: [2026-01-05 Mon 10:00]--[2026-01-05 Mon 11:30] =>  1:30" },
+      { 1, 0 }
+    )
     todo.change_state(nil, "DONE", { note = "the note" })
     config.opts.use_last_clock_out_time_as_effective_time = false
     eq({

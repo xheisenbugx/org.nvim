@@ -190,12 +190,14 @@ local function format_spec(info, title)
 end
 
 local function format_spec_apply(s, spec)
-  return (s:gsub("%%(.)", function(c)
-    if c == "%" then
-      return "%"
-    end
-    return spec[c] or ("%" .. c)
-  end))
+  return (
+    s:gsub("%%(.)", function(c)
+      if c == "%" then
+        return "%"
+      end
+      return spec[c] or ("%" .. c)
+    end)
+  )
 end
 
 ---------------------------------------------------------------------------

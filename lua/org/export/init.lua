@@ -810,8 +810,9 @@ function M.export_async(format, opts)
       f:close()
     end)
     local cmd = { vim.v.progpath, "--clean", "--headless", "-n", "-i", "NONE", "-l", script, jobfile }
+    local sysopts = { text = true, cwd = src ~= "" and vim.fn.fnamemodify(src, ":p:h") or nil }
     local started = ok
-      and pcall(vim.system, cmd, { text = true, cwd = src ~= "" and vim.fn.fnamemodify(src, ":p:h") or nil }, function(res)
+      and pcall(vim.system, cmd, sysopts, function(res)
         vim.schedule(function()
           local okr, r = pcall(dofile, job.result)
           vim.fn.delete(dir, "rf")
@@ -1104,7 +1105,11 @@ local function dispatcher_items(state)
   end
   return {
     { key = "b", label = "Toggle: body only = " .. onoff(state.body_only), value = { toggle = "body_only" } },
-    { key = "s", label = "Toggle: export scope = " .. (state.subtree and "subtree" or "buffer"), value = { toggle = "subtree" } },
+    {
+      key = "s",
+      label = "Toggle: export scope = " .. (state.subtree and "subtree" or "buffer"),
+      value = { toggle = "subtree" },
+    },
     { key = "v", label = "Toggle: visible only = " .. onoff(state.visible_only), value = { toggle = "visible_only" } },
     { key = "f", label = "Toggle: force publishing = " .. onoff(state.force), value = { toggle = "force" } },
     { key = "a", label = "Toggle: async export = " .. onoff(state.async), value = { toggle = "async" } },

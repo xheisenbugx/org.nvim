@@ -94,7 +94,7 @@ describe("babel ob-java", function()
       "#+end_src",
     })
     eq(
-      "    static List<List<String>> t = Arrays.asList(Arrays.asList(\"1\", \"2\"), Arrays.asList(\"3\", \"4\"), NULL, "
+      '    static List<List<String>> t = Arrays.asList(Arrays.asList("1", "2"), Arrays.asList("3", "4"), NULL, '
         .. 'Arrays.asList("5", "6"));',
       vim.split(text, "\n")[3]
     )

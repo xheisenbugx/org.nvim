@@ -187,7 +187,7 @@ describe("babel ob-maxima", function()
     )
     args["graphics-pkg"] = "draw"
     eq(
-      "(load(draw), set_draw_defaults(terminal='png,file_name=\"p\"))$\n\nplot\ngnuplot_close ()$",
+      '(load(draw), set_draw_defaults(terminal=\'png,file_name="p"))$\n\nplot\ngnuplot_close ()$',
       m.maxima_expand({ "plot" }, args, {})
     )
   end)
@@ -203,7 +203,7 @@ describe("babel ob-ocaml", function()
     -- Emacs 9.8.10
     eq(
       'let a = 1;;\nlet l = [|1; 2|];;\nlet s = "x";;\na + 1',
-      h.expand({ "#+begin_src ocaml :var a=1 l='(1 2) s=\"x\"", "a + 1", "#+end_src" })
+      h.expand({ '#+begin_src ocaml :var a=1 l=\'(1 2) s="x"', "a + 1", "#+end_src" })
     )
   end)
 

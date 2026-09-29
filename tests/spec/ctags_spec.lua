@@ -21,7 +21,7 @@ local FAKE = {
   'while [ $# -gt 0 ]; do case "$1" in -f) out="$2"; shift 2;; -R) dir="$2"; shift 2;; *) shift;; esac; done',
   "awk '{ line=$0; while (match(line, /<<[^<>]+>>/)) { "
     .. 'printf "%s\\t%s\\t%d;\\"\\td\\n", substr(line, RSTART+2, RLENGTH-4), FILENAME, FNR; '
-    .. "line=substr(line, RSTART+RLENGTH) } }' \"$dir\"/*.org | LC_ALL=C sort > \"$out\"",
+    .. 'line=substr(line, RSTART+RLENGTH) } }\' "$dir"/*.org | LC_ALL=C sort > "$out"',
 }
 
 local function setup(dir, extra)
