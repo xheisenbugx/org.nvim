@@ -928,7 +928,13 @@ defined, before `#+TAGS` or `tags` (org-tag-persistent-alist);
 `tags_sort_function` sorts the tags whenever they are set on a headline
 (and the agenda's tag sorting): a comparator `function(a, b)` returning
 true when `a` comes first, or a list of comparators where the next one
-breaks ties (org-tags-sort-function). Without it, tags keep their order.
+breaks ties (org-tags-sort-function). "string<" and "string>" sort by
+name (org-string<, org-string>), "hierarchy" by the tag groups
+(org-tags-sort-hierarchy): a group tag before its members, each level
+sorted by the comparators after it in the list (by name when none), e.g.
+`{ "hierarchy", "string>" }`; a comparator can call
+`require("org.tags").sort_less(a, b)` to hand over to the next ones.
+Without the option, tags keep their order.
 
 Tags are aligned to `tags_column` (negative values right-align them, a
 positive value starts them at that column). `:Org align_tags` realigns every
@@ -6708,8 +6714,7 @@ Differences from Emacs:
   - `property_separators` regexps are Vim regexps, and its name lists are
     compared ignoring case (Emacs compares them exactly).
     `priority_get_priority_function` always receives the headline line (the
-    agenda passes Emacs its formatted agenda line). There is no built-in
-    `org-tags-sort-hierarchy`; `tags_sort_function` takes Lua comparators.
+    agenda passes Emacs its formatted agenda line).
   - The date prompt refuses text it cannot read at all instead of using the
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,

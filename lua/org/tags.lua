@@ -22,37 +22,135 @@ function M.parse_input(str)
   return out
 end
 
+local function string_less(x, y)
+  return x < y
+end
+
+--- The comparators of `tags_sort_function` named by a string.
+local SORT_FUNCTIONS = {
+  ["string<"] = string_less, -- org-string<
+  ["string>"] = function(x, y) -- org-string>
+    return x > y
+  end,
+  hierarchy = function(x, y) -- org-tags-sort-hierarchy
+    return M.sort_hierarchy(x, y)
+  end,
+}
+
+--- The comparators still to try, while one of them runs (a comparator
+--- calling `sort_less` without `fns` hands over to the next ones, like
+--- org-tag-sort from a function of org-tags-sort-function).
+local rest
+
 --- Is `a` sorted before `b` by `tags_sort_function` (org-tags-sort)? The
 --- option is a comparator `fn(a, b) -> boolean` or a list of them: when a
 --- function finds two tags equal (neither sorts first), the next one
---- decides. Without the option, tags compare by byte order (org-string<).
+--- decides. "hierarchy", "string<" and "string>" name Emacs's
+--- org-tags-sort-hierarchy, org-string< and org-string>. Without the
+--- option (or past the last comparator), tags compare by byte order
+--- (org-string<).
 ---@param a string
 ---@param b string
 ---@param fns? (fun(a: string, b: string): boolean)[]
 ---@return boolean
 function M.sort_less(a, b, fns)
   if not fns then
-    local opt = config.opts.tags_sort_function
-    if type(opt) == "function" then
-      fns = { opt }
-    elseif type(opt) == "table" and #opt > 0 then
-      fns = opt
+    if rest then
+      fns = rest
     else
-      fns = {
-        function(x, y)
-          return x < y
-        end,
-      }
+      local opt = config.opts.tags_sort_function
+      fns = (type(opt) == "function" or type(opt) == "string") and { opt } or type(opt) == "table" and opt or {}
     end
   end
-  for _, fn in ipairs(fns) do
-    if fn(a, b) then
-      return true
-    elseif fn(b, a) then
-      return false
+  if #fns == 0 then
+    fns = { string_less }
+  end
+  local saved = rest
+  for i, fn in ipairs(fns) do
+    fn = SORT_FUNCTIONS[fn] or fn
+    rest = vim.list_slice(fns, i + 1)
+    local ok_, cmp = pcall(function()
+      if fn(a, b) then
+        return -1
+      elseif fn(b, a) then
+        return 1
+      end
+      return 0
+    end)
+    rest = saved
+    if not ok_ then
+      error(cmp, 0)
+    elseif cmp ~= 0 then
+      return cmp < 0
     end
   end
   return false
+end
+
+--- The tag groups in the order of their definitions (org-tag-groups-alist,
+--- or the agenda files' groups too), as { head, members } pairs.
+local function ordered_groups()
+  local out = {}
+  local function add(defs)
+    local groups = M.groups_from_definitions(defs)
+    for _, d in ipairs(defs) do
+      if d.name and groups[d.name] then
+        out[#out + 1] = { d.name, groups[d.name] }
+        groups[d.name] = nil
+      end
+    end
+  end
+  local b = vim.api.nvim_get_current_buf()
+  if vim.bo[b].filetype == "org" then
+    add(files.get_buffer(b):tag_definitions())
+  end
+  add(M.option_definitions())
+  local ok_, list = pcall(files.agenda_files)
+  for _, f in ipairs(ok_ and list or {}) do
+    if #f.settings.tags > 0 then
+      add(f:tag_definitions())
+    end
+  end
+  return out
+end
+
+--- Sort by the tag hierarchy (org-tags-sort-hierarchy): tags compare by
+--- their paths from the top group ("GTD" < "GTD/Control" <
+--- "GTD/Control/Task"), the first different step by the next comparators
+--- of `tags_sort_function`. Without `group_tags` or groups, only by them.
+---@param a string
+---@param b string
+---@return boolean
+function M.sort_hierarchy(a, b)
+  local groups = config.opts.group_tags and ordered_groups() or {}
+  if #groups == 0 then
+    return M.sort_less(a, b)
+  end
+  local function path(tag)
+    local p = { tag }
+    while true do
+      local parent
+      for _, g in ipairs(groups) do
+        if vim.tbl_contains(g[2], tag) then
+          parent = g[1]
+          break
+        end
+      end
+      -- (a loop in the groups ends the path)
+      if not parent or vim.tbl_contains(p, parent) then
+        return p
+      end
+      table.insert(p, 1, parent)
+      tag = parent
+    end
+  end
+  local pa, pb = path(a), path(b)
+  for n = 1, math.min(#pa, #pb) do
+    if pa[n] ~= pb[n] then
+      return M.sort_less(pa[n], pb[n])
+    end
+  end
+  return #pa < #pb
 end
 
 --- `tags` sorted with `tags_sort_function` (a stable sort, like Emacs

@@ -176,7 +176,9 @@ M.defaults = {
   --- (org-tag-persistent-alist); `#+STARTUP: noptag` turns them off.
   tags_persistent = {},
   --- Comparator fn(a, b) -> boolean, or a list of them, sorting the tags
-  --- set on a headline (org-tags-sort-function); nil keeps their order.
+  --- set on a headline (org-tags-sort-function); "hierarchy", "string<"
+  --- and "string>" name org-tags-sort-hierarchy, org-string< and
+  --- org-string>. nil keeps their order.
   tags_sort_function = nil,
   --- Column tags are aligned to. Negative = right-align to that column.
   tags_column = -77,

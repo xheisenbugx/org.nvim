@@ -1,5 +1,8 @@
 ---@meta
 
+---A tag comparator of `tags_sort_function`, or the name of a built-in one.
+---@alias org.TagsSortFunction (fun(a: string, b: string): boolean)|"hierarchy"|"string<"|"string>"
+
 ---Options for `require("org").setup()`. Every field is optional: dict options
 ---are merged key by key into the defaults, lists replace the default list.
 ---@class org.Config
@@ -181,9 +184,10 @@
 ---(Emacs `org-tag-persistent-alist`, default: `{}`)
 ---@field tags_persistent? string[]
 ---Comparator (or list of comparators, the next one breaking ties) sorting
----the tags set on a headline and the agenda's tag sorting.
----(Emacs `org-tags-sort-function`, default: `nil`)
----@field tags_sort_function? (fun(a: string, b: string): boolean)|(fun(a: string, b: string): boolean)[]
+---the tags set on a headline and the agenda's tag sorting; "hierarchy",
+---"string<" and "string>" are org-tags-sort-hierarchy, org-string< and
+---org-string>. (Emacs `org-tags-sort-function`, default: `nil`)
+---@field tags_sort_function? org.TagsSortFunction|org.TagsSortFunction[]
 ---Column tags are aligned to; negative = right-align so tags end at that
 ---column. (Emacs `org-tags-column`, default: `-77`)
 ---@field tags_column? integer

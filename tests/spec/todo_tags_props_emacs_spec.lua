@@ -356,6 +356,27 @@ describe("tag options", function()
     ok(buf_lines(buf)[1]:match(":c:a:bb:aa:$"), buf_lines(buf)[1])
   end)
 
+  -- Emacs 9.8.10 (#+TAGS: [ GTD : Control Persp ] [ Control : Context
+  -- Task ], org-set-tags on :Task:Persp:Control:zzz:aaa:GTD:Context:)
+  it("sorts by the tag hierarchy (org-tags-sort-hierarchy)", function()
+    local function sorted(fn, group_tags)
+      config.opts.tags_sort_function = fn
+      config.opts.group_tags = group_tags
+      local buf = org_buffer({ "#+TAGS: [ GTD : Control Persp ] [ Control : Context Task ]", "* H" }, { 2, 0 })
+      tags.set_tags(nil, { "Task", "Persp", "Control", "zzz", "aaa", "GTD", "Context" })
+      return buf_lines(buf)[2]:match("(:%S+:)$")
+    end
+    local okr, err = pcall(function()
+      eq(":GTD:Control:Context:Task:Persp:aaa:zzz:", sorted("hierarchy", true))
+      eq(":Context:Control:GTD:Persp:Task:aaa:zzz:", sorted("hierarchy", false))
+      eq(":zzz:aaa:GTD:Persp:Control:Task:Context:", sorted({ "hierarchy", "string>" }, true))
+      eq(":zzz:aaa:Task:Persp:GTD:Control:Context:", sorted({ "hierarchy", "string>" }, false))
+      eq(":zzz:aaa:GTD:Persp:Control:Task:Context:", sorted({ tags.sort_hierarchy, "string>" }, true))
+    end)
+    config.opts.group_tags = true
+    assert(okr, err)
+  end)
+
   it("keeps the tag position with auto_align_tags = false", function()
     -- Emacs 9.8.10 with org-auto-align-tags nil
     config.opts.auto_align_tags = false
