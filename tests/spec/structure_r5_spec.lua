@@ -326,3 +326,81 @@ describe("yank (p / P) of subtrees", function()
     ok(not closed(2))
   end)
 end)
+
+describe("allow_promoting_top_level_subtree", function()
+  local config = require("org.config")
+  before_each(function()
+    config.opts.allow_promoting_top_level_subtree = true
+  end)
+  after_each(function()
+    config.opts.allow_promoting_top_level_subtree = false
+  end)
+
+  -- expectations: Emacs 9.8.10
+  it("promote subtree", function()
+    local buf = org_buffer({ "* A :tag:", "body", "** B", "*** C", "* D" }, { 1, 0 })
+    require("org.structure").promote_subtree()
+    eq({ "# A :tag:", "body", "* B", "** C", "* D" }, buf_lines(buf))
+  end)
+
+  it("promote heading", function()
+    local buf = org_buffer({ "* A", "** B" }, { 1, 0 })
+    require("org.structure").promote_heading()
+    eq({ "# A", "** B" }, buf_lines(buf))
+  end)
+
+  it("promote the headlines of a selection", function()
+    local buf = org_buffer({ "* A", "** B", "* C" }, { 1, 0 })
+    vim.api.nvim_feedkeys(vim.keycode("VG<M-h>"), "xt", false)
+    eq({ "# A", "* B", "# C" }, buf_lines(buf))
+  end)
+
+  it("off: refused", function()
+    config.opts.allow_promoting_top_level_subtree = false
+    local buf = org_buffer({ "* A" }, { 1, 0 })
+    local orig = vim.notify
+    vim.notify = function() end
+    require("org.structure").promote_heading()
+    vim.notify = orig
+    eq({ "* A" }, buf_lines(buf))
+  end)
+end)
+
+describe("edit_keep_region", function()
+  local config = require("org.config")
+  local saved
+  before_each(function()
+    saved = config.opts.edit_keep_region
+  end)
+  after_each(function()
+    config.opts.edit_keep_region = saved
+  end)
+
+  it("keeps the selection after <M-l> (Emacs 9.8.10: region stays active)", function()
+    local buf = org_buffer({ "* A", "** B", "** C" }, { 2, 0 })
+    vim.api.nvim_feedkeys(vim.keycode("Vj<M-l>"), "xt", false)
+    eq({ "* A", "*** B", "*** C" }, buf_lines(buf))
+    local mode
+    vim.api.nvim_feedkeys(vim.keycode("<M-l>"), "xt", false)
+    eq({ "* A", "**** B", "**** C" }, buf_lines(buf))
+    mode = vim.fn.mode()
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "xt", false)
+    eq("V", mode)
+  end)
+
+  it("false: leaves Visual mode", function()
+    config.opts.edit_keep_region = false
+    local buf = org_buffer({ "* A", "** B", "** C" }, { 2, 0 })
+    vim.api.nvim_feedkeys(vim.keycode("Vj<M-l>"), "xt", false)
+    eq("n", vim.fn.mode())
+    eq({ "* A", "*** B", "*** C" }, buf_lines(buf))
+  end)
+
+  it("per command: meta_down off", function()
+    config.opts.edit_keep_region = { meta_down = false, meta_up = true }
+    local buf = org_buffer({ "* A", "* B", "* C" }, { 1, 0 })
+    vim.api.nvim_feedkeys(vim.keycode("V<M-j>"), "xt", false)
+    eq({ "* B", "* A", "* C" }, buf_lines(buf))
+    eq("n", vim.fn.mode())
+  end)
+end)

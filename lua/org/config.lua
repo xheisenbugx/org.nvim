@@ -324,6 +324,12 @@ M.defaults = {
   --- `kill_line` on a folded headline kills its hidden subtree: false
   --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
   ctrl_k_protect_subtree = false,
+  --- Promoting a level-1 headline turns its `* ` into `# ` (a comment)
+  --- instead of refusing (org-allow-promoting-top-level-subtree).
+  allow_promoting_top_level_subtree = false,
+  --- Keep the Visual selection after <M-h> / <M-l> / <M-k> / <M-j>
+  --- (org-edit-keep-region): true, false, or per command.
+  edit_keep_region = { meta_left = true, meta_right = true, meta_up = true, meta_down = true },
   --- `p` / `P` of whole subtrees folds them, unless that would hide the
   --- text after them (org-yank-folded-subtrees).
   yank_folded_subtrees = true,

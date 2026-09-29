@@ -977,6 +977,17 @@ local function change_level(hl, file, delta, subtree)
     return require("org.inlinetask").change_level(bufnr, hl, delta)
   end
   delta = delta * M.level_increment(bufnr)
+  if hl.level + delta < 1 and hl.level == 1 and config.opts.allow_promoting_top_level_subtree then
+    -- org-promote turns "* " into "# "; the other headlines of the subtree
+    -- are promoted as usual
+    local line = get_lines(bufnr, hl.line, hl.line)[1]
+    set_lines(bufnr, hl.line, hl.line, { "# " .. line:sub(3) })
+    if subtree and hl.end_line > hl.body_end then
+      local rest = get_lines(bufnr, hl.body_end + 1, hl.end_line)
+      set_lines(bufnr, hl.body_end + 1, hl.end_line, relevel(rest, delta, file.settings.todo))
+    end
+    return
+  end
   if hl.level + delta < 1 then
     utils.warn("Cannot promote to level 0.  UNDO to recover if necessary")
     return
@@ -1026,9 +1037,10 @@ function M.promote_subtree()
   local hl, file = headline_for_level_change()
   if hl then
     for _ = 1, math.max(vim.v.count, 1) do
+      local was_top = hl.level == 1
       change_level(hl, file, -1, true)
       hl, file = current_headline()
-      if hl.level == 1 then
+      if was_top or not hl or hl.level == 1 then
         break
       end
     end
@@ -1063,8 +1075,9 @@ function M.change_level_region(delta)
   if #heads == 0 then
     return false
   end
+  local allow = config.opts.allow_promoting_top_level_subtree
   for _, hl in ipairs(heads) do
-    if hl.level + delta < 1 then
+    if hl.level + delta < 1 and not (allow and hl.level == 1) then
       utils.warn("Cannot promote to level 0.  UNDO to recover if necessary")
       return
     end
@@ -1074,6 +1087,11 @@ function M.change_level_region(delta)
     local hl = heads[i]
     local lines = get_lines(bufnr, hl.line, hl.body_end)
     local new = relevel(lines, delta, file.settings.todo)
+    if hl.level + delta < 1 then
+      -- allow_promoting_top_level_subtree: "* " becomes "# "
+      new = vim.deepcopy(lines)
+      new[1] = "# " .. lines[1]:sub(3)
+    end
     for j = 2, #new do
       if parser.headline_level(lines[j]) then
         new[j] = lines[j]
@@ -1280,8 +1298,11 @@ function M.move_region(dir)
     end
   end
   vim.api.nvim_win_set_cursor(0, { s, 0 })
-  vim.cmd("normal! V")
-  vim.api.nvim_win_set_cursor(0, { e, 0 })
+  -- the selection follows unless `edit_keep_region` says otherwise
+  if require("org.context").keep_region(dir < 0 and "meta_up" or "meta_down") then
+    vim.cmd("normal! V")
+    vim.api.nvim_win_set_cursor(0, { e, 0 })
+  end
 end
 
 ---------------------------------------------------------------------------

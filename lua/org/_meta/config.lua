@@ -333,6 +333,13 @@
 ---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
 ---default: `false`)
 ---@field ctrl_k_protect_subtree? boolean|"error"
+---Promoting a level-1 headline turns its `* ` into `# ` instead of refusing.
+---(Emacs `org-allow-promoting-top-level-subtree`, default: `false`)
+---@field allow_promoting_top_level_subtree? boolean
+---Keep the Visual selection after `meta_left` / `meta_right` / `meta_up` /
+---`meta_down`: `true`, `false` or per command. (Emacs `org-edit-keep-region`,
+---default: all four `true`)
+---@field edit_keep_region? boolean|{ meta_left?: boolean, meta_right?: boolean, meta_up?: boolean, meta_down?: boolean }
 ---`p` / `P` of whole subtrees folds them, unless that would hide the text
 ---after them. (Emacs `org-yank-folded-subtrees`, default: `true`)
 ---@field yank_folded_subtrees? boolean

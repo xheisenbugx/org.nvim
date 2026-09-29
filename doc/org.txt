@@ -241,7 +241,9 @@ stars alone is text, like in Emacs): >org
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
                 column. Elsewhere an error, like Emacs.
 <M-h> / <M-l>   In Visual mode: promote / demote every headline of the
-                selection, or outdent / indent every item.
+                selection, or outdent / indent every item. The selection
+                stays (`edit_keep_region`, org-edit-keep-region), also
+                for <M-k> / <M-j>.
 Promotion keeps the spacing of the headline and realigns its tags. With
 `odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
 by two.
@@ -4509,6 +4511,11 @@ Structure and visibility ~
                                       { a, e }
   special_ctrl_k            false     kill_line up to the tags
   ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
+  allow_promoting_top_level_subtree  false  promoting level 1 makes `# `
+  edit_keep_region          { meta_left = true, meta_right = true,
+                              meta_up = true, meta_down = true }
+                                      keep the Visual selection (or
+                                      true|false)
   yank_folded_subtrees      true      `p` folds put subtrees
   yank_adjusted_subtrees    false     `p` adjusts their level
   use_speed_commands        false     |org-speed-commands|
