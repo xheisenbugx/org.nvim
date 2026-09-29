@@ -34,6 +34,9 @@ local function spec_files(v, bufnr)
     return utils.is_org(bufnr) and { files.get_buffer(bufnr) } or {}
   elseif v == "agenda" then
     return files.agenda_files()
+  elseif v == "id" then
+    -- the files holding known IDs (org-id-files)
+    v = require("org.id").id_files()
   end
   local out = {}
   for _, p in ipairs(utils.glob_org_files(type(v) == "table" and v or { v })) do
@@ -594,9 +597,15 @@ local function log_refile(bufnr, lnum, mode)
   end
 end
 
-local function with_note_order(dest)
-  if dest.prepend == nil and (config.opts.refile or {}).reverse_note_order then
-    return vim.tbl_extend("force", dest, { prepend = true })
+local function with_note_order(dest, invert)
+  if dest.prepend == nil then
+    local reversed = (config.opts.refile or {}).reverse_note_order and true or false
+    if invert then
+      reversed = not reversed
+    end
+    if reversed then
+      return vim.tbl_extend("force", dest, { prepend = true })
+    end
   end
   return dest
 end
@@ -696,7 +705,7 @@ function M.refile(target, opts)
   if not dest then
     return
   end
-  dest = with_note_order(dest)
+  dest = with_note_order(dest, opts.reverse)
   local title = hl:plain_title()
   local ok, dbuf, dline
   if copy then
@@ -738,6 +747,15 @@ function M.refile(target, opts)
   local where = (dest.path or dest.label):gsub("/$", "")
   utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
   return dbuf, dline
+end
+
+--- Refile with `refile.reverse_note_order` inverted (org-refile-reverse):
+--- the entry becomes the first child of the target instead of the last,
+--- or the other way round.
+---@param target? org.Target
+---@param opts? table as for `refile()`
+function M.refile_reverse(target, opts)
+  return M.refile(target, vim.tbl_extend("force", opts or {}, { reverse = true }))
 end
 
 --- Copy the subtree at target to another location (org-refile-copy).

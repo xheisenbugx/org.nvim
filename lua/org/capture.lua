@@ -222,6 +222,10 @@ function M.prompt(opts)
     opts.date_prompt = true
   end
   opts.initial = opts.initial or visual_selection()
+  if opts.date == nil and config.opts.capture.use_agenda_date and vim.bo.filetype == "orgagenda" then
+    -- org-capture-use-agenda-date: the date at point (C-1: with its time)
+    opts.date = require("org.agenda.view").cursor_date(count == 1)
+  end
   local env = context_env()
   local items = M.menu_items(env)
   local key = ui.menu({ title = "Capture", items = items })
@@ -240,6 +244,22 @@ end
 ---@param opts? table as for `capture()`
 function M.prompt_here(opts)
   return M.prompt(vim.tbl_extend("force", opts or {}, { here = true, count = 0 }))
+end
+
+--- Capture a string (org-capture-string): ask for the initial text (`%i`),
+--- then capture with the template at `key`, or choose one from the menu.
+---@param text? string initial text (asked when nil)
+---@param key? string template key
+---@return integer|nil capture buffer (nil when cancelled)
+function M.capture_string(text, key)
+  text = text or utils.input({ prompt = "Initial text: " })
+  if text == nil then
+    return
+  end
+  if key and key ~= "" then
+    return M.capture(key, { initial = text })
+  end
+  return M.prompt({ initial = text, count = 0 })
 end
 
 --- `:Org capture [key]`: capture with the template at `key` of
@@ -1106,12 +1126,22 @@ function M.ensure_datetree(bufnr, parent_lnum, d, tree_type)
   end
   local level, s, e = 1, 1, vim.api.nvim_buf_line_count(bufnr)
   local line = parent_lnum
+  local count
   for _, h in ipairs(hier) do
     if line then
       local hl = files.get_buffer(bufnr):headline_at(line)
       level, s, e = hl.level + 1, hl.line + 1, hl.end_line
     end
+    count = vim.api.nvim_buf_line_count(bufnr)
     line = dt_subheading(bufnr, s, e, level, h[1], h[2])
+  end
+  local stamp = config.opts.datetree_add_timestamp
+  local grouping = type(tree_type) == "table" and tree_type or GROUPINGS[tree_type]
+  if stamp and grouping and vim.tbl_contains(grouping, "day") and vim.api.nvim_buf_line_count(bufnr) > count then
+    -- org-datetree-add-timestamp: a new day node gets its date
+    local ts = date.Date.new({ year = d.year, month = d.month, day = d.day, active = stamp ~= "inactive" })
+    local indent = config.opts.adapt_indentation == true and string.rep(" ", level + 1) or ""
+    vim.api.nvim_buf_set_lines(bufnr, line, line, false, { indent .. ts:to_string() })
   end
   return line
 end
@@ -1851,6 +1881,12 @@ local function run_hook(fn, ...)
   end
 end
 
+--- Fire a capture User autocmd (the global org-capture-*-finalize-hook),
+--- after the template's own hook, like Emacs.
+local function emit(pattern, data)
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = pattern, data = data, modeline = false })
+end
+
 local function first_headline_line(bufnr, start)
   local n = vim.api.nvim_buf_line_count(bufnr)
   for i = start, n do
@@ -1948,6 +1984,7 @@ function M.store(tpl, lines, ctx)
     line = first_headline_line(bufnr, line)
   end
   run_hook(tpl.before_finalize, bufnr, line)
+  emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
@@ -2091,6 +2128,7 @@ local function store_unnarrowed(s)
   end
   pcall(require("org.lists").update_statistics_for, bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
+  emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
@@ -2139,6 +2177,7 @@ function M.finalize(buf, opts)
   end
   vim.cmd("stopinsert")
   run_hook(tpl.prepare_finalize, buf)
+  emit("OrgCapturePrepareFinalize", { buf = buf })
   local dbuf, dline
   if s.unnarrowed then
     dbuf, dline = store_unnarrowed(s)
@@ -2165,6 +2204,7 @@ function M.finalize(buf, opts)
     M.goto_last_stored()
   end
   run_hook(tpl.after_finalize, dbuf, dline)
+  emit("OrgCaptureAfterFinalize", { bufnr = dbuf, line = dline })
   return dbuf, dline
 end
 
@@ -2211,6 +2251,9 @@ function M.kill(buf)
   end
   vim.cmd("stopinsert")
   local s = M.sessions[buf]
+  -- org-capture-kill finalizes with org-note-abort: the prepare and
+  -- after hooks run, the before hook does not
+  emit("OrgCapturePrepareFinalize", { buf = buf, aborted = true })
   if s.unnarrowed then
     remove_unnarrowed(s)
   end
@@ -2228,6 +2271,7 @@ function M.kill(buf)
     -- nothing was clocked; :clock-resume restarts the interrupted clock
     resume_interrupted(vim.tbl_extend("force", s.template, { clock_keep = false }), s.ctx)
   end
+  emit("OrgCaptureAfterFinalize", { aborted = true })
 end
 
 --- Finalize, then refile the captured entry (org-capture-refile). The
@@ -2602,6 +2646,8 @@ function M.capture(tpl_or_key, opts)
     if ttype == "entry" then
       lines = with_properties(lines, ctx.properties)
     end
+    -- Emacs finalizes immediate captures too: no capture buffer here
+    emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
     if dbuf then
       utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
@@ -2610,6 +2656,7 @@ function M.capture(tpl_or_key, opts)
         M.goto_last_stored()
       end
       run_hook(tpl.after_finalize, dbuf, dline)
+      emit("OrgCaptureAfterFinalize", { bufnr = dbuf, line = dline })
     end
     return dbuf, dline
   end

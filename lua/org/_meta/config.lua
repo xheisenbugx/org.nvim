@@ -390,6 +390,9 @@
 ---Indent body text, planning lines and drawers to the headline level.
 ---(Emacs `org-adapt-indentation`, default: `false`)
 ---@field adapt_indentation? boolean
+---New day nodes of date trees get a time stamp of their date.
+---(Emacs `org-datetree-add-timestamp`, default: `false`)
+---@field datetree_add_timestamp? false|"active"|"inactive"
 ---Indentation added to src block contents in the edit buffer.
 ---(Emacs `org-edit-src-content-indentation`, default: `2`)
 ---@field edit_src_content_indentation? integer
@@ -501,6 +504,9 @@
 ---Define new footnotes inline (`[fn:N: text]`); `#+STARTUP: fninline`.
 ---(Emacs `org-footnote-define-inline`, default: `false`)
 ---@field footnote_define_inline? boolean
+---Refill the paragraphs that lost an inline footnote when normalizing.
+---(Emacs `org-footnote-fill-after-inline-note-extraction`, default: `false`)
+---@field footnote_fill_after_inline_note_extraction? boolean
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer
@@ -552,6 +558,13 @@
 ---Archive as the first child of the archive heading instead of the last.
 ---(Emacs `org-archive-reversed-order`, default: `false`)
 ---@field archive_reversed_order? boolean
+---What `archive_subtree_default` (C-c C-x C-a) does.
+---(Emacs `org-archive-default-command`, default: `"archive_subtree"`)
+---@field archive_default_command? "archive_subtree"|"archive_to_sibling"|"set_tag"|fun(target: org.Target|nil)
+---When `archive_subtree` saves the archive file: always, never, only from Org
+---buffers or only from the agenda.
+---(Emacs `org-archive-subtree-save-file-p`, default: `"from_org"`)
+---@field archive_subtree_save_file? boolean|"from_org"|"from_agenda"
 ---Mark archived entries done: `true` (the first done keyword) or a done keyword.
 ---(Emacs `org-archive-mark-done`, default: `false`)
 ---@field archive_mark_done? boolean|string
@@ -579,6 +592,10 @@
 ---@field timer? org.Config.Timer
 ---org-protocol handling.
 ---@field protocol? org.Config.Protocol
+---Plain links through tags files (`org-ctags`).
+---@field ctags? org.Config.Ctags
+---Pasting clipboard images and dropped files (`org-yank-*`).
+---@field yank? org.Config.Yank
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
 ---Links: abbreviations, custom types, following.

@@ -94,6 +94,24 @@
 ---Default parameters for clock tables (`org-clocktable-defaults`); block
 ---parameters override them. (default: `{ maxlevel = 2, scope = "file" }`)
 ---@field clocktable_default? org.Config.Clock.ClocktableDefault
+---Parameters written into the header of a new clock table
+---(`org-clock-clocktable-default-properties`). (default: `{ maxlevel = 2 }`)
+---@field clocktable_default_properties? table<string, any>
+---Function writing clock tables instead of the default, receiving
+---`{ { file, time, entries = { { level, headline, tags, timestamp, time, properties } } } }`
+---and the block parameters; returns the lines (`org-clock-clocktable-formatter`).
+---(default: `nil`)
+---@field clocktable_formatter? fun(tables: table[], params: table): string[]|string
+---Format of the total time cells (`org-clock-total-time-cell-format`). (default: `"*%s*"`)
+---@field total_time_cell_format? string
+---Format of the "File time" cells (`org-clock-file-time-cell-format`). (default: `"*%s*"`)
+---@field file_time_cell_format? string
+---Resolve clocks with a prompt, without the help window
+---(`org-clock-resolve-expert`). (default: `false`)
+---@field resolve_expert? boolean
+---Program printing the X11 idle time in milliseconds
+---(`org-clock-x11idle-program-name`). (default: `nil`: xprintidle, else x11idle)
+---@field x11idle_program_name? string
 ---Persist the running clock and clock history across restarts
 ---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
 ---(default: `true`)
@@ -101,6 +119,9 @@
 ---Ask before resuming a clock after a restart
 ---(`org-clock-persist-query-resume`). (default: `true`)
 ---@field persist_query_resume? boolean
+---Ask on exit whether to keep the running clock for the next session
+---(`org-clock-persist-query-save`). (default: `false`)
+---@field persist_query_save? boolean
 ---File where the clock state is persisted (`org-clock-persist-file`).
 ---(default: `stdpath("data") .. "/org/clock.json"`)
 ---@field persist_file? string
@@ -162,6 +183,9 @@
 ---@field projects? { base_url: string, working_directory: string, online_suffix?: string, working_suffix?: string, rewrites?: table<string, string> }[]
 ---Extra sub-protocols (`org-protocol-protocol-alist`). (default: `{}`)
 ---@field handlers? org.Config.ProtocolHandler[]
+---Vim regex splitting the data of old-style URLs (`org-protocol-data-separator`).
+---(default: `[[/\+\|?]]`)
+---@field data_separator? string
 
 ---A custom org-protocol sub-protocol.
 ---@class org.Config.ProtocolHandler
@@ -171,6 +195,51 @@
 ---@field fn fun(params: table<string, string>): any
 ---Parameter names for old-style `NAME://a/b` URLs.
 ---@field order? string[]
+
+---------------------------------------------------------------------------
+-- yank-media / drag and drop
+---------------------------------------------------------------------------
+
+---Pasting clipboard images and dropped files, see `:h org-yank-media`.
+---@class org.Config.Yank
+---Where clipboard images go (`org-yank-image-save-method`): `"attach"`, a
+---directory, or a function returning one. (default: `"attach"`)
+---@field image_save_method? "attach"|string|fun(): string
+---Name of a pasted image, without extension (`org-yank-image-file-name-function`).
+---(default: `nil`: `"clipboard-%Y%m%dT%H%M%S.%6N"`)
+---@field image_file_name_function? fun(): string
+---What dropped / pasted files do (`org-yank-dnd-method`). (default: `"ask"`)
+---@field dnd_method? "attach"|"open"|"file-link"|"ask"
+---Attach method of dropped files (`org-yank-dnd-default-attach-method`);
+---nil = `attach.method`. (default: `nil`)
+---@field dnd_default_attach_method? "cp"|"mv"|"ln"|"lns"
+---A paste of existing file paths in an Org buffer counts as a drop.
+---(default: `true`)
+---@field dnd_paste? boolean
+
+---------------------------------------------------------------------------
+-- org-ctags
+---------------------------------------------------------------------------
+
+---Plain links through tags files (`org-ctags`), see `:h org-ctags`.
+---@class org.Config.Ctags
+---Look up plain links that fail in the buffer in the tags files (Emacs:
+---`org-ctags-enable`). (default: `false`)
+---@field enabled? boolean
+---The ctags program (`org-ctags-path-to-ctags`). (default: `nil`: ctags-exuberant
+---when installed, else ctags)
+---@field path_to_ctags? string
+---Tried in order for a plain link, until one returns true
+---(`org-ctags-open-link-functions`): names of `require("org.ctags").link_functions`
+---or functions of the link text.
+---(default: `{ "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" }`)
+---@field open_link_functions? (string|fun(name: string): boolean)[]
+---Text of a new topic, `%t` = the capitalized title (`org-ctags-new-topic-template`).
+---(default: `"* <<%t>>\n\n\n\n\n\n"`)
+---@field new_topic_template? string
+---The `--regex-orgmode` given to ctags (`org-ctags-tag-regexp`).
+---(default: `[[/<<([^<>]+)>>/\1/d,definition/]]`)
+---@field tag_regexp? string
 
 ---------------------------------------------------------------------------
 -- RSS / Atom feeds
@@ -400,6 +469,13 @@
 ---Store `id:` links with an ancestor's ID plus a search string instead of
 ---creating an ID (`org-id-link-consider-parent-id`). (default: `false`)
 ---@field link_consider_parent_id? boolean
+---Add `@` and the host name to new `"ts"` and `"org"` IDs
+---(`org-id-include-domain`). (default: `false`)
+---@field include_domain? boolean
+---Headings offered when completing an `id:` link, as refile target specs
+---(`files = "id"`: the files holding known IDs) (`org-id-completion-targets`).
+---(default: `{ { files = "current" }, { files = "id" } }`)
+---@field completion_targets? table[]
 
 ---Attachment options.
 ---@class org.Config.Attach
@@ -437,6 +513,13 @@
 ---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
 ---(default: `"ATTACH"`)
 ---@field auto_tag? string|false
+---Extra dispatcher commands by key (`org-attach-commands`):
+---`{ fn = function(target) end, desc = "..." }`, or `false` to remove a
+---built-in one. (default: `{}`)
+---@field commands? table<string, { fn: fun(target: org.Target), desc?: string }|false>
+---Ask for the dispatcher key at a prompt instead of showing the menu
+---(`org-attach-expert`). (default: `false`)
+---@field expert? boolean
 ---Commit attachment changes with git (`org-attach-git`): after attaching,
 ---deleting or syncing, new/changed files are added, deleted ones removed and
 ---a commit "Synchronized attachments" is made. (default: `false`)

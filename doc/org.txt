@@ -1163,7 +1163,15 @@ same date again is not logged.
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
                 first headline; update it when on one. With a count,
-                update the first clock table of the buffer.
+                update the first clock table of the buffer. A new block
+                gets `clock.clocktable_default_properties`. The total
+                and file time cells use `clock.total_time_cell_format` /
+                `clock.file_time_cell_format` ("*%s*").
+                `clock.clocktable_formatter` replaces the table writer:
+                `function(tables, params)` gets `{ { file, time, entries
+                = { { level, headline, tags, timestamp, time (minutes),
+                properties } } } }` and the block parameters, and
+                returns the lines of the block (org-clock-clocktable-formatter).
 <C-c><C-c>      On a CLOCK line: recompute its duration.
 <C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
                 the cursor, keeping the duration.
@@ -2285,7 +2293,34 @@ edit a file at a time.
                           (C-u C-c c in Emacs)
 :Org capture_goto_last    jump to the last captured (or refiled) entry
                           (C-u C-u C-c c)
-From the agenda, `K` captures with the date at point as the default date.
+:Org capture_string       ask for a string and capture it as the initial
+                          text `%i` (org-capture-string)
+From the agenda, `K` captures with the date at point as the default date
+(with a count of 1, C-1, at the time of the item at point or now). With
+`capture.use_agenda_date`, the global capture key does the same there.
+
+                                                    *org-capture-hooks*
+Besides the templates' `prepare_finalize`, `before_finalize` and
+`after_finalize` functions, every capture fires User autocmds, after the
+template's function, like Emacs's global hooks:
+  OrgCapturePrepareFinalize  capture buffer still open; data `{ buf }`
+                             (`{ immediate = true }` for `immediate_finish`
+                             templates, which have no capture buffer)
+                             (org-capture-prepare-finalize-hook)
+  OrgCaptureBeforeFinalize   entry stored, target not yet saved; data
+                             `{ bufnr, line }`
+                             (org-capture-before-finalize-hook)
+  OrgCaptureAfterFinalize    capture done; data `{ bufnr, line }`
+                             (org-capture-after-finalize-hook)
+Aborting (<C-c><C-k>) fires the prepare and after events with
+`aborted = true`, but not the before event, like org-capture-kill. >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgCaptureAfterFinalize",
+      callback = function(ev)
+        if not ev.data.aborted then vim.notify("captured") end
+      end,
+    })
+<
 
 org-protocol                                                  *org-protocol*
 `org-protocol://` URLs from a browser or another program capture, store
@@ -2300,9 +2335,19 @@ links and open files in a running Neovim, like Emacs `org-protocol.el`:
       open the local file behind a published URL (`protocol.projects`,
       like org-protocol-project-alist: base_url, working_directory,
       online_suffix, working_suffix, rewrites)
-Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, and
-`protocol.handlers` adds sub-protocols. Call it from Lua with
-`require("org.protocol").handle(url)` or `:Org protocol <url>`.
+Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, their data
+split on `protocol.data_separator` (a Vim regex, `/+` or `?` by default;
+org-protocol-data-separator), and `protocol.handlers` adds sub-protocols.
+Call it from Lua with `require("org.protocol").handle(url)` or
+`:Org protocol <url>`.
+:Org protocol_create    ask for a base URL, working directory and suffixes
+                        and add a `protocol.projects` entry
+                        (org-protocol-create). It lasts for the session;
+                        the Lua to add to your setup() is shown (Emacs
+                        saves it to the custom file).
+:Org protocol_create_for_org
+                        the same with the defaults of the publishing
+                        project of the current file (org-protocol-create-for-org)
 
 Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
 |v:servername|) and the OS must send `org-protocol:` URLs to a handler
@@ -2319,6 +2364,35 @@ On macOS register the scheme with a small app bundle (an AppleScript
 <
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
+
+Plain links through tags files                                   *org-ctags*
+Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
+`ctags.enabled = true` (Emacs: org-ctags-enable), a plain link `[[foo]]`
+(also `[[#id]]`, `[[*heading]]`, `[[(ref)]]`) first goes through
+`ctags.open_link_functions`, tried in order until one handles it:
+  "find_tag"            jump to the tag with |:tag| (CTRL-T goes back)
+  "ask_rebuild_tags_file_then_find_tag"   ask, rebuild the tags file,
+                        then look again (also without asking:
+                        "rebuild_tags_file_then_find_tag")
+  "ask_append_topic"    ask, then append a new topic `* <<Foo>>` to the
+                        buffer (`ctags.new_topic_template`, `%t` = the
+                        capitalized name; "append_topic" does not ask)
+  "ask_visit_buffer_or_file" / "visit_buffer_or_file"   visit NAME.org
+                        (asking to create it)
+  "fail_silently"       stop here (no search in the buffer)
+or functions of the link text. When none handles it, the link is searched
+in the buffer as usual. Tags come from Neovim's 'tags' option (by default
+the `tags` file next to the file or above it); Emacs uses `TAGS` files.
+:Org ctags_create_tags  run `ctags.path_to_ctags` (Exuberant or Universal
+                        ctags) on the file's directory, writing its `tags`
+                        file with the Org targets (`ctags.tag_regexp`)
+:Org ctags_find_tag_interactive   choose a tag (completed) and jump to
+                        it; an unknown one goes through the functions
+                        above (org-ctags-find-tag-interactive)
+:Org ctags_find_tag, ctags_get_filename_for_tag, ctags_all_tags,
+ctags_open_file, ctags_visit_buffer_or_file, ctags_append_topic
+                        the other org-ctags commands, asking for their
+                        argument
 
 RSS and Atom feeds                                                *org-feed*
 Items of RSS 2.0 and Atom feeds are added as children of an inbox headline
@@ -2450,7 +2524,9 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
   log                 false | "time" | "note": add "Refiled on [date]"
                       to the entry's logbook (org-log-refile); a region
                       only gets time stamps
-  reverse_note_order  refile as the first child (org-reverse-note-order)
+  reverse_note_order  refile as the first child (org-reverse-note-order);
+                      <C-c><C-M-w> (`refile_reverse`, org-refile-reverse)
+                      refiles with it inverted
   use_cache           keep the targets between refiles
                       (org-refile-use-cache): new headlines are not
                       offered until the cache is cleared with a count of
@@ -2499,6 +2575,22 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
 <C-c><C-x>A     Move the subtree under its "Archive" sibling
                 (`archive_sibling_heading`), which is created with the
                 ARCHIVE tag when missing (org-archive-to-archive-sibling).
+<C-c><C-x><C-a> Archive with `archive_default_command`
+                (org-archive-subtree-default): "archive_subtree" (the
+                default), "archive_to_sibling", "set_tag" (add the ARCHIVE
+                tag) or a function(target). The agenda's `a` uses it too.
+                `archive_subtree_save_file` (org-archive-subtree-save-file-p)
+                says when `archive_subtree` saves the archive file: true,
+                false, "from_org" (default: not when archiving from the
+                agenda) or "from_agenda" (only then).
+:Org datetree_cleanup
+                Move each entry of a date tree whose active time stamp
+                is not the date of its day node under the right day,
+                creating it (org-datetree-cleanup). Entries without a day
+                node as parent are left alone. Unlike Emacs, SCHEDULED
+                and DEADLINE stamps are skipped: Emacs's check for them
+                never matches, so it files entries by their planning
+                dates.
 :Org archive_all_done
                 Offer to archive each child of the headline at the cursor
                 (each top-level tree when not on a headline) that has no
@@ -2711,6 +2803,16 @@ scan. Refiled and archived entries are recorded at their new place.
 New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
 stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
+`id.include_domain` (org-id-include-domain) adds "@" and the host name
+(a name without a dot gets ".mail-host-address-is-not-set", like Emacs)
+to "ts" and "org" IDs.
+Typing `id:` alone in |org-insert-link| completes a heading, not an ID
+(org-id-completion-targets): the headings of `id.completion_targets`,
+refile target specs (|org-refile|) that default to every heading of the
+buffer and of the files holding known IDs (`files = "id"`), as outline
+paths; the chosen heading gets an ID when it has none. In a buffer
+without a file only the specs naming files count; with no heading to
+offer you type the link.
 Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
 Before the first heading the ID goes into a file-level property drawer at
@@ -2739,6 +2841,21 @@ its ancestor's ID (`id:ID::*Child`).
   d  delete one              D  delete all
   s  set the DIR property    S  remove the DIR property
 Directories can be attached too (copied recursively with "cp").
+`attach.commands` adds commands to the dispatcher or replaces them
+(org-attach-commands): `{ x = { fn = function(target) ... end, desc =
+"..." } }`, where `target` is `{ bufnr, lnum }` of the entry; `false`
+removes a built-in key. With `attach.expert` (org-attach-expert) the
+dispatcher asks for the key at a one-line prompt instead of showing the
+menu.
+
+:Org attach_from_file_manager
+                In a netrw or oil.nvim buffer: attach the marked files
+                (netrw), the Visual selection (oil) or the file under the
+                cursor to the entry at the cursor of a window showing an
+                Org buffer, with `attach.method`
+                (org-attach-dired-to-subtree). Map it in those buffers,
+                e.g. `vim.keymap.set("n", "<C-c><C-x>a", ...)` in a
+                `FileType netrw` autocmd.
 
 The directory is the DIR property (or the older ATTACH_DIR), else it
 comes from the ID: `attach.dir` + a folder from `attach.id_to_path`
@@ -2755,6 +2872,30 @@ source, false none). Other options: `dir_relative` (store DIR relative to
 the file), `sync_delete_empty_dir` ("query", true, false) and
 `archive_delete` (delete the attachments of archived entries: false, true,
 "query").
+
+Pasting images and files                                    *org-yank-media*
+
+`:Org yank_media` (no default key; Emacs's `yank-media`) pastes what the
+system clipboard holds, read with wl-paste (Wayland), xclip (X11) or
+osascript (macOS):
+- an image: saved as `clipboard-<time stamp>.png` (or the name from
+  `yank.image_file_name_function`) and linked at the cursor. With
+  `yank.image_save_method = "attach"` (the default) it becomes an
+  attachment of the entry (`[[attachment:NAME][NAME]]`); a directory
+  (relative to the file's) or a function returning one saves it there
+  (`[[file:img/NAME.png]]`) (org-yank-image-save-method).
+- files copied in a file manager (GNOME, KDE, MATE, or a Finder file on
+  macOS): handled like dropped files; cut files are moved.
+When the clipboard holds neither, nothing happens.
+
+Dropping files on the terminal pastes their paths; in an Org buffer a
+paste made only of existing files (`file://` URIs or paths, quoted or
+escaped) is handled as a drop (`yank.dnd_paste`, true). `yank.dnd_method`
+(org-yank-dnd-method) says what to do: "attach" (with
+`yank.dnd_default_attach_method`, else `attach.method`; an image goes to
+the `yank.image_save_method` directory when that is one), "open", "file-link"
+(insert `[[/path/to/file]]`) or "ask" (the default; Esc pastes the text
+instead). Several files get a space after each link.
 
 Attachments in git (org-attach-git)                         *org-attach-git*
 
@@ -4828,6 +4969,8 @@ Buffer ~
   sparse_tree_default_date_type    nil  |org-sparse-tree| date types
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
+  datetree_add_timestamp    false     "active"|"inactive": new date tree
+                                      day nodes get their date
   edit_src_content_indentation  2
   ellipsis                  "..."
   entities_user             {}        your own entities |org-entities-user|
@@ -4881,6 +5024,9 @@ Structure and visibility ~
                                       "plain"|"anonymous"
   footnote_auto_adjust      false     false|true|"sort"|"renumber"
   footnote_define_inline    false
+  footnote_fill_after_inline_note_extraction  false  normalizing refills
+                                      the paragraphs of inline notes
+                                      (at `textwidth`, 70 when 0)
   deadline_warning_days     14
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
@@ -4896,6 +5042,9 @@ Structure and visibility ~
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
   archive_reversed_order    false
   archive_mark_done         false     true|"DONEKEYWORD"
+  archive_default_command   "archive_subtree"  "archive_to_sibling"|
+                                      "set_tag"|function(target)
+  archive_subtree_save_file "from_org"  true|false|"from_agenda"
   archive_file_header_format  "\nArchived entries from file %s\n\n"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
@@ -4949,7 +5098,8 @@ agenda ~
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
   template), templates_contexts {} (|org-capture-contexts|),
-  window "split"
+  window "split", use_agenda_date false (the global capture key in the
+  agenda uses the date at point, like the agenda's `K`)
 refile ~
   targets {} (empty = level-1 headlines of the current buffer),
   max_level nil, include_current_file nil, use_outline_path false,
@@ -4970,10 +5120,27 @@ clock ~
   goto_before_context 2, display_default_range "thisyear",
   ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
+  clocktable_default_properties { maxlevel = 2 } (header of a new clock
+  table: `:scope` first, then `:maxlevel`, then the others by name;
+  merged with the default, false leaves a key out),
+  clocktable_formatter nil (function(tables, params) -> lines, see
+  |org-clocktable|), total_time_cell_format "*%s*",
+  file_time_cell_format "*%s*", resolve_expert false (resolve clocks at
+  a one-line prompt, no help window), x11idle_program_name nil
+  (xprintidle when installed, else x11idle),
   persist false (true | "clock" | "history"), persist_query_resume true,
-  persist_file
+  persist_query_save false (ask on exit whether to keep the running
+  clock for the next session), persist_file
 timer ~    format "%s ", default_timer "0"
-protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
+protocol ~ default_template_key nil, projects {}, handlers {},
+           data_separator [[/\+\|?]] (|org-protocol|)
+yank ~     image_save_method "attach", image_file_name_function nil,
+           dnd_method "ask", dnd_default_attach_method nil, dnd_paste true
+           (|org-yank-media|)
+ctags ~    enabled false, path_to_ctags nil, open_link_functions
+           { "find_tag", "ask_rebuild_tags_file_then_find_tag",
+           "ask_append_topic" }, new_topic_template "* <<%t>>\n\n\n\n\n\n",
+           tag_regexp [[/<<([^<>]+)>>/\1/d,definition/]] (|org-ctags|)
 feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",
            drawer "FEEDSTATUS", save_after_adding true,
            retrieve_method "curl" (|org-feed|)
@@ -5001,13 +5168,14 @@ id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
   ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
-  link_use_context true, link_consider_parent_id false
+  link_use_context true, link_consider_parent_id false, include_domain
+  false, completion_targets { { files = "current" }, { files = "id" } }
 attach ~
   dir "data/", method "cp"|"mv"|"ln"|"lns", id_to_path { "uuid", "ts",
   "fallback" }, use_inheritance "selective", dir_relative false,
   preferred_new_method "id", store_link "attached",
   sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH",
-  git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
+  commands {} (extra dispatcher commands), expert false, git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
   git_dir "default" (|org-attach-git|)
 mobile ~ (|org-mobile|)
   directory nil, files { "agenda_files" }, files_exclude_regexp "",
@@ -5217,8 +5385,10 @@ Links, refile, archive, export:
   <C-c><M-l>  insert last stored link   <C-c><C-M-l>  insert all links
   <C-c>&      jump back from a followed link
   <C-c><C-x><C-n> <C-p>  next / previous link
-  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>  archive
+  <C-c><C-x><C-a>  archive with `archive_default_command`
   <C-c><M-w>  copy to a refile target
+  <C-c><C-M-w>  refile with `refile.reverse_note_order` inverted
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
   <C-c>[ <C-c>]  add / remove file from agenda files (this session)
@@ -5372,7 +5542,11 @@ or unreadable local setup files are ignored; lint reports missing paths.
                         list (title "org-lint", entries "checker: message",
                         E for high trust, W for low trust). With checker
                         names (completed), only those run (Emacs C-u C-u).
-                        No default key, as in Emacs.
+                        No default key, as in Emacs. In the location list
+                        window, as in Emacs's report buffer: `h` hides the
+                        reports of the checker under the cursor, `i` also
+                        ignores that checker when refreshing
+                        (org-lint--ignore-checker), `g` lints again.
 
 Lua: `require("org.lint").lint(bufnr, checkers?)` returns the reports
 `{ lnum, col, checker, message, trust }` sorted by position, and
@@ -5658,6 +5832,23 @@ Differences from Emacs:
     characters are used when they exist, else a highlight.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
+- Capture, clock, archive and other commands (parity round 5):
+  - The global capture hooks are User autocmds (|org-capture-hooks|); the
+    template functions are not called on abort as Emacs does, only the
+    events fire (with `aborted = true`).
+  - `datetree_cleanup` skips SCHEDULED/DEADLINE time stamps: Emacs's
+    check for them never matches (`\<DEADLINE:\>`), so it files entries by
+    their planning dates and leaves emptied day nodes behind.
+  - `protocol_create` adds the project for the session and shows the Lua
+    to put in `setup()`; Emacs saves it with Customize.
+  - org-ctags reads Vim `tags` files through the 'tags' option instead of
+    Emacs `TAGS` files; `ctags.enabled` replaces org-ctags-enable.
+  - Files cut in a file manager and pasted with `yank_media` are moved,
+    copied ones copied (Emacs swaps the two). A drop is a paste of file
+    paths in the terminal (`yank.dnd_paste`); attaching a dropped file uses
+    `yank.dnd_default_attach_method` (Emacs's `private` DND action).
+  - `attach_from_file_manager` works in netrw and oil.nvim buffers (Emacs:
+    org-attach-dired-to-subtree in Dired).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't

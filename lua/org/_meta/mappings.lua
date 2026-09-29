@@ -184,6 +184,22 @@
 ---| "promote_subtree" # Promote subtree
 ---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
 ---| "refile_copy" # Copy subtree / region to a refile target
+---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
+---| "datetree_cleanup" # Move date tree entries under the day of their time stamp
+---| "archive_subtree_default" # Archive with archive_default_command
+---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
+---| "capture_string" # Capture a string typed at a prompt
+---| "yank_media" # Paste a clipboard image or copied files (link / attach)
+---| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
+---| "ctags_find_tag" # Jump to a tag
+---| "ctags_create_tags" # Rebuild the tags file of this directory
+---| "ctags_all_tags" # List the tags of the tags files
+---| "ctags_get_filename_for_tag" # Show where a tag is defined
+---| "ctags_open_file" # Open a file and add a new topic
+---| "ctags_visit_buffer_or_file" # Visit NAME.org
+---| "ctags_append_topic" # Append a new topic to the buffer
+---| "protocol_create" # Create an org-protocol project
+---| "protocol_create_for_org" # Create an org-protocol project for this file's publishing project
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
@@ -845,8 +861,12 @@
 ---@field refile? org.MappingLhs
 --- Copy subtree to a refile target. Default: `<C-c><M-w>`
 ---@field refile_copy? org.MappingLhs
---- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
+--- Refile with reverse_note_order inverted. Default: `<C-c><C-M-w>`
+---@field refile_reverse? org.MappingLhs
+--- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive_subtree? org.MappingLhs
+--- Archive with archive_default_command. Default: `<C-c><C-x><C-a>`
+---@field archive_subtree_default? org.MappingLhs
 --- Toggle ARCHIVE tag (Visual: all headlines). Default: `<C-c><C-x>a`
 ---@field toggle_archive_tag? org.MappingLhs
 --- Archive to Archive sibling (Visual: all headlines). Default: `<C-c><C-x>A`

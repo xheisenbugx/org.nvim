@@ -380,6 +380,9 @@ M.defaults = {
   footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
+  --- A new day node of a date tree gets a time stamp of its date
+  --- (org-datetree-add-timestamp): false | "active" | "inactive".
+  datetree_add_timestamp = false,
   --- Indentation added to src block contents in the edit buffer
   --- (org-src-content-indentation).
   edit_src_content_indentation = 2,
@@ -542,6 +545,10 @@ M.defaults = {
   --- Define new footnotes inline, `[fn:N: text]` at the reference
   --- (org-footnote-define-inline). #+STARTUP: fninline / nofninline.
   footnote_define_inline = false,
+  --- Refill the paragraphs that lost an inline footnote when normalizing
+  --- (org-footnote-fill-after-inline-note-extraction), at `textwidth`
+  --- (70 when 0).
+  footnote_fill_after_inline_note_extraction = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
   --- { rounding of the current time in date prompts, minute step of
@@ -583,6 +590,14 @@ M.defaults = {
   --- Archive as the first child of the archive heading instead of the last
   --- (org-archive-reversed-order).
   archive_reversed_order = false,
+  --- What `archive_subtree_default` (C-c C-x C-a, the agenda's `a`) does
+  --- (org-archive-default-command): "archive_subtree" | "archive_to_sibling"
+  --- | "set_tag" | function(target).
+  archive_default_command = "archive_subtree",
+  --- Save the archive file after `archive_subtree` (org-archive-subtree-save-file-p):
+  --- true | false | "from_org" (not from the agenda) | "from_agenda" (only
+  --- from the agenda). A location in the same buffer is never saved.
+  archive_subtree_save_file = "from_org",
   --- Mark archived entries done: false | true (first done keyword) | a done
   --- keyword (org-archive-mark-done).
   archive_mark_done = false,
@@ -967,6 +982,11 @@ M.defaults = {
     --- Window of the capture buffer: "split" (Emacs splits the frame) |
     --- "float" | "vsplit" | "tab" | "current".
     window = "split",
+    --- Capturing from the agenda (the global capture key) uses the date at
+    --- point as the default date; with count 1 also the time of the item
+    --- at point or the current time (org-capture-use-agenda-date). The
+    --- agenda's own capture key always does.
+    use_agenda_date = false,
   },
 
   ---------------------------------------------------------------------------
@@ -1082,12 +1102,34 @@ M.defaults = {
     statusline_icon = "⏱",
     --- Parameters for clocktables that don't set them (org-clocktable-defaults).
     clocktable_default = { maxlevel = 2, scope = "file", block = nil },
+    --- Parameters written into the header of a new clock table
+    --- (org-clock-clocktable-default-properties); `scope` defaults to
+    --- "subtree" on a headline and "file" before the first one.
+    clocktable_default_properties = { maxlevel = 2 },
+    --- function(tables, params) -> string[] writing clock tables instead of
+    --- the default (org-clock-clocktable-formatter); nil = the default.
+    clocktable_formatter = nil,
+    --- Format of the total time cells ("Total time" and its time), and of
+    --- the "File time" cells (org-clock-total-time-cell-format,
+    --- org-clock-file-time-cell-format).
+    total_time_cell_format = "*%s*",
+    file_time_cell_format = "*%s*",
+    --- Resolve clocks without the help window, just a prompt
+    --- (org-clock-resolve-expert).
+    resolve_expert = false,
+    --- Program printing the X11 idle time in milliseconds
+    --- (org-clock-x11idle-program-name); nil = xprintidle when installed,
+    --- else x11idle.
+    x11idle_program_name = nil,
     --- Keep the running clock and the clock history across restarts:
     --- true (both), "clock", "history" or false (org-clock-persist).
     persist = false,
     --- Ask before resuming a saved clock after a restart
     --- (org-clock-persist-query-resume).
     persist_query_resume = true,
+    --- Ask on exit whether to keep the running clock for the next session
+    --- (org-clock-persist-query-save).
+    persist_query_save = false,
     persist_file = data_dir .. "/clock.json",
   },
 
@@ -1127,6 +1169,51 @@ M.defaults = {
     --- Extra sub-protocols (org-protocol-protocol-alist): list of
     --- { protocol = "name", fn = function(params) end, order? = { keys } }.
     handlers = {},
+    --- Vim regex splitting the data of old-style URLs
+    --- (`org-protocol://sub://a/b/c`) (org-protocol-data-separator).
+    data_separator = [[/\+\|?]],
+  },
+
+  ---------------------------------------------------------------------------
+  -- Pasting images and files (yank-media, drag and drop)
+  ---------------------------------------------------------------------------
+  yank = {
+    --- Where `yank_media` puts a clipboard image (org-yank-image-save-method):
+    --- "attach" (an attachment of the entry) | a directory (relative to the
+    --- file's) | function() returning one.
+    image_save_method = "attach",
+    --- function() returning the image's name without extension
+    --- (org-yank-image-file-name-function); nil = "clipboard-<time stamp>".
+    image_file_name_function = nil,
+    --- What a dropped or pasted file does (org-yank-dnd-method): "attach" |
+    --- "open" | "file-link" | "ask".
+    dnd_method = "ask",
+    --- Attach method for dropped files (org-yank-dnd-default-attach-method):
+    --- nil = `attach.method`, or "cp" | "mv" | "ln" | "lns".
+    dnd_default_attach_method = nil,
+    --- Treat a paste of existing file paths in an Org buffer (what a
+    --- terminal sends for a file drop) as a drop.
+    dnd_paste = true,
+  },
+
+  ---------------------------------------------------------------------------
+  -- Plain links through tags files (org-ctags)
+  ---------------------------------------------------------------------------
+  ctags = {
+    --- Look up plain links in the tags files (Emacs: org-ctags-enable).
+    enabled = false,
+    --- The ctags program (org-ctags-path-to-ctags); nil = ctags-exuberant
+    --- when installed, else ctags.
+    path_to_ctags = nil,
+    --- Tried in order for a plain link until one returns true
+    --- (org-ctags-open-link-functions): names from
+    --- `require("org.ctags").link_functions` or function(name).
+    open_link_functions = { "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" },
+    --- Text of a new topic, `%t` = the capitalized title
+    --- (org-ctags-new-topic-template).
+    new_topic_template = "* <<%t>>\n\n\n\n\n\n",
+    --- The --regex-orgmode given to ctags (org-ctags-tag-regexp).
+    tag_regexp = [[/<<([^<>]+)>>/\1/d,definition/]],
   },
 
   ---------------------------------------------------------------------------
@@ -1259,6 +1346,13 @@ M.defaults = {
     locations_file_relative = false,
     --- How new IDs are made (org-id-method): "uuid" | "ts" | "org".
     method = "uuid",
+    --- Add "@" and the host name to new "ts" and "org" IDs
+    --- (org-id-include-domain).
+    include_domain = false,
+    --- Headings offered when completing an id: link, as refile target specs
+    --- (`:h org-refile`; `files = "id"` = the files holding known IDs); the
+    --- chosen heading gets an ID when it has none (org-id-completion-targets).
+    completion_targets = { { files = "current" }, { files = "id" } },
     --- Prefix of new IDs (org-id-prefix), e.g. "Org".
     prefix = nil,
     --- Time stamp format of "ts" IDs (org-id-ts-format; %6N = microseconds).
@@ -1305,6 +1399,13 @@ M.defaults = {
     archive_delete = false,
     --- Tag of entries with attachments; false for none (org-attach-auto-tag).
     auto_tag = "ATTACH",
+    --- Extra dispatcher commands (org-attach-commands), by key:
+    --- `{ fn = function(target) end, desc = "..." }`; `false` removes a
+    --- built-in command.
+    commands = {},
+    --- Ask for the dispatcher key at a one-line prompt instead of showing
+    --- the command menu (org-attach-expert).
+    expert = false,
     --- Commit attachment changes to git (org-attach-git; Emacs turns it on
     --- with `(require 'org-attach-git)`).
     git = false,
@@ -2292,7 +2393,9 @@ M.defaults = {
       -- refile / archive / attach / agenda files
       refile = "<C-c><C-w>",
       refile_copy = "<C-c><M-w>",
-      archive_subtree ={ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
+      refile_reverse = "<C-c><C-M-w>",
+      archive_subtree = { "<C-c>$", "<C-c><C-x><C-s>" },
+      archive_subtree_default = "<C-c><C-x><C-a>",
       toggle_archive_tag = "<C-c><C-x>a",
       archive_to_sibling = "<C-c><C-x>A",
       attach = "<C-c><C-a>",
