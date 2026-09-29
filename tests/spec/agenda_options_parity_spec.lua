@@ -258,7 +258,10 @@ describe("agenda line format options", function()
   --   "  block:      (2/3):  Trip  now"
   -- and with the format "": "  block:      Scheduled:  [#A] Hi prio"
   it("remove_timeranges_from_blocks and todo_keyword_format", function()
-    open(vim.list_extend({}, lines), { agenda = { remove_timeranges_from_blocks = true, todo_keyword_format = "%-6s" } })
+    open(
+      vim.list_extend({}, lines),
+      { agenda = { remove_timeranges_from_blocks = true, todo_keyword_format = "%-6s" } }
+    )
     local got = item_lines()
     eq("  skip:       Scheduled:  TODO   [#A] Hi prio", got[1])
     eq("  skip:       (2/3):  Trip  now", got[2])

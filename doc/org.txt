@@ -4587,6 +4587,7 @@ Structure and visibility ~
   archive_save_context_info { "time", "file", "olpath", "category", "todo",
                               "itags" }
   archive_sibling_heading   "Archive"
+  archive_default_command   "archive_subtree"  agenda `a` / C-c C-x C-a
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
   archive_reversed_order    false
   archive_mark_done         false     true|"DONEKEYWORD"
@@ -4638,7 +4639,25 @@ agenda ~
   calendar_date_style "american" ("european"|"iso"),
   hebrew_sabbath_candles_minutes 18, include_diary false,
   diary_file nil, diary_show_holidays true, diary_include_files false,
-  diary_nongregorian {}, holidays (|org-agenda-holidays|)
+  diary_nongregorian {}, holidays (|org-agenda-holidays|),
+  move_date_from_past_immediately_to_today true, follow_indirect false,
+  mouse_1_follows_link false, skip_comment_trees true,
+  skip_function_global nil, todo_ignore_time_comparison_use_seconds false,
+  entry_text_exclude_regexps {}, entry_text_leaders "    > ",
+  add_entry_text_maxlines 0, before_write_hook nil, export_html_style nil,
+  custom_commands_contexts {}, menu_show_matcher true,
+  menu_two_columns false, todo_keyword_format "%-1s",
+  fontify_priorities "cookies" (true|false|table), deadline_faces,
+  day_face_function nil, diary_sexp_prefix nil,
+  remove_timeranges_from_blocks false, bulk_mark_char ">",
+  loop_over_headlines_in_active_region true (false|"start-level"|regexp),
+  start_with_archives_mode false (true|"trees"),
+  diary_entry_file "diary-file" (or an Org file),
+  insert_diary_strategy "date-tree" ("date-tree-last"|"top-level"),
+  insert_diary_extract_time false, skip_unavailable_files false,
+  query_register "o", restriction_lock_highlight_subtree true,
+  window_frame_fractions { 0.5, 0.75 },
+  columns_add_appointments_to_effort_sum false
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task

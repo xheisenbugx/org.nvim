@@ -541,7 +541,11 @@ function M.refresh()
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   S.line_parts = {}
   for _, h in ipairs(b.hls) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, ns, h[1], h[2], { end_col = h[3], hl_group = h[4], priority = h[5] or 110 })
+    pcall(vim.api.nvim_buf_set_extmark, buf, ns, h[1], h[2], {
+      end_col = h[3],
+      hl_group = h[4],
+      priority = h[5] or 110,
+    })
     local l = S.line_parts[h[1] + 1] or {}
     l[#l + 1] = { h[2], h[3], h[4] }
     S.line_parts[h[1] + 1] = l
