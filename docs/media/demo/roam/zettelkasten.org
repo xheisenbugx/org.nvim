@@ -1,0 +1,11 @@
+:PROPERTIES:
+:ID:       7d2c1f60-zettel
+:ROAM_ALIASES: Zettel
+:END:
+#+title: Zettelkasten
+#+filetags: :method:
+
+A slip-box of small, linked notes. Each note holds one idea and links to
+the notes it builds on, like [[id:9a41e2b0-atomic][atomic notes]].
+
+Writing them in [[id:c3f0a9d2-neovim][Neovim]] keeps the links one key away.

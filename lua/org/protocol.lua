@@ -8,7 +8,7 @@
 ---       "v:lua.require'org.protocol'.handle('org-protocol://capture?url=...')"
 --- <
 --- Sub-protocols: `capture`, `store-link`, `open-source`, plus the ones in
---- `protocol.handlers`.
+--- `protocol.handlers` and those of enabled extensions.
 
 local config = require("org.config")
 local utils = require("org.utils")
@@ -248,6 +248,12 @@ function M.create_for_org()
   return M.create(project[2])
 end
 
+--- Sub-protocols added by extensions (`:h org-extensions`): name ->
+--- handler in the `protocol.handlers` form. They come after the user's
+--- handlers and before the built-in ones.
+---@type table<string, { protocol: string, fn: fun(params: table): any, order?: string[] }>
+M.extension_handlers = {}
+
 local DEFAULT_HANDLERS = {
   { name = "org-capture", protocol = "capture", fn = M.capture, order = { "url", "title", "body" }, capture = true },
   { name = "org-store-link", protocol = "store-link", fn = M.store_link, order = { "url", "title" } },
@@ -264,7 +270,13 @@ function M.handle(url)
     utils.warn("Not an org-protocol URL: " .. url)
     return nil
   end
-  local handlers = vim.list_extend(vim.deepcopy(cfg().handlers or {}), DEFAULT_HANDLERS)
+  local handlers = vim.deepcopy(cfg().handlers or {})
+  local names = vim.tbl_keys(M.extension_handlers)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    handlers[#handlers + 1] = M.extension_handlers[name]
+  end
+  vim.list_extend(handlers, DEFAULT_HANDLERS)
   for _, h in ipairs(handlers) do
     local proto = h.protocol
     local data, new_style

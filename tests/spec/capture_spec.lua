@@ -555,6 +555,36 @@ describe("capture buffer", function()
     eq({ "* Inbox" }, file_lines(p))
   end)
 
+  it("runs on_abort with the target buffer when the capture is killed", function()
+    local p = tmpfile({ "* Inbox" })
+    base_setup()
+    local got
+    local buf = run(capture.capture, {
+      template = "* X",
+      target = p,
+      on_abort = function(b)
+        got = b
+      end,
+    })
+    local target = utils.find_buffer(p)
+    ok(target)
+    capture.kill(buf)
+    eq(target, got)
+  end)
+
+  it("refuses an empty capture unless allow_empty, which still saves the target", function()
+    local p = tmpfile({ "#+title: Head" })
+    base_setup()
+    local buf = run(capture.capture, { type = "plain", template = "", target = p })
+    eq(nil, (run(capture.finalize, buf, { jump = false })))
+    capture.kill(buf)
+    local tb = utils.load_buffer(p)
+    vim.api.nvim_buf_set_lines(tb, 0, -1, false, { "#+title: Changed" })
+    buf = run(capture.capture, { type = "plain", template = "", target = p, allow_empty = true })
+    ok(run(capture.finalize, buf, { jump = false }))
+    eq({ "#+title: Changed" }, utils.readfile(p))
+  end)
+
   it("jumps to the stored entry with a count (C-u C-c C-c) and goes to targets", function()
     local p = tmpfile({ "* Inbox", "* Other" })
     local tpl = { template = "* X", target = p, headline = "Other" }
