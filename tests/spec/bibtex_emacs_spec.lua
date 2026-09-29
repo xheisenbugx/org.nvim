@@ -193,7 +193,10 @@ describe("ol-bibtex", function()
         end)
       end)
       vim.bo[buf].modified = false
-      eq({ "@misc{a1,", "  title={A}", "}", "", "@misc{c1,", "  title={C},", "  note={n}", "}" }, vim.fn.readfile(dir .. "/x.bib"))
+      eq(
+        { "@misc{a1,", "  title={A}", "}", "", "@misc{c1,", "  title={C},", "  note={n}", "}" },
+        vim.fn.readfile(dir .. "/x.bib")
+      )
       ok(msgs[#msgs]:match("^Successfully exported 2 BibTeX entries to .*/x%.bib$"), msgs[#msgs])
     end)
 
@@ -375,7 +378,10 @@ describe("ol-bibtex", function()
     end)
 
     it("check asks for the missing required fields and the key", function()
-      local buf = org_buffer({ "* A Paper", ":PROPERTIES:", ":BTYPE: article", ":AUTHOR: X, Y", ":END:", "** Child" }, { 1, 0 })
+      local buf = org_buffer(
+        { "* A Paper", ":PROPERTIES:", ":BTYPE: article", ":AUTHOR: X, Y", ":END:", "** Child" },
+        { 1, 0 }
+      )
       local prompts = answering({ "J. Foo", "", "mykey" }, function()
         bibtex.check(false)
       end)
@@ -525,7 +531,12 @@ describe("ol-bibtex", function()
       end
       bibtex.search("graphs")
       agenda.open = open
-      eq({ type = "search", match = "graphs +{:btype:}", header = "Bib search results:", search_view_always_boolean = true }, spec)
+      eq({
+        type = "search",
+        match = "graphs +{:btype:}",
+        header = "Bib search results:",
+        search_view_always_boolean = true,
+      }, spec)
     end)
   end)
 end)

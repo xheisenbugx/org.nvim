@@ -668,7 +668,17 @@ function M.autokey(entry, s)
   if term then
     title = title:sub(1, term - 1)
   end
-  local ignore = { A = true, An = true, On = true, The = true, Eine = true, Ein = true, Der = true, Die = true, Das = true }
+  local ignore = {
+    A = true,
+    An = true,
+    On = true,
+    The = true,
+    Eine = true,
+    Ein = true,
+    Der = true,
+    Die = true,
+    Das = true,
+  }
   local words, extra = {}, {}
   local counter = 0
   local pos = 1

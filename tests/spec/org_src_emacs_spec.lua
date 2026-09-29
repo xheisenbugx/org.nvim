@@ -92,7 +92,10 @@ end)
 describe("org-babel-hash-at-point", function()
   it("C-c C-c on a results hash copies it and shows it", function()
     local hash = "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
-    org_buffer({ "#+begin_src sh :cache yes", "echo 1", "#+end_src", "", "#+RESULTS[" .. hash .. "]:", ": 1" }, { 5, 12 })
+    org_buffer(
+      { "#+begin_src sh :cache yes", "echo 1", "#+end_src", "", "#+RESULTS[" .. hash .. "]:", ": 1" },
+      { 5, 12 }
+    )
     vim.fn.setreg('"', "")
     require("org.context").context_action()
     eq(hash, vim.fn.getreg('"'))
