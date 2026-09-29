@@ -2189,7 +2189,12 @@ M.defaults = {
       --- Compile PDFs in the background with vim.system (plugin option;
       --- Emacs blocks unless the export is asynchronous).
       async_compile = true,
-      src_block_backend = "verbatim", -- org-latex-src-block-backend ("verbatim", "listings", "minted")
+      src_block_backend = "verbatim", -- org-latex-src-block-backend ("verbatim", "listings", "minted", "engraved")
+      engraved_options = nil, -- org-latex-engraved-options ({ { key, value }, ... }; nil = the Emacs list)
+      engraved_preamble = nil, -- org-latex-engraved-preamble (nil = the Emacs preamble)
+      --- org-latex-engraved-theme (#+LATEX_ENGRAVED_THEME): nil/"default" = engrave-faces'
+      --- default colours, true = the current colour scheme, a name = that colour scheme.
+      engraved_theme = nil,
       caption_above = { "table" }, -- org-latex-caption-above
       prefer_user_labels = false, -- org-latex-prefer-user-labels
       reference_command = "\\ref{%s}", -- org-latex-reference-command

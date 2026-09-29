@@ -709,6 +709,136 @@ function M.log_warnings(text)
   return warnings
 end
 
+---------------------------------------------------------------------------
+-- Engraved source blocks (org-latex-src-block-backend engraved)
+---------------------------------------------------------------------------
+
+-- Replace the first line of `s` matching "[ \t]*[NAME][ \t]*\n?" (Emacs
+-- string-match with ^, so at any line start) by `repl`.
+local function replace_placeholder(s, name, repl)
+  local pat = "^[ \t]*%[" .. name:gsub("%-", "%%-") .. "%][ \t]*\n?"
+  local pos = 1
+  while pos <= #s + 1 do
+    local a, b = s:find(pat, pos)
+    if a then
+      return s:sub(1, a - 1) .. repl .. s:sub(b + 1)
+    end
+    local nl = s:find("\n", pos, true)
+    if not nl then
+      break
+    end
+    pos = nl + 1
+  end
+  return s
+end
+
+local function theme_letters(theme)
+  return (tostring(theme):gsub("[^A-Za-z]", ""))
+end
+
+--- org-latex-generate-engraved-preamble
+function M.generate_engraved_preamble(info)
+  local E = require("org.export.engrave")
+  local pre = info.latex_engraved_preamble or ""
+  local theme = info.latex_engraved_theme
+  if theme == "t" then
+    theme = true
+  end
+  -- themes of the blocks (cl-delete-duplicates keeps the last occurrence)
+  local all = element.map(info.parse_tree, { ["src-block"] = true, ["inline-src-block"] = true }, function(src)
+    return ox.read_attribute("attr_latex", src)["engraved-theme"]
+  end, { ignore = info.ignore })
+  local themes = {}
+  for i, t in ipairs(all) do
+    local later = false
+    for j = i + 1, #all do
+      later = later or all[j] == t
+    end
+    if not later then
+      themes[#themes + 1] = t
+    end
+  end
+  local function spec(t)
+    return E.gen_preamble(E.get_theme(t))
+  end
+  pre = replace_placeholder(
+    pre,
+    "FVEXTRA-SETUP",
+    "\\fvset{%\n  " .. make_option_string(info.latex_engraved_options, ",\n  ") .. "}\n"
+  )
+  pre = replace_placeholder(
+    pre,
+    "LISTINGS-SETUP",
+    fmt(
+      "%% Support listings with captions\n\\usepackage{float}\n\\floatstyle{%s}\n\\newfloat{listing}{htbp}{lst}\n"
+        .. "\\newcommand{\\listingsname}{Listing}\n\\floatname{listing}{\\listingsname}\n"
+        .. "\\newcommand{\\listoflistingsname}{List of Listings}\n"
+        .. "\\providecommand{\\listoflistings}{\\listof{listing}{\\listoflistingsname}}\n",
+      caption_above_p({ type = "src-block" }, info) and "plaintop" or "plain"
+    )
+  )
+  local colors
+  if #themes > 0 then
+    local defs = {}
+    local global_listed = false
+    for _, t in ipairs(themes) do
+      global_listed = global_listed or (theme ~= nil and tostring(theme) == t)
+      local s = spec(t):gsub("#", "##"):gsub("newcommand", "renewcommand")
+      defs[#defs + 1] = fmt("\n\\newcommand{\\engravedtheme%s}{%%\n%s\n}", theme_letters(t), s)
+    end
+    colors = table.concat(defs, "\n")
+      .. "\n\n"
+      .. (global_listed and ("\\engravedtheme" .. theme_letters(theme) .. "\n") or spec(theme))
+  else
+    colors = spec(theme)
+  end
+  return "\n% Setup for code blocks [1/2]\n\n"
+    .. pre
+    .. "\n\n% Setup for code blocks [2/2]: syntax highlighting colors\n\n"
+    .. colors
+    .. "\n"
+end
+
+--- org-latex-src--engrave-mathescape-p
+local function engrave_mathescape_p(info, options)
+  local function status(opts)
+    for _, o in ipairs(opts or {}) do
+      local k, v = o[1], o[2]
+      local r
+      if v == nil then
+        local l = "," .. k .. ","
+        if l:find(",mathescape=false,", 1, true) then
+          r = "no"
+        elseif l:find(",mathescape,", 1, true) or l:find(",mathescape=true,", 1, true) then
+          r = "yes"
+        end
+      elseif k == "mathescape" then
+        r = (v == "true" and "yes") or (v == "false" and "no") or nil
+      end
+      if r then
+        return r
+      end
+    end
+  end
+  return (status(info.latex_engraved_options) or status(options)) == "yes"
+end
+
+--- org-latex-src--engrave-code: CONTENT engraved in a Code/Verbatim
+--- environment, or a \Verb command when INLINE.
+local function engrave_code(content, lang, theme, options, inline, mathescape)
+  local E = require("org.export.engrave")
+  local code = content:gsub("\n$", "")
+  local engraved = E.engrave(code, lang, E.get_theme(theme), mathescape)
+  local opts = (options and #options > 0) and ("[" .. make_option_string(options) .. "]") or ""
+  local wrapped = inline and ("\\Verb" .. opts .. "{" .. engraved .. "}")
+    or ("\\begin{Code}\n\\begin{Verbatim}" .. opts .. "\n" .. engraved .. "\n\\end{Verbatim}\n\\end{Code}")
+  if theme then
+    return "{\\engravedtheme" .. theme_letters(theme) .. wrapped .. "}"
+  end
+  return wrapped
+end
+M.engrave_code = engrave_code
+
 local function template(contents, info)
   local title = ox.data(info.title, info)
   local spec = format_spec(info)
@@ -740,6 +870,14 @@ local function template(contents, info)
   end
   if type(info.latex_hyperref_template) == "string" then
     out[#out + 1] = format_spec_apply(info.latex_hyperref_template, spec)
+  end
+  if
+    info.latex_src_block_backend == "engraved"
+    and element.map(info.parse_tree, { ["src-block"] = true, ["inline-src-block"] = true }, function()
+      return true
+    end, { first_match = true, ignore = info.ignore }) == true
+  then
+    out[#out + 1] = M.generate_engraved_preamble(info)
   end
   out[#out + 1] = "\\begin{document}\n\n"
   local tc = info.latex_title_command
@@ -1084,6 +1222,8 @@ T["inline-src-block"] = function(el, _, info)
     local mlang = langs_lookup(info.latex_minted_langs, lang) or lang:lower()
     local options = make_option_string(info.latex_minted_options)
     return fmt("\\mintinline%s{%s}{%s}", options == "" and "" or fmt("[%s]", options), mlang, code)
+  elseif backend == "engraved" and lang then
+    return engrave_code(code, lang, nil, info.latex_engraved_options, true)
   elseif backend == "listings" and lang then
     local llang = langs_lookup(info.latex_listings_langs, lang) or lang
     local sep = find_verb_separator(code)
@@ -1619,9 +1759,42 @@ T["src-block"] = function(el, _, info)
   local attributes = ox.read_attribute("attr_latex", el)
   local float = attributes.float
   local backend = info.latex_src_block_backend
-  if backend == "engraved" then
-    -- engrave-faces needs Emacs faces: fall back to verbatim
-    backend = "verbatim"
+  if backend == "engraved" and lang then
+    -- org-latex-src-block--engraved
+    local cap = M.caption_label_string(el, info)
+    local placement = (attributes.placement and attributes.placement:gsub("^%[(.*)%]$", "%1"))
+      or info.latex_default_figure_position
+    local multicol = float == "multicolumn"
+    local open, close = "", ""
+    if caption or multicol then
+      open = "\\begin{listing" .. (multicol and "*" or "") .. "}[" .. placement .. "]\n" .. (above and cap or "")
+      close = "\n" .. (above and "" or cap) .. "\\end{listing" .. (multicol and "*" or "") .. "}"
+    elseif float == "t" then
+      open = "\\begin{listing}[" .. placement .. "]\n"
+      close = "\n\\end{listing}"
+    end
+    local options = {}
+    if num_start then
+      local has_linenos = false
+      for _, o in ipairs(info.latex_engraved_options or {}) do
+        has_linenos = has_linenos or o[1] == "linenos"
+      end
+      if not has_linenos then
+        options = { { "linenos" }, { "firstnumber", tostring(num_start + 1) } }
+      end
+    end
+    if attributes.options then
+      options[#options + 1] = { attributes.options }
+    end
+    local body = engrave_code(
+      code_with_refs(el, retain),
+      lang,
+      attributes["engraved-theme"],
+      options,
+      false,
+      engrave_mathescape_p(info, options)
+    )
+    return open .. body .. close
   end
   if backend == "verbatim" or not lang or (backend ~= "minted" and backend ~= "listings" and not custom_env) then
     local cap = M.caption_label_string(el, info)
@@ -2075,6 +2248,9 @@ function M.options()
     { "latex_default_table_mode", nil, nil, v("default_table_mode", "table") },
     { "latex_default_footnote_command", "LATEX_FOOTNOTE_COMMAND", nil, v("default_footnote_command", "\\footnote{%s%s}") },
     { "latex_diary_timestamp_format", nil, nil, v("diary_timestamp_format", "\\textit{%s}") },
+    { "latex_engraved_options", nil, nil, v("engraved_options", data.engraved_options) },
+    { "latex_engraved_preamble", nil, nil, v("engraved_preamble", data.engraved_preamble) },
+    { "latex_engraved_theme", "LATEX_ENGRAVED_THEME", nil, v("engraved_theme", nil) },
     { "latex_footnote_defined_format", nil, nil, v("footnote_defined_format", "\\textsuperscript{\\ref{%s}}") },
     { "latex_footnote_separator", nil, nil, v("footnote_separator", "\\textsuperscript{,}\\,") },
     { "latex_hyperref_template", nil, nil, v("hyperref_template", data.hyperref_template), "t" },

@@ -4559,7 +4559,14 @@ LaTeX / PDF   ox-latex: classes (`export.latex.classes`, #+LATEX_CLASS),
               (:width :float :placement :environment :mode :align
               :booktabs :caption ...), math environments, special blocks
               as environments, babel/polyglossia from #+LANGUAGE,
-              `src_block_backend` verbatim, listings or minted.
+              `src_block_backend` verbatim, listings, minted or
+              engraved. Engraved (engrave-faces) colours code from its
+              tree-sitter highlights with \EF<face> commands defined in
+              the preamble (`engraved_preamble`, `engraved_options`);
+              `engraved_theme` or #+LATEX_ENGRAVED_THEME (and
+              `:engraved-theme` in #+ATTR_LATEX) picks the colours:
+              engrave-faces' "default" preset (nil), the current colour
+              scheme (true or "t") or a named colour scheme.
 Markdown      ox-md (headline_style "atx", "setext" or "mixed"); tables
               and other constructs without Markdown syntax become HTML.
 GFM           GitHub flavoured Markdown (pipe tables, fenced code,
@@ -4924,7 +4931,14 @@ These need Emacs Lisp or Emacs itself:
   warning.
 - Source fontification: HTML uses tree-sitter highlights instead of
   htmlize (|org-export-backends|), so the spans differ from Emacs'
-  font-lock; `src_block_backend = "engraved"` falls back to verbatim.
+  font-lock. LaTeX with `src_block_backend = "engraved"` writes the same
+  LaTeX as engrave-faces, but with the faces of tree-sitter's highlights:
+  where tree-sitter and the Emacs major mode disagree the \EF commands
+  differ (tree-sitter has no declaration face, so `local x` and
+  parameters are not \EFv; comment delimiters (\EFcd) are split off by
+  the comment starter), and languages without a tree-sitter parser stay
+  plain. A named theme is a Neovim colour scheme, loaded for the moment
+  (Emacs loads the Emacs theme); its faces come from the highlight groups.
 - `export.smart_quotes_alist` sets the quotes of the languages it lists
   and keeps the Emacs table for the others (Emacs replaces the whole
   alist).
@@ -5933,7 +5947,8 @@ export ~                                                   *org-config-export*
   image_default_option, inline_image_rules, inputenc_alist,
   link_with_unknown_path_format, listings_langs, listings_options,
   listings_src_omit_language, logfiles_extensions, minted_langs,
-  minted_options, subtitle_format, subtitle_separate,
+  minted_options, engraved_options, engraved_preamble, engraved_theme,
+  subtitle_format, subtitle_separate,
   table_scientific_notation, text_markup_alist, toc_include_unnumbered;
   texinfo logfiles_extensions, active_timestamp_format,
   inactive_timestamp_format, diary_timestamp_format,
