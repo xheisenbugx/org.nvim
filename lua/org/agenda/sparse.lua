@@ -144,7 +144,10 @@ local function entry_dates(hl)
     end
   end
   for _, t in ipairs(hl.timestamps) do
-    out[#out + 1] = t.date
+    -- org-check-before-date matches timestamp objects, not property values
+    if not t.in_property then
+      out[#out + 1] = t.date
+    end
   end
   return out
 end

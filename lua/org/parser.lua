@@ -531,6 +531,25 @@ function parse_section(hl, lines, from, to, log_drawer)
     for key, value in pairs(drawer) do
       hl[key] = value
     end
+    -- active timestamps in property values show in the agenda and are
+    -- shifted by repeaters (org-at-timestamp-p 'agenda accepts
+    -- org-at-property-p), but aren't the TIMESTAMP property or sparse
+    -- tree matches (those want timestamp objects)
+    for j = drawer.properties_range[1] + 1, drawer.properties_range[2] - 1 do
+      if lines[j]:find("<", 1, true) then
+        for _, item in ipairs(date.parse_all(lines[j])) do
+          if item.date.active then
+            hl.timestamps[#hl.timestamps + 1] = {
+              date = item.date,
+              line = j,
+              start_col = item.start_col,
+              end_col = item.end_col,
+              in_property = true,
+            }
+          end
+        end
+      end
+    end
     i = drawer.properties_range[2] + 1
   end
 
@@ -549,17 +568,30 @@ function parse_section(hl, lines, from, to, log_drawer)
           hl.logbook = { start = in_drawer.start, ["end"] = i }
         end
         in_drawer = nil
-      elseif line:find("<", 1, true) and not line:match("^%s*CLOCK:") and not line:find("^%s*#") then
-        -- drawer contents are ordinary text: active timestamps in them
-        -- (e.g. org-gcal's :org-gcal: drawer) show in the agenda
-        for _, item in ipairs(date.parse_all(line)) do
-          if item.date.active then
-            hl.timestamps[#hl.timestamps + 1] = {
-              date = item.date,
-              line = i,
-              start_col = item.start_col,
-              end_col = item.end_col,
-            }
+      else
+        local block_end = line:find("^%s*#%+") and M.verbatim_block_end(lines, i, to)
+        if block_end then
+          verbatim_end = block_end
+        elseif
+          (line:find("<", 1, true) or line:find("[", 1, true))
+          and not line:match("^%s*CLOCK:")
+          and not line:find("^%s*#")
+        then
+          -- drawer contents are ordinary text (Emacs parses them as
+          -- paragraphs): their timestamps show in the agenda, e.g. in
+          -- org-gcal's :org-gcal: drawer, and the first inactive one is
+          -- TIMESTAMP_IA (clock lines are not timestamps)
+          for _, item in ipairs(date.parse_all(line)) do
+            if item.date.active then
+              hl.timestamps[#hl.timestamps + 1] = {
+                date = item.date,
+                line = i,
+                start_col = item.start_col,
+                end_col = item.end_col,
+              }
+            elseif not hl.first_inactive then
+              hl.first_inactive = item.date
+            end
           end
         end
       end
@@ -1099,7 +1131,13 @@ function Headline:get_property(name, inherit)
     local d = self.planning[key:lower()]
     return d and d:to_string() or nil
   elseif key == "TIMESTAMP" then
-    return self.timestamps[1] and self.timestamps[1].date:to_string() or nil
+    -- the first active timestamp object: property values don't count
+    for _, t in ipairs(self.timestamps) do
+      if not t.in_property then
+        return t.date:to_string()
+      end
+    end
+    return nil
   elseif key == "TIMESTAMP_IA" then
     return self.first_inactive and self.first_inactive:to_string() or nil
   elseif key == "BLOCKED" then
