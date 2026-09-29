@@ -160,4 +160,21 @@ describe("org-ctags", function()
     utils.input_complete = orig
     eq("* <<Elsewhere>>", buf_lines()[5])
   end)
+
+  -- Emacs 9.8.10 (org-ctags-append-topic on "* A\nbody\n"): the cursor
+  -- follows backward-char 4, end-of-line, forward-line 2 for any template
+  it("append_topic leaves the cursor where Emacs does for each template", function()
+    local cases = {
+      { "* <<%t>>\n\n\n\n\n\n", 10, { 9, 0 } },
+      { "* <<%t>>", 5, { 5, 14 } }, -- point-max: the end of "* <<New Thing>>"
+      { "* <<%t>>\nbody\n", 6, { 6, 0 } }, -- point-max after the final newline
+    }
+    for _, c in ipairs(cases) do
+      setup(tmpdir(), { ctags = { new_topic_template = c[1] } })
+      local buf = org_buffer({ "* A", "body" }, { 1, 0 })
+      ctags.append_topic("new thing")
+      eq(c[2], #buf_lines(buf))
+      eq(c[3], vim.api.nvim_win_get_cursor(0))
+    end
+  end)
 end)

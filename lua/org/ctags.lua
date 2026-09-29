@@ -194,11 +194,29 @@ end
 ---@return boolean
 function M.append_topic(name)
   local buf = vim.api.nvim_get_current_buf()
-  insert_at_end(buf, "\n\n" .. topic_text(name))
+  local before = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local topic = topic_text(name)
+  insert_at_end(buf, "\n\n" .. topic)
   utils.notify("Adding topic in buffer " .. vim.fn.bufname(buf))
-  -- Emacs: from point-max, backward-char 4, end-of-line, forward-line 2
+  -- Emacs: from point-max, backward-char 4, end-of-line, forward-line 2,
+  -- done on the text Emacs has (the old text ends with a newline)
+  local pre = (#before == 1 and before[1] == "") and "" or table.concat(before, "\n") .. "\n"
+  local full = pre .. "\n\n" .. topic
+  local prefix = vim.fn.strcharpart(full, 0, math.max(0, vim.fn.strchars(full) - 4))
+  local _, nl_before = prefix:gsub("\n", "")
+  local _, nl = full:gsub("\n", "")
   local total = vim.api.nvim_buf_line_count(buf)
-  vim.api.nvim_win_set_cursor(0, { math.max(1, total - 1), 0 })
+  local target = nl_before + 1 + 2
+  if target <= nl then
+    vim.api.nvim_win_set_cursor(0, { target, 0 })
+  elseif full:sub(-1) == "\n" then
+    -- point-max after the final newline: the start of the last line here
+    vim.api.nvim_win_set_cursor(0, { total, 0 })
+  else
+    -- point-max: the end of the last line
+    local last = vim.api.nvim_buf_get_lines(buf, total - 1, total, false)[1]
+    vim.api.nvim_win_set_cursor(0, { total, math.max(0, #last - 1) })
+  end
   return true
 end
 
