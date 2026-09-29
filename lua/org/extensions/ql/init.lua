@@ -25,12 +25,30 @@ M.defaults = {
   --- Sort of searches without `:sort` (nil = file order).
   sort = nil,
   --- Named views for `:Org ql_view` (org-ql-views): name -> { query,
-  --- files?, sort?, title?, super_groups? }.
+  --- files?, sort?, title?, super_groups? }. Views saved from a search
+  --- buffer (`save_view_key`) are added from `views_file`.
   views = {},
+  --- Where saved views are kept (JSON); false to not save views.
+  views_file = vim.fn.stdpath("data") .. "/org/ql-views.json",
+  --- Key in search buffers that saves the search as a view (org-ql's
+  --- C-x C-s in its view buffers); false for none.
+  save_view_key = "<C-x><C-s>",
+  --- Also search COMMENT and ARCHIVE subtrees, as org-ql does. Off, they
+  --- are skipped like in the agenda.
+  include_hidden = false,
+  --- A repeating timestamp matches a date range when one of its
+  --- occurrences falls in it (org-ql only looks at the timestamp itself).
+  expand_repeaters = true,
+  --- Remember results per headline until its file changes.
+  cache = true,
 }
 
 local function opts()
   return require("org.extensions").opts("ql") or M.defaults
+end
+
+local function compile(q)
+  return opts().cache ~= false and query.compile_cached(q) or query.compile(q)
 end
 
 ---------------------------------------------------------------------------
@@ -92,16 +110,20 @@ end
 ---------------------------------------------------------------------------
 
 --- Headlines of `files` matching `q` (org-ql-select). COMMENT and ARCHIVE
---- subtrees are skipped, as in the agenda.
+--- subtrees are skipped, as in the agenda, unless `include_hidden` is set.
 ---@param files any see `M.files`
 ---@param q string|table query
----@param o? { sort?: any, action?: fun(hl: org.Headline): any }
+---@param o? { sort?: any, action?: fun(hl: org.Headline): any, include_hidden?: boolean }
 ---@return any[] headlines, or the results of `action`
 function M.select(files, q, o)
   o = o or {}
-  local pred = query.compile(q)
+  local pred = compile(q)
   local out = {}
-  require("org.agenda.items").each_headline(M.files(files), {}, function(hl)
+  local all = o.include_hidden
+  if all == nil then
+    all = opts().include_hidden
+  end
+  require("org.agenda.items").each_headline(M.files(files), { all = all }, function(hl)
     if pred(hl) then
       out[#out + 1] = hl
     end
@@ -133,9 +155,13 @@ local function source(block, ctx, lopts)
   if q == nil or q == "" then
     return { error = "org-ql block without a query" }
   end
-  local pred, err = query.try_compile(q)
+  local pred, err = query.try_compile(q, opts().cache ~= false)
   if not pred then
     return { error = "Invalid query: " .. tostring(err) }
+  end
+  lopts.all = block.include_hidden
+  if lopts.all == nil then
+    lopts.all = opts().include_hidden
   end
   local items = require("org.agenda.items").tags(ctx.files, pred, false, lopts)
   local sort = block.sort
@@ -170,7 +196,10 @@ function M.search(q, o)
     sort = o.sort,
     title = o.title,
     super_groups = o.super_groups,
+    include_hidden = o.include_hidden,
     key = "ql:" .. query_string(q),
+    -- what `save_view` stores
+    files_spec = spec,
   }
   local open_opts = {}
   if spec == "buffer" or spec == 0 or type(spec) == "number" then
@@ -216,10 +245,109 @@ function M.search_buffer_command(args)
   end
 end
 
+---------------------------------------------------------------------------
+-- Saved views
+---------------------------------------------------------------------------
+
+local function views_file()
+  local f = opts().views_file
+  return type(f) == "string" and f ~= "" and vim.fs.normalize(f) or nil
+end
+
+--- Views saved from search buffers (name -> view).
+---@return table<string, table>
+function M.saved_views()
+  local f = views_file()
+  if not f or vim.fn.filereadable(f) == 0 then
+    return {}
+  end
+  local ok, data = pcall(vim.json.decode, table.concat(vim.fn.readfile(f), "\n"))
+  if not ok or type(data) ~= "table" then
+    utils.warn("org-ql: cannot read " .. f)
+    return {}
+  end
+  return data
+end
+
+--- The configured views over the saved ones.
+---@return table<string, table>
+function M.views()
+  return vim.tbl_extend("force", M.saved_views(), opts().views or {})
+end
+
+--- Save a view under `name` in `views_file` (org-ql-view-save).
+---@param name string
+---@param v table { query, files?, sort?, title? }
+function M.save_view(name, v)
+  local f = views_file()
+  if not f then
+    utils.error("org-ql: views_file is off")
+    return false
+  end
+  local ok, encoded = pcall(vim.json.encode, v)
+  if not ok then
+    utils.error("org-ql: this view can't be saved (a Lua function in it?)")
+    return false
+  end
+  local all = M.saved_views()
+  all[name] = vim.json.decode(encoded)
+  vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
+  vim.fn.writefile({ vim.json.encode(all) }, f)
+  utils.notify("Saved org-ql view " .. name)
+  return true
+end
+
+-- The ql block of the agenda view shown in the current buffer.
+local function current_block()
+  local st = require("org.agenda.view").state
+  local v = st and st.view
+  if not v then
+    return nil
+  end
+  local blocks = v.blocks or { v }
+  for _, b in ipairs(blocks) do
+    if type(b) == "table" and (b.type == "ql" or b.type == "org-ql" or b.type == "org_ql") then
+      return b
+    end
+  end
+end
+
+--- Save the search of the current agenda buffer as a named view.
+---@param name? string prompted for when not given
+function M.save_view_command(name)
+  local b = current_block()
+  if not b then
+    utils.warn("Not an org-ql search buffer")
+    return
+  end
+  if type(b.query) ~= "string" and type(b.query) ~= "table" then
+    return
+  end
+  if not name or vim.trim(name) == "" then
+    name = utils.input({ prompt = "Save view as: ", default = b.title })
+  end
+  if not name or vim.trim(name) == "" then
+    return
+  end
+  local files = b.files_spec
+  if type(files) == "number" or files == "buffer" then
+    -- a buffer search is saved with its file
+    local buf = type(files) == "number" and files or vim.fn.bufnr("#")
+    local fname = buf > 0 and vim.api.nvim_buf_get_name(buf) or ""
+    files = fname ~= "" and { fname } or nil
+  end
+  M.save_view(vim.trim(name), {
+    query = b.query,
+    sort = b.sort,
+    title = b.title or vim.trim(name),
+    files = files,
+  })
+end
+
 --- Open a named view of `views` (org-ql-view); prompts without a name.
 ---@param name? string
 function M.view(name)
-  local views = opts().views or {}
+  local views = M.views()
   if not name or vim.trim(name) == "" then
     local names = vim.tbl_keys(views)
     table.sort(names)
@@ -238,7 +366,182 @@ function M.view(name)
     utils.error("No org-ql view: " .. name)
     return
   end
-  M.search(v.query, { files = v.files, sort = v.sort, title = v.title or name, super_groups = v.super_groups })
+  M.search(v.query, {
+    files = v.files,
+    sort = v.sort,
+    title = v.title or name,
+    super_groups = v.super_groups,
+    include_hidden = v.include_hidden,
+  })
+end
+
+--- Entries with timestamps of `kind` in the last `days` days, newest
+--- first (org-ql-view-recent-items). `kind` is ts, ts-active,
+--- ts-inactive, clocked, closed, deadline, planning or scheduled.
+---@param days? integer default 7
+---@param kind? string default "ts"
+function M.recent_items(days, kind)
+  days = tonumber(days) or 7
+  kind = kind or "ts"
+  if not query.is_predicate(kind) then
+    utils.error("org-ql: unknown timestamp type " .. kind)
+    return
+  end
+  M.search(string.format("(%s :from %d :to today)", kind, -days), {
+    sort = { "date", "reverse" },
+    title = string.format("Recent items (%s, %d days)", kind, days),
+  })
+end
+
+--- `:Org ql_recent_items [days] [type]`.
+function M.recent_items_command(args)
+  local days, kind = (args or ""):match("^%s*(%S*)%s*(%S*)")
+  M.recent_items(tonumber(days), kind ~= "" and kind or nil)
+end
+
+---------------------------------------------------------------------------
+-- Find, refile, sparse tree
+---------------------------------------------------------------------------
+
+local function label(hl, with_file)
+  local olp = hl:outline_path()
+  olp[#olp + 1] = hl:plain_title()
+  local s = table.concat(olp, "/")
+  if hl.todo then
+    s = hl.todo .. " " .. s
+  end
+  if with_file and hl.file.filename then
+    s = s .. " (" .. vim.fn.fnamemodify(hl.file.filename, ":t") .. ")"
+  end
+  return s
+end
+
+-- Pick one of the headlines matching `q` in `files`.
+local function pick(files, q, prompt, exclude)
+  local ok, hls = pcall(M.select, files, q)
+  if not ok then
+    utils.error("Invalid query: " .. tostring(hls))
+    return nil
+  end
+  if exclude then
+    hls = vim.tbl_filter(function(hl)
+      return not exclude(hl)
+    end, hls)
+  end
+  if #hls == 0 then
+    utils.warn("No entries match " .. query_string(q))
+    return nil
+  end
+  local many = #M.files(files) > 1
+  return utils.select(hls, {
+    prompt = prompt,
+    format_item = function(hl)
+      return label(hl, many)
+    end,
+  })
+end
+
+local function jump(hl)
+  vim.cmd("normal! m'")
+  if hl.file.bufnr and vim.api.nvim_buf_is_valid(hl.file.bufnr) then
+    vim.api.nvim_set_current_buf(hl.file.bufnr)
+    vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+  else
+    utils.open_file(hl.file.filename, hl.line)
+  end
+  pcall(require("org.fold").show_context, hl.line, "ancestors")
+end
+
+--- Jump to an entry matching a query (org-ql-find). Searches the current
+--- buffer, or the agenda files outside an org buffer or with `files`.
+---@param q? string|table prompted for when not given
+---@param files? any see `M.files`
+function M.find(q, files)
+  if files == nil then
+    files = utils.is_org(0) and "buffer" or "agenda"
+  end
+  q = q or ask_query("Find: ")
+  if not q then
+    return
+  end
+  local hl = pick(files, q, "Find")
+  if hl then
+    jump(hl)
+  end
+end
+
+--- `:Org ql_find [query]` in the buffer; `:Org ql_find_agenda [query]`.
+function M.find_command(args)
+  M.find(args and vim.trim(args) ~= "" and args or nil)
+end
+
+function M.find_agenda_command(args)
+  M.find(args and vim.trim(args) ~= "" and args or nil, "agenda")
+end
+
+--- Refile the subtree at the cursor under an entry matching a query in the
+--- agenda files and the buffer (org-ql-refile).
+---@param q? string|table prompted for when not given
+function M.refile(q)
+  if not utils.is_org(0) then
+    utils.error("Not an org buffer")
+    return
+  end
+  local buf = vim.api.nvim_get_current_buf()
+  local src = require("org.files").get_buffer(buf):headline_at(vim.api.nvim_win_get_cursor(0)[1])
+  if not src then
+    utils.warn("Not in an entry")
+    return
+  end
+  q = q or ask_query("Refile to: ")
+  if not q then
+    return
+  end
+  local fname = src.file.filename
+  local hl = pick({ "agenda", buf }, q, "Refile to", function(h)
+    -- not into the subtree being moved
+    return (h.file == src.file or (fname and h.file.filename == fname))
+      and h.line >= src.line
+      and h.line <= src.end_line
+  end)
+  if not hl then
+    return
+  end
+  local olp = hl:outline_path()
+  olp[#olp + 1] = hl:plain_title()
+  require("org.refile").refile(nil, {
+    count = 0,
+    dest = { filename = hl.file.filename, lnum = hl.line, olp = olp, level = hl.level, label = label(hl) },
+  })
+end
+
+function M.refile_command(args)
+  M.refile(args and vim.trim(args) ~= "" and args or nil)
+end
+
+--- Show the entries of the buffer matching a query as a sparse tree
+--- (org-ql-sparse-tree). Returns the number of matches.
+---@param q? string|table prompted for when not given
+---@return integer|nil
+function M.sparse_tree(q)
+  if not utils.is_org(0) then
+    utils.error("Not an org buffer")
+    return
+  end
+  q = q or ask_query("Sparse tree: ")
+  if not q then
+    return
+  end
+  local pred, err = query.try_compile(q, opts().cache ~= false)
+  if not pred then
+    utils.error("Invalid query: " .. tostring(err))
+    return
+  end
+  return #require("org.agenda.sparse").headlines(pred, query_string(q))
+end
+
+function M.sparse_tree_command(args)
+  M.sparse_tree(args and vim.trim(args) ~= "" and args or nil)
 end
 
 ---------------------------------------------------------------------------
@@ -356,6 +659,11 @@ M.actions = {
   ql_search = { "org.extensions.ql", "search_command", desc = "org-ql search in the agenda files" },
   ql_search_buffer = { "org.extensions.ql", "search_buffer_command", desc = "org-ql search in the buffer" },
   ql_view = { "org.extensions.ql", "view", desc = "Open an org-ql view" },
+  ql_find = { "org.extensions.ql", "find_command", desc = "org-ql: jump to a matching entry" },
+  ql_find_agenda = { "org.extensions.ql", "find_agenda_command", desc = "org-ql: jump to a matching agenda entry" },
+  ql_refile = { "org.extensions.ql", "refile_command", desc = "org-ql: refile under a matching entry" },
+  ql_sparse_tree = { "org.extensions.ql", "sparse_tree_command", desc = "org-ql sparse tree" },
+  ql_recent_items = { "org.extensions.ql", "recent_items_command", desc = "org-ql: recently dated entries" },
 }
 
 M.commands = {
@@ -366,7 +674,45 @@ M.commands = {
     desc = "org-ql search in the buffer: :Org ql_search_buffer <query>",
   },
   ql_view = { "org.extensions.ql", "view", desc = "Open an org-ql view: :Org ql_view [name]" },
+  ql_save_view = {
+    "org.extensions.ql",
+    "save_view_command",
+    desc = "Save the org-ql search of the agenda buffer: :Org ql_save_view [name]",
+  },
+  ql_find = { "org.extensions.ql", "find_command", desc = "Jump to an entry: :Org ql_find <query>" },
+  ql_find_agenda = {
+    "org.extensions.ql",
+    "find_agenda_command",
+    desc = "Jump to an agenda entry: :Org ql_find_agenda <query>",
+  },
+  ql_refile = { "org.extensions.ql", "refile_command", desc = "Refile under an entry: :Org ql_refile <query>" },
+  ql_sparse_tree = { "org.extensions.ql", "sparse_tree_command", desc = "Sparse tree: :Org ql_sparse_tree <query>" },
+  ql_recent_items = {
+    "org.extensions.ql",
+    "recent_items_command",
+    desc = "Recently dated entries: :Org ql_recent_items [days] [ts|clocked|closed|...]",
+  },
 }
+
+-- In search buffers, `save_view_key` saves the search as a view; in other
+-- agenda buffers the key keeps its meaning.
+local function on_refresh(buf)
+  local key = require("org.extensions").enabled("ql") and opts().save_view_key
+  if not key or vim.b[buf].org_ql_keys or not current_block() then
+    return
+  end
+  vim.b[buf].org_ql_keys = true
+  local prev = vim.api.nvim_buf_call(buf, function()
+    return vim.fn.maparg(key, "n", false, true)
+  end)
+  vim.keymap.set("n", key, function()
+    if current_block() then
+      utils.run(M.save_view_command)
+    elseif type(prev) == "table" and prev.callback then
+      prev.callback()
+    end
+  end, { buffer = buf, desc = "org-ql: save search as a view" })
+end
 
 function M.setup()
   local render = require("org.agenda.render")
@@ -374,10 +720,16 @@ function M.setup()
   render.sources["org-ql"] = source
   render.sources.org_ql = source
   require("org.dblock").register("org-ql", M.dblock)
+  require("org.agenda.view").refresh_hooks.ql = on_refresh
+  query.clear_cache()
 end
 
 function M.health(h, o)
-  for name, v in pairs(o.views or {}) do
+  local f = views_file()
+  if f then
+    h.info("org-ql saved views: " .. f)
+  end
+  for name, v in pairs(M.views()) do
     local ok, err = query.try_compile(v.query or "")
     if ok then
       h.ok("org-ql view " .. name)

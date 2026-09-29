@@ -149,6 +149,10 @@ function M.read_plain(s, default_predicate)
       tok = tok:sub(2)
     end
     local name, args = tok:match("^([%w%-_&*]+):(.*)$")
+    if name and not M.is_predicate(name) then
+      -- not a predicate (a URL, a time, ...): the whole token is a word
+      name = nil
+    end
     local term
     if name then
       term = { name }
@@ -305,16 +309,33 @@ local function date_arg(v)
   error("invalid date in query: " .. s, 0)
 end
 
---- A range test from :from / :to / :on keyword args (and a single
---- positional number, which means `single`).
-local function range_test(pos, kw, single)
+-- `:with-time`: true, false or nil (either), also given as "t" / "nil".
+local function with_time_arg(v)
+  if v == "t" then
+    return true
+  elseif v == "nil" then
+    return false
+  end
+  return v
+end
+
+--- A range test from :from / :to / :on keyword args and a single
+--- positional argument: `single` is "to" (look forward: up to that day),
+--- "on" (that day) or "past" (a number N means the last N days, as for
+--- org-ql's clocked and closed; other values are a :from date).
+local function range_test(pos, kw, single, repeats)
   local from, to = kw.from, kw.to
   if kw.on ~= nil then
     from, to = kw.on, kw.on
   end
   if pos[1] ~= nil and from == nil and to == nil then
+    local n = tonumber(pos[1])
     if single == "to" then
       to = pos[1]
+    elseif single == "on" then
+      from, to = pos[1], pos[1]
+    elseif n then
+      from = -n
     else
       from = pos[1]
     end
@@ -329,13 +350,8 @@ local function range_test(pos, kw, single)
     local d = date_arg(to)
     hi = d and abs_min(d, 1439)
   end
-  local with_time = kw.with_time
-  return function(ts)
-    if with_time == true and not ts.hour then
-      return false
-    elseif with_time == false and ts.hour then
-      return false
-    end
+  local with_time = with_time_arg(kw.with_time)
+  local function overlaps(ts)
     local s = abs_min(ts, 0)
     local e = s
     if ts.range_end and ts.range_end.days then
@@ -347,6 +363,33 @@ local function range_test(pos, kw, single)
     end
     return (lo == nil or e >= lo) and (hi == nil or s <= hi)
   end
+  return function(ts)
+    if with_time == true and not ts.hour then
+      return false
+    elseif with_time == false and ts.hour then
+      return false
+    end
+    local r = repeats and ts.repeater
+    if r and (r.value or 0) > 0 and lo and ts:days() * 1440 < lo then
+      -- a repeating timestamp matches when one of its occurrences does
+      if not hi then
+        return true
+      end
+      for _, occ in ipairs(date.occurrences(ts, math.floor(lo / 1440), math.floor(hi / 1440))) do
+        if overlaps(occ) then
+          return true
+        end
+      end
+      return false
+    end
+    return overlaps(ts)
+  end
+end
+
+-- Expand repeaters in date predicates (the `expand_repeaters` option).
+local function repeats()
+  local o = require("org.extensions").opts("ql")
+  return not o or o.expand_repeaters ~= false
 end
 
 local function any_ts(list, test)
@@ -387,18 +430,27 @@ local function numeric(pos, get, parse)
   local cmp = COMPARATORS[tostring(pos[1])]
   if cmp and pos[2] ~= nil then
     local n = parse(pos[2])
+    if n == nil then
+      error("invalid number in query: " .. tostring(pos[2]), 0)
+    end
     return function(hl)
       local v = get(hl)
       return v ~= nil and n ~= nil and cmp(v, n)
     end
   elseif pos[2] ~= nil then
     local lo, hi = parse(pos[1]), parse(pos[2])
+    if lo == nil or hi == nil then
+      error("invalid numbers in query: " .. tostring(pos[1]) .. " " .. tostring(pos[2]), 0)
+    end
     return function(hl)
       local v = get(hl)
       return v ~= nil and v >= lo and v <= hi
     end
   elseif pos[1] ~= nil then
     local n = parse(pos[1])
+    if n == nil then
+      error("invalid number in query: " .. tostring(pos[1]), 0)
+    end
     return function(hl)
       return get(hl) == n
     end
@@ -638,8 +690,8 @@ local function planning_pred(kinds, single)
     if auto then
       pos = {}
     end
-    if #pos > 0 or kw.from ~= nil or kw.to ~= nil or kw.on ~= nil then
-      test = range_test(pos, kw, single)
+    if #pos > 0 or kw.from ~= nil or kw.to ~= nil or kw.on ~= nil or kw.with_time ~= nil then
+      test = range_test(pos, kw, single, single ~= "past" and repeats())
     end
     return function(hl)
       for _, k in ipairs(kinds) do
@@ -660,14 +712,17 @@ local function planning_pred(kinds, single)
   end
 end
 
+-- a single number looks forward for deadline / scheduled / planning and
+-- back for closed (org-ql's "forward-" and "backward-looking" predicates)
 P.deadline = planning_pred({ "deadline" }, "to")
 P.scheduled = planning_pred({ "scheduled" }, "to")
-P.closed = planning_pred({ "closed" }, "from")
+P.closed = planning_pred({ "closed" }, "past")
 P.planning = planning_pred({ "deadline", "scheduled", "closed" }, "to")
 
 local function ts_pred(active)
   return function(pos, kw)
-    local test = range_test(pos, kw, "from")
+    -- (ts N) is (ts :to N), as in org-ql
+    local test = range_test(pos, kw, "to", repeats())
     return function(hl)
       return any_ts(entry_timestamps(hl), function(ts)
         if active ~= nil and ts.active ~= active then
@@ -683,20 +738,16 @@ P.ts = ts_pred(nil)
 P["ts-active"] = ts_pred(true)
 P["ts-inactive"] = ts_pred(false)
 
+-- Only finished clocks count: a running clock is ignored, as in org-ql.
 P.clocked = function(pos, kw)
   local any = #pos == 0 and kw.from == nil and kw.to == nil and kw.on == nil
-  local test = not any and range_test(pos, kw, "from") or nil
+  local test = not any and range_test(pos, kw, "past") or nil
   return function(hl)
     for _, c in ipairs(hl.clocks or {}) do
-      if any then
-        return true
-      end
-      local span = c.start
       if c["end"] then
-        span = c.start:clone({ range_end = c["end"] })
-      end
-      if test(span) then
-        return true
+        if any or test(c.start:clone({ range_end = c["end"] })) then
+          return true
+        end
       end
     end
     return false
@@ -954,6 +1005,14 @@ end
 M.predicates = P
 M.aliases = ALIASES
 
+--- Whether `name` is a predicate or an alias of one.
+---@param name string
+---@return boolean
+function M.is_predicate(name)
+  local n = name:lower()
+  return P[ALIASES[n] or n] ~= nil
+end
+
 --- Compile a Lua-form query to `fun(headline): boolean`.
 ---@param expr table|string|function
 ---@return fun(hl: org.Headline): boolean
@@ -961,7 +1020,8 @@ compile = function(expr)
   if type(expr) == "function" then
     return expr
   elseif type(expr) == "string" then
-    return P.rifle({ expr })
+    -- a bare string in a query is a regexp, as in org-ql
+    return P.regexp({ expr })
   elseif expr == true then
     return function()
       return true
@@ -986,11 +1046,80 @@ function M.compile(q)
   return compile(M.read(q))
 end
 
+-- file -> cache key -> headline line -> result; the parse of a file is
+-- replaced when it changes (buffer changedtick, file mtime), which drops
+-- its results
+local results = setmetatable({}, { __mode = "k" })
+
+--- Forget cached results (run by setup, as options change what matches).
+function M.clear_cache()
+  results = setmetatable({}, { __mode = "k" })
+end
+
+-- The cache key of a query, or nil when it can't be cached (Lua functions,
+-- "now").
+local function cache_key(expr)
+  local has_fn = false
+  local function walk(v)
+    if type(v) == "function" then
+      has_fn = true
+    elseif type(v) == "table" then
+      for _, x in pairs(v) do
+        walk(x)
+      end
+    end
+  end
+  walk(expr)
+  if has_fn then
+    return nil
+  end
+  local key = vim.inspect(expr, { newline = " ", indent = "" })
+  if key:lower():find('"now"', 1, true) then
+    return nil
+  end
+  return key .. "\0" .. date.today_days()
+end
+
+--- Compile a query to a predicate that remembers its result for each
+--- headline until the headline's file changes.
+---@param q string|table
+---@return fun(hl: org.Headline): boolean
+function M.compile_cached(q)
+  local expr = M.read(q)
+  local pred = compile(expr)
+  local key = cache_key(expr)
+  if not key then
+    return pred
+  end
+  return function(hl)
+    local f = hl.file
+    if not f then
+      return pred(hl)
+    end
+    local byfile = results[f]
+    if not byfile then
+      byfile = {}
+      results[f] = byfile
+    end
+    local r = byfile[key]
+    if not r then
+      r = {}
+      byfile[key] = r
+    end
+    local v = r[hl.line]
+    if v == nil then
+      v = pred(hl) and true or false
+      r[hl.line] = v
+    end
+    return v
+  end
+end
+
 --- Like `compile`, but returns nil and the error message on failure.
 ---@return (fun(hl: org.Headline): boolean)|nil
 ---@return string|nil err
-function M.try_compile(q)
-  local ok, res = pcall(M.compile, q)
+function M.try_compile(q, cached)
+  local ok, res = pcall(cached and M.compile_cached or M.compile, q)
   if ok then
     return res
   end
@@ -1029,8 +1158,9 @@ local function by_key(key)
 end
 
 local SORTERS = {
+  -- the deadline, else the scheduled date (org-ql--date<)
   date = by_key(function(hl)
-    return planning_day(hl, { "deadline", "scheduled" })
+    return planning_day(hl, { "deadline" }) or planning_day(hl, { "scheduled" })
   end),
   deadline = by_key(function(hl)
     return planning_day(hl, { "deadline" })
@@ -1079,7 +1209,10 @@ end
 
 --- Sort `list` in place with org-ql sorters: a name (date, deadline,
 --- scheduled, closed, priority, todo, random, reverse), a comparator
---- `fun(a, b): boolean`, or a list of those (the first is the primary key).
+--- `fun(a, b): boolean`, or a list of those. As in org-ql, a list is
+--- applied in order with stable sorts, so the last sorter is the primary
+--- key: `{ "priority", "date" }` sorts by date, then priority, and
+--- `{ "date", "reverse" }` is newest first.
 --- `get` maps a list element to its headline (default: the element).
 ---@param list any[]
 ---@param sort string|function|(string|function)[]|nil
@@ -1092,8 +1225,7 @@ function M.sort(list, sort, get)
   get = get or function(x)
     return x
   end
-  for i = #sorters, 1, -1 do
-    local s = sorters[i]
+  for _, s in ipairs(sorters) do
     if s == "reverse" then
       local n = #list
       for k = 1, math.floor(n / 2) do
