@@ -521,6 +521,55 @@ describe("indirect_buffer_display", function()
     eq(tabs + 1, #vim.api.nvim_list_tabpages())
     eq(dedicated, vim.api.nvim_get_current_tabpage())
     eq({ "* C" }, buf_lines(buf))
+    -- a narrowed subtree, not a source-block edit buffer
+    eq(true, require("org.special").edits[buf].narrow)
+  end)
+
+  -- Emacs 9.8.10 (org-indirect-buffer-display 'other-window, called on
+  -- *** C then on * D): two windows, the Org buffer's still selected, the
+  -- first indirect buffer killed
+  it("other-window reuses the last indirect window and keeps the cursor", function()
+    local src = org_buffer({ "* A", "** B", "*** C", "c", "* D" }, { 4, 0 })
+    local src_win = vim.api.nvim_get_current_win()
+    local wins = #vim.api.nvim_list_wins()
+    local first = structure.tree_to_indirect_buffer()
+    eq(wins + 1, #vim.api.nvim_list_wins())
+    eq(src_win, vim.api.nvim_get_current_win())
+    eq(src, vim.api.nvim_get_current_buf())
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    local second, win = structure.tree_to_indirect_buffer()
+    eq(wins + 1, #vim.api.nvim_list_wins())
+    eq(src_win, vim.api.nvim_get_current_win())
+    eq({ "* D" }, buf_lines(second))
+    eq(second, vim.api.nvim_win_get_buf(win))
+    eq(false, vim.api.nvim_buf_is_valid(first))
+  end)
+
+  -- Emacs 9.8.10 (org-tree-to-indirect-buffer ARG on *** C): 1 -> * A,
+  -- 2 -> ** B, 3 and 4 -> *** C, -1 -> ** B, -2 -> * A; with an argument
+  -- the last indirect buffer is kept
+  it("a count takes the subtree of the ancestor at that level", function()
+    org_buffer({ "* A", "** B", "*** C", "c", "* D" }, { 3, 0 })
+    local expected = {
+      { 1, { "* A", "** B", "*** C", "c" } },
+      { 2, { "** B", "*** C", "c" } },
+      { 3, { "*** C", "c" } },
+      { -1, { "** B", "*** C", "c" } },
+      { -2, { "* A", "** B", "*** C", "c" } },
+      { 4, { "*** C", "c" } },
+    }
+    local bufs = {}
+    for _, e in ipairs(expected) do
+      local b = structure.tree_to_indirect_buffer(nil, e[1])
+      eq(e[2], buf_lines(b))
+      bufs[#bufs + 1] = b
+    end
+    for _, b in ipairs(bufs) do
+      ok(vim.api.nvim_buf_is_valid(b))
+    end
+    -- the count of the key
+    vim.api.nvim_feedkeys(vim.keycode("2<C-c><C-x>b"), "x", false)
+    eq({ "** B", "*** C", "c" }, buf_lines(structure._last_indirect))
   end)
 end)
 

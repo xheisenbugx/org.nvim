@@ -322,8 +322,12 @@ p / P           Put (org-yank). When the register holds whole subtrees
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
 <C-c><C-x>b     The same in another window (org-tree-to-indirect-buffer);
-                `indirect_buffer_display` picks a split, the current
-                window, a new tab each time or one reused tab.
+                `indirect_buffer_display` picks a split (reused by the
+                next one, the cursor staying in the Org buffer), the
+                current window, a new tab each time or one reused tab. The
+                previous one is closed unless it has changes. A count N
+                takes the subtree of the ancestor at level N and keeps the
+                previous one (with "dedicated-frame": in a new tab).
 <prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
