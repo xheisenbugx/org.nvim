@@ -52,6 +52,9 @@ DEMOS = {
             *[("key", "ctrl+e"), ("sleep", 0.35)] * 8,
             ("sleep", 1.5),
             *[("key", "ctrl+y"), ("sleep", 0.3)] * 8,
+            # <C-y> steps through the filler rows of an image above the
+            # window one at a time, so make sure we are back at the top
+            "gg",
             ("sleep", 1.2),
             ("cap", "<S-Tab>", "and folding"),
             ("key", "shift+tab"),

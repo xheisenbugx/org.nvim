@@ -85,6 +85,8 @@ require("org").setup({
   },
   clock = { persist_file = dir .. "/clock.json" },
   use_speed_commands = vim.env.DEMO_SPEED == "1",
+  -- the picker (goto-buffer.tape); the default is the Emacs outline buffer
+  goto_interface = "outline-path-completion",
   notifications = {
     -- the tape starts them (:Org notifications_start)
     enabled = false,

@@ -325,10 +325,13 @@ text around it.
 
 ### Jump to any heading
 
-`<leader>o.` (Emacs `C-c C-j`) jumps to a heading of the current file, and
-`<leader>og` to any heading of your agenda files. Both use
-`vim.ui.select`, so they get your picker: snacks.nvim here, or Telescope
-or fzf-lua.
+`<leader>o.` (Emacs `C-c C-j`) jumps to a heading of the current file.
+By default it opens Emacs's org-goto outline, a read-only copy of the
+buffer you browse and jump from. With `goto_interface =
+"outline-path-completion"` (shown here) it's a picker instead, and a count
+switches to the other interface for one jump. `<leader>og` jumps to any
+heading of your agenda files. The pickers use `vim.ui.select`, so they get
+your picker: snacks.nvim here, or Telescope or fzf-lua.
 
 ![Fuzzy-finding a heading in the file, then with the Emacs key](docs/media/goto-buffer.gif)
 
