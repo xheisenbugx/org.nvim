@@ -399,13 +399,6 @@ function M.apply(bufnr)
   local done_alt = todo:vim_alternation("done")
   if todo_alt ~= "" then
     cmd(string.format([[syntax match orgTodo /\(^\*\+\s\+\)\@<=\(%s\)\ze\(\s\|$\)/ contained]], todo_alt))
-    if ui.fontify_todo_headline then
-      -- org-fontify-todo-headline: the text after a TODO keyword
-      cmd(string.format(
-        [=[syntax match orgHeadlineTodo /\(^\*\+\s\+\(%s\)\s\)\@<=.*$/ contained contains=orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell]=],
-        todo_alt
-      ))
-    end
   end
   if done_alt ~= "" then
     cmd(string.format([[syntax match orgDone /\(^\*\+\s\+\)\@<=\(%s\)\ze\(\s\|$\)/ contained]], done_alt))
@@ -448,6 +441,15 @@ function M.apply(bufnr)
     ))
   end
   cmd([=[syntax match orgHeadlineComment /\(^\*\+\s\+\(\S\+\s\+\)\?\)\@<=COMMENT\>/ contained]=])
+  if todo_alt ~= "" and ui.fontify_todo_headline then
+    -- org-fontify-todo-headline: the text after a TODO keyword, priority
+    -- cookie and tags included. Defined last, it wins over the items that
+    -- start where it does ("[#A]", a link, ...) and contains them.
+    cmd(string.format(
+      [=[syntax match orgHeadlineTodo /\(^\*\+\s\+\(%s\)\s\+\)\@<=\S.*$/ contained contains=orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell]=],
+      todo_alt
+    ))
+  end
 
   require("org.highlights").apply_todo_faces()
 end

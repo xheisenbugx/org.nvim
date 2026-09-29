@@ -643,6 +643,30 @@ describe("font-lock options", function()
     ok(syn(2, 8) ~= "orgheadlinetodo")
   end)
 
+  -- Emacs 9.8.10 (org-fontify-todo-headline, font-lock-ensure): on
+  -- "* TODO [#A] Head [1/2] x :tag:" org-headline-todo covers the priority
+  -- cookie, the text, the statistics cookie and the tags (with their own
+  -- faces), and a link right after the keyword
+  it("fontify_todo_headline covers the priority, cookies, tags and links", function()
+    config.opts.ui.fontify_todo_headline = true
+    org_buffer({ "* TODO [#A] Head [1/2] x :tag:", "* TODO [[l]] y" })
+    local function in_todo(l, c)
+      for _, id in ipairs(vim.fn.synstack(l, c)) do
+        if vim.fn.synIDattr(id, "name"):lower() == "orgheadlinetodo" then
+          return true
+        end
+      end
+      return false
+    end
+    for _, c in ipairs({ 8, 11, 13, 18, 22, 24, 26, 30 }) do
+      ok(in_todo(1, c), "column " .. c)
+    end
+    ok(not in_todo(1, 3), "the keyword")
+    eq("orgpriority", (syn(1, 8):gsub("[abc]$", "")))
+    eq("orgtags", syn(1, 27))
+    ok(in_todo(2, 8) and in_todo(2, 13))
+  end)
+
   it("highlight_latex_and_related picks what is highlighted", function()
     local text = { "x $a+b$ \\alpha, y_1" }
     local function names()
