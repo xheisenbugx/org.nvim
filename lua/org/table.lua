@@ -867,6 +867,9 @@ function M.sort_column(opts)
     end
   end
   local less = compare or function(a, b)
+    if type(a) == "string" and type(b) == "string" then
+      return utils.string_lessp(a, b) -- org-sort-function
+    end
     return a < b
   end
   table.sort(slice, function(a, b)

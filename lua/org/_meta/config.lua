@@ -308,6 +308,24 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
+---`buffer_goto` interface: `"outline"` browses a copy of the buffer in
+---overview (<CR> jumps), `"outline-path-completion"` picks a headline by its
+---path. A count uses the other one. (Emacs `org-goto-interface`,
+---default: `"outline"`)
+---@field goto_interface? "outline"|"outline-path-completion"
+---Deepest headlines offered by the completion interface of `buffer_goto`.
+---(Emacs `org-goto-max-level`, default: `5`)
+---@field goto_max_level? integer
+---In the outline interface of `buffer_goto`, typing searches the headlines;
+---when `false`, n p f b u move and q quits. (Emacs `org-goto-auto-isearch`,
+---default: `true`)
+---@field goto_auto_isearch? boolean
+---How sorting (entries, lists, tables, the agenda) compares text:
+---`"collate"` with the collation locale (`:language collate`; character
+---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`
+---by character code, or `function(a, b, ignore_case)` returning `a < b`.
+---(Emacs `org-sort-function`, default: `"collate"`, string-collate-lessp)
+---@field sort_function? "collate"|"fallback"|fun(a: string, b: string, ignore_case?: boolean): boolean
 ---TAB on a list item folds its children and text.
 ---(Emacs `org-cycle-include-plain-lists`, default: `true`)
 ---@field cycle_include_plain_lists? boolean

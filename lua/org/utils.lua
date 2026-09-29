@@ -410,6 +410,42 @@ function M.write_json(path, data)
   M.writefile(path, { vim.json.encode(data) })
 end
 
+--- Whether string `a` sorts before `b` (org-string<), following
+--- `sort_function` (org-sort-function): "collate" compares with the
+--- collation locale (like string-collate-lessp, see |:language|),
+--- "fallback" by character code (org-sort-function-fallback), or a
+--- function(a, b, ignore_case) returning a boolean.
+---@param a string
+---@param b string
+---@param ignore_case? boolean
+---@return boolean
+function M.string_lessp(a, b, ignore_case)
+  local f = require("org.config").opts.sort_function or "collate"
+  if type(f) == "function" then
+    return f(a, b, ignore_case) and true or false
+  end
+  -- Emacs's string-collate-lessp compares character codes on macOS, whose
+  -- wide-character collation for UTF-8 locales is not a real one
+  if f == "fallback" or (f == "collate" and vim.fn.has("mac") == 1) then
+    if ignore_case then
+      a, b = a:upper(), b:upper()
+    end
+    return a < b
+  end
+  if ignore_case then
+    a, b = a:lower(), b:lower()
+  end
+  if a == b then
+    return false
+  end
+  -- sort() keeps equal items in order: `a` first only when it sorts lower
+  local ok, r = pcall(vim.fn.sort, { b, a }, "l")
+  if not ok then
+    return a < b
+  end
+  return r[1] == a and r[2] == b
+end
+
 --- Expand a list of files/dirs/globs into unique absolute `.org` paths.
 ---@param patterns string|string[]
 ---@return string[]

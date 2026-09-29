@@ -298,6 +298,20 @@ M.defaults = {
   --- with the headline (or list item) and its lines:
   --- `{ by_length = function(h, lines) return #lines end }`.
   sort_functions = {},
+  --- buffer_goto (org-goto-interface): "outline" (browse a copy of the
+  --- buffer in overview, <CR> jumps) or "outline-path-completion".
+  goto_interface = "outline",
+  --- Deepest headlines offered by the completion interface of buffer_goto
+  --- (org-goto-max-level).
+  goto_max_level = 5,
+  --- In the outline interface, typing searches the headlines
+  --- (org-goto-auto-isearch); else n p f b u move and q quits.
+  goto_auto_isearch = true,
+  --- How sorting compares text (org-sort-function): "collate" (the
+  --- collation locale, like string-collate-lessp), "fallback" (character
+  --- codes, org-sort-function-fallback) or function(a, b, ignore_case).
+  --- On macOS "collate" compares character codes, like Emacs there.
+  sort_function = "collate",
   --- TAB on a list item folds its children and text
   --- (org-cycle-include-plain-lists).
   cycle_include_plain_lists = true,

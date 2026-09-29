@@ -1883,6 +1883,9 @@ local function default_less(a, b)
   if type(a) ~= type(b) then
     return type(a) == "number"
   end
+  if type(a) == "string" then
+    return utils.string_lessp(a, b) -- org-sort-function
+  end
   return tostring(a) < tostring(b)
 end
 

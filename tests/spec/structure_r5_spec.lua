@@ -523,3 +523,54 @@ describe("indirect_buffer_display", function()
     eq({ "* C" }, buf_lines(buf))
   end)
 end)
+
+describe("sort_function", function()
+  local config = require("org.config")
+  local lessp = require("org.utils").string_lessp
+  after_each(function()
+    config.opts.sort_function = "collate"
+  end)
+
+  it("fallback compares character codes (org-sort-function-fallback)", function()
+    config.opts.sort_function = "fallback"
+    -- Emacs 9.8.10 with org-sort-function-fallback
+    local list = { "b", "B", "a", "A", "_x", "é", "e", "Z" }
+    table.sort(list, lessp)
+    eq({ "A", "B", "Z", "_x", "a", "b", "e", "é" }, list)
+    ok(not lessp("a", "A", true) and not lessp("A", "a", true))
+  end)
+
+  it("collate follows the collation locale (character codes on macOS, like Emacs)", function()
+    config.opts.sort_function = "collate"
+    local list = { "b", "a", "c" }
+    table.sort(list, lessp)
+    eq({ "a", "b", "c" }, list)
+    local l = { "b", "B", "a", "_x" }
+    table.sort(l, lessp)
+    if vim.fn.has("mac") == 1 then
+      -- Emacs 9.8.10 on macOS: ("B" "_x" "a" "b")
+      eq({ "B", "_x", "a", "b" }, l)
+    else
+      eq(vim.fn.sort({ "b", "B", "a", "_x" }, "l"), l)
+    end
+  end)
+
+  it("a function, used by entry sorting", function()
+    local calls = 0
+    config.opts.sort_function = function(a, b)
+      calls = calls + 1
+      return a > b -- reverse
+    end
+    local buf = org_buffer({ "* P", "** a", "** c", "** b" }, { 1, 0 })
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function()
+      return { kind = "alpha", reverse = false }
+    end
+    local ok_, err = pcall(require("org.structure").sort)
+    ui.menu = orig
+    assert(ok_, err)
+    ok(calls > 0)
+    eq({ "* P", "** c", "** b", "** a" }, buf_lines(buf))
+  end)
+end)

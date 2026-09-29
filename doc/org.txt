@@ -357,7 +357,25 @@ Motions and text objects:                           *org-motions* *org-textobj*
 ]] / [[         Next / previous visible headline.
 ][ / []         Next / previous sibling.
 g{              Parent headline.
-<prefix>.       Pick a headline of the buffer (|vim.ui.select()|).
+<prefix>.       Go to a location in the buffer without changing its folds
+<C-c><C-j>      (org-goto). With `goto_interface = "outline"` (the
+                default) a read-only copy of the buffer opens in overview
+                in a tab of its own:                           *org-goto*
+                  <CR>           jump there
+                  <Left> <Right> on a headline, jump there
+                  <C-g>          back where you were (`q` without
+                                 auto-isearch)
+                  <Tab>          cycle visibility
+                  <Down> <Up>    next / previous visible headline
+                  /              sparse tree for a regexp
+                  <C-c><C-n> <C-p> <C-f> <C-b> <C-u>  headline motions
+                  typing         searches the headline text (a `/`
+                                 search; <CR> ends it, <CR> again jumps)
+                                 with `goto_auto_isearch`; otherwise
+                                 n p f b u move and q quits.
+                With "outline-path-completion": pick a headline by its
+                outline path (|vim.ui.select()|), down to
+                `goto_max_level`. A count uses the other interface.
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
@@ -4508,6 +4526,12 @@ Structure and visibility ~
   clone_delete_id           false     clones lose their ID (else a new one)
   odd_levels_only           false     promote / demote by two stars
   sort_functions            {}        named key functions for sorting (f)
+  goto_interface            "outline"  |org-goto|: "outline"|
+                                      "outline-path-completion"
+  goto_max_level            5         deepest headlines offered (completion)
+  goto_auto_isearch         true      typing searches the headlines
+  sort_function             "collate"  text order in sorting: "collate"
+                                      (locale)|"fallback" (codes)|function
   structure_template_alist  { a = "export ascii", c = "center", ... }
   tempo                     false     `<s` TAB expansion (org-tempo)
   tempo_keywords            { L = "latex", H = "html", A = "ascii",
