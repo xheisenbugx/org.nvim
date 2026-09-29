@@ -589,16 +589,23 @@ end
 
 ---@param lines string[]
 ---@param filename? string absolute path
+---@param base? org.File use this file's in-buffer settings instead of the
+--- ones in `lines` (text shown apart from its file, e.g. presentation slides)
 ---@return org.File
-function M.parse(lines, filename)
-  local settings, dependencies = parse_settings(lines, filename)
-  local todo_cfg
-  if #settings.todo_sequences > 0 then
-    todo_cfg = todo_keywords.new(settings.todo_sequences)
+function M.parse(lines, filename, base)
+  local settings, dependencies
+  if base then
+    settings, dependencies = base.settings, base.setup_dependencies
   else
-    todo_cfg = todo_keywords.global()
+    settings, dependencies = parse_settings(lines, filename)
+    local todo_cfg
+    if #settings.todo_sequences > 0 then
+      todo_cfg = todo_keywords.new(settings.todo_sequences)
+    else
+      todo_cfg = todo_keywords.global()
+    end
+    settings.todo = todo_cfg
   end
-  settings.todo = todo_cfg
 
   local file = setmetatable({
     filename = filename,
