@@ -1089,8 +1089,10 @@
 ---@field refile? org.MappingLhs
 --- Archive the item's subtree. Default: `{ "$", "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive? org.MappingLhs
---- Archive the item's subtree, after confirmation. Default: `{ "a", "<C-c><C-x><C-a>" }`
+--- Archive the item with `archive_default_command` (org-agenda-archive-default). Default: `<C-c><C-x><C-a>`
 ---@field archive_default? org.MappingLhs
+--- Like archive_default, after confirmation (org-agenda-archive-default-with-confirmation). Default: `a`
+---@field archive_default_confirm? org.MappingLhs
 --- Move the item to its Archive sibling. Default: `<C-c><C-x>A`
 ---@field archive_sibling? org.MappingLhs
 --- Toggle the item's ARCHIVE tag. Default: `<C-c><C-x>a`

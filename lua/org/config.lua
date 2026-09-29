@@ -385,6 +385,10 @@ M.defaults = {
   archive_save_context_info = { "time", "file", "olpath", "category", "todo", "itags" },
   --- Heading of the sibling used by `archive_to_sibling` (org-archive-sibling-heading).
   archive_sibling_heading = "Archive",
+  --- What the agenda's archive-default keys do (org-archive-default-command):
+  --- "archive_subtree", "archive_to_sibling", "toggle_archive_tag" or a
+  --- function(target).
+  archive_default_command = "archive_subtree",
   --- Add inherited tags to archived entries: "infile" | true | false
   --- (org-archive-subtree-add-inherited-tags).
   archive_subtree_add_inherited_tags = "infile",
@@ -2221,7 +2225,8 @@ M.defaults = {
       remove_restriction_lock = "<C-c><C-x>>",
       refile = { "<C-c><C-w>", "R" },
       archive = { "$", "<C-c>$", "<C-c><C-x><C-s>" },
-      archive_default = { "a", "<C-c><C-x><C-a>" },
+      archive_default = "<C-c><C-x><C-a>",
+      archive_default_confirm = "a",
       archive_sibling = "<C-c><C-x>A",
       toggle_archive_tag = "<C-c><C-x>a",
       kill = "<C-k>",

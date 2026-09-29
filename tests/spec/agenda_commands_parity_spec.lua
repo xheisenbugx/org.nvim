@@ -359,6 +359,38 @@ describe("agenda todo_yesterday", function()
   end)
 end)
 
+describe("agenda archive default", function()
+  after_each(function()
+    pcall(view.quit, true)
+    config.setup({})
+  end)
+
+  -- org-agenda-archive-default runs org-archive-default-command without
+  -- asking; `a` asks "Archive this subtree or entry? " first (Emacs 9.8.10).
+  it("<C-c><C-x><C-a> runs archive_default_command; a asks first", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0), "* TODO B", "  SCHEDULED: " .. ts(0) }, {
+      archive_default_command = "toggle_archive_tag",
+    })
+    goto_title("A")
+    press("<C-c><C-x><C-a>")
+    ok(source_lines()[1]:find(":ARCHIVE:$"), source_lines()[1])
+    local asked
+    local confirm = utils.confirm
+    utils.confirm = function(q)
+      asked = q
+      return false
+    end
+    goto_title("B")
+    capture_msgs(function(_, errs)
+      press("a")
+      eq("Abort", errs[#errs])
+    end)
+    utils.confirm = confirm
+    eq("Archive this subtree or entry? ", asked)
+    eq("* TODO B", source_lines()[3])
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()

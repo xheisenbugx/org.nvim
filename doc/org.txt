@@ -1327,7 +1327,10 @@ All configurable under `mappings.agenda`:
   ;               start a countdown timer; <C-c><C-x>_ stops the timer
   R               refile
   $               archive (also <C-c>$, <C-c><C-x><C-s>)
-  a               archive after confirmation
+  a               archive with `archive_default_command` after
+                  confirmation ("archive_subtree", "archive_to_sibling",
+                  "toggle_archive_tag" or a function; org-archive-default-
+                  command); <C-c><C-x><C-a> without confirmation
   <C-c><C-x>A     move to the Archive sibling
   <C-c><C-x>a     toggle the ARCHIVE tag
   <C-c><C-a>      attach (org-attach on the entry)

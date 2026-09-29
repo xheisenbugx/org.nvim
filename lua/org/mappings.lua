@@ -261,6 +261,7 @@ local agenda_help = {
       { "refile", "Refile" },
       { "archive", "Archive the subtree" },
       { "archive_default", "Archive (default command)" },
+      { "archive_default_confirm", "Archive (default command), after confirmation" },
       { "archive_sibling", "Archive to the Archive sibling" },
       { "toggle_archive_tag", "Toggle the ARCHIVE tag" },
     },

@@ -1567,6 +1567,17 @@ function M.date_prompt(target, item)
   call("org.timestamps", "set_date", vim.tbl_extend("force", target, { ts_index = item.ts_index }), "timestamp", new)
 end
 
+--- Archive the entry with `archive_default_command` (org-archive-default-
+--- command): "archive_subtree" (default), "archive_to_sibling",
+--- "toggle_archive_tag" or a function(target).
+function M.archive_with_default(target)
+  local cmd = config.opts.archive_default_command or "archive_subtree"
+  if type(cmd) == "function" then
+    return cmd(target)
+  end
+  return call("org.archive", cmd, target)
+end
+
 local HOUR_SHIFTS = { date_later_hours = true, date_earlier_hours = true }
 local MINUTE_SHIFTS = { date_later_minutes = true, date_earlier_minutes = true }
 
@@ -3134,11 +3145,17 @@ M.actions = {
   append = function()
     M.append()
   end,
-  archive_default = on_item(function(target, item)
-    if not utils.confirm('Archive "' .. item.title .. '"?') then
+  -- org-agenda-archive-default: org-archive-default-command
+  archive_default = on_item(function(target)
+    M.archive_with_default(target)
+  end),
+  -- org-agenda-archive-default-with-confirmation
+  archive_default_confirm = on_item(function(target)
+    if not utils.confirm("Archive this subtree or entry? ") then
+      utils.error("Abort")
       return
     end
-    call("org.archive", "archive_subtree", target)
+    M.archive_with_default(target)
   end),
   archive_sibling = on_item(function(target)
     call("org.archive", "archive_to_sibling", target)
@@ -3391,6 +3408,7 @@ local LOOP_ACTIONS = {
   todo = true,
   archive = true,
   archive_default = true,
+  archive_default_confirm = true,
   archive_sibling = true,
   toggle_archive_tag = true,
   kill = true,

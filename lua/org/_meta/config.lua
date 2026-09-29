@@ -390,6 +390,9 @@
 ---Heading of the sibling used by `archive_to_sibling`.
 ---(Emacs `org-archive-sibling-heading`, default: `"Archive"`)
 ---@field archive_sibling_heading? string
+---What the agenda's archive-default keys do (org-archive-default-command).
+---(default: `"archive_subtree"`)
+---@field archive_default_command? "archive_subtree"|"archive_to_sibling"|"toggle_archive_tag"|fun(target: org.Target)
 ---Add inherited tags to archived entries: `"infile"` (only when archiving
 ---within the same file), `true` or `false`.
 ---(Emacs `org-archive-subtree-add-inherited-tags`, default: `"infile"`)
