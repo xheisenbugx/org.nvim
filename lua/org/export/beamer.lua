@@ -533,10 +533,7 @@ T.template = function(contents, info)
   if info.time_stamp_file then
     out[#out + 1] = ox.format_time("%% Created %Y-%m-%d %a %H:%M\n")
   end
-  local compiler = info.latex_compiler
-  if compiler == "pdflatex" or compiler == "xelatex" or compiler == "lualatex" then
-    out[#out + 1] = fmt("%% Intended LaTeX compiler: %s\n", compiler)
-  end
+  out[#out + 1] = latex.compiler_file_string(info)
   out[#out + 1] = latex.make_preamble(info)
   if info.beamer_define_frame then
     local e = info.beamer_frame_environment

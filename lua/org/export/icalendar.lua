@@ -229,11 +229,159 @@ local function valarm(entry, ts, summary)
   return fmt("BEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:%s\nTRIGGER:-P0DT0H%dM0S\nEND:VALARM\n", summary, minutes)
 end
 
+local DAYNAMES = { [0] = "SU", "MO", "TU", "WE", "TH", "FR", "SA" }
+
+--- The `n`th `dayname` (0 = Sunday) of a month; negative `n` counts from
+--- the end (calendar-nth-named-day).
+local function nth_named_day(n, dayname, month, year)
+  if n > 0 then
+    local first = os.date("*t", os.time({ year = year, month = month, day = 1, hour = 12 }))
+    local day = 1 + (dayname - (first.wday - 1)) % 7 + 7 * (n - 1)
+    return day
+  end
+  local last = os.date("*t", os.time({ year = year, month = month + 1, day = 0, hour = 12 }))
+  return last.day - ((last.wday - 1) - dayname) % 7 + 7 * (n + 1)
+end
+
+--- Date parts of the first day from January 1 of last year for which
+--- `pred(y, m, d)` holds (the start of the recurrence).
+local function first_date(pred)
+  local year = (M.reference_year or tonumber(os.date("%Y"))) - 1
+  for i = 0, 800 do
+    local d = os.date("*t", os.time({ year = year, month = 1, day = 1 + i, hour = 12 }))
+    if pred(d.year, d.month, d.day) then
+      return d.year, d.month, d.day
+    end
+  end
+end
+
+--- RRULE and first date of a diary sexp (american date order, like
+--- calendar-date-style), or nil for a sexp that has no iCalendar form.
+local function diary_recurrence(list)
+  local fn = list[1]
+  local ok_style, style = pcall(function()
+    return require("org.agenda.calendars").date_style()
+  end)
+  style = ok_style and style or "american"
+  -- the date arguments in calendar-date-style order -> month, day, year
+  local function mdy(a, b, c)
+    if style == "iso" then
+      return b, c, a
+    elseif style == "european" then
+      return b, a, c
+    end
+    return a, b, c
+  end
+  local function nums(...)
+    for _, v in ipairs({ ... }) do
+      if type(v) ~= "number" then
+        return false
+      end
+    end
+    return true
+  end
+  if fn == "diary-anniversary" then
+    local m, d, y = mdy(list[2], list[3], list[4])
+    if nums(m, d, y) then
+      return "RRULE:FREQ=YEARLY", y, m, d
+    end
+  elseif fn == "diary-block" then
+    local m1, d1, y1 = mdy(list[2], list[3], list[4])
+    local m2, d2, y2 = mdy(list[5], list[6], list[7])
+    if nums(m1, d1, y1, m2, d2, y2) then
+      return fmt("RRULE:FREQ=DAILY;UNTIL=%04d%02d%02d", y2, m2, d2), y1, m1, d1
+    end
+  elseif fn == "diary-cyclic" then
+    local m, d, y = mdy(list[3], list[4], list[5])
+    if nums(list[2], m, d, y) then
+      return fmt("RRULE:FREQ=DAILY;INTERVAL=%d", list[2]), y, m, d
+    end
+  elseif fn == "diary-float" and nums(list[3], list[4]) and list[5] == nil then
+    local month, dayname, n = list[2], list[3], list[4]
+    local byday = fmt("BYDAY=%d%s", n, DAYNAMES[dayname])
+    local rule = month == true and ("RRULE:FREQ=MONTHLY;" .. byday)
+      or type(month) == "number" and fmt("RRULE:FREQ=MONTHLY;BYMONTH=%d;%s", month, byday)
+    if not rule then
+      return nil
+    end
+    local y, m, d = first_date(function(yy, mm, dd)
+      return (month == true or mm == month) and dd == nth_named_day(n, dayname, mm, yy)
+    end)
+    return rule, y, m, d
+  elseif fn == "diary-date" then
+    local month, day, year = mdy(list[2], list[3], list[4])
+    if type(month) == "number" and type(day) == "number" and type(year) == "number" then
+      return nil, year, month, day
+    elseif type(day) == "number" and year == true and (month == true or type(month) == "number") then
+      local rule = month == true and fmt("RRULE:FREQ=MONTHLY;BYMONTHDAY=%d", day)
+        or fmt("RRULE:FREQ=YEARLY;BYMONTH=%d;BYMONTHDAY=%d", month, day)
+      local y, m, d = first_date(function(_, mm, dd)
+        return (month == true or mm == month) and dd == day
+      end)
+      return rule, y, m, d
+    end
+  end
+  return nil
+end
+
+--- org-icalendar-transcode-diary-sexp: a VEVENT for a diary sexp entry
+--- (`%%(...) text`) or a diary timestamp (`<%%(...) 10:00-11:30>`, with
+--- the entry's summary). Emacs hands them to its diary iCalendar library;
+--- here the usual calendar sexps are converted: diary-anniversary,
+--- diary-block, diary-cyclic, diary-float and diary-date. Others are
+--- skipped with a warning.
+function M.transcode_diary_sexp(sexp, uid, summary)
+  local text = sexp
+  if text:match("^<%%%%") then
+    text = text:sub(2, -2) .. " " .. (summary or "")
+  end
+  local list, e = ox.read_sexp(text, 3)
+  if type(list) ~= "table" then
+    return ""
+  end
+  local rest = trim(text:sub(e))
+  local h1, m1, h2, m2 = rest:match("^(%d%d?):(%d%d)%-(%d%d?):(%d%d)")
+  if h1 then
+    rest = trim(rest:gsub("^%d%d?:%d%d%-%d%d?:%d%d", "", 1))
+  else
+    h1, m1 = rest:match("^(%d%d?):(%d%d)")
+    if h1 then
+      rest = trim(rest:gsub("^%d%d?:%d%d", "", 1))
+    end
+  end
+  local rule, y, mo, d = diary_recurrence(list)
+  if not y then
+    utils.warn("iCalendar export: diary sexp not supported: " .. sexp)
+    return ""
+  end
+  local out = {
+    "BEGIN:VEVENT",
+    "UID:" .. uid,
+    M.dtstamp(),
+    "SUMMARY:" .. rest,
+    "DESCRIPTION:" .. rest,
+  }
+  if rule then
+    out[#out + 1] = rule
+  end
+  if h1 and h2 then
+    local mins = (tonumber(h2) * 60 + tonumber(m2)) - (tonumber(h1) * 60 + tonumber(m1))
+    local h, m = math.floor(mins / 60), mins % 60
+    out[#out + 1] = "DURATION:PT" .. (h > 0 and (h .. "H") or "") .. (m > 0 and (m .. "M") or "")
+  end
+  if h1 then
+    out[#out + 1] = fmt("DTSTART:%04d%02d%02dT%02d%02d00", y, mo, d, tonumber(h1), tonumber(m1))
+  else
+    out[#out + 1] = fmt("DTSTART;VALUE=DATE:%04d%02d%02d", y, mo, d)
+  end
+  out[#out + 1] = "END:VEVENT"
+  return table.concat(out, "\n") .. "\n"
+end
+
 --- org-icalendar--vevent
 local function vevent(entry, ts, uid, summary, location, description, cats, tz, class)
   if ts.ts_type == "diary" then
-    -- diary sexps need Emacs' calendar library (org-diary-to-ical-string)
-    return ""
+    return M.transcode_diary_sexp(ts.raw_value, uid, summary)
   end
   return "BEGIN:VEVENT\n"
     .. M.dtstamp()
@@ -520,8 +668,16 @@ local function entry_fn(entry, contents, info)
   if include_todo_p(entry, info) then
     out[#out + 1] = vtodo(entry, uid, summary, loc, desc, cats, tz, class, info)
   end
-  -- diary sexps (org-icalendar-include-sexps) need Emacs' calendar
-  -- library: they are not exported.
+  -- diary sexps (org-icalendar-include-sexps)
+  if info.icalendar_include_sexps then
+    local n = 0
+    for _, sexp in ipairs(element.map(scope, "diary-sexp", function(x)
+      return x
+    end, { ignore = info.ignore, no_recursion = no_rec })) do
+      n = n + 1
+      out[#out + 1] = M.transcode_diary_sexp(sexp.value or "", fmt("DS%d-%s", n, uid), summary)
+    end
+  end
   if etype == "headline" then
     for _, task in ipairs(element.map(inside, "inlinetask", function(x)
       return x

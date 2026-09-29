@@ -1222,16 +1222,28 @@ function M.enable(bufnr)
   M._fns[bufnr] = fns
   M._keys = M._keys or {}
   M._keys[bufnr] = keys
+  if require("org.config").opts.orgtbl_optimized ~= false then
+    require("org.table.typing").attach(bufnr)
+  end
   vim.api.nvim_create_autocmd("InsertLeave", {
     buffer = bufnr,
     group = vim.api.nvim_create_augroup("orgtbl." .. bufnr, { clear = true }),
     callback = function()
+      if require("org.config").opts.table_automatic_realign == false then
+        return
+      end
       if in_table() then
         tbl().align_at(bufnr, vim.api.nvim_win_get_cursor(0)[1])
       end
     end,
   })
   utils.notify("Orgtbl mode enabled")
+  -- orgtbl-mode-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgtblMode",
+    data = { enabled = true, bufnr = bufnr },
+    modeline = false,
+  })
 end
 
 --- Disable orgtbl-mode in `bufnr`.
@@ -1242,6 +1254,13 @@ function M.disable(bufnr)
     pcall(vim.keymap.del, k[1], k[2], { buffer = bufnr })
   end
   pcall(vim.api.nvim_del_augroup_by_name, "orgtbl." .. bufnr)
+  require("org.table.typing").detach(bufnr)
+  -- orgtbl-mode-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgtblMode",
+    data = { enabled = false, bufnr = bufnr },
+    modeline = false,
+  })
 end
 
 --- Toggle orgtbl-mode, the table editor for buffers that are not org

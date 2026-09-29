@@ -12,6 +12,7 @@ local links = {
   OrgAgendaScheduledPast = "WarningMsg",
   OrgAgendaDeadline = "ErrorMsg",
   OrgAgendaDeadlineUpcoming = "WarningMsg",
+  OrgAgendaDeadlineDistant = "Normal",
   OrgAgendaTimestamp = "Normal",
   OrgAgendaDiary = "Normal",
   OrgAgendaDone = "Comment",
@@ -57,6 +58,11 @@ function M.define()
   local ok, base = pcall(vim.api.nvim_get_hl, 0, { name = "Function", link = false })
   local fg = ok and base and base.fg or nil
   vim.api.nvim_set_hl(0, "OrgAgendaDateToday", { fg = fg, bold = true, underline = true, default = true })
+  -- highest / lowest priority cookies (org-agenda-fontify-priorities)
+  local okp, prio = pcall(vim.api.nvim_get_hl, 0, { name = "OrgAgendaPriority", link = false })
+  local pfg = okp and prio and prio.fg or nil
+  vim.api.nvim_set_hl(0, "OrgAgendaPriorityHighest", { fg = pfg, bold = true, default = true })
+  vim.api.nvim_set_hl(0, "OrgAgendaPriorityLowest", { fg = pfg, italic = true, default = true })
   -- habit consistency graph (Emacs org-habit faces)
   local light = vim.o.background == "light"
   local habit = {

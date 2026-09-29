@@ -419,6 +419,37 @@ describe("lint entry points", function()
     vim.cmd("lclose")
   end)
 
+  it("hides (h) and ignores (i) a checker in the report list; r refreshes", function()
+    local src = org_buffer({ "#+TITLE foo", "[[nowhere]]", "#+AUTHOR bar", "[[elsewhere]]" })
+    local srcwin = vim.api.nvim_get_current_win()
+    lint.show()
+    local function checkers()
+      return vim.tbl_map(function(it)
+        return it.user_data.checker
+      end, vim.fn.getloclist(srcwin, { items = 0 }).items)
+    end
+    eq({ "invalid-keyword-syntax", "invalid-fuzzy-link", "invalid-keyword-syntax", "invalid-fuzzy-link" }, checkers())
+    eq("qf", vim.bo.filetype)
+    -- h: hide the fuzzy-link reports; r (Emacs g) brings them back
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    vim.api.nvim_feedkeys("h", "x", false)
+    eq({ "invalid-keyword-syntax", "invalid-keyword-syntax" }, checkers())
+    vim.api.nvim_feedkeys("r", "x", false)
+    eq(4, #checkers())
+    -- i: the keyword checker stays out after a refresh
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.api.nvim_feedkeys("i", "x", false)
+    eq({ "invalid-fuzzy-link", "invalid-fuzzy-link" }, checkers())
+    vim.api.nvim_feedkeys("r", "x", false)
+    eq({ "invalid-fuzzy-link", "invalid-fuzzy-link" }, checkers())
+    -- g is not mapped: gg still goes to the first report
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    vim.api.nvim_feedkeys("gg", "x", false)
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+    vim.cmd("lclose")
+    eq(src, vim.api.nvim_get_current_buf())
+  end)
+
   it("is available as an action and :Org lint", function()
     ok(require("org.actions").list.lint)
     org_buffer({ "[[nowhere]]" })

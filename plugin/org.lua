@@ -6,6 +6,20 @@ vim.g.loaded_org_nvim = true
 
 vim.filetype.add({
   extension = { org = "org", org_archive = "org" },
+  -- the Emacs mode line `-*- mode: org -*-` (see insert_mode_line_in_empty_file),
+  -- which wins over the extension like in Emacs
+  pattern = {
+    [".*"] = {
+      function(_, bufnr)
+        local first = bufnr and vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ""
+        local lower = first:lower()
+        if lower:match("%-%*%-.*mode:%s*org[%s;]") or lower:match("%-%*%-%s*org%s*%-%*%-") then
+          return "org"
+        end
+      end,
+      { priority = 0 },
+    },
+  },
 })
 
 -- `:Org` is available even before setup() (it triggers default setup).
