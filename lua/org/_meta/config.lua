@@ -357,6 +357,9 @@
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer
+---Days a scheduled entry is hidden after its date unless it has its own
+---`-Nd` delay; negative: always (org-scheduled-delay-days). (default: `0`)
+---@field scheduled_delay_days? integer
 ---`{ rounding, step }`: minutes the current time is rounded to in date
 ---prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
 ---steps by exactly that many minutes).

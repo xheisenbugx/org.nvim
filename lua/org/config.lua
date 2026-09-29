@@ -358,6 +358,10 @@ M.defaults = {
   footnote_define_inline = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- Days a scheduled entry is hidden after its date unless it has its own
+  --- `-Nd` delay; a negative value applies even then
+  --- (org-scheduled-delay-days).
+  scheduled_delay_days = 0,
   --- { rounding of the current time in date prompts, minute step of
   --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.

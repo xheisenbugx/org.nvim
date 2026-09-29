@@ -44,6 +44,7 @@ local OPTION_ALIASES = {
   org_agenda_files = "files",
   org_stuck_projects = "stuck_projects",
   org_deadline_warning_days = "deadline_warning_days",
+  org_scheduled_delay_days = "scheduled_delay_days",
   org_agenda_tag_filter_preset = "tag_filter_preset",
   org_agenda_category_filter_preset = "category_filter_preset",
   org_agenda_regexp_filter_preset = "regexp_filter_preset",

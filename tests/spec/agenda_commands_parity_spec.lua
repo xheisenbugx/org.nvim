@@ -358,3 +358,12 @@ describe("agenda todo_yesterday", function()
     eq(false, config.opts.use_effective_time)
   end)
 end)
+
+-- leave the default options to the specs that follow
+describe("agenda_commands_parity_spec cleanup", function()
+  it("restores the default options", function()
+    pcall(view.quit, true)
+    config.setup({})
+    ok(config.opts.agenda.skip_function_global == nil)
+  end)
+end)

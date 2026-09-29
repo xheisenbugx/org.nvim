@@ -766,16 +766,32 @@ function M.agenda(files, from, to, opts)
       local is_habit = habits.is_habit(hl)
       local habit = is_habit and habits.parse(hl) or nil
       local base = prefers_last(acfg, hl.todo) and last_occ(s, today) or s:days()
-      local delay = 0
-      if s.warning then
-        delay = date.warning_days(s, 0)
-        if s.warning.type == "--" and base > s:days() then
-          -- a --Xd delay only applies to the first occurrence
-          delay = 0
-        elseif acfg.skip_scheduled_delay_if_deadline and hl.planning.deadline then
-          -- t, an integer or post-deadline: Emacs ends up with no delay
-          delay = 0
+      -- org-get-wdays with DELAY: a negative org-scheduled-delay-days is
+      -- enforced, else the -Nd cookie, else org-scheduled-delay-days
+      local tv = acfg.scheduled_delay_days or cfg.scheduled_delay_days or 0
+      local wd
+      if tv < 0 then
+        wd = -tv
+      elseif s.warning then
+        wd = date.warning_days(s, 0)
+      else
+        wd = tv
+      end
+      local max = math.huge
+      local sdd = acfg.skip_scheduled_delay_if_deadline
+      if sdd and hl.planning.deadline then
+        if int(sdd) then
+          max = -sdd
+        elseif sdd == "post-deadline" then
+          max = math.min(base - hl.planning.deadline:days(), tv)
+        else
+          max = 0
         end
+      end
+      local delay = math.min(max, wd)
+      if s.warning and s.warning.type == "--" and base > s:days() then
+        -- a --Xd delay only applies to the first occurrence
+        delay = 0
       end
       local past_days = (is_habit and habit_cfg.scheduled_past_days) or sc_past_days
       local days = { [base] = true }

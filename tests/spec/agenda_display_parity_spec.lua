@@ -227,3 +227,12 @@ describe("agenda hooks", function()
     eq({ "OrgAgendaFinalize:", "OrgAgendaFilter:Cat:+etext", "OrgAgendaFinalize:Cat:+etext" }, events)
   end)
 end)
+
+-- leave the default options to the specs that follow
+describe("agenda_display_parity_spec cleanup", function()
+  it("restores the default options", function()
+    pcall(view.quit, true)
+    config.setup({})
+    ok(config.opts.agenda.skip_function_global == nil)
+  end)
+end)

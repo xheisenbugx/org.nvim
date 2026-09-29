@@ -1164,7 +1164,9 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   on their day only.
 - Scheduled entries on their day (`Scheduled:`) and, while not done, in
   today's agenda (`Sched.Nx:`, for `agenda.scheduled_past_days`). A delay
-  (`-2d`) hides the entry until it is over.
+  (`-2d`) hides the entry until it is over; `scheduled_delay_days`
+  (org-scheduled-delay-days, 0) is the delay of entries without one, and a
+  negative value applies to all of them.
 - Date ranges on each of their days (`(2/3):`), with the start time on
   the first day and the end time on the last.
 - Active timestamps. Repeaters show on every repeat up to today and, after
@@ -4558,6 +4560,7 @@ Structure and visibility ~
   footnote_auto_adjust      false     false|true|"sort"|"renumber"
   footnote_define_inline    false
   deadline_warning_days     14
+  scheduled_delay_days      0         negative = also over -Nd cookies
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
   display_custom_times      false     |org-dates|

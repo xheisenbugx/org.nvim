@@ -1299,6 +1299,7 @@ local BLOCK_KEYS = {
 local NIL_OPTIONS = {
   -- a global option a block may override (org-deadline-warning-days)
   deadline_warning_days = true,
+  scheduled_delay_days = true,
   start_day = true,
   format_date = true,
   hide_tags_regexp = true,

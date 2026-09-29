@@ -626,3 +626,37 @@ describe("occur in agenda files", function()
     eq(2, n)
   end)
 end)
+
+describe("scheduled_delay_days", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- Emacs 9.8.10, org-scheduled-delay-days 2: "Sched. 3x:  TODO Three
+  -- ago" and "Sched. 1x:  TODO One ago cookie" (its -1d wins); with -2
+  -- only "Three ago" (the negative value overrides the cookie).
+  it("hides scheduled entries for that many days", function()
+    local lines = {
+      "* TODO Today",
+      "  SCHEDULED: " .. ts(0),
+      "* TODO Three ago",
+      "  SCHEDULED: " .. ts(-3),
+      "* TODO One ago cookie",
+      "  SCHEDULED: " .. ts(-1, "-1d"),
+    }
+    open(lines, { scheduled_delay_days = 2 })
+    eq({ "  skip:       Sched. 3x:  TODO Three ago", "  skip:       Sched. 1x:  TODO One ago cookie" }, item_lines())
+    view.quit(true)
+    open(lines, { scheduled_delay_days = -2 })
+    eq({ "  skip:       Sched. 3x:  TODO Three ago" }, item_lines())
+  end)
+end)
+
+-- leave the default options to the specs that follow
+describe("agenda_options_parity_spec cleanup", function()
+  it("restores the default options", function()
+    pcall(view.quit, true)
+    config.setup({})
+    ok(config.opts.agenda.skip_function_global == nil)
+  end)
+end)
