@@ -765,14 +765,17 @@ function basic.complete_key(bufnr, multiple)
   end
   local sep_opt = opt("basic_complete_key_crm_separator", nil)
   if sep_opt then
-    -- completing-read-multiple: one prompt, keys separated by the separator
-    local by_display, keys = {}, {}
+    -- completing-read-multiple: one prompt, the "author year title"
+    -- strings of the references separated by the separator (a "dynamic"
+    -- one avoids the "; " between authors); a bare key is accepted too
+    local by_display, keys, displays = {}, {}, {}
     for _, item in ipairs(tbl) do
       by_display[item[1]] = item[2]
       keys[#keys + 1] = item[2]
+      displays[#displays + 1] = item[1]
     end
-    local regexp, shown = crm_separator(sep_opt, keys)
-    M._crm = { regexp = regexp, candidates = keys }
+    local regexp, shown = crm_separator(sep_opt, displays)
+    M._crm = { regexp = regexp, candidates = displays }
     local ok, value = pcall(vim.fn.input, {
       prompt = string.format("[list separated by %s] Keys: ", shown),
       completion = "customlist,v:lua.require'org.cite'._crm_complete",

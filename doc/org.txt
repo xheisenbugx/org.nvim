@@ -3339,8 +3339,9 @@ CSL-JSON .json, relative to the file; setup files included) and
                 `basic_column_separator` "  "); a new citation asks for keys
                 until the prompt is cancelled, or, with
                 `basic_complete_key_crm_separator` (a Vim regexp such as
-                "[ \t]*;;[ \t]*", or "dynamic" for ";;..."), reads them at one
-                prompt. On a key: replace it; right before its "@": add a
+                "[ \t]*;;[ \t]*", or "dynamic" for the shortest ";;..."
+                that no candidate contains), reads the "author year title"
+                strings at one prompt. On a key: replace it; right before its "@": add a
                 key before it; after the key: add one after it. On the
                 style part (`[cite/t:`): change the style; on the global
                 prefix / suffix: add a key first / last. With a count
@@ -6422,7 +6423,8 @@ Differences from Emacs:
 - Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
   cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
   is a Vim regexp read at an `input()` prompt (Emacs uses
-  completing-read-multiple with an Emacs regexp). Neovim has no mouse-over
+  completing-read-multiple with an Emacs regexp); a bare key is accepted
+  there as well as the completed "author year title" string. Neovim has no mouse-over
   faces or tooltips, so `org-cite-basic-mouse-over-key-face` and the
   help-echo text over a key (the entry, or the close keys) have no
   counterpart; `require("org.cite").key_help(bufnr, key)` returns that

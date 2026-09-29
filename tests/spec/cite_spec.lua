@@ -238,6 +238,28 @@ describe("org-cite-insert (basic)", function()
     eq("Hello [cite:@knuth1984; @doe2001] world", text)
     eq("[list separated by ;;] Keys: ", prompt)
   end)
+  -- Emacs 9.8.10 (tests/fixtures/cite/refs.bib, crm separator 'dynamic):
+  -- the prompt is "[list separated by ;;] Keys: " since the candidates
+  -- are the "author year title" strings and "Leslie Lamport; John Doe"
+  -- contains ";"; the chosen strings map back to their keys.
+  it("computes the dynamic crm separator from the completion strings", function()
+    local c = require("org.config").opts.export.cite
+    c.basic_complete_key_crm_separator = "dynamic"
+    local saved = vim.fn.input
+    local prompt, completions
+    vim.fn.input = function(o)
+      prompt = o.prompt
+      completions = cite._crm_complete("")
+      return CANDIDATES[2] .. " ;; " .. CANDIDATES[3]
+    end
+    local okr, text = pcall(insert, "Hello  world", 6, {})
+    vim.fn.input = saved
+    c.basic_complete_key_crm_separator = nil
+    assert(okr, text)
+    eq("[list separated by ;;] Keys: ", prompt)
+    eq(CANDIDATES, completions)
+    eq("Hello [cite:@knuth1984; @lamport1986] world", text)
+  end)
   it("errors without bibliography", function()
     local buf = org_buffer({ "Hello" }, { 1, 2 })
     run(function()
