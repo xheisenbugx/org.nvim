@@ -78,6 +78,28 @@ describe("babel ob-java", function()
     )
   end)
 
+  it("writes hlines of table variables as hline_to", function()
+    h.set_lang("java", { hline_to = "NULL" })
+    -- Emacs 9.8.10 with org-babel-java-hline-to "NULL" (an hline makes the
+    -- table a String table)
+    local text = h.expand({
+      "#+name: t",
+      "| 1 | 2 |",
+      "| 3 | 4 |",
+      "|---+---|",
+      "| 5 | 6 |",
+      "",
+      "#+begin_src java :var t=t :hlines yes",
+      "int x = 1;",
+      "#+end_src",
+    })
+    eq(
+      "    static List<List<String>> t = Arrays.asList(Arrays.asList(\"1\", \"2\"), Arrays.asList(\"3\", \"4\"), NULL, "
+        .. 'Arrays.asList("5", "6"));',
+      vim.split(text, "\n")[3]
+    )
+  end)
+
   it("compiles and runs with javac and java; value results through a file", function()
     local dir = h.tmpdir()
     local log = dir .. "/log"

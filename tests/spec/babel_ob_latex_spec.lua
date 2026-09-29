@@ -246,6 +246,26 @@ describe("babel ob-latex", function()
     ok(log[#log]:match("^dvipng %-D 140%.0 %-T tight %-bg Transparent %-o %S+%.png %S+%.dvi$"))
   end)
 
+  it("makes png files with process_alist.png", function()
+    h.set_lang("latex", {
+      process_alist = {
+        png = {
+          programs = { "latex", "dvipng" },
+          image_input_type = "dvi",
+          image_output_type = "png",
+          latex_compiler = { "latex -output-directory %o %f" },
+          image_converter = { "dvipng -D %D -o %O %f" },
+        },
+      },
+    })
+    h.with_path(dir, function()
+      h.run({ "#+begin_src latex :file p.png :buffer no :results file", "$v$", "#+end_src" }, dir)
+    end)
+    local log = vim.fn.readfile(dir .. "/latex.log")
+    ok(log[#log]:match("^dvipng %-D 140%.0 %-o %S+%.png %S+%.dvi$"))
+    eq(1, vim.fn.filereadable(dir .. "/p.png"))
+  end)
+
   it("uses preamble, begin_env, end_env (functions of the header arguments) and pdf_svg_process", function()
     h.set_lang("latex", {
       preamble = function(args)
