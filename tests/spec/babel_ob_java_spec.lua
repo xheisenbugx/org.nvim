@@ -66,7 +66,8 @@ describe("babel ob-java", function()
       "    }",
       "}",
     }
-    eq(table.concat(full, "\n"), h.expand(vim.list_extend({ "#+begin_src java" }, vim.list_extend(full, { "#+end_src" }))))
+    local block = vim.list_extend({ "#+begin_src java" }, vim.list_extend(vim.deepcopy(full), { "#+end_src" }))
+    eq(table.concat(full, "\n"), h.expand(block))
     eq(
       "\npublic class Main {\n    static int twice(int x) {\n\treturn 2 * x;\n    }\n}",
       h.expand({ "#+begin_src java", "static int twice(int x) {", "    return 2 * x;", "}", "#+end_src" })

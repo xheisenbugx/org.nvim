@@ -66,7 +66,13 @@ describe("babel ob-haskell", function()
     local ghci = h.fake(
       dir,
       "ghci",
-      "cat > " .. dir .. '/input\necho "ghci> ghci> ghci> ghci> org-babel-haskell-eoe"\necho "ghci> [1,2,3]"\necho "ghci> org-babel-haskell-eoe"\necho "ghci> "'
+      table.concat({
+        "cat > " .. dir .. "/input",
+        'echo "ghci> ghci> ghci> ghci> org-babel-haskell-eoe"',
+        'echo "ghci> [1,2,3]"',
+        'echo "ghci> org-babel-haskell-eoe"',
+        'echo "ghci> "',
+      }, "\n")
     )
     h.set_lang("haskell", { cmd = ghci })
     local out = h.run({ "#+begin_src haskell :var n=3", "[1..n]", "#+end_src" }, dir)

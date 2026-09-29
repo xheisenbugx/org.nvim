@@ -279,7 +279,8 @@ local function pdf_document(body, headers, pkgs, fit, border, height, width)
   end
   local all = vim.list_extend(vim.deepcopy(pkgs), export_cfg().packages or {})
   local header = latex.splice_header(format_latex_header(), def, remove_packages(all), false, nil)
-  header = header:gsub("\\usepackage%[AUTO%]{inputenc}", "\\usepackage[" .. (export_cfg().inputenc or "utf8") .. "]{inputenc}")
+  local inputenc = "\\usepackage[" .. (export_cfg().inputenc or "utf8") .. "]{inputenc}"
+  header = header:gsub("\\usepackage%[AUTO%]{inputenc}", inputenc)
   return header
     .. (fit and "\n\\usepackage[active, tightpage]{preview}\n" or "")
     .. (border and string.format("\\setlength{\\PreviewBorder}{%s}", border) or "")

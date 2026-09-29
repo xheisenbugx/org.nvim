@@ -211,7 +211,8 @@ function M.prepare(body, args, vars, ctx)
     end
   end
   local restore = (o.generate_restore_command or M.default_restore_command)(project)
-  local compile = (o.generate_compile_command or M.default_compile_command)(vim.fn.resolve(project), vim.fn.resolve(bin))
+  local compile_fn = o.generate_compile_command or M.default_compile_command
+  local compile = compile_fn(vim.fn.resolve(project), vim.fn.resolve(bin))
   local run = string.format("%s %s", q(vim.fn.resolve(bin) .. "/" .. name), q(ob.unq(args.cmdline) or ""))
   return {
     steps = {

@@ -60,7 +60,10 @@ describe("babel ob-lisp", function()
     eq({ "#+RESULTS:", "| 1 | 2 |" }, vim.list_slice(out, 5, 6))
     eq({ "#+RESULTS:", ": printed" }, vim.list_slice(out, 12, 13))
     local w = table.concat(vim.fn.readfile(dir .. "/sbcl.log"), "\n")
-    ok(w:find('(cl:eval (cl:read-from-string "(cl:let ((cl:*default-pathname-defaults* #P\\"' .. dir .. '/\\"\n)) (princ \\"printed\\")\n)"))', 1, true))
+    local form = '(cl:eval (cl:read-from-string "(cl:let ((cl:*default-pathname-defaults* #P\\"'
+      .. dir
+      .. '/\\"\n)) (princ \\"printed\\")\n)"))'
+    ok(w:find(form, 1, true))
     ok(w:find('~{~S~^~%~}', 1, true))
   end)
 end)

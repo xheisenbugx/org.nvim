@@ -227,7 +227,17 @@ describe("babel ob-latex", function()
             "% Package capt-of omitted",
             "% Package hyperref omitted",
           }, vim.deepcopy(FULLPAGE)),
-          { "", "\\begin{document}", "\\definecolor{fg}{rgb}{0,0,0}%", "", "{\\color{fg}", "$v$%", "}", "", "\\end{document}" }
+          {
+            "",
+            "\\begin{document}",
+            "\\definecolor{fg}{rgb}{0,0,0}%",
+            "",
+            "{\\color{fg}",
+            "$v$%",
+            "}",
+            "",
+            "\\end{document}",
+          }
         ),
         "\n"
       ),

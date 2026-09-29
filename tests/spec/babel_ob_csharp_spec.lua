@@ -112,7 +112,11 @@ describe("babel ob-csharp", function()
   it("uses the configured command functions", function()
     local dir = h.tmpdir()
     local log = dir .. "/log"
-    local dotnet = h.fake(dir, "dotnet", 'echo "dotnet $*" >> ' .. log .. '\n[ "$1" = --list-sdks ] && echo "9.0.100 [/x]"')
+    local dotnet = h.fake(
+      dir,
+      "dotnet",
+      'echo "dotnet $*" >> ' .. log .. '\n[ "$1" = --list-sdks ] && echo "9.0.100 [/x]"'
+    )
     h.set_lang("csharp", {
       compiler = dotnet,
       generate_restore_command = function(p)

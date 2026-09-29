@@ -43,7 +43,11 @@ describe("babel ob-lilypond", function()
     -- Emacs 9.8.10
     eq(
       "% pro\n\\relative { c4 d e }",
-      h.expand({ '#+begin_src lilypond :file music.png :var n="c4" :prologue "% pro"', "\\relative { $n d e }", "#+end_src" })
+      h.expand({
+        '#+begin_src lilypond :file music.png :var n="c4" :prologue "% pro"',
+        "\\relative { $n d e }",
+        "#+end_src",
+      })
     )
   end)
 
@@ -60,10 +64,11 @@ describe("babel ob-lilypond", function()
     eq({ "#+RESULTS:", "[[file:m.pdf]]" }, vim.list_slice(out, 5, 6))
     local log = vim.fn.readfile(dir .. "/lily.log")
     -- Emacs 9.8.10: the generic expansion is engraved (no $n substitution)
-    ok(log[1]:match("^lilypond %-dbackend=eps %-dno%-gs%-load%-fonts %-dinclude%-eps%-fonts %-%-pdf %-%-output=m %-dx %S+$"))
+    local flags = "^lilypond %-dbackend=eps %-dno%-gs%-load%-fonts %-dinclude%-eps%-fonts "
+    ok(log[1]:match(flags .. "%-%-pdf %-%-output=m %-dx %S+$"))
     eq("                   (ly:set-option 'tall-page-formats 'pdf)))", log[4])
     eq("{ c }---", log[13])
-    ok(log[14]:match("^lilypond %-dbackend=eps %-dno%-gs%-load%-fonts %-dinclude%-eps%-fonts %-%-png %-%-output=music %S+$"))
+    ok(log[14]:match(flags .. "%-%-png %-%-output=music %S+$"))
     eq(vim.list_extend(vim.deepcopy(PAPER), { "% pro", "\\relative { $n d e }---" }), vim.list_slice(log, 15, 27))
   end)
 
@@ -71,7 +76,10 @@ describe("babel ob-lilypond", function()
     local lp = require("org.babel.lang.lilypond")
     h.set_lang("lilypond", { gen_png = true })
     eq(true, lp.toggle_arrange_mode())
-    eq({ tangle = "yes", noweb = "yes", results = "silent", cache = "yes", comments = "yes" }, config.opts.babel.languages.lilypond.default_header_args)
+    eq(
+      { tangle = "yes", noweb = "yes", results = "silent", cache = "yes", comments = "yes" },
+      config.opts.babel.languages.lilypond.default_header_args
+    )
     local buf = org_buffer({
       "* Score",
       '#+begin_src lilypond :var n="c4"',

@@ -177,9 +177,9 @@ describe("babel ob-maxima", function()
 
   it("sets up the graphics package for a graphics :file", function()
     local m = require("org.babel.lang.maxima")
-    local args = require("org.babel.blocks").header_args(
-      require("org.babel.blocks").parse_blocks({ "#+begin_src maxima :file p.png :results graphics file", "#+end_src" })[1]
-    )
+    local blocks = require("org.babel.blocks")
+    local b = blocks.parse_blocks({ "#+begin_src maxima :file p.png :results graphics file", "#+end_src" })[1]
+    local args = blocks.header_args(b)
     args.file = "p.png"
     eq(
       "(set_plot_option ('[gnuplot_term, png]), set_plot_option ('[gnuplot_out_file, \"p.png\"]))$\n\nplot\ngnuplot_close ()$",

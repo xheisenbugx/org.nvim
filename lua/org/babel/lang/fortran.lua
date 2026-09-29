@@ -82,7 +82,8 @@ function M.expand(body, args, vars)
       vl[i] = var_to_fortran(v.name, v.value)
     end
     -- ob-fortran puts the prologue after the body too (not the epilogue)
-    local inner = table.concat(vl, "\n") .. (prologue and (prologue .. "\n") or "") .. text .. (prologue and (prologue .. "\n") or "")
+    local pro = prologue and (prologue .. "\n") or ""
+    local inner = table.concat(vl, "\n") .. pro .. text .. pro
     if vim.regex([[\c^[ \t]*program\>]]):match_str(inner) then
       if #vars > 0 then
         error("Cannot use :vars if `program' statement is present", 0)
