@@ -333,6 +333,10 @@
 ---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
 ---default: `false`)
 ---@field ctrl_k_protect_subtree? boolean|"error"
+---New headlines from `meta_return` and the other insertions go after the
+---current subtree, like `insert_heading`.
+---(Emacs `org-insert-heading-respect-content`, default: `false`)
+---@field insert_heading_respect_content? boolean
 ---Promoting a level-1 headline turns its `* ` into `# ` instead of refusing.
 ---(Emacs `org-allow-promoting-top-level-subtree`, default: `false`)
 ---@field allow_promoting_top_level_subtree? boolean

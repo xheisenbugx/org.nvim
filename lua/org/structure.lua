@@ -382,7 +382,8 @@ function M.insert_heading_at_point(opts)
   local function prev_line_empty()
     return tb:line_empty_p(-1)
   end
-  if opts.respect_content or arg == 4 or arg == 16 or opts.invisible then
+  local respect = opts.respect_content or config.opts.insert_heading_respect_content
+  if respect or arg == 4 or arg == 16 or opts.invisible then
     if not current_level then
       tb_next_heading(tb)
     else
@@ -479,6 +480,12 @@ function M.insert_heading_at_point(opts)
     maybe_add_blank_after()
   end
   tb:apply()
+  -- org-insert-heading-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgInsertHeading",
+    data = { bufnr = bufnr, lnum = cursor()[1] },
+    modeline = false,
+  })
 end
 
 --- The TODO keyword of a new TODO heading (org-insert-todo-heading): the

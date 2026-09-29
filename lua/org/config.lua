@@ -324,6 +324,9 @@ M.defaults = {
   --- `kill_line` on a folded headline kills its hidden subtree: false
   --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
   ctrl_k_protect_subtree = false,
+  --- <M-CR> and the other heading insertions put the new headline after
+  --- the current subtree, like <C-CR> (org-insert-heading-respect-content).
+  insert_heading_respect_content = false,
   --- Promoting a level-1 headline turns its `* ` into `# ` (a comment)
   --- instead of refusing (org-allow-promoting-top-level-subtree).
   allow_promoting_top_level_subtree = false,

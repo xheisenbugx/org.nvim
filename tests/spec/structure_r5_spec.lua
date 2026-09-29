@@ -404,3 +404,38 @@ describe("edit_keep_region", function()
     eq("n", vim.fn.mode())
   end)
 end)
+
+describe("inserting headings", function()
+  local config = require("org.config")
+
+  it("insert_heading_respect_content makes <M-CR> insert after the subtree", function()
+    config.opts.insert_heading_respect_content = true
+    local buf = org_buffer({ "* A", "body", "** A1", "* B" }, { 1, 0 })
+    local ok_, err = pcall(function()
+      require("org.context").meta_return()
+      vim.cmd("stopinsert")
+    end)
+    config.opts.insert_heading_respect_content = false
+    assert(ok_, err)
+    -- Emacs 9.8.10: org-insert-heading with the option
+    eq({ "* A", "body", "** A1", "* ", "* B" }, buf_lines(buf))
+  end)
+
+  it("fires OrgInsertHeading before the TODO keyword is added", function()
+    -- Normal mode: at the end of the line (column 0 would insert above)
+    local buf = org_buffer({ "* TODO A" }, { 1, 3 })
+    local seen
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgInsertHeading",
+      callback = function(ev)
+        seen = { ev.data.lnum, vim.api.nvim_buf_get_lines(ev.data.bufnr, ev.data.lnum - 1, ev.data.lnum, false)[1] }
+      end,
+    })
+    require("org.context").meta_shift_return()
+    vim.cmd("stopinsert")
+    vim.api.nvim_del_autocmd(id)
+    -- Emacs 9.8.10: the hook sees line 2 as "* "
+    eq({ 2, "* " }, seen)
+    eq({ "* TODO A", "* TODO " }, buf_lines(buf))
+  end)
+end)

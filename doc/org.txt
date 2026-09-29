@@ -193,6 +193,11 @@ stars alone is text, like in Emacs): >org
                 current one has one (`blank_before_new_entry.heading =
                 "auto"`); new items when the items of the list are
                 separated by blank lines (`plain_list_item = "auto"`).
+                With `insert_heading_respect_content` new headlines always
+                go after the current subtree. Every new headline fires
+                the User autocmd `OrgInsertHeading` (org-insert-heading-hook;
+                `data` holds `bufnr` and `lnum`), before M-S-RET adds its
+                TODO keyword.
 <M-S-CR>        Like <M-CR>, but a TODO headline (with the keyword of the
                 current entry, or the first one when it is done or with
                 a count) or an item with an empty checkbox. M-RET never
@@ -4511,6 +4516,7 @@ Structure and visibility ~
                                       { a, e }
   special_ctrl_k            false     kill_line up to the tags
   ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
+  insert_heading_respect_content  false  <M-CR> inserts after the subtree
   allow_promoting_top_level_subtree  false  promoting level 1 makes `# `
   edit_keep_region          { meta_left = true, meta_right = true,
                               meta_up = true, meta_down = true }
