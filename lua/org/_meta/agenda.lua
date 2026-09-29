@@ -318,6 +318,9 @@
 ---@field view_columns_initially? boolean
 ---Column summaries on date lines (org-agenda-columns-show-summaries). (default: `true`)
 ---@field columns_show_summaries? boolean
+---An appointment without an effort counts its duration as effort in the
+---agenda column view (org-agenda-columns-add-appointments-to-effort-sum). (default: `false`)
+---@field columns_add_appointments_to_effort_sum? boolean
 ---More files for the search view; "agenda-archives" adds the archive files
 ---(org-agenda-text-search-extra-files). (default: `{}`)
 ---@field text_search_extra_files? string[]

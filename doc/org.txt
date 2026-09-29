@@ -1543,7 +1543,10 @@ view in an org buffer. The format is `agenda.overriding_columns_format`,
 else the COLUMNS property or #+COLUMNS of the entry at point (or of the
 first entry), else `columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
-(`agenda.columns_show_summaries`). While it is on: `q` turns it off, `e`
+(`agenda.columns_show_summaries`); with
+`agenda.columns_add_appointments_to_effort_sum`, an appointment without
+an effort counts its duration (org-agenda-columns-add-appointments-to-
+effort-sum). While it is on: `q` turns it off, `e`
 edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda

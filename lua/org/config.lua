@@ -647,6 +647,9 @@ M.defaults = {
     view_columns_initially = false, -- org-agenda-view-columns-initially
     --- Show column summaries on date lines (org-agenda-columns-show-summaries).
     columns_show_summaries = true,
+    --- In the agenda column view, an appointment without an effort counts
+    --- its duration as effort (org-agenda-columns-add-appointments-to-effort-sum).
+    columns_add_appointments_to_effort_sum = false,
     --- Extra files for the search view; "agenda-archives" adds the archive
     --- files (org-agenda-text-search-extra-files).
     text_search_extra_files = {},

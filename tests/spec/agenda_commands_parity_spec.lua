@@ -456,6 +456,39 @@ describe("restriction lock highlight", function()
   end)
 end)
 
+describe("columns_add_appointments_to_effort_sum", function()
+  after_each(function()
+    pcall(require("org.agenda.columns").quit)
+    pcall(view.quit, true)
+  end)
+
+  -- org-columns--collect-values (Emacs 9.8.10): without an Effort, the
+  -- `duration` of the agenda line (org-duration-from-minutes) is used when
+  -- org-agenda-columns-add-appointments-to-effort-sum is set.
+  it("counts an appointment's duration as its effort", function()
+    local cols = require("org.agenda.columns")
+    local lines = {
+      "#+COLUMNS: %25ITEM %Effort{:}",
+      "* Meeting",
+      "  " .. ts(0, "10:00-11:30"),
+      "* TODO Task",
+      "  SCHEDULED: " .. ts(0),
+      "  :PROPERTIES:",
+      "  :Effort: 0:15",
+      "  :END:",
+    }
+    open(lines, { agenda = { columns_add_appointments_to_effort_sum = true } })
+    ok(cols.toggle())
+    local l = goto_title("Meeting")
+    eq({ "Meeting", "1:30" }, cols.cells(l))
+    pcall(cols.quit)
+    view.quit(true)
+    open(lines)
+    ok(cols.toggle())
+    eq({ "Meeting", "" }, cols.cells(goto_title("Meeting")))
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()
