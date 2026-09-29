@@ -132,6 +132,65 @@ describe("level conversion", function()
   end)
 end)
 
+describe("adapt_indentation = headline-data", function()
+  local config = require("org.config")
+  local saved
+  before_each(function()
+    saved = config.opts.adapt_indentation
+    config.opts.adapt_indentation = "headline-data"
+  end)
+  after_each(function()
+    config.opts.adapt_indentation = saved
+  end)
+
+  it("demoting moves only the headline data", function()
+    local buf = org_buffer({
+      "* H",
+      "  SCHEDULED: <2024-01-01 Mon>",
+      "  :PROPERTIES:",
+      "  :A: 1",
+      "  :END:",
+      "  :LOGBOOK:",
+      "  - note",
+      "  :END:",
+      "body",
+      "  more",
+    }, { 1, 0 })
+    require("org.structure").demote_heading()
+    -- Emacs 9.8.10: org-demote
+    eq({
+      "** H",
+      "   SCHEDULED: <2024-01-01 Mon>",
+      "   :PROPERTIES:",
+      "   :A:        1",
+      "   :END:",
+      "   :LOGBOOK:",
+      "   - note",
+      "   :END:",
+      "body",
+      "  more",
+    }, buf_lines(buf))
+  end)
+
+  it("promoting too", function()
+    local buf = org_buffer({ "** H", "   :PROPERTIES:", "   :A: 1", "   :END:", "body" }, { 1, 0 })
+    require("org.structure").promote_heading()
+    -- Emacs 9.8.10: org-promote
+    eq({ "* H", "  :PROPERTIES:", "  :A:        1", "  :END:", "body" }, buf_lines(buf))
+  end)
+
+  it("indents a new body line to column 0 after the headline data", function()
+    local buf = org_buffer({ "** H", "   :PROPERTIES:", "   :A: 1", "   :END:", "text" }, { 5, 0 })
+    vim.cmd("silent normal! ==")
+    -- Emacs 9.8.10: org-indent-line leaves it
+    eq("text", buf_lines(buf)[5])
+    vim.api.nvim_buf_set_lines(buf, 1, 4, false, {})
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    vim.cmd("silent normal! ==")
+    eq("text", buf_lines(buf)[2])
+  end)
+end)
+
 describe("version", function()
   it("shows the release, git version and install directory (org-version)", function()
     local v = require("org.version")

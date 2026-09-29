@@ -313,6 +313,17 @@ M.defaults = {
   --- first), "show-and-error" or "smart" (unfold, and refuse edits in
   --- text that was hidden) (org-fold-catch-invisible-edits).
   catch_invisible_edits = "smart",
+  --- `beginning_of_line` / `end_of_line` (C-a / C-e) on headlines and
+  --- items (org-special-ctrl-a/e): false, true (first to the title start /
+  --- before the tags), "reversed" (there on a repeated key), or
+  --- `{ a = ..., e = ... }` per key.
+  special_ctrl_a_e = false,
+  --- `kill_line` (C-k) in a headline title kills up to the tags, on the
+  --- tags the tags (org-special-ctrl-k).
+  special_ctrl_k = false,
+  --- `kill_line` on a folded headline kills its hidden subtree: false
+  --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
+  ctrl_k_protect_subtree = false,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,

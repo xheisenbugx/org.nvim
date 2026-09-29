@@ -278,9 +278,10 @@
 ---`false` puts each definition at the end of the reference's section.
 ---(Emacs `org-footnote-section`, default: `"Footnotes"`)
 ---@field footnote_section? string|false
----Indent body text, planning lines and drawers to the headline level.
----(Emacs `org-adapt-indentation`, default: `false`)
----@field adapt_indentation? boolean
+---Indent body text, planning lines and drawers to the headline level;
+---`"headline-data"` indents only planning lines and the property and log
+---drawers. (Emacs `org-adapt-indentation`, default: `false`)
+---@field adapt_indentation? boolean|"headline-data"
 ---Indentation added to src block contents in the edit buffer.
 ---(Emacs `org-edit-src-content-indentation`, default: `2`)
 ---@field edit_src_content_indentation? integer
@@ -320,6 +321,18 @@
 ---Typing on hidden lines: `false`, `"error"`, `"show"`, `"show-and-error"`
 ---or `"smart"`. (Emacs `org-fold-catch-invisible-edits`, default: `"smart"`)
 ---@field catch_invisible_edits? false|"error"|"show"|"show-and-error"|"smart"
+---`beginning_of_line` / `end_of_line` on headlines and items: `true` goes
+---to the title start / before the tags first, `"reversed"` on a repeated key;
+---`{ a = ..., e = ... }` sets each key. (Emacs `org-special-ctrl-a/e`,
+---default: `false`)
+---@field special_ctrl_a_e? boolean|"reversed"|{ a?: boolean|"reversed", e?: boolean|"reversed" }
+---`kill_line` in a headline kills up to the tags, then the tags.
+---(Emacs `org-special-ctrl-k`, default: `false`)
+---@field special_ctrl_k? boolean
+---`kill_line` on a folded headline: `false` kills the hidden subtree too,
+---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
+---default: `false`)
+---@field ctrl_k_protect_subtree? boolean|"error"
 ---Single-letter commands typed in Insert mode at the start of a headline,
 ---or a function deciding where they apply.
 ---(Emacs `org-use-speed-commands`, default: `false`)

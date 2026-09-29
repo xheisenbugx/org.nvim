@@ -73,12 +73,53 @@ local function in_visual()
 end
 
 --- Rewrite headline lines in `lines` with level delta, realigning tags and
---- shifting body indentation when `adapt_indentation` is on.
+--- fixing the indentation when `adapt_indentation` is on, like
+--- org-fixup-indentation: the planning line and property drawer right after
+--- a headline are indented to its new level (properties aligned), the
+--- LOGBOOK drawer and, unless it is "headline-data", the other lines are
+--- shifted by the level change.
 local function relevel(lines, delta, todo_cfg)
   local adapt = config.opts.adapt_indentation
+  -- headline data: i -> "planning" | "properties" | "log", with the level
+  local data, data_level = {}, {}
+  if adapt then
+    for h, l in ipairs(lines) do
+      local level = parser.headline_level(l)
+      if level then
+        local j = h + 1
+        local nxt = lines[j] or ""
+        if nxt:match("^%s*SCHEDULED:") or nxt:match("^%s*DEADLINE:") or nxt:match("^%s*CLOSED:") then
+          data[j], data_level[j] = "planning", level
+          j = j + 1
+        end
+        for _, name in ipairs({ "PROPERTIES", "LOGBOOK" }) do
+          if (lines[j] or ""):upper():match("^%s*:" .. name .. ":%s*$") then
+            local k = j
+            while lines[k] and not lines[k]:upper():match("^%s*:END:%s*$") do
+              k = k + 1
+            end
+            if lines[k] then
+              for m = j, k do
+                data[m], data_level[m] = name == "PROPERTIES" and "properties" or "log", level
+              end
+              j = k + 1
+            end
+          end
+        end
+      end
+    end
+  end
+  local function shift(l)
+    if delta > 0 then
+      return string.rep(" ", delta) .. l
+    end
+    local n = math.min(-delta, #l:match("^(%s*)"))
+    return l:sub(n + 1)
+  end
   local out = {}
   for i, l in ipairs(lines) do
     local p = parser.parse_headline_line(l, todo_cfg)
+    local kind = data[i]
     if p then
       -- like org-promote / org-demote: change the stars, realign the tags
       out[i] = string.rep("*", math.max(1, p.level + delta)) .. l:sub(#l:match("^%*+") + 1)
@@ -88,13 +129,19 @@ local function relevel(lines, delta, todo_cfg)
           out[i] = edit.with_tags(out[i]:sub(1, s - 1), p.tags)
         end
       end
-    elseif adapt and not is_blank(l) and not l:match("^#%+") then
-      if delta > 0 then
-        out[i] = string.rep(" ", delta) .. l
+    elseif kind == "planning" or kind == "properties" then
+      local ind = string.rep(" ", math.max(1, data_level[i] + delta) + 1)
+      local key, value = l:match("^%s*:([^%s:]+%+?):%s*(.-)%s*$")
+      if kind == "properties" and key and key:upper() ~= "PROPERTIES" and key:upper() ~= "END" then
+        local fmt = config.opts.property_format or "%-10s %s"
+        out[i] = ind .. vim.trim(string.format(fmt, ":" .. key .. ":", value))
       else
-        local n = math.min(-delta, #l:match("^(%s*)"))
-        out[i] = l:sub(n + 1)
+        out[i] = ind .. vim.trim(l)
       end
+    elseif kind == "log" then
+      out[i] = is_blank(l) and l or shift(l)
+    elseif adapt and adapt ~= "headline-data" and not is_blank(l) and not l:match("^#%+") then
+      out[i] = shift(l)
     else
       out[i] = l
     end

@@ -361,6 +361,23 @@ the item.
 <C-c><M-f>      Next / previous `#+begin_` block (org-next-block /
 <C-c><M-b>      org-previous-block); a count skips blocks.
 
+                                                         *org-line-edit*
+:Org beginning_of_line  Go to the start of the line (org-beginning-of-line).
+                With `special_ctrl_a_e`, on a headline first to the start
+                of its title (after the TODO keyword and priority), on an
+                item after its bullet and checkbox; again to column 0.
+:Org end_of_line  Go to the end of the line (org-end-of-line); with
+                `special_ctrl_a_e`, on a headline first before its tags.
+:Org kill_line  Kill to the end of the line into the `"` register, or the
+                newline at its end (org-kill-line). On a folded headline
+                that is the whole hidden subtree: `ctrl_k_protect_subtree`
+                asks first or refuses. With `special_ctrl_k`, in a
+                headline's title it kills up to the tags, on the tags the
+                tags.
+These have no default keys; for Emacs-style Insert mode keys: >lua
+    mappings = { org_insert = { beginning_of_line = "<C-a>",
+      end_of_line = "<C-e>", kill_line = "<C-k>" } }
+<
 Indentation and filling                               *org-indent* *org-fill*
 'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
 are indented like in Emacs: headlines, footnote definitions and diary sexps
@@ -4460,7 +4477,7 @@ Buffer ~
   hide_block_startup        false     fold blocks on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
   footnote_section          "Footnotes"  heading for definitions, or false
-  adapt_indentation         false
+  adapt_indentation         false     true|false|"headline-data" |org-indent|
   edit_src_content_indentation  2
   ellipsis                  "..."
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
@@ -4480,6 +4497,10 @@ Structure and visibility ~
   cycle_separator_lines     2         blank lines kept visible when folded
   catch_invisible_edits     "smart"   false|"error"|"show"|
                                       "show-and-error"|"smart"
+  special_ctrl_a_e          false     |org-line-edit|: true|"reversed"|
+                                      { a, e }
+  special_ctrl_k            false     kill_line up to the tags
+  ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
