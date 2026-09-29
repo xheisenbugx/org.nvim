@@ -1462,7 +1462,9 @@ reorganize-frame: the current window and the agenda below it), "only"
 (other-tab), "float". `restore_windows_after_quit` restores the previous
 window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
 dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
-as it is when the command is run again (press r to refresh).
+as it is when the command is run again (press r to refresh); toggling it
+deletes the agenda buffers, like `:Org agenda_kill_all_buffers`
+(org-agenda-kill-all-agenda-buffers).
 
 Filtering                                                  *org-agenda-filter*
 

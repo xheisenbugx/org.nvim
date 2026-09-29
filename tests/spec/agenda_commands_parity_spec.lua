@@ -391,6 +391,35 @@ describe("agenda archive default", function()
   end)
 end)
 
+describe("agenda_kill_all_buffers", function()
+  after_each(function()
+    config.setup({})
+  end)
+
+  local function agenda_bufs()
+    return vim.tbl_filter(function(b)
+      return vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "orgagenda"
+    end, vim.api.nvim_list_bufs())
+  end
+
+  it("deletes every agenda buffer (org-agenda-kill-all-agenda-buffers)", function()
+    open({ "* TODO A" }, { agenda = { sticky = true } })
+    agenda.open({ type = "todo" })
+    ok(#agenda_bufs() >= 2)
+    vim.cmd("Org agenda_kill_all_buffers")
+    eq(0, #agenda_bufs())
+  end)
+
+  it("toggling sticky agendas deletes the agenda buffers first", function()
+    open({ "* TODO A" })
+    ok(#agenda_bufs() >= 1)
+    capture_msgs(function()
+      agenda.toggle_sticky()
+    end)
+    eq(0, #agenda_bufs())
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()

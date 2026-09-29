@@ -980,6 +980,29 @@ function M.quit(wipe)
   end
 end
 
+--- Delete every agenda buffer (org-agenda-kill-all-agenda-buffers).
+---@return integer number of buffers deleted
+function M.kill_all_agenda_buffers()
+  local bufs = {}
+  for b in pairs(states) do
+    bufs[#bufs + 1] = b
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "orgagenda" and not vim.tbl_contains(bufs, b) then
+      bufs[#bufs + 1] = b
+    end
+  end
+  local n = 0
+  for _, b in ipairs(bufs) do
+    if vim.api.nvim_buf_is_valid(b) then
+      if pcall(vim.api.nvim_buf_delete, b, { force = true }) then
+        n = n + 1
+      end
+    end
+  end
+  return n
+end
+
 --- org-agenda-exit: quit, kill the agenda buffers and the unmodified
 --- buffers the agenda loaded.
 function M.exit()

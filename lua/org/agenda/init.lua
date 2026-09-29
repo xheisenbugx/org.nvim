@@ -610,6 +610,8 @@ M.open_custom = open_custom
 --- Toggle sticky agenda buffers (the `*` dispatcher key).
 function M.toggle_sticky()
   local acfg = config.opts.agenda
+  -- org-toggle-sticky-agenda kills the agenda buffers first
+  view_mod().kill_all_agenda_buffers()
   acfg.sticky = not acfg.sticky
   utils.notify("Sticky agenda buffers are now " .. (acfg.sticky and "on" or "off"))
   return acfg.sticky
