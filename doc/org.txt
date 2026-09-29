@@ -4371,8 +4371,9 @@ With the dispatcher's `a` toggle, `export.in_background` or `:Org export
 {format} async`, the dispatcher returns at once and the result is not shown
 but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
 lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
-`v` views the entry at the cursor (a file with the system opener, with a
-count in Neovim), `d` removes it from the stack, `C` clears the stack
+`v` views the entry at the cursor (a file like a file link: HTML or PDF
+with the system opener, `links.file_apps` honoured; with a count in
+Neovim), `d` removes it from the stack, `C` clears the stack
 (`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
 org-export-async-start, a separate Neovim (`nvim --clean --headless`)
 exports a copy of the buffer with the session's options, minus their Lua

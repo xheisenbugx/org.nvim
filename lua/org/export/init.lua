@@ -608,8 +608,9 @@ function M.stack_remove(entry)
 end
 
 --- View the result at the cursor (org-export-stack-view): a buffer is
---- shown in another window, a file is opened with the system opener (or in
---- Neovim when `in_nvim`, like C-u in Emacs).
+--- shown in another window, a file is opened like a file link
+--- (org-open-file: `links.file_apps`, HTML and PDF with the system
+--- opener), or in Neovim when `in_nvim`, like C-u in Emacs.
 function M.stack_view(entry, in_nvim)
   entry = entry or stack_entry_at_point()
   if not entry or entry.running then
@@ -619,11 +620,8 @@ function M.stack_view(entry, in_nvim)
     vim.cmd("wincmd p")
     vim.cmd("vsplit")
     vim.api.nvim_win_set_buf(0, entry.source)
-  elseif in_nvim then
-    vim.cmd("wincmd p")
-    vim.cmd("split " .. vim.fn.fnameescape(entry.source))
   else
-    vim.ui.open(entry.source)
+    require("org.links").open_file(entry.source, { app = in_nvim and "vim" or nil })
   end
 end
 

@@ -392,6 +392,50 @@ describe("export dispatch (Emacs parity)", function()
       vim.cmd("close")
     end)
 
+    -- org-export-stack-view: a buffer in another window, a file with
+    -- org-open-file (org-file-apps: HTML with the system app, a text
+    -- file in the editor; C-u, IN-EMACS, always in the editor)
+    it("views the result at the cursor", function()
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      dir = vim.uv.fs_realpath(dir)
+      local html, txt = dir .. "/a.html", dir .. "/a.txt"
+      vim.fn.writefile({ "<p>x</p>" }, html)
+      vim.fn.writefile({ "text" }, txt)
+      local result = vim.api.nvim_create_buf(true, true)
+      export.stack_add(html, "html")
+      export.stack_add(txt, "ascii")
+      export.stack_add(result, "ascii")
+      local notify = utils.notify
+      utils.notify = function() end
+      local stack = export.stack_show()
+      utils.notify = notify
+      local opened = {}
+      local ui_open = vim.ui.open
+      vim.ui.open = function(p)
+        opened[#opened + 1] = p
+      end
+      local okv, err = pcall(function()
+        local function view(row, count)
+          vim.api.nvim_set_current_win(vim.fn.bufwinid(stack))
+          vim.api.nvim_win_set_cursor(0, { row, 0 })
+          export.stack_view(nil, count)
+          return vim.api.nvim_get_current_buf()
+        end
+        eq(result, view(1))
+        ok(vim.fn.bufwinid(stack) ~= -1)
+        eq(txt, vim.api.nvim_buf_get_name(view(2)))
+        eq({}, opened)
+        view(3)
+        eq({ html }, opened)
+        eq(html, vim.api.nvim_buf_get_name(view(3, true)))
+        eq({ html }, opened)
+      end)
+      vim.ui.open = ui_open
+      pcall(vim.cmd, "silent! only")
+      assert(okv, err)
+    end)
+
     it("puts the result of an asynchronous export on the stack", function()
       local dir = vim.fn.tempname()
       vim.fn.mkdir(dir, "p")

@@ -1230,6 +1230,15 @@ local function open_file_link(path, search, o)
   return true
 end
 
+--- Open file `path` like org-open-file: `links.file_apps` and the
+--- external extensions decide the app; `o.app` "vim" (Emacs IN-EMACS)
+--- always opens it in Neovim, `o.how` is the window (default
+--- `links.frame_setup`).
+---@param o? { app?: string, how?: any }
+function M.open_file(path, o)
+  return open_file_link(path, nil, o)
+end
+
 local function run_in_terminal(argv, cwd)
   vim.cmd("botright new")
   if vim.fn.has("nvim-0.11") == 1 then
