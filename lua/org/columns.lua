@@ -78,6 +78,26 @@ M.SUMMARY_TYPES = {
   "est+",
 }
 
+--- What each summary type computes, shown when choosing one.
+M.SUMMARY_DESCRIPTIONS = {
+  ["+"] = "sum",
+  ["$"] = "sum as currency, two decimals",
+  ["X"] = "checkbox: [X] when all children are",
+  ["X/"] = "checkbox: [n/m] children done",
+  ["X%"] = "checkbox: [n%] children done",
+  max = "largest number",
+  mean = "arithmetic mean",
+  min = "smallest number",
+  [":"] = "sum of times, HH:MM",
+  [":max"] = "largest time",
+  [":mean"] = "mean time",
+  [":min"] = "smallest time",
+  ["@max"] = "oldest age",
+  ["@mean"] = "mean age",
+  ["@min"] = "youngest age",
+  ["est+"] = "sum of low-high estimates",
+}
+
 --- Parse a column format string.
 ---@return { width?: integer, prop: string, title: string, summary?: string, summary_fmt?: string }[]
 function M.parse_format(fmt)
@@ -1385,7 +1405,16 @@ local function read_column(state, spec)
   if width == nil then
     return nil
   end
-  local summary = utils.input_complete("Summary: ", M.SUMMARY_TYPES, spec.summary)
+  local summaries = { { value = "", label = "(none)" } }
+  for _, s in ipairs(M.SUMMARY_TYPES) do
+    summaries[#summaries + 1] = { value = s, desc = M.SUMMARY_DESCRIPTIONS[s] }
+  end
+  local summary = require("org.ui").choose({
+    prompt = "Summary: ",
+    title = "Summary type",
+    items = summaries,
+    default = spec.summary or "",
+  })
   if summary == nil then
     return nil
   end

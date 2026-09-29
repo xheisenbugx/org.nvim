@@ -257,7 +257,7 @@ end
 function M.insert_dblock()
   local names = vim.tbl_keys(M.writers)
   table.sort(names)
-  local name = utils.input_complete("Dynamic block: ", names)
+  local name = require("org.ui").choose({ prompt = "Dynamic block: ", title = "Insert dynamic block", items = names })
   if name == nil then
     return nil
   end

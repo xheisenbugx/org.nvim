@@ -146,7 +146,7 @@ describe("dispatcher custom command lines", function()
     local out = {}
     local on = false
     for _, l in ipairs(shown) do
-      if l == "Custom commands" then
+      if vim.trim(l) == "Custom commands" then
         on = true
       elseif on and l ~= "" and not l:find("Esc", 1, true) then
         out[#out + 1] = l
@@ -157,17 +157,17 @@ describe("dispatcher custom command lines", function()
 
   it("shows the match after the description", function()
     eq({
-      " [p]  Projects: +project",
-      " [w]  TODO keyword: WAITING",
-      " [x]  Word search",
-      " [y]  Block",
+      "  p  Projects: +project",
+      "  w  TODO keyword: WAITING",
+      "  x  Word search",
+      "  y  Block",
     }, menu_lines())
   end)
 
   it("menu_show_matcher = false hides it; menu_two_columns pairs the lines", function()
     eq({
-      " [p]  Projects                            [x]  Word search",
-      " [w]  TODO keyword                        [y]  Block",
+      "  p  Projects        x  Word search",
+      "  w  TODO keyword    y  Block",
     }, menu_lines({ menu_show_matcher = false, menu_two_columns = true }))
   end)
 end)

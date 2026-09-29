@@ -1147,13 +1147,13 @@ end
 
 --- Translators offered for `table_export` (org-table-export).
 local EXPORT_FORMATS = {
-  "orgtbl-to-tsv",
-  "orgtbl-to-csv",
-  "orgtbl-to-latex",
-  "orgtbl-to-html",
-  "orgtbl-to-generic",
-  "orgtbl-to-texinfo",
-  "orgtbl-to-orgtbl",
+  { value = "orgtbl-to-tsv", desc = "tab-separated values" },
+  { value = "orgtbl-to-csv", desc = "comma-separated values" },
+  { value = "orgtbl-to-latex", desc = "LaTeX tabular" },
+  { value = "orgtbl-to-html", desc = "HTML table" },
+  { value = "orgtbl-to-generic", desc = "generic, set by parameters" },
+  { value = "orgtbl-to-texinfo", desc = "Texinfo multitable" },
+  { value = "orgtbl-to-orgtbl", desc = "Org table" },
 }
 
 --- Write the table at the cursor to a file with a translator (see
@@ -1198,13 +1198,19 @@ function M.export(path, format)
     local ext = (path:match("%.(%w+)$") or ""):lower()
     local default = require("org.config").opts.table_export_default_format or "orgtbl-to-tsv"
     for _, f in ipairs(EXPORT_FORMATS) do
-      if ext ~= "" and f:sub(-#ext) == ext then
-        default = f
+      if ext ~= "" and f.value:sub(-#ext) == ext then
+        default = f.value
         break
       end
     end
     if interactive then
-      format = utils.input_complete("Format: ", EXPORT_FORMATS, default)
+      format = require("org.ui").choose({
+        prompt = "Format: ",
+        title = "Export table as",
+        items = EXPORT_FORMATS,
+        default = default,
+        edit = true,
+      })
       if not format or vim.trim(format) == "" then
         return
       end

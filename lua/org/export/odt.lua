@@ -3210,7 +3210,7 @@ function M.convert_command()
     return nil
   end
   local open = vim.v.count > 0
-  local out_fmt = utils.input_complete("Output format: ", choices)
+  local out_fmt = require("org.ui").choose({ prompt = "Output format: ", title = "Convert to", items = choices })
   if not out_fmt or out_fmt == "" then
     return nil
   end

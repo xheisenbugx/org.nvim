@@ -818,6 +818,11 @@
 ---while a buffer they belong to is current (Emacs has no option for them).
 ---(default: `true`)
 ---@field menus? boolean
+---How to ask for one of a fixed set of values (a table export format, a
+---column summary type, …): a floating list, or the command line with
+---`<Tab>` completion (Emacs `completing-read`).
+---(default: `"float"`)
+---@field choice_prompt? "float"|"input"
 ---Headline levels listed by `imenu` (`gO`).
 ---(Emacs `org-imenu-depth`, default: `2`)
 ---@field imenu_depth? integer
