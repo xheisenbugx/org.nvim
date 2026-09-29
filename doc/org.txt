@@ -3665,7 +3665,10 @@ checkboxes, rules and table borders; the Latin-1 and UTF-8 dispatcher
 entries override it. The other layout options (margins, spacing, bullets,
 underlines, caption position, verbatim format, drawer and inlinetask
 formatters) mirror the Emacs `org-ascii-*` variables of the same name.
-`table_use_ascii_art` (ascii-art-to-unicode) is not supported.
+With `table_use_ascii_art` (org-ascii-table-use-ascii-art) table.el
+tables are drawn with box characters in UTF-8 exports, like the
+ascii-art-to-unicode package (every "-" and "|" of the table, and each "+"
+as the junction its neighbours need).
 
 Beamer ~                                                   *org-export-beamer*
 `:Org export beamer` (dispatcher: l B buffer, l b file, l P PDF, l O PDF and
@@ -3922,6 +3925,10 @@ These need Emacs Lisp or Emacs itself:
 - Source fontification: HTML uses tree-sitter highlights instead of
   htmlize (|org-export-backends|), so the spans differ from Emacs'
   font-lock; `src_block_backend = "engraved"` falls back to verbatim.
+- `export.ascii.table_use_ascii_art` draws table.el tables with box
+  characters; in Org 9.8.10 the option does nothing when
+  ascii-art-to-unicode is installed (its package check is inverted) and
+  fails when it is not.
 - LaTeX pictures in HTML (`tex:dvipng`, ...) are named
   ltximg/FILE_HASH.png with a hash of their own; a failed conversion
   warns and leaves the LaTeX out instead of stopping the export.

@@ -1072,7 +1072,8 @@
 ---@field table_keep_all_vertical_lines? boolean
 ---(`org-ascii-table-widen-columns`) (default: `true`)
 ---@field table_widen_columns? boolean
----(`org-ascii-table-use-ascii-art`), not supported. (default: `false`)
+---(`org-ascii-table-use-ascii-art`): draw table.el tables with box
+---characters in UTF-8 exports (ascii-art-to-unicode). (default: `false`)
 ---@field table_use_ascii_art? boolean
 ---(`org-ascii-caption-above`) (default: `false`)
 ---@field caption_above? boolean

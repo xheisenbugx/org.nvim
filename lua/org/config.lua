@@ -1627,7 +1627,7 @@ M.defaults = {
       links_to_notes = true, -- org-ascii-links-to-notes
       table_keep_all_vertical_lines = false, -- org-ascii-table-keep-all-vertical-lines
       table_widen_columns = true, -- org-ascii-table-widen-columns
-      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (not supported)
+      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (box characters for table.el tables, UTF-8)
       caption_above = false, -- org-ascii-caption-above
       verbatim_format = "`%s'", -- org-ascii-verbatim-format
       bullets = nil, -- org-ascii-bullets ({ ascii = {...}, latin1 = {...}, ["utf-8"] = {...} }; nil = Emacs)
