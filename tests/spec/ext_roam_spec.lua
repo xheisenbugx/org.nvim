@@ -875,6 +875,24 @@ describe("roam extension", function()
     eq({}, clashes)
   end)
 
+  it("labels its key groups for which-key", function()
+    local added = {}
+    package.loaded["which-key"] = {
+      add = function(spec)
+        vim.list_extend(added, spec)
+      end,
+    }
+    require("org.mappings").register_which_key()
+    package.loaded["which-key"] = nil
+    local labels = {}
+    for _, g in ipairs(added) do
+      labels[g[1]] = g.group
+    end
+    local config = require("org.config")
+    eq("roam", labels[config.lhs_list("<prefix>m")[1]])
+    eq("roam dailies", labels[config.lhs_list("<prefix>md")[1]])
+  end)
+
   it("registers its actions and keys, and stays off by default", function()
     ok(require("org.actions").list.roam_node_find)
     eq("<prefix>mf", require("org.config").opts.mappings.global.roam_node_find)

@@ -221,6 +221,9 @@ M.mappings = {
   },
 }
 
+-- which-key labels
+M.groups = { { "m", "roam" }, { "md", "roam dailies" } }
+
 local augroup = vim.api.nvim_create_augroup("org.roam", { clear = true })
 
 --- The resolved options.

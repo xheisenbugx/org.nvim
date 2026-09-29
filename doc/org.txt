@@ -7022,7 +7022,8 @@ not indexed. Node IDs are also added to the ID locations (|org-links|), so `id:`
 links into roam files work from anywhere.
 
 Commands ~
-Keys are under `<prefix>m`, because `<prefix>r` is refile. Global:
+Keys are under `<prefix>m`, because `<prefix>r` is refile (which-key labels
+the group "roam", and `<prefix>md` "roam dailies"). Global:
 
   `<prefix>mf`  roam_node_find: find a node by title or alias and visit it.
               The "+ New node" candidate (or `:Org roam_node_find Title`
