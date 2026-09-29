@@ -2121,6 +2121,15 @@ M.backend = ox.define_backend("html", {
         return ox.insert_image_links(tree, info, info.html_inline_image_rules)
       end,
     },
+    -- org-html-final-function: org-html-indent
+    ["final-output"] = {
+      function(text)
+        if opt("indent", false) then
+          return require("org.export.html_indent").indent(text)
+        end
+        return text
+      end,
+    },
   },
 })
 

@@ -54,13 +54,43 @@ describe("icalendar diary sexps (Emacs parity)", function()
     eq({
       { "SUMMARY:Bob turns %d", "DESCRIPTION:Bob turns %d", "RRULE:FREQ=YEARLY", "DTSTART;VALUE=DATE:19800510" },
       { "SUMMARY:blk", "DESCRIPTION:blk", "RRULE:FREQ=DAILY;UNTIL=20260305", "DTSTART;VALUE=DATE:20260301" },
-      { "SUMMARY:Weekly thing", "DESCRIPTION:Weekly thing", "RRULE:FREQ=DAILY;INTERVAL=7", "DTSTART;VALUE=DATE:20260105" },
-      { "SUMMARY:Second Thursday", "DESCRIPTION:Second Thursday", "RRULE:FREQ=MONTHLY;BYDAY=2TH", "DTSTART;VALUE=DATE:20250109" },
-      { "SUMMARY:Xmas", "DESCRIPTION:Xmas", "RRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25", "DTSTART;VALUE=DATE:20251225" },
-      { "SUMMARY:Thanksgiving", "DESCRIPTION:Thanksgiving", "RRULE:FREQ=MONTHLY;BYMONTH=11;BYDAY=4TH", "DTSTART;VALUE=DATE:20251127" },
+      {
+        "SUMMARY:Weekly thing",
+        "DESCRIPTION:Weekly thing",
+        "RRULE:FREQ=DAILY;INTERVAL=7",
+        "DTSTART;VALUE=DATE:20260105",
+      },
+      {
+        "SUMMARY:Second Thursday",
+        "DESCRIPTION:Second Thursday",
+        "RRULE:FREQ=MONTHLY;BYDAY=2TH",
+        "DTSTART;VALUE=DATE:20250109",
+      },
+      {
+        "SUMMARY:Xmas",
+        "DESCRIPTION:Xmas",
+        "RRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25",
+        "DTSTART;VALUE=DATE:20251225",
+      },
+      {
+        "SUMMARY:Thanksgiving",
+        "DESCRIPTION:Thanksgiving",
+        "RRULE:FREQ=MONTHLY;BYMONTH=11;BYDAY=4TH",
+        "DTSTART;VALUE=DATE:20251127",
+      },
       { "SUMMARY:Once", "DESCRIPTION:Once", "DTSTART;VALUE=DATE:20260704" },
-      { "SUMMARY:Mid month", "DESCRIPTION:Mid month", "RRULE:FREQ=MONTHLY;BYMONTHDAY=15", "DTSTART;VALUE=DATE:20250115" },
-      { "SUMMARY:Last Monday", "DESCRIPTION:Last Monday", "RRULE:FREQ=MONTHLY;BYDAY=-1MO", "DTSTART;VALUE=DATE:20250127" },
+      {
+        "SUMMARY:Mid month",
+        "DESCRIPTION:Mid month",
+        "RRULE:FREQ=MONTHLY;BYMONTHDAY=15",
+        "DTSTART;VALUE=DATE:20250115",
+      },
+      {
+        "SUMMARY:Last Monday",
+        "DESCRIPTION:Last Monday",
+        "RRULE:FREQ=MONTHLY;BYDAY=-1MO",
+        "DTSTART;VALUE=DATE:20250127",
+      },
     }, got)
   end)
 

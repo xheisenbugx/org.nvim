@@ -1410,6 +1410,7 @@ M.defaults = {
       allow_name_attribute_in_anchors = false, -- org-html-allow-name-attribute-in-anchors
       coding_system = "utf-8", -- org-html-coding-system (charset of the <meta> and XML declaration)
       datetime_formats = { "%F", "%FT%T" }, -- org-html-datetime-formats ({ date, date and time })
+      indent = false, -- org-html-indent (indent the generated HTML like Emacs' mhtml-mode)
       --- org-html-divs: { preamble = { "div", "preamble" }, content = { "div",
       --- "content" }, postamble = { "div", "postamble" } } (nil = that value).
       divs = nil,

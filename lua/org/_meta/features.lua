@@ -708,6 +708,10 @@
 ---(`org-html-datetime-formats`): `{ date_only, date_and_time }` for the
 ---`datetime` attribute of html5-fancy `<time>`. (default: `{ "%F", "%FT%T" }`)
 ---@field datetime_formats? string[]
+---Indent the generated HTML (`org-html-indent`) like Emacs does with
+---mhtml-mode; body-only output takes the first line's indentation. It may
+---change the indentation of source code, like in Emacs. (default: `false`)
+---@field indent? boolean
 ---(`org-html-divs`) (default: `nil` = `{ preamble = { "div", "preamble" }, content = { "div", "content" }, postamble = { "div", "postamble" } }`)
 ---@field divs? table<string, string[]>
 ---(`org-html-footnotes-section`) (default: `nil` = the Emacs format)

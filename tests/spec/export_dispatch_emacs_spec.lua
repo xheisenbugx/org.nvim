@@ -47,9 +47,37 @@ describe("export dispatch (Emacs parity)", function()
     local region = { "before", "Some *bold* text -- here.", '- item "q"', "after" }
     -- org-*-convert-region-to-* on lines 2-3 of `region`, from Emacs 9.8.10
     local expected = {
-      html = { "before", "<p>", "Some <b>bold</b> text &ndash; here.", "</p>", '<ul class="org-ul">', '<li>item "q"</li>', "</ul>", "after" },
-      latex = { "before", "Some \\textbf{bold} text -- here.", "\\begin{itemize}", '\\item item "q"', "\\end{itemize}", "after" },
-      md = { "before", "", "# Table of Contents", "", "", "", "Some **bold** text &ndash; here.", "", '-   item "q"', "", "after" },
+      html = {
+        "before",
+        "<p>",
+        "Some <b>bold</b> text &ndash; here.",
+        "</p>",
+        '<ul class="org-ul">',
+        '<li>item "q"</li>',
+        "</ul>",
+        "after",
+      },
+      latex = {
+        "before",
+        "Some \\textbf{bold} text -- here.",
+        "\\begin{itemize}",
+        '\\item item "q"',
+        "\\end{itemize}",
+        "after",
+      },
+      md = {
+        "before",
+        "",
+        "# Table of Contents",
+        "",
+        "",
+        "",
+        "Some **bold** text &ndash; here.",
+        "",
+        '-   item "q"',
+        "",
+        "after",
+      },
       ascii = { "before", "Some *bold* text -- here.", '- item "q"', "after" },
       utf8 = { "before", "Some *bold* text – here.", '• item "q"', "after" },
       texinfo = { "before", "after" },
@@ -169,7 +197,10 @@ describe("export dispatch (Emacs parity)", function()
     end)
 
     it("writes org-latex-compiler-file-string", function()
-      restore = set_export({ ["latex.compiler_file_string"] = "%% -*- latex-run-command: %s -*-\n", timestamp_file = false })
+      restore = set_export({
+        ["latex.compiler_file_string"] = "%% -*- latex-run-command: %s -*-\n",
+        timestamp_file = false,
+      })
       local out = export.to_string("latex", { lines = { "#+latex_compiler: xelatex", "text" } })
       eq("% -*- latex-run-command: xelatex -*-\n\\documentclass", out:sub(1, 51))
       restore()
@@ -204,7 +235,13 @@ describe("export dispatch (Emacs parity)", function()
     end
 
     it("starts from the org-export-* dispatcher options", function()
-      restore = set_export({ initial_scope = "subtree", body_only = true, visible_only = true, force_publishing = true, in_background = true })
+      restore = set_export({
+        initial_scope = "subtree",
+        body_only = true,
+        visible_only = true,
+        force_publishing = true,
+        in_background = true,
+      })
       org_buffer({ "* H", "text" }, { 1, 0 })
       local seen
       ui.menu = function(o)

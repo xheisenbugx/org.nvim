@@ -32,8 +32,11 @@ describe("html source highlighting", function()
     end
     html.htmlize_output_type = "css"
     local out = export.to_string("html", { lines = SRC, body_only = true })
-    ok(out:find('<code><span class="org-keyword">local</span> x <span class="org-operator">=</span> <span class="org-string">"s"</span>\n</code>', 1, true), out)
-    ok(out:find('<code class="src src-lua"><span class="org-keyword">return</span> <span class="org-number">1</span></code>', 1, true), out)
+    local want = '<code><span class="org-keyword">local</span> x <span class="org-operator">=</span> '
+      .. '<span class="org-string">"s"</span>\n</code>'
+    ok(out:find(want, 1, true), out)
+    want = '<code class="src src-lua"><span class="org-keyword">return</span> <span class="org-number">1</span></code>'
+    ok(out:find(want, 1, true), out)
     html.htmlize_font_prefix = "my-"
     out = export.to_string("html", { lines = SRC, body_only = true })
     ok(out:find('<span class="my-keyword">local</span>', 1, true), out)

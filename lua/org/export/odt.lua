@@ -3219,7 +3219,8 @@ end
 
 --- The first LaTeX fragment of `s` (org-latex-regexps, in their order).
 function M.find_latex_fragment(s)
-  local a = s:match("^[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)") or s:match("\n[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)")
+  local a = s:match("^[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)")
+    or s:match("\n[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)")
   if a then
     return a
   end

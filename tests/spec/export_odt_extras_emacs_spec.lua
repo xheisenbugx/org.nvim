@@ -30,7 +30,10 @@ describe("odt extras (Emacs parity)", function()
     utils.notify = notify
     eq(dir .. "/f.odf", out)
     eq("application/vnd.oasis.opendocument.formula", zip.read(out, "mimetype"))
-    eq('<?xml version="1.0" encoding="UTF-8"?>\n<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>$a$</mi></math>', zip.read(out, "content.xml"))
+    eq(
+      '<?xml version="1.0" encoding="UTF-8"?>\n<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>$a$</mi></math>',
+      zip.read(out, "content.xml")
+    )
     eq(
       table.concat({
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -73,7 +76,10 @@ describe("odt extras (Emacs parity)", function()
     eq("$a + b$", odt.find_latex_fragment("so $a + b$."))
     eq("\\[y\\]", odt.find_latex_fragment("see \\[y\\] here"))
     eq("$$z$$", odt.find_latex_fragment("$$z$$"))
-    eq("\\begin{equation}\na\n\\end{equation}\n", odt.find_latex_fragment("\\begin{equation}\na\n\\end{equation}\nrest"))
+    eq(
+      "\\begin{equation}\na\n\\end{equation}\n",
+      odt.find_latex_fragment("\\begin{equation}\na\n\\end{equation}\nrest")
+    )
   end)
 
   it("converts a file chosen at a prompt (org-odt-convert)", function()

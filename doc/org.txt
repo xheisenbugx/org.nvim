@@ -3628,7 +3628,11 @@ HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
               style attributes, "css" writes classes named
               `htmlize_font_prefix` ("org-") + the Emacs face (org-keyword,
               org-string, org-comment, org-function-name, ...), false
-              leaves the code plain. `:Org html_htmlize_generate_css`
+              leaves the code plain. `export.html.indent`
+              (org-html-indent) indents the document the way Emacs'
+              mhtml-mode does (CSS and JavaScript by bracket depth); a
+              body-only export takes the indentation of its first line,
+              like Emacs' fundamental-mode. `:Org html_htmlize_generate_css`
               (org-html-htmlize-generate-css) shows the stylesheet of
               those classes in a "*html*" buffer. A language without a
               tree-sitter parser stays plain, like a language without an
@@ -4695,7 +4699,7 @@ export ~                                                   *org-config-export*
   comments in config.lua for every key and its Emacs variable.
   Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
   value): html allow_name_attribute_in_anchors, coding_system "utf-8",
-  datetime_formats { "%F", "%FT%T" }, divs, footnotes_section,
+  datetime_formats { "%F", "%FT%T" }, indent false, divs, footnotes_section,
   format_drawer_function, format_headline_function,
   format_inlinetask_function, home_up_format, infojs_template,
   inline_image_rules, klipsify_src, klipse_css, klipse_js,
