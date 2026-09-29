@@ -1684,6 +1684,69 @@ T.superscript = function(el, contents)
   return el.use_brackets and fmt("^{%s}", contents or "") or fmt("^%s", contents or "")
 end
 
+--- ascii-art-to-unicode (aa2u): every "-" and "|" becomes a light box
+--- line, every "+" the junction its neighbours call for.
+function M.aa2u(lines)
+  local grid = {}
+  for i, l in ipairs(lines) do
+    grid[i] = vim.fn.split(l, "\\zs")
+  end
+  -- phase 1: components of each converted character
+  local comp = {}
+  for i, row in ipairs(grid) do
+    comp[i] = {}
+    for j, ch in ipairs(row) do
+      if ch == "|" then
+        row[j], comp[i][j] = "│", "V"
+      elseif ch == "-" then
+        row[j], comp[i][j] = "─", "H"
+      end
+    end
+  end
+  local GLYPH = {
+    VH = "┼",
+    DR = "┌",
+    DL = "┐",
+    UR = "└",
+    UL = "┘",
+    VR = "├",
+    VL = "┤",
+    UH = "┴",
+    DH = "┬",
+    U = "╵",
+    D = "╷",
+    L = "╴",
+    R = "╶",
+    V = "│",
+    H = "─",
+  }
+  -- phase 2: what each "+" becomes, from the characters before the change
+  local changes = {}
+  for i, row in ipairs(grid) do
+    for j, ch in ipairs(row) do
+      if ch == "+" then
+        local function ok(r, c, want)
+          local x = grid[r] and grid[r][c]
+          return x == "+" or (x and comp[r][c] == want)
+        end
+        local up, down = ok(i - 1, j, "V"), ok(i + 1, j, "V")
+        local left, right = j > 1 and ok(i, j - 1, "H"), ok(i, j + 1, "H")
+        local y = (up and down) and "V" or up and "U" or down and "D" or ""
+        local x = (left and right) and "H" or left and "L" or right and "R" or ""
+        changes[#changes + 1] = { i, j, GLYPH[y .. x] or "?" }
+      end
+    end
+  end
+  for _, c in ipairs(changes) do
+    grid[c[1]][c[2]] = c[3]
+  end
+  local out = {}
+  for i, row in ipairs(grid) do
+    out[i] = table.concat(row)
+  end
+  return out
+end
+
 T.table = function(el, contents, info)
   local caption = build_caption(el, info)
   local above = info.ascii_caption_above
@@ -1692,6 +1755,14 @@ T.table = function(el, contents, info)
     body = contents or ""
   else
     local lines = element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true }))
+    if info.ascii_table_use_ascii_art and info.ascii_charset == "utf-8" then
+      -- org-ascii-table-use-ascii-art: table.el art drawn with box characters
+      lines = M.aa2u(lines)
+      while #lines > 0 and not lines[#lines]:match("%S") do
+        lines[#lines] = nil
+      end
+      lines[#lines] = lines[#lines] and (lines[#lines]:gsub("%s+$", "")) or nil
+    end
     body = table.concat(lines, "\n") .. "\n"
   end
   return M.justify_element(

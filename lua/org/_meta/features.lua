@@ -94,6 +94,24 @@
 ---Default parameters for clock tables (`org-clocktable-defaults`); block
 ---parameters override them. (default: `{ maxlevel = 2, scope = "file" }`)
 ---@field clocktable_default? org.Config.Clock.ClocktableDefault
+---Parameters written into the header of a new clock table
+---(`org-clock-clocktable-default-properties`). (default: `{ maxlevel = 2 }`)
+---@field clocktable_default_properties? table<string, any>
+---Function writing clock tables instead of the default, receiving
+---`{ { file, time, entries = { { level, headline, tags, timestamp, time, properties } } } }`
+---and the block parameters; returns the lines (`org-clock-clocktable-formatter`).
+---(default: `nil`)
+---@field clocktable_formatter? fun(tables: table[], params: table): string[]|string
+---Format of the total time cells (`org-clock-total-time-cell-format`). (default: `"*%s*"`)
+---@field total_time_cell_format? string
+---Format of the "File time" cells (`org-clock-file-time-cell-format`). (default: `"*%s*"`)
+---@field file_time_cell_format? string
+---Resolve clocks with a prompt, without the help window
+---(`org-clock-resolve-expert`). (default: `false`)
+---@field resolve_expert? boolean
+---Program printing the X11 idle time in milliseconds
+---(`org-clock-x11idle-program-name`). (default: `nil`: xprintidle, else x11idle)
+---@field x11idle_program_name? string
 ---Persist the running clock and clock history across restarts
 ---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
 ---(default: `true`)
@@ -101,6 +119,9 @@
 ---Ask before resuming a clock after a restart
 ---(`org-clock-persist-query-resume`). (default: `true`)
 ---@field persist_query_resume? boolean
+---Ask on exit whether to keep the running clock for the next session
+---(`org-clock-persist-query-save`). (default: `false`)
+---@field persist_query_save? boolean
 ---File where the clock state is persisted (`org-clock-persist-file`).
 ---(default: `stdpath("data") .. "/org/clock.json"`)
 ---@field persist_file? string
@@ -162,6 +183,9 @@
 ---@field projects? { base_url: string, working_directory: string, online_suffix?: string, working_suffix?: string, rewrites?: table<string, string> }[]
 ---Extra sub-protocols (`org-protocol-protocol-alist`). (default: `{}`)
 ---@field handlers? org.Config.ProtocolHandler[]
+---Vim regex splitting the data of old-style URLs (`org-protocol-data-separator`).
+---(default: `[[/\+\|?]]`)
+---@field data_separator? string
 
 ---A custom org-protocol sub-protocol.
 ---@class org.Config.ProtocolHandler
@@ -171,6 +195,51 @@
 ---@field fn fun(params: table<string, string>): any
 ---Parameter names for old-style `NAME://a/b` URLs.
 ---@field order? string[]
+
+---------------------------------------------------------------------------
+-- yank-media / drag and drop
+---------------------------------------------------------------------------
+
+---Pasting clipboard images and dropped files, see `:h org-yank-media`.
+---@class org.Config.Yank
+---Where clipboard images go (`org-yank-image-save-method`): `"attach"`, a
+---directory, or a function returning one. (default: `"attach"`)
+---@field image_save_method? "attach"|string|fun(): string
+---Name of a pasted image, without extension (`org-yank-image-file-name-function`).
+---(default: `nil`: `"clipboard-%Y%m%dT%H%M%S.%6N"`)
+---@field image_file_name_function? fun(): string
+---What dropped / pasted files do (`org-yank-dnd-method`). (default: `"ask"`)
+---@field dnd_method? "attach"|"open"|"file-link"|"ask"
+---Attach method of dropped files (`org-yank-dnd-default-attach-method`);
+---nil = `attach.method`. (default: `nil`)
+---@field dnd_default_attach_method? "cp"|"mv"|"ln"|"lns"
+---A paste of existing file paths in an Org buffer counts as a drop.
+---(default: `true`)
+---@field dnd_paste? boolean
+
+---------------------------------------------------------------------------
+-- org-ctags
+---------------------------------------------------------------------------
+
+---Plain links through tags files (`org-ctags`), see `:h org-ctags`.
+---@class org.Config.Ctags
+---Look up plain links that fail in the buffer in the tags files (Emacs:
+---`org-ctags-enable`). (default: `false`)
+---@field enabled? boolean
+---The ctags program (`org-ctags-path-to-ctags`). (default: `nil`: ctags-exuberant
+---when installed, else ctags)
+---@field path_to_ctags? string
+---Tried in order for a plain link, until one returns true
+---(`org-ctags-open-link-functions`): names of `require("org.ctags").link_functions`
+---or functions of the link text.
+---(default: `{ "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" }`)
+---@field open_link_functions? (string|fun(name: string): boolean)[]
+---Text of a new topic, `%t` = the capitalized title (`org-ctags-new-topic-template`).
+---(default: `"* <<%t>>\n\n\n\n\n\n"`)
+---@field new_topic_template? string
+---The `--regex-orgmode` given to ctags (`org-ctags-tag-regexp`).
+---(default: `[[/<<([^<>]+)>>/\1/d,definition/]]`)
+---@field tag_regexp? string
 
 ---------------------------------------------------------------------------
 -- RSS / Atom feeds
@@ -350,6 +419,50 @@
 ---Translate a link before following it (`org-link-translation-function`).
 ---(default: `nil`)
 ---@field translation_function? fun(type: string, path: string): string|nil, string|nil
+---A mouse click on a link follows it: `true`, `"double"`, the longest click
+---in ms, or `false` (`org-mouse-1-follows-link`). (default: `450`)
+---@field mouse_1_follows_link? boolean|"double"|integer
+---`<Tab>` on a link follows it (`org-tab-follows-link`). (default: `false`)
+---@field tab_follows_link? boolean
+---Links to a directory open its index.org
+---(`org-open-directory-means-index-dot-org`). (default: `false`)
+---@field open_directory_means_index_dot_org? boolean
+---External apps may open files that don't exist
+---(`org-open-non-existing-files`). (default: `false`)
+---@field open_non_existing_files? boolean
+---URLs of Texinfo manuals for `info:` links exported to HTML, by manual
+---name, merged with the defaults (`org-info-other-documents`).
+---(default: `{ dir = ..., libc = ..., make = ... }`)
+---@field info_other_documents? table<string, string>
+
+---BibTeX entries as headlines (ol-bibtex).
+---@class org.Config.Bibtex
+---Generate the keys of new entries (`org-bibtex-autogen-keys`). (default: `false`)
+---@field autogen_keys? boolean
+---Prefix of the field properties, e.g. `"BIB_"` (`org-bibtex-prefix`). (default: `nil`)
+---@field prefix? string
+---The headline is the title when there is no TITLE property
+---(`org-bibtex-treat-headline-as-title`). (default: `true`)
+---@field treat_headline_as_title? boolean
+---Headline text of written entries from their fields
+---(`org-bibtex-headline-format-function`); `nil` = the title. (default: `nil`)
+---@field headline_format_function? fun(fields: table<string, string>): string
+---Export every prefixed property, not only BibTeX fields; needs `prefix`
+---(`org-bibtex-export-arbitrary-fields`). (default: `false`)
+---@field export_arbitrary_fields? boolean
+---Property holding the key (`org-bibtex-key-property`). (default: `"CUSTOM_ID"`)
+---@field key_property? string
+---Tags added to new entries (`org-bibtex-tags`). (default: `{}`)
+---@field tags? string[]
+---The keywords field becomes tags and tags become keywords
+---(`org-bibtex-tags-are-keywords`). (default: `false`)
+---@field tags_are_keywords? boolean
+---Tags not exported as keywords (`org-bibtex-no-export-tags`). (default: `{}`)
+---@field no_export_tags? string[]
+---Export inherited tags as keywords too (`org-bibtex-inherit-tags`). (default: `false`)
+---@field inherit_tags? boolean
+---Property holding the entry type (`org-bibtex-type-property-name`). (default: `"btype"`)
+---@field type_property_name? string
 
 ---------------------------------------------------------------------------
 -- IDs / attachments
@@ -389,6 +502,13 @@
 ---Store `id:` links with an ancestor's ID plus a search string instead of
 ---creating an ID (`org-id-link-consider-parent-id`). (default: `false`)
 ---@field link_consider_parent_id? boolean
+---Add `@` and the host name to new `"ts"` and `"org"` IDs
+---(`org-id-include-domain`). (default: `false`)
+---@field include_domain? boolean
+---Headings offered when completing an `id:` link, as refile target specs
+---(`files = "id"`: the files holding known IDs) (`org-id-completion-targets`).
+---(default: `{ { files = "current" }, { files = "id" } }`)
+---@field completion_targets? table[]
 
 ---Attachment options.
 ---@class org.Config.Attach
@@ -426,6 +546,13 @@
 ---Tag of entries with attachments (`org-attach-auto-tag`); `false` for none.
 ---(default: `"ATTACH"`)
 ---@field auto_tag? string|false
+---Extra dispatcher commands by key (`org-attach-commands`):
+---`{ fn = function(target) end, desc = "..." }`, or `false` to remove a
+---built-in one. (default: `{}`)
+---@field commands? table<string, { fn: fun(target: org.Target), desc?: string }|false>
+---Ask for the dispatcher key at a prompt instead of showing the menu
+---(`org-attach-expert`). (default: `false`)
+---@field expert? boolean
 ---Commit attachment changes with git (`org-attach-git`): after attaching,
 ---deleting or syncing, new/changed files are added, deleted ones removed and
 ---a commit "Synchronized attachments" is made. (default: `false`)
@@ -499,7 +626,10 @@
 ---list. The code is written to a temp file whose path is appended (sqlite
 ---gets the code on stdin, C/C++/D is the compiler, `sql` runs the client
 ---of its `:engine`). Required to evaluate a language not in the defaults;
----`lua` always runs inside Neovim.
+---`lua` runs inside Neovim unless `cmd` is another interpreter
+---(`org-babel-lua-command`). For the ports of ob-LANG.el it is that
+---language's command (java, julia, groovy, ocaml, maxima, gnuplot, ghci,
+---`sbcl --script`, the gfortran compiler, ...).
 ---@field cmd? string|string[]
 ---Extension of the temp file, e.g. `"py"`. Defaults to a built-in
 ---per-language table, else the language name. (`:tangle yes` files use
@@ -508,6 +638,41 @@
 ---Default header arguments of this language, merged after
 ---`default_header_args` (Emacs `org-babel-default-header-args:LANG`).
 ---@field default_header_args? org.Config.Babel.HeaderArgs
+---python, lua, ruby, java: text an hline of a table variable becomes
+---(`org-babel-{python,lua}-hline-to` "None", ruby "nil", java "null").
+---@field hline_to? string
+---python, lua: what a `None` of a list result becomes, a symbol name
+---("hline" the table rule; `org-babel-*-None-to`). (default: `"hline"`)
+---@field None_to? string
+---ruby: what a nil of a list result becomes (`org-babel-ruby-nil-to`).
+---@field nil_to? string
+---java, scheme: what a `null` / `()` of a list result becomes
+---(`org-babel-java-null-to`, `org-babel-scheme-null-to`).
+---@field null_to? string
+---lua: separator of several returned values
+---(`org-babel-lua-multiple-values-separator`). (default: `", "`)
+---@field multiple_values_separator? string
+---python: the command of sessions, used as it is, e.g. `"ipython -i"`
+---(`org-babel-python-command-session`). nil: `cmd -i`.
+---@field session_cmd? string
+---java (javac), haskell (ghc), csharp (dotnet): the compiler
+---(`org-babel-*-compiler`).
+---@field compiler? string
+---Other options of the ob-LANG ports, named after their Emacs variables
+---(see `:h org-babel-languages`): plantuml `exec_mode`, `jar_path`,
+---`executable_path`, `args`, `svg_text_to_path`; ditaa `exec_mode`,
+---`exec`, `java_exec`, `jar_path`, `eps_jar_path`; gnuplot `terms`; latex
+---`preamble`, `begin_env`, `end_env`, `htlatex`, `htlatex_packages`,
+---`pdf_svg_process`, `process_alist`; lilypond `commands`, `arrange_mode`,
+---`gen_png`, `gen_svg`, `gen_html`, `gen_pdf`, `use_eps`,
+---`compile_post_tangle`, `display_pdf_post_tangle`,
+---`play_midi_post_tangle`; clojure `backend`, `default_ns`,
+---`babashka_command`, `cli_command`, `nbb_command` (clojurescript
+---`backend`); csharp `default_target_framework`,
+---`additional_project_flags`, `generate_compile_command`,
+---`generate_restore_command`; lisp `dir_fmt`; scheme `impl`, `commands`;
+---haskell `lhs2tex`; processing `js_filename`; screen `location`.
+---@field [string] any
 
 ---Default header arguments (`org-babel-default-header-args`). Keys are
 ---header argument names without `:`; values are strings.
@@ -591,10 +756,42 @@
 ---Write tangle comments without comment syntax
 ---(`org-babel-tangle-uncomment-comments`). (default: `false`)
 ---@field tangle_uncomment_comments? boolean
+---How an existing tangle target is overwritten
+---(`org-babel-tangle-remove-file-before-write`): `"auto"` deletes it first
+---only when it is read-only, `true` always deletes and recreates it,
+---`false` replaces its contents. (default: `"auto"`)
+---@field tangle_remove_file_before_write? "auto"|boolean
+---Function applied to the Org text of `:comments org|both`
+---(`org-babel-process-comment-text`); `nil` removes its common
+---indentation (`org-remove-indentation`). (default: `nil`)
+---@field process_comment_text? fun(text: string): string
+---Write `#+BEGIN_EXAMPLE` / `#+END_EXAMPLE` around results
+---(`org-babel-uppercase-example-markers`). (default: `false`)
+---@field uppercase_example_markers? boolean
+---Template of exported code blocks (`org-babel-exp-code-template`):
+---`%lang`, `%name`, `%body`, `%switches`, `%header-args`, and `%<arg>` for
+---each header argument. (default: `"#+begin_src %lang%switches%header-args\n%body\n#+end_src"`)
+---@field exp_code_template? string
+---Template of exported inline src blocks
+---(`org-babel-exp-inline-code-template`), same keys.
+---(default: `"src_%lang[%switches%header-args]{%body}"`)
+---@field exp_inline_code_template? string
+---Text exported in place of `#+CALL` lines and `call_` objects, with
+---`%line` for the call (`org-babel-exp-call-line-template`). (default: `""`)
+---@field exp_call_line_template? string
+---Languages run like sh (`org-babel-shell-names`).
+---(default: `{ "sh", "bash", "zsh", "fish", "csh", "ash", "dash", "ksh", "mksh", "posh" }`)
+---@field shell_names? string[]
+---Shell blocks without `:results` words give their output; `false`: their
+---exit status (`org-babel-shell-results-defaults-to-output`). (default: `true`)
+---@field shell_results_defaults_to_output? boolean
 ---Languages that can be evaluated, merged key by key with the defaults
 ---(sh, shell, bash, zsh, fish, python, python3, lua, js, javascript,
 ---typescript, ts, ruby, perl, php, r, R, go, rust, sqlite, sql, C, C++,
----cpp, D, awk). Emacs enables only emacs-lisp, which cannot run in Neovim.
+---cpp, D, awk, and the ob-LANG ports: plantuml, ditaa, gnuplot, latex,
+---lilypond, java, csharp, haskell, clojure, clojurescript, lisp, scheme,
+---fortran, processing, screen, julia, groovy, ocaml, maxima). Emacs
+---enables only emacs-lisp, which cannot run in Neovim.
 ---Set a language to `false` to remove it.
 ---@field languages? table<string, org.Config.Babel.Language|false>
 ---How emacs-lisp blocks and `elisp:` links run, and the Lisp the
@@ -682,11 +879,92 @@
 ---Load MathJax for LaTeX fragments (`org-html-with-latex` = `mathjax`).
 ---(default: `true`)
 ---@field mathjax? boolean
+---(`org-html-with-latex`): `true`/`"mathjax"`, `"html"`, `"dvipng"`,
+---`"dvisvgm"`, `"imagemagick"` (pictures), `"verbatim"` or `false`.
+---(default: `nil` = `export.with_latex`)
+---@field with_latex? boolean|string
+---(`org-latex-to-html-convert-command`) for `tex:html`, `%i` = the fragment.
+---(default: `nil`)
+---@field latex_to_html_convert_command? string
 ---(`org-html-mathjax-options`) (default: Emacs value)
 ---@field mathjax_options? table
----Highlight source code (Emacs uses htmlize): `function(code, lang)`
----returning HTML. (default: `nil`)
+---Highlight source code with your own `function(code, lang)` returning
+---HTML, instead of the built-in highlighting. (default: `nil`)
 ---@field fontify? fun(code: string, lang: string): string
+---How source code is coloured from its tree-sitter highlights
+---(`org-html-htmlize-output-type`; Emacs uses htmlize): `"inline-css"` (style
+---attributes), `"css"` (classes) or `false` (plain). (default: `"inline-css"`)
+---@field htmlize_output_type? "inline-css"|"css"|false
+---CSS class prefix of `"css"` highlighting (`org-html-htmlize-font-prefix`).
+---(default: `"org-"`)
+---@field htmlize_font_prefix? string
+---(`org-html-allow-name-attribute-in-anchors`) (default: `false`)
+---@field allow_name_attribute_in_anchors? boolean
+---(`org-html-coding-system`) (default: `"utf-8"`)
+---@field coding_system? string
+---(`org-html-datetime-formats`): `{ date_only, date_and_time }` for the
+---`datetime` attribute of html5-fancy `<time>`. (default: `{ "%F", "%FT%T" }`)
+---@field datetime_formats? string[]
+---Indent the generated HTML (`org-html-indent`) like Emacs does with
+---mhtml-mode; body-only output takes the first line's indentation. It may
+---change the indentation of source code, like in Emacs. (default: `false`)
+---@field indent? boolean
+---(`org-html-divs`) (default: `nil` = `{ preamble = { "div", "preamble" }, content = { "div", "content" }, postamble = { "div", "postamble" } }`)
+---@field divs? table<string, string[]>
+---(`org-html-footnotes-section`) (default: `nil` = the Emacs format)
+---@field footnotes_section? string
+---(`org-html-format-drawer-function`) (default: `nil`)
+---@field format_drawer_function? fun(name: string, contents: string): string
+---(`org-html-format-headline-function`) (default: `nil`)
+---@field format_headline_function? function
+---(`org-html-format-inlinetask-function`) (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-html-home/up-format`) (default: `nil` = the Emacs format)
+---@field home_up_format? string
+---(`org-html-infojs-template`) (default: `nil` = the Emacs template)
+---@field infojs_template? string
+---(`org-html-inline-image-rules`) (default: `nil` = the Emacs rules)
+---@field inline_image_rules? table<string, string[]>
+---(`org-html-klipsify-src`) (default: `false`)
+---@field klipsify_src? boolean
+---(`org-html-klipse-css`) (default: the klipse codemirror.css URL)
+---@field klipse_css? string
+---(`org-html-klipse-js`) (default: the klipse plugin URL)
+---@field klipse_js? string
+---(`org-html-klipse-selection-script`) (default: `nil` = the Emacs script)
+---@field klipse_selection_script? string
+---(`org-html-mathjax-template`) (default: `nil` = the Emacs template)
+---@field mathjax_template? string
+---(`org-html-meta-tags`): `{ { attr, name, content }, ... }` or `function(info)`.
+---(default: `nil` = the Emacs tags)
+---@field meta_tags? string[][]|fun(info: table): string[][]
+---(`org-html-scripts`) (default: `nil` = the Emacs script)
+---@field scripts? string
+---(`org-html-table-align-individual-fields`) (default: `true`)
+---@field table_align_individual_fields? boolean
+---(`org-html-table-data-tags`) (default: `{ "<td%s>", "</td>" }`)
+---@field table_data_tags? string[]
+---(`org-html-table-header-tags`) (default: `{ '<th scope="%s"%s>', "</th>" }`)
+---@field table_header_tags? string[]
+---(`org-html-table-default-attributes`) (default: `nil` = the Emacs attributes)
+---@field table_default_attributes? string[][]
+---(`org-html-table-row-open-tag`) (default: `"<tr>"`)
+---@field table_row_open_tag? string|function
+---(`org-html-table-row-close-tag`) (default: `"</tr>"`)
+---@field table_row_close_tag? string|function
+---(`org-html-table-use-header-tags-for-first-column`) (default: `false`)
+---@field table_use_header_tags_for_first_column? boolean
+---(`org-html-tag-class-prefix`) (default: `""`)
+---@field tag_class_prefix? string
+---(`org-html-todo-kwd-class-prefix`) (default: `""`)
+---@field todo_kwd_class_prefix? string
+---(`org-html-text-markup-alist`) (default: `nil` = the Emacs alist)
+---@field text_markup_alist? table<string, string>
+---(`org-html-viewport`): `{ { name, value }, ... }`, `false` = no tag.
+---(default: `nil` = the Emacs value)
+---@field viewport? string[][]|false
+---(`org-html-xml-declaration`) (default: `nil` = the Emacs declarations)
+---@field xml_declaration? table<string, string>
 
 ---LaTeX back-end options (ox-latex).
 ---@class org.Config.Export.Latex
@@ -711,7 +989,13 @@
 ---Compile PDFs in the background with `vim.system`. (default: `true`)
 ---@field async_compile? boolean
 ---(`org-latex-src-block-backend`) (default: `"verbatim"`)
----@field src_block_backend? "verbatim"|"listings"|"minted"
+---@field src_block_backend? "verbatim"|"listings"|"minted"|"engraved"
+---(`org-latex-engraved-options`) (default: `nil` = the Emacs list)
+---@field engraved_options? string[][]
+---(`org-latex-engraved-preamble`) (default: `nil` = the Emacs preamble)
+---@field engraved_preamble? string
+---(`org-latex-engraved-theme`, `#+LATEX_ENGRAVED_THEME`) (default: `nil`)
+---@field engraved_theme? string|boolean
 ---(`org-latex-caption-above`) (default: `{ "table" }`)
 ---@field caption_above? boolean|string[]
 ---(`org-latex-prefer-user-labels`) (default: `false`)
@@ -740,6 +1024,68 @@
 ---@field hyperref_template? string
 ---(`org-latex-use-sans`) (default: `false`)
 ---@field use_sans? boolean
+---(`org-latex-active-timestamp-format`) (default: `"\\textit{%s}"`)
+---@field active_timestamp_format? string
+---(`org-latex-inactive-timestamp-format`) (default: `"\\textit{%s}"`)
+---@field inactive_timestamp_format? string
+---(`org-latex-diary-timestamp-format`) (default: `"\\textit{%s}"`)
+---@field diary_timestamp_format? string
+---(`org-latex-compiler-file-string`), `%s` = the compiler; `false` or `""` =
+---no line. (default: `"%% Intended LaTeX compiler: %s\n"`)
+---@field compiler_file_string? string|false
+---(`org-latex-known-warnings`): `{ { vim_regex, message }, ... }`.
+---(default: `nil` = the Emacs list)
+---@field known_warnings? string[][]
+---(`org-latex-custom-lang-environments`) (default: `{}`)
+---@field custom_lang_environments? table<string, string|table>
+---(`org-latex-default-footnote-command`) (default: `"\\footnote{%s%s}"`)
+---@field default_footnote_command? string
+---(`org-latex-default-quote-environment`) (default: `"quote"`)
+---@field default_quote_environment? string
+---(`org-latex-footnote-defined-format`) (default: `"\\textsuperscript{\\ref{%s}}"`)
+---@field footnote_defined_format? string
+---(`org-latex-footnote-separator`) (default: `"\\textsuperscript{,}\\,"`)
+---@field footnote_separator? string
+---(`org-latex-format-drawer-function`) (default: `nil`)
+---@field format_drawer_function? fun(name: string, contents: string): string
+---(`org-latex-format-headline-function`) (default: `nil`)
+---@field format_headline_function? function
+---(`org-latex-format-inlinetask-function`) (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-latex-image-default-scale`) (default: `""`)
+---@field image_default_scale? string
+---(`org-latex-image-default-height`) (default: `""`)
+---@field image_default_height? string
+---(`org-latex-image-default-option`) (default: `""`)
+---@field image_default_option? string
+---(`org-latex-inline-image-rules`) (default: `nil` = the Emacs rules)
+---@field inline_image_rules? table<string, string[]>
+---(`org-latex-inputenc-alist`) (default: `{}`)
+---@field inputenc_alist? table<string, string>
+---(`org-latex-link-with-unknown-path-format`) (default: `"\\texttt{%s}"`)
+---@field link_with_unknown_path_format? string
+---(`org-latex-listings-langs`) (default: `nil` = the Emacs list)
+---@field listings_langs? string[][]
+---(`org-latex-listings-options`) (default: `{}`)
+---@field listings_options? string[][]
+---(`org-latex-listings-src-omit-language`) (default: `false`)
+---@field listings_src_omit_language? boolean
+---(`org-latex-logfiles-extensions`) (default: `nil` = the Emacs list)
+---@field logfiles_extensions? string[]
+---(`org-latex-minted-langs`) (default: `nil` = the Emacs list)
+---@field minted_langs? string[][]
+---(`org-latex-minted-options`) (default: `{}`)
+---@field minted_options? string[][]
+---(`org-latex-subtitle-format`) (default: `"\\\\\\medskip\n\\large %s"`)
+---@field subtitle_format? string
+---(`org-latex-subtitle-separate`) (default: `false`)
+---@field subtitle_separate? boolean
+---(`org-latex-table-scientific-notation`) (default: `nil`)
+---@field table_scientific_notation? string
+---(`org-latex-text-markup-alist`) (default: `nil` = the Emacs alist)
+---@field text_markup_alist? table<string, string>
+---(`org-latex-toc-include-unnumbered`) (default: `false`)
+---@field toc_include_unnumbered? boolean
 
 ---Texinfo back-end options (ox-texinfo).
 ---@class org.Config.Export.Texinfo
@@ -757,6 +1103,8 @@
 ---@field table_default_markup? string
 ---(`org-texinfo-table-scientific-notation`) (default: `nil`)
 ---@field table_scientific_notation? string
+---(`org-texinfo-tables-verbatim`) (default: `false`)
+---@field tables_verbatim? boolean
 ---(`org-texinfo-compact-itemx`) (default: `false`)
 ---@field compact_itemx? boolean
 ---(`org-texinfo-with-latex`): `true`, `false` or `"detect"` (use `@math` when
@@ -794,6 +1142,87 @@
 ---(default: `false`)
 ---@field use_pandoc? boolean
 
+---KOMA-Script letter back-end options (ox-koma-letter).
+---@class org.Config.Export.KomaLetter
+---(`org-koma-letter-default-class`), a class of `export.latex.classes` or
+---"default-koma-letter". (default: `"default-koma-letter"`)
+---@field default_class? string
+---(`org-koma-letter-class-option-file`), also `#+LCO:`. (default: `"NF"`)
+---@field class_option_file? string
+---(`org-koma-letter-author`): a string, a function returning one, or false.
+---(default: `nil` = `export.author` / the user's full name)
+---@field author? string|fun(): string|false
+---(`org-koma-letter-email`): a string, a function returning one, or false.
+---(default: `nil` = `export.email`)
+---@field email? string|fun(): string|false
+---(`org-koma-letter-from-address`), also `#+FROM_ADDRESS:`. (default: `""`)
+---@field from_address? string
+---(`org-koma-letter-phone-number`), also `#+PHONE_NUMBER:`. (default: `""`)
+---@field phone_number? string
+---(`org-koma-letter-url`), also `#+URL:`. (default: `""`)
+---@field url? string
+---(`org-koma-letter-from-logo`), also `#+FROM_LOGO:`. (default: `""`)
+---@field from_logo? string
+---(`org-koma-letter-place`), also `#+PLACE:`. (default: `""`)
+---@field place? string
+---(`org-koma-letter-location`), also `#+LOCATION:`. (default: `""`)
+---@field location? string
+---(`org-koma-letter-opening`), also `#+OPENING:`. (default: `""`)
+---@field opening? string
+---(`org-koma-letter-closing`), also `#+CLOSING:`. (default: `""`)
+---@field closing? string
+---(`org-koma-letter-signature`), also `#+SIGNATURE:`. (default: `""`)
+---@field signature? string
+---(`org-koma-letter-prefer-special-headings`), also `special-headings:`.
+---(default: `false`)
+---@field prefer_special_headings? boolean
+---(`org-koma-letter-subject-format`): true, false or a list of subject
+---options, also `subject:`. (default: `true`)
+---@field subject_format? boolean|string[]
+---(`org-koma-letter-use-backaddress`), also `backaddress:`. (default: `false`)
+---@field use_backaddress? boolean
+---(`org-koma-letter-use-foldmarks`): true, false or a list of marks, also
+---`foldmarks:`. (default: `true`)
+---@field use_foldmarks? boolean|string[]
+---(`org-koma-letter-use-phone`), also `phone:`. (default: `false`)
+---@field use_phone? boolean
+---(`org-koma-letter-use-url`), also `url:`. (default: `false`)
+---@field use_url? boolean
+---(`org-koma-letter-use-from-logo`), also `from-logo:`. (default: `false`)
+---@field use_from_logo? boolean
+---(`org-koma-letter-use-email`), also `email:`. (default: `false`)
+---@field use_email? boolean
+---(`org-koma-letter-use-place`), also `place:`. (default: `true`)
+---@field use_place? boolean
+---(`org-koma-letter-headline-is-opening-maybe`) (default: `true`)
+---@field headline_is_opening_maybe? boolean
+---(`org-koma-letter-prefer-subject`), also `title-subject:`. (default: `false`)
+---@field prefer_subject? boolean
+
+---Man page back-end options (ox-man).
+---@class org.Config.Export.Man
+---(`org-man-tables-centered`) (default: `true`)
+---@field tables_centered? boolean
+---(`org-man-tables-verbatim`) (default: `false`)
+---@field tables_verbatim? boolean
+---(`org-man-table-scientific-notation`), two `%s` for mantissa and exponent,
+---or false. (default: `"%sE%s"`)
+---@field table_scientific_notation? string|false
+---(`org-man-source-highlight`): highlight source blocks with GNU
+---source-highlight. (default: `false`)
+---@field source_highlight? boolean
+---(`org-man-source-highlight-langs`): Org language -> source-highlight
+---language. (default: `nil` = the Emacs map)
+---@field source_highlight_langs? table<string, string>
+---(`org-man-pdf-process`): shell commands with `%f %F %b %o %O`, or a
+---function(file). (default: `nil` = three runs of
+---`tbl %f | eqn | groff -man | ps2pdf - > %b.pdf`)
+---@field pdf_process? string[]|function
+---(`org-man-logfiles-extensions`) (default: `{ "log", "out", "toc" }`)
+---@field logfiles_extensions? string[]
+---(`org-man-remove-logfiles`) (default: `true`)
+---@field remove_logfiles? boolean
+
 ---Markdown back-end options (ox-md).
 ---@class org.Config.Export.Md
 ---(`org-md-headline-style`) (default: `"atx"`)
@@ -811,6 +1240,9 @@
 ---@class org.Config.Export.Org
 ---(`org-org-with-special-rows`) (default: `true`)
 ---@field with_special_rows? boolean
+---Stylesheet linked instead of the embedded one in the `FILE.org.html` of
+---`htmlized_source` publishing (`org-org-htmlized-css-url`). (default: `nil`)
+---@field htmlized_css_url? string
 
 ---Beamer back-end options (ox-beamer).
 ---@class org.Config.Export.Beamer
@@ -862,7 +1294,8 @@
 ---@field include_todo? boolean|"unblocked"|"all"|string[]
 ---(`org-icalendar-todo-unscheduled-start`) (default: `"recurring-deadline-warning"`)
 ---@field todo_unscheduled_start? string|false
----(`org-icalendar-include-sexps`); diary sexps are not supported. (default: `true`)
+---(`org-icalendar-include-sexps`): diary-anniversary, diary-block,
+---diary-cyclic, diary-float and diary-date sexps become VEVENTs. (default: `true`)
 ---@field include_sexps? boolean
 ---(`org-icalendar-include-body`): `true` or a number of characters. (default: `true`)
 ---@field include_body? boolean|integer
@@ -927,7 +1360,8 @@
 ---@field table_keep_all_vertical_lines? boolean
 ---(`org-ascii-table-widen-columns`) (default: `true`)
 ---@field table_widen_columns? boolean
----(`org-ascii-table-use-ascii-art`), not supported. (default: `false`)
+---(`org-ascii-table-use-ascii-art`): draw table.el tables with box
+---characters in UTF-8 exports (ascii-art-to-unicode). (default: `false`)
 ---@field table_use_ascii_art? boolean
 ---(`org-ascii-caption-above`) (default: `false`)
 ---@field caption_above? boolean
@@ -941,6 +1375,64 @@
 ---@field format_drawer_function? fun(name: string, contents: string, width: integer): string
 ---(`org-ascii-format-inlinetask-function`) (default: `nil`)
 ---@field format_inlinetask_function? function
+
+---ODT back-end options (ox-odt).
+---@class org.Config.Export.Odt
+---Export ODT with pandoc instead of the native back-end. (default: `false`)
+---@field use_pandoc? boolean
+---(`org-odt-styles-file`): a styles.xml, .odt or .ott file, or
+---`{ "file.ott", { "styles.xml", "image/hdr.png" } }`. (default: `nil` = factory styles)
+---@field styles_file? string|table
+---XML added to `<office:styles>` (also `#+ODT_EXTRA_STYLES`). (default: `nil`)
+---@field extra_styles? string
+---(`org-odt-content-template-file`) (default: `nil` = OrgOdtContentTemplate.xml)
+---@field content_template_file? string
+---(`org-odt-display-outline-level`) (default: `2`)
+---@field display_outline_level? integer
+---(`org-odt-fontify-srcblocks`), with tree-sitter highlights. (default: `true`)
+---@field fontify_srcblocks? boolean
+---(`org-odt-create-custom-styles-for-srcblocks`) (default: `true`)
+---@field create_custom_styles_for_srcblocks? boolean
+---(`org-odt-pixels-per-inch`) (default: `96`)
+---@field pixels_per_inch? number
+---(`org-odt-use-date-fields`) (default: `false`)
+---@field use_date_fields? boolean
+---(`org-odt-with-forbidden-chars`): replacement, `true` = keep, `false` = error.
+---(default: `""`)
+---@field with_forbidden_chars? string|boolean
+---(`org-odt-with-latex`): `true`/`"mathml"`, `"dvipng"`, ..., `"verbatim"`.
+---(default: `nil` = `export.with_latex`)
+---@field with_latex? boolean|string
+---(`org-latex-to-mathml-convert-command`), `%i` fragment, `%I` input file, `%o`
+---output file, `%j` jar file. (default: `nil`)
+---@field latex_to_mathml_convert_command? string
+---(`org-latex-to-mathml-jar-file`) (default: `nil`)
+---@field latex_to_mathml_jar_file? string
+---(`org-latex-mathml-directory`): cache of the MathML of LaTeX fragments,
+---relative to the Org file unless absolute. (default: `"ltxmathml/"`)
+---@field latex_mathml_directory? string
+---(`org-odt-inline-image-rules`) (default: `nil` = the Emacs rules)
+---@field inline_image_rules? table<string, string[]>
+---(`org-odt-inline-formula-rules`) (default: `nil` = the Emacs rules)
+---@field inline_formula_rules? table<string, string[]>
+---(`org-odt-table-styles`) (default: `nil` = the Emacs styles)
+---@field table_styles? table
+---(`org-odt-category-map-alist`) (default: `nil` = the Emacs map)
+---@field category_map_alist? table
+---(`org-odt-format-drawer-function`) (default: `nil`)
+---@field format_drawer_function? function
+---(`org-odt-format-headline-function`) (default: `nil`)
+---@field format_headline_function? function
+---(`org-odt-format-inlinetask-function`) (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-odt-preferred-output-format`), e.g. `"pdf"`. (default: `nil`)
+---@field preferred_output_format? string
+---(`org-odt-convert-process`) (default: `"LibreOffice"`)
+---@field convert_process? string
+---(`org-odt-convert-processes`) (default: `nil` = the Emacs list)
+---@field convert_processes? string[][]
+---(`org-odt-convert-capabilities`) (default: `nil` = the Emacs list)
+---@field convert_capabilities? table
 
 ---Citation export options (oc, oc-basic).
 ---@class org.Config.Export.Cite
@@ -967,6 +1459,45 @@
 ---@field biblatex_styles? table
 ---(`org-cite-biblatex-style-shortcuts`) (default: `nil` = the Emacs table)
 ---@field biblatex_style_shortcuts? table
+---(`org-cite-activate-processor`): false highlights without checking keys (default: `"basic"`)
+---@field activate_processor? string|false
+---(`org-cite-follow-processor`) (default: `"basic"`)
+---@field follow_processor? string|false
+---(`org-cite-insert-processor`) (default: `"basic"`)
+---@field insert_processor? string|false
+---(`org-cite-basic-max-key-distance`) (default: `2`)
+---@field basic_max_key_distance? integer
+---(`org-cite-basic-author-column-end`) (default: `25`)
+---@field basic_author_column_end? integer
+---(`org-cite-basic-column-separator`) (default: `"  "`)
+---@field basic_column_separator? string
+---(`org-cite-basic-complete-key-crm-separator`): a Vim regexp, `"dynamic"` or nil (default: `nil`)
+---@field basic_complete_key_crm_separator? string
+---(`org-cite-basic-mouse-over-key-face`): highlight group of the key under
+---the mouse, `"highlight"` = OrgCiteMouseOver; false = none (default: `"highlight"`)
+---@field basic_mouse_over_key_face? string|false
+---(`org-cite-csl-styles-dir`) (default: `nil`)
+---@field csl_styles_dir? string
+---(`org-cite-csl-locales-dir`): nil uses the bundled en-US locale only (default: `nil`)
+---@field csl_locales_dir? string
+---(`org-cite-csl-link-cites`) (default: `true`)
+---@field csl_link_cites? boolean
+---(`org-cite-csl-no-citelinks-backends`) (default: `{ "ascii" }`)
+---@field csl_no_citelinks_backends? string[]
+---(`org-cite-csl-html-hanging-indent`) (default: `"1.5em"`)
+---@field csl_html_hanging_indent? string
+---(`org-cite-csl-html-label-width-per-char`) (default: `"0.6em"`)
+---@field csl_html_label_width_per_char? string
+---(`org-cite-csl-latex-hanging-indent`) (default: `"1.5em"`)
+---@field csl_latex_hanging_indent? string
+---(`org-cite-csl-latex-label-separator`) (default: `"0.6em"`)
+---@field csl_latex_label_separator? string
+---(`org-cite-csl-latex-label-width-per-char`) (default: `"0.45em"`)
+---@field csl_latex_label_width_per_char? string
+---(`org-cite-csl-latex-preamble`): nil = the Emacs preamble (default: `nil`)
+---@field csl_latex_preamble? string
+---(`org-cite-csl-bibtex-titles-to-sentence-case`) (default: `true`)
+---@field csl_bibtex_titles_to_sentence_case? boolean
 
 ---Pandoc options (ODT/DOCX/RST/EPUB export).
 ---@class org.Config.Export.Pandoc
@@ -1087,9 +1618,49 @@
 ---element/object types plus `"body"`, `"final-output"`, `"parse-tree"` and
 ---`"options"`. (default: `{}`)
 ---@field filters? table<string, function|function[]>
+---Dispatcher scope at start (`org-export-initial-scope`). (default: `"buffer"`)
+---@field initial_scope? "buffer"|"subtree"
+---Dispatcher "body only" at start (`org-export-body-only`). (default: `false`)
+---@field body_only? boolean
+---Dispatcher "visible only" at start (`org-export-visible-only`). (default: `false`)
+---@field visible_only? boolean
+---Dispatcher "force publishing" at start (`org-export-force-publishing`).
+---(default: `false`)
+---@field force_publishing? boolean
+---Dispatcher "async" at start (`org-export-in-background`); results go to the
+---export stack. (default: `false`)
+---@field in_background? boolean
+---A Lua file run by the separate Neovim of asynchronous exports, which gets
+---the options without their Lua functions (`org-export-async-init-file`).
+---(default: `nil`)
+---@field async_init_file? string
+---A one-line prompt instead of the dispatcher menu
+---(`org-export-dispatch-use-expert-ui`). (default: `false`)
+---@field dispatch_use_expert_ui? boolean
+---Show the buffer of "As ... buffer" exports
+---(`org-export-show-temporary-export-buffer`). (default: `true`)
+---@field show_temporary_export_buffer? boolean
+---Copy the output to the unnamed register and the clipboard
+---(`org-export-copy-to-kill-ring`). (default: `false`)
+---@field copy_to_kill_ring? boolean|"if-interactive"
+---Encoding of exported files, an iconv name (`org-export-coding-system`).
+---(default: `nil` = UTF-8)
+---@field coding_system? string
+---Process citations with the citation processors
+---(`org-export-process-citations`). (default: `true`)
+---@field process_citations? boolean
+---Expand macros (`org-export-replace-macros`). (default: `true`)
+---@field replace_macros? boolean
+---Smart quotes per language; a language set here replaces its entry of the
+---Emacs table (`org-export-smart-quotes-alist`): `{ [lang] = { primary_opening = {
+---["utf-8"] = "“", html = "&ldquo;", latex = "``", texinfo = "``" }, ... } }`.
+---(default: `nil`)
+---@field smart_quotes_alist? table<string, table<string, table<string, string>>>
 ---@field html? org.Config.Export.Html
 ---@field latex? org.Config.Export.Latex
 ---@field texinfo? org.Config.Export.Texinfo
+---@field koma_letter? org.Config.Export.KomaLetter
+---@field man? org.Config.Export.Man
 ---@field md? org.Config.Export.Md
 ---@field org? org.Config.Export.Org
 ---@field beamer? org.Config.Export.Beamer
@@ -1097,6 +1668,7 @@
 ---@field publish? org.Config.Export.Publish
 ---@field ascii? org.Config.Export.Ascii
 ---@field cite? org.Config.Export.Cite
+---@field odt? org.Config.Export.Odt
 ---Legacy alias of `ascii.text_width`. (default: `72`)
 ---@field text_width? integer
 ---@field pandoc? org.Config.Export.Pandoc

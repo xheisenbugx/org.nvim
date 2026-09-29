@@ -1,0 +1,92 @@
+#+TITLE: blocks
+#+OPTIONS: date:nil prop:t d:t
+#+MAN_CLASS_OPTIONS: :section-id "3"
+#+MAN_HEADER: .\" not used by the template
+
+* EXAMPLES
+#+NAME: ex1
+#+begin_example
+a \ backslash
+  indented
+#+end_example
+
+#+begin_src sh
+echo "a\b" -n
+#+end_src
+
+Inline src_sh{ls -l} here.
+
+: fixed width
+:   line two
+
+#+NAME: q1
+#+begin_quote
+Quoted text.
+#+end_quote
+
+#+begin_verse
+Verse line one
+Verse two
+#+end_verse
+
+#+begin_center
+Centered
+text
+#+end_center
+
+#+begin_note
+Special block.
+#+end_note
+
+#+begin_export man
+.\" raw man
+#+end_export
+
+#+begin_export html
+<p>no</p>
+#+end_export
+
+#+MAN: .\" keyword
+#+HTML: <p>no</p>
+@@man:\fBsnippet\fP@@ @@html:<b>no</b>@@
+
+-----
+
+* TABLES
+| Name | Value |
+|------+-------|
+| a    | 1.5e3 |
+| b    | 2     |
+
+#+CAPTION: A caption
+#+ATTR_MAN: :expand t :placement left :boxtype allbox :divider t :title-line t
+| x | y |
+| 1 | 2 |
+
+#+ATTR_MAN: :long-cells t :placement center
+| long | cells |
+|------+-------|
+| c1   | c2    |
+
+#+ATTR_MAN: :verbatim t
+| v | w |
+|---+---|
+| 1 | 2 |
+
+#+NAME: tbl
+| <l>  | <r>   | <c>    |
+|------+-------+--------|
+| left | right | center |
+|------+-------+--------|
+
+| /  | <    | >   |
+| a  | b    | c   |
+
+* DRAWERS
+:PROPERTIES:
+:CUSTOM: val
+:EMPTY:
+:END:
+:NOTE:
+Drawer text.
+:END:

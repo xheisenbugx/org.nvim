@@ -115,12 +115,42 @@ function M.now()
   return Date.new({ year = t.year, month = t.month, day = t.day, hour = t.hour, min = t.min })
 end
 
+--- The last clock-out time of the subtree of `hl`: the end of the first
+--- closed CLOCK line after the headline (org-clock-get-last-clock-out-time).
+---@param hl? org.Headline
+---@return table|nil
+function M.last_clock_out(hl)
+  if not (hl and hl.file and hl.file.lines) then
+    return nil
+  end
+  local lines = hl.file.lines
+  local last = hl.end_line or #lines
+  for i = hl.line + 1, last do
+    local stop = lines[i] and lines[i]:match("^%s*CLOCK:.*%]%-%-(%[[^%]]+%])")
+    if stop then
+      local d = M.parse(stop)
+      if d then
+        return d:clone({ active = false })
+      end
+    end
+  end
+  return nil
+end
+
 --- The time recorded by CLOSED and log notes (org-current-effective-time):
---- with `use_effective_time`, before `extend_today_until` o'clock it is
---- 23:59 of the previous day.
-function M.effective_now()
+--- with `use_last_clock_out_time_as_effective_time` and a headline, the
+--- last clock-out time of its subtree; with `use_effective_time`, before
+--- `extend_today_until` o'clock it is 23:59 of the previous day.
+---@param hl? org.Headline
+function M.effective_now(hl)
   local now = M.now()
   local ok, config = pcall(require, "org.config")
+  if ok and config.opts.use_last_clock_out_time_as_effective_time then
+    local out = M.last_clock_out(hl)
+    if out then
+      return out
+    end
+  end
   if ok and config.opts.use_effective_time and now.hour < extend_today_until() then
     local y = now:add(-1, "d")
     return y:clone({ hour = 23, min = 59 })
@@ -702,7 +732,8 @@ end
 --- Next occurrence for a repeated timestamp when marked DONE (org-auto-repeat-maybe).
 ---@param ts table
 ---@param now? table defaults to M.now()
-function M.apply_repeater(ts, now)
+---@param today? table the day `.+` and `++` count from (default: org-today of `now`)
+function M.apply_repeater(ts, now, today)
   local r = ts.repeater
   if not r then
     return ts
@@ -714,7 +745,7 @@ function M.apply_repeater(ts, now)
     return ts
   end
   -- day repeaters count from org-today (`extend_today_until`)
-  local today = M.from_days(math.floor((now:minutes() - extend_today_until() * 60) / 1440))
+  today = today or M.from_days(math.floor((now:minutes() - extend_today_until() * 60) / 1440))
   if r.type == "+" then
     return ts:add_with_range(n, unit)
   elseif r.type == "++" then
@@ -1007,6 +1038,16 @@ end
 ---@param default? table default date (defaults to now)
 ---@return table|nil
 function M.read_date(input, default)
+  return (M.read_date_analyze(input, default))
+end
+
+--- `read_date`, also returning whether the date was pushed into the future
+--- by `read_date_prefer_future` (org-read-date-analyze-futurep, shown as
+--- "(=>F)" by the live date prompt).
+---@param input string
+---@param default? table
+---@return table|nil date, boolean futurep
+function M.read_date_analyze(input, default)
   local now = M.now()
   local prefer = require("org.config").opts.read_date_prefer_future
   if prefer == nil then
@@ -1224,9 +1265,11 @@ function M.read_date(input, default)
     and (tl.hour < now.hour or (tl.hour == now.hour and tl.min and tl.min < now.min))
   then
     day = day + 1
+    futurep = true
   end
 
   if iso_week then
+    futurep = false
     year = iso_year or year
     local d = iso_weekday or wday or 1
     local jan4 = M.days_from_civil(year, 1, 4)
@@ -1234,6 +1277,7 @@ function M.read_date(input, default)
     local abs = monday1 + (iso_week - 1) * 7 + (d == 0 and 6 or d - 1)
     year, month, day = M.civil_from_days(abs)
   elseif deltan then
+    futurep = false
     if not deltadef then
       day, month, year = now.day, now.month, now.year
     end
@@ -1270,7 +1314,7 @@ function M.read_date(input, default)
       result.end_hour, result.end_min = end_hour, end_min
     end
   end
-  return result
+  return result, futurep
 end
 
 return M

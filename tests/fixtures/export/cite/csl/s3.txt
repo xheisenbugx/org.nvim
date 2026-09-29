@@ -1,0 +1,32 @@
+Numbers [1–4] and a locator [5, pp. 45–9]. More [6] [7].
+
+
+Books
+=====
+
+  [1] D.E. Knuth, “The TeXbook,” 1984.
+
+  [2] D.E. Knuth, “The METAFONT book,” 1986.
+
+  [3] D.E. Knuth, “Computers and typesetting: Volume B,” 1986.
+
+
+Others
+======
+
+  [4] J. Smith, “A web page about über-things,”
+  <https://example.com/page>, 2020.
+
+  [5] L. Lamport & J. Doe, [“A document preparation system,]” /Journal
+  of typesetting/, xii, 45–67, 1986.
+
+  [6] A. Brown, B. Green, … D. Black, “A chapter in a book,” /The
+  collected essays/, 101–20, 2001.
+
+  [7] W. Ng, “A multi-year study,” /Journal of Long Studies/, v, 321–8,
+  2010–2012.
+
+  [8] World Health Organization, “Global report,” 2015.
+
+
+[“A document preparation system,] <https://doi.org/10.1000/xyz123>

@@ -111,6 +111,8 @@ function M.attach(bufnr)
       end
     end
   end
+  -- a click on a link follows it (links.mouse_1_follows_link)
+  require("org.mouse").attach(bufnr)
   -- text objects (synchronous)
   local to = maps.text_objects or {}
   local objs = {
@@ -132,7 +134,8 @@ local groups = {
   { "", "org" },
   { "i", "insert" },
   { "h", "heading/subtree" },
-  { "x", "clock" },
+  { "x", "clock/effort/preview" },
+  { "n", "narrow" },
   { "l", "links" },
   { "b", "babel" },
   { "T", "table" },
@@ -163,6 +166,8 @@ local agenda_help = {
       { "quit_kill", "Quit and kill the agenda buffer" },
       { "exit", "Exit and kill buffers the agenda opened" },
       { "save_all", "Save all org buffers" },
+      { "undo", "Undo the last edit made from the agenda" },
+      { "diary_entry", "Add a diary entry for the date" },
       { "export", "Write the agenda to a file" },
       { "append", "Append another agenda view" },
       { "delete_other_windows", "Delete other windows" },
@@ -213,6 +218,11 @@ local agenda_help = {
       { "show_scroll_down", "Scroll the entry window back" },
       { "recenter", "Show the entry, centered" },
       { "follow_mode", "Toggle follow mode" },
+      { "cycle_show", "Show the entry, cycling its visibility" },
+      { "show_1", "Show the entry with a level of detail" },
+      { "tree_to_indirect_buffer", "Edit the subtree in the other window" },
+      { "goto_mouse", "Go to the entry clicked" },
+      { "show_mouse", "Show the entry clicked" },
       { "open_link", "Open a link in the entry" },
       { "kill", "Delete the entry" },
     },
@@ -223,6 +233,7 @@ local agenda_help = {
       { "todo", "Change the TODO state" },
       { "todo_next", "Next TODO state" },
       { "todo_prev", "Previous TODO state" },
+      { "todo_yesterday", "Change the TODO state, logged yesterday 23:59" },
       { "priority", "Set the priority" },
       { "priority_up", "Raise the priority" },
       { "priority_down", "Lower the priority" },
@@ -241,6 +252,10 @@ local agenda_help = {
       { "deadline", "Set a deadline" },
       { "date_later", "Date one day later" },
       { "date_earlier", "Date one day earlier" },
+      { "date_later_hours", "Time one hour later" },
+      { "date_earlier_hours", "Time one hour earlier" },
+      { "date_later_minutes", "Time a few minutes later" },
+      { "date_earlier_minutes", "Time a few minutes earlier" },
       { "date_prompt", "Change the date" },
     },
   },
@@ -261,6 +276,7 @@ local agenda_help = {
       { "refile", "Refile" },
       { "archive", "Archive the subtree" },
       { "archive_default", "Archive (default command)" },
+      { "archive_default_confirm", "Archive (default command), after confirmation" },
       { "archive_sibling", "Archive to the Archive sibling" },
       { "toggle_archive_tag", "Toggle the ARCHIVE tag" },
     },
@@ -279,6 +295,8 @@ local agenda_help = {
       { "time_grid", "Toggle the time grid" },
       { "toggle_deadlines", "Toggle upcoming deadlines" },
       { "toggle_diary", "Toggle the Emacs diary" },
+      { "toggle_habits_display", "Toggle habits (count: all habits today)" },
+      { "toggle_habits", "Toggle habits" },
       { "dim_blocked", "Toggle dimming blocked tasks" },
     },
   },

@@ -435,6 +435,148 @@ for _, e in ipairs(M.list) do
   end
 end
 
+--- Section titles of `org-entities` (shown by `help`), by the index in
+--- `M.list` of the first entity under them.
+M.sections = {
+  [1] = { "* Letters", "** Latin" },
+  [69] = { "** Latin (special face)" },
+  [76] = { "** Greek" },
+  [135] = { "** Hebrew" },
+  [140] = { "** Icelandic" },
+  [144] = { "* Punctuation", "** Dots and Marks" },
+  [150] = { "** Dash-like" },
+  [153] = { "** Quotations" },
+  [165] = { "* Other", "** Misc. (often used)" },
+  [186] = { "** Whitespace" },
+  [190] = { "** Currency" },
+  [198] = { "** Property Marks" },
+  [201] = { "** Science et al." },
+  [305] = { "** Arrows" },
+  [329] = { "** Function names" },
+  [361] = { "** Signs & Symbols" },
+  [371] = { "** Miscellaneous (seldom used)" },
+  [380] = { "** Smilies" },
+  [384] = { "** Suits" },
+}
+
+--- The user entities in effect (`entities_user`, org-entities-user), in the
+--- `M.list` format.
+M.user = {}
+
+local saved = {} -- name -> { by_name = ..., export = ... } before apply_user
+
+--- Make the entities of `entities_user` (org-entities-user) known for
+--- display, completion and export. They take precedence over built-in
+--- entities of the same name (the first one wins). Called by `setup()`;
+--- call it again after changing the option.
+---@param user? table[] `{ name, latex, math, html, ascii, latin1, utf8 }` entries
+function M.apply_user(user)
+  user = user or require("org.config").opts.entities_user or {}
+  local export = require("org.export.entities")
+  local ast = package.loaded["org.export.ast"]
+  local touched = {}
+  for name, old in pairs(saved) do
+    M.by_name[name] = old.by_name
+    export[name] = old.export
+    touched[name] = true
+  end
+  saved = {}
+  M.user = {}
+  for _, e in ipairs(user) do
+    local name = type(e) == "table" and e[1]
+    if type(name) == "string" and name ~= "" and not saved[name] then
+      local entry = {
+        name,
+        e[2] or "",
+        e[3] == true,
+        e[4] or "",
+        e[5] or "",
+        e[6] or "",
+        e[7] or "",
+      }
+      saved[name] = { by_name = M.by_name[name], export = export[name] }
+      M.user[#M.user + 1] = entry
+      M.by_name[name] = entry
+      export[name] = { entry[2], entry[3], entry[4], entry[5], entry[6], entry[7] }
+      touched[name] = true
+    end
+  end
+  if ast and ast.ENTITIES then
+    for name in pairs(touched) do
+      local e = export[name]
+      ast.ENTITIES[name] = e and { e[3], e[6], e[2] and ("$" .. e[1] .. "$") or e[1] } or nil
+    end
+  end
+end
+
+--- Lines of the entity help buffer (org-entities-help): the user entities,
+--- then every entity of org-entities under its section titles.
+---@return string[]
+function M.help_lines()
+  local out = { "Org mode entities", "=================", "" }
+  local head = {
+    "",
+    "   Symbol   Org entity        LaTeX code             HTML code",
+    "   -----------------------------------------------------------",
+  }
+  -- `format` pads to a display width (format characters such as the
+  -- zero-width joiners have none)
+  local function pad(str, n)
+    local visible = vim.fn.substitute(str, "[\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\ufeff]", "", "g")
+    return str .. string.rep(" ", n - vim.fn.strdisplaywidth(visible))
+  end
+  local last_was_string = true
+  local function add_title(t)
+    out[#out + 1] = t
+    last_was_string = true
+  end
+  local function add(e)
+    if last_was_string then
+      vim.list_extend(out, head)
+      last_was_string = false
+    end
+    out[#out + 1] = "   " .. pad(e[7], 8) .. " \\" .. pad(e[1], 16) .. " " .. pad(e[2], 22) .. " " .. pad(e[4], 13)
+  end
+  add_title("* User-defined additions (variable org-entities-user)")
+  for _, e in ipairs(M.user) do
+    add(e)
+  end
+  for i, e in ipairs(M.list) do
+    for _, t in ipairs(M.sections[i] or {}) do
+      add_title(t)
+    end
+    add(e)
+  end
+  return out
+end
+
+--- Show every entity in a help buffer (org-entities-help).
+function M.help()
+  local lines = M.help_lines()
+  local name = "*Org Entity Help*"
+  local buf = vim.fn.bufnr(name)
+  if buf == -1 then
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buf, name)
+  end
+  vim.bo[buf].modifiable = true
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].bufhidden = "wipe"
+  -- shown as typed (Emacs turns org-pretty-entities off there)
+  vim.b[buf].org_pretty_entities = false
+  local win = vim.fn.bufwinid(buf)
+  if win == -1 then
+    vim.cmd("botright split")
+    vim.api.nvim_win_set_buf(0, buf)
+  else
+    vim.api.nvim_set_current_win(win)
+  end
+  vim.bo[buf].filetype = "org"
+  vim.keymap.set("n", "q", "<Cmd>close<CR>", { buffer = buf, nowait = true, desc = "Close" })
+  return buf
+end
+
 --- The UTF-8 text shown for entity `name` (pretty_entities), or nil.
 function M.utf8(name)
   local e = M.by_name[name]

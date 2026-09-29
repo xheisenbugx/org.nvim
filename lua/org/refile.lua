@@ -34,6 +34,9 @@ local function spec_files(v, bufnr)
     return utils.is_org(bufnr) and { files.get_buffer(bufnr) } or {}
   elseif v == "agenda" then
     return files.agenda_files()
+  elseif v == "id" then
+    -- the files holding known IDs (org-id-files)
+    v = require("org.id").id_files()
   end
   local out = {}
   for _, p in ipairs(utils.glob_org_files(type(v) == "table" and v or { v })) do
@@ -567,11 +570,15 @@ end
 --- Where the last refile / capture went: { filename|bufnr, lnum, raw }.
 M.last_stored = nil
 
---- Remember the headline at (bufnr, lnum) as the last stored location.
-function M.remember(bufnr, lnum)
+--- Remember the headline at (bufnr, lnum) as the last stored location,
+--- and set the `kind` bookmark ("last_refile" or "last_capture", see
+--- `bookmark_names`), which lasts across sessions.
+function M.remember(bufnr, lnum, kind)
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   local name = vim.api.nvim_buf_get_name(bufnr)
   M.last_stored = { bufnr = bufnr, filename = name ~= "" and name or nil, lnum = lnum, raw = line }
+  M.last_stored_kind = kind
+  require("org.bookmarks").set(kind or "last_refile", bufnr, lnum)
 end
 
 --- Log a refile note under the moved entry (org-log-refile).
@@ -594,9 +601,15 @@ local function log_refile(bufnr, lnum, mode)
   end
 end
 
-local function with_note_order(dest)
-  if dest.prepend == nil and (config.opts.refile or {}).reverse_note_order then
-    return vim.tbl_extend("force", dest, { prepend = true })
+local function with_note_order(dest, invert)
+  if dest.prepend == nil then
+    local reversed = (config.opts.refile or {}).reverse_note_order and true or false
+    if invert then
+      reversed = not reversed
+    end
+    if reversed then
+      return vim.tbl_extend("force", dest, { prepend = true })
+    end
   end
   return dest
 end
@@ -696,7 +709,7 @@ function M.refile(target, opts)
   if not dest then
     return
   end
-  dest = with_note_order(dest)
+  dest = with_note_order(dest, opts.reverse)
   local title = hl:plain_title()
   local ok, dbuf, dline
   if copy then
@@ -728,7 +741,7 @@ function M.refile(target, opts)
   else
     log_refile(dbuf, dline)
   end
-  M.remember(dbuf, dline)
+  M.remember(dbuf, dline, "last_refile")
   if dbuf ~= bufnr then
     save_if_hidden(dbuf)
   end
@@ -738,6 +751,15 @@ function M.refile(target, opts)
   local where = (dest.path or dest.label):gsub("/$", "")
   utils.notify((opts.copy and "Copied" or "Refiled") .. ' "' .. title .. '" to ' .. where)
   return dbuf, dline
+end
+
+--- Refile with `refile.reverse_note_order` inverted (org-refile-reverse):
+--- the entry becomes the first child of the target instead of the last,
+--- or the other way round.
+---@param target? org.Target
+---@param opts? table as for `refile()`
+function M.refile_reverse(target, opts)
+  return M.refile(target, vim.tbl_extend("force", opts or {}, { reverse = true }))
 end
 
 --- Copy the subtree at target to another location (org-refile-copy).
@@ -764,36 +786,19 @@ end
 
 --- Jump to the location of the last refile or capture
 --- (org-refile-goto-last-stored, C-u C-u C-c C-w).
-function M.goto_last_stored()
+--- In a new session, the saved bookmark `bookmark` ("last_refile" or
+--- "last_capture") is used.
+function M.goto_last_stored(bookmark)
+  local bookmarks = require("org.bookmarks")
   local l = M.last_stored
+  if not l then
+    l = bookmarks.get(bookmarks.name(bookmark or "last_refile"))
+  end
   if not l then
     utils.warn("No refile or capture location stored yet")
     return
   end
-  local bufnr = l.bufnr
-  if not (bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
-    bufnr = l.filename and utils.load_buffer(l.filename) or nil
-  end
-  if not bufnr then
-    utils.warn("The last stored location is gone")
-    return
-  end
-  local lnum = l.lnum
-  if vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] ~= l.raw then
-    for i, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-      if line == l.raw then
-        lnum = i
-        break
-      end
-    end
-  end
-  vim.cmd("normal! m'")
-  if vim.api.nvim_buf_get_name(bufnr) ~= "" then
-    utils.open_file(vim.api.nvim_buf_get_name(bufnr), lnum)
-  else
-    vim.api.nvim_set_current_buf(bufnr)
-    pcall(vim.api.nvim_win_set_cursor, 0, { lnum, 0 })
-  end
+  bookmarks.goto_location(l)
 end
 
 return M

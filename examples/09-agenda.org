@@ -744,7 +744,7 @@ plumber", "Team standup". =1~= shows all of them again.
 | =E=       | entry text: the first body lines under each line (=vE=)     |
 | =v[=      | include inactive timestamps                                 |
 | =va= =vA= | include archived trees / also the archive files             |
-| =G=       | time grid on / off (=vG=)                                   |
+| =vG=      | time grid on / off (Emacs =G=)                              |
 | =!=       | deadlines on / off (=v!=)                                   |
 | =#=       | dim blocked TODOs on / off                                  |
 | =D=       | the Emacs diary file on / off                               |
@@ -812,7 +812,7 @@ inactive timestamp with the leader =[=. =v[= again hides it.
 
 *Try:* press =!=.
 *Expect:* every =Deadline:=, =In N d.:= and =N d. ago:= line disappears
-("Deadlines hidden"). =!= again brings them back. =G= does the same for the
+("Deadlines hidden"). =!= again brings them back. =vG= does the same for the
 time grid of today.
 
 ** Dimmed blocked tasks

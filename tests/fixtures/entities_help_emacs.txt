@@ -1,0 +1,502 @@
+Org mode entities
+=================
+
+* User-defined additions (variable org-entities-user)
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ☃        \snowman          \diamond               &#9731;      
+   Ⓐ        \alpha            A                      &A;          
+* Letters
+** Latin
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   À        \Agrave           \`{A}                  &Agrave;     
+   à        \agrave           \`{a}                  &agrave;     
+   Á        \Aacute           \'{A}                  &Aacute;     
+   á        \aacute           \'{a}                  &aacute;     
+   Â        \Acirc            \^{A}                  &Acirc;      
+   â        \acirc            \^{a}                  &acirc;      
+   Ã        \Amacr            \={A}                  &Amacr;      
+   ã        \amacr            \={a}                  &amacr;      
+   Ã        \Atilde           \~{A}                  &Atilde;     
+   ã        \atilde           \~{a}                  &atilde;     
+   Ä        \Auml             \"{A}                  &Auml;       
+   ä        \auml             \"{a}                  &auml;       
+   Å        \Aring            \AA{}                  &Aring;      
+   Å        \AA               \AA{}                  &Aring;      
+   å        \aring            \aa{}                  &aring;      
+   Æ        \AElig            \AE{}                  &AElig;      
+   æ        \aelig            \ae{}                  &aelig;      
+   Ç        \Ccedil           \c{C}                  &Ccedil;     
+   ç        \ccedil           \c{c}                  &ccedil;     
+   È        \Egrave           \`{E}                  &Egrave;     
+   è        \egrave           \`{e}                  &egrave;     
+   É        \Eacute           \'{E}                  &Eacute;     
+   é        \eacute           \'{e}                  &eacute;     
+   Ê        \Ecirc            \^{E}                  &Ecirc;      
+   ê        \ecirc            \^{e}                  &ecirc;      
+   Ë        \Euml             \"{E}                  &Euml;       
+   ë        \euml             \"{e}                  &euml;       
+   Ì        \Igrave           \`{I}                  &Igrave;     
+   ì        \igrave           \`{i}                  &igrave;     
+   Í        \Iacute           \'{I}                  &Iacute;     
+   í        \iacute           \'{i}                  &iacute;     
+   İ        \Idot             \.{I}                  &idot;       
+   ı        \inodot           \i                     &inodot;     
+   Î        \Icirc            \^{I}                  &Icirc;      
+   î        \icirc            \^{i}                  &icirc;      
+   Ï        \Iuml             \"{I}                  &Iuml;       
+   ï        \iuml             \"{i}                  &iuml;       
+   Ñ        \Ntilde           \~{N}                  &Ntilde;     
+   ñ        \ntilde           \~{n}                  &ntilde;     
+   Ò        \Ograve           \`{O}                  &Ograve;     
+   ò        \ograve           \`{o}                  &ograve;     
+   Ó        \Oacute           \'{O}                  &Oacute;     
+   ó        \oacute           \'{o}                  &oacute;     
+   Ô        \Ocirc            \^{O}                  &Ocirc;      
+   ô        \ocirc            \^{o}                  &ocirc;      
+   Õ        \Otilde           \~{O}                  &Otilde;     
+   õ        \otilde           \~{o}                  &otilde;     
+   Ö        \Ouml             \"{O}                  &Ouml;       
+   ö        \ouml             \"{o}                  &ouml;       
+   Ø        \Oslash           \O                     &Oslash;     
+   ø        \oslash           \o{}                   &oslash;     
+   Œ        \OElig            \OE{}                  &OElig;      
+   œ        \oelig            \oe{}                  &oelig;      
+   Š        \Scaron           \v{S}                  &Scaron;     
+   š        \scaron           \v{s}                  &scaron;     
+   ß        \szlig            \ss{}                  &szlig;      
+   Ù        \Ugrave           \`{U}                  &Ugrave;     
+   ù        \ugrave           \`{u}                  &ugrave;     
+   Ú        \Uacute           \'{U}                  &Uacute;     
+   ú        \uacute           \'{u}                  &uacute;     
+   Û        \Ucirc            \^{U}                  &Ucirc;      
+   û        \ucirc            \^{u}                  &ucirc;      
+   Ü        \Uuml             \"{U}                  &Uuml;       
+   ü        \uuml             \"{u}                  &uuml;       
+   Ý        \Yacute           \'{Y}                  &Yacute;     
+   ý        \yacute           \'{y}                  &yacute;     
+   Ÿ        \Yuml             \"{Y}                  &Yuml;       
+   ÿ        \yuml             \"{y}                  &yuml;       
+** Latin (special face)
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ƒ        \fnof             \textit{f}             &fnof;       
+   ℜ        \real             \Re                    &real;       
+   ℑ        \image            \Im                    &image;      
+   ℘        \weierp           \wp                    &weierp;     
+   ℓ        \ell              \ell                   &ell;        
+   ı        \imath            \imath                 &imath;      
+   ȷ        \jmath            \jmath                 &jmath;      
+** Greek
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   Α        \Alpha            A                      &Alpha;      
+   α        \alpha            \alpha                 &alpha;      
+   Β        \Beta             B                      &Beta;       
+   β        \beta             \beta                  &beta;       
+   Γ        \Gamma            \Gamma                 &Gamma;      
+   γ        \gamma            \gamma                 &gamma;      
+   Δ        \Delta            \Delta                 &Delta;      
+   δ        \delta            \delta                 &delta;      
+   Ε        \Epsilon          E                      &Epsilon;    
+   ε        \epsilon          \epsilon               &epsilon;    
+   ε        \varepsilon       \varepsilon            &epsilon;    
+   Ζ        \Zeta             Z                      &Zeta;       
+   ζ        \zeta             \zeta                  &zeta;       
+   Η        \Eta              H                      &Eta;        
+   η        \eta              \eta                   &eta;        
+   Θ        \Theta            \Theta                 &Theta;      
+   θ        \theta            \theta                 &theta;      
+   ϑ        \thetasym         \vartheta              &thetasym;   
+   ϑ        \vartheta         \vartheta              &thetasym;   
+   Ι        \Iota             I                      &Iota;       
+   ι        \iota             \iota                  &iota;       
+   Κ        \Kappa            K                      &Kappa;      
+   κ        \kappa            \kappa                 &kappa;      
+   Λ        \Lambda           \Lambda                &Lambda;     
+   λ        \lambda           \lambda                &lambda;     
+   Μ        \Mu               M                      &Mu;         
+   μ        \mu               \mu                    &mu;         
+   ν        \nu               \nu                    &nu;         
+   Ν        \Nu               N                      &Nu;         
+   Ξ        \Xi               \Xi                    &Xi;         
+   ξ        \xi               \xi                    &xi;         
+   Ο        \Omicron          O                      &Omicron;    
+   ο        \omicron          \textit{o}             &omicron;    
+   Π        \Pi               \Pi                    &Pi;         
+   π        \pi               \pi                    &pi;         
+   Ρ        \Rho              P                      &Rho;        
+   ρ        \rho              \rho                   &rho;        
+   Σ        \Sigma            \Sigma                 &Sigma;      
+   σ        \sigma            \sigma                 &sigma;      
+   ς        \sigmaf           \varsigma              &sigmaf;     
+   ς        \varsigma         \varsigma              &sigmaf;     
+   Τ        \Tau              T                      &Tau;        
+   Υ        \Upsilon          \Upsilon               &Upsilon;    
+   ϒ        \upsih            \Upsilon               &upsih;      
+   υ        \upsilon          \upsilon               &upsilon;    
+   Φ        \Phi              \Phi                   &Phi;        
+   ɸ        \phi              \phi                   &phi;        
+   φ        \varphi           \varphi                &varphi;     
+   Χ        \Chi              X                      &Chi;        
+   χ        \chi              \chi                   &chi;        
+   𝑥́        \acutex           \acute x               &acute;x     
+   Ψ        \Psi              \Psi                   &Psi;        
+   ψ        \psi              \psi                   &psi;        
+   τ        \tau              \tau                   &tau;        
+   Ω        \Omega            \Omega                 &Omega;      
+   ω        \omega            \omega                 &omega;      
+   ϖ        \piv              \varpi                 &piv;        
+   ϖ        \varpi            \varpi                 &piv;        
+   ∂        \partial          \partial               &part;       
+** Hebrew
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ℵ        \alefsym          \aleph                 &alefsym;    
+   ℵ        \aleph            \aleph                 &aleph;      
+   ℷ        \gimel            \gimel                 &gimel;      
+   ב        \beth             \beth                  &beth;       
+   ד        \dalet            \daleth                &daleth;     
+** Icelandic
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   Ð        \ETH              \DH{}                  &ETH;        
+   ð        \eth              \dh{}                  &eth;        
+   Þ        \THORN            \TH{}                  &THORN;      
+   þ        \thorn            \th{}                  &thorn;      
+* Punctuation
+** Dots and Marks
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   …        \dots             \dots{}                &hellip;     
+   ⋯        \cdots            \cdots{}               &ctdot;      
+   …        \hellip           \dots{}                &hellip;     
+   ·        \middot           \textperiodcentered{}  &middot;     
+   ¡        \iexcl            !`                     &iexcl;      
+   ¿        \iquest           ?`                     &iquest;     
+** Dash-like
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+            \shy              \-                     &shy;        
+   –        \ndash            --                     &ndash;      
+   —        \mdash            ---                    &mdash;      
+** Quotations
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   "        \quot             \textquotedbl{}        &quot;       
+   ´        \acute            \textasciiacute{}      &acute;      
+   “        \ldquo            \textquotedblleft{}    &ldquo;      
+   ”        \rdquo            \textquotedblright{}   &rdquo;      
+   „        \bdquo            \quotedblbase{}        &bdquo;      
+   ‘        \lsquo            \textquoteleft{}       &lsquo;      
+   ’        \rsquo            \textquoteright{}      &rsquo;      
+   ‚        \sbquo            \quotesinglbase{}      &sbquo;      
+   «        \laquo            \guillemotleft{}       &laquo;      
+   »        \raquo            \guillemotright{}      &raquo;      
+   ‹        \lsaquo           \guilsinglleft{}       &lsaquo;     
+   ›        \rsaquo           \guilsinglright{}      &rsaquo;     
+* Other
+** Misc. (often used)
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ∘        \circ             \^{}                   &circ;       
+   |        \vert             \vert{}                &vert;       
+   |        \vbar             |                      |            
+   ¦        \brvbar           \textbrokenbar{}       &brvbar;     
+   §        \S                \S                     &sect;       
+   §        \sect             \S                     &sect;       
+   ¶        \P                \P{}                   &para;       
+   ¶        \para             \P{}                   &para;       
+   &        \amp              \&                     &amp;        
+   <        \lt               \textless{}            &lt;         
+   >        \gt               \textgreater{}         &gt;         
+   ~        \tilde            \textasciitilde{}      ~            
+   /        \slash            /                      /            
+   +        \plus             +                      +            
+   _        \under            \_                     _            
+   =        \equal            =                      =            
+   ^        \asciicirc        \textasciicircum{}     ^            
+   †        \dagger           \textdagger{}          &dagger;     
+   †        \dag              \dag{}                 &dagger;     
+   ‡        \Dagger           \textdaggerdbl{}       &Dagger;     
+   ‡        \ddag             \ddag{}                &Dagger;     
+** Whitespace
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+            \nbsp             ~                      &nbsp;       
+            \ensp             \hspace*{.5em}         &ensp;       
+            \emsp             \hspace*{1em}          &emsp;       
+            \thinsp           \hspace*{.2em}         &thinsp;     
+** Currency
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ¤        \curren           \textcurrency{}        &curren;     
+   ¢        \cent             \textcent{}            &cent;       
+   £        \pound            \pounds{}              &pound;      
+   ¥        \yen              \textyen{}             &yen;        
+   €        \euro             \texteuro{}            &euro;       
+   €        \EUR              \texteuro{}            &euro;       
+   $        \dollar           \$                     $            
+   $        \USD              \$                     $            
+** Property Marks
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ©        \copy             \textcopyright{}       &copy;       
+   ®        \reg              \textregistered{}      &reg;        
+   ™        \trade            \texttrademark{}       &trade;      
+** Science et al.
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   −        \minus            -                      &minus;      
+   ±        \pm               \textpm{}              &plusmn;     
+   ±        \plusmn           \textpm{}              &plusmn;     
+   ×        \times            \texttimes{}           &times;      
+   ⁄        \frasl            /                      &frasl;      
+   :        \colon            \colon                 :            
+   ÷        \div              \textdiv{}             &divide;     
+   ½        \frac12           \textonehalf{}         &frac12;     
+   ¼        \frac14           \textonequarter{}      &frac14;     
+   ¾        \frac34           \textthreequarters{}   &frac34;     
+   ‰        \permil           \textperthousand{}     &permil;     
+   ¹        \sup1             \textonesuperior{}     &sup1;       
+   ²        \sup2             \texttwosuperior{}     &sup2;       
+   ³        \sup3             \textthreesuperior{}   &sup3;       
+   √        \radic            \sqrt{\,}              &radic;      
+   ∑        \sum              \sum                   &sum;        
+   ∏        \prod             \prod                  &prod;       
+   µ        \micro            \textmu{}              &micro;      
+   ¯        \macr             \textasciimacron{}     &macr;       
+   °        \deg              \textdegree{}          &deg;        
+   ′        \prime            \prime                 &prime;      
+   ″        \Prime            \prime{}\prime         &Prime;      
+   ∞        \infin            \infty                 &infin;      
+   ∞        \infty            \infty                 &infin;      
+   ∝        \prop             \propto                &prop;       
+   ∝        \propto           \propto                &prop;       
+   ¬        \not              \textlnot{}            &not;        
+   ¬        \neg              \neg{}                 &not;        
+   ∧        \land             \land                  &and;        
+   ∧        \wedge            \wedge                 &and;        
+   ∨        \lor              \lor                   &or;         
+   ∨        \vee              \vee                   &or;         
+   ∩        \cap              \cap                   &cap;        
+   ∪        \cup              \cup                   &cup;        
+   ⌣        \smile            \smile                 &smile;      
+   ⌢        \frown            \frown                 &frown;      
+   ∫        \int              \int                   &int;        
+   ∴        \therefore        \therefore             &there4;     
+   ∴        \there4           \therefore             &there4;     
+   ∵        \because          \because               &because;    
+   ∼        \sim              \sim                   &sim;        
+   ≅        \cong             \cong                  &cong;       
+   ≅        \simeq            \simeq                 &cong;       
+   ≈        \asymp            \asymp                 &asymp;      
+   ≈        \approx           \approx                &asymp;      
+   ≠        \ne               \ne                    &ne;         
+   ≠        \neq              \neq                   &ne;         
+   ≡        \equiv            \equiv                 &equiv;      
+   ≜        \triangleq        \triangleq             &triangleq;  
+   ≤        \le               \le                    &le;         
+   ≤        \leq              \le                    &le;         
+   ≥        \ge               \ge                    &ge;         
+   ≥        \geq              \ge                    &ge;         
+   ≶        \lessgtr          \lessgtr               &lessgtr;    
+   ⋚        \lesseqgtr        \lesseqgtr             &lesseqgtr;  
+   ≪        \ll               \ll                    &Lt;         
+   ⋘        \Ll               \lll                   &Ll;         
+   ⋘        \lll              \lll                   &Ll;         
+   ≫        \gg               \gg                    &Gt;         
+   ⋙        \Gg               \ggg                   &Gg;         
+   ⋙        \ggg              \ggg                   &Gg;         
+   ≺        \prec             \prec                  &pr;         
+   ≼        \preceq           \preceq                &prcue;      
+   ≼        \preccurlyeq      \preccurlyeq           &prcue;      
+   ≻        \succ             \succ                  &sc;         
+   ≽        \succeq           \succeq                &sccue;      
+   ≽        \succcurlyeq      \succcurlyeq           &sccue;      
+   ⊂        \sub              \subset                &sub;        
+   ⊂        \subset           \subset                &sub;        
+   ⊃        \sup              \supset                &sup;        
+   ⊃        \supset           \supset                &sup;        
+   ⊄        \nsub             \not\subset            &nsub;       
+   ⊆        \sube             \subseteq              &sube;       
+   ⊅        \nsup             \not\supset            &nsup;       
+   ⊇        \supe             \supseteq              &supe;       
+   ⧵        \setminus         \setminus              &setminus;   
+   ∀        \forall           \forall                &forall;     
+   ∃        \exist            \exists                &exist;      
+   ∃        \exists           \exists                &exist;      
+   ∄        \nexist           \nexists               &exist;      
+   ∄        \nexists          \nexists               &exist;      
+   ∅        \empty            \emptyset              &empty;      
+   ∅        \emptyset         \emptyset              &empty;      
+   ∈        \isin             \in                    &isin;       
+   ∈        \in               \in                    &isin;       
+   ∉        \notin            \notin                 &notin;      
+   ∋        \ni               \ni                    &ni;         
+   ∇        \nabla            \nabla                 &nabla;      
+   ∠        \ang              \angle                 &ang;        
+   ∠        \angle            \angle                 &ang;        
+   ⊥        \perp             \perp                  &perp;       
+   ∥        \parallel         \parallel              &parallel;   
+   ⋅        \sdot             \cdot                  &sdot;       
+   ⋅        \cdot             \cdot                  &sdot;       
+   ⌈        \lceil            \lceil                 &lceil;      
+   ⌉        \rceil            \rceil                 &rceil;      
+   ⌊        \lfloor           \lfloor                &lfloor;     
+   ⌋        \rfloor           \rfloor                &rfloor;     
+   ⟨        \lang             \langle                &lang;       
+   ⟩        \rang             \rangle                &rang;       
+   ⟨        \langle           \langle                &lang;       
+   ⟩        \rangle           \rangle                &rang;       
+   ℏ        \hbar             \hbar                  &hbar;       
+   ℧        \mho              \mho                   &mho;        
+** Arrows
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ←        \larr             \leftarrow             &larr;       
+   ←        \leftarrow        \leftarrow             &larr;       
+   ←        \gets             \gets                  &larr;       
+   ⇐        \lArr             \Leftarrow             &lArr;       
+   ⇐        \Leftarrow        \Leftarrow             &lArr;       
+   ↑        \uarr             \uparrow               &uarr;       
+   ↑        \uparrow          \uparrow               &uarr;       
+   ⇑        \uArr             \Uparrow               &uArr;       
+   ⇑        \Uparrow          \Uparrow               &uArr;       
+   →        \rarr             \rightarrow            &rarr;       
+   →        \to               \to                    &rarr;       
+   →        \rightarrow       \rightarrow            &rarr;       
+   ⇒        \rArr             \Rightarrow            &rArr;       
+   ⇒        \Rightarrow       \Rightarrow            &rArr;       
+   ↓        \darr             \downarrow             &darr;       
+   ↓        \downarrow        \downarrow             &darr;       
+   ⇓        \dArr             \Downarrow             &dArr;       
+   ⇓        \Downarrow        \Downarrow             &dArr;       
+   ↔        \harr             \leftrightarrow        &harr;       
+   ↔        \leftrightarrow   \leftrightarrow        &harr;       
+   ⇔        \hArr             \Leftrightarrow        &hArr;       
+   ⇔        \Leftrightarrow   \Leftrightarrow        &hArr;       
+   ↵        \crarr            \hookleftarrow         &crarr;      
+   ↵        \hookleftarrow    \hookleftarrow         &crarr;      
+** Function names
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   arccos   \arccos           \arccos                arccos       
+   arcsin   \arcsin           \arcsin                arcsin       
+   arctan   \arctan           \arctan                arctan       
+   arg      \arg              \arg                   arg          
+   cos      \cos              \cos                   cos          
+   cosh     \cosh             \cosh                  cosh         
+   cot      \cot              \cot                   cot          
+   coth     \coth             \coth                  coth         
+   csc      \csc              \csc                   csc          
+   deg      \deg              \deg                   &deg;        
+   det      \det              \det                   det          
+   dim      \dim              \dim                   dim          
+   exp      \exp              \exp                   exp          
+   gcd      \gcd              \gcd                   gcd          
+   hom      \hom              \hom                   hom          
+   inf      \inf              \inf                   inf          
+   ker      \ker              \ker                   ker          
+   lg       \lg               \lg                    lg           
+   lim      \lim              \lim                   lim          
+   liminf   \liminf           \liminf                liminf       
+   limsup   \limsup           \limsup                limsup       
+   ln       \ln               \ln                    ln           
+   log      \log              \log                   log          
+   max      \max              \max                   max          
+   min      \min              \min                   min          
+   Pr       \Pr               \Pr                    Pr           
+   sec      \sec              \sec                   sec          
+   sin      \sin              \sin                   sin          
+   sinh     \sinh             \sinh                  sinh         
+   sup      \sup              \sup                   &sup;        
+   tan      \tan              \tan                   tan          
+   tanh     \tanh             \tanh                  tanh         
+** Signs & Symbols
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   •        \bull             \textbullet{}          &bull;       
+   •        \bullet           \textbullet{}          &bull;       
+   ⋆        \star             \star                  *            
+   ∗        \lowast           \ast                   &lowast;     
+   *        \ast              \ast                   &lowast;     
+   ʘ        \odot             \odot                  o            
+   ⊕        \oplus            \oplus                 &oplus;      
+   ⊗        \otimes           \otimes                &otimes;     
+   ✓        \check            \checkmark             &checkmark;  
+   ✓        \checkmark        \checkmark             &check;      
+** Miscellaneous (seldom used)
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ª        \ordf             \textordfeminine{}     &ordf;       
+   º        \ordm             \textordmasculine{}    &ordm;       
+   ¸        \cedil            \c{}                   &cedil;      
+   ‾        \oline            \overline{~}           &oline;      
+   ¨        \uml              \textasciidieresis{}   &uml;        
+   ‌         \zwnj             \/{}                   &zwnj;       
+   ‍         \zwj                                     &zwj;        
+   ‎         \lrm                                     &lrm;        
+   ‏         \rlm                                     &rlm;        
+** Smilies
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ☺        \smiley           \ddot\smile            &#9786;      
+   ☻        \blacksmile       \ddot\smile            &#9787;      
+   ☹        \sad              \ddot\frown            &#9785;      
+   ☹        \frowny           \ddot\frown            &#9785;      
+** Suits
+
+   Symbol   Org entity        LaTeX code             HTML code
+   -----------------------------------------------------------
+   ♣        \clubs            \clubsuit              &clubs;      
+   ♣        \clubsuit         \clubsuit              &clubs;      
+   ♠        \spades           \spadesuit             &spades;     
+   ♠        \spadesuit        \spadesuit             &spades;     
+   ♥        \hearts           \heartsuit             &hearts;     
+   ♥        \heartsuit        \heartsuit             &heartsuit;  
+   ◆        \diams            \diamondsuit           &diams;      
+   ◆        \diamondsuit      \diamondsuit           &diams;      
+   ◆        \diamond          \diamondsuit           &diamond;    
+   ◆        \Diamond          \diamondsuit           &diamond;    
+   ⧫        \loz              \lozenge               &loz;        
+            \_                \hspace*{0.5em}        &ensp;       
+            \_                \hspace*{1.0em}        &ensp;&ensp; 
+            \_                \hspace*{1.5em}        &ensp;&ensp;&ensp;
+            \_                \hspace*{2.0em}        &ensp;&ensp;&ensp;&ensp;
+            \_                \hspace*{2.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;
+            \_                \hspace*{3.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+            \_                \hspace*{3.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+            \_                \hspace*{4.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+             \_                \hspace*{4.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+              \_                \hspace*{5.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+               \_                \hspace*{5.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                \_                \hspace*{6.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                 \_                \hspace*{6.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                  \_                \hspace*{7.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                   \_                \hspace*{7.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                    \_                 \hspace*{8.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                     \_                  \hspace*{8.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                      \_                   \hspace*{9.0em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                       \_                    \hspace*{9.5em}        &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;
+                        \_                     \hspace*{10.0em}       &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;

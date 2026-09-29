@@ -7,9 +7,12 @@
 ---   * nil when cancelled.
 ---
 --- Keys: h/l ±day, j/k ±week, H/L or </> ±month, J/K or [/] ±year,
---- `.` today, `i`/`t` type a date (org-read-date syntax, e.g. "+3d",
---- "fri 14:00", "2026-10-01"), `T` set/clear the time, <CR> select,
---- `x`/<Del> remove, q/<Esc> cancel.
+--- C-v/M-v ±3 months, `.` today, `i`/`t` type a date (org-read-date
+--- syntax, e.g. "+3d", "fri 14:00", "2026-10-01"; shown live in the
+--- calendar with `read_date_display_live`), `T` set/clear the time, `!`
+--- the agenda of the date, <CR> or a mouse click on a day select,
+--- `x`/<Del> remove, q/<Esc> cancel. With `read_date_popup_calendar`
+--- off, only a "Date+time [default]: " prompt is shown.
 ---
 --- The float shows the month with ISO week numbers and the neighbouring
 --- months' days, today and the selection, and the chosen date in long
@@ -87,7 +90,7 @@ end
 --- Lines and highlights of the calendar for the selected date `sel`.
 --- Marks are { row, start_col, end_col, hl_group, priority } (0-based, bytes).
 ---@param sel table date
----@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean }
+---@param opts? { allow_remove?: boolean, today?: table, inactive?: boolean, live?: boolean, futurep?: boolean }
 ---@return string[] lines, table[] marks
 function M.render(sel, opts)
   opts = opts or {}
@@ -172,6 +175,15 @@ function M.render(sel, opts)
   mark(row, MARGIN, MARGIN + #long, "OrgCalendarDate")
   local stamp = M.preview(sel, opts.inactive)
   local rel = M.relative(sel_days - today_days)
+  if opts.live then
+    -- the answer being typed, as Emacs shows it after the prompt
+    -- (org-read-date-display): "=> <2026-10-01 Thu>", "(=>F)" when
+    -- read_date_prefer_future moved it into the future
+    stamp = "=> " .. stamp .. (opts.futurep and " (=>F)" or "")
+    if vim.fn.strdisplaywidth(stamp) + #rel + 1 > M.WIDTH - 2 * MARGIN then
+      rel = ""
+    end
+  end
   local gap = math.max(1, M.WIDTH - 2 * MARGIN - vim.fn.strdisplaywidth(stamp) - #rel)
   line = pad .. stamp .. string.rep(" ", gap) .. rel
   row = add(line)
@@ -181,11 +193,19 @@ function M.render(sel, opts)
   mark(row, MARGIN, #rule, "OrgCalendarSeparator")
 
   -- key hints: keys highlighted, descriptions dimmed
+  local cal = opts.calendar and M.calendar_keys() or {}
   local hints = {
     { { "hjkl", "day/week" }, { "HL", "month" }, { "JK", "year" } },
-    { { ".", "today" }, { "i", "type" }, { "T", "time" } },
+    { { ".", "today" }, { cal.diary == "i" and "t" or "i", "type" }, { "T", "time" } },
     { { "⏎", "select" }, opts.allow_remove and { "x", "remove" } or nil, { "esc", "cancel" } },
   }
+  if cal.agenda or cal.diary then
+    -- the Emacs calendar's Org keys (org--setup-calendar-bindings)
+    hints[#hints + 1] = {
+      cal.agenda and { vim.fn.keytrans(cal.agenda), "agenda" } or nil,
+      cal.diary and { vim.fn.keytrans(cal.diary), "diary entry" } or nil,
+    }
+  end
   for _, group in ipairs(hints) do
     line = pad
     local hm = {}
@@ -237,7 +257,124 @@ local function key(k)
   return K[k]
 end
 
----@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean }
+--- The date shown at the calendar's cursor when the last date prompt or
+--- `goto_calendar` ended (what org-date-from-calendar reads from the
+--- *Calendar* buffer), or nil when no calendar was shown yet.
+---@type table|nil
+M.cursor_date = nil
+
+--- The date under the screen cell (0-based `row`, byte `col`) of the
+--- calendar rendered for `sel`, or nil outside the day grid.
+---@param sel table date
+---@param row integer
+---@param col integer
+---@return table|nil
+function M.date_at(sel, row, col)
+  local w = row - 4 -- blank, title, blank, weekday header
+  if w < 0 or w > 5 then
+    return nil
+  end
+  local x = col - MARGIN - WEEK
+  if x < 0 or x >= 7 * CELL then
+    return nil
+  end
+  local first = date.days_from_civil(sel.year, sel.month, 1)
+  local start = first - (date.from_days(first):weekday() - 1)
+  local d = date.from_days(start + 7 * w + math.floor(x / CELL))
+  return sel:clone({ year = d.year, month = d.month, day = d.day })
+end
+
+--- Scroll the calendar by `n` (±3) months, C-v / M-v
+--- (org-calendar-scroll-three-months-left/right). Emacs shows three months
+--- around the cursor; after the scroll the cursor lands on today when today
+--- is among the three months shown, else on the 1st of the new middle
+--- month (calendar-scroll-left).
+---@param sel table date
+---@param n integer
+---@param today? table
+---@return table
+function M.scroll_months(sel, n, today)
+  today = today or date.today()
+  local m = sel.year * 12 + (sel.month - 1) + n
+  local t = today.year * 12 + (today.month - 1)
+  if math.abs(t - m) <= 1 then
+    return sel:clone({ year = today.year, month = today.month, day = today.day })
+  end
+  return sel:clone({ year = math.floor(m / 12), month = m % 12 + 1, day = 1 })
+end
+
+--- Show the agenda entries of `d` while the date prompt waits
+--- (org-calendar-view-entries: Emacs shows the diary entries of the date).
+local function view_entries(d)
+  local ok, err = pcall(require("org.agenda").open_day, d)
+  if not ok then
+    utils.warn(tostring(err))
+  end
+end
+
+--- The windows before a prompt, restored after it when `!` showed entries
+--- (Emacs reads the date inside save-window-excursion).
+local function save_windows()
+  local wins = {}
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    wins[w] = true
+  end
+  return { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf(), wins = wins }
+end
+
+local function restore_windows(state)
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    if not state.wins[w] and vim.api.nvim_win_get_config(w).relative == "" then
+      pcall(vim.api.nvim_win_close, w, true)
+    end
+  end
+  if vim.api.nvim_win_is_valid(state.win) then
+    vim.api.nvim_set_current_win(state.win)
+    if vim.api.nvim_buf_is_valid(state.buf) and vim.api.nvim_win_get_buf(state.win) ~= state.buf then
+      vim.api.nvim_win_set_buf(state.win, state.buf)
+    end
+  end
+end
+
+--- The Org keys of the calendar opened by `goto_calendar`
+--- (org--setup-calendar-bindings): `agenda` shows the agenda of the date
+--- (`calendar_to_agenda_key`, org-calendar-goto-agenda), `diary` adds a
+--- diary entry for it (`calendar_insert_diary_entry_key`) when
+--- `agenda.diary_entry_file` is an Org file. Keys as typed (keycodes).
+---@return { agenda?: string, diary?: string }
+function M.calendar_keys()
+  local o = require("org.config").opts
+  local out = {}
+  local k = o.calendar_to_agenda_key
+  if k == "default" then
+    out.agenda = "c"
+  elseif type(k) == "string" and k ~= "" then
+    out.agenda = vim.keycode(k)
+  end
+  local target = (o.agenda or {}).diary_entry_file
+  local d = o.calendar_insert_diary_entry_key
+  if target and target ~= "diary-file" and type(d) == "string" and d ~= "" then
+    out.diary = vim.keycode(d)
+  end
+  return out
+end
+
+--- org-calendar-goto-agenda: the agenda (default span) around day `days`.
+function M.goto_agenda(days)
+  local span = (require("org.config").opts.agenda or {}).span or "week"
+  local anchor = require("org.agenda.render").starting_day(span, days)
+  require("org.agenda").open_agenda({ anchor = anchor })
+end
+
+--- read_date_popup_calendar (or its alias popup_calendar_for_date_prompt)
+local function popup_calendar()
+  local o = require("org.config").opts
+  return o.read_date_popup_calendar ~= false and o.popup_calendar_for_date_prompt ~= false
+end
+
+--- `opts.calendar`: the calendar of `goto_calendar`, with its Org keys
+--- (`calendar_keys`).
+---@param opts? { default?: table, prompt?: string, with_time?: boolean, allow_remove?: boolean, inactive?: boolean, calendar?: boolean }
 ---@return table|nil
 function M.pick(opts)
   opts = opts or {}
@@ -255,10 +392,60 @@ function M.pick(opts)
     end
     sel.hour, sel.min = now.hour, now.min
   end
+
+  --- The typed answer with the date moved to in the calendar (Emacs:
+  --- org-ans0 plus org-ans2); nil when nothing can be read.
+  local function interpret(text)
+    -- like Emacs, a date moved to in the calendar is part of the answer
+    local answer = text
+    if sel:to_date_string() ~= initial then
+      answer = text .. " " .. sel:to_date_string()
+    end
+    local d, futurep = date.read_date_analyze(answer, opts.default)
+    if d then
+      if not d.hour and sel.hour then
+        -- the time of the default date is kept (Emacs pre-fills it)
+        d.hour, d.min, d.end_hour, d.end_min = sel.hour, sel.min, sel.end_hour, sel.end_min
+      end
+      d.repeater = d.repeater or (sel.repeater and vim.deepcopy(sel.repeater))
+      d.warning = d.warning or (sel.warning and vim.deepcopy(sel.warning))
+    end
+    return d, futurep
+  end
+
+  if not popup_calendar() then
+    -- only the prompt, with the default in brackets (org-read-date's
+    -- "Date+time [2026-09-28]: "); an empty answer takes the default
+    local timestr = initial
+    if opts.with_time and sel.hour then
+      timestr = timestr .. string.format(" %02d:%02d", sel.hour, sel.min)
+    end
+    local prompt = (opts.prompt and (opts.prompt .. " ") or "") .. "Date+time [" .. timestr .. "]: "
+    local ok, text = pcall(vim.fn.input, { prompt = prompt, cancelreturn = vim.NIL })
+    if not ok or text == vim.NIL or text == nil then
+      return nil
+    end
+    if vim.trim(text) == "" then
+      return sel
+    end
+    local d = interpret(text)
+    if not d then
+      utils.warn("Cannot parse date: " .. text)
+    end
+    return d
+  end
+
+  local windows = save_windows()
+  local viewed = false
   -- one window for the whole session: redrawn in place on every key
   local buf, win
-  local function draw()
-    local lines, marks = M.render(sel, opts)
+  local function draw(live)
+    local ropts, shown = opts, sel
+    if live then
+      ropts = vim.tbl_extend("force", opts, { live = true, futurep = live.futurep })
+      shown = live.date or sel
+    end
+    local lines, marks = M.render(shown, ropts)
     if not (win and vim.api.nvim_win_is_valid(win)) then
       buf, win = require("org.ui").float(lines, { title = opts.prompt or "Date", width = M.WIDTH, enter = false })
       vim.wo[win].winhighlight = "Normal:NormalFloat"
@@ -280,19 +467,40 @@ function M.pick(opts)
     end
     win = nil
   end
+  local function finish(result)
+    close()
+    M.cursor_date = sel:clone()
+    if viewed then
+      restore_windows(windows)
+    end
+    return result
+  end
+  local live_display = require("org.config").opts.read_date_display_live ~= false
+  local cal = opts.calendar and M.calendar_keys() or {}
   while true do
     draw()
     local ok, ch = pcall(vim.fn.getcharstr)
     if not ok or ch == "\27" or ch == "\3" or ch == "q" then
-      close()
+      return finish(nil)
+    end
+    if ch == cal.agenda or ch == cal.diary then
+      -- the calendar's Org keys: the calendar closes (it is modal here)
+      local days = sel:days()
+      finish(nil)
+      if ch == cal.agenda then
+        M.goto_agenda(days)
+      else
+        require("org.agenda.diary_entry").calendar_entry(days)
+      end
       return nil
     end
-    if ch == "i" or ch == "t" or ch == "T" or ch == "\r" or ch == "\n" or ch == "x" or ch == key("<Del>") then
+    local typing = ch == "i" or ch == "t"
+    if (typing and not live_display) or ch == "T" or ch == "x" or ch == key("<Del>") then
       -- prompts and results appear without the float in the way
       close()
     end
     if ch == "\r" or ch == "\n" then
-      return sel
+      return finish(sel)
     elseif ch == "h" or ch == key("<Left>") then
       sel = sel:add(-1, "d")
     elseif ch == "l" or ch == key("<Right>") then
@@ -309,26 +517,48 @@ function M.pick(opts)
       sel = sel:add(-1, "y", true)
     elseif ch == "J" or ch == "]" then
       sel = sel:add(1, "y", true)
+    elseif ch == key("<C-v>") then
+      sel = M.scroll_months(sel, 3)
+    elseif ch == key("<M-v>") then
+      sel = M.scroll_months(sel, -3)
     elseif ch == "." then
       local t = date.today()
       sel = sel:clone({ year = t.year, month = t.month, day = t.day })
-    elseif ch == "i" or ch == "t" then
+    elseif ch == "!" then
+      viewed = true
+      view_entries(sel)
+    elseif ch == key("<LeftMouse>") or ch == key("<MiddleMouse>") then
+      -- org-calendar-select-mouse: a click on a day picks it
+      local pos = vim.fn.getmousepos()
+      local d = win and pos.winid == win and M.date_at(sel, pos.line - 1, pos.column - 1)
+      if d then
+        sel = d
+        return finish(sel)
+      end
+    elseif typing then
+      -- read_date_display_live: the calendar shows what the answer means
+      -- while it is typed (org-read-date-display)
+      local au
+      if live_display then
+        au = vim.api.nvim_create_autocmd("CmdlineChanged", {
+          pattern = "@",
+          callback = function()
+            local d, futurep = interpret(vim.fn.getcmdline())
+            if win and vim.api.nvim_win_is_valid(win) then
+              pcall(draw, { date = d, futurep = futurep })
+            end
+          end,
+        })
+      end
       local ok2, text = pcall(vim.fn.input, { prompt = "Date: ", cancelreturn = vim.NIL })
+      if au then
+        pcall(vim.api.nvim_del_autocmd, au)
+      end
       if ok2 and text ~= vim.NIL and text ~= nil then
-        -- like Emacs, a date moved to in the calendar is part of the answer
-        local answer = text
-        if sel:to_date_string() ~= initial then
-          answer = text .. " " .. sel:to_date_string()
-        end
-        local d = date.read_date(answer, opts.default)
+        local d = interpret(text)
         if d then
-          if not d.hour and sel.hour then
-            -- the time of the default date is kept (Emacs pre-fills it)
-            d.hour, d.min, d.end_hour, d.end_min = sel.hour, sel.min, sel.end_hour, sel.end_min
-          end
-          d.repeater = d.repeater or (sel.repeater and vim.deepcopy(sel.repeater))
-          d.warning = d.warning or (sel.warning and vim.deepcopy(sel.warning))
-          return d
+          sel = d
+          return finish(d)
         end
         utils.warn("Cannot parse date: " .. text)
       end
@@ -349,7 +579,7 @@ function M.pick(opts)
         end
       end
     elseif (ch == "x" or ch == key("<Del>")) and opts.allow_remove then
-      return { remove = true }
+      return finish({ remove = true })
     end
   end
 end

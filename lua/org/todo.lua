@@ -13,8 +13,22 @@ local utils = require("org.utils")
 
 local M = {}
 
-local function now_inactive()
-  return date.effective_now():clone({ active = false })
+--- The time a TODO state change records (org-current-effective-time):
+--- with `yesterday`, 23:59 of the previous day, like Emacs
+--- org-todo-yesterday (which binds org-use-effective-time and
+--- org-extend-today-until); the last clock-out time of the subtree wins
+--- with `use_last_clock_out_time_as_effective_time`.
+---@param hl? org.Headline
+---@param yesterday? boolean
+---@return table time, table|nil today the day repeaters count from
+local function change_time(hl, yesterday)
+  if not yesterday then
+    return date.effective_now(hl), nil
+  end
+  local now = date.now()
+  local today = now:clone({ hour = vim.NIL, min = vim.NIL }):add(-1, "d")
+  local t = config.opts.use_last_clock_out_time_as_effective_time and date.last_clock_out(hl)
+  return t or today:clone({ hour = 23, min = 59 }), today
 end
 
 local LOGGING_WORDS = {
@@ -95,12 +109,13 @@ function M.state_log_header(new, old, ts)
 end
 
 --- Log lines of a state change (nil when the heading and note are empty).
-local function state_entry(new, old, note)
-  local heading = edit.log_heading("state", new or "", old or "")
+--- Without a previous keyword, `%S` is empty, like Emacs.
+local function state_entry(new, old, note, time)
+  local heading = edit.log_heading("state", new or "", old, time)
   if heading == "" and (not note or vim.trim(note) == "") then
     return nil
   end
-  return edit.log_entry("state", note, new or "", old or "")
+  return edit.log_entry("state", note, new or "", old, time)
 end
 
 ---------------------------------------------------------------------------
@@ -349,7 +364,7 @@ local function update_parent_statistics(bufnr, hl)
 end
 
 --- Shift every repeating timestamp of the entry (org-auto-repeat-maybe).
-local function shift_repeaters(bufnr, hl, now)
+local function shift_repeaters(bufnr, hl, now, today)
   -- plain timestamps in the body / title: replace text in place (right to left)
   local by_line = {}
   for _, t in ipairs(hl.timestamps) do
@@ -364,7 +379,7 @@ local function shift_repeaters(bufnr, hl, now)
     end)
     local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
     for _, t in ipairs(list) do
-      local nxt = date.apply_repeater(t.date, now)
+      local nxt = date.apply_repeater(t.date, now, today)
       line = line:sub(1, t.start_col - 1) .. nxt:to_string() .. line:sub(t.end_col + 1)
     end
     vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { line })
@@ -372,7 +387,7 @@ local function shift_repeaters(bufnr, hl, now)
   for _, kind in ipairs({ "deadline", "scheduled" }) do
     local ts = hl.planning[kind]
     if has_repeater(ts) then
-      edit.set_planning(bufnr, hl.line, kind, date.apply_repeater(ts, now))
+      edit.set_planning(bufnr, hl.line, kind, date.apply_repeater(ts, now, today))
     elseif kind == "scheduled" and ts and not ts.repeater then
       -- a SCHEDULED date without repeater is no longer relevant
       edit.set_planning(bufnr, hl.line, kind, nil)
@@ -466,6 +481,8 @@ end
 ---@field force_note? boolean always ask for a note (C-u C-c C-t)
 ---@field inhibit_note? boolean record times instead of notes (C-0 C-c C-t)
 ---@field nextset? boolean a keyword set switch: nothing is logged
+---@field inhibit_logging? boolean no CLOSED or state logging, but a repeat is still logged (org-inhibit-logging t)
+---@field yesterday? boolean record the change as 23:59 of yesterday (org-todo-yesterday)
 
 --- Change the TODO state of a headline with full org semantics.
 ---@param target? org.Target
@@ -493,6 +510,8 @@ function M.change_state(target, new, opts)
     utils.warn("Unknown TODO keyword: " .. new)
     return nil
   end
+  local now_eff, today = change_time(hl, opts.yesterday)
+  local now_inactive = now_eff:clone({ active = false })
   local old_done = todo_cfg:is_done(old)
   local new_done = todo_cfg:is_done(new)
   local becomes_done = new_done and not old_done
@@ -522,7 +541,7 @@ function M.change_state(target, new, opts)
   local logging_active
   if opts.force_note then
     logging_active = true
-  elseif opts.no_log or opts.nextset then
+  elseif opts.no_log or opts.nextset or opts.inhibit_logging then
     logging_active = false
   else
     local any_states
@@ -568,7 +587,7 @@ function M.change_state(target, new, opts)
     end
     local final = repeat_to_state(hl, todo_cfg, old)
     local has_clock = #hl.clocks > 0
-    shift_repeaters(bufnr, hl, date.now())
+    shift_repeaters(bufnr, hl, date.now(), today)
     trigger_tags(bufnr, lnum, todo_cfg, new)
     edit.update_headline(bufnr, lnum, { todo = final or false })
     if hl.planning.closed then
@@ -576,10 +595,10 @@ function M.change_state(target, new, opts)
     end
     trigger_tags(bufnr, lnum, todo_cfg, final)
     if log_repeat or has_clock then
-      edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive():to_string())
+      edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive:to_string())
     end
     if rep_log then
-      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note))
+      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note, now_eff))
     end
     result.new = final
     result.done_keyword = new
@@ -599,7 +618,12 @@ function M.change_state(target, new, opts)
     edit.update_headline(bufnr, lnum, { todo = new or false })
     if logging_active then
       if becomes_done and log_done then
-        edit.set_planning(bufnr, lnum, "closed", now_inactive())
+        -- org-log-done-with-time: `false` records the date only
+        local closed = now_inactive
+        if cfg.log_done_with_time == false then
+          closed = closed:clone({ hour = vim.NIL, min = vim.NIL })
+        end
+        edit.set_planning(bufnr, lnum, "closed", closed)
       elseif
         hl.planning.closed
         and ((new == nil and not cfg.closed_keep_when_no_todo) or (todo_cfg:is_todo(new) and not todo_cfg:is_todo(old)))
@@ -609,9 +633,9 @@ function M.change_state(target, new, opts)
     end
     trigger_tags(bufnr, lnum, todo_cfg, new)
     if new and state_log and not aborted then
-      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note))
+      edit.add_log_entry(bufnr, lnum, state_entry(new, old, note, now_eff))
     elseif becomes_done and log_done == "note" and not aborted then
-      edit.add_log_entry(bufnr, lnum, edit.log_entry("done", note, new, old))
+      edit.add_log_entry(bufnr, lnum, edit.log_entry("done", note, new, old, now_eff))
     end
   end
   -- the sequence a keyword-less headline returns to (org-todo-head)
@@ -672,13 +696,19 @@ end
 M.for_targets = for_targets
 
 --- <S-Right>/<S-Left>: walk every keyword of every set (org-todo 'right).
+--- With `treat_S_cursor_todo_selection_as_state_change` false, the change
+--- is neither logged nor blocked (org-inhibit-logging, org-inhibit-blocking).
 local function shift(target, dir)
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
   end
   local nxt = file.settings.todo:shift(hl.todo, dir)
-  return M.change_state({ bufnr = bufnr, lnum = hl.line }, nxt)
+  local opts
+  if config.opts.treat_S_cursor_todo_selection_as_state_change == false then
+    opts = { inhibit_logging = true, force = true }
+  end
+  return M.change_state({ bufnr = bufnr, lnum = hl.line }, nxt, opts)
 end
 
 function M.cycle_next(target)
@@ -841,6 +871,18 @@ function M.select_or_cycle(target, arg, opts)
   end)
 end
 
+--- org-todo-yesterday: like `select_or_cycle` (C-c C-t, with the same
+--- prefix argument), but the change is recorded as 23:59 of yesterday
+--- (CLOSED, log notes, LAST_REPEAT) and `.+`/`++` repeaters count from
+--- yesterday. The agenda's org-agenda-todo-yesterday uses it too.
+---@param target? org.Target
+---@param arg? integer prefix argument, as for `select_or_cycle`
+---@param opts? org.TodoChangeOpts
+function M.todo_yesterday(target, arg, opts)
+  opts = vim.tbl_extend("force", opts or {}, { yesterday = true })
+  return M.select_or_cycle(target, arg, opts)
+end
+
 --- `C-0 C-c C-t`: change the state without taking a note (notes become
 --- timestamps).
 function M.todo_without_note(target)
@@ -890,11 +932,12 @@ function M.add_note(target)
   if not bufnr then
     return nil
   end
+  local time = date.effective_now(hl)
   local note = utils.input_note({ prompt = "Note: ", purpose = edit.note_purpose("note") })
   if not note or vim.trim(note) == "" then
     return nil
   end
-  edit.add_log_entry(bufnr, hl.line, edit.log_entry("note", note))
+  edit.add_log_entry(bufnr, hl.line, edit.log_entry("note", note, nil, nil, time))
   return true
 end
 

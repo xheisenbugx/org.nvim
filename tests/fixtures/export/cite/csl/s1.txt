@@ -1,0 +1,47 @@
+Default (Knuth 1984). Locator (Lamport and Doe 1986, 50). Chapter (Brown
+et al. 2001, chap. 3). Two keys (Knuth 1984; Smith 2020).  Prefix and
+suffix (see Knuth 1984, 10–15 for details).  Global affixes (compare Doe
+and Roe 2001; Ng 2010–2012 and others).
+
+Text Lamport and Doe (1986), caps Brown et al. (2001), full Brown,
+Green, White, and Black (2001). Author (Knuth), (World Health
+Organization), (Brown, Green, White, and Black). No author (1984), bare
+1984. Year (2001). Title (“A Web Page About Über-Things”).  Bare
+J. Smith 2019. Locators (12).  Bib entry (Smith, Anna. 2019. “Another
+Paper.” /Letters/ 3: 7.). Nocite.
+
+Disambiguation (Knuth 1986b, 1986a) and (J. Smith 2019; A. Smith
+2019). Undated (ACME Corp., n.d.). Range (Ng 2010–2012, 321).
+
+ACME Corp. n.d. “Undated Page.” <https://acme.example/undated>.
+
+Beethoven, Ludwig van. 1810. /Für Elise/. Self.
+
+Brown, Alice, Bob Green, Carol White, and Dan Black. 2001. “A Chapter in
+a Book.” In /The Collected Essays/, edited by Eve Grey, 101–20. Oxford:
+University Press.
+
+Doe, Jane, and Richard Roe. 2001. /JSON Book with “Quoted”
+Words/. London: Example Press.
+
+Knuth, Donald E. 1984. /The TeXbook/. Reading, MA: Addison-Wesley.
+
+———. 1986a. /Computers and Typesetting: Volume B/. Addison-Wesley.
+
+———. 1986b. /The METAFONT Book/. Addison-Wesley.
+
+Lamport, Leslie, and John Doe. 1986. “A Document Preparation System.”
+/Journal of Typesetting/ 12 (3):
+45–67. <https://doi.org/10.1000/xyz123>.
+
+Ng, Wei. 2010–2012. “A Multi-Year Study.” /Journal of Long Studies/ 5:
+321–28.
+
+Smith, Anna. 2019. “Another Paper.” /Letters/ 3: 7.
+
+Smith, Jane. 2020. “A Web Page About Über-Things.”
+<https://example.com/page>.
+
+Smith, John. 2019. “On Lua Ports.” Example University.
+
+World Health Organization. 2015. “Global Report.” 42. Geneva: WHO.

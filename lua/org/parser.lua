@@ -406,7 +406,7 @@ local function parse_property_drawer(lines, from, to)
   for _, k in ipairs(order) do
     local parts = { bases[k] }
     vim.list_extend(parts, extra[k] or {})
-    drawer.properties[k] = table.concat(parts, " ")
+    drawer.properties[k] = table.concat(parts, M.property_separator(k))
     if bases[k] ~= nil then
       drawer.property_base[k] = true
     else
@@ -899,13 +899,44 @@ function File:tag_definitions()
       end
     end
   end
-  local specs = #self.settings.tags > 0 and self.settings.tags or require("org.config").opts.tags or {}
+  local opts = require("org.config").opts
+  local specs = #self.settings.tags > 0 and self.settings.tags or opts.tags or {}
   for i, spec in ipairs(specs) do
     if i > 1 and #self.settings.tags > 0 then
       -- #+TAGS lines are joined with newlines, like Emacs
       out[#out + 1] = { group = "\\n" }
     end
     add(spec)
+  end
+  -- `tags_persistent` (org-tag-persistent-alist) comes first, unless
+  -- `#+STARTUP: noptag`; its tags already defined outside a group are
+  -- dropped (org--tag-add-to-alist)
+  local persistent = opts.tags_persistent or {}
+  if #persistent > 0 and not self.settings.startup.noptag then
+    local defined = {}
+    for _, d in ipairs(out) do
+      if d.name then
+        defined[d.name] = true
+      end
+    end
+    local rest = out
+    out = {}
+    for _, spec in ipairs(persistent) do
+      add(spec)
+    end
+    local in_group = false
+    local merged = {}
+    for _, d in ipairs(out) do
+      if d.group == "{" or d.group == "[" then
+        in_group = true
+      elseif d.group == "}" or d.group == "]" then
+        in_group = false
+      end
+      if not d.name or in_group or not defined[d.name] then
+        merged[#merged + 1] = d
+      end
+    end
+    out = vim.list_extend(merged, rest)
   end
   return out
 end
@@ -1057,6 +1088,31 @@ local function should_inherit(name)
   return false
 end
 
+--- Separator joining the values of `PROP` and `PROP+` (org-property-separators,
+--- org--property-get-separator): the first `property_separators` entry
+--- whose names (a list, compared ignoring case) or regexp (ignoring case)
+--- match `key`, else a space.
+---@param key string
+---@return string
+function M.property_separator(key)
+  for _, spec in ipairs(require("org.config").opts.property_separators or {}) do
+    local match, sep = spec[1], spec[2]
+    if type(match) == "table" then
+      for _, n in ipairs(match) do
+        if n:upper() == key:upper() then
+          return sep
+        end
+      end
+    elseif type(match) == "string" then
+      local ok, re = pcall(vim.regex, "\\c" .. match)
+      if ok and re:match_str(key) then
+        return sep
+      end
+    end
+  end
+  return " "
+end
+
 local function inherited_property(file, key, h)
   -- org-entry-get-with-inheritance: `PROP+` values accumulate onto the
   -- inherited value until a plain `PROP` definition is found
@@ -1071,15 +1127,15 @@ local function inherited_property(file, key, h)
   end
   while h do
     if take(h.properties, h.property_base) then
-      return table.concat(parts, " ")
+      return table.concat(parts, M.property_separator(key))
     end
     h = h.parent
   end
   if take(file.properties or {}, file.property_base or {}) then
-    return table.concat(parts, " ")
+    return table.concat(parts, M.property_separator(key))
   end
   if take(file.settings.properties, file.settings.property_base or {}) then
-    return table.concat(parts, " ")
+    return table.concat(parts, M.property_separator(key))
   end
   local global = require("org.config").opts.global_properties or {}
   for k, v in pairs(global) do
@@ -1088,7 +1144,7 @@ local function inherited_property(file, key, h)
       break
     end
   end
-  return #parts > 0 and table.concat(parts, " ") or nil
+  return #parts > 0 and table.concat(parts, M.property_separator(key)) or nil
 end
 
 --- File drawer property, optionally inheriting keyword/global properties.

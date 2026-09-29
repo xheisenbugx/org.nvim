@@ -3442,7 +3442,7 @@ end
 
 local function coderef_resolves(doc, ref)
   for _, el in ipairs(map_type(doc, { ["src-block"] = true, ["example-block"] = true })) do
-    local fmt = el.label_fmt or "(ref:%s)"
+    local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
     local label = fmt:gsub("%%s", function()
       return ref
     end)
@@ -4790,6 +4790,65 @@ function M.lint(bufnr, checkers)
   return reports
 end
 
+local function report_items(bufnr, reports)
+  local last = vim.api.nvim_buf_line_count(bufnr)
+  local items = {}
+  for _, r in ipairs(reports) do
+    items[#items + 1] = {
+      bufnr = bufnr,
+      lnum = math.min(r.lnum, last),
+      col = r.col,
+      text = r.checker .. ": " .. r.message:gsub("%s*\n%s*", " "),
+      type = r.trust == "low" and "W" or "E",
+      user_data = { checker = r.checker },
+    }
+  end
+  return items
+end
+
+--- Keys of the report list (org-lint--report-mode): `h` hides the reports
+--- of the checker at the cursor (org-lint--hide-checker), `i` also drops
+--- the checker from later refreshes (org-lint--ignore-checker) and `g`
+--- lints again with the remaining checkers.
+local function report_keys(listbuf, srcwin, bufnr, checkers)
+  local function current_checker()
+    local list = vim.fn.getloclist(srcwin, { items = 0 }).items
+    local item = list[vim.fn.line(".")]
+    return item and type(item.user_data) == "table" and item.user_data.checker or nil
+  end
+  local function set_items(items)
+    local idx = math.min(vim.fn.line("."), math.max(#items, 1))
+    vim.fn.setloclist(srcwin, {}, "r", { title = "org-lint", items = items, idx = idx })
+  end
+  local function hide()
+    local c = current_checker()
+    if not c then
+      return
+    end
+    set_items(vim.tbl_filter(function(it)
+      return not (type(it.user_data) == "table" and it.user_data.checker == c)
+    end, vim.fn.getloclist(srcwin, { items = 0 }).items))
+  end
+  local opts = { buffer = listbuf, nowait = true, silent = true }
+  vim.keymap.set("n", "h", hide, vim.tbl_extend("force", opts, { desc = "org-lint: hide this checker" }))
+  vim.keymap.set("n", "i", function()
+    local c = current_checker()
+    if c then
+      checkers = vim.tbl_filter(function(n)
+        return n ~= c
+      end, checkers)
+      hide()
+    end
+  end, vim.tbl_extend("force", opts, { desc = "org-lint: ignore this checker" }))
+  -- r, not Emacs's g: a mapping of g would take gg, g_ and the other g
+  -- commands away (the list buffer is not modifiable, so r is free)
+  vim.keymap.set("n", "r", function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      set_items(report_items(bufnr, M.lint(bufnr, checkers)))
+    end
+  end, { buffer = listbuf, silent = true, desc = "org-lint: refresh the reports" })
+end
+
 --- Lint the current buffer and show the reports in the location list
 --- (the Neovim counterpart of Emacs' "*Org Lint*" report buffer).
 ---@param checkers? string[] restrict to these checker names
@@ -4812,23 +4871,15 @@ function M.show(checkers)
       end
     end
   end
-  local reports = M.lint(bufnr, checkers)
-  local last = vim.api.nvim_buf_line_count(bufnr)
-  local items = {}
-  for _, r in ipairs(reports) do
-    items[#items + 1] = {
-      bufnr = bufnr,
-      lnum = math.min(r.lnum, last),
-      col = r.col,
-      text = r.checker .. ": " .. r.message:gsub("%s*\n%s*", " "),
-      type = r.trust == "low" and "W" or "E",
-    }
-  end
-  vim.fn.setloclist(0, {}, " ", { title = "org-lint", items = items })
-  if #items == 0 then
+  local names = checkers or M.checker_names()
+  local reports = M.lint(bufnr, names)
+  local win = vim.api.nvim_get_current_win()
+  vim.fn.setloclist(win, {}, " ", { title = "org-lint", items = report_items(bufnr, reports) })
+  if #reports == 0 then
     require("org.utils").notify("org-lint: no problems found")
   else
     vim.cmd("lopen")
+    report_keys(vim.api.nvim_get_current_buf(), win, bufnr, vim.deepcopy(names))
   end
   return reports
 end

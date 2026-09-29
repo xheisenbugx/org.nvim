@@ -239,6 +239,47 @@ describe("local SETUPFILE settings", function()
     eq(2, vim.tbl_count(file.setup_dependencies))
   end)
 
+  -- Emacs 9.8.10 (a setup file served over http): with
+  -- org-resource-download-policy t the buffer gets its #+TODO and
+  -- #+FILETAGS (WAIT | FIN, :remote:); with nil it is "considered unsafe,
+  -- and will not be downloaded"
+  it("downloads a remote setup file as resource_download_policy allows", function()
+    local config = require("org.config")
+    local resources = require("org.resources")
+    local saved_policy, saved_safe = config.opts.resource_download_policy, config.opts.safe_remote_resources
+    local download = resources._download
+    local fetched = {}
+    resources._download = function(uri)
+      fetched[#fetched + 1] = uri
+      return "#+TODO: WAIT | FIN\n#+FILETAGS: :remote:\n"
+    end
+    local uri = "https://example.test/remote.setup"
+    local function run(policy, safe)
+      resources._reset()
+      config.opts.resource_download_policy = policy
+      config.opts.safe_remote_resources = safe or {}
+      local file = parse({ "#+SETUPFILE: " .. uri, "* WAIT Task" })
+      return file.headlines[1].todo, file.settings.filetags
+    end
+    local okr, err = pcall(function()
+      eq({ "WAIT", { "remote" } }, { run(true) })
+      eq({ uri }, fetched)
+      -- cached for the session
+      parse({ "#+SETUPFILE: " .. uri })
+      eq(1, #fetched)
+      eq({ nil, {} }, { run(false) })
+      -- "prompt" without a UI to ask in: only safe URLs
+      eq({ nil, {} }, { run("prompt") })
+      eq(1, #fetched)
+      eq({ "WAIT", { "remote" } }, { run("prompt", { "^https://example\\.test/" }) })
+      eq(2, #fetched)
+    end)
+    resources._download = download
+    resources._reset()
+    config.opts.resource_download_policy, config.opts.safe_remote_resources = saved_policy, saved_safe
+    assert(okr, err)
+  end)
+
   it("invalidates a disk document when a nested setup file changes", function()
     write("common.setup", { "#+SETUPFILE: nested.setup" })
     local nested = write("nested.setup", { "#+TODO: WAIT | FIN" })
