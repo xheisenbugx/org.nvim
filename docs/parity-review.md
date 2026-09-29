@@ -158,3 +158,127 @@ Emacs 9.8.10's commands pass nil as the match and change every headline.
 Validation: the merged branch passes the full suite (2508 passed, 0
 failed, Neovim 0.13.0-dev). StyLua was not run (the local version differs
 from the one the repository uses); new code is formatted by hand.
+
+## Fifth round: a measured inventory
+
+The earlier rounds reported estimates. This round measures parity. Emacs
+lists every interactive command and every user option that Org 9.8.10
+defines ([`parity/inventory.el`](parity/inventory.el): 877 commands and
+1,055 options, obsolete aliases left out), and each of the 1,932 was
+classified against org.nvim in [`parity/inventory.tsv`](parity/inventory.tsv):
+
+| Status | Meaning |
+| --- | --- |
+| done | Equivalent behaviour, with the code that does it and a spec that exercises it |
+| vim | Stock Neovim does the same (a motion, undo, `:help`) |
+| partial | Exists, with a gap named in the note; counts half |
+| missing | Not implemented |
+| emacs-only | Needs an Emacs application or package (Gnus, BBDB, TRAMP, CDLaTeX...) |
+| na | No user-visible effect outside Emacs (byte compilation, caches, obsolete aliases); not counted |
+
+Overall parity is (done + vim + partial/2) / (total − na − emacs-only);
+strict parity also keeps emacs-only in the denominator.
+[`parity/score.sh`](parity/score.sh) computes both, per area, for
+`inventory.tsv` or for the classification of `main` before this round,
+[`parity/inventory-baseline.tsv`](parity/inventory-baseline.tsv). The
+evidence column points at code as it was when classified; line numbers
+drift.
+
+| | Items | done | vim | partial | missing | emacs-only | na | Overall | Strict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Before this round (`main` at `6815b25`) | 1,932 | 1,242 | 70 | 100 | 365 | 55 | 100 | 76.6% | 74.3% |
+| After | 1,932 | 1,733 | 70 | 2 | 0 | 24 | 103 | 99.9% | 98.6% |
+
+### How the gaps were closed
+
+The 465 missing or partial items were split into twelve workstreams by
+module, each on its own branch, then merged. Each workstream compared its
+items with Org 9.8.10 source and `emacs -Q --batch -L org-9.8.10` probes;
+where Emacs produces text (buffers, exports, agenda lines, results), the
+spec's expectation is the probe's output and says so.
+
+| Workstream | Items | Highlights |
+| --- | --- | --- |
+| Structure editing | 37 | Org `indentexpr` and `formatexpr` (`=` and `gq` like org-indent-line and org-fill-paragraph, compared line by line with Emacs on 27 indentation and 10 filling cases), the org-goto outline browser, org-yank on `p`/`P`, saved agenda-file lists, special C-a/C-e/C-k, bookmarks, `:Org version` |
+| Display and folding | 31 | Cycling options and hooks, hide-entry/block/drawer commands, context detail per jump, user entities and the entities help, hidden keywords, macro markers, indent-mode options, Babel speed keys |
+| TODO, tags, properties | 21 | `todo_yesterday`, logging options, priority functions, persistent tags, tag sorting (with `hierarchy`), property separators and post-processing |
+| Dates and links | 22 | Live date interpretation and the plain prompt, calendar keys, sparse-tree date types (and Emacs's date comparisons), mouse and TAB following, `open_at_point_global`, the remote resource policy |
+| Agenda | 56 | Remote undo, hour and minute shifts, habit toggles, `i` diary entries, entry text options, custom-command contexts, global skip function, hooks, show/cycle commands |
+| Tables and lists | 37 | Alphabetical bullets, bullet and indentation options, item motions, checkbox reset, table typing (auto-blank, BS/Del keeping alignment), wrap region, goto column, every hard-coded table option |
+| Capture, clock and others | 42 | Global capture hooks, `capture_string`, date tree cleanup and time stamps, clocktable formatter and cell formats, `refile_reverse`, attach dispatcher, `id:` completion by heading, org-ctags, clipboard images and dropped files |
+| Babel languages | 64 | ob-plantuml, gnuplot, latex, ditaa, lilypond, java, csharp, haskell, clojure, lisp, scheme, fortran, processing, screen; julia, groovy, ocaml and maxima with `:var` and value results; Python/Ruby/Lua value options |
+| Source editing, Babel core, links | 47 | Edit-buffer reuse, auto-save, session association, TAB in blocks, export templates, `babel_remove_inline_result`, ol-bibtex |
+| Export | 51 | Convert region for every back-end, htmlize-style HTML highlighting, LaTeX images in HTML, dispatcher options, the export stack, Beamer mode, ODT extras, iCalendar diary sexps, HTML indentation; about 70 options that were read but undocumented |
+| KOMA letters and man pages | 37 | Native ports of ox-koma-letter and ox-man with golden files from Emacs |
+| Citations | 20 | Insert, follow and activate processors, and the CSL processor: a port of citeproc-el that gives citeproc-el's output on 840 of the 845 CSL test-suite cases |
+
+A second wave took the items first marked emacs-only that Neovim can do
+after all: the Org, table, agenda, column, formula and OrgTbl menus
+(`:menu`, the PopUp menu), org-mouse, `:Org customize`, `:Org bug_report`,
+the calendar's agenda and diary keys, `gO` headline index (org-imenu-depth),
+the mouse-over citation face, and engraved LaTeX source blocks.
+
+### Independent verification
+
+The workstreams graded their own items, so separate agents re-checked
+every one on the merged branch: the code must change behaviour (an option
+that is only declared does not count), a spec must exercise it, and at
+least one item in eight was probed against Emacs 9.8.10 and compared with
+org.nvim's output. Of the 465 first-wave items, 446 were confirmed, 15 were
+partial and none were missing. The partial items and the bugs found on
+the way were then fixed with regression specs (each fails without its
+fix), except three that stay open (below). Bugs the verification caught:
+
+- Agenda `show_1`/`cycle_show` folded the entry itself or its parent;
+  a background `bufload` never applied the startup visibility.
+- A buffer-local `g` in the lint report list swallowed `gg`; the refresh
+  key is `r` (a mapping of `g` always takes the first `g`).
+- The citation click and the link click both mapped `<LeftRelease>`; the
+  link handler shadowed citations.
+- A TODO headline with a priority cookie lost `fontify_todo_headline`.
+- `%flags` and `%results` in export code templates differed from Emacs.
+- The agenda's missing-file prompt used a removal list that the new saved
+  agenda-file list replaced.
+- `indirect_buffer_display` "dedicated-frame" opened an edit buffer and
+  "other-window" kept adding splits.
+- The ClojureScript backend fell back to the Clojure one; the "dynamic"
+  citation separator read keys instead of the completion strings;
+  `edit_headline` ignored `auto_align_tags`; `ctags.append_topic` placed
+  the cursor for the default template only.
+- Specs that failed depending on run order (a modified `bufhidden=wipe`
+  buffer in the agenda's other window, temp files deleted under loaded
+  buffers).
+
+### Changes to defaults (all to Emacs's)
+
+- Sparse-tree regexp searches ignore case (`occur_case_fold_search`).
+- LaTeX fragments are not highlighted unless `highlight_latex_and_related`
+  asks for it.
+- A short click on a link follows it (`links.mouse_1_follows_link = 450`),
+  and so does one on an agenda entry.
+- `p`/`P` of a whole subtree fold it (org-yank, `yank_folded_subtrees`);
+  other puts are Vim's.
+- The Visual selection stays after `M-h`/`M-l`/`M-k`/`M-j` (`edit_keep_region`).
+- `C-c C-x C-a` runs `archive_default_command`; the sparse-tree menu's
+  `c` cycles the date type (clearing highlights moved to `C`).
+- Remote `#+INCLUDE` and `#+SETUPFILE` URLs are fetched only as
+  `resource_download_policy` allows ("prompt" by default).
+- `columns_ellipses` is `..`.
+
+### What is left
+
+- Partial: `org-calc-default-modes` (Calc's symbolic mode and date format
+  can't be set) and `org-babel-lisp-eval-fn` (Common Lisp runs in `sbcl`,
+  not SLIME or SLY).
+- Emacs-only (24): Gnus, BBDB, MH-E, eww and w3m links and the mail link
+  formats; CDLaTeX and RefTeX; speedbar; TRAMP directories for Babel;
+  CIDER's Clojure namespace; the calendar following a changed time stamp
+  (the date picker is modal); dropping text with org-mouse.
+- The measurement counts commands and options. It says that a feature
+  exists and behaves like Emacs where it was checked, not that every edge
+  case matches.
+
+Validation: the merged branch passes the full suite (3,349 passed, 0
+failed; `main` had 2,554), on Neovim 0.13.0-dev. StyLua was not run
+over existing files (the local version differs from the repository's);
+the files added in this round were formatted with StyLua 2.3.1.

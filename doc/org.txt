@@ -6873,6 +6873,14 @@ Differences from Emacs:
     was shown. As the calendar is a prompt, it is never shown while a
     timestamp changes, so org-calendar-follow-timestamp-change has nothing
     to follow; its `c` and `i` keys close it.
+  - `links.mouse_1_follows_link` times the click from press to release in
+    the Org buffer; `open_at_point_global` reads links on the line (and
+    bracket links over nearby lines), not the whole paragraph.
+  - The custom timestamp display conceals the timestamp text: the cursor
+    moves over the hidden characters, and the real text shows in Insert
+    mode or with 'concealcursor' unset.
+  - Habit graphs are only drawn in the agenda (as in Emacs); a habit's
+    scheduled date must have a repeater of at least one day.
 - Menus and org-mouse (|org-menus|, |org-mouse|):
   - Menu entries that are toggles or radio buttons in Emacs show no check
     state in the menu bar (the org-mouse popups, built when shown, mark
@@ -6899,13 +6907,5 @@ Differences from Emacs:
 - Customize (|org-customize|) lists lua/org/config.lua's options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
-  - `links.mouse_1_follows_link` times the click from press to release in
-    the Org buffer; `open_at_point_global` reads links on the line (and
-    bracket links over nearby lines), not the whole paragraph.
-  - The custom timestamp display conceals the timestamp text: the cursor
-    moves over the hidden characters, and the real text shows in Insert
-    mode or with 'concealcursor' unset.
-  - Habit graphs are only drawn in the agenda (as in Emacs); a habit's
-    scheduled date must have a repeater of at least one day.
 
  vim:tw=78:ts=8:ft=help:norl:

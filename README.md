@@ -43,7 +43,7 @@ formulas, Babel and export.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, `vim.ui.select` pickers and a lualine clock, and it works with
   any other setup too.
-- ✅ **Tested.** The headless test suite has 2,000+ tests across 76 specs.
+- ✅ **Tested.** The headless test suite has 3,000+ tests across 179 specs.
 
 ---
 
@@ -75,7 +75,7 @@ org.nvim exists because I wanted something those projects don't aim for:
 **On AI:** org.nvim is written with AI assistance
 ([Claude Code](https://claude.com/claude-code)). To keep that honest, its
 behaviour is checked against the Emacs Org source rather than guessed,
-every feature comes with headless tests (`make test`, 2,000+ of them), and
+every feature comes with headless tests (`make test`, 3,000+ of them), and
 I review and use every change myself. Bug reports are very welcome,
 especially where it doesn't match Emacs.
 
@@ -433,7 +433,7 @@ searches it, and `{` / `}` jump between sections:
 | ⏱️ | **Clocking** | Clock in/out/cancel/jump, clock history with default and interrupted tasks, Emacs's clock resolution (keep, subtract, got-back) for dangling clocks and idle time, auto clock-out, effort estimates with an overrun alert, a statusline component, `clocktable` blocks matching Emacs output (`:step`, `:formula`, `:sort`, `:lang`…), agenda clock check, relative and countdown timers |
 | 🧮 | **Tables** | Automatic alignment, column shrinking, row/column/cell editing with formula fixing, copy-down, CSV/TSV import and export, `#+TBLFM` formulas with a Calc-compatible evaluator, a formula editor and debugger, radio tables, orgtbl-mode (including the unicode and table.el translators) and plots (including radar); Calc symbolic algebra (`simplify`, `deriv`, `integ`, `solve`), vectors and matrices, modulo forms, complex numbers, HMS forms, error forms, intervals and units; table.el grid tables (`C-c ~`, `C-c '`, export) |
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
-| 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
+| 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
 
@@ -838,41 +838,56 @@ followed by the timer (`⏲ 0:12:34`) when one runs. It's empty otherwise.
 
 ## 📊 Parity with Emacs Org
 
-How much of Emacs Org 9.8 works the same way in org.nvim, as of the last
-review against **Org 9.8.10** (September 2026):
+How much of Emacs Org 9.8 works the same way in org.nvim, **measured**
+against **Org 9.8.10** (September 2026). Every interactive command and
+every user option of Org 9.8.10 (877 commands and 1,055 options, listed by
+Emacs itself) was checked against org.nvim:
 
-| Lens | Parity | What it means |
+| Lens | Parity | What it counts |
 | --- | --- | --- |
-| **Everyday workflows** | `▰▰▰▰▰▰▰▰▰▰` **~97%** | Outlines, TODOs, tags, properties, agenda, capture, refile, archive, clocking, tables, links, Markdown and HTML export |
-| **Overall** | `▰▰▰▰▰▰▰▰▰▱` **~92–95%** | Every command and option, including rarely used features |
-| **Strict** | `▰▰▰▰▰▰▰▰▱▱` **~80–85%** | Also counts Emacs Lisp that must run inside the editor, and Emacs applications |
+| **Overall** | `▰▰▰▰▰▰▰▰▰▰` **99.9%** | Every command and option that can exist outside Emacs (1,805 of 1,932) |
+| **Strict** | `▰▰▰▰▰▰▰▰▰▰` **98.6%** | Also counts the 24 that need Emacs itself (Gnus, BBDB, eww, TRAMP, CDLaTeX...) |
+
+Before this round, the same measurement gave 76.6% overall and 74.3%
+strict. The earlier estimates in this README (~92–95%) weighted everyday
+features more heavily; this measurement gives every command and option
+the same weight.
 
 By area:
 
-| Area | Parity | Notes and main gaps |
-| --- | --- | --- |
-| 🌳 Outline and structure editing | `▰▰▰▰▰▰▰▰▰▱` 95% | Only minor edge cases left; includes `org-num`, startup visibility and speed keys |
-| 📋 Plain lists | `▰▰▰▰▰▰▰▰▰▰` 97% | Every bullet type, checkboxes, statistics cookies and `org-list-checkbox-radio-mode` |
-| ✅ TODO and priorities | `▰▰▰▰▰▰▰▰▰▱` 95% | `#+TYP_TODO` type sequences and the TODO hooks (as Lua functions); a repeated `C-c C-t` is detected by "no edit or motion" instead of `last-command` |
-| 🏷️ Tags, properties and column view | `▰▰▰▰▰▰▰▰▰▱` 95% | Column view is drawn over the headlines, moves a column at a time and refuses typing on its rows; edits started elsewhere (Visual, Ex) can still reach them |
-| 📅 Dates and timestamps | `▰▰▰▰▰▰▰▰▰▱` 95% | `org-duration`, custom timestamp formats in the buffer, the date prompt and export; the plain prompt preview still shows repeaters |
-| 🗓️ Agenda | `▰▰▰▰▰▰▰▰▰▱` 95% | The Emacs diary file, every diary sexp of Emacs's calendars (Hebrew birthdays, yahrzeits, parashot...), other Lisp in a separate Emacs; no `i` (insert a diary entry) |
-| 📥 Capture | `▰▰▰▰▰▰▰▰▰▱` 95% | `%(sexp)` is Emacs Lisp again; narrowed captures are edited in a separate buffer (Neovim has no indirect buffers) |
-| 📦 Refile and archive | `▰▰▰▰▰▰▰▰▰▰` 97% | Refile cache, notes in `*Org Note*`, archiving over a Visual selection; only minor edge cases left |
-| 🔗 Links | `▰▰▰▰▰▰▰▰▰▱` 95% | `shell:` output buffer, wildcard listings, `elisp:` commands, file-level `id:` links; no Emacs application links (Gnus, mu4e, BBDB) |
-| ⏱️ Clocking and timers | `▰▰▰▰▰▰▰▰▰▱` 95% | Clock tables match Emacs output, clock-out notes use `*Org Note*`; times in the repeated autumn DST hour stay ambiguous, as in Emacs |
-| 🧮 Tables and spreadsheet | `▰▰▰▰▰▰▰▰▰▱` 90% | Calc symbolic algebra, matrices and modulo forms, table.el tables; `integ` is not Calc's rule-based integrator, no `factor`/`fsolve`; the table.el editor has no cell split/span commands |
-| 🧪 Babel | `▰▰▰▰▰▰▰▰▰▱` 90% | Sessions are live REPL buffers (shells, Python, Node, Ruby, R); code reaches the REPL as one "run this file" line; Emacs Lisp runs in a separate Emacs |
-| 📤 Export | `▰▰▰▰▰▰▰▰▰▱` 95% | HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar, ODT and Texinfo are native; `#+BIND` covers the variables that have an option |
-| 🖼️ Images and LaTeX previews | `▰▰▰▰▰▰▰▰▰▱` 90% | Drawn in place of the link, including fragments over several lines (Neovim 0.11+), continuing in virtual lines; needs an image-capable terminal |
-| 📰 Feeds and MobileOrg | `▰▰▰▰▰▰▰▰▰▱` 90% | `org-feed` (RSS/Atom, Emacs-compatible FEEDSTATUS) and `org-mobile` push/pull; feeds are fetched with curl; the MobileOrg directory must be local |
+| Area | Parity | Before | What's left |
+| --- | --- | --- | --- |
+| 🌳 Outline, structure, TODO, tags, properties, dates | `▰▰▰▰▰▰▰▰▰▰` 100% | 77% | Nothing that Neovim can do; CDLaTeX, RefTeX and speedbar need Emacs (98% strict) |
+| 📋 Plain lists | `▰▰▰▰▰▰▰▰▰▰` 100% | 61% | — |
+| 🗓️ Agenda and habits | `▰▰▰▰▰▰▰▰▰▰` 100% | 83% | — |
+| 📥 Capture and date trees | `▰▰▰▰▰▰▰▰▰▰` 100% | 71% | — |
+| 📦 Refile and archive | `▰▰▰▰▰▰▰▰▰▰` 100% | 91% | — |
+| ⏱️ Clocking and timers | `▰▰▰▰▰▰▰▰▰▰` 100% | 91% | — |
+| 🧮 Tables and plots | `▰▰▰▰▰▰▰▰▰▰` 99.6% | 88% | Calc's symbolic mode and date format can't be set in `calc_default_modes` |
+| 🏛️ Column view | `▰▰▰▰▰▰▰▰▰▰` 100% | 100% | — |
+| 🔗 Links | `▰▰▰▰▰▰▰▰▰▰` 100% | 59% | Links to Emacs applications (Gnus, BBDB, MH-E, eww, w3m) need Emacs (84% strict) |
+| 📎 Attachments, IDs, footnotes, lint, protocol, crypt | `▰▰▰▰▰▰▰▰▰▰` 100% | 79% | — |
+| 🧪 Babel and source editing | `▰▰▰▰▰▰▰▰▰▰` 99.7% | 58% | Common Lisp runs in `sbcl`, not SLIME/SLY; TRAMP and Clojure's CIDER need Emacs |
+| 📤 Export and publishing | `▰▰▰▰▰▰▰▰▰▰` 100% | 78% | BBDB anniversaries in iCalendar need Emacs |
+| 📚 Citations | `▰▰▰▰▰▰▰▰▰▰` 100% | 39% | — |
+| 📰 Feeds and MobileOrg | `▰▰▰▰▰▰▰▰▰▰` 100% | 100% | — |
 
 > [!NOTE]
-> These are **estimates, not measurements**. They come from reviewing each
-> area against Emacs Org 9.8.10 (its source and Emacs run in batch mode).
-> The test suite checks that implemented behaviour matches Emacs; it can't
-> measure what is still missing. The numbers are updated as parity work
-> lands. Gaps and their reasons are listed in
+> **How this is measured.** [`docs/parity/inventory.el`](docs/parity/inventory.el)
+> makes Emacs list every command and option of Org 9.8.10, and
+> [`docs/parity/inventory.tsv`](docs/parity/inventory.tsv) records, for each
+> one, whether org.nvim does the same thing (with the code that does it), or
+> why not. A command or option counts as done only when org.nvim behaves
+> equivalently, with a spec that exercises it; results that Emacs produces
+> (buffer text, export output, agenda lines) are checked against Emacs run in
+> batch mode. Partial ones count half; Emacs internals with no user-visible
+> effect (byte compilation, caches, obsolete aliases) are left out. Run
+> [`docs/parity/score.sh`](docs/parity/score.sh) to recompute the numbers.
+>
+> A command or option that exists is not the same as every edge case of it
+> behaving identically, so this measures coverage, not bug-for-bug
+> equality. Where org.nvim differs on purpose (prefix arguments are counts,
+> the cursor sits on a character rather than between two), it says so in
 > [Differences from Emacs Org mode](#differences-from-emacs-org-mode),
 > `:h org-differences` and the [parity review](docs/parity-review.md).
 > If something behaves differently from Emacs and isn't listed,
@@ -898,9 +913,9 @@ The main differences:
   editor's buffers and has none of your Emacs configuration unless
   `babel.emacs_lisp.args` loads it. `#+BIND` sets the export variables
   that have an org.nvim option. Hooks and functions are Lua functions.
-- **Emacs applications** (Gnus, mu4e, BBDB, the calendar's own commands)
-  have no counterpart. The Emacs diary file is read by the agenda, but
-  the `i` key (insert a diary entry) is missing.
+- **Emacs applications** (Gnus, mu4e, BBDB, eww, w3m) and Emacs packages
+  (CDLaTeX, RefTeX, SLIME, CIDER, TRAMP) have no counterpart. The Emacs
+  diary file is read by the agenda, and `i` adds entries to it.
 - **Display:** image and LaTeX previews replace the link, but a terminal
   line can't grow, so a tall image continues in virtual lines under it,
   and they need a terminal image backend; hiding body text between
@@ -925,19 +940,23 @@ What's still missing, from the [parity](#-parity-with-emacs-org) gaps:
 - [ ] Calc's rule-based `integ`, `factor`, polynomial functions and numeric `solve`/`fsolve` for degree 5 and up
 - [ ] table.el's cell commands (split, span, justify) and live realignment in `C-c '`
 - [ ] Babel sessions for more languages (Julia, SQL engines)
-- [ ] The agenda `i` key (insert a diary entry) and custom `diary-date-forms`
+- [ ] Custom `diary-date-forms` in the Emacs diary file
+- [ ] Calc's symbolic mode and date format in `calc_default_modes`
 - [ ] Column view headlines read-only against every kind of edit (Visual, Ex commands, the API)
 - [ ] `#+BIND` for export variables that have no org.nvim option
 
-Done in the latest round: Calc symbolic algebra, vectors, matrices and
-modulo forms; Babel sessions as live REPL buffers (including R);
-table.el tables (`C-c ~`, `C-c '`, HTML/LaTeX export); the Emacs diary
-file and every remaining diary sexp; multi-line LaTeX fragments in place;
-custom timestamp formats in the date prompt; column-wise motion in column
-view; `#+BIND`, `(eval ...)` macros and Emacs Lisp `%(sexp)` capture
-escapes; notes in `*Org Note*`; file-level `id:` links and the Emacs ID
-locations file; `*Org Shell Output*`, wildcard file links, the refile
-cache, radio checkbox mode and the TODO hooks.
+Done in the latest round (every command and option of Org 9.8.10 checked,
+see the [parity review](docs/parity-review.md#fifth-round-a-measured-inventory)):
+citations you can insert, follow and highlight, and the CSL processor
+(a port of citeproc-el); KOMA letters and man pages as native export
+back-ends; highlighted source code in HTML and engraved LaTeX; Babel for
+PlantUML, gnuplot, LaTeX, ditaa, LilyPond, Java, C#, Haskell, Clojure,
+Common Lisp, Scheme, Fortran, Julia, OCaml, Groovy, Maxima, Processing and
+screen; ol-bibtex; Org-aware `=` indentation and `gq` filling; the agenda's
+remote undo, hour and minute date shifts and `i` diary entries;
+alphabetical list bullets; the org-goto outline browser; the Org, table and
+agenda menus and org-mouse; clipboard image paste; org-ctags. In all, 163
+commands and 329 options that were missing or partial now work like Emacs.
 
 What needs Emacs itself (indirect buffers for narrowed captures, Emacs
 applications such as Gnus and mu4e, Lisp that must change the editor's
