@@ -62,12 +62,18 @@ describe("imenu (org-imenu-depth)", function()
       vim.cmd("wincmd p")
       list = vim.fn.getloclist(0)
     end
-    eq({ "One", "  Two link [1/2]", "  Four", "Five" }, vim.tbl_map(function(e)
-      return e.text
-    end, list))
-    eq({ 1, 2, 4, 5 }, vim.tbl_map(function(e)
-      return e.lnum
-    end, list))
+    eq(
+      { "One", "  Two link [1/2]", "  Four", "Five" },
+      vim.tbl_map(function(e)
+        return e.text
+      end, list)
+    )
+    eq(
+      { 1, 2, 4, 5 },
+      vim.tbl_map(function(e)
+        return e.lnum
+      end, list)
+    )
     eq(buf, list[1].bufnr)
   end)
 end)

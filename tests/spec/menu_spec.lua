@@ -39,41 +39,47 @@ describe("menus", function()
   it("has Emacs's entries in Emacs's order", function()
     org_buffer({ "* H" })
     -- org-org-menu (org.el)
-    eq({
-      "Show/Hide",
-      "-sep",
-      "New Heading",
-      "Navigate Headings",
-      "Edit Structure",
-      "Editing",
-      "Archive",
-      "-sep",
-      "Hyperlinks",
-      "-sep",
-      "TODO Lists",
-      "Tags and Properties",
-      "Dates and Scheduling",
-      "Logging work",
-      "-sep",
-      "Agenda Command...",
-      "Set Restriction Lock",
-      "File List for Agenda",
-      "Special Views Current File",
-      "-sep",
-      "Export/Publish...",
-      "LaTeX",
-      "-sep",
-      "Documentation",
-      "Customize",
-      "Send Bug Report",
-      "-sep",
-      "Restart/Reload",
-    }, vim.tbl_map(function(n)
-      return n:match("^%-sep%d+%-$") and "-sep" or n
-    end, names("Org")))
-    eq({ "Up", "Next", "Previous", "Next Same Level", "Previous Same Level", "-sep", "Jump" }, vim.tbl_map(function(n)
-      return n:match("^%-sep") and "-sep" or n
-    end, names("Org.Navigate Headings")))
+    eq(
+      {
+        "Show/Hide",
+        "-sep",
+        "New Heading",
+        "Navigate Headings",
+        "Edit Structure",
+        "Editing",
+        "Archive",
+        "-sep",
+        "Hyperlinks",
+        "-sep",
+        "TODO Lists",
+        "Tags and Properties",
+        "Dates and Scheduling",
+        "Logging work",
+        "-sep",
+        "Agenda Command...",
+        "Set Restriction Lock",
+        "File List for Agenda",
+        "Special Views Current File",
+        "-sep",
+        "Export/Publish...",
+        "LaTeX",
+        "-sep",
+        "Documentation",
+        "Customize",
+        "Send Bug Report",
+        "-sep",
+        "Restart/Reload",
+      },
+      vim.tbl_map(function(n)
+        return n:match("^%-sep%d+%-$") and "-sep" or n
+      end, names("Org"))
+    )
+    eq(
+      { "Up", "Next", "Previous", "Next Same Level", "Previous Same Level", "-sep", "Jump" },
+      vim.tbl_map(function(n)
+        return n:match("^%-sep") and "-sep" or n
+      end, names("Org.Navigate Headings"))
+    )
     -- org-tbl-menu
     local tbl = vim.tbl_filter(function(n)
       return not n:match("^%-sep")

@@ -1148,8 +1148,7 @@ function M.context_items(ctx, direct)
   local ps, pe = word_at(line, col, "[%[%]A-Z#]", "%[#[A-Z]%]")
   if ps then
     local cur = line:sub(ps + 2, ps + 2)
-    return "priority",
-      replace_menu(lnum, ps + 2, ps + 2, priority_list(), cur, "Priority %s", true, ps, pe)
+    return "priority", replace_menu(lnum, ps + 2, ps + 2, priority_list(), cur, "Priority %s", true, ps, pe)
   end
   vim.api.nvim_win_set_cursor(0, { lnum, math.max(math.min(col, #line) - 1, 0) })
   local link = require("org.links").link_at_cursor()
@@ -1245,9 +1244,10 @@ function M.context_items(ctx, direct)
     local ms, mark = line:match("^[ \t]*|() *([#*$!_^/']) *|")
     local mcol = ms and line:find("[#*$!_^/']", ms)
     if mark and mcol and col >= ms and col <= line:find("|", mcol, true) then
-      return "table-special", replace_menu(lnum, mcol, mcol, TABLE_MARKS, mark, function(m)
-        return TABLE_MARK_LABELS[m]
-      end, true)
+      return "table-special",
+        replace_menu(lnum, mcol, mcol, TABLE_MARKS, mark, function(m)
+          return TABLE_MARK_LABELS[m]
+        end, true)
     end
     return "table", table_menu()
   end
