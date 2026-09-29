@@ -370,6 +370,36 @@ describe("org-mouse", function()
     eq({ "** A", "* B" }, buf_lines(buf))
   end)
 
+  it("shows the overview or the headlines", function()
+    local fold = require("org.fold")
+    local calls = {}
+    local overview, content = fold.overview, fold.content
+    fold.overview = function()
+      calls[#calls + 1] = "overview"
+    end
+    fold.content = function()
+      calls[#calls + 1] = "content"
+    end
+    org_buffer({ "* A", "** B" })
+    require("org.actions").run("mouse_show_overview")
+    require("org.actions").run("mouse_show_headlines")
+    fold.overview, fold.content = overview, content
+    eq({ "overview", "content" }, calls)
+  end)
+
+  it("sets a timestamp from the date prompt, then shifts it (org-mouse-timestamp-today)", function()
+    local buf = org_buffer({ "<2026-09-28 Mon>" }, { 1, 3 })
+    local calendar = require("org.calendar")
+    local pick = calendar.pick
+    calendar.pick = function()
+      return require("org.date").parse("<2026-10-01 Thu>")
+    end
+    context(1, 3)
+    emenu("Set for Tomorrow")
+    calendar.pick = pick
+    eq({ "<2026-10-02 Fri>" }, buf_lines(buf))
+  end)
+
   it("goes to the end of the headline, before the tags", function()
     -- Emacs 9.8.10 (org-mouse-end-headline): after "Task" in both
     org_buffer({ "* TODO Task   :tag:", "* TODO Task   :a:b:" }, { 1, 0 })
