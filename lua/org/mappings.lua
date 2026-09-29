@@ -148,7 +148,15 @@ function M.register_which_key()
   end
   local prefix = config.opts.mappings.prefix or "<leader>o"
   local spec = {}
-  for _, g in ipairs(groups) do
+  local all = vim.list_extend({}, groups)
+  -- groups of the enabled extensions (org.Extension.groups)
+  local loaded = require("org.extensions").loaded
+  local names = vim.tbl_keys(loaded)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    vim.list_extend(all, loaded[name].groups or {})
+  end
+  for _, g in ipairs(all) do
     spec[#spec + 1] = { prefix .. g[1], group = g[2], mode = { "n", "x" } }
   end
   pcall(wk.add, spec)
