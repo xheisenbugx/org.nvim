@@ -23,9 +23,11 @@ M.sources = {}
 
 --- Optional item grouping (the super_agenda extension). Called with the
 --- builder, the sorted rows of a day or list block, the block, the render
---- context and `add(item)`, which adds one row as usual; returns true when
---- it added the rows itself. nil renders the rows in order.
----@type (fun(b: table, rows: table[], block: table, ctx: table, add: fun(item: table)): boolean)|nil
+--- context, `add(item)`, which adds one row as usual, and the day number
+--- of an agenda day (nil for a list block); returns true when it added the
+--- rows itself. nil renders the rows in order. A highlight in `b.hls` may
+--- carry an extmark priority as its fifth element (default 110).
+---@type (fun(b: table, rows: table[], block: table, ctx: table, add: fun(item: table), day?: integer): boolean)|nil
 M.grouper = nil
 
 ---------------------------------------------------------------------------
@@ -959,7 +961,7 @@ local function render_day(b, list, d, ctx, sorting)
       M.add_item(b, it, ctx)
     end
   end
-  if M.grouper and M.grouper(b, rows, ctx.block or {}, ctx, add) then
+  if M.grouper and M.grouper(b, rows, ctx.block or {}, ctx, add, d) then
     return
   end
   for _, it in ipairs(rows) do

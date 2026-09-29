@@ -305,15 +305,16 @@ local function hidden(hl, include_archived)
   return false
 end
 
---- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees).
+--- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT subtrees,
+--- unless `all` is set).
 ---@param files org.File[]
----@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean }
+---@param opts? { restrict?: { filename?: string, range?: integer[] }, skip?: (fun(hl): boolean), archives?: string|boolean, all?: boolean }
 function M.each_headline(files, opts, fn)
   opts = opts or {}
   local r = opts.restrict
   for fidx, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
-      local ok = not hidden(hl, opts.archives)
+      local ok = opts.all or not hidden(hl, opts.archives)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
