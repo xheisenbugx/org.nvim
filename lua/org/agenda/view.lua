@@ -556,6 +556,7 @@ function M.refresh()
   if ok then
     pcall(cols.refresh_if_active)
   end
+  M.fit_window()
   -- hooks: org-agenda-filter-hook after the filters changed, else
   -- org-agenda-finalize-hook after the agenda was built
   local sig = vim.inspect(S.filters)
@@ -563,6 +564,35 @@ function M.refresh()
   S.filter_sig = sig
   local data = { buf = buf, filters = vim.deepcopy(S.filters), filter = M.filter_desc() }
   pcall(vim.api.nvim_exec_autocmds, "User", { pattern = event, data = data, modeline = false })
+end
+
+--- With `agenda.window = "split"` (reorganize-frame), fit the agenda
+--- window to its lines, between the fractions of the editor height of
+--- `agenda.window_frame_fractions` (org-agenda-fit-window-to-buffer);
+--- { 1.0, 1.0 } makes it the only window.
+function M.fit_window()
+  local win = S.win
+  if S.win_mode ~= "split" or not (win and vim.api.nvim_win_is_valid(win)) then
+    return
+  end
+  if vim.api.nvim_win_get_config(win).relative ~= "" then
+    return
+  end
+  local fr = config.opts.agenda.window_frame_fractions or { 0.5, 0.75 }
+  local lo, hi = tonumber(fr[1]) or 0.5, tonumber(fr[2]) or 0.75
+  if lo == 1 and hi == 1 then
+    pcall(vim.api.nvim_win_call, win, function()
+      vim.cmd("silent! only")
+    end)
+    return
+  end
+  if #vim.api.nvim_tabpage_list_wins(0) < 2 then
+    return
+  end
+  local total = vim.o.lines - vim.o.cmdheight
+  local n = vim.api.nvim_buf_line_count(S.buf)
+  local height = math.max(math.floor(total * lo), math.min(n, math.floor(total * hi)))
+  pcall(vim.api.nvim_win_set_height, win, math.max(height, 1))
 end
 
 function M.render_marks()

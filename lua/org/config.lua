@@ -574,6 +574,10 @@ M.defaults = {
     --- Where the agenda opens: "split" (org-agenda-window-setup
     --- reorganize-frame), "vsplit", "current", "only", "tab", "float".
     window = "split",
+    --- { min, max } height of the "split" agenda window as fractions of
+    --- the editor height; it fits its lines in between
+    --- (org-agenda-window-frame-fractions).
+    window_frame_fractions = { 0.5, 0.75 },
     --- Restore the window layout when quitting (org-agenda-restore-windows-after-quit).
     restore_windows_after_quit = false,
     --- One buffer per agenda command, reused until refreshed (org-agenda-sticky).

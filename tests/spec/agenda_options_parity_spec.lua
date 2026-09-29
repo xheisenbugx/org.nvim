@@ -691,6 +691,28 @@ describe("todo_ignore_time_comparison_use_seconds", function()
   end)
 end)
 
+describe("window_frame_fractions", function()
+  after_each(function()
+    pcall(view.quit, true)
+    pcall(vim.cmd, "silent! only")
+  end)
+
+  -- org-agenda-fit-window-to-buffer: the reorganize-frame window gets
+  -- the buffer's height, at least min and at most max of the frame.
+  it("fits the split agenda window between the fractions", function()
+    local total = vim.o.lines - vim.o.cmdheight
+    open({ "* TODO A" }, { agenda = { window = "split" } }, { type = "todo" })
+    eq(math.floor(total * 0.5), vim.api.nvim_win_get_height(view.state.win))
+    view.quit(true)
+    local many = {}
+    for i = 1, 200 do
+      many[#many + 1] = "* TODO Task " .. i
+    end
+    open(many, { agenda = { window = "split", window_frame_fractions = { 0.2, 0.6 } } }, { type = "todo" })
+    eq(math.floor(total * 0.6), vim.api.nvim_win_get_height(view.state.win))
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_options_parity_spec cleanup", function()
   it("restores the default options", function()

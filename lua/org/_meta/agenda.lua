@@ -252,6 +252,9 @@
 ---Highlight the whole subtree of a restriction lock, not only its headline
 ---(org-agenda-restriction-lock-highlight-subtree). (default: `true`)
 ---@field restriction_lock_highlight_subtree? boolean
+---{ min, max } height of the "split" agenda window as fractions of the
+---editor height (org-agenda-window-frame-fractions). (default: `{ 0.5, 0.75 }`)
+---@field window_frame_fractions? number[]
 ---Where the agenda opens (org-agenda-window-setup); `"split"` is Emacs's
 ---reorganize-frame. Emacs names ("reorganize-frame", "current-window",
 ---"only-window", "other-window", "other-tab") are accepted. (default: `"split"`)

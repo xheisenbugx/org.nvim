@@ -1464,7 +1464,10 @@ Windows and buffers                                        *org-agenda-window*
 `agenda.window` (org-agenda-window-setup): "split" (default, Emacs
 reorganize-frame: the current window and the agenda below it), "only"
 (only-window), "other" (other-window), "current", "vsplit", "tab"
-(other-tab), "float". `restore_windows_after_quit` restores the previous
+(other-tab), "float". The "split" window fits its lines, between
+`window_frame_fractions` ({ 0.5, 0.75 } of the editor height,
+org-agenda-window-frame-fractions; { 1.0, 1.0 } = the only window).
+`restore_windows_after_quit` restores the previous
 window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
 dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
 as it is when the command is run again (press r to refresh); toggling it
