@@ -523,6 +523,12 @@ local function update_winbar()
   pcall(vim.api.nvim_set_option_value, "winbar", value, { scope = "local", win = S.win })
 end
 
+--- Functions called after each render with the agenda buffer, the render
+--- builder (`lines`, `items`, and anything a grouper added) and the view
+--- state; used by extensions to set keys on what they drew. name -> fn.
+---@type table<string, fun(buf: integer, b: table, state: table)>
+M.refresh_hooks = {}
+
 --- Re-render into the agenda buffer.
 function M.refresh()
   if not S.view or not S.buf or not vim.api.nvim_buf_is_valid(S.buf) then
@@ -557,6 +563,12 @@ function M.refresh()
   end
   M.render_marks()
   update_winbar()
+  for _, fn in pairs(M.refresh_hooks) do
+    local hok, err = pcall(fn, buf, b, S)
+    if not hok then
+      utils.error("agenda refresh hook: " .. tostring(err))
+    end
+  end
   local ok, cols = pcall(require, "org.agenda.columns")
   if ok then
     pcall(cols.refresh_if_active)

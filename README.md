@@ -952,6 +952,20 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+- **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
+  `(and (todo "NEXT") (tags "work"))` or `todo:NEXT tags:work !done`,
+  `:Org ql_search`, named and saved views, `ql_find`, `ql_refile`,
+  `ql_sparse_tree`, recent items, `org-ql` agenda custom commands and
+  `#+BEGIN: org-ql` blocks (`:h org-extensions-ql`).
+
+  ![org-ql: a sexp query, changing a result's TODO state, the same search in plain syntax, a saved view sorted by deadline and an org-ql dynamic block](docs/media/ql.gif)
+- **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
+  group agenda days and lists by time grid, deadline, tag, priority,
+  category and more, with auto groups; <kbd>Tab</kbd> on a header folds
+  its group (`:h org-extensions-super-agenda`).
+
+  ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
+
 - **`present`** ([org-present](https://github.com/rlister/org-present)):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
   slide, in its own tab (`:h org-extensions-present`).

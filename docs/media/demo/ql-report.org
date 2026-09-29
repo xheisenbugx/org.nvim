@@ -1,0 +1,5 @@
+#+TITLE: Weekly report
+
+* Open tasks by deadline
+#+BEGIN: org-ql :query "todo: deadline:to=14" :files agenda :sort deadline :columns (todo heading deadline)
+#+END:

@@ -14,6 +14,22 @@ local utils = require("org.utils")
 
 local M = {}
 
+--- Extra list block types (used by extensions): type -> `fun(block, ctx,
+--- lopts)` returning `{ items, kind?, header?, sorted?, error? }`. `items`
+--- are agenda items (see `org.agenda.items`); `sorted` keeps their order
+--- unless the block sets `sorting`.
+---@type table<string, fun(block: table, ctx: table, lopts: table): table>
+M.sources = {}
+
+--- Optional item grouping (the super_agenda extension). Called with the
+--- builder, the sorted rows of a day or list block, the block, the render
+--- context, `add(item)`, which adds one row as usual, and the day number
+--- of an agenda day (nil for a list block); returns true when it added the
+--- rows itself. nil renders the rows in order. A highlight in `b.hls` may
+--- carry an extmark priority as its fifth element (default 110).
+---@type (fun(b: table, rows: table[], block: table, ctx: table, add: fun(item: table), day?: integer): boolean)|nil
+M.grouper = nil
+
 ---------------------------------------------------------------------------
 -- Line builder
 ---------------------------------------------------------------------------
@@ -1011,7 +1027,7 @@ local function render_day(b, list, d, ctx, sorting)
   end
   items_mod.sort(rows, sorting)
   rows = M.apply_limits(rows, "agenda", ctx)
-  for _, it in ipairs(rows) do
+  local function add(it)
     if it.grid then
       local prefix = M.prefix(it, "agenda")
       local ps = #prefix:match("^%s*")
@@ -1025,6 +1041,12 @@ local function render_day(b, list, d, ctx, sorting)
       end
       M.add_item(b, it, ctx)
     end
+  end
+  if M.grouper and M.grouper(b, rows, ctx.block or {}, ctx, add, d) then
+    return
+  end
+  for _, it in ipairs(rows) do
+    add(it)
   end
 end
 
@@ -1137,8 +1159,11 @@ function M.agenda_block(b, block, ctx)
     insert_header(b, block, span_name(span) .. "-agenda" .. wk .. ":")
   end
   local sorting = sorting_for(block, "agenda")
-  local dctx =
-    vim.tbl_extend("force", ctx, { agenda = true, kind = "agenda", span = span, ndays = ndays, clockcheck = {} })
+  local dctx = vim.tbl_extend(
+    "force",
+    ctx,
+    { agenda = true, kind = "agenda", span = span, ndays = ndays, clockcheck = {}, block = block }
+  )
   for d = from, to do
     local list = filter_list(by_day[d] or {}, ctx)
     if #list > 0 or acfg.show_all_dates ~= false then
@@ -1194,6 +1219,7 @@ function M.list_block(b, block, ctx)
   local kind
   local header
   local lopts = { restrict = ctx.restrict, skip = block.skip, block = block, archives = ctx.archives }
+  local presorted = false
   local redo = key_of("redo", "r")
   if t == "todo" then
     kind = "todo"
@@ -1259,6 +1285,13 @@ function M.list_block(b, block, ctx)
     end
     list = res
     header = "List of stuck projects: "
+  elseif M.sources[t] then
+    local ok, res = pcall(M.sources[t], block, ctx, lopts)
+    if not ok or res.error then
+      b:text(tostring(ok and res.error or res), "ErrorMsg")
+      return
+    end
+    list, kind, header, presorted = res.items, res.kind or "tags", res.header, res.sorted and not block.sorting
   else
     b:text("Unknown agenda block type: " .. tostring(t), "ErrorMsg")
     return
@@ -1271,12 +1304,20 @@ function M.list_block(b, block, ctx)
       items_mod.set_list_timestamp(it, sorting)
     end
   end
-  items_mod.sort(list, sorting)
+  if not presorted then
+    items_mod.sort(list, sorting)
+  end
   list = M.apply_limits(list, kind, ctx)
-  local lctx = vim.tbl_extend("force", ctx, { kind = kind })
-  for _, it in ipairs(list) do
+  local lctx = vim.tbl_extend("force", ctx, { kind = kind, block = block })
+  local function add(it)
     it.level_str = string.rep(" ", it.level or 0)
     M.add_item(b, it, lctx)
+  end
+  if M.grouper and M.grouper(b, list, block, lctx, add) then
+    return
+  end
+  for _, it in ipairs(list) do
+    add(it)
   end
 end
 

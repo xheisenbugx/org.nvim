@@ -744,8 +744,83 @@
 ---extension's defaults.
 ---@class org.Config.Extensions
 ---@field [string] table|boolean
+---org-ql queries, search views and `#+BEGIN: org-ql` blocks (`:h org-extensions-ql`).
+---@field ql? org.Config.Extensions.Ql|boolean
+---org-super-agenda groups in agenda views (`:h org-extensions-super-agenda`).
+---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+
+---@class org.Config.Extensions.Ql
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Files a search looks in: `"agenda"`, `"buffer"` (the current buffer),
+---`"all"` (loaded org buffers) or a list of files and globs. (default: `"agenda"`)
+---@field files? "agenda"|"buffer"|"all"|string[]
+---Predicate for bare words in plain queries (org-ql-default-predicate).
+---(default: `"rifle"`)
+---@field default_predicate? string
+---Sort of searches without their own (`"date"`, `"deadline"`, `"scheduled"`,
+---`"closed"`, `"priority"`, `"todo"`, `"random"`, `"reverse"`, a comparator
+---or a list of those; a list is applied in order, the last being the
+---primary key). (default: `nil`, file order)
+---@field sort? string|fun(a: org.Headline, b: org.Headline): boolean|(string|function)[]
+---Named views for `:Org ql_view` (org-ql-views). (default: `{}`)
+---@field views? table<string, org.Config.Extensions.QlView>
+---JSON file of the views saved from search buffers; `false` to not save.
+---(default: `stdpath("data") .. "/org/ql-views.json"`)
+---@field views_file? string|false
+---Key in search buffers that saves the search as a view. (default: `"<C-x><C-s>"`)
+---@field save_view_key? string|false
+---Also search COMMENT and ARCHIVE subtrees, as org-ql does. (default: `false`)
+---@field include_hidden? boolean
+---A repeating timestamp matches a date range when an occurrence does. (default: `true`)
+---@field expand_repeaters? boolean
+---Remember results per entry until its file changes. (default: `true`)
+---@field cache? boolean
+
+---@class org.Config.Extensions.QlView
+---The query: a sexp or plain query string, or a Lua-form table.
+---@field query string|table
+---@field files? "agenda"|"buffer"|"all"|string[]
+---@field sort? string|function|(string|function)[]
+---Header line of the view (default: the view's name).
+---@field title? string
+---org-super-agenda groups for this view.
+---@field super_groups? table[]
+---Also search COMMENT and ARCHIVE subtrees (default: `include_hidden`).
+---@field include_hidden? boolean
+
+---@class org.Config.Extensions.SuperAgenda
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The groups (org-super-agenda-groups), e.g.
+---`{ { name = "Today", time_grid = true }, { auto_category = true } }`. (default: `{}`)
+---@field groups? table[]
+---Header of the items no group takes. (default: `"Other items"`)
+---@field unmatched_name? string
+---Order of that group. (default: `99`)
+---@field unmatched_order? number
+---Before each group header: a string (`"\n"` = a blank line) or one
+---character repeated across the window. (default: `"\n"`)
+---@field header_separator? string
+---Text before each group name. (default: `" "`)
+---@field header_prefix? string
+---After the last group. (default: `""`)
+---@field final_group_separator? string
+---strftime format of `auto_planning` / `auto_ts` headers. (default: `"%e %B %Y"`)
+---@field date_format? string
+---Property read by `auto_group`. (default: `"agenda-group"`)
+---@field group_property_name? string
+---Inherit properties in `property`, `auto_property` and `auto_group`. (default: `true`)
+---@field properties_inherit? boolean
+---Keep the agenda's order inside a group (org-super-agenda-keep-order);
+---off, a group lists its items selector by selector. (default: `false`)
+---@field keep_order? boolean
+---Keys on group headers: `toggle` folds the group, `next` / `prev` move
+---between headers; `false` for none.
+---(default: `{ toggle = "<Tab>", next = "gj", prev = "gk" }`)
+---@field header_keys? { toggle?: string|false, next?: string|false, prev?: string|false }|false
 
 ---Options of the `present` extension (Emacs org-present).
 ---@class org.Config.Extensions.Present
