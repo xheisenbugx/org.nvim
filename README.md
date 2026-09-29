@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/media/logo.svg" alt="org.nvim logo: an Org outline with a unicorn" width="180">
+<img src="docs/media/logo.png" alt="org.nvim logo: an Org outline with headings and a checkbox, and a unicorn" width="200">
 
 # org.nvim
 
