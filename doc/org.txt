@@ -1559,7 +1559,10 @@ All configurable under `mappings.agenda`:
                   also the drawers (org-agenda-show-1; level 0, fold,
                   has no count form: `require("org.agenda.view").show_1(0)`)
   <MiddleMouse>   go to the entry clicked (org-agenda-goto-mouse); with
-                  `agenda.mouse_1_follows_link` also <LeftMouse>
+                  `agenda.mouse_1_follows_link` also a short <LeftMouse>
+                  click without a drag (a longer one only moves the
+                  cursor; the limit is `links.mouse_1_follows_link` ms
+                  when that is a number, else 450)
   <RightMouse>    show the entry clicked (org-agenda-show-mouse)
   <C-c><C-x>b     edit the entry's subtree in the other window (the
                   subtree edit buffer of |org-narrow|, since Neovim has no

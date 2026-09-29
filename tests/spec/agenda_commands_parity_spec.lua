@@ -398,6 +398,38 @@ describe("agenda show commands", function()
     eq(utils.find_buffer(path), vim.api.nvim_get_current_buf())
     eq(1, vim.api.nvim_win_get_cursor(0)[1])
   end)
+
+  -- org-agenda-mouse-1-follows-link binds [follow-link] to mouse-face:
+  -- a short mouse-1 click without a drag follows, a longer one sets point
+  it("with mouse_1_follows_link only a short click goes to the entry", function()
+    open(lines, { agenda = { mouse_1_follows_link = true } })
+    local maps = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(0, "n")) do
+      maps[m.lhs] = true
+    end
+    ok(maps["<LeftMouse>"] and maps["<LeftRelease>"])
+    local l = goto_title("A")
+    local getmousepos = vim.fn.getmousepos
+    vim.fn.getmousepos = function()
+      return { winid = view.state.win, line = l, column = 5, screenrow = 3, screencol = 5 }
+    end
+    local function click(press, release)
+      vim.api.nvim_set_current_win(view.state.win)
+      view._mouse_press, view._mouse_release = press, release
+      view.mouse_1_release()
+      return vim.api.nvim_get_current_buf()
+    end
+    local okc, err = pcall(function()
+      local agenda_buf = vim.api.nvim_win_get_buf(view.state.win)
+      -- held too long, then dragged: point only
+      eq(agenda_buf, click({ time = 0, row = 3, col = 5 }, { time = 1000, row = 3, col = 5 }))
+      eq(agenda_buf, click({ time = 0, row = 2, col = 5 }, { time = 10, row = 3, col = 5 }))
+      local shown = click({ time = 0, row = 3, col = 5 }, { time = 100, row = 3, col = 5 })
+      eq(utils.find_buffer(path), shown)
+    end)
+    vim.fn.getmousepos = getmousepos
+    assert(okc, err)
+  end)
 end)
 
 describe("agenda todo_yesterday", function()

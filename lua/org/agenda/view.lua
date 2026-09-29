@@ -3572,6 +3572,25 @@ function M.run_in_region(name)
   end)
 end
 
+--- Screen position and time (ms) of the mouse, for `mouse_1_release`.
+local function mouse_pos()
+  local pos = vim.fn.getmousepos()
+  return { time = vim.uv.hrtime() / 1e6, row = pos.screenrow, col = pos.screencol }
+end
+
+--- After a <LeftRelease> with `agenda.mouse_1_follows_link`: a click
+--- shorter than `links.mouse_1_follows_link` ms (450 unless that is a
+--- number) that didn't move goes to the entry clicked, like <MiddleMouse>.
+function M.mouse_1_release()
+  local setting = (config.opts.links or {}).mouse_1_follows_link
+  local press, release = M._mouse_press, M._mouse_release
+  M._mouse_press = nil
+  local limit = type(setting) == "number" and setting or 450
+  if require("org.mouse").click_follows(limit, press, release or mouse_pos()) then
+    M.run_action("goto_mouse")
+  end
+end
+
 setup_mappings = function(buf)
   local maps = config.opts.mappings.agenda or {}
   local all = {}
@@ -3581,7 +3600,17 @@ setup_mappings = function(buf)
     end
   end
   if config.opts.agenda.mouse_1_follows_link then
-    all[#all + 1] = { name = "goto_mouse", lhs = "<LeftMouse>" }
+    -- a short click without a drag goes to the entry, a longer one sets
+    -- point ([follow-link] mouse-face, mouse-1-click-follows-link)
+    local o = { buffer = buf, expr = true, replace_keycodes = true }
+    vim.keymap.set("n", "<LeftMouse>", function()
+      M._mouse_press = mouse_pos()
+      return "<LeftMouse>"
+    end, vim.tbl_extend("force", o, { desc = "org agenda: set point (a short click goes to the entry)" }))
+    vim.keymap.set("n", "<LeftRelease>", function()
+      M._mouse_release = mouse_pos()
+      return "<LeftRelease><Cmd>lua require('org.agenda.view').mouse_1_release()<CR>"
+    end, vim.tbl_extend("force", o, { desc = "org agenda: go to the entry clicked" }))
   end
   for _, m in ipairs(all) do
     local fn = M.actions[m.name]
