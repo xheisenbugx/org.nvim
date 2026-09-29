@@ -114,10 +114,13 @@ local function register(name, ext)
   end
   local maps = require("org.config").opts.mappings
   for section, keys in pairs(ext.mappings or {}) do
-    maps[section] = maps[section] or {}
-    for aname, lhs in pairs(keys) do
-      if maps[section][aname] == nil then
-        maps[section][aname] = lhs
+    -- a section the user turned off (`mappings.emacs = false`) stays off
+    if maps[section] ~= false then
+      maps[section] = maps[section] or {}
+      for aname, lhs in pairs(keys) do
+        if maps[section][aname] == nil then
+          maps[section][aname] = lhs
+        end
       end
     end
   end

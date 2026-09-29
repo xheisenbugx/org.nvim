@@ -88,6 +88,14 @@ describe("extensions", function()
     eq(false, require("org.config").opts.mappings.global.testext_hello)
   end)
 
+  it("adds no keys to a mapping section the user turned off", function()
+    package.loaded["org.extensions.testext"].mappings.emacs_global = { testext_hello = "<C-c>z" }
+    setup({ mappings = { emacs_global = false }, extensions = { testext = {} } })
+    eq(false, require("org.config").opts.mappings.emacs_global)
+    eq("", vim.fn.maparg("<C-c>z", "n"))
+    eq("<prefix>zz", require("org.config").opts.mappings.global.testext_hello)
+  end)
+
   it("calls teardown when a later setup turns it off or sets it up again", function()
     local downs = 0
     package.loaded["org.extensions.testext"].teardown = function()
@@ -113,5 +121,68 @@ describe("extensions", function()
     vim.notify = notify
     ok(errors[1] and errors[1]:find("no_such_extension", 1, true), vim.inspect(errors))
     ok(not require("org.extensions").enabled("no_such_extension"))
+  end)
+end)
+
+describe("built-in extensions", function()
+  --- Every module under lua/org/extensions/ except the loader.
+  local function extension_names()
+    local names = {}
+    local dir = vim.fn.getcwd() .. "/lua/org/extensions"
+    for name, kind in vim.fs.dir(dir) do
+      if kind == "file" and name:match("%.lua$") and name ~= "init.lua" then
+        names[#names + 1] = name:gsub("%.lua$", "")
+      elseif kind == "directory" and vim.uv.fs_stat(dir .. "/" .. name .. "/init.lua") then
+        names[#names + 1] = name
+      end
+    end
+    table.sort(names)
+    return names
+  end
+
+  it("give default keys that clash with no org.nvim key or other extension", function()
+    local config = require("org.config")
+    local actions = require("org.actions").list
+    -- mode + key -> owner, for org.nvim's default keys
+    local keys = {}
+    local function add(entries, owner, section, name, value, ext_actions)
+      local a = (ext_actions or {})[name] or actions[name]
+      local modes = (section == "org_insert" or section == "emacs_insert") and { "i" } or (a and a.modes or { "n" })
+      for _, lhs in ipairs(config.lhs_list(value)) do
+        for _, mode in ipairs(modes) do
+          entries[#entries + 1] = { mode = mode, key = vim.keycode(lhs), lhs = lhs, owner = owner .. "." .. name }
+        end
+      end
+    end
+    local sections = { "global", "emacs_global", "org", "emacs", "org_insert", "emacs_insert" }
+    for _, section in ipairs(sections) do
+      for name, value in pairs(config.defaults.mappings[section] or {}) do
+        add(keys, section, section, name, value)
+      end
+    end
+    local clashes = {}
+    local ext_keys = {}
+    for _, ext_name in ipairs(extension_names()) do
+      local ext = require("org.extensions." .. ext_name)
+      for section, maps in pairs(ext.mappings or {}) do
+        for name, value in pairs(maps) do
+          add(ext_keys, ext_name, section, name, value, ext.actions)
+        end
+      end
+    end
+    for i, e in ipairs(ext_keys) do
+      local others = vim.list_extend(vim.list_slice(ext_keys, i + 1), keys)
+      for _, o in ipairs(others) do
+        local short, long = e.key, o.key
+        if #short > #long then
+          short, long = long, short
+        end
+        if e.mode == o.mode and e.owner ~= o.owner and long:sub(1, #short) == short then
+          clashes[#clashes + 1] = string.format("%s %s (%s) / %s (%s)", e.mode, e.lhs, e.owner, o.lhs, o.owner)
+        end
+      end
+    end
+    table.sort(clashes)
+    eq({}, clashes)
   end)
 end)
