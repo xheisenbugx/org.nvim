@@ -82,6 +82,7 @@ local function has_agenda_block()
   end
   return false
 end
+M.has_agenda_block = has_agenda_block
 
 local function current_span()
   if S.span then
@@ -1508,6 +1509,7 @@ local function on_item(fn)
     finish({ target.bufnr })
   end
 end
+M.on_item = on_item
 
 local function kind_of(item)
   if item.type == "deadline" then
@@ -3640,6 +3642,8 @@ setup_mappings = function(buf)
       end
     end
   end
+  -- org-mouse (mouse.org_mouse): the context menu and gestures
+  require("org.org_mouse").attach_agenda(buf)
 end
 
 return M

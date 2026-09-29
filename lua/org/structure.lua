@@ -2035,7 +2035,13 @@ end
 --- Sort entries (org-sort-entries): the children of the current headline,
 --- the top-level entries before the first headline, or the entries of the
 --- Visual selection. With a count (C-u), sorting is case-sensitive.
-function M.sort()
+--- `sorting_type` (a key of the menu, e.g. "a" or "T") sorts entries that
+--- way without asking.
+---@param sorting_type? string
+function M.sort(sorting_type)
+  if type(sorting_type) ~= "string" then
+    sorting_type = nil
+  end
   local bufnr = buf()
   local lnum = cursor()[1]
   local line = vim.api.nvim_get_current_line()
@@ -2114,7 +2120,17 @@ function M.sort()
       end
     end
   end
-  local choice = require("org.ui").menu({ title = "Sort " .. what, items = menu_items })
+  local choice
+  if sorting_type then
+    -- (org-sort-entries nil ?a): the sorting type without asking
+    for _, it in ipairs(menu_items) do
+      if it.key == sorting_type then
+        choice = it.value
+      end
+    end
+  else
+    choice = require("org.ui").menu({ title = "Sort " .. what, items = menu_items })
+  end
   if not choice then
     return
   end

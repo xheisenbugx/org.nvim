@@ -83,6 +83,7 @@
 ---| "bibtex_yank" # Insert the yanked BibTeX entry (count: into this headline)
 ---| "bookmark_jump" # Jump to a capture / refile bookmark
 ---| "buffer_goto" # Go to heading in buffer
+---| "bug_report" # Report a bug (org-submit-bug-report)
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
 ---| "capture_here" # Capture at the cursor (C-0 C-c c)
@@ -94,6 +95,7 @@
 ---| "clock_in" # Clock in
 ---| "clock_in_last" # Clock in last task
 ---| "clock_mark_default_task" # Mark entry as default clocking task
+---| "clock_menu" # Pop up the clock menu (org-clock-menu)
 ---| "clock_modify_effort" # Change effort of clocked task
 ---| "clock_out" # Clock out
 ---| "clock_report" # Insert / update clock report (count: first in buffer)
@@ -115,6 +117,8 @@
 ---| "ctrl_c_minus" # Table hline / cycle bullet / toggle item
 ---| "ctrl_c_ret" # Table hline and move / insert heading
 ---| "ctrl_c_star" # Recalc table / toggle heading
+---| "customize" # Browse and set options (org-customize)
+---| "customize_menu" # List every option in the Org menu (org-create-customize-menu)
 ---| "cut_special" # Cut table region / subtree
 ---| "cut_subtree" # Cut subtree
 ---| "cycle" # Cycle visibility
@@ -156,6 +160,7 @@
 ---| "id_get_create" # Get or create ID
 ---| "id_goto" # Go to entry by ID
 ---| "id_store_link" # Store id: link to entry
+---| "imenu" # Headlines in the location list (imenu)
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
 ---| "indent_block" # Indent the block at point
@@ -185,6 +190,15 @@
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
+---| "mouse_context_menu" # Context menu for the cursor position (org-mouse-show-context-menu)
+---| "mouse_end_headline" # End of the headline, before the tags (org-mouse-end-headline)
+---| "mouse_insert_checkbox" # Checkbox on the item (org-mouse-insert-checkbox)
+---| "mouse_insert_heading" # New heading (org-mouse-insert-heading)
+---| "mouse_move_tree_start" # How dragging a subtree works (org-mouse-move-tree-start)
+---| "mouse_show_headlines" # Show all headlines (org-mouse-show-headlines)
+---| "mouse_show_overview" # Show the overview (org-mouse-show-overview)
+---| "mouse_timestamp_today" # Change the timestamp with the date prompt (org-mouse-timestamp-today)
+---| "mouse_transform_to_outline" # Plain list to outline (org-mouse-transform-to-outline)
 ---| "occur_link_in_agenda_files" # Find links to here in the agenda files
 ---| "open_at_mouse" # Open the link clicked
 ---| "open_at_point_global" # Follow an Org link, date or URL in any buffer
@@ -508,6 +522,8 @@
 ---@field prev_sibling? org.MappingLhs
 --- Go to heading in buffer. Default: `<prefix>.`
 ---@field buffer_goto? org.MappingLhs
+--- Headlines in the location list (imenu). Default: `gO`
+---@field imenu? org.MappingLhs
 --- Next TODO state. Default: `cit`
 ---@field todo_next? org.MappingLhs
 --- Previous TODO state. Default: `ciT`

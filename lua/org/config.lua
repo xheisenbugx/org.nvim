@@ -691,6 +691,14 @@ M.defaults = {
   --- Show what a typed date means while typing it in the calendar
   --- (org-read-date-display-live).
   read_date_display_live = true,
+  --- Key of the calendar opened by `goto_calendar` that shows the agenda of
+  --- its date: "default" (`c`), another key, or false
+  --- (org-calendar-to-agenda-key).
+  calendar_to_agenda_key = "default",
+  --- Key of that calendar adding a diary entry for its date to
+  --- `agenda.diary_entry_file`, when that is an Org file
+  --- (org-calendar-insert-diary-entry-key).
+  calendar_insert_diary_entry_key = "i",
   --- <S-Down> makes timestamps later and <S-Up> earlier
   --- (org-edit-timestamp-down-means-later).
   edit_timestamp_down_means_later = false,
@@ -1478,6 +1486,17 @@ M.defaults = {
     --- Countdown suggested at the prompt, minutes or h:mm:ss; "0" = none
     --- (org-timer-default-timer).
     default_timer = "0",
+  },
+
+  --- org-mouse (see `:h org-mouse`).
+  mouse = {
+    --- Load org-mouse: context menus, dragging subtrees, clickable stars,
+    --- bullets and checkboxes. Emacs loads it with (require 'org-mouse).
+    org_mouse = false,
+    --- Its parts (org-mouse-features): "context-menu", "move-tree",
+    --- "yank-link", "activate-stars", "activate-bullets",
+    --- "activate-checkboxes".
+    features = { "context-menu", "yank-link", "activate-stars", "activate-bullets", "activate-checkboxes" },
   },
 
   ---------------------------------------------------------------------------
@@ -2412,6 +2431,10 @@ M.defaults = {
       --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
       --- a Vim regexp separating keys typed at one prompt, or "dynamic".
       basic_complete_key_crm_separator = nil,
+      --- Highlight group of the citation key under the mouse ("highlight",
+      --- Emacs's face, is OrgCiteMouseOver); false = none. Turns
+      --- 'mousemoveevent' on (org-cite-basic-mouse-over-key-face).
+      basic_mouse_over_key_face = "highlight",
       -- csl processor (oc-csl)
       csl_styles_dir = nil, -- org-cite-csl-styles-dir
       csl_locales_dir = nil, -- org-cite-csl-locales-dir (nil: en-US only)
@@ -2504,6 +2527,12 @@ M.defaults = {
   -- UI
   ---------------------------------------------------------------------------
   ui = {
+    --- The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus
+    --- (Emacs's easymenus), added while a buffer they belong to is current;
+    --- false = none. Emacs has no option for them.
+    menus = true,
+    --- Headline levels listed by `imenu` (gO) (org-imenu-depth).
+    imenu_depth = 2,
     --- Conceal link brackets and show only descriptions (org-link-descriptive).
     conceal_links = true,
     --- Hide *, /, _, =, ~, + around emphasized text (org-hide-emphasis-markers).
@@ -2738,6 +2767,7 @@ M.defaults = {
       next_sibling = "][",
       prev_sibling = "[]",
       buffer_goto = "<prefix>.",
+      imenu = "gO", -- like gO in help and markdown buffers
       -- todo / priority / tags / properties
       todo_next = "cit",
       todo_prev = "ciT",

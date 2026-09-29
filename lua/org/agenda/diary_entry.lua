@@ -313,7 +313,10 @@ local function org_file_entry(path, d1, d2)
   if text:match("%S") then
     local what = kind:sub(1, 1):upper() .. kind:sub(2)
     utils.notify(what .. " entry added to " .. vim.fn.fnamemodify(path, ":~"))
-    view().redo()
+    -- from the agenda (not from the calendar)
+    if vim.bo.filetype == "orgagenda" then
+      view().redo()
+    end
   else
     show_file(path, lnum, true)
     utils.notify("Please finish entry here")
@@ -344,6 +347,19 @@ function M.entry(opts)
   local target = config.opts.agenda.diary_entry_file
   if target == nil or target == "diary-file" then
     return diary_file_entry(d1, d2, opts.nonmarking)
+  end
+  return org_file_entry(vim.fs.normalize(vim.fn.expand(target)), d1, d2)
+end
+
+--- A diary entry for day `d1` from the calendar
+--- (org-calendar-insert-diary-entry-key): org-agenda-diary-entry-in-org-file
+--- with the calendar's date. Only with an Org `agenda.diary_entry_file`.
+---@param d1 integer day number
+---@param d2? integer the other end of a block
+function M.calendar_entry(d1, d2)
+  local target = config.opts.agenda.diary_entry_file
+  if target == nil or target == "diary-file" then
+    return nil
   end
   return org_file_entry(vim.fs.normalize(vim.fn.expand(target)), d1, d2)
 end

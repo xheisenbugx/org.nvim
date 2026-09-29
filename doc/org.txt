@@ -381,6 +381,12 @@ g{              Parent headline.
                 With "outline-path-completion": pick a headline by its
                 outline path (|vim.ui.select()|), down to
                 `goto_max_level`. A count uses the other interface.
+gO              The headlines in the location list, indented by level,
+                down to `ui.imenu_depth` levels (default 2; reduced
+                levels with odd levels only), like gO in help and markdown
+                buffers: Emacs's imenu index (org-imenu-depth). The text is
+                the headline's without TODO keyword, priority, COMMENT and
+                tags, links shown by their description (`:Org imenu`).
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
@@ -1175,6 +1181,16 @@ The keys:
   T              set a time
   !              show the agenda of the selected date (Emacs: the diary
                  entries); the windows come back when the prompt ends
+  c              only in the calendar of `:Org goto_calendar`: close it and
+                 show the agenda from the week of the date
+                 (org-calendar-goto-agenda; the key is
+                 `calendar_to_agenda_key`: "default" is `c`, false none)
+  i              only in that calendar, when `agenda.diary_entry_file` is
+                 an Org file: close it and add a diary entry for the date
+                 there, as the agenda's `i` does
+                 (`calendar_insert_diary_entry_key`,
+                 org-calendar-insert-diary-entry-key); `t` still types a
+                 date
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
   <LeftMouse>    select the day clicked (<MiddleMouse> too)
@@ -5127,6 +5143,8 @@ blink.cmp: >lua
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
 Options under `ui`:
+  menus                  the Org menus (|org-menus|), default true
+  imenu_depth            headline levels of `imenu` (gO), default 2
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
   hide_leading_stars     show only the last star of each headline
@@ -5727,6 +5745,9 @@ Structure and visibility ~
   read_date_prefer_future   true      true|false|"time"
   read_date_popup_calendar  true      false: a plain prompt |org-calendar|
   read_date_display_live    true      show the typed date's meaning
+  calendar_to_agenda_key    "default" the `goto_calendar` key showing the
+                                      agenda of the date: `c`, a key, false
+  calendar_insert_diary_entry_key  "i"  its key adding a diary entry
   edit_timestamp_down_means_later  false  <S-Down> makes timestamps later
   display_custom_times      false     |org-dates|
   time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
@@ -5978,7 +5999,11 @@ export ~                                                   *org-config-export*
   cite also has the buffer options (|org-cite|): activate_processor,
   follow_processor, insert_processor "basic", basic_max_key_distance 2,
   basic_author_column_end 25, basic_column_separator "  ",
-  basic_complete_key_crm_separator nil.
+  basic_complete_key_crm_separator nil, basic_mouse_over_key_face
+  "highlight" (OrgCiteMouseOver; false = none).
+mouse ~     org_mouse false, features { "context-menu", "yank-link",
+            "activate-stars", "activate-bullets", "activate-checkboxes" }
+            (|org-mouse|)
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil
@@ -6227,6 +6252,101 @@ Additional subcommands:
   :Org mobile_push | mobile_pull | mobile_apply | mobile_goto_inbox |
        mobile_flagged        (|org-mobile|)
 
+Menus                                                           *org-menus*
+Emacs's Org menus are Neovim menus (|:menu|): "Org" and "Table" in org
+buffers (org-org-menu, org-tbl-menu), "Agenda" in the agenda
+(org-agenda-menu), "Column" in column view (org-columns-menu),
+"Edit-Formulas" in the formula editor (org-table-fedit-menu) and "OrgTbl"
+where orgtbl-mode is on (orgtbl-mode-menu), with Emacs's entries in Emacs's
+order, each running the action that does the same (its key is shown next to
+it). Neovim menus are global, so they are added when a buffer they belong
+to is entered and removed when another one is. GUIs show them in the menu
+bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>` completes) or
+pop a menu up with |:popup| (`:popup Org`). Entries Emacs greys out at point
+are disabled before a popup and refuse to run otherwise. "File List for
+Agenda" and "Agenda Files" list the agenda files. `ui.menus = false` turns
+the menus off (Emacs has no option for them).
+                                                           *org-clock-menu*
+:Org clock_menu         Pop up the clock menu: clock out, change the effort
+                        estimate, go to the clocked task, switch task
+                        (org-clock-menu). Emacs shows it on a click on the
+                        clock in the mode line; for the same in a statusline
+                        use the click handler: >vim
+    set statusline+=%@v:lua.require'org.menu'.clock_click@%{v:lua.require'org'.statusline()}%X
+<                       (a left click pops the menu up, a middle click goes
+                        to the clocked task).
+                                                            *org-customize*
+:Org customize          A buffer listing every option with its value, in the
+                        order and sections of lua/org/config.lua
+                        (org-customize); "[changed]" marks values that
+                        differ from the default. <CR> or K shows the
+                        option's documentation with its default and value,
+                        `c` sets it for this session (a Lua expression), `R`
+                        resets it to its default, `q` closes the buffer. Put
+                        changes in `setup()` to keep them.
+:Org customize_menu     Put every option into the Org menu's Customize
+                        submenu (org-create-customize-menu); an entry opens
+                        the options buffer on it.
+                                                           *org-bug-report*
+:Org bug_report         Report a bug (org-submit-bug-report): after a notice
+                        about privacy, asks whether to include your options
+                        (those that differ from the defaults) and for a
+                        subject, puts the report (Neovim, org.nvim and OS
+                        versions, the options) in a buffer and opens a new
+                        GitHub issue titled "[BUG] <subject> [<version>]"
+                        prefilled with it (|vim.ui.open()|). A report too
+                        long for a URL is left for you to paste (it is also
+                        in the + register).
+
+org-mouse                                                       *org-mouse*
+`mouse.org_mouse = true` loads org-mouse (Emacs: (require 'org-mouse)); it
+is off by default. `mouse.features` (org-mouse-features) picks its parts,
+by default all but "move-tree":
+  "context-menu"   <RightMouse> pops up a menu for what is under the mouse
+                   (org-mouse-show-context-menu, also `:Org
+                   mouse_context_menu` at the cursor): a TODO keyword
+                   (switch it, TODO trees and lists), SCHEDULED:/DEADLINE:
+                   (switch or remove it), a priority cookie (set or remove
+                   it), a link (open, copy, cut), a tag (agenda, sparse
+                   tree, toggle tags), a timestamp (show the day, change,
+                   delete, set for today/tomorrow/in a week..., shift by a
+                   day/week/month), a checkbox (toggle, remove, all
+                   clear/set/toggle/remove), a table (and its special
+                   first-column marks), a `#+STARTUP:` line (toggle each
+                   option), a headline (priority, tags, TODO state, new
+                   heading, deadline, schedule, timestamp, archive, cut,
+                   copy, paste, sort children), the Visual selection
+                   (sparse tree, find, grep, convert to link, insert the
+                   last yank as a link), elsewhere a general menu
+                   (overview, headlines, deadlines, TODOs, tags, agenda
+                   views, custom agenda commands, blank lines, checkboxes,
+                   list to outline). Items that are radio buttons or toggles
+                   in Emacs show "(*)" / "[X]" when selected. In the agenda
+                   the menu of an entry is its headline's menu, run in the
+                   entry's buffer (the agenda is rebuilt), elsewhere an
+                   agenda menu; <C-ScrollWheelUp/Down> and a horizontal
+                   right drag go to earlier / later dates.
+                   <C-LeftMouse> dragged moves a subtree (see below).
+  "move-tree"      A right drag moves a subtree.
+  "yank-link"      <S-MiddleMouse>, or a right drag, inserts the last yank
+                   as " [[...]] " where the mouse is (org-mouse-yank-link).
+  "activate-stars", "activate-bullets", "activate-checkboxes"
+                   A click on headline stars cycles the subtree, on a bullet
+                   cycles the item, on a checkbox toggles it (<MiddleMouse>,
+                   and <LeftMouse> with `links.mouse_1_follows_link`). With
+                   org-mouse, <C-c><C-o> on them does the same.
+With org-mouse a click inside the Visual selection keeps it
+(org-mouse-down-mouse), so that a right click there shows its menu.
+Dragging a subtree (org-mouse-move-tree): drop it on its own headline to
+demote it (drag right) or promote it (drag left), on another headline's
+stars to put it before that headline, at its level, further right or on the
+text below a headline to make it that headline's last child.
+Commands of org-mouse, also as actions: mouse_insert_heading (a heading
+before the line when at its start, else before the next heading),
+mouse_insert_checkbox, mouse_end_headline, mouse_show_headlines,
+mouse_show_overview, mouse_timestamp_today, mouse_transform_to_outline
+(the list items of the entry become subheadings), mouse_move_tree_start.
+
 ==============================================================================
 29. LUA API                                                          *org-api*
 
@@ -6452,18 +6572,20 @@ Differences from Emacs:
 - Clocking (|org-clock|): the idle time comes from the system on macOS
   (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
   own input, so time spent in other applications counts as idle there.
-  The mode line entry is the |org-api| statusline component; clicking it
-  has no menu. Timers use counts, so a countdown's C-u (default timer)
+  The mode line entry is the |org-api| statusline component; a click
+  handler pops up the clock menu (|org-clock-menu|). Timers use counts, so a countdown's C-u (default timer)
   has no count form: a count is always minutes.
 - Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
   cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
   is a Vim regexp read at an `input()` prompt (Emacs uses
   completing-read-multiple with an Emacs regexp); a bare key is accepted
-  there as well as the completed "author year title" string. Neovim has no mouse-over
-  faces or tooltips, so `org-cite-basic-mouse-over-key-face` and the
-  help-echo text over a key (the entry, or the close keys) have no
-  counterpart; `require("org.cite").key_help(bufnr, key)` returns that
-  text. Keys are highlighted everywhere, also in source blocks.
+  there as well as the completed "author year title" string. Neovim has no
+  mouse-over faces: a <MouseMove> mapping highlights the key under the
+  mouse with `basic_mouse_over_key_face` (org-cite-basic-mouse-over-key-face)
+  and turns 'mousemoveevent' on. There are no tooltips, so the help-echo
+  text over a key (the entry, or the close keys) has no counterpart;
+  `require("org.cite").key_help(bufnr, key)` returns that text. Keys are
+  highlighted everywhere, also in source blocks.
 - The csl citation processor runs a Lua port of citeproc-el instead of the
   Emacs library; it gives citeproc-el's output on 840 of the 845 tests of
   the CSL test suite (the others are errors in citeproc-el and items
@@ -6748,7 +6870,35 @@ Differences from Emacs:
     `read_date_popup_calendar = false` no interpretation is shown, like
     Emacs. The calendar is not kept open after a prompt: <C-c>< inserts the
     date it was last left on, and today (not an error) before any calendar
-    was shown.
+    was shown. As the calendar is a prompt, it is never shown while a
+    timestamp changes, so org-calendar-follow-timestamp-change has nothing
+    to follow; its `c` and `i` keys close it.
+- Menus and org-mouse (|org-menus|, |org-mouse|):
+  - Menu entries that are toggles or radio buttons in Emacs show no check
+    state in the menu bar (the org-mouse popups, built when shown, mark
+    them "[X]" / "(*)"). "Complete Keyword" and "Complete Lisp Symbol" use
+    omni completion; the CDLaTeX and RefTeX entries of the LaTeX submenu
+    are always greyed out; "Show Org Manual" opens |org|, "Browse Org News"
+    the org.nvim releases; "Which Column?" says the column (Emacs computes
+    it silently); "Previous Keyword Set" goes to the previous set (Emacs
+    9.8.10 runs the next-set command there); "Reload Org" reloads the Lua
+    modules with the options in effect, and refuses while a clock runs;
+    "Enforce Dependencies", "Customize Feeds" and MobileOrg's "Setup" open
+    |org-customize| on the option. Two agenda entries named "Archive
+    default" are distinguished by a trailing space.
+  - org-mouse's link menu opens links "in Neovim" instead of Emacs; its
+    SCHEDULED:/DEADLINE: replacement works (Emacs 9.8.10 signals
+    void-variable org-mouse-rest). A subtree dropped on a headline's stars
+    goes before it at its level and one dropped right of them becomes its
+    last child, as org-mouse's own message says (Emacs 9.8.10 counts the
+    space after the stars as a level, so the subtree lands a level deeper,
+    and loses the subtree when dropped under a later headline). Text
+    dropped on the buffer arrives as a paste, so org-mouse's insertion of
+    dropped text as a list item (org-mouse-punctuation) has no
+    counterpart.
+- Customize (|org-customize|) lists lua/org/config.lua's options and sets
+  them for the session; there is nothing like Custom's "Save" (options
+  live in your `setup()` call).
   - `links.mouse_1_follows_link` times the click from press to release in
     the Org buffer; `open_at_point_global` reads links on the line (and
     bracket links over nearby lines), not the whole paragraph.

@@ -623,6 +623,14 @@
 ---Show what a typed date means while typing it in the calendar.
 ---(Emacs `org-read-date-display-live`, default: `true`)
 ---@field read_date_display_live? boolean
+---Key of the `goto_calendar` calendar showing the agenda of its date:
+---`"default"` (`c`), another key, or `false`.
+---(Emacs `org-calendar-to-agenda-key`, default: `"default"`)
+---@field calendar_to_agenda_key? string|false
+---Key of that calendar adding a diary entry for its date to an Org
+---`agenda.diary_entry_file`.
+---(Emacs `org-calendar-insert-diary-entry-key`, default: `"i"`)
+---@field calendar_insert_diary_entry_key? string
 ---`<S-Down>` makes timestamps later and `<S-Up>` earlier.
 ---(Emacs `org-edit-timestamp-down-means-later`, default: `false`)
 ---@field edit_timestamp_down_means_later? boolean
@@ -699,6 +707,8 @@
 ---@field yank? org.Config.Yank
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
+---org-mouse: context menus, dragging subtrees, clickable stars.
+---@field mouse? org.Config.Mouse
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
 ---Downloading remote resources (a URL in `#+INCLUDE`): `"prompt"`, `"safe"`,
@@ -726,6 +736,15 @@
 ---@field ui? org.Config.UI
 ---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
 ---@field mappings? org.Config.Mappings
+
+---org-mouse (`:h org-mouse`).
+---@class org.Config.Mouse
+---Load org-mouse (Emacs: `(require 'org-mouse)`). (default: `false`)
+---@field org_mouse? boolean
+---Its parts: `"context-menu"`, `"move-tree"`, `"yank-link"`,
+---`"activate-stars"`, `"activate-bullets"`, `"activate-checkboxes"`.
+---(Emacs `org-mouse-features`, default: all but `"move-tree"`)
+---@field features? string[]
 
 ---Plain lists.
 ---@class org.Config.Lists
@@ -795,6 +814,13 @@
 
 ---Buffer appearance.
 ---@class org.Config.UI
+---The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus, added
+---while a buffer they belong to is current (Emacs has no option for them).
+---(default: `true`)
+---@field menus? boolean
+---Headline levels listed by `imenu` (`gO`).
+---(Emacs `org-imenu-depth`, default: `2`)
+---@field imenu_depth? integer
 ---Conceal link brackets and show only descriptions (sets `conceallevel=2`).
 ---(default: `true`)
 ---@field conceal_links? boolean

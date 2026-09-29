@@ -62,6 +62,15 @@ group("Anywhere", {
   clock_cancel = { "org.clock", "clock_cancel", desc = "Cancel clock", global = true },
   help = { "org.mappings", "show_help", desc = "Show org keymaps", global = true },
   version = { "org.version", "show", desc = "Show the org.nvim version (count: insert it)", global = true },
+  customize = { "org.customize", "open", desc = "Browse and set options (org-customize)", global = true },
+  customize_menu = {
+    "org.customize",
+    "create_menu",
+    desc = "List every option in the Org menu (org-create-customize-menu)",
+    global = true,
+  },
+  bug_report = { "org.bug_report", "submit", desc = "Report a bug (org-submit-bug-report)", global = true },
+  clock_menu = { "org.menu", "clock_menu", desc = "Pop up the clock menu (org-clock-menu)", global = true },
 })
 
 group("Visibility", {
@@ -223,6 +232,7 @@ group("Navigation & elements", {
   next_sibling = { "org.structure", "next_sibling", desc = "Next sibling heading", modes = { "n", "x", "o" } },
   prev_sibling = { "org.structure", "prev_sibling", desc = "Previous sibling heading", modes = { "n", "x", "o" } },
   buffer_goto = { "org.goto", "goto", desc = "Go to heading in buffer (org-goto)" },
+  imenu = { "org.goto", "imenu", desc = "Headlines in the location list (imenu)" },
 })
 
 group("TODO, priority, tags & properties", {
@@ -604,6 +614,42 @@ group("Search & export", {
     modes = { "x" },
   },
   lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
+})
+
+group("Mouse (org-mouse)", {
+  mouse_context_menu = {
+    "org.org_mouse",
+    "context_menu_at_cursor",
+    desc = "Context menu for the cursor position (org-mouse-show-context-menu)",
+  },
+  mouse_insert_heading = { "org.org_mouse", "insert_heading", desc = "New heading (org-mouse-insert-heading)" },
+  mouse_insert_checkbox = {
+    "org.org_mouse",
+    "insert_checkbox",
+    desc = "Checkbox on the item (org-mouse-insert-checkbox)",
+  },
+  mouse_end_headline = {
+    "org.org_mouse",
+    "end_headline",
+    desc = "End of the headline, before the tags (org-mouse-end-headline)",
+  },
+  mouse_show_headlines = { "org.org_mouse", "show_headlines", desc = "Show all headlines (org-mouse-show-headlines)" },
+  mouse_show_overview = { "org.org_mouse", "show_overview", desc = "Show the overview (org-mouse-show-overview)" },
+  mouse_timestamp_today = {
+    "org.org_mouse",
+    "timestamp_today",
+    desc = "Change the timestamp with the date prompt (org-mouse-timestamp-today)",
+  },
+  mouse_transform_to_outline = {
+    "org.org_mouse",
+    "transform_to_outline",
+    desc = "Plain list to outline (org-mouse-transform-to-outline)",
+  },
+  mouse_move_tree_start = {
+    "org.org_mouse",
+    "move_tree_start",
+    desc = "How dragging a subtree works (org-mouse-move-tree-start)",
+  },
 })
 
 group("Tables", {

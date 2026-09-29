@@ -26,6 +26,10 @@ end
 --- Follow the link under the cursor with the Emacs prefix `arg`; false
 --- when there is none. Runs the follow hook (OrgFollowLink).
 local function follow(arg)
+  -- org-mouse's activated stars, bullets and checkboxes
+  if require("org.org_mouse").open_at_point(true) then
+    return true
+  end
   local links = require("org.links")
   if not links.link_at_cursor() then
     return false
@@ -107,8 +111,10 @@ function M._after_double()
 end
 
 --- Buffer-local <LeftMouse> handling for `links.mouse_1_follows_link` and
---- citation keys.
+--- citation keys, and the keys of org-mouse (`mouse.org_mouse`).
 function M.attach(bufnr)
+  require("org.org_mouse").attach(bufnr)
+  require("org.cite_mouse").attach(bufnr)
   local setting = (config.opts.links or {}).mouse_1_follows_link
   local o = { buffer = bufnr, expr = true, replace_keycodes = true }
   local function on_release()
