@@ -1006,7 +1006,8 @@
 ---@field include_todo? boolean|"unblocked"|"all"|string[]
 ---(`org-icalendar-todo-unscheduled-start`) (default: `"recurring-deadline-warning"`)
 ---@field todo_unscheduled_start? string|false
----(`org-icalendar-include-sexps`); diary sexps are not supported. (default: `true`)
+---(`org-icalendar-include-sexps`): diary-anniversary, diary-block,
+---diary-cyclic, diary-float and diary-date sexps become VEVENTs. (default: `true`)
 ---@field include_sexps? boolean
 ---(`org-icalendar-include-body`): `true` or a number of characters. (default: `true`)
 ---@field include_body? boolean|integer

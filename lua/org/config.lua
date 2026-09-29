@@ -1576,7 +1576,7 @@ M.defaults = {
       --- org-icalendar-include-todo: false, true, "unblocked", "all" or keywords.
       include_todo = false,
       todo_unscheduled_start = "recurring-deadline-warning", -- org-icalendar-todo-unscheduled-start
-      include_sexps = true, -- org-icalendar-include-sexps (diary sexps are not supported)
+      include_sexps = true, -- org-icalendar-include-sexps (diary-anniversary, -block, -cyclic, -float, -date)
       include_body = true, -- org-icalendar-include-body (true or a number of characters)
       store_uid = false, -- org-icalendar-store-UID
       timezone = nil, -- org-icalendar-timezone (nil = $TZ)

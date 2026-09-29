@@ -3839,10 +3839,17 @@ the body is the DESCRIPTION (`include_body`). Tags and the category go to
 CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
 Files use CRLF line endings and 75-character folded lines (RFC 5545).
 Differences: entries without an ID get a UID derived from the file and the
-entry (stable across exports) instead of a random one; diary sexps
-(`%%(...)` lines and `<%%(...)>` timestamps) are skipped because Emacs
-converts them with its calendar library; `++`/`.+` repeaters give no RRULE
-(like Emacs); BBDB anniversaries are not supported.
+entry (stable across exports) instead of a random one; `++`/`.+`
+repeaters give no RRULE (like Emacs); BBDB anniversaries are not supported.
+Diary sexps (`%%(...)` lines with `include_sexps`, and `<%%(...)>`
+timestamps) become VEVENTs with an RRULE like Emacs' diary iCalendar
+library does: diary-anniversary (yearly), diary-block (daily until the
+end), diary-cyclic (every N days), diary-float (the Nth weekday of a month)
+and diary-date (arguments in `agenda.calendar_date_style` order); a time
+(`<%%(...) 10:00-11:30>`) gives the start time and a DURATION. Recurrences
+start at their first date from January 1 of last year, like Emacs. Other
+sexps are skipped with a warning (Emacs cannot convert them either), and
+the UID is Org's (DS1-ID, TS1-ID) where Emacs 31 makes up its own.
 
 Citations ~                                                  *org-export-cite*
 Citations written as `[cite/STYLE:prefix @key suffix]` are rendered on
