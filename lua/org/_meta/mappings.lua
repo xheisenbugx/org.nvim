@@ -1223,7 +1223,7 @@
 ---@field archives_files_mode? org.MappingLhs
 --- Toggle including inactive timestamps. Default: `v[`
 ---@field inactive_mode? org.MappingLhs
---- Toggle the time grid. Default: `{ "G", "vG" }`
+--- Toggle the time grid. Emacs: `G`, kept free for motion here. Default: `vG`
 ---@field time_grid? org.MappingLhs
 --- Toggle showing deadlines. Default: `{ "!", "v!" }`
 ---@field toggle_deadlines? org.MappingLhs

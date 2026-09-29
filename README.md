@@ -638,7 +638,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `I` `O` `X` `J` | clock in / out / cancel / goto | `R` / `$` / `a` | refile / archive / archive with confirmation |
 | `<C-c><C-x>A` / `<C-c><C-x>a` | archive sibling / ARCHIVE tag | `<C-k>` / `<C-c><C-o>` | delete entry / open link |
 | `z` | add note | `c` | capture (at the date at point) |
-| `l` `vL` / `C` | log mode (all) / clock report | `E` / `G` | entry text / time grid |
+| `l` `vL` / `C` | log mode (all) / clock report | `E` / `vG` | entry text / time grid |
 | `va` / `vA` / `v[` | archived trees / archive files / inactive timestamps | `/` `<` `=` `_` `^` `\|` | filter tag / category / regexp / effort / top headline / clear |
 | `[` `]` `{` `}` | add +word / -word / +{re} / -{re} to the query | `n` / `p`, `<C-c><C-n/p>` | next / previous item, date line |
 | `m` `u` `U` `B` | mark / unmark / unmark all / bulk action | `<M-m>` `*` `<M-*>` `%` | toggle / mark all / toggle all / mark regexp |
