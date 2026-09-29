@@ -39,6 +39,7 @@ CONTENTS                                                        *org-contents*
   30. In-buffer settings ........................ |org-in-buffer-settings|
   31. Linting ................................... |org-lint|
   32. Differences from Emacs .................... |org-differences|
+  33. Extensions ................................ |org-extensions|
 
 ==============================================================================
 1. INTRODUCTION                                             *org-introduction*
@@ -6941,5 +6942,44 @@ Differences from Emacs:
 - Customize (|org-customize|) lists lua/org/config.lua's options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
+
+==============================================================================
+33. EXTENSIONS                                               *org-extensions*
+
+Extensions are optional features modelled on popular third-party Emacs Org
+packages. They ship with org.nvim but nothing is loaded until you list one
+in `extensions`:
+>lua
+    require("org").setup({
+      extensions = {
+        roam = { directory = "~/roam" }, -- options merged over its defaults
+        present = true,                  -- enable with the defaults
+        gcal = false,                    -- off (same as leaving it out)
+      },
+    })
+<
+`false` or `{ enabled = false }` keeps an extension off. An extension's
+resolved options are in `require("org.config").opts.extensions.<name>`, and
+`require("org.extensions").enabled(name)` tells whether it is on.
+
+An enabled extension can add actions (usable in `mappings` and `:Org`),
+`:Org` subcommands and default keys. A default key never replaces one you
+set; set it to `false` in `mappings` to remove it. `:checkhealth org` lists
+the enabled extensions and checks what each needs.
+
+Writing an extension ~
+An extension is a module `lua/org/extensions/<name>.lua` (or
+`<name>/init.lua`) returning a table with any of these fields:
+
+  `defaults`   option defaults; the user's table is merged over them
+  `actions`    `{ name = { module, fn, desc = ... } }`, as in `org.actions`
+  `commands`   `:Org` subcommands taking arguments, as in `org.commands`
+  `mappings`   default keys by section: `{ global = { name = lhs } }`
+  `groups`     which-key labels for key groups under `mappings.prefix`:
+               `{ { "m", "roam" } }`
+  `setup`      `function(opts)`, called after the above are registered
+  `health`     `function(h, opts)`, adds checks to `:checkhealth org`
+  `teardown`   `function()`, undoes `setup` when a later `setup()` turns
+               the extension off or sets it up again
 
  vim:tw=78:ts=8:ft=help:norl:

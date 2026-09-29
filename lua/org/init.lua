@@ -15,7 +15,8 @@ local M = {}
 local did_setup = false
 
 --- Configure org.nvim. Merges `opts` over the defaults (see `:h org-config`),
---- registers `:Org`, the global keymaps and highlights, starts agenda
+--- loads the enabled `extensions` (see `:h org-extensions`), registers
+--- `:Org`, the global keymaps and highlights, starts agenda
 --- notifications (`notifications.enabled`) and restores a persisted clock
 --- (`clock.persist`). Org buffers opened before `setup` are attached too.
 --- Calling it again re-applies the configuration.
@@ -33,6 +34,7 @@ function M.setup(opts)
   -- the agenda file list saved by agenda_file_to_front / remove_file
   require("org.files").load_saved_agenda_files()
   did_setup = true
+  require("org.extensions").setup()
   require("org.commands").setup()
   require("org.mappings").setup_global()
   require("org.highlights").setup()

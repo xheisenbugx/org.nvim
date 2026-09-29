@@ -2701,6 +2701,14 @@ M.defaults = {
   },
 
   ---------------------------------------------------------------------------
+  -- Optional extensions (see `:h org-extensions`). Nothing loads until an
+  -- extension is listed here: `extensions = { roam = { ... } }`. `false` or
+  -- `{ enabled = false }` keeps one off. Each extension merges its own
+  -- defaults under the table given here.
+  ---------------------------------------------------------------------------
+  extensions = {},
+
+  ---------------------------------------------------------------------------
   -- Mappings. Set any mapping to `false` to disable it, or a list of lhs.
   -- `<prefix>` is replaced by `mappings.prefix`.
   ---------------------------------------------------------------------------
@@ -3232,6 +3240,10 @@ local function merge_into(dst, src)
     end
   end
 end
+
+--- Merge `src` into `dst` with the same rules as `setup()` (dicts merge,
+--- lists replace). Used for extension options.
+M.merge = merge_into
 
 --- Merge user options into `M.opts`. Dict options merge key by key; lists
 --- (and `capture.templates`) replace the default; `{}` for a dict option

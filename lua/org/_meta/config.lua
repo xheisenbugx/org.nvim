@@ -736,6 +736,14 @@
 ---@field ui? org.Config.UI
 ---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
 ---@field mappings? org.Config.Mappings
+---Optional extensions, off until listed here (see `:h org-extensions`).
+---@field extensions? org.Config.Extensions
+
+---Optional extensions. Listing one enables it; `false` or
+---`{ enabled = false }` keeps it off. Each value is merged over that
+---extension's defaults.
+---@class org.Config.Extensions
+---@field [string] table|boolean
 
 ---org-mouse (`:h org-mouse`).
 ---@class org.Config.Mouse
