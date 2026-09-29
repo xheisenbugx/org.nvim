@@ -1315,6 +1315,24 @@ M.defaults = {
         ext = "lisp",
         dir_fmt = "(cl:let ((cl:*default-pathname-defaults* #P%S\n)) %%s\n)",
       },
+      -- js_filename: org-babel-processing-processing-js-filename; cmd runs
+      -- babel_processing_view_sketch (processing-java)
+      processing = {
+        default_header_args = { results = "html", exports = "results" },
+        js_filename = "processing.js",
+        cmd = "processing-java",
+      },
+      -- location: org-babel-screen-location
+      screen = {
+        default_header_args = {
+          results = "silent",
+          session = "default",
+          cmd = "sh",
+          terminal = "xterm",
+          screenrc = "/dev/null",
+        },
+        location = "screen",
+      },
       -- impl: the implementation without a :scheme header (Geiser's
       -- default); commands: implementation -> command; null_to:
       -- org-babel-scheme-null-to

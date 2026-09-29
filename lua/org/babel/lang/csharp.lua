@@ -189,7 +189,7 @@ end
 function M.prepare(body, args, vars, ctx)
   local o = ctx.opts
   local full = M.expand(body, args, vars)
-  local base = vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/obcs" .. tostring(vim.uv.hrtime()):sub(-8)
+  local base = vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/obcs" .. string.format("%d", vim.uv.hrtime()):sub(-8)
   local name = vim.fn.fnamemodify(base, ":t")
   local bin = base .. "/bin"
   local framework = ob.unq(args.framework) or M.default_framework()

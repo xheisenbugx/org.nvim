@@ -46,7 +46,9 @@
 ---| "babel_next_block" # Next src block
 ---| "babel_open_result" # Open src block result
 ---| "babel_prev_block" # Previous src block
+---| "babel_processing_view_sketch" # Run the Processing block's sketch
 ---| "babel_remove_result" # Remove src block result (count: all)
+---| "babel_screen_test" # Test the screen block setup
 ---| "babel_sha1_hash" # Show src block hash
 ---| "babel_switch_to_session" # Show src block session (count: assign vars)
 ---| "babel_switch_to_session_with_code" # Show src block session and edit the block

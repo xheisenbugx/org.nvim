@@ -496,6 +496,12 @@ group("Babel", {
     "export_to_lhs",
     desc = "Export Haskell blocks to .lhs (count: lhs2tex to .tex)",
   },
+  babel_processing_view_sketch = {
+    "org.babel.lang.processing",
+    "view_sketch",
+    desc = "Run the Processing block's sketch",
+  },
+  babel_screen_test = { "org.babel.lang.screen", "test", desc = "Test the screen block setup" },
 })
 
 --- Resolve an action to its function.
