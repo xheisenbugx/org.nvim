@@ -5280,6 +5280,9 @@ Two-way sync between Google Calendar and Org files, in the entry format of
 the Emacs org-gcal package, so files can be shared with it. Requests are
 sent with `curl`; nothing else is needed.
 
+Note: this extension is tested against a local stand-in for Google's API
+(`tests/support/gcal_server.lua`), not against Google itself.
+
 Setting up a Google OAuth client ~
 Google requires every app to use its own OAuth client:
 
@@ -5308,31 +5311,48 @@ Google requires every app to use its own OAuth client:
     })
 <
 Then run `:Org gcal_auth`. It opens the consent page in your browser (and
-prints its URL) and listens on 127.0.0.1 for Google's redirect; the tokens
-are stored in `token_file`, readable only by you. The access token is
-refreshed automatically. While the consent screen is in "Testing", Google
-expires the refresh token after 7 days and `:Org gcal_auth` is needed
-again. Setting it to "In production" avoids that; Google then shows an
-"unverified app" warning on the consent page, which you can accept for
-your own client.
+prints its URL) and listens on 127.0.0.1 for Google's redirect, checking
+the `state` it sent (PKCE, RFC 7636). The tokens are stored in
+`token_file`, readable only by you; the access token is refreshed
+automatically. Token values never appear in messages or on curl's command
+line (curl reads its options from stdin). While the consent screen is in
+"Testing", Google expires the refresh token after 7 days and
+`:Org gcal_auth` is needed again. Setting it to "In production" avoids
+that; Google then shows an "unverified app" warning on the consent page,
+which you can accept for your own client.
 
 Commands ~
 All are actions, so they work as `:Org <name>` and in `mappings.global`
-(no keys are mapped by default).
+(no keys are mapped by default). The `_at_point` commands also work on the
+entry under the cursor in the agenda.
 
   `gcal_auth`             authorize access (org-gcal-request-token)
   `gcal_logout`           delete the stored tokens
   `gcal_fetch`            fetch every calendar of `fetch_file_alist`
-  `gcal_sync`             fetch, and push entries managed by `org`
+  `gcal_sync`             fetch, then push entries managed by `org`
   `gcal_fetch_buffer`     update each entry of the buffer from its event
-  `gcal_sync_buffer`      the same, pushing entries managed by `org`
+  `gcal_sync_buffer`      the same, pushing entries managed by `org` (and
+                        creating events for `:org-gcal:` entries without one)
   `gcal_post_at_point`    create or update the event of the entry at point
-  `gcal_delete_at_point`  delete the event and the entry (asks first)
+  `gcal_delete_at_point`  delete the event (asks first); with a count the
+                        entry's calendar data is cleared even when the
+                        delete fails
+  `gcal_sync_tokens_clear`  make the next fetch a full one
 
 The first fetch of a calendar gets the events from `up_days` before today
-to `down_days` after it (recurring events expanded); later fetches only get
-what changed, with the calendar's sync token. Once a day, or when Google
-drops the token, the window is fetched again.
+to `down_days` after it; later fetches only get what changed, with the
+calendar's sync token. `sync_token_ttl` after a full fetch (a day), or when
+Google drops the token (410), the window is fetched again; a full fetch
+also asks about entries in the window whose events it didn't list, so
+events deleted meanwhile are handled like cancelled ones. New events far
+outside the window that an incremental fetch reports are skipped. Rate
+limits and server errors are retried (`retry_delays`).
+
+Entries are found by their `entry-id` in the fetch files, the agenda files
+and loaded Org buffers, so a refiled entry keeps being updated where it is.
+`User` autocmds: `OrgGcalEntryUpdated` (data: `calendar_id`, `event_id`,
+`mode`, `bufnr`, `lnum`, `event`) after an entry is written, and
+`OrgGcalSyncDone` (data: `kind`, `stats`) after each command.
 
 Entries ~
 New events are appended to the calendar's file:
@@ -5341,7 +5361,7 @@ New events are appended to the calendar's file:
     :PROPERTIES:
     :ETag:     "3456789012345678"
     :LOCATION: Room 4
-    :LINK:     [[https://calendar.google.com/...][Go to gcal web page]]
+    :HANGOUTS: [[https://meet.google.com/abc][Join Hangouts Meet]]
     :calendar-id: you@gmail.com
     :entry-id: 1a2b3c/you@gmail.com
     :org-gcal-managed: gcal
@@ -5352,23 +5372,51 @@ New events are appended to the calendar's file:
     The description.
     :END:
 <
-An update rewrites the title, these properties and the `:org-gcal:` drawer;
-the TODO keyword, tags, other properties and anything outside the drawer
-are kept. All-day events have a date only, and events over several days a
-`<a>--<b>` range. A description line starting with `*` is written with `✱`.
-Timestamps in the drawer show in the agenda like any other.
+An update rewrites the title, these properties and the `:org-gcal:` drawer
+(written after the property drawer); the TODO keyword, tags, other
+properties and anything outside the drawer are kept. All-day events have a
+date only, and events over several days a `<a>--<b>` range. A description
+line starting with `*` is written with `✱`. An event's `source` goes to
+`link` (or `ROAM_REFS` when it has no title) and is posted back from
+there, as org-gcal does. Timestamps in the drawer show in the agenda like
+any other.
 
 `gcal_post_at_point` reads the time from SCHEDULED, or else from the
-`:org-gcal:` drawer, whose other lines are the description. An entry
-without `entry-id` becomes a new event in its `calendar-id`, the calendar
-whose file it is in, or one you pick. When the event changed on the server
-since the entry's `ETag`, the post is refused and the entry is updated from
-the server instead. An entry that uses SCHEDULED keeps its time there.
+`:org-gcal:` drawer, whose other lines are the description. Without an end
+time the event lasts `default_duration` minutes, or the entry's Effort when
+longer. An entry without `entry-id` becomes a new event in its
+`calendar-id`, the calendar whose file it is in, or one you pick. When the
+event changed on the server since the entry's `ETag`, the post is refused
+(412) and the entry is updated from the server instead. An entry that uses
+SCHEDULED keeps its time there.
 
-`org-gcal-managed` says which side wins on `gcal_sync`: `gcal` entries are
-overwritten from Google, `org` entries are posted to it. Events cancelled
-on the server are removed, marked with `cancelled_todo_keyword`, or asked
-about, depending on `remove_api_cancelled_events`.
+`org-gcal-managed` says which side wins: `gcal` entries are overwritten
+from Google, `org` entries are posted to it by `gcal_sync`. Posting a `gcal`
+entry asks first (`managed_post_at_point_update_existing`); a sync never
+pushes it. Entries of events cancelled on the server are marked with
+`cancelled_todo_keyword` when it is one of the file's TODO keywords, then
+removed, kept or asked about (`remove_api_cancelled_events`).
+`gcal_delete_at_point` deletes the event, removes the drawer and the ids
+from the entry, then treats it the same way.
+
+Recurring events ~
+With `recurring_events_mode = "top_level"` (the default) every instance in
+the window is an entry of its own. With `"nested"`, the recurring event
+gets an entry (with a `recurrence` property, its times left as they are)
+and its instances are inserted under it. An entry whose timestamp has a
+repeater (`<2026-09-28 Mon 09:00 +1w>`) is posted as a recurring event
+(`RRULE:FREQ=WEEKLY;INTERVAL=1`; `h` repeaters can't be); its instances
+are then not added as entries, the repeater stands for them. A recurring
+event needs a time zone: see below.
+
+Time zones ~
+Event times are shown in local time: `local_timezone` (an IANA name such as
+`"Europe/Rome"`), else the system zone, read from the system's zone files
+(`$TZDIR` or /usr/share/zoneinfo) so DST changes are right for any date.
+`utc_offset` (minutes) fixes the offset instead. Posted timed events carry
+that zone as `timeZone`. With `time_zone = "event"`, times are shown in each
+event's own zone instead, which is kept in a `TIMEZONE` property and used
+when the entry is posted back.
 
 Options ~
   `client_id`, `client_secret`  the OAuth client (secret: string or function)
@@ -5376,27 +5424,41 @@ Options ~
   `up_days`, `down_days`  fetch window (30 and 60 days)
   `token_file`         tokens (`stdpath("data")/org/gcal-token.json`)
   `remove_api_cancelled_events`  `"ask"` (default), `true` or `false`
-  `cancelled_todo_keyword`  `"CANCELLED"`, or `false`
+  `update_cancelled_events_with_todo`  mark cancelled entries (`true`)
+  `cancelled_todo_keyword`  `"CANCELLED"`
+  `remove_events_with_cancelled_todo`  ask again for marked ones (`false`)
   `managed_newly_fetched_mode`, `managed_update_existing_mode`  `"gcal"`
   `managed_create_from_entry_mode`  `"org"`
+  `managed_post_at_point_update_existing`  `"prompt"`, `"prompt_sync"`,
+                       `"never_push"` or `"always_push"`
+  `recurring_events_mode`  `"top_level"` or `"nested"`
   `auto_archive`       archive entries of events older than the window
   `notify`             report each fetch and post (`true`)
-  `local_timezone`     IANA zone sent with posted events, e.g. `"Europe/Rome"`
-  `utc_offset`         fixed offset in minutes instead of the system zone
-  `default_duration`   minutes for posted events without an end time (0)
+  `fetch_event_filters`  predicates; a rejected event isn't fetched
+  `strip_html_descriptions`  plain-text descriptions (`false`), and
+  `strip_html_descriptions_overrides`  `{ [calendar_id] = boolean }`
+  `after_update_entry`  `function(calendar_id, event, mode, where)`
+  `entry_id_property`, `calendar_id_property`, `etag_property`,
+  `managed_property`, `drawer_name`  names (org-gcal's defaults)
+  `time_zone`          `"local"` or `"event"`
+  `local_timezone`     IANA zone, e.g. `"Europe/Rome"`
+  `utc_offset`         fixed offset in minutes instead of a zone
+  `default_duration`   minutes for posted events without an end time (5)
+  `default_transparency`  of new events (`"opaque"`)
+  `sync_token_ttl`     seconds between full fetches (86400)
+  `retry_delays`       ms between retries (`{ 1000, 2000, 4000 }`)
+  `auth_timeout`       seconds to wait for the consent page (300)
   `curl`, `timeout`    the curl executable and request timeout (60 s)
 
 Differences from Emacs org-gcal ~
-  - Recurring events are always expanded into one entry per instance
-    (org-gcal's default); `org-gcal-recurring-events-mode` `nested` and
-    posting recurrence rules are not supported.
-  - Only `fetch_file_alist` is read; per-calendar HTML stripping, custom
-    drawer or property names and `org-gcal-after-update-entry-functions`
-    are not supported. Descriptions are kept as sent.
-  - A full sync doesn't remove entries of events deleted outside the
-    window; incremental syncs report deletions as cancelled events.
-  - Times are converted with the system zone (or `utc_offset`), not per
-    event `timeZone`.
-  - Entries are never created from an agenda view.
+  - Posting doesn't ask for a duration: `default_duration` or the Effort is
+    used.
+  - An entry's ID locations are the fetch files, the agenda files and loaded
+    buffers, not every file org-id knows.
+  - Recurrence rules are sent from org repeaters (org-gcal can't post
+    them); other rules are kept as fetched.
+  - `time_zone = "event"` and the `TIMEZONE` property are org.nvim's.
+  - Not supported: `org-gcal-logo-file`, `org-gcal-toggle-debug`, capture
+    and refile hooks (`org-gcal--capture-post`, `org-gcal--refile-post`).
 
  vim:tw=78:ts=8:ft=help:norl:

@@ -939,8 +939,14 @@ the enabled ones. See `:h org-extensions`.
   two-way Google Calendar sync. Events are written as org-gcal entries in
   the files of `fetch_file_alist` and show in the agenda; `:Org gcal_sync`
   fetches changes and pushes entries you manage in Org,
-  `:Org gcal_post_at_point` creates or updates an event. Needs `curl` and
-  your own Google OAuth client (`:h org-extensions-gcal`).
+  `:Org gcal_post_at_point` creates or updates an event (also from the
+  agenda). Recurring events (nested or top level, repeaters posted as
+  RRULEs), time zones with DST from the system's zone files, and org-gcal's
+  options and property names. Needs `curl` and your own Google OAuth client
+  (`:h org-extensions-gcal`). Tested against a local stand-in for Google's
+  API, not against Google itself; the recording below uses that stand-in.
+
+  ![gcal: fetch, agenda, post and refetch against a local stand-in server](docs/media/gcal.gif)
 
 ---
 

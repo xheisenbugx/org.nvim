@@ -30,6 +30,11 @@ Some tapes set extras in the environment (see the top of
 on speed keys, and `DEMO_NOTIFY=1` adds `demo/reminders.org`, whose
 entries `{{now+1}}` put a minute from now, for the reminders demo.
 
+`gcal.tape` uses its own config, `demo/gcal/init.lua`: it builds on
+`demo/init.lua` and runs the gcal extension against the local stand-in for
+Google Calendar in `tests/support/gcal_server.lua` (127.0.0.1, no account,
+no network), with a banner saying so in the recording.
+
 To try the demo setup by hand:
 
 ```sh
