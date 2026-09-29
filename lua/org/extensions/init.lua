@@ -25,6 +25,8 @@ local M = {}
 ---Default keys by `mappings` section (`global`, `org`, `emacs_global`,
 ---`emacs`), action name -> lhs. Keys the user already set are left alone.
 ---@field mappings? table<string, table<string, string|string[]|false>>
+---which-key group labels under `mappings.prefix`: `{ { "m", "roam" } }`.
+---@field groups? { [1]: string, [2]: string }[]
 ---Called with the resolved options after everything is registered.
 ---@field setup? fun(opts: table)
 ---Adds checks to `:checkhealth org`; receives `vim.health`.
@@ -114,10 +116,13 @@ local function register(name, ext)
   end
   local maps = require("org.config").opts.mappings
   for section, keys in pairs(ext.mappings or {}) do
-    maps[section] = maps[section] or {}
-    for aname, lhs in pairs(keys) do
-      if maps[section][aname] == nil then
-        maps[section][aname] = lhs
+    -- a section the user turned off (`mappings.emacs = false`) stays off
+    if maps[section] ~= false then
+      maps[section] = maps[section] or {}
+      for aname, lhs in pairs(keys) do
+        if maps[section][aname] == nil then
+          maps[section][aname] = lhs
+        end
       end
     end
   end
