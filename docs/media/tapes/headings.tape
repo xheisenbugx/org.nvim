@@ -60,9 +60,7 @@ Ctrl+G
 Type@5ms `Cap <leader>ohn narrow to the subtree` Enter
 Show
 Type " ohn"
-Sleep 1.5s
-Tab
-Sleep 1.5s
+Sleep 2.5s
 Hide
 Ctrl+G
 Type@5ms `Cap <C-c>' save and close` Enter
