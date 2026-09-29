@@ -73,4 +73,20 @@ describe("babel ob-clojure", function()
     eq("clojure-cli", m.backend())
     eq("myclj -M", m.command("clojure-cli"))
   end)
+
+  -- Emacs 9.8.10 (org-babel-clojure-backend 'babashka,
+  -- org-babel-clojurescript-backend nil): a clojurescript block fails with
+  -- the "You need to customize" user-error, it doesn't run with babashka.
+  it("doesn't run ClojureScript with the Clojure backend", function()
+    local m = require("org.babel.lang.clojure")
+    h.set_lang("clojure", { backend = "babashka", babashka_command = "bb" })
+    local saved = m.cljs_backend
+    m.cljs_backend = function()
+      return nil
+    end
+    local okp, err = pcall(m.prepare, { "(+ 1 2)" }, { vars = {}, results_spec = {} }, {}, { lang = "clojurescript" })
+    m.cljs_backend = saved
+    eq(false, okp)
+    eq("You need to customize `org-babel-clojure-backend'\nor set the `:backend' header argument", err)
+  end)
 end)

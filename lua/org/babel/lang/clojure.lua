@@ -112,8 +112,13 @@ end
 function M.prepare(body, args, vars, ctx)
   local cljs_p = ctx.lang == "clojurescript"
   local backend = ob.unq(args.backend)
-  if not backend then
-    backend = M.backend() and (cljs_p and M.cljs_backend() or M.backend())
+  if not backend and M.backend() then
+    -- ClojureScript uses its own backend, never the Clojure one
+    if cljs_p then
+      backend = M.cljs_backend()
+    else
+      backend = M.backend()
+    end
   end
   if not backend then
     no_backend_error()
