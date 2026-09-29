@@ -27,27 +27,27 @@ local M = {}
 
 local HELP = "RET=jump  C-g=quit  Up/Down=next/prev headline  TAB=cycle  /=sparse tree"
 
---- Make line `lnum` of the current window visible when a fold hides it,
---- keeping a headline's own subtree folded (org-fold-show-set-visibility).
-local function reveal(lnum)
-  local fc = vim.fn.foldclosed(lnum)
-  if fc == -1 or fc == lnum then
+--- Make line `lnum` of the current window visible when it is hidden,
+--- with the context `detail` (org-fold-show-set-visibility), or open the
+--- folds around it (`zv`) outside an Org fold setup.
+local function reveal(lnum, detail)
+  local fold = require("org.fold")
+  if fold.line_visible(lnum) then
     return
   end
-  pcall(vim.cmd, "normal! zv")
-  local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1] or ""
-  local hl = require("org.parser").headline_level(line) and require("org.files").get_buffer(0):headline_on(lnum)
-  if hl and hl.end_line > hl.line then
-    pcall(vim.cmd, lnum .. "foldclose")
+  if not pcall(fold.show_context, lnum, detail) then
+    pcall(vim.cmd, "normal! zv")
   end
 end
 
-local function jump(win, lnum)
+local function jump(win, lnum, col)
   vim.api.nvim_set_current_win(win)
   vim.cmd("normal! m'")
-  vim.api.nvim_win_set_cursor(win, { lnum, 0 })
-  -- show the location, keeping the other folds (org-fold-show-context)
-  reveal(lnum)
+  local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1] or ""
+  vim.api.nvim_win_set_cursor(win, { lnum, math.min(col or 0, math.max(#line - 1, 0)) })
+  -- show the location, keeping the other folds (org-fold-show-context
+  -- 'org-goto: `fold_show_context_detail`)
+  reveal(lnum, require("org.fold").context_detail("org-goto"))
 end
 
 --- The outline path completion interface (org-refile-get-location "Goto"),
@@ -101,12 +101,12 @@ function M.outline()
   vim.wo[win].winbar = HELP .. (auto and "  Just type for auto-isearch." or "  n/p/f/b/u to navigate, q to quit.")
   require("org.fold").overview()
   local start_line = math.min(start[1], vim.api.nvim_buf_line_count(buf))
-  vim.api.nvim_win_set_cursor(win, { start_line, 0 })
-  reveal(start_line)
+  vim.api.nvim_win_set_cursor(win, { start_line, start[2] })
+  reveal(start_line, "lineage")
   utils.notify("Select location and press RET")
 
   local done = false
-  local function finish(lnum)
+  local function finish(lnum, col)
     if done then
       return
     end
@@ -119,7 +119,7 @@ function M.outline()
       vim.api.nvim_set_current_win(src_win)
     end
     if lnum then
-      jump(src_win, lnum)
+      jump(src_win, lnum, col)
     else
       utils.notify("Quit")
     end
@@ -134,13 +134,18 @@ function M.outline()
     vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, desc = "org-goto: " .. desc })
   end
   local structure = require("org.structure")
+  -- <CR> and <Right> keep the column, <Left> goes to the line's start
+  -- (org-goto-ret, org-goto-right, org-goto-left)
+  local function col()
+    return vim.api.nvim_win_get_cursor(0)[2]
+  end
   map("<CR>", function()
-    finish(cur())
+    finish(cur(), col())
   end, "jump to the location")
   for _, key in ipairs({ "<Left>", "<Right>" }) do
     map(key, function()
       if on_heading() then
-        finish(cur())
+        finish(cur(), key == "<Right>" and col() or 0)
       else
         utils.warn("Not on a heading")
       end

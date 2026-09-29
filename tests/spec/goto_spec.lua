@@ -119,6 +119,42 @@ describe("goto: outline interface", function()
     eq(1, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
+  -- Emacs 9.8.10 (org-goto on a file in overview, "n TAB n C-f C-f" then
+  -- RET / <right> / <left> in the outline, org-goto-auto-isearch nil):
+  -- line 7 column 2 for RET and <right>, column 0 for <left>; the source
+  -- shows VHHHVHVV (V visible line), VHHHVVVV with
+  -- fold_show_context_detail org-goto = canonical
+  it("keeps the column and reveals the target with the org-goto context", function()
+    local saved_detail = vim.deepcopy(config.opts.fold_show_context_detail)
+    config.opts.goto_auto_isearch = false
+    local function run(k, detail)
+      config.opts.fold_show_context_detail = vim.tbl_extend("force", saved_detail, { ["org-goto"] = detail })
+      local src = org_buffer(text, { 1, 0 })
+      require("org.fold").overview()
+      quiet(function()
+        require("org.actions").run("buffer_goto")
+        keys("n<Tab>nll" .. k)
+      end)
+      eq(src, vim.api.nvim_get_current_buf())
+      local vis = {}
+      for l = 1, #text do
+        vis[l] = require("org.fold").line_visible(l) and "V" or "H"
+      end
+      return vim.api.nvim_win_get_cursor(0), table.concat(vis)
+    end
+    local okr, err = pcall(function()
+      local pos, vis = run("<CR>")
+      eq({ 7, 2 }, pos)
+      eq("VHHHVHVV", vis)
+      eq({ 7, 2 }, (run("<Right>")))
+      eq({ 7, 0 }, (run("<Left>")))
+      pos, vis = run("<CR>", "canonical")
+      eq("VHHHVVVV", vis)
+    end)
+    config.opts.fold_show_context_detail = saved_detail
+    assert(okr, err)
+  end)
+
   it("a count uses the other interface", function()
     local buf = org_buffer(text, { 1, 0 })
     local seen
