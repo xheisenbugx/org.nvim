@@ -1,0 +1,508 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>org.nvim promo</title>
+<script src="build/frames.js"></script>
+<style>
+  :root {
+    --bg: #07071a;
+    --ink: #f4f4ff;
+    --muted: #a3a6c7;
+    --purple: #a78bfa;
+    --pink: #f472b6;
+    --green: #4ade80;
+    --cyan: #67e8f9;
+    --blue: #60a5fa;
+    --mono: "BlexMono Nerd Font Mono", "BlexMono Nerd Font", ui-monospace, monospace;
+    --sans: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+  #stage {
+    position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  .abs { position: absolute; }
+  .layer { position: absolute; inset: 0; }
+  .center { display: flex; align-items: center; justify-content: center; flex-direction: column; }
+
+  /* background */
+  #blobs { filter: blur(90px); }
+  .blob { position: absolute; width: 900px; height: 900px; border-radius: 50%; opacity: .55; }
+  #dots {
+    background-image: radial-gradient(rgba(255,255,255,.09) 1.2px, transparent 1.3px);
+    background-size: 36px 36px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 50%, #000 20%, transparent 80%);
+  }
+  #vignette { background: radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(0,0,0,.65) 100%); }
+  #grain { opacity: .06; mix-blend-mode: overlay; }
+  #flash { background: #fff; opacity: 0; mix-blend-mode: overlay; }
+  #fade { background: #000; opacity: 0; }
+
+  .grad-text {
+    background: linear-gradient(100deg, #b8f7c9 0%, #67e8f9 28%, #a78bfa 58%, #f472b6 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* intro */
+  #intro .abs { left: 50%; top: 50%; white-space: nowrap; }
+  #intro #typeline { left: 490px; top: 512px; font-family: var(--mono); font-size: 46px; white-space: pre; transform-origin: 470px 50%; }
+  #typeline .star { color: var(--green); font-weight: 700; }
+  #typeline .todo { color: var(--pink); font-weight: 700; }
+  #typeline .cur { display: inline-block; width: .6em; height: 1.1em; background: var(--ink); vertical-align: -0.18em; margin-left: 2px; }
+  #logo { width: 300px; height: 300px; filter: drop-shadow(0 30px 80px rgba(140, 90, 255, .55)); }
+  #ring { width: 300px; height: 300px; border-radius: 50%; border: 3px solid rgba(167,139,250,.9); }
+  #wordmark { font-size: 132px; font-weight: 800; letter-spacing: -4px; line-height: 1; }
+  #wordmark span { display: inline-block; }
+  #tagline { font-size: 40px; font-weight: 500; color: #cfd1ee; letter-spacing: -.3px; }
+  .spark { color: #c4b5fd; font-size: 40px; text-shadow: 0 0 20px rgba(167,139,250,.9); }
+
+  /* pillars */
+  .pillar { text-align: center; }
+  .pillar h1 { font-size: 150px; font-weight: 800; letter-spacing: -5px; line-height: 1.05; }
+  .pillar p { margin-top: 26px; font-size: 38px; color: var(--muted); font-weight: 500; }
+
+  /* features */
+  .feature { will-change: transform, opacity; }
+  .win {
+    position: absolute; left: 240px; top: 196px; width: 1440px; height: 850px;
+    border-radius: 16px; overflow: hidden; background: #14161b;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.09), 0 50px 120px rgba(0,0,0,.65), 0 10px 30px rgba(0,0,0,.4);
+  }
+  .bar {
+    height: 40px; background: #1d1f26; display: flex; align-items: center; padding-left: 18px; gap: 9px;
+    border-bottom: 1px solid rgba(255,255,255,.05); position: relative;
+  }
+  .bar i { width: 13px; height: 13px; border-radius: 50%; display: block; }
+  .bar b { position: absolute; left: 0; right: 0; text-align: center; font: 500 15px var(--mono); color: #8b8fa3; }
+  .win img { display: block; width: 1440px; height: 810px; }
+  .glow { position: absolute; left: 360px; top: 300px; width: 1200px; height: 700px; border-radius: 50%; filter: blur(110px); opacity: .45; }
+  .head { position: absolute; left: 240px; top: 56px; }
+  .head .label { font: 600 20px var(--mono); letter-spacing: 5px; text-transform: uppercase; }
+  .head h2 { font-size: 64px; font-weight: 780; letter-spacing: -2px; margin-top: 8px; line-height: 1.05; }
+  .mask { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 6px; margin-bottom: -6px; }
+  .mask > span { display: inline-block; }
+  #progress { position: absolute; right: 240px; top: 72px; display: flex; gap: 8px; align-items: center; }
+  #progress .count { font: 600 20px var(--mono); color: var(--muted); margin-right: 14px; letter-spacing: 2px; }
+  #progress .seg { width: 34px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+  #progress .seg div { height: 100%; width: 0; }
+
+  /* wall */
+  #wallwrap { perspective: 1600px; }
+  #wall {
+    position: absolute; left: 50%; top: 50%; width: 2720px; display: grid;
+    grid-template-columns: repeat(4, 656px); gap: 32px;
+  }
+  #wall .tile { width: 656px; height: 369px; border-radius: 14px; overflow: hidden; background: #14161b;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 60px rgba(0,0,0,.6); }
+  #wall img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #wallshade { background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(7,7,26,.92) 0%, rgba(7,7,26,.55) 60%, rgba(7,7,26,.2) 100%); }
+  #walltitle h1 { font-size: 112px; font-weight: 800; letter-spacing: -4px; }
+  #chips { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; width: 1300px; margin-top: 40px; }
+  .chip { font: 600 26px var(--sans); padding: 12px 24px; border-radius: 999px;
+    background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); color: #e9e9ff; }
+
+  /* stats */
+  #stats h1 { font-size: 72px; font-weight: 800; letter-spacing: -2.5px; text-align: center; }
+  #statrow { display: flex; gap: 24px; margin-top: 80px; }
+  .stat { width: 370px; text-align: center; }
+  .stat .num { font-size: 100px; font-weight: 800; letter-spacing: -4px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat .lbl { font-size: 28px; font-weight: 600; margin-top: 18px; }
+  .stat .sub { font-size: 21px; color: var(--muted); margin-top: 8px; }
+  .stat .rule { height: 4px; border-radius: 2px; margin: 26px auto 0; width: 80px; }
+
+  /* outro */
+  #outlogo { width: 200px; height: 200px; filter: drop-shadow(0 24px 60px rgba(140,90,255,.5)); }
+  #outname { font-size: 110px; font-weight: 800; letter-spacing: -4px; margin-top: 10px; }
+  #outtag { font-size: 34px; color: #cfd1ee; font-weight: 500; margin-top: 6px; }
+  #code {
+    margin-top: 48px; font: 500 28px/1.55 var(--mono); padding: 26px 40px; border-radius: 16px;
+    background: rgba(20,22,27,.85); box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 30px 80px rgba(0,0,0,.5); white-space: pre;
+  }
+  #code .k { color: #ffcaff; } #code .s { color: #b3f6c0; } #code .p { color: #8b8fa3; } #code .f { color: #a6dbff; }
+  #url { margin-top: 44px; display: flex; gap: 22px; align-items: center; }
+  .pill { display: flex; align-items: center; gap: 14px; font: 600 30px var(--sans); padding: 16px 30px; border-radius: 999px; }
+  .pill.gh { background: #f4f4ff; color: #0b0b1a; }
+  .pill.star { background: linear-gradient(100deg, #a78bfa, #f472b6); color: #fff; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="layer" id="blobs">
+    <div class="blob" id="b1" style="background:#6d28d9"></div>
+    <div class="blob" id="b2" style="background:#0e7490"></div>
+    <div class="blob" id="b3" style="background:#be185d"></div>
+  </div>
+  <div class="layer" id="dots"></div>
+  <svg class="layer" id="grain" width="1920" height="1080">
+    <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/></filter>
+    <rect width="100%" height="100%" filter="url(#n)"/>
+  </svg>
+
+  <!-- 1. intro -->
+  <div class="layer" id="intro">
+    <div class="abs" id="typeline"></div>
+    <div class="abs" id="ring"></div>
+    <img class="abs" id="logo" src="../logo.png">
+    <div class="abs spark" id="s1">✦</div>
+    <div class="abs spark" id="s2" style="font-size:26px">✦</div>
+    <div class="abs spark" id="s3" style="font-size:32px">✦</div>
+    <div class="abs" id="wordmark"></div>
+    <div class="abs" id="tagline">Emacs Org mode, rebuilt for Neovim.</div>
+  </div>
+
+  <!-- 2. pillars -->
+  <div class="layer" id="pillars"></div>
+
+  <!-- 3. features -->
+  <div class="layer" id="features"></div>
+  <div id="progress"></div>
+
+  <!-- 4. wall -->
+  <div class="layer" id="wallwrap"><div id="wall"></div></div>
+  <div class="layer" id="wallshade"></div>
+  <div class="layer center" id="walltitle">
+    <h1><span class="grad-text">…and a whole lot more.</span></h1>
+    <div id="chips"></div>
+  </div>
+
+  <!-- 5. stats -->
+  <div class="layer center" id="stats">
+    <h1>Serious about <span class="grad-text">Emacs parity.</span></h1>
+    <div id="statrow"></div>
+  </div>
+
+  <!-- 6. outro -->
+  <div class="layer center" id="outro">
+    <img id="outlogo" src="../logo.png">
+    <div id="outname" class="grad-text">org.nvim</div>
+    <div id="outtag">Your life in plain text. Now in Neovim.</div>
+    <div id="code"><span class="p">{</span> <span class="s">"xheisenbugx/org.nvim"</span><span class="p">,</span> <span class="f">main</span> <span class="p">=</span> <span class="s">"org"</span><span class="p">,</span> <span class="f">opts</span> <span class="p">= {} }</span></div>
+    <div id="url">
+      <div class="pill gh"><svg width="34" height="34" viewBox="0 0 16 16" fill="#0b0b1a"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>github.com/xheisenbugx/org.nvim</div>
+      <div class="pill star">★ Star it on GitHub</div>
+    </div>
+  </div>
+
+  <div class="layer" id="vignette"></div>
+  <div class="layer" id="flash"></div>
+  <div class="layer" id="fade"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- timeline
+// 120 BPM: one bar = 2 s. Scene boundaries sit on bars so cuts land on the music.
+const FPS = 30;
+const FEATURES = [
+  { clip: "outline", dur: 10, file: "notes.org", color: "#4ade80", label: "Outlines", title: "Fold it. Move it. Tick it off." },
+  { clip: "agenda", dur: 8, file: "agenda", color: "#67e8f9", label: "Agenda", title: "Your whole week, from every file." },
+  { clip: "capture", dur: 8, file: "notes.org", color: "#f472b6", label: "Capture", title: "Catch a thought. Keep your place." },
+  { clip: "tables", dur: 10, file: "tables.org", color: "#fcd34d", label: "Tables", title: "A spreadsheet in plain text." },
+  { clip: "babel", dur: 8, file: "babel.org", color: "#a78bfa", label: "Babel", title: "Run code right inside your notes." },
+  { clip: "clock", dur: 8, file: "work.org", color: "#fb923c", label: "Clocking", title: "Know where the time went." },
+  { clip: "export", dur: 6, file: "export.org", color: "#60a5fa", label: "Export", title: "Markdown, HTML, LaTeX, ODT…" },
+];
+const T = { pillars: 6, features: 10 };
+let acc = T.features;
+for (const f of FEATURES) { f.start = acc; acc += f.dur; }
+T.wall = acc;            // 68
+T.stats = T.wall + 8;    // 76
+T.outro = T.stats + 6;   // 82
+T.end = T.outro + 10;    // 92
+window.DURATION = T.end;
+window.TIMELINE = { ...T, features: FEATURES.map(f => [f.label, f.start, f.dur]) };
+
+// ---------------------------------------------------------------- helpers
+const $ = (s) => document.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const outExpo = (k) => (k >= 1 ? 1 : 1 - Math.pow(2, -10 * k));
+const outCubic = (k) => 1 - Math.pow(1 - k, 3);
+const inCubic = (k) => k * k * k;
+const inOutCubic = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const outBack = (k) => { const c = 1.7, c3 = c + 1; return 1 + c3 * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const show = (el, on) => { el.style.display = on ? "" : "none"; };
+function style(el, { x = 0, y = 0, s = 1, r = 0, o = 1, blur = 0, rx = 0, ry = 0, origin, c = false }) {
+  el.style.transform = `${c ? "translate(-50%, -50%) " : ""}translate(${x}px, ${y}px) rotateX(${rx}deg) rotateY(${ry}deg) rotate(${r}deg) scale(${s})`;
+  el.style.opacity = o;
+  el.style.filter = blur > 0.05 ? `blur(${blur}px)` : "";
+  if (origin) el.style.transformOrigin = origin;
+}
+const pad = (n) => String(n).padStart(4, "0");
+const pendingImgs = new Set();
+function setFrame(img, clip, idx) {
+  const n = window.FRAMES[clip];
+  const src = `build/frames/${clip}/${pad(clamp(Math.floor(idx), 0, n - 1) + 1)}.jpg`;
+  if (img.getAttribute("src") !== src) { img.setAttribute("src", src); pendingImgs.add(img); }
+}
+
+// ---------------------------------------------------------------- 1. intro
+const LINE = [["* ", "star"], ["TODO ", "todo"], ["Get your life in plain text", ""]];
+const LINE_LEN = LINE.reduce((n, [s]) => n + s.length, 0);
+const WORD = "org.nvim";
+$("#wordmark").innerHTML = [...WORD].map((c) => `<span>${c}</span>`).join("");
+const wmChars = [...document.querySelectorAll("#wordmark span")];
+// each letter moves on its own, so each carries its slice of the gradient
+const wmWidth = $("#wordmark").offsetWidth;
+wmChars.forEach((c) => {
+  c.style.background = "linear-gradient(100deg, #b8f7c9 0%, #67e8f9 28%, #a78bfa 58%, #f472b6 100%)";
+  c.style.backgroundSize = `${wmWidth}px 100%`;
+  c.style.backgroundPosition = `${-c.offsetLeft}px 0`;
+  c.style.webkitBackgroundClip = "text";
+  c.style.color = "transparent";
+});
+
+function intro(t) {
+  const el = $("#intro");
+  show(el, t < T.pillars);
+  if (t >= T.pillars) return;
+
+  // typed headline
+  const tl = $("#typeline");
+  const typed = Math.floor(LINE_LEN * prog(t, 0.35, 1.75));
+  let left = typed, html = "";
+  for (const [s, cls] of LINE) {
+    const part = s.slice(0, Math.max(0, left)); left -= s.length;
+    if (part) html += cls ? `<span class="${cls}">${part}</span>` : part;
+  }
+  const blink = t < 0.35 || t > 1.75 ? Math.floor(t * 2.5) % 2 === 0 : true;
+  tl.innerHTML = html + `<span class="cur" style="opacity:${blink ? 1 : 0}"></span>`;
+  const zo = prog(t, 2.1, 2.55);
+  style(tl, { s: 1 + inCubic(zo) * 2.2, o: 1 - zo, blur: zo * 14 });
+  show(tl, t < 2.55);
+
+  // logo pop + ring
+  const lp = prog(t, 2.35, 3.05);
+  const out = prog(t, 5.35, 6);
+  const logo = $("#logo");
+  style(logo, { c: true, y: -150 + Math.sin(t * 1.6) * 6, s: lerp(0.3, 1, outBack(lp)) * (1 + out * 0.15), o: clamp(lp * 3) * (1 - out), blur: out * 10 });
+  const rp = prog(t, 2.45, 3.4);
+  style($("#ring"), { c: true, y: -150, s: 0.8 + outCubic(rp) * 1.5, o: rp > 0 && rp < 1 ? (1 - rp) * 0.9 : 0 });
+
+  // sparkles
+  [["#s1", 185, -270, 3.0], ["#s2", 230, -170, 3.2], ["#s3", -210, -250, 3.35]].forEach(([id, x, y, at]) => {
+    const k = prog(t, at, at + 0.5);
+    const tw = 0.75 + 0.25 * Math.sin(t * 6 + x);
+    style($(id), { c: true, x, y, s: outBack(k) * tw, r: t * 40, o: k * (1 - out) });
+  });
+
+  // wordmark letters
+  wmChars.forEach((c, i) => {
+    const k = outExpo(prog(t, 2.85 + i * 0.045, 3.55 + i * 0.045));
+    c.style.transform = `translateY(${(1 - k) * 70}px)`;
+    c.style.opacity = k;
+  });
+  style($("#wordmark"), { c: true, y: 95, s: 1 + out * 0.12, o: 1 - out, blur: out * 12 });
+  const tg = outCubic(prog(t, 3.7, 4.3));
+  style($("#tagline"), { c: true, y: 205 + (1 - tg) * 30, o: tg * (1 - out), blur: out * 12 + (1 - tg) * 6 });
+}
+
+// ---------------------------------------------------------------- 2. pillars
+const PILLARS = [
+  ["Pure Lua.", "Its own Org parser. 165k lines of Lua.", "linear-gradient(100deg,#b8f7c9,#4ade80)"],
+  ["Zero dependencies.", "No tree-sitter grammar, no binaries, no companion plugins.", "linear-gradient(100deg,#a5f3fc,#60a5fa)"],
+  ["Emacs-compatible.", "The same files. Org 9.8 behaviour.", "linear-gradient(100deg,#ddd6fe,#a78bfa)"],
+  ["Built for Neovim.", "Vim keys that fall back when they don't apply.", "linear-gradient(100deg,#fbcfe8,#f472b6)"],
+];
+$("#pillars").innerHTML = PILLARS.map(([h, p, g]) =>
+  `<div class="layer center pillar"><h1><span style="background:${g};-webkit-background-clip:text;background-clip:text;color:transparent">${h}</span></h1><p>${p}</p></div>`).join("");
+const pillarEls = [...document.querySelectorAll(".pillar")];
+
+function pillars(t) {
+  const on = t >= T.pillars && t < T.features;
+  show($("#pillars"), on);
+  if (!on) return;
+  pillarEls.forEach((el, i) => {
+    const a = T.pillars + i, b = a + 1;
+    const vis = t >= a - 0.01 && t < b;
+    show(el, vis);
+    if (!vis) return;
+    const k = outExpo(prog(t, a, a + 0.35));
+    const last = i === PILLARS.length - 1;
+    const x = last ? prog(t, b - 0.3, b) : prog(t, b - 0.12, b);
+    style(el, { s: lerp(1.35, 1, k) * (1 + (last ? inCubic(x) * 1.8 : x * 0.05)), o: k * (1 - x), blur: (1 - k) * 22 + x * (last ? 20 : 8) });
+    const p = el.querySelector("p");
+    const pk = outCubic(prog(t, a + 0.15, a + 0.5));
+    style(p, { y: (1 - pk) * 20, o: pk });
+  });
+}
+
+// ---------------------------------------------------------------- 3. features
+$("#features").innerHTML = FEATURES.map((f, i) => `
+  <div class="layer feature" id="f${i}" style="perspective:2200px">
+    <div class="glow" style="background:${f.color}"></div>
+    <div class="head">
+      <div class="label" style="color:${f.color}"><span class="mask"><span>${String(i + 1).padStart(2, "0")} — ${f.label}</span></span></div>
+      <h2>${f.title.split(" ").map((w) => `<span class="mask"><span>${w}&nbsp;</span></span>`).join("")}</h2>
+    </div>
+    <div class="win">
+      <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>nvim — ${f.file}</b></div>
+      <img>
+    </div>
+  </div>`).join("");
+$("#progress").innerHTML = `<span class="count"></span>` + FEATURES.map((f) => `<div class="seg"><div style="background:${f.color}"></div></div>`).join("");
+const IN = 0.75, OUT = 0.45;
+
+function features(t) {
+  const on = t >= T.features - 0.1 && t < T.wall + 0.05;
+  show($("#features"), on);
+  const pv = prog(t, T.features, T.features + 0.6) * (1 - prog(t, T.wall - 0.5, T.wall - 0.1));
+  show($("#progress"), pv > 0);
+  $("#progress").style.opacity = pv;
+  if (!on) return;
+  FEATURES.forEach((f, i) => {
+    const el = $(`#f${i}`);
+    const u = t - f.start;
+    const vis = u >= -0.05 && u < f.dur;
+    show(el, vis);
+    const seg = document.querySelectorAll("#progress .seg div")[i];
+    seg.style.width = `${clamp(u / f.dur) * 100}%`;
+    if (vis) $("#progress .count").textContent = `${String(i + 1).padStart(2, "0")} / ${String(FEATURES.length).padStart(2, "0")}`;
+    if (!vis) return;
+
+    const kin = outExpo(prog(u, 0, IN));
+    const kout = inCubic(prog(u, f.dur - OUT, f.dur));
+    const win = el.querySelector(".win");
+    style(win, {
+      x: (1 - kin) * 520 - kout * 620, y: (1 - kin) * 40,
+      ry: (1 - kin) * -24 + kout * 22, s: lerp(0.9, 1, kin) * (1 - kout * 0.08),
+      o: clamp(kin * 1.6) * (1 - kout), blur: kout * 8,
+    });
+    const glow = el.querySelector(".glow");
+    style(glow, { x: Math.sin(t * 0.7) * 60, s: 0.8 + kin * 0.2, o: kin * (1 - kout) * 0.5 });
+
+    // heading: label then words rise out of their masks
+    const masks = [...el.querySelectorAll(".mask > span")];
+    masks.forEach((m, j) => {
+      const k = outExpo(prog(u, 0.12 + j * 0.05, 0.8 + j * 0.05));
+      const ko = inCubic(prog(u, f.dur - OUT - 0.05 + j * 0.015, f.dur - 0.1 + j * 0.015));
+      m.style.transform = `translateY(${(1 - k) * 110 - ko * 110}%)`;
+    });
+
+    // the clip: skip the first half second, play fast enough to finish with a beat to spare
+    const img = win.querySelector("img");
+    const total = window.FRAMES[f.clip] / FPS;
+    const skip = 0.5;
+    const rate = clamp((total - skip) / (f.dur - 1.1), 1, 1.7);
+    setFrame(img, f.clip, (skip + Math.max(0, u - 0.25) * rate) * FPS);
+  });
+}
+
+// ---------------------------------------------------------------- 4. wall
+const WALL = ["roam", "ql", "super-agenda", "present", "images", "latex", "lists", "links",
+  "timers", "footnotes", "countdown", "speed-keys", "menus", "table-tools", "refile", "sparse"];
+$("#wall").innerHTML = WALL.map((w) => `<div class="tile"><img></div>`).join("");
+const tiles = [...document.querySelectorAll("#wall .tile")];
+const CHIPS = ["Org-roam", "org-ql", "Super agenda", "Presentations", "Images & LaTeX", "Timers", "Footnotes",
+  "Refile", "Sparse trees", "Column view", "Speed keys", "Habits", "Reminders", "Lint", "Links & IDs", "Datetrees"];
+$("#chips").innerHTML = CHIPS.map((c) => `<div class="chip">${c}</div>`).join("");
+const chips = [...document.querySelectorAll(".chip")];
+
+function wall(t) {
+  const on = t >= T.wall && t < T.stats;
+  ["#wallwrap", "#wallshade", "#walltitle"].forEach((s) => show($(s), on));
+  if (!on) return;
+  const u = t - T.wall, D = T.stats - T.wall;
+  const out = inCubic(prog(u, D - 0.5, D));
+  const w = $("#wall");
+  w.style.transform = `translate(-50%, -50%) rotateX(24deg) rotateZ(-9deg) translate(${lerp(140, -140, u / D)}px, ${lerp(60, -60, u / D)}px) scale(${lerp(0.92, 1.02, u / D) * (1 + out * 0.5)})`;
+  w.style.opacity = 1 - out;
+  tiles.forEach((tile, i) => {
+    const k = outBack(prog(u, 0.03 * i, 0.03 * i + 0.55));
+    tile.style.transform = `scale(${lerp(0.6, 1, k)})`;
+    tile.style.opacity = clamp(prog(u, 0.03 * i, 0.03 * i + 0.3));
+    setFrame(tile.querySelector("img"), `wall-${WALL[i]}`, u * 15);
+  });
+  const sh = prog(u, 0.6, 1.4);
+  $("#wallshade").style.opacity = sh * (1 - out);
+  const h = $("#walltitle h1");
+  const hk = outExpo(prog(u, 0.9, 1.6));
+  style(h, { y: (1 - hk) * 40, s: lerp(1.15, 1, hk), o: hk * (1 - out), blur: (1 - hk) * 14 + out * 10 });
+  chips.forEach((c, i) => {
+    const k = outBack(prog(u, 1.5 + i * 0.12, 1.9 + i * 0.12));
+    style(c, { y: (1 - k) * 24, s: lerp(0.7, 1, k), o: clamp(prog(u, 1.5 + i * 0.12, 1.75 + i * 0.12)) * (1 - out) });
+  });
+}
+
+// ---------------------------------------------------------------- 5. stats
+const STATS = [
+  { to: 99.9, fmt: (v) => v.toFixed(1) + "%", lbl: "Emacs Org 9.8 parity", sub: "1,932 commands & options, measured", c: "#a78bfa" },
+  { to: 3500, fmt: (v) => Math.round(v).toLocaleString("en-US") + "+", lbl: "headless tests", sub: "checked against the Org source", c: "#67e8f9" },
+  { to: 165, fmt: (v) => Math.round(v) + "k", lbl: "lines of pure Lua", sub: "with its own Org parser", c: "#4ade80" },
+  { to: 0, from: 12, fmt: (v) => String(Math.round(v)), lbl: "dependencies", sub: "not even tree-sitter", c: "#f472b6" },
+];
+$("#statrow").innerHTML = STATS.map((s) =>
+  `<div class="stat"><div class="num" style="color:${s.c}"></div><div class="rule" style="background:${s.c}"></div><div class="lbl"></div><div class="sub"></div></div>`).join("");
+const statEls = [...document.querySelectorAll(".stat")];
+statEls.forEach((el, i) => { el.querySelector(".lbl").textContent = STATS[i].lbl; el.querySelector(".sub").textContent = STATS[i].sub; });
+
+function stats(t) {
+  const on = t >= T.stats && t < T.outro;
+  show($("#stats"), on);
+  if (!on) return;
+  const u = t - T.stats, D = T.outro - T.stats;
+  const out = inCubic(prog(u, D - 0.45, D));
+  const hk = outExpo(prog(u, 0, 0.6));
+  style($("#stats h1"), { y: (1 - hk) * -30, o: hk * (1 - out), blur: (1 - hk) * 10 + out * 10 });
+  statEls.forEach((el, i) => {
+    const s = STATS[i], a = 0.4 + i * 0.3;
+    const k = outExpo(prog(u, a, a + 0.6));
+    style(el, { y: (1 - k) * 60 + out * -30, o: k * (1 - out), blur: out * 10 });
+    const c = outCubic(prog(u, a, a + 1.4));
+    el.querySelector(".num").textContent = s.fmt(lerp(s.from ?? 0, s.to, c));
+    el.querySelector(".rule").style.width = `${80 * outExpo(prog(u, a + 0.3, a + 1))}px`;
+  });
+}
+
+// ---------------------------------------------------------------- 6. outro
+function outro(t) {
+  const on = t >= T.outro;
+  show($("#outro"), on);
+  if (!on) return;
+  const u = t - T.outro;
+  const items = ["#outlogo", "#outname", "#outtag", "#code", "#url"];
+  items.forEach((id, i) => {
+    const a = i * 0.18;
+    const k = (id === "#outlogo" ? outBack : outExpo)(prog(u, a, a + 0.7));
+    style($(id), { y: (1 - k) * 50 + (id === "#outlogo" ? Math.sin(t * 1.6) * 5 : 0), s: id === "#outlogo" ? lerp(0.5, 1, k) : 1, o: clamp(k), blur: (1 - clamp(k)) * 10 });
+  });
+  // a light sweep across the star pill
+  const sw = prog(u, 2.2, 3.0);
+  $(".pill.star").style.boxShadow = sw > 0 && sw < 1 ? `0 0 ${40 * Math.sin(sw * Math.PI)}px rgba(244,114,182,.8)` : "none";
+}
+
+// ---------------------------------------------------------------- background + global
+function background(t) {
+  const p = [
+    ["#b1", 300 + Math.sin(t * 0.23) * 260, 80 + Math.cos(t * 0.31) * 160],
+    ["#b2", 1100 + Math.cos(t * 0.19) * 300, 400 + Math.sin(t * 0.27) * 180],
+    ["#b3", 700 + Math.sin(t * 0.29 + 2) * 400, -250 + Math.cos(t * 0.21) * 200],
+  ];
+  p.forEach(([id, x, y]) => { $(id).style.transform = `translate(${x}px, ${y}px)`; });
+  $("#dots").style.backgroundPosition = `${t * 6}px ${t * 10}px`;
+  // dim the blobs while a feature window is on screen, so the terminal reads well
+  const dim = prog(t, T.features - 0.2, T.features + 0.6) * (1 - prog(t, T.wall - 0.4, T.wall + 0.2));
+  $("#blobs").style.opacity = 1 - dim * 0.45;
+
+  // white flashes on the big hits
+  const hits = [2.35, T.pillars, T.features, T.wall, T.outro];
+  let f = 0;
+  for (const h of hits) { const d = t - h; if (d >= 0 && d < 0.4) f = Math.max(f, (1 - d / 0.4) * 0.55); }
+  $("#flash").style.opacity = f;
+  $("#fade").style.opacity = prog(t, 0, 0.001) < 1 ? 1 : Math.max(1 - prog(t, 0, 0.3), prog(t, T.end - 1.2, T.end));
+}
+
+window.seek = async function (t) {
+  background(t); intro(t); pillars(t); features(t); wall(t); stats(t); outro(t);
+  const imgs = [...pendingImgs]; pendingImgs.clear();
+  await Promise.all(imgs.map((i) => i.decode().catch(() => {})));
+  await document.fonts.ready;
+};
+const q = new URLSearchParams(location.search);
+window.seek(parseFloat(q.get("t") ?? "3.5"));
+</script>
+</body>
+</html>
