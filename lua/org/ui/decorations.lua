@@ -65,6 +65,11 @@ function M.ui_options(bufnr, file)
     if vim.b[bufnr].org_num_mode ~= nil then
       ui.num = vim.b[bufnr].org_num_mode
     end
+    -- `ui` options set for one buffer (presentation slides draw their own
+    -- headlines)
+    for k, v in pairs(vim.b[bufnr].org_ui or {}) do
+      ui[k] = v
+    end
   end
   if ui.indent_mode then
     -- org-indent-mode-turns-on-hiding-stars

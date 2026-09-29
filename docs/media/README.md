@@ -32,6 +32,9 @@ Some tapes set extras in the environment (see the top of
 on speed keys, and `DEMO_NOTIFY=1` adds `demo/reminders.org`, whose
 entries `{{now+1}}` put a minute from now, for the reminders demo.
 
+`demo/present.lua` is `init.lua` with the `present` extension turned on,
+for `present.tape`.
+
 To try the demo setup by hand:
 
 ```sh

@@ -952,6 +952,12 @@ require("org").setup({
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
 the enabled ones. See `:h org-extensions`.
 
+- **`present`** ([org-present](https://github.com/rlister/org-present)):
+  `:Org present` shows the buffer as a slideshow, one top-level heading per
+  slide, in its own tab (`:h org-extensions-present`).
+
+  <p align="center"><img src="docs/media/present.gif" alt="Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file" width="800"></p>
+
 - **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam v2 notes in the same file format: find and insert
   nodes (typing a new title creates one), a backlinks, reflinks and
   unlinked references window, aliases, refs and tags, capture templates

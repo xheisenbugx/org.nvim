@@ -1,0 +1,24 @@
+#+TITLE: Plain text, all the way down
+#+SUBTITLE: Notes, tasks and slides in one file
+#+AUTHOR: Ada Presenter
+#+DATE: {{0}}
+
+* Why plain text?
+- It outlives every app you have used
+- It diffs, greps and syncs like code
+- /Emphasis/, *bold* and =code= stay readable
+** One file, many views
+The same outline is your notes, your agenda and this talk.
+* TODO Things to show
+| Feature  | Key          |
+|----------+--------------|
+| Agenda   | <leader>oa   |
+| Capture  | <leader>oc   |
+| Present  | :Org present |
+* Code runs too
+#+begin_src lua
+local slides = { "intro", "demo", "questions" }
+print(#slides .. " slides")
+#+end_src
+* Questions?
+Thanks for listening!
