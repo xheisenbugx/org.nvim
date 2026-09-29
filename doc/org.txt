@@ -1576,7 +1576,11 @@ All configurable under `mappings.agenda`:
   <Space> <BS>    show the entry (its drawers open; with a count they stay
                   folded), keeping focus in the agenda; <Space> again
                   scrolls that window a page forward, <BS> a page back
-                  (org-agenda-show-and-scroll-up / -show-scroll-down)
+                  (org-agenda-show-and-scroll-up / -show-scroll-down).
+                  An agenda key that starts a global mapping or is your
+                  leader (<Space>, \ or , as 'mapleader' or
+                  'maplocalleader') waits 'timeoutlen' so the longer
+                  keys still work
   cycle_show      (no default key) show the entry; again right away,
                   cycle it through children, subtree, folded; a count is
                   the level of `show_1` (org-agenda-cycle-show)
@@ -1654,7 +1658,7 @@ All configurable under `mappings.agenda`:
                   lines) (also vE), after `entry_text_leaders`, without
                   drawers, planning and CLOCK lines and the matches of
                   `entry_text_exclude_regexps` (Emacs regexps)
-  G               toggle the time grid (also vG)
+  vG              toggle the time grid (Emacs G, kept free for motion)
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
                   (|org-agenda-diary-file|)

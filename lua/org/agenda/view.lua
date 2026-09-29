@@ -3617,16 +3617,29 @@ setup_mappings = function(buf)
       return "<LeftRelease><Cmd>lua require('org.agenda.view').mouse_1_release()<CR>"
     end, vim.tbl_extend("force", o, { desc = "org agenda: go to the entry clicked" }))
   end
+  -- global Normal-mode keys and the leaders: an agenda key that starts one
+  -- (<Space> with a space leader, \ with the default one) must wait for it
+  local longer = {}
+  for _, map in ipairs(vim.api.nvim_get_keymap("n")) do
+    longer[#longer + 1] = vim.keycode(map.lhs)
+  end
+  for _, leader in ipairs({ vim.g.mapleader or "\\", vim.g.maplocalleader or "\\" }) do
+    longer[#longer + 1] = vim.keycode(leader) .. "x"
+  end
+  for _, o in ipairs(all) do
+    longer[#longer + 1] = vim.keycode(o.lhs)
+  end
   for _, m in ipairs(all) do
     local fn = M.actions[m.name]
     if fn then
-      -- nowait unless the key is a prefix of another agenda mapping
+      -- nowait unless the key is a prefix of another agenda mapping, a
+      -- global mapping or a leader
       local prefix_of_other = false
       local kc = vim.keycode(m.lhs)
-      for _, o in ipairs(all) do
-        local ok = vim.keycode(o.lhs)
-        if o ~= m and #ok > #kc and ok:sub(1, #kc) == kc then
+      for _, ok in ipairs(longer) do
+        if #ok > #kc and ok:sub(1, #kc) == kc then
           prefix_of_other = true
+          break
         end
       end
       vim.keymap.set("n", m.lhs, function()

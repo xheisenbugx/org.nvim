@@ -328,6 +328,27 @@ describe("default keymaps", function()
   it("give no two global actions the same key in the same mode", function()
     eq({}, duplicates({ "global", "emacs_global" }))
   end)
+  it("agenda keys that start a leader or global mapping wait for it", function()
+    -- the test init's leader is <Space>, the agenda's show key
+    local hit = false
+    vim.keymap.set("n", "<leader>oZ", function()
+      hit = true
+    end)
+    vim.g.maplocalleader = ","
+    require("org.agenda").open_agenda({ span = "day" })
+    eq("orgagenda", vim.bo.filetype)
+    eq(0, vim.fn.maparg("<Space>", "n", false, true).nowait)
+    eq(0, vim.fn.maparg(",", "n", false, true).nowait)
+    eq(1, vim.fn.maparg("n", "n", false, true).nowait)
+    vim.api.nvim_feedkeys(vim.keycode("<Space>oZ"), "xt", false)
+    ok(hit)
+    vim.g.maplocalleader = nil
+    vim.keymap.del("n", "<leader>oZ")
+    vim.cmd("bwipeout!")
+  end)
+  it("agenda leaves G to Vim; vG toggles the time grid", function()
+    eq({ "vG" }, config.lhs_list(config.defaults.mappings.agenda.time_grid))
+  end)
   it("<C-c><C-x><C-r> toggles a radio button, as in Emacs", function()
     local buf = org_buffer({ "- [ ] one", "- [X] two", "- [ ] three" }, { 1, 0 })
     eq("org: Toggle radio button", vim.fn.maparg("<C-c><C-x><C-r>", "n", false, true).desc)
