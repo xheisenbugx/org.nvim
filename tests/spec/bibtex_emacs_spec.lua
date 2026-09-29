@@ -242,6 +242,39 @@ describe("ol-bibtex", function()
       }, bibtex.entries)
     end)
 
+    it("reads the entry at the cursor", function()
+      local bib = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(
+        bib,
+        0,
+        -1,
+        false,
+        { "@misc{a, title={A}}", "", "@misc{b,", "  title = {B},", "  year = 2000", "}" }
+      )
+      bibtex.read(bib, 5)
+      eq({ { { "type", "misc" }, { "key", "b" }, { "title", "B" }, { "year", "2000" } } }, bibtex.entries)
+    end)
+
+    it("headline_format_function makes the headline text", function()
+      set({
+        headline_format_function = function(f)
+          return string.format("%s (%s)", f.title, f.year)
+        end,
+      })
+      bibtex.entries = { { { "type", "misc" }, { "key", "k" }, { "title", "Tt" }, { "year", "1999" } } }
+      local buf = org_buffer({ "" }, { 1, 0 })
+      bibtex.write()
+      eq({
+        "* Tt (1999)",
+        ":PROPERTIES:",
+        ":TITLE:    Tt",
+        ":BTYPE:    misc",
+        ":CUSTOM_ID: k",
+        ":YEAR:     1999",
+        ":END:",
+      }, buf_lines(buf))
+    end)
+
     it("writes headlines, aligned unless noindent", function()
       read_all()
       local buf = org_buffer({ "* Existing", "" }, { 2, 0 })
@@ -421,6 +454,43 @@ describe("ol-bibtex", function()
         ":EDITOR:   Ed",
         ":PUBLISHER: Pub",
         ":YEAR:     1999",
+        ":END:",
+      }, buf_lines(buf))
+    end)
+
+    it("check_all checks every headline; treat_headline_as_title = false asks for the title", function()
+      set({ treat_headline_as_title = false })
+      local buf = org_buffer({
+        "* One",
+        ":PROPERTIES:",
+        ":BTYPE: misc",
+        ":END:",
+        "* Two",
+        "* Three",
+        ":PROPERTIES:",
+        ":BTYPE: unpublished",
+        ":CUSTOM_ID: t3",
+        ":AUTHOR: A",
+        ":END:",
+      }, { 1, 0 })
+      local prompts = answering({ "k1", "T3", "N3" }, function()
+        bibtex.check_all(false)
+      end)
+      eq({ "id: ", "title: ", "note: " }, prompts)
+      eq({
+        "* One",
+        ":PROPERTIES:",
+        ":BTYPE: misc",
+        ":CUSTOM_ID: k1",
+        ":END:",
+        "* Two",
+        "* Three",
+        ":PROPERTIES:",
+        ":BTYPE: unpublished",
+        ":CUSTOM_ID: t3",
+        ":AUTHOR: A",
+        ":TITLE:    T3",
+        ":NOTE:     N3",
         ":END:",
       }, buf_lines(buf))
     end)
