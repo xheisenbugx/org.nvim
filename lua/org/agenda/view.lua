@@ -1191,9 +1191,12 @@ end
 --- Show the subtree of the entry at point in an edit buffer in the other
 --- window (org-agenda-tree-to-indirect-buffer, C-c C-x b). The previous
 --- one is closed unless it has unsaved changes, like Emacs kills its last
---- indirect buffer.
+--- indirect buffer. `arg` (a count) is Emacs' numeric argument: the
+--- subtree of the ancestor at that level (negative: that many levels up);
+--- the previous buffer is then kept.
+---@param arg? integer
 ---@return integer? buf
-function M.tree_to_indirect_buffer()
+function M.tree_to_indirect_buffer(arg)
   local item = M.item_at_cursor()
   if not item then
     utils.warn("No agenda entry on this line")
@@ -1213,9 +1216,9 @@ function M.tree_to_indirect_buffer()
   vim.api.nvim_win_call(w, function()
     utils.set_current_buf(target.bufnr)
     vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
-    buf = require("org.structure").tree_to_indirect_buffer("current")
+    buf = require("org.structure").tree_to_indirect_buffer("current", arg)
   end)
-  if old and old ~= buf and vim.api.nvim_buf_is_valid(old) and not vim.bo[old].modified then
+  if not arg and old and old ~= buf and vim.api.nvim_buf_is_valid(old) and not vim.bo[old].modified then
     pcall(vim.api.nvim_buf_delete, old, { force = true })
   end
   S.indirect_buf = buf
@@ -2723,7 +2726,7 @@ M.actions = {
     M.switch_to()
   end,
   tree_to_indirect_buffer = function()
-    M.tree_to_indirect_buffer()
+    M.tree_to_indirect_buffer(vim.v.count > 0 and vim.v.count or nil)
   end,
   diary_entry = function()
     require("org.agenda.diary_entry").entry({ region = M._region, nonmarking = vim.v.count > 0 })

@@ -1571,7 +1571,8 @@ All configurable under `mappings.agenda`:
   <C-c><C-x>b     edit the entry's subtree in the other window (the
                   subtree edit buffer of |org-narrow|, since Neovim has no
                   indirect buffers; org-agenda-tree-to-indirect-buffer).
-                  The previous one is closed unless modified.
+                  The previous one is closed unless modified. A count N
+                  takes the subtree of the ancestor at level N.
                   `agenda.follow_indirect` makes follow mode show it
   L               show the entry and recenter its window
   o               close the other windows

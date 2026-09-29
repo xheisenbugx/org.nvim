@@ -375,6 +375,19 @@ describe("agenda show commands", function()
     ok(#vim.fn.win_findbuf(buf) == 1)
   end)
 
+  -- org-agenda-tree-to-indirect-buffer passes its numeric argument to
+  -- org-tree-to-indirect-buffer: the ancestor at that level
+  it("a count shows the subtree of the ancestor at that level", function()
+    local nested = { "* A", "** TODO B", "   SCHEDULED: " .. ts(0), "*** C" }
+    open(nested)
+    goto_title("B")
+    press("1<C-c><C-x>b")
+    eq(nested, vim.api.nvim_buf_get_lines(view.state.indirect_buf, 0, -1, false))
+    goto_title("B")
+    press("<C-c><C-x>b")
+    eq(vim.list_slice(nested, 2), vim.api.nvim_buf_get_lines(view.state.indirect_buf, 0, -1, false))
+  end)
+
   it("follow_indirect makes follow mode show the subtree buffer", function()
     open(lines, { agenda = { follow_indirect = true } })
     goto_title("A")
