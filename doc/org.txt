@@ -3615,6 +3615,13 @@ HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
               `html5-fancy:t`), default CSS, MathJax, postamble "auto"
               (author, date, creator, validation link), `#+ATTR_HTML`,
               `#+HTML_HEAD`, info.js (`#+INFOJS_OPT`), inline images.
+              LaTeX (`tex:`, `export.html.with_latex`, org-html-with-latex):
+              MathJax (t, "mathjax"), pictures in ltximg/ next to the
+              output with a LaTeX preview process ("dvipng", "dvisvgm",
+              "imagemagick", or one of `ui.latex_preview.processes`),
+              "html" runs `export.html.latex_to_html_convert_command`
+              (org-latex-to-html-convert-command, %i = the fragment) on
+              each fragment, "verbatim" or false keep the LaTeX.
               Source code is coloured from its tree-sitter highlights
               (Emacs uses htmlize): `export.html.htmlize_output_type`
               "inline-css" (default) puts the colour scheme's colours in
@@ -3790,7 +3797,10 @@ matches Emacs except for a few Emacs slips that are not copied: labels
 of unnamed captioned images are not called "nil", `[[#custom-id][desc]]`
 links point to the heading's bookmark, meta.xml gets the title without
 markup, and inline source blocks (an error in Emacs) are exported as
-code. MathML is not cached in an ltxmathml/ directory.
+code. The MathML of each fragment is kept in
+`export.odt.latex_mathml_directory` ("ltxmathml/" next to the Org file,
+org-latex-mathml-directory) and reused while the fragment and the command
+are unchanged.
 
 iCalendar ~                                             *org-export-icalendar*
 Dispatcher keys (Emacs `C-c C-e c`): `c f` current file, `c a` every agenda
@@ -3881,18 +3891,19 @@ These need Emacs Lisp or Emacs itself:
   scratch buffer (`buffer-file-name`, `org-with-point-at` and the like
   don't see the document). Without Emacs they export as nothing, with a
   warning.
-- Source fontification (htmlize, engrave-faces): HTML code is plain unless
-  `export.html.fontify` is set; `src_block_backend = "engraved"` falls
-  back to verbatim.
-- LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
-  exported as MathJax/verbatim by the HTML back-end; only ODT converts
-  them (|org-export-odt|).
+- Source fontification: HTML uses tree-sitter highlights instead of
+  htmlize (|org-export-backends|), so the spans differ from Emacs'
+  font-lock; `src_block_backend = "engraved"` falls back to verbatim.
+- LaTeX pictures in HTML (`tex:dvipng`, ...) are named
+  ltximg/FILE_HASH.png with a hash of their own; a failed conversion
+  warns and leaves the LaTeX out instead of stopping the export.
 - table.el tables: the HTML comment table.el puts before the table names
   org.nvim instead of the Emacs version, and a grid table.el cannot read
   is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
   fails.
-- Asynchronous export (`a`) only makes PDF compilation asynchronous;
-  publishing runs on the editor's event loop.
+- Asynchronous export (`a`) runs the export on the editor's event loop
+  after the dispatcher closes (Emacs starts another Emacs); PDF and Info
+  compilation are external processes. Publishing runs on the event loop.
 - Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.

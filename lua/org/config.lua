@@ -1387,6 +1387,13 @@ M.defaults = {
       --- Load MathJax for LaTeX fragments (org-html-with-latex = mathjax);
       --- false leaves the math as text.
       mathjax = true,
+      --- org-html-with-latex: true/"mathjax", "html", "dvipng", "dvisvgm",
+      --- "imagemagick" (pictures in ltximg/), "verbatim" or false; nil =
+      --- export.with_latex. #+OPTIONS: tex: overrides it.
+      with_latex = nil,
+      --- org-latex-to-html-convert-command for tex:html, %i = the fragment
+      --- (shell-quoted), e.g. "latexmlmath %i --presentationmathml=-".
+      latex_to_html_convert_command = nil,
       mathjax_options = nil, -- org-html-mathjax-options ({ path = ..., scale = 1.0, ... })
       --- function(code, lang) -> HTML to highlight source code, used instead
       --- of the built-in highlighting (plugin option).
@@ -1646,6 +1653,7 @@ M.defaults = {
       --- (%i fragment, %I input file, %o output file, %j jar file).
       latex_to_mathml_convert_command = nil,
       latex_to_mathml_jar_file = nil, -- org-latex-to-mathml-jar-file
+      latex_mathml_directory = "ltxmathml/", -- org-latex-mathml-directory (MathML cache, relative to the Org file)
       inline_image_rules = nil, -- org-odt-inline-image-rules ({ file = { "png", ... } })
       inline_formula_rules = nil, -- org-odt-inline-formula-rules ({ file = { "mathml", "mml", "odf" } })
       table_styles = nil, -- org-odt-table-styles ({ { name, template, { use_first_row_styles = true, ... } } })

@@ -1078,6 +1078,51 @@ function M.latex_to_mathml(frag)
   return '<?xml version="1.0" encoding="UTF-8"?>\n' .. out:sub(s, e)
 end
 
+--- Lisp printed form of a string (prin1-to-string).
+local function prin1_string(s)
+  if s == nil then
+    return "nil"
+  end
+  return '"' .. s:gsub("[\\\"]", "\\%0") .. '"'
+end
+
+--- The MathML cache file of a fragment (org-format-latex-as-mathml):
+--- <org file dir>/<latex_mathml_directory><file>-formula-<sha1>.mathml.
+function M.mathml_cache_file(frag, info)
+  local input = info.input_file
+  if not input then
+    return nil
+  end
+  local cmd = mathml_command()
+  local dir = ocfg().latex_mathml_directory or "ltxmathml/"
+  if dir ~= "" and not dir:match("/$") then
+    dir = dir .. "/"
+  end
+  local prefix = dir .. vim.fn.fnamemodify(input, ":t:r")
+  local absprefix = prefix:match("^/") and prefix or (vim.fn.fnamemodify(input, ":p:h") .. "/" .. prefix)
+  local id = require("org.babel.sha1").hex("(" .. prin1_string(frag) .. " " .. prin1_string(cmd) .. ")")
+  return absprefix .. "-formula-" .. id .. ".mathml"
+end
+
+--- org-format-latex-as-mathml: the MathML of a fragment, converted once and
+--- kept in `export.odt.latex_mathml_directory` (org-latex-mathml-directory).
+function M.latex_to_mathml_cached(frag, info)
+  local file = M.mathml_cache_file(frag, info)
+  if file and vim.uv.fs_stat(file) then
+    return read_file(file)
+  end
+  local mathml = M.latex_to_mathml(frag)
+  if mathml and file then
+    vim.fn.mkdir(vim.fn.fnamemodify(file, ":h"), "p")
+    local f = io.open(file, "w")
+    if f then
+      f:write(mathml)
+      f:close()
+    end
+  end
+  return mathml
+end
+
 local LATEX_IMAGE_PACKAGES = [[
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -1094,6 +1139,21 @@ local function latex_processes()
   end
   return all, ok and images.DEFAULT_HEADER or nil
 end
+
+--- The spec of a LaTeX image process (org-preview-latex-process-alist
+--- entry: dvipng, dvisvgm, imagemagick or a user process), or nil.
+function M.latex_image_process(name)
+  return type(name) == "string" and latex_processes()[name] or nil
+end
+
+--- Run a shell command (shell-command-to-string): stdout and stderr.
+function M.shell_command_to_string(cmd, cwd)
+  local res = sh(cmd, cwd)
+  return (res.stdout or "") .. (res.stderr or "")
+end
+
+M.shellescape = shellescape
+M.format_spec = format_spec
 
 --- Programs of a LaTeX image process (org-preview-latex-process-alist)
 --- are installed?
@@ -2612,7 +2672,7 @@ local function translate_latex_fragments(tree, _, info)
   for _, x in ipairs(frags) do
     local value = x.value or ""
     if mode == "mathml" then
-      local mathml = M.latex_to_mathml(value)
+      local mathml = M.latex_to_mathml_cached(value, info)
       if mathml then
         x.odt_converted = { kind = "mathml", data = mathml }
       end

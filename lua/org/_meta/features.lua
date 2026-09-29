@@ -682,6 +682,13 @@
 ---Load MathJax for LaTeX fragments (`org-html-with-latex` = `mathjax`).
 ---(default: `true`)
 ---@field mathjax? boolean
+---(`org-html-with-latex`): `true`/`"mathjax"`, `"html"`, `"dvipng"`,
+---`"dvisvgm"`, `"imagemagick"` (pictures), `"verbatim"` or `false`.
+---(default: `nil` = `export.with_latex`)
+---@field with_latex? boolean|string
+---(`org-latex-to-html-convert-command`) for `tex:html`, `%i` = the fragment.
+---(default: `nil`)
+---@field latex_to_html_convert_command? string
 ---(`org-html-mathjax-options`) (default: Emacs value)
 ---@field mathjax_options? table
 ---Highlight source code with your own `function(code, lang)` returning
@@ -1079,6 +1086,64 @@
 ---(`org-ascii-format-inlinetask-function`) (default: `nil`)
 ---@field format_inlinetask_function? function
 
+---ODT back-end options (ox-odt).
+---@class org.Config.Export.Odt
+---Export ODT with pandoc instead of the native back-end. (default: `false`)
+---@field use_pandoc? boolean
+---(`org-odt-styles-file`): a styles.xml, .odt or .ott file, or
+---`{ "file.ott", { "styles.xml", "image/hdr.png" } }`. (default: `nil` = factory styles)
+---@field styles_file? string|table
+---XML added to `<office:styles>` (also `#+ODT_EXTRA_STYLES`). (default: `nil`)
+---@field extra_styles? string
+---(`org-odt-content-template-file`) (default: `nil` = OrgOdtContentTemplate.xml)
+---@field content_template_file? string
+---(`org-odt-display-outline-level`) (default: `2`)
+---@field display_outline_level? integer
+---(`org-odt-fontify-srcblocks`), with tree-sitter highlights. (default: `true`)
+---@field fontify_srcblocks? boolean
+---(`org-odt-create-custom-styles-for-srcblocks`) (default: `true`)
+---@field create_custom_styles_for_srcblocks? boolean
+---(`org-odt-pixels-per-inch`) (default: `96`)
+---@field pixels_per_inch? number
+---(`org-odt-use-date-fields`) (default: `false`)
+---@field use_date_fields? boolean
+---(`org-odt-with-forbidden-chars`): replacement, `true` = keep, `false` = error.
+---(default: `""`)
+---@field with_forbidden_chars? string|boolean
+---(`org-odt-with-latex`): `true`/`"mathml"`, `"dvipng"`, ..., `"verbatim"`.
+---(default: `nil` = `export.with_latex`)
+---@field with_latex? boolean|string
+---(`org-latex-to-mathml-convert-command`), `%i` fragment, `%I` input file, `%o`
+---output file, `%j` jar file. (default: `nil`)
+---@field latex_to_mathml_convert_command? string
+---(`org-latex-to-mathml-jar-file`) (default: `nil`)
+---@field latex_to_mathml_jar_file? string
+---(`org-latex-mathml-directory`): cache of the MathML of LaTeX fragments,
+---relative to the Org file unless absolute. (default: `"ltxmathml/"`)
+---@field latex_mathml_directory? string
+---(`org-odt-inline-image-rules`) (default: `nil` = the Emacs rules)
+---@field inline_image_rules? table<string, string[]>
+---(`org-odt-inline-formula-rules`) (default: `nil` = the Emacs rules)
+---@field inline_formula_rules? table<string, string[]>
+---(`org-odt-table-styles`) (default: `nil` = the Emacs styles)
+---@field table_styles? table
+---(`org-odt-category-map-alist`) (default: `nil` = the Emacs map)
+---@field category_map_alist? table
+---(`org-odt-format-drawer-function`) (default: `nil`)
+---@field format_drawer_function? function
+---(`org-odt-format-headline-function`) (default: `nil`)
+---@field format_headline_function? function
+---(`org-odt-format-inlinetask-function`) (default: `nil`)
+---@field format_inlinetask_function? function
+---(`org-odt-preferred-output-format`), e.g. `"pdf"`. (default: `nil`)
+---@field preferred_output_format? string
+---(`org-odt-convert-process`) (default: `"LibreOffice"`)
+---@field convert_process? string
+---(`org-odt-convert-processes`) (default: `nil` = the Emacs list)
+---@field convert_processes? string[][]
+---(`org-odt-convert-capabilities`) (default: `nil` = the Emacs list)
+---@field convert_capabilities? table
+
 ---Citation export options (oc, oc-basic).
 ---@class org.Config.Export.Cite
 ---(`org-cite-export-processors`): `{ [backend] = { name, bibstyle, citestyle } | name }`,
@@ -1268,6 +1333,7 @@
 ---@field publish? org.Config.Export.Publish
 ---@field ascii? org.Config.Export.Ascii
 ---@field cite? org.Config.Export.Cite
+---@field odt? org.Config.Export.Odt
 ---Legacy alias of `ascii.text_width`. (default: `72`)
 ---@field text_width? integer
 ---@field pandoc? org.Config.Export.Pandoc
