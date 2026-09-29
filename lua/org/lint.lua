@@ -4840,11 +4840,13 @@ local function report_keys(listbuf, srcwin, bufnr, checkers)
       hide()
     end
   end, vim.tbl_extend("force", opts, { desc = "org-lint: ignore this checker" }))
-  vim.keymap.set("n", "g", function()
+  -- r, not Emacs's g: a mapping of g would take gg, g_ and the other g
+  -- commands away (the list buffer is not modifiable, so r is free)
+  vim.keymap.set("n", "r", function()
     if vim.api.nvim_buf_is_valid(bufnr) then
       set_items(report_items(bufnr, M.lint(bufnr, checkers)))
     end
-  end, vim.tbl_extend("force", opts, { desc = "org-lint: refresh the reports" }))
+  end, { buffer = listbuf, silent = true, desc = "org-lint: refresh the reports" })
 end
 
 --- Lint the current buffer and show the reports in the location list

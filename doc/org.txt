@@ -6283,7 +6283,9 @@ or unreadable local setup files are ignored; lint reports missing paths.
                         window, as in Emacs's report buffer: `h` hides the
                         reports of the checker under the cursor, `i` also
                         ignores that checker when refreshing
-                        (org-lint--ignore-checker), `g` lints again.
+                        (org-lint--ignore-checker), `r` lints again
+                        (Emacs `g`, which Vim needs for gg and the other
+                        g commands).
 
 Lua: `require("org.lint").lint(bufnr, checkers?)` returns the reports
 `{ lnum, col, checker, message, trust }` sorted by position, and
@@ -6345,8 +6347,8 @@ Differences from Emacs:
 - Link and file checks use the plugin's link abbreviations, link types,
   attachment directories (|org-attach|) and ID locations.
 - Nothing is skipped: every checker of Org 9.8 is implemented. The report
-  buffer's keys (h hide, i ignore a checker) are replaced by the location
-  list; rerun with checker names instead.
+  buffer's keys are in the location list: h hides and i ignores a
+  checker, r (Emacs g) lints again.
 
 ==============================================================================
 32. DIFFERENCES FROM EMACS                                   *org-differences*
