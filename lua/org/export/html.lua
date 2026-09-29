@@ -318,7 +318,8 @@ function M.htmlize_generate_css()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_buf_set_name(buf, "*html*")
   vim.bo[buf].filetype = "html"
-  vim.api.nvim_set_current_buf(buf)
+  -- next to an unsaved buffer that can't be hidden: in a split
+  require("org.utils").set_current_buf(buf)
   return buf
 end
 

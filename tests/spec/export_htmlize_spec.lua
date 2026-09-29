@@ -85,6 +85,15 @@ describe("html source highlighting", function()
     eq("*html*", vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t"))
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
+
+  it("opens *html* next to a modified buffer that can't be hidden", function()
+    local org = org_buffer({ "* unsaved" })
+    local buf = require("org.export.html").htmlize_generate_css()
+    eq(buf, vim.api.nvim_get_current_buf())
+    ok(#vim.fn.win_findbuf(org) == 1, "the unsaved buffer keeps its window")
+    vim.api.nvim_buf_delete(buf, { force = true })
+    vim.bo[org].modified = false
+  end)
 end)
 
 describe("htmlized Org sources", function()
