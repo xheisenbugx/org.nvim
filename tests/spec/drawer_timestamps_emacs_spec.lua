@@ -85,7 +85,9 @@ describe("timestamps in drawers (Emacs)", function()
       ":WHEN:     <2026-09-01 Tue>",
       ":END:",
     }, { 1, 0 })
-    local found = require("org.agenda.sparse").dates("before", date.parse("<2026-09-10 Thu>"))
-    eq({ { lnum = 1 } }, found)
+    -- with the "all" date type (org-re-timestamp 'all)
+    local found = require("org.agenda.sparse").dates("before", date.parse("<2026-09-10 Thu>"), nil, "all")
+    eq(1, #found)
+    eq(3, found[1].lnum)
   end)
 end)
