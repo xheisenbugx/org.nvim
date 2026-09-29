@@ -1284,24 +1284,18 @@ function M.show_1(level, verbose)
     hl = file:headline_at(target.lnum) or hl
     vim.api.nvim_win_set_cursor(w, { hl.line, 0 })
     vim.cmd("normal! zt")
+    if level ~= 1 then
+      require("org.fold").show_level(hl.line, level)
+    end
     if level == 0 then
-      vim.cmd(string.format("silent! %d,%dfoldclose!", hl.line, hl.line))
       msg = "Remote: FOLDED"
     elseif level == 1 then
       msg = verbose and "Remote: show with default settings" or nil
     elseif level == 2 then
-      vim.cmd(string.format("silent! %dfoldopen", hl.line))
-      for _, ch in ipairs(hl.children) do
-        if ch.end_line > ch.line then
-          vim.cmd(string.format("silent! %dfoldclose", ch.line))
-        end
-      end
       msg = "Remote: CHILDREN"
     elseif level == 3 then
-      vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, hl.end_line))
       msg = "Remote: SUBTREE"
     else
-      vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, hl.end_line))
       msg = "Remote: SUBTREE AND ALL DRAWERS"
     end
   end)

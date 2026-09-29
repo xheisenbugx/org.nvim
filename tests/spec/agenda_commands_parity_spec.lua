@@ -266,6 +266,68 @@ describe("agenda show commands", function()
     end)
   end)
 
+  --- "V"/"H" per line of the source file as its window shows it.
+  local function source_win()
+    return vim.fn.win_findbuf(utils.find_buffer(path))[1]
+  end
+
+  local function visibility()
+    local w = source_win()
+    local out = {}
+    vim.api.nvim_win_call(w, function()
+      for l = 1, vim.api.nvim_buf_line_count(0) do
+        out[#out + 1] = require("org.fold").line_visible(l) and "V" or "H"
+      end
+    end)
+    return table.concat(out)
+  end
+
+  -- Emacs 9.8.10 (org-agenda-show-1 with these levels in turn, on files
+  -- that start fully visible; "H" = invisible line): level 2 never hides
+  -- what is visible, level 0 folds only the entry's own subtree.
+  it("show_1 folds like Emacs at each level", function()
+    local cases = {
+      {
+        lines = lines,
+        title = "A",
+        steps = { { 1, "VVVV" }, { 2, "VVVV" }, { 2, "VVVV" }, { 3, "VVVV" }, { 0, "VHHH" } },
+        tail = { { 2, "VVVH" }, { 3, "VVVV" }, { 4, "VVVV" } },
+      },
+      {
+        lines = { "* A", "** TODO B", "   SCHEDULED: " .. ts(0), "*** C", "    text" },
+        title = "B",
+        steps = { { 1, "VVVVV" }, { 2, "VVVVV" }, { 3, "VVVVV" }, { 0, "VVHHH" } },
+        tail = { { 2, "VVVVH" }, { 0, "VVHHH" }, { 0, "VVHHH" } },
+      },
+      {
+        lines = { "* TODO A", "  SCHEDULED: " .. ts(0), "** B", "   text", "** C", "*** D", "    x" },
+        title = "A",
+        steps = { { 0, "VHHHHHH" }, { 2, "VVVHVHH" }, { 3, "VVVVVVV" }, { 2, "VVVVVVV" } },
+        tail = {},
+      },
+    }
+    for _, c in ipairs(cases) do
+      open(c.lines)
+      goto_title(c.title)
+      for _, s in ipairs(vim.list_extend(vim.deepcopy(c.steps), c.tail)) do
+        view.show_1(s[1])
+        eq(c.title .. " " .. s[1] .. " " .. s[2], c.title .. " " .. s[1] .. " " .. visibility())
+      end
+      view.quit(true)
+      vim.cmd("silent! only")
+    end
+  end)
+
+  it("cycle_show on an entry with a folded child keeps the entry open", function()
+    open(lines, { mappings = { agenda = { cycle_show = "gz" } } })
+    goto_title("A")
+    press("gz")
+    press("gz")
+    vim.api.nvim_win_call(source_win(), function()
+      eq(-1, vim.fn.foldclosed(1))
+    end)
+  end)
+
   it("<Space> shows the entry, and pressed again scrolls it", function()
     local long = { "* TODO A", "  SCHEDULED: " .. ts(0) }
     for i = 1, 200 do

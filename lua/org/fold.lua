@@ -880,6 +880,59 @@ local function show_ancestor_subtree(level)
   refresh_ellipsis()
 end
 
+--- Change the visibility of the headline at `lnum` in the current window
+--- the way org-agenda-show-1 does: 0 folds its subtree (org-fold-subtree),
+--- 2 shows its text and child headlines without hiding anything already
+--- visible (org-fold-show-entry, org-fold-show-children), 3 its subtree
+--- with the drawers folded, 4 everything. Other folds are left alone.
+---@param lnum integer
+---@param level integer
+---@return boolean false when there is no headline at `lnum`
+function M.show_level(lnum, level)
+  local hl = file():headline_at(lnum)
+  if not hl then
+    return false
+  end
+  show_heading_path(hl)
+  if level == 0 then
+    if has_fold(hl) then
+      -- open everything first so that each :foldclose below closes the
+      -- fold it names, then close the descendants deepest first: opening
+      -- the subtree again later shows its child headlines folded
+      pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+      local desc = {}
+      local function walk(h)
+        for _, ch in ipairs(h.children) do
+          desc[#desc + 1] = ch
+          walk(ch)
+        end
+      end
+      walk(hl)
+      for i = #desc, 1, -1 do
+        if has_fold(desc[i]) then
+          close_at(desc[i].line)
+        end
+      end
+      close_at(hl.line)
+    end
+  elseif level == 2 then
+    show_entry(hl)
+    for _, ch in ipairs(hl.children) do
+      M.unconceal(0, ch.line, ch.line)
+    end
+    hide_archived(hl.line + 1, hl.end_line)
+  elseif level >= 3 then
+    pcall(vim.cmd, hl.line .. "," .. hl.end_line .. "foldopen!")
+    M.unconceal(0, hl.line, hl.end_line)
+    if level == 3 then
+      close_drawers(hl.line, hl.end_line)
+      hide_archived(hl.line + 1, hl.end_line)
+    end
+  end
+  refresh_ellipsis()
+  return true
+end
+
 --- Remember the state of the last TAB, like Emacs `last-command`: the
 --- next TAB continues the cycle only if nothing happened in between.
 local function set_last_cycle(lnum, status)
@@ -1775,6 +1828,11 @@ end
 function M.setup_buffer(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   local function setup_win(win)
+    -- a hidden load (bufload, nvim_buf_call) runs in Vim's autocommand
+    -- window: the startup visibility waits for a real window
+    if vim.fn.win_gettype(win) == "autocmd" then
+      return
+    end
     local first = not vim.b[bufnr].org_startup_done
     if first then
       -- Set 'foldlevel' before 'foldmethod' when it alone gives the
