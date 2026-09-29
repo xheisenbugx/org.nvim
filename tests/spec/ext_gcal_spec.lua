@@ -3,11 +3,13 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 
 local CAL = "cal@example.com"
+-- 2026-09-28 12:00 UTC: the clock the extension sees in these specs
+local NOW = require("org.date").days_from_civil(2026, 9, 28) * 86400 + 12 * 3600
 
 local tmp, gcal, oauth, event, sync, requests, routes
 
-local function setup(extra)
-  require("org").setup({
+local function setup(extra, top)
+  require("org").setup(vim.tbl_extend("force", {
     org_directory = root .. "/tests/fixtures",
     agenda_files = { root .. "/tests/fixtures/*.org" },
     extensions = {
@@ -19,9 +21,10 @@ local function setup(extra)
         utc_offset = 0,
         remove_api_cancelled_events = true,
         notify = false,
+        retry_delays = { 0, 0, 0 },
       }, extra or {}),
     },
-  })
+  }, top or {}))
 end
 
 --- Answer requests matching `method` and a Lua pattern on the URL.
@@ -90,13 +93,13 @@ local function valid_tokens()
   oauth.save(gcal.opts(), {
     access_token = "access-token-1",
     refresh_token = "refresh-token-1",
-    expires_at = os.time() + 3600,
+    expires_at = NOW + 3600,
     sync_tokens = {},
   })
 end
 
 describe("gcal extension", function()
-  local saved_request, saved_confirm
+  local saved_request, saved_confirm, saved_now
   before_each(function()
     tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
@@ -107,12 +110,17 @@ describe("gcal extension", function()
     sync = require("org.extensions.gcal.sync")
     saved_request = gcal._request
     saved_confirm = require("org.utils").confirm
+    saved_now = gcal.now
+    gcal.now = function()
+      return NOW
+    end
     setup()
     stub_transport()
     valid_tokens()
   end)
   after_each(function()
     gcal._request = saved_request
+    gcal.now = saved_now
     require("org.utils").confirm = saved_confirm
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_get_name(b):find(tmp, 1, true) then
@@ -154,16 +162,75 @@ describe("gcal extension", function()
     end)
 
     it("writes a new entry in org-gcal's format", function()
-      local lines = sync.entry_lines(CAL, ev("a", { location = "Room 1", description = "Agenda" }), "gcal")
+      route("GET", "/events", function()
+        return 200,
+          {
+            items = {
+              ev("a", {
+                location = "Room 1\nSecond floor",
+                description = "Agenda",
+                hangoutLink = "https://meet.example/abc",
+                source = { url = "https://example.com/doc", title = "Doc" },
+                transparency = "transparent",
+              }),
+            },
+            nextSyncToken = "s",
+          }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(okx, err)
+      local lines = read(tmp .. "/cal.org")
       eq("* Event a", lines[1])
       ok(has_line(lines, '^:ETag:%s+"etag%-a"$'))
-      ok(has_line(lines, "^:LOCATION: Room 1$"))
+      ok(has_line(lines, "^:LOCATION: Room 1, Second floor$"))
       ok(has_line(lines, "^:calendar%-id: cal@example%.com$"))
       ok(has_line(lines, "^:entry%-id: a/cal@example%.com$"))
       ok(has_line(lines, "^:org%-gcal%-managed: gcal$"))
-      ok(has_line(lines, "^:LINK:%s+%[%[https://calendar%.google%.com/event%?eid=a%]%[Go to gcal web page%]%]$"))
+      ok(has_line(lines, "^:TRANSPARENCY: transparent$"))
+      ok(has_line(lines, "^:HANGOUTS:%s+%[%[https://meet%.example/abc%]%[Join Hangouts Meet%]%]$"))
+      ok(has_line(lines, "^:link:%s+%[%[https://example%.com/doc%]%[Doc%]%]$"), table.concat(lines, "\n"))
+      -- org-gcal reads `link` back as the event's source: the web page
+      -- link must not end up there
+      ok(not has_line(lines, "calendar%.google%.com"), table.concat(lines, "\n"))
       local d = vim.fn.index(lines, ":org-gcal:") + 1
       eq({ ":org-gcal:", "<2026-09-28 Mon 10:00-11:00>", "", "Agenda", ":END:" }, vim.list_slice(lines, d, d + 4))
+    end)
+
+    it("keeps a source without a title in ROAM_REFS, like org-gcal", function()
+      local props = event.properties({}, CAL, ev("a", { source = { url = "https://example.com/x" } }), {})
+      local found
+      for _, p in ipairs(props) do
+        if p.name == "ROAM_REFS" then
+          found = p.value
+        end
+      end
+      eq("https://example.com/x", found)
+    end)
+
+    it("strips HTML from descriptions when asked, per calendar", function()
+      local html = "<b>Hi</b> &amp; welcome<br>line two<ul><li>one</li><li>two</li></ul>"
+      eq("Hi & welcome\nline two\n- one\n- two", event.strip_html(html))
+      local opts = { strip_html_descriptions = true, strip_html_descriptions_overrides = { other = false } }
+      eq("Hi", event.description(opts, CAL, { description = "<p>Hi</p>" }))
+      eq("<p>Hi</p>", event.description(opts, "other", { description = "<p>Hi</p>" }))
+      eq("<p>Hi</p>", event.description({}, CAL, { description = "<p>Hi</p>" }))
+    end)
+
+    it("shows times in the event's own zone with time_zone = event", function()
+      local e = ev("a", {
+        start = { dateTime = "2026-09-28T16:00:00Z", timeZone = "America/New_York" },
+        ["end"] = { dateTime = "2026-09-28T17:00:00Z", timeZone = "America/New_York" },
+      })
+      eq("<2026-09-28 Mon 12:00-13:00>", event.timestamp({ time_zone = "event", utc_offset = 0 }, e))
+      eq("<2026-09-28 Mon 16:00-17:00>", event.timestamp({ utc_offset = 0 }, e))
+      -- without a readable zone: the offset the API sent
+      local f = ev("b", {
+        start = { dateTime = "2026-09-28T09:00:00-03:00" },
+        ["end"] = { dateTime = "2026-09-28T10:00:00-03:00" },
+      })
+      eq("<2026-09-28 Mon 09:00-10:00>", event.timestamp({ time_zone = "event", utc_offset = 0 }, f))
     end)
 
     it("uses busy for events without a title", function()
@@ -174,17 +241,58 @@ describe("gcal extension", function()
   describe("org -> event", function()
     local date = require("org.date")
 
-    it("builds timed start and end with the local offset and time zone", function()
-      local opts = { utc_offset = -300, local_timezone = "America/Chicago" }
+    it("builds timed start and end in local_timezone, across DST", function()
+      local opts = { local_timezone = "America/Chicago" }
       local s, e = event.times(opts, date.parse("<2026-09-28 Mon 10:00-11:30>"))
-      eq({ dateTime = "2026-09-28T10:00:00-05:00", timeZone = "America/Chicago" }, s)
-      eq({ dateTime = "2026-09-28T11:30:00-05:00", timeZone = "America/Chicago" }, e)
+      -- the other field is a JSON null so a PATCH can switch kinds
+      eq({ dateTime = "2026-09-28T10:00:00-05:00", date = vim.NIL, timeZone = "America/Chicago" }, s)
+      eq({ dateTime = "2026-09-28T11:30:00-05:00", date = vim.NIL, timeZone = "America/Chicago" }, e)
+      local w = event.times(opts, date.parse("<2026-12-01 Tue 10:00>"), nil, 30)
+      eq("2026-12-01T10:00:00-06:00", w.dateTime)
     end)
 
     it("builds all-day events with an exclusive end date", function()
       local s, e = event.times({}, date.parse_all("<2026-09-28 Mon>--<2026-09-30 Wed>")[1].date)
-      eq({ date = "2026-09-28" }, s)
-      eq({ date = "2026-10-01" }, e)
+      eq({ date = "2026-09-28", dateTime = vim.NIL }, s)
+      eq({ date = "2026-10-01", dateTime = vim.NIL }, e)
+    end)
+
+    it("sends a zone for a fixed offset and gives a timestamp without end the default length", function()
+      local s, e = event.times({ utc_offset = 120, default_duration = 5 }, date.parse("<2026-09-28 Mon 10:00>"))
+      eq("Etc/GMT-2", s.timeZone)
+      eq("2026-09-28T10:05:00+02:00", e.dateTime)
+    end)
+
+    it("turns an org repeater into an RRULE and keeps other recurrence lines", function()
+      local body = event.to_event({ utc_offset = 0 }, {
+        title = "Standup",
+        timestamp = date.parse("<2026-09-28 Mon 09:00-09:15 +1w>"),
+        recurrence = "[RRULE:FREQ=DAILY EXDATE;TZID=UTC:20261005T090000]",
+      })
+      eq({ "RRULE:FREQ=WEEKLY;INTERVAL=1", "EXDATE;TZID=UTC:20261005T090000" }, body.recurrence)
+      eq("UTC", body.start.timeZone)
+      local _, err =
+        event.to_event({ utc_offset = 0 }, { title = "x", timestamp = date.parse("<2026-09-28 Mon 09:00 +2h>") })
+      ok(err and err:find("days or longer"), err)
+    end)
+
+    it("leaves a fetched recurring event's times alone when posting it", function()
+      local body = event.to_event({}, { title = "Series", recurrence = "[RRULE:FREQ=WEEKLY;BYDAY=MO,WE]" })
+      eq({ "RRULE:FREQ=WEEKLY;BYDAY=MO,WE" }, body.recurrence)
+      eq(nil, body.start)
+    end)
+
+    it("posts the entry's link as the event source", function()
+      local body = event.to_event({ utc_offset = 0 }, {
+        title = "x",
+        timestamp = date.parse("<2026-09-28 Mon>"),
+        link = "[[https://example.com/p][Plan]]",
+      })
+      eq({ url = "https://example.com/p", title = "Plan" }, body.source)
+      eq("opaque", event.to_event({ default_transparency = "opaque" }, {
+        title = "x",
+        timestamp = date.parse("<2026-09-28 Mon>"),
+      }).transparency)
     end)
 
     it("round-trips RFC 3339 times", function()
@@ -363,7 +471,7 @@ describe("gcal extension", function()
         body = 'a "quoted"\nbody',
       })
       ok(cfg:find('header = "Authorization: Bearer tok"', 1, true), cfg)
-      ok(cfg:find('data-binary = "a \\"quoted\\"\\nbody"', 1, true), cfg)
+      ok(cfg:find('data-raw = "a \\"quoted\\"\\nbody"', 1, true), cfg)
       ok(cfg:find('request = "POST"', 1, true), cfg)
     end)
   end)
@@ -371,7 +479,7 @@ describe("gcal extension", function()
   describe("requests", function()
     it("refreshes an expired access token first", function()
       local state = oauth.load(gcal.opts())
-      state.expires_at = os.time() - 10
+      state.expires_at = NOW - 10
       oauth.save(gcal.opts(), state)
       route("POST", "/token$", function(req)
         eq("refresh_token", oauth.parse_query(req.body).grant_type)
@@ -472,7 +580,7 @@ describe("gcal extension", function()
         ":END:",
       }, tmp .. "/cal.org")
       local state = oauth.load(gcal.opts())
-      state.sync_tokens[CAL] = { token = "sync-1", expires = os.time() + 3600 }
+      state.sync_tokens[CAL] = { token = "sync-1", expires = NOW + 3600 }
       oauth.save(gcal.opts(), state)
       route("GET", "/events", function(req)
         eq("sync-1", query_of(req.url).syncToken)
@@ -504,7 +612,7 @@ describe("gcal extension", function()
     end)
 
     it("marks cancelled entries with the TODO keyword when not removing them", function()
-      setup({ remove_api_cancelled_events = false })
+      setup({ remove_api_cancelled_events = false }, { todo_keywords = { "TODO | DONE CANCELLED" } })
       vim.fn.writefile({ "* Gone", ":PROPERTIES:", ":entry-id: gone/" .. CAL, ":END:" }, tmp .. "/cal.org")
       route("GET", "/events", function()
         return 200, { items = { { id = "gone", status = "cancelled" } }, nextSyncToken = "s" }
@@ -518,7 +626,7 @@ describe("gcal extension", function()
 
     it("does a full sync again when the sync token is gone (410)", function()
       local state = oauth.load(gcal.opts())
-      state.sync_tokens[CAL] = { token = "stale", expires = os.time() + 3600 }
+      state.sync_tokens[CAL] = { token = "stale", expires = NOW + 3600 }
       oauth.save(gcal.opts(), state)
       route("GET", "/events", function(req)
         if query_of(req.url).syncToken then
@@ -595,8 +703,9 @@ describe("gcal extension", function()
       route("POST", "/calendars/cal%%40example%.com/events$", function(req)
         local body = vim.json.decode(req.body)
         eq("Dentist", body.summary)
-        eq({ dateTime = "2026-10-02T15:00:00+00:00" }, body.start)
-        eq({ dateTime = "2026-10-02T16:00:00+00:00" }, body["end"])
+        eq({ dateTime = "2026-10-02T15:00:00+00:00", date = vim.NIL, timeZone = "UTC" }, body.start)
+        eq({ dateTime = "2026-10-02T16:00:00+00:00", date = vim.NIL, timeZone = "UTC" }, body["end"])
+        eq("opaque", body.transparency)
         return 200, ev("new1", { summary = "Dentist", start = body.start, ["end"] = body["end"] })
       end)
       local okx, err = run(function()
@@ -712,6 +821,360 @@ describe("gcal extension", function()
     eq(1, #items)
     eq("Meeting", items[1].title)
     eq(10 * 60, items[1].time)
+  end)
+
+  describe("time zones", function()
+    local tz = require("org.extensions.gcal.tz")
+
+    it("reads DST rules from POSIX TZ strings, both hemispheres", function()
+      local D = require("org.date").days_from_civil
+      local cet = tz.parse_posix("CET-1CEST,M3.5.0,M10.5.0/3")
+      local z = { times = {}, types = {}, offsets = {}, footer = cet }
+      eq(3600, tz.offset_at(z, D(2030, 1, 15) * 86400))
+      eq(7200, tz.offset_at(z, D(2030, 7, 15) * 86400))
+      -- 2030-03-31 is the last Sunday of March: 01:00 UTC switches
+      eq(3600, tz.offset_at(z, D(2030, 3, 31) * 86400 + 3599))
+      eq(7200, tz.offset_at(z, D(2030, 3, 31) * 86400 + 3600))
+      local syd = { times = {}, types = {}, offsets = {}, footer = tz.parse_posix("AEST-10AEDT,M10.1.0,M4.1.0/3") }
+      eq(11 * 3600, tz.offset_at(syd, D(2030, 1, 15) * 86400))
+      eq(10 * 3600, tz.offset_at(syd, D(2030, 7, 15) * 86400))
+      eq({ std = -5 * 3600 }, tz.parse_posix("EST5"))
+    end)
+
+    it("ignores a zone argument that isn't a name (parse_rfc3339's second value)", function()
+      local t = event.parse_rfc3339("2026-09-28T10:00:00Z")
+      eq(10, event.epoch_to_local({ utc_offset = 0 }, event.parse_rfc3339("2026-09-28T10:00:00Z")).hour)
+      eq(0, event.offset({ utc_offset = 0 }, t, 3600))
+    end)
+
+    it("reads the system zone files when they exist", function()
+      if not tz.load("America/Chicago") then
+        return
+      end
+      local D = require("org.date").days_from_civil
+      eq(-5 * 3600, tz.offset("America/Chicago", D(2026, 9, 28) * 86400))
+      eq(-6 * 3600, tz.offset("America/Chicago", D(2026, 12, 1) * 86400))
+      eq(nil, tz.offset("No/Such_Zone", 0))
+      eq(nil, tz.load("../../etc/passwd"))
+    end)
+  end)
+
+  describe("security", function()
+    it("ignores redirects that carry another state", function()
+      local got
+      local redirect = oauth.listen(function(q, err)
+        got = q or { err = err }
+      end, 5000, "good-state")
+      local port = tonumber(redirect:match(":(%d+)$"))
+      local function hit(qs)
+        local client = vim.uv.new_tcp()
+        local reply = ""
+        local done = false
+        client:connect("127.0.0.1", port, function()
+          client:write("GET /?" .. qs .. " HTTP/1.1\r\n\r\n")
+          client:read_start(function(_, chunk)
+            if chunk then
+              reply = reply .. chunk
+            else
+              client:close()
+              done = true
+            end
+          end)
+        end)
+        vim.wait(2000, function()
+          return done
+        end, 10)
+        return reply
+      end
+      local r = hit("code=evil&state=other")
+      ok(r:find("^HTTP/1%.1 400"), r)
+      vim.wait(100)
+      eq(nil, got)
+      hit("code=real&state=good-state")
+      vim.wait(2000, function()
+        return got ~= nil
+      end, 10)
+      eq("real", got.code)
+    end)
+
+    it("does not follow a leftover temp file when saving tokens", function()
+      local victim = tmp .. "/victim"
+      vim.fn.writefile({ "keep" }, victim)
+      local path = tmp .. "/gcal-token.json"
+      vim.uv.fs_symlink(victim, path .. ".tmp")
+      valid_tokens()
+      eq({ "keep" }, vim.fn.readfile(victim))
+      local st = vim.uv.fs_stat(path)
+      eq(tonumber("600", 8), bit.band(st.mode, tonumber("777", 8)))
+    end)
+
+    it("scrubs the client secret and codes from curl errors", function()
+      oauth.client_secret(gcal.opts())
+      local msg = oauth.redact("curl: (7) failed data-raw client_secret=csecret-value&code=abc123 csecret-value")
+      ok(not msg:find("csecret-value", 1, true), msg)
+      ok(not msg:find("abc123", 1, true), msg)
+    end)
+  end)
+
+  describe("sync behaviour", function()
+    it("skips new events outside the window in incremental syncs and keeps the token's expiry", function()
+      local state = oauth.load(gcal.opts())
+      state.sync_tokens[CAL] = { token = "sync-1", expires = NOW + 999 }
+      oauth.save(gcal.opts(), state)
+      route("GET", "/events", function()
+        return 200,
+          {
+            items = {
+              ev("near"),
+              ev("far", {
+                start = { dateTime = "2028-01-01T10:00:00Z" },
+                ["end"] = { dateTime = "2028-01-01T11:00:00Z" },
+              }),
+            },
+            nextSyncToken = "sync-2",
+          }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(okx, err)
+      local lines = read(tmp .. "/cal.org")
+      ok(has_line(lines, "^%* Event near$"))
+      ok(not has_line(lines, "Event far"), table.concat(lines, "\n"))
+      local st = oauth.load(gcal.opts()).sync_tokens[CAL]
+      eq("sync-2", st.token)
+      eq(NOW + 999, st.expires)
+    end)
+
+    it("asks for deleted events in a full fetch and checks entries it didn't list", function()
+      vim.fn.writefile({
+        "* Deleted meanwhile",
+        ":PROPERTIES:",
+        ":calendar-id: " .. CAL,
+        ":entry-id: gone/" .. CAL,
+        ":END:",
+        ":org-gcal:",
+        "<2026-09-29 Tue 10:00-11:00>",
+        ":END:",
+        "* Long ago",
+        ":PROPERTIES:",
+        ":entry-id: old/" .. CAL,
+        ":END:",
+        ":org-gcal:",
+        "<2020-01-01 Wed 10:00-11:00>",
+        ":END:",
+      }, tmp .. "/cal.org")
+      route("GET", "/events%?", function(req)
+        eq("true", query_of(req.url).showDeleted)
+        return 200, { items = {}, nextSyncToken = "s" }
+      end)
+      route("GET", "/events/gone$", function()
+        return 404, { error = { message = "Not Found" } }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(okx, err)
+      local lines = read(tmp .. "/cal.org")
+      ok(not has_line(lines, "Deleted meanwhile"), table.concat(lines, "\n"))
+      -- outside the window: left alone, not asked for
+      ok(has_line(lines, "^%* Long ago$"))
+      eq(0, #vim.tbl_filter(function(r)
+        return r.url:find("/events/old")
+      end, requests))
+    end)
+
+    it("retries rate limits and server errors", function()
+      local n = 0
+      route("GET", "/events", function()
+        n = n + 1
+        if n == 1 then
+          return 429, { error = { message = "slow down" } }
+        elseif n == 2 then
+          return 403, { error = { errors = { { reason = "rateLimitExceeded" } }, message = "Rate Limit Exceeded" } }
+        elseif n == 3 then
+          return 503, ""
+        end
+        return 200, { items = {}, nextSyncToken = "s" }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(okx, err)
+      eq(4, n)
+    end)
+
+    it("does not retry a plain 403", function()
+      route("GET", "/events", function()
+        return 403, { error = { message = "Calendar API has not been used" } }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(not okx)
+      ok(err:find("403", 1, true), err)
+      eq(1, #requests)
+    end)
+
+    it("finds an entry refiled to an agenda file instead of adding it again", function()
+      vim.fn.writefile({ "* Elsewhere", ":PROPERTIES:", ":entry-id: a/" .. CAL, ":END:" }, tmp .. "/refiled.org")
+      setup(nil, { agenda_files = { tmp .. "/refiled.org" } })
+      route("GET", "/events", function()
+        return 200, { items = { ev("a", { summary = "Moved" }) }, nextSyncToken = "s" }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      ok(okx, err)
+      eq("* Moved", read(tmp .. "/refiled.org")[1])
+      eq(0, vim.fn.filereadable(tmp .. "/cal.org") == 1 and #vim.tbl_filter(function(l)
+        return l:find("^%*")
+      end, read(tmp .. "/cal.org")) or 0)
+    end)
+
+    it("applies fetch_event_filters, custom property names and the update hooks", function()
+      local calls = {}
+      setup({
+        fetch_event_filters = {
+          function(e)
+            return e.summary ~= "Skip me"
+          end,
+        },
+        entry_id_property = "gcal-id",
+        drawer_name = "cal",
+        after_update_entry = function(cal, e, mode)
+          calls[#calls + 1] = { cal, e.id, mode }
+        end,
+      })
+      local seen = {}
+      local au = vim.api.nvim_create_autocmd("User", {
+        pattern = "OrgGcalEntryUpdated",
+        callback = function(a)
+          seen[#seen + 1] = a.data.mode
+        end,
+      })
+      route("GET", "/events", function()
+        return 200, { items = { ev("a"), ev("b", { summary = "Skip me" }) }, nextSyncToken = "s" }
+      end)
+      local okx, err = run(function()
+        return sync.run({ push = false })
+      end)
+      vim.api.nvim_del_autocmd(au)
+      ok(okx, err)
+      local lines = read(tmp .. "/cal.org")
+      ok(has_line(lines, "^:gcal%-id:%s+a/cal@example%.com$"), table.concat(lines, "\n"))
+      ok(has_line(lines, "^:cal:$"))
+      ok(not has_line(lines, "Skip me"))
+      eq({ { CAL, "a", "newly_fetched" } }, calls)
+      eq({ "newly_fetched" }, seen)
+    end)
+
+    it("asks before pushing an entry managed by Google, and never pushes it when syncing", function()
+      local function open()
+        vim.fn.writefile({
+          "* Edited here",
+          ":PROPERTIES:",
+          ':ETag:     "etag-a"',
+          ":calendar-id: " .. CAL,
+          ":entry-id: a/" .. CAL,
+          ":org-gcal-managed: gcal",
+          ":END:",
+          ":org-gcal:",
+          "<2026-09-28 Mon 10:00-11:00>",
+          ":END:",
+        }, tmp .. "/cal.org")
+        vim.cmd("edit! " .. vim.fn.fnameescape(tmp .. "/cal.org"))
+      end
+      open()
+      route("GET", "/events/a$", function()
+        return 200, ev("a", { summary = "Server title" })
+      end)
+      require("org.utils").confirm = function()
+        return false
+      end
+      local okx, err = run(function()
+        return sync.post({ bufnr = 0 })
+      end)
+      ok(okx, err)
+      eq(0, #vim.tbl_filter(function(r)
+        return r.method == "PATCH"
+      end, requests))
+      eq("* Server title", read(tmp .. "/cal.org")[1])
+      -- during a sync "prompt" means never push: no question at all
+      open()
+      require("org.utils").confirm = function()
+        error("asked")
+      end
+      okx, err = run(function()
+        return sync.buffer(0, { push = true })
+      end)
+      ok(okx, err)
+      eq(0, #vim.tbl_filter(function(r)
+        return r.method == "PATCH"
+      end, requests))
+    end)
+
+    it("keeps the entry of a deleted event when told to, without its calendar data", function()
+      setup({ remove_api_cancelled_events = false }, { todo_keywords = { "TODO | DONE CANCELLED" } })
+      vim.fn.writefile({
+        "* Party",
+        ":PROPERTIES:",
+        ':ETag:     "e1"',
+        ":calendar-id: " .. CAL,
+        ":entry-id: a/" .. CAL,
+        ":MINE: yes",
+        ":END:",
+        ":org-gcal:",
+        "<2026-09-28 Mon 10:00-11:00>",
+        ":END:",
+        "Notes",
+      }, tmp .. "/cal.org")
+      vim.cmd("edit! " .. vim.fn.fnameescape(tmp .. "/cal.org"))
+      require("org.utils").confirm = function()
+        return true
+      end
+      route("DELETE", "/events/a$", function()
+        return 204, ""
+      end)
+      local okx, err = run(function()
+        return sync.delete({ bufnr = 0 })
+      end)
+      ok(okx, err)
+      local lines = read(tmp .. "/cal.org")
+      eq("* CANCELLED Party", lines[1])
+      ok(has_line(lines, "^:MINE:%s+yes$"))
+      ok(has_line(lines, "^Notes$"))
+      ok(not has_line(lines, "entry%-id"), table.concat(lines, "\n"))
+      ok(not has_line(lines, ":org%-gcal:"))
+    end)
+
+    it("turns a timed event into an all-day one with an explicit null", function()
+      vim.fn.writefile({
+        "* Offsite",
+        ":PROPERTIES:",
+        ':ETag:     "etag-a"',
+        ":calendar-id: " .. CAL,
+        ":entry-id: a/" .. CAL,
+        ":org-gcal-managed: org",
+        ":END:",
+        ":org-gcal:",
+        "<2026-09-30 Wed>",
+        ":END:",
+      }, tmp .. "/cal.org")
+      vim.cmd("edit! " .. vim.fn.fnameescape(tmp .. "/cal.org"))
+      local sent
+      route("PATCH", "/events/a$", function(req)
+        sent = req.body
+        return 200, ev("a", { start = { date = "2026-09-30" }, ["end"] = { date = "2026-10-01" } })
+      end)
+      local okx, err = run(function()
+        return sync.post({ bufnr = 0 })
+      end)
+      ok(okx, err)
+      ok(sent:find('"dateTime":null', 1, true), sent)
+      ok(sent:find('"date":"2026-09-30"', 1, true), sent)
+      ok(has_line(read(tmp .. "/cal.org"), "^<2026%-09%-30 Wed>$"))
+    end)
   end)
 
   it("registers its actions only when enabled", function()

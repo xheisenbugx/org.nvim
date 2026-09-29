@@ -471,28 +471,81 @@
 ---asks, `true` removes them. (Emacs `org-gcal-remove-api-cancelled-events`,
 ---default: `"ask"`)
 ---@field remove_api_cancelled_events? boolean|"ask"
----TODO keyword for kept cancelled entries, `false` for none.
----(Emacs `org-gcal-cancelled-todo-keyword`, default: `"CANCELLED"`)
+---Mark entries of cancelled events with `cancelled_todo_keyword` when it is
+---a TODO keyword of the file. (Emacs
+---`org-gcal-update-cancelled-events-with-todo`, default: `true`)
+---@field update_cancelled_events_with_todo? boolean
+---TODO keyword of cancelled entries. (Emacs `org-gcal-cancelled-todo-keyword`,
+---default: `"CANCELLED"`)
 ---@field cancelled_todo_keyword? string|false
+---Also offer to remove entries already marked cancelled. (Emacs
+---`org-gcal-remove-events-with-cancelled-todo`, default: `false`)
+---@field remove_events_with_cancelled_todo? boolean
 ---`org-gcal-managed` of fetched entries: `"gcal"` or `"org"`. (default: `"gcal"`)
 ---@field managed_newly_fetched_mode? "gcal"|"org"
----`org-gcal-managed` of updated entries. (default: `"gcal"`)
+---`org-gcal-managed` of updated entries that have none. (default: `"gcal"`)
 ---@field managed_update_existing_mode? "gcal"|"org"
 ---`org-gcal-managed` of entries posted as new events. (default: `"org"`)
 ---@field managed_create_from_entry_mode? "gcal"|"org"
----Archive entries of events that ended before the fetch window.
----(Emacs `org-gcal-auto-archive`, default: `false`)
+---Posting an entry managed by Google: ask (syncs never push it), ask during
+---syncs too, never or always push. (Emacs
+---`org-gcal-managed-post-at-point-update-existing`, default: `"prompt"`)
+---@field managed_post_at_point_update_existing? "prompt"|"prompt_sync"|"never_push"|"always_push"
+---Instances of recurring events as top-level entries, or nested under an
+---entry for the recurring event. (Emacs `org-gcal-recurring-events-mode`,
+---default: `"top_level"`)
+---@field recurring_events_mode? "top_level"|"nested"
+---Archive entries of events that ended before the fetch window, before each
+---fetch. (Emacs `org-gcal-auto-archive`, default: `false`)
 ---@field auto_archive? boolean
----Report what each fetch or post did. (default: `true`)
+---Report what each fetch or post did. (Emacs `org-gcal-notify-p`, default: `true`)
 ---@field notify? boolean
----IANA zone sent as `timeZone` with posted timed events, e.g.
----`"Europe/Berlin"`. (Emacs `org-gcal-local-timezone`, default: `nil`)
+---Predicates on fetched events; an event one of them rejects is skipped.
+---(Emacs `org-gcal-fetch-event-filters`, default: `{}`)
+---@field fetch_event_filters? (fun(event: table): boolean)[]
+---Strip HTML from event descriptions. (Emacs
+---`org-gcal-strip-html-descriptions`, default: `false`)
+---@field strip_html_descriptions? boolean
+---Per-calendar overrides of `strip_html_descriptions`.
+---(Emacs `org-gcal-strip-html-descriptions-overrides`, default: `{}`)
+---@field strip_html_descriptions_overrides? table<string, boolean>
+---Called after an entry is written from an event, with the calendar id,
+---the event, the mode (`"newly_fetched"`, `"update_existing"`,
+---`"create_from_entry"`) and `{ bufnr, lnum }`. `User OrgGcalEntryUpdated`
+---fires as well. (Emacs `org-gcal-after-update-entry-functions`)
+---@field after_update_entry? fun(calendar_id: string, event: table, mode: string, where: { bufnr: integer, lnum: integer })
+---Property holding `EVENTID/CALENDARID`. (default: `"entry-id"`)
+---@field entry_id_property? string
+---Property holding the calendar id. (default: `"calendar-id"`)
+---@field calendar_id_property? string
+---Property holding the ETag. (default: `"ETag"`)
+---@field etag_property? string
+---Property saying who manages the entry. (default: `"org-gcal-managed"`)
+---@field managed_property? string
+---Drawer holding the time and description. (default: `"org-gcal"`)
+---@field drawer_name? string
+---`"local"` shows times in local time; `"event"` in each event's own zone,
+---kept in a TIMEZONE property and used when posting. (default: `"local"`)
+---@field time_zone? "local"|"event"
+---IANA zone for local time and for `timeZone` of posted events, e.g.
+---`"Europe/Berlin"`; `nil` uses the system zone. (Emacs
+---`org-gcal-local-timezone`, default: `nil`)
 ---@field local_timezone? string
----Fixed offset from UTC in minutes for converting event times; `nil` uses
----the system zone. (default: `nil`)
+---Fixed offset from UTC in minutes instead of a zone. (default: `nil`)
 ---@field utc_offset? integer
----Minutes a posted event lasts when its timestamp has no end time. (default: `0`)
+---Minutes a posted event lasts when its timestamp has no end time; a
+---longer Effort wins. (Emacs `org-gcal-event-default-duration`, default: `5`)
 ---@field default_duration? integer
+---Transparency of new events. (Emacs `org-gcal-default-transparency`,
+---default: `"opaque"`)
+---@field default_transparency? "opaque"|"transparent"
+---Seconds after a full fetch before the next full one. (default: `86400`)
+---@field sync_token_ttl? integer
+---Waits in ms before retrying rate limits and server errors.
+---(default: `{ 1000, 2000, 4000 }`)
+---@field retry_delays? integer[]
+---Seconds to wait for the consent page. (default: `300`)
+---@field auth_timeout? integer
 ---curl executable. (default: `"curl"`)
 ---@field curl? string
 ---Seconds before a request is abandoned. (default: `60`)
