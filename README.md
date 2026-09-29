@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🦄 org.nvim
+<img src="docs/media/logo.svg" alt="org.nvim logo: an Org outline with a unicorn" width="180">
+
+# org.nvim
 
 ### Emacs Org mode, rebuilt for Neovim in pure Lua.
 
