@@ -5043,6 +5043,16 @@ minutes before the start. With `system_notification`, osascript or
 notify-send is also used. Set `notifications.notifier = function(n) ... end`
 to deliver them yourself.
 
+Each reminder is sent once per entry, which is known by its file, headline
+and start time: editing the file doesn't repeat it, and a headline whose
+SCHEDULED or DEADLINE time is also a plain timestamp gets one reminder.
+With several Neovim instances running, `single_instance` (on by default)
+lets only one of them send reminders. It holds a lock file in
+`stdpath("data")/org`, and another instance takes over, without repeating
+what was sent, when that one exits or stops checking for three
+`check_interval`s. Set `single_instance = false` to have every instance
+remind you.
+
 ==============================================================================
 23. ENCRYPTION (ORG CRYPT)                                         *org-crypt*
 
@@ -6020,7 +6030,7 @@ mouse ~     org_mouse false, features { "context-menu", "yank-link",
             (|org-mouse|)
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
-  system_notification true, notifier nil
+  system_notification true, single_instance true, notifier nil
 ui ~        see |org-appearance|
 mappings ~  see |org-keymaps|
 

@@ -2519,6 +2519,10 @@ M.defaults = {
     check_interval = 60,
     --- Also use the OS notifier (osascript / notify-send) when available.
     system_notification = true,
+    --- Send reminders from one Neovim only, when several run with
+    --- notifications on (a lock in stdpath("data")/org). Emacs usually
+    --- runs as one process, so it has no option for this.
+    single_instance = true,
     --- Custom notifier: function({ title, body, item, minutes }). nil = built-in.
     notifier = nil,
   },
