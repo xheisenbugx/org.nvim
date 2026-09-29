@@ -41,6 +41,7 @@ group("Anywhere", {
   capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
+  bookmark_jump = { "org.bookmarks", "jump", desc = "Jump to a capture / refile bookmark", global = true },
   store_link = {
     "org.links",
     "store_link",

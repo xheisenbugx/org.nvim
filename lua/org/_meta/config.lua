@@ -308,6 +308,10 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
+---Names of the bookmarks set by capture (`last_capture`) and refile
+---(`last_refile`), saved across sessions; `false` sets none.
+---(Emacs `org-bookmark-names-plist`)
+---@field bookmark_names? { last_capture?: string|false, last_refile?: string|false, last_capture_marker?: string|false }
 ---`buffer_goto` interface: `"outline"` browses a copy of the buffer in
 ---overview (<CR> jumps), `"outline-path-completion"` picks a headline by its
 ---path. A count uses the other one. (Emacs `org-goto-interface`,

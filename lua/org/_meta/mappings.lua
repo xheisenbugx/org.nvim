@@ -54,6 +54,7 @@
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
 ---| "beginning_of_line" # Start of line / headline title
+---| "bookmark_jump" # Jump to a capture / refile bookmark
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry

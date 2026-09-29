@@ -298,6 +298,13 @@ M.defaults = {
   --- with the headline (or list item) and its lines:
   --- `{ by_length = function(h, lines) return #lines end }`.
   sort_functions = {},
+  --- Names of the bookmarks capture and refile set, saved across sessions
+  --- (org-bookmark-names-plist); false for none.
+  bookmark_names = {
+    last_capture = "org-capture-last-stored",
+    last_refile = "org-refile-last-stored",
+    last_capture_marker = "org-capture-last-stored-marker",
+  },
   --- buffer_goto (org-goto-interface): "outline" (browse a copy of the
   --- buffer in overview, <CR> jumps) or "outline-path-completion".
   goto_interface = "outline",

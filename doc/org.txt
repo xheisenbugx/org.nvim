@@ -2224,6 +2224,13 @@ edit a file at a time.
                           (C-u C-c c in Emacs)
 :Org capture_goto_last    jump to the last captured (or refiled) entry
                           (C-u C-u C-c c)
+:Org bookmark_jump        jump to a bookmark: capture and refile save
+                          the last location as the bookmarks named in
+                          `bookmark_names` (org-bookmark-names-plist:
+                          "org-capture-last-stored",
+                          "org-refile-last-stored"), in
+                          stdpath("data")/org/bookmarks.json, so the
+                          jumps above also work in a later session
 From the agenda, `K` captures with the date at point as the default date.
 
 org-protocol                                                  *org-protocol*
@@ -4530,6 +4537,10 @@ Structure and visibility ~
                                       "outline-path-completion"
   goto_max_level            5         deepest headlines offered (completion)
   goto_auto_isearch         true      typing searches the headlines
+  bookmark_names            { last_capture = "org-capture-last-stored",
+                              last_refile = "org-refile-last-stored",
+                              last_capture_marker =
+                                "org-capture-last-stored-marker" }
   sort_function             "collate"  text order in sorting: "collate"
                                       (locale)|"fallback" (codes)|function
   structure_template_alist  { a = "export ascii", c = "center", ... }
@@ -5185,8 +5196,7 @@ Differences from Emacs:
   into the target right away (|org-capture-unnarrowed|). Mail and news `%:keyword` values (`%:from`,
   `%:subject`, ...) come from Emacs link sources (Gnus, mu4e, ...) that
   have no Neovim counterpart; only `%:link`, `%:description`,
-  `%:annotation`, `%:initial` and `%:type` exist. The last stored location
-  (`org-capture-bookmark`, obsolete in Emacs) lasts for the session only.
+  `%:annotation`, `%:initial` and `%:type` exist.
   The `hook` template function doesn't run for `immediate_finish`. With C-0
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
