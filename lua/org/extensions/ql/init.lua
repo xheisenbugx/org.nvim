@@ -694,6 +694,10 @@ M.commands = {
   },
 }
 
+-- buffer -> { lhs, previous mapping or {} } of the save key, restored by
+-- teardown
+local buf_keys = {}
+
 -- In search buffers, `save_view_key` saves the search as a view; in other
 -- agenda buffers the key keeps its meaning.
 local function on_refresh(buf)
@@ -705,6 +709,7 @@ local function on_refresh(buf)
   local prev = vim.api.nvim_buf_call(buf, function()
     return vim.fn.maparg(key, "n", false, true)
   end)
+  buf_keys[buf] = { key, prev }
   vim.keymap.set("n", key, function()
     if current_block() then
       utils.run(M.save_view_command)
@@ -722,6 +727,24 @@ function M.setup()
   require("org.dblock").register("org-ql", M.dblock)
   require("org.agenda.view").refresh_hooks.ql = on_refresh
   query.clear_cache()
+end
+
+--- Undo `setup`: agenda buffers get their save key back. The block type
+--- and the dynamic block stay registered, to say the extension is off.
+function M.teardown()
+  require("org.agenda.view").refresh_hooks.ql = nil
+  for buf, k in pairs(buf_keys) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.b[buf].org_ql_keys = nil
+      vim.api.nvim_buf_call(buf, function()
+        pcall(vim.keymap.del, "n", k[1], { buffer = buf })
+        if k[2].lhs then
+          pcall(vim.fn.mapset, "n", false, k[2])
+        end
+      end)
+    end
+  end
+  buf_keys = {}
 end
 
 function M.health(h, o)

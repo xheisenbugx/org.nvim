@@ -669,6 +669,9 @@ end
 P.priority = function(pos)
   local cmp = COMPARATORS[tostring(pos[1])]
   if cmp then
+    if pos[2] == nil or tostring(pos[2]) == "" then
+      error("priority: needs a priority after " .. tostring(pos[1]), 0)
+    end
     local n = prio_num(pos[2])
     return function(hl)
       local v = prio_num(hl.priority)
@@ -857,20 +860,23 @@ P.blocked = function()
   end
 end
 
--- Each string matches an outline path segment, in order.
+-- Each string is in some outline path segment, in any order, as in org-ql
+-- (`(olp "Fruit" "Food")` matches Food/Fruits/Grapes).
 P["outline-path"] = function(pos)
   return function(hl)
     local olp = hl:outline_path()
     olp[#olp + 1] = plain_title(hl)
-    local j = 1
     for _, s in ipairs(pos) do
-      while j <= #olp and not contains_ci(olp[j], s) do
-        j = j + 1
+      local found = false
+      for _, seg in ipairs(olp) do
+        if contains_ci(seg, s) then
+          found = true
+          break
+        end
       end
-      if j > #olp then
+      if not found then
         return false
       end
-      j = j + 1
     end
     return true
   end

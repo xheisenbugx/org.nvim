@@ -692,7 +692,7 @@ local function latest_ts(it)
   for _, l in ipairs(vim.list_slice(hl.file.lines, hl.line, hl.body_end or hl.line)) do
     for _, t in ipairs(date.parse_all(l)) do
       local d = t.date
-      local v = d:days() * 1440 + (d.hour and d:minutes() or 0)
+      local v = d:minutes()
       if not best or v > best.v then
         best = { v = v, date = d }
       end
@@ -1253,12 +1253,28 @@ local function agenda_key(lhs)
   end
 end
 
+-- buffer -> { { lhs, previous mapping or {} } } of the keys set, restored
+-- by teardown
+local buf_keys = {}
+
 local function set_keys(buf)
   local keys = opts().header_keys
   if not keys or vim.b[buf].org_super_agenda_keys then
     return
   end
   vim.b[buf].org_super_agenda_keys = true
+  local saved = {}
+  for _, k in ipairs({ "toggle", "next", "prev" }) do
+    if keys[k] then
+      saved[#saved + 1] = {
+        keys[k],
+        vim.api.nvim_buf_call(buf, function()
+          return vim.fn.maparg(keys[k], "n", false, true)
+        end),
+      }
+    end
+  end
+  buf_keys[buf] = saved
   if keys.toggle then
     local fallback = agenda_key(keys.toggle)
     vim.keymap.set("n", keys.toggle, function()
@@ -1297,6 +1313,31 @@ end
 function M.setup()
   require("org.agenda.render").grouper = M.grouper
   require("org.agenda.view").refresh_hooks.super_agenda = on_refresh
+end
+
+--- Undo `setup`: the agenda renders its rows as before, and the header
+--- keys of agenda buffers are given back to what they did.
+function M.teardown()
+  local render = require("org.agenda.render")
+  if render.grouper == M.grouper then
+    render.grouper = nil
+  end
+  require("org.agenda.view").refresh_hooks.super_agenda = nil
+  for buf, saved in pairs(buf_keys) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.b[buf].org_super_agenda_keys = nil
+      vim.api.nvim_buf_call(buf, function()
+        for _, k in ipairs(saved) do
+          pcall(vim.keymap.del, "n", k[1], { buffer = buf })
+          if k[2].lhs then
+            pcall(vim.fn.mapset, "n", false, k[2])
+          end
+        end
+      end)
+    end
+  end
+  buf_keys = {}
+  headers = {}
 end
 
 function M.health(h, o)

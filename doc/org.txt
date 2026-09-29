@@ -7045,7 +7045,7 @@ Predicates (aliases in brackets):
   `effort` [CMP] D [D]         like `level`, with durations ("1:30")
   `category` [CAT...]          `path` [RE...] matches the file name
   `habit`  `blocked`            habits; TODOs that cannot be done yet
-  `outline-path` [olp]         strings match path segments in order
+  `outline-path` [olp]         every string is in some path segment
   `outline-path-segment` [olps] strings match consecutive segments
   `parent` `ancestors` `children` `descendants` [QUERY]
                               the relative exists (and matches QUERY)

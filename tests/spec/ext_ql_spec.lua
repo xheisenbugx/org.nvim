@@ -50,6 +50,19 @@ local LINES = {
   "  :END:",
 }
 
+-- Later specs get a fresh agenda buffer: its keys are set when it is made.
+local function wipe_agendas()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "orgagenda" then
+      local win = vim.fn.bufwinid(b)
+      if win ~= -1 then
+        vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, true))
+      end
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+  end
+end
+
 local function setup(extra)
   utils.writefile(path, LINES)
   utils.writefile(other, { "* TODO Elsewhere :work:" })
@@ -82,6 +95,7 @@ describe("ql extension", function()
     setup()
   end)
   after_each(function()
+    wipe_agendas()
     require("org").setup({
       org_directory = vim.fn.getcwd() .. "/tests/fixtures",
       agenda_files = { vim.fn.getcwd() .. "/tests/fixtures/*.org" },
@@ -116,6 +130,9 @@ describe("ql extension", function()
       ok(not query.try_compile("(frobnicate)"))
       local _, err = query.try_compile("(frobnicate)")
       ok(err:find("frobnicate", 1, true))
+      -- a comparator without a priority fails to compile, not while matching
+      _, err = query.try_compile("(priority '>)")
+      eq("priority: needs a priority after >", err)
     end)
   end)
 
@@ -185,6 +202,9 @@ describe("ql extension", function()
       eq(7, #sel('(path "ql.org")'))
       eq({}, sel('(path "other")'))
       eq({ "Deep" }, sel('(outline-path "proj" "deep")'))
+      -- in any order, as in org-ql (each string in some segment)
+      eq({ "Deep" }, sel('(outline-path "deep" "proj")'))
+      eq({}, sel('(olp "deep" "nowhere")'))
       eq({ "Deep" }, sel('(olps "sub" "deep")'))
       eq({}, sel('(olps "proj" "deep")'))
     end)
@@ -488,6 +508,16 @@ describe("ql extension", function()
       eq("| [[*c][c]]       | TODO |", lines[7])
       eq("#+END:", lines[8])
     end)
+  end)
+
+  it("gives the agenda its save key back when turned off", function()
+    require("org.extensions.ql").search("(todo)")
+    local buf = vim.api.nvim_get_current_buf()
+    eq("org-ql: save search as a view", vim.fn.maparg("<C-x><C-s>", "n", false, true).desc)
+    require("org").setup({ org_directory = dir, agenda_files = { path } })
+    eq(nil, require("org.agenda.view").refresh_hooks.ql)
+    vim.api.nvim_set_current_buf(buf)
+    eq("org agenda: save all", vim.fn.maparg("<C-x><C-s>", "n", false, true).desc)
   end)
 
   it("does nothing when off", function()

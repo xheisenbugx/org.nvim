@@ -49,6 +49,19 @@ local function write_files()
   end
 end
 
+-- Later specs get a fresh agenda buffer: its keys are set when it is made.
+local function wipe_agendas()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "orgagenda" then
+      local win = vim.fn.bufwinid(b)
+      if win ~= -1 then
+        vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, true))
+      end
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+  end
+end
+
 local function setup(ext, extra)
   write_files()
   require("org").setup(vim.tbl_deep_extend("force", {
@@ -88,6 +101,7 @@ end
 
 local function restore()
   current = LINES
+  wipe_agendas()
   require("org").setup({
     org_directory = vim.fn.getcwd() .. "/tests/fixtures",
     agenda_files = { vim.fn.getcwd() .. "/tests/fixtures/*.org" },
@@ -220,6 +234,12 @@ describe("super_agenda extension", function()
           return #it.title > 9 and "long" or "short"
         end,
       } }))
+    end)
+    it("groups by the latest timestamp, with a time or not", function()
+      local key = require("org.extensions.super_agenda").auto.auto_ts.key
+      local lines = { "* Entry", "  " .. ts(-5, "10:00"), "  " .. ts(-2) }
+      local hl = { file = { lines = lines }, line = 1, body_end = 3 }
+      eq(string.format("%08d", today:add(-2, "d"):days()), key({ headline = hl }))
     end)
     it("groups by planning date in date order", function()
       local g = grouped({ { auto_planning = true } })
@@ -367,6 +387,23 @@ describe("super_agenda extension", function()
       ok(called)
       require("org.extensions.super_agenda").folded = {}
     end)
+  end)
+
+  it("gives the agenda its keys back when turned off", function()
+    setup({ groups = { { name = "Work", tag = "work" } } })
+    view_lines({ type = "todo" })
+    local buf = vim.api.nvim_get_current_buf()
+    eq("org super-agenda: next group", vim.fn.maparg("gj", "n", false, true).desc)
+    setup(nil)
+    eq(nil, require("org.agenda.render").grouper)
+    eq(nil, require("org.agenda.view").refresh_hooks.super_agenda)
+    vim.api.nvim_set_current_buf(buf)
+    eq({}, vim.fn.maparg("gj", "n", false, true))
+    eq("org agenda: goto", vim.fn.maparg("<Tab>", "n", false, true).desc)
+    -- and turned on again, the keys come back
+    setup({ groups = { { name = "Work", tag = "work" } } })
+    view_lines({ type = "todo" })
+    eq("org super-agenda: next group", vim.fn.maparg("gj", "n", false, true).desc)
   end)
 
   describe("rendering", function()
