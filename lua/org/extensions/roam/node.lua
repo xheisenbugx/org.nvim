@@ -121,13 +121,140 @@ function M.candidates(filter)
   return out
 end
 
+local function has_snacks_picker()
+  return type(_G.Snacks) == "table" and type(Snacks.picker) == "table" and type(Snacks.picker.pick) == "function"
+end
+
+--- Which picker `read` uses: the `picker` option, with "auto" resolved.
+---@return "snacks"|"select"|"input"
+function M.picker()
+  local p = ropts().picker or "auto"
+  if p == "auto" then
+    return has_snacks_picker() and "snacks" or "select"
+  end
+  if p == "snacks" and not has_snacks_picker() then
+    return "select"
+  end
+  return p
+end
+
+-- snacks.picker: a node that matches nothing is created from the query
+-- (like completing-read without require-match)
+local function snacks_read(items, opts)
+  return utils.await(function(cb)
+    local finished = false
+    local function finish(v)
+      if not finished then
+        finished = true
+        cb(v)
+      end
+    end
+    local list = {}
+    for i, c in ipairs(items) do
+      list[i] = { text = M.display(c.node, c.name), cand = c, idx = i }
+    end
+    Snacks.picker.pick({
+      source = "org_roam_node",
+      title = opts.prompt or "Node",
+      items = list,
+      pattern = opts.default_title,
+      format = "text",
+      layout = { preset = "select" },
+      actions = {
+        confirm = function(picker, item)
+          local query = vim.trim(picker.input and picker.input.filter.pattern or "")
+          -- answer before closing: closing runs on_close
+          if item then
+            finish(item.cand)
+          elseif query ~= "" and opts.allow_new ~= false then
+            finish({ title = query })
+          else
+            finish(nil)
+          end
+          picker:close()
+        end,
+      },
+      on_close = function()
+        finish(nil)
+      end,
+    })
+  end)
+end
+
+-- candidates of the running `input` read, for `M._complete`
+local completing = {}
+
+--- `customlist` completion for the input picker: titles and aliases
+--- containing the whole typed text, ignoring case.
+function M._complete(_, cmdline)
+  local want = cmdline:lower()
+  local starts, contains = {}, {}
+  for _, name in ipairs(completing) do
+    local at = name:lower():find(want, 1, true)
+    if at == 1 then
+      starts[#starts + 1] = name
+    elseif at then
+      contains[#contains + 1] = name
+    end
+  end
+  return vim.list_extend(starts, contains)
+end
+
+-- input: type a title (<Tab> completes titles and aliases); one that isn't
+-- a node's is a new node
+local function input_read(items, opts)
+  local by_name = {}
+  completing = {}
+  for _, c in ipairs(items) do
+    if not by_name[c.name] then
+      by_name[c.name] = c
+      completing[#completing + 1] = c.name
+    end
+  end
+  local ok, v = pcall(vim.fn.input, {
+    prompt = (opts.prompt or "Node") .. ": ",
+    default = opts.default_title or "",
+    completion = "customlist,v:lua.require'org.extensions.roam.node'._complete",
+    cancelreturn = vim.NIL,
+  })
+  completing = {}
+  if not ok or v == vim.NIL then
+    return nil
+  end
+  v = vim.trim(v or "")
+  if v == "" then
+    return nil
+  end
+  if by_name[v] then
+    return by_name[v]
+  end
+  if opts.allow_new == false then
+    utils.warn("org-roam: no node " .. v)
+    return nil
+  end
+  return { title = v }
+end
+
 --- Choose a node (org-roam-node-read). Returns the candidate, or
---- `{ title = ... }` for a new node, or nil when cancelled.
+--- `{ title = ... }` for a new node, or nil when cancelled. With the
+--- snacks picker or `picker = "input"` a new node is named by typing its
+--- title; with `vim.ui.select` by choosing "+ New node".
 ---@param opts? { prompt?: string, allow_new?: boolean, default_title?: string, filter?: fun(n: org.roam.Node): boolean }
 ---@return { node?: org.roam.Node, name?: string, title?: string }|nil
 function M.read(opts)
   opts = opts or {}
   local items = M.candidates(opts.filter)
+  local kind = M.picker()
+  if kind == "input" then
+    return input_read(items, opts)
+  end
+  if kind == "snacks" then
+    if #items == 0 and opts.allow_new == false then
+      utils.warn("org-roam: no nodes")
+      return nil
+    end
+    return snacks_read(items, opts)
+  end
   if opts.allow_new ~= false then
     table.insert(items, 1, NEW)
   end
@@ -316,8 +443,12 @@ local function set_node_property(h, name, value)
   edit.set_property(h.bufnr, lnum, name, value)
 end
 
---- Add `value` to a multi-valued property (org-roam-property-add).
-local function property_add(h, name, value)
+--- Add `value` to a multi-valued property of the node `h` (see
+--- `at_point`), first (org-roam-property-add).
+---@param h org.roam.Here
+---@param name string
+---@param value string
+function M.property_add(h, name, value)
   local list = db.split_quoted(node_property(h, name))
   local out = { value }
   for _, v in ipairs(list) do
@@ -364,7 +495,7 @@ function M.alias_add(alias)
   local h = here_or_warn()
   alias = h and ask("Alias: ", alias)
   if alias then
-    property_add(h, "ROAM_ALIASES", alias)
+    M.property_add(h, "ROAM_ALIASES", alias)
   end
 end
 
@@ -384,7 +515,7 @@ function M.ref_add(ref)
   local h = here_or_warn()
   ref = h and ask("Ref: ", ref)
   if ref then
-    property_add(h, "ROAM_REFS", ref)
+    M.property_add(h, "ROAM_REFS", ref)
   end
 end
 
@@ -662,6 +793,77 @@ function M.refile()
     return
   end
   utils.notify("Refiled to " .. c.name)
+  M.delete_if_empty(bufnr)
+end
+
+--- After a refile: delete the file of a buffer left empty, and the buffer
+--- (org-roam-refile).
+---@param bufnr integer
+---@return boolean deleted
+function M.delete_if_empty(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) or vim.api.nvim_buf_line_count(bufnr) > 1 then
+    return false
+  end
+  if (vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or "") ~= "" then
+    return false
+  end
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  if path ~= "" and utils.exists(path) then
+    os.remove(path)
+  end
+  pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+  if path ~= "" then
+    db.update_file(path)
+  end
+  return true
+end
+
+---------------------------------------------------------------------------
+-- roam: links
+---------------------------------------------------------------------------
+
+--- Replace `[[roam:Title]]` links to existing nodes with `id:` links, in
+--- lines `s`..`e` (default the whole buffer; org-roam-link-replace-all).
+--- Links in verbatim blocks are left alone. Returns the number replaced.
+---@param bufnr? integer
+---@param s? integer
+---@param e? integer
+---@return integer
+function M.link_replace_all(bufnr, s, e)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  s, e = s or 1, math.min(e or #lines, #lines)
+  local parser = require("org.parser")
+  local links = require("org.links")
+  local count, synced = 0, false
+  local i = 1
+  while i <= e do
+    local block_end = parser.verbatim_block_end(lines, i, #lines)
+    if block_end then
+      i = block_end + 1
+    else
+      local line = lines[i]
+      if i >= s and line:find("[[roam:", 1, true) then
+        local new = line:gsub("%[%[roam:([^%]]+)%](%[?([^%]]*)%]?)%]", function(path, rest, desc)
+          if not synced then
+            db.sync()
+            synced = true
+          end
+          local node = db.by_title(vim.trim(path))
+          if not node then
+            return nil
+          end
+          count = count + 1
+          return links.format("id:" .. node.id, rest ~= "" and desc or path)
+        end)
+        if new ~= line then
+          vim.api.nvim_buf_set_lines(bufnr, i - 1, i, false, { new })
+        end
+      end
+      i = i + 1
+    end
+  end
+  return count
 end
 
 return M

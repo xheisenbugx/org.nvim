@@ -100,14 +100,29 @@ local function render(node)
   else
     add(node.title, "Title", { file = node.file, lnum = node.lnum })
     add("")
-    local sections = {
-      { "Backlinks", db.backlinks(node.id) },
-      { "Reflinks", db.reflinks(node) },
+    local builders = {
+      backlinks = function()
+        return "Backlinks", db.backlinks(node.id)
+      end,
+      reflinks = function()
+        return "Reflinks", db.reflinks(node)
+      end,
     }
-    for _, sec in ipairs(sections) do
-      local name, list = sec[1], sec[2]
-      local enabled = vim.tbl_contains(bopts().sections or { "backlinks", "reflinks" }, name:lower())
-      if enabled then
+    for _, key in ipairs(bopts().sections or { "backlinks", "reflinks" }) do
+      if key == "unlinked" or key == "unlinked_references" then
+        local refs = db.unlinked_references(node)
+        add(string.format("Unlinked references (%d)", #refs), "Statement")
+        for _, r in ipairs(refs) do
+          local where = string.format("%s:%d:%d", vim.fn.fnamemodify(r.file, ":t:r"), r.lnum, r.col)
+          local target = { file = r.file, lnum = r.lnum, col = r.col }
+          add("  " .. where .. "  " .. display(vim.trim(r.text)), nil, target)
+          hls[#hls + 1] = { #lines - 1, "Comment", 2, 2 + #where }
+        end
+        add("")
+      end
+      local builder = builders[key]
+      if builder then
+        local name, list = builder()
         add(string.format("%s (%d)", name, #list), "Statement")
         table.sort(list, function(a, b)
           if a.source.title ~= b.source.title then
@@ -140,7 +155,11 @@ local function render(node)
   vim.bo[buf].modifiable = false
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for _, h in ipairs(hls) do
-    vim.api.nvim_buf_set_extmark(buf, ns, h[1], 0, { end_row = h[1] + 1, hl_group = h[2], hl_eol = false })
+    if h[3] then
+      vim.api.nvim_buf_set_extmark(buf, ns, h[1], h[3], { end_col = h[4], hl_group = h[2] })
+    else
+      vim.api.nvim_buf_set_extmark(buf, ns, h[1], 0, { end_row = h[1] + 1, hl_group = h[2], hl_eol = false })
+    end
   end
   state.targets = targets
 end

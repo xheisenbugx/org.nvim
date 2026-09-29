@@ -564,6 +564,22 @@ function M.nodes()
   return build().nodes
 end
 
+--- Every indexed link, in file order.
+---@return org.roam.Link[]
+function M.links()
+  local idx = load()
+  local paths = vim.tbl_keys(idx.files)
+  table.sort(paths)
+  local out = {}
+  for _, path in ipairs(paths) do
+    for _, l in ipairs(idx.files[path].links or {}) do
+      l.file = path
+      out[#out + 1] = l
+    end
+  end
+  return out
+end
+
 --- The node with `id`.
 ---@param id string
 ---@return org.roam.Node|nil
@@ -638,6 +654,118 @@ function M.reflinks(node)
         if src and src.id ~= node.id and not seen[key] then
           seen[key] = true
           out[#out + 1] = { link = link, source = src, ref = r }
+        end
+      end
+    end
+  end
+  return out
+end
+
+-- lines of roam files by path, kept while the mtime is unchanged
+local line_cache = {}
+
+local function file_lines(path)
+  local b = utils.find_buffer(path)
+  if b and vim.bo[b].modified then
+    return vim.api.nvim_buf_get_lines(b, 0, -1, false)
+  end
+  local sec, nsec = stat(path)
+  local c = line_cache[path]
+  if c and c.sec == sec and c.nsec == nsec then
+    return c.lines
+  end
+  local lines = utils.readfile(path) or {}
+  line_cache[path] = { sec = sec, nsec = nsec, lines = lines }
+  return lines
+end
+
+-- `line` with every bracketed [...] (links, cookies, citations) blanked,
+-- balanced like org-roam's `\[([^[]]++|(?R))*\]`
+local function mask_brackets(line)
+  if not line:find("[", 1, true) then
+    return line
+  end
+  local out, depth, start = {}, 0, nil
+  local i = 1
+  local n = #line
+  while i <= n do
+    local c = line:sub(i, i)
+    if c == "[" then
+      if depth == 0 then
+        start = i
+      end
+      depth = depth + 1
+    elseif c == "]" and depth > 0 then
+      depth = depth - 1
+      if depth == 0 then
+        out[#out + 1] = string.rep(" ", i - start + 1)
+        start = nil
+      end
+    elseif depth == 0 then
+      out[#out + 1] = c
+    end
+    i = i + 1
+  end
+  if start then
+    -- an unclosed [ is plain text
+    out[#out + 1] = line:sub(start)
+  end
+  return table.concat(out)
+end
+
+local function lower(s)
+  return s:find("[\128-\255]") and vim.fn.tolower(s) or s:lower()
+end
+
+local function word_char(c)
+  return c ~= "" and c:match("[%w_]") ~= nil
+end
+
+--- Mentions of the node's title or aliases that are not links, in other
+--- roam files (org-roam-unlinked-references-section): whole words,
+--- ignoring case, outside brackets.
+---@param node org.roam.Node
+---@return { file: string, lnum: integer, col: integer, text: string, match: string }[]
+function M.unlinked_references(node)
+  local names = {}
+  for _, t in ipairs(vim.list_extend({ node.title }, node.aliases or {})) do
+    if t and vim.trim(t) ~= "" then
+      names[#names + 1] = lower(t)
+    end
+  end
+  local out = {}
+  if #names == 0 then
+    return out
+  end
+  local own = vim.fs.normalize(node.file)
+  local paths = vim.tbl_keys(load().files)
+  table.sort(paths)
+  for _, path in ipairs(paths) do
+    if path ~= own then
+      for lnum, line in ipairs(file_lines(path)) do
+        local masked = lower(mask_brackets(line))
+        -- every match, like rg --only-matching; a title and an alias
+        -- starting at the same place count once
+        local hits = {}
+        for _, name in ipairs(names) do
+          local init = 1
+          while true do
+            local s, e = masked:find(name, init, true)
+            if not s then
+              break
+            end
+            if not word_char(masked:sub(s - 1, s - 1)) and not word_char(masked:sub(e + 1, e + 1)) then
+              if not hits[s] or e > hits[s] then
+                hits[s] = e
+              end
+            end
+            init = s + 1
+          end
+        end
+        local cols = vim.tbl_keys(hits)
+        table.sort(cols)
+        for _, s in ipairs(cols) do
+          out[#out + 1] = { file = path, lnum = lnum, col = s, text = line, match = line:sub(s, hits[s]) }
         end
       end
     end

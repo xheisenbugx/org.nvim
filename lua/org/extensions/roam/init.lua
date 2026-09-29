@@ -25,6 +25,12 @@ M.defaults = {
   --- Order of the node candidates: "title", "mtime" (recently changed
   --- files first) or "none" (file order).
   sort = "mtime",
+  --- How nodes are chosen (org-roam-node-read): "auto" (snacks.nvim's
+  --- picker when it is loaded, else `vim.ui.select`), "snacks", "select"
+  --- (`vim.ui.select` with a "+ New node" entry) or "input" (type a title,
+  --- <Tab> completes). With snacks and "input", a title that matches no
+  --- node creates one.
+  picker = "auto",
   --- Show the outline path before headline nodes in the candidates.
   display_olp = false,
   --- `fun(node, name): string` formatting a candidate
@@ -47,21 +53,70 @@ M.defaults = {
       unnarrowed = true,
     },
   },
+  --- Templates for `org-protocol://roam-ref` captures
+  --- (org-roam-capture-ref-templates); `${ref}` and `${body}` come from
+  --- the URL.
+  capture_ref_templates = {
+    r = {
+      description = "ref",
+      type = "plain",
+      template = "%?",
+      target = "${slug}.org",
+      head = "#+title: ${title}\n",
+      unnarrowed = true,
+    },
+  },
+  --- Also store the page's link for `insert_link` on a roam-ref capture
+  --- (org-roam-protocol-store-links).
+  protocol_store_links = false,
   --- The file an extracted subtree goes to (org-roam-extract-new-file-path).
   extract_new_file_path = "%<%Y%m%d%H%M%S>-${slug}.org",
   --- Follow `roam:Title` links to the node with that title or alias, and
   --- offer to create it (org-roam-link).
   roam_links = true,
+  --- Replace `roam:` links to existing nodes with `id:` links when a roam
+  --- file is saved or the link followed (org-roam-link-auto-replace).
+  link_auto_replace = true,
   --- The backlinks window (org-roam-buffer).
   buffer = {
     --- "right", "left" or "bottom".
     position = "right",
     width = 50,
     height = 15,
-    --- Sections shown, in order: "backlinks", "reflinks".
+    --- Sections shown, in order: "backlinks", "reflinks" and "unlinked"
+    --- (mentions of the title or an alias that aren't links).
     sections = { "backlinks", "reflinks" },
     --- Lines of context shown for each link.
     preview_lines = 5,
+  },
+  --- The node graph (org-roam-graph).
+  graph = {
+    --- Graphviz program (org-roam-graph-executable).
+    executable = "dot",
+    --- Output format (org-roam-graph-filetype).
+    filetype = "svg",
+    --- `fun(path)`, a program name, or false to only write the file; nil
+    --- opens it with `vim.ui.open` (org-roam-graph-viewer).
+    viewer = nil,
+    --- Graph attributes, e.g. `{ rankdir = "LR" }` (org-roam-graph-extra-config).
+    extra_config = {},
+    --- Edge attributes (org-roam-graph-edge-extra-config).
+    edge_extra_config = {},
+    --- Node attributes by link type (org-roam-graph-node-extra-config).
+    node_extra_config = {
+      id = { style = "bold,rounded,filled", fillcolor = "#EEEEEE", color = "#C9C9C9", fontcolor = "#111111" },
+      http = { style = "rounded,filled", fillcolor = "#EEEEEE", color = "#C9C9C9", fontcolor = "#0A97A6" },
+      https = { style = "rounded,filled", fillcolor = "#EEEEEE", color = "#C9C9C9", fontcolor = "#0A97A6" },
+    },
+    --- Link types left out (org-roam-graph-link-hidden-types).
+    link_hidden_types = { "file" },
+    --- Longest title in a graph node (org-roam-graph-max-title-length).
+    max_title_length = 100,
+    --- "truncate", "wrap" or false (org-roam-graph-shorten-titles).
+    shorten_titles = "truncate",
+    --- `fun(node): string`, the URL of a graph node
+    --- (org-roam-graph-link-builder); default org-protocol://roam-node.
+    link_builder = nil,
   },
   --- Daily notes (org-roam-dailies).
   dailies = {
@@ -101,6 +156,8 @@ M.actions = {
   roam_extract_subtree = a("node.extract_subtree", "Extract the subtree into a roam file"),
   roam_refile = a("node.refile", "Refile the subtree to a roam node", { "n", "x" }),
   roam_db_sync = a("db.sync_command", "Update the roam index"),
+  roam_graph = a("graph.show", "Show the roam node graph (count: around the node)"),
+  roam_link_replace_all = a("node.link_replace_all", "Replace roam: links with id: links"),
   roam_dailies_goto_today = a("dailies.goto_today", "Open today's daily note"),
   roam_dailies_goto_yesterday = a("dailies.goto_yesterday", "Open yesterday's daily note"),
   roam_dailies_goto_tomorrow = a("dailies.goto_tomorrow", "Open tomorrow's daily note"),
@@ -132,6 +189,7 @@ M.commands = {
   roam_tag_remove = c("node.tag_remove", "Remove tags: :Org roam_tag_remove [tag ...]"),
   roam_extract_subtree = c("node.extract_subtree", "Extract the subtree: :Org roam_extract_subtree [file]"),
   roam_db_sync = c("db.sync_command", "Update the roam index: :Org roam_db_sync [force]"),
+  roam_graph = c("graph.show", "Show the node graph: :Org roam_graph [N|local] (N links around the node)"),
   roam_dailies_goto_date = c("dailies.goto_date", "Open a daily note: :Org roam_dailies_goto_date [date]"),
   roam_dailies_capture_date = c("dailies.capture_date", "Capture to a daily note: [date]"),
   roam_dailies_capture_today = c("dailies.capture_today", "Capture to today's note: [template key]"),
@@ -145,6 +203,7 @@ M.mappings = {
     roam_buffer_toggle = "<prefix>ml",
     roam_capture = "<prefix>mc",
     roam_node_random = "<prefix>mr",
+    roam_graph = "<prefix>mg",
     roam_dailies_goto_today = "<prefix>mdt",
     roam_dailies_goto_yesterday = "<prefix>mdy",
     roam_dailies_goto_tomorrow = "<prefix>mdT",
@@ -164,6 +223,12 @@ M.mappings = {
 
 local augroup = vim.api.nvim_create_augroup("org.roam", { clear = true })
 
+--- The resolved options.
+---@return table
+function M.opts()
+  return require("org.extensions").opts("roam") or M.defaults
+end
+
 --- Follow a `roam:` link: visit the node with that title or alias, or
 --- capture it (org-roam-link-follow-link).
 local function follow_roam_link(path)
@@ -172,6 +237,10 @@ local function follow_roam_link(path)
   local title = vim.trim(path)
   local node = db.by_title(title)
   if node then
+    if M.opts().link_auto_replace then
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      require(R .. ".node").link_replace_all(0, row, row)
+    end
     return require(R .. ".node").visit(node)
   end
   require("org.utils").run(function()
@@ -195,6 +264,18 @@ function M.setup(opts)
       end,
     })
   end
+  if opts.link_auto_replace then
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = augroup,
+      pattern = "*.org",
+      callback = function(ev)
+        local path = vim.fs.normalize(vim.api.nvim_buf_get_name(ev.buf))
+        if require(R .. ".db").is_roam_file(path) then
+          require(R .. ".node").link_replace_all(ev.buf)
+        end
+      end,
+    })
+  end
   if opts.roam_links then
     local types = require("org.config").opts.links.types
     if types.roam == nil then
@@ -211,7 +292,15 @@ function M.setup(opts)
       }
     end
   end
+  require(R .. ".protocol").register(true)
   require(R .. ".db").reset()
+end
+
+--- Undo `setup` when the extension is turned off.
+function M.teardown()
+  vim.api.nvim_clear_autocmds({ group = augroup })
+  require(R .. ".protocol").register(false)
+  require(R .. ".buffer").close()
 end
 
 function M.health(h, opts)
@@ -229,8 +318,24 @@ function M.health(h, opts)
   if parsed > 0 then
     h.info(string.format("%d files were re-indexed by this check", parsed))
   end
+  local dups = db.duplicates()
+  local ids = vim.tbl_keys(dups)
+  table.sort(ids)
+  for _, id in ipairs(ids) do
+    local where = vim.tbl_map(function(n)
+      return vim.fn.fnamemodify(n.file, ":~") .. ":" .. n.lnum
+    end, dups[id])
+    h.warn(string.format("duplicate ID %s (only the first is a node): %s", id, table.concat(where, ", ")))
+  end
   if not opts.update_on_save then
     h.info("update_on_save is off: run :Org roam_db_sync after editing notes")
+  end
+  h.info("node picker: " .. require(R .. ".node").picker())
+  local exe = (opts.graph or {}).executable or "dot"
+  if vim.fn.executable(exe) == 1 then
+    h.ok("Graphviz found: roam_graph renders the node graph")
+  else
+    h.info("Graphviz (" .. exe .. ") not found: roam_graph only writes a .dot file")
   end
 end
 

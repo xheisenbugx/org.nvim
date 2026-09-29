@@ -33,21 +33,34 @@
 ---@field link_description? fun(node: org.roam.Node, name: string): string
 ---Templates for new nodes, by key (org-roam-capture-templates).
 ---@field capture_templates? table<string, org.Config.Extensions.Roam.CaptureTemplate>
+---Templates for org-protocol roam-ref captures (org-roam-capture-ref-templates).
+---@field capture_ref_templates? table<string, org.Config.Extensions.Roam.CaptureTemplate>
+---Also store a roam-ref page's link (org-roam-protocol-store-links, default: `false`).
+---@field protocol_store_links? boolean
 ---Where an extracted subtree goes (org-roam-extract-new-file-path,
 ---default: `"%<%Y%m%d%H%M%S>-${slug}.org"`).
 ---@field extract_new_file_path? string
 ---Follow `roam:Title` links (default: `true`).
 ---@field roam_links? boolean
+---Turn `roam:` links to existing nodes into `id:` links on save and when
+---followed (org-roam-link-auto-replace, default: `true`).
+---@field link_auto_replace? boolean
+---The node graph (org-roam-graph).
+---@field graph? org.Config.Extensions.Roam.Graph
 ---The backlinks window.
 ---@field buffer? org.Config.Extensions.Roam.Buffer
 ---Daily notes (org-roam-dailies).
 ---@field dailies? org.Config.Extensions.Roam.Dailies
 
 ---A capture template (`:h org-capture-templates`) whose `target` is a file
----relative to the roam directory. `${key}` / `${key=default}` are filled in.
+---relative to the roam directory, or an org-roam `:target` form.
+---`${key}` / `${key=default}` are filled in.
 ---@class org.Config.Extensions.Roam.CaptureTemplate: org.Config.CaptureTemplate
----File name, relative to the roam (or dailies) directory.
----@field target string|fun(node: table): string
+---File name, relative to the roam (or dailies) directory, or
+---`{ "file", path }`, `{ "file+head", path, head }`, `{ "file+olp", path, olp }`,
+---`{ "file+head+olp", path, head, olp }`, `{ "file+datetree", path, tree_type? }`
+---or `{ "node", title_or_id }`.
+---@field target string|table|fun(node: table): string|table
 ---Text written at the top of a new file.
 ---@field head? string|fun(node: table): string
 ---Headlines (created when missing) the text and the node go under.
@@ -58,8 +71,9 @@
 ---@field position? "right"|"left"|"bottom"
 ---@field width? integer
 ---@field height? integer
----Sections, in order (default: `{ "backlinks", "reflinks" }`).
----@field sections? ("backlinks"|"reflinks")[]
+---Sections, in order (default: `{ "backlinks", "reflinks" }`; `"unlinked"`
+---adds unlinked references).
+---@field sections? ("backlinks"|"reflinks"|"unlinked")[]
 ---Lines of context per link (default: `5`).
 ---@field preview_lines? integer
 
@@ -68,3 +82,25 @@
 ---@field directory? string
 ---Templates for daily notes, targets relative to `dailies.directory`.
 ---@field capture_templates? table<string, org.Config.Extensions.Roam.CaptureTemplate>
+
+---@class org.Config.Extensions.Roam.Graph
+---Graphviz program (default: `"dot"`).
+---@field executable? string
+---Output format (default: `"svg"`).
+---@field filetype? string
+---Opens the result: a function, a program, or `false` (default: vim.ui.open).
+---@field viewer? false|string|fun(path: string)
+---Graph attributes, e.g. `{ rankdir = "LR" }`.
+---@field extra_config? table<string, string>
+---Edge attributes.
+---@field edge_extra_config? table<string, string>
+---Node attributes by link type (`id`, `https`, ...).
+---@field node_extra_config? table<string, table<string, string>>
+---Link types left out (default: `{ "file" }`).
+---@field link_hidden_types? string[]
+---Longest title in a node (default: `100`).
+---@field max_title_length? integer
+---`"truncate"` (default), `"wrap"` or `false`.
+---@field shorten_titles? "truncate"|"wrap"|false
+---URL of a node (default: org-protocol://roam-node?node=ID).
+---@field link_builder? fun(node: org.roam.Node): string

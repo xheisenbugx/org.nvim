@@ -192,6 +192,57 @@ local function find_or_create_olp(bufnr, olp)
   return parent
 end
 
+--- A template's target as its parts: `target` is a file relative to the
+--- roam directory (with the template's `head`, `olp`, `datetree` and
+--- `tree_type`), or an org-roam `:target` list: `{ "file", path }`,
+--- `{ "file+head", path, head }`, `{ "file+olp", path, olp }`,
+--- `{ "file+head+olp", path, head, olp }`,
+--- `{ "file+datetree", path, tree_type? }` or `{ "node", title_or_id }`.
+---@param tpl table
+---@param node org.roam.NewNode
+---@return { file?: string, head?: string, olp?: string|string[], datetree?: boolean, tree_type?: string, node?: string }|nil
+---@return string|nil error
+function M.target_parts(tpl, node)
+  local t = value(tpl.target, node)
+  local parts = {
+    head = value(tpl.head, node),
+    olp = value(tpl.olp, node),
+    datetree = tpl.datetree and true or nil,
+    tree_type = type(tpl.datetree) == "table" and tpl.datetree.tree_type or tpl.tree_type,
+  }
+  if type(t) == "table" then
+    local kind = t[1]
+    if kind == "file" then
+      parts.file = t[2]
+    elseif kind == "file+head" then
+      parts.file, parts.head = t[2], t[3]
+    elseif kind == "file+olp" then
+      parts.file, parts.olp = t[2], t[3]
+    elseif kind == "file+head+olp" then
+      parts.file, parts.head, parts.olp = t[2], t[3], t[4]
+    elseif kind == "file+datetree" then
+      parts.file, parts.datetree, parts.tree_type = t[2], true, t[3] or parts.tree_type
+    elseif kind == "node" then
+      parts = { node = t[2] }
+      if type(parts.node) ~= "string" or parts.node == "" then
+        return nil, "the node target needs a title or id"
+      end
+      return parts
+    else
+      return nil, "unknown capture target " .. tostring(kind)
+    end
+  else
+    parts.file = t
+  end
+  if type(parts.file) ~= "string" or parts.file == "" then
+    return nil, "capture template needs a file `target`"
+  end
+  if type(parts.head) == "table" then
+    parts.head = table.concat(parts.head, "\n")
+  end
+  return parts
+end
+
 --- Choose a template from `templates` (a key -> template table; one
 --- template is used directly).
 local function choose(templates, key)
@@ -228,6 +279,8 @@ end
 ---@field link_description? string
 ---@field call_location? { bufnr: integer, mark: integer, ns: integer }
 ---@field region? { bufnr: integer, s: integer, e: integer, ns: integer }
+---@field info? table<string, string> values for `${key}` (a protocol's `ref` and `body`)
+---@field link_props? table link properties for org capture (org-link-store-props)
 
 --- Capture a roam node (org-roam-capture-). Returns the id of the node.
 ---@param opts? org.roam.CaptureOpts
@@ -243,56 +296,100 @@ function M.capture(opts)
   local node = vim.deepcopy(opts.node or {})
   node.title = node.title or ""
   node.id = node.id or require("org.id").new_id()
-  local info = {}
-  local target = value(tpl.target, node)
-  if type(target) ~= "string" or target == "" then
-    utils.warn("org-roam: capture template needs a file `target`")
+  -- `${key}` answers, and what the caller knows (a protocol's ref and body)
+  local info = vim.deepcopy(opts.info or {})
+  local parts, perr = M.target_parts(tpl, node)
+  if not parts then
+    utils.warn("org-roam: " .. perr)
     return nil
   end
-  local path = node.file
-  if not path then
-    path = vim.trim(expand_escapes(M.fill(target, node, info), opts.date))
-    path = utils.expand(path, opts.directory or db.directory())
+  -- a ref that is already a node's: capture into that node
+  -- (org-roam-capture--try-capture-to-ref-h)
+  local ref_node = info.ref and db.by_ref(info.ref)
+  if ref_node then
+    parts = { node = ref_node.id }
   end
-  local new_file = not utils.exists(path) and not utils.find_buffer(path)
-  vim.fn.mkdir(vim.fs.dirname(path), "p")
-  local bufnr = utils.load_buffer(path)
+  local path, lnum, bufnr, new_file
+  local target_node
+  if parts.node then
+    db.sync()
+    target_node = db.node(parts.node) or db.by_title(parts.node)
+    if not target_node then
+      utils.warn(string.format('org-roam: no node with title or id "%s"', parts.node))
+      return nil
+    end
+    path = target_node.file
+    new_file = false
+    bufnr = utils.load_buffer(path)
+    if target_node.level > 0 then
+      local thl = require("org.files").get_buffer(bufnr):find_by_id(target_node.id)
+      if not thl then
+        utils.warn("org-roam: cannot find the target node, run :Org roam_db_sync")
+        return nil
+      end
+      lnum = thl.line
+    end
+  else
+    path = node.file
+    if not path then
+      path = vim.trim(expand_escapes(M.fill(parts.file, node, info), opts.date))
+      path = utils.expand(path, opts.directory or db.directory())
+    end
+    new_file = not utils.exists(path) and not utils.find_buffer(path)
+    vim.fn.mkdir(vim.fs.dirname(path), "p")
+    bufnr = utils.load_buffer(path)
+  end
   local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local modified = vim.bo[bufnr].modified
-  local head = value(tpl.head, node)
+  local head = parts.head
   if new_file and type(head) == "string" and head ~= "" then
     local text = expand_escapes(M.fill(head, node, info), opts.date)
     local lines = vim.split((text:gsub("\n$", "")), "\n", { plain = true })
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   end
-  local olp = value(tpl.olp, node)
+  local olp = parts.olp
   if type(olp) == "string" then
     olp = vim.split(olp, "/", { trimempty = true })
   end
-  local lnum
-  if type(olp) == "table" and #olp > 0 then
+  if not parts.node and type(olp) == "table" and #olp > 0 then
     local filled = {}
     for i, name in ipairs(olp) do
       filled[i] = expand_escapes(M.fill(name, node, info), opts.date)
     end
-    olp = filled
-    lnum = find_or_create_olp(bufnr, olp)
-  else
-    olp = nil
+    lnum = find_or_create_olp(bufnr, filled)
+  end
+  if parts.datetree then
+    -- file+datetree: the day's (week's, month's) entry is the node
+    local d = opts.date or require("org.date").today()
+    lnum = require("org.capture").ensure_datetree(bufnr, lnum, d, parts.tree_type or "day")
   end
   -- the capture location becomes the node: keep its id, or give it one
   local file = require("org.files").get_buffer(bufnr)
   local hl = lnum and file:headline_at(lnum)
   local existing = hl and hl.properties.ID or (not hl and file.properties.ID)
-  -- an existing node's file already holds its id
-  if node.file then
+  local new_node = false
+  if target_node then
+    node.id = target_node.id
+    node.title = target_node.title
+  elseif node.file then
+    -- an existing node's file already holds its id
     node.id = node.id or existing or nil
   elseif existing and existing ~= "" then
     node.id = existing
   elseif hl then
     require("org.edit").set_property(bufnr, lnum, "ID", node.id)
+    new_node = true
   else
     set_file_id(bufnr, node.id)
+    new_node = true
+  end
+  if new_node and info.ref and info.ref ~= "" then
+    -- org-roam-capture--insert-captured-ref-h
+    local nd = require("org.extensions.roam.node")
+    local here = nd.at_point(bufnr, hl and lnum or 1)
+    if here then
+      nd.property_add(here, "ROAM_REFS", info.ref)
+    end
   end
   require("org.id").register(node.id, path)
 
@@ -331,18 +428,25 @@ function M.capture(opts)
   end
 
   if opts.visit then
-    utils.open_file(path, lnum)
+    require("org.extensions.roam.node").open(path, lnum)
     return node.id
   end
 
   local ctpl = {}
   for k, v in pairs(tpl) do
-    if k ~= "head" and k ~= "olp" and k ~= "target" then
+    if k ~= "head" and k ~= "olp" and k ~= "target" and k ~= "tree_type" then
       ctpl[k] = v
     end
   end
   ctpl.target = path
-  ctpl.olp = olp
+  ctpl.olp, ctpl.datetree = nil, nil
+  if lnum then
+    -- the node's headline, found or made above
+    local line = lnum
+    ctpl.func = function()
+      return line
+    end
+  end
   ctpl.type = tpl.type or "plain"
   -- a node with only its head is a valid note (org-capture stores it)
   if ctpl.allow_empty == nil then
@@ -356,6 +460,11 @@ function M.capture(opts)
   -- the template's own hooks run first
   ctpl.after_finalize = vim.list_extend(hooks(tpl.after_finalize), { done })
   ctpl.on_abort = vim.list_extend(hooks(tpl.on_abort), { cleanup })
+  if opts.link_props then
+    -- a protocol's link, used by %a, %:link and friends instead of a
+    -- link to the current buffer
+    require("org.capture").link_store_props = opts.link_props
+  end
   local ok, err = pcall(require("org.capture").capture, ctpl, { date = opts.date })
   if not ok then
     cleanup()

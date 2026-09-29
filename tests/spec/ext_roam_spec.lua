@@ -470,6 +470,293 @@ describe("roam extension", function()
     end)
   end)
 
+  describe("index edge cases", function()
+    it("keeps the first node of a duplicated id and reports the others", function()
+      local a = write("a.org", { ":PROPERTIES:", ":ID: same", ":END:", "#+title: First" })
+      write("b.org", { ":PROPERTIES:", ":ID: same", ":END:", "#+title: Second" })
+      db().sync()
+      eq("First", db().node("same").title)
+      eq(1, #db().nodes())
+      local dups = db().duplicates().same
+      eq(2, #dups)
+      eq("Second", dups[2].title)
+      require("org.id")._reset()
+      eq(a, require("org.id").find("same").filename)
+    end)
+
+    it("excludes files by Emacs regexp or function", function()
+      setup({
+        exclude = {
+          "\\.draft\\.org\\'",
+          function(rel)
+            return rel:find("^attic/") ~= nil
+          end,
+        },
+      })
+      write("keep.org", { ":PROPERTIES:", ":ID: keep", ":END:" })
+      write("x.draft.org", { ":PROPERTIES:", ":ID: draft", ":END:" })
+      write("attic/old.org", { ":PROPERTIES:", ":ID: old", ":END:" })
+      db().sync()
+      eq({ "keep" }, vim.tbl_map(function(n)
+        return n.id
+      end, db().nodes()))
+    end)
+
+    it("finds a directory created after setup", function()
+      local later = dir .. "/later"
+      setup({ directory = later })
+      eq(0, (db().sync()))
+      vim.fn.mkdir(later, "p")
+      utils.writefile(later .. "/n.org", { ":PROPERTIES:", ":ID: late", ":END:" })
+      eq(1, (db().sync()))
+      ok(db().node("late"))
+    end)
+
+    it("lists unlinked references outside links and the node's own file", function()
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":ROAM_ALIASES: Alef", ":END:", "#+title: Alpha", "Alpha itself." })
+      write("b.org", {
+        ":PROPERTIES:",
+        ":ID: b",
+        ":END:",
+        "alpha and ALEF, [[id:a][Alpha]], alphabet, [Alpha] and Alpha.",
+      })
+      db().sync()
+      local refs = db().unlinked_references(db().node("a"))
+      eq({ "alpha", "ALEF", "Alpha" }, vim.tbl_map(function(r)
+        return r.match
+      end, refs))
+      eq({ 1, 11, 56 }, vim.tbl_map(function(r)
+        return r.col
+      end, refs))
+    end)
+  end)
+
+  describe("capture targets", function()
+    before_each(function()
+      write("a.org", { ":PROPERTIES:", ":ID: file-a", ":END:", "#+title: Apple" })
+      setup({
+        capture_templates = {
+          o = {
+            type = "entry",
+            template = "* Note",
+            target = { "file+head+olp", "proj.org", "#+title: Projects", { "Active", "${title}" } },
+            immediate_finish = true,
+          },
+          t = {
+            type = "entry",
+            template = "* Logged",
+            target = { "file+datetree", "journal.org", "month" },
+            immediate_finish = true,
+          },
+          n = { type = "entry", template = "* About ${title}", target = { "node", "Apple" }, immediate_finish = true },
+          h = { type = "plain", template = "text", target = { "file+head", "${slug}.org", "#+title: ${title}" } },
+        },
+      })
+    end)
+
+    local function capture(key, title)
+      require("org.utils").run(require("org.extensions.roam.capture").capture, { keys = key, node = { title = title } })
+    end
+
+    it("makes a file+head+olp target and gives the last heading the id", function()
+      capture("o", "Rocket")
+      local lines = read(dir .. "/proj.org")
+      eq({ "#+title: Projects", "* Active", "** Rocket", ":PROPERTIES:" }, vim.list_slice(lines, 1, 4))
+      local id = lines[5]:match("^:ID:%s+(%S+)")
+      ok(id, vim.inspect(lines))
+      eq("*** Note", lines[#lines])
+      eq("Rocket", db().node(id).title)
+    end)
+
+    it("makes a file+datetree target whose entry is the node", function()
+      capture("t", "")
+      local lines = read(dir .. "/journal.org")
+      local month = os.date("%Y-%m %B")
+      local at = vim.fn.index(lines, "** " .. month) + 1
+      ok(at > 0, vim.inspect(lines))
+      ok(lines[at + 2]:match("^:ID:"), vim.inspect(lines))
+      eq("*** Logged", lines[#lines])
+      local id = lines[at + 2]:match("^:ID:%s+(%S+)")
+      eq(month, db().node(id).title)
+    end)
+
+    it("captures under an existing node by title", function()
+      capture("n", "Apple")
+      eq({ ":PROPERTIES:", ":ID: file-a", ":END:", "#+title: Apple", "* About Apple" }, read(dir .. "/a.org"))
+    end)
+
+    it("reads the parts of every target form", function()
+      local parts = require("org.extensions.roam.capture").target_parts
+      eq({ file = "x.org" }, parts({ target = "x.org" }, {}))
+      eq("h", parts({ target = { "file+head", "x.org", "h" } }, {}).head)
+      eq({ "A" }, parts({ target = { "file+olp", "x.org", { "A" } } }, {}).olp)
+      eq("week", parts({ target = { "file+datetree", "x.org", "week" } }, {}).tree_type)
+      eq({ node = "Apple" }, parts({ target = { "node", "Apple" } }, {}))
+      local _, err = parts({ target = { "nope", "x" } }, {})
+      ok(err and err:find("unknown"), err)
+    end)
+  end)
+
+  describe("org-protocol", function()
+    it("captures a roam-ref into a new node with the ref, then into that node", function()
+      require("org.protocol").handle(
+        "org-protocol://roam-ref?template=r&ref=https%3A%2F%2Fexample.com%2Fpost&title=Example%20Post&body=hi"
+      )
+      local buf = next(require("org.capture").sessions)
+      ok(buf, "a capture is open")
+      local path = vim.fs.normalize(vim.api.nvim_buf_get_name(buf))
+      eq(dir .. "/example_post.org", path)
+      require("org.capture").finalize(buf)
+      local lines = read(path)
+      ok(vim.tbl_contains(lines, ":ROAM_REFS: https://example.com/post"), vim.inspect(lines))
+      eq("#+title: Example Post", lines[5])
+      eq("Example Post", db().by_ref("https://example.com/post").title)
+      -- the same ref again: capture to the existing node
+      require("org.protocol").handle("org-protocol://roam-ref?template=r&ref=https%3A%2F%2Fexample.com%2Fpost&title=X")
+      buf = next(require("org.capture").sessions)
+      eq(path, vim.fs.normalize(vim.api.nvim_buf_get_name(buf)))
+      require("org.capture").kill(buf)
+      eq(1, #vim.fn.glob(dir .. "/*.org", false, true))
+    end)
+
+    it("visits a roam-node, and stops handling both when turned off", function()
+      write("b.org", { ":PROPERTIES:", ":ID: file-b", ":END:", "#+title: Banana" })
+      require("org.protocol").handle("org-protocol://roam-node?node=file-b")
+      eq(dir .. "/b.org", vim.api.nvim_buf_get_name(0))
+      require("org").setup({ org_directory = root .. "/tests/fixtures" })
+      eq({}, require("org.protocol").extension_handlers)
+    end)
+  end)
+
+  describe("roam: links", function()
+    it("are replaced with id: links on save, outside verbatim blocks", function()
+      write("a.org", { ":PROPERTIES:", ":ID: file-a", ":ROAM_ALIASES: Pomme", ":END:", "#+title: Apple" })
+      local b = write("b.org", {
+        ":PROPERTIES:",
+        ":ID: file-b",
+        ":END:",
+        "See [[roam:Apple]], [[roam:Pomme][the fruit]] and [[roam:Nothing]].",
+        "#+begin_src org",
+        "[[roam:Apple]]",
+        "#+end_src",
+      })
+      db().sync()
+      vim.cmd("edit " .. vim.fn.fnameescape(b))
+      vim.cmd("silent write")
+      eq("See [[id:file-a][Apple]], [[id:file-a][the fruit]] and [[roam:Nothing]].", buf_lines()[4])
+      eq("[[roam:Apple]]", buf_lines()[6])
+      -- one backlink per link, as in org-roam
+      eq(2, #db().backlinks("file-a"))
+    end)
+
+    it("are left alone with link_auto_replace off", function()
+      setup({ link_auto_replace = false })
+      write("a.org", { ":PROPERTIES:", ":ID: file-a", ":END:", "#+title: Apple" })
+      local b = write("b.org", { "[[roam:Apple]]" })
+      db().sync()
+      vim.cmd("edit " .. vim.fn.fnameescape(b))
+      vim.cmd("silent write")
+      eq({ "[[roam:Apple]]" }, buf_lines())
+    end)
+  end)
+
+  describe("refile and pickers", function()
+    before_each(function()
+      write("a.org", { ":PROPERTIES:", ":ID: file-a", ":END:", "#+title: Apple" })
+    end)
+
+    it("deletes a source file that the refile left empty", function()
+      local solo = write("solo.org", { "* Only", "text" })
+      db().sync()
+      vim.cmd("edit " .. vim.fn.fnameescape(solo))
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      choose("Apple")
+      require("org.utils").run(require("org.extensions.roam.node").refile)
+      ok(not utils.exists(solo))
+      ok(not utils.find_buffer(solo))
+      local abuf = utils.find_buffer(dir .. "/a.org")
+      eq("* Only", buf_lines(abuf)[5])
+    end)
+
+    it("creates a node from the text typed in the input picker", function()
+      setup({ picker = "input" })
+      local node = require("org.extensions.roam.node")
+      stub(vim.fn, "input", function(o)
+        eq({ "Apple" }, node._complete("", "app"))
+        return "Apple"
+      end)
+      local c
+      require("org.utils").run(function()
+        c = node.read({})
+      end)
+      eq("file-a", c.node.id)
+      stub(vim.fn, "input", function()
+        return "Brand New"
+      end)
+      require("org.utils").run(function()
+        c = node.read({})
+      end)
+      eq({ title = "Brand New" }, c)
+    end)
+
+    it("creates a node from the snacks picker's query when nothing matches", function()
+      local query, pick_item
+      stub(_G, "Snacks", {
+        picker = {
+          pick = function(o)
+            -- like snacks, closing the picker runs on_close
+            local picker = { input = { filter = { pattern = query } } }
+            picker.close = function()
+              o.on_close(picker)
+            end
+            o.actions.confirm(picker, pick_item and o.items[1] or nil)
+          end,
+        },
+      })
+      eq("snacks", require("org.extensions.roam.node").picker())
+      local node = require("org.extensions.roam.node")
+      local c
+      query, pick_item = "Durian", false
+      require("org.utils").run(function()
+        c = node.read({})
+      end)
+      vim.wait(100, function()
+        return c ~= nil
+      end)
+      eq({ title = "Durian" }, c)
+      c, query, pick_item = nil, "app", true
+      require("org.utils").run(function()
+        c = node.read({})
+      end)
+      vim.wait(100, function()
+        return c ~= nil
+      end)
+      eq("file-a", c.node.id)
+    end)
+  end)
+
+  describe("graph", function()
+    it("writes the nodes and links as Graphviz, around a node with a distance", function()
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Apple", "[[id:b][B]] [[https://x.org][X]]" })
+      write("b.org", { ":PROPERTIES:", ":ID: b", ":END:", "#+title: Banana", "[[id:c][C]]" })
+      write("c.org", { ":PROPERTIES:", ":ID: c", ":END:", '#+title: Cherry "red"' })
+      write("d.org", { ":PROPERTIES:", ":ID: d", ":END:", "#+title: Lonely" })
+      local graph = require("org.extensions.roam.graph")
+      local dot = graph.dot()
+      ok(dot:find('"a" -> "b";', 1, true), dot)
+      ok(dot:find('"b" -> "c";', 1, true), dot)
+      ok(dot:find('"a" -> "https://x.org";', 1, true), dot)
+      ok(dot:find('label="Cherry &quot;red&quot;"', 1, true), dot)
+      ok(dot:find("org-protocol://roam-node?node=a", 1, true), dot)
+      ok(dot:find('"d" [', 1, true), dot)
+      local near = graph.dot({ id = "a", distance = 1 })
+      ok(near:find('"a" -> "b";', 1, true), near)
+      ok(not near:find('"c"', 1, true), near)
+      ok(not near:find('"d"', 1, true), near)
+      ok(graph.dot({ id = "a", distance = 0 }):find('"b" -> "c";', 1, true))
+    end)
+  end)
+
   it("registers its actions and keys, and stays off by default", function()
     ok(require("org.actions").list.roam_node_find)
     eq("<prefix>mf", require("org.config").opts.mappings.global.roam_node_find)
