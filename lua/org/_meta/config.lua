@@ -333,6 +333,10 @@
 ---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
 ---default: `false`)
 ---@field ctrl_k_protect_subtree? boolean|"error"
+---Setting the org filetype on an empty file not named `*.org` inserts the
+---Emacs mode line `#    -*- mode: org -*-`, so it opens as org from then on.
+---(Emacs `org-insert-mode-line-in-empty-file`, default: `false`)
+---@field insert_mode_line_in_empty_file? boolean
 ---New headlines from `meta_return` and the other insertions go after the
 ---current subtree, like `insert_heading`.
 ---(Emacs `org-insert-heading-respect-content`, default: `false`)

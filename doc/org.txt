@@ -4517,6 +4517,8 @@ Structure and visibility ~
   special_ctrl_k            false     kill_line up to the tags
   ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
   insert_heading_respect_content  false  <M-CR> inserts after the subtree
+  insert_mode_line_in_empty_file  false  `:setf org` on an empty file
+                                      adds `#    -*- mode: org -*-`
   allow_promoting_top_level_subtree  false  promoting level 1 makes `# `
   edit_keep_region          { meta_left = true, meta_right = true,
                               meta_up = true, meta_down = true }

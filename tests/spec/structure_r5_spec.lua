@@ -439,3 +439,39 @@ describe("inserting headings", function()
     eq({ "* TODO A", "* TODO " }, buf_lines(buf))
   end)
 end)
+
+describe("insert_mode_line_in_empty_file", function()
+  local config = require("org.config")
+
+  it("adds the Emacs mode line to an empty file set to org, which then opens as org", function()
+    local path = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({}, path)
+    config.opts.insert_mode_line_in_empty_file = true
+    local ok_, err = pcall(function()
+      vim.cmd("silent edit! " .. vim.fn.fnameescape(path))
+      eq("text", vim.bo.filetype)
+      vim.cmd("setfiletype org")
+      vim.bo.filetype = "org"
+    end)
+    config.opts.insert_mode_line_in_empty_file = false
+    assert(ok_, err)
+    -- Emacs 9.8.10 inserts "#    -*- mode: org -*-\n\n"
+    eq({ "#    -*- mode: org -*-", "" }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    vim.cmd("silent write")
+    vim.cmd("silent bwipeout!")
+    vim.cmd("silent edit " .. vim.fn.fnameescape(path))
+    eq("org", vim.bo.filetype)
+    vim.cmd("silent bwipeout!")
+    vim.fn.delete(path)
+  end)
+
+  it("off by default", function()
+    local path = vim.fn.tempname() .. ".txt"
+    vim.fn.writefile({}, path)
+    vim.cmd("silent edit! " .. vim.fn.fnameescape(path))
+    vim.bo.filetype = "org"
+    eq({ "" }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+    vim.cmd("silent bwipeout!")
+    vim.fn.delete(path)
+  end)
+end)

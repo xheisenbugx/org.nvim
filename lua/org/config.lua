@@ -324,6 +324,10 @@ M.defaults = {
   --- `kill_line` on a folded headline kills its hidden subtree: false
   --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
   ctrl_k_protect_subtree = false,
+  --- Setting the org filetype on an empty file that is not named *.org
+  --- inserts the Emacs mode line `#    -*- mode: org -*-`, which makes it
+  --- open as org from then on (org-insert-mode-line-in-empty-file).
+  insert_mode_line_in_empty_file = false,
   --- <M-CR> and the other heading insertions put the new headline after
   --- the current subtree, like <C-CR> (org-insert-heading-respect-content).
   insert_heading_respect_content = false,
