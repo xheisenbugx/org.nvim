@@ -1,0 +1,14 @@
+:PROPERTIES:
+:ID:       c3f0a9d2-neovim
+:ROAM_REFS: https://neovim.io
+:END:
+#+title: Neovim
+#+filetags: :tools:
+
+The editor these notes live in.
+
+* Plugins
+:PROPERTIES:
+:ID:       c3f0a9d2-plugins
+:END:
+org.nvim for Org files, with roam for the Zettelkasten.

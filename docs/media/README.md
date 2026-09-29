@@ -12,6 +12,8 @@ whenever the UI changes.
   something to show. It also defines `:Cap` and `:Do`, which show the key
   caption in the corner, and `:Do` presses keys that VHS can't send
   (`<S-Right>`, `<M-Up>`…). The tapes type them hidden, after `<C-g>`.
+- `demo/roam.lua`: `init.lua` with the org-roam extension on, for
+  `roam.tape`; it copies `demo/roam/*.org` into `$ORG_DEMO_DIR/roam`.
 
 ## Re-recording
 

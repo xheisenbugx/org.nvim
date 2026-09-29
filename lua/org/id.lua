@@ -197,6 +197,22 @@ function M.register(id, filename)
   end
 end
 
+--- Record several ids at once: `map` is id -> filename. Writes the
+--- database once, and only when something changed.
+---@param map table<string, string>
+function M.register_many(map)
+  local d, changed = load_db(), false
+  for id, filename in pairs(map) do
+    if d[id] ~= filename then
+      d[id] = filename
+      changed = true
+    end
+  end
+  if changed then
+    save_db()
+  end
+end
+
 --- Record every `:ID:` property found in `lines` as living in `filename`
 --- (org-id-paste-tracker: refiled and archived entries keep resolving).
 function M.register_lines(lines, filename)
