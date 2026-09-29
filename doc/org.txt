@@ -1348,6 +1348,22 @@ All configurable under `mappings.agenda`:
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
                   (|org-agenda-diary-file|)
+  i               add a diary entry for the date at point
+                  (org-agenda-diary-entry). With `agenda.diary_entry_file`
+                  = "diary-file" (default, org-agenda-diary-file) a line
+                  of the Emacs diary file (`agenda.diary_file`) is started,
+                  like the calendar's i commands: [d]ay [w]eekly
+                  [m]onthly [y]early [a]nniversary [b]lock [c]yclic, in
+                  `calendar_date_style`; a count makes it non-marking
+                  ("&"); type the text there. With an Org file: [d]ay
+                  (a headline with the date, placed by
+                  `insert_diary_strategy`: "date-tree", "date-tree-last"
+                  or "top-level"; `insert_diary_extract_time` moves a
+                  leading "10:30-11:00" into the timestamp), [a]nniversary
+                  (an org-anniversary line under "* Anniversaries"),
+                  [b]lock, [j]ump to the date tree. A block spans the days
+                  at both ends of a Visual selection (Emacs: point and
+                  mark)
   vh              turn habits off / on (`agenda.habits.show_habits`); with
                   a count, toggle whether today shows every habit, due or
                   not (`habits.show_all_today`)
@@ -1395,6 +1411,14 @@ Emacs-style aliases: <C-c><C-t> todo, <C-c><C-q> and <C-c><C-c> tags,
 goto, <C-c><C-x><Right/Left> date later / earlier.
 A count stands for Emacs's prefix argument: 1 = C-u, 2 = C-u C-u, 3 =
 C-u C-u C-u.
+
+In Visual mode, schedule, deadline, `>`, the TODO state, the archive
+commands, <C-k>, set property and set effort act on every entry of the
+selection (org-agenda-loop-over-headlines-in-active-region:
+`agenda.loop_over_headlines_in_active_region` true, false,
+"start-level" or an Emacs regexp the lines must match). The one-letter
+keys that are Visual motions (`t`, `$`, `e`, `a`) keep their Vim meaning
+there; use their <C-c> forms.
 
 Like Emacs, edits made from the agenda leave the source buffers modified
 (`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
@@ -1937,9 +1961,9 @@ Hebrew, Islamic, Bahá’í or Chinese calendar, in the same forms with that
 calendar's month names (not abbreviated): `HTishri 16 Sukkot`,
 `IRamadan 1 Fast`, `C8/15 Mid-autumn` (diary-nongregorian-listing-hook).
 Differences: customized `diary-date-forms`, `diary-comment-start`,
-`diary-list-include-blanks` and `diary-face-attrs` are not supported, the
-`i` key (insert a diary entry) is not available, and a missing or
-recursive include is skipped with a message (Emacs stops with an error).
+`diary-list-include-blanks` and `diary-face-attrs` are not supported, and
+a missing or recursive include is skipped with a message (Emacs stops
+with an error).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
@@ -1951,9 +1975,6 @@ Not supported in the agenda                        *org-agenda-unsupported*
   defined; `calendar-date-style` is set from `agenda.calendar_date_style`) unless `babel.emacs_lisp.args` loads it. Holidays
   (|org-agenda-holidays|) and the entries of other calendars
   (|org-agenda-diary-sexp|) are supported.
-- The agenda key `i` (insert an entry into the diary file,
-  org-agenda-diary-entry). The diary file itself is read
-  (|org-agenda-diary-file|).
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
@@ -5234,8 +5255,9 @@ Differences from Emacs:
   subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
   separate Emacs when there is one. The Emacs diary file is read by a
   port of diary-lib (|org-agenda-diary-file|): custom `diary-date-forms`,
-  diary comments and the `i` key (insert a diary entry) are not supported
-  (|org-agenda-unsupported|).
+  and diary comments are not supported. Entries added with `i` in the
+  agenda use `calendar_date_style` for the date forms where Emacs uses
+  `diary-date-insertion-form`.
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:

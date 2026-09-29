@@ -339,3 +339,213 @@ describe("start_with_archives_mode", function()
     ok(got[2]:find("^  skip:       Scheduled:  TODO Old%s+:ARCHIVE:$"), got[2])
   end)
 end)
+
+--- Run `fn` with utils.getchar / utils.input answering from `answers`.
+local function answering(answers, fn)
+  local getchar, input = utils.getchar, utils.input
+  local i = 0
+  local function nxt()
+    i = i + 1
+    return answers[i]
+  end
+  utils.getchar = nxt
+  utils.input = nxt
+  local ok2, err = pcall(fn)
+  utils.getchar, utils.input = getchar, input
+  if not ok2 then
+    error(err, 0)
+  end
+end
+
+describe("agenda diary entries (i)", function()
+  local diary = dir .. "/diary"
+  local function today_line()
+    for l, d in pairs(view.state.day_lines) do
+      if d == today:days() then
+        return l
+      end
+    end
+  end
+  local function open_week(opts)
+    utils.writefile(path, { "* x" })
+    config.setup(vim.tbl_deep_extend("force", { agenda_files = { path } }, opts or {}))
+    agenda.open_agenda({ span = "week" })
+    vim.api.nvim_win_set_cursor(0, { today_line(), 0 })
+  end
+  after_each(function()
+    pcall(view.quit, true)
+    pcall(vim.cmd, "silent! only")
+    for _, f in ipairs({ diary, dir .. "/diary.org" }) do
+      local b = utils.find_buffer(f)
+      if b then
+        vim.api.nvim_buf_delete(b, { force = true })
+      end
+      os.remove(f)
+    end
+  end)
+
+  local y, m, dd = today.year, today.month, today.day
+  local mon = date.MONTH_NAMES[m]
+  local dayname = date.DAY_NAMES_LONG[today:weekday()]
+
+  -- Emacs 9.8.10 (diary-insert-*-entry from the agenda; the probe used
+  -- Wednesday 2026-09-30, with Monday 09-28 as the mark for blocks):
+  --   american  9/30/2026 | Wednesday | * 30 | Sep 30 |
+  --             %%(diary-anniversary 9 30 2026) | %%(diary-cyclic 3 9 30 2026)
+  --   european  30/9/2026 | 30 *  | 30 Sep | %%(diary-anniversary 30 9 2026)
+  --   iso       2026-09-30 | *-*-30 | *-09-30 | %%(diary-anniversary 2026 09 30)
+  -- each followed by a space for the entry text.
+  it("adds the entries of the calendar's i commands to the diary file", function()
+    utils.writefile(diary, { "Sep 1, 2026 existing" })
+    open_week({ agenda = { diary_file = diary } })
+    local expect = { "Sep 1, 2026 existing" }
+    local cases = {
+      { "d", string.format("%d/%d/%d ", m, dd, y) },
+      { "w", dayname .. " " },
+      { "m", string.format("* %d ", dd) },
+      { "y", string.format("%s %d ", mon, dd) },
+      { "a", string.format("%%%%(diary-anniversary %d %d %d) ", m, dd, y) },
+      { "c", string.format("%%%%(diary-cyclic 3 %d %d %d) ", m, dd, y), "3" },
+    }
+    for _, c in ipairs(cases) do
+      vim.api.nvim_set_current_win(view.state.win)
+      vim.api.nvim_win_set_cursor(0, { today_line(), 0 })
+      answering({ c[1], c[3] }, function()
+        view.run_action("diary_entry")
+      end)
+      expect[#expect + 1] = c[2]
+      -- the cursor waits at the end of the new line, in the diary file
+      eq(diary, vim.api.nvim_buf_get_name(0))
+    end
+    eq(expect, vim.api.nvim_buf_get_lines(utils.find_buffer(diary), 0, -1, false))
+  end)
+
+  it("follows calendar_date_style; a count makes a non-marking entry", function()
+    open_week({ agenda = { diary_file = diary, calendar_date_style = "iso" } })
+    answering({ "y" }, function()
+      view.run_action("diary_entry")
+    end)
+    vim.api.nvim_set_current_win(view.state.win)
+    vim.api.nvim_win_set_cursor(0, { today_line(), 0 })
+    answering({ "d" }, function()
+      vim.api.nvim_feedkeys("1i", "mx", false)
+    end)
+    eq(
+      { string.format("*-%02d-%02d ", m, dd), string.format("&%d-%02d-%02d ", y, m, dd) },
+      vim.api.nvim_buf_get_lines(utils.find_buffer(diary), 0, -1, false)
+    )
+    local de = require("org.agenda.diary_entry")
+    config.opts.agenda.calendar_date_style = "european"
+    eq(string.format("%d *  ", dd), de.diary_line("monthly", today:days()))
+    eq(string.format("%d %s ", dd, mon), de.diary_line("yearly", today:days()))
+    eq(
+      string.format("%%%%(diary-block %d %d %d %d %d %d) ", dd, m, y, dd, m, y),
+      de.diary_line("block", today:days(), today:days())
+    )
+  end)
+
+  -- Emacs 9.8.10, org-agenda-diary-file an Org file (probe on 2026-09-30):
+  --   * Anniversaries
+  --   %%(org-anniversary 1990  9 30) Birthday %d
+  --
+  --   * 2026
+  --   ** 2026-09 September
+  --   *** 2026-09-30 Wednesday
+  --   **** New day entry            <- date-tree: the first child
+  --   <2026-09-30 Wed>
+  --   **** Existing
+  --        <2026-09-30 Wed>
+  --   **** Last entry               <- date-tree-last
+  --   <2026-09-30 Wed>
+  --   **** Meeting                  <- insert-diary-extract-time
+  --   <2026-09-30 Wed 10:30-11:00>
+  --   * Top entry                   <- top-level
+  --   <2026-09-30 Wed>
+  it("adds entries to an Org diary file", function()
+    local file = dir .. "/diary.org"
+    local node = string.format("%04d-%02d-%02d %s", y, m, dd, dayname)
+    local month = string.format("%04d-%02d %s", y, m, date.MONTH_NAMES_LONG[m])
+    utils.writefile(file, {
+      "#+TITLE: Diary",
+      "* " .. y,
+      "** " .. month,
+      "*** " .. node,
+      "**** Existing",
+      "     " .. ts(0),
+    })
+    open_week({ agenda = { diary_entry_file = file } })
+    local function add(answers, opts)
+      for k, v in pairs(opts or {}) do
+        config.opts.agenda[k] = v
+      end
+      vim.api.nvim_set_current_win(view.state.win)
+      vim.api.nvim_win_set_cursor(0, { today_line(), 0 })
+      answering(answers, function()
+        view.run_action("diary_entry")
+      end)
+    end
+    add({ "d", "New day entry" })
+    add({ "d", "Last entry" }, { insert_diary_strategy = "date-tree-last" })
+    add({ "d", "10:30-11:00 Meeting" }, { insert_diary_extract_time = true })
+    add({ "d", "Top entry" }, { insert_diary_strategy = "top-level", insert_diary_extract_time = false })
+    add({ "a", "1990", "Birthday %d" })
+    local stamp = ts(0)
+    eq({
+      "#+TITLE: Diary",
+      "* Anniversaries",
+      string.format("%%%%(org-anniversary 1990 %2d %2d) Birthday %%d", m, dd),
+      "",
+      "* " .. y,
+      "** " .. month,
+      "*** " .. node,
+      "**** New day entry",
+      stamp,
+      "**** Existing",
+      "     " .. stamp,
+      "**** Last entry",
+      stamp,
+      "**** Meeting",
+      stamp:sub(1, -2) .. " 10:30-11:00>",
+      "* Top entry",
+      stamp,
+    }, vim.api.nvim_buf_get_lines(utils.find_buffer(file), 0, -1, false))
+  end)
+
+  -- Emacs 9.8.10: a block from the mark (Monday) to point (Wednesday) goes
+  -- under the first day: "**** Trip" / "<2026-09-28 Mon>--<2026-09-30 Wed>"
+  it("a block entry spans the Visual selection", function()
+    local file = dir .. "/diary.org"
+    utils.writefile(file, { "" })
+    open_week({ agenda = { diary_entry_file = file } })
+    local l1 = today_line()
+    local l2
+    for l, d in pairs(view.state.day_lines) do
+      if d == today:days() + 2 then
+        l2 = l
+      end
+    end
+    vim.api.nvim_win_set_cursor(0, { l1, 0 })
+    answering({ "b", "Trip" }, function()
+      vim.api.nvim_feedkeys("V" .. (l2 - l1) .. "ji", "mx", false)
+    end)
+    local lines = vim.api.nvim_buf_get_lines(utils.find_buffer(file), 0, -1, false)
+    eq({ "**** Trip", ts(0) .. "--" .. ts(2) }, vim.list_slice(lines, #lines - 1, #lines))
+  end)
+end)
+
+describe("Visual-mode commands on several entries", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  it("<C-c><C-t> in Visual mode changes every selected entry", function()
+    open({ "* TODO A", "  SCHEDULED: " .. ts(0), "* TODO B", "  SCHEDULED: " .. ts(0) })
+    local lines = vim.tbl_keys(view.state.line_items)
+    table.sort(lines)
+    vim.api.nvim_win_set_cursor(0, { lines[1], 0 })
+    vim.api.nvim_feedkeys(vim.keycode("V" .. (lines[#lines] - lines[1]) .. "j<C-c><C-t>"), "mx", false)
+    local src = vim.api.nvim_buf_get_lines(utils.find_buffer(path), 0, -1, false)
+    eq("* DONE A", src[1])
+    eq("* DONE B", src[3])
+  end)
+end)

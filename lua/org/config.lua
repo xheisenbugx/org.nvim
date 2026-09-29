@@ -572,6 +572,12 @@ M.defaults = {
     --- Keep marks after a bulk action (org-agenda-persistent-marks).
     persistent_marks = false,
     bulk_mark_char = ">", -- org-agenda-bulk-mark-char
+    --- Commands (schedule, deadline, >, t, archive, <C-k>, set property /
+    --- effort) act on every entry of a Visual selection: true, false,
+    --- "start-level" (entries of the first one's level) or an Emacs regexp
+    --- the agenda lines must match
+    --- (org-agenda-loop-over-headlines-in-active-region).
+    loop_over_headlines_in_active_region = true,
     --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
     --- (org-agenda-bulk-custom-functions).
     bulk_custom_functions = {},
@@ -708,6 +714,16 @@ M.defaults = {
     --- the diary file of the Emacs user directory (~/.emacs.d/diary or
     --- ~/.config/emacs/diary).
     diary_file = nil,
+    --- Where `i` in the agenda adds entries (org-agenda-diary-file):
+    --- "diary-file" (the Emacs diary file, `diary_file`) or an Org file.
+    diary_entry_file = "diary-file",
+    --- Where entries go in an Org `diary_entry_file`: "date-tree" (first
+    --- child of the date), "date-tree-last" or "top-level"
+    --- (org-agenda-insert-diary-strategy).
+    insert_diary_strategy = "date-tree",
+    --- Move a time at the start of a day entry into its timestamp
+    --- (org-agenda-insert-diary-extract-time).
+    insert_diary_extract_time = false,
     --- Show the day's holidays as diary entries (diary-show-holidays-flag).
     diary_show_holidays = true,
     --- Read `#include "FILE"` lines of the diary file (Emacs:
@@ -2215,6 +2231,7 @@ M.defaults = {
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
       toggle_diary = "D",
+      diary_entry = "i", -- org-agenda-diary-entry (also in Visual mode)
       toggle_habits_display = "vh", -- Emacs: K (capture here)
       toggle_habits = false, -- Emacs: unbound
       dim_blocked = "#",

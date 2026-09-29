@@ -1124,6 +1124,8 @@
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle including the Emacs diary file (org-agenda-toggle-diary). Default: `D`
 ---@field toggle_diary? org.MappingLhs
+--- Add a diary entry for the date at point (org-agenda-diary-entry); also in Visual mode. Default: `i`
+---@field diary_entry? org.MappingLhs
 --- Toggle habits; with a count, whether today shows all habits (org-habit-toggle-display-in-agenda, Emacs `K`). Default: `vh`
 ---@field toggle_habits_display? org.MappingLhs
 --- Toggle habits (org-habit-toggle-habits). Default: unmapped

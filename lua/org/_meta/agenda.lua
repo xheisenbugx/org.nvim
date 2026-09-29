@@ -264,6 +264,10 @@
 ---@field persistent_marks? boolean
 ---Glyph of marked lines (org-agenda-bulk-mark-char). (default: `">"`)
 ---@field bulk_mark_char? string
+---Visual-mode commands act on every selected entry: true, false,
+---"start-level" or an Emacs regexp the lines must match
+---(org-agenda-loop-over-headlines-in-active-region). (default: `true`)
+---@field loop_over_headlines_in_active_region? boolean|string
 ---Extra bulk action keys (org-agenda-bulk-custom-functions). (default: `{}`)
 ---@field bulk_custom_functions? table<string, org.Config.Agenda.BulkFunction|fun(target: org.Target, item: org.AgendaItem)>
 ---No block headers and separators (org-agenda-compact-blocks). (default: `false`)
@@ -390,6 +394,15 @@
 ---@field diary_file? string
 ---Show the day's holidays as diary entries (diary-show-holidays-flag). (default: `true`)
 ---@field diary_show_holidays? boolean
+---Where `i` adds entries: "diary-file" (the Emacs diary file) or an Org
+---file (org-agenda-diary-file). (default: `"diary-file"`)
+---@field diary_entry_file? string
+---Where entries go in an Org `diary_entry_file`
+---(org-agenda-insert-diary-strategy). (default: `"date-tree"`)
+---@field insert_diary_strategy? "date-tree"|"date-tree-last"|"top-level"
+---Move a leading time of a day entry into its timestamp
+---(org-agenda-insert-diary-extract-time). (default: `false`)
+---@field insert_diary_extract_time? boolean
 ---Read `#include "FILE"` lines of the diary file
 ---(diary-include-other-diary-files). (default: `false`)
 ---@field diary_include_files? boolean
