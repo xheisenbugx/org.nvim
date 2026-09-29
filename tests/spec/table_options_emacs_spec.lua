@@ -388,3 +388,48 @@ describe("table: plot_preset_plot_types", function()
     )
   end)
 end)
+
+describe("table: follow-field mode hook", function()
+  it("fires OrgTableFollowFieldMode", function()
+    local got = {}
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgTableFollowFieldMode",
+      callback = function(ev)
+        got[#got + 1] = ev.data.enabled
+      end,
+    })
+    org_buffer({ "| a | b |" }, { 1, 2 })
+    local follow = require("org.table.follow")
+    follow.start()
+    follow.stop(0)
+    vim.api.nvim_del_autocmd(id)
+    eq({ true, false }, got)
+  end)
+end)
+
+describe("table: orgtbl_optimized", function()
+  local function typing_autocmds(buf)
+    local ok_, cmds = pcall(vim.api.nvim_get_autocmds, { group = "org.table.typing." .. buf })
+    return ok_ and #cmds or 0
+  end
+  it("makes orgtbl-mode handle typing in tables", function()
+    vim.cmd("enew!")
+    local buf = vim.api.nvim_get_current_buf()
+    require("org.table.orgtbl").enable(buf)
+    ok(typing_autocmds(buf) > 0)
+    require("org.table.orgtbl").disable(buf)
+    eq(0, typing_autocmds(buf))
+  end)
+end)
+
+describe("table: orgtbl_optimized = false", function()
+  with_config({ orgtbl_optimized = false })
+  it("leaves typing alone in orgtbl-mode", function()
+    vim.cmd("enew!")
+    local buf = vim.api.nvim_get_current_buf()
+    require("org.table.orgtbl").enable(buf)
+    local ok_, cmds = pcall(vim.api.nvim_get_autocmds, { group = "org.table.typing." .. buf })
+    eq(0, ok_ and #cmds or 0)
+    require("org.table.orgtbl").disable(buf)
+  end)
+end)
