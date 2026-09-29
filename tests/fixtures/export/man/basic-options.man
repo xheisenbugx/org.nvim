@@ -1,0 +1,76 @@
+.TH "mytool" "8" "2026-09-28" "mytool 1.0" "User Commands" 
+.PP
+Text before the first headline..br
+.SH "NAME"
+.PP
+mytool - do things with a - dash and a back/.br
+.SH "SYNOPSIS"
+.PP
+\fBmytool\fP [/options/] \fIfile\-name\fP \fCcode\-x\fP.br
+.SH "DESCRIPTION"
+.PP
+Paragraph one with \fIstrike\fP and \fIunderline\fP and H\d\s-22O\s+2\u and E=mc\u\s-22\s+2\d α..br
+Line break here
+.br
+next line..br
+.SS "Options"
+.TP
+\fB-v\fP
+verbose.br
+.TP
+\fB\o'\(sq\(mu'checked\fP
+done.br
+.IP \(em 4
+plain dash.br
+.IP \(em 4
+another.br
+.IP \(dg 4
+plus item.br
+.SH "star item"
+.IP 1.  4
+first.br
+.IP 2.  4
+second.br
+.TP
+ \(sq 
+todo item.br
+.TP
+ \o'\(sq\(mi'
+partial.br
+.TP
+ \o'\(sq\(mu'
+done.br
+.SS "Deep"
+.PP
+Third level..br
+.RS
+.TP
+.ft I
+Deeper
+.ft
+.PP
+Fourth level text..br
+.RE
+.TP
+.ft I
+Another deeper
+.ft
+.PP
+Text..br
+.RS
+.TP
+.ft I
+Deepest
+.ft
+.PP
+Five..br
+.RE
+.RE
+.SH "SEE ALSO"
+.PP
+https://orgmode.org \fBat\fP \fIOrg\fP and \fIhttps://example.com\fP and \fIfoo.org\fP and.br
+\fIorgf80abf7\fP and \fIfuzzy:target\fP and mailto:a@b.c \fBat\fP \fImail\fP..br
+Footnote here..br
+ timestamp..br
+[1/2] cookie..br
+“Quoted” text -- and --- dashes....br

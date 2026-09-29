@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="215 200 850 850" width="512" height="512" role="img" aria-labelledby="title">
+  <title id="title">org.nvim</title>
+  <defs>
+    <linearGradient id="frame" gradientUnits="userSpaceOnUse" x1="265" y1="280" x2="560" y2="960">
+      <stop offset="0" stop-color="#9A66F7"/>
+      <stop offset="0.45" stop-color="#5B5CF4"/>
+      <stop offset="0.75" stop-color="#3F63F2"/>
+      <stop offset="1" stop-color="#3634B8"/>
+    </linearGradient>
+    <linearGradient id="bar" gradientUnits="userSpaceOnUse" x1="0" y1="290" x2="0" y2="640">
+      <stop offset="0" stop-color="#7AA6FF"/>
+      <stop offset="0.5" stop-color="#4C72F3"/>
+      <stop offset="1" stop-color="#3F3FD2"/>
+    </linearGradient>
+    <linearGradient id="stemL" gradientUnits="userSpaceOnUse" x1="0" y1="700" x2="0" y2="1035">
+      <stop offset="0" stop-color="#5BE27C"/>
+      <stop offset="1" stop-color="#1FC58E"/>
+    </linearGradient>
+    <linearGradient id="stemR" gradientUnits="userSpaceOnUse" x1="0" y1="655" x2="0" y2="960">
+      <stop offset="0" stop-color="#A6F36A"/>
+      <stop offset="0.55" stop-color="#2FCB7C"/>
+      <stop offset="1" stop-color="#0E8F80"/>
+    </linearGradient>
+    <linearGradient id="diag" gradientUnits="userSpaceOnUse" x1="760" y1="680" x2="1000" y2="980">
+      <stop offset="0" stop-color="#A9F46E"/>
+      <stop offset="0.5" stop-color="#3FD27A"/>
+      <stop offset="1" stop-color="#0EA5A0"/>
+    </linearGradient>
+    <linearGradient id="green" gradientUnits="userSpaceOnUse" x1="360" y1="400" x2="830" y2="520">
+      <stop offset="0" stop-color="#74F28C"/>
+      <stop offset="1" stop-color="#22C764"/>
+    </linearGradient>
+    <linearGradient id="pink" gradientUnits="userSpaceOnUse" x1="360" y1="555" x2="470" y2="670">
+      <stop offset="0" stop-color="#FF7ED6"/>
+      <stop offset="1" stop-color="#D846EC"/>
+    </linearGradient>
+    <linearGradient id="violet" gradientUnits="userSpaceOnUse" x1="535" y1="0" x2="830" y2="0">
+      <stop offset="0" stop-color="#E07BF8"/>
+      <stop offset="1" stop-color="#8E5CF7"/>
+    </linearGradient>
+    <linearGradient id="slate" gradientUnits="userSpaceOnUse" x1="540" y1="0" x2="690" y2="0">
+      <stop offset="0" stop-color="#8196E6"/>
+      <stop offset="1" stop-color="#6A6FBE"/>
+    </linearGradient>
+    <linearGradient id="check" gradientUnits="userSpaceOnUse" x1="358" y1="700" x2="477" y2="822">
+      <stop offset="0" stop-color="#A9B8FF"/>
+      <stop offset="1" stop-color="#8190EC"/>
+    </linearGradient>
+    <path id="star" d="M0 -46 V46 M-39.8 -23 L39.8 23 M-39.8 23 L39.8 -23" fill="none" stroke-width="26" stroke-linecap="round"/>
+  </defs>
+
+  <!-- document bracket -->
+  <path d="M800 243.5 L380 290 Q265 302 265 420 L265 800 Q265 935 380 928 L590 907" fill="none" stroke="url(#frame)" stroke-width="55" stroke-linejoin="round"/>
+  <path d="M789.7 216.2 L828.7 213.6 L790.2 220.1 Z M790.0 218.7 L891.5 208.7 L790.5 222.6 Z M790.3 221.1 L846.2 216.6 L790.8 225.1 Z M790.6 223.6 L816.6 222.6 L791.1 227.6 Z M790.9 226.1 L840.8 222.3 L791.4 230.1 Z M791.2 228.6 L897.7 218.1 L791.6 232.6 Z M791.5 231.1 L816.5 230.1 L791.9 235.0 Z M791.8 233.6 L839.7 229.9 L792.2 237.5 Z M792.1 236.0 L816.1 235.2 L792.5 240.0 Z M792.3 238.5 L899.8 227.9 L792.8 242.5 Z M792.6 241.0 L818.7 240.0 L793.1 245.0 Z M792.9 243.5 L820.0 242.3 L793.4 247.5 Z M793.2 246.0 L837.2 242.8 L793.7 249.9 Z M793.5 248.5 L910.9 236.7 L794.0 252.4 Z M793.8 250.9 L821.8 249.7 L794.3 254.9 Z M794.1 253.4 L828.1 251.4 L794.6 257.4 Z M794.4 255.9 L849.2 251.5 L794.9 259.9 Z M794.7 258.4 L915.1 246.3 L795.1 262.4 Z M795.0 260.9 L846.8 256.8 L795.4 264.8 Z M795.3 263.4 L838.2 260.3 L795.7 267.3 Z M795.6 265.8 L868.3 259.3 L796.0 269.8 Z M795.8 268.3 L894.4 258.8 L796.3 272.3 Z" fill="url(#frame)"/>
+  <path d="M580.2 879.5 L634.1 876.3 L580.6 883.9 Z M580.5 882.3 L664.3 876.1 L580.9 886.6 Z M580.7 885.0 L604.8 884.8 L581.2 889.4 Z M581.0 887.7 L604.1 887.6 L581.5 892.1 Z M581.3 890.5 L612.4 889.6 L581.7 894.8 Z M581.6 893.2 L675.3 886.0 L582.0 897.6 Z M581.8 895.9 L607.9 895.5 L582.3 900.3 Z M582.1 898.7 L624.1 896.7 L582.5 903.0 Z M582.4 901.4 L627.4 899.1 L582.8 905.8 Z M582.7 904.1 L668.4 897.8 L583.1 908.5 Z M582.9 906.9 L623.9 905.0 L583.4 911.3 Z M583.2 909.6 L604.3 909.7 L583.6 914.0 Z M583.5 912.4 L603.6 912.5 L583.9 916.7 Z M583.7 915.1 L666.6 909.0 L584.2 919.5 Z M584.0 917.8 L630.0 915.4 L584.5 922.2 Z M584.3 920.6 L620.3 919.2 L584.7 924.9 Z M584.6 923.3 L615.6 922.4 L585.0 927.7 Z M584.8 926.0 L674.6 919.3 L585.3 930.4 Z M585.1 928.8 L622.2 927.3 L585.6 933.1 Z M585.4 931.5 L615.5 930.7 L585.8 935.9 Z" fill="url(#frame)"/>
+
+  <!-- right edge of the page -->
+  <path d="M919 587 L919 340 C919 312 925 292 934 290 C952 292 972 318 974 352 L973 587 Z" fill="url(#bar)"/>
+  <path d="M973.9 578.0 L971.5 609.0 L969.1 578.0 Z M970.9 578.0 L968.5 635.0 L966.1 578.0 Z M967.9 578.0 L965.5 595.0 L963.1 578.0 Z M964.9 578.0 L962.5 603.0 L960.1 578.0 Z M961.9 578.0 L959.5 632.0 L957.1 578.0 Z M958.9 578.0 L956.5 611.0 L954.1 578.0 Z M955.9 578.0 L953.5 608.0 L951.1 578.0 Z M952.9 578.0 L950.5 630.0 L948.1 578.0 Z M949.9 578.0 L947.5 614.0 L945.1 578.0 Z M946.9 578.0 L944.5 591.0 L942.1 578.0 Z M943.9 578.0 L941.5 631.0 L939.1 578.0 Z M940.9 578.0 L938.5 608.0 L936.1 578.0 Z M937.9 578.0 L935.5 592.0 L933.1 578.0 Z M934.9 578.0 L932.5 632.0 L930.1 578.0 Z M931.9 578.0 L929.5 589.0 L927.1 578.0 Z M928.9 578.0 L926.5 606.0 L924.1 578.0 Z M925.9 578.0 L923.5 635.0 L921.1 578.0 Z M922.9 578.0 L920.5 603.0 L918.1 578.0 Z" fill="url(#bar)"/>
+
+  <!-- headlines -->
+  <use href="#star" x="413" y="458" stroke="url(#green)"/>
+  <line x1="531" y1="440" x2="802" y2="411" stroke="url(#green)" stroke-width="58" stroke-linecap="round"/>
+
+  <use href="#star" x="413" y="612" stroke="url(#pink)"/>
+  <line x1="536" y1="594" x2="804" y2="566" stroke="url(#violet)" stroke-width="58" stroke-linecap="round"/>
+
+  <rect x="366" y="709" width="102" height="104" rx="20" fill="none" stroke="url(#check)" stroke-width="15"/>
+  <path d="M391 757 L410 777 L446 739" fill="none" stroke="url(#check)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="541" y1="738" x2="664" y2="724" stroke="url(#slate)" stroke-width="54" stroke-linecap="round"/>
+
+  <!-- N -->
+  <path d="M733 722 L798 666 L820 690 L820 975 L733 975 Z" fill="url(#stemL)"/>
+  <path d="M820.5 970.0 L817.8 1004.0 L815.2 970.0 Z M817.2 970.0 L814.5 1024.0 L811.9 970.0 Z M813.9 970.0 L811.2 999.0 L808.6 970.0 Z M810.6 970.0 L807.9 996.0 L805.3 970.0 Z M807.3 970.0 L804.6 1027.0 L802.0 970.0 Z M804.0 970.0 L801.3 992.0 L798.7 970.0 Z M800.6 970.0 L798.0 1003.0 L795.4 970.0 Z M797.3 970.0 L794.7 1031.0 L792.0 970.0 Z M794.0 970.0 L791.4 992.0 L788.7 970.0 Z M790.7 970.0 L788.1 998.0 L785.4 970.0 Z M787.4 970.0 L784.8 1021.0 L782.1 970.0 Z M784.1 970.0 L781.5 999.0 L778.8 970.0 Z M780.8 970.0 L778.2 997.0 L775.5 970.0 Z M777.5 970.0 L774.8 1032.0 L772.2 970.0 Z M774.2 970.0 L771.5 1003.0 L768.9 970.0 Z M770.9 970.0 L768.2 987.0 L765.6 970.0 Z M767.6 970.0 L764.9 1025.0 L762.3 970.0 Z M764.3 970.0 L761.6 998.0 L759.0 970.0 Z M761.0 970.0 L758.3 979.0 L755.7 970.0 Z M757.6 970.0 L755.0 1026.0 L752.4 970.0 Z M754.3 970.0 L751.7 983.0 L749.0 970.0 Z M751.0 970.0 L748.4 982.0 L745.7 970.0 Z M747.7 970.0 L745.1 1021.0 L742.4 970.0 Z M744.4 970.0 L741.8 1001.0 L739.1 970.0 Z M741.1 970.0 L738.5 982.0 L735.8 970.0 Z M737.8 970.0 L735.2 1023.0 L732.5 970.0 Z" fill="url(#stemL)"/>
+  <path d="M945 697 L1002 652 L1035 690 L1035 940 L962 1004 L945 988 Z" fill="url(#stemR)"/>
+  <path d="M736 718 L798 664 L1034 938 L962 1004 Z" fill="url(#diag)"/>
+</svg>

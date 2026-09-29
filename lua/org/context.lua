@@ -55,6 +55,10 @@ function M.context_action()
     return true
   end
   local lnum, col, line = cur()
+  -- org-babel-hash-at-point: the hash of a #+RESULTS[hash] line
+  if line:find("^[ \t]*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss]%[") and require("org.babel").hash_at(line, col) then
+    return require("org.babel").hash_at_point()
+  end
   if require("org.properties").at_property_line(0, lnum) then
     return require("org.properties").property_action()
   end
@@ -128,7 +132,16 @@ function M.context_action()
 end
 
 --- Open link / follow footnote / show agenda for timestamp.
-function M.open_at_point()
+local function open_at_point()
+  -- with org-mouse: headline stars, checkboxes and bullets
+  if require("org.org_mouse").open_at_point(false) then
+    return true
+  end
+  -- a citation (org-cite-follow)
+  local cite = require("org.cite")
+  if cite.at_point() then
+    return cite.follow()
+  end
   local links = require("org.links")
   if links.link_at_cursor() then
     return links.open_at_point()
@@ -143,6 +156,17 @@ function M.open_at_point()
     return require("org.agenda").open_day(ts.date)
   end
   return false
+end
+
+--- Open the link, footnote or timestamp at the cursor (org-open-at-point),
+--- then signal OrgFollowLink (org-follow-link-hook).
+function M.open_at_point()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local r = open_at_point()
+  if r ~= false then
+    require("org.links").run_follow_hook(bufnr)
+  end
+  return r
 end
 
 --- C-c ' : edit special
@@ -216,7 +240,13 @@ function M.meta_return()
   local lnum, _, line = cur()
   local arg = prefix_arg()
   if in_table(line) and not arg then
-    require("org.table").insert_row(false)
+    -- org-table-wrap-region: split the field at the cursor (Insert mode)
+    -- or go to the field below
+    local split = false
+    if insert_mode then
+      split = nil -- meta_return_split_line decides
+    end
+    require("org.table").wrap_region({ split = split })
     return
   end
   local item = not arg and list_item(lnum) and not is_headline(line)
@@ -352,17 +382,31 @@ end
 
 --- M-left / M-right with a Visual selection: promote / demote its
 --- headlines, or outdent / indent its items (org-metaleft/right).
+--- Whether `command` keeps the Visual selection (org-edit-keep-region).
+function M.keep_region(command)
+  local v = require("org.config").opts.edit_keep_region
+  if type(v) == "table" then
+    return v[command] == true
+  end
+  return v == true
+end
+
 local function meta_left_right_region(delta)
   local first, s, e = region()
   local line = vim.api.nvim_buf_get_lines(0, first - 1, first, false)[1] or ""
+  local result
   if is_headline(line) then
-    return require("org.structure").change_level_region(delta)
-  end
-  if item_line(first) then
+    result = require("org.structure").change_level_region(delta)
+  elseif item_line(first) then
     vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-    return require("org.lists").indent_item(delta, false, { s, e })
+    result = require("org.lists").indent_item(delta, false, { s, e })
+  else
+    return false
   end
-  return false
+  if result ~= false and M.keep_region(delta < 0 and "meta_left" or "meta_right") then
+    vim.cmd("normal! gv")
+  end
+  return result
 end
 
 function M.meta_left()
@@ -486,15 +530,21 @@ end
 -- Shift arrows / increment
 ---------------------------------------------------------------------------
 
+--- S-Up / S-Down on a timestamp: later / earlier, the other way round with
+--- `edit_timestamp_down_means_later` (org-edit-timestamp-down-means-later).
+local function timestamp_direction()
+  return require("org.config").opts.edit_timestamp_down_means_later and -1 or 1
+end
+
 function M.shift_up()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(count())
+    return require("org.timestamps").increment(timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(count()) then
     return true
   end
   local lnum, _, line = cur()
-  if is_headline(line) then
+  if is_headline(line) and require("org.priority").enabled(true) then
     return require("org.priority").shift(nil, 1)
   end
   if in_table(line) then
@@ -508,13 +558,13 @@ end
 
 function M.shift_down()
   if timestamp_under_cursor() then
-    return require("org.timestamps").increment(-count())
+    return require("org.timestamps").increment(-timestamp_direction() * count())
   end
   if require("org.clock").clocktable_shift(-count()) then
     return true
   end
   local lnum, _, line = cur()
-  if is_headline(line) then
+  if is_headline(line) and require("org.priority").enabled(true) then
     return require("org.priority").shift(nil, -1)
   end
   if in_table(line) then

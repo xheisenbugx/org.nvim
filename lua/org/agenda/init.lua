@@ -44,6 +44,7 @@ local OPTION_ALIASES = {
   org_agenda_files = "files",
   org_stuck_projects = "stuck_projects",
   org_deadline_warning_days = "deadline_warning_days",
+  org_scheduled_delay_days = "scheduled_delay_days",
   org_agenda_tag_filter_preset = "tag_filter_preset",
   org_agenda_category_filter_preset = "category_filter_preset",
   org_agenda_regexp_filter_preset = "regexp_filter_preset",
@@ -286,9 +287,37 @@ function M.set_restriction_lock(target)
     hl = nil
   end
   M.lock = { bufnr = bufnr, filename = file.filename, line = hl and hl.line, raw = hl and hl.raw }
+  M.highlight_lock(bufnr, hl)
   local name = vim.fn.fnamemodify(file.filename or "buffer", ":t")
   utils.notify(hl and ('Agenda restricted to subtree "' .. hl:plain_title() .. '"') or ("Agenda restricted to " .. name))
   return true
+end
+
+local ns_lock = vim.api.nvim_create_namespace("org.agenda.lock")
+
+--- Highlight the locked subtree, or only its headline without
+--- `agenda.restriction_lock_highlight_subtree`, with
+--- OrgAgendaRestrictionLock (org-agenda-restriction-lock-overlay); nil
+--- `hl` (a file lock) only clears the highlight.
+function M.highlight_lock(bufnr, hl)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) then
+      vim.api.nvim_buf_clear_namespace(b, ns_lock, 0, -1)
+    end
+  end
+  if not (hl and bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
+    return
+  end
+  vim.api.nvim_set_hl(0, "OrgAgendaRestrictionLock", { link = "Visual", default = true })
+  local last = config.opts.agenda.restriction_lock_highlight_subtree ~= false and hl.end_line or hl.line
+  local last_text = vim.api.nvim_buf_get_lines(bufnr, last - 1, last, false)[1] or ""
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_lock, hl.line - 1, 0, {
+    end_row = last - 1,
+    end_col = #last_text,
+    hl_group = "OrgAgendaRestrictionLock",
+    hl_eol = true,
+    priority = 50,
+  })
 end
 
 --- Remove the restriction lock (C-c C-x >).
@@ -297,6 +326,7 @@ function M.remove_restriction_lock()
     utils.notify("No agenda restriction lock")
     return
   end
+  M.highlight_lock(nil, nil)
   M.lock = nil
   utils.notify("Agenda restriction lock removed")
 end
@@ -338,7 +368,10 @@ function M.occur(pattern)
     return 0
   end
   local qf = {}
-  for _, f in ipairs(require("org.files").agenda_files()) do
+  -- with agenda.text_search_extra_files (org-agenda-multi-occur-extra-files)
+  local list = require("org.files").agenda_files()
+  list = view_mod().add_extra_files(list, config.opts.agenda.text_search_extra_files)
+  for _, f in ipairs(list) do
     for i, line in ipairs(f.lines) do
       local s = re:match_str(line)
       if s then
@@ -353,6 +386,43 @@ function M.occur(pattern)
     vim.cmd("copen")
   end
   return #qf
+end
+
+--- Ask about agenda files that do not exist (org-check-agenda-file):
+--- [R]emove from the list (for this session) or [A]bort. With
+--- `agenda.skip_unavailable_files` they are skipped silently. Globs and
+--- directories are never missing. Returns false on abort.
+function M.check_agenda_files()
+  local cfg = config.opts
+  if cfg.agenda.skip_unavailable_files then
+    return true
+  end
+  local list = cfg.agenda_files
+  if type(list) ~= "table" then
+    return true
+  end
+  local files = require("org.files")
+  for i = #list, 1, -1 do
+    local p = list[i]
+    if type(p) == "string" and not p:find("[%*%?%[]") then
+      local path = vim.fs.normalize(utils.expand(p))
+      if not vim.uv.fs_stat(path) then
+        local ch = utils.getchar(
+          string.format("Non-existent agenda file %s.  [R]emove from list or [A]bort?", vim.fn.fnamemodify(path, ":~"))
+        )
+        if ch and ch:lower() == "r" then
+          -- org-remove-file: the new list is saved (org-store-new-agenda-file-list)
+          table.remove(list, i)
+          files.store_agenda_file_list(list)
+          utils.notify("Removed from Org Agenda list: " .. vim.fn.fnamemodify(path, ":~"))
+        else
+          utils.error("Abort")
+          return false
+        end
+      end
+    end
+  end
+  return true
 end
 
 --- Open a view: `{ blocks = {...} }` or a single block `{ type = ... }`.
@@ -389,6 +459,9 @@ function M.open(spec, opts)
       return M.sparse_command(nb)
     end
     view.blocks[#view.blocks + 1] = nb
+  end
+  if not opts.restrict and not M.check_agenda_files() then
+    return
   end
   view_mod().open(view, opts)
 end
@@ -455,8 +528,96 @@ local function ask_match(prompt)
   end)
 end
 
+---------------------------------------------------------------------------
+-- Custom command contexts (org-agenda-custom-commands-contexts)
+---------------------------------------------------------------------------
+
+local function rx_match(str, re)
+  return str ~= nil and str ~= "" and vim.fn.match(str, re) >= 0
+end
+
+--- Does a context rule hold in the current buffer
+--- (org-contextualize-validate-key)?
+local function rule_ok(rule)
+  if type(rule) == "function" then
+    return rule() and true or false
+  elseif type(rule) ~= "table" then
+    return false
+  end
+  local bufnr = vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local file = (name ~= "" and vim.bo[bufnr].buftype == "") and name or nil
+  local mode = vim.bo[bufnr].filetype
+  local bname = name ~= "" and vim.fn.fnamemodify(name, ":t") or ""
+  return (rule.in_file and file and rx_match(file, rule.in_file))
+    or (rule.in_mode and rx_match(mode, rule.in_mode))
+    or (rule.in_buffer and rx_match(bname, rule.in_buffer))
+    or (rule.not_in_file and file and not rx_match(file, rule.not_in_file))
+    or (rule.not_in_mode and not rx_match(mode, rule.not_in_mode))
+    or (rule.not_in_buffer and not rx_match(bname, rule.not_in_buffer))
+    or false
+end
+
+--- The custom commands offered in the current buffer: `custom_commands`
+--- filtered and remapped by `agenda.custom_commands_contexts`
+--- (org-contextualize-keys). A rule list `{ key, rules }` keeps `key`
+--- only where a rule holds; `{ key, other, rules }` runs the command of
+--- `other` under `key` there (and hides `other`).
+---@return table<string, table|string>
+function M.custom_commands()
+  local cmds = config.opts.agenda.custom_commands or {}
+  local contexts = {}
+  for _, c in ipairs(config.opts.agenda.custom_commands_contexts or {}) do
+    local key, repl, rules = c[1], c[2], c[3]
+    if type(repl) ~= "string" or repl == "" then
+      rules, repl = type(repl) == "string" and c[3] or c[2], key
+    end
+    if type(rules) == "function" or (type(rules) == "table" and not vim.islist(rules)) then
+      rules = { rules }
+    end
+    contexts[#contexts + 1] = { key = key, repl = repl, rules = rules or {} }
+  end
+  if #contexts == 0 then
+    return cmds
+  end
+  local out, hidden = {}, {}
+  for key, cmd in pairs(cmds) do
+    local mine = vim.tbl_filter(function(c)
+      return c.key == key
+    end, contexts)
+    if #mine == 0 then
+      out[key] = cmd
+    else
+      local valid, repl = false, nil
+      for _, c in ipairs(mine) do
+        for _, r in ipairs(c.rules) do
+          if rule_ok(r) then
+            valid = true
+            if c.repl ~= c.key then
+              repl = c.repl
+            end
+          end
+        end
+      end
+      if valid and not repl then
+        out[key] = cmd
+      elseif valid then
+        if cmds[repl] == nil then
+          error(string.format("Undefined key `%s' as contextual replacement for `%s'", repl, key), 0)
+        end
+        out[key] = cmds[repl]
+        hidden[repl] = true
+      end
+    end
+  end
+  for k in pairs(hidden) do
+    out[k] = nil
+  end
+  return out
+end
+
 local function open_custom(key, restrict)
-  local cmd = (config.opts.agenda.custom_commands or {})[key]
+  local cmd = M.custom_commands()[key]
   if type(cmd) ~= "table" or not (cmd.types or cmd.blocks or cmd.type) then
     utils.error("No agenda custom command for key: " .. key)
     return
@@ -479,6 +640,8 @@ M.open_custom = open_custom
 --- Toggle sticky agenda buffers (the `*` dispatcher key).
 function M.toggle_sticky()
   local acfg = config.opts.agenda
+  -- org-toggle-sticky-agenda kills the agenda buffers first
+  view_mod().kill_all_agenda_buffers()
   acfg.sticky = not acfg.sticky
   utils.notify("Sticky agenda buffers are now " .. (acfg.sticky and "on" or "off"))
   return acfg.sticky
@@ -537,6 +700,38 @@ function M.dispatch(key, restrict)
   end
 end
 
+local DEFAULT_DESCRIPTIONS = {
+  agenda = "Agenda for current week or day",
+  todo = "List of all TODO entries",
+  search = "Word search",
+  stuck = "List of stuck projects",
+  tags = "Tags query",
+  tags_todo = "Tags (TODO)",
+  tags_tree = "Tags tree",
+  todo_tree = "TODO kwd tree",
+  occur_tree = "Occur tree",
+}
+
+--- The dispatcher line of a custom command: its description (or one for
+--- its type) and, with `agenda.menu_show_matcher`, ": MATCH"
+--- (org-agenda-get-restriction-and-command).
+function M.menu_label(cmd)
+  local label = cmd.description
+  if not (label and label:match("%S")) then
+    local t = cmd.type and (TYPE_ALIASES[cmd.type] or cmd.type)
+    if t == "todo" and cmd.match and cmd.match ~= "" then
+      label = "TODO keyword"
+    else
+      label = t and DEFAULT_DESCRIPTIONS[t] or "???"
+    end
+  end
+  local match = cmd.type and cmd.match
+  if config.opts.agenda.menu_show_matcher ~= false and type(match) == "string" and match:match("%S") then
+    label = label .. ": " .. match
+  end
+  return label
+end
+
 --- The agenda dispatcher (C-c a): a menu of the built-in views and
 --- `agenda.custom_commands`. Must run inside a coroutine; call
 --- `require("org").agenda()` from mappings instead.
@@ -548,11 +743,11 @@ function M.prompt()
   if is_org then
     cur_hl = require("org.files").get_buffer(buf):headline_at(vim.api.nvim_win_get_cursor(0)[1])
   end
-  local custom = config.opts.agenda.custom_commands or {}
+  local custom = M.custom_commands()
   while true do
-    local rlabel = "Restrict to buffer / subtree  [" .. (M.lock and "lock" or "none") .. "]"
+    local rstate = M.lock and "lock" or "none"
     if restrict then
-      rlabel = restrict.range and "Restrict to buffer / subtree  [subtree]" or "Restrict to buffer / subtree  [buffer]"
+      rstate = restrict.range and "subtree" or "buffer"
     end
     local builtin = {
       { key = "a", label = "Agenda for current week or day", value = "a" },
@@ -567,9 +762,11 @@ function M.prompt()
       { key = "/", label = "Multi-occur in agenda files", value = "/" },
       { key = "e", label = "Export agenda views", value = "e" },
       { key = "?", label = "Find :FLAGGED: entries", value = "?" },
+      { heading = true, label = "Options" },
       {
         key = "*",
-        label = "Toggle sticky agenda views  [" .. (config.opts.agenda.sticky and "on" or "off") .. "]",
+        label = "Sticky agenda views",
+        state = config.opts.agenda.sticky and "on" or "off",
         value = "__sticky",
       },
     }
@@ -580,7 +777,7 @@ function M.prompt()
       end
     end
     if is_org then
-      items[#items + 1] = { key = "<", label = rlabel, value = "__restrict" }
+      items[#items + 1] = { key = "<", label = "Restrict to buffer / subtree", state = rstate, value = "__restrict" }
     end
     if restrict or M.lock then
       items[#items + 1] = { key = ">", label = "Remove restriction", value = "__unrestrict" }
@@ -592,13 +789,25 @@ function M.prompt()
       elseif type(cmd) == "table" and not (cmd.types or cmd.blocks or cmd.type) then
         entries[#entries + 1] = { key = key, label = cmd.description or key }
       elseif type(cmd) == "table" then
-        entries[#entries + 1] = { key = key, label = cmd.description or key, value = { custom = key } }
+        entries[#entries + 1] = { key = key, label = M.menu_label(cmd), value = { custom = key } }
       end
     end
     if #entries > 0 then
       items[#items + 1] = { heading = true, label = "" }
       items[#items + 1] = { heading = true, label = "Custom commands" }
-      vim.list_extend(items, require("org.ui").tree_from_keys(entries))
+      local tree = require("org.ui").tree_from_keys(entries)
+      if config.opts.agenda.menu_two_columns then
+        -- org-agenda-menu-two-columns: the first half on the left
+        local n1 = math.ceil(#tree / 2)
+        for i = 1, n1 do
+          items[#items + 1] = tree[i]
+          if tree[i + n1] then
+            items[#items + 1] = vim.tbl_extend("force", tree[i + n1], { column = 2 })
+          end
+        end
+      else
+        vim.list_extend(items, tree)
+      end
     end
     local choice = require("org.ui").menu({ title = "Org Agenda", items = items })
     if choice == nil then
@@ -645,7 +854,7 @@ function M.command(args)
     return M.prompt()
   end
   local key, rest = args:match("^(%S+)%s*(.*)$")
-  local custom = config.opts.agenda.custom_commands or {}
+  local custom = M.custom_commands()
   if custom[key] and type(custom[key]) == "table" then
     return open_custom(key)
   end

@@ -103,6 +103,16 @@ local function update(src)
   end
 end
 
+--- Fire the User autocmd of a minor mode hook (org-table-follow-field-mode-hook,
+--- org-table-header-line-mode-hook).
+local function mode_hook(pattern, enabled, bufnr)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = pattern,
+    data = { enabled = enabled, bufnr = bufnr },
+    modeline = false,
+  })
+end
+
 --- Start follow-field mode in the current buffer.
 function M.start()
   local src = vim.api.nvim_get_current_buf()
@@ -153,6 +163,7 @@ function M.start()
   end, { buffer = buf, desc = "org: write the field back" })
   update(src)
   utils.notify("Table follow-field mode enabled")
+  mode_hook("OrgTableFollowFieldMode", true, src)
   return true
 end
 
@@ -172,6 +183,7 @@ function M.stop(src)
   if vim.api.nvim_buf_is_valid(st.buf) then
     pcall(vim.api.nvim_buf_delete, st.buf, { force = true })
   end
+  mode_hook("OrgTableFollowFieldMode", false, src)
 end
 
 --- Toggle follow-field mode.
@@ -262,6 +274,7 @@ function M.header_line_mode(bufnr, on)
         end
       end
       header[bufnr] = nil
+      mode_hook("OrgTableHeaderLineMode", false, bufnr)
     end
     return false
   end
@@ -279,6 +292,7 @@ function M.header_line_mode(bufnr, on)
     end,
   })
   M.refresh_header(bufnr)
+  mode_hook("OrgTableHeaderLineMode", true, bufnr)
   return true
 end
 

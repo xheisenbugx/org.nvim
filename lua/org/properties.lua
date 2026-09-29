@@ -179,6 +179,15 @@ function M.set_property(target, name, value)
       return nil
     end
   end
+  M.last_set_property_value = name .. ": " .. value
+  -- properties_postprocess (org-properties-postprocess-alist): a function
+  -- per property name (ignoring case) adjusting the value
+  for pname, fn in pairs(config.opts.properties_postprocess or {}) do
+    if type(pname) == "string" and pname:upper() == name:upper() and type(fn) == "function" then
+      value = tostring(fn(value, { bufnr = bufnr, lnum = lnum }))
+      break
+    end
+  end
   local current
   if hl then
     current = hl:get_property(name, false)
@@ -188,7 +197,6 @@ function M.set_property(target, name, value)
   if current == value and not SPECIAL[name] then
     return value
   end
-  M.last_set_property_value = name .. ": " .. value
   if not M.entry_put(bufnr, lnum, name, value) then
     return nil
   end
@@ -305,6 +313,54 @@ function M.at_property_line(bufnr, lnum)
     return nil
   end
   return name, value, owner
+end
+
+local ns_custom = vim.api.nvim_create_namespace("org.custom_properties")
+
+--- Are the `custom_properties` of the buffer hidden
+--- (org-custom-properties-overlays)?
+function M.custom_properties_hidden(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  return #vim.api.nvim_buf_get_extmarks(bufnr, ns_custom, 0, -1, { limit = 1 }) > 0
+end
+
+--- Hide the property lines named in `custom_properties` in every
+--- property drawer of the buffer, or show them again
+--- (org-toggle-custom-properties-visibility).
+function M.toggle_custom_properties_visibility()
+  local bufnr = vim.api.nvim_get_current_buf()
+  if M.custom_properties_hidden(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_custom, 0, -1)
+    return
+  end
+  local names = {}
+  for _, n in ipairs(config.opts.custom_properties or {}) do
+    names[n:upper()] = true
+  end
+  if next(names) == nil or not require("org.fold").conceal_supported then
+    return
+  end
+  local file = files.get_buffer(bufnr)
+  local owners = { file }
+  vim.list_extend(owners, file.headlines)
+  for _, owner in ipairs(owners) do
+    local r = owner.properties_range
+    if r then
+      for lnum = r[1] + 1, r[2] - 1 do
+        local line = file.lines[lnum]
+        local name = line and parser.parse_property_line(line)
+        if name and names[name:upper()] then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_custom, lnum - 1, 0, {
+            end_row = lnum - 1,
+            end_col = #line,
+            conceal_lines = "",
+            invalidate = true,
+            undo_restore = false,
+          })
+        end
+      end
+    end
+  end
 end
 
 --- Replace the value of the property at `lnum` (keeps name and indentation).
@@ -435,6 +491,18 @@ function M.toggle_ordered(target)
   local v = hl.properties.ORDERED
   local ordered = not (v ~= nil and v ~= "" and v:lower() ~= "nil")
   edit.set_property(bufnr, hl.line, "ORDERED", ordered and "t" or nil)
+  -- org-track-ordered-property-with-tag: `true` (the ORDERED tag) or a tag
+  local track = config.opts.track_ordered_property_with_tag
+  if track then
+    local tag = type(track) == "string" and track or "ORDERED"
+    local tags = vim.tbl_filter(function(t)
+      return t ~= tag
+    end, files.get_buffer(bufnr):headline_on(hl.line).tags)
+    if ordered then
+      tags[#tags + 1] = tag
+    end
+    edit.update_headline(bufnr, hl.line, { tags = tags })
+  end
   utils.notify(ordered and "Subtasks must be completed in sequence" or "Subtasks can be completed in arbitrary order")
   return true
 end

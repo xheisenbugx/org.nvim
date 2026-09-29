@@ -31,6 +31,10 @@ M.links = {
   orgTodo = "OrgTodo",
   orgDone = "OrgDone",
   orgHeadlineDone = "OrgHeadlineDone",
+  orgHeadlineTodo = "OrgHeadlineTodo",
+  orgMacroMarker = "OrgMacro",
+  orgLatexEntity = "OrgLatex",
+  orgLatexScript = "OrgLatex",
   orgHeadlineComment = "OrgHeadlineComment",
   orgPriority = "OrgPriority",
   orgPriorityA = "OrgPriorityA",
@@ -96,6 +100,8 @@ local function defaults()
     OrgTodo = { link = first_existing({ "@comment.error", "DiagnosticError" }, "ErrorMsg") },
     OrgDone = { link = first_existing({ "@comment.note", "DiagnosticOk" }, "DiffAdd") },
     OrgHeadlineDone = { link = "Comment" },
+    -- org-headline-todo (fontify_todo_headline)
+    OrgHeadlineTodo = { link = first_existing({ "@string" }, "String") },
     OrgHeadlineComment = { link = "Comment" },
     OrgPriority = { link = "Special" },
     OrgPriorityA = { link = "DiagnosticError" },
@@ -138,6 +144,10 @@ local function defaults()
     OrgTableFormulaRefCursor = { link = "IncSearch" },
     OrgTableFormulaTarget = { link = "Visual" },
     OrgFootnote = { link = "Underlined" },
+    -- citations (org-cite, org-cite-key; unknown keys get Emacs' `error` face)
+    OrgCite = { link = "OrgLink" },
+    OrgCiteKey = { link = "OrgLink" },
+    OrgCiteKeyUnknown = { link = "DiagnosticError" },
     OrgTarget = { link = "Underlined" },
     OrgLatex = { link = first_existing({ "@markup.math" }, "Statement") },
     OrgHorizontalRule = { link = "Comment" },
@@ -147,6 +157,17 @@ local function defaults()
     OrgSuperscript = { link = "Special" },
     OrgSubscript = { link = "Special" },
     OrgInlinetask = { link = "Comment" },
+    -- org-warning, on the first star of inline tasks (inlinetask_show_first_star)
+    OrgInlinetaskFirstStar = { link = first_existing({ "@comment.warning" }, "WarningMsg") },
+    -- key menus and choice lists (org.ui)
+    OrgMenuKey = { link = "Special" },
+    OrgMenuHeading = { link = "Title" },
+    OrgMenuDesc = { link = "Comment" },
+    OrgMenuMore = { link = "Comment" },
+    OrgMenuOn = { link = first_existing({ "DiagnosticOk" }, "String") },
+    OrgMenuOff = { link = "Comment" },
+    OrgMenuValue = { link = "Constant" },
+    OrgMenuSelected = { link = "Visual" },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }
@@ -190,6 +211,8 @@ local function hl_from_face(face)
   return face
 end
 
+M.hl_from_face = hl_from_face
+
 --- Define highlight groups for `ui.todo_keyword_faces`.
 function M.apply_todo_faces()
   local ui = require("org.config").opts.ui
@@ -204,6 +227,10 @@ function M.apply_todo_faces()
   end
   for name, face in pairs(ui.tag_faces or {}) do
     vim.api.nvim_set_hl(0, M.face_group("orgTagFace_", name), hl_from_face(face))
+  end
+  -- ui.src_block_faces (org-src-block-faces)
+  for lang, face in pairs(ui.src_block_faces or {}) do
+    vim.api.nvim_set_hl(0, M.face_group("orgSrcBlockFace_", lang), hl_from_face(face))
   end
 end
 

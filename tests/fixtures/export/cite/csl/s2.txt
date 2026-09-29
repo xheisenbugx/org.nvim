@@ -1,0 +1,47 @@
+First citation.[1] Same again,[2] then another page,[3] and ibid.[4] A
+new one[5] and back to Knuth.[6] Two.[7] In a footnote[8]. Quoted
+"text".[9]
+
+Beethoven, Ludwig van. /Für elise/. Self, April 27th, 1810.
+
+Brown, Alice, Green, Bob, White, Carol, and Black, Dan. /A chapter in a
+book/. Oxford, University Press, 2001.
+
+Doe, Jane and Roe, Richard. /JSON Book with “quoted” words/. London,
+Example Press, May 3rd, 2001.
+
+Knuth, Donald E. /The TeXbook/. Reading, MA, Addison-Wesley, 1984.
+
+Lamport, Leslie and Doe, John. /[A document preparation
+system]/. January 1986.
+
+Smith, Jane. /[A web page about über-things]/. 2020.
+
+
+[A document preparation system] <https://doi.org/10.1000/xyz123>
+
+[A web page about über-things] <https://example.com/page>
+
+
+
+Footnotes
+_________
+
+[1] D. E. Knuth, /The TeXbook/, Addison-Wesley, 1984, p. 3.
+
+[2] Ibid.
+
+[3] Ibid., 7.
+
+[4] Ibid.
+
+[5] A. Brown et al., /A Chapter in a Book/, University Press, 2001.
+
+[6] Knuth, /The TeXbook/, chap. 2.
+
+[7] J. Doe and R. Roe, /JSON Book with “Quoted” Words/, Example Press,
+2001; L. van Beethoven, /Für Elise/, Self, 1810.
+
+[8] See L. Lamport and J. Doe, /A Document Preparation System/, 1986..
+
+[9] J. Smith, /A Web Page About Über-Things/, 2020.

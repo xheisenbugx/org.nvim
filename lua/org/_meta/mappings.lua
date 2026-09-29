@@ -36,16 +36,28 @@
 ---| "babel_goto_head" # Go to src block head
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
+---| "babel_hash_at_point" # Copy the result hash at the cursor
+---| "babel_haskell_export_to_lhs" # Export Haskell blocks to .lhs (count: lhs2tex to .tex)
 ---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
+---| "babel_lilypond_tangle" # Tangle LilyPond blocks and engrave
+---| "babel_lilypond_toggle_arrange_mode" # Toggle LilyPond arrange mode
+---| "babel_lilypond_toggle_html_generation" # Toggle LilyPond HTML generation
+---| "babel_lilypond_toggle_midi_play" # Toggle playing LilyPond MIDI
+---| "babel_lilypond_toggle_pdf_display" # Toggle showing the LilyPond PDF
+---| "babel_lilypond_toggle_pdf_generation" # Toggle LilyPond PDF generation
+---| "babel_lilypond_toggle_png_generation" # Toggle LilyPond PNG generation
 ---| "babel_load_in_session" # Load src block into its session
 ---| "babel_lob_ingest" # Add file's blocks to Library of Babel
 ---| "babel_mark_block" # Select src block body
 ---| "babel_next_block" # Next src block
 ---| "babel_open_result" # Open src block result
 ---| "babel_prev_block" # Previous src block
+---| "babel_processing_view_sketch" # Run the Processing block's sketch
+---| "babel_remove_inline_result" # Remove the result of the inline src block / call
 ---| "babel_remove_result" # Remove src block result (count: all)
+---| "babel_screen_test" # Test the screen block setup
 ---| "babel_sha1_hash" # Show src block hash
 ---| "babel_switch_to_session" # Show src block session (count: assign vars)
 ---| "babel_switch_to_session_with_code" # Show src block session and edit the block
@@ -53,7 +65,25 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
+---| "beginning_of_item" # Go to the start of the item
+---| "beginning_of_item_list" # Go to the first item of the list
+---| "beginning_of_line" # Start of line / headline title
+---| "bibtex_check" # Ask for missing BibTeX fields (count: optional too)
+---| "bibtex_check_all" # Check the BibTeX fields of every headline
+---| "bibtex_create" # New BibTeX entry headline (count: optional fields)
+---| "bibtex_create_in_current_entry" # Add BibTeX data to the headline
+---| "bibtex_export" # Export the entries of the file to a .bib file
+---| "bibtex_export_to_kill_ring" # Copy the headline as a BibTeX entry
+---| "bibtex_import_from_file" # Insert the entries of a .bib file
+---| "bibtex_read" # Read the BibTeX entry at the cursor
+---| "bibtex_read_buffer" # Read the BibTeX entries of a buffer
+---| "bibtex_read_file" # Read the BibTeX entries of a file
+---| "bibtex_search" # Search BibTeX entries in the agenda files
+---| "bibtex_write" # Insert the first read BibTeX entry as a headline
+---| "bibtex_yank" # Insert the yanked BibTeX entry (count: into this headline)
+---| "bookmark_jump" # Jump to a capture / refile bookmark
 ---| "buffer_goto" # Go to heading in buffer
+---| "bug_report" # Report a bug (org-submit-bug-report)
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
 ---| "capture_here" # Capture at the cursor (C-0 C-c c)
@@ -65,6 +95,7 @@
 ---| "clock_in" # Clock in
 ---| "clock_in_last" # Clock in last task
 ---| "clock_mark_default_task" # Mark entry as default clocking task
+---| "clock_menu" # Pop up the clock menu (org-clock-menu)
 ---| "clock_modify_effort" # Change effort of clocked task
 ---| "clock_out" # Clock out
 ---| "clock_report" # Insert / update clock report (count: first in buffer)
@@ -73,6 +104,8 @@
 ---| "clone_subtree" # Clone subtree with time shift
 ---| "column_view" # Column view
 ---| "context_action" # Context action (C-c C-c)
+---| "convert_to_odd_levels" # Convert the file to odd levels only
+---| "convert_to_oddeven_levels" # Convert an odd-levels file to odd and even levels
 ---| "copy_special" # Copy table region / subtree
 ---| "copy_subtree" # Copy subtree
 ---| "copy_visible" # Copy visible text
@@ -84,6 +117,8 @@
 ---| "ctrl_c_minus" # Table hline / cycle bullet / toggle item
 ---| "ctrl_c_ret" # Table hline and move / insert heading
 ---| "ctrl_c_star" # Recalc table / toggle heading
+---| "customize" # Browse and set options (org-customize)
+---| "customize_menu" # List every option in the Org menu (org-create-customize-menu)
 ---| "cut_special" # Cut table region / subtree
 ---| "cut_subtree" # Cut subtree
 ---| "cycle" # Cycle visibility
@@ -101,8 +136,15 @@
 ---| "down_element" # First child element
 ---| "drag_element_down" # Drag element down
 ---| "drag_element_up" # Drag element up
+---| "edit_agenda_file_list" # Edit the list of agenda files
+---| "edit_headline" # Edit the headline's title
 ---| "edit_special" # Edit src block / table formulas
+---| "edit_src_continue" # Go back to the edit buffer of the region at the cursor
 ---| "emphasize" # Emphasize selection / insert markers
+---| "end_of_item" # Go to the end of the item
+---| "end_of_item_list" # Go to the end of the list
+---| "end_of_line" # End of line / before the tags
+---| "escape_code_in_region" # Comma-escape * and #+ lines of the selection
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "feed_goto_inbox" # Go to the inbox of a feed
@@ -118,8 +160,12 @@
 ---| "id_get_create" # Get or create ID
 ---| "id_goto" # Go to entry by ID
 ---| "id_store_link" # Store id: link to entry
+---| "imenu" # Headlines in the location list (imenu)
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
+---| "indent_block" # Indent the block at point
+---| "indent_drawer" # Indent the drawer at point
+---| "indent_region" # Indent the buffer / selection (org-indent-region)
 ---| "indirect_subtree" # Subtree in split edit buffer
 ---| "inlinetask_insert" # Insert inline task
 ---| "insert_all_links" # Insert all stored links
@@ -134,13 +180,29 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "insert_todo_subheading" # Insert TODO subheading
+---| "kill_line" # Kill to the end of the line / the tags
 ---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "lint" # Check the buffer for syntax problems (org-lint)
+---| "link_open_from_string" # Open a link typed at a prompt
 ---| "link_preview" # Toggle image previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "link_preview_refresh" # Refresh image previews in the buffer
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
+---| "mouse_context_menu" # Context menu for the cursor position (org-mouse-show-context-menu)
+---| "mouse_end_headline" # End of the headline, before the tags (org-mouse-end-headline)
+---| "mouse_insert_checkbox" # Checkbox on the item (org-mouse-insert-checkbox)
+---| "mouse_insert_heading" # New heading (org-mouse-insert-heading)
+---| "mouse_move_tree_start" # How dragging a subtree works (org-mouse-move-tree-start)
+---| "mouse_show_headlines" # Show all headlines (org-mouse-show-headlines)
+---| "mouse_show_overview" # Show the overview (org-mouse-show-overview)
+---| "mouse_timestamp_today" # Change the timestamp with the date prompt (org-mouse-timestamp-today)
+---| "mouse_transform_to_outline" # Plain list to outline (org-mouse-transform-to-outline)
+---| "occur_link_in_agenda_files" # Find links to here in the agenda files
+---| "open_at_mouse" # Open the link clicked
+---| "open_at_point_global" # Follow an Org link, date or URL in any buffer
+---| "find_file_at_mouse" # Open the link clicked in Neovim
 ---| "mark_subtree" # Select subtree
 ---| "meta_down" # Move subtree / item / row / element down
 ---| "meta_left" # Promote / move column left
@@ -176,9 +238,26 @@
 ---| "promote_subtree" # Promote subtree
 ---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
 ---| "refile_copy" # Copy subtree / region to a refile target
+---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
+---| "datetree_cleanup" # Move date tree entries under the day of their time stamp
+---| "archive_subtree_default" # Archive with archive_default_command
+---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
+---| "capture_string" # Capture a string typed at a prompt
+---| "yank_media" # Paste a clipboard image or copied files (link / attach)
+---| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
+---| "ctags_find_tag" # Jump to a tag
+---| "ctags_create_tags" # Rebuild the tags file of this directory
+---| "ctags_all_tags" # List the tags of the tags files
+---| "ctags_get_filename_for_tag" # Show where a tag is defined
+---| "ctags_open_file" # Open a file and add a new topic
+---| "ctags_visit_buffer_or_file" # Visit NAME.org
+---| "ctags_append_topic" # Append a new topic to the buffer
+---| "protocol_create" # Create an org-protocol project
+---| "protocol_create_for_org" # Create an org-protocol project for this file's publishing project
 ---| "refile_cache_clear" # Clear the refile target cache
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
+---| "reset_checkbox_state_subtree" # Uncheck every checkbox of the subtree
 ---| "reveal" # Reveal context around cursor
 ---| "schedule" # Schedule (Visual: all headlines)
 ---| "set_effort" # Set effort
@@ -218,6 +297,7 @@
 ---| "table_follow_field_mode" # Toggle table follow-field mode
 ---| "table_formula" # Set column / field formula
 ---| "table_formula_debugger" # Toggle table formula debugger
+---| "table_goto_column" # Go to column N (count) of the table row
 ---| "table_header_line_mode" # Toggle table header-line mode
 ---| "table_import" # Import file as table
 ---| "table_insert_column" # Insert table column
@@ -237,6 +317,7 @@
 ---| "table_sum" # Sum column / rectangle
 ---| "table_toggle_column_width" # Shrink / expand table column
 ---| "table_transpose" # Transpose table
+---| "table_wrap_region" # Wrap the selected column like a paragraph / split the field
 ---| "tags_sparse_tree" # Tags / property match sparse tree
 ---| "timer_countdown" # Start countdown timer
 ---| "timer_insert" # Insert timer value
@@ -255,6 +336,7 @@
 ---| "todo_prev_sequence" # Previous TODO keyword set
 ---| "todo_select" # Select TODO state
 ---| "todo_without_note" # Change TODO state without a note (C-0 C-c C-t)
+---| "todo_yesterday" # Change TODO state as if at 23:59 yesterday (org-todo-yesterday)
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag (Visual: all headlines)
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
@@ -269,8 +351,13 @@
 ---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
+---| "unescape_code_in_region" # Remove comma escapes of the selection
+---| "unindent_buffer" # Remove the common indentation of elements
 ---| "up_element" # Parent element
 ---| "update_statistics" # Update statistics cookies
+---| "version" # Show the org.nvim version (count: insert it)
+---| "yank" # Put, folding / adjusting subtrees (org-yank)
+---| "yank_before" # Put before, folding / adjusting subtrees
 
 --- Base for action-backed sections: any `org.ActionName` may be used as a
 --- key; unknown names are ignored.
@@ -309,6 +396,8 @@
 ---@field capture? org.Config.Mappings.Capture|false
 --- Keys in the src-block / special edit buffer (normal mode). Set to `false` to disable the whole section.
 ---@field edit_src? org.Config.Mappings.EditSrc|false
+--- Keys of the Beamer mode (org-beamer-mode-map), set while `beamer_mode` is on.
+---@field beamer? org.Config.Mappings.Beamer|false
 
 --- Global normal-mode keys, set on `setup()` (available everywhere).
 --- Besides the fields below, any `org.ActionName` is accepted as a key.
@@ -341,6 +430,10 @@
 ---@field context_action? org.MappingLhs
 --- Open link / footnote / date at point. Default: `{ "<CR>", "gx", "<prefix>o" }`
 ---@field open_at_point? org.MappingLhs
+--- Open the link clicked. Default: `<MiddleMouse>`
+---@field open_at_mouse? org.MappingLhs
+--- Open the link clicked in Neovim. Default: `<RightMouse>`
+---@field find_file_at_mouse? org.MappingLhs
 --- New heading / item / row. Default: `<M-CR>`
 ---@field meta_return? org.MappingLhs
 --- New TODO heading / checkbox item. Default: `<M-S-CR>`
@@ -391,6 +484,10 @@
 ---@field cut_subtree? org.MappingLhs
 --- Paste subtree. Default: `<prefix>hp`
 ---@field paste_subtree? org.MappingLhs
+--- Put, folding / adjusting subtrees (org-yank). Default: `p`
+---@field yank? org.MappingLhs
+--- Put before, folding / adjusting subtrees. Default: `P`
+---@field yank_before? org.MappingLhs
 --- Clone subtree with time shift. Default: `<prefix>hc`
 ---@field clone_subtree? org.MappingLhs
 --- Sort entries / items. Default: `<prefix>hs`
@@ -425,6 +522,8 @@
 ---@field prev_sibling? org.MappingLhs
 --- Go to heading in buffer. Default: `<prefix>.`
 ---@field buffer_goto? org.MappingLhs
+--- Headlines in the location list (imenu). Default: `gO`
+---@field imenu? org.MappingLhs
 --- Next TODO state. Default: `cit`
 ---@field todo_next? org.MappingLhs
 --- Previous TODO state. Default: `ciT`
@@ -829,8 +928,12 @@
 ---@field refile? org.MappingLhs
 --- Copy subtree to a refile target. Default: `<C-c><M-w>`
 ---@field refile_copy? org.MappingLhs
---- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" }`
+--- Refile with reverse_note_order inverted. Default: `<C-c><C-M-w>`
+---@field refile_reverse? org.MappingLhs
+--- Archive subtree (Visual: all headlines). Default: `{ "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive_subtree? org.MappingLhs
+--- Archive with archive_default_command. Default: `<C-c><C-x><C-a>`
+---@field archive_subtree_default? org.MappingLhs
 --- Toggle ARCHIVE tag (Visual: all headlines). Default: `<C-c><C-x>a`
 ---@field toggle_archive_tag? org.MappingLhs
 --- Archive to Archive sibling (Visual: all headlines). Default: `<C-c><C-x>A`
@@ -961,8 +1064,18 @@
 ---@field redo? org.MappingLhs
 --- Rebuild all agenda buffers (org-agenda-redo-all). Emacs: `g`. Default: `gr`
 ---@field redo_all? org.MappingLhs
---- Show the entry and scroll its window down. Default: `<BS>`
+--- Scroll the window of the last shown entry a page back (org-agenda-show-scroll-down). Default: `<BS>`
 ---@field show_scroll_down? org.MappingLhs
+--- Show the entry with the detail given by the count, 1-4 (org-agenda-show-1). Default: unmapped
+---@field show_1? org.MappingLhs
+--- Show the entry; repeated, cycle its visibility (org-agenda-cycle-show). Default: unmapped
+---@field cycle_show? org.MappingLhs
+--- Go to the entry under the mouse (org-agenda-goto-mouse). Default: `<MiddleMouse>`
+---@field goto_mouse? org.MappingLhs
+--- Show the entry under the mouse (org-agenda-show-mouse). Default: `<RightMouse>`
+---@field show_mouse? org.MappingLhs
+--- Edit the entry's subtree in the other window (org-agenda-tree-to-indirect-buffer). Default: `<C-c><C-x>b`
+---@field tree_to_indirect_buffer? org.MappingLhs
 --- Attach to the entry (org-agenda-attach). Default: `<C-c><C-a>`
 ---@field attach? org.MappingLhs
 --- Stop the timer. Default: `<C-c><C-x>_`
@@ -1023,6 +1136,8 @@
 ---@field follow_mode? org.MappingLhs
 --- Change the item's TODO state (fast selection when keys are defined, else cycle). Default: `{ "t", "<C-c><C-t>" }`
 ---@field todo? org.MappingLhs
+--- Change the TODO state, logged at 23:59 of yesterday (org-agenda-todo-yesterday). Default: unmapped
+---@field todo_yesterday? org.MappingLhs
 --- Cycle the item's TODO state forward. Default: `<C-S-Right>`
 ---@field todo_next? org.MappingLhs
 --- Cycle the item's TODO state backward. Default: `<C-S-Left>`
@@ -1043,10 +1158,18 @@
 ---@field schedule? org.MappingLhs
 --- Set the item's deadline. Default: `{ "<C-c><C-d>", "d" }`
 ---@field deadline? org.MappingLhs
---- Shift the item's date one day later (count: days). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
+--- Shift the item's date one day later (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Right>", "<C-c><C-x><Right>" }`
 ---@field date_later? org.MappingLhs
---- Shift the item's date one day earlier (count: days). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
+--- Shift the item's date one day earlier (count: days; 4 = one hour, 16 = minutes). Default: `{ "<S-Left>", "<C-c><C-x><Left>" }`
 ---@field date_earlier? org.MappingLhs
+--- Shift the item's time later by hours (count: hours; <S-Right> with count 4). Default: unmapped
+---@field date_later_hours? org.MappingLhs
+--- Shift the item's time earlier by hours (count: hours; <S-Left> with count 4). Default: unmapped
+---@field date_earlier_hours? org.MappingLhs
+--- Shift the item's time later by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Right> with count 16). Default: unmapped
+---@field date_later_minutes? org.MappingLhs
+--- Shift the item's time earlier by `time_stamp_rounding_minutes[2]` minutes (count: steps; <S-Left> with count 16). Default: unmapped
+---@field date_earlier_minutes? org.MappingLhs
 --- Change the item's date via prompt (deadline or scheduled, by item kind). Default: `>`
 ---@field date_prompt? org.MappingLhs
 --- Clock in the item. Default: `{ "I", "<C-c><C-x><C-i>" }`
@@ -1069,8 +1192,10 @@
 ---@field refile? org.MappingLhs
 --- Archive the item's subtree. Default: `{ "$", "<C-c>$", "<C-c><C-x><C-s>" }`
 ---@field archive? org.MappingLhs
---- Archive the item's subtree, after confirmation. Default: `{ "a", "<C-c><C-x><C-a>" }`
+--- Archive the item with `archive_default_command` (org-agenda-archive-default). Default: `<C-c><C-x><C-a>`
 ---@field archive_default? org.MappingLhs
+--- Like archive_default, after confirmation (org-agenda-archive-default-with-confirmation). Default: `a`
+---@field archive_default_confirm? org.MappingLhs
 --- Move the item to its Archive sibling. Default: `<C-c><C-x>A`
 ---@field archive_sibling? org.MappingLhs
 --- Toggle the item's ARCHIVE tag. Default: `<C-c><C-x>a`
@@ -1098,12 +1223,18 @@
 ---@field archives_files_mode? org.MappingLhs
 --- Toggle including inactive timestamps. Default: `v[`
 ---@field inactive_mode? org.MappingLhs
---- Toggle the time grid. Default: `{ "G", "vG" }`
+--- Toggle the time grid. Emacs: `G`, kept free for motion here. Default: `vG`
 ---@field time_grid? org.MappingLhs
 --- Toggle showing deadlines. Default: `{ "!", "v!" }`
 ---@field toggle_deadlines? org.MappingLhs
 --- Toggle including the Emacs diary file (org-agenda-toggle-diary). Default: `D`
 ---@field toggle_diary? org.MappingLhs
+--- Add a diary entry for the date at point (org-agenda-diary-entry); also in Visual mode. Default: `i`
+---@field diary_entry? org.MappingLhs
+--- Toggle habits; with a count, whether today shows all habits (org-habit-toggle-display-in-agenda, Emacs `K`). Default: `vh`
+---@field toggle_habits_display? org.MappingLhs
+--- Toggle habits (org-habit-toggle-habits). Default: unmapped
+---@field toggle_habits? org.MappingLhs
 --- Toggle dimming of blocked tasks. Default: `#`
 ---@field dim_blocked? org.MappingLhs
 --- Filter by one tag: its key, SPC any tag, `?` untagged (org-agenda-filter-by-tag). Default: `\`
@@ -1156,6 +1287,8 @@
 ---@field backward_block? org.MappingLhs
 --- Save all modified org buffers. Default: `<C-x><C-s>`
 ---@field save_all? org.MappingLhs
+--- Undo the last source edit made from the agenda (org-agenda-undo). Default: `{ "<C-_>", "<C-/>", "<C-x>u" }`
+---@field undo? org.MappingLhs
 --- Capture (date defaults to the date at point). Emacs: `k`, kept free for motion here. Default: `K`
 ---@field capture? org.MappingLhs
 --- Write the agenda to a file (`.html` gets an HTML page). Default: `<C-x><C-w>`
@@ -1180,8 +1313,16 @@
 ---@field refile? org.MappingLhs
 
 --- Keys in the src-block / special edit buffer (normal mode).
+---@class org.Config.Mappings.Beamer
+--- Select the Beamer environment of the entry. Default: `<C-c><C-b>`
+---@field beamer_select_environment? org.MappingLhs
+
 ---@class org.Config.Mappings.EditSrc
 --- Write the edit buffer back and close it. Default: `{ "<C-c>'", "<prefix>'" }`
 ---@field save_exit? org.MappingLhs
 --- Close the edit buffer, discarding changes. Default: `{ "<C-c><C-k>", "<prefix>k" }`
 ---@field abort? org.MappingLhs
+--- Send the edit buffer (Visual: the selected lines) to the `:session` of
+--- its block (edit buffers of blocks with a session only).
+--- Default: `{ "<C-c><C-c>", "<prefix>e" }`
+---@field send_to_session? org.MappingLhs

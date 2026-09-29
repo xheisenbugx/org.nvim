@@ -94,10 +94,26 @@ function M.invalidate(path)
   end
 end
 
---- Files removed from the agenda for this session (`remove_file`), even
---- when a directory or glob in `agenda_files` still matches them.
----@type table<string, boolean>
-M.removed = {}
+--- A readable file listing the agenda files, one per line, when
+--- `agenda_files` is its name (not an org file, a glob or a directory).
+---@return string|nil
+local function list_file()
+  local cfg = require("org.config").opts
+  if type(cfg.agenda_files) ~= "string" then
+    return nil
+  end
+  local path = utils.expand(cfg.agenda_files)
+  if not path:match("%.org$") and not path:find("[%*%?%[]") and vim.fn.filereadable(path) == 1 then
+    return path
+  end
+end
+
+--- Entries of the agenda list file (org-read-agenda-file-list).
+local function read_list_file(path)
+  return vim.tbl_filter(function(l)
+    return l:match("%S") ~= nil and not l:match("^%s*#")
+  end, vim.fn.readfile(path))
+end
 
 --- Absolute paths of all agenda files.
 ---@param extra? string[] additional patterns
@@ -106,12 +122,10 @@ function M.agenda_file_paths(extra)
   local cfg = require("org.config").opts
   local patterns = vim.deepcopy(cfg.agenda_files or {})
   if type(patterns) == "string" then
-    local path = utils.expand(patterns)
-    if not path:match("%.org$") and not path:find("[%*%?%[]") and vim.fn.filereadable(path) == 1 then
+    local path = list_file()
+    if path then
       -- like Emacs, a file that lists the agenda files, one per line
-      patterns = vim.tbl_filter(function(l)
-        return l:match("%S") ~= nil and not l:match("^%s*#")
-      end, vim.fn.readfile(path))
+      patterns = read_list_file(path)
     else
       patterns = { patterns }
     end
@@ -119,79 +133,215 @@ function M.agenda_file_paths(extra)
   for _, p in ipairs(extra or {}) do
     patterns[#patterns + 1] = p
   end
-  local paths = utils.glob_org_files(patterns)
-  if next(M.removed) then
-    paths = vim.tbl_filter(function(p)
-      return not M.removed[p]
-    end, paths)
+  return utils.glob_org_files(patterns)
+end
+
+---------------------------------------------------------------------------
+-- Changing the agenda file list (org-agenda-file-to-front, org-remove-file,
+-- org-edit-agenda-file-list). Like Emacs, changes are saved: into the list
+-- file when `agenda_files` names one, else in stdpath("data") (the
+-- counterpart of Customize), where they replace the configured list for
+-- as long as the configuration keeps the value they were made from.
+---------------------------------------------------------------------------
+
+local function saved_list_path()
+  return vim.fn.stdpath("data") .. "/org/agenda-files.json"
+end
+
+--- The configured list the saved one replaces (org-agenda-files as set in
+--- setup()).
+M._configured = nil
+
+--- Replace the configured agenda file list by the saved one, if it was
+--- saved from the same configured value (called by setup()).
+function M.load_saved_agenda_files()
+  local cfg = require("org.config").opts
+  M._configured = vim.deepcopy(cfg.agenda_files)
+  if list_file() then
+    return
   end
-  return paths
+  local saved = utils.read_json(saved_list_path())
+  if type(saved) == "table" and type(saved.files) == "table" then
+    local configured = saved.configured
+    if configured == vim.NIL then
+      configured = nil
+    end
+    if vim.deep_equal(configured, M._configured) then
+      cfg.agenda_files = saved.files
+    end
+  end
+end
+
+--- Set and save a new agenda file list (org-store-new-agenda-file-list).
+---@param list string[] file names
+function M.store_agenda_file_list(list)
+  local cfg = require("org.config").opts
+  local path = list_file()
+  if path then
+    -- keep the entries as written in the file
+    local written = {}
+    for _, l in ipairs(read_list_file(path)) do
+      written[vim.fs.normalize(utils.expand(vim.trim(l)))] = vim.trim(l)
+    end
+    local lines = {}
+    for _, f in ipairs(list) do
+      lines[#lines + 1] = written[vim.fs.normalize(utils.expand(f))] or f
+    end
+    local b = utils.find_buffer(path)
+    if b then
+      pcall(vim.api.nvim_buf_delete, b, { force = true })
+    end
+    vim.fn.writefile(lines, path)
+    return
+  end
+  if M._configured == nil then
+    M._configured = vim.deepcopy(cfg.agenda_files)
+  end
+  cfg.agenda_files = vim.deepcopy(list)
+  vim.fn.mkdir(vim.fn.fnamemodify(saved_list_path(), ":h"), "p")
+  utils.write_json(saved_list_path(), { configured = M._configured or vim.NIL, files = list })
+end
+
+--- The agenda files as { path, entry } pairs: the resolved file and the
+--- name to write back (org-agenda-files with directories expanded).
+local function file_alist()
+  local cfg = require("org.config").opts
+  local entries = cfg.agenda_files or {}
+  local path = list_file()
+  if path then
+    entries = read_list_file(path)
+  elseif type(entries) == "string" then
+    entries = { entries }
+  end
+  local out, seen = {}, {}
+  for _, e in ipairs(entries) do
+    local expanded = utils.expand(vim.trim(e))
+    local single = not utils.is_dir(expanded) and not expanded:find("[%*%?%[]")
+    for _, p in ipairs(single and { expanded } or utils.glob_org_files({ e })) do
+      local key = vim.fs.normalize(vim.fn.resolve(p))
+      if not seen[key] then
+        seen[key] = true
+        out[#out + 1] = { key, single and e or p }
+      end
+    end
+  end
+  return out
 end
 
 local function current_path()
   local name = vim.api.nvim_buf_get_name(0)
-  if name == "" or not utils.is_org() then
-    utils.warn("Buffer is not visiting an org file")
+  if name == "" or vim.bo.buftype ~= "" then
     return nil
   end
-  return vim.fs.normalize(vim.fn.fnamemodify(name, ":p"))
-end
-
-local function pattern_list()
-  local cfg = require("org.config").opts
-  local list = cfg.agenda_files or {}
-  if type(list) == "string" then
-    list = { list }
-  end
-  cfg.agenda_files = list
-  return list
-end
-
-local function same_path(pattern, path)
-  return type(pattern) == "string" and vim.fs.normalize(utils.expand(pattern)) == path
+  return vim.fs.normalize(vim.fn.resolve(vim.fn.fnamemodify(name, ":p")))
 end
 
 --- Add the current file to the front of the agenda files, or move it there
---- (org-agenda-file-to-front). Only affects this session.
+--- (org-agenda-file-to-front); with a count (C-u) to the end. Saved.
 function M.agenda_file_to_front()
   local path = current_path()
   if not path then
+    utils.warn("Please save the current buffer to a file")
     return nil
   end
-  local list = pattern_list()
-  local moved = false
-  for i = #list, 1, -1 do
-    if same_path(list[i], path) then
-      table.remove(list, i)
-      moved = true
+  local to_end = vim.v.count > 0
+  local alist = file_alist()
+  local had
+  for i, x in ipairs(alist) do
+    if x[1] == path then
+      had = table.remove(alist, i)
+      break
     end
   end
-  moved = moved or (not M.removed[path] and vim.tbl_contains(M.agenda_file_paths(), path))
-  M.removed[path] = nil
-  table.insert(list, 1, path)
-  utils.notify((moved and "Moved " or "Added ") .. vim.fn.fnamemodify(path, ":~") .. " to front of agenda file list")
+  local x = had or { path, vim.fn.fnamemodify(path, ":~") }
+  if to_end then
+    table.insert(alist, x)
+  else
+    table.insert(alist, 1, x)
+  end
+  M.store_agenda_file_list(vim.tbl_map(function(e)
+    return e[2]
+  end, alist))
+  utils.notify(
+    string.format("File %s to %s of agenda file list", had and "moved" or "added", to_end and "end" or "front")
+  )
   return true
 end
 
---- Remove the current file from the agenda files (org-remove-file). Only
---- affects this session.
+--- Remove the current file from the agenda files (org-remove-file). Saved.
 function M.remove_file()
   local path = current_path()
   if not path then
+    utils.warn("Current buffer does not visit a file")
     return nil
   end
-  if not vim.tbl_contains(M.agenda_file_paths(), path) then
-    utils.notify("File was not in list: " .. vim.fn.fnamemodify(path, ":~") .. " (not removed)")
+  local short = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":~")
+  local alist = file_alist()
+  local kept = vim.tbl_filter(function(x)
+    return x[1] ~= path
+  end, alist)
+  if #kept == #alist then
+    utils.notify("File was not in list: " .. short .. " (not removed)")
     return true
   end
-  local list = pattern_list()
-  for i = #list, 1, -1 do
-    if same_path(list[i], path) then
-      table.remove(list, i)
+  M.store_agenda_file_list(vim.tbl_map(function(e)
+    return e[2]
+  end, kept))
+  utils.notify("Removed from Org Agenda list: " .. short)
+  return true
+end
+
+--- Edit the agenda file list (org-edit-agenda-file-list): the list file
+--- when `agenda_files` names one, else the list in a scratch buffer (Emacs
+--- opens Customize). Writing the buffer (`:w`) installs the new list,
+--- closes the buffer and returns to the previous one.
+function M.edit_agenda_file_list()
+  local prev = vim.api.nvim_get_current_buf()
+  local function finish(buf)
+    if vim.api.nvim_buf_is_valid(prev) then
+      vim.api.nvim_set_current_buf(prev)
     end
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    utils.notify("New agenda file list installed")
   end
-  M.removed[path] = true
-  utils.notify("Removed from Org Agenda list: " .. vim.fn.fnamemodify(path, ":~"))
+  local path = list_file()
+  if path then
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_create_autocmd("BufWritePost", {
+      buffer = buf,
+      once = true,
+      callback = function()
+        vim.schedule(function()
+          finish(buf)
+        end)
+      end,
+    })
+  else
+    local cfg = require("org.config").opts
+    local entries = type(cfg.agenda_files) == "string" and { cfg.agenda_files } or cfg.agenda_files or {}
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].buftype = "acwrite"
+    vim.bo[buf].bufhidden = "wipe"
+    pcall(vim.api.nvim_buf_set_name, buf, "org://agenda-files")
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.deepcopy(entries))
+    vim.bo[buf].modified = false
+    vim.api.nvim_set_current_buf(buf)
+    vim.api.nvim_create_autocmd("BufWriteCmd", {
+      buffer = buf,
+      callback = function()
+        local list = vim.tbl_filter(function(l)
+          return l:match("%S") ~= nil
+        end, vim.tbl_map(vim.trim, vim.api.nvim_buf_get_lines(buf, 0, -1, false)))
+        M.store_agenda_file_list(list)
+        vim.bo[buf].modified = false
+        vim.schedule(function()
+          finish(buf)
+        end)
+      end,
+    })
+  end
+  utils.notify("Edit list and finish with :w")
   return true
 end
 

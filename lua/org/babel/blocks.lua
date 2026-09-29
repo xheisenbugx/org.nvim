@@ -160,6 +160,42 @@ for _, k in ipairs({ "dir", "file", "output-dir", "file-desc", "file-ext", "tang
   LISP_HEADERS[k] = true
 end
 
+--- The :results words after merging `words` into `prev`, in the order
+--- org-babel-merge-params gives them (%results of the export templates):
+--- each word is pushed after dropping the words of its exclusive group,
+--- then the stack is read top first without duplicates.
+---@param prev string[]
+---@param words string[]
+---@return string[]
+local function merge_results_order(prev, words)
+  local stack = {}
+  local function push(w)
+    local cat = RESULT_WORDS[w]
+    if cat then
+      for i = #stack, 1, -1 do
+        if RESULT_WORDS[stack[i]] == cat then
+          table.remove(stack, i)
+        end
+      end
+    end
+    stack[#stack + 1] = w
+  end
+  for _, w in ipairs(prev) do
+    push(w)
+  end
+  for _, w in ipairs(words) do
+    push(w)
+  end
+  local out, seen = {}, {}
+  for i = #stack, 1, -1 do
+    if not seen[stack[i]] then
+      seen[stack[i]] = true
+      out[#out + 1] = stack[i]
+    end
+  end
+  return out
+end
+
 --- Merge header pairs into an args table (later wins; vars accumulate;
 --- :results merges by category, like org-babel-merge-params). Positional
 --- `:var` pairs replace the values of the variables in order; `state`
@@ -194,7 +230,12 @@ function M.merge(args, pairs_list, state)
         end
       end
     elseif p.key == "results" then
+      local words = {}
       for word in p.value:gmatch("%S+") do
+        words[#words + 1] = word
+      end
+      args.results_order = merge_results_order(args.results_order or {}, words)
+      for _, word in ipairs(words) do
         local cat = RESULT_WORDS[word]
         if cat then
           args.results_spec[cat] = word
@@ -387,14 +428,21 @@ local function match_results(line)
 end
 M.match_results = match_results
 
+--- Coderef label format of a block with `switches`: its `-l "fmt"`, else
+--- `coderef_label_format` (org-src-coderef-format).
+function M.coderef_format(switches)
+  return (switches or ""):match('%-l%s+"(.-)"') or require("org.config").opts.coderef_label_format or "(ref:%s)"
+end
+
 --- Lua pattern matching a coderef label such as `(ref:name)` at the end of
 --- a line (capture 1 = the label). `switches` may set another format with
 --- `-l "fmt"`, like Emacs.
 function M.coderef_pattern(switches)
-  local fmt = (switches or ""):match('%-l%s+"(.-)"') or "(ref:%s)"
+  local fmt = M.coderef_format(switches)
   local s, e = fmt:find("%s", 1, true)
   if not s then
-    fmt, s, e = "(ref:%s)", 6, 7
+    fmt = "(ref:%s)"
+    s, e = fmt:find("%s", 1, true)
   end
   return "%s*" .. vim.pesc(fmt:sub(1, s - 1)) .. "([%w_%-][%w_%- ]*)" .. vim.pesc(fmt:sub(e + 1)) .. "%s*$"
 end

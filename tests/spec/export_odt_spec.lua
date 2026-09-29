@@ -58,6 +58,8 @@ describe("export odt", function()
     saved = saved or vim.deepcopy(config.opts.export.odt)
     config.opts.export.odt = vim.deepcopy(saved)
     config.opts.export.odt.fontify_srcblocks = false
+    -- keep the MathML cache (org-latex-mathml-directory) out of the fixtures
+    config.opts.export.odt.latex_mathml_directory = vim.fn.tempname() .. "/"
     config.opts.babel.evaluate_on_export = false
     config.opts.export.author = "Tester"
   end)

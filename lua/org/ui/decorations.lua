@@ -56,6 +56,9 @@ function M.ui_options(bufnr, file)
   flag("pretty_entities", "entitiespretty", "entitiesplain")
   flag("num", "num", "nonum")
   if vim.api.nvim_buf_is_valid(bufnr) then
+    if vim.b[bufnr].org_indent_mode ~= nil then
+      ui.indent_mode = vim.b[bufnr].org_indent_mode
+    end
     if vim.b[bufnr].org_pretty_entities ~= nil then
       ui.pretty_entities = vim.b[bufnr].org_pretty_entities
     end
@@ -75,6 +78,38 @@ function M.ui_options(bufnr, file)
   return ui
 end
 
+--- Virtual indentation widths of org-indent-mode
+--- (org-indent--compute-prefixes): the prefix of a level-n headline and of
+--- the text under it, `ui.indent_indentation_per_level` columns per level
+--- (org-indent-indentation-per-level). 0 turns the prefixes off.
+---@return integer heading, integer text
+function M.indent_widths(ui, level)
+  local per = ui.indent_indentation_per_level or 2
+  if per <= 0 or level <= 0 then
+    return 0, 0
+  end
+  local indentation = level <= 1 and 0 or (per - 1) * (level - 1)
+  return indentation, level + indentation + 1
+end
+
+--- org-adapt-indentation in buffer `bufnr`: off while indent mode is on
+--- (org-indent-mode-turns-off-org-adapt-indentation).
+function M.adapt_indentation(bufnr)
+  local cfg = require("org.config").opts
+  if not cfg.adapt_indentation then
+    return false
+  end
+  if cfg.ui.indent_mode_turns_off_adapt_indentation == false then
+    return cfg.adapt_indentation
+  end
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local ok, ui = pcall(M.ui_options, bufnr)
+  if ok and ui.indent_mode then
+    return false
+  end
+  return cfg.adapt_indentation
+end
+
 local function enabled(ui)
   return ui.bullets
     or ui.hide_leading_stars
@@ -82,6 +117,7 @@ local function enabled(ui)
     or ui.indent_mode
     or ui.pretty_entities
     or ui.num
+    or next(ui.src_block_faces or {}) ~= nil
     or require("org.parser").inlinetask_min_level() ~= nil
 end
 
@@ -213,20 +249,40 @@ local function context_at(bufnr, first, min_inline)
     end
     e = e > 0 and s or e
   end
-  local level, in_block = 0, false
+  local level, in_block, src_lang = 0, false, nil
   for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, start, first, false)) do
     local lvl = outline(line)
     if lvl then
-      level, in_block = lvl, false
+      level, in_block, src_lang = lvl, false, nil
     elseif not (line:byte(1) == 42 and parser.headline_level(line)) then
       if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
         in_block = true
+        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
       elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block = false
+        in_block, src_lang = false, nil
       end
     end
   end
-  return level, in_block
+  return level, in_block, src_lang
+end
+
+--- Highlight groups of `ui.src_block_faces` by language (org-src-block-faces).
+local src_faces_defined
+local function src_face_groups(ui)
+  local faces = ui.src_block_faces
+  if not faces or next(faces) == nil then
+    return nil
+  end
+  local hl = require("org.highlights")
+  local groups = {}
+  for lang in pairs(faces) do
+    groups[lang] = hl.face_group("orgSrcBlockFace_", lang)
+  end
+  if src_faces_defined ~= faces then
+    src_faces_defined = faces
+    hl.apply_todo_faces()
+  end
+  return groups
 end
 
 local num_cache = {} ---@type table<integer, { tick: integer, nums: table }>
@@ -256,10 +312,11 @@ function M.compute(bufnr, first, last, ui)
     r[#r + 1] = { col, opts, persist }
   end
   local min_inline = require("org.parser").inlinetask_min_level()
-  local level, in_block = 0, false
+  local level, in_block, src_lang = 0, false, nil
   if first > 0 then
-    level, in_block = context_at(bufnr, first, min_inline)
+    level, in_block, src_lang = context_at(bufnr, first, min_inline)
   end
+  local src_faces = src_face_groups(ui)
   local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
   local bullets = type(ui.bullets) == "table" and ui.bullets or nil
   local boxes = type(ui.checkboxes) == "table" and ui.checkboxes or nil
@@ -282,21 +339,36 @@ function M.compute(bufnr, first, last, ui)
     local stars = line:match("^(%*+) ")
     if stars and min_inline and #stars >= min_inline then
       -- inline task: only the last two stars show (org-inlinetask-fontify)
+      local prefix = ui.indent_mode and M.indent_widths(ui, #stars) or 0
+      local first_star = require("org.config").opts.inlinetask_show_first_star
+      if prefix > 0 then
+        -- org-indent--inlinetask-line-prefixes: the heading prefix, its
+        -- first column a star with org-inlinetask-show-first-star
+        local chunks = { { string.rep(" ", prefix), "OrgHiddenStars" } }
+        if first_star then
+          chunks = { { "*", "OrgInlinetaskFirstStar" }, { string.rep(" ", prefix - 1), "OrgHiddenStars" } }
+        end
+        set(row, 0, { virt_text = chunks, virt_text_pos = "inline", right_gravity = false })
+      end
       if #stars > 2 then
-        set(row, 0, {
-          virt_text = { { string.rep(" ", #stars - 2), "OrgHiddenStars" } },
-          virt_text_pos = "overlay",
-        })
+        local chunks = { { string.rep(" ", #stars - 2), "OrgHiddenStars" } }
+        if first_star and not (ui.indent_mode and (ui.indent_indentation_per_level or 2) > 1) then
+          -- org-inlinetask-show-first-star: the first star as a marker
+          chunks = { { "*", "OrgInlinetaskFirstStar" }, { string.rep(" ", #stars - 3), "OrgHiddenStars" } }
+        end
+        set(row, 0, { virt_text = chunks, virt_text_pos = "overlay" }, prefix > 0)
       end
       set(row, #stars - 2, { end_col = #line, hl_group = "OrgInlinetask", priority = 150 })
     elseif stars then
       level = #stars
-      in_block = false
+      in_block, src_lang = false, nil
       local group = "OrgHeadlineLevel" .. (((level - 1) % 8) + 1)
-      if ui.indent_mode and level > 1 then
-        -- org-indent: headlines get level - 1 columns of prefix
+      local heading_prefix = ui.indent_mode and M.indent_widths(ui, level) or 0
+      if heading_prefix > 0 then
+        -- org-indent: headlines get (per-level - 1) * (level - 1) columns
+        -- of prefix
         set(row, 0, {
-          virt_text = { { string.rep(" ", level - 1), "OrgHiddenStars" } },
+          virt_text = { { string.rep(" ", heading_prefix), "OrgHiddenStars" } },
           virt_text_pos = "inline",
           right_gravity = false,
         })
@@ -304,7 +376,7 @@ function M.compute(bufnr, first, last, ui)
       -- Overlays on the stars share column 0 with the indent-mode prefix;
       -- an ephemeral overlay there is drawn over the inline prefix instead
       -- of the stars, so they are real extmarks like the prefix.
-      local persist = ui.indent_mode and level > 1
+      local persist = heading_prefix > 0
       if bullets then
         -- leading stars hidden, the last one replaced by the level's bullet
         -- (org-superstar), so the title stays at column 2n in indent mode
@@ -337,13 +409,18 @@ function M.compute(bufnr, first, last, ui)
     else
       if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
         in_block = true
+        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
       elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block = false
+        in_block, src_lang = false, nil
+      elseif src_lang and src_faces and src_faces[src_lang] and line ~= "" then
+        -- body of a src block: its language's face (org-src-block-faces)
+        set(row, 0, { end_col = #line, hl_group = src_faces[src_lang], priority = 90 })
       end
-      if ui.indent_mode and level > 0 and line ~= "" then
+      local _, text_prefix = M.indent_widths(ui, ui.indent_mode and level or 0)
+      if text_prefix > 0 and line ~= "" then
         -- org-indent: text of a level-n entry starts at column 2n
         set(row, 0, {
-          virt_text = { { string.rep(" ", 2 * level), "Normal" } },
+          virt_text = { { string.rep(" ", text_prefix), "Normal" } },
           virt_text_pos = "inline",
           right_gravity = false,
         })
@@ -352,6 +429,9 @@ function M.compute(bufnr, first, last, ui)
         local pre, box = line:match("^(%s*[-+*]%s+)(%[[ xX%-]%])")
         if not pre then
           pre, box = line:match("^(%s*%d+[.)]%s+)(%[[ xX%-]%])")
+        end
+        if not pre and line:match("^%s*%a[.)]") and require("org.lists").opt("allow_alphabetical") then
+          pre, box = line:match("^(%s*%a[.)]%s+)(%[[ xX%-]%])")
         end
         if box then
           local state = box:sub(2, 2)
@@ -479,6 +559,16 @@ function M.toggle_pretty_entities()
   require("org.utils").notify(on and "Entities are now displayed as UTF8 characters" or "Entities are now displayed as plain text")
 end
 
+--- Run the User autocmd of a mode hook (org-indent-mode-hook,
+--- org-num-mode-hook) with `data.enabled`.
+local function mode_hook(pattern, bufnr, on)
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = pattern,
+    data = { bufnr = bufnr, enabled = on },
+    modeline = false,
+  })
+end
+
 --- org-num-mode: toggle virtual headline numbering in this buffer.
 function M.toggle_num_mode()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -486,6 +576,17 @@ function M.toggle_num_mode()
   vim.b[bufnr].org_num_mode = on
   M.attach(bufnr, true)
   require("org.utils").notify(on and "Org-Num mode enabled" or "Org-Num mode disabled")
+  mode_hook("OrgNumMode", bufnr, on)
+end
+
+--- org-indent-mode: toggle virtual indentation in this buffer.
+function M.toggle_indent_mode()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local on = not M.ui_options(bufnr).indent_mode
+  vim.b[bufnr].org_indent_mode = on
+  M.attach(bufnr, true)
+  require("org.utils").notify(on and "Org-Indent mode enabled" or "Org-Indent mode disabled")
+  mode_hook("OrgIndentMode", bufnr, on)
 end
 
 -- Decorations are drawn by a decoration provider from the buffer text at
@@ -637,6 +738,16 @@ function M.attach(bufnr, force)
       vim.wo.breakindent = true
       vim.wo.wrap = true
     end)
+  end
+  if not attached[bufnr] and not force then
+    -- the modes turned on when the buffer is set up (org-startup-indented,
+    -- org-startup-numerated) run their hooks
+    if ui.indent_mode then
+      mode_hook("OrgIndentMode", bufnr, true)
+    end
+    if ui.num then
+      mode_hook("OrgNumMode", bufnr, true)
+    end
   end
   attached[bufnr] = true
   local group = vim.api.nvim_create_augroup("org.decorations." .. bufnr, { clear = true })

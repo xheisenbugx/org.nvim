@@ -602,6 +602,12 @@ function M.radar(rows, opts)
   return code, setup, setup_file
 end
 
+--- A plot type of `plot_preset_plot_types` (org-plot/preset-plot-types).
+function M.custom_type(name)
+  local types = require("org.config").opts.plot_preset_plot_types or {}
+  return types[name]
+end
+
 --- The gnuplot script for `rows` (org-plot/gnuplot-script).
 function M.script(rows, data_file, ncols, opts)
   local lines = { "reset" }
@@ -623,7 +629,15 @@ function M.script(rows, data_file, ncols, opts)
     add(string.format("set output '%s'", vim.fn.fnamemodify(tostring(file), ":p")))
   end
   local ptype = tostring(opts.plot_type)
-  if ptype == "3d" and opts.map then
+  local custom = M.custom_type(ptype)
+  local plot_str = custom and custom.plot_str or "'%s' using %s%d%s with %s title '%s'"
+  if custom then
+    local pre = custom.plot_pre
+    if type(pre) == "function" then
+      pre = pre(rows, data_file, ncols, opts, plot_str)
+    end
+    add(pre)
+  elseif ptype == "3d" and opts.map then
     add("set map")
   elseif ptype == "grid" then
     add(opts.map and "set pm3d map" or "set map")
@@ -656,7 +670,12 @@ function M.script(rows, data_file, ncols, opts)
     return table.concat(lines, "\n")
   end
   local plot_lines = {}
-  if ptype == "2d" then
+  if custom then
+    if custom.plot_func then
+      plot_lines = custom.plot_func(rows, data_file, ncols, opts, plot_str) or {}
+    end
+    add((custom.plot_cmd and (custom.plot_cmd .. " ") or "") .. table.concat(plot_lines, ",\\\n    "))
+  elseif ptype == "2d" then
     local ind = tonumber(opts.ind)
     local deps = type(opts.deps) == "table" and opts.deps or nil
     local text_ind = opts.textind or opts.with == "histograms"
@@ -763,13 +782,16 @@ function M.gnuplot(bufnr, lnum)
     return false
   end
   local ptype = tostring(opts.plot_type)
-  if ptype ~= "2d" and ptype ~= "3d" and ptype ~= "grid" and ptype ~= "radar" then
-    utils.warn("Org-plot type `" .. ptype .. "' is not supported")
+  local custom = M.custom_type(ptype)
+  if not custom and ptype ~= "2d" and ptype ~= "3d" and ptype ~= "grid" and ptype ~= "radar" then
+    utils.warn("Org-plot type `" .. ptype .. "' is undefined")
     return false
   end
   local data_file = vim.fn.tempname() .. "-org-plot"
   local data
-  if ptype == "grid" then
+  if custom and custom.data_dump then
+    data = custom.data_dump(rows, data_file, ncols, opts) or M.data(rows, opts)
+  elseif ptype == "grid" then
     local ylabels
     data, ylabels = M.grid_data(rows, opts)
     opts.ylabels = ylabels
@@ -777,7 +799,7 @@ function M.gnuplot(bufnr, lnum)
     data = M.data(rows, opts)
   end
   -- the type of the independent column: timestamps or text
-  if ptype == "2d" then
+  if (custom and custom.check_ind_type) or (not custom and ptype == "2d") then
     local ind = (tonumber(opts.ind) or 0)
     if ind > 0 then
       local all_ts, all_num = true, true

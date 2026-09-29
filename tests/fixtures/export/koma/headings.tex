@@ -1,0 +1,57 @@
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{scrlttr2}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\setkomavar{fromemail}{jane@example.com}
+\KOMAoption{fromemail}{false}
+\KOMAoption{fromphone}{false}
+\KOMAoption{fromurl}{false}
+\KOMAoption{fromlogo}{false}
+\KOMAoption{backaddress}{false}
+\LoadLetterOption{NF}
+\setkomavar{fromname}{Jane Doe}
+\setkomavar{fromaddress}{1 Main Street\\
+Springfield}
+\setkomavar{signature}{Jane Doe}
+\setkomavar{place}{}
+\setkomavar{location}{Room 5}
+\KOMAoptions{foldmarks=false}
+\date{2026-09-28}
+\hypersetup{
+ pdfauthor={Jane Doe},
+ pdftitle={Title as subject},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={},
+ pdflang={English}}
+\begin{document}
+
+\setkomavar{subject}{Title as subject}
+
+\begin{letter}{%
+John Smith\\
+2 Side Road}
+
+\opening{Dear John,}
+
+Body text of the letter.
+More text.
+\closing{Yours sincerely,}
+\vspace{2em}
+\ps{A postscript.}
+
+
+
+\end{letter}
+
+\end{document}

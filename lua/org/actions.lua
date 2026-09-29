@@ -41,6 +41,14 @@ group("Anywhere", {
   capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },
+  capture_string = { "org.capture", "capture_string", desc = "Capture a string typed at a prompt", global = true },
+  protocol_create = { "org.protocol", "create", desc = "Create an org-protocol project", global = true },
+  protocol_create_for_org = {
+    "org.protocol",
+    "create_for_org",
+    desc = "Create an org-protocol project for this file's publishing project",
+  },
+  bookmark_jump = { "org.bookmarks", "jump", desc = "Jump to a capture / refile bookmark", global = true },
   store_link = {
     "org.links",
     "store_link",
@@ -53,6 +61,16 @@ group("Anywhere", {
   clock_out = { "org.clock", "clock_out", desc = "Clock out", global = true },
   clock_cancel = { "org.clock", "clock_cancel", desc = "Cancel clock", global = true },
   help = { "org.mappings", "show_help", desc = "Show org keymaps", global = true },
+  version = { "org.version", "show", desc = "Show the org.nvim version (count: insert it)", global = true },
+  customize = { "org.customize", "open", desc = "Browse and set options (org-customize)", global = true },
+  customize_menu = {
+    "org.customize",
+    "create_menu",
+    desc = "List every option in the Org menu (org-create-customize-menu)",
+    global = true,
+  },
+  bug_report = { "org.bug_report", "submit", desc = "Report a bug (org-submit-bug-report)", global = true },
+  clock_menu = { "org.menu", "clock_menu", desc = "Pop up the clock menu (org-clock-menu)", global = true },
 })
 
 group("Visibility", {
@@ -65,6 +83,9 @@ group("Visibility", {
   set_startup_visibility = { "org.fold", "set_startup_visibility", desc = "Restore startup visibility" },
   show_everything = { "org.fold", "show_everything", desc = "Show everything, including drawers" },
   copy_visible = { "org.fold", "copy_visible", desc = "Copy visible text", modes = { "n", "x" } },
+  hide_entry = { "org.fold", "hide_entry", desc = "Hide the text of the entry" },
+  hide_block_all = { "org.fold", "hide_block_all", desc = "Fold all blocks" },
+  hide_drawer_all = { "org.fold", "hide_drawer_all", desc = "Fold all drawers", modes = { "n", "x" } },
 })
 
 group("At point", {
@@ -89,6 +110,14 @@ group("Structure", {
   insert_heading = { "org.structure", "insert_heading", desc = "Insert heading after subtree" },
   insert_todo_heading = { "org.structure", "insert_todo_heading", desc = "Insert TODO heading" },
   insert_subheading = { "org.structure", "insert_subheading", desc = "Insert subheading" },
+  insert_todo_subheading = { "org.structure", "insert_todo_subheading", desc = "Insert TODO subheading" },
+  edit_headline = { "org.structure", "edit_headline", desc = "Edit the headline's title" },
+  convert_to_odd_levels = { "org.structure", "convert_to_odd_levels", desc = "Convert the file to odd levels only" },
+  convert_to_oddeven_levels = {
+    "org.structure",
+    "convert_to_oddeven_levels",
+    desc = "Convert an odd-levels file to odd and even levels",
+  },
   insert_drawer = {
     "org.structure",
     "insert_drawer",
@@ -102,6 +131,8 @@ group("Structure", {
     modes = { "n", "x" },
   },
   insert_footnote = { "org.footnotes", "footnote_action", desc = "Footnote: jump / new / menu (count)" },
+  cite_insert = { "org.cite", "insert", desc = "Insert / edit a citation (count: delete it, or pick a style)" },
+  cite_mouse_click = { "org.cite", "mouse_click", desc = "Mouse click on a citation key" },
   promote_heading = { "org.context", "promote", desc = "Promote heading / item" },
   demote_heading = { "org.context", "demote", desc = "Demote heading / item" },
   promote_subtree = { "org.context", "promote_subtree", desc = "Promote subtree" },
@@ -124,8 +155,22 @@ group("Structure", {
   copy_subtree = { "org.structure", "copy_subtree", desc = "Copy subtree" },
   cut_subtree = { "org.structure", "cut_subtree", desc = "Cut subtree" },
   paste_subtree = { "org.structure", "paste_subtree", desc = "Paste subtree" },
+  yank = { "org.structure", "yank", desc = "Put, folding / adjusting subtrees (org-yank)" },
+  yank_before = { "org.structure", "yank_before", desc = "Put before, folding / adjusting subtrees" },
   clone_subtree = { "org.structure", "clone_subtree", desc = "Clone subtree with time shift" },
   sort = { "org.structure", "sort", desc = "Sort entries / items" },
+  indent_region = {
+    "org.indent",
+    "indent_region_action",
+    desc = "Indent the buffer / selection (org-indent-region)",
+    modes = { "n", "x" },
+  },
+  beginning_of_line = { "org.lineedit", "beginning_of_line", desc = "Start of line / headline title" },
+  end_of_line = { "org.lineedit", "end_of_line", desc = "End of line / before the tags" },
+  kill_line = { "org.lineedit", "kill_line", desc = "Kill to the end of the line / the tags" },
+  indent_block = { "org.indent", "indent_block", desc = "Indent the block at point" },
+  indent_drawer = { "org.indent", "indent_drawer", desc = "Indent the drawer at point" },
+  unindent_buffer = { "org.indent", "unindent_buffer", desc = "Remove the common indentation of elements" },
   narrow_subtree = { "org.structure", "narrow_subtree", desc = "Narrow to subtree (edit buffer)" },
   indirect_subtree = { "org.structure", "tree_to_indirect_buffer", desc = "Subtree in split edit buffer" },
   mark_subtree = { "org.structure", "mark_subtree", desc = "Select subtree", modes = { "n", "x" } },
@@ -178,13 +223,16 @@ group("Navigation & elements", {
   },
   toggle_pretty_entities = { "org.ui.decorations", "toggle_pretty_entities", desc = "Toggle pretty entities" },
   num_mode = { "org.ui.decorations", "toggle_num_mode", desc = "Toggle headline numbering (org-num-mode)" },
+  indent_mode = { "org.ui.decorations", "toggle_indent_mode", desc = "Toggle virtual indentation (org-indent-mode)" },
+  entities_help = { "org.entities", "help", desc = "List all entities", global = true },
   inlinetask_insert = { "org.inlinetask", "insert", desc = "Insert inline task" },
   goto_parent = { "org.structure", "goto_parent", desc = "Go to parent heading" },
   next_heading = { "org.structure", "next_heading", desc = "Next heading", modes = { "n", "x", "o" } },
   prev_heading = { "org.structure", "prev_heading", desc = "Previous heading", modes = { "n", "x", "o" } },
   next_sibling = { "org.structure", "next_sibling", desc = "Next sibling heading", modes = { "n", "x", "o" } },
   prev_sibling = { "org.structure", "prev_sibling", desc = "Previous sibling heading", modes = { "n", "x", "o" } },
-  buffer_goto = { "org.structure", "goto_heading", desc = "Go to heading in buffer" },
+  buffer_goto = { "org.goto", "goto", desc = "Go to heading in buffer (org-goto)" },
+  imenu = { "org.goto", "imenu", desc = "Headlines in the location list (imenu)" },
 })
 
 group("TODO, priority, tags & properties", {
@@ -203,6 +251,12 @@ group("TODO, priority, tags & properties", {
     modes = { "n", "x" },
   },
   todo_without_note = { "org.todo", "todo_without_note", desc = "Change TODO state without a note (C-0 C-c C-t)" },
+  todo_yesterday = {
+    "org.todo",
+    "todo_yesterday",
+    desc = "Change TODO state as if at 23:59 yesterday (org-todo-yesterday)",
+    modes = { "n", "x" },
+  },
   todo_cancel_repeaters = {
     "org.todo",
     "todo_cancel_repeaters",
@@ -231,6 +285,11 @@ group("TODO, priority, tags & properties", {
     "delete_property_globally",
     desc = "Delete a property from all entries",
   },
+  toggle_custom_properties_visibility = {
+    "org.properties",
+    "toggle_custom_properties_visibility",
+    desc = "Hide / show custom_properties",
+  },
   id_get_create = { "org.id", "get_create", desc = "Get or create ID" },
 })
 
@@ -239,7 +298,7 @@ group("Dates", {
   deadline = { "org.timestamps", "deadline", desc = "Deadline (Visual: all headlines)", modes = { "n", "x" } },
   timestamp = { "org.timestamps", "insert_active", desc = "Insert active timestamp" },
   timestamp_inactive = { "org.timestamps", "insert_inactive", desc = "Insert inactive timestamp" },
-  date_today = { "org.timestamps", "insert_today", desc = "Insert today's date" },
+  date_today = { "org.timestamps", "insert_today", desc = "Insert the calendar's date (today)" },
   goto_calendar = { "org.timestamps", "goto_calendar", desc = "Open calendar" },
   evaluate_time_range = { "org.timestamps", "evaluate_time_range", desc = "Evaluate time range" },
   toggle_timestamp_type = { "org.timestamps", "toggle_type", desc = "Toggle timestamp active/inactive" },
@@ -254,6 +313,15 @@ group("Lists", {
   toggle_checkbox = { "org.lists", "toggle_checkbox", desc = "Toggle checkbox", modes = { "n", "x" } },
   update_statistics = { "org.lists", "update_statistics", desc = "Update statistics cookies" },
   cycle_bullet = { "org.lists", "cycle_bullet", desc = "Cycle list bullet" },
+  reset_checkbox_state_subtree = {
+    "org.lists",
+    "reset_checkbox_state_subtree",
+    desc = "Uncheck every checkbox of the subtree",
+  },
+  beginning_of_item = { "org.lists", "beginning_of_item", desc = "Go to the start of the item" },
+  end_of_item = { "org.lists", "end_of_item", desc = "Go to the end of the item" },
+  beginning_of_item_list = { "org.lists", "beginning_of_item_list", desc = "Go to the first item of the list" },
+  end_of_item_list = { "org.lists", "end_of_item_list", desc = "Go to the end of the list" },
 })
 
 group("Clock & effort", {
@@ -339,10 +407,64 @@ group("Links", {
   insert_last_stored_link = { "org.links", "insert_last_stored_link", desc = "Insert last stored link" },
   insert_all_links = { "org.links", "insert_all_links", desc = "Insert all stored links" },
   open_link_or_entry = { "org.links", "open_at_point_or_entry", desc = "Open link at point / entry links" },
+  link_open_from_string = {
+    "org.links",
+    "open_from_string",
+    desc = "Open a link typed at a prompt",
+    global = true,
+  },
   mark_ring_goto = { "org.links", "mark_ring_goto", desc = "Jump back from followed link" },
+  open_at_point_global = {
+    "org.links",
+    "open_at_point_global",
+    desc = "Follow an Org link, date or URL in any buffer",
+    global = true,
+  },
+  occur_link_in_agenda_files = {
+    "org.links",
+    "occur_link_in_agenda_files",
+    desc = "Find links to here in the agenda files",
+    global = true,
+  },
+  open_at_mouse = { "org.mouse", "open_at_mouse", desc = "Open the link clicked" },
+  find_file_at_mouse = { "org.mouse", "find_file_at_mouse", desc = "Open the link clicked in Neovim" },
   id_goto = { "org.id", "goto", desc = "Go to entry by ID", global = true },
   id_copy = { "org.id", "copy", desc = "Copy entry ID" },
   id_store_link = { "org.id", "store_link", desc = "Store id: link to entry" },
+  yank_media = {
+    "org.yank",
+    "yank_media",
+    desc = "Paste a clipboard image or copied files (link / attach)",
+    modes = { "n", "i" },
+  },
+  ctags_find_tag_interactive = { "org.ctags", "find_tag_interactive", desc = "Jump to a tag (topic), or create it" },
+  ctags_find_tag = { "org.ctags", "find_tag_prompt", desc = "Jump to a tag" },
+  ctags_create_tags = { "org.ctags", "create_tags", desc = "Rebuild the tags file of this directory" },
+  ctags_all_tags = { "org.ctags", "all_tags_command", desc = "List the tags of the tags files" },
+  ctags_get_filename_for_tag = { "org.ctags", "get_filename_for_tag_prompt", desc = "Show where a tag is defined" },
+  ctags_open_file = { "org.ctags", "open_file_prompt", desc = "Open a file and add a new topic" },
+  ctags_visit_buffer_or_file = { "org.ctags", "visit_buffer_or_file_prompt", desc = "Visit NAME.org" },
+  ctags_append_topic = { "org.ctags", "append_topic_prompt", desc = "Append a new topic to the buffer" },
+})
+
+group("BibTeX", {
+  bibtex_export = { "org.bibtex", "export", desc = "Export the entries of the file to a .bib file" },
+  bibtex_check = { "org.bibtex", "check", desc = "Ask for missing BibTeX fields (count: optional too)" },
+  bibtex_check_all = { "org.bibtex", "check_all", desc = "Check the BibTeX fields of every headline" },
+  bibtex_create = { "org.bibtex", "create", desc = "New BibTeX entry headline (count: optional fields)" },
+  bibtex_create_in_current_entry = {
+    "org.bibtex",
+    "create_in_current_entry",
+    desc = "Add BibTeX data to the headline",
+  },
+  bibtex_export_to_kill_ring = { "org.bibtex", "export_to_kill_ring", desc = "Copy the headline as a BibTeX entry" },
+  bibtex_import_from_file = { "org.bibtex", "import_from_file", desc = "Insert the entries of a .bib file" },
+  bibtex_read = { "org.bibtex", "read", desc = "Read the BibTeX entry at the cursor", global = true },
+  bibtex_read_buffer = { "org.bibtex", "read_buffer", desc = "Read the BibTeX entries of a buffer", global = true },
+  bibtex_read_file = { "org.bibtex", "read_file", desc = "Read the BibTeX entries of a file", global = true },
+  bibtex_search = { "org.bibtex", "search", desc = "Search BibTeX entries in the agenda files", global = true },
+  bibtex_write = { "org.bibtex", "write", desc = "Insert the first read BibTeX entry as a headline" },
+  bibtex_yank = { "org.bibtex", "yank", desc = "Insert the yanked BibTeX entry (count: into this headline)" },
 })
 
 group("Refile, archive & attach", {
@@ -353,6 +475,13 @@ group("Refile, archive & attach", {
     modes = { "n", "x" },
   },
   refile_copy = { "org.refile", "refile_copy", desc = "Copy subtree / region to a refile target", modes = { "n", "x" } },
+  refile_reverse = {
+    "org.refile",
+    "refile_reverse",
+    desc = "Refile with reverse_note_order inverted (first child)",
+    modes = { "n", "x" },
+  },
+  datetree_cleanup = { "org.datetree", "cleanup", desc = "Move date tree entries under the day of their time stamp" },
   refile_goto = { "org.refile", "goto", desc = "Jump to a refile target", global = true },
   refile_cache_clear = { "org.refile", "cache_clear", desc = "Clear the refile target cache", global = true },
   refile_goto_last = { "org.refile", "goto_last_stored", desc = "Jump to last refile / capture", global = true },
@@ -368,9 +497,21 @@ group("Refile, archive & attach", {
     desc = "Archive to Archive sibling (Visual: all headlines)",
     modes = { "n", "x" },
   },
+  archive_subtree_default = {
+    "org.archive",
+    "archive_subtree_default",
+    desc = "Archive with archive_default_command",
+    modes = { "n", "x" },
+  },
   archive_all_done = { "org.archive", "archive_all_done", desc = "Archive children without open TODOs" },
   archive_all_old = { "org.archive", "archive_all_old", desc = "Archive children with old time stamps" },
   attach = { "org.attach", "menu", desc = "Attachments" },
+  attach_from_file_manager = {
+    "org.attach",
+    "attach_from_file_manager",
+    desc = "Attach the netrw / oil files to the entry in the Org window",
+    global = true,
+  },
   agenda_file_to_front = { "org.files", "agenda_file_to_front", desc = "Add file to agenda files" },
   cycle_agenda_files = { "org.agenda", "cycle_files", desc = "Visit next agenda file", global = true },
   agenda_set_restriction_lock = { "org.agenda", "set_restriction_lock", desc = "Lock agenda to subtree / file" },
@@ -381,13 +522,134 @@ group("Refile, archive & attach", {
     global = true,
   },
   agenda_file_remove = { "org.files", "remove_file", desc = "Remove file from agenda files" },
+  agenda_kill_all_buffers = {
+    "org.agenda.view",
+    "kill_all_agenda_buffers",
+    desc = "Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)",
+    global = true,
+  },
+  edit_agenda_file_list = {
+    "org.files",
+    "edit_agenda_file_list",
+    desc = "Edit the list of agenda files",
+    global = true,
+  },
 })
 
 group("Search & export", {
   sparse_tree = { "org.agenda.sparse", "prompt", desc = "Sparse tree" },
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
+  export_stack = { "org.export", "stack_show", desc = "Export stack: results of background exports", global = true },
+  beamer_mode = { "org.export.beamer_mode", "toggle", desc = "Toggle the Beamer editing mode (org-beamer-mode)" },
+  beamer_select_environment = {
+    "org.export.beamer_mode",
+    "select_environment",
+    desc = "Select the Beamer environment of the entry (BEAMER_env)",
+  },
+  odt_convert = {
+    "org.export.odt",
+    "convert_command",
+    desc = "Convert a file with the ODT converter (count: open it)",
+    global = true,
+  },
+  odt_export_as_odf = {
+    "org.export.odt",
+    "export_as_odf",
+    desc = "Export a LaTeX fragment as an OpenDocument formula (.odf)",
+    modes = { "n", "x" },
+  },
+  odt_export_as_odf_and_open = {
+    "org.export.odt",
+    "export_as_odf_and_open",
+    desc = "Export a LaTeX fragment as an .odf file and open it",
+    modes = { "n", "x" },
+  },
+  html_htmlize_generate_css = {
+    "org.export.html",
+    "htmlize_generate_css",
+    desc = "Stylesheet of the source code highlighting classes (htmlize)",
+    global = true,
+  },
+  export_stack_clear = {
+    "org.export",
+    "stack_clear",
+    desc = "Remove every entry from the export stack",
+    global = true,
+  },
+  convert_region_to_html = {
+    "org.export",
+    "convert_region_to_html",
+    desc = "Replace the region by its HTML export",
+    modes = { "x" },
+  },
+  convert_region_to_latex = {
+    "org.export",
+    "convert_region_to_latex",
+    desc = "Replace the region by its LaTeX export",
+    modes = { "x" },
+  },
+  convert_region_to_md = {
+    "org.export",
+    "convert_region_to_md",
+    desc = "Replace the region by its Markdown export",
+    modes = { "x" },
+  },
+  convert_region_to_ascii = {
+    "org.export",
+    "convert_region_to_ascii",
+    desc = "Replace the region by its ASCII export",
+    modes = { "x" },
+  },
+  convert_region_to_utf8 = {
+    "org.export",
+    "convert_region_to_utf8",
+    desc = "Replace the region by its UTF-8 text export",
+    modes = { "x" },
+  },
+  convert_region_to_texinfo = {
+    "org.export",
+    "convert_region_to_texinfo",
+    desc = "Replace the region by its Texinfo export",
+    modes = { "x" },
+  },
   lint = { "org.lint", "show", desc = "Check the buffer for syntax problems (org-lint)" },
+})
+
+group("Mouse (org-mouse)", {
+  mouse_context_menu = {
+    "org.org_mouse",
+    "context_menu_at_cursor",
+    desc = "Context menu for the cursor position (org-mouse-show-context-menu)",
+  },
+  mouse_insert_heading = { "org.org_mouse", "insert_heading", desc = "New heading (org-mouse-insert-heading)" },
+  mouse_insert_checkbox = {
+    "org.org_mouse",
+    "insert_checkbox",
+    desc = "Checkbox on the item (org-mouse-insert-checkbox)",
+  },
+  mouse_end_headline = {
+    "org.org_mouse",
+    "end_headline",
+    desc = "End of the headline, before the tags (org-mouse-end-headline)",
+  },
+  mouse_show_headlines = { "org.org_mouse", "show_headlines", desc = "Show all headlines (org-mouse-show-headlines)" },
+  mouse_show_overview = { "org.org_mouse", "show_overview", desc = "Show the overview (org-mouse-show-overview)" },
+  mouse_timestamp_today = {
+    "org.org_mouse",
+    "timestamp_today",
+    desc = "Change the timestamp with the date prompt (org-mouse-timestamp-today)",
+  },
+  mouse_transform_to_outline = {
+    "org.org_mouse",
+    "transform_to_outline",
+    desc = "Plain list to outline (org-mouse-transform-to-outline)",
+  },
+  mouse_move_tree_start = {
+    "org.org_mouse",
+    "move_tree_start",
+    desc = "How dragging a subtree works (org-mouse-move-tree-start)",
+  },
 })
 
 group("Tables", {
@@ -446,6 +708,13 @@ group("Tables", {
   table_ascii_plot = { "org.table.plot", "ascii_plot", desc = "ASCII bar plot of table column" },
   table_plot = { "org.table.plot", "gnuplot", desc = "Plot table with gnuplot" },
   table_el = { "org.table", "table_el", desc = "Convert table to/from table.el, or insert one" },
+  table_goto_column = { "org.table", "goto_column", desc = "Go to column N (count) of the table row" },
+  table_wrap_region = {
+    "org.table",
+    "wrap_region",
+    desc = "Wrap the selected column like a paragraph / split the field",
+    modes = { "n", "x" },
+  },
   orgtbl_mode = { "org.table.orgtbl", "toggle", desc = "Toggle orgtbl-mode", global = true },
   orgtbl_insert_radio_table = {
     "org.table.orgtbl",
@@ -490,6 +759,78 @@ group("Babel", {
   babel_mark_block = { "org.babel", "mark_block", desc = "Select src block body" },
   babel_do_key_sequence = { "org.babel", "do_key_sequence_in_edit_buffer", desc = "Run keys in src edit buffer" },
   babel_hide_all_results = { "org.babel", "hide_all_results", desc = "Fold every src block result" },
+  babel_remove_inline_result = {
+    "org.babel",
+    "remove_inline_result",
+    desc = "Remove the result of the inline src block / call",
+  },
+  babel_hash_at_point = { "org.babel", "hash_at_point", desc = "Copy the result hash at the cursor" },
+  escape_code_in_region = {
+    "org.special",
+    "escape_code_in_region",
+    desc = "Comma-escape * and #+ lines of the selection",
+    modes = { "n", "x" },
+  },
+  unescape_code_in_region = {
+    "org.special",
+    "unescape_code_in_region",
+    desc = "Remove comma escapes of the selection",
+    modes = { "n", "x" },
+  },
+  edit_src_continue = {
+    "org.special",
+    "continue_at_point",
+    desc = "Go back to the edit buffer of the region at the cursor",
+  },
+  -- commands of ob-LANG ports (org.babel.lang.*)
+  babel_haskell_export_to_lhs = {
+    "org.babel.lang.haskell",
+    "export_to_lhs",
+    desc = "Export Haskell blocks to .lhs (count: lhs2tex to .tex)",
+  },
+  babel_lilypond_tangle = { "org.babel.lang.lilypond", "tangle", desc = "Tangle LilyPond blocks and engrave" },
+  babel_lilypond_toggle_arrange_mode = {
+    "org.babel.lang.lilypond",
+    "toggle_arrange_mode",
+    desc = "Toggle LilyPond arrange mode",
+    toggle = true,
+  },
+  babel_lilypond_toggle_html_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_html_generation",
+    desc = "Toggle LilyPond HTML generation",
+    toggle = true,
+  },
+  babel_lilypond_toggle_midi_play = {
+    "org.babel.lang.lilypond",
+    "toggle_midi_play",
+    desc = "Toggle playing LilyPond MIDI",
+    toggle = true,
+  },
+  babel_lilypond_toggle_pdf_display = {
+    "org.babel.lang.lilypond",
+    "toggle_pdf_display",
+    desc = "Toggle showing the LilyPond PDF",
+    toggle = true,
+  },
+  babel_lilypond_toggle_pdf_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_pdf_generation",
+    desc = "Toggle LilyPond PDF generation",
+    toggle = true,
+  },
+  babel_lilypond_toggle_png_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_png_generation",
+    desc = "Toggle LilyPond PNG generation",
+    toggle = true,
+  },
+  babel_processing_view_sketch = {
+    "org.babel.lang.processing",
+    "view_sketch",
+    desc = "Run the Processing block's sketch",
+  },
+  babel_screen_test = { "org.babel.lang.screen", "test", desc = "Test the screen block setup" },
 })
 
 --- Resolve an action to its function.
@@ -528,6 +869,10 @@ end
 function M.run(name, ...)
   local fn, a = M.get(name)
   if not fn then
+    return true
+  end
+  -- org-fold-catch-invisible-edits-commands
+  if not require("org.fold").check_invisible_edit_command(name) then
     return true
   end
   local finished, result = require("org.utils").run(fn, ...)
