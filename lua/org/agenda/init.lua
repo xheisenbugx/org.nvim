@@ -745,9 +745,9 @@ function M.prompt()
   end
   local custom = M.custom_commands()
   while true do
-    local rlabel = "Restrict to buffer / subtree  [" .. (M.lock and "lock" or "none") .. "]"
+    local rstate = M.lock and "lock" or "none"
     if restrict then
-      rlabel = restrict.range and "Restrict to buffer / subtree  [subtree]" or "Restrict to buffer / subtree  [buffer]"
+      rstate = restrict.range and "subtree" or "buffer"
     end
     local builtin = {
       { key = "a", label = "Agenda for current week or day", value = "a" },
@@ -762,9 +762,11 @@ function M.prompt()
       { key = "/", label = "Multi-occur in agenda files", value = "/" },
       { key = "e", label = "Export agenda views", value = "e" },
       { key = "?", label = "Find :FLAGGED: entries", value = "?" },
+      { heading = true, label = "Options" },
       {
         key = "*",
-        label = "Toggle sticky agenda views  [" .. (config.opts.agenda.sticky and "on" or "off") .. "]",
+        label = "Sticky agenda views",
+        state = config.opts.agenda.sticky and "on" or "off",
         value = "__sticky",
       },
     }
@@ -775,7 +777,7 @@ function M.prompt()
       end
     end
     if is_org then
-      items[#items + 1] = { key = "<", label = rlabel, value = "__restrict" }
+      items[#items + 1] = { key = "<", label = "Restrict to buffer / subtree", state = rstate, value = "__restrict" }
     end
     if restrict or M.lock then
       items[#items + 1] = { key = ">", label = "Remove restriction", value = "__unrestrict" }

@@ -3470,9 +3470,10 @@ Normal mode:
   :Org table_export   write the table with a translator: the file and
                       format come from the TABLE_EXPORT_FILE and
                       TABLE_EXPORT_FORMAT (`orgtbl-to-latex :splice t`)
-                      properties when set, else from prompts (the format
-                      offered matches the file extension, else
-                      `table_export_default_format`)
+                      properties when set, else from prompts: the format
+                      is picked from a list (|org-choice-list|; `e` adds
+                      parameters) that starts on the one matching the
+                      file extension, else `table_export_default_format`
   :Org table_iterate  :Org table_recalc_buffer (all tables, iterated)
   :Org table_goto_column  go to field N (the count) of the row
                       (org-table-goto-column)
@@ -5144,6 +5145,9 @@ blink.cmp: >lua
 
 Options under `ui`:
   menus                  the Org menus (|org-menus|), default true
+  choice_prompt          "float" (default): pick one of a fixed set of
+                         values from a floating list (|org-choice-list|);
+                         "input": the command line with <Tab> completion
   imenu_depth            headline levels of `imenu` (gO), default 2
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
@@ -5508,6 +5512,8 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   OrgCheckboxPartial OrgStatistic OrgTable OrgTableSeparator OrgTableFormula
   OrgFootnote OrgTarget OrgLatex OrgHorizontalRule OrgMacro
   OrgHiddenStars OrgSuperscript OrgSubscript OrgInlinetask OrgSparseMatch
+  OrgMenuKey OrgMenuHeading OrgMenuDesc OrgMenuMore OrgMenuOn OrgMenuOff
+  OrgMenuValue OrgMenuSelected    (|org-key-menus|, |org-choice-list|)
   OrgAgenda*
 
 ==============================================================================
@@ -6266,6 +6272,30 @@ pop a menu up with |:popup| (`:popup Org`). Entries Emacs greys out at point
 are disabled before a popup and refuse to run otherwise. "File List for
 Agenda" and "Agenda Files" list the agenda files. `ui.menus = false` turns
 the menus off (Emacs has no option for them).
+
+Key menus and choice lists                                   *org-key-menus*
+Commands that ask for one key (the export dispatcher, the agenda
+dispatcher, capture templates, sorting, …) show a floating menu: each row
+is a key, then what it does; a toggle's value is shown on the right ("on"
+in green, "off" dimmed) and `›` marks a submenu. Press a key to choose,
+<BS> to go back from a submenu, <Esc> to quit.
+                                                           *org-choice-list*
+Commands that ask for one of a fixed set of values (Emacs's
+completing-read) show a floating list instead: the table export format
+(`:Org table_export`), the export template category, the publishing
+project, the ODT conversion format, a column's summary type, the dynamic
+block type, the BibTeX entry type and the state to switch to on clock out.
+
+  j k  <Down> <Up>  <C-n> <C-p>  move        g G   first / last
+  <CR>                           choose      1-9 a-z  choose that row
+  e                              edit the value at the cursor in the
+                                 command line first (where the value can
+                                 take arguments, like a table export
+                                 format: `orgtbl-to-latex :splice t`)
+  <Esc> q                        cancel
+
+With `ui.choice_prompt = "input"` these prompts are the command line with
+<Tab> completion, as in Emacs.
                                                            *org-clock-menu*
 :Org clock_menu         Pop up the clock menu: clock out, change the effort
                         estimate, go to the clocked task, switch task

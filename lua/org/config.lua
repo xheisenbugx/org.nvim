@@ -2531,6 +2531,11 @@ M.defaults = {
     --- (Emacs's easymenus), added while a buffer they belong to is current;
     --- false = none. Emacs has no option for them.
     menus = true,
+    --- How to ask for one of a fixed set of values (a table export format,
+    --- a column summary type, …): "float" = a floating list picked with
+    --- j/k and <CR> or a key; "input" = the command line with <Tab>
+    --- completion, like Emacs's completing-read.
+    choice_prompt = "float",
     --- Headline levels listed by `imenu` (gO) (org-imenu-depth).
     imenu_depth = 2,
     --- Conceal link brackets and show only descriptions (org-link-descriptive).

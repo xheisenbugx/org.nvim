@@ -159,6 +159,15 @@ local function defaults()
     OrgInlinetask = { link = "Comment" },
     -- org-warning, on the first star of inline tasks (inlinetask_show_first_star)
     OrgInlinetaskFirstStar = { link = first_existing({ "@comment.warning" }, "WarningMsg") },
+    -- key menus and choice lists (org.ui)
+    OrgMenuKey = { link = "Special" },
+    OrgMenuHeading = { link = "Title" },
+    OrgMenuDesc = { link = "Comment" },
+    OrgMenuMore = { link = "Comment" },
+    OrgMenuOn = { link = first_existing({ "DiagnosticOk" }, "String") },
+    OrgMenuOff = { link = "Comment" },
+    OrgMenuValue = { link = "Constant" },
+    OrgMenuSelected = { link = "Visual" },
   }
   -- headline levels: prefer the colorscheme's markdown heading colours
   local fallbacks = { "Title", "Constant", "Identifier", "Statement", "PreProc", "Type", "Special", "Function" }

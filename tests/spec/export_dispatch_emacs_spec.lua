@@ -229,7 +229,9 @@ describe("export dispatch (Emacs parity)", function()
     local function labels(items)
       local out = {}
       for _, it in ipairs(items) do
-        out[it.key] = it.label
+        if not it.heading then
+          out[it.key] = it.state and (it.label .. ": " .. it.state) or it.label
+        end
       end
       return out
     end
@@ -249,11 +251,11 @@ describe("export dispatch (Emacs parity)", function()
         return nil
       end
       export.prompt()
-      eq("Toggle: body only = on", seen.b)
-      eq("Toggle: export scope = subtree", seen.s)
-      eq("Toggle: visible only = on", seen.v)
-      eq("Toggle: force publishing = on", seen.f)
-      eq("Toggle: async export = on", seen.a)
+      eq("Body only: on", seen.b)
+      eq("Export scope: subtree", seen.s)
+      eq("Visible only: on", seen.v)
+      eq("Force publishing: on", seen.f)
+      eq("Async export: on", seen.a)
     end)
 
     it("passes the force toggle to publishing", function()

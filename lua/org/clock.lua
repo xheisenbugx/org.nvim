@@ -664,7 +664,7 @@ function M.clock_out(opts)
   if switch == nil then
     if interactive and vim.v.count > 0 then
       local todo_cfg = files.get_buffer(bufnr).settings.todo
-      switch = utils.input_complete("Switch to state: ", todo_cfg:names(), "DONE")
+      switch = require("org.ui").choose({ prompt = "Switch to state: ", items = todo_cfg:names(), default = "DONE" })
     else
       switch = clock_cfg().out_switch_to_state
     end
@@ -1043,7 +1043,7 @@ function M.clock_in_last()
     opts.at, opts.continuous = out or nil, true
   elseif count >= 64 and not M.state then
     local todo_cfg = files.get_buffer(bufnr).settings.todo
-    local s = utils.input_complete("Switch to state: ", todo_cfg:names())
+    local s = require("org.ui").choose({ prompt = "Switch to state: ", items = todo_cfg:names() })
     if s and s ~= "" then
       opts.switch_to_state = s
     end

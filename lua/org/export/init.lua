@@ -1102,15 +1102,18 @@ local function dispatcher_items(state)
     return v and "on" or "off"
   end
   return {
-    { key = "b", label = "Toggle: body only = " .. onoff(state.body_only), value = { toggle = "body_only" } },
+    { heading = true, label = "Options" },
+    { key = "b", label = "Body only", state = onoff(state.body_only), value = { toggle = "body_only" } },
     {
       key = "s",
-      label = "Toggle: export scope = " .. (state.subtree and "subtree" or "buffer"),
+      label = "Export scope",
+      state = state.subtree and "subtree" or "buffer",
       value = { toggle = "subtree" },
     },
-    { key = "v", label = "Toggle: visible only = " .. onoff(state.visible_only), value = { toggle = "visible_only" } },
-    { key = "f", label = "Toggle: force publishing = " .. onoff(state.force), value = { toggle = "force" } },
-    { key = "a", label = "Toggle: async export = " .. onoff(state.async), value = { toggle = "async" } },
+    { key = "v", label = "Visible only", state = onoff(state.visible_only), value = { toggle = "visible_only" } },
+    { key = "f", label = "Force publishing", state = onoff(state.force), value = { toggle = "force" } },
+    { key = "a", label = "Async export", state = onoff(state.async), value = { toggle = "async" } },
+    { heading = true, label = "Export" },
     {
       key = "c",
       label = "Export to iCalendar",
@@ -1229,7 +1232,7 @@ local function dispatcher_items(state)
         { key = "a", label = "All projects", value = { publish = "all" } },
       },
     },
-    { key = "p", label = "Other format via pandoc…", value = { fmt = "__pandoc" } },
+    { key = "p", label = "Other format via pandoc", value = { fmt = "__pandoc" } },
     { key = "&", label = "Export stack", value = { stack = true } },
     { key = "#", label = "Insert default export template", value = { template = true } },
   }
@@ -1253,7 +1256,7 @@ local function expert_menu(items, state)
     end
     local keys = {}
     for _, it in ipairs(level) do
-      if not (first == nil and #it.key == 1 and ("bsvfa"):find(it.key, 1, true)) then
+      if not it.heading and not (first == nil and #it.key == 1 and ("bsvfa"):find(it.key, 1, true)) then
         keys[#keys + 1] = it.key
       end
     end
@@ -1275,14 +1278,14 @@ local function expert_menu(items, state)
       return "standard"
     elseif CTRL_TOGGLES[ch] then
       for _, it in ipairs(items) do
-        if it.key == CTRL_TOGGLES[ch] then
+        if not it.heading and it.key == CTRL_TOGGLES[ch] then
           return it.value
         end
       end
     else
       local chosen
       for _, it in ipairs(level) do
-        if it.key == ch then
+        if not it.heading and it.key == ch then
           chosen = it
           break
         end
@@ -1353,7 +1356,12 @@ function M.prompt()
       }) do
         cats[#cats + 1] = n
       end
-      local cat = utils.input_complete("Options category: ", cats, "default")
+      local cat = require("org.ui").choose({
+        prompt = "Options category: ",
+        title = "Insert export template",
+        items = cats,
+        default = "default",
+      })
       if not cat or cat == "" then
         return
       end
@@ -1380,7 +1388,7 @@ function M.prompt()
       for _, p in ipairs(pub.projects()) do
         names[#names + 1] = p[1]
       end
-      local name = utils.input_complete("Publish project: ", names)
+      local name = require("org.ui").choose({ prompt = "Publish project: ", items = names })
       if name and name ~= "" then
         return pub.publish_project(name, state.force, async)
       end

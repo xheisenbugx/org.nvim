@@ -861,7 +861,12 @@ function M.create(optional, update)
   local bufnr = vim.api.nvim_get_current_buf()
   local cur = headline_at(bufnr, vim.api.nvim_win_get_cursor(0)[1])
   local default = update and cur and get(cur, opts().type_property_name or "btype") or nil
-  local btype = utils.input_complete("Type: ", type_names(), default)
+  local btype = require("org.ui").choose({
+    prompt = "Type: ",
+    title = "BibTeX entry type",
+    items = type_names(),
+    default = default,
+  })
   if btype == nil then
     return
   end
