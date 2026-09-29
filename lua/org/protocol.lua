@@ -52,11 +52,13 @@ function M.parse_query(query)
   return out
 end
 
---- Old-style `a/b/c` data split on `/+` and `?` and decoded, assigned to
---- `order` names; extra values are taken as key/value pairs
+--- Old-style `a/b/c` data split on `protocol.data_separator` (a Vim regex,
+--- default `/+` or `?`, org-protocol-data-separator) and decoded, assigned
+--- to `order` names; extra values are taken as key/value pairs
 --- (org-protocol-assign-parameters).
 function M.parse_old_style(data, order)
-  local parts = vim.split(data, "[/?]+", { trimempty = true })
+  local sep = cfg().data_separator or [[/\+\|?]]
+  local parts = vim.fn.split(data, sep, true)
   parts = vim.tbl_map(M.decode, parts)
   local out = {}
   for _, key in ipairs(order or {}) do
@@ -176,6 +178,74 @@ function M.open_source(params)
   end
   utils.open_file(file)
   return file
+end
+
+--- Ask for a string, `default` when left empty (read-string with a default).
+local function ask(prompt, default)
+  local v = utils.input({ prompt = prompt, default = default })
+  if v == nil then
+    return nil
+  end
+  v = vim.trim(v)
+  return v == "" and default or v
+end
+
+--- Create a `protocol.projects` entry interactively (org-protocol-create):
+--- ask for the base URL, the local working directory and the suffixes.
+--- `project` (a publishing project) gives the defaults: its
+--- `base_directory`, `html_extension` and `base_extension`. The entry is
+--- added for this session; the Lua to put in your config is shown.
+---@param project? table
+---@return table|nil the new entry
+function M.create(project)
+  project = type(project) == "table" and project or {}
+  local base_url = ask("Base URL of published content: ", "https://orgmode.org/worg/")
+  if not base_url then
+    return nil
+  end
+  if base_url:sub(-1) ~= "/" then
+    base_url = base_url .. "/"
+  end
+  local wdir = utils.expand(project.base_directory or vim.fn.getcwd())
+  wdir = ask("Local working directory: ", wdir)
+  if not wdir then
+    return nil
+  end
+  wdir = utils.expand(wdir)
+  if wdir:sub(-1) ~= "/" then
+    wdir = wdir .. "/"
+  end
+  local strip = project.html_extension or ".html"
+  strip = ask("Extension to strip from published URLs (" .. strip .. "): ", strip)
+  if not strip then
+    return nil
+  end
+  local suffix = project.base_extension and ("." .. project.base_extension) or ".org"
+  suffix = ask("Extension of editable files (" .. suffix .. "): ", suffix)
+  if not suffix then
+    return nil
+  end
+  if not utils.confirm("Add the new org-protocol project (for this session)?") then
+    return nil
+  end
+  local entry = { base_url = base_url, working_directory = wdir, online_suffix = strip, working_suffix = suffix }
+  config.opts.protocol.projects = config.opts.protocol.projects or {}
+  table.insert(config.opts.protocol.projects, 1, entry)
+  utils.notify("Added; to keep it, add to protocol.projects in your setup():\n" .. vim.inspect(entry))
+  return entry
+end
+
+--- Create a `protocol.projects` entry for the publishing project of the
+--- current file (org-protocol-create-for-org), see `create()`.
+---@return table|nil
+function M.create_for_org()
+  local name = vim.api.nvim_buf_get_name(0)
+  local project = name ~= "" and require("org.export.publish").get_project_from_filename(name) or nil
+  if not project then
+    utils.notify("Not in an Org project.  Did you mean `:Org protocol_create`?")
+    return nil
+  end
+  return M.create(project[2])
 end
 
 --- Sub-protocols added by extensions (`:h org-extensions`): name ->

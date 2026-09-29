@@ -4,6 +4,7 @@
 --- numbers 0-64 (`#+PRIORITIES: 1 10 5`); a smaller value is a higher
 --- priority.
 
+local config = require("org.config")
 local edit = require("org.edit")
 local utils = require("org.utils")
 
@@ -57,11 +58,33 @@ function M.value(hl)
   return M.to_value(hl.priority) or M.range(hl.file).def
 end
 
---- Emacs sort key of a priority (org-get-priority): 1000 × (lowest − value).
+--- Emacs sort key of a priority (org-get-priority): 1000 × (lowest − value),
+--- or what `priority_get_priority_function` returns for the headline line
+--- (org-priority-get-priority-function).
 ---@param hl org.Headline
 function M.get_priority(hl)
+  local fn = config.opts.priority_get_priority_function
+  if type(fn) == "function" then
+    local ok, v = pcall(fn, hl.raw or hl.file.lines[hl.line] or "")
+    if ok and tonumber(v) then
+      return tonumber(v)
+    end
+  end
   local r = M.range(hl.file)
   return 1000 * (r.lo - M.value(hl))
+end
+
+--- Are the priority commands enabled (org-priority-enable-commands)?
+--- Warns when they are not.
+---@param quiet? boolean do not warn
+function M.enabled(quiet)
+  if config.opts.priority_enable_commands == false then
+    if not quiet then
+      utils.warn("Priority commands are disabled")
+    end
+    return false
+  end
+  return true
 end
 
 -- The last shift that removed a cookie, to wrap around on the next one
@@ -77,6 +100,9 @@ local last_removal = nil
 ---@param target? org.Target
 ---@param dir integer
 function M.shift(target, dir)
+  if not M.enabled() then
+    return nil
+  end
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then
     return nil
@@ -94,6 +120,9 @@ function M.shift(target, dir)
     new = cur - dir
   elseif repeated then
     new = dir > 0 and r.lo or r.hi
+  elseif config.opts.priority_start_cycle_with_default == false then
+    -- org-priority-start-cycle-with-default: start one step past the default
+    new = r.def - dir
   else
     new = r.def
   end
@@ -141,6 +170,9 @@ end
 function M.set(target, value)
   if target == nil and value == nil and vim.v.count == 4 then
     return M.show()
+  end
+  if not M.enabled() then
+    return nil
   end
   local bufnr, file, hl = edit.resolve_headline(target)
   if not bufnr then

@@ -425,7 +425,8 @@ local function is_tableel_rule(l)
 end
 
 --- Item bullet of a line (org-item-re, alphabetical bullets when allowed).
-local function item_match(l, alpha)
+local function item_match(l, alpha, term)
+  term = term or "[%.%)]"
   local ind, bullet = l:match("^([ \t]*)([%-%+])[ \t]")
   if not ind then
     ind, bullet = l:match("^([ \t]*)([%-%+])$")
@@ -437,15 +438,15 @@ local function item_match(l, alpha)
     end
   end
   if not ind then
-    ind, bullet = l:match("^([ \t]*)(%d+[%.%)])[ \t]")
+    ind, bullet = l:match("^([ \t]*)(%d+" .. term .. ")[ \t]")
     if not ind then
-      ind, bullet = l:match("^([ \t]*)(%d+[%.%)])$")
+      ind, bullet = l:match("^([ \t]*)(%d+" .. term .. ")$")
     end
   end
   if not ind and alpha then
-    ind, bullet = l:match("^([ \t]*)(%a[%.%)])[ \t]")
+    ind, bullet = l:match("^([ \t]*)(%a" .. term .. ")[ \t]")
     if not ind then
-      ind, bullet = l:match("^([ \t]*)(%a[%.%)])$")
+      ind, bullet = l:match("^([ \t]*)(%a" .. term .. ")$")
     end
   end
   if ind then
@@ -510,7 +511,7 @@ P.__index = P
 
 --- Create a parser.
 ---@param opts table { todo = org.TodoConfig, link_types = string[], abbrevs = table, radio = string[],
----  inlinetask_min_level = integer, alpha = boolean, macro = function|nil, visible = function|nil }
+---  inlinetask_min_level = integer, alpha = boolean, term = string|nil, macro = function|nil, visible = function|nil }
 function M.new(opts)
   opts = opts or {}
   local self = setmetatable({ opts = opts }, P)
@@ -690,7 +691,7 @@ function P:paragraph_end(L, i, e)
       end) ~= nil
     elseif is_clock_line(l) then
       sep = true
-    elseif item_match(l, self.opts.alpha) then
+    elseif item_match(l, self.opts.alpha, self.opts.term) then
       sep = true
     end
     if sep then
@@ -707,6 +708,8 @@ function P:paragraph(L, i, e, aff, not_bol)
   local lines = vim.list_slice(L, i, last)
   local pb, nxt = after(L, last, e)
   local node = attach(M.node("paragraph", { post_blank = pb, raw_lines = lines }), aff)
+  -- text without a final newline (a region ending inside a line)
+  node.no_final_newline = self.opts.no_final_newline and last == #L or nil
   -- the first line of a paragraph starting an item or a footnote
   -- definition does not count for the common indentation
   self:fill_paragraph(node, not_bol)
@@ -716,7 +719,7 @@ end
 --- Fill a paragraph (or verse) node with objects.
 function P:fill_paragraph(node, ignore_first)
   local lines = M.remove_indentation(node.raw_lines, ignore_first)
-  local text = table.concat(lines, "\n") .. "\n"
+  local text = table.concat(lines, "\n") .. (node.no_final_newline and "" or "\n")
   node.contents = self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
   -- Emacs only removes the common indentation from plain text
   -- (org-element-normalize-contents): multi-line verbatim values keep it
@@ -885,7 +888,7 @@ function P:element_at(L, i, e, mode, parent, not_bol)
   if is_table_line(l) or self:is_tableel(L, i, e) then
     return self:table(L, i, e, aff)
   end
-  if item_match(l, self.opts.alpha) then
+  if item_match(l, self.opts.alpha, self.opts.term) then
     return self:plain_list(L, i, e, aff)
   end
   return self:paragraph(L, i, e, aff)
@@ -1498,7 +1501,7 @@ function P:list_struct(L, i, e)
       close_all(j - 1)
       break
     end
-    local ind = item_match(l, alpha)
+    local ind = item_match(l, alpha, self.opts.term)
     if ind then
       while #items > 0 and ind <= items[#items].ind do
         local it = table.remove(items)

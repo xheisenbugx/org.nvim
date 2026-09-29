@@ -1,0 +1,44 @@
+#+OPTIONS: toc:nil author:nil date:nil title:nil timestamp:nil
+
+#+begin_src lua
+-- note ~ ^ \ {} $x$ 50% & _ #
+print("a_b") -- trail
+return {1}
+#+end_src
+
+#+attr_latex: :options mathescape :engraved-theme default
+#+begin_src lua
+-- sum $x_i^2$ here
+#+end_src
+
+#+attr_latex: :float t
+#+begin_src lua
+return 1
+#+end_src
+
+#+caption: Wide
+#+attr_latex: :float multicolumn
+#+begin_src lua
+return 1
+#+end_src
+
+#+begin_src lua -n 5
+return [[
+multi
+]]
+#+end_src
+
+#+begin_src c
+/* block */
+int main(void) { return 0; }
+#+end_src
+
+#+begin_src nosuchlang
+a_b & c
+#+end_src
+
+#+begin_src
+a_b & c
+#+end_src
+
+Inline src_lua{return 1} and src_nosuchlang{x_y}.

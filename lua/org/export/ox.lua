@@ -228,6 +228,8 @@ function M.get_backend(name)
       org = "org.export.org",
       icalendar = "org.export.icalendar",
       texinfo = "org.export.texinfo",
+      ["koma-letter"] = "org.export.koma",
+      man = "org.export.man",
     })[name]
     if mod then
       require(mod)
@@ -414,7 +416,7 @@ function M.global_options()
     { "with_timestamps", nil, "<", d(c.with_timestamps, true) },
     { "with_title", nil, "title", d(c.with_title, true) },
     { "with_todo_keywords", nil, "todo", d(c.with_todo_keywords, true) },
-    { "with_cite_processors", nil, nil, true },
+    { "with_cite_processors", nil, nil, d(c.process_citations, true) },
     { "cite_export", "CITE_EXPORT", nil, c.cite_export },
   }
 end
@@ -574,7 +576,11 @@ function M.environment(ctx)
     if not seen2[o[1]] then
       seen2[o[1]] = true
       if o[3] then
-        by_option[o[3]] = by_option[o[3]] or o
+        -- every property read from the same OPTIONS item is set
+        -- (org-export--parse-option-keyword), e.g. koma-letter's
+        -- :with-email and :inbuffer-with-email
+        by_option[o[3]] = by_option[o[3]] or {}
+        table.insert(by_option[o[3]], o)
       end
       if o[2] then
         by_keyword[o[2]] = by_keyword[o[2]] or {}
@@ -585,16 +591,16 @@ function M.environment(ctx)
   local function apply_options(line)
     local parsed = M.parse_option_line(line)
     for key, v in pairs(parsed) do
-      local o = by_option[key]
-      if not o then
+      local list = by_option[key]
+      if not list then
         -- case-insensitive match (assoc-string ... t)
         for k2, o2 in pairs(by_option) do
           if k2:lower() == key:lower() then
-            o = o2
+            list = o2
           end
         end
       end
-      if o then
+      for _, o in ipairs(list or {}) do
         info[o[1]] = v
       end
     end
@@ -934,11 +940,12 @@ function M.expand_includes(lines, dir, opts)
         local is_url = file:match("^%a[%w+.-]*://") ~= nil
         local content
         if is_url then
-          local res = vim.system({ "curl", "-fsSL", file }, { text = true }):wait(30000)
-          if res.code ~= 0 then
-            error("Cannot include file " .. file)
+          -- asked for or refused per resource_download_policy (org-file-contents)
+          local err
+          content, err = require("org.resources").contents(file, opts.includer)
+          if not content then
+            error(err or ("Cannot include file " .. file))
           end
-          content = vim.split((res.stdout or ""):gsub("\n$", ""), "\n", { plain = true })
         else
           content = utils.readfile(file)
           if not content then
@@ -1141,10 +1148,74 @@ end
 -- Babel (ob-exp)
 ---------------------------------------------------------------------------
 
+local DEFAULT_EXP_CODE_TEMPLATE = "#+begin_src %lang%switches%header-args\n%body\n#+end_src"
+local DEFAULT_EXP_INLINE_TEMPLATE = "src_%lang[%switches%header-args]{%body}"
+
+--- org-fill-template: replace each `%key` of `fields`, longest key first.
+function M.fill_template(template, fields)
+  local keys = vim.tbl_keys(fields)
+  table.sort(keys, function(a, b)
+    if #a ~= #b then
+      return #a > #b
+    end
+    return a < b
+  end)
+  for _, k in ipairs(keys) do
+    local v = fields[k] or ""
+    template = template:gsub("%%" .. vim.pesc(k), function()
+      return v
+    end)
+  end
+  return template
+end
+
+--- A header value as Emacs prints it with %S: strings quoted, numbers bare.
+local function lisp_repr(v)
+  if type(v) == "number" or (type(v) == "string" and v:match("^%-?%d+%.?%d*$")) then
+    return tostring(v)
+  end
+  v = tostring(v)
+  if v:match('^".*"$') then
+    return v
+  end
+  return '"' .. v:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
+end
+
+--- Fields of org-babel-exp-code: %lang %body %switches %header-args %name
+--- and %<header argument> for each header argument of the block.
+local function exp_code_fields(lang, body, switches, params, name, args)
+  local fields = {}
+  for k, v in pairs(args or {}) do
+    if type(k) == "string" and (type(v) == "string" or type(v) == "number") then
+      fields[k] = lisp_repr(v)
+    end
+  end
+  local var = args and args.vars and args.vars[1]
+  if var then
+    fields.var = string.format("(%s . %s)", var.name, lisp_repr(var.value or ""))
+  end
+  if args and args.results_order then
+    -- the words as org-babel-merge-params orders them (no implied "value")
+    fields.results = lisp_repr(table.concat(args.results_order, " "))
+  end
+  fields.lang = lang or ""
+  fields.body = body
+  fields.switches = (switches and vim.trim(switches) ~= "") and (" " .. vim.trim(switches)) or ""
+  -- a missing field of org-fill-template's alist is filled with ""
+  fields.flags = args and args.flags and (" " .. args.flags) or ""
+  fields["header-args"] = (params and vim.trim(params) ~= "") and (" " .. vim.trim(params)) or ""
+  fields.name = name or ""
+  return fields
+end
+M.exp_code_fields = exp_code_fields
+
 --- Process source blocks, #+CALL lines and inline code for export
 --- (org-babel-exp-process-buffer): honour :exports, expand noweb
 --- references and drop the code or results as needed.
 function M.babel_process(lines, ctx)
+  local bcfg = require("org.config").opts.babel or {}
+  local code_template = bcfg.exp_code_template or DEFAULT_EXP_CODE_TEMPLATE
+  local call_template = bcfg.exp_call_line_template or ""
   local blocks_mod = require("org.babel.blocks")
   local file = require("org.parser").parse(lines, ctx.filename)
   local all_blocks = blocks_mod.parse_blocks(lines)
@@ -1166,16 +1237,26 @@ function M.babel_process(lines, ctx)
         local own = blocks_mod.parse_header_string(table.concat(b.header_lines or {}, " ") .. " " .. (b.params or ""))
         local merged = blocks_mod.merge({ vars = {}, results_spec = {} }, own)
         local exports = merged.exports or "results"
-        -- the call line itself is removed with the blank lines after it
-        local last = b.finish
-        while lines[last + 1] and lines[last + 1]:match("^[ \t]*$") do
-          last = last + 1
-        end
-        if b.name_line then
-          drop[b.name_line] = true
-        end
-        for k = b.start, last do
-          drop[k] = true
+        -- org-babel-exp-call-line-template, filled with the call
+        local rep = M.fill_template(call_template, {
+          line = (lines[b.start]:match("^[ \t]*#%+[Cc][Aa][Ll][Ll]:[ \t]*(.-)[ \t]*$") or ""),
+        })
+        if rep ~= "" then
+          -- the call (and its affiliated #+NAME) is replaced by the text
+          local first = b.name_line or b.start
+          replace[first] = { finish = b.finish, lines = vim.split(rep, "\n", { plain = true }) }
+        else
+          -- the call line itself is removed with the blank lines after it
+          local last = b.finish
+          while lines[last + 1] and lines[last + 1]:match("^[ \t]*$") do
+            last = last + 1
+          end
+          if b.name_line then
+            drop[b.name_line] = true
+          end
+          for k = b.start, last do
+            drop[k] = true
+          end
         end
         if (exports == "code" or exports == "none") and b.results then
           for k = b.results.start, b.results.finish do
@@ -1197,7 +1278,18 @@ function M.babel_process(lines, ctx)
           while lines[last + 1] and lines[last + 1]:match("^[ \t]*$") do
             last = last + 1
           end
-          for k = b.start, last do
+          -- the block starts at its affiliated keywords (#+NAME, #+HEADER)
+          local first = b.start
+          local affiliated = { name = true, header = true, headers = true, caption = true, plot = true }
+          while lines[first - 1] do
+            local key = lines[first - 1]:match("^[ \t]*#%+([%w_]+)[%[:]")
+            key = key and key:lower()
+            if not key or not (affiliated[key] or key:match("^attr_")) then
+              break
+            end
+            first = first - 1
+          end
+          for k = first, last do
             drop[k] = true
           end
         else
@@ -1216,16 +1308,33 @@ function M.babel_process(lines, ctx)
               body = expanded
             end
           end
-          local head = b.indent
-            .. "#+begin_src "
-            .. (b.lang or "")
-            .. (b.switches and b.switches ~= "" and (" " .. vim.trim(b.switches)) or "")
-            .. (b.params and b.params ~= "" and (" " .. vim.trim(b.params)) or "")
-          local new = { head }
-          for _, l in ipairs(escape_code(body)) do
-            new[#new + 1] = (l ~= "" and b.indent or "") .. l
+          local new
+          if code_template == DEFAULT_EXP_CODE_TEMPLATE then
+            local head = b.indent
+              .. "#+begin_src "
+              .. (b.lang or "")
+              .. (b.switches and b.switches ~= "" and (" " .. vim.trim(b.switches)) or "")
+              .. (b.params and b.params ~= "" and (" " .. vim.trim(b.params)) or "")
+            new = { head }
+            for _, l in ipairs(escape_code(body)) do
+              new[#new + 1] = (l ~= "" and b.indent or "") .. l
+            end
+            new[#new + 1] = b.indent .. "#+end_src"
+          else
+            -- org-babel-exp-code-template, indented like the block
+            local fields = exp_code_fields(
+              b.lang,
+              table.concat(escape_code(body), "\n"),
+              b.switches,
+              b.params,
+              b.name,
+              args
+            )
+            new = {}
+            for _, l in ipairs(vim.split(M.fill_template(code_template, fields), "\n", { plain = true })) do
+              new[#new + 1] = (l ~= "" and b.indent or "") .. l
+            end
           end
-          new[#new + 1] = b.indent .. "#+end_src"
           replace[b.start] = { finish = b.finish, lines = new }
         end
       end
@@ -1299,6 +1408,17 @@ function M.babel_inline(l)
             -- existing result: " {{{results(...)}}}"
             local res = l:match("^[ \t]*{{{results%(.-%)}}}", e)
             local code = "src_" .. lang .. "[" .. params .. "]" .. body
+            local itemplate = (require("org.config").opts.babel or {}).exp_inline_code_template
+            if itemplate and itemplate ~= DEFAULT_EXP_INLINE_TEMPLATE then
+              -- org-babel-exp-inline-code-template
+              local iargs = require("org.babel.blocks").header_args(
+                { lang = lang, params = params, header_lines = {}, lob = true, start = 1 },
+                nil,
+                lang,
+                { inline = true }
+              )
+              code = M.fill_template(itemplate, exp_code_fields(lang, body:sub(2, -2), "", params, nil, iargs))
+            end
             local rep
             if exports == "results" then
               rep = res and trim(res) or ""
@@ -1340,6 +1460,12 @@ function M.babel_inline(l)
           if res and (exports == "results" or exports == "both") then
             rep = trim(res)
           end
+          -- org-babel-exp-call-line-template: text before the results
+          local ctemplate = (require("org.config").opts.babel or {}).exp_call_line_template or ""
+          if ctemplate ~= "" then
+            local text = M.fill_template(ctemplate, { line = call })
+            rep = rep ~= "" and (text .. " " .. rep) or text
+          end
           local stop = res and (e + #res) or e
           if rep == "" then
             local ws = l:match("^[ \t]*", stop)
@@ -1367,6 +1493,22 @@ end
 --- Build the macro expander (org-macro-initialize-templates). Returns a
 --- function(macro_node, parser) -> expansion string or nil (undefined).
 function M.macro_expander(ctx)
+  if cfg().replace_macros == false then
+    -- org-export-replace-macros = nil: macros stay (and export as nothing);
+    -- with Babel, {{{results(...)}}} is still replaced, and like
+    -- org-macro-replace-all with only that template, any other macro
+    -- aborts the export.
+    local babel = (require("org.config").opts.babel or {}).evaluate_on_export
+    return function(node)
+      if babel then
+        if node.key == "results" then
+          return (node.args or {})[1] or ""
+        end
+        error("Undefined Org macro: " .. node.key .. "; aborting", 0)
+      end
+      return nil
+    end
+  end
   local kw = ctx.keywords
   local function kwval(name, collect)
     local v = kw[name]
@@ -1729,7 +1871,9 @@ local function keep_spaces(data, info)
     if prev.value:match("[ \t\r\n]$") then
       return nil
     end
-  elseif (prev.post_blank or 0) > 0 then
+  elseif prev.post_blank ~= nil then
+    -- In Emacs any :post-blank of an object is non-nil, 0 included, so
+    -- spaces are never kept after another object.
     return nil
   end
   return string.rep(" ", pb)
@@ -2215,7 +2359,8 @@ function M.info_link_export(path, desc, backend_name)
   if backend_name == "texinfo" then
     return string.format("@ref{%s,%s,,%s,}", node, desc or "", file)
   elseif backend_name == "html" then
-    local url = INFO_OTHER_DOCUMENTS[file]
+    local other = (require("org.config").opts.links or {}).info_other_documents or INFO_OTHER_DOCUMENTS
+    local url = other[file]
       or (INFO_EMACS_DOCUMENTS[file] and ("https://www.gnu.org/software/emacs/manual/html_mono/" .. file .. ".html"))
       or (file .. ".html")
     -- org-info--expand-node-name (HTML Xref Node Name Expansion)
@@ -2318,7 +2463,7 @@ end
 function M.resolve_coderef(ref, info)
   local r = element.map(info.parse_tree, { ["example-block"] = true, ["src-block"] = true }, function(el)
     local value = trim(el.value or "")
-    local fmt = el.label_fmt or "(ref:%s)"
+    local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
     local pat = vim.pesc(fmt):gsub("%%%%s", vim.pesc(ref))
     local lines = vim.split(value, "\n", { plain = true })
     for i = #lines, 1, -1 do
@@ -2635,7 +2780,7 @@ function M.unravel_code(el)
   if not el.preserve_indent then
     lines = element.remove_indentation(lines)
   end
-  local fmt = el.label_fmt or "(ref:%s)"
+  local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
   local s, e = fmt:find("%s", 1, true)
   local pre, post = fmt:sub(1, s - 1), fmt:sub(e + 1)
   local pat = "()[ \t]*" .. vim.pesc(pre) .. "([%-%w_][%-%w_ ]*)" .. vim.pesc(post) .. "()[ \t]*$"
@@ -3319,7 +3464,15 @@ function M.activate_smart_quotes(s, encoding, info, node)
   if not status then
     return s
   end
-  local quotes = require("org.export.dictionary").smart_quotes[info.language or "en"]
+  local lang = info.language or "en"
+  info.smart_quotes_table = info.smart_quotes_table or {}
+  local quotes = info.smart_quotes_table[lang]
+  if quotes == nil then
+    -- org-export-smart-quotes-alist: a language given by the user replaces
+    -- its Emacs entry
+    quotes = (cfg().smart_quotes_alist or {})[lang] or require("org.export.dictionary").smart_quotes[lang]
+    info.smart_quotes_table[lang] = quotes or false
+  end
   local i = 0
   return (s:gsub("['\"]", function(m)
     i = i + 1
@@ -4035,9 +4188,11 @@ function export_as(backend, lines, opts)
     abbrevs = abbrevs,
     radio = radio,
     macro = expander,
+    no_final_newline = opts.no_final_newline,
     footnote_section = c.footnote_section or require("org.config").opts.footnote_section,
     inlinetask_min_level = c.inlinetask_min_level or 15,
-    alpha = require("org.config").opts.lists and require("org.config").opts.lists.allow_alphabetical or false,
+    alpha = require("org.lists").opt("allow_alphabetical"),
+    term = ({ ["."] = "%.", [")"] = "%)" })[require("org.lists").opt("ordered_item_terminator")],
   }
   local parser = element.new(popts)
   -- {{{property(NAME[,search])}}}: the headline being parsed, or a searched one

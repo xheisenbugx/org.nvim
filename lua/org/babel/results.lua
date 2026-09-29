@@ -270,6 +270,10 @@ function M.format(result, args, lang, ctx)
       end
       return out, false
     end
+    -- org-babel-uppercase-example-markers
+    if cfg.uppercase_example_markers then
+      return wrap("#+BEGIN_EXAMPLE" .. switches, "#+END_EXAMPLE"), true
+    end
     return wrap("#+begin_example" .. switches, "#+end_example"), true
   end
   return lines, false

@@ -114,10 +114,35 @@ function M.toggle_type()
   return true
 end
 
---- Insert today's active date at the cursor (org-date-from-calendar: Emacs
---- inserts the date selected in the calendar, which defaults to today).
+--- Insert the date at the calendar's cursor (org-date-from-calendar): the
+--- date the last calendar (`goto_calendar` or a date prompt) was left on,
+--- else today. On a timestamp, only its date changes (its time, repeater
+--- and warning stay), in the part of a range under the cursor.
 function M.insert_today()
-  return put(date.today(), M.at_cursor())
+  local cal = require("org.calendar").cursor_date or date.today()
+  local existing = M.at_cursor()
+  if not existing then
+    return put(date.Date.new({ year = cal.year, month = cal.month, day = cal.day }), nil)
+  end
+  local _, col = utils.cursor()
+  local d = existing.date
+  local ymd = { year = cal.year, month = cal.month, day = cal.day }
+  local text
+  local dash = d.range_end and existing.raw:find("[%]>]%-%-[<%[]")
+  if dash and col > existing.start_col + dash then
+    text = d:clone({ range_end = vim.NIL }):to_string({ range = false })
+      .. "--"
+      .. d.range_end:clone(ymd):to_string({ range = false })
+  elseif dash then
+    text = d:clone(vim.tbl_extend("force", ymd, { range_end = vim.NIL })):to_string({ range = false })
+      .. "--"
+      .. d.range_end:to_string({ range = false })
+  else
+    text = d:clone(ymd):to_string()
+  end
+  replace_text(0, existing.lnum, existing.start_col, existing.end_col, text)
+  vim.api.nvim_win_set_cursor(0, { existing.lnum, math.min(col, existing.start_col + #text - 1) - 1 })
+  return true
 end
 
 --- Show the calendar at the date under the cursor, or today
@@ -127,6 +152,7 @@ function M.goto_calendar()
   local picked = require("org.calendar").pick({
     default = existing and existing.date or date.today(),
     prompt = "Calendar",
+    calendar = true,
   })
   if picked and not picked.remove then
     utils.notify(picked:to_string())
@@ -624,7 +650,8 @@ local function log_planning_change(bufnr, file, lnum, kind, old, new)
       return
     end
   end
-  edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old))
+  local time = require("org.date").effective_now(file:headline_at(lnum))
+  edit.add_log_entry(bufnr, lnum, edit.log_entry(purpose, note, new, old, time))
 end
 
 --- Set (or remove with nil) a date of an entry.

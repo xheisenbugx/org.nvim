@@ -76,6 +76,31 @@ describe("log notes in the *Org Note* buffer", function()
     }, buf_lines(buf))
   end)
 
+  -- Emacs 9.8.10: org-store-log-note runs org-after-note-stored-hook for
+  -- a clock-out note as for any other note
+  it("fires OrgNoteStored for a clock-out note", function()
+    local clock = require("org.clock")
+    config.setup({ log_note_clock_out = true })
+    config.opts.clock.persist = false
+    local buf = file_buffer({ "* TODO A" })
+    clock.clock_in(nil, { at = date.now():add(-10, "min") })
+    local seen = {}
+    local id = vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgNoteStored",
+      callback = function(ev)
+        seen[#seen + 1] = ev.data
+      end,
+    })
+    with_note(function()
+      clock.clock_out()
+    end, "stopped here")
+    vim.api.nvim_del_autocmd(id)
+    eq(1, #seen)
+    eq(buf, seen[1].bufnr)
+    eq(1, seen[1].headline)
+    eq("- stopped here", buf_lines(buf)[seen[1].lnum])
+  end)
+
   it("uses the clock-out note heading and stores nothing when cancelled", function()
     local clock = require("org.clock")
     config.setup({ log_note_clock_out = true, log_note_headings = { ["clock-out"] = "Out at %t" } })

@@ -1,0 +1,20 @@
+#+AUTHOR: Jane Doe
+#+EMAIL: jane@example.com
+#+DATE: 2026-09-28
+#+OPTIONS: timestamp:nil special-headings:t after-closing-order:(cc ps) email:nil phone:nil backaddress:nil place:t
+#+LATEX_CLASS_OPTIONS: [12pt]
+#+TO_ADDRESS: Keyword Address
+#+OPENING: Keyword opening
+#+CLOSING: Keyword closing
+#+SUBJECT: Subj
+#+PLACE: Berlin
+
+* To                                                                     :to:
+Heading Address
+* Heading opening
+Body.
+* Heading closing                                                   :closing:
+* PS                                                                     :ps:
+P.
+* CC                                                                     :cc:
+C.

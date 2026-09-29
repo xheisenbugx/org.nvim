@@ -1,5 +1,8 @@
 ---@meta
 
+---A tag comparator of `tags_sort_function`, or the name of a built-in one.
+---@alias org.TagsSortFunction (fun(a: string, b: string): boolean)|"hierarchy"|"string<"|"string>"
+
 ---Options for `require("org").setup()`. Every field is optional: dict options
 ---are merged key by key into the defaults, lists replace the default list.
 ---@class org.Config
@@ -57,6 +60,13 @@
 ---C-c C-t opens the fast-selection menu when keywords have keys; `false`
 ---always cycles. (Emacs `org-use-fast-todo-selection`, default: `"auto"`)
 ---@field use_fast_todo_selection? "auto"|false
+---<S-Left>/<S-Right> on a headline are real state changes (logged and
+---blocked); `false` changes the keyword without logging or blocking.
+---(Emacs `org-treat-S-cursor-todo-selection-as-state-change`, default: `true`)
+---@field treat_S_cursor_todo_selection_as_state_change? boolean
+---M-S-RET / C-S-RET set the new heading's keyword as a logged state change.
+---(Emacs `org-treat-insert-todo-heading-as-state-change`, default: `false`)
+---@field treat_insert_todo_heading_as_state_change? boolean
 ---Which child headlines statistics cookies count: `true` (entries with a
 ---TODO keyword), `"all-headlines"`, a list of keywords (plus done ones) or
 ---`{ todo_keywords, done_keywords }`; `false` stops updating cookies on
@@ -71,6 +81,9 @@
 ---Logging when an entry is marked DONE: `false`, `"time"` (add `CLOSED:`)
 ---or `"note"` (`CLOSED:` plus a note). (Emacs `org-log-done`, default: `false`)
 ---@field log_done? false|"time"|"note"
+---`CLOSED:` records the time too; `false` records the date only.
+---(Emacs `org-log-done-with-time`, default: `true`)
+---@field log_done_with_time? boolean
 ---Logging when a repeating task is marked done.
 ---(Emacs `org-log-repeat`, default: `"time"`)
 ---@field log_repeat? false|"time"|"note"
@@ -90,6 +103,10 @@
 ---Put the newest log entries first.
 ---(Emacs `org-log-states-order-reversed`, default: `true`)
 ---@field log_states_order_reversed? boolean
+---Without a log drawer, notes go after the clock lines and drawers that
+---follow the headline. (Emacs `org-log-state-notes-insert-after-drawers`,
+---default: `false`)
+---@field log_state_notes_insert_after_drawers? boolean
 ---Type log notes in a small `*Org Note*` split (<C-c><C-c> stores,
 ---<C-c><C-k> cancels) like Emacs `org-add-log-note`; `false` asks with a
 ---one-line prompt. (default: `true`)
@@ -108,6 +125,9 @@
 ---hour as 23:59 of the previous day.
 ---(Emacs `org-use-effective-time`, default: `false`)
 ---@field use_effective_time? boolean
+---`CLOSED:` and log notes record the last clock-out time of the subtree.
+---(Emacs `org-use-last-clock-out-time-as-effective-time`, default: `false`)
+---@field use_last_clock_out_time_as_effective_time? boolean
 ---In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands act
 ---on every headline of the selection: `true`, `"start-level"` (only
 ---headlines of the first one's level) or `false`; a match string acts like
@@ -121,6 +141,17 @@
 ---Priority of entries without a cookie.
 ---(Emacs `org-priority-default`, default: `"B"`)
 ---@field priority_default? string
+---`false` disables the priority commands.
+---(Emacs `org-priority-enable-commands`, default: `true`)
+---@field priority_enable_commands? boolean
+---Shifting a headline without cookie starts at the default priority;
+---`false` starts one step past it.
+---(Emacs `org-priority-start-cycle-with-default`, default: `true`)
+---@field priority_start_cycle_with_default? boolean
+---Function receiving the headline line and returning the priority value
+---used for sorting (1000 per level). (Emacs
+---`org-priority-get-priority-function`, default: `nil`)
+---@field priority_get_priority_function? fun(line: string): number
 ---Tag groups (`[ GTD : Control Persp ]`) also match their members in tag
 ---searches and sparse trees; toggled by `toggle_tags_groups`.
 ---(Emacs `org-group-tags`, default: `true`)
@@ -132,6 +163,13 @@
 ---Show the TODO keywords with fast keys in the fast tag selection menu.
 ---(Emacs `org-fast-tag-selection-include-todo`, default: `false`)
 ---@field fast_tag_selection_include_todo? boolean
+---Fast tag selection: `"auto"` when some tag has a key, `true` always,
+---`false` never. (Emacs `org-use-fast-tag-selection`, default: `"auto"`)
+---@field use_fast_tag_selection? "auto"|boolean
+---How many tags fast selection shows, counting the tags with keys and the
+---tags in groups (always shown). (Emacs
+---`org-fast-tag-selection-maximum-tags`, default: `56`)
+---@field fast_tag_selection_maximum_tags? integer
 ---Tag completion offers the tags of every agenda file instead of the
 ---current buffer's. (Emacs `org-complete-tags-always-offer-all-agenda-tags`,
 ---default: `false`)
@@ -141,9 +179,23 @@
 ---mutually exclusive groups. A file's `#+TAGS:` replaces it.
 ---(Emacs `org-tag-alist`, default: `{}`)
 ---@field tags? string[]
+---Tags always available, in the format of `tags`, placed before `tags` or
+---`#+TAGS:`; `#+STARTUP: noptag` turns them off in a file.
+---(Emacs `org-tag-persistent-alist`, default: `{}`)
+---@field tags_persistent? string[]
+---Comparator (or list of comparators, the next one breaking ties) sorting
+---the tags set on a headline and the agenda's tag sorting; "hierarchy",
+---"string<" and "string>" are org-tags-sort-hierarchy, org-string< and
+---org-string>. (Emacs `org-tags-sort-function`, default: `nil`)
+---@field tags_sort_function? org.TagsSortFunction|org.TagsSortFunction[]
 ---Column tags are aligned to; negative = right-align so tags end at that
 ---column. (Emacs `org-tags-column`, default: `-77`)
 ---@field tags_column? integer
+---Realign tags after edits. (Emacs `org-auto-align-tags`, default: `true`)
+---@field auto_align_tags? boolean
+---Toggling ORDERED also toggles a tag: `true` (ORDERED) or a tag name.
+---(Emacs `org-track-ordered-property-with-tag`, default: `false`)
+---@field track_ordered_property_with_tag? boolean|string
 ---Whether tags are inherited by sub-headings: `true`, `false`, a list of the
 ---tags that inherit, or a regexp matching them.
 ---(Emacs `org-use-tag-inheritance`, default: `true`)
@@ -162,6 +214,17 @@
 ---`{ Effort_ALL = "0:10 0:30 1:00 2:00" }`.
 ---(Emacs `org-global-properties`, default: `{}`)
 ---@field global_properties? table<string, string>
+---Functions adjusting values given to `set_property`, by property name
+---(ignoring case); they get the value and `{ bufnr, lnum }`.
+---(Emacs `org-properties-postprocess-alist`, default: `{}`)
+---@field properties_postprocess? table<string, fun(value: string, target: table): string>
+---Separators joining `PROP` and `PROP+` values: `{ { names_or_regexp,
+---separator }, ... }`; a space otherwise.
+---(Emacs `org-property-separators`, default: `{}`)
+---@field property_separators? { [1]: string[]|string, [2]: string }[]
+---Properties hidden and shown by toggle_custom_properties_visibility.
+---(Emacs `org-custom-properties`, default: `{}`)
+---@field custom_properties? string[]
 ---Constants for table formulas (`$name`). `#+CONSTANTS:` lines in a file
 ---take precedence. (Emacs `org-table-formula-constants`, default: `{}`)
 ---@field table_formula_constants? table<string, string|number>
@@ -190,6 +253,41 @@
 ---Minimum fraction of numbers in a column for it to be right-aligned.
 ---(Emacs `org-table-number-fraction`, default: `0.5`)
 ---@field table_number_fraction? number
+---Emacs regexp of the cells that count as numbers for right alignment.
+---(Emacs `org-table-number-regexp`, default: Emacs's)
+---@field table_number_regexp? string
+---Realign the table on <Tab>, <S-Tab>, <CR> and when leaving Insert mode.
+---(Emacs `org-table-automatic-realign`, default: `true`)
+---@field table_automatic_realign? boolean
+---<Tab> jumps over an hline instead of adding a row before it.
+---(Emacs `org-table-tab-jumps-over-hlines`, default: `true`)
+---@field table_tab_jumps_over_hlines? boolean
+---Typing right after <Tab>, <S-Tab> or <CR> replaces the field's text.
+---(Emacs `org-table-auto-blank-field`, default: `true`)
+---@field table_auto_blank_field? boolean
+---Recalculate a `#` row on <Tab>, <CR> and C-c C-c.
+---(Emacs `org-table-allow-automatic-line-recalculation`, default: `true`)
+---@field table_allow_automatic_line_recalculation? boolean
+---Size of a new table, "COLUMNSxROWS". (Emacs `org-table-default-size`, default: `"5x2"`)
+---@field table_default_size? string
+---Largest region converted to a table.
+---(Emacs `org-table-convert-region-max-lines`, default: `999`)
+---@field table_convert_region_max_lines? integer
+---Format of formula results, `%s` being the value.
+---(Emacs `org-table-formula-field-format`, default: `"%s"`)
+---@field table_formula_field_format? string
+---Replace `$name` names in formulas computed by C-c = or typed inline.
+---(Emacs `org-table-formula-use-constants`, default: `true`)
+---@field table_formula_use_constants? boolean
+---Relative row references crossing an hline: `true`, `false` (stop at the
+---hline) or `"error"`. (Emacs `org-table-relative-ref-may-cross-hline`, default: `true`)
+---@field table_relative_ref_may_cross_hline? boolean|"error"
+---Calc modes of table formulas.
+---(Emacs `org-calc-default-modes`, default: `{ internal_prec = 12, float_format = { "float", 8 }, angle_mode = "deg", prefer_frac = false }`)
+---@field calc_default_modes? { internal_prec?: integer, float_format?: { [1]: "float"|"fix"|"sci"|"eng", [2]: integer }, angle_mode?: "deg"|"rad", prefer_frac?: boolean }
+---In orgtbl-mode, typing keeps the table aligned and auto-blanks fields.
+---(Emacs `orgtbl-optimized`, default: `true`)
+---@field orgtbl_optimized? boolean
 ---Text shown at the end of a shrunk column.
 ---(Emacs `org-table-shrunk-column-indicator`, default: `"…"`)
 ---@field table_shrunk_column_indicator? string
@@ -197,6 +295,9 @@
 ---opened; `#+STARTUP: shrink` / `noshrink` override it.
 ---(Emacs `org-startup-shrink-all-tables`, default: `false`)
 ---@field startup_shrink_all_tables? boolean
+---Align every table when a file is opened; `#+STARTUP: align` / `noalign`
+---override it. (Emacs `org-startup-align-all-tables`, default: `false`)
+---@field startup_align_all_tables? boolean
 ---Show the first row of a table in the winbar while it is scrolled out of
 ---view. (Emacs `org-table-header-line-p`, default: `false`)
 ---@field table_header_line_p? boolean
@@ -219,6 +320,9 @@
 ---Extra `set term` options, e.g. `"size 1050,650"`.
 ---(Emacs `org-plot/gnuplot-term-extra`, default: `""`)
 ---@field plot_gnuplot_term_extra? string
+---Extra (or replaced) `#+PLOT: type:NAME` plot types.
+---(Emacs `org-plot/preset-plot-types`, default: `{}`; 2d, 3d, grid and radar are built in)
+---@field plot_preset_plot_types? table<string, { plot_func?: fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string[], plot_cmd?: string, plot_str?: string, plot_pre?: string|fun(rows: table, data_file: string, ncols: integer, opts: table, plot_str: string): string?, data_dump?: fun(rows: table, data_file: string, ncols: integer, opts: table): string?, check_ind_type?: boolean }>
 ---Radio table templates inserted by `orgtbl_insert_radio_table`, per
 ---filetype (`tex`, `texinfo`, `html`, `org`); `%n` is the table name.
 ---(Emacs `orgtbl-radio-table-templates`)
@@ -244,6 +348,9 @@
 ---Values <S-Right> cycles through in checkbox columns.
 ---(Emacs `org-columns-checkbox-allowed-values`, default: `{ "[ ]", "[X]" }`)
 ---@field columns_checkbox_allowed_values? string[]
+---Text ending a truncated column view field.
+---(Emacs `org-columns-ellipses`, default: `".."`)
+---@field columns_ellipses? string
 ---Property holding effort estimates.
 ---(Emacs `org-effort-property`, default: `"Effort"`)
 ---@field effort_property? string
@@ -271,16 +378,29 @@
 ---Fold `#+begin_...` blocks when a file is opened (`#+STARTUP: hideblocks`).
 ---(Emacs `org-hide-block-startup`, default: `false`)
 ---@field hide_block_startup? boolean
+---Turn on the Beamer editing mode (`:Org beamer_mode`) when a file is opened
+---(`#+STARTUP: beamer`). (Emacs `org-startup-with-beamer-mode`, default: `false`)
+---@field startup_with_beamer_mode? boolean
 ---Let visibility cycling open subtrees tagged `:ARCHIVE:`.
 ---(Emacs `org-cycle-open-archived-trees`, default: `false`)
 ---@field cycle_open_archived_trees? boolean
+---Sparse trees open subtrees tagged `:ARCHIVE:` to show matches in them.
+---(Emacs `org-sparse-tree-open-archived-trees`, default: `false`)
+---@field sparse_tree_open_archived_trees? boolean
+---Dates the before/after/range sparse trees look at; `nil` = SCHEDULED
+---and DEADLINE. (Emacs `org-sparse-tree-default-date-type`, default: `nil`)
+---@field sparse_tree_default_date_type? "all"|"active"|"inactive"|"scheduled"|"deadline"|"closed"|nil
 ---Heading that collects footnote definitions (created when missing);
 ---`false` puts each definition at the end of the reference's section.
 ---(Emacs `org-footnote-section`, default: `"Footnotes"`)
 ---@field footnote_section? string|false
----Indent body text, planning lines and drawers to the headline level.
----(Emacs `org-adapt-indentation`, default: `false`)
----@field adapt_indentation? boolean
+---Indent body text, planning lines and drawers to the headline level;
+---`"headline-data"` indents only planning lines and the property and log
+---drawers. (Emacs `org-adapt-indentation`, default: `false`)
+---@field adapt_indentation? boolean|"headline-data"
+---New day nodes of date trees get a time stamp of their date.
+---(Emacs `org-datetree-add-timestamp`, default: `false`)
+---@field datetree_add_timestamp? false|"active"|"inactive"
 ---Indentation added to src block contents in the edit buffer.
 ---(Emacs `org-edit-src-content-indentation`, default: `2`)
 ---@field edit_src_content_indentation? integer
@@ -288,8 +408,40 @@
 ---evaluation, tangling or the edit buffer (the `-i` switch does it per
 ---block). (Emacs `org-src-preserve-indentation`, default: `false`)
 ---@field src_preserve_indentation? boolean
+---Show "Edit, then exit with ... or abort with ..." in the winbar of edit
+---buffers. (Emacs `org-edit-src-persistent-message`, default: `true`)
+---@field edit_src_persistent_message? boolean
+---Write an edit buffer back to the Org buffer after this many seconds
+---without changes; `0` = never.
+---(Emacs `org-edit-src-auto-save-idle-delay`, default: `0`)
+---@field edit_src_auto_save_idle_delay? number
+---Auto-save the contents of edit buffers to an `org-src-XXXXXX-%Y-%d-%m.txt`
+---file next to the Org file.
+---(Emacs `org-edit-src-turn-on-auto-save`, default: `false`)
+---@field edit_src_turn_on_auto_save? boolean
+---Ask before going back to the existing edit buffer of a block (`n`
+---discards it and opens a new one); `false` = go back at once.
+---(Emacs `org-src-ask-before-returning-to-edit-buffer`, default: `true`)
+---@field src_ask_before_returning_to_edit_buffer? boolean
+---Filetype, or a function of the buffer, for the edit buffer of `: `
+---fixed-width areas. (Emacs `org-edit-fixed-width-region-mode`, default: `nil`)
+---@field edit_fixed_width_region_mode? string|fun(bufnr: integer)
+---Filetype of the edit buffer and highlighting of src blocks by language,
+---merged with the defaults; `""` = none. (Emacs `org-src-lang-modes`,
+---default: `{ C = "c", ["C++"] = "cpp", elisp = "lisp", shell = "sh", ... }`)
+---@field src_lang_modes? table<string, string>
+---TAB on a src block line indents it with the language's indentation.
+---(Emacs `org-src-tab-acts-natively`, default: `true`)
+---@field src_tab_acts_natively? boolean
+---Default coderef label format; `-l "fmt"` overrides it per block.
+---(Emacs `org-coderef-label-format`, default: `"(ref:%s)"`)
+---@field coderef_label_format? string
 ---Text appended to folded headlines. (Emacs `org-ellipsis`, default: `"..."`)
 ---@field ellipsis? string
+---Entities of your own, taking precedence over the built-in ones:
+---`{ name, latex, latex_math, html, ascii, latin1, utf8 }` entries.
+---(Emacs `org-entities-user`, default: `{}`)
+---@field entities_user? { [1]: string, [2]: string, [3]: boolean, [4]: string, [5]: string, [6]: string, [7]: string }[]
 ---Blank line before new headings / list items. A single value applies to
 ---headings. (Emacs `org-blank-before-new-entry`,
 ---default: `{ heading = "auto", plain_list_item = "auto" }`)
@@ -307,9 +459,34 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
----TAB on a list item folds its children and text.
+---Names of the bookmarks set by capture (`last_capture`) and refile
+---(`last_refile`), saved across sessions; `false` sets none.
+---(Emacs `org-bookmark-names-plist`)
+---@field bookmark_names? { last_capture?: string|false, last_refile?: string|false, last_capture_marker?: string|false }
+---`buffer_goto` interface: `"outline"` browses a copy of the buffer in
+---overview (<CR> jumps), `"outline-path-completion"` picks a headline by its
+---path. A count uses the other one. (Emacs `org-goto-interface`,
+---default: `"outline"`)
+---@field goto_interface? "outline"|"outline-path-completion"
+---Deepest headlines offered by the completion interface of `buffer_goto`.
+---(Emacs `org-goto-max-level`, default: `5`)
+---@field goto_max_level? integer
+---In the outline interface of `buffer_goto`, typing searches the headlines;
+---when `false`, n p f b u move and q quits. (Emacs `org-goto-auto-isearch`,
+---default: `true`)
+---@field goto_auto_isearch? boolean
+---How sorting (entries, lists, tables, the agenda) compares text:
+---`"collate"` with the collation locale (`:language collate`; character
+---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`
+---by character code, or `function(a, b, ignore_case)` returning `a < b`.
+---(Emacs `org-sort-function`, default: `"collate"`, string-collate-lessp)
+---@field sort_function? "collate"|"fallback"|fun(a: string, b: string, ignore_case?: boolean): boolean
+---TAB on a list item folds its children and text; `"integrate"` also
+---treats list items as children of their headline when cycling it.
 ---(Emacs `org-cycle-include-plain-lists`, default: `true`)
----@field cycle_include_plain_lists? boolean
+---@field cycle_include_plain_lists? boolean|"integrate"
+---Plain list options (Emacs `org-list-*`).
+---@field lists? org.Config.Lists
 ---Where TAB outside headlines, items, drawers and blocks indents the line:
 ---`true` (everywhere), `"white"`, `"whitestart"`, `"exc-hl-bol"` or `false`
 ---(then it cycles the entry). (Emacs `org-cycle-emulate-tab`, default: `true`)
@@ -320,6 +497,63 @@
 ---Typing on hidden lines: `false`, `"error"`, `"show"`, `"show-and-error"`
 ---or `"smart"`. (Emacs `org-fold-catch-invisible-edits`, default: `"smart"`)
 ---@field catch_invisible_edits? false|"error"|"show"|"show-and-error"|"smart"
+---The edits `catch_invisible_edits` checks, by command: `self_insert`,
+---`delete_backward_char` (<BS>), `delete_char` (<Del>), `return` (<CR>) or
+---an action name, each `"insert"`, `"delete"` or `"delete-backward"`.
+---(Emacs `org-fold-catch-invisible-edits-commands`)
+---@field catch_invisible_edits_commands? table<string, "insert"|"delete"|"delete-backward"|false>
+---TAB at the very start of the buffer, not on a headline, cycles globally.
+---(Emacs `org-cycle-global-at-bob`, default: `false`)
+---@field cycle_global_at_bob? boolean
+---Deepest level cycled as a headline by TAB; `nil` = all.
+---(Emacs `org-cycle-max-level`, default: `nil`)
+---@field cycle_max_level? integer
+---TAB on an entry without children skips the CHILDREN state.
+---(Emacs `org-cycle-skip-children-state-if-no-children`, default: `true`)
+---@field cycle_skip_children_state_if_no_children? boolean
+---How much is shown around a location reached by a jump, per context, or
+---one span for all. (Emacs `org-fold-show-context-detail`)
+---@field fold_show_context_detail? string|boolean|table<string, "minimal"|"local"|"ancestors"|"ancestors-full"|"lineage"|"tree"|"canonical">
+---Sparse-tree regexp searches ignore case: `true`, `false` or `"smart"`.
+---(Emacs `org-occur-case-fold-search`, default: `true`)
+---@field occur_case_fold_search? boolean|"smart"
+---Changes remove sparse-tree and clock_display highlights.
+---(Emacs `org-remove-highlights-with-change`, default: `true`)
+---@field remove_highlights_with_change? boolean
+---`beginning_of_line` / `end_of_line` on headlines and items: `true` goes
+---to the title start / before the tags first, `"reversed"` on a repeated key;
+---`{ a = ..., e = ... }` sets each key. (Emacs `org-special-ctrl-a/e`,
+---default: `false`)
+---@field special_ctrl_a_e? boolean|"reversed"|{ a?: boolean|"reversed", e?: boolean|"reversed" }
+---`kill_line` in a headline kills up to the tags, then the tags.
+---(Emacs `org-special-ctrl-k`, default: `false`)
+---@field special_ctrl_k? boolean
+---`kill_line` on a folded headline: `false` kills the hidden subtree too,
+---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
+---default: `false`)
+---@field ctrl_k_protect_subtree? boolean|"error"
+---Setting the org filetype on an empty file not named `*.org` inserts the
+---Emacs mode line `#    -*- mode: org -*-`, so it opens as org from then on.
+---(Emacs `org-insert-mode-line-in-empty-file`, default: `false`)
+---@field insert_mode_line_in_empty_file? boolean
+---New headlines from `meta_return` and the other insertions go after the
+---current subtree, like `insert_heading`.
+---(Emacs `org-insert-heading-respect-content`, default: `false`)
+---@field insert_heading_respect_content? boolean
+---Promoting a level-1 headline turns its `* ` into `# ` instead of refusing.
+---(Emacs `org-allow-promoting-top-level-subtree`, default: `false`)
+---@field allow_promoting_top_level_subtree? boolean
+---Keep the Visual selection after `meta_left` / `meta_right` / `meta_up` /
+---`meta_down`: `true`, `false` or per command. (Emacs `org-edit-keep-region`,
+---default: all four `true`)
+---@field edit_keep_region? boolean|{ meta_left?: boolean, meta_right?: boolean, meta_up?: boolean, meta_down?: boolean }
+---`p` / `P` of whole subtrees folds them, unless that would hide the text
+---after them. (Emacs `org-yank-folded-subtrees`, default: `true`)
+---@field yank_folded_subtrees? boolean
+---`p` / `P` of whole subtrees adjusts their level to the visible headlines
+---around, like paste_subtree. (Emacs `org-yank-adjusted-subtrees`,
+---default: `false`)
+---@field yank_adjusted_subtrees? boolean
 ---Single-letter commands typed in Insert mode at the start of a headline,
 ---or a function deciding where they apply.
 ---(Emacs `org-use-speed-commands`, default: `false`)
@@ -327,10 +561,18 @@
 ---Extra or changed speed commands: an action name, a function, or `false`.
 ---(Emacs `org-speed-commands`, default: `{}`)
 ---@field speed_commands? table<string, string|fun()|false>
+---Functions of a key returning the speed command it runs (an action name or
+---a function) or nil, tried in order; `"org-speed-command-activate"` and
+---`"org-babel-speed-command-activate"` name the built-in ones.
+---(Emacs `org-speed-command-hook`)
+---@field speed_command_hook? (string|fun(key: string): (string|fun())?)[]
 ---Headlines of this level or deeper are inline tasks; `false` = off (Emacs
 ---without the org-inlinetask module; 15 once it is loaded).
 ---(Emacs `org-inlinetask-min-level`, default: `false`)
 ---@field inlinetask_min_level? integer|false
+---Show the first star of inline tasks as a marker.
+---(Emacs `org-inlinetask-show-first-star`, default: `false`)
+---@field inlinetask_show_first_star? boolean
 ---TODO keyword of new inline tasks.
 ---(Emacs `org-inlinetask-default-state`, default: `nil`)
 ---@field inlinetask_default_state? string
@@ -354,9 +596,15 @@
 ---Define new footnotes inline (`[fn:N: text]`); `#+STARTUP: fninline`.
 ---(Emacs `org-footnote-define-inline`, default: `false`)
 ---@field footnote_define_inline? boolean
+---Refill the paragraphs that lost an inline footnote when normalizing.
+---(Emacs `org-footnote-fill-after-inline-note-extraction`, default: `false`)
+---@field footnote_fill_after_inline_note_extraction? boolean
 ---Days before a deadline it starts showing up in the agenda.
 ---(Emacs `org-deadline-warning-days`, default: `14`)
 ---@field deadline_warning_days? integer
+---Days a scheduled entry is hidden after its date unless it has its own
+---`-Nd` delay; negative: always (org-scheduled-delay-days). (default: `0`)
+---@field scheduled_delay_days? integer
 ---`{ rounding, step }`: minutes the current time is rounded to in date
 ---prompts, and the minute step of <S-Up>/<S-Down> on timestamps (a count
 ---steps by exactly that many minutes).
@@ -367,6 +615,25 @@
 ---tomorrow) or `false`. (Emacs `org-read-date-prefer-future`,
 ---default: `true`)
 ---@field read_date_prefer_future? boolean|"time"
+---Date prompts show the calendar; `false` = only a "Date+time [default]: "
+---prompt. (Emacs `org-read-date-popup-calendar`, default: `true`)
+---@field read_date_popup_calendar? boolean
+---Alias of `read_date_popup_calendar` (Emacs `org-popup-calendar-for-date-prompt`).
+---@field popup_calendar_for_date_prompt? boolean
+---Show what a typed date means while typing it in the calendar.
+---(Emacs `org-read-date-display-live`, default: `true`)
+---@field read_date_display_live? boolean
+---Key of the `goto_calendar` calendar showing the agenda of its date:
+---`"default"` (`c`), another key, or `false`.
+---(Emacs `org-calendar-to-agenda-key`, default: `"default"`)
+---@field calendar_to_agenda_key? string|false
+---Key of that calendar adding a diary entry for its date to an Org
+---`agenda.diary_entry_file`.
+---(Emacs `org-calendar-insert-diary-entry-key`, default: `"i"`)
+---@field calendar_insert_diary_entry_key? string
+---`<S-Down>` makes timestamps later and `<S-Up>` earlier.
+---(Emacs `org-edit-timestamp-down-means-later`, default: `false`)
+---@field edit_timestamp_down_means_later? boolean
 ---Display timestamps with `time_stamp_custom_formats`; toggled per buffer
 ---by `toggle_time_stamp_overlays`, `#+STARTUP: customtime` turns it on.
 ---Exports of a buffer with the display on use the formats too.
@@ -394,6 +661,14 @@
 ---Archive as the first child of the archive heading instead of the last.
 ---(Emacs `org-archive-reversed-order`, default: `false`)
 ---@field archive_reversed_order? boolean
+---What `archive_subtree_default` (C-c C-x C-a, the agenda's `a` and
+---C-c C-x C-a) does.
+---(Emacs `org-archive-default-command`, default: `"archive_subtree"`)
+---@field archive_default_command? "archive_subtree"|"archive_to_sibling"|"set_tag"|fun(target: org.Target|nil)
+---When `archive_subtree` saves the archive file: always, never, only from Org
+---buffers or only from the agenda.
+---(Emacs `org-archive-subtree-save-file-p`, default: `"from_org"`)
+---@field archive_subtree_save_file? boolean|"from_org"|"from_agenda"
 ---Mark archived entries done: `true` (the first done keyword) or a done keyword.
 ---(Emacs `org-archive-mark-done`, default: `false`)
 ---@field archive_mark_done? boolean|string
@@ -404,6 +679,11 @@
 ---Window used for special buffers (src edit, capture, etc.).
 ---(default: `"float"`)
 ---@field win_split_mode? "float"|"split"|"vsplit"|"tab"|"current"
+---Where `indirect_subtree` shows the subtree: `"other-window"` (a split),
+---`"current-window"`, `"new-frame"` (a new tab each time) or
+---`"dedicated-frame"` (one tab, reused; with a count a new one).
+---(Emacs `org-indirect-buffer-display`, default: `"other-window"`)
+---@field indirect_buffer_display? "other-window"|"current-window"|"new-frame"|"dedicated-frame"
 ---Border of floating windows, as accepted by `nvim_open_win()`.
 ---(default: `"rounded"`)
 ---@field win_border? "none"|"single"|"double"|"rounded"|"solid"|"shadow"|string|string[]
@@ -421,10 +701,25 @@
 ---@field timer? org.Config.Timer
 ---org-protocol handling.
 ---@field protocol? org.Config.Protocol
+---Plain links through tags files (`org-ctags`).
+---@field ctags? org.Config.Ctags
+---Pasting clipboard images and dropped files (`org-yank-*`).
+---@field yank? org.Config.Yank
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
+---org-mouse: context menus, dragging subtrees, clickable stars.
+---@field mouse? org.Config.Mouse
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
+---Downloading remote resources (a URL in `#+INCLUDE`): `"prompt"`, `"safe"`,
+---`true` (always) or `false` (never).
+---(Emacs `org-resource-download-policy`, default: `"prompt"`)
+---@field resource_download_policy? "prompt"|"safe"|boolean
+---Vim regexes of safe URLs (also matched against "file://" .. the file).
+---(Emacs `org-safe-remote-resources`, default: `{}`)
+---@field safe_remote_resources? string[]
+---BibTeX entries as headlines (ol-bibtex).
+---@field bibtex? org.Config.Bibtex
 ---`ID` property creation and lookup.
 ---@field id? org.Config.Id
 ---Attachments (`org-attach`).
@@ -449,6 +744,43 @@
 ---extension's defaults.
 ---@class org.Config.Extensions
 ---@field [string] table|boolean
+
+---org-mouse (`:h org-mouse`).
+---@class org.Config.Mouse
+---Load org-mouse (Emacs: `(require 'org-mouse)`). (default: `false`)
+---@field org_mouse? boolean
+---Its parts: `"context-menu"`, `"move-tree"`, `"yank-link"`,
+---`"activate-stars"`, `"activate-bullets"`, `"activate-checkboxes"`.
+---(Emacs `org-mouse-features`, default: all but `"move-tree"`)
+---@field features? string[]
+
+---Plain lists.
+---@class org.Config.Lists
+---Single-letter bullets `a.`, `A)` and counters `[@c]`.
+---(Emacs `org-list-allow-alphabetical`, default: `false`)
+---@field allow_alphabetical? boolean
+---Ordered bullet terminators: `true` (both), `"."` or `")"`.
+---(Emacs `org-plain-list-ordered-item-terminator`, default: `true`)
+---@field ordered_item_terminator? true|"."|")"
+---Bullet given to demoted items, keyed by the old bullet type (`"-"`,
+---`"+"`, `"*"`, `"1."`, `"1)"`, `"a."`, `"A)"`...).
+---(Emacs `org-list-demote-modify-bullet`, default: `{}`)
+---@field demote_modify_bullet? table<string, string>
+---Emacs regexp matching bullets followed by two spaces.
+---(Emacs `org-list-two-spaces-after-bullet-regexp`, default: `nil`)
+---@field two_spaces_after_bullet_regexp? string
+---Extra indentation of sub-lists. (Emacs `org-list-indent-offset`, default: `0`)
+---@field indent_offset? integer
+---`checkbox`: update statistics after checkbox changes; `indent`: the first
+---item moves the whole list and `*` becomes `-` at column 0.
+---(Emacs `org-list-automatic-rules`, default: `{ checkbox = true, indent = true }`)
+---@field automatic_rules? { checkbox?: boolean, indent?: boolean }
+---Item motions and moves wrap around the list.
+---(Emacs `org-list-use-circular-motion`, default: `false`)
+---@field use_circular_motion? boolean
+---Checkbox cookies count direct children only; `false` counts every box.
+---(Emacs `org-checkbox-hierarchical-statistics`, default: `true`)
+---@field checkbox_hierarchical_statistics? boolean
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry
@@ -490,6 +822,18 @@
 
 ---Buffer appearance.
 ---@class org.Config.UI
+---The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus, added
+---while a buffer they belong to is current (Emacs has no option for them).
+---(default: `true`)
+---@field menus? boolean
+---How to ask for one of a fixed set of values (a table export format, a
+---column summary type, …): a floating list, or the command line with
+---`<Tab>` completion (Emacs `completing-read`).
+---(default: `"float"`)
+---@field choice_prompt? "float"|"input"
+---Headline levels listed by `imenu` (`gO`).
+---(Emacs `org-imenu-depth`, default: `2`)
+---@field imenu_depth? integer
 ---Conceal link brackets and show only descriptions (sets `conceallevel=2`).
 ---(default: `true`)
 ---@field conceal_links? boolean
@@ -508,6 +852,12 @@
 ---Virtual indentation of body text (`#+STARTUP: indent` / `noindent`).
 ---(Emacs `org-indent-mode` / `org-startup-indented`, default: `false`)
 ---@field indent_mode? boolean
+---Columns of virtual indentation per level in indent mode; `0` = none.
+---(Emacs `org-indent-indentation-per-level`, default: `2`)
+---@field indent_indentation_per_level? integer
+---Indent mode turns `adapt_indentation` off in its buffer.
+---(Emacs `org-indent-mode-turns-off-org-adapt-indentation`, default: `true`)
+---@field indent_mode_turns_off_adapt_indentation? boolean
 ---Render entities like `\alpha` as unicode (`#+STARTUP: entitiespretty` /
 ---`entitiesplain`, toggle_pretty_entities).
 ---(Emacs `org-pretty-entities`, default: `false`)
@@ -521,6 +871,21 @@
 ---Number headlines with virtual text (`#+STARTUP: num` / `nonum`, num_mode).
 ---(Emacs `org-num-mode` / `org-startup-numerated`, default: `false`)
 ---@field num? boolean
+---Highlight the text of TODO headlines (OrgHeadlineTodo).
+---(Emacs `org-fontify-todo-headline`, default: `false`)
+---@field fontify_todo_headline? boolean
+---The headline level color on the stars only.
+---(Emacs `org-level-color-stars-only`, default: `false`)
+---@field level_color_stars_only? boolean
+---Keywords shown without their `#+KEYWORD:` part.
+---(Emacs `org-hidden-keywords`, default: `{}`)
+---@field hidden_keywords? ("title"|"subtitle"|"author"|"date"|"email")[]
+---Hide the `{{{ }}}` around macro calls.
+---(Emacs `org-hide-macro-markers`, default: `false`)
+---@field hide_macro_markers? boolean
+---LaTeX-related syntax highlighted: `"latex"`, `"native"`, `"script"`,
+---`"entities"`. (Emacs `org-highlight-latex-and-related`, default: `{}`)
+---@field highlight_latex_and_related? ("latex"|"native"|"script"|"entities")[]
 ---Deepest numbered level; `nil` = all. (Emacs `org-num-max-level`, default: `nil`)
 ---@field num_max_level? integer
 ---Don't number COMMENT subtrees. (Emacs `org-num-skip-commented`, default: `false`)
@@ -541,6 +906,10 @@
 ---Highlight src blocks with their language's syntax.
 ---(Emacs `org-src-fontify-natively`, default: `true`)
 ---@field src_highlight? boolean
+---Face of src block bodies by language (`""` = no language), like
+---`todo_keyword_faces`: `{ python = { bg = "#e5ffb8" } }`.
+---(Emacs `org-src-block-faces`, default: `{}`)
+---@field src_block_faces? table<string, string|vim.api.keyset.highlight>
 ---Per-keyword faces. Values are an Emacs-style face string
 ---(`":foreground orange :weight bold"`), a highlight group name, or a
 ---highlight definition table (`{ fg = "#ff9e64", bold = true }`).

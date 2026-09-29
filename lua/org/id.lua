@@ -264,6 +264,10 @@ function M.new_id()
   else
     unique = utils.uuid()
   end
+  if cfg.include_domain and (method == "ts" or method == "org") then
+    -- org-id-include-domain (never for UUIDs)
+    unique = unique .. "@" .. M.fqdn()
+  end
   local prefix = cfg.prefix
   if prefix and prefix ~= "" then
     return prefix .. ":" .. unique
@@ -476,6 +480,32 @@ function M.store_link()
     return require("org.links").store("id:" .. id, hl and hl.title or file.settings.title)
   end
   return require("org.links").store_id_link()
+end
+
+--- The files holding known IDs (org-id-files), sorted.
+---@return string[]
+function M.id_files()
+  local seen, out = {}, {}
+  for _, p in pairs(load_db()) do
+    if type(p) == "string" and not seen[p] and utils.exists(p) then
+      seen[p] = true
+      out[#out + 1] = p
+    end
+  end
+  table.sort(out)
+  return out
+end
+
+--- The host's fully qualified name for `id.include_domain`, like Emacs's
+--- message-make-fqdn: the host name when it has a dot, else
+--- "<host>.mail-host-address-is-not-set".
+---@return string
+function M.fqdn()
+  local host = vim.uv.os_gethostname() or "localhost"
+  if host:find(".", 1, true) then
+    return host
+  end
+  return host .. ".mail-host-address-is-not-set"
 end
 
 --- Known IDs (from the locations file), sorted.

@@ -96,7 +96,9 @@ describe("agenda modes (items)", function()
   it("extracts entry text without drawers", function()
     local hl = file:find_by_title("Write report")
     eq({ "First body line with [[https://example.com][a link]]", "Second body line" }, render.entry_text(hl, 5))
-    eq({ "First body line with [[https://example.com][a link]]", "..." }, render.entry_text(hl, 1))
+    -- Emacs 9.8.10 cuts the text at the maximum without a "..." line
+    -- (org-agenda-get-some-entry-text)
+    eq({ "First body line with [[https://example.com][a link]]" }, render.entry_text(hl, 1))
   end)
 end)
 
