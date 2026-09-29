@@ -30,11 +30,20 @@ local did_setup = false
 ---@return org the `org` module itself, so calls can be chained
 function M.setup(opts)
   require("org.config").setup(opts)
+  -- the agenda file list saved by agenda_file_to_front / remove_file
+  require("org.files").load_saved_agenda_files()
   did_setup = true
   require("org.commands").setup()
   require("org.mappings").setup_global()
   require("org.highlights").setup()
+  require("org.yank").setup_paste()
+  -- the Org menus (ui.menus)
+  require("org.menu").setup()
   local cfg = require("org.config").opts
+  if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
+    -- org-entities-user
+    require("org.entities").apply_user()
+  end
   if cfg.notifications.enabled then
     vim.schedule(function()
       local ok, n = pcall(require, "org.agenda.notifications")

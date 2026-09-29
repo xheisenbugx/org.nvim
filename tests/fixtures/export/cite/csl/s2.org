@@ -1,0 +1,11 @@
+#+bibliography: refs.bib
+#+bibliography: refs.json
+#+cite_export: csl note.csl
+
+First citation [cite:@knuth1984 p. 3]. Same again [cite:@knuth1984 p. 3],
+then another page [cite:@knuth1984 p. 7], and ibid [cite:@knuth1984 p. 7].
+A new one [cite:@chapter2001] and back to Knuth [cite:@knuth1984 chap. 2].
+Two [cite:@doe2001; @vanbeethoven1810]. In a footnote[fn:: See
+[cite:@lamport1986].]. Quoted "text" [cite:@web2020].
+
+#+print_bibliography:

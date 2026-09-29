@@ -1,0 +1,28 @@
+[
+  {
+    "id": "doe2001",
+    "type": "book",
+    "title": "JSON Book with \"quoted\" words",
+    "author": [{ "family": "Doe", "given": "Jane" }, { "family": "Roe", "given": "Richard" }],
+    "publisher": "Example Press",
+    "publisher-place": "London",
+    "issued": { "date-parts": [[2001, 5, 3]] }
+  },
+  {
+    "id": "range2010",
+    "type": "article-journal",
+    "title": "A multi-year study",
+    "author": [{ "family": "Ng", "given": "Wei" }],
+    "container-title": "Journal of Long Studies",
+    "volume": 5,
+    "page": "321-328",
+    "issued": { "date-parts": [[2010], [2012]] }
+  },
+  {
+    "id": "nodate",
+    "type": "webpage",
+    "title": "Undated page",
+    "author": [{ "literal": "ACME Corp." }],
+    "URL": "https://acme.example/undated"
+  }
+]

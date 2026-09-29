@@ -310,7 +310,9 @@ end
 --- argument: 4 (C-u) runs `archive_all_done`, 16 (C-u C-u)
 --- `archive_all_old`.
 ---@param target? org.Target
-function M.archive_subtree(target)
+---@param opts? { from_agenda?: boolean }
+function M.archive_subtree(target, opts)
+  opts = opts or {}
   if target == nil then
     if loop_region(M.archive_subtree, true) then
       return
@@ -411,7 +413,12 @@ function M.archive_subtree(target)
   end
   local data = { bufnr = bufnr, lnum = s, title = title, archive_file = loc.filename }
   fire("OrgArchiveFinalize", vim.tbl_extend("force", data, { bufnr = abuf, lnum = lnum }))
-  if not same then
+  -- org-archive-subtree-save-file-p
+  local save = config.opts.archive_subtree_save_file
+  if save == "from_org" or save == "from_agenda" then
+    save = save == (opts.from_agenda and "from_agenda" or "from_org")
+  end
+  if not same and save then
     local ok, err = utils.save_buffer(abuf)
     if not ok then
       utils.restore_buffer(abuf, original, modified)
@@ -646,6 +653,40 @@ function M.toggle_archive_tag(target)
     utils.notify(idx and "Subtree unarchived" or "Subtree archived")
   end
   return not idx
+end
+
+--- Add the ARCHIVE tag to the headline at target (org-archive-set-tag;
+--- unlike `toggle_archive_tag`, it never removes it).
+---@param target? org.Target
+function M.set_archive_tag(target)
+  if target == nil and loop_region(M.set_archive_tag) then
+    return
+  end
+  local bufnr, _, hl = edit.resolve_headline(target)
+  if not hl then
+    return
+  end
+  if vim.tbl_contains(hl.tags, "ARCHIVE") then
+    return true
+  end
+  return M.toggle_archive_tag({ bufnr = bufnr, lnum = hl.line })
+end
+
+--- Archive with `archive_default_command` (org-archive-subtree-default):
+--- "archive_subtree", "archive_to_sibling", "set_tag" or a function
+--- receiving the target.
+---@param target? org.Target
+---@param opts? { from_agenda?: boolean }
+function M.archive_subtree_default(target, opts)
+  local cmd = config.opts.archive_default_command or "archive_subtree"
+  if type(cmd) == "function" then
+    return cmd(target)
+  elseif cmd == "archive_to_sibling" then
+    return M.archive_to_sibling(target)
+  elseif cmd == "set_tag" then
+    return M.set_archive_tag(target)
+  end
+  return M.archive_subtree(target, opts)
 end
 
 return M

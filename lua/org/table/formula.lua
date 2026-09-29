@@ -341,6 +341,33 @@ local function parse_ref(s, i)
 end
 M.parse_ref = parse_ref
 
+--- Data row `n` rows away from row `r`. A move across an hline is allowed,
+--- stops at the hline or is an error, per
+--- table_relative_ref_may_cross_hline (org-table-relative-ref-may-cross-hline).
+local function rel_row(m, r, n)
+  local cross = require("org.config").opts.table_relative_ref_may_cross_hline
+  if cross == nil or cross == true or n == 0 then
+    return r + n
+  end
+  local target = r + n
+  -- hline h sits between data rows h and h + 1
+  for _, h in ipairs(m.hlines) do
+    local crossed = (n > 0 and h >= r and h < target) or (n < 0 and h >= target and h < r)
+    if crossed then
+      if cross == "error" then
+        -- a user-error in Emacs: the whole recalculation stops
+        error({ fatal = string.format("Row descriptor %s%d crosses hline", n > 0 and "+" or "-", math.abs(n)) }, 0)
+      end
+      if n > 0 then
+        target = math.min(target, h)
+      else
+        target = math.max(target, h + 1)
+      end
+    end
+  end
+  return target
+end
+
 --- Resolve a row spec to a data row index.
 ---@param pos "single"|"start"|"end"
 local function resolve_row(m, spec, r, pos)
@@ -351,7 +378,7 @@ local function resolve_row(m, spec, r, pos)
   if spec.kind == "abs" then
     return spec.n == 0 and r or spec.n
   elseif spec.kind == "rel" then
-    return r + spec.n
+    return rel_row(m, r, spec.n)
   elseif spec.kind == "first" then
     return spec.n
   elseif spec.kind == "last" then
@@ -408,6 +435,9 @@ local function resolve_name(m, spec, ctx, lhs)
     return spec
   end
   local name, names = spec.name, m.names
+  if spec.row and not lhs and ctx.no_names then
+    error("unknown name: $" .. name)
+  end
   if spec.row then
     -- after a row reference only a column name fits
     local n = names.cols[name] or names.header[name]
@@ -415,6 +445,10 @@ local function resolve_name(m, spec, ctx, lhs)
       error("unknown column name: $" .. name)
     end
     return { row = spec.row, col = { kind = "abs", n = n } }
+  end
+  if not lhs and ctx.no_names then
+    -- table_formula_use_constants = false: `$name` stays as it is
+    error("unknown name: $" .. name)
   end
   if names.cols[name] then
     return { col = { kind = "abs", n = names.cols[name] } }
@@ -770,7 +804,24 @@ end
 --- Evaluate a formula RHS for field (r, c). Returns the field text and an
 --- error message (or nil). `trace`, when given, receives the steps for the
 --- formula debugger (Emacs *Substitution History*).
+local evaluate
+
 function M.evaluate(m, rhs, flags, r, c, ctx, trace)
+  local ev, err = evaluate(m, rhs, flags, r, c, ctx, trace)
+  -- table_formula_field_format (org-table-formula-field-format)
+  local ff = require("org.config").opts.table_formula_field_format
+  if ff and ff ~= "%s" and type(ev) == "string" then
+    ev = ff:gsub("%%([%%s])", function(x)
+      return x == "s" and ev or "%"
+    end)
+    if trace then
+      trace.final = ev
+    end
+  end
+  return ev, err
+end
+
+function evaluate(m, rhs, flags, r, c, ctx, trace)
   ctx = ctx or {}
   trace = trace or {}
   trace.orig = rhs
@@ -781,6 +832,9 @@ function M.evaluate(m, rhs, flags, r, c, ctx, trace)
     mode = (has_elisp and elisp.looks_like(body)) and "elisp" or "lua"
   end
   local ok, expr = pcall(substitute, m, body, r, c, flags, mode, ctx)
+  if not ok and type(expr) == "table" and expr.fatal then
+    error(expr.fatal, 0)
+  end
   if not ok then
     trace.error = expr
     return "#ERROR", expr
@@ -830,11 +884,18 @@ function M.evaluate(m, rhs, flags, r, c, ctx, trace)
       ev = expr
     else
       local calc = require("org.table.calc")
+      -- the modes a formula does not set come from calc_default_modes
+      -- (org-calc-default-modes)
+      local cm = require("org.config").opts.calc_default_modes or {}
+      local deg = flags.deg
+      if not (flags.D or flags.R) and cm.angle_mode then
+        deg = cm.angle_mode ~= "rad"
+      end
       local ok2, v = pcall(calc.eval, expr, {
-        prec = flags.prec,
-        float_format = flags.float_format,
-        deg = flags.deg,
-        frac = flags.frac,
+        prec = flags.prec or cm.internal_prec,
+        float_format = flags.float_format or cm.float_format,
+        deg = deg,
+        frac = flags.frac or cm.prefer_frac or nil,
         num = flags.numbers and not flags.E,
       })
       if not ok2 then

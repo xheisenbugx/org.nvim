@@ -134,11 +134,21 @@ function M.collect(lines, filename)
           keywords[#keywords + 1] = { key = key, value = value, line = i, filename = source, source_line = root_line }
           if key == "SETUPFILE" and value ~= "" then
             local path = value:match('^"(.*)"$') or value
-            -- Loading a document never fetches a URL or invokes a remote
-            -- file handler. Missing/local unreadable files are left to lint.
-            -- Like org-url-p (ffap-url-regexp): `a:b.setup` is a local file.
-            local remote = path:match("^%a[%w+%.%-]*://") or path:match("^mailto:") or path:match("^news:")
-            if path ~= "" and not remote and depth < MAX_SETUP_DEPTH and imports < MAX_SETUP_IMPORTS then
+            -- Missing/local unreadable files are left to lint. Like
+            -- org-url-p (ffap-url-regexp): `a:b.setup` is a local file.
+            local url = path:match("^%a[%w+%.%-]*://")
+            local remote = url or path:match("^mailto:") or path:match("^news:")
+            if url and depth < MAX_SETUP_DEPTH and imports < MAX_SETUP_IMPORTS then
+              -- a URL is downloaded as `resource_download_policy` allows
+              -- (org-file-contents), once a session
+              local setup = require("org.resources").setup_contents(path, filename)
+              if setup and not active[path] then
+                imports = imports + 1
+                active[path] = true
+                scan(setup, dir, path, root_line, depth + 1)
+                active[path] = nil
+              end
+            elseif path ~= "" and not remote and depth < MAX_SETUP_DEPTH and imports < MAX_SETUP_IMPORTS then
               path = setup_path(path, dir)
               local id = identity(path)
               local state, buf = source_state(path)

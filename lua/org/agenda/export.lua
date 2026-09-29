@@ -86,9 +86,11 @@ function M.spans(buf, lines)
   return by_row
 end
 
---- The agenda buffer as an HTML page, coloured from its highlights.
-function M.html(buf, lines)
-  local by_row = M.spans(buf, lines)
+--- The agenda buffer as an HTML page, coloured from its highlights
+--- (`by_row`: spans of `lines` other than the buffer's own). The style is
+--- `agenda.export_html_style` when set (org-agenda-export-html-style).
+function M.html(buf, lines, by_row)
+  by_row = by_row or M.spans(buf, lines)
   local cache, classes, used = {}, {}, {}
   local function class_of(group)
     if not classes[group] then
@@ -128,10 +130,16 @@ function M.html(buf, lines)
     "  <head>",
     '    <meta charset="utf-8">',
     "    <title>Org Agenda</title>",
-    '    <style type="text/css">',
   }
-  vim.list_extend(out, style)
-  vim.list_extend(out, { "    </style>", "  </head>", "  <body>", "    <pre>" })
+  local user_style = config.opts.agenda.export_html_style
+  if type(user_style) == "string" and user_style ~= "" then
+    vim.list_extend(out, vim.split(user_style, "\n", { plain = true }))
+  else
+    out[#out + 1] = '    <style type="text/css">'
+    vim.list_extend(out, style)
+    out[#out + 1] = "    </style>"
+  end
+  vim.list_extend(out, { "  </head>", "  <body>", "    <pre>" })
   vim.list_extend(out, body)
   vim.list_extend(out, { "</pre>", "  </body>", "</html>" })
   return out
@@ -383,6 +391,61 @@ function M.write(path, opts)
   return ok
 end
 
+--- The lines of the agenda to write and their highlight spans
+--- (org-agenda-write): the entry text of `E` is left out (Emacs shows it in
+--- overlays), `agenda.add_entry_text_maxlines` body lines are added under
+--- each entry (org-agenda-add-entry-text), then
+--- `agenda.before_write_hook(lines, path)` may change the lines (or return
+--- new ones) and the User autocmd `OrgAgendaBeforeWrite` fires
+--- (org-agenda-before-write-hook).
+---@return string[] lines, table spans 0-based row -> spans
+function M.lines_to_write(S, lines, path)
+  local spans = M.spans(S.buf, lines)
+  local skip = S.entry_text_lines or {}
+  local n = tonumber(config.opts.agenda.add_entry_text_maxlines) or 0
+  local render = require("org.agenda.render")
+  local out, out_spans = {}, {}
+  for i, l in ipairs(lines) do
+    if not skip[i] then
+      out[#out + 1] = l
+      out_spans[#out - 1] = spans[i - 1]
+      local item = S.line_items[i]
+      if n > 0 and item and item.headline and not item.grid then
+        for _, t in ipairs(render.entry_text(item.headline, n)) do
+          out[#out + 1] = "    > " .. t
+        end
+      end
+    end
+  end
+  local before = vim.list_slice(out)
+  local hook = config.opts.agenda.before_write_hook
+  if type(hook) == "function" then
+    local ok, res = pcall(hook, out, path)
+    if not ok then
+      utils.error("agenda.before_write_hook: " .. tostring(res))
+    elseif type(res) == "table" then
+      out = res
+    end
+  end
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgAgendaBeforeWrite",
+    data = { lines = vim.list_slice(out), path = path, buf = S.buf },
+    modeline = false,
+  })
+  local changed = #out ~= #before
+  for i = 1, #before do
+    if changed then
+      break
+    end
+    changed = out[i] ~= before[i]
+  end
+  if changed then
+    -- the lines no longer match the agenda's highlights
+    out_spans = {}
+  end
+  return out, out_spans
+end
+
 --- org-agenda-write without binding the exporter settings.
 function M.write_now(path, opts)
   opts = opts or {}
@@ -403,10 +466,13 @@ function M.write_now(path, opts)
   end
   path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   local ext = (path:match("%.([^./]+)$") or ""):lower()
+  local nlines = #lines
+  local spans
+  lines, spans = M.lines_to_write(S, lines, path)
   local out, msg
   if ext == "pdf" or ext == "ps" then
     local print_opts = exporter_settings(opts.print)
-    local ok, err = pcall(require("org.agenda.print").write, path, ext, lines, M.spans(S.buf, lines), print_opts)
+    local ok, err = pcall(require("org.agenda.print").write, path, ext, lines, spans, print_opts)
     if not ok then
       utils.error("Cannot write agenda to file " .. path .. ": " .. tostring(err))
       return false
@@ -417,11 +483,11 @@ function M.write_now(path, opts)
     end
     return true
   elseif ext == "org" then
-    out, msg = M.org_lines(S, #lines), "Org file written to "
+    out, msg = M.org_lines(S, nlines), "Org file written to "
   elseif ext == "html" or ext == "htm" then
-    out, msg = M.html(S.buf, lines), "HTML written to "
+    out, msg = M.html(S.buf, lines, spans), "HTML written to "
   elseif ext == "ics" then
-    out = M.ics_lines(S, #lines)
+    out = M.ics_lines(S, nlines)
     for i, l in ipairs(out) do
       out[i] = l .. "\r"
     end

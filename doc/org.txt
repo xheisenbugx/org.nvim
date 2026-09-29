@@ -136,6 +136,9 @@ point closer to many Emacs setups: >lua
 If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
+`:Org version` shows the org.nvim release, its git version and where it is
+installed (org-version); with a count it inserts that at the cursor.
+
 Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
 send the keys org maps:
@@ -163,7 +166,8 @@ stars alone is text, like in Emacs): >org
     ** Child headline
 <
                                                           *org-meta-return*
-<M-CR>          (ctx) Insert a new headline, list item or table row, then
+<M-CR>          (ctx) Insert a new headline or list item (in a table: split
+                the field, see |org-tables|), then
                 enter Insert mode, like org-meta-return:
                 - In Insert mode it acts at the cursor: at the start of a
                   headline the new one goes above it; in the title the
@@ -190,6 +194,11 @@ stars alone is text, like in Emacs): >org
                 current one has one (`blank_before_new_entry.heading =
                 "auto"`); new items when the items of the list are
                 separated by blank lines (`plain_list_item = "auto"`).
+                With `insert_heading_respect_content` new headlines always
+                go after the current subtree. Every new headline fires
+                the User autocmd `OrgInsertHeading` (org-insert-heading-hook;
+                `data` holds `bufnr` and `lnum`), before M-S-RET adds its
+                TODO keyword.
 <M-S-CR>        Like <M-CR>, but a TODO headline (with the keyword of the
                 current entry, or the first one when it is done or with
                 a count) or an item with an empty checkbox. M-RET never
@@ -203,6 +212,14 @@ stars alone is text, like in Emacs): >org
 <prefix>is      Insert a subheading: a headline below the current line,
                 demoted (org-insert-subheading). In a list: an item,
                 indented.
+:Org insert_todo_subheading  The same with a TODO keyword, or a checkbox
+                item in a list (org-insert-todo-subheading).
+:Org edit_headline  Edit the title of the current headline in a prompt,
+                keeping its keyword, priority and tags (org-edit-headline).
+:Org convert_to_odd_levels  Rewrite the file to odd levels only: level 2
+                becomes 3, 3 becomes 5... (org-convert-to-odd-levels).
+:Org convert_to_oddeven_levels  The reverse (org-convert-to-oddeven-levels);
+                refused when the file has an even level. Both ask first.
 <prefix>id      Insert a drawer at the cursor (Insert mode splits the line,
 <C-c><C-x>d     like Emacs), or around the Visual selection. With a count
                 (C-u), a property drawer.
@@ -230,7 +247,9 @@ stars alone is text, like in Emacs): >org
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
                 column. Elsewhere an error, like Emacs.
 <M-h> / <M-l>   In Visual mode: promote / demote every headline of the
-                selection, or outdent / indent every item.
+                selection, or outdent / indent every item. The selection
+                stays (`edit_keep_region`, org-edit-keep-region), also
+                for <M-k> / <M-j>.
 Promotion keeps the spacing of the headline and realigns its tags. With
 `odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
 by two.
@@ -267,6 +286,14 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                 other counts: that level. A subtree that was folded when
                 copied is pasted folded. Subtrees are kept in a kill ring
                 and also in the `"` register.
+p / P           Put (org-yank). When the register holds whole subtrees
+                (linewise, starting with a headline, none higher than the
+                first), they are folded (`yank_folded_subtrees`, unless
+                that would hide the text after them) and, with
+                `yank_adjusted_subtrees`, pasted like <prefix>hp at the
+                start of the next line (`p`) or of this line (`P`). A count
+                or other text: Vim's put. The cursor stays on the first
+                put line (Emacs moves after the text).
 <prefix>hc      Clone subtree N times (org-clone-subtree-with-time-shift),
 <C-c><C-x>c     shifting its timestamps by an offset per clone (`+1w`,
                 `-2d`, `+3h`; asked only when it has timestamps, and not
@@ -294,6 +321,13 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
+<C-c><C-x>b     The same in another window (org-tree-to-indirect-buffer);
+                `indirect_buffer_display` picks a split (reused by the
+                next one, the cursor staying in the Org buffer), the
+                current window, a new tab each time or one reused tab. The
+                previous one is closed unless it has changes. A count N
+                takes the subtree of the ancestor at level N and keeps the
+                previous one (with "dedicated-frame": in a new tab).
 <prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
@@ -328,7 +362,31 @@ Motions and text objects:                           *org-motions* *org-textobj*
 ]] / [[         Next / previous visible headline.
 ][ / []         Next / previous sibling.
 g{              Parent headline.
-<prefix>.       Pick a headline of the buffer (|vim.ui.select()|).
+<prefix>.       Go to a location in the buffer without changing its folds
+<C-c><C-j>      (org-goto). With `goto_interface = "outline"` (the
+                default) a read-only copy of the buffer opens in overview
+                in a tab of its own:                           *org-goto*
+                  <CR>           jump there
+                  <Left> <Right> on a headline, jump there
+                  <C-g>          back where you were (`q` without
+                                 auto-isearch)
+                  <Tab>          cycle visibility
+                  <Down> <Up>    next / previous visible headline
+                  /              sparse tree for a regexp
+                  <C-c><C-n> <C-p> <C-f> <C-b> <C-u>  headline motions
+                  typing         searches the headline text (a `/`
+                                 search; <CR> ends it, <CR> again jumps)
+                                 with `goto_auto_isearch`; otherwise
+                                 n p f b u move and q quits.
+                With "outline-path-completion": pick a headline by its
+                outline path (|vim.ui.select()|), down to
+                `goto_max_level`. A count uses the other interface.
+gO              The headlines in the location list, indented by level,
+                down to `ui.imenu_depth` levels (default 2; reduced
+                levels with odd levels only), like gO in help and markdown
+                buffers: Emacs's imenu index (org-imenu-depth). The text is
+                the headline's without TODO keyword, priority, COMMENT and
+                tags, links shown by their description (`:Org imenu`).
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
@@ -350,6 +408,57 @@ the item.
 <C-c><M-f>      Next / previous `#+begin_` block (org-next-block /
 <C-c><M-b>      org-previous-block); a count skips blocks.
 
+                                                         *org-line-edit*
+:Org beginning_of_line  Go to the start of the line (org-beginning-of-line).
+                With `special_ctrl_a_e`, on a headline first to the start
+                of its title (after the TODO keyword and priority), on an
+                item after its bullet and checkbox; again to column 0.
+:Org end_of_line  Go to the end of the line (org-end-of-line); with
+                `special_ctrl_a_e`, on a headline first before its tags.
+:Org kill_line  Kill to the end of the line into the `"` register, or the
+                newline at its end (org-kill-line). On a folded headline
+                that is the whole hidden subtree: `ctrl_k_protect_subtree`
+                asks first or refuses. With `special_ctrl_k`, in a
+                headline's title it kills up to the tags, on the tags the
+                tags.
+These have no default keys; for Emacs-style Insert mode keys: >lua
+    mappings = { org_insert = { beginning_of_line = "<C-a>",
+      end_of_line = "<C-e>", kill_line = "<C-k>" } }
+<
+Indentation and filling                               *org-indent* *org-fill*
+'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
+are indented like in Emacs: headlines, footnote definitions and diary sexps
+at column 0; the first line of an element like its previous sibling, else
+like the contents of its parent (after the bullet of an item; at the
+headline level + 1 with `adapt_indentation`); other lines like the line
+above. List items keep their indentation (move them with <M-h> / <M-l>),
+and `=` keeps the contents of example, export and verse blocks. Lines of a
+src block keep their relative indentation at the block's content
+indentation (Emacs asks the language's major mode). <Tab> in body text
+indents the same way (`cycle_emulate_tab`).
+:Org indent_region  Indent the Visual selection, or the buffer, like
+                org-indent-region: lists, example and export blocks move
+                as a whole, node properties are aligned
+                (`property_format`).
+:Org indent_block   Indent the block at the cursor (on its `#+begin` line;
+                org-indent-block).
+:Org indent_drawer  Indent the drawer at the cursor (on its first line;
+                org-indent-drawer).
+:Org unindent_buffer  Remove the common indentation of every element of
+                every section, keeping relative indentation
+                (org-unindent-buffer).
+'formatexpr' follows org-fill-paragraph, so `gq` and `gw` fill paragraphs
+(also in items, drawers, quote blocks and footnote definitions), comments
+and the text of comment blocks, and realign tables. Headlines, keywords,
+planning lines, drawers' markers and other blocks are left alone. Lines are
+filled to 'textwidth' (79 when it is 0; Emacs uses fill-column); items
+continue at their body column; a sentence end at the end of a joined line
+gets two spaces, and lines are not broken after a period followed by one
+space, before text that would start a new element (a bullet, `#`, `|`,
+...), after `\\` or inside a timestamp. `\\` line breaks are kept. On a
+blank line, `gqq` fills the element after it. Typing past 'textwidth'
+(formatoptions `t`) never wraps headlines, keywords, tables or blocks.
+
                                                         *org-inlinetask*
 Inline tasks (the org-inlinetask module, off like in Emacs): with
 `inlinetask_min_level = 15`, headlines of that level or deeper are TODO
@@ -361,7 +470,9 @@ items inside the text of an entry, optionally closed by an END line: >org
 <
 They are not entries of their own (the text around them belongs to the
 entry), fold up to END with <Tab>, promote / demote together with their END
-line (never below the minimum level) and show only their last two stars.
+line (never below the minimum level) and show only their last two stars
+(also the first one, as a marker, with `inlinetask_show_first_star`,
+org-inlinetask-show-first-star).
 <C-c><C-x>t     Insert an inline task (`inlinetask_default_state` as its
                 keyword unless a count is given), around the Visual
                 selection if any.
@@ -378,7 +489,14 @@ view, U D move subtree, r l R L demote / promote (subtree), i insert heading,
 t TODO, , priority (0 remove, 1 2 3 highest, default, lowest), : tags,
 e E effort, W APPT_WARNTIME, v agenda, / sparse tree, o open link,
 < > agenda restriction lock, ? help. `speed_commands` adds or changes keys:
-`{ x = "archive_subtree", n = false }`. `use_speed_commands` may also be a
+`{ x = "archive_subtree", n = false }`. At the very start of a
+`#+begin_src` line the letters of the Babel keys (<C-c><C-v> x) run their
+command too (org-babel-speed-command-activate): p n e o v u g r b s d t f
+c j l i I z a h x k. `speed_command_hook` (org-speed-command-hook) lists
+the functions deciding what a key runs, tried in order: the names
+"org-speed-command-activate" and "org-babel-speed-command-activate" for
+the built-in ones, or functions of the key returning an action name, a
+function or nil. `use_speed_commands` may also be a
 function deciding where they apply.
 
 ==============================================================================
@@ -419,6 +537,46 @@ subtree above is folded (org-cycle-separator-lines).
 <C-c><C-Tab>    Cycle the subtree even when it is archived
                 (`:Org force_cycle_archived`).
 <C-c><C-x>v     Copy the visible text (org-copy-visible).
+:Org hide_entry       Hide the text of the entry; its children stay as
+                      they are (org-fold-hide-entry).
+:Org hide_block_all   Fold every block (org-fold-hide-block-all).
+:Org hide_drawer_all  Fold every drawer, or those of the Visual selection
+                      (org-fold-hide-drawer-all).
+
+Cycling options: `cycle_global_at_bob` (org-cycle-global-at-bob) makes
+<Tab> at the very start of the buffer, not on a headline, cycle the global
+visibility; `cycle_max_level` (org-cycle-max-level) makes deeper headlines
+text for <Tab> (without it, one level less than `inlinetask_min_level`);
+`cycle_skip_children_state_if_no_children = false`
+(org-cycle-skip-children-state-if-no-children) gives entries without
+children a CHILDREN state too.
+                                                        *OrgCyclePre*
+                                                           *OrgCycle*
+Visibility cycling runs the User autocmds `OrgCyclePre` before it changes
+the visibility (org-cycle-pre-hook, and its old name org-pre-cycle-hook)
+and `OrgCycle` after (org-cycle-hook). `data.state` is the new state:
+"overview", "contents" or "all" for global cycling, "folded", "children"
+or "subtree" for a headline or item ("empty", before only, for an entry
+without text); `data.lnum` is the line cycled: >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgCycle",
+      callback = function(ev) print(ev.data.state) end,
+    })
+<
+                                              *org-show-context-detail*
+How much is shown around a location reached by a jump follows
+`fold_show_context_detail` (org-fold-show-context-detail), per context:
+`agenda` (showing an entry from the agenda), `org-goto` (goto_heading),
+`occur-tree` (sparse-tree searches), `tags-tree` (tags/property sparse
+trees), `link-search` (a link to a search in a file), and `default`. The
+spans are "minimal" (the headline, and the entry when not on it),
+"local" (the headline, its entry and the next headline), "ancestors"
+(the headline and the ones above it, and the entry when not on the
+headline), "ancestors-full" (the whole subtree and the headlines above),
+"lineage" (also the children of the headlines above, the entry and its
+first child), "tree" (all children) and "canonical" (also the text of the
+headlines above). A single span (or true = "canonical", false =
+"minimal") applies to every context.
 
                                                         *org-hidden-lines*
 Vim folds nest, so a fold that is open shows every line in it: they cannot
@@ -429,10 +587,18 @@ siblings of a sparse-tree match. Those lines are hidden with `conceal_lines`
 extmarks (Neovim 0.11 or later, 'conceallevel' 2, set by the plugin), and
 the headline gets the ellipsis. Hidden lines are never under the cursor:
 <j> / <k> skip them and other jumps show them (like Emacs, which never
-leaves point in invisible text). Typing on a hidden line follows
-`catch_invisible_edits` (org-fold-catch-invisible-edits): `"smart"` (the
-default) and `"show-and-error"` show the line and refuse the character,
-`"show"` shows it and types, `"error"` refuses, `false` types into it.
+leaves point in invisible text). Edits that touch hidden text follow
+`catch_invisible_edits` (org-fold-catch-invisible-edits): typing on a
+hidden line, typing, <CR> or <BS> at the end of a line followed by hidden
+lines, <Del> there, <BS> at the start of a line after hidden lines.
+`"smart"` (the default) shows the text around and lets typing and <BS> at
+the end of the visible line through, else refuses the edit;
+`"show-and-error"` shows it and refuses; `"show"` shows it and edits;
+`"error"` refuses; `false` edits. `catch_invisible_edits_commands`
+(org-fold-catch-invisible-edits-commands) says which edits are checked,
+by command: `self_insert` (typed text), `delete_backward_char` (<BS>),
+`delete_char` (<Del>), `return` (<CR>) and actions such as `meta_return`,
+each "insert", "delete" or "delete-backward" (false: not checked).
 Hidden lines are shared by the windows showing the buffer (like Emacs
 invisible text), while folds are per window. Vim's own fold commands (zo,
 zR, ...) don't show hidden lines; the org commands above do. Neovim 0.10
@@ -466,6 +632,12 @@ Unordered bullets are `-`, `+` and indented `*`. Ordered bullets are `1.` and
 `1)`. `[@N]` sets a counter. Description items look like `- term :: text`.
 Checkboxes are `[ ]`, `[-]` (partial) and `[X]`. Lines inside example,
 src, export and verse blocks are never items (org-list-forbidden-blocks).
+With `lists.allow_alphabetical`, `a.`, `A.`, `a)` and `A)` are ordered
+bullets too and `[@c]` a counter; like Emacs, a list of more than 26 items
+is numbered instead. `lists.ordered_item_terminator` ("." or ")") keeps
+only one kind of ordered bullet. The other `lists` options (|org-config|)
+set the bullet a demoted item gets, two spaces after some bullets, extra
+sub-list indentation, circular item motion and the automatic rules.
 
 <C-c><C-c>      On the first line of an item: toggle its checkbox and repair
                 the list (numbers, bullets, sub-list indentation, parent
@@ -495,6 +667,13 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 <C-c>-          (ctx) On an item: cycle the bullet style; elsewhere toggle
                 items (|org-structure|).
 <prefix>hb      Cycle the bullet style.
+:Org beginning_of_item / end_of_item    Go to the start / end of the item
+                (org-beginning-of-item, org-end-of-item; unbound, as in
+                Emacs).
+:Org beginning_of_item_list / end_of_item_list    Go to the first item /
+                the end of the current (sub-)list.
+:Org reset_checkbox_state_subtree    Uncheck every checkbox of the subtree
+                and update its cookies (org-reset-checkbox-state-subtree).
 <prefix>#       Update the statistics cookies of the current entry
 <C-c>#          (org-update-statistics-cookies): on a headline with child
                 entries, its TODO cookie; with a count (C-u), every cookie
@@ -502,7 +681,13 @@ src, export and verse blocks are never items (org-list-forbidden-blocks).
 
 Statistics cookies on a headline count its checkboxes, or its child TODO
 entries when it has no checkboxes. `:COOKIE_DATA: todo|checkbox recursive`
-overrides this.
+overrides this. Checkbox cookies count direct children only; with
+`lists.checkbox_hierarchical_statistics = false` or `COOKIE_DATA:
+recursive` they count every box below them (items too).
+
+Toggling `checkbox_radio_mode` fires the User autocmd
+`OrgListCheckboxRadioMode` (org-list-checkbox-radio-mode-hook), with
+`data = { enabled, bufnr }`.
 
 ==============================================================================
 6. TODO ITEMS AND PRIORITIES                               *org-todo* *org-priority*
@@ -538,11 +723,21 @@ every note: state changes, rescheduling, `add_note` (<C-c><C-z>, and `z` in
 the agenda), clock-out notes (`log_note_clock_out`, stored right below the
 CLOCK line with the "clock-out" heading) and refile notes (`refile.log =
 "note"`); a cancelled note stores nothing.
+The `*Org Note*` buffer fires the User autocmd `OrgLogBufferSetup` (data
+`{ bufnr, purpose }`, org-log-buffer-setup-hook) when it opens, and every
+stored log entry fires `OrgNoteStored` (data `{ bufnr, lnum, headline }`,
+org-after-note-stored-hook). Without a log drawer, entries go right after
+the planning line and property drawer, past blank lines (with
+`log_states_order_reversed = false`, after the existing state notes);
+`log_state_notes_insert_after_drawers` also skips the clock lines and
+drawers that follow (org-log-state-notes-insert-after-drawers).
 
 cit / ciT       Next / previous TODO state.
 <S-Right/Left>  (ctx) Same, on a headline. Like Emacs, this walks every
                 keyword of every sequence in order, with no keyword before
-                the first and after the last one.
+                the first and after the last one. With
+                `treat_S_cursor_todo_selection_as_state_change = false`
+                the change is neither logged nor blocked.
 <prefix>S       Select a state (fast keys when defined).
 <C-c><C-t>      Fast selection when the keywords have keys (turn it off
                 with `use_fast_todo_selection = false`), otherwise cycle
@@ -558,6 +753,10 @@ cit / ciT       Next / previous TODO state.
 <C-S-Right/Left>  Next / previous keyword set (not logged, like Emacs).
 :Org todo_without_note   Change the state, recording a time instead of
                 asking for a note (C-0 C-c C-t).
+:Org todo_yesterday   Like C-c C-t (same counts), but CLOSED, log notes
+                and LAST_REPEAT record 23:59 of yesterday and `.+`/`++`
+                repeaters count from yesterday (org-todo-yesterday). Lua:
+                `require("org.todo").todo_yesterday(target, arg)`.
 :Org todo_cancel_repeaters   Set the repeaters of the entry to 0 and change
                 the state, so a repeating task is done for good
                 (C-- 1 C-c C-t, org-cancel-repeaters).
@@ -576,7 +775,12 @@ going back to a TODO state removes it. Like Emacs, CLOSED is only touched
 when some logging is set up (`log_done` or a keyword with `!`/`@`);
 `closed_keep_when_no_todo` keeps it when the keyword is removed. With
 `use_effective_time`, times recorded before `extend_today_until` o'clock
-are 23:59 of the previous day.
+are 23:59 of the previous day; with
+`use_last_clock_out_time_as_effective_time`, CLOSED and the notes record the
+last clock-out time of the subtree instead. `log_done_with_time = false`
+makes CLOSED a date without time. M-S-RET / C-S-RET log the new heading's
+keyword like a state change with
+`treat_insert_todo_heading_as_state_change`.
 
                                                         *org-logging-property*
 The inherited `LOGGING` property overrides the logging of a subtree, like
@@ -645,6 +849,9 @@ parent are unfinished, or while an ancestor TODO is blocked that way. A
 `NOBLOCKING` property disables blocking for the entry.
 `enforce_todo_checkbox_dependencies` also blocks entries that have
 unchecked or partial checkboxes (not the ones inside blocks).
+<C-c><C-x>o (`toggle_ordered`) toggles the ORDERED property; with
+`track_ordered_property_with_tag` (`true` or a tag name) it also toggles an
+`ORDERED` (or that) tag to make it visible.
 
 Statistics                                               *org-todo-statistics*
 A `[/]` or `[%]` cookie on a headline counts its children with a TODO
@@ -669,7 +876,12 @@ Range and default come from `priority_highest/lowest/default` or
 `#+PRIORITIES: A C B`. Numbers from 0 to 64 work too, like Emacs:
 `#+PRIORITIES: 1 10 5` uses `[#1]` .. `[#10]` (typed as a number).
 `ui.priority_faces` gives priorities their own highlight, like
-`ui.todo_keyword_faces`.
+`ui.todo_keyword_faces`. `priority_enable_commands = false` disables the
+priority commands (<S-Up>/<S-Down> then fall back to Vim);
+`priority_start_cycle_with_default = false` makes the first shift of a
+headline without cookie go one step past the default; a
+`priority_get_priority_function` (called with the headline line, returning
+a number) replaces the value used for sorting and `priority_show`.
 
 ==============================================================================
 7. TAGS                                                             *org-tags*
@@ -706,13 +918,34 @@ also hides the menu until <C-c> (`"expert"`);
 `fast_tag_selection_include_todo` adds the TODO keywords with keys, which
 change the state right away.
 
+`use_fast_tag_selection` is `"auto"` (the menu when some tag has a key),
+`true` (always, with the tags used in the buffer when none are defined) or
+`false` (always type the tags). Tags with a key and tags in groups are
+always shown; the others get keys and are shown while fewer than
+`fast_tag_selection_maximum_tags` (56) tags are shown.
+
 Completion offers the tags defined for the buffer (`#+TAGS` or the `tags`
 option), or the tags used in the buffer when none are defined;
 `complete_tags_always_offer_all_agenda_tags` adds every agenda file's tags.
+`tags_persistent` lists tags (same format as `tags`) that are always
+defined, before `#+TAGS` or `tags` (org-tag-persistent-alist);
+`#+STARTUP: noptag` turns them off for a file.
+
+`tags_sort_function` sorts the tags whenever they are set on a headline
+(and the agenda's tag sorting): a comparator `function(a, b)` returning
+true when `a` comes first, or a list of comparators where the next one
+breaks ties (org-tags-sort-function). "string<" and "string>" sort by
+name (org-string<, org-string>), "hierarchy" by the tag groups
+(org-tags-sort-hierarchy): a group tag before its members, each level
+sorted by the comparators after it in the list (by name when none), e.g.
+`{ "hierarchy", "string>" }`; a comparator can call
+`require("org.tags").sort_less(a, b)` to hand over to the next ones.
+Without the option, tags keep their order.
 
 Tags are aligned to `tags_column` (negative values right-align them, a
 positive value starts them at that column). `:Org align_tags` realigns every
-headline in the buffer. `ui.tag_faces` gives tags their own highlight.
+headline in the buffer. With `auto_align_tags = false`, edits keep the
+space before the tags and new tags follow the title after one space. `ui.tag_faces` gives tags their own highlight.
 
 In `#+TAGS`, `{ }` groups are mutually exclusive in the fast selection menu,
 `[ ]` groups and `\n` start a new row, and `:` (as in `[ GTD : Control ]`)
@@ -772,8 +1005,20 @@ entry cannot be marked done, else empty).
 Inheritance is controlled by `use_property_inheritance` (true, false, a
 list of property names, or a regexp matching them). `NAME+` lines append to the value, also to an
 inherited one: `:Acc: 1` on a parent and `:Acc+: 2` on its child give
-`1 2`. A property drawer at the top of the file, `#+PROPERTY: NAME value`
+`1 2`. `property_separators` changes the separator per property
+(org-property-separators): `{ { { "A", "B" }, ", " }, { "^LIST", "|" } }`
+joins `A` and `B` values with ", " and properties matching the regexp with
+"|". A property drawer at the top of the file, `#+PROPERTY: NAME value`
 and `global_properties` set values for the whole file, in that order.
+`properties_postprocess` maps property names (ignoring case) to functions
+`function(value, target)` that adjust values given to <prefix>p
+(org-properties-postprocess-alist).
+
+`:Org toggle_custom_properties_visibility` hides the lines of the
+properties named in `custom_properties` in every property drawer of the
+buffer, and shows them again (org-toggle-custom-properties-visibility).
+Editing next to hidden ones asks whether to show them
+(|org-hidden-lines|). Needs Neovim 0.11.
 
 <prefix>C       Column view. The format comes from `#+COLUMNS`, the COLUMNS
                 property or `columns_default_format`, for example
@@ -880,7 +1125,9 @@ Timestamps:
                 second value of `time_stamp_rounding_minutes` (5) and
                 round to it; a count steps by exactly that many minutes.
                 The end minute of a time range moves by 1. On a bracket,
-                switch the timestamp between active and inactive.
+                switch the timestamp between active and inactive. With
+                `edit_timestamp_down_means_later`, <S-Down> is later and
+                <S-Up> earlier.
 <S-Right/Left>  (ctx) Day +1 / -1.
 :Org toggle_timestamp_type   Switch the timestamp at the cursor between
                 active and inactive (in a range, only that end).
@@ -923,13 +1170,40 @@ The keys:
   h l j k        day -1 / +1, week -1 / +1
   H L  < >       month -1 / +1
   J K  [ ]       year -1 / +1
+  <C-v>  <M-v>   three months later / earlier: on today when it is within
+                 a month of that month, else on its 1st (Emacs calendar)
   .              today
   i  t           type a date (see below); a date moved to in the calendar
-                 is part of the answer, like Emacs
+                 is part of the answer, like Emacs. While typing, the
+                 calendar shows the date the answer means ("=> <date>",
+                 "(=>F)" when it was taken in the future), like the Emacs
+                 overlay (`read_date_display_live`, default on)
   T              set a time
+  !              show the agenda of the selected date (Emacs: the diary
+                 entries); the windows come back when the prompt ends
+  c              only in the calendar of `:Org goto_calendar`: close it and
+                 show the agenda from the week of the date
+                 (org-calendar-goto-agenda; the key is
+                 `calendar_to_agenda_key`: "default" is `c`, false none)
+  i              only in that calendar, when `agenda.diary_entry_file` is
+                 an Org file: close it and add a diary entry for the date
+                 there, as the agenda's `i` does
+                 (`calendar_insert_diary_entry_key`,
+                 org-calendar-insert-diary-entry-key); `t` still types a
+                 date
   x  <Del>       remove the date (schedule/deadline)
   <CR>           select
+  <LeftMouse>    select the day clicked (<MiddleMouse> too)
   q  <Esc>       cancel
+With `read_date_popup_calendar = false` (org-read-date-popup-calendar, or
+its alias `popup_calendar_for_date_prompt`) date prompts are a plain
+"Date+time [2026-09-28]: " prompt instead; an empty answer takes the date
+in brackets.
+
+<C-c><          Insert the date the calendar was last left on (by a date
+                prompt or `:Org goto_calendar`), today before that; on a
+                timestamp, change only its date, keeping the time, repeater
+                and warning (org-date-from-calendar).
 A count of 4 (`C-u`) before the schedule/deadline key removes the date; a
 count of 16 (`C-u C-u`) instead asks for a date and sets the warning period
 (DEADLINE) or delay (SCHEDULED) to the days between it and the entry's
@@ -1013,7 +1287,15 @@ same date again is not logged.
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
                 first headline; update it when on one. With a count,
-                update the first clock table of the buffer.
+                update the first clock table of the buffer. A new block
+                gets `clock.clocktable_default_properties`. The total
+                and file time cells use `clock.total_time_cell_format` /
+                `clock.file_time_cell_format` ("*%s*").
+                `clock.clocktable_formatter` replaces the table writer:
+                `function(tables, params)` gets `{ { file, time, entries
+                = { { level, headline, tags, timestamp, time (minutes),
+                properties } } } }` and the block parameters, and
+                returns the lines of the block (org-clock-clocktable-formatter).
 <C-c><C-c>      On a CLOCK line: recompute its duration.
 <C-S-Up/Down>   On a CLOCK line: shift both timestamps by the part under
                 the cursor, keeping the duration.
@@ -1123,13 +1405,18 @@ and default options (the Emacs variable is named next to each option in
   s   search for words or a regexp
   S   like s, TODO entries only
   n   agenda and all TODOs    #   stuck projects
-  /   multi-occur: a regexp in all agenda files, into the quickfix list
+  /   multi-occur: a regexp in all agenda files and
+      `agenda.text_search_extra_files` (org-agenda-multi-occur-extra-files),
+      into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
   >   remove the restriction and the restriction lock
   e   export the agenda views of custom commands (|org-agenda-export|)
   *   toggle sticky agenda buffers (`agenda.sticky`)
   ?   the :FLAGGED: entries of MobileOrg (|org-mobile|)
-  ... custom commands from `agenda.custom_commands`
+  ... custom commands from `agenda.custom_commands`: the description (or
+      a name for the type) and ": MATCH" (`agenda.menu_show_matcher`,
+      org-agenda-menu-show-matcher); `agenda.menu_two_columns` lists
+      them in two columns (org-agenda-menu-two-columns)
 
 :Org agenda a|t [KW|KW]|T KW|m MATCH|M MATCH|s TEXT|S TEXT|n|#|/ REGEXP|
             *|>|?|e|export FILE|day|week|fortnight|month|year|N|<key>|DATE
@@ -1139,13 +1426,30 @@ Restriction lock (org-agenda-set-restriction-lock):
                  file when not under a headline, or with a count); also
                  in the agenda, from the entry at point
   <C-c><C-x>>    remove the lock
+The locked subtree is highlighted with OrgAgendaRestrictionLock (only its
+headline with `agenda.restriction_lock_highlight_subtree = false`,
+org-agenda-restriction-lock-highlight-subtree).
 Other keys in org buffers:
   <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
+                 (org-agenda-file-to-front, org-remove-file); a count
+                 (C-u) adds or moves it to the end instead of the front
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
+:Org edit_agenda_file_list  edit the list: the list file when
+                 `agenda_files` names one, else a buffer with the list;
+                 `:w` installs it (org-edit-agenda-file-list)
+Like Emacs, these changes are saved: when `agenda_files` is the name of a
+file listing the agenda files, that file is rewritten; otherwise the new
+list (directories and globs expanded to their files) is saved in
+stdpath("data")/org/agenda-files.json and replaces the configured list at
+startup for as long as `agenda_files` in setup() keeps the value it was
+made from (Emacs saves it with Customize).
 
 With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
 agenda is empty, like in Emacs, until files are added with <C-c>[ or the
-option is set.
+option is set. A listed file that does not exist is asked about when an
+agenda is built: `r` removes it from the list (for the session), any
+other key aborts (org-check-agenda-file); `agenda.skip_unavailable_files
+= true` skips such files silently (org-agenda-skip-unavailable-files).
 
 Agenda contents                                          *org-agenda-contents*
 
@@ -1156,7 +1460,9 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   on their day only.
 - Scheduled entries on their day (`Scheduled:`) and, while not done, in
   today's agenda (`Sched.Nx:`, for `agenda.scheduled_past_days`). A delay
-  (`-2d`) hides the entry until it is over.
+  (`-2d`) hides the entry until it is over; `scheduled_delay_days`
+  (org-scheduled-delay-days, 0) is the delay of entries without one, and a
+  negative value applies to all of them.
 - Date ranges on each of their days (`(2/3):`), with the start time on
   the first day and the end time on the last.
 - Active timestamps. Repeaters show on every repeat up to today and, after
@@ -1173,7 +1479,10 @@ For each day, per file, in this order (org-agenda-get-day-entries):
   (org-habit).
 - A time grid (`agenda.time_grid`, org-agenda-time-grid) with the current
   time; the `remove-match` flag hides grid lines at the time of an entry.
-- Entries under ARCHIVE-tagged or COMMENT headlines are excluded.
+- Entries under ARCHIVE-tagged or COMMENT headlines are excluded
+  (`agenda.skip_comment_trees = false` keeps COMMENT trees).
+  `agenda.skip_function_global(headline)` returning true leaves an entry
+  out of every view, built-in ones included (org-agenda-skip-function-global).
 `agenda.entry_types` selects the kinds ("deadline", "scheduled",
 "timestamp", "sexp"; "deadline*" / "scheduled*" keep only timed ones).
 Skipping: `skip_scheduled_if_done`, `skip_deadline_if_done`,
@@ -1211,7 +1520,23 @@ Tags show inherited tags first, then "::" and the entry's own tags
 `remove_tags` removes them (true, or "prefix" when %T is used),
 `tags_column` places them ("auto" = right edge of the window). Day headers
 use `format_date` (a strftime format or a function) and show the ISO week
-on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight.
+on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight, and
+`day_face_function(date)` may return another highlight group
+(org-agenda-day-face-function).
+`todo_keyword_format` ("%-1s"; "%-12s" aligns the keywords, "" hides
+them) formats the TODO keyword (org-agenda-todo-keyword-format).
+`fontify_priorities` (org-agenda-fontify-priorities): "cookies" (default)
+highlights the cookie, the highest priority bold
+(OrgAgendaPriorityHighest) and the lowest italic
+(OrgAgendaPriorityLowest), or with `ui.priority_faces`; true does so from
+the cookie to the end of the line; a table `{ A = face, ... }` (faces as
+in `ui.priority_faces`) sets the faces; false turns it off.
+`deadline_faces` (org-agenda-deadline-faces) picks the highlight of a
+deadline line by the part of its warning period that has passed:
+`{ { 1.0, "OrgAgendaDeadline" }, { 0.5, "OrgAgendaDeadlineUpcoming" },
+{ 0.0, "OrgAgendaDeadlineDistant" } }`.
+`remove_timeranges_from_blocks` removes a `<...>--<...>` range from the
+headline text of its entries (org-agenda-remove-timeranges-from-blocks).
 
 Sorting                                                   *org-agenda-sorting*
 
@@ -1248,7 +1573,29 @@ All configurable under `mappings.agenda`:
                   the query (Emacs C-u r)
   gr              rebuild all agenda buffers (Emacs g)
   <CR> <Tab>      open the entry here / in another window
-  <Space> <BS>    show the entry, keeping focus in the agenda / and scroll
+  <Space> <BS>    show the entry (its drawers open; with a count they stay
+                  folded), keeping focus in the agenda; <Space> again
+                  scrolls that window a page forward, <BS> a page back
+                  (org-agenda-show-and-scroll-up / -show-scroll-down)
+  cycle_show      (no default key) show the entry; again right away,
+                  cycle it through children, subtree, folded; a count is
+                  the level of `show_1` (org-agenda-cycle-show)
+  show_1          (no default key) show the entry with the detail of the
+                  count: 1 the entry, 2 its children, 3 its subtree, 4
+                  also the drawers (org-agenda-show-1; level 0, fold,
+                  has no count form: `require("org.agenda.view").show_1(0)`)
+  <MiddleMouse>   go to the entry clicked (org-agenda-goto-mouse); with
+                  `agenda.mouse_1_follows_link` also a short <LeftMouse>
+                  click without a drag (a longer one only moves the
+                  cursor; the limit is `links.mouse_1_follows_link` ms
+                  when that is a number, else 450)
+  <RightMouse>    show the entry clicked (org-agenda-show-mouse)
+  <C-c><C-x>b     edit the entry's subtree in the other window (the
+                  subtree edit buffer of |org-narrow|, since Neovim has no
+                  indirect buffers; org-agenda-tree-to-indirect-buffer).
+                  The previous one is closed unless modified. A count N
+                  takes the subtree of the ancestor at level N.
+                  `agenda.follow_indirect` makes follow mode show it
   L               show the entry and recenter its window
   o               close the other windows
   F               follow mode (also vf)
@@ -1257,6 +1604,8 @@ All configurable under `mappings.agenda`:
   <C-Down/Up>     next / previous block
   <M-Down/Up>     move the line down / up (the agenda text only)
   t               change TODO state; <C-S-Right/Left> cycle it
+  todo_yesterday  (no default key) like t, but the change is logged at
+                  23:59 of yesterday (org-agenda-todo-yesterday)
   , + -           set / raise / lower priority (also <S-Up/Down>)
   : / T           set tags / show tags
   <C-c><C-x>p     set a property
@@ -1264,6 +1613,13 @@ All configurable under `mappings.agenda`:
   <S-Right/Left>  move the date of the entry +1 / -1 day (a count moves
                   more): the timestamp the line comes from; one step on a
                   past date moves it to today
+                  (`agenda.move_date_from_past_immediately_to_today`).
+                  A count of 4 (C-u) moves the time one hour, 16 (C-u
+                  C-u) one `time_stamp_rounding_minutes` step; the keys
+                  keep that unit when pressed again without moving the
+                  cursor. The actions `date_later_hours`,
+                  `date_earlier_hours`, `date_later_minutes` and
+                  `date_earlier_minutes` (no default keys) take a count
   >               prompt for a new date for that timestamp (the time is
                   kept)
   e               set effort
@@ -1271,7 +1627,10 @@ All configurable under `mappings.agenda`:
   ;               start a countdown timer; <C-c><C-x>_ stops the timer
   R               refile
   $               archive (also <C-c>$, <C-c><C-x><C-s>)
-  a               archive after confirmation
+  a               archive with `archive_default_command` after
+                  confirmation ("archive_subtree", "archive_to_sibling",
+                  "set_tag" or a function; org-archive-default-
+                  command); <C-c><C-x><C-a> without confirmation
   <C-c><C-x>A     move to the Archive sibling
   <C-c><C-x>a     toggle the ARCHIVE tag
   <C-c><C-a>      attach (org-attach on the entry)
@@ -1291,21 +1650,50 @@ All configurable under `mappings.agenda`:
                   (gaps, overlaps, too long / short, no end time;
                   `agenda.clock_consistency_checks`)
   E               entry text mode: show the first body lines of each
-                  entry (`agenda.entry_text_maxlines`) (also vE)
+                  entry (`agenda.entry_text_maxlines`; a count N shows N
+                  lines) (also vE), after `entry_text_leaders`, without
+                  drawers, planning and CLOCK lines and the matches of
+                  `entry_text_exclude_regexps` (Emacs regexps)
   G               toggle the time grid (also vG)
   !               show / hide deadlines (also v!)
   D               include / leave out the Emacs diary file
                   (|org-agenda-diary-file|)
+  i               add a diary entry for the date at point
+                  (org-agenda-diary-entry). With `agenda.diary_entry_file`
+                  = "diary-file" (default, org-agenda-diary-file) a line
+                  of the Emacs diary file (`agenda.diary_file`) is started,
+                  like the calendar's i commands: [d]ay [w]eekly
+                  [m]onthly [y]early [a]nniversary [b]lock [c]yclic, in
+                  `calendar_date_style`; a count makes it non-marking
+                  ("&"); type the text there. With an Org file: [d]ay
+                  (a headline with the date, placed by
+                  `insert_diary_strategy`: "date-tree", "date-tree-last"
+                  or "top-level"; `insert_diary_extract_time` moves a
+                  leading "10:30-11:00" into the timestamp), [a]nniversary
+                  (an org-anniversary line under "* Anniversaries"),
+                  [b]lock, [j]ump to the date tree. A block spans the days
+                  at both ends of a Visual selection (Emacs: point and
+                  mark)
+  vh              turn habits off / on (`agenda.habits.show_habits`); with
+                  a count, toggle whether today shows every habit, due or
+                  not (`habits.show_all_today`)
+                  (org-habit-toggle-display-in-agenda, Emacs K / C-u K);
+                  the action `toggle_habits` (no default key) never takes
+                  the count
   #               toggle dimming of blocked TODOs (`agenda.dim_blocked_tasks`:
                   true, false or "invisible"; needs
                   `enforce_todo_dependencies` or
                   `enforce_todo_checkbox_dependencies`)
   va / vA         include archived trees / also the archive files
+                  (`agenda.start_with_archives_mode`: "trees" or true
+                  turns them on in new agendas)
   v[              include inactive timestamps (`[` leader)
   / \ < = _ ^ |   filters (|org-agenda-filter|)
   ~               limit the number of entries (|org-agenda-limits|)
   [ ] { }         search view: add a +word / -word / +{regexp} /
-                  -{regexp} term (tags views: a +tag / -tag term);
+                  -{regexp} term, the new query also going to register
+                  `o` (`agenda.query_register`, org-agenda-query-register)
+                  (tags views: a +tag / -tag term);
                   date agenda: include inactive timestamps
   m u U           mark / unmark / unmark all
   <M-m> * <M-*>   toggle mark / mark all / toggle all marks
@@ -1313,6 +1701,13 @@ All configurable under `mappings.agenda`:
   B               bulk action (|org-agenda-bulk|)
   <C-c><C-x><C-c> column view (|org-agenda-columns|)
   <C-x><C-s>      save all modified org buffers
+  <C-_> <C-/> <C-x>u  undo the last edit made from the agenda in its
+                  file and rebuild the view; again for the edit before
+                  (org-agenda-undo). `r` forgets the edits, like Emacs;
+                  an edit is only undone while its file has not changed
+                  since (Emacs undoes the file's last change regardless),
+                  and an undone edit is dropped (a later undo that is not
+                  a repetition does not redo it)
   <C-x><C-w>      write the agenda to a file (|org-agenda-export|)
   q               quit
   Q               quit and delete the agenda buffer
@@ -1329,6 +1724,14 @@ goto, <C-c><C-x><Right/Left> date later / earlier.
 A count stands for Emacs's prefix argument: 1 = C-u, 2 = C-u C-u, 3 =
 C-u C-u C-u.
 
+In Visual mode, schedule, deadline, `>`, the TODO state, the archive
+commands, <C-k>, set property and set effort act on every entry of the
+selection (org-agenda-loop-over-headlines-in-active-region:
+`agenda.loop_over_headlines_in_active_region` true, false,
+"start-level" or an Emacs regexp the lines must match). The one-letter
+keys that are Visual motions (`t`, `$`, `e`, `a`) keep their Vim meaning
+there; use their <C-c> forms.
+
 Like Emacs, edits made from the agenda leave the source buffers modified
 (`agenda.save_after_edit = false`); save them with <C-x><C-s> or :wall.
 Buffers are listed, so :qa asks before losing changes. Set
@@ -1339,15 +1742,34 @@ Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_entry_text_mode`, `show_outline_path` (echo the outline path
 of the entry at point).
 
+User autocmds (the Emacs hooks): `OrgAgendaFinalize` after the agenda
+buffer is built or rebuilt (org-agenda-finalize-hook), `OrgAgendaFilter`
+after a filter changed (org-agenda-filter-hook), with `data.buf`,
+`data.filters` and `data.filter` (the filter text of the window bar);
+`OrgAgendaBeforeWrite` before a written agenda (|org-agenda-export|).
+Unlike Emacs, the agenda is rebuilt after edits from it, so
+`OrgAgendaFinalize` also fires then.
+>lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgAgendaFinalize",
+      callback = function(ev) vim.bo[ev.data.buf].textwidth = 0 end,
+    })
+<
+
 Windows and buffers                                        *org-agenda-window*
 
 `agenda.window` (org-agenda-window-setup): "split" (default, Emacs
 reorganize-frame: the current window and the agenda below it), "only"
 (only-window), "other" (other-window), "current", "vsplit", "tab"
-(other-tab), "float". `restore_windows_after_quit` restores the previous
+(other-tab), "float". The "split" window fits its lines, between
+`window_frame_fractions` ({ 0.5, 0.75 } of the editor height,
+org-agenda-window-frame-fractions; { 1.0, 1.0 } = the only window).
+`restore_windows_after_quit` restores the previous
 window layout on q. With `agenda.sticky` (org-agenda-sticky, `*` in the
 dispatcher) every command has its own buffer (`org://agenda(KEY)`), shown
-as it is when the command is run again (press r to refresh).
+as it is when the command is run again (press r to refresh); toggling it
+deletes the agenda buffers, like `:Org agenda_kill_all_buffers`
+(org-agenda-kill-all-agenda-buffers).
 
 Filtering                                                  *org-agenda-filter*
 
@@ -1404,6 +1826,7 @@ B acts on the marked entries, or on the entry at point without marks
   S       scatter: schedule each entry on a random day of the next N days
           (with a count, weekend days are skipped)
   f       apply a Lua function (`function(target, item) ... end`)
+  (marked lines show `agenda.bulk_mark_char`, ">", org-agenda-bulk-mark-char)
   p       toggle persistent marks (`agenda.persistent_marks`: keep the
           marks after the action), then choose the action
   custom  keys of `agenda.bulk_custom_functions`:
@@ -1417,7 +1840,10 @@ view in an org buffer. The format is `agenda.overriding_columns_format`,
 else the COLUMNS property or #+COLUMNS of the entry at point (or of the
 first entry), else `columns_default_format`. Date lines and block headers
 show the summaries of the entries below them
-(`agenda.columns_show_summaries`). While it is on: `q` turns it off, `e`
+(`agenda.columns_show_summaries`); with
+`agenda.columns_add_appointments_to_effort_sum`, an appointment without
+an effort counts its duration (org-agenda-columns-add-appointments-to-
+effort-sum). While it is on: `q` turns it off, `e`
 edits the value under the cursor, `n`/`p` (<S-Right>/<S-Left>) switch to
 the next/previous allowed value, `v` shows the full value. The column
 titles are in the window's winbar (Emacs header-line). Other agenda
@@ -1436,6 +1862,15 @@ view (org-agenda-write). The extension picks the format:
   .ps .pdf    the agenda printed like Emacs's ps-print: Courier text with
               the highlight colours and bold/italic, paged, with a header
               box ("Agenda View", page n/m and the date) on every page
+The text of entry text mode (`E`) is not written, like Emacs's overlays;
+`agenda.add_entry_text_maxlines` (org-agenda-add-entry-text-maxlines,
+default 0) adds that many body lines under each entry ("    > ...").
+`agenda.before_write_hook(lines, path)` can then change the lines (or
+return new ones) and the User autocmd `OrgAgendaBeforeWrite` fires
+(org-agenda-before-write-hook); when the lines change, HTML and
+PostScript lose their colours. `agenda.export_html_style` replaces the
+<style> section of HTML files (org-agenda-export-html-style).
+
 PostScript and PDF are written by Neovim itself, no external program is
 needed. The layout is ps-print's (letter paper, 8.5 pt text, 72 lines of
 97 columns per page; long lines wrap), so pages break where Emacs breaks
@@ -1534,10 +1969,19 @@ Block options:
 Keys may be several characters long; a string entry (`w = "Work"`) only
 labels the group.
 
+`agenda.custom_commands_contexts` (org-agenda-custom-commands-contexts)
+offers commands only in some buffers, with the rules of
+|org-capture-contexts|: `{ "p", { { in_mode = "org" } } }` keeps `p` only
+in org buffers, `{ "p", "r", { rules } }` runs the command of `r` under
+`p` where a rule holds (and hides `r`). It applies to the dispatcher,
+`:Org agenda KEY` and `A`.
+
 TODO lists: `todo_ignore_scheduled` ("all", "future", "past" or days),
 `todo_ignore_deadlines` (true = "near": within the warning period, "far",
 "all", "future", "past" or days), `todo_ignore_timestamp`,
-`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*);
+`todo_ignore_with_date` hide dated entries (org-agenda-todo-ignore-*;
+they compare dates in days, or with the current time in seconds with
+`todo_ignore_time_comparison_use_seconds`);
 tags-todo (M) views honour them only with
 `tags_todo_honor_ignore_options`. `todo_list_sublevels = false` skips the
 children of a listed TODO; `tags_match_list_sublevels = false` those of a
@@ -1573,7 +2017,9 @@ Diary sexp entries                                  *org-agenda-diary-sexp*
 
 Emacs lets you put diary s-expressions in timestamps, `<%%(diary-float t 4
 2)>`, and on lines of their own at the start of a line, `%%(org-anniversary
-1990 5 17) Birthday of Joe (%d)`. Emacs evaluates them as Emacs Lisp.
+1990 5 17) Birthday of Joe (%d)`. `agenda.diary_sexp_prefix` (an Emacs
+regexp, org-agenda-diary-sexp-prefix) moves its match in the text of a
+`%%(...)` line to the leader (`%s`). Emacs evaluates them as Emacs Lisp.
 Neovim has no Lisp interpreter, so they are read with a small, safe
 s-expression reader and the common calendar functions are emulated,
 with the same results as Emacs:
@@ -1837,9 +2283,9 @@ Hebrew, Islamic, Bahá’í or Chinese calendar, in the same forms with that
 calendar's month names (not abbreviated): `HTishri 16 Sukkot`,
 `IRamadan 1 Fast`, `C8/15 Mid-autumn` (diary-nongregorian-listing-hook).
 Differences: customized `diary-date-forms`, `diary-comment-start`,
-`diary-list-include-blanks` and `diary-face-attrs` are not supported, the
-`i` key (insert a diary entry) is not available, and a missing or
-recursive include is skipped with a message (Emacs stops with an error).
+`diary-list-include-blanks` and `diary-face-attrs` are not supported, and
+a missing or recursive include is skipped with a message (Emacs stops
+with an error).
 
 Not supported in the agenda                        *org-agenda-unsupported*
 
@@ -1851,18 +2297,14 @@ Not supported in the agenda                        *org-agenda-unsupported*
   defined; `calendar-date-style` is set from `agenda.calendar_date_style`) unless `babel.emacs_lisp.args` loads it. Holidays
   (|org-agenda-holidays|) and the entries of other calendars
   (|org-agenda-diary-sexp|) are supported.
-- The agenda key `i` (insert an entry into the diary file,
-  org-agenda-diary-entry). The diary file itself is read
-  (|org-agenda-diary-file|).
-- `C-c C-x b` (show the subtree in an indirect buffer): Neovim has no
-  indirect buffers or narrowing; <Tab> opens the entry instead.
 - The Customize keys (`C`, `!` in the dispatcher): there is no Customize.
 - Keys that differ on purpose, to keep Vim motions: `n`/`p` move by item
   (Emacs: by line; N/P by item), `j` and `k` are motions (go to date is
   `gd`, capture `K`), `g` is a Vim prefix (redo all is `gr`), `s`/`d`
   schedule and set deadlines (Emacs: save and day view; views are `vd`,
   `vw`, `vt`, `vm`, `vy`), `R` refiles (the clock report is `C` / `vR`,
-  so the calendar conversion is `gC`).
+  so the calendar conversion is `gC`), and habits are toggled with `vh`
+  (Emacs `K`, which is capture here).
 
 ==============================================================================
 12. MATCH SYNTAX                                            *org-match-syntax*
@@ -1901,14 +2343,34 @@ ends the match, as in Emacs: "work -boss" is the same as "work" (write
   / r  regexp   t  TODO entries     T  specific keyword
   m  match      M  match, TODO only p  property value
   d  deadlines due or overdue       b  before date
-  a  after date D  between dates    c  clear
+  a  after date D  between dates    c  cycle date types
+  C  clear
+
+The date trees (b, a, D) highlight each timestamp before the date, on or
+after it, or from the first date up to (not including) the second, like
+Emacs. Which timestamps count is the date type shown in the menu's title,
+`sparse_tree_default_date_type` at first (org-sparse-tree-default-date-type);
+`c` cycles it: SCHEDULED/DEADLINE (nil), "all", "scheduled", "deadline",
+"active", "inactive", "closed". The planning types look at the planning
+line; the others at timestamps in the text, not in planning or clock lines,
+property drawers, blocks, comments or verbatim. Subtrees tagged :ARCHIVE:
+stay folded, with their headline visible, unless
+`sparse_tree_open_archived_trees` (org-sparse-tree-open-archived-trees).
 
 <C-c>\         Tags / property match sparse tree (org-match-sparse-tree).
                 With a count, only TODO entries match.
 
 The buffer is folded so only matching entries are visible, the matches are
 highlighted, and the location list is filled (|:lnext|). The highlights go
-away with the next change or the next <C-c><C-c>.
+away with the next <C-c><C-c>, and those of searches (all but tag and
+property matches, like Emacs' org-occur) with the next change too
+(`remove_highlights_with_change`, org-remove-highlights-with-change).
+Regexp searches ignore case (`occur_case_fold_search`,
+org-occur-case-fold-search: true, false or "smart", only when the regexp
+has no upper case letter; `\c` / `\C` in the regexp win). How much shows
+around each match follows |org-show-context-detail| (`occur-tree` and
+`tags-tree`). After a search the User autocmd `OrgOccur` runs
+(org-occur-hook), with `data.matches` the number of matches.
 
 ==============================================================================
 14. CAPTURE                                                      *org-capture*
@@ -2115,7 +2577,41 @@ edit a file at a time.
                           (C-u C-c c in Emacs)
 :Org capture_goto_last    jump to the last captured (or refiled) entry
                           (C-u C-u C-c c)
-From the agenda, `K` captures with the date at point as the default date.
+:Org capture_string       ask for a string and capture it as the initial
+                          text `%i` (org-capture-string)
+:Org bookmark_jump        jump to a bookmark: capture and refile save
+                          the last location as the bookmarks named in
+                          `bookmark_names` (org-bookmark-names-plist:
+                          "org-capture-last-stored",
+                          "org-refile-last-stored"), in
+                          stdpath("data")/org/bookmarks.json, so the
+                          jumps above also work in a later session
+From the agenda, `K` captures with the date at point as the default date
+(with a count of 1, C-1, at the time of the item at point or now). With
+`capture.use_agenda_date`, the global capture key does the same there.
+
+                                                    *org-capture-hooks*
+Besides the templates' `prepare_finalize`, `before_finalize` and
+`after_finalize` functions, every capture fires User autocmds, after the
+template's function, like Emacs's global hooks:
+  OrgCapturePrepareFinalize  capture buffer still open; data `{ buf }`
+                             (`{ immediate = true }` for `immediate_finish`
+                             templates, which have no capture buffer)
+                             (org-capture-prepare-finalize-hook)
+  OrgCaptureBeforeFinalize   entry stored, target not yet saved; data
+                             `{ bufnr, line }`
+                             (org-capture-before-finalize-hook)
+  OrgCaptureAfterFinalize    capture done; data `{ bufnr, line }`
+                             (org-capture-after-finalize-hook)
+Aborting (<C-c><C-k>) fires the prepare and after events with
+`aborted = true`, but not the before event, like org-capture-kill. >lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "OrgCaptureAfterFinalize",
+      callback = function(ev)
+        if not ev.data.aborted then vim.notify("captured") end
+      end,
+    })
+<
 
 org-protocol                                                  *org-protocol*
 `org-protocol://` URLs from a browser or another program capture, store
@@ -2130,9 +2626,19 @@ links and open files in a running Neovim, like Emacs `org-protocol.el`:
       open the local file behind a published URL (`protocol.projects`,
       like org-protocol-project-alist: base_url, working_directory,
       online_suffix, working_suffix, rewrites)
-Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, and
-`protocol.handlers` adds sub-protocols. Call it from Lua with
-`require("org.protocol").handle(url)` or `:Org protocol <url>`.
+Old-style URLs (`capture://KEY/URL/TITLE/BODY`) work too, their data
+split on `protocol.data_separator` (a Vim regex, `/+` or `?` by default;
+org-protocol-data-separator), and `protocol.handlers` adds sub-protocols.
+Call it from Lua with `require("org.protocol").handle(url)` or
+`:Org protocol <url>`.
+:Org protocol_create    ask for a base URL, working directory and suffixes
+                        and add a `protocol.projects` entry
+                        (org-protocol-create). It lasts for the session;
+                        the Lua to add to your setup() is shown (Emacs
+                        saves it to the custom file).
+:Org protocol_create_for_org
+                        the same with the defaults of the publishing
+                        project of the current file (org-protocol-create-for-org)
 
 Neovim must listen on a socket (`nvim --listen ~/.cache/nvim/org.sock`, or
 |v:servername|) and the OS must send `org-protocol:` URLs to a handler
@@ -2149,6 +2655,35 @@ On macOS register the scheme with a small app bundle (an AppleScript
 <
 Emacs's emacsclient integration (`server-visit-files` advice, `:kill-client`)
 has no counterpart: the handler command above plays that role.
+
+Plain links through tags files                                   *org-ctags*
+Like Emacs org-ctags, `<<targets>>` in Org files can be tags: with
+`ctags.enabled = true` (Emacs: org-ctags-enable), a plain link `[[foo]]`
+(also `[[#id]]`, `[[*heading]]`, `[[(ref)]]`) first goes through
+`ctags.open_link_functions`, tried in order until one handles it:
+  "find_tag"            jump to the tag with |:tag| (CTRL-T goes back)
+  "ask_rebuild_tags_file_then_find_tag"   ask, rebuild the tags file,
+                        then look again (also without asking:
+                        "rebuild_tags_file_then_find_tag")
+  "ask_append_topic"    ask, then append a new topic `* <<Foo>>` to the
+                        buffer (`ctags.new_topic_template`, `%t` = the
+                        capitalized name; "append_topic" does not ask)
+  "ask_visit_buffer_or_file" / "visit_buffer_or_file"   visit NAME.org
+                        (asking to create it)
+  "fail_silently"       stop here (no search in the buffer)
+or functions of the link text. When none handles it, the link is searched
+in the buffer as usual. Tags come from Neovim's 'tags' option (by default
+the `tags` file next to the file or above it); Emacs uses `TAGS` files.
+:Org ctags_create_tags  run `ctags.path_to_ctags` (Exuberant or Universal
+                        ctags) on the file's directory, writing its `tags`
+                        file with the Org targets (`ctags.tag_regexp`)
+:Org ctags_find_tag_interactive   choose a tag (completed) and jump to
+                        it; an unknown one goes through the functions
+                        above (org-ctags-find-tag-interactive)
+:Org ctags_find_tag, ctags_get_filename_for_tag, ctags_all_tags,
+ctags_open_file, ctags_visit_buffer_or_file, ctags_append_topic
+                        the other org-ctags commands, asking for their
+                        argument
 
 RSS and Atom feeds                                                *org-feed*
 Items of RSS 2.0 and Atom feeds are added as children of an inbox headline
@@ -2280,7 +2815,9 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
   log                 false | "time" | "note": add "Refiled on [date]"
                       to the entry's logbook (org-log-refile); a region
                       only gets time stamps
-  reverse_note_order  refile as the first child (org-reverse-note-order)
+  reverse_note_order  refile as the first child (org-reverse-note-order);
+                      <C-c><C-M-w> (`refile_reverse`, org-refile-reverse)
+                      refiles with it inverted
   use_cache           keep the targets between refiles
                       (org-refile-use-cache): new headlines are not
                       offered until the cache is cleared with a count of
@@ -2329,6 +2866,22 @@ shown by their heading (Emacs's org-refile-targets nil). Refile options:
 <C-c><C-x>A     Move the subtree under its "Archive" sibling
                 (`archive_sibling_heading`), which is created with the
                 ARCHIVE tag when missing (org-archive-to-archive-sibling).
+<C-c><C-x><C-a> Archive with `archive_default_command`
+                (org-archive-subtree-default): "archive_subtree" (the
+                default), "archive_to_sibling", "set_tag" (add the ARCHIVE
+                tag) or a function(target). The agenda's `a` uses it too.
+                `archive_subtree_save_file` (org-archive-subtree-save-file-p)
+                says when `archive_subtree` saves the archive file: true,
+                false, "from_org" (default: not when archiving from the
+                agenda) or "from_agenda" (only then).
+:Org datetree_cleanup
+                Move each entry of a date tree whose active time stamp
+                is not the date of its day node under the right day,
+                creating it (org-datetree-cleanup). Entries without a day
+                node as parent are left alone. Unlike Emacs, SCHEDULED
+                and DEADLINE stamps are skipped: Emacs's check for them
+                never matches, so it files entries by their planning
+                dates.
 :Org archive_all_done
                 Offer to archive each child of the headline at the cursor
                 (each top-level tree when not on a headline) that has no
@@ -2375,6 +2928,12 @@ Targets:
   help:topic                          Vim :help
   man:printf(3)  man:ls::-l           |:Man|, with an optional search
   info:emacs#Top                      the `info` program in a terminal
+                                      (exported to HTML as a link to the
+                                      manual's URL in
+                                      `links.info_other_documents`, else
+                                      gnu.org or MANUAL.html)
+  bibtex:refs.bib::key                a file link to a BibTeX entry
+                                      (|org-bibtex|)
   attachment:name                     file in the entry's attachment dir
   abbrev:tag  abbrev::tag  abbrev     `#+LINK:` or `links.abbreviations`
                                       (`%s` = tag, `%h` = url-encoded,
@@ -2434,7 +2993,8 @@ Results are kept for the session.
                 `file:…::(label)` and adds a `(ref:label)` to the line when
                 it has none. Help buffers give `help:tag`, man pages
                 `man:page`, netrw/oil listings a link to the file under the
-                cursor.
+                cursor, BibTeX files `file:refs.bib::key` described by
+                the authors, year and title (|org-bibtex|).
                 A count of 4 (C-u) toggles `links.context_for_files`, 16
                 (C-u C-u) skips custom `store` functions, 64 stores one link
                 per selected line.
@@ -2462,8 +3022,51 @@ Results are kept for the session.
                 repeating a failed search wraps around the buffer.
 <C-c>&          Jump back to where you followed a link from (<C-o> works
                 too).
+:Org open_at_point_global  Follow the Org link at the cursor in any buffer
+                (org-open-at-point-global): a bracket, angle or plain link,
+                a timestamp (the agenda of that day), else a URL or an
+                e-mail address. It has no key, like Emacs; map it with
+                `mappings.global.open_at_point_global = "gX"`. Internal
+                links (headings, targets) are not searched outside Org.
+:Org occur_link_in_agenda_files  Search the agenda files for the link
+                <prefix>ls would store here, `[[file:…::*Heading][Heading]]`
+                (org-occur-link-in-agenda-files); the matches go to the
+                quickfix list. The link is not stored.
+
+                                                            *org-links-mouse*
+<MiddleMouse>   Open the link clicked (org-open-at-mouse).
+<RightMouse>    Open the link clicked in Neovim, even when `file_apps`
+                names another program, internal links in another window
+                (org-find-file-at-mouse). Away from a link both clicks do
+                what they normally do.
+<LeftMouse>     With `links.mouse_1_follows_link` (org-mouse-1-follows-link,
+                default 450), a click on a link follows it: a click held
+                longer than that many ms, or a drag, only moves the cursor;
+                true follows on any click, "double" on a double click,
+                false never.
+<Tab>           With `links.tab_follows_link` (org-tab-follows-link), <Tab>
+                on a link follows it instead of cycling.
+Following a link, footnote or date with <CR>, <C-c><C-o>, <Tab> or the
+mouse fires the `User` event `OrgFollowLink` (org-follow-link-hook), with
+`data.bufnr` the buffer it was followed from: >lua
+  vim.api.nvim_create_autocmd("User", {
+    pattern = "OrgFollowLink",
+    callback = function() vim.cmd("normal! zz") end,
+  })
+<
+A `file:` link to a directory opens the directory, or its index.org with
+`links.open_directory_means_index_dot_org`
+(org-open-directory-means-index-dot-org). An external program (`file_apps`
+or the system application) is not started for a file that doesn't exist
+("No such file: …") unless `links.open_non_existing_files`
+(org-open-non-existing-files); Neovim opens missing files as new ones.
 <C-c>'          On `#+INCLUDE:`, `#+SETUPFILE:` or `#+BIBLIOGRAPHY:`, visit
                 the file.
+:Org link_open_from_string [link]
+                Open a link typed at a prompt (or given), as if it were in
+                the buffer (org-link-open-from-string). The text must be
+                one link: "No valid link in ..." / "Garbage after link in
+                ...". Also the `link_open_from_string` action (unbound).
 
 Radio targets `<<<text>>>` make every occurrence of "text" a link to them
 (also in export): case is ignored, the words must stand alone and may be
@@ -2503,6 +3106,16 @@ scan. Refiled and archived entries are recorded at their new place.
 New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
 stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
+`id.include_domain` (org-id-include-domain) adds "@" and the host name
+(a name without a dot gets ".mail-host-address-is-not-set", like Emacs)
+to "ts" and "org" IDs.
+Typing `id:` alone in |org-insert-link| completes a heading, not an ID
+(org-id-completion-targets): the headings of `id.completion_targets`,
+refile target specs (|org-refile|) that default to every heading of the
+buffer and of the files holding known IDs (`files = "id"`), as outline
+paths; the chosen heading gets an ID when it has none. In a buffer
+without a file only the specs naming files count; with no heading to
+offer you type the link.
 Links to headings are `file:` links unless
 `links.use_id` asks for `id:` links (IDs are then created in your files).
 Before the first heading the ID goes into a file-level property drawer at
@@ -2531,6 +3144,21 @@ its ancestor's ID (`id:ID::*Child`).
   d  delete one              D  delete all
   s  set the DIR property    S  remove the DIR property
 Directories can be attached too (copied recursively with "cp").
+`attach.commands` adds commands to the dispatcher or replaces them
+(org-attach-commands): `{ x = { fn = function(target) ... end, desc =
+"..." } }`, where `target` is `{ bufnr, lnum }` of the entry; `false`
+removes a built-in key. With `attach.expert` (org-attach-expert) the
+dispatcher asks for the key at a one-line prompt instead of showing the
+menu.
+
+:Org attach_from_file_manager
+                In a netrw or oil.nvim buffer: attach the marked files
+                (netrw), the Visual selection (oil) or the file under the
+                cursor to the entry at the cursor of a window showing an
+                Org buffer, with `attach.method`
+                (org-attach-dired-to-subtree). Map it in those buffers,
+                e.g. `vim.keymap.set("n", "<C-c><C-x>a", ...)` in a
+                `FileType netrw` autocmd.
 
 The directory is the DIR property (or the older ATTACH_DIR), else it
 comes from the ID: `attach.dir` + a folder from `attach.id_to_path`
@@ -2547,6 +3175,71 @@ source, false none). Other options: `dir_relative` (store DIR relative to
 the file), `sync_delete_empty_dir` ("query", true, false) and
 `archive_delete` (delete the attachments of archived entries: false, true,
 "query").
+
+Pasting images and files                                    *org-yank-media*
+
+`:Org yank_media` (no default key; Emacs's `yank-media`) pastes what the
+system clipboard holds, read with wl-paste (Wayland), xclip (X11) or
+osascript (macOS):
+- an image: saved as `clipboard-<time stamp>.png` (or the name from
+  `yank.image_file_name_function`) and linked at the cursor. With
+  `yank.image_save_method = "attach"` (the default) it becomes an
+  attachment of the entry (`[[attachment:NAME][NAME]]`); a directory
+  (relative to the file's) or a function returning one saves it there
+  (`[[file:img/NAME.png]]`) (org-yank-image-save-method).
+- files copied in a file manager (GNOME, KDE, MATE, or a Finder file on
+  macOS): handled like dropped files; cut files are moved.
+When the clipboard holds neither, nothing happens.
+
+Dropping files on the terminal pastes their paths; in an Org buffer a
+paste made only of existing files (`file://` URIs or paths, quoted or
+escaped) is handled as a drop (`yank.dnd_paste`, true). `yank.dnd_method`
+(org-yank-dnd-method) says what to do: "attach" (with
+`yank.dnd_default_attach_method`, else `attach.method`; an image goes to
+the `yank.image_save_method` directory when that is one), "open", "file-link"
+(insert `[[/path/to/file]]`) or "ask" (the default; Esc pastes the text
+instead). Several files get a space after each link.
+
+BibTeX entries (ol-bibtex)                                     *org-bibtex*
+
+A headline can hold a BibTeX entry: its type in the `btype` property
+(`bibtex.type_property_name`), its key in CUSTOM_ID (`bibtex.key_property`)
+and each field in a property of its name (TITLE, AUTHOR, ...), with
+`bibtex.prefix` in front when set. When there is no TITLE, the headline is
+the title (`bibtex.treat_headline_as_title`). These actions (unbound, like
+Emacs; `:Org <name>` or a mapping) follow ol-bibtex:
+  bibtex_export           write the entries of every headline to a .bib
+                          file (asked for, default FILE.bib) (org-bibtex)
+  bibtex_export_to_kill_ring  copy the entry of the headline to the
+                          unnamed register
+  bibtex_check            ask for the missing required fields and the key;
+                          with a count (C-u) the optional fields too; a
+                          choice (editor or author) asks "Field: " first
+  bibtex_check_all        the same for every headline
+  bibtex_create           a new headline: type, title, required fields
+                          (count: optional ones too), key, `bibtex.tags`
+  bibtex_create_in_current_entry  the same data for the current headline
+  bibtex_read             in a .bib buffer: read the entry at the cursor
+  bibtex_read_buffer / bibtex_read_file  read every entry of a buffer /
+                          file ("Parsed N entries")
+  bibtex_write            insert the first entry read as a headline after
+                          the cursor line (org-bibtex-write)
+  bibtex_yank             insert the BibTeX entry of the unnamed register;
+                          with a count (C-u), into the current headline
+  bibtex_import_from_file insert every entry of a file
+  bibtex_search           search view of the agenda files for the entries
+                          that match a string (`STRING +{:btype:}`)
+Written headlines use `bibtex.headline_format_function(fields)` for their
+text (default the title). Keys are asked for ("id: ") unless
+`bibtex.autogen_keys` makes them like Emacs' bibtex-generate-autokey
+(`doe20:_big_title`). With `bibtex.tags_are_keywords` the `keywords` field
+becomes tags (spaces become `_`) and tags become keywords (not those in
+`bibtex.tags` or `bibtex.no_export_tags`; inherited ones too with
+`bibtex.inherit_tags`). `bibtex.export_arbitrary_fields` (with a prefix)
+exports every prefixed property instead of the fields of the type.
+Storing a link in a .bib buffer gives `file:refs.bib::key` described like
+"Doe & Roe 2020: Big Title"; following it puts the entry at the top of the
+window. `bibtex:` links open like `file:` links.
 
 Attachments in git (org-attach-git)                         *org-attach-git*
 
@@ -2660,6 +3353,43 @@ with a blank line before each definition, like org-footnote-sort. The
 fnconfirm, fnplain, fnanon, fnadjust, nofnadjust, fninline and nofninline
 override the options for a file.
 
+Citations ~                                                        *org-cite*
+Citations `[cite/STYLE:prefix;@key suffix;...]` refer to entries of the
+bibliography files: `#+BIBLIOGRAPHY:` keywords (BibTeX .bib/.bibtex or
+CSL-JSON .json, relative to the file; setup files included) and
+`export.cite.global_bibliography`. See |org-export-cite| for export.
+
+<prefix>i@      Insert a citation at the cursor, or edit the one at the
+<C-c><C-x>@     cursor (org-cite-insert). Keys are chosen from the
+                bibliography, shown as author, year and title columns
+                (`export.cite.basic_author_column_end` 25,
+                `basic_column_separator` "  "); a new citation asks for keys
+                until the prompt is cancelled, or, with
+                `basic_complete_key_crm_separator` (a Vim regexp such as
+                "[ \t]*;;[ \t]*", or "dynamic" for the shortest ";;..."
+                that no candidate contains), reads the "author year title"
+                strings at one prompt. On a key: replace it; right before its "@": add a
+                key before it; after the key: add one after it. On the
+                style part (`[cite/t:`): change the style; on the global
+                prefix / suffix: add a key first / last. With a count
+                (C-u): delete the reference or citation at the cursor, or
+                choose a style for a new citation.
+<CR>            On a citation: open the bibliography file at the entry of
+                the key (org-cite-follow); on the style or global affixes of
+                a citation with several keys, choose the key first.
+<LeftRelease>   A click on a known key opens its entry; on an unknown key,
+                replace it with a key at most
+                `export.cite.basic_max_key_distance` (2) edits away, or
+                insert one when none is close (Emacs mouse-1 on a key).
+
+Citations are highlighted with OrgCite and their keys with OrgCiteKey;
+keys missing from the bibliography get OrgCiteKeyUnknown (Emacs `error`
+face). `export.cite.activate_processor`, `follow_processor` and
+`insert_processor` ("basic") pick the processor of each capability; false
+turns insertion / following off, and highlights without checking keys.
+Other processors can be registered with
+`require("org.cite").register_processor(name, { activate, follow, insert })`.
+
 ==============================================================================
 18. TABLES AND FORMULAS                                *org-tables* *org-tblfm*
 
@@ -2669,6 +3399,23 @@ aligned.
 Insert mode:  <Tab>/<S-Tab>  next / previous field (realigns; creates rows)
               <CR>           same column in the next row
               <S-CR>         copy the field down (see below)
+              <M-CR>         move the text after the cursor to the start
+                             of the field below (org-table-wrap-region;
+                             `meta_return_split_line` false or per context
+                             `{ table = false }`: just go to that field)
+Like Emacs, <Tab> jumps over hlines (`table_tab_jumps_over_hlines = false`
+adds a row before them instead). <Tab>, <S-Tab>, <CR> and leaving Insert
+mode realign the table; with `table_automatic_realign = false` only adding
+a row and <C-c><C-c> do (org-table-automatic-realign). A `#` row is
+recalculated by <Tab> and <CR> unless
+`table_allow_automatic_line_recalculation` is false. The first character
+typed right after
+one of them replaces the field's text (`table_auto_blank_field`), and a
+character typed into a field ending with two or more spaces takes the place
+of one of them, so the table stays aligned. <BS> and <Del> in Insert mode
+put a space before the field's separator for the character they delete
+(org-delete-backward-char, org-delete-char), and `|` is inserted as it is
+(org-force-self-insert).
 Normal mode:
   <C-c><C-c>      realign; in a row marked `#` recalculate that row; with a
                   count recalculate the table (4) or iterate it (16); on
@@ -2681,7 +3428,12 @@ Normal mode:
   <M-k/j>         move row up / down (also <M-Up/Down>)
   <M-H>/<M-L>     delete / insert column
   <M-K>/<M-J>     delete row / insert row above
-  <M-CR>          insert row below
+  <M-CR>          go to the same field in the row below (adding one
+                  before an hline or at the end); in Visual mode (and
+                  `:Org table_wrap_region`) wrap the text of the selected
+                  column like a paragraph into as many lines (a count:
+                  that many); with a count, append the field to the field
+                  above (org-table-wrap-region)
   <S-Up/Down/Left/Right>  swap the field with its neighbour
   <S-CR>          copy the field one row down and move there; in an empty
                   field, copy the nearest non-empty field above (count: the
@@ -2699,8 +3451,11 @@ Normal mode:
                   column in full; count 16: follow-field mode
   <C-c>{          toggle the formula debugger (|org-table-debugger|)
   <C-c>"a <C-c>"g ASCII bar plot / gnuplot plot (|org-plot|)
-  <prefix>Tc      create a table ("5x3"), or convert CSV/TSV/whitespace
-                  (Visual mode; count 4: comma, 16: tab, N: N+ spaces)
+  <prefix>Tc      create a table (`table_default_size`, "5x2"), or convert
+                  CSV/TSV/whitespace (Visual mode; count 4: comma, 16:
+                  tab, N: N+ spaces; at most
+                  `table_convert_region_max_lines` lines, also for
+                  table_import)
   <prefix>T-      insert a hline (<C-c>- with a count: above)
   <prefix>Tf      recalculate the whole table
   <prefix>Ts      sort rows (<C-c>^, see below)
@@ -2719,6 +3474,8 @@ Normal mode:
                       offered matches the file extension, else
                       `table_export_default_format`)
   :Org table_iterate  :Org table_recalc_buffer (all tables, iterated)
+  :Org table_goto_column  go to field N (the count) of the row
+                      (org-table-goto-column)
 
 Inserting, deleting and moving rows and columns rewrites the references of
 every `#+TBLFM` line below the table like Emacs org-table-fix-formulas:
@@ -2735,13 +3492,19 @@ typed as Lua (`function(s) return #s end`) with an optional comparison
 function; the uppercase letters sort in reverse.
 
 Alignment: a column is right-aligned when at least `table_number_fraction`
-(0.5) of its fields are numbers. `<l>`, `<r>` and `<c>` cookies (`<r10>`
+(0.5) of its fields are numbers, i.e. match `table_number_regexp` (an Emacs
+regexp, matched ignoring case; the default is Emacs's).
+`#+STARTUP: align` (or `startup_align_all_tables`) aligns every table when
+the file is opened (`noalign` turns it off). `<l>`, `<r>` and `<c>` cookies (`<r10>`
 with a width) fix the alignment; cookie cells are aligned like the column.
 
 Type `=formula` in a field and press <Tab>, <CR> or <C-c><C-c>: it becomes
 the column formula of that column (`:=formula` a field formula for that
 field), is stored in `#+TBLFM` and the field is computed (<C-c>* updates
 the rest). `table_formula_evaluate_inline` turns this off.
+Like Emacs, a formula computed this way (or with <C-c>=) replaces `$name`
+names only with `table_formula_use_constants` (true); recalculating the
+table always does.
 
 <C-c>= reads the formula of the current column (count: of the current field,
 or its `^`/`_` name; count 16: put the active formula into the field as
@@ -2787,7 +3550,11 @@ Column formulas run on the rows below the first hline (all rows without
 one); when the first column holds marks (`! $ ^ _ # *`), only on rows
 marked `#` or `*`. Rows marked `! ^ _ $ /` are never changed. Formulas run
 row by row in the order of their sorted left sides, column formulas first,
-then field formulas. A column formula beyond the last column adds the
+then field formulas. A relative row reference (`@-1`, `@+2`) may cross an
+hline (`table_relative_ref_may_cross_hline`: false stops at the row next to
+the hline, "error" stops the recalculation). `table_formula_field_format`
+("%s") formats every result, e.g. "~%s~".
+A column formula beyond the last column adds the
 column; a field formula does so only with `table_formula_create_columns`
 (true, "warn" or "prompt"; false: an error).
 
@@ -2800,7 +3567,9 @@ formula is evaluated, so:
   binds tighter than unary minus (`-2^2` is -4); `2 3` and `2(3+1)`
   multiply; `a ? b : c`; `!` factorial, `%` percent (`10%`) or modulo.
 - Numbers: exact integers of any size (`2^100`), floats with 12 digits and
-  Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`),
+  Calc's display with 8 (`3.`, `0.33333333`, `1e-3`, `1.2345679e12`);
+  `calc_default_modes` (org-calc-default-modes) changes the precision,
+  the float display, the angle mode ("deg"/"rad") and fractions,
   fractions `3:4` (`F` flag), modulo forms `3 mod 7` (`(3 mod 7)^100` is
   `4 mod 7`, `makemod(10, 7)`).
 - Vectors and matrices: `[1, 2]` (`[1 2]` without commas), `[[1, 2], [3,
@@ -2921,7 +3690,11 @@ too). Leaving the table ends the mode
 Header-line mode (`:Org table_header_line_mode`, or `table_header_line_p`
 for every buffer): while the first row of the table at the top of the window
 is scrolled out of view, it is shown in the 'winbar' (Emacs draws it over
-the first visible line).
+the first visible line). Turning the modes on or off fires the User
+autocmds `OrgTableFollowFieldMode` and `OrgTableHeaderLineMode`
+(org-table-follow-field-mode-hook, org-table-header-line-mode-hook), with
+`data = { enabled, bufnr }`; orgtbl-mode fires `OrgtblMode`
+(orgtbl-mode-hook).
 
                                             *org-table-translators* *orgtbl*
 Translators turn a table into another format (Emacs orgtbl-to-*):
@@ -2996,6 +3769,21 @@ table with gnuplot (`plot_gnuplot_program`, `plot_gnuplot_script_preamble`,
     #+PLOT: title:"Sales" ind:1 deps:(2 3) type:2d with:lines
     #+PLOT: file:"sales.png" set:"yrange [0:]" labels:("x" "a" "b")
 <
+More types can be defined in `plot_preset_plot_types`
+(org-plot/preset-plot-types): >lua
+    plot_preset_plot_types = {
+      bars = {
+        plot_cmd = "plot",
+        plot_pre = "set style fill solid", -- or a function
+        plot_func = function(rows, data_file, ncols, opts, plot_str)
+          return { ("'%s' using 1:%d with boxes"):format(data_file, ncols) }
+        end,
+        -- data_dump = function(rows, data_file, ncols, opts) return text end,
+        -- check_ind_type = true, plot_str = "...",
+      },
+    }
+<
+The lines `plot_func` returns are joined in order.
 Options: type (2d, 3d, grid, radar), title, ind, deps, with, file,
 labels, line, set, map, script (a gnuplot script; `$datafile` is
 replaced), timefmt, transpose, and for radar min, max and ticks. The
@@ -3058,6 +3846,14 @@ same results in both editors.
                    write the result back (e.g. `gg=G` to reindent).
 <Tab> on #+RESULTS Fold / unfold the result (org-babel-hide-result-toggle);
                    `:Org babel_hide_all_results` folds every result.
+<C-c><C-c> on the hash of `#+RESULTS[hash]:`
+                   Copy the hash to the unnamed register and show it
+                   (org-babel-hash-at-point, `:Org babel_hash_at_point`).
+:Org babel_remove_inline_result
+                   Remove the `{{{results(...)}}}` after the inline src
+                   block or inline call at the cursor, with the white
+                   space before it (org-babel-remove-inline-result;
+                   <prefix>bk does not remove inline results, like Emacs).
 #+CALL: name(n=5)  Execute a named block with arguments (C-c C-c on it).
                    `#+NAME:` above a call names its results. Arguments
                    without `name=` fill the block's variables in order:
@@ -3180,8 +3976,8 @@ default_header_args = {...} }`. `default_header_args` are that language's
 defaults (Emacs `org-babel-default-header-args:LANG`). Emacs enables only
 emacs-lisp (`org-babel-load-languages`); the plugin enables shells, python,
 lua, js/ts, ruby, perl, php, R, go, rust, sqlite, sql, C, C++/cpp, D and awk
-as well. `:python`, `:ruby` and `:cmd` (js) choose the interpreter of one
-block, like Emacs.
+as well, and the ports of |org-babel-languages|. `:python`, `:ruby` and
+`:cmd` (js) choose the interpreter of one block, like Emacs.
   - emacs-lisp (elisp): run in a separate Emacs, `emacs -Q --batch`
     (`babel.emacs_lisp = { command = "emacs", args = { "-Q", "--batch" } }`;
     drop `-Q` to load your init file), wrapped like ob-emacs-lisp: `:var`
@@ -3205,6 +4001,80 @@ block, like Emacs.
     (`:out-file`); without `:engine` the plugin runs sqlite3 with `:db`.
     `$name` in the body is replaced by `:var name` (a table becomes a CSV
     file name).
+  - Value conversion like ob-python / ob-ruby / ob-lua: `hline_to` is the
+    text an hline of a table variable becomes (python and lua "None",
+    ruby "nil"; in Neovim's Lua, `None` is nil), `None_to` (python, lua)
+    and `nil_to` (ruby) what a None / nil of a list result becomes
+    ("hline"); lua `multiple_values_separator` (", ") joins several
+    returned values. `lua = { cmd = "lua" }` (or luajit, ...) runs lua
+    blocks in that interpreter like ob-lua instead of inside Neovim.
+    `python = { session_cmd = "ipython -i" }` starts sessions with that
+    command as it is (org-babel-python-command-session).
+  - Shells: `babel.shell_names` (org-babel-shell-names: sh bash zsh fish
+    csh ash dash ksh mksh posh) run like sh, as the program of that name;
+    `babel.shell_results_defaults_to_output = false` makes a block
+    without `:results` words give its exit status.
+
+                                                    *org-babel-languages*
+Ports of Emacs ob-LANG.el, enabled by default; each `babel.languages`
+entry holds that file's options (named after the Emacs variables, see
+|org-config|). Programs that are missing give an error when a block
+runs. C-c C-v v shows the body as the Emacs expand function makes it.
+  - plantuml: to the `:file` (`-tpng`, `-tsvg`, ... from its extension;
+    `:results verbatim` gives the text), `:var` as `!define`, @startuml /
+    @enduml added. `exec_mode` "jar" (java -jar `jar_path`, `:java` options)
+    or "plantuml" (`executable_path`), `args` ({ "-headless" }),
+    `svg_text_to_path` (inkscape).
+  - ditaa: NAME.png by default (`:file-ext png`), `.svg` with --svg, `.eps`
+    and `.pdf` with DitaaEps.jar (and epstopdf); `exec_mode` "jar"
+    (`java_exec` -jar `jar_path`) or "ditaa" (`exec`), `:cmdline`, `:java`.
+  - gnuplot: `:file` (terminal from its extension, `terms`), `:term`,
+    `:title`, `:set '("grid")`, `:line`, `:xlabels`, `:ylabels`,
+    `:timefmt`, `:timeind`, `:missing`; a table variable is written to a
+    data file whose name replaces `$name`. `:results output` gives what
+    gnuplot printed.
+  - latex: the body is the result (`:results latex`); `:var` names are
+    replaced. With `:file`: .png like LaTeX previews (`process_alist.png`,
+    latex + dvipng; `:buffer no` draws black on transparent), .svg through
+    a PDF and `pdf_svg_process` (`preamble`, `begin_env`, `end_env`), .pdf
+    with the LaTeX export's compiler (`:fit`, `:border`, `:pdfheight`,
+    `:pdfwidth`, `:headers`, `:packages`), other images with
+    `:imagemagick yes` (`:iminoptions`, `:imoutoptions`), .html with
+    `htlatex`, .tikz as it is.
+  - lilypond: engraved to the `:file` (png, pdf or eps). Arrange mode
+    (`:Org babel_lilypond_toggle_arrange_mode`): evaluating a block tangles
+    all lilypond blocks to FILE.ly (`:Org babel_lilypond_tangle`), engraves
+    it (`gen_png`, `gen_html`, `gen_pdf`, `gen_svg`, `use_eps`), then opens
+    the PDF and plays the MIDI file with `commands`. Toggles:
+    `babel_lilypond_toggle_{arrange_mode,png_generation,html_generation,`
+    `pdf_generation,pdf_display,midi_play}`.
+  - java: the body is wrapped in a class and a main method (`:classname`,
+    `:imports`, a `package` line), compiled with javac (`:cmpflag`) and
+    run with java (`:cmdline`, `:cmdargs`); `:results value` returns the
+    value of the main method. Default `:results output :dir .`.
+  - csharp: a .NET project (`:usings '("System.Text")`, `:class`, `:main
+    no`, `:references`, `:framework`, `:nugetconfig`) restored, built and
+    run with dotnet.
+  - haskell: sent to ghci (`cmd`), or compiled with ghc for `:compile
+    yes` (`:flags`, `:libs`). `:Org babel_haskell_export_to_lhs` exports
+    the file to FILE.lhs (with a count, runs lhs2tex to FILE.tex).
+  - clojure, clojurescript: babashka, clojure-cli or nbb (`backend`, or
+    `:backend`), `:ns`, `:var` as `let` bindings.
+  - lisp (Common Lisp): evaluated by `cmd` (`sbcl --script`) with
+    `*default-pathname-defaults*` set to the block's directory (`dir_fmt`)
+    and `:package`.
+  - scheme: guile by default (`impl`, `:scheme chez|chicken|chibi|racket|
+    ...`, `commands`); the value of the last form, `:var` as `define`.
+  - fortran: compiled with gfortran (`cmd`), wrapped in `program main`;
+    `:flags`, `:cmdline`, `:includes`, `:defines`, `:main no`.
+  - julia, groovy, ocaml, maxima: `:var` and value results like their
+    ob-LANG.el (julia writes the value with CSV.jl and DataFrames.jl;
+    groovy ignores `:var` like Emacs; maxima `:batch`, `:graphics-pkg`).
+  - processing: HTML running the sketch with processing.js;
+    `:Org babel_processing_view_sketch` runs it with processing-java.
+  - screen: the block is pasted into the screen session `:session`
+    ("default"), started in `:terminal` (xterm) running `:cmd` (sh);
+    `:Org babel_screen_test` checks the setup.
 
 Header arguments ~
 Header arguments merge like Emacs: `babel.default_header_args` (inline
@@ -3276,7 +4146,9 @@ Switches: `-i` keeps the indentation of the lines (like
 `src_preserve_indentation`, Emacs `org-src-preserve-indentation`),
 otherwise the common indentation of a block is removed before it runs;
 `-n` / `+n` number lines and `-r` / `-l "fmt"` handle coderefs (always
-removed before a block runs).
+removed before a block runs). Labels are `(ref:name)` unless a block has
+`-l "fmt"` or `coderef_label_format` sets another default
+(org-coderef-label-format).
 
 Tangling ~
 `:tangle yes|FILE` writes a block to a file (`yes`: the Org file's name with
@@ -3293,7 +4165,14 @@ the extension of `babel.tangle_lang_exts` or the language name, as Emacs:
     `babel.tangle_use_relative_file_links`), `:comments org` writes the
     Org text before the block as comments, `both` does both, `noweb` also
     wraps every noweb expansion. The formats are
-    `babel.tangle_comment_format_beg` / `_end`.
+    `babel.tangle_comment_format_beg` / `_end`. The Org text of `:comments
+    org` loses its common indentation, or goes through the function
+    `babel.process_comment_text` (org-babel-process-comment-text).
+  - an existing target is overwritten in place; with
+    `babel.tangle_remove_file_before_write` = true it is deleted and
+    recreated (a symlink is replaced by a file), with "auto" (the
+    default) only when it is read-only, with false never
+    (org-babel-tangle-remove-file-before-write).
   - `:padline no` removes the blank line between blocks; `:shebang` goes
     on the first line and makes the file executable; `:mkdirp yes` creates
     the directory; `:tangle-mode o755`, `(identity #o755)`, `rwxr-xr-x` or
@@ -3328,6 +4207,18 @@ confirmed like any evaluation. `:eval never-export|no-export` blocks keep
 their existing results. With `false`, export uses the `#+RESULTS` already in
 the buffer.
 
+The exported code of a block is `babel.exp_code_template`
+(org-babel-exp-code-template, default
+`"#+begin_src %lang%switches%header-args\n%body\n#+end_src"`), of an
+inline src block `babel.exp_inline_code_template`; `%lang`, `%name`,
+`%body`, `%switches`, `%header-args` and `%ARG` for each header argument
+(printed like Emacs: `%exports` gives `"code"`, `%var` gives `(x . 1)`)
+are filled in. `babel.exp_call_line_template` (default `""`) is exported in
+place of `#+CALL` lines and `call_` objects, with `%line` for the call,
+e.g. `"\n: call: %line"`. Results with ten or more lines use
+`#+BEGIN_EXAMPLE` with `babel.uppercase_example_markers`
+(org-babel-uppercase-example-markers).
+
                                                         *org-babel-edit-special*
 <prefix>' (C-c ') also edits, like `org-edit-special`: example, export and
 comment blocks, LaTeX environments, `: ` fixed-width areas, the body of an
@@ -3344,6 +4235,39 @@ Deleted or wholly replaced regions and wiped source buffers cannot be
 forced; copy the edit contents manually to the intended location. Example
 editing honors `-i`, `src_preserve_indentation`, and
 `edit_src_content_indentation`.
+
+Edit buffers, like Emacs' org-src buffers:
+  - the winbar says "Edit, then exit with ‘<C-c>'’ or abort with
+    ‘<C-c><C-k>’" (the first `mappings.edit_src` keys;
+    `edit_src_persistent_message = false` hides it).
+  - <prefix>' on a region that already has an edit buffer asks "Return to
+    existing edit buffer ([n] will revert changes)?": yes shows it again,
+    no discards it and opens a new one. With
+    `src_ask_before_returning_to_edit_buffer = false` it goes back at once.
+    `:Org edit_src_continue` goes back without asking to the edit buffer of
+    the region at the cursor (org-edit-src-continue, Emacs' mouse-1 on it).
+  - `edit_src_auto_save_idle_delay = N` writes the edit buffer back to the
+    Org buffer after N seconds without changes (0: never).
+    `edit_src_turn_on_auto_save = true` saves its contents, when idle
+    ('updatetime'), to `org-src-XXXXXX-%Y-%d-%m.txt` next to the Org file,
+    like Emacs' auto-save; the file is left there, as in Emacs.
+  - the filetype comes from `src_lang_modes` (org-src-lang-modes: `C` →
+    `c`, `elisp` → `lisp`, the shells → `sh`, ...), else from the
+    language's extension; the same table picks the syntax used to
+    highlight blocks. `: ` areas get `edit_fixed_width_region_mode` (a
+    filetype or a function of the buffer; none by default).
+  - the edit buffer of a block with a `:session` is associated with it
+    (org-src-associate-babel-session): `mappings.edit_src.send_to_session`
+    (<C-c><C-c>, <prefix>e) sends the buffer, or in Visual mode the
+    selected lines, to the session (started when needed) and shows it.
+TAB on a line of a src block (`src_tab_acts_natively`, default true)
+indents it for its language, like a round trip through the edit buffer:
+the body gets the block's content indentation and the line the
+indentation that the filetype's 'indentexpr' (or 'cindent') computes, or
+that of the line above when the filetype has none.
+`:Org escape_code_in_region` / `unescape_code_in_region` add or remove
+the comma that protects lines starting with `*` or `#+` in the selected
+lines (org-escape-code-in-region).
 
 Not supported ~
   - emacs-lisp sessions, and emacs-lisp code that acts on the editor
@@ -3429,29 +4353,79 @@ Custom blocks: >lua
 The exporter is a port of Emacs Org 9.8.10 `ox.el` and its back-ends: the
 buffer is parsed into the same element tree as org-element, and each
 back-end turns it into text with the same transcoders, so the output of
-HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar and Texinfo matches
-Emacs.
+HTML, LaTeX, Beamer, Markdown, ASCII, Org, iCalendar, Texinfo, KOMA-Script
+letters and man pages matches Emacs.
 
 <prefix>e (Emacs `C-c C-e`) opens the export dispatcher:
-  b / s / v / a  toggle body only / subtree only / visible only / async
+  b / s / v / f / a  toggle body only / subtree only / visible only /
+                 force publishing / async (also <C-b> <C-s> <C-v> <C-f> <C-a>)
   c f  iCalendar: current file   c a  every agenda file   c c  combined
   h H  HTML buffer      h h  HTML file          h o  HTML file and open
   i t  Texinfo file     i i  Info file          i o  Info file and open
+  k L  KOMA letter buffer  k l  letter file     k p  PDF   k o  PDF, open
   l L  LaTeX buffer     l l  LaTeX file         l p  PDF   l o  PDF, open
   l B  Beamer buffer    l b  Beamer file        l P  PDF   l O  PDF, open
   m M  Markdown buffer  m m  Markdown file      m o  Markdown file, open
   m G  GFM buffer       m g  GFM file
+  M m  man file         M p  man PDF (groff)    M o  man PDF and open
   O O  Org buffer       O o  Org file           O v  Org file and open
   o o  ODT file         o O  ODT and open       d d  DOCX (pandoc)
   t A/a  ASCII buffer/file   t L/l  Latin-1   t U/u  UTF-8
   P f  publish file     P p  current project    P x  a project  P a  all
   p    other format via pandoc
+  &    the export stack (|org-export-stack|)
   #    insert the default export template
 
-`:Org export {format} [subtree] [body] [visible] [buffer] [open]` where
+The toggles start from `export.initial_scope` ("buffer" or "subtree"),
+`export.body_only`, `export.visible_only`, `export.force_publishing` and
+`export.in_background` (Emacs org-export-initial-scope, -body-only,
+-visible-only, -force-publishing, -in-background). With
+`export.dispatch_use_expert_ui` (org-export-dispatch-use-expert-ui) there is
+no menu, only the prompt "Export command (C-bvsfa) [keys]: " with the
+active options highlighted; `?` switches to the menu. "As ... buffer"
+exports show their buffer in a split unless
+`export.show_temporary_export_buffer` is false (the buffer is still made).
+`export.copy_to_kill_ring` (true, "if-interactive" or false) also puts the
+output in the unnamed register and the clipboard. `export.coding_system`
+(org-export-coding-system) is the encoding of exported files, an |iconv()|
+name such as "latin1"; nil is UTF-8. `export.process_citations = false`
+leaves citations to the back-end (they export as nothing, like Emacs) and
+`export.replace_macros = false` keeps macros unexpanded (they also export
+as nothing; with Babel on, a macro other than {{{results}}} stops the
+export, like Emacs). `export.smart_quotes_alist` gives the smart quotes of a
+language (org-export-smart-quotes-alist); a language set there replaces its
+entry of the Emacs table.
+
+Asynchronous export                                      *org-export-stack*
+With the dispatcher's `a` toggle, `export.in_background` or `:Org export
+{format} async`, the dispatcher returns at once and the result is not shown
+but added to the export stack. `:Org export_stack` (the dispatcher's `&`)
+lists it: number, back-end, age (or "run") and the file or buffer. <CR> or
+`v` views the entry at the cursor (a file like a file link: HTML or PDF
+with the system opener, `links.file_apps` honoured; with a count in
+Neovim), `d` removes it from the stack, `C` clears the stack
+(`:Org export_stack_clear`), `g` refreshes, `q` closes. Like Emacs'
+org-export-async-start, a separate Neovim (`nvim --clean --headless`)
+exports a copy of the buffer with the session's options, minus their Lua
+functions (filters, hooks, format functions): `export.async_init_file`
+(org-export-async-init-file) is a Lua file it runs first to set them.
+Prompts are answered "no" there, so Babel blocks that need a confirmation
+keep their results. Visible-only exports need the folds and run in this
+Neovim instead, right after the dispatcher closes.
+
+Convert region                                   *org-export-convert-region*
+In Visual mode the actions `convert_region_to_html`, `_latex`, `_md`,
+`_ascii`, `_utf8` and `_texinfo` (Emacs org-html-convert-region-to-html,
+org-latex-convert-region-to-latex, ...) replace the selection with its
+body-only export, the selection being exported on its own like a
+temporary Org buffer. `:[range]Org convert_region {format}` does the same for
+lines (any native format), and `:[range]Org export_region_to_html` (latex,
+md, ascii, utf8, texinfo) are the Emacs org-export-region-to-* aliases.
+
+`:Org export {format} [subtree] [body] [visible] [buffer] [open] [async]` where
 format is html, md, gfm, ascii (or txt), latin1, utf8, latex, pdf, beamer,
-beamer-pdf, org, ics, odt, texinfo (or texi), info or a pandoc format
-(docx, rst, epub, ...).
+beamer-pdf, org, ics, odt, texinfo (or texi), info, koma-letter (or koma),
+koma-pdf, man, man-pdf or a pandoc format (docx, rst, epub, ...).
 `:Org publish [project|file|current|all] [force]` publishes projects
 (|org-publish|). Lua: `require("org.export").export(format, opts)` returns
 the output path, `.to_string(format, opts)` the text.
@@ -3508,6 +4482,26 @@ the current one (or start at `:minlevel N`). Add `::*Heading`, `::#id` or
 drop the subtree's headline, `:lines "5-10"`, or `src LANG` / `example` /
 `export BACKEND` to include it as a block. `#+SETUPFILE:` reads the
 keywords of another file.
+
+                                                       *org-remote-resources*
+`#+INCLUDE: https://…` (and `#+SETUPFILE:`, see |org-setupfile|)
+downloads the file (with curl) only when `resource_download_policy`
+allows it (org-resource-download-policy):
+"prompt" (default) downloads URLs matching `safe_remote_resources` and asks
+about the others, "safe" downloads only those, true downloads everything
+(dangerous) and false only the safe ones (like Emacs). A URL is safe when
+it, or "file://" followed by the exporting file's name, matches one of the
+Vim regexes of `safe_remote_resources` (org-safe-remote-resources). The
+question offers, like Emacs:
+  y  <Space>   download it, just this once
+  n            skip it: the export stops with "The remote resource … is
+               considered unsafe, and will not be downloaded."
+  !            download it and mark the URL safe
+  d            download it and mark its domain (`https://example.com`) safe
+  f            download it and mark everything the file requests safe
+The URLs, domains and files marked safe are kept in
+stdpath("data")/org/safe-remote-resources.json (Emacs saves them with
+customize). A download is reused for the rest of the session.
 
 Macros: `#+MACRO: name text $1 $2` (`$0` = all arguments, `\,` a literal
 comma, macros may use other macros), `export.global_macros` (strings or Lua
@@ -3573,14 +4567,42 @@ HTML          ox-html: XHTML strict by default (`#+HTML_DOCTYPE: html5`,
               `html5-fancy:t`), default CSS, MathJax, postamble "auto"
               (author, date, creator, validation link), `#+ATTR_HTML`,
               `#+HTML_HEAD`, info.js (`#+INFOJS_OPT`), inline images.
-              Source code is not fontified unless `export.html.fontify`
-              is a function(code, lang).
+              LaTeX (`tex:`, `export.html.with_latex`, org-html-with-latex):
+              MathJax (t, "mathjax"), pictures in ltximg/ next to the
+              output with a LaTeX preview process ("dvipng", "dvisvgm",
+              "imagemagick", or one of `ui.latex_preview.processes`),
+              "html" runs `export.html.latex_to_html_convert_command`
+              (org-latex-to-html-convert-command, %i = the fragment) on
+              each fragment, "verbatim" or false keep the LaTeX.
+              Source code is coloured from its tree-sitter highlights
+              (Emacs uses htmlize): `export.html.htmlize_output_type`
+              "inline-css" (default) puts the colour scheme's colours in
+              style attributes, "css" writes classes named
+              `htmlize_font_prefix` ("org-") + the Emacs face (org-keyword,
+              org-string, org-comment, org-function-name, ...), false
+              leaves the code plain. `export.html.indent`
+              (org-html-indent) indents the document the way Emacs'
+              mhtml-mode does (CSS and JavaScript by bracket depth); a
+              body-only export takes the indentation of its first line,
+              like Emacs' fundamental-mode. `:Org html_htmlize_generate_css`
+              (org-html-htmlize-generate-css) shows the stylesheet of
+              those classes in a "*html*" buffer. A language without a
+              tree-sitter parser stays plain, like a language without an
+              Emacs mode. `export.html.fontify`, a function(code, lang),
+              replaces the built-in highlighting.
 LaTeX / PDF   ox-latex: classes (`export.latex.classes`, #+LATEX_CLASS),
               packages, labels, figures and tables with `#+ATTR_LATEX`
               (:width :float :placement :environment :mode :align
               :booktabs :caption ...), math environments, special blocks
               as environments, babel/polyglossia from #+LANGUAGE,
-              `src_block_backend` verbatim, listings or minted.
+              `src_block_backend` verbatim, listings, minted or
+              engraved. Engraved (engrave-faces) colours code from its
+              tree-sitter highlights with \EF<face> commands defined in
+              the preamble (`engraved_preamble`, `engraved_options`);
+              `engraved_theme` or #+LATEX_ENGRAVED_THEME (and
+              `:engraved-theme` in #+ATTR_LATEX) picks the colours:
+              engrave-faces' "default" preset (nil), the current colour
+              scheme (true or "t") or a named colour scheme.
 Markdown      ox-md (headline_style "atx", "setext" or "mixed"); tables
               and other constructs without Markdown syntax become HTML.
 GFM           GitHub flavoured Markdown (pipe tables, fenced code,
@@ -3593,6 +4615,8 @@ iCalendar     |org-export-icalendar|
 Beamer        |org-export-beamer|
 Texinfo       |org-export-texinfo|
 ODT           |org-export-odt|
+KOMA letter   |org-export-koma-letter|
+Man           |org-export-man|
 
 ASCII ~                                                     *org-export-ascii*
 `ascii` exports plain text like Emacs ox-ascii. Text is filled to
@@ -3606,7 +4630,10 @@ checkboxes, rules and table borders; the Latin-1 and UTF-8 dispatcher
 entries override it. The other layout options (margins, spacing, bullets,
 underlines, caption position, verbatim format, drawer and inlinetask
 formatters) mirror the Emacs `org-ascii-*` variables of the same name.
-`table_use_ascii_art` (ascii-art-to-unicode) is not supported.
+With `table_use_ascii_art` (org-ascii-table-use-ascii-art) table.el
+tables are drawn with box characters in UTF-8 exports, like the
+ascii-art-to-unicode package (every "-" and "|" of the table, and each "+"
+as the junction its neighbours need).
 
 Beamer ~                                                   *org-export-beamer*
 `:Org export beamer` (dispatcher: l B buffer, l b file, l P PDF, l O PDF and
@@ -3634,6 +4661,21 @@ applies to lists and images. Keywords: #+BEAMER_THEME,
 #+BEAMER: (raw line), #+SUBTITLE, `#+TOC: headlines N [options]`. With
 `toc:` an outline frame titled `export.beamer.outline_frame_title` is
 added.
+
+Beamer mode                                              *org-beamer-mode*
+`:Org beamer_mode` toggles org-beamer-mode in the buffer; it is on from the
+start with `startup_with_beamer_mode = true` (org-startup-with-beamer-mode)
+or `#+STARTUP: beamer`. While it is on, <C-c><C-b>
+(`mappings.beamer.beamer_select_environment`; it replaces "previous sibling"
+like in Emacs) runs `beamer_select_environment`
+(org-beamer-select-environment): a fast tag selection of B_ENV tags, one
+key per environment (f frame, b block, c column, C columns, n note, ...),
+sets BEAMER_env (pressing the key of the current environment removes it);
+`|` toggles BMCOL and asks for the column width (BEAMER_col), `A` makes an
+againframe and asks for BEAMER_ref and BEAMER_act. Setting BEAMER_env or
+BEAMER_col as a property also updates the B_ENV / BMCOL tags, which are
+highlighted with `OrgBeamerTag`. Toggling fires the `OrgBeamerMode` User
+autocmd (org-beamer-mode-hook), `data = { bufnr, enabled }`.
 
 Texinfo ~                                                 *org-export-texinfo*
 `:Org export texinfo` (dispatcher `i t`, Emacs `C-c C-e i t`) writes a
@@ -3729,7 +4771,13 @@ addition) adds raw style XML to <office:styles>.
 the result with `convert_process` ("LibreOffice": `soffice --headless
 --convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
 `require("org.export.odt").convert(file, format)` converts any file
-(org-odt-convert). `export.odt.use_pandoc = true` exports ODT with pandoc
+(org-odt-convert); `:Org odt_convert` asks for the file and the output
+format (with a count it opens the result).
+`:Org odt_export_as_odf` (org-odt-export-as-odf) converts a LaTeX fragment
+to MathML with `latex_to_mathml_convert_command` and writes it as an
+OpenDocument formula, FILE.odf; the fragment is the first one of the
+Visual selection (or typed at the prompt) and the file name is asked for.
+`odt_export_as_odf_and_open` also opens the file. `export.odt.use_pandoc = true` exports ODT with pandoc
 instead. Lua: `require("org.export").export("odt", opts)`;
 `to_string("odt")` returns content.xml.
 Differences: `use_date_fields`, `with_forbidden_chars`, the drawer,
@@ -3738,7 +4786,69 @@ matches Emacs except for a few Emacs slips that are not copied: labels
 of unnamed captioned images are not called "nil", `[[#custom-id][desc]]`
 links point to the heading's bookmark, meta.xml gets the title without
 markup, and inline source blocks (an error in Emacs) are exported as
-code. MathML is not cached in an ltxmathml/ directory.
+code. The MathML of each fragment is kept in
+`export.odt.latex_mathml_directory` ("ltxmathml/" next to the Org file,
+org-latex-mathml-directory) and reused while the fragment and the command
+are unchanged.
+
+KOMA-Script letters ~                                 *org-export-koma-letter*
+`:Org export koma-letter` (dispatcher `k L` buffer, `k l` file, `k p` PDF,
+`k o` PDF and open; Emacs `C-c C-e k`) writes a scrlttr2 letter like Emacs
+ox-koma-letter, derived from the LaTeX back-end (so every LaTeX keyword
+and option applies); `koma-pdf` compiles it like |org-export| PDF. The
+class is `export.koma_letter.default_class` ("default-koma-letter", added
+to the LaTeX classes as `\documentclass[11pt]{scrlttr2}`) or #+LATEX_CLASS.
+Keywords (defaults from `export.koma_letter`):
+  LCO           letter class option files (\LoadLetterOption), "NF"
+  AUTHOR EMAIL  sender name and email (fromname, fromemail)
+  FROM_ADDRESS  sender address (repeatable; lines become \\)
+  TO_ADDRESS    recipient (repeatable; "\mbox{}" when missing)
+  PHONE_NUMBER URL FROM_LOGO PLACE LOCATION SIGNATURE  letter variables
+  SUBJECT       \setkomavar{subject}; #+TITLE becomes the title
+  OPENING CLOSING  \opening{} and \closing{}
+  KOMA-LETTER   raw line (also `#+begin_export koma-letter`, and
+                `@@koma-letter:...@@` like LaTeX snippets)
+#+OPTIONS items: backaddress, email, phone, url, from-logo, place (show or
+hide the field), foldmarks (t, nil or a list like `(b l m t)`), subject
+(t, nil or a list like `(underlined centered)`), title-subject (the title
+is the subject when there is no SUBJECT), special-headings (headlines win
+over keywords), after-closing-order and after-letter-order (lists of
+tags). Settings from the config are written before the LCO files and
+in-buffer ones after them, so the buffer overrides the LCO files.
+Headlines are not exported as sections: a headline tagged `to`, `from`,
+`location` or `closing` sets the recipient, the sender address, the
+location or the closing (its contents are the signature); `ps`, `cc` and
+`encl` become \ps{}, \cc{}, \encl{} after the closing, `after_closing`
+and `after_letter` raw text after the closing / after \end{letter}. The
+first untagged headline is the opening (when there is no OPENING keyword,
+or with special-headings); its contents are the letter body.
+
+Man pages ~                                                  *org-export-man*
+`:Org export man` (dispatcher `M m`; Emacs `C-c C-e M`) writes a groff
+man(7) page like Emacs ox-man (this replaces the former pandoc export).
+`man-pdf` (`M p`, `M o` to open) runs `export.man.pdf_process` (default
+three runs of `tbl %f | eqn | groff -man | ps2pdf - > %b.pdf`) and removes
+`export.man.logfiles_extensions` files (`remove_logfiles`). The page
+starts with `.TH "TITLE" "SECTION" "DATE" "RELEASE" "HEADER"` from #+TITLE,
+#+DATE and `#+MAN_CLASS_OPTIONS: :section-id "8" :release "tool 1.0"
+:header "User Commands"` (section 1 by default). Level 1 headlines are
+`.SH`, levels 2 and 3 `.SS`, deeper ones (and those below `H:`) `.TP`
+items. Lists become `.IP` / `.TP` items with \(em, \(bu, \(dg bullets and
+check boxes, emphasis \fB / \fI, code \fC, sub/superscripts \d \u,
+blocks `.RS`/`.nf`, verse `.ft I`, center `.ce`. Tables use tbl(1):
+`#+ATTR_MAN: :expand t :placement center|left :boxtype allbox :divider t
+:title-line t :long-cells t :disable-caption t :verbatim t`, with
+`export.man.tables_centered`, `tables_verbatim` and
+`table_scientific_notation` ("%sE%s"). `#+MAN:` lines,
+`#+begin_export man` and `@@man:...@@` are copied. Footnotes, timestamps,
+planning lines, inline tasks and horizontal rules are dropped, like
+Emacs; links are written as "URL \fBat\fP \fIdesc\fP". With
+`export.man.source_highlight` source blocks go through GNU
+source-highlight (`source_highlight_langs` maps the languages).
+Differences: `man-pdf` compiles with `pdf_process` (Emacs 9.8 passes the
+page to `org-latex-compile`, which fails), and inline source blocks call
+`source-highlight` from the PATH (Emacs looks for it in the current
+directory).
 
 iCalendar ~                                             *org-export-icalendar*
 Dispatcher keys (Emacs `C-c C-e c`): `c f` current file, `c a` every agenda
@@ -3756,10 +4866,17 @@ the body is the DESCRIPTION (`include_body`). Tags and the category go to
 CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
 Files use CRLF line endings and 75-character folded lines (RFC 5545).
 Differences: entries without an ID get a UID derived from the file and the
-entry (stable across exports) instead of a random one; diary sexps
-(`%%(...)` lines and `<%%(...)>` timestamps) are skipped because Emacs
-converts them with its calendar library; `++`/`.+` repeaters give no RRULE
-(like Emacs); BBDB anniversaries are not supported.
+entry (stable across exports) instead of a random one; `++`/`.+`
+repeaters give no RRULE (like Emacs); BBDB anniversaries are not supported.
+Diary sexps (`%%(...)` lines with `include_sexps`, and `<%%(...)>`
+timestamps) become VEVENTs with an RRULE like Emacs' diary iCalendar
+library does: diary-anniversary (yearly), diary-block (daily until the
+end), diary-cyclic (every N days), diary-float (the Nth weekday of a month)
+and diary-date (arguments in `agenda.calendar_date_style` order); a time
+(`<%%(...) 10:00-11:30>`) gives the start time and a DURATION. Recurrences
+start at their first date from January 1 of last year, like Emacs. Other
+sexps are skipped with a warning (Emacs cannot convert them either), and
+the UID is Org's (DS1-ID, TS1-ID) where Emacs 31 makes up its own.
 
 Citations ~                                                  *org-export-cite*
 Citations written as `[cite/STYLE:prefix @key suffix]` are rendered on
@@ -3778,10 +4895,29 @@ bibliography at that point. Processors:
             \printbibliography[OPTIONS] from ":key value" properties;
             loads biblatex and adds \addbibresource lines.
   bibtex    LaTeX; \cite, \nocite and \bibliography.
+  csl       any back-end; formats with a Citation Style Language style
+            (`#+CITE_EXPORT: csl [STYLE.csl]`, default the bundled
+            Chicago author-date style; relative names are looked up next
+            to the file, then in `export.cite.csl_styles_dir`). Styles
+            author (a), noauthor (na), year (y), text (t), title (ti),
+            bibentry, locators (l), nocite (n) with the variants bare,
+            caps, full... HTML back-ends get HTML, LaTeX back-ends LaTeX
+            (the `\cslbibliography` environment; its preamble,
+            `csl_latex_preamble`, is added before \begin{document}),
+            others Org markup. Locators are read from the suffix ("p.
+            12", "chap. 3", a bare number is a page). Note styles put
+            citations in footnotes. `#+PRINT_BIBLIOGRAPHY:` takes the
+            filters :type, :nottype, :csltype, :notcsltype, :keyword and
+            :notkeyword (sub-bibliographies). Options: csl_styles_dir,
+            csl_locales_dir (more locales; en-US is bundled),
+            csl_link_cites, csl_no_citelinks_backends { "ascii" },
+            csl_html_hanging_indent, csl_html_label_width_per_char,
+            csl_latex_hanging_indent, csl_latex_label_separator,
+            csl_latex_label_width_per_char, csl_latex_preamble and
+            csl_bibtex_titles_to_sentence_case (all under export.cite).
+            The formatting engine is a Lua port of citeproc-el.
 Note styles turn a citation into a footnote, moving punctuation according
-to `export.cite.note_rules` and the document LANGUAGE. The CSL processor
-(citeproc) is not available (it needs the Emacs citeproc-el library); to
-use CSL styles, export to Org or Markdown and run `pandoc --citeproc`.
+to `export.cite.note_rules` and the document LANGUAGE.
 
 Publishing ~                                                   *org-publish*
 Projects are set in `export.publish.projects` (org-publish-project-alist):
@@ -3800,7 +4936,10 @@ Projects are set in `export.publish.projects` (org-publish-project-alist):
 Keys are the Emacs plist properties with `_` for `-`. `publishing_function`
 is "html", "latex", "pdf", "beamer", "md", "gfm", "ascii", "latin1",
 "utf8", "org", "texinfo", "attachment", a Lua function(plist, file,
-pub_dir) or a list.
+pub_dir) or a list. With "org" and `htmlized_source = true`, the source is
+also written as coloured HTML, FILE.org.html, by Neovim's |:TOhtml| (Emacs
+uses htmlize); `export.org.htmlized_css_url` (org-org-htmlized-css-url)
+links that stylesheet instead of embedding the styles.
 `exclude` and `base_extension` are Vim regular expressions matched against
 file names relative to `base_directory`. Other keys (with_toc,
 html_postamble, ...) are export options for the project's files.
@@ -3826,19 +4965,34 @@ These need Emacs Lisp or Emacs itself:
   scratch buffer (`buffer-file-name`, `org-with-point-at` and the like
   don't see the document). Without Emacs they export as nothing, with a
   warning.
-- Source fontification (htmlize, engrave-faces): HTML code is plain unless
-  `export.html.fontify` is set; `src_block_backend = "engraved"` falls
-  back to verbatim.
-- LaTeX fragments as images (`tex:dvipng`, `dvisvgm`, `imagemagick`) are
-  exported as MathJax/verbatim by the HTML back-end; only ODT converts
-  them (|org-export-odt|).
+- Source fontification: HTML uses tree-sitter highlights instead of
+  htmlize (|org-export-backends|), so the spans differ from Emacs'
+  font-lock. LaTeX with `src_block_backend = "engraved"` writes the same
+  LaTeX as engrave-faces, but with the faces of tree-sitter's highlights:
+  where tree-sitter and the Emacs major mode disagree the \EF commands
+  differ (tree-sitter has no declaration face, so `local x` and
+  parameters are not \EFv; comment delimiters (\EFcd) are split off by
+  the comment starter), and languages without a tree-sitter parser stay
+  plain. A named theme is a Neovim colour scheme, loaded for the moment
+  (Emacs loads the Emacs theme); its faces come from the highlight groups.
+- `export.smart_quotes_alist` sets the quotes of the languages it lists
+  and keeps the Emacs table for the others (Emacs replaces the whole
+  alist).
+- `export.ascii.table_use_ascii_art` draws table.el tables with box
+  characters; in Org 9.8.10 the option does nothing when
+  ascii-art-to-unicode is installed (its package check is inverted) and
+  fails when it is not.
+- LaTeX pictures in HTML (`tex:dvipng`, ...) are named
+  ltximg/FILE_HASH.png with a hash of their own; a failed conversion
+  warns and leaves the LaTeX out instead of stopping the export.
 - table.el tables: the HTML comment table.el puts before the table names
   org.nvim instead of the Emacs version, and a grid table.el cannot read
   is exported as preformatted text (HTML) or `verbatim` (LaTeX) where Emacs
   fails.
-- Asynchronous export (`a`) only makes PDF compilation asynchronous;
-  publishing runs on the editor's event loop.
-- Remote (TRAMP) files and directories; `#+INCLUDE` of URLs.
+- Asynchronous export (`a`) runs in a separate Neovim, like Emacs; a
+  visible-only export runs on the editor's event loop instead, and so does
+  publishing.
+- Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
 - The default creator string names Neovim and org.nvim instead of Emacs.
@@ -3989,6 +5143,8 @@ blink.cmp: >lua
 25. APPEARANCE AND HIGHLIGHTS                                 *org-appearance*
 
 Options under `ui`:
+  menus                  the Org menus (|org-menus|), default true
+  imenu_depth            headline levels of `imenu` (gO), default 2
   conceal_links          show only link descriptions (conceallevel=2)
   hide_emphasis_markers  hide * / _ = ~ + around emphasized text
   hide_leading_stars     show only the last star of each headline
@@ -3999,6 +5155,12 @@ Options under `ui`:
                          text of a level-n entry starts at column 2n and
                          headlines get n-1 columns of prefix; turns on
                          hide_leading_stars (#+STARTUP: indent / noindent)
+  indent_mode_turns_off_adapt_indentation  adapt_indentation is off in
+                         buffers with indent_mode (true)
+  indent_indentation_per_level  columns per level of indent_mode (2):
+                         the text of a level-n entry starts after
+                         n + (per - 1)(n - 1) + 1 columns, headlines after
+                         (per - 1)(n - 1); 0 = no indentation
   pretty_entities        `\alpha` → α for every entity of Emacs'
                          org-entities (#+STARTUP: entitiespretty /
                          entitiesplain); `x^2` → x², `a_{ij}` → aᵢⱼ
@@ -4016,7 +5178,27 @@ Options under `ui`:
                          num_format_function(numbers) -> text follow the
                          org-num options
   fontify_done_headline  dim DONE headlines
+  fontify_todo_headline  highlight the text of TODO headlines with
+                         OrgHeadlineTodo (org-fontify-todo-headline)
+  level_color_stars_only the level color on the stars only
+                         (org-level-color-stars-only)
+  hidden_keywords        keywords shown without their "#+KEYWORD:" part:
+                         { "title", "subtitle", "author", "date", "email" }
+                         (org-hidden-keywords)
+  hide_macro_markers     hide the {{{ }}} of macro calls
+                         (org-hide-macro-markers)
+  highlight_latex_and_related  what LaTeX-related syntax is highlighted
+                         (org-highlight-latex-and-related), none by
+                         default like Emacs: "latex" (fragments $..$,
+                         \(..\), \[..\], $$..$$ and \begin{..}
+                         environments, OrgLatex), "native" (the same with
+                         Vim's tex syntax inside), "script" (x^2, a_{i}),
+                         "entities" (\alpha)
   src_highlight          highlight src blocks with the language syntax
+  src_block_faces        face of src block bodies by language, like
+                         todo_keyword_faces: { python = { bg = "#e5ffb8" } }
+                         ("" = blocks without a language)
+                         (org-src-block-faces)
   todo_keyword_faces     { WAITING = ":foreground #e0af68 :weight bold" },
                          or a highlight table, or a group name
   priority_faces         the same per priority (org-priority-faces):
@@ -4025,7 +5207,24 @@ Options under `ui`:
 
 <C-c><C-x>\     Toggle pretty entities in the buffer
                 (org-toggle-pretty-entities, toggle_pretty_entities).
+:Org entities_help  List every entity with its LaTeX and HTML code
+                (org-entities-help).
+                                                      *org-entities-user*
+`entities_user` (org-entities-user) adds entities of your own, or
+replaces built-in ones, for display, completion and export: >lua
+    entities_user = {
+      -- name, LaTeX, LaTeX needs math mode, HTML, ASCII, Latin-1, UTF-8
+      { "snowman", "\\diamond", true, "&#9731;", "[snow]", "[snow]", "☃" },
+    }
+<
 :Org num_mode   Toggle headline numbering in the buffer (org-num-mode).
+:Org indent_mode  Toggle virtual indentation in the buffer
+                (org-indent-mode).
+                                                       *OrgIndentMode*
+                                                          *OrgNumMode*
+Turning indent mode or numbering on or off, also when a buffer starts
+with them, runs the User autocmd `OrgIndentMode` or `OrgNumMode`
+(org-indent-mode-hook, org-num-mode-hook), `data.enabled` telling which.
 
 Images and LaTeX previews                                       *org-images*
 Image links and LaTeX fragments can be shown as images in place of their
@@ -4325,6 +5524,9 @@ General ~
   default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
+  indirect_buffer_display   "other-window"  <C-c><C-x>b: "other-window"|
+                                      "current-window"|"new-frame" (tab)|
+                                      "dedicated-frame" (one tab)
   win_border                "rounded"
 TODO and logging ~
   todo_keywords             { "TODO | DONE" }
@@ -4337,36 +5539,56 @@ TODO and logging ~
   after_todo_statistics_hooks  {}     functions(n_done, n_not_done, target)
   todo_statistics_hooks     {}        functions(target)
   use_fast_todo_selection   "auto"    or false (always cycle)
+  treat_S_cursor_todo_selection_as_state_change  true  false: S-arrows
+                                      neither log nor block
+  treat_insert_todo_heading_as_state_change  false  log M-S-RET keywords
   provide_todo_statistics   true      |org-todo-statistics|
   hierarchical_todo_statistics  true
   closed_keep_when_no_todo  false
   log_done                  false     false|"time"|"note"
+  log_done_with_time        true      false: CLOSED without time
   log_repeat                "time"
   log_reschedule            false     false|"time"|"note"
   log_redeadline            false
   log_note_clock_out        false     ask for a note on clock out
   log_into_drawer           false     true (LOGBOOK), a drawer name, false
   log_states_order_reversed true
+  log_state_notes_insert_after_drawers  false  notes after clock lines
+                                      and drawers (no log drawer)
   log_note_headings         { done = "CLOSING NOTE %t", state = ... }
   extend_today_until        0         hours that still belong to yesterday
                                       (agenda today, date prompts, capture
                                       dates, repeaters, clock blocks)
   use_effective_time        false
+  use_last_clock_out_time_as_effective_time  false
   loop_over_headlines_in_active_region  true   true|false|"start-level"|
                                                  a match string
 Priorities, tags, properties ~
   priority_highest/lowest/default     "A" / "C" / "B"
+  priority_enable_commands  true
+  priority_start_cycle_with_default   true
+  priority_get_priority_function      nil  function(line) -> number
   tags                      {}        e.g. { "work(w)", "{", "@a", "@b", "}" }
+  tags_persistent           {}        always-defined tags (noptag)
+  tags_sort_function        nil       comparator or list of comparators
   tags_column               -77
+  auto_align_tags           true
+  track_ordered_property_with_tag  false  true|"TAG"
   use_tag_inheritance       true      true|false|{ tags }|"regexp"
   tags_exclude_from_inheritance  {}
   group_tags                true      |org-tag-groups|
   fast_tag_selection_single_key  false  true|false|"expert"
   fast_tag_selection_include_todo  false
+  use_fast_tag_selection    "auto"    true|false|"auto"
+  fast_tag_selection_maximum_tags  56
   complete_tags_always_offer_all_agenda_tags  false
   use_property_inheritance  false     true|false|{ names }|"regexp"
   property_format           "%-10s %s"
   global_properties         {}
+  properties_postprocess    {}        { Name = function(value) ... }
+  property_separators       {}        { { { "A" } or "regexp", ", " } }
+  custom_properties         {}        hidden by
+                                      toggle_custom_properties_visibility
   effort_property           "Effort"
   duration_format           "d h:mm"  |org-durations|
   duration_units            { min = 1, h = 60, d = 1440, ... }  |org-durations|
@@ -4376,6 +5598,7 @@ Priorities, tags, properties ~
   columns_modify_value_for_display_function  nil  function(title, value)
   columns_dblock_formatter  nil       function(rows, params) → lines
   columns_checkbox_allowed_values  { "[ ]", "[X]" }
+  columns_ellipses          ".."      end of truncated fields
 Tables ~
   table_formula_constants   {}        `$name` constants for formulas
   table_copy_increment      true      <S-CR> step: true (difference to the
@@ -4388,8 +5611,23 @@ Tables ~
   table_duration_hour_zero_padding  true  `01:30:00`
   table_formula_evaluate_inline true  `=formula` typed into a field
   table_number_fraction     0.5       numbers needed to right-align
+  table_number_regexp       (Emacs's) Emacs regexp of numbers
+  table_automatic_realign   true      realign on <Tab>, <CR>, leaving Insert
+  table_tab_jumps_over_hlines  true   false: <Tab> adds a row before hlines
+  table_auto_blank_field    true      typing after <Tab> replaces the field
+  table_allow_automatic_line_recalculation  true  `#` rows on <Tab>/<CR>
+  table_default_size        "5x2"     new table size
+  table_convert_region_max_lines  999 largest region converted
+  table_formula_field_format  "%s"    format of formula results
+  table_formula_use_constants  true   `$name` in C-c = / inline formulas
+  table_relative_ref_may_cross_hline  true  true|false|"error"
+  calc_default_modes        { internal_prec = 12, float_format =
+                              { "float", 8 }, angle_mode = "deg",
+                              prefer_frac = false }
+  orgtbl_optimized          true      orgtbl-mode typing keeps alignment
   table_shrunk_column_indicator "…"
   startup_shrink_all_tables false     shrink tables on open (#+STARTUP)
+  startup_align_all_tables  false     align tables on open (#+STARTUP)
   table_header_line_p       false     header-line mode in every buffer
   table_exit_follow_field_mode_when_leaving_table  true
   table_use_standard_references "from"  B3 references: "from"|true|false
@@ -4397,16 +5635,33 @@ Tables ~
   orgtbl_radio_table_templates  { tex, texinfo, html, org }
   plot_gnuplot_program      "gnuplot"
   plot_gnuplot_script_preamble ""     plot_gnuplot_term_extra ""
+  plot_preset_plot_types    {}        extra plot types (|org-plot|)
 Buffer ~
   startup_folded            "showeverything"  also "overview", "content",
                                       "showall", "show2levels".."show5levels"
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
+  startup_with_beamer_mode  false     |org-beamer-mode| on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
+  sparse_tree_open_archived_trees  false  sparse trees open :ARCHIVE: trees
+  sparse_tree_default_date_type    nil  |org-sparse-tree| date types
   footnote_section          "Footnotes"  heading for definitions, or false
-  adapt_indentation         false
+  adapt_indentation         false     true|false|"headline-data" |org-indent|
+  datetree_add_timestamp    false     "active"|"inactive": new date tree
+                                      day nodes get their date
   edit_src_content_indentation  2
+  edit_src_persistent_message  true  exit/abort hint in the edit buffer's
+                                      winbar (|org-babel-edit-special|)
+  src_ask_before_returning_to_edit_buffer  true
+  edit_src_auto_save_idle_delay  0    write back after N idle seconds
+  edit_src_turn_on_auto_save  false   auto-save file of edit buffers
+  edit_fixed_width_region_mode  nil   filetype of `: ` area edit buffers
+  src_lang_modes            { C = "c", elisp = "lisp", shell = "sh", ... }
+  src_tab_acts_natively     true      TAB indents src block lines for
+                                      their language
+  coderef_label_format      "(ref:%s)"
   ellipsis                  "..."
+  entities_user             {}        your own entities |org-entities-user|
   blank_before_new_entry    { heading = "auto", plain_list_item = "auto" }
 Structure and visibility ~
   meta_return_split_line    true      M-RET splits the line (Insert mode);
@@ -4414,27 +5669,86 @@ Structure and visibility ~
   clone_delete_id           false     clones lose their ID (else a new one)
   odd_levels_only           false     promote / demote by two stars
   sort_functions            {}        named key functions for sorting (f)
+  goto_interface            "outline"  |org-goto|: "outline"|
+                                      "outline-path-completion"
+  goto_max_level            5         deepest headlines offered (completion)
+  goto_auto_isearch         true      typing searches the headlines
+  bookmark_names            { last_capture = "org-capture-last-stored",
+                              last_refile = "org-refile-last-stored",
+                              last_capture_marker =
+                                "org-capture-last-stored-marker" }
+  sort_function             "collate"  text order in sorting: "collate"
+                                      (locale)|"fallback" (codes)|function
   structure_template_alist  { a = "export ascii", c = "center", ... }
   tempo                     false     `<s` TAB expansion (org-tempo)
   tempo_keywords            { L = "latex", H = "html", A = "ascii",
                               i = "index" }
-  cycle_include_plain_lists true      TAB folds list items
+  cycle_include_plain_lists true      TAB folds list items; "integrate":
+                                      items are children of the headline
+  lists                     { allow_alphabetical = false,
+                              ordered_item_terminator = true ("."|")"),
+                              demote_modify_bullet = {} (e.g.
+                              { ["-"] = "+" }),
+                              two_spaces_after_bullet_regexp = nil,
+                              indent_offset = 0,
+                              automatic_rules = { checkbox = true,
+                                                  indent = true },
+                              use_circular_motion = false,
+                              checkbox_hierarchical_statistics = true }
   cycle_emulate_tab         true      TAB on text: true|"white"|
                                       "whitestart"|"exc-hl-bol"|false
   cycle_separator_lines     2         blank lines kept visible when folded
   catch_invisible_edits     "smart"   false|"error"|"show"|
                                       "show-and-error"|"smart"
+  catch_invisible_edits_commands  { self_insert = "insert", ... }
+                                      edits checked, by command
+  cycle_global_at_bob       false     TAB at buffer start cycles globally
+  cycle_max_level           nil       deepest level TAB cycles
+  cycle_skip_children_state_if_no_children  true
+  fold_show_context_detail  { agenda = "local", default = "ancestors",
+                              ... }   |org-show-context-detail|
+  occur_case_fold_search    true      sparse-tree regexps ignore case:
+                                      true|false|"smart"
+  remove_highlights_with_change  true edits remove sparse-tree and
+                                      clock_display highlights
+  special_ctrl_a_e          false     |org-line-edit|: true|"reversed"|
+                                      { a, e }
+  special_ctrl_k            false     kill_line up to the tags
+  ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
+  insert_heading_respect_content  false  <M-CR> inserts after the subtree
+  insert_mode_line_in_empty_file  false  `:setf org` on an empty file
+                                      adds `#    -*- mode: org -*-`
+  allow_promoting_top_level_subtree  false  promoting level 1 makes `# `
+  edit_keep_region          { meta_left = true, meta_right = true,
+                              meta_up = true, meta_down = true }
+                                      keep the Visual selection (or
+                                      true|false)
+  yank_folded_subtrees      true      `p` folds put subtrees
+  yank_adjusted_subtrees    false     `p` adjusts their level
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
+  speed_command_hook        { "org-speed-command-activate",
+                              "org-babel-speed-command-activate" }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
   inlinetask_default_state  nil
+  inlinetask_show_first_star  false   show the first star of inline tasks
   footnote_auto_label       true      true|false|"confirm"|"random"|
                                       "plain"|"anonymous"
   footnote_auto_adjust      false     false|true|"sort"|"renumber"
   footnote_define_inline    false
+  footnote_fill_after_inline_note_extraction  false  normalizing refills
+                                      the paragraphs of inline notes
+                                      (at `textwidth`, 70 when 0)
   deadline_warning_days     14
+  scheduled_delay_days      0         negative = also over -Nd cookies
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
+  read_date_popup_calendar  true      false: a plain prompt |org-calendar|
+  read_date_display_live    true      show the typed date's meaning
+  calendar_to_agenda_key    "default" the `goto_calendar` key showing the
+                                      agenda of the date: `c`, a key, false
+  calendar_insert_diary_entry_key  "i"  its key adding a diary entry
+  edit_timestamp_down_means_later  false  <S-Down> makes timestamps later
   display_custom_times      false     |org-dates|
   time_stamp_custom_formats { "%m/%d/%y %a", "%m/%d/%y %a %H:%M" }
   archive_location          "%s_archive::"
@@ -4444,6 +5758,9 @@ Structure and visibility ~
   archive_subtree_add_inherited_tags  "infile"   true|false|"infile"
   archive_reversed_order    false
   archive_mark_done         false     true|"DONEKEYWORD"
+  archive_default_command   "archive_subtree"  "archive_to_sibling"|
+                                      "set_tag"|function(target)
+  archive_subtree_save_file "from_org"  true|false|"from_agenda"
   archive_file_header_format  "\nArchived entries from file %s\n\n"
 agenda ~
   span "week", start_on_weekday 1, start_day nil ("-3d"),
@@ -4492,12 +5809,31 @@ agenda ~
   calendar_date_style "american" ("european"|"iso"),
   hebrew_sabbath_candles_minutes 18, include_diary false,
   diary_file nil, diary_show_holidays true, diary_include_files false,
-  diary_nongregorian {}, holidays (|org-agenda-holidays|)
+  diary_nongregorian {}, holidays (|org-agenda-holidays|),
+  move_date_from_past_immediately_to_today true, follow_indirect false,
+  mouse_1_follows_link false, skip_comment_trees true,
+  skip_function_global nil, todo_ignore_time_comparison_use_seconds false,
+  entry_text_exclude_regexps {}, entry_text_leaders "    > ",
+  add_entry_text_maxlines 0, before_write_hook nil, export_html_style nil,
+  custom_commands_contexts {}, menu_show_matcher true,
+  menu_two_columns false, todo_keyword_format "%-1s",
+  fontify_priorities "cookies" (true|false|table), deadline_faces,
+  day_face_function nil, diary_sexp_prefix nil,
+  remove_timeranges_from_blocks false, bulk_mark_char ">",
+  loop_over_headlines_in_active_region true (false|"start-level"|regexp),
+  start_with_archives_mode false (true|"trees"),
+  diary_entry_file "diary-file" (or an Org file),
+  insert_diary_strategy "date-tree" ("date-tree-last"|"top-level"),
+  insert_diary_extract_time false, skip_unavailable_files false,
+  query_register "o", restriction_lock_highlight_subtree true,
+  window_frame_fractions { 0.5, 0.75 },
+  columns_add_appointments_to_effort_sum false
   (see |org-agenda|, |org-agenda-diary-file|)
 capture ~
   templates {} (|org-capture-templates|; empty = Emacs's "t" Task
   template), templates_contexts {} (|org-capture-contexts|),
-  window "split"
+  window "split", use_agenda_date false (the global capture key in the
+  agenda uses the date at point, like the agenda's `K`)
 refile ~
   targets {} (empty = level-1 headlines of the current buffer),
   max_level nil, include_current_file nil, use_outline_path false,
@@ -4518,10 +5854,27 @@ clock ~
   goto_before_context 2, display_default_range "thisyear",
   ask_before_exiting true, statusline_icon "⏱",
   clocktable_default { maxlevel 2, scope, block },
+  clocktable_default_properties { maxlevel = 2 } (header of a new clock
+  table: `:scope` first, then `:maxlevel`, then the others by name;
+  merged with the default, false leaves a key out),
+  clocktable_formatter nil (function(tables, params) -> lines, see
+  |org-clocktable|), total_time_cell_format "*%s*",
+  file_time_cell_format "*%s*", resolve_expert false (resolve clocks at
+  a one-line prompt, no help window), x11idle_program_name nil
+  (xprintidle when installed, else x11idle),
   persist false (true | "clock" | "history"), persist_query_resume true,
-  persist_file
+  persist_query_save false (ask on exit whether to keep the running
+  clock for the next session), persist_file
 timer ~    format "%s ", default_timer "0"
-protocol ~ default_template_key nil, projects {}, handlers {} (|org-protocol|)
+protocol ~ default_template_key nil, projects {}, handlers {},
+           data_separator [[/\+\|?]] (|org-protocol|)
+yank ~     image_save_method "attach", image_file_name_function nil,
+           dnd_method "ask", dnd_default_attach_method nil, dnd_paste true
+           (|org-yank-media|)
+ctags ~    enabled false, path_to_ctags nil, open_link_functions
+           { "find_tag", "ask_rebuild_tags_file_then_find_tag",
+           "ask_append_topic" }, new_topic_template "* <<%t>>\n\n\n\n\n\n",
+           tag_regexp [[/<<([^<>]+)>>/\1/d,definition/]] (|org-ctags|)
 feed ~     feeds {}, default_template "\n* %h\n  %U\n  %description\n  %a\n",
            drawer "FEEDSTATUS", save_after_adding true,
            retrieve_method "curl" (|org-feed|)
@@ -4539,18 +5892,30 @@ links ~
   search_must_match_exact_headline "query-to-create" (true|false),
   frame_setup { file = "other-window" } ("current"|"split"|"vsplit"|"tab"|
   function), make_description nil, doi_server_url "https://doi.org/",
-  search_functions {}, translation_function nil
+  search_functions {}, translation_function nil, mouse_1_follows_link 450
+  (true|"double"|ms|false), tab_follows_link false,
+  open_directory_means_index_dot_org false, open_non_existing_files false
+  (|org-links-mouse|), info_other_documents { dir, libc, make } (URLs of
+  info manuals)
+resource_download_policy "prompt" (true|"safe"|false),
+safe_remote_resources {} (|org-remote-resources|)
+bibtex ~ (|org-bibtex|)
+  autogen_keys false, prefix nil, treat_headline_as_title true,
+  headline_format_function nil, export_arbitrary_fields false,
+  key_property "CUSTOM_ID", tags {}, tags_are_keywords false,
+  no_export_tags {}, inherit_tags false, type_property_name "btype"
 id ~
   locations_file, locations_format "auto"|"json"|"emacs",
   locations_file_relative false, method "uuid"|"ts"|"org", prefix nil,
   ts_format "%Y%m%dT%H%M%S.%6N", search_archives true, extra_files {},
-  link_use_context true, link_consider_parent_id false
+  link_use_context true, link_consider_parent_id false, include_domain
+  false, completion_targets { { files = "current" }, { files = "id" } }
 attach ~
   dir "data/", method "cp"|"mv"|"ln"|"lns", id_to_path { "uuid", "ts",
   "fallback" }, use_inheritance "selective", dir_relative false,
   preferred_new_method "id", store_link "attached",
   sync_delete_empty_dir "query", archive_delete false, auto_tag "ATTACH",
-  git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
+  commands {} (extra dispatcher commands), expert false, git false, git_annex_cutoff 32768, git_annex_auto_get "ask",
   git_dir "default" (|org-attach-git|)
 mobile ~ (|org-mobile|)
   directory nil, files { "agenda_files" }, files_exclude_regexp "",
@@ -4569,7 +5934,18 @@ babel ~
   noweb_wrap_end ">>", tangle_use_relative_file_links true,
   tangle_comment_format_beg / _end, tangle_default_file_mode "644",
   tangle_lang_exts {}, tangle_save_buffer true,
-  tangle_uncomment_comments false, languages (see |org-babel|),
+  tangle_uncomment_comments false, tangle_remove_file_before_write "auto",
+  process_comment_text nil, uppercase_example_markers false,
+  exp_code_template, exp_inline_code_template, exp_call_line_template "",
+  shell_names { "sh", "bash", "zsh", "fish", "csh", "ash", "dash", "ksh",
+  "mksh", "posh" },
+  shell_results_defaults_to_output true, languages (see |org-babel|; the
+  entries of python, ruby, lua and the |org-babel-languages| ports hold
+  their ob-LANG options, e.g. `plantuml = { exec_mode = "jar", jar_path =
+  "", executable_path = "plantuml", args = { "-headless" },
+  svg_text_to_path = false }`, `java = { cmd = "java", compiler = "javac",
+  hline_to = "null", null_to = "hline" }`, `lua = { cmd = "nvim", hline_to
+  = "None", None_to = "hline", multiple_values_separator = ", " }`),
   emacs_lisp { command = "emacs", args = { "-Q", "--batch" } }
 src_preserve_indentation false (org-src-preserve-indentation)
 export ~                                                   *org-config-export*
@@ -4583,9 +5959,51 @@ export ~                                                   *org-config-export*
   with_smart_quotes false, with_sub_superscripts true, preserve_breaks,
   timestamp_file true, select_tags { "export" }, exclude_tags
   { "noexport" }, default_language "en", author, email, creator,
-  global_macros, allow_bind_keywords false, hooks, filters; back-end tables html, latex, md, org,
-  ascii, beamer, icalendar, odt, texinfo, publish, cite; pandoc { cmd, args }. See the
-  comments in config.lua for every key and its Emacs variable.
+  global_macros, allow_bind_keywords false, hooks, filters,
+  initial_scope "buffer", body_only, visible_only, force_publishing,
+  in_background, async_init_file nil, dispatch_use_expert_ui false,
+  show_temporary_export_buffer true, copy_to_kill_ring false,
+  coding_system nil, process_citations, replace_macros true,
+  smart_quotes_alist nil (|org-export|); back-end tables html, latex, md, org,
+  ascii, beamer, icalendar, odt, texinfo, koma_letter, man, publish, cite;
+  pandoc { cmd, args }. See the comments in config.lua for every key and
+  its Emacs variable.
+  Among them (org-BACKEND-NAME is export.BACKEND.NAME, nil = the Emacs
+  value): html allow_name_attribute_in_anchors, coding_system "utf-8",
+  datetime_formats { "%F", "%FT%T" }, indent false, divs, footnotes_section,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, home_up_format, infojs_template,
+  inline_image_rules, klipsify_src, klipse_css, klipse_js,
+  klipse_selection_script, mathjax_template, meta_tags, scripts,
+  table_align_individual_fields, table_data_tags, table_header_tags,
+  table_default_attributes, table_row_open_tag, table_row_close_tag,
+  table_use_header_tags_for_first_column, tag_class_prefix,
+  todo_kwd_class_prefix, text_markup_alist, viewport, xml_declaration;
+  latex active_timestamp_format, inactive_timestamp_format,
+  diary_timestamp_format, compiler_file_string, known_warnings,
+  custom_lang_environments, default_footnote_command,
+  default_quote_environment, footnote_defined_format, footnote_separator,
+  format_drawer_function, format_headline_function,
+  format_inlinetask_function, image_default_scale, image_default_height,
+  image_default_option, inline_image_rules, inputenc_alist,
+  link_with_unknown_path_format, listings_langs, listings_options,
+  listings_src_omit_language, logfiles_extensions, minted_langs,
+  minted_options, engraved_options, engraved_preamble, engraved_theme,
+  subtitle_format, subtitle_separate,
+  table_scientific_notation, text_markup_alist, toc_include_unnumbered;
+  texinfo logfiles_extensions, active_timestamp_format,
+  inactive_timestamp_format, diary_timestamp_format,
+  link_with_unknown_path_format, tables_verbatim,
+  table_scientific_notation, text_markup_alist, format_headline_function,
+  format_drawer_function, format_inlinetask_function.
+  cite also has the buffer options (|org-cite|): activate_processor,
+  follow_processor, insert_processor "basic", basic_max_key_distance 2,
+  basic_author_column_end 25, basic_column_separator "  ",
+  basic_complete_key_crm_separator nil, basic_mouse_over_key_face
+  "highlight" (OrgCiteMouseOver; false = none).
+mouse ~     org_mouse false, features { "context-menu", "yank-link",
+            "activate-stars", "activate-bullets", "activate-checkboxes" }
+            (|org-mouse|)
 notifications ~
   enabled false, reminder_time { 12, 9, 6, 3, 0 }, check_interval 60,
   system_notification true, notifier nil
@@ -4616,6 +6034,7 @@ Section `org` (default key: action):
   <prefix>ih  insert_heading        <prefix>it  insert_todo_heading
   <prefix>is  insert_subheading     <prefix>id  insert_drawer
   <prefix>ib  insert_structure_template  <prefix>if  insert_footnote
+  <prefix>i@  cite_insert
   <<  promote_heading               >>  demote_heading
   <s  promote_subtree               >s  demote_subtree
   <M-h> <M-l> <M-k> <M-j>  meta_left/right/up/down
@@ -4697,6 +6116,7 @@ Structure and visibility:
   <C-c>;           toggle COMMENT       <C-c>@  mark (select) subtree
   <C-c><C-,>       structure template   <C-c><C-x>d  insert drawer
   <C-c><C-x>f      footnote             <C-c><C-x><C-f>  emphasize
+  <C-c><C-x>@      citation (cite_insert)  <LeftRelease>  citation key
   <C-c>:           fixed-width          <C-c><C-*>  list to subtree
   <C-c><C-x><C-r>  radio button         <C-c><C-x>t  inline task
   <C-c><C-x>\      pretty entities      <C-M-t>  transpose elements
@@ -4759,11 +6179,13 @@ Links, refile, archive, export:
   <C-c><M-l>  insert last stored link   <C-c><C-M-l>  insert all links
   <C-c>&      jump back from a followed link
   <C-c><C-x><C-n> <C-p>  next / previous link
-  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>, <C-c><C-x><C-a>  archive
+  <C-c><C-w>  refile         <C-c>$, <C-c><C-x><C-s>  archive
+  <C-c><C-x><C-a>  archive with `archive_default_command`
   <C-c><M-w>  copy to a refile target
+  <C-c><C-M-w>  refile with `refile.reverse_note_order` inverted
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
-  <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-c>[ <C-c>]  add / remove file from agenda files (saved)
   <C-'> <C-,>  next agenda file   <C-c><C-x>< >  set / remove agenda lock
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
   <C-c>\  tags / property match sparse tree
@@ -4796,7 +6218,10 @@ Section `text_objects`: inner_heading ih, around_heading ah, inner_subtree
 ir, around_subtree ar.
 Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
-Section `edit_src`: save_exit, abort.
+Section `edit_src`: save_exit, abort, send_to_session (<C-c><C-c>,
+<prefix>e: blocks with a `:session`, |org-babel-edit-special|).
+Section `beamer`: beamer_select_environment <C-c><C-b>, only while
+|org-beamer-mode| is on.
 
 ==============================================================================
 28. COMMANDS                                                    *org-commands*
@@ -4826,6 +6251,101 @@ Additional subcommands:
   :Org feed_goto_inbox [name]  :Org feed_show_raw [name]
   :Org mobile_push | mobile_pull | mobile_apply | mobile_goto_inbox |
        mobile_flagged        (|org-mobile|)
+
+Menus                                                           *org-menus*
+Emacs's Org menus are Neovim menus (|:menu|): "Org" and "Table" in org
+buffers (org-org-menu, org-tbl-menu), "Agenda" in the agenda
+(org-agenda-menu), "Column" in column view (org-columns-menu),
+"Edit-Formulas" in the formula editor (org-table-fedit-menu) and "OrgTbl"
+where orgtbl-mode is on (orgtbl-mode-menu), with Emacs's entries in Emacs's
+order, each running the action that does the same (its key is shown next to
+it). Neovim menus are global, so they are added when a buffer they belong
+to is entered and removed when another one is. GUIs show them in the menu
+bar; anywhere, run an entry with |:emenu| (`:emenu Org.<Tab>` completes) or
+pop a menu up with |:popup| (`:popup Org`). Entries Emacs greys out at point
+are disabled before a popup and refuse to run otherwise. "File List for
+Agenda" and "Agenda Files" list the agenda files. `ui.menus = false` turns
+the menus off (Emacs has no option for them).
+                                                           *org-clock-menu*
+:Org clock_menu         Pop up the clock menu: clock out, change the effort
+                        estimate, go to the clocked task, switch task
+                        (org-clock-menu). Emacs shows it on a click on the
+                        clock in the mode line; for the same in a statusline
+                        use the click handler: >vim
+    set statusline+=%@v:lua.require'org.menu'.clock_click@%{v:lua.require'org'.statusline()}%X
+<                       (a left click pops the menu up, a middle click goes
+                        to the clocked task).
+                                                            *org-customize*
+:Org customize          A buffer listing every option with its value, in the
+                        order and sections of lua/org/config.lua
+                        (org-customize); "[changed]" marks values that
+                        differ from the default. <CR> or K shows the
+                        option's documentation with its default and value,
+                        `c` sets it for this session (a Lua expression), `R`
+                        resets it to its default, `q` closes the buffer. Put
+                        changes in `setup()` to keep them.
+:Org customize_menu     Put every option into the Org menu's Customize
+                        submenu (org-create-customize-menu); an entry opens
+                        the options buffer on it.
+                                                           *org-bug-report*
+:Org bug_report         Report a bug (org-submit-bug-report): after a notice
+                        about privacy, asks whether to include your options
+                        (those that differ from the defaults) and for a
+                        subject, puts the report (Neovim, org.nvim and OS
+                        versions, the options) in a buffer and opens a new
+                        GitHub issue titled "[BUG] <subject> [<version>]"
+                        prefilled with it (|vim.ui.open()|). A report too
+                        long for a URL is left for you to paste (it is also
+                        in the + register).
+
+org-mouse                                                       *org-mouse*
+`mouse.org_mouse = true` loads org-mouse (Emacs: (require 'org-mouse)); it
+is off by default. `mouse.features` (org-mouse-features) picks its parts,
+by default all but "move-tree":
+  "context-menu"   <RightMouse> pops up a menu for what is under the mouse
+                   (org-mouse-show-context-menu, also `:Org
+                   mouse_context_menu` at the cursor): a TODO keyword
+                   (switch it, TODO trees and lists), SCHEDULED:/DEADLINE:
+                   (switch or remove it), a priority cookie (set or remove
+                   it), a link (open, copy, cut), a tag (agenda, sparse
+                   tree, toggle tags), a timestamp (show the day, change,
+                   delete, set for today/tomorrow/in a week..., shift by a
+                   day/week/month), a checkbox (toggle, remove, all
+                   clear/set/toggle/remove), a table (and its special
+                   first-column marks), a `#+STARTUP:` line (toggle each
+                   option), a headline (priority, tags, TODO state, new
+                   heading, deadline, schedule, timestamp, archive, cut,
+                   copy, paste, sort children), the Visual selection
+                   (sparse tree, find, grep, convert to link, insert the
+                   last yank as a link), elsewhere a general menu
+                   (overview, headlines, deadlines, TODOs, tags, agenda
+                   views, custom agenda commands, blank lines, checkboxes,
+                   list to outline). Items that are radio buttons or toggles
+                   in Emacs show "(*)" / "[X]" when selected. In the agenda
+                   the menu of an entry is its headline's menu, run in the
+                   entry's buffer (the agenda is rebuilt), elsewhere an
+                   agenda menu; <C-ScrollWheelUp/Down> and a horizontal
+                   right drag go to earlier / later dates.
+                   <C-LeftMouse> dragged moves a subtree (see below).
+  "move-tree"      A right drag moves a subtree.
+  "yank-link"      <S-MiddleMouse>, or a right drag, inserts the last yank
+                   as " [[...]] " where the mouse is (org-mouse-yank-link).
+  "activate-stars", "activate-bullets", "activate-checkboxes"
+                   A click on headline stars cycles the subtree, on a bullet
+                   cycles the item, on a checkbox toggles it (<MiddleMouse>,
+                   and <LeftMouse> with `links.mouse_1_follows_link`). With
+                   org-mouse, <C-c><C-o> on them does the same.
+With org-mouse a click inside the Visual selection keeps it
+(org-mouse-down-mouse), so that a right click there shows its menu.
+Dragging a subtree (org-mouse-move-tree): drop it on its own headline to
+demote it (drag right) or promote it (drag left), on another headline's
+stars to put it before that headline, at its level, further right or on the
+text below a headline to make it that headline's last child.
+Commands of org-mouse, also as actions: mouse_insert_heading (a heading
+before the line when at its start, else before the next heading),
+mouse_insert_checkbox, mouse_end_headline, mouse_show_headlines,
+mouse_show_overview, mouse_timestamp_today, mouse_transform_to_outline
+(the list items of the entry become subheadings), mouse_move_tree_start.
 
 ==============================================================================
 29. LUA API                                                          *org-api*
@@ -4903,8 +6423,12 @@ use the first value. CATEGORY is the buffer's own last `#+CATEGORY`, else
 the first one collected (org-element--get-category). Column view prefers
 the buffer's own first non-empty `#+COLUMNS` line (org-columns-get-format). Cached document metadata refreshes when
 setup dependencies change, appear, disappear, or have unsaved edits in a
-loaded buffer. Remote URLs are not fetched by the core parser. Missing
-or unreadable local setup files are ignored; lint reports missing paths.
+loaded buffer. A URL is downloaded as `resource_download_policy` allows
+(|org-remote-resources|, like `#+INCLUDE:`), once a session: "prompt"
+asks the first time the file is read (with no UI to ask in, such as a
+headless Neovim, only `safe_remote_resources` URLs are fetched), and a
+refused or failed download isn't tried again. Missing or unreadable local
+setup files are ignored; lint reports missing paths.
 
 ==============================================================================
 31. LINTING                                                         *org-lint*
@@ -4914,7 +6438,13 @@ or unreadable local setup files are ignored; lint reports missing paths.
                         list (title "org-lint", entries "checker: message",
                         E for high trust, W for low trust). With checker
                         names (completed), only those run (Emacs C-u C-u).
-                        No default key, as in Emacs.
+                        No default key, as in Emacs. In the location list
+                        window, as in Emacs's report buffer: `h` hides the
+                        reports of the checker under the cursor, `i` also
+                        ignores that checker when refreshing
+                        (org-lint--ignore-checker), `r` lints again
+                        (Emacs `g`, which Vim needs for gg and the other
+                        g commands).
 
 Lua: `require("org.lint").lint(bufnr, checkers?)` returns the reports
 `{ lnum, col, checker, message, trust }` sorted by position, and
@@ -4976,8 +6506,8 @@ Differences from Emacs:
 - Link and file checks use the plugin's link abbreviations, link types,
   attachment directories (|org-attach|) and ID locations.
 - Nothing is skipped: every checker of Org 9.8 is implemented. The report
-  buffer's keys (h hide, i ignore a checker) are replaced by the location
-  list; rerun with checker names instead.
+  buffer's keys are in the location list: h hides and i ignores a
+  checker, r (Emacs g) lints again.
 
 ==============================================================================
 32. DIFFERENCES FROM EMACS                                   *org-differences*
@@ -5030,8 +6560,10 @@ Differences from Emacs:
   puts a border after every row (Emacs misses the one after the first).
   Exported HTML cells are always `align="left" valign="top"` (Emacs too,
   as the table is not recognized first).
-- <M-CR> in an Org table inserts a row instead of splitting the field
-  (org-table-wrap-region). Shrunk columns use conceal and virtual text (|org-table-shrink|), the
+- <M-CR> in an Org table splits the field only in Insert mode (in Normal
+  mode it goes to the field below, as with `meta_return_split_line =
+  false`), and wrapping a column acts on the Visual selection. Shrunk
+  columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
   needs gnuplot.el). Translators convert Org markup in cells with a
@@ -5040,9 +6572,27 @@ Differences from Emacs:
 - Clocking (|org-clock|): the idle time comes from the system on macOS
   (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
   own input, so time spent in other applications counts as idle there.
-  The mode line entry is the |org-api| statusline component; clicking it
-  has no menu. Timers use counts, so a countdown's C-u (default timer)
+  The mode line entry is the |org-api| statusline component; a click
+  handler pops up the clock menu (|org-clock-menu|). Timers use counts, so a countdown's C-u (default timer)
   has no count form: a count is always minutes.
+- Citations (|org-cite|): keys are chosen with `vim.ui.select`, and
+  cancelling it is Emacs' empty input; `basic_complete_key_crm_separator`
+  is a Vim regexp read at an `input()` prompt (Emacs uses
+  completing-read-multiple with an Emacs regexp); a bare key is accepted
+  there as well as the completed "author year title" string. Neovim has no
+  mouse-over faces: a <MouseMove> mapping highlights the key under the
+  mouse with `basic_mouse_over_key_face` (org-cite-basic-mouse-over-key-face)
+  and turns 'mousemoveevent' on. There are no tooltips, so the help-echo
+  text over a key (the entry, or the close keys) has no counterpart;
+  `require("org.cite").key_help(bufnr, key)` returns that text. Keys are
+  highlighted everywhere, also in source blocks.
+- The csl citation processor runs a Lua port of citeproc-el instead of the
+  Emacs library; it gives citeproc-el's output on 840 of the 845 tests of
+  the CSL test suite (the others are errors in citeproc-el and items
+  without an id). Sort keys compare by code point (Emacs uses the
+  system collation, which is the same on macOS but not on glibc
+  systems). BibTeX crossref inheritance copies every missing field
+  except the biblatex exclusions (parsebib has per-type rules).
 - Bulk action `f` and agenda skip functions take Lua instead of Elisp.
   Capture `%(sexp)` takes Emacs Lisp (see above) or a Lua expression.
 - Capture edits the text in a separate buffer that is stored at the target
@@ -5053,8 +6603,7 @@ Differences from Emacs:
   into the target right away (|org-capture-unnarrowed|). Mail and news `%:keyword` values (`%:from`,
   `%:subject`, ...) come from Emacs link sources (Gnus, mu4e, ...) that
   have no Neovim counterpart; only `%:link`, `%:description`,
-  `%:annotation`, `%:initial` and `%:type` exist. The last stored location
-  (`org-capture-bookmark`, obsolete in Emacs) lasts for the session only.
+  `%:annotation`, `%:initial` and `%:type` exist.
   The `hook` template function doesn't run for `immediate_finish`. With C-0
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
@@ -5070,8 +6619,11 @@ Differences from Emacs:
 - Babel sessions (|org-babel| Sessions) are live REPLs in terminal
   buffers for shells, python, js/node, ruby (irb) and R; there are no
   sessions for julia, SQL engines or other languages. Lua blocks run
-  inside Neovim instead of an external `lua` (lua sessions are a Neovim
-  environment with a prompt buffer). Differences from comint: the code
+  inside Neovim instead of an external `lua` unless the `cmd` of
+  `babel.languages.lua` names one (lua sessions are a Neovim
+  environment with a prompt buffer; in Neovim a table variable is a
+  nested Lua table, where ob-lua
+  makes `key=value` of two-column rows). Differences from comint: the code
   of a block reaches the REPL as one line that runs it from a file, not
   line by line, so the REPL shows that line instead of the code, and a
   python/node block's intermediate expression values are not echoed
@@ -5088,6 +6640,38 @@ Differences from Emacs:
   cannot see or change buffers, and nothing is kept between evaluations.
   `:var` and header Lisp forms run on the table formula Lisp interpreter,
   else in that separate Emacs (see |org-babel|).
+- Src edit buffers (|org-babel-edit-special|): the edited region of the
+  Org buffer is neither highlighted nor read-only (edits there make `:w`
+  refuse, see above) and a click on it does not return to the edit
+  buffer (use `:Org edit_src_continue`); the hint is in the winbar, not a
+  header line. `edit_fixed_width_region_mode` has no artist-mode: `: `
+  areas get no filetype unless one is set. `edit_src_turn_on_auto_save`
+  writes the auto-save file on 'updatetime' idle (Emacs: every 300
+  keystrokes or 30 idle seconds); the idle write-back
+  (`edit_src_auto_save_idle_delay`) counts from the last change of the
+  edit buffer. Association with a `:session` sends code with
+  `edit_src.send_to_session` (Emacs sets the language mode's own
+  "send to REPL" commands, like python.el's, to the session).
+  `src_tab_acts_natively` indents with the filetype's 'indentexpr' (Vim's
+  indentation rules, with the Org buffer's 'shiftwidth' unless the
+  filetype sets one), not Emacs' major modes, and always with spaces.
+  `C-c C-c` on a `#+RESULTS[hash]` hash works on the whole hash, which
+  is not shortened to 4 characters as Emacs displays it.
+- The ports of |org-babel-languages| run a new process for each block
+  where Emacs uses an Emacs package's REPL: gnuplot (gnuplot-mode
+  sessions), haskell (inf-haskell: ghci is fed the block and markers),
+  ocaml (tuareg: a new `ocaml` toplevel), julia (ESS), scheme (Geiser:
+  `impl`'s command evaluates the forms and writes the last value) and
+  Common Lisp (`org-babel-lisp-eval-fn` SLIME/SLY: `cmd`, default `sbcl
+  --script`, reads the form and prints its values like
+  swank:eval-and-grab-output). The cider, inf-clojure and slime Clojure
+  backends are not available. Julia table variables are written to a CSV
+  file read by `CSV.read` (Emacs puts the CSV text itself there). The
+  lilypond header arguments of arrange / basic mode apply as soon as the
+  mode is toggled (Emacs sets them while evaluating, so they apply from
+  the next block). LaTeX .png results use the Normal highlight's colors
+  (Emacs the default face's). ob-screen's `org-babel-screen-test` waits
+  at most `babel.timeout` (Emacs waits forever).
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate
@@ -5108,8 +6692,15 @@ Differences from Emacs:
     and variables (describe-function), which do not exist here. `info:`
     runs the `info` program in a terminal, `man:` uses |:Man|.
   - Links to Emacs applications (gnus, rmail, mhe, bbdb, irc/erc, eww,
-    w3m, bibtex, calendar) can't be followed or stored: there is no such
-    application in Neovim. `docview:` opens the file.
+    w3m, calendar) can't be followed or stored: there is no such
+    application in Neovim. `docview:` opens the file. BibTeX links
+    (|org-bibtex|) work: `bibtex:` opens the file and a link stored in a
+    .bib buffer finds the entry. `bibtex_yank` reads only the yanked text
+    (Emacs writes an older read entry when the yanked text has none),
+    `bibtex_export_to_kill_ring` on a headline without an entry type
+    warns (Emacs signals a type error), and `bibtex.autogen_keys` works
+    without a BibTeX buffer having been opened (in Emacs -Q it fails
+    until bibtex-mode has set up its dialect).
   - `shell:` runs asynchronously (Emacs's shell-command waits for the
     command); its stdout and stderr are appended to `*Org Shell Output*`
     one after the other rather than interleaved. `links.confirm_shell`
@@ -5135,8 +6726,9 @@ Differences from Emacs:
   subset of Emacs Lisp (|org-agenda-diary-sexp|); other sexps run in a
   separate Emacs when there is one. The Emacs diary file is read by a
   port of diary-lib (|org-agenda-diary-file|): custom `diary-date-forms`,
-  diary comments and the `i` key (insert a diary entry) are not supported
-  (|org-agenda-unsupported|).
+  and diary comments are not supported. Entries added with `i` in the
+  agenda use `calendar_date_style` for the date forms where Emacs uses
+  `diary-date-insertion-form`.
 - MobileOrg (|org-mobile|): `mobile.directory` must be a local directory
   (Emacs also accepts TRAMP paths; copy the files in the push/pull hooks
   instead). agendas.org lists the custom commands in key order (Emacs:
@@ -5198,12 +6790,47 @@ Differences from Emacs:
     characters are used when they exist, else a highlight.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
+  - Indentation (|org-indent|): `=` indents line by line with
+    org-indent-line, so a list or an example block is not moved as a
+    whole like org-indent-region (C-M-\) does; `:Org indent_region` does
+    that. Src block code keeps its own relative indentation instead of
+    being indented by the language's major mode (Emacs's
+    org-src-tab-acts-natively).
+  - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
+    fill-column (70); src blocks are not filled (Emacs uses the language's
+    major mode); `gq` over a comment of several paragraphs fills each of
+    them (Emacs's region fill only fills the last one); only whitespace
+    is used as a fill prefix (Emacs also takes `>` and other
+    adaptive-fill-regexp characters).
+- Capture, clock, archive and other commands (parity round 5):
+  - The global capture hooks are User autocmds (|org-capture-hooks|); the
+    template functions are not called on abort as Emacs does, only the
+    events fire (with `aborted = true`).
+  - `datetree_cleanup` skips SCHEDULED/DEADLINE time stamps: Emacs's
+    check for them never matches (`\<DEADLINE:\>`), so it files entries by
+    their planning dates and leaves emptied day nodes behind.
+  - `protocol_create` adds the project for the session and shows the Lua
+    to put in `setup()`; Emacs saves it with Customize.
+  - org-ctags reads Vim `tags` files through the 'tags' option instead of
+    Emacs `TAGS` files; `ctags.enabled` replaces org-ctags-enable.
+  - Files cut in a file manager and pasted with `yank_media` are moved,
+    copied ones copied (Emacs swaps the two). A drop is a paste of file
+    paths in the terminal (`yank.dnd_paste`); attaching a dropped file uses
+    `yank.dnd_default_attach_method` (Emacs's `private` DND action).
+  - `attach_from_file_manager` works in netrw and oil.nvim buffers (Emacs:
+    org-attach-dired-to-subtree in Dired).
 - Visibility (see |org-hidden-lines|): hiding text between visible lines
   needs Neovim 0.11 (`conceal_lines`); hidden lines are shared by the
   windows of a buffer while folds are per window; Vim fold commands don't
   show hidden lines; linewise commands on a closed fold act on the whole
-  fold; `catch_invisible_edits` only watches typing on hidden lines (in a
-  closed fold the cursor is on its visible first line).
+  fold; `catch_invisible_edits` watches edits in Insert mode (Normal mode
+  commands such as `x` or `J` are not checked; Insert mode opens a closed
+  fold, so only hidden lines count as invisible), and <BS>, <Del> and
+  <CR> only when no mapping turns them into other keys (Neovim 0.11).
+- Sparse-tree searches leave the cursor on the first match; the default
+  org-occur-hook of Emacs (org-first-headline-recenter) moves it to the
+  first headline. The `OrgOccur` User autocmd runs after each search
+  (org-occur-hook).
 - TODO keywords, tags, properties and dates (see |org-todo|, |org-tags|,
   |org-properties|, |org-dates|):
   - C-c C-t prefix arguments are counts: `C-0` (no note) and `C-- 1`
@@ -5214,7 +6841,8 @@ Differences from Emacs:
     instead of jumping to DONE) is one with no edit and no cursor motion
     since the previous one, rather than Emacs' `last-command` test.
   - The Emacs hooks are User autocmds (`OrgTodoStateChange`,
-    `OrgTodoRepeat`, `OrgPropertyChanged`) that cannot change the result;
+    `OrgTodoRepeat`, `OrgPropertyChanged`, `OrgNoteStored`,
+    `OrgLogBufferSetup`) that cannot change the result;
     `todo_blockers` (org-blocker-hook) can veto a change and
     `todo_get_default_hooks`, `after_todo_statistics_hooks` and
     `todo_statistics_hooks` are Lua functions (|org-todo|). The statistics
@@ -5225,16 +6853,59 @@ Differences from Emacs:
   - Regexps in `use_tag_inheritance` and `use_property_inheritance` are Vim
     regexps; `{...}` in match strings and tag groups are Emacs regexps
     translated to Vim (Emacs-only constructs are approximated).
+  - `property_separators` regexps are Vim regexps, and its name lists are
+    compared ignoring case (Emacs compares them exactly).
+    `priority_get_priority_function` always receives the headline line (the
+    agenda passes Emacs its formatted agenda line).
   - The date prompt refuses text it cannot read at all instead of using the
     default date, and accepts today/tomorrow/yesterday/now; the calendar is
     the plugin's own (no Emacs calendar/diary commands such as holidays,
     sunrise or diary entries in it; the agenda has the holidays, moon,
     sunrise and date conversion keys, |org-agenda-calendar-keys|, and
     shows the diary file, |org-agenda-diary-file|).
+  - The calendar shows one month (Emacs three): <C-v>/<M-v> move the
+    selection as Emacs moves its cursor, `!` shows the day's agenda
+    instead of the diary entries, and the live interpretation of a typed
+    date is drawn in the calendar instead of after the prompt. With
+    `read_date_popup_calendar = false` no interpretation is shown, like
+    Emacs. The calendar is not kept open after a prompt: <C-c>< inserts the
+    date it was last left on, and today (not an error) before any calendar
+    was shown. As the calendar is a prompt, it is never shown while a
+    timestamp changes, so org-calendar-follow-timestamp-change has nothing
+    to follow; its `c` and `i` keys close it.
+  - `links.mouse_1_follows_link` times the click from press to release in
+    the Org buffer; `open_at_point_global` reads links on the line (and
+    bracket links over nearby lines), not the whole paragraph.
   - The custom timestamp display conceals the timestamp text: the cursor
     moves over the hidden characters, and the real text shows in Insert
     mode or with 'concealcursor' unset.
   - Habit graphs are only drawn in the agenda (as in Emacs); a habit's
     scheduled date must have a repeater of at least one day.
+- Menus and org-mouse (|org-menus|, |org-mouse|):
+  - Menu entries that are toggles or radio buttons in Emacs show no check
+    state in the menu bar (the org-mouse popups, built when shown, mark
+    them "[X]" / "(*)"). "Complete Keyword" and "Complete Lisp Symbol" use
+    omni completion; the CDLaTeX and RefTeX entries of the LaTeX submenu
+    are always greyed out; "Show Org Manual" opens |org|, "Browse Org News"
+    the org.nvim releases; "Which Column?" says the column (Emacs computes
+    it silently); "Previous Keyword Set" goes to the previous set (Emacs
+    9.8.10 runs the next-set command there); "Reload Org" reloads the Lua
+    modules with the options in effect, and refuses while a clock runs;
+    "Enforce Dependencies", "Customize Feeds" and MobileOrg's "Setup" open
+    |org-customize| on the option. Two agenda entries named "Archive
+    default" are distinguished by a trailing space.
+  - org-mouse's link menu opens links "in Neovim" instead of Emacs; its
+    SCHEDULED:/DEADLINE: replacement works (Emacs 9.8.10 signals
+    void-variable org-mouse-rest). A subtree dropped on a headline's stars
+    goes before it at its level and one dropped right of them becomes its
+    last child, as org-mouse's own message says (Emacs 9.8.10 counts the
+    space after the stars as a level, so the subtree lands a level deeper,
+    and loses the subtree when dropped under a later headline). Text
+    dropped on the buffer arrives as a paste, so org-mouse's insertion of
+    dropped text as a list item (org-mouse-punctuation) has no
+    counterpart.
+- Customize (|org-customize|) lists lua/org/config.lua's options and sets
+  them for the session; there is nothing like Custom's "Save" (options
+  live in your `setup()` call).
 
  vim:tw=78:ts=8:ft=help:norl:

@@ -65,6 +65,13 @@ M.defaults = {
   --- C-c C-t uses the fast-selection menu when keywords have keys
   --- (org-use-fast-todo-selection `auto`); `false` always cycles.
   use_fast_todo_selection = "auto",
+  --- <S-Left>/<S-Right> on a headline are real state changes (logged and
+  --- blocked); `false` changes the keyword without logging or blocking
+  --- (org-treat-S-cursor-todo-selection-as-state-change).
+  treat_S_cursor_todo_selection_as_state_change = true,
+  --- M-S-RET / C-S-RET set the new heading's keyword as a state change, so
+  --- it is logged (org-treat-insert-todo-heading-as-state-change).
+  treat_insert_todo_heading_as_state_change = false,
   --- Which child headlines statistics cookies count
   --- (org-provide-todo-statistics): `true` (entries with a TODO keyword),
   --- `"all-headlines"`, a list of keywords, or `{ todo_list, done_list }`.
@@ -78,6 +85,9 @@ M.defaults = {
   closed_keep_when_no_todo = false,
   --- `false`, `"time"` (add CLOSED:) or `"note"` (CLOSED: + note).
   log_done = false,
+  --- CLOSED records the time too; `false` records the date only
+  --- (org-log-done-with-time).
+  log_done_with_time = true,
   --- Logging when a repeated task is marked done: false | "time" | "note".
   log_repeat = "time",
   --- Log changes of SCHEDULED / DEADLINE: false | "time" | "note".
@@ -89,6 +99,9 @@ M.defaults = {
   log_into_drawer = false,
   --- Newest log entries first (Emacs default).
   log_states_order_reversed = true,
+  --- Without a log drawer, notes go after the clock lines and drawers
+  --- that follow the headline (org-log-state-notes-insert-after-drawers).
+  log_state_notes_insert_after_drawers = false,
   --- Log notes are typed in a small `*Org Note*` split (<C-c><C-c> stores,
   --- <C-c><C-k> cancels) like Emacs org-add-log-note; `false` asks with a
   --- one-line prompt.
@@ -113,6 +126,9 @@ M.defaults = {
   --- With `extend_today_until`, record CLOSED and log times before that
   --- hour as 23:59 of the previous day (org-use-effective-time).
   use_effective_time = false,
+  --- CLOSED and log notes of a TODO state change record the last clock-out
+  --- time of the subtree (org-use-last-clock-out-time-as-effective-time).
+  use_last_clock_out_time_as_effective_time = false,
   --- In Visual mode, C-c C-t, C-c C-s, C-c C-d and the archiving commands
   --- act on every headline of the selection: `true`, `"start-level"` (only
   --- headlines of the first one's level) or `false`; a match string acts
@@ -126,6 +142,14 @@ M.defaults = {
   priority_highest = "A",
   priority_lowest = "C",
   priority_default = "B",
+  --- `false` disables the priority commands (org-priority-enable-commands).
+  priority_enable_commands = true,
+  --- Shifting a headline without cookie starts at the default priority;
+  --- `false` starts one step past it (org-priority-start-cycle-with-default).
+  priority_start_cycle_with_default = true,
+  --- fn(headline_line) -> number replacing the priority value used for
+  --- sorting (org-priority-get-priority-function); nil uses the cookie.
+  priority_get_priority_function = nil,
   --- Tag groups (`[ GTD : Control Persp ]` in #+TAGS / `tags`) also match
   --- their members in tag searches (org-group-tags); toggled by
   --- `toggle_tags_groups`.
@@ -136,14 +160,33 @@ M.defaults = {
   --- Show the TODO keywords with fast keys in the fast tag selection menu
   --- (org-fast-tag-selection-include-todo).
   fast_tag_selection_include_todo = false,
+  --- Fast tag selection (org-use-fast-tag-selection): `"auto"` when some
+  --- tag has a key, `true` always, `false` never.
+  use_fast_tag_selection = "auto",
+  --- Tags without a key shown by fast selection, counting the tags with
+  --- keys and the tags in groups (org-fast-tag-selection-maximum-tags).
+  fast_tag_selection_maximum_tags = 56,
   --- Tag completion offers the tags of every agenda file instead of the
   --- current buffer's (org-complete-tags-always-offer-all-agenda-tags).
   complete_tags_always_offer_all_agenda_tags = false,
   --- Global tag list offered for completion. Strings may contain fast keys,
   --- e.g. `"work(w)"`, and `"{" ... "}"` for mutually exclusive groups.
   tags = {},
+  --- Tags always available, like `tags` but not replaced by #+TAGS
+  --- (org-tag-persistent-alist); `#+STARTUP: noptag` turns them off.
+  tags_persistent = {},
+  --- Comparator fn(a, b) -> boolean, or a list of them, sorting the tags
+  --- set on a headline (org-tags-sort-function); "hierarchy", "string<"
+  --- and "string>" name org-tags-sort-hierarchy, org-string< and
+  --- org-string>. nil keeps their order.
+  tags_sort_function = nil,
   --- Column tags are aligned to. Negative = right-align to that column.
   tags_column = -77,
+  --- Realign tags after edits (org-auto-align-tags).
+  auto_align_tags = true,
+  --- Toggling ORDERED (C-c C-x o) also toggles a tag: `true` (ORDERED) or
+  --- a tag name (org-track-ordered-property-with-tag).
+  track_ordered_property_with_tag = false,
   --- Tag inheritance (org-use-tag-inheritance): true, false, a list of the
   --- tags that inherit, or a regexp matching them.
   use_tag_inheritance = true,
@@ -156,6 +199,17 @@ M.defaults = {
   property_format = "%-10s %s",
   --- Properties that apply to every entry (e.g. `Effort_ALL`).
   global_properties = {},
+  --- Functions adjusting values set with set_property, by property name:
+  --- `{ Remaining = function(value) return ... end }`
+  --- (org-properties-postprocess-alist).
+  properties_postprocess = {},
+  --- Separators joining `PROP` and `PROP+` values: a list of
+  --- `{ { "NAME", ... } or "regexp", "separator" }`; a space otherwise
+  --- (org-property-separators).
+  property_separators = {},
+  --- Properties hidden and shown again by
+  --- toggle_custom_properties_visibility (org-custom-properties).
+  custom_properties = {},
   --- Constants for table formulas (`$name`), like `org-table-formula-constants`.
   --- `#+CONSTANTS:` lines in a file take precedence.
   table_formula_constants = {},
@@ -181,11 +235,51 @@ M.defaults = {
   --- Minimum fraction of numbers in a column for right alignment
   --- (org-table-number-fraction).
   table_number_fraction = 0.5,
+  --- Emacs regexp of the cells that count as numbers for right alignment
+  --- (org-table-number-regexp).
+  table_number_regexp = "^\\([<>]?[-+^.0-9]*[0-9][-+^.0-9eEdDx()%:]*\\|[<>]?[-+]?0[xX][[:xdigit:].]+"
+    .. "\\|[<>]?[-+]?[0-9]+#[0-9a-zA-Z.]+\\|nan\\|[-+u]?inf\\)$",
+  --- Realign the table on <Tab>, <S-Tab>, <CR> and when leaving Insert
+  --- mode (org-table-automatic-realign).
+  table_automatic_realign = true,
+  --- <Tab> jumps over an hline instead of adding a row before it
+  --- (org-table-tab-jumps-over-hlines).
+  table_tab_jumps_over_hlines = true,
+  --- Typing right after <Tab>, <S-Tab>, <CR> or C-c C-c in Insert mode
+  --- replaces the field's text (org-table-auto-blank-field).
+  table_auto_blank_field = true,
+  --- Recalculate a `#` row on <Tab>, <CR> and C-c C-c
+  --- (org-table-allow-automatic-line-recalculation).
+  table_allow_automatic_line_recalculation = true,
+  --- Size of a new table, "COLUMNSxROWS" (org-table-default-size).
+  table_default_size = "5x2",
+  --- Largest region `create_or_convert` turns into a table
+  --- (org-table-convert-region-max-lines).
+  table_convert_region_max_lines = 999,
+  --- Format of formula results, `%s` being the value, e.g. "~%s~"
+  --- (org-table-formula-field-format).
+  table_formula_field_format = "%s",
+  --- Replace `$name` constants, parameters and column names in formulas
+  --- (org-table-formula-use-constants).
+  table_formula_use_constants = true,
+  --- Relative row references crossing an hline: true (allowed), false
+  --- (stop at the hline) or "error" (org-table-relative-ref-may-cross-hline).
+  table_relative_ref_may_cross_hline = true,
+  --- Calc modes of table formulas (org-calc-default-modes): working
+  --- precision, float display `{ "float"|"fix"|"sci"|"eng", digits }`,
+  --- "deg" or "rad", and fractions.
+  calc_default_modes = { internal_prec = 12, float_format = { "float", 8 }, angle_mode = "deg", prefer_frac = false },
+  --- In orgtbl-mode, typing into a field overwrites its padding so the
+  --- table keeps its alignment, and auto-blanks fields (orgtbl-optimized).
+  orgtbl_optimized = true,
   --- Text shown at the end of a shrunk column (org-table-shrunk-column-indicator).
   table_shrunk_column_indicator = "…",
   --- Shrink the columns with a width cookie of every table when a file is
   --- opened; `#+STARTUP: shrink` / `noshrink` (org-startup-shrink-all-tables).
   startup_shrink_all_tables = false,
+  --- Align every table when a file is opened; `#+STARTUP: align` /
+  --- `noalign` (org-startup-align-all-tables).
+  startup_align_all_tables = false,
   --- Keep the first table row visible in the winbar when it scrolls out of
   --- view (org-table-header-line-p).
   table_header_line_p = false,
@@ -206,6 +300,12 @@ M.defaults = {
   --- Extra `set term` options, e.g. "size 1050,650"
   --- (org-plot/gnuplot-term-extra).
   plot_gnuplot_term_extra = "",
+  --- Extra (or replaced) `#+PLOT: type:NAME` plot types
+  --- (org-plot/preset-plot-types): `{ NAME = { plot_func = fun(rows,
+  --- data_file, ncols, opts, plot_str): string[], plot_cmd?, plot_str?,
+  --- plot_pre? (string or function), data_dump? (function returning the
+  --- data text), check_ind_type? } }`. 2d, 3d, grid and radar are built in.
+  plot_preset_plot_types = {},
   --- Radio table templates inserted by `orgtbl_insert_radio_table`, per
   --- filetype; `%n` is the table name (orgtbl-radio-table-templates).
   orgtbl_radio_table_templates = {
@@ -237,6 +337,8 @@ M.defaults = {
   --- Values <S-Right> cycles through for checkbox columns
   --- (org-columns-checkbox-allowed-values).
   columns_checkbox_allowed_values = { "[ ]", "[X]" },
+  --- Text ending a truncated column view field (org-columns-ellipses).
+  columns_ellipses = "..",
   effort_property = "Effort",
   --- Durations in clock tables, clock sums, column summaries and efforts
   --- (Emacs `org-duration-format`): "d h:mm" (the Emacs default
@@ -263,15 +365,29 @@ M.defaults = {
   --- Fold `#+begin_...` blocks when the file is opened (org-hide-block-startup;
   --- #+STARTUP: hideblocks).
   hide_block_startup = false,
+  --- Turn on the Beamer editing mode when a file is opened
+  --- (org-startup-with-beamer-mode; #+STARTUP: beamer).
+  startup_with_beamer_mode = false,
   --- Let visibility cycling open subtrees tagged :ARCHIVE:
   --- (org-cycle-open-archived-trees).
   cycle_open_archived_trees = false,
+  --- Sparse trees open subtrees tagged :ARCHIVE: to show matches in them;
+  --- false keeps them folded (org-sparse-tree-open-archived-trees).
+  sparse_tree_open_archived_trees = false,
+  --- Dates the before/after/range sparse trees look at: nil (SCHEDULED and
+  --- DEADLINE), "all", "active", "inactive", "scheduled", "deadline" or
+  --- "closed"; `c` in the sparse-tree menu cycles them
+  --- (org-sparse-tree-default-date-type).
+  sparse_tree_default_date_type = nil,
   --- Heading that collects footnote definitions (created when missing)
   --- (org-footnote-section; #+STARTUP: fnlocal).
   --- false = put each definition at the end of the reference's section.
   footnote_section = "Footnotes",
   --- Indent body text to the headline level (org-adapt-indentation).
   adapt_indentation = false,
+  --- A new day node of a date tree gets a time stamp of its date
+  --- (org-datetree-add-timestamp): false | "active" | "inactive".
+  datetree_add_timestamp = false,
   --- Indentation added to src block contents in the edit buffer
   --- (org-src-content-indentation).
   edit_src_content_indentation = 2,
@@ -279,8 +395,77 @@ M.defaults = {
   --- indentation is removed for evaluation, tangling or editing
   --- (org-src-preserve-indentation). The `-i` switch does it per block.
   src_preserve_indentation = false,
+  --- Show "Edit, then exit with ... or abort with ..." in the winbar of
+  --- edit buffers (org-edit-src-persistent-message).
+  edit_src_persistent_message = true,
+  --- Write an edit buffer back to the Org buffer after this many seconds
+  --- without changes; 0 = never (org-edit-src-auto-save-idle-delay).
+  edit_src_auto_save_idle_delay = 0,
+  --- Auto-save the contents of edit buffers to an org-src-XXXXXX-%Y-%d-%m.txt
+  --- file next to the Org file (org-edit-src-turn-on-auto-save).
+  edit_src_turn_on_auto_save = false,
+  --- C-c ' on a block that already has an edit buffer asks before going back
+  --- to it ("n" discards it and opens a new one); false = go back at once
+  --- (org-src-ask-before-returning-to-edit-buffer).
+  src_ask_before_returning_to_edit_buffer = true,
+  --- Filetype (or function(bufnr)) of the edit buffer of `: ` fixed-width
+  --- areas; nil = none (org-edit-fixed-width-region-mode; Emacs: artist-mode).
+  edit_fixed_width_region_mode = nil,
+  --- Filetype of the edit buffer and highlighting of src blocks by language;
+  --- "" = none (org-src-lang-modes). Other languages use the filetype of
+  --- their extension.
+  src_lang_modes = {
+    C = "c",
+    ["C++"] = "cpp",
+    asymptote = "asy",
+    beamer = "tex",
+    calc = "",
+    cpp = "cpp",
+    ditaa = "",
+    desktop = "desktop",
+    dot = "dot",
+    elisp = "lisp",
+    ocaml = "ocaml",
+    screen = "sh",
+    sqlite = "sql",
+    toml = "toml",
+    shell = "sh",
+    ash = "sh",
+    sh = "sh",
+    bash = "sh",
+    jsh = "sh",
+    bash2 = "sh",
+    dash = "sh",
+    dtksh = "sh",
+    ksh = "sh",
+    es = "sh",
+    rc = "sh",
+    itcsh = "tcsh",
+    tcsh = "tcsh",
+    jcsh = "csh",
+    csh = "csh",
+    ksh88 = "sh",
+    oash = "sh",
+    pdksh = "sh",
+    mksh = "sh",
+    posix = "sh",
+    wksh = "sh",
+    wsh = "sh",
+    zsh = "zsh",
+    rpm = "sh",
+  },
+  --- TAB on a line of a src block indents it with the language's indentation
+  --- (indentexpr of its filetype) (org-src-tab-acts-natively).
+  src_tab_acts_natively = true,
+  --- Default format of coderef labels in src and example blocks; `-l "fmt"`
+  --- overrides it per block (org-coderef-label-format).
+  coderef_label_format = "(ref:%s)",
   --- Text appended to folded headlines (org-ellipsis).
   ellipsis = "...",
+  --- Entities of your own, before the built-in ones (org-entities-user):
+  --- `{ { name, latex, latex_math, html, ascii, latin1, utf8 } }`, e.g.
+  --- `{ { "snowman", "\\diamond", true, "&#9731;", "[snowman]", "", "☃" } }`.
+  entities_user = {},
   --- Blank line handling before new headlines and list items: true | false |
   --- "auto" (org-blank-before-new-entry).
   blank_before_new_entry = { heading = "auto", plain_list_item = "auto" },
@@ -298,9 +483,57 @@ M.defaults = {
   --- with the headline (or list item) and its lines:
   --- `{ by_length = function(h, lines) return #lines end }`.
   sort_functions = {},
+  --- Names of the bookmarks capture and refile set, saved across sessions
+  --- (org-bookmark-names-plist); false for none.
+  bookmark_names = {
+    last_capture = "org-capture-last-stored",
+    last_refile = "org-refile-last-stored",
+    last_capture_marker = "org-capture-last-stored-marker",
+  },
+  --- buffer_goto (org-goto-interface): "outline" (browse a copy of the
+  --- buffer in overview, <CR> jumps) or "outline-path-completion".
+  goto_interface = "outline",
+  --- Deepest headlines offered by the completion interface of buffer_goto
+  --- (org-goto-max-level).
+  goto_max_level = 5,
+  --- In the outline interface, typing searches the headlines
+  --- (org-goto-auto-isearch); else n p f b u move and q quits.
+  goto_auto_isearch = true,
+  --- How sorting compares text (org-sort-function): "collate" (the
+  --- collation locale, like string-collate-lessp), "fallback" (character
+  --- codes, org-sort-function-fallback) or function(a, b, ignore_case).
+  --- On macOS "collate" compares character codes, like Emacs there.
+  sort_function = "collate",
   --- TAB on a list item folds its children and text
-  --- (org-cycle-include-plain-lists).
+  --- (org-cycle-include-plain-lists); "integrate" also treats items as
+  --- children of their headline when cycling it; false never folds items.
   cycle_include_plain_lists = true,
+  --- Plain lists (org-list-*).
+  lists = {
+    --- Single-letter bullets `a.`, `B)` and counters `[@c]`
+    --- (org-list-allow-alphabetical).
+    allow_alphabetical = false,
+    --- Ordered bullet terminators: true (both), "." or ")"
+    --- (org-plain-list-ordered-item-terminator).
+    ordered_item_terminator = true,
+    --- Bullet given to items when they are demoted, e.g.
+    --- `{ ["-"] = "+", ["+"] = "-" }` (org-list-demote-modify-bullet).
+    demote_modify_bullet = {},
+    --- Emacs regexp matching bullets followed by two spaces, or nil
+    --- (org-list-two-spaces-after-bullet-regexp).
+    two_spaces_after_bullet_regexp = nil,
+    --- Extra indentation of sub-lists (org-list-indent-offset).
+    indent_offset = 0,
+    --- Automatic rules (org-list-automatic-rules): `checkbox` updates
+    --- statistics cookies after checkbox changes, `indent` lets the first
+    --- item move the whole list and turns `*` into `-` at column 0.
+    automatic_rules = { checkbox = true, indent = true },
+    --- Item motions and moves wrap around the list (org-list-use-circular-motion).
+    use_circular_motion = false,
+    --- Checkbox cookies count direct children only; false counts every box
+    --- below (org-checkbox-hierarchical-statistics).
+    checkbox_hierarchical_statistics = true,
+  },
   --- Where TAB outside headlines, items, drawers and blocks indents the
   --- line (org-cycle-emulate-tab): true (everywhere), "white" (blank
   --- lines only), "whitestart" (before the first non-blank character),
@@ -313,15 +546,92 @@ M.defaults = {
   --- first), "show-and-error" or "smart" (unfold, and refuse edits in
   --- text that was hidden) (org-fold-catch-invisible-edits).
   catch_invisible_edits = "smart",
+  --- The edits catch_invisible_edits checks, by command: `self_insert`
+  --- (typed text), `delete_backward_char` (<BS> in Insert mode),
+  --- `delete_char` (<Del>), `return` (<CR>) or any action name, each
+  --- "insert", "delete" or "delete-backward"; false removes one
+  --- (org-fold-catch-invisible-edits-commands).
+  catch_invisible_edits_commands = {
+    self_insert = "insert",
+    delete_backward_char = "delete-backward",
+    delete_char = "delete",
+    meta_return = "insert",
+    ["return"] = "insert",
+  },
+  --- TAB at the very start of the buffer, not on a headline, cycles the
+  --- global visibility (org-cycle-global-at-bob).
+  cycle_global_at_bob = false,
+  --- Deepest level cycled as a headline; deeper ones are text for TAB.
+  --- nil = all (org-cycle-max-level).
+  cycle_max_level = nil,
+  --- TAB on an entry without children goes from FOLDED straight to
+  --- SUBTREE (org-cycle-skip-children-state-if-no-children).
+  cycle_skip_children_state_if_no_children = true,
+  --- How much is shown around a location reached by a jump, per context
+  --- (agenda, org-goto, occur-tree, tags-tree, link-search, mark-goto,
+  --- bookmark-jump, isearch, default): "minimal", "local", "ancestors",
+  --- "ancestors-full", "lineage", "tree" or "canonical"; or one of them
+  --- for every context (org-fold-show-context-detail).
+  fold_show_context_detail = {
+    agenda = "local",
+    ["bookmark-jump"] = "lineage",
+    isearch = "lineage",
+    default = "ancestors",
+  },
+  --- Sparse-tree regexp searches ignore case: true, false or "smart"
+  --- (only when the regexp has no upper case) (org-occur-case-fold-search).
+  occur_case_fold_search = true,
+  --- Any change to the buffer removes the highlights of sparse-tree
+  --- searches and clock_display; else C-c C-c does
+  --- (org-remove-highlights-with-change).
+  remove_highlights_with_change = true,
+  --- `beginning_of_line` / `end_of_line` (C-a / C-e) on headlines and
+  --- items (org-special-ctrl-a/e): false, true (first to the title start /
+  --- before the tags), "reversed" (there on a repeated key), or
+  --- `{ a = ..., e = ... }` per key.
+  special_ctrl_a_e = false,
+  --- `kill_line` (C-k) in a headline title kills up to the tags, on the
+  --- tags the tags (org-special-ctrl-k).
+  special_ctrl_k = false,
+  --- `kill_line` on a folded headline kills its hidden subtree: false
+  --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
+  ctrl_k_protect_subtree = false,
+  --- Setting the org filetype on an empty file that is not named *.org
+  --- inserts the Emacs mode line `#    -*- mode: org -*-`, which makes it
+  --- open as org from then on (org-insert-mode-line-in-empty-file).
+  insert_mode_line_in_empty_file = false,
+  --- <M-CR> and the other heading insertions put the new headline after
+  --- the current subtree, like <C-CR> (org-insert-heading-respect-content).
+  insert_heading_respect_content = false,
+  --- Promoting a level-1 headline turns its `* ` into `# ` (a comment)
+  --- instead of refusing (org-allow-promoting-top-level-subtree).
+  allow_promoting_top_level_subtree = false,
+  --- Keep the Visual selection after <M-h> / <M-l> / <M-k> / <M-j>
+  --- (org-edit-keep-region): true, false, or per command.
+  edit_keep_region = { meta_left = true, meta_right = true, meta_up = true, meta_down = true },
+  --- `p` / `P` of whole subtrees folds them, unless that would hide the
+  --- text after them (org-yank-folded-subtrees).
+  yank_folded_subtrees = true,
+  --- `p` / `P` of whole subtrees adjusts their level to the visible
+  --- headlines around, like paste_subtree (org-yank-adjusted-subtrees).
+  yank_adjusted_subtrees = false,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,
   --- Extra or changed speed commands: `{ key = action name | function | false }`.
   speed_commands = {},
+  --- Functions(key) deciding which speed command a key runs, tried in
+  --- order until one returns a command (an action name or a function); the
+  --- names of the built-in ones: headline commands and the Babel keys at a
+  --- `#+begin_src` line (org-speed-command-hook).
+  speed_command_hook = { "org-speed-command-activate", "org-babel-speed-command-activate" },
   --- Headlines of this level or deeper are inline tasks
   --- (org-inlinetask-min-level). false turns inline tasks off, like Emacs
   --- without the org-inlinetask module; Emacs uses 15 once it is loaded.
   inlinetask_min_level = false,
+  --- Show the first star of inline tasks as a marker
+  --- (org-inlinetask-show-first-star).
+  inlinetask_show_first_star = false,
   --- TODO keyword of new inline tasks (org-inlinetask-default-state).
   inlinetask_default_state = nil,
   --- Block types offered by insert_structure_template, by key
@@ -356,8 +666,16 @@ M.defaults = {
   --- Define new footnotes inline, `[fn:N: text]` at the reference
   --- (org-footnote-define-inline). #+STARTUP: fninline / nofninline.
   footnote_define_inline = false,
+  --- Refill the paragraphs that lost an inline footnote when normalizing
+  --- (org-footnote-fill-after-inline-note-extraction), at `textwidth`
+  --- (70 when 0).
+  footnote_fill_after_inline_note_extraction = false,
   --- Days before a deadline it starts showing up in the agenda.
   deadline_warning_days = 14,
+  --- Days a scheduled entry is hidden after its date unless it has its own
+  --- `-Nd` delay; a negative value applies even then
+  --- (org-scheduled-delay-days).
+  scheduled_delay_days = 0,
   --- { rounding of the current time in date prompts, minute step of
   --- <S-Up>/<S-Down> } (org-time-stamp-rounding-minutes). A count steps by
   --- exactly that many minutes.
@@ -366,6 +684,24 @@ M.defaults = {
   --- day/month means next month/year), `"time"` (also a past time today
   --- means tomorrow) or `false` (org-read-date-prefer-future).
   read_date_prefer_future = true,
+  --- Date prompts show the calendar; false = only a "Date+time [default]: "
+  --- prompt (org-read-date-popup-calendar; the Emacs alias
+  --- `popup_calendar_for_date_prompt = false` works too).
+  read_date_popup_calendar = true,
+  --- Show what a typed date means while typing it in the calendar
+  --- (org-read-date-display-live).
+  read_date_display_live = true,
+  --- Key of the calendar opened by `goto_calendar` that shows the agenda of
+  --- its date: "default" (`c`), another key, or false
+  --- (org-calendar-to-agenda-key).
+  calendar_to_agenda_key = "default",
+  --- Key of that calendar adding a diary entry for its date to
+  --- `agenda.diary_entry_file`, when that is an Org file
+  --- (org-calendar-insert-diary-entry-key).
+  calendar_insert_diary_entry_key = "i",
+  --- <S-Down> makes timestamps later and <S-Up> earlier
+  --- (org-edit-timestamp-down-means-later).
+  edit_timestamp_down_means_later = false,
   --- Display timestamps with `time_stamp_custom_formats` (format-time-string
   --- formats for dates and date+time; brackets around them are dropped in
   --- the buffer and kept in exports); toggled by `toggle_time_stamp_overlays`
@@ -387,6 +723,14 @@ M.defaults = {
   --- Archive as the first child of the archive heading instead of the last
   --- (org-archive-reversed-order).
   archive_reversed_order = false,
+  --- What `archive_subtree_default` (C-c C-x C-a, the agenda's `a`) does
+  --- (org-archive-default-command): "archive_subtree" | "archive_to_sibling"
+  --- | "set_tag" | function(target).
+  archive_default_command = "archive_subtree",
+  --- Save the archive file after `archive_subtree` (org-archive-subtree-save-file-p):
+  --- true | false | "from_org" (not from the agenda) | "from_agenda" (only
+  --- from the agenda). A location in the same buffer is never saved.
+  archive_subtree_save_file = "from_org",
   --- Mark archived entries done: false | true (first done keyword) | a done
   --- keyword (org-archive-mark-done).
   archive_mark_done = false,
@@ -395,6 +739,11 @@ M.defaults = {
   archive_file_header_format = "\nArchived entries from file %s\n\n",
   --- Window used for special buffers: "float" | "split" | "vsplit" | "tab" | "current"
   win_split_mode = "float",
+  --- Where indirect_subtree shows the subtree (org-indirect-buffer-display):
+  --- "other-window" (a split: `win_split_mode` when it is "split", "vsplit"
+  --- or "tab"), "current-window", "new-frame" (a new tab) or
+  --- "dedicated-frame" (one tab, reused).
+  indirect_buffer_display = "other-window",
   win_border = "rounded",
 
   ---------------------------------------------------------------------------
@@ -423,6 +772,11 @@ M.defaults = {
     skip_timestamp_if_deadline_is_shown = false, -- org-agenda-skip-timestamp-if-deadline-is-shown
     skip_scheduled_repeats_after_deadline = false, -- org-agenda-skip-scheduled-repeats-after-deadline
     skip_additional_timestamps_same_entry = false, -- org-agenda-skip-additional-timestamps-same-entry
+    --- Leave out COMMENT subtrees (org-agenda-skip-comment-trees).
+    skip_comment_trees = true,
+    --- function(headline) -> true to leave the entry out of every agenda
+    --- view, before a block's `skip` (org-agenda-skip-function-global).
+    skip_function_global = nil,
     --- true (no pre-warning when scheduled) | number of days | "pre-scheduled"
     --- (org-agenda-skip-deadline-prewarning-if-scheduled).
     skip_deadline_prewarning_if_scheduled = false,
@@ -446,6 +800,9 @@ M.defaults = {
     --- false | true | "future" | "past" | days (org-agenda-todo-ignore-timestamp).
     todo_ignore_timestamp = false,
     todo_ignore_with_date = false, -- org-agenda-todo-ignore-with-date
+    --- The todo_ignore_* options compare times to now in seconds, not in
+    --- days (org-agenda-todo-ignore-time-comparison-use-seconds).
+    todo_ignore_time_comparison_use_seconds = false,
     --- Apply the todo_ignore_* options to tags-todo (M) views too
     --- (org-agenda-tags-todo-honor-ignore-options).
     tags_todo_honor_ignore_options = false,
@@ -482,6 +839,32 @@ M.defaults = {
     --- org-agenda-timerange-leaders: { same day, "(day/days)" }.
     timerange_leaders = { "", "(%d/%d): " },
     inactive_leader = "[", -- org-agenda-inactive-leader
+    --- Format of the TODO keyword, e.g. "%-12s"; "" hides it
+    --- (org-agenda-todo-keyword-format).
+    todo_keyword_format = "%-1s",
+    --- Highlight priorities: "cookies" (the cookie), true (from the cookie
+    --- to the end of the line), a table { A = face, ... } (faces like
+    --- `ui.priority_faces`, to the end of the line) or false
+    --- (org-agenda-fontify-priorities). The highest priority is bold, the
+    --- lowest italic.
+    fontify_priorities = "cookies",
+    --- { fraction, highlight group } pairs for deadline lines: the first
+    --- whose fraction is at most the part of the warning period that has
+    --- passed (org-agenda-deadline-faces).
+    deadline_faces = {
+      { 1.0, "OrgAgendaDeadline" },
+      { 0.5, "OrgAgendaDeadlineUpcoming" },
+      { 0.0, "OrgAgendaDeadlineDistant" },
+    },
+    --- function(date) -> highlight group or nil for a day header
+    --- (org-agenda-day-face-function).
+    day_face_function = nil,
+    --- Emacs regexp: its match in the text of a %%(diary sexp) entry is
+    --- shown as the leader (org-agenda-diary-sexp-prefix).
+    diary_sexp_prefix = nil,
+    --- Remove the date range from the text of block entries
+    --- (org-agenda-remove-timeranges-from-blocks).
+    remove_timeranges_from_blocks = false,
     --- Remove a time shown in the prefix from the headline text: true |
     --- false | "beg" (org-agenda-remove-times-when-in-prefix).
     remove_times_when_in_prefix = true,
@@ -526,9 +909,16 @@ M.defaults = {
     max_todos = nil,
     max_tags = nil,
     max_effort = nil,
+    --- Highlight the whole subtree of a restriction lock, not only its
+    --- headline (org-agenda-restriction-lock-highlight-subtree).
+    restriction_lock_highlight_subtree = true,
     --- Where the agenda opens: "split" (org-agenda-window-setup
     --- reorganize-frame), "vsplit", "current", "only", "tab", "float".
     window = "split",
+    --- { min, max } height of the "split" agenda window as fractions of
+    --- the editor height; it fits its lines in between
+    --- (org-agenda-window-frame-fractions).
+    window_frame_fractions = { 0.5, 0.75 },
     --- Restore the window layout when quitting (org-agenda-restore-windows-after-quit).
     restore_windows_after_quit = false,
     --- One buffer per agenda command, reused until refreshed (org-agenda-sticky).
@@ -540,6 +930,13 @@ M.defaults = {
     auto_exclude_function = nil,
     --- Keep marks after a bulk action (org-agenda-persistent-marks).
     persistent_marks = false,
+    bulk_mark_char = ">", -- org-agenda-bulk-mark-char
+    --- Commands (schedule, deadline, >, t, archive, <C-k>, set property /
+    --- effort) act on every entry of a Visual selection: true, false,
+    --- "start-level" (entries of the first one's level) or an Emacs regexp
+    --- the agenda lines must match
+    --- (org-agenda-loop-over-headlines-in-active-region).
+    loop_over_headlines_in_active_region = true,
     --- Extra bulk actions: { [key] = { fn = function(target, item), desc = "..." } }
     --- (org-agenda-bulk-custom-functions).
     bulk_custom_functions = {},
@@ -575,29 +972,72 @@ M.defaults = {
     --- true | false | "prefix" (org-agenda-remove-tags).
     remove_tags = false,
     custom_commands = {}, -- org-agenda-custom-commands
+    --- Rules offering custom commands only in some buffers
+    --- (org-agenda-custom-commands-contexts), e.g.
+    --- `{ { "p", { { in_mode = "org" } } }, { "q", "r", { { in_file = "work" } } } }`.
+    custom_commands_contexts = {},
+    --- Show the match of custom commands in the dispatcher
+    --- (org-agenda-menu-show-matcher).
+    menu_show_matcher = true,
+    --- Custom commands in two columns in the dispatcher
+    --- (org-agenda-menu-two-columns).
+    menu_two_columns = false,
     --- Columns format of the agenda column view; nil = the first agenda
     --- file's (org-agenda-overriding-columns-format).
     overriding_columns_format = nil,
     view_columns_initially = false, -- org-agenda-view-columns-initially
     --- Show column summaries on date lines (org-agenda-columns-show-summaries).
     columns_show_summaries = true,
+    --- In the agenda column view, an appointment without an effort counts
+    --- its duration as effort (org-agenda-columns-add-appointments-to-effort-sum).
+    columns_add_appointments_to_effort_sum = false,
     --- Extra files for the search view; "agenda-archives" adds the archive
     --- files (org-agenda-text-search-extra-files).
     text_search_extra_files = {},
+    --- Skip agenda files that do not exist instead of asking to remove
+    --- them (org-agenda-skip-unavailable-files).
+    skip_unavailable_files = false,
     search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
+    --- Register receiving the search query built with [ ] { }
+    --- (org-agenda-query-register); false for none.
+    query_register = "o",
     search_view_force_full_words = false, -- org-agenda-search-view-force-full-words
     search_view_max_outline_level = 0, -- org-agenda-search-view-max-outline-level
     --- Body lines shown under each entry in entry text mode (E)
     --- (org-agenda-entry-text-maxlines).
     entry_text_maxlines = 5,
+    --- Emacs regexps whose matches are removed from the entry text
+    --- (org-agenda-entry-text-exclude-regexps).
+    entry_text_exclude_regexps = {},
+    --- Text before each entry text line (org-agenda-entry-text-leaders).
+    entry_text_leaders = "    > ",
+    --- Body lines added under each entry when the agenda is written to a
+    --- file (org-agenda-add-entry-text-maxlines).
+    add_entry_text_maxlines = 0,
+    --- function(lines, path) run before the agenda is written: changes
+    --- `lines` or returns new ones (org-agenda-before-write-hook; the User
+    --- autocmd OrgAgendaBeforeWrite fires too).
+    before_write_hook = nil,
+    --- Replaces the <style> section of agendas written as HTML
+    --- (org-agenda-export-html-style).
+    export_html_style = nil,
     --- Ask before `<C-k>` deletes an entry longer than this many lines
     --- (org-agenda-confirm-kill). false = never ask.
     confirm_kill = 1,
+    --- One <S-Right> on a date in the past moves it to today
+    --- (org-agenda-move-date-from-past-immediately-to-today).
+    move_date_from_past_immediately_to_today = true,
     start_with_log_mode = false, -- false | true | "all" | "clockcheck" (org-agenda-start-with-log-mode)
     --- Add the first line of a clock or state note to log items
     --- (org-agenda-log-mode-add-notes).
     log_mode_add_notes = true,
     start_with_follow_mode = false, -- org-agenda-start-with-follow-mode
+    --- Follow mode shows the entry's subtree in an edit buffer
+    --- (org-agenda-follow-indirect).
+    follow_indirect = false,
+    --- A left click goes to the entry like a middle click
+    --- (org-agenda-mouse-1-follows-link).
+    mouse_1_follows_link = false,
     start_with_clockreport_mode = false, -- org-agenda-start-with-clockreport-mode
     --- Clocktable parameters of the clock report mode
     --- (org-agenda-clockreport-parameter-plist); :scope and the time range
@@ -615,6 +1055,9 @@ M.defaults = {
       gap_ok_around = { "4:00" },
     },
     start_with_entry_text_mode = false, -- org-agenda-start-with-entry-text-mode
+    --- false | "trees" (archived trees, `va`) | true (also the archive
+    --- files, `vA`) (org-agenda-start-with-archives-mode).
+    start_with_archives_mode = false,
     --- Dim TODOs blocked by enforce_todo_dependencies / checkboxes:
     --- true | false | "invisible" (org-agenda-dim-blocked-tasks).
     dim_blocked_tasks = true,
@@ -639,6 +1082,16 @@ M.defaults = {
     --- the diary file of the Emacs user directory (~/.emacs.d/diary or
     --- ~/.config/emacs/diary).
     diary_file = nil,
+    --- Where `i` in the agenda adds entries (org-agenda-diary-file):
+    --- "diary-file" (the Emacs diary file, `diary_file`) or an Org file.
+    diary_entry_file = "diary-file",
+    --- Where entries go in an Org `diary_entry_file`: "date-tree" (first
+    --- child of the date), "date-tree-last" or "top-level"
+    --- (org-agenda-insert-diary-strategy).
+    insert_diary_strategy = "date-tree",
+    --- Move a time at the start of a day entry into its timestamp
+    --- (org-agenda-insert-diary-extract-time).
+    insert_diary_extract_time = false,
     --- Show the day's holidays as diary entries (diary-show-holidays-flag).
     diary_show_holidays = true,
     --- Read `#include "FILE"` lines of the diary file (Emacs:
@@ -771,6 +1224,11 @@ M.defaults = {
     --- Window of the capture buffer: "split" (Emacs splits the frame) |
     --- "float" | "vsplit" | "tab" | "current".
     window = "split",
+    --- Capturing from the agenda (the global capture key) uses the date at
+    --- point as the default date; with count 1 also the time of the item
+    --- at point or the current time (org-capture-use-agenda-date). The
+    --- agenda's own capture key always does.
+    use_agenda_date = false,
   },
 
   ---------------------------------------------------------------------------
@@ -886,12 +1344,34 @@ M.defaults = {
     statusline_icon = "⏱",
     --- Parameters for clocktables that don't set them (org-clocktable-defaults).
     clocktable_default = { maxlevel = 2, scope = "file", block = nil },
+    --- Parameters written into the header of a new clock table
+    --- (org-clock-clocktable-default-properties); `scope` defaults to
+    --- "subtree" on a headline and "file" before the first one.
+    clocktable_default_properties = { maxlevel = 2 },
+    --- function(tables, params) -> string[] writing clock tables instead of
+    --- the default (org-clock-clocktable-formatter); nil = the default.
+    clocktable_formatter = nil,
+    --- Format of the total time cells ("Total time" and its time), and of
+    --- the "File time" cells (org-clock-total-time-cell-format,
+    --- org-clock-file-time-cell-format).
+    total_time_cell_format = "*%s*",
+    file_time_cell_format = "*%s*",
+    --- Resolve clocks without the help window, just a prompt
+    --- (org-clock-resolve-expert).
+    resolve_expert = false,
+    --- Program printing the X11 idle time in milliseconds
+    --- (org-clock-x11idle-program-name); nil = xprintidle when installed,
+    --- else x11idle.
+    x11idle_program_name = nil,
     --- Keep the running clock and the clock history across restarts:
     --- true (both), "clock", "history" or false (org-clock-persist).
     persist = false,
     --- Ask before resuming a saved clock after a restart
     --- (org-clock-persist-query-resume).
     persist_query_resume = true,
+    --- Ask on exit whether to keep the running clock for the next session
+    --- (org-clock-persist-query-save).
+    persist_query_save = false,
     persist_file = data_dir .. "/clock.json",
   },
 
@@ -931,6 +1411,51 @@ M.defaults = {
     --- Extra sub-protocols (org-protocol-protocol-alist): list of
     --- { protocol = "name", fn = function(params) end, order? = { keys } }.
     handlers = {},
+    --- Vim regex splitting the data of old-style URLs
+    --- (`org-protocol://sub://a/b/c`) (org-protocol-data-separator).
+    data_separator = [[/\+\|?]],
+  },
+
+  ---------------------------------------------------------------------------
+  -- Pasting images and files (yank-media, drag and drop)
+  ---------------------------------------------------------------------------
+  yank = {
+    --- Where `yank_media` puts a clipboard image (org-yank-image-save-method):
+    --- "attach" (an attachment of the entry) | a directory (relative to the
+    --- file's) | function() returning one.
+    image_save_method = "attach",
+    --- function() returning the image's name without extension
+    --- (org-yank-image-file-name-function); nil = "clipboard-<time stamp>".
+    image_file_name_function = nil,
+    --- What a dropped or pasted file does (org-yank-dnd-method): "attach" |
+    --- "open" | "file-link" | "ask".
+    dnd_method = "ask",
+    --- Attach method for dropped files (org-yank-dnd-default-attach-method):
+    --- nil = `attach.method`, or "cp" | "mv" | "ln" | "lns".
+    dnd_default_attach_method = nil,
+    --- Treat a paste of existing file paths in an Org buffer (what a
+    --- terminal sends for a file drop) as a drop.
+    dnd_paste = true,
+  },
+
+  ---------------------------------------------------------------------------
+  -- Plain links through tags files (org-ctags)
+  ---------------------------------------------------------------------------
+  ctags = {
+    --- Look up plain links in the tags files (Emacs: org-ctags-enable).
+    enabled = false,
+    --- The ctags program (org-ctags-path-to-ctags); nil = ctags-exuberant
+    --- when installed, else ctags.
+    path_to_ctags = nil,
+    --- Tried in order for a plain link until one returns true
+    --- (org-ctags-open-link-functions): names from
+    --- `require("org.ctags").link_functions` or function(name).
+    open_link_functions = { "find_tag", "ask_rebuild_tags_file_then_find_tag", "ask_append_topic" },
+    --- Text of a new topic, `%t` = the capitalized title
+    --- (org-ctags-new-topic-template).
+    new_topic_template = "* <<%t>>\n\n\n\n\n\n",
+    --- The --regex-orgmode given to ctags (org-ctags-tag-regexp).
+    tag_regexp = [[/<<([^<>]+)>>/\1/d,definition/]],
   },
 
   ---------------------------------------------------------------------------
@@ -961,6 +1486,17 @@ M.defaults = {
     --- Countdown suggested at the prompt, minutes or h:mm:ss; "0" = none
     --- (org-timer-default-timer).
     default_timer = "0",
+  },
+
+  --- org-mouse (see `:h org-mouse`).
+  mouse = {
+    --- Load org-mouse: context menus, dragging subtrees, clickable stars,
+    --- bullets and checkboxes. Emacs loads it with (require 'org-mouse).
+    org_mouse = false,
+    --- Its parts (org-mouse-features): "context-menu", "move-tree",
+    --- "yank-link", "activate-stars", "activate-bullets",
+    --- "activate-checkboxes".
+    features = { "context-menu", "yank-link", "activate-stars", "activate-bullets", "activate-checkboxes" },
   },
 
   ---------------------------------------------------------------------------
@@ -1026,7 +1562,65 @@ M.defaults = {
     --- function(type, path) -> type, path applied before following a link
     --- (org-link-translation-function).
     translation_function = nil,
+    --- A mouse click on a link follows it: true, "double" (a double click)
+    --- or the longest click in ms that still follows it; false = never
+    --- (org-mouse-1-follows-link). Middle click opens the link, right
+    --- click opens it in Neovim (org-open-at-mouse, org-find-file-at-mouse).
+    mouse_1_follows_link = 450,
+    --- <Tab> on a link follows it instead of cycling (org-tab-follows-link).
+    tab_follows_link = false,
+    --- Links to a directory open its index.org
+    --- (org-open-directory-means-index-dot-org).
+    open_directory_means_index_dot_org = false,
+    --- Let external apps (file_apps) open files that don't exist; false =
+    --- an error (org-open-non-existing-files).
+    open_non_existing_files = false,
+    --- URLs of Texinfo manuals for info: links exported to HTML, by manual
+    --- name (org-info-other-documents).
+    info_other_documents = {
+      dir = "https://www.gnu.org/manual/manual.html",
+      libc = "https://www.gnu.org/software/libc/manual/html_mono/libc.html",
+      make = "https://www.gnu.org/software/make/manual/make.html",
+    },
   },
+  --- BibTeX entries as headlines (ol-bibtex, `:h org-bibtex`).
+  bibtex = {
+    --- Generate the keys of new entries (org-bibtex-autogen-keys).
+    autogen_keys = false,
+    --- Prefix of the field properties, e.g. "BIB_" (org-bibtex-prefix).
+    prefix = nil,
+    --- The headline is the title when there is no TITLE property
+    --- (org-bibtex-treat-headline-as-title).
+    treat_headline_as_title = true,
+    --- function(fields) -> headline text of written entries; nil = the
+    --- title (org-bibtex-headline-format-function).
+    headline_format_function = nil,
+    --- Export every prefixed property, not only BibTeX fields; needs
+    --- `prefix` (org-bibtex-export-arbitrary-fields).
+    export_arbitrary_fields = false,
+    --- Property holding the key (org-bibtex-key-property).
+    key_property = "CUSTOM_ID",
+    --- Tags added to new entries (org-bibtex-tags).
+    tags = {},
+    --- keywords field <-> tags (org-bibtex-tags-are-keywords).
+    tags_are_keywords = false,
+    --- Tags not exported as keywords (org-bibtex-no-export-tags).
+    no_export_tags = {},
+    --- Export inherited tags as keywords too (org-bibtex-inherit-tags).
+    inherit_tags = false,
+    --- Property holding the entry type (org-bibtex-type-property-name).
+    type_property_name = "btype",
+  },
+  --- Downloading remote resources (a URL in #+INCLUDE on export)
+  --- (org-resource-download-policy): "prompt" asks for URLs that are not
+  --- safe, "safe" only fetches safe ones, true always fetches (dangerous),
+  --- false never does.
+  resource_download_policy = "prompt",
+  --- Vim regexes of safe URLs, matched against the URL and against
+  --- "file://" .. the requesting file (org-safe-remote-resources). Answers
+  --- `!`, `d` and `f` at the prompt add to it and are remembered in
+  --- stdpath("data")/org/safe-remote-resources.json.
+  safe_remote_resources = {},
   id = {
     --- Where the ID -> file database is kept (org-id-locations-file). Point
     --- it at Emacs's file (`~/.emacs.d/.org-id-locations`) to share it.
@@ -1040,6 +1634,13 @@ M.defaults = {
     locations_file_relative = false,
     --- How new IDs are made (org-id-method): "uuid" | "ts" | "org".
     method = "uuid",
+    --- Add "@" and the host name to new "ts" and "org" IDs
+    --- (org-id-include-domain).
+    include_domain = false,
+    --- Headings offered when completing an id: link, as refile target specs
+    --- (`:h org-refile`; `files = "id"` = the files holding known IDs); the
+    --- chosen heading gets an ID when it has none (org-id-completion-targets).
+    completion_targets = { { files = "current" }, { files = "id" } },
     --- Prefix of new IDs (org-id-prefix), e.g. "Org".
     prefix = nil,
     --- Time stamp format of "ts" IDs (org-id-ts-format; %6N = microseconds).
@@ -1086,6 +1687,13 @@ M.defaults = {
     archive_delete = false,
     --- Tag of entries with attachments; false for none (org-attach-auto-tag).
     auto_tag = "ATTACH",
+    --- Extra dispatcher commands (org-attach-commands), by key:
+    --- `{ fn = function(target) end, desc = "..." }`; `false` removes a
+    --- built-in command.
+    commands = {},
+    --- Ask for the dispatcher key at a one-line prompt instead of showing
+    --- the command menu (org-attach-expert).
+    expert = false,
     --- Commit attachment changes to git (org-attach-git; Emacs turns it on
     --- with `(require 'org-attach-git)`).
     git = false,
@@ -1215,6 +1823,28 @@ M.defaults = {
     -- Write tangle comments as they are, without comment syntax
     -- (org-babel-tangle-uncomment-comments)
     tangle_uncomment_comments = false,
+    -- Overwrite an existing tangle target: "auto" (delete it first only when
+    -- read-only), true (always delete and recreate), false (replace the
+    -- contents) (org-babel-tangle-remove-file-before-write)
+    tangle_remove_file_before_write = "auto",
+    -- function(text) -> text applied to the Org text of :comments org|both;
+    -- nil removes its common indentation (org-babel-process-comment-text)
+    process_comment_text = nil,
+    -- Write #+BEGIN_EXAMPLE / #+END_EXAMPLE around results
+    -- (org-babel-uppercase-example-markers)
+    uppercase_example_markers = false,
+    -- Templates of exported code, filled with %lang, %name, %body, %switches,
+    -- %header-args and %<header argument> (org-babel-exp-code-template,
+    -- org-babel-exp-inline-code-template), and of exported #+CALL lines and
+    -- call_ objects, with %line (org-babel-exp-call-line-template)
+    exp_code_template = "#+begin_src %lang%switches%header-args\n%body\n#+end_src",
+    exp_inline_code_template = "src_%lang[%switches%header-args]{%body}",
+    exp_call_line_template = "",
+    -- Languages run as a shell, like sh (org-babel-shell-names)
+    shell_names = { "sh", "bash", "zsh", "fish", "csh", "ash", "dash", "ksh", "mksh", "posh" },
+    -- Shell blocks without :results words give their output; false: their
+    -- exit status (org-babel-shell-results-defaults-to-output)
+    shell_results_defaults_to_output = true,
     -- Languages that can run, { cmd, ext, default_header_args }
     -- (org-babel-load-languages; default_header_args is
     -- org-babel-default-header-args:LANG). Emacs enables only emacs-lisp,
@@ -1225,14 +1855,21 @@ M.defaults = {
       bash = { cmd = "bash" },
       zsh = { cmd = "zsh" },
       fish = { cmd = "fish" },
-      python = { cmd = "python3", ext = "py" },
+      -- hline_to: an hline of a table variable (org-babel-python-hline-to);
+      -- None_to: a None of a list result (org-babel-python-None-to);
+      -- session_cmd: the REPL of sessions, as it is (org-babel-python-command-session)
+      python = { cmd = "python3", ext = "py", hline_to = "None", None_to = "hline", session_cmd = nil },
       python3 = { cmd = "python3", ext = "py" },
-      lua = { cmd = "nvim", ext = "lua" }, -- evaluated inside Neovim
+      -- evaluated inside Neovim; another cmd ("lua", "luajit") runs it
+      -- like ob-lua (org-babel-lua-command). hline_to / None_to /
+      -- multiple_values_separator: org-babel-lua-*
+      lua = { cmd = "nvim", ext = "lua", hline_to = "None", None_to = "hline", multiple_values_separator = ", " },
       js = { cmd = "node", ext = "js" },
       javascript = { cmd = "node", ext = "js" },
       typescript = { cmd = "npx tsx", ext = "ts" },
       ts = { cmd = "npx tsx", ext = "ts" },
-      ruby = { cmd = "ruby", ext = "rb" },
+      -- org-babel-ruby-hline-to / org-babel-ruby-nil-to
+      ruby = { cmd = "ruby", ext = "rb", hline_to = "nil", nil_to = "hline" },
       perl = { cmd = "perl", ext = "pl" },
       php = { cmd = "php", ext = "php" },
       r = { cmd = "Rscript", ext = "R" },
@@ -1248,6 +1885,124 @@ M.defaults = {
       cpp = { cmd = "g++", ext = "cpp" },
       D = { cmd = "rdmd", ext = "d" },
       awk = { cmd = "awk -f", ext = "awk" },
+      -- ports of ob-LANG.el (see |org-babel-languages|); the other keys are
+      -- that file's options
+      plantuml = {
+        default_header_args = { results = "file", exports = "results" },
+        exec_mode = "jar", -- org-plantuml-exec-mode: "jar" or "plantuml"
+        jar_path = "", -- org-plantuml-jar-path
+        executable_path = "plantuml", -- org-plantuml-executable-path
+        args = { "-headless" }, -- org-plantuml-args
+        svg_text_to_path = false, -- org-babel-plantuml-svg-text-to-path
+      },
+      ditaa = {
+        default_header_args = { results = "file graphics", exports = "results", ["file-ext"] = "png" },
+        exec_mode = "jar", -- org-ditaa-default-exec-mode: "jar" or "ditaa"
+        exec = "ditaa", -- org-ditaa-exec
+        java_exec = "java", -- org-ditaa-java-exec
+        jar_path = "", -- org-ditaa-jar-path
+        eps_jar_path = nil, -- org-ditaa-eps-jar-path (nil: DitaaEps.jar next to jar_path)
+      },
+      -- backend (org-babel-clojure-backend): "babashka", "clojure-cli" or
+      -- "nbb"; nil picks babashka or clojure-cli when installed.
+      -- babashka_command / cli_command / nbb_command: ob-clojure-*-command
+      -- (nil: bb, clojure -M, nbb or npx nbb found on $PATH)
+      clojure = { ext = "clj", default_ns = "user" }, -- default_ns: org-babel-clojure-default-ns
+      -- backend (org-babel-clojurescript-backend): nil is nbb when installed
+      clojurescript = { ext = "cljs" },
+      -- org-babel-csharp-*: compiler; default_target_framework (nil: "netN.0"
+      -- of the newest SDK); additional_project_flags (XML); functions
+      -- generate_compile_command(project, bin_dir) and
+      -- generate_restore_command(project) returning shell commands
+      csharp = { ext = "cs", compiler = "dotnet" },
+      fortran = { cmd = "gfortran", ext = "F90" }, -- cmd: org-babel-fortran-compiler
+      java = {
+        default_header_args = { results = "output", dir = "." },
+        cmd = "java", -- org-babel-java-command
+        compiler = "javac", -- org-babel-java-compiler
+        hline_to = "null", -- org-babel-java-hline-to
+        null_to = "hline", -- org-babel-java-null-to
+      },
+      groovy = { cmd = "groovy" }, -- org-babel-groovy-command
+      -- cmd: the interpreter of blocks (Emacs: an inf-haskell session);
+      -- compiler: org-babel-haskell-compiler (:compile yes);
+      -- lhs2tex: org-babel-haskell-lhs2tex-command
+      haskell = {
+        default_header_args = { padline = "no" },
+        cmd = "ghci -v0 -ignore-dot-ghci",
+        compiler = "ghc",
+        lhs2tex = "lhs2tex",
+      },
+      -- Common Lisp: cmd evaluates in place of SLIME (org-babel-lisp-eval-fn);
+      -- dir_fmt: org-babel-lisp-dir-fmt
+      lisp = {
+        cmd = "sbcl --script",
+        ext = "lisp",
+        dir_fmt = "(cl:let ((cl:*default-pathname-defaults* #P%S\n)) %%s\n)",
+      },
+      -- js_filename: org-babel-processing-processing-js-filename; cmd runs
+      -- babel_processing_view_sketch (processing-java)
+      processing = {
+        default_header_args = { results = "html", exports = "results" },
+        js_filename = "processing.js",
+        cmd = "processing-java",
+      },
+      -- location: org-babel-screen-location
+      screen = {
+        default_header_args = {
+          results = "silent",
+          session = "default",
+          cmd = "sh",
+          terminal = "xterm",
+          screenrc = "/dev/null",
+        },
+        location = "screen",
+      },
+      -- impl: the implementation without a :scheme header (Geiser's
+      -- default); commands: implementation -> command; null_to:
+      -- org-babel-scheme-null-to
+      scheme = { impl = "guile", commands = {}, null_to = "hline" },
+      julia = { cmd = "julia" }, -- org-babel-julia-command
+      -- org-babel-latex-*: preamble, begin_env and end_env are strings or
+      -- functions(header_args) returning one; htlatex, htlatex_packages;
+      -- pdf_svg_process (%f the PDF, %O the SVG); process_alist = { png =
+      -- {...} } like ui.latex_preview.processes (nil: latex + dvipng)
+      latex = {
+        ext = "tex",
+        default_header_args = { results = "latex", exports = "results" },
+        preamble = "\\documentclass[preview]{standalone}\n",
+        begin_env = "\\begin{document}",
+        end_env = "\\end{document}",
+        htlatex = "htlatex",
+        htlatex_packages = { "[usenames]{color}", "{tikz}", "{color}", "{listings}", "{amsmath}" },
+        pdf_svg_process = "inkscape --pdf-poppler --export-area-drawing --export-text-to-path "
+          .. "--export-plain-svg --export-filename=%O %f",
+        process_alist = nil,
+      },
+      -- commands: org-babel-lilypond-commands, { lilypond, PDF viewer, MIDI
+      -- player } (nil: the platform's default); the other keys are the
+      -- org-babel-lilypond-* variables the toggle commands change
+      lilypond = {
+        ext = "ly",
+        default_header_args = { results = "file", exports = "results" },
+        commands = nil,
+        arrange_mode = false,
+        gen_png = false,
+        gen_svg = false,
+        gen_html = false,
+        gen_pdf = false,
+        use_eps = false,
+        compile_post_tangle = true,
+        display_pdf_post_tangle = true,
+        play_midi_post_tangle = true,
+      },
+      maxima = { cmd = "maxima" }, -- org-babel-maxima-command
+      ocaml = { cmd = "ocaml" }, -- org-babel-ocaml-command
+      gnuplot = {
+        cmd = "gnuplot",
+        default_header_args = { results = "file", exports = "results" },
+        terms = { eps = "postscript eps" }, -- *org-babel-gnuplot-terms*
+      },
     },
     -- emacs-lisp blocks, elisp: links and the Lisp forms the interpreter of
     -- table formulas can't evaluate (macros, capture, diary sexps, headers)
@@ -1331,6 +2086,27 @@ M.defaults = {
     --- ("paragraph", "plain-text", ...) plus "body", "final-output",
     --- "parse-tree" (fn(tree, backend, info)) and "options" (fn(info, backend)).
     filters = {},
+    initial_scope = "buffer", -- org-export-initial-scope: dispatcher scope at start ("buffer" or "subtree")
+    body_only = false, -- org-export-body-only: dispatcher "body only" at start
+    visible_only = false, -- org-export-visible-only: dispatcher "visible only" at start
+    force_publishing = false, -- org-export-force-publishing: dispatcher "force publishing" at start
+    --- org-export-in-background: dispatcher "async" at start; results go to
+    --- the export stack (:Org export_stack).
+    in_background = false,
+    --- org-export-async-init-file: a Lua file run by the Neovim that makes
+    --- asynchronous exports (Lua functions of the options don't reach it).
+    async_init_file = nil,
+    dispatch_use_expert_ui = false, -- org-export-dispatch-use-expert-ui (a prompt instead of the menu)
+    show_temporary_export_buffer = true, -- org-export-show-temporary-export-buffer
+    copy_to_kill_ring = false, -- org-export-copy-to-kill-ring (true, "if-interactive" or false)
+    coding_system = nil, -- org-export-coding-system (an iconv encoding of output files; nil = UTF-8)
+    process_citations = true, -- org-export-process-citations
+    replace_macros = true, -- org-export-replace-macros
+    --- org-export-smart-quotes-alist: { [lang] = { primary_opening = { ["utf-8"] =,
+    --- html =, latex =, texinfo = }, primary_closing, secondary_opening,
+    --- secondary_closing, apostrophe } }; a language set here replaces its
+    --- Emacs entry, the others keep the Emacs table.
+    smart_quotes_alist = nil,
     html = {
       doctype = "xhtml-strict", -- org-html-doctype
       html5_fancy = false, -- org-html-html5-fancy
@@ -1369,10 +2145,58 @@ M.defaults = {
       --- Load MathJax for LaTeX fragments (org-html-with-latex = mathjax);
       --- false leaves the math as text.
       mathjax = true,
+      --- org-html-with-latex: true/"mathjax", "html", "dvipng", "dvisvgm",
+      --- "imagemagick" (pictures in ltximg/), "verbatim" or false; nil =
+      --- export.with_latex. #+OPTIONS: tex: overrides it.
+      with_latex = nil,
+      --- org-latex-to-html-convert-command for tex:html, %i = the fragment
+      --- (shell-quoted), e.g. "latexmlmath %i --presentationmathml=-".
+      latex_to_html_convert_command = nil,
       mathjax_options = nil, -- org-html-mathjax-options ({ path = ..., scale = 1.0, ... })
-      --- function(code, lang) -> HTML to highlight source code (Emacs uses
-      --- htmlize; nil = no highlighting).
+      --- function(code, lang) -> HTML to highlight source code, used instead
+      --- of the built-in highlighting (plugin option).
       fontify = nil,
+      --- org-html-htmlize-output-type: how source code is coloured from its
+      --- tree-sitter highlights (Emacs uses htmlize): "inline-css" (style
+      --- attributes with the colour scheme's colours), "css" (classes, see
+      --- :Org html_htmlize_generate_css) or false (plain text).
+      htmlize_output_type = "inline-css",
+      htmlize_font_prefix = "org-", -- org-html-htmlize-font-prefix (CSS class prefix)
+      allow_name_attribute_in_anchors = false, -- org-html-allow-name-attribute-in-anchors
+      coding_system = "utf-8", -- org-html-coding-system (charset of the <meta> and XML declaration)
+      datetime_formats = { "%F", "%FT%T" }, -- org-html-datetime-formats ({ date, date and time })
+      indent = false, -- org-html-indent (indent the generated HTML like Emacs' mhtml-mode)
+      --- org-html-divs: { preamble = { "div", "preamble" }, content = { "div",
+      --- "content" }, postamble = { "div", "postamble" } } (nil = that value).
+      divs = nil,
+      footnotes_section = nil, -- org-html-footnotes-section (nil = the Emacs format)
+      format_drawer_function = nil, -- org-html-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-html-format-headline-function: fn(todo, todo_type, priority, text, tags, info)
+      --- org-html-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, text, tags, contents, info)
+      format_inlinetask_function = nil,
+      home_up_format = nil, -- org-html-home/up-format (nil = the Emacs format)
+      infojs_template = nil, -- org-html-infojs-template (nil = the Emacs template)
+      inline_image_rules = nil, -- org-html-inline-image-rules (nil = the Emacs rules)
+      klipsify_src = false, -- org-html-klipsify-src
+      klipse_css = "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css", -- org-html-klipse-css
+      klipse_js = "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js", -- org-html-klipse-js
+      klipse_selection_script = nil, -- org-html-klipse-selection-script (nil = the Emacs script)
+      mathjax_template = nil, -- org-html-mathjax-template (nil = the Emacs template)
+      meta_tags = nil, -- org-html-meta-tags ({ { attr, name, content }, ... } or function(info); nil = Emacs)
+      scripts = nil, -- org-html-scripts (nil = the Emacs script)
+      table_align_individual_fields = true, -- org-html-table-align-individual-fields
+      table_data_tags = { "<td%s>", "</td>" }, -- org-html-table-data-tags
+      table_header_tags = { '<th scope="%s"%s>', "</th>" }, -- org-html-table-header-tags
+      table_default_attributes = nil, -- org-html-table-default-attributes ({ { name, value }, ... }; nil = Emacs)
+      table_row_open_tag = "<tr>", -- org-html-table-row-open-tag (string or function)
+      table_row_close_tag = "</tr>", -- org-html-table-row-close-tag (string or function)
+      table_use_header_tags_for_first_column = false, -- org-html-table-use-header-tags-for-first-column
+      tag_class_prefix = "", -- org-html-tag-class-prefix
+      todo_kwd_class_prefix = "", -- org-html-todo-kwd-class-prefix
+      text_markup_alist = nil, -- org-html-text-markup-alist ({ bold = "<b>%s</b>", ... }; nil = Emacs)
+      viewport = nil, -- org-html-viewport ({ { name, value }, ... }; nil = Emacs, false = no tag)
+      xml_declaration = nil, -- org-html-xml-declaration ({ html = ..., php = ... }; nil = Emacs)
     },
     latex = {
       default_class = "article", -- org-latex-default-class
@@ -1386,7 +2210,12 @@ M.defaults = {
       --- Compile PDFs in the background with vim.system (plugin option;
       --- Emacs blocks unless the export is asynchronous).
       async_compile = true,
-      src_block_backend = "verbatim", -- org-latex-src-block-backend ("verbatim", "listings", "minted")
+      src_block_backend = "verbatim", -- org-latex-src-block-backend ("verbatim", "listings", "minted", "engraved")
+      engraved_options = nil, -- org-latex-engraved-options ({ { key, value }, ... }; nil = the Emacs list)
+      engraved_preamble = nil, -- org-latex-engraved-preamble (nil = the Emacs preamble)
+      --- org-latex-engraved-theme (#+LATEX_ENGRAVED_THEME): nil/"default" = engrave-faces'
+      --- default colours, true = the current colour scheme, a name = that colour scheme.
+      engraved_theme = nil,
       caption_above = { "table" }, -- org-latex-caption-above
       prefer_user_labels = false, -- org-latex-prefer-user-labels
       reference_command = "\\ref{%s}", -- org-latex-reference-command
@@ -1401,6 +2230,42 @@ M.defaults = {
       toc_command = "\\tableofcontents\n\n", -- org-latex-toc-command
       hyperref_template = nil, -- org-latex-hyperref-template (nil = the Emacs template)
       use_sans = false, -- org-latex-use-sans
+      active_timestamp_format = "\\textit{%s}", -- org-latex-active-timestamp-format
+      inactive_timestamp_format = "\\textit{%s}", -- org-latex-inactive-timestamp-format
+      diary_timestamp_format = "\\textit{%s}", -- org-latex-diary-timestamp-format
+      --- org-latex-compiler-file-string: the "Intended LaTeX compiler" line
+      --- (%s = the compiler); false/"" = none.
+      compiler_file_string = "%% Intended LaTeX compiler: %s\n",
+      --- org-latex-known-warnings: { { vim_regex, message }, ... } reported
+      --- after a compilation (nil = the Emacs list).
+      known_warnings = nil,
+      custom_lang_environments = {}, -- org-latex-custom-lang-environments ({ [lang] = env | { ... } })
+      default_footnote_command = "\\footnote{%s%s}", -- org-latex-default-footnote-command
+      default_quote_environment = "quote", -- org-latex-default-quote-environment
+      footnote_defined_format = "\\textsuperscript{\\ref{%s}}", -- org-latex-footnote-defined-format
+      footnote_separator = "\\textsuperscript{,}\\,", -- org-latex-footnote-separator
+      format_drawer_function = nil, -- org-latex-format-drawer-function: fn(name, contents)
+      format_headline_function = nil, -- org-latex-format-headline-function: fn(todo, todo_type, priority, text, tags, info)
+      --- org-latex-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, name, tags, contents, info)
+      format_inlinetask_function = nil,
+      image_default_scale = "", -- org-latex-image-default-scale
+      image_default_height = "", -- org-latex-image-default-height
+      image_default_option = "", -- org-latex-image-default-option
+      inline_image_rules = nil, -- org-latex-inline-image-rules (nil = the Emacs rules)
+      inputenc_alist = {}, -- org-latex-inputenc-alist ({ [coding] = inputenc })
+      link_with_unknown_path_format = "\\texttt{%s}", -- org-latex-link-with-unknown-path-format
+      listings_langs = nil, -- org-latex-listings-langs ({ { lang, listings_lang }, ... }; nil = Emacs)
+      listings_options = {}, -- org-latex-listings-options ({ { key, value }, ... })
+      listings_src_omit_language = false, -- org-latex-listings-src-omit-language
+      logfiles_extensions = nil, -- org-latex-logfiles-extensions (nil = the Emacs list)
+      minted_langs = nil, -- org-latex-minted-langs ({ { lang, minted_lang }, ... }; nil = Emacs)
+      minted_options = {}, -- org-latex-minted-options ({ { key, value }, ... })
+      subtitle_format = "\\\\\\medskip\n\\large %s", -- org-latex-subtitle-format
+      subtitle_separate = false, -- org-latex-subtitle-separate
+      table_scientific_notation = nil, -- org-latex-table-scientific-notation (e.g. "%s\\,(%s)")
+      text_markup_alist = nil, -- org-latex-text-markup-alist ({ bold = "\\textbf{%s}", ... }; nil = Emacs)
+      toc_include_unnumbered = false, -- org-latex-toc-include-unnumbered
     },
     texinfo = {
       default_class = "info", -- org-texinfo-default-class
@@ -1414,8 +2279,70 @@ M.defaults = {
       with_latex = nil,
       info_process = nil, -- org-texinfo-info-process (nil = { "makeinfo --no-split %f" })
       remove_logfiles = true, -- org-texinfo-remove-logfiles
+      logfiles_extensions = nil, -- org-texinfo-logfiles-extensions (nil = aux toc cp fn ky pg tp vr)
+      active_timestamp_format = "@emph{%s}", -- org-texinfo-active-timestamp-format
+      inactive_timestamp_format = "@emph{%s}", -- org-texinfo-inactive-timestamp-format
+      diary_timestamp_format = "@emph{%s}", -- org-texinfo-diary-timestamp-format
+      link_with_unknown_path_format = "@indicateurl{%s}", -- org-texinfo-link-with-unknown-path-format
+      tables_verbatim = false, -- org-texinfo-tables-verbatim
+      table_scientific_notation = nil, -- org-texinfo-table-scientific-notation
+      --- org-texinfo-text-markup-alist: { bold = "@strong{%s}", code = "code",
+      --- italic = "@emph{%s}", verbatim = "samp" } (nil = that value).
+      text_markup_alist = nil,
+      format_headline_function = nil, -- org-texinfo-format-headline-function: fn(todo, todo_type, priority, text, tags)
+      format_drawer_function = nil, -- org-texinfo-format-drawer-function: fn(name, contents)
+      --- org-texinfo-format-inlinetask-function:
+      --- fn(todo, todo_type, priority, title, tags, contents)
+      format_inlinetask_function = nil,
       --- Export Texinfo through pandoc instead of the native back-end.
       use_pandoc = false,
+    },
+    koma_letter = {
+      default_class = "default-koma-letter", -- org-koma-letter-default-class
+      class_option_file = "NF", -- org-koma-letter-class-option-file (#+LCO)
+      --- org-koma-letter-author: a string, a function returning one, or false
+      --- (nil = export.author / the user's full name)
+      author = nil,
+      --- org-koma-letter-email: a string, a function returning one, or false
+      --- (nil = export.email)
+      email = nil,
+      from_address = "", -- org-koma-letter-from-address
+      phone_number = "", -- org-koma-letter-phone-number
+      url = "", -- org-koma-letter-url
+      from_logo = "", -- org-koma-letter-from-logo
+      place = "", -- org-koma-letter-place
+      location = "", -- org-koma-letter-location
+      opening = "", -- org-koma-letter-opening
+      closing = "", -- org-koma-letter-closing
+      signature = "", -- org-koma-letter-signature
+      prefer_special_headings = false, -- org-koma-letter-prefer-special-headings
+      --- org-koma-letter-subject-format: true, false or a list of
+      --- "afteropening", "beforeopening", "centered", "left", "right",
+      --- "titled", "underlined", "untitled"
+      subject_format = true,
+      use_backaddress = false, -- org-koma-letter-use-backaddress
+      --- org-koma-letter-use-foldmarks: true, false or a list of marks
+      --- ("B", "b", "H", "h", "L", "l", "M", "m", "P", "p", "T", "t", "V", "v")
+      use_foldmarks = true,
+      use_phone = false, -- org-koma-letter-use-phone
+      use_url = false, -- org-koma-letter-use-url
+      use_from_logo = false, -- org-koma-letter-use-from-logo
+      use_email = false, -- org-koma-letter-use-email
+      use_place = true, -- org-koma-letter-use-place
+      headline_is_opening_maybe = true, -- org-koma-letter-headline-is-opening-maybe
+      prefer_subject = false, -- org-koma-letter-prefer-subject
+    },
+    man = {
+      tables_centered = true, -- org-man-tables-centered
+      tables_verbatim = false, -- org-man-tables-verbatim
+      table_scientific_notation = "%sE%s", -- org-man-table-scientific-notation (false = none)
+      source_highlight = false, -- org-man-source-highlight (GNU source-highlight)
+      source_highlight_langs = nil, -- org-man-source-highlight-langs (nil = the Emacs map)
+      --- org-man-pdf-process: shell commands with %f %F %b %o %O, or a
+      --- function(file) (nil = three runs of "tbl %f | eqn | groff -man | ps2pdf - > %b.pdf")
+      pdf_process = nil,
+      logfiles_extensions = { "log", "out", "toc" }, -- org-man-logfiles-extensions
+      remove_logfiles = true, -- org-man-remove-logfiles
     },
     md = {
       headline_style = "atx", -- org-md-headline-style ("atx", "setext", "mixed")
@@ -1426,6 +2353,9 @@ M.defaults = {
     },
     org = {
       with_special_rows = true, -- org-org-with-special-rows
+      --- org-org-htmlized-css-url: stylesheet linked instead of the embedded
+      --- one in FILE.org.html of `htmlized_source` publishing.
+      htmlized_css_url = nil,
     },
     beamer = {
       frame_level = 1, -- org-beamer-frame-level
@@ -1454,7 +2384,7 @@ M.defaults = {
       --- org-icalendar-include-todo: false, true, "unblocked", "all" or keywords.
       include_todo = false,
       todo_unscheduled_start = "recurring-deadline-warning", -- org-icalendar-todo-unscheduled-start
-      include_sexps = true, -- org-icalendar-include-sexps (diary sexps are not supported)
+      include_sexps = true, -- org-icalendar-include-sexps (diary-anniversary, -block, -cyclic, -float, -date)
       include_body = true, -- org-icalendar-include-body (true or a number of characters)
       store_uid = false, -- org-icalendar-store-UID
       timezone = nil, -- org-icalendar-timezone (nil = $TZ)
@@ -1490,6 +2420,33 @@ M.defaults = {
       biblatex_options = nil, -- org-cite-biblatex-options
       biblatex_styles = nil, -- org-cite-biblatex-styles (nil = the Emacs table)
       biblatex_style_shortcuts = nil, -- org-cite-biblatex-style-shortcuts (nil = the Emacs table)
+      --- Processors of the buffer capabilities (false = none; for
+      --- activation, false = highlighting without checking keys).
+      activate_processor = "basic", -- org-cite-activate-processor
+      follow_processor = "basic", -- org-cite-follow-processor
+      insert_processor = "basic", -- org-cite-insert-processor
+      basic_max_key_distance = 2, -- org-cite-basic-max-key-distance
+      basic_author_column_end = 25, -- org-cite-basic-author-column-end
+      basic_column_separator = "  ", -- org-cite-basic-column-separator
+      --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
+      --- a Vim regexp separating keys typed at one prompt, or "dynamic".
+      basic_complete_key_crm_separator = nil,
+      --- Highlight group of the citation key under the mouse ("highlight",
+      --- Emacs's face, is OrgCiteMouseOver); false = none. Turns
+      --- 'mousemoveevent' on (org-cite-basic-mouse-over-key-face).
+      basic_mouse_over_key_face = "highlight",
+      -- csl processor (oc-csl)
+      csl_styles_dir = nil, -- org-cite-csl-styles-dir
+      csl_locales_dir = nil, -- org-cite-csl-locales-dir (nil: en-US only)
+      csl_link_cites = true, -- org-cite-csl-link-cites
+      csl_no_citelinks_backends = { "ascii" }, -- org-cite-csl-no-citelinks-backends
+      csl_html_hanging_indent = "1.5em", -- org-cite-csl-html-hanging-indent
+      csl_html_label_width_per_char = "0.6em", -- org-cite-csl-html-label-width-per-char
+      csl_latex_hanging_indent = "1.5em", -- org-cite-csl-latex-hanging-indent
+      csl_latex_label_separator = "0.6em", -- org-cite-csl-latex-label-separator
+      csl_latex_label_width_per_char = "0.45em", -- org-cite-csl-latex-label-width-per-char
+      csl_latex_preamble = nil, -- org-cite-csl-latex-preamble (nil = the Emacs preamble)
+      csl_bibtex_titles_to_sentence_case = true, -- org-cite-csl-bibtex-titles-to-sentence-case
     },
     ascii = {
       charset = "ascii", -- org-ascii-charset ("ascii", "latin1", "utf-8")
@@ -1505,7 +2462,7 @@ M.defaults = {
       links_to_notes = true, -- org-ascii-links-to-notes
       table_keep_all_vertical_lines = false, -- org-ascii-table-keep-all-vertical-lines
       table_widen_columns = true, -- org-ascii-table-widen-columns
-      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (not supported)
+      table_use_ascii_art = false, -- org-ascii-table-use-ascii-art (box characters for table.el tables, UTF-8)
       caption_above = false, -- org-ascii-caption-above
       verbatim_format = "`%s'", -- org-ascii-verbatim-format
       bullets = nil, -- org-ascii-bullets ({ ascii = {...}, latin1 = {...}, ["utf-8"] = {...} }; nil = Emacs)
@@ -1534,6 +2491,7 @@ M.defaults = {
       --- (%i fragment, %I input file, %o output file, %j jar file).
       latex_to_mathml_convert_command = nil,
       latex_to_mathml_jar_file = nil, -- org-latex-to-mathml-jar-file
+      latex_mathml_directory = "ltxmathml/", -- org-latex-mathml-directory (MathML cache, relative to the Org file)
       inline_image_rules = nil, -- org-odt-inline-image-rules ({ file = { "png", ... } })
       inline_formula_rules = nil, -- org-odt-inline-formula-rules ({ file = { "mathml", "mml", "odf" } })
       table_styles = nil, -- org-odt-table-styles ({ { name, template, { use_first_row_styles = true, ... } } })
@@ -1569,6 +2527,12 @@ M.defaults = {
   -- UI
   ---------------------------------------------------------------------------
   ui = {
+    --- The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus
+    --- (Emacs's easymenus), added while a buffer they belong to is current;
+    --- false = none. Emacs has no option for them.
+    menus = true,
+    --- Headline levels listed by `imenu` (gO) (org-imenu-depth).
+    imenu_depth = 2,
     --- Conceal link brackets and show only descriptions (org-link-descriptive).
     conceal_links = true,
     --- Hide *, /, _, =, ~, + around emphasized text (org-hide-emphasis-markers).
@@ -1583,6 +2547,12 @@ M.defaults = {
     --- Virtual indentation of body text (org-indent-mode, org-startup-indented;
     --- #+STARTUP: indent / noindent).
     indent_mode = false,
+    --- Columns of virtual indentation per level in indent mode; 0 turns
+    --- it off (org-indent-indentation-per-level).
+    indent_indentation_per_level = 2,
+    --- Indent mode turns adapt_indentation off in its buffer
+    --- (org-indent-mode-turns-off-org-adapt-indentation).
+    indent_mode_turns_off_adapt_indentation = true,
     --- Render \alpha etc. as unicode (org-pretty-entities; #+STARTUP:
     --- entitiespretty / entitiesplain, toggle with toggle_pretty_entities).
     pretty_entities = false,
@@ -1610,9 +2580,27 @@ M.defaults = {
     num_format_function = nil,
     --- Dim the whole headline of DONE entries (org-fontify-done-headline).
     fontify_done_headline = true,
+    --- Highlight the text of TODO headlines with OrgHeadlineTodo
+    --- (org-fontify-todo-headline).
+    fontify_todo_headline = false,
+    --- The headline level color on the stars only (org-level-color-stars-only).
+    level_color_stars_only = false,
+    --- Keywords shown without their "#+KEYWORD:" part: any of "title",
+    --- "subtitle", "author", "date", "email" (org-hidden-keywords).
+    hidden_keywords = {},
+    --- Hide the {{{ }}} around macro calls (org-hide-macro-markers).
+    hide_macro_markers = false,
+    --- LaTeX-related syntax highlighted: any of "latex" (fragments and
+    --- environments, OrgLatex), "native" (the same with the tex syntax),
+    --- "script" (sub/superscripts), "entities" (org-highlight-latex-and-related).
+    highlight_latex_and_related = {},
     --- Syntax-include the languages of src blocks for highlighting
     --- (org-src-fontify-natively).
     src_highlight = true,
+    --- Per-language face of src block bodies, like `todo_keyword_faces`:
+    --- `{ python = { bg = "#e5ffb8" }, [""] = "CursorLine" }` ("" = blocks
+    --- without a language) (org-src-block-faces).
+    src_block_faces = {},
     --- Per-keyword faces: { WAITING = ":foreground orange :weight bold" }
     --- or a highlight definition table { fg = "#ff9e64", bold = true } or a group name.
     todo_keyword_faces = {},
@@ -1731,6 +2719,8 @@ M.defaults = {
       -- context / links
       context_action = { "<C-c><C-c>", "<prefix><CR>" },
       open_at_point = { "<CR>", "gx", "<prefix>o" },
+      open_at_mouse = "<MiddleMouse>",
+      find_file_at_mouse = "<RightMouse>",
       -- structure
       meta_return = "<M-CR>",
       meta_shift_return = "<M-S-CR>",
@@ -1740,6 +2730,7 @@ M.defaults = {
       insert_drawer = "<prefix>id",
       insert_structure_template = "<prefix>ib",
       insert_footnote = "<prefix>if",
+      cite_insert = "<prefix>i@",
       promote_heading = "<<",
       demote_heading = ">>",
       promote_subtree = "<s",
@@ -1757,6 +2748,8 @@ M.defaults = {
       copy_subtree = "<prefix>hy",
       cut_subtree = "<prefix>hd",
       paste_subtree = "<prefix>hp",
+      yank = "p", -- org-yank: folds / adjusts pasted subtrees
+      yank_before = "P",
       clone_subtree = "<prefix>hc",
       sort = "<prefix>hs",
       narrow_subtree = "<prefix>hn",
@@ -1774,6 +2767,7 @@ M.defaults = {
       next_sibling = "][",
       prev_sibling = "[]",
       buffer_goto = "<prefix>.",
+      imenu = "gO", -- like gO in help and markdown buffers
       -- todo / priority / tags / properties
       todo_next = "cit",
       todo_prev = "ciT",
@@ -1904,6 +2898,7 @@ M.defaults = {
       insert_structure_template = "<C-c><C-,>",
       insert_drawer = "<C-c><C-x>d",
       insert_footnote = "<C-c><C-x>f",
+      cite_insert = "<C-c><C-x>@",
       emphasize = "<C-c><C-x><C-f>",
       clone_subtree = "<C-c><C-x>c",
       copy_special = "<C-c><C-x><M-w>",
@@ -2004,7 +2999,9 @@ M.defaults = {
       -- refile / archive / attach / agenda files
       refile = "<C-c><C-w>",
       refile_copy = "<C-c><M-w>",
-      archive_subtree ={ "<C-c>$", "<C-c><C-x><C-s>", "<C-c><C-x><C-a>" },
+      refile_reverse = "<C-c><C-M-w>",
+      archive_subtree = { "<C-c>$", "<C-c><C-x><C-s>" },
+      archive_subtree_default = "<C-c><C-x><C-a>",
       toggle_archive_tag = "<C-c><C-x>a",
       archive_to_sibling = "<C-c><C-x>A",
       attach = "<C-c><C-a>",
@@ -2089,10 +3086,16 @@ M.defaults = {
       switch_to = "<CR>",
       show = "<Space>",
       show_scroll_down = "<BS>",
+      show_1 = false, -- Emacs: unbound
+      cycle_show = false, -- Emacs: unbound
+      goto_mouse = "<MiddleMouse>", -- Emacs: mouse-2
+      show_mouse = "<RightMouse>", -- Emacs: mouse-3
       recenter = "L",
       delete_other_windows = "o",
       follow_mode = { "F", "vf" },
+      tree_to_indirect_buffer = "<C-c><C-x>b",
       todo = { "t", "<C-c><C-t>" },
+      todo_yesterday = false, -- Emacs: unbound
       todo_next = "<C-S-Right>",
       todo_prev = "<C-S-Left>",
       priority = { ",", "<C-c>," },
@@ -2105,6 +3108,11 @@ M.defaults = {
       deadline = { "<C-c><C-d>", "d" },
       date_later = { "<S-Right>", "<C-c><C-x><Right>" },
       date_earlier = { "<S-Left>", "<C-c><C-x><Left>" },
+      -- Emacs: unbound (C-u / C-u C-u <S-Right>, here counts 4 / 16)
+      date_later_hours = false,
+      date_earlier_hours = false,
+      date_later_minutes = false,
+      date_earlier_minutes = false,
       date_prompt = ">",
       clock_in = { "I", "<C-c><C-x><C-i>" },
       clock_out = { "O", "<C-c><C-x><C-o>" },
@@ -2118,7 +3126,8 @@ M.defaults = {
       remove_restriction_lock = "<C-c><C-x>>",
       refile = { "<C-c><C-w>", "R" },
       archive = { "$", "<C-c>$", "<C-c><C-x><C-s>" },
-      archive_default = { "a", "<C-c><C-x><C-a>" },
+      archive_default = "<C-c><C-x><C-a>",
+      archive_default_confirm = "a",
       archive_sibling = "<C-c><C-x>A",
       toggle_archive_tag = "<C-c><C-x>a",
       kill = "<C-k>",
@@ -2135,6 +3144,9 @@ M.defaults = {
       time_grid = { "G", "vG" },
       toggle_deadlines = { "!", "v!" },
       toggle_diary = "D",
+      diary_entry = "i", -- org-agenda-diary-entry (also in Visual mode)
+      toggle_habits_display = "vh", -- Emacs: K (capture here)
+      toggle_habits = false, -- Emacs: unbound
       dim_blocked = "#",
       filter = "/",
       filter_tag = "\\",
@@ -2172,6 +3184,7 @@ M.defaults = {
       sunrise_sunset = "S",
       holidays = "H",
       save_all = "<C-x><C-s>",
+      undo = { "<C-_>", "<C-/>", "<C-x>u" }, -- org-agenda-undo (Emacs undo keys)
       capture = "K", -- Emacs: k (kept free for motion)
       export = "<C-x><C-w>",
       help = "g?",
@@ -2187,6 +3200,13 @@ M.defaults = {
     edit_src = {
       save_exit = { "<C-c>'", "<prefix>'" },
       abort = { "<C-c><C-k>", "<prefix>k" },
+      -- the block has a :session: send the buffer (Visual: the lines) to it
+      -- (org-src-associate-babel-session)
+      send_to_session = { "<C-c><C-c>", "<prefix>e" },
+    },
+    --- Keys of the Beamer mode (org-beamer-mode-map), only while it is on.
+    beamer = {
+      beamer_select_environment = "<C-c><C-b>",
     },
   },
 }

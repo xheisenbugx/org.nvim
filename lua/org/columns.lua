@@ -14,6 +14,28 @@ local utils = require("org.utils")
 
 local M = {}
 
+--- `s` cut to at most `width` display cells (org-columns--truncate-below-width).
+local function truncate_below(s, width)
+  local out = s
+  while utils.width(out) > width do
+    out = vim.fn.strcharpart(out, 0, vim.fn.strchars(out) - 1)
+  end
+  return out
+end
+
+--- `s` truncated to `width` cells, ending with `columns_ellipses` when cut
+--- (org-columns-add-ellipses).
+function M.add_ellipses(s, width)
+  if utils.width(s) <= width then
+    return s
+  end
+  local ell = require("org.config").opts.columns_ellipses or ".."
+  if width <= utils.width(ell) then
+    return truncate_below(ell, width)
+  end
+  return truncate_below(s, width - utils.width(ell)) .. ell
+end
+
 local ns = vim.api.nvim_create_namespace("org.columns")
 
 --- Special properties: computed, never summarized nor set in a drawer.
@@ -821,7 +843,7 @@ local function render_table(state)
   local function line_for(cells)
     local parts = {}
     for i, v in ipairs(cells) do
-      parts[i] = utils.pad_right(utils.truncate(v, widths[i]), widths[i])
+      parts[i] = utils.pad_right(M.add_ellipses(v, widths[i]), widths[i])
     end
     return table.concat(parts, " │ ")
   end
@@ -898,6 +920,20 @@ local ns_ov = vim.api.nvim_create_namespace("org.columns.overlay")
 --- Active overlay views by org buffer.
 local views = {}
 
+--- Is the overlay column view on in `bufnr`?
+---@param bufnr integer
+---@return boolean
+function M.is_active(bufnr)
+  return views[bufnr] ~= nil
+end
+
+--- The Column menu comes and goes with the view (org-columns-menu).
+local function sync_menus()
+  if package.loaded["org.menu"] then
+    pcall(require("org.menu").sync)
+  end
+end
+
 --- What changing a headline line of the view says (Emacs signals
 --- text-read-only with this).
 local READ_ONLY = "Text is read-only: Type ‘e’ to edit property"
@@ -946,7 +982,7 @@ end
 
 --- Emacs overlay text of a cell: "%-W.Ws | ", "%-W.Ws |" for the last one.
 local function overlay_cell(v, w, last)
-  return utils.pad_right(utils.truncate(v, w), w) .. (last and " |" or " | ")
+  return utils.pad_right(M.add_ellipses(v, w), w) .. (last and " |" or " | ")
 end
 
 --- `s` without its first `n` display cells.
@@ -1019,7 +1055,7 @@ local function overlay_render(state, update)
       -- the cell face covers the value only: a keyword face with a
       -- background or an italic priority face must not spill onto the
       -- padding and the "|" separator
-      local v = utils.truncate(texts[k][i], widths[i]):gsub("%s+$", "")
+      local v = M.add_ellipses(texts[k][i], widths[i]):gsub("%s+$", "")
       if v ~= "" then
         chunks[#chunks + 1] = { v, cell_hl(r, c, r.cells[i]) }
       end
@@ -1550,6 +1586,7 @@ local function quit_overlay(state)
     return
   end
   views[state.src] = nil
+  vim.schedule(sync_menus)
   pcall(vim.api.nvim_del_augroup_by_id, state.group)
   local src = state.src
   if vim.api.nvim_buf_is_valid(src) then
@@ -1735,6 +1772,7 @@ local function open_overlay(src, lnum, global)
       quit_overlay(state)
     end,
   })
+  sync_menus()
   return true
 end
 

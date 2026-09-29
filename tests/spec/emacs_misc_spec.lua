@@ -143,6 +143,8 @@ end)
 
 describe("emacs: dates", function()
   it("inserts today", function()
+    -- no calendar shown yet (C-c < inserts the calendar's date)
+    require("org.calendar").cursor_date = nil
     local buf = org_buffer({ "Due " }, { 1, 3 })
     timestamps.insert_today()
     eq("Due " .. date.today():to_string(), buf_lines(buf)[1])
@@ -205,18 +207,20 @@ describe("emacs: agenda file list", function()
     config.opts.agenda_files = { "~/nonexistent-org-dir/*.org" }
     silence(function()
       files.agenda_file_to_front()
-      eq(path, config.opts.agenda_files[1])
+      eq(vim.fn.fnamemodify(path, ":~"), config.opts.agenda_files[1])
       ok(vim.tbl_contains(files.agenda_file_paths(), path))
       files.remove_file()
       ok(not vim.tbl_contains(files.agenda_file_paths(), path))
-      -- matched through a glob: still excluded
+      -- matched through a glob: like Emacs, the list becomes its files
       config.opts.agenda_files = { vim.fn.fnamemodify(path, ":h") .. "/*.org" }
+      files.remove_file()
       ok(not vim.tbl_contains(files.agenda_file_paths(), path))
       files.agenda_file_to_front()
       ok(vim.tbl_contains(files.agenda_file_paths(), path))
     end)
     config.opts.agenda_files = saved
-    files.removed = {}
+    files._configured = nil
+    vim.fn.delete(vim.fn.stdpath("data") .. "/org/agenda-files.json")
     vim.cmd("enew!")
   end)
 end)

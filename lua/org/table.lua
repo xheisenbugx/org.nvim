@@ -126,9 +126,28 @@ end
 ---------------------------------------------------------------------------
 
 local NUMBER = "^[<>]?[-+^.0-9]*[0-9][-+^.0-9eEdDx()%%:]*$"
+local number_rx = {}
 
+--- Whether cell text `s` is a number for alignment: it matches
+--- `table_number_regexp` (org-table-number-regexp), ignoring case like
+--- Emacs. The default regexp is matched in Lua.
 function M.is_number(s)
-  return s:match(NUMBER) ~= nil or s:match("^[-+]?inf$") ~= nil or s == "nan"
+  local config = require("org.config")
+  local re = config.opts.table_number_regexp
+  if re == nil or re == config.defaults.table_number_regexp then
+    if s:match(NUMBER) or s:match("^[<>]?[-+]?0[xX][%x.]+$") or s:match("^[<>]?[-+]?%d+#[%w.]+$") then
+      return true
+    end
+    local l = s:lower()
+    return l == "nan" or l:match("^[-+u]?inf$") ~= nil
+  end
+  local rx = number_rx[re]
+  if rx == nil then
+    local ok, r = pcall(vim.regex, "\\c" .. require("org.agenda.search").emacs_regexp(re, true))
+    rx = ok and r or false
+    number_rx[re] = rx
+  end
+  return rx and rx:match_str(s) ~= nil or false
 end
 
 --- Whether every non-empty cell of `row` is a width/alignment cookie.
@@ -403,7 +422,26 @@ function M.align_at(bufnr, lnum)
   end
 end
 
+--- Write the table after a field motion (org-table-automatic-realign):
+--- realigned when `table_automatic_realign` is on or `force` (a row was
+--- added), else left as it is. Returns the table's lines.
+local function motion_write(info, t, force)
+  if force or require("org.config").opts.table_automatic_realign ~= false then
+    return write_table(info, t)
+  end
+  return vim.api.nvim_buf_get_lines(0, info.start - 1, info.finish, false)
+end
+
+--- Remember that the cursor just moved to a field, so that typing replaces
+--- it (org-table-auto-blank-field).
+local function after_motion()
+  require("org.table.typing").motion_done(vim.api.nvim_get_current_buf())
+end
+M.after_motion = after_motion
+
 --- Move to the next field (insert-mode <Tab>); creates a row at the end.
+--- Hlines are jumped over (`table_tab_jumps_over_hlines`), else a row is
+--- added before them, like Emacs org-table-next-field.
 function M.next_field()
   local info = M.at_cursor()
   if not info then
@@ -413,21 +451,33 @@ function M.next_field()
   info = before_move(info, row, field)
   local t = info.tbl
   pad_rows(t)
-  -- move out of an hline row
+  local jumps = require("org.config").opts.table_tab_jumps_over_hlines ~= false
   local target_row, target_field = row, field + 1
+  local insert_at
   if t.rows[row].hline or target_field > t.ncols then
     target_field = 1
     target_row = row + 1
-    while t.rows[target_row] and t.rows[target_row].hline do
-      target_row = target_row + 1
-    end
-    if not t.rows[target_row] then
-      table.insert(t.rows, empty_row(t.ncols))
-      target_row = #t.rows
+    if t.rows[row].hline or (t.rows[target_row] and t.rows[target_row].hline and jumps) then
+      while t.rows[target_row] and t.rows[target_row].hline do
+        target_row = target_row + 1
+      end
+      if not t.rows[target_row] then
+        -- no data row after the hline: a new row before it
+        insert_at = t.rows[row].hline and #t.rows + 1 or row + 1
+      end
+    elseif t.rows[target_row] and t.rows[target_row].hline then
+      insert_at = row + 1
+    elseif not t.rows[target_row] then
+      insert_at = #t.rows + 1
     end
   end
-  local lines = write_table(info, t)
+  if insert_at then
+    table.insert(t.rows, insert_at, empty_row(t.ncols))
+    target_row = insert_at
+  end
+  local lines = motion_write(info, t, insert_at ~= nil)
   set_cursor(info, lines, target_row, target_field, 0)
+  after_motion()
 end
 
 --- Move to the previous field (insert-mode <S-Tab>).
@@ -452,8 +502,9 @@ function M.prev_field()
       target_field = t.ncols
     end
   end
-  local lines = write_table(info, t)
+  local lines = motion_write(info, t)
   set_cursor(info, lines, target_row, target_field, 0)
+  after_motion()
 end
 
 --- Move to the same column in the next row (insert-mode <CR>).
@@ -467,11 +518,14 @@ function M.next_row()
   local t = info.tbl
   pad_rows(t)
   local nxt = t.rows[row + 1]
+  local added = false
   if not nxt or nxt.hline then
     table.insert(t.rows, row + 1, empty_row(t.ncols))
+    added = true
   end
-  local lines = write_table(info, t)
+  local lines = motion_write(info, t, added)
   set_cursor(info, lines, row + 1, field, 0)
+  after_motion()
 end
 
 ---------------------------------------------------------------------------
@@ -867,6 +921,9 @@ function M.sort_column(opts)
     end
   end
   local less = compare or function(a, b)
+    if type(a) == "string" and type(b) == "string" then
+      return utils.string_lessp(a, b) -- org-sort-function
+    end
     return a < b
   end
   table.sort(slice, function(a, b)
@@ -980,6 +1037,19 @@ function M.separator_for_count(count)
   return count
 end
 
+--- Refuse to convert more than table_convert_region_max_lines lines
+--- (org-table-convert-region-max-lines).
+local function too_long(n)
+  local max = require("org.config").opts.table_convert_region_max_lines
+  if max and n > max then
+    utils.warn(
+      string.format("Region is longer than `table_convert_region_max_lines' (%d) lines; not converting", max)
+    )
+    return true
+  end
+  return false
+end
+
 --- Create an empty table (normal mode) or convert the visual selection.
 function M.create_or_convert()
   local mode = vim.fn.mode()
@@ -987,6 +1057,9 @@ function M.create_or_convert()
     local sep = M.separator_for_count(vim.v.count)
     local srow, _, erow = utils.visual_range()
     vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+    if too_long(erow - srow + 1) then
+      return
+    end
     local lines = vim.api.nvim_buf_get_lines(0, srow - 1, erow, false)
     vim.api.nvim_buf_set_lines(0, srow - 1, erow, false, M.convert_lines(lines, sep))
     return
@@ -995,9 +1068,14 @@ function M.create_or_convert()
   if is_table_line(line) then
     return M.align()
   end
-  local size = utils.input({ prompt = "Table size Columns x Rows [e.g. 5x2]: ", default = "5x2" })
+  -- org-table-default-size
+  local default = require("org.config").opts.table_default_size or "5x2"
+  local size = utils.input({ prompt = "Table size Columns x Rows [e.g. " .. default .. "]: ", default = default })
   if not size then
     return
+  end
+  if vim.trim(size) == "" then
+    size = default
   end
   local cols, rows = size:match("^%s*(%d+)%s*[xX]%s*(%d+)%s*$")
   cols, rows = tonumber(cols), tonumber(rows)
@@ -1038,6 +1116,9 @@ function M.import(path, sep)
   local data = utils.readfile(path)
   if not data then
     utils.warn("Cannot read file: " .. path)
+    return
+  end
+  if too_long(#data) then
     return
   end
   local lines = M.convert_lines(data, sep)
@@ -1656,6 +1737,9 @@ local function eval_one(info, row, field, eq)
       return hl and hl:get_property(name, true)
     end,
     debug = M.formula_debug and debug_step or nil,
+    -- a single evaluation (C-c =, an inline formula) substitutes names only
+    -- with table_formula_use_constants (org-table-formula-use-constants)
+    no_names = require("org.config").opts.table_formula_use_constants == false,
   })
   if not ok and err ~= "Abort" then
     utils.error("Table formula error: " .. tostring(err))
@@ -1774,6 +1858,9 @@ end
 --- Emacs org-table-maybe-recalculate-line.
 local function maybe_recalc_line(info, row)
   local r = info.tbl.rows[row]
+  if require("org.config").opts.table_allow_automatic_line_recalculation == false then
+    return false
+  end
   if r and not r.hline and vim.trim(r.cells[1] or "") == "#" and #info.tblfm > 0 then
     M.recalc(0, info.start, { line = info.start + row - 1 })
     return true
@@ -2533,6 +2620,167 @@ function M.toggle_column_width(count, ranges)
   return shrink.set(0, lnum, current)
 end
 
+--- Move to column `n` (a count, default 1) of the current table row: after
+--- the `| ` that starts the field, or after the last `|` when the row has
+--- fewer fields (org-table-goto-column).
+function M.goto_column(n)
+  n = n or math.max(vim.v.count, 1)
+  local line = vim.api.nvim_get_current_line()
+  if not is_table_line(line) then
+    return false
+  end
+  local pipes = pipe_positions(line)
+  local p = pipes[math.min(n, #pipes)]
+  local col = p
+  if line:sub(p + 1, p + 1) == " " then
+    col = p + 1
+  end
+  vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], math.min(col, math.max(#line - 1, 0)) })
+end
+
+--- org--do-wrap: lines of at most about `width` characters.
+local function do_wrap(words, width)
+  local lines = {}
+  local i = 1
+  while i <= #words do
+    local line = words[i]
+    i = i + 1
+    while words[i] and vim.fn.strchars(line) + vim.fn.strchars(words[i]) < width do
+      line = line .. " " .. words[i]
+      i = i + 1
+    end
+    lines[#lines + 1] = line
+  end
+  return lines
+end
+
+--- org-wrap: `text` in at most `nlines` lines, as narrow as possible.
+local function wrap_text(text, nlines)
+  local words = vim.split(vim.trim(text), "%s+")
+  if #words == 0 or words[1] == "" then
+    return {}
+  end
+  local w = 0
+  for _, word in ipairs(words) do
+    w = math.max(w, vim.fn.strchars(word))
+  end
+  local ll = do_wrap(words, w)
+  while #ll > nlines do
+    w = w + 1
+    ll = do_wrap(words, w)
+  end
+  return ll
+end
+
+--- M-RET in a table (org-table-wrap-region). In Visual mode, the fields
+--- of the selected column are wrapped like a paragraph into as many lines
+--- as selected (or `count` lines). Otherwise the text after the cursor
+--- moves to the start of the field below (only in Insert mode with
+--- `meta_return_split_line`, else the cursor just goes to the field
+--- below); with a count the field is emptied and its text appended to the
+--- field above.
+---@param opts? { count?: integer, split?: boolean }
+function M.wrap_region(opts)
+  opts = opts or {}
+  local count = opts.count
+  if count == nil and vim.v.count > 0 then
+    count = vim.v.count
+  end
+  if in_visual() then
+    local info, rows, c1, c2 = selected_rect()
+    if not info then
+      return false
+    end
+    if c1 ~= c2 then
+      utils.warn("Region must be limited to single column")
+      return
+    end
+    local t = info.tbl
+    pad_rows(t)
+    local words = {}
+    for _, r in ipairs(rows) do
+      words[#words + 1] = t.rows[r].cells[c1]
+      t.rows[r].cells[c1] = ""
+    end
+    local nlines = #rows
+    if count and count < 1 then
+      nlines = #rows + count
+    elseif count then
+      nlines = count
+    end
+    local wrapped = wrap_text(table.concat(words, " "), math.max(nlines, 1))
+    -- paste from the first selected row down, over the data rows
+    local r = rows[1]
+    for _, text in ipairs(wrapped) do
+      while t.rows[r] and t.rows[r].hline do
+        r = r + 1
+      end
+      if not t.rows[r] then
+        t.rows[r] = empty_row(t.ncols)
+      end
+      t.rows[r].cells[c1] = text
+      r = r + 1
+    end
+    local lines = write_table(info, t)
+    set_cursor(info, lines, rows[1], c1, 0)
+    return
+  end
+  local info, row, field = current_field()
+  if not info then
+    return false
+  end
+  local t = info.tbl
+  if t.rows[row].hline then
+    utils.warn("Not in a table data field")
+    return
+  end
+  pad_rows(t)
+  if count then
+    -- combine with the field above
+    local text = vim.trim(t.rows[row].cells[field] or "")
+    t.rows[row].cells[field] = ""
+    local above = row - 1
+    while t.rows[above] and t.rows[above].hline do
+      above = above - 1
+    end
+    if not t.rows[above] then
+      utils.warn("No field above")
+      return
+    end
+    t.rows[above].cells[field] = vim.trim((t.rows[above].cells[field] or ""):gsub("%s+$", "") .. " " .. text)
+    local lines = write_table(info, t)
+    set_cursor(info, lines, above, field, 0)
+    return
+  end
+  local split = opts.split
+  if split == nil then
+    split = require("org.structure").may_split_line("table")
+  end
+  local lnum, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local line = vim.api.nvim_get_current_line()
+  local pipe = line:find("|", col + 1, true)
+  if not split and pipe then
+    col = pipe - 1
+  end
+  local rest = pipe and line:sub(col + 1, pipe - 1) or ""
+  if pipe and rest ~= "" then
+    -- split the field: the text after the cursor starts the field below
+    vim.api.nvim_buf_set_lines(0, lnum - 1, lnum, false, { line:sub(1, col) .. " " .. line:sub(pipe) })
+    vim.api.nvim_win_set_cursor(0, { lnum, col })
+    M.next_row()
+    local info2 = M.at_cursor()
+    local row2, field2 = cursor_pos(info2)
+    local t2 = info2.tbl
+    pad_rows(t2)
+    t2.rows[row2].cells[field2] = vim.trim(vim.trim(rest) .. " " .. (t2.rows[row2].cells[field2] or ""))
+    local lines = write_table(info2, t2)
+    set_cursor(info2, lines, row2, field2, 0)
+    return
+  end
+  vim.api.nvim_win_set_cursor(0, { lnum, col })
+  M.next_row()
+end
+
 --- Toggle follow-field mode (Emacs org-table-follow-field-mode).
 function M.toggle_follow_field_mode()
   return require("org.table.follow").toggle()
@@ -2552,23 +2800,58 @@ function M.table_el()
   return require("org.table.el").create_or_convert()
 end
 
+--- Align every Org table of `bufnr` (org-table-map-tables with
+--- org-table-align).
+function M.align_all(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local l = 1
+  while l <= vim.api.nvim_buf_line_count(bufnr) do
+    local line = vim.api.nvim_buf_get_lines(bufnr, l - 1, l, false)[1]
+    if is_table_line(line) then
+      local info = M.find(bufnr, l)
+      if info then
+        M.align_at(bufnr, l)
+        l = M.find(bufnr, l).finish
+      else
+        while is_table_line(vim.api.nvim_buf_get_lines(bufnr, l, l + 1, false)[1]) do
+          l = l + 1
+        end
+      end
+    end
+    l = l + 1
+  end
+end
+
 function M.attach(bufnr)
-  if require("org.config").opts.table_header_line_p then
+  local config = require("org.config").opts
+  if config.table_header_line_p then
     require("org.table.follow").header_line_mode(bufnr, true)
   end
   local startup = require("org.files").get_buffer(bufnr).settings.startup or {}
-  if startup.shrink or (require("org.config").opts.startup_shrink_all_tables and not startup.noshrink) then
+  -- #+STARTUP: align / noalign (org-startup-align-all-tables)
+  local align = startup.align or (config.startup_align_all_tables and not startup.noalign)
+  local shrink = startup.shrink or (config.startup_shrink_all_tables and not startup.noshrink)
+  if align or shrink then
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(bufnr) then
-        require("org.table.shrink").shrink_all(bufnr)
+        if align then
+          M.align_all(bufnr)
+        end
+        if shrink then
+          require("org.table.shrink").shrink_all(bufnr)
+        end
       end
     end)
   end
+  require("org.table.typing").attach(bufnr)
   vim.api.nvim_create_autocmd("InsertLeave", {
     buffer = bufnr,
     group = vim.api.nvim_create_augroup("org.table." .. bufnr, { clear = true }),
     callback = function()
       if vim.api.nvim_get_current_buf() ~= bufnr then
+        return
+      end
+      if require("org.config").opts.table_automatic_realign == false then
         return
       end
       local line = vim.api.nvim_get_current_line()

@@ -477,6 +477,18 @@ local function stop_timer(t)
   end
 end
 
+--- The program printing the X11 idle time in milliseconds
+--- (org-clock-x11idle-program-name): `clock.x11idle_program_name`, else
+--- xprintidle when installed, else x11idle.
+---@return string
+function M.x11idle_program()
+  local name = clock_cfg().x11idle_program_name
+  if name and name ~= "" then
+    return name
+  end
+  return vim.fn.executable("xprintidle") == 1 and "xprintidle" or "x11idle"
+end
+
 --- Seconds since the user last did something (org-user-idle-seconds): the
 --- system idle time on macOS (ioreg) and X11 (xprintidle) once Neovim
 --- itself has been idle that long, else Neovim's idle time.
@@ -493,9 +505,9 @@ function M.user_idle_seconds(threshold)
     end)
     local ns = ok and res and res.stdout and res.stdout:match('"HIDIdleTime"%s*=%s*(%d+)')
     sys = ns and tonumber(ns) / 1e9
-  elseif vim.env.DISPLAY and vim.fn.executable("xprintidle") == 1 then
+  elseif vim.env.DISPLAY and vim.fn.executable(M.x11idle_program()) == 1 then
     local ok, res = pcall(function()
-      return vim.system({ "xprintidle" }, { text = true }):wait(2000)
+      return vim.system({ M.x11idle_program() }, { text = true }):wait(2000)
     end)
     local ms = ok and res and res.stdout and tonumber(vim.trim(res.stdout))
     sys = ms and ms / 1000
@@ -583,6 +595,23 @@ end
 
 local exit_hooked = false
 
+--- On exit with `clock.persist_query_save` and a running clock, ask
+--- whether to keep it for the next session (org-clock-persist-query-save);
+--- when not, it is dropped from `clock.persist_file` (the history stays).
+function M.query_save()
+  local cfg = clock_cfg()
+  if not (M.state and cfg.persist_query_save and cfg.persist and cfg.persist ~= "history") then
+    return
+  end
+  if utils.confirm("Save current clock (" .. (M.state.title or "") .. ")?") then
+    return
+  end
+  local state = M.state
+  M.state = nil
+  persist()
+  M.state = state
+end
+
 --- Ask to clock out before leaving Neovim (org-clock-ask-before-exiting).
 local function hook_exit()
   if exit_hooked then
@@ -599,6 +628,7 @@ local function hook_exit()
           utils.save_buffer_or_warn(bufnr)
         end
       end
+      M.query_save()
     end,
   })
 end
@@ -698,6 +728,8 @@ function M.clock_out(opts)
           out[i] = indent .. l
         end
         vim.api.nvim_buf_set_lines(bufnr, cl, cl, false, out)
+        -- org-store-log-note runs org-after-note-stored-hook for it too
+        edit.note_stored(bufnr, cl + 1, hl and hl.line)
       end
     end
   end
@@ -1284,9 +1316,42 @@ function M.clocktable_shift(n)
   return true
 end
 
+local function lisp_value(v)
+  if v == true then
+    return "t"
+  elseif v == false then
+    return "nil"
+  elseif type(v) == "table" then
+    return "(" .. table.concat(vim.tbl_map(lisp_value, v), " ") .. ")"
+  end
+  return tostring(v)
+end
+
+--- The parameters of a new clock table (org-clock-clocktable-default-properties):
+--- `:scope` first (`scope` unless the properties give one), then `:maxlevel`,
+--- then the others by name. Values: true is `t`, a list `( ... )`, false
+--- leaves the key out, anything else as written.
+---@param scope string
+---@return string
+function M.default_properties_string(scope)
+  local props = clock_cfg().clocktable_default_properties or {}
+  local out = " :scope " .. lisp_value(props.scope == nil and scope or props.scope)
+  if props.maxlevel ~= nil and props.maxlevel ~= false then
+    out = out .. " :maxlevel " .. lisp_value(props.maxlevel)
+  end
+  local keys = vim.tbl_filter(function(k)
+    return k ~= "scope" and k ~= "maxlevel" and props[k] ~= false
+  end, vim.tbl_keys(props))
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    out = out .. " :" .. k .. " " .. lisp_value(props[k])
+  end
+  return out
+end
+
 --- Insert a clock table, or update the one at the cursor (org-clock-report).
 --- The new table covers the entry at the cursor (:scope subtree), or the
---- file before the first headline, with `clock.clocktable_default` settings.
+--- file before the first headline, with `clock.clocktable_default_properties`.
 --- With a count, update the first clock table of the buffer instead.
 function M.clock_report()
   local dblock = require("org.dblock")
@@ -1308,9 +1373,7 @@ function M.clock_report()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
   local before_first = files.get_buffer(bufnr):headline_at(lnum) == nil
-  local defaults = clock_cfg().clocktable_default or {}
-  local header = "#+BEGIN: clocktable :scope " .. (before_first and "file" or "subtree")
-  header = header .. " :maxlevel " .. tostring(defaults.maxlevel or 2)
+  local header = "#+BEGIN: clocktable" .. M.default_properties_string(before_first and "file" or "subtree")
   -- org-create-dblock: on a non-blank line, the block goes below it
   local at = line:match("%S") and lnum or lnum - 1
   local indent = line:match("%S") and "" or line:match("^(%s*)")
@@ -1458,24 +1521,32 @@ function M.resolve(clock, prompt, last_valid, opts)
   resolving = true
   local ok, err = pcall(function()
     local title = prompt(clock) .. (hl and (": " .. hl:plain_title()) or "")
-    local ch = ui.menu({
-      title = title,
-      items = {
-        { key = "k", label = "Keep X minutes of the idle time (default all), stay clocked in", value = "k" },
-        { key = "K", label = "Keep X minutes, then clock out", value = "K" },
-        { key = "t", label = "Keep the time until a given time, stay clocked in", value = "t" },
-        { key = "T", label = "Keep the time until a given time, then clock out", value = "T" },
-        { key = "g", label = "Got back X minutes ago (clock in again from then)", value = "g" },
-        { key = "G", label = "Got back X minutes ago, stay clocked out", value = "G" },
-        { key = "s", label = "Subtract the idle time, clock in again now", value = "s" },
-        { key = "S", label = "Subtract the idle time, then clock out", value = "S" },
-        { key = "C", label = "Cancel the clock altogether", value = "C" },
-        { key = "j", label = "Jump to the clock", value = "j" },
-        { key = "J", label = "Clock out now and jump to the clock", value = "J" },
-        { key = "i", label = "Ignore (keep all the idle time)", value = "i" },
-        { key = "q", label = "Quit", value = "q" },
-      },
-    })
+    local ch
+    if clock_cfg().resolve_expert then
+      -- org-clock-resolve-expert: no help window, just the prompt
+      repeat
+        ch = utils.getchar(title .. " [jkKtTgGSscCiq]? ")
+      until ch == nil or ("jJkKtTgGsSCiq"):find(ch, 1, true)
+    else
+      ch = ui.menu({
+        title = title,
+        items = {
+          { key = "k", label = "Keep X minutes of the idle time (default all), stay clocked in", value = "k" },
+          { key = "K", label = "Keep X minutes, then clock out", value = "K" },
+          { key = "t", label = "Keep the time until a given time, stay clocked in", value = "t" },
+          { key = "T", label = "Keep the time until a given time, then clock out", value = "T" },
+          { key = "g", label = "Got back X minutes ago (clock in again from then)", value = "g" },
+          { key = "G", label = "Got back X minutes ago, stay clocked out", value = "G" },
+          { key = "s", label = "Subtract the idle time, clock in again now", value = "s" },
+          { key = "S", label = "Subtract the idle time, then clock out", value = "S" },
+          { key = "C", label = "Cancel the clock altogether", value = "C" },
+          { key = "j", label = "Jump to the clock", value = "j" },
+          { key = "J", label = "Clock out now and jump to the clock", value = "J" },
+          { key = "i", label = "Ignore (keep all the idle time)", value = "i" },
+          { key = "q", label = "Quit", value = "q" },
+        },
+      })
+    end
     if ch == nil or ch == "i" or ch == "q" then
       return
     end
@@ -1807,7 +1878,10 @@ function M.attach(bufnr)
     buffer = bufnr,
     group = vim.api.nvim_create_augroup("org.clock.buf." .. bufnr, { clear = true }),
     callback = function()
-      vim.api.nvim_buf_clear_namespace(bufnr, display_ns, 0, -1)
+      -- org-remove-highlights-with-change
+      if require("org.config").opts.remove_highlights_with_change ~= false then
+        vim.api.nvim_buf_clear_namespace(bufnr, display_ns, 0, -1)
+      end
     end,
   })
   vim.api.nvim_set_hl(0, "OrgClockSum", { link = "Comment", default = true })
@@ -2554,6 +2628,31 @@ local function clocktable_single(params, ctx, ts, te)
   for _, f in ipairs(file_list) do
     tables[#tables + 1] = table_data(f, roots, params, ts, te)
   end
+  local formatter = clock_cfg().clocktable_formatter
+  if type(formatter) == "function" then
+    -- org-clock-clocktable-formatter: the data, as Emacs passes it
+    local data, sum = {}, 0
+    for _, t in ipairs(tables) do
+      local entries = {}
+      for _, e in ipairs(t.entries) do
+        entries[#entries + 1] = {
+          level = e.level,
+          headline = e.headline,
+          tags = e.tags,
+          timestamp = e.ts,
+          time = e.time,
+          properties = e.props,
+        }
+      end
+      data[#data + 1] = { file = t.file.filename, time = t.total, entries = entries }
+      sum = sum + t.total
+    end
+    local out = formatter(data, vim.tbl_extend("force", params, { multifile = multifile }))
+    if type(out) == "string" then
+      out = vim.split(out, "\n", { plain = true })
+    end
+    return out or {}, sum
+  end
   local total = 0
   local deepest
   for _, t in ipairs(tables) do
@@ -2570,6 +2669,15 @@ local function clocktable_single(params, ctx, ts, te)
     return translate(term, lang)
   end
   local nprops = string.rep("|", #props)
+  local function cell_format(fmt_str)
+    return function(s)
+      return (fmt_str:gsub("%%s", function()
+        return s
+      end))
+    end
+  end
+  local total_cell = cell_format(clock_cfg().total_time_cell_format or "*%s*")
+  local file_cell = cell_format(clock_cfg().file_time_cell_format or "*%s*")
 
   -- The table text, built like Emacs does and aligned afterwards.
   local text = {}
@@ -2601,11 +2709,10 @@ local function clocktable_single(params, ctx, ts, te)
     .. (show_ts and "|" or "")
     .. (show_tags and "|" or "")
     .. nprops
-    .. "*"
-    .. tr("Total time")
-    .. "*| *"
-    .. fmt(total)
-    .. "*|"
+    .. total_cell(tr("Total time"))
+    .. "| "
+    .. total_cell(fmt(total))
+    .. "|"
     .. string.rep("|", math.max(0, tcols - 1))
     .. (percent and (total == 0 and "0.0|" or "100.0|") or "")
   if total > 0 then
@@ -2618,13 +2725,13 @@ local function clocktable_single(params, ctx, ts, te)
             name = t.file.settings.title
           end
           text[#text + 1] = string.format(
-            "| %s %s | %s%s%s*%s* | *%s*|%s%s",
+            "| %s %s | %s%s%s%s | *%s*|%s%s",
             name,
             level_col and "| " or "",
             show_ts and "| " or "",
             show_tags and "| " or "",
             nprops,
-            tr("File time"),
+            file_cell(tr("File time")),
             fmt(t.total),
             string.rep("|", math.max(0, tcols - 1)),
             percent and string.format(" %.1f |", 100 * t.total / total) or ""

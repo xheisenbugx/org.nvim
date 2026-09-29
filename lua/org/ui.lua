@@ -55,6 +55,7 @@ end
 ---@field value any
 ---@field items? org.MenuItem[] submenu
 ---@field heading? boolean non-selectable label row
+---@field column? integer 2: shown in a right column, on the previous item's line
 
 --- Build a nested menu tree from items with multi-character keys.
 --- An item whose key is a strict prefix of other keys becomes a submenu.
@@ -103,6 +104,13 @@ function M.menu(opts)
       if it.heading then
         lines[#lines + 1] = it.label
         hls[#hls + 1] = { #lines - 1, 0, -1, "Title" }
+      elseif it.column == 2 and #lines > 0 then
+        -- the right column of a two-column menu: on the previous line
+        local prev = lines[#lines]
+        local pad = string.rep(" ", math.max(42 - utils.width(prev), 2))
+        local start = #prev + #pad
+        lines[#lines] = prev .. pad .. string.format("[%s]  %s%s", it.key, it.label, it.items and " …" or "")
+        hls[#hls + 1] = { #lines - 1, start, start + 3, "Special" }
       else
         local suffix = it.items and " …" or ""
         lines[#lines + 1] = string.format(" [%s]  %s%s", it.key, it.label, suffix)
