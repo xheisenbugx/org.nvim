@@ -37,8 +37,9 @@ local M = {}
 ---@type table<string, org.Extension>
 M.loaded = {}
 
--- names registered by the last setup, removed again on the next one
-local registered = { actions = {}, commands = {} }
+-- names and global keys registered by the last setup, removed again on the
+-- next one
+local registered = { actions = {}, commands = {}, keys = {} }
 
 local function is_enabled(value)
   if value == nil or value == false then
@@ -56,7 +57,37 @@ local function unregister()
   for name in pairs(registered.commands) do
     commands.extra[name] = nil
   end
-  registered = { actions = {}, commands = {} }
+  -- global keys of actions that may no longer exist; a key the user has
+  -- since mapped to something else is left alone
+  for _, k in ipairs(registered.keys) do
+    local map = vim.fn.maparg(k.lhs, k.mode, false, true)
+    if map.desc == k.desc then
+      pcall(vim.keymap.del, k.mode, k.lhs)
+    end
+  end
+  registered = { actions = {}, commands = {}, keys = {} }
+end
+
+-- Remember the global keys the extension's actions will get (defaults and
+-- the user's own), so the next setup can remove them.
+local function track_keys()
+  local config = require("org.config")
+  local actions = require("org.actions")
+  local maps = config.opts.mappings
+  for _, section in ipairs({ "global", "emacs_global" }) do
+    for aname, value in pairs(maps[section] or {}) do
+      local a = registered.actions[aname] and actions.list[aname]
+      if a then
+        for _, lhs in ipairs(config.lhs_list(value)) do
+          for _, mode in ipairs(a.modes or { "n" }) do
+            if mode ~= "i" then
+              registered.keys[#registered.keys + 1] = { mode = mode, lhs = lhs, desc = "org: " .. a.desc }
+            end
+          end
+        end
+      end
+    end
+  end
 end
 
 ---@param name string
@@ -132,6 +163,7 @@ function M.setup()
       end
     end
   end
+  track_keys()
 end
 
 --- Whether an extension is enabled and loaded.
