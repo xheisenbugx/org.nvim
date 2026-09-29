@@ -728,6 +728,8 @@ function M.clock_out(opts)
           out[i] = indent .. l
         end
         vim.api.nvim_buf_set_lines(bufnr, cl, cl, false, out)
+        -- org-store-log-note runs org-after-note-stored-hook for it too
+        edit.note_stored(bufnr, cl + 1, hl and hl.line)
       end
     end
   end

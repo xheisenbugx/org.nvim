@@ -532,10 +532,15 @@ function M.add_log_entry(bufnr, lnum, entry_lines)
     vim.api.nvim_buf_set_lines(bufnr, at - 1, replace and at or at - 1, false, lines)
     first = at
   end
-  -- org-after-note-stored-hook
+  M.note_stored(bufnr, first, hl.line)
+end
+
+--- Fire the `OrgNoteStored` User autocmd (org-after-note-stored-hook) for
+--- a note stored at line `lnum` of the entry at line `headline`.
+function M.note_stored(bufnr, lnum, headline)
   pcall(vim.api.nvim_exec_autocmds, "User", {
     pattern = "OrgNoteStored",
-    data = { bufnr = bufnr, lnum = first, headline = hl.line },
+    data = { bufnr = bufnr, lnum = lnum, headline = headline },
     modeline = false,
   })
 end
