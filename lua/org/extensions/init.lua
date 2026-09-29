@@ -29,6 +29,9 @@ local M = {}
 ---@field setup? fun(opts: table)
 ---Adds checks to `:checkhealth org`; receives `vim.health`.
 ---@field health? fun(h: table, opts: table)
+---Called when a later `setup()` turns the extension off (or before it is
+---set up again): remove autocmds, handlers and windows it made.
+---@field teardown? fun()
 
 --- Enabled extensions from the last `setup()`: name -> module.
 ---@type table<string, org.Extension>
@@ -95,6 +98,14 @@ function M.setup()
   local config = require("org.config")
   local utils = require("org.utils")
   unregister()
+  for name, ext in pairs(M.loaded) do
+    if ext.teardown then
+      local ok, err = pcall(ext.teardown)
+      if not ok then
+        utils.error(string.format("extension %s: teardown failed: %s", name, tostring(err)))
+      end
+    end
+  end
   M.loaded = {}
   local exts = config.opts.extensions or {}
   local names = vim.tbl_keys(exts)

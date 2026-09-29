@@ -71,6 +71,21 @@ describe("extensions", function()
     eq(false, require("org.config").opts.mappings.global.testext_hello)
   end)
 
+  it("calls teardown when a later setup turns it off or sets it up again", function()
+    local downs = 0
+    package.loaded["org.extensions.testext"].teardown = function()
+      downs = downs + 1
+    end
+    setup({ extensions = { testext = {} } })
+    eq(0, downs)
+    setup({ extensions = { testext = {} } })
+    eq(1, downs)
+    setup()
+    eq(2, downs)
+    setup()
+    eq(2, downs)
+  end)
+
   it("reports an unknown extension without failing setup", function()
     local errors = {}
     local notify = vim.notify
