@@ -5289,36 +5289,70 @@ the first headline are a title slide when they show anything: the values of
 
 Slides are copies of the source lines in a scratch buffer, centered in a
 floating window `width` columns wide. Stars, emphasis markers and other
-`#+KEY:` lines are hidden, the headline gets a rule under it, and the tab
-line, status line and ruler are turned off until the presentation ends.
-Image links are previewed when an image backend is available
+`#+KEY:` lines are hidden, the headline gets a rule under it, deeper
+headlines are indented two columns per level, and the tab line, status
+line and ruler are turned off while the presentation's tab is shown. The
+source's in-buffer settings (#+TODO, #+TAGS, #+LINK, ...) apply to the
+slides, and image links are previewed when an image backend is available
 (|org-images|). The source buffer, its folds and window options are not
 touched; quitting closes the tab, restores the options and puts the cursor
 on the slide you were on.
 
 Keys in the slide buffer (actions after the arrow) ~
-  <Right>  n  <Space>      next slide       -> `present_next`
-  <Left>   p  <BS>         previous slide   -> `present_prev`
-  <C-c><   gg  <           first slide      -> `present_first`
-  <C-c>>   G   >           last slide       -> `present_last`
-  <C-c><C-q>  q  <Esc>     quit             -> `present_quit`
-  <C-c><C-r>               toggle editing   -> `present_toggle_read_only`
+  <Right>  n  <Space>      next slide           -> `present_next`
+  <Left>   p  <BS>         previous slide       -> `present_prev`
+  <C-c><   gg  <           first slide          -> `present_first`
+  <C-c>>   G   >           last slide           -> `present_last`
+  <C-c><C-1>  1            toggle one big page  -> `present_toggle_one_big_page`
+  <C-c><C-=>  +  =         bigger font          -> `present_big`
+  <C-c><C-->  -            reset the font       -> `present_small`
+  <C-c><C-q>  q  <Esc>     quit                 -> `present_quit`
+  <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
 
 The single-letter keys are only mapped while the slides are read-only.
-Change them with `keys` and `read_only_keys`.
+Change them with `keys` and `read_only_keys`. `<Tab>` and the other org
+keys work on the slide as in any org buffer.
 
+One big page ~
+`present_toggle_one_big_page` shows the whole file, with the same markup
+hidden, at the slide you were on (org-present-toggle-one-big-page; the
+counter reads `all 12`). Toggling again, or moving to the next or previous
+slide, goes back to slides from the slide under the cursor.
+
+Folded slides ~
+With `startup_folded = true` each slide shows only its headline at first
+(org-present-startup-folded); `<Tab>` unfolds it step by step like any
+subtree, to reveal a slide bit by bit.
+
+Font size ~
+`present_big` makes the terminal font `font_scale` points bigger (4 when
+`font_scale` is 0) and `present_small` resets it (org-present-big and
+org-present-small). With `font_scale` above 0 the font grows as the
+presentation starts and is reset when it ends. This works in kitty with
+remote control on (`allow_remote_control yes` and `listen_on` in
+kitty.conf), or anywhere with `font_command`, a function called with `"+N"`
+or `"0"`:
+>lua
+    font_command = function(delta)
+      vim.system({ "my-terminal-font", delta }) -- your terminal's own tool
+    end,
+<
 Editing ~
 Slides are read-only by default and the cursor is hidden (`hide_cursor`).
 With `<C-c><C-r>` (or `read_only = false`) the slide can be edited: edits
 are written back to the source buffer when you change slides, toggle back
-or quit, and `:w` in the slide buffer writes the source file.
+or quit (`:q` included), and `:w` in the slide buffer writes the source
+file. When the source was changed elsewhere meanwhile, the edits go to the
+slide the text came from; if that slide's first line is gone they are not
+written, and the slide's text is left in the unnamed register.
 
 Hooks ~
-`on_start(state)`, `on_quit(state)` and `on_slide(n, state)` are called as
-the presentation starts, ends and moves (org-present-mode-hook,
-org-present-mode-quit-hook, org-present-after-navigate-functions). The
-`User` autocmds `OrgPresentStart`, `OrgPresentQuit` and `OrgPresentSlide`
-fire at the same points with `data = { source, slide, total }`.
+`on_start(state)`, `on_quit(state)` and `on_slide(n, state, heading)` are
+called as the presentation starts, ends and moves (org-present-mode-hook,
+org-present-mode-quit-hook, org-present-after-navigate-functions, which
+also gets the headline). The `User` autocmds `OrgPresentStart`,
+`OrgPresentQuit` and `OrgPresentSlide` fire at the same points with
+`data = { source, slide, total, heading }`.
 
 Options ~
   `slide_level`            headline level that starts slides (1)
@@ -5328,25 +5362,28 @@ Options ~
   `read_only`              start read-only (true)
   `hide_cursor`            hide the cursor while read-only (true)
   `hide_stars`             hide headline stars (true)
+  `indent_subheadings`     indent deeper headlines (true)
   `hide_keywords`          hide `#+KEY:` lines and title keywords (true)
   `hide_emphasis_markers`  hide `*` `/` `_` ... markers (true)
   `heading_underline`      rule under the slide's headline (true)
   `show_images`            preview image links (true)
   `counter`                `3/12` in the window bar (true)
+  `startup_folded`         show only the headline at first (false)
+  `font_scale`             points to grow the font while presenting (0)
+  `font_command`           function changing the font, see above (nil)
 
 Highlights: `OrgPresentHeading`, `OrgPresentUnderline`, `OrgPresentTitle`,
 `OrgPresentAuthor`, `OrgPresentDate`, `OrgPresentCounter`.
 
 Differences from Emacs org-present ~
-  - A terminal cannot change its font size, so there is no
-    `org-present-big`/`small` and no `org-present-text-scale`. Use the
-    hooks to call your terminal instead, e.g. kitty's
-    `kitten @ set-font-size +4` in `on_start` and `0` in `on_quit`.
-  - Hiding the cursor needs a terminal or GUI that honours a fully blended
-    cursor highlight.
-  - `org-present-toggle-one-big-page` and `org-present-startup-folded` are
-    not implemented.
-  - In-buffer settings outside the slide (#+TODO, #+STARTUP) don't apply to
-    it; it is highlighted with the global keywords.
+  - The font size is the terminal's: it changes for the whole terminal
+    window, and only in kitty or through `font_command`. `present_small`
+    resets it to the terminal's configured size.
+  - The cursor is hidden with a blended 'guicursor' highlight: the TUI
+    hides the terminal cursor, and GUIs that ignore blending show it.
+  - Slides are shown in their own tab rather than by narrowing the buffer,
+    so `:q` on a slide ends the presentation instead of closing the file.
+  - `#+begin_...` lines stay visible (org-present hides every `#+` line);
+    other `#+KEY:` lines are hidden entirely.
 
  vim:tw=78:ts=8:ft=help:norl:

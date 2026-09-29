@@ -92,6 +92,8 @@ describe("present", function()
     present.quit()
     vim.api.nvim_del_augroup_by_name("OrgPresentSpec")
     setup()
+    -- don't leave a modified scratch buffer current for later specs
+    vim.cmd("enew!")
   end)
 
   it("is off unless enabled", function()
@@ -299,5 +301,194 @@ describe("present", function()
     vim.notify = notify
     eq(nil, present.state)
     ok(msgs[1] and msgs[1]:find("not an org buffer", 1, true))
+  end)
+  it("keeps slide edits when the window is closed with :q", function()
+    setup({})
+    local src = org_buffer(DECK, { 13, 0 })
+    present.start()
+    present.toggle_read_only()
+    vim.api.nvim_buf_set_lines(present.state.buf, 1, 2, false, { "Edited." })
+    vim.cmd("quit")
+    vim.wait(100, function()
+      return present.state == nil
+    end)
+    eq(nil, present.state)
+    eq("Edited.", buf_lines(src)[14])
+    vim.bo[src].modified = false
+  end)
+
+  it("focuses the presentation when started from inside it", function()
+    setup({})
+    local src = org_buffer(DECK, { 1, 0 })
+    present.start()
+    local st = present.state
+    present.start(3)
+    eq(st, present.state)
+    eq(src, st.source)
+    eq(3, st.index)
+    eq(st.win, vim.api.nvim_get_current_win())
+  end)
+
+  it("follows changes made to the source during the presentation", function()
+    setup({})
+    local src = org_buffer(DECK, { 9, 0 })
+    present.start()
+    local st = present.state
+    eq(3, st.index)
+    -- a new slide above the one shown
+    vim.api.nvim_buf_set_lines(src, 4, 4, false, { "* Zeroth", "z" })
+    present.toggle_read_only()
+    vim.api.nvim_buf_set_lines(st.buf, 1, 1, false, { "Inserted." })
+    present.next()
+    eq({ "* Third", "The end." }, slide_lines())
+    eq({ "* Second", "Inserted.", "#+begin_src lua" }, vim.list_slice(buf_lines(src), 11, 13))
+    eq(1, #vim.tbl_filter(function(l)
+      return l == "* Second"
+    end, buf_lines(src)))
+    vim.bo[src].modified = false
+  end)
+
+  it("keeps the edits in a register when their slide changed in the source", function()
+    setup({})
+    local src = org_buffer(DECK, { 9, 0 })
+    present.start()
+    local st = present.state
+    present.toggle_read_only()
+    vim.api.nvim_buf_set_lines(st.buf, 1, 1, false, { "Inserted." })
+    vim.api.nvim_buf_set_lines(src, 8, 9, false, { "* Second, renamed" })
+    local before = buf_lines(src)
+    local notify = vim.notify
+    local msgs = {}
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    present.next()
+    vim.notify = notify
+    eq(before, buf_lines(src))
+    ok(msgs[1] and msgs[1]:find("register", 1, true))
+    eq("* Second\nInserted.\n", vim.fn.getreg('"'):sub(1, 19))
+    vim.bo[src].modified = false
+  end)
+
+  it("sets its global options only while its tab is shown", function()
+    setup({})
+    org_buffer(DECK, { 1, 0 })
+    local ls, stal, gcr = vim.o.laststatus, vim.o.showtabline, vim.o.guicursor
+    present.start()
+    eq(0, vim.o.laststatus)
+    vim.cmd("tabprevious")
+    eq({ ls, stal, gcr }, { vim.o.laststatus, vim.o.showtabline, vim.o.guicursor })
+    vim.cmd("tabnext")
+    eq(0, vim.o.laststatus)
+    eq("a:OrgPresentHiddenCursor", vim.o.guicursor)
+    present.quit()
+    eq({ ls, stal, gcr }, { vim.o.laststatus, vim.o.showtabline, vim.o.guicursor })
+  end)
+
+  it("toggles one big page and goes back to the slide under the cursor", function()
+    setup({})
+    org_buffer(DECK, { 5, 0 })
+    present.start()
+    local st = present.state
+    present.toggle_one_big_page()
+    eq(DECK, slide_lines())
+    eq({ 5, 0 }, vim.api.nvim_win_get_cursor(st.win))
+    eq("%=%#OrgPresentCounter#all 4 ", vim.wo[st.win].winbar)
+    vim.api.nvim_win_set_cursor(st.win, { 11, 0 })
+    present.toggle_one_big_page()
+    eq(3, st.index)
+    eq({ "* Second", "#+begin_src lua", ",* not a heading", "#+end_src" }, slide_lines())
+    -- next/prev leave it too, from the slide under the cursor
+    present.toggle_one_big_page()
+    vim.api.nvim_win_set_cursor(st.win, { 5, 0 })
+    present.next()
+    eq(3, st.index)
+    eq(false, st.big)
+  end)
+
+  it("starts slides folded with startup_folded", function()
+    setup({ startup_folded = true })
+    org_buffer(DECK, { 5, 0 })
+    present.start()
+    local st = present.state
+    vim.api.nvim_win_call(st.win, function()
+      eq(4, vim.fn.foldclosedend(1))
+      require("org.actions").run("cycle")
+      eq(-1, vim.fn.foldclosed(1))
+      eq(3, vim.fn.foldclosed(3))
+      local text = vim.api.nvim_eval("v:lua.require'org.extensions.present'.foldtext()")
+      ok(type(text) == "table")
+    end)
+  end)
+
+  it("shows the source's in-buffer settings on the slides", function()
+    setup({})
+    org_buffer({ "#+TODO: WAIT | DONE", "* WAIT First", "text" }, { 2, 0 })
+    present.start()
+    local f = require("org.files").get_buffer(present.state.buf)
+    eq("WAIT", f.headlines[1].todo)
+  end)
+
+  it("indents deeper headlines and passes the headline to the hooks", function()
+    local headings = {}
+    setup({
+      on_slide = function(_, _, heading)
+        headings[#headings + 1] = heading
+      end,
+    })
+    org_buffer(DECK, { 5, 0 })
+    present.start()
+    local inline = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(present.state.buf, -1, 0, -1, { details = true })) do
+      if m[4].virt_text_pos == "inline" then
+        inline[#inline + 1] = { m[2], m[4].virt_text[1][1] }
+      end
+    end
+    eq({ { 2, "  " } }, inline)
+    local data
+    vim.api.nvim_create_autocmd("User", {
+      group = "OrgPresentSpec",
+      pattern = "OrgPresentSlide",
+      callback = function(ev)
+        data = ev.data
+      end,
+    })
+    present.first()
+    eq({ "First", "My talk" }, headings)
+    eq("My talk", data.heading)
+  end)
+
+  it("turns off star decorations under the hidden stars and keeps the TODO colour", function()
+    setup({})
+    require("org.config").opts.ui.bullets = { "◉", "○" }
+    org_buffer({ "* TODO Task", "text" }, { 1, 0 })
+    present.start()
+    local buf = present.state.buf
+    eq(false, require("org.ui.decorations").ui_options(buf).bullets)
+    local col
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, { details = true })) do
+      if m[4].hl_group == "OrgPresentHeading" then
+        col = m[3]
+      end
+    end
+    eq(7, col) -- "Task", after "* TODO "
+  end)
+
+  it("changes the terminal font with font_scale and font_command", function()
+    local calls = {}
+    setup({
+      font_scale = 3,
+      font_command = function(delta)
+        calls[#calls + 1] = delta
+      end,
+    })
+    org_buffer(DECK, { 1, 0 })
+    present.start()
+    present.big()
+    present.small()
+    present.small()
+    present.big()
+    present.quit()
+    eq({ "+3", "0", "+3", "0" }, calls)
   end)
 end)

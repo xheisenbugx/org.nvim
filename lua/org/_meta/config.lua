@@ -483,8 +483,21 @@
 ---@field show_images? boolean
 ---Show `3/12` in the window bar. (default: `true`)
 ---@field counter? boolean
+---Show only a slide's headline at first; <Tab> unfolds it
+---(org-present-startup-folded). (default: `false`)
+---@field startup_folded? boolean
+---Indent headlines below the slide's own headline by two columns per level.
+---(default: `true`)
+---@field indent_subheadings? boolean
+---Grow the terminal font by this many points while presenting
+---(org-present-text-scale); 0 leaves it alone. Needs kitty with remote
+---control, or `font_command`. (default: `0`)
+---@field font_scale? integer
+---Changes the terminal font: called with `"+N"` or `"0"` (reset).
+---@field font_command? fun(delta: string)
 ---Keys always active in the slide buffer: `next`, `prev`, `first`, `last`,
----`quit`, `toggle_read_only` -> lhs, a list of lhs or `false`.
+---`quit`, `toggle_read_only`, `toggle_one_big_page`, `big`, `small` -> lhs,
+---a list of lhs or `false`.
 ---@field keys? table<string, string|string[]|false>
 ---Keys active only while read-only (same names as `keys`).
 ---@field read_only_keys? table<string, string|string[]|false>
@@ -492,9 +505,9 @@
 ---@field on_start? fun(state: table)
 ---Called when it ends (org-present-mode-quit-hook).
 ---@field on_quit? fun(state: table)
----Called with the slide number after each move
----(org-present-after-navigate-functions).
----@field on_slide? fun(n: integer, state: table)
+---Called with the slide number, the state and the slide's headline after
+---each move (org-present-after-navigate-functions).
+---@field on_slide? fun(n: integer, state: table, heading: string)
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry

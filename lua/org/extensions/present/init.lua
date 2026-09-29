@@ -48,6 +48,21 @@ M.defaults = {
   show_images = true,
   --- Show `3/12` in the window bar.
   counter = true,
+  --- Show only a slide's headline at first; <Tab> unfolds it like any
+  --- subtree (org-present-startup-folded).
+  startup_folded = false,
+  --- Indent the headlines below a slide's own headline by two columns per
+  --- level (their stars are hidden with `hide_stars`).
+  indent_subheadings = true,
+  --- Make the terminal font this many points bigger while presenting
+  --- (org-present-big, `org-present-text-scale`); 0 leaves it alone. Needs
+  --- kitty with remote control (`allow_remote_control` and `listen_on`)
+  --- or `font_command`.
+  font_scale = 0,
+  --- Custom font resizer, `fun(delta)`: delta is `"+N"` to grow by N points
+  --- or `"0"` to reset (e.g. for WezTerm or Ghostty via their own IPC).
+  ---@type fun(delta: string)|nil
+  font_command = nil,
   --- Keys in the slide buffer, always active.
   keys = {
     next = "<Right>",
@@ -56,6 +71,9 @@ M.defaults = {
     last = "<C-c>>",
     quit = "<C-c><C-q>",
     toggle_read_only = "<C-c><C-r>",
+    toggle_one_big_page = "<C-c><C-1>",
+    big = "<C-c><C-=>",
+    small = "<C-c><C-->",
   },
   --- Keys active only while read-only (they would get in the way of editing).
   read_only_keys = {
@@ -64,6 +82,9 @@ M.defaults = {
     first = { "gg", "<" },
     last = { "G", ">" },
     quit = { "q", "<Esc>" },
+    toggle_one_big_page = "1",
+    big = { "+", "=" },
+    small = "-",
   },
   --- Called with the presentation state when it starts (org-present-mode-hook).
   ---@type fun(state: table)|nil
@@ -71,9 +92,9 @@ M.defaults = {
   --- Called when it ends (org-present-mode-quit-hook).
   ---@type fun(state: table)|nil
   on_quit = nil,
-  --- Called with the slide number after each move
-  --- (org-present-after-navigate-functions).
-  ---@type fun(n: integer, state: table)|nil
+  --- Called with the slide number, the state and the slide's headline text
+  --- after each move (org-present-after-navigate-functions).
+  ---@type fun(n: integer, state: table, heading: string)|nil
   on_slide = nil,
 }
 
@@ -84,6 +105,13 @@ M.actions = {
   present_first = { MOD, "first", desc = "Presentation: first slide" },
   present_last = { MOD, "last", desc = "Presentation: last slide" },
   present_toggle_read_only = { MOD, "toggle_read_only", desc = "Presentation: toggle editing the slides" },
+  present_toggle_one_big_page = {
+    MOD,
+    "toggle_one_big_page",
+    desc = "Presentation: toggle showing the whole file (org-present-toggle-one-big-page)",
+  },
+  present_big = { MOD, "big", desc = "Presentation: bigger terminal font (org-present-big)" },
+  present_small = { MOD, "small", desc = "Presentation: reset the terminal font (org-present-small)" },
   present_quit = { MOD, "quit", desc = "Quit the presentation" },
 }
 
@@ -132,7 +160,7 @@ local function fire(event, cb, st, ...)
   vim.api.nvim_exec_autocmds("User", {
     pattern = event,
     modeline = false,
-    data = { source = st.source, slide = st.index, total = #st.slides },
+    data = { source = st.source, slide = st.index, total = #st.slides, heading = st.heading },
   })
 end
 
@@ -162,16 +190,39 @@ local function decorate(st, slide, lines)
   local width = vim.api.nvim_win_is_valid(st.win) and vim.api.nvim_win_get_width(st.win) or 80
   local can_hide_lines = vim.fn.has("nvim-0.11") == 1
   local first_heading = true
+  -- level of the slide headline above (for indenting deeper headlines)
+  local base
+  local todo_cfg = require("org.files").get_buffer(buf).settings.todo
   for i, line in ipairs(lines) do
     local row = i - 1
     local stars = line:match("^(%*+%s+)")
     if stars then
+      local level = #line:match("^%*+")
       if o.hide_stars then
         vim.api.nvim_buf_set_extmark(buf, ns, row, 0, { end_col = #stars, conceal = "" })
       end
-      if first_heading and not slide.title then
+      local is_head
+      if slide.all then
+        is_head = level <= o.slide_level
+      else
+        is_head = first_heading and not slide.title
+      end
+      if not is_head and o.hide_stars and o.indent_subheadings and base and level > base then
+        vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
+          virt_text = { { string.rep("  ", level - base), "Normal" } },
+          virt_text_pos = "inline",
+        })
+      end
+      if is_head then
         first_heading = false
-        vim.api.nvim_buf_set_extmark(buf, ns, row, #stars, {
+        base = level
+        -- the TODO keyword keeps its own colour
+        local start = #stars
+        local parts = require("org.parser").parse_headline_line(line, todo_cfg)
+        if parts and parts.todo then
+          start = line:find(parts.todo, #stars + 1, true) + #parts.todo
+        end
+        vim.api.nvim_buf_set_extmark(buf, ns, row, start, {
           end_col = #line,
           hl_group = "OrgPresentHeading",
           priority = 150,
@@ -219,7 +270,7 @@ local function update_winbar(st)
     parts[#parts + 1] = "[edit]"
   end
   if st.opts.counter then
-    parts[#parts + 1] = string.format("%d/%d", st.index, #st.slides)
+    parts[#parts + 1] = st.big and string.format("all %d", #st.slides) or string.format("%d/%d", st.index, #st.slides)
   end
   vim.wo[st.win].winbar = #parts > 0 and ("%=%#OrgPresentCounter#" .. table.concat(parts, " ") .. " ") or ""
 end
@@ -234,26 +285,99 @@ local function show_images(st)
   end
 end
 
---- Write edits of the shown slide back to the source buffer and re-split.
-local function sync(st)
-  if vim.b[st.buf].changedtick == st.tick or not vim.api.nvim_buf_is_valid(st.source) then
-    return
+--- The slide shown: one of `st.slides`, or the whole file in one-big-page
+--- mode.
+local function shown_slide(st)
+  if st.big then
+    return { first = 1, last = vim.api.nvim_buf_line_count(st.source), title = false, all = true }
   end
-  local slide = st.slides[st.index]
-  local lines = vim.api.nvim_buf_get_lines(st.buf, 0, -1, false)
-  vim.api.nvim_buf_set_lines(st.source, slide.first - 1, slide.last, false, lines)
-  st.tick = vim.b[st.buf].changedtick
+  return st.slides[st.index]
+end
+
+--- Split the source into slides again.
+local function resplit(st)
   local src = vim.api.nvim_buf_get_lines(st.source, 0, -1, false)
   st.slides = slides_mod.split(src, st.opts)
   if #st.slides == 0 then
     -- everything was deleted: keep an empty slide so the view stays usable
     st.slides = { { first = 1, last = #src, title = true } }
   end
-  st.index = math.max(1, math.min(slides_mod.find(st.slides, slide.first), #st.slides))
+  st.src_tick = vim.b[st.source].changedtick
+  return src
 end
 
-local function render(st)
-  local slide = st.slides[st.index]
+--- When the source changed outside the presentation, split it again and
+--- find the slide shown (by its first line, nearest to where it was).
+--- Returns false when the slide shown can't be found.
+local function refresh(st)
+  if vim.b[st.source].changedtick == st.src_tick then
+    return true
+  end
+  local src = resplit(st)
+  if st.big then
+    return false
+  end
+  local best, dist
+  for i, s in ipairs(st.slides) do
+    if st.shown and src[s.first] == st.shown.head then
+      local d = math.abs(s.first - st.shown.first)
+      if not dist or d < dist then
+        best, dist = i, d
+      end
+    end
+  end
+  st.index = best or math.max(1, math.min(st.index, #st.slides))
+  return best ~= nil
+end
+
+--- Write edits of the shown slide back to the source buffer and re-split.
+local function sync(st)
+  if not vim.api.nvim_buf_is_valid(st.source) then
+    return
+  end
+  local edited = vim.api.nvim_buf_is_valid(st.buf) and vim.b[st.buf].changedtick ~= st.tick
+  local found = refresh(st)
+  if not edited then
+    return
+  end
+  local lines = vim.api.nvim_buf_get_lines(st.buf, 0, -1, false)
+  st.tick = vim.b[st.buf].changedtick
+  if not found then
+    -- the lines the slide came from moved or went away: don't guess
+    vim.fn.setreg('"', lines, "l")
+    require("org.utils").warn('present: the file changed while the slide was edited; its text is in register "')
+    return
+  end
+  local slide = shown_slide(st)
+  vim.api.nvim_buf_set_lines(st.source, slide.first - 1, slide.last, false, lines)
+  resplit(st)
+  if not st.big then
+    st.index = math.max(1, math.min(slides_mod.find(st.slides, slide.first), #st.slides))
+  end
+end
+
+--- The text org-present passes to its navigation hook: the slide's headline
+--- (the title on the title slide).
+local function heading_text(slide, lines)
+  if slide.all then
+    return ""
+  end
+  if slide.title then
+    for _, l in ipairs(lines) do
+      local key, value = slides_mod.keyword(l)
+      if key == "title" then
+        return value
+      end
+    end
+    return ""
+  end
+  return ((lines[1] or ""):gsub("^%*+%s+", ""):gsub("%s+$", ""))
+end
+
+--- Show the current slide; the cursor goes to line `lnum` (default 1).
+local function render(st, lnum)
+  refresh(st)
+  local slide = shown_slide(st)
   local lines = {}
   if slide then
     lines = vim.api.nvim_buf_get_lines(st.source, slide.first - 1, slide.last, false)
@@ -273,13 +397,26 @@ local function render(st)
   vim.bo[buf].modifiable = not st.read_only
   vim.bo[buf].readonly = st.read_only
   st.tick = vim.b[buf].changedtick
+  st.shown = slide and { first = slide.first, head = lines[1] } or nil
+  st.heading = slide and heading_text(slide, lines) or ""
+  vim.b[buf].org_present_base = slide and slide.level or st.opts.slide_level
   if slide then
     decorate(st, slide, lines)
   end
   if vim.api.nvim_win_is_valid(st.win) then
-    vim.api.nvim_win_set_cursor(st.win, { 1, 0 })
+    lnum = math.max(1, math.min(lnum or 1, #lines))
+    local folded = st.opts.startup_folded and not st.big
+    vim.wo[st.win].foldenable = folded
+    vim.api.nvim_win_set_cursor(st.win, { lnum, 0 })
     vim.api.nvim_win_call(st.win, function()
-      vim.fn.winrestview({ topline = 1, topfill = st.opts.padding_top })
+      if folded then
+        vim.cmd("normal! zM")
+      end
+      if lnum == 1 then
+        vim.fn.winrestview({ topline = 1, topfill = st.opts.padding_top })
+      else
+        vim.cmd("normal! zt")
+      end
     end)
   end
   update_winbar(st)
@@ -312,19 +449,78 @@ local function set_keys(st)
   end
 end
 
+-- Global options a presentation changes. They are set only while its tab
+-- is the current one.
+local GLOBALS = { "showtabline", "laststatus", "ruler", "guicursor" }
+
+local function save_globals(st)
+  st.saved = {}
+  for _, name in ipairs(GLOBALS) do
+    st.saved[name] = vim.o[name]
+  end
+end
+
+local function restore_globals(st)
+  for _, name in ipairs(GLOBALS) do
+    vim.o[name] = st.saved[name]
+  end
+end
+
+local function apply_globals(st)
+  vim.o.showtabline = 0
+  vim.o.laststatus = 0
+  vim.o.ruler = false
+  if st.opts.hide_cursor and st.read_only then
+    vim.o.guicursor = "a:OrgPresentHiddenCursor"
+  else
+    vim.o.guicursor = st.saved.guicursor
+  end
+end
+
+local function in_tab(st)
+  return vim.api.nvim_get_current_tabpage() == st.tab
+end
+
 local function apply_read_only(st)
   vim.bo[st.buf].modifiable = not st.read_only
   vim.bo[st.buf].readonly = st.read_only
   if vim.api.nvim_win_is_valid(st.win) then
     vim.wo[st.win].concealcursor = st.read_only and "nvic" or "nc"
   end
-  if st.opts.hide_cursor and st.read_only then
-    vim.o.guicursor = "a:OrgPresentHiddenCursor"
-  else
-    vim.o.guicursor = st.saved.guicursor
+  if in_tab(st) then
+    apply_globals(st)
   end
   set_keys(st)
   update_winbar(st)
+end
+
+--- Change the terminal font: `delta` is "+N" or "0" (reset). Returns false
+--- when there is no way to do it here.
+local function set_font(st, delta)
+  local utils = require("org.utils")
+  if st.opts.font_command then
+    local ok, err = pcall(st.opts.font_command, delta)
+    if not ok then
+      utils.error("present: font_command failed: " .. tostring(err))
+    end
+    return true
+  end
+  if vim.env.KITTY_WINDOW_ID and vim.fn.executable("kitty") == 1 then
+    local cmd = { "kitty", "@" }
+    if vim.env.KITTY_LISTEN_ON then
+      vim.list_extend(cmd, { "--to", vim.env.KITTY_LISTEN_ON })
+    end
+    vim.list_extend(cmd, { "set-font-size", "--", delta })
+    vim.system(cmd, { text = true }, function(res)
+      if res.code ~= 0 then
+        vim.schedule(function()
+          utils.warn("present: kitty @ set-font-size failed: " .. vim.trim(res.stderr or ""))
+        end)
+      end
+    end)
+    return true
+  end
+  return false
 end
 
 local function goto_slide(n)
@@ -333,11 +529,23 @@ local function goto_slide(n)
     return false
   end
   sync(st)
+  st.big = false
   n = math.max(1, math.min(n, #st.slides))
   st.index = n
   render(st)
-  fire("OrgPresentSlide", st.opts.on_slide, st, n, st)
+  fire("OrgPresentSlide", st.opts.on_slide, st, n, st, st.heading)
   return true
+end
+
+--- Leave one-big-page mode for the slide under the cursor.
+local function leave_big(st)
+  if not st.big then
+    return
+  end
+  sync(st)
+  local lnum = vim.api.nvim_win_is_valid(st.win) and vim.api.nvim_win_get_cursor(st.win)[1] or 1
+  st.big = false
+  st.index = slides_mod.find(st.slides, lnum)
 end
 
 --- Start presenting the current org buffer (org-present), at the slide
@@ -347,7 +555,10 @@ function M.start(n)
   local utils = require("org.utils")
   local source = vim.api.nvim_get_current_buf()
   if M.state then
-    if M.state.source == source then
+    if M.state.source == source or M.state.buf == source then
+      if n then
+        goto_slide(n)
+      end
       return M.focus()
     end
     M.quit()
@@ -371,17 +582,14 @@ function M.start(n)
     source = source,
     source_win = source_win,
     slides = slides,
+    src_tick = vim.b[source].changedtick,
     index = index,
     read_only = o.read_only,
+    big = false,
     opts = o,
     ro_mapped = {},
-    saved = {
-      showtabline = vim.o.showtabline,
-      laststatus = vim.o.laststatus,
-      ruler = vim.o.ruler,
-      guicursor = vim.o.guicursor,
-    },
   }
+  save_globals(st)
 
   vim.cmd("tab split")
   st.tab = vim.api.nvim_get_current_tabpage()
@@ -411,11 +619,14 @@ function M.start(n)
   vim.api.nvim_buf_set_name(buf, "org-present://" .. (src_name ~= "" and src_name or tostring(source)))
   vim.b[buf].org_hide_emphasis_markers = o.hide_emphasis_markers
   vim.b[buf].org_base_dir = src_name ~= "" and vim.fn.fnamemodify(src_name, ":p:h") or nil
+  vim.b[buf].org_settings_source = source
+  if o.hide_stars then
+    -- the stars are concealed: bullets or star overlays would cover the text
+    vim.b[buf].org_ui = { bullets = false, hide_leading_stars = false, indent_mode = false }
+  end
   vim.b[buf].org_present = true
 
-  vim.o.showtabline = 0
-  vim.o.laststatus = 0
-  vim.o.ruler = false
+  apply_globals(st)
   st.win = vim.api.nvim_open_win(buf, true, float_config(o))
   vim.bo[buf].filetype = "org"
   for opt, val in pairs({
@@ -424,8 +635,9 @@ function M.start(n)
     wrap = true,
     linebreak = true,
     breakindent = true,
-    fillchars = "eob: ",
-    winhighlight = "NormalFloat:Normal",
+    fillchars = "eob: ,fold: ",
+    foldtext = "v:lua.require'org.extensions.present'.foldtext()",
+    winhighlight = "NormalFloat:Normal,WinBar:Normal,WinBarNC:Normal",
   }) do
     vim.wo[st.win][opt] = val
   end
@@ -439,11 +651,24 @@ function M.start(n)
     buffer = buf,
     callback = function()
       sync(st)
-      render(st)
+      render(st, vim.api.nvim_win_get_cursor(st.win)[1])
       if vim.api.nvim_buf_get_name(st.source) ~= "" then
         vim.api.nvim_buf_call(st.source, function()
           vim.cmd("silent write")
         end)
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("QuitPre", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      -- :q keeps the edits: they go to the source buffer (still unsaved)
+      if M.state == st then
+        sync(st)
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.bo[buf].modified = false
+        end
       end
     end,
   })
@@ -464,18 +689,62 @@ function M.start(n)
       end
     end,
   })
+  vim.api.nvim_create_autocmd("TabLeave", {
+    group = augroup,
+    callback = function()
+      if M.state == st and in_tab(st) then
+        restore_globals(st)
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("TabEnter", {
+    group = augroup,
+    callback = function()
+      if M.state == st and in_tab(st) then
+        save_globals(st)
+        apply_globals(st)
+      end
+    end,
+  })
   vim.api.nvim_create_autocmd("VimResized", {
     group = augroup,
     callback = function()
       if M.state == st and vim.api.nvim_win_is_valid(st.win) then
         vim.api.nvim_win_set_config(st.win, float_config(st.opts))
+        local slide = shown_slide(st)
+        if slide then
+          decorate(st, slide, vim.api.nvim_buf_get_lines(st.buf, 0, -1, false))
+        end
       end
     end,
   })
 
+  if o.font_scale > 0 then
+    st.font_big = set_font(st, "+" .. o.font_scale)
+  end
   vim.api.nvim_echo({}, false, {})
   fire("OrgPresentStart", o.on_start, st, st)
-  fire("OrgPresentSlide", o.on_slide, st, st.index, st)
+  fire("OrgPresentSlide", o.on_slide, st, st.index, st, st.heading)
+end
+
+--- 'foldtext' of the slide window: org's, with the stars hidden and deeper
+--- headlines indented like the unfolded ones.
+function M.foldtext()
+  local chunks = require("org.fold").foldtext()
+  local st = M.state
+  if not st or not st.opts.hide_stars then
+    return chunks
+  end
+  local stars = chunks[1][1]:match("^(%*+)%s+")
+  if stars then
+    local base = vim.b[st.buf].org_present_base or 1
+    local indent = st.opts.indent_subheadings and string.rep("  ", math.max(0, #stars - base)) or ""
+    chunks[1][1] = indent .. chunks[1][1]:sub(#chunks[1][1]:match("^%*+%s+") + 1)
+    if vim.v.foldstart == 1 and #stars == base then
+      chunks[1][2] = "OrgPresentHeading"
+    end
+  end
+  return chunks
 end
 
 --- `:Org present [n]`.
@@ -496,12 +765,22 @@ end
 
 function M.next()
   local st = M.state
-  return st ~= nil and goto_slide(st.index + 1)
+  if not st then
+    return false
+  end
+  sync(st)
+  leave_big(st)
+  return goto_slide(st.index + 1)
 end
 
 function M.prev()
   local st = M.state
-  return st ~= nil and goto_slide(st.index - 1)
+  if not st then
+    return false
+  end
+  sync(st)
+  leave_big(st)
+  return goto_slide(st.index - 1)
 end
 
 function M.first()
@@ -510,7 +789,11 @@ end
 
 function M.last()
   local st = M.state
-  return st ~= nil and goto_slide(#st.slides)
+  if not st then
+    return false
+  end
+  sync(st)
+  return goto_slide(#st.slides)
 end
 
 --- Switch between read-only slides and editing them (org-present-read-only,
@@ -522,10 +805,60 @@ function M.toggle_read_only()
   end
   if not st.read_only then
     sync(st)
-    render(st)
+    render(st, vim.api.nvim_win_get_cursor(st.win)[1])
   end
   st.read_only = not st.read_only
   apply_read_only(st)
+  return true
+end
+
+--- Show the whole file, or go back to the slide under the cursor
+--- (org-present-toggle-one-big-page).
+function M.toggle_one_big_page()
+  local st = M.state
+  if not st then
+    return false
+  end
+  if st.big then
+    leave_big(st)
+    render(st)
+    fire("OrgPresentSlide", st.opts.on_slide, st, st.index, st, st.heading)
+  else
+    sync(st)
+    local first = st.slides[st.index].first
+    st.big = true
+    render(st, first)
+  end
+  return true
+end
+
+--- Make the terminal font bigger (org-present-big): by `font_scale` points,
+--- 4 when that is 0.
+function M.big()
+  local st = M.state
+  if not st then
+    return false
+  end
+  if not st.font_big then
+    local step = st.opts.font_scale > 0 and st.opts.font_scale or 4
+    st.font_big = set_font(st, "+" .. step)
+    if not st.font_big then
+      require("org.utils").warn("present: can't change the font here (see font_command in :h org-extensions-present)")
+    end
+  end
+  return true
+end
+
+--- Reset the terminal font (org-present-small).
+function M.small()
+  local st = M.state
+  if not st then
+    return false
+  end
+  if st.font_big then
+    set_font(st, "0")
+    st.font_big = false
+  end
   return true
 end
 
@@ -539,14 +872,20 @@ function M.quit()
   st.closing = true
   if vim.api.nvim_buf_is_valid(st.buf) then
     pcall(sync, st)
+    pcall(leave_big, st)
   end
   M.state = nil
-  local slide = st.slides[st.index]
-  vim.o.showtabline = st.saved.showtabline
-  vim.o.laststatus = st.saved.laststatus
-  vim.o.ruler = st.saved.ruler
-  vim.o.guicursor = st.saved.guicursor
-  vim.api.nvim_clear_autocmds({ group = augroup, event = { "WinClosed", "WinEnter", "VimResized" } })
+  local slide = not st.big and st.slides[st.index] or nil
+  if in_tab(st) then
+    restore_globals(st)
+  end
+  if st.font_big then
+    set_font(st, "0")
+  end
+  vim.api.nvim_clear_autocmds({
+    group = augroup,
+    event = { "WinClosed", "WinEnter", "VimResized", "TabEnter", "TabLeave" },
+  })
   if vim.api.nvim_tabpage_is_valid(st.tab) then
     if #vim.api.nvim_list_tabpages() > 1 then
       pcall(vim.cmd, "tabclose " .. vim.api.nvim_tabpage_get_number(st.tab))
