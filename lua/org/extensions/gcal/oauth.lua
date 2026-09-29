@@ -138,7 +138,11 @@ function M.client_secret(opts)
   if type(s) == "string" then
     s = vim.trim(s)
   end
-  return s ~= "" and s or nil
+  if type(s) ~= "string" or s == "" then
+    return nil
+  end
+  M.remember_secret(s)
+  return s
 end
 
 -- secret values seen this session, scrubbed from every message
@@ -214,9 +218,15 @@ function M.save(opts, data)
   end
   local encoded = vim.json.encode(data)
   local tmp = path .. ".tmp"
-  local fd = assert(vim.uv.fs_open(tmp, "w", tonumber("600", 8)))
-  vim.uv.fs_write(fd, encoded)
+  -- a leftover temp file may have other permissions (or be a link)
+  os.remove(tmp)
+  local fd = assert(vim.uv.fs_open(tmp, "wx", tonumber("600", 8)))
+  local ok, err = vim.uv.fs_write(fd, encoded)
   vim.uv.fs_close(fd)
+  if not ok then
+    os.remove(tmp)
+    error("org gcal: cannot write the token file: " .. tostring(err))
+  end
   vim.uv.fs_chmod(tmp, tonumber("600", 8))
   assert(vim.uv.fs_rename(tmp, path))
 end
@@ -315,11 +325,14 @@ end
 local PAGE = "<!doctype html><title>org.nvim</title><p>%s You can close this tab and return to Neovim.</p>"
 
 --- Listen on 127.0.0.1 (random port) for one redirect. `on_result` gets
---- the query table or nil, err. Returns the redirect URI and a close fn.
+--- the query table or nil, err. With `state`, requests carrying another
+--- state are refused (another local process can't end the flow). Returns
+--- the redirect URI and a close fn.
 ---@param on_result fun(query: table|nil, err?: string)
 ---@param timeout_ms? integer
+---@param state? string
 ---@return string|nil redirect_uri, fun()|string close_or_err
-function M.listen(on_result, timeout_ms)
+function M.listen(on_result, timeout_ms, state)
   local server = vim.uv.new_tcp()
   local ok, err = server:bind("127.0.0.1", 0)
   if not ok then
@@ -357,32 +370,51 @@ function M.listen(on_result, timeout_ms)
       return
     end
     local client = vim.uv.new_tcp()
-    server:accept(client)
+    if not client or not pcall(server.accept, server, client) then
+      if client then
+        client:close()
+      end
+      return
+    end
     local buf = ""
+    local answered = false
     client:read_start(function(rerr, chunk)
       if rerr or not chunk then
-        client:close()
+        if not client:is_closing() then
+          client:close()
+        end
+        return
+      end
+      if answered then
         return
       end
       buf = buf .. chunk
       local target = buf:match("^GET ([^ ]+) HTTP/")
-      if not target and not buf:find("\r\n") then
+      if not target and not buf:find("\r\n") and #buf < 8192 then
         return
       end
+      answered = true
       local query = M.parse_query(target and target:match("%?(.*)$") or "")
-      local good = query.code ~= nil
+      local ours = state == nil or query.state == state
+      local good = ours and query.code ~= nil
       local body = PAGE:format(good and "Authorization received." or "Authorization failed.")
       client:write(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "
+        (ours and "HTTP/1.1 200 OK" or "HTTP/1.1 400 Bad Request")
+          .. "\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "
           .. #body
           .. "\r\nConnection: close\r\n\r\n"
           .. body,
         function()
-          client:close()
+          if not client:is_closing() then
+            client:close()
+          end
         end
       )
-      -- favicon and other requests without a code or error are ignored
-      if query.code or query.error then
+      if query.code then
+        M.remember_secret(query.code)
+      end
+      -- favicons, and requests with another state, are ignored
+      if ours and (query.code or query.error) then
         finish(query)
       end
     end)
@@ -401,7 +433,7 @@ function M.authorize(opts)
   local state = M.b64url(M.random_bytes(16))
   local redirect_uri
   local query, err = utils.await(function(cb)
-    local redirect, close_or_err = M.listen(cb)
+    local redirect, close_or_err = M.listen(cb, opts.auth_timeout and opts.auth_timeout * 1000 or nil, state)
     if not redirect then
       cb(nil, close_or_err)
       return
