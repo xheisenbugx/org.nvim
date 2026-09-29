@@ -35,7 +35,7 @@ isn't a syntax file with a few keymaps on top. It reimplements Org's
 behaviour: the agenda, capture templates, repeaters, clock tables, table
 formulas, Babel and export.
 
-- 🪶 **No dependencies.** It's about 95k lines of Lua and needs no
+- 🪶 **No dependencies.** It's about 165k lines of Lua and needs no
   tree-sitter parser, external binary or companion plugin.
 - 🔁 **Works with Emacs.** It reads and writes the same plain-text format,
   so you can edit a file in Emacs today and in Neovim tomorrow.
@@ -45,7 +45,7 @@ formulas, Babel and export.
 - 💤 **Ready for LazyVim.** It comes with which-key groups, a blink.cmp
   source, `vim.ui.select` pickers and a lualine clock, and it works with
   any other setup too.
-- ✅ **Tested.** The headless test suite has 3,000+ tests across 179 specs.
+- ✅ **Tested.** The headless test suite has 3,500+ tests across 186 specs.
 
 ---
 
@@ -77,7 +77,7 @@ org.nvim exists because I wanted something those projects don't aim for:
 **On AI:** org.nvim is written with AI assistance
 ([Claude Code](https://claude.com/claude-code)). To keep that honest, its
 behaviour is checked against the Emacs Org source rather than guessed,
-every feature comes with headless tests (`make test`, 3,000+ of them), and
+every feature comes with headless tests (`make test`, 3,500+ of them), and
 I review and use every change myself. Bug reports are very welcome,
 especially where it doesn't match Emacs.
 
@@ -437,6 +437,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda) |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -466,8 +467,10 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
 - Neovim **0.10+**. Nothing else is required.
 - Optional:
-  - `pandoc` for LaTeX, PDF, DOCX and ODT export.
-  - `latexmk` or `pdflatex` for native PDF.
+  - `pandoc` for DOCX, EPUB and the other formats without a native
+    back-end (HTML, LaTeX, ODT, Texinfo and the rest are built in).
+  - `latexmk`, `pdflatex`, `xelatex` or `lualatex` for PDF, and
+    `makeinfo` for Info.
   - The language interpreters you want Babel to run.
   - For image and LaTeX previews: Neovim 0.13+ in kitty, Ghostty or
     WezTerm (or snacks.nvim / image.nvim), ImageMagick for non-PNG images,
@@ -591,7 +594,7 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<CR>`, `gx`, `<prefix>o` | Open link / footnote / date at point *(ctx)* |
 | `<M-CR>` / `<M-S-CR>` | New heading, item or row / new TODO heading or checkbox item |
 | `<prefix>ih` `it` `is` | Insert heading / TODO heading / subheading |
-| `<prefix>id` `ib` `if` | Insert drawer / block template / footnote (on a footnote: jump; count: sort/renumber/normalize/delete menu) |
+| `<prefix>id` `ib` `if` `i@` | Insert drawer / block template / footnote (on a footnote: jump; count: sort/renumber/normalize/delete menu) / citation |
 | `<<` `>>` / `<s` `>s` | Promote/demote heading or item / subtree *(ctx)* |
 | `<M-h>` `<M-l>` (also `<M-Left>` `<M-Right>`) | Promote / demote heading or item (Visual: every headline); move table column *(ctx)* |
 | `<M-k>` `<M-j>` (also `<M-Up>` `<M-Down>`) | Move subtree, item or table row up / down *(ctx)* |
@@ -613,6 +616,8 @@ The full list is in `:h org-emacs-keys`. Turn them off with
 | `<prefix>lL` `lA` `lg` `ly` | Insert last / all stored links, go to ID, copy ID |
 | `<prefix>r` `R` `$` `A` | Refile / copy to a refile target / archive subtree / attachments |
 | `<prefix>/` `e` | Sparse tree / export dispatcher |
+| `<prefix>E` `v` `nb` `ne` | Emphasize / mark element / narrow to block / narrow to element |
+| `<prefix>xv` `xV` `xl` | Toggle image previews / refresh them / toggle LaTeX previews |
 | `<prefix>Tc` `T-` `Tf` `Ts` `Tr` `TR` `Ti` `TI` | Table: create/convert, hline, recalc, sort, insert/delete row, insert/delete column |
 | `<prefix>Tt` `T#`, `<S-CR>`, `<S-arrows>` | Table: transpose, rotate recalc mark, copy field down (with increment), swap field with neighbour |
 | `<prefix>'` | Edit src block or table formulas in a separate buffer |
@@ -944,13 +949,22 @@ with org.nvim but stay unloaded until you enable them in `extensions`:
 ```lua
 require("org").setup({
   extensions = {
+    present = true,                  -- enable with the defaults
     roam = { directory = "~/roam" }, -- options are merged over its defaults
   },
 })
 ```
 
 `false` or `{ enabled = false }` keeps one off, and `:checkhealth org` lists
-the enabled ones. See `:h org-extensions`.
+the enabled ones and checks what each needs. An extension adds its own
+actions, `:Org` subcommands and default keys, but never replaces a key you
+set. See `:h org-extensions`.
+
+- **`present`** ([org-present](https://github.com/rlister/org-present)):
+  `:Org present` shows the buffer as a slideshow, one top-level heading per
+  slide, in its own tab (`:h org-extensions-present`).
+
+  ![Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file](docs/media/present.gif)
 
 - **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
   `(and (todo "NEXT") (tags "work"))` or `todo:NEXT tags:work !done`,
@@ -959,45 +973,53 @@ the enabled ones. See `:h org-extensions`.
   `#+BEGIN: org-ql` blocks (`:h org-extensions-ql`).
 
   ![org-ql: a sexp query, changing a result's TODO state, the same search in plain syntax, a saved view sorted by deadline and an org-ql dynamic block](docs/media/ql.gif)
+
+- **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam
+  v2 notes in the same file format, so a directory can be shared with
+  Emacs: find and insert nodes (typing a new title creates one), a
+  backlinks, reflinks and unlinked references window, aliases, refs and
+  tags, capture templates with org-roam's `:target` forms, extracting and
+  refiling subtrees, daily notes, `roam-ref` / `roam-node` org-protocol
+  handlers and a Graphviz node graph, over a JSON index that updates
+  incrementally. Its keys live under `<prefix>m` (`<prefix>mf` finds a
+  node, `<prefix>mi` inserts one, `<prefix>ml` toggles the backlinks
+  window, `<prefix>md…` the dailies) (`:h org-extensions-roam`).
+
+  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
+
 - **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
-  group agenda days and lists by time grid, deadline, tag, priority,
-  category and more, with auto groups; <kbd>Tab</kbd> on a header folds
-  its group (`:h org-extensions-super-agenda`).
+  group agenda days and lists (including org-ql results) by time grid,
+  deadline, tag, priority, category and more, with auto groups. `<Tab>` on
+  a group header folds the group, and `gj` / `gk` move between headers
+  (`:h org-extensions-super-agenda`).
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
-- **`present`** ([org-present](https://github.com/rlister/org-present)):
-  `:Org present` shows the buffer as a slideshow, one top-level heading per
-  slide, in its own tab (`:h org-extensions-present`).
-
-  <p align="center"><img src="docs/media/present.gif" alt="Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file" width="800"></p>
-
-- **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam v2 notes in the same file format: find and insert
-  nodes (typing a new title creates one), a backlinks, reflinks and
-  unlinked references window, aliases, refs and tags, capture templates
-  with org-roam's `:target` forms, extracting and refiling subtrees, daily
-  notes, `roam-ref` / `roam-node` org-protocol handlers and a Graphviz node
-  graph, over a JSON index that updates incrementally
-  (`:h org-extensions-roam`).
-
-  ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
+More are on the way: a two-way Google Calendar sync modelled on
+[org-gcal](https://github.com/kidd/org-gcal.el) is in review
+([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
 
 ---
 
 ## 🗺️ Roadmap
 
-What's still missing, from the [parity](#-parity-with-emacs-org) gaps:
+The [parity inventory](#-parity-with-emacs-org) leaves only two options
+partial (`calc_default_modes` and Common Lisp's evaluator, which is `sbcl`
+rather than SLIME/SLY). What's still missing is finer-grained than one
+command or option:
 
+- [ ] Calc's symbolic mode and date format in `calc_default_modes`
 - [ ] Calc's rule-based `integ`, `factor`, polynomial functions and numeric `solve`/`fsolve` for degree 5 and up
 - [ ] table.el's cell commands (split, span, justify) and live realignment in `C-c '`
 - [ ] Babel sessions for more languages (Julia, SQL engines)
 - [ ] Custom `diary-date-forms` in the Emacs diary file
-- [ ] Calc's symbolic mode and date format in `calc_default_modes`
 - [ ] Column view headlines read-only against every kind of edit (Visual, Ex commands, the API)
 - [ ] `#+BIND` for export variables that have no org.nvim option
+- [ ] More [extensions](#-extensions), starting with org-gcal
 
-Done in the latest round (every command and option of Org 9.8.10 checked,
-see the [parity review](docs/parity-review.md#fifth-round-a-measured-inventory)):
+Done in the latest parity round (every command and option of Org 9.8.10
+checked, see the
+[parity review](docs/parity-review.md#fifth-round-a-measured-inventory)):
 citations you can insert, follow and highlight, and the CSL processor
 (a port of citeproc-el); KOMA letters and man pages as native export
 back-ends; highlighted source code in HTML and engraved LaTeX; Babel for
@@ -1008,6 +1030,8 @@ remote undo, hour and minute date shifts and `i` diary entries;
 alphabetical list bullets; the org-goto outline browser; the Org, table and
 agenda menus and org-mouse; clipboard image paste; org-ctags. In all, 163
 commands and 329 options that were missing or partial now work like Emacs.
+Since then, the [extensions](#-extensions) `present`, `ql`, `roam` and
+`super_agenda` have landed.
 
 What needs Emacs itself (indirect buffers for narrowed captures, Emacs
 applications such as Gnus and mu4e, Lisp that must change the editor's
