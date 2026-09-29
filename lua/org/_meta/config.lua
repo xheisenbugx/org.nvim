@@ -465,10 +465,22 @@
 ---@field default_predicate? string
 ---Sort of searches without their own (`"date"`, `"deadline"`, `"scheduled"`,
 ---`"closed"`, `"priority"`, `"todo"`, `"random"`, `"reverse"`, a comparator
----or a list of those). (default: `nil`, file order)
+---or a list of those; a list is applied in order, the last being the
+---primary key). (default: `nil`, file order)
 ---@field sort? string|fun(a: org.Headline, b: org.Headline): boolean|(string|function)[]
 ---Named views for `:Org ql_view` (org-ql-views). (default: `{}`)
 ---@field views? table<string, org.Config.Extensions.QlView>
+---JSON file of the views saved from search buffers; `false` to not save.
+---(default: `stdpath("data") .. "/org/ql-views.json"`)
+---@field views_file? string|false
+---Key in search buffers that saves the search as a view. (default: `"<C-x><C-s>"`)
+---@field save_view_key? string|false
+---Also search COMMENT and ARCHIVE subtrees, as org-ql does. (default: `false`)
+---@field include_hidden? boolean
+---A repeating timestamp matches a date range when an occurrence does. (default: `true`)
+---@field expand_repeaters? boolean
+---Remember results per entry until its file changes. (default: `true`)
+---@field cache? boolean
 
 ---@class org.Config.Extensions.QlView
 ---The query: a sexp or plain query string, or a Lua-form table.
@@ -479,6 +491,8 @@
 ---@field title? string
 ---org-super-agenda groups for this view.
 ---@field super_groups? table[]
+---Also search COMMENT and ARCHIVE subtrees (default: `include_hidden`).
+---@field include_hidden? boolean
 
 ---@class org.Config.Extensions.SuperAgenda
 ---`false` keeps the extension off.
@@ -503,6 +517,13 @@
 ---@field group_property_name? string
 ---Inherit properties in `property`, `auto_property` and `auto_group`. (default: `true`)
 ---@field properties_inherit? boolean
+---Keep the agenda's order inside a group (org-super-agenda-keep-order);
+---off, a group lists its items selector by selector. (default: `false`)
+---@field keep_order? boolean
+---Keys on group headers: `toggle` folds the group, `next` / `prev` move
+---between headers; `false` for none.
+---(default: `{ toggle = "<Tab>", next = "gj", prev = "gk" }`)
+---@field header_keys? { toggle?: string|false, next?: string|false, prev?: string|false }|false
 
 ---Blank line handling before new entries (Emacs `org-blank-before-new-entry`).
 ---@class org.Config.BlankBeforeNewEntry

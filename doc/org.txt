@@ -5287,6 +5287,11 @@ search views and a dynamic block. Enable it with:
         views = {                    -- for :Org ql_view
           ["Work"] = { query = "todo: tags:work", sort = { "priority", "date" } },
         },
+        views_file = vim.fn.stdpath("data") .. "/org/ql-views.json",
+        save_view_key = "<C-x><C-s>", -- in search buffers
+        include_hidden = false,      -- true: also COMMENT/ARCHIVE subtrees
+        expand_repeaters = true,     -- repeats count in date ranges
+        cache = true,                -- remember results until files change
       },
     }
 <
@@ -5299,7 +5304,9 @@ A query is a sexp, as in Emacs, or the plain ("non-sexp") syntax:
 In plain queries, space-separated terms are ANDed, `!` negates a term,
 commas separate arguments (ORed), `key=value` is a keyword argument
 (`ts:from=-7,to=today`), `"quoted text"` keeps spaces and a bare word is
-`(rifle word)`. From Lua a query can also be a table:
+`(rifle word)`. A `word:` that is no predicate name (`http://...`, `10:30`)
+is a plain word too. In a sexp query a bare string is `(regexp STRING)`.
+From Lua a query can also be a table:
 `{ "and", { "todo", "NEXT" }, { "pred", function(hl) ... end } }`.
 
 Predicates (aliases in brackets):
@@ -5312,13 +5319,16 @@ Predicates (aliases in brackets):
   `tags-inherited` [itags]     inherited tags only
   `tags-regexp` [tags*]        a tag matches a regexp
   `priority` [CMP] [P...]      `(priority "A")`, `(priority '>= "B")`
-  `deadline` `scheduled`        planning dates; a single number is `:to`,
-                              `(deadline auto)` uses the warning period
-  `closed`                    closed; a single number is `:from`
-  `planning`                  any of the three
+  `deadline` `scheduled`        planning dates; a single number N is
+                              `:to N`, `(deadline auto)` uses the warning
+                              period
+  `closed`                    closed; a single number N means the last N
+                              days (`:from -N`)
+  `planning`                  any of the three; a number is `:to`
   `ts` `ts-active` [ts-a]       timestamps in the entry, of either kind,
-  `ts-inactive` [ts-i]          active or inactive
-  `clocked`                   clocked (in a period)
+  `ts-inactive` [ts-i]          active or inactive; a number is `:to`
+  `clocked`                   finished clocks (a running clock is
+                              ignored); a number N is the last N days
   `property` KEY [VAL]         `:inherit t` to inherit the property
   `heading` [h]                every string is in the heading
   `heading-regexp` [h*]        every regexp matches the heading
@@ -5340,21 +5350,41 @@ Date arguments (`:from`, `:to`, `:on`) are a number of days from today,
 `today`, `yesterday`, `tomorrow`, `now`, or a date such as `2026-10-01` or
 `2026-10-01 14:00`. `:to` without a time includes that whole day.
 `:with-time t` (or `nil`) keeps only timestamps with (without) a time.
-Regexps are Emacs regexps and match case-insensitively.
+A repeating timestamp matches a range when one of its occurrences falls in
+it (`expand_repeaters`). Regexps are Emacs regexps and match
+case-insensitively. Results are cached per entry until its file changes
+(`cache`), except for queries with Lua functions or `now`.
 
 Sorting ~
-`sort` is one of `date` (earliest of deadline and scheduled), `deadline`,
-`scheduled`, `closed`, `priority`, `todo` (keyword order), `random`,
-`reverse`, a Lua comparator `function(a, b)` on headlines, or a list of
-those, the first being the primary key. Entries without the key go last.
+`sort` is one of `date` (the deadline, else the scheduled date),
+`deadline`, `scheduled`, `closed`, `priority`, `todo` (keyword order),
+`random`, `reverse`, a Lua comparator `function(a, b)` on headlines, or a
+list of those. As in org-ql, a list is applied in order, so the last one
+is the primary key: `{ "priority", "date" }` sorts by date, then priority,
+and `{ "date", "reverse" }` is newest first. Entries without the key go
+last.
 
 Commands ~
 `:Org ql_search {query}`         search `files` (prompts without a query)
 `:Org ql_search_buffer {query}`  search the current buffer
 `:Org ql_view [name]`            open a view of `views` (prompts for one)
+`:Org ql_save_view [name]`       save the search of the agenda buffer as
+                                a view (also `save_view_key`, <C-x><C-s>,
+                                in search buffers)
+`:Org ql_find {query}`           jump to a matching entry of the buffer
+                                (org-ql-find); `ql_find_agenda` searches
+                                the agenda files
+`:Org ql_refile {query}`         refile the subtree at the cursor under a
+                                matching entry (org-ql-refile)
+`:Org ql_sparse_tree {query}`    sparse tree of the matches in the buffer
+`:Org ql_recent_items [N] [type]`  entries with timestamps of `type` (ts,
+                                clocked, closed, ...) in the last N days,
+                                newest first (org-ql-view-recent-items)
 
-Results open in the agenda buffer, so the agenda keys work on them. The
-same view can be an agenda custom command:
+All of them are also actions, for `mappings`. Results open in the agenda
+buffer, so the agenda keys work on them. Saved views are kept in
+`views_file` and listed with the configured ones (which win on a name
+clash). The same view can be an agenda custom command:
 >lua
     agenda = { custom_commands = {
       q = { type = "org-ql", query = "(and (todo) (scheduled :to today))",
@@ -5381,10 +5411,13 @@ Lua API ~
     ql.query.compile("(tags \"x\")")                    -- headline predicate
 <
 Differences from Emacs org-ql: COMMENT and ARCHIVE subtrees are skipped,
-as in the agenda; `ts` predicates read literal timestamps (repeaters are
-not expanded); `(pred ...)` needs a Lua function, and Lisp forms in queries
-are not evaluated; there is no caching or `org-ql-find`; views can't be
-saved from the search buffer.
+as in the agenda, unless `include_hidden` is set; repeaters are expanded
+in date ranges (org-ql reads the timestamp only; `expand_repeaters = false`
+does the same); a timestamp range matches when it overlaps the period,
+where org-ql tests each end; `(pred ...)` needs a Lua function, as Lisp
+forms in queries are not evaluated; `(level 2 4)` means levels 2 to 4;
+the plain syntax also accepts comparators (`priority:>=,B`) and numbers
+(`closed:7`); there is no sidebar of views and no link to a search.
 
 ------------------------------------------------------------------------------
 org-super-agenda                                *org-extensions-super-agenda*
@@ -5405,13 +5438,21 @@ agenda, and each TODO, tags, search and org-ql list, into groups.
       },
     }
 <
-An item goes to the first group it matches, and a group's selectors are
-ORed. Empty groups are not shown; items no group takes are shown under
-"Other items" (`unmatched_name`, order `unmatched_order` = 99). Groups
-are shown by `order` (default 0, lowest first; groups with the same
-non-zero order by name). Within a group, items keep the agenda's order.
-A block (or custom command, or org-ql view) can set `super_groups` to use
-other groups, or `false` for none.
+An item goes to the first group it matches. A group's selectors are ORed
+and take their items in turn, as in Emacs: the group lists what its first
+selector takes, then what the next takes (`keep_order = true` keeps the
+agenda's order instead). The selectors of an Emacs plist run in its order;
+those of a Lua table by name, automatic selectors last. Empty groups are
+not shown; items no group takes are shown under "Other items"
+(`unmatched_name`, order `unmatched_order` = 99). Groups are shown by
+`order` (default 0, lowest first; groups with the same non-zero order by
+name). A block (or custom command, or org-ql view) can set `super_groups`
+to use other groups, or `false` for none.
+
+On a group header, <Tab> folds and unfolds the group (it stays folded when
+the agenda is redone; elsewhere <Tab> keeps its agenda meaning), and `gj`
+/ `gk` move to the next / previous header. Set them with `header_keys =
+{ toggle = "<Tab>", next = "gj", prev = "gk" }`, or `false` for none.
 
 Keys may be written `time_grid` or, as in Emacs, `["time-grid"]`; a group
 may also be an Emacs plist such as `{ ":name", "Today", ":time-grid", true }`.
@@ -5431,6 +5472,7 @@ Selectors:
   `habit`, `log`              habits; log items (true, "closed", "clock",
                               "state")
   `regexp`, `heading_regexp`, `file_path`   Emacs regexps
+                              (`file_path = true`: any file item)
   `property`                  "NAME", `{ "NAME", "value" }` or
                               `{ "NAME", function(value) }`
   `children`                  true, false, "todo" or keywords
@@ -5441,7 +5483,9 @@ Selectors:
   `take`                      `{ N, selectors }`: the first N (last when
                               negative) matching items
 
-Auto groups make one group per value, named and sorted as in Emacs:
+Auto groups make one group per value, named and sorted as in Emacs. In a
+group with other selectors, those take their items first (into a group
+named `name`), and the automatic selector groups the rest:
 `auto_category`, `auto_tags`, `auto_todo`, `auto_priority`,
 `auto_property = "NAME"`, `auto_group` (the `agenda-group` property),
 `auto_parent`, `auto_outline_path`, `auto_dir_name`, `auto_planning`,
@@ -5449,20 +5493,24 @@ Auto groups make one group per value, named and sorted as in Emacs:
 and `ancestor_with_todo = "KW"` (or `{ "KW", limit = N, nearest = true }`).
 
 Other keys of a group: `name` (`"none"` hides the header), `order`,
-`face` (a highlight group for its items), `transformer`
-(`function(line, item)` returning the new line text) and `order_multi`
-(`{ N, group, group, ... }`).
+`face` (a highlight group, or attributes such as `{ fg = "#e06c75",
+bold = true }`, drawn over the agenda's highlights; with `append = true`
+under them), `transformer` (`function(line, item)` returning the new line
+text; the agenda's highlights move with the text it keeps) and
+`order_multi` (`{ N, group, group, ... }`).
 
 Options: `unmatched_name`, `unmatched_order`, `header_separator` (default
 "\n", a blank line; one character is repeated across the window),
 `header_prefix` (" "), `final_group_separator`, `date_format` ("%e %B %Y"),
-`group_property_name` and `properties_inherit`. Headers use the
-`OrgSuperAgendaHeader` highlight group.
+`group_property_name`, `properties_inherit`, `keep_order` and
+`header_keys`. Headers use the `OrgSuperAgendaHeader` highlight group,
+the item count of a folded group `OrgSuperAgendaFolded`.
 
-Differences from Emacs org-super-agenda: items always keep the agenda's
-order (as with `org-super-agenda-keep-order`); a group with an auto
-selector uses only that selector; `face` takes a highlight group name,
-drawn over the whole line; `transformer` is a Lua function, and the line
-it returns loses the agenda's highlights.
+Differences from Emacs org-super-agenda: folding is built in (Emacs uses
+origami); an automatic selector can be combined with other selectors,
+which Emacs does not support; `face` is a highlight group or attribute
+table; `transformer` is a Lua function, and the agenda's highlights are
+kept only for text it keeps unchanged; `:pred` and `:auto-map` receive the
+agenda item (a Lua table), not the item's text.
 
  vim:tw=78:ts=8:ft=help:norl:
