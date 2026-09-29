@@ -16,7 +16,9 @@
 ---
 --- An item goes to the first group it matches; the selectors of a group are
 --- ORed. Items no group takes are shown last under "Other items". A block
---- can set its own `super_groups` (`false` for none).
+--- can set its own `super_groups` (`false` for none). On a group header,
+--- <Tab> folds the group and gj / gk move between headers
+--- (`header_keys`).
 
 local date = require("org.date")
 
@@ -45,6 +47,14 @@ M.defaults = {
   --- Inherit properties in :property, :auto_property and :auto_group
   --- (org-super-agenda-properties-inherit).
   properties_inherit = true,
+  --- Keep the agenda's order inside a group (org-super-agenda-keep-order).
+  --- Off, a group with several selectors lists the items of its first
+  --- selector, then those of the next, as org-super-agenda does.
+  keep_order = false,
+  --- Keys on group headers (org-super-agenda-header-map): `toggle` folds
+  --- or unfolds the group (elsewhere the key keeps its agenda meaning),
+  --- `next` / `prev` move to the next / previous header. `false` for none.
+  header_keys = { toggle = "<Tab>", next = "gj", prev = "gk" },
 }
 
 local function opts()
@@ -56,6 +66,38 @@ end
 ---------------------------------------------------------------------------
 
 local SPECIAL = { name = true, face = true, transformer = true, order = true, order_multi = true }
+
+-- key of a normalized group holding its selector order
+local ORDER = {}
+
+--- The selectors of a normalized group, in order: a plist's own order,
+--- else sorted by name with the automatic selectors last (they take
+--- what the others leave).
+local AUTO
+local function selector_keys(g)
+  local keys = {}
+  if g[ORDER] then
+    for _, k in ipairs(g[ORDER]) do
+      if not SPECIAL[k] then
+        keys[#keys + 1] = k
+      end
+    end
+    return keys
+  end
+  for k in pairs(g) do
+    if type(k) == "string" and not SPECIAL[k] then
+      keys[#keys + 1] = k
+    end
+  end
+  table.sort(keys, function(x, y)
+    local ax, ay = AUTO[x] ~= nil, AUTO[y] ~= nil
+    if ax ~= ay then
+      return ay
+    end
+    return x < y
+  end)
+  return keys
+end
 
 local KEY_ALIASES = {
   ["priority>"] = "priority_gt",
@@ -79,9 +121,14 @@ end
 function M.normalize(g)
   local out = {}
   if vim.islist(g) and type(g[1]) == "string" and g[1]:match("^:") then
+    -- a plist keeps its selector order (a Lua table's keys are sorted)
+    local order = {}
     for i = 1, #g, 2 do
-      out[norm_key(g[i])] = g[i + 1]
+      local k = norm_key(g[i])
+      out[k] = g[i + 1]
+      order[#order + 1] = k
     end
+    out[ORDER] = order
   else
     for k, v in pairs(g) do
       out[norm_key(k)] = v
@@ -421,9 +468,15 @@ S.heading_regexp = {
 
 S.file_path = {
   name = function(arg)
-    return "File path: " .. table.concat(list_of(arg), " OR ")
+    return "File path: " .. table.concat(vim.tbl_map(tostring, list_of(arg)), " OR ")
   end,
   test = function(arg)
+    if arg == true or arg == false then
+      -- t: any file-backed item, nil: items not from a file
+      return function(it)
+        return (it.filename ~= nil) == arg
+      end
+    end
     local res = vim.tbl_map(regex, list_of(arg))
     return function(it)
       return it.filename ~= nil and any_regexp(res, it.filename)
@@ -434,7 +487,10 @@ S.file_path = {
 S.property = {
   name = function(arg)
     local a = list_of(arg)
-    return "Property: " .. tostring(a[1]) .. (type(a[2]) == "string" and (": " .. a[2]) or "")
+    local suffix = type(a[2]) == "string" and (": " .. a[2])
+      or type(a[2]) == "function" and " matches lambda predicate"
+      or ""
+    return "Property: " .. tostring(a[1]) .. suffix
   end,
   test = function(arg)
     local a = list_of(arg)
@@ -459,9 +515,9 @@ S.children = {
     elseif arg == false then
       return "Items without children"
     elseif arg == "todo" then
-      return "Items with children with TODO keywords"
+      return "Items with child to-dos"
     end
-    return "Items with children with keywords: " .. table.concat(list_of(arg), " OR ")
+    return "Items with children " .. tostring(list_of(arg)[1])
   end,
   test = function(arg)
     local kws = {}
@@ -493,14 +549,14 @@ S.log = {
     local names = {
       closed = "Log: Closed",
       clock = "Log: Clocked",
-      state = "Log: State changes",
+      state = "Log: State changed",
     }
     if arg == true then
-      return "Log items"
+      return "Logged"
     elseif arg == false then
-      return "Non-log items"
+      return "Not logged"
     end
-    return names[LOG_TYPES[tostring(arg)] or ""] or "Log items"
+    return names[LOG_TYPES[tostring(arg)] or ""] or "Logged"
   end,
   test = function(arg)
     local want = arg ~= true and arg ~= false and LOG_TYPES[tostring(arg)] or nil
@@ -529,7 +585,7 @@ S.anything = {
 
 S.pred = {
   name = function()
-    return "Predicate-matching items"
+    return "Predicate: Lambda"
   end,
   test = function(arg)
     local fns = type(arg) == "function" and { arg } or arg
@@ -554,14 +610,12 @@ S["and"] = {
   end,
   test = function(arg)
     local tests = {}
-    for k, v in pairs(arg) do
-      if not SPECIAL[k] then
-        local sel = S[k]
-        if not sel then
-          error("super_agenda: unknown selector " .. k, 0)
-        end
-        tests[#tests + 1] = sel.test(v)
+    for _, k in ipairs(selector_keys(arg)) do
+      local sel = S[k]
+      if not sel then
+        error("super_agenda: unknown selector " .. k, 0)
       end
+      tests[#tests + 1] = sel.test(arg[k])
     end
     return function(it)
       for _, t in ipairs(tests) do
@@ -590,13 +644,7 @@ S["not"] = {
 ---@return fun(it: table): boolean test
 ---@return string name
 compile_group = function(g, joiner)
-  local keys = {}
-  for k in pairs(g) do
-    if not SPECIAL[k] then
-      keys[#keys + 1] = k
-    end
-  end
-  table.sort(keys)
+  local keys = selector_keys(g)
   local tests, names = {}, {}
   for _, k in ipairs(keys) do
     local sel = S[k]
@@ -662,7 +710,7 @@ local function format_day(key)
   return vim.trim(date.from_days(tonumber(key)):strftime(opts().date_format or "%e %B %Y"))
 end
 
-local AUTO = {}
+AUTO = {}
 
 AUTO.auto_category = {
   key = function(it)
@@ -806,13 +854,87 @@ M.auto = AUTO
 -- Grouping
 ---------------------------------------------------------------------------
 
---- Split `items` into sections (org-super-agenda--group-items).
+-- Split `items` into those `test` takes and the others, keeping order.
+local function partition(items, test)
+  local yes, no = {}, {}
+  for _, it in ipairs(items) do
+    if test(it) then
+      yes[#yes + 1] = it
+    else
+      no[#no + 1] = it
+    end
+  end
+  return yes, no
+end
+
+-- An auto selector: sections for the items with a key, and the others.
+local function auto_sections(auto, arg, items, g, order)
+  local by_key, keys, left = {}, {}, {}
+  for _, it in ipairs(items) do
+    local k = not it.grid and auto.key(it, arg) or nil
+    if k then
+      if not by_key[k] then
+        by_key[k] = {}
+        keys[#keys + 1] = k
+      end
+      table.insert(by_key[k], it)
+    else
+      left[#left + 1] = it
+    end
+  end
+  table.sort(keys)
+  if auto.reverse and auto.reverse(arg) then
+    keys = vim.fn.reverse(keys)
+  end
+  local out = {}
+  for _, k in ipairs(keys) do
+    out[#out + 1] = {
+      name = auto.header and auto.header(k, arg) or k,
+      items = by_key[k],
+      order = order,
+      face = g.face,
+      transformer = g.transformer,
+    }
+  end
+  return out, left
+end
+
+-- A `take` selector: { n, group } keeps the first (or, negative, last) n
+-- items the group takes; the others it takes are dropped, as upstream.
+local function take_selector(arg)
+  local n, sub = tonumber(arg[1]), arg[2]
+  if not n or type(sub) ~= "table" then
+    error("super_agenda: take needs { n, group }", 0)
+  end
+  local test, name = compile_group(sub)
+  return {
+    name = string.format("%s %d %s", n < 0 and "Last" or "First", math.abs(n), name),
+    split = function(items)
+      local yes, no = partition(items, test)
+      if n < 0 then
+        yes = vim.list_slice(yes, math.max(#yes + n + 1, 1), #yes)
+      else
+        yes = vim.list_slice(yes, 1, n)
+      end
+      return yes, no
+    end,
+  }
+end
+
+--- Split `items` into sections (org-super-agenda--group-items). The
+--- selectors of a group take their items in turn (an implicit OR); an
+--- automatic selector makes one section per key, next to the section of
+--- the group's other selectors.
 ---@param items table[] agenda items, in display order
 ---@param groups table[] group specs
----@return { name: string|false, items: table[], order: number, face?: string, transformer?: function }[]
+---@return { name: string|false, items: table[], order: number, face?: any, transformer?: function }[]
 function M.group(items, groups)
   local o = opts()
   local rest = items
+  local rank = {}
+  for i, it in ipairs(items) do
+    rank[it] = i
+  end
   local sections = {}
   local expanded = {}
   for _, raw in ipairs(groups) do
@@ -830,88 +952,71 @@ function M.group(items, groups)
   end
   for _, g in ipairs(expanded) do
     local order = g.order or 0
-    local auto_key
-    for k in pairs(g) do
-      if AUTO[k] then
-        auto_key = k
-      end
-    end
-    if auto_key then
-      local auto, arg = AUTO[auto_key], g[auto_key]
-      local by_key, keys, left = {}, {}, {}
-      for _, it in ipairs(rest) do
-        local k = not it.grid and auto.key(it, arg) or nil
-        if k then
-          if not by_key[k] then
-            by_key[k] = {}
-            keys[#keys + 1] = k
-          end
-          table.insert(by_key[k], it)
-        else
-          left[#left + 1] = it
-        end
-      end
-      table.sort(keys)
-      if auto.reverse and auto.reverse(arg) then
-        keys = vim.fn.reverse(keys)
-      end
-      for _, k in ipairs(keys) do
-        sections[#sections + 1] = {
-          name = auto.header and auto.header(k, arg) or k,
-          items = by_key[k],
-          order = order,
-          face = g.face,
-          transformer = g.transformer,
-        }
-      end
-      rest = left
-    elseif g.discard then
+    if g.discard then
       local test = compile_group(g.discard)
       rest = vim.tbl_filter(function(it)
         return not test(it)
       end, rest)
     else
-      local take
-      local sel = g
-      if g.take then
-        take, sel = tonumber(g.take[1]), g.take[2]
-      end
-      local test, auto_name = compile_group(sel)
-      local matching, left = {}, {}
-      for _, it in ipairs(rest) do
-        if test(it) then
-          matching[#matching + 1] = it
+      local matching, names, autos = {}, {}, {}
+      local plain = false
+      for _, k in ipairs(selector_keys(g)) do
+        local taken
+        if AUTO[k] then
+          local secs
+          secs, rest = auto_sections(AUTO[k], g[k], rest, g, order)
+          vim.list_extend(autos, secs)
+        elseif k == "take" then
+          local t = take_selector(g.take)
+          taken, rest = t.split(rest)
+          names[#names + 1] = t.name
         else
-          left[#left + 1] = it
+          local sel = S[k]
+          if not sel then
+            error("super_agenda: unknown selector " .. k, 0)
+          end
+          taken, rest = partition(rest, sel.test(g[k]))
+          local n = sel.name(g[k])
+          if n and n ~= "" then
+            names[#names + 1] = n
+          end
+        end
+        if taken then
+          plain = true
+          vim.list_extend(matching, taken)
         end
       end
-      if take then
-        auto_name = string.format("%s %d %s", take < 0 and "Last" or "First", math.abs(take), auto_name)
-        matching = take < 0 and vim.list_slice(matching, math.max(#matching + take + 1, 1), #matching)
-          or vim.list_slice(matching, 1, take)
+      if o.keep_order then
+        table.sort(matching, function(a, b)
+          return rank[a] < rank[b]
+        end)
       end
-      local name = g.name
-      if name == nil then
-        name = auto_name
+      if plain then
+        local name = g.name
+        if name == nil then
+          name = table.concat(names, " and ")
+        end
+        sections[#sections + 1] =
+          { name = name, items = matching, order = order, face = g.face, transformer = g.transformer }
       end
-      sections[#sections + 1] =
-        { name = name, items = matching, order = order, face = g.face, transformer = g.transformer }
-      rest = left
+      vim.list_extend(sections, autos)
     end
   end
-  sections[#sections + 1] = { name = o.unmatched_name or "Other items", items = rest, order = o.unmatched_order or 99 }
-  -- stable sort by order; equal non-zero orders sort by name
+  -- the unmatched items go first, then a stable sort by order (equal
+  -- non-zero orders sort by name), as org-super-agenda does
+  table.insert(sections, 1, { name = o.unmatched_name or "Other items", items = rest, order = o.unmatched_order or 99 })
   local indexed = {}
-  for i, s in ipairs(sections) do
-    indexed[i] = { s, i }
+  for i, sec in ipairs(sections) do
+    indexed[i] = { sec, i }
   end
   table.sort(indexed, function(a, b)
     local sa, sb = a[1], b[1]
-    if sa.order ~= sb.order then
+    if sa.order == sb.order and sa.order ~= 0 and type(sa.name) == "string" and type(sb.name) == "string" then
+      if sa.name ~= sb.name then
+        return sa.name < sb.name
+      end
+    elseif sa.order ~= sb.order and type(sa.order) == "number" and type(sb.order) == "number" then
       return sa.order < sb.order
-    end
-    if sa.order ~= 0 and type(sa.name) == "string" and type(sb.name) == "string" and sa.name ~= sb.name then
-      return sa.name < sb.name
     end
     return a[2] < b[2]
   end)
@@ -938,7 +1043,34 @@ local function add_separator(b, sep, width)
   end
 end
 
--- Apply a group's face and transformer to the lines `from`..#b.lines.
+-- A group's `face`: a highlight group name, or highlight attributes
+-- (`{ fg = "#ff0000", bold = true }`, an Emacs face plist) made into a
+-- group. `append = true` puts it under the agenda's own highlights.
+local face_groups = {}
+local function face_group(face)
+  if type(face) == "string" then
+    return face, false
+  elseif type(face) ~= "table" then
+    return nil, false
+  end
+  local attrs = {}
+  for k, v in pairs(face) do
+    if k ~= "append" then
+      attrs[k] = v
+    end
+  end
+  local key = vim.inspect(attrs)
+  if not face_groups[key] then
+    face_groups[key] = "OrgSuperAgendaFace" .. (vim.tbl_count(face_groups) + 1)
+  end
+  vim.api.nvim_set_hl(0, face_groups[key], attrs)
+  return face_groups[key], face.append == true
+end
+
+-- Apply a group's transformer and face to line `from` of the builder. A
+-- transformer gets the line and the item and returns the new line; the
+-- agenda's highlights move with the text it kept (a prefix or suffix
+-- added, or the same length).
 local function decorate(b, from, section, it)
   if not (section.face or section.transformer) then
     return
@@ -950,21 +1082,48 @@ local function decorate(b, from, section, it)
   end
   if section.transformer then
     local ok, new = pcall(section.transformer, line, it)
-    if ok and type(new) == "string" then
+    if ok and type(new) == "string" and new ~= line then
+      local shift
+      if #new == #line then
+        shift = 0
+      else
+        local at = new:find(line, 1, true)
+        shift = at and (at - 1) or nil
+      end
+      local kept = {}
+      for _, h in ipairs(b.hls) do
+        if h[1] ~= row then
+          kept[#kept + 1] = h
+        elseif shift then
+          kept[#kept + 1] = { h[1], h[2] + shift, h[3] + shift, h[4], h[5] }
+        end
+      end
+      b.hls = kept
       b.lines[from] = new
-      b.hls = vim.tbl_filter(function(h)
-        return h[1] ~= row
-      end, b.hls)
       line = new
     end
   end
   if section.face then
-    b.hls[#b.hls + 1] = { row, 0, #line, section.face }
+    local group, append = face_group(section.face)
+    if group then
+      b.hls[#b.hls + 1] = { row, 0, #line, group, append and 105 or 115 }
+    end
   end
 end
 
+--- Folded groups: id -> true (kept across redraws of the agenda).
+M.folded = {}
+
+local function group_id(block, day, name)
+  local key = block.key or block.type or ""
+  if block.query then
+    key = key .. ":" .. vim.inspect(block.query)
+  end
+  return table.concat({ key, tostring(day or ""), tostring(name) }, "\0")
+end
+
 --- The `org.agenda.render` grouper: renders `rows` as groups.
-function M.grouper(b, rows, block, ctx, add)
+function M.grouper(b, rows, block, ctx, add, day)
   if not require("org.extensions").enabled("super_agenda") then
     return false
   end
@@ -979,21 +1138,32 @@ function M.grouper(b, rows, block, ctx, add)
   -- `default` links survive user colors; set here as colorschemes clear them
   vim.api.nvim_set_hl(0, "OrgSuperAgendaHeader", { link = "OrgAgendaHeader", default = true })
   vim.api.nvim_set_hl(0, "OrgSuperAgendaSeparator", { link = "OrgAgendaBlockSeparator", default = true })
+  vim.api.nvim_set_hl(0, "OrgSuperAgendaFolded", { link = "Comment", default = true })
   local ok, sections = pcall(M.group, rows, groups)
   if not ok then
     b:text("super_agenda: " .. tostring(sections), "ErrorMsg")
     return false
   end
-  for _, s in ipairs(sections) do
-    if #s.items > 0 then
-      if s.name and s.name ~= "none" and s.name ~= "" then
+  b.super_headers = b.super_headers or {}
+  for _, sec in ipairs(sections) do
+    if #sec.items > 0 then
+      local folded = false
+      if sec.name and sec.name ~= "none" and sec.name ~= "" then
+        local id = group_id(block, day, sec.name)
+        folded = M.folded[id] == true
         add_separator(b, o.header_separator, ctx.width)
-        b:add({ { (o.header_prefix or "") .. s.name, "OrgSuperAgendaHeader" } })
+        local parts = { { (o.header_prefix or "") .. sec.name, "OrgSuperAgendaHeader" } }
+        if folded then
+          parts[#parts + 1] = { string.format(" … (%d)", #sec.items), "OrgSuperAgendaFolded" }
+        end
+        b.super_headers[b:add(parts)] = id
       end
-      for _, it in ipairs(s.items) do
-        local from = #b.lines + 1
-        add(it)
-        decorate(b, from, s, it)
+      if not folded then
+        for _, it in ipairs(sec.items) do
+          local from = #b.lines + 1
+          add(it)
+          decorate(b, from, sec, it)
+        end
       end
     end
   end
@@ -1002,11 +1172,131 @@ function M.grouper(b, rows, block, ctx, add)
 end
 
 ---------------------------------------------------------------------------
+-- Header keys (org-super-agenda-header-map)
+---------------------------------------------------------------------------
+
+-- buffer -> { [lnum] = group id } of the last render
+local headers = {}
+
+local function header_lines(buf)
+  local list = {}
+  for lnum in pairs(headers[buf] or {}) do
+    list[#list + 1] = lnum
+  end
+  table.sort(list)
+  return list
+end
+
+--- Fold or unfold the group whose header is at the cursor. Returns false
+--- when the cursor is not on a header.
+---@return boolean
+function M.toggle_group()
+  local buf = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local id = (headers[buf] or {})[lnum]
+  if not id then
+    return false
+  end
+  M.folded[id] = not M.folded[id] or nil
+  require("org.agenda.view").refresh()
+  for l, i in pairs(headers[buf] or {}) do
+    if i == id then
+      pcall(vim.api.nvim_win_set_cursor, 0, { l, 0 })
+    end
+  end
+  return true
+end
+
+--- Move to the next (`dir` 1) or previous (-1) group header.
+---@param dir integer
+function M.goto_header(dir)
+  local buf = vim.api.nvim_get_current_buf()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local list = header_lines(buf)
+  local target
+  if dir > 0 then
+    for _, l in ipairs(list) do
+      if l > lnum then
+        target = l
+        break
+      end
+    end
+  else
+    for i = #list, 1, -1 do
+      if list[i] < lnum then
+        target = list[i]
+        break
+      end
+    end
+  end
+  if target then
+    vim.api.nvim_win_set_cursor(0, { target, 0 })
+  end
+end
+
+-- What `lhs` does in the agenda without us: the agenda action mapped to
+-- it (looked up when pressed), else the key itself.
+local function agenda_key(lhs)
+  return function()
+    local config = require("org.config")
+    local view = require("org.agenda.view")
+    local kc = vim.keycode(lhs)
+    for name, value in pairs(config.opts.mappings.agenda or {}) do
+      for _, l in ipairs(config.lhs_list(value)) do
+        if vim.keycode(l) == kc and view.actions[name] then
+          require("org.utils").run(view.actions[name])
+          return
+        end
+      end
+    end
+    vim.api.nvim_feedkeys(kc, "n", false)
+  end
+end
+
+local function set_keys(buf)
+  local keys = opts().header_keys
+  if not keys or vim.b[buf].org_super_agenda_keys then
+    return
+  end
+  vim.b[buf].org_super_agenda_keys = true
+  if keys.toggle then
+    local fallback = agenda_key(keys.toggle)
+    vim.keymap.set("n", keys.toggle, function()
+      if not M.toggle_group() then
+        fallback()
+      end
+    end, { buffer = buf, nowait = true, desc = "org super-agenda: fold group (else agenda key)" })
+  end
+  if keys.next then
+    vim.keymap.set("n", keys.next, function()
+      M.goto_header(1)
+    end, { buffer = buf, desc = "org super-agenda: next group" })
+  end
+  if keys.prev then
+    vim.keymap.set("n", keys.prev, function()
+      M.goto_header(-1)
+    end, { buffer = buf, desc = "org super-agenda: previous group" })
+  end
+end
+
+local function on_refresh(buf, b)
+  if not require("org.extensions").enabled("super_agenda") then
+    headers[buf] = nil
+    return
+  end
+  headers[buf] = b.super_headers or {}
+  if next(headers[buf]) then
+    set_keys(buf)
+  end
+end
+
+---------------------------------------------------------------------------
 -- Extension
 ---------------------------------------------------------------------------
 
 function M.setup()
   require("org.agenda.render").grouper = M.grouper
+  require("org.agenda.view").refresh_hooks.super_agenda = on_refresh
 end
 
 function M.health(h, o)

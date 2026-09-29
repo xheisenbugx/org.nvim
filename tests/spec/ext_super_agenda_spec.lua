@@ -245,6 +245,130 @@ describe("super_agenda extension", function()
     end)
   end)
 
+  describe("upstream behaviour", function()
+    before_each(function()
+      setup({})
+    end)
+    it("takes a group's items selector by selector, or in agenda order with keep_order", function()
+      local groups = { { ":name", "Mixed", ":tag", "work", ":priority", "A" } }
+      eq({ "Mixed", { "Standup", "Report", "Pay bills" } }, grouped(groups)[1])
+      setup({ keep_order = true })
+      eq({ "Mixed", { "Pay bills", "Standup", "Report" } }, grouped(groups)[1])
+    end)
+    it("names a group after its selectors in order", function()
+      eq("Tags: work and Priority A items", grouped({ { ":tag", "work", ":priority", "A" } })[1][1])
+      eq("Items with child to-dos", require("org.extensions.super_agenda").selectors.children.name("todo"))
+      eq("Logged", require("org.extensions.super_agenda").selectors.log.name(true))
+      eq("Not logged", require("org.extensions.super_agenda").selectors.log.name(false))
+      eq("Predicate: Lambda", grouped({ { pred = function() return true end } })[1][1])
+    end)
+    it("combines an automatic selector with others", function()
+      eq({
+        -- a Lua table's selectors run by name (priority, then tag), then auto_todo
+        { "Work or A", { "Pay bills", "Standup", "Report" } },
+        { "To-do: NEXT", { "Groceries" } },
+        { "To-do: TODO", { "Someday idea", "Brush teeth" } },
+        { "To-do: WAITING", { "Child task" } },
+      }, grouped({ { name = "Work or A", tag = "work", priority = "A", auto_todo = true } }))
+    end)
+    it("puts unmatched items first among groups of the same order", function()
+      setup({ unmatched_order = 0 })
+      local out = grouped({ { name = "Work", tag = "work" } })
+      eq("Other items", out[1][1])
+      eq("Work", out[2][1])
+    end)
+    it("matches file-backed items with file_path = true", function()
+      eq(7, #grouped({ { name = "Files", file_path = true } })[1][2])
+      eq({}, grouped({ { name = "None", file_path = false } })[1] and {} or {})
+    end)
+  end)
+
+  describe("faces, transformers and folding", function()
+    local function extmarks_on(lnum)
+      local out = {}
+      local ns = vim.api.nvim_get_namespaces()["org.agenda"]
+      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, { details = true })) do
+        out[#out + 1] = { col = m[3], end_col = m[4].end_col, group = m[4].hl_group, priority = m[4].priority }
+      end
+      return out
+    end
+    local function line_of(pat)
+      for i, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        if l:find(pat, 1, true) then
+          return i
+        end
+      end
+    end
+    it("keeps the agenda highlights of a transformed line", function()
+      setup({ groups = { { name = "Work", tag = "work", transformer = function(l)
+        return ">> " .. l
+      end } } })
+      view_lines({ type = "todo" })
+      local plain_col
+      local lnum = line_of("Standup")
+      local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1]
+      ok(line:find("^>> "), line)
+      for _, m in ipairs(extmarks_on(lnum)) do
+        if m.group == "OrgAgendaTodoKeyword" then
+          plain_col = m.col
+        end
+      end
+      eq(line:find("TODO", 1, true) - 1, plain_col)
+    end)
+    it("makes a face from highlight attributes, under the agenda's with append", function()
+      setup({ groups = { { name = "Work", tag = "work", face = { bold = true, fg = "#ff0000" } } } })
+      view_lines({ type = "todo" })
+      local face
+      for _, m in ipairs(extmarks_on(line_of("Standup"))) do
+        if m.group:find("^OrgSuperAgendaFace") then
+          face = m
+        end
+      end
+      ok(face)
+      eq(115, face.priority)
+      eq(true, vim.api.nvim_get_hl(0, { name = face.group }).bold)
+      setup({ groups = { { name = "Work", tag = "work", face = { italic = true, append = true } } } })
+      view_lines({ type = "todo" })
+      for _, m in ipairs(extmarks_on(line_of("Standup"))) do
+        if m.group:find("^OrgSuperAgendaFace") then
+          eq(105, m.priority)
+        end
+      end
+    end)
+    it("folds a group with <Tab> on its header and moves between headers", function()
+      setup({ groups = { { name = "Work", tag = "work" }, { name = "Money", tag = "money" } } })
+      view_lines({ type = "todo" })
+      local header = line_of(" Work")
+      vim.api.nvim_win_set_cursor(0, { header, 0 })
+      vim.api.nvim_feedkeys(vim.keycode("<Tab>"), "x", false)
+      ok(vim.api.nvim_buf_get_lines(0, header - 1, header, false)[1]:find("Work … (2)", 1, true))
+      ok(not line_of("Standup"))
+      require("org.agenda.view").redo()
+      ok(not line_of("Standup"), "stays folded after redo")
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      vim.api.nvim_feedkeys("gj", "x", false)
+      eq(line_of(" Work"), vim.api.nvim_win_get_cursor(0)[1])
+      vim.api.nvim_feedkeys("gj", "x", false)
+      eq(line_of(" Money"), vim.api.nvim_win_get_cursor(0)[1])
+      vim.api.nvim_feedkeys("gk", "x", false)
+      eq(line_of(" Work"), vim.api.nvim_win_get_cursor(0)[1])
+      vim.api.nvim_feedkeys(vim.keycode("<Tab>"), "x", false)
+      ok(line_of("Standup"))
+      -- elsewhere <Tab> keeps its agenda meaning (org-agenda-goto)
+      local actions = require("org.agenda.view").actions
+      local goto_action, called = actions["goto"], false
+      actions["goto"] = function()
+        called = true
+      end
+      vim.api.nvim_win_set_cursor(0, { line_of("Standup"), 0 })
+      vim.api.nvim_feedkeys(vim.keycode("<Tab>"), "x", false)
+      vim.wait(50)
+      actions["goto"] = goto_action
+      ok(called)
+      require("org.extensions.super_agenda").folded = {}
+    end)
+  end)
+
   describe("rendering", function()
     it("renders group headers inside each agenda day", function()
       setup({
