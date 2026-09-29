@@ -37,17 +37,27 @@
 ---| "babel_goto_named" # Go to named src block
 ---| "babel_goto_named_result" # Go to named result
 ---| "babel_hash_at_point" # Copy the result hash at the cursor
+---| "babel_haskell_export_to_lhs" # Export Haskell blocks to .lhs (count: lhs2tex to .tex)
 ---| "babel_hide_all_results" # Fold every src block result
 ---| "babel_insert_header_arg" # Insert header argument
 ---| "babel_kill_session" # Kill src block session
+---| "babel_lilypond_tangle" # Tangle LilyPond blocks and engrave
+---| "babel_lilypond_toggle_arrange_mode" # Toggle LilyPond arrange mode
+---| "babel_lilypond_toggle_html_generation" # Toggle LilyPond HTML generation
+---| "babel_lilypond_toggle_midi_play" # Toggle playing LilyPond MIDI
+---| "babel_lilypond_toggle_pdf_display" # Toggle showing the LilyPond PDF
+---| "babel_lilypond_toggle_pdf_generation" # Toggle LilyPond PDF generation
+---| "babel_lilypond_toggle_png_generation" # Toggle LilyPond PNG generation
 ---| "babel_load_in_session" # Load src block into its session
 ---| "babel_lob_ingest" # Add file's blocks to Library of Babel
 ---| "babel_mark_block" # Select src block body
 ---| "babel_next_block" # Next src block
 ---| "babel_open_result" # Open src block result
 ---| "babel_prev_block" # Previous src block
+---| "babel_processing_view_sketch" # Run the Processing block's sketch
 ---| "babel_remove_inline_result" # Remove the result of the inline src block / call
 ---| "babel_remove_result" # Remove src block result (count: all)
+---| "babel_screen_test" # Test the screen block setup
 ---| "babel_sha1_hash" # Show src block hash
 ---| "babel_switch_to_session" # Show src block session (count: assign vars)
 ---| "babel_switch_to_session_with_code" # Show src block session and edit the block

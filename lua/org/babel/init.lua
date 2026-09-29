@@ -815,6 +815,11 @@ local warned_session = {}
 --- session support, which then run without one).
 local function block_session(lang, args)
   local name = session_mod.name(args.session)
+  local handler = require("org.babel.ob").get(lang)
+  if handler then
+    -- ob-LANG ports read :session themselves (ob-screen)
+    return nil
+  end
   if name and not session_mod.supported(lang, langs.family(lang)) then
     if not warned_session[lang] then
       warned_session[lang] = true
@@ -842,6 +847,9 @@ local function lang_cmd(lang, args)
   end
   if fam == "sql" then
     return {}
+  elseif fam == "shell" and lang_cfg == nil then
+    -- a shell of `babel.shell_names` runs as itself (org-babel-shell-initialize)
+    return { lang }
   end
   return nil
 end
@@ -850,8 +858,15 @@ end
 local function get_session(bufnr, lang, args, name)
   local fam = langs.family(lang)
   local cmd = {}
+  local explicit = fam == "ruby" and args.ruby ~= nil
+  -- org-babel-python-command-session: the REPL command, used as it is
+  local py_session = fam == "python" and not args.python and langs.lang_opt(lang, "session_cmd")
   if fam ~= "lua" then
-    cmd = lang_cmd(lang, args)
+    if py_session then
+      cmd, explicit = split_cmd(py_session), true
+    else
+      cmd = lang_cmd(lang, args)
+    end
     if not cmd then
       error("No babel command configured for language: " .. tostring(lang), 0)
     end
@@ -865,7 +880,7 @@ local function get_session(bufnr, lang, args, name)
     name = name,
     cmd = cmd,
     cwd = block_cwd(bufnr, args),
-    explicit = fam == "ruby" and args.ruby ~= nil,
+    explicit = explicit,
   })
 end
 
@@ -963,6 +978,10 @@ local function lua_result(res, args)
   local rp = results.result_params(args)
   if args.results_spec.collection == "output" then
     local out = res.output or ""
+    if not langs.scalar_result(args) then
+      -- `:results output table`: read like org-babel-lua-table-or-string
+      return langs.lua_table_or_string(vim.trim(out))
+    end
     return out ~= "" and (out .. "\n") or out
   end
   if res.value == nil then
@@ -1041,11 +1060,15 @@ local function run_steps(spec, cwd, sync, cb)
   local function sys_opts(step)
     return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = { PWD = cwd } }
   end
-  local function handle(obj)
+  local function handle(obj, step)
     local stderr = obj.stderr or ""
     local code = obj.code
     if obj.signal and obj.signal ~= 0 and code == 0 then
       code = 128 + obj.signal
+    end
+    if step and step.after then
+      -- a look at the step's output (ob-csharp checks the build log)
+      step.after(obj)
     end
     if code ~= 0 or stderr ~= "" then
       failed = true
@@ -1059,16 +1082,25 @@ local function run_steps(spec, cwd, sync, cb)
     end
     return step.cmd
   end
+  -- a `fn` step runs Lua (moving a file, a conversion done in Neovim): its
+  -- return value is the step's output, an error its failure
+  local function run_fn(step)
+    local ok, out = pcall(step.fn)
+    return { code = ok and 0 or 1, stdout = ok and (out or "") or "", stderr = not ok and tostring(out) or "" }
+  end
   if sync then
     for _, step in ipairs(spec.steps) do
       local ok, obj = pcall(function()
+        if step.fn then
+          return run_fn(step)
+        end
         return vim.system(argv(step), sys_opts(step)):wait()
       end)
       if not ok then
         M.error_notify(nil, tostring(obj))
         return cb(nil, true)
       end
-      handle(obj)
+      handle(obj, step)
     end
     return cb(outs[#outs] or "", failed)
   end
@@ -1078,9 +1110,13 @@ local function run_steps(spec, cwd, sync, cb)
     if not step then
       return cb(outs[#outs] or "", failed)
     end
+    if step.fn then
+      handle(run_fn(step), step)
+      return nxt()
+    end
     local ok, err = pcall(vim.system, argv(step), sys_opts(step), function(obj)
       vim.schedule(function()
-        handle(obj)
+        handle(obj, step)
         nxt()
       end)
     end)
@@ -1091,6 +1127,7 @@ local function run_steps(spec, cwd, sync, cb)
   end
   nxt()
 end
+M.run_steps = run_steps
 
 --- Run code and call `cb(r)` with `r = { result, error? }`: `result` is
 --- the Babel value `org-babel-execute:LANG` returns. With `opts.sync` the
@@ -1117,7 +1154,7 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
     return result
   end
   local cwd = block_cwd(bufnr, args)
-  if fam == "lua" then
+  if fam == "lua" and not langs.lua_external() then
     local res = langs.run_lua(body, args, vars)
     if res.error then
       M.error_notify(nil, res.error)
@@ -1152,6 +1189,14 @@ function M.run(bufnr, lang, body, args, vars, cb, opts)
       end
       done({ result = value, error = failed or nil })
     end)
+    return result
+  end
+  local ob = require("org.babel.ob")
+  local handler = ob.get(lang)
+  if handler then
+    -- a language with its own port of ob-LANG.el (org.babel.lang.*)
+    local octx = { bufnr = bufnr, cwd = cwd, sync = sync, colnames = opts.colnames }
+    ob.run(handler, lang, body, args, vars, octx, done)
     return result
   end
   local cmd = lang_cmd(lang, args)

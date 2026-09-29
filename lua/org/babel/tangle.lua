@@ -65,6 +65,8 @@ local COMMENT_BLOCK = {
   css = { "/* ", " */" },
   html = { "<!-- ", " -->" },
   xml = { "<!-- ", " -->" },
+  ocaml = { "(* ", " *)" },
+  maxima = { "/* ", " */" },
 }
 
 function M.comment_delims(lang)

@@ -631,6 +631,55 @@ group("Babel", {
     "continue_at_point",
     desc = "Go back to the edit buffer of the region at the cursor",
   },
+  -- commands of ob-LANG ports (org.babel.lang.*)
+  babel_haskell_export_to_lhs = {
+    "org.babel.lang.haskell",
+    "export_to_lhs",
+    desc = "Export Haskell blocks to .lhs (count: lhs2tex to .tex)",
+  },
+  babel_lilypond_tangle = { "org.babel.lang.lilypond", "tangle", desc = "Tangle LilyPond blocks and engrave" },
+  babel_lilypond_toggle_arrange_mode = {
+    "org.babel.lang.lilypond",
+    "toggle_arrange_mode",
+    desc = "Toggle LilyPond arrange mode",
+    toggle = true,
+  },
+  babel_lilypond_toggle_html_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_html_generation",
+    desc = "Toggle LilyPond HTML generation",
+    toggle = true,
+  },
+  babel_lilypond_toggle_midi_play = {
+    "org.babel.lang.lilypond",
+    "toggle_midi_play",
+    desc = "Toggle playing LilyPond MIDI",
+    toggle = true,
+  },
+  babel_lilypond_toggle_pdf_display = {
+    "org.babel.lang.lilypond",
+    "toggle_pdf_display",
+    desc = "Toggle showing the LilyPond PDF",
+    toggle = true,
+  },
+  babel_lilypond_toggle_pdf_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_pdf_generation",
+    desc = "Toggle LilyPond PDF generation",
+    toggle = true,
+  },
+  babel_lilypond_toggle_png_generation = {
+    "org.babel.lang.lilypond",
+    "toggle_png_generation",
+    desc = "Toggle LilyPond PNG generation",
+    toggle = true,
+  },
+  babel_processing_view_sketch = {
+    "org.babel.lang.processing",
+    "view_sketch",
+    desc = "Run the Processing block's sketch",
+  },
+  babel_screen_test = { "org.babel.lang.screen", "test", desc = "Test the screen block setup" },
 })
 
 --- Resolve an action to its function.
