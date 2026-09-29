@@ -1,0 +1,21 @@
+#+title: CSL styles
+#+bibliography: refs.bib
+#+bibliography: refs.json
+#+cite_export: csl
+
+Default [cite:@knuth1984]. Locator [cite:@lamport1986 p. 50]. Chapter
+[cite:@chapter2001 chap. 3]. Two keys [cite:@knuth1984; @web2020].
+Prefix and suffix [cite:see @knuth1984 pp. 10-15 for details].
+Global affixes [cite:compare ;@doe2001;@range2010; and others].
+
+Text [cite/t:@lamport1986], caps [cite/t/c:@chapter2001], full
+[cite/t/f:@chapter2001]. Author [cite/a:@knuth1984], [cite/a/c:@report2015],
+[cite/a/f:@chapter2001]. No author [cite/na:@knuth1984], bare
+[cite/na/b:@knuth1984]. Year [cite/y:@doe2001]. Title [cite/ti:@web2020].
+Bare [cite//b:@smith2019]. Locators [cite/l:@lamport1986 p. 12].
+Bib entry [cite/bibentry:@smith2019b]. Nocite [cite/n:@vanbeethoven1810].
+
+Disambiguation [cite:@knuth1986a; @knuth1986b] and [cite:@smith2019;
+@smith2019b]. Undated [cite:@nodate]. Range [cite:@range2010 321].
+
+#+print_bibliography:

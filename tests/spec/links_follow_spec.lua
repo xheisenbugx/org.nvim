@@ -267,11 +267,13 @@ describe("mouse", function()
     config.opts.links.mouse_1_follows_link = "double"
     buf = vim.api.nvim_create_buf(false, true)
     mouse.attach(buf)
-    eq({ "<2-LeftMouse>" }, maps(buf))
+    -- <LeftRelease> stays for citation keys, whose click does not depend on
+    -- the option (oc-basic binds <mouse-1> on the key)
+    eq({ "<2-LeftMouse>", "<LeftRelease>" }, maps(buf))
     config.opts.links.mouse_1_follows_link = false
     buf = vim.api.nvim_create_buf(false, true)
     mouse.attach(buf)
-    eq({}, maps(buf))
+    eq({ "<LeftRelease>" }, maps(buf))
   end)
 end)
 end)

@@ -144,6 +144,10 @@ local function defaults()
     OrgTableFormulaRefCursor = { link = "IncSearch" },
     OrgTableFormulaTarget = { link = "Visual" },
     OrgFootnote = { link = "Underlined" },
+    -- citations (org-cite, org-cite-key; unknown keys get Emacs' `error` face)
+    OrgCite = { link = "OrgLink" },
+    OrgCiteKey = { link = "OrgLink" },
+    OrgCiteKeyUnknown = { link = "DiagnosticError" },
     OrgTarget = { link = "Underlined" },
     OrgLatex = { link = first_existing({ "@markup.math" }, "Statement") },
     OrgHorizontalRule = { link = "Comment" },

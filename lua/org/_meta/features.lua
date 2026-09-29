@@ -1245,6 +1245,42 @@
 ---@field biblatex_styles? table
 ---(`org-cite-biblatex-style-shortcuts`) (default: `nil` = the Emacs table)
 ---@field biblatex_style_shortcuts? table
+---(`org-cite-activate-processor`): false highlights without checking keys (default: `"basic"`)
+---@field activate_processor? string|false
+---(`org-cite-follow-processor`) (default: `"basic"`)
+---@field follow_processor? string|false
+---(`org-cite-insert-processor`) (default: `"basic"`)
+---@field insert_processor? string|false
+---(`org-cite-basic-max-key-distance`) (default: `2`)
+---@field basic_max_key_distance? integer
+---(`org-cite-basic-author-column-end`) (default: `25`)
+---@field basic_author_column_end? integer
+---(`org-cite-basic-column-separator`) (default: `"  "`)
+---@field basic_column_separator? string
+---(`org-cite-basic-complete-key-crm-separator`): a Vim regexp, `"dynamic"` or nil (default: `nil`)
+---@field basic_complete_key_crm_separator? string
+---(`org-cite-csl-styles-dir`) (default: `nil`)
+---@field csl_styles_dir? string
+---(`org-cite-csl-locales-dir`): nil uses the bundled en-US locale only (default: `nil`)
+---@field csl_locales_dir? string
+---(`org-cite-csl-link-cites`) (default: `true`)
+---@field csl_link_cites? boolean
+---(`org-cite-csl-no-citelinks-backends`) (default: `{ "ascii" }`)
+---@field csl_no_citelinks_backends? string[]
+---(`org-cite-csl-html-hanging-indent`) (default: `"1.5em"`)
+---@field csl_html_hanging_indent? string
+---(`org-cite-csl-html-label-width-per-char`) (default: `"0.6em"`)
+---@field csl_html_label_width_per_char? string
+---(`org-cite-csl-latex-hanging-indent`) (default: `"1.5em"`)
+---@field csl_latex_hanging_indent? string
+---(`org-cite-csl-latex-label-separator`) (default: `"0.6em"`)
+---@field csl_latex_label_separator? string
+---(`org-cite-csl-latex-label-width-per-char`) (default: `"0.45em"`)
+---@field csl_latex_label_width_per_char? string
+---(`org-cite-csl-latex-preamble`): nil = the Emacs preamble (default: `nil`)
+---@field csl_latex_preamble? string
+---(`org-cite-csl-bibtex-titles-to-sentence-case`) (default: `true`)
+---@field csl_bibtex_titles_to_sentence_case? boolean
 
 ---Pandoc options (ODT/DOCX/RST/EPUB export).
 ---@class org.Config.Export.Pandoc

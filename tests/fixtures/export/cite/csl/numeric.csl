@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0" page-range-format="minimal">
+  <info>
+    <title>Test numeric style</title>
+    <id>test-numeric</id>
+    <category citation-format="numeric"/>
+    <updated>2024-01-01T00:00:00+00:00</updated>
+  </info>
+  <citation collapse="citation-number">
+    <sort>
+      <key variable="citation-number"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter=",">
+      <group delimiter=", ">
+        <text variable="citation-number"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush" et-al-min="3" et-al-use-first="2" entry-spacing="2">
+    <layout suffix=".">
+      <text variable="citation-number" prefix="[" suffix="]"/>
+      <group delimiter=", ">
+        <names variable="author">
+          <name initialize-with="." delimiter=", " and="symbol" et-al-use-last="true"/>
+        </names>
+        <text variable="title" quotes="true"/>
+        <text variable="container-title" font-style="italic" strip-periods="true"/>
+        <group delimiter=" ">
+          <number variable="volume" form="roman"/>
+          <number variable="edition" form="ordinal"/>
+        </group>
+        <text variable="page"/>
+        <text variable="URL"/>
+        <date variable="issued" date-parts="year" form="numeric"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>

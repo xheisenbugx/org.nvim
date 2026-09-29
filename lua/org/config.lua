@@ -2212,6 +2212,29 @@ M.defaults = {
       biblatex_options = nil, -- org-cite-biblatex-options
       biblatex_styles = nil, -- org-cite-biblatex-styles (nil = the Emacs table)
       biblatex_style_shortcuts = nil, -- org-cite-biblatex-style-shortcuts (nil = the Emacs table)
+      --- Processors of the buffer capabilities (false = none; for
+      --- activation, false = highlighting without checking keys).
+      activate_processor = "basic", -- org-cite-activate-processor
+      follow_processor = "basic", -- org-cite-follow-processor
+      insert_processor = "basic", -- org-cite-insert-processor
+      basic_max_key_distance = 2, -- org-cite-basic-max-key-distance
+      basic_author_column_end = 25, -- org-cite-basic-author-column-end
+      basic_column_separator = "  ", -- org-cite-basic-column-separator
+      --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
+      --- a Vim regexp separating keys typed at one prompt, or "dynamic".
+      basic_complete_key_crm_separator = nil,
+      -- csl processor (oc-csl)
+      csl_styles_dir = nil, -- org-cite-csl-styles-dir
+      csl_locales_dir = nil, -- org-cite-csl-locales-dir (nil: en-US only)
+      csl_link_cites = true, -- org-cite-csl-link-cites
+      csl_no_citelinks_backends = { "ascii" }, -- org-cite-csl-no-citelinks-backends
+      csl_html_hanging_indent = "1.5em", -- org-cite-csl-html-hanging-indent
+      csl_html_label_width_per_char = "0.6em", -- org-cite-csl-html-label-width-per-char
+      csl_latex_hanging_indent = "1.5em", -- org-cite-csl-latex-hanging-indent
+      csl_latex_label_separator = "0.6em", -- org-cite-csl-latex-label-separator
+      csl_latex_label_width_per_char = "0.45em", -- org-cite-csl-latex-label-width-per-char
+      csl_latex_preamble = nil, -- org-cite-csl-latex-preamble (nil = the Emacs preamble)
+      csl_bibtex_titles_to_sentence_case = true, -- org-cite-csl-bibtex-titles-to-sentence-case
     },
     ascii = {
       charset = "ascii", -- org-ascii-charset ("ascii", "latin1", "utf-8")
@@ -2488,6 +2511,7 @@ M.defaults = {
       insert_drawer = "<prefix>id",
       insert_structure_template = "<prefix>ib",
       insert_footnote = "<prefix>if",
+      cite_insert = "<prefix>i@",
       promote_heading = "<<",
       demote_heading = ">>",
       promote_subtree = "<s",
@@ -2652,6 +2676,7 @@ M.defaults = {
       insert_structure_template = "<C-c><C-,>",
       insert_drawer = "<C-c><C-x>d",
       insert_footnote = "<C-c><C-x>f",
+      cite_insert = "<C-c><C-x>@",
       emphasize = "<C-c><C-x><C-f>",
       clone_subtree = "<C-c><C-x>c",
       copy_special = "<C-c><C-x><M-w>",
