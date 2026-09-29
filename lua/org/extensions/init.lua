@@ -25,6 +25,8 @@ local M = {}
 ---Default keys by `mappings` section (`global`, `org`, `emacs_global`,
 ---`emacs`), action name -> lhs. Keys the user already set are left alone.
 ---@field mappings? table<string, table<string, string|string[]|false>>
+---which-key group labels under `mappings.prefix`: `{ { "m", "roam" } }`.
+---@field groups? { [1]: string, [2]: string }[]
 ---Called with the resolved options after everything is registered.
 ---@field setup? fun(opts: table)
 ---Adds checks to `:checkhealth org`; receives `vim.health`.

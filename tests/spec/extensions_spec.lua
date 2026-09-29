@@ -96,6 +96,25 @@ describe("extensions", function()
     eq("<prefix>zz", require("org.config").opts.mappings.global.testext_hello)
   end)
 
+  it("adds its which-key groups", function()
+    local added = {}
+    package.loaded["which-key"] = {
+      add = function(spec)
+        vim.list_extend(added, spec)
+      end,
+    }
+    package.loaded["org.extensions.testext"].groups = { { "z", "test ext" } }
+    setup({ extensions = { testext = {} } })
+    package.loaded["which-key"] = nil
+    local prefix = require("org.config").lhs_list("<prefix>z")[1]
+    local labels = {}
+    for _, g in ipairs(added) do
+      labels[g[1]] = g.group
+    end
+    eq("test ext", labels[prefix])
+    eq("narrow", labels[require("org.config").lhs_list("<prefix>n")[1]])
+  end)
+
   it("calls teardown when a later setup turns it off or sets it up again", function()
     local downs = 0
     package.loaded["org.extensions.testext"].teardown = function()

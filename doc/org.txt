@@ -6975,6 +6975,8 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
   `actions`    `{ name = { module, fn, desc = ... } }`, as in `org.actions`
   `commands`   `:Org` subcommands taking arguments, as in `org.commands`
   `mappings`   default keys by section: `{ global = { name = lhs } }`
+  `groups`     which-key labels for key groups under `mappings.prefix`:
+               `{ { "m", "roam" } }`
   `setup`      `function(opts)`, called after the above are registered
   `health`     `function(h, opts)`, adds checks to `:checkhealth org`
   `teardown`   `function()`, undoes `setup` when a later `setup()` turns
