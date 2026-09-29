@@ -1338,6 +1338,22 @@ M.defaults = {
       -- org-babel-scheme-null-to
       scheme = { impl = "guile", commands = {}, null_to = "hline" },
       julia = { cmd = "julia" }, -- org-babel-julia-command
+      -- org-babel-latex-*: preamble, begin_env and end_env are strings or
+      -- functions(header_args) returning one; htlatex, htlatex_packages;
+      -- pdf_svg_process (%f the PDF, %O the SVG); process_alist = { png =
+      -- {...} } like ui.latex_preview.processes (nil: latex + dvipng)
+      latex = {
+        ext = "tex",
+        default_header_args = { results = "latex", exports = "results" },
+        preamble = "\\documentclass[preview]{standalone}\n",
+        begin_env = "\\begin{document}",
+        end_env = "\\end{document}",
+        htlatex = "htlatex",
+        htlatex_packages = { "[usenames]{color}", "{tikz}", "{color}", "{listings}", "{amsmath}" },
+        pdf_svg_process = "inkscape --pdf-poppler --export-area-drawing --export-text-to-path "
+          .. "--export-plain-svg --export-filename=%O %f",
+        process_alist = nil,
+      },
       -- commands: org-babel-lilypond-commands, { lilypond, PDF viewer, MIDI
       -- player } (nil: the platform's default); the other keys are the
       -- org-babel-lilypond-* variables the toggle commands change
