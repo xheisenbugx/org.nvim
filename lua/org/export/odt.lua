@@ -3192,6 +3192,123 @@ function M.convert(in_file, out_fmt, open)
   return nil
 end
 
+--- org-odt-convert as a command: ask for the file (default the buffer's)
+--- and one of the output formats it can be converted to; a count opens the
+--- result (C-u).
+function M.convert_command()
+  local utils = require("org.utils")
+  local current = vim.api.nvim_buf_get_name(0)
+  local in_file = utils.input({ prompt = "File to be converted: ", default = current, completion = "file" })
+  if not in_file or vim.trim(in_file) == "" then
+    return nil
+  end
+  in_file = vim.trim(in_file)
+  local in_fmt = (in_file:match("%.([%w]+)$") or ""):lower()
+  local choices = M.reachable_formats(in_fmt)
+  if #choices == 0 then
+    utils.error(fmt("No known converter or no known output formats for %s files", in_fmt))
+    return nil
+  end
+  local open = vim.v.count > 0
+  local out_fmt = utils.input_complete("Output format: ", choices)
+  if not out_fmt or out_fmt == "" then
+    return nil
+  end
+  return M.convert(in_file, out_fmt, open)
+end
+
+--- The first LaTeX fragment of `s` (org-latex-regexps, in their order).
+function M.find_latex_fragment(s)
+  local a = s:match("^[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)") or s:match("\n[ \t]*(\\begin{[%w*]+}.-\\end{[%w*]+}[ \t]*\n?)")
+  if a then
+    return a
+  end
+  for _, pat in ipairs({ "^%$[^ \t\r\n,;.$]%$", "^%$[^ \t\n,;.$][^$\n\r]-[^ \t\n,.$]%$" }) do
+    for i = 1, #s do
+      if s:sub(i, i) == "$" and (i == 1 or s:sub(i - 1, i - 1) ~= "$") then
+        local m = s:sub(i):match(pat)
+        if m then
+          return m
+        end
+      end
+    end
+  end
+  return s:match("(\\%(.-\\%))") or s:match("(\\%[.-\\%])") or s:match("(%$%$.-%$%$)")
+end
+
+--- Export a LaTeX fragment as an OpenDocument formula file
+--- (org-odt-export-as-odf): the fragment is converted to MathML with
+--- `export.odt.latex_to_mathml_convert_command` and written as the
+--- content.xml of FILE.odf. Interactively the fragment comes from the
+--- Visual selection (its first LaTeX fragment) or a prompt, and the file
+--- name from a prompt (default: the buffer's name with .odf). The MathML is
+--- copied like the export output (`export.copy_to_kill_ring`).
+---@param latex_frag? string
+---@param odf_file? string
+---@return string? odf file
+function M.export_as_odf(latex_frag, odf_file)
+  local utils = require("org.utils")
+  local src = vim.api.nvim_buf_get_name(0)
+  local default_file = (src ~= "" and vim.fn.fnamemodify(src, ":p:r") or (vim.fn.getcwd() .. "/formula")) .. ".odf"
+  local interactive = latex_frag == nil
+  if interactive then
+    local frag
+    local m = vim.fn.mode()
+    if m == "v" or m == "V" or m == "\22" then
+      local srow, scol, erow, ecol, mode = utils.visual_range()
+      vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+      local text
+      if mode == "v" then
+        local last = vim.api.nvim_buf_get_lines(0, erow - 1, erow, false)[1] or ""
+        local e = math.min(#last, ecol)
+        text = table.concat(vim.api.nvim_buf_get_text(0, srow - 1, scol - 1, erow - 1, e, {}), "\n")
+      else
+        text = table.concat(vim.api.nvim_buf_get_lines(0, srow - 1, erow, false), "\n")
+      end
+      frag = M.find_latex_fragment(text)
+    end
+    latex_frag = utils.input({ prompt = "LaTeX Fragment: ", default = frag })
+    if not latex_frag or latex_frag == "" then
+      return nil
+    end
+    odf_file = utils.input({ prompt = "ODF filename: ", default = default_file, completion = "file" })
+    if not odf_file or odf_file == "" then
+      return nil
+    end
+  end
+  odf_file = vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p")
+  local mathml = M.latex_to_mathml(latex_frag)
+  if not mathml then
+    utils.error("No Math formula created")
+    return nil
+  end
+  local mimetype = "application/vnd.oasis.opendocument.formula"
+  local manifest = M.manifest_xml({ { "text/xml", "content.xml" }, { mimetype, "/", "1.2" } })
+  vim.fn.mkdir(vim.fn.fnamemodify(odf_file, ":h"), "p")
+  local ok, err = zip.write(odf_file, {
+    { name = "mimetype", data = mimetype },
+    { name = "content.xml", data = mathml },
+    { name = "META-INF/" },
+    { name = "META-INF/manifest.xml", data = manifest },
+  })
+  if not ok then
+    utils.error("OpenDocument formula export failed: " .. tostring(err))
+    return nil
+  end
+  require("org.export").maybe_copy(mathml, interactive)
+  utils.notify("Created " .. odf_file)
+  return odf_file
+end
+
+--- org-odt-export-as-odf-and-open
+function M.export_as_odf_and_open()
+  local out = M.export_as_odf()
+  if out then
+    vim.ui.open(out)
+  end
+  return out
+end
+
 ---------------------------------------------------------------------------
 -- Export
 ---------------------------------------------------------------------------

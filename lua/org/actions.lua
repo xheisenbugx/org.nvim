@@ -394,6 +394,24 @@ group("Search & export", {
     "select_environment",
     desc = "Select the Beamer environment of the entry (BEAMER_env)",
   },
+  odt_convert = {
+    "org.export.odt",
+    "convert_command",
+    desc = "Convert a file with the ODT converter (count: open it)",
+    global = true,
+  },
+  odt_export_as_odf = {
+    "org.export.odt",
+    "export_as_odf",
+    desc = "Export a LaTeX fragment as an OpenDocument formula (.odf)",
+    modes = { "n", "x" },
+  },
+  odt_export_as_odf_and_open = {
+    "org.export.odt",
+    "export_as_odf_and_open",
+    desc = "Export a LaTeX fragment as an .odf file and open it",
+    modes = { "n", "x" },
+  },
   html_htmlize_generate_css = {
     "org.export.html",
     "htmlize_generate_css",

@@ -3803,7 +3803,13 @@ addition) adds raw style XML to <office:styles>.
 the result with `convert_process` ("LibreOffice": `soffice --headless
 --convert-to`, or "unoconv"; `convert_processes`, `convert_capabilities`);
 `require("org.export.odt").convert(file, format)` converts any file
-(org-odt-convert). `export.odt.use_pandoc = true` exports ODT with pandoc
+(org-odt-convert); `:Org odt_convert` asks for the file and the output
+format (with a count it opens the result).
+`:Org odt_export_as_odf` (org-odt-export-as-odf) converts a LaTeX fragment
+to MathML with `latex_to_mathml_convert_command` and writes it as an
+OpenDocument formula, FILE.odf; the fragment is the first one of the
+Visual selection (or typed at the prompt) and the file name is asked for.
+`odt_export_as_odf_and_open` also opens the file. `export.odt.use_pandoc = true` exports ODT with pandoc
 instead. Lua: `require("org.export").export("odt", opts)`;
 `to_string("odt")` returns content.xml.
 Differences: `use_date_fields`, `with_forbidden_chars`, the drawer,
