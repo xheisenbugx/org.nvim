@@ -328,6 +328,23 @@ describe("agenda show commands", function()
     end)
   end)
 
+  it("shows the entry next to a modified buffer that can't be hidden", function()
+    -- the other window holds an unsaved bufhidden=wipe buffer (E37 on a
+    -- plain buffer switch): the file opens in a split, reused afterwards
+    local scratch = org_buffer({ "* scratch" })
+    open(lines)
+    goto_title("A")
+    view.show_1(3)
+    view.show_1(0)
+    local wins = vim.fn.win_findbuf(utils.find_buffer(path))
+    eq(1, #wins)
+    vim.api.nvim_win_call(wins[1], function()
+      eq(1, vim.fn.foldclosed(1))
+    end)
+    ok(#vim.fn.win_findbuf(scratch) == 1)
+    vim.bo[scratch].modified = false
+  end)
+
   it("<Space> shows the entry, and pressed again scrolls it", function()
     local long = { "* TODO A", "  SCHEDULED: " .. ts(0) }
     for i = 1, 200 do

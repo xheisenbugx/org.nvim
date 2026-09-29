@@ -589,6 +589,20 @@ function M.save_buffer_or_warn(bufnr)
 end
 
 --- Open `path` in the current window (or reuse a window showing it) at `lnum`.
+--- Show buffer `b` in the current window. A modified buffer there that
+--- can't be hidden (bufhidden=wipe, E37) keeps its window, and `b` opens
+--- in a split.
+function M.set_current_buf(b)
+  local ok, err = pcall(vim.api.nvim_set_current_buf, b)
+  if not ok then
+    if not tostring(err):find("E37", 1, true) then
+      error(err, 0)
+    end
+    vim.cmd("split")
+    vim.api.nvim_set_current_buf(b)
+  end
+end
+
 ---@param opts? { split?: string, col?: integer, reuse_win?: boolean }
 function M.open_file(path, lnum, opts)
   opts = opts or {}
@@ -608,7 +622,7 @@ function M.open_file(path, lnum, opts)
   if cmd then
     local b = M.find_buffer(path)
     if b and cmd == "edit" then
-      vim.api.nvim_set_current_buf(b)
+      M.set_current_buf(b)
     else
       -- `hide` avoids E37 when the current buffer has unsaved changes; a
       -- modified buffer that can't be hidden (bufhidden=wipe) keeps its

@@ -1135,16 +1135,21 @@ local function other_window()
   return w
 end
 
+--- Show the target of `item` in `win`; returns the window it shows in
+--- (a split of `win` when its buffer can't be abandoned).
 local function open_in_window(win, target, item)
+  local shown = win
   vim.api.nvim_win_call(win, function()
     if item.filename then
       utils.open_file(item.filename, target.lnum)
     else
-      vim.api.nvim_set_current_buf(target.bufnr)
+      utils.set_current_buf(target.bufnr)
       vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
     end
     require("org.fold").reveal_cursor("agenda")
+    shown = vim.api.nvim_get_current_win()
   end)
+  return shown
 end
 
 --- Show the entry in another window (focus = jump there).
@@ -1164,8 +1169,19 @@ function M.show_item(focus)
     open_in_window(w, target, item)
     return
   end
-  local w = other_window()
-  open_in_window(w, target, item)
+  -- a window already showing the file is reused (display-buffer)
+  local w
+  for _, win in ipairs(vim.fn.win_findbuf(target.bufnr)) do
+    if
+      win ~= S.win
+      and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
+      and vim.api.nvim_win_get_config(win).relative == ""
+    then
+      w = win
+      break
+    end
+  end
+  w = open_in_window(w or other_window(), target, item)
   if focus then
     vim.api.nvim_set_current_win(w)
   end
@@ -1195,8 +1211,8 @@ function M.tree_to_indirect_buffer()
   local w = other_window()
   local buf
   vim.api.nvim_win_call(w, function()
-    vim.api.nvim_win_set_buf(w, target.bufnr)
-    vim.api.nvim_win_set_cursor(w, { target.lnum, 0 })
+    utils.set_current_buf(target.bufnr)
+    vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
     buf = require("org.structure").tree_to_indirect_buffer("current")
   end)
   if old and old ~= buf and vim.api.nvim_buf_is_valid(old) and not vim.bo[old].modified then
