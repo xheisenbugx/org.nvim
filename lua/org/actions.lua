@@ -133,6 +133,8 @@ group("Structure", {
   copy_subtree = { "org.structure", "copy_subtree", desc = "Copy subtree" },
   cut_subtree = { "org.structure", "cut_subtree", desc = "Cut subtree" },
   paste_subtree = { "org.structure", "paste_subtree", desc = "Paste subtree" },
+  yank = { "org.structure", "yank", desc = "Put, folding / adjusting subtrees (org-yank)" },
+  yank_before = { "org.structure", "yank_before", desc = "Put before, folding / adjusting subtrees" },
   clone_subtree = { "org.structure", "clone_subtree", desc = "Clone subtree with time shift" },
   sort = { "org.structure", "sort", desc = "Sort entries / items" },
   indent_region = {

@@ -53,6 +53,7 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
+---| "beginning_of_line" # Start of line / headline title
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
@@ -73,6 +74,8 @@
 ---| "clone_subtree" # Clone subtree with time shift
 ---| "column_view" # Column view
 ---| "context_action" # Context action (C-c C-c)
+---| "convert_to_odd_levels" # Convert the file to odd levels only
+---| "convert_to_oddeven_levels" # Convert an odd-levels file to odd and even levels
 ---| "copy_special" # Copy table region / subtree
 ---| "copy_subtree" # Copy subtree
 ---| "copy_visible" # Copy visible text
@@ -101,8 +104,11 @@
 ---| "down_element" # First child element
 ---| "drag_element_down" # Drag element down
 ---| "drag_element_up" # Drag element up
+---| "edit_agenda_file_list" # Edit the list of agenda files
+---| "edit_headline" # Edit the headline's title
 ---| "edit_special" # Edit src block / table formulas
 ---| "emphasize" # Emphasize selection / insert markers
+---| "end_of_line" # End of line / before the tags
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
 ---| "feed_goto_inbox" # Go to the inbox of a feed
@@ -120,6 +126,9 @@
 ---| "id_store_link" # Store id: link to entry
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
+---| "indent_block" # Indent the block at point
+---| "indent_drawer" # Indent the drawer at point
+---| "indent_region" # Indent the buffer / selection (org-indent-region)
 ---| "indirect_subtree" # Subtree in split edit buffer
 ---| "inlinetask_insert" # Insert inline task
 ---| "insert_all_links" # Insert all stored links
@@ -134,6 +143,8 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "insert_todo_subheading" # Insert TODO subheading
+---| "kill_line" # Kill to the end of the line / the tags
 ---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "link_preview" # Toggle image previews (count: 4 hide, 16 buffer, 64 hide buffer)
@@ -269,8 +280,12 @@
 ---| "toggle_time_stamp_overlays" # Toggle custom timestamp display (C-c C-x C-t)
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
+---| "unindent_buffer" # Remove the common indentation of elements
 ---| "up_element" # Parent element
 ---| "update_statistics" # Update statistics cookies
+---| "version" # Show the org.nvim version (count: insert it)
+---| "yank" # Put, folding / adjusting subtrees (org-yank)
+---| "yank_before" # Put before, folding / adjusting subtrees
 
 --- Base for action-backed sections: any `org.ActionName` may be used as a
 --- key; unknown names are ignored.
@@ -391,6 +406,10 @@
 ---@field cut_subtree? org.MappingLhs
 --- Paste subtree. Default: `<prefix>hp`
 ---@field paste_subtree? org.MappingLhs
+--- Put, folding / adjusting subtrees (org-yank). Default: `p`
+---@field yank? org.MappingLhs
+--- Put before, folding / adjusting subtrees. Default: `P`
+---@field yank_before? org.MappingLhs
 --- Clone subtree with time shift. Default: `<prefix>hc`
 ---@field clone_subtree? org.MappingLhs
 --- Sort entries / items. Default: `<prefix>hs`

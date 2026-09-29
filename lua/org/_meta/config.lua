@@ -333,6 +333,13 @@
 ---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
 ---default: `false`)
 ---@field ctrl_k_protect_subtree? boolean|"error"
+---`p` / `P` of whole subtrees folds them, unless that would hide the text
+---after them. (Emacs `org-yank-folded-subtrees`, default: `true`)
+---@field yank_folded_subtrees? boolean
+---`p` / `P` of whole subtrees adjusts their level to the visible headlines
+---around, like paste_subtree. (Emacs `org-yank-adjusted-subtrees`,
+---default: `false`)
+---@field yank_adjusted_subtrees? boolean
 ---Single-letter commands typed in Insert mode at the start of a headline,
 ---or a function deciding where they apply.
 ---(Emacs `org-use-speed-commands`, default: `false`)

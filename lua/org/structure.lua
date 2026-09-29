@@ -1386,13 +1386,18 @@ end
 --- as the first child, any other N at level N. On an otherwise empty
 --- headline ("***"), the number of stars is the level (the line is
 --- removed).
-function M.paste_subtree()
+---@param opts? { lines?: string[], pos?: integer[] } the subtree (default the
+--- `"` register or the kill ring) and where Emacs's point is (default the
+--- cursor; a row past the end is the end of the buffer)
+---@return integer|nil first, integer|nil last the inserted lines
+function M.paste_subtree(opts)
+  opts = opts or {}
   local bufnr = buf()
   local reg = vim.fn.getreg('"', 1, true)
-  local lines
-  if type(reg) == "table" and is_subtree(reg) then
+  local lines = opts.lines
+  if not lines and type(reg) == "table" and is_subtree(reg) then
     lines = reg
-  else
+  elseif not lines then
     lines = M.kill_ring[#M.kill_ring]
   end
   if not is_subtree(lines) then
@@ -1401,12 +1406,12 @@ function M.paste_subtree()
   end
   lines = vim.deepcopy(lines)
   local file = files.get_buffer(bufnr)
-  local count = vim.v.count
+  local count = opts.lines and 0 or vim.v.count
   local arg = (count == 4 or count == 16) and count or nil
   local numeric = count > 0 and not arg and count or nil
-  local pos = cursor()
+  local pos = opts.pos or cursor()
   local lnum = pos[1]
-  local line = vim.api.nvim_get_current_line()
+  local line = get_lines(bufnr, lnum, lnum)[1] or ""
   local old_level
   for _, l in ipairs(lines) do
     old_level = parser.headline_level(l)
@@ -1485,11 +1490,103 @@ function M.paste_subtree()
     first = first + 1
   end
   vim.api.nvim_win_set_cursor(0, { first, 0 })
-  if M.clip_folded and vim.deep_equal(M.clip, lines) then
+  if not opts.lines and M.clip_folded and vim.deep_equal(M.clip, lines) then
     vim.cmd("silent! normal! zx")
     pcall(vim.cmd, first .. "foldclose")
   end
   utils.notify(string.format("Clipboard pasted as level %d subtree", new_level))
+  return first, at + #new - 1
+end
+
+--- Fold the subtrees in lines [s, e] unless that would hide the text after
+--- them (org-yank with org-yank-folded-subtrees).
+local function fold_yanked(bufnr, s, e)
+  local total = vim.api.nvim_buf_line_count(bufnr)
+  local first_level
+  for l = s, e do
+    first_level = parser.headline_level(get_lines(bufnr, l, l)[1])
+    if first_level then
+      break
+    end
+  end
+  if not first_level then
+    return
+  end
+  local nxt = e + 1
+  while nxt <= total and is_blank(get_lines(bufnr, nxt, nxt)[1]) do
+    nxt = nxt + 1
+  end
+  if nxt <= total then
+    local lv = parser.headline_level(get_lines(bufnr, nxt, nxt)[1])
+    if not lv or lv > first_level then
+      utils.notify("Inserted text not folded because that would swallow text")
+      return
+    end
+  end
+  local file = files.get_buffer(bufnr)
+  local tops = {}
+  for _, hl in ipairs(file.headlines) do
+    if hl.line >= s and hl.line <= e and hl.level <= first_level then
+      tops[#tops + 1] = hl.line
+    end
+  end
+  vim.api.nvim_buf_call(bufnr, function()
+    for i = #tops, 1, -1 do
+      local l = tops[i]
+      if vim.fn.foldclosed(l) == -1 and vim.fn.foldlevel(l) > 0 then
+        pcall(vim.cmd, l .. "foldclose")
+      end
+    end
+  end)
+end
+
+--- `p` / `P` (org-yank): a register holding whole subtrees is put with its
+--- level adjusted to the surrounding headlines (`yank_adjusted_subtrees`)
+--- and folded (`yank_folded_subtrees`). With a count, or any other text,
+--- a plain put.
+---@param before? boolean `P`
+function M.yank(before)
+  local bufnr = buf()
+  local reg = vim.v.register
+  local count = vim.v.count
+  local key = before and "P" or "p"
+  local function plain()
+    vim.cmd(string.format('normal! "%s%s%s', reg, count > 0 and count or "", key))
+  end
+  local lines = vim.fn.getreg(reg, 1, true)
+  local cfg = config.opts
+  if
+    count > 0
+    or vim.fn.getregtype(reg) ~= "V"
+    or type(lines) ~= "table"
+    or not is_subtree(lines)
+    or not (cfg.yank_folded_subtrees or cfg.yank_adjusted_subtrees)
+  then
+    plain()
+    return
+  end
+  local row = cursor()[1]
+  local s, e
+  local fold = cfg.yank_folded_subtrees
+  if cfg.yank_adjusted_subtrees then
+    -- Emacs point: the start of the line the text goes before
+    local at = before and row or row + 1
+    s, e = M.paste_subtree({ lines = lines, pos = { at, 0 } })
+    -- Emacs folds only when the subtree went in at point (before a
+    -- headline), not before the next headline
+    fold = fold and s == at
+  else
+    plain()
+    s, e = vim.api.nvim_buf_get_mark(bufnr, "[")[1], vim.api.nvim_buf_get_mark(bufnr, "]")[1]
+  end
+  if s and fold then
+    fold_yanked(bufnr, s, e)
+    vim.api.nvim_win_set_cursor(0, { s, 0 })
+  end
+end
+
+function M.yank_before()
+  return M.yank(true)
 end
 
 ---------------------------------------------------------------------------

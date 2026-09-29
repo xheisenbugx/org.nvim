@@ -214,3 +214,115 @@ describe("version", function()
     ok(buf_lines(buf)[1]:find("org.nvim version", 1, true), buf_lines(buf)[1])
   end)
 end)
+
+describe("yank (p / P) of subtrees", function()
+  local config = require("org.config")
+  local saved
+  before_each(function()
+    saved = { config.opts.yank_folded_subtrees, config.opts.yank_adjusted_subtrees }
+  end)
+  after_each(function()
+    config.opts.yank_folded_subtrees, config.opts.yank_adjusted_subtrees = saved[1], saved[2]
+  end)
+
+  local function org_buffer(lines, pos)
+    local buf = _G.org_buffer(lines, pos)
+    -- new folds open, so that only what yank folds is closed
+    vim.wo.foldlevel = 99
+    return buf
+  end
+
+  local function closed(lnum)
+    return vim.fn.foldclosed(lnum) == lnum
+  end
+
+  local function put(keys)
+    vim.api.nvim_feedkeys(vim.keycode(keys), "xt", false)
+  end
+
+  -- expectations: Emacs 9.8.10 org-yank at the start of the line after
+  -- the cursor line (p) or of the cursor line (P)
+  it("folds a put subtree", function()
+    local buf = org_buffer({ "* A", "* B" }, { 1, 0 })
+    vim.fn.setreg('"', { "** K", "body", "*** K2" }, "l")
+    put("p")
+    eq({ "* A", "** K", "body", "*** K2", "* B" }, buf_lines(buf))
+    ok(closed(2))
+  end)
+
+  it("P puts before the line", function()
+    local buf = org_buffer({ "* A", "* B" }, { 2, 0 })
+    vim.fn.setreg("a", { "** K", "body" }, "l")
+    put('"aP')
+    eq({ "* A", "** K", "body", "* B" }, buf_lines(buf))
+    ok(closed(2))
+  end)
+
+  it("does not fold when that would swallow text", function()
+    local buf = org_buffer({ "* A", "text after" }, { 1, 0 })
+    vim.fn.setreg('"', { "** K", "body" }, "l")
+    local msg
+    local orig = vim.notify
+    vim.notify = function(m)
+      msg = m
+    end
+    put("p")
+    vim.notify = orig
+    eq({ "* A", "** K", "body", "text after" }, buf_lines(buf))
+    ok(not closed(2))
+    eq("Inserted text not folded because that would swallow text", msg)
+  end)
+
+  it("puts other text as is", function()
+    local buf = org_buffer({ "* A" }, { 1, 0 })
+    vim.fn.setreg('"', { "text", "** K" }, "l")
+    put("p")
+    eq({ "* A", "text", "** K" }, buf_lines(buf))
+    vim.fn.setreg('"', "x", "c")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    put("p")
+    eq("*x A", buf_lines(buf)[1])
+  end)
+
+  it("with a count, a plain put", function()
+    local buf = org_buffer({ "* A", "* B" }, { 1, 0 })
+    vim.fn.setreg('"', { "** K", "body" }, "l")
+    put("2p")
+    eq({ "* A", "** K", "body", "** K", "body", "* B" }, buf_lines(buf))
+    ok(not closed(2))
+  end)
+
+  it("yank_adjusted_subtrees adjusts the level", function()
+    config.opts.yank_adjusted_subtrees = true
+    local buf = org_buffer({ "* A", "** A1", "body", "** A2" }, { 2, 0 })
+    vim.fn.setreg('"', { "* K", "body", "** K2" }, "l")
+    local orig = vim.notify
+    vim.notify = function() end
+    put("p")
+    vim.notify = orig
+    -- pasted before the next visible headline, not folded (like Emacs)
+    eq({ "* A", "** A1", "body", "** K", "body", "*** K2", "** A2" }, buf_lines(buf))
+    ok(not closed(4))
+  end)
+
+  it("yank_adjusted_subtrees before a headline folds", function()
+    config.opts.yank_adjusted_subtrees = true
+    local buf = org_buffer({ "* A", "** A1", "** A2" }, { 2, 0 })
+    vim.fn.setreg('"', { "* K", "body" }, "l")
+    local orig = vim.notify
+    vim.notify = function() end
+    put("p")
+    vim.notify = orig
+    eq({ "* A", "** A1", "** K", "body", "** A2" }, buf_lines(buf))
+    ok(closed(3))
+  end)
+
+  it("yank_folded_subtrees = false", function()
+    config.opts.yank_folded_subtrees = false
+    local buf = org_buffer({ "* A", "* B" }, { 1, 0 })
+    vim.fn.setreg('"', { "** K", "body" }, "l")
+    put("p")
+    eq({ "* A", "** K", "body", "* B" }, buf_lines(buf))
+    ok(not closed(2))
+  end)
+end)

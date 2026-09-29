@@ -324,6 +324,12 @@ M.defaults = {
   --- `kill_line` on a folded headline kills its hidden subtree: false
   --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
   ctrl_k_protect_subtree = false,
+  --- `p` / `P` of whole subtrees folds them, unless that would hide the
+  --- text after them (org-yank-folded-subtrees).
+  yank_folded_subtrees = true,
+  --- `p` / `P` of whole subtrees adjusts their level to the visible
+  --- headlines around, like paste_subtree (org-yank-adjusted-subtrees).
+  yank_adjusted_subtrees = false,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,
@@ -1768,6 +1774,8 @@ M.defaults = {
       copy_subtree = "<prefix>hy",
       cut_subtree = "<prefix>hd",
       paste_subtree = "<prefix>hp",
+      yank = "p", -- org-yank: folds / adjusts pasted subtrees
+      yank_before = "P",
       clone_subtree = "<prefix>hc",
       sort = "<prefix>hs",
       narrow_subtree = "<prefix>hn",

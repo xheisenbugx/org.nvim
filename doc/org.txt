@@ -278,6 +278,14 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                 other counts: that level. A subtree that was folded when
                 copied is pasted folded. Subtrees are kept in a kill ring
                 and also in the `"` register.
+p / P           Put (org-yank). When the register holds whole subtrees
+                (linewise, starting with a headline, none higher than the
+                first), they are folded (`yank_folded_subtrees`, unless
+                that would hide the text after them) and, with
+                `yank_adjusted_subtrees`, pasted like <prefix>hp at the
+                start of the next line (`p`) or of this line (`P`). A count
+                or other text: Vim's put. The cursor stays on the first
+                put line (Emacs moves after the text).
 <prefix>hc      Clone subtree N times (org-clone-subtree-with-time-shift),
 <C-c><C-x>c     shifting its timestamps by an offset per clone (`+1w`,
                 `-2d`, `+3h`; asked only when it has timestamps, and not
@@ -4501,6 +4509,8 @@ Structure and visibility ~
                                       { a, e }
   special_ctrl_k            false     kill_line up to the tags
   ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
+  yank_folded_subtrees      true      `p` folds put subtrees
+  yank_adjusted_subtrees    false     `p` adjusts their level
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
   inlinetask_min_level      false     |org-inlinetask| (Emacs: 15)
