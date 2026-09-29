@@ -1478,6 +1478,17 @@ M.defaults = {
     default_timer = "0",
   },
 
+  --- org-mouse (see `:h org-mouse`).
+  mouse = {
+    --- Load org-mouse: context menus, dragging subtrees, clickable stars,
+    --- bullets and checkboxes. Emacs loads it with (require 'org-mouse).
+    org_mouse = false,
+    --- Its parts (org-mouse-features): "context-menu", "move-tree",
+    --- "yank-link", "activate-stars", "activate-bullets",
+    --- "activate-checkboxes".
+    features = { "context-menu", "yank-link", "activate-stars", "activate-bullets", "activate-checkboxes" },
+  },
+
   ---------------------------------------------------------------------------
   -- Links / IDs / attachments
   ---------------------------------------------------------------------------
@@ -2405,6 +2416,10 @@ M.defaults = {
       --- org-cite-basic-complete-key-crm-separator: nil (one prompt per key),
       --- a Vim regexp separating keys typed at one prompt, or "dynamic".
       basic_complete_key_crm_separator = nil,
+      --- Highlight group of the citation key under the mouse ("highlight",
+      --- Emacs's face, is OrgCiteMouseOver); false = none. Turns
+      --- 'mousemoveevent' on (org-cite-basic-mouse-over-key-face).
+      basic_mouse_over_key_face = "highlight",
       -- csl processor (oc-csl)
       csl_styles_dir = nil, -- org-cite-csl-styles-dir
       csl_locales_dir = nil, -- org-cite-csl-locales-dir (nil: en-US only)
@@ -2497,6 +2512,12 @@ M.defaults = {
   -- UI
   ---------------------------------------------------------------------------
   ui = {
+    --- The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus
+    --- (Emacs's easymenus), added while a buffer they belong to is current;
+    --- false = none. Emacs has no option for them.
+    menus = true,
+    --- Headline levels listed by `imenu` (gO) (org-imenu-depth).
+    imenu_depth = 2,
     --- Conceal link brackets and show only descriptions (org-link-descriptive).
     conceal_links = true,
     --- Hide *, /, _, =, ~, + around emphasized text (org-hide-emphasis-markers).

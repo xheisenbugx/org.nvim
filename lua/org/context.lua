@@ -133,6 +133,10 @@ end
 
 --- Open link / follow footnote / show agenda for timestamp.
 local function open_at_point()
+  -- with org-mouse: headline stars, checkboxes and bullets
+  if require("org.org_mouse").open_at_point(false) then
+    return true
+  end
   -- a citation (org-cite-follow)
   local cite = require("org.cite")
   if cite.at_point() then

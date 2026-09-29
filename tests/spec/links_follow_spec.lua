@@ -254,7 +254,8 @@ describe("following links", function()
       local function maps(buf)
         local out = {}
         for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
-          if m.lhs:find("Mouse") or m.lhs:find("Release") then
+          -- clicks (<MouseMove> highlights citation keys)
+          if (m.lhs:find("Mouse") or m.lhs:find("Release")) and m.lhs ~= "<MouseMove>" then
             out[#out + 1] = m.lhs
           end
         end

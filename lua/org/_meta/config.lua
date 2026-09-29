@@ -695,6 +695,8 @@
 ---@field yank? org.Config.Yank
 ---RSS and Atom feeds (`org-feed`).
 ---@field feed? org.Config.Feed
+---org-mouse: context menus, dragging subtrees, clickable stars.
+---@field mouse? org.Config.Mouse
 ---Links: abbreviations, custom types, following.
 ---@field links? org.Config.Links
 ---Downloading remote resources (a URL in `#+INCLUDE`): `"prompt"`, `"safe"`,
@@ -722,6 +724,15 @@
 ---@field ui? org.Config.UI
 ---Key mappings. Set any mapping to `false` to disable it, or a list of lhs.
 ---@field mappings? org.Config.Mappings
+
+---org-mouse (`:h org-mouse`).
+---@class org.Config.Mouse
+---Load org-mouse (Emacs: `(require 'org-mouse)`). (default: `false`)
+---@field org_mouse? boolean
+---Its parts: `"context-menu"`, `"move-tree"`, `"yank-link"`,
+---`"activate-stars"`, `"activate-bullets"`, `"activate-checkboxes"`.
+---(Emacs `org-mouse-features`, default: all but `"move-tree"`)
+---@field features? string[]
 
 ---Plain lists.
 ---@class org.Config.Lists
@@ -791,6 +802,13 @@
 
 ---Buffer appearance.
 ---@class org.Config.UI
+---The Org, Table, Agenda, Column, Edit-Formulas and OrgTbl menus, added
+---while a buffer they belong to is current (Emacs has no option for them).
+---(default: `true`)
+---@field menus? boolean
+---Headline levels listed by `imenu` (`gO`).
+---(Emacs `org-imenu-depth`, default: `2`)
+---@field imenu_depth? integer
 ---Conceal link brackets and show only descriptions (sets `conceallevel=2`).
 ---(default: `true`)
 ---@field conceal_links? boolean

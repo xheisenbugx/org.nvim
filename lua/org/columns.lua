@@ -920,6 +920,20 @@ local ns_ov = vim.api.nvim_create_namespace("org.columns.overlay")
 --- Active overlay views by org buffer.
 local views = {}
 
+--- Is the overlay column view on in `bufnr`?
+---@param bufnr integer
+---@return boolean
+function M.is_active(bufnr)
+  return views[bufnr] ~= nil
+end
+
+--- The Column menu comes and goes with the view (org-columns-menu).
+local function sync_menus()
+  if package.loaded["org.menu"] then
+    pcall(require("org.menu").sync)
+  end
+end
+
 --- What changing a headline line of the view says (Emacs signals
 --- text-read-only with this).
 local READ_ONLY = "Text is read-only: Type ‘e’ to edit property"
@@ -1572,6 +1586,7 @@ local function quit_overlay(state)
     return
   end
   views[state.src] = nil
+  vim.schedule(sync_menus)
   pcall(vim.api.nvim_del_augroup_by_id, state.group)
   local src = state.src
   if vim.api.nvim_buf_is_valid(src) then
@@ -1757,6 +1772,7 @@ local function open_overlay(src, lnum, global)
       quit_overlay(state)
     end,
   })
+  sync_menus()
   return true
 end
 

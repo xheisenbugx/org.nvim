@@ -37,6 +37,8 @@ function M.setup(opts)
   require("org.mappings").setup_global()
   require("org.highlights").setup()
   require("org.yank").setup_paste()
+  -- the Org menus (ui.menus)
+  require("org.menu").setup()
   local cfg = require("org.config").opts
   if #(cfg.entities_user or {}) > 0 or package.loaded["org.entities"] then
     -- org-entities-user

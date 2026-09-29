@@ -1467,6 +1467,9 @@
 ---@field basic_column_separator? string
 ---(`org-cite-basic-complete-key-crm-separator`): a Vim regexp, `"dynamic"` or nil (default: `nil`)
 ---@field basic_complete_key_crm_separator? string
+---(`org-cite-basic-mouse-over-key-face`): highlight group of the key under
+---the mouse, `"highlight"` = OrgCiteMouseOver; false = none (default: `"highlight"`)
+---@field basic_mouse_over_key_face? string|false
 ---(`org-cite-csl-styles-dir`) (default: `nil`)
 ---@field csl_styles_dir? string
 ---(`org-cite-csl-locales-dir`): nil uses the bundled en-US locale only (default: `nil`)
