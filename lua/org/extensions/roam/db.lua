@@ -8,6 +8,7 @@
 --- sync only re-parses files that changed.
 
 local files = require("org.files")
+local parser = require("org.parser")
 local utils = require("org.utils")
 
 local M = {}
@@ -285,6 +286,22 @@ end
 -- links in these property drawer keys are not indexed
 -- (org-roam-db-extra-links-exclude-keys)
 local EXCLUDED_PROPERTY_LINKS = { ROAM_REFS = true }
+-- and in these keywords (`#+transclude:`)
+local EXCLUDED_KEYWORD_LINKS = { transclude = true }
+
+--- Whether links on `line` are not indexed: comment and fixed-width lines
+--- hold no links for Org, and some properties and keywords are excluded.
+local function skip_links(line)
+  if line:match("^%s*#%s") or line:match("^%s*#$") or line:match("^%s*:%s") or line:match("^%s*:$") then
+    return true
+  end
+  local key = line:match("^%s*:([^:%s]+):")
+  if key and EXCLUDED_PROPERTY_LINKS[key:upper()] then
+    return true
+  end
+  local kw = line:match("^%s*#%+([^:%s]+):")
+  return kw ~= nil and EXCLUDED_KEYWORD_LINKS[kw:lower()] == true
+end
 
 -- links within the file, which never point at a node
 local LOCAL_TYPES = { fuzzy = true, heading = true, ["custom-id"] = true, coderef = true, radio = true }
@@ -340,8 +357,8 @@ function M.parse_file(path, file)
       end
     end
   end
-  -- links and citations, skipping verbatim blocks and ROAM_REFS values
-  local parser = require("org.parser")
+  -- links and citations, skipping verbatim blocks, comments and ROAM_REFS
+  -- values
   local lk = require("org.links")
   local lines = file.lines
   local i = 1
@@ -351,8 +368,7 @@ function M.parse_file(path, file)
     if block_end then
       i = block_end + 1
     else
-      local key = line:match("^%s*:([^:%s]+):")
-      if not (key and EXCLUDED_PROPERTY_LINKS[key:upper()]) and line:find(":", 1, true) then
+      if line:find(":", 1, true) and not skip_links(line) then
         local src = source_id(file:headline_at(i), file_node, node_of)
         if src then
           for _, l in ipairs(lk.real_links(line)) do
@@ -404,11 +420,54 @@ local function load()
   return index
 end
 
-local function save()
-  local ok, err = pcall(utils.write_json, index_path(), index)
+-- a write of the index waiting in `save_later`: { timer, path, data }
+local pending = nil
+
+local function write(path, data)
+  local ok, err = pcall(utils.write_json, path, data)
   if not ok then
     utils.warn("org-roam: cannot write the index: " .. tostring(err))
   end
+end
+
+--- Write a pending index change now (on exit, before a reset).
+function M.flush()
+  local p = pending
+  if not p then
+    return
+  end
+  pending = nil
+  p.timer:stop()
+  p.timer:close()
+  -- a roam directory that is gone has nothing left to cache
+  if utils.is_dir(p.data.directory) then
+    write(p.path, p.data)
+  end
+end
+
+local function save()
+  if pending then
+    pending.timer:stop()
+    pending.timer:close()
+    pending = nil
+  end
+  write(index_path(), index)
+end
+
+-- The index of a large directory takes tens of milliseconds to encode:
+-- after a single file changed (each save of a note), write it a second
+-- after the first save, once for every save in between. The index in
+-- memory is current; `flush` writes it early (on exit, before a reset).
+local SAVE_DELAY = 1000
+
+local function save_later()
+  if pending then
+    pending.path, pending.data = index_path(), index
+    return
+  end
+  local timer = assert(vim.uv.new_timer())
+  pending = { timer = timer, path = index_path(), data = index }
+  timer:start(SAVE_DELAY, 0, vim.schedule_wrap(M.flush))
 end
 
 local function stat(path)
@@ -429,6 +488,22 @@ local function register_ids(entries)
   end
 end
 
+--- The parse of `path`: its buffer's, else read from disk now. Not
+--- through org.files' cache: that would keep every note of a large
+--- directory in memory, and trust an mtime that a quick rewrite leaves
+--- unchanged.
+---@param path string
+---@return org.File|nil
+local function fresh_parse(path)
+  files.invalidate(path)
+  local b = utils.find_buffer(path)
+  if b then
+    return files.get_buffer(b)
+  end
+  local lines = utils.readfile(path)
+  return lines and parser.parse(lines, path) or nil
+end
+
 --- Index one file now (after a save), or drop it when it is gone or no
 --- longer a roam file. Returns true when the index changed.
 ---@param path string
@@ -441,17 +516,17 @@ function M.update_file(path, file)
     if idx.files[path] then
       idx.files[path] = nil
       lookup = nil
-      save()
+      save_later()
       return true
     end
     return false
   end
   local sec, nsec = stat(path)
-  local nodes, links = M.parse_file(path, file)
+  local nodes, links = M.parse_file(path, file or fresh_parse(path))
   local entry = { sec = sec, nsec = nsec, nodes = nodes, links = links }
   idx.files[path] = entry
   lookup = nil
-  save()
+  save_later()
   register_ids({ entry })
   return true
 end
@@ -474,8 +549,7 @@ function M.sync(force)
     local sec, nsec = stat(path)
     local e = idx.files[path]
     if not e or e.sec ~= sec or e.nsec ~= nsec then
-      files.invalidate(path)
-      local nodes, links = M.parse_file(path)
+      local nodes, links = M.parse_file(path, fresh_parse(path))
       e = { sec = sec, nsec = nsec, nodes = nodes, links = links }
       idx.files[path] = e
       changed[#changed + 1] = e
@@ -545,6 +619,7 @@ end
 
 --- Drop the in-memory index (tests; a changed directory).
 function M.reset()
+  M.flush()
   index = nil
   lookup = nil
   dir_cache = { from = nil, dir = nil }

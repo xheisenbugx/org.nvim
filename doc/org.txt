@@ -7011,9 +7011,12 @@ The index ~
 The index is a JSON file (`index_file`, by default in stdpath("data")) that
 holds every file's nodes, links and citations with its mtime. Each command
 that reads it first re-parses the files that changed, and with
-`update_on_save` a roam file is re-indexed when it is written.
-`:Org roam_db_sync` updates it by hand, `:Org roam_db_sync force` rebuilds
-it. Node IDs are also added to the ID locations (|org-links|), so `id:`
+`update_on_save` a roam file is re-indexed when it is written (the JSON
+file itself is rewritten a second later, once for all the saves in
+between, and on exit). `:Org roam_db_sync` updates it by hand,
+`:Org roam_db_sync force` rebuilds it. As in org-roam, links in verbatim
+blocks, comment and fixed-width lines, `ROAM_REFS` and `#+transclude:` are
+not indexed. Node IDs are also added to the ID locations (|org-links|), so `id:`
 links into roam files work from anywhere.
 
 Commands ~
@@ -7215,5 +7218,10 @@ Differences from Emacs org-roam ~
     "+ New node" candidate, since that picker can't return typed text.
   - Symlinked directories inside `directory` are not followed (symlinked
     files are).
+  - Only `.org` files are indexed: there is no `org-roam-file-extensions`,
+    so encrypted `.org.gpg` notes are left out.
+  - Titles are not completed while typing text
+    (`org-roam-completion-everywhere`); `roam:` links complete through
+    |org-links| insertion.
 
  vim:tw=78:ts=8:ft=help:norl:

@@ -250,6 +250,13 @@ end
 
 function M.setup(opts)
   vim.api.nvim_clear_autocmds({ group = augroup })
+  -- the index write that follows a save may still be waiting
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = augroup,
+    callback = function()
+      require(R .. ".db").flush()
+    end,
+  })
   if opts.update_on_save then
     vim.api.nvim_create_autocmd("BufWritePost", {
       group = augroup,
@@ -300,7 +307,8 @@ end
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
   require(R .. ".protocol").register(false)
-  require(R .. ".buffer").close()
+  require(R .. ".buffer").wipe()
+  require(R .. ".db").flush()
 end
 
 function M.health(h, opts)

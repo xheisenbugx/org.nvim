@@ -89,6 +89,19 @@ describe("roam extension", function()
       eq("ǫ", slug("ǭ"))
     end)
 
+    it("strips decomposed marks and keeps letter numbers in slugs, as org-roam does", function()
+      local slug = require("org.extensions.roam.capture").slug
+      -- e + U+0301, e + U+0323 + U+0301, q + U+0323 (NFD input)
+      eq("ecole", slug("e\204\129cole"))
+      eq("e_dot", slug("e\204\163\204\129 dot"))
+      eq("q_dot_below", slug("q\204\163 dot below"))
+      -- a mark org-roam keeps stays with its letter
+      eq("e\204\133_overline", slug("e\204\133 overline"))
+      -- Ⅻ is a letter number ([:alnum:] in Emacs); ½ and ² are not
+      eq("ⅻ_roman", slug("Ⅻ roman"))
+      eq("half_x", slug("½ half x²"))
+    end)
+
     it("splits and joins quoted property values", function()
       eq({ "one", "two words", 'q"x' }, db().split_quoted('one "two words" "q\\"x"'))
       eq('one "two words"', db().join_quoted({ "one", "two words" }))
@@ -418,6 +431,19 @@ describe("roam extension", function()
       buffer.toggle()
       ok(not buffer.is_open())
     end)
+
+    it("closes the window and deletes its buffer when the extension is turned off", function()
+      write("a.org", { ":PROPERTIES:", ":ID:       file-a", ":END:", "#+title: Apple" })
+      vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/a.org"))
+      local buffer = require("org.extensions.roam.buffer")
+      buffer.toggle()
+      ok(buffer.is_open())
+      require("org").setup({ org_directory = root .. "/tests/fixtures" })
+      ok(not buffer.is_open())
+      eq(-1, vim.fn.bufnr("^org-roam$"))
+      eq({}, vim.api.nvim_get_autocmds({ group = "org.roam" }))
+      eq({}, vim.api.nvim_get_autocmds({ group = "org.roam.buffer" }))
+    end)
   end)
 
   describe("dailies", function()
@@ -510,6 +536,75 @@ describe("roam extension", function()
       utils.writefile(later .. "/n.org", { ":PROPERTIES:", ":ID: late", ":END:" })
       eq(1, (db().sync()))
       ok(db().node("late"))
+    end)
+
+    it("skips links in comments, fixed-width lines and #+transclude, like org-roam", function()
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Alpha" })
+      write("b.org", {
+        ":PROPERTIES:",
+        ":ID: b",
+        ":END:",
+        "# a comment [[id:a][A]]",
+        "#",
+        ": fixed [[id:a][A]] [cite:@key]",
+        "#+transclude: [[id:a]]",
+        "#+TRANSCLUDE: [[id:a]]",
+        "#+caption: kept [[id:a][A]]",
+        "Text [[id:a][A]].",
+      })
+      db().sync()
+      eq({ 9, 10 }, vim.tbl_map(function(b)
+        return b.link.lnum
+      end, db().backlinks("a")))
+      eq(0, #vim.tbl_filter(function(l)
+        return l.type == "cite"
+      end, db().links()))
+    end)
+
+    it("indexes without keeping every note in org.files' cache", function()
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Alpha" })
+      stub(require("org.files"), "get", function()
+        error("org.files.get used")
+      end)
+      eq(1, (db().sync()))
+      ok(db().node("a"))
+    end)
+
+    it("writes the index a moment after a save, and at once on flush or teardown", function()
+      local a = write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Alpha" })
+      db().sync()
+      local path = dir .. "/../roam-index.json"
+      local function on_disk()
+        local data = utils.read_json(path)
+        local e = data.files[a]
+        return e and e.nodes[1] and e.nodes[1].title
+      end
+      eq("Alpha", on_disk())
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Beta" })
+      bump(a)
+      db().update_file(a)
+      eq("Beta", db().node("a").title)
+      eq("Alpha", on_disk())
+      db().flush()
+      eq("Beta", on_disk())
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Gamma" })
+      bump(a)
+      db().update_file(a)
+      vim.wait(3000, function()
+        return on_disk() == "Gamma"
+      end)
+      eq("Gamma", on_disk())
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Delta" })
+      bump(a)
+      db().update_file(a)
+      require("org").setup({ org_directory = root .. "/tests/fixtures" })
+      eq("Delta", on_disk())
+    end)
+
+    it("has no node at point in a file with ROAM_EXCLUDE", function()
+      local a = write("a.org", { ":PROPERTIES:", ":ID: a", ":ROAM_EXCLUDE: t", ":END:", "#+title: Alpha" })
+      vim.cmd("edit " .. vim.fn.fnameescape(a))
+      eq(nil, require("org.extensions.roam.node").at_point())
     end)
 
     it("lists unlinked references outside links and the node's own file", function()
@@ -755,6 +850,29 @@ describe("roam extension", function()
       ok(not near:find('"d"', 1, true), near)
       ok(graph.dot({ id = "a", distance = 0 }):find('"b" -> "c";', 1, true))
     end)
+  end)
+
+  it("adds no key that is a prefix of, or the same as, another org key", function()
+    local a = write("a.org", { "* A" })
+    vim.cmd("edit " .. vim.fn.fnameescape(a))
+    local clashes = {}
+    for _, mode in ipairs({ "n", "x", "o" }) do
+      local keys = {}
+      for _, m in ipairs(vim.list_extend(vim.api.nvim_buf_get_keymap(0, mode), vim.api.nvim_get_keymap(mode))) do
+        if m.desc and m.desc:match("^org: ") then
+          keys[#keys + 1] = { key = vim.keycode(m.lhs), desc = m.desc }
+        end
+      end
+      for _, k in ipairs(keys) do
+        for _, o in ipairs(keys) do
+          local roam = k.desc:find("roam", 1, true) or o.desc:find("roam", 1, true)
+          if roam and k ~= o and o.key:sub(1, #k.key) == k.key and (#k.key < #o.key or k.desc ~= o.desc) then
+            clashes[#clashes + 1] = mode .. " " .. k.key .. " (" .. k.desc .. ") / " .. o.key .. " (" .. o.desc .. ")"
+          end
+        end
+      end
+    end
+    eq({}, clashes)
   end)
 
   it("registers its actions and keys, and stays off by default", function()

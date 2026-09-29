@@ -43,6 +43,36 @@ for group in table.concat({
   end
 end
 
+-- The same marks when the title has them as separate (decomposed)
+-- characters, which org-roam drops too.
+local MARKS = {}
+for _, cp in ipairs({ 0x300, 0x301, 0x302, 0x303, 0x304, 0x306, 0x307, 0x308, 0x309, 0x30A, 0x30B, 0x30C }) do
+  MARKS[#MARKS + 1] = vim.fn.nr2char(cp)
+end
+for _, cp in ipairs({ 0x31B, 0x323, 0x324, 0x325, 0x327, 0x32D, 0x32E, 0x330, 0x331 }) do
+  MARKS[#MARKS + 1] = vim.fn.nr2char(cp)
+end
+
+-- Letter numbers (Unicode Nl: Ⅻ, 〇, ...) are [:alnum:] in Emacs but
+-- punctuation to charclass().
+local LETTER_NUMBERS = {
+  { 0x16EE, 0x16F0 },
+  { 0x2160, 0x2188 },
+  { 0x3007, 0x3007 },
+  { 0x3021, 0x3029 },
+  { 0x3038, 0x303A },
+}
+
+local function letter_number(ch)
+  local cp = vim.fn.char2nr(ch)
+  for _, r in ipairs(LETTER_NUMBERS) do
+    if cp >= r[1] and cp <= r[2] then
+      return true
+    end
+  end
+  return false
+end
+
 ---@class org.roam.NewNode
 ---@field id? string
 ---@field title? string
@@ -55,6 +85,12 @@ end
 ---@return string
 function M.slug(title)
   local out = {}
+  if title:find("\204", 1, true) then
+    -- decomposed marks (all encoded as \204\128-\204\177)
+    for _, m in ipairs(MARKS) do
+      title = title:gsub(m, "")
+    end
+  end
   for _, ch in ipairs(vim.fn.split(title, "\\zs")) do
     ch = STRIP[ch] or ch
     local alnum
@@ -64,7 +100,7 @@ function M.slug(title)
       -- 2 is a word character, above 3 a script (CJK, kana, ...); 1 is
       -- punctuation and 3 emoji
       local class = vim.fn.charclass(ch)
-      alnum = class == 2 or class > 3
+      alnum = class == 2 or class > 3 or letter_number(ch)
     end
     out[#out + 1] = alnum and ch or "_"
   end

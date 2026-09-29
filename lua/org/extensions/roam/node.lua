@@ -48,7 +48,8 @@ function M.at_point(bufnr, lnum)
     hl = hl.parent
   end
   local id = file.properties.ID
-  if id and id ~= "" then
+  local ex = file.properties.ROAM_EXCLUDE
+  if id and id ~= "" and not (ex and ex ~= "" and ex ~= "nil") then
     return { id = id, bufnr = bufnr, file = file }
   end
 end

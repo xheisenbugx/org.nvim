@@ -247,6 +247,17 @@ function M.close()
   vim.api.nvim_clear_autocmds({ group = group })
 end
 
+--- Close the roam window and delete its buffer (the extension is turned
+--- off).
+function M.wipe()
+  M.close()
+  if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
+    pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
+  end
+  state.buf = nil
+  state.targets = {}
+end
+
 --- Open the roam window for the node at point, keeping the cursor where
 --- it is.
 function M.open()
