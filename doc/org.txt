@@ -320,6 +320,9 @@ p / P           Put (org-yank). When the register holds whole subtrees
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
+<C-c><C-x>b     The same in another window (org-tree-to-indirect-buffer);
+                `indirect_buffer_display` picks a split, the current
+                window, a new tab each time or one reused tab.
 <prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
@@ -4413,6 +4416,9 @@ General ~
   default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
+  indirect_buffer_display   "other-window"  <C-c><C-x>b: "other-window"|
+                                      "current-window"|"new-frame" (tab)|
+                                      "dedicated-frame" (one tab)
   win_border                "rounded"
 TODO and logging ~
   todo_keywords             { "TODO | DONE" }

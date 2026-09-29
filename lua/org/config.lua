@@ -425,6 +425,11 @@ M.defaults = {
   archive_file_header_format = "\nArchived entries from file %s\n\n",
   --- Window used for special buffers: "float" | "split" | "vsplit" | "tab" | "current"
   win_split_mode = "float",
+  --- Where indirect_subtree shows the subtree (org-indirect-buffer-display):
+  --- "other-window" (a split: `win_split_mode` when it is "split", "vsplit"
+  --- or "tab"), "current-window", "new-frame" (a new tab) or
+  --- "dedicated-frame" (one tab, reused).
+  indirect_buffer_display = "other-window",
   win_border = "rounded",
 
   ---------------------------------------------------------------------------

@@ -439,6 +439,11 @@
 ---Window used for special buffers (src edit, capture, etc.).
 ---(default: `"float"`)
 ---@field win_split_mode? "float"|"split"|"vsplit"|"tab"|"current"
+---Where `indirect_subtree` shows the subtree: `"other-window"` (a split),
+---`"current-window"`, `"new-frame"` (a new tab each time) or
+---`"dedicated-frame"` (one tab, reused; with a count a new one).
+---(Emacs `org-indirect-buffer-display`, default: `"other-window"`)
+---@field indirect_buffer_display? "other-window"|"current-window"|"new-frame"|"dedicated-frame"
 ---Border of floating windows, as accepted by `nvim_open_win()`.
 ---(default: `"rounded"`)
 ---@field win_border? "none"|"single"|"double"|"rounded"|"solid"|"shadow"|string|string[]

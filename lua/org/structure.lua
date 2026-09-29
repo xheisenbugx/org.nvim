@@ -2163,7 +2163,48 @@ end
 --- Uses `win_split_mode` when it is a split / tab, otherwise a horizontal
 --- split. The buffer is an edit buffer like `narrow_subtree`: `:w` or the
 --- save mapping writes it back.
+---
+--- Where it shows follows `indirect_buffer_display`
+--- (org-indirect-buffer-display): "other-window" (a split), "current-window",
+--- "new-frame" (a new tab each time) or "dedicated-frame" (one tab reused;
+--- with a count a new tab).
 function M.tree_to_indirect_buffer()
+  local display = config.opts.indirect_buffer_display or "other-window"
+  if display == "current-window" then
+    return narrow("current")
+  elseif display == "new-frame" or (display == "dedicated-frame" and vim.v.count > 0) then
+    return narrow("tab")
+  elseif display == "dedicated-frame" then
+    local src_win = vim.api.nvim_get_current_win()
+    local tab = M._indirect_tab
+    if tab and vim.api.nvim_tabpage_is_valid(tab) and tab ~= vim.api.nvim_get_current_tabpage() then
+      -- the subtree is read in the source window, shown in the dedicated tab
+      local hl = current_headline()
+      if not hl then
+        utils.warn("Not in a subtree")
+        return
+      end
+      vim.api.nvim_set_current_tabpage(tab)
+      local ok, res = pcall(function()
+        return require("org.special").open({
+          source_buf = vim.api.nvim_win_get_buf(src_win),
+          start_line = hl.line,
+          end_line = hl.end_line,
+          lines = get_lines(vim.api.nvim_win_get_buf(src_win), hl.line, hl.end_line),
+          filetype = "org",
+          name = "narrow " .. hl:plain_title(),
+          window = "current",
+        })
+      end)
+      if not ok then
+        error(res, 0)
+      end
+      return res
+    end
+    local res = narrow("tab")
+    M._indirect_tab = vim.api.nvim_get_current_tabpage()
+    return res
+  end
   local mode = config.opts.win_split_mode
   if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" then
     mode = "split"

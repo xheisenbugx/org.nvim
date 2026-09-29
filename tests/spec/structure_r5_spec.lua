@@ -475,3 +475,51 @@ describe("insert_mode_line_in_empty_file", function()
     vim.fn.delete(path)
   end)
 end)
+
+describe("indirect_buffer_display", function()
+  local config = require("org.config")
+  local structure = require("org.structure")
+  local tree = { "* A", "** B", "b body", "* C" }
+  after_each(function()
+    config.opts.indirect_buffer_display = "other-window"
+    vim.cmd("silent! tabonly!")
+    vim.cmd("silent! only!")
+  end)
+
+  it("current-window shows the subtree in this window", function()
+    config.opts.indirect_buffer_display = "current-window"
+    local src = org_buffer(tree, { 2, 0 })
+    vim.bo[src].bufhidden = "hide" -- org_buffer's "wipe" can't leave a modified buffer
+    local wins = #vim.api.nvim_list_wins()
+    local win0 = vim.api.nvim_get_current_win()
+    local buf, win = structure.tree_to_indirect_buffer()
+    eq(wins, #vim.api.nvim_list_wins())
+    eq(win0, win)
+    eq({ "** B", "b body" }, buf_lines(buf))
+  end)
+
+  it("new-frame opens a tab each time", function()
+    config.opts.indirect_buffer_display = "new-frame"
+    org_buffer(tree, { 2, 0 })
+    local tabs = #vim.api.nvim_list_tabpages()
+    structure.tree_to_indirect_buffer()
+    eq(tabs + 1, #vim.api.nvim_list_tabpages())
+  end)
+
+  it("dedicated-frame reuses one tab", function()
+    config.opts.indirect_buffer_display = "dedicated-frame"
+    local src = org_buffer(tree, { 2, 0 })
+    local tabs = #vim.api.nvim_list_tabpages()
+    local first_tab = vim.api.nvim_get_current_tabpage()
+    structure.tree_to_indirect_buffer()
+    local dedicated = vim.api.nvim_get_current_tabpage()
+    eq(tabs + 1, #vim.api.nvim_list_tabpages())
+    vim.api.nvim_set_current_tabpage(first_tab)
+    vim.api.nvim_set_current_buf(src)
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    local buf = structure.tree_to_indirect_buffer()
+    eq(tabs + 1, #vim.api.nvim_list_tabpages())
+    eq(dedicated, vim.api.nvim_get_current_tabpage())
+    eq({ "* C" }, buf_lines(buf))
+  end)
+end)
