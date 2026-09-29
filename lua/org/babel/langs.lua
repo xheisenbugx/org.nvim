@@ -41,7 +41,15 @@ local FAMILY = {
 }
 
 function M.family(lang)
-  return FAMILY[lang] or FAMILY[(lang or ""):lower()] or "generic"
+  local fam = FAMILY[lang] or FAMILY[(lang or ""):lower()]
+  if fam then
+    return fam
+  end
+  -- org-babel-shell-names: more shells run like sh
+  if vim.tbl_contains(require("org.config").opts.babel.shell_names or {}, lang) then
+    return "shell"
+  end
+  return "generic"
 end
 
 --- C variant of a language (ob-C): "c", "cpp" or "d".
@@ -114,6 +122,22 @@ function M.ext(lang)
   return EXT[lang] or EXT[(lang or ""):lower()] or lang
 end
 
+--- Filetype of the edit buffer of a `lang` block (org-src-get-lang-mode):
+--- `src_lang_modes`, else the filetype of the language's extension, else
+--- the language name. "" means none.
+function M.filetype(lang)
+  lang = lang or ""
+  local modes = require("org.config").opts.src_lang_modes or {}
+  local ft = modes[lang]
+  if ft ~= nil then
+    return ft or ""
+  end
+  if lang == "" then
+    return ""
+  end
+  return vim.filetype.match({ filename = "x." .. M.ext(lang) }) or lang
+end
+
 --- Comment prefix used for tangle :comments (the language's comment-start).
 function M.comment_prefix(lang)
   local fam = M.family(lang)
@@ -123,6 +147,16 @@ function M.comment_prefix(lang)
     return "// "
   elseif lang == "emacs-lisp" or lang == "elisp" or lang == "clojure" then
     return ";; "
+  elseif lang == "clojurescript" or lang == "lisp" or lang == "scheme" then
+    return ";; "
+  elseif lang == "lilypond" or lang == "latex" then
+    return "% "
+  elseif lang == "groovy" or lang == "csharp" or lang == "processing" then
+    return "// "
+  elseif lang == "fortran" then
+    return "! "
+  elseif lang == "plantuml" then
+    return "' "
   elseif lang == "vim" then
     return '" '
   end
@@ -229,6 +263,26 @@ local function bash_assignment(name, val, sep, hline)
   return { name .. "=" .. sh_quote(echo(val)) }
 end
 
+--- Option `key` of language `lang` (`babel.languages[lang][key]`), else `default`.
+local function lang_opt(lang, key, default)
+  local cfg = (require("org.config").opts.babel.languages or {})[lang]
+  if type(cfg) == "table" and cfg[key] ~= nil then
+    return cfg[key]
+  end
+  return default
+end
+M.lang_opt = lang_opt
+
+--- A `*-None-to` / `*-nil-to` option (a Lisp symbol name) as a value:
+--- "hline" is the table rule, "nil" or false an empty cell.
+local function symbol_opt(lang, key)
+  local v = lang_opt(lang, key, "hline")
+  if v == false or v == "nil" then
+    return {}
+  end
+  return v
+end
+
 --- `org-babel-python-var-to-python`
 local function python_value(v)
   if is_list(v) then
@@ -238,7 +292,7 @@ local function python_value(v)
     end
     return "[" .. table.concat(parts, ", ") .. "]"
   elseif v == "hline" then
-    return "None"
+    return lang_opt("python", "hline_to", "None")
   elseif type(v) == "string" and v:find("[\n\r]") then
     return '""' .. lisp.prin1(v) .. '""'
   end
@@ -267,15 +321,31 @@ local function ruby_value(v)
     end
     return "[" .. table.concat(parts, ", \n") .. "]"
   elseif v == "hline" then
-    return "nil"
+    return lang_opt("ruby", "hline_to", "nil")
   end
   return lisp.prin1(v)
+end
+
+--- What an hline of a table variable is in Lua: the Lua expression
+--- `org-babel-lua-hline-to` ("None", an undefined global: nil).
+local function lua_hline()
+  local src = lang_opt("lua", "hline_to", "None")
+  local chunk = load("return " .. src, "hline_to", "t", setmetatable({}, { __index = _G }))
+  if chunk then
+    local ok, v = pcall(chunk)
+    if ok then
+      return v
+    end
+  end
+  return nil
 end
 
 --- Lua value of a Babel value (in-process Lua blocks).
 local function lua_value(v)
   if lisp.is_float(v) or lisp.is_bignum(v) then
     return lisp.tonumber(v)
+  elseif v == "hline" then
+    return lua_hline()
   elseif is_list(v) then
     local out = {}
     for i, x in ipairs(v) do
@@ -287,17 +357,26 @@ local function lua_value(v)
 end
 M.lua_value = lua_value
 
+--- `org-babel-lua-var-to-lua`: a one-element list is its element, a
+--- two-element list `key=value`, other lists `{...}`.
 local function lua_literal(v)
   if is_list(v) then
+    if #v == 1 and not is_list(v[1]) then
+      return lua_literal(v[1])
+    elseif #v == 2 and not is_list(v[1]) then
+      return lisp.princ(v[1]) .. "=" .. lua_literal({ v[2] })
+    end
     local parts = {}
     for i, x in ipairs(v) do
       parts[i] = lua_literal(x)
     end
     return "{" .. table.concat(parts, ", ") .. "}"
-  elseif type(v) == "number" or lisp.is_float(v) then
-    return lisp.prin1(v)
+  elseif v == "hline" then
+    return lang_opt("lua", "hline_to", "None")
+  elseif type(v) == "string" and v:find("[\n\r]") then
+    return "[=[" .. v .. "]=]"
   end
-  return string.format("%q", tostring(v))
+  return lisp.prin1(v)
 end
 
 local function perl_literal(v)
@@ -612,7 +691,7 @@ function M.var_lines(lang, vars, args)
     elseif fam == "ruby" then
       out[#out + 1] = v.name .. "=" .. ruby_value(val)
     elseif fam == "lua" then
-      out[#out + 1] = "local " .. v.name .. " = " .. lua_literal(val)
+      out[#out + 1] = v.name .. "=" .. lua_literal(val)
     elseif fam == "perl" then
       out[#out + 1] = "my $" .. v.name .. " = " .. perl_literal(val) .. ";"
     elseif fam == "r" then
@@ -660,10 +739,27 @@ end
 
 --- Is the value of this shell block its exit status? Shell blocks
 --- default to `:results output`; only an explicit `:results value` asks for
---- the exit status (`org-babel-shell-results-defaults-to-output`).
+--- the exit status, or a block without other `:results` words when
+--- `babel.shell_results_defaults_to_output` is false
+--- (`org-babel-shell-results-defaults-to-output`).
 function M.shell_exit_status(lang, args)
   local fam = M.family(lang)
-  return (fam == "shell" or fam == "fish") and args.results_spec.collection == "value" and not args.default_collection
+  if not (fam == "shell" or fam == "fish") or args.results_spec.collection ~= "value" then
+    return false
+  end
+  if not args.default_collection then
+    return true
+  end
+  if require("org.config").opts.babel.shell_results_defaults_to_output ~= false then
+    return false
+  end
+  -- Emacs: the result params are exactly ("replace")
+  for cat, w in pairs(args.results_spec) do
+    if cat ~= "collection" and not (cat == "handling" and w == "replace") then
+      return false
+    end
+  end
+  return not args.results_extra or #args.results_extra == 0
 end
 
 local function unq(v)
@@ -687,6 +783,10 @@ end
 --- The expanded body (org-babel-expand-src-block): what `C-c C-v v`
 --- shows, what `:cache` hashes and what is tangled.
 function M.expand(lang, body, args, vars, colnames)
+  local handler = require("org.babel.ob").get(lang)
+  if handler and handler.expand then
+    return handler.expand(body, args, vars, { lang = lang, colnames = colnames })
+  end
   local fam = M.family(lang)
   if fam == "c" then
     return M.c_expand(lang, body, args, vars, colnames)
@@ -811,6 +911,81 @@ File.open('%s', 'w') do |f|
 end
 ]]
 
+--- `org-babel-lua-wrapper-method` (an external `lua`, see `lua_external`)
+local LUA_WRAPPER = [[
+
+function main()
+%s
+end
+
+function dump(it, indent)
+   if indent == nil then
+      indent = ''
+   end
+
+   if type(it) == 'table' and %s then
+      local result = ''
+
+      if #indent ~= 0 then
+         result = result .. '\n'
+      end
+
+      local keys = {}
+      for key in pairs(it) do
+        table.insert(keys, key)
+      end
+
+      table.sort(keys)
+
+      for index, key in pairs(keys) do
+         local value = it[key]
+         result = result
+            .. indent
+            .. dump(key)
+            .. ' = '
+            .. dump(value, indent .. '  ')
+         if index ~= #keys then
+            result = result .. '\n'
+         end
+      end
+
+      return result
+   else
+      return string.gsub(tostring(it), '"', '\"')
+   end
+end
+
+function combine(...)
+  local result = {}
+
+  for index = 1, select('#', ...) do
+    result[index] = dump(select(index, ...))
+  end
+
+  if #result == 1 then
+    local value = result[1]
+    if string.find(value, '[%%(%%[{]') == 1 then
+      return '"' .. value .. '"'
+    else
+      return value
+    end
+  end
+
+  return '"' .. table.concat(result, '%s') .. '"'
+end
+
+output = io.open('%s', 'w')
+output:write(combine(main()))
+output:close()]]
+
+--- Do lua blocks run in an external interpreter (`babel.languages.lua.cmd`
+--- other than "nvim"), like ob-lua?
+function M.lua_external()
+  local cmd = lang_opt("lua", "cmd", "nvim")
+  local first = type(cmd) == "table" and cmd[1] or vim.split(cmd, "%s+", { trimempty = true })[1]
+  return first ~= nil and vim.fn.fnamemodify(first, ":t") ~= "nvim"
+end
+
 local function fmt(template, ...)
   local args_ = { ... }
   local i = 0
@@ -881,6 +1056,32 @@ function M.prepare(lang, body, args, vars, ctx)
     cmd[#cmd + 1] = script(code)
     vim.list_extend(cmd, cmdline)
     spec.steps[1] = { cmd = cmd }
+  elseif fam == "lua" then
+    -- org-babel-execute:lua with an external interpreter: the code on stdin
+    local ret = value and args["return"]
+    local b = ret and vim.list_extend(vim.deepcopy(body), { "return " .. unq(ret) }) or body
+    local full = M.expand_generic(b, args, M.var_lines(lang, vars, args))
+    local preamble = args.preamble and (unq(args.preamble) .. "\n") or ""
+    local code
+    if value then
+      spec.result_file = vim.fn.tempname()
+      local trimmed = vim.trim(full):gsub("^\n+", "")
+      local lines = {}
+      for i, l in ipairs(vim.split(M.remove_indentation(trimmed), "\r?\n")) do
+        lines[i] = "\t" .. l
+      end
+      code = preamble
+        .. string.format(
+          LUA_WRAPPER,
+          table.concat(lines, "\n"),
+          rp.pp and "true" or "false",
+          lang_opt("lua", "multiple_values_separator", ", "),
+          spec.result_file
+        )
+    else
+      code = preamble .. full
+    end
+    spec.steps[1] = { cmd = vim.deepcopy(ctx.cmd), stdin = code }
   elseif fam == "shell" or fam == "fish" then
     local full = M.expand_generic(body, args, M.var_lines(lang, vars, args))
     if M.shell_exit_status(lang, args) then
@@ -1121,7 +1322,7 @@ function M.python_table_or_string(s)
   end
   return map_top(raw, function(el)
     if lisp.is_symbol(el, "None") then
-      return "hline"
+      return symbol_opt("python", "None_to")
     end
   end)
 end
@@ -1134,7 +1335,7 @@ function M.ruby_table_or_string(s)
   end
   return map_top(raw, function(el)
     if el == nil then
-      return "hline"
+      return symbol_opt("ruby", "nil_to")
     end
   end)
 end
@@ -1173,6 +1374,20 @@ local function remove_indentation(s)
   end
   return table.concat(out, "\n")
 end
+M.remove_indentation = remove_indentation
+
+--- `org-babel-lua-table-or-string`
+function M.lua_table_or_string(s)
+  local ok, raw = pcall(lisp.script_escape_raw, s)
+  if not ok then
+    return s
+  end
+  return map_top(raw, function(el)
+    if lisp.is_symbol(el, "None") then
+      return symbol_opt("lua", "None_to")
+    end
+  end)
+end
 
 --- Turn what a program printed into the block's result, like its
 --- `org-babel-execute:LANG` (before :colnames are put back).
@@ -1183,6 +1398,8 @@ function M.convert(lang, raw, args, spec)
   local scalar = M.scalar_result(args)
   if fam == "python" then
     return scalar and raw or M.python_table_or_string(raw)
+  elseif fam == "lua" then
+    return scalar and raw or M.lua_table_or_string(vim.trim(raw))
   elseif fam == "ruby" then
     return scalar and raw or M.ruby_table_or_string(raw)
   elseif fam == "js" then
@@ -1300,7 +1517,8 @@ end
 
 --- Run Lua code inside Neovim. Returns { value = any, output = string, error = string|nil }.
 --- `session_env` (a `:session`) keeps globals and variables between runs.
---- Several returned values are joined with ", " like ob-lua.
+--- Several returned values are joined with `multiple_values_separator`
+--- (", ") like ob-lua.
 function M.run_lua(body, args, vars, session_env)
   local printed = {}
   local function cap(...)
@@ -1379,7 +1597,7 @@ function M.run_lua(body, args, vars, session_env)
       local v = res[i]
       parts[i] = type(v) == "table" and vim.inspect(v) or tostring(v)
     end
-    return { value = table.concat(parts, ", "), output = output }
+    return { value = table.concat(parts, lang_opt("lua", "multiple_values_separator", ", ")), output = output }
   end
   if n == 0 then
     return { value = "", output = output }

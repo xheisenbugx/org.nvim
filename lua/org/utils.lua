@@ -168,6 +168,12 @@ function M.input_note(opts)
         finish(nil)
       end,
     })
+    -- org-log-buffer-setup-hook
+    pcall(vim.api.nvim_exec_autocmds, "User", {
+      pattern = "OrgLogBufferSetup",
+      data = { bufnr = buf, purpose = what },
+      modeline = false,
+    })
   end)
 end
 
@@ -410,6 +416,42 @@ function M.write_json(path, data)
   M.writefile(path, { vim.json.encode(data) })
 end
 
+--- Whether string `a` sorts before `b` (org-string<), following
+--- `sort_function` (org-sort-function): "collate" compares with the
+--- collation locale (like string-collate-lessp, see |:language|),
+--- "fallback" by character code (org-sort-function-fallback), or a
+--- function(a, b, ignore_case) returning a boolean.
+---@param a string
+---@param b string
+---@param ignore_case? boolean
+---@return boolean
+function M.string_lessp(a, b, ignore_case)
+  local f = require("org.config").opts.sort_function or "collate"
+  if type(f) == "function" then
+    return f(a, b, ignore_case) and true or false
+  end
+  -- Emacs's string-collate-lessp compares character codes on macOS, whose
+  -- wide-character collation for UTF-8 locales is not a real one
+  if f == "fallback" or (f == "collate" and vim.fn.has("mac") == 1) then
+    if ignore_case then
+      a, b = a:upper(), b:upper()
+    end
+    return a < b
+  end
+  if ignore_case then
+    a, b = a:lower(), b:lower()
+  end
+  if a == b then
+    return false
+  end
+  -- sort() keeps equal items in order: `a` first only when it sorts lower
+  local ok, r = pcall(vim.fn.sort, { b, a }, "l")
+  if not ok then
+    return a < b
+  end
+  return r[1] == a and r[2] == b
+end
+
 --- Expand a list of files/dirs/globs into unique absolute `.org` paths.
 ---@param patterns string|string[]
 ---@return string[]
@@ -547,6 +589,20 @@ function M.save_buffer_or_warn(bufnr)
 end
 
 --- Open `path` in the current window (or reuse a window showing it) at `lnum`.
+--- Show buffer `b` in the current window. A modified buffer there that
+--- can't be hidden (bufhidden=wipe, E37) keeps its window, and `b` opens
+--- in a split.
+function M.set_current_buf(b)
+  local ok, err = pcall(vim.api.nvim_set_current_buf, b)
+  if not ok then
+    if not tostring(err):find("E37", 1, true) then
+      error(err, 0)
+    end
+    vim.cmd("split")
+    vim.api.nvim_set_current_buf(b)
+  end
+end
+
 ---@param opts? { split?: string, col?: integer, reuse_win?: boolean }
 function M.open_file(path, lnum, opts)
   opts = opts or {}
@@ -566,7 +622,7 @@ function M.open_file(path, lnum, opts)
   if cmd then
     local b = M.find_buffer(path)
     if b and cmd == "edit" then
-      vim.api.nvim_set_current_buf(b)
+      M.set_current_buf(b)
     else
       -- `hide` avoids E37 when the current buffer has unsaved changes; a
       -- modified buffer that can't be hidden (bufhidden=wipe) keeps its

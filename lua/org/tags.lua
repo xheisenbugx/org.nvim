@@ -22,6 +22,176 @@ function M.parse_input(str)
   return out
 end
 
+local function string_less(x, y)
+  return x < y
+end
+
+--- The comparators of `tags_sort_function` named by a string.
+local SORT_FUNCTIONS = {
+  ["string<"] = string_less, -- org-string<
+  ["string>"] = function(x, y) -- org-string>
+    return x > y
+  end,
+  hierarchy = function(x, y) -- org-tags-sort-hierarchy
+    return M.sort_hierarchy(x, y)
+  end,
+}
+
+--- The comparators still to try, while one of them runs (a comparator
+--- calling `sort_less` without `fns` hands over to the next ones, like
+--- org-tag-sort from a function of org-tags-sort-function).
+local rest
+
+--- Is `a` sorted before `b` by `tags_sort_function` (org-tags-sort)? The
+--- option is a comparator `fn(a, b) -> boolean` or a list of them: when a
+--- function finds two tags equal (neither sorts first), the next one
+--- decides. "hierarchy", "string<" and "string>" name Emacs's
+--- org-tags-sort-hierarchy, org-string< and org-string>. Without the
+--- option (or past the last comparator), tags compare by byte order
+--- (org-string<).
+---@param a string
+---@param b string
+---@param fns? (fun(a: string, b: string): boolean)[]
+---@return boolean
+function M.sort_less(a, b, fns)
+  if not fns then
+    if rest then
+      fns = rest
+    else
+      local opt = config.opts.tags_sort_function
+      fns = (type(opt) == "function" or type(opt) == "string") and { opt } or type(opt) == "table" and opt or {}
+    end
+  end
+  if #fns == 0 then
+    fns = { string_less }
+  end
+  local saved = rest
+  for i, fn in ipairs(fns) do
+    fn = SORT_FUNCTIONS[fn] or fn
+    rest = vim.list_slice(fns, i + 1)
+    local ok_, cmp = pcall(function()
+      if fn(a, b) then
+        return -1
+      elseif fn(b, a) then
+        return 1
+      end
+      return 0
+    end)
+    rest = saved
+    if not ok_ then
+      error(cmp, 0)
+    elseif cmp ~= 0 then
+      return cmp < 0
+    end
+  end
+  return false
+end
+
+--- The tag groups in the order of their definitions (org-tag-groups-alist,
+--- or the agenda files' groups too), as { head, members } pairs.
+local function ordered_groups()
+  local out = {}
+  local function add(defs)
+    local groups = M.groups_from_definitions(defs)
+    for _, d in ipairs(defs) do
+      if d.name and groups[d.name] then
+        out[#out + 1] = { d.name, groups[d.name] }
+        groups[d.name] = nil
+      end
+    end
+  end
+  local b = vim.api.nvim_get_current_buf()
+  if vim.bo[b].filetype == "org" then
+    add(files.get_buffer(b):tag_definitions())
+  end
+  add(M.option_definitions())
+  local ok_, list = pcall(files.agenda_files)
+  for _, f in ipairs(ok_ and list or {}) do
+    if #f.settings.tags > 0 then
+      add(f:tag_definitions())
+    end
+  end
+  return out
+end
+
+--- Sort by the tag hierarchy (org-tags-sort-hierarchy): tags compare by
+--- their paths from the top group ("GTD" < "GTD/Control" <
+--- "GTD/Control/Task"), the first different step by the next comparators
+--- of `tags_sort_function`. Without `group_tags` or groups, only by them.
+---@param a string
+---@param b string
+---@return boolean
+function M.sort_hierarchy(a, b)
+  local groups = config.opts.group_tags and ordered_groups() or {}
+  if #groups == 0 then
+    return M.sort_less(a, b)
+  end
+  local function path(tag)
+    local p = { tag }
+    while true do
+      local parent
+      for _, g in ipairs(groups) do
+        if vim.tbl_contains(g[2], tag) then
+          parent = g[1]
+          break
+        end
+      end
+      -- (a loop in the groups ends the path)
+      if not parent or vim.tbl_contains(p, parent) then
+        return p
+      end
+      table.insert(p, 1, parent)
+      tag = parent
+    end
+  end
+  local pa, pb = path(a), path(b)
+  for n = 1, math.min(#pa, #pb) do
+    if pa[n] ~= pb[n] then
+      return M.sort_less(pa[n], pb[n])
+    end
+  end
+  return #pa < #pb
+end
+
+--- `tags` sorted with `tags_sort_function` (a stable sort, like Emacs
+--- `sort`), or unchanged when the option is not set (org-set-tags).
+---@param tags string[]
+---@return string[]
+function M.sort(tags)
+  if not config.opts.tags_sort_function or #tags < 2 then
+    return tags
+  end
+  local out = {}
+  for _, t in ipairs(tags) do
+    local i = #out + 1
+    while i > 1 and M.sort_less(t, out[i - 1]) do
+      i = i - 1
+    end
+    table.insert(out, i, t)
+  end
+  return out
+end
+
+--- Tag definitions of the `tags` and `tags_persistent` options, as
+--- `File:tag_definitions` returns them (when no buffer is at hand).
+---@return { name?: string, key?: string, group?: string }[]
+function M.option_definitions()
+  local defs = {}
+  for _, list in ipairs({ config.opts.tags_persistent or {}, config.opts.tags or {} }) do
+    for _, spec in ipairs(list) do
+      for tok in spec:gmatch("%S+") do
+        if tok:match("^[{}%[%]:]$") or tok == "\\n" then
+          defs[#defs + 1] = { group = tok }
+        else
+          local name, key = tok:match("^([^%(]+)%((.)%)$")
+          defs[#defs + 1] = { name = name or tok, key = key }
+        end
+      end
+    end
+  end
+  return defs
+end
+
 --- Is `name` a regexp member of a tag group (`{P@.+}`)?
 local function is_regexp_tag(name)
   return name:match("^{.*}$") ~= nil
@@ -58,13 +228,7 @@ function M.all_tags(bufnr)
   local defined = false
   local defs = file and file:tag_definitions() or {}
   if not file then
-    for _, spec in ipairs(config.opts.tags or {}) do
-      for tok in spec:gmatch("%S+") do
-        if not tok:match("^[{}%[%]:]$") and tok ~= "\\n" then
-          defs[#defs + 1] = { name = (tok:gsub("%(.%)$", "")) }
-        end
-      end
-    end
+    defs = M.option_definitions()
   end
   for _, d in ipairs(defs) do
     if d.name then
@@ -134,17 +298,7 @@ function M.match_groups()
   if vim.bo[b].filetype == "org" then
     M.groups_from_definitions(files.get_buffer(b):tag_definitions(), groups)
   end
-  local defs = {}
-  for _, spec in ipairs(config.opts.tags or {}) do
-    for tok in spec:gmatch("%S+") do
-      if tok:match("^[{}%[%]:]$") then
-        defs[#defs + 1] = { group = tok }
-      else
-        defs[#defs + 1] = { name = (tok:gsub("%(.%)$", "")) }
-      end
-    end
-  end
-  M.groups_from_definitions(defs, groups)
+  M.groups_from_definitions(M.option_definitions(), groups)
   local ok, list = pcall(files.agenda_files)
   for _, f in ipairs(ok and list or {}) do
     if #f.settings.tags > 0 then
@@ -207,17 +361,29 @@ M.FAST_KEYS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ{|}~"
 --- The fast selection table: entries in display order with their keys.
 --- Tags without a key get one automatically, like Emacs: the first letter
 --- (after a leading `@`) when it is free, else the first free character of
---- `FAST_KEYS`.
+--- `FAST_KEYS`. Tags with a key and tags in groups are always shown; the
+--- others only while fewer than `fast_tag_selection_maximum_tags` tags are
+--- shown (org-fast-tag-selection-maximum-tags).
 ---@return table[] entries, table<string, table> by_key, string[][] groups
 local function fast_table(defs, todo_keys)
   local explicit = {}
+  local left = config.opts.fast_tag_selection_maximum_tags or #M.FAST_KEYS
+  local grouped = false
   for _, d in ipairs(defs) do
-    if d.key then
+    if d.group == "{" or d.group == "[" then
+      grouped = true
+    elseif d.group == "}" or d.group == "]" then
+      grouped = false
+    elseif d.key then
       explicit[d.key] = true
+      left = left - 1
+    elseif d.name and grouped then
+      left = left - 1
     end
   end
   for _, t in ipairs(todo_keys or {}) do
     explicit[t.key] = true
+    left = left - 1
   end
   local used = {}
   local pool = vim.split(M.FAST_KEYS, "")
@@ -244,31 +410,39 @@ local function fast_table(defs, todo_keys)
     elseif d.group then
       entries[#entries + 1] = { newline = true }
     elseif d.name and not is_regexp_tag(d.name) then
-      local key = d.key
-      if not key then
-        local auto = d.name:gsub("^@", ""):sub(1, 1):lower()
-        if auto ~= "" and not used[auto] and not explicit[auto] then
-          key = auto
-        else
-          while pool[1] and (used[pool[1]] or explicit[pool[1]]) do
-            table.remove(pool, 1)
+      local shown = true
+      if not d.key and not in_group and not in_taggroup then
+        left = left - 1
+        shown = left > 0
+      end
+      if shown then
+        local key = d.key
+        if not key then
+          local auto = d.name:gsub("^@", ""):sub(1, 1):lower()
+          if auto ~= "" and not used[auto] and not explicit[auto] then
+            key = auto
+          else
+            while pool[1] and (used[pool[1]] or explicit[pool[1]]) do
+              table.remove(pool, 1)
+            end
+            key = pool[1] or " "
           end
-          key = pool[1] or " "
         end
+        local e = { name = d.name, key = key, group = in_group, in_taggroup = in_taggroup, index = i }
+        if in_group then
+          in_group[#in_group + 1] = d.name
+        end
+        used[key] = true
+        if key ~= " " and not by_key[key] then
+          by_key[key] = e
+        end
+        entries[#entries + 1] = e
       end
-      local e = { name = d.name, key = key, group = in_group, in_taggroup = in_taggroup, index = i }
-      if in_group then
-        in_group[#in_group + 1] = d.name
-      end
-      used[key] = true
-      if key ~= " " and not by_key[key] then
-        by_key[key] = e
-      end
-      entries[#entries + 1] = e
     end
   end
   return entries, by_key, groups
 end
+M._fast_table = fast_table
 
 --- Add or remove a tag; adding a tag of an exclusive group removes the
 --- other tags of that group (org--add-or-remove-tag).
@@ -399,7 +573,8 @@ end
 ---@param current string[]
 ---@param defs { name?: string, key?: string, group?: string }[]
 ---@param inherited string[]
----@param opts? { todo_keys?: { key: string, name: string }[], on_todo?: fun(kw: string), completion?: string[] }
+---@param opts? { todo_keys?: { key: string, name: string }[], on_todo?: fun(kw: string), completion?: string[], single?: boolean|"expert" }
+---@return string[]|nil tags, string|nil key the key that ended a single-key selection
 function M.fast_select(current, defs, inherited, opts)
   opts = opts or {}
   current = vim.deepcopy(current)
@@ -409,6 +584,9 @@ function M.fast_select(current, defs, inherited, opts)
     todo_by_key[t.key] = t.name
   end
   local single = config.opts.fast_tag_selection_single_key
+  if opts.single ~= nil then
+    single = opts.single
+  end
   local expert = single == "expert"
   local exit_next = single and true or false
   local groups_on = #groups > 0
@@ -474,14 +652,17 @@ function M.fast_select(current, defs, inherited, opts)
     end
     current = sort_tags(current, entries)
     if changed and exit_next then
-      return current
+      -- the key of the last change (org-last-tag-selection-key)
+      return current, ch
     end
   end
 end
 
 --- Set tags for a headline (org-set-tags-command). Fast selection is used
---- when some tag has a key (org-use-fast-tag-selection `auto`); with
---- `no_fast`, the tags are typed with completion.
+--- per `use_fast_tag_selection` (org-use-fast-tag-selection): `"auto"` when
+--- some tag has a key, `true` always (over the tags used in the buffer when
+--- none are defined), `false` never; with `no_fast`, the tags are typed with
+--- completion.
 ---@param target? org.Target
 ---@param tags? string[] set directly without prompting
 ---@param no_fast? boolean
@@ -492,13 +673,23 @@ function M.set_tags(target, tags, no_fast)
   end
   if not tags then
     local defs = file:tag_definitions()
-    local has_keys = false
+    local has_keys, has_names = false, false
     for _, d in ipairs(defs) do
       if d.key then
         has_keys = true
       end
+      has_names = has_names or d.name ~= nil
     end
-    if has_keys and not no_fast then
+    local mode = config.opts.use_fast_tag_selection
+    if mode == nil then
+      mode = "auto"
+    end
+    if mode == true and not has_names then
+      defs = vim.tbl_map(function(t)
+        return { name = t }
+      end, M.all_tags(bufnr))
+    end
+    if not no_fast and (mode == true or (mode and has_keys)) then
       local lnum = hl.line
       local todo_keys
       if config.opts.fast_tag_selection_include_todo then
@@ -526,6 +717,7 @@ function M.set_tags(target, tags, no_fast)
     end
     hl = files.get_buffer(bufnr):headline_at(hl.line)
   end
+  tags = M.sort(tags)
   edit.update_headline(bufnr, hl.line, { tags = tags })
   return tags
 end

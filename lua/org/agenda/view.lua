@@ -82,6 +82,7 @@ local function has_agenda_block()
   end
   return false
 end
+M.has_agenda_block = has_agenda_block
 
 local function current_span()
   if S.span then
@@ -335,6 +336,43 @@ local function clocking_pred()
   end
 end
 
+--- Add the files of `extra` (org-agenda-text-search-extra-files: paths
+--- or globs, "agenda-archives" for the archive files of `list`) to the
+--- file list `list`, skipping files already there.
+function M.add_extra_files(list, extra)
+  local seen = {}
+  for _, f in ipairs(list) do
+    seen[f.filename or ""] = true
+  end
+  local with_archives = false
+  local rest = {}
+  for _, e in ipairs(extra or {}) do
+    if e == "agenda-archives" then
+      with_archives = true
+    else
+      rest[#rest + 1] = e
+    end
+  end
+  if with_archives then
+    for _, f in ipairs(M.archive_files(list)) do
+      if not seen[f.filename or ""] then
+        seen[f.filename or ""] = true
+        list[#list + 1] = f
+      end
+    end
+  end
+  if #rest > 0 then
+    for _, p in ipairs(utils.glob_org_files(rest)) do
+      local f = files.get(p)
+      if f and not seen[f.filename or ""] then
+        seen[f.filename or ""] = true
+        list[#list + 1] = f
+      end
+    end
+  end
+  return list
+end
+
 --- Files for a block, honoring restriction and per-block `files`.
 local function files_for_block(block)
   if S.restrict then
@@ -360,37 +398,7 @@ local function files_for_block(block)
   end
   -- org-agenda-text-search-extra-files for the search view
   if block.type == "search" then
-    local extra = block.text_search_extra_files or config.opts.agenda.text_search_extra_files or {}
-    local seen = {}
-    for _, f in ipairs(list) do
-      seen[f.filename or ""] = true
-    end
-    local with_archives = false
-    local rest = {}
-    for _, e in ipairs(extra) do
-      if e == "agenda-archives" then
-        with_archives = true
-      else
-        rest[#rest + 1] = e
-      end
-    end
-    if with_archives then
-      for _, f in ipairs(M.archive_files(list)) do
-        if not seen[f.filename or ""] then
-          seen[f.filename or ""] = true
-          list[#list + 1] = f
-        end
-      end
-    end
-    if #rest > 0 then
-      for _, p in ipairs(utils.glob_org_files(rest)) do
-        local f = files.get(p)
-        if f and not seen[f.filename or ""] then
-          seen[f.filename or ""] = true
-          list[#list + 1] = f
-        end
-      end
-    end
+    M.add_extra_files(list, block.text_search_extra_files or config.opts.agenda.text_search_extra_files)
   end
   return list
 end
@@ -531,6 +539,7 @@ function M.refresh()
   S.day_lines = b.day_lines or {}
   S.info = b.info or {}
   S.block_starts = b.block_starts or { 1 }
+  S.entry_text_lines = b.entry_text_lines or {}
   local buf = S.buf
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, b.lines)
@@ -539,14 +548,11 @@ function M.refresh()
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   S.line_parts = {}
   for _, h in ipairs(b.hls) do
-    pcall(
-      vim.api.nvim_buf_set_extmark,
-      buf,
-      ns,
-      h[1],
-      h[2],
-      { end_col = h[3], hl_group = h[4], priority = h[5] or 110 }
-    )
+    pcall(vim.api.nvim_buf_set_extmark, buf, ns, h[1], h[2], {
+      end_col = h[3],
+      hl_group = h[4],
+      priority = h[5] or 110,
+    })
     local l = S.line_parts[h[1] + 1] or {}
     l[#l + 1] = { h[2], h[3], h[4] }
     S.line_parts[h[1] + 1] = l
@@ -567,6 +573,43 @@ function M.refresh()
   if ok then
     pcall(cols.refresh_if_active)
   end
+  M.fit_window()
+  -- hooks: org-agenda-filter-hook after the filters changed, else
+  -- org-agenda-finalize-hook after the agenda was built
+  local sig = vim.inspect(S.filters)
+  local event = (S.filter_sig ~= nil and sig ~= S.filter_sig) and "OrgAgendaFilter" or "OrgAgendaFinalize"
+  S.filter_sig = sig
+  local data = { buf = buf, filters = vim.deepcopy(S.filters), filter = M.filter_desc() }
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = event, data = data, modeline = false })
+end
+
+--- With `agenda.window = "split"` (reorganize-frame), fit the agenda
+--- window to its lines, between the fractions of the editor height of
+--- `agenda.window_frame_fractions` (org-agenda-fit-window-to-buffer);
+--- { 1.0, 1.0 } makes it the only window.
+function M.fit_window()
+  local win = S.win
+  if S.win_mode ~= "split" or not (win and vim.api.nvim_win_is_valid(win)) then
+    return
+  end
+  if vim.api.nvim_win_get_config(win).relative ~= "" then
+    return
+  end
+  local fr = config.opts.agenda.window_frame_fractions or { 0.5, 0.75 }
+  local lo, hi = tonumber(fr[1]) or 0.5, tonumber(fr[2]) or 0.75
+  if lo == 1 and hi == 1 then
+    pcall(vim.api.nvim_win_call, win, function()
+      vim.cmd("silent! only")
+    end)
+    return
+  end
+  if #vim.api.nvim_tabpage_list_wins(0) < 2 then
+    return
+  end
+  local total = vim.o.lines - vim.o.cmdheight
+  local n = vim.api.nvim_buf_line_count(S.buf)
+  local height = math.max(math.floor(total * lo), math.min(n, math.floor(total * hi)))
+  pcall(vim.api.nvim_win_set_height, win, math.max(height, 1))
 end
 
 function M.render_marks()
@@ -577,7 +620,7 @@ function M.render_marks()
   for lnum, item in pairs(S.line_items) do
     if S.marks[item_key(item)] then
       pcall(vim.api.nvim_buf_set_extmark, S.buf, ns_marks, lnum - 1, 0, {
-        virt_text = { { ">", "OrgAgendaMark" } },
+        virt_text = { { config.opts.agenda.bulk_mark_char or ">", "OrgAgendaMark" } },
         virt_text_pos = "overlay",
         priority = 200,
       })
@@ -644,9 +687,14 @@ local function ensure_buf(name)
       if states[buf] then
         use(states[buf])
       end
+      local lr = M._last_run
+      if lr and (lr.buf ~= buf or lr.lnum ~= vim.api.nvim_win_get_cursor(0)[1]) then
+        -- a motion ends a sequence of repeated commands (last-command)
+        M._last_run = nil
+      end
       if S.follow then
         vim.schedule(function()
-          M.show_item(false)
+          M.follow_show()
         end)
       end
       show_outline_path()
@@ -870,7 +918,10 @@ function M.open(view, opts)
     S.clockreport = acfg.start_with_clockreport_mode or false
     S.entry_text = acfg.start_with_entry_text_mode or false
     S.follow = acfg.start_with_follow_mode or false
-    S.archives = false
+    -- org-agenda-start-with-archives-mode: "trees", or true / "files"
+    -- for the archive files too
+    local am = acfg.start_with_archives_mode
+    S.archives = (am == true or am == "files") and "files" or (am == "trees" and "trees") or false
     S.inactive = false
     S.time_grid_off = false
     S.no_deadlines = false
@@ -881,6 +932,7 @@ function M.open(view, opts)
     end
     S.marks = {}
     S.limits = {}
+    M.undo_list = {}
     if acfg.persistent_filter and prev and prev ~= S then
       S.filters = vim.deepcopy(prev.filters)
     elseif not acfg.persistent_filter then
@@ -973,6 +1025,29 @@ function M.quit(wipe)
     pcall(vim.api.nvim_buf_delete, b, { force = true })
     S.buf = nil
   end
+end
+
+--- Delete every agenda buffer (org-agenda-kill-all-agenda-buffers).
+---@return integer number of buffers deleted
+function M.kill_all_agenda_buffers()
+  local bufs = {}
+  for b in pairs(states) do
+    bufs[#bufs + 1] = b
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "orgagenda" and not vim.tbl_contains(bufs, b) then
+      bufs[#bufs + 1] = b
+    end
+  end
+  local n = 0
+  for _, b in ipairs(bufs) do
+    if vim.api.nvim_buf_is_valid(b) then
+      if pcall(vim.api.nvim_buf_delete, b, { force = true }) then
+        n = n + 1
+      end
+    end
+  end
+  return n
 end
 
 --- org-agenda-exit: quit, kill the agenda buffers and the unmodified
@@ -1073,16 +1148,21 @@ local function other_window()
   return w
 end
 
+--- Show the target of `item` in `win`; returns the window it shows in
+--- (a split of `win` when its buffer can't be abandoned).
 local function open_in_window(win, target, item)
+  local shown = win
   vim.api.nvim_win_call(win, function()
     if item.filename then
       utils.open_file(item.filename, target.lnum)
     else
-      vim.api.nvim_set_current_buf(target.bufnr)
+      utils.set_current_buf(target.bufnr)
       vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
     end
-    pcall(vim.cmd, "normal! zv")
+    require("org.fold").reveal_cursor("agenda")
+    shown = vim.api.nvim_get_current_win()
   end)
+  return shown
 end
 
 --- Show the entry in another window (focus = jump there).
@@ -1102,12 +1182,196 @@ function M.show_item(focus)
     open_in_window(w, target, item)
     return
   end
-  local w = other_window()
-  open_in_window(w, target, item)
+  -- a window already showing the file is reused (display-buffer)
+  local w
+  for _, win in ipairs(vim.fn.win_findbuf(target.bufnr)) do
+    if
+      win ~= S.win
+      and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
+      and vim.api.nvim_win_get_config(win).relative == ""
+    then
+      w = win
+      break
+    end
+  end
+  w = open_in_window(w or other_window(), target, item)
   if focus then
     vim.api.nvim_set_current_win(w)
   end
   return w
+end
+
+--- Show the subtree of the entry at point in an edit buffer in the other
+--- window (org-agenda-tree-to-indirect-buffer, C-c C-x b). The previous
+--- one is closed unless it has unsaved changes, like Emacs kills its last
+--- indirect buffer. `arg` (a count) is Emacs' numeric argument: the
+--- subtree of the ancestor at that level (negative: that many levels up);
+--- the previous buffer is then kept.
+---@param arg? integer
+---@return integer? buf
+function M.tree_to_indirect_buffer(arg)
+  local item = M.item_at_cursor()
+  if not item then
+    utils.warn("No agenda entry on this line")
+    return nil
+  end
+  if item.type == "diary" or not item.headline then
+    utils.error("Command not allowed in this line")
+    return nil
+  end
+  local target = M.resolve_target(item)
+  if not target then
+    return nil
+  end
+  local old = S.indirect_buf
+  local w = other_window()
+  local buf
+  vim.api.nvim_win_call(w, function()
+    utils.set_current_buf(target.bufnr)
+    vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
+    buf = require("org.structure").tree_to_indirect_buffer("current", arg)
+  end)
+  if not arg and old and old ~= buf and vim.api.nvim_buf_is_valid(old) and not vim.bo[old].modified then
+    pcall(vim.api.nvim_buf_delete, old, { force = true })
+  end
+  S.indirect_buf = buf
+  return buf
+end
+
+--- Move the cursor to the agenda line under the mouse (mouse-set-point);
+--- false when the click was outside the agenda window.
+function M.mouse_set_point()
+  local pos = vim.fn.getmousepos()
+  if not (S.win and pos.winid == S.win and pos.line > 0) then
+    return false
+  end
+  vim.api.nvim_set_current_win(S.win)
+  pcall(vim.api.nvim_win_set_cursor, S.win, { pos.line, math.max(pos.column - 1, 0) })
+  return true
+end
+
+--- The window of the last `show` (org-agenda-show-window).
+M.show_window = nil
+
+--- Scroll `win` a page: `dir` > 0 forward (scroll-up), < 0 back.
+local function scroll_page(win, dir)
+  pcall(vim.api.nvim_win_call, win, function()
+    vim.cmd("normal! " .. (dir > 0 and "\6" or "\2"))
+  end)
+end
+
+--- Show the entry at point in the other window, its drawers open; pressed
+--- again right after, scroll that window a page forward
+--- (org-agenda-show-and-scroll-up, <Space>). With `fold_drawers` (a
+--- count, Emacs C-u) the drawers stay folded.
+---@param fold_drawers? boolean
+function M.show_and_scroll_up(fold_drawers)
+  local sw = M.show_window
+  if sw and vim.api.nvim_win_is_valid(sw) and M.last_command == "show" then
+    scroll_page(sw, 1)
+    return sw
+  end
+  local w = M.show_item(false)
+  if w then
+    local item = M.item_at_cursor()
+    local hl = item and item.headline
+    if hl and not fold_drawers then
+      -- org-fold-show-entry, then all drawers of the entry
+      pcall(vim.api.nvim_win_call, w, function()
+        local last = hl.children[1] and (hl.children[1].line - 1) or hl.end_line
+        vim.cmd(string.format("silent! %d,%dfoldopen!", hl.line, math.max(hl.line, last)))
+      end)
+    end
+    M.show_window = w
+  end
+  return w
+end
+
+--- Scroll the window of the last `show` back a page
+--- (org-agenda-show-scroll-down, <BS>).
+function M.show_scroll_down()
+  local sw = M.show_window
+  if sw and vim.api.nvim_win_is_valid(sw) then
+    scroll_page(sw, -1)
+  end
+end
+
+--- Show the entry at point in the other window with `level` of detail
+--- (org-agenda-show-1): 0 folds the subtree, 1 shows the entry, 2 its
+--- children, 3 its subtree, 4 its subtree and drawers. `verbose` echoes
+--- the "Remote: ..." message of level 1 too.
+---@param level integer
+---@param verbose? boolean
+function M.show_1(level, verbose)
+  local w = M.show_item(false)
+  local item = M.item_at_cursor()
+  local hl = item and item.headline
+  if not (w and hl) then
+    return nil
+  end
+  local target = M.resolve_target(item)
+  local msg
+  vim.api.nvim_win_call(w, function()
+    local file = files.get_buffer(target.bufnr)
+    hl = file:headline_at(target.lnum) or hl
+    vim.api.nvim_win_set_cursor(w, { hl.line, 0 })
+    vim.cmd("normal! zt")
+    if level ~= 1 then
+      require("org.fold").show_level(hl.line, level)
+    end
+    if level == 0 then
+      msg = "Remote: FOLDED"
+    elseif level == 1 then
+      msg = verbose and "Remote: show with default settings" or nil
+    elseif level == 2 then
+      msg = "Remote: CHILDREN"
+    elseif level == 3 then
+      msg = "Remote: SUBTREE"
+    else
+      msg = "Remote: SUBTREE AND ALL DRAWERS"
+    end
+  end)
+  if msg then
+    utils.notify(msg)
+  end
+  return msg
+end
+
+--- Visibility level of the last cycle_show.
+M.cycle_counter = nil
+
+--- Show the entry at point; pressed again right after, cycle its
+--- visibility: children, subtree, folded (org-agenda-cycle-show). A count
+--- is passed to `show_1` as the level.
+---@param n? integer
+function M.cycle_show(n)
+  if n then
+    M.cycle_counter = n
+  elseif M.last_command ~= "cycle_show" then
+    M.cycle_counter = 1
+  elseif M.cycle_counter == 0 then
+    M.cycle_counter = 2
+  else
+    M.cycle_counter = (M.cycle_counter or 0) + 1
+    if M.cycle_counter > 3 then
+      M.cycle_counter = 0
+    end
+  end
+  return M.show_1(M.cycle_counter)
+end
+
+--- What follow mode shows for the entry at point: the entry, or its
+--- subtree in an edit buffer with `agenda.follow_indirect`
+--- (org-agenda-follow-indirect).
+function M.follow_show()
+  if config.opts.agenda.follow_indirect then
+    local item = M.item_at_cursor()
+    if item and item.headline and item.type ~= "diary" then
+      return M.tree_to_indirect_buffer()
+    end
+    return nil
+  end
+  return M.show_item(false)
 end
 
 --- Open the entry in the agenda window itself (RET).
@@ -1159,6 +1423,77 @@ local function finish(bufs)
   end
 end
 
+---------------------------------------------------------------------------
+-- Remote undo (org-agenda-undo, org-with-remote-undo)
+---------------------------------------------------------------------------
+
+--- Source edits made from the agenda, newest first:
+--- `{ cmd, line, bufnr, before, after }` with the undo sequence numbers of
+--- the buffer before and after the command. Cleared when the agenda is
+--- built or rebuilt with `r` (like org-agenda-undo-list).
+M.undo_list = {}
+
+--- Close the current undo block of `bufnr` (API edits otherwise join the
+--- block of the previous command) and return its undo sequence number.
+local function undo_seq(bufnr)
+  return vim.api.nvim_buf_call(bufnr, function()
+    vim.cmd("let &l:undolevels = &l:undolevels")
+    return vim.fn.undotree().seq_cur
+  end)
+end
+
+--- Run `fn` and remember the change it made to `bufnr` for `M.undo`.
+local function with_remote_undo(bufnr, fn)
+  local ok, before = pcall(undo_seq, bufnr)
+  local line = S.win and vim.api.nvim_win_is_valid(S.win) and vim.api.nvim_win_get_cursor(S.win)[1] or 1
+  fn()
+  if ok and vim.api.nvim_buf_is_valid(bufnr) then
+    local after = undo_seq(bufnr)
+    if after ~= before then
+      table.insert(M.undo_list, 1, {
+        cmd = M.this_command or "edit",
+        line = line,
+        bufnr = bufnr,
+        before = before,
+        after = after,
+      })
+    end
+  end
+end
+M.with_remote_undo = with_remote_undo
+
+--- Undo the last source edit made from the agenda (org-agenda-undo): the
+--- change in the entry's buffer is undone and the agenda rebuilt. Pressed
+--- again, it undoes the edit before that one.
+function M.undo()
+  local e = table.remove(M.undo_list, 1)
+  if not e then
+    utils.error("No further undo information")
+    return false
+  end
+  if not vim.api.nvim_buf_is_valid(e.bufnr) then
+    utils.error("The buffer of this change is gone")
+    return false
+  end
+  local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(e.bufnr), ":t")
+  if undo_seq(e.bufnr) ~= e.after then
+    table.insert(M.undo_list, 1, e)
+    utils.error(string.format("%s was changed after `%s'; undo it there", name, e.cmd))
+    return false
+  end
+  vim.api.nvim_buf_call(e.bufnr, function()
+    vim.cmd("silent undo " .. e.before)
+  end)
+  if S.buf and vim.api.nvim_buf_is_valid(S.buf) then
+    M.refresh()
+    if S.win and vim.api.nvim_win_is_valid(S.win) then
+      pcall(vim.api.nvim_win_set_cursor, S.win, { math.min(e.line, vim.api.nvim_buf_line_count(S.buf)), 0 })
+    end
+  end
+  utils.notify(string.format("`%s' undone (buffer %s)", e.cmd, name))
+  return true
+end
+
 --- Wrap `fn(target, item)` as an action on the entry at point.
 local function on_item(fn)
   return function()
@@ -1180,10 +1515,13 @@ local function on_item(fn)
     if not target then
       return
     end
-    fn(target, item)
+    with_remote_undo(target.bufnr, function()
+      fn(target, item)
+    end)
     finish({ target.bufnr })
   end
 end
+M.on_item = on_item
 
 local function kind_of(item)
   if item.type == "deadline" then
@@ -1231,9 +1569,14 @@ end
 
 --- Shift the date of the item at point by `n` days (org-agenda-date-later):
 --- the timestamp the item comes from. With
---- org-agenda-move-date-from-past-immediately-to-today, a single step on a
---- past date moves it to today.
-function M.shift_item(target, item, n, explicit_count)
+--- `agenda.move_date_from_past_immediately_to_today`, a single step on a
+--- past date moves it to today. `unit` "h" shifts by hours and "min" by
+--- steps of `time_stamp_rounding_minutes[2]` minutes
+--- (org-agenda-date-later-hours / -minutes); a timestamp without a time
+--- keeps none (Emacs shifts its midnight).
+---@param unit? "d"|"h"|"min"
+function M.shift_item(target, item, n, explicit_count, unit)
+  unit = unit or "d"
   if item.sexp or item.inactive or item.log or not item.day then
     utils.warn("Cannot change this date from the agenda line")
     return
@@ -1243,14 +1586,35 @@ function M.shift_item(target, item, n, explicit_count)
     utils.warn("No timestamp to shift")
     return
   end
-  if not explicit_count and n == 1 and not d.range_end then
+  if unit == "d" and not explicit_count and n == 1 and not d.range_end
+    and config.opts.agenda.move_date_from_past_immediately_to_today ~= false then
     local today = date.today_days()
     if d:days() < today then
       n = today - d:days()
     end
   end
   local t = vim.tbl_extend("force", target, { ts_index = item.ts_index })
-  call("org.timestamps", "shift", t, kind, n, "d")
+  if unit == "d" then
+    call("org.timestamps", "shift", t, kind, n, "d")
+    return
+  end
+  if unit == "min" then
+    n = n * math.max((config.opts.time_stamp_rounding_minutes or { 0, 5 })[2] or 5, 1)
+  else
+    n = n * 60
+  end
+  local function shift(x)
+    local new = x:add(n, "min")
+    if not x.hour then
+      new = new:clone({ hour = vim.NIL, min = vim.NIL, end_hour = vim.NIL, end_min = vim.NIL })
+    end
+    return new
+  end
+  local new = shift(d)
+  if d.range_end then
+    new.range_end = shift(d.range_end)
+  end
+  call("org.timestamps", "set_date", t, kind, new)
 end
 
 --- Change the date of the item at point (org-agenda-date-prompt): the time
@@ -1287,6 +1651,91 @@ function M.date_prompt(target, item)
   call("org.timestamps", "set_date", vim.tbl_extend("force", target, { ts_index = item.ts_index }), "timestamp", new)
 end
 
+--- Archive the entry with `archive_default_command` (org-agenda-archive-with
+--- org-archive-default-command).
+function M.archive_with_default(target)
+  return call("org.archive", "archive_subtree_default", target, { from_agenda = true })
+end
+
+local HOUR_SHIFTS = { date_later_hours = true, date_earlier_hours = true }
+local MINUTE_SHIFTS = { date_later_minutes = true, date_earlier_minutes = true }
+
+--- S-Right / S-Left (org-agenda-do-date-later / -earlier): a count shifts
+--- by that many days, except 4 (C-u), one hour, and 16 (C-u C-u), one
+--- rounding step of minutes. Right after an hour or minute shift (no
+--- cursor motion since), the keys keep shifting in that unit.
+local function do_date_shift(sign)
+  return on_item(function(target, item)
+    local count = vim.v.count
+    local dir = sign > 0 and "later" or "earlier"
+    if count == 16 or MINUTE_SHIFTS[M.last_command] then
+      M.this_command = "date_" .. dir .. "_minutes"
+      M.shift_item(target, item, sign, true, "min")
+    elseif count == 4 or HOUR_SHIFTS[M.last_command] then
+      M.this_command = "date_" .. dir .. "_hours"
+      M.shift_item(target, item, sign, true, "h")
+    else
+      M.shift_item(target, item, sign * math.max(count, 1), sign < 0 or count > 0)
+    end
+  end)
+end
+
+--- The type of the block at the cursor ("agenda", "todo", ...).
+local function block_type_at_cursor()
+  if not (S.view and S.win and vim.api.nvim_win_is_valid(S.win)) then
+    return nil
+  end
+  local lnum = vim.api.nvim_win_get_cursor(S.win)[1]
+  local idx = 1
+  for i, l in ipairs(S.block_starts or { 1 }) do
+    if l <= lnum then
+      idx = i
+    end
+  end
+  local b = S.view.blocks[idx] or S.view.blocks[1]
+  return b and b.type
+end
+M.block_type_at_cursor = block_type_at_cursor
+
+--- org-agenda-check-type: error unless the block at point is a date agenda.
+local function check_agenda_type()
+  local t = block_type_at_cursor()
+  if t == "agenda" then
+    return true
+  end
+  local names = { tags_todo = "tags", stuck = "tags" }
+  utils.error(string.format("Not allowed in ’%s’-type agenda buffer or component", names[t] or t or "nil"))
+  return false
+end
+
+--- Toggle the display of habits (org-habit-toggle-habits).
+function M.toggle_habits()
+  if not check_agenda_type() then
+    return
+  end
+  local h = config.opts.agenda.habits
+  h.show_habits = not h.show_habits
+  M.redo()
+  utils.notify("Habits turned " .. (h.show_habits and "on" or "off"))
+end
+
+--- Toggle habits, or with `all_today` whether today shows all habits or
+--- only the ones due (org-habit-toggle-display-in-agenda, Emacs `K` and
+--- `C-u K`).
+function M.toggle_habits_display(all_today)
+  if not all_today then
+    return M.toggle_habits()
+  end
+  if not check_agenda_type() then
+    return
+  end
+  local h = config.opts.agenda.habits
+  h.show_all_today = not h.show_all_today
+  if h.show_habits then
+    M.redo()
+  end
+end
+
 local function move_to_item(dir)
   if not S.buf then
     return
@@ -1306,20 +1755,48 @@ end
 --- Day of the line at the cursor: the item's day, else the nearest date
 --- header above (nil outside date-based blocks).
 function M.day_at_cursor()
-  local item = M.item_at_cursor()
+  if not S.win or not vim.api.nvim_win_is_valid(S.win) then
+    local item = M.item_at_cursor()
+    return item and item.day or nil
+  end
+  return M.day_at_line(vim.api.nvim_win_get_cursor(S.win)[1])
+end
+
+--- Day of agenda line `lnum`: its item's day, else the nearest date header
+--- above (nil outside date-based blocks).
+function M.day_at_line(lnum)
+  local item = S.line_items[lnum]
   if item and item.day then
     return item.day
   end
-  if not S.win or not vim.api.nvim_win_is_valid(S.win) then
-    return nil
-  end
-  local lnum = vim.api.nvim_win_get_cursor(S.win)[1]
   for l = lnum, 1, -1 do
     if S.day_lines[l] then
       return S.day_lines[l]
     end
   end
   return nil
+end
+
+--- The date at the cursor for a capture (org-get-cursor-date): the day
+--- of the line; with `with_time`, at the time of the item at point, else
+--- the current time of day. Nil outside date-based blocks.
+---@param with_time? boolean
+---@return org.Date|nil
+function M.cursor_date(with_time)
+  local day = has_agenda_block() and M.day_at_cursor() or nil
+  if not day then
+    return nil
+  end
+  if not with_time then
+    return date.from_days(day)
+  end
+  local item = M.item_at_cursor()
+  local minutes = item and item.time
+  if not minutes then
+    local now = os.date("*t")
+    minutes = now.hour * 60 + now.min
+  end
+  return date.from_days(day, { hour = math.floor(minutes / 60), min = minutes % 60 })
 end
 
 --- Change the span (org-agenda-change-time-span): the span starts where
@@ -1424,7 +1901,9 @@ local function bulk(fn, persistent)
     -- a %%(sexp) line before the first heading has no entry to act on
     local target = item.headline and M.resolve_target(item)
     if target then
-      fn(target, item)
+      with_remote_undo(target.bufnr, function()
+        fn(target, item)
+      end)
       bufs[target.bufnr] = true
       n = n + 1
     end
@@ -1540,6 +2019,12 @@ function M.manipulate_query(sign, regexp, term)
       rest = rest:find("%s") and ('+"' .. rest .. '"') or ("+" .. rest)
     end
     b.match = vim.trim(flags .. rest .. " " .. add)
+    -- the query is kept in a register for custom commands
+    -- (org-agenda-query-register)
+    local reg = config.opts.agenda.query_register
+    if type(reg) == "string" and reg ~= "" then
+      pcall(vim.fn.setreg, reg, b.match)
+    end
   else
     local tags_part, todo_part = match:match("^(.-)(/.*)$")
     b.match = (tags_part or match) .. add .. (todo_part or "")
@@ -2020,7 +2505,7 @@ function M.bulk_action()
     end, persistent)
   elseif choice == "$" then
     bulk(function(target)
-      call("org.archive", "archive_subtree", target)
+      call("org.archive", "archive_subtree", target, { from_agenda = true })
     end, persistent)
   elseif choice == "A" then
     bulk(function(target)
@@ -2102,7 +2587,7 @@ function M.append()
     { key = "S", label = "Like s, but only TODO entries", value = "S" },
     { key = "#", label = "List stuck projects", value = { type = "stuck" } },
   }
-  for key, cmd in pairs(config.opts.agenda.custom_commands or {}) do
+  for key, cmd in pairs(require("org.agenda").custom_commands()) do
     if type(cmd) == "table" and (cmd.type or cmd.types or cmd.blocks) then
       items[#items + 1] = { key = key, label = cmd.description or key, value = { custom = key } }
     end
@@ -2126,7 +2611,7 @@ function M.append()
     end
     blocks = { { type = "search", match = t, todo_only = choice == "S" or nil } }
   elseif type(choice) == "table" and choice.custom then
-    local cmd = config.opts.agenda.custom_commands[choice.custom]
+    local cmd = require("org.agenda").custom_commands()[choice.custom]
     blocks = cmd.type and { cmd } or (cmd.blocks or cmd.types)
   elseif type(choice) == "table" then
     blocks = { choice }
@@ -2180,7 +2665,11 @@ M.actions = {
         end
       end
     end
+    M.undo_list = {}
     M.redo()
+  end,
+  undo = function()
+    M.undo()
   end,
   redo_all = function()
     M.redo_all()
@@ -2250,27 +2739,57 @@ M.actions = {
   switch_to = function()
     M.switch_to()
   end,
+  tree_to_indirect_buffer = function()
+    M.tree_to_indirect_buffer(vim.v.count > 0 and vim.v.count or nil)
+  end,
+  diary_entry = function()
+    require("org.agenda.diary_entry").entry({ region = M._region, nonmarking = vim.v.count > 0 })
+  end,
   show = function()
-    M.show_item(false)
+    M.show_and_scroll_up(vim.v.count > 0)
   end,
   show_scroll_down = function()
-    local w = M.show_item(false)
-    if w then
-      pcall(vim.api.nvim_win_call, w, function()
-        vim.cmd("normal! \x19")
-      end)
+    M.show_scroll_down()
+  end,
+  goto_mouse = function()
+    if M.mouse_set_point() then
+      M.show_item(true)
     end
+  end,
+  show_mouse = function()
+    if M.mouse_set_point() then
+      M.show_item(false)
+    end
+  end,
+  show_1 = function()
+    M.show_1(math.max(vim.v.count, 1), true)
+  end,
+  cycle_show = function()
+    M.cycle_show(vim.v.count > 0 and vim.v.count or nil)
   end,
   follow_mode = function()
     S.follow = not S.follow
     utils.notify("Follow mode " .. (S.follow and "on" or "off"))
     if S.follow then
-      M.show_item(false)
+      M.follow_show()
     end
   end,
   todo = on_item(function(target)
     -- org-agenda-todo runs org-todo: fast selection or cycling in the set
     call("org.todo", "select_or_cycle", target)
+  end),
+  -- org-agenda-todo-yesterday: org-agenda-todo with the effective time
+  -- 23:59 of yesterday (use_effective_time, extend_today_until = hour + 1)
+  todo_yesterday = on_item(function(target)
+    local opts = config.opts
+    local saved = { opts.use_effective_time, opts.extend_today_until }
+    opts.use_effective_time = true
+    opts.extend_today_until = tonumber(os.date("%H")) + 1
+    local ok, err = pcall(call, "org.todo", "select_or_cycle", target)
+    opts.use_effective_time, opts.extend_today_until = saved[1], saved[2]
+    if not ok then
+      error(err, 0)
+    end
   end),
   todo_next = on_item(function(target)
     call("org.todo", "cycle_next", target)
@@ -2296,11 +2815,19 @@ M.actions = {
   deadline = on_item(function(target)
     call("org.timestamps", "deadline", target)
   end),
-  date_later = on_item(function(target, item)
-    M.shift_item(target, item, math.max(vim.v.count, 1), vim.v.count > 0)
+  date_later = do_date_shift(1),
+  date_earlier = do_date_shift(-1),
+  date_later_hours = on_item(function(target, item)
+    M.shift_item(target, item, math.max(vim.v.count, 1), true, "h")
   end),
-  date_earlier = on_item(function(target, item)
-    M.shift_item(target, item, -math.max(vim.v.count, 1), true)
+  date_earlier_hours = on_item(function(target, item)
+    M.shift_item(target, item, -math.max(vim.v.count, 1), true, "h")
+  end),
+  date_later_minutes = on_item(function(target, item)
+    M.shift_item(target, item, math.max(vim.v.count, 1), true, "min")
+  end),
+  date_earlier_minutes = on_item(function(target, item)
+    M.shift_item(target, item, -math.max(vim.v.count, 1), true, "min")
   end),
   date_prompt = on_item(function(target, item)
     M.date_prompt(target, item)
@@ -2326,7 +2853,7 @@ M.actions = {
     call("org.refile", "refile", target)
   end),
   archive = on_item(function(target)
-    call("org.archive", "archive_subtree", target)
+    call("org.archive", "archive_subtree", target, { from_agenda = true })
   end),
   toggle_archive_tag = on_item(function(target)
     call("org.archive", "toggle_archive_tag", target)
@@ -2478,7 +3005,19 @@ M.actions = {
     M.bulk_action()
   end,
   entry_text_mode = function()
-    toggle("entry_text", "Entry text mode")
+    -- a count N turns it on with N lines (org-agenda-entry-text-mode N)
+    local count = vim.v.count
+    if count > 0 then
+      S.entry_text = count
+    else
+      S.entry_text = not S.entry_text
+    end
+    M.redo()
+    local max = type(S.entry_text) == "number" and S.entry_text or config.opts.agenda.entry_text_maxlines or 5
+    utils.notify(
+      "Entry text mode is "
+        .. (S.entry_text and string.format("on (maximum number of lines is %d)", max) or "off")
+    )
   end,
   archives_mode = function()
     toggle("archives", "Archived trees", "trees")
@@ -2520,6 +3059,12 @@ M.actions = {
     S.include_diary = not on
     M.redo()
     utils.notify("Diary inclusion turned " .. (S.include_diary and "on" or "off"))
+  end,
+  toggle_habits = function()
+    M.toggle_habits()
+  end,
+  toggle_habits_display = function()
+    M.toggle_habits_display(vim.v.count > 0)
   end,
   dim_blocked = function()
     S.dim_blocked = not S.dim_blocked
@@ -2707,11 +3252,17 @@ M.actions = {
   append = function()
     M.append()
   end,
-  archive_default = on_item(function(target, item)
-    if not utils.confirm('Archive "' .. item.title .. '"?') then
+  -- org-agenda-archive-default: org-archive-default-command
+  archive_default = on_item(function(target)
+    M.archive_with_default(target)
+  end),
+  -- org-agenda-archive-default-with-confirmation
+  archive_default_confirm = on_item(function(target)
+    if not utils.confirm("Archive this subtree or entry? ") then
+      utils.error("Abort")
       return
     end
-    call("org.archive", "archive_subtree", target)
+    call("org.archive", "archive_subtree_default", target, { from_agenda = true })
   end),
   archive_sibling = on_item(function(target)
     call("org.archive", "archive_to_sibling", target)
@@ -2745,8 +3296,7 @@ M.actions = {
     move_to_item(-1)
   end,
   capture = function()
-    local day = has_agenda_block() and M.day_at_cursor() or nil
-    call("org.capture", "prompt", { date = day and date.from_days(day) or nil })
+    call("org.capture", "prompt", { date = M.cursor_date(vim.v.count == 1) })
   end,
   columns = function()
     call("org.agenda.columns", "toggle")
@@ -2920,6 +3470,144 @@ end
 -- Mappings
 ---------------------------------------------------------------------------
 
+--- The previous agenda action, when the cursor has not moved since it
+--- ran (Emacs's `last-command`), and the running one (`this-command`,
+--- which an action may change).
+M.last_command = nil
+M.this_command = nil
+M._last_run = nil
+
+--- Run the agenda action `name` like a key press.
+---@param name string
+function M.run_action(name)
+  local fn = M.actions[name]
+  if not fn then
+    utils.error("Unknown agenda action: " .. tostring(name))
+    return
+  end
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local buf = vim.api.nvim_get_current_buf()
+  local lr = M._last_run
+  M.last_command = (lr and lr.buf == buf and lr.lnum == lnum) and lr.name or nil
+  M.this_command = name
+  M._last_run = nil
+  return utils.run(function()
+    local ok, err = pcall(fn)
+    M.last_command = nil
+    M._last_run = {
+      name = M.this_command,
+      buf = vim.api.nvim_get_current_buf(),
+      lnum = vim.api.nvim_win_get_cursor(0)[1],
+    }
+    if not ok then
+      error(err, 0)
+    end
+  end)
+end
+
+--- Actions that act on each entry of a Visual selection
+--- (org-agenda-loop-over-headlines-in-active-region; org-agenda-maybe-loop).
+local LOOP_ACTIONS = {
+  schedule = true,
+  deadline = true,
+  date_prompt = true,
+  todo = true,
+  archive = true,
+  archive_default = true,
+  archive_default_confirm = true,
+  archive_sibling = true,
+  toggle_archive_tag = true,
+  kill = true,
+  set_property = true,
+  set_effort = true,
+}
+--- Actions that use the lines of a Visual selection (Emacs: the region).
+local REGION_ACTIONS = { diary_entry = true }
+
+--- Leave Visual mode and return the selected lines (first, last) and the
+--- cursor line.
+local function take_visual()
+  local a, b = vim.fn.line("v"), vim.fn.line(".")
+  vim.cmd("normal! \27")
+  return math.min(a, b), math.max(a, b), b
+end
+
+--- Run `name` for a Visual selection: with the region for REGION_ACTIONS,
+--- else on each entry of the selection that
+--- `agenda.loop_over_headlines_in_active_region` accepts: true (all),
+--- "start-level" (the level of the first entry) or an Emacs regexp the
+--- agenda line matches (org-agenda-do-in-region).
+function M.run_in_region(name)
+  local s, e, cur = take_visual()
+  if REGION_ACTIONS[name] then
+    M._region = { s, e }
+    pcall(vim.api.nvim_win_set_cursor, 0, { cur, 0 })
+    local ok, err = pcall(M.run_action, name)
+    M._region = nil
+    if not ok then
+      error(err, 0)
+    end
+    return
+  end
+  local loop = config.opts.agenda.loop_over_headlines_in_active_region
+  local re
+  if type(loop) == "string" and loop ~= "start-level" then
+    local ok, r = pcall(require("org.agenda.search").compile_emacs_regexp, loop, true)
+    re = ok and r or nil
+  end
+  local lines = vim.api.nvim_buf_get_lines(S.buf, 0, -1, false)
+  local keys, level = {}, nil
+  for l = s, e do
+    local item = S.line_items[l]
+    if item then
+      if level == nil then
+        level = item.level or false
+      end
+      local take = loop == true
+        or (loop == "start-level" and item.level == level)
+        or (re and re:match_str(lines[l] or "") == 0)
+      if take then
+        keys[#keys + 1] = item_key(item)
+      end
+    end
+  end
+  utils.run(function()
+    for _, k in ipairs(keys) do
+      local lnum
+      for l, it in pairs(S.line_items) do
+        if item_key(it) == k and (not lnum or l < lnum) then
+          lnum = l
+        end
+      end
+      if lnum and S.win and vim.api.nvim_win_is_valid(S.win) then
+        vim.api.nvim_set_current_win(S.win)
+        vim.api.nvim_win_set_cursor(S.win, { lnum, 0 })
+        M.this_command = name
+        M.actions[name]()
+      end
+    end
+  end)
+end
+
+--- Screen position and time (ms) of the mouse, for `mouse_1_release`.
+local function mouse_pos()
+  local pos = vim.fn.getmousepos()
+  return { time = vim.uv.hrtime() / 1e6, row = pos.screenrow, col = pos.screencol }
+end
+
+--- After a <LeftRelease> with `agenda.mouse_1_follows_link`: a click
+--- shorter than `links.mouse_1_follows_link` ms (450 unless that is a
+--- number) that didn't move goes to the entry clicked, like <MiddleMouse>.
+function M.mouse_1_release()
+  local setting = (config.opts.links or {}).mouse_1_follows_link
+  local press, release = M._mouse_press, M._mouse_release
+  M._mouse_press = nil
+  local limit = type(setting) == "number" and setting or 450
+  if require("org.mouse").click_follows(limit, press, release or mouse_pos()) then
+    M.run_action("goto_mouse")
+  end
+end
+
 setup_mappings = function(buf)
   local maps = config.opts.mappings.agenda or {}
   local all = {}
@@ -2928,23 +3616,59 @@ setup_mappings = function(buf)
       all[#all + 1] = { name = name, lhs = lhs }
     end
   end
+  if config.opts.agenda.mouse_1_follows_link then
+    -- a short click without a drag goes to the entry, a longer one sets
+    -- point ([follow-link] mouse-face, mouse-1-click-follows-link)
+    local o = { buffer = buf, expr = true, replace_keycodes = true }
+    vim.keymap.set("n", "<LeftMouse>", function()
+      M._mouse_press = mouse_pos()
+      return "<LeftMouse>"
+    end, vim.tbl_extend("force", o, { desc = "org agenda: set point (a short click goes to the entry)" }))
+    vim.keymap.set("n", "<LeftRelease>", function()
+      M._mouse_release = mouse_pos()
+      return "<LeftRelease><Cmd>lua require('org.agenda.view').mouse_1_release()<CR>"
+    end, vim.tbl_extend("force", o, { desc = "org agenda: go to the entry clicked" }))
+  end
+  -- global Normal-mode keys and the leaders: an agenda key that starts one
+  -- (<Space> with a space leader, \ with the default one) must wait for it
+  local longer = {}
+  for _, map in ipairs(vim.api.nvim_get_keymap("n")) do
+    longer[#longer + 1] = vim.keycode(map.lhs)
+  end
+  for _, leader in ipairs({ vim.g.mapleader or "\\", vim.g.maplocalleader or "\\" }) do
+    longer[#longer + 1] = vim.keycode(leader) .. "x"
+  end
+  for _, o in ipairs(all) do
+    longer[#longer + 1] = vim.keycode(o.lhs)
+  end
   for _, m in ipairs(all) do
     local fn = M.actions[m.name]
     if fn then
-      -- nowait unless the key is a prefix of another agenda mapping
+      -- nowait unless the key is a prefix of another agenda mapping, a
+      -- global mapping or a leader
       local prefix_of_other = false
       local kc = vim.keycode(m.lhs)
-      for _, o in ipairs(all) do
-        local ok = vim.keycode(o.lhs)
-        if o ~= m and #ok > #kc and ok:sub(1, #kc) == kc then
+      for _, ok in ipairs(longer) do
+        if #ok > #kc and ok:sub(1, #kc) == kc then
           prefix_of_other = true
+          break
         end
       end
       vim.keymap.set("n", m.lhs, function()
-        utils.run(fn)
+        M.run_action(m.name)
       end, { buffer = buf, nowait = not prefix_of_other, desc = "org agenda: " .. m.name:gsub("_", " ") })
+      local loop = config.opts.agenda.loop_over_headlines_in_active_region
+      -- Visual-mode motions stay motions (their <C-c> forms loop)
+      local motion = m.lhs == "t" or m.lhs == "$" or m.lhs == "e" or m.lhs == "a"
+      if REGION_ACTIONS[m.name] or (LOOP_ACTIONS[m.name] and loop ~= false and loop ~= nil and not motion) then
+        vim.keymap.set("x", m.lhs, function()
+          M.run_in_region(m.name)
+        end, { buffer = buf, nowait = not prefix_of_other, desc = "org agenda: " .. m.name:gsub("_", " ") })
+      end
     end
   end
+  -- org-mouse (mouse.org_mouse): the context menu and gestures
+  require("org.org_mouse").attach_agenda(buf)
 end
 
 return M

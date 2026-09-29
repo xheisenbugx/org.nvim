@@ -1,0 +1,60 @@
+#+TITLE: Letter title
+#+SUBJECT: About *things*
+#+AUTHOR: Jane Doe
+#+EMAIL: jane@example.com
+#+DATE: 2026-09-28
+#+LCO: DINmtext SNleft
+#+FROM_ADDRESS: 1 Main Street
+#+FROM_ADDRESS: Springfield
+#+TO_ADDRESS: John Smith
+#+TO_ADDRESS: 2 Side Road
+#+PHONE_NUMBER: +1 555 0100
+#+URL: https://example.com
+#+FROM_LOGO: \includegraphics{logo}
+#+PLACE: Springfield
+#+LOCATION: Room 5
+#+OPENING: Dear John,
+#+CLOSING: Best regards,
+#+SIGNATURE: Jane
+#+OPTIONS: timestamp:nil backaddress:t email:t phone:t url:t from-logo:t subject:(underlined centered) foldmarks:(b l m)
+#+LATEX_HEADER: \usepackage{xcolor}
+
+Body paragraph with /emphasis/, a [[https://orgmode.org][link]] and a
+footnote[fn:1].
+
+- first item
+- second item
+  1. nested
+
+| a | b |
+|---+---|
+| 1 | 2 |
+
+#+begin_src python
+print("hi")
+#+end_src
+
+#+KOMA-LETTER: \vspace{1cm}
+#+begin_export koma-letter
+\bigskip
+#+end_export
+#+begin_export latex
+\medskip
+#+end_export
+#+begin_export html
+<p>no</p>
+#+end_export
+Inline @@koma-letter:\today@@, @@latex:\LaTeX@@ and @@html:<b>no</b>@@.
+
+#+LATEX: \smallskip
+
+[fn:1] A footnote.
+
+* PS                                                                     :ps:
+Don't forget.
+* CC                                                                     :cc:
+Alice, Bob
+* Enclosures                                                           :encl:
+Invoice
+* After                                                        :after_letter:
+\vfill

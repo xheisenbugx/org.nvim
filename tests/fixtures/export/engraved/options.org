@@ -1,0 +1,10 @@
+#+OPTIONS: toc:nil author:nil date:nil title:nil timestamp:nil
+#+LATEX_ENGRAVED_THEME: default
+
+#+caption: Above
+#+begin_src lua -n
+-- a \(x^2\) b_c
+print("$y$")
+#+end_src
+
+Inline src_lua{x_y = 1}.

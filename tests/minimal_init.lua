@@ -7,6 +7,15 @@ vim.opt.shadafile = "NONE"
 vim.g.mapleader = " "
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 vim.cmd("runtime plugin/org.lua")
+-- Specs delete their temp files while buffers may still show them. A
+-- timestamp check (pending after any external command) would then raise
+-- E211 from an unrelated :bwipeout in a later spec: ignore deleted files,
+-- keep the default handling ("ask") of every other change.
+vim.api.nvim_create_autocmd("FileChangedShell", {
+  callback = function()
+    vim.v.fcs_choice = vim.v.fcs_reason == "deleted" and "" or "ask"
+  end,
+})
 -- Resolving dangling clocks on clock in, resuming a saved clock and
 -- quitting with a running clock prompt, which would block (or, on EOF,
 -- quit) headless tests: off unless a test turns them on.

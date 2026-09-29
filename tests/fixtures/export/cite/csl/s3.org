@@ -1,0 +1,19 @@
+#+bibliography: refs.bib
+#+bibliography: refs.json
+#+cite_export: csl numeric.csl
+
+Numbers [cite:@knuth1984;@knuth1986a;@knuth1986b;@web2020] and a locator
+[cite:@lamport1986 pp. 45-49]. More [cite:@chapter2001] [cite:@range2010].
+[cite/n:@report2015]
+
+* Books
+:PROPERTIES:
+:CUSTOM_ID: books
+:END:
+#+print_bibliography: :type book
+
+* Others
+:PROPERTIES:
+:CUSTOM_ID: others
+:END:
+#+print_bibliography: :nottype book

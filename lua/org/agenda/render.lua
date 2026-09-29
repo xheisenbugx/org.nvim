@@ -535,6 +535,42 @@ local function drop_columns(parts, n)
   return after
 end
 
+--- The highlight of an item's priority cookie (org-agenda-fontify-priorities):
+--- nil when `agenda.fontify_priorities` is false, else the group of
+--- `ui.priority_faces`, of a `fontify_priorities` table, italic for the
+--- lowest priority, bold for the highest, or OrgAgendaPriority.
+---@return string?
+function M.priority_group(item)
+  local fp = config.opts.agenda.fontify_priorities
+  if fp == nil then
+    fp = "cookies"
+  end
+  if not fp then
+    return nil
+  end
+  local p = tostring(item.priority)
+  local hls = require("org.highlights")
+  local ui = config.opts.ui or {}
+  if (ui.priority_faces or {})[p] then
+    return hls.face_group("orgPriorityFace_", p)
+  end
+  if type(fp) == "table" and fp[p] ~= nil then
+    local group = hls.face_group("OrgAgendaPriorityFace_", p)
+    pcall(vim.api.nvim_set_hl, 0, group, hls.hl_from_face(fp[p]))
+    return group
+  end
+  local file = item.headline and item.headline.file
+  local pr = file and file.priorities and file:priorities() or nil
+  local highest = pr and pr.highest or config.opts.priority_highest
+  local lowest = pr and pr.lowest or config.opts.priority_lowest
+  if p == tostring(lowest) then
+    return "OrgAgendaPriorityLowest"
+  elseif p == tostring(highest) then
+    return "OrgAgendaPriorityHighest"
+  end
+  return "OrgAgendaPriority"
+end
+
 --- Build the parts for an item line.
 ---@param item org.AgendaItem
 ---@param ctx { agenda?: boolean, kind?: string, width: integer, today: integer }
@@ -571,11 +607,18 @@ function M.item_parts(item, ctx)
     push(prefix)
   end
   if item.todo then
-    push(item.todo, item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword")
-    push(" ")
+    -- org-agenda-todo-keyword-format ("" drops the keyword and its space)
+    local fmt = acfg.todo_keyword_format or "%-1s"
+    if fmt ~= "" then
+      local ok, kw = pcall(string.format, fmt, item.todo)
+      push(ok and kw or item.todo, item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword")
+      push(" ")
+    end
   end
   if item.priority then
-    push("[#" .. item.priority .. "]", "OrgAgendaPriority")
+    local group = M.priority_group(item)
+    parts.priority_index = #parts + 1
+    push("[#" .. item.priority .. "]", group or item.face)
     push(" ")
   end
   push(display_title(item.display_title or item.title or ""), item.face)
@@ -616,47 +659,68 @@ function M.item_parts(item, ctx)
   return parts
 end
 
---- Body text of an entry for org-agenda-entry-text-mode: drawers, planning
---- and properties removed, common indentation stripped.
+local PLANNING_LINE = vim.regex("\\c^[ \t]*\\<\\(SCHEDULED:\\|DEADLINE:\\|CLOSED:\\|CLOCK:\\) *[[<][^]>]\\+[]>]")
+
+--- Body text of an entry (org-agenda-get-some-entry-text): the text up to
+--- the next headline without drawers and planning / CLOCK lines, the
+--- matches of `agenda.entry_text_exclude_regexps` (Emacs regexps)
+--- removed, trailing blank text dropped, the common indentation stripped,
+--- at most `max` lines.
 ---@param hl org.Headline
 ---@param max integer maximum number of lines
 ---@return string[]
 function M.entry_text(hl, max)
-  local body = hl:body_lines()
-  local out = {}
-  local in_drawer = false
-  for _, l in ipairs(body) do
-    if in_drawer then
-      if l:match("^%s*:END:%s*$") then
-        in_drawer = false
+  local lines = hl.file.lines
+  local stop = hl.children[1] and (hl.children[1].line - 1) or hl.end_line
+  local kept = {}
+  local i = hl.line + 1
+  while i <= stop do
+    local l = lines[i] or ""
+    if l:match("^[ \t]*:[%w_%-]+:[ \t]*$") then
+      -- a drawer, up to its :END: line (or the end of the text)
+      local j = i + 1
+      while j <= stop and not (lines[j] or ""):match("^[ \t]*:END:") do
+        j = j + 1
       end
-    elseif l:match("^%s*:[%w_%-]+:%s*$") then
-      in_drawer = true
-    elseif not l:match("^%s*CLOCK:") then
-      out[#out + 1] = l
+      i = j + 1
+    else
+      if not PLANNING_LINE:match_str(l) then
+        kept[#kept + 1] = l
+      end
+      i = i + 1
     end
   end
-  while #out > 0 and vim.trim(out[1]) == "" do
-    table.remove(out, 1)
+  local text = table.concat(kept, "\n")
+  local search = require("org.agenda.search")
+  for _, re in ipairs(config.opts.agenda.entry_text_exclude_regexps or {}) do
+    local ok, pat = pcall(search.emacs_regexp, re, true)
+    if ok then
+      local ok2, res = pcall(vim.fn.substitute, text, "\\c" .. pat, "", "g")
+      if ok2 then
+        text = res
+      end
+    end
   end
-  while #out > 0 and vim.trim(out[#out]) == "" do
-    table.remove(out)
-  end
+  text = text:gsub("[ \t\n]+$", "")
+  local out = vim.split(text, "\n", { plain = true })
   local indent
-  for _, l in ipairs(out) do
-    if vim.trim(l) ~= "" then
-      local n = #l:match("^(%s*)")
-      indent = indent and math.min(indent, n) or n
+  for n, l in ipairs(out) do
+    l = l:gsub("\t", string.rep(" ", 8))
+    out[n] = l
+    if not l:match("^[ \t]*$") then
+      local w = #l:match("^( *)")
+      indent = indent and math.min(indent, w) or w
     end
   end
   local res = {}
-  for i = 1, math.min(#out, max) do
-    res[i] = out[i]:sub((indent or 0) + 1)
+  for _, l in ipairs(out) do
+    if #res == 0 and l:match("^[ \t]*$") then
+      -- leading blank lines are dropped
+    else
+      res[#res + 1] = l:match("^[ \t]*$") and l or l:sub((indent or 0) + 1)
+    end
   end
-  if #out > max then
-    res[#res + 1] = "..."
-  end
-  return res
+  return vim.list_slice(res, 1, max)
 end
 
 --- Is the item a TODO blocked by its children, an ORDERED sibling or
@@ -686,11 +750,28 @@ function M.add_item(b, it, ctx)
       end
     end
   end
-  b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local row = b:add(parts, it, ctx.is_clocking and ctx.is_clocking(it) and "OrgAgendaClocking" or nil)
+  local fp = config.opts.agenda.fontify_priorities
+  if parts.priority_index and (fp == true or type(fp) == "table") then
+    -- the priority face from the cookie to the end of the line
+    local col = 0
+    for i = 1, parts.priority_index - 1 do
+      col = col + #(parts[i][1] or "")
+    end
+    local group = M.priority_group(it)
+    if group then
+      b.hls[#b.hls + 1] = { row - 1, col, #b.lines[row], group, 115 }
+    end
+  end
   if ctx.entry_text and it.headline then
-    local max = config.opts.agenda.entry_text_maxlines or 5
+    local acfg = config.opts.agenda
+    -- a number: the count given to `E` (org-agenda-entry-text-mode N)
+    local max = type(ctx.entry_text) == "number" and ctx.entry_text or acfg.entry_text_maxlines or 5
+    local leader = acfg.entry_text_leaders or "    > "
     for _, l in ipairs(M.entry_text(it.headline, max)) do
-      b:text("    > " .. l, "OrgAgendaEntryText")
+      b:text(leader .. l, "OrgAgendaEntryText")
+      b.entry_text_lines = b.entry_text_lines or {}
+      b.entry_text_lines[#b.lines] = true
     end
   end
 end
@@ -1087,7 +1168,12 @@ function M.agenda_block(b, block, ctx)
     local list = filter_list(by_day[d] or {}, ctx)
     if #list > 0 or acfg.show_all_dates ~= false then
       local group = "OrgAgendaDate"
-      if d == ctx.today then
+      local dff = acfg.day_face_function
+      local custom = type(dff) == "function" and dff(date.from_days(d)) or nil
+      if type(custom) == "string" and custom ~= "" then
+        -- org-agenda-day-face-function
+        group = custom
+      elseif d == ctx.today then
         group = "OrgAgendaDateToday"
       elseif is_weekend(d) then
         group = "OrgAgendaDateWeekend"
@@ -1254,6 +1340,7 @@ local BLOCK_KEYS = {
 local NIL_OPTIONS = {
   -- a global option a block may override (org-deadline-warning-days)
   deadline_warning_days = true,
+  scheduled_delay_days = true,
   start_day = true,
   format_date = true,
   hide_tags_regexp = true,
@@ -1266,6 +1353,10 @@ local NIL_OPTIONS = {
   overriding_columns_format = true,
   clock_report_header = true,
   auto_exclude_function = true,
+  export_html_style = true,
+  skip_function_global = true,
+  day_face_function = true,
+  diary_sexp_prefix = true,
 }
 
 --- Run `fn` with the agenda options set on `block` in effect, like the

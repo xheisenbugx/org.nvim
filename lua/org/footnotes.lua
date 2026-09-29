@@ -705,6 +705,69 @@ function M.renumber(bufnr)
   set_buffer(bufnr, lines)
 end
 
+local function paragraph_line(l)
+  if l == nil or not l:match("%S") or l:match("^%*+%s") or l:match("^%s*#%+") or l:match("^%s*|") then
+    return false
+  end
+  return not l:match("^%s*:%S*:%s*$")
+end
+
+--- Fill the paragraph around `lnum` of `lines` in place, like
+--- fill-paragraph with Emacs's defaults: lines of at most `width` columns,
+--- one space between words and two after a sentence end that had two or
+--- ended a line.
+local function fill_paragraph(lines, lnum, width)
+  local s, e = lnum, lnum
+  while paragraph_line(lines[s - 1]) do
+    s = s - 1
+  end
+  while paragraph_line(lines[e + 1]) do
+    e = e + 1
+  end
+  local indent = lines[s]:match("^%s*")
+  local words = {}
+  for i = s, e do
+    local l = vim.trim(lines[i])
+    local pos = 1
+    while pos <= #l do
+      local ws, we = l:find("%S+", pos)
+      if not ws then
+        break
+      end
+      local after = l:sub(we + 1):match("^%s*")
+      local word = l:sub(ws, we)
+      local sentence_end = word:match("[.?!][\"')%]]*$") ~= nil
+      local gap = " "
+      if sentence_end and (#after >= 2 or we == #l) then
+        gap = "  "
+      end
+      words[#words + 1] = { word, gap }
+      pos = we + 1
+    end
+  end
+  local out, cur = {}, nil
+  for i, w in ipairs(words) do
+    if not cur then
+      cur = indent .. w[1]
+    else
+      local gap = words[i - 1][2]
+      if vim.fn.strdisplaywidth(cur .. gap .. w[1]) <= width then
+        cur = cur .. gap .. w[1]
+      else
+        out[#out + 1] = cur
+        cur = indent .. w[1]
+      end
+    end
+  end
+  out[#out + 1] = cur
+  for _ = s, e do
+    table.remove(lines, s)
+  end
+  for i, l in ipairs(out) do
+    table.insert(lines, s + i - 1, l)
+  end
+end
+
 --- Turn every footnote into a numbered one with a regular definition,
 --- numbered in order of reference, then sort (org-footnote-normalize).
 function M.normalize(bufnr)
@@ -733,6 +796,17 @@ function M.normalize(bufnr)
     local r = refs[i]
     local l = lines[r.lnum]
     lines[r.lnum] = l:sub(1, r.s - 1) .. "[fn:" .. new_label[i] .. "]" .. l:sub(r.e + 1)
+  end
+  if require("org.config").opts.footnote_fill_after_inline_note_extraction then
+    -- org-footnote-fill-after-inline-note-extraction: refill the
+    -- paragraphs that lost an inline note, bottom-up
+    local done
+    for i = #refs, 1, -1 do
+      if refs[i].text and refs[i].lnum ~= done then
+        done = refs[i].lnum
+        fill_paragraph(lines, refs[i].lnum, vim.bo[bufnr].textwidth > 0 and vim.bo[bufnr].textwidth or 70)
+      end
+    end
   end
   -- relabel definitions; unreferenced ones get the next numbers
   for _, d in ipairs(M.collect_definitions(lines)) do

@@ -248,14 +248,17 @@ REPL.shell = {
 
 REPL.python = {
   default = "Python",
-  argv = function(cmd, dir)
+  argv = function(cmd, dir, opts)
     local setup = dir .. "/setup.py"
     vim.fn.writefile(
       vim.split(PY_SETUP:format(require("org.babel.langs").PY_FORMAT_VALUE), "\n", { plain = true }),
       setup
     )
     local argv = vim.deepcopy(cmd)
-    vim.list_extend(argv, { "-i", "-q" })
+    if not (opts and opts.explicit) then
+      -- `session_cmd` (org-babel-python-command-session) is used as it is
+      vim.list_extend(argv, { "-i", "-q" })
+    end
     return argv, {
       PYTHONSTARTUP = setup,
       ORG_BABEL_USER_STARTUP = vim.env.PYTHONSTARTUP or "",

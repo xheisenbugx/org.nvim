@@ -159,6 +159,50 @@ function M.links(bufnr, conceal_links)
   cmd("syntax cluster orgLinks contains=" .. table.concat(cluster, ","))
 end
 
+--- LaTeX fragments and environments, entities and sub/superscripts, as
+--- `ui.highlight_latex_and_related` lists them (org-highlight-latex-and-related):
+--- "latex" (OrgLatex), "native" (the tex syntax), "entities", "script".
+function M.latex_and_related(ui)
+  local set = {}
+  for _, v in ipairs(type(ui.highlight_latex_and_related) == "table" and ui.highlight_latex_and_related or {}) do
+    set[v] = true
+  end
+  local latex = set.latex or set.native
+  if latex then
+    -- org-latex-regexps with the default org-format-latex-options :matchers
+    local contains = ""
+    if set.native and has_syntax("tex") then
+      local saved = vim.b.current_syntax
+      vim.b.current_syntax = nil
+      if pcall(cmd, "syntax include @orgTexNative syntax/tex.vim") then
+        contains = " contains=@orgTexNative"
+      end
+      vim.b.current_syntax = saved
+    end
+    -- $x$ and $...$: not after a $, not starting or ending with blanks
+    cmd([=[syntax match orgLatex /\%(^\|[^$]\)\@<=\$[^ \t,;.$]\$\ze\%([[:punct:][:space:]]\|$\)/]=])
+    cmd(
+      [=[syntax match orgLatex /\%(^\|[^$]\)\@<=\$[^ \t,;.$][^$]\{-}[^ \t,.$]\$\ze\%([[:punct:][:space:]]\|$\)/]=]
+        .. contains
+    )
+    cmd([=[syntax region orgLatex start=/\$\$/ end=/\$\$/ keepend]=] .. contains)
+    cmd([=[syntax region orgLatex start=/\\(/ end=/\\)/ keepend]=] .. contains)
+    cmd([=[syntax region orgLatex start=/\\\[/ end=/\\\]/ keepend]=] .. contains)
+    cmd([=[syntax region orgLatex start=/^\s*\\begin{\z([[:alnum:]*]\+\)}/ end=/\\end{\z1}/ keepend]=] .. contains)
+  end
+  if set.entities then
+    -- (with the character after the name, like Emacs, unless a blank)
+    cmd([=[syntax match orgLatexEntity /\\\%(there4\|sup[123]\|frac[13][24]\|\a\+\)\%({}\|[^[:alpha:][:space:]]\|\ze\s\|$\)/]=])
+  end
+  if set.script and ui.use_sub_superscripts ~= false then
+    local body = [=[\%({[^}]*}\|([^)]*)\|\*\|[+-]\?[[:alnum:].,\\]*[[:alnum:]]\)]=]
+    if ui.use_sub_superscripts == "{}" then
+      body = [=[{[^}]*}]=]
+    end
+    cmd(string.format([=[syntax match orgLatexScript /\S\@<=[_^]%s/]=], body))
+  end
+end
+
 function M.apply(bufnr)
   local config = require("org.config").opts
   local file = require("org.files").get_buffer(bufnr)
@@ -180,7 +224,24 @@ function M.apply(bufnr)
   cmd([=[syntax match orgKeyword /^\s*#+\S\+:/ nextgroup=orgKeywordValue skipwhite]=])
   cmd([=[syntax match orgKeywordValue /.*$/ contained]=])
   cmd([=[syntax match orgTitle /^\s*#+\ctitle:.*$/ contains=orgTitleKeyword]=])
-  cmd([=[syntax match orgTitleKeyword /^\s*#+\ctitle:/ contained]=])
+  -- org-hidden-keywords: "#+TITLE:" and the like hidden (up to the colon)
+  local hidden = {}
+  for _, k in ipairs(ui.hidden_keywords or {}) do
+    hidden[tostring(k):lower()] = true
+  end
+  cmd([=[syntax match orgTitleKeyword /^\s*#+\ctitle:/ contained]=] .. (hidden.title and " conceal" or ""))
+  local hidden_info = {}
+  for _, k in ipairs({ "author", "date", "email", "subtitle" }) do
+    if hidden[k] then
+      hidden_info[#hidden_info + 1] = k
+    end
+  end
+  if #hidden_info > 0 then
+    cmd(string.format(
+      [=[syntax match orgKeyword /^\s*#+\c\%%(%s\):/ conceal nextgroup=orgKeywordValue skipwhite]=],
+      table.concat(hidden_info, [[\|]])
+    ))
+  end
 
   -- Lists --------------------------------------------------------------------
   cmd([=[syntax match orgListBullet /^\s*\zs\([-+]\|\d\+[.)]\|\a[.)]\)\ze\(\s\|$\)/]=])
@@ -208,8 +269,10 @@ function M.apply(bufnr)
   cmd([=[syntax match orgHorizontalRule /^\s*-\{5,}\s*$/]=])
   cmd([=[syntax match orgTarget /<<<\?[^<>]\+>>>\?/]=])
   cmd([=[syntax match orgFootnote /\[fn:[^]]*\]/]=])
-  cmd([=[syntax match orgMacro /{{{[^}]\+}}}/]=])
-  cmd([=[syntax match orgLatex /\\\a\+\({[^}]*}\)*\|\$[^$ ]\([^$]*[^$ ]\)\?\$\|\\(.\{-}\\)\|\\\[.\{-}\\\]/]=])
+  -- (org-hide-macro-markers: the braces hidden)
+  cmd([=[syntax match orgMacro /{{{\a[-[:alnum:]_]*.\{-}}}}/ contains=orgMacroMarker]=])
+  cmd([=[syntax match orgMacroMarker /{{{\|}}}/ contained]=] .. (ui.hide_macro_markers and " conceal" or ""))
+  M.latex_and_related(ui)
   cmd([=[syntax match orgLineBreak /\\\\\s*$/]=])
 
   -- Emphasis -----------------------------------------------------------------
@@ -267,8 +330,16 @@ function M.apply(bufnr)
 
   if ui.src_highlight ~= false then
     local included = {}
+    -- src_lang_modes (org-src-lang-modes) first, then the built-in aliases
+    local modes = config.src_lang_modes or {}
+    local function syntax_of(lang)
+      if modes[lang] ~= nil then
+        return modes[lang]
+      end
+      return M.lang_aliases[lang] or lang
+    end
     for lang in pairs(src_languages(bufnr)) do
-      local syn = M.lang_aliases[lang] or lang
+      local syn = syntax_of(lang)
       if syn ~= "" and not included[syn] and syn:match("^[%w_]+$") and has_syntax(syn) then
         included[syn] = true
         local cluster = "orgSrc_" .. syn
@@ -281,9 +352,13 @@ function M.apply(bufnr)
         vim.b.current_syntax = saved
         -- all aliases of this syntax
         local names = { esc(lang) }
-        for alias, target in pairs(M.lang_aliases) do
-          if target == syn and alias ~= lang then
-            names[#names + 1] = esc(alias)
+        local seen = { [lang] = true }
+        for _, map in ipairs({ modes, M.lang_aliases }) do
+          for alias in pairs(map) do
+            if not seen[alias] and syntax_of(alias) == syn then
+              seen[alias] = true
+              names[#names + 1] = esc(alias)
+            end
           end
         end
         cmd(string.format(
@@ -298,23 +373,26 @@ function M.apply(bufnr)
 
   -- Headlines (defined last so they win) ------------------------------------
   local contains =
-    "orgTodo,orgDone,orgTodoCustom,orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell"
-  for level = 1, 8 do
+    "orgTodo,orgDone,orgTodoCustom,orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,orgHeadlineTodo,@Spell"
+  -- org-level-color-stars-only: the level face on the stars only; the
+  -- rest of the headline is orgHeadlineText
+  local stars_only = ui.level_color_stars_only
+  local function level_pattern(n)
+    return stars_only and string.format([=[/^\*\{%d} / contained]=], n)
+      or string.format([=[/^\*\{%d} .*$/ contains=%s]=], n, contains)
+  end
+  if stars_only then
     cmd(string.format(
-      [=[syntax match orgHeadlineLevel%d /^\*\{%d} .*$/ contains=%s]=],
-      level,
-      level,
+      [=[syntax match orgHeadlineText /^\*\+ .*$/ contains=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,%s]=],
       contains
     ))
   end
+  for level = 1, 8 do
+    cmd(string.format([=[syntax match orgHeadlineLevel%d %s]=], level, level_pattern(level)))
+  end
   for level = 9, 20 do
     local l = ((level - 1) % 8) + 1
-    cmd(string.format(
-      [=[syntax match orgHeadlineLevel%d /^\*\{%d} .*$/ contains=%s]=],
-      l,
-      level,
-      contains
-    ))
+    cmd(string.format([=[syntax match orgHeadlineLevel%d %s]=], l, level_pattern(level)))
   end
 
   local todo_alt = todo:vim_alternation("todo")
@@ -335,7 +413,7 @@ function M.apply(bufnr)
   for name in pairs(ui.todo_keyword_faces or {}) do
     if todo:is_keyword(name) then
       cmd(string.format(
-        [=[syntax match orgTodoKw_%s /\(^\*\+\s\+\)\@<=%s\ze\(\s\|$\)/ contained containedin=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,orgHeadlineDone]=],
+        [=[syntax match orgTodoKw_%s /\(^\*\+\s\+\)\@<=%s\ze\(\s\|$\)/ contained containedin=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,orgHeadlineText,orgHeadlineDone]=],
         name:gsub("[^%w_]", "_"),
         esc(name)
       ))
@@ -363,6 +441,15 @@ function M.apply(bufnr)
     ))
   end
   cmd([=[syntax match orgHeadlineComment /\(^\*\+\s\+\(\S\+\s\+\)\?\)\@<=COMMENT\>/ contained]=])
+  if todo_alt ~= "" and ui.fontify_todo_headline then
+    -- org-fontify-todo-headline: the text after a TODO keyword, priority
+    -- cookie and tags included. Defined last, it wins over the items that
+    -- start where it does ("[#A]", a link, ...) and contains them.
+    cmd(string.format(
+      [=[syntax match orgHeadlineTodo /\(^\*\+\s\+\(%s\)\s\+\)\@<=\S.*$/ contained contains=orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell]=],
+      todo_alt
+    ))
+  end
 
   require("org.highlights").apply_todo_faces()
 end

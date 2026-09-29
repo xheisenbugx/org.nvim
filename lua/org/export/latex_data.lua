@@ -116,6 +116,12 @@ M.known_warnings = {
   { "Undefined control sequence", "[undefined control sequence]" },
 }
 M.engraved_preamble = "\\usepackage{fvextra}\n\n[FVEXTRA-SETUP]\n\n% Make line numbers smaller and grey.\n\\renewcommand\\theFancyVerbLine{\\footnotesize\\color{black!40!white}\\arabic{FancyVerbLine}}\n\n\\usepackage{xcolor}\n\n% In case engrave-faces-latex-gen-preamble has not been run.\n\\providecolor{EfD}{HTML}{f7f7f7}\n\\providecolor{EFD}{HTML}{28292e}\n\n% Define a Code environment to prettily wrap the fontified code.\n\\usepackage[breakable,xparse]{tcolorbox}\n\\DeclareTColorBox[]{Code}{o}%\n{colback=EfD!98!EFD, colframe=EfD!95!EFD,\n  fontupper=\\footnotesize\\setlength{\\fboxsep}{0pt},\n  colupper=EFD,\n  IfNoValueTF={#1}%\n  {boxsep=2pt, arc=2.5pt, outer arc=2.5pt,\n    boxrule=0.5pt, left=2pt}%\n  {boxsep=2.5pt, arc=0pt, outer arc=0pt,\n    boxrule=0pt, leftrule=1.5pt, left=0.5pt},\n  right=2pt, top=1pt, bottom=0.5pt,\n  breakable}\n\n[LISTINGS-SETUP]"
+M.engraved_options = {
+  { "commandchars", "\\\\\\{\\}" },
+  { "highlightcolor", "white!95!black!80!blue" },
+  { "breaklines", "true" },
+  { "breaksymbol", "\\color{white!60!black}\\tiny\\ensuremath{\\hookrightarrow}" },
+}
 M.hyperref_template = "\\hypersetup{\n pdfauthor={%a},\n pdftitle={%t},\n pdfkeywords={%k},\n pdfsubject={%d},\n pdfcreator={%c},\n pdflang={%L}}\n"
 M.listings_langs = { { "emacs-lisp", "Lisp" }, { "lisp", "Lisp" }, { "clojure", "Lisp" }, { "c", "C" }, { "cc", "C++" }, { "fortran", "fortran" }, { "perl", "Perl" }, { "cperl", "Perl" }, { "python", "Python" }, { "ruby", "Ruby" }, { "html", "HTML" }, { "xml", "XML" }, { "tex", "TeX" }, { "latex", "[LaTeX]TeX" }, { "shell-script", "bash" }, { "gnuplot", "Gnuplot" }, { "ocaml", "[Objective]Caml" }, { "caml", "Caml" }, { "sql", "SQL" }, { "sqlite", "sql" }, { "makefile", "make" }, { "R", "r" } }
 M.minted_langs = { { "emacs-lisp", "common-lisp" }, { "cc", "c++" }, { "cperl", "perl" }, { "shell-script", "bash" }, { "caml", "ocaml" } }
