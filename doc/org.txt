@@ -3694,6 +3694,21 @@ applies to lists and images. Keywords: #+BEAMER_THEME,
 `toc:` an outline frame titled `export.beamer.outline_frame_title` is
 added.
 
+Beamer mode                                              *org-beamer-mode*
+`:Org beamer_mode` toggles org-beamer-mode in the buffer; it is on from the
+start with `startup_with_beamer_mode = true` (org-startup-with-beamer-mode)
+or `#+STARTUP: beamer`. While it is on, <C-c><C-b>
+(`mappings.beamer.beamer_select_environment`; it replaces "previous sibling"
+like in Emacs) runs `beamer_select_environment`
+(org-beamer-select-environment): a fast tag selection of B_ENV tags, one
+key per environment (f frame, b block, c column, C columns, n note, ...),
+sets BEAMER_env (pressing the key of the current environment removes it);
+`|` toggles BMCOL and asks for the column width (BEAMER_col), `A` makes an
+againframe and asks for BEAMER_ref and BEAMER_act. Setting BEAMER_env or
+BEAMER_col as a property also updates the B_ENV / BMCOL tags, which are
+highlighted with `OrgBeamerTag`. Toggling fires the `OrgBeamerMode` User
+autocmd (org-beamer-mode-hook), `data = { bufnr, enabled }`.
+
 Texinfo ~                                                 *org-export-texinfo*
 `:Org export texinfo` (dispatcher `i t`, Emacs `C-c C-e i t`) writes a
 Texinfo manual like Emacs ox-texinfo; `info` (`i i`, `i o` to open it with
@@ -4468,6 +4483,7 @@ Buffer ~
                                       "showall", "show2levels".."show5levels"
   hide_drawer_startup       true      fold drawers on startup
   hide_block_startup        false     fold blocks on startup
+  startup_with_beamer_mode  false     |org-beamer-mode| on startup
   cycle_open_archived_trees false     let cycling open :ARCHIVE: subtrees
   footnote_section          "Footnotes"  heading for definitions, or false
   adapt_indentation         false
@@ -4895,6 +4911,8 @@ ir, around_subtree ar.
 Section `agenda`: see |org-agenda|.
 Section `capture`: finalize, kill, refile.
 Section `edit_src`: save_exit, abort.
+Section `beamer`: beamer_select_environment <C-c><C-b>, only while
+|org-beamer-mode| is on.
 
 ==============================================================================
 28. COMMANDS                                                    *org-commands*

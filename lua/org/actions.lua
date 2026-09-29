@@ -388,6 +388,12 @@ group("Search & export", {
   tags_sparse_tree = { "org.agenda.sparse", "tags_tree", desc = "Tags / property match sparse tree" },
   export = { "org.export", "prompt", desc = "Export dispatcher" },
   export_stack = { "org.export", "stack_show", desc = "Export stack: results of background exports", global = true },
+  beamer_mode = { "org.export.beamer_mode", "toggle", desc = "Toggle the Beamer editing mode (org-beamer-mode)" },
+  beamer_select_environment = {
+    "org.export.beamer_mode",
+    "select_environment",
+    desc = "Select the Beamer environment of the entry (BEAMER_env)",
+  },
   html_htmlize_generate_css = {
     "org.export.html",
     "htmlize_generate_css",

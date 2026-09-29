@@ -263,6 +263,9 @@ M.defaults = {
   --- Fold `#+begin_...` blocks when the file is opened (org-hide-block-startup;
   --- #+STARTUP: hideblocks).
   hide_block_startup = false,
+  --- Turn on the Beamer editing mode when a file is opened
+  --- (org-startup-with-beamer-mode; #+STARTUP: beamer).
+  startup_with_beamer_mode = false,
   --- Let visibility cycling open subtrees tagged :ARCHIVE:
   --- (org-cycle-open-archived-trees).
   cycle_open_archived_trees = false,
@@ -2307,6 +2310,10 @@ M.defaults = {
     edit_src = {
       save_exit = { "<C-c>'", "<prefix>'" },
       abort = { "<C-c><C-k>", "<prefix>k" },
+    },
+    --- Keys of the Beamer mode (org-beamer-mode-map), only while it is on.
+    beamer = {
+      beamer_select_environment = "<C-c><C-b>",
     },
   },
 }
