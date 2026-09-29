@@ -1123,7 +1123,9 @@ and default options (the Emacs variable is named next to each option in
   s   search for words or a regexp
   S   like s, TODO entries only
   n   agenda and all TODOs    #   stuck projects
-  /   multi-occur: a regexp in all agenda files, into the quickfix list
+  /   multi-occur: a regexp in all agenda files and
+      `agenda.text_search_extra_files` (org-agenda-multi-occur-extra-files),
+      into the quickfix list
   <   restrict to the current file / subtree (press again to cycle)
   >   remove the restriction and the restriction lock
   e   export the agenda views of custom commands (|org-agenda-export|)
@@ -1148,7 +1150,10 @@ Other keys in org buffers:
 
 With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
 agenda is empty, like in Emacs, until files are added with <C-c>[ or the
-option is set.
+option is set. A listed file that does not exist is asked about when an
+agenda is built: `r` removes it from the list (for the session), any
+other key aborts (org-check-agenda-file); `agenda.skip_unavailable_files
+= true` skips such files silently (org-agenda-skip-unavailable-files).
 
 Agenda contents                                          *org-agenda-contents*
 

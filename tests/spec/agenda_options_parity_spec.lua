@@ -549,3 +549,80 @@ describe("Visual-mode commands on several entries", function()
     eq("* DONE B", src[3])
   end)
 end)
+
+describe("missing agenda files", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  local function write_fresh(lines)
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    utils.writefile(path, lines)
+  end
+
+  -- org-check-agenda-file (Emacs 9.8.10): "Non-existent agenda file %s.
+  -- [R]emove from list or [A]bort?"; r removes it, anything else aborts.
+  it("asks to remove a missing file, or aborts", function()
+    write_fresh({ "* TODO A" })
+    local missing = dir .. "/missing.org"
+    config.setup({ agenda_files = { path, missing } })
+    local prompts = {}
+    local getchar = utils.getchar
+    utils.getchar = function(p)
+      prompts[#prompts + 1] = p
+      return "a"
+    end
+    local ok2, err = pcall(function()
+      agenda.open({ type = "todo" })
+      ok(not (view.state.buf and vim.api.nvim_get_current_buf() == view.state.buf and view.state.view))
+      utils.getchar = function(p)
+        prompts[#prompts + 1] = p
+        return "r"
+      end
+      agenda.open({ type = "todo" })
+    end)
+    utils.getchar = getchar
+    assert(ok2, err)
+    local short = vim.fn.fnamemodify(missing, ":~")
+    eq(string.format("Non-existent agenda file %s.  [R]emove from list or [A]bort?", short), prompts[1])
+    eq({ path }, config.opts.agenda_files)
+    eq({ "  skip:       TODO A" }, item_lines())
+    require("org.files").removed = {}
+  end)
+
+  it("skip_unavailable_files skips them silently", function()
+    write_fresh({ "* TODO A" })
+    config.setup({ agenda_files = { path, dir .. "/missing.org" }, agenda = { skip_unavailable_files = true } })
+    local getchar = utils.getchar
+    local asked = false
+    utils.getchar = function()
+      asked = true
+    end
+    agenda.open({ type = "todo" })
+    utils.getchar = getchar
+    ok(not asked)
+    eq({ "  skip:       TODO A" }, item_lines())
+  end)
+end)
+
+describe("occur in agenda files", function()
+  it("also searches text_search_extra_files (org-agenda-multi-occur-extra-files)", function()
+    local extra = dir .. "/notes.org"
+    utils.writefile(extra, { "* Notes", "needle here" })
+    local b = utils.find_buffer(path)
+    if b then
+      vim.api.nvim_buf_delete(b, { force = true })
+    end
+    utils.writefile(path, { "* needle in agenda" })
+    config.setup({ agenda_files = { path }, agenda = { text_search_extra_files = { extra } } })
+    local quiet = utils.notify
+    utils.notify = function() end
+    local n = agenda.occur("needle")
+    utils.notify = quiet
+    pcall(vim.cmd, "cclose")
+    eq(2, n)
+  end)
+end)

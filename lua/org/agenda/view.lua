@@ -335,6 +335,43 @@ local function clocking_pred()
   end
 end
 
+--- Add the files of `extra` (org-agenda-text-search-extra-files: paths
+--- or globs, "agenda-archives" for the archive files of `list`) to the
+--- file list `list`, skipping files already there.
+function M.add_extra_files(list, extra)
+  local seen = {}
+  for _, f in ipairs(list) do
+    seen[f.filename or ""] = true
+  end
+  local with_archives = false
+  local rest = {}
+  for _, e in ipairs(extra or {}) do
+    if e == "agenda-archives" then
+      with_archives = true
+    else
+      rest[#rest + 1] = e
+    end
+  end
+  if with_archives then
+    for _, f in ipairs(M.archive_files(list)) do
+      if not seen[f.filename or ""] then
+        seen[f.filename or ""] = true
+        list[#list + 1] = f
+      end
+    end
+  end
+  if #rest > 0 then
+    for _, p in ipairs(utils.glob_org_files(rest)) do
+      local f = files.get(p)
+      if f and not seen[f.filename or ""] then
+        seen[f.filename or ""] = true
+        list[#list + 1] = f
+      end
+    end
+  end
+  return list
+end
+
 --- Files for a block, honoring restriction and per-block `files`.
 local function files_for_block(block)
   if S.restrict then
@@ -360,37 +397,7 @@ local function files_for_block(block)
   end
   -- org-agenda-text-search-extra-files for the search view
   if block.type == "search" then
-    local extra = block.text_search_extra_files or config.opts.agenda.text_search_extra_files or {}
-    local seen = {}
-    for _, f in ipairs(list) do
-      seen[f.filename or ""] = true
-    end
-    local with_archives = false
-    local rest = {}
-    for _, e in ipairs(extra) do
-      if e == "agenda-archives" then
-        with_archives = true
-      else
-        rest[#rest + 1] = e
-      end
-    end
-    if with_archives then
-      for _, f in ipairs(M.archive_files(list)) do
-        if not seen[f.filename or ""] then
-          seen[f.filename or ""] = true
-          list[#list + 1] = f
-        end
-      end
-    end
-    if #rest > 0 then
-      for _, p in ipairs(utils.glob_org_files(rest)) do
-        local f = files.get(p)
-        if f and not seen[f.filename or ""] then
-          seen[f.filename or ""] = true
-          list[#list + 1] = f
-        end
-      end
-    end
+    M.add_extra_files(list, block.text_search_extra_files or config.opts.agenda.text_search_extra_files)
   end
   return list
 end

@@ -338,7 +338,10 @@ function M.occur(pattern)
     return 0
   end
   local qf = {}
-  for _, f in ipairs(require("org.files").agenda_files()) do
+  -- with agenda.text_search_extra_files (org-agenda-multi-occur-extra-files)
+  local list = require("org.files").agenda_files()
+  list = view_mod().add_extra_files(list, config.opts.agenda.text_search_extra_files)
+  for _, f in ipairs(list) do
     for i, line in ipairs(f.lines) do
       local s = re:match_str(line)
       if s then
@@ -353,6 +356,42 @@ function M.occur(pattern)
     vim.cmd("copen")
   end
   return #qf
+end
+
+--- Ask about agenda files that do not exist (org-check-agenda-file):
+--- [R]emove from the list (for this session) or [A]bort. With
+--- `agenda.skip_unavailable_files` they are skipped silently. Globs and
+--- directories are never missing. Returns false on abort.
+function M.check_agenda_files()
+  local cfg = config.opts
+  if cfg.agenda.skip_unavailable_files then
+    return true
+  end
+  local list = cfg.agenda_files
+  if type(list) ~= "table" then
+    return true
+  end
+  local files = require("org.files")
+  for i = #list, 1, -1 do
+    local p = list[i]
+    if type(p) == "string" and not p:find("[%*%?%[]") then
+      local path = vim.fs.normalize(utils.expand(p))
+      if not files.removed[path] and not vim.uv.fs_stat(path) then
+        local ch = utils.getchar(
+          string.format("Non-existent agenda file %s.  [R]emove from list or [A]bort?", vim.fn.fnamemodify(path, ":~"))
+        )
+        if ch and ch:lower() == "r" then
+          table.remove(list, i)
+          files.removed[path] = true
+          utils.notify("Removed from Org Agenda list: " .. vim.fn.fnamemodify(path, ":~"))
+        else
+          utils.error("Abort")
+          return false
+        end
+      end
+    end
+  end
+  return true
 end
 
 --- Open a view: `{ blocks = {...} }` or a single block `{ type = ... }`.
@@ -389,6 +428,9 @@ function M.open(spec, opts)
       return M.sparse_command(nb)
     end
     view.blocks[#view.blocks + 1] = nb
+  end
+  if not opts.restrict and not M.check_agenda_files() then
+    return
   end
   view_mod().open(view, opts)
 end

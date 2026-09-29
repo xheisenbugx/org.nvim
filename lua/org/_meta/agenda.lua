@@ -312,6 +312,9 @@
 ---More files for the search view; "agenda-archives" adds the archive files
 ---(org-agenda-text-search-extra-files). (default: `{}`)
 ---@field text_search_extra_files? string[]
+---Skip agenda files that do not exist instead of asking to remove them
+---(org-agenda-skip-unavailable-files). (default: `false`)
+---@field skip_unavailable_files? boolean
 ---Every search query is boolean (org-agenda-search-view-always-boolean). (default: `false`)
 ---@field search_view_always_boolean? boolean
 ---Search words match whole words (org-agenda-search-view-force-full-words). (default: `false`)

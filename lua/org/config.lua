@@ -632,6 +632,9 @@ M.defaults = {
     --- Extra files for the search view; "agenda-archives" adds the archive
     --- files (org-agenda-text-search-extra-files).
     text_search_extra_files = {},
+    --- Skip agenda files that do not exist instead of asking to remove
+    --- them (org-agenda-skip-unavailable-files).
+    skip_unavailable_files = false,
     search_view_always_boolean = false, -- org-agenda-search-view-always-boolean
     search_view_force_full_words = false, -- org-agenda-search-view-force-full-words
     search_view_max_outline_level = 0, -- org-agenda-search-view-max-outline-level
