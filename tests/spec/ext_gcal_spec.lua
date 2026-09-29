@@ -473,6 +473,17 @@ describe("gcal extension", function()
       ok(cfg:find('header = "Authorization: Bearer tok"', 1, true), cfg)
       ok(cfg:find('data-raw = "a \\"quoted\\"\\nbody"', 1, true), cfg)
       ok(cfg:find('request = "POST"', 1, true), cfg)
+      -- the real transport puts only the config on stdin, not in argv
+      local saved_system, argv, stdin = vim.system, nil, nil
+      vim.system = function(cmd, o)
+        argv, stdin = cmd, o.stdin
+        return {}
+      end
+      gcal._request = saved_request
+      gcal._request({ method = "GET", url = "https://example.com/y", headers = { Authorization = "Bearer tok-xyz" } })
+      vim.system = saved_system
+      eq({ "curl", "--config", "-" }, argv)
+      ok(stdin:find("Bearer tok-xyz", 1, true), stdin)
     end)
   end)
 
@@ -555,6 +566,57 @@ describe("gcal extension", function()
       ok(has_line(lines, "^%* Event b$"))
       ok(has_line(lines, "^:entry%-id: b/cal@example%.com$"))
       eq("sync-1", oauth.load(gcal.opts()).sync_tokens[CAL].token)
+    end)
+
+    it("fails cleanly on network errors, bad JSON and a failing later page", function()
+      local path = tmp .. "/cal.org"
+      vim.fn.writefile({ "* Mine", "text" }, path)
+      local cases = {
+        -- the transport fails (curl error)
+        function(_, cb)
+          cb(nil, "curl failed: (6) Could not resolve host: www.googleapis.com")
+        end,
+        -- a 200 whose body isn't JSON
+        function(_, cb)
+          cb({ status = 200, body = "<html>proxy error</html>" })
+        end,
+        -- the first page is fine, the second fails
+        function(req, cb)
+          if query_of(req.url).pageToken then
+            cb({ status = 500, body = vim.json.encode({ error = { message = "Backend Error" } }) })
+          else
+            cb({ status = 200, body = vim.json.encode({ items = { ev("a") }, nextPageToken = "p2" }) })
+          end
+        end,
+      }
+      local want = { "Could not resolve host", "HTTP 200: <html>proxy error", "HTTP 500: Backend Error" }
+      for i, handler in ipairs(cases) do
+        gcal._request = function(req, cb)
+          requests[#requests + 1] = req
+          handler(req, cb)
+        end
+        local okx, err = run(function()
+          return sync.run({ push = false })
+        end)
+        eq(false, okx)
+        ok(tostring(err):find(want[i], 1, true), err)
+        eq({ "* Mine", "text" }, read(path))
+        eq(nil, oauth.load(gcal.opts()).sync_tokens[CAL])
+      end
+      -- the action reports it as a message, not a stack trace
+      local msgs = {}
+      local saved = vim.notify
+      vim.notify = function(m)
+        msgs[#msgs + 1] = m
+      end
+      require("org.actions").run("gcal_fetch")
+      vim.wait(1000, function()
+        return #msgs > 0
+      end, 5)
+      vim.notify = saved
+      eq(1, #msgs)
+      ok(msgs[1]:find("^org gcal: " .. vim.pesc(CAL) .. ": HTTP 500"), msgs[1])
+      ok(not msgs[1]:find("traceback"), msgs[1])
     end)
 
     it("syncs incrementally, updating entries in place and keeping the user's text", function()
@@ -754,6 +816,98 @@ describe("gcal extension", function()
       local lines = read(tmp .. "/cal.org")
       eq("* Server title", lines[1])
       ok(has_line(lines, '"etag%-a"'))
+    end)
+
+    it("writes the server's version to the entry when lines were added above it meanwhile", function()
+      local buf = open({
+        "* Old a",
+        ":PROPERTIES:",
+        ":entry-id: a/" .. CAL,
+        ":END:",
+        "* Old b",
+        ":PROPERTIES:",
+        ":entry-id: b/" .. CAL,
+        ":END:",
+      })
+      route("GET", "/events/a$", function()
+        -- the user types above the entries while the request runs
+        vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "* Typed meanwhile", "note" })
+        return 200, ev("a", { summary = "New a" })
+      end)
+      route("GET", "/events/b$", function()
+        return 200, ev("b", { summary = "New b" })
+      end)
+      local okx, err = run(function()
+        return sync.buffer(buf, { push = false })
+      end)
+      ok(okx, err)
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      eq("* Typed meanwhile", lines[1])
+      eq("note", lines[2])
+      eq("* New a", lines[3])
+      local heads = vim.tbl_filter(function(l)
+        return l:match("^%* ")
+      end, lines)
+      eq({ "* Typed meanwhile", "* New a", "* New b" }, heads)
+    end)
+
+    it("doesn't write to another entry when the posted one was deleted meanwhile", function()
+      local buf = open({
+        "* Mine",
+        ":PROPERTIES:",
+        ':ETag:     "e1"',
+        ":calendar-id: " .. CAL,
+        ":entry-id: a/" .. CAL,
+        ":org-gcal-managed: org",
+        ":END:",
+        ":org-gcal:",
+        "<2026-09-28 Mon 10:00-11:00>",
+        ":END:",
+        "* Other",
+        "body",
+      })
+      route("PATCH", "/events/a$", function()
+        vim.api.nvim_buf_set_lines(buf, 0, 10, false, {})
+        return 200, ev("a", { summary = "Mine" })
+      end)
+      local okx, err = run(function()
+        return sync.post({ bufnr = buf, lnum = 1 })
+      end)
+      eq(false, okx)
+      ok(tostring(err):find("deleted"), err)
+      eq({ "* Other", "body" }, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+    end)
+
+    it("says so when a sync overwrites an entry after a 412", function()
+      open({
+        "* Mine",
+        ":PROPERTIES:",
+        ':ETag:     "stale"',
+        ":calendar-id: " .. CAL,
+        ":entry-id: a/" .. CAL,
+        ":org-gcal-managed: org",
+        ":END:",
+        ":org-gcal:",
+        "<2026-09-28 Mon 10:00-11:00>",
+        ":END:",
+      })
+      route("PATCH", "/events/a$", function()
+        return 412, { error = { message = "Precondition Failed" } }
+      end)
+      route("GET", "/events/a$", function()
+        return 200, ev("a", { summary = "Server title" })
+      end)
+      local msgs = {}
+      local saved = vim.notify
+      vim.notify = function(m)
+        msgs[#msgs + 1] = m
+      end
+      local okx, err = run(function()
+        return sync.buffer(0, { push = true })
+      end)
+      vim.notify = saved
+      ok(okx, err)
+      ok(has_line(msgs, "changed on Google Calendar"), vim.inspect(msgs))
     end)
 
     it("reports an entry without a timestamp", function()

@@ -61,20 +61,45 @@ function M.entries(bufnr)
   return out
 end
 
---- Mark a line so it can be found after edits and awaits.
+--- Mark a line so it can be found after edits and awaits. The mark is
+--- invalidated when its line is deleted (it would otherwise move onto the
+--- next entry).
 local function mark(bufnr, lnum)
-  return vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, 0, {})
+  return vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, 0, { invalidate = true })
 end
 
+--- The line of a mark, or nil when its line was deleted.
 local function marked_line(bufnr, id)
-  local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, id, {})
-  return pos[1] and pos[1] + 1 or nil
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return nil
+  end
+  local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, id, { details = true })
+  if not pos[1] or (pos[3] and pos[3].invalid) then
+    return nil
+  end
+  return pos[1] + 1
 end
 
 local function unmark(bufnr, id)
   local l = marked_line(bufnr, id)
   pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, id)
   return l
+end
+
+--- The headline line of a marked entry after an await: where the mark is
+--- when a headline still starts there, else the entry with `entry_id` (its
+--- headline line may have been replaced), else nil (the entry was deleted).
+local function marked_entry(bufnr, id, entry_id)
+  local l = marked_line(bufnr, id)
+  if l then
+    local hl = headline(bufnr, l)
+    if hl and hl.line == l then
+      return l
+    end
+  end
+  if entry_id and vim.api.nvim_buf_is_valid(bufnr) then
+    return M.entries(bufnr)[entry_id]
+  end
 end
 
 --- Where entries are looked for: fetch files, agenda files and loaded org
@@ -436,9 +461,16 @@ end
 --- Replace the entry with the server's version (after a 412, or when an
 --- entry managed by Google is not pushed).
 local function take_server_version(bufnr, lnum, cal, event_id)
+  local id = mark(bufnr, lnum)
   local resp, err = gcal().api({ url = gcal().events_url(cal, event_id) })
+  -- the buffer may have changed while waiting
+  lnum = marked_entry(bufnr, id, event.entry_id(cal, event_id))
+  pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, id)
   if not resp then
     return false, err
+  end
+  if not lnum then
+    return false, "the entry was deleted while it was being updated"
   end
   if (resp.status == 404 or resp.status == 410) or (resp.json and resp.json.status == "cancelled") then
     return true, nil, cancel_entry(bufnr, lnum)
@@ -523,7 +555,7 @@ function M.post(target, o)
     req = { method = "POST", url = gcal().events_url(cal), json = body }
   end
   local resp, rerr = gcal().api(req)
-  lnum = marked_line(bufnr, id)
+  lnum = marked_entry(bufnr, id, entry.event_id and event.entry_id(cal, entry.event_id))
   if not resp then
     return done(false, rerr)
   end
@@ -532,8 +564,15 @@ function M.post(target, o)
   end
   if resp.status == 412 and entry.event_id then
     local ok, e = take_server_version(bufnr, lnum, cal, entry.event_id)
-    if ok and not o.quiet then
-      gcal().notify("the event changed on Google Calendar: the entry was updated from it, local changes were not sent")
+    if ok then
+      -- even in a sync: the entry's local changes are lost (org-gcal)
+      gcal().notify(
+        string.format(
+          "%s: the event changed on Google Calendar: the entry was updated from it, local changes were not sent",
+          entry.title
+        ),
+        vim.log.levels.WARN
+      )
     end
     return done(ok, e, "updated")
   end
@@ -583,7 +622,8 @@ function M.delete(target, force)
     url = gcal().events_url(cal, event_id),
     headers = etag and { ["If-Match"] = etag } or nil,
   })
-  lnum = unmark(bufnr, id)
+  lnum = marked_entry(bufnr, id, prop(hl, n.entry_id))
+  pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, id)
   local failed
   if not resp then
     failed = err

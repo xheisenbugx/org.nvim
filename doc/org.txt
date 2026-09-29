@@ -6942,6 +6942,8 @@ Differences from Emacs:
 - Customize (|org-customize|) lists lua/org/config.lua's options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
+- The Google Calendar extension (|org-extensions-gcal|) lists its own
+  differences from Emacs org-gcal.
 
 ==============================================================================
 33. EXTENSIONS                                               *org-extensions*
@@ -7094,8 +7096,9 @@ time the event lasts `default_duration` minutes, or the entry's Effort when
 longer. An entry without `entry-id` becomes a new event in its
 `calendar-id`, the calendar whose file it is in, or one you pick. When the
 event changed on the server since the entry's `ETag`, the post is refused
-(412) and the entry is updated from the server instead. An entry that uses
-SCHEDULED keeps its time there.
+(412) and the entry is updated from the server instead, with a warning
+(also during `gcal_sync`), since the entry's local changes are lost. An
+entry that uses SCHEDULED keeps its time there.
 
 `org-gcal-managed` says which side wins: `gcal` entries are overwritten
 from Google, `org` entries are posted to it by `gcal_sync`. Posting a `gcal`
@@ -7165,6 +7168,12 @@ Differences from Emacs org-gcal ~
   - Recurrence rules are sent from org repeaters (org-gcal can't post
     them); other rules are kept as fetched.
   - `time_zone = "event"` and the `TIMEZONE` property are org.nvim's.
+  - `auto_archive` is off by default (org-gcal-auto-archive is on), so a
+    fetch doesn't move entries to the archive unless asked.
+  - The files a command changed are saved when it ends (org-gcal leaves
+    the buffers modified); unsaved edits in those buffers are saved too.
+  - Tokens are kept in `token_file`, a JSON file readable only by you,
+    rather than in org-gcal's oauth2-auto plstore.
   - Not supported: `org-gcal-logo-file`, `org-gcal-toggle-debug`, capture
     and refile hooks (`org-gcal--capture-post`, `org-gcal--refile-post`).
 
