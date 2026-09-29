@@ -406,13 +406,14 @@ function M.check_agenda_files()
     local p = list[i]
     if type(p) == "string" and not p:find("[%*%?%[]") then
       local path = vim.fs.normalize(utils.expand(p))
-      if not files.removed[path] and not vim.uv.fs_stat(path) then
+      if not vim.uv.fs_stat(path) then
         local ch = utils.getchar(
           string.format("Non-existent agenda file %s.  [R]emove from list or [A]bort?", vim.fn.fnamemodify(path, ":~"))
         )
         if ch and ch:lower() == "r" then
+          -- org-remove-file: the new list is saved (org-store-new-agenda-file-list)
           table.remove(list, i)
-          files.removed[path] = true
+          files.store_agenda_file_list(list)
           utils.notify("Removed from Org Agenda list: " .. vim.fn.fnamemodify(path, ":~"))
         else
           utils.error("Abort")

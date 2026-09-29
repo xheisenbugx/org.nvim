@@ -481,6 +481,27 @@ M.defaults = {
   --- with the headline (or list item) and its lines:
   --- `{ by_length = function(h, lines) return #lines end }`.
   sort_functions = {},
+  --- Names of the bookmarks capture and refile set, saved across sessions
+  --- (org-bookmark-names-plist); false for none.
+  bookmark_names = {
+    last_capture = "org-capture-last-stored",
+    last_refile = "org-refile-last-stored",
+    last_capture_marker = "org-capture-last-stored-marker",
+  },
+  --- buffer_goto (org-goto-interface): "outline" (browse a copy of the
+  --- buffer in overview, <CR> jumps) or "outline-path-completion".
+  goto_interface = "outline",
+  --- Deepest headlines offered by the completion interface of buffer_goto
+  --- (org-goto-max-level).
+  goto_max_level = 5,
+  --- In the outline interface, typing searches the headlines
+  --- (org-goto-auto-isearch); else n p f b u move and q quits.
+  goto_auto_isearch = true,
+  --- How sorting compares text (org-sort-function): "collate" (the
+  --- collation locale, like string-collate-lessp), "fallback" (character
+  --- codes, org-sort-function-fallback) or function(a, b, ignore_case).
+  --- On macOS "collate" compares character codes, like Emacs there.
+  sort_function = "collate",
   --- TAB on a list item folds its children and text
   --- (org-cycle-include-plain-lists); "integrate" also treats items as
   --- children of their headline when cycling it; false never folds items.
@@ -562,6 +583,36 @@ M.defaults = {
   --- searches and clock_display; else C-c C-c does
   --- (org-remove-highlights-with-change).
   remove_highlights_with_change = true,
+  --- `beginning_of_line` / `end_of_line` (C-a / C-e) on headlines and
+  --- items (org-special-ctrl-a/e): false, true (first to the title start /
+  --- before the tags), "reversed" (there on a repeated key), or
+  --- `{ a = ..., e = ... }` per key.
+  special_ctrl_a_e = false,
+  --- `kill_line` (C-k) in a headline title kills up to the tags, on the
+  --- tags the tags (org-special-ctrl-k).
+  special_ctrl_k = false,
+  --- `kill_line` on a folded headline kills its hidden subtree: false
+  --- (allow), true (ask) or "error" (org-ctrl-k-protect-subtree).
+  ctrl_k_protect_subtree = false,
+  --- Setting the org filetype on an empty file that is not named *.org
+  --- inserts the Emacs mode line `#    -*- mode: org -*-`, which makes it
+  --- open as org from then on (org-insert-mode-line-in-empty-file).
+  insert_mode_line_in_empty_file = false,
+  --- <M-CR> and the other heading insertions put the new headline after
+  --- the current subtree, like <C-CR> (org-insert-heading-respect-content).
+  insert_heading_respect_content = false,
+  --- Promoting a level-1 headline turns its `* ` into `# ` (a comment)
+  --- instead of refusing (org-allow-promoting-top-level-subtree).
+  allow_promoting_top_level_subtree = false,
+  --- Keep the Visual selection after <M-h> / <M-l> / <M-k> / <M-j>
+  --- (org-edit-keep-region): true, false, or per command.
+  edit_keep_region = { meta_left = true, meta_right = true, meta_up = true, meta_down = true },
+  --- `p` / `P` of whole subtrees folds them, unless that would hide the
+  --- text after them (org-yank-folded-subtrees).
+  yank_folded_subtrees = true,
+  --- `p` / `P` of whole subtrees adjusts their level to the visible
+  --- headlines around, like paste_subtree (org-yank-adjusted-subtrees).
+  yank_adjusted_subtrees = false,
   --- Single-letter commands at the start of a headline
   --- (org-use-speed-commands). See `:h org-speed-commands`.
   use_speed_commands = false,
@@ -678,6 +729,11 @@ M.defaults = {
   archive_file_header_format = "\nArchived entries from file %s\n\n",
   --- Window used for special buffers: "float" | "split" | "vsplit" | "tab" | "current"
   win_split_mode = "float",
+  --- Where indirect_subtree shows the subtree (org-indirect-buffer-display):
+  --- "other-window" (a split: `win_split_mode` when it is "split", "vsplit"
+  --- or "tab"), "current-window", "new-frame" (a new tab) or
+  --- "dedicated-frame" (one tab, reused).
+  indirect_buffer_display = "other-window",
   win_border = "rounded",
 
   ---------------------------------------------------------------------------
@@ -2656,6 +2712,8 @@ M.defaults = {
       copy_subtree = "<prefix>hy",
       cut_subtree = "<prefix>hd",
       paste_subtree = "<prefix>hp",
+      yank = "p", -- org-yank: folds / adjusts pasted subtrees
+      yank_before = "P",
       clone_subtree = "<prefix>hc",
       sort = "<prefix>hs",
       narrow_subtree = "<prefix>hn",

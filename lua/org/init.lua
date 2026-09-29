@@ -30,6 +30,8 @@ local did_setup = false
 ---@return org the `org` module itself, so calls can be chained
 function M.setup(opts)
   require("org.config").setup(opts)
+  -- the agenda file list saved by agenda_file_to_front / remove_file
+  require("org.files").load_saved_agenda_files()
   did_setup = true
   require("org.commands").setup()
   require("org.mappings").setup_global()

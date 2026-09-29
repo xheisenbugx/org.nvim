@@ -48,6 +48,7 @@ group("Anywhere", {
     "create_for_org",
     desc = "Create an org-protocol project for this file's publishing project",
   },
+  bookmark_jump = { "org.bookmarks", "jump", desc = "Jump to a capture / refile bookmark", global = true },
   store_link = {
     "org.links",
     "store_link",
@@ -60,6 +61,7 @@ group("Anywhere", {
   clock_out = { "org.clock", "clock_out", desc = "Clock out", global = true },
   clock_cancel = { "org.clock", "clock_cancel", desc = "Cancel clock", global = true },
   help = { "org.mappings", "show_help", desc = "Show org keymaps", global = true },
+  version = { "org.version", "show", desc = "Show the org.nvim version (count: insert it)", global = true },
 })
 
 group("Visibility", {
@@ -99,6 +101,14 @@ group("Structure", {
   insert_heading = { "org.structure", "insert_heading", desc = "Insert heading after subtree" },
   insert_todo_heading = { "org.structure", "insert_todo_heading", desc = "Insert TODO heading" },
   insert_subheading = { "org.structure", "insert_subheading", desc = "Insert subheading" },
+  insert_todo_subheading = { "org.structure", "insert_todo_subheading", desc = "Insert TODO subheading" },
+  edit_headline = { "org.structure", "edit_headline", desc = "Edit the headline's title" },
+  convert_to_odd_levels = { "org.structure", "convert_to_odd_levels", desc = "Convert the file to odd levels only" },
+  convert_to_oddeven_levels = {
+    "org.structure",
+    "convert_to_oddeven_levels",
+    desc = "Convert an odd-levels file to odd and even levels",
+  },
   insert_drawer = {
     "org.structure",
     "insert_drawer",
@@ -136,8 +146,22 @@ group("Structure", {
   copy_subtree = { "org.structure", "copy_subtree", desc = "Copy subtree" },
   cut_subtree = { "org.structure", "cut_subtree", desc = "Cut subtree" },
   paste_subtree = { "org.structure", "paste_subtree", desc = "Paste subtree" },
+  yank = { "org.structure", "yank", desc = "Put, folding / adjusting subtrees (org-yank)" },
+  yank_before = { "org.structure", "yank_before", desc = "Put before, folding / adjusting subtrees" },
   clone_subtree = { "org.structure", "clone_subtree", desc = "Clone subtree with time shift" },
   sort = { "org.structure", "sort", desc = "Sort entries / items" },
+  indent_region = {
+    "org.indent",
+    "indent_region_action",
+    desc = "Indent the buffer / selection (org-indent-region)",
+    modes = { "n", "x" },
+  },
+  beginning_of_line = { "org.lineedit", "beginning_of_line", desc = "Start of line / headline title" },
+  end_of_line = { "org.lineedit", "end_of_line", desc = "End of line / before the tags" },
+  kill_line = { "org.lineedit", "kill_line", desc = "Kill to the end of the line / the tags" },
+  indent_block = { "org.indent", "indent_block", desc = "Indent the block at point" },
+  indent_drawer = { "org.indent", "indent_drawer", desc = "Indent the drawer at point" },
+  unindent_buffer = { "org.indent", "unindent_buffer", desc = "Remove the common indentation of elements" },
   narrow_subtree = { "org.structure", "narrow_subtree", desc = "Narrow to subtree (edit buffer)" },
   indirect_subtree = { "org.structure", "tree_to_indirect_buffer", desc = "Subtree in split edit buffer" },
   mark_subtree = { "org.structure", "mark_subtree", desc = "Select subtree", modes = { "n", "x" } },
@@ -198,7 +222,7 @@ group("Navigation & elements", {
   prev_heading = { "org.structure", "prev_heading", desc = "Previous heading", modes = { "n", "x", "o" } },
   next_sibling = { "org.structure", "next_sibling", desc = "Next sibling heading", modes = { "n", "x", "o" } },
   prev_sibling = { "org.structure", "prev_sibling", desc = "Previous sibling heading", modes = { "n", "x", "o" } },
-  buffer_goto = { "org.structure", "goto_heading", desc = "Go to heading in buffer" },
+  buffer_goto = { "org.goto", "goto", desc = "Go to heading in buffer (org-goto)" },
 })
 
 group("TODO, priority, tags & properties", {
@@ -492,6 +516,12 @@ group("Refile, archive & attach", {
     "org.agenda.view",
     "kill_all_agenda_buffers",
     desc = "Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)",
+    global = true,
+  },
+  edit_agenda_file_list = {
+    "org.files",
+    "edit_agenda_file_list",
+    desc = "Edit the list of agenda files",
     global = true,
   },
 })

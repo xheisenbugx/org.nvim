@@ -136,6 +136,9 @@ point closer to many Emacs setups: >lua
 If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
+`:Org version` shows the org.nvim release, its git version and where it is
+installed (org-version); with a count it inserts that at the cursor.
+
 Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
 send the keys org maps:
@@ -191,6 +194,11 @@ stars alone is text, like in Emacs): >org
                 current one has one (`blank_before_new_entry.heading =
                 "auto"`); new items when the items of the list are
                 separated by blank lines (`plain_list_item = "auto"`).
+                With `insert_heading_respect_content` new headlines always
+                go after the current subtree. Every new headline fires
+                the User autocmd `OrgInsertHeading` (org-insert-heading-hook;
+                `data` holds `bufnr` and `lnum`), before M-S-RET adds its
+                TODO keyword.
 <M-S-CR>        Like <M-CR>, but a TODO headline (with the keyword of the
                 current entry, or the first one when it is done or with
                 a count) or an item with an empty checkbox. M-RET never
@@ -204,6 +212,14 @@ stars alone is text, like in Emacs): >org
 <prefix>is      Insert a subheading: a headline below the current line,
                 demoted (org-insert-subheading). In a list: an item,
                 indented.
+:Org insert_todo_subheading  The same with a TODO keyword, or a checkbox
+                item in a list (org-insert-todo-subheading).
+:Org edit_headline  Edit the title of the current headline in a prompt,
+                keeping its keyword, priority and tags (org-edit-headline).
+:Org convert_to_odd_levels  Rewrite the file to odd levels only: level 2
+                becomes 3, 3 becomes 5... (org-convert-to-odd-levels).
+:Org convert_to_oddeven_levels  The reverse (org-convert-to-oddeven-levels);
+                refused when the file has an even level. Both ask first.
 <prefix>id      Insert a drawer at the cursor (Insert mode splits the line,
 <C-c><C-x>d     like Emacs), or around the Visual selection. With a count
                 (C-u), a property drawer.
@@ -231,7 +247,9 @@ stars alone is text, like in Emacs): >org
 <M-H> / <M-L>   (ctx) Promote / demote subtree. In a table: delete / insert
                 column. Elsewhere an error, like Emacs.
 <M-h> / <M-l>   In Visual mode: promote / demote every headline of the
-                selection, or outdent / indent every item.
+                selection, or outdent / indent every item. The selection
+                stays (`edit_keep_region`, org-edit-keep-region), also
+                for <M-k> / <M-j>.
 Promotion keeps the spacing of the headline and realigns its tags. With
 `odd_levels_only` (`#+STARTUP: odd`, org-odd-levels-only) the level changes
 by two.
@@ -268,6 +286,14 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                 other counts: that level. A subtree that was folded when
                 copied is pasted folded. Subtrees are kept in a kill ring
                 and also in the `"` register.
+p / P           Put (org-yank). When the register holds whole subtrees
+                (linewise, starting with a headline, none higher than the
+                first), they are folded (`yank_folded_subtrees`, unless
+                that would hide the text after them) and, with
+                `yank_adjusted_subtrees`, pasted like <prefix>hp at the
+                start of the next line (`p`) or of this line (`P`). A count
+                or other text: Vim's put. The cursor stays on the first
+                put line (Emacs moves after the text).
 <prefix>hc      Clone subtree N times (org-clone-subtree-with-time-shift),
 <C-c><C-x>c     shifting its timestamps by an offset per clone (`+1w`,
                 `-2d`, `+3h`; asked only when it has timestamps, and not
@@ -295,6 +321,9 @@ numbers, bullets of siblings, sub-list indentation, parent checkboxes.
                                                                *org-narrow*
 <prefix>hn      Narrow to subtree: edit it in a separate buffer. `:w` writes
                 back and <C-c>' saves and closes.
+<C-c><C-x>b     The same in another window (org-tree-to-indirect-buffer);
+                `indirect_buffer_display` picks a split, the current
+                window, a new tab each time or one reused tab.
 <prefix>nb      Narrow to the block at the cursor (org-narrow-to-block).
 <prefix>ne      Narrow to the element at the cursor (org-narrow-to-element).
 
@@ -329,7 +358,25 @@ Motions and text objects:                           *org-motions* *org-textobj*
 ]] / [[         Next / previous visible headline.
 ][ / []         Next / previous sibling.
 g{              Parent headline.
-<prefix>.       Pick a headline of the buffer (|vim.ui.select()|).
+<prefix>.       Go to a location in the buffer without changing its folds
+<C-c><C-j>      (org-goto). With `goto_interface = "outline"` (the
+                default) a read-only copy of the buffer opens in overview
+                in a tab of its own:                           *org-goto*
+                  <CR>           jump there
+                  <Left> <Right> on a headline, jump there
+                  <C-g>          back where you were (`q` without
+                                 auto-isearch)
+                  <Tab>          cycle visibility
+                  <Down> <Up>    next / previous visible headline
+                  /              sparse tree for a regexp
+                  <C-c><C-n> <C-p> <C-f> <C-b> <C-u>  headline motions
+                  typing         searches the headline text (a `/`
+                                 search; <CR> ends it, <CR> again jumps)
+                                 with `goto_auto_isearch`; otherwise
+                                 n p f b u move and q quits.
+                With "outline-path-completion": pick a headline by its
+                outline path (|vim.ui.select()|), down to
+                `goto_max_level`. A count uses the other interface.
 ih / ah         Headline section without / with the headline line.
 ir / ar         Subtree without / with the headline line.
 
@@ -350,6 +397,57 @@ the item.
                 (org-transpose-element).
 <C-c><M-f>      Next / previous `#+begin_` block (org-next-block /
 <C-c><M-b>      org-previous-block); a count skips blocks.
+
+                                                         *org-line-edit*
+:Org beginning_of_line  Go to the start of the line (org-beginning-of-line).
+                With `special_ctrl_a_e`, on a headline first to the start
+                of its title (after the TODO keyword and priority), on an
+                item after its bullet and checkbox; again to column 0.
+:Org end_of_line  Go to the end of the line (org-end-of-line); with
+                `special_ctrl_a_e`, on a headline first before its tags.
+:Org kill_line  Kill to the end of the line into the `"` register, or the
+                newline at its end (org-kill-line). On a folded headline
+                that is the whole hidden subtree: `ctrl_k_protect_subtree`
+                asks first or refuses. With `special_ctrl_k`, in a
+                headline's title it kills up to the tags, on the tags the
+                tags.
+These have no default keys; for Emacs-style Insert mode keys: >lua
+    mappings = { org_insert = { beginning_of_line = "<C-a>",
+      end_of_line = "<C-e>", kill_line = "<C-k>" } }
+<
+Indentation and filling                               *org-indent* *org-fill*
+'indentexpr' follows org-indent-line, so `==`, `=` and new lines (`o`, `O`)
+are indented like in Emacs: headlines, footnote definitions and diary sexps
+at column 0; the first line of an element like its previous sibling, else
+like the contents of its parent (after the bullet of an item; at the
+headline level + 1 with `adapt_indentation`); other lines like the line
+above. List items keep their indentation (move them with <M-h> / <M-l>),
+and `=` keeps the contents of example, export and verse blocks. Lines of a
+src block keep their relative indentation at the block's content
+indentation (Emacs asks the language's major mode). <Tab> in body text
+indents the same way (`cycle_emulate_tab`).
+:Org indent_region  Indent the Visual selection, or the buffer, like
+                org-indent-region: lists, example and export blocks move
+                as a whole, node properties are aligned
+                (`property_format`).
+:Org indent_block   Indent the block at the cursor (on its `#+begin` line;
+                org-indent-block).
+:Org indent_drawer  Indent the drawer at the cursor (on its first line;
+                org-indent-drawer).
+:Org unindent_buffer  Remove the common indentation of every element of
+                every section, keeping relative indentation
+                (org-unindent-buffer).
+'formatexpr' follows org-fill-paragraph, so `gq` and `gw` fill paragraphs
+(also in items, drawers, quote blocks and footnote definitions), comments
+and the text of comment blocks, and realign tables. Headlines, keywords,
+planning lines, drawers' markers and other blocks are left alone. Lines are
+filled to 'textwidth' (79 when it is 0; Emacs uses fill-column); items
+continue at their body column; a sentence end at the end of a joined line
+gets two spaces, and lines are not broken after a period followed by one
+space, before text that would start a new element (a bullet, `#`, `|`,
+...), after `\\` or inside a timestamp. `\\` line breaks are kept. On a
+blank line, `gqq` fills the element after it. Typing past 'textwidth'
+(formatoptions `t`) never wraps headlines, keywords, tables or blocks.
 
                                                         *org-inlinetask*
 Inline tasks (the org-inlinetask module, off like in Emacs): with
@@ -1307,7 +1405,18 @@ headline with `agenda.restriction_lock_highlight_subtree = false`,
 org-agenda-restriction-lock-highlight-subtree).
 Other keys in org buffers:
   <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
+                 (org-agenda-file-to-front, org-remove-file); a count
+                 (C-u) adds or moves it to the end instead of the front
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)
+:Org edit_agenda_file_list  edit the list: the list file when
+                 `agenda_files` names one, else a buffer with the list;
+                 `:w` installs it (org-edit-agenda-file-list)
+Like Emacs, these changes are saved: when `agenda_files` is the name of a
+file listing the agenda files, that file is rewritten; otherwise the new
+list (directories and globs expanded to their files) is saved in
+stdpath("data")/org/agenda-files.json and replaces the configured list at
+startup for as long as `agenda_files` in setup() keeps the value it was
+made from (Emacs saves it with Customize).
 
 With the default `agenda_files = {}` (Emacs org-agenda-files nil) the
 agenda is empty, like in Emacs, until files are added with <C-c>[ or the
@@ -2440,6 +2549,13 @@ edit a file at a time.
                           (C-u C-u C-c c)
 :Org capture_string       ask for a string and capture it as the initial
                           text `%i` (org-capture-string)
+:Org bookmark_jump        jump to a bookmark: capture and refile save
+                          the last location as the bookmarks named in
+                          `bookmark_names` (org-bookmark-names-plist:
+                          "org-capture-last-stored",
+                          "org-refile-last-stored"), in
+                          stdpath("data")/org/bookmarks.json, so the
+                          jumps above also work in a later session
 From the agenda, `K` captures with the date at point as the default date
 (with a count of 1, C-1, at the time of the item at point or now). With
 `capture.use_agenda_date`, the global capture key does the same there.
@@ -5356,6 +5472,9 @@ General ~
   default_notes_file        "~/.notes"  capture target without `target`
   win_split_mode            "float"   special buffers: float|split|vsplit|
                                       tab|current
+  indirect_buffer_display   "other-window"  <C-c><C-x>b: "other-window"|
+                                      "current-window"|"new-frame" (tab)|
+                                      "dedicated-frame" (one tab)
   win_border                "rounded"
 TODO and logging ~
   todo_keywords             { "TODO | DONE" }
@@ -5475,7 +5594,7 @@ Buffer ~
   sparse_tree_open_archived_trees  false  sparse trees open :ARCHIVE: trees
   sparse_tree_default_date_type    nil  |org-sparse-tree| date types
   footnote_section          "Footnotes"  heading for definitions, or false
-  adapt_indentation         false
+  adapt_indentation         false     true|false|"headline-data" |org-indent|
   datetree_add_timestamp    false     "active"|"inactive": new date tree
                                       day nodes get their date
   edit_src_content_indentation  2
@@ -5498,6 +5617,16 @@ Structure and visibility ~
   clone_delete_id           false     clones lose their ID (else a new one)
   odd_levels_only           false     promote / demote by two stars
   sort_functions            {}        named key functions for sorting (f)
+  goto_interface            "outline"  |org-goto|: "outline"|
+                                      "outline-path-completion"
+  goto_max_level            5         deepest headlines offered (completion)
+  goto_auto_isearch         true      typing searches the headlines
+  bookmark_names            { last_capture = "org-capture-last-stored",
+                              last_refile = "org-refile-last-stored",
+                              last_capture_marker =
+                                "org-capture-last-stored-marker" }
+  sort_function             "collate"  text order in sorting: "collate"
+                                      (locale)|"fallback" (codes)|function
   structure_template_alist  { a = "export ascii", c = "center", ... }
   tempo                     false     `<s` TAB expansion (org-tempo)
   tempo_keywords            { L = "latex", H = "html", A = "ascii",
@@ -5530,6 +5659,20 @@ Structure and visibility ~
                                       true|false|"smart"
   remove_highlights_with_change  true edits remove sparse-tree and
                                       clock_display highlights
+  special_ctrl_a_e          false     |org-line-edit|: true|"reversed"|
+                                      { a, e }
+  special_ctrl_k            false     kill_line up to the tags
+  ctrl_k_protect_subtree    false     kill_line on a fold: false|true|"error"
+  insert_heading_respect_content  false  <M-CR> inserts after the subtree
+  insert_mode_line_in_empty_file  false  `:setf org` on an empty file
+                                      adds `#    -*- mode: org -*-`
+  allow_promoting_top_level_subtree  false  promoting level 1 makes `# `
+  edit_keep_region          { meta_left = true, meta_right = true,
+                              meta_up = true, meta_down = true }
+                                      keep the Visual selection (or
+                                      true|false)
+  yank_folded_subtrees      true      `p` folds put subtrees
+  yank_adjusted_subtrees    false     `p` adjusts their level
   use_speed_commands        false     |org-speed-commands|
   speed_commands            {}        { key = action | function | false }
   speed_command_hook        { "org-speed-command-activate",
@@ -5982,7 +6125,7 @@ Links, refile, archive, export:
   <C-c><C-M-w>  refile with `refile.reverse_note_order` inverted
   <C-c><C-x>a  ARCHIVE tag   <C-c><C-a>  attachments
   <C-c><C-x>A  archive to the Archive sibling
-  <C-c>[ <C-c>]  add / remove file from agenda files (this session)
+  <C-c>[ <C-c>]  add / remove file from agenda files (saved)
   <C-'> <C-,>  next agenda file   <C-c><C-x>< >  set / remove agenda lock
   <C-c>/  sparse tree        <C-c><C-e>  export     <C-c>'  edit special
   <C-c>\  tags / property match sparse tree
@@ -6296,8 +6439,7 @@ Differences from Emacs:
   into the target right away (|org-capture-unnarrowed|). Mail and news `%:keyword` values (`%:from`,
   `%:subject`, ...) come from Emacs link sources (Gnus, mu4e, ...) that
   have no Neovim counterpart; only `%:link`, `%:description`,
-  `%:annotation`, `%:initial` and `%:type` exist. The last stored location
-  (`org-capture-bookmark`, obsolete in Emacs) lasts for the session only.
+  `%:annotation`, `%:initial` and `%:type` exist.
   The `hook` template function doesn't run for `immediate_finish`. With C-0
   (`:Org capture_here`) Emacs splits the line at point; the Neovim cursor
   sits on a character, so the text goes before the cursor line at column
@@ -6484,6 +6626,18 @@ Differences from Emacs:
     characters are used when they exist, else a highlight.
   - org-list-checkbox-radio-mode is the buffer-local toggle
     `:Org checkbox_radio_mode` (no mode line lighter).
+  - Indentation (|org-indent|): `=` indents line by line with
+    org-indent-line, so a list or an example block is not moved as a
+    whole like org-indent-region (C-M-\) does; `:Org indent_region` does
+    that. Src block code keeps its own relative indentation instead of
+    being indented by the language's major mode (Emacs's
+    org-src-tab-acts-natively).
+  - Filling (|org-fill|): `gq` fills to 'textwidth' rather than
+    fill-column (70); src blocks are not filled (Emacs uses the language's
+    major mode); `gq` over a comment of several paragraphs fills each of
+    them (Emacs's region fill only fills the last one); only whitespace
+    is used as a fill prefix (Emacs also takes `>` and other
+    adaptive-fill-regexp characters).
 - Capture, clock, archive and other commands (parity round 5):
   - The global capture hooks are User autocmds (|org-capture-hooks|); the
     template functions are not called on abort as Emacs does, only the

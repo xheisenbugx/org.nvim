@@ -390,9 +390,10 @@
 ---`false` puts each definition at the end of the reference's section.
 ---(Emacs `org-footnote-section`, default: `"Footnotes"`)
 ---@field footnote_section? string|false
----Indent body text, planning lines and drawers to the headline level.
----(Emacs `org-adapt-indentation`, default: `false`)
----@field adapt_indentation? boolean
+---Indent body text, planning lines and drawers to the headline level;
+---`"headline-data"` indents only planning lines and the property and log
+---drawers. (Emacs `org-adapt-indentation`, default: `false`)
+---@field adapt_indentation? boolean|"headline-data"
 ---New day nodes of date trees get a time stamp of their date.
 ---(Emacs `org-datetree-add-timestamp`, default: `false`)
 ---@field datetree_add_timestamp? false|"active"|"inactive"
@@ -454,6 +455,28 @@
 ---Named key functions for sorting by function (`f`), called with the
 ---headline (or list item) and its lines. (default: `{}`)
 ---@field sort_functions? table<string, fun(entry: any, lines: string[]): any>
+---Names of the bookmarks set by capture (`last_capture`) and refile
+---(`last_refile`), saved across sessions; `false` sets none.
+---(Emacs `org-bookmark-names-plist`)
+---@field bookmark_names? { last_capture?: string|false, last_refile?: string|false, last_capture_marker?: string|false }
+---`buffer_goto` interface: `"outline"` browses a copy of the buffer in
+---overview (<CR> jumps), `"outline-path-completion"` picks a headline by its
+---path. A count uses the other one. (Emacs `org-goto-interface`,
+---default: `"outline"`)
+---@field goto_interface? "outline"|"outline-path-completion"
+---Deepest headlines offered by the completion interface of `buffer_goto`.
+---(Emacs `org-goto-max-level`, default: `5`)
+---@field goto_max_level? integer
+---In the outline interface of `buffer_goto`, typing searches the headlines;
+---when `false`, n p f b u move and q quits. (Emacs `org-goto-auto-isearch`,
+---default: `true`)
+---@field goto_auto_isearch? boolean
+---How sorting (entries, lists, tables, the agenda) compares text:
+---`"collate"` with the collation locale (`:language collate`; character
+---codes on macOS, like Emacs's string-collate-lessp there), `"fallback"`
+---by character code, or `function(a, b, ignore_case)` returning `a < b`.
+---(Emacs `org-sort-function`, default: `"collate"`, string-collate-lessp)
+---@field sort_function? "collate"|"fallback"|fun(a: string, b: string, ignore_case?: boolean): boolean
 ---TAB on a list item folds its children and text; `"integrate"` also
 ---treats list items as children of their headline when cycling it.
 ---(Emacs `org-cycle-include-plain-lists`, default: `true`)
@@ -493,6 +516,40 @@
 ---Changes remove sparse-tree and clock_display highlights.
 ---(Emacs `org-remove-highlights-with-change`, default: `true`)
 ---@field remove_highlights_with_change? boolean
+---`beginning_of_line` / `end_of_line` on headlines and items: `true` goes
+---to the title start / before the tags first, `"reversed"` on a repeated key;
+---`{ a = ..., e = ... }` sets each key. (Emacs `org-special-ctrl-a/e`,
+---default: `false`)
+---@field special_ctrl_a_e? boolean|"reversed"|{ a?: boolean|"reversed", e?: boolean|"reversed" }
+---`kill_line` in a headline kills up to the tags, then the tags.
+---(Emacs `org-special-ctrl-k`, default: `false`)
+---@field special_ctrl_k? boolean
+---`kill_line` on a folded headline: `false` kills the hidden subtree too,
+---`true` asks, `"error"` refuses. (Emacs `org-ctrl-k-protect-subtree`,
+---default: `false`)
+---@field ctrl_k_protect_subtree? boolean|"error"
+---Setting the org filetype on an empty file not named `*.org` inserts the
+---Emacs mode line `#    -*- mode: org -*-`, so it opens as org from then on.
+---(Emacs `org-insert-mode-line-in-empty-file`, default: `false`)
+---@field insert_mode_line_in_empty_file? boolean
+---New headlines from `meta_return` and the other insertions go after the
+---current subtree, like `insert_heading`.
+---(Emacs `org-insert-heading-respect-content`, default: `false`)
+---@field insert_heading_respect_content? boolean
+---Promoting a level-1 headline turns its `* ` into `# ` instead of refusing.
+---(Emacs `org-allow-promoting-top-level-subtree`, default: `false`)
+---@field allow_promoting_top_level_subtree? boolean
+---Keep the Visual selection after `meta_left` / `meta_right` / `meta_up` /
+---`meta_down`: `true`, `false` or per command. (Emacs `org-edit-keep-region`,
+---default: all four `true`)
+---@field edit_keep_region? boolean|{ meta_left?: boolean, meta_right?: boolean, meta_up?: boolean, meta_down?: boolean }
+---`p` / `P` of whole subtrees folds them, unless that would hide the text
+---after them. (Emacs `org-yank-folded-subtrees`, default: `true`)
+---@field yank_folded_subtrees? boolean
+---`p` / `P` of whole subtrees adjusts their level to the visible headlines
+---around, like paste_subtree. (Emacs `org-yank-adjusted-subtrees`,
+---default: `false`)
+---@field yank_adjusted_subtrees? boolean
 ---Single-letter commands typed in Insert mode at the start of a headline,
 ---or a function deciding where they apply.
 ---(Emacs `org-use-speed-commands`, default: `false`)
@@ -610,6 +667,11 @@
 ---Window used for special buffers (src edit, capture, etc.).
 ---(default: `"float"`)
 ---@field win_split_mode? "float"|"split"|"vsplit"|"tab"|"current"
+---Where `indirect_subtree` shows the subtree: `"other-window"` (a split),
+---`"current-window"`, `"new-frame"` (a new tab each time) or
+---`"dedicated-frame"` (one tab, reused; with a count a new one).
+---(Emacs `org-indirect-buffer-display`, default: `"other-window"`)
+---@field indirect_buffer_display? "other-window"|"current-window"|"new-frame"|"dedicated-frame"
 ---Border of floating windows, as accepted by `nvim_open_win()`.
 ---(default: `"rounded"`)
 ---@field win_border? "none"|"single"|"double"|"rounded"|"solid"|"shadow"|string|string[]

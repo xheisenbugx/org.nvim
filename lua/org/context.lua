@@ -378,17 +378,31 @@ end
 
 --- M-left / M-right with a Visual selection: promote / demote its
 --- headlines, or outdent / indent its items (org-metaleft/right).
+--- Whether `command` keeps the Visual selection (org-edit-keep-region).
+function M.keep_region(command)
+  local v = require("org.config").opts.edit_keep_region
+  if type(v) == "table" then
+    return v[command] == true
+  end
+  return v == true
+end
+
 local function meta_left_right_region(delta)
   local first, s, e = region()
   local line = vim.api.nvim_buf_get_lines(0, first - 1, first, false)[1] or ""
+  local result
   if is_headline(line) then
-    return require("org.structure").change_level_region(delta)
-  end
-  if item_line(first) then
+    result = require("org.structure").change_level_region(delta)
+  elseif item_line(first) then
     vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-    return require("org.lists").indent_item(delta, false, { s, e })
+    result = require("org.lists").indent_item(delta, false, { s, e })
+  else
+    return false
   end
-  return false
+  if result ~= false and M.keep_region(delta < 0 and "meta_left" or "meta_right") then
+    vim.cmd("normal! gv")
+  end
+  return result
 end
 
 function M.meta_left()

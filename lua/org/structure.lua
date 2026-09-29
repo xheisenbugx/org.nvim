@@ -73,12 +73,53 @@ local function in_visual()
 end
 
 --- Rewrite headline lines in `lines` with level delta, realigning tags and
---- shifting body indentation when `adapt_indentation` is on.
+--- fixing the indentation when `adapt_indentation` is on, like
+--- org-fixup-indentation: the planning line and property drawer right after
+--- a headline are indented to its new level (properties aligned), the
+--- LOGBOOK drawer and, unless it is "headline-data", the other lines are
+--- shifted by the level change.
 local function relevel(lines, delta, todo_cfg)
   local adapt = require("org.ui.decorations").adapt_indentation(0)
+  -- headline data: i -> "planning" | "properties" | "log", with the level
+  local data, data_level = {}, {}
+  if adapt then
+    for h, l in ipairs(lines) do
+      local level = parser.headline_level(l)
+      if level then
+        local j = h + 1
+        local nxt = lines[j] or ""
+        if nxt:match("^%s*SCHEDULED:") or nxt:match("^%s*DEADLINE:") or nxt:match("^%s*CLOSED:") then
+          data[j], data_level[j] = "planning", level
+          j = j + 1
+        end
+        for _, name in ipairs({ "PROPERTIES", "LOGBOOK" }) do
+          if (lines[j] or ""):upper():match("^%s*:" .. name .. ":%s*$") then
+            local k = j
+            while lines[k] and not lines[k]:upper():match("^%s*:END:%s*$") do
+              k = k + 1
+            end
+            if lines[k] then
+              for m = j, k do
+                data[m], data_level[m] = name == "PROPERTIES" and "properties" or "log", level
+              end
+              j = k + 1
+            end
+          end
+        end
+      end
+    end
+  end
+  local function shift(l)
+    if delta > 0 then
+      return string.rep(" ", delta) .. l
+    end
+    local n = math.min(-delta, #l:match("^(%s*)"))
+    return l:sub(n + 1)
+  end
   local out = {}
   for i, l in ipairs(lines) do
     local p = parser.parse_headline_line(l, todo_cfg)
+    local kind = data[i]
     if p then
       -- like org-promote / org-demote: change the stars, realign the tags
       out[i] = string.rep("*", math.max(1, p.level + delta)) .. l:sub(#l:match("^%*+") + 1)
@@ -88,13 +129,19 @@ local function relevel(lines, delta, todo_cfg)
           out[i] = edit.with_tags(out[i]:sub(1, s - 1), p.tags)
         end
       end
-    elseif adapt and not is_blank(l) and not l:match("^#%+") then
-      if delta > 0 then
-        out[i] = string.rep(" ", delta) .. l
+    elseif kind == "planning" or kind == "properties" then
+      local ind = string.rep(" ", math.max(1, data_level[i] + delta) + 1)
+      local key, value = l:match("^%s*:([^%s:]+%+?):%s*(.-)%s*$")
+      if kind == "properties" and key and key:upper() ~= "PROPERTIES" and key:upper() ~= "END" then
+        local fmt = config.opts.property_format or "%-10s %s"
+        out[i] = ind .. vim.trim(string.format(fmt, ":" .. key .. ":", value))
       else
-        local n = math.min(-delta, #l:match("^(%s*)"))
-        out[i] = l:sub(n + 1)
+        out[i] = ind .. vim.trim(l)
       end
+    elseif kind == "log" then
+      out[i] = is_blank(l) and l or shift(l)
+    elseif adapt and adapt ~= "headline-data" and not is_blank(l) and not l:match("^#%+") then
+      out[i] = shift(l)
     else
       out[i] = l
     end
@@ -285,7 +332,8 @@ local function title_range(line, todo_cfg)
   end
   local e
   local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
-  if tags_s and tags_s >= s then
+  -- with no title, the tags follow the keyword's separating space
+  if tags_s and tags_s >= s - 1 then
     e = tags_s
   else
     e = line:find("[ \t]*$")
@@ -334,7 +382,8 @@ function M.insert_heading_at_point(opts)
   local function prev_line_empty()
     return tb:line_empty_p(-1)
   end
-  if opts.respect_content or arg == 4 or arg == 16 or opts.invisible then
+  local respect = opts.respect_content or config.opts.insert_heading_respect_content
+  if respect or arg == 4 or arg == 16 or opts.invisible then
     if not current_level then
       tb_next_heading(tb)
     else
@@ -431,6 +480,12 @@ function M.insert_heading_at_point(opts)
     maybe_add_blank_after()
   end
   tb:apply()
+  -- org-insert-heading-hook
+  pcall(vim.api.nvim_exec_autocmds, "User", {
+    pattern = "OrgInsertHeading",
+    data = { bufnr = bufnr, lnum = cursor()[1] },
+    modeline = false,
+  })
 end
 
 --- The TODO keyword of a new TODO heading (org-insert-todo-heading): the
@@ -559,6 +614,128 @@ function M.insert_subheading()
     vim.api.nvim_win_set_cursor(0, { row, #l + #add })
   end
   start_insert()
+end
+
+--- org-insert-todo-subheading: insert a TODO heading like M-S-RET (at the
+--- end of the line) and demote it; on a list item, insert a checkbox item
+--- and indent it. A count is the C-u prefix of org-insert-todo-heading.
+function M.insert_todo_subheading()
+  local lnum = cursor()[1]
+  local lists = require("org.lists")
+  local line = vim.api.nvim_get_current_line()
+  local c = vim.v.count
+  if not parser.headline_level(line) and lists.item_at(0, lnum) then
+    lists.new_item({ checkbox = true, pos = { lnum, #line }, split = false })
+    lists.indent_item(1, false)
+  else
+    M.meta_return_heading({
+      todo = true,
+      arg = c > 0 and (c >= 16 and 16 or 4) or nil,
+      pos = { lnum, #line },
+      split = false,
+    })
+    local row = cursor()[1]
+    local l = get_lines(0, row, row)[1]
+    local add = string.rep("*", M.level_increment())
+    set_lines(0, row, row, { add .. l })
+    vim.api.nvim_win_set_cursor(0, { row, #l + #add })
+  end
+  start_insert()
+end
+
+--- org-edit-headline: edit the title of the current headline (keeping its
+--- TODO keyword, priority and tags) in a prompt, or set it to `heading`.
+---@param heading? string
+function M.edit_headline(heading)
+  local bufnr = buf()
+  local hl, file = current_headline()
+  if not hl then
+    utils.warn("Before first headline")
+    return
+  end
+  local todo_cfg = file.settings.todo
+  local line = get_lines(bufnr, hl.line, hl.line)[1]
+  local ts, te = title_range(line, todo_cfg)
+  local old = ts and line:sub(ts, te - 1) or nil
+  local new = heading
+  if new == nil then
+    new = utils.input({ prompt = "Edit: ", default = old or "" })
+    if new == nil then
+      return
+    end
+  end
+  new = vim.trim(new)
+  if new == old or (old == nil and new == "") then
+    return
+  end
+  if old then
+    line = line:sub(1, ts - 1) .. new .. line:sub(te)
+  else
+    -- after the stars, TODO keyword and priority, before the tags
+    local tags_s = line:find("[ \t]+:[%w_@#%%:]+:[ \t]*$")
+    local before = (tags_s and line:sub(1, tags_s - 1) or line):gsub("[ \t]+$", "")
+    line = before .. " " .. new .. (tags_s and line:sub(tags_s) or "")
+  end
+  line = edit.align_tags_line(line, todo_cfg):gsub("[ \t]+$", "")
+  set_lines(bufnr, hl.line, hl.line, { line })
+end
+
+--- Relevel every headline of the buffer to `new_level(level)`, like
+--- org-demote / org-promote on each of them.
+local function relevel_buffer(new_level)
+  local bufnr = buf()
+  local file = files.get_buffer(bufnr)
+  local todo_cfg = file.settings.todo
+  local pos = cursor()
+  for i = #file.headlines, 1, -1 do
+    local hl = file.headlines[i]
+    local delta = new_level(hl.level) - hl.level
+    if delta ~= 0 then
+      local lines = get_lines(bufnr, hl.line, hl.body_end)
+      local new = relevel(lines, delta, todo_cfg)
+      for j = 2, #new do
+        if parser.headline_level(lines[j]) then
+          new[j] = lines[j]
+        end
+      end
+      set_lines(bufnr, hl.line, hl.body_end, new)
+    end
+  end
+  local l = get_lines(bufnr, pos[1], pos[1])[1] or ""
+  vim.api.nvim_win_set_cursor(0, { pos[1], math.min(pos[2], math.max(#l - 1, 0)) })
+end
+
+--- org-convert-to-odd-levels: level 2 becomes 3, 3 becomes 5, ... (after
+--- confirmation).
+function M.convert_to_odd_levels()
+  if not utils.confirm("Are you sure you want to globally change levels to odd? ") then
+    return
+  end
+  relevel_buffer(function(level)
+    return 2 * level - 1
+  end)
+end
+
+--- org-convert-to-oddeven-levels: level 3 becomes 2, 5 becomes 3, ...
+--- Refused when the file has a headline of even level.
+function M.convert_to_oddeven_levels()
+  local file = files.get_buffer(buf())
+  for _, hl in ipairs(file.headlines) do
+    if hl.level % 2 == 0 then
+      vim.api.nvim_win_set_cursor(0, { hl.line, 0 })
+      pcall(vim.cmd, "normal! zv")
+      utils.error("Not all levels are odd in this file.  Conversion not possible")
+      return
+    end
+  end
+  if not utils.confirm("Are you sure you want to globally change levels to odd-even? ") then
+    return
+  end
+  relevel_buffer(function(level)
+    return (level + 1) / 2
+  end)
+  -- like Emacs, which searched for even levels from the start
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
 end
 
 ---------------------------------------------------------------------------
@@ -821,6 +998,17 @@ local function change_level(hl, file, delta, subtree)
     return require("org.inlinetask").change_level(bufnr, hl, delta)
   end
   delta = delta * M.level_increment(bufnr)
+  if hl.level + delta < 1 and hl.level == 1 and config.opts.allow_promoting_top_level_subtree then
+    -- org-promote turns "* " into "# "; the other headlines of the subtree
+    -- are promoted as usual
+    local line = get_lines(bufnr, hl.line, hl.line)[1]
+    set_lines(bufnr, hl.line, hl.line, { "# " .. line:sub(3) })
+    if subtree and hl.end_line > hl.body_end then
+      local rest = get_lines(bufnr, hl.body_end + 1, hl.end_line)
+      set_lines(bufnr, hl.body_end + 1, hl.end_line, relevel(rest, delta, file.settings.todo))
+    end
+    return
+  end
   if hl.level + delta < 1 then
     utils.warn("Cannot promote to level 0.  UNDO to recover if necessary")
     return
@@ -870,9 +1058,10 @@ function M.promote_subtree()
   local hl, file = headline_for_level_change()
   if hl then
     for _ = 1, math.max(vim.v.count, 1) do
+      local was_top = hl.level == 1
       change_level(hl, file, -1, true)
       hl, file = current_headline()
-      if hl.level == 1 then
+      if was_top or not hl or hl.level == 1 then
         break
       end
     end
@@ -907,8 +1096,9 @@ function M.change_level_region(delta)
   if #heads == 0 then
     return false
   end
+  local allow = config.opts.allow_promoting_top_level_subtree
   for _, hl in ipairs(heads) do
-    if hl.level + delta < 1 then
+    if hl.level + delta < 1 and not (allow and hl.level == 1) then
       utils.warn("Cannot promote to level 0.  UNDO to recover if necessary")
       return
     end
@@ -918,6 +1108,11 @@ function M.change_level_region(delta)
     local hl = heads[i]
     local lines = get_lines(bufnr, hl.line, hl.body_end)
     local new = relevel(lines, delta, file.settings.todo)
+    if hl.level + delta < 1 then
+      -- allow_promoting_top_level_subtree: "* " becomes "# "
+      new = vim.deepcopy(lines)
+      new[1] = "# " .. lines[1]:sub(3)
+    end
     for j = 2, #new do
       if parser.headline_level(lines[j]) then
         new[j] = lines[j]
@@ -1124,8 +1319,11 @@ function M.move_region(dir)
     end
   end
   vim.api.nvim_win_set_cursor(0, { s, 0 })
-  vim.cmd("normal! V")
-  vim.api.nvim_win_set_cursor(0, { e, 0 })
+  -- the selection follows unless `edit_keep_region` says otherwise
+  if require("org.context").keep_region(dir < 0 and "meta_up" or "meta_down") then
+    vim.cmd("normal! V")
+    vim.api.nvim_win_set_cursor(0, { e, 0 })
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -1230,13 +1428,18 @@ end
 --- as the first child, any other N at level N. On an otherwise empty
 --- headline ("***"), the number of stars is the level (the line is
 --- removed).
-function M.paste_subtree()
+---@param opts? { lines?: string[], pos?: integer[] } the subtree (default the
+--- `"` register or the kill ring) and where Emacs's point is (default the
+--- cursor; a row past the end is the end of the buffer)
+---@return integer|nil first, integer|nil last the inserted lines
+function M.paste_subtree(opts)
+  opts = opts or {}
   local bufnr = buf()
   local reg = vim.fn.getreg('"', 1, true)
-  local lines
-  if type(reg) == "table" and is_subtree(reg) then
+  local lines = opts.lines
+  if not lines and type(reg) == "table" and is_subtree(reg) then
     lines = reg
-  else
+  elseif not lines then
     lines = M.kill_ring[#M.kill_ring]
   end
   if not is_subtree(lines) then
@@ -1245,12 +1448,12 @@ function M.paste_subtree()
   end
   lines = vim.deepcopy(lines)
   local file = files.get_buffer(bufnr)
-  local count = vim.v.count
+  local count = opts.lines and 0 or vim.v.count
   local arg = (count == 4 or count == 16) and count or nil
   local numeric = count > 0 and not arg and count or nil
-  local pos = cursor()
+  local pos = opts.pos or cursor()
   local lnum = pos[1]
-  local line = vim.api.nvim_get_current_line()
+  local line = get_lines(bufnr, lnum, lnum)[1] or ""
   local old_level
   for _, l in ipairs(lines) do
     old_level = parser.headline_level(l)
@@ -1329,11 +1532,103 @@ function M.paste_subtree()
     first = first + 1
   end
   vim.api.nvim_win_set_cursor(0, { first, 0 })
-  if M.clip_folded and vim.deep_equal(M.clip, lines) then
+  if not opts.lines and M.clip_folded and vim.deep_equal(M.clip, lines) then
     vim.cmd("silent! normal! zx")
     pcall(vim.cmd, first .. "foldclose")
   end
   utils.notify(string.format("Clipboard pasted as level %d subtree", new_level))
+  return first, at + #new - 1
+end
+
+--- Fold the subtrees in lines [s, e] unless that would hide the text after
+--- them (org-yank with org-yank-folded-subtrees).
+local function fold_yanked(bufnr, s, e)
+  local total = vim.api.nvim_buf_line_count(bufnr)
+  local first_level
+  for l = s, e do
+    first_level = parser.headline_level(get_lines(bufnr, l, l)[1])
+    if first_level then
+      break
+    end
+  end
+  if not first_level then
+    return
+  end
+  local nxt = e + 1
+  while nxt <= total and is_blank(get_lines(bufnr, nxt, nxt)[1]) do
+    nxt = nxt + 1
+  end
+  if nxt <= total then
+    local lv = parser.headline_level(get_lines(bufnr, nxt, nxt)[1])
+    if not lv or lv > first_level then
+      utils.notify("Inserted text not folded because that would swallow text")
+      return
+    end
+  end
+  local file = files.get_buffer(bufnr)
+  local tops = {}
+  for _, hl in ipairs(file.headlines) do
+    if hl.line >= s and hl.line <= e and hl.level <= first_level then
+      tops[#tops + 1] = hl.line
+    end
+  end
+  vim.api.nvim_buf_call(bufnr, function()
+    for i = #tops, 1, -1 do
+      local l = tops[i]
+      if vim.fn.foldclosed(l) == -1 and vim.fn.foldlevel(l) > 0 then
+        pcall(vim.cmd, l .. "foldclose")
+      end
+    end
+  end)
+end
+
+--- `p` / `P` (org-yank): a register holding whole subtrees is put with its
+--- level adjusted to the surrounding headlines (`yank_adjusted_subtrees`)
+--- and folded (`yank_folded_subtrees`). With a count, or any other text,
+--- a plain put.
+---@param before? boolean `P`
+function M.yank(before)
+  local bufnr = buf()
+  local reg = vim.v.register
+  local count = vim.v.count
+  local key = before and "P" or "p"
+  local function plain()
+    vim.cmd(string.format('normal! "%s%s%s', reg, count > 0 and count or "", key))
+  end
+  local lines = vim.fn.getreg(reg, 1, true)
+  local cfg = config.opts
+  if
+    count > 0
+    or vim.fn.getregtype(reg) ~= "V"
+    or type(lines) ~= "table"
+    or not is_subtree(lines)
+    or not (cfg.yank_folded_subtrees or cfg.yank_adjusted_subtrees)
+  then
+    plain()
+    return
+  end
+  local row = cursor()[1]
+  local s, e
+  local fold = cfg.yank_folded_subtrees
+  if cfg.yank_adjusted_subtrees then
+    -- Emacs point: the start of the line the text goes before
+    local at = before and row or row + 1
+    s, e = M.paste_subtree({ lines = lines, pos = { at, 0 } })
+    -- Emacs folds only when the subtree went in at point (before a
+    -- headline), not before the next headline
+    fold = fold and s == at
+  else
+    plain()
+    s, e = vim.api.nvim_buf_get_mark(bufnr, "[")[1], vim.api.nvim_buf_get_mark(bufnr, "]")[1]
+  end
+  if s and fold then
+    fold_yanked(bufnr, s, e)
+    vim.api.nvim_win_set_cursor(0, { s, 0 })
+  end
+end
+
+function M.yank_before()
+  return M.yank(true)
 end
 
 ---------------------------------------------------------------------------
@@ -1601,6 +1896,9 @@ local function default_less(a, b)
   end
   if type(a) ~= type(b) then
     return type(a) == "number"
+  end
+  if type(a) == "string" then
+    return utils.string_lessp(a, b) -- org-sort-function
   end
   return tostring(a) < tostring(b)
 end
@@ -1882,12 +2180,57 @@ end
 --- Edit the current subtree in a split window (org-tree-to-indirect-buffer).
 --- Uses `win_split_mode` when it is a split / tab, otherwise a horizontal
 --- split. The buffer is an edit buffer like `narrow_subtree`: `:w` or the
---- save mapping writes it back. `window` ("current", "split", ...)
---- overrides where it opens (the agenda shows it in its other window).
+--- save mapping writes it back.
+---
+--- Where it shows follows `indirect_buffer_display`
+--- (org-indirect-buffer-display): "other-window" (a split), "current-window",
+--- "new-frame" (a new tab each time) or "dedicated-frame" (one tab reused;
+--- with a count a new tab).
+--- `window` ("current", "split", ...) overrides it (the agenda shows it
+--- in its other window).
 ---@param window? string
 function M.tree_to_indirect_buffer(window)
-  local mode = type(window) == "string" and window or config.opts.win_split_mode
-  if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" and mode ~= window then
+  if type(window) == "string" then
+    return narrow(window)
+  end
+  local display = config.opts.indirect_buffer_display or "other-window"
+  if display == "current-window" then
+    return narrow("current")
+  elseif display == "new-frame" or (display == "dedicated-frame" and vim.v.count > 0) then
+    return narrow("tab")
+  elseif display == "dedicated-frame" then
+    local src_win = vim.api.nvim_get_current_win()
+    local tab = M._indirect_tab
+    if tab and vim.api.nvim_tabpage_is_valid(tab) and tab ~= vim.api.nvim_get_current_tabpage() then
+      -- the subtree is read in the source window, shown in the dedicated tab
+      local hl = current_headline()
+      if not hl then
+        utils.warn("Not in a subtree")
+        return
+      end
+      vim.api.nvim_set_current_tabpage(tab)
+      local ok, res = pcall(function()
+        return require("org.special").open({
+          source_buf = vim.api.nvim_win_get_buf(src_win),
+          start_line = hl.line,
+          end_line = hl.end_line,
+          lines = get_lines(vim.api.nvim_win_get_buf(src_win), hl.line, hl.end_line),
+          filetype = "org",
+          name = "narrow " .. hl:plain_title(),
+          window = "current",
+        })
+      end)
+      if not ok then
+        error(res, 0)
+      end
+      return res
+    end
+    local res = narrow("tab")
+    M._indirect_tab = vim.api.nvim_get_current_tabpage()
+    return res
+  end
+  local mode = config.opts.win_split_mode
+  if mode ~= "split" and mode ~= "vsplit" and mode ~= "tab" then
     mode = "split"
   end
   return narrow(mode)

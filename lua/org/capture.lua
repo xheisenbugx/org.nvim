@@ -2011,7 +2011,7 @@ end
 --- position and finish the clock.
 function stored(tpl, ctx, bufnr, line)
   release(ctx.loc)
-  require("org.refile").remember(bufnr, line)
+  require("org.refile").remember(bufnr, line, "last_capture")
   if ctx.clock_start then
     -- Clock state can be persisted outside this buffer, and may resume an
     -- interrupted task. Only finalize it once the captured text is safe.
@@ -2195,6 +2195,8 @@ function M.finalize(buf, opts)
     local rbuf, rline = refile.refile({ bufnr = dbuf, lnum = dline }, { targets = tpl.refile_targets })
     if rbuf then
       dbuf, dline = rbuf, rline
+      -- the last capture is where it was refiled to
+      require("org.bookmarks").set("last_capture_marker", rbuf, rline)
     end
   else
     utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
@@ -2211,7 +2213,7 @@ end
 --- Jump to the location of the last capture or refile
 --- (org-capture-goto-last-stored, C-u C-u C-c c).
 function M.goto_last_stored()
-  return require("org.refile").goto_last_stored()
+  return require("org.refile").goto_last_stored("last_capture")
 end
 
 --- Choose a template and jump to its target location, creating missing

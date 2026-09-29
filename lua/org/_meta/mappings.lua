@@ -67,6 +67,7 @@
 ---| "backward_element" # Previous element
 ---| "beginning_of_item" # Go to the start of the item
 ---| "beginning_of_item_list" # Go to the first item of the list
+---| "beginning_of_line" # Start of line / headline title
 ---| "bibtex_check" # Ask for missing BibTeX fields (count: optional too)
 ---| "bibtex_check_all" # Check the BibTeX fields of every headline
 ---| "bibtex_create" # New BibTeX entry headline (count: optional fields)
@@ -80,6 +81,7 @@
 ---| "bibtex_search" # Search BibTeX entries in the agenda files
 ---| "bibtex_write" # Insert the first read BibTeX entry as a headline
 ---| "bibtex_yank" # Insert the yanked BibTeX entry (count: into this headline)
+---| "bookmark_jump" # Jump to a capture / refile bookmark
 ---| "buffer_goto" # Go to heading in buffer
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
@@ -100,6 +102,8 @@
 ---| "clone_subtree" # Clone subtree with time shift
 ---| "column_view" # Column view
 ---| "context_action" # Context action (C-c C-c)
+---| "convert_to_odd_levels" # Convert the file to odd levels only
+---| "convert_to_oddeven_levels" # Convert an odd-levels file to odd and even levels
 ---| "copy_special" # Copy table region / subtree
 ---| "copy_subtree" # Copy subtree
 ---| "copy_visible" # Copy visible text
@@ -128,11 +132,14 @@
 ---| "down_element" # First child element
 ---| "drag_element_down" # Drag element down
 ---| "drag_element_up" # Drag element up
+---| "edit_agenda_file_list" # Edit the list of agenda files
+---| "edit_headline" # Edit the headline's title
 ---| "edit_special" # Edit src block / table formulas
 ---| "edit_src_continue" # Go back to the edit buffer of the region at the cursor
 ---| "emphasize" # Emphasize selection / insert markers
 ---| "end_of_item" # Go to the end of the item
 ---| "end_of_item_list" # Go to the end of the list
+---| "end_of_line" # End of line / before the tags
 ---| "escape_code_in_region" # Comma-escape * and #+ lines of the selection
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
@@ -151,6 +158,9 @@
 ---| "id_store_link" # Store id: link to entry
 ---| "inc_effort" # Next allowed effort value
 ---| "increment" # Increment timestamp / priority
+---| "indent_block" # Indent the block at point
+---| "indent_drawer" # Indent the drawer at point
+---| "indent_region" # Indent the buffer / selection (org-indent-region)
 ---| "indirect_subtree" # Subtree in split edit buffer
 ---| "inlinetask_insert" # Insert inline task
 ---| "insert_all_links" # Insert all stored links
@@ -165,6 +175,8 @@
 ---| "insert_subheading" # Insert subheading
 ---| "insert_tab" # Table: next field / empty heading or item: cycle level
 ---| "insert_todo_heading" # Insert TODO heading
+---| "insert_todo_subheading" # Insert TODO subheading
+---| "kill_line" # Kill to the end of the line / the tags
 ---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "link_open_from_string" # Open a link typed at a prompt
@@ -326,8 +338,12 @@
 ---| "toggle_timestamp_type" # Toggle timestamp active/inactive
 ---| "transpose_element" # Swap element with the previous one
 ---| "unescape_code_in_region" # Remove comma escapes of the selection
+---| "unindent_buffer" # Remove the common indentation of elements
 ---| "up_element" # Parent element
 ---| "update_statistics" # Update statistics cookies
+---| "version" # Show the org.nvim version (count: insert it)
+---| "yank" # Put, folding / adjusting subtrees (org-yank)
+---| "yank_before" # Put before, folding / adjusting subtrees
 
 --- Base for action-backed sections: any `org.ActionName` may be used as a
 --- key; unknown names are ignored.
@@ -454,6 +470,10 @@
 ---@field cut_subtree? org.MappingLhs
 --- Paste subtree. Default: `<prefix>hp`
 ---@field paste_subtree? org.MappingLhs
+--- Put, folding / adjusting subtrees (org-yank). Default: `p`
+---@field yank? org.MappingLhs
+--- Put before, folding / adjusting subtrees. Default: `P`
+---@field yank_before? org.MappingLhs
 --- Clone subtree with time shift. Default: `<prefix>hc`
 ---@field clone_subtree? org.MappingLhs
 --- Sort entries / items. Default: `<prefix>hs`

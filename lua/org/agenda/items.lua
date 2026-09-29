@@ -1570,9 +1570,11 @@ local function cat(item)
 end
 
 local function string_cmp(a, b)
-  if a < b then
+  -- org-string< (org-sort-function)
+  local lessp = require("org.utils").string_lessp
+  if lessp(a, b) then
     return -1
-  elseif b < a then
+  elseif lessp(b, a) then
     return 1
   end
 end
