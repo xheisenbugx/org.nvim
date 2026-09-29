@@ -287,9 +287,37 @@ function M.set_restriction_lock(target)
     hl = nil
   end
   M.lock = { bufnr = bufnr, filename = file.filename, line = hl and hl.line, raw = hl and hl.raw }
+  M.highlight_lock(bufnr, hl)
   local name = vim.fn.fnamemodify(file.filename or "buffer", ":t")
   utils.notify(hl and ('Agenda restricted to subtree "' .. hl:plain_title() .. '"') or ("Agenda restricted to " .. name))
   return true
+end
+
+local ns_lock = vim.api.nvim_create_namespace("org.agenda.lock")
+
+--- Highlight the locked subtree, or only its headline without
+--- `agenda.restriction_lock_highlight_subtree`, with
+--- OrgAgendaRestrictionLock (org-agenda-restriction-lock-overlay); nil
+--- `hl` (a file lock) only clears the highlight.
+function M.highlight_lock(bufnr, hl)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) then
+      vim.api.nvim_buf_clear_namespace(b, ns_lock, 0, -1)
+    end
+  end
+  if not (hl and bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
+    return
+  end
+  vim.api.nvim_set_hl(0, "OrgAgendaRestrictionLock", { link = "Visual", default = true })
+  local last = config.opts.agenda.restriction_lock_highlight_subtree ~= false and hl.end_line or hl.line
+  local last_text = vim.api.nvim_buf_get_lines(bufnr, last - 1, last, false)[1] or ""
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_lock, hl.line - 1, 0, {
+    end_row = last - 1,
+    end_col = #last_text,
+    hl_group = "OrgAgendaRestrictionLock",
+    hl_eol = true,
+    priority = 50,
+  })
 end
 
 --- Remove the restriction lock (C-c C-x >).
@@ -298,6 +326,7 @@ function M.remove_restriction_lock()
     utils.notify("No agenda restriction lock")
     return
   end
+  M.highlight_lock(nil, nil)
   M.lock = nil
   utils.notify("Agenda restriction lock removed")
 end

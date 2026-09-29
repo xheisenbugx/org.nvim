@@ -1144,6 +1144,9 @@ Restriction lock (org-agenda-set-restriction-lock):
                  file when not under a headline, or with a count); also
                  in the agenda, from the entry at point
   <C-c><C-x>>    remove the lock
+The locked subtree is highlighted with OrgAgendaRestrictionLock (only its
+headline with `agenda.restriction_lock_highlight_subtree = false`,
+org-agenda-restriction-lock-highlight-subtree).
 Other keys in org buffers:
   <C-c>[ <C-c>]  add the current file to / remove it from the agenda files
   <C-'> <C-,>    visit the next agenda file (org-cycle-agenda-files)

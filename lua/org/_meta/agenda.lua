@@ -246,6 +246,9 @@
 ---@field max_tags? org.Config.Agenda.Limit
 ---Maximum total effort in minutes (org-agenda-max-effort). (default: `nil`)
 ---@field max_effort? org.Config.Agenda.Limit
+---Highlight the whole subtree of a restriction lock, not only its headline
+---(org-agenda-restriction-lock-highlight-subtree). (default: `true`)
+---@field restriction_lock_highlight_subtree? boolean
 ---Where the agenda opens (org-agenda-window-setup); `"split"` is Emacs's
 ---reorganize-frame. Emacs names ("reorganize-frame", "current-window",
 ---"only-window", "other-window", "other-tab") are accepted. (default: `"split"`)

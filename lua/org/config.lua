@@ -565,6 +565,9 @@ M.defaults = {
     max_todos = nil,
     max_tags = nil,
     max_effort = nil,
+    --- Highlight the whole subtree of a restriction lock, not only its
+    --- headline (org-agenda-restriction-lock-highlight-subtree).
+    restriction_lock_highlight_subtree = true,
     --- Where the agenda opens: "split" (org-agenda-window-setup
     --- reorganize-frame), "vsplit", "current", "only", "tab", "float".
     window = "split",

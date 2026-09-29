@@ -420,6 +420,42 @@ describe("agenda_kill_all_buffers", function()
   end)
 end)
 
+describe("restriction lock highlight", function()
+  after_each(function()
+    pcall(agenda.remove_restriction_lock)
+    pcall(vim.cmd, "bwipe!")
+  end)
+
+  local function lock_marks(buf)
+    local ns = vim.api.nvim_create_namespace("org.agenda.lock")
+    return vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
+  end
+
+  -- org-agenda-set-restriction-lock moves its overlay over the subtree, or
+  -- only the headline line when org-agenda-restriction-lock-highlight-subtree
+  -- is nil; removing the lock deletes it.
+  it("highlights the locked subtree, or its headline", function()
+    config.setup({})
+    local buf = org_buffer({ "* A", "text", "** B", "* C" }, { 1, 0 })
+    capture_msgs(function()
+      agenda.set_restriction_lock()
+    end)
+    local m = lock_marks(buf)
+    eq(1, #m)
+    eq({ 0, 2 }, { m[1][2], m[1][4].end_row })
+    capture_msgs(function()
+      agenda.remove_restriction_lock()
+    end)
+    eq(0, #lock_marks(buf))
+    config.opts.agenda.restriction_lock_highlight_subtree = false
+    capture_msgs(function()
+      agenda.set_restriction_lock()
+    end)
+    m = lock_marks(buf)
+    eq({ 0, 0 }, { m[1][2], m[1][4].end_row })
+  end)
+end)
+
 -- leave the default options to the specs that follow
 describe("agenda_commands_parity_spec cleanup", function()
   it("restores the default options", function()
