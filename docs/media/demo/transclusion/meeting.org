@@ -1,0 +1,7 @@
+#+title: Weekly sync
+* Launch
+#+transclude: [[file:roadmap.org::*Launch plan]] :level 2
+* Code review
+#+transclude: [[file:retry.py]] :lines 4-11 :src python
+* Notes
+- Beta ships on Friday.

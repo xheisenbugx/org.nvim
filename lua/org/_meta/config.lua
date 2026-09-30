@@ -773,6 +773,9 @@
 ---@field literate? org.Config.Extensions.Literate|boolean
 ---An in-process language server for org buffers (`:h org-extensions-lsp`).
 ---@field lsp? org.Config.Extensions.Lsp|boolean
+---Live transclusion of `#+transclude:` keywords, like Emacs org-transclusion
+---(`:h org-extensions-transclusion`; types in `_meta/transclusion.lua`).
+---@field transclusion? org.Config.Extensions.Transclusion|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.
