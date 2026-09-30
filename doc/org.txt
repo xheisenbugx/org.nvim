@@ -8465,8 +8465,10 @@ Capturing code ~
 selection becomes a src block in the language of the buffer's filetype
 (`lua`, `python`, `js` for javascript, `C++` for cpp...; `languages` adds
 or changes names); in Normal mode there is no block. The note goes to the
-repository's project file (below), under `project_headline`, or to
-`default_notes_file` outside a repository. The template is
+repository's project file (below), under `project_headline`. Outside a
+repository it goes to `fallback_target` (default: `default_notes_file`),
+under `fallback_headline` (default: none, at the end of the file); the
+copy in the capture menu does the same. The template is
 `capture_template`; these expansions fill it:
 
   `%(code-block)`      the selection as a `#+begin_src LANG` block ("" in
@@ -8568,6 +8570,9 @@ Options ~
   `project_file`          ".org/tasks.org"
   `project_file_header`   "#+title: ${repo}\n"
   `project_headline`      "Tasks"
+  `fallback_target`       code captures outside a repository (nil:
+                        `default_notes_file`)
+  `fallback_headline`     their headline (nil: the end of the file)
   `project_template`      template of `project_capture`
   `project_agenda_blocks` blocks of `project_agenda`
   `branch_clock`          clock in by branch (false)

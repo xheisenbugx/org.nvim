@@ -12,7 +12,7 @@ local C = "org.extensions.code"
 M.defaults = {
   --- Template of `code_capture` (a capture template table). Its `target`
   --- "project" (or nil) captures into the repository's project file under
-  --- `project_headline`, or `capture.default` outside a repository.
+  --- `project_headline`, or `fallback_target` outside a repository.
   capture_template = {
     description = "Code note",
     type = "entry",
@@ -46,6 +46,10 @@ M.defaults = {
   project_file_header = "#+title: ${repo}\n",
   --- Headline project captures go under (nil: the end of the file).
   project_headline = "Tasks",
+  --- Where "project" code captures go outside a repository (nil: the
+  --- `default_notes_file`), and under which headline (nil: the end of it).
+  fallback_target = nil,
+  fallback_headline = nil,
   --- Template of `project_capture` (its target is the project file).
   project_template = { description = "Project task", type = "entry", template = "* TODO %?\n  %U\n  %a" },
   --- Blocks of `project_agenda`, on the project file; a `code_todos` block
@@ -186,17 +190,17 @@ function M.setup(opts)
     end
     local tpl = vim.deepcopy(opts.capture_template)
     if tpl.target == "project" or tpl.target == nil then
-      -- resolved when the capture starts
+      -- resolved when the capture starts (the target, then the headline):
+      -- the project file, or fallback_target outside a repository
+      local own, headline = tpl.headline, nil
       tpl.target = function()
-        local root = require(C .. ".git").root(0)
-        local pf = root and require(C .. ".project").file(root)
-        if pf then
-          require(C .. ".project").ensure(pf, require(C .. ".git").repo_name(root))
-          return pf
-        end
-        return ""
+        local target
+        target, headline = require(C .. ".context").project_target(require(C .. ".git").root(0), own)
+        return target
       end
-      tpl.headline = tpl.headline or opts.project_headline
+      tpl.headline = function()
+        return headline
+      end
     end
     templates[key] = tpl
     added_template.tpl = tpl

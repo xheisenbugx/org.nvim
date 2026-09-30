@@ -314,6 +314,71 @@ describe("code extension", function()
       eq(nil, require("org.config").opts.capture.templates.k)
     end)
 
+    it("keeps a multibyte last character of a characterwise selection", function()
+      setup({ capture_template = { template = "* x\n%(code-block)", target = "project", immediate_finish = true } })
+      vim.cmd("edit " .. write("src/u.lua", { "x = 'é' .. 'ü'" }))
+      vim.keymap.set("x", "<F7>", function()
+        require("org.actions").run("code_capture")
+      end, { buffer = true })
+      vim.api.nvim_feedkeys(vim.keycode("0v5l<F7>"), "x", false)
+      local all = table.concat(read(repo .. "/.org/tasks.org"), "\n")
+      ok(all:find("#+begin_src lua\nx = 'é\n#+end_src", 1, true), all)
+    end)
+
+    it("gathers the code context once per capture", function()
+      local g = require("org.extensions.code.git")
+      local calls = 0
+      local commit = g.commit
+      stub(g, "commit", function(r)
+        calls = calls + 1
+        return commit(r)
+      end)
+      setup({}, {
+        capture = {
+          templates = {
+            x = {
+              description = "x",
+              template = "* %(code-symbol)\n%(code-link)\n%(git-info)\n%(git-commit)\n%(code-file)",
+              target = repo .. "/notes/x.org",
+              immediate_finish = true,
+            },
+          },
+        },
+      })
+      vim.fn.mkdir(repo .. "/notes", "p")
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      utils.run(require("org.capture").capture, "x")
+      eq(1, calls)
+      eq(5, #read(repo .. "/notes/x.org"))
+    end)
+
+    it("files code captures outside a repository in fallback_target, without the project headline", function()
+      local outside = vim.fs.dirname(repo) .. "/loose"
+      vim.fn.mkdir(outside, "p")
+      vim.fn.mkdir(repo .. "/notes", "p")
+      vim.fn.writefile({ "print(1)" }, outside .. "/script.lua")
+      setup({
+        capture_template = { template = "* note %(code-line)", target = "project", immediate_finish = true },
+      })
+      vim.cmd("edit " .. outside .. "/script.lua")
+      -- code_capture and the menu template: the default notes file, at its end
+      require("org.actions").run("code_capture")
+      utils.run(require("org.capture").capture, "k")
+      eq({ "* note 1", "* note 1" }, read(repo .. "/notes/inbox.org"))
+      setup({
+        capture_template = { template = "* note %(code-line)", target = "project", immediate_finish = true },
+        fallback_target = repo .. "/notes/loose.org",
+        fallback_headline = "Loose code",
+      })
+      require("org.actions").run("code_capture")
+      utils.run(require("org.capture").capture, "k")
+      eq({ "* Loose code", "** note 1", "** note 1" }, read(repo .. "/notes/loose.org"))
+      -- in a repository the menu template still uses the project headline
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      utils.run(require("org.capture").capture, "k")
+      ok(vim.tbl_contains(read(repo .. "/.org/tasks.org"), "* Tasks"))
+    end)
+
     it("refuses org buffers", function()
       local msgs = {}
       stub(utils, "warn", function(m)

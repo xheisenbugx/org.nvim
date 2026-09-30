@@ -1267,7 +1267,12 @@ function M.resolve_target(tpl, ctx)
       if type(title) == "function" then
         title = title()
       end
-      line = find_or_create_headline(bufnr, title)
+      if title then
+        line = find_or_create_headline(bufnr, title)
+      else
+        -- a headline function that names none: the file itself
+        entry_p = false
+      end
     elseif tpl.olp then
       local olp = tpl.olp
       if type(olp) == "function" then
