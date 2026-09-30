@@ -7709,8 +7709,9 @@ Actions ~
   `lsp_restart`  stop it and attach every org buffer again
 
 There are no default keys: the LSP keys of |lsp-defaults| (`K`, `grn`,
-`gra`, `grr`, `gO`, ...) and |vim.diagnostic| apply. Use `on_attach` to
-add your own.
+`gra`, `grr`, ...) and |vim.diagnostic| apply. `gO` stays org's own
+outline (the `imenu` action); document symbols are
+`:lua vim.lsp.buf.document_symbol()`. Use `on_attach` to add your own.
 
 Options ~
   `autostart`               attach to org buffers (true)
