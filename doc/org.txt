@@ -9142,9 +9142,14 @@ week, a row per weekday, each day shaded by what was done that day.
 `heatmap_open` (`<prefix>Vh`). The kinds:
   `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
           between the two days, a running clock counts up to now)
-  `closed`  tasks marked done: CLOSED dates and `- State "DONE"` log
-          entries, once per task and day
+  `closed`  tasks marked done: CLOSED dates, `- State "DONE"` and
+          `- CLOSING NOTE` log entries and the LAST_REPEAT property, once
+          per task and day
   `habit`   the same for habits (`STYLE: habit`)
+
+A habit only leaves a trace when marking it done logs something: with
+`log_repeat` on (the default) every completion is counted; with it off,
+only the last one (its LAST_REPEAT, which clocked tasks get too) is.
 
 A bare word is a tag (`+work` and `:work:` work too); a path ending in
 `.org` is the source.
@@ -9159,13 +9164,15 @@ current streak (ending today, or yesterday while today is empty), the
 longest one and the best day.
 
 The cursor starts on today; the line at the bottom shows the selected day's
-total and its biggest entries.
+total and its biggest entries. With `weeks = 0` the number of weeks follows
+the editor's width when it is resized. Only the days shown are counted, so
+years of CLOCK lines cost little (100,000 clocks: about 30 ms).
 
 Keys ~
   <Tab>     next kind (clock, closed, habit)
   h / l     previous / next week
   k / j     previous / next day
-  <CR>      the agenda of that day
+  <CR>      the agenda of that day (a split heatmap stays open)
   r         refresh
   q  <Esc>  quit
 

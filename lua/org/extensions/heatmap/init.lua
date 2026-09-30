@@ -67,7 +67,14 @@ M.actions = {
 }
 
 M.commands = {
-  heatmap = { MOD, "command", desc = "Calendar heatmap: :Org heatmap [clock|closed|habit] [tag|file]" },
+  heatmap = {
+    MOD,
+    "command",
+    desc = "Calendar heatmap: :Org heatmap [clock|closed|habit] [tag|file]",
+    complete = function(arglead, cmdline)
+      return require(MOD).complete(arglead, cmdline)
+    end,
+  },
 }
 
 M.mappings = { global = { heatmap_open = "<prefix>Vh" } }
@@ -135,8 +142,9 @@ end
 -- Data
 ---------------------------------------------------------------------------
 
---- Days (day numbers) a headline was marked done: its CLOSED date and the
---- `- State "DONE" ... [date]` lines of its log.
+--- Days (day numbers) a headline was marked done: its CLOSED date, the
+--- `- State "DONE" ... [date]` and `- CLOSING NOTE [date]` lines of its
+--- log (as org-habit reads them) and its LAST_REPEAT property.
 ---@param hl org.Headline
 ---@return table<integer, true>
 function M.done_days(hl)
@@ -145,24 +153,35 @@ function M.done_days(hl)
   for i = hl.line + 1, hl.body_end or hl.line do
     local line = hl.file.lines[i]
     local kw, ts = line:match('^%s*%-%s+State%s+"([^"]+)".-(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])')
-    if kw and cfg:is_done(kw) then
-      local d = date.parse(ts)
-      if d then
-        out[d:days()] = true
-      end
+    if not (kw and cfg:is_done(kw)) then
+      ts = line:match("^%s*%-%s+CLOSING NOTE%s+(%[%d%d%d%d%-%d%d%-%d%d[^%]]*%])")
+    end
+    local d = ts and date.parse(ts)
+    if d then
+      out[d:days()] = true
     end
   end
   local closed = hl.planning.closed
   if closed then
     out[closed:days()] = true
   end
+  -- set when a repeating task is done (with logging or clocks)
+  local lr = hl.properties.LAST_REPEAT and date.parse(hl.properties.LAST_REPEAT)
+  if lr then
+    out[lr:days()] = true
+  end
   return out
 end
 
---- Add a clock's minutes to the days it covers.
-local function add_clock(values, c, now_min)
+--- Add a clock's minutes to the days it covers, within minutes
+--- [lo, hi).
+local function add_clock(values, c, now_min, lo, hi)
   local s = c.start:minutes()
+  if s >= hi then
+    return
+  end
   local e = c["end"] and c["end"]:minutes() or now_min
+  s, e = math.max(s, lo), math.min(e, hi)
   if e <= s then
     return
   end
@@ -175,47 +194,81 @@ local function add_clock(values, c, now_min)
 end
 
 --- Per-day values of `kind` over the headlines `hls`: `values[day]` and
---- `details[day]` (a list of `{ title, value }`, largest first).
+--- `details[day]` (a list of `{ title, value }`, largest first), for the
+--- days `first` to `last` (all days when not given).
 ---@param kind "clock"|"closed"|"habit"
 ---@param hls org.Headline[]
+---@param first? integer
+---@param last? integer
 ---@return table<integer, number> values, table<integer, table[]> details
-function M.data(kind, hls)
+function M.data(kind, hls, first, last)
   local values, details = {}, {}
   local now_min = date.now():minutes()
-  local function detail(day, hl, v)
-    details[day] = details[day] or {}
-    local list = details[day]
-    for _, d in ipairs(list) do
-      if d.hl == hl then
-        d.value = d.value + v
-        return
-      end
-    end
-    list[#list + 1] = { hl = hl, title = views.title(hl), value = v }
+  first, last = first or -math.huge, last or math.huge
+  local lo, hi = first * 1440, (last + 1) * 1440
+  local first_key = -math.huge
+  if first > -math.huge then
+    local f = date.from_days(first)
+    first_key = f.year * 10000 + f.month * 100 + f.day
   end
-  for _, hl in ipairs(hls) do
+  local order = 0
+  -- called once per headline and day (its values are summed first), so
+  -- no search of the day's list: that made busy days quadratic
+  local function detail(day, hl, v)
+    local list = details[day]
+    if not list then
+      list = {}
+      details[day] = list
+    end
+    list[#list + 1] = { hl = hl, value = v, order = order }
+  end
+  for i, hl in ipairs(hls) do
+    order = i
     if kind == "clock" then
+      local own
       for _, c in ipairs(hl.clocks) do
-        local own = {}
-        add_clock(own, c, now_min)
-        for day, v in pairs(own) do
-          values[day] = (values[day] or 0) + v
-          detail(day, hl, v)
+        -- a cheap test first: clocks that ended before the range (years of
+        -- them) are left without computing day numbers
+        local e = c["end"]
+        if not (e and (e.year * 10000 + e.month * 100 + e.day) < first_key) then
+          own = own or {}
+          add_clock(own, c, now_min, lo, hi)
         end
+      end
+      for day, v in pairs(own or {}) do
+        values[day] = (values[day] or 0) + v
+        detail(day, hl, v)
       end
     elseif kind == "closed" or (kind == "habit" and require("org.agenda.habits").is_habit(hl)) then
       for day in pairs(M.done_days(hl)) do
-        values[day] = (values[day] or 0) + 1
-        detail(day, hl, 1)
+        if day >= first and day <= last then
+          values[day] = (values[day] or 0) + 1
+          detail(day, hl, 1)
+        end
       end
     end
   end
+  -- a detail's title is made when it is shown (a few a day), not for
+  -- every entry of the year
+  local titles = {}
+  local lazy = {
+    __index = function(d, k)
+      if k == "title" then
+        local t = titles[d.hl] or views.title(d.hl)
+        titles[d.hl] = t
+        return t
+      end
+    end,
+  }
   for _, list in pairs(details) do
+    for _, d in ipairs(list) do
+      setmetatable(d, lazy)
+    end
     table.sort(list, function(a, b)
       if a.value ~= b.value then
         return a.value > b.value
       end
-      return a.title < b.title
+      return a.order < b.order
     end)
   end
   return values, details
@@ -327,6 +380,11 @@ local function weeks_for(o)
   return math.max(4, math.min(53, w))
 end
 
+--- Size of the float for the drawn heatmap.
+local function float_size(st)
+  return { width = math.min(vim.o.columns - 4, math.max(st.width + 2, 60)), height = st.height }
+end
+
 --- The first and last day shown (Monday of the first week, today).
 function M.range(weeks, today)
   local wd = date.from_days(today):weekday()
@@ -364,11 +422,14 @@ function M.render(st)
   end
   local o = st.opts
   local today = date.today_days()
-  local hls, err = views.collect(st.src, { tag = st.tag })
-  local values, details = M.data(st.kind, hls)
-  st.values, st.details = values, details
+  local files = views.files(st.src)
+  st.file_set = views.file_set(files)
+  st.key = views.files_key(files)
+  local hls, err = views.collect(st.src, { tag = st.tag, files = files })
   local first, last = M.range(st.weeks, today)
   st.first, st.last = first, last
+  local values, details = M.data(st.kind, hls, first, last)
+  st.values, st.details = values, details
   local shown = {}
   for day = first, last do
     shown[#shown + 1] = values[day] or 0
@@ -562,12 +623,19 @@ local function current()
   end
 end
 
-function M.refresh()
+--- Redraw. With `lazy` (the redraw watch), nothing happens while the
+--- heatmap's files are unchanged.
+---@param lazy? boolean
+function M.refresh(lazy)
   local st = current()
-  if st then
-    M.render(st)
-    place(st)
+  if not st then
+    return
   end
+  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+    return
+  end
+  M.render(st)
+  place(st)
 end
 
 --- Move the selected day by `n` days.
@@ -603,7 +671,7 @@ function M.agenda()
     return
   end
   local day = st.day
-  if st.how.layout ~= "split" then
+  if st.how.layout ~= "split" and st.how.layout ~= "vsplit" then
     M.close()
   end
   require("org.agenda").open_day(day)
@@ -655,11 +723,8 @@ function M.open(o)
   M.state = st
   -- draw first: the float is sized to the content
   M.render(st)
-  st.win, st.how = views.open(buf, eopts.layout, {
-    width = math.min(vim.o.columns - 4, math.max(st.width + 2, 60)),
-    height = st.height,
-    title = "Heatmap",
-  })
+  local size = float_size(st)
+  st.win, st.how = views.open(buf, eopts.layout, { width = size.width, height = size.height, title = "Heatmap" })
   st.day = date.today_days()
   views.map(buf, eopts.keys, {
     next_kind = M.next_kind,
@@ -676,14 +741,32 @@ function M.open(o)
       M.move(-1)
     end,
     agenda = M.agenda,
-    refresh = M.refresh,
+    refresh = function()
+      M.refresh()
+    end,
     quit = M.close,
   }, "heatmap")
   st.watch = views.watch("OrgHeatmapWatch", function()
     if current() == st then
-      M.refresh()
+      M.refresh(true)
     end
-  end)
+  end, { buf = buf, relevant = views.relevant(st) })
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = st.watch,
+    callback = function()
+      if current() ~= st then
+        return
+      end
+      -- weeks = 0 fits the window: fewer or more weeks, then a new size
+      local weeks = weeks_for(st.opts)
+      if weeks ~= st.weeks then
+        st.weeks = weeks
+        pcall(M.render, st)
+      end
+      views.relayout(st.how, float_size(st))
+      place(st)
+    end,
+  })
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = st.watch,
     buffer = buf,
@@ -722,13 +805,19 @@ function M.parse_args(args)
       o.kind = w
     elseif w == "agenda" or w == "buffer" or w == "subtree" then
       o.source = w
-    elseif w:match("%.org$") or w:find("/", 1, true) then
+    elseif views.is_path(w) then
       o.source = utils.expand(w)
     else
       o.tag = (w:gsub("^[+:]", ""):gsub(":$", ""))
     end
   end
   return o
+end
+
+--- Completion of `:Org heatmap`: kinds, sources and tags.
+function M.complete(arglead)
+  local out = vim.list_extend(vim.deepcopy(M.KINDS), views.complete_sources(arglead))
+  return vim.list_extend(out, views.complete_tags())
 end
 
 --- `:Org heatmap [clock|closed|habit] [tag|file]`.

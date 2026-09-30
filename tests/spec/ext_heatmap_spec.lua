@@ -321,3 +321,81 @@ describe("heatmap view", function()
     eq(nil, heatmap.state)
   end)
 end)
+
+describe("heatmap edges", function()
+  before_each(function()
+    write()
+    setup({ weeks = 8 })
+  end)
+  after_each(function()
+    heatmap.close()
+    restore()
+  end)
+
+  it("only computes the days of the range", function()
+    local values, details = heatmap.data("clock", hls(), today - 5, today)
+    eq(90, values[today])
+    eq(180, values[today - 1])
+    eq(nil, values[today - 10])
+    eq(nil, details[today - 10])
+  end)
+
+  it("counts habits by their closing notes and LAST_REPEAT", function()
+    local b = org_buffer({
+      "* TODO Meditate",
+      "  SCHEDULED: <" .. day(1) .. " .+1d>",
+      "  :PROPERTIES:",
+      "  :STYLE: habit",
+      "  :LAST_REPEAT: [" .. day(-3) .. " 07:00]",
+      "  :END:",
+      "  :LOGBOOK:",
+      "  - CLOSING NOTE [" .. day(-4) .. " 08:00] \\\\",
+      "    felt good",
+      "  :END:",
+    })
+    local values = heatmap.data("habit", require("org.files").get_buffer(b).headlines)
+    eq(1, values[today - 3])
+    eq(1, values[today - 4])
+  end)
+
+  it("fits a tiny editor", function()
+    local columns, lines = vim.o.columns, vim.o.lines
+    vim.o.columns, vim.o.lines = 20, 6
+    local ok_open, st = pcall(heatmap.open)
+    vim.o.columns, vim.o.lines = columns, lines
+    ok(ok_open, st)
+    ok(st and vim.api.nvim_win_is_valid(st.win))
+  end)
+
+  it("fits the weeks to a resized editor", function()
+    setup({ weeks = 0 })
+    local columns = vim.o.columns
+    vim.o.columns = 120
+    local st = heatmap.open()
+    local weeks = st.weeks
+    vim.o.columns = 80
+    vim.api.nvim_exec_autocmds("VimResized", {})
+    vim.o.columns = columns
+    ok(st.weeks < weeks, st.weeks .. " < " .. weeks)
+    ok(vim.api.nvim_win_get_width(st.win) <= 78)
+  end)
+
+  it("stays open when it opens the agenda from a split", function()
+    setup({ layout = "vsplit" })
+    local agenda = require("org.agenda")
+    local open_day = agenda.open_day
+    agenda.open_day = function() end
+    local st = heatmap.open()
+    heatmap.agenda()
+    agenda.open_day = open_day
+    ok(vim.api.nvim_buf_is_valid(st.buf))
+    vim.cmd("silent! only")
+  end)
+
+  it("completes kinds, sources and tags", function()
+    local c = require("org.commands").complete("", "Org heatmap ")
+    ok(vim.tbl_contains(c, "closed"), vim.inspect(c))
+    ok(vim.tbl_contains(c, "work"), vim.inspect(c))
+    ok(vim.tbl_contains(c, "buffer"), vim.inspect(c))
+  end)
+end)

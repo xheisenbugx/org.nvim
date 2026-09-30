@@ -23,7 +23,7 @@
 ---@field color_group? string
 ---Five `"#rrggbb"` colours, empty day first, instead of derived ones. (default: `nil`)
 ---@field colors? string[]
----Window: `"float"`, `"tab"`, `"split"` or `"current"`. (default: `"float"`)
----@field layout? "float"|"tab"|"split"|"current"
+---Window: `"float"`, `"tab"`, `"split"`, `"vsplit"` or `"current"`. (default: `"float"`)
+---@field layout? "float"|"tab"|"split"|"vsplit"|"current"
 ---Keys in the heatmap (`false` removes one).
 ---@field keys? { next_kind?: string|string[]|false, prev_week?: string|string[]|false, next_week?: string|string[]|false, next_day?: string|string[]|false, prev_day?: string|string[]|false, agenda?: string|string[]|false, refresh?: string|string[]|false, quit?: string|string[]|false }
