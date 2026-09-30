@@ -1,0 +1,32 @@
+#+TITLE: Website relaunch
+#+CATEGORY: web
+
+* TODO [#A] Pick the new colour palette                               :design:
+DEADLINE: <{{-1}}>
+:PROPERTIES:
+:Effort:   1:00
+:END:
+* TODO Write the pricing page copy                                   :content:
+DEADLINE: <{{5}}>
+:PROPERTIES:
+:Effort:   3:00
+:END:
+* TODO Set up analytics                                                  :dev:
+* TODO [#C] Add a dark mode toggle                                       :dev:
+* NEXT [#A] Build the landing page hero                                  :dev:
+DEADLINE: <{{2}}>
+:PROPERTIES:
+:Effort:   6:00
+:END:
+* NEXT Migrate the blog posts                                        :content:
+:PROPERTIES:
+:Effort:   4:00
+:END:
+* NEXT [#B] Fix the mobile menu                                      :dev:bug:
+DEADLINE: <{{1}}>
+* WAITING Legal review of the privacy policy                           :legal:
+* WAITING Logo files from the agency                                  :design:
+* DONE Choose the CMS                                                    :dev:
+CLOSED: [{{-3 16:00}}]
+* DONE Draft the sitemap                                             :content:
+CLOSED: [{{-2 11:00}}]

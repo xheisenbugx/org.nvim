@@ -1,0 +1,40 @@
+#+TITLE: Q4 plan
+#+CATEGORY: plan
+
+* DONE Research the competitors                                     :research:
+CLOSED: [{{-7 17:00}}] SCHEDULED: <{{-12}}> DEADLINE: <{{-7}}>
+* NEXT Write the spec                                                   :docs:
+SCHEDULED: <{{-6}}> DEADLINE: <{{-2}}>
+:LOGBOOK:
+CLOCK: [{{-6 09:00}}]--[{{-6 11:30}}] =>  2:30
+CLOCK: [{{-5 14:00}}]--[{{-5 16:00}}] =>  2:00
+CLOCK: [{{-3 10:00}}]--[{{-3 11:00}}] =>  1:00
+:END:
+* NEXT Build the API                                                     :dev:
+SCHEDULED: <{{-3}}> DEADLINE: <{{6}}>
+:LOGBOOK:
+CLOCK: [{{-3 13:00}}]--[{{-3 17:00}}] =>  4:00
+CLOCK: [{{-2 09:00}}]--[{{-2 12:00}}] =>  3:00
+CLOCK: [{{-1 09:30}}]--[{{-1 12:30}}] =>  3:00
+:END:
+* TODO Design review                                                  :design:
+SCHEDULED: <{{2}}>
+:PROPERTIES:
+:Effort:   16:00
+:END:
+* TODO Build the frontend                                                :dev:
+SCHEDULED: <{{4}}> DEADLINE: <{{14}}>
+* TODO Load testing                                                      :dev:
+SCHEDULED: <{{9}}>
+:PROPERTIES:
+:Effort:   24:00
+:END:
+* TODO Beta launch
+DEADLINE: <{{15}}>
+* TODO Write the user guide                                             :docs:
+DEADLINE: <{{19}}>
+:PROPERTIES:
+:Effort:   32:00
+:END:
+* TODO Launch party
+SCHEDULED: <{{21}}>

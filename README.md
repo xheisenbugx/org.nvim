@@ -998,6 +998,39 @@ set. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
+- **`kanban`**: a board with a column per TODO keyword (or group of
+  keywords, with WIP limits) and a card per heading showing its priority,
+  deadline countdown, effort and tags. `h` / `l` move a card to the
+  previous / next state through the regular TODO code, so logging, CLOSED
+  and repeaters work; `/` filters by tags match or org-ql query, `<CR>`
+  opens the heading. Cards come from the agenda files, a buffer, a subtree
+  or a query (`:Org kanban`, `<prefix>Vk`, `:h org-extensions-kanban`).
+
+  ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](docs/media/kanban.gif)
+
+- **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
+  DEADLINE or Effort: bars from start to deadline, ◆ deadlines, today's
+  column, overdue tasks in red, optional clocked days. `+` / `-` zoom
+  (day, week, month), `[` / `]` pan, `S` / `D` reschedule
+  (`:Org timeline`, `<prefix>Vt`, `:h org-extensions-timeline`).
+
+  ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](docs/media/timeline.gif)
+
+- **`heatmap`**: a GitHub-style calendar of the time clocked each day,
+  the tasks closed or the habits done, shaded from your colorscheme, with
+  totals and streaks; the selected day shows its tasks and `<CR>` opens its
+  agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
+  `:h org-extensions-heatmap`).
+
+  ![Heatmap: nine months of clocked time, a day's total and tasks, tasks closed per day, one tag only and the agenda of the selected day](docs/media/heatmap.gif)
+
+- **`sidebar`**: a narrow "Today" window with the running clock against
+  its effort, the next appointment with a countdown, today's items,
+  habits due and the inbox count, kept up to date by a timer and on writes
+  (`sidebar_toggle`, `<prefix>Vs`, `:h org-extensions-sidebar`).
+
+  ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](docs/media/sidebar.gif)
+
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review
 ([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
