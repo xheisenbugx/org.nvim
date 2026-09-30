@@ -115,7 +115,6 @@ function M.setup()
       OrgHeatmapTitle = { link = "Title" },
       OrgHeatmapHint = { link = "Comment" },
       OrgHeatmapLabel = { link = "Comment" },
-      OrgHeatmapStat = { link = "Normal" },
       OrgHeatmapValue = { link = "Number" },
       OrgHeatmapDetail = { link = "Special" },
     }
@@ -531,7 +530,13 @@ local function show_detail(st)
   if #list > 3 then
     chunks[#chunks + 1] = { string.format(", +%d more", #list - 3), "OrgHeatmapLabel" }
   end
-  vim.api.nvim_buf_set_extmark(st.buf, detail_ns, st.detail_line - 1, 0, { virt_text = chunks, virt_text_pos = "overlay" })
+  vim.api.nvim_buf_set_extmark(
+    st.buf,
+    detail_ns,
+    st.detail_line - 1,
+    0,
+    { virt_text = chunks, virt_text_pos = "overlay" }
+  )
 end
 
 local function place(st)

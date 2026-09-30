@@ -7804,7 +7804,7 @@ Options (defaults) ~
 
 Highlight groups: `OrgHeatmap0` to `OrgHeatmap4` (the shades, set from the
 options), `OrgHeatmapTitle`, `OrgHeatmapHint`, `OrgHeatmapLabel`,
-`OrgHeatmapStat`, `OrgHeatmapValue`, `OrgHeatmapDetail`.
+`OrgHeatmapValue`, `OrgHeatmapDetail`.
 
 ------------------------------------------------------------------------------
 Today sidebar                                         *org-extensions-sidebar*

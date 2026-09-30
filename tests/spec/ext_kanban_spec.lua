@@ -64,6 +64,12 @@ local function names(col)
   end, col.cards)
 end
 
+local function col_names(st)
+  return vim.tbl_map(function(c)
+    return c.name
+  end, st.cols)
+end
+
 local function column(st, name)
   for _, c in ipairs(st.cols) do
     if c.name == name then
@@ -112,9 +118,7 @@ describe("kanban board", function()
 
   it("has a column per TODO keyword by default", function()
     local st = kanban.open()
-    eq({ "TODO", "NEXT", "WAITING", "DONE", "CANCELLED" }, vim.tbl_map(function(c)
-      return c.name
-    end, st.cols))
+    eq({ "TODO", "NEXT", "WAITING", "DONE", "CANCELLED" }, col_names(st))
     eq(4, #column(st, "TODO").cards)
     eq({ "Ship it", "Child two" }, names(column(st, "NEXT")))
     eq({ "Finished" }, names(column(st, "DONE")))
@@ -134,9 +138,7 @@ describe("kanban board", function()
   it("groups keywords into named columns with WIP limits and hides DONE columns", function()
     setup({ columns = { "TODO", { "NEXT", "WAITING", name = "Doing", wip = 2 }, "DONE" }, show_done = false })
     local st = kanban.open()
-    eq({ "TODO", "Doing" }, vim.tbl_map(function(c)
-      return c.name
-    end, st.cols))
+    eq({ "TODO", "Doing" }, col_names(st))
     local doing = column(st, "Doing")
     eq(3, #doing.cards)
     eq(2, doing.wip)

@@ -106,12 +106,25 @@ function M.setup()
     OrgTimelineDone = { link = "Comment" },
     OrgTimelineOverdue = { link = "DiagnosticError" },
     OrgTimelineDeadline = { link = "DiagnosticWarn" },
-    OrgTimelineClock = { link = "DiagnosticHint" },
-    OrgTimelineToday = { link = "CursorLine" },
+    OrgTimelineClock = { link = "String" },
     OrgTimelineTodayLabel = { link = "Search" },
-    OrgTimelineWeekend = { link = "ColorColumn" },
-    OrgTimelineTask = { link = "Normal" },
+    OrgTimelineTask = {},
   })
+  views.highlights(augroup, M.column_highlights)
+end
+
+--- Backgrounds of the today and weekend columns: faint tints of the
+--- window background, so the bars stay readable.
+---@return table<string, table>
+function M.column_highlights()
+  local light = vim.o.background == "light"
+  local bg = views.color("NormalFloat", "bg") or views.color("Normal", "bg") or (light and 0xffffff or 0x000000)
+  local fg = views.color("Normal", "fg") or (light and 0x000000 or 0xffffff)
+  local warn = views.color("DiagnosticWarn", "fg") or 0xd7af00
+  return {
+    OrgTimelineWeekend = { bg = views.blend(bg, fg, 0.05), ctermbg = light and 255 or 234 },
+    OrgTimelineToday = { bg = views.blend(bg, warn, 0.2), ctermbg = light and 230 or 236 },
+  }
 end
 
 function M.teardown()
@@ -256,48 +269,48 @@ local function has_day(set, a, b)
   return false
 end
 
---- The text and highlight of a task's cell.
+--- The segments (`{ text, groups }`) of a task's cell.
 local function cell(st, row, i, today)
   local z = zoom(st)
   local w = z.width
   local a, b = cell_days(st, i)
   local on_bar = row.start and row.start <= b and row.finish >= a
   local is_dl = row.deadline and row.deadline >= a and row.deadline <= b
-  local is_today = today >= a and today <= b
-  local weekend = z.days == 1 and w > 1 and date.from_days(a):weekday() >= 6
-  local bar_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineBar")
-  local text, hl
+  local clocked = has_day(row.clock_days, a, b)
+  local base = {}
+  if z.days == 1 and w > 1 and date.from_days(a):weekday() >= 6 then
+    base[#base + 1] = "OrgTimelineWeekend"
+  end
+  if today >= a and today <= b then
+    base[#base + 1] = "OrgTimelineToday"
+  end
+  local function seg(text, hl)
+    local groups = vim.list_extend({}, base)
+    groups[#groups + 1] = hl
+    return { text, #groups > 0 and groups or nil }
+  end
+  -- clocked days of the bar show in the clock colour
+  local bar_hl = row.done and "OrgTimelineDone"
+    or (row.overdue and "OrgTimelineOverdue")
+    or (clocked and "OrgTimelineClock")
+    or "OrgTimelineBar"
   if is_dl then
     local dl_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineDeadline")
     if w == 1 then
-      text = "◆"
-    else
-      local left = (row.start and row.start < a) and string.rep("█", math.floor((w - 1) / 2))
-        or string.rep(" ", math.floor((w - 1) / 2))
-      text = left .. "◆" .. string.rep(" ", w - 1 - math.floor((w - 1) / 2))
+      return { seg("◆", dl_hl) }
     end
-    hl = dl_hl
+    local lw = math.floor((w - 1) / 2)
+    local left = (row.start and row.start < a) and seg(string.rep("█", lw), bar_hl) or seg(string.rep(" ", lw))
+    return { left, seg("◆", dl_hl), seg(string.rep(" ", w - 1 - lw)) }
   elseif on_bar then
-    text, hl = string.rep("█", w), bar_hl
+    return { seg(string.rep("█", w), bar_hl) }
   elseif row.overdue and a > row.deadline and a <= today then
     -- how late it is: a dashed trail from the deadline to today
-    text, hl = string.rep("┄", w), "OrgTimelineOverdue"
-  elseif has_day(row.clock_days, a, b) then
-    text, hl = string.rep("▒", w), "OrgTimelineClock"
-  else
-    text = string.rep(" ", w)
+    return { seg(string.rep("┄", w), "OrgTimelineOverdue") }
+  elseif clocked then
+    return { seg(string.rep("▒", w), "OrgTimelineClock") }
   end
-  local groups = {}
-  if weekend then
-    groups[#groups + 1] = "OrgTimelineWeekend"
-  end
-  if is_today then
-    groups[#groups + 1] = "OrgTimelineToday"
-  end
-  if hl then
-    groups[#groups + 1] = hl
-  end
-  return text, #groups > 0 and groups or nil
+  return { seg(string.rep(" ", w)) }
 end
 
 --- The axis lines: months, then day numbers (and weekdays at day zoom).
@@ -462,8 +475,9 @@ function M.render(st)
     cv:put(views.fit(row.title, lw - used + 1), title_hl)
     cv:put("│", "OrgTimelineSeparator")
     for i = 0, n - 1 do
-      local text, hl = cell(st, row, i, today)
-      cv:put(text, hl)
+      for _, s in ipairs(cell(st, row, i, today)) do
+        cv:put(s[1], s[2])
+      end
     end
   end
   if #rows == 0 then

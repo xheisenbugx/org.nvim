@@ -580,7 +580,8 @@ function M.jump(ref, how)
   end
   utils.set_current_buf(target.bufnr)
   vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })
-  pcall(vim.cmd, "normal! zv")
+  -- unfold it and show it with its entry in the middle of the window
+  pcall(vim.cmd, "normal! zvzz")
 end
 
 ---------------------------------------------------------------------------
@@ -608,7 +609,8 @@ function M.map(buf, keys, handlers, label)
 end
 
 --- Call `fn` (debounced by `delay` ms) when an org file is written or
---- changed in Normal mode, or a TODO state, property or clock changes.
+--- changed in Normal mode, a TODO state, property or clock changes, or a
+--- capture or note is stored.
 --- Returns the augroup; delete it to stop.
 ---@param name string augroup name
 ---@param fn fun()
@@ -634,7 +636,16 @@ function M.watch(name, fn, delay)
   })
   vim.api.nvim_create_autocmd("User", {
     group = group,
-    pattern = { "OrgTodoStateChange", "OrgClockIn", "OrgClockOut", "OrgClockCancel", "OrgPropertyChanged" },
+    -- org saves its own edits with :noautocmd, so its events count too
+    pattern = {
+      "OrgTodoStateChange",
+      "OrgClockIn",
+      "OrgClockOut",
+      "OrgClockCancel",
+      "OrgPropertyChanged",
+      "OrgCaptureAfterFinalize",
+      "OrgNoteStored",
+    },
     callback = schedule,
   })
   return group

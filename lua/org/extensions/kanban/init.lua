@@ -104,7 +104,8 @@ function M.setup()
     OrgKanbanHint = { link = "Comment" },
     OrgKanbanBorder = { link = "FloatBorder" },
     OrgKanbanSelected = { link = "Special" },
-    OrgKanbanCardTitle = { link = "Normal" },
+    -- no colours of its own: the text keeps the window background
+    OrgKanbanCardTitle = {},
     OrgKanbanDoneTitle = { link = "Comment" },
     OrgKanbanCount = { link = "Comment" },
     OrgKanbanWipExceeded = { link = "DiagnosticError" },
@@ -655,9 +656,14 @@ function M.ask_filter()
     utils.error(err)
     return
   end
+  local card = M.selected()
   st.filter = vim.trim(input) ~= "" and vim.trim(input) or nil
   st.sel = { col = st.sel.col, row = 1 }
   M.render(st)
+  -- keep the selected card when the filter lets it through
+  if card and reselect(st, card.ref) then
+    M.render(st)
+  end
 end
 
 function M.close()

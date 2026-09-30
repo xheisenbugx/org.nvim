@@ -78,7 +78,7 @@ function M.setup()
     OrgSidebarCount = { link = "Comment" },
     OrgSidebarTime = { link = "Number" },
     OrgSidebarPast = { link = "Comment" },
-    OrgSidebarText = { link = "Normal" },
+    OrgSidebarText = {},
     OrgSidebarEmpty = { link = "NonText" },
     OrgSidebarCountdown = { link = "DiagnosticWarn" },
     OrgSidebarOverdue = { link = "DiagnosticError" },
@@ -309,7 +309,8 @@ function M.render(st)
       end
       for _, e in ipairs(data.today) do
         if e.deadline then
-          local hl = e.deadline < 0 and "OrgSidebarOverdue" or (e.deadline == 0 and "OrgSidebarDue" or "OrgSidebarCount")
+          local hl = e.deadline < 0 and "OrgSidebarOverdue"
+            or (e.deadline == 0 and "OrgSidebarDue" or "OrgSidebarCount")
           entry(e, icons.deadline, hl, views.relative_days(e.deadline), hl)
         else
           local d = e.scheduled or 0
@@ -463,7 +464,10 @@ function M.open()
   wo.wrap = false
   wo.cursorline = true
   wo.winfixwidth = true
-  wo.statusline = " "
+  -- a blank status line of its own; the global one (laststatus=3) is kept
+  if vim.o.laststatus ~= 3 then
+    wo.statusline = " "
+  end
   wo.winbar = ""
   wo.fillchars = "eob: "
   if vim.fn.exists("+winfixbuf") == 1 then

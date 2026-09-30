@@ -171,7 +171,8 @@ describe("sidebar", function()
     -- the past standup is dimmed
     local lnum = line_of(st, "09:00 TODO Standup")
     local dim = false
-    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(st.buf, -1, { lnum - 1, 0 }, { lnum - 1, -1 }, { details = true })) do
+    local marks = vim.api.nvim_buf_get_extmarks(st.buf, -1, { lnum - 1, 0 }, { lnum - 1, -1 }, { details = true })
+    for _, m in ipairs(marks) do
       if m[4].hl_group == "OrgSidebarPast" then
         dim = true
       end
@@ -288,6 +289,16 @@ describe("sidebar", function()
     end)
     ok(vim.wait(2000, function()
       return text(st):find("16:30 TODO Added now", 1, true) ~= nil
+    end))
+  end)
+
+  it("updates the inbox count after a capture", function()
+    local st = sidebar.open()
+    local b = utils.load_buffer(inbox)
+    vim.api.nvim_buf_set_lines(b, -1, -1, false, { "* TODO Captured" })
+    vim.api.nvim_exec_autocmds("User", { pattern = "OrgCaptureAfterFinalize" })
+    ok(vim.wait(2000, function()
+      return text(st):find("Inbox  3 entries", 1, true) ~= nil
     end))
   end)
 
