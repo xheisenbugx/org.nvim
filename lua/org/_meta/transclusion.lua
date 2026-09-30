@@ -53,3 +53,7 @@
 ---@field height? number
 ---Float border (default: `"rounded"`).
 ---@field border? string|string[]
+---Put the text into the source buffer as you type, so every transclusion
+---of it follows (org-transclusion-live-sync); `:w` still writes the file
+---(default: `false`).
+---@field live? boolean

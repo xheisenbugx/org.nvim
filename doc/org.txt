@@ -8831,7 +8831,16 @@ The link is required and comes first; properties follow it:
                            search target (from the file start without
                            one); `A-` and `-B` are open ranges
   `:end "text"`              end before the first line after the start
-                           that matches text (`/regexp/` too)
+                           that matches text (`/regexp/` too); when
+                           nothing matches, the end of `:lines` applies
+  `:thing-at-point THING`    (or `:thingatpt`) end after the THING that
+                           starts at the search target: `sexp`, `list`,
+                           `defun`, `paragraph`, `line`, `word`,
+                           `symbol` or `sentence`; `:end "N"` takes N of
+                           them
+  `:noweb-chunk`             the search option names a noweb chunk: the
+                           lines after `<<name>>=` up to the next `@` or
+                           chunk
   `:src LANG`                wrap the text in a `#+begin_src LANG` block;
                            `:rest "ARGS"` adds header arguments
   `:disable-auto`            not shown or inserted automatically, only by
@@ -8841,10 +8850,14 @@ Links can be `file:` links with a search option (`::*Heading`,
 `::#custom-id`, `::name` of a `#+NAME:` element or a `<<target>>`
 paragraph, `::/regexp/` or `::N` for text files), `id:` links, or links
 into the same file (`[[*Heading]]`). A heading's whole subtree is taken,
-without its property drawer (`exclude_elements`). Text files come whole or
-by `:lines`, indented like the keyword. `#+transclude:` lines inside the
-transcluded text are expanded too, `max_depth` deep; a transclusion that
-would include itself is left as a keyword and reported.
+without its property drawer (`exclude_elements`). Text files come whole,
+from their search target to the end, or by `:lines`, `:end` or
+`:thing-at-point`, indented like the keyword; binary files are refused.
+Like org-transclusion, `:lines`, `:end` and `:thing-at-point` on an Org
+file take its lines as they are (no element left out, headlines as they
+are, except that an `id:` link still follows `:level`). `#+transclude:`
+lines inside the transcluded text are expanded too, `max_depth` deep; a
+transclusion that would include itself is left as a keyword and reported.
 
 Virtual and inserted ~
 By default (`mode = "virtual"`) transclusions are drawn as virtual lines
@@ -8857,18 +8870,34 @@ fold away with the keyword's headline.
 its lines get a sign in the sign column, the keyword line says
 "(inserted)", and folding, search and the agenda see them. Inserted text
 is read-only: an edit in place is put back (edit the source instead, see
-below), deleting the whole text removes the transclusion, and deleting the
-keyword removes its text. When the buffer is written the inserted text is
-taken out and put back afterwards (org-transclusion's before- and
-after-save hooks), so the file only ever holds the keywords. With
-`mode = "materialized"` every transclusion is inserted when a buffer is
-opened (org-transclusion-add-all-on-activate); `mode = false` shows
-nothing until you ask.
+below), lines you type or paste among it are kept below it, deleting the
+whole text removes the transclusion, and deleting the keyword removes its
+text. Each inserted line carries a mark, so undo and redo bring the
+transclusion back with its text; while they walk the history, the text
+they bring back is left as it is. `mode = "materialized"` inserts every
+transclusion when a buffer is opened (org-transclusion-add-all-on-activate,
+and again after `:e!`); `mode = false` shows nothing until you ask.
+
+The file only ever holds the keywords: inserted text is taken out while
+the buffer is written and put back afterwards (org-transclusion's before-
+and after-save hooks). That covers `:w`, `:w {file}`, `:saveas`, `:wq`,
+`:w >> {file}`, `:{range}w {file}` (the inserted lines of the range are
+left out) and org.nvim's own writes (refile, capture, archive, ...). A
+write that fails, or that another `BufWritePre` autocommand stops, puts
+the text back once the command is over. Autocommands run in the order
+they were defined: a formatter that runs before this extension's
+`BufWritePre` sees the inserted text, and the text is found again after
+it as long as the formatter left it as it was (conform.nvim and LSP
+formatting change only the lines that differ). `:noautocmd write` skips
+all of this: the file is cleaned again when you leave the buffer, stay
+idle (`CursorHold`) or Neovim loses focus, but not after
+`:noautocmd wq`.
 
 Transclusions are drawn when an org buffer is shown, redrawn when the
 buffer or a source buffer changes (`live`) or a source is written, and,
 for source files that aren't loaded, when they change on disk (`watch`,
-only while a buffer showing them is loaded).
+only while a buffer showing them is loaded; one watcher per directory, at
+most 64). Only the transclusions whose source changed are drawn again.
 
 Editing the source ~
 `transclusion_edit` (`<CR>` on a keyword or inserted text, `edit_key`)
@@ -8876,10 +8905,15 @@ opens the source lines in a float (org-transclusion-live-sync-start): the
 whole subtree with its drawers, or the lines of a code file with its
 filetype. `:w` writes them back into the source: into its buffer when it
 is loaded (and writes that buffer when it had no other unsaved changes),
-else into the file. Every transclusion of the source is then redrawn and
-inserted copies are updated. If the source changed meanwhile so the text
-can't be found, nothing is written. `q` closes the float. Elsewhere `<CR>`
-keeps its meaning.
+else into the file, keeping its line endings. Every transclusion of the
+source is then redrawn and inserted copies are updated. If the source
+changed meanwhile so the text can't be found, nothing is written.
+`<Esc>` (in Normal mode) closes the float; it refuses while there are
+unwritten edits (`:w` them, or `:q!` to drop them). With
+`edit = { live = true }` the text goes into the source buffer as you type
+(the source is loaded if it isn't), so every transclusion of it follows,
+like org-transclusion-live-sync; the file is still written by `:w`.
+Elsewhere `<CR>` keeps its meaning.
 
 Actions and keys (in org buffers) ~
   `<prefix>ua`  transclusion_add            insert the text at point
@@ -8899,12 +8933,31 @@ Actions and keys (in org buffers) ~
   `<prefix>u<`  transclusion_promote        `:level` one up
   `<prefix>u>`  transclusion_demote         `:level` one down
 `:Org transclusion_insert [[link]] :level 2` adds a keyword below the
-cursor.
+cursor (below the inserted text when the cursor is in it); it completes
+`file:` paths and the properties.
 
 Export ~
 `#+transclude:` keywords are expanded when a buffer is exported, before
 `#+INCLUDE:` keywords, except `:disable-auto` ones (`export = false` turns
 this off). Inserted text is not exported twice.
+
+                                                     *org-transclusion-ranges*
+For other extensions and plugins ~
+Inserted text is in the buffer, so the parser and the agenda see it, as
+in Emacs. Code that indexes or checks what is in the file (a language
+server, a linter, an index of links) should skip it:
+>lua
+    local ok, t = pcall(require, "org.extensions.transclusion")
+    for _, r in ipairs(ok and t.ranges(bufnr) or {}) do
+      -- lines r.first .. r.last (1-based, both included) are inserted
+      -- text; r.keyword is the line of its #+transclude:
+    end
+<
+`ranges(bufnr)` returns an empty list when nothing is inserted or the
+extension is off. `clean_lines(bufnr)` returns the lines as the file
+holds them (and a map from those lines to buffer lines), and
+`without_inserted(bufnr, fn)` runs `fn` (a write that skips autocommands)
+with the inserted text taken out.
 
 Options ~
   `mode`                   "virtual", "materialized" or false ("virtual")
@@ -8924,7 +8977,7 @@ Options ~
   `export`                 expand keywords on export (true)
   `edit_key`               key editing the transclusion at point ("<CR>")
   `edit`                   { window = "float" or an Ex command such as
-                         "split", width, height, border }
+                         "split", width, height, border, live = false }
   `open_source`            "edit", "split", "vsplit" or "tab" ("split")
 
 Highlights: `OrgTransclusionBorder`, `OrgTransclusionSource`,
@@ -8934,12 +8987,17 @@ Differences from Emacs org-transclusion ~
   - Virtual lines are the default; Emacs always inserts the text.
   - Inserted text keeps its keyword line above it (Emacs hides the
     keyword while the text is shown).
-  - Editing happens in a float written with `:w`, not in an overlay kept
-    in sync as you type (org-transclusion-live-sync-start).
+  - Editing happens in a float written with `:w`; with `edit.live` the
+    source buffer follows as you type, but the float is a copy, not an
+    overlay on the source.
   - Nested keywords are expanded as the text is drawn; Emacs expands them
     when you add them.
-  - `:thing-at-point` and noweb chunks are not supported, and `:end` is a
-    text search (or `/regexp/`), not any Org search option.
+  - `:thing-at-point` finds things by brackets, blank lines and
+    indentation, not by the source's major mode, and `:end` is a text
+    search (or `/regexp/`), not any Org search option.
+  - Identical text right under a keyword that lost its marks (a formatter
+    rewrote the buffer, or undo from an earlier session with 'undofile')
+    is taken back as that keyword's inserted text.
   - org-roam doesn't index links in `#+transclude:` lines (like org-roam),
     and inserted text is never in the file, so it isn't indexed either.
 

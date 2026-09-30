@@ -26,11 +26,11 @@ Escape
 Sleep 800ms
 Hide
 Ctrl+G
-Type@5ms `Cap :w | write roadmap.org: the transclusion follows` Enter
+Type@5ms `Cap :w  <Esc> | write roadmap.org and close: the transclusion follows` Enter
 Show
 Type ":w" Enter
 Sleep 1s
-Type "q"
+Escape
 Sleep 3s
 Hide
 Ctrl+G
