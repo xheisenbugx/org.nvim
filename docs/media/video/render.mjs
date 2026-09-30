@@ -1,14 +1,19 @@
 // Renders composition.html frame by frame with headless Chrome.
 //   node render.mjs                 every frame -> build/render/00001.jpg…
 //   node render.mjs --stills 3,12   a PNG per time (seconds) -> build/stills/
+// PAGE=extensions/composition.html renders another video; build/ is then
+// next to that page.
 import puppeteer from "puppeteer-core";
 import { mkdirSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import path from "node:path";
 import os from "node:os";
 
 const FPS = 30;
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const url = pathToFileURL(new URL("composition.html", import.meta.url).pathname).href;
+const page = path.resolve(process.env.PAGE || path.join(path.dirname(fileURLToPath(import.meta.url)), "composition.html"));
+process.chdir(path.dirname(page));
+const url = pathToFileURL(page).href;
 const args = process.argv.slice(2);
 const stills = args[0] === "--stills" ? args[1].split(",").map(Number) : null;
 

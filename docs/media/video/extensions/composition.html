@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>org.nvim extensions promo</title>
+<script src="build/frames.js"></script>
+<script src="scenes.js"></script>
+<link rel="stylesheet" href="../base.css">
+<style>
+  /* intro: the extensions table lighting up */
+  #cfg {
+    position: absolute; left: 50%; top: 50%; width: 1240px; padding: 40px 52px 44px;
+    border-radius: 22px; background: rgba(20,22,27,.88); font: 500 30px/1.5 var(--mono);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 50px 120px rgba(0,0,0,.6);
+  }
+  #cfg .ln { white-space: pre; color: #8b8fa3; }
+  #cfg .ln .f { color: #a6dbff; } #cfg .ln .s { color: #b3f6c0; }
+  #toggles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 18px; margin: 18px 0 18px 56px; }
+  .tg { font: 500 25px var(--mono); color: #6b6f79; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  .tg i { width: 34px; height: 20px; border-radius: 10px; background: #2c2e33; position: relative; flex: none; }
+  .tg i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #6b6f79; transform: translateX(var(--k, 0px)); }
+  #extitle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #exbrand { display: flex; align-items: center; gap: 22px; font-size: 52px; font-weight: 800; letter-spacing: -1.5px; }
+  #exbrand img { width: 92px; height: 92px; filter: drop-shadow(0 16px 40px rgba(140,90,255,.5)); }
+  #exhead { font-size: 200px; font-weight: 850; letter-spacing: -8px; line-height: 1; margin-top: 18px; }
+  #exsub { font-size: 40px; color: #cfd1ee; font-weight: 500; margin-top: 26px; }
+
+  /* chapter cards */
+  .chapter { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .chapter .num { font: 600 26px var(--mono); letter-spacing: 8px; text-transform: uppercase; }
+  .chapter h1 { font-size: 140px; font-weight: 850; letter-spacing: -5px; margin-top: 14px; line-height: 1.05; }
+  .chapter .list { display: flex; gap: 14px; margin-top: 36px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="layer" id="blobs">
+    <div class="blob" id="b1" style="background:#6d28d9"></div>
+    <div class="blob" id="b2" style="background:#0e7490"></div>
+    <div class="blob" id="b3" style="background:#be185d"></div>
+  </div>
+  <div class="layer" id="dots"></div>
+  <svg class="layer" id="grain" width="1920" height="1080">
+    <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/></filter>
+    <rect width="100%" height="100%" filter="url(#n)"/>
+  </svg>
+
+  <!-- 1. intro -->
+  <div class="layer" id="intro">
+    <div id="cfg">
+      <div class="ln"><span class="f">require</span>(<span class="s">"org"</span>).<span class="f">setup</span>({</div>
+      <div class="ln">  <span class="f">extensions</span> = {</div>
+      <div id="toggles"></div>
+      <div class="ln">  },</div>
+      <div class="ln">})</div>
+    </div>
+    <div id="extitle">
+      <div id="exbrand"><img src="../../logo.png"><span class="grad-text">org.nvim</span></div>
+      <div id="exhead"><span class="grad-text">Extensions.</span></div>
+      <div id="exsub">20 of them. Each one off until you turn it on.</div>
+    </div>
+  </div>
+
+  <!-- 2. chapters + features -->
+  <div class="layer" id="chapters"></div>
+  <div class="layer" id="features"></div>
+  <div id="progress"></div>
+
+  <!-- 3. wall -->
+  <div class="layer" id="wallwrap"><div id="wall"></div></div>
+  <div class="layer" id="wallshade"></div>
+  <div class="layer center" id="walltitle">
+    <h1><span class="grad-text">Plus a core that does it all.</span></h1>
+    <div id="chips"></div>
+  </div>
+
+  <!-- 4. stats -->
+  <div class="layer center" id="stats">
+    <h1>Turn on <span class="grad-text">only what you need.</span></h1>
+    <div id="statrow"></div>
+  </div>
+
+  <!-- 5. outro -->
+  <div class="layer center" id="outro">
+    <img id="outlogo" src="../../logo.png">
+    <div id="outname" class="grad-text">org.nvim</div>
+    <div id="outtag">Extensions ship with the plugin. Pick yours.</div>
+    <div id="code"><span class="f">extensions</span> <span class="p">= {</span> <span class="f">kanban</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span> <span class="f">lsp</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span> <span class="f">roam</span> <span class="p">=</span> <span class="k">true</span> <span class="p">}</span></div>
+    <div id="url">
+      <div class="pill gh"><svg width="34" height="34" viewBox="0 0 16 16" fill="#0b0b1a"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.290 6.530 5.470 7.590.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.080.58 1.230.82.72 1.210 1.870.87 2.330.66.07-.52.28-.87.51-1.07-1.780-.2-3.640-.89-3.640-3.950 0-.87.31-1.590.82-2.150-.08-.2-.36-1.020.08-2.120 0 0 .67-.21 2.200.82.64-.18 1.320-.27 2-.27.68 0 1.360.09 2 .27 1.530-1.040 2.200-.82 2.200-.82.44 1.100.16 1.920.08 2.120.51.56.82 1.270.82 2.150 0 3.070-1.870 3.750-3.650 3.950.29.25.54.73.54 1.480 0 1.070-.01 1.930-.01 2.200 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.420-3.580-8-8-8z"/></svg>github.com/xheisenbugx/org.nvim</div>
+      <div class="pill star">★ Star it on GitHub</div>
+    </div>
+  </div>
+
+  <div class="layer" id="vignette"></div>
+  <div class="layer" id="flash"></div>
+  <div class="layer" id="fade"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- timeline
+// 120 BPM: a bar is 2 s, a beat 0.5 s. Chapter cards are a bar, features
+// 3.5 bars; extensions/music.py reads the same times from window.TIMELINE.
+const FPS = 30, CARD = 2, SCENE = 7;
+const T = { intro: 0, chapters: [] };
+let acc = 8;
+const FEATURES = [];
+CHAPTERS.forEach((c, ci) => {
+  c.start = acc; acc += CARD;
+  c.features.forEach((f) => { f.start = acc; f.dur = SCENE; f.color = c.color; f.chapter = ci; FEATURES.push(f); acc += SCENE; });
+  c.end = acc;
+});
+T.wall = acc; T.stats = T.wall + 8; T.outro = T.stats + 6; T.end = T.outro + 10;
+window.DURATION = T.end;
+window.TIMELINE = { end: T.end, wall: T.wall, stats: T.stats, outro: T.outro,
+  chapters: CHAPTERS.map((c) => c.start), features: FEATURES.map((f) => f.start) };
+
+// ---------------------------------------------------------------- helpers
+const $ = (s) => document.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const outExpo = (k) => (k >= 1 ? 1 : 1 - Math.pow(2, -10 * k));
+const outCubic = (k) => 1 - Math.pow(1 - k, 3);
+const inCubic = (k) => k * k * k;
+const outBack = (k) => { const c = 1.7, c3 = c + 1; return 1 + c3 * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const show = (el, on) => { el.style.display = on ? "" : "none"; };
+function style(el, { x = 0, y = 0, s = 1, r = 0, o = 1, blur = 0, rx = 0, ry = 0, c = false }) {
+  el.style.transform = `${c ? "translate(-50%, -50%) " : ""}translate(${x}px, ${y}px) rotateX(${rx}deg) rotateY(${ry}deg) rotate(${r}deg) scale(${s})`;
+  el.style.opacity = o;
+  el.style.filter = blur > 0.05 ? `blur(${blur}px)` : "";
+}
+const pad = (n) => String(n).padStart(4, "0");
+const pendingImgs = new Set();
+function setFrame(img, clip, idx) {
+  const n = window.FRAMES[clip];
+  const src = `build/frames/${clip}/${pad(clamp(Math.floor(idx), 0, n - 1) + 1)}.jpg`;
+  if (img.getAttribute("src") !== src) { img.setAttribute("src", src); pendingImgs.add(img); }
+}
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// ---------------------------------------------------------------- 1. intro
+const EXT = ["present", "ql", "roam", "super_agenda", "quickadd", "review", "pomodoro", "drill", "merge", "ics",
+  "cli", "diagrams", "code", "literate", "lsp", "transclusion", "kanban", "timeline", "heatmap", "sidebar"];
+const EXT_COLORS = ["#67e8f9", "#4ade80", "#a78bfa", "#f472b6"];
+$("#toggles").innerHTML = EXT.map((e) => `<div class="tg"><i></i><span>${e}</span></div>`).join("");
+const toggles = [...document.querySelectorAll(".tg")];
+const TOGGLE_AT = (i) => 1.0 + i * 0.1; // one every 16th note... roughly: 20 in 2 s
+
+function intro(t) {
+  show($("#intro"), t < 8);
+  if (t >= 8) return;
+  const cfg = $("#cfg");
+  const cin = outExpo(prog(t, 0.1, 0.8)), cout = inCubic(prog(t, 3.5, 4.0));
+  style(cfg, { c: true, y: (1 - cin) * 60, s: lerp(0.94, 1, cin) * (1 + cout * 0.6), o: cin * (1 - cout), blur: cout * 16 });
+  toggles.forEach((el, i) => {
+    const k = outBack(prog(t, TOGGLE_AT(i), TOGGLE_AT(i) + 0.18));
+    const col = EXT_COLORS[i % 4];
+    const on = t >= TOGGLE_AT(i);
+    el.style.color = on ? "#eef1f8" : "#6b6f79";
+    const knob = el.querySelector("i");
+    knob.style.background = on ? col : "#2c2e33";
+    knob.style.boxShadow = on ? `0 0 18px ${col}` : "none";
+    knob.style.setProperty("--k", `${k * 14}px`);
+    style(el, { s: 1 + Math.sin(prog(t, TOGGLE_AT(i), TOGGLE_AT(i) + 0.25) * Math.PI) * 0.08 });
+  });
+
+  const tin = t - 4.0, out = inCubic(prog(t, 7.5, 8));
+  const title = $("#extitle");
+  show(title, tin >= 0);
+  const b = outExpo(prog(tin, 0, 0.6));
+  style($("#exbrand"), { y: (1 - b) * -30, o: b * (1 - out), blur: out * 10 });
+  const h = outExpo(prog(tin, 0.1, 0.8));
+  style($("#exhead"), { s: lerp(1.4, 1, h) * (1 + out * 0.3), o: clamp(h * 1.5) * (1 - out), blur: (1 - h) * 24 + out * 16 });
+  const s = outCubic(prog(tin, 0.6, 1.2));
+  style($("#exsub"), { y: (1 - s) * 24, o: s * (1 - out), blur: out * 10 });
+}
+
+// ---------------------------------------------------------------- 2. chapters + features
+$("#chapters").innerHTML = CHAPTERS.map((c, i) => `
+  <div class="chapter" id="c${i}">
+    <div class="num" style="color:${c.color}"><span class="mask"><span>Part ${i + 1}</span></span></div>
+    <h1>${c.title.split(" ").map((w) => `<span class="mask"><span>${w}&nbsp;</span></span>`).join("")}</h1>
+    <div class="list">${c.features.map((f) => `<div class="chip" style="box-shadow: inset 0 0 0 1px ${c.color}66">${f.label}</div>`).join("")}</div>
+  </div>`).join("");
+
+function chapters(t) {
+  CHAPTERS.forEach((c, i) => {
+    const el = $(`#c${i}`), u = t - c.start;
+    const vis = u >= 0 && u < CARD;
+    show(el, vis);
+    if (!vis) return;
+    const out = inCubic(prog(u, CARD - 0.3, CARD));
+    [...el.querySelectorAll(".mask > span")].forEach((m, j) => {
+      const k = outExpo(prog(u, j * 0.06, 0.55 + j * 0.06));
+      m.style.transform = `translateY(${(1 - k) * 110}%)`;
+    });
+    [...el.querySelectorAll(".chip")].forEach((ch, j) => {
+      const k = outBack(prog(u, 0.45 + j * 0.08, 0.8 + j * 0.08));
+      style(ch, { y: (1 - k) * 20, s: lerp(0.7, 1, k), o: clamp(prog(u, 0.45 + j * 0.08, 0.6 + j * 0.08)) });
+    });
+    style(el, { s: 1 + out * 0.25, o: 1 - out, blur: out * 14 });
+  });
+}
+
+$("#features").innerHTML = FEATURES.map((f, i) => `
+  <div class="layer feature" id="f${i}" style="perspective:2200px">
+    <div class="glow" style="background:${f.color}"></div>
+    <div class="head">
+      <div class="label" style="color:${f.color}"><span class="mask"><span>${f.label} · ${esc(CHAPTERS[f.chapter].title.replace(/\.$/, ""))}</span></span></div>
+      <h2>${f.title.split(" ").map((w) => `<span class="mask"><span>${esc(w)}&nbsp;</span></span>`).join("")}</h2>
+    </div>
+    <div class="win">
+      <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>nvim — ${esc(f.file)}</b></div>
+      <img>
+    </div>
+  </div>`).join("");
+$("#progress").innerHTML = `<span class="count"></span>` + FEATURES.map((f) => `<div class="seg" style="width:22px"><div style="background:${f.color}"></div></div>`).join("");
+const segs = [...document.querySelectorAll("#progress .seg div")];
+const IN = 0.75, OUT = 0.45;
+
+function features(t) {
+  const first = FEATURES[0].start, last = T.wall;
+  const on = t >= first - 0.1 && t < last + 0.05;
+  show($("#features"), on);
+  const pv = prog(t, first, first + 0.6) * (1 - prog(t, last - 0.5, last - 0.1));
+  show($("#progress"), pv > 0);
+  $("#progress").style.opacity = pv;
+  FEATURES.forEach((f, i) => {
+    const el = $(`#f${i}`), u = t - f.start;
+    segs[i].style.width = `${clamp(u / f.dur) * 100}%`;
+    const vis = on && u >= -0.05 && u < f.dur;
+    show(el, vis);
+    if (!vis) return;
+    $("#progress .count").textContent = `${String(i + 1).padStart(2, "0")} / ${FEATURES.length}`;
+    const kin = outExpo(prog(u, 0, IN)), kout = inCubic(prog(u, f.dur - OUT, f.dur));
+    style(el.querySelector(".win"), {
+      x: (1 - kin) * 520 - kout * 620, y: (1 - kin) * 40,
+      ry: (1 - kin) * -24 + kout * 22, s: lerp(0.9, 1, kin) * (1 - kout * 0.08),
+      o: clamp(kin * 1.6) * (1 - kout), blur: kout * 8,
+    });
+    style(el.querySelector(".glow"), { x: Math.sin(t * 0.7) * 60, s: 0.8 + kin * 0.2, o: kin * (1 - kout) * 0.5 });
+    [...el.querySelectorAll(".mask > span")].forEach((m, j) => {
+      const k = outExpo(prog(u, 0.12 + j * 0.05, 0.8 + j * 0.05));
+      const ko = inCubic(prog(u, f.dur - OUT - 0.05 + j * 0.015, f.dur - 0.1 + j * 0.015));
+      m.style.transform = `translateY(${(1 - k) * 110 - ko * 110}%)`;
+    });
+    // the segment from scenes.js, stretched to finish with a beat to spare
+    const rate = (f.to - f.from) / (f.dur - 1.1);
+    setFrame(el.querySelector("img"), f.clip, Math.max(0, u - 0.25) * rate * FPS);
+  });
+}
+
+// ---------------------------------------------------------------- 3. wall
+$("#wall").innerHTML = WALL.map(() => `<div class="tile"><img></div>`).join("");
+const tiles = [...document.querySelectorAll("#wall .tile")];
+const CHIPS = ["Column view", "Agenda views", "org-lint", "Date picker", "Habits", "Archiving", "Attachments", "Citations",
+  "Encryption", "RSS feeds", "MobileOrg", "Dynamic blocks", "Datetrees", "Table export", "Src block editing", "Goto"];
+$("#chips").innerHTML = CHIPS.map((c) => `<div class="chip">${c}</div>`).join("");
+const chips = [...document.querySelectorAll("#chips .chip")];
+
+function wall(t) {
+  const on = t >= T.wall && t < T.stats;
+  ["#wallwrap", "#wallshade", "#walltitle"].forEach((s) => show($(s), on));
+  if (!on) return;
+  const u = t - T.wall, D = T.stats - T.wall;
+  const out = inCubic(prog(u, D - 0.5, D));
+  const w = $("#wall");
+  w.style.transform = `translate(-50%, -50%) rotateX(24deg) rotateZ(9deg) translate(${lerp(-140, 140, u / D)}px, ${lerp(60, -60, u / D)}px) scale(${lerp(0.92, 1.02, u / D) * (1 + out * 0.5)})`;
+  w.style.opacity = 1 - out;
+  tiles.forEach((tile, i) => {
+    const k = outBack(prog(u, 0.03 * i, 0.03 * i + 0.55));
+    tile.style.transform = `scale(${lerp(0.6, 1, k)})`;
+    tile.style.opacity = clamp(prog(u, 0.03 * i, 0.03 * i + 0.3));
+    setFrame(tile.querySelector("img"), `wall-${WALL[i]}`, u * 15);
+  });
+  $("#wallshade").style.opacity = prog(u, 0.6, 1.4) * (1 - out);
+  const hk = outExpo(prog(u, 0.9, 1.6));
+  style($("#walltitle h1"), { y: (1 - hk) * 40, s: lerp(1.15, 1, hk), o: hk * (1 - out), blur: (1 - hk) * 14 + out * 10 });
+  chips.forEach((c, i) => {
+    const k = outBack(prog(u, 1.5 + i * 0.12, 1.9 + i * 0.12));
+    style(c, { y: (1 - k) * 24, s: lerp(0.7, 1, k), o: clamp(prog(u, 1.5 + i * 0.12, 1.75 + i * 0.12)) * (1 - out) });
+  });
+}
+
+// ---------------------------------------------------------------- 4. stats
+const STATS = [
+  { to: 20, lbl: "extensions", sub: "boards to language servers", c: "#67e8f9" },
+  { to: 8, lbl: "Emacs favourites", sub: "org-roam, org-ql, org-drill…", c: "#4ade80" },
+  { to: 1, lbl: "line to turn one on", sub: "in the extensions table", c: "#a78bfa" },
+  { to: 0, from: 9, lbl: "cost until you do", sub: "unloaded until enabled", c: "#f472b6" },
+];
+$("#statrow").innerHTML = STATS.map((s) =>
+  `<div class="stat"><div class="num" style="color:${s.c}"></div><div class="rule" style="background:${s.c}"></div><div class="lbl">${s.lbl}</div><div class="sub">${s.sub}</div></div>`).join("");
+const statEls = [...document.querySelectorAll(".stat")];
+
+function stats(t) {
+  const on = t >= T.stats && t < T.outro;
+  show($("#stats"), on);
+  if (!on) return;
+  const u = t - T.stats, D = T.outro - T.stats;
+  const out = inCubic(prog(u, D - 0.45, D));
+  const hk = outExpo(prog(u, 0, 0.6));
+  style($("#stats h1"), { y: (1 - hk) * -30, o: hk * (1 - out), blur: (1 - hk) * 10 + out * 10 });
+  statEls.forEach((el, i) => {
+    const s = STATS[i], a = 0.4 + i * 0.3;
+    const k = outExpo(prog(u, a, a + 0.6));
+    style(el, { y: (1 - k) * 60 + out * -30, o: k * (1 - out), blur: out * 10 });
+    el.querySelector(".num").textContent = String(Math.round(lerp(s.from ?? 0, s.to, outCubic(prog(u, a, a + 1.2)))));
+    el.querySelector(".rule").style.width = `${80 * outExpo(prog(u, a + 0.3, a + 1))}px`;
+  });
+}
+
+// ---------------------------------------------------------------- 5. outro
+function outro(t) {
+  const on = t >= T.outro;
+  show($("#outro"), on);
+  if (!on) return;
+  const u = t - T.outro;
+  ["#outlogo", "#outname", "#outtag", "#code", "#url"].forEach((id, i) => {
+    const a = i * 0.18;
+    const k = (id === "#outlogo" ? outBack : outExpo)(prog(u, a, a + 0.7));
+    style($(id), { y: (1 - k) * 50 + (id === "#outlogo" ? Math.sin(t * 1.6) * 5 : 0), s: id === "#outlogo" ? lerp(0.5, 1, k) : 1, o: clamp(k), blur: (1 - clamp(k)) * 10 });
+  });
+  const sw = prog(u, 2.2, 3.0);
+  $(".pill.star").style.boxShadow = sw > 0 && sw < 1 ? `0 0 ${40 * Math.sin(sw * Math.PI)}px rgba(244,114,182,.8)` : "none";
+}
+
+// ---------------------------------------------------------------- background + global
+function background(t) {
+  [["#b1", 300 + Math.sin(t * 0.23) * 260, 80 + Math.cos(t * 0.31) * 160],
+   ["#b2", 1100 + Math.cos(t * 0.19) * 300, 400 + Math.sin(t * 0.27) * 180],
+   ["#b3", 700 + Math.sin(t * 0.29 + 2) * 400, -250 + Math.cos(t * 0.21) * 200]]
+    .forEach(([id, x, y]) => { $(id).style.transform = `translate(${x}px, ${y}px)`; });
+  $("#dots").style.backgroundPosition = `${t * 6}px ${t * 10}px`;
+  // dim the blobs while a terminal is on screen
+  const inFeature = FEATURES.some((f) => t >= f.start - 0.2 && t < f.start + f.dur + 0.2);
+  const target = inFeature ? 0.55 : 1;
+  $("#blobs").style.opacity = target;
+
+  const hits = [4.0, ...CHAPTERS.map((c) => c.start), T.wall, T.outro];
+  let f = 0;
+  for (const h of hits) { const d = t - h; if (d >= 0 && d < 0.4) f = Math.max(f, (1 - d / 0.4) * 0.55); }
+  $("#flash").style.opacity = f;
+  $("#fade").style.opacity = Math.max(1 - prog(t, 0, 0.3), prog(t, T.end - 1.2, T.end));
+}
+
+window.seek = async function (t) {
+  background(t); intro(t); chapters(t); features(t); wall(t); stats(t); outro(t);
+  const imgs = [...pendingImgs]; pendingImgs.clear();
+  await Promise.all(imgs.map((i) => i.decode().catch(() => {})));
+  await document.fonts.ready;
+};
+window.seek(parseFloat(new URLSearchParams(location.search).get("t") ?? "5"));
+</script>
+</body>
+</html>

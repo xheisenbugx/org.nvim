@@ -1,7 +1,11 @@
-# Promo video
+# Promo videos
 
-A 92-second 1080p30 promo for org.nvim, meant for YouTube. Everything in it
-is generated from this directory, so it can be rebuilt when the UI changes.
+Two 1080p30 promos for org.nvim, meant for YouTube. Everything in them is
+generated from this directory, so they can be rebuilt when the UI changes.
+
+- The main promo (92 s): the core features. Built by `build.sh`, described below.
+- The extensions promo (2:32), in `extensions/`: the 20 extensions and the
+  core features the first one skips. See [Extensions video](#extensions-video).
 
 ```sh
 docs/media/video/build.sh                # record, render, encode
@@ -35,6 +39,31 @@ Timeline (one bar = 2 s at 120 BPM; `music.py` mirrors these times):
 To change a feature scene, edit its tape and the `FEATURES` table in
 `composition.html`. If you change scene times, update the constants at the
 top of `music.py` too.
+
+`base.css` holds the styles both compositions share, and `render.mjs`
+renders either one (`PAGE=extensions/composition.html node render.mjs`).
+
+## Extensions video
+
+```sh
+docs/media/video/extensions/build.sh                # record, render, encode
+docs/media/video/extensions/build.sh --skip-record  # reuse extensions/clips/*.mp4
+```
+
+The result is `extensions/out/org-nvim-extensions.mp4`.
+
+| File | What it does |
+| --- | --- |
+| `extensions/record.sh` | records the 16 extension clips from the README tapes in `docs/media/tapes` at video size, so the video and the GIFs show the same thing. The diagrams tape needs `mmdc` (or `$DEMO_MMDC`) |
+| `extensions/scenes.js` | the four chapters and their scenes, with the segment of each clip to play |
+| `extensions/frames.sh` | cuts those segments, and 16 more README GIFs for the wall, into frames |
+| `extensions/composition.html` | the video: 20 extension toggles lighting up, a title card per chapter, a scene per extension, the wall, stats and the outro |
+| `extensions/music.py` | a new arrangement of `music.py`'s instruments for this timeline |
+
+Timeline: 0–8 intro, then four chapters (a 2 s card, then 7 s per
+extension): See your work (8), Get things done (38), Where code meets notes
+(68), Beyond the editor (105); 128–136 the wall of core features, 136–142
+stats, 142–152 outro. `music.py` mirrors these times.
 
 Needs `vhs`, `ffmpeg`, Node, Python 3 with numpy and scipy, Google Chrome
 (or `CHROME=/path/to/chrome`), and the BlexMono Nerd Font.
