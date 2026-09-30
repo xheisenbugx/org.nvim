@@ -19,8 +19,40 @@ local DEF_KINDS = {
   [23] = true, -- Struct
 }
 
--- treesitter node types of definitions (matched as substrings)
-local TS_DEF = { "function", "method", "class", "struct", "interface", "enum", "impl", "trait", "module", "type_spec" }
+-- LSP SymbolKind values whose name qualifies the symbols inside them
+-- (`Class.method`)
+local CONTAINER_KINDS = { [2] = true, [3] = true, [5] = true, [10] = true, [11] = true, [23] = true }
+
+-- treesitter node types of definitions (matched as substrings of types
+-- that also contain "definition", "declaration", "item" or "spec")
+local TS_DEF = {
+  "function",
+  "method",
+  "class",
+  "struct",
+  "interface",
+  "enum",
+  "impl",
+  "trait",
+  "module",
+  "mod_item",
+  "namespace",
+  "type_spec",
+  "type_alias",
+  "type_item",
+  "macro",
+  "constructor",
+}
+
+-- of those, the ones whose name qualifies the definitions inside them
+local TS_CONTAINER = { "class", "struct", "interface", "enum", "impl", "trait", "module", "mod_item", "namespace" }
+
+-- node types that are definitions whatever their name (Ruby)
+local TS_EXACT = { method = "def", singleton_method = "def", class = "container", module = "container" }
+
+-- nodes that bind a name to a value: a definition when the value is a
+-- function or a class (`const f = () => {}`, `M.f = function() end`)
+local TS_BINDING = { variable_declarator = true, assignment_statement = true, field = true, pair = true }
 
 local function opts()
   return require("org.extensions").opts("code") or require("org.extensions.code").defaults
@@ -30,16 +62,25 @@ end
 -- LSP
 ---------------------------------------------------------------------------
 
-local function supports_symbols(client)
-  if client.supports_method then
-    local ok, res = pcall(client.supports_method, client, "textDocument/documentSymbol")
-    if ok then
-      return res
-    end
-    ok, res = pcall(client.supports_method, "textDocument/documentSymbol")
-    if ok then
-      return res
-    end
+local METHOD = "textDocument/documentSymbol"
+
+--- Does `client` answer textDocument/documentSymbol? Neovim 0.11+ has
+--- `client:supports_method(m)`; 0.10 only the field `client.supports_method(m)`,
+--- which says yes to anything that is not a method name (so a colon call
+--- there would accept every client).
+---@param client table
+---@return boolean
+function M.supports_symbols(client)
+  local mt = getmetatable(client)
+  local cls = mt and type(mt.__index) == "table" and rawget(mt.__index, "supports_method")
+  local ok, res
+  if type(cls) == "function" then
+    ok, res = pcall(cls, client, METHOD)
+  elseif type(client.supports_method) == "function" then
+    ok, res = pcall(client.supports_method, METHOD)
+  end
+  if ok then
+    return res and true or false
   end
   return client.server_capabilities and client.server_capabilities.documentSymbolProvider and true or false
 end
@@ -47,15 +88,22 @@ end
 local function clients(buf)
   local list = {}
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-    if supports_symbols(c) then
+    if M.supports_symbols(c) then
       list[#list + 1] = c
     end
   end
   return list
 end
 
--- Could a running client attach to `buf` soon (it serves its filetype)?
+-- Will a server attach to `buf` soon? One that is starting for it
+-- (vim.lsp.start or vim.lsp.enable ran on FileType and it is still
+-- initializing), or a running one that serves its filetype.
 local function client_expected(buf)
+  -- `_uninitialized` (0.10 to 0.12) also lists clients still initializing
+  local ok, starting = pcall(vim.lsp.get_clients, { bufnr = buf, _uninitialized = true })
+  if ok and #starting > 0 then
+    return true
+  end
   local ft = vim.bo[buf].filetype
   for _, c in ipairs(vim.lsp.get_clients()) do
     local fts = c.config and c.config.filetypes
@@ -66,11 +114,40 @@ local function client_expected(buf)
   return false
 end
 
+--- Byte column of the `index` of a position in `line` counted in
+--- `encoding` ("utf-8", "utf-16" or "utf-32").
+---@param line string
+---@param index integer
+---@param encoding? string
+---@return integer
+function M.byte_col(line, index, encoding)
+  encoding = encoding or "utf-16"
+  if encoding == "utf-8" or index <= 0 then
+    return math.min(math.max(index, 0), #line)
+  end
+  local ok, b
+  if vim.fn.has("nvim-0.11") == 1 then
+    ok, b = pcall(vim.str_byteindex, line, encoding, index, false)
+  else
+    ok, b = pcall(vim.str_byteindex, line, index, encoding == "utf-16")
+  end
+  if ok and type(b) == "number" then
+    return b
+  end
+  return math.min(index, #line)
+end
+
+local function encoding_of(client_id)
+  local c = vim.lsp.get_client_by_id and vim.lsp.get_client_by_id(client_id)
+  return c and c.offset_encoding or "utf-16"
+end
+
 --- The document symbols of `buf` from its language servers, as a flat
---- list `{ name, full, kind, lnum, col, end_lnum }` (1-based lines, 0-based
---- byte columns; `full` joins the names of the enclosing symbols with ".").
---- `wait`: wait up to `lsp_timeout` for a server to attach. nil without
---- a server.
+--- list `{ name, full, qual, kind, lnum, col, start_lnum, end_lnum }`
+--- (1-based lines, 0-based byte columns; `full` joins the names of the
+--- enclosing symbols with ".", `qual` only those of enclosing classes,
+--- modules... ). `wait`: wait up to `lsp_timeout` for a server that is
+--- starting (or serves the filetype) to attach. nil without a server.
 ---@param buf integer
 ---@param wait? boolean
 ---@return table[]|nil
@@ -91,45 +168,50 @@ function M.lsp_symbols(buf, wait)
     end
   end
   local params = { textDocument = { uri = vim.uri_from_bufnr(buf) } }
-  local ok, res = pcall(vim.lsp.buf_request_sync, buf, "textDocument/documentSymbol", params, timeout)
+  local ok, res = pcall(vim.lsp.buf_request_sync, buf, METHOD, params, timeout)
   if not ok or type(res) ~= "table" then
     return nil
   end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  local function bytecol(lnum, col)
-    local line = lines[lnum] or ""
-    local bok, b = pcall(vim.str_byteindex, line, col, true)
-    return bok and b or col
-  end
   local out = {}
-  local function add(sym, parent)
+  local function add(sym, parent, enc)
     local range = sym.selectionRange or sym.range or (sym.location and sym.location.range)
-    if not range then
+    if not range or type(sym.name) ~= "string" then
       return
     end
-    local full = sym.name
+    local full, qual = sym.name, sym.name
     if parent then
-      full = parent .. "." .. sym.name
+      full = parent.full .. "." .. sym.name
+      if parent.container then
+        qual = parent.qual .. "." .. sym.name
+      end
     elseif sym.containerName and sym.containerName ~= "" then
       full = sym.containerName .. "." .. sym.name
+      qual = full
     end
     local whole = sym.range or (sym.location and sym.location.range) or range
+    local lnum = range.start.line + 1
     out[#out + 1] = {
       name = sym.name,
       full = full,
+      qual = qual,
       kind = sym.kind,
-      lnum = range.start.line + 1,
-      col = bytecol(range.start.line + 1, range.start.character),
+      lnum = lnum,
+      col = M.byte_col(lines[lnum] or "", range.start.character, enc),
       start_lnum = whole.start.line + 1,
       end_lnum = whole["end"].line + 1,
     }
+    local me = { full = full, qual = qual, container = CONTAINER_KINDS[sym.kind] or false }
     for _, child in ipairs(sym.children or {}) do
-      add(child, full)
+      add(child, me, enc)
     end
   end
-  for _, r in pairs(res) do
-    for _, sym in ipairs((r and r.result) or {}) do
-      add(sym)
+  for id, r in pairs(res) do
+    if type(r) == "table" and type(r.result) == "table" then
+      local enc = encoding_of(id)
+      for _, sym in ipairs(r.result) do
+        add(sym, nil, enc)
+      end
     end
   end
   return out
@@ -151,16 +233,8 @@ local function ts_root(buf)
   return trees[1]:root()
 end
 
-local function is_def(node)
-  local t = node:type()
-  local decl = t:find("definition", 1, true)
-    or t:find("declaration", 1, true)
-    or t:find("item", 1, true)
-    or t:find("spec", 1, true)
-  if not decl then
-    return false
-  end
-  for _, d in ipairs(TS_DEF) do
+local function has_word(t, words)
+  for _, d in ipairs(words) do
     if t:find(d, 1, true) then
       return true
     end
@@ -168,12 +242,113 @@ local function is_def(node)
   return false
 end
 
-local function def_name(node, buf)
-  local name = node:field("name")[1]
-  if not name then
+local function is_function_value(node)
+  local t = node and node:type() or ""
+  return t:find("function", 1, true) ~= nil or t:find("arrow", 1, true) ~= nil or t == "lambda"
+end
+
+-- The name and value nodes of a binding (see TS_BINDING).
+local function binding(node)
+  if node:type() == "assignment_statement" then
+    -- Lua: (variable_list name: ...) (expression_list value: ...)
+    local vars, exprs = node:named_child(0), node:named_child(1)
+    return vars and vars:field("name")[1], exprs and exprs:field("value")[1]
+  end
+  return node:field("name")[1] or node:field("key")[1], node:field("value")[1]
+end
+
+--- Is `node` a definition? "def", "container" (a definition whose name
+--- qualifies the ones inside it) or nil.
+---@param node TSNode
+---@return string|nil
+local function def_kind(node)
+  local t = node:type()
+  if TS_EXACT[t] then
+    return TS_EXACT[t]
+  end
+  if TS_BINDING[t] then
+    local name, value = binding(node)
+    if name and value then
+      if is_function_value(value) then
+        return "def"
+      elseif value:type():find("class", 1, true) then
+        return "container"
+      end
+    end
     return nil
   end
-  return vim.treesitter.get_node_text(name, buf)
+  local decl = t:find("definition", 1, true) or t:find("declaration", 1, true) or t:find("item", 1, true)
+  if not decl and t:find("spec", 1, true) then
+    -- C/C++ struct_specifier...: a definition only with a body
+    decl = not t:find("specifier", 1, true) or node:field("body")[1] ~= nil
+  end
+  if not decl or not has_word(t, TS_DEF) then
+    return nil
+  end
+  return has_word(t, TS_CONTAINER) and "container" or "def"
+end
+
+--- The node naming definition `node`, or nil.
+---@param node TSNode
+---@return TSNode|nil
+local function name_node(node)
+  local t = node:type()
+  if TS_BINDING[t] then
+    return (binding(node))
+  end
+  local name = node:field("name")[1]
+  if name then
+    return name
+  end
+  -- C/C++: follow the declarators to the identifier
+  local d = node:field("declarator")[1]
+  for _ = 1, 10 do
+    local inner = d and d:field("declarator")[1]
+    if not inner then
+      break
+    end
+    d = inner
+  end
+  if d and d:type():find("identifier", 1, true) then
+    return d
+  end
+  -- Rust: `impl Type { ... }`
+  if t == "impl_item" then
+    return node:field("type")[1]
+  end
+  return nil
+end
+
+local function node_text(node, buf)
+  local ok, text = pcall(vim.treesitter.get_node_text, node, buf)
+  return ok and text or nil
+end
+
+--- Name of definition `node` qualified by the containers around it
+--- (`Greeter.hello` for a method of a class), unless it is qualified
+--- already (`M.setup`).
+local function qualified(node, name, buf)
+  if name:find("[.:]") then
+    return name
+  end
+  local parts = { name }
+  local p = node:parent()
+  local depth = 0
+  while p and depth < 60 do
+    if def_kind(p) == "container" then
+      local nn = name_node(p)
+      local text = nn and node_text(nn, buf)
+      if text and not text:find("\n", 1, true) then
+        table.insert(parts, 1, text)
+        if text:find("[.:]") then
+          break
+        end
+      end
+    end
+    p = p:parent()
+    depth = depth + 1
+  end
+  return table.concat(parts, ".")
 end
 
 ---------------------------------------------------------------------------
@@ -200,35 +375,80 @@ local function score(name, full, sym)
   return 0
 end
 
---- Position of symbol `sym` in `buf` from treesitter definitions.
-local function ts_find(buf, sym)
+--- Position of symbol `sym` in `buf` from treesitter definitions. Only
+--- the places where the last segment of the name occurs are looked at
+--- (from the node there up to its definition), not the whole tree.
+local function ts_find(buf, sym, lines)
   local root = ts_root(buf)
   if not root then
     return nil
   end
+  local last = last_segment(sym)
+  if last == "" then
+    return nil
+  end
   local best, best_score
-  local function walk(node, depth)
-    if depth > 60 then
-      return
-    end
-    if is_def(node) then
-      local name = def_name(node, buf)
-      if name then
-        local s = score(name, name, sym)
-        if s > 0 and (not best_score or s > best_score) then
-          local nm = node:field("name")[1]
-          local r, c = nm:range()
-          best, best_score = { lnum = r + 1, col = c }, s
+  for i, l in ipairs(lines) do
+    local init = 1
+    while true do
+      local s = l:find(last, init, true)
+      if not s then
+        break
+      end
+      init = s + #last
+      local ok, node = pcall(root.named_descendant_for_range, root, i - 1, s - 1, i - 1, s - 1)
+      node = ok and node or nil
+      local depth = 0
+      while node and depth < 8 do
+        if def_kind(node) then
+          local nn = name_node(node)
+          if nn then
+            local sr, sc, er, ec = nn:range()
+            -- the occurrence is the definition's name
+            if sr <= i - 1 and i - 1 <= er and (sr < i - 1 or sc <= s - 1) and (er > i - 1 or s - 1 < ec) then
+              local name = node_text(nn, buf)
+              if name then
+                local sc2 = score(name, qualified(node, name, buf), sym)
+                if sc2 > 0 and (not best_score or sc2 > best_score) then
+                  best, best_score = { lnum = sr + 1, col = sc }, sc2
+                end
+              end
+            end
+            break
+          end
         end
+        node = node:parent()
+        depth = depth + 1
+      end
+      if best_score == 3 then
+        return best
       end
     end
-    for child in node:iter_children() do
-      walk(child, depth + 1)
-    end
   end
-  walk(root, 0)
   return best
 end
+
+local TEXT_KEYWORDS = {
+  "function",
+  "def",
+  "class",
+  "fn",
+  "func",
+  "struct",
+  "interface",
+  "enum",
+  "type",
+  "trait",
+  "impl",
+  "module",
+  "macro",
+  "local",
+  "const",
+  "let",
+  "var",
+  "sub",
+  "proc",
+}
 
 --- Position of `sym` by searching the text: a definition line first
 --- (`function sym`, `def sym`, `class sym`, `sym = ...`), then any
@@ -238,17 +458,23 @@ end
 ---@return { lnum: integer, col: integer }|nil
 function M.text_find(lines, sym)
   local last = last_segment(sym)
+  if last == "" then
+    return nil
+  end
   local esym, elast = vim.pesc(sym), vim.pesc(last)
-  local keywords = {
-    "function", "def", "class", "fn", "func", "struct", "interface", "enum", "type", "trait", "impl", "module",
-    "macro", "local", "const", "let", "var", "sub", "proc",
-  }
+  -- only the lines holding the name
+  local cand = {}
+  for i, l in ipairs(lines) do
+    if l:find(last, 1, true) then
+      cand[#cand + 1] = i
+    end
+  end
   local tries = {
     function(l)
       return l:find("function%s+" .. esym .. "%f[^%w_]")
     end,
     function(l)
-      for _, k in ipairs(keywords) do
+      for _, k in ipairs(TEXT_KEYWORDS) do
         local s = l:find("%f[%w_]" .. k .. "%s+[%w_%*&%.:]-" .. elast .. "%f[^%w_]")
         if s then
           return l:find(elast .. "%f[^%w_]", s)
@@ -263,10 +489,11 @@ function M.text_find(lines, sym)
     end,
   }
   for _, try in ipairs(tries) do
-    for i, l in ipairs(lines) do
+    for _, i in ipairs(cand) do
+      local l = lines[i]
       local s = try(l)
       if s then
-        local c = l:find(elast, s, true) or s
+        local c = l:find(last, s, true) or s
         return { lnum = i, col = c - 1 }
       end
     end
@@ -284,7 +511,7 @@ function M.find(buf, sym)
   if syms then
     local best, best_score
     for _, s in ipairs(syms) do
-      local sc = score(s.name, s.full, sym)
+      local sc = math.max(score(s.name, s.full, sym), score(s.name, s.qual or s.full, sym))
       if sc > 0 and (not best_score or sc > best_score) then
         best, best_score = s, sc
       end
@@ -293,12 +520,13 @@ function M.find(buf, sym)
       return { lnum = best.lnum, col = best.col, via = "lsp" }
     end
   end
-  local ts = ts_find(buf, sym)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local ts = ts_find(buf, sym, lines)
   if ts then
     ts.via = "treesitter"
     return ts
   end
-  local t = M.text_find(vim.api.nvim_buf_get_lines(buf, 0, -1, false), sym)
+  local t = M.text_find(lines, sym)
   if t then
     t.via = "text"
   end
@@ -306,7 +534,7 @@ function M.find(buf, sym)
 end
 
 --- Name of the innermost definition around line `lnum` of `buf` (LSP, then
---- treesitter), or nil.
+--- treesitter), qualified by its class or module (`Greeter.hello`), or nil.
 ---@param buf integer
 ---@param lnum integer
 ---@param col? integer 0-based
@@ -323,25 +551,45 @@ function M.at(buf, lnum, col)
       end
     end
     if best then
-      return best.name
+      return best.qual or best.name
     end
   end
   local root = ts_root(buf)
   if not root then
     return nil
   end
-  local ok, node = pcall(root.named_descendant_for_range, root, lnum - 1, col or 0, lnum - 1, col or 0)
-  node = ok and node or nil
-  while node do
-    if is_def(node) then
-      local name = def_name(node, buf)
-      if name then
-        return name
+  local ok, start = pcall(root.named_descendant_for_range, root, lnum - 1, col or 0, lnum - 1, col or 0)
+  start = ok and start or nil
+  local function name_of(node)
+    if def_kind(node) then
+      local nn = name_node(node)
+      local name = nn and node_text(nn, buf)
+      if name and name ~= "" and not name:find("\n", 1, true) then
+        return qualified(node, name, buf)
       end
+    end
+  end
+  local node = start
+  while node do
+    local name = name_of(node)
+    if name then
+      return name
     end
     node = node:parent()
   end
-  return nil
+  -- the cursor on a keyword before the definition (`const f = () => {}`):
+  -- a definition starting on this line below the node there
+  local function below(n, depth)
+    for child in n:iter_children() do
+      if child:named() and child:start() == lnum - 1 then
+        local name = name_of(child) or (depth < 3 and below(child, depth + 1))
+        if name then
+          return name
+        end
+      end
+    end
+  end
+  return start and below(start, 0) or nil
 end
 
 return M

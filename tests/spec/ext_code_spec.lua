@@ -375,8 +375,120 @@ describe("code extension", function()
       local symbols = require("org.extensions.code.symbols")
       eq({ lnum = 8, col = 4, via = "lsp" }, symbols.find(buf, "Greeter.hello"))
       eq({ lnum = 8, col = 4, via = "lsp" }, symbols.find(buf, "hello"))
-      eq("hello", symbols.at(buf, 8, 5))
+      -- a method is named with its class, so the link is not ambiguous
+      eq("Greeter.hello", symbols.at(buf, 8, 5))
       eq("Greeter", symbols.at(buf, 7, 0))
+    end)
+
+    it("asks only the language servers that answer documentSymbol (0.10 and 0.11+ clients)", function()
+      local symbols = require("org.extensions.code.symbols")
+      local method = "textDocument/documentSymbol"
+      -- Neovim 0.10: a field; called with a table (a colon call) it says yes
+      local old_yes = {
+        supports_method = function(m)
+          return type(m) ~= "string" or m == method
+        end,
+      }
+      local old_no = {
+        supports_method = function(m)
+          return type(m) ~= "string"
+        end,
+      }
+      -- Neovim 0.11+: a method of the client class
+      local Client = {}
+      Client.__index = Client
+      function Client:supports_method(m)
+        return self.caps[m] == true
+      end
+      local new_yes = setmetatable({ caps = { [method] = true } }, Client)
+      local new_no = setmetatable({ caps = {} }, Client)
+      eq(true, symbols.supports_symbols(old_yes))
+      eq(false, symbols.supports_symbols(old_no))
+      eq(true, symbols.supports_symbols(new_yes))
+      eq(false, symbols.supports_symbols(new_no))
+      eq(true, symbols.supports_symbols({ server_capabilities = { documentSymbolProvider = true } }))
+    end)
+
+    it("waits for a language server that is still starting for the buffer", function()
+      local buf = vim.fn.bufadd(repo .. "/tools/greet.py")
+      vim.fn.bufload(buf)
+      local client = { id = 7, offset_encoding = "utf-16", server_capabilities = { documentSymbolProvider = true } }
+      local ready = false
+      vim.defer_fn(function()
+        ready = true
+      end, 50)
+      stub(vim.lsp, "get_clients", function(filter)
+        if filter and filter._uninitialized then
+          return { client }
+        end
+        -- no running client serves python: only the starting one counts
+        return ready and filter and filter.bufnr and { client } or {}
+      end)
+      stub(vim.lsp, "buf_request_sync", function()
+        local r = { start = { line = 2, character = 4 }, ["end"] = { line = 2, character = 9 } }
+        return { [7] = { result = { { name = "greet", kind = 12, range = r, selectionRange = r } } } }
+      end)
+      eq({ lnum = 3, col = 4, via = "lsp" }, require("org.extensions.code.symbols").find(buf, "greet"))
+    end)
+
+    it("reads LSP columns in the server's position encoding", function()
+      local symbols = require("org.extensions.code.symbols")
+      local line = "local s = '😀😀' function M.setup(opts)"
+      eq(30, symbols.byte_col(line, 26, "utf-16"))
+      eq(30, symbols.byte_col(line, 24, "utf-32"))
+      eq(30, symbols.byte_col(line, 30, "utf-8"))
+      eq(#line, symbols.byte_col(line, 999, "utf-8"))
+      local buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line, "end" })
+      local client = { id = 3, offset_encoding = "utf-32", server_capabilities = { documentSymbolProvider = true } }
+      stub(vim.lsp, "get_clients", function()
+        return { client }
+      end)
+      stub(vim.lsp, "get_client_by_id", function(id)
+        return id == 3 and client or nil
+      end)
+      stub(vim.lsp, "buf_request_sync", function()
+        local r = { start = { line = 0, character = 24 }, ["end"] = { line = 1, character = 3 } }
+        return { [3] = { result = { { name = "M.setup", kind = 12, range = r, selectionRange = r } } } }
+      end)
+      eq({ lnum = 1, col = 30, via = "lsp" }, symbols.find(buf, "M.setup"))
+    end)
+
+    it("finds treesitter definitions bound to names and C declarators", function()
+      local symbols = require("org.extensions.code.symbols")
+      local function buffer(ft, lines)
+        local b = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
+        vim.bo[b].filetype = ft
+        return b
+      end
+      if has_ts_lua() then
+        local b = buffer("lua", {
+          "local M = {}",
+          "-- value is used before: M.value()",
+          "M.value = function()",
+          "  return 1",
+          "end",
+          "local t = { build = function() end }",
+          "return M",
+        })
+        eq({ lnum = 3, col = 0, via = "treesitter" }, symbols.find(b, "M.value"))
+        eq({ lnum = 6, col = 12, via = "treesitter" }, symbols.find(b, "build"))
+        eq("M.value", symbols.at(b, 4, 2))
+      end
+      if pcall(vim.treesitter.language.add, "c") then
+        local b = buffer("c", {
+          "struct point p;",
+          "static int *make_point(int x);",
+          "struct point { int x; };",
+          "static int *make_point(int x) {",
+          "  return 0;",
+          "}",
+        })
+        eq({ lnum = 4, col = 12, via = "treesitter" }, symbols.find(b, "make_point"))
+        eq({ lnum = 3, col = 7, via = "treesitter" }, symbols.find(b, "point"))
+        eq("make_point", symbols.at(b, 5, 2))
+      end
     end)
 
     it("finds definitions by text", function()
