@@ -194,6 +194,27 @@ describe("lint links and footnotes", function()
     eq({ '6 Unknown ID "123-nope"' }, run(lines, "invalid-id-link"))
   end)
 
+  it("looks each missing ID up once, not once per link", function()
+    local id = require("org.id")
+    local find = id.find
+    local calls = 0
+    id.find = function(x)
+      calls = calls + 1
+      return find(x)
+    end
+    local lines = { "* Here", ":PROPERTIES:", ":ID: here-1", ":END:" }
+    for i = 1, 50 do
+      lines[#lines + 1] = string.format("[[id:here-1]] [[id:gone-%d]] [[id:gone-%d]]", i, i)
+    end
+    local ok_, res = pcall(run, lines, "invalid-id-link")
+    id.find = find
+    ok(ok_, res)
+    eq(100, #res)
+    eq('5 Unknown ID "gone-1"', res[1])
+    -- the first miss asks org.id; the rest use one scan of the ID files
+    eq(1, calls)
+  end)
+
   it("link syntax", function()
     local lines = {
       "A [[https://example.com][desc [bracket]]] trailing ]",

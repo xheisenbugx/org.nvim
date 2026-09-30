@@ -3502,20 +3502,57 @@ end
 
 C["invalid-id-link"] = function(doc)
   local out = {}
-  for _, o in ipairs(links(doc, "id")) do
-    local found = false
-    for _, h in ipairs(map_type(doc, "headline")) do
-      if headline_properties(doc, h).ID == o.path then
-        found = true
-        break
+  local list = links(doc, "id")
+  if #list == 0 then
+    return out
+  end
+  -- the document's own IDs once, not per link; after the first ID that
+  -- org.id.find misses (it rescans every ID file), the IDs of all those
+  -- files once, instead of a rescan per missing ID
+  local here, elsewhere, memo = {}, nil, {}
+  for _, h in ipairs(map_type(doc, "headline")) do
+    local id = headline_properties(doc, h).ID
+    if id then
+      here[id] = true
+    end
+  end
+  local function exists(path)
+    if here[path] then
+      return true
+    end
+    if elsewhere then
+      return elsewhere[path] == true
+    end
+    local ok, id = pcall(require, "org.id")
+    if not ok then
+      return false
+    end
+    local okf, loc = pcall(id.find, path)
+    if okf and loc ~= nil then
+      return true
+    end
+    elsewhere = {}
+    local okl, paths = pcall(id.files)
+    for _, p in ipairs(okl and paths or {}) do
+      local okg, f = pcall(require("org.files").get, p)
+      if okg and f then
+        if f.properties and f.properties.ID then
+          elsewhere[f.properties.ID] = true
+        end
+        for _, hl in ipairs(f.headlines) do
+          if hl.properties.ID then
+            elsewhere[hl.properties.ID] = true
+          end
+        end
       end
     end
-    if not found then
-      local ok, id = pcall(require, "org.id")
-      if ok then
-        local okf, loc = pcall(id.find, o.path)
-        found = okf and loc ~= nil
-      end
+    return false
+  end
+  for _, o in ipairs(list) do
+    local found = memo[o.path]
+    if found == nil then
+      found = exists(o.path)
+      memo[o.path] = found
     end
     if not found then
       out[#out + 1] = at_obj(o, string.format('Unknown ID "%s"', o.path))
