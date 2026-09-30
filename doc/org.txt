@@ -7269,7 +7269,7 @@ Keys in the slide buffer (actions after the arrow) ~
   <C-c><C-1>  1            toggle one big page  -> `present_toggle_one_big_page`
   <C-c><C-=>  +  =         bigger font          -> `present_big`
   <C-c><C-->  -            reset the font       -> `present_small`
-  <C-c><C-q>  q  <Esc>     quit                 -> `present_quit`
+  <C-c><C-q>  <Esc>        quit                 -> `present_quit`
   <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
 
 The single-letter keys are only mapped while the slides are read-only.
@@ -7489,7 +7489,7 @@ context (`buffer.preview_lines`), links shown as their descriptions. Add
 mentions of the node's title or aliases, ignoring case, outside brackets
 and outside the node's own file. It follows the cursor. `<CR>` opens a
 link's location in the window it was toggled from (a new one beside it
-when it is the only window), `r` refreshes, `q` closes.
+when it is the only window), `r` refreshes, `<Esc>` closes.
 
 org-protocol ~
 While the extension is on, two |org-protocol| sub-protocols are handled:

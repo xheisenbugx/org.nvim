@@ -44,10 +44,10 @@ Type@5ms `Cap G last slide` Enter
 Show
 Type "G"
 Sleep 2.5s
-Type "q"
+Escape
 Sleep 300ms
 Hide
 Ctrl+G
-Type@5ms `Cap q back to the untouched file` Enter
+Type@5ms `Cap <Esc> back to the untouched file` Enter
 Show
 Sleep 3s

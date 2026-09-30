@@ -247,7 +247,7 @@ local function create_buffer()
     vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true })
   end
   map("<CR>", jump)
-  map("q", M.close)
+  map("<Esc>", M.close)
   map("r", function()
     db.sync()
     local win = state.source_win
