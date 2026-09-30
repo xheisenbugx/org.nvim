@@ -122,9 +122,25 @@ function Canvas:line()
   return #self.lines
 end
 
+local function same_hl(a, b)
+  if a == b then
+    return true
+  end
+  if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then
+    return false
+  end
+  for i = 1, #a do
+    if a[i] ~= b[i] then
+      return false
+    end
+  end
+  return true
+end
+
 --- Append `text` to the last line (a new one when there is none), with
 --- highlight group(s) `hl`: a name, or a list layered in order (the later
---- ones win on the attributes they set).
+--- ones win on the attributes they set). A segment right after one with
+--- the same highlight extends it (one extmark instead of many).
 ---@param text string
 ---@param hl? string|string[]
 function Canvas:put(text, hl)
@@ -136,7 +152,12 @@ function Canvas:put(text, hl)
     return
   end
   if hl then
-    l.hls[#l.hls + 1] = { l.bytes, l.bytes + #text, hl }
+    local last = l.hls[#l.hls]
+    if last and last[2] == l.bytes and same_hl(last[3], hl) then
+      last[2] = l.bytes + #text
+    else
+      l.hls[#l.hls + 1] = { l.bytes, l.bytes + #text, hl }
+    end
   end
   l.text[#l.text + 1] = text
   l.bytes = l.bytes + #text
@@ -415,11 +436,12 @@ function M.target(ref)
   local lnum = ref.lnum
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
   if line ~= ref.raw then
+    -- the copy nearest the old line (headlines can share their text; on a
+    -- tie the later one, as lines are more often added above)
     lnum = nil
     for i, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-      if l == ref.raw then
+      if l == ref.raw and (not lnum or math.abs(i - ref.lnum) <= math.abs(lnum - ref.lnum)) then
         lnum = i
-        break
       end
     end
     if not lnum then
@@ -482,6 +504,31 @@ end
 --- `opts.height` as fractions of the editor or columns / lines),
 --- "tab", "split", "vsplit" or "current". Returns the window and how to
 --- close it again (for `close`).
+--- Size and position of a centred float for the current editor size:
+--- `width` / `height` are fractions (<= 1) or cells, kept inside the
+--- editor with room for the border.
+---@param opts { width?: number, height?: number }
+---@return table win config
+function M.float_config(opts)
+  local cols, rows = vim.o.columns, vim.o.lines - vim.o.cmdheight - 1
+  local function size(v, total, default)
+    v = tonumber(v) or default
+    if v <= 1 then
+      v = math.floor(total * v)
+    end
+    -- at least 10 cells when the editor has room, never more than it
+    return math.max(1, math.min(total - 2, math.max(10, v)))
+  end
+  local w, h = size(opts.width, cols, 0.9), size(opts.height, rows, 0.85)
+  return {
+    relative = "editor",
+    width = w,
+    height = h,
+    row = math.max(0, math.floor((rows - h) / 2) - 1),
+    col = math.max(0, math.floor((cols - w) / 2)),
+  }
+end
+
 ---@param buf integer
 ---@param layout string
 ---@param opts? { width?: number, height?: number, title?: string }
@@ -490,30 +537,17 @@ function M.open(buf, layout, opts)
   opts = opts or {}
   local prev_win = vim.api.nvim_get_current_win()
   local prev_buf = vim.api.nvim_get_current_buf()
-  local how = { layout = layout, prev_win = prev_win, prev_buf = prev_buf }
+  local how = { layout = layout, prev_win = prev_win, prev_buf = prev_buf, opts = opts }
   local win
   if layout == "float" then
-    local cols, rows = vim.o.columns, vim.o.lines - vim.o.cmdheight - 1
-    local function size(v, total, default)
-      v = v or default
-      if v <= 1 then
-        v = math.floor(total * v)
-      end
-      return math.max(10, math.min(total - 2, v))
-    end
-    local w, h = size(opts.width, cols, 0.9), size(opts.height, rows, 0.85)
-    win = vim.api.nvim_open_win(buf, true, {
-      relative = "editor",
-      width = w,
-      height = h,
-      row = math.floor((rows - h) / 2) - 1,
-      col = math.floor((cols - w) / 2),
-      style = "minimal",
-      border = "rounded",
-      title = opts.title and (" " .. opts.title .. " ") or nil,
-      title_pos = opts.title and "center" or nil,
-      zindex = 45,
-    })
+    local cfg = M.float_config(opts)
+    cfg.style = "minimal"
+    cfg.border = "rounded"
+    -- a title wider than the float is cut
+    cfg.title = opts.title and utils.truncate(" " .. opts.title .. " ", cfg.width) or nil
+    cfg.title_pos = opts.title and "center" or nil
+    cfg.zindex = 45
+    win = vim.api.nvim_open_win(buf, true, cfg)
   elseif layout == "tab" then
     vim.cmd("tab split")
     win = vim.api.nvim_get_current_win()
@@ -531,6 +565,26 @@ function M.open(buf, layout, opts)
   set_view_options(win)
   how.win = win
   return win, how
+end
+
+--- Fit a float opened by `open` to the editor again (after VimResized).
+--- `opts` replaces the size options it was opened with.
+---@param how table
+---@param opts? { width?: number, height?: number }
+function M.relayout(how, opts)
+  if opts then
+    how.opts = vim.tbl_extend("force", how.opts or {}, opts)
+  end
+  if how.layout ~= "float" or not (how.win and vim.api.nvim_win_is_valid(how.win)) then
+    return
+  end
+  local cfg = M.float_config(how.opts or {})
+  local title = how.opts and how.opts.title
+  if title then
+    cfg.title = utils.truncate(" " .. title .. " ", cfg.width)
+    cfg.title_pos = "center"
+  end
+  pcall(vim.api.nvim_win_set_config, how.win, cfg)
 end
 
 --- Close a view opened by `open`. With `keep_prev`, the previous window
@@ -608,47 +662,226 @@ function M.map(buf, keys, handlers, label)
   end
 end
 
---- Call `fn` (debounced by `delay` ms) when an org file is written or
---- changed in Normal mode, a TODO state, property or clock changes, or a
---- capture or note is stored.
---- Returns the augroup; delete it to stop.
+local function is_org_buffer(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return false
+  end
+  if vim.bo[buf].filetype == "org" then
+    return true
+  end
+  local name = vim.api.nvim_buf_get_name(buf)
+  return name:match("%.org$") ~= nil or name:match("%.org_archive$") ~= nil
+end
+
+--- The set of file names (normalized, and their real paths) of `files`,
+--- for `relevant` predicates.
+---@param files org.File[]
+---@return table<string, true>
+function M.file_set(files)
+  local set = {}
+  for _, f in ipairs(files) do
+    if f.filename then
+      set[f.filename] = true
+    end
+  end
+  return set
+end
+
+--- Whether buffer `buf` holds one of the files of `set` (from `file_set`).
+function M.in_file_set(set, buf)
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name == "" then
+    return false
+  end
+  name = vim.fs.normalize(name)
+  if set[name] then
+    return true
+  end
+  -- symlinked paths (/tmp and /private/tmp on macOS): compare real paths,
+  -- resolved once per set
+  if not set["\0real"] then
+    local reals = {}
+    for f in pairs(set) do
+      local r = vim.uv.fs_realpath(f)
+      if r then
+        reals[#reals + 1] = r
+      end
+    end
+    for _, r in ipairs(reals) do
+      set[r] = true
+    end
+    set["\0real"] = true
+  end
+  local real = vim.uv.fs_realpath(name)
+  return real ~= nil and set[real] == true
+end
+
+--- Call `fn` when an org buffer is written or changed in Normal mode, a
+--- TODO state, property or clock changes, or a capture or note is stored:
+--- once, `delay` ms after the last of a burst of such events (debounced).
+--- Options (a number is the delay):
+---   `delay`     ms (default 150)
+---   `relevant`  `fun(buf): boolean`: text changes of other buffers are
+---             ignored (writes always count: a new file can join a glob)
+---   `buf`       the view's buffer: while no window shows it, `fn` waits
+---             until one does
+---   `events`    more `User` event patterns
+--- An error in `fn` is reported once, not on every event.
+--- Returns the augroup; delete it to stop (pending calls are dropped).
 ---@param name string augroup name
 ---@param fn fun()
----@param delay? integer
+---@param opts? integer|{ delay?: integer, relevant?: fun(buf: integer): boolean, buf?: integer, events?: string[] }
 ---@return integer augroup
-function M.watch(name, fn, delay)
-  local group = vim.api.nvim_create_augroup(name, { clear = true })
-  local pending = false
-  local function schedule()
-    if pending then
-      return
-    end
-    pending = true
-    vim.defer_fn(function()
-      pending = false
-      fn()
-    end, delay or 100)
+function M.watch(name, fn, opts)
+  if type(opts) ~= "table" then
+    opts = { delay = opts }
   end
-  vim.api.nvim_create_autocmd({ "BufWritePost", "TextChanged", "FileChangedShellPost" }, {
+  local group = vim.api.nvim_create_augroup(name, { clear = true })
+  local gen, failed, hidden = 0, false, false
+  local function alive()
+    return pcall(vim.api.nvim_get_autocmds, { group = group })
+  end
+  local function run()
+    if opts.buf then
+      if not vim.api.nvim_buf_is_valid(opts.buf) then
+        return
+      end
+      if vim.fn.bufwinid(opts.buf) == -1 then
+        hidden = true
+        return
+      end
+    end
+    hidden = false
+    local ok, err = pcall(fn)
+    if not ok and not failed then
+      failed = true
+      utils.error(name .. ": " .. tostring(err))
+    end
+  end
+  local function schedule()
+    gen = gen + 1
+    local mine = gen
+    vim.defer_fn(function()
+      if mine == gen and alive() then
+        run()
+      end
+    end, opts.delay or 150)
+  end
+  vim.api.nvim_create_autocmd({ "BufWritePost", "FileChangedShellPost" }, {
     group = group,
-    pattern = { "*.org" },
-    callback = schedule,
+    callback = function(ev)
+      if is_org_buffer(ev.buf) then
+        schedule()
+      end
+    end,
   })
-  vim.api.nvim_create_autocmd("User", {
+  vim.api.nvim_create_autocmd("TextChanged", {
     group = group,
+    callback = function(ev)
+      if not is_org_buffer(ev.buf) then
+        return
+      end
+      if opts.relevant then
+        local ok, res = pcall(opts.relevant, ev.buf)
+        if ok and not res then
+          return
+        end
+      end
+      schedule()
+    end,
+  })
+  local events = {
     -- org saves its own edits with :noautocmd, so its events count too
-    pattern = {
-      "OrgTodoStateChange",
-      "OrgClockIn",
-      "OrgClockOut",
-      "OrgClockCancel",
-      "OrgPropertyChanged",
-      "OrgCaptureAfterFinalize",
-      "OrgNoteStored",
-    },
-    callback = schedule,
-  })
+    "OrgTodoStateChange",
+    "OrgClockIn",
+    "OrgClockOut",
+    "OrgClockCancel",
+    "OrgPropertyChanged",
+    "OrgCaptureAfterFinalize",
+    "OrgNoteStored",
+  }
+  vim.list_extend(events, opts.events or {})
+  vim.api.nvim_create_autocmd("User", { group = group, pattern = events, callback = schedule })
+  if opts.buf then
+    vim.api.nvim_create_autocmd("BufWinEnter", {
+      group = group,
+      buffer = opts.buf,
+      callback = function()
+        if hidden then
+          vim.schedule(run)
+        end
+      end,
+    })
+  end
   return group
+end
+
+--- A `relevant` predicate for `watch`: the buffer of a "buffer" or
+--- "subtree" source, or a file the view showed at its last build
+--- (`st.file_set`, from `file_set`).
+---@param st { src: table, file_set?: table<string, true> }
+---@return fun(buf: integer): boolean
+function M.relevant(st)
+  return function(buf)
+    if st.src.kind == "buffer" or st.src.kind == "subtree" then
+      return buf == st.src.bufnr
+    end
+    return st.file_set == nil or M.in_file_set(st.file_set, buf)
+  end
+end
+
+---------------------------------------------------------------------------
+-- Command arguments
+---------------------------------------------------------------------------
+
+--- Whether a `:Org <view>` argument names a file, directory or glob rather
+--- than a filter: it ends in `.org`, starts with `~`, `.` or `/`, has a
+--- glob character, or exists. A tags match like `work/NEXT` is not one.
+---@param w string
+---@return boolean
+function M.is_path(w)
+  if w == "" or w:match("^%(") then
+    return false
+  end
+  if w:match("%.org$") or w:match("%.org_archive$") or w:match("^[~./]") or w:find("[%*%?]") then
+    return true
+  end
+  return w:find("/", 1, true) ~= nil and utils.exists(utils.expand(w))
+end
+
+--- Completion candidates for a source argument: the source words and org
+--- files / directories matching `arglead`.
+---@param arglead string
+---@return string[]
+function M.complete_sources(arglead)
+  local out = { "agenda", "buffer", "subtree" }
+  if arglead ~= "" and arglead:match("^[~./]") or arglead:find("/", 1, true) then
+    for _, f in ipairs(vim.fn.getcompletion(arglead, "file")) do
+      if f:match("/$") or f:match("%.org$") then
+        out[#out + 1] = f
+      end
+    end
+  end
+  return out
+end
+
+--- Completion candidates for a filter: the tags of the agenda files.
+---@return string[]
+function M.complete_tags()
+  local seen, out = {}, {}
+  local ok, files = pcall(require("org.files").agenda_files)
+  for _, f in ipairs(ok and files or {}) do
+    for _, hl in ipairs(f.headlines) do
+      for _, t in ipairs(hl.tags) do
+        if not seen[t] then
+          seen[t] = true
+          out[#out + 1] = t
+        end
+      end
+    end
+  end
+  table.sort(out)
+  return out
 end
 
 ---------------------------------------------------------------------------
