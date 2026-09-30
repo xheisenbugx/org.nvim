@@ -342,9 +342,8 @@ function M.run_spec(bufnr, spec)
     local lnum = line and (b.start + line) or b.start
     lnum = math.max(b.start, math.min(lnum, b.finish))
     -- the position prefix of the message ("file:12: ")
-    local clean = msg:gsub("^" .. vim.pesc(name) .. ":%d+:%s*", "")
-      :gsub("^%[string .-%]:%d+:%s*", "")
-      :gsub("^[^%s:]+:%d+:%s*", "")
+    local clean =
+      msg:gsub("^" .. vim.pesc(name) .. ":%d+:%s*", ""):gsub("^%[string .-%]:%d+:%s*", ""):gsub("^[^%s:]+:%d+:%s*", "")
     return { lnum = lnum, message = clean }
   end
   local chunk, err = loadstring(spec.body, "=" .. name)
