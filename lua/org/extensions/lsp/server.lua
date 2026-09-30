@@ -270,18 +270,29 @@ end
 ---@param dispatchers table vim.lsp.rpc.Dispatchers
 ---@return table vim.lsp.rpc.PublicClient
 function M.cmd(dispatchers)
-  local srv = { closing = false, versions = {}, next_id = 0 }
+  local srv = { closing = false, versions = {}, next_id = 0, failed = {} }
+  -- an error in a notification or timer is reported once per kind, not
+  -- on every keystroke
+  function srv.report(what, err)
+    if not srv.failed[what] then
+      srv.failed[what] = true
+      require("org.utils").error("org lsp: " .. what .. ": " .. tostring(err))
+    end
+  end
   local features = util.opts().features or {}
   if features.diagnostics ~= false then
     srv.diagnostics = require("org.extensions.lsp.diagnostics").scheduler(function(uri, diags)
       if srv.closing then
         return
       end
-      dispatchers.notification("textDocument/publishDiagnostics", {
+      local ok, err = pcall(dispatchers.notification, "textDocument/publishDiagnostics", {
         uri = uri,
         version = srv.versions[uri],
         diagnostics = diags,
       })
+      if not ok then
+        srv.report("publishDiagnostics", err)
+      end
     end)
   end
 
@@ -346,7 +357,7 @@ function M.cmd(dispatchers)
         if not srv.closing then
           local ok, err = pcall(handler, srv, params or {})
           if not ok then
-            require("org.utils").error("org lsp: " .. method .. ": " .. tostring(err))
+            srv.report(method, err)
           end
         end
       end)

@@ -277,6 +277,48 @@ describe("lsp extension", function()
       local buf = open(main)
       eq(nil, def(buf, 23, 12))
     end)
+
+    it("follows links to other files without parsing them as Org", function()
+      local script = dir .. "/script.py"
+      utils.writefile(script, { "import os", "", "def helper():", "    return 1" })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  [[file:script.py::3]] and [[file:pic.png]]" })
+      local last = #buf_lines(ob)
+      local files = require("org.files")
+      local get = files.get
+      local parsed = {}
+      files.get = function(p)
+        parsed[#parsed + 1] = p
+        return get(p)
+      end
+      local okd, res = pcall(function()
+        local out = { def(ob, last, 5) }
+        local r = request(ob, "textDocument/hover", tdp(ob, last, 5))
+        out[#out + 1] = r and r.contents.value
+        request(ob, "textDocument/documentLink", { textDocument = { uri = vim.uri_from_bufnr(ob) } })
+        return out
+      end)
+      files.get = get
+      ok(okd, res)
+      eq({ script, 3 }, { res[1], res[2] })
+      ok(res[3]:find("```python\ndef helper():", 1, true), res[3])
+      for _, p in ipairs(parsed) do
+        ok(p:match("%.org$"), "parsed " .. p)
+      end
+      vim.fn.delete(script)
+    end)
+
+    it("follows code: links of the code extension", function()
+      local script = dir .. "/script.py"
+      utils.writefile(script, { "import os", "", "def helper():", "    return 1" })
+      setup({ extensions = { code = {} } })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  [[code:script.py::helper]] [[code:nope.py::x]]" })
+      local last = #buf_lines(ob)
+      eq({ script, 3 }, { def(ob, last, 8) })
+      eq(nil, def(ob, last, 35))
+      vim.fn.delete(script)
+    end)
   end)
 
   describe("references", function()
@@ -736,6 +778,50 @@ describe("lsp extension", function()
       return #list == 1 and list[1].id ~= c.id and #require("org.extensions.lsp").clients() == 1
     end, 10)
     ok(new, "a new client attached")
+  end)
+
+  it("reports a failing notification handler or filter once", function()
+    local u = require("org.utils")
+    local err = u.error
+    local errors = {}
+    u.error = function(msg)
+      errors[#errors + 1] = msg
+    end
+    local server = require("org.extensions.lsp.server")
+    local handler = server.notifications["textDocument/didChange"]
+    server.notifications["textDocument/didChange"] = function()
+      error("boom")
+    end
+    local okr, res = pcall(function()
+      local buf = open(main)
+      client_of(buf)
+      for i = 1, 3 do
+        vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "x" .. i })
+        -- past the client's didChange debounce
+        vim.wait(250)
+      end
+      server.notifications["textDocument/didChange"] = handler
+      local n = #errors
+      setup({
+        extensions = {
+          lsp = {
+            filter = function()
+              error("bad filter")
+            end,
+          },
+        },
+      })
+      open(other)
+      wipe(main)
+      open(main)
+      return n
+    end)
+    server.notifications["textDocument/didChange"] = handler
+    u.error = err
+    ok(okr, res)
+    eq(1, res)
+    eq(2, #errors)
+    ok(errors[2]:find("bad filter", 1, true), errors[2])
   end)
 
   it("does not autostart when asked not to", function()

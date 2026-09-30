@@ -154,8 +154,8 @@ local function clock_text(line)
   )
 end
 
-local function fence(lines)
-  return "```org\n" .. table.concat(lines, "\n") .. "\n```"
+local function fence(lines, lang)
+  return "```" .. (lang or "org") .. "\n" .. table.concat(lines, "\n") .. "\n```"
 end
 
 local function preview_lines(file, first, last)
@@ -181,8 +181,25 @@ local function link_text(doc, link)
   if not loc then
     return head .. " — **target not found**\n\n" .. link.target
   end
-  local file = util.file(loc.path)
   local where = vim.fn.fnamemodify(loc.path, ":~:.")
+  if not util.is_org(loc.path) then
+    -- another kind of file: its lines from the target on
+    local b = util.buffer_of(loc.path)
+    local n = util.opts().hover and util.opts().hover.preview_lines or 8
+    local st = not b and vim.uv.fs_stat(loc.path)
+    if st and (st.type ~= "file" or st.size > 1024 * 1024) then
+      return head .. " → " .. where
+    end
+    local lines = b and vim.api.nvim_buf_get_lines(b, loc.lnum - 1, loc.lnum - 1 + n, false)
+      or require("org.utils").readfile(loc.path)
+    if not lines or (not b and lines[1] and lines[1]:find("%z")) then
+      return head .. " → " .. where
+    end
+    local shown = preview_lines({ lines = b and lines or vim.list_slice(lines, loc.lnum) }, 1)
+    local lang = vim.filetype.match({ filename = loc.path }) or ""
+    return string.format("%s → **%s**:%d\n\n%s", head, where, loc.lnum, fence(shown, lang))
+  end
+  local file = util.file(loc.path)
   if not file then
     return head .. " → " .. where
   end

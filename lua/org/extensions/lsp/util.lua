@@ -109,6 +109,12 @@ function M.uri(path)
   return b and vim.uri_from_bufnr(b) or vim.uri_from_fname(path)
 end
 
+--- Whether a file name is an Org file (parsed as Org by the server).
+---@param path string
+function M.is_org(path)
+  return path:match("%.org$") ~= nil or path:match("%.org_archive$") ~= nil
+end
+
 --- Options of the extension (defaults when it is off, for direct calls).
 ---@return table
 function M.opts()

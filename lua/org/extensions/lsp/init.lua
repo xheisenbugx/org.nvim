@@ -256,16 +256,25 @@ function M.setup(o)
   if o.autostart == false then
     return
   end
+  local reported = false
+  local function attach(b)
+    local ok, err = pcall(M.attach, b)
+    if not ok and not reported then
+      -- once, not for every org buffer opened
+      reported = true
+      require("org.utils").error("lsp: could not start the server: " .. tostring(err))
+    end
+  end
   vim.api.nvim_create_autocmd("FileType", {
     group = augroup,
     pattern = "org",
     callback = function(ev)
-      M.attach(ev.buf)
+      attach(ev.buf)
     end,
   })
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
-      M.attach(b)
+      attach(b)
     end
   end
 end

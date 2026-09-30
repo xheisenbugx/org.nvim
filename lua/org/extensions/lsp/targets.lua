@@ -363,6 +363,15 @@ end
 ---@param search? string
 ---@return table|nil
 function M.locate(path, search)
+  if not util.is_org(path) then
+    -- another kind of file: only its start or a line number (it is not
+    -- parsed as Org)
+    if not vim.uv.fs_stat(path) and not util.buffer_of(path) then
+      return nil
+    end
+    local n = search and tonumber(vim.trim(search))
+    return { path = path, lnum = n or 1, s = 1, e = 0, kind = n and "line" or "file" }
+  end
   local file = util.file(path)
   if not file then
     return nil
@@ -465,7 +474,39 @@ end
 --- Resolve a link of `doc` to a location, or nil.
 ---@param doc org.lsp.Doc
 ---@param link org.Link
+-- A `code:` link of the code extension: its file, and the line of its
+-- symbol found by a text search (no buffer is loaded, no LSP asked).
+local function resolve_code(doc, link)
+  if not require("org.extensions").loaded.code then
+    return nil
+  end
+  local ok, loc = pcall(function()
+    local cl = require("org.extensions.code.link")
+    local file, target = cl.split(link.path)
+    local path = cl.resolve(file, doc.bufnr or vim.api.nvim_get_current_buf())
+    if not path then
+      return nil
+    end
+    path = util.canon(path)
+    if not target or target:match("^%d+$") then
+      return M.locate(path, target)
+    end
+    local b = util.buffer_of(path)
+    local lines = b and vim.api.nvim_buf_get_lines(b, 0, -1, false) or require("org.utils").readfile(path)
+    local found = lines and require("org.extensions.code.symbols").text_find(lines, target)
+    if not found then
+      return { path = path, lnum = 1, s = 1, e = 0, kind = "file" }
+    end
+    local word = target:match("[%w_]+$") or target
+    return { path = path, lnum = found.lnum, s = found.col + 1, e = found.col + #word, kind = "code" }
+  end)
+  return ok and loc or nil
+end
+
 function M.resolve(doc, link)
+  if link.type == "code" then
+    return resolve_code(doc, link)
+  end
   local sp = M.split(doc, link)
   if not sp then
     if link.type == "radio" then
