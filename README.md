@@ -440,7 +440,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
-| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda) |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill) |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -997,6 +997,46 @@ set. See `:h org-extensions`.
   (`:h org-extensions-super-agenda`).
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
+
+- **`quickadd`** ([Todoist](https://todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)-style
+  quick add): `:Org quickadd` or `<prefix>q` turns one line such as
+  `Call Bob fri 3pm #work !A ~30m @Inbox due mon every week` into an entry
+  with SCHEDULED / DEADLINE, repeater, tags, priority and Effort, filed
+  under the best-matching heading, with a live preview while you type.
+  Capture templates can use the same syntax with `quickadd = true`
+  (`:h org-extensions-quickadd`).
+
+  ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](docs/media/quickadd.gif)
+
+- **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
+  through a weekly review in a float: empty the inbox (refile, schedule,
+  set a state, delete or skip each entry), stuck projects, waiting-for,
+  overdue, the next two weeks, someday/maybe, last week's clocked time and
+  reflection questions, with a progress line, `n` / `p` between steps and
+  resumable progress. Finishing logs the review in a date tree. Steps can
+  be reordered or replaced with your own (`:h org-extensions-review`).
+
+  ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](docs/media/review.gif)
+
+- **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
+  `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
+  in; when the 25 minutes are up the entry's `POMODOROS` count goes up, the
+  clock stops and a 5-minute break starts (15 minutes after every fourth),
+  with notifications and an optional sound. Pause, skip and stop, and a
+  countdown in `require("org").statusline()`
+  (`:h org-extensions-pomodoro`).
+
+  ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](docs/media/pomodoro.gif)
+
+- **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
+  flashcards with spaced repetition. Headings tagged `:drill:` are cards
+  (simple, two-sided, multi-sided and cloze deletions such as
+  `[Nile||river]`); `:Org drill` (`<prefix>D`) reviews the due ones in a
+  floating window, you grade each answer 0-5, and SM-2 schedules the next
+  review in org-drill's `DRILL_*` properties, so a deck can be shared
+  with Emacs (`:h org-extensions-drill`).
+
+  ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](docs/media/drill.gif)
 
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review

@@ -35,6 +35,19 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
 
+`demo/quickadd.lua` is `init.lua` with the `quickadd` extension turned on,
+for `quickadd.tape`; it copies `demo/quickadd/*.org` into `$ORG_DEMO_DIR`.
+
+`demo/review.lua` is `init.lua` with the `review` extension on, for
+`review.tape`; it copies `demo/review/*.org` into `$ORG_DEMO_DIR` and adds
+them to the agenda files.
+
+`demo/pomodoro.lua` is `init.lua` with the `pomodoro` extension turned on and 9-second pomodoros and 6-second breaks, for `pomodoro.tape`.
+
+`demo/drill.lua` is `init.lua` with the `drill` extension turned on, for
+`drill.tape`; it copies `demo/drill/*.org` (the flashcards) into
+`$ORG_DEMO_DIR`.
+
 To try the demo setup by hand:
 
 ```sh

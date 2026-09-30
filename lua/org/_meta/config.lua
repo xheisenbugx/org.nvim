@@ -750,6 +750,14 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---Todoist-style quick add of entries from one line (`:h org-extensions-quickadd`).
+---@field quickadd? org.Config.Extensions.Quickadd|boolean
+---Guided GTD weekly review in a float (`:h org-extensions-review`).
+---@field review? org.Config.Extensions.Review|boolean
+---Pomodoros clocked on the heading at point, like Emacs org-pomodoro (`:h org-extensions-pomodoro`).
+---@field pomodoro? org.Config.Extensions.Pomodoro|boolean
+---Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
+---@field drill? org.Config.Extensions.Drill|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

@@ -7600,4 +7600,407 @@ Differences from Emacs org-roam ~
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
 
+------------------------------------------------------------------------------
+Quick add (Todoist-style)                            *org-extensions-quickadd*
+
+`quickadd` adds an entry from one line, the way Todoist's quick add does:
+>lua
+    require("org").setup({ extensions = { quickadd = true } })
+<
+`:Org quickadd [text]` (action `quickadd`, key `<prefix>q`, available
+anywhere) adds `text`, or asks for a line in a small float that previews
+the parsed entry as you type (with |vim.ui.input()| when there is no UI).
+`<CR>` adds it, `<Esc>` in Normal mode, `q` or `<C-c>` cancel. The entry
+goes under its `@target`, else into `file` (under `headline`), and the file
+is saved. For example
+>
+    Call Bob fri 3pm #work #phone !A ~30m @Inbox due mon every week
+<
+becomes, under the best-matching "Inbox" heading,
+>
+    * TODO [#A] Call Bob                                      :work:phone:
+    DEADLINE: <2026-10-05 Mon> SCHEDULED: <2026-10-02 Fri 15:00 +1w>
+    :PROPERTIES:
+    :Effort:   0:30
+    :END:
+<
+What the line may contain ~
+  dates        Anything the date prompt reads (|org-dates|): `today`,
+               `tomorrow` (`tmr`), `fri`, `fri 3pm`, `at 14:30`,
+               `9am-10:30am`, `+2w`, `dec 24`, `24 dec`, `12/24`,
+               `2026-12-24`, `w45`, plus `next week`, `next fri`,
+               `in 3 days` and `noon`. Dates go to SCHEDULED (see
+               `date_kind`); after `due` (or `by`) to DEADLINE. A month
+               name only counts next to a day number, so "May call Bob"
+               stays a title.
+  repeaters    `every day|week|month|year`, `every 2w`, `every 3 days`,
+               `every other week`, `every mon` (the next Monday, today on a
+               Monday). `every!` repeats from the day it is done (`.+`).
+               Without a date the repeater starts today. It goes on the
+               SCHEDULED date, or on the deadline when there is only one.
+               `every weekday`, `every weekend` and several days
+               (`every mon and thu`, `every mon,wed,fri`) have no Org
+               repeater and are written as a diary sexp,
+               `<%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>`.
+  `#tag`       a tag; `#42` (digits only) stays in the title
+  `!A` `!1`    priority; also `p1`, `p2`, `p3` (p1 is the highest)
+  `~30m`       Effort: `~30m`, `~1h`, `~1h30`, `~1:30`, `~90`, `~1.5h`
+  `@Heading`   target: the best match among the headings of the `targets`
+               files (exact, then prefix, substring and fuzzy match);
+               `@Parent/Child` matches outline paths, `@file/Heading`
+               looks in one file (its name without `.org`), `@file/` adds
+               at the top level of that file. A heading that doesn't
+               exist in a named file is created. When nothing matches the
+               entry goes to `file` and the message says so.
+               `@"Two words"` for spaces.
+  `*NEXT`      keyword instead of `keyword`; `*-` for none
+
+Quote words to keep them in the title (`"Friday Night Lights"`,
+`'due fri'`), or escape one character with a backslash (`\#1`, `\fri`).
+
+Capture templates ~
+A capture template with `quickadd = true` reads its headline the same way
+when the capture is stored, so `%^{Task}` answers or text typed in the
+capture buffer can hold dates, tags, priorities and efforts. The template's
+own keyword, tags, planning and properties are kept and completed.
+`@target` words are dropped: the template's target is used.
+>lua
+    capture = { templates = {
+      q = { description = "Quick task", template = "* TODO %^{Task}",
+            target = "inbox.org", immediate_finish = true, quickadd = true },
+    } }
+<
+Options ~
+  `file`       file for entries without a target, relative to
+             `org_directory` (nil: `default_notes_file`)
+  `headline`   headline of `file` entries go under, created when missing
+             (nil: the top level)
+  `keyword`    keyword of new entries ("TODO"); false for none
+  `date_kind`  where dates without `due` go: "scheduled" or "deadline"
+  `targets`    files `@target` looks in: "agenda" (the agenda files and
+             `file`) or a list of files and globs
+  `preview`    preview the parsed entry while typing (true)
+  `created`    add a `:CREATED:` inactive timestamp property (false)
+  `jump`       go to the new entry after adding it (false)
+
+The parser is `require("org.extensions.quickadd").parse(text, now)`, which
+returns the title, keyword, priority, tags, effort (minutes), dates, the
+planning timestamps and the target without touching any file.
+
+------------------------------------------------------------------------------
+Weekly review (GTD)                                    *org-extensions-review*
+
+`review` walks you through a GTD weekly review, one step at a time, in a
+floating window:
+>lua
+    require("org").setup({ extensions = { review = {} } })
+<
+`:Org review` (action `review`, global key `<prefix>W`) starts the review,
+or resumes the one you left. The header shows the progress (a dot per
+step) and the step's title; the footer lists the keys. The default steps:
+
+  inbox     Empty the inbox: the top-level entries of `inbox` (default
+            `default_notes_file`), to refile, schedule, give a TODO state,
+            delete or skip one by one
+  stuck     Stuck projects, as the agenda finds them
+            (`agenda.stuck_projects`, |org-agenda|)
+  waiting   Entries in a `waiting_keywords` state (WAITING)
+  overdue   Open entries scheduled or due before today, oldest first
+  upcoming  Scheduled, due and dated entries of the next `upcoming_days`
+            (14) days, repeaters included, in date order
+  someday   Entries tagged or in a state of `someday` (:someday:,
+            :maybe:, SOMEDAY, MAYBE)
+  clock     The time clocked in the last `clock_days` (7) days, and the
+            `clock_top` (10) entries it went to
+  reflect   Questions (`questions`) answered in a note buffer
+
+`:Org review <step>` jumps to a step by name or number, and
+`:Org review restart` drops an unfinished review and starts over.
+
+Keys in the review window ~
+  n  ]]        next step                      -> `review_next`
+  p  [[        previous step                  -> `review_prev`
+  <CR>         go to the entry (the review is paused), or answer the
+               question under the cursor
+  r            refile the entry (|org-refile|)
+  s  S         schedule it / set a deadline (the date prompt)
+  t            set its TODO state from a list
+  d            delete it (asks first, `confirm_delete`)
+  x            skip it: it is marked and the cursor moves on
+  i            answer the question under the cursor
+  R            refresh
+  F            finish                         -> `review_finish`
+  q  <Esc>     pause                          -> `review_quit`
+Change them with `keys` (a key, a list, or false for none).
+
+The entries are read from the agenda files, and every change is saved to
+its file right away. The progress (the step, the answers, what was
+skipped and the counts) is kept in `state_file`, so closing the window,
+going to an entry with <CR> or quitting Neovim pauses the review and
+`:Org review` picks it up again.
+
+Finishing ~
+`F` writes a review entry into a date tree of `log_file` (default
+"review.org" in `org_directory`; a week tree, `log_tree_type`): the time,
+what was done with the inbox, how many entries each step listed, the time
+clocked, and each answer as a subheading. With `capture_template` set to
+a template key, the review is captured with that template instead, the
+summary being its initial text (`%i`), so it can be edited before it is
+stored. The saved progress is then forgotten.
+
+Custom steps ~
+`steps` lists the steps in order. An entry is a builtin name, a builtin
+with overrides (`{ "waiting", title = "Blocked" }`), a function returning
+the items of a new step, or a table:
+>lua
+    steps = {
+      "inbox",
+      {
+        name = "reading",
+        title = "Reading list",
+        description = "Anything worth reading next week?",
+        items = function(ctx)
+          local ql = require("org.extensions.ql")
+          return ql.select(ctx.files, '(tags "read")', {
+            action = function(hl)
+              return { hl = hl, path = hl.file.filename, lnum = hl.line }
+            end,
+          })
+        end,
+        keys = { a = function(item, session) end },
+      },
+      "reflect",
+    }
+<
+`items(ctx)` returns `{ hl, path, lnum, info? }` entries (`info` is shown
+after the title) or `{ text = "..." }` lines; `lines(ctx)` adds text above
+them; `keys` are mapped while the step is shown. `ctx` has `opts`,
+`today`, `now`, `files` (the agenda files) and `state`.
+
+Options ~
+  `steps`             the steps (see above)
+  `inbox`             inbox file(s) (nil: `default_notes_file`)
+  `waiting_keywords`  { "WAITING" }
+  `someday`           { tags = { "someday", "maybe" },
+                      keywords = { "SOMEDAY", "MAYBE" } }
+  `upcoming_days`     days of the "upcoming" step (14)
+  `clock_days`        days summed by the "clock" step (7)
+  `clock_top`         entries listed by the "clock" step (10)
+  `questions`         the questions of the "reflect" step
+  `log_file`          the review log (nil: "review.org" in `org_directory`)
+  `log_tree_type`     "day", "week" (default) or "month"
+  `log_heading`       heading of the logged review ("Weekly review")
+  `capture_template`  finish with this capture template (nil)
+  `open_log`          show the new log entry after finishing (true)
+  `confirm_delete`    ask before deleting an entry (true)
+  `state_file`        the saved progress
+                      (stdpath("data")/org/review.json)
+  `width` `height`    size of the window (96 x 30, clamped to the screen)
+  `border`            its border ("rounded")
+  `keys`              keys in the window (see above)
+
+------------------------------------------------------------------------------
+Pomodoro                                             *org-extensions-pomodoro*
+
+`pomodoro` runs the Pomodoro technique on top of the clock, like Emacs
+org-pomodoro:
+>lua
+    require("org").setup({ extensions = { pomodoro = { work = 25 } } })
+<
+`pomodoro_start` (`:Org pomodoro`) starts a pomodoro on the heading at the
+cursor: the entry is clocked in and a `work` minute countdown starts. When
+it ends, the entry's POMODOROS property goes up by one, the entry is
+clocked out and a break starts: `short_break` minutes, or `long_break`
+minutes after every `long_break_every` pomodoros. When the break ends you
+are told so, and `pomodoro_start` from anywhere (or from the heading of
+another entry) starts the next one; with `auto_start_work` it starts by
+itself. Starting on another heading while a pomodoro runs moves the session
+there.
+
+Each phase change is announced through the clock's notifier
+(`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
+desktop notification (osascript or notify-send, `system_notification`) and
+the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
+`data = { phase, count, title }`, `phase` being "work", "short_break",
+"long_break" or "ready".
+
+Actions, `:Org pomodoro [arg]` and default keys ~
+  `<prefix>zs`  pomodoro_start    start (`:Org pomodoro` or `start`)
+  `<prefix>zp`  pomodoro_pause    pause, or resume a paused phase (`pause`,
+                                `resume`); the clock stops while paused
+  `<prefix>zx`  pomodoro_stop     stop the session; the running pomodoro
+                                is not counted (org-pomodoro-kill) (`stop`)
+  `<prefix>zn`  pomodoro_skip     end the phase now: a skipped pomodoro is
+                                not counted, a skipped break starts the
+                                next pomodoro (`skip`)
+  `<prefix>zi`  pomodoro_status   show the time left (`status`)
+
+Statusline ~
+The time left is added to `require("org").statusline()` (|org-api|), after
+the clock: `🍅 24:13 (1)` while working, `☕ 4:59` on a break,
+`⏸ 🍅 12:00` when paused and `🍅 ready (2)` between pomodoros; the number
+counts the pomodoros finished in the session. Set `statusline = false` to
+leave it out and place `require("org.extensions.pomodoro").statusline()`
+yourself:
+>lua
+    -- lualine
+    table.insert(opts.sections.lualine_x, 1, {
+      function() return require("org.extensions.pomodoro").statusline() end,
+    })
+<
+Other extensions can add their own parts to `require("org").statusline()`
+through `require("org").statusline_components` (name -> function).
+
+Options ~
+  `work`                 minutes of a pomodoro, fractions allowed (25)
+  `short_break`          minutes of a short break (5)
+  `long_break`           minutes of a long break (15)
+  `long_break_every`     a long break after every Nth pomodoro; 0 for
+                       never (4)
+  `auto_start_breaks`    start the break when a pomodoro ends (true)
+  `auto_start_work`      start the next pomodoro when a break ends (false)
+  `clock_out_on_break`   clock out during breaks and pauses (true)
+  `property`             property counting finished pomodoros
+                       ("POMODOROS"); false for none
+  `system_notification`  desktop notifications (true)
+  `sound`                command run when a phase ends: a shell string or
+                       an argv list (false)
+  `statusline`           add the pomodoro to `require("org").statusline()`
+                       (true)
+  `icons`                { work, short_break, long_break, paused, ready }
+
+Differences from Emacs org-pomodoro: there is no overtime phase
+(org-pomodoro-manual-break), no ticking sound, and the session is not kept
+across restarts of Neovim.
+
+------------------------------------------------------------------------------
+Spaced repetition (org-drill)                           *org-extensions-drill*
+
+`drill` turns headlines into flashcards and schedules their reviews by
+spaced repetition, like Emacs org-drill:
+>lua
+    require("org").setup({ extensions = { drill = { scope = "agenda" } } })
+<
+A card is a headline tagged `:drill:` (the `tag` option; the tag must be
+on the headline itself, not inherited). The title and text are the
+question and the subheadings the answer:
+>org
+    * Capital of France                                       :drill:
+      What is the capital of France?
+    ** Answer
+       Paris
+<
+`:Org drill [scope]` (action `drill`, `<prefix>D`) starts a session over
+the cards that are due: cards whose SCHEDULED date is today or earlier,
+and new cards (never reviewed), which come after the due ones. The scope
+is `file` (the current buffer, the default of the `scope` option), `tree`
+(the subtree at the cursor, also action `drill_tree`), `agenda` (the agenda
+files), `directory` (the org files next to the current one), `tag:NAME`
+(cards in the agenda files that also have the tag NAME, inherited or
+not), or files and globs. Commented and archived cards and cards with
+nothing to ask are skipped.
+
+The session opens in a floating window showing one card at a time, with
+its type and how often it was seen. Keys in the window ~
+  <Space>  <CR>   show the answer
+  0 - 5           grade the answer (a grade key before the answer shows it)
+  s               skip the card
+  e               pause, and jump to the card to edit it; `:Org
+                  drill_resume` (action `drill_resume`) goes on
+  q  <Esc>        end the session; in the summary, close the window
+
+The grades are org-drill's:
+  0  wrong, and the answer is unfamiliar
+  1  wrong, but upon seeing the answer it felt familiar
+  2  wrong, but upon seeing the answer it seemed easy
+  3  correct, but it took a lot of effort
+  4  correct, after some hesitation
+  5  correct, and it was easy
+
+A grade of `failure_quality` (2) or less fails the card. Failed cards come
+back at the end of the session until they pass (`repeat_failed`). The
+session ends when every card is answered, after
+`maximum_items_per_session` cards or `maximum_duration` minutes, and shows
+a summary: cards and answers, passed, failed, new and skipped cards, the
+average grade, how often each grade was given, and when each card comes
+back. The files the session changed are then written (`save_buffers`).
+`:Org drill_stats [scope]` counts the cards of a scope: all, due, new and
+recently failed.
+
+Card types ~
+The DRILL_CARD_TYPE property sets a card's type (org-drill's names):
+  simple      (default) the title and text are the question and the
+              subheadings the answer; a card without subheadings has its
+              text as the answer. Clozes in the text are hidden.
+  twosided    one of the first two subheadings, picked at random, is shown
+              with the title; the other subheadings are the answer
+  multisided  like twosided, with any of the subheadings
+  hide1cloze  one cloze, at random, is hidden and the others shown
+  hide2cloze  two clozes, at random, are hidden and the others shown
+  show1cloze  one cloze, at random, is shown and the others hidden
+An unknown type is asked like a simple card.
+
+Clozes ~
+Text in single square brackets is a cloze deletion, hidden as `[...]`
+until the answer is shown. A hint follows `||`: `[Nile||river]` shows as
+`[river...]`. Links, timestamps, checkboxes, statistics cookies,
+footnotes and priorities are not clozes:
+>org
+    * Rivers                                                  :drill:
+      The longest river in the world is the [Nile||river]; it flows
+      north into the [Mediterranean||sea].
+<
+Scheduling ~
+Reviews are scheduled with org-drill's SM-2 algorithm. Every card has an
+ease factor, 2.5 at first. A passing grade changes it by SM-2's formula
+(+0.1 for a 5, unchanged for a 4, -0.14 for a 3) and schedules the next
+review 1 day, then 6 days, then the last interval times the ease later. A
+failure keeps the ease, schedules the card for today and starts the
+intervals over. The result is written to the card's SCHEDULED date and to
+the properties org-drill uses, so a deck can be shared with Emacs:
+  DRILL_LAST_INTERVAL        days of the last interval (`15.0`)
+  DRILL_REPEATS_SINCE_FAIL   passing answers in a row, plus one
+  DRILL_TOTAL_REPEATS        answers in all
+  DRILL_FAILURE_COUNT        failed answers
+  DRILL_AVERAGE_QUALITY      the average grade
+  DRILL_EASE                 the ease factor
+  DRILL_LAST_QUALITY         the last grade
+  DRILL_LAST_REVIEWED        when it was last answered (inactive timestamp)
+
+Lua ~
+`require("org.extensions.drill")` has `start(scope)`, `cards(scope)`,
+`due_cards(scope, today)` and `reschedule(bufnr, lnum, card, quality)`;
+`.sm2.next(data, quality)` is the scheduling step and `.cloze.parse(line)`
+finds the clozes of a line.
+
+Options ~
+  `tag`                        tag of the cards ("drill")
+  `scope`                      scope without an argument ("file")
+  `maximum_items_per_session`  0 for no limit (30)
+  `maximum_duration`           minutes, 0 for no limit (20)
+  `failure_quality`            grades at or below this fail (2)
+  `repeat_failed`              ask failed cards again (true)
+  `shuffle`                    random order (true); off, the most overdue
+                             cards come first
+  `save_buffers`               write changed files after a session (true)
+  `width`, `height`, `border`  the session window (72, 20, "rounded")
+  `keys`                       { reveal, skip, edit, quit }: a key or a
+                             list of keys each
+
+Differences from Emacs org-drill ~
+  - Only the SM-2 algorithm; org-drill's SM-5 and Simple8
+    (`org-drill-spaced-repetition-algorithm`), its random noise on
+    intervals and its "learn fraction" are not implemented.
+  - A failed card is stored with a last interval of `0.0` (org-drill
+    stores `-1.0`) and scheduled for today; the intervals start over the
+    same way.
+  - Card types are limited to the ones above; org-drill's language cards
+    (`conjugate`, `translate_number`, `spanish_verb`), `hide1_firstmore`,
+    `show1_lastmore`, `show2cloze` and custom card functions are not
+    available and ask like simple cards.
+  - No leech detection, no cram mode (`org-drill-cram`) and no
+    `org-drill-again` or `org-drill-merge-buffers`.
+  - The question is shown in a floating window instead of narrowing the
+    buffer to the entry.
+
  vim:tw=78:ts=8:ft=help:norl:
