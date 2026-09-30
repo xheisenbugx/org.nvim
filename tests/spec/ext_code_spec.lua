@@ -28,6 +28,19 @@ local function git(args)
   return vim.trim(res.stdout or "")
 end
 
+-- the agenda text once it holds `want` (the code TODOs are scanned in the
+-- background)
+local function agenda_text(want)
+  local buf = require("org.agenda.view").state.buf
+  local text
+  vim.wait(5000, function()
+    text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    return text:find(want, 1, true) ~= nil
+  end, 10)
+  ok(text:find(want, 1, true), text)
+  return text
+end
+
 local function setup(code, extra)
   require("org").setup(vim.tbl_extend("force", {
     org_directory = repo .. "/notes",
@@ -151,6 +164,21 @@ describe("code extension", function()
       eq("feature/x", g.branch(g.root(wt)))
       vim.fn.writefile({ "0123456789abcdef" }, gd .. "/HEAD")
       eq(nil, g.branch(g.root(wt)))
+    end)
+
+    it("follows a gitdir path with spaces, and a relative one (submodules)", function()
+      local g = require("org.extensions.code.git")
+      local base = vim.fs.dirname(repo)
+      local wt = base .. "/my work tree"
+      local gd = base .. "/git dirs/wt ü"
+      vim.fn.mkdir(wt, "p")
+      vim.fn.mkdir(gd, "p")
+      vim.fn.writefile({ "gitdir: " .. gd .. "  " }, wt .. "/.git")
+      vim.fn.writefile({ "ref: refs/heads/spaced" }, gd .. "/HEAD")
+      eq(gd, g.git_dir(wt))
+      eq("spaced", g.branch(g.root(wt .. "/x.lua")))
+      vim.fn.writefile({ "gitdir: ../git dirs/wt ü" }, wt .. "/.git")
+      eq("spaced", g.branch(wt))
     end)
 
     it("gives the short commit when git is installed", function()
@@ -286,6 +314,71 @@ describe("code extension", function()
       eq(nil, require("org.config").opts.capture.templates.k)
     end)
 
+    it("keeps a multibyte last character of a characterwise selection", function()
+      setup({ capture_template = { template = "* x\n%(code-block)", target = "project", immediate_finish = true } })
+      vim.cmd("edit " .. write("src/u.lua", { "x = 'é' .. 'ü'" }))
+      vim.keymap.set("x", "<F7>", function()
+        require("org.actions").run("code_capture")
+      end, { buffer = true })
+      vim.api.nvim_feedkeys(vim.keycode("0v5l<F7>"), "x", false)
+      local all = table.concat(read(repo .. "/.org/tasks.org"), "\n")
+      ok(all:find("#+begin_src lua\nx = 'é\n#+end_src", 1, true), all)
+    end)
+
+    it("gathers the code context once per capture", function()
+      local g = require("org.extensions.code.git")
+      local calls = 0
+      local commit = g.commit
+      stub(g, "commit", function(r)
+        calls = calls + 1
+        return commit(r)
+      end)
+      setup({}, {
+        capture = {
+          templates = {
+            x = {
+              description = "x",
+              template = "* %(code-symbol)\n%(code-link)\n%(git-info)\n%(git-commit)\n%(code-file)",
+              target = repo .. "/notes/x.org",
+              immediate_finish = true,
+            },
+          },
+        },
+      })
+      vim.fn.mkdir(repo .. "/notes", "p")
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      utils.run(require("org.capture").capture, "x")
+      eq(1, calls)
+      eq(5, #read(repo .. "/notes/x.org"))
+    end)
+
+    it("files code captures outside a repository in fallback_target, without the project headline", function()
+      local outside = vim.fs.dirname(repo) .. "/loose"
+      vim.fn.mkdir(outside, "p")
+      vim.fn.mkdir(repo .. "/notes", "p")
+      vim.fn.writefile({ "print(1)" }, outside .. "/script.lua")
+      setup({
+        capture_template = { template = "* note %(code-line)", target = "project", immediate_finish = true },
+      })
+      vim.cmd("edit " .. outside .. "/script.lua")
+      -- code_capture and the menu template: the default notes file, at its end
+      require("org.actions").run("code_capture")
+      utils.run(require("org.capture").capture, "k")
+      eq({ "* note 1", "* note 1" }, read(repo .. "/notes/inbox.org"))
+      setup({
+        capture_template = { template = "* note %(code-line)", target = "project", immediate_finish = true },
+        fallback_target = repo .. "/notes/loose.org",
+        fallback_headline = "Loose code",
+      })
+      require("org.actions").run("code_capture")
+      utils.run(require("org.capture").capture, "k")
+      eq({ "* Loose code", "** note 1", "** note 1" }, read(repo .. "/notes/loose.org"))
+      -- in a repository the menu template still uses the project headline
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      utils.run(require("org.capture").capture, "k")
+      ok(vim.tbl_contains(read(repo .. "/.org/tasks.org"), "* Tasks"))
+    end)
+
     it("refuses org buffers", function()
       local msgs = {}
       stub(utils, "warn", function(m)
@@ -360,8 +453,120 @@ describe("code extension", function()
       local symbols = require("org.extensions.code.symbols")
       eq({ lnum = 8, col = 4, via = "lsp" }, symbols.find(buf, "Greeter.hello"))
       eq({ lnum = 8, col = 4, via = "lsp" }, symbols.find(buf, "hello"))
-      eq("hello", symbols.at(buf, 8, 5))
+      -- a method is named with its class, so the link is not ambiguous
+      eq("Greeter.hello", symbols.at(buf, 8, 5))
       eq("Greeter", symbols.at(buf, 7, 0))
+    end)
+
+    it("asks only the language servers that answer documentSymbol (0.10 and 0.11+ clients)", function()
+      local symbols = require("org.extensions.code.symbols")
+      local method = "textDocument/documentSymbol"
+      -- Neovim 0.10: a field; called with a table (a colon call) it says yes
+      local old_yes = {
+        supports_method = function(m)
+          return type(m) ~= "string" or m == method
+        end,
+      }
+      local old_no = {
+        supports_method = function(m)
+          return type(m) ~= "string"
+        end,
+      }
+      -- Neovim 0.11+: a method of the client class
+      local Client = {}
+      Client.__index = Client
+      function Client:supports_method(m)
+        return self.caps[m] == true
+      end
+      local new_yes = setmetatable({ caps = { [method] = true } }, Client)
+      local new_no = setmetatable({ caps = {} }, Client)
+      eq(true, symbols.supports_symbols(old_yes))
+      eq(false, symbols.supports_symbols(old_no))
+      eq(true, symbols.supports_symbols(new_yes))
+      eq(false, symbols.supports_symbols(new_no))
+      eq(true, symbols.supports_symbols({ server_capabilities = { documentSymbolProvider = true } }))
+    end)
+
+    it("waits for a language server that is still starting for the buffer", function()
+      local buf = vim.fn.bufadd(repo .. "/tools/greet.py")
+      vim.fn.bufload(buf)
+      local client = { id = 7, offset_encoding = "utf-16", server_capabilities = { documentSymbolProvider = true } }
+      local ready = false
+      vim.defer_fn(function()
+        ready = true
+      end, 50)
+      stub(vim.lsp, "get_clients", function(filter)
+        if filter and filter._uninitialized then
+          return { client }
+        end
+        -- no running client serves python: only the starting one counts
+        return ready and filter and filter.bufnr and { client } or {}
+      end)
+      stub(vim.lsp, "buf_request_sync", function()
+        local r = { start = { line = 2, character = 4 }, ["end"] = { line = 2, character = 9 } }
+        return { [7] = { result = { { name = "greet", kind = 12, range = r, selectionRange = r } } } }
+      end)
+      eq({ lnum = 3, col = 4, via = "lsp" }, require("org.extensions.code.symbols").find(buf, "greet"))
+    end)
+
+    it("reads LSP columns in the server's position encoding", function()
+      local symbols = require("org.extensions.code.symbols")
+      local line = "local s = '😀😀' function M.setup(opts)"
+      eq(30, symbols.byte_col(line, 26, "utf-16"))
+      eq(30, symbols.byte_col(line, 24, "utf-32"))
+      eq(30, symbols.byte_col(line, 30, "utf-8"))
+      eq(#line, symbols.byte_col(line, 999, "utf-8"))
+      local buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line, "end" })
+      local client = { id = 3, offset_encoding = "utf-32", server_capabilities = { documentSymbolProvider = true } }
+      stub(vim.lsp, "get_clients", function()
+        return { client }
+      end)
+      stub(vim.lsp, "get_client_by_id", function(id)
+        return id == 3 and client or nil
+      end)
+      stub(vim.lsp, "buf_request_sync", function()
+        local r = { start = { line = 0, character = 24 }, ["end"] = { line = 1, character = 3 } }
+        return { [3] = { result = { { name = "M.setup", kind = 12, range = r, selectionRange = r } } } }
+      end)
+      eq({ lnum = 1, col = 30, via = "lsp" }, symbols.find(buf, "M.setup"))
+    end)
+
+    it("finds treesitter definitions bound to names and C declarators", function()
+      local symbols = require("org.extensions.code.symbols")
+      local function buffer(ft, lines)
+        local b = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
+        vim.bo[b].filetype = ft
+        return b
+      end
+      if has_ts_lua() then
+        local b = buffer("lua", {
+          "local M = {}",
+          "-- value is used before: M.value()",
+          "M.value = function()",
+          "  return 1",
+          "end",
+          "local t = { build = function() end }",
+          "return M",
+        })
+        eq({ lnum = 3, col = 0, via = "treesitter" }, symbols.find(b, "M.value"))
+        eq({ lnum = 6, col = 12, via = "treesitter" }, symbols.find(b, "build"))
+        eq("M.value", symbols.at(b, 4, 2))
+      end
+      if pcall(vim.treesitter.language.add, "c") then
+        local b = buffer("c", {
+          "struct point p;",
+          "static int *make_point(int x);",
+          "struct point { int x; };",
+          "static int *make_point(int x) {",
+          "  return 0;",
+          "}",
+        })
+        eq({ lnum = 4, col = 12, via = "treesitter" }, symbols.find(b, "make_point"))
+        eq({ lnum = 3, col = 7, via = "treesitter" }, symbols.find(b, "point"))
+        eq("make_point", symbols.at(b, 5, 2))
+      end
     end)
 
     it("finds definitions by text", function()
@@ -396,6 +601,51 @@ describe("code extension", function()
       eq(nil, require("org.extensions.code.link").store())
     end)
 
+    it("locates a link's target without opening the file", function()
+      local link = require("org.extensions.code.link")
+      local org = write(".org/notes.org", { "* x" })
+      local loc = link.type.locate("src/app.lua::M.setup", org)
+      eq(repo .. "/src/app.lua", loc.path)
+      eq(4, loc.lnum)
+      if has_ts_lua() then
+        eq({ 9, 7, 4, 7 }, { loc.col, loc.len, loc.first, loc.last })
+      end
+      eq(10, link.type.locate("src/app.lua::10", org).lnum)
+      eq(nil, link.type.locate("src/nope.lua::x", org))
+      eq(-1, vim.fn.bufnr(repo .. "/src/app.lua"), "no buffer was loaded")
+    end)
+
+    it("reads the file a code: link names, not a loaded buffer whose name matches like a pattern", function()
+      write("src/a1.lua", { "local x = 1", "", "", "local function target() end" })
+      local odd = write("src/a[1].lua", { "local function target() end" })
+      vim.cmd("edit " .. repo .. "/src/a1.lua")
+      eq(1, require("org.extensions.code.symbols").find_in_file(odd, "target").lnum)
+    end)
+
+    it("goes to a code: link's definition from the org language server", function()
+      setup({}, { extensions = { code = {}, lsp = {} } })
+      vim.cmd("edit " .. write(".org/notes.org", { "See [[code:src/app.lua::helper]]." }))
+      local util = require("org.extensions.lsp.util")
+      local targets = require("org.extensions.lsp.targets")
+      local doc = util.doc_from_buf(0)
+      local l = targets.link_at(doc, 1, 10)
+      local loc = targets.resolve(doc, l)
+      eq(repo .. "/src/app.lua", loc.path)
+      eq(9, loc.lnum)
+    end)
+
+    it("transcludes the definition a code: link names", function()
+      setup({}, { extensions = { code = {}, transclusion = {} } })
+      local org = write(".org/notes.org", { "#+transclude: [[code:src/app.lua::helper]]" })
+      local spec = require("org.extensions.transclusion.keyword").parse("[[code:src/app.lua::helper]]")
+      local res, err = require("org.extensions.transclusion.source").resolve(spec, { filename = org })
+      ok(res, err)
+      local want = has_ts_lua() and { "local function helper()", "  return 1 -- FIXME(bob): wrong value", "end" }
+        or { "local function helper()" }
+      eq(want, res.raw)
+      eq("#+begin_src lua", res.lines[1])
+    end)
+
     it("exports as code text", function()
       local links = require("org.links")
       eq("<code>src/app.lua:3</code>", links.export_link("code:src/app.lua::3", nil, "html"))
@@ -424,6 +674,24 @@ describe("code extension", function()
       eq({ "#+title: myrepo", "" }, buf_lines(0))
     end)
 
+    it("warns when project_file names no file", function()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      setup({
+        project_file = function()
+          return nil
+        end,
+      })
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      for _, a in ipairs({ "project_open", "project_capture", "project_agenda" }) do
+        msgs = {}
+        eq(true, (pcall(require("org.actions").run, a)), a)
+        ok(msgs[1] and msgs[1]:find("No project file", 1, true), a .. ": " .. vim.inspect(msgs))
+      end
+    end)
+
     it("captures into the project file", function()
       setup({ project_template = { template = "* TODO Ship it", immediate_finish = true } })
       vim.cmd("edit " .. repo .. "/src/app.lua")
@@ -443,7 +711,7 @@ describe("code extension", function()
       vim.cmd("edit " .. repo .. "/src/app.lua")
       require("org.actions").run("project_agenda")
       eq("orgagenda", vim.bo.filetype)
-      local text = table.concat(buf_lines(0), "\n")
+      local text = agenda_text("TODOs in myrepo  (3)")
       ok(text:find("Code TODOs in myrepo", 1, true), text)
       ok(text:find("TODO Translate greetings", 1, true), text)
       ok(text:find("↳ greet: +TODO greet in French  %(tools/greet.py:4%)"), text)
@@ -504,8 +772,84 @@ describe("code extension", function()
 
     it("is an agenda block type", function()
       require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
-      local text = table.concat(buf_lines(0), "\n")
-      ok(text:find("Mine  (3)", 1, true), text)
+      agenda_text("Mine  (3)")
+    end)
+
+    it("reads paths with non-ASCII bytes, spaces and colons from git grep and rg", function()
+      write("docs/ünï côde.lua", { "-- TODO: unicode" })
+      write("a:1:b.lua", { "-- FIXME: colons" })
+      for _, how in ipairs({ "git", "rg" }) do
+        if vim.fn.executable(how) == 1 and (how ~= "git" or has_git) then
+          setup({ todo_scanner = how })
+          local rels = {}
+          for _, t in ipairs(require("org.extensions.code.todos").scan(repo)) do
+            rels[#rels + 1] = t.rel .. ":" .. t.lnum
+            ok(vim.uv.fs_stat(t.file), how .. ": " .. t.file)
+          end
+          ok(vim.tbl_contains(rels, "docs/ünï côde.lua:1"), how .. ": " .. vim.inspect(rels))
+          ok(vim.tbl_contains(rels, "a:1:b.lua:1"), how .. ": " .. vim.inspect(rels))
+        end
+      end
+    end)
+
+    it("scans in the background and redraws the agenda when done", function()
+      local todos = require("org.extensions.code.todos")
+      local done
+      local real = todos.scan_async
+      stub(todos, "scan_async", function(root, cb)
+        real(root, function(list, truncated)
+          done = true
+          cb(list, truncated)
+        end)
+      end)
+      require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+      if not done then
+        -- the view was drawn without waiting for the scan
+        ok(table.concat(buf_lines(0), "\n"):find("Mine  (scanning...)", 1, true))
+      end
+      agenda_text("Mine  (3)")
+      ok(agenda_text("handle errors"))
+      -- drawn again later: the old list at once, then scanned again
+      write("new.lua", { "-- BUG: new one" })
+      todos.cache[repo].time = 0
+      require("org.agenda.view").redo()
+      agenda_text("Mine  (4)")
+    end)
+
+    it("stops at todo_max_items", function()
+      for _, how in ipairs({ "lua", has_git and "git" or "lua" }) do
+        setup({ todo_scanner = how, todo_max_items = 2 })
+        local list, truncated = require("org.extensions.code.todos").scan(repo)
+        eq(2, #list)
+        eq(true, truncated)
+        require("org.extensions.code.todos").cache = {}
+        require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+        agenda_text("Mine  (2+)")
+      end
+    end)
+
+    it("says that agenda commands on org entries don't apply to a code TODO", function()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      stub(utils, "error", function(m)
+        msgs[#msgs + 1] = "error: " .. m
+      end)
+      require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+      agenda_text("Mine  (3)")
+      for i, l in ipairs(buf_lines(0)) do
+        if l:find("handle errors", 1, true) then
+          vim.api.nvim_win_set_cursor(0, { i, 0 })
+        end
+      end
+      for _, name in ipairs({ "todo", "schedule", "priority_up", "set_tags", "clock_in", "archive", "refile" }) do
+        msgs = {}
+        require("org.agenda.view").run_action(name)
+        eq(1, #msgs, name)
+        ok(msgs[1]:find("TODO comment in code", 1, true), msgs[1])
+      end
+      eq(APP, read(repo .. "/src/app.lua"), "the code is left alone")
     end)
   end)
 
@@ -556,6 +900,38 @@ describe("code extension", function()
       vim.fn.bufload(buf)
       require("org.extensions.code.branch").check(buf)
       eq("Login page", require("org.clock").state.title)
+    end)
+
+    it("matches a ticket in a title as a whole word", function()
+      write(".org/tasks.org", { "* TODO Crash on save BUG-42" })
+      setup({ branch_clock = true })
+      local branch = require("org.extensions.code.branch")
+      eq(nil, branch.find_heading("fix/BUG-4", repo))
+      eq("Crash on save BUG-42", branch.find_heading("fix/BUG-42-save", repo).title)
+    end)
+
+    it("never raises from the BufEnter check, and warns once", function()
+      org_file()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      setup({
+        branch_clock = true,
+        project_file = function()
+          error("boom")
+        end,
+      })
+      local branch = require("org.extensions.code.branch")
+      local buf = vim.fn.bufadd(repo .. "/tools/greet.py")
+      vim.fn.bufload(buf)
+      branch.check(buf)
+      for _, b in ipairs({ "feature/login", "fix/BUG-42-crash", "feature/login" }) do
+        switch(b)
+        eq(true, (pcall(branch.check, buf)))
+      end
+      eq(1, #msgs, vim.inspect(msgs))
+      ok(msgs[1]:find("boom", 1, true), msgs[1])
     end)
 
     it("links the current branch to the heading at point", function()

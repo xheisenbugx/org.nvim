@@ -14,12 +14,15 @@ local function stub(mod, name, fn)
   mod[name] = fn
 end
 
-local function setup(lit)
-  require("org").setup({
+-- files of the temp dir are detected (allow) without asking (confirm)
+local function setup(lit, extra)
+  require("org").setup(vim.tbl_extend("force", {
     org_directory = root .. "/tests/fixtures",
     agenda_files = { root .. "/tests/fixtures/*.org" },
-    extensions = { literate = vim.tbl_extend("force", { files = {}, notify = false }, lit or {}) },
-  })
+    extensions = {
+      literate = vim.tbl_extend("force", { files = {}, notify = false, allow = { dir }, confirm = false }, lit or {}),
+    },
+  }, extra or {}))
 end
 
 local INIT = {
@@ -112,6 +115,137 @@ describe("literate extension", function()
     setup({ detect = false })
     vim.cmd("edit " .. dir .. "/init.org")
     eq(false, lit.is_literate(0))
+  end)
+
+  describe("trust", function()
+    before_each(function()
+      vim.fn.delete(require("org.extensions.literate").trust_file())
+    end)
+
+    it("leaves detected files outside `allow` alone", function()
+      setup({ allow = { dir .. "/elsewhere" } })
+      vim.cmd("edit " .. write_init())
+      eq(false, require("org.extensions.literate").is_literate(0))
+      change(10, "vim.g.lit_b = 2")
+      eq(nil, vim.uv.fs_stat(dir .. "/init_org.lua"), "not tangled")
+      eq(nil, vim.g.lit_b, "not run")
+      -- a file listed in `files` needs no `allow`
+      setup({ allow = {}, files = { dir .. "/init.org" } })
+      change(10, "vim.g.lit_b = 3")
+      eq(3, vim.g.lit_b)
+    end)
+
+    it("asks once before tangling and running a detected file", function()
+      local asked = 0
+      local answer = false
+      stub(utils, "confirm", function()
+        asked = asked + 1
+        return answer
+      end)
+      setup({ confirm = true })
+      vim.cmd("edit " .. write_init())
+      change(10, "vim.g.lit_b = 2")
+      eq(1, asked)
+      eq(nil, vim.g.lit_b)
+      eq(nil, vim.uv.fs_stat(dir .. "/init_org.lua"))
+      change(10, "vim.g.lit_b = 3")
+      eq(1, asked, "the answer is remembered")
+      eq(nil, vim.g.lit_b)
+      -- remembered across sessions (setup again reads the file)
+      setup({ confirm = true })
+      change(10, "vim.g.lit_b = 4")
+      eq(1, asked)
+      eq(nil, vim.g.lit_b)
+      -- yes for another file
+      vim.fn.delete(require("org.extensions.literate").trust_file())
+      setup({ confirm = true })
+      answer = true
+      change(10, "vim.g.lit_b = 5")
+      eq(2, asked)
+      eq(5, vim.g.lit_b)
+      change(10, "vim.g.lit_b = 6")
+      eq(2, asked)
+      eq(6, vim.g.lit_b)
+    end)
+
+    it("evaluates nothing when a file is opened", function()
+      local marker = dir .. "/evaluated"
+      stub(utils, "confirm", function()
+        return true
+      end)
+      setup({}, { babel = { confirm_evaluate = false } })
+      vim.cmd("edit " .. write_init({
+        "#+PROPERTY: header-args:lua :tangle init_org.lua",
+        "#+name: side",
+        "#+begin_src lua :tangle no",
+        "vim.fn.writefile({}, " .. string.format("%q", marker) .. ")",
+        "return 1",
+        "#+end_src",
+        "#+begin_src lua :var x=side()",
+        "vim.g.lit_a = x",
+        "#+end_src",
+      }))
+      eq(nil, vim.uv.fs_stat(marker))
+      eq(nil, vim.g.lit_a)
+    end)
+  end)
+
+  it("goes back only to trusted org files, reading nothing else", function()
+    local other = vim.fs.dirname(dir) .. "/downloads"
+    vim.fn.mkdir(other, "p")
+    local marker = other .. "/evaluated"
+    setup({}, { babel = { confirm_evaluate = false } })
+    vim.fn.writefile({
+      "#+PROPERTY: header-args:lua :tangle x.lua",
+      "#+name: side",
+      "#+begin_src lua :tangle no",
+      "vim.fn.writefile({}, " .. string.format("%q", marker) .. ")",
+      "return 1",
+      "#+end_src",
+      "#+begin_src lua :var v=side()",
+      "vim.g.lit_a = v",
+      "#+end_src",
+    }, other .. "/x.org")
+    vim.fn.writefile({ "vim.g.lit_a = v" }, other .. "/x.lua")
+    local msgs = {}
+    stub(utils, "warn", function(m)
+      msgs[#msgs + 1] = m
+    end)
+    vim.cmd("edit " .. other .. "/x.lua")
+    eq(nil, require("org.extensions.literate").goto_org())
+    eq(nil, vim.uv.fs_stat(marker))
+    ok(msgs[1] and msgs[1]:find("No org block", 1, true), vim.inspect(msgs))
+  end)
+
+  it("reruns a block when a block it includes with noweb changes", function()
+    vim.cmd("edit " .. write_init({
+      "#+PROPERTY: header-args:lua :tangle init_org.lua :noweb yes",
+      "#+name: value",
+      "#+begin_src lua :tangle no",
+      "1",
+      "#+end_src",
+      "#+begin_src lua",
+      "vim.g.lit_a = <<value>>",
+      "#+end_src",
+    }))
+    change(4, "2")
+    eq(2, vim.g.lit_a)
+    change(4, "3")
+    eq(3, vim.g.lit_a)
+  end)
+
+  it("reports a failing tangle once, without raising from the autocmd", function()
+    local msgs = {}
+    stub(utils, "warn", function(m)
+      msgs[#msgs + 1] = m
+    end)
+    stub(require("org.babel.tangle"), "tangle", function()
+      error("disk full")
+    end)
+    vim.cmd("edit " .. write_init())
+    eq(true, (pcall(change, 10, "vim.g.lit_b = 2")))
+    eq(1, #msgs)
+    ok(msgs[1]:find("disk full", 1, true), msgs[1])
   end)
 
   it("tangles on save and runs only the changed blocks", function()
@@ -272,6 +406,83 @@ describe("literate extension", function()
     eq(nil, require("org.extensions.literate").bootstrap())
   end)
 
+  it("bootstraps with the blocks the full tangle writes (headings' properties, other targets, noweb)", function()
+    local lines = {
+      "#+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes",
+      "#+PROPERTY: header-args :noweb yes",
+      "* Options",
+      "#+begin_src lua",
+      "vim.g.lit_a = 1",
+      "#+end_src",
+      "* Drafts",
+      ":PROPERTIES:",
+      ":header-args:lua: :tangle no",
+      ":END:",
+      "#+begin_src lua",
+      "vim.g.lit_c = 'draft'",
+      "#+end_src",
+      "** But this one",
+      "#+begin_src lua :tangle lua/config.lua",
+      "vim.g.lit_d = 1",
+      "#+end_src",
+      "* Other file",
+      "#+begin_src lua :tangle lua/other.lua",
+      "vim.g.lit_c = 'other'",
+      "#+end_src",
+      "* Shared",
+      "#+name: greeting",
+      "#+begin_src lua :tangle no",
+      "'hi'",
+      "#+end_src",
+      "#+begin_src lua",
+      "vim.g.lit_b = <<greeting>>",
+      "#+end_src",
+      "#+begin_src luap",
+      "not lua",
+      "#+end_src",
+      "* Escaped",
+      "#+begin_src lua",
+      "local s = [[",
+      ",* not a heading",
+      "]]",
+      "vim.g.lit_e = s",
+      "#+end_src",
+    }
+    vim.cmd("edit " .. write_init(lines))
+    local path = require("org.extensions.literate").bootstrap()
+    vim.cmd("silent write")
+    local full = vim.fn.readfile(dir .. "/lua/config.lua")
+    vim.fn.delete(dir .. "/lua/config.lua")
+    vim.g.lit_a, vim.g.lit_b, vim.g.lit_c, vim.g.lit_d, vim.g.lit_e = nil, nil, nil, nil, nil
+    dofile(path)
+    eq(full, vim.fn.readfile(dir .. "/lua/config.lua"))
+    eq({ 1, "hi", nil, 1, "* not a heading\n" }, { vim.g.lit_a, vim.g.lit_b, vim.g.lit_c, vim.g.lit_d, vim.g.lit_e })
+  end)
+
+  it("keeps loading the tangled file when the startup tangle fails", function()
+    local lines = vim.deepcopy(INIT)
+    lines[2] = "#+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes"
+    vim.cmd("edit " .. write_init(lines))
+    vim.cmd("silent write")
+    local path = require("org.extensions.literate").bootstrap()
+    -- the org file can't be read: the old tangled file still loads
+    vim.fn.writefile({ "vim.g.lit_a = 'old'" }, dir .. "/lua/config.lua")
+    vim.uv.fs_utime(dir .. "/init.org", os.time() + 5, os.time() + 5)
+    local notified
+    stub(vim, "notify", function(m)
+      notified = m
+    end)
+    local io_lines = io.lines
+    stub(io, "lines", function()
+      error("unreadable")
+    end)
+    local ok_run = pcall(dofile, path)
+    io.lines = io_lines
+    ok(ok_run)
+    eq("old", vim.g.lit_a)
+    ok(notified and notified:find("unreadable", 1, true), notified)
+  end)
+
   it("refuses to bootstrap when the blocks tangle to init.lua itself", function()
     local lines = vim.deepcopy(INIT)
     lines[2] = "#+PROPERTY: header-args:lua :tangle init.lua"
@@ -309,6 +520,36 @@ describe("literate extension", function()
     eq(10, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
+  it("jumps back to the block a noweb reference brought the line from", function()
+    vim.cmd("edit " .. write_init({
+      "#+PROPERTY: header-args:lua :tangle init_org.lua :noweb yes",
+      "#+name: helper",
+      "#+begin_src lua :tangle no",
+      "vim.g.lit_helper = 1",
+      "#+end_src",
+      "#+begin_src lua",
+      "<<helper>>",
+      "vim.g.lit_a = 1",
+      "#+end_src",
+    }))
+    vim.cmd("silent write")
+    vim.cmd("edit " .. dir .. "/init_org.lua")
+    eq("vim.g.lit_helper = 1", buf_lines(0)[1])
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    require("org.actions").run("literate_goto_org")
+    eq(dir .. "/init.org", vim.api.nvim_buf_get_name(0))
+    eq(4, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("completes the path of :Org literate_bootstrap", function()
+    local commands = require("org.commands")
+    write_init()
+    local found = commands.complete(dir .. "/ini", "Org literate_bootstrap " .. dir .. "/ini")
+    ok(vim.tbl_contains(found, dir .. "/init.org"), vim.inspect(found))
+    local all = commands.complete("", "Org literate_bootstrap ")
+    ok(all[1]:find("init.lua$"), vim.inspect(all))
+  end)
+
   it("reports in :checkhealth", function()
     local out = {}
     local h = {}
@@ -321,6 +562,18 @@ describe("literate extension", function()
     require("org.extensions").check(h)
     ok(vim.tbl_contains(out, "ok: enabled: literate"), vim.inspect(out))
     ok(table.concat(out, "\n"):find("literate file: ", 1, true), vim.inspect(out))
+  end)
+
+  it("removes the diagnostics of any buffer when turned off", function()
+    local plain = vim.fs.dirname(dir) .. "/plain.org"
+    vim.fn.writefile({ "* A", "#+begin_src lua", "error('x')", "#+end_src" }, plain)
+    vim.cmd("edit " .. plain)
+    eq(false, require("org.extensions.literate").is_literate(0))
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    require("org.extensions.literate").run_block()
+    eq({ { 3, "x" } }, diags(), "the message without the chunk's name")
+    require("org").setup({ org_directory = root .. "/tests/fixtures" })
+    eq({}, diags())
   end)
 
   it("removes its autocmds and diagnostics when turned off", function()

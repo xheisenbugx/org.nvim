@@ -11,8 +11,15 @@
 ---(default: `{ stdpath("config") .. "/init.org" }`)
 ---@field files? string[]
 ---Also treat org files with `#+PROPERTY: header-args:lua :tangle FILE` as
----literate. (default: `true`)
+---literate when they are under a directory of `allow`. (default: `true`)
 ---@field detect? boolean
+---Directories (paths or globs) where `detect` looks; org files elsewhere are
+---never tangled or run on save unless listed in `files`.
+---(default: `{ stdpath("config") }`)
+---@field allow? string[]
+---Ask before the first save that tangles and runs a detected file (the answer
+---is kept in `stdpath("data")/org/literate-trust.json`). (default: `true`)
+---@field confirm? boolean
 ---Tangle literate files when they are written. (default: `true`)
 ---@field tangle_on_save? boolean
 ---After tangling, run the Lua blocks whose text changed. (default: `true`)

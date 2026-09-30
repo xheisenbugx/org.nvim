@@ -86,9 +86,11 @@ function M.find_heading(branch, root)
       end
     end
   end
+  -- a whole word: BUG-4 is not in "BUG-42"
+  local word = "%f[%w]" .. vim.pesc(ticket) .. "%f[^%w]"
   for _, f in ipairs(list) do
     for _, hl in ipairs(f.headlines) do
-      if (hl.title or ""):find(ticket, 1, true) then
+      if (hl.title or ""):find(word) then
         return hl
       end
     end
@@ -119,10 +121,11 @@ function M.clock_branch(branch, root)
   return true
 end
 
---- Check the branch of `buf`'s repository and clock in when it changed.
----@param buf? integer
-function M.check(buf)
-  buf = buf or vim.api.nvim_get_current_buf()
+--- Errors `check` already reported (reset by the extension's teardown).
+---@type table<string, boolean>
+M.warned = {}
+
+local function check(buf)
   if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" then
     return
   end
@@ -138,6 +141,20 @@ function M.check(buf)
   end
   if branch and branch ~= prev then
     M.clock_branch(branch, root)
+  end
+end
+
+--- Check the branch of `buf`'s repository and clock in when it changed.
+--- Runs on BufEnter: it never raises, and says each error once.
+---@param buf? integer
+function M.check(buf)
+  local ok, err = pcall(check, buf or vim.api.nvim_get_current_buf())
+  if not ok then
+    local msg = tostring(err)
+    if not M.warned[msg] then
+      M.warned[msg] = true
+      utils.warn("Branch clock: " .. msg)
+    end
   end
 end
 

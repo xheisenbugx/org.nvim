@@ -8,7 +8,8 @@
 ---`false` keeps the extension off.
 ---@field enabled? boolean
 ---Template of `code_capture`; its `target` `"project"` (the default) captures
----into the repository's project file under `project_headline`.
+---into the repository's project file under `project_headline` (outside a
+---repository: `fallback_target` under `fallback_headline`).
 ---(default: `{ template = "* %?\n  %U  %(code-link)\n  %(git-info)\n%(code-block)", target = "project" }`)
 ---@field capture_template? org.Config.CaptureTemplate|table
 ---Key of a copy of `capture_template` added to `capture.templates` when that
@@ -36,6 +37,11 @@
 ---Headline captures go under in the project file; nil for the end of the
 ---file. (default: `"Tasks"`)
 ---@field project_headline? string
+---Where `"project"` code captures go outside a repository; nil for
+---`default_notes_file`. (default: `nil`)
+---@field fallback_target? string
+---Headline those captures go under; nil for the end of the file. (default: `nil`)
+---@field fallback_headline? string
 ---Template of `project_capture`. (default: `{ template = "* TODO %?\n  %U\n  %a" }`)
 ---@field project_template? org.Config.CaptureTemplate|table
 ---Blocks of `project_agenda`, restricted to the project file.

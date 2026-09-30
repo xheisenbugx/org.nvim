@@ -8664,8 +8664,10 @@ Capturing code ~
 selection becomes a src block in the language of the buffer's filetype
 (`lua`, `python`, `js` for javascript, `C++` for cpp...; `languages` adds
 or changes names); in Normal mode there is no block. The note goes to the
-repository's project file (below), under `project_headline`, or to
-`default_notes_file` outside a repository. The template is
+repository's project file (below), under `project_headline`. Outside a
+repository it goes to `fallback_target` (default: `default_notes_file`),
+under `fallback_headline` (default: none, at the end of the file); the
+copy in the capture menu does the same. The template is
 `capture_template`; these expansions fill it:
 
   `%(code-block)`      the selection as a `#+begin_src LANG` block ("" in
@@ -8695,8 +8697,11 @@ for it. (The expansions are registered in `require("org.capture").expansions`,
 `code:` links ~
 `[[code:src/app.lua::M.setup]]` opens the file and jumps to the symbol,
 found with the language server's document symbols (`textDocument/
-documentSymbol`, waiting `lsp_timeout` ms for a server that serves the
-filetype to attach), else treesitter definitions, else a text search for
+documentSymbol`; a server that is still starting for the file, from
+|vim.lsp.enable()| or a FileType autocmd, or a running one that serves
+the filetype is waited for up to `lsp_timeout` ms, then up to
+`lsp_timeout` ms for its answer), else treesitter definitions, else a
+text search for
 `function NAME`, `def NAME`, `NAME =`, then the word. A dotted name
 (`Class.method`) matches the symbol in its container. `code:PATH::42` jumps
 to line 42. A relative path is looked up from the git root of the org file,
@@ -8708,6 +8713,20 @@ to the function or class around the cursor, from the language server or
 treesitter, else to the line. `link_path = "relative"` writes the path
 relative to the git root. Exported, a `code:` link is its description in
 code style.
+
+With the `lsp` extension (|org-extensions-lsp|), go to definition on a
+`code:` link jumps to its target, and with `transclusion`
+(|org-extensions-transclusion|) `#+transclude: [[code:src/app.lua::M.setup]]`
+shows the whole definition in a src block. Both find the symbol with
+treesitter, else the text search, without asking a language server (and
+without loading the file into a buffer).
+
+The treesitter lookup knows functions, methods, classes, structs, enums,
+interfaces, traits, modules and type definitions in the usual grammars
+(checked with Lua, Python, JavaScript, TypeScript, Rust and C), and names
+bound to a function (`const f = () => {}`, `M.f = function() end`). A
+method is linked as `Class.method` (`Type.method` in a Rust `impl`). Go
+methods are linked by their name only.
 
 Per-project org files ~
 `project_file` names the org file of a repository: a path relative to its
@@ -8730,10 +8749,16 @@ The `code_todos` agenda block type lists comments with `todo_keywords`
     -- FIXME(bob): wrong value
     -- TODO(org:3f2a...): translate the greetings
 <
-They are found with `git grep` (tracked and untracked files), else `rg`,
-else by reading at most `todo_max_files` files; org files are skipped
-(`todo_exclude`). `<CR>`, `<Tab>` and `<Space>` on an item open the code
-line; other agenda commands (todo state, schedule...) don't apply to them.
+They are found with `git grep` (tracked and untracked files, binary files
+skipped), else `rg`, else by reading at most `todo_max_files` files; org
+files are skipped (`todo_exclude`). The search runs in the background:
+the first time the block shows "(scanning...)" and the agenda is redrawn
+when it is done; later the block shows the last result at once and is
+redrawn if a new search finds something else. It stops after
+`todo_max_items` comments (the count then reads "500+").
+`<CR>`, `<Tab>` and `<Space>` on an item open the code line; agenda
+commands that change org entries (todo state, schedule, tags, clock,
+refile, archive...) say that they don't apply to a code TODO.
 A comment naming a heading's ID (`TODO(org:ID)`, see `todo_link_pattern`)
 is listed under an item for that heading. Use the block in custom commands
 too:
@@ -8767,6 +8792,9 @@ Options ~
   `project_file`          ".org/tasks.org"
   `project_file_header`   "#+title: ${repo}\n"
   `project_headline`      "Tasks"
+  `fallback_target`       code captures outside a repository (nil:
+                        `default_notes_file`)
+  `fallback_headline`     their headline (nil: the end of the file)
   `project_template`      template of `project_capture`
   `project_agenda_blocks` blocks of `project_agenda`
   `branch_clock`          clock in by branch (false)
@@ -8793,8 +8821,9 @@ works at once, and a block's error shows on its line in the org file.
     })
 <
 A literate file is one of `files` (paths or globs; default
-`stdpath("config")/init.org`) or, with `detect`, any org file whose Lua
-blocks tangle by default:
+`stdpath("config")/init.org`) or, with `detect`, an org file under a
+directory of `allow` (default: `stdpath("config")`) whose Lua blocks
+tangle by default:
 >org
     #+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes
 
@@ -8803,12 +8832,31 @@ blocks tangle by default:
     vim.o.relativenumber = true
     #+end_src
 <
+Trust ~
+Saving a literate file runs Lua in your Neovim and writes the files its
+blocks tangle to, so it happens only for files you chose:
+  - the files in `files` are trusted;
+  - a detected file must be under `allow`, and with `confirm` (default)
+    the first save asks whether to tangle and run it; the answer is kept
+    in `stdpath("data")/org/literate-trust.json` (delete its entry to be
+    asked again);
+  - any other org file with a `:tangle` header (a file you downloaded, a
+    repository you cloned) is saved like any org file: nothing is tangled
+    or run.
+Opening a literate file runs and evaluates nothing: what it holds is
+remembered as text (noweb and `:var` references, which can evaluate
+blocks, are expanded only when a trusted file is tangled). `literate_goto_org`
+only looks at trusted files. The actions below work on the current buffer
+when you run them, like `:Org tangle` or executing a block.
+
 Saving it ~
 When a literate file is written it is tangled with |org-babel| tangle (so
 `:tangle`, `:noweb`, `:comments`... work as usual) and, with `reload`, the
-Lua blocks whose tangled text is new since the last tangle (or since the
-file was opened) run in file order, in this Neovim. Blocks you did not
-touch don't run again. An error, at compile or run time, is a diagnostic
+Lua blocks whose text is new since the last tangle (or since the file was
+opened) run in file order, in this Neovim, and so do the blocks whose
+tangled text changed (a block they include with noweb was edited).
+Blocks you did not touch don't run again. An error while tangling is
+reported once per save and never interrupts the write. An error, at compile or run time, is a diagnostic
 on the org line it comes from (for an error raised in a function the block
 calls, such as `vim.o.nosuchoption = 1`, the line of the call)
 (`diagnostics`), and in the quickfix list
@@ -8834,10 +8882,16 @@ Neovim reads init.lua, not init.org. Tangle the blocks to another file
 (`lua/config.lua`) and let `:Org literate_bootstrap` write an init.lua
 that loads it. On startup that init.lua re-tangles init.org first when it
 is newer than the tangled file (edited on another machine or pulled with
-git), with a small tangler that keeps every `lua` block without
-`:tangle no` (it knows nothing of noweb or per-heading properties; saving
-in Neovim uses the full tangle). Then it runs the tangled file. So the
-setup is:
+git), with a small tangler of its own (org.nvim is not loaded yet). It
+keeps the `lua` blocks whose `:tangle` is the tangled file, taking
+`:tangle` and `:noweb` from the block, else the nearest heading's
+`header-args:lua` / `header-args` property, else `#+PROPERTY`, and
+expands `<<name>>` references when `:noweb` is `yes`, `tangle`,
+`no-export` or `strip-export`. It does not evaluate anything: no `:var`,
+no Lisp in header arguments, no `<<name()>>` results, no `:prologue`;
+use saving in Neovim (the full tangle) for those. If it fails, it says so
+and loads the tangled file it has. Then it runs the tangled file. Blocks
+tangled to other files are not loaded by the stub. So the setup is:
 >
     ~/.config/nvim/init.org         the configuration
     ~/.config/nvim/lua/config.lua   tangled from it (on save)
@@ -8849,6 +8903,8 @@ org.nvim itself is set up from the tangled file like any plugin, with the
 Options ~
   `files`           literate org files (stdpath("config")/init.org)
   `detect`          also files with header-args:lua :tangle (true)
+  `allow`           directories `detect` looks in ({ stdpath("config") })
+  `confirm`         ask before the first save of a detected file (true)
   `tangle_on_save`  tangle when written (true)
   `reload`          run the changed Lua blocks (true)
   `diagnostics`     errors as diagnostics (true)

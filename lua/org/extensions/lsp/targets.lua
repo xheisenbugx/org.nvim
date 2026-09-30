@@ -512,6 +512,15 @@ function M.resolve(doc, link)
     if link.type == "radio" then
       return M.locate(doc.path, link.path)
     end
+    -- a link type that can say where it points (the code extension's code:)
+    local lt = (require("org.config").opts.links.types or {})[link.type]
+    if type(lt) == "table" and type(lt.locate) == "function" then
+      local ok, loc = pcall(lt.locate, link.path, doc.path or doc.bufnr)
+      if ok and type(loc) == "table" and loc.path then
+        local s = (loc.col or 0) + 1
+        return { path = loc.path, lnum = loc.lnum or 1, s = s, e = s + (loc.len or 0) - 1, kind = "file" }
+      end
+    end
     return nil
   end
   if sp.kind == "id" then

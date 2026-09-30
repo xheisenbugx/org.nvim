@@ -90,11 +90,7 @@ end
 
 -- The context an expansion works on: the pending one, or the capture's
 -- origin buffer (a template chosen from the menu in a code buffer).
-local function current(ctx)
-  if M.pending then
-    return M.pending
-  end
-  ctx = ctx or {}
+local function gather_for(ctx)
   local buf = ctx.origin_buf
   if not buf or not link.is_code_buffer(buf) then
     return nil
@@ -108,6 +104,20 @@ local function current(ctx)
     end
   end
   return M.gather(buf, cur[1], nil, cur[2])
+end
+
+local function current(ctx)
+  if M.pending then
+    return M.pending
+  end
+  if not ctx then
+    return nil
+  end
+  -- once per capture: gathering runs git and may ask a language server
+  if ctx._code_context == nil then
+    ctx._code_context = gather_for(ctx) or false
+  end
+  return ctx._code_context or nil
 end
 
 local function lines_label(c)
@@ -218,8 +228,26 @@ function M.unregister()
   end
 end
 
+--- Where a `"project"` capture of repository `root` goes: the project
+--- file (created when missing) under `project_headline`, or outside a
+--- repository `fallback_target` (default: `default_notes_file`) under
+--- `fallback_headline` (default: none, the end of the file).
+---@param root? string
+---@param headline? string the template's own headline
+---@return string target, string|nil headline
+function M.project_target(root, headline)
+  local o = opts()
+  local project = require("org.extensions.code.project")
+  local pf = root and project.file(root) or nil
+  if pf then
+    project.ensure(pf, git.repo_name(root))
+    return pf, headline or o.project_headline
+  end
+  return o.fallback_target or "", o.fallback_headline
+end
+
 --- The template `code_capture` uses: `capture_template` with the target
---- resolved (`"project"`: the project file, else `capture.default`).
+--- resolved (see `project_target`).
 ---@param c table the gathered context
 ---@return table
 function M.template(c)
@@ -228,16 +256,7 @@ function M.template(c)
   tpl.key = tpl.key or "code"
   tpl.description = tpl.description or "Code note"
   if tpl.target == nil or tpl.target == "project" then
-    local project = require("org.extensions.code.project")
-    local pf = c.root and project.file(c.root) or nil
-    if pf then
-      project.ensure(pf, c.repo)
-      tpl.target = pf
-      tpl.headline = tpl.headline or o.project_headline
-    else
-      tpl.target = ""
-      tpl.headline = nil
-    end
+    tpl.target, tpl.headline = M.project_target(c.root, tpl.headline)
   end
   return tpl
 end
@@ -258,7 +277,12 @@ function M.capture()
     local text
     if mode == "v" then
       local lines = vim.api.nvim_buf_get_lines(buf, srow - 1, erow, false)
-      lines[#lines] = lines[#lines]:sub(1, ecol)
+      -- ecol is the first byte of the last character: take all of it
+      local last = lines[#lines]
+      while ecol < #last and last:byte(ecol + 1) >= 0x80 and last:byte(ecol + 1) < 0xC0 do
+        ecol = ecol + 1
+      end
+      lines[#lines] = last:sub(1, ecol)
       lines[1] = lines[1]:sub(scol)
       text = table.concat(lines, "\n")
     end
