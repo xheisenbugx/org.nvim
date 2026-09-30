@@ -1,0 +1,51 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { drill = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
+---@field drill? org.Config.Extensions.Drill|boolean
+
+---@class org.Config.Extensions.Drill
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Tag of drill cards (org-drill-question-tag, default: `"drill"`).
+---@field tag? string
+---Cards `:Org drill` looks at without an argument (org-drill-scope):
+---`"file"` (default), `"tree"`, `"agenda"`, `"directory"`, `"tag:NAME"` or
+---a list of files and globs.
+---@field scope? "file"|"tree"|"agenda"|"directory"|string|string[]
+---Most cards per session, 0 for no limit
+---(org-drill-maximum-items-per-session, default: `30`).
+---@field maximum_items_per_session? integer
+---Minutes after which a session ends, 0 for no limit
+---(org-drill-maximum-duration, default: `20`).
+---@field maximum_duration? number
+---Answers of this quality or lower fail (org-drill-failure-quality, default: `2`).
+---@field failure_quality? integer
+---Ask failed cards again at the end of the session (default: `true`).
+---@field repeat_failed? boolean
+---Random card order, due cards before new ones (default: `true`); `false`
+---asks the most overdue first.
+---@field shuffle? boolean
+---Write the changed files when a session ends
+---(org-drill-save-buffers-after-drill-sessions-p, default: `true`).
+---@field save_buffers? boolean
+---Width of the session window (default: `72`).
+---@field width? integer
+---Maximum height of the session window (default: `20`).
+---@field height? integer
+---Border of the session window (default: `"rounded"`).
+---@field border? string|string[]
+---Keys in the session window; grades are always `0`-`5`.
+---@field keys? org.Config.Extensions.DrillKeys
+
+---@class org.Config.Extensions.DrillKeys
+---Show the answer (default: `{ "<Space>", "<CR>" }`).
+---@field reveal? string|string[]
+---Skip the card (default: `"s"`).
+---@field skip? string|string[]
+---Pause and jump to the card (default: `"e"`).
+---@field edit? string|string[]
+---End the session, or close its summary (default: `{ "q", "<Esc>" }`).
+---@field quit? string|string[]

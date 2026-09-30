@@ -1,0 +1,38 @@
+#+TITLE: Flashcards
+#+STARTUP: content
+
+* Opposite of hot                                                    :drill:
+  SCHEDULED: <{{-1}}>
+  :PROPERTIES:
+  :DRILL_LAST_INTERVAL: 6.0
+  :DRILL_REPEATS_SINCE_FAIL: 3
+  :DRILL_TOTAL_REPEATS: 2
+  :DRILL_FAILURE_COUNT: 0
+  :DRILL_AVERAGE_QUALITY: 4.0
+  :DRILL_EASE: 2.5
+  :END:
+  cold
+* Capital of France                                                  :drill:
+  What is the capital of France?
+** Answer
+   Paris
+* Rivers                                                             :drill:
+  The longest river in the world is the [Nile||river]; it flows north
+  into the [Mediterranean||sea].
+* Dog                                                                :drill:
+  :PROPERTIES:
+  :DRILL_CARD_TYPE: twosided
+  :END:
+  Translate the word.
+** English
+   dog
+** Spanish
+   perro
+* Speed of light                                                     :drill:
+  SCHEDULED: <{{12}}>
+  :PROPERTIES:
+  :DRILL_LAST_INTERVAL: 15.0
+  :DRILL_REPEATS_SINCE_FAIL: 4
+  :DRILL_EASE: 2.5
+  :END:
+  About 300,000 km/s.
