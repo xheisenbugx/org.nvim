@@ -416,5 +416,26 @@ describe("sidebar", function()
     pomodoro.state = nil
     local until_ = os.date("%H:%M", now - 60 + 25 * 60)
     ok(t:find("work until " .. until_, 1, true), t)
+    sidebar.close()
+  end)
+
+  it("shows the time over in the pomodoro's overtime", function()
+    setup({})
+    require("org").setup({
+      org_directory = dir,
+      agenda_files = { path },
+      default_notes_file = inbox,
+      todo_keywords = { "TODO NEXT WAITING | DONE CANCELLED" },
+      extensions = { sidebar = {}, pomodoro = { system_notification = false, manual_break = true } },
+    })
+    local pomodoro = require("org.extensions.pomodoro")
+    local now = pomodoro.time()
+    pomodoro.state = { phase = "overtime", started = now - 120, duration = 0, count = 1, title = "Ship" }
+    local st = sidebar.open()
+    local t = text(st)
+    pomodoro.state = nil
+    ok(t:find("overtime +2m", 1, true), t)
+    ok(not t:find("until", 1, true), t)
+    sidebar.close()
   end)
 end)

@@ -224,16 +224,18 @@ local function pomodoro()
     return nil
   end
   local ok, p = pcall(require, "org.extensions.pomodoro")
-  local st = ok and p.state or nil
-  if not st then
+  local info = ok and p.info and p.info() or nil
+  if not info then
     return nil
   end
   local popts = require("org.extensions").opts("pomodoro") or {}
   local icons = vim.tbl_extend("force", p.defaults.icons or {}, popts.icons or {})
-  local out = { icon = icons[st.phase] or "", phase = st.phase:gsub("_", " "), count = st.count or 0 }
-  if st.phase ~= "ready" then
-    local left = p.remaining() or 0
-    if st.paused_at then
+  local out = { icon = icons[info.phase] or "", phase = info.phase:gsub("_", " "), count = info.count or 0 }
+  if info.overtime then
+    out.over = info.elapsed or 0
+  elseif info.phase ~= "ready" then
+    local left = info.remaining or 0
+    if info.paused then
       out.paused, out.icon = true, icons.paused or out.icon
       out.left = left
     else
@@ -378,7 +380,9 @@ function M.render(st)
       local p = data.pomodoro
       if p then
         local text = p.icon ~= "" and (p.icon .. " " .. p.phase) or p.phase
-        if p["until"] then
+        if p.over then
+          text = text .. " +" .. views.short_duration(p.over / 60)
+        elseif p["until"] then
           text = text .. " until " .. p["until"]
         elseif p.paused then
           text = text .. " paused, " .. views.short_duration((p.left or 0) / 60) .. " left"
