@@ -1,0 +1,21 @@
+#+TITLE: Tasks
+* Shopping
+** TODO Milk
+** DONE Bread
+* Ideas
+Some idea text.
+More ideas from theirs.
+** Sub idea
+* Projects
+** TODO Write report :work:home:
+SCHEDULED: <2026-10-01 Thu>
+:PROPERTIES:
+:ID: a1
+:EFFORT: 1:00
+:OWNER: me
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 09:00]--[2026-09-28 Mon 09:30] =>  0:30
+:END:
+Draft the intro, updated.
+Second line.
