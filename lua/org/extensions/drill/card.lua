@@ -1,17 +1,25 @@
 ---@mod org.extensions.drill.card Drill cards: reading and rendering
 ---
 --- A card is a headline with the drill tag. Its type comes from the
---- DRILL_CARD_TYPE property (org-drill's names):
+--- DRILL_CARD_TYPE property, inherited like in org-drill (its names):
 ---
----   simple      (default) the title and body are the question and the
----               subheadings the answer; without subheadings the body is the
----               answer. Clozes in the body are hidden.
----   twosided    one of the first two subheadings, at random, is shown with
----               the title; the other is the answer
----   multisided  one of the subheadings, at random, is shown
----   hide1cloze  one cloze, at random, is hidden and the others shown
----   show1cloze  one cloze, at random, is shown and the others hidden
----   hide2cloze  two clozes, at random, are hidden and the others shown
+---   simple           (default) the title and body are the question and the
+---                    subheadings the answer; without subheadings the body
+---                    is the answer. Clozes in the body are hidden.
+---   twosided         one of the first two subheadings, at random, is shown
+---                    with the title; the other is the answer
+---   multisided       one of the subheadings, at random, is shown
+---   hide1cloze       one cloze, at random, is hidden (also `multicloze`)
+---   hide2cloze       two clozes, at random, are hidden
+---   show1cloze       one cloze, at random, is shown and the others hidden
+---   show2cloze       two clozes are shown and the others hidden
+---   hidefirst        the first cloze is hidden
+---   hidelast         the last cloze is hidden
+---   hide1_firstmore  usually the first cloze is hidden, every
+---                    `cloze_text_weight`th time another one
+---   show1_lastmore   usually the last cloze is shown, every Nth time another
+---   show1_firstless  usually a cloze other than the first is shown, every
+---                    Nth time the first one
 
 local cloze = require("org.extensions.drill.cloze")
 
@@ -22,9 +30,20 @@ M.TYPES = {
   twosided = true,
   multisided = true,
   hide1cloze = true,
-  show1cloze = true,
   hide2cloze = true,
+  show1cloze = true,
+  show2cloze = true,
+  multicloze = true,
+  hidefirst = true,
+  hidelast = true,
+  hide1_firstmore = true,
+  show1_lastmore = true,
+  show1_firstless = true,
 }
+
+-- card types asked even with an empty body (DRILL-EMPTY-P in
+-- org-drill-card-type-alist)
+M.EMPTY_OK = { twosided = true, multisided = true }
 
 local function num(v)
   return v and tonumber(v) or nil
@@ -37,10 +56,15 @@ end
 ---@param from integer first line
 ---@param to integer last line
 ---@return (string|{ heading: string, level: integer })[]
-local function content(file, from, to)
-  local skip = {}
-  for _, h in ipairs(file.headlines) do
-    if h.line >= from - 1 and h.line <= to then
+local function content(file, from, to, first)
+  local skip, heads = {}, {}
+  -- the headlines of the range: from `first` (the entry itself) on
+  local hls = file.headlines
+  local i = first or 1
+  while hls[i] and hls[i].line <= to do
+    local h = hls[i]
+    if h.line >= from - 1 then
+      heads[h.line] = h
       if h.planning_line then
         skip[h.planning_line] = true
       end
@@ -55,13 +79,14 @@ local function content(file, from, to)
         end
       end
     end
+    i = i + 1
   end
   local out = {}
   for l = from, to do
     if not skip[l] then
       local line = file.lines[l]
-      local h = file:headline_on(l)
-      if h and h.line == l then
+      local h = heads[l]
+      if h then
         out[#out + 1] = { heading = h.title, level = h.level }
       else
         out[#out + 1] = line
@@ -100,13 +125,36 @@ end
 ---@field level integer headline level
 ---@field title string
 ---@field type string card type
+---@field unknown string|nil a DRILL_CARD_TYPE org-drill doesn't know (the card is skipped)
 ---@field body (string|table)[] the entry's own text
 ---@field sides { title: string, lines: (string|table)[] }[] subheadings
 ---@field data org.drill.ItemData
 ---@field scheduled table|nil org.date
 ---@field last_reviewed table|nil org.date
+---@field last_quality integer|nil DRILL_LAST_QUALITY
+---@field interval number|nil DRILL_LAST_INTERVAL as written (nil when missing)
+---@field weight number|nil DRILL_CARD_WEIGHT
+---@field leech boolean tagged :leech:
 ---@field new boolean never reviewed
 ---@field nclozes integer clozes in the body
+
+-- org-drill's card types this module asks like simple cards
+M.ASKED_AS_SIMPLE = {
+  simpletyped = true,
+  conjugate = true,
+  decline_noun = true,
+  spanish_verb = true,
+  translate_number = true,
+}
+
+-- LEARN_DATA, the format before DRILL_* properties: "(interval repeats ef)"
+local function learn_data(s)
+  local vals = {}
+  for v in (s or ""):gmatch("[%d%.%-]+") do
+    vals[#vals + 1] = tonumber(v)
+  end
+  return vals
+end
 
 --- Read the card at headline `hl` of `file`.
 ---@param file org.File
@@ -114,15 +162,24 @@ end
 ---@return org.drill.Card
 function M.read(file, hl)
   local p = hl.properties or {}
-  local ctype = (p.DRILL_CARD_TYPE or "simple"):lower()
-  if not M.TYPES[ctype] then
+  -- org-drill reads DRILL_CARD_TYPE with inheritance
+  local ok, inherited = pcall(hl.get_property, hl, "DRILL_CARD_TYPE", true)
+  local raw = ok and inherited or p.DRILL_CARD_TYPE
+  local ctype = vim.trim(raw or "simple"):lower()
+  local unknown
+  if ctype == "" then
+    ctype = "simple"
+  elseif not M.TYPES[ctype] then
+    if not M.ASKED_AS_SIMPLE[ctype] then
+      unknown = raw
+    end
     ctype = "simple"
   end
   local body_end = hl.body_end or hl.end_line
-  local body = content(file, hl.line + 1, body_end)
+  local body = content(file, hl.line + 1, body_end, hl.index)
   local sides = {}
   for _, child in ipairs(hl.children or {}) do
-    sides[#sides + 1] = { title = child.title, lines = content(file, child.line + 1, child.end_line) }
+    sides[#sides + 1] = { title = child.title, lines = content(file, child.line + 1, child.end_line, child.index) }
   end
   local n = 0
   for _, l in ipairs(body) do
@@ -131,7 +188,34 @@ function M.read(file, hl)
     end
   end
   local last = p.DRILL_LAST_REVIEWED and require("org.date").parse(p.DRILL_LAST_REVIEWED) or nil
-  local total = num(p.DRILL_TOTAL_REPEATS) or 0
+  local data
+  if p.LEARN_DATA then
+    -- org-drill-get-item-data: the old format wins when present
+    local v = learn_data(p.LEARN_DATA)
+    data = {
+      last_interval = v[1] or 0,
+      repeats = v[2] or 0,
+      failures = num(p.DRILL_FAILURE_COUNT) or 0,
+      total_repeats = v[2] or 0,
+      meanq = num(p.DRILL_LAST_QUALITY),
+      ease = v[3],
+    }
+  else
+    data = {
+      last_interval = num(p.DRILL_LAST_INTERVAL) or 0,
+      repeats = num(p.DRILL_REPEATS_SINCE_FAIL) or 0,
+      failures = num(p.DRILL_FAILURE_COUNT) or 0,
+      total_repeats = num(p.DRILL_TOTAL_REPEATS) or 0,
+      meanq = num(p.DRILL_AVERAGE_QUALITY),
+      ease = num(p.DRILL_EASE),
+    }
+  end
+  local leech = false
+  for _, t in ipairs(hl.tags or {}) do
+    if t == "leech" then
+      leech = true
+    end
+  end
   return {
     path = file.filename,
     bufnr = file.bufnr,
@@ -139,82 +223,178 @@ function M.read(file, hl)
     level = hl.level,
     title = hl.title,
     type = ctype,
+    unknown = unknown,
     body = body,
     sides = sides,
-    data = {
-      last_interval = num(p.DRILL_LAST_INTERVAL) or 0,
-      repeats = num(p.DRILL_REPEATS_SINCE_FAIL) or 0,
-      failures = num(p.DRILL_FAILURE_COUNT) or 0,
-      total_repeats = total,
-      meanq = num(p.DRILL_AVERAGE_QUALITY),
-      ease = num(p.DRILL_EASE),
-    },
+    data = data,
     scheduled = hl.planning and hl.planning.scheduled or nil,
     last_reviewed = last,
-    new = last == nil and total == 0,
+    last_quality = num(p.DRILL_LAST_QUALITY),
+    interval = num(p.DRILL_LAST_INTERVAL),
+    weight = num(p.DRILL_CARD_WEIGHT),
+    leech = leech,
+    new = last == nil and data.total_repeats == 0,
     nclozes = n,
   }
 end
 
---- Is there anything to ask? (org-drill skips empty cards.)
+--- Is there nothing to ask? Like org-drill-entry-empty-p, only the entry's
+--- own text counts (not its subheadings); two- and multisided cards are
+--- asked even without it.
 ---@param card org.drill.Card
 function M.is_empty(card)
-  local function blank(lines)
-    for _, l in ipairs(lines) do
-      if type(l) == "table" or vim.trim(l) ~= "" then
-        return false
-      end
-    end
-    return true
+  if M.EMPTY_OK[card.type] and #card.sides > 0 then
+    return false
   end
-  return blank(card.body) and #card.sides == 0
+  for _, l in ipairs(card.body) do
+    if type(l) == "table" or vim.trim(l) ~= "" then
+      return false
+    end
+  end
+  return true
 end
 
---- Is the card due on day number `today`? New cards and cards without a
---- schedule are due.
+--- Is the card due on day number `today`? Cards without a schedule are
+--- due.
 ---@param card org.drill.Card
 ---@param today integer day number
 function M.is_due(card, today)
   return card.scheduled == nil or card.scheduled:days() <= today
 end
 
+local function shuffled(n, random)
+  local out = {}
+  for i = 1, n do
+    out[i] = i
+  end
+  for i = n, 2, -1 do
+    local j = random(i)
+    out[i], out[j] = out[j], out[i]
+  end
+  return out
+end
+
+--- org-drill-present-multicloze-hide-n: hide `n` of `count` clozes at
+--- random (a negative `n` shows -n and hides the rest). Returns the set of
+--- hidden cloze numbers.
+---@param count integer
+---@param n integer
+---@param random fun(m: integer): integer
+---@param force_show_first? boolean never hide the first
+---@param force_show_last? boolean never hide the last
+---@param force_hide_first? boolean always hide the first
+---@return table<integer, boolean>
+function M.hide_n(count, n, random, force_show_first, force_show_last, force_hide_first)
+  local set = {}
+  if count <= 0 then
+    return set
+  end
+  if n < 0 then
+    n = count + n
+  end
+  local positions = shuffled(count, random)
+  local function remove(v)
+    for i, x in ipairs(positions) do
+      if x == v then
+        table.remove(positions, i)
+        return
+      end
+    end
+  end
+  if force_hide_first then
+    remove(1)
+    table.insert(positions, 1, 1)
+  end
+  if force_show_first then
+    remove(1)
+  end
+  if force_show_last then
+    remove(count)
+  end
+  for i = 1, math.min(n, #positions) do
+    set[positions[i]] = true
+  end
+  return set
+end
+
+--- org-drill-present-multicloze-hide-nth: hide cloze `k` (negative counts
+--- from the end).
+---@return table<integer, boolean>
+function M.hide_nth(count, k)
+  if k < 0 then
+    k = k + 1 + count
+  end
+  if count <= 0 or k < 1 or k > count then
+    return {}
+  end
+  return { [k] = true }
+end
+
 --- Pick the random parts of a presentation: which side is shown
---- (two/multisided) or which clozes (hide1cloze, show1cloze, hide2cloze).
+--- (two/multisided) or which clozes are hidden (`hidden`, for the cloze
+--- types). `weight` is `cloze_text_weight` (nil: the weighted types act
+--- like their plain versions).
 ---@param card org.drill.Card
 ---@param random fun(m: integer): integer returns 1..m
+---@param weight? integer
 ---@return table choice
-function M.choose(card, random)
+function M.choose(card, random, weight)
   local t = card.type
+  local c = card.nclozes
   if t == "twosided" and #card.sides > 0 then
     return { side = random(math.min(2, #card.sides)) }
   elseif t == "multisided" and #card.sides > 0 then
     return { side = random(#card.sides) }
-  elseif (t == "hide1cloze" or t == "show1cloze") and card.nclozes > 0 then
-    return { clozes = { [random(card.nclozes)] = true } }
-  elseif t == "hide2cloze" and card.nclozes > 0 then
-    local a = random(card.nclozes)
-    local set = { [a] = true }
-    if card.nclozes > 1 then
-      local b = random(card.nclozes - 1)
-      if b >= a then
-        b = b + 1
-      end
-      set[b] = true
+  end
+  weight = tonumber(weight)
+  if weight and weight <= 0 then
+    weight = nil
+  end
+  -- the rare case of the weighted types: every `weight`th repetition
+  local rare = weight and ((card.data.total_repeats or 0) + 1) % weight == 0
+  if t == "hide1cloze" or t == "multicloze" then
+    return { hidden = M.hide_n(c, 1, random) }
+  elseif t == "hide2cloze" then
+    return { hidden = M.hide_n(c, 2, random) }
+  elseif t == "show1cloze" then
+    return { hidden = M.hide_n(c, -1, random) }
+  elseif t == "show2cloze" then
+    return { hidden = M.hide_n(c, -2, random) }
+  elseif t == "hidefirst" then
+    return { hidden = M.hide_nth(c, 1) }
+  elseif t == "hidelast" then
+    return { hidden = M.hide_nth(c, -1) }
+  elseif t == "hide1_firstmore" then
+    if not weight then
+      return { hidden = M.hide_n(c, 1, random) }
+    elseif rare then
+      return { hidden = M.hide_n(c, 1, random, true) }
     end
-    return { clozes = set }
+    return { hidden = M.hide_nth(c, 1) }
+  elseif t == "show1_lastmore" then
+    if not weight then
+      return { hidden = M.hide_n(c, -1, random) }
+    elseif rare then
+      return { hidden = M.hide_n(c, -1, random, false, false, true) }
+    end
+    return { hidden = M.hide_n(c, -1, random, false, true) }
+  elseif t == "show1_firstless" then
+    if not weight then
+      return { hidden = M.hide_n(c, -1, random) }
+    elseif rare then
+      return { hidden = M.hide_n(c, -1, random, true) }
+    end
+    return { hidden = M.hide_n(c, -1, random, false, false, true) }
   end
   return {}
 end
 
 -- how a cloze numbered `k` looks before the answer is shown: "hidden" or
--- "plain" (its text without brackets)
-local function cloze_state(card, choice, k)
-  local t = card.type
-  local picked = choice.clozes and choice.clozes[k]
-  if t == "hide1cloze" or t == "hide2cloze" then
-    return picked and "hidden" or "plain"
-  elseif t == "show1cloze" then
-    return picked and "plain" or "hidden"
+-- "plain" (its text without brackets). Cards without a `hidden` set (simple,
+-- two- and multisided) hide every cloze.
+local function cloze_state(choice, k)
+  if choice.hidden then
+    return choice.hidden[k] and "hidden" or "plain"
   end
   return "hidden"
 end
@@ -251,7 +431,7 @@ function M.render(card, choice, revealed)
       k = k + 1
       out[#out + 1] = l:sub(pos, c.s - 1)
       len = len + (c.s - pos)
-      local state = revealed and "shown" or cloze_state(card, choice, k)
+      local state = revealed and "shown" or cloze_state(choice, k)
       local text, group
       if state == "hidden" then
         text, group = cloze.hidden_text(c), "OrgDrillHidden"

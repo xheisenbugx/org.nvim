@@ -352,11 +352,17 @@ describe("review extension", function()
       eq("upcoming", review.session.steps[review.session.index].name)
     end)
 
+    it(":Org review completes restart and the step names", function()
+      setup({ steps = { "inbox", { name = "mine", items = function() end }, "reflect" } })
+      eq({ "restart", "inbox", "mine", "reflect" }, require("org.commands").complete("", "Org review "))
+      eq({ "restart", "reflect" }, require("org.commands").complete("re", "Org review re"))
+    end)
+
     it("maps keys in the review buffer", function()
       setup({})
       review.start()
       local buf = review.session.buf
-      for _, k in ipairs({ "n", "p", "<CR>", "r", "s", "t", "d", "x", "F", "q" }) do
+      for _, k in ipairs({ "n", "p", "<CR>", "r", "s", "t", "d", "x", "F", "<Esc>" }) do
         ok(
           vim.api.nvim_buf_call(buf, function()
             return vim.fn.maparg(k, "n") ~= ""
@@ -480,6 +486,44 @@ describe("review extension", function()
       eq(nil, row_of("Call the dentist"))
     end)
 
+    it("acts on the listed entry even when one with the same title moved into its line", function()
+      review.quit()
+      vim.fn.writefile({ "* Call", "  body A", "* Call", "  body B", "* Buy milk" }, dir .. "/inbox.org")
+      local buf = vim.fn.bufadd(dir .. "/inbox.org")
+      vim.fn.bufload(buf)
+      review.start()
+      -- the file changes under the review: every entry moves down a line
+      vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "#+TITLE: Inbox" })
+      local rows = {}
+      for i, l in ipairs(buf_lines(review.session.buf)) do
+        if l:find("Call", 1, true) then
+          rows[#rows + 1] = i
+        end
+      end
+      vim.api.nvim_win_set_cursor(review.session.win, { rows[2], 0 })
+      review.act("delete")
+      eq({ "#+TITLE: Inbox", "* Call", "  body A", "* Buy milk" }, read("inbox.org"))
+    end)
+
+    it("refuses to guess between entries with the same title", function()
+      review.quit()
+      vim.fn.writefile({ "* Call", "  body A", "* Call", "  body B" }, dir .. "/inbox.org")
+      review.start()
+      -- changed on disk after the review listed it (no buffer to follow)
+      local changed = { "#+TITLE: Inbox", "* Call", "  body A", "* Call", "  body B" }
+      vim.fn.writefile(changed, dir .. "/inbox.org")
+      local warned
+      local warn = utils.warn
+      utils.warn = function(m)
+        warned = m
+      end
+      cursor_on("Call")
+      review.act("delete")
+      utils.warn = warn
+      eq(changed, read("inbox.org"))
+      ok(warned and warned:find("Several entries", 1, true), warned)
+    end)
+
     it("open goes to the entry and pauses the review", function()
       review.next()
       cursor_on("Tax return")
@@ -568,8 +612,8 @@ describe("review extension", function()
       eq(nil, review.session)
       eq(0, vim.fn.filereadable(dir .. "/review.json"))
       ok(bufnr)
-      -- like Emacs, a date tree at the top of a new file leaves an empty first line
-      local log = vim.list_slice(read("review.org"), 2)
+      -- the new log starts with its date tree (no empty first line)
+      local log = read("review.org")
       eq("* 2026", log[1])
       eq("** 2026-W40", log[2])
       eq("*** 2026-09-29 Tuesday", log[3])
@@ -582,7 +626,40 @@ describe("review extension", function()
       eq("Shipped the release", vim.trim(log[10]))
       -- the log is shown at the new entry
       eq(dir .. "/review.org", vim.fs.normalize(vim.api.nvim_buf_get_name(0)))
-      eq(5, vim.api.nvim_win_get_cursor(0)[1])
+      eq(4, vim.api.nvim_win_get_cursor(0)[1])
+    end)
+
+    it("keeps answer lines from becoming headlines", function()
+      setup({ open_log = false })
+      review.start("reflect")
+      review.session.state.notes["2"] = "* not a heading\nmore"
+      review.finish()
+      local log = read("review.org")
+      eq("***** What could have gone better?", log[8])
+      eq(" * not a heading", log[9])
+      eq("more", log[10])
+    end)
+
+    it("indents the log entry for its level with adapt_indentation", function()
+      require("org").setup({
+        org_directory = dir,
+        agenda_files = { dir .. "/inbox.org" },
+        default_notes_file = dir .. "/inbox.org",
+        adapt_indentation = true,
+        extensions = {
+          review = { state_file = dir .. "/review.json", log_file = dir .. "/review.org", open_log = false },
+        },
+      })
+      review.start("reflect")
+      review.session.state.notes["1"] = "Shipped it\n* and more"
+      review.finish()
+      local log = read("review.org")
+      eq("**** Weekly review :review:", log[4]:gsub("%s+", " "))
+      eq("     [2026-09-29 Tue 10:00]", log[5])
+      eq("     - Inbox: 0 processed (0 refiled, 0 scheduled, 0 state changes, 0 deleted), 0 skipped", log[6])
+      eq("***** What went well this week?", log[#log - 2])
+      eq("      Shipped it", log[#log - 1])
+      eq("      * and more", log[#log])
     end)
 
     it("uses a day tree with log_tree_type = day", function()
@@ -590,7 +667,7 @@ describe("review extension", function()
       review.start()
       review.finish()
       local log = read("review.org")
-      eq({ "", "* 2026", "** 2026-09 September", "*** 2026-09-29 Tuesday" }, vim.list_slice(log, 1, 4))
+      eq({ "* 2026", "** 2026-09 September", "*** 2026-09-29 Tuesday" }, vim.list_slice(log, 1, 3))
     end)
 
     it("captures with capture_template instead", function()

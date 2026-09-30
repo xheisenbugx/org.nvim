@@ -142,6 +142,36 @@ describe("quickadd parse", function()
     eq("in 3 steps", P("in 3 steps").title)
   end)
 
+  it("reads a weekday or now inside the title only after at/on", function()
+    local r = P("Watch Friday Night Lights")
+    eq("Watch Friday Night Lights", r.title)
+    eq({}, r.planning)
+    r = P("Call mom now about taxes")
+    eq("Call mom now about taxes", r.title)
+    eq(nil, r.planning.scheduled)
+    eq("Plan the midnight release", P("Plan the midnight release").title)
+    r = P("Meeting on friday with Bob")
+    eq("Meeting with Bob", r.title)
+    eq("<2026-10-02 Fri>", r.planning.scheduled)
+    -- at the end of the title a weekday is a date, also before tags and the like
+    r = P("Watch Friday Night Lights fri #tv")
+    eq("Watch Friday Night Lights", r.title)
+    eq("<2026-10-02 Fri>", r.planning.scheduled)
+    -- a weekday with a time is a date anywhere
+    r = P("Standup mon 9am with the team")
+    eq("Standup with the team", r.title)
+    eq("<2026-10-05 Mon 09:00>", r.planning.scheduled)
+  end)
+
+  it("takes the last date of a kind, like Todoist", function()
+    local r = P("Move the tomorrow meeting to fri")
+    eq("Move the tomorrow meeting to", r.title)
+    eq("<2026-10-02 Fri>", r.planning.scheduled)
+    r = P("Report due mon due fri")
+    eq("Report due mon", r.title)
+    eq("<2026-10-02 Fri>", r.planning.deadline)
+  end)
+
   it("puts dates after due in DEADLINE", function()
     local r = P("Report due fri 5pm")
     eq("Report", r.title)
@@ -420,6 +450,83 @@ describe("quickadd entries", function()
     vim.cmd("stopinsert")
   end)
 
+  it("follows changes of the target files in the preview", function()
+    local d = tmpdir()
+    vim.fn.writefile({ "* Inbox" }, d .. "/work.org")
+    setup({}, { org_directory = d, agenda_files = { d .. "/*.org" }, default_notes_file = d .. "/n.org" })
+    local function target(text)
+      local rows = qa.preview_lines(text)
+      return table.concat(vim.tbl_map(function(c)
+        return c[1]
+      end, rows[#rows]))
+    end
+    ok(target("x @garden"):find("no match", 1, true))
+    -- a loaded buffer: its changes count (changedtick)
+    local buf = vim.fn.bufadd(d .. "/work.org")
+    vim.fn.bufload(buf)
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "* Garden" })
+    eq("→ work/Garden", target("x @garden"))
+    -- a file on disk: its changes count (mtime and size)
+    vim.fn.writefile({ "* Kitchen" }, d .. "/home.org")
+    require("org.extensions.quickadd").clear_index() -- the list of files is kept a moment
+    eq("→ home/Kitchen", target("x @kitchen"))
+    vim.fn.writefile({ "* Kitchen", "* Attic stuff" }, d .. "/home.org")
+    vim.uv.fs_utime(d .. "/home.org", os.time() + 5, os.time() + 5)
+    eq("→ home/Attic stuff", target("x @attic"))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  it("completes @targets, #tags and *keywords of :Org quickadd", function()
+    local d = tmpdir()
+    vim.fn.writefile({ "* Inbox :work:", "* Big Project" }, d .. "/work.org")
+    setup({}, { org_directory = d, agenda_files = { d .. "/*.org" }, default_notes_file = d .. "/n.org" })
+    local c = require("org.commands").complete("@", "Org quickadd Call @")
+    ok(vim.tbl_contains(c, "@Inbox"), vim.inspect(c))
+    ok(vim.tbl_contains(c, '@"Big Project"'), vim.inspect(c))
+    eq({ "#work" }, require("org.commands").complete("#w", "Org quickadd x #w"))
+    ok(vim.tbl_contains(require("org.commands").complete("*", "Org quickadd x *"), "*TODO"))
+  end)
+
+  it("reads :Org quickadd text as typed", function()
+    local d = tmpdir()
+    setup({}, { org_directory = d, default_notes_file = d .. "/n.org" })
+    local saved = vim.notify
+    vim.notify = function() end
+    -- <f-args> turns "\ " into a space that splits the target
+    require("org.commands").run({
+      fargs = { "quickadd", "Call", "@Big Project" },
+      args = "quickadd Call @Big\\ Project",
+    })
+    vim.notify = saved
+    vim.wait(200, function()
+      return vim.fn.filereadable(d .. "/n.org") == 1
+    end)
+    eq("* TODO Call", vim.fn.readfile(d .. "/n.org")[1])
+  end)
+
+  it("reports a failing preview once, not on every key", function()
+    vim.cmd("enew!")
+    local errors = {}
+    local err = utils.error
+    utils.error = function(m)
+      errors[#errors + 1] = m
+    end
+    local preview = qa.preview_lines
+    local buf = qa.open_prompt("x", function() end)
+    qa.preview_lines = function()
+      error("boom")
+    end
+    for _ = 1, 3 do
+      vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
+    end
+    qa.preview_lines = preview
+    utils.error = err
+    vim.fn.maparg("<C-c>", "i", false, true).callback()
+    vim.cmd("stopinsert")
+    eq(1, #errors)
+    ok(errors[1]:find("boom", 1, true))
+  end)
+
   it("previews the parsed entry", function()
     local rows = qa.preview_lines("Call fri #a !A ~1h @Nowhere")
     local text = vim.tbl_map(function(r)
@@ -470,6 +577,38 @@ describe("quickadd capture templates", function()
     ok(lines[1]:match("^%* Pay rent%s+:home:$"), lines[1])
     eq("  DEADLINE: <2026-10-01 Thu +1m> SCHEDULED: <2026-09-30 Wed>", lines[2])
     eq({ "  :PROPERTIES:", "  :A: 1", "  :END:" }, vim.list_slice(lines, 3, 5))
+  end)
+
+  it("sends an entry with an @target to that heading", function()
+    local d = tmpdir()
+    vim.fn.writefile({ "* Projects", "** Website", "* Other" }, d .. "/work.org")
+    setup({}, { org_directory = d, agenda_files = { d .. "/*.org" }, default_notes_file = d .. "/inbox.org" })
+    local p = d .. "/inbox.org"
+    cap(p, "* TODO Fix the footer @website fri")
+    eq(0, vim.fn.filereadable(p) == 1 and #vim.tbl_filter(function(l)
+      return l:find("footer", 1, true) ~= nil
+    end, vim.fn.readfile(p)) or 0)
+    local lines = vim.fn.readfile(d .. "/work.org")
+    eq("* Projects", lines[1])
+    eq("** Website", lines[2])
+    eq("*** TODO Fix the footer", lines[3])
+    ok(lines[4]:match("SCHEDULED: <2026%-10%-02 Fri>"), lines[4])
+    eq("* Other", lines[#lines])
+  end)
+
+  it("keeps the template's target when the @target matches nothing", function()
+    local d = tmpdir()
+    setup({}, { org_directory = d, agenda_files = { d .. "/*.org" }, default_notes_file = d .. "/inbox.org" })
+    local saved = vim.notify
+    local msgs = {}
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    local p = d .. "/t.org"
+    cap(p, "* TODO Thing @nowhere")
+    vim.notify = saved
+    eq({ "* TODO Thing" }, vim.fn.readfile(p))
+    ok(table.concat(msgs, "\n"):find("no match for @nowhere", 1, true))
   end)
 
   it("leaves templates without quickadd alone", function()

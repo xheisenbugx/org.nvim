@@ -7610,7 +7610,7 @@ Quick add (Todoist-style)                            *org-extensions-quickadd*
 `:Org quickadd [text]` (action `quickadd`, key `<prefix>q`, available
 anywhere) adds `text`, or asks for a line in a small float that previews
 the parsed entry as you type (with |vim.ui.input()| when there is no UI).
-`<CR>` adds it, `<Esc>` in Normal mode, `q` or `<C-c>` cancel. The entry
+`<CR>` adds it, `<Esc>` in Normal mode or `<C-c>` cancel. The entry
 goes under its `@target`, else into `file` (under `headline`), and the file
 is saved. For example
 >
@@ -7632,7 +7632,14 @@ What the line may contain ~
                `in 3 days` and `noon`. Dates go to SCHEDULED (see
                `date_kind`); after `due` (or `by`) to DEADLINE. A month
                name only counts next to a day number, so "May call Bob"
-               stays a title.
+               stays a title. A weekday, `now`, `noon`, `midnight` or
+               `tonight` on its own is a date only at the end of the
+               title (tags and the like may follow) or after `at`, `on`
+               or `due`: "Watch Friday Night Lights" stays a title,
+               "Meeting on fri with Bob" and "Standup mon 9am with the
+               team" get a date. When the line holds several dates, the
+               last one counts (the last `due` one for the deadline), as
+               in Todoist; the others stay in the title.
   repeaters    `every day|week|month|year`, `every 2w`, `every 3 days`,
                `every other week`, `every mon` (the next Monday, today on a
                Monday). `every!` repeats from the day it is done (`.+`).
@@ -7657,13 +7664,20 @@ What the line may contain ~
 
 Quote words to keep them in the title (`"Friday Night Lights"`,
 `'due fri'`), or escape one character with a backslash (`\#1`, `\fri`).
+`:Org quickadd` reads the text as typed and completes `@` headings (a
+heading with spaces as `@"Big Project"`), `#` tags and `*` keywords.
+The preview keeps an index of the headings of the `targets` files and
+reads a file again only when it (or its buffer) changed.
 
 Capture templates ~
 A capture template with `quickadd = true` reads its headline the same way
 when the capture is stored, so `%^{Task}` answers or text typed in the
 capture buffer can hold dates, tags, priorities and efforts. The template's
-own keyword, tags, planning and properties are kept and completed.
-`@target` words are dropped: the template's target is used.
+own keyword, tags, planning and properties are kept and completed. An
+`@target` sends the entry to that heading instead of the template's
+target (whose date tree or heading, when the capture made one, is removed
+again); when it matches nothing, the template's target is used and a
+warning says so.
 >lua
     capture = { templates = {
       q = { description = "Quick task", template = "* TODO %^{Task}",
@@ -7714,8 +7728,9 @@ step) and the step's title; the footer lists the keys. The default steps:
             `clock_top` (10) entries it went to
   reflect   Questions (`questions`) answered in a note buffer
 
-`:Org review <step>` jumps to a step by name or number, and
-`:Org review restart` drops an unfinished review and starts over.
+`:Org review <step>` jumps to a step by name or number (<Tab> completes
+the names), and `:Org review restart` drops an unfinished review and
+starts over.
 
 Keys in the review window ~
   n  ]]        next step                      -> `review_next`
@@ -7728,13 +7743,17 @@ Keys in the review window ~
   d            delete it (asks first, `confirm_delete`)
   x            skip it: it is marked and the cursor moves on
   i            answer the question under the cursor
-  R            refresh
+  R            refresh (collect the step's entries again)
   F            finish                         -> `review_finish`
-  q  <Esc>     pause                          -> `review_quit`
+  <Esc>        pause                          -> `review_quit`
 Change them with `keys` (a key, a list, or false for none).
 
 The entries are read from the agenda files, and every change is saved to
-its file right away. The progress (the step, the answers, what was
+its file right away. An entry is found again by a mark in its buffer, its
+ID, its line or, failing those, as the only entry with its title, level
+and outline path: when two entries could be meant, nothing is done and
+`R` lists them again. The entries of a builtin step are collected again
+only when an agenda file changed (or `R`). The progress (the step, the answers, what was
 skipped and the counts) is kept in `state_file`, so closing the window,
 going to an entry with <CR> or quitting Neovim pauses the review and
 `:Org review` picks it up again.
@@ -7743,7 +7762,11 @@ Finishing ~
 `F` writes a review entry into a date tree of `log_file` (default
 "review.org" in `org_directory`; a week tree, `log_tree_type`): the time,
 what was done with the inbox, how many entries each step listed, the time
-clocked, and each answer as a subheading. With `capture_template` set to
+clocked, and each answer under its question as a subheading. The text is
+indented for the entry's level when `adapt_indentation` is on, and an
+answer line starting with `*` gets a leading space so it can't become a
+headline. A new log file starts with its date tree, without the empty
+first line an Emacs date tree leaves. With `capture_template` set to
 a template key, the review is captured with that template instead, the
 summary being its initial text (`%i`), so it can be edited before it is
 stored. The saved progress is then forgotten.
@@ -7817,12 +7840,26 @@ another entry) starts the next one; with `auto_start_work` it starts by
 itself. Starting on another heading while a pomodoro runs moves the session
 there.
 
+With `manual_break` (org-pomodoro-manual-break) a pomodoro whose time is
+up goes on in overtime: the clock keeps running and the statusline counts
+up (`🍅 +2:10`) until `pomodoro_start` (or `skip`) ends it, counted, and
+starts the break.
+
+The running pomodoro is kept in `state_file`, so a Neovim started while it
+still runs (or is paused, or in overtime) goes on with it; one that ended
+in the meantime is dropped, and one another Neovim is running is left to
+it. The clock is not touched then (see `clock.persist`, |org-clock|); after
+a second `setup()` in the same Neovim a running pomodoro clocks in again.
+
 Each phase change is announced through the clock's notifier
 (`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
 desktop notification (osascript or notify-send, `system_notification`) and
 the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
-`data = { phase, count, title }`, `phase` being "work", "short_break",
-"long_break" or "ready".
+`data = { phase, count, title }`, `phase` being "work", "overtime",
+"short_break", "long_break" or "ready".
+`require("org.extensions.pomodoro").info()` returns the session for other
+code (a statusline, the sidebar): nil, or `{ phase, remaining, elapsed,
+paused, count, title, overtime }` (seconds).
 
 Actions, `:Org pomodoro [arg]` and default keys ~
   `<prefix>zs`  pomodoro_start    start (`:Org pomodoro` or `start`)
@@ -7834,14 +7871,15 @@ Actions, `:Org pomodoro [arg]` and default keys ~
                                 not counted, a skipped break starts the
                                 next pomodoro (`skip`)
   `<prefix>zi`  pomodoro_status   show the time left (`status`)
+<Tab> completes the arguments of `:Org pomodoro`.
 
 Statusline ~
 The time left is added to `require("org").statusline()` (|org-api|), after
 the clock: `🍅 24:13 (1)` while working, `☕ 4:59` on a break,
-`⏸ 🍅 12:00` when paused and `🍅 ready (2)` between pomodoros; the number
-counts the pomodoros finished in the session. Set `statusline = false` to
-leave it out and place `require("org.extensions.pomodoro").statusline()`
-yourself:
+`⏸ 🍅 12:00` when paused, `🍅 +2:10` in overtime and `🍅 ready (2)`
+between pomodoros; the number counts the pomodoros finished in the
+session. Set `statusline = false` to leave it out and place
+`require("org.extensions.pomodoro").statusline()` yourself:
 >lua
     -- lualine
     table.insert(opts.sections.lualine_x, 1, {
@@ -7859,6 +7897,7 @@ Options ~
                        never (4)
   `auto_start_breaks`    start the break when a pomodoro ends (true)
   `auto_start_work`      start the next pomodoro when a break ends (false)
+  `manual_break`         overtime until `pomodoro_start` (false)
   `clock_out_on_break`   clock out during breaks and pauses (true)
   `property`             property counting finished pomodoros
                        ("POMODOROS"); false for none
@@ -7867,11 +7906,15 @@ Options ~
                        an argv list (false)
   `statusline`           add the pomodoro to `require("org").statusline()`
                        (true)
-  `icons`                { work, short_break, long_break, paused, ready }
+  `state_file`           where the running pomodoro is kept
+                       (stdpath("state")/org/pomodoro.json); false
+  `icons`                { work, short_break, long_break, paused, ready,
+                       overtime }
 
-Differences from Emacs org-pomodoro: there is no overtime phase
-(org-pomodoro-manual-break), no ticking sound, and the session is not kept
-across restarts of Neovim.
+Differences from Emacs org-pomodoro: there is no ticking sound, no
+org-pomodoro-expiry-time question, and killing a pomodoro keeps its clock
+time (org-pomodoro-keep-killed-pomodoro-time); Emacs forgets the session
+when it exits.
 
 ------------------------------------------------------------------------------
 Spaced repetition (org-drill)                           *org-extensions-drill*
@@ -7892,13 +7935,21 @@ question and the subheadings the answer:
 <
 `:Org drill [scope]` (action `drill`, `<prefix>D`) starts a session over
 the cards that are due: cards whose SCHEDULED date is today or earlier,
-and new cards (never reviewed), which come after the due ones. The scope
+and unscheduled cards (new ones, and ones failed last time). The scope
 is `file` (the current buffer, the default of the `scope` option), `tree`
 (the subtree at the cursor, also action `drill_tree`), `agenda` (the agenda
 files), `directory` (the org files next to the current one), `tag:NAME`
 (cards in the agenda files that also have the tag NAME, inherited or
-not), or files and globs. Commented and archived cards and cards with
-nothing to ask are skipped.
+not), or files and globs; <Tab> completes them. Commented and archived
+cards are skipped, and so are cards with nothing to ask: like org-drill,
+only the entry's own text counts, so a simple card needs text above its
+answer subheading (two- and multisided cards need none).
+
+The cards are asked in org-drill's order: cards failed last time,
+overdue cards (late by more than `overdue_interval_factor` - 1 times
+their last interval, the most overdue first), young cards (a last
+interval of `days_before_old` days or less), then old and new cards mixed.
+Each group is shuffled (`shuffle`).
 
 The session opens in a floating window showing one card at a time, with
 its type and how often it was seen. Keys in the window ~
@@ -7907,7 +7958,7 @@ its type and how often it was seen. Keys in the window ~
   s               skip the card
   e               pause, and jump to the card to edit it; `:Org
                   drill_resume` (action `drill_resume`) goes on
-  q  <Esc>        end the session; in the summary, close the window
+  <Esc>           end the session; in the summary, close the window
 
 The grades are org-drill's:
   0  wrong, and the answer is unfamiliar
@@ -7918,27 +7969,53 @@ The grades are org-drill's:
   5  correct, and it was easy
 
 A grade of `failure_quality` (2) or less fails the card. Failed cards come
-back at the end of the session until they pass (`repeat_failed`). The
-session ends when every card is answered, after
-`maximum_items_per_session` cards or `maximum_duration` minutes, and shows
-a summary: cards and answers, passed, failed, new and skipped cards, the
-average grade, how often each grade was given, and when each card comes
-back. The files the session changed are then written (`save_buffers`).
-`:Org drill_stats [scope]` counts the cards of a scope: all, due, new and
-recently failed.
+back at the end of the session until they pass (`repeat_failed`), even
+after `maximum_duration`. The session asks at most
+`maximum_items_per_session` cards and stops asking new ones after
+`maximum_duration` minutes, then shows a summary: cards and answers,
+passed, failed, new and skipped cards, the average grade, how often each
+grade was given, and when each card comes back. The files the session
+changed are then written (`save_buffers`). `:Org drill_stats [scope]`
+counts the cards of a scope: all, due, new and recently failed.
+
+Cram mode ~
+`:Org drill_cram [scope]` (action `drill_cram`, org-drill-cram) asks every
+card of the scope that was not reviewed in the last `cram_hours` (12)
+hours, due or not, without a card or time limit. Nothing is written: the
+cards keep their schedule.
+
+Leeches ~
+A card failed more than `leech_failure_threshold` (15) times is tagged
+`:leech:`. With `leech_method` "skip" (the default) leeches are left out
+of sessions until you untag them; "warn" asks them marked as a leech;
+false treats them like other cards.
 
 Card types ~
-The DRILL_CARD_TYPE property sets a card's type (org-drill's names):
-  simple      (default) the title and text are the question and the
-              subheadings the answer; a card without subheadings has its
-              text as the answer. Clozes in the text are hidden.
-  twosided    one of the first two subheadings, picked at random, is shown
-              with the title; the other subheadings are the answer
-  multisided  like twosided, with any of the subheadings
-  hide1cloze  one cloze, at random, is hidden and the others shown
-  hide2cloze  two clozes, at random, are hidden and the others shown
-  show1cloze  one cloze, at random, is shown and the others hidden
-An unknown type is asked like a simple card.
+The DRILL_CARD_TYPE property (inherited from parent headings, as in
+org-drill) sets a card's type:
+  simple           (default) the title and text are the question and the
+                   subheadings the answer; a card without subheadings has
+                   its text as the answer. Clozes in the text are hidden.
+  twosided         one of the first two subheadings, picked at random, is
+                   shown with the title; the other subheadings are the
+                   answer
+  multisided       like twosided, with any of the subheadings
+  hide1cloze       one cloze, at random, is hidden and the others shown
+                   (also `multicloze`)
+  hide2cloze       two clozes, at random, are hidden
+  show1cloze       one cloze, at random, is shown and the others hidden
+  show2cloze       two clozes are shown and the others hidden
+  hidefirst        the first cloze is hidden
+  hidelast         the last cloze is hidden
+  hide1_firstmore  the first cloze is hidden, except every
+                   `cloze_text_weight`th (4) repetition, when another one is
+  show1_lastmore   the last cloze is shown, except every Nth repetition,
+                   when another one is
+  show1_firstless  a cloze other than the first is shown, except every Nth
+                   repetition, when the first one is
+org-drill's language cards (`conjugate`, `decline_noun`, `spanish_verb`,
+`translate_number`) and `simpletyped` are asked like simple cards; a type
+org-drill doesn't know is skipped with a warning, like org-drill does.
 
 Clozes ~
 Text in single square brackets is a cloze deletion, hidden as `[...]`
@@ -7951,14 +8028,28 @@ footnotes and priorities are not clozes:
       north into the [Mediterranean||sea].
 <
 Scheduling ~
-Reviews are scheduled with org-drill's SM-2 algorithm. Every card has an
-ease factor, 2.5 at first. A passing grade changes it by SM-2's formula
-(+0.1 for a 5, unchanged for a 4, -0.14 for a 3) and schedules the next
-review 1 day, then 6 days, then the last interval times the ease later. A
-failure keeps the ease, schedules the card for today and starts the
-intervals over. The result is written to the card's SCHEDULED date and to
-the properties org-drill uses, so a deck can be shared with Emacs:
-  DRILL_LAST_INTERVAL        days of the last interval (`15.0`)
+Reviews are scheduled like org-drill's `org-drill-smart-reschedule`, with
+the `algorithm` option (org-drill-spaced-repetition-algorithm):
+  sm5      (default, as in org-drill) SuperMemo 5: the intervals grow by
+           "optimal factors" that are learned from your grades, starting
+           at `sm5_initial_interval` (4) days. The factors are kept in
+           `sm5_matrix_file` between sessions.
+  sm2      SuperMemo 2: every card has an ease, 2.5 at first; a passing
+           grade changes it (+0.1 for a 5, unchanged for a 4, -0.14 for a
+           3) and schedules the next review 1 day, then 6 days, then the
+           last interval times the ease later.
+  simple8  org-drill's Simple8: the first interval depends on how often
+           the card was failed, the next ones on its average grade and
+           `learn_fraction`.
+The days until the next review never go down with a better grade
+(org-drill-hypothetical-next-review-dates), and a DRILL_CARD_WEIGHT
+property divides how much a card's interval grows. A failure keeps the
+ease, removes the card's SCHEDULED date (it is due again at once, and
+asked first next time) and starts the intervals over. The result is
+written to the card's SCHEDULED date and to the properties org-drill
+uses, so a deck can be shared with Emacs:
+  DRILL_LAST_INTERVAL        days until the review (`15.0`, `0.0` after a
+                             failure)
   DRILL_REPEATS_SINCE_FAIL   passing answers in a row, plus one
   DRILL_TOTAL_REPEATS        answers in all
   DRILL_FAILURE_COUNT        failed answers
@@ -7966,12 +8057,16 @@ the properties org-drill uses, so a deck can be shared with Emacs:
   DRILL_EASE                 the ease factor
   DRILL_LAST_QUALITY         the last grade
   DRILL_LAST_REVIEWED        when it was last answered (inactive timestamp)
+Cards still using the old LEARN_DATA property are read, and it is removed
+when they are answered. A new planning line and property drawer take the
+indentation of the card's text.
 
 Lua ~
-`require("org.extensions.drill")` has `start(scope)`, `cards(scope)`,
-`due_cards(scope, today)` and `reschedule(bufnr, lnum, card, quality)`;
-`.sm2.next(data, quality)` is the scheduling step and `.cloze.parse(line)`
-finds the clozes of a line.
+`require("org.extensions.drill")` has `start(scope, cram)`,
+`cards(scope)`, `due_cards(scope, today, cram)`, `status(card, today)` and
+`reschedule(bufnr, lnum, card, quality)`; `.schedule` has the algorithms
+(`sm2`, `sm5`, `simple8`, `answer`) and `.cloze.parse(line)` finds the
+clozes of a line.
 
 Options ~
   `tag`                        tag of the cards ("drill")
@@ -7979,29 +8074,43 @@ Options ~
   `maximum_items_per_session`  0 for no limit (30)
   `maximum_duration`           minutes, 0 for no limit (20)
   `failure_quality`            grades at or below this fail (2)
+  `algorithm`                  "sm5" (default), "sm2" or "simple8"
+  `learn_fraction`             growth of SM-5 and Simple8 intervals (0.5)
+  `sm5_initial_interval`       first SM-5 interval in days (4.0)
+  `sm5_matrix_file`            SM-5's learned factors
+                             (stdpath("data")/org/drill-sm5.json)
+  `leech_failure_threshold`    failures that make a leech (15); false
+  `leech_method`               "skip" (default), "warn" or false
+  `cloze_text_weight`          see the weighted card types (4); false
+  `cram_hours`                 cram asks cards older than this (12)
+  `days_before_old`            young / old boundary in days (10)
+  `overdue_interval_factor`    when a card is overdue (1.2)
   `repeat_failed`              ask failed cards again (true)
-  `shuffle`                    random order (true); off, the most overdue
-                             cards come first
+  `shuffle`                    random order within each group (true);
+                             off, the most overdue cards come first and
+                             old cards before new ones
   `save_buffers`               write changed files after a session (true)
   `width`, `height`, `border`  the session window (72, 20, "rounded")
   `keys`                       { reveal, skip, edit, quit }: a key or a
                              list of keys each
 
 Differences from Emacs org-drill ~
-  - Only the SM-2 algorithm; org-drill's SM-5 and Simple8
-    (`org-drill-spaced-repetition-algorithm`), its random noise on
-    intervals and its "learn fraction" are not implemented.
-  - A failed card is stored with a last interval of `0.0` (org-drill
-    stores `-1.0`) and scheduled for today; the intervals start over the
-    same way.
-  - Card types are limited to the ones above; org-drill's language cards
-    (`conjugate`, `translate_number`, `spanish_verb`), `hide1_firstmore`,
-    `show1_lastmore`, `show2cloze` and custom card functions are not
-    available and ask like simple cards.
-  - No leech detection, no cram mode (`org-drill-cram`) and no
-    `org-drill-again` or `org-drill-merge-buffers`.
+  - No random noise on intervals
+    (org-drill-add-random-noise-to-intervals-p) and no adjustment for
+    early or late reviews
+    (org-drill-adjust-intervals-for-early-and-late-repetitions-p); both
+    are off by default in org-drill.
+  - `maximum_items_per_session` counts the cards picked for the session;
+    org-drill counts passed cards, so failures there make room for more
+    cards.
+  - The language cards and `simpletyped` are asked like simple cards, and
+    custom card functions (org-drill-card-type-alist) are not supported.
+  - Very overdue cards are not "lapsed"
+    (org-drill--lapse-very-overdue-entries-p, off in org-drill), and
+    there is no `org-drill-again`, `org-drill-merge-buffers` or DATE_ADDED
+    ordering.
   - The question is shown in a floating window instead of narrowing the
-    buffer to the entry.
+    buffer to the entry, so its folds are left as they are.
 
 ------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*

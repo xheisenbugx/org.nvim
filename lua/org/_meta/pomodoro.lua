@@ -23,6 +23,10 @@
 ---Start the next pomodoro on the same entry when a break ends, instead of
 ---waiting for `pomodoro_start` (default: `false`).
 ---@field auto_start_work? boolean
+---When the time is up, go on in overtime (the clock runs on) until
+---`pomodoro_start` ends the pomodoro and starts the break
+---(org-pomodoro-manual-break, default: `false`).
+---@field manual_break? boolean
 ---Clock out during breaks and pauses (default: `true`).
 ---@field clock_out_on_break? boolean
 ---Property counting an entry's finished pomodoros; `false` for none
@@ -35,5 +39,8 @@
 ---@field sound? string|string[]|false
 ---Add the pomodoro to `require("org").statusline()` (default: `true`).
 ---@field statusline? boolean
+---Where the running pomodoro is kept so a new Neovim goes on with it; `false`
+---to forget it (default: `stdpath("state") .. "/org/pomodoro.json"`).
+---@field state_file? string|false
 ---Statusline icons.
----@field icons? { work?: string, short_break?: string, long_break?: string, paused?: string, ready?: string }
+---@field icons? { work?: string, short_break?: string, long_break?: string, paused?: string, ready?: string, overtime?: string }

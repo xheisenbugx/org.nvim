@@ -61,13 +61,13 @@ Type "4"
 Sleep 3s
 Hide
 Ctrl+G
-Type@5ms `Cap q | the schedule is in the file` Enter
+Type@5ms `Cap <Esc> | the schedule is in the file` Enter
 Show
-Type "q"
+Escape
 Sleep 800ms
 Hide
 Ctrl+G
-Type@5ms `Do zR` Enter
+Type@5ms `Do <S-Tab>zR | show everything` Enter
 Show
 Sleep 3.5s
 Hide

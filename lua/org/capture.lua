@@ -36,9 +36,11 @@ local ns = vim.api.nvim_create_namespace("org_capture")
 M.sessions = {}
 
 --- Functions that may rewrite the captured lines before they are stored,
---- by name: `fun(tpl, lines, ctx): string[]|nil` (nil keeps the lines).
---- Empty unless an extension adds one (quickadd's `quickadd = true`).
----@type table<string, fun(tpl: table, lines: string[], ctx: table): string[]|nil>
+--- by name: `fun(tpl, lines, ctx): string[]|nil, table|nil` (nil keeps the
+--- lines). A second result is a template-like target (`target`,
+--- `headline`, `location`...) the entry goes to instead. Empty unless an
+--- extension adds one (quickadd's `quickadd = true`).
+---@type table<string, fun(tpl: table, lines: string[], ctx: table): string[]|nil, table|nil>
 M.store_filters = {}
 
 ---------------------------------------------------------------------------
@@ -1962,7 +1964,28 @@ local function finish_clock(tpl, ctx, bufnr, line)
   end
 end
 
-local stored
+local stored, retarget
+
+-- A store filter sent the entry elsewhere: resolve the new target and
+-- undo what resolving the template's target did (like an abort does).
+function retarget(ctx, target)
+  local loc, err = M.resolve_target(target, {})
+  if not loc then
+    utils.warn(tostring(err) .. "; the template's target is used")
+    return
+  end
+  local old = ctx.loc
+  ctx.loc = loc
+  if old then
+    cleanup_target(old)
+    release(old)
+    if old.new_buffer and old.bufnr ~= loc.bufnr and vim.api.nvim_buf_is_valid(old.bufnr) then
+      if not vim.bo[old.bufnr].modified and vim.fn.bufwinid(old.bufnr) == -1 then
+        pcall(vim.api.nvim_buf_delete, old.bufnr, {})
+      end
+    end
+  end
+end
 
 --- Store the captured text at its target. Returns (bufnr, line), or nil
 --- when the text could not be stored (the target is gone).
@@ -1971,11 +1994,14 @@ function M.store(tpl, lines, ctx)
   lines = trim_blank(vim.deepcopy(lines))
   if #lines > 0 then
     for name, filter in pairs(M.store_filters) do
-      local ok, res = pcall(filter, tpl, lines, ctx)
+      local ok, res, target = pcall(filter, tpl, lines, ctx)
       if not ok then
         utils.error("Capture filter " .. name .. " failed: " .. tostring(res))
       elseif type(res) == "table" then
         lines = res
+        if type(target) == "table" and not ctx.here and not tpl.unnarrowed then
+          retarget(ctx, target)
+        end
       end
     end
   end
