@@ -19,7 +19,8 @@ local lisp = require("org.babel.lisp")
 
 local M = {}
 
---- Language name -> module in org.babel.lang.
+--- Language name -> module in org.babel.lang, or a handler table (added
+--- by an extension such as `diagrams`).
 M.HANDLERS = {
   plantuml = "plantuml",
   ditaa = "ditaa",
@@ -55,6 +56,9 @@ function M.get(lang)
   local name = M.HANDLERS[lang]
   if not name or not M.opts(lang) then
     return nil
+  end
+  if type(name) == "table" then
+    return name
   end
   return require("org.babel.lang." .. name)
 end

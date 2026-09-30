@@ -1,0 +1,55 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { diagrams = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).
+---@field diagrams? org.Config.Extensions.Diagrams|boolean
+
+---@class org.Config.Extensions.Diagrams
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Languages the extension handles: any of `"mermaid"`, `"dot"`, `"plantuml"`.
+---(default: all three)
+---@field languages? ("mermaid"|"dot"|"plantuml")[]
+---mermaid-cli options.
+---@field mermaid? org.Config.Extensions.Diagrams.Mermaid
+---Graphviz options.
+---@field dot? org.Config.Extensions.Diagrams.Dot
+---Give a block without `:file` the output file `output_dir/LANG-HASH8.FORMAT`.
+---(default: `true`)
+---@field auto_file? boolean
+---Directory of generated file names, relative to the org file (or `:dir`).
+---(default: `"diagrams"`)
+---@field output_dir? string
+---Format of generated file names (`:file-ext` overrides it). (default: `"png"`)
+---@field format? string
+---Reuse rendered diagrams with the same language, command and body. (default: `true`)
+---@field cache? boolean
+---Where rendered diagrams are cached. (default: `stdpath("cache") .. "/org/diagrams"`)
+---@field cache_dir? string
+---Preview the result image inline after a diagram block runs. (default: `true`)
+---@field auto_preview? boolean
+---Render every diagram block of an org buffer before it is written. (default: `false`)
+---@field render_on_save? boolean
+
+---@class org.Config.Extensions.Diagrams.Mermaid
+---The mmdc command: a string run by the shell (`"npx -y @mermaid-js/mermaid-cli"`
+---works) or a list of words. (default: `"mmdc"`)
+---@field command? string|string[]
+---Extra arguments for every run. (default: `{}`)
+---@field args? string[]
+---Default `:theme` (`default`, `dark`, `forest`, `neutral`).
+---@field theme? string
+---Default `:background-color`.
+---@field background? string
+---Default `:mermaid-config-file`.
+---@field config_file? string
+---Default `:puppeteer-config-file` (e.g. to use an installed Chrome).
+---@field puppeteer_config? string
+
+---@class org.Config.Extensions.Diagrams.Dot
+---The Graphviz command (`:cmd` overrides it per block). (default: `"dot"`)
+---@field command? string|string[]
+---Extra arguments for every run. (default: `{}`)
+---@field args? string[]
