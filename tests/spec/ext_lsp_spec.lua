@@ -90,8 +90,10 @@ local function request(buf, method, params)
   local res = vim.lsp.buf_request_sync(buf, method, params, 3000)
   ok(res, "no response to " .. method)
   for _, r in pairs(res) do
-    if r.err then
-      return nil, r.err
+    -- Neovim 0.10 names the field `error`, 0.11+ `err`
+    local e = r.err or r.error
+    if e then
+      return nil, e
     end
     return r.result
   end
