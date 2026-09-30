@@ -189,6 +189,16 @@ describe("roam extension", function()
       eq("file-b", refs[1].source.id)
     end)
 
+    it("puts a citation at its key, where the backlinks buffer jumps to", function()
+      db().sync()
+      local cite = db().reflinks(db().node("file-a"))[2].link
+      eq("cite", cite.type)
+      eq(8, cite.lnum)
+      -- "Source: https://example.com and [cite:@doe2020]."
+      eq(39, cite.col)
+      eq("@doe2020", read(b)[8]:sub(cite.col, cite.col + 7))
+    end)
+
     it("re-parses only changed files and drops deleted ones", function()
       local parsed = db().sync()
       eq(3, parsed)
@@ -291,6 +301,36 @@ describe("roam extension", function()
       local id = buf_lines()[1]:match("^See %[%[id:([^%]]+)%]%[Cherry%]%]$")
       ok(id, vim.inspect(buf_lines()))
       eq("Cherry", db().node(id).title)
+      -- on the link's last bracket, as for an existing node
+      eq({ 1, #buf_lines()[1] - 1 }, vim.api.nvim_win_get_cursor(0))
+    end)
+
+    it("inserts a link from Insert mode and goes on typing after it", function()
+      org_buffer({ "See  now" }, { 1, 0 })
+      choose("Banana")
+      vim.keymap.set("i", "<F9>", function()
+        require("org.utils").run(require("org.extensions.roam.node").insert)
+      end, { buffer = true })
+      vim.api.nvim_feedkeys(vim.keycode("5|i<F9>!<Esc>"), "xt", false)
+      eq({ "See [[id:file-b][Banana]]! now" }, buf_lines())
+      vim.api.nvim_feedkeys(vim.keycode("A<F9>.<Esc>"), "xt", false)
+      eq({ "See [[id:file-b][Banana]]! now[[id:file-b][Banana]]." }, buf_lines())
+    end)
+
+    it("goes back to Insert mode after the link when the picker left it", function()
+      org_buffer({ "See  now" }, { 1, 0 })
+      local node = require("org.extensions.roam.node")
+      -- a picker window (snacks) ends Insert mode before the link goes in;
+      -- <Cmd><CR> lets the main loop start the Insert mode asked for
+      vim.api.nvim_buf_set_text(0, 0, 4, 0, 4, { "[[id:x][X]]" })
+      node.cursor_after_link(0, 15, true)
+      vim.api.nvim_feedkeys(vim.keycode("<Cmd><CR>!<Esc>"), "xt", false)
+      eq({ "See [[id:x][X]]! now" }, buf_lines())
+      -- at the end of the line
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { "See [[id:x][X]]" })
+      node.cursor_after_link(0, 15, true)
+      vim.api.nvim_feedkeys(vim.keycode("<Cmd><CR>!<Esc>"), "xt", false)
+      eq({ "See [[id:x][X]]!" }, buf_lines())
     end)
 
     it("fills ${key=default} by asking once", function()
@@ -430,6 +470,55 @@ describe("roam extension", function()
       }, buffer.lines())
       buffer.toggle()
       ok(not buffer.is_open())
+    end)
+
+    it("opens a link beside it when it is the only window, keeping its options to itself", function()
+      write("a.org", { ":PROPERTIES:", ":ID:       file-a", ":END:", "#+title: Apple" })
+      write("b.org", { ":PROPERTIES:", ":ID:       file-b", ":END:", "#+title: Banana", "See [[id:file-a][A]]." })
+      vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/a.org"))
+      vim.wo.signcolumn = "yes"
+      local usual = { vim.wo.foldenable, vim.wo.signcolumn }
+      local buffer = require("org.extensions.roam.buffer")
+      buffer.toggle()
+      -- the paragraph only, not the #+title before it
+      eq(
+        { "Apple", "", "Backlinks (1)", "  Banana", "    Top", "      See A.", "" },
+        vim.list_slice(buffer.lines(), 1, 7)
+      )
+      vim.cmd("wincmd l")
+      local roam_win = vim.api.nvim_get_current_win()
+      ok(vim.wo.winfixwidth)
+      ok(not vim.wo.foldenable)
+      eq("no", vim.wo.signcolumn)
+      vim.cmd("only")
+      vim.api.nvim_win_set_cursor(0, { 6, 0 })
+      vim.api.nvim_feedkeys(vim.keycode("<CR>"), "xt", false)
+      eq(2, #vim.api.nvim_tabpage_list_wins(0))
+      ok(buffer.is_open())
+      eq(dir .. "/b.org", vim.api.nvim_buf_get_name(0))
+      eq({ 5, 4 }, vim.api.nvim_win_get_cursor(0))
+      -- the note's window has the options of a normal window
+      ok(vim.api.nvim_get_current_win() ~= roam_win)
+      eq(usual, { vim.wo.foldenable, vim.wo.signcolumn })
+      ok(not vim.wo.winfixwidth)
+      -- and so does a file opened in the roam window
+      vim.api.nvim_set_current_win(roam_win)
+      vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/a.org"))
+      eq(usual, { vim.wo.foldenable, vim.wo.signcolumn })
+      vim.cmd("only")
+      vim.wo.signcolumn = "auto"
+    end)
+
+    it("keeps the height of a bottom window", function()
+      setup({ buffer = { position = "bottom", height = 7 } })
+      write("a.org", { ":PROPERTIES:", ":ID:       file-a", ":END:", "#+title: Apple" })
+      vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/a.org"))
+      local buffer = require("org.extensions.roam.buffer")
+      buffer.toggle()
+      vim.cmd("wincmd j")
+      eq(7, vim.api.nvim_win_get_height(0))
+      ok(vim.wo.winfixheight)
+      ok(not vim.wo.winfixwidth)
     end)
 
     it("closes the window and deletes its buffer when the extension is turned off", function()
@@ -623,6 +712,21 @@ describe("roam extension", function()
       eq({ 1, 11, 56 }, vim.tbl_map(function(r)
         return r.col
       end, refs))
+    end)
+
+    it("finds unlinked references in the unsaved text of a buffer", function()
+      write("a.org", { ":PROPERTIES:", ":ID: a", ":END:", "#+title: Alpha" })
+      local b = write("b.org", { ":PROPERTIES:", ":ID: b", ":END:", "Nothing yet." })
+      db().sync()
+      eq({}, db().unlinked_references(db().node("a")))
+      vim.cmd("edit " .. vim.fn.fnameescape(b))
+      vim.api.nvim_buf_set_lines(0, 3, 4, false, { "Now about alpha." })
+      local refs = db().unlinked_references(db().node("a"))
+      eq(1, #refs)
+      eq({ 4, 11, "alpha" }, { refs[1].lnum, refs[1].col, refs[1].match })
+      -- saved again, the file's own text counts
+      vim.cmd("silent edit!")
+      eq({}, db().unlinked_references(db().node("a")))
     end)
   end)
 
