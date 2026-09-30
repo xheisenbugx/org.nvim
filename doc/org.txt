@@ -7401,7 +7401,9 @@ the group "roam", and `<prefix>md` "roam dailies"). Global:
   `<prefix>mi`  roam_node_insert: insert `[[id:...][Title]]` at the cursor,
               creating the node when it is new. In Visual mode the
               selection is the default title and the description, and is
-              replaced by the link.
+              replaced by the link. Mapped in Insert mode, e.g.
+              `vim.keymap.set("i", "<C-c>ni", "<Cmd>Org roam_node_insert<CR>")`,
+              typing goes on after the link.
   `<prefix>ml`  roam_buffer_toggle: toggle the backlinks window.
   `<prefix>mc`  roam_capture: choose a node (or name a new one) and capture
               into it with a template.
@@ -7486,7 +7488,8 @@ context (`buffer.preview_lines`), links shown as their descriptions. Add
 "unlinked" to `buffer.sections` for unlinked references: whole-word
 mentions of the node's title or aliases, ignoring case, outside brackets
 and outside the node's own file. It follows the cursor. `<CR>` opens a
-link's location, `r` refreshes, `q` closes.
+link's location in the window it was toggled from (a new one beside it
+when it is the only window), `r` refreshes, `q` closes.
 
 org-protocol ~
 While the extension is on, two |org-protocol| sub-protocols are handled:

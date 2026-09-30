@@ -448,7 +448,11 @@ function M.capture(opts)
     if type(fin) == "function" then
       fin(node.id, dbuf, dline)
     elseif fin == "insert_link" then
-      M.insert_link_at(opts, node.id)
+      local row, col = M.insert_link_at(opts, node.id)
+      -- the capture window is closed: back where the link went
+      if row and vim.api.nvim_get_current_buf() == opts.call_location.bufnr then
+        require("org.extensions.roam.node").cursor_after_link(row, col)
+      end
     elseif fin == "find_file" then
       local b = vim.api.nvim_buf_is_valid(dbuf or -1) and dbuf or bufnr
       local target_line = dline

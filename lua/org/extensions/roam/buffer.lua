@@ -49,8 +49,16 @@ end
 function M.preview(file, lnum)
   local lines = file.lines
   local max = bopts().preview_lines or 5
+  -- the paragraph ends at a blank line, a headline, a drawer line and a
+  -- keyword, block delimiter or comment line (#+title: ... before it)
   local function stop(l)
-    return l == nil or l:match("^%s*$") or l:match("^%*+%s") or l:match("^%s*:%u+:%s*$")
+    return l == nil
+      or l:match("^%s*$")
+      or l:match("^%*+%s")
+      or l:match("^%s*:%u+:%s*$")
+      or l:match("^%s*#%+")
+      or l:match("^%s*#%s")
+      or l:match("^%s*#$")
   end
   local s, e = lnum, lnum
   while s > 1 and not stop(lines[s - 1]) and not (lines[s] or ""):match("^%s*[-+]%s") do
@@ -205,6 +213,22 @@ local function jump()
   else
     vim.api.nvim_set_current_win(win)
   end
+  if vim.api.nvim_get_current_win() == state.win then
+    -- no other window: open one beside this one rather than replacing the
+    -- links with the note
+    local o = bopts()
+    local width = vim.api.nvim_win_get_width(state.win)
+    local height = vim.api.nvim_win_get_height(state.win)
+    local split = o.position == "bottom" and "aboveleft split"
+      or o.position == "left" and "rightbelow vsplit"
+      or "aboveleft vsplit"
+    vim.cmd(split)
+    if o.position == "bottom" then
+      vim.api.nvim_win_set_height(state.win, math.min(o.height or 15, math.floor(height / 2)))
+    else
+      vim.api.nvim_win_set_width(state.win, math.min(o.width or 50, math.floor(width / 2)))
+    end
+  end
   require("org.extensions.roam.node").open(t.file, t.lnum, { col = t.col and math.max(0, t.col - 1) or 0 })
 end
 
@@ -273,13 +297,27 @@ function M.open()
     vim.cmd(pos .. " " .. size .. "split")
     state.win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(state.win, buf)
-    local wo = vim.wo[state.win]
-    wo.number = false
-    wo.relativenumber = false
-    wo.signcolumn = "no"
-    wo.wrap = true
-    wo.winfixwidth = true
-    wo.foldenable = false
+    -- local to the window's buffer (:setlocal): a file opened in this
+    -- window later gets the usual options back (but for winfix*, which
+    -- belong to the window)
+    local wopts = {
+      number = false,
+      relativenumber = false,
+      signcolumn = "no",
+      foldcolumn = "0",
+      foldenable = false,
+      spell = false,
+      list = false,
+      wrap = true,
+      linebreak = true,
+      -- wrapped preview lines stay under their heading
+      breakindent = true,
+      winfixwidth = o.position ~= "bottom",
+      winfixheight = o.position == "bottom",
+    }
+    for name, value in pairs(wopts) do
+      vim.api.nvim_set_option_value(name, value, { win = state.win, scope = "local" })
+    end
     vim.api.nvim_set_current_win(cur_win)
   end
   vim.api.nvim_clear_autocmds({ group = group })

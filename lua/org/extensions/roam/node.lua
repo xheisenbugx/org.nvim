@@ -103,20 +103,20 @@ function M.candidates(filter)
     end
   end
   local sort = ropts().sort
-  if sort == "title" then
-    table.sort(out, function(a, b)
-      return a.name:lower() < b.name:lower()
-    end)
-  elseif sort == "mtime" then
-    local mt = {}
+  if sort == "title" or sort == "mtime" then
+    -- sort keys made once, not in every comparison
+    local key, mt = {}, {}
     for _, c in ipairs(out) do
-      mt[c.node.file] = mt[c.node.file] or utils.mtime(c.node.file) or 0
+      key[c] = c.name:lower()
+      if sort == "mtime" then
+        mt[c.node.file] = mt[c.node.file] or db.mtime(c.node.file) or 0
+      end
     end
     table.sort(out, function(a, b)
-      if mt[a.node.file] ~= mt[b.node.file] then
+      if sort == "mtime" and mt[a.node.file] ~= mt[b.node.file] then
         return mt[a.node.file] > mt[b.node.file]
       end
-      return a.name:lower() < b.name:lower()
+      return key[a] < key[b]
     end)
   end
   return out
@@ -375,11 +375,32 @@ local function visual_region()
   return { srow, scol, erow, ecol }
 end
 
+--- Put the cursor after a link inserted at 0-based `row` that ends before
+--- byte `col`: on its last `]` in Normal mode, after it when the insert
+--- started in Insert mode (which a picker may have left, so it is entered
+--- again), so typing goes on after the link.
+---@param row integer
+---@param col integer
+---@param insert? boolean
+function M.cursor_after_link(row, col, insert)
+  if not insert then
+    pcall(vim.api.nvim_win_set_cursor, 0, { row + 1, math.max(0, col - 1) })
+    return
+  end
+  pcall(vim.api.nvim_win_set_cursor, 0, { row + 1, col })
+  if vim.fn.mode() ~= "i" then
+    -- Normal mode can't put the cursor past the end of the line
+    local at_end = col >= #(vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1] or "")
+    vim.cmd(at_end and "startinsert!" or "startinsert")
+  end
+end
+
 --- Insert a link to a node, creating the node when it is new
 --- (org-roam-node-insert). A Visual selection is the default title and the
 --- link's description, and is replaced by the link.
 function M.insert()
   local bufnr = vim.api.nvim_get_current_buf()
+  local insert_mode = vim.fn.mode():sub(1, 1) == "i"
   local region = visual_region()
   local text
   if region then
@@ -399,7 +420,7 @@ function M.insert()
     local row, col0 = unpack(vim.api.nvim_win_get_cursor(0))
     local line = vim.api.nvim_get_current_line()
     local at = line == "" and 0 or math.min(col0 + 1, #line)
-    if vim.fn.mode():sub(1, 1) == "i" then
+    if insert_mode then
       at = col0
     end
     mark = vim.api.nvim_buf_set_extmark(bufnr, ns, row - 1, at, {})
@@ -418,7 +439,7 @@ function M.insert()
     end
     local row, col = capture().insert_link_at({ call_location = loc, link_description = desc }, c.node.id)
     if row and vim.api.nvim_get_current_buf() == bufnr then
-      pcall(vim.api.nvim_win_set_cursor, 0, { row + 1, math.max(0, col - 1) })
+      M.cursor_after_link(row, col, insert_mode)
     end
     return
   end

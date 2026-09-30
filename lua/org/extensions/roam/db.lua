@@ -13,7 +13,7 @@ local utils = require("org.utils")
 
 local M = {}
 
-local VERSION = 1
+local VERSION = 2
 
 ---@class org.roam.Node
 ---@field id string
@@ -122,18 +122,9 @@ local function excludes()
   return list
 end
 
---- Whether `path` is an org file indexed by roam (org-roam-file-p): below
---- the directory, not hidden and not matching `exclude`.
----@param path string
----@return boolean
-function M.is_roam_file(path)
-  if not path or path == "" or not path:match("%.org$") then
-    return false
-  end
-  local rel = M.relative(path)
-  if not rel then
-    return false
-  end
+--- Whether the file at `rel` (relative to the directory) is neither
+--- hidden nor excluded.
+local function included(rel, path)
   for part in rel:gmatch("[^/]+") do
     if part:sub(1, 1) == "." then
       return false
@@ -145,6 +136,18 @@ function M.is_roam_file(path)
     end
   end
   return true
+end
+
+--- Whether `path` is an org file indexed by roam (org-roam-file-p): below
+--- the directory, not hidden and not matching `exclude`.
+---@param path string
+---@return boolean
+function M.is_roam_file(path)
+  if not path or path == "" or not path:match("%.org$") then
+    return false
+  end
+  local rel = M.relative(path)
+  return rel ~= nil and included(rel, path)
 end
 
 --- Every roam file on disk, sorted.
@@ -169,7 +172,8 @@ function M.list_files()
         local st = vim.uv.fs_stat(p)
         kind = st and st.type or kind
       end
-      if kind == "file" and M.is_roam_file(p) then
+      -- `name` is already relative to the directory
+      if kind == "file" and included(name, p) then
         out[#out + 1] = p
       end
     end
@@ -384,9 +388,10 @@ function M.parse_file(path, file)
               links[#links + 1] = { source = src, type = l.type, path = p, lnum = i, col = l.start_col }
             end
           end
-          for body, s in line:gmatch("%[cite[/%w%-]*:([^%]]*)%]()") do
-            for k in body:gmatch("@([^%s;%]]+)") do
-              links[#links + 1] = { source = src, type = "cite", path = k, lnum = i, col = s }
+          -- each key at its @, where org-roam puts a citation reference
+          for s, body in line:gmatch("%[cite[/%w%-]*:()([^%]]*)%]") do
+            for at, k in body:gmatch("()@([^%s;%]]+)") do
+              links[#links + 1] = { source = src, type = "cite", path = k, lnum = i, col = s + at - 1 }
             end
           end
         end
@@ -655,6 +660,15 @@ function M.links()
   return out
 end
 
+--- The modification time of an indexed file in nanoseconds (like
+--- `utils.mtime`), as of the last sync or update.
+---@param path string
+---@return integer|nil
+function M.mtime(path)
+  local e = load().files[path]
+  return e and e.sec and (e.sec * 1e9 + (e.nsec or 0)) or nil
+end
+
 --- The node with `id`.
 ---@param id string
 ---@return org.roam.Node|nil
@@ -736,22 +750,53 @@ function M.reflinks(node)
   return out
 end
 
--- lines of roam files by path, kept while the mtime is unchanged
+local function lower(s)
+  return s:find("[\128-\255]") and vim.fn.tolower(s) or s:lower()
+end
+
+-- lines of roam files by path, and their lower-cased text, kept while the
+-- mtime is unchanged
 local line_cache = {}
 
-local function file_lines(path)
-  local b = utils.find_buffer(path)
-  if b and vim.bo[b].modified then
-    return vim.api.nvim_buf_get_lines(b, 0, -1, false)
+--- Modified buffers by their path (and resolved path): their text is
+--- newer than the file's.
+local function modified_buffers()
+  local out = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(b)
+    if name ~= "" and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+      out[vim.fs.normalize(name)] = b
+      out[vim.uv.fs_realpath(name) or ""] = b
+    end
+  end
+  return out
+end
+
+local function file_lines(path, modified)
+  local b = modified[path]
+  if b then
+    local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+    return lines, lower(table.concat(lines, "\n"))
   end
   local sec, nsec = stat(path)
   local c = line_cache[path]
   if c and c.sec == sec and c.nsec == nsec then
-    return c.lines
+    return c.lines, c.low
   end
   local lines = utils.readfile(path) or {}
-  line_cache[path] = { sec = sec, nsec = nsec, lines = lines }
-  return lines
+  local low = lower(table.concat(lines, "\n"))
+  line_cache[path] = { sec = sec, nsec = nsec, lines = lines, low = low }
+  return lines, low
+end
+
+--- Whether one of `names` occurs in `text`, as any substring.
+local function mentions(text, names)
+  for _, name in ipairs(names) do
+    if text:find(name, 1, true) then
+      return true
+    end
+  end
+  return false
 end
 
 -- `line` with every bracketed [...] (links, cookies, citations) blanked,
@@ -788,12 +833,36 @@ local function mask_brackets(line)
   return table.concat(out)
 end
 
-local function lower(s)
-  return s:find("[\128-\255]") and vim.fn.tolower(s) or s:lower()
-end
-
 local function word_char(c)
   return c ~= "" and c:match("[%w_]") ~= nil
+end
+
+-- Whole-word matches of `names` in `line` outside brackets, as start col
+-- -> end col. Every match, like rg --only-matching; a title and an alias
+-- starting at the same place count once.
+local function line_hits(line, names)
+  local hits = {}
+  -- most lines mention none of the names: skip the bracket masking
+  if not mentions(lower(line), names) then
+    return hits
+  end
+  local masked = lower(mask_brackets(line))
+  for _, name in ipairs(names) do
+    local init = 1
+    while true do
+      local s, e = masked:find(name, init, true)
+      if not s then
+        break
+      end
+      if not word_char(masked:sub(s - 1, s - 1)) and not word_char(masked:sub(e + 1, e + 1)) then
+        if not hits[s] or e > hits[s] then
+          hits[s] = e
+        end
+      end
+      init = s + 1
+    end
+  end
+  return hits
 end
 
 --- Mentions of the node's title or aliases that are not links, in other
@@ -815,28 +884,15 @@ function M.unlinked_references(node)
   local own = vim.fs.normalize(node.file)
   local paths = vim.tbl_keys(load().files)
   table.sort(paths)
+  local modified = modified_buffers()
   for _, path in ipairs(paths) do
+    local lines, low
     if path ~= own then
-      for lnum, line in ipairs(file_lines(path)) do
-        local masked = lower(mask_brackets(line))
-        -- every match, like rg --only-matching; a title and an alias
-        -- starting at the same place count once
-        local hits = {}
-        for _, name in ipairs(names) do
-          local init = 1
-          while true do
-            local s, e = masked:find(name, init, true)
-            if not s then
-              break
-            end
-            if not word_char(masked:sub(s - 1, s - 1)) and not word_char(masked:sub(e + 1, e + 1)) then
-              if not hits[s] or e > hits[s] then
-                hits[s] = e
-              end
-            end
-            init = s + 1
-          end
-        end
+      lines, low = file_lines(path, modified)
+    end
+    if low and mentions(low, names) then
+      for lnum, line in ipairs(lines) do
+        local hits = line_hits(line, names)
         local cols = vim.tbl_keys(hits)
         table.sort(cols)
         for _, s in ipairs(cols) do
