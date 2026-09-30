@@ -9202,18 +9202,27 @@ A narrow window at the side of the tab that keeps today in view:
 The actions `sidebar_toggle` (`<prefix>Vs`), `sidebar_open` and
 `sidebar_close`. Its sections (`sections`, in this order by default):
   `clock`   the running clock: the task, the time clocked and, with an
-          Effort, a bar of the time against it (error colour once over)
+          Effort, a bar of the time against it (error colour once over).
+          With the |org-extensions-pomodoro| extension on, the pomodoro's
+          phase and when it ends ("🍅 work until 10:25 (2)")
   `next`    the next timed entry of today still to come, with a countdown
   `today`   today's timed entries (the past ones dimmed), deadlines due
           within `deadline_days` (the overdue ones first) and scheduled
-          entries, from the agenda files, as in the day agenda
+          entries, from the agenda files, as in the day agenda, and the
+          events of today from the extra agenda sources, such as the
+          calendars of the |org-extensions-ics| extension (◇ for all-day
+          ones; they have no heading to open)
   `habits`  the habits due today
   `inbox`   the number of top-level entries not DONE in `inbox_file`
           (default: `default_notes_file`)
 
 It is redrawn every `interval` seconds while it is open (the timer stops
-when it closes) and when an org file is written or a clock or TODO state
-changes. The window keeps its width (`winfixwidth`, and `winfixbuf` where
+when it closes), when an agenda file or the inbox is written or changed,
+and when a clock, TODO state or pomodoro phase changes. A redraw collects
+the agenda again only when an agenda file changed (or the day did), so a
+tick costs little even with hundreds of agenda files; an error in one is
+reported once. In an editor too narrow for `width`, it takes what is left
+after a narrow window. The window keeps its width (`winfixwidth`, and `winfixbuf` where
 Neovim has it), has no numbers, sign column or status line text, and opening
 it leaves the cursor where it was unless `focus` is set. Toggling it in
 another tab moves it there.
@@ -9234,13 +9243,15 @@ Options (defaults) ~
   `inbox_file`     nil
   `focus`          false
   `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
-                   inbox = "✉", deadline = "◆", scheduled = "▸" }
+                   inbox = "✉", deadline = "◆", scheduled = "▸",
+                   event = "◇" }
   `keys`           { jump = "<CR>", refresh = "r", close = "<Esc>" }
 
 Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,
 `OrgSidebarEmpty`, `OrgSidebarCountdown`, `OrgSidebarOverdue`,
 `OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
-`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`.
+`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`, `OrgSidebarPomodoro`,
+`OrgSidebarEvent`.
 
  vim:tw=78:ts=8:ft=help:norl:
