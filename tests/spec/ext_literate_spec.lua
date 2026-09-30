@@ -406,6 +406,83 @@ describe("literate extension", function()
     eq(nil, require("org.extensions.literate").bootstrap())
   end)
 
+  it("bootstraps with the blocks the full tangle writes (headings' properties, other targets, noweb)", function()
+    local lines = {
+      "#+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes",
+      "#+PROPERTY: header-args :noweb yes",
+      "* Options",
+      "#+begin_src lua",
+      "vim.g.lit_a = 1",
+      "#+end_src",
+      "* Drafts",
+      ":PROPERTIES:",
+      ":header-args:lua: :tangle no",
+      ":END:",
+      "#+begin_src lua",
+      "vim.g.lit_c = 'draft'",
+      "#+end_src",
+      "** But this one",
+      "#+begin_src lua :tangle lua/config.lua",
+      "vim.g.lit_d = 1",
+      "#+end_src",
+      "* Other file",
+      "#+begin_src lua :tangle lua/other.lua",
+      "vim.g.lit_c = 'other'",
+      "#+end_src",
+      "* Shared",
+      "#+name: greeting",
+      "#+begin_src lua :tangle no",
+      "'hi'",
+      "#+end_src",
+      "#+begin_src lua",
+      "vim.g.lit_b = <<greeting>>",
+      "#+end_src",
+      "#+begin_src luap",
+      "not lua",
+      "#+end_src",
+      "* Escaped",
+      "#+begin_src lua",
+      "local s = [[",
+      ",* not a heading",
+      "]]",
+      "vim.g.lit_e = s",
+      "#+end_src",
+    }
+    vim.cmd("edit " .. write_init(lines))
+    local path = require("org.extensions.literate").bootstrap()
+    vim.cmd("silent write")
+    local full = vim.fn.readfile(dir .. "/lua/config.lua")
+    vim.fn.delete(dir .. "/lua/config.lua")
+    vim.g.lit_a, vim.g.lit_b, vim.g.lit_c, vim.g.lit_d, vim.g.lit_e = nil, nil, nil, nil, nil
+    dofile(path)
+    eq(full, vim.fn.readfile(dir .. "/lua/config.lua"))
+    eq({ 1, "hi", nil, 1, "* not a heading\n" }, { vim.g.lit_a, vim.g.lit_b, vim.g.lit_c, vim.g.lit_d, vim.g.lit_e })
+  end)
+
+  it("keeps loading the tangled file when the startup tangle fails", function()
+    local lines = vim.deepcopy(INIT)
+    lines[2] = "#+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes"
+    vim.cmd("edit " .. write_init(lines))
+    vim.cmd("silent write")
+    local path = require("org.extensions.literate").bootstrap()
+    -- the org file can't be read: the old tangled file still loads
+    vim.fn.writefile({ "vim.g.lit_a = 'old'" }, dir .. "/lua/config.lua")
+    vim.uv.fs_utime(dir .. "/init.org", os.time() + 5, os.time() + 5)
+    local notified
+    stub(vim, "notify", function(m)
+      notified = m
+    end)
+    local io_lines = io.lines
+    stub(io, "lines", function()
+      error("unreadable")
+    end)
+    local ok_run = pcall(dofile, path)
+    io.lines = io_lines
+    ok(ok_run)
+    eq("old", vim.g.lit_a)
+    ok(notified and notified:find("unreadable", 1, true), notified)
+  end)
+
   it("refuses to bootstrap when the blocks tangle to init.lua itself", function()
     local lines = vim.deepcopy(INIT)
     lines[2] = "#+PROPERTY: header-args:lua :tangle init.lua"

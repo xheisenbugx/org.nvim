@@ -8674,10 +8674,16 @@ Neovim reads init.lua, not init.org. Tangle the blocks to another file
 (`lua/config.lua`) and let `:Org literate_bootstrap` write an init.lua
 that loads it. On startup that init.lua re-tangles init.org first when it
 is newer than the tangled file (edited on another machine or pulled with
-git), with a small tangler that keeps every `lua` block without
-`:tangle no` (it knows nothing of noweb or per-heading properties; saving
-in Neovim uses the full tangle). Then it runs the tangled file. So the
-setup is:
+git), with a small tangler of its own (org.nvim is not loaded yet). It
+keeps the `lua` blocks whose `:tangle` is the tangled file, taking
+`:tangle` and `:noweb` from the block, else the nearest heading's
+`header-args:lua` / `header-args` property, else `#+PROPERTY`, and
+expands `<<name>>` references when `:noweb` is `yes`, `tangle`,
+`no-export` or `strip-export`. It does not evaluate anything: no `:var`,
+no Lisp in header arguments, no `<<name()>>` results, no `:prologue`;
+use saving in Neovim (the full tangle) for those. If it fails, it says so
+and loads the tangled file it has. Then it runs the tangled file. Blocks
+tangled to other files are not loaded by the stub. So the setup is:
 >
     ~/.config/nvim/init.org         the configuration
     ~/.config/nvim/lua/config.lua   tangled from it (on save)
