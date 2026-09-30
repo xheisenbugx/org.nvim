@@ -7610,7 +7610,7 @@ Quick add (Todoist-style)                            *org-extensions-quickadd*
 `:Org quickadd [text]` (action `quickadd`, key `<prefix>q`, available
 anywhere) adds `text`, or asks for a line in a small float that previews
 the parsed entry as you type (with |vim.ui.input()| when there is no UI).
-`<CR>` adds it, `<Esc>` in Normal mode, `q` or `<C-c>` cancel. The entry
+`<CR>` adds it, `<Esc>` in Normal mode or `<C-c>` cancel. The entry
 goes under its `@target`, else into `file` (under `headline`), and the file
 is saved. For example
 >
@@ -7730,7 +7730,7 @@ Keys in the review window ~
   i            answer the question under the cursor
   R            refresh
   F            finish                         -> `review_finish`
-  q  <Esc>     pause                          -> `review_quit`
+  <Esc>        pause                          -> `review_quit`
 Change them with `keys` (a key, a list, or false for none).
 
 The entries are read from the agenda files, and every change is saved to
@@ -7915,7 +7915,7 @@ its type and how often it was seen. Keys in the window ~
   s               skip the card
   e               pause, and jump to the card to edit it; `:Org
                   drill_resume` (action `drill_resume`) goes on
-  q  <Esc>        end the session; in the summary, close the window
+  <Esc>           end the session; in the summary, close the window
 
 The grades are org-drill's:
   0  wrong, and the answer is unfamiliar

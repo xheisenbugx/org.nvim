@@ -356,7 +356,7 @@ describe("review extension", function()
       setup({})
       review.start()
       local buf = review.session.buf
-      for _, k in ipairs({ "n", "p", "<CR>", "r", "s", "t", "d", "x", "F", "q" }) do
+      for _, k in ipairs({ "n", "p", "<CR>", "r", "s", "t", "d", "x", "F", "<Esc>" }) do
         ok(
           vim.api.nvim_buf_call(buf, function()
             return vim.fn.maparg(k, "n") ~= ""

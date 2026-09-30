@@ -655,7 +655,7 @@ describe("drill session", function()
     eq(1, s.stats.reviewed)
     vim.api.nvim_feedkeys("s", "x", false)
     ok(s.finished)
-    vim.api.nvim_feedkeys("q", "x", false)
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "x", false)
     eq(nil, s.win)
   end)
 

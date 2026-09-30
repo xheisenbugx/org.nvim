@@ -78,7 +78,7 @@ M.defaults = {
     reveal = { "<Space>", "<CR>" },
     skip = "s",
     edit = "e",
-    quit = { "q", "<Esc>" },
+    quit = "<Esc>",
   },
 }
 
@@ -374,14 +374,14 @@ end
 
 local function footer(s)
   if s.finished then
-    return { "q close" }
+    return { "<Esc> close" }
   end
   if not s.revealed then
-    return { "<Space> show answer   s skip   e edit   q quit" }
+    return { "<Space> show answer   s skip   e edit   <Esc> quit" }
   end
   return {
     "0-2 failed   3 hard   4 good   5 easy",
-    "s skip   e edit   q quit",
+    "s skip   e edit   <Esc> quit",
   }
 end
 

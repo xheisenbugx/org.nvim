@@ -74,5 +74,5 @@
 ---@field skip? string|string[]
 ---Pause and jump to the card (default: `"e"`).
 ---@field edit? string|string[]
----End the session, or close its summary (default: `{ "q", "<Esc>" }`).
+---End the session, or close its summary (default: `"<Esc>"`).
 ---@field quit? string|string[]

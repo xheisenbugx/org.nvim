@@ -74,7 +74,7 @@ M.defaults = {
     note = "i",
     refresh = "R",
     finish = "F",
-    quit = { "q", "<Esc>" },
+    quit = "<Esc>",
   },
 }
 
