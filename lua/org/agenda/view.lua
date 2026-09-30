@@ -1506,6 +1506,10 @@ local function on_item(fn)
       -- org-agenda-check-no-diary
       utils.error("Command not allowed in this line")
       return
+    elseif item.not_org then
+      -- an item of an extension's block that is no org entry (a code TODO)
+      utils.warn(item.not_org)
+      return
     elseif not item.headline then
       -- a %%(sexp) line before the first heading (Emacs: org-back-to-heading)
       utils.error("Before first headline at line " .. item.lnum)

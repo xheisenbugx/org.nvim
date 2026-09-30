@@ -28,6 +28,19 @@ local function git(args)
   return vim.trim(res.stdout or "")
 end
 
+-- the agenda text once it holds `want` (the code TODOs are scanned in the
+-- background)
+local function agenda_text(want)
+  local buf = require("org.agenda.view").state.buf
+  local text
+  vim.wait(5000, function()
+    text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    return text:find(want, 1, true) ~= nil
+  end, 10)
+  ok(text:find(want, 1, true), text)
+  return text
+end
+
 local function setup(code, extra)
   require("org").setup(vim.tbl_extend("force", {
     org_directory = repo .. "/notes",
@@ -570,7 +583,7 @@ describe("code extension", function()
       vim.cmd("edit " .. repo .. "/src/app.lua")
       require("org.actions").run("project_agenda")
       eq("orgagenda", vim.bo.filetype)
-      local text = table.concat(buf_lines(0), "\n")
+      local text = agenda_text("TODOs in myrepo  (3)")
       ok(text:find("Code TODOs in myrepo", 1, true), text)
       ok(text:find("TODO Translate greetings", 1, true), text)
       ok(text:find("↳ greet: +TODO greet in French  %(tools/greet.py:4%)"), text)
@@ -631,8 +644,84 @@ describe("code extension", function()
 
     it("is an agenda block type", function()
       require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
-      local text = table.concat(buf_lines(0), "\n")
-      ok(text:find("Mine  (3)", 1, true), text)
+      agenda_text("Mine  (3)")
+    end)
+
+    it("reads paths with non-ASCII bytes, spaces and colons from git grep and rg", function()
+      write("docs/ünï côde.lua", { "-- TODO: unicode" })
+      write("a:1:b.lua", { "-- FIXME: colons" })
+      for _, how in ipairs({ "git", "rg" }) do
+        if vim.fn.executable(how) == 1 and (how ~= "git" or has_git) then
+          setup({ todo_scanner = how })
+          local rels = {}
+          for _, t in ipairs(require("org.extensions.code.todos").scan(repo)) do
+            rels[#rels + 1] = t.rel .. ":" .. t.lnum
+            ok(vim.uv.fs_stat(t.file), how .. ": " .. t.file)
+          end
+          ok(vim.tbl_contains(rels, "docs/ünï côde.lua:1"), how .. ": " .. vim.inspect(rels))
+          ok(vim.tbl_contains(rels, "a:1:b.lua:1"), how .. ": " .. vim.inspect(rels))
+        end
+      end
+    end)
+
+    it("scans in the background and redraws the agenda when done", function()
+      local todos = require("org.extensions.code.todos")
+      local done
+      local real = todos.scan_async
+      stub(todos, "scan_async", function(root, cb)
+        real(root, function(list, truncated)
+          done = true
+          cb(list, truncated)
+        end)
+      end)
+      require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+      if not done then
+        -- the view was drawn without waiting for the scan
+        ok(table.concat(buf_lines(0), "\n"):find("Mine  (scanning...)", 1, true))
+      end
+      agenda_text("Mine  (3)")
+      ok(agenda_text("handle errors"))
+      -- drawn again later: the old list at once, then scanned again
+      write("new.lua", { "-- BUG: new one" })
+      todos.cache[repo].time = 0
+      require("org.agenda.view").redo()
+      agenda_text("Mine  (4)")
+    end)
+
+    it("stops at todo_max_items", function()
+      for _, how in ipairs({ "lua", has_git and "git" or "lua" }) do
+        setup({ todo_scanner = how, todo_max_items = 2 })
+        local list, truncated = require("org.extensions.code.todos").scan(repo)
+        eq(2, #list)
+        eq(true, truncated)
+        require("org.extensions.code.todos").cache = {}
+        require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+        agenda_text("Mine  (2+)")
+      end
+    end)
+
+    it("says that agenda commands on org entries don't apply to a code TODO", function()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      stub(utils, "error", function(m)
+        msgs[#msgs + 1] = "error: " .. m
+      end)
+      require("org.agenda").open({ type = "code_todos", root = repo, title = "Mine" })
+      agenda_text("Mine  (3)")
+      for i, l in ipairs(buf_lines(0)) do
+        if l:find("handle errors", 1, true) then
+          vim.api.nvim_win_set_cursor(0, { i, 0 })
+        end
+      end
+      for _, name in ipairs({ "todo", "schedule", "priority_up", "set_tags", "clock_in", "archive", "refile" }) do
+        msgs = {}
+        require("org.agenda.view").run_action(name)
+        eq(1, #msgs, name)
+        ok(msgs[1]:find("TODO comment in code", 1, true), msgs[1])
+      end
+      eq(APP, read(repo .. "/src/app.lua"), "the code is left alone")
     end)
   end)
 

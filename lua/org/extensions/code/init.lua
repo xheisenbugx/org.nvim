@@ -247,6 +247,7 @@ function M.teardown()
     added_template = nil
   end
   require(C .. ".branch").seen = {}
+  require(C .. ".todos").cache = {}
 end
 
 function M.health(h, opts)
