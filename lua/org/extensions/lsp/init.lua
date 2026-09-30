@@ -44,8 +44,12 @@ M.defaults = {
   },
   --- org-lint reports as diagnostics.
   diagnostics = {
-    --- Milliseconds without changes before a buffer is linted again.
+    --- Milliseconds without changes before a buffer is linted again
+    --- (twice the time the last lint took when that is longer).
     debounce = 500,
+    --- Buffers with more lines are linted when opened and written, not
+    --- while you type; 0 or false: no limit.
+    max_lines = 3000,
     --- Checker names (`:Org lint` names); nil: org-lint's default set.
     ---@type string[]|nil
     checkers = nil,
@@ -88,11 +92,17 @@ M.defaults = {
     ---@type string[]|fun(): string[]|nil
     files = nil,
     max_files = 2000,
+    --- Parse the workspace files in the background after the server
+    --- starts (a few ms at a time), so the first request is quick.
+    preload = true,
   },
   workspace_symbol_limit = 1000,
   rename = {
     --- Rewrite a link's description when it equals the old name.
     update_descriptions = true,
+    --- Write the files a rename changed that were not loaded (Neovim
+    --- loads them to apply the edit and would leave them modified).
+    write_unloaded = true,
   },
   code_actions = {
     --- Entry commands (TODO, priority, schedule, deadline, refile,
@@ -227,19 +237,44 @@ end
 
 function M.setup(o)
   vim.api.nvim_clear_autocmds({ group = augroup })
+  local util = require(MOD .. ".util")
+  util.invalidate()
+  -- a new org file on disk: list the workspace files again
+  vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+    group = augroup,
+    pattern = "*.org",
+    callback = function()
+      util.invalidate()
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "BufAdd", "BufReadPost", "BufFilePost", "BufUnload", "BufWipeout" }, {
+    group = augroup,
+    callback = function()
+      util.reset_scope()
+    end,
+  })
   if o.autostart == false then
     return
+  end
+  local reported = false
+  local function attach(b)
+    local ok, err = pcall(M.attach, b)
+    if not ok and not reported then
+      -- once, not for every org buffer opened
+      reported = true
+      require("org.utils").error("lsp: could not start the server: " .. tostring(err))
+    end
   end
   vim.api.nvim_create_autocmd("FileType", {
     group = augroup,
     pattern = "org",
     callback = function(ev)
-      M.attach(ev.buf)
+      attach(ev.buf)
     end,
   })
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
-      M.attach(b)
+      attach(b)
     end
   end
 end
@@ -247,6 +282,7 @@ end
 --- Turned off (or set up again): stop the server, remove the autocmds.
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
+  require(MOD .. ".rename").reset()
   M.stop()
 end
 

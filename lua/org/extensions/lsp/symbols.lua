@@ -85,7 +85,16 @@ function M.document(doc)
   local lines = doc.lines
   local kinds = util.opts().symbol_kinds or {}
   local by_line = {}
-  local function build(hl)
+  local foreign = doc.foreign or {}
+  -- symbols of a headline (none for one the transclusion extension
+  -- inserted: its own-file children, if any, take its place)
+  local function build(hl, into)
+    if foreign[hl.line] then
+      for _, c in ipairs(hl.children) do
+        build(c, into)
+      end
+      return
+    end
     local s, e = util.title_span(hl)
     if e < s then
       s, e = 1, #hl.raw
@@ -100,17 +109,20 @@ function M.document(doc)
       children = {},
     }
     by_line[hl.line] = sym
+    into[#into + 1] = sym
     for _, c in ipairs(hl.children) do
-      sym.children[#sym.children + 1] = build(c)
+      build(c, sym.children)
     end
-    return sym
   end
   local out = {}
   for _, hl in ipairs(doc.file.children) do
-    out[#out + 1] = build(hl)
+    build(hl, out)
   end
   if o.src_blocks ~= false or o.tables ~= false then
-    for _, el in ipairs(named_elements(lines, o.src_blocks ~= false, o.tables ~= false)) do
+    local named = vim.tbl_filter(function(el)
+      return not foreign[el.lnum]
+    end, named_elements(lines, o.src_blocks ~= false, o.tables ~= false))
+    for _, el in ipairs(named) do
       local line = lines[el.lnum]
       local s = line:find(el.name, 1, true)
       local sym = {
@@ -121,6 +133,9 @@ function M.document(doc)
         selectionRange = util.range(el.lnum, s, s + #el.name - 1),
       }
       local hl = doc.file:headline_at(el.lnum)
+      while hl and foreign[hl.line] do
+        hl = hl.parent
+      end
       local parent = hl and by_line[hl.line]
       if parent then
         -- keep the children in line order
@@ -171,7 +186,7 @@ function M.workspace(query)
     if doc then
       for _, hl in ipairs(doc.file.headlines) do
         local text = table.concat({ hl.todo or "", hl.title or "", table.concat(hl.tags, ":") }, " ")
-        if matches(terms, text) then
+        if matches(terms, text) and not (doc.foreign and doc.foreign[hl.line]) then
           local s, e = util.title_span(hl)
           if e < s then
             s, e = 1, #hl.raw
@@ -237,7 +252,7 @@ local WEB = { http = true, https = true, ftp = true, mailto = true, news = true 
 ---@param doc org.lsp.Doc
 function M.links(doc)
   local out = {}
-  local memo = {}
+  local memo, uris = {}, {}
   for _, item in ipairs(targets.doc_links(doc)) do
     local l = item.link
     local target
@@ -247,12 +262,17 @@ function M.links(doc)
       local key = (l.type or "") .. "\0" .. l.target
       if memo[key] == nil then
         local loc = targets.resolve(doc, l)
-        memo[key] = loc and (util.uri(loc.path) .. (loc.lnum > 1 and ("#L" .. loc.lnum) or "")) or false
+        if loc then
+          uris[loc.path] = uris[loc.path] or util.uri(loc.path)
+          memo[key] = uris[loc.path] .. (loc.lnum > 1 and ("#L" .. loc.lnum) or "")
+        else
+          memo[key] = false
+        end
       end
       target = memo[key] or nil
     end
     if target then
-      out[#out + 1] = { range = util.range(item.lnum, l.start_col, l.end_col), target = target, tooltip = l.target }
+      out[#out + 1] = { range = targets.link_range(l), target = target, tooltip = l.target }
     end
   end
   return out

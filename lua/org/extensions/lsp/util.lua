@@ -29,12 +29,90 @@ function M.canon(path)
   return r
 end
 
+-- Lookups made while answering one request (one event-loop tick):
+-- loaded buffers by resolved name and parsed files by name. Dropped on
+-- the next tick, or when a buffer is added, renamed or deleted.
+local scope
+
+local function current()
+  if not scope then
+    scope = { files = {} }
+    vim.schedule(function()
+      scope = nil
+    end)
+  end
+  return scope
+end
+
+--- Forget the lookups of the current request.
+function M.reset_scope()
+  scope = nil
+end
+
+--- A table kept for the current request under `key`.
+---@param key string
+---@return table
+function M.scoped(key)
+  local sc = current()
+  sc[key] = sc[key] or {}
+  return sc[key]
+end
+
+--- The loaded buffer of a file, comparing names with symlinks resolved
+--- (a buffer opened as /tmp/x.org is the buffer of /private/tmp/x.org).
+---@param path string
+---@return integer|nil
+function M.buffer_of(path)
+  local sc = current()
+  if not sc.bufs then
+    sc.bufs = {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) then
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" then
+          local k = M.canon(name)
+          sc.bufs[k] = sc.bufs[k] or b
+        end
+      end
+    end
+  end
+  local b = sc.bufs[M.canon(path)]
+  if b and vim.api.nvim_buf_is_loaded(b) then
+    return b
+  end
+end
+
+--- The parsed file of a name: its buffer's text when it is loaded, else
+--- the file on disk (`org.files`, cached by mtime).
+---@param path string
+---@return org.File|nil
+function M.file(path)
+  path = M.canon(path)
+  local b = M.buffer_of(path)
+  if b then
+    return files.get_buffer(b)
+  end
+  local sc = current()
+  local f = sc.files[path]
+  if f == nil then
+    f = files.get(path) or false
+    sc.files[path] = f
+  end
+  return f or nil
+end
+
 --- URI of a file: its buffer's when it is loaded (Neovim then edits that
---- buffer), else the file's.
+--- buffer, whatever name it was opened under), else the file's.
 ---@param path string
 function M.uri(path)
-  local b = utils.find_buffer(path)
+  local b = M.buffer_of(path)
   return b and vim.uri_from_bufnr(b) or vim.uri_from_fname(path)
+end
+
+--- Whether a file name is an Org file (parsed as Org by the server).
+---@param path string
+function M.is_org(path)
+  return path:match("%.org$") ~= nil or path:match("%.org_archive$") ~= nil
 end
 
 --- Options of the extension (defaults when it is off, for direct calls).
@@ -43,12 +121,39 @@ function M.opts()
   return require("org.extensions").opts("lsp") or require("org.extensions.lsp").defaults
 end
 
+--- Lines of a buffer that hold text the `transclusion` extension
+--- inserted (a set of 1-based line numbers), or nil when there is none.
+--- That text belongs to another file: symbols, references, rename and
+--- diagnostics leave it out.
+---@param bufnr integer|nil
+---@return table<integer, true>|nil
+function M.foreign(bufnr)
+  if not bufnr or not require("org.extensions").loaded.transclusion then
+    return nil
+  end
+  local ok, regs = pcall(function()
+    return require("org.extensions.transclusion").regions(bufnr)
+  end)
+  if not ok or type(regs) ~= "table" or #regs == 0 then
+    return nil
+  end
+  local set = {}
+  for _, r in ipairs(regs) do
+    -- rows are 0-based: the keyword is on 1-based line r.s, the text below
+    for row = r.s, r.e do
+      set[row + 1] = true
+    end
+  end
+  return next(set) and set or nil
+end
+
 ---@class org.lsp.Doc
 ---@field path string|nil normalized file name
 ---@field uri string
 ---@field bufnr integer|nil loaded buffer
 ---@field file org.File
 ---@field lines string[]
+---@field foreign table<integer, true>|nil lines inserted by `transclusion`
 
 local function make(path, bufnr)
   path = path and M.canon(path)
@@ -56,7 +161,7 @@ local function make(path, bufnr)
   if bufnr then
     file = files.get_buffer(bufnr)
   elseif path then
-    file = files.get(path)
+    file = M.file(path)
   end
   if not file then
     return nil
@@ -67,6 +172,7 @@ local function make(path, bufnr)
     bufnr = bufnr,
     file = file,
     lines = file.lines,
+    foreign = M.foreign(bufnr),
   }
 end
 
@@ -78,14 +184,14 @@ function M.doc(uri)
     return nil
   end
   local path = vim.fs.normalize(vim.uri_to_fname(uri))
-  return make(path, utils.find_buffer(path))
+  return make(path, M.buffer_of(path))
 end
 
 --- Document of a file name.
 ---@param path string
 ---@return org.lsp.Doc|nil
 function M.doc_from_path(path)
-  return make(path, utils.find_buffer(path))
+  return make(path, M.buffer_of(path))
 end
 
 --- Document of a buffer.
@@ -181,21 +287,45 @@ local function add_dir(add, dir, recursive)
   end
 end
 
---- Files the workspace requests (workspace symbols, references, rename)
---- look at: the agenda files, the `.org` files under `org_directory`
---- (`workspace.org_directory`), `workspace.extra` and every loaded org
---- buffer. `workspace.files` (a list or a function) replaces all that.
----@return string[]
-function M.workspace_files()
+-- the configured files (globbing a large org_directory takes a while),
+-- reused for `CACHE_MS` or until an org file is written or created
+local listed = { at = 0, list = nil }
+local CACHE_MS = 3000
+
+-- link path and directory -> resolved file name
+local resolved = {}
+
+--- Forget the cached workspace file list and resolved link paths (a file
+--- was written, created or deleted; the options changed).
+function M.invalidate()
+  listed.list = nil
+  resolved = {}
+end
+
+--- File name of a link path relative to `base` (`~` and environment
+--- variables expanded, symlinks resolved), remembered.
+---@param p string
+---@param base string
+---@return string
+function M.resolve(p, base)
+  local k = base .. "\0" .. p
+  local r = resolved[k]
+  if not r then
+    r = M.canon(utils.expand(p, base))
+    resolved[k] = r
+  end
+  return r
+end
+
+local function configured_files()
+  local now = vim.uv.now()
+  if listed.list and now - listed.at < CACHE_MS then
+    return listed.list
+  end
   local w = M.opts().workspace or {}
-  local out, seen = {}, {}
+  local out = {}
   local function add(p)
-    if type(p) ~= "string" or p == "" then
-      return
-    end
-    p = M.canon(p)
-    if not seen[p] then
-      seen[p] = true
+    if type(p) == "string" and p ~= "" then
       out[#out + 1] = p
     end
   end
@@ -222,6 +352,31 @@ function M.workspace_files()
     for _, p in ipairs(utils.glob_org_files(w.extra or {})) do
       add(p)
     end
+  end
+  listed.at, listed.list = now, out
+  return out
+end
+
+--- Files the workspace requests (workspace symbols, references, rename)
+--- look at: the agenda files, the `.org` files under `org_directory`
+--- (`workspace.org_directory`), `workspace.extra` and every loaded org
+--- buffer. `workspace.files` (a list or a function) replaces all that.
+---@return string[]
+function M.workspace_files()
+  local w = M.opts().workspace or {}
+  local out, seen = {}, {}
+  local function add(p)
+    if type(p) ~= "string" or p == "" then
+      return
+    end
+    p = M.canon(p)
+    if not seen[p] then
+      seen[p] = true
+      out[#out + 1] = p
+    end
+  end
+  for _, p in ipairs(configured_files()) do
+    add(p)
   end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" and vim.bo[b].buftype == "" then

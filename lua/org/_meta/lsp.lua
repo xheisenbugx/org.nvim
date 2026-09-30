@@ -30,8 +30,9 @@
 ---@field workspace? org.Config.Extensions.Lsp.Workspace
 ---Most workspace symbols returned. (default: `1000`)
 ---@field workspace_symbol_limit? integer
----Rewrite link descriptions equal to the old name. (default: `{ update_descriptions = true }`)
----@field rename? { update_descriptions?: boolean }
+---Rewrite link descriptions equal to the old name, and write the files a
+---rename had to load. (default: `{ update_descriptions = true, write_unloaded = true }`)
+---@field rename? { update_descriptions?: boolean, write_unloaded?: boolean }
 ---Code actions: `entry` commands (`false` or a list of `{ action, title }`)
 ---and line `conversions`. (default: both on)
 ---@field code_actions? { entry?: boolean|{ [1]: string, [2]: string }[], conversions?: boolean }
@@ -51,6 +52,9 @@
 ---@class org.Config.Extensions.Lsp.Diagnostics
 ---Milliseconds without changes before linting again. (default: `500`)
 ---@field debounce? integer
+---Longer buffers are linted when opened and written, not while typing;
+---0 or false: no limit. (default: `3000`)
+---@field max_lines? integer|false
 ---org-lint checker names (default: org-lint's default set).
 ---@field checkers? string[]
 ---Checkers left out. (default: `{}`)
@@ -72,3 +76,6 @@
 ---@field files? string[]|fun(): string[]
 ---At most this many files. (default: `2000`)
 ---@field max_files? integer
+---Parse the workspace files in the background after the server starts.
+---(default: `true`)
+---@field preload? boolean

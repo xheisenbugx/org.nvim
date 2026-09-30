@@ -72,6 +72,10 @@ local function setup(extra)
 end
 
 local function open(path)
+  -- a modified scratch buffer another spec left current can't be left
+  if vim.bo.bufhidden == "wipe" then
+    vim.bo.modified = false
+  end
   vim.cmd("edit " .. vim.fn.fnameescape(path))
   return vim.api.nvim_get_current_buf()
 end
@@ -90,8 +94,10 @@ local function request(buf, method, params)
   local res = vim.lsp.buf_request_sync(buf, method, params, 3000)
   ok(res, "no response to " .. method)
   for _, r in pairs(res) do
-    if r.err then
-      return nil, r.err
+    -- Neovim 0.10 names the field `error`, 0.11+ `err`
+    local e = r.err or r.error
+    if e then
+      return nil, e
     end
     return r.result
   end
@@ -161,6 +167,30 @@ describe("lsp extension", function()
     )
     syms = request(buf, "workspace/symbol", { query = "details" })
     eq("main.org › Write report", syms[1].containerName)
+  end)
+
+  it("sees an org file written after the first request", function()
+    local buf = open(main)
+    eq({}, request(buf, "workspace/symbol", { query = "brandnew" }))
+    local path = dir .. "/new.org"
+    -- :hide, for a modified buffer another spec left current
+  vim.cmd("hide edit " .. vim.fn.fnameescape(path))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Brandnew heading" })
+    vim.cmd("silent write")
+    vim.cmd("bwipeout")
+    local syms = request(buf, "workspace/symbol", { query = "brandnew" })
+    eq(1, #syms)
+    vim.fn.delete(path)
+  end)
+
+  it("preloads the workspace files in the background", function()
+    local buf = open(main)
+    client_of(buf)
+    local server = require("org.extensions.lsp.server")
+    ok(vim.wait(3000, function()
+      return server.last and server.last.preloaded ~= nil
+    end, 10))
+    eq(#require("org.extensions.lsp.util").workspace_files(), server.last.preloaded)
   end)
 
   describe("hover", function()
@@ -251,6 +281,48 @@ describe("lsp extension", function()
     it("returns nothing for broken links", function()
       local buf = open(main)
       eq(nil, def(buf, 23, 12))
+    end)
+
+    it("follows links to other files without parsing them as Org", function()
+      local script = dir .. "/script.py"
+      utils.writefile(script, { "import os", "", "def helper():", "    return 1" })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  [[file:script.py::3]] and [[file:pic.png]]" })
+      local last = #buf_lines(ob)
+      local files = require("org.files")
+      local get = files.get
+      local parsed = {}
+      files.get = function(p)
+        parsed[#parsed + 1] = p
+        return get(p)
+      end
+      local okd, res = pcall(function()
+        local out = { def(ob, last, 5) }
+        local r = request(ob, "textDocument/hover", tdp(ob, last, 5))
+        out[#out + 1] = r and r.contents.value
+        request(ob, "textDocument/documentLink", { textDocument = { uri = vim.uri_from_bufnr(ob) } })
+        return out
+      end)
+      files.get = get
+      ok(okd, res)
+      eq({ script, 3 }, { res[1], res[2] })
+      ok(res[3]:find("```python\ndef helper():", 1, true), res[3])
+      for _, p in ipairs(parsed) do
+        ok(p:match("%.org$"), "parsed " .. p)
+      end
+      vim.fn.delete(script)
+    end)
+
+    it("follows code: links of the code extension", function()
+      local script = dir .. "/script.py"
+      utils.writefile(script, { "import os", "", "def helper():", "    return 1" })
+      setup({ extensions = { code = {} } })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  [[code:script.py::helper]] [[code:nope.py::x]]" })
+      local last = #buf_lines(ob)
+      eq({ script, 3 }, { def(ob, last, 8) })
+      eq(nil, def(ob, last, 35))
+      vim.fn.delete(script)
     end)
   end)
 
@@ -386,12 +458,97 @@ describe("lsp extension", function()
       ok(err.message:find("ambiguous"), err.message)
     end)
 
+    it("edits a buffer opened through a symlink, not a second one", function()
+      local link = vim.fs.dirname(dir) .. "/alias-" .. vim.fn.getpid() .. ".org"
+      ok(vim.uv.fs_symlink(other, link))
+      local ob = open(link)
+      eq(link, vim.fs.normalize(vim.api.nvim_buf_get_name(ob)))
+      local buf = open(main)
+      ok(rename(buf, 5, 18, "summary"))
+      eq("  Link [[file:main.org::#summary][the report]]", buf_lines(ob)[2])
+      local same = 0
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" and vim.uv.fs_realpath(name) == other then
+          same = same + 1
+        end
+      end
+      eq(1, same)
+      vim.api.nvim_buf_delete(ob, { force = true })
+      vim.uv.fs_unlink(link)
+    end)
+
     it("sees unsaved changes in other buffers", function()
       local ob = open(other)
       vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  New [[file:main.org::#report]]" })
       local buf = open(main)
       ok(rename(buf, 5, 18, "sum"))
       eq("  New [[file:main.org::#sum]]", buf_lines(ob)[#buf_lines(ob)])
+    end)
+
+    it("writes the files it had to load, and only those", function()
+      local buf = open(main)
+      eq(nil, utils.find_buffer(other))
+      ok(rename(buf, 5, 18, "summary"))
+      local ob = utils.find_buffer(other)
+      ok(vim.wait(1000, function()
+        return not vim.bo[ob].modified
+      end, 10))
+      eq("  Link [[file:main.org::#summary][the report]]", vim.fn.readfile(other)[2])
+      -- the renamed buffer itself is left to the user
+      ok(vim.bo[buf].modified)
+      eq(MAIN[5], vim.fn.readfile(main)[5])
+    end)
+
+    it("leaves them modified with write_unloaded = false", function()
+      setup({ extensions = { lsp = { rename = { write_unloaded = false } } } })
+      local buf = open(main)
+      ok(rename(buf, 5, 18, "summary"))
+      vim.wait(100)
+      ok(vim.bo[utils.find_buffer(other)].modified)
+      eq(OTHER, vim.fn.readfile(other))
+    end)
+
+    it("updates the ID database when renaming an ID", function()
+      local id = require("org.id")
+      id.register("1111-aaaa", main)
+      local buf = open(main)
+      ok(rename(buf, 6, 10, "2222-bbbb"))
+      local known = id.known_ids()
+      ok(vim.tbl_contains(known, "2222-bbbb"), vim.inspect(known))
+      ok(not vim.tbl_contains(known, "1111-aaaa"), vim.inspect(known))
+    end)
+
+    it("updates id link descriptions that spell a renamed title", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  Node [[id:1111-aaaa][Write report]]." })
+      local buf = open(main)
+      ok(rename(buf, 2, 20, "Write the summary"))
+      eq("  Node [[id:1111-aaaa][Write the summary]].", buf_lines(ob)[#buf_lines(ob)])
+      -- other descriptions are kept
+      eq(OTHER[3]:gsub("%*Write report%]%[Write report", "*Write the summary][Write the summary"), buf_lines(ob)[3])
+    end)
+
+    it("renames a file-level ID (an org-roam file node)", function()
+      local node = dir .. "/node.org"
+      utils.writefile(node, { ":PROPERTIES:", ":ID: node-1", ":END:", "#+title: Node", "Text." })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  See [[id:node-1][Node]]." })
+      local last = #buf_lines(ob)
+      local r = request(ob, "textDocument/definition", tdp(ob, last, 12))
+      eq(node, vim.uri_to_fname((r.uri and r or r[1]).uri))
+      local list = request(ob, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(ob) },
+        position = { line = last - 1, character = 11 },
+        context = { includeDeclaration = true },
+      })
+      eq(2, #list)
+      ok(rename(ob, last, 12, "node-2"))
+      eq("  See [[id:node-2][Node]].", buf_lines(ob)[last])
+      local nb = utils.find_buffer(node)
+      eq(":ID: node-2", buf_lines(nb)[2])
+      vim.api.nvim_buf_delete(nb, { force = true })
+      vim.fn.delete(node)
     end)
 
     it("refuses names that would clash", function()
@@ -530,6 +687,54 @@ describe("lsp extension", function()
       eq("  Broken [[#report]] link.", buf_lines(buf)[23])
     end)
 
+    it("fixes more org-lint reports", function()
+      local buf = open(main)
+      local n = #buf_lines(buf)
+      vim.api.nvim_buf_set_lines(buf, n, n, false, {
+        "#+BEGIN_HTML",
+        "<b>x</b>",
+        "#+END_HTML",
+        "  %%(diary-float t 4 2)",
+        "#+AUTHOR Me",
+        "#+INCLUDE: \"other.org\" html",
+        "A [[file:a%20b%5B1%5D.org]] link.",
+        "1. one",
+        "3. three",
+      })
+      local function apply(code)
+        local a = fix_for(buf, code)
+        ok(a and a.kind == "quickfix" and a.edit, code .. ": " .. vim.inspect(a))
+        vim.lsp.util.apply_workspace_edit(a.edit, "utf-8")
+      end
+      apply("deprecated-export-blocks")
+      apply("indented-diary-sexp")
+      apply("invalid-keyword-syntax")
+      apply("obsolete-include-markup")
+      apply("percent-encoding-link-escape")
+      apply("item-number")
+      eq({
+        "#+BEGIN_EXPORT html",
+        "<b>x</b>",
+        "#+END_EXPORT",
+        "%%(diary-float t 4 2)",
+        "#+AUTHOR: Me",
+        '#+INCLUDE: "other.org" export html',
+        "A [[file:a b\\[1\\].org]] link.",
+        "1. one",
+        "3. [@3] three",
+      }, vim.list_slice(buf_lines(buf), n + 1))
+    end)
+
+    it("removes a special property from a properties drawer", function()
+      local buf = open(main)
+      vim.api.nvim_buf_set_lines(buf, 5, 5, false, { "  :TODO: DONE" })
+      local a = fix_for(buf, "special-property-in-properties-drawer")
+      ok(a, "a fix")
+      eq("Remove the TODO property", a.title)
+      vim.lsp.util.apply_workspace_edit(a.edit, "utf-8")
+      eq(MAIN, buf_lines(buf))
+    end)
+
     it("fixes spurious colons and inactive planning", function()
       local buf = open(main)
       vim.api.nvim_buf_set_lines(buf, 1, 3, false, {
@@ -580,6 +785,79 @@ describe("lsp extension", function()
     ok(new, "a new client attached")
   end)
 
+  it("answers on an empty file", function()
+    local empty = dir .. "/empty.org"
+    utils.writefile(empty, {})
+    local buf = open(empty)
+    local td = { textDocument = { uri = vim.uri_from_bufnr(buf) } }
+    eq({}, request(buf, "textDocument/documentSymbol", td))
+    eq({}, request(buf, "textDocument/foldingRange", td))
+    eq({}, request(buf, "textDocument/documentLink", td))
+    eq(vim.NIL, request(buf, "textDocument/hover", tdp(buf, 1, 1)) or vim.NIL)
+    eq({}, require("org.extensions.lsp.diagnostics").compute(buf))
+    wipe(empty)
+    vim.fn.delete(empty)
+  end)
+
+  it("renames titles with multibyte characters (byte columns)", function()
+    local ob = open(other)
+    vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  Voir [[file:main.org::*Détails]] ici — [[*Elsewhere]]." })
+    local buf = open(main)
+    vim.api.nvim_buf_set_lines(buf, 11, 12, false, { "** Détails" })
+    local edit = request(buf, "textDocument/rename", {
+      textDocument = { uri = vim.uri_from_bufnr(buf) },
+      position = { line = 11, character = 4 },
+      newName = "Détails complets",
+    })
+    vim.lsp.util.apply_workspace_edit(edit, "utf-8")
+    eq("** Détails complets", buf_lines(buf)[12])
+    eq("  Voir [[file:main.org::*Détails complets]] ici — [[*Elsewhere]].", buf_lines(ob)[#buf_lines(ob)])
+  end)
+
+  it("reports a failing notification handler or filter once", function()
+    local u = require("org.utils")
+    local err = u.error
+    local errors = {}
+    u.error = function(msg)
+      errors[#errors + 1] = msg
+    end
+    local server = require("org.extensions.lsp.server")
+    local handler = server.notifications["textDocument/didChange"]
+    server.notifications["textDocument/didChange"] = function()
+      error("boom")
+    end
+    local okr, res = pcall(function()
+      local buf = open(main)
+      client_of(buf)
+      for i = 1, 3 do
+        vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "x" .. i })
+        -- past the client's didChange debounce
+        vim.wait(250)
+      end
+      server.notifications["textDocument/didChange"] = handler
+      local n = #errors
+      setup({
+        extensions = {
+          lsp = {
+            filter = function()
+              error("bad filter")
+            end,
+          },
+        },
+      })
+      open(other)
+      wipe(main)
+      open(main)
+      return n
+    end)
+    server.notifications["textDocument/didChange"] = handler
+    u.error = err
+    ok(okr, res)
+    eq(1, res)
+    eq(2, #errors)
+    ok(errors[2]:find("bad filter", 1, true), errors[2])
+  end)
+
   it("does not autostart when asked not to", function()
     setup({ extensions = { lsp = { autostart = false } } })
     local buf = open(main)
@@ -602,5 +880,177 @@ describe("lsp extension", function()
     buf = open(main)
     vim.wait(100)
     eq(0, #vim.lsp.get_clients({ bufnr = buf, name = "org" }))
+  end)
+
+  describe("links spanning lines", function()
+    local SPAN = { "  A [[file:main.org::*Write", "  report][the", "  report]] spans lines." }
+
+    it("finds, follows and renames them", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, SPAN)
+      local r = request(ob, "textDocument/definition", tdp(ob, 9, 3))
+      local loc = r.uri and r or r[1]
+      eq({ main, 2 }, { vim.uri_to_fname(loc.uri), loc.range.start.line + 1 })
+      local buf = open(main)
+      local list = request(buf, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        context = { includeDeclaration = false },
+      })
+      local spanning
+      for _, l in ipairs(list) do
+        if l.range.start.line == 7 then
+          spanning = l.range
+        end
+      end
+      eq({ start = { line = 7, character = 4 }, ["end"] = { line = 9, character = 10 } }, spanning)
+      local edit = request(buf, "textDocument/rename", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        newName = "Write the summary",
+      })
+      vim.lsp.util.apply_workspace_edit(edit, "utf-8")
+      local lines = buf_lines(ob)
+      eq({ "  A [[file:main.org::*Write the summary][the", "  report]] spans lines." }, vim.list_slice(lines, 8))
+    end)
+
+    it("hovers them from any of their lines", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, SPAN)
+      local r = request(ob, "textDocument/hover", tdp(ob, 10, 4))
+      ok(r and r.contents.value:find("Write report", 1, true), vim.inspect(r))
+      eq({ line = 7, character = 4 }, r.range.start)
+    end)
+  end)
+
+  describe("diagnostics scheduling", function()
+    local D = require("org.extensions.lsp.diagnostics")
+
+    it("does not lint a buffer again at the same changedtick", function()
+      local buf = open(main)
+      local n = 0
+      local sch = D.scheduler(function()
+        n = n + 1
+      end)
+      sch.run(buf, true)
+      sch.run(buf, true)
+      eq(1, n)
+      vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "" })
+      sch.run(buf, true)
+      eq(2, n)
+      sch.clear(buf)
+      eq(3, n)
+      sch.run(buf, true)
+      eq(4, n)
+      sch.stop()
+    end)
+
+    it("lints in slices and starts over after a change", function()
+      local buf = open(main)
+      local got = {}
+      local sch = D.scheduler(function(_, diags)
+        got[#got + 1] = diags
+      end)
+      local slice = D.SLICE_MS
+      D.SLICE_MS = 0
+      local okr, res = pcall(function()
+        sch.run(buf)
+        -- one checker per tick: nothing yet
+        eq(0, #got)
+        vim.api.nvim_buf_set_lines(buf, 22, 23, false, { "  Fixed [[#report]] link." })
+        vim.wait(200)
+        -- abandoned: the text changed
+        eq(0, #got)
+        sch.run(buf)
+        ok(vim.wait(3000, function()
+          return #got == 1
+        end, 5))
+        return got[1]
+      end)
+      D.SLICE_MS = slice
+      sch.stop()
+      ok(okr, res)
+      eq(D.compute(buf), res)
+    end)
+
+    it("lints large buffers only when opened and written", function()
+      setup({ extensions = { lsp = { diagnostics = { max_lines = 10 } } } })
+      local buf = open(main)
+      local n = 0
+      local sch = D.scheduler(function()
+        n = n + 1
+      end)
+      sch.schedule(buf, 0, true)
+      vim.wait(50)
+      eq(0, n)
+      sch.schedule(buf, 0)
+      vim.wait(1000, function()
+        return n == 1
+      end, 5)
+      eq(1, n)
+      sch.stop()
+    end)
+  end)
+
+  describe("with transclusion", function()
+    local src = dir .. "/src.org"
+
+    before_each(function()
+      wipe(src)
+      utils.writefile(src, {
+        "* Borrowed",
+        "  :PROPERTIES:",
+        "  :CUSTOM_ID: report",
+        "  :END:",
+        "  Its [[#nowhere]] link and [[*Write report]].",
+      })
+      setup({ extensions = { transclusion = { mode = "materialized", watch = false } } })
+    end)
+    after_each(function()
+      wipe(src)
+      vim.fn.delete(src)
+    end)
+
+    local function transcluding()
+      local buf = open(main)
+      vim.api.nvim_buf_set_lines(buf, 20, 20, false, { "#+transclude: [[file:src.org::*Borrowed]]" })
+      require("org.extensions.transclusion").add_all(buf)
+      local regs = require("org.extensions.transclusion").regions(buf)
+      eq(1, #regs)
+      -- the property drawer is left out: lines 22-23
+      eq({ "* Borrowed", "  Its [[#nowhere]] link and [[*Write report]]." }, vim.list_slice(buf_lines(buf), 22, 23))
+      return buf
+    end
+
+    it("leaves the inserted text out of diagnostics", function()
+      local buf = transcluding()
+      for _, d in ipairs(require("org.extensions.lsp.diagnostics").compute(buf)) do
+        ok(d.range.start.line + 1 < 22 or d.range.start.line + 1 > 23, vim.inspect(d))
+        -- the copy of CUSTOM_ID "report" is no duplicate
+        ok(d.code ~= "duplicate-custom-id", vim.inspect(d))
+      end
+    end)
+
+    it("leaves it out of symbols, references and rename", function()
+      local buf = transcluding()
+      local syms = request(buf, "textDocument/documentSymbol", { textDocument = { uri = vim.uri_from_bufnr(buf) } })
+      for _, sym in ipairs(syms) do
+        ok(sym.name ~= "Borrowed", vim.inspect(syms))
+      end
+      local list = request(buf, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        context = { includeDeclaration = false },
+      })
+      for _, l in ipairs(list) do
+        ok(not (l.uri == vim.uri_from_bufnr(buf) and l.range.start.line == 22), vim.inspect(l))
+      end
+      local _, err = request(buf, "textDocument/rename", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 21, character = 4 },
+        newName = "Other",
+      })
+      ok(err and err.message:find("transcluded"), vim.inspect(err))
+    end)
   end)
 end)

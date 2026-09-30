@@ -222,6 +222,138 @@ M.fixers = {
       ),
     }
   end,
+  ["deprecated-export-blocks"] = function(doc, d)
+    local lnum = d.data.lnum
+    local line = doc.lines[lnum] or ""
+    local s, kind = line:match("^%s*()#%+[Bb][Ee][Gg][Ii][Nn]_(%w+)")
+    if not s then
+      return {}
+    end
+    local begin_e = s + #"#+BEGIN_" + #kind - 1
+    local edits = { text_edit(lnum, s, begin_e, "#+BEGIN_EXPORT " .. kind:lower()) }
+    local close = "^%s*()#%+[Ee][Nn][Dd]_" .. vim.pesc(kind):gsub("%a", function(c)
+      return "[" .. c:upper() .. c:lower() .. "]"
+    end) .. "%s*$"
+    for k = lnum + 1, #doc.lines do
+      local es = doc.lines[k]:match(close)
+      if es then
+        edits[#edits + 1] = text_edit(k, es, es + #"#+END_" + #kind - 1, "#+END_EXPORT")
+        break
+      end
+    end
+    if #edits < 2 then
+      return {}
+    end
+    return { edit_action("Use #+BEGIN_EXPORT " .. kind:lower(), "quickfix", doc.uri, edits, d) }
+  end,
+  ["indented-diary-sexp"] = function(doc, d)
+    local lnum = d.data.lnum
+    local ind = (doc.lines[lnum] or ""):match("^[ \t]+")
+    if not ind then
+      return {}
+    end
+    return { edit_action("Remove the indentation", "quickfix", doc.uri, { text_edit(lnum, 1, #ind, "") }, d) }
+  end,
+  ["invalid-keyword-syntax"] = function(doc, d)
+    local lnum = d.data.lnum
+    local line = doc.lines[lnum] or ""
+    local s, name = line:match("^[ \t]*()#%+([^%s:]+)")
+    if not s then
+      return {}
+    end
+    local at = s + 2 + #name
+    return {
+      edit_action(
+        string.format("Add the colon: #+%s:", name),
+        "quickfix",
+        doc.uri,
+        { text_edit(lnum, at, at - 1, ":") },
+        d
+      ),
+    }
+  end,
+  ["special-property-in-properties-drawer"] = function(doc, d)
+    local lnum = d.data.lnum
+    local key = d.message:match('Special property "([^"]+)"')
+    if not key or not doc.lines[lnum] then
+      return {}
+    end
+    return {
+      edit_action(
+        string.format("Remove the %s property", key),
+        "quickfix",
+        doc.uri,
+        { { range = util.range(lnum, 1, 0, lnum + 1), newText = "" } },
+        d
+      ),
+    }
+  end,
+  ["obsolete-include-markup"] = function(doc, d)
+    local lnum = d.data.lnum
+    local line = doc.lines[lnum] or ""
+    local markup = d.message:match('Obsolete markup "([^"]+)"')
+    local vs = line:match("^[ \t]*#%+[Ii][Nn][Cc][Ll][Uu][Dd][Ee]:[ \t]*()")
+    if not markup or not vs then
+      return {}
+    end
+    local value = line:sub(vs)
+    local first = value:match('^(".+")[ \t]') or value:match("^(%S+)")
+    local ws = first and value:sub(#first + 1):match("^[ \t]+")
+    if not ws then
+      return {}
+    end
+    local ms = vs + #first + #ws
+    if line:sub(ms, ms + #markup - 1):upper() ~= markup:upper() then
+      return {}
+    end
+    return {
+      edit_action(
+        "Use export " .. markup,
+        "quickfix",
+        doc.uri,
+        { text_edit(lnum, ms, ms - 1, "export ") },
+        d
+      ),
+    }
+  end,
+  ["percent-encoding-link-escape"] = function(doc, d)
+    local lnum, l = link_at_diag(doc, d)
+    if not l or l.raw:sub(1, 2) ~= "[[" or l.raw_target:find("\n", 1, true) then
+      return {}
+    end
+    local codes = { ["25"] = "%", ["5B"] = "[", ["5D"] = "]", ["20"] = " " }
+    local decoded = links.unescape(l.raw_target):gsub("%%(%x%x)", function(h)
+      return codes[h:upper()]
+    end)
+    local s = l.start_col + 2
+    return {
+      edit_action(
+        "Use backslash escapes in the link",
+        "quickfix",
+        doc.uri,
+        { text_edit(lnum, s, s + #l.raw_target - 1, links.escape(decoded)) },
+        d
+      ),
+    }
+  end,
+  ["item-number"] = function(doc, d)
+    local lnum = d.data.lnum
+    local line = doc.lines[lnum] or ""
+    local n = d.message:match("%[@(%d+)%] counter")
+    local bs, be = line:match("^[ \t]*()%w+[.)]()[ \t]")
+    if not n or not bs then
+      return {}
+    end
+    return {
+      edit_action(
+        string.format("Add the counter [@%s]", n),
+        "quickfix",
+        doc.uri,
+        { text_edit(lnum, be + 1, be, "[@" .. n .. "] ") },
+        d
+      ),
+    }
+  end,
   ["invalid-custom-id-link"] = function(doc, d)
     return fix_link(doc, d, "custom_id")
   end,
