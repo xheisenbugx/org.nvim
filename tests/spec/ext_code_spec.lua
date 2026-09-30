@@ -774,6 +774,38 @@ describe("code extension", function()
       eq("Login page", require("org.clock").state.title)
     end)
 
+    it("matches a ticket in a title as a whole word", function()
+      write(".org/tasks.org", { "* TODO Crash on save BUG-42" })
+      setup({ branch_clock = true })
+      local branch = require("org.extensions.code.branch")
+      eq(nil, branch.find_heading("fix/BUG-4", repo))
+      eq("Crash on save BUG-42", branch.find_heading("fix/BUG-42-save", repo).title)
+    end)
+
+    it("never raises from the BufEnter check, and warns once", function()
+      org_file()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      setup({
+        branch_clock = true,
+        project_file = function()
+          error("boom")
+        end,
+      })
+      local branch = require("org.extensions.code.branch")
+      local buf = vim.fn.bufadd(repo .. "/tools/greet.py")
+      vim.fn.bufload(buf)
+      branch.check(buf)
+      for _, b in ipairs({ "feature/login", "fix/BUG-42-crash", "feature/login" }) do
+        switch(b)
+        eq(true, (pcall(branch.check, buf)))
+      end
+      eq(1, #msgs, vim.inspect(msgs))
+      ok(msgs[1]:find("boom", 1, true), msgs[1])
+    end)
+
     it("links the current branch to the heading at point", function()
       switch("feature/signup")
       vim.cmd("edit " .. org_file())
