@@ -746,6 +746,11 @@ describe("transclusion", function()
     T.promote()
     T.promote()
     eq("#+transclude: [[file:src.org::*Beta]] :level 1", buf_lines(buf)[2])
+    -- inserted text follows
+    T.add()
+    T.demote()
+    eq("** Beta", buf_lines(buf)[3])
+    eq(1, #T.regions(buf))
   end)
 
   it("detaches a copy", function()
@@ -810,6 +815,35 @@ describe("transclusion", function()
     ok(not out:find("Beta text", 1, true))
   end)
 
+  it("tells other extensions which lines are inserted (ranges)", function()
+    local buf = open_notes(NOTES)
+    eq({}, T.ranges(buf))
+    T.add_all(buf)
+    local n = #source.resolve(spec("[[file:src.org::*Beta]] :level 2"), { dir = dir, level = 1 }).lines
+    eq({
+      { first = 3, last = 2 + n, keyword = 2 },
+      { first = 5 + n, last = 8 + n, keyword = 4 + n },
+    }, T.ranges(0))
+    T.remove_all(buf)
+    eq({}, T.ranges(buf))
+    setup()
+    eq({}, T.ranges(buf))
+  end)
+
+  it("completes :Org transclusion_insert", function()
+    open_notes(NOTES)
+    local c = require("org.commands").complete
+    local got = c("file:sr", "Org transclusion_insert file:sr")
+    eq({ "file:src.org" }, got)
+    got = c("[[file:co", "Org transclusion_insert [[file:co")
+    eq({ "[[file:code.py" }, got)
+    got = c(":l", "Org transclusion_insert [[file:code.py]] :l")
+    eq({ ":level", ":lines" }, got)
+    got = c(":", "Org transclusion_insert [[file:code.py]] :lines 1-2 :")
+    ok(not vim.tbl_contains(got, ":lines"))
+    ok(vim.tbl_contains(got, ":src"))
+  end)
+
   it("closes the edit float with <Esc>, not over unwritten edits", function()
     local buf = open_notes(NOTES)
     vim.api.nvim_win_set_cursor(0, { 4, 0 })
@@ -852,6 +886,115 @@ describe("transclusion", function()
     eq("    return x * 2", vim.fn.readfile(dir .. "/code.py")[4])
     eq(false, vim.bo[sb].modified)
     vim.cmd.normal(vim.keycode("<Esc>"))
+  end)
+
+  it("ignores keywords inside blocks, for keys and actions too", function()
+    local buf = open_notes({ "#+begin_example", "#+transclude: [[file:src.org::*Beta]]", "#+end_example" })
+    eq({}, virt_text(buf))
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    eq(nil, T.at_cursor(0))
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    T.add()
+    vim.notify = notify
+    eq(3, #buf_lines(buf))
+    ok(msgs[1]:find("Not on"))
+  end)
+
+  it("inserted text follows an edited keyword", function()
+    local buf = open_notes(NOTES)
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    T.add()
+    eq("#+begin_src python", buf_lines(buf)[5])
+    -- edited in place (:s, cw, typing): the keyword line stays
+    vim.cmd("4s/ :lines 3-4 :src python/ :lines 1-1/")
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
+    T.render(buf)
+    eq({ "import os", "Tail" }, vim.list_slice(buf_lines(buf), 5))
+    eq(1, #T.regions(buf))
+    eq(NOTES[1], T.clean_lines(buf)[1])
+  end)
+
+  it("survives its source being deleted", function()
+    local buf = open_notes(NOTES)
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    T.add()
+    local shown = buf_lines(buf)
+    vim.fn.delete(dir .. "/code.py")
+    vim.fn.delete(dir .. "/src.org")
+    T.refresh()
+    -- the inserted copy stays; the virtual one reports the missing file
+    eq(shown, buf_lines(buf))
+    ok(virt_text(buf)[2][1]:find("Cannot read", 1, true))
+  end)
+
+  it("reports a transclusion cycle in one buffer", function()
+    local buf = open_notes({
+      "* A",
+      "#+transclude: [[*B]]",
+      "* B",
+      "#+transclude: [[*A]]",
+    })
+    local v = virt_text(buf)
+    ok(table.concat(v[2], "\n"):find("recursive", 1, true))
+  end)
+
+  it("watches one directory for many sources and closes it when done", function()
+    setup({ watch = true, debounce = 1 })
+    for i = 1, 5 do
+      write("s" .. i .. ".org", { "* H", "text " .. i })
+    end
+    local lines = {}
+    for i = 1, 5 do
+      lines[#lines + 1] = "#+transclude: [[file:s" .. i .. ".org]]"
+    end
+    local buf = open_notes(lines)
+    eq(1, T.watch_count())
+    vim.cmd("bwipeout! " .. buf)
+    vim.wait(100, function()
+      return T.watch_count() == 0
+    end)
+    eq(0, T.watch_count())
+    open_notes(lines)
+    eq(1, T.watch_count())
+    setup()
+    eq(0, T.watch_count())
+  end)
+
+  it("reports an error in a timer or watcher once", function()
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    for _ = 1, 3 do
+      T.later("boom", function()
+        error("kaboom")
+      end)
+      vim.wait(50)
+    end
+    vim.notify = notify
+    local n = 0
+    for _, m in ipairs(msgs) do
+      if m:find("kaboom") then
+        n = n + 1
+      end
+    end
+    eq(1, n)
+  end)
+
+  it("exports a buffer with inserted text once, from its clean lines", function()
+    local buf = open_notes(NOTES)
+    T.add_all(buf)
+    local out =
+      require("org.export.ox").export_as("ascii", buf_lines(buf), { filename = dir .. "/notes.org", bufnr = buf })
+    local _, count = out:gsub("Beta text%.", "")
+    eq(1, count)
+    local _, py = out:gsub("return x %+ 1", "")
+    eq(1, py)
   end)
 
   it("removes inserted text, marks and keys when turned off", function()

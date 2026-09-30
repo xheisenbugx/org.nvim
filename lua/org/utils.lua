@@ -567,9 +567,19 @@ end
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
     local ok, err
-    vim.api.nvim_buf_call(bufnr, function()
-      ok, err = pcall(vim.cmd, "silent noautocmd keepalt write")
-    end)
+    local write = function()
+      vim.api.nvim_buf_call(bufnr, function()
+        ok, err = pcall(vim.cmd, "silent noautocmd keepalt write")
+      end)
+    end
+    -- text the transclusion extension inserted must not reach the file,
+    -- and this write skips its BufWritePre
+    local transclusion = package.loaded["org.extensions.transclusion"]
+    if transclusion and transclusion.without_inserted then
+      transclusion.without_inserted(bufnr, write)
+    else
+      write()
+    end
     if not ok then
       err = tostring(err)
       return false, err:match("E%d+:[^\n]*") or err:match("^[^\n]*")
