@@ -564,6 +564,18 @@ describe("literate extension", function()
     ok(table.concat(out, "\n"):find("literate file: ", 1, true), vim.inspect(out))
   end)
 
+  it("removes the diagnostics of any buffer when turned off", function()
+    local plain = vim.fs.dirname(dir) .. "/plain.org"
+    vim.fn.writefile({ "* A", "#+begin_src lua", "error('x')", "#+end_src" }, plain)
+    vim.cmd("edit " .. plain)
+    eq(false, require("org.extensions.literate").is_literate(0))
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    require("org.extensions.literate").run_block()
+    eq({ { 3, "x" } }, diags(), "the message without the chunk's name")
+    require("org").setup({ org_directory = root .. "/tests/fixtures" })
+    eq({}, diags())
+  end)
+
   it("removes its autocmds and diagnostics when turned off", function()
     vim.cmd("edit " .. write_init())
     change(6, "error('x')")

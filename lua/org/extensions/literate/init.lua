@@ -342,7 +342,9 @@ function M.run_spec(bufnr, spec)
     local lnum = line and (b.start + line) or b.start
     lnum = math.max(b.start, math.min(lnum, b.finish))
     -- the position prefix of the message ("file:12: ")
-    local clean = msg:gsub("^%[string .-%]:%d+:%s*", ""):gsub("^[^%s:]+:%d+:%s*", "")
+    local clean = msg:gsub("^" .. vim.pesc(name) .. ":%d+:%s*", "")
+      :gsub("^%[string .-%]:%d+:%s*", "")
+      :gsub("^[^%s:]+:%d+:%s*", "")
     return { lnum = lnum, message = clean }
   end
   local chunk, err = loadstring(spec.body, "=" .. name)
@@ -986,11 +988,8 @@ end
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
   trust_db = nil
-  for b in pairs(M.baseline) do
-    if vim.api.nvim_buf_is_valid(b) then
-      vim.diagnostic.reset(ns, b)
-    end
-  end
+  -- every buffer: literate_run_block reports in any org buffer
+  vim.diagnostic.reset(ns)
   M.baseline = {}
 end
 
