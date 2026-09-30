@@ -8967,7 +8967,19 @@ The `query` option takes any org-ql query, plain syntax included.
 
 COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
 scratch buffers; <CR> opens the heading in the window the view was opened
-from (floats and tabs close first).
+from (floats and tabs close first), and <Esc> closes them (`q` is left
+alone). `:Org kanban`, `:Org timeline` and `:Org heatmap` complete their
+arguments: the sources, org files, zooms or kinds, and the tags of the
+agenda files. A word is a file when it ends in `.org`, starts with `~`, `.`
+or `/`, has a glob character or names an existing path; anything else is
+a filter, so `work/NEXT` is a tags/TODO match.
+
+The views redraw after an org buffer they show is changed (once after a
+burst of changes) or written, and after TODO state, clock, property,
+capture and note events. A redraw reads nothing again while the files'
+parses (`org.files` keeps one per buffer text and file mtime) and the day
+are the same, and moving around in a view (selection, pan, zoom) only
+redraws it.
 
 ------------------------------------------------------------------------------
 Kanban board                                           *org-extensions-kanban*
