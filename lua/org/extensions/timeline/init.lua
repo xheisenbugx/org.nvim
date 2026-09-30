@@ -364,7 +364,11 @@ end
 
 -- highlight group lists by background (weekend / today) and foreground,
 -- shared so that runs of equal cells merge into one extmark
-local BG = { we = { "OrgTimelineWeekend" }, t = { "OrgTimelineToday" }, wet = { "OrgTimelineWeekend", "OrgTimelineToday" } }
+local BG = {
+  we = { "OrgTimelineWeekend" },
+  t = { "OrgTimelineToday" },
+  wet = { "OrgTimelineWeekend", "OrgTimelineToday" },
+}
 local combos = {}
 local function groups_of(bg, fg)
   local key = (bg or "") .. "|" .. (fg or "")

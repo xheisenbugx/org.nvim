@@ -337,13 +337,20 @@ function M.compile_query(q)
   return query.try_compile(q)
 end
 
+---@class org.views.CollectOpts
+---@field query? string|table
+---@field filter? string
+---@field tag? string
+---@field pred? fun(hl: org.Headline): boolean
+---@field files? org.File[]
+
 --- Headlines of a resolved source, in file order. COMMENT and ARCHIVE
 --- subtrees are skipped as in the agenda.
 ---@param src table from `resolve_source`
 --- `query` is an org-ql query, `filter` an org-ql sexp or a tags match
 --- (see `compile_filter`) and `tag` a single tag. `files` are the
 --- source's files when the caller has them already.
----@param opts? { query?: string|table, filter?: string, tag?: string, pred?: fun(hl: org.Headline): boolean, files?: org.File[] }
+---@param opts? org.views.CollectOpts
 ---@return org.Headline[] headlines, string|nil err
 function M.collect(src, opts)
   opts = opts or {}
