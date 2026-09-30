@@ -7840,12 +7840,26 @@ another entry) starts the next one; with `auto_start_work` it starts by
 itself. Starting on another heading while a pomodoro runs moves the session
 there.
 
+With `manual_break` (org-pomodoro-manual-break) a pomodoro whose time is
+up goes on in overtime: the clock keeps running and the statusline counts
+up (`🍅 +2:10`) until `pomodoro_start` (or `skip`) ends it, counted, and
+starts the break.
+
+The running pomodoro is kept in `state_file`, so a Neovim started while it
+still runs (or is paused, or in overtime) goes on with it; one that ended
+in the meantime is dropped, and one another Neovim is running is left to
+it. The clock is not touched then (see `clock.persist`, |org-clock|); after
+a second `setup()` in the same Neovim a running pomodoro clocks in again.
+
 Each phase change is announced through the clock's notifier
 (`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
 desktop notification (osascript or notify-send, `system_notification`) and
 the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
-`data = { phase, count, title }`, `phase` being "work", "short_break",
-"long_break" or "ready".
+`data = { phase, count, title }`, `phase` being "work", "overtime",
+"short_break", "long_break" or "ready".
+`require("org.extensions.pomodoro").info()` returns the session for other
+code (a statusline, the sidebar): nil, or `{ phase, remaining, elapsed,
+paused, count, title, overtime }` (seconds).
 
 Actions, `:Org pomodoro [arg]` and default keys ~
   `<prefix>zs`  pomodoro_start    start (`:Org pomodoro` or `start`)
@@ -7857,14 +7871,15 @@ Actions, `:Org pomodoro [arg]` and default keys ~
                                 not counted, a skipped break starts the
                                 next pomodoro (`skip`)
   `<prefix>zi`  pomodoro_status   show the time left (`status`)
+<Tab> completes the arguments of `:Org pomodoro`.
 
 Statusline ~
 The time left is added to `require("org").statusline()` (|org-api|), after
 the clock: `🍅 24:13 (1)` while working, `☕ 4:59` on a break,
-`⏸ 🍅 12:00` when paused and `🍅 ready (2)` between pomodoros; the number
-counts the pomodoros finished in the session. Set `statusline = false` to
-leave it out and place `require("org.extensions.pomodoro").statusline()`
-yourself:
+`⏸ 🍅 12:00` when paused, `🍅 +2:10` in overtime and `🍅 ready (2)`
+between pomodoros; the number counts the pomodoros finished in the
+session. Set `statusline = false` to leave it out and place
+`require("org.extensions.pomodoro").statusline()` yourself:
 >lua
     -- lualine
     table.insert(opts.sections.lualine_x, 1, {
@@ -7882,6 +7897,7 @@ Options ~
                        never (4)
   `auto_start_breaks`    start the break when a pomodoro ends (true)
   `auto_start_work`      start the next pomodoro when a break ends (false)
+  `manual_break`         overtime until `pomodoro_start` (false)
   `clock_out_on_break`   clock out during breaks and pauses (true)
   `property`             property counting finished pomodoros
                        ("POMODOROS"); false for none
@@ -7890,11 +7906,15 @@ Options ~
                        an argv list (false)
   `statusline`           add the pomodoro to `require("org").statusline()`
                        (true)
-  `icons`                { work, short_break, long_break, paused, ready }
+  `state_file`           where the running pomodoro is kept
+                       (stdpath("state")/org/pomodoro.json); false
+  `icons`                { work, short_break, long_break, paused, ready,
+                       overtime }
 
-Differences from Emacs org-pomodoro: there is no overtime phase
-(org-pomodoro-manual-break), no ticking sound, and the session is not kept
-across restarts of Neovim.
+Differences from Emacs org-pomodoro: there is no ticking sound, no
+org-pomodoro-expiry-time question, and killing a pomodoro keeps its clock
+time (org-pomodoro-keep-killed-pomodoro-time); Emacs forgets the session
+when it exits.
 
 ------------------------------------------------------------------------------
 Spaced repetition (org-drill)                           *org-extensions-drill*

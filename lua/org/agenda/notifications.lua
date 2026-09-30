@@ -49,23 +49,31 @@ function M.upcoming(now)
   return out
 end
 
-local function system_notify(title, body)
-  local n = config.opts.notifications or {}
-  if n.system_notification == false then
-    return
-  end
+--- Send a desktop notification: osascript on macOS, else notify-send
+--- (nothing when neither is there). Also used by extensions (pomodoro).
+---@param title string
+---@param body string
+function M.desktop_notify(title, body)
   if vim.fn.has("mac") == 1 and vim.fn.executable("osascript") == 1 then
     local esc = function(s)
       return (s:gsub("\\", "\\\\"):gsub('"', '\\"'))
     end
-    vim.system({
+    pcall(vim.system, {
       "osascript",
       "-e",
       string.format('display notification "%s" with title "%s"', esc(body), esc(title)),
     })
   elseif vim.fn.executable("notify-send") == 1 then
-    vim.system({ "notify-send", "--app-name=org.nvim", title, body })
+    pcall(vim.system, { "notify-send", "--app-name=org.nvim", title, body })
   end
+end
+
+local function system_notify(title, body)
+  local n = config.opts.notifications or {}
+  if n.system_notification == false then
+    return
+  end
+  M.desktop_notify(title, body)
 end
 
 local function notify(entry, minutes_left)

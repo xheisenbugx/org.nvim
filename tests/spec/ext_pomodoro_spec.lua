@@ -1,6 +1,12 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 
+-- never the real stdpath("state") file
+local state_file = vim.fn.tempname() .. "-pomodoro.json"
+
 local function setup(pomodoro)
+  if type(pomodoro) == "table" and pomodoro.state_file == nil then
+    pomodoro = vim.tbl_extend("force", pomodoro, { state_file = state_file })
+  end
   require("org").setup({
     org_directory = root .. "/tests/fixtures",
     agenda_files = { root .. "/tests/fixtures/*.org" },
@@ -69,6 +75,7 @@ describe("pomodoro", function()
     end
     pomodoro.time, pomodoro.notify = real_time, real_notify
     setup(nil)
+    vim.fn.delete(state_file)
   end)
 
   it("registers actions, the command, keys and the which-key group", function()
@@ -300,6 +307,135 @@ describe("pomodoro", function()
     advance(25)
     vim.api.nvim_del_autocmd(id)
     eq({ "work", "short_break" }, seen)
+  end)
+
+  it("goes on in overtime with manual_break (org-pomodoro-manual-break)", function()
+    require("org.config").opts.extensions.pomodoro.manual_break = true
+    local buf = task_buffer()
+    pomodoro.start()
+    advance(25)
+    eq("overtime", pomodoro.state.phase)
+    ok(clock.is_clocked_headline(buf, 1), "the clock runs on")
+    eq(0, #lines_matching(buf, "POMODOROS"))
+    ok(notes[1]:match("overtime"), notes[1])
+    advance(3)
+    eq("overtime", pomodoro.state.phase)
+    eq("🍅 +3:00", pomodoro.statusline())
+    eq(
+      { phase = "overtime", elapsed = 180, paused = false, count = 0, title = "Write report", overtime = true },
+      pomodoro.info()
+    )
+    -- pomodoro_start ends it: counted, clocked out, the break starts
+    pomodoro.start()
+    eq("short_break", pomodoro.state.phase)
+    eq(1, pomodoro.state.count)
+    eq(nil, clock.state)
+    eq(1, #lines_matching(buf, "^%s*:POMODOROS:%s+1$"))
+  end)
+
+  it("tells other code about the session with info()", function()
+    eq(nil, pomodoro.info())
+    task_buffer()
+    pomodoro.start()
+    advance(1)
+    eq({
+      phase = "work",
+      remaining = 24 * 60,
+      elapsed = 60,
+      paused = false,
+      count = 0,
+      title = "Write report",
+      overtime = false,
+    }, pomodoro.info())
+  end)
+
+  it("keeps the session in state_file and goes on after a new setup", function()
+    local buf = task_buffer()
+    pomodoro.start()
+    advance(10)
+    local saved = vim.json.decode(table.concat(vim.fn.readfile(state_file), "\n"))
+    eq("work", saved.phase)
+    eq(vim.fs.normalize(vim.api.nvim_buf_get_name(buf)), vim.fs.normalize(saved.path))
+    -- setup() again: the session goes on, clocked in again
+    setup({ system_notification = false })
+    eq("work", pomodoro.state.phase)
+    eq(15 * 60, pomodoro.remaining())
+    ok(clock.is_clocked_headline(buf, 1))
+    advance(15)
+    eq("short_break", pomodoro.state.phase)
+    eq(1, #lines_matching(buf, "^%s*:POMODOROS:%s+1$"))
+  end)
+
+  it("restores the pomodoro of a Neovim that exited, unless it ended", function()
+    local path = vim.fn.tempname() .. ".org"
+    vim.fn.writefile({ "* TODO Write report" }, path)
+    local function saved(o)
+      vim.fn.writefile({
+        vim.json.encode(vim.tbl_extend("force", {
+          phase = "work",
+          started = now - 60,
+          duration = 25 * 60,
+          count = 2,
+          path = path,
+          lnum = 1,
+          title = "Write report",
+          pid = 999999999,
+        }, o or {})),
+      }, state_file)
+    end
+    setup(nil)
+    saved()
+    setup({ system_notification = false })
+    eq("work", pomodoro.state.phase)
+    eq(2, pomodoro.state.count)
+    eq(24 * 60, pomodoro.remaining())
+    eq(nil, clock.state) -- the clock is left to clock.persist
+    advance(24)
+    eq("short_break", pomodoro.state.phase)
+    eq(3, pomodoro.state.count)
+    eq(
+      { ":PROPERTIES:", ":POMODOROS: 1", ":END:" },
+      vim.list_slice(vim.api.nvim_buf_get_lines(require("org.utils").find_buffer(path), 0, -1, false), 2, 4)
+    )
+    pomodoro.stop()
+    -- ended while Neovim was closed: dropped
+    setup(nil)
+    saved({ started = now - 26 * 60 })
+    setup({ system_notification = false })
+    eq(nil, pomodoro.state)
+    eq(0, vim.fn.filereadable(state_file))
+    -- still run by another Neovim: left alone
+    setup(nil)
+    local other = vim.system({ "sleep", "10" })
+    saved({ pid = other.pid })
+    setup({ system_notification = false })
+    other:kill(9)
+    eq(nil, pomodoro.state)
+  end)
+
+  it("reports a failing timer once and stops it", function()
+    local errors = {}
+    local err = require("org.utils").error
+    require("org.utils").error = function(m)
+      errors[#errors + 1] = m
+    end
+    local tick = pomodoro.tick
+    task_buffer()
+    pomodoro.start()
+    pomodoro.tick = function()
+      error("boom")
+    end
+    vim.wait(2600, function()
+      return false
+    end)
+    pomodoro.tick = tick
+    require("org.utils").error = err
+    eq(1, #errors)
+    ok(errors[1]:find("boom", 1, true))
+  end)
+
+  it("completes the :Org pomodoro subcommands", function()
+    eq({ "start", "stop", "skip", "status" }, require("org.commands").complete("s", "Org pomodoro s"))
   end)
 
   it("shows in require('org').statusline() and :Org pomodoro", function()
