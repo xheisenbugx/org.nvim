@@ -964,6 +964,41 @@ describe("transclusion", function()
     eq(0, T.watch_count())
   end)
 
+  it("redraws only the transclusions whose source changed", function()
+    local buf = open_notes(NOTES)
+    local function ids()
+      local out = {}
+      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, T.ns, 0, -1, {})) do
+        out[m[2] + 1] = m[1]
+      end
+      return out
+    end
+    local before = ids()
+    vim.wait(20)
+    write("code.py", { "", "", "def f(z):", "    return z" })
+    T.refresh_dependents(dir .. "/code.py")
+    local after = ids()
+    eq(before[2], after[2])
+    ok(before[4] ~= after[4])
+    eq("│ def f(z):", virt_text(buf)[4][2])
+    -- nothing changed: nothing is drawn again
+    T.render(buf)
+    eq(after, ids())
+  end)
+
+  it("redraws when a source reached through a symbolic link is written", function()
+    local link = dir .. "-link"
+    assert(vim.uv.fs_symlink(dir, link))
+    -- the keyword names the file through the link, the buffer by its real path
+    local buf = open_notes({ "", "", "", "#+transclude: [[file:" .. link .. "/code.py]] :lines 3-4" })
+    vim.cmd("split " .. dir .. "/code.py")
+    vim.api.nvim_buf_set_lines(0, 3, 4, false, { "    return 42" })
+    vim.cmd("silent write")
+    vim.cmd("close")
+    eq("│     return 42", virt_text(buf)[4][2])
+    vim.uv.fs_unlink(link)
+  end)
+
   it("reports an error in a timer or watcher once", function()
     local msgs = {}
     local notify = vim.notify

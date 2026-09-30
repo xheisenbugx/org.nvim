@@ -925,12 +925,12 @@ local function draw_virtual(buf, row, indent, res, err)
     mark.virt_text = source_label(label)
     mark.virt_text_pos = "eol"
   end
-  api.nvim_buf_set_extmark(buf, ns, row - 1, 0, mark)
+  return api.nvim_buf_set_extmark(buf, ns, row - 1, 0, mark)
 end
 
 local function draw_region(buf, row, r)
   if opts().show_source then
-    api.nvim_buf_set_extmark(buf, ns, row - 1, 0, {
+    return api.nvim_buf_set_extmark(buf, ns, row - 1, 0, {
       virt_text = source_label(r.data.label .. " (inserted)"),
       virt_text_pos = "eol",
       hl_mode = "combine",
@@ -1003,7 +1003,31 @@ local function render(buf, st, refresh)
     inside = inside_rows(buf)
     env = environment(buf, lines, inside)
   end
-  api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  -- Only what changed is drawn again: each mark remembers what it shows
+  -- (a result, shared while its sources don't change, or an error).
+  local old, drawn, now = {}, st.drawn or {}, {}
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, ns, 0, -1, {})) do
+    local key = drawn[m[1]]
+    if key ~= nil and not old[m[2] + 1] then
+      old[m[2] + 1] = { id = m[1], key = key }
+    else
+      pcall(api.nvim_buf_del_extmark, buf, ns, m[1])
+    end
+  end
+  local function place(row, key, draw)
+    local o = old[row]
+    old[row] = nil
+    if o and o.key == key then
+      now[o.id] = key
+      return
+    elseif o then
+      pcall(api.nvim_buf_del_extmark, buf, ns, o.id)
+    end
+    local id = draw()
+    if id then
+      now[id] = key
+    end
+  end
   local below = {}
   for _, r in ipairs(regs) do
     below[r.s] = r
@@ -1015,7 +1039,9 @@ local function render(buf, st, refresh)
   for _, kw in ipairs(kws) do
     local r = below[kw.row]
     if r then
-      draw_region(buf, kw.row, r)
+      place(kw.row, "r\0" .. r.data.label, function()
+        return draw_region(buf, kw.row, r)
+      end)
       for p in pairs(r.data.sources or {}) do
         sources[p] = true
       end
@@ -1043,12 +1069,16 @@ local function render(buf, st, refresh)
         end
         if not tip then
           new_region(buf, kw.row, { lines = res.lines, label = res.label, sources = res.sources })
-          draw_region(buf, kw.row, { data = { label = res.label } })
+          place(kw.row, "r\0" .. res.label, function()
+            return draw_region(buf, kw.row, { data = { label = res.label } })
+          end)
           show, adopted = false, true
         end
       end
       if show then
-        draw_virtual(buf, kw.row, kw.indent, res, err)
+        place(kw.row, res or ("e\0" .. kw.indent .. "\0" .. tostring(err)), function()
+          return draw_virtual(buf, kw.row, kw.indent, res, err)
+        end)
       end
       if show or adopted then
         for p in pairs(res and res.sources or {}) do
@@ -1057,6 +1087,10 @@ local function render(buf, st, refresh)
       end
     end
   end
+  for _, o in pairs(old) do
+    pcall(api.nvim_buf_del_extmark, buf, ns, o.id)
+  end
+  st.drawn = now
   st.sources = sources
   st.count = #kws
   st.tick = api.nvim_buf_get_changedtick(buf)
@@ -1096,7 +1130,7 @@ function M.refresh_dependents(path, except)
   path = vim.fs.normalize(path)
   source.clear_cache(path)
   for buf, st in pairs(M.buffers) do
-    if buf ~= except and st.sources[path] then
+    if buf ~= except and source.source_key(st.sources, path) then
       M.render(buf, true)
     end
   end
@@ -1705,7 +1739,7 @@ after_write = function(buf)
     end
   end
   local name = api.nvim_buf_get_name(buf)
-  st.mtime = name ~= "" and utils.mtime(name) or nil
+  st.mtime = name ~= "" and source.stamp(name) or nil
   M.render(buf)
 end
 
@@ -1757,7 +1791,7 @@ local function heal(buf)
   if name == "" or vim.bo[buf].buftype ~= "" then
     return
   end
-  local mt = utils.mtime(name)
+  local mt = source.stamp(name)
   if not mt or mt == st.mtime then
     return
   end
@@ -1769,7 +1803,7 @@ local function heal(buf)
   local disk = utils.readfile(name)
   if disk and vim.deep_equal(disk, api.nvim_buf_get_lines(buf, 0, -1, false)) then
     if write_like(buf, name, clean) then
-      st.mtime = utils.mtime(name)
+      st.mtime = source.stamp(name)
       utils.warn("transclusion: the file was written without autocommands; its inserted text was taken out again")
     end
   end
@@ -1835,7 +1869,7 @@ local function attach(buf)
     end
     st = state(buf, true)
     local name = api.nvim_buf_get_name(buf)
-    st.mtime = name ~= "" and utils.mtime(name) or nil
+    st.mtime = name ~= "" and source.stamp(name) or nil
     M.render(buf)
     if opts().mode == "materialized" then
       M.add_all(buf)
@@ -1865,7 +1899,7 @@ local function on_change(buf)
     if name ~= "" then
       local path = vim.fs.normalize(name)
       for b, s in pairs(M.buffers) do
-        if b ~= buf and s.sources[path] then
+        if b ~= buf and source.source_key(s.sources, path) then
           later("deps:" .. path, function()
             M.refresh_dependents(path, buf)
           end)

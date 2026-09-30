@@ -60,6 +60,7 @@ function M.clear_cache(path)
   disk = {}
   bufread = {}
   parsed = {}
+  reals = {}
   resolved, resolved_n = {}, 0
 end
 
@@ -77,13 +78,22 @@ function M.frame(fn, ...)
   return a, b, c, d
 end
 
+--- A stamp of the file's version: its mtime to the nanosecond and size
+--- (a number of nanoseconds since 1970 doesn't fit a double), or nil.
+---@param path string
+---@return string|nil
+function M.stamp(path)
+  local st = vim.uv.fs_stat(path)
+  return st and string.format("%d.%09d:%d", st.mtime.sec, st.mtime.nsec, st.size) or nil
+end
+
 local function mtime(path)
   if not memo then
-    return utils.mtime(path)
+    return M.stamp(path)
   end
   local m = memo.stat[path]
   if m == nil then
-    m = utils.mtime(path) or false
+    m = M.stamp(path) or false
     memo.stat[path] = m
   end
   return m or nil
@@ -130,6 +140,36 @@ local function find_buffer(path)
 end
 
 M.find_buffer = find_buffer
+
+local reals = {} -- path -> real path (or false)
+
+local function real(path)
+  local r = reals[path]
+  if r == nil then
+    r = vim.uv.fs_realpath(path) or false
+    reals[path] = r
+  end
+  return r
+end
+
+--- The key of `sources` (a set of paths) naming the same file as `path`,
+--- through symbolic links too (/var and /private/var on macOS).
+---@param sources table<string, boolean>
+---@param path string
+---@return string|nil
+function M.source_key(sources, path)
+  if sources[path] then
+    return path
+  end
+  local r = real(path)
+  if r then
+    for p in pairs(sources) do
+      if real(p) == r then
+        return p
+      end
+    end
+  end
+end
 
 function M.is_org_path(path)
   return path ~= nil and (path:match("%.org$") ~= nil or path:match("%.org_archive$") ~= nil)
