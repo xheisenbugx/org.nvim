@@ -8498,8 +8498,11 @@ for it. (The expansions are registered in `require("org.capture").expansions`,
 `code:` links ~
 `[[code:src/app.lua::M.setup]]` opens the file and jumps to the symbol,
 found with the language server's document symbols (`textDocument/
-documentSymbol`, waiting `lsp_timeout` ms for a server that serves the
-filetype to attach), else treesitter definitions, else a text search for
+documentSymbol`; a server that is still starting for the file, from
+|vim.lsp.enable()| or a FileType autocmd, or a running one that serves
+the filetype is waited for up to `lsp_timeout` ms, then up to
+`lsp_timeout` ms for its answer), else treesitter definitions, else a
+text search for
 `function NAME`, `def NAME`, `NAME =`, then the word. A dotted name
 (`Class.method`) matches the symbol in its container. `code:PATH::42` jumps
 to line 42. A relative path is looked up from the git root of the org file,
@@ -8547,10 +8550,16 @@ The `code_todos` agenda block type lists comments with `todo_keywords`
     -- FIXME(bob): wrong value
     -- TODO(org:3f2a...): translate the greetings
 <
-They are found with `git grep` (tracked and untracked files), else `rg`,
-else by reading at most `todo_max_files` files; org files are skipped
-(`todo_exclude`). `<CR>`, `<Tab>` and `<Space>` on an item open the code
-line; other agenda commands (todo state, schedule...) don't apply to them.
+They are found with `git grep` (tracked and untracked files, binary files
+skipped), else `rg`, else by reading at most `todo_max_files` files; org
+files are skipped (`todo_exclude`). The search runs in the background:
+the first time the block shows "(scanning...)" and the agenda is redrawn
+when it is done; later the block shows the last result at once and is
+redrawn if a new search finds something else. It stops after
+`todo_max_items` comments (the count then reads "500+").
+`<CR>`, `<Tab>` and `<Space>` on an item open the code line; agenda
+commands that change org entries (todo state, schedule, tags, clock,
+refile, archive...) say that they don't apply to a code TODO.
 A comment naming a heading's ID (`TODO(org:ID)`, see `todo_link_pattern`)
 is listed under an item for that heading. Use the block in custom commands
 too:
