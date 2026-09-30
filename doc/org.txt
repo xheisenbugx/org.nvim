@@ -8019,35 +8019,46 @@ git repository of the current file. It asks where the attribute goes:
   `.gitattributes`        committed, so every clone asks for the driver
   `.git/info/attributes`  this clone only
 
-and in both cases writes `merge.org.name` and `merge.org.driver` to the
-repository's `.git/config` (git never reads a driver command from a
-committed file, so each clone installs it once). `merge_uninstall` removes
-the attribute lines and the config section again.
+and in both cases writes `merge.org.name`, `merge.org.driver` and the
+options (below) to the repository's `.git/config` (git never reads a
+driver command from a committed file, so each clone installs it once).
+`merge_uninstall` removes the attribute lines and the config section again.
 
 The driver is `lua/org/extensions/merge/driver.lua`, a script run with
 `nvim --headless -u NONE -i NONE -l`, so it needs nothing but Neovim 0.10+
 and can be set up by hand. `bin/org-merge` in the plugin directory wraps
 that command:
 >sh
-    git config merge.org.driver \
-      "~/org.nvim/bin/org-merge --marker-size=%L %O %A %B %P"
+    git config merge.org.driver "~/org.nvim/bin/org-merge \
+      --marker-size=%L --ours-label=%X --theirs-label=%Y %O %A %B %P"
     echo '*.org merge=org' >> .gitattributes
 <
 The driver writes the merge to %A and exits 0 when it is clean, 1 when it
 left conflict markers (git then reports the file as conflicted, as usual).
+Conflict markers carry the labels git passes (%X and %Y: `HEAD` and the
+branch being merged, git 2.44 or later; "ours" and "theirs" before), and
+with `merge.conflictStyle` set to `diff3` or `zdiff3` a text conflict also
+shows the base lines.
 
 How entries are merged ~
 Each version (the common ancestor, ours and theirs) is parsed into its tree
 of headlines. An entry is the same entry in all three when it has the same
-`ID` (or `CUSTOM_ID`) property, else the same outline path and title; an
+`ID` (or `CUSTOM_ID`) property, else the same outline path and title. An
 entry renamed on one side is still recognised when the rest of it did not
-change. Then:
+change, when its text stayed similar (`rename_similarity`: that share of
+its lines, drawers and child titles is unchanged), or, for a headline
+without text, when it sits between the same two neighbours. An entry that
+got an `ID` on one side (as org-roam does) is matched by its title. Then:
 
   - Changes to different entries never conflict, even on adjacent lines.
   - An entry moved or refiled to another parent (by ID) or reordered is
     followed, with the levels of its subtree adjusted, while the other
     side's edits to it are kept. Without an ID a move is a delete plus an
     add, which merges cleanly when the other side left the entry alone.
+  - An entry moved to different parents on both sides conflicts at both
+    places: the merged entry on the ours side of markers under ours'
+    parent, theirs' copy on the theirs side under theirs' parent. Keep one
+    side of each (or set `prefer`).
   - The TODO keyword, priority, COMMENT, title and each planning keyword
     (SCHEDULED, DEADLINE, CLOSED) are merged as values: a change on one
     side wins; different changes on both sides conflict. CLOSED goes with
@@ -8055,9 +8066,11 @@ change. Then:
   - Tags: added tags from both sides are kept, removed ones stay removed.
   - The property drawer is merged key by key; a key changed differently on
     both sides conflicts on that line only.
-  - LOGBOOK items (CLOCK lines, state changes and notes) of both sides are
-    kept, removed ones stay removed, and they are sorted newest first when
-    both sides added some.
+  - Log drawers right after the planning line and properties are merged
+    item by item: LOGBOOK, the drawers named by `log_into_drawer` and
+    `clock.into_drawer`, and `set_drawers`. Items (CLOCK lines, state
+    changes and notes) of both sides are kept, removed ones stay removed,
+    and they are sorted newest first when both sides added some.
   - The rest of the entry is merged line by line (diff3); changes to the
     same or adjacent lines conflict, like git.
   - An entry deleted on one side and changed on the other conflicts: the
@@ -8065,47 +8078,66 @@ change. Then:
   - The text before the first headline is merged line by line.
 
 With `prefer = "ours"` or `"theirs"`, conflicting headline fields,
-planning keywords and properties take that side instead of markers. Body
-text conflicts always get markers.
+planning keywords, properties and moves take that side instead of markers.
+Body text conflicts always get markers.
 
 Conflict markers wrap only the lines in conflict (the headline and
 planning line of one entry, one property line, or a few lines of text):
 >
-    <<<<<<< ours
+    <<<<<<< HEAD
     * WAITING Plan the offsite                                    :team:
     =======
     * DONE Plan the offsite                                       :team:
     CLOSED: [2026-09-29 Tue 18:10]
-    >>>>>>> theirs
+    >>>>>>> phone
     Venue ideas.
 <
+Files with CRLF line ends or a UTF-8 BOM keep them. An ID used by two
+entries keeps both (they are matched in file order).
+
 Options ~
   `driver_name`         name in git: `merge=<name>`, `merge.<name>.driver`
                         ("org")
   `patterns`            patterns given the driver by `merge_install`
                         ({ "*.org" })
-  `prefer`              "ours" or "theirs" for headline, planning and
-                        property conflicts; nil writes markers (nil)
-  `sort_logbook`        sort merged LOGBOOK items newest first (true)
+  `prefer`              "ours" or "theirs" for headline, planning,
+                        property and move conflicts; nil writes markers
+                        (nil)
+  `sort_logbook`        sort merged log drawer items newest first (true)
   `pass_todo_keywords`  give the driver your `todo_keywords`, so custom
                         keywords are read as keywords (true)
+  `set_drawers`         more drawers merged item by item ({})
+  `rename_similarity`   share (0..1) of an entry's lines that must stay
+                        for a renamed and edited entry to be matched; false
+                        only matches an otherwise unchanged one (0.6)
   `config_file`         a Lua file the driver runs before merging (nil)
 
-The options are written into the driver command by `merge_install`
-(`--prefer=`, `--no-sort-logbook`, `--todo=`, `--config=`): run it again
-after changing them. `#+TODO:` lines in the files themselves are always
-read. `:checkhealth org` shows whether git is found, whether the driver is
-installed in the current repository, and the command it would install.
+The driver reads its options from the repository's git config when it
+runs, so they can be changed without installing again:
+>sh
+    git config merge.org.prefer theirs
+    git config merge.org.sortLogbook false
+    git config --add merge.org.todo "TODO NEXT | DONE"   # repeatable
+    git config --add merge.org.setDrawers NOTES          # repeatable
+    git config merge.org.renameSimilarity 0.8
+    git config merge.org.config ~/.config/nvim/org-merge.lua
+<
+`merge_install` writes these from the options above. The driver's own
+flags (`--prefer=`, `--no-sort-logbook`, `--todo=`, `--set-drawer=`,
+`--rename-similarity=`, `--config=`) win over the git config, and
+`--no-git-config` ignores it. `#+TODO:` lines in the files themselves are
+always read. `:checkhealth org` shows whether git is found, whether the
+driver is installed in the current repository, and the command it would
+install. A merge of 5,000 headings takes a fraction of a second.
 
 Limits ~
-  - Two entries without IDs are matched by title under the same parent, so
-    a title changed on one side and the body on the other is only matched
-    when nothing but the title changed.
-  - An entry moved to different parents on both sides goes where ours put
-    it.
-  - Only the LOGBOOK drawer right after the planning line and properties
-    is merged item by item; other drawers are text.
-  - Conflict labels are "ours" and "theirs", not branch names.
+  - Renames are recognised among the children of one parent. Entries with
+    nearly the same text under one parent (say, a template) can be taken
+    for a rename when one is deleted and another added on the same side;
+    `rename_similarity = false` turns the similarity match off.
+  - Only the drawers right after the planning line and properties are
+    merged item by item; a drawer further down is text.
+  - Before git 2.44 the labels are "ours" and "theirs".
 
 ------------------------------------------------------------------------------
 iCalendar subscriptions                                   *org-extensions-ics*
