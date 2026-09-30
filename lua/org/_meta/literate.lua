@@ -1,0 +1,28 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { literate = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+-- (the `literate` field of org.Config.Extensions is in config.lua)
+
+---@class org.Config.Extensions.Literate
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Org files (paths or globs) that are always literate.
+---(default: `{ stdpath("config") .. "/init.org" }`)
+---@field files? string[]
+---Also treat org files with `#+PROPERTY: header-args:lua :tangle FILE` as
+---literate. (default: `true`)
+---@field detect? boolean
+---Tangle literate files when they are written. (default: `true`)
+---@field tangle_on_save? boolean
+---After tangling, run the Lua blocks whose text changed. (default: `true`)
+---@field reload? boolean
+---Show block errors as diagnostics in the org buffer. (default: `true`)
+---@field diagnostics? boolean
+---Also put block errors in the quickfix list. (default: `false`)
+---@field quickfix? boolean
+---Report what was tangled and reloaded. (default: `true`)
+---@field notify? boolean
+---The init.lua `literate_bootstrap` writes without an argument; nil for the
+---org file's directory. (default: `nil`)
+---@field bootstrap_file? string

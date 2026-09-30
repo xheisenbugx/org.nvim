@@ -766,6 +766,11 @@
 ---@field cli? org.Config.Extensions.Cli|boolean
 ---mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).
 ---@field diagrams? org.Config.Extensions.Diagrams|boolean
+---Code <-> notes: code captures, `code:` links, project files, branch clocks
+---and code TODOs (`:h org-extensions-code`).
+---@field code? org.Config.Extensions.Code|boolean
+---Literate Neovim config: tangle on save and live reload (`:h org-extensions-literate`).
+---@field literate? org.Config.Extensions.Literate|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

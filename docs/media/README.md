@@ -69,6 +69,12 @@ puppeteer config file, e.g. `{"executablePath": "/Applications/Google
 Chrome.app/Contents/MacOS/Google Chrome"}` for an `mmdc` installed with
 `PUPPETEER_SKIP_DOWNLOAD=1 npm install @mermaid-js/mermaid-cli`.
 
+`demo/code.lua` (for `code.tape`) turns on the `code` extension and makes
+a small git repository in `$ORG_DEMO_DIR/app` (branch `feature/login`),
+so it needs `git`. `demo/literate.lua` (for `literate.tape`) turns on the
+`literate` extension for `$ORG_DEMO_DIR/nvim/init.org`, which tangles to
+`lua/config.lua` next to it.
+
 To try the demo setup by hand:
 
 ```sh

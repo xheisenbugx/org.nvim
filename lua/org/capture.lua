@@ -523,6 +523,14 @@ local function untabify(s)
   )
 end
 
+--- Named template expansions for extensions: `%(name)` in a template
+--- calls `M.expansions[name](ctx)` with the capture context (its
+--- `origin_buf`, `origin_cursor`, `initial`...) and inserts the string it
+--- returns. Empty unless an extension adds some (the `code` extension's
+--- `%(code-link)`, `%(code-block)`...).
+---@type table<string, fun(ctx: table): string|nil>
+M.expansions = {}
+
 --- The value of a `%(expr)` of a template (`expr` is the text inside the
 --- parentheses, its escapes already expanded). Emacs Lisp like
 --- org-capture-expand-embedded-elisp: `%(format-time-string "%Y")` runs on
@@ -532,9 +540,21 @@ end
 --- expression (`%(os.date("%Y"))`) is evaluated as Lua: forms whose head
 --- is a Lisp function the interpreter knows are Lisp, other text that
 --- compiles as Lua is Lua, and Lisp is tried when the Lua fails.
+---
+--- A bare name registered in `M.expansions` (`%(code-link)`) calls that
+--- function with the capture context instead.
 ---@param expr string
+---@param ctx? table the capture context
 ---@return string
-function M.eval_sexp(expr)
+function M.eval_sexp(expr, ctx)
+  local named = M.expansions[vim.trim(expr)]
+  if named then
+    local ok, v = pcall(named, ctx or {})
+    if not ok then
+      return "%![Error: " .. tostring(v) .. "]"
+    end
+    return v == nil and "" or tostring(v)
+  end
   local el = require("org.table.elisp")
   local form = "(" .. expr .. ")"
   local is_lisp = pcall(el.read, form)
@@ -694,7 +714,7 @@ function M.expand(text, ctx)
   end)
   text = expand_simple(text)
   text = text:gsub("\31(%d+)\31", function(idx)
-    return M.eval_sexp(expand_simple(exprs[tonumber(idx)], true))
+    return M.eval_sexp(expand_simple(exprs[tonumber(idx)], true), ctx)
   end)
 
   -- prompts
