@@ -1,0 +1,55 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { ics = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---iCalendar subscriptions shown in the agenda (`:h org-extensions-ics`).
+---@field ics? org.Config.Extensions.Ics|boolean
+
+---@class org.Config.Extensions.Ics
+---`false` keeps the extension off.
+---@field enabled? boolean
+---The calendars: local `.ics` files or subscribed links (default: `{}`).
+---@field calendars? org.Config.Extensions.Ics.Calendar[]
+---Minutes before a subscribed calendar is fetched again (default: `60`).
+---@field refresh? integer
+---Fetch stale calendars on setup and check every minute; off, only
+---`ics_refresh` fetches (default: `true`).
+---@field auto_refresh? boolean
+---Where fetched calendars are kept (default: `stdpath("cache") .. "/org/ics"`).
+---@field cache_dir? string
+---Fetch command; `-o FILE URL` is appended
+---(default: `{ "curl", "-fsSL", "--max-time", "30" }`).
+---@field curl? string[]
+---IANA zone the agenda shows times in (default: `nil`, the system's).
+---@field timezone? string
+---Extra TZID -> IANA names for zones a calendar doesn't define (default: `{}`).
+---@field tz_aliases? table<string, string>
+---Append " (location)" to event titles (default: `true`).
+---@field show_location? boolean
+---Title of an event in the agenda (default: `nil`: summary and location).
+---@field format? fun(event: org.ics.Event, calendar: org.Config.Extensions.Ics.Calendar): string
+---Highlight group of event titles (default: `"OrgAgendaDiary"`).
+---@field face? string
+---File `ics_import` adds headings to (default: `nil`, `default_notes_file`).
+---@field import_file? string
+---Days ahead `ics_import` offers events from outside the agenda (default: `30`).
+---@field import_days? integer
+
+---@class org.Config.Extensions.Ics.Calendar
+---Shown in messages and health; the default category.
+---@field name string
+---An `http(s)://` or `webcal://` link (e.g. a Google or Outlook secret address).
+---@field url? string
+---A local `.ics` file, instead of `url`.
+---@field path? string
+---Category of its agenda lines (default: `name`).
+---@field category? string
+---Tags of its agenda lines, for agenda filters.
+---@field tags? string[]
+---Minutes between fetches of this calendar (default: the `refresh` option).
+---@field refresh? integer
+---Highlight group of its titles (default: the `face` option).
+---@field face? string
+---`false`: not shown in the agenda (only offered by `ics_import`).
+---@field agenda? boolean

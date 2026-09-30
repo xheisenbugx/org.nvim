@@ -18,6 +18,14 @@ M._warned_sexps = {}
 -- results of the sexps evaluated in Emacs, by sexp, entry and day range
 M._emacs_sexps = {}
 
+--- Extra entries of agenda day views, not from org files (used by
+--- extensions, e.g. calendar subscriptions): name -> `fun(from, to, opts)`
+--- returning agenda items, each with `day` set. They are added after the
+--- files and the diary like diary lines, in name order; an item without a
+--- `filename` can't be visited or edited. Empty by default.
+---@type table<string, fun(from: integer, to: integer, opts: table): org.AgendaItem[]>
+M.day_sources = {}
+
 ---@class org.AgendaItem
 ---@field type string scheduled|deadline|timestamp|range|sexp|closed|clock|state|todo|tags|search|stuck
 ---@field headline org.Headline
@@ -1184,6 +1192,33 @@ function M.agenda(files, from, to, opts)
         set_time(item, nil, dcfg)
         by_day[d] = by_day[d] or {}
         table.insert(by_day[d], item)
+      end
+    end
+  end
+  if next(M.day_sources) and not log_only then
+    local names = vim.tbl_keys(M.day_sources)
+    table.sort(names)
+    for i, name in ipairs(names) do
+      local ok, list = pcall(M.day_sources[name], from, to, opts)
+      if not ok then
+        require("org.utils").error("agenda source " .. name .. ": " .. tostring(list))
+      else
+        for _, item in ipairs(list or {}) do
+          local d = item.day
+          if d and d >= from and d <= to then
+            order = order + 1
+            item.order = order
+            item.fidx = #files + 1 + i
+            item.tags = item.tags or {}
+            item.prio = item.prio or 0
+            item.urgency = item.urgency or item.prio
+            item.level = item.level or 0
+            item.lnum = item.lnum or 0
+            item.raw = item.raw or ""
+            by_day[d] = by_day[d] or {}
+            table.insert(by_day[d], item)
+          end
+        end
       end
     end
   end

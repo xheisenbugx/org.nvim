@@ -1,0 +1,14 @@
+#+TITLE: Tasks
+* TODO Write report :work:
+SCHEDULED: <2026-10-01 Thu>
+:PROPERTIES:
+:ID: a1
+:EFFORT: 1:00
+:END:
+Draft the intro.
+Second line.
+* Shopping
+** TODO Milk
+** TODO Bread
+* Ideas
+Some idea text.

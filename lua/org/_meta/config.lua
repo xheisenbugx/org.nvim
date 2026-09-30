@@ -758,6 +758,14 @@
 ---@field pomodoro? org.Config.Extensions.Pomodoro|boolean
 ---Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
 ---@field drill? org.Config.Extensions.Drill|boolean
+---Structural git merge driver for Org files (`:h org-extensions-merge`).
+---@field merge? org.Config.Extensions.Merge|boolean
+---iCalendar subscriptions shown in the agenda (`:h org-extensions-ics`).
+---@field ics? org.Config.Extensions.Ics|boolean
+---The `org` command line, bin/org (`:h org-extensions-cli`).
+---@field cli? org.Config.Extensions.Cli|boolean
+---mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).
+---@field diagrams? org.Config.Extensions.Diagrams|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.
