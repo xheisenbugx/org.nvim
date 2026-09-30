@@ -153,6 +153,21 @@ describe("code extension", function()
       eq(nil, g.branch(g.root(wt)))
     end)
 
+    it("follows a gitdir path with spaces, and a relative one (submodules)", function()
+      local g = require("org.extensions.code.git")
+      local base = vim.fs.dirname(repo)
+      local wt = base .. "/my work tree"
+      local gd = base .. "/git dirs/wt ü"
+      vim.fn.mkdir(wt, "p")
+      vim.fn.mkdir(gd, "p")
+      vim.fn.writefile({ "gitdir: " .. gd .. "  " }, wt .. "/.git")
+      vim.fn.writefile({ "ref: refs/heads/spaced" }, gd .. "/HEAD")
+      eq(gd, g.git_dir(wt))
+      eq("spaced", g.branch(g.root(wt .. "/x.lua")))
+      vim.fn.writefile({ "gitdir: ../git dirs/wt ü" }, wt .. "/.git")
+      eq("spaced", g.branch(wt))
+    end)
+
     it("gives the short commit when git is installed", function()
       if not has_git then
         return

@@ -61,8 +61,9 @@ function M.git_dir(root)
     return dotgit
   end
   local s = read(dotgit)
-  local dir = s and s:match("gitdir:%s*(%S+)")
-  if not dir then
+  -- the rest of the first line: the path may hold spaces
+  local dir = s and s:match("^gitdir:%s*([^\r\n]-)%s*[\r\n]") or (s and s:match("^gitdir:%s*(.-)%s*$"))
+  if not dir or dir == "" then
     return nil
   end
   if not dir:match("^/") and not dir:match("^%a:[/\\]") then
