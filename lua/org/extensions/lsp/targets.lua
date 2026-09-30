@@ -93,6 +93,8 @@ function M.index(file)
     return idx
   end
   idx = { headings = {}, custom_ids = {}, ids = {}, targets = {}, names = {}, radios = {} }
+  -- a file-level ID (an org-roam file node)
+  idx.file_id = file.properties and file.properties.ID
   for _, hl in ipairs(file.headlines) do
     local k = heading_key(hl)
     if k ~= "" and not idx.headings[k] then
@@ -401,22 +403,63 @@ end
 ---@param id string
 ---@param docs? org.lsp.Doc[] documents already loaded
 function M.locate_id(id, docs)
+  local function file_loc(path)
+    return { path = path, lnum = 1, s = 1, e = 0, kind = "file", file_id = id }
+  end
   for _, d in ipairs(docs or {}) do
-    local hl = M.index(d.file).ids[id]
+    local idx = M.index(d.file)
+    local hl = idx.ids[id]
     if hl and d.path then
       return heading_loc(d.path, hl)
+    elseif idx.file_id == id and d.path then
+      return file_loc(d.path)
+    end
+  end
+  -- after a miss, the rest of the request looks IDs up in one index of
+  -- the workspace instead of rescanning the ID files for each
+  local miss = util.scoped("ids")
+  if miss.all then
+    if miss.all[id] or not miss.known[id] then
+      return miss.all[id]
     end
   end
   local ok, r = pcall(require("org.id").find, id)
   if ok and r and r.filename then
     local path = util.canon(r.filename)
     local file = util.file(path)
-    local hl = file and M.index(file).ids[id]
-    if hl then
-      return heading_loc(path, hl)
+    local idx = file and M.index(file)
+    if idx and idx.ids[id] then
+      return heading_loc(path, idx.ids[id])
+    elseif idx and idx.file_id == id then
+      return file_loc(path)
     end
     return { path = path, lnum = r.lnum or 1, s = 1, e = 0, kind = "file" }
   end
+  if miss.all then
+    return nil
+  end
+  -- not in the ID files: the workspace (an org-roam directory as
+  -- org_directory, say)
+  local all = {}
+  for _, path in ipairs(util.workspace_files()) do
+    local file = util.file(path)
+    local idx = file and M.index(file)
+    if idx then
+      for k, hl in pairs(idx.ids) do
+        all[k] = all[k] or heading_loc(path, hl)
+      end
+      local fid = idx.file_id
+      if fid and not all[fid] then
+        all[fid] = { path = path, lnum = 1, s = 1, e = 0, kind = "file", file_id = fid }
+      end
+    end
+  end
+  miss.all, miss.known = all, {}
+  local okk, known = pcall(require("org.id").known_ids)
+  for _, k in ipairs(okk and known or {}) do
+    miss.known[k] = true
+  end
+  return all[id]
 end
 
 --- Resolve a link of `doc` to a location, or nil.
@@ -597,6 +640,23 @@ function M.subject_of(loc, form)
   elseif loc.kind == "target" or loc.kind == "radio" or loc.kind == "name" then
     return { kind = loc.kind, path = loc.path, lnum = loc.lnum, s = loc.s, e = loc.e, name = loc.text }
   elseif loc.kind == "file" then
+    local file = form == "id" and loc.file_id and util.file(loc.path)
+    if file and file.properties_range then
+      -- the file-level ID (an org-roam file node)
+      local lnum, s, e, v = prop_span(file, file, "ID")
+      if lnum then
+        return {
+          kind = "id",
+          path = loc.path,
+          lnum = lnum,
+          decl_lnum = lnum,
+          s = s,
+          e = e,
+          name = v,
+          file_level = true,
+        }
+      end
+    end
     return { kind = "file", path = loc.path, lnum = 1, s = 1, e = 0, name = vim.fs.basename(loc.path) }
   end
 end
@@ -645,6 +705,13 @@ function M.subject_at(doc, lnum, col)
     return { kind = "name", path = doc.path, lnum = lnum, s = s, e = s + #name - 1, name = name }
   end
   local hl = doc.file:headline_at(lnum)
+  local fr = doc.file.properties_range
+  if not hl and fr and lnum >= fr[1] and lnum <= fr[2] then
+    local k = line:match("^%s*:([^:%s]+):")
+    if k and k:upper() == "ID" and M.index(doc.file).file_id then
+      return M.subject_of({ kind = "file", path = doc.path, file_id = M.index(doc.file).file_id }, "id")
+    end
+  end
   if hl then
     local r = hl.properties_range
     if r and lnum >= r[1] and lnum <= r[2] then
@@ -720,7 +787,15 @@ function M.references(subject, docs)
     -- links to the radio target by name count too (fall through)
   end
   docs = docs or util.workspace_docs(home)
-  local id = HEADING_KINDS[subject.kind] and subject.headline and subject.headline.properties.ID
+  -- id links count for an ID, a headline with one and a file with one
+  local id
+  if subject.kind == "id" then
+    id = subject.name
+  elseif HEADING_KINDS[subject.kind] and subject.headline then
+    id = subject.headline.properties.ID
+  elseif subject.kind == "file" then
+    id = M.index(home.file).file_id
+  end
   local memo = {}
   local function locate(path, search)
     local k = path .. "\0" .. (search or "")

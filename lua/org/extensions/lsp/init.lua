@@ -100,6 +100,9 @@ M.defaults = {
   rename = {
     --- Rewrite a link's description when it equals the old name.
     update_descriptions = true,
+    --- Write the files a rename changed that were not loaded (Neovim
+    --- loads them to apply the edit and would leave them modified).
+    write_unloaded = true,
   },
   code_actions = {
     --- Entry commands (TODO, priority, schedule, deadline, refile,
@@ -270,6 +273,7 @@ end
 --- Turned off (or set up again): stop the server, remove the autocmds.
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
+  require(MOD .. ".rename").reset()
   M.stop()
 end
 

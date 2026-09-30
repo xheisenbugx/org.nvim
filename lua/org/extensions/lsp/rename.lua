@@ -157,6 +157,21 @@ local function link_edit(link, s, e, text)
   return { lnum = lnum, s = sc, end_lnum = el, e = ec, text = text }
 end
 
+--- The edit of a link's description when it equals the old name.
+local function description_edit(link, subject, new, old_display)
+  local o = util.opts().rename or {}
+  if link.desc and o.update_descriptions ~= false and old_display then
+    if targets.key(link.desc) == targets.key(old_display) then
+      return link_edit(
+        link,
+        link.desc_start,
+        link.desc_start + #link.desc - 1,
+        subject.kind == "heading" and links.normalize_string(new) or new
+      )
+    end
+  end
+end
+
 --- Edits that make one reference spell `new`.
 local function reference_edits(ref, subject, new, old_display)
   local link = ref.link
@@ -185,17 +200,7 @@ local function reference_edits(ref, subject, new, old_display)
     repl = links.escape(repl)
   end
   out[#out + 1] = link_edit(link, col + ps - 1, col + pe - 1, repl)
-  local o = util.opts().rename or {}
-  if link.desc and o.update_descriptions ~= false and old_display then
-    if targets.key(link.desc) == targets.key(old_display) then
-      out[#out + 1] = link_edit(
-        link,
-        link.desc_start,
-        link.desc_start + #link.desc - 1,
-        subject.kind == "heading" and links.normalize_string(new) or new
-      )
-    end
-  end
+  out[#out + 1] = description_edit(link, subject, new, old_display)
   return out
 end
 
@@ -258,10 +263,17 @@ function M.rename(doc, lnum, col, new)
       for _, e in ipairs(reference_edits(r, subject, new, old_display)) do
         add(r.doc.path, e)
       end
+    elseif r.link and r.form == "id" and subject.kind == "heading" then
+      -- an id link keeps its target; a description spelling the title
+      -- (org-roam's links) follows it
+      local e = description_edit(r.link, subject, new, old_display)
+      if e then
+        add(r.doc.path, e)
+      end
     end
   end
 
-  local changes = {}
+  local changes, unloaded = {}, {}
   for path, edits in pairs(by_path) do
     table.sort(edits, function(a, b)
       return a.lnum < b.lnum or (a.lnum == b.lnum and a.s < b.s)
@@ -276,8 +288,95 @@ function M.rename(doc, lnum, col, new)
       end
     end
     changes[util.uri(path)] = list
+    if not util.buffer_of(path) then
+      unloaded[#unloaded + 1] = path
+    end
   end
+  if subject.kind == "id" then
+    -- the ID database follows (org-id-locations)
+    pcall(function()
+      local id = require("org.id")
+      id.forget(subject.name)
+      id.register(new, subject.path)
+    end)
+  end
+  M.write_when_loaded(unloaded)
   return { changes = changes }
+end
+
+---------------------------------------------------------------------------
+-- Writing the files a rename loaded
+---------------------------------------------------------------------------
+
+-- canonical file name -> time (uv.now) until which its next load is the
+-- rename's
+local pending = {}
+local group
+
+--- Stop waiting for files to write.
+function M.reset()
+  pending = {}
+  if group then
+    pcall(vim.api.nvim_del_augroup_by_id, group)
+    group = nil
+  end
+end
+
+local function write(b)
+  if not vim.api.nvim_buf_is_loaded(b) or not vim.bo[b].modified then
+    return
+  end
+  local ok, err = pcall(vim.api.nvim_buf_call, b, function()
+    vim.cmd("silent keepalt update")
+  end)
+  if not ok then
+    require("org.utils").warn("lsp: rename could not write " .. vim.api.nvim_buf_get_name(b) .. ": " .. tostring(err))
+  end
+end
+
+--- Neovim loads the files a workspace edit changes that weren't loaded
+--- and leaves them modified: write those (`rename.write_unloaded`) once the
+--- edit is applied. Files not loaded within 10 s are forgotten.
+---@param paths string[]
+function M.write_when_loaded(paths)
+  if #paths == 0 or (util.opts().rename or {}).write_unloaded == false then
+    return
+  end
+  local now = vim.uv.now()
+  for _, p in ipairs(paths) do
+    pending[p] = now + 10000
+  end
+  if group then
+    return
+  end
+  group = vim.api.nvim_create_augroup("org.lsp.rename", { clear = true })
+  vim.api.nvim_create_autocmd("BufReadPost", {
+    group = group,
+    callback = function(ev)
+      local name = vim.api.nvim_buf_get_name(ev.buf)
+      local t = vim.uv.now()
+      local p = name ~= "" and util.canon(name)
+      if p and pending[p] and t <= pending[p] then
+        pending[p] = nil
+        -- after the rest of the edit is applied
+        vim.schedule(function()
+          write(ev.buf)
+        end)
+      end
+      for k, until_ in pairs(pending) do
+        if t > until_ then
+          pending[k] = nil
+        end
+      end
+      if not next(pending) then
+        vim.schedule(function()
+          if not next(pending) then
+            M.reset()
+          end
+        end)
+      end
+    end,
+  })
 end
 
 return M

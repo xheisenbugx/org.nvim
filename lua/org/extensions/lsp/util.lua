@@ -49,6 +49,15 @@ function M.reset_scope()
   scope = nil
 end
 
+--- A table kept for the current request under `key`.
+---@param key string
+---@return table
+function M.scoped(key)
+  local sc = current()
+  sc[key] = sc[key] or {}
+  return sc[key]
+end
+
 --- The loaded buffer of a file, comparing names with symlinks resolved
 --- (a buffer opened as /tmp/x.org is the buffer of /private/tmp/x.org).
 ---@param path string

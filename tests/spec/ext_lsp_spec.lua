@@ -439,6 +439,71 @@ describe("lsp extension", function()
       eq("  New [[file:main.org::#sum]]", buf_lines(ob)[#buf_lines(ob)])
     end)
 
+    it("writes the files it had to load, and only those", function()
+      local buf = open(main)
+      eq(nil, utils.find_buffer(other))
+      ok(rename(buf, 5, 18, "summary"))
+      local ob = utils.find_buffer(other)
+      ok(vim.wait(1000, function()
+        return not vim.bo[ob].modified
+      end, 10))
+      eq("  Link [[file:main.org::#summary][the report]]", vim.fn.readfile(other)[2])
+      -- the renamed buffer itself is left to the user
+      ok(vim.bo[buf].modified)
+      eq(MAIN[5], vim.fn.readfile(main)[5])
+    end)
+
+    it("leaves them modified with write_unloaded = false", function()
+      setup({ extensions = { lsp = { rename = { write_unloaded = false } } } })
+      local buf = open(main)
+      ok(rename(buf, 5, 18, "summary"))
+      vim.wait(100)
+      ok(vim.bo[utils.find_buffer(other)].modified)
+      eq(OTHER, vim.fn.readfile(other))
+    end)
+
+    it("updates the ID database when renaming an ID", function()
+      local id = require("org.id")
+      id.register("1111-aaaa", main)
+      local buf = open(main)
+      ok(rename(buf, 6, 10, "2222-bbbb"))
+      local known = id.known_ids()
+      ok(vim.tbl_contains(known, "2222-bbbb"), vim.inspect(known))
+      ok(not vim.tbl_contains(known, "1111-aaaa"), vim.inspect(known))
+    end)
+
+    it("updates id link descriptions that spell a renamed title", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  Node [[id:1111-aaaa][Write report]]." })
+      local buf = open(main)
+      ok(rename(buf, 2, 20, "Write the summary"))
+      eq("  Node [[id:1111-aaaa][Write the summary]].", buf_lines(ob)[#buf_lines(ob)])
+      -- other descriptions are kept
+      eq(OTHER[3]:gsub("%*Write report%]%[Write report", "*Write the summary][Write the summary"), buf_lines(ob)[3])
+    end)
+
+    it("renames a file-level ID (an org-roam file node)", function()
+      local node = dir .. "/node.org"
+      utils.writefile(node, { ":PROPERTIES:", ":ID: node-1", ":END:", "#+title: Node", "Text." })
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  See [[id:node-1][Node]]." })
+      local last = #buf_lines(ob)
+      local r = request(ob, "textDocument/definition", tdp(ob, last, 12))
+      eq(node, vim.uri_to_fname((r.uri and r or r[1]).uri))
+      local list = request(ob, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(ob) },
+        position = { line = last - 1, character = 11 },
+        context = { includeDeclaration = true },
+      })
+      eq(2, #list)
+      ok(rename(ob, last, 12, "node-2"))
+      eq("  See [[id:node-2][Node]].", buf_lines(ob)[last])
+      local nb = utils.find_buffer(node)
+      eq(":ID: node-2", buf_lines(nb)[2])
+      vim.api.nvim_buf_delete(nb, { force = true })
+      vim.fn.delete(node)
+    end)
+
     it("refuses names that would clash", function()
       local buf = open(main)
       local res, err = rename(buf, 13, 8, "Details")
