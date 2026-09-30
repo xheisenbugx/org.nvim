@@ -25,6 +25,9 @@
 ---@field hours_per_day? number
 ---Show the days each task was clocked. (default: `false`)
 ---@field clocks? boolean
+---Show the calendar events of the ics extension when it is on and the source is
+---the agenda files. (default: `true`)
+---@field ics? boolean
 ---Window: `"float"`, `"tab"`, `"split"`, `"vsplit"` or `"current"`. (default: `"float"`)
 ---@field layout? "float"|"tab"|"split"|"vsplit"|"current"
 ---Float size: fractions of the editor, or columns / lines. (default: `0.94`, `0.88`)

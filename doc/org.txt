@@ -9274,7 +9274,19 @@ The `query` option takes any org-ql query, plain syntax included.
 
 COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
 scratch buffers; <CR> opens the heading in the window the view was opened
-from (floats and tabs close first).
+from (floats and tabs close first), and <Esc> closes them (`q` is left
+alone). `:Org kanban`, `:Org timeline` and `:Org heatmap` complete their
+arguments: the sources, org files, zooms or kinds, and the tags of the
+agenda files. A word is a file when it ends in `.org`, starts with `~`, `.`
+or `/`, has a glob character or names an existing path; anything else is
+a filter, so `work/NEXT` is a tags/TODO match.
+
+The views redraw after an org buffer they show is changed (once after a
+burst of changes) or written, and after TODO state, clock, property,
+capture and note events. A redraw reads nothing again while the files'
+parses (`org.files` keeps one per buffer text and file mtime) and the day
+are the same, and moving around in a view (selection, pan, zoom) only
+redraws it.
 
 ------------------------------------------------------------------------------
 Kanban board                                           *org-extensions-kanban*
@@ -9294,8 +9306,8 @@ A board with a column per TODO keyword and a card per heading:
 on the `source` option, the current buffer and the subtree at the cursor.
 
 Columns are the TODO keywords in the order they are defined (with the
-keywords of `#+TODO` lines in the source files) unless `columns` lists them;
-a column can gather several keywords under a `name`. The header shows the
+keywords of `#+TODO` lines in the source files after them) unless `columns`
+lists them; a column can gather several keywords under a `name`. The header shows the
 number of cards, or `count/limit` with a WIP limit (`wip` in the column or
 the `wip` option), in the error colour with a `!` once over it. Headers use
 the TODO keyword faces (`ui.todo_keyword_faces`).
@@ -9309,21 +9321,32 @@ by default). Cards are sorted by `sort`.
 Keys in the board ~
   h / l     move the card to the previous / next column: the heading gets
             the column's first keyword through the regular TODO code, so
-            logging, CLOSED, blocking and repeaters work as with `C-c C-t`
+            logging, CLOSED, blocking and repeaters work as with `C-c C-t`.
+            Columns whose keywords the card's file doesn't have (another
+            `#+TODO` sequence) are skipped. With `choose_keyword`, a column
+            of several keywords asks which one.
   j / k     next / previous card
+  J / K     move the card after the next / before the previous card of the
+            column: its subtree moves past the other one in the file. Only
+            for cards under the same heading, with `sort = "file"` (in the
+            other orders the board would put it back)
   H / L     previous / next column
   <CR>      open the heading
   /         filter (empty clears it)
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 The cursor can also be moved onto a card with any motion or the mouse. The
-board redraws itself when an org file is written or changed, and when a TODO
-state or clock changes. Moved cards are saved with `save = true` (default:
+board redraws itself when an org file is written, when one of its files is
+changed (in Normal mode; a burst of changes redraws once), and when a TODO
+state or clock changes; a board in a hidden tab waits until it is shown.
+Moving the selection redraws nothing. A board of thousands of cards takes a
+noticeable moment to build (about 0.2 s for 5,000 cards). Moved cards are saved with `save = true` (default:
 `agenda.save_after_edit`).
 
 Options (defaults) ~
   `columns`            {} (one per keyword)
+  `choose_keyword`     false
   `wip`                {} (limits by column name or keyword)
   `show_done`          true
   `source`             "agenda"
@@ -9338,8 +9361,8 @@ Options (defaults) ~
                        scheduled, category = false }
   `save`               nil
   `keys`               the keys above, by name: `prev_state`, `next_state`,
-                       `down`, `up`, `prev_column`, `next_column`, `jump`,
-                       `refresh`, `filter`, `quit`
+                       `down`, `up`, `move_down`, `move_up`, `prev_column`,
+                       `next_column`, `jump`, `refresh`, `filter`, `quit`
 
 Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
 `OrgKanbanSelected`, `OrgKanbanCardTitle`, `OrgKanbanDoneTitle`,
@@ -9367,6 +9390,25 @@ column is shaded and its date highlighted on the axis; at day zoom
 weekends are shaded too. With `clocks` (or `c`), the days a task was
 clocked show as ▒. DONE tasks are left out unless `show_done` is set.
 
+Times of day count at day zoom, where a day's three columns are its thirds
+(0-8, 8-16, 16-24 h): `SCHEDULED: <... 14:00-15:00>` fills the middle one,
+a bar starting at 14:00 starts there, and a deadline at 20:00 puts its ◆ in
+the last one. A timed task with an Effort shorter than the rest of its day
+ends when the Effort does. The week and month zooms show whole days.
+
+A repeating task (`+1w`, `++1m`, `.+2d` on its SCHEDULED or DEADLINE) is
+drawn again at each later occurrence inside the view, in
+`OrgTimelineRepeat`: the whole bar and its deadline, shifted by the
+repeat. Only occurrences from the current date on are drawn: the past of a
+repeating task is its log, not its timestamp.
+
+With the |org-extensions-ics| extension on and the agenda files as the
+source, calendar events get a row each (a span per occurrence, in
+`OrgTimelineEvent`), placed by their times like timed tasks; `ics = false`
+leaves them out. They can't be opened or rescheduled from here.
+
+In a narrow window the task names take at most 40% of the width.
+
 Keys ~
   + = / -   zoom in / out: day (3 columns a day), week (a column a day),
             month (a column a week)
@@ -9377,7 +9419,7 @@ Keys ~
             (as `C-c C-s` / `C-c C-d`)
   c         show or hide clocked days
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 Options (defaults) ~
   `source`, `query`, `tag`   "agenda", nil, nil
@@ -9387,6 +9429,7 @@ Options (defaults) ~
   `label_width`        34
   `hours_per_day`      8
   `clocks`             false
+  `ics`                true (calendar events, with the ics extension)
   `layout`             "float" (as for the kanban board)
   `width`, `height`    0.94, 0.88
   `save`               nil (save after S / D; nil follows
@@ -9399,7 +9442,12 @@ Highlight groups: `OrgTimelineTitle`, `OrgTimelineHint`, `OrgTimelineAxis`,
 `OrgTimelineMonth`, `OrgTimelineSeparator`, `OrgTimelineBar`,
 `OrgTimelineDone`, `OrgTimelineOverdue`, `OrgTimelineDeadline`,
 `OrgTimelineClock`, `OrgTimelineToday`, `OrgTimelineTodayLabel`,
-`OrgTimelineWeekend`, `OrgTimelineTask`.
+`OrgTimelineWeekend`, `OrgTimelineTask`, `OrgTimelineRepeat`,
+`OrgTimelineEvent`.
+
+Panning and zooming redraw without reading the files again; the timeline
+is rebuilt when one of its files is written or changed (in Normal mode),
+as the kanban board is.
 
 ------------------------------------------------------------------------------
 Heatmap                                               *org-extensions-heatmap*
@@ -9413,9 +9461,14 @@ week, a row per weekday, each day shaded by what was done that day.
 `heatmap_open` (`<prefix>Vh`). The kinds:
   `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
           between the two days, a running clock counts up to now)
-  `closed`  tasks marked done: CLOSED dates and `- State "DONE"` log
-          entries, once per task and day
+  `closed`  tasks marked done: CLOSED dates, `- State "DONE"` and
+          `- CLOSING NOTE` log entries and the LAST_REPEAT property, once
+          per task and day
   `habit`   the same for habits (`STYLE: habit`)
+
+A habit only leaves a trace when marking it done logs something: with
+`log_repeat` on (the default) every completion is counted; with it off,
+only the last one (its LAST_REPEAT, which clocked tasks get too) is.
 
 A bare word is a tag (`+work` and `:work:` work too); a path ending in
 `.org` is the source.
@@ -9430,15 +9483,17 @@ current streak (ending today, or yesterday while today is empty), the
 longest one and the best day.
 
 The cursor starts on today; the line at the bottom shows the selected day's
-total and its biggest entries.
+total and its biggest entries. With `weeks = 0` the number of weeks follows
+the editor's width when it is resized. Only the days shown are counted, so
+years of CLOCK lines cost little (100,000 clocks: about 30 ms).
 
 Keys ~
   <Tab>     next kind (clock, closed, habit)
   h / l     previous / next week
   k / j     previous / next day
-  <CR>      the agenda of that day
+  <CR>      the agenda of that day (a split heatmap stays open)
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 Options (defaults) ~
   `kind`          "clock"
@@ -9466,18 +9521,27 @@ A narrow window at the side of the tab that keeps today in view:
 The actions `sidebar_toggle` (`<prefix>Vs`), `sidebar_open` and
 `sidebar_close`. Its sections (`sections`, in this order by default):
   `clock`   the running clock: the task, the time clocked and, with an
-          Effort, a bar of the time against it (error colour once over)
+          Effort, a bar of the time against it (error colour once over).
+          With the |org-extensions-pomodoro| extension on, the pomodoro's
+          phase and when it ends ("🍅 work until 10:25 (2)")
   `next`    the next timed entry of today still to come, with a countdown
   `today`   today's timed entries (the past ones dimmed), deadlines due
           within `deadline_days` (the overdue ones first) and scheduled
-          entries, from the agenda files, as in the day agenda
+          entries, from the agenda files, as in the day agenda, and the
+          events of today from the extra agenda sources, such as the
+          calendars of the |org-extensions-ics| extension (◇ for all-day
+          ones; they have no heading to open)
   `habits`  the habits due today
   `inbox`   the number of top-level entries not DONE in `inbox_file`
           (default: `default_notes_file`)
 
 It is redrawn every `interval` seconds while it is open (the timer stops
-when it closes) and when an org file is written or a clock or TODO state
-changes. The window keeps its width (`winfixwidth`, and `winfixbuf` where
+when it closes), when an agenda file or the inbox is written or changed,
+and when a clock, TODO state or pomodoro phase changes. A redraw collects
+the agenda again only when an agenda file changed (or the day did), so a
+tick costs little even with hundreds of agenda files; an error in one is
+reported once. In an editor too narrow for `width`, it takes what is left
+after a narrow window. The window keeps its width (`winfixwidth`, and `winfixbuf` where
 Neovim has it), has no numbers, sign column or status line text, and opening
 it leaves the cursor where it was unless `focus` is set. Toggling it in
 another tab moves it there.
@@ -9486,7 +9550,7 @@ Keys ~
   <CR>   open the entry (the clocked task, the inbox) in the window next
          to the sidebar
   r      refresh
-  q      close
+  <Esc>  close
 
 Options (defaults) ~
   `position`       "right"
@@ -9498,13 +9562,15 @@ Options (defaults) ~
   `inbox_file`     nil
   `focus`          false
   `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
-                   inbox = "✉", deadline = "◆", scheduled = "▸" }
-  `keys`           { jump = "<CR>", refresh = "r", close = "q" }
+                   inbox = "✉", deadline = "◆", scheduled = "▸",
+                   event = "◇" }
+  `keys`           { jump = "<CR>", refresh = "r", close = "<Esc>" }
 
 Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,
 `OrgSidebarEmpty`, `OrgSidebarCountdown`, `OrgSidebarOverdue`,
 `OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
-`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`.
+`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`, `OrgSidebarPomodoro`,
+`OrgSidebarEvent`.
 
  vim:tw=78:ts=8:ft=help:norl:

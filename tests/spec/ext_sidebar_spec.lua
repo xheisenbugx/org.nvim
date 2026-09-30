@@ -308,4 +308,113 @@ describe("sidebar", function()
     eq(false, sidebar.is_open())
     ok(not vim.api.nvim_win_is_valid(st.win))
   end)
+
+  it("closes with <Esc> and leaves q alone", function()
+    local st = sidebar.open()
+    vim.api.nvim_set_current_win(st.win)
+    eq("", vim.fn.maparg("q", "n"))
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
+    eq(false, sidebar.is_open())
+  end)
+
+  it("does not collect the agenda again on a timer tick while nothing changed", function()
+    local items = require("org.agenda.items")
+    local agenda = items.agenda
+    local n = 0
+    items.agenda = function(...)
+      n = n + 1
+      return agenda(...)
+    end
+    local st = sidebar.open()
+    sidebar.tick(st)
+    sidebar.tick(st)
+    local before = n
+    -- a change of an agenda file is seen on the next tick
+    local b = utils.load_buffer(path)
+    vim.api.nvim_buf_set_lines(b, -1, -1, false, { "* TODO Added", "  SCHEDULED: <" .. day(0) .. " 17:00>" })
+    sidebar.tick(st)
+    items.agenda = agenda
+    eq(1, before)
+    eq(2, n)
+    ok(text(st):find("17:00 TODO Added", 1, true), text(st))
+  end)
+
+  it("reports an error of a timer tick once", function()
+    local st = sidebar.open()
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    local collect = sidebar.collect
+    sidebar.collect = function()
+      error("broken")
+    end
+    sidebar.tick(st)
+    sidebar.tick(st)
+    sidebar.tick(st)
+    sidebar.collect = collect
+    vim.notify = notify
+    eq(1, #msgs)
+    ok(msgs[1]:find("broken", 1, true))
+    ok(sidebar.is_open())
+  end)
+
+  it("fits a tiny editor", function()
+    local columns = vim.o.columns
+    vim.o.columns = 24
+    local ok_open, st = pcall(sidebar.open)
+    vim.o.columns = columns
+    ok(ok_open, st)
+    ok(st and vim.api.nvim_win_get_width(st.win) < 24)
+  end)
+
+  it("shows calendar events with the ics extension", function()
+    local ics = dir .. "/cal.ics"
+    local d = date.today()
+    local stamp = string.format("%04d%02d%02d", d.year, d.month, d.day)
+    utils.writefile(ics, {
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:dentist-1",
+      "DTSTART:" .. stamp .. "T113000",
+      "DTEND:" .. stamp .. "T120000",
+      "SUMMARY:Dentist",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    })
+    require("org").setup({
+      org_directory = dir,
+      agenda_files = { path },
+      default_notes_file = inbox,
+      todo_keywords = { "TODO NEXT WAITING | DONE CANCELLED" },
+      extensions = { sidebar = {}, ics = { calendars = { { name = "Home", path = ics } }, auto_refresh = false } },
+    })
+    local st = sidebar.open()
+    local t = text(st)
+    ok(t:find("11:30 Dentist", 1, true), t)
+    -- the next appointment
+    local _, l = line_of(st, "Next")
+    ok(l:find("in 1h30m", 1, true), l)
+  end)
+
+  it("shows the pomodoro phase with the pomodoro extension", function()
+    setup({})
+    require("org").setup({
+      org_directory = dir,
+      agenda_files = { path },
+      default_notes_file = inbox,
+      todo_keywords = { "TODO NEXT WAITING | DONE CANCELLED" },
+      extensions = { sidebar = {}, pomodoro = { system_notification = false } },
+    })
+    local pomodoro = require("org.extensions.pomodoro")
+    local now = pomodoro.time()
+    pomodoro.state = { phase = "work", started = now - 60, duration = 25 * 60, count = 1, title = "Ship" }
+    local st = sidebar.open()
+    local t = text(st)
+    pomodoro.state = nil
+    local until_ = os.date("%H:%M", now - 60 + 25 * 60)
+    ok(t:find("work until " .. until_, 1, true), t)
+  end)
 end)

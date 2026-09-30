@@ -7,9 +7,12 @@
 ---@field enabled? boolean
 ---Columns, left to right: a keyword, or keywords with an optional `name` and
 ---`wip` limit, e.g. `{ "TODO", { "NEXT", "WAITING", name = "Doing", wip = 3 }, "DONE" }`.
----A card moved into a column gets its first keyword. (default: `{}`, a column
----per TODO keyword)
+---A card moved into a column gets its first keyword that the card's file knows.
+---(default: `{}`, a column per TODO keyword)
 ---@field columns? (string|org.Config.Extensions.KanbanColumn)[]
+---Ask which keyword (vim.ui.select) when a card moves into a column of several.
+---(default: `false`: the first)
+---@field choose_keyword? boolean
 ---WIP limits by column name or keyword, e.g. `{ NEXT = 3 }`. (default: `{}`)
 ---@field wip? table<string, integer>
 ---Show the columns of DONE keywords. (default: `true`)
@@ -40,7 +43,7 @@
 ---Save the file after moving a card; `nil` follows `agenda.save_after_edit`. (default: `nil`)
 ---@field save? boolean
 ---Keys in the board (`false` removes one).
----@field keys? { prev_state?: string|string[]|false, next_state?: string|string[]|false, down?: string|string[]|false, up?: string|string[]|false, prev_column?: string|string[]|false, next_column?: string|string[]|false, jump?: string|string[]|false, refresh?: string|string[]|false, filter?: string|string[]|false, quit?: string|string[]|false }
+---@field keys? { prev_state?: string|string[]|false, next_state?: string|string[]|false, down?: string|string[]|false, up?: string|string[]|false, prev_column?: string|string[]|false, next_column?: string|string[]|false, move_down?: string|string[]|false, move_up?: string|string[]|false, jump?: string|string[]|false, refresh?: string|string[]|false, filter?: string|string[]|false, quit?: string|string[]|false }
 
 ---@class org.Config.Extensions.KanbanColumn
 ---The keywords of the column (list part).

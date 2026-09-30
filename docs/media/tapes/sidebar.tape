@@ -1,7 +1,7 @@
 # Today sidebar (sidebar extension): the running clock against its effort,
 # the next appointment, today's items, habits and the inbox, kept up to date.
-# views/today.org puts appointments 25 and 80 minutes from now: record it
-# before 23:30 or after midnight.
+# demo/sidebar.lua sets the demo's clock to 10:00 today, so views/today.org's
+# appointments (25 and 80 minutes from now) never cross midnight.
 Output docs/media/sidebar.gif
 Source docs/media/tapes/common.tape
 

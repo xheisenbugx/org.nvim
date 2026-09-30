@@ -106,3 +106,189 @@ describe("views_util formatting", function()
     eq("OrgTags", views.tag_group("x"))
   end)
 end)
+
+describe("views_util canvas merging", function()
+  it("merges adjacent segments of the same highlight", function()
+    local cv = views.Canvas.new()
+    cv:put("ab", "A")
+    cv:put("cd", "A")
+    cv:put("ef", { "X", "Y" })
+    cv:put("gh", { "X", "Y" })
+    cv:put("ij")
+    cv:put("kl", "A")
+    eq({ { 0, 4, "A" }, { 4, 8, { "X", "Y" } }, { 10, 12, "A" } }, cv.lines[1].hls)
+    eq({ "abcdefghijkl" }, cv:strings())
+  end)
+end)
+
+describe("views_util targets", function()
+  it("picks the copy of a moved headline nearest its old line", function()
+    local buf = org_buffer({ "* TODO Same", "* Other", "* TODO Same", "* More", "* TODO Same" })
+    vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "* New" })
+    eq({ bufnr = buf, lnum = 6 }, views.target({ bufnr = buf, lnum = 5, raw = "* TODO Same" }))
+  end)
+end)
+
+describe("views_util arguments", function()
+  it("tells file names from tags matches", function()
+    eq(true, views.is_path("~/x.org"))
+    eq(true, views.is_path("notes/x.org"))
+    eq(true, views.is_path("./notes"))
+    eq(true, views.is_path("/abs/dir"))
+    eq(true, views.is_path("~/org/*.org"))
+    eq(false, views.is_path("work/NEXT"))
+    eq(false, views.is_path("work+urgent/!TODO"))
+    eq(false, views.is_path("(todo)"))
+  end)
+
+  it("completes sources", function()
+    local c = views.complete_sources("")
+    ok(vim.tbl_contains(c, "agenda"))
+    ok(vim.tbl_contains(c, "buffer"))
+    ok(vim.tbl_contains(c, "subtree"))
+  end)
+end)
+
+describe("views_util windows", function()
+  local columns, lines
+  before_each(function()
+    columns, lines = vim.o.columns, vim.o.lines
+  end)
+  after_each(function()
+    vim.o.columns, vim.o.lines = columns, lines
+    vim.cmd("silent! only")
+  end)
+
+  it("opens a float that fits a tiny editor", function()
+    vim.o.columns, vim.o.lines = 20, 6
+    local buf = views.scratch("org://views-tiny", "text")
+    local win, how = views.open(buf, "float", { width = 0.9, height = 0.9, title = "A long title" })
+    local cfg = vim.api.nvim_win_get_config(win)
+    ok(cfg.width <= 18, cfg.width)
+    ok(cfg.height <= 4, cfg.height)
+    views.close(how)
+  end)
+
+  it("resizes a float with the editor", function()
+    vim.o.columns, vim.o.lines = 100, 40
+    local buf = views.scratch("org://views-resize", "text")
+    local win, how = views.open(buf, "float", { width = 0.5, height = 0.5 })
+    eq(50, vim.api.nvim_win_get_width(win))
+    vim.o.columns = 60
+    views.relayout(how)
+    eq(30, vim.api.nvim_win_get_width(win))
+    views.close(how)
+  end)
+end)
+
+describe("views_util watch", function()
+  local group
+  after_each(function()
+    if group then
+      pcall(vim.api.nvim_del_augroup_by_id, group)
+    end
+    -- leave no modified scratch org buffer in the window (Neovim 0.10 can't
+    -- switch away from one with bufhidden=wipe)
+    vim.cmd("silent! enew!")
+  end)
+
+  it("debounces a burst of changes into one call", function()
+    local calls = 0
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+    end, { delay = 30 })
+    for _ = 1, 5 do
+      vim.api.nvim_exec_autocmds("User", { pattern = "OrgTodoStateChange" })
+      vim.wait(10)
+    end
+    vim.wait(200, function()
+      return calls > 0
+    end)
+    vim.wait(60)
+    eq(1, calls)
+  end)
+
+  it("ignores changes of buffers the view does not show", function()
+    local calls = 0
+    local mine = org_buffer({ "* A" })
+    vim.bo[mine].bufhidden = "hide"
+    local other = org_buffer({ "* B" })
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+    end, {
+      delay = 10,
+      relevant = function(b)
+        return b == mine
+      end,
+    })
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = other })
+    vim.wait(60)
+    eq(0, calls)
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = mine })
+    ok(vim.wait(500, function()
+      return calls == 1
+    end))
+  end)
+
+  it("watches unnamed org buffers too", function()
+    local calls = 0
+    -- org_buffer() buffers have no name
+    local mine = org_buffer({ "* A" })
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+    end, { delay = 10 })
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = mine })
+    ok(vim.wait(500, function()
+      return calls == 1
+    end))
+  end)
+
+  it("waits while the view is hidden, and not while it is in another tab", function()
+    local calls = 0
+    local view = vim.api.nvim_create_buf(false, true)
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+    end, { delay = 5, buf = view })
+    vim.api.nvim_exec_autocmds("User", { pattern = "OrgClockIn" })
+    vim.wait(100)
+    eq(0, calls)
+    -- shown in another tab: redrawn right away, and the one pending call
+    -- ran when it was shown
+    vim.cmd("tabnew")
+    vim.api.nvim_win_set_buf(0, view)
+    ok(vim.wait(500, function()
+      return calls == 1
+    end))
+    vim.cmd("tabprevious")
+    vim.api.nvim_exec_autocmds("User", { pattern = "OrgClockIn" })
+    ok(vim.wait(500, function()
+      return calls == 2
+    end))
+    vim.cmd("tabnext")
+    vim.cmd("tabclose")
+    vim.api.nvim_buf_delete(view, { force = true })
+  end)
+
+  it("reports an error of the callback once", function()
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    local calls = 0
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+      error("boom")
+    end, { delay = 5 })
+    for _ = 1, 3 do
+      vim.api.nvim_exec_autocmds("User", { pattern = "OrgClockIn" })
+      vim.wait(200, function()
+        return false
+      end)
+    end
+    vim.notify = notify
+    eq(3, calls)
+    eq(1, #msgs)
+    ok(msgs[1]:find("boom", 1, true))
+  end)
+end)

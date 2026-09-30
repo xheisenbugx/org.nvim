@@ -91,7 +91,8 @@ same date expansion. `views/clocklog.org` (nine months of CLOCK lines and
 closed tasks for the heatmap) was generated once with a seeded script; its
 dates are `{{-N HH:MM}}` offsets, so the history always ends today.
 `views/today.org` has appointments 25 and 80 minutes from now
-(`{{now+N}}`), so record `sidebar.tape` before 23:30 or after midnight.
+(`{{now+N}}`); `demo/sidebar.lua` starts the demo's clock at 10:00 today,
+so `sidebar.tape` can be recorded at any time of day.
 
 To try the demo setup by hand:
 

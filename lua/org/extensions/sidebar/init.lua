@@ -49,9 +49,10 @@ M.defaults = {
     inbox = "✉",
     deadline = "◆",
     scheduled = "▸",
+    event = "◇",
   },
   --- Keys in the sidebar.
-  keys = { jump = "<CR>", refresh = "r", close = "q" },
+  keys = { jump = "<CR>", refresh = "r", close = "<Esc>" },
 }
 
 M.actions = {
@@ -87,6 +88,8 @@ function M.setup()
     OrgSidebarProgress = { link = "DiagnosticOk" },
     OrgSidebarProgressEmpty = { link = "NonText" },
     OrgSidebarOverrun = { link = "DiagnosticError" },
+    OrgSidebarPomodoro = { link = "DiagnosticWarn" },
+    OrgSidebarEvent = { link = "Special" },
   })
 end
 
@@ -109,59 +112,101 @@ end
 ---------------------------------------------------------------------------
 
 local function item_ref(item)
+  if not item.headline then
+    return nil
+  end
   return { filename = item.filename, bufnr = item.bufnr, lnum = item.lnum, raw = item.raw }
 end
 
---- What the sidebar shows: `{ clock, next, timed, today, habits, inbox }`.
+--- Today's entries of the agenda files and the extra agenda sources (ics
+--- calendars...): `{ timed, today, habits }`. The agenda files' part is
+--- kept in `cache` while their parses (org.files) and the day are the
+--- same, so a timer tick doesn't collect the agenda again.
 ---@param o table options
----@return table
-function M.collect(o)
-  local today = date.today_days()
-  local now = date.now()
-  local now_min = now.hour * 60 + now.min
+---@param cache? table
+local function entries(o, cache)
+  local items = require("org.agenda.items")
   local habits = require("org.agenda.habits")
+  local today = date.today_days()
   local files = require("org.files").agenda_files()
-  local by_day = require("org.agenda.items").agenda(files, today, today, {})
-  local data = { timed = {}, today = {}, habits = {}, now_min = now_min, today_days = today }
+  local key = views.files_key(files)
+  local file_items
+  if cache and cache.key == key then
+    file_items = cache.items
+  else
+    -- the files alone: the extra sources change without the files
+    local sources = items.day_sources
+    items.day_sources = {}
+    local ok, by_day = pcall(items.agenda, files, today, today, {})
+    items.day_sources = sources
+    if not ok then
+      error(by_day, 0)
+    end
+    file_items = by_day[today] or {}
+    if cache then
+      cache.key, cache.items = key, file_items
+      cache.file_set = views.file_set(files)
+    end
+  end
+  local list = vim.list_extend({}, file_items)
+  local names = vim.tbl_keys(items.day_sources)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local ok, extra = pcall(items.day_sources[name], today, today, {})
+    if ok then
+      for _, item in ipairs(extra or {}) do
+        if item.day == today then
+          list[#list + 1] = item
+        end
+      end
+    end
+  end
+  local out = { timed = {}, today = {}, habits = {} }
   local seen = {}
-  for _, item in ipairs(by_day[today] or {}) do
+  for _, item in ipairs(list) do
     local hl = item.headline
-    local key = hl and (tostring(item.filename) .. ":" .. item.lnum .. ":" .. tostring(item.time)) or nil
-    local keep = hl ~= nil and not (key and seen[key]) and (o.show_done or not item.done)
-    if keep and item.type == "deadline" and hl.planning.deadline then
+    local key_ = hl and (tostring(item.filename) .. ":" .. item.lnum .. ":" .. tostring(item.time))
+      or ("event:" .. tostring(item.title) .. ":" .. tostring(item.time))
+    local keep = not seen[key_] and (o.show_done or not item.done)
+    if keep and hl and item.type == "deadline" and hl.planning.deadline then
       -- the agenda's warning period, cut to `deadline_days`
       keep = hl.planning.deadline:days() - today <= (o.deadline_days or 7)
     end
     if keep then
-      seen[key] = true
+      seen[key_] = true
       local entry = {
         ref = item_ref(item),
         todo = item.todo,
-        title = views.title(hl),
+        title = hl and views.title(hl) or vim.trim(item.title or ""),
         time = item.time,
         end_time = item.end_time,
         type = item.type,
         done = item.done,
+        event = hl == nil,
       }
-      if item.type == "deadline" and hl.planning.deadline then
+      if hl and item.type == "deadline" and hl.planning.deadline then
         entry.deadline = hl.planning.deadline:days() - today
-      elseif item.type == "scheduled" and hl.planning.scheduled then
+      elseif hl and item.type == "scheduled" and hl.planning.scheduled then
         entry.scheduled = hl.planning.scheduled:days() - today
       end
-      if habits.is_habit(hl) then
-        data.habits[#data.habits + 1] = entry
+      if hl and habits.is_habit(hl) then
+        out.habits[#out.habits + 1] = entry
       elseif item.time then
-        data.timed[#data.timed + 1] = entry
+        out.timed[#out.timed + 1] = entry
       else
-        data.today[#data.today + 1] = entry
+        out.today[#out.today + 1] = entry
       end
     end
   end
-  table.sort(data.timed, function(a, b)
-    return a.time < b.time
+  table.sort(out.timed, function(a, b)
+    if a.time ~= b.time then
+      return a.time < b.time
+    end
+    return a.title < b.title
   end)
-  -- deadlines first (the most overdue first), then scheduled items
-  table.sort(data.today, function(a, b)
+  -- deadlines first (the most overdue first), then scheduled items, then
+  -- all-day events
+  table.sort(out.today, function(a, b)
     local ka = a.deadline or (a.scheduled and 1000 + a.scheduled) or 2000
     local kb = b.deadline or (b.scheduled and 1000 + b.scheduled) or 2000
     if ka ~= kb then
@@ -169,10 +214,51 @@ function M.collect(o)
     end
     return a.title < b.title
   end)
-  for _, e in ipairs(data.timed) do
-    local stop = e.end_time or e.time
-    if not e.done and stop >= now_min then
-      data.next = e
+  return out
+end
+
+--- The pomodoro of the pomodoro extension when it is on and running:
+--- `{ icon, phase, until, paused, left, count }`, or nil.
+local function pomodoro()
+  if not require("org.extensions").enabled("pomodoro") then
+    return nil
+  end
+  local ok, p = pcall(require, "org.extensions.pomodoro")
+  local st = ok and p.state or nil
+  if not st then
+    return nil
+  end
+  local popts = require("org.extensions").opts("pomodoro") or {}
+  local icons = vim.tbl_extend("force", p.defaults.icons or {}, popts.icons or {})
+  local out = { icon = icons[st.phase] or "", phase = st.phase:gsub("_", " "), count = st.count or 0 }
+  if st.phase ~= "ready" then
+    local left = p.remaining() or 0
+    if st.paused_at then
+      out.paused, out.icon = true, icons.paused or out.icon
+      out.left = left
+    else
+      out["until"] = os.date("%H:%M", math.floor(p.time() + left + 0.5))
+    end
+  end
+  return out
+end
+
+--- What the sidebar shows: `{ clock, next, timed, today, habits, inbox,
+--- pomodoro }`. `cache` (a table kept between calls) saves collecting the
+--- agenda files again while they are unchanged.
+---@param o table options
+---@param cache? table
+---@return table
+function M.collect(o, cache)
+  local today = date.today_days()
+  local now = date.now()
+  local now_min = now.hour * 60 + now.min
+  local e = entries(o, cache)
+  local data = { timed = e.timed, today = e.today, habits = e.habits, now_min = now_min, today_days = today }
+  for _, t in ipairs(data.timed) do
+    local stop = t.end_time or t.time
+    if not t.done and stop >= now_min then
+      data.next = t
       break
     end
   end
@@ -180,6 +266,7 @@ function M.collect(o)
   if a then
     data.clock = a
   end
+  data.pomodoro = pomodoro()
   local inbox = o.inbox_file or require("org.config").opts.default_notes_file
   if inbox then
     local path = utils.expand(inbox)
@@ -218,7 +305,8 @@ function M.render(st)
   end
   local o = st.opts
   local icons = o.icons or {}
-  local data = M.collect(o)
+  st.cache = st.cache or {}
+  local data = M.collect(o, st.cache)
   st.data = data
   local w = st.win and vim.api.nvim_win_is_valid(st.win) and vim.api.nvim_win_get_width(st.win) or o.width
   local inner = math.max(10, w - 3)
@@ -252,7 +340,7 @@ function M.render(st)
     end
     local room = inner + 1 - used - (note and (utils.width(note) + 1) or 0)
     local title = views.fit(e.title, math.max(4, room))
-    cv:put(title, e.done and "OrgSidebarPast" or "OrgSidebarText")
+    cv:put(title, e.done and "OrgSidebarPast" or (e.event and "OrgSidebarEvent" or "OrgSidebarText"))
     if note then
       cv:put(" " .. note, note_hl)
     end
@@ -287,6 +375,19 @@ function M.render(st)
       else
         cv:add({ { "  not clocked in", "OrgSidebarEmpty" } })
       end
+      local p = data.pomodoro
+      if p then
+        local text = p.icon ~= "" and (p.icon .. " " .. p.phase) or p.phase
+        if p["until"] then
+          text = text .. " until " .. p["until"]
+        elseif p.paused then
+          text = text .. " paused, " .. views.short_duration((p.left or 0) / 60) .. " left"
+        end
+        if p.count > 0 then
+          text = text .. " (" .. p.count .. ")"
+        end
+        cv:add({ { "  " .. text, "OrgSidebarPomodoro" } })
+      end
     elseif name == "next" then
       local e = data.next
       local countdown
@@ -312,6 +413,8 @@ function M.render(st)
           local hl = e.deadline < 0 and "OrgSidebarOverdue"
             or (e.deadline == 0 and "OrgSidebarDue" or "OrgSidebarCount")
           entry(e, icons.deadline, hl, views.relative_days(e.deadline), hl)
+        elseif e.event then
+          entry(e, icons.event or "◇", "OrgSidebarEvent")
         else
           local d = e.scheduled or 0
           entry(e, icons.scheduled, "OrgSidebarScheduled", d < 0 and views.relative_days(d) or nil, "OrgSidebarCount")
@@ -376,6 +479,20 @@ function M.refresh()
   end
 end
 
+--- A timer tick: redraw, reporting an error once (a tick every
+--- `interval` seconds must not repeat it).
+---@param st table
+function M.tick(st)
+  if M.state ~= st or not is_open(st) then
+    return
+  end
+  local ok, err = pcall(M.render, st)
+  if not ok and not st.failed then
+    st.failed = true
+    utils.error("sidebar: " .. tostring(err))
+  end
+end
+
 --- A window of the tab to open entries in: the last one used that is not
 --- the sidebar nor floating, else a new split.
 local function edit_window(st)
@@ -399,7 +516,7 @@ local function edit_window(st)
   vim.cmd(st.opts.position == "left" and "rightbelow vsplit" or "leftabove vsplit")
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
-  vim.api.nvim_win_set_width(st.win, st.opts.width)
+  pcall(vim.api.nvim_win_set_width, st.win, st.width or st.opts.width)
   return win
 end
 
@@ -447,9 +564,15 @@ function M.open()
   end
   local o = vim.deepcopy(opts())
   local prev = vim.api.nvim_get_current_win()
+  -- leave the other windows some room in a narrow editor
+  local width = math.max(1, math.min(tonumber(o.width) or 40, vim.o.columns - math.max(vim.o.winminwidth, 1) - 2))
+  local cmd = (o.position == "left" and "topleft " or "botright ") .. tostring(width) .. "vsplit"
+  local split_ok, split_err = pcall(vim.cmd, cmd)
+  if not split_ok then
+    utils.error("sidebar: " .. tostring(split_err))
+    return nil
+  end
   local buf = views.scratch("org://sidebar", "orgsidebar")
-  local cmd = (o.position == "left" and "topleft " or "botright ") .. tostring(o.width) .. "vsplit"
-  vim.cmd(cmd)
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
   local wo = vim.wo[win]
@@ -473,10 +596,24 @@ function M.open()
   if vim.fn.exists("+winfixbuf") == 1 then
     wo.winfixbuf = true
   end
-  st = { buf = buf, win = win, opts = o }
+  st = { buf = buf, win = win, opts = o, width = width }
   M.state = st
   views.map(buf, o.keys, { jump = M.jump, refresh = M.refresh, close = M.close }, "sidebar")
-  st.watch = views.watch("OrgSidebarWatch", M.refresh, 200)
+  st.watch = views.watch("OrgSidebarWatch", function()
+    M.tick(st)
+  end, {
+    delay = 200,
+    events = { "OrgPomodoroPhase" },
+    -- the agenda files and the inbox; other org buffers don't matter
+    relevant = function(b)
+      local inbox = o.inbox_file or require("org.config").opts.default_notes_file
+      if inbox and views.same_file(vim.api.nvim_buf_get_name(b), utils.expand(inbox)) then
+        return true
+      end
+      local set = st.cache and st.cache.file_set
+      return set == nil or views.in_file_set(set, b)
+    end,
+  })
   vim.api.nvim_create_autocmd({ "WinClosed" }, {
     group = st.watch,
     pattern = tostring(win),
@@ -503,9 +640,7 @@ function M.open()
     interval,
     interval,
     vim.schedule_wrap(function()
-      if M.state == st and is_open(st) then
-        M.render(st)
-      end
+      M.tick(st)
     end)
   )
   M.render(st)
