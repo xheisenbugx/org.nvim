@@ -771,6 +771,8 @@
 ---@field code? org.Config.Extensions.Code|boolean
 ---Literate Neovim config: tangle on save and live reload (`:h org-extensions-literate`).
 ---@field literate? org.Config.Extensions.Literate|boolean
+---An in-process language server for org buffers (`:h org-extensions-lsp`).
+---@field lsp? org.Config.Extensions.Lsp|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

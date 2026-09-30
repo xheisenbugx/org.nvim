@@ -1095,6 +1095,18 @@ set. See `:h org-extensions`.
 
   ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](docs/media/literate.gif)
 
+- **`lsp`**: a language server for org buffers that runs inside Neovim
+  (nothing to install), so every LSP feature and plugin works in Org
+  files: the outline as document symbols, headlines of all your files as
+  workspace symbols, org-lint diagnostics as you type, hover on
+  timestamps ("in 3 days, Friday", repeaters explained), links (a preview
+  of the target), clocks and footnotes, go to definition, references, code
+  actions (schedule, refile, archive, lint quick fixes) and a rename of a
+  headline, CUSTOM_ID, ID or target that rewrites every link to it across
+  files, something Emacs can't do (`:h org-extensions-lsp`).
+
+  ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](docs/media/lsp.gif)
+
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review
 ([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).

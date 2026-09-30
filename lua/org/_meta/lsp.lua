@@ -1,0 +1,74 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { lsp = ... } })`.
+-- Annotations only; never loaded at runtime. The `lsp` field of
+-- org.Config.Extensions is declared in config.lua.
+
+---@class org.Config.Extensions.Lsp
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Attach to every org buffer; with `false`, `:Org lsp_start` attaches the
+---current one. (default: `true`)
+---@field autostart? boolean
+---Chooses the buffers to attach (default: file buffers with a name).
+---@field filter? fun(bufnr: integer): boolean
+---Called when the server attaches to a buffer.
+---@field on_attach? fun(client: vim.lsp.Client, bufnr: integer)
+---Capabilities, each `true` by default.
+---@field features? org.Config.Extensions.Lsp.Features
+---org-lint diagnostics.
+---@field diagnostics? org.Config.Extensions.Lsp.Diagnostics
+---Hover options.
+---@field hover? { preview_lines?: integer, backlinks_all_headings?: boolean }
+---List named src blocks and tables in the document symbols.
+---(default: `{ src_blocks = true, tables = true }`)
+---@field document_symbols? { src_blocks?: boolean, tables?: boolean }
+---Symbol kinds by `vim.lsp.protocol.SymbolKind` name.
+---(default: `{ heading = "Namespace", todo = "Event", done = "Constant",
+---src_block = "Function", table = "Struct" }`)
+---@field symbol_kinds? table<"heading"|"todo"|"done"|"src_block"|"table", string|integer>
+---The files references, rename and workspace symbols look at.
+---@field workspace? org.Config.Extensions.Lsp.Workspace
+---Most workspace symbols returned. (default: `1000`)
+---@field workspace_symbol_limit? integer
+---Rewrite link descriptions equal to the old name. (default: `{ update_descriptions = true }`)
+---@field rename? { update_descriptions?: boolean }
+---Code actions: `entry` commands (`false` or a list of `{ action, title }`)
+---and line `conversions`. (default: both on)
+---@field code_actions? { entry?: boolean|{ [1]: string, [2]: string }[], conversions?: boolean }
+
+---@class org.Config.Extensions.Lsp.Features
+---@field document_symbols? boolean
+---@field workspace_symbols? boolean
+---@field diagnostics? boolean
+---@field hover? boolean
+---@field definition? boolean
+---@field references? boolean
+---@field rename? boolean
+---@field code_actions? boolean
+---@field folding? boolean
+---@field document_links? boolean
+
+---@class org.Config.Extensions.Lsp.Diagnostics
+---Milliseconds without changes before linting again. (default: `500`)
+---@field debounce? integer
+---org-lint checker names (default: org-lint's default set).
+---@field checkers? string[]
+---Checkers left out. (default: `{}`)
+---@field exclude? string[]
+---Severities: `high` and `low` trust reports, and `checkers` by name.
+---(default: `{ high = "Error", low = "Warning", checkers = {} }`)
+---@field severity? { high?: string|integer, low?: string|integer, checkers?: table<string, string|integer> }
+
+---@class org.Config.Extensions.Lsp.Workspace
+---Include the agenda files. (default: `true`)
+---@field agenda_files? boolean
+---Include the `.org` files under `org_directory`. (default: `true`)
+---@field org_directory? boolean
+---Include subdirectories of `org_directory`. (default: `true`)
+---@field recursive? boolean
+---More files, directories or globs. (default: `{}`)
+---@field extra? string[]
+---Replaces all of the above (loaded org buffers are always included).
+---@field files? string[]|fun(): string[]
+---At most this many files. (default: `2000`)
+---@field max_files? integer

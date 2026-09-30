@@ -75,6 +75,12 @@ so it needs `git`. `demo/literate.lua` (for `literate.tape`) turns on the
 `literate` extension for `$ORG_DEMO_DIR/nvim/init.org`, which tangles to
 `lua/config.lua` next to it.
 
+`demo/lsp.lua` is `init.lua` with the `lsp` extension turned on and
+inline diagnostics, for `lsp.tape`; it copies `demo/lsp/*.org` into
+`$ORG_DEMO_DIR/lsp`. The tape opens the file after startup: a buffer made
+for a file that doesn't exist yet (and under the `/tmp` symlink on macOS)
+can't be matched to its LSP URI, so diagnostics and edits would miss it.
+
 To try the demo setup by hand:
 
 ```sh

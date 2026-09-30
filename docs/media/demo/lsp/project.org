@@ -1,0 +1,15 @@
+#+TITLE: Launch project
+* TODO [#A] Ship the beta :work:
+  SCHEDULED: <{{3}} +1w>
+  :PROPERTIES:
+  :CUSTOM_ID: beta
+  :ID: 5c1e0a2b-lsp-demo
+  :END:
+  Release checklist in [[*Release notes]].
+** NEXT Release notes
+   DEADLINE: <{{5}}>
+   Draft for [[#beta]].
+** Risks
+   Rollback plan: see [[#bta]].
+* DONE Kickoff meeting
+  CLOSED: [{{-4}}]
