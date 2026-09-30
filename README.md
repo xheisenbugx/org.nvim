@@ -440,7 +440,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
-| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda) |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), structural git merges, iCalendar subscriptions in the agenda, an `org` shell command, mermaid and Graphviz diagrams |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -997,6 +997,43 @@ set. See `:h org-extensions`.
   (`:h org-extensions-super-agenda`).
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
+
+- **`merge`**: a structural git merge driver for Org files. `:Org
+  merge_install` registers it for the repository (`*.org merge=org`), and
+  git then merges org files entry by entry: entries matched by `ID` or
+  outline path, refiles followed, properties merged key by key, clocks and
+  tags unioned, and a real conflict marked only around the one entry (or
+  property) both sides changed. Also usable without org.nvim's setup via
+  `bin/org-merge` (`:h org-extensions-merge`).
+
+  ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](docs/media/merge.gif)
+
+- **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
+  calendar, a secret URL fetched with curl into a cache or a local file,
+  and see its events read-only in the agenda day and week views: times
+  converted to your zone, repeating events, exceptions and cancellations.
+  `ics_import` copies an event into an org file and `ics_refresh` fetches
+  the calendars again (`:h org-extensions-ics`).
+
+  ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](docs/media/ics.gif)
+
+- **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
+  prints the agenda as text, CSV or JSON, captures with a template, clocks
+  in and out, reports the running clock (for tmux, SketchyBar or Raycast),
+  searches and exports, from a config file of its own
+  (`:h org-extensions-cli`).
+
+  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](docs/media/cli.gif)
+
+- **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
+  ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
+  blocks, plus extras for `plantuml`: `C-c C-c` writes the diagram and
+  inserts a `file:` link (a name is generated when there's no `:file`),
+  renders are cached by content hash, the image is previewed inline when an
+  image backend is available, and `render_on_save` re-renders changed
+  diagrams on `:w` (`:h org-extensions-diagrams`).
+
+  ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](docs/media/diagrams.gif)
 
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review

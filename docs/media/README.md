@@ -35,6 +35,27 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
 
+`merge.tape` records a shell session: `demo/merge-setup.sh` builds a git
+repository in `/tmp/org-demo-merge-repo` (a `main` branch and two branches
+that changed `tasks.org`), and `demo/merge.lua` is `init.lua` with the
+`merge` extension on. It needs `git`.
+
+`demo/ics.lua` is `init.lua` with the `ics` extension subscribed to
+`demo/ics-*.ics` (their `{{N}}` become the date N days from today, as
+YYYYMMDD), for `ics.tape`.
+
+`tapes/cli.tape` records a shell session with `bin/org` on `$PATH` and
+`demo/cli.lua` as its config (`$ORG_NVIM_CONFIG`); that file copies
+`work.org`, `life.org` and `inbox.org` into `$ORG_DEMO_DIR` on its first
+run. It needs `jq`.
+
+`demo/diagrams.lua` is `init.lua` with the `diagrams` extension on (and
+render on save), for `diagrams.tape`. It needs mermaid-cli: `mmdc` on
+`$PATH`, or its path in `DEMO_MMDC`, and `DEMO_MMDC_PUPPETEER` can name a
+puppeteer config file, e.g. `{"executablePath": "/Applications/Google
+Chrome.app/Contents/MacOS/Google Chrome"}` for an `mmdc` installed with
+`PUPPETEER_SKIP_DOWNLOAD=1 npm install @mermaid-js/mermaid-cli`.
+
 To try the demo setup by hand:
 
 ```sh
