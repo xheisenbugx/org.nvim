@@ -24,11 +24,105 @@ M.defaults = {
   --- `org clock status --short` format: %t title, %e elapsed, %T total
   --- with earlier clocks, %E effort, %f file, %s start.
   status_format = "%e %t",
+  --- Follow `org clock in/out/cancel` run from a shell: this Neovim rereads
+  --- the files and takes up (or drops) the running clock.
+  watch_clock = true,
 }
 
 M.actions = {
   cli_install = { MOD, "install", desc = "Link the org command line (bin/org) into install_dir" },
 }
+
+M.commands = {
+  cli_install = {
+    MOD,
+    "install_command",
+    desc = "Link bin/org into a directory: :Org cli_install [DIR]",
+    complete = function(arglead)
+      return vim.fn.getcompletion(arglead, "dir")
+    end,
+  },
+}
+
+--- `:Org cli_install [DIR]`.
+function M.install_command(args)
+  local dir = vim.trim(args or "")
+  return M.install(dir ~= "" and dir or nil)
+end
+
+--- The file `org clock in/out/cancel` touches so a running Neovim notices.
+function M.stamp_path()
+  return vim.fn.stdpath("data") .. "/org/cli-clock.stamp"
+end
+
+local poll, group
+
+--- Take up a clock change made by the command line (`org.clock.sync`).
+function M.sync_clock()
+  local ok, what, st = pcall(require("org.clock").sync)
+  if not ok or not what then
+    return nil
+  end
+  local utils = require("org.utils")
+  if what == "in" then
+    utils.notify("Clocked in from the command line: " .. (st.title or ""))
+  else
+    utils.notify("Clocked out from the command line: " .. (st.title or ""))
+  end
+  return what
+end
+
+local function stop_watch()
+  if poll then
+    pcall(poll.stop, poll)
+    pcall(poll.close, poll)
+    poll = nil
+  end
+  if group then
+    pcall(vim.api.nvim_del_augroup_by_id, group)
+    group = nil
+  end
+end
+
+function M.setup(o)
+  stop_watch()
+  if not o.watch_clock then
+    return
+  end
+  local path = M.stamp_path()
+  local last = (vim.uv.fs_stat(path) or {}).mtime
+  local function changed()
+    local st = vim.uv.fs_stat(path)
+    local m = st and st.mtime
+    if m and (not last or m.sec ~= last.sec or m.nsec ~= last.nsec) then
+      last = m
+      return true
+    end
+    return false
+  end
+  -- a stat every 2 s; the callback never raises
+  poll = vim.uv.new_fs_poll()
+  poll:start(path, 2000, function()
+    vim.schedule(function()
+      if changed() then
+        M.sync_clock()
+      end
+    end)
+  end)
+  group = vim.api.nvim_create_augroup("org_extensions_cli", { clear = true })
+  vim.api.nvim_create_autocmd("FocusGained", {
+    group = group,
+    callback = function()
+      if changed() then
+        M.sync_clock()
+      end
+    end,
+  })
+end
+
+function M.teardown()
+  stop_watch()
+end
 
 local function opts()
   return require("org.extensions").opts("cli") or M.defaults

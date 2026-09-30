@@ -8276,8 +8276,9 @@ Raycast. Link it onto your $PATH:
 >sh
     ln -s /path/to/org.nvim/bin/org ~/.local/bin/org
 <
-or enable the extension and run `:Org cli_install`, which asks before
-linking `bin/org` into `install_dir`:
+or enable the extension and run `:Org cli_install` (or `:Org cli_install
+DIR`, directories complete), which asks before linking `bin/org` into
+`install_dir`:
 >lua
     require("org").setup({ extensions = { cli = { install_dir = "~/bin" } } })
 <
@@ -8333,11 +8334,13 @@ Commands ~
     `--format` expands %e (elapsed), %t (heading), %T (total with earlier
     clocks), %E (effort), %f (file) and %s (start), and prints nothing
     without a clock; `--short` uses `status_format`.
-`org clock in QUERY`
+`org clock in [--pick N] QUERY`
     Clock in the agenda-file heading whose title contains QUERY (ignoring
-    case; an exact title wins), or `id:ID`, or an org-ql query when the
-    `ql` extension is enabled. Several matches are listed and nothing is
-    clocked.
+    case; an exact title wins), whose ID is QUERY (or `id:ID`), or an
+    org-ql query when the `ql` extension is enabled. `FILE::HEADING`
+    looks only in that agenda file (a path, a file name or a name without
+    `.org`; `home.org::*Groceries` as in a link). Several matches are
+    listed with numbers and nothing is clocked; `--pick N` takes the Nth.
 `org clock out` / `org clock cancel`
     Clock out of (or cancel) the running clock.
 `org search QUERY... [--json]`
@@ -8391,16 +8394,25 @@ Options (`extensions.cli`) ~
   `install_dir`        where `cli_install` links `org` ("~/.local/bin")
   `capture_template`   template key of `org capture` without `-t` (nil)
   `status_format`      format of `org clock status --short` ("%e %t")
+  `watch_clock`        a running Neovim follows the shell's clock (true)
+
+Clock in the shell and in Neovim ~
+`org clock in`, `out` and `cancel` touch `stdpath("data")/org/cli-clock.stamp`.
+A Neovim with the extension enabled (and `watch_clock`) checks that file
+every two seconds and on |FocusGained|; when it changed, Neovim rereads
+changed files (|:checktime|), drops its running clock when the open CLOCK
+line is gone, or takes up an open CLOCK line of the agenda files, and says
+so. `org clock status` sees a clock started in Neovim, from
+`clock.persist_file` or the saved CLOCK line.
 
 Limits ~
-  - Each call starts Neovim and parses the agenda files: fast enough for
-    a status bar every few seconds, not for a tight loop.
+  - Each call starts Neovim and parses the agenda files: about 0.25 s for
+    200 files of 25 entries each (the agenda itself is most of it, so a
+    parse cache would gain little), fine for a status bar every few
+    seconds, not for a tight loop.
   - The CLI edits files on disk. A Neovim that has the same file open
-    sees the change as a file changed outside it ('autoread'). A running
-    Neovim does not learn about a clock started by `org clock in` (its
-    clock state is read at startup); `org clock status` does see a clock
-    started in Neovim, from `clock.persist_file` or the saved CLOCK line.
-  - `org clock in` has no task picker: QUERY must match one heading.
+    sees the change as a file changed outside it ('autoread'); a buffer
+    with unsaved changes asks as usual.
 
 ------------------------------------------------------------------------------
 Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*

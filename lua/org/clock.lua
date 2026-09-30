@@ -1899,6 +1899,46 @@ local function query_resume(title)
   return not clock_cfg().persist_query_resume or utils.confirm("Resume clock (" .. title .. ")?")
 end
 
+--- Follow a clock started or stopped outside this Neovim (by the `org`
+--- command line, see `:h org-extensions-cli`): reread changed files, drop
+--- the running clock when its open CLOCK line is gone, or take up an open
+--- CLOCK line found in the agenda files. Nothing calls it unless the cli
+--- extension is enabled.
+---@return "in"|"out"|nil what changed
+---@return org.ClockState|nil state the clock that started or stopped
+function M.sync()
+  pcall(vim.cmd, "silent! checktime")
+  if M.state then
+    if M.find_open_clock() then
+      return nil
+    end
+    local st = M.state
+    M.state = nil
+    stop_timers()
+    pcall(vim.cmd, "redrawstatus")
+    return "out", st
+  end
+  for _, f in ipairs(files.agenda_files()) do
+    for _, hl in ipairs(f.headlines) do
+      for _, c in ipairs(hl.clocks) do
+        if not c["end"] then
+          M.state = {
+            path = f.filename,
+            start = c.start:clone({ active = false }):to_string({ range = false }),
+            title = mode_line_heading(hl),
+            effort = require("org.properties").effort_minutes(hl),
+            total = (total_before(hl)),
+          }
+          start_timers()
+          pcall(vim.cmd, "redrawstatus")
+          return "in", M.state
+        end
+      end
+    end
+  end
+  return nil
+end
+
 --- Restore the running clock after a restart (from `clock.persist_file`).
 --- Called by `setup()` when `clock.persist` is set: `true` restores the
 --- clock and the history, `"clock"` / `"history"` only one of them.

@@ -166,7 +166,16 @@ describe("cli helpers", function()
 end)
 
 describe("cli extension", function()
-  after_each(reset)
+  -- keep "org CLI installed" and the $PATH warning out of the test output
+  local real_notify
+  before_each(function()
+    real_notify = vim.notify
+    vim.notify = function() end
+  end)
+  after_each(function()
+    vim.notify = real_notify
+    reset()
+  end)
 
   it("is off by default and registers cli_install when enabled", function()
     reset()
