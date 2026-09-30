@@ -201,7 +201,13 @@ function M.preload(srv)
     if srv.closing then
       return
     end
-    list = list or util.workspace_files()
+    if not list then
+      local ok, res = pcall(util.workspace_files)
+      if not ok then
+        return
+      end
+      list = res
+    end
     local stop = vim.uv.hrtime() + 8e6
     while i < #list and vim.uv.hrtime() < stop do
       i = i + 1

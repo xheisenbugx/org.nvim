@@ -8671,7 +8671,10 @@ breadcrumb plugins.
 The server attaches to every org buffer that is a file (a FileType
 autocmd). One client serves them all; its root is `org_directory`. It
 reads the documents from their buffers, unsaved changes included, and
-other files from disk. Needs Neovim 0.10 or later.
+other files from disk. Needs Neovim 0.10 or later (tested on 0.10, 0.11,
+0.12 and nightly). File names are compared with symlinks resolved, so a
+file opened through a symlink gets the edits of a rename in its own
+buffer.
 
 What it does ~
   documentSymbol   the outline: each headline with its subtree as range,
@@ -8686,7 +8689,8 @@ What it does ~
   diagnostics      |org-lint| reports, updated `diagnostics.debounce` ms
                    (500) after the last change; high-trust reports are
                    errors and low-trust ones warnings (`severity`), the
-                   checker name is the diagnostic's code.
+                   checker name is the diagnostic's code. See
+                   "Performance" below for large buffers.
   hover            on a timestamp: the full date, how far it is ("in 3
                    days, Friday", "2 weeks ago, Monday"), its time range
                    or date range, what its repeater does, the next
@@ -8696,10 +8700,17 @@ What it does ~
                    duration; on a footnote reference: its definition; on
                    a headline: TODO state, tags, planning, and for a
                    headline with an ID or CUSTOM_ID its backlink count.
+                   A link to a file that isn't Org shows its lines with
+                   their filetype.
   definition       follows `id:`, `file:` (with `::` search options),
                    `[[#custom-id]]`, `[[*Heading]]` and fuzzy links (a
                    `<<target>>`, `#+NAME:` or headline), radio links and
                    footnotes, without moving the cursor or prompting.
+                   `id:` links reach file-level IDs (org-roam file nodes)
+                   too, and IDs missing from the ID files are looked for
+                   in the workspace files. With the `code` extension on,
+                   `code:` links go to their file and symbol (found by a
+                   text search: no buffer is loaded, no LSP asked).
   references       every link to the headline, CUSTOM_ID, ID, target,
                    `#+NAME:`, radio target or footnote under the cursor
                    (or to the target of the link under the cursor),
@@ -8718,9 +8729,13 @@ Rename ~
 |vim.lsp.buf.rename()| renames what is under the cursor and rewrites every
 link that spells its name, in every workspace file:
 
-  headline title   `[[*Title]]`, `[[Title]]` and `[[file:x.org::*Title]]`
+  headline title   `[[*Title]]`, `[[Title]]` and `[[file:x.org::*Title]]`;
+                   `id:` links keep their target, but a description that
+                   spells the title (org-roam's links) follows it
   `:CUSTOM_ID:`    `[[#id]]` and `[[file:x.org::#id]]`
-  `:ID:`           `id:` links, bracketed or plain
+  `:ID:`           `id:` links, bracketed or plain; the ID database
+                   (|org-id|) forgets the old ID and records the new one.
+                   A file-level `:ID:` (an org-roam file node) too
   `<<target>>`     `[[target]]` and `[[file:x.org::target]]`
   `<<<radio>>>`    the radio target and its occurrences in the text
   `#+NAME:`        fuzzy links to the name
@@ -8735,15 +8750,26 @@ renamed thing change: `[[Title]]` is left alone when a `<<Title>>` target
 wins. A name that would make links point elsewhere (another target,
 `#+NAME:` or CUSTOM_ID with it, or a headline with the same title when
 links spell the title) is refused with a message, as are blanks in IDs,
-CUSTOM_IDs and footnote labels. Edited files that were not loaded are
-loaded and left modified: `:wall` saves them. Emacs has no counterpart.
+CUSTOM_IDs and footnote labels. Links whose path or description spans
+lines are found and rewritten like the others. Files the rename edits
+that were not loaded are written once Neovim has loaded them to apply the
+edit (`rename.write_unloaded`, like VS Code's refactoring auto-save);
+buffers that were already open are left modified for you to check and
+`:write`. Emacs has no counterpart.
 
 Code actions ~
 |vim.lsp.buf.code_action()| offers, depending on the line:
   - quick fixes: remove spurious colons from tags, make an inactive
     SCHEDULED or DEADLINE timestamp active, replace an obsolete affiliated
-    keyword (`#+SRCNAME:` -> `#+NAME:`), and point a broken `[[#id]]` or
-    fuzzy link at the closest existing CUSTOM_ID, target or headline;
+    keyword (`#+SRCNAME:` -> `#+NAME:`), turn `#+BEGIN_HTML` (and the
+    other backends) into `#+BEGIN_EXPORT html`, unindent a diary sexp,
+    add a keyword's missing colon, remove a special property (`TODO`,
+    `SCHEDULED`, ...) from a properties drawer, turn obsolete INCLUDE
+    markup into `export html`, replace percent escapes in a link with
+    backslash escapes, add the `[@N]` counter org-lint suggests for a
+    mismatched item number, and point a broken `[[#id]]` or fuzzy link at
+    the closest existing CUSTOM_ID, target or headline. The other
+    org-lint reports need a decision and have no quick fix;
   - "Convert line to heading" (`toggle_heading`) and "Convert line to
     checkbox item" / "Convert item to checkbox";
   - in an entry: cycle or change the TODO state, set the priority,
@@ -8758,6 +8784,21 @@ agenda files, the `.org` files under `org_directory` (with
 subdirectories), `workspace.extra` and every loaded org buffer. Set
 `workspace.files` (a list of files and globs, or a function returning one)
 to replace the first three, and `workspace.max_files` (2000) to cap it.
+The list is kept for a few seconds and made again when an org file is
+written. Files are parsed once per change (by mtime, or changedtick for
+buffers); after the server starts they are parsed in the background, a
+few milliseconds at a time (`workspace.preload`), so the first
+references or backlink count doesn't wait for all of them.
+
+Performance ~
+Measured on a 5,000-heading (40,000-line) file plus 200 workspace files
+of 50 headings: document symbols and folding take about 30 ms,
+references, rename and backlink counts 15-70 ms once the workspace is
+parsed (about 0.6 s the first time, spread by `workspace.preload`).
+Linting parses the buffer (about 20 ms per 1,000 lines) and then runs
+the checkers in slices of about 12 ms, starting over if you type
+meanwhile. Buffers longer than `diagnostics.max_lines` (3000) are linted
+when opened and written only; set it to 0 to lint them while typing too.
 
 Actions ~
   `lsp_start`    attach the server to the current buffer (with
@@ -8779,9 +8820,10 @@ Options ~
                             diagnostics, hover, definition, references,
                             rename, code_actions, folding, document_links }`
                             (all true)
-  `diagnostics`             `{ debounce = 500, checkers = nil (org-lint's
-                            default set), exclude = {}, severity = { high
-                            = "Error", low = "Warning", checkers = {} } }`
+  `diagnostics`             `{ debounce = 500, max_lines = 3000,
+                            checkers = nil (org-lint's default set),
+                            exclude = {}, severity = { high = "Error",
+                            low = "Warning", checkers = {} } }`
   `hover`                   `{ preview_lines = 8,
                             backlinks_all_headings = false }`
   `document_symbols`        `{ src_blocks = true, tables = true }`
@@ -8790,15 +8832,25 @@ Options ~
                             table = "Struct" }`
   `workspace`               `{ agenda_files = true, org_directory = true,
                             recursive = true, extra = {}, files = nil,
-                            max_files = 2000 }`
+                            max_files = 2000, preload = true }`
   `workspace_symbol_limit`  1000
-  `rename`                  `{ update_descriptions = true }`
+  `rename`                  `{ update_descriptions = true,
+                            write_unloaded = true }`
   `code_actions`            `{ entry = true, conversions = true }`
 
 Notes ~
   - The server uses UTF-8 positions (`positionEncoding`), so columns are
     byte offsets.
-  - Links that span lines are not seen by references and rename.
+  - Links spanning more than 5 lines (or a blank line) are not seen.
+  - Text the `transclusion` extension inserted into a buffer
+    (|org-extensions-transclusion|) belongs to its source file: it is not
+    linted, not listed in the symbols, its links are no references, and
+    a rename inside it is refused (rename it in the source). A link of
+    the buffer's own text can still resolve to a headline in it.
+  - The ID database is updated when the rename is computed; if the edit
+    is then not applied, the next lookup of either ID repairs it.
+  - Files a rename loaded are written only if Neovim loads them within
+    10 seconds of the rename (it does so while applying the edit).
   - `:checkhealth org` shows the running client, the number of workspace
     files and of org-lint checkers.
 
