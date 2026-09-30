@@ -34,6 +34,9 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
+`demo/transclusion.lua` turns on the `transclusion` extension and copies
+`demo/transclusion/*` (org files and a Python file) into `$ORG_DEMO_DIR`,
+for `transclusion.tape`.
 
 To try the demo setup by hand:
 

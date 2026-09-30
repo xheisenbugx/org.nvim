@@ -1,0 +1,11 @@
+#+title: Roadmap
+* Launch plan
+:PROPERTIES:
+:ID: 2f1c7a52-launch-plan
+:END:
+- [X] Freeze the API
+- [ ] Write the release notes
+** Risks
+The migration may take /two/ days.
+* Later
+- Mobile app

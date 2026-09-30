@@ -998,6 +998,17 @@ set. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
+- **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
+  `#+transclude: [[file:notes.org::*Heading]] :level 2` or
+  `[[file:main.py]] :lines 10-24 :src python` shows that text live, as
+  virtual lines under the keyword (the file isn't touched) or inserted into
+  the buffer like Emacs and taken out again when it's written. `<CR>` edits
+  the source in a float and `:w` writes it back and updates every
+  transclusion; sources are watched, nested transclusions expand, and
+  `#+transclude:` is expanded on export (`:h org-extensions-transclusion`).
+
+  ![Live transclusion: a heading of another file and lines of a Python file shown under their #+transclude: keywords, the heading edited in a float and written back, the text inserted into the buffer and back to virtual lines, then folded away with their headings](docs/media/transclusion.gif)
+
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review
 ([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
