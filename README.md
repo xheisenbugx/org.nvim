@@ -1022,9 +1022,9 @@ set. See `:h org-extensions`.
   `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
   in; when the 25 minutes are up the entry's `POMODOROS` count goes up, the
   clock stops and a 5-minute break starts (15 minutes after every fourth),
-  with notifications and an optional sound. Pause, skip and stop, and a
-  countdown in `require("org").statusline()`
-  (`:h org-extensions-pomodoro`).
+  with notifications and an optional sound. Pause, skip and stop, an
+  optional overtime, a session that survives a restart, and a countdown
+  in `require("org").statusline()` (`:h org-extensions-pomodoro`).
 
   ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](docs/media/pomodoro.gif)
 
