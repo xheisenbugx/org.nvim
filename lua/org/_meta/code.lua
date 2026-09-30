@@ -1,0 +1,68 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { code = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+-- (the `code` field of org.Config.Extensions is in config.lua)
+
+---@class org.Config.Extensions.Code
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Template of `code_capture`; its `target` `"project"` (the default) captures
+---into the repository's project file under `project_headline`.
+---(default: `{ template = "* %?\n  %U  %(code-link)\n  %(git-info)\n%(code-block)", target = "project" }`)
+---@field capture_template? org.Config.CaptureTemplate|table
+---Key of a copy of `capture_template` added to `capture.templates` when that
+---key is free; `false` for none. (default: `"k"`)
+---@field template_key? string|false
+---Filetype -> Babel language of the captured src block. (default: `{}`)
+---@field languages? table<string, string>
+---Paths in `code:` links: `"absolute"` (with `~`, default) or `"relative"`
+---to the git root.
+---@field link_path? "absolute"|"relative"
+---`store_link` in a code buffer stores a `code:` link. (default: `true`)
+---@field store_links? boolean
+---Link to the symbol around the cursor (LSP, else treesitter) instead of the
+---line. (default: `true`)
+---@field store_symbol? boolean
+---Milliseconds to wait for a language server; `0` skips LSP. (default: `1000`)
+---@field lsp_timeout? integer
+---Filetypes that are not code buffers. (default: `{ "help", "qf", "netrw", "oil", "orgagenda", "gitcommit" }`)
+---@field exclude_filetypes? string[]
+---The org file of a repository: relative to its root, with `<org_directory>`,
+---`${repo}` and `${root}` replaced, or a function. (default: `".org/tasks.org"`)
+---@field project_file? string|fun(root: string, repo: string): string
+---First lines of a new project file (`${repo}` is replaced). (default: `"#+title: ${repo}\n"`)
+---@field project_file_header? string|fun(repo: string): string
+---Headline captures go under in the project file; nil for the end of the
+---file. (default: `"Tasks"`)
+---@field project_headline? string
+---Template of `project_capture`. (default: `{ template = "* TODO %?\n  %U\n  %a" }`)
+---@field project_template? org.Config.CaptureTemplate|table
+---Blocks of `project_agenda`, restricted to the project file.
+---(default: `{ { type = "agenda", span = "week" }, { type = "todo" }, { type = "code_todos" } }`)
+---@field project_agenda_blocks? table[]
+---Clock into the heading of a git branch when you switch to it. (default: `false`)
+---@field branch_clock? boolean
+---Also clock in for the branch found at startup. (default: `false`)
+---@field branch_clock_on_start? boolean
+---Lua pattern (or function) whose capture is the ticket in a branch name.
+---(default: `"(%u+%-%d+)"`)
+---@field branch_ticket_pattern? string|fun(branch: string): string|nil|false
+---Comment keywords of code TODOs. (default: `{ "TODO", "FIXME", "HACK", "XXX", "BUG" }`)
+---@field todo_keywords? string[]
+---Lua pattern on the text in parentheses after a keyword whose capture is a
+---heading's ID. (default: `"^org:%s*(.-)%s*$"`)
+---@field todo_link_pattern? string
+---Only count keywords after a comment marker or at the start of a line. (default: `true`)
+---@field todo_require_comment? boolean
+---Lua patterns of repository-relative paths to skip.
+---(default: `{ "%.org$", "%.min%.js$", "^vendor/", "^node_modules/" }`)
+---@field todo_exclude? string[]
+---How code TODOs are found. (default: `"auto"`: git grep, else rg, else Lua)
+---@field todo_scanner? "auto"|"git"|"rg"|"lua"
+---Files the Lua scanner reads at most. (default: `2000`)
+---@field todo_max_files? integer
+---Code TODOs shown at most. (default: `500`)
+---@field todo_max_items? integer
+---Put before the category of a code TODO listed under its heading. (default: `"↳ "`)
+---@field todo_group_prefix? string
