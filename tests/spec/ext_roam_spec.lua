@@ -472,6 +472,40 @@ describe("roam extension", function()
       ok(not buffer.is_open())
     end)
 
+    it("doesn't index the text the transclusion extension inserted", function()
+      require("org").setup({
+        org_directory = root .. "/tests/fixtures",
+        agenda_files = { root .. "/tests/fixtures/*.org" },
+        extensions = {
+          roam = { directory = dir, index_file = dir .. "/../roam-index.json" },
+          transclusion = {},
+        },
+      })
+      write("a.org", { ":PROPERTIES:", ":ID:       file-a", ":END:", "#+title: Apple" })
+      local other = vim.fs.dirname(dir) .. "/other.org"
+      utils.writefile(other, { "* Borrowed", "See [[id:file-a][Apple]]." })
+      local b = write("b.org", {
+        ":PROPERTIES:",
+        ":ID:       file-b",
+        ":END:",
+        "#+title: Banana",
+        "#+transclude: [[file:" .. other .. "::*Borrowed]]",
+      })
+      db().sync(true)
+      eq(0, #db().backlinks("file-a"))
+      vim.cmd("edit " .. vim.fn.fnameescape(b))
+      vim.api.nvim_win_set_cursor(0, { 5, 0 })
+      require("org.extensions.transclusion").add()
+      ok(table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n"):find("[[id:file-a][Apple]]", 1, true))
+      db().update_file(b)
+      eq(0, #db().backlinks("file-a"))
+      eq({}, vim.tbl_map(function(n)
+        return n.title
+      end, vim.tbl_filter(function(n)
+        return n.title == "Borrowed"
+      end, db().nodes())))
+    end)
+
     it("closes with <Esc>, not q", function()
       write("a.org", { ":PROPERTIES:", ":ID:       file-a", ":END:", "#+title: Apple" })
       vim.cmd("edit " .. vim.fn.fnameescape(dir .. "/a.org"))

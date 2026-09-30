@@ -499,10 +499,25 @@ end
 --- unchanged.
 ---@param path string
 ---@return org.File|nil
+--- The lines of buffer `b` as its file holds them: without the text the
+--- transclusion extension inserted, which is never saved and must not be
+--- indexed. nil when nothing is inserted.
+local function without_transcluded(b)
+  local tr = package.loaded["org.extensions.transclusion"]
+  if not (tr and tr.ranges and #tr.ranges(b) > 0) then
+    return nil
+  end
+  return (tr.clean_lines(b))
+end
+
 local function fresh_parse(path)
   files.invalidate(path)
   local b = utils.find_buffer(path)
   if b then
+    local clean = without_transcluded(b)
+    if clean then
+      return parser.parse(clean, path)
+    end
     return files.get_buffer(b)
   end
   local lines = utils.readfile(path)
@@ -775,7 +790,7 @@ end
 local function file_lines(path, modified)
   local b = modified[path]
   if b then
-    local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+    local lines = without_transcluded(b) or vim.api.nvim_buf_get_lines(b, 0, -1, false)
     return lines, lower(table.concat(lines, "\n"))
   end
   local sec, nsec = stat(path)
