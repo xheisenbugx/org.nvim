@@ -7632,7 +7632,14 @@ What the line may contain ~
                `in 3 days` and `noon`. Dates go to SCHEDULED (see
                `date_kind`); after `due` (or `by`) to DEADLINE. A month
                name only counts next to a day number, so "May call Bob"
-               stays a title.
+               stays a title. A weekday, `now`, `noon`, `midnight` or
+               `tonight` on its own is a date only at the end of the
+               title (tags and the like may follow) or after `at`, `on`
+               or `due`: "Watch Friday Night Lights" stays a title,
+               "Meeting on fri with Bob" and "Standup mon 9am with the
+               team" get a date. When the line holds several dates, the
+               last one counts (the last `due` one for the deadline), as
+               in Todoist; the others stay in the title.
   repeaters    `every day|week|month|year`, `every 2w`, `every 3 days`,
                `every other week`, `every mon` (the next Monday, today on a
                Monday). `every!` repeats from the day it is done (`.+`).
@@ -7657,13 +7664,20 @@ What the line may contain ~
 
 Quote words to keep them in the title (`"Friday Night Lights"`,
 `'due fri'`), or escape one character with a backslash (`\#1`, `\fri`).
+`:Org quickadd` reads the text as typed and completes `@` headings (a
+heading with spaces as `@"Big Project"`), `#` tags and `*` keywords.
+The preview keeps an index of the headings of the `targets` files and
+reads a file again only when it (or its buffer) changed.
 
 Capture templates ~
 A capture template with `quickadd = true` reads its headline the same way
 when the capture is stored, so `%^{Task}` answers or text typed in the
 capture buffer can hold dates, tags, priorities and efforts. The template's
-own keyword, tags, planning and properties are kept and completed.
-`@target` words are dropped: the template's target is used.
+own keyword, tags, planning and properties are kept and completed. An
+`@target` sends the entry to that heading instead of the template's
+target (whose date tree or heading, when the capture made one, is removed
+again); when it matches nothing, the template's target is used and a
+warning says so.
 >lua
     capture = { templates = {
       q = { description = "Quick task", template = "* TODO %^{Task}",

@@ -117,7 +117,22 @@ local function default_file()
 end
 M.default_file = default_file
 
+-- the target files, computed at most every TARGETS_TTL ms: the preview asks
+-- for them on every keystroke and globbing the agenda files is not free
+local TARGETS_TTL = 2000
+local targets_memo
+
 local function target_files()
+  local now = vim.uv.now()
+  local config = require("org.config").opts
+  if
+    targets_memo
+    and now - targets_memo.at < TARGETS_TTL
+    and targets_memo.opts == opts()
+    and targets_memo.agenda == config.agenda_files
+  then
+    return targets_memo.paths
+  end
   local t = opts().targets
   local paths
   if t == "agenda" or t == nil then
@@ -133,24 +148,28 @@ local function target_files()
       out[#out + 1] = p
     end
   end
+  targets_memo = { at = now, paths = out, opts = opts(), agenda = config.agenda_files }
   return out
 end
 
--- best match of `query` in `list` (strings): exact, prefix, substring,
--- then fuzzy; returns the index
-local function best_match(list, query)
+-- best match of `query` in `list` (strings; `lower`, when given, holds
+-- them lower-cased): the first exact, else prefix, else substring match,
+-- then the best fuzzy one; returns the index
+local function best_match(list, query, lower)
   local q = query:lower()
-  for _, rank in ipairs({ "exact", "prefix", "sub" }) do
-    for i, s in ipairs(list) do
-      local l = s:lower()
-      if
-        (rank == "exact" and l == q)
-        or (rank == "prefix" and l:sub(1, #q) == q)
-        or (rank == "sub" and l:find(q, 1, true))
-      then
-        return i
-      end
+  local prefix, sub
+  for i, s in ipairs(list) do
+    local l = lower and lower[i] or s:lower()
+    if l == q then
+      return i
+    elseif not prefix and l:sub(1, #q) == q then
+      prefix = i
+    elseif not sub and not prefix and l:find(q, 1, true) then
+      sub = i
     end
+  end
+  if prefix or sub then
+    return prefix or sub
   end
   local ok, res = pcall(vim.fn.matchfuzzypos, list, query)
   if ok and res[1][1] then
@@ -166,26 +185,131 @@ local function file_label(path)
   return vim.fn.fnamemodify(path, ":t:r")
 end
 
+---------------------------------------------------------------------------
+-- The heading index: per file, the headlines and their labels, kept until
+-- the buffer changes (changedtick) or the file does (mtime and size)
+---------------------------------------------------------------------------
+
+local index = {}
+-- the last lookup: { key, query, by_path, result }
+local last_lookup
+
+-- loaded buffers by normalized and real path
+local function loaded_buffers()
+  local out = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) then
+      local name = vim.api.nvim_buf_get_name(b)
+      if name ~= "" then
+        out[vim.fs.normalize(name)] = b
+        local real = vim.uv.fs_realpath(name)
+        if real then
+          out[real] = b
+        end
+      end
+    end
+  end
+  return out
+end
+
+local function file_index(p, bufs)
+  local b = bufs[p] or bufs[vim.uv.fs_realpath(p) or ""]
+  local key
+  if b then
+    key = "b" .. b .. ":" .. vim.api.nvim_buf_get_changedtick(b)
+  else
+    local st = vim.uv.fs_stat(p)
+    if not st or st.type ~= "file" then
+      index[p] = nil
+      return nil
+    end
+    key = st.mtime.sec .. "." .. st.mtime.nsec .. ":" .. st.size
+  end
+  local c = index[p]
+  if c and c.key == key then
+    return c
+  end
+  local files = require("org.files")
+  local ok, f = pcall(function()
+    return b and files.get_buffer(b) or files.get(p)
+  end)
+  c = { key = key, hls = ok and f and f.headlines or {} }
+  index[p] = c
+  return c
+end
+
+-- labels of a file's headlines, titles or outline paths, and the same
+-- lower-cased
+local function labels(c, by_path)
+  local field = by_path and "paths" or "titles"
+  if not c[field] then
+    local out, low = {}, {}
+    for i, hl in ipairs(c.hls) do
+      local label = by_path and table.concat(vim.list_extend(hl:outline_path(), { hl:plain_title() }), "/")
+        or hl:plain_title()
+      out[i], low[i] = label, label:lower()
+    end
+    c[field], c[field .. "_lower"] = out, low
+  end
+  return c[field], c[field .. "_lower"]
+end
+
+--- Forget the heading index (it is rebuilt as needed).
+function M.clear_index()
+  index, last_lookup, targets_memo = {}, nil, nil
+end
+
 --- Headlines of `paths` matching `query` best: `Heading` or an outline
 --- path `Parent/Child`.
 local function find_heading(paths, query)
-  local files = require("org.files")
-  local labels, hls = {}, {}
+  local bufs = loaded_buffers()
   local by_path = query:find("/", 1, true) ~= nil
+  local list, low, hls, keys = {}, {}, {}, {}
+  local cs = {}
   for _, p in ipairs(paths) do
-    local f = vim.fn.filereadable(p) == 1 and files.get(p) or nil
-    local b = utils.find_buffer and utils.find_buffer(p)
-    if b then
-      f = files.get_buffer(b)
-    end
-    for _, hl in ipairs(f and f.headlines or {}) do
-      labels[#labels + 1] = by_path and table.concat(vim.list_extend(hl:outline_path(), { hl:plain_title() }), "/")
-        or hl:plain_title()
-      hls[#hls + 1] = { path = p, hl = hl }
+    local c = file_index(p, bufs)
+    if c then
+      keys[#keys + 1] = p .. "=" .. c.key
+      cs[#cs + 1] = { p, c }
     end
   end
-  local i = best_match(labels, query)
-  return i and hls[i] or nil
+  local key = table.concat(keys, "\n") .. (by_path and "\n/" or "")
+  if last_lookup and last_lookup.key == key and last_lookup.query == query then
+    return last_lookup.result
+  end
+  for _, pc in ipairs(cs) do
+    local ls, ll = labels(pc[2], by_path)
+    for i, hl in ipairs(pc[2].hls) do
+      local n = #list + 1
+      list[n], low[n] = ls[i], ll[i]
+      hls[n] = { path = pc[1], hl = hl }
+    end
+  end
+  local i = best_match(list, query, low)
+  local result = i and hls[i] or nil
+  last_lookup = { key = key, query = query, result = result }
+  return result
+end
+
+--- Completion of `@target` words: the headings of the target files.
+---@param arglead string the word being completed, `@...`
+---@return string[]
+function M.complete_target(arglead)
+  local q = arglead:gsub("^@", "")
+  local by_path = q:find("/", 1, true) ~= nil
+  local bufs = loaded_buffers()
+  local out, seen = {}, {}
+  for _, p in ipairs(target_files()) do
+    local c = file_index(p, bufs)
+    for _, l in ipairs(c and labels(c, by_path) or {}) do
+      local word = "@" .. (l:find("%s") and ('"' .. l .. '"') or l)
+      if not seen[word] then
+        seen[word] = true
+        out[#out + 1] = word
+      end
+    end
+  end
+  return out
 end
 
 --- Where an entry with `target` goes: { filename, lnum?, label, missing? }.
@@ -194,7 +318,6 @@ end
 ---@param target? { file?: string, heading?: string, raw: string }
 ---@return { filename: string, lnum?: integer, label: string, missing?: string }
 function M.resolve_target(target)
-  local paths = target_files()
   local function fallback(missing)
     local fname = default_file()
     local headline = opts().headline
@@ -208,6 +331,7 @@ function M.resolve_target(target)
   if not target then
     return fallback()
   end
+  local paths = target_files()
   local file_paths = paths
   if target.file then
     local names = vim.tbl_map(file_label, paths)
@@ -463,9 +587,6 @@ function M.open_prompt(default, cb)
   vim.keymap.set("n", "<Esc>", function()
     finish(nil)
   end, { buffer = buf })
-  vim.keymap.set("n", "q", function()
-    finish(nil)
-  end, { buffer = buf })
   vim.cmd("startinsert!")
   return buf, win
 end
@@ -493,8 +614,15 @@ function M.add(text)
   return M.add_text(text)
 end
 
---- `:Org quickadd [text]`: add `text`, or ask for it.
-function M.command(args)
+--- `:Org quickadd [text]`: add `text`, or ask for it. The text is taken
+--- as typed (quotes, backslashes and spaces kept), not word by word.
+function M.command(args, cmd)
+  if type(cmd) == "table" and type(cmd.args) == "string" then
+    local raw = cmd.args:match("^%s*%S+%s(.*)$")
+    if raw then
+      args = raw
+    end
+  end
   return M.add(args)
 end
 
@@ -502,11 +630,36 @@ end
 -- Capture templates with `quickadd = true`
 ---------------------------------------------------------------------------
 
+-- The capture target (a template-like table for org.capture) of a
+-- quick-add `@target`, or nil to keep the template's own target.
+local function capture_target(target)
+  local ok, loc = pcall(M.resolve_target, target)
+  if not ok then
+    return nil
+  end
+  if loc.missing then
+    utils.warn("Quick add: no match for @" .. loc.missing .. ", captured to the template's target")
+    return nil
+  end
+  if loc.lnum then
+    local bufnr = utils.load_buffer(loc.filename)
+    return {
+      location = function()
+        return bufnr, loc.lnum, 0
+      end,
+    }
+  elseif loc.headline then
+    return { target = loc.filename, headline = loc.headline }
+  end
+  return { target = loc.filename }
+end
+
 --- Capture store filter: parse the first headline of an entry captured
---- with a `quickadd = true` template.
+--- with a `quickadd = true` template. An `@target` in it sends the entry
+--- there instead of the template's target.
 ---@param tpl table
 ---@param lines string[]
----@return string[]|nil
+---@return string[]|nil lines, table|nil target
 function M.capture_filter(tpl, lines)
   if not tpl.quickadd or (tpl.type or "entry") ~= "entry" then
     return nil
@@ -576,7 +729,7 @@ function M.capture_filter(tpl, lines)
   for i = rest, #lines do
     out[#out + 1] = lines[i]
   end
-  return out
+  return out, item.target and capture_target(item.target) or nil
 end
 
 ---------------------------------------------------------------------------
@@ -587,11 +740,47 @@ M.actions = {
   quickadd = { "org.extensions.quickadd", "add", desc = "Quick add an entry (Todoist-style line)", global = true },
 }
 
+--- Completion of `:Org quickadd` words: `@` headings of the target files,
+--- `#` tags of the agenda files, `*` TODO keywords.
+---@param arglead string
+---@return string[]
+function M.complete(arglead)
+  if arglead:sub(1, 1) == "@" then
+    return M.complete_target(arglead)
+  elseif arglead:sub(1, 1) == "#" then
+    local seen, out = {}, {}
+    local bufs = loaded_buffers()
+    for _, p in ipairs(target_files()) do
+      local c = file_index(p, bufs)
+      for _, hl in ipairs(c and c.hls or {}) do
+        for _, t in ipairs(hl.tags or {}) do
+          if not seen[t] then
+            seen[t] = true
+            out[#out + 1] = "#" .. t
+          end
+        end
+      end
+    end
+    table.sort(out)
+    return out
+  elseif arglead:sub(1, 1) == "*" then
+    local out = { "*-" }
+    for _, k in ipairs(require("org.todo_keywords").global().keywords) do
+      out[#out + 1] = "*" .. k.name
+    end
+    return out
+  end
+  return {}
+end
+
 M.commands = {
   quickadd = {
     "org.extensions.quickadd",
     "command",
     desc = "Quick add: :Org quickadd Call Bob fri 3pm #work !A ~30m @Inbox",
+    complete = function(arglead)
+      return M.complete(arglead)
+    end,
   },
 }
 
@@ -600,10 +789,12 @@ M.mappings = {
 }
 
 function M.setup()
+  M.clear_index()
   require("org.capture").store_filters.quickadd = M.capture_filter
 end
 
 function M.teardown()
+  M.clear_index()
   require("org.capture").store_filters.quickadd = nil
 end
 

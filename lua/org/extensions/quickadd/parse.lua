@@ -128,6 +128,16 @@ local UNITS = {
   m = "m", month = "m", months = "m", y = "y", year = "y", years = "y",
 }
 
+-- Words that are dates only where a date is expected: they also occur in
+-- titles ("Watch Friday Night Lights", "Plan the midnight release").
+-- stylua: ignore
+local WEAK = {
+  now = true, noon = true, midnight = true, tonight = true, tod = true,
+}
+for w in pairs(WEEKDAYS) do
+  WEAK[w] = true
+end
+
 local function is_time(w)
   return w:match("^[012]?%d:[0-5]%d$")
     or w:match("^[01]?%d:?[0-5]?%d?[ap]m$")
@@ -335,6 +345,10 @@ function M.parse(text, now, opts)
   local tokens = M.tokenize(text or "")
   local item = { tags = {}, planning = {} }
   local title = {}
+  -- The title is built from `parts`: literal words, and date runs that
+  -- are decided on at the end (a run that is not taken goes back into
+  -- the title as written).
+  local parts = {}
   local date_words = { scheduled = {}, deadline = {} }
   local every -- { repeater?, days?, bang }
   local kind_default = opts.date_kind == "deadline" and "deadline" or "scheduled"
@@ -345,14 +359,16 @@ function M.parse(text, now, opts)
   local hi, lo = (opts.priority_highest or "A"):byte(), (opts.priority_lowest or "C"):byte()
 
   local function literal(tok)
-    title[#title + 1] = tok.text
+    parts[#parts + 1] = { text = tok.text }
   end
 
-  -- Consume a run of date words from `i` into `kind`; returns the index
-  -- after the run (i when nothing was taken).
-  local function take_dates(i, kind)
+  -- Read a run of date words from `i`: returns the index after the run
+  -- (i when nothing was taken), the run, and whether it was introduced by
+  -- "at" / "on" / "next" / "in".
+  local function take_dates(i)
     local j = i
     local run = {}
+    local prep = false
     while tokens[j] do
       local w = lower(tokens[j])
       if not w then
@@ -378,7 +394,9 @@ function M.parse(text, now, opts)
         local after = tokens[j + 2] and lower(tokens[j + 2])
         if (w == "at" or w == "on") and nxt and word_class(nxt) and word_class(nxt) ~= "num" then
           cls = "skip"
+          prep = true
         elseif w == "next" and nxt and (UNITS[nxt] or WEEKDAYS[nxt]) then
+          prep = true
           if WEEKDAYS[nxt] then
             run[#run + 1] = { cls = "date", text = date_text(nxt) }
           else
@@ -387,6 +405,7 @@ function M.parse(text, now, opts)
           j = j + 2
           goto continue
         elseif w == "in" and nxt and (nxt:match("^%d+$") or nxt == "a" or nxt == "an") and after and UNITS[after] then
+          prep = true
           local n = tonumber(nxt) or 1
           run[#run + 1] = { cls = "rel", text = "+" .. n .. UNITS[after] }
           j = j + 3
@@ -396,7 +415,7 @@ function M.parse(text, now, opts)
         end
       end
       if cls ~= "skip" then
-        run[#run + 1] = { cls = cls, text = date_text(w) }
+        run[#run + 1] = { cls = cls, text = date_text(w), word = w }
       end
       j = j + 1
       ::continue::
@@ -405,8 +424,27 @@ function M.parse(text, now, opts)
     if #run == 0 then
       return i
     end
-    vim.list_extend(date_words[kind], run)
-    return j
+    return j, run, prep
+  end
+
+  local function candidate(from, to, kind, run, prep, explicit)
+    local words = {}
+    for k = from, to - 1 do
+      words[#words + 1] = tokens[k].text
+    end
+    local weak = true
+    for _, x in ipairs(run) do
+      if not WEAK[x.word or ""] then
+        weak = false
+      end
+    end
+    parts[#parts + 1] = {
+      kind = kind,
+      run = run,
+      text = table.concat(words, " "),
+      weak = weak and not prep,
+      explicit = explicit,
+    }
   end
 
   local i = 1
@@ -449,11 +487,12 @@ function M.parse(text, now, opts)
       end
       i = i + 1
     elseif w == "due" or w == "by" then
-      local j = take_dates(i + 1, "deadline")
+      local j, run, prep = take_dates(i + 1)
       if j == i + 1 then
         literal(tok)
         i = i + 1
       else
+        candidate(i, j, "deadline", run, prep, true)
         i = j
       end
     elseif (w == "every" or w == "every!") and not every then
@@ -466,16 +505,46 @@ function M.parse(text, now, opts)
         i = i + 1
       end
     else
-      local j = w and take_dates(i, kind_default) or i
+      local j, run, prep = i, nil, false
+      if w then
+        j, run, prep = take_dates(i)
+      end
       if j == i then
         literal(tok)
         i = i + 1
       else
+        candidate(i, j, kind_default, run, prep, false)
         i = j
       end
     end
   end
 
+  -- Which date runs count: a run of weak words only (a weekday, "now")
+  -- only at the end of the title or after "at" / "on" / "due"; then the
+  -- last run of each kind, like Todoist, and the others stay text.
+  local after_text = false
+  local last = {}
+  for k = #parts, 1, -1 do
+    local part = parts[k]
+    if part.run then
+      local taken = part.explicit or not part.weak or not after_text
+      if taken and not last[part.kind] then
+        last[part.kind] = part
+      else
+        part.run = nil
+      end
+    end
+    if not part.run then
+      after_text = true
+    end
+  end
+  for _, part in ipairs(parts) do
+    if part.run then
+      vim.list_extend(date_words[part.kind], part.run)
+    elseif part.text ~= "" then
+      title[#title + 1] = part.text
+    end
+  end
   item.title = table.concat(title, " ")
   if item.todo == nil then
     item.todo = opts.keyword or nil
