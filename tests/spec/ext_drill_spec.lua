@@ -258,10 +258,11 @@ describe("drill cards", function()
       "  [1066] Hastings, [1415] Agincourt",
     })
     eq("hide1cloze", c.type)
+    -- the shuffle of { 1, 2 } with random() = 1 swaps them: 2 comes first
     local choice = card.choose(c, function()
-      return 2
+      return 1
     end)
-    eq({ clozes = { [2] = true } }, choice)
+    eq({ hidden = { [2] = true } }, choice)
     eq("1066 Hastings, [...] Agincourt", card.render(c, choice, false).lines[3])
   end)
 
@@ -273,9 +274,12 @@ describe("drill cards", function()
       "  :END:",
       "  [a] [b] [c]",
     })
+    -- shuffled positions { 1, 2, 3 } -> 3, 2, 1: two hidden, "a" shown
+    local calls = { 1, 2 }
     local choice = card.choose(c, function()
-      return 1
+      return table.remove(calls, 1)
     end)
+    eq({ [2] = true, [3] = true }, choice.hidden)
     eq("a [...] [...]", card.render(c, choice, false).lines[3])
   end)
 
@@ -287,11 +291,11 @@ describe("drill cards", function()
       "  :END:",
       "  [a] [b] [c]",
     })
-    local calls = { 1, 1 }
-    local choice = card.choose(c, function()
-      return table.remove(calls, 1)
+    -- the shuffle keeps { 1, 2, 3 } (random(i) = i): the first two are hidden
+    local choice = card.choose(c, function(m)
+      return m
     end)
-    eq({ [1] = true, [2] = true }, choice.clozes)
+    eq({ [1] = true, [2] = true }, choice.hidden)
     eq("[...] [...] c", card.render(c, choice, false).lines[3])
   end)
 
@@ -368,7 +372,14 @@ describe("drill cards", function()
 
   it("knows empty and due cards", function()
     eq(true, card.is_empty(read({ "* Nothing :drill:" })))
-    eq(false, card.is_empty(read({ "* Q :drill:", "** A" })))
+    -- org-drill-entry-empty-p: only the entry's own text counts
+    eq(true, card.is_empty(read({ "* Q :drill:", "** A" })))
+    eq(false, card.is_empty(read({ "* Q :drill:", "  q", "** A" })))
+    -- two- and multisided cards are asked without text (DRILL-EMPTY-P)
+    eq(
+      false,
+      card.is_empty(read({ "* Q :drill:", "  :PROPERTIES:", "  :DRILL_CARD_TYPE: twosided", "  :END:", "** A" }))
+    )
     local today = date.days_from_civil(2026, 9, 29)
     eq(true, card.is_due(read({ "* Q :drill:", "  x" }), today))
     eq(true, card.is_due(read({ "* Q :drill:", "  SCHEDULED: <2026-09-29 Tue>", "  x" }), today))
@@ -426,7 +437,7 @@ describe("drill session", function()
   local real_random, real_seconds
   before_each(function()
     freeze()
-    setup({ shuffle = false, save_buffers = false })
+    setup({ shuffle = false, save_buffers = false, algorithm = "sm2" })
     real_random, real_seconds = drill.random, drill.now_seconds
     drill.random = function()
       return 1
@@ -566,7 +577,7 @@ describe("drill session", function()
     eq("2026-09-30", hot.planning.scheduled:to_date_string())
   end)
 
-  it("schedules a failed card for today", function()
+  it("unschedules a failed card, like org-drill-smart-reschedule with 0 days ahead", function()
     require("org.config").opts.extensions.drill.repeat_failed = false
     local buf = org_buffer(DECK, { 1, 0 })
     drill.start("file")
@@ -574,10 +585,11 @@ describe("drill session", function()
     drill.grade(0)
     local f = require("org.files").get_buffer(buf)
     local hot = f:find_by_title("Opposite of hot")
-    eq("2026-09-29", hot.planning.scheduled:to_date_string())
+    eq(nil, hot.planning.scheduled)
     local sect = vim.list_slice(f.lines, hot.line, hot.end_line)
     eq("0.0", prop(sect, "DRILL_LAST_INTERVAL"))
     eq("1", prop(sect, "DRILL_REPEATS_SINCE_FAIL"))
+    eq("0", prop(sect, "DRILL_LAST_QUALITY"))
   end)
 
   it("skips cards and quits with a summary", function()

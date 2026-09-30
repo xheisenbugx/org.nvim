@@ -7892,13 +7892,21 @@ question and the subheadings the answer:
 <
 `:Org drill [scope]` (action `drill`, `<prefix>D`) starts a session over
 the cards that are due: cards whose SCHEDULED date is today or earlier,
-and new cards (never reviewed), which come after the due ones. The scope
+and unscheduled cards (new ones, and ones failed last time). The scope
 is `file` (the current buffer, the default of the `scope` option), `tree`
 (the subtree at the cursor, also action `drill_tree`), `agenda` (the agenda
 files), `directory` (the org files next to the current one), `tag:NAME`
 (cards in the agenda files that also have the tag NAME, inherited or
-not), or files and globs. Commented and archived cards and cards with
-nothing to ask are skipped.
+not), or files and globs; <Tab> completes them. Commented and archived
+cards are skipped, and so are cards with nothing to ask: like org-drill,
+only the entry's own text counts, so a simple card needs text above its
+answer subheading (two- and multisided cards need none).
+
+The cards are asked in org-drill's order: cards failed last time,
+overdue cards (late by more than `overdue_interval_factor` - 1 times
+their last interval, the most overdue first), young cards (a last
+interval of `days_before_old` days or less), then old and new cards mixed.
+Each group is shuffled (`shuffle`).
 
 The session opens in a floating window showing one card at a time, with
 its type and how often it was seen. Keys in the window ~
@@ -7918,27 +7926,53 @@ The grades are org-drill's:
   5  correct, and it was easy
 
 A grade of `failure_quality` (2) or less fails the card. Failed cards come
-back at the end of the session until they pass (`repeat_failed`). The
-session ends when every card is answered, after
-`maximum_items_per_session` cards or `maximum_duration` minutes, and shows
-a summary: cards and answers, passed, failed, new and skipped cards, the
-average grade, how often each grade was given, and when each card comes
-back. The files the session changed are then written (`save_buffers`).
-`:Org drill_stats [scope]` counts the cards of a scope: all, due, new and
-recently failed.
+back at the end of the session until they pass (`repeat_failed`), even
+after `maximum_duration`. The session asks at most
+`maximum_items_per_session` cards and stops asking new ones after
+`maximum_duration` minutes, then shows a summary: cards and answers,
+passed, failed, new and skipped cards, the average grade, how often each
+grade was given, and when each card comes back. The files the session
+changed are then written (`save_buffers`). `:Org drill_stats [scope]`
+counts the cards of a scope: all, due, new and recently failed.
+
+Cram mode ~
+`:Org drill_cram [scope]` (action `drill_cram`, org-drill-cram) asks every
+card of the scope that was not reviewed in the last `cram_hours` (12)
+hours, due or not, without a card or time limit. Nothing is written: the
+cards keep their schedule.
+
+Leeches ~
+A card failed more than `leech_failure_threshold` (15) times is tagged
+`:leech:`. With `leech_method` "skip" (the default) leeches are left out
+of sessions until you untag them; "warn" asks them marked as a leech;
+false treats them like other cards.
 
 Card types ~
-The DRILL_CARD_TYPE property sets a card's type (org-drill's names):
-  simple      (default) the title and text are the question and the
-              subheadings the answer; a card without subheadings has its
-              text as the answer. Clozes in the text are hidden.
-  twosided    one of the first two subheadings, picked at random, is shown
-              with the title; the other subheadings are the answer
-  multisided  like twosided, with any of the subheadings
-  hide1cloze  one cloze, at random, is hidden and the others shown
-  hide2cloze  two clozes, at random, are hidden and the others shown
-  show1cloze  one cloze, at random, is shown and the others hidden
-An unknown type is asked like a simple card.
+The DRILL_CARD_TYPE property (inherited from parent headings, as in
+org-drill) sets a card's type:
+  simple           (default) the title and text are the question and the
+                   subheadings the answer; a card without subheadings has
+                   its text as the answer. Clozes in the text are hidden.
+  twosided         one of the first two subheadings, picked at random, is
+                   shown with the title; the other subheadings are the
+                   answer
+  multisided       like twosided, with any of the subheadings
+  hide1cloze       one cloze, at random, is hidden and the others shown
+                   (also `multicloze`)
+  hide2cloze       two clozes, at random, are hidden
+  show1cloze       one cloze, at random, is shown and the others hidden
+  show2cloze       two clozes are shown and the others hidden
+  hidefirst        the first cloze is hidden
+  hidelast         the last cloze is hidden
+  hide1_firstmore  the first cloze is hidden, except every
+                   `cloze_text_weight`th (4) repetition, when another one is
+  show1_lastmore   the last cloze is shown, except every Nth repetition,
+                   when another one is
+  show1_firstless  a cloze other than the first is shown, except every Nth
+                   repetition, when the first one is
+org-drill's language cards (`conjugate`, `decline_noun`, `spanish_verb`,
+`translate_number`) and `simpletyped` are asked like simple cards; a type
+org-drill doesn't know is skipped with a warning, like org-drill does.
 
 Clozes ~
 Text in single square brackets is a cloze deletion, hidden as `[...]`
@@ -7951,14 +7985,28 @@ footnotes and priorities are not clozes:
       north into the [Mediterranean||sea].
 <
 Scheduling ~
-Reviews are scheduled with org-drill's SM-2 algorithm. Every card has an
-ease factor, 2.5 at first. A passing grade changes it by SM-2's formula
-(+0.1 for a 5, unchanged for a 4, -0.14 for a 3) and schedules the next
-review 1 day, then 6 days, then the last interval times the ease later. A
-failure keeps the ease, schedules the card for today and starts the
-intervals over. The result is written to the card's SCHEDULED date and to
-the properties org-drill uses, so a deck can be shared with Emacs:
-  DRILL_LAST_INTERVAL        days of the last interval (`15.0`)
+Reviews are scheduled like org-drill's `org-drill-smart-reschedule`, with
+the `algorithm` option (org-drill-spaced-repetition-algorithm):
+  sm5      (default, as in org-drill) SuperMemo 5: the intervals grow by
+           "optimal factors" that are learned from your grades, starting
+           at `sm5_initial_interval` (4) days. The factors are kept in
+           `sm5_matrix_file` between sessions.
+  sm2      SuperMemo 2: every card has an ease, 2.5 at first; a passing
+           grade changes it (+0.1 for a 5, unchanged for a 4, -0.14 for a
+           3) and schedules the next review 1 day, then 6 days, then the
+           last interval times the ease later.
+  simple8  org-drill's Simple8: the first interval depends on how often
+           the card was failed, the next ones on its average grade and
+           `learn_fraction`.
+The days until the next review never go down with a better grade
+(org-drill-hypothetical-next-review-dates), and a DRILL_CARD_WEIGHT
+property divides how much a card's interval grows. A failure keeps the
+ease, removes the card's SCHEDULED date (it is due again at once, and
+asked first next time) and starts the intervals over. The result is
+written to the card's SCHEDULED date and to the properties org-drill
+uses, so a deck can be shared with Emacs:
+  DRILL_LAST_INTERVAL        days until the review (`15.0`, `0.0` after a
+                             failure)
   DRILL_REPEATS_SINCE_FAIL   passing answers in a row, plus one
   DRILL_TOTAL_REPEATS        answers in all
   DRILL_FAILURE_COUNT        failed answers
@@ -7966,12 +8014,16 @@ the properties org-drill uses, so a deck can be shared with Emacs:
   DRILL_EASE                 the ease factor
   DRILL_LAST_QUALITY         the last grade
   DRILL_LAST_REVIEWED        when it was last answered (inactive timestamp)
+Cards still using the old LEARN_DATA property are read, and it is removed
+when they are answered. A new planning line and property drawer take the
+indentation of the card's text.
 
 Lua ~
-`require("org.extensions.drill")` has `start(scope)`, `cards(scope)`,
-`due_cards(scope, today)` and `reschedule(bufnr, lnum, card, quality)`;
-`.sm2.next(data, quality)` is the scheduling step and `.cloze.parse(line)`
-finds the clozes of a line.
+`require("org.extensions.drill")` has `start(scope, cram)`,
+`cards(scope)`, `due_cards(scope, today, cram)`, `status(card, today)` and
+`reschedule(bufnr, lnum, card, quality)`; `.schedule` has the algorithms
+(`sm2`, `sm5`, `simple8`, `answer`) and `.cloze.parse(line)` finds the
+clozes of a line.
 
 Options ~
   `tag`                        tag of the cards ("drill")
@@ -7979,29 +8031,43 @@ Options ~
   `maximum_items_per_session`  0 for no limit (30)
   `maximum_duration`           minutes, 0 for no limit (20)
   `failure_quality`            grades at or below this fail (2)
+  `algorithm`                  "sm5" (default), "sm2" or "simple8"
+  `learn_fraction`             growth of SM-5 and Simple8 intervals (0.5)
+  `sm5_initial_interval`       first SM-5 interval in days (4.0)
+  `sm5_matrix_file`            SM-5's learned factors
+                             (stdpath("data")/org/drill-sm5.json)
+  `leech_failure_threshold`    failures that make a leech (15); false
+  `leech_method`               "skip" (default), "warn" or false
+  `cloze_text_weight`          see the weighted card types (4); false
+  `cram_hours`                 cram asks cards older than this (12)
+  `days_before_old`            young / old boundary in days (10)
+  `overdue_interval_factor`    when a card is overdue (1.2)
   `repeat_failed`              ask failed cards again (true)
-  `shuffle`                    random order (true); off, the most overdue
-                             cards come first
+  `shuffle`                    random order within each group (true);
+                             off, the most overdue cards come first and
+                             old cards before new ones
   `save_buffers`               write changed files after a session (true)
   `width`, `height`, `border`  the session window (72, 20, "rounded")
   `keys`                       { reveal, skip, edit, quit }: a key or a
                              list of keys each
 
 Differences from Emacs org-drill ~
-  - Only the SM-2 algorithm; org-drill's SM-5 and Simple8
-    (`org-drill-spaced-repetition-algorithm`), its random noise on
-    intervals and its "learn fraction" are not implemented.
-  - A failed card is stored with a last interval of `0.0` (org-drill
-    stores `-1.0`) and scheduled for today; the intervals start over the
-    same way.
-  - Card types are limited to the ones above; org-drill's language cards
-    (`conjugate`, `translate_number`, `spanish_verb`), `hide1_firstmore`,
-    `show1_lastmore`, `show2cloze` and custom card functions are not
-    available and ask like simple cards.
-  - No leech detection, no cram mode (`org-drill-cram`) and no
-    `org-drill-again` or `org-drill-merge-buffers`.
+  - No random noise on intervals
+    (org-drill-add-random-noise-to-intervals-p) and no adjustment for
+    early or late reviews
+    (org-drill-adjust-intervals-for-early-and-late-repetitions-p); both
+    are off by default in org-drill.
+  - `maximum_items_per_session` counts the cards picked for the session;
+    org-drill counts passed cards, so failures there make room for more
+    cards.
+  - The language cards and `simpletyped` are asked like simple cards, and
+    custom card functions (org-drill-card-type-alist) are not supported.
+  - Very overdue cards are not "lapsed"
+    (org-drill--lapse-very-overdue-entries-p, off in org-drill), and
+    there is no `org-drill-again`, `org-drill-merge-buffers` or DATE_ADDED
+    ordering.
   - The question is shown in a floating window instead of narrowing the
-    buffer to the entry.
+    buffer to the entry, so its folds are left as they are.
 
 ------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*

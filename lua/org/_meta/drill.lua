@@ -23,10 +23,37 @@
 ---@field maximum_duration? number
 ---Answers of this quality or lower fail (org-drill-failure-quality, default: `2`).
 ---@field failure_quality? integer
+---Scheduling algorithm (org-drill-spaced-repetition-algorithm, default: `"sm5"`).
+---@field algorithm? "sm5"|"sm2"|"simple8"
+---How fast SM-5 and Simple8 intervals grow (org-drill-learn-fraction, default: `0.5`).
+---@field learn_fraction? number
+---First SM-5 interval in days (org-drill-sm5-initial-interval, default: `4.0`).
+---@field sm5_initial_interval? number
+---File keeping SM-5's learned optimal factors (default:
+---`stdpath("data") .. "/org/drill-sm5.json"`).
+---@field sm5_matrix_file? string
+---Failures after which a card is tagged :leech:; `false` for never
+---(org-drill-leech-failure-threshold, default: `15`).
+---@field leech_failure_threshold? integer|false
+---Leech cards are left out (`"skip"`), asked marked as leeches (`"warn"`) or
+---asked like others (`false`) (org-drill-leech-method, default: `"skip"`).
+---@field leech_method? "skip"|"warn"|false
+---Every Nth repetition the weighted cloze types do the less favoured thing;
+---`false` makes them plain (org-drill-cloze-text-weight, default: `4`).
+---@field cloze_text_weight? integer|false
+---Cram mode asks cards not reviewed in this many hours (org-drill-cram-hours,
+---default: `12`).
+---@field cram_hours? number
+---Last interval (days) up to which a card is "young" (org-drill-days-before-old,
+---default: `10`).
+---@field days_before_old? number
+---A card is overdue when late by more than (factor - 1) times its last
+---interval (org-drill-overdue-interval-factor, default: `1.2`).
+---@field overdue_interval_factor? number
 ---Ask failed cards again at the end of the session (default: `true`).
 ---@field repeat_failed? boolean
----Random card order, due cards before new ones (default: `true`); `false`
----asks the most overdue first.
+---Random order within each group of cards (default: `true`); `false`
+---asks the most overdue first and old cards before new ones.
 ---@field shuffle? boolean
 ---Write the changed files when a session ends
 ---(org-drill-save-buffers-after-drill-sessions-p, default: `true`).

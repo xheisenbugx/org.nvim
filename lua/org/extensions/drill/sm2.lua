@@ -1,4 +1,4 @@
----@mod org.extensions.drill.sm2 SM-2 scheduling as in org-drill
+---@mod org.extensions.drill.sm2 SM-2 scheduling as in org-drill (see also drill.schedule)
 ---
 --- Pure functions, no buffer access. The algorithm is org-drill's
 --- `org-drill-determine-next-interval-sm2`: a quality of 0-5 is given to
@@ -79,14 +79,19 @@ function M.next(data, quality, failure_quality)
     false
 end
 
---- Round like org-drill-round-float.
+--- Round like org-drill-round-float (Emacs `round`: halfway cases go to
+--- the even number).
 ---@param x number
 ---@param places integer
 function M.round(x, places)
   local m = 10 ^ places
   local v = x * m
-  v = v >= 0 and math.floor(v + 0.5) or -math.floor(-v + 0.5)
-  return v / m
+  local f = math.floor(v)
+  local d = v - f
+  if d > 0.5 or (d == 0.5 and f % 2 == 1) then
+    f = f + 1
+  end
+  return f / m
 end
 
 --- A float as Emacs `number-to-string` prints it after rounding: `6.0`,
@@ -106,14 +111,15 @@ function M.float_string(x, places)
   return s
 end
 
---- Days until the next review: the interval rounded to whole days.
+--- Days until the next review: the interval rounded to whole days (Emacs
+--- `round`, halfway cases to the even number).
 ---@param interval number
 ---@return integer
 function M.days_ahead(interval)
   if interval <= 0 then
     return 0
   end
-  return math.floor(interval + 0.5)
+  return math.floor(M.round(interval, 0))
 end
 
 return M

@@ -8,12 +8,14 @@
 
 local card_mod = require("org.extensions.drill.card")
 local sm2 = require("org.extensions.drill.sm2")
+local schedule = require("org.extensions.drill.schedule")
 local utils = require("org.utils")
 
 local M = {}
 
 M.card = card_mod
 M.sm2 = sm2
+M.schedule = schedule
 M.cloze = require("org.extensions.drill.cloze")
 
 M.defaults = {
@@ -31,10 +33,38 @@ M.defaults = {
   maximum_duration = 20,
   --- Answers of this quality or lower fail (org-drill-failure-quality).
   failure_quality = 2,
+  --- Scheduling algorithm (org-drill-spaced-repetition-algorithm): "sm5"
+  --- (org-drill's default), "sm2" or "simple8".
+  algorithm = "sm5",
+  --- How fast intervals grow with SM-5 and Simple8 (org-drill-learn-fraction).
+  learn_fraction = 0.5,
+  --- First SM-5 interval in days (org-drill-sm5-initial-interval).
+  sm5_initial_interval = 4.0,
+  --- Where SM-5's matrix of optimal factors is kept between sessions
+  --- (org-drill-sm5-optimal-factor-matrix, saved with `persist` in Emacs).
+  sm5_matrix_file = vim.fn.stdpath("data") .. "/org/drill-sm5.json",
+  --- A card failed more than this many times is tagged :leech:
+  --- (org-drill-leech-failure-threshold); false for never.
+  leech_failure_threshold = 15,
+  --- Leech cards: "skip" (left out of sessions), "warn" (asked, marked as
+  --- a leech) or false (asked like the others) (org-drill-leech-method).
+  leech_method = "skip",
+  --- Weighted cloze types (hide1_firstmore, show1_lastmore,
+  --- show1_firstless) do the less favoured thing every Nth time; false
+  --- makes them act like hide1cloze / show1cloze (org-drill-cloze-text-weight).
+  cloze_text_weight = 4,
+  --- Cram mode asks cards not reviewed in this many hours (org-drill-cram-hours).
+  cram_hours = 12,
+  --- Cards with a longer last interval (days) are "old" rather than "young"
+  --- when a session is put in order (org-drill-days-before-old).
+  days_before_old = 10,
+  --- A card is overdue when it is late by more than (factor - 1) times its
+  --- last interval (org-drill-overdue-interval-factor).
+  overdue_interval_factor = 1.2,
   --- Failed cards come back at the end of the session until passed
   --- (as in org-drill).
   repeat_failed = true,
-  --- Present cards in random order; new cards come after the due ones.
+  --- Shuffle each group of cards (failed, overdue, young, old and new).
   shuffle = true,
   --- Write the files changed by a session when it ends
   --- (org-drill-save-buffers-after-drill-sessions-p).
@@ -159,35 +189,113 @@ local function shuffle(list)
   end
 end
 
---- The cards a session asks: due cards (most overdue first, or shuffled),
---- then new cards, up to `maximum_items_per_session`.
----@param scope any
+--- Seconds since the card was last reviewed (nil: never).
+local function seconds_since_review(card)
+  local d = card.last_reviewed
+  if not d then
+    return nil
+  end
+  local t = os.time({ year = d.year, month = d.month, day = d.day, hour = d.hour or 0, min = d.min or 0, sec = 0 })
+  return M.now_seconds() - t
+end
+
+--- org-drill-entry-status: where a card goes in a session, or nil when it
+--- is not asked. One of "failed" (failed last time), "new" (never
+--- scheduled), "overdue", "young" (a last interval of `days_before_old`
+--- days or less) and "old". With `cram`, every card not reviewed in the
+--- last `cram_hours` hours is asked (org-drill-cram).
+---@param card org.drill.Card
 ---@param today integer day number
-function M.due_cards(scope, today)
+---@param cram? boolean
+---@return string|nil status, integer days overdue
+function M.status(card, today, cram)
   local o = opts()
-  local due, new = {}, {}
-  for _, c in ipairs(M.cards(scope)) do
-    if not card_mod.is_empty(c.card) and card_mod.is_due(c.card, today) then
-      if c.card.new then
-        new[#new + 1] = c
-      else
-        due[#due + 1] = c
-      end
+  if card.unknown or card_mod.is_empty(card) then
+    return nil, 0
+  end
+  local due
+  if cram then
+    local secs = seconds_since_review(card)
+    if secs and secs < (tonumber(o.cram_hours) or 12) * 3600 then
+      return nil, 0
+    end
+    due = 0
+  else
+    if card.leech and o.leech_method == "skip" then
+      return nil, 0
+    end
+    due = card.scheduled and (today - card.scheduled:days()) or 0
+    if due < 0 then
+      return nil, due
     end
   end
-  if o.shuffle then
-    shuffle(due)
-    shuffle(new)
-  else
-    table.sort(due, function(a, b)
-      local da = a.card.scheduled and a.card.scheduled:days() or today
-      local db = b.card.scheduled and b.card.scheduled:days() or today
-      return da < db
-    end)
+  local fq = tonumber(o.failure_quality) or 2
+  if (card.last_quality or 9999) <= fq then
+    return "failed", due
+  elseif not card.scheduled then
+    return "new", due
   end
-  local out = vim.list_extend(due, new)
+  local last = card.interval or 1
+  local factor = tonumber(o.overdue_interval_factor) or 1.2
+  if due > 1 and (due + last + 1.0) / last > factor then
+    return "overdue", due
+  elseif (card.interval or 9999) <= (tonumber(o.days_before_old) or 10) then
+    return "young", due
+  end
+  return "old", due
+end
+
+--- The cards a session asks, in org-drill's order: cards failed last time,
+--- overdue cards (the most overdue first), young cards, then old and new
+--- cards mixed; up to `maximum_items_per_session` (not in cram mode).
+--- Every group is shuffled with `shuffle`; without it old cards come
+--- before new ones.
+---@param scope any
+---@param today integer day number
+---@param cram? boolean
+function M.due_cards(scope, today, cram)
+  local o = opts()
+  local groups = { failed = {}, overdue = {}, young = {}, old = {}, new = {} }
+  local unknown = {}
+  for _, c in ipairs(M.cards(scope)) do
+    local status, due = M.status(c.card, today, cram)
+    if status then
+      c.status, c.due = status, due
+      table.insert(groups[status], c)
+    elseif c.card.unknown then
+      unknown[#unknown + 1] = c.card.unknown
+    end
+  end
+  if #unknown > 0 then
+    utils.warn(string.format("Drill: %d card(s) of unknown type skipped (%s)", #unknown, table.concat(unknown, ", ")))
+  end
+  if o.shuffle then
+    for _, g in pairs(groups) do
+      shuffle(g)
+    end
+  end
+  -- org-drill-order-overdue-entries: shuffled, then by days overdue
+  -- (a stable sort, so equal ones stay shuffled)
+  local overdue = groups.overdue
+  for i, c in ipairs(overdue) do
+    c.order = i
+  end
+  table.sort(overdue, function(a, b)
+    if a.due ~= b.due then
+      return a.due > b.due
+    end
+    return a.order < b.order
+  end)
+  local pool = vim.list_extend(vim.list_extend({}, groups.old), groups.new)
+  if o.shuffle then
+    shuffle(pool)
+  end
+  local out = {}
+  for _, g in ipairs({ groups.failed, overdue, groups.young, pool }) do
+    vim.list_extend(out, g)
+  end
   local max = tonumber(o.maximum_items_per_session) or 0
-  if max > 0 then
+  if max > 0 and not cram then
     for i = #out, max + 1, -1 do
       out[i] = nil
     end
@@ -306,10 +414,11 @@ local function resize(s, nlines)
 end
 
 local function title_text(s)
+  local name = s.cram and "Drill (cram)" or "Drill"
   if s.finished then
-    return " Drill: session finished "
+    return " " .. name .. ": session finished "
   end
-  return string.format(" Drill %d/%d ", s.index, #s.queue)
+  return string.format(" %s %d/%d ", name, s.index, #s.queue)
 end
 
 local function render(s)
@@ -336,8 +445,14 @@ local function render(s)
     elseif c.data.total_repeats > 0 then
       info[#info + 1] = string.format("seen %d×, ease %.2f", c.data.total_repeats, c.data.ease or sm2.DEFAULT_EASE)
     end
+    if c.leech then
+      info[#info + 1] = "leech"
+    end
     if entry.again then
       info[#info + 1] = "again"
+    end
+    if s.cram then
+      info[#info + 1] = "cram"
     end
     push(table.concat(info, " · ") .. "   " .. vim.fn.fnamemodify(c.path or "[buffer]", ":t"), "OrgDrillHeader")
     push("")
@@ -472,7 +587,7 @@ end
 
 local function time_up(s)
   local max = tonumber(opts().maximum_duration) or 0
-  return max > 0 and (M.now_seconds() - s.started) >= max * 60
+  return not s.cram and max > 0 and (M.now_seconds() - s.started) >= max * 60
 end
 
 -- show the next card, refreshing it from its buffer; cards that are gone
@@ -481,8 +596,16 @@ local function advance(s)
   s.revealed = false
   while true do
     s.index = s.index + 1
+    if s.index > 1 and s.index <= #s.queue and time_up(s) then
+      -- time is up: no more new cards, but the failed ones are still
+      -- asked until they pass (org-drill-entries-pending-p)
+      for i = #s.queue, s.index, -1 do
+        table.remove(s.queue, i)
+      end
+      s.cut = true
+    end
     if s.index > #s.queue then
-      if #s.again > 0 and not time_up(s) then
+      if #s.again > 0 then
         for _, e in ipairs(s.again) do
           s.queue[#s.queue + 1] = e
         end
@@ -493,38 +616,36 @@ local function advance(s)
         return
       end
     end
-    if s.index > 1 and time_up(s) then
-      s.index = s.index - 1
-      finish(s)
-      return
-    end
     local entry = s.queue[s.index]
     local c = reload(entry)
     if c then
       entry.card = c
-      entry.choice = card_mod.choose(c, M.random)
+      entry.choice = card_mod.choose(c, M.random, opts().cloze_text_weight or nil)
       render(s)
       return
     end
   end
 end
 
---- Start a session over the due cards of `scope` (see `scope_files`).
+--- Start a session over the due cards of `scope` (see `scope_files`);
+--- with `cram`, over the cards not reviewed in the last `cram_hours`
+--- hours, and nothing is rescheduled (org-drill-cram).
 ---@param scope? any
+---@param cram? boolean
 ---@return table|nil session
-function M.start(scope)
+function M.start(scope, cram)
   if M.session and not M.session.finished then
     close_window(M.session)
     clear_marks(M.session)
   end
   local date = require("org.date")
   local today = date.today():days()
-  local entries = M.due_cards(scope, today)
+  local entries = M.due_cards(scope, today, cram)
   if #entries == 0 then
-    utils.notify("No drill cards are due")
+    utils.notify(cram and "No drill cards to cram" or "No drill cards are due")
     return nil
   end
-  local s = { queue = {}, again = {}, index = 0, buffers = {}, results = {}, started = M.now_seconds() }
+  local s = { queue = {}, again = {}, index = 0, buffers = {}, results = {}, started = M.now_seconds(), cram = cram }
   s.stats = { reviewed = 0, passed = 0, failed = 0, skipped = 0, qualities = {}, new = 0 }
   for q = 0, 5 do
     s.stats.qualities[q] = 0
@@ -556,9 +677,150 @@ function M.reveal()
   render(s)
 end
 
+---------------------------------------------------------------------------
+-- Writing the result
+---------------------------------------------------------------------------
+
+--- SM-5's matrix of optimal factors, read once from `sm5_matrix_file`.
+local matrix_cache
+
+---@return table
+function M.sm5_matrix()
+  if not matrix_cache then
+    local f = opts().sm5_matrix_file
+    local m = f and f ~= "" and utils.read_json(vim.fn.expand(f)) or nil
+    matrix_cache = type(m) == "table" and m or {}
+  end
+  return matrix_cache
+end
+
+local function save_matrix(m)
+  matrix_cache = m
+  local f = opts().sm5_matrix_file
+  if not f or f == "" then
+    return
+  end
+  f = vim.fn.expand(f)
+  pcall(vim.fn.mkdir, vim.fn.fnamemodify(f, ":h"), "p")
+  local ok, err = pcall(utils.write_json, f, m)
+  if not ok then
+    utils.warn("Drill: could not save " .. f .. ": " .. tostring(err))
+  end
+end
+
+--- Forget the cached SM-5 matrix (it is read again from its file).
+function M.reset_matrix()
+  matrix_cache = nil
+end
+
+-- indentation for a new planning line or property drawer: the existing
+-- planning line or drawer's, else the entry text's when it is indented
+-- (as in the cards of most org-drill decks), else `body_indent`
+local function meta_indent(file, hl)
+  if hl.planning_line then
+    return file.lines[hl.planning_line]:match("^(%s*)")
+  elseif hl.properties_range then
+    return file.lines[hl.properties_range[1]]:match("^(%s*)")
+  end
+  local indent = require("org.edit").body_indent(hl.level)
+  if indent ~= "" then
+    return indent
+  end
+  local stop = hl.children and hl.children[1] and hl.children[1].line - 1 or hl.end_line
+  for l = hl.line + 1, stop do
+    local line = file.lines[l] or ""
+    if line:match("%S") then
+      local w = line:match("^(%s*)")
+      return #w <= hl.level + 1 and w or ""
+    end
+  end
+  return ""
+end
+
+--- Replace the planning line and property drawer of the headline at
+--- `lnum` in one change: SCHEDULED set to `scheduled` (false removes it),
+--- properties `set` ({ name, value } pairs, in order) and `remove`d.
+---@param bufnr integer
+---@param lnum integer
+---@param scheduled table|false|nil org.date; nil keeps it
+---@param set { [1]: string, [2]: string }[]
+---@param remove? string[]
+function M.write_meta(bufnr, lnum, scheduled, set, remove)
+  local files = require("org.files")
+  local edit = require("org.edit")
+  local date = require("org.date")
+  local file = files.get_buffer(bufnr)
+  local hl = file:headline_at(lnum)
+  if not hl or hl.line ~= lnum then
+    return false
+  end
+  local indent = meta_indent(file, hl)
+  local out = {}
+  -- the planning line
+  local planning = {}
+  for k, v in pairs(hl.planning or {}) do
+    planning[k] = date.Date.new(v)
+    if v.range_end then
+      planning[k].range_end = date.Date.new(v.range_end)
+    end
+  end
+  if scheduled ~= nil then
+    planning.scheduled = scheduled or nil
+  end
+  local pline = edit.build_planning(planning, indent)
+  if hl.planning_line and pline then
+    -- keep the text as written when SCHEDULED doesn't change
+    pline = scheduled == nil and file.lines[hl.planning_line] or pline
+  end
+  out[#out + 1] = pline
+  -- the property drawer
+  local props, order = {}, {}
+  local dindent = indent
+  if hl.properties_range then
+    local s, e = hl.properties_range[1], hl.properties_range[2]
+    dindent = file.lines[s]:match("^(%s*)")
+    for i = s + 1, e - 1 do
+      local key = require("org.parser").parse_property_line(file.lines[i])
+      local k = key and key:upper() or ("\0" .. i)
+      order[#order + 1] = k
+      props[k] = { line = file.lines[i] }
+    end
+  end
+  for _, name in ipairs(remove or {}) do
+    props[name:upper()] = nil
+  end
+  for _, p in ipairs(set) do
+    local k = p[1]:upper()
+    if not props[k] then
+      order[#order + 1] = k
+    end
+    props[k] = { line = edit.property_line(dindent, p[1], p[2]) }
+  end
+  local drawer = {}
+  for _, k in ipairs(order) do
+    if props[k] then
+      drawer[#drawer + 1] = props[k].line
+      props[k] = nil
+    end
+  end
+  if #drawer > 0 then
+    out[#out + 1] = dindent .. ":PROPERTIES:"
+    vim.list_extend(out, drawer)
+    out[#out + 1] = dindent .. ":END:"
+  end
+  -- replace the lines between the headline and the end of its drawer
+  local last = edit.meta_end(hl)
+  local old = vim.api.nvim_buf_get_lines(bufnr, hl.line, last, false)
+  if not vim.deep_equal(old, out) then
+    vim.api.nvim_buf_set_lines(bufnr, hl.line, last, false, out)
+  end
+  return true
+end
+
 --- Write the result of an answer of `quality` to the card at (bufnr,
---- lnum): the DRILL_* properties and the SCHEDULED date of the next
---- review (org-drill-smart-reschedule).
+--- lnum), like org-drill-reschedule: the DRILL_* properties, the SCHEDULED
+--- date of the next review (removed after a failure: the card is due at
+--- once) and, after too many failures, the :leech: tag.
 ---@param bufnr integer
 ---@param lnum integer
 ---@param card org.drill.Card
@@ -566,12 +828,21 @@ end
 ---@return org.drill.ItemData data, boolean failed, integer days_ahead
 function M.reschedule(bufnr, lnum, card, quality)
   local date = require("org.date")
-  local edit = require("org.edit")
-  local files = require("org.files")
-  local data, failed = sm2.next(card.data, quality, opts().failure_quality)
-  local days = sm2.days_ahead(data.last_interval)
-  local today = date.today()
-  edit.set_planning(bufnr, lnum, "scheduled", today:add(days, "d"))
+  local o = opts()
+  local algorithm = schedule.ALGORITHMS[o.algorithm] and o.algorithm or "sm5"
+  local matrix = algorithm == "sm5" and M.sm5_matrix() or nil
+  local sopts = {
+    failure_quality = tonumber(o.failure_quality) or 2,
+    learn_fraction = tonumber(o.learn_fraction) or 0.5,
+    sm5_initial_interval = tonumber(o.sm5_initial_interval) or 4.0,
+  }
+  local weight = card.weight
+  local data, days, failed, new_matrix, unschedule =
+    schedule.answer(algorithm, card.data, quality, matrix, sopts, weight)
+  local scheduled = false
+  if not unschedule then
+    scheduled = date.today():add(days, "d")
+  end
   local now = date.now()
   local reviewed = date.Date.new({
     year = now.year,
@@ -581,7 +852,7 @@ function M.reschedule(bufnr, lnum, card, quality)
     min = now.min,
     active = false,
   })
-  local props = {
+  M.write_meta(bufnr, lnum, scheduled, {
     { "DRILL_LAST_INTERVAL", sm2.float_string(data.last_interval, 4) },
     { "DRILL_REPEATS_SINCE_FAIL", tostring(data.repeats) },
     { "DRILL_TOTAL_REPEATS", tostring(data.total_repeats) },
@@ -590,15 +861,27 @@ function M.reschedule(bufnr, lnum, card, quality)
     { "DRILL_EASE", sm2.float_string(data.ease, 3) },
     { "DRILL_LAST_QUALITY", tostring(quality) },
     { "DRILL_LAST_REVIEWED", reviewed:to_string() },
-  }
-  for _, p in ipairs(props) do
-    local hl = files.get_buffer(bufnr):headline_at(lnum)
-    edit.set_property(bufnr, hl.line, p[1], p[2])
+  }, { "LEARN_DATA" })
+  if algorithm == "sm5" and new_matrix then
+    save_matrix(new_matrix)
+  end
+  -- org-drill-reschedule: more failures than the threshold make a leech
+  local threshold = tonumber(o.leech_failure_threshold)
+  if failed and threshold and (card.data.failures or 0) + 1 > threshold and not card.leech then
+    local hl = require("org.files").get_buffer(bufnr):headline_at(lnum)
+    if hl and hl.line == lnum then
+      local tags = vim.deepcopy(hl.tags or {})
+      if not vim.tbl_contains(tags, "leech") then
+        tags[#tags + 1] = "leech"
+        require("org.edit").update_headline(bufnr, lnum, { tags = tags })
+      end
+    end
   end
   return data, failed, days
 end
 
 --- Grade the current card 0-5 (org-drill's answer qualities) and go on.
+--- In cram mode nothing is written.
 ---@param quality integer
 function M.grade(quality)
   local s = M.session
@@ -613,7 +896,13 @@ function M.grade(quality)
   local entry = s.queue[s.index]
   local c, bufnr, lnum = reload(entry)
   if c then
-    local data, failed, days = M.reschedule(bufnr, lnum, c, quality)
+    local data, failed, days
+    if s.cram then
+      failed = quality <= (tonumber(opts().failure_quality) or 2)
+      data, days = c.data, nil
+    else
+      data, failed, days = M.reschedule(bufnr, lnum, c, quality)
+    end
     s.stats.reviewed = s.stats.reviewed + 1
     s.graded = s.graded or {}
     s.graded[entry.bufnr .. ":" .. entry.mark] = true
@@ -624,6 +913,10 @@ function M.grade(quality)
     if failed then
       s.stats.failed = s.stats.failed + 1
       if opts().repeat_failed then
+        -- org-drill shuffles the cards to ask again, then adds this one
+        if opts().shuffle then
+          shuffle(s.again)
+        end
         s.again[#s.again + 1] = { bufnr = entry.bufnr, mark = entry.mark, card = c, again = true }
       end
     else
@@ -755,7 +1048,10 @@ function M.summary_lines(s)
       local r = s.results[i]
       if not seen[r.title] then
         seen[r.title] = true
-        local when = r.days == 0 and "today" or r.days == 1 and "tomorrow" or string.format("in %d days", r.days)
+        local when = r.days == nil and "not rescheduled (cram)"
+          or r.days == 0 and "today"
+          or r.days == 1 and "tomorrow"
+          or string.format("in %d days", r.days)
         add(string.format("  %-40s %s", vim.fn.strcharpart(r.title, 0, 40), when))
       end
     end
@@ -777,6 +1073,49 @@ end
 --- A session over the subtree at the cursor (org-drill-tree).
 function M.tree()
   return M.start("tree")
+end
+
+--- `:Org drill_cram [scope]`: a cram session (org-drill-cram): every card
+--- not reviewed in the last `cram_hours` hours, nothing rescheduled.
+---@param args? string
+function M.cram(args)
+  local scope = type(args) == "string" and vim.trim(args) or ""
+  return M.start(scope ~= "" and scope or nil, true)
+end
+
+--- Completion of the scope argument: the named scopes, `tag:` with the
+--- tags of the agenda files, and org files.
+---@param arglead string
+---@return string[]
+function M.complete_scope(arglead)
+  local out = { "file", "tree", "agenda", "directory" }
+  if arglead:match("^tag:") then
+    local ok, tags = pcall(function()
+      local seen, list = {}, {}
+      for _, f in ipairs(require("org.files").agenda_files()) do
+        for _, hl in ipairs(f.headlines) do
+          for _, t in ipairs(hl.tags or {}) do
+            if not seen[t] then
+              seen[t] = true
+              list[#list + 1] = "tag:" .. t
+            end
+          end
+        end
+      end
+      table.sort(list)
+      return list
+    end)
+    return ok and tags or {}
+  end
+  out[#out + 1] = "tag:"
+  if arglead:find("/", 1, true) or arglead:match("^[~.]") then
+    for _, p in ipairs(vim.fn.getcompletion(arglead, "file")) do
+      if p:match("%.org$") or p:match("/$") then
+        out[#out + 1] = p
+      end
+    end
+  end
+  return out
 end
 
 --- Count the cards of a scope (`:Org drill_stats`): all, due (reviewed
@@ -811,18 +1150,31 @@ M.actions = {
   drill_tree = { "org.extensions.drill", "tree", desc = "Drill: review the cards of this subtree" },
   drill_resume = { "org.extensions.drill", "resume", desc = "Drill: resume a paused session", global = true },
   drill_stats = { "org.extensions.drill", "stats", desc = "Drill: count due and new cards", global = true },
+  drill_cram = { "org.extensions.drill", "cram", desc = "Drill: cram the cards not reviewed lately", global = true },
 }
+
+local function complete_scope(arglead)
+  return M.complete_scope(arglead)
+end
 
 M.commands = {
   drill = {
     "org.extensions.drill",
     "command",
     desc = "Review flashcards: :Org drill [file|tree|agenda|directory|tag:NAME|files]",
+    complete = complete_scope,
+  },
+  drill_cram = {
+    "org.extensions.drill",
+    "cram",
+    desc = "Cram flashcards: :Org drill_cram [file|tree|agenda|directory|tag:NAME|files]",
+    complete = complete_scope,
   },
   drill_stats = {
     "org.extensions.drill",
     "stats",
     desc = "Count drill cards: :Org drill_stats [file|tree|agenda|directory|tag:NAME|files]",
+    complete = complete_scope,
   },
 }
 
@@ -832,6 +1184,7 @@ M.mappings = {
 
 function M.setup()
   define_highlights()
+  M.reset_matrix()
 end
 
 function M.teardown()
@@ -846,6 +1199,9 @@ end
 
 function M.health(h, o)
   h.info("drill: cards are headlines tagged :" .. tostring(o.tag) .. ":")
+  if not schedule.ALGORITHMS[o.algorithm] then
+    h.warn('drill: algorithm should be "sm5", "sm2" or "simple8" (using "sm5")')
+  end
   local scope = o.scope
   if type(scope) == "string" and not vim.tbl_contains({ "file", "tree", "agenda", "directory" }, scope) then
     if not scope:match("^tag:") and #utils.glob_org_files(vim.split(scope, "%s+")) == 0 then
