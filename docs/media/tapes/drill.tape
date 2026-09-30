@@ -67,7 +67,7 @@ Escape
 Sleep 800ms
 Hide
 Ctrl+G
-Type@5ms `Do zR` Enter
+Type@5ms `Do <S-Tab>zR | show everything` Enter
 Show
 Sleep 3.5s
 Hide
