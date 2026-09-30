@@ -774,7 +774,7 @@ function M.move_order(dir)
     return
   end
   if st.opts.sort ~= "file" then
-    utils.warn('kanban: cards are sorted by ' .. tostring(st.opts.sort) .. '; reorder them with sort = "file"')
+    utils.warn("kanban: cards are sorted by " .. tostring(st.opts.sort) .. '; reorder them with sort = "file"')
     return
   end
   local other = st.cols[st.sel.col].cards[st.sel.row + dir]
