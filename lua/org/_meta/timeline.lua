@@ -1,0 +1,36 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { timeline = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Timeline
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Where tasks come from: `"agenda"`, `"buffer"`, `"subtree"`, or files / globs.
+---(default: `"agenda"`)
+---@field source? "agenda"|"buffer"|"subtree"|string|string[]
+---Only tasks matching this org-ql query (sexp or plain syntax). (default: `nil`)
+---@field query? string
+---Only tasks with this tag, inherited tags included. (default: `nil`)
+---@field tag? string
+---Also show DONE tasks, dimmed. (default: `false`)
+---@field show_done? boolean
+---Starting zoom: `"day"` (3 columns a day), `"week"` (a column a day) or
+---`"month"` (a column a week). (default: `"day"`)
+---@field zoom? "day"|"week"|"month"
+---Days before today at the left edge when opening. (default: `3`)
+---@field days_before? integer
+---Width of the task names. (default: `34`)
+---@field label_width? integer
+---Working hours in a day, to turn an Effort into days. (default: `8`)
+---@field hours_per_day? number
+---Show the days each task was clocked. (default: `false`)
+---@field clocks? boolean
+---Window: `"float"`, `"tab"`, `"split"`, `"vsplit"` or `"current"`. (default: `"float"`)
+---@field layout? "float"|"tab"|"split"|"vsplit"|"current"
+---Float size: fractions of the editor, or columns / lines. (default: `0.94`, `0.88`)
+---@field width? number
+---@field height? number
+---Save the file after S / D; `nil` follows `agenda.save_after_edit`. (default: `nil`)
+---@field save? boolean
+---Keys in the timeline (`false` removes one).
+---@field keys? { zoom_in?: string|string[]|false, zoom_out?: string|string[]|false, pan_left?: string|string[]|false, pan_right?: string|string[]|false, today?: string|string[]|false, jump?: string|string[]|false, schedule?: string|string[]|false, deadline?: string|string[]|false, clocks?: string|string[]|false, refresh?: string|string[]|false, quit?: string|string[]|false }

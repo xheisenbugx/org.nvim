@@ -750,6 +750,14 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---Kanban board of TODO states (`:h org-extensions-kanban`).
+---@field kanban? org.Config.Extensions.Kanban|boolean
+---Text-mode Gantt chart of scheduled tasks and deadlines (`:h org-extensions-timeline`).
+---@field timeline? org.Config.Extensions.Timeline|boolean
+---Calendar heatmap of clocked time, closed tasks or habits (`:h org-extensions-heatmap`).
+---@field heatmap? org.Config.Extensions.Heatmap|boolean
+---A "Today" side window (`:h org-extensions-sidebar`).
+---@field sidebar? org.Config.Extensions.Sidebar|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

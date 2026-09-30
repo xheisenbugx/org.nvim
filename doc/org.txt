@@ -7600,4 +7600,261 @@ Differences from Emacs org-roam ~
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
 
+------------------------------------------------------------------------------
+Views: kanban, timeline, heatmap, sidebar               *org-extensions-views*
+
+Four visual views of your tasks, each an extension of its own. They share
+their plumbing (`lua/org/extensions/views_util.lua`): where entries come
+from, filters, the window, jumping back to a heading and redrawing when org
+files are written or a TODO state or clock changes. Their global keys live
+under `<prefix>V`.
+
+Where a view takes a `source`, it is one of:
+  `"agenda"`   the agenda files (default)
+  `"buffer"`   the current buffer
+  `"subtree"`  the subtree at the cursor (followed while lines are added
+             above it)
+  a path or glob, or a list of them
+
+A filter (`/` in the kanban board, or words after `:Org kanban`) is an
+org-ql sexp when it starts with `(` (|org-extensions-ql|; the query
+language is loaded on demand, the ql extension need not be enabled), and a
+tags / property match like `work+urgent-home` otherwise (|org-match-syntax|).
+The `query` option takes any org-ql query, plain syntax included.
+
+COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
+scratch buffers; <CR> opens the heading in the window the view was opened
+from (floats and tabs close first).
+
+------------------------------------------------------------------------------
+Kanban board                                           *org-extensions-kanban*
+
+A board with a column per TODO keyword and a card per heading:
+>lua
+    require("org").setup({ extensions = { kanban = {
+      columns = {
+        "TODO",
+        { "NEXT", "WAITING", name = "Doing", wip = 3 },
+        "DONE",
+      },
+    } } })
+<
+`:Org kanban [agenda|buffer|subtree|<file>] [filter]` opens it; the actions
+`kanban_open` (`<prefix>Vk`), `kanban_buffer` and `kanban_subtree` open it
+on the `source` option, the current buffer and the subtree at the cursor.
+
+Columns are the TODO keywords in the order they are defined (with the
+keywords of `#+TODO` lines in the source files) unless `columns` lists them;
+a column can gather several keywords under a `name`. The header shows the
+number of cards, or `count/limit` with a WIP limit (`wip` in the column or
+the `wip` option), in the error colour with a `!` once over it. Headers use
+the TODO keyword faces (`ui.todo_keyword_faces`).
+
+A card shows the priority, the title (wrapped to `title_lines`), the
+deadline countdown (◆ in 3d, in the warning colour within the deadline's
+warning period, the error colour when overdue), the Effort (◷ 2:30) and the
+tags; `card` turns each part on or off (`scheduled` and `category` are off
+by default). Cards are sorted by `sort`.
+
+Keys in the board ~
+  h / l     move the card to the previous / next column: the heading gets
+            the column's first keyword through the regular TODO code, so
+            logging, CLOSED, blocking and repeaters work as with `C-c C-t`
+  j / k     next / previous card
+  H / L     previous / next column
+  <CR>      open the heading
+  /         filter (empty clears it)
+  r         refresh
+  q  <Esc>  quit
+
+The cursor can also be moved onto a card with any motion or the mouse. The
+board redraws itself when an org file is written or changed, and when a TODO
+state or clock changes. Moved cards are saved with `save = true` (default:
+`agenda.save_after_edit`).
+
+Options (defaults) ~
+  `columns`            {} (one per keyword)
+  `wip`                {} (limits by column name or keyword)
+  `show_done`          true
+  `source`             "agenda"
+  `query`, `tag`       nil
+  `sort`               "priority" | "deadline" | "scheduled" | "file"
+  `layout`             "float" | "tab" | "split" | "vsplit" | "current"
+  `width`, `height`    0.94, 0.88 (of the editor, or columns / lines)
+  `min_column_width`   22
+  `max_column_width`   44
+  `title_lines`        2
+  `card`               { priority, tags, deadline, effort = true,
+                       scheduled, category = false }
+  `save`               nil
+  `keys`               the keys above, by name: `prev_state`, `next_state`,
+                       `down`, `up`, `prev_column`, `next_column`, `jump`,
+                       `refresh`, `filter`, `quit`
+
+Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
+`OrgKanbanSelected`, `OrgKanbanCardTitle`, `OrgKanbanDoneTitle`,
+`OrgKanbanCount`, `OrgKanbanWipExceeded`, `OrgKanbanOverdue`,
+`OrgKanbanDueSoon`, `OrgKanbanDue`, `OrgKanbanScheduled`, `OrgKanbanEffort`,
+`OrgKanbanCategory`, `OrgKanbanEmpty`.
+
+------------------------------------------------------------------------------
+Timeline                                             *org-extensions-timeline*
+
+A text-mode Gantt chart: one row per task with a SCHEDULED or DEADLINE date,
+on a date axis.
+>lua
+    require("org").setup({ extensions = { timeline = { zoom = "week" } } })
+<
+`:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`,
+or the actions `timeline_open` (`<prefix>Vt`) and `timeline_buffer`.
+
+A task's bar runs from its scheduled day to its deadline. With only one of
+the two, the bar is as many days long as its Effort takes at
+`hours_per_day` (8) working hours a day, starting on the scheduled day or
+ending on the deadline. The deadline is drawn as ◆. A task past its deadline
+is drawn in the error colour with a dashed trail up to today. Today's
+column is shaded and its date highlighted on the axis; at day zoom
+weekends are shaded too. With `clocks` (or `c`), the days a task was
+clocked show as ▒. DONE tasks are left out unless `show_done` is set.
+
+Keys ~
+  + = / -   zoom in / out: day (3 columns a day), week (a column a day),
+            month (a column a week)
+  [ / ]     pan half a screen to the past / future
+  .         back to today
+  <CR>      open the task
+  S / D     reschedule / set the deadline of the task with the date prompt
+            (as `C-c C-s` / `C-c C-d`)
+  c         show or hide clocked days
+  r         refresh
+  q  <Esc>  quit
+
+Options (defaults) ~
+  `source`, `query`, `tag`   "agenda", nil, nil
+  `show_done`          false
+  `zoom`               "day"
+  `days_before`        3 (days before today at the left edge)
+  `label_width`        34
+  `hours_per_day`      8
+  `clocks`             false
+  `layout`             "float" (as for the kanban board)
+  `width`, `height`    0.94, 0.88
+  `save`               nil (save after S / D; nil follows
+                       `agenda.save_after_edit`)
+  `keys`               `zoom_in`, `zoom_out`, `pan_left`, `pan_right`,
+                       `today`, `jump`, `schedule`, `deadline`, `clocks`,
+                       `refresh`, `quit`
+
+Highlight groups: `OrgTimelineTitle`, `OrgTimelineHint`, `OrgTimelineAxis`,
+`OrgTimelineMonth`, `OrgTimelineSeparator`, `OrgTimelineBar`,
+`OrgTimelineDone`, `OrgTimelineOverdue`, `OrgTimelineDeadline`,
+`OrgTimelineClock`, `OrgTimelineToday`, `OrgTimelineTodayLabel`,
+`OrgTimelineWeekend`, `OrgTimelineTask`.
+
+------------------------------------------------------------------------------
+Heatmap                                               *org-extensions-heatmap*
+
+A calendar heatmap in the style of GitHub's contribution graph: a column per
+week, a row per weekday, each day shaded by what was done that day.
+>lua
+    require("org").setup({ extensions = { heatmap = { weeks = 26 } } })
+<
+`:Org heatmap [clock|closed|habit] [tag|file]`, or the action
+`heatmap_open` (`<prefix>Vh`). The kinds:
+  `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
+          between the two days, a running clock counts up to now)
+  `closed`  tasks marked done: CLOSED dates and `- State "DONE"` log
+          entries, once per task and day
+  `habit`   the same for habits (`STYLE: habit`)
+
+A bare word is a tag (`+work` and `:work:` work too); a path ending in
+`.org` is the source.
+
+There are five shades: empty days, then four levels. By default the levels
+split the days with any value in quartiles; `thresholds` sets the lower
+bound of each level instead (e.g. `{ 30, 60, 120, 240 }` minutes). The
+colours are mixed from the foreground of `color_group` and the background
+of `Normal`, and follow colorscheme changes; `colors` sets all five.
+Under the grid: the total, active days, the average of an active day, the
+current streak (ending today, or yesterday while today is empty), the
+longest one and the best day.
+
+The cursor starts on today; the line at the bottom shows the selected day's
+total and its biggest entries.
+
+Keys ~
+  <Tab>     next kind (clock, closed, habit)
+  h / l     previous / next week
+  k / j     previous / next day
+  <CR>      the agenda of that day
+  r         refresh
+  q  <Esc>  quit
+
+Options (defaults) ~
+  `kind`          "clock"
+  `source`, `tag` "agenda", nil
+  `weeks`         0 (fit the window, at most 53)
+  `cell`          "■"
+  `thresholds`    nil
+  `color_group`   "DiagnosticOk"
+  `colors`        nil
+  `layout`        "float"
+  `keys`          `next_kind`, `prev_week`, `next_week`, `next_day`,
+                  `prev_day`, `agenda`, `refresh`, `quit`
+
+Highlight groups: `OrgHeatmap0` to `OrgHeatmap4` (the shades, set from the
+options), `OrgHeatmapTitle`, `OrgHeatmapHint`, `OrgHeatmapLabel`,
+`OrgHeatmapStat`, `OrgHeatmapValue`, `OrgHeatmapDetail`.
+
+------------------------------------------------------------------------------
+Today sidebar                                         *org-extensions-sidebar*
+
+A narrow window at the side of the tab that keeps today in view:
+>lua
+    require("org").setup({ extensions = { sidebar = { position = "left" } } })
+<
+The actions `sidebar_toggle` (`<prefix>Vs`), `sidebar_open` and
+`sidebar_close`. Its sections (`sections`, in this order by default):
+  `clock`   the running clock: the task, the time clocked and, with an
+          Effort, a bar of the time against it (error colour once over)
+  `next`    the next timed entry of today still to come, with a countdown
+  `today`   today's timed entries (the past ones dimmed), deadlines due
+          within `deadline_days` (the overdue ones first) and scheduled
+          entries, from the agenda files, as in the day agenda
+  `habits`  the habits due today
+  `inbox`   the number of top-level entries not DONE in `inbox_file`
+          (default: `default_notes_file`)
+
+It is redrawn every `interval` seconds while it is open (the timer stops
+when it closes) and when an org file is written or a clock or TODO state
+changes. The window keeps its width (`winfixwidth`, and `winfixbuf` where
+Neovim has it), has no numbers, sign column or status line text, and opening
+it leaves the cursor where it was unless `focus` is set. Toggling it in
+another tab moves it there.
+
+Keys ~
+  <CR>   open the entry (the clocked task, the inbox) in the window next
+         to the sidebar
+  r      refresh
+  q      close
+
+Options (defaults) ~
+  `position`       "right"
+  `width`          40
+  `interval`       30
+  `sections`       { "clock", "next", "today", "habits", "inbox" }
+  `show_done`      false
+  `deadline_days`  7
+  `inbox_file`     nil
+  `focus`          false
+  `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
+                   inbox = "✉", deadline = "◆", scheduled = "▸" }
+  `keys`           { jump = "<CR>", refresh = "r", close = "q" }
+
+Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
+`OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,
+`OrgSidebarEmpty`, `OrgSidebarCountdown`, `OrgSidebarOverdue`,
+`OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
+`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`.
+
  vim:tw=78:ts=8:ft=help:norl:
