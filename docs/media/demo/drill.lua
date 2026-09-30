@@ -16,7 +16,10 @@ for _, src in ipairs(vim.fn.glob(here .. "/drill/*.org", false, true)) do
 end
 
 -- init.lua has run setup(): turn the extension on the way setup() does
-require("org.config").opts.extensions = { drill = { shuffle = false, width = 64 } }
+-- SM-5 learns from every answer: start each recording from scratch
+vim.fn.delete(dir .. "/drill-sm5.json")
+local drill_opts = { shuffle = false, width = 64, sm5_matrix_file = dir .. "/drill-sm5.json" }
+require("org.config").opts.extensions = { drill = drill_opts }
 require("org.extensions").setup()
 require("org.mappings").setup_global()
 -- the same side of the two-sided card every time

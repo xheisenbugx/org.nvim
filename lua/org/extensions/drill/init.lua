@@ -737,6 +737,53 @@ local function meta_indent(file, hl)
   return ""
 end
 
+-- The closed folds starting in lines [from, to], per window showing
+-- `bufnr` (the outermost ones: what can be seen of the entry).
+local function closed_folds(bufnr, from, to)
+  local out = {}
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    local list = {}
+    pcall(vim.api.nvim_win_call, win, function()
+      local l = from
+      while l <= to do
+        local c = vim.fn.foldclosed(l)
+        if c ~= -1 then
+          if c >= from then
+            list[#list + 1] = c
+          end
+          l = math.max(l, vim.fn.foldclosedend(l)) + 1
+        else
+          l = l + 1
+        end
+      end
+    end)
+    out[win] = list
+  end
+  return out
+end
+
+-- Close the folds again after the entry at `hl_line` changed: `folds`
+-- from `closed_folds`, `map` turns an old line into its new one; the new
+-- drawer at `drawer` (when the entry is open) is closed too, as org shows
+-- drawers.
+local function restore_folds(folds, map, hl_line, drawer)
+  for win, list in pairs(folds) do
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_call, win, function()
+        for i = #list, 1, -1 do
+          local l = map(list[i])
+          if l and vim.fn.foldclosed(l) ~= l then
+            vim.cmd(string.format("silent! %dfoldclose", l))
+          end
+        end
+        if drawer and vim.fn.foldclosed(hl_line) == -1 and vim.fn.foldclosed(drawer) == -1 then
+          vim.cmd(string.format("silent! %dfoldclose", drawer))
+        end
+      end)
+    end
+  end
+end
+
 --- Replace the planning line and property drawer of the headline at
 --- `lnum` in one change: SCHEDULED set to `scheduled` (false removes it),
 --- properties `set` ({ name, value } pairs, in order) and `remove`d.
@@ -808,11 +855,24 @@ function M.write_meta(bufnr, lnum, scheduled, set, remove)
     vim.list_extend(out, drawer)
     out[#out + 1] = dindent .. ":END:"
   end
-  -- replace the lines between the headline and the end of its drawer
+  -- replace the lines between the headline and the end of its drawer,
+  -- keeping the folds of the windows that show the entry (Neovim opens
+  -- the folds of an entry whose lines change)
   local last = edit.meta_end(hl)
   local old = vim.api.nvim_buf_get_lines(bufnr, hl.line, last, false)
   if not vim.deep_equal(old, out) then
+    local folds = closed_folds(bufnr, hl.line, hl.end_line)
     vim.api.nvim_buf_set_lines(bufnr, hl.line, last, false, out)
+    local delta = #out - (last - hl.line)
+    local drawer = #drawer > 0 and hl.line + (pline and 1 or 0) + 1 or nil
+    restore_folds(folds, function(l)
+      if l <= hl.line then
+        return l
+      elseif l > last then
+        return l + delta
+      end
+      return nil -- the old planning line or drawer: replaced
+    end, hl.line, drawer)
   end
   return true
 end

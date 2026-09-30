@@ -448,6 +448,42 @@ describe("drill sessions (org-drill parity)", function()
     eq("  question", lines[13])
   end)
 
+  it("keeps the folds of the card's buffer, like org-save-outline-visibility", function()
+    local path = vim.fn.tempname() .. ".org"
+    vim.fn.writefile({
+      "#+STARTUP: content",
+      "* Card 1 :drill:",
+      "  Question 1",
+      "** Answer",
+      "   answer 1",
+      "* Card 2 :drill:",
+      "  Question 2",
+      "** Answer",
+      "   answer 2",
+    }, path)
+    vim.cmd("edit! " .. vim.fn.fnameescape(path))
+    local win = vim.api.nvim_get_current_win()
+    local function closed(l)
+      return vim.api.nvim_win_call(win, function()
+        return vim.fn.foldclosed(l)
+      end)
+    end
+    eq(4, closed(4)) -- ** Answer of card 1
+    drill.start("file")
+    drill.reveal()
+    drill.grade(4)
+    local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false)
+    eq("  SCHEDULED: <2026-09-30 Wed>", lines[3])
+    eq(-1, closed(2)) -- the card stays open
+    eq(4, closed(4)) -- its new drawer is folded
+    local answer = vim.fn.index(lines, "** Answer") + 1
+    eq(answer, closed(answer)) -- and its answer still is
+    drill.quit()
+    drill.quit()
+    vim.cmd("bwipeout!")
+    vim.fn.delete(path)
+  end)
+
   it("keeps other properties and planning, and deletes LEARN_DATA", function()
     local buf = org_buffer({
       "* Q :drill:",
