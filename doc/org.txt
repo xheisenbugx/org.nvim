@@ -7728,8 +7728,9 @@ step) and the step's title; the footer lists the keys. The default steps:
             `clock_top` (10) entries it went to
   reflect   Questions (`questions`) answered in a note buffer
 
-`:Org review <step>` jumps to a step by name or number, and
-`:Org review restart` drops an unfinished review and starts over.
+`:Org review <step>` jumps to a step by name or number (<Tab> completes
+the names), and `:Org review restart` drops an unfinished review and
+starts over.
 
 Keys in the review window ~
   n  ]]        next step                      -> `review_next`
@@ -7742,13 +7743,17 @@ Keys in the review window ~
   d            delete it (asks first, `confirm_delete`)
   x            skip it: it is marked and the cursor moves on
   i            answer the question under the cursor
-  R            refresh
+  R            refresh (collect the step's entries again)
   F            finish                         -> `review_finish`
   <Esc>        pause                          -> `review_quit`
 Change them with `keys` (a key, a list, or false for none).
 
 The entries are read from the agenda files, and every change is saved to
-its file right away. The progress (the step, the answers, what was
+its file right away. An entry is found again by a mark in its buffer, its
+ID, its line or, failing those, as the only entry with its title, level
+and outline path: when two entries could be meant, nothing is done and
+`R` lists them again. The entries of a builtin step are collected again
+only when an agenda file changed (or `R`). The progress (the step, the answers, what was
 skipped and the counts) is kept in `state_file`, so closing the window,
 going to an entry with <CR> or quitting Neovim pauses the review and
 `:Org review` picks it up again.
@@ -7757,7 +7762,11 @@ Finishing ~
 `F` writes a review entry into a date tree of `log_file` (default
 "review.org" in `org_directory`; a week tree, `log_tree_type`): the time,
 what was done with the inbox, how many entries each step listed, the time
-clocked, and each answer as a subheading. With `capture_template` set to
+clocked, and each answer under its question as a subheading. The text is
+indented for the entry's level when `adapt_indentation` is on, and an
+answer line starting with `*` gets a leading space so it can't become a
+headline. A new log file starts with its date tree, without the empty
+first line an Emacs date tree leaves. With `capture_template` set to
 a template key, the review is captured with that template instead, the
 summary being its initial text (`%i`), so it can be edited before it is
 stored. The saved progress is then forgotten.

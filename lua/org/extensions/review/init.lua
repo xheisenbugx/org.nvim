@@ -79,6 +79,8 @@ M.defaults = {
 }
 
 local ns = vim.api.nvim_create_namespace("org_review")
+-- marks on the headlines of the listed entries, in their buffers
+local item_ns = vim.api.nvim_create_namespace("org_review_items")
 
 --- The open review: { steps, index, buf, win, items (line -> item), state }
 ---@type table|nil
@@ -173,10 +175,55 @@ local function context()
   }
 end
 
+-- the identity of an entry in the saved state (what was skipped): its ID,
+-- else its file and outline path
 local function item_key(it)
-  return (it.path or "") .. "::" .. (it.hl and it.hl.title or it.text or "")
+  local hl = it.hl
+  if hl and hl.properties and hl.properties.ID then
+    return "id:" .. hl.properties.ID
+  end
+  local title = hl and hl.title or it.text or ""
+  local olp = hl and hl.outline_path and hl:outline_path() or {}
+  if #olp > 0 then
+    title = table.concat(olp, "/") .. "/" .. title
+  end
+  return (it.path or "") .. "::" .. title
 end
 M.item_key = item_key
+
+-- Remember where an item's headline is: a mark in its buffer when the
+-- file is loaded, and what identifies it (ID, level, outline path).
+local function track(it, bufs)
+  local hl = it.hl
+  it.id = hl.properties and hl.properties.ID or nil
+  it.level = hl.level
+  local b = it.path and bufs[vim.fs.normalize(it.path)]
+  if b and it.lnum and it.lnum <= vim.api.nvim_buf_line_count(b) then
+    it.bufnr = b
+    it.mark = vim.api.nvim_buf_set_extmark(b, item_ns, it.lnum - 1, 0, {})
+  end
+end
+
+local function clear_marks()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) then
+      pcall(vim.api.nvim_buf_clear_namespace, b, item_ns, 0, -1)
+    end
+  end
+end
+
+local function loaded_buffers()
+  local out = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) then
+      local name = vim.api.nvim_buf_get_name(b)
+      if name ~= "" then
+        out[vim.fs.normalize(name)] = b
+      end
+    end
+  end
+  return out
+end
 
 --- Items and extra lines of a step.
 ---@return table[] items, string[] lines
@@ -195,6 +242,43 @@ function M.collect(step, ctx)
       items = { { text = "Error: " .. tostring(list) } }
     end
   end
+  return items, lines
+end
+
+-- The items of a builtin step are kept while the agenda files are the same
+-- (the files module hands out the same parsed file until it changes) and
+-- the minute is: a refresh after a skip, or going back to a step, does not
+-- collect them again. Custom steps are collected every time.
+local function collect_cached(s, step)
+  local builtin = steps_mod.builtin[step.name]
+  if not (builtin and step.items == builtin.items and step.lines == builtin.lines) then
+    return M.collect(step)
+  end
+  local ctx = context()
+  local minute = ctx.now:minutes()
+  local key_files = ctx.files
+  if step.name == "inbox" then
+    key_files = vim.list_extend({}, ctx.files)
+    for _, p in ipairs(steps_mod.inbox_paths(ctx.opts)) do
+      key_files[#key_files + 1] = require("org.files").get(p) or false
+    end
+  end
+  local c = s.cache and s.cache[step.name]
+  if c and c.minute == minute and c.opts == ctx.opts and #c.files == #key_files then
+    local same = true
+    for i, f in ipairs(key_files) do
+      if c.files[i] ~= f then
+        same = false
+        break
+      end
+    end
+    if same then
+      return c.items, c.lines
+    end
+  end
+  local items, lines = M.collect(step, ctx)
+  s.cache = s.cache or {}
+  s.cache[step.name] = { files = key_files, minute = minute, opts = ctx.opts, items = items, lines = lines }
   return items, lines
 end
 
@@ -284,7 +368,7 @@ local function item_text(it, state, width)
     end
     col = col + #text
   end
-  local skipped = state.skipped[item_key(it)]
+  local skipped = next(state.skipped) ~= nil and state.skipped[item_key(it)]
   push(skipped and "· " or "▸ ", skipped and "OrgReviewSkipped" or "OrgReviewInfo")
   if hl.todo then
     push(hl.todo, hl:is_done() and "OrgDone" or "OrgTodo")
@@ -303,10 +387,10 @@ local function item_text(it, state, width)
   if skipped then
     push("  (skipped)", "OrgReviewSkipped")
   end
-  local file = vim.fn.fnamemodify(it.path or "", ":t")
+  local file = vim.fs.basename(it.path or "")
   -- the file name at the right edge when it fits
-  local used = vim.fn.strdisplaywidth(table.concat(parts))
-  local pad = width and (width - 1 - used - vim.fn.strdisplaywidth(file)) or 0
+  local used = vim.api.nvim_strwidth(table.concat(parts))
+  local pad = width and (width - 1 - used - vim.api.nvim_strwidth(file)) or 0
   push(string.rep(" ", math.max(2, pad)))
   push(file, "OrgReviewFile")
   return table.concat(parts), hls
@@ -359,8 +443,15 @@ function M.render()
     end
     add("  " .. (key_hint("finish") or "") .. " finishes the review and writes it to the log", "OrgReviewDescription")
   else
-    local items, extra = M.collect(step)
+    local items, extra = collect_cached(s, step)
     s.state.counts[step.name] = #items
+    clear_marks()
+    local bufs = loaded_buffers()
+    for _, it in ipairs(items) do
+      if it.hl and it.path then
+        pcall(track, it, bufs)
+      end
+    end
     for _, l in ipairs(extra) do
       add("  " .. l, "OrgReviewInfo")
     end
@@ -421,6 +512,7 @@ local function close_window()
   if not s then
     return
   end
+  clear_marks()
   if s.win and vim.api.nvim_win_is_valid(s.win) then
     pcall(vim.api.nvim_win_close, s.win, true)
   end
@@ -455,7 +547,7 @@ local function map_keys(buf)
       M.act("skip")
     end,
     note = M.note,
-    refresh = M.render,
+    refresh = M.refresh,
     finish = M.finish,
     quit = M.quit,
   }
@@ -555,6 +647,14 @@ local function find_step(steps, what)
     end
   end
   return nil
+end
+
+--- Collect the step's entries again and redraw (key `R`).
+function M.refresh()
+  if M.session then
+    M.session.cache = nil
+    M.render()
+  end
 end
 
 --- Start the weekly review, or resume an unfinished one.
@@ -663,24 +763,57 @@ function M.item_at_cursor()
   return s.items and s.items[row], row
 end
 
--- the headline of an item, from its (loaded) buffer
+-- the headline of an item, from its (loaded) buffer: where its mark is,
+-- else by ID, else at its line, else the one entry with its title, level
+-- and outline path. Two such entries and no other clue: nil (acting on the
+-- wrong one would be worse).
 local function resolve(it)
   if not (it and it.hl and it.path) then
     return nil
   end
   local bufnr = utils.load_buffer(it.path)
   local file = require("org.files").get_buffer(bufnr)
-  local hl = file:headline_at(it.lnum)
-  if not hl or hl.title ~= it.hl.title then
-    hl = file:find_headline(function(h)
-      return h.title == it.hl.title
-    end)
+  local title, level = it.hl.title, it.level or it.hl.level
+  local function same(h)
+    return h and h.title == title and h.level == level
   end
-  if not hl then
-    utils.warn("Entry is gone: " .. it.hl.title)
+  local function olp_of(h)
+    return table.concat(h:outline_path(), "/")
+  end
+  if it.mark and it.bufnr == bufnr then
+    local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, item_ns, it.mark, {})
+    local hl = ok and pos[1] and file:headline_on(pos[1] + 1)
+    if same(hl) then
+      return bufnr, hl
+    end
+  end
+  if it.id then
+    local hl = file:find_by_id(it.id)
+    if hl then
+      return bufnr, hl
+    end
+  end
+  if it.olp == nil then
+    it.olp = it.hl.outline_path and olp_of(it.hl) or false
+  end
+  local at = file:headline_on(it.lnum or 0)
+  if same(at) and (not it.olp or olp_of(at) == it.olp) then
+    return bufnr, at
+  end
+  local found = {}
+  for _, h in ipairs(file.headlines) do
+    if same(h) and (not it.olp or olp_of(h) == it.olp) then
+      found[#found + 1] = h
+    end
+  end
+  if #found == 1 then
+    return bufnr, found[1]
+  elseif #found > 1 then
+    utils.warn("Several entries are called " .. it.hl.title .. ": refresh the review (R) and try again")
     return nil
   end
-  return bufnr, hl
+  utils.warn("Entry is gone: " .. it.hl.title)
+  return nil
 end
 
 local function save(bufnr)
@@ -868,13 +1001,16 @@ function M.entry_lines(s)
   s = s or M.session
   local o = opts()
   local st = s.state.stats
+  local edit = require("org.edit")
+  local body, answer = edit.body_indent(1), edit.body_indent(2)
   local lines = {
     "* " .. (o.log_heading or "Weekly review") .. " :review:",
-    "[" .. date.now():to_string({ brackets = false }) .. "]",
+    body .. "[" .. date.now():to_string({ brackets = false }) .. "]",
   }
   local processed = st.refiled + st.scheduled + st.todo + st.deleted
   lines[#lines + 1] = string.format(
-    "- Inbox: %d processed (%d refiled, %d scheduled, %d state changes, %d deleted), %d skipped",
+    "%s- Inbox: %d processed (%d refiled, %d scheduled, %d state changes, %d deleted), %d skipped",
+    body,
     processed,
     st.refiled,
     st.scheduled,
@@ -890,7 +1026,7 @@ function M.entry_lines(s)
     end
   end
   if #counts > 0 then
-    lines[#lines + 1] = "- " .. table.concat(counts, ", ")
+    lines[#lines + 1] = body .. "- " .. table.concat(counts, ", ")
   end
   for _, step in ipairs(s.steps) do
     if step.name == "clock" then
@@ -900,17 +1036,43 @@ function M.entry_lines(s)
         tonumber(o.clock_days) or 7
       )
       local days = tonumber(o.clock_days) or 7
-      lines[#lines + 1] = string.format("- Clocked in the last %d days: %s", days, date.format_duration(total))
+      lines[#lines + 1] = string.format("%s- Clocked in the last %d days: %s", body, days, date.format_duration(total))
     end
   end
   for i, q in ipairs(o.questions or {}) do
     local a = s.state.notes[tostring(i)]
     if a and a ~= "" then
       lines[#lines + 1] = "** " .. q
-      vim.list_extend(lines, vim.split(a, "\n", { plain = true }))
+      for _, l in ipairs(vim.split(a, "\n", { plain = true })) do
+        -- an answer line must not turn into a headline
+        if answer == "" and (l:match("^%*+%s") or l:match("^%*+$")) then
+          l = " " .. l
+        end
+        lines[#lines + 1] = l ~= "" and answer .. l or l
+      end
     end
   end
   return lines
+end
+
+-- With `adapt_indentation` the body lines are built indented for level 1
+-- (and 2 under the questions); the date tree puts the entry deeper: shift
+-- them as far as its headlines went.
+local function indent_logged(bufnr, line)
+  local file = require("org.files").get_buffer(bufnr)
+  local hl = file:headline_at(line)
+  if not hl or hl.line ~= line or hl.level <= 1 or require("org.edit").body_indent(1) == "" then
+    return
+  end
+  local pad = string.rep(" ", hl.level - 1)
+  local parser = require("org.parser")
+  local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line, hl.end_line, false)
+  for i, l in ipairs(lines) do
+    if l:match("%S") and not parser.headline_level(l) then
+      lines[i] = pad .. l
+    end
+  end
+  vim.api.nvim_buf_set_lines(bufnr, hl.line, hl.end_line, false, lines)
 end
 
 --- Finish the review: write the review entry into the log date tree (or
@@ -938,10 +1100,32 @@ function M.finish()
     target = log_path(),
     datetree = { tree_type = o.log_tree_type or "week" },
   }
+  -- a date tree starts a new file with an empty line (like Emacs): not
+  -- the review log's first line
+  local path = log_path()
+  local fresh = vim.fn.getfsize(path) <= 0
+  local lbuf = utils.find_buffer(path)
+  if lbuf then
+    local l = vim.api.nvim_buf_get_lines(lbuf, 0, -1, false)
+    fresh = #l == 1 and l[1] == ""
+  end
   local bufnr, line = capture.store(tpl, lines, { date = date.today() })
   if not bufnr then
     utils.warn("The review could not be logged")
     return
+  end
+  local changed = false
+  if fresh and vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] == "" and line > 1 then
+    vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, {})
+    line = line - 1
+    changed = true
+  end
+  if require("org.edit").body_indent(1) ~= "" then
+    indent_logged(bufnr, line)
+    changed = true
+  end
+  if changed then
+    utils.save_buffer_or_warn(bufnr)
   end
   utils.notify("Weekly review logged to " .. vim.fn.fnamemodify(log_path(), ":~"))
   if o.open_log then
@@ -970,6 +1154,13 @@ M.commands = {
     "org.extensions.review",
     "command",
     desc = "Weekly review: :Org review [restart|step name|step number]",
+    complete = function()
+      local out = { "restart" }
+      for _, st in ipairs((steps_mod.resolve(opts().steps))) do
+        out[#out + 1] = st.name
+      end
+      return out
+    end,
   },
 }
 
