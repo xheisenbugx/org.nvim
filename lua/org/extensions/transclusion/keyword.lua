@@ -3,8 +3,9 @@
 --- Parses `#+transclude: [[link]] :prop value ...` lines with
 --- org-transclusion's property set: `:level [N]`, `:only-contents`,
 --- `:exclude-elements "a b"`, `:expand-links`, `:disable-auto`,
---- `:no-first-heading`, `:lines a-b`, `:src lang`, `:rest "args"` and
---- `:end "search"`.
+--- `:no-first-heading`, `:lines a-b`, `:src lang`, `:rest "args"`,
+--- `:end "search"`, `:thing-at-point thing` (`:thingatpt`) and
+--- `:noweb-chunk`.
 
 local M = {}
 
@@ -25,7 +26,9 @@ local KEYWORD = "^([ \t]*)#%+[Tt][Rr][Aa][Nn][Ss][Cc][Ll][Uu][Dd][Ee]:[ \t]*(.-)
 ---@field lines? string "a-b", inclusive
 ---@field src? string
 ---@field rest? string
----@field end_search? string
+---@field end_search? string `:end`; a count with `thing`
+---@field thing? string `:thing-at-point` (sexp, list, defun, paragraph, line, ...)
+---@field noweb_chunk? boolean the search option names a noweb chunk
 
 --- Indentation and value of a `#+transclude:` line, or nil.
 ---@param line string
@@ -35,11 +38,31 @@ function M.match(line)
   return indent, value
 end
 
+local parsed, parsed_n = {}, 0
+
 --- Parse a keyword value. Returns nil and an error without a bracket link
 --- (the link is mandatory, as in org-transclusion).
 ---@param value string
 ---@return org.transclusion.Spec|nil, string|nil
 function M.parse(value)
+  local hit = parsed[value]
+  if hit then
+    return hit[1], hit[2]
+  end
+  local spec, err = M.parse_uncached(value)
+  if parsed_n >= 1000 then
+    parsed, parsed_n = {}, 0
+  end
+  parsed[value] = { spec, err }
+  parsed_n = parsed_n + 1
+  return spec, err
+end
+
+--- `parse` without its cache (the specs `parse` returns are shared: don't
+--- modify them).
+---@param value string
+---@return org.transclusion.Spec|nil, string|nil
+function M.parse_uncached(value)
   local link = value:match("%[%[.-%]%]")
   if not link then
     return nil, "a #+transclude: keyword needs a [[link]]"
@@ -78,6 +101,11 @@ function M.parse(value)
   spec.src = src ~= "" and src or nil
   spec.rest = props:match(':rest +"(.-)"')
   spec.end_search = props:match(':end +"(.-)"')
+  local thing = props:match(':thing%-at%-point +"?([%w_%-]+)"?') or props:match(':thingatpt +"?([%w_%-]+)"?')
+  if thing then
+    spec.thing = thing:lower()
+  end
+  spec.noweb_chunk = props:find(":noweb%-chunk") ~= nil or nil
   return spec
 end
 

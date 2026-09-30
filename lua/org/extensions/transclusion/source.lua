@@ -2,10 +2,11 @@
 ---
 --- `resolve(spec, ctx)` finds the source of a `#+transclude:` keyword (a
 --- file, a headline by title, CUSTOM_ID or ID, a `#+NAME:` element, a
---- `<<target>>` paragraph or a range of lines) and formats its text the
---- way org-transclusion does: elements excluded, headline levels shifted
---- to `:level`, links expanded, code wrapped in a src block, and nested
---- transclusions expanded up to a depth limit.
+--- `<<target>>` paragraph, a range of lines, a noweb chunk or a thing at
+--- point) and formats its text the way org-transclusion does: elements
+--- excluded, headline levels shifted to `:level`, links expanded, code
+--- wrapped in a src block, and nested transclusions expanded up to a depth
+--- limit.
 
 local element = require("org.element")
 local keyword = require("org.extensions.transclusion.keyword")
@@ -38,67 +39,224 @@ end
 --- Options of the extension (set by init.lua).
 M.opts = {}
 
-local disk = {} -- path -> { mtime, lines }
+local disk = {} -- path -> { mtime, lines } (or { mtime, err })
+local bufread = {} -- buf -> { tick, lines, map }
 local parsed = {} -- key -> org.File
+local resolved = {} -- keyword key -> { res, sig }
+local resolved_n = 0
 
+-- A drawing pass asks for the same buffers and files many times (200
+-- keywords into 50 files): `frame` memoizes buffer lookups and file stats
+-- while it runs.
+local memo
+
+--- Forget cached text: of `path` (results made from it are checked
+--- against their sources anyway), or of everything.
 function M.clear_cache(path)
   if path then
     disk[path] = nil
-  else
-    disk = {}
+    return
   end
+  disk = {}
+  bufread = {}
   parsed = {}
+  reals = {}
+  resolved, resolved_n = {}, 0
+end
+
+--- Run `fn(...)` with buffer lookups and file stats memoized.
+function M.frame(fn, ...)
+  if memo then
+    return fn(...)
+  end
+  memo = { stat = {}, find = {} }
+  local ok, a, b, c, d = pcall(fn, ...)
+  memo = nil
+  if not ok then
+    error(a, 0)
+  end
+  return a, b, c, d
+end
+
+--- A stamp of the file's version: its mtime to the nanosecond and size
+--- (a number of nanoseconds since 1970 doesn't fit a double), or nil.
+---@param path string
+---@return string|nil
+function M.stamp(path)
+  local st = vim.uv.fs_stat(path)
+  return st and string.format("%d.%09d:%d", st.mtime.sec, st.mtime.nsec, st.size) or nil
+end
+
+local function mtime(path)
+  if not memo then
+    return M.stamp(path)
+  end
+  local m = memo.stat[path]
+  if m == nil then
+    m = M.stamp(path) or false
+    memo.stat[path] = m
+  end
+  return m or nil
+end
+
+-- path -> real path (or false); symbolic links rarely change, and this
+-- is asked for every source of every drawing pass
+local reals = {}
+
+local function real(path)
+  local r = reals[path]
+  if r == nil then
+    r = vim.uv.fs_realpath(path) or false
+    reals[path] = r
+  end
+  return r
+end
+
+--- The loaded buffer of `path` (by name, then by real path).
+local function find_buffer(path)
+  if not memo then
+    return utils.find_buffer(path)
+  end
+  local key = path
+  local f = memo.find[key]
+  if f ~= nil then
+    return f or nil
+  end
+  if not memo.names then
+    memo.names, memo.tails = {}, {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) then
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" then
+          name = vim.fs.normalize(name)
+          memo.names[name] = b
+          memo.tails[name:match("[^/]*$")] = true
+        end
+      end
+    end
+  end
+  path = vim.fs.normalize(path)
+  f = memo.names[path]
+  -- through links: only when a loaded buffer has the same file name
+  if not f and memo.tails[path:match("[^/]*$")] then
+    local rp = real(path)
+    if rp then
+      if not memo.reals then
+        memo.reals = {}
+        for name, b in pairs(memo.names) do
+          local r = real(name)
+          if r then
+            memo.reals[r] = b
+          end
+        end
+      end
+      f = memo.reals[rp]
+    end
+  end
+  memo.find[key] = f or false
+  return f
+end
+
+M.find_buffer = find_buffer
+
+--- The key of `sources` (a set of paths) naming the same file as `path`,
+--- through symbolic links too (/var and /private/var on macOS).
+---@param sources table<string, boolean>
+---@param path string
+---@return string|nil
+function M.source_key(sources, path)
+  if sources[path] then
+    return path
+  end
+  local r = real(path)
+  if r then
+    for p in pairs(sources) do
+      if real(p) == r then
+        return p
+      end
+    end
+  end
 end
 
 function M.is_org_path(path)
   return path ~= nil and (path:match("%.org$") ~= nil or path:match("%.org_archive$") ~= nil)
 end
 
+--- Lines of a file, or nil and an error (binary files are refused).
+local function read_file(path)
+  local fd = io.open(path, "rb")
+  if not fd then
+    return nil, "Cannot read " .. vim.fn.fnamemodify(path, ":~:.")
+  end
+  local content = fd:read("*a") or ""
+  fd:close()
+  if content:sub(1, 8000):find("\0", 1, true) then
+    return nil, vim.fn.fnamemodify(path, ":~:.") .. " is a binary file"
+  end
+  content = content:gsub("\r\n", "\n")
+  local lines = vim.split(content, "\n", { plain = true })
+  if lines[#lines] == "" then
+    table.remove(lines)
+  end
+  return lines
+end
+
 --- Current text of a source: its loaded buffer, else the file on disk.
 ---@param path string|nil
 ---@param bufnr? integer used when `path` is nil or unnamed
----@return string[]|nil lines, integer|nil bufnr, integer[]|nil map, string key
+---@return string[]|nil lines, integer|nil bufnr, integer[]|nil map, string key or error
 function M.read(path, bufnr)
   local b = bufnr
   if path and path ~= "" then
-    b = utils.find_buffer(path)
+    b = find_buffer(path)
   end
   if b and vim.api.nvim_buf_is_loaded(b) then
-    local lines, map = M.buffer_lines(b)
-    return lines, b, map, "b" .. b .. ":" .. vim.api.nvim_buf_get_changedtick(b)
+    local tick = vim.api.nvim_buf_get_changedtick(b)
+    local c = bufread[b]
+    if not c or c.tick ~= tick then
+      local lines, map = M.buffer_lines(b)
+      c = { tick = tick, lines = lines, map = map }
+      bufread[b] = c
+    end
+    return c.lines, b, c.map, "b" .. b .. ":" .. tick
   end
   if not path or path == "" then
-    return nil, nil, nil, ""
+    return nil, nil, nil, "Cannot read the buffer"
   end
-  local mtime = utils.mtime(path)
-  if not mtime then
-    return nil, nil, nil, ""
+  local mt = mtime(path)
+  if not mt then
+    return nil, nil, nil, "Cannot read " .. vim.fn.fnamemodify(path, ":~:.")
   end
   local c = disk[path]
-  if not c or c.mtime ~= mtime then
-    c = { mtime = mtime, lines = utils.readfile(path) or {} }
+  if not c or c.mtime ~= mt then
+    local lines, err = read_file(path)
+    c = { mtime = mt, lines = lines, err = err }
     disk[path] = c
   end
-  return c.lines, nil, nil, "m" .. path .. ":" .. mtime
+  if not c.lines then
+    return nil, nil, nil, c.err
+  end
+  return c.lines, nil, nil, "m" .. path .. ":" .. mt
 end
 
 --- A cheap signature of a source's current version (buffer tick or mtime).
 function M.signature(path)
-  local b = utils.find_buffer(path)
+  local b = find_buffer(path)
   if b then
     return "b" .. b .. ":" .. vim.api.nvim_buf_get_changedtick(b)
   end
-  return "m" .. tostring(utils.mtime(path))
+  return "m" .. tostring(mtime(path))
 end
 
+-- the parsed source, one per file or buffer (its latest version)
 local function parse(lines, path, key)
-  local k = key .. "\0" .. (path or "")
-  local f = parsed[k]
-  if not f or f.lines ~= lines then
-    f = parser.parse(lines, path)
-    parsed[k] = f
+  local k = path or key:match("^b%d+") or key
+  local c = parsed[k]
+  if not c or c.key ~= key or c.lines ~= lines then
+    c = { key = key, lines = lines, file = parser.parse(lines, path) }
+    parsed[k] = c
   end
-  return f
+  return c.file
 end
 
 ---------------------------------------------------------------------------
@@ -225,7 +383,10 @@ local function org_search(file, lines, search, id)
   return nil, nil, "No match for fuzzy expression: " .. s
 end
 
---- Apply `:lines a-b` (inclusive, relative to `start`) and `:end`.
+--- Apply `:lines a-b` (inclusive, relative to `start`) and `:end`. `:end`
+--- wins over the end of `:lines`, which applies when `:end` finds nothing
+--- (org-transclusion-content-range-of-lines). `last` caps the range (a
+--- noweb chunk's end).
 local function line_range(lines, start, spec, last)
   last = last or #lines
   local a, b = 0, 0
@@ -235,15 +396,209 @@ local function line_range(lines, start, spec, last)
   end
   local first = a > 0 and start + a - 1 or start
   local stop = last
-  if spec.end_search and spec.end_search ~= "" then
-    local n = text_search(lines, spec.end_search, first + 1)
-    if n then
-      stop = n - 1
-    end
+  local n = not spec.thing
+    and spec.end_search
+    and spec.end_search ~= ""
+    and text_search(lines, spec.end_search, first + 1)
+  if n then
+    stop = n - 1
   elseif b > 0 then
-    stop = math.min(#lines, start + b - 1)
+    stop = math.min(last, start + b - 1)
   end
   return first, stop
+end
+
+---------------------------------------------------------------------------
+-- :thing-at-point and noweb chunks (org-transclusion-src-lines)
+---------------------------------------------------------------------------
+
+local CLOSE = { ["("] = ")", ["["] = "]", ["{"] = "}" }
+
+-- end (line, col) of the bracketed group opening at lines[l]:sub(c, c);
+-- double-quoted strings are skipped
+local function balanced(lines, l, c)
+  local stack, instr = {}, false
+  for i = l, #lines do
+    local s = lines[i]
+    local j = i == l and c or 1
+    while j <= #s do
+      local ch = s:sub(j, j)
+      if instr then
+        if ch == "\\" then
+          j = j + 1
+        elseif ch == '"' then
+          instr = false
+        end
+      elseif ch == '"' then
+        instr = true
+      elseif CLOSE[ch] then
+        stack[#stack + 1] = CLOSE[ch]
+      elseif ch == stack[#stack] then
+        stack[#stack] = nil
+        if #stack == 0 then
+          return i, j
+        end
+      end
+      j = j + 1
+    end
+  end
+end
+
+-- the next non-blank position at or after (l, c)
+local function skip_blank(lines, l, c)
+  while l <= #lines do
+    local j = lines[l]:find("%S", c)
+    if j then
+      return l, j
+    end
+    l, c = l + 1, 1
+  end
+end
+
+local function paragraph_end(lines, l)
+  local e = l
+  while e + 1 <= #lines and not lines[e + 1]:match("^%s*$") do
+    e = e + 1
+  end
+  return e, #lines[e]
+end
+
+local THINGS = {
+  sexp = function(lines, l, c)
+    local ch = lines[l]:sub(c, c)
+    if CLOSE[ch] then
+      return balanced(lines, l, c)
+    elseif ch == '"' then
+      local j = c + 1
+      local s = lines[l]
+      while j <= #s do
+        local x = s:sub(j, j)
+        if x == "\\" then
+          j = j + 1
+        elseif x == '"' then
+          return l, j
+        end
+        j = j + 1
+      end
+      return nil
+    end
+    local e = lines[l]:find('[%s%(%)%[%]{}"]', c)
+    return l, (e or #lines[l] + 1) - 1
+  end,
+  list = function(lines, l, c)
+    local j = lines[l]:find("[%(%[{]", c)
+    if j then
+      return balanced(lines, l, j)
+    end
+  end,
+  defun = function(lines, l, c)
+    local s = lines[l]
+    if CLOSE[s:sub(c, c)] then
+      return balanced(lines, l, c)
+    end
+    if s:match(":%s*$") or s:match(":%s*#.*$") then
+      -- an indented block (Python and the like)
+      local ind = #s:match("^%s*")
+      local e = l
+      for i = l + 1, #lines do
+        if not lines[i]:match("^%s*$") then
+          if #lines[i]:match("^%s*") <= ind then
+            break
+          end
+          e = i
+        end
+      end
+      return e, #lines[e]
+    end
+    -- the braces of a C-like function, up to a blank line
+    for i = l, #lines do
+      if i > l and lines[i]:match("^%s*$") then
+        break
+      end
+      local j = lines[i]:find("{", i == l and c or 1, true)
+      if j then
+        return balanced(lines, i, j)
+      end
+    end
+    return paragraph_end(lines, l)
+  end,
+  paragraph = function(lines, l)
+    return paragraph_end(lines, l)
+  end,
+  line = function(lines, l)
+    return l, #lines[l]
+  end,
+  word = function(lines, l, c)
+    local _, e = lines[l]:find("^[%w_]+", c)
+    return l, e or c
+  end,
+  symbol = function(lines, l, c)
+    local _, e = lines[l]:find("^[^%s%(%)%[%]{}\"',;`]+", c)
+    return l, e or c
+  end,
+  sentence = function(lines, l, c)
+    for i = l, #lines do
+      if i > l and lines[i]:match("^%s*$") then
+        return i - 1, #lines[i - 1]
+      end
+      local j = lines[i]:find("[%.%?!]%f[%s%z]", i == l and c or 1)
+      if j then
+        return i, j
+      end
+    end
+    return #lines, #lines[#lines]
+  end,
+}
+
+--- End (line, col) of `count` things from the indentation of line `l`
+--- (org-transclusion--bounds-of-n-things-at-point).
+local function thing_end(lines, l, thing, count)
+  local fn = THINGS[thing]
+  if not fn then
+    return nil, nil, "Unsupported :thing-at-point " .. thing
+  end
+  local c = lines[l] and lines[l]:find("%S")
+  if not c then
+    return nil, nil, "No " .. thing .. " at line " .. l
+  end
+  local el, ec
+  for _ = 1, math.max(1, count or 1) do
+    local nl, nc = fn(lines, l, c)
+    if not nl then
+      break
+    end
+    el, ec = nl, nc
+    l, c = skip_blank(lines, el, ec + 1)
+    if not l then
+      break
+    end
+  end
+  if not el then
+    return nil, nil, "No " .. thing .. " at line " .. (l or #lines)
+  end
+  return el, ec
+end
+
+--- First line of the noweb chunk `name` (the line after `<<name>>=`) and
+--- its last line: before the next `@` or `<<...>>=` line, blank lines
+--- left out (org-transclusion--goto-noweb-chunk-beginning and -end).
+local function noweb_chunk(lines, name)
+  local head = "<<" .. name .. ">>="
+  for i, l in ipairs(lines) do
+    if l:find(head, 1, true) then
+      local e = #lines
+      for j = i + 1, #lines do
+        if lines[j]:match("^@") or lines[j]:match("^<<.->>=") then
+          e = j - 1
+          break
+        end
+      end
+      while e > i and lines[e]:match("^%s*$") do
+        e = e - 1
+      end
+      return i + 1, e
+    end
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -274,11 +629,42 @@ local function mark_excluded(file, lines, first, last, types, drop)
       end
     end
   end
-  local function section(s, e)
+  -- only property drawers (the default): they can only open a section,
+  -- no need to parse every element of a long subtree
+  local simple = true
+  for t in pairs(types) do
+    if t ~= "property-drawer" and t ~= "planning" then
+      simple = false
+    end
+  end
+  local function section(s, e, head)
     if s > e then
       return
     end
-    walk(element.parse(lines, s, e))
+    if not simple then
+      walk(element.parse(lines, s, e))
+      return
+    end
+    if not types["property-drawer"] then
+      return
+    end
+    local i = s
+    if not head then
+      -- the file's drawer comes after blank and comment lines only
+      while i <= e and (lines[i]:match("^%s*$") or lines[i]:match("^%s*#%s") or lines[i]:match("^%s*#$")) do
+        i = i + 1
+      end
+    end
+    if i <= e and lines[i]:match("^%s*:[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss]:%s*$") then
+      for j = i + 1, e do
+        if lines[j]:match("^%s*:[Ee][Nn][Dd]:%s*$") then
+          for k = i, j do
+            drop[k] = true
+          end
+          return
+        end
+      end
+    end
   end
   local cur = first
   for _, hl in ipairs(file.headlines) do
@@ -292,7 +678,7 @@ local function mark_excluded(file, lines, first, last, types, drop)
         s = s + 1
       end
       cur = s
-      section(s, math.min(hl.body_end, last))
+      section(s, math.min(hl.body_end, last), true)
       cur = math.min(hl.body_end, last) + 1
     end
   end
@@ -407,6 +793,28 @@ local function expand_nested(out, heads, ctx, res)
   return result
 end
 
+--- `:no-first-heading` and `:level` (org-transclusion-content-format-org-headlines).
+local function format_levels(out, heads, spec, ctx)
+  if spec.no_first_heading and heads[1] then
+    table.remove(out, 1)
+    local h = {}
+    for i in pairs(heads) do
+      if i > 1 then
+        h[i - 1] = true
+      end
+    end
+    heads = h
+  end
+  local level = spec.level
+  if level == "auto" then
+    level = (ctx.level or 0) + 1
+  end
+  if level then
+    shift_levels(out, heads, level)
+  end
+  return out, heads
+end
+
 local function format_org(file, lines, first, last, spec, ctx, whole, res)
   local drop = {}
   local types = {}
@@ -442,23 +850,7 @@ local function format_org(file, lines, first, last, spec, ctx, whole, res)
       heads[#out] = is_head[i] or nil
     end
   end
-  if spec.no_first_heading and heads[1] then
-    table.remove(out, 1)
-    local h = {}
-    for i in pairs(heads) do
-      if i > 1 then
-        h[i - 1] = true
-      end
-    end
-    heads = h
-  end
-  local level = spec.level
-  if level == "auto" then
-    level = (ctx.level or 0) + 1
-  end
-  if level then
-    shift_levels(out, heads, level)
-  end
+  out, heads = format_levels(out, heads, spec, ctx)
   if spec.expand_links and res.path then
     local dir = vim.fn.fnamemodify(res.path, ":h")
     for i, l in ipairs(out) do
@@ -469,14 +861,14 @@ local function format_org(file, lines, first, last, spec, ctx, whole, res)
   return out
 end
 
-local function format_text(lines, first, last, spec, ctx)
+local function format_text(raw, spec, ctx)
   local out = {}
   local indent = ctx.indent or ""
   if spec.src then
     out[1] = indent .. "#+begin_src " .. spec.src .. (spec.rest and (" " .. spec.rest) or "")
   end
-  for i = first, last do
-    out[#out + 1] = (lines[i] == "" and "" or indent) .. lines[i]
+  for _, l in ipairs(raw) do
+    out[#out + 1] = (l == "" and "" or indent) .. l
   end
   if spec.src then
     out[#out + 1] = indent .. "#+end_src"
@@ -542,7 +934,7 @@ resolve = function(spec, ctx)
   end
   local lines, bufnr, map, key = M.read(path, not path and ctx.bufnr or nil)
   if not lines then
-    return nil, "Cannot read " .. (path and vim.fn.fnamemodify(path, ":~:.") or "the buffer")
+    return nil, key
   end
   local ckey = (path or ("buffer " .. tostring(bufnr))) .. "::" .. (id and ("id:" .. id) or search or "")
   local chain = vim.deepcopy(ctx.chain or {})
@@ -571,7 +963,11 @@ resolve = function(spec, ctx)
   end
   local first, last, err
   local whole = false
-  if is_org then
+  -- `:lines`, `:end` and `:thing-at-point` on an Org file take its lines
+  -- as they are (org-transclusion-src-lines runs before the Org
+  -- functions); an ID link keeps its headline levels ("org-lines")
+  local org_lines = is_org and path ~= nil and (spec.lines or spec.end_search or spec.thing) and true or false
+  if is_org and not (org_lines and not id) then
     local file = parse(lines, path, key)
     if id or search then
       first, last, err = org_search(file, lines, search, id)
@@ -581,41 +977,75 @@ resolve = function(spec, ctx)
     else
       first, last, whole = 1, #lines, true
     end
-    if spec.lines or spec.end_search then
-      first, last = line_range(lines, first, spec, spec.lines and #lines or last)
-      whole = false
+    if org_lines then
+      first, last = line_range(lines, first, spec, #lines)
+      last = math.min(last, #lines)
+      res.first, res.last = first, last
+      res.raw = vim.list_slice(lines, first, last)
+      local out, heads = {}, {}
+      for i = first, last do
+        out[#out + 1] = lines[i]
+        heads[#out] = lines[i]:match("^%*+ ") and parser.outline_level(lines[i]) and true or nil
+      end
+      res.lines = format_levels(out, heads, spec, ctx)
+    else
+      last = trim_blank_end(lines, first, math.min(last, #lines))
+      res.first, res.last = first, last
+      res.raw = vim.list_slice(lines, first, last)
+      local sub_ctx = vim.tbl_extend("force", ctx, {
+        chain = chain,
+        src_dir = path and vim.fn.fnamemodify(path, ":h") or dir,
+        src_path = path,
+        src_buf = bufnr,
+      })
+      res.lines = format_org(file, lines, first, last, spec, sub_ctx, whole, res)
     end
-    last = trim_blank_end(lines, first, math.min(last, #lines))
-    res.first, res.last = first, last
-    res.raw = vim.list_slice(lines, first, last)
-    local sub_ctx = vim.tbl_extend("force", ctx, {
-      chain = chain,
-      src_dir = path and vim.fn.fnamemodify(path, ":h") or dir,
-      src_path = path,
-      src_buf = bufnr,
-    })
-    res.lines = format_org(file, lines, first, last, spec, sub_ctx, whole, res)
   else
-    local start = 1
-    local ranged = spec.lines or spec.end_search or spec.src
-    if search and ranged then
+    -- text, or the lines of an Org file: from the search target (or the
+    -- noweb chunk) to the end of the file, `:lines`, `:end` or the thing
+    local start, stop = 1, #lines
+    if spec.noweb_chunk and search then
+      start, stop = noweb_chunk(lines, search)
+      if not start then
+        return nil, "No noweb chunk " .. search
+      end
+    elseif search and is_org then
+      local serr
+      start, _, serr = org_search(parse(lines, path, key), lines, search)
+      if not start then
+        return nil, serr
+      end
+    elseif search then
       start = text_search(lines, search)
       if not start then
         return nil, "No match for " .. search
       end
     end
-    first, last = 1, #lines
-    if ranged then
-      first, last = line_range(lines, start, spec)
-    end
-    if first > #lines then
+    first, last = line_range(lines, start, spec, stop)
+    if first > #lines or first < 1 then
       return nil, "Line " .. first .. " is past the end of " .. label
+    end
+    local cut
+    if spec.thing then
+      local el, ec, terr = thing_end(lines, start, spec.thing, tonumber(spec.end_search or "") or 1)
+      if not el then
+        return nil, terr
+      end
+      last = el
+      if ec < #lines[el] then
+        cut = ec
+      end
     end
     last = math.min(last, #lines)
     res.first, res.last = first, last
     res.raw = vim.list_slice(lines, first, last)
-    res.lines = format_text(lines, first, last, spec, ctx)
-    if spec.src then
+    if cut and #res.raw > 0 then
+      res.raw[#res.raw] = res.raw[#res.raw]:sub(1, cut)
+    end
+    res.lines = format_text(res.raw, spec, ctx)
+    if is_org then
+      res.kind = "org"
+    elseif spec.src then
       res.lang = spec.src
     elseif path then
       res.lang = vim.filetype.match({ filename = path })
@@ -632,6 +1062,53 @@ resolve = function(spec, ctx)
 end
 
 M.resolve = resolve
+
+-- signature of every file a result was made from
+local function deps(res)
+  local keys = vim.tbl_keys(res.sources)
+  table.sort(keys)
+  local parts = {}
+  for _, p in ipairs(keys) do
+    parts[#parts + 1] = M.signature(p)
+  end
+  if not res.path and res.bufnr and vim.api.nvim_buf_is_valid(res.bufnr) then
+    parts[#parts + 1] = "b" .. res.bufnr .. ":" .. vim.api.nvim_buf_get_changedtick(res.bufnr)
+  end
+  return table.concat(parts, "|")
+end
+
+--- `resolve`, reusing the last result for the same keyword while none of
+--- its sources changed. Results are shared: don't modify them.
+---@param spec org.transclusion.Spec
+---@param ctx org.transclusion.Context
+---@return org.transclusion.Result|nil, string|nil err
+function M.resolve_cached(spec, ctx)
+  local key = table.concat({
+    spec.value,
+    tostring(ctx.level or 0),
+    ctx.indent or "",
+    ctx.filename or "",
+    tostring(ctx.bufnr or ""),
+    tostring(ctx.depth or 0),
+  }, "\1")
+  local c = resolved[key]
+  if c and c.sig == deps(c.res) then
+    return c.res
+  end
+  local res, err = resolve(spec, ctx)
+  if res then
+    if not c then
+      resolved_n = resolved_n + 1
+      if resolved_n > 2000 then
+        resolved, resolved_n = {}, 1
+      end
+    end
+    resolved[key] = { res = res, sig = deps(res) }
+  elseif c then
+    resolved[key] = nil
+  end
+  return res, err
+end
 
 --- Expand every `#+transclude:` keyword of `lines` (for export).
 ---@param lines string[]
