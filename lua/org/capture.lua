@@ -35,6 +35,12 @@ local ns = vim.api.nvim_create_namespace("org_capture")
 --- Active capture sessions: bufnr -> session
 M.sessions = {}
 
+--- Functions that may rewrite the captured lines before they are stored,
+--- by name: `fun(tpl, lines, ctx): string[]|nil` (nil keeps the lines).
+--- Empty unless an extension adds one (quickadd's `quickadd = true`).
+---@type table<string, fun(tpl: table, lines: string[], ctx: table): string[]|nil>
+M.store_filters = {}
+
 ---------------------------------------------------------------------------
 -- Templates
 ---------------------------------------------------------------------------
@@ -1943,6 +1949,16 @@ local stored
 function M.store(tpl, lines, ctx)
   ctx = ctx or {}
   lines = trim_blank(vim.deepcopy(lines))
+  if #lines > 0 then
+    for name, filter in pairs(M.store_filters) do
+      local ok, res = pcall(filter, tpl, lines, ctx)
+      if not ok then
+        utils.error("Capture filter " .. name .. " failed: " .. tostring(res))
+      elseif type(res) == "table" then
+        lines = res
+      end
+    end
+  end
   local ttype = tpl.type or "entry"
   if #lines == 0 then
     if tpl.allow_empty and ctx.loc then
