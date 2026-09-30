@@ -610,9 +610,10 @@ end
 ---@param sym string
 ---@return table|nil
 function M.find_in_file(path, sym)
-  local buf = vim.fn.bufnr(path)
+  -- (not bufnr(): its argument is a pattern)
+  local buf = require("org.utils").find_buffer(path)
   local lines, source, root
-  if buf > 0 and vim.api.nvim_buf_is_loaded(buf) then
+  if buf and vim.api.nvim_buf_is_loaded(buf) then
     lines, source, root = vim.api.nvim_buf_get_lines(buf, 0, -1, false), buf, ts_root(buf)
   else
     local ok, l = pcall(vim.fn.readfile, path)

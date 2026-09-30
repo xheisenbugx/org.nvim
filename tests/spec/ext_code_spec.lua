@@ -615,6 +615,13 @@ describe("code extension", function()
       eq(-1, vim.fn.bufnr(repo .. "/src/app.lua"), "no buffer was loaded")
     end)
 
+    it("reads the file a code: link names, not a loaded buffer whose name matches like a pattern", function()
+      write("src/a1.lua", { "local x = 1", "", "", "local function target() end" })
+      local odd = write("src/a[1].lua", { "local function target() end" })
+      vim.cmd("edit " .. repo .. "/src/a1.lua")
+      eq(1, require("org.extensions.code.symbols").find_in_file(odd, "target").lnum)
+    end)
+
     it("goes to a code: link's definition from the org language server", function()
       setup({}, { extensions = { code = {}, lsp = {} } })
       vim.cmd("edit " .. write(".org/notes.org", { "See [[code:src/app.lua::helper]]." }))
