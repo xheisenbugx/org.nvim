@@ -50,7 +50,7 @@ end
 ---@param path string
 ---@param repo? string
 function M.ensure(path, repo)
-  if vim.uv.fs_stat(path) then
+  if not path or vim.uv.fs_stat(path) then
     return
   end
   vim.fn.mkdir(vim.fs.dirname(path), "p")
@@ -130,7 +130,9 @@ end
 ---@return table view, string project file
 function M.view(root)
   local pf = M.file(root)
-  M.ensure(pf, git.repo_name(root))
+  if pf then
+    M.ensure(pf, git.repo_name(root))
+  end
   local blocks = {}
   for _, b in ipairs(opts().project_agenda_blocks or {}) do
     local nb = vim.deepcopy(b)
@@ -147,9 +149,8 @@ end
 --- `project_agenda`: the agenda of the current repository's project file
 --- and its code TODOs.
 function M.agenda()
-  local root = M.current_root()
-  if not root then
-    utils.warn("Not in a git repository")
+  local pf, root = file_or_warn()
+  if not pf then
     return
   end
   require("org.extensions.code").remember_root(root)

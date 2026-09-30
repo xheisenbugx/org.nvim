@@ -629,6 +629,24 @@ describe("code extension", function()
       eq({ "#+title: myrepo", "" }, buf_lines(0))
     end)
 
+    it("warns when project_file names no file", function()
+      local msgs = {}
+      stub(utils, "warn", function(m)
+        msgs[#msgs + 1] = m
+      end)
+      setup({
+        project_file = function()
+          return nil
+        end,
+      })
+      vim.cmd("edit " .. repo .. "/src/app.lua")
+      for _, a in ipairs({ "project_open", "project_capture", "project_agenda" }) do
+        msgs = {}
+        eq(true, (pcall(require("org.actions").run, a)), a)
+        ok(msgs[1] and msgs[1]:find("No project file", 1, true), a .. ": " .. vim.inspect(msgs))
+      end
+    end)
+
     it("captures into the project file", function()
       setup({ project_template = { template = "* TODO Ship it", immediate_finish = true } })
       vim.cmd("edit " .. repo .. "/src/app.lua")
