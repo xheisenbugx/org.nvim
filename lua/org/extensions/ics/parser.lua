@@ -2,16 +2,16 @@
 ---
 --- Pure Lua: line unfolding, components and properties, VEVENT with
 --- DTSTART/DTEND/DURATION (dates, UTC, floating and TZID times), RRULE
---- (DAILY, WEEKLY, MONTHLY, YEARLY with INTERVAL, COUNT, UNTIL, BYDAY,
---- BYMONTHDAY, BYMONTH, BYYEARDAY, BYSETPOS, WKST), RDATE, EXDATE,
---- RECURRENCE-ID overrides and STATUS:CANCELLED.
+--- (SECONDLY to YEARLY with INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY,
+--- BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS, WKST), RDATE,
+--- EXDATE, RECURRENCE-ID overrides and STATUS:CANCELLED.
 ---
 --- Times are handled as "naive seconds": seconds since 1970-01-01 of the
 --- wall clock time, ignoring zones. A TZID is turned into UTC with the
---- system time zone database (the `TZ` environment variable and
---- `os.time`), else with the calendar's VTIMEZONE rules, else with a table
---- of Windows zone names; a zone that can't be resolved is read as local
---- time.
+--- system time zone database (its TZif files, `org.extensions.ics.tzif`;
+--- `TZ` and `os.time` when a file can't be read), else with the calendar's
+--- VTIMEZONE rules, else with a table of Windows zone names; a zone that
+--- can't be resolved is read as local time.
 
 local dt = require("org.date")
 
@@ -243,6 +243,9 @@ function M.rrule(value)
     bymonthday = int_list(r.BYMONTHDAY),
     byyearday = int_list(r.BYYEARDAY),
     bysetpos = int_list(r.BYSETPOS),
+    byhour = int_list(r.BYHOUR),
+    byminute = int_list(r.BYMINUTE),
+    bysecond = int_list(r.BYSECOND),
     wkst = WEEKDAYS[(r.WKST or "MO"):upper()] or 1,
     unsupported = {},
   }
@@ -255,10 +258,8 @@ function M.rrule(value)
       end
     end
   end
-  for _, k in ipairs({ "BYWEEKNO", "BYHOUR", "BYMINUTE", "BYSECOND" }) do
-    if r[k] then
-      rule.unsupported[#rule.unsupported + 1] = k
-    end
+  if r.BYWEEKNO then
+    rule.unsupported[#rule.unsupported + 1] = "BYWEEKNO"
   end
   return rule
 end
@@ -438,6 +439,102 @@ end
 
 local PERIOD_DAYS = { DAILY = 1, WEEKLY = 7, MONTHLY = 28, YEARLY = 365 }
 
+-- Whether day `d` passes the BYMONTH, BYMONTHDAY and BYDAY filters.
+local function day_ok(rule, d)
+  local y, m, md = dt.civil_from_days(d)
+  if rule.bymonth and not contains(rule.bymonth, m) then
+    return false
+  end
+  if rule.bymonthday then
+    local dim = dt.days_in_month(y, m)
+    local hit = false
+    for _, v in ipairs(rule.bymonthday) do
+      hit = hit or (v < 0 and dim + 1 + v or v) == md
+    end
+    if not hit then
+      return false
+    end
+  end
+  if rule.byday then
+    local hit = false
+    for _, bd in ipairs(rule.byday) do
+      hit = hit or bd.wd == weekday(d)
+    end
+    if not hit then
+      return false
+    end
+  end
+  return true
+end
+
+-- HOURLY, MINUTELY and SECONDLY rules: every INTERVAL hours (minutes,
+-- seconds) from the start, BYMINUTE / BYSECOND expanding an hour (a
+-- minute), the other BYxxx parts filtering.
+local function sub_daily(rule, start, from, limit, past_until)
+  local unit = rule.freq == "HOURLY" and 3600 or rule.freq == "MINUTELY" and 60 or 1
+  local step = unit * rule.interval
+  local s0 = start % 60
+  local m0 = floor(start % 3600 / 60)
+  local offs = { 0 }
+  if unit == 3600 and (rule.byminute or rule.bysecond) then
+    offs = {}
+    for _, mi in ipairs(rule.byminute or { m0 }) do
+      for _, s in ipairs(rule.bysecond or { s0 }) do
+        offs[#offs + 1] = (mi - m0) * 60 + (s - s0)
+      end
+    end
+  elseif unit == 60 and rule.bysecond then
+    offs = {}
+    for _, s in ipairs(rule.bysecond) do
+      offs[#offs + 1] = s - s0
+    end
+  end
+  table.sort(offs)
+  local out, count, k = {}, 0, 0
+  if not rule.count and from > start then
+    k = math.max(floor((from - start) / step) - 1, 0)
+  end
+  if k == 0 then
+    count = 1
+    if start >= from and start <= limit then
+      out[1] = start
+    end
+  end
+  local guard = 0
+  while guard < 100000 do
+    guard = guard + 1
+    local base = start + k * step
+    if base + (offs[1] or 0) > limit then
+      break
+    end
+    local done = false
+    for _, off in ipairs(offs) do
+      local t = base + off
+      local d = floor(t / 86400)
+      local tod = t - d * 86400
+      local ok = t > start
+        and day_ok(rule, d)
+        and not (rule.byhour and not contains(rule.byhour, floor(tod / 3600)))
+        and not (unit < 3600 and rule.byminute and not contains(rule.byminute, floor(tod % 3600 / 60)))
+      if ok then
+        if t > limit or (past_until and past_until(t)) or (rule.count and count >= rule.count) then
+          done = true
+          break
+        end
+        count = count + 1
+        if t >= from then
+          out[#out + 1] = t
+        end
+      end
+    end
+    if done then
+      break
+    end
+    k = k + 1
+  end
+  return out
+end
+
 --- Occurrences (naive seconds) of a recurrence starting at `start` (naive)
 --- up to `limit` (naive, inclusive), from `from` on. `past_until(naive)`
 --- tells whether an occurrence is after the rule's UNTIL. DTSTART is
@@ -452,9 +549,28 @@ function M.expand(rule, start, from, limit, past_until)
   local out = {}
   local d0 = floor(start / 86400)
   local tod = start - d0 * 86400
+  if rule.freq == "HOURLY" or rule.freq == "MINUTELY" or rule.freq == "SECONDLY" then
+    return sub_daily(rule, start, from, limit, past_until)
+  end
   local per = PERIOD_DAYS[rule.freq]
   if not per then
     return { start }
+  end
+  -- times of day: BYHOUR x BYMINUTE x BYSECOND, else the start's
+  local tods = { tod }
+  if rule.byhour or rule.byminute or rule.bysecond then
+    local h0, m0, s0 = floor(tod / 3600), floor(tod % 3600 / 60), tod % 60
+    tods = {}
+    for _, h in ipairs(rule.byhour or { h0 }) do
+      for _, mi in ipairs(rule.byminute or { m0 }) do
+        for _, s in ipairs(rule.bysecond or { s0 }) do
+          if h >= 0 and h < 24 and mi >= 0 and mi < 60 and s >= 0 and s < 60 then
+            tods[#tods + 1] = h * 3600 + mi * 60 + s
+          end
+        end
+      end
+    end
+    table.sort(tods)
   end
   local count = 0
   local k = 0
@@ -481,20 +597,25 @@ function M.expand(rule, start, from, limit, past_until)
     end
     local done = false
     for _, d in ipairs(days) do
-      local t = d * 86400 + tod
-      if t > start then
-        if t > limit or (past_until and past_until(t)) then
-          done = true
-          break
+      for _, td in ipairs(tods) do
+        local t = d * 86400 + td
+        if t > start then
+          if t > limit or (past_until and past_until(t)) then
+            done = true
+            break
+          end
+          if rule.count and count >= rule.count then
+            done = true
+            break
+          end
+          count = count + 1
+          if t >= from then
+            out[#out + 1] = t
+          end
         end
-        if rule.count and count >= rule.count then
-          done = true
-          break
-        end
-        count = count + 1
-        if t >= from then
-          out[#out + 1] = t
-        end
+      end
+      if done then
+        break
       end
     end
     if done then
@@ -569,7 +690,7 @@ M.WINDOWS_ZONES = {
   ["New Zealand Standard Time"] = "Pacific/Auckland",
 }
 
-local ZONEINFO_DIRS = { "/usr/share/zoneinfo", "/usr/lib/zoneinfo", "/usr/share/lib/zoneinfo", "/etc/zoneinfo" }
+local tzif = require("org.extensions.ics.tzif")
 
 local zone_exists_cache = {}
 
@@ -581,12 +702,13 @@ function M.system_zone(name)
   if zone_exists_cache[name] ~= nil then
     return zone_exists_cache[name]
   end
-  local dirs = vim.env.TZDIR and { vim.env.TZDIR } or ZONEINFO_DIRS
-  local found = false
-  for _, dir in ipairs(dirs) do
-    if vim.fn.filereadable(dir .. "/" .. name) == 1 then
-      found = true
-      break
+  local found = tzif.load(name) ~= nil
+  if not found then
+    for _, dir in ipairs(tzif.dirs()) do
+      if vim.fn.filereadable(dir .. "/" .. name) == 1 then
+        found = true
+        break
+      end
     end
   end
   zone_exists_cache[name] = found
@@ -609,10 +731,26 @@ local function with_tz(tz, fn, ...)
 end
 M.with_tz = with_tz
 
---- UTC epoch of wall time `naive` in system zone `tz`.
+--- UTC epoch of wall time `naive` in system zone `tz`: read from its
+--- zoneinfo file, else with `TZ` set around `os.time`.
 function M.system_epoch(tz, naive)
+  local z = tzif.load(tz)
+  if z then
+    return tzif.epoch(z, naive)
+  end
   local c = M.civil(naive)
   return with_tz(tz, os.time, { year = c.year, month = c.month, day = c.day, hour = c.hour, min = c.min, sec = c.sec })
+end
+
+--- Wall time (naive seconds) of epoch `e` in zone `tz` (nil: the
+--- system's local zone).
+function M.wall(e, tz)
+  local z = tz and tzif.load(tz)
+  if z then
+    return tzif.wall(z, e)
+  end
+  local c = with_tz(tz, os.date, "*t", e)
+  return M.naive(c.year, c.month, c.day, c.hour, c.min, c.sec)
 end
 
 -- VTIMEZONE: observances { onset, from, to, rule, rdates }
@@ -891,8 +1029,7 @@ function M.localize(cal, t, tz, aliases)
   if not e then
     return t.naive
   end
-  local c = with_tz(tz, os.date, "*t", e)
-  return M.naive(c.year, c.month, c.day, c.hour, c.min, c.sec)
+  return M.wall(e, tz)
 end
 
 -- Key identifying an occurrence for EXDATE / RECURRENCE-ID matching.
@@ -946,8 +1083,7 @@ function M.occurrences(cal, from, to, opts)
     else
       local ep = M.epoch(cal, start_t, aliases)
       if ep then
-        local c = with_tz(tz, os.date, "*t", ep + len)
-        e = M.naive(c.year, c.month, c.day, c.hour, c.min, c.sec)
+        e = M.wall(ep + len, tz)
       else
         e = s + len
       end

@@ -8161,12 +8161,18 @@ Each calendar takes `name`, `url` or `path`, and optionally `category`
 (the agenda's category column, default the name), `tags` (for agenda tag
 filters), `refresh` (minutes), `face` and `agenda = false` (import only).
 
-Events appear in agenda day and week views (not in lists such as the TODO
-list, and not in agendas restricted to a file or subtree), with their times
-in the time grid, the calendar's category and, with `show_location`, the
-location after the title. An all-day event spanning days shows `(1/3):`
-like an org date range. They are added after the diary; like diary lines
-they can't be edited or visited from the agenda.
+Events appear in agenda day and week views with their times in the time
+grid, the calendar's category and, with `show_location`, the location
+after the title. An event spanning days (all-day, or timed and crossing
+midnight) shows `(1/3):` like an org date range: a timed one with its
+start time on the first day and its end time on the last. They are added
+after the diary; like diary lines they can't be edited or visited from the
+agenda. They are left out of lists such as the TODO list, and of agendas
+restricted to a file or subtree (`<` in the dispatcher): a calendar is not
+part of any org file, so a restriction to one leaves it out, like the
+diary. The expansion of a calendar is kept per date range and display
+zone until the file changes, so redrawing an agenda doesn't expand it
+again.
 
 Subscriptions ~
 A calendar with a `url` is fetched with `curl` in the background into
@@ -8174,19 +8180,23 @@ A calendar with a `url` is fetched with `curl` in the background into
 whenever the copy is older than `refresh` minutes (checked every minute and
 when an agenda is built); an open agenda is redrawn when new data arrives.
 The agenda always reads the cached copy, so it works offline. A failed
-fetch, or a reply that isn't iCalendar (a login page), keeps the old copy
-and is reported once. `auto_refresh = false` fetches only on
+fetch, a reply that isn't iCalendar (a login page) or one cut off before
+`END:VCALENDAR` keeps the old copy, is reported once, and is tried again
+after `refresh` minutes. `auto_refresh = false` fetches only on
 `:Org ics_refresh`. `webcal://` is fetched as `https://`.
 
 Actions ~
-  `ics_refresh`   fetch every subscribed calendar now and redraw the agenda
+  `ics_refresh`   fetch every subscribed calendar now and redraw the agenda;
+                `:Org ics_refresh NAME` fetches one (names complete)
   `ics_import`    on an agenda line of an event: add it to `import_file` as
                 a heading with its timestamp, LOCATION, URL, CALENDAR and
                 ICS_UID properties and the description as body text.
                 Elsewhere: pick one of the next `import_days` days' events
                 with |vim.ui.select()|. Only that occurrence of a
-                repeating event is copied; importing twice adds two
-                headings.
+                repeating event is copied (with an ICS_RECURRENCE_ID
+                property). An event already imported (same ICS_UID and
+                ICS_RECURRENCE_ID) is not added again; when its time
+                changed, the timestamp line of that heading is updated.
 
 Neither has a default key; map them in `mappings` or run them with `:Org`.
 
@@ -8194,14 +8204,16 @@ What is read ~
   - Line unfolding, text escapes, VEVENT with DTSTART and DTEND or
     DURATION: dates (`VALUE=DATE`, all day), UTC times (`...Z`), floating
     times and `TZID=` times.
-  - RRULE with FREQ DAILY, WEEKLY, MONTHLY or YEARLY and INTERVAL, COUNT,
-    UNTIL, BYDAY (`MO`, `2TU`, `-1FR`), BYMONTHDAY, BYMONTH, BYYEARDAY,
-    BYSETPOS and WKST; RDATE; EXDATE.
+  - RRULE with FREQ YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY or
+    SECONDLY and INTERVAL, COUNT, UNTIL, BYDAY (`MO`, `2TU`, `-1FR`),
+    BYMONTHDAY, BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS
+    and WKST; RDATE; EXDATE. A yearly Feb 29 skips non-leap years.
   - RECURRENCE-ID: a changed or cancelled instance replaces the one it
     overrides.
   - `STATUS:CANCELLED` events are left out.
-  Not read: BYWEEKNO, BYHOUR, BYMINUTE and BYSECOND (ignored), VTODO,
-  VJOURNAL, VALARM, attendees and free/busy.
+  Not read: BYWEEKNO (ignored), RDATE periods, VTODO, VJOURNAL, VALARM
+  (no reminders), attendees and free/busy. A HOURLY or finer rule is
+  expanded up to 100,000 steps per range.
 
 Time zones ~
 Times are shown in the system's local zone, or in `timezone` (an IANA name
@@ -8209,8 +8221,11 @@ such as "Europe/Paris") when set. A `TZID` is resolved, in order, as:
   1. a name from `tz_aliases`, your own `{ TZID = "IANA/Name" }` table;
   2. a zone of the system time zone database (`/usr/share/zoneinfo` or
      `$TZDIR`), also inside Mozilla-style paths such as
-     `/mozilla.org/20050126_1/Europe/Berlin`; the conversion uses `TZ=` and
-     the C library, so daylight saving time follows the system's rules;
+     `/mozilla.org/20050126_1/Europe/Berlin`; its zoneinfo (TZif) file is
+     read in Lua, transitions and the rule for later years, so daylight
+     saving time follows the system's rules (a time skipped by a change
+     uses the offset before it, a repeated one is its first occurrence, as
+     RFC 5545 says);
   3. the calendar's own VTIMEZONE (STANDARD and DAYLIGHT rules);
   4. a built-in table of common Windows zone names ("W. Europe Standard
      Time", "Pacific Standard Time", ...) sent by Outlook and Exchange.
@@ -8238,6 +8253,14 @@ Options ~
 The parser is usable on its own:
 `require("org.extensions.ics.parser").parse(text)` returns the events, and
 `.occurrences(calendar, from_day, to_day, { timezone = ... })` expands them.
+Other views read the configured calendars with
+`require("org.extensions.ics").events(from_day, to_day)` (day numbers as
+`org.date:days()`): plain tables sorted by start, with `calendar`,
+`category`, `uid`, `title`, `summary`, `location`, `description`, `url`,
+`all_day`, `start`/`stop` (wall-clock seconds, stop exclusive),
+`start_day`/`end_day`, `start_time`/`end_time` (minutes, nil when all day)
+and `timestamp` (the org timestamp). The agenda's source is
+`require("org.agenda.items").day_sources.ics`.
 
 `:checkhealth org` shows each calendar's event count and fetch age, failed
 fetches, unknown zones, and whether `curl` is installed (needed only for
