@@ -575,6 +575,54 @@ describe("lsp extension", function()
       eq("  Broken [[#report]] link.", buf_lines(buf)[23])
     end)
 
+    it("fixes more org-lint reports", function()
+      local buf = open(main)
+      local n = #buf_lines(buf)
+      vim.api.nvim_buf_set_lines(buf, n, n, false, {
+        "#+BEGIN_HTML",
+        "<b>x</b>",
+        "#+END_HTML",
+        "  %%(diary-float t 4 2)",
+        "#+AUTHOR Me",
+        "#+INCLUDE: \"other.org\" html",
+        "A [[file:a%20b%5B1%5D.org]] link.",
+        "1. one",
+        "3. three",
+      })
+      local function apply(code)
+        local a = fix_for(buf, code)
+        ok(a and a.kind == "quickfix" and a.edit, code .. ": " .. vim.inspect(a))
+        vim.lsp.util.apply_workspace_edit(a.edit, "utf-8")
+      end
+      apply("deprecated-export-blocks")
+      apply("indented-diary-sexp")
+      apply("invalid-keyword-syntax")
+      apply("obsolete-include-markup")
+      apply("percent-encoding-link-escape")
+      apply("item-number")
+      eq({
+        "#+BEGIN_EXPORT html",
+        "<b>x</b>",
+        "#+END_EXPORT",
+        "%%(diary-float t 4 2)",
+        "#+AUTHOR: Me",
+        '#+INCLUDE: "other.org" export html',
+        "A [[file:a b\\[1\\].org]] link.",
+        "1. one",
+        "3. [@3] three",
+      }, vim.list_slice(buf_lines(buf), n + 1))
+    end)
+
+    it("removes a special property from a properties drawer", function()
+      local buf = open(main)
+      vim.api.nvim_buf_set_lines(buf, 5, 5, false, { "  :TODO: DONE" })
+      local a = fix_for(buf, "special-property-in-properties-drawer")
+      ok(a, "a fix")
+      eq("Remove the TODO property", a.title)
+      vim.lsp.util.apply_workspace_edit(a.edit, "utf-8")
+      eq(MAIN, buf_lines(buf))
+    end)
+
     it("fixes spurious colons and inactive planning", function()
       local buf = open(main)
       vim.api.nvim_buf_set_lines(buf, 1, 3, false, {
