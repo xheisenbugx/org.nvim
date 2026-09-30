@@ -44,8 +44,12 @@ M.defaults = {
   },
   --- org-lint reports as diagnostics.
   diagnostics = {
-    --- Milliseconds without changes before a buffer is linted again.
+    --- Milliseconds without changes before a buffer is linted again
+    --- (twice the time the last lint took when that is longer).
     debounce = 500,
+    --- Buffers with more lines are linted when opened and written, not
+    --- while you type; 0 or false: no limit.
+    max_lines = 10000,
     --- Checker names (`:Org lint` names); nil: org-lint's default set.
     ---@type string[]|nil
     checkers = nil,
@@ -88,6 +92,9 @@ M.defaults = {
     ---@type string[]|fun(): string[]|nil
     files = nil,
     max_files = 2000,
+    --- Parse the workspace files in the background after the server
+    --- starts (a few ms at a time), so the first request is quick.
+    preload = true,
   },
   workspace_symbol_limit = 1000,
   rename = {
@@ -227,6 +234,22 @@ end
 
 function M.setup(o)
   vim.api.nvim_clear_autocmds({ group = augroup })
+  local util = require(MOD .. ".util")
+  util.invalidate()
+  -- a new org file on disk: list the workspace files again
+  vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+    group = augroup,
+    pattern = "*.org",
+    callback = function()
+      util.invalidate()
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "BufAdd", "BufReadPost", "BufFilePost", "BufUnload", "BufWipeout" }, {
+    group = augroup,
+    callback = function()
+      util.reset_scope()
+    end,
+  })
   if o.autostart == false then
     return
   end

@@ -11,8 +11,6 @@
 --- a `#+NAME:`, then a headline title (case and blanks ignored).
 
 local links = require("org.links")
-local files = require("org.files")
-local utils = require("org.utils")
 local util = require("org.extensions.lsp.util")
 
 local M = {}
@@ -137,28 +135,134 @@ function M.index(file)
   return idx
 end
 
---- Links of a document: { lnum, link } for every line that can hold one.
+--- Most lines a bracket link may span (Org allows line breaks in a
+--- link's path and description, within a paragraph).
+M.MAX_LINK_LINES = 5
+
+--- Line and column of a 1-based offset into a link's text (links that
+--- span lines are parsed from their lines joined with "\n").
+---@param link org.Link
+---@param off integer
+---@return integer lnum, integer col
+function M.link_pos(link, off)
+  local starts = link.starts
+  if not starts then
+    return link.lnum, off
+  end
+  local k = 1
+  while starts[k + 1] and starts[k + 1] <= off do
+    k = k + 1
+  end
+  return link.lnum + k - 1, off - starts[k] + 1
+end
+
+--- LSP range of a link (which may span lines).
+---@param link org.Link
+function M.link_range(link)
+  if link.end_lnum then
+    local el, ec = M.link_pos(link, link.end_col)
+    return util.range(link.lnum, link.start_col, ec, el)
+  end
+  return util.range(link.lnum, link.start_col, link.end_col)
+end
+
+-- Bracket links that start on line `lnum` (at a "[[" no link of the line
+-- covers) and end on a later line of the same paragraph.
+local function spanning_links(lines, lnum, singles, skip)
+  local line = lines[lnum]
+  local first
+  local init = 1
+  while true do
+    local p = line:find("[[", init, true)
+    if not p then
+      break
+    end
+    local inside = false
+    for _, l in ipairs(singles) do
+      if p >= l.start_col and p <= l.end_col then
+        inside = true
+        break
+      end
+    end
+    if not inside then
+      first = p
+      break
+    end
+    init = p + 2
+  end
+  if not first then
+    return nil
+  end
+  local parts, starts = { line }, { 1 }
+  local pos = #line + 2
+  for k = lnum + 1, math.min(#lines, lnum + M.MAX_LINK_LINES - 1) do
+    local l = lines[k]
+    if skip[k] or l:match("^%s*$") or l:match("^%*+%s") then
+      break
+    end
+    parts[#parts + 1] = l
+    starts[#starts + 1] = pos
+    pos = pos + #l + 1
+  end
+  if #parts == 1 then
+    return nil
+  end
+  local out
+  local verbatim = links.verbatim_spans(line)
+  for _, l in ipairs(links.parse_links(table.concat(parts, "\n"), { bracket_only = true })) do
+    if l.start_col >= first and l.start_col <= #line and l.end_col > #line then
+      local in_verbatim = false
+      for _, sp in ipairs(verbatim) do
+        if l.start_col >= sp[1] and l.start_col <= sp[2] then
+          in_verbatim = true
+        end
+      end
+      if not in_verbatim then
+        l.lnum, l.starts = lnum, starts
+        l.end_lnum = M.link_pos(l, l.end_col)
+        out = out or {}
+        out[#out + 1] = l
+      end
+    end
+  end
+  return out
+end
+
+--- Links of a document: { lnum, link } for every line that can hold one
+--- (links spanning lines included, on their first line). Links in text
+--- the transclusion extension inserted are left out.
 ---@param doc org.lsp.Doc
 ---@return { lnum: integer, link: org.Link }[]
 function M.doc_links(doc)
   local file = doc.file
   local c = link_cache[file] or {}
   link_cache[file] = c
-  if c.links then
-    return c.links
-  end
-  local skip = ignored(file)
-  local out = {}
-  for lnum, line in ipairs(file.lines) do
-    if not skip[lnum] and (line:find("[[", 1, true) or line:find(":", 1, true)) then
-      for _, l in ipairs(links.real_links(line)) do
-        l.lnum = lnum
-        out[#out + 1] = { lnum = lnum, link = l }
+  if not c.links then
+    local skip = ignored(file)
+    local out, multi = {}, {}
+    local lines = file.lines
+    for lnum, line in ipairs(lines) do
+      if not skip[lnum] and (line:find("[[", 1, true) or line:find(":", 1, true)) then
+        local singles = links.real_links(line)
+        for _, l in ipairs(singles) do
+          l.lnum = lnum
+          out[#out + 1] = { lnum = lnum, link = l }
+        end
+        local span = line:find("[[", 1, true) and spanning_links(lines, lnum, singles, skip)
+        for _, l in ipairs(span or {}) do
+          out[#out + 1] = { lnum = lnum, link = l }
+          multi[#multi + 1] = l
+        end
       end
     end
+    c.links, c.multi = out, multi
   end
-  c.links = out
-  return out
+  if doc.foreign then
+    return vim.tbl_filter(function(item)
+      return not doc.foreign[item.lnum]
+    end, c.links)
+  end
+  return c.links
 end
 
 --- Link at a 1-based line and byte column, or nil.
@@ -170,6 +274,15 @@ function M.link_at(doc, lnum, col)
     if col >= l.start_col and col <= l.end_col then
       l.lnum = lnum
       return l
+    end
+  end
+  M.doc_links(doc)
+  for _, l in ipairs(link_cache[doc.file].multi) do
+    if lnum >= l.lnum and lnum <= l.end_lnum then
+      local el, ec = M.link_pos(l, l.end_col)
+      if (lnum > l.lnum or col >= l.start_col) and (lnum < el or col <= ec) then
+        return l
+      end
     end
   end
 end
@@ -199,12 +312,23 @@ function M.split(doc, link)
       path = doc.path
     else
       local base = doc.path and vim.fs.dirname(doc.path) or vim.fn.getcwd()
-      path = util.canon(utils.expand(p, base))
+      path = util.resolve(p, base)
     end
     return path and { kind = "file", path = path, search = search ~= "" and search or nil } or nil
   elseif INTERNAL[t] and doc.path then
     return { kind = "file", path = doc.path, search = link.target, internal = true }
   end
+end
+
+--- `split` of a link of a cached document link list, remembered on the
+--- link (for the document's file name).
+local function split_cached(doc, link)
+  local key = doc.path or ""
+  if link._split_key ~= key then
+    link._split_key = key
+    link._split = M.split(doc, link) or false
+  end
+  return link._split or nil
 end
 
 --- Form of a search option: "custom_id", "heading", "fuzzy", "line" or
@@ -237,7 +361,7 @@ end
 ---@param search? string
 ---@return table|nil
 function M.locate(path, search)
-  local file = files.get(path)
+  local file = util.file(path)
   if not file then
     return nil
   end
@@ -286,7 +410,7 @@ function M.locate_id(id, docs)
   local ok, r = pcall(require("org.id").find, id)
   if ok and r and r.filename then
     local path = util.canon(r.filename)
-    local file = files.get(path)
+    local file = util.file(path)
     local hl = file and M.index(file).ids[id]
     if hl then
       return heading_loc(path, hl)
@@ -461,7 +585,7 @@ function M.subject_of(loc, form)
   end
   if loc.kind == "heading" then
     local hl = loc.headline
-    local file = files.get(loc.path)
+    local file = util.file(loc.path)
     if (form == "custom_id" or form == "id") and file then
       local key = form == "id" and "ID" or "CUSTOM_ID"
       local lnum, s, e, v = prop_span(file, hl, key)
@@ -578,7 +702,7 @@ function M.references(subject, docs)
   end
   if subject.kind == "footnote" then
     for _, u in ipairs(M.footnote_uses(home.lines, subject.name)) do
-      if not u.definition then
+      if not u.definition and not (home.foreign and home.foreign[u.lnum]) then
         out[#out + 1] = { doc = home, lnum = u.lnum, s = u.ls - 4, e = u.le + 1, form = "footnote" }
       end
     end
@@ -587,7 +711,7 @@ function M.references(subject, docs)
   if subject.kind == "radio" then
     local skip = ignored(home.file)
     for lnum, line in ipairs(home.lines) do
-      if not skip[lnum] then
+      if not skip[lnum] and not (home.foreign and home.foreign[lnum]) then
         for _, o in ipairs(M.radio_occurrences(line, subject.name)) do
           out[#out + 1] = { doc = home, lnum = lnum, s = o.s, e = o.e, form = "radio" }
         end
@@ -608,7 +732,7 @@ function M.references(subject, docs)
   for _, d in ipairs(docs) do
     for _, item in ipairs(M.doc_links(d)) do
       local l = item.link
-      local sp = M.split(d, l)
+      local sp = split_cached(d, l)
       local form
       if sp and sp.kind == "id" then
         if id and sp.id == id and not sp.search then
@@ -626,6 +750,10 @@ function M.references(subject, docs)
       end
       if form then
         out[#out + 1] = { doc = d, lnum = item.lnum, s = l.start_col, e = l.end_col, link = l, form = form, split = sp }
+        if l.end_lnum then
+          local el, ec = M.link_pos(l, l.end_col)
+          out[#out].end_lnum, out[#out].e = el, ec
+        end
       end
     end
   end

@@ -4762,14 +4762,19 @@ end
 --- Lint an org buffer (org-lint).
 ---@param bufnr? integer default current buffer
 ---@param checkers? string[] checker names (default: all the default checkers)
+---@param text? string[] lines linted instead of the buffer's (the buffer
+---still gives the file name); report lines are then indexes into `text`
 ---@return org.LintReport[] reports sorted by position
-function M.lint(bufnr, checkers)
+function M.lint(bufnr, checkers, text)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local lines = text or vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local file
   local ok, files = pcall(require, "org.files")
-  if ok then
+  if text then
+    local okf, f = pcall(require("org.parser").parse, text, name ~= "" and name or nil)
+    file = okf and f or nil
+  elseif ok then
     local okf, f = pcall(files.get_buffer, bufnr)
     file = okf and f or nil
   end

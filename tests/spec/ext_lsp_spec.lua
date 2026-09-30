@@ -165,6 +165,29 @@ describe("lsp extension", function()
     eq("main.org › Write report", syms[1].containerName)
   end)
 
+  it("sees an org file written after the first request", function()
+    local buf = open(main)
+    eq({}, request(buf, "workspace/symbol", { query = "brandnew" }))
+    local path = dir .. "/new.org"
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Brandnew heading" })
+    vim.cmd("silent write")
+    vim.cmd("bwipeout")
+    local syms = request(buf, "workspace/symbol", { query = "brandnew" })
+    eq(1, #syms)
+    vim.fn.delete(path)
+  end)
+
+  it("preloads the workspace files in the background", function()
+    local buf = open(main)
+    client_of(buf)
+    local server = require("org.extensions.lsp.server")
+    ok(vim.wait(3000, function()
+      return server.last and server.last.preloaded ~= nil
+    end, 10))
+    eq(#require("org.extensions.lsp.util").workspace_files(), server.last.preloaded)
+  end)
+
   describe("hover", function()
     local function hover(buf, lnum, col)
       local r = request(buf, "textDocument/hover", tdp(buf, lnum, col))
@@ -388,6 +411,26 @@ describe("lsp extension", function()
       ok(err.message:find("ambiguous"), err.message)
     end)
 
+    it("edits a buffer opened through a symlink, not a second one", function()
+      local link = vim.fs.dirname(dir) .. "/alias-" .. vim.fn.getpid() .. ".org"
+      ok(vim.uv.fs_symlink(other, link))
+      local ob = open(link)
+      eq(link, vim.fs.normalize(vim.api.nvim_buf_get_name(ob)))
+      local buf = open(main)
+      ok(rename(buf, 5, 18, "summary"))
+      eq("  Link [[file:main.org::#summary][the report]]", buf_lines(ob)[2])
+      local same = 0
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" and vim.uv.fs_realpath(name) == other then
+          same = same + 1
+        end
+      end
+      eq(1, same)
+      vim.api.nvim_buf_delete(ob, { force = true })
+      vim.uv.fs_unlink(link)
+    end)
+
     it("sees unsaved changes in other buffers", function()
       local ob = open(other)
       vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  New [[file:main.org::#report]]" })
@@ -604,5 +647,149 @@ describe("lsp extension", function()
     buf = open(main)
     vim.wait(100)
     eq(0, #vim.lsp.get_clients({ bufnr = buf, name = "org" }))
+  end)
+
+  describe("links spanning lines", function()
+    local SPAN = { "  A [[file:main.org::*Write", "  report][the", "  report]] spans lines." }
+
+    it("finds, follows and renames them", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, SPAN)
+      local r = request(ob, "textDocument/definition", tdp(ob, 9, 3))
+      local loc = r.uri and r or r[1]
+      eq({ main, 2 }, { vim.uri_to_fname(loc.uri), loc.range.start.line + 1 })
+      local buf = open(main)
+      local list = request(buf, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        context = { includeDeclaration = false },
+      })
+      local spanning
+      for _, l in ipairs(list) do
+        if l.range.start.line == 7 then
+          spanning = l.range
+        end
+      end
+      eq({ start = { line = 7, character = 4 }, ["end"] = { line = 9, character = 10 } }, spanning)
+      local edit = request(buf, "textDocument/rename", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        newName = "Write the summary",
+      })
+      vim.lsp.util.apply_workspace_edit(edit, "utf-8")
+      local lines = buf_lines(ob)
+      eq({ "  A [[file:main.org::*Write the summary][the", "  report]] spans lines." }, vim.list_slice(lines, 8))
+    end)
+
+    it("hovers them from any of their lines", function()
+      local ob = open(other)
+      vim.api.nvim_buf_set_lines(ob, -1, -1, false, SPAN)
+      local r = request(ob, "textDocument/hover", tdp(ob, 10, 4))
+      ok(r and r.contents.value:find("Write report", 1, true), vim.inspect(r))
+      eq({ line = 7, character = 4 }, r.range.start)
+    end)
+  end)
+
+  describe("diagnostics scheduling", function()
+    local D = require("org.extensions.lsp.diagnostics")
+
+    it("does not lint a buffer again at the same changedtick", function()
+      local buf = open(main)
+      local n = 0
+      local sch = D.scheduler(function()
+        n = n + 1
+      end)
+      sch.run(buf)
+      sch.run(buf)
+      eq(1, n)
+      vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "" })
+      sch.run(buf)
+      eq(2, n)
+      sch.clear(buf)
+      eq(3, n)
+      sch.run(buf)
+      eq(4, n)
+      sch.stop()
+    end)
+
+    it("lints large buffers only when opened and written", function()
+      setup({ extensions = { lsp = { diagnostics = { max_lines = 10 } } } })
+      local buf = open(main)
+      local n = 0
+      local sch = D.scheduler(function()
+        n = n + 1
+      end)
+      sch.schedule(buf, 0, true)
+      vim.wait(50)
+      eq(0, n)
+      sch.schedule(buf, 0)
+      vim.wait(1000, function()
+        return n == 1
+      end, 5)
+      eq(1, n)
+      sch.stop()
+    end)
+  end)
+
+  describe("with transclusion", function()
+    local src = dir .. "/src.org"
+
+    before_each(function()
+      wipe(src)
+      utils.writefile(src, {
+        "* Borrowed",
+        "  :PROPERTIES:",
+        "  :CUSTOM_ID: report",
+        "  :END:",
+        "  Its [[#nowhere]] link and [[*Write report]].",
+      })
+      setup({ extensions = { transclusion = { mode = "materialized", watch = false } } })
+    end)
+    after_each(function()
+      wipe(src)
+      vim.fn.delete(src)
+    end)
+
+    local function transcluding()
+      local buf = open(main)
+      vim.api.nvim_buf_set_lines(buf, 20, 20, false, { "#+transclude: [[file:src.org::*Borrowed]]" })
+      require("org.extensions.transclusion").add_all(buf)
+      local regs = require("org.extensions.transclusion").regions(buf)
+      eq(1, #regs)
+      -- the property drawer is left out: lines 22-23
+      eq({ "* Borrowed", "  Its [[#nowhere]] link and [[*Write report]]." }, vim.list_slice(buf_lines(buf), 22, 23))
+      return buf
+    end
+
+    it("leaves the inserted text out of diagnostics", function()
+      local buf = transcluding()
+      for _, d in ipairs(require("org.extensions.lsp.diagnostics").compute(buf)) do
+        ok(d.range.start.line + 1 < 22 or d.range.start.line + 1 > 23, vim.inspect(d))
+        -- the copy of CUSTOM_ID "report" is no duplicate
+        ok(d.code ~= "duplicate-custom-id", vim.inspect(d))
+      end
+    end)
+
+    it("leaves it out of symbols, references and rename", function()
+      local buf = transcluding()
+      local syms = request(buf, "textDocument/documentSymbol", { textDocument = { uri = vim.uri_from_bufnr(buf) } })
+      for _, sym in ipairs(syms) do
+        ok(sym.name ~= "Borrowed", vim.inspect(syms))
+      end
+      local list = request(buf, "textDocument/references", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 1, character = 19 },
+        context = { includeDeclaration = false },
+      })
+      for _, l in ipairs(list) do
+        ok(not (l.uri == vim.uri_from_bufnr(buf) and l.range.start.line == 22), vim.inspect(l))
+      end
+      local _, err = request(buf, "textDocument/rename", {
+        textDocument = { uri = vim.uri_from_bufnr(buf) },
+        position = { line = 21, character = 4 },
+        newName = "Other",
+      })
+      ok(err and err.message:find("transcluded"), vim.inspect(err))
+    end)
   end)
 end)

@@ -181,7 +181,7 @@ local function link_text(doc, link)
   if not loc then
     return head .. " — **target not found**\n\n" .. link.target
   end
-  local file = require("org.files").get(loc.path)
+  local file = util.file(loc.path)
   local where = vim.fn.fnamemodify(loc.path, ":~:.")
   if not file then
     return head .. " → " .. where
@@ -294,7 +294,7 @@ function M.at(doc, lnum, col)
   end
   local link = targets.link_at(doc, lnum, col)
   if link then
-    return link_text(doc, link), util.range(lnum, link.start_col, link.end_col)
+    return link_text(doc, link), targets.link_range(link)
   end
   local item = date.at_col(line, col)
   if item then

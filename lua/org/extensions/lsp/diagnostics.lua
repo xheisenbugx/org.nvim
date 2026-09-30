@@ -35,8 +35,27 @@ end
 function M.compute(bufnr)
   local o = util.opts().diagnostics or {}
   local sev = o.severity or {}
-  local reports = require("org.lint").lint(bufnr, M.checkers())
+  local lint = require("org.lint")
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local reports
+  -- text the transclusion extension inserted belongs to its source: lint
+  -- the buffer without it and map the reports back
+  local foreign = util.foreign(bufnr)
+  if foreign then
+    local own, map = {}, {}
+    for i, l in ipairs(lines) do
+      if not foreign[i] then
+        own[#own + 1] = l
+        map[#own] = i
+      end
+    end
+    reports = lint.lint(bufnr, M.checkers(), own)
+    for _, r in ipairs(reports) do
+      r.lnum = map[r.lnum] or map[#own] or 1
+    end
+  else
+    reports = lint.lint(bufnr, M.checkers())
+  end
   local out = {}
   for _, r in ipairs(reports) do
     local lnum = math.max(1, math.min(r.lnum, #lines))
@@ -60,13 +79,18 @@ function M.compute(bufnr)
   return out
 end
 
---- Debounced publisher: `schedule(bufnr, delay?)` lints the buffer after
---- `diagnostics.debounce` ms without changes and calls `publish(uri,
---- diagnostics)`.
+--- Debounced publisher: `schedule(bufnr, delay?, on_change?)` lints the
+--- buffer after `diagnostics.debounce` ms without changes (longer when the
+--- last lint took long) and calls `publish(uri, diagnostics)`. A buffer is
+--- not linted again at the same changedtick, and a buffer longer than
+--- `diagnostics.max_lines` is not linted on changes, only when opened and
+--- written.
 ---@param publish fun(uri: string, diagnostics: table[])
 function M.scheduler(publish)
   local uv = vim.uv or vim.loop
   local timers = {}
+  -- changedtick linted last, and how long that took (ms), per buffer
+  local linted, cost = {}, {}
   local self = {}
   function self.cancel(bufnr)
     local t = timers[bufnr]
@@ -82,8 +106,15 @@ function M.scheduler(publish)
     if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
       return
     end
+    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+    if linted[bufnr] == tick then
+      return
+    end
     local uri = vim.uri_from_bufnr(bufnr)
+    local t0 = uv.hrtime()
     local ok, diags = pcall(M.compute, bufnr)
+    cost[bufnr] = (uv.hrtime() - t0) / 1e6
+    linted[bufnr] = tick
     if not ok then
       diags = {
         {
@@ -96,13 +127,23 @@ function M.scheduler(publish)
     end
     publish(uri, diags)
   end
-  function self.schedule(bufnr, delay)
+  --- Lint `bufnr` after `delay` ms (default: the debounce). `on_change`:
+  --- the buffer was edited (large buffers wait for a write).
+  function self.schedule(bufnr, delay, on_change)
     local o = util.opts().diagnostics or {}
+    local max = o.max_lines
+    if on_change and max and max > 0 and vim.api.nvim_buf_line_count(bufnr) > max then
+      return
+    end
     self.cancel(bufnr)
+    if not delay then
+      -- never lint more than about a third of the time while typing
+      delay = math.max(o.debounce or 500, math.floor(2 * (cost[bufnr] or 0)))
+    end
     local t = uv.new_timer()
     timers[bufnr] = t
     t:start(
-      delay or o.debounce or 500,
+      delay,
       0,
       vim.schedule_wrap(function()
         if timers[bufnr] ~= t then
@@ -115,6 +156,7 @@ function M.scheduler(publish)
   end
   function self.clear(bufnr)
     self.cancel(bufnr)
+    linted[bufnr], cost[bufnr] = nil, nil
     if vim.api.nvim_buf_is_valid(bufnr) then
       publish(vim.uri_from_bufnr(bufnr), {})
     end
@@ -123,6 +165,7 @@ function M.scheduler(publish)
     for b in pairs(timers) do
       self.cancel(b)
     end
+    linted, cost = {}, {}
   end
   return self
 end

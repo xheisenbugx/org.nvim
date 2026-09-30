@@ -49,7 +49,7 @@ end
 local function locations_of(refs)
   local out = {}
   for _, r in ipairs(refs) do
-    out[#out + 1] = { uri = r.doc.uri, range = util.range(r.lnum, r.s, r.e) }
+    out[#out + 1] = { uri = r.doc.uri, range = util.range(r.lnum, r.s, r.e, r.end_lnum) }
   end
   return out
 end
@@ -147,7 +147,11 @@ end
 R["textDocument/prepareRename"] = function(_, params)
   local doc = doc_or_err(params)
   local lnum, col = util.from_pos(params.position)
-  return require("org.extensions.lsp.rename").prepare(doc, lnum, col) or vim.NIL
+  local res, why = require("org.extensions.lsp.rename").prepare(doc, lnum, col)
+  if why then
+    error({ code = ERR.request_failed, message = why })
+  end
+  return res or vim.NIL
 end
 
 R["textDocument/rename"] = function(_, params)
@@ -184,12 +188,50 @@ end
 M.notifications = {}
 local N = M.notifications
 
+--- Parse the workspace files and their links a few milliseconds per
+--- event-loop tick, so the first references, rename or backlink count
+--- doesn't pay for all of them at once (`workspace.preload`).
+function M.preload(srv)
+  if (util.opts().workspace or {}).preload == false then
+    return
+  end
+  local targets = require("org.extensions.lsp.targets")
+  local list, i = nil, 0
+  local function step()
+    if srv.closing then
+      return
+    end
+    list = list or util.workspace_files()
+    local stop = vim.uv.hrtime() + 8e6
+    while i < #list and vim.uv.hrtime() < stop do
+      i = i + 1
+      pcall(function()
+        local d = util.doc_from_path(list[i])
+        if d then
+          targets.index(d.file)
+          targets.doc_links(d)
+        end
+      end)
+    end
+    if i < #list then
+      vim.defer_fn(step, 10)
+    else
+      srv.preloaded = #list
+    end
+  end
+  vim.defer_fn(step, 300)
+end
+
+N["initialized"] = function(srv)
+  M.preload(srv)
+end
+
 local function buf_of(params)
   local uri = params and params.textDocument and params.textDocument.uri
   if not uri then
     return nil
   end
-  local b = require("org.utils").find_buffer(vim.uri_to_fname(uri))
+  local b = util.buffer_of(vim.uri_to_fname(uri))
   return b
 end
 
@@ -205,7 +247,7 @@ N["textDocument/didChange"] = function(srv, params)
   local b = buf_of(params)
   srv.versions[params.textDocument.uri] = params.textDocument.version
   if b and srv.diagnostics then
-    srv.diagnostics.schedule(b)
+    srv.diagnostics.schedule(b, nil, true)
   end
 end
 
