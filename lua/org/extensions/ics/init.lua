@@ -98,6 +98,11 @@ local parse_errors = {}
 -- url -> true while a fetch runs; url -> error text of the last fetch
 local fetching = {}
 M.fetch_errors = {}
+-- url -> os.time() of the last failed fetch; url -> the error last warned
+-- about (a failure is retried after the refresh interval, and warned about
+-- once until it changes)
+local failed_at = {}
+local warned = {}
 
 --- Forget the parsed calendars (they are read again when next needed).
 function M.clear_cache()
@@ -194,18 +199,23 @@ function M.fetch(c, cb)
     fetching[url] = nil
     if not err then
       local fh = io.open(tmp, "rb")
-      local head = fh and fh:read(4096) or ""
+      local data = fh and fh:read("*a") or ""
       if fh then
         fh:close()
       end
-      if not head:find("BEGIN:VCALENDAR", 1, true) then
+      if not data:sub(1, 4096):find("BEGIN:VCALENDAR", 1, true) then
         err = "not an iCalendar file"
+      elseif not data:sub(-4096):find("END:VCALENDAR", 1, true) then
+        -- cut off (a dropped connection, a proxy): keep the old copy
+        err = "incomplete download (no END:VCALENDAR)"
       end
     end
     if err then
       os.remove(tmp)
       M.fetch_errors[url] = err
+      failed_at[url] = os.time()
     else
+      failed_at[url] = nil
       os.rename(tmp, file)
       M.fetch_errors[url] = nil
       parsed[file] = nil
@@ -234,11 +244,19 @@ end
 function M.refresh_stale()
   for _, c in ipairs(calendars()) do
     local url = url_of(c)
-    if url and M.stale(c) and not fetching[url] and not M.fetch_errors[url] then
+    local minutes = tonumber(c.refresh) or tonumber(opts().refresh) or 60
+    -- a failed fetch is tried again after the refresh interval, not at
+    -- every agenda redraw (nor never again)
+    local waiting = failed_at[url] and os.time() - failed_at[url] < minutes * 60
+    if url and M.stale(c) and not fetching[url] and not waiting then
       M.fetch(c, function(err)
         if err then
-          utils().warn(string.format("ics: fetching %s failed: %s", c.name, err))
+          if warned[url] ~= err then
+            warned[url] = err
+            utils().warn(string.format("ics: fetching %s failed: %s", c.name, err))
+          end
         else
+          warned[url] = nil
           redo_agenda()
         end
       end)
@@ -246,9 +264,43 @@ function M.refresh_stale()
   end
 end
 
+-- the minute timer: never raises (an error would repeat every minute)
+local function tick()
+  local ok, err = pcall(M.refresh_stale)
+  if not ok and warned.__tick ~= tostring(err) then
+    warned.__tick = tostring(err)
+    pcall(utils().error, "ics: " .. tostring(err))
+  end
+end
+M._tick = tick
+
+--- Names of the configured calendars (`:Org ics_refresh` completion).
+function M.calendar_names()
+  local out = {}
+  for _, c in ipairs(calendars()) do
+    out[#out + 1] = c.name
+  end
+  return out
+end
+
+--- `:Org ics_refresh [NAME]`: fetch one calendar, or all of them.
+---@param args? string
+function M.refresh_command(args)
+  local name = vim.trim(args or "")
+  if name == "" then
+    return M.refresh()
+  end
+  if not vim.tbl_contains(M.calendar_names(), name) then
+    utils().warn("ics: no calendar named " .. name)
+    return
+  end
+  M.refresh(nil, name)
+end
+
 --- Action `ics_refresh`: fetch every subscribed calendar now.
 ---@param done? fun(errors: table<string, string>) called when all finished
-function M.refresh(done)
+---@param only? string only the calendar of that name
+function M.refresh(done, only)
   M.clear_cache()
   local pending, errors = 0, {}
   local function finish()
@@ -266,8 +318,9 @@ function M.refresh(done)
   end
   for _, c in ipairs(calendars()) do
     local url = url_of(c)
-    if url then
+    if url and (only == nil or c.name == only) then
       M.fetch_errors[url] = nil
+      failed_at[url], warned[url] = nil, nil
       pending = pending + 1
       M.fetch(c, function(err)
         pending = pending - 1
@@ -313,9 +366,28 @@ function M.occurrences(from, to, agenda_only)
     if not (agenda_only and c.agenda == false) then
       local cal = M.load(c)
       if cal then
-        for _, occ in ipairs(parser.occurrences(cal, from, to, { timezone = o.timezone, aliases = o.tz_aliases })) do
-          occ.calendar = c
-          out[#out + 1] = occ
+        -- expanded once per calendar version, range and zone: redrawing
+        -- the agenda (or another view asking for the same days) reuses it
+        local key = table.concat({ from, to, o.timezone or "" }, ":")
+        cal.occ_cache = cal.occ_cache or { keys = {} }
+        local list = cal.occ_cache[key]
+        if not list then
+          list = parser.occurrences(cal, from, to, { timezone = o.timezone, aliases = o.tz_aliases })
+          local keys = cal.occ_cache.keys
+          keys[#keys + 1] = key
+          cal.occ_cache[key] = list
+          if #keys > 8 then
+            cal.occ_cache[table.remove(keys, 1)] = nil
+          end
+        end
+        for _, occ in ipairs(list) do
+          out[#out + 1] = {
+            event = occ.event,
+            start = occ.start,
+            stop = occ.stop,
+            all_day = occ.all_day,
+            calendar = c,
+          }
         end
       end
     end
@@ -334,12 +406,15 @@ function M.agenda_items(from, to, aopts)
     M.refresh_stale()
   end
   local items = {}
+  local titles = {}
   for _, occ in ipairs(M.occurrences(from, to, true)) do
     local c, ev = occ.calendar, occ.event
     local sd = floor(occ.start / 86400)
     local ed = occ.stop > occ.start and floor((occ.stop - 1) / 86400) or sd
     local n = ed - sd + 1
-    local title = title_of(ev, c)
+    titles[ev] = titles[ev] or title_of(ev, c)
+    local title = titles[ev]
+    local ics = { calendar = c.name, event = ev, start = occ.start, stop = occ.stop, all_day = occ.all_day }
     for d = math.max(sd, from), math.min(ed, to) do
       local i = d - sd + 1
       local item = {
@@ -348,29 +423,76 @@ function M.agenda_items(from, to, aopts)
         title = title,
         raw = title,
         category = c.category or c.name,
-        tags = vim.deepcopy(c.tags or {}),
+        tags = { unpack(c.tags or {}) },
         done = false,
         face = c.face or o.face,
         extra = n > 1 and string.format("(%d/%d): ", i, n) or "",
         day = d,
-        ics = {
-          calendar = c.name,
-          event = ev,
-          start = occ.start,
-          stop = occ.stop,
-          all_day = occ.all_day,
-        },
+        ics = ics,
       }
-      if not occ.all_day and i == 1 then
-        item.time = floor((occ.start % 86400) / 60)
-        if n == 1 and occ.stop > occ.start then
-          item.end_time = floor((occ.stop % 86400) / 60)
+      -- like an org date range: the start time on the first day, the end
+      -- time on the last (org-agenda-get-blocks)
+      if not occ.all_day then
+        if i == 1 then
+          item.time = floor((occ.start % 86400) / 60)
+          if n == 1 and occ.stop > occ.start then
+            item.end_time = floor((occ.stop % 86400) / 60)
+          end
+        elseif i == n then
+          item.time = floor((occ.stop % 86400) / 60)
         end
       end
       items[#items + 1] = item
     end
   end
   return items
+end
+
+--- The calendar events of days [from, to] (day numbers, as
+--- `org.date:days()`), for other views (sidebar, timeline...): one plain
+--- table per occurrence, sorted by start, of the calendars shown in the
+--- agenda. Times are wall times in the display zone.
+---
+--- `{ calendar, category, uid, title, summary, location, description,
+--- url, all_day, start, stop, start_day, end_day, start_time, end_time,
+--- timestamp }`: `start`/`stop` are seconds since 1970-01-01 of the wall
+--- clock (stop exclusive), `start_day`/`end_day` day numbers,
+--- `start_time`/`end_time` minutes after midnight (nil for all-day
+--- events), `timestamp` the org timestamp `ics_import` would write.
+---@param from integer
+---@param to integer
+---@return table[]
+function M.events(from, to)
+  local out = {}
+  for _, occ in ipairs(M.occurrences(from, to, true)) do
+    local c, ev = occ.calendar, occ.event
+    local ed = occ.stop > occ.start and floor((occ.stop - 1) / 86400) or floor(occ.start / 86400)
+    out[#out + 1] = {
+      calendar = c.name,
+      category = c.category or c.name,
+      uid = ev.uid,
+      title = title_of(ev, c),
+      summary = ev.summary,
+      location = ev.location,
+      description = ev.description,
+      url = ev.url,
+      all_day = occ.all_day,
+      start = occ.start,
+      stop = occ.stop,
+      start_day = floor(occ.start / 86400),
+      end_day = ed,
+      start_time = not occ.all_day and floor((occ.start % 86400) / 60) or nil,
+      end_time = not occ.all_day and floor((occ.stop % 86400) / 60) or nil,
+      timestamp = M.timestamp(occ),
+    }
+  end
+  table.sort(out, function(a, b)
+    if a.start ~= b.start then
+      return a.start < b.start
+    end
+    return a.title < b.title
+  end)
+  return out
 end
 
 ---------------------------------------------------------------------------
@@ -427,6 +549,10 @@ function M.entry_lines(occ, level)
   end
   if ev.uid ~= "" then
     props[#props + 1] = { "ICS_UID", ev.uid }
+    local rid = M.recurrence_key(occ)
+    if rid then
+      props[#props + 1] = { "ICS_RECURRENCE_ID", rid }
+    end
   end
   if #props > 0 then
     lines[#lines + 1] = ":PROPERTIES:"
@@ -445,7 +571,38 @@ function M.entry_lines(occ, level)
   return lines
 end
 
---- Append the heading of `occ` to the import file.
+--- For an occurrence of a recurring event, the `ICS_RECURRENCE_ID` that
+--- tells it from the event's other occurrences (its local start,
+--- `20261005T100000`); nil for a single event.
+function M.recurrence_key(occ)
+  local ev = occ.event
+  if not (ev.rrule or #(ev.rdates or {}) > 0 or ev.recurrence_id) then
+    return nil
+  end
+  local c = parser.civil(occ.start)
+  return string.format("%04d%02d%02dT%02d%02d%02d", c.year, c.month, c.day, c.hour, c.min, c.sec)
+end
+
+-- The heading of `lines` imported from occurrence `occ` (same ICS_UID and
+-- ICS_RECURRENCE_ID), or nil.
+local function imported(lines, occ)
+  if (occ.event.uid or "") == "" then
+    return nil
+  end
+  local rid = M.recurrence_key(occ)
+  for _, hl in ipairs(require("org.parser").parse(lines).headlines) do
+    local p = hl.properties or {}
+    if p.ICS_UID == occ.event.uid and p.ICS_RECURRENCE_ID == rid then
+      return hl
+    end
+  end
+  return nil
+end
+
+--- Append the heading of `occ` to the import file. An event imported
+--- before (same `ICS_UID`, and `ICS_RECURRENCE_ID` for one occurrence of a
+--- recurring event) is not added again: its timestamp line is updated when
+--- the event moved.
 ---@return string|nil file
 function M.import_occurrence(occ)
   local o = opts()
@@ -458,6 +615,28 @@ function M.import_occurrence(occ)
   local u = utils()
   local buf = u.find_buffer(file) or u.load_buffer(file)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local old = imported(lines, occ)
+  if old then
+    local stamp = M.timestamp(occ)
+    local where = vim.fn.fnamemodify(file, ":~") .. ":" .. old.line
+    for i = old.line + 1, old.body_end or old.line do
+      if lines[i]:match("^%s*<%d%d%d%d%-%d%d%-%d%d[^>]*>[-<>%d%s%a:]*$") then
+        if vim.trim(lines[i]) == stamp then
+          u.notify(string.format('ics: "%s" is already imported (%s)', occ.event.summary, where))
+        else
+          local indent = lines[i]:match("^(%s*)")
+          vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { indent .. stamp })
+          vim.api.nvim_buf_call(buf, function()
+            vim.cmd("silent write")
+          end)
+          u.notify(string.format('ics: updated the time of "%s" (%s)', occ.event.summary, where))
+        end
+        return file
+      end
+    end
+    u.notify(string.format('ics: "%s" is already imported (%s)', occ.event.summary, where))
+    return file
+  end
   local add = M.entry_lines(occ)
   if #lines == 1 and lines[1] == "" then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, add)
@@ -513,33 +692,50 @@ end
 
 local timer
 
+local function stop_timer()
+  if timer then
+    pcall(timer.stop, timer)
+    pcall(timer.close, timer)
+    timer = nil
+  end
+end
+
 function M.setup(o)
   require("org.agenda.items").day_sources.ics = M.agenda_items
   M.clear_cache()
   M.fetch_errors = {}
+  failed_at, warned = {}, {}
+  stop_timer()
   if o.auto_refresh then
     local has_url = false
     for _, c in ipairs(calendars()) do
       has_url = has_url or url_of(c) ~= nil
     end
     if has_url then
-      vim.schedule(M.refresh_stale)
+      vim.schedule(tick)
       timer = vim.uv.new_timer()
-      timer:start(60000, 60000, vim.schedule_wrap(M.refresh_stale))
+      timer:start(60000, 60000, vim.schedule_wrap(tick))
     end
   end
 end
+
+M.commands = {
+  ics_refresh = {
+    MOD,
+    "refresh_command",
+    desc = "Fetch the subscribed calendars again: :Org ics_refresh [calendar]",
+    complete = function()
+      return M.calendar_names()
+    end,
+  },
+}
 
 function M.teardown()
   local items = require("org.agenda.items")
   if items.day_sources.ics == M.agenda_items then
     items.day_sources.ics = nil
   end
-  if timer then
-    timer:stop()
-    timer:close()
-    timer = nil
-  end
+  stop_timer()
   M.clear_cache()
 end
 

@@ -13,3 +13,6 @@
 ---Format of `org clock status --short`: %t heading, %e elapsed, %T total
 ---with earlier clocks, %E effort, %f file, %s start. (default: `"%e %t"`)
 ---@field status_format? string
+---Follow `org clock in/out/cancel` run from a shell: rereads the files and
+---takes up or drops the running clock. (default: `true`)
+---@field watch_clock? boolean

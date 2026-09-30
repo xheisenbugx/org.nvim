@@ -31,8 +31,14 @@ M.defaults = {
   --- Preview the result image inline after a diagram block runs (needs an
   --- image backend, see :h org-images).
   auto_preview = true,
-  --- Render every diagram block of an org buffer when it is written.
+  --- Render every diagram block of an org buffer after it is written, in
+  --- the background; the results are saved when nothing else changed.
   render_on_save = false,
+  --- Cache pruning (at startup): drop entries unused for this many days,
+  --- then the least recently used ones beyond this many megabytes (nil or
+  --- false: no limit).
+  cache_max_age = 90,
+  cache_max_size = 200,
 }
 
 M.actions = {
@@ -40,6 +46,18 @@ M.actions = {
   diagrams_rerender = { MOD, "rerender", desc = "Render the diagram block at point, ignoring the cache" },
   diagrams_render_buffer = { MOD, "render_buffer", desc = "Render every diagram block of the buffer" },
   diagrams_clear_cache = { MOD, "clear_cache", desc = "Delete the rendered-diagram cache" },
+  diagrams_clean = { MOD, "clean", desc = "Delete generated diagrams no org file of this directory links to" },
+}
+
+M.commands = {
+  diagrams_clean = {
+    MOD,
+    "clean_command",
+    desc = "Delete unreferenced generated diagrams: :Org diagrams_clean [dry]",
+    complete = function()
+      return { "dry" }
+    end,
+  },
 }
 
 local function opts()
@@ -143,6 +161,98 @@ function M.render_buffer(bufnr)
   return n
 end
 
+-- buffers being rendered after a save (and whether another save came in
+-- meanwhile); buffers being written by us
+local rendering, saving = {}, {}
+
+-- The buffer's text without the #+RESULTS sections (and blank lines,
+-- which results bring along): equal before and after the renders when
+-- only results changed.
+local function without_results(bufnr)
+  local out, skip = {}, false
+  for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    if l:match("^%s*#%+[Rr][Ee][Ss][Uu][Ll][Tt][Ss]") then
+      skip = true
+    elseif not l:find("%S") then
+      skip = false
+    elseif not skip then
+      out[#out + 1] = l
+    end
+  end
+  return table.concat(out, "\n")
+end
+
+--- `render_on_save`: after `bufnr` was written, render its diagram blocks
+--- one after the other in the background (Neovim stays responsive while
+--- mmdc or dot run; unchanged diagrams come from the cache). When the
+--- results changed the buffer and nothing else did meanwhile, it is
+--- written again; after your own edits it is left modified. Calls
+--- `on_done(n)` with the number of blocks run.
+---@param bufnr integer
+---@param on_done? fun(n: integer)
+function M.render_after_save(bufnr, on_done)
+  if rendering[bufnr] then
+    rendering[bufnr].again = true
+    return
+  end
+  if not vim.api.nvim_buf_is_valid(bufnr) or vim.bo[bufnr].filetype ~= "org" then
+    return
+  end
+  local blocks = runnable_blocks(bufnr)
+  if #blocks == 0 then
+    if on_done then
+      on_done(0)
+    end
+    return
+  end
+  local babel = require("org.babel")
+  local state = { again = false }
+  rendering[bufnr] = state
+  local before = without_results(bufnr)
+  local i = 0
+  local function finish()
+    rendering[bufnr] = nil
+    local valid = vim.api.nvim_buf_is_valid(bufnr)
+    -- written again only when nothing but results changed
+    if valid and vim.bo[bufnr].modified and without_results(bufnr) == before then
+      saving[bufnr] = true
+      pcall(vim.api.nvim_buf_call, bufnr, function()
+        vim.cmd("silent write")
+      end)
+      saving[bufnr] = nil
+    end
+    if on_done then
+      on_done(i)
+    end
+    if state.again then
+      M.render_after_save(bufnr)
+    end
+  end
+  local function nxt()
+    i = i + 1
+    local b = blocks[i]
+    if not b or not vim.api.nvim_buf_is_valid(bufnr) then
+      i = i - 1
+      return finish()
+    end
+    -- go on once the block is done (or failed, or never answers)
+    local went = false
+    local function go()
+      if not went then
+        went = true
+        vim.schedule(nxt)
+      end
+    end
+    local timeout = tonumber(require("org.config").opts.babel.timeout) or 0
+    vim.defer_fn(go, (timeout > 0 and timeout or 120000) + 1000)
+    local ok = pcall(babel.execute, { bufnr = bufnr, lnum = b.start, skip_confirm = true, on_done = go })
+    if not ok then
+      go()
+    end
+  end
+  nxt()
+end
+
 --- Delete the cached diagrams.
 function M.clear_cache()
   local dir = require("org.utils").expand(opts().cache_dir)
@@ -154,6 +264,151 @@ function M.clear_cache()
   end
   require("org.utils").notify(string.format("diagrams: removed %d cached file(s)", n))
   return n
+end
+
+--- Prune the cache: files unused for `max_age` days, then the least
+--- recently used beyond `max_size` megabytes. Returns the count removed.
+---@param max_age? number|false days (default: the `cache_max_age` option)
+---@param max_size? number|false megabytes (default: `cache_max_size`)
+function M.prune_cache(max_age, max_size)
+  local o = opts()
+  if max_age == nil then
+    max_age = o.cache_max_age
+  end
+  if max_size == nil then
+    max_size = o.cache_max_size
+  end
+  local dir = require("org.utils").expand(o.cache_dir)
+  local entries = {}
+  local handle = vim.uv.fs_scandir(dir)
+  while handle do
+    local name, kind = vim.uv.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+    if kind == "file" then
+      local path = dir .. "/" .. name
+      local st = vim.uv.fs_stat(path)
+      if st then
+        entries[#entries + 1] = { path = path, time = st.mtime.sec, size = st.size }
+      end
+    end
+  end
+  table.sort(entries, function(a, b)
+    return a.time > b.time
+  end)
+  local n, total = 0, 0
+  local now = os.time()
+  for _, e in ipairs(entries) do
+    local old = tonumber(max_age) and now - e.time > max_age * 86400
+    local big = tonumber(max_size) and total + e.size > max_size * 1024 * 1024
+    if old or big then
+      if os.remove(e.path) then
+        n = n + 1
+      end
+    else
+      total = total + e.size
+    end
+  end
+  return n
+end
+
+-- A generated file name: LANG-HASH8.EXT
+local GENERATED = { mermaid = true, dot = true, plantuml = true }
+local function generated(name)
+  local lang = name:match("^(%a+)%-%x%x%x%x%x%x%x%x%.[%w]+$")
+  return lang and GENERATED[lang] or false
+end
+
+--- Generated diagrams (`output_dir/LANG-HASH8.EXT`) of the directory of
+--- `bufnr`'s file that none of the org files there links to or names in
+--- `:file`: `{ path }`, and the directory.
+---@param bufnr? integer
+---@return string[] unused, string|nil dir
+function M.unreferenced(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local file = vim.api.nvim_buf_get_name(bufnr)
+  if file == "" then
+    return {}, nil
+  end
+  local base = vim.fn.fnamemodify(file, ":p:h")
+  local out_dir = opts().output_dir or ""
+  local dir = out_dir ~= "" and require("org.utils").expand(out_dir, base) or base
+  if not dir:match("^/") then
+    dir = base .. "/" .. dir
+  end
+  if vim.fn.isdirectory(dir) == 0 then
+    return {}, dir
+  end
+  -- every org file of the directory may use the same output_dir: the
+  -- names they mention (buffers win over the files on disk)
+  local text, seen = {}, {}
+  -- loaded buffers of the directory (unsaved text counts), this one too
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(b)
+    if vim.api.nvim_buf_is_loaded(b) and (b == bufnr or vim.fn.fnamemodify(name, ":p:h") == base) then
+      if b == bufnr or name:match("%.org$") or name:match("%.org_archive$") then
+        seen[vim.fn.fnamemodify(name, ":p")] = true
+        text[#text + 1] = table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n")
+      end
+    end
+  end
+  for _, f in ipairs(vim.fn.glob(base .. "/*.org", true, true)) do
+    if not seen[vim.fn.fnamemodify(f, ":p")] then
+      local fh = io.open(f, "rb")
+      if fh then
+        text[#text + 1] = fh:read("*a")
+        fh:close()
+      end
+    end
+  end
+  local all = table.concat(text, "\n")
+  local unused = {}
+  for _, name in ipairs(vim.fn.readdir(dir)) do
+    if generated(name) and not all:find(name, 1, true) then
+      unused[#unused + 1] = dir .. "/" .. name
+    end
+  end
+  table.sort(unused)
+  return unused, dir
+end
+
+--- Delete the generated diagrams of the current file's directory that no
+--- org file there refers to (asks first). With `dry`, only list them.
+---@param dry? boolean
+function M.clean(dry)
+  local utils = require("org.utils")
+  local unused, dir = M.unreferenced(0)
+  if #unused == 0 then
+    utils.notify("diagrams: no unused diagrams" .. (dir and (" in " .. vim.fn.fnamemodify(dir, ":~")) or ""))
+    return 0
+  end
+  local names = vim.tbl_map(function(p)
+    return vim.fn.fnamemodify(p, ":t")
+  end, unused)
+  if dry == true then
+    utils.notify("diagrams: unused in " .. vim.fn.fnamemodify(dir, ":~") .. ": " .. table.concat(names, ", "))
+    return #unused
+  end
+  local choice = utils.select({ "Yes", "No" }, {
+    prompt = string.format("Delete %d unused diagram(s) in %s?", #unused, vim.fn.fnamemodify(dir, ":~")),
+  })
+  if choice ~= "Yes" then
+    return 0
+  end
+  local n = 0
+  for _, p in ipairs(unused) do
+    if os.remove(p) then
+      n = n + 1
+    end
+  end
+  utils.notify(string.format("diagrams: removed %d unused diagram(s)", n))
+  return n
+end
+
+--- `:Org diagrams_clean [dry]`.
+function M.clean_command(args)
+  return M.clean(vim.trim(args or "") == "dry")
 end
 
 ---------------------------------------------------------------------------
@@ -219,18 +474,23 @@ function M.setup(o)
     pattern = "OrgBabelAfterExecute",
     callback = on_executed,
   })
-  vim.api.nvim_create_autocmd("BufWritePre", {
+  vim.api.nvim_create_autocmd("BufWritePost", {
     group = group,
     pattern = { "*.org", "*.org_archive" },
     callback = function(ev)
-      if opts().render_on_save then
-        local ok, err = pcall(M.render_buffer, ev.buf)
+      if opts().render_on_save and not saving[ev.buf] then
+        local ok, err = pcall(M.render_after_save, ev.buf)
         if not ok then
           require("org.utils").error("diagrams: " .. tostring(err))
         end
       end
     end,
   })
+  if o.cache and (o.cache_max_age or o.cache_max_size) then
+    vim.defer_fn(function()
+      pcall(M.prune_cache)
+    end, 2000)
+  end
 end
 
 function M.teardown()

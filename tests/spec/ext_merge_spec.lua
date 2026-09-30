@@ -550,13 +550,20 @@ describe("merge extension: setup", function()
     eq("org", require("org.extensions").opts("merge").driver_name)
   end)
 
-  it("builds the driver command from the options", function()
+  it("builds the driver command without the options, which go to the git config", function()
     local ext = require("org.extensions.merge")
-    local cmd = ext.driver_command(vim.tbl_extend("force", ext.defaults, { prefer = "theirs", sort_logbook = false }))
+    local o = vim.tbl_extend("force", ext.defaults, { prefer = "theirs", sort_logbook = false })
+    local cmd = ext.driver_command(o)
     ok(cmd:find("driver.lua", 1, true))
-    ok(cmd:find("--prefer=theirs", 1, true))
-    ok(cmd:find("--no-sort-logbook", 1, true))
-    ok(cmd:find("--marker-size=%L %O %A %B %P", 1, true))
+    ok(not cmd:find("--prefer", 1, true))
+    ok(cmd:find("--name=org", 1, true))
+    ok(cmd:find("--marker-size=%L --base-label=%S --ours-label=%X --theirs-label=%Y %O %A %B %P", 1, true))
+    local values = {}
+    for _, kv in ipairs(ext.config_values(o)) do
+      values[kv[1]] = kv[2]
+    end
+    eq({ "theirs" }, values.prefer)
+    eq({ "false" }, values.sortLogbook)
   end)
 
   it("passes custom TODO keywords to the driver", function()
@@ -564,9 +571,15 @@ describe("merge extension: setup", function()
     local config = require("org.config").opts
     local saved = config.todo_keywords
     config.todo_keywords = { "TODO NEXT | DONE" }
-    local cmd = ext.driver_command(ext.defaults)
+    local values = ext.config_values(ext.defaults)
     config.todo_keywords = saved
-    ok(cmd:find("--todo=TODO NEXT | DONE", 1, true))
+    local todo
+    for _, kv in ipairs(values) do
+      if kv[1] == "todo" then
+        todo = kv[2]
+      end
+    end
+    eq({ "TODO NEXT | DONE" }, todo)
   end)
 end)
 
@@ -577,7 +590,17 @@ describe("merge extension: git", function()
   local ext = require("org.extensions.merge")
 
   local function git(dir, ...)
-    local cmd = { "git", "-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false" }
+    local cmd = {
+      "git",
+      "-c",
+      "user.name=T",
+      "-c",
+      "user.email=t@example.com",
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "merge.conflictStyle=merge",
+    }
     return run(vim.list_extend(cmd, { ... }), dir)
   end
 
@@ -681,7 +704,14 @@ describe("merge extension: git", function()
     eq(1, code)
     local lines = vim.fn.readfile(dir .. "/tasks.org")
     ok(has_markers(lines))
-    eq(vim.fn.readfile(d .. "expected.org"), lines)
+    -- git passes the branch names as labels (%X, %Y) since 2.44
+    local expected = vim.fn.readfile(d .. "expected.org")
+    if vim.tbl_contains(lines, "<<<<<<< HEAD") then
+      expected = vim.tbl_map(function(l)
+        return l == "<<<<<<< ours" and "<<<<<<< HEAD" or l == ">>>>>>> theirs" and ">>>>>>> topic" or l
+      end, expected)
+    end
+    eq(expected, lines)
     local _, status = git(dir, "status", "--porcelain")
     ok(status:find("UU tasks.org", 1, true))
     vim.fn.delete(dir, "rf")

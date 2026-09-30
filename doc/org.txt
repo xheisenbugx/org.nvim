@@ -8123,40 +8123,52 @@ conflict is marked inside the one entry it is about:
     require("org").setup({ extensions = { merge = true } })
 <
 `:Org merge_install` (action `merge_install`) sets the driver up for the
-git repository of the current file. It asks where the attribute goes:
+git repository of the current file. It asks where the attribute goes (or
+takes it as an argument, `:Org merge_install info`):
 
   `.gitattributes`        committed, so every clone asks for the driver
   `.git/info/attributes`  this clone only
 
-and in both cases writes `merge.org.name` and `merge.org.driver` to the
-repository's `.git/config` (git never reads a driver command from a
-committed file, so each clone installs it once). `merge_uninstall` removes
-the attribute lines and the config section again.
+and in both cases writes `merge.org.name`, `merge.org.driver` and the
+options (below) to the repository's `.git/config` (git never reads a
+driver command from a committed file, so each clone installs it once).
+`merge_uninstall` removes the attribute lines and the config section again.
 
 The driver is `lua/org/extensions/merge/driver.lua`, a script run with
 `nvim --headless -u NONE -i NONE -l`, so it needs nothing but Neovim 0.10+
 and can be set up by hand. `bin/org-merge` in the plugin directory wraps
 that command:
 >sh
-    git config merge.org.driver \
-      "~/org.nvim/bin/org-merge --marker-size=%L %O %A %B %P"
+    git config merge.org.driver "~/org.nvim/bin/org-merge \
+      --marker-size=%L --ours-label=%X --theirs-label=%Y %O %A %B %P"
     echo '*.org merge=org' >> .gitattributes
 <
 The driver writes the merge to %A and exits 0 when it is clean, 1 when it
 left conflict markers (git then reports the file as conflicted, as usual).
+Conflict markers carry the labels git passes (%X and %Y: `HEAD` and the
+branch being merged, git 2.44 or later; "ours" and "theirs" before), and
+with `merge.conflictStyle` set to `diff3` or `zdiff3` a text conflict also
+shows the base lines.
 
 How entries are merged ~
 Each version (the common ancestor, ours and theirs) is parsed into its tree
 of headlines. An entry is the same entry in all three when it has the same
-`ID` (or `CUSTOM_ID`) property, else the same outline path and title; an
+`ID` (or `CUSTOM_ID`) property, else the same outline path and title. An
 entry renamed on one side is still recognised when the rest of it did not
-change. Then:
+change, when its text stayed similar (`rename_similarity`: that share of
+its lines, drawers and child titles is unchanged), or, for a headline
+without text, when it sits between the same two neighbours. An entry that
+got an `ID` on one side (as org-roam does) is matched by its title. Then:
 
   - Changes to different entries never conflict, even on adjacent lines.
   - An entry moved or refiled to another parent (by ID) or reordered is
     followed, with the levels of its subtree adjusted, while the other
     side's edits to it are kept. Without an ID a move is a delete plus an
     add, which merges cleanly when the other side left the entry alone.
+  - An entry moved to different parents on both sides conflicts at both
+    places: the merged entry on the ours side of markers under ours'
+    parent, theirs' copy on the theirs side under theirs' parent. Keep one
+    side of each (or set `prefer`).
   - The TODO keyword, priority, COMMENT, title and each planning keyword
     (SCHEDULED, DEADLINE, CLOSED) are merged as values: a change on one
     side wins; different changes on both sides conflict. CLOSED goes with
@@ -8164,9 +8176,11 @@ change. Then:
   - Tags: added tags from both sides are kept, removed ones stay removed.
   - The property drawer is merged key by key; a key changed differently on
     both sides conflicts on that line only.
-  - LOGBOOK items (CLOCK lines, state changes and notes) of both sides are
-    kept, removed ones stay removed, and they are sorted newest first when
-    both sides added some.
+  - Log drawers right after the planning line and properties are merged
+    item by item: LOGBOOK, the drawers named by `log_into_drawer` and
+    `clock.into_drawer`, and `set_drawers`. Items (CLOCK lines, state
+    changes and notes) of both sides are kept, removed ones stay removed,
+    and they are sorted newest first when both sides added some.
   - The rest of the entry is merged line by line (diff3); changes to the
     same or adjacent lines conflict, like git.
   - An entry deleted on one side and changed on the other conflicts: the
@@ -8174,47 +8188,66 @@ change. Then:
   - The text before the first headline is merged line by line.
 
 With `prefer = "ours"` or `"theirs"`, conflicting headline fields,
-planning keywords and properties take that side instead of markers. Body
-text conflicts always get markers.
+planning keywords, properties and moves take that side instead of markers.
+Body text conflicts always get markers.
 
 Conflict markers wrap only the lines in conflict (the headline and
 planning line of one entry, one property line, or a few lines of text):
 >
-    <<<<<<< ours
+    <<<<<<< HEAD
     * WAITING Plan the offsite                                    :team:
     =======
     * DONE Plan the offsite                                       :team:
     CLOSED: [2026-09-29 Tue 18:10]
-    >>>>>>> theirs
+    >>>>>>> phone
     Venue ideas.
 <
+Files with CRLF line ends or a UTF-8 BOM keep them. An ID used by two
+entries keeps both (they are matched in file order).
+
 Options ~
   `driver_name`         name in git: `merge=<name>`, `merge.<name>.driver`
                         ("org")
   `patterns`            patterns given the driver by `merge_install`
                         ({ "*.org" })
-  `prefer`              "ours" or "theirs" for headline, planning and
-                        property conflicts; nil writes markers (nil)
-  `sort_logbook`        sort merged LOGBOOK items newest first (true)
+  `prefer`              "ours" or "theirs" for headline, planning,
+                        property and move conflicts; nil writes markers
+                        (nil)
+  `sort_logbook`        sort merged log drawer items newest first (true)
   `pass_todo_keywords`  give the driver your `todo_keywords`, so custom
                         keywords are read as keywords (true)
+  `set_drawers`         more drawers merged item by item ({})
+  `rename_similarity`   share (0..1) of an entry's lines that must stay
+                        for a renamed and edited entry to be matched; false
+                        only matches an otherwise unchanged one (0.6)
   `config_file`         a Lua file the driver runs before merging (nil)
 
-The options are written into the driver command by `merge_install`
-(`--prefer=`, `--no-sort-logbook`, `--todo=`, `--config=`): run it again
-after changing them. `#+TODO:` lines in the files themselves are always
-read. `:checkhealth org` shows whether git is found, whether the driver is
-installed in the current repository, and the command it would install.
+The driver reads its options from the repository's git config when it
+runs, so they can be changed without installing again:
+>sh
+    git config merge.org.prefer theirs
+    git config merge.org.sortLogbook false
+    git config --add merge.org.todo "TODO NEXT | DONE"   # repeatable
+    git config --add merge.org.setDrawers NOTES          # repeatable
+    git config merge.org.renameSimilarity 0.8
+    git config merge.org.config ~/.config/nvim/org-merge.lua
+<
+`merge_install` writes these from the options above. The driver's own
+flags (`--prefer=`, `--no-sort-logbook`, `--todo=`, `--set-drawer=`,
+`--rename-similarity=`, `--config=`) win over the git config, and
+`--no-git-config` ignores it. `#+TODO:` lines in the files themselves are
+always read. `:checkhealth org` shows whether git is found, whether the
+driver is installed in the current repository, and the command it would
+install. A merge of 5,000 headings takes a fraction of a second.
 
 Limits ~
-  - Two entries without IDs are matched by title under the same parent, so
-    a title changed on one side and the body on the other is only matched
-    when nothing but the title changed.
-  - An entry moved to different parents on both sides goes where ours put
-    it.
-  - Only the LOGBOOK drawer right after the planning line and properties
-    is merged item by item; other drawers are text.
-  - Conflict labels are "ours" and "theirs", not branch names.
+  - Renames are recognised among the children of one parent. Entries with
+    nearly the same text under one parent (say, a template) can be taken
+    for a rename when one is deleted and another added on the same side;
+    `rename_similarity = false` turns the similarity match off.
+  - Only the drawers right after the planning line and properties are
+    merged item by item; a drawer further down is text.
+  - Before git 2.44 the labels are "ours" and "theirs".
 
 ------------------------------------------------------------------------------
 iCalendar subscriptions                                   *org-extensions-ics*
@@ -8238,12 +8271,18 @@ Each calendar takes `name`, `url` or `path`, and optionally `category`
 (the agenda's category column, default the name), `tags` (for agenda tag
 filters), `refresh` (minutes), `face` and `agenda = false` (import only).
 
-Events appear in agenda day and week views (not in lists such as the TODO
-list, and not in agendas restricted to a file or subtree), with their times
-in the time grid, the calendar's category and, with `show_location`, the
-location after the title. An all-day event spanning days shows `(1/3):`
-like an org date range. They are added after the diary; like diary lines
-they can't be edited or visited from the agenda.
+Events appear in agenda day and week views with their times in the time
+grid, the calendar's category and, with `show_location`, the location
+after the title. An event spanning days (all-day, or timed and crossing
+midnight) shows `(1/3):` like an org date range: a timed one with its
+start time on the first day and its end time on the last. They are added
+after the diary; like diary lines they can't be edited or visited from the
+agenda. They are left out of lists such as the TODO list, and of agendas
+restricted to a file or subtree (`<` in the dispatcher): a calendar is not
+part of any org file, so a restriction to one leaves it out, like the
+diary. The expansion of a calendar is kept per date range and display
+zone until the file changes, so redrawing an agenda doesn't expand it
+again.
 
 Subscriptions ~
 A calendar with a `url` is fetched with `curl` in the background into
@@ -8251,19 +8290,23 @@ A calendar with a `url` is fetched with `curl` in the background into
 whenever the copy is older than `refresh` minutes (checked every minute and
 when an agenda is built); an open agenda is redrawn when new data arrives.
 The agenda always reads the cached copy, so it works offline. A failed
-fetch, or a reply that isn't iCalendar (a login page), keeps the old copy
-and is reported once. `auto_refresh = false` fetches only on
+fetch, a reply that isn't iCalendar (a login page) or one cut off before
+`END:VCALENDAR` keeps the old copy, is reported once, and is tried again
+after `refresh` minutes. `auto_refresh = false` fetches only on
 `:Org ics_refresh`. `webcal://` is fetched as `https://`.
 
 Actions ~
-  `ics_refresh`   fetch every subscribed calendar now and redraw the agenda
+  `ics_refresh`   fetch every subscribed calendar now and redraw the agenda;
+                `:Org ics_refresh NAME` fetches one (names complete)
   `ics_import`    on an agenda line of an event: add it to `import_file` as
                 a heading with its timestamp, LOCATION, URL, CALENDAR and
                 ICS_UID properties and the description as body text.
                 Elsewhere: pick one of the next `import_days` days' events
                 with |vim.ui.select()|. Only that occurrence of a
-                repeating event is copied; importing twice adds two
-                headings.
+                repeating event is copied (with an ICS_RECURRENCE_ID
+                property). An event already imported (same ICS_UID and
+                ICS_RECURRENCE_ID) is not added again; when its time
+                changed, the timestamp line of that heading is updated.
 
 Neither has a default key; map them in `mappings` or run them with `:Org`.
 
@@ -8271,14 +8314,16 @@ What is read ~
   - Line unfolding, text escapes, VEVENT with DTSTART and DTEND or
     DURATION: dates (`VALUE=DATE`, all day), UTC times (`...Z`), floating
     times and `TZID=` times.
-  - RRULE with FREQ DAILY, WEEKLY, MONTHLY or YEARLY and INTERVAL, COUNT,
-    UNTIL, BYDAY (`MO`, `2TU`, `-1FR`), BYMONTHDAY, BYMONTH, BYYEARDAY,
-    BYSETPOS and WKST; RDATE; EXDATE.
+  - RRULE with FREQ YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY or
+    SECONDLY and INTERVAL, COUNT, UNTIL, BYDAY (`MO`, `2TU`, `-1FR`),
+    BYMONTHDAY, BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS
+    and WKST; RDATE; EXDATE. A yearly Feb 29 skips non-leap years.
   - RECURRENCE-ID: a changed or cancelled instance replaces the one it
     overrides.
   - `STATUS:CANCELLED` events are left out.
-  Not read: BYWEEKNO, BYHOUR, BYMINUTE and BYSECOND (ignored), VTODO,
-  VJOURNAL, VALARM, attendees and free/busy.
+  Not read: BYWEEKNO (ignored), RDATE periods, VTODO, VJOURNAL, VALARM
+  (no reminders), attendees and free/busy. A HOURLY or finer rule is
+  expanded up to 100,000 steps per range.
 
 Time zones ~
 Times are shown in the system's local zone, or in `timezone` (an IANA name
@@ -8286,8 +8331,11 @@ such as "Europe/Paris") when set. A `TZID` is resolved, in order, as:
   1. a name from `tz_aliases`, your own `{ TZID = "IANA/Name" }` table;
   2. a zone of the system time zone database (`/usr/share/zoneinfo` or
      `$TZDIR`), also inside Mozilla-style paths such as
-     `/mozilla.org/20050126_1/Europe/Berlin`; the conversion uses `TZ=` and
-     the C library, so daylight saving time follows the system's rules;
+     `/mozilla.org/20050126_1/Europe/Berlin`; its zoneinfo (TZif) file is
+     read in Lua, transitions and the rule for later years, so daylight
+     saving time follows the system's rules (a time skipped by a change
+     uses the offset before it, a repeated one is its first occurrence, as
+     RFC 5545 says);
   3. the calendar's own VTIMEZONE (STANDARD and DAYLIGHT rules);
   4. a built-in table of common Windows zone names ("W. Europe Standard
      Time", "Pacific Standard Time", ...) sent by Outlook and Exchange.
@@ -8315,6 +8363,14 @@ Options ~
 The parser is usable on its own:
 `require("org.extensions.ics.parser").parse(text)` returns the events, and
 `.occurrences(calendar, from_day, to_day, { timezone = ... })` expands them.
+Other views read the configured calendars with
+`require("org.extensions.ics").events(from_day, to_day)` (day numbers as
+`org.date:days()`): plain tables sorted by start, with `calendar`,
+`category`, `uid`, `title`, `summary`, `location`, `description`, `url`,
+`all_day`, `start`/`stop` (wall-clock seconds, stop exclusive),
+`start_day`/`end_day`, `start_time`/`end_time` (minutes, nil when all day)
+and `timestamp` (the org timestamp). The agenda's source is
+`require("org.agenda.items").day_sources.ics`.
 
 `:checkhealth org` shows each calendar's event count and fetch age, failed
 fetches, unknown zones, and whether `curl` is installed (needed only for
@@ -8330,8 +8386,9 @@ Raycast. Link it onto your $PATH:
 >sh
     ln -s /path/to/org.nvim/bin/org ~/.local/bin/org
 <
-or enable the extension and run `:Org cli_install`, which asks before
-linking `bin/org` into `install_dir`:
+or enable the extension and run `:Org cli_install` (or `:Org cli_install
+DIR`, directories complete), which asks before linking `bin/org` into
+`install_dir`:
 >lua
     require("org").setup({ extensions = { cli = { install_dir = "~/bin" } } })
 <
@@ -8387,11 +8444,13 @@ Commands ~
     `--format` expands %e (elapsed), %t (heading), %T (total with earlier
     clocks), %E (effort), %f (file) and %s (start), and prints nothing
     without a clock; `--short` uses `status_format`.
-`org clock in QUERY`
+`org clock in [--pick N] QUERY`
     Clock in the agenda-file heading whose title contains QUERY (ignoring
-    case; an exact title wins), or `id:ID`, or an org-ql query when the
-    `ql` extension is enabled. Several matches are listed and nothing is
-    clocked.
+    case; an exact title wins), whose ID is QUERY (or `id:ID`), or an
+    org-ql query when the `ql` extension is enabled. `FILE::HEADING`
+    looks only in that agenda file (a path, a file name or a name without
+    `.org`; `home.org::*Groceries` as in a link). Several matches are
+    listed with numbers and nothing is clocked; `--pick N` takes the Nth.
 `org clock out` / `org clock cancel`
     Clock out of (or cancel) the running clock.
 `org search QUERY... [--json]`
@@ -8445,16 +8504,25 @@ Options (`extensions.cli`) ~
   `install_dir`        where `cli_install` links `org` ("~/.local/bin")
   `capture_template`   template key of `org capture` without `-t` (nil)
   `status_format`      format of `org clock status --short` ("%e %t")
+  `watch_clock`        a running Neovim follows the shell's clock (true)
+
+Clock in the shell and in Neovim ~
+`org clock in`, `out` and `cancel` touch `stdpath("data")/org/cli-clock.stamp`.
+A Neovim with the extension enabled (and `watch_clock`) checks that file
+every two seconds and on |FocusGained|; when it changed, Neovim rereads
+changed files (|:checktime|), drops its running clock when the open CLOCK
+line is gone, or takes up an open CLOCK line of the agenda files, and says
+so. `org clock status` sees a clock started in Neovim, from
+`clock.persist_file` or the saved CLOCK line.
 
 Limits ~
-  - Each call starts Neovim and parses the agenda files: fast enough for
-    a status bar every few seconds, not for a tight loop.
+  - Each call starts Neovim and parses the agenda files: about 0.25 s for
+    200 files of 25 entries each (the agenda itself is most of it, so a
+    parse cache would gain little), fine for a status bar every few
+    seconds, not for a tight loop.
   - The CLI edits files on disk. A Neovim that has the same file open
-    sees the change as a file changed outside it ('autoread'). A running
-    Neovim does not learn about a clock started by `org clock in` (its
-    clock state is read at startup); `org clock status` does see a clock
-    started in Neovim, from `clock.persist_file` or the saved CLOCK line.
-  - `org clock in` has no task picker: QUERY must match one heading.
+    sees the change as a file changed outside it ('autoread'); a buffer
+    with unsaved changes asks as usual.
 
 ------------------------------------------------------------------------------
 Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*
@@ -8497,16 +8565,32 @@ Beyond Emacs ~
   - Rendered diagrams are cached in `cache_dir` by a hash of the language,
     the command and options, the output format and the expanded body. An
     unchanged diagram is copied from the cache instead of being rendered
-    again. `:Org diagrams_rerender` renders the block at point without the
-    cache and `:Org diagrams_clear_cache` empties it.
+    again. For plantuml the key also covers the files the text pulls in
+    with `!include` (`!include_once`, `!include_many`, `!includesub`;
+    local files, four levels deep), so editing one renders again.
+    `:Org diagrams_rerender` renders the block at point without the cache
+    and `:Org diagrams_clear_cache` empties it. At startup the cache drops
+    entries unused for `cache_max_age` days, then the least recently used
+    beyond `cache_max_size` megabytes.
   - With `auto_preview` (the default) the result image is shown inline
     after the block runs, when an image backend is available
     (|org-images|; SVG needs ImageMagick).
   - With `render_on_save` every diagram block of an org buffer is rendered
-    just before the buffer is written, so the file on disk has the new
-    results. Blocks run without the evaluation prompt, except those with
-    `:eval no`, `never` or `query`, which are skipped. Rendering blocks
-    Neovim while it runs; unchanged diagrams come from the cache at once.
+    after the buffer is written, one block after another in the background,
+    so Neovim stays responsive while mmdc or dot run. When they are done
+    and nothing but the results changed, the buffer is written again, so
+    the file on disk has the new results; when you edited it meanwhile, the
+    buffer is left modified for you to save. Blocks run without the
+    evaluation prompt, except those with `:eval no`, `never` or `query`,
+    which are skipped. Unchanged diagrams come from the cache at once.
+  - `:Org diagrams_clean` deletes the generated files (`LANG-HASH8.EXT`) in
+    the current file's `output_dir` that no org file of that directory
+    links to or names (open buffers count with their unsaved text), after
+    asking; `:Org diagrams_clean dry` only lists them. Files you named
+    yourself with `:file` are never touched.
+  - The tools run without a shell (an argument list) unless the command is
+    a shell fragment (a string of several words) or the block sets `:cmd`
+    or `:cmdline`, which are shell text as in ob-dot.
 
 Actions ~
   `diagrams_render`         render the diagram block at point (what
@@ -8514,6 +8598,7 @@ Actions ~
   `diagrams_rerender`       the same, ignoring the cache
   `diagrams_render_buffer`  render every diagram block of the buffer
   `diagrams_clear_cache`    delete the cached renders
+  `diagrams_clean`          delete generated diagrams nothing links to
 No default keys; use `:Org <action>` or bind them in `mappings.org`.
 
 Options (defaults in parentheses) ~
@@ -8531,7 +8616,10 @@ Options (defaults in parentheses) ~
   `cache`            use the cache (true)
   `cache_dir`        stdpath("cache") .. "/org/diagrams"
   `auto_preview`     preview the result image (true)
-  `render_on_save`   render diagram blocks when writing (false)
+  `render_on_save`   render diagram blocks after writing (false)
+  `cache_max_age`    days an unused cache entry is kept (90; false: ever)
+  `cache_max_size`   megabytes the cache is pruned to (200; false: no
+                   limit)
 
 `:checkhealth org` shows which renderers (mmdc, dot, plantuml or the jar
 and java) are installed, whether results can be previewed, and the cache
@@ -8540,10 +8628,12 @@ tool is missing reports it and inserts no result.
 
 Limits ~
   - Generated names change with the body, so an edited diagram leaves its
-    old file behind in `output_dir`.
-  - The cache key is the text sent to the tool: a diagram that includes
-    other files (`!include`, mermaid config files) is not re-rendered when
-    only those files change; use `diagrams_rerender`.
+    old file behind in `output_dir` until `diagrams_clean`.
+  - Only plantuml includes are followed: a mermaid config or CSS file, and
+    dot's `image=` or `imagepath` files, are not part of the cache key;
+    use `diagrams_rerender` after changing them.
+  - Without Graphviz installed only fake tools were run in the tests; the
+    argument order follows ob-dot (`dot IN -TEXT [args] -o OUT`).
   - Only file results are cached. plantuml's text output (`:results
     verbatim`, no `:file`) is left to the core port.
 

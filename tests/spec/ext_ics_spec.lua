@@ -162,7 +162,8 @@ describe("ics parser: recurrence", function()
   end)
 
   it("notes unsupported parts", function()
-    eq({ "BYHOUR" }, parser.rrule("FREQ=DAILY;BYHOUR=9,17").unsupported)
+    eq({ "BYWEEKNO" }, parser.rrule("FREQ=YEARLY;BYWEEKNO=20").unsupported)
+    eq({}, parser.rrule("FREQ=DAILY;BYHOUR=9,17").unsupported)
     eq(nil, parser.rrule("INTERVAL=2"))
   end)
 end)
@@ -295,14 +296,19 @@ describe("ics extension", function()
     return b
   end
 
+  local real_notify
   before_each(function()
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
     org_file = dir .. "/tasks.org"
     vim.fn.writefile({ "* TODO Write report", "  SCHEDULED: <2026-10-06 Tue>" }, org_file)
+    -- keep "calendars updated" / "added ..." out of the test output
+    real_notify = vim.notify
+    vim.notify = function() end
   end)
 
   after_each(function()
+    vim.notify = real_notify
     setup(nil)
     ics_mod.fetcher = ics_mod._real_fetcher or ics_mod.fetcher
   end)

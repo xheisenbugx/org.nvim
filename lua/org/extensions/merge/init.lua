@@ -17,14 +17,22 @@ M.defaults = {
   --- Patterns given the driver in the attributes file.
   patterns = { "*.org" },
   --- Side taken when both changed the same TODO keyword, priority,
-  --- planning keyword or property: "ours", "theirs", or nil for conflict
-  --- markers around that entry's headline (or that property).
+  --- planning keyword or property, or moved the same entry to different
+  --- parents: "ours", "theirs", or nil for conflict markers around that
+  --- entry's headline (or that property, or the moved entry).
   prefer = nil,
   --- Sort LOGBOOK items newest first when both sides added some.
   sort_logbook = true,
   --- Pass `todo_keywords` to the driver, so custom keywords (NEXT, WAIT...)
   --- are read as keywords and not as part of titles.
   pass_todo_keywords = true,
+  --- Drawers merged item by item like LOGBOOK (besides LOGBOOK and the
+  --- `log_into_drawer` / `clock.into_drawer` names): `{ "NOTES" }`.
+  set_drawers = {},
+  --- How alike (0..1, share of equal lines) an entry renamed and edited on
+  --- one side must stay to be matched with the original; false: only an
+  --- entry whose text did not change is matched after a rename.
+  rename_similarity = 0.6,
   --- A Lua file the driver runs first, for other settings it should see.
   config_file = nil,
 }
@@ -32,6 +40,17 @@ M.defaults = {
 M.actions = {
   merge_install = { MOD, "install", desc = "Use the Org merge driver in this git repository" },
   merge_uninstall = { MOD, "uninstall", desc = "Stop using the Org merge driver in this git repository" },
+}
+
+M.commands = {
+  merge_install = {
+    MOD,
+    "install_command",
+    desc = "Use the Org merge driver here: :Org merge_install [gitattributes|info]",
+    complete = function()
+      return { "gitattributes", "info" }
+    end,
+  },
 }
 
 local function opts()
@@ -79,38 +98,54 @@ function M.repo_root(path)
   return ok and out ~= "" and out or nil
 end
 
---- The `merge.<name>.driver` command for the resolved options.
+--- The `merge.<name>.driver` command. The options are not in it: the
+--- driver reads them from the repository's `merge.<name>.*` git config at
+--- merge time (see |M.config_values|), so `git config merge.org.prefer
+--- theirs` takes effect without installing again.
 ---@param o? table the extension's options
 ---@return string
 function M.driver_command(o)
   o = o or opts()
-  local parts = {
+  return table.concat({
     vim.fn.shellescape(vim.v.progpath),
     "--headless -u NONE -i NONE -l",
     vim.fn.shellescape(M.driver_path()),
-  }
-  if o.prefer == "ours" or o.prefer == "theirs" then
-    parts[#parts + 1] = "--prefer=" .. o.prefer
-  end
-  if o.sort_logbook == false then
-    parts[#parts + 1] = "--no-sort-logbook"
-  end
+    vim.fn.shellescape("--name=" .. o.driver_name),
+    "--marker-size=%L --base-label=%S --ours-label=%X --theirs-label=%Y %O %A %B %P",
+  }, " ")
+end
+
+--- The `merge.<name>.*` git config the driver reads, from the options:
+--- `{ key, values }` pairs (an empty list unsets the key).
+---@param o? table the extension's options
+---@return { [1]: string, [2]: string[] }[]
+function M.config_values(o)
+  o = o or opts()
+  local todo = {}
   if o.pass_todo_keywords ~= false then
     local kw = require("org.config").opts.todo_keywords
     kw = type(kw) == "string" and { kw } or kw or {}
     if not (#kw == 1 and kw[1] == "TODO | DONE") then
       for _, seq in ipairs(kw) do
         if type(seq) == "string" then
-          parts[#parts + 1] = vim.fn.shellescape("--todo=" .. seq)
+          todo[#todo + 1] = seq
         end
       end
     end
   end
-  if o.config_file then
-    parts[#parts + 1] = vim.fn.shellescape("--config=" .. vim.fn.expand(o.config_file))
+  local drawers = {}
+  for _, d in ipairs(o.set_drawers or {}) do
+    drawers[#drawers + 1] = tostring(d)
   end
-  parts[#parts + 1] = "--marker-size=%L %O %A %B %P"
-  return table.concat(parts, " ")
+  local sim = o.rename_similarity
+  return {
+    { "prefer", (o.prefer == "ours" or o.prefer == "theirs") and { o.prefer } or {} },
+    { "sortLogbook", o.sort_logbook == false and { "false" } or {} },
+    { "todo", todo },
+    { "setDrawers", drawers },
+    { "renameSimilarity", sim == false and { "2" } or (tonumber(sim) and { tostring(sim) } or {}) },
+    { "config", o.config_file and { vim.fn.expand(o.config_file) } or {} },
+  }
 end
 
 local function read_lines(path)
@@ -179,6 +214,16 @@ function M.install_at(root, where, o)
   if not (ok1 and ok2) then
     return false, "git config failed: " .. (err1 ~= "" and err1 or err2)
   end
+  for _, kv in ipairs(M.config_values(o)) do
+    local key = name .. "." .. kv[1]
+    git({ "config", "--local", "--unset-all", key }, root)
+    for _, v in ipairs(kv[2]) do
+      local ok3, _, err3 = git({ "config", "--local", "--add", key, v }, root)
+      if not ok3 then
+        return false, "git config failed: " .. err3
+      end
+    end
+  end
   return true, string.format("Org merge driver installed (%s, %s.driver)", vim.fn.fnamemodify(attr, ":~:."), name)
 end
 
@@ -238,6 +283,29 @@ function M.install()
       utils().error(msg)
     end
   end)
+end
+
+--- `:Org merge_install [gitattributes|info]`: without an argument, ask.
+function M.install_command(args)
+  local where = vim.trim(args or "")
+  if where == "" then
+    return M.install()
+  end
+  if where ~= "gitattributes" and where ~= "info" then
+    utils().warn("merge_install: gitattributes or info, not " .. where)
+    return
+  end
+  local root = M.repo_root()
+  if not root then
+    utils().warn("merge_install: not in a git repository")
+    return
+  end
+  local ok, msg = M.install_at(root, where)
+  if ok then
+    utils().notify(msg)
+  else
+    utils().error(msg)
+  end
 end
 
 --- `merge_uninstall`: remove the driver from the current repository.

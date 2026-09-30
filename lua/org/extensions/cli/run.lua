@@ -15,7 +15,8 @@ Commands:
   agenda [day|week|fortnight|month|year|todo [KW]|tags MATCH|KEY]
          [--date DATE] [--span N] [--json|--csv]
   capture [-t KEY] [--list] TEXT...     (TEXT "-" reads stdin)
-  clock [status [--short] [--format FMT]|in QUERY|out|cancel] [--json]
+  clock [status [--short] [--format FMT]|in [--pick N] QUERY|out|cancel]
+        [--json]    (QUERY: title words, ID, id:ID or FILE::HEADING)
   search QUERY... [--json]               (org-ql syntax when ql is enabled)
   export FILE BACKEND [-o OUTPUT|--stdout]
   help | version
@@ -117,6 +118,7 @@ local VALUE_FLAGS = {
   ["-o"] = "output",
   ["--output"] = "output",
   ["--format"] = "format",
+  ["--pick"] = "pick",
 }
 
 local BOOL_FLAGS = {
@@ -284,6 +286,20 @@ local function load_buffer(path)
     vim.bo[bufnr].filetype = "org"
   end
   return bufnr
+end
+
+-- Tell a running Neovim (with the cli extension on) that the clock
+-- changed: it watches this file and rereads the clock (org.clock.sync).
+local function touch_clock_stamp()
+  pcall(function()
+    local path = require("org.extensions.cli").stamp_path()
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+    local fh = io.open(path, "w")
+    if fh then
+      fh:write(tostring(vim.uv.hrtime()) .. "\n")
+      fh:close()
+    end
+  end)
 end
 
 local function save_all()
@@ -595,14 +611,33 @@ end
 --- Headlines of the agenda files matching `query`: an `id:` or ID, a ql
 --- query when ql is enabled, else a case-insensitive title substring (an
 --- exact title wins).
+---
+--- Also `FILE::HEADING` (a file of the agenda, by path or name, and a
+--- title in it, `*` stars allowed, as in an org link), and a bare ID.
 function M.find_headlines(query)
   local files = require("org.files").agenda_files()
   local items = require("org.agenda.items")
+  query = vim.trim(query)
   local id = query:match("^id:(.+)$")
-  local found, exact = {}, {}
-  if not id and require("org.extensions").enabled("ql") then
+  local file_part, head_part = query:match("^(.-)::%**%s*(.+)$")
+  if file_part and file_part ~= "" then
+    local want = vim.fn.fnamemodify(vim.fn.expand(file_part), ":p")
+    local sel = {}
+    for _, f in ipairs(files) do
+      local name = f.filename
+      local tail = vim.fn.fnamemodify(name, ":t")
+      if name == want or vim.fn.resolve(name) == vim.fn.resolve(want) or tail == file_part then
+        sel[#sel + 1] = f
+      elseif vim.fn.fnamemodify(tail, ":r") == file_part then
+        sel[#sel + 1] = f
+      end
+    end
+    files, query = sel, head_part
+  end
+  local found, exact, by_id = {}, {}, {}
+  if not id and not file_part and require("org.extensions").enabled("ql") then
     local ok, res = pcall(require("org.extensions.ql").select, files, query)
-    if ok then
+    if ok and #res > 0 then
       return res
     end
   end
@@ -614,14 +649,16 @@ function M.find_headlines(query)
       end
     else
       local t = hl:plain_title():lower()
-      if t == q then
+      if hl.properties.ID == query then
+        by_id[#by_id + 1] = hl
+      elseif t == q then
         exact[#exact + 1] = hl
       elseif t:find(q, 1, true) then
         found[#found + 1] = hl
       end
     end
   end)
-  return #exact > 0 and exact or found
+  return #by_id > 0 and by_id or #exact > 0 and exact or found
 end
 
 function M.cmd_clock(words, flags)
@@ -647,16 +684,23 @@ function M.cmd_clock(words, flags)
       fail("clock in needs a heading: org clock in QUERY", 2)
     end
     local hls = M.find_headlines(query)
+    local pick = flags.pick and tonumber(flags.pick)
+    if flags.pick and not (pick and hls[pick]) then
+      if #hls == 0 then
+        fail("no heading matches " .. query, 1)
+      end
+      fail(string.format("--pick %s: pick 1 to %d", flags.pick, #hls), 2)
+    end
     if #hls == 0 then
       fail("no heading matches " .. query, 1)
-    elseif #hls > 1 then
-      local lines = { "several headings match " .. query .. ":" }
-      for _, hl in ipairs(hls) do
-        lines[#lines + 1] = "  " .. headline_line(hl)
+    elseif #hls > 1 and not pick then
+      local lines = { "several headings match " .. query .. " (org clock in --pick N ...):" }
+      for i, hl in ipairs(hls) do
+        lines[#lines + 1] = string.format("%3d  %s", i, headline_line(hl))
       end
       fail(table.concat(lines, "\n"), 1)
     end
-    local hl = hls[1]
+    local hl = hls[pick or 1]
     clock.restore()
     local bufnr = load_buffer(hl.file.filename)
     local target = require("org.files").get_buffer(bufnr):headline_at(hl.line)
@@ -665,6 +709,7 @@ function M.cmd_clock(words, flags)
       fail("could not clock in")
     end
     save_all()
+    touch_clock_stamp()
     if flags.json then
       json(M.clock_data() or { active = false })
     else
@@ -688,6 +733,7 @@ function M.cmd_clock(words, flags)
       clock.clock_cancel()
     end
     save_all()
+    touch_clock_stamp()
     if flags.json then
       json({ active = false, title = c.title, file = c.file, minutes = minutes, canceled = sub == "cancel" })
     elseif sub == "out" then
