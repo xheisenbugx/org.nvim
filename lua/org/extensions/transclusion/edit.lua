@@ -3,19 +3,27 @@
 --- The source lines of a transclusion open in a float (or a split) whose
 --- `:write` puts them back into the source: its buffer when it is loaded
 --- (written too when it had no other unsaved changes), else the file on
---- disk. Every transclusion of that source is then shown again.
+--- disk. Every transclusion of that source is then shown again. With
+--- `live`, the text goes into the source buffer as you type (loaded for
+--- the purpose when it isn't), like org-transclusion-live-sync.
 
 local source = require("org.extensions.transclusion.source")
 local utils = require("org.utils")
 
 local M = {}
 
---- edit buffer -> { path, bufnr, first, last, orig, spec, ctx }
+--- edit buffer -> { path, bufnr, first, last, orig, spec, ctx, live }
 M.edits = {}
 
 --- Called with the source path after a write (set by init.lua).
 ---@type fun(path: string|nil, bufnr: integer|nil)
 M.on_written = function() end
+
+--- Debounced call (set by init.lua): later(key, fn).
+---@type fun(key: string, fn: function)
+M.later = function(_, fn)
+  vim.schedule(fn)
+end
 
 local counter = 0
 
@@ -72,12 +80,13 @@ function M.open(res, spec, ctx, o)
     orig = vim.deepcopy(res.raw),
     spec = spec,
     ctx = ctx,
+    live = o.live and true or false,
   }
   local ft = "org"
   if res.kind ~= "org" then
     ft = res.lang and (vim.filetype.match({ filename = "x." .. res.lang }) or res.lang) or ""
   end
-  local title = string.format(" %s  ·  :w writes the source  ·  q closes ", res.label)
+  local title = string.format(" %s  ·  :w writes the source  ·  <Esc> closes ", res.label)
   local win
   if (o.window or "float") == "float" then
     win = vim.api.nvim_open_win(b, true, float_config(o, res.raw, title))
@@ -102,7 +111,21 @@ function M.open(res, spec, ctx, o)
       M.edits[b] = nil
     end,
   })
-  vim.keymap.set("n", "q", function()
+  if M.edits[b].live then
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+      buffer = b,
+      callback = function()
+        M.later("edit:" .. b, function()
+          if M.edits[b] and vim.api.nvim_buf_is_valid(b) then
+            M.write(b, true)
+          end
+        end)
+      end,
+    })
+  end
+  -- <Esc> closes (in Normal mode; Insert mode keeps its <Esc>), never
+  -- dropping unwritten text
+  vim.keymap.set("n", "<Esc>", function()
     if vim.bo[b].modified then
       utils.warn("Unsaved changes: :w writes them to the source, :q! drops them")
       return
@@ -123,16 +146,62 @@ function M.close(b)
   end
 end
 
---- Write the edit buffer `b` back into its source.
+--- Close the edit windows without unwritten changes (the extension is
+--- turned off); the others stay, and `:w` still works in them.
+function M.close_all()
+  for b in pairs(M.edits) do
+    if vim.api.nvim_buf_is_valid(b) and not vim.bo[b].modified then
+      M.close(b)
+    end
+  end
+end
+
+-- Write `lines` over the file at `path`, keeping its line endings, byte
+-- order mark and final newline (or its lack).
+local function write_file(path, lines)
+  local fd = io.open(path, "rb")
+  local old = fd and fd:read("*a") or ""
+  if fd then
+    fd:close()
+  end
+  local eol = old:find("\r\n", 1, true) and "\r\n" or "\n"
+  local final = old == "" or old:sub(-1) == "\n"
+  local bom = old:sub(1, 3) == "\239\187\191" and lines[1] and lines[1]:sub(1, 3) ~= "\239\187\191"
+  local out, err = io.open(path, "wb")
+  if not out then
+    error("cannot write " .. path .. ": " .. tostring(err), 0)
+  end
+  if bom then
+    out:write("\239\187\191")
+  end
+  out:write(table.concat(lines, eol))
+  if #lines > 0 and final then
+    out:write(eol)
+  end
+  out:close()
+end
+
+--- Write the edit buffer `b` back into its source. With `sync` (live
+--- editing), the text only goes into the source buffer, loaded when it
+--- isn't; nothing is written to disk.
 ---@param b integer
+---@param sync? boolean
 ---@return boolean ok
-function M.write(b)
+function M.write(b, sync)
   local e = M.edits[b]
   if not e then
     return false
   end
   local new = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+  if sync and vim.deep_equal(new, e.orig) then
+    return true
+  end
   local lines, sb, map = source.read(e.path, e.bufnr)
+  if sync and not sb and e.path and lines then
+    local nb = vim.fn.bufadd(e.path)
+    vim.fn.bufload(nb)
+    lines, sb, map = source.read(e.path, e.bufnr)
+  end
   if not lines then
     utils.error("transclusion: cannot read the source")
     return false
@@ -144,7 +213,10 @@ function M.write(b)
     if r and vim.deep_equal(r.raw, e.orig) then
       first, last = r.first, r.last
     else
-      utils.error("transclusion: the source changed since it was opened; reopen it to edit")
+      if not sync or not e.warned then
+        utils.error("transclusion: the source changed since it was opened; reopen it to edit")
+      end
+      e.warned = true
       return false
     end
   end
@@ -161,26 +233,43 @@ function M.write(b)
         bl = bf - 1
       end
     end
-    local was_modified = vim.bo[sb].modified
+    if e.src_modified == nil then
+      -- whether the source had changes of its own before this edit
+      e.src_modified = vim.bo[sb].modified
+    end
     vim.api.nvim_buf_set_lines(sb, bf - 1, bl, false, new)
-    if not was_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
-      vim.api.nvim_buf_call(sb, function()
-        vim.cmd("silent keepalt write")
-      end)
-    elseif was_modified then
-      utils.notify("transclusion: source buffer updated (it had unsaved changes, so it was not written)")
+    if not sync then
+      if not e.src_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
+        local ok, err = pcall(vim.api.nvim_buf_call, sb, function()
+          vim.cmd("silent keepalt write")
+        end)
+        if not ok then
+          utils.error("transclusion: cannot write the source: " .. tostring(err))
+          return false
+        end
+        e.src_modified = nil
+      else
+        utils.notify("transclusion: source buffer updated (it had unsaved changes, so it was not written)")
+      end
     end
   else
     local out = vim.list_slice(lines, 1, first - 1)
     vim.list_extend(out, new)
     vim.list_extend(out, vim.list_slice(lines, last + 1, #lines))
-    utils.writefile(e.path, out)
+    local ok, err = pcall(write_file, e.path, out)
+    if not ok then
+      utils.error("transclusion: " .. tostring(err))
+      return false
+    end
     source.clear_cache(e.path)
     require("org.files").invalidate(e.path)
   end
   e.first, e.last = first, first + #new - 1
   e.orig = vim.deepcopy(new)
-  vim.bo[b].modified = false
+  e.warned = nil
+  if not sync then
+    vim.bo[b].modified = false
+  end
   M.on_written(e.path, sb)
   return true
 end

@@ -657,7 +657,7 @@ describe("transclusion", function()
     -- the inserted copy follows
     eq("Beta text, edited in the float.", buf_lines(buf)[4])
     eq(false, vim.bo[buf].modified)
-    vim.cmd("normal q")
+    vim.cmd.normal(vim.keycode("<Esc>"))
     eq(buf, vim.api.nvim_get_current_buf())
   end)
 
@@ -808,6 +808,50 @@ describe("transclusion", function()
     setup({ watch = false, export = false })
     out = require("org.export.ox").export_as("ascii", NOTES, { filename = dir .. "/notes.org" })
     ok(not out:find("Beta text", 1, true))
+  end)
+
+  it("closes the edit float with <Esc>, not over unwritten edits", function()
+    local buf = open_notes(NOTES)
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    local eb = T.edit()
+    eq("", vim.fn.maparg("q", "n"))
+    vim.api.nvim_buf_set_lines(eb, 0, 1, false, { "def f(y):" })
+    local msgs = {}
+    local notify = vim.notify
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    vim.cmd.normal(vim.keycode("<Esc>"))
+    vim.notify = notify
+    eq(eb, vim.api.nvim_get_current_buf())
+    ok(msgs[1]:find("Unsaved"))
+    ok(vim.api.nvim_win_get_config(0).title[1][1]:find("<Esc> closes", 1, true))
+    vim.cmd("silent write")
+    vim.cmd.normal(vim.keycode("<Esc>"))
+    eq(buf, vim.api.nvim_get_current_buf())
+    eq("def f(y):", vim.fn.readfile(dir .. "/code.py")[3])
+  end)
+
+  it("syncs the source while typing with edit.live", function()
+    setup({ watch = false, debounce = 1, edit = { live = true } })
+    local buf = open_notes(NOTES)
+    vim.api.nvim_win_set_cursor(0, { 4, 0 })
+    local eb = T.edit()
+    vim.api.nvim_buf_set_lines(eb, 1, 2, false, { "    return x * 2" })
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = eb })
+    vim.wait(1000, function()
+      return (virt_text(buf)[4] or {})[3] == "│     return x * 2"
+    end)
+    eq("│     return x * 2", virt_text(buf)[4][3])
+    -- the source buffer follows, the file only on :w
+    local sb = vim.fn.bufnr(dir .. "/code.py")
+    ok(sb > 0)
+    eq("    return x * 2", vim.api.nvim_buf_get_lines(sb, 3, 4, false)[1])
+    eq(CODE[4], vim.fn.readfile(dir .. "/code.py")[4])
+    vim.cmd("silent write")
+    eq("    return x * 2", vim.fn.readfile(dir .. "/code.py")[4])
+    eq(false, vim.bo[sb].modified)
+    vim.cmd.normal(vim.keycode("<Esc>"))
   end)
 
   it("removes inserted text, marks and keys when turned off", function()
