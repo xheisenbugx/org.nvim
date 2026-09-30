@@ -115,7 +115,13 @@ local function has_tag(list, tag)
 end
 
 local function current_file()
-  return require("org.files").get_buffer(vim.api.nvim_get_current_buf())
+  local buf = vim.api.nvim_get_current_buf()
+  -- from the session window: the buffer it was started from
+  local s = M.session
+  if vim.bo[buf].filetype == "org_drill" and s and s.origin_win and vim.api.nvim_win_is_valid(s.origin_win) then
+    buf = vim.api.nvim_win_get_buf(s.origin_win)
+  end
+  return require("org.files").get_buffer(buf)
 end
 
 --- Files and an optional headline range and extra tag for a scope.

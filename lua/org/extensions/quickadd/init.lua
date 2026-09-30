@@ -566,7 +566,18 @@ function M.open_prompt(default, cb)
   end
   if opts().preview ~= false then
     render()
-    vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, { buffer = buf, callback = render })
+    local failed = false
+    vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
+      buffer = buf,
+      callback = function()
+        -- an error in the preview is shown once, not on every key
+        local ok, err = pcall(render)
+        if not ok and not failed then
+          failed = true
+          utils.error("Quick add preview: " .. tostring(err))
+        end
+      end,
+    })
   end
   vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave" }, {
     buffer = buf,

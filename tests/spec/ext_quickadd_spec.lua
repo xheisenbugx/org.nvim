@@ -504,6 +504,29 @@ describe("quickadd entries", function()
     eq("* TODO Call", vim.fn.readfile(d .. "/n.org")[1])
   end)
 
+  it("reports a failing preview once, not on every key", function()
+    vim.cmd("enew!")
+    local errors = {}
+    local err = utils.error
+    utils.error = function(m)
+      errors[#errors + 1] = m
+    end
+    local preview = qa.preview_lines
+    local buf = qa.open_prompt("x", function() end)
+    qa.preview_lines = function()
+      error("boom")
+    end
+    for _ = 1, 3 do
+      vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
+    end
+    qa.preview_lines = preview
+    utils.error = err
+    vim.fn.maparg("<C-c>", "i", false, true).callback()
+    vim.cmd("stopinsert")
+    eq(1, #errors)
+    ok(errors[1]:find("boom", 1, true))
+  end)
+
   it("previews the parsed entry", function()
     local rows = qa.preview_lines("Call fri #a !A ~1h @Nowhere")
     local text = vim.tbl_map(function(r)

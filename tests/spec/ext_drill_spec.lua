@@ -681,6 +681,17 @@ describe("drill session", function()
     eq({ total = 4, due = 1, new = 3, failing = 0 }, st)
   end)
 
+  it("counts the cards of the session's file from the session window", function()
+    org_buffer(DECK, { 1, 0 })
+    local s = drill.start("file")
+    eq(s.buf, vim.api.nvim_get_current_buf())
+    local notify = vim.notify
+    vim.notify = function() end
+    local st = drill.stats("file")
+    vim.notify = notify
+    eq(4, st.total)
+  end)
+
   it("saves named files when the session ends", function()
     require("org.config").opts.extensions.drill.save_buffers = true
     local path = vim.fn.tempname() .. ".org"
