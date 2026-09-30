@@ -8003,6 +8003,7 @@ Differences from Emacs org-drill ~
   - The question is shown in a floating window instead of narrowing the
     buffer to the entry.
 
+------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*
 
 `merge` is a git merge driver that merges Org files entry by entry instead
@@ -8437,6 +8438,7 @@ Limits ~
   - Only file results are cached. plantuml's text output (`:results
     verbatim`, no `:file`) is left to the core port.
 
+------------------------------------------------------------------------------
 Code and notes (code)                                    *org-extensions-code*
 
 `code` connects the code you edit with your org notes: capture a selection
@@ -8655,6 +8657,7 @@ Options ~
   `notify`          report what was tangled and run (true)
   `bootstrap_file`  init.lua of `literate_bootstrap` (next to the org file)
 
+------------------------------------------------------------------------------
 Language server                                           *org-extensions-lsp*
 
 `lsp` runs a language server for org buffers inside Neovim: no program to
@@ -8799,6 +8802,7 @@ Notes ~
   - `:checkhealth org` shows the running client, the number of workspace
     files and of org-lint checkers.
 
+------------------------------------------------------------------------------
 Transclusion (org-transclusion)                  *org-extensions-transclusion*
 
 `transclusion` shows text from other files, or other parts of the same
@@ -8939,6 +8943,7 @@ Differences from Emacs org-transclusion ~
   - org-roam doesn't index links in `#+transclude:` lines (like org-roam),
     and inserted text is never in the file, so it isn't indexed either.
 
+------------------------------------------------------------------------------
 Views: kanban, timeline, heatmap, sidebar               *org-extensions-views*
 
 Four visual views of your tasks, each an extension of its own. They share
