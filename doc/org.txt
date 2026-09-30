@@ -8888,10 +8888,11 @@ the text back once the command is over. Autocommands run in the order
 they were defined: a formatter that runs before this extension's
 `BufWritePre` sees the inserted text, and the text is found again after
 it as long as the formatter left it as it was (conform.nvim and LSP
-formatting change only the lines that differ). `:noautocmd write` skips
-all of this: the file is cleaned again when you leave the buffer, stay
-idle (`CursorHold`) or Neovim loses focus, but not after
-`:noautocmd wq`.
+formatting change only the lines that differ). `:noautocmd write`, and a
+write run from inside another autocommand that isn't `++nested` (some
+auto-save plugins), skip all of this: the file is cleaned again when you
+leave the buffer, stay idle (`CursorHold`) or Neovim loses focus, but
+not after `:noautocmd wq`.
 
 Transclusions are drawn when an org buffer is shown, redrawn when the
 buffer or a source buffer changes (`live`) or a source is written, and,
