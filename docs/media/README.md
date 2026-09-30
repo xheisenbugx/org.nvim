@@ -84,6 +84,15 @@ inline diagnostics, for `lsp.tape`; it copies `demo/lsp/*.org` into
 for a file that doesn't exist yet (and under the `/tmp` symlink on macOS)
 can't be matched to its LSP URI, so diagnostics and edits would miss it.
 
+`demo/kanban.lua`, `timeline.lua`, `heatmap.lua` and `sidebar.lua` turn on
+the view extensions for their tapes. They run `demo/views.lua`, which runs
+`init.lua` and copies `demo/views/*.org` into `$ORG_DEMO_DIR/views` with the
+same date expansion. `views/clocklog.org` (nine months of CLOCK lines and
+closed tasks for the heatmap) was generated once with a seeded script; its
+dates are `{{-N HH:MM}}` offsets, so the history always ends today.
+`views/today.org` has appointments 25 and 80 minutes from now
+(`{{now+N}}`), so record `sidebar.tape` before 23:30 or after midnight.
+
 To try the demo setup by hand:
 
 ```sh

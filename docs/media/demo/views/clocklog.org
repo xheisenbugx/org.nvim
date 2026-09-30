@@ -1,0 +1,659 @@
+#+TITLE: Time log
+#+CATEGORY: log
+
+* TODO Ship org.nvim v1.0                                          :oss:
+:LOGBOOK:
+CLOCK: [{{-0 08:33}}]--[{{-0 09:33}}] =>  1:00
+CLOCK: [{{-1 08:22}}]--[{{-1 11:22}}] =>  3:00
+CLOCK: [{{-3 08:31}}]--[{{-3 09:01}}] =>  0:30
+CLOCK: [{{-4 09:14}}]--[{{-4 09:39}}] =>  0:25
+CLOCK: [{{-5 09:30}}]--[{{-5 12:00}}] =>  2:30
+CLOCK: [{{-7 09:05}}]--[{{-7 09:30}}] =>  0:25
+CLOCK: [{{-9 08:51}}]--[{{-9 11:51}}] =>  3:00
+CLOCK: [{{-11 08:39}}]--[{{-11 09:09}}] =>  0:30
+CLOCK: [{{-13 08:59}}]--[{{-13 11:29}}] =>  2:30
+CLOCK: [{{-15 08:38}}]--[{{-15 10:38}}] =>  2:00
+CLOCK: [{{-17 09:14}}]--[{{-17 13:14}}] =>  4:00
+CLOCK: [{{-20 08:40}}]--[{{-20 11:10}}] =>  2:30
+CLOCK: [{{-21 09:10}}]--[{{-21 09:40}}] =>  0:30
+CLOCK: [{{-22 08:46}}]--[{{-22 09:16}}] =>  0:30
+CLOCK: [{{-23 09:30}}]--[{{-23 12:30}}] =>  3:00
+CLOCK: [{{-24 08:15}}]--[{{-24 08:45}}] =>  0:30
+CLOCK: [{{-25 09:11}}]--[{{-25 10:26}}] =>  1:15
+CLOCK: [{{-27 09:22}}]--[{{-27 11:22}}] =>  2:00
+CLOCK: [{{-28 09:26}}]--[{{-28 09:51}}] =>  0:25
+CLOCK: [{{-31 08:13}}]--[{{-31 09:28}}] =>  1:15
+CLOCK: [{{-32 09:06}}]--[{{-32 09:36}}] =>  0:30
+CLOCK: [{{-34 09:22}}]--[{{-34 10:52}}] =>  1:30
+CLOCK: [{{-35 08:25}}]--[{{-35 09:25}}] =>  1:00
+CLOCK: [{{-37 09:22}}]--[{{-37 11:52}}] =>  2:30
+CLOCK: [{{-39 08:02}}]--[{{-39 08:32}}] =>  0:30
+CLOCK: [{{-41 08:37}}]--[{{-41 12:37}}] =>  4:00
+CLOCK: [{{-42 08:06}}]--[{{-42 12:06}}] =>  4:00
+CLOCK: [{{-45 08:04}}]--[{{-45 10:34}}] =>  2:30
+CLOCK: [{{-50 08:30}}]--[{{-50 11:00}}] =>  2:30
+CLOCK: [{{-55 09:02}}]--[{{-55 09:47}}] =>  0:45
+CLOCK: [{{-60 08:36}}]--[{{-60 12:36}}] =>  4:00
+CLOCK: [{{-61 08:36}}]--[{{-61 10:06}}] =>  1:30
+CLOCK: [{{-63 08:05}}]--[{{-63 12:05}}] =>  4:00
+CLOCK: [{{-67 08:09}}]--[{{-67 10:39}}] =>  2:30
+CLOCK: [{{-68 09:20}}]--[{{-68 11:50}}] =>  2:30
+CLOCK: [{{-70 09:03}}]--[{{-70 13:03}}] =>  4:00
+CLOCK: [{{-71 08:18}}]--[{{-71 09:03}}] =>  0:45
+CLOCK: [{{-72 08:21}}]--[{{-72 08:51}}] =>  0:30
+CLOCK: [{{-73 08:13}}]--[{{-73 12:13}}] =>  4:00
+CLOCK: [{{-74 08:14}}]--[{{-74 09:44}}] =>  1:30
+CLOCK: [{{-75 08:05}}]--[{{-75 10:35}}] =>  2:30
+CLOCK: [{{-76 08:15}}]--[{{-76 10:15}}] =>  2:00
+CLOCK: [{{-77 08:39}}]--[{{-77 10:39}}] =>  2:00
+CLOCK: [{{-78 09:24}}]--[{{-78 13:24}}] =>  4:00
+CLOCK: [{{-87 09:00}}]--[{{-87 09:30}}] =>  0:30
+CLOCK: [{{-88 08:29}}]--[{{-88 10:59}}] =>  2:30
+CLOCK: [{{-90 08:37}}]--[{{-90 12:37}}] =>  4:00
+CLOCK: [{{-91 08:10}}]--[{{-91 08:55}}] =>  0:45
+CLOCK: [{{-96 08:08}}]--[{{-96 09:38}}] =>  1:30
+CLOCK: [{{-97 08:22}}]--[{{-97 08:47}}] =>  0:25
+CLOCK: [{{-99 08:42}}]--[{{-99 09:27}}] =>  0:45
+CLOCK: [{{-100 08:35}}]--[{{-100 09:05}}] =>  0:30
+CLOCK: [{{-102 09:28}}]--[{{-102 11:58}}] =>  2:30
+CLOCK: [{{-103 09:09}}]--[{{-103 09:54}}] =>  0:45
+CLOCK: [{{-105 08:52}}]--[{{-105 09:17}}] =>  0:25
+CLOCK: [{{-109 09:08}}]--[{{-109 10:38}}] =>  1:30
+CLOCK: [{{-112 08:37}}]--[{{-112 10:37}}] =>  2:00
+CLOCK: [{{-113 08:45}}]--[{{-113 09:45}}] =>  1:00
+CLOCK: [{{-116 08:38}}]--[{{-116 10:38}}] =>  2:00
+CLOCK: [{{-118 08:30}}]--[{{-118 12:30}}] =>  4:00
+CLOCK: [{{-126 08:19}}]--[{{-126 08:44}}] =>  0:25
+CLOCK: [{{-127 08:52}}]--[{{-127 11:22}}] =>  2:30
+CLOCK: [{{-130 08:19}}]--[{{-130 10:49}}] =>  2:30
+CLOCK: [{{-132 08:53}}]--[{{-132 11:53}}] =>  3:00
+CLOCK: [{{-134 09:00}}]--[{{-134 12:00}}] =>  3:00
+CLOCK: [{{-137 08:36}}]--[{{-137 11:06}}] =>  2:30
+CLOCK: [{{-138 08:52}}]--[{{-138 11:52}}] =>  3:00
+CLOCK: [{{-139 08:04}}]--[{{-139 09:34}}] =>  1:30
+CLOCK: [{{-140 08:52}}]--[{{-140 09:22}}] =>  0:30
+CLOCK: [{{-147 09:17}}]--[{{-147 09:47}}] =>  0:30
+CLOCK: [{{-165 09:16}}]--[{{-165 09:41}}] =>  0:25
+CLOCK: [{{-167 09:06}}]--[{{-167 11:36}}] =>  2:30
+CLOCK: [{{-172 08:16}}]--[{{-172 08:41}}] =>  0:25
+CLOCK: [{{-174 08:40}}]--[{{-174 11:40}}] =>  3:00
+CLOCK: [{{-175 09:07}}]--[{{-175 12:07}}] =>  3:00
+CLOCK: [{{-179 08:41}}]--[{{-179 09:41}}] =>  1:00
+CLOCK: [{{-180 08:11}}]--[{{-180 10:41}}] =>  2:30
+CLOCK: [{{-188 08:39}}]--[{{-188 09:04}}] =>  0:25
+CLOCK: [{{-189 09:29}}]--[{{-189 10:59}}] =>  1:30
+CLOCK: [{{-190 09:23}}]--[{{-190 09:48}}] =>  0:25
+CLOCK: [{{-192 08:48}}]--[{{-192 10:48}}] =>  2:00
+CLOCK: [{{-193 09:24}}]--[{{-193 11:24}}] =>  2:00
+CLOCK: [{{-197 09:13}}]--[{{-197 09:38}}] =>  0:25
+CLOCK: [{{-200 08:27}}]--[{{-200 10:27}}] =>  2:00
+CLOCK: [{{-202 09:00}}]--[{{-202 10:00}}] =>  1:00
+CLOCK: [{{-209 08:42}}]--[{{-209 09:42}}] =>  1:00
+CLOCK: [{{-210 09:26}}]--[{{-210 11:56}}] =>  2:30
+CLOCK: [{{-214 09:25}}]--[{{-214 11:25}}] =>  2:00
+CLOCK: [{{-216 08:25}}]--[{{-216 08:55}}] =>  0:30
+CLOCK: [{{-217 08:32}}]--[{{-217 10:32}}] =>  2:00
+CLOCK: [{{-218 08:33}}]--[{{-218 12:33}}] =>  4:00
+CLOCK: [{{-222 08:31}}]--[{{-222 09:01}}] =>  0:30
+CLOCK: [{{-225 08:39}}]--[{{-225 09:04}}] =>  0:25
+CLOCK: [{{-228 09:21}}]--[{{-228 10:36}}] =>  1:15
+CLOCK: [{{-230 09:17}}]--[{{-230 10:47}}] =>  1:30
+CLOCK: [{{-231 09:07}}]--[{{-231 12:07}}] =>  3:00
+CLOCK: [{{-234 08:40}}]--[{{-234 10:40}}] =>  2:00
+CLOCK: [{{-236 09:12}}]--[{{-236 13:12}}] =>  4:00
+CLOCK: [{{-237 09:14}}]--[{{-237 12:14}}] =>  3:00
+CLOCK: [{{-238 09:02}}]--[{{-238 10:17}}] =>  1:15
+CLOCK: [{{-239 08:07}}]--[{{-239 08:32}}] =>  0:25
+CLOCK: [{{-241 08:57}}]--[{{-241 09:42}}] =>  0:45
+CLOCK: [{{-244 09:05}}]--[{{-244 11:35}}] =>  2:30
+CLOCK: [{{-245 08:31}}]--[{{-245 10:01}}] =>  1:30
+CLOCK: [{{-249 09:17}}]--[{{-249 10:17}}] =>  1:00
+CLOCK: [{{-253 08:37}}]--[{{-253 11:07}}] =>  2:30
+CLOCK: [{{-260 08:33}}]--[{{-260 11:33}}] =>  3:00
+CLOCK: [{{-264 08:35}}]--[{{-264 10:05}}] =>  1:30
+CLOCK: [{{-266 09:17}}]--[{{-266 09:42}}] =>  0:25
+CLOCK: [{{-269 09:17}}]--[{{-269 10:17}}] =>  1:00
+:END:
+* TODO Review pull requests                                        :oss:
+:LOGBOOK:
+CLOCK: [{{-0 09:53}}]--[{{-0 11:08}}] =>  1:15
+CLOCK: [{{-3 09:18}}]--[{{-3 10:48}}] =>  1:30
+CLOCK: [{{-4 10:21}}]--[{{-4 13:21}}] =>  3:00
+CLOCK: [{{-5 12:57}}]--[{{-5 14:27}}] =>  1:30
+CLOCK: [{{-6 08:41}}]--[{{-6 10:41}}] =>  2:00
+CLOCK: [{{-7 09:37}}]--[{{-7 11:07}}] =>  1:30
+CLOCK: [{{-8 09:19}}]--[{{-8 09:49}}] =>  0:30
+CLOCK: [{{-10 09:23}}]--[{{-10 09:48}}] =>  0:25
+CLOCK: [{{-13 11:49}}]--[{{-13 12:14}}] =>  0:25
+CLOCK: [{{-15 11:02}}]--[{{-15 11:27}}] =>  0:25
+CLOCK: [{{-16 09:22}}]--[{{-16 10:22}}] =>  1:00
+CLOCK: [{{-18 08:36}}]--[{{-18 11:36}}] =>  3:00
+CLOCK: [{{-19 09:04}}]--[{{-19 09:34}}] =>  0:30
+CLOCK: [{{-21 09:49}}]--[{{-21 12:19}}] =>  2:30
+CLOCK: [{{-24 09:18}}]--[{{-24 11:48}}] =>  2:30
+CLOCK: [{{-27 12:03}}]--[{{-27 12:48}}] =>  0:45
+CLOCK: [{{-35 09:32}}]--[{{-35 10:47}}] =>  1:15
+CLOCK: [{{-39 08:59}}]--[{{-39 09:29}}] =>  0:30
+CLOCK: [{{-41 13:04}}]--[{{-41 15:04}}] =>  2:00
+CLOCK: [{{-42 12:40}}]--[{{-42 15:10}}] =>  2:30
+CLOCK: [{{-50 11:58}}]--[{{-50 15:58}}] =>  4:00
+CLOCK: [{{-53 08:21}}]--[{{-53 09:51}}] =>  1:30
+CLOCK: [{{-55 10:01}}]--[{{-55 10:31}}] =>  0:30
+CLOCK: [{{-56 09:27}}]--[{{-56 11:27}}] =>  2:00
+CLOCK: [{{-57 09:30}}]--[{{-57 11:30}}] =>  2:00
+CLOCK: [{{-60 13:36}}]--[{{-60 14:06}}] =>  0:30
+CLOCK: [{{-62 08:43}}]--[{{-62 09:28}}] =>  0:45
+CLOCK: [{{-63 12:51}}]--[{{-63 16:51}}] =>  4:00
+CLOCK: [{{-67 10:46}}]--[{{-67 12:01}}] =>  1:15
+CLOCK: [{{-71 09:24}}]--[{{-71 13:24}}] =>  4:00
+CLOCK: [{{-76 10:31}}]--[{{-76 13:31}}] =>  3:00
+CLOCK: [{{-77 11:22}}]--[{{-77 12:22}}] =>  1:00
+CLOCK: [{{-81 09:21}}]--[{{-81 12:21}}] =>  3:00
+CLOCK: [{{-90 13:09}}]--[{{-90 13:39}}] =>  0:30
+CLOCK: [{{-91 09:04}}]--[{{-91 13:04}}] =>  4:00
+CLOCK: [{{-97 09:00}}]--[{{-97 10:00}}] =>  1:00
+CLOCK: [{{-105 09:24}}]--[{{-105 11:54}}] =>  2:30
+CLOCK: [{{-111 09:01}}]--[{{-111 10:31}}] =>  1:30
+CLOCK: [{{-112 10:53}}]--[{{-112 13:53}}] =>  3:00
+CLOCK: [{{-113 10:29}}]--[{{-113 11:14}}] =>  0:45
+CLOCK: [{{-115 09:24}}]--[{{-115 09:49}}] =>  0:25
+CLOCK: [{{-118 12:44}}]--[{{-118 13:59}}] =>  1:15
+CLOCK: [{{-120 09:21}}]--[{{-120 10:06}}] =>  0:45
+CLOCK: [{{-123 09:02}}]--[{{-123 09:32}}] =>  0:30
+CLOCK: [{{-125 09:07}}]--[{{-125 09:52}}] =>  0:45
+CLOCK: [{{-130 11:16}}]--[{{-130 14:16}}] =>  3:00
+CLOCK: [{{-136 08:14}}]--[{{-136 08:59}}] =>  0:45
+CLOCK: [{{-137 11:18}}]--[{{-137 15:18}}] =>  4:00
+CLOCK: [{{-139 09:55}}]--[{{-139 11:55}}] =>  2:00
+CLOCK: [{{-140 10:21}}]--[{{-140 12:21}}] =>  2:00
+CLOCK: [{{-165 10:00}}]--[{{-165 11:15}}] =>  1:15
+CLOCK: [{{-166 08:12}}]--[{{-166 09:12}}] =>  1:00
+CLOCK: [{{-168 09:12}}]--[{{-168 10:12}}] =>  1:00
+CLOCK: [{{-169 08:23}}]--[{{-169 10:53}}] =>  2:30
+CLOCK: [{{-172 09:21}}]--[{{-172 10:06}}] =>  0:45
+CLOCK: [{{-176 08:57}}]--[{{-176 09:57}}] =>  1:00
+CLOCK: [{{-178 08:01}}]--[{{-178 09:01}}] =>  1:00
+CLOCK: [{{-186 09:12}}]--[{{-186 11:12}}] =>  2:00
+CLOCK: [{{-190 10:08}}]--[{{-190 10:33}}] =>  0:25
+CLOCK: [{{-197 10:05}}]--[{{-197 12:05}}] =>  2:00
+CLOCK: [{{-201 08:09}}]--[{{-201 09:39}}] =>  1:30
+CLOCK: [{{-207 08:13}}]--[{{-207 11:13}}] =>  3:00
+CLOCK: [{{-209 10:30}}]--[{{-209 11:30}}] =>  1:00
+CLOCK: [{{-211 09:10}}]--[{{-211 10:10}}] =>  1:00
+CLOCK: [{{-214 12:14}}]--[{{-214 12:59}}] =>  0:45
+CLOCK: [{{-218 13:05}}]--[{{-218 14:35}}] =>  1:30
+CLOCK: [{{-225 09:31}}]--[{{-225 10:31}}] =>  1:00
+CLOCK: [{{-228 10:43}}]--[{{-228 11:28}}] =>  0:45
+CLOCK: [{{-237 12:29}}]--[{{-237 15:29}}] =>  3:00
+CLOCK: [{{-239 09:01}}]--[{{-239 11:31}}] =>  2:30
+CLOCK: [{{-243 09:00}}]--[{{-243 09:30}}] =>  0:30
+CLOCK: [{{-252 08:13}}]--[{{-252 11:13}}] =>  3:00
+CLOCK: [{{-260 12:12}}]--[{{-260 16:12}}] =>  4:00
+CLOCK: [{{-263 08:21}}]--[{{-263 10:51}}] =>  2:30
+CLOCK: [{{-267 08:20}}]--[{{-267 09:05}}] =>  0:45
+CLOCK: [{{-270 08:03}}]--[{{-270 08:48}}] =>  0:45
+:END:
+* TODO Quarterly planning                                          :work:
+:LOGBOOK:
+CLOCK: [{{-3 11:19}}]--[{{-3 12:19}}] =>  1:00
+CLOCK: [{{-5 15:15}}]--[{{-5 17:15}}] =>  2:00
+CLOCK: [{{-8 10:19}}]--[{{-8 11:49}}] =>  1:30
+CLOCK: [{{-9 12:08}}]--[{{-9 14:08}}] =>  2:00
+CLOCK: [{{-10 10:47}}]--[{{-10 11:32}}] =>  0:45
+CLOCK: [{{-18 11:58}}]--[{{-18 13:13}}] =>  1:15
+CLOCK: [{{-19 10:12}}]--[{{-19 10:57}}] =>  0:45
+CLOCK: [{{-20 11:44}}]--[{{-20 14:44}}] =>  3:00
+CLOCK: [{{-22 09:33}}]--[{{-22 12:03}}] =>  2:30
+CLOCK: [{{-46 08:49}}]--[{{-46 09:19}}] =>  0:30
+CLOCK: [{{-48 08:13}}]--[{{-48 08:43}}] =>  0:30
+CLOCK: [{{-49 08:20}}]--[{{-49 09:35}}] =>  1:15
+CLOCK: [{{-62 09:35}}]--[{{-62 12:05}}] =>  2:30
+CLOCK: [{{-76 14:21}}]--[{{-76 17:21}}] =>  3:00
+CLOCK: [{{-78 13:57}}]--[{{-78 16:57}}] =>  3:00
+CLOCK: [{{-80 08:41}}]--[{{-80 09:06}}] =>  0:25
+CLOCK: [{{-88 11:29}}]--[{{-88 13:29}}] =>  2:00
+CLOCK: [{{-99 10:22}}]--[{{-99 13:22}}] =>  3:00
+CLOCK: [{{-100 10:04}}]--[{{-100 11:04}}] =>  1:00
+CLOCK: [{{-105 12:06}}]--[{{-105 15:06}}] =>  3:00
+CLOCK: [{{-111 11:27}}]--[{{-111 11:57}}] =>  0:30
+CLOCK: [{{-113 11:59}}]--[{{-113 12:24}}] =>  0:25
+CLOCK: [{{-116 11:37}}]--[{{-116 15:37}}] =>  4:00
+CLOCK: [{{-137 16:14}}]--[{{-137 16:59}}] =>  0:45
+CLOCK: [{{-145 08:34}}]--[{{-145 11:34}}] =>  3:00
+CLOCK: [{{-174 12:33}}]--[{{-174 15:03}}] =>  2:30
+CLOCK: [{{-187 09:15}}]--[{{-187 10:30}}] =>  1:15
+CLOCK: [{{-190 11:17}}]--[{{-190 12:02}}] =>  0:45
+CLOCK: [{{-193 11:37}}]--[{{-193 12:52}}] =>  1:15
+CLOCK: [{{-207 11:47}}]--[{{-207 12:47}}] =>  1:00
+CLOCK: [{{-209 11:44}}]--[{{-209 12:44}}] =>  1:00
+CLOCK: [{{-221 08:39}}]--[{{-221 09:39}}] =>  1:00
+CLOCK: [{{-225 11:18}}]--[{{-225 14:18}}] =>  3:00
+CLOCK: [{{-231 12:31}}]--[{{-231 13:16}}] =>  0:45
+CLOCK: [{{-232 08:08}}]--[{{-232 11:08}}] =>  3:00
+CLOCK: [{{-233 08:58}}]--[{{-233 11:58}}] =>  3:00
+CLOCK: [{{-242 09:26}}]--[{{-242 10:56}}] =>  1:30
+CLOCK: [{{-245 10:07}}]--[{{-245 11:07}}] =>  1:00
+CLOCK: [{{-252 11:56}}]--[{{-252 13:26}}] =>  1:30
+CLOCK: [{{-258 08:11}}]--[{{-258 08:56}}] =>  0:45
+CLOCK: [{{-264 10:20}}]--[{{-264 11:35}}] =>  1:15
+CLOCK: [{{-265 08:46}}]--[{{-265 09:46}}] =>  1:00
+CLOCK: [{{-266 10:33}}]--[{{-266 12:33}}] =>  2:00
+CLOCK: [{{-270 09:40}}]--[{{-270 12:40}}] =>  3:00
+:END:
+* TODO Customer interviews                                         :work:
+:LOGBOOK:
+CLOCK: [{{-5 17:57}}]--[{{-5 18:22}}] =>  0:25
+CLOCK: [{{-6 11:25}}]--[{{-6 12:55}}] =>  1:30
+CLOCK: [{{-11 09:39}}]--[{{-11 11:09}}] =>  1:30
+CLOCK: [{{-12 08:20}}]--[{{-12 09:05}}] =>  0:45
+CLOCK: [{{-14 08:40}}]--[{{-14 10:10}}] =>  1:30
+CLOCK: [{{-19 11:12}}]--[{{-19 12:12}}] =>  1:00
+CLOCK: [{{-41 15:20}}]--[{{-41 16:50}}] =>  1:30
+CLOCK: [{{-48 09:36}}]--[{{-48 12:06}}] =>  2:30
+CLOCK: [{{-54 08:43}}]--[{{-54 09:28}}] =>  0:45
+CLOCK: [{{-82 09:29}}]--[{{-82 10:14}}] =>  0:45
+CLOCK: [{{-84 08:28}}]--[{{-84 09:43}}] =>  1:15
+CLOCK: [{{-95 09:24}}]--[{{-95 11:54}}] =>  2:30
+CLOCK: [{{-97 10:42}}]--[{{-97 11:07}}] =>  0:25
+CLOCK: [{{-102 12:31}}]--[{{-102 14:01}}] =>  1:30
+CLOCK: [{{-118 14:33}}]--[{{-118 17:03}}] =>  2:30
+CLOCK: [{{-119 08:31}}]--[{{-119 09:01}}] =>  0:30
+CLOCK: [{{-120 10:55}}]--[{{-120 12:25}}] =>  1:30
+CLOCK: [{{-165 12:04}}]--[{{-165 13:04}}] =>  1:00
+CLOCK: [{{-166 09:33}}]--[{{-166 10:18}}] =>  0:45
+CLOCK: [{{-201 10:04}}]--[{{-201 10:49}}] =>  0:45
+CLOCK: [{{-207 13:46}}]--[{{-207 14:31}}] =>  0:45
+CLOCK: [{{-210 12:51}}]--[{{-210 13:21}}] =>  0:30
+CLOCK: [{{-228 12:13}}]--[{{-228 14:43}}] =>  2:30
+CLOCK: [{{-231 13:37}}]--[{{-231 14:07}}] =>  0:30
+CLOCK: [{{-237 15:39}}]--[{{-237 16:09}}] =>  0:30
+CLOCK: [{{-241 10:04}}]--[{{-241 13:04}}] =>  3:00
+CLOCK: [{{-245 11:12}}]--[{{-245 11:37}}] =>  0:25
+CLOCK: [{{-250 09:02}}]--[{{-250 11:32}}] =>  2:30
+CLOCK: [{{-252 14:19}}]--[{{-252 17:19}}] =>  3:00
+CLOCK: [{{-262 08:41}}]--[{{-262 10:11}}] =>  1:30
+:END:
+* TODO Kitchen renovation                                          :home:
+:LOGBOOK:
+CLOCK: [{{-11 11:17}}]--[{{-11 13:47}}] =>  2:30
+CLOCK: [{{-15 11:42}}]--[{{-15 15:42}}] =>  4:00
+CLOCK: [{{-16 11:16}}]--[{{-16 14:16}}] =>  3:00
+CLOCK: [{{-17 14:05}}]--[{{-17 14:30}}] =>  0:25
+CLOCK: [{{-26 08:17}}]--[{{-26 09:02}}] =>  0:45
+CLOCK: [{{-29 08:45}}]--[{{-29 10:45}}] =>  2:00
+CLOCK: [{{-43 08:27}}]--[{{-43 09:42}}] =>  1:15
+CLOCK: [{{-61 10:54}}]--[{{-61 11:24}}] =>  0:30
+CLOCK: [{{-67 12:10}}]--[{{-67 16:10}}] =>  4:00
+CLOCK: [{{-78 17:09}}]--[{{-78 21:09}}] =>  4:00
+CLOCK: [{{-83 09:11}}]--[{{-83 10:26}}] =>  1:15
+CLOCK: [{{-106 09:19}}]--[{{-106 11:49}}] =>  2:30
+CLOCK: [{{-113 12:48}}]--[{{-113 14:18}}] =>  1:30
+CLOCK: [{{-120 13:20}}]--[{{-120 14:50}}] =>  1:30
+CLOCK: [{{-125 10:23}}]--[{{-125 11:38}}] =>  1:15
+CLOCK: [{{-138 12:20}}]--[{{-138 13:35}}] =>  1:15
+CLOCK: [{{-166 10:58}}]--[{{-166 11:23}}] =>  0:25
+CLOCK: [{{-169 11:05}}]--[{{-169 11:30}}] =>  0:25
+CLOCK: [{{-192 11:09}}]--[{{-192 12:39}}] =>  1:30
+CLOCK: [{{-219 09:22}}]--[{{-219 10:37}}] =>  1:15
+CLOCK: [{{-224 08:30}}]--[{{-224 10:00}}] =>  1:30
+CLOCK: [{{-241 13:15}}]--[{{-241 16:15}}] =>  3:00
+CLOCK: [{{-245 11:56}}]--[{{-245 12:21}}] =>  0:25
+CLOCK: [{{-251 08:14}}]--[{{-251 12:14}}] =>  4:00
+CLOCK: [{{-257 09:16}}]--[{{-257 09:46}}] =>  0:30
+CLOCK: [{{-265 10:40}}]--[{{-265 11:40}}] =>  1:00
+CLOCK: [{{-267 09:23}}]--[{{-267 09:53}}] =>  0:30
+CLOCK: [{{-270 12:50}}]--[{{-270 13:20}}] =>  0:30
+:END:
+* Done
+** DONE Fix the release script
+CLOSED: [{{-263 10:00}}]
+** DONE Answer the forum thread
+CLOSED: [{{-259 11:07}}]
+** DONE Update the roadmap
+CLOSED: [{{-258 12:14}}]
+** DONE Triage new issues
+CLOSED: [{{-256 13:21}}]
+** DONE Write the changelog
+CLOSED: [{{-256 14:28}}]
+** DONE Pay the invoice
+CLOSED: [{{-255 15:35}}]
+** DONE Book the venue
+CLOSED: [{{-255 16:42}}]
+** DONE Merge the parser branch
+CLOSED: [{{-255 17:49}}]
+** DONE Send the newsletter
+CLOSED: [{{-253 10:56}}]
+** DONE Renew the certificate
+CLOSED: [{{-253 11:03}}]
+** DONE Fix the release script
+CLOSED: [{{-249 12:10}}]
+** DONE Answer the forum thread
+CLOSED: [{{-247 13:17}}]
+** DONE Update the roadmap
+CLOSED: [{{-245 14:24}}]
+** DONE Triage new issues
+CLOSED: [{{-244 15:31}}]
+** DONE Write the changelog
+CLOSED: [{{-244 16:38}}]
+** DONE Pay the invoice
+CLOSED: [{{-242 17:45}}]
+** DONE Book the venue
+CLOSED: [{{-241 10:52}}]
+** DONE Merge the parser branch
+CLOSED: [{{-241 11:59}}]
+** DONE Send the newsletter
+CLOSED: [{{-241 12:06}}]
+** DONE Renew the certificate
+CLOSED: [{{-239 13:13}}]
+** DONE Fix the release script
+CLOSED: [{{-238 14:20}}]
+** DONE Answer the forum thread
+CLOSED: [{{-237 15:27}}]
+** DONE Update the roadmap
+CLOSED: [{{-237 16:34}}]
+** DONE Triage new issues
+CLOSED: [{{-236 17:41}}]
+** DONE Write the changelog
+CLOSED: [{{-233 10:48}}]
+** DONE Pay the invoice
+CLOSED: [{{-233 11:55}}]
+** DONE Book the venue
+CLOSED: [{{-230 12:02}}]
+** DONE Merge the parser branch
+CLOSED: [{{-230 13:09}}]
+** DONE Send the newsletter
+CLOSED: [{{-224 14:16}}]
+** DONE Renew the certificate
+CLOSED: [{{-223 15:23}}]
+** DONE Fix the release script
+CLOSED: [{{-222 16:30}}]
+** DONE Answer the forum thread
+CLOSED: [{{-222 17:37}}]
+** DONE Update the roadmap
+CLOSED: [{{-222 10:44}}]
+** DONE Triage new issues
+CLOSED: [{{-219 11:51}}]
+** DONE Write the changelog
+CLOSED: [{{-216 12:58}}]
+** DONE Pay the invoice
+CLOSED: [{{-216 13:05}}]
+** DONE Book the venue
+CLOSED: [{{-216 14:12}}]
+** DONE Merge the parser branch
+CLOSED: [{{-214 15:19}}]
+** DONE Send the newsletter
+CLOSED: [{{-211 16:26}}]
+** DONE Renew the certificate
+CLOSED: [{{-211 17:33}}]
+** DONE Fix the release script
+CLOSED: [{{-211 10:40}}]
+** DONE Answer the forum thread
+CLOSED: [{{-208 11:47}}]
+** DONE Update the roadmap
+CLOSED: [{{-208 12:54}}]
+** DONE Triage new issues
+CLOSED: [{{-205 13:01}}]
+** DONE Write the changelog
+CLOSED: [{{-204 14:08}}]
+** DONE Pay the invoice
+CLOSED: [{{-204 15:15}}]
+** DONE Book the venue
+CLOSED: [{{-204 16:22}}]
+** DONE Merge the parser branch
+CLOSED: [{{-203 17:29}}]
+** DONE Send the newsletter
+CLOSED: [{{-200 10:36}}]
+** DONE Renew the certificate
+CLOSED: [{{-195 11:43}}]
+** DONE Fix the release script
+CLOSED: [{{-195 12:50}}]
+** DONE Answer the forum thread
+CLOSED: [{{-193 13:57}}]
+** DONE Update the roadmap
+CLOSED: [{{-191 14:04}}]
+** DONE Triage new issues
+CLOSED: [{{-187 15:11}}]
+** DONE Write the changelog
+CLOSED: [{{-187 16:18}}]
+** DONE Pay the invoice
+CLOSED: [{{-187 17:25}}]
+** DONE Book the venue
+CLOSED: [{{-186 10:32}}]
+** DONE Merge the parser branch
+CLOSED: [{{-185 11:39}}]
+** DONE Send the newsletter
+CLOSED: [{{-183 12:46}}]
+** DONE Renew the certificate
+CLOSED: [{{-183 13:53}}]
+** DONE Fix the release script
+CLOSED: [{{-180 14:00}}]
+** DONE Answer the forum thread
+CLOSED: [{{-179 15:07}}]
+** DONE Update the roadmap
+CLOSED: [{{-178 16:14}}]
+** DONE Triage new issues
+CLOSED: [{{-177 17:21}}]
+** DONE Write the changelog
+CLOSED: [{{-176 10:28}}]
+** DONE Pay the invoice
+CLOSED: [{{-176 11:35}}]
+** DONE Book the venue
+CLOSED: [{{-172 12:42}}]
+** DONE Merge the parser branch
+CLOSED: [{{-172 13:49}}]
+** DONE Send the newsletter
+CLOSED: [{{-172 14:56}}]
+** DONE Renew the certificate
+CLOSED: [{{-171 15:03}}]
+** DONE Fix the release script
+CLOSED: [{{-170 16:10}}]
+** DONE Answer the forum thread
+CLOSED: [{{-169 17:17}}]
+** DONE Update the roadmap
+CLOSED: [{{-168 10:24}}]
+** DONE Triage new issues
+CLOSED: [{{-165 11:31}}]
+** DONE Write the changelog
+CLOSED: [{{-146 12:38}}]
+** DONE Pay the invoice
+CLOSED: [{{-134 13:45}}]
+** DONE Book the venue
+CLOSED: [{{-132 14:52}}]
+** DONE Merge the parser branch
+CLOSED: [{{-132 15:59}}]
+** DONE Send the newsletter
+CLOSED: [{{-129 16:06}}]
+** DONE Renew the certificate
+CLOSED: [{{-127 17:13}}]
+** DONE Fix the release script
+CLOSED: [{{-127 10:20}}]
+** DONE Answer the forum thread
+CLOSED: [{{-125 11:27}}]
+** DONE Update the roadmap
+CLOSED: [{{-120 12:34}}]
+** DONE Triage new issues
+CLOSED: [{{-119 13:41}}]
+** DONE Write the changelog
+CLOSED: [{{-119 14:48}}]
+** DONE Pay the invoice
+CLOSED: [{{-119 15:55}}]
+** DONE Book the venue
+CLOSED: [{{-118 16:02}}]
+** DONE Merge the parser branch
+CLOSED: [{{-118 17:09}}]
+** DONE Send the newsletter
+CLOSED: [{{-117 10:16}}]
+** DONE Renew the certificate
+CLOSED: [{{-113 11:23}}]
+** DONE Fix the release script
+CLOSED: [{{-112 12:30}}]
+** DONE Answer the forum thread
+CLOSED: [{{-112 13:37}}]
+** DONE Update the roadmap
+CLOSED: [{{-112 14:44}}]
+** DONE Triage new issues
+CLOSED: [{{-111 15:51}}]
+** DONE Write the changelog
+CLOSED: [{{-110 16:58}}]
+** DONE Pay the invoice
+CLOSED: [{{-110 17:05}}]
+** DONE Book the venue
+CLOSED: [{{-110 10:12}}]
+** DONE Merge the parser branch
+CLOSED: [{{-109 11:19}}]
+** DONE Send the newsletter
+CLOSED: [{{-108 12:26}}]
+** DONE Renew the certificate
+CLOSED: [{{-108 13:33}}]
+** DONE Fix the release script
+CLOSED: [{{-107 14:40}}]
+** DONE Answer the forum thread
+CLOSED: [{{-104 15:47}}]
+** DONE Update the roadmap
+CLOSED: [{{-104 16:54}}]
+** DONE Triage new issues
+CLOSED: [{{-100 17:01}}]
+** DONE Write the changelog
+CLOSED: [{{-99 10:08}}]
+** DONE Pay the invoice
+CLOSED: [{{-99 11:15}}]
+** DONE Book the venue
+CLOSED: [{{-98 12:22}}]
+** DONE Merge the parser branch
+CLOSED: [{{-98 13:29}}]
+** DONE Send the newsletter
+CLOSED: [{{-94 14:36}}]
+** DONE Renew the certificate
+CLOSED: [{{-92 15:43}}]
+** DONE Fix the release script
+CLOSED: [{{-90 16:50}}]
+** DONE Answer the forum thread
+CLOSED: [{{-89 17:57}}]
+** DONE Update the roadmap
+CLOSED: [{{-89 10:04}}]
+** DONE Triage new issues
+CLOSED: [{{-86 11:11}}]
+** DONE Write the changelog
+CLOSED: [{{-86 12:18}}]
+** DONE Pay the invoice
+CLOSED: [{{-84 13:25}}]
+** DONE Book the venue
+CLOSED: [{{-84 14:32}}]
+** DONE Merge the parser branch
+CLOSED: [{{-82 15:39}}]
+** DONE Send the newsletter
+CLOSED: [{{-81 16:46}}]
+** DONE Renew the certificate
+CLOSED: [{{-81 17:53}}]
+** DONE Fix the release script
+CLOSED: [{{-74 10:00}}]
+** DONE Answer the forum thread
+CLOSED: [{{-73 11:07}}]
+** DONE Update the roadmap
+CLOSED: [{{-72 12:14}}]
+** DONE Triage new issues
+CLOSED: [{{-70 13:21}}]
+** DONE Write the changelog
+CLOSED: [{{-70 14:28}}]
+** DONE Pay the invoice
+CLOSED: [{{-69 15:35}}]
+** DONE Book the venue
+CLOSED: [{{-69 16:42}}]
+** DONE Merge the parser branch
+CLOSED: [{{-66 17:49}}]
+** DONE Send the newsletter
+CLOSED: [{{-66 10:56}}]
+** DONE Renew the certificate
+CLOSED: [{{-66 11:03}}]
+** DONE Fix the release script
+CLOSED: [{{-61 12:10}}]
+** DONE Answer the forum thread
+CLOSED: [{{-60 13:17}}]
+** DONE Update the roadmap
+CLOSED: [{{-60 14:24}}]
+** DONE Triage new issues
+CLOSED: [{{-58 15:31}}]
+** DONE Write the changelog
+CLOSED: [{{-55 16:38}}]
+** DONE Pay the invoice
+CLOSED: [{{-54 17:45}}]
+** DONE Book the venue
+CLOSED: [{{-54 10:52}}]
+** DONE Merge the parser branch
+CLOSED: [{{-54 11:59}}]
+** DONE Send the newsletter
+CLOSED: [{{-53 12:06}}]
+** DONE Renew the certificate
+CLOSED: [{{-49 13:13}}]
+** DONE Fix the release script
+CLOSED: [{{-49 14:20}}]
+** DONE Answer the forum thread
+CLOSED: [{{-47 15:27}}]
+** DONE Update the roadmap
+CLOSED: [{{-41 16:34}}]
+** DONE Triage new issues
+CLOSED: [{{-37 17:41}}]
+** DONE Write the changelog
+CLOSED: [{{-36 10:48}}]
+** DONE Pay the invoice
+CLOSED: [{{-32 11:55}}]
+** DONE Book the venue
+CLOSED: [{{-32 12:02}}]
+** DONE Merge the parser branch
+CLOSED: [{{-29 13:09}}]
+** DONE Send the newsletter
+CLOSED: [{{-29 14:16}}]
+** DONE Renew the certificate
+CLOSED: [{{-29 15:23}}]
+** DONE Fix the release script
+CLOSED: [{{-28 16:30}}]
+** DONE Answer the forum thread
+CLOSED: [{{-26 17:37}}]
+** DONE Update the roadmap
+CLOSED: [{{-23 10:44}}]
+** DONE Triage new issues
+CLOSED: [{{-22 11:51}}]
+** DONE Write the changelog
+CLOSED: [{{-21 12:58}}]
+** DONE Pay the invoice
+CLOSED: [{{-21 13:05}}]
+** DONE Book the venue
+CLOSED: [{{-19 14:12}}]
+** DONE Merge the parser branch
+CLOSED: [{{-18 15:19}}]
+** DONE Send the newsletter
+CLOSED: [{{-16 16:26}}]
+** DONE Renew the certificate
+CLOSED: [{{-16 17:33}}]
+** DONE Fix the release script
+CLOSED: [{{-14 10:40}}]
+** DONE Answer the forum thread
+CLOSED: [{{-14 11:47}}]
+** DONE Update the roadmap
+CLOSED: [{{-14 12:54}}]
+** DONE Triage new issues
+CLOSED: [{{-13 13:01}}]
+** DONE Write the changelog
+CLOSED: [{{-12 14:08}}]
+** DONE Pay the invoice
+CLOSED: [{{-10 15:15}}]
+** DONE Book the venue
+CLOSED: [{{-9 16:22}}]
+** DONE Merge the parser branch
+CLOSED: [{{-8 17:29}}]
+** DONE Send the newsletter
+CLOSED: [{{-7 10:36}}]
+** DONE Renew the certificate
+CLOSED: [{{-7 11:43}}]
+** DONE Fix the release script
+CLOSED: [{{-6 12:50}}]
+** DONE Answer the forum thread
+CLOSED: [{{-5 13:57}}]
+** DONE Update the roadmap
+CLOSED: [{{-2 14:04}}]
+** DONE Triage new issues
+CLOSED: [{{-2 15:11}}]
+** DONE Write the changelog
+CLOSED: [{{-2 16:18}}]
+** DONE Pay the invoice
+CLOSED: [{{-1 17:25}}]
