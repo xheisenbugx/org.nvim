@@ -295,7 +295,10 @@ describe("agenda line format options", function()
         bulk_mark_char = "*",
       },
     })
-    local l = line_of(today.year .. " W")
+    -- today's day header ("Wednesday  30 September 2026"); only Mondays and
+    -- the first day carry the week number
+    local month = os.date("%B", os.time({ year = today.year, month = today.month, day = 1, hour = 12 }))
+    local l = line_of(string.format(" %d %s %d", today.day, month, today.year))
     eq({ { 0, #buf_text()[l], "ErrorMsg" } }, groups_at(l))
     local hi = line_of("[#A]")
     vim.api.nvim_win_set_cursor(0, { hi, 0 })

@@ -1,0 +1,36 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { quickadd = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---Todoist-style quick add of entries from one line (`:h org-extensions-quickadd`).
+---@field quickadd? org.Config.Extensions.Quickadd|boolean
+
+---@class org.Config.Extensions.Quickadd
+---`false` keeps the extension off.
+---@field enabled? boolean
+---File for entries without an `@target` (or whose target matches nothing),
+---relative to `org_directory` (default: `nil`, the `default_notes_file`).
+---@field file? string
+---Headline of `file` that entries go under, created when missing
+---(default: `nil`, the top level).
+---@field headline? string
+---Keyword of new entries; `false` for none. `*NEXT` in the line overrides
+---it, `*-` removes it (default: `"TODO"`).
+---@field keyword? string|false
+---Where a date without `due` goes (default: `"scheduled"`).
+---@field date_kind? "scheduled"|"deadline"
+---Files `@target` headings are looked up in: `"agenda"` (the agenda files
+---and the default file) or a list of files and globs (default: `"agenda"`).
+---@field targets? "agenda"|string[]
+---Show the parsed entry in a float below the prompt while typing (default: `true`).
+---@field preview? boolean
+---Add an inactive `:CREATED:` timestamp property (default: `false`).
+---@field created? boolean
+---Jump to the new entry after adding it (default: `false`).
+---@field jump? boolean
+
+---@class org.Config.CaptureTemplate
+---Parse the captured headline as a quick-add line (dates, `#tags`, `!A`,
+---`~30m`) when the quickadd extension is on (default: `false`).
+---@field quickadd? boolean

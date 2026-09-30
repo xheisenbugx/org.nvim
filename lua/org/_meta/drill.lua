@@ -1,0 +1,78 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { drill = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
+---@field drill? org.Config.Extensions.Drill|boolean
+
+---@class org.Config.Extensions.Drill
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Tag of drill cards (org-drill-question-tag, default: `"drill"`).
+---@field tag? string
+---Cards `:Org drill` looks at without an argument (org-drill-scope):
+---`"file"` (default), `"tree"`, `"agenda"`, `"directory"`, `"tag:NAME"` or
+---a list of files and globs.
+---@field scope? "file"|"tree"|"agenda"|"directory"|string|string[]
+---Most cards per session, 0 for no limit
+---(org-drill-maximum-items-per-session, default: `30`).
+---@field maximum_items_per_session? integer
+---Minutes after which a session ends, 0 for no limit
+---(org-drill-maximum-duration, default: `20`).
+---@field maximum_duration? number
+---Answers of this quality or lower fail (org-drill-failure-quality, default: `2`).
+---@field failure_quality? integer
+---Scheduling algorithm (org-drill-spaced-repetition-algorithm, default: `"sm5"`).
+---@field algorithm? "sm5"|"sm2"|"simple8"
+---How fast SM-5 and Simple8 intervals grow (org-drill-learn-fraction, default: `0.5`).
+---@field learn_fraction? number
+---First SM-5 interval in days (org-drill-sm5-initial-interval, default: `4.0`).
+---@field sm5_initial_interval? number
+---File keeping SM-5's learned optimal factors (default:
+---`stdpath("data") .. "/org/drill-sm5.json"`).
+---@field sm5_matrix_file? string
+---Failures after which a card is tagged :leech:; `false` for never
+---(org-drill-leech-failure-threshold, default: `15`).
+---@field leech_failure_threshold? integer|false
+---Leech cards are left out (`"skip"`), asked marked as leeches (`"warn"`) or
+---asked like others (`false`) (org-drill-leech-method, default: `"skip"`).
+---@field leech_method? "skip"|"warn"|false
+---Every Nth repetition the weighted cloze types do the less favoured thing;
+---`false` makes them plain (org-drill-cloze-text-weight, default: `4`).
+---@field cloze_text_weight? integer|false
+---Cram mode asks cards not reviewed in this many hours (org-drill-cram-hours,
+---default: `12`).
+---@field cram_hours? number
+---Last interval (days) up to which a card is "young" (org-drill-days-before-old,
+---default: `10`).
+---@field days_before_old? number
+---A card is overdue when late by more than (factor - 1) times its last
+---interval (org-drill-overdue-interval-factor, default: `1.2`).
+---@field overdue_interval_factor? number
+---Ask failed cards again at the end of the session (default: `true`).
+---@field repeat_failed? boolean
+---Random order within each group of cards (default: `true`); `false`
+---asks the most overdue first and old cards before new ones.
+---@field shuffle? boolean
+---Write the changed files when a session ends
+---(org-drill-save-buffers-after-drill-sessions-p, default: `true`).
+---@field save_buffers? boolean
+---Width of the session window (default: `72`).
+---@field width? integer
+---Maximum height of the session window (default: `20`).
+---@field height? integer
+---Border of the session window (default: `"rounded"`).
+---@field border? string|string[]
+---Keys in the session window; grades are always `0`-`5`.
+---@field keys? org.Config.Extensions.DrillKeys
+
+---@class org.Config.Extensions.DrillKeys
+---Show the answer (default: `{ "<Space>", "<CR>" }`).
+---@field reveal? string|string[]
+---Skip the card (default: `"s"`).
+---@field skip? string|string[]
+---Pause and jump to the card (default: `"e"`).
+---@field edit? string|string[]
+---End the session, or close its summary (default: `"<Esc>"`).
+---@field quit? string|string[]

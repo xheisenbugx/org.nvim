@@ -81,7 +81,7 @@ M.defaults = {
     prev = { "p", "<BS>" },
     first = { "gg", "<" },
     last = { "G", ">" },
-    quit = { "q", "<Esc>" },
+    quit = "<Esc>",
     toggle_one_big_page = "1",
     big = { "+", "=" },
     small = "-",

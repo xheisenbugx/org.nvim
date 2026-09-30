@@ -1,0 +1,19 @@
+#!/bin/sh
+# Git merge driver for Org files (org.nvim's `merge` extension):
+#
+#   git config merge.org.driver "/path/to/org.nvim/bin/org-merge --marker-size=%L --ours-label=%X --theirs-label=%Y %O %A %B %P"
+#   echo '*.org merge=org' >> .gitattributes
+#
+# Options are those of lua/org/extensions/merge/driver.lua (it also reads
+# `merge.org.*` from the git config). $NVIM_BIN picks
+# the Neovim binary (default: nvim on $PATH).
+self=$0
+while [ -h "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+root=$(cd "$(dirname "$self")/.." && pwd)
+exec "${NVIM_BIN:-nvim}" --headless -u NONE -i NONE -l "$root/lua/org/extensions/merge/driver.lua" "$@"

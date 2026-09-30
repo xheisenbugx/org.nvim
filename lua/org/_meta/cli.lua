@@ -1,0 +1,18 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { cli = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Cli
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Directory `:Org cli_install` links `org` into. (default: `"~/.local/bin"`)
+---@field install_dir? string
+---Capture template key `org capture` uses without `-t` (nil: `"t"` when it
+---exists, else the first template). (default: `nil`)
+---@field capture_template? string
+---Format of `org clock status --short`: %t heading, %e elapsed, %T total
+---with earlier clocks, %E effort, %f file, %s start. (default: `"%e %t"`)
+---@field status_format? string
+---Follow `org clock in/out/cancel` run from a shell: rereads the files and
+---takes up or drops the running clock. (default: `true`)
+---@field watch_clock? boolean

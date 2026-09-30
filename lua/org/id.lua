@@ -197,6 +197,15 @@ function M.register(id, filename)
   end
 end
 
+--- Forget `id` (it was renamed or removed).
+function M.forget(id)
+  local d = load_db()
+  if id and d[id] then
+    d[id] = nil
+    save_db()
+  end
+end
+
 --- Record several ids at once: `map` is id -> filename. Writes the
 --- database once, and only when something changed.
 ---@param map table<string, string>

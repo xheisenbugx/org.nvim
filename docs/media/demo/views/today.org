@@ -1,0 +1,7 @@
+#+TITLE: Today
+#+CATEGORY: today
+
+* TODO Call with Alex about the launch                                  :call:
+SCHEDULED: <{{now+25}}>
+* TODO Pair on the parser bug                                            :dev:
+SCHEDULED: <{{now+80}}>

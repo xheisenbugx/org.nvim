@@ -10,6 +10,8 @@ local M = {}
 
 --- Extra subcommands: name -> { module, fn, desc, complete? }
 --- The function receives the argument string (possibly "").
+--- `complete(arglead, cmdline)` returns candidates for the arguments; they
+--- are filtered by `arglead`.
 M.extra = {
   agenda = { "org.agenda", "command", desc = "Open agenda: :Org agenda [a|t|m|s|<custom key>|day|week|month]" },
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
@@ -214,6 +216,15 @@ function M.complete(arglead, cmdline)
       end
     end
     return out
+  end
+  local extra = sub and M.extra[sub]
+  if extra and extra.complete then
+    local ok, items = pcall(extra.complete, arglead, cmdline)
+    if ok and type(items) == "table" then
+      return vim.tbl_filter(function(n)
+        return type(n) == "string" and n:find(arglead, 1, true) == 1
+      end, items)
+    end
   end
   return {}
 end

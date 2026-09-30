@@ -7269,7 +7269,7 @@ Keys in the slide buffer (actions after the arrow) ~
   <C-c><C-1>  1            toggle one big page  -> `present_toggle_one_big_page`
   <C-c><C-=>  +  =         bigger font          -> `present_big`
   <C-c><C-->  -            reset the font       -> `present_small`
-  <C-c><C-q>  q  <Esc>     quit                 -> `present_quit`
+  <C-c><C-q>  <Esc>        quit                 -> `present_quit`
   <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
 
 The single-letter keys are only mapped while the slides are read-only.
@@ -7489,7 +7489,7 @@ context (`buffer.preview_lines`), links shown as their descriptions. Add
 mentions of the node's title or aliases, ignoring case, outside brackets
 and outside the node's own file. It follows the cursor. `<CR>` opens a
 link's location in the window it was toggled from (a new one beside it
-when it is the only window), `r` refreshes, `q` closes.
+when it is the only window), `r` refreshes, `<Esc>` closes.
 
 org-protocol ~
 While the extension is on, two |org-protocol| sub-protocols are handled:
@@ -7599,5 +7599,2037 @@ Differences from Emacs org-roam ~
   - Titles are not completed while typing text
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
+
+------------------------------------------------------------------------------
+Quick add (Todoist-style)                            *org-extensions-quickadd*
+
+`quickadd` adds an entry from one line, the way Todoist's quick add does:
+>lua
+    require("org").setup({ extensions = { quickadd = true } })
+<
+`:Org quickadd [text]` (action `quickadd`, key `<prefix>q`, available
+anywhere) adds `text`, or asks for a line in a small float that previews
+the parsed entry as you type (with |vim.ui.input()| when there is no UI).
+`<CR>` adds it, `<Esc>` in Normal mode or `<C-c>` cancel. The entry
+goes under its `@target`, else into `file` (under `headline`), and the file
+is saved. For example
+>
+    Call Bob fri 3pm #work #phone !A ~30m @Inbox due mon every week
+<
+becomes, under the best-matching "Inbox" heading,
+>
+    * TODO [#A] Call Bob                                      :work:phone:
+    DEADLINE: <2026-10-05 Mon> SCHEDULED: <2026-10-02 Fri 15:00 +1w>
+    :PROPERTIES:
+    :Effort:   0:30
+    :END:
+<
+What the line may contain ~
+  dates        Anything the date prompt reads (|org-dates|): `today`,
+               `tomorrow` (`tmr`), `fri`, `fri 3pm`, `at 14:30`,
+               `9am-10:30am`, `+2w`, `dec 24`, `24 dec`, `12/24`,
+               `2026-12-24`, `w45`, plus `next week`, `next fri`,
+               `in 3 days` and `noon`. Dates go to SCHEDULED (see
+               `date_kind`); after `due` (or `by`) to DEADLINE. A month
+               name only counts next to a day number, so "May call Bob"
+               stays a title. A weekday, `now`, `noon`, `midnight` or
+               `tonight` on its own is a date only at the end of the
+               title (tags and the like may follow) or after `at`, `on`
+               or `due`: "Watch Friday Night Lights" stays a title,
+               "Meeting on fri with Bob" and "Standup mon 9am with the
+               team" get a date. When the line holds several dates, the
+               last one counts (the last `due` one for the deadline), as
+               in Todoist; the others stay in the title.
+  repeaters    `every day|week|month|year`, `every 2w`, `every 3 days`,
+               `every other week`, `every mon` (the next Monday, today on a
+               Monday). `every!` repeats from the day it is done (`.+`).
+               Without a date the repeater starts today. It goes on the
+               SCHEDULED date, or on the deadline when there is only one.
+               `every weekday`, `every weekend` and several days
+               (`every mon and thu`, `every mon,wed,fri`) have no Org
+               repeater and are written as a diary sexp,
+               `<%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>`.
+  `#tag`       a tag; `#42` (digits only) stays in the title
+  `!A` `!1`    priority; also `p1`, `p2`, `p3` (p1 is the highest)
+  `~30m`       Effort: `~30m`, `~1h`, `~1h30`, `~1:30`, `~90`, `~1.5h`
+  `@Heading`   target: the best match among the headings of the `targets`
+               files (exact, then prefix, substring and fuzzy match);
+               `@Parent/Child` matches outline paths, `@file/Heading`
+               looks in one file (its name without `.org`), `@file/` adds
+               at the top level of that file. A heading that doesn't
+               exist in a named file is created. When nothing matches the
+               entry goes to `file` and the message says so.
+               `@"Two words"` for spaces.
+  `*NEXT`      keyword instead of `keyword`; `*-` for none
+
+Quote words to keep them in the title (`"Friday Night Lights"`,
+`'due fri'`), or escape one character with a backslash (`\#1`, `\fri`).
+`:Org quickadd` reads the text as typed and completes `@` headings (a
+heading with spaces as `@"Big Project"`), `#` tags and `*` keywords.
+The preview keeps an index of the headings of the `targets` files and
+reads a file again only when it (or its buffer) changed.
+
+Capture templates ~
+A capture template with `quickadd = true` reads its headline the same way
+when the capture is stored, so `%^{Task}` answers or text typed in the
+capture buffer can hold dates, tags, priorities and efforts. The template's
+own keyword, tags, planning and properties are kept and completed. An
+`@target` sends the entry to that heading instead of the template's
+target (whose date tree or heading, when the capture made one, is removed
+again); when it matches nothing, the template's target is used and a
+warning says so.
+>lua
+    capture = { templates = {
+      q = { description = "Quick task", template = "* TODO %^{Task}",
+            target = "inbox.org", immediate_finish = true, quickadd = true },
+    } }
+<
+Options ~
+  `file`       file for entries without a target, relative to
+             `org_directory` (nil: `default_notes_file`)
+  `headline`   headline of `file` entries go under, created when missing
+             (nil: the top level)
+  `keyword`    keyword of new entries ("TODO"); false for none
+  `date_kind`  where dates without `due` go: "scheduled" or "deadline"
+  `targets`    files `@target` looks in: "agenda" (the agenda files and
+             `file`) or a list of files and globs
+  `preview`    preview the parsed entry while typing (true)
+  `created`    add a `:CREATED:` inactive timestamp property (false)
+  `jump`       go to the new entry after adding it (false)
+
+The parser is `require("org.extensions.quickadd").parse(text, now)`, which
+returns the title, keyword, priority, tags, effort (minutes), dates, the
+planning timestamps and the target without touching any file.
+
+------------------------------------------------------------------------------
+Weekly review (GTD)                                    *org-extensions-review*
+
+`review` walks you through a GTD weekly review, one step at a time, in a
+floating window:
+>lua
+    require("org").setup({ extensions = { review = {} } })
+<
+`:Org review` (action `review`, global key `<prefix>W`) starts the review,
+or resumes the one you left. The header shows the progress (a dot per
+step) and the step's title; the footer lists the keys. The default steps:
+
+  inbox     Empty the inbox: the top-level entries of `inbox` (default
+            `default_notes_file`), to refile, schedule, give a TODO state,
+            delete or skip one by one
+  stuck     Stuck projects, as the agenda finds them
+            (`agenda.stuck_projects`, |org-agenda|)
+  waiting   Entries in a `waiting_keywords` state (WAITING)
+  overdue   Open entries scheduled or due before today, oldest first
+  upcoming  Scheduled, due and dated entries of the next `upcoming_days`
+            (14) days, repeaters included, in date order
+  someday   Entries tagged or in a state of `someday` (:someday:,
+            :maybe:, SOMEDAY, MAYBE)
+  clock     The time clocked in the last `clock_days` (7) days, and the
+            `clock_top` (10) entries it went to
+  reflect   Questions (`questions`) answered in a note buffer
+
+`:Org review <step>` jumps to a step by name or number (<Tab> completes
+the names), and `:Org review restart` drops an unfinished review and
+starts over.
+
+Keys in the review window ~
+  n  ]]        next step                      -> `review_next`
+  p  [[        previous step                  -> `review_prev`
+  <CR>         go to the entry (the review is paused), or answer the
+               question under the cursor
+  r            refile the entry (|org-refile|)
+  s  S         schedule it / set a deadline (the date prompt)
+  t            set its TODO state from a list
+  d            delete it (asks first, `confirm_delete`)
+  x            skip it: it is marked and the cursor moves on
+  i            answer the question under the cursor
+  R            refresh (collect the step's entries again)
+  F            finish                         -> `review_finish`
+  <Esc>        pause                          -> `review_quit`
+Change them with `keys` (a key, a list, or false for none).
+
+The entries are read from the agenda files, and every change is saved to
+its file right away. An entry is found again by a mark in its buffer, its
+ID, its line or, failing those, as the only entry with its title, level
+and outline path: when two entries could be meant, nothing is done and
+`R` lists them again. The entries of a builtin step are collected again
+only when an agenda file changed (or `R`). The progress (the step, the answers, what was
+skipped and the counts) is kept in `state_file`, so closing the window,
+going to an entry with <CR> or quitting Neovim pauses the review and
+`:Org review` picks it up again.
+
+Finishing ~
+`F` writes a review entry into a date tree of `log_file` (default
+"review.org" in `org_directory`; a week tree, `log_tree_type`): the time,
+what was done with the inbox, how many entries each step listed, the time
+clocked, and each answer under its question as a subheading. The text is
+indented for the entry's level when `adapt_indentation` is on, and an
+answer line starting with `*` gets a leading space so it can't become a
+headline. A new log file starts with its date tree, without the empty
+first line an Emacs date tree leaves. With `capture_template` set to
+a template key, the review is captured with that template instead, the
+summary being its initial text (`%i`), so it can be edited before it is
+stored. The saved progress is then forgotten.
+
+Custom steps ~
+`steps` lists the steps in order. An entry is a builtin name, a builtin
+with overrides (`{ "waiting", title = "Blocked" }`), a function returning
+the items of a new step, or a table:
+>lua
+    steps = {
+      "inbox",
+      {
+        name = "reading",
+        title = "Reading list",
+        description = "Anything worth reading next week?",
+        items = function(ctx)
+          local ql = require("org.extensions.ql")
+          return ql.select(ctx.files, '(tags "read")', {
+            action = function(hl)
+              return { hl = hl, path = hl.file.filename, lnum = hl.line }
+            end,
+          })
+        end,
+        keys = { a = function(item, session) end },
+      },
+      "reflect",
+    }
+<
+`items(ctx)` returns `{ hl, path, lnum, info? }` entries (`info` is shown
+after the title) or `{ text = "..." }` lines; `lines(ctx)` adds text above
+them; `keys` are mapped while the step is shown. `ctx` has `opts`,
+`today`, `now`, `files` (the agenda files) and `state`.
+
+Options ~
+  `steps`             the steps (see above)
+  `inbox`             inbox file(s) (nil: `default_notes_file`)
+  `waiting_keywords`  { "WAITING" }
+  `someday`           { tags = { "someday", "maybe" },
+                      keywords = { "SOMEDAY", "MAYBE" } }
+  `upcoming_days`     days of the "upcoming" step (14)
+  `clock_days`        days summed by the "clock" step (7)
+  `clock_top`         entries listed by the "clock" step (10)
+  `questions`         the questions of the "reflect" step
+  `log_file`          the review log (nil: "review.org" in `org_directory`)
+  `log_tree_type`     "day", "week" (default) or "month"
+  `log_heading`       heading of the logged review ("Weekly review")
+  `capture_template`  finish with this capture template (nil)
+  `open_log`          show the new log entry after finishing (true)
+  `confirm_delete`    ask before deleting an entry (true)
+  `state_file`        the saved progress
+                      (stdpath("data")/org/review.json)
+  `width` `height`    size of the window (96 x 30, clamped to the screen)
+  `border`            its border ("rounded")
+  `keys`              keys in the window (see above)
+
+------------------------------------------------------------------------------
+Pomodoro                                             *org-extensions-pomodoro*
+
+`pomodoro` runs the Pomodoro technique on top of the clock, like Emacs
+org-pomodoro:
+>lua
+    require("org").setup({ extensions = { pomodoro = { work = 25 } } })
+<
+`pomodoro_start` (`:Org pomodoro`) starts a pomodoro on the heading at the
+cursor: the entry is clocked in and a `work` minute countdown starts. When
+it ends, the entry's POMODOROS property goes up by one, the entry is
+clocked out and a break starts: `short_break` minutes, or `long_break`
+minutes after every `long_break_every` pomodoros. When the break ends you
+are told so, and `pomodoro_start` from anywhere (or from the heading of
+another entry) starts the next one; with `auto_start_work` it starts by
+itself. Starting on another heading while a pomodoro runs moves the session
+there.
+
+With `manual_break` (org-pomodoro-manual-break) a pomodoro whose time is
+up goes on in overtime: the clock keeps running and the statusline counts
+up (`🍅 +2:10`) until `pomodoro_start` (or `skip`) ends it, counted, and
+starts the break.
+
+The running pomodoro is kept in `state_file`, so a Neovim started while it
+still runs (or is paused, or in overtime) goes on with it; one that ended
+in the meantime is dropped, and one another Neovim is running is left to
+it. The clock is not touched then (see `clock.persist`, |org-clock|); after
+a second `setup()` in the same Neovim a running pomodoro clocks in again.
+
+Each phase change is announced through the clock's notifier
+(`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
+desktop notification (osascript or notify-send, `system_notification`) and
+the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
+`data = { phase, count, title }`, `phase` being "work", "overtime",
+"short_break", "long_break" or "ready".
+`require("org.extensions.pomodoro").info()` returns the session for other
+code (a statusline, the sidebar): nil, or `{ phase, remaining, elapsed,
+paused, count, title, overtime }` (seconds).
+
+Actions, `:Org pomodoro [arg]` and default keys ~
+  `<prefix>zs`  pomodoro_start    start (`:Org pomodoro` or `start`)
+  `<prefix>zp`  pomodoro_pause    pause, or resume a paused phase (`pause`,
+                                `resume`); the clock stops while paused
+  `<prefix>zx`  pomodoro_stop     stop the session; the running pomodoro
+                                is not counted (org-pomodoro-kill) (`stop`)
+  `<prefix>zn`  pomodoro_skip     end the phase now: a skipped pomodoro is
+                                not counted, a skipped break starts the
+                                next pomodoro (`skip`)
+  `<prefix>zi`  pomodoro_status   show the time left (`status`)
+<Tab> completes the arguments of `:Org pomodoro`.
+
+Statusline ~
+The time left is added to `require("org").statusline()` (|org-api|), after
+the clock: `🍅 24:13 (1)` while working, `☕ 4:59` on a break,
+`⏸ 🍅 12:00` when paused, `🍅 +2:10` in overtime and `🍅 ready (2)`
+between pomodoros; the number counts the pomodoros finished in the
+session. Set `statusline = false` to leave it out and place
+`require("org.extensions.pomodoro").statusline()` yourself:
+>lua
+    -- lualine
+    table.insert(opts.sections.lualine_x, 1, {
+      function() return require("org.extensions.pomodoro").statusline() end,
+    })
+<
+Other extensions can add their own parts to `require("org").statusline()`
+through `require("org").statusline_components` (name -> function).
+
+Options ~
+  `work`                 minutes of a pomodoro, fractions allowed (25)
+  `short_break`          minutes of a short break (5)
+  `long_break`           minutes of a long break (15)
+  `long_break_every`     a long break after every Nth pomodoro; 0 for
+                       never (4)
+  `auto_start_breaks`    start the break when a pomodoro ends (true)
+  `auto_start_work`      start the next pomodoro when a break ends (false)
+  `manual_break`         overtime until `pomodoro_start` (false)
+  `clock_out_on_break`   clock out during breaks and pauses (true)
+  `property`             property counting finished pomodoros
+                       ("POMODOROS"); false for none
+  `system_notification`  desktop notifications (true)
+  `sound`                command run when a phase ends: a shell string or
+                       an argv list (false)
+  `statusline`           add the pomodoro to `require("org").statusline()`
+                       (true)
+  `state_file`           where the running pomodoro is kept
+                       (stdpath("state")/org/pomodoro.json); false
+  `icons`                { work, short_break, long_break, paused, ready,
+                       overtime }
+
+Differences from Emacs org-pomodoro: there is no ticking sound, no
+org-pomodoro-expiry-time question, and killing a pomodoro keeps its clock
+time (org-pomodoro-keep-killed-pomodoro-time); Emacs forgets the session
+when it exits.
+
+------------------------------------------------------------------------------
+Spaced repetition (org-drill)                           *org-extensions-drill*
+
+`drill` turns headlines into flashcards and schedules their reviews by
+spaced repetition, like Emacs org-drill:
+>lua
+    require("org").setup({ extensions = { drill = { scope = "agenda" } } })
+<
+A card is a headline tagged `:drill:` (the `tag` option; the tag must be
+on the headline itself, not inherited). The title and text are the
+question and the subheadings the answer:
+>org
+    * Capital of France                                       :drill:
+      What is the capital of France?
+    ** Answer
+       Paris
+<
+`:Org drill [scope]` (action `drill`, `<prefix>D`) starts a session over
+the cards that are due: cards whose SCHEDULED date is today or earlier,
+and unscheduled cards (new ones, and ones failed last time). The scope
+is `file` (the current buffer, the default of the `scope` option), `tree`
+(the subtree at the cursor, also action `drill_tree`), `agenda` (the agenda
+files), `directory` (the org files next to the current one), `tag:NAME`
+(cards in the agenda files that also have the tag NAME, inherited or
+not), or files and globs; <Tab> completes them. Commented and archived
+cards are skipped, and so are cards with nothing to ask: like org-drill,
+only the entry's own text counts, so a simple card needs text above its
+answer subheading (two- and multisided cards need none).
+
+The cards are asked in org-drill's order: cards failed last time,
+overdue cards (late by more than `overdue_interval_factor` - 1 times
+their last interval, the most overdue first), young cards (a last
+interval of `days_before_old` days or less), then old and new cards mixed.
+Each group is shuffled (`shuffle`).
+
+The session opens in a floating window showing one card at a time, with
+its type and how often it was seen. Keys in the window ~
+  <Space>  <CR>   show the answer
+  0 - 5           grade the answer (a grade key before the answer shows it)
+  s               skip the card
+  e               pause, and jump to the card to edit it; `:Org
+                  drill_resume` (action `drill_resume`) goes on
+  <Esc>           end the session; in the summary, close the window
+
+The grades are org-drill's:
+  0  wrong, and the answer is unfamiliar
+  1  wrong, but upon seeing the answer it felt familiar
+  2  wrong, but upon seeing the answer it seemed easy
+  3  correct, but it took a lot of effort
+  4  correct, after some hesitation
+  5  correct, and it was easy
+
+A grade of `failure_quality` (2) or less fails the card. Failed cards come
+back at the end of the session until they pass (`repeat_failed`), even
+after `maximum_duration`. The session asks at most
+`maximum_items_per_session` cards and stops asking new ones after
+`maximum_duration` minutes, then shows a summary: cards and answers,
+passed, failed, new and skipped cards, the average grade, how often each
+grade was given, and when each card comes back. The files the session
+changed are then written (`save_buffers`). `:Org drill_stats [scope]`
+counts the cards of a scope: all, due, new and recently failed.
+
+Cram mode ~
+`:Org drill_cram [scope]` (action `drill_cram`, org-drill-cram) asks every
+card of the scope that was not reviewed in the last `cram_hours` (12)
+hours, due or not, without a card or time limit. Nothing is written: the
+cards keep their schedule.
+
+Leeches ~
+A card failed more than `leech_failure_threshold` (15) times is tagged
+`:leech:`. With `leech_method` "skip" (the default) leeches are left out
+of sessions until you untag them; "warn" asks them marked as a leech;
+false treats them like other cards.
+
+Card types ~
+The DRILL_CARD_TYPE property (inherited from parent headings, as in
+org-drill) sets a card's type:
+  simple           (default) the title and text are the question and the
+                   subheadings the answer; a card without subheadings has
+                   its text as the answer. Clozes in the text are hidden.
+  twosided         one of the first two subheadings, picked at random, is
+                   shown with the title; the other subheadings are the
+                   answer
+  multisided       like twosided, with any of the subheadings
+  hide1cloze       one cloze, at random, is hidden and the others shown
+                   (also `multicloze`)
+  hide2cloze       two clozes, at random, are hidden
+  show1cloze       one cloze, at random, is shown and the others hidden
+  show2cloze       two clozes are shown and the others hidden
+  hidefirst        the first cloze is hidden
+  hidelast         the last cloze is hidden
+  hide1_firstmore  the first cloze is hidden, except every
+                   `cloze_text_weight`th (4) repetition, when another one is
+  show1_lastmore   the last cloze is shown, except every Nth repetition,
+                   when another one is
+  show1_firstless  a cloze other than the first is shown, except every Nth
+                   repetition, when the first one is
+org-drill's language cards (`conjugate`, `decline_noun`, `spanish_verb`,
+`translate_number`) and `simpletyped` are asked like simple cards; a type
+org-drill doesn't know is skipped with a warning, like org-drill does.
+
+Clozes ~
+Text in single square brackets is a cloze deletion, hidden as `[...]`
+until the answer is shown. A hint follows `||`: `[Nile||river]` shows as
+`[river...]`. Links, timestamps, checkboxes, statistics cookies,
+footnotes and priorities are not clozes:
+>org
+    * Rivers                                                  :drill:
+      The longest river in the world is the [Nile||river]; it flows
+      north into the [Mediterranean||sea].
+<
+Scheduling ~
+Reviews are scheduled like org-drill's `org-drill-smart-reschedule`, with
+the `algorithm` option (org-drill-spaced-repetition-algorithm):
+  sm5      (default, as in org-drill) SuperMemo 5: the intervals grow by
+           "optimal factors" that are learned from your grades, starting
+           at `sm5_initial_interval` (4) days. The factors are kept in
+           `sm5_matrix_file` between sessions.
+  sm2      SuperMemo 2: every card has an ease, 2.5 at first; a passing
+           grade changes it (+0.1 for a 5, unchanged for a 4, -0.14 for a
+           3) and schedules the next review 1 day, then 6 days, then the
+           last interval times the ease later.
+  simple8  org-drill's Simple8: the first interval depends on how often
+           the card was failed, the next ones on its average grade and
+           `learn_fraction`.
+The days until the next review never go down with a better grade
+(org-drill-hypothetical-next-review-dates), and a DRILL_CARD_WEIGHT
+property divides how much a card's interval grows. A failure keeps the
+ease, removes the card's SCHEDULED date (it is due again at once, and
+asked first next time) and starts the intervals over. The result is
+written to the card's SCHEDULED date and to the properties org-drill
+uses, so a deck can be shared with Emacs:
+  DRILL_LAST_INTERVAL        days until the review (`15.0`, `0.0` after a
+                             failure)
+  DRILL_REPEATS_SINCE_FAIL   passing answers in a row, plus one
+  DRILL_TOTAL_REPEATS        answers in all
+  DRILL_FAILURE_COUNT        failed answers
+  DRILL_AVERAGE_QUALITY      the average grade
+  DRILL_EASE                 the ease factor
+  DRILL_LAST_QUALITY         the last grade
+  DRILL_LAST_REVIEWED        when it was last answered (inactive timestamp)
+Cards still using the old LEARN_DATA property are read, and it is removed
+when they are answered. A new planning line and property drawer take the
+indentation of the card's text.
+
+Lua ~
+`require("org.extensions.drill")` has `start(scope, cram)`,
+`cards(scope)`, `due_cards(scope, today, cram)`, `status(card, today)` and
+`reschedule(bufnr, lnum, card, quality)`; `.schedule` has the algorithms
+(`sm2`, `sm5`, `simple8`, `answer`) and `.cloze.parse(line)` finds the
+clozes of a line.
+
+Options ~
+  `tag`                        tag of the cards ("drill")
+  `scope`                      scope without an argument ("file")
+  `maximum_items_per_session`  0 for no limit (30)
+  `maximum_duration`           minutes, 0 for no limit (20)
+  `failure_quality`            grades at or below this fail (2)
+  `algorithm`                  "sm5" (default), "sm2" or "simple8"
+  `learn_fraction`             growth of SM-5 and Simple8 intervals (0.5)
+  `sm5_initial_interval`       first SM-5 interval in days (4.0)
+  `sm5_matrix_file`            SM-5's learned factors
+                             (stdpath("data")/org/drill-sm5.json)
+  `leech_failure_threshold`    failures that make a leech (15); false
+  `leech_method`               "skip" (default), "warn" or false
+  `cloze_text_weight`          see the weighted card types (4); false
+  `cram_hours`                 cram asks cards older than this (12)
+  `days_before_old`            young / old boundary in days (10)
+  `overdue_interval_factor`    when a card is overdue (1.2)
+  `repeat_failed`              ask failed cards again (true)
+  `shuffle`                    random order within each group (true);
+                             off, the most overdue cards come first and
+                             old cards before new ones
+  `save_buffers`               write changed files after a session (true)
+  `width`, `height`, `border`  the session window (72, 20, "rounded")
+  `keys`                       { reveal, skip, edit, quit }: a key or a
+                             list of keys each
+
+Differences from Emacs org-drill ~
+  - No random noise on intervals
+    (org-drill-add-random-noise-to-intervals-p) and no adjustment for
+    early or late reviews
+    (org-drill-adjust-intervals-for-early-and-late-repetitions-p); both
+    are off by default in org-drill.
+  - `maximum_items_per_session` counts the cards picked for the session;
+    org-drill counts passed cards, so failures there make room for more
+    cards.
+  - The language cards and `simpletyped` are asked like simple cards, and
+    custom card functions (org-drill-card-type-alist) are not supported.
+  - Very overdue cards are not "lapsed"
+    (org-drill--lapse-very-overdue-entries-p, off in org-drill), and
+    there is no `org-drill-again`, `org-drill-merge-buffers` or DATE_ADDED
+    ordering.
+  - The question is shown in a floating window instead of narrowing the
+    buffer to the entry, so its folds are left as they are.
+
+------------------------------------------------------------------------------
+Structural git merges                                  *org-extensions-merge*
+
+`merge` is a git merge driver that merges Org files entry by entry instead
+of line by line, so two clones of the same notes (a laptop and a phone,
+two people on a shared file) merge cleanly far more often, and a real
+conflict is marked inside the one entry it is about:
+>lua
+    require("org").setup({ extensions = { merge = true } })
+<
+`:Org merge_install` (action `merge_install`) sets the driver up for the
+git repository of the current file. It asks where the attribute goes (or
+takes it as an argument, `:Org merge_install info`):
+
+  `.gitattributes`        committed, so every clone asks for the driver
+  `.git/info/attributes`  this clone only
+
+and in both cases writes `merge.org.name`, `merge.org.driver` and the
+options (below) to the repository's `.git/config` (git never reads a
+driver command from a committed file, so each clone installs it once).
+`merge_uninstall` removes the attribute lines and the config section again.
+
+The driver is `lua/org/extensions/merge/driver.lua`, a script run with
+`nvim --headless -u NONE -i NONE -l`, so it needs nothing but Neovim 0.10+
+and can be set up by hand. `bin/org-merge` in the plugin directory wraps
+that command:
+>sh
+    git config merge.org.driver "~/org.nvim/bin/org-merge \
+      --marker-size=%L --ours-label=%X --theirs-label=%Y %O %A %B %P"
+    echo '*.org merge=org' >> .gitattributes
+<
+The driver writes the merge to %A and exits 0 when it is clean, 1 when it
+left conflict markers (git then reports the file as conflicted, as usual).
+Conflict markers carry the labels git passes (%X and %Y: `HEAD` and the
+branch being merged, git 2.44 or later; "ours" and "theirs" before), and
+with `merge.conflictStyle` set to `diff3` or `zdiff3` a text conflict also
+shows the base lines.
+
+How entries are merged ~
+Each version (the common ancestor, ours and theirs) is parsed into its tree
+of headlines. An entry is the same entry in all three when it has the same
+`ID` (or `CUSTOM_ID`) property, else the same outline path and title. An
+entry renamed on one side is still recognised when the rest of it did not
+change, when its text stayed similar (`rename_similarity`: that share of
+its lines, drawers and child titles is unchanged), or, for a headline
+without text, when it sits between the same two neighbours. An entry that
+got an `ID` on one side (as org-roam does) is matched by its title. Then:
+
+  - Changes to different entries never conflict, even on adjacent lines.
+  - An entry moved or refiled to another parent (by ID) or reordered is
+    followed, with the levels of its subtree adjusted, while the other
+    side's edits to it are kept. Without an ID a move is a delete plus an
+    add, which merges cleanly when the other side left the entry alone.
+  - An entry moved to different parents on both sides conflicts at both
+    places: the merged entry on the ours side of markers under ours'
+    parent, theirs' copy on the theirs side under theirs' parent. Keep one
+    side of each (or set `prefer`).
+  - The TODO keyword, priority, COMMENT, title and each planning keyword
+    (SCHEDULED, DEADLINE, CLOSED) are merged as values: a change on one
+    side wins; different changes on both sides conflict. CLOSED goes with
+    the side whose TODO keyword is kept.
+  - Tags: added tags from both sides are kept, removed ones stay removed.
+  - The property drawer is merged key by key; a key changed differently on
+    both sides conflicts on that line only.
+  - Log drawers right after the planning line and properties are merged
+    item by item: LOGBOOK, the drawers named by `log_into_drawer` and
+    `clock.into_drawer`, and `set_drawers`. Items (CLOCK lines, state
+    changes and notes) of both sides are kept, removed ones stay removed,
+    and they are sorted newest first when both sides added some.
+  - The rest of the entry is merged line by line (diff3); changes to the
+    same or adjacent lines conflict, like git.
+  - An entry deleted on one side and changed on the other conflicts: the
+    changed subtree sits on its side of the markers, the other side empty.
+  - The text before the first headline is merged line by line.
+
+With `prefer = "ours"` or `"theirs"`, conflicting headline fields,
+planning keywords, properties and moves take that side instead of markers.
+Body text conflicts always get markers.
+
+Conflict markers wrap only the lines in conflict (the headline and
+planning line of one entry, one property line, or a few lines of text):
+>
+    <<<<<<< HEAD
+    * WAITING Plan the offsite                                    :team:
+    =======
+    * DONE Plan the offsite                                       :team:
+    CLOSED: [2026-09-29 Tue 18:10]
+    >>>>>>> phone
+    Venue ideas.
+<
+Files with CRLF line ends or a UTF-8 BOM keep them. An ID used by two
+entries keeps both (they are matched in file order).
+
+Options ~
+  `driver_name`         name in git: `merge=<name>`, `merge.<name>.driver`
+                        ("org")
+  `patterns`            patterns given the driver by `merge_install`
+                        ({ "*.org" })
+  `prefer`              "ours" or "theirs" for headline, planning,
+                        property and move conflicts; nil writes markers
+                        (nil)
+  `sort_logbook`        sort merged log drawer items newest first (true)
+  `pass_todo_keywords`  give the driver your `todo_keywords`, so custom
+                        keywords are read as keywords (true)
+  `set_drawers`         more drawers merged item by item ({})
+  `rename_similarity`   share (0..1) of an entry's lines that must stay
+                        for a renamed and edited entry to be matched; false
+                        only matches an otherwise unchanged one (0.6)
+  `config_file`         a Lua file the driver runs before merging (nil)
+
+The driver reads its options from the repository's git config when it
+runs, so they can be changed without installing again:
+>sh
+    git config merge.org.prefer theirs
+    git config merge.org.sortLogbook false
+    git config --add merge.org.todo "TODO NEXT | DONE"   # repeatable
+    git config --add merge.org.setDrawers NOTES          # repeatable
+    git config merge.org.renameSimilarity 0.8
+    git config merge.org.config ~/.config/nvim/org-merge.lua
+<
+`merge_install` writes these from the options above. The driver's own
+flags (`--prefer=`, `--no-sort-logbook`, `--todo=`, `--set-drawer=`,
+`--rename-similarity=`, `--config=`) win over the git config, and
+`--no-git-config` ignores it. `#+TODO:` lines in the files themselves are
+always read. `:checkhealth org` shows whether git is found, whether the
+driver is installed in the current repository, and the command it would
+install. A merge of 5,000 headings takes a fraction of a second.
+
+Limits ~
+  - Renames are recognised among the children of one parent. Entries with
+    nearly the same text under one parent (say, a template) can be taken
+    for a rename when one is deleted and another added on the same side;
+    `rename_similarity = false` turns the similarity match off.
+  - Only the drawers right after the planning line and properties are
+    merged item by item; a drawer further down is text.
+  - Before git 2.44 the labels are "ours" and "theirs".
+
+------------------------------------------------------------------------------
+iCalendar subscriptions                                   *org-extensions-ics*
+
+`ics` shows the events of iCalendar (`.ics`) calendars in the agenda,
+read-only, next to your org entries: a Google or Outlook "secret address",
+any `http(s)://` or `webcal://` subscription link, or a local file:
+>lua
+    require("org").setup({
+      extensions = {
+        ics = {
+          calendars = {
+            { name = "Work", url = "https://calendar.google.com/.../x.ics" },
+            { name = "Home", path = "~/cal/home.ics", tags = { "home" } },
+          },
+        },
+      },
+    })
+<
+Each calendar takes `name`, `url` or `path`, and optionally `category`
+(the agenda's category column, default the name), `tags` (for agenda tag
+filters), `refresh` (minutes), `face` and `agenda = false` (import only).
+
+Events appear in agenda day and week views with their times in the time
+grid, the calendar's category and, with `show_location`, the location
+after the title. An event spanning days (all-day, or timed and crossing
+midnight) shows `(1/3):` like an org date range: a timed one with its
+start time on the first day and its end time on the last. They are added
+after the diary; like diary lines they can't be edited or visited from the
+agenda. They are left out of lists such as the TODO list, and of agendas
+restricted to a file or subtree (`<` in the dispatcher): a calendar is not
+part of any org file, so a restriction to one leaves it out, like the
+diary. The expansion of a calendar is kept per date range and display
+zone until the file changes, so redrawing an agenda doesn't expand it
+again.
+
+Subscriptions ~
+A calendar with a `url` is fetched with `curl` in the background into
+`cache_dir` (`stdpath("cache")/org/ics`), when org.nvim starts and then
+whenever the copy is older than `refresh` minutes (checked every minute and
+when an agenda is built); an open agenda is redrawn when new data arrives.
+The agenda always reads the cached copy, so it works offline. A failed
+fetch, a reply that isn't iCalendar (a login page) or one cut off before
+`END:VCALENDAR` keeps the old copy, is reported once, and is tried again
+after `refresh` minutes. `auto_refresh = false` fetches only on
+`:Org ics_refresh`. `webcal://` is fetched as `https://`.
+
+Actions ~
+  `ics_refresh`   fetch every subscribed calendar now and redraw the agenda;
+                `:Org ics_refresh NAME` fetches one (names complete)
+  `ics_import`    on an agenda line of an event: add it to `import_file` as
+                a heading with its timestamp, LOCATION, URL, CALENDAR and
+                ICS_UID properties and the description as body text.
+                Elsewhere: pick one of the next `import_days` days' events
+                with |vim.ui.select()|. Only that occurrence of a
+                repeating event is copied (with an ICS_RECURRENCE_ID
+                property). An event already imported (same ICS_UID and
+                ICS_RECURRENCE_ID) is not added again; when its time
+                changed, the timestamp line of that heading is updated.
+
+Neither has a default key; map them in `mappings` or run them with `:Org`.
+
+What is read ~
+  - Line unfolding, text escapes, VEVENT with DTSTART and DTEND or
+    DURATION: dates (`VALUE=DATE`, all day), UTC times (`...Z`), floating
+    times and `TZID=` times.
+  - RRULE with FREQ YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY or
+    SECONDLY and INTERVAL, COUNT, UNTIL, BYDAY (`MO`, `2TU`, `-1FR`),
+    BYMONTHDAY, BYMONTH, BYYEARDAY, BYHOUR, BYMINUTE, BYSECOND, BYSETPOS
+    and WKST; RDATE; EXDATE. A yearly Feb 29 skips non-leap years.
+  - RECURRENCE-ID: a changed or cancelled instance replaces the one it
+    overrides.
+  - `STATUS:CANCELLED` events are left out.
+  Not read: BYWEEKNO (ignored), RDATE periods, VTODO, VJOURNAL, VALARM
+  (no reminders), attendees and free/busy. A HOURLY or finer rule is
+  expanded up to 100,000 steps per range.
+
+Time zones ~
+Times are shown in the system's local zone, or in `timezone` (an IANA name
+such as "Europe/Paris") when set. A `TZID` is resolved, in order, as:
+  1. a name from `tz_aliases`, your own `{ TZID = "IANA/Name" }` table;
+  2. a zone of the system time zone database (`/usr/share/zoneinfo` or
+     `$TZDIR`), also inside Mozilla-style paths such as
+     `/mozilla.org/20050126_1/Europe/Berlin`; its zoneinfo (TZif) file is
+     read in Lua, transitions and the rule for later years, so daylight
+     saving time follows the system's rules (a time skipped by a change
+     uses the offset before it, a repeated one is its first occurrence, as
+     RFC 5545 says);
+  3. the calendar's own VTIMEZONE (STANDARD and DAYLIGHT rules);
+  4. a built-in table of common Windows zone names ("W. Europe Standard
+     Time", "Pacific Standard Time", ...) sent by Outlook and Exchange.
+A zone none of these know is read as local time, and `:checkhealth org`
+lists it. Without a zone database (e.g. on Windows) only VTIMEZONE, UTC
+and floating times convert correctly.
+
+Options ~
+  `calendars`       the calendars (above)                            ({})
+  `refresh`         minutes between fetches                          (60)
+  `auto_refresh`    fetch stale calendars on startup and every minute
+                                                                   (true)
+  `cache_dir`       where fetched calendars are kept
+                                        (stdpath("cache") .. "/org/ics")
+  `curl`            fetch command, `-o FILE URL` is appended
+                            ({ "curl", "-fsSL", "--max-time", "30" })
+  `timezone`        IANA zone to show times in           (nil: the system's)
+  `tz_aliases`      extra TZID -> IANA zone names                    ({})
+  `show_location`   append " (location)" to titles                 (true)
+  `format`          `function(event, calendar)` returning the title    (nil)
+  `face`            highlight group of the titles       ("OrgAgendaDiary")
+  `import_file`     file `ics_import` appends to  (nil: `default_notes_file`)
+  `import_days`     days ahead `ics_import` offers outside the agenda  (30)
+
+The parser is usable on its own:
+`require("org.extensions.ics.parser").parse(text)` returns the events, and
+`.occurrences(calendar, from_day, to_day, { timezone = ... })` expands them.
+Other views read the configured calendars with
+`require("org.extensions.ics").events(from_day, to_day)` (day numbers as
+`org.date:days()`): plain tables sorted by start, with `calendar`,
+`category`, `uid`, `title`, `summary`, `location`, `description`, `url`,
+`all_day`, `start`/`stop` (wall-clock seconds, stop exclusive),
+`start_day`/`end_day`, `start_time`/`end_time` (minutes, nil when all day)
+and `timestamp` (the org timestamp). The agenda's source is
+`require("org.agenda.items").day_sources.ics`.
+
+`:checkhealth org` shows each calendar's event count and fetch age, failed
+fetches, unknown zones, and whether `curl` is installed (needed only for
+`url` calendars).
+
+------------------------------------------------------------------------------
+Command line (org)                                       *org-extensions-cli*
+
+`bin/org` is a shell command that runs org.nvim in a headless Neovim
+(`nvim --headless -l`), to print the agenda, capture, clock in and out,
+search and export from a terminal, a status bar, cron or a launcher such as
+Raycast. Link it onto your $PATH:
+>sh
+    ln -s /path/to/org.nvim/bin/org ~/.local/bin/org
+<
+or enable the extension and run `:Org cli_install` (or `:Org cli_install
+DIR`, directories complete), which asks before linking `bin/org` into
+`install_dir`:
+>lua
+    require("org").setup({ extensions = { cli = { install_dir = "~/bin" } } })
+<
+The command itself works without the extension: enabling it only adds
+`cli_install`, the options below and a `:checkhealth org` section (is
+`bin/org` executable, is it the `org` on $PATH, which config it uses).
+$ORG_NVIM_BIN picks the Neovim binary (default `nvim`).
+
+Configuration ~
+`nvim -l` skips your init.lua, so `org` loads its own configuration, the
+first of:
+  1. `--config FILE`
+  2. `$ORG_NVIM_CONFIG`
+  3. `stdpath("config")/org-cli.lua` (`~/.config/nvim/org-cli.lua`)
+With none of them the defaults are used. The file is Lua: it either
+returns the table you pass to `setup()`, or calls `require("org").setup()`
+itself. Returning a table keeps it independent of your plugin manager:
+>lua
+    -- ~/.config/nvim/org-cli.lua
+    return {
+      org_directory = "~/org",
+      agenda_files = { "~/org/*.org" },
+      capture = { templates = { t = { description = "Task",
+        template = "* TODO %?\n  %U", target = "inbox.org" } } },
+      clock = { persist = true },
+      extensions = { cli = {}, ql = {} },
+    }
+<
+Your whole init.lua works as `--config` too, but then every call loads all
+your plugins. `--files GLOB` (repeatable, or comma-separated) replaces
+`agenda_files`, and `--dir DIR` sets `org_directory`.
+
+Nothing waits for input: prompts, confirmations and dangling-clock
+resolution are turned off, and a command that would need to ask (a capture
+template with `%^{...}`, say) fails with exit code 3.
+
+Commands ~
+`org agenda [VIEW] [--date DATE] [--span N] [--json|--csv]`
+    The agenda as text, like `org-batch-agenda`. VIEW is `day`, `week`,
+    `fortnight`, `month`, `year` (the date agenda with that span),
+    `todo [KEYWORD]`, `tags MATCH` or the key of one of your
+    `agenda.custom_commands`; without it, the date agenda with your
+    `agenda.span`. `--date` takes anything the date prompt reads
+    (`2026-10-01`, `+1`, `fri`). `--csv` is `org-batch-agenda-csv`.
+`org capture [-t KEY] TEXT...`
+    Capture TEXT with template KEY (default: `capture_template`, else `t`,
+    else the first). The template finishes at once, the text taking the
+    place of `%?` (or filling `%i` when the template has one). TEXT `-`
+    reads stdin. `--list` prints the templates.
+`org clock status [--short] [--format FMT] [--json]`
+    The running clock: the one saved in `clock.persist_file` (with
+    `clock.persist`), else the first open CLOCK line in the agenda files.
+    `--format` expands %e (elapsed), %t (heading), %T (total with earlier
+    clocks), %E (effort), %f (file) and %s (start), and prints nothing
+    without a clock; `--short` uses `status_format`.
+`org clock in [--pick N] QUERY`
+    Clock in the agenda-file heading whose title contains QUERY (ignoring
+    case; an exact title wins), whose ID is QUERY (or `id:ID`), or an
+    org-ql query when the `ql` extension is enabled. `FILE::HEADING`
+    looks only in that agenda file (a path, a file name or a name without
+    `.org`; `home.org::*Groceries` as in a link). Several matches are
+    listed with numbers and nothing is clocked; `--pick N` takes the Nth.
+`org clock out` / `org clock cancel`
+    Clock out of (or cancel) the running clock.
+`org search QUERY... [--json]`
+    Headings of the agenda files matching QUERY, as `file:line: heading`:
+    the agenda search syntax (|org-agenda-search|), or org-ql queries
+    when `ql` is enabled.
+`org export FILE BACKEND [-o OUTPUT|--stdout]`
+    Export FILE with a back-end of `:Org export` (`html`, `md`, `latex`,
+    `pdf`, `ascii`, ...) and print the output path, or write the text to
+    stdout.
+`org help`, `org version`
+
+Every command writes its result to stdout and messages to stderr (`-v`
+adds org.nvim's own messages, `-q` hides warnings). Exit codes: 0 done,
+1 failed or nothing found (`search`, `clock out` without a clock), 2 bad
+usage, 3 input needed.
+
+JSON ~
+`org agenda --json` prints `{ view, start, end, items }`; each item has
+`date`, `time`, `end_time`, `type` (scheduled, deadline, timestamp, todo,
+...), `todo`, `priority`, `title`, `tags`, `category`, `file`, `line`,
+`extra`, `done` and `text` (the agenda line). `org clock status --json`
+prints `{ active, title, file, start, minutes, elapsed, total, effort }`
+(just `{ "active": false }` without a clock); `org search --json` a list
+of headings with `file`, `line`, `level`, `todo`, `priority`, `title`,
+`tags`, `category`, `scheduled`, `deadline`, `closed` and `id`.
+
+Examples ~
+The running clock in the tmux status line (refreshed every 15 seconds):
+>tmux
+    set -g status-interval 15
+    set -g status-right "#(org clock status --format '#[fg=green]%e %t')"
+<
+Today's agenda mailed every morning, and the week written to a file
+every hour, with cron:
+>crontab
+    0 7 * * *  org agenda day | mail -s "Agenda" me@example.com
+    0 * * * *  org agenda week > ~/public/agenda.txt
+<
+Next three timed items for a status bar (SketchyBar, waybar, ...):
+>sh
+    org agenda --json |
+      jq -r '.items[] | select(.time) | "\(.time) \(.title)"' | head -3
+<
+Capture from a launcher or a shell alias:
+>sh
+    org capture -t t "Call the dentist"
+    pbpaste | org capture -t n -
+<
+Options (`extensions.cli`) ~
+  `install_dir`        where `cli_install` links `org` ("~/.local/bin")
+  `capture_template`   template key of `org capture` without `-t` (nil)
+  `status_format`      format of `org clock status --short` ("%e %t")
+  `watch_clock`        a running Neovim follows the shell's clock (true)
+
+Clock in the shell and in Neovim ~
+`org clock in`, `out` and `cancel` touch `stdpath("data")/org/cli-clock.stamp`.
+A Neovim with the extension enabled (and `watch_clock`) checks that file
+every two seconds and on |FocusGained|; when it changed, Neovim rereads
+changed files (|:checktime|), drops its running clock when the open CLOCK
+line is gone, or takes up an open CLOCK line of the agenda files, and says
+so. `org clock status` sees a clock started in Neovim, from
+`clock.persist_file` or the saved CLOCK line.
+
+Limits ~
+  - Each call starts Neovim and parses the agenda files: about 0.25 s for
+    200 files of 25 entries each (the agenda itself is most of it, so a
+    parse cache would gain little), fine for a status bar every few
+    seconds, not for a tight loop.
+  - The CLI edits files on disk. A Neovim that has the same file open
+    sees the change as a file changed outside it ('autoread'); a buffer
+    with unsaved changes asks as usual.
+
+------------------------------------------------------------------------------
+Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*
+
+`diagrams` renders diagram source blocks to images: `mermaid` (with
+mermaid-cli's `mmdc`, like the third-party ob-mermaid), `dot` (Graphviz,
+like Emacs's ob-dot) and the built-in `plantuml` port (|org-babel-languages|):
+>lua
+    require("org").setup({
+      extensions = { diagrams = { render_on_save = true } },
+    })
+<
+`C-c C-c` on a block writes the diagram to its `:file` and inserts a
+`[[file:...]]` result, as for any babel language (both languages default to
+`:results file :exports results`):
+>org
+    #+begin_src mermaid :file flow.png :theme dark
+    flowchart LR
+      A --> B
+    #+end_src
+
+    #+begin_src dot :file deps.svg :var color="red"
+    digraph { a [color=$color]; a -> b }
+    #+end_src
+<
+mermaid takes ob-mermaid's header arguments `:theme`, `:background-color`,
+`:width`, `:height`, `:scale`, `:mermaid-config-file`, `:css-file` and
+`:puppeteer-config-file` (ob-mermaid's spelling `:pupeteer-config-file` also
+works). dot runs `CMD IN CMDLINE -o OUT` like ob-dot: `:cmd` (default
+`dot`), `:cmdline` (default `-T` plus the extension of `:file`) and `$NAME`
+replaced by `:var NAME`. plantuml keeps its own options in
+`babel.languages.plantuml`; when no `jar_path` is set but a `plantuml`
+command is installed, that command is used.
+
+Beyond Emacs ~
+  - A block without `:file` gets `output_dir/LANG-HASH8.EXT` (HASH8 starts
+    the content hash; EXT is `:file-ext` or `format`), relative to the org
+    file's directory or `:dir`. Emacs errors instead; set `auto_file =
+    false` for that.
+  - Rendered diagrams are cached in `cache_dir` by a hash of the language,
+    the command and options, the output format and the expanded body. An
+    unchanged diagram is copied from the cache instead of being rendered
+    again. For plantuml the key also covers the files the text pulls in
+    with `!include` (`!include_once`, `!include_many`, `!includesub`;
+    local files, four levels deep), so editing one renders again.
+    `:Org diagrams_rerender` renders the block at point without the cache
+    and `:Org diagrams_clear_cache` empties it. At startup the cache drops
+    entries unused for `cache_max_age` days, then the least recently used
+    beyond `cache_max_size` megabytes.
+  - With `auto_preview` (the default) the result image is shown inline
+    after the block runs, when an image backend is available
+    (|org-images|; SVG needs ImageMagick).
+  - With `render_on_save` every diagram block of an org buffer is rendered
+    after the buffer is written, one block after another in the background,
+    so Neovim stays responsive while mmdc or dot run. When they are done
+    and nothing but the results changed, the buffer is written again, so
+    the file on disk has the new results; when you edited it meanwhile, the
+    buffer is left modified for you to save. Blocks run without the
+    evaluation prompt, except those with `:eval no`, `never` or `query`,
+    which are skipped. Unchanged diagrams come from the cache at once.
+  - `:Org diagrams_clean` deletes the generated files (`LANG-HASH8.EXT`) in
+    the current file's `output_dir` that no org file of that directory
+    links to or names (open buffers count with their unsaved text), after
+    asking; `:Org diagrams_clean dry` only lists them. Files you named
+    yourself with `:file` are never touched.
+  - The tools run without a shell (an argument list) unless the command is
+    a shell fragment (a string of several words) or the block sets `:cmd`
+    or `:cmdline`, which are shell text as in ob-dot.
+
+Actions ~
+  `diagrams_render`         render the diagram block at point (what
+                            `C-c C-c` does there); not applicable elsewhere
+  `diagrams_rerender`       the same, ignoring the cache
+  `diagrams_render_buffer`  render every diagram block of the buffer
+  `diagrams_clear_cache`    delete the cached renders
+  `diagrams_clean`          delete generated diagrams nothing links to
+No default keys; use `:Org <action>` or bind them in `mappings.org`.
+
+Options (defaults in parentheses) ~
+  `languages`        handled languages ({ "mermaid", "dot", "plantuml" });
+                   a language left out keeps its core behaviour
+  `mermaid`          { `command` ("mmdc"; a string runs through the shell,
+                   so "npx -y @mermaid-js/mermaid-cli" works, or a list of
+                   words), `args` ({}), `theme`, `background`,
+                   `config_file`, `puppeteer_config` } (defaults for the
+                   header arguments above)
+  `dot`              { `command` ("dot"), `args` ({}) }
+  `auto_file`        generate a `:file` when there is none (true)
+  `output_dir`       directory of generated names ("diagrams")
+  `format`           extension of generated names ("png")
+  `cache`            use the cache (true)
+  `cache_dir`        stdpath("cache") .. "/org/diagrams"
+  `auto_preview`     preview the result image (true)
+  `render_on_save`   render diagram blocks after writing (false)
+  `cache_max_age`    days an unused cache entry is kept (90; false: ever)
+  `cache_max_size`   megabytes the cache is pruned to (200; false: no
+                   limit)
+
+`:checkhealth org` shows which renderers (mmdc, dot, plantuml or the jar
+and java) are installed, whether results can be previewed, and the cache
+directory. None of the tools is needed to load the extension; a block whose
+tool is missing reports it and inserts no result.
+
+Limits ~
+  - Generated names change with the body, so an edited diagram leaves its
+    old file behind in `output_dir` until `diagrams_clean`.
+  - Only plantuml includes are followed: a mermaid config or CSS file, and
+    dot's `image=` or `imagepath` files, are not part of the cache key;
+    use `diagrams_rerender` after changing them.
+  - Without Graphviz installed only fake tools were run in the tests; the
+    argument order follows ob-dot (`dot IN -TEXT [args] -o OUT`).
+  - Only file results are cached. plantuml's text output (`:results
+    verbatim`, no `:file`) is left to the core port.
+
+------------------------------------------------------------------------------
+Code and notes (code)                                    *org-extensions-code*
+
+`code` connects the code you edit with your org notes: capture a selection
+with a link back to it, link to functions by name, keep an org file per git
+repository, clock in by git branch and see the repository's TODO comments
+in the agenda.
+>lua
+    require("org").setup({ extensions = { code = {} } })
+<
+Keys (global, under `<prefix>j`) ~
+  `<prefix>jc`  code_capture (Normal and Visual): capture the selection as a
+              src block, with a link back to it and the git branch
+  `<prefix>jl`  code_store_link: store a `code:` link to the symbol at the
+              cursor
+  `<prefix>jp`  project_open: open the repository's org file
+  `<prefix>jn`  project_capture: capture a task into it
+  `<prefix>ja`  project_agenda: agenda of that file and the code TODOs
+  `<prefix>jt`  code_todos: the repository's TODO comments in an agenda
+  `<prefix>jb`  code_link_branch (org buffers): set the heading's `:BRANCH:`
+              to the current git branch
+
+Capturing code ~
+`code_capture` works in any file that is not org. In Visual mode the
+selection becomes a src block in the language of the buffer's filetype
+(`lua`, `python`, `js` for javascript, `C++` for cpp...; `languages` adds
+or changes names); in Normal mode there is no block. The note goes to the
+repository's project file (below), under `project_headline`. Outside a
+repository it goes to `fallback_target` (default: `default_notes_file`),
+under `fallback_headline` (default: none, at the end of the file); the
+copy in the capture menu does the same. The template is
+`capture_template`; these expansions fill it:
+
+  `%(code-block)`      the selection as a `#+begin_src LANG` block ("" in
+                     Normal mode); lines starting with `*` or `#+` are
+                     escaped with a comma
+  `%(code-link)`       `[[code:PATH::SYMBOL][SYMBOL (file.lua)]]`, or
+                     `::LINE` when no symbol is found
+  `%(code-file-link)`  `[[file:PATH::LINE][file.lua:LINE]]`
+  `%(code-file)`       the path relative to the repository
+  `%(code-line)`       the line, or `first-last` of a selection
+  `%(code-lang)`       the Babel language
+  `%(code-symbol)`     the function or class around the cursor
+  `%(git-repo)`        the repository's directory name
+  `%(git-branch)`      the checked out branch ("" when detached)
+  `%(git-commit)`      the short hash of HEAD (needs `git`)
+  `%(git-info)`        `repo on branch @ commit`
+
+They work in every capture template started from a code buffer, so you can
+use them in your own `capture.templates`. The extension also adds a copy of
+`capture_template` to the capture menu under `template_key` ("k") when
+that key is free (`template_key = false` to not add it).
+
+Put `%(code-block)` at the start of a line: an entry's body is not indented
+for it. (The expansions are registered in `require("org.capture").expansions`,
+`name -> function(ctx)`, which other code can add to the same way.)
+
+`code:` links ~
+`[[code:src/app.lua::M.setup]]` opens the file and jumps to the symbol,
+found with the language server's document symbols (`textDocument/
+documentSymbol`; a server that is still starting for the file, from
+|vim.lsp.enable()| or a FileType autocmd, or a running one that serves
+the filetype is waited for up to `lsp_timeout` ms, then up to
+`lsp_timeout` ms for its answer), else treesitter definitions, else a
+text search for
+`function NAME`, `def NAME`, `NAME =`, then the word. A dotted name
+(`Class.method`) matches the symbol in its container. `code:PATH::42` jumps
+to line 42. A relative path is looked up from the git root of the org file,
+then of the working directory, then from the org file's directory, the
+working directory and the repositories of recent code buffers.
+
+`store_link` (and `code_store_link`) in a code buffer stores a `code:` link
+to the function or class around the cursor, from the language server or
+treesitter, else to the line. `link_path = "relative"` writes the path
+relative to the git root. Exported, a `code:` link is its description in
+code style.
+
+With the `lsp` extension (|org-extensions-lsp|), go to definition on a
+`code:` link jumps to its target, and with `transclusion`
+(|org-extensions-transclusion|) `#+transclude: [[code:src/app.lua::M.setup]]`
+shows the whole definition in a src block. Both find the symbol with
+treesitter, else the text search, without asking a language server (and
+without loading the file into a buffer).
+
+The treesitter lookup knows functions, methods, classes, structs, enums,
+interfaces, traits, modules and type definitions in the usual grammars
+(checked with Lua, Python, JavaScript, TypeScript, Rust and C), and names
+bound to a function (`const f = () => {}`, `M.f = function() end`). A
+method is linked as `Class.method` (`Type.method` in a Rust `impl`). Go
+methods are linked by their name only.
+
+Per-project org files ~
+`project_file` names the org file of a repository: a path relative to its
+root (default `.org/tasks.org`), or one with `<org_directory>`, `${repo}`
+and `${root}` replaced, such as `"<org_directory>/projects/${repo}.org"` to
+keep notes out of the repository, or a function `(root, repo) -> path`.
+The file is created with `project_file_header` when first used. The
+repository is the one of the current buffer, else of the last code buffer
+you were in, else of the working directory.
+
+`project_agenda` shows `project_agenda_blocks` restricted to the project
+file: by default the week, its TODOs and the code TODOs.
+
+Code TODOs ~
+The `code_todos` agenda block type lists comments with `todo_keywords`
+(TODO, FIXME, HACK, XXX, BUG) after a comment marker (`--`, `//`, `#`,
+`/*`, `;`...):
+>lua
+    -- TODO: handle errors
+    -- FIXME(bob): wrong value
+    -- TODO(org:3f2a...): translate the greetings
+<
+They are found with `git grep` (tracked and untracked files, binary files
+skipped), else `rg`, else by reading at most `todo_max_files` files; org
+files are skipped (`todo_exclude`). The search runs in the background:
+the first time the block shows "(scanning...)" and the agenda is redrawn
+when it is done; later the block shows the last result at once and is
+redrawn if a new search finds something else. It stops after
+`todo_max_items` comments (the count then reads "500+").
+`<CR>`, `<Tab>` and `<Space>` on an item open the code line; agenda
+commands that change org entries (todo state, schedule, tags, clock,
+refile, archive...) say that they don't apply to a code TODO.
+A comment naming a heading's ID (`TODO(org:ID)`, see `todo_link_pattern`)
+is listed under an item for that heading. Use the block in custom commands
+too:
+>lua
+    agenda = { custom_commands = {
+      c = { description = "Code TODOs", type = "code_todos", root = "~/app" },
+    } }
+<
+Without `root` the block uses the current repository.
+
+Clocking by branch ~
+With `branch_clock = true`, switching the git branch of the file you work
+in (noticed on |BufEnter|, |FocusGained| and |DirChanged|) clocks into the
+heading whose `:BRANCH:` property is the branch name, or else whose ID,
+CUSTOM_ID or TICKET property, or title, holds the ticket that
+`branch_ticket_pattern` (default `"(%u+%-%d+)"`, `ABC-123`) takes from the
+name. Headings are looked for in the project file and the agenda files.
+The branch found at startup only clocks in with `branch_clock_on_start`.
+`code_link_branch` sets `:BRANCH:` on the heading at point. The branch is
+read from `.git/HEAD`, so no process runs on BufEnter.
+
+Options ~
+  `capture_template`      template of `code_capture` (target "project")
+  `template_key`          key of its copy in the capture menu ("k")
+  `languages`             filetype -> Babel language ({})
+  `link_path`             "absolute" or "relative" ("absolute")
+  `store_links`           store `code:` links in code buffers (true)
+  `store_symbol`          link to the symbol, not the line (true)
+  `lsp_timeout`           ms to wait for a language server (1000)
+  `exclude_filetypes`     filetypes that are not code buffers
+  `project_file`          ".org/tasks.org"
+  `project_file_header`   "#+title: ${repo}\n"
+  `project_headline`      "Tasks"
+  `fallback_target`       code captures outside a repository (nil:
+                        `default_notes_file`)
+  `fallback_headline`     their headline (nil: the end of the file)
+  `project_template`      template of `project_capture`
+  `project_agenda_blocks` blocks of `project_agenda`
+  `branch_clock`          clock in by branch (false)
+  `branch_clock_on_start` also for the branch at startup (false)
+  `branch_ticket_pattern` Lua pattern of the ticket ("(%u+%-%d+)")
+  `todo_keywords`         { "TODO", "FIXME", "HACK", "XXX", "BUG" }
+  `todo_link_pattern`     "^org:%s*(.-)%s*$"
+  `todo_require_comment`  only after a comment marker (true)
+  `todo_exclude`          Lua patterns of paths to skip
+  `todo_scanner`          "auto", "git", "rg" or "lua"
+  `todo_max_files`        2000
+  `todo_max_items`        500
+  `todo_group_prefix`     before the category of grouped TODOs ("↳ ")
+
+------------------------------------------------------------------------------
+Literate Neovim config (literate)                    *org-extensions-literate*
+
+`literate` makes an org file your Neovim configuration: saving it tangles
+its Lua blocks and runs the ones you changed, so a new option or keymap
+works at once, and a block's error shows on its line in the org file.
+>lua
+    require("org").setup({
+      extensions = { literate = { files = { "~/.config/nvim/init.org" } } },
+    })
+<
+A literate file is one of `files` (paths or globs; default
+`stdpath("config")/init.org`) or, with `detect`, an org file under a
+directory of `allow` (default: `stdpath("config")`) whose Lua blocks
+tangle by default:
+>org
+    #+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes
+
+    * Options
+    #+begin_src lua
+    vim.o.relativenumber = true
+    #+end_src
+<
+Trust ~
+Saving a literate file runs Lua in your Neovim and writes the files its
+blocks tangle to, so it happens only for files you chose:
+  - the files in `files` are trusted;
+  - a detected file must be under `allow`, and with `confirm` (default)
+    the first save asks whether to tangle and run it; the answer is kept
+    in `stdpath("data")/org/literate-trust.json` (delete its entry to be
+    asked again);
+  - any other org file with a `:tangle` header (a file you downloaded, a
+    repository you cloned) is saved like any org file: nothing is tangled
+    or run.
+Opening a literate file runs and evaluates nothing: what it holds is
+remembered as text (noweb and `:var` references, which can evaluate
+blocks, are expanded only when a trusted file is tangled). `literate_goto_org`
+only looks at trusted files. The actions below work on the current buffer
+when you run them, like `:Org tangle` or executing a block.
+
+Saving it ~
+When a literate file is written it is tangled with |org-babel| tangle (so
+`:tangle`, `:noweb`, `:comments`... work as usual) and, with `reload`, the
+Lua blocks whose text is new since the last tangle (or since the file was
+opened) run in file order, in this Neovim, and so do the blocks whose
+tangled text changed (a block they include with noweb was edited).
+Blocks you did not touch don't run again. An error while tangling is
+reported once per save and never interrupts the write. An error, at compile or run time, is a diagnostic
+on the org line it comes from (for an error raised in a function the block
+calls, such as `vim.o.nosuchoption = 1`, the line of the call)
+(`diagnostics`), and in the quickfix list
+with `quickfix`; a block that failed runs again on the next save until it
+works. A notification says what was tangled and reloaded.
+
+Actions ~
+  `literate_reload`     run the Lua block at point, or every tangled Lua
+                      block of the file outside one
+  `literate_run_block`  run the Lua block at point (tangled or not) and show
+                      the value it returns
+  `literate_health`     compile every Lua block without running it; syntax
+                      errors become diagnostics
+  `literate_goto_org`   in the tangled file: jump to the org line the
+                      cursor's line comes from, by the link comments of
+                      `:comments link`, else by matching the text in the
+                      blocks that tangle to this file
+  `literate_bootstrap`  `:Org literate_bootstrap [path]` writes an init.lua
+                      (default: next to the org file) for the pattern below
+
+Bootstrapping ~
+Neovim reads init.lua, not init.org. Tangle the blocks to another file
+(`lua/config.lua`) and let `:Org literate_bootstrap` write an init.lua
+that loads it. On startup that init.lua re-tangles init.org first when it
+is newer than the tangled file (edited on another machine or pulled with
+git), with a small tangler of its own (org.nvim is not loaded yet). It
+keeps the `lua` blocks whose `:tangle` is the tangled file, taking
+`:tangle` and `:noweb` from the block, else the nearest heading's
+`header-args:lua` / `header-args` property, else `#+PROPERTY`, and
+expands `<<name>>` references when `:noweb` is `yes`, `tangle`,
+`no-export` or `strip-export`. It does not evaluate anything: no `:var`,
+no Lisp in header arguments, no `<<name()>>` results, no `:prologue`;
+use saving in Neovim (the full tangle) for those. If it fails, it says so
+and loads the tangled file it has. Then it runs the tangled file. Blocks
+tangled to other files are not loaded by the stub. So the setup is:
+>
+    ~/.config/nvim/init.org         the configuration
+    ~/.config/nvim/lua/config.lua   tangled from it (on save)
+    ~/.config/nvim/init.lua         the stub (written once)
+<
+org.nvim itself is set up from the tangled file like any plugin, with the
+`literate` extension on so the next save tangles again.
+
+Options ~
+  `files`           literate org files (stdpath("config")/init.org)
+  `detect`          also files with header-args:lua :tangle (true)
+  `allow`           directories `detect` looks in ({ stdpath("config") })
+  `confirm`         ask before the first save of a detected file (true)
+  `tangle_on_save`  tangle when written (true)
+  `reload`          run the changed Lua blocks (true)
+  `diagnostics`     errors as diagnostics (true)
+  `quickfix`        errors in the quickfix list too (false)
+  `notify`          report what was tangled and run (true)
+  `bootstrap_file`  init.lua of `literate_bootstrap` (next to the org file)
+
+------------------------------------------------------------------------------
+Language server                                           *org-extensions-lsp*
+
+`lsp` runs a language server for org buffers inside Neovim: no program to
+install, the server is Lua in the same process (|vim.lsp.start()| with a
+`cmd` function). Everything that speaks LSP then works in org files: the
+|lsp-defaults| keys, |vim.diagnostic|, and pickers, outline and
+breadcrumb plugins.
+>lua
+    require("org").setup({ extensions = { lsp = {} } })
+<
+The server attaches to every org buffer that is a file (a FileType
+autocmd). One client serves them all; its root is `org_directory`. It
+reads the documents from their buffers, unsaved changes included, and
+other files from disk. Needs Neovim 0.10 or later (tested on 0.10, 0.11,
+0.12 and nightly). File names are compared with symlinks resolved, so a
+file opened through a symlink gets the edits of a rename in its own
+buffer.
+
+What it does ~
+  documentSymbol   the outline: each headline with its subtree as range,
+                   TODO keyword, priority and tags as detail, and the
+                   kind from `symbol_kinds` (TODO and done headlines get
+                   their own); named src blocks and tables are children
+                   of their entry (`document_symbols`). Try
+                   `:lua vim.lsp.buf.document_symbol()`.
+  workspace/symbol headlines of the workspace files (below) whose title,
+                   TODO keyword and tags contain every word of the query,
+                   ignoring case (|vim.lsp.buf.workspace_symbol()|).
+  diagnostics      |org-lint| reports, updated `diagnostics.debounce` ms
+                   (500) after the last change; high-trust reports are
+                   errors and low-trust ones warnings (`severity`), the
+                   checker name is the diagnostic's code. See
+                   "Performance" below for large buffers.
+  hover            on a timestamp: the full date, how far it is ("in 3
+                   days, Friday", "2 weeks ago, Monday"), its time range
+                   or date range, what its repeater does, the next
+                   occurrence and its warning period; on a link: a
+                   preview of the target (the headline and its first
+                   lines, the file's first lines); on a CLOCK line: the
+                   duration; on a footnote reference: its definition; on
+                   a headline: TODO state, tags, planning, and for a
+                   headline with an ID or CUSTOM_ID its backlink count.
+                   A link to a file that isn't Org shows its lines with
+                   their filetype.
+  definition       follows `id:`, `file:` (with `::` search options),
+                   `[[#custom-id]]`, `[[*Heading]]` and fuzzy links (a
+                   `<<target>>`, `#+NAME:` or headline), radio links and
+                   footnotes, without moving the cursor or prompting.
+                   `id:` links reach file-level IDs (org-roam file nodes)
+                   too, and IDs missing from the ID files are looked for
+                   in the workspace files. With the `code` extension on,
+                   `code:` links go to their file and symbol (found by a
+                   text search: no buffer is loaded, no LSP asked).
+  references       every link to the headline, CUSTOM_ID, ID, target,
+                   `#+NAME:`, radio target or footnote under the cursor
+                   (or to the target of the link under the cursor),
+                   across the workspace files.
+  rename           see below.
+  codeAction       quick fixes for some org-lint reports, line
+                   conversions and entry commands (below).
+  foldingRange     subtrees, blocks and drawers (for
+                   `vim.lsp.foldexpr()`).
+  documentLink     web links and links whose target resolves.
+
+Completion is not provided: org.nvim's own completion (|org-completion|)
+already covers org buffers.
+
+Rename ~
+|vim.lsp.buf.rename()| renames what is under the cursor and rewrites every
+link that spells its name, in every workspace file:
+
+  headline title   `[[*Title]]`, `[[Title]]` and `[[file:x.org::*Title]]`;
+                   `id:` links keep their target, but a description that
+                   spells the title (org-roam's links) follows it
+  `:CUSTOM_ID:`    `[[#id]]` and `[[file:x.org::#id]]`
+  `:ID:`           `id:` links, bracketed or plain; the ID database
+                   (|org-id|) forgets the old ID and records the new one.
+                   A file-level `:ID:` (an org-roam file node) too
+  `<<target>>`     `[[target]]` and `[[file:x.org::target]]`
+  `<<<radio>>>`    the radio target and its occurrences in the text
+  `#+NAME:`        fuzzy links to the name
+  footnote label   the definition and its references
+
+On a link, the rename applies to its target: `[[#id]]` renames the
+CUSTOM_ID, `[[*Title]]` the title, `id:` the ID. A link's description is
+rewritten too when it equals the old name (`rename.update_descriptions`).
+Links inside src, example and comment blocks, drawers and verbatim text
+are not links and are left alone. Only links that really resolve to the
+renamed thing change: `[[Title]]` is left alone when a `<<Title>>` target
+wins. A name that would make links point elsewhere (another target,
+`#+NAME:` or CUSTOM_ID with it, or a headline with the same title when
+links spell the title) is refused with a message, as are blanks in IDs,
+CUSTOM_IDs and footnote labels. Links whose path or description spans
+lines are found and rewritten like the others. Files the rename edits
+that were not loaded are written once Neovim has loaded them to apply the
+edit (`rename.write_unloaded`, like VS Code's refactoring auto-save);
+buffers that were already open are left modified for you to check and
+`:write`. Emacs has no counterpart.
+
+Code actions ~
+|vim.lsp.buf.code_action()| offers, depending on the line:
+  - quick fixes: remove spurious colons from tags, make an inactive
+    SCHEDULED or DEADLINE timestamp active, replace an obsolete affiliated
+    keyword (`#+SRCNAME:` -> `#+NAME:`), turn `#+BEGIN_HTML` (and the
+    other backends) into `#+BEGIN_EXPORT html`, unindent a diary sexp,
+    add a keyword's missing colon, remove a special property (`TODO`,
+    `SCHEDULED`, ...) from a properties drawer, turn obsolete INCLUDE
+    markup into `export html`, replace percent escapes in a link with
+    backslash escapes, add the `[@N]` counter org-lint suggests for a
+    mismatched item number, and point a broken `[[#id]]` or fuzzy link at
+    the closest existing CUSTOM_ID, target or headline. The other
+    org-lint reports need a decision and have no quick fix;
+  - "Convert line to heading" (`toggle_heading`) and "Convert line to
+    checkbox item" / "Convert item to checkbox";
+  - in an entry: cycle or change the TODO state, set the priority,
+    schedule, set a deadline, refile and archive. These run the usual
+    actions at that position (they may prompt) through the server's
+    `org.action` command. `code_actions.entry` takes a list of
+    `{ action, title }` pairs instead.
+
+Workspace ~
+References, rename, backlink counts and workspace symbols look at the
+agenda files, the `.org` files under `org_directory` (with
+subdirectories), `workspace.extra` and every loaded org buffer. Set
+`workspace.files` (a list of files and globs, or a function returning one)
+to replace the first three, and `workspace.max_files` (2000) to cap it.
+The list is kept for a few seconds and made again when an org file is
+written. Files are parsed once per change (by mtime, or changedtick for
+buffers); after the server starts they are parsed in the background, a
+few milliseconds at a time (`workspace.preload`), so the first
+references or backlink count doesn't wait for all of them.
+
+Performance ~
+Measured on a 5,000-heading (40,000-line) file plus 200 workspace files
+of 50 headings: document symbols and folding take about 30 ms,
+references, rename and backlink counts 15-70 ms once the workspace is
+parsed (about 0.6 s the first time, spread by `workspace.preload`).
+Linting parses the buffer (about 20 ms per 1,000 lines) and then runs
+the checkers in slices of about 12 ms, starting over if you type
+meanwhile. Buffers longer than `diagnostics.max_lines` (3000) are linted
+when opened and written only; set it to 0 to lint them while typing too.
+
+Actions ~
+  `lsp_start`    attach the server to the current buffer (with
+               `autostart = false` this is how it starts)
+  `lsp_stop`     stop the server
+  `lsp_restart`  stop it and attach every org buffer again
+
+There are no default keys: the LSP keys of |lsp-defaults| (`K`, `grn`,
+`gra`, `grr`, ...) and |vim.diagnostic| apply. `gO` stays org's own
+outline (the `imenu` action); document symbols are
+`:lua vim.lsp.buf.document_symbol()`. Use `on_attach` to add your own.
+
+Options ~
+  `autostart`               attach to org buffers (true)
+  `filter`                  `function(bufnr)` choosing buffers (file
+                            buffers with a name)
+  `on_attach`               `function(client, bufnr)`
+  `features`                `{ document_symbols, workspace_symbols,
+                            diagnostics, hover, definition, references,
+                            rename, code_actions, folding, document_links }`
+                            (all true)
+  `diagnostics`             `{ debounce = 500, max_lines = 3000,
+                            checkers = nil (org-lint's default set),
+                            exclude = {}, severity = { high = "Error",
+                            low = "Warning", checkers = {} } }`
+  `hover`                   `{ preview_lines = 8,
+                            backlinks_all_headings = false }`
+  `document_symbols`        `{ src_blocks = true, tables = true }`
+  `symbol_kinds`            `{ heading = "Namespace", todo = "Event",
+                            done = "Constant", src_block = "Function",
+                            table = "Struct" }`
+  `workspace`               `{ agenda_files = true, org_directory = true,
+                            recursive = true, extra = {}, files = nil,
+                            max_files = 2000, preload = true }`
+  `workspace_symbol_limit`  1000
+  `rename`                  `{ update_descriptions = true,
+                            write_unloaded = true }`
+  `code_actions`            `{ entry = true, conversions = true }`
+
+Notes ~
+  - The server uses UTF-8 positions (`positionEncoding`), so columns are
+    byte offsets.
+  - Links spanning more than 5 lines (or a blank line) are not seen.
+  - Text the `transclusion` extension inserted into a buffer
+    (|org-extensions-transclusion|) belongs to its source file: it is not
+    linted, not listed in the symbols, its links are no references, and
+    a rename inside it is refused (rename it in the source). A link of
+    the buffer's own text can still resolve to a headline in it.
+  - The ID database is updated when the rename is computed; if the edit
+    is then not applied, the next lookup of either ID repairs it.
+  - Files a rename loaded are written only if Neovim loads them within
+    10 seconds of the rename (it does so while applying the edit).
+  - `:checkhealth org` shows the running client, the number of workspace
+    files and of org-lint checkers.
+
+------------------------------------------------------------------------------
+Transclusion (org-transclusion)                  *org-extensions-transclusion*
+
+`transclusion` shows text from other files, or other parts of the same
+file, where a `#+transclude:` keyword points to, like Emacs
+org-transclusion and with its keyword syntax:
+>lua
+    require("org").setup({ extensions = { transclusion = {} } })
+<
+>org
+    * Meeting notes
+    #+transclude: [[file:projects.org::*Launch plan]] :level 2
+    #+transclude: [[file:src/main.py]] :lines 10-24 :src python
+<
+The link is required and comes first; properties follow it:
+
+  `:level N`                 shift the text's headlines so the first is at
+                           level N; `:level` alone puts it one below the
+                           keyword's headline
+  `:only-contents`           leave out the headlines, keep their text
+  `:no-first-heading`        leave out the first headline only
+  `:exclude-elements "a b"`  leave out elements of these types (`drawer`,
+                           `property-drawer`, `keyword`, `planning`,
+                           `src-block`, `table`, `comment`, ...)
+  `:expand-links`            make relative `file:` links absolute
+  `:lines A-B`               lines A to B, both included, counted from the
+                           search target (from the file start without
+                           one); `A-` and `-B` are open ranges
+  `:end "text"`              end before the first line after the start
+                           that matches text (`/regexp/` too); when
+                           nothing matches, the end of `:lines` applies
+  `:thing-at-point THING`    (or `:thingatpt`) end after the THING that
+                           starts at the search target: `sexp`, `list`,
+                           `defun`, `paragraph`, `line`, `word`,
+                           `symbol` or `sentence`; `:end "N"` takes N of
+                           them
+  `:noweb-chunk`             the search option names a noweb chunk: the
+                           lines after `<<name>>=` up to the next `@` or
+                           chunk
+  `:src LANG`                wrap the text in a `#+begin_src LANG` block;
+                           `:rest "ARGS"` adds header arguments
+  `:disable-auto`            not shown or inserted automatically, only by
+                           `transclusion_add` (and not exported)
+
+Links can be `file:` links with a search option (`::*Heading`,
+`::#custom-id`, `::name` of a `#+NAME:` element or a `<<target>>`
+paragraph, `::/regexp/` or `::N` for text files), `id:` links, or links
+into the same file (`[[*Heading]]`). A heading's whole subtree is taken,
+without its property drawer (`exclude_elements`). Text files come whole,
+from their search target to the end, or by `:lines`, `:end` or
+`:thing-at-point`, indented like the keyword; binary files are refused.
+Like org-transclusion, `:lines`, `:end` and `:thing-at-point` on an Org
+file take its lines as they are (no element left out, headlines as they
+are, except that an `id:` link still follows `:level`). `#+transclude:`
+lines inside the transcluded text are expanded too, `max_depth` deep; a
+transclusion that would include itself is left as a keyword and reported.
+
+Virtual and inserted ~
+By default (`mode = "virtual"`) transclusions are drawn as virtual lines
+under their keyword, with a `│` border, org highlighting (and tree-sitter
+colours for code) and the source at the end of the keyword line. The
+buffer text is untouched, so nothing can leak into the file, and the lines
+fold away with the keyword's headline.
+
+`transclusion_add` inserts the text into the buffer instead, like Emacs:
+its lines get a sign in the sign column, the keyword line says
+"(inserted)", and folding, search and the agenda see them. Inserted text
+is read-only: an edit in place is put back (edit the source instead, see
+below), lines you type or paste among it are kept below it, deleting the
+whole text removes the transclusion, and deleting the keyword removes its
+text. Each inserted line carries a mark, so undo and redo bring the
+transclusion back with its text; while they walk the history, the text
+they bring back is left as it is. `mode = "materialized"` inserts every
+transclusion when a buffer is opened (org-transclusion-add-all-on-activate,
+and again after `:e!`); `mode = false` shows nothing until you ask.
+
+The file only ever holds the keywords: inserted text is taken out while
+the buffer is written and put back afterwards (org-transclusion's before-
+and after-save hooks). That covers `:w`, `:w {file}`, `:saveas`, `:wq`,
+`:w >> {file}`, `:{range}w {file}` (the inserted lines of the range are
+left out) and org.nvim's own writes (refile, capture, archive, ...). A
+write that fails, or that another `BufWritePre` autocommand stops, puts
+the text back once the command is over. Autocommands run in the order
+they were defined: a formatter that runs before this extension's
+`BufWritePre` sees the inserted text, and the text is found again after
+it as long as the formatter left it as it was (conform.nvim and LSP
+formatting change only the lines that differ). `:noautocmd write`, and a
+write run from inside another autocommand that isn't `++nested` (some
+auto-save plugins), skip all of this: the file is cleaned again when you
+leave the buffer, stay idle (`CursorHold`) or Neovim loses focus, but
+not after `:noautocmd wq`.
+
+Transclusions are drawn when an org buffer is shown, redrawn when the
+buffer or a source buffer changes (`live`) or a source is written, and,
+for source files that aren't loaded, when they change on disk (`watch`,
+only while a buffer showing them is loaded; one watcher per directory, at
+most 64). Only the transclusions whose source changed are drawn again.
+
+Editing the source ~
+`transclusion_edit` (`<CR>` on a keyword or inserted text, `edit_key`)
+opens the source lines in a float (org-transclusion-live-sync-start): the
+whole subtree with its drawers, or the lines of a code file with its
+filetype. `:w` writes them back into the source: into its buffer when it
+is loaded (and writes that buffer when it had no other unsaved changes),
+else into the file, keeping its line endings. Every transclusion of the
+source is then redrawn and inserted copies are updated. If the source
+changed meanwhile so the text can't be found, nothing is written.
+`<Esc>` (in Normal mode) closes the float; it refuses while there are
+unwritten edits (`:w` them, or `:q!` to drop them). With
+`edit = { live = true }` the text goes into the source buffer as you type
+(the source is loaded if it isn't), so every transclusion of it follows,
+like org-transclusion-live-sync; the file is still written by `:w`.
+Elsewhere `<CR>` keeps its meaning.
+
+Actions and keys (in org buffers) ~
+  `<prefix>ua`  transclusion_add            insert the text at point
+  `<prefix>uA`  transclusion_add_all        insert every transclusion
+  `<prefix>ud`  transclusion_remove         take out the inserted text; on
+                                          a virtual one, hide it
+  `<prefix>uD`  transclusion_remove_all     take out every inserted text
+  `<prefix>ug`  transclusion_refresh        re-read the sources, show
+                                          hidden ones again
+  `<prefix>ue`  transclusion_edit           edit the source (also `<CR>`)
+  `<prefix>uo`  transclusion_open_source    visit the source (`open_source`)
+  `<prefix>ut`  transclusion_toggle         virtual transclusions on/off
+  `<prefix>uc`  transclusion_detach         replace the transclusion by a
+                                          copy of its text
+  `<prefix>ul`  transclusion_make_from_link add a `#+transclude:` for the
+                                          link at point
+  `<prefix>u<`  transclusion_promote        `:level` one up
+  `<prefix>u>`  transclusion_demote         `:level` one down
+`:Org transclusion_insert [[link]] :level 2` adds a keyword below the
+cursor (below the inserted text when the cursor is in it); it completes
+`file:` paths and the properties.
+
+Export ~
+`#+transclude:` keywords are expanded when a buffer is exported, before
+`#+INCLUDE:` keywords, except `:disable-auto` ones (`export = false` turns
+this off). Inserted text is not exported twice.
+
+                                                     *org-transclusion-ranges*
+For other extensions and plugins ~
+Inserted text is in the buffer, so the parser and the agenda see it, as
+in Emacs. Code that indexes or checks what is in the file (a language
+server, a linter, an index of links) should skip it:
+>lua
+    local ok, t = pcall(require, "org.extensions.transclusion")
+    for _, r in ipairs(ok and t.ranges(bufnr) or {}) do
+      -- lines r.first .. r.last (1-based, both included) are inserted
+      -- text; r.keyword is the line of its #+transclude:
+    end
+<
+`ranges(bufnr)` returns an empty list when nothing is inserted or the
+extension is off. `clean_lines(bufnr)` returns the lines as the file
+holds them (and a map from those lines to buffer lines), and
+`without_inserted(bufnr, fn)` runs `fn` (a write that skips autocommands)
+with the inserted text taken out.
+
+Options ~
+  `mode`                   "virtual", "materialized" or false ("virtual")
+  `exclude_elements`       element types always left out
+                         ({ "property-drawer" })
+  `include_first_section`  keep the text before the first headline of a
+                         whole file (true)
+  `nested`                 expand keywords in transcluded text (true)
+  `max_depth`              nesting limit (5)
+  `max_virtual_lines`      longest virtual transclusion (400)
+  `border`                 left border of virtual lines ("│ ")
+  `sign`                   sign on inserted lines, false for none ("▎")
+  `show_source`            source at the end of the keyword line (true)
+  `live`                   redraw as source buffers change (true)
+  `watch`                  watch unloaded source files (true)
+  `debounce`               milliseconds before redrawing (150)
+  `export`                 expand keywords on export (true)
+  `edit_key`               key editing the transclusion at point ("<CR>")
+  `edit`                   { window = "float" or an Ex command such as
+                         "split", width, height, border, live = false }
+  `open_source`            "edit", "split", "vsplit" or "tab" ("split")
+
+Highlights: `OrgTransclusionBorder`, `OrgTransclusionSource`,
+`OrgTransclusionSign`, `OrgTransclusionError`.
+
+Differences from Emacs org-transclusion ~
+  - Virtual lines are the default; Emacs always inserts the text.
+  - Inserted text keeps its keyword line above it (Emacs hides the
+    keyword while the text is shown).
+  - Editing happens in a float written with `:w`; with `edit.live` the
+    source buffer follows as you type, but the float is a copy, not an
+    overlay on the source.
+  - Nested keywords are expanded as the text is drawn; Emacs expands them
+    when you add them.
+  - `:thing-at-point` finds things by brackets, blank lines and
+    indentation, not by the source's major mode, and `:end` is a text
+    search (or `/regexp/`), not any Org search option.
+  - Identical text right under a keyword that lost its marks (a formatter
+    rewrote the buffer, or undo from an earlier session with 'undofile')
+    is taken back as that keyword's inserted text.
+  - org-roam doesn't index links in `#+transclude:` lines (like org-roam),
+    and inserted text is never in the file, so it isn't indexed either.
+
+------------------------------------------------------------------------------
+Views: kanban, timeline, heatmap, sidebar               *org-extensions-views*
+
+Four visual views of your tasks, each an extension of its own. They share
+their plumbing (`lua/org/extensions/views_util.lua`): where entries come
+from, filters, the window, jumping back to a heading and redrawing when org
+files are written or a TODO state or clock changes. Their global keys live
+under `<prefix>V`.
+
+Where a view takes a `source`, it is one of:
+  `"agenda"`   the agenda files (default)
+  `"buffer"`   the current buffer
+  `"subtree"`  the subtree at the cursor (followed while lines are added
+             above it)
+  a path or glob, or a list of them
+
+A filter (`/` in the kanban board, or words after `:Org kanban`) is an
+org-ql sexp when it starts with `(` (|org-extensions-ql|; the query
+language is loaded on demand, the ql extension need not be enabled), and a
+tags / property match like `work+urgent-home` otherwise (|org-match-syntax|).
+The `query` option takes any org-ql query, plain syntax included.
+
+COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
+scratch buffers; <CR> opens the heading in the window the view was opened
+from (floats and tabs close first), and <Esc> closes them (`q` is left
+alone). `:Org kanban`, `:Org timeline` and `:Org heatmap` complete their
+arguments: the sources, org files, zooms or kinds, and the tags of the
+agenda files. A word is a file when it ends in `.org`, starts with `~`, `.`
+or `/`, has a glob character or names an existing path; anything else is
+a filter, so `work/NEXT` is a tags/TODO match.
+
+The views redraw after an org buffer they show is changed (once after a
+burst of changes) or written, and after TODO state, clock, property,
+capture and note events. A redraw reads nothing again while the files'
+parses (`org.files` keeps one per buffer text and file mtime) and the day
+are the same, and moving around in a view (selection, pan, zoom) only
+redraws it.
+
+------------------------------------------------------------------------------
+Kanban board                                           *org-extensions-kanban*
+
+A board with a column per TODO keyword and a card per heading:
+>lua
+    require("org").setup({ extensions = { kanban = {
+      columns = {
+        "TODO",
+        { "NEXT", "WAITING", name = "Doing", wip = 3 },
+        "DONE",
+      },
+    } } })
+<
+`:Org kanban [agenda|buffer|subtree|<file>] [filter]` opens it; the actions
+`kanban_open` (`<prefix>Vk`), `kanban_buffer` and `kanban_subtree` open it
+on the `source` option, the current buffer and the subtree at the cursor.
+
+Columns are the TODO keywords in the order they are defined (with the
+keywords of `#+TODO` lines in the source files after them) unless `columns`
+lists them; a column can gather several keywords under a `name`. The header shows the
+number of cards, or `count/limit` with a WIP limit (`wip` in the column or
+the `wip` option), in the error colour with a `!` once over it. Headers use
+the TODO keyword faces (`ui.todo_keyword_faces`).
+
+A card shows the priority, the title (wrapped to `title_lines`), the
+deadline countdown (◆ in 3d, in the warning colour within the deadline's
+warning period, the error colour when overdue), the Effort (◷ 2:30) and the
+tags; `card` turns each part on or off (`scheduled` and `category` are off
+by default). Cards are sorted by `sort`.
+
+Keys in the board ~
+  h / l     move the card to the previous / next column: the heading gets
+            the column's first keyword through the regular TODO code, so
+            logging, CLOSED, blocking and repeaters work as with `C-c C-t`.
+            Columns whose keywords the card's file doesn't have (another
+            `#+TODO` sequence) are skipped. With `choose_keyword`, a column
+            of several keywords asks which one.
+  j / k     next / previous card
+  J / K     move the card after the next / before the previous card of the
+            column: its subtree moves past the other one in the file. Only
+            for cards under the same heading, with `sort = "file"` (in the
+            other orders the board would put it back)
+  H / L     previous / next column
+  <CR>      open the heading
+  /         filter (empty clears it)
+  r         refresh
+  <Esc>     quit
+
+The cursor can also be moved onto a card with any motion or the mouse. The
+board redraws itself when an org file is written, when one of its files is
+changed (in Normal mode; a burst of changes redraws once), and when a TODO
+state or clock changes; a board in a hidden tab waits until it is shown.
+Moving the selection redraws nothing. A board of thousands of cards takes a
+noticeable moment to build (about 0.2 s for 5,000 cards). Moved cards are saved with `save = true` (default:
+`agenda.save_after_edit`).
+
+Options (defaults) ~
+  `columns`            {} (one per keyword)
+  `choose_keyword`     false
+  `wip`                {} (limits by column name or keyword)
+  `show_done`          true
+  `source`             "agenda"
+  `query`, `tag`       nil
+  `sort`               "priority" | "deadline" | "scheduled" | "file"
+  `layout`             "float" | "tab" | "split" | "vsplit" | "current"
+  `width`, `height`    0.94, 0.88 (of the editor, or columns / lines)
+  `min_column_width`   22
+  `max_column_width`   44
+  `title_lines`        2
+  `card`               { priority, tags, deadline, effort = true,
+                       scheduled, category = false }
+  `save`               nil
+  `keys`               the keys above, by name: `prev_state`, `next_state`,
+                       `down`, `up`, `move_down`, `move_up`, `prev_column`,
+                       `next_column`, `jump`, `refresh`, `filter`, `quit`
+
+Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
+`OrgKanbanSelected`, `OrgKanbanCardTitle`, `OrgKanbanDoneTitle`,
+`OrgKanbanCount`, `OrgKanbanWipExceeded`, `OrgKanbanOverdue`,
+`OrgKanbanDueSoon`, `OrgKanbanDue`, `OrgKanbanScheduled`, `OrgKanbanEffort`,
+`OrgKanbanCategory`, `OrgKanbanEmpty`.
+
+------------------------------------------------------------------------------
+Timeline                                             *org-extensions-timeline*
+
+A text-mode Gantt chart: one row per task with a SCHEDULED or DEADLINE date,
+on a date axis.
+>lua
+    require("org").setup({ extensions = { timeline = { zoom = "week" } } })
+<
+`:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`,
+or the actions `timeline_open` (`<prefix>Vt`) and `timeline_buffer`.
+
+A task's bar runs from its scheduled day to its deadline. With only one of
+the two, the bar is as many days long as its Effort takes at
+`hours_per_day` (8) working hours a day, starting on the scheduled day or
+ending on the deadline. The deadline is drawn as ◆. A task past its deadline
+is drawn in the error colour with a dashed trail up to today. Today's
+column is shaded and its date highlighted on the axis; at day zoom
+weekends are shaded too. With `clocks` (or `c`), the days a task was
+clocked show as ▒. DONE tasks are left out unless `show_done` is set.
+
+Times of day count at day zoom, where a day's three columns are its thirds
+(0-8, 8-16, 16-24 h): `SCHEDULED: <... 14:00-15:00>` fills the middle one,
+a bar starting at 14:00 starts there, and a deadline at 20:00 puts its ◆ in
+the last one. A timed task with an Effort shorter than the rest of its day
+ends when the Effort does. The week and month zooms show whole days.
+
+A repeating task (`+1w`, `++1m`, `.+2d` on its SCHEDULED or DEADLINE) is
+drawn again at each later occurrence inside the view, in
+`OrgTimelineRepeat`: the whole bar and its deadline, shifted by the
+repeat. Only occurrences from the current date on are drawn: the past of a
+repeating task is its log, not its timestamp.
+
+With the |org-extensions-ics| extension on and the agenda files as the
+source, calendar events get a row each (a span per occurrence, in
+`OrgTimelineEvent`), placed by their times like timed tasks; `ics = false`
+leaves them out. They can't be opened or rescheduled from here.
+
+In a narrow window the task names take at most 40% of the width.
+
+Keys ~
+  + = / -   zoom in / out: day (3 columns a day), week (a column a day),
+            month (a column a week)
+  [ / ]     pan half a screen to the past / future
+  .         back to today
+  <CR>      open the task
+  S / D     reschedule / set the deadline of the task with the date prompt
+            (as `C-c C-s` / `C-c C-d`)
+  c         show or hide clocked days
+  r         refresh
+  <Esc>     quit
+
+Options (defaults) ~
+  `source`, `query`, `tag`   "agenda", nil, nil
+  `show_done`          false
+  `zoom`               "day"
+  `days_before`        3 (days before today at the left edge)
+  `label_width`        34
+  `hours_per_day`      8
+  `clocks`             false
+  `ics`                true (calendar events, with the ics extension)
+  `layout`             "float" (as for the kanban board)
+  `width`, `height`    0.94, 0.88
+  `save`               nil (save after S / D; nil follows
+                       `agenda.save_after_edit`)
+  `keys`               `zoom_in`, `zoom_out`, `pan_left`, `pan_right`,
+                       `today`, `jump`, `schedule`, `deadline`, `clocks`,
+                       `refresh`, `quit`
+
+Highlight groups: `OrgTimelineTitle`, `OrgTimelineHint`, `OrgTimelineAxis`,
+`OrgTimelineMonth`, `OrgTimelineSeparator`, `OrgTimelineBar`,
+`OrgTimelineDone`, `OrgTimelineOverdue`, `OrgTimelineDeadline`,
+`OrgTimelineClock`, `OrgTimelineToday`, `OrgTimelineTodayLabel`,
+`OrgTimelineWeekend`, `OrgTimelineTask`, `OrgTimelineRepeat`,
+`OrgTimelineEvent`.
+
+Panning and zooming redraw without reading the files again; the timeline
+is rebuilt when one of its files is written or changed (in Normal mode),
+as the kanban board is.
+
+------------------------------------------------------------------------------
+Heatmap                                               *org-extensions-heatmap*
+
+A calendar heatmap in the style of GitHub's contribution graph: a column per
+week, a row per weekday, each day shaded by what was done that day.
+>lua
+    require("org").setup({ extensions = { heatmap = { weeks = 26 } } })
+<
+`:Org heatmap [clock|closed|habit] [tag|file]`, or the action
+`heatmap_open` (`<prefix>Vh`). The kinds:
+  `clock`   minutes clocked (CLOCK lines; a clock over midnight is split
+          between the two days, a running clock counts up to now)
+  `closed`  tasks marked done: CLOSED dates, `- State "DONE"` and
+          `- CLOSING NOTE` log entries and the LAST_REPEAT property, once
+          per task and day
+  `habit`   the same for habits (`STYLE: habit`)
+
+A habit only leaves a trace when marking it done logs something: with
+`log_repeat` on (the default) every completion is counted; with it off,
+only the last one (its LAST_REPEAT, which clocked tasks get too) is.
+
+A bare word is a tag (`+work` and `:work:` work too); a path ending in
+`.org` is the source.
+
+There are five shades: empty days, then four levels. By default the levels
+split the days with any value in quartiles; `thresholds` sets the lower
+bound of each level instead (e.g. `{ 30, 60, 120, 240 }` minutes). The
+colours are mixed from the foreground of `color_group` and the background
+of `Normal`, and follow colorscheme changes; `colors` sets all five.
+Under the grid: the total, active days, the average of an active day, the
+current streak (ending today, or yesterday while today is empty), the
+longest one and the best day.
+
+The cursor starts on today; the line at the bottom shows the selected day's
+total and its biggest entries. With `weeks = 0` the number of weeks follows
+the editor's width when it is resized. Only the days shown are counted, so
+years of CLOCK lines cost little (100,000 clocks: about 30 ms).
+
+Keys ~
+  <Tab>     next kind (clock, closed, habit)
+  h / l     previous / next week
+  k / j     previous / next day
+  <CR>      the agenda of that day (a split heatmap stays open)
+  r         refresh
+  <Esc>     quit
+
+Options (defaults) ~
+  `kind`          "clock"
+  `source`, `tag` "agenda", nil
+  `weeks`         0 (fit the window, at most 53)
+  `cell`          "■"
+  `thresholds`    nil
+  `color_group`   "DiagnosticOk"
+  `colors`        nil
+  `layout`        "float"
+  `keys`          `next_kind`, `prev_week`, `next_week`, `next_day`,
+                  `prev_day`, `agenda`, `refresh`, `quit`
+
+Highlight groups: `OrgHeatmap0` to `OrgHeatmap4` (the shades, set from the
+options), `OrgHeatmapTitle`, `OrgHeatmapHint`, `OrgHeatmapLabel`,
+`OrgHeatmapValue`, `OrgHeatmapDetail`.
+
+------------------------------------------------------------------------------
+Today sidebar                                         *org-extensions-sidebar*
+
+A narrow window at the side of the tab that keeps today in view:
+>lua
+    require("org").setup({ extensions = { sidebar = { position = "left" } } })
+<
+The actions `sidebar_toggle` (`<prefix>Vs`), `sidebar_open` and
+`sidebar_close`. Its sections (`sections`, in this order by default):
+  `clock`   the running clock: the task, the time clocked and, with an
+          Effort, a bar of the time against it (error colour once over).
+          With the |org-extensions-pomodoro| extension on, the pomodoro's
+          phase and when it ends ("🍅 work until 10:25 (2)")
+  `next`    the next timed entry of today still to come, with a countdown
+  `today`   today's timed entries (the past ones dimmed), deadlines due
+          within `deadline_days` (the overdue ones first) and scheduled
+          entries, from the agenda files, as in the day agenda, and the
+          events of today from the extra agenda sources, such as the
+          calendars of the |org-extensions-ics| extension (◇ for all-day
+          ones; they have no heading to open)
+  `habits`  the habits due today
+  `inbox`   the number of top-level entries not DONE in `inbox_file`
+          (default: `default_notes_file`)
+
+It is redrawn every `interval` seconds while it is open (the timer stops
+when it closes), when an agenda file or the inbox is written or changed,
+and when a clock, TODO state or pomodoro phase changes. A redraw collects
+the agenda again only when an agenda file changed (or the day did), so a
+tick costs little even with hundreds of agenda files; an error in one is
+reported once. In an editor too narrow for `width`, it takes what is left
+after a narrow window. The window keeps its width (`winfixwidth`, and `winfixbuf` where
+Neovim has it), has no numbers, sign column or status line text, and opening
+it leaves the cursor where it was unless `focus` is set. Toggling it in
+another tab moves it there.
+
+Keys ~
+  <CR>   open the entry (the clocked task, the inbox) in the window next
+         to the sidebar
+  r      refresh
+  <Esc>  close
+
+Options (defaults) ~
+  `position`       "right"
+  `width`          40
+  `interval`       30
+  `sections`       { "clock", "next", "today", "habits", "inbox" }
+  `show_done`      false
+  `deadline_days`  7
+  `inbox_file`     nil
+  `focus`          false
+  `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
+                   inbox = "✉", deadline = "◆", scheduled = "▸",
+                   event = "◇" }
+  `keys`           { jump = "<CR>", refresh = "r", close = "<Esc>" }
+
+Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
+`OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,
+`OrgSidebarEmpty`, `OrgSidebarCountdown`, `OrgSidebarOverdue`,
+`OrgSidebarDue`, `OrgSidebarScheduled`, `OrgSidebarProgress`,
+`OrgSidebarProgressEmpty`, `OrgSidebarOverrun`, `OrgSidebarPomodoro`,
+`OrgSidebarEvent`.
 
  vim:tw=78:ts=8:ft=help:norl:

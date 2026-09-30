@@ -143,8 +143,23 @@ function M.statusline()
       parts[#parts + 1] = s
     end
   end
+  -- components added by extensions, in name order
+  local names = vim.tbl_keys(M.statusline_components)
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local ok, s = pcall(M.statusline_components[name])
+    if ok and type(s) == "string" and s ~= "" then
+      parts[#parts + 1] = s
+    end
+  end
   return table.concat(parts, " ")
 end
+
+--- Extra `statusline()` components by name (`fun(): string`), appended
+--- after the clock and timer. Extensions add theirs here (the pomodoro
+--- extension adds `pomodoro`); empty unless one is enabled.
+---@type table<string, fun(): string>
+M.statusline_components = {}
 
 --- Run a named action (see `:h org-keymaps` and `org.actions`), the same as
 --- `:Org <name>`. Most actions operate at the cursor in an org buffer.

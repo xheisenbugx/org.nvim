@@ -1,0 +1,6 @@
+#+TITLE: Journal
+* Standup
+  Blocked on [[file:project.org::#beta]] until Friday.
+  Also tracked as [[id:5c1e0a2b-lsp-demo][the beta task]].
+* Notes
+  Launch date: see [[file:project.org::#beta][beta]].

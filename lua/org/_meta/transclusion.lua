@@ -1,0 +1,59 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { transclusion = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Transclusion
+---`false` keeps the extension off.
+---@field enabled? boolean
+---How transclusions show when an org buffer is opened: `"virtual"` (virtual
+---lines under the keyword, default), `"materialized"` (inserted into the
+---buffer and taken out while writing, like org-transclusion-add-all) or
+---`false` (nothing until `transclusion_toggle` or `transclusion_add`).
+---@field mode? "virtual"|"materialized"|false
+---Element types always left out of org text (org-transclusion-exclude-elements,
+---default: `{ "property-drawer" }`); `:exclude-elements` adds more.
+---@field exclude_elements? string[]
+---Keep the text before the first headline when a whole file is transcluded
+---(org-transclusion-include-first-section, default: `true`).
+---@field include_first_section? boolean
+---Expand `#+transclude:` keywords inside transcluded text (default: `true`).
+---@field nested? boolean
+---How deep nested transclusions go (default: `5`).
+---@field max_depth? integer
+---Longest transclusion drawn as virtual lines (default: `400`).
+---@field max_virtual_lines? integer
+---Left border of virtual lines (default: `"│ "`).
+---@field border? string
+---Sign on inserted lines, `false` for none (default: `"▎"`).
+---@field sign? string|false
+---Show the source at the end of the keyword line (default: `true`).
+---@field show_source? boolean
+---Redraw as source buffers change, not only when written (default: `true`).
+---@field live? boolean
+---Watch source files that aren't loaded for outside changes (default: `true`).
+---@field watch? boolean
+---Milliseconds to wait before redrawing after a change (default: `150`).
+---@field debounce? integer
+---Expand `#+transclude:` keywords when exporting (default: `true`).
+---@field export? boolean
+---Key editing the transclusion under the cursor; elsewhere it keeps its
+---meaning. `false` for none (default: `"<CR>"`).
+---@field edit_key? string|false
+---The window of `transclusion_edit`.
+---@field edit? org.Config.Extensions.Transclusion.Edit
+---How `transclusion_open_source` shows the source (default: `"split"`).
+---@field open_source? "edit"|"split"|"vsplit"|"tab"
+
+---@class org.Config.Extensions.Transclusion.Edit
+---`"float"` (default) or an Ex command opening a window, e.g. `"split"`.
+---@field window? string
+---Columns, or a fraction of the screen (default: `0.8`).
+---@field width? number
+---Most lines, or a fraction of the screen (default: `0.7`).
+---@field height? number
+---Float border (default: `"rounded"`).
+---@field border? string|string[]
+---Put the text into the source buffer as you type, so every transclusion
+---of it follows (org-transclusion-live-sync); `:w` still writes the file
+---(default: `false`).
+---@field live? boolean

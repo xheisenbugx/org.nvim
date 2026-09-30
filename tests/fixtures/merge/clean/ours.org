@@ -1,0 +1,24 @@
+#+TITLE: Projects
+#+TODO: TODO NEXT WAIT | DONE
+
+* NEXT Ship the release                                              :work:
+DEADLINE: <2026-10-02 Fri>
+:PROPERTIES:
+:ID: 5b1c
+:EFFORT: 4:00
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 09:00]--[2026-09-28 Mon 11:30] =>  2:30
+CLOCK: [2026-09-25 Fri 14:00]--[2026-09-25 Fri 15:00] =>  1:00
+:END:
+Checklist:
+- changelog (done)
+- tag
+
+- announce
+* TODO Plan the offsite                                              :team:
+Venue ideas.
+* Reading
+** TODO Designing Data-Intensive Applications
+** TODO The Pragmatic Programmer
+** TODO A Philosophy of Software Design

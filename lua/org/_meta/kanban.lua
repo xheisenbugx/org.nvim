@@ -1,0 +1,54 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { kanban = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Kanban
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Columns, left to right: a keyword, or keywords with an optional `name` and
+---`wip` limit, e.g. `{ "TODO", { "NEXT", "WAITING", name = "Doing", wip = 3 }, "DONE" }`.
+---A card moved into a column gets its first keyword that the card's file knows.
+---(default: `{}`, a column per TODO keyword)
+---@field columns? (string|org.Config.Extensions.KanbanColumn)[]
+---Ask which keyword (vim.ui.select) when a card moves into a column of several.
+---(default: `false`: the first)
+---@field choose_keyword? boolean
+---WIP limits by column name or keyword, e.g. `{ NEXT = 3 }`. (default: `{}`)
+---@field wip? table<string, integer>
+---Show the columns of DONE keywords. (default: `true`)
+---@field show_done? boolean
+---Where cards come from: `"agenda"`, `"buffer"`, `"subtree"`, or files / globs.
+---(default: `"agenda"`)
+---@field source? "agenda"|"buffer"|"subtree"|string|string[]
+---Only headlines matching this org-ql query (sexp or plain syntax). (default: `nil`)
+---@field query? string
+---Only headlines with this tag, inherited tags included. (default: `nil`)
+---@field tag? string
+---Card order: `"priority"` (then deadline), `"deadline"`, `"scheduled"` or `"file"`.
+---(default: `"priority"`)
+---@field sort? "priority"|"deadline"|"scheduled"|"file"
+---Window: `"float"`, `"tab"`, `"split"`, `"vsplit"` or `"current"`. (default: `"float"`)
+---@field layout? "float"|"tab"|"split"|"vsplit"|"current"
+---Float size: fractions of the editor, or columns / lines. (default: `0.94`, `0.88`)
+---@field width? number
+---@field height? number
+---Column width limits. (default: `22`, `44`)
+---@field min_column_width? integer
+---@field max_column_width? integer
+---Lines of a card's title before it is cut. (default: `2`)
+---@field title_lines? integer
+---What cards show.
+---(default: `{ priority = true, tags = true, deadline = true, scheduled = false, effort = true, category = false }`)
+---@field card? { priority?: boolean, tags?: boolean, deadline?: boolean, scheduled?: boolean, effort?: boolean, category?: boolean }
+---Save the file after moving a card; `nil` follows `agenda.save_after_edit`. (default: `nil`)
+---@field save? boolean
+---Keys in the board (`false` removes one).
+---@field keys? { prev_state?: string|string[]|false, next_state?: string|string[]|false, down?: string|string[]|false, up?: string|string[]|false, prev_column?: string|string[]|false, next_column?: string|string[]|false, move_down?: string|string[]|false, move_up?: string|string[]|false, jump?: string|string[]|false, refresh?: string|string[]|false, filter?: string|string[]|false, quit?: string|string[]|false }
+
+---@class org.Config.Extensions.KanbanColumn
+---The keywords of the column (list part).
+---@field [integer] string
+---Header of the column (default: its first keyword).
+---@field name? string
+---WIP limit.
+---@field wip? integer

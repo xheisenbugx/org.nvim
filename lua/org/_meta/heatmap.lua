@@ -1,0 +1,29 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { heatmap = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Heatmap
+---`false` keeps the extension off.
+---@field enabled? boolean
+---What is counted: minutes clocked, tasks closed or habits done. (default: `"clock"`)
+---@field kind? "clock"|"closed"|"habit"
+---Where entries come from: `"agenda"`, `"buffer"`, `"subtree"`, or files / globs.
+---(default: `"agenda"`)
+---@field source? "agenda"|"buffer"|"subtree"|string|string[]
+---Only entries with this tag, inherited tags included. (default: `nil`)
+---@field tag? string
+---Weeks shown, ending with the current one; 0 fits the window (at most 53). (default: `0`)
+---@field weeks? integer
+---The day cell. (default: `"■"`)
+---@field cell? string
+---Lower bounds of shades 1-4 (minutes for "clock", counts otherwise); `nil`
+---uses the quartiles of the days shown. (default: `nil`)
+---@field thresholds? number[]
+---Group whose foreground is the darkest shade. (default: `"DiagnosticOk"`)
+---@field color_group? string
+---Five `"#rrggbb"` colours, empty day first, instead of derived ones. (default: `nil`)
+---@field colors? string[]
+---Window: `"float"`, `"tab"`, `"split"`, `"vsplit"` or `"current"`. (default: `"float"`)
+---@field layout? "float"|"tab"|"split"|"vsplit"|"current"
+---Keys in the heatmap (`false` removes one).
+---@field keys? { next_kind?: string|string[]|false, prev_week?: string|string[]|false, next_week?: string|string[]|false, next_day?: string|string[]|false, prev_day?: string|string[]|false, agenda?: string|string[]|false, refresh?: string|string[]|false, quit?: string|string[]|false }

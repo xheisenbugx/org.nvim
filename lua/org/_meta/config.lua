@@ -750,6 +750,40 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---Todoist-style quick add of entries from one line (`:h org-extensions-quickadd`).
+---@field quickadd? org.Config.Extensions.Quickadd|boolean
+---Guided GTD weekly review in a float (`:h org-extensions-review`).
+---@field review? org.Config.Extensions.Review|boolean
+---Pomodoros clocked on the heading at point, like Emacs org-pomodoro (`:h org-extensions-pomodoro`).
+---@field pomodoro? org.Config.Extensions.Pomodoro|boolean
+---Spaced repetition flashcards, like org-drill (`:h org-extensions-drill`).
+---@field drill? org.Config.Extensions.Drill|boolean
+---Structural git merge driver for Org files (`:h org-extensions-merge`).
+---@field merge? org.Config.Extensions.Merge|boolean
+---iCalendar subscriptions shown in the agenda (`:h org-extensions-ics`).
+---@field ics? org.Config.Extensions.Ics|boolean
+---The `org` command line, bin/org (`:h org-extensions-cli`).
+---@field cli? org.Config.Extensions.Cli|boolean
+---mermaid, dot and plantuml blocks rendered to images (`:h org-extensions-diagrams`).
+---@field diagrams? org.Config.Extensions.Diagrams|boolean
+---Code <-> notes: code captures, `code:` links, project files, branch clocks
+---and code TODOs (`:h org-extensions-code`).
+---@field code? org.Config.Extensions.Code|boolean
+---Literate Neovim config: tangle on save and live reload (`:h org-extensions-literate`).
+---@field literate? org.Config.Extensions.Literate|boolean
+---An in-process language server for org buffers (`:h org-extensions-lsp`).
+---@field lsp? org.Config.Extensions.Lsp|boolean
+---Live transclusion of `#+transclude:` keywords, like Emacs org-transclusion
+---(`:h org-extensions-transclusion`; types in `_meta/transclusion.lua`).
+---@field transclusion? org.Config.Extensions.Transclusion|boolean
+---Kanban board of TODO states (`:h org-extensions-kanban`).
+---@field kanban? org.Config.Extensions.Kanban|boolean
+---Text-mode Gantt chart of scheduled tasks and deadlines (`:h org-extensions-timeline`).
+---@field timeline? org.Config.Extensions.Timeline|boolean
+---Calendar heatmap of clocked time, closed tasks or habits (`:h org-extensions-heatmap`).
+---@field heatmap? org.Config.Extensions.Heatmap|boolean
+---A "Today" side window (`:h org-extensions-sidebar`).
+---@field sidebar? org.Config.Extensions.Sidebar|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

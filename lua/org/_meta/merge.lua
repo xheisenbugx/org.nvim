@@ -1,0 +1,30 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { merge = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Merge
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Name of the driver in git: `merge=<name>` in the attributes file and
+---`merge.<name>.driver` in the git config (default: `"org"`).
+---@field driver_name? string
+---Patterns given the driver by `merge_install` (default: `{ "*.org" }`).
+---@field patterns? string[]
+---Side taken when both sides changed the same TODO keyword, priority,
+---title, planning keyword or property, or moved an entry to different
+---parents; `nil` (default) writes conflict markers around that entry's
+---headline (or that property line, or the moved entry).
+---@field prefer? "ours"|"theirs"
+---Sort log drawer items newest first when both sides added some (default: `true`).
+---@field sort_logbook? boolean
+---Pass `todo_keywords` to the driver so custom keywords are recognised
+---(default: `true`).
+---@field pass_todo_keywords? boolean
+---More drawers merged item by item like LOGBOOK (default: `{}`).
+---@field set_drawers? string[]
+---Share (0..1) of an entry's lines that must stay for an entry renamed and
+---edited on one side to be matched; `false`: only an otherwise unchanged
+---one (default: `0.6`).
+---@field rename_similarity? number|false
+---A Lua file the driver runs before merging (default: `nil`).
+---@field config_file? string

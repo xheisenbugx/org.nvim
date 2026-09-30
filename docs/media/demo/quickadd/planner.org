@@ -1,0 +1,11 @@
+#+TITLE: Planner
+#+STARTUP: showall
+
+* Inbox
+** TODO Renew passport
+* Home
+** TODO Fix the leaking tap                                          :home:
+* Work
+** Website relaunch
+*** NEXT Draft the landing page copy                                   :web:
+** Hiring

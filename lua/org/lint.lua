@@ -2428,7 +2428,9 @@ function M.parse(lines, opts)
   doc.root = new_el("org-data", { begin = 1, post = 1, last = #lines, stop = #lines + 1 })
   local s = doc:skip_blank(1, #lines)
   doc:parse_region(s, #lines, "first-section", doc.root)
-  doc:collect_objects()
+  if opts.objects ~= false then
+    doc:collect_objects()
+  end
   return doc
 end
 
@@ -3502,20 +3504,57 @@ end
 
 C["invalid-id-link"] = function(doc)
   local out = {}
-  for _, o in ipairs(links(doc, "id")) do
-    local found = false
-    for _, h in ipairs(map_type(doc, "headline")) do
-      if headline_properties(doc, h).ID == o.path then
-        found = true
-        break
+  local list = links(doc, "id")
+  if #list == 0 then
+    return out
+  end
+  -- the document's own IDs once, not per link; for the others, the IDs of
+  -- every file org.id.find would look in, gathered once (org.id.find
+  -- rescans all of them for each ID it misses)
+  local here, elsewhere, memo = {}, nil, {}
+  local fid = doc.file and doc.file.properties and doc.file.properties.ID
+  if fid then
+    here[fid] = true
+  end
+  for _, h in ipairs(map_type(doc, "headline")) do
+    local id = headline_properties(doc, h).ID
+    if id then
+      here[id] = true
+    end
+  end
+  local function exists(path)
+    if here[path] then
+      return true
+    end
+    if elsewhere then
+      return elsewhere[path] == true
+    end
+    elsewhere = {}
+    local ok, id = pcall(require, "org.id")
+    local okl, paths = false, nil
+    if ok then
+      okl, paths = pcall(id.files)
+    end
+    for _, p in ipairs(okl and paths or {}) do
+      local okg, f = pcall(require("org.files").get, p)
+      if okg and f then
+        if f.properties and f.properties.ID then
+          elsewhere[f.properties.ID] = true
+        end
+        for _, hl in ipairs(f.headlines) do
+          if hl.properties.ID then
+            elsewhere[hl.properties.ID] = true
+          end
+        end
       end
     end
-    if not found then
-      local ok, id = pcall(require, "org.id")
-      if ok then
-        local okf, loc = pcall(id.find, o.path)
-        found = okf and loc ~= nil
-      end
+    return elsewhere[path] == true
+  end
+  for _, o in ipairs(list) do
+    local found = memo[o.path]
+    if found == nil then
+      found = exists(o.path)
+      memo[o.path] = found
     end
     if not found then
       out[#out + 1] = at_obj(o, string.format('Unknown ID "%s"', o.path))
@@ -4725,14 +4764,29 @@ end
 --- Lint an org buffer (org-lint).
 ---@param bufnr? integer default current buffer
 ---@param checkers? string[] checker names (default: all the default checkers)
+---@param text? string[] lines linted instead of the buffer's (the buffer
+---still gives the file name); report lines are then indexes into `text`
 ---@return org.LintReport[] reports sorted by position
-function M.lint(bufnr, checkers)
+function M.lint(bufnr, checkers, text)
+  return M.check(M.document(bufnr, text), checkers)
+end
+
+--- The parsed document the checkers of `lint` look at (for running them
+--- in parts with `check`). With `defer`, its objects (links, timestamps,
+--- ...) are left for `doc:collect_objects()`, which `check` needs first.
+---@param bufnr? integer default current buffer
+---@param text? string[] lines instead of the buffer's
+---@param defer? boolean
+function M.document(bufnr, text, defer)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local lines = text or vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local file
   local ok, files = pcall(require, "org.files")
-  if ok then
+  if text then
+    local okf, f = pcall(require("org.parser").parse, text, name ~= "" and name or nil)
+    file = okf and f or nil
+  elseif ok then
     local okf, f = pcall(files.get_buffer, bufnr)
     file = okf and f or nil
   end
@@ -4741,8 +4795,17 @@ function M.lint(bufnr, checkers)
     bufnr = bufnr,
     filename = name,
     dir = name ~= "" and vim.fn.fnamemodify(name, ":p:h") or vim.fn.getcwd(),
+    objects = not defer,
   })
   doc.eol = vim.bo[bufnr].eol or vim.bo[bufnr].fixeol
+  return doc
+end
+
+--- Run checkers on a `document`.
+---@param doc table from `document`
+---@param checkers? string[] checker names (default: all the default checkers)
+---@return org.LintReport[] reports sorted by position
+function M.check(doc, checkers)
   local wanted
   if checkers then
     wanted = {}

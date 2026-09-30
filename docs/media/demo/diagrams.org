@@ -1,0 +1,15 @@
+#+TITLE: Architecture notes
+
+* Request flow
+#+begin_src mermaid :file flow.png :theme dark :background-color transparent
+flowchart LR
+  user([User]) --> nvim[Neovim]
+  nvim --> org[(notes.org)]
+#+end_src
+
+* Sync
+#+begin_src mermaid :theme dark :background-color transparent
+sequenceDiagram
+  Laptop->>Server: git push
+  Server-->>Phone: pull
+#+end_src

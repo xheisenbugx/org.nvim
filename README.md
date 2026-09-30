@@ -440,7 +440,7 @@ searches it, and `{` / `}` jump between sections:
 | 🧪 | **Babel** | Asynchronous execution in many languages, `:session` as live REPL buffers (shells, Python, Node, Ruby, R, Lua) with `:async`, inline `src_lang{…}` blocks and `call_name()`, `:results`, `:var` references that evaluate blocks (`name(x=1)`, slices, other files, IDs), `:noweb`, `:wrap`, `:cache`, `:file`, `#+CALL`, Library of Babel, tangling, optional evaluation on export, the `C-c C-v` commands, and editing a block in its own buffer with `C-c '`; `emacs-lisp` blocks run in a separate Emacs when one is installed |
 | 📤 | **Export** | A port of Emacs's export engine (with `#+BIND` and `(eval …)` macros): HTML, LaTeX/PDF, Beamer, KOMA letters, man pages, Markdown, ASCII, Org, iCalendar, ODT and Texinfo/Info back-ends matching Emacs output, citations with the CSL processor, publishing projects, every `#+OPTIONS` key, plus DOCX, EPUB and more through pandoc |
 | 🖼️ | **Images and LaTeX** | Image links and LaTeX fragments previewed in place of the link (`org-link-preview`, `-region`, `-clear`, `-refresh`, `org-latex-preview`) with Neovim 0.13's `vim.ui.img`, or snacks.nvim / image.nvim on older versions; `org-image-actual-width`, `#+ATTR_ORG: :width` / `:align`, images as link descriptions, previews on TAB, `#+STARTUP: linkpreviews latexpreview`, the Emacs LaTeX processes (dvipng, dvisvgm, xelatex, imagemagick) plus tectonic, images in `ltximg/`, preview functions for custom link types, remote http(s) images |
-| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda) |
+| 🧩 | **[Extensions](#-extensions)** | Optional, off until enabled: slideshows (org-present), queries and saved views (org-ql), linked notes (org-roam), grouped agendas (org-super-agenda), Todoist-style quick add, a guided weekly review, pomodoros (org-pomodoro), flashcards with spaced repetition (org-drill), an in-process language server (symbols, hover, cross-file rename), kanban board, timeline, clock heatmap and Today sidebar, code ↔ notes links and literate Neovim config, a structural git merge driver, iCalendar subscriptions, the `org` command line, mermaid/dot/plantuml diagrams, and live transclusion (org-transclusion) |
 | 🎁 | **And more** | Footnotes, sparse trees, `org-lint`, entry encryption (`org-crypt`), `org-protocol`, inline tasks, org-num, pretty entities, appointment notifications, attachments (with `org-attach-git`), RSS/Atom feeds (`org-feed`), MobileOrg, IDs, dynamic blocks, completion, `:checkhealth org` |
 
 The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
@@ -998,6 +998,160 @@ set. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
+- **`quickadd`** ([Todoist](https://todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)-style
+  quick add): `:Org quickadd` or `<prefix>q` turns one line such as
+  `Call Bob fri 3pm #work !A ~30m @Inbox due mon every week` into an entry
+  with SCHEDULED / DEADLINE, repeater, tags, priority and Effort, filed
+  under the best-matching heading, with a live preview while you type.
+  Capture templates can use the same syntax with `quickadd = true`
+  (`:h org-extensions-quickadd`).
+
+  ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](docs/media/quickadd.gif)
+
+- **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
+  through a weekly review in a float: empty the inbox (refile, schedule,
+  set a state, delete or skip each entry), stuck projects, waiting-for,
+  overdue, the next two weeks, someday/maybe, last week's clocked time and
+  reflection questions, with a progress line, `n` / `p` between steps and
+  resumable progress. Finishing logs the review in a date tree. Steps can
+  be reordered or replaced with your own (`:h org-extensions-review`).
+
+  ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](docs/media/review.gif)
+
+- **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
+  `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
+  in; when the 25 minutes are up the entry's `POMODOROS` count goes up, the
+  clock stops and a 5-minute break starts (15 minutes after every fourth),
+  with notifications and an optional sound. Pause, skip and stop, an
+  optional overtime, a session that survives a restart, and a countdown
+  in `require("org").statusline()` (`:h org-extensions-pomodoro`).
+
+  ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](docs/media/pomodoro.gif)
+
+- **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
+  flashcards with spaced repetition. Headings tagged `:drill:` are cards
+  (simple, two-sided, multi-sided and cloze deletions such as
+  `[Nile||river]`); `:Org drill` (`<prefix>D`) reviews the due ones in a
+  floating window, you grade each answer 0-5, and org-drill's SM-5 (or
+  SM-2 / Simple8) schedules the next review in its `DRILL_*` properties,
+  so a deck can be shared with Emacs. Leeches, cram mode and org-drill's
+  weighted cloze types included (`:h org-extensions-drill`).
+
+  ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](docs/media/drill.gif)
+
+- **`merge`**: a structural git merge driver for Org files. `:Org
+  merge_install` registers it for the repository (`*.org merge=org`), and
+  git then merges org files entry by entry: entries matched by `ID` or
+  outline path, refiles followed, properties merged key by key, clocks and
+  tags unioned, and a real conflict marked only around the one entry (or
+  property) both sides changed. Also usable without org.nvim's setup via
+  `bin/org-merge` (`:h org-extensions-merge`).
+
+  ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](docs/media/merge.gif)
+
+- **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
+  calendar, a secret URL fetched with curl into a cache or a local file,
+  and see its events read-only in the agenda day and week views: times
+  converted to your zone, repeating events, exceptions and cancellations.
+  `ics_import` copies an event into an org file and `ics_refresh` fetches
+  the calendars again (`:h org-extensions-ics`).
+
+  ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](docs/media/ics.gif)
+
+- **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
+  prints the agenda as text, CSV or JSON, captures with a template, clocks
+  in and out, reports the running clock (for tmux, SketchyBar or Raycast),
+  searches and exports, from a config file of its own
+  (`:h org-extensions-cli`).
+
+  ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](docs/media/cli.gif)
+
+- **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
+  ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
+  blocks, plus extras for `plantuml`: `C-c C-c` writes the diagram and
+  inserts a `file:` link (a name is generated when there's no `:file`),
+  renders are cached by content hash, the image is previewed inline when an
+  image backend is available, and `render_on_save` re-renders changed
+  diagrams on `:w` (`:h org-extensions-diagrams`).
+
+  ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](docs/media/diagrams.gif)
+
+- **`code`**: a bridge between code and notes. `code_capture` turns a
+  Visual selection into a `#+begin_src` block with a link back and the git
+  branch; `[[code:src/app.lua::M.setup]]` links jump to a symbol through
+  LSP (else treesitter or a text search); each repository gets an org file
+  (`.org/tasks.org`) with `project_open`, `project_capture` and a
+  `project_agenda` that lists the code's `TODO:` / `TODO(org:ID)`
+  comments; opt-in clocking by git branch. Keys under `<prefix>j`
+  (`:h org-extensions-code`).
+
+  ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](docs/media/code.gif)
+
+- **`literate`**: a literate Neovim config. Saving `init.org` tangles it
+  and runs only the Lua blocks you changed, so an option or keymap applies
+  at once; errors are diagnostics on the org line. Plus `literate_reload`,
+  `literate_run_block`, `literate_health`, a jump from the tangled file
+  back to the block, and `:Org literate_bootstrap` for an init.lua that
+  re-tangles a newer init.org on startup (`:h org-extensions-literate`).
+
+  ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](docs/media/literate.gif)
+
+- **`lsp`**: a language server for org buffers that runs inside Neovim
+  (nothing to install), so every LSP feature and plugin works in Org
+  files: the outline as document symbols, headlines of all your files as
+  workspace symbols, org-lint diagnostics as you type, hover on
+  timestamps ("in 3 days, Friday", repeaters explained), links (a preview
+  of the target), clocks and footnotes, go to definition, references, code
+  actions (schedule, refile, archive, lint quick fixes) and a rename of a
+  headline, CUSTOM_ID, ID or target that rewrites every link to it across
+  files, something Emacs can't do (`:h org-extensions-lsp`).
+
+  ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](docs/media/lsp.gif)
+
+- **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
+  `#+transclude: [[file:notes.org::*Heading]] :level 2` or
+  `[[file:main.py]] :lines 10-24 :src python` shows that text live, as
+  virtual lines under the keyword (the file isn't touched) or inserted into
+  the buffer like Emacs and taken out again when it's written. `<CR>` edits
+  the source in a float and `:w` writes it back and updates every
+  transclusion; sources are watched, nested transclusions expand, and
+  `#+transclude:` is expanded on export (`:h org-extensions-transclusion`).
+
+  ![Live transclusion: a heading of another file and lines of a Python file shown under their #+transclude: keywords, the heading edited in a float and written back, the text inserted into the buffer and back to virtual lines, then folded away with their headings](docs/media/transclusion.gif)
+
+- **`kanban`**: a board with a column per TODO keyword (or group of
+  keywords, with WIP limits) and a card per heading showing its priority,
+  deadline countdown, effort and tags. `h` / `l` move a card to the
+  previous / next state through the regular TODO code, so logging, CLOSED
+  and repeaters work; `/` filters by tags match or org-ql query, `<CR>`
+  opens the heading. Cards come from the agenda files, a buffer, a subtree
+  or a query (`:Org kanban`, `<prefix>Vk`, `:h org-extensions-kanban`).
+
+  ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](docs/media/kanban.gif)
+
+- **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
+  DEADLINE or Effort: bars from start to deadline, ◆ deadlines, today's
+  column, overdue tasks in red, optional clocked days. `+` / `-` zoom
+  (day, week, month), `[` / `]` pan, `S` / `D` reschedule
+  (`:Org timeline`, `<prefix>Vt`, `:h org-extensions-timeline`).
+
+  ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](docs/media/timeline.gif)
+
+- **`heatmap`**: a GitHub-style calendar of the time clocked each day,
+  the tasks closed or the habits done, shaded from your colorscheme, with
+  totals and streaks; the selected day shows its tasks and `<CR>` opens its
+  agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
+  `:h org-extensions-heatmap`).
+
+  ![Heatmap: nine months of clocked time, a day's total and tasks, tasks closed per day, one tag only and the agenda of the selected day](docs/media/heatmap.gif)
+
+- **`sidebar`**: a narrow "Today" window with the running clock against
+  its effort, the next appointment with a countdown, today's items,
+  habits due and the inbox count, kept up to date by a timer and on writes
+  (`sidebar_toggle`, `<prefix>Vs`, `:h org-extensions-sidebar`).
+
+  ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](docs/media/sidebar.gif)
+
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review
 ([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
@@ -1035,6 +1189,9 @@ agenda menus and org-mouse; clipboard image paste; org-ctags. In all, 163
 commands and 329 options that were missing or partial now work like Emacs.
 Since then, the [extensions](#-extensions) `present`, `ql`, `roam` and
 `super_agenda` have landed.
+Sixteen more followed: `lsp`, `kanban`, `timeline`, `heatmap`,
+`sidebar`, `quickadd`, `review`, `pomodoro`, `drill`, `code`, `literate`,
+`merge`, `ics`, `cli`, `diagrams` and `transclusion`.
 
 What needs Emacs itself (indirect buffers for narrowed captures, Emacs
 applications such as Gnus and mu4e, Lisp that must change the editor's

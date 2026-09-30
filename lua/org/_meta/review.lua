@@ -1,0 +1,88 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { review = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---Guided GTD weekly review (`:h org-extensions-review`).
+---@field review? org.Config.Extensions.Review|boolean
+
+---A step of the weekly review. Builtin names: `"inbox"`, `"stuck"`,
+---`"waiting"`, `"overdue"`, `"upcoming"`, `"someday"`, `"clock"`, `"reflect"`.
+---@alias org.Config.Extensions.ReviewStep
+---| string builtin step
+---| org.Config.Extensions.ReviewStepTable a builtin with overrides (`{ "waiting", title = ... }`) or a custom step
+---| fun(ctx: org.ReviewContext): org.ReviewItem[] the items of a custom step
+
+---@class org.Config.Extensions.ReviewStepTable
+---The builtin step to override.
+---@field [1]? string
+---Identifier, for `:Org review <name>` and the saved state.
+---@field name? string
+---Header of the step.
+---@field title? string
+---One line under the header.
+---@field description? string
+---The entries the step lists.
+---@field items? fun(ctx: org.ReviewContext): org.ReviewItem[]
+---Text shown above the items.
+---@field lines? fun(ctx: org.ReviewContext): string[]
+---Keys of this step only: lhs -> function(item, session).
+---@field keys? table<string, fun(item: org.ReviewItem|nil, session: table)>
+
+---@class org.ReviewContext
+---@field opts org.Config.Extensions.Review
+---@field today table org.date
+---@field now table org.date
+---@field files org.File[] the agenda files
+---@field state table the saved review state
+
+---@class org.ReviewItem
+---@field hl? org.Headline
+---@field path? string
+---@field lnum? integer
+---Text after the title (a date, a duration).
+---@field info? string
+---A line that is not an entry.
+---@field text? string
+
+---@class org.Config.Extensions.Review
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Steps in order (default: all builtins, in the order listed above).
+---@field steps? org.Config.Extensions.ReviewStep[]
+---Inbox file(s) of the "inbox" step (default: `default_notes_file`).
+---@field inbox? string|string[]
+---TODO keywords of the "waiting" step (default: `{ "WAITING" }`).
+---@field waiting_keywords? string[]
+---Tags and TODO keywords of the "someday" step
+---(default: `{ tags = { "someday", "maybe" }, keywords = { "SOMEDAY", "MAYBE" } }`).
+---@field someday? { tags?: string[], keywords?: string[] }
+---Days listed by the "upcoming" step, from today (default: `14`).
+---@field upcoming_days? integer
+---Days summed by the "clock" step (default: `7`).
+---@field clock_days? integer
+---Entries listed by the "clock" step (default: `10`).
+---@field clock_top? integer
+---Questions of the "reflect" step.
+---@field questions? string[]
+---File whose date tree gets the finished review (default: "review.org" in `org_directory`).
+---@field log_file? string
+---Date tree of the log: `"day"`, `"week"` (default) or `"month"`.
+---@field log_tree_type? "day"|"week"|"month"
+---Heading of the logged review (default: `"Weekly review"`).
+---@field log_heading? string
+---Capture template key used to finish instead, with the summary as `%i`.
+---@field capture_template? string
+---Show the log at the new entry after finishing (default: `true`).
+---@field open_log? boolean
+---Ask before deleting an entry (default: `true`).
+---@field confirm_delete? boolean
+---Where an unfinished review is saved (default: stdpath("data")/org/review.json).
+---@field state_file? string|false
+---Size and border of the float (default: 96 x 30, `"rounded"`).
+---@field width? integer
+---@field height? integer
+---@field border? string|string[]
+---Keys in the review window: next, prev, open, refile, schedule, deadline,
+---todo, delete, skip, note, refresh, finish, quit (a key, a list or false).
+---@field keys? table<string, string|string[]|false>

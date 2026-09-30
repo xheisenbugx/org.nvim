@@ -1,0 +1,27 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { sidebar = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions.Sidebar
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Side of the tab. (default: `"right"`)
+---@field position? "left"|"right"
+---Width in columns. (default: `40`)
+---@field width? integer
+---Seconds between redraws while open. (default: `30`)
+---@field interval? integer
+---Sections, top to bottom. (default: `{ "clock", "next", "today", "habits", "inbox" }`)
+---@field sections? ("clock"|"next"|"today"|"habits"|"inbox")[]
+---Keep DONE entries in the lists. (default: `false`)
+---@field show_done? boolean
+---List upcoming deadlines from this many days before they are due. (default: `7`)
+---@field deadline_days? integer
+---File whose top-level entries the inbox counts (default: `default_notes_file`).
+---@field inbox_file? string
+---Move the cursor into the sidebar when it opens. (default: `false`)
+---@field focus? boolean
+---Symbols before sections and entries.
+---@field icons? { clock?: string, next?: string, today?: string, habits?: string, inbox?: string, deadline?: string, scheduled?: string, event?: string }
+---Keys in the sidebar (`false` removes one). (default: `{ jump = "<CR>", refresh = "r", close = "<Esc>" }`)
+---@field keys? { jump?: string|string[]|false, refresh?: string|string[]|false, close?: string|string[]|false }

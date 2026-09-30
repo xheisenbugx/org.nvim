@@ -34,6 +34,65 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
+`demo/transclusion.lua` turns on the `transclusion` extension and copies
+`demo/transclusion/*` (org files and a Python file) into `$ORG_DEMO_DIR`,
+for `transclusion.tape`.
+
+`demo/quickadd.lua` is `init.lua` with the `quickadd` extension turned on,
+for `quickadd.tape`; it copies `demo/quickadd/*.org` into `$ORG_DEMO_DIR`.
+
+`demo/review.lua` is `init.lua` with the `review` extension on, for
+`review.tape`; it copies `demo/review/*.org` into `$ORG_DEMO_DIR` and adds
+them to the agenda files.
+
+`demo/pomodoro.lua` is `init.lua` with the `pomodoro` extension turned on and 9-second pomodoros and 6-second breaks, for `pomodoro.tape`.
+
+`demo/drill.lua` is `init.lua` with the `drill` extension turned on, for
+`drill.tape`; it copies `demo/drill/*.org` (the flashcards) into
+`$ORG_DEMO_DIR`.
+
+`merge.tape` records a shell session: `demo/merge-setup.sh` builds a git
+repository in `/tmp/org-demo-merge-repo` (a `main` branch and two branches
+that changed `tasks.org`), and `demo/merge.lua` is `init.lua` with the
+`merge` extension on. It needs `git`.
+
+`demo/ics.lua` is `init.lua` with the `ics` extension subscribed to
+`demo/ics-*.ics` (their `{{N}}` become the date N days from today, as
+YYYYMMDD), for `ics.tape`.
+
+`tapes/cli.tape` records a shell session with `bin/org` on `$PATH` and
+`demo/cli.lua` as its config (`$ORG_NVIM_CONFIG`); that file copies
+`work.org`, `life.org` and `inbox.org` into `$ORG_DEMO_DIR` on its first
+run. It needs `jq`.
+
+`demo/diagrams.lua` is `init.lua` with the `diagrams` extension on (and
+render on save), for `diagrams.tape`. It needs mermaid-cli: `mmdc` on
+`$PATH`, or its path in `DEMO_MMDC`, and `DEMO_MMDC_PUPPETEER` can name a
+puppeteer config file, e.g. `{"executablePath": "/Applications/Google
+Chrome.app/Contents/MacOS/Google Chrome"}` for an `mmdc` installed with
+`PUPPETEER_SKIP_DOWNLOAD=1 npm install @mermaid-js/mermaid-cli`.
+
+`demo/code.lua` (for `code.tape`) turns on the `code` extension and makes
+a small git repository in `$ORG_DEMO_DIR/app` (branch `feature/login`),
+so it needs `git`. `demo/literate.lua` (for `literate.tape`) turns on the
+`literate` extension for `$ORG_DEMO_DIR/nvim/init.org`, which tangles to
+`lua/config.lua` next to it.
+
+`demo/lsp.lua` is `init.lua` with the `lsp` extension turned on and
+inline diagnostics, for `lsp.tape`; it copies `demo/lsp/*.org` into
+`$ORG_DEMO_DIR/lsp`. The tape opens the file after startup: a buffer made
+for a file that doesn't exist yet (and under the `/tmp` symlink on macOS)
+can't be matched to its LSP URI, so diagnostics and edits would miss it.
+
+`demo/kanban.lua`, `timeline.lua`, `heatmap.lua` and `sidebar.lua` turn on
+the view extensions for their tapes. They run `demo/views.lua`, which runs
+`init.lua` and copies `demo/views/*.org` into `$ORG_DEMO_DIR/views` with the
+same date expansion. `views/clocklog.org` (nine months of CLOCK lines and
+closed tasks for the heatmap) was generated once with a seeded script; its
+dates are `{{-N HH:MM}}` offsets, so the history always ends today.
+`views/today.org` has appointments 25 and 80 minutes from now
+(`{{now+N}}`); `demo/sidebar.lua` starts the demo's clock at 10:00 today,
+so `sidebar.tape` can be recorded at any time of day.
 
 To try the demo setup by hand:
 
