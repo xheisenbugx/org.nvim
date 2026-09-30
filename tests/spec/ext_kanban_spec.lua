@@ -571,6 +571,25 @@ describe("kanban board edges", function()
     ok(vim.api.nvim_win_get_width(st.win) <= columns - 12)
   end)
 
+  it("keeps the card borders aligned with wide characters", function()
+    local buf = org_buffer({
+      "* TODO 日本語のとても長いタイトルがここにあります 🎉 and more words :タグ:",
+      "* TODO Café ☕ naïve",
+      "* NEXT short",
+    })
+    vim.bo[buf].bufhidden = "hide"
+    local st = kanban.open({ source = "buffer" })
+    for _, r in ipairs(st.rects) do
+      for _, sp in ipairs(r.spans) do
+        local line = buf_lines(st.buf)[sp[1]]
+        local seg = line:sub(sp[2] + 1, sp[3])
+        eq(st.col_width, vim.fn.strdisplaywidth(seg), seg)
+      end
+    end
+    kanban.close()
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
   it("opens in a tiny editor", function()
     local columns, lines = vim.o.columns, vim.o.lines
     vim.o.columns, vim.o.lines = 20, 6

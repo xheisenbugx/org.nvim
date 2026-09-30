@@ -35,7 +35,7 @@ M.defaults = {
   tag = nil,
   --- Weeks shown, ending with the current one; 0 fits the window (at most 53).
   weeks = 0,
-  --- The day cell (two columns with the gap after it).
+  --- The day cell, followed by a one-column gap (a wide cell like "██" works).
   cell = "■",
   --- Lower bounds of shades 1 to 4 (minutes for "clock", counts
   --- otherwise); nil splits the days with any value in quartiles.
@@ -372,10 +372,16 @@ end
 
 local LABEL_W = 5
 
+--- Cells a week takes: the day cell (any width: "██", or "■" with
+--- ambiwidth=double) and a gap.
+local function pitch(o)
+  return math.max(1, utils.width(o.cell or "■")) + 1
+end
+
 local function weeks_for(o)
   local w = tonumber(o.weeks) or 0
   if w <= 0 then
-    w = math.floor((vim.o.columns - 6 - LABEL_W - 4) / 2)
+    w = math.floor((vim.o.columns - 6 - LABEL_W - 4) / pitch(o))
   end
   return math.max(4, math.min(53, w))
 end
@@ -449,14 +455,16 @@ function M.render(st)
   cv:add({ { " " .. hint(o), "OrgHeatmapHint" } })
   cv:add("")
   -- month labels over the week where a month starts
-  local months = string.rep(" ", st.weeks * 2)
+  local pw = pitch(o)
+  st.pitch = pw
+  local months = string.rep(" ", st.weeks * pw)
   local chars = vim.split(months, "")
   local last_m, next_free = nil, 1
   for w = 0, st.weeks - 1 do
     local monday = date.from_days(first + w * 7)
     local key = monday.year * 12 + monday.month
     if key ~= last_m then
-      local pos = w * 2 + 1
+      local pos = w * pw + 1
       local label = date.MONTH_NAMES[monday.month]
       if pos >= next_free and pos + #label - 1 <= #chars then
         for k = 1, #label do
@@ -476,7 +484,7 @@ function M.render(st)
     for w = 0, st.weeks - 1 do
       local day = first + w * 7 + wd - 1
       if day > last then
-        cv:put("  ")
+        cv:put(string.rep(" ", pw))
       else
         cv:put(cellc, "OrgHeatmap" .. level(values[day]))
         cv:put(" ")
@@ -485,14 +493,14 @@ function M.render(st)
   end
   -- legend
   cv:line()
-  local legend_w = st.weeks * 2 + LABEL_W
+  local legend_w = st.weeks * pw + LABEL_W
   local legend = { { "Less ", "OrgHeatmapLabel" } }
   for i = 0, 4 do
     legend[#legend + 1] = { cellc, "OrgHeatmap" .. i }
     legend[#legend + 1] = { " " }
   end
   legend[#legend + 1] = { "More", "OrgHeatmapLabel" }
-  local lw = 5 + 10 + 4
+  local lw = 5 + 5 * pw + 4
   cv:put(string.rep(" ", math.max(0, legend_w - lw)))
   for _, s in ipairs(legend) do
     cv:put(s[1], s[2])
@@ -547,7 +555,7 @@ end
 local function pos_of(st, day)
   local off = day - st.first
   local w, wd = math.floor(off / 7), off % 7
-  return st.grid_top + wd, LABEL_W + w * 2 + 1
+  return st.grid_top + wd, LABEL_W + w * (st.pitch or 2) + 1
 end
 
 --- The day at a grid position, or nil.
@@ -556,7 +564,7 @@ function M.day_at(st, lnum, vcol)
   if wd < 0 or wd > 6 or vcol <= LABEL_W then
     return nil
   end
-  local w = math.floor((vcol - LABEL_W - 1) / 2)
+  local w = math.floor((vcol - LABEL_W - 1) / (st.pitch or 2))
   if w < 0 or w >= st.weeks then
     return nil
   end

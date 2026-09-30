@@ -393,6 +393,23 @@ describe("heatmap edges", function()
     vim.cmd("silent! only")
   end)
 
+  it("lays out wide day cells", function()
+    setup({ weeks = 8, cell = "██" })
+    local st = heatmap.open()
+    local lnum = vim.api.nvim_win_get_cursor(st.win)[1]
+    eq(today, heatmap.day_at(st, lnum, vim.fn.virtcol(".")))
+    local line = buf_lines(st.buf)[st.grid_top]
+    eq(5 + 8 * 3, vim.fn.strdisplaywidth(line))
+    heatmap.move(-7)
+    lnum = vim.api.nvim_win_get_cursor(st.win)[1]
+    eq(today - 7, heatmap.day_at(st, lnum, vim.fn.virtcol(".")))
+    -- the cursor is on the cell of that day: the week before the last one
+    local col = vim.api.nvim_win_get_cursor(st.win)[2]
+    local cur = buf_lines(st.buf)[lnum]
+    eq("██", cur:sub(col + 1, col + 6))
+    eq(5 + 6 * 3, vim.fn.strdisplaywidth(cur:sub(1, col)))
+  end)
+
   it("completes kinds, sources and tags", function()
     local c = require("org.commands").complete("", "Org heatmap ")
     ok(vim.tbl_contains(c, "closed"), vim.inspect(c))
