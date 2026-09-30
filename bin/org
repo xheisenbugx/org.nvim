@@ -1,0 +1,20 @@
+#!/bin/sh
+# org: the org.nvim command line (see `org help` and :h org-extensions-cli).
+#
+# Runs `nvim --headless -l` on lua/org/extensions/cli/main.lua of the
+# checkout this script lives in. Symlink it onto your $PATH:
+#   ln -s /path/to/org.nvim/bin/org ~/.local/bin/org
+# $ORG_NVIM_BIN picks the nvim binary (default: nvim on $PATH).
+
+# follow symlinks to find the plugin's root
+self=$0
+while [ -h "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+root=$(cd "$(dirname "$self")/.." && pwd -P)
+
+exec "${ORG_NVIM_BIN:-nvim}" --headless -l "$root/lua/org/extensions/cli/main.lua" "$@"
