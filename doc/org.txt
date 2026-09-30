@@ -7600,4 +7600,148 @@ Differences from Emacs org-roam ~
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
 
+------------------------------------------------------------------------------
+Language server                                           *org-extensions-lsp*
+
+`lsp` runs a language server for org buffers inside Neovim: no program to
+install, the server is Lua in the same process (|vim.lsp.start()| with a
+`cmd` function). Everything that speaks LSP then works in org files: the
+|lsp-defaults| keys, |vim.diagnostic|, and pickers, outline and
+breadcrumb plugins.
+>lua
+    require("org").setup({ extensions = { lsp = {} } })
+<
+The server attaches to every org buffer that is a file (a FileType
+autocmd). One client serves them all; its root is `org_directory`. It
+reads the documents from their buffers, unsaved changes included, and
+other files from disk. Needs Neovim 0.10 or later.
+
+What it does ~
+  documentSymbol   the outline: each headline with its subtree as range,
+                   TODO keyword, priority and tags as detail, and the
+                   kind from `symbol_kinds` (TODO and done headlines get
+                   their own); named src blocks and tables are children
+                   of their entry (`document_symbols`). Try
+                   `:lua vim.lsp.buf.document_symbol()`.
+  workspace/symbol headlines of the workspace files (below) whose title,
+                   TODO keyword and tags contain every word of the query,
+                   ignoring case (|vim.lsp.buf.workspace_symbol()|).
+  diagnostics      |org-lint| reports, updated `diagnostics.debounce` ms
+                   (500) after the last change; high-trust reports are
+                   errors and low-trust ones warnings (`severity`), the
+                   checker name is the diagnostic's code.
+  hover            on a timestamp: the full date, how far it is ("in 3
+                   days, Friday", "2 weeks ago, Monday"), its time range
+                   or date range, what its repeater does, the next
+                   occurrence and its warning period; on a link: a
+                   preview of the target (the headline and its first
+                   lines, the file's first lines); on a CLOCK line: the
+                   duration; on a footnote reference: its definition; on
+                   a headline: TODO state, tags, planning, and for a
+                   headline with an ID or CUSTOM_ID its backlink count.
+  definition       follows `id:`, `file:` (with `::` search options),
+                   `[[#custom-id]]`, `[[*Heading]]` and fuzzy links (a
+                   `<<target>>`, `#+NAME:` or headline), radio links and
+                   footnotes, without moving the cursor or prompting.
+  references       every link to the headline, CUSTOM_ID, ID, target,
+                   `#+NAME:`, radio target or footnote under the cursor
+                   (or to the target of the link under the cursor),
+                   across the workspace files.
+  rename           see below.
+  codeAction       quick fixes for some org-lint reports, line
+                   conversions and entry commands (below).
+  foldingRange     subtrees, blocks and drawers (for
+                   `vim.lsp.foldexpr()`).
+  documentLink     web links and links whose target resolves.
+
+Completion is not provided: org.nvim's own completion (|org-completion|)
+already covers org buffers.
+
+Rename ~
+|vim.lsp.buf.rename()| renames what is under the cursor and rewrites every
+link that spells its name, in every workspace file:
+
+  headline title   `[[*Title]]`, `[[Title]]` and `[[file:x.org::*Title]]`
+  `:CUSTOM_ID:`    `[[#id]]` and `[[file:x.org::#id]]`
+  `:ID:`           `id:` links, bracketed or plain
+  `<<target>>`     `[[target]]` and `[[file:x.org::target]]`
+  `<<<radio>>>`    the radio target and its occurrences in the text
+  `#+NAME:`        fuzzy links to the name
+  footnote label   the definition and its references
+
+On a link, the rename applies to its target: `[[#id]]` renames the
+CUSTOM_ID, `[[*Title]]` the title, `id:` the ID. A link's description is
+rewritten too when it equals the old name (`rename.update_descriptions`).
+Links inside src, example and comment blocks, drawers and verbatim text
+are not links and are left alone. Only links that really resolve to the
+renamed thing change: `[[Title]]` is left alone when a `<<Title>>` target
+wins. A name that would make links point elsewhere (another target,
+`#+NAME:` or CUSTOM_ID with it, or a headline with the same title when
+links spell the title) is refused with a message, as are blanks in IDs,
+CUSTOM_IDs and footnote labels. Edited files that were not loaded are
+loaded and left modified: `:wall` saves them. Emacs has no counterpart.
+
+Code actions ~
+|vim.lsp.buf.code_action()| offers, depending on the line:
+  - quick fixes: remove spurious colons from tags, make an inactive
+    SCHEDULED or DEADLINE timestamp active, replace an obsolete affiliated
+    keyword (`#+SRCNAME:` -> `#+NAME:`), and point a broken `[[#id]]` or
+    fuzzy link at the closest existing CUSTOM_ID, target or headline;
+  - "Convert line to heading" (`toggle_heading`) and "Convert line to
+    checkbox item" / "Convert item to checkbox";
+  - in an entry: cycle or change the TODO state, set the priority,
+    schedule, set a deadline, refile and archive. These run the usual
+    actions at that position (they may prompt) through the server's
+    `org.action` command. `code_actions.entry` takes a list of
+    `{ action, title }` pairs instead.
+
+Workspace ~
+References, rename, backlink counts and workspace symbols look at the
+agenda files, the `.org` files under `org_directory` (with
+subdirectories), `workspace.extra` and every loaded org buffer. Set
+`workspace.files` (a list of files and globs, or a function returning one)
+to replace the first three, and `workspace.max_files` (2000) to cap it.
+
+Actions ~
+  `lsp_start`    attach the server to the current buffer (with
+               `autostart = false` this is how it starts)
+  `lsp_stop`     stop the server
+  `lsp_restart`  stop it and attach every org buffer again
+
+There are no default keys: the LSP keys of |lsp-defaults| (`K`, `grn`,
+`gra`, `grr`, `gO`, ...) and |vim.diagnostic| apply. Use `on_attach` to
+add your own.
+
+Options ~
+  `autostart`               attach to org buffers (true)
+  `filter`                  `function(bufnr)` choosing buffers (file
+                            buffers with a name)
+  `on_attach`               `function(client, bufnr)`
+  `features`                `{ document_symbols, workspace_symbols,
+                            diagnostics, hover, definition, references,
+                            rename, code_actions, folding, document_links }`
+                            (all true)
+  `diagnostics`             `{ debounce = 500, checkers = nil (org-lint's
+                            default set), exclude = {}, severity = { high
+                            = "Error", low = "Warning", checkers = {} } }`
+  `hover`                   `{ preview_lines = 8,
+                            backlinks_all_headings = false }`
+  `document_symbols`        `{ src_blocks = true, tables = true }`
+  `symbol_kinds`            `{ heading = "Namespace", todo = "Event",
+                            done = "Constant", src_block = "Function",
+                            table = "Struct" }`
+  `workspace`               `{ agenda_files = true, org_directory = true,
+                            recursive = true, extra = {}, files = nil,
+                            max_files = 2000 }`
+  `workspace_symbol_limit`  1000
+  `rename`                  `{ update_descriptions = true }`
+  `code_actions`            `{ entry = true, conversions = true }`
+
+Notes ~
+  - The server uses UTF-8 positions (`positionEncoding`), so columns are
+    byte offsets.
+  - Links that span lines are not seen by references and rename.
+  - `:checkhealth org` shows the running client, the number of workspace
+    files and of org-lint checkers.
+
  vim:tw=78:ts=8:ft=help:norl:

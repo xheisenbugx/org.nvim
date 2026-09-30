@@ -35,6 +35,12 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
 
+`demo/lsp.lua` is `init.lua` with the `lsp` extension turned on and
+inline diagnostics, for `lsp.tape`; it copies `demo/lsp/*.org` into
+`$ORG_DEMO_DIR/lsp`. The tape opens the file after startup: a buffer made
+for a file that doesn't exist yet (and under the `/tmp` symlink on macOS)
+can't be matched to its LSP URI, so diagnostics and edits would miss it.
+
 To try the demo setup by hand:
 
 ```sh

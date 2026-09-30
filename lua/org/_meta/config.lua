@@ -750,6 +750,8 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---An in-process language server for org buffers (`:h org-extensions-lsp`).
+---@field lsp? org.Config.Extensions.Lsp|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.
