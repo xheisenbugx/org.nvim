@@ -750,6 +750,9 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---Live transclusion of `#+transclude:` keywords, like Emacs org-transclusion
+---(`:h org-extensions-transclusion`; types in `_meta/transclusion.lua`).
+---@field transclusion? org.Config.Extensions.Transclusion|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

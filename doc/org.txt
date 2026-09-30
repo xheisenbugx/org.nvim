@@ -7600,4 +7600,145 @@ Differences from Emacs org-roam ~
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
 
+------------------------------------------------------------------------------
+Transclusion (org-transclusion)                  *org-extensions-transclusion*
+
+`transclusion` shows text from other files, or other parts of the same
+file, where a `#+transclude:` keyword points to, like Emacs
+org-transclusion and with its keyword syntax:
+>lua
+    require("org").setup({ extensions = { transclusion = {} } })
+<
+>org
+    * Meeting notes
+    #+transclude: [[file:projects.org::*Launch plan]] :level 2
+    #+transclude: [[file:src/main.py]] :lines 10-24 :src python
+<
+The link is required and comes first; properties follow it:
+
+  `:level N`                 shift the text's headlines so the first is at
+                           level N; `:level` alone puts it one below the
+                           keyword's headline
+  `:only-contents`           leave out the headlines, keep their text
+  `:no-first-heading`        leave out the first headline only
+  `:exclude-elements "a b"`  leave out elements of these types (`drawer`,
+                           `property-drawer`, `keyword`, `planning`,
+                           `src-block`, `table`, `comment`, ...)
+  `:expand-links`            make relative `file:` links absolute
+  `:lines A-B`               lines A to B, both included, counted from the
+                           search target (from the file start without
+                           one); `A-` and `-B` are open ranges
+  `:end "text"`              end before the first line after the start
+                           that matches text (`/regexp/` too)
+  `:src LANG`                wrap the text in a `#+begin_src LANG` block;
+                           `:rest "ARGS"` adds header arguments
+  `:disable-auto`            not shown or inserted automatically, only by
+                           `transclusion_add` (and not exported)
+
+Links can be `file:` links with a search option (`::*Heading`,
+`::#custom-id`, `::name` of a `#+NAME:` element or a `<<target>>`
+paragraph, `::/regexp/` or `::N` for text files), `id:` links, or links
+into the same file (`[[*Heading]]`). A heading's whole subtree is taken,
+without its property drawer (`exclude_elements`). Text files come whole or
+by `:lines`, indented like the keyword. `#+transclude:` lines inside the
+transcluded text are expanded too, `max_depth` deep; a transclusion that
+would include itself is left as a keyword and reported.
+
+Virtual and inserted ~
+By default (`mode = "virtual"`) transclusions are drawn as virtual lines
+under their keyword, with a `│` border, org highlighting (and tree-sitter
+colours for code) and the source at the end of the keyword line. The
+buffer text is untouched, so nothing can leak into the file, and the lines
+fold away with the keyword's headline.
+
+`transclusion_add` inserts the text into the buffer instead, like Emacs:
+its lines get a sign in the sign column, the keyword line says
+"(inserted)", and folding, search and the agenda see them. Inserted text
+is read-only: an edit in place is put back (edit the source instead, see
+below), deleting the whole text removes the transclusion, and deleting the
+keyword removes its text. When the buffer is written the inserted text is
+taken out and put back afterwards (org-transclusion's before- and
+after-save hooks), so the file only ever holds the keywords. With
+`mode = "materialized"` every transclusion is inserted when a buffer is
+opened (org-transclusion-add-all-on-activate); `mode = false` shows
+nothing until you ask.
+
+Transclusions are drawn when an org buffer is shown, redrawn when the
+buffer or a source buffer changes (`live`) or a source is written, and,
+for source files that aren't loaded, when they change on disk (`watch`,
+only while a buffer showing them is loaded).
+
+Editing the source ~
+`transclusion_edit` (`<CR>` on a keyword or inserted text, `edit_key`)
+opens the source lines in a float (org-transclusion-live-sync-start): the
+whole subtree with its drawers, or the lines of a code file with its
+filetype. `:w` writes them back into the source: into its buffer when it
+is loaded (and writes that buffer when it had no other unsaved changes),
+else into the file. Every transclusion of the source is then redrawn and
+inserted copies are updated. If the source changed meanwhile so the text
+can't be found, nothing is written. `q` closes the float. Elsewhere `<CR>`
+keeps its meaning.
+
+Actions and keys (in org buffers) ~
+  `<prefix>ua`  transclusion_add            insert the text at point
+  `<prefix>uA`  transclusion_add_all        insert every transclusion
+  `<prefix>ud`  transclusion_remove         take out the inserted text; on
+                                          a virtual one, hide it
+  `<prefix>uD`  transclusion_remove_all     take out every inserted text
+  `<prefix>ug`  transclusion_refresh        re-read the sources, show
+                                          hidden ones again
+  `<prefix>ue`  transclusion_edit           edit the source (also `<CR>`)
+  `<prefix>uo`  transclusion_open_source    visit the source (`open_source`)
+  `<prefix>ut`  transclusion_toggle         virtual transclusions on/off
+  `<prefix>uc`  transclusion_detach         replace the transclusion by a
+                                          copy of its text
+  `<prefix>ul`  transclusion_make_from_link add a `#+transclude:` for the
+                                          link at point
+  `<prefix>u<`  transclusion_promote        `:level` one up
+  `<prefix>u>`  transclusion_demote         `:level` one down
+`:Org transclusion_insert [[link]] :level 2` adds a keyword below the
+cursor.
+
+Export ~
+`#+transclude:` keywords are expanded when a buffer is exported, before
+`#+INCLUDE:` keywords, except `:disable-auto` ones (`export = false` turns
+this off). Inserted text is not exported twice.
+
+Options ~
+  `mode`                   "virtual", "materialized" or false ("virtual")
+  `exclude_elements`       element types always left out
+                         ({ "property-drawer" })
+  `include_first_section`  keep the text before the first headline of a
+                         whole file (true)
+  `nested`                 expand keywords in transcluded text (true)
+  `max_depth`              nesting limit (5)
+  `max_virtual_lines`      longest virtual transclusion (400)
+  `border`                 left border of virtual lines ("│ ")
+  `sign`                   sign on inserted lines, false for none ("▎")
+  `show_source`            source at the end of the keyword line (true)
+  `live`                   redraw as source buffers change (true)
+  `watch`                  watch unloaded source files (true)
+  `debounce`               milliseconds before redrawing (150)
+  `export`                 expand keywords on export (true)
+  `edit_key`               key editing the transclusion at point ("<CR>")
+  `edit`                   { window = "float" or an Ex command such as
+                         "split", width, height, border }
+  `open_source`            "edit", "split", "vsplit" or "tab" ("split")
+
+Highlights: `OrgTransclusionBorder`, `OrgTransclusionSource`,
+`OrgTransclusionSign`, `OrgTransclusionError`.
+
+Differences from Emacs org-transclusion ~
+  - Virtual lines are the default; Emacs always inserts the text.
+  - Inserted text keeps its keyword line above it (Emacs hides the
+    keyword while the text is shown).
+  - Editing happens in a float written with `:w`, not in an overlay kept
+    in sync as you type (org-transclusion-live-sync-start).
+  - Nested keywords are expanded as the text is drawn; Emacs expands them
+    when you add them.
+  - `:thing-at-point` and noweb chunks are not supported, and `:end` is a
+    text search (or `/regexp/`), not any Org search option.
+  - org-roam doesn't index links in `#+transclude:` lines (like org-roam),
+    and inserted text is never in the file, so it isn't indexed either.
+
  vim:tw=78:ts=8:ft=help:norl:

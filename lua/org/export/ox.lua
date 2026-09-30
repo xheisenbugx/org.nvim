@@ -4142,6 +4142,13 @@ function export_as(backend, lines, opts)
     work = M.visible_lines(opts.bufnr, work, subtree and subtree.first or 1)
   end
   local expand_env = true
+  -- extensions' preprocessors (e.g. #+transclude:), before #+INCLUDE
+  work = require("org.export.hooks").preprocess(work, {
+    dir = dir,
+    filename = filename,
+    bufnr = opts.bufnr,
+    backend = backend.name,
+  })
   work = M.expand_includes(work, dir, { includer = filename, expand_env = expand_env, todo = todo })
   work = M.delete_comment_trees(work, todo)
   -- Babel
