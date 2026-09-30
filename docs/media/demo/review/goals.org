@@ -1,0 +1,12 @@
+#+TITLE: Goals
+#+CATEGORY: goals
+
+* Home renovation                                                  :project:
+** Get three quotes for the kitchen
+** Pick the paint colours
+* Learn Spanish                                                    :project:
+** NEXT Book a trial lesson
+SCHEDULED: <{{4}}>
+* Someday
+** Write a novel                                                   :someday:
+** Visit Japan                                                     :someday:
