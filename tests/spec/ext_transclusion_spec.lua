@@ -261,9 +261,106 @@ describe("transclusion source", function()
     eq({ "def f(x):", "    return x + 1" }, res.lines)
     res = assert(resolve("[[file:code.py::def g]] :lines 1-2"))
     eq({ "def g():", "    pass" }, res.lines)
-    -- a search without a range takes the whole file, like org-transclusion
+    -- a search without a range takes the text from its target to the end
+    -- of the file, like org-transclusion-content-range-of-lines
     res = assert(resolve("[[file:code.py::def g]]"))
-    eq(#CODE, res.last)
+    eq({ 6, #CODE }, { res.first, res.last })
+    eq({ "def g():", "    pass", "# end" }, res.lines)
+    -- :end wins over the end of :lines, which applies when :end finds nothing
+    res = assert(resolve('[[file:code.py]] :lines 3-4 :end "nothing like this"'))
+    eq({ "def f(x):", "    return x + 1" }, res.lines)
+    res = assert(resolve('[[file:code.py]] :lines 3-8 :end "def g"'))
+    eq({ "def f(x):", "    return x + 1", "" }, res.raw)
+  end)
+
+  it("takes an Org file's :lines as they are, like org-transclusion", function()
+    -- the lines of the file, drawers and levels untouched
+    local res = assert(resolve("[[file:src.org::*Beta]] :lines 1-4 :level 3"))
+    eq({ "* Beta", ":PROPERTIES:", ":ID: beta-id-1", ":END:" }, res.lines)
+    eq("org", res.kind)
+    res = assert(resolve("[[file:src.org]] :lines 3-4", { indent = "  " }))
+    eq({ "  * Alpha", "  SCHEDULED: <2026-01-05 Mon>" }, res.lines)
+    -- an ID link keeps its headlines at :level ("org-lines")
+    require("org.id").register("beta-id-1", dir .. "/src.org")
+    res = assert(resolve("[[id:beta-id-1]] :lines 1-2 :level 2"))
+    eq({ "** Beta", ":PROPERTIES:" }, res.lines)
+  end)
+
+  it("transcludes a thing at point (:thing-at-point)", function()
+    write("f.el", {
+      "(defun f (x)",
+      '  "Doc (with a paren."',
+      "  (+ x 1))",
+      "",
+      "(defun g () nil)",
+      "(defun h () t)",
+    })
+    local res = assert(resolve("[[file:f.el::defun f]] :thing-at-point sexp"))
+    eq({ "(defun f (x)", '  "Doc (with a paren."', "  (+ x 1))" }, res.lines)
+    eq({ 1, 3 }, { res.first, res.last })
+    res = assert(resolve('[[file:f.el::defun g]] :thingatpt sexp :end "2"'))
+    eq({ "(defun g () nil)", "(defun h () t)" }, res.lines)
+    res = assert(resolve("[[file:code.py::def f]] :thing-at-point word :src python"))
+    eq({ "#+begin_src python", "def", "#+end_src" }, res.lines)
+    res = assert(resolve("[[file:code.py::def f]] :thing-at-point defun"))
+    eq({ "def f(x):", "    return x + 1" }, res.lines)
+    res = assert(resolve("[[file:code.py::import]] :thing-at-point paragraph"))
+    eq({ "import os" }, res.lines)
+    local none, err = resolve("[[file:code.py]] :thing-at-point frobnicate")
+    eq(nil, none)
+    ok(err:find("frobnicate"))
+    local s = spec("[[file:f.el]] :thing-at-point defun")
+    eq("defun", s.thing)
+  end)
+
+  it("transcludes a noweb chunk (:noweb-chunk)", function()
+    write("prog.nw", {
+      "Some text.",
+      "<<setup>>=",
+      "import os",
+      "x = 1",
+      "",
+      "@ More text.",
+      "<<main>>=",
+      "print(x)",
+      "",
+      "",
+    })
+    local res = assert(resolve("[[file:prog.nw::setup]] :noweb-chunk :src python"))
+    eq({ "#+begin_src python", "import os", "x = 1", "#+end_src" }, res.lines)
+    res = assert(resolve("[[file:prog.nw::main]] :noweb-chunk"))
+    eq({ "print(x)" }, res.lines)
+    res = assert(resolve("[[file:prog.nw::setup]] :noweb-chunk :lines 2-5"))
+    eq({ "x = 1" }, res.lines)
+    local none, err = resolve("[[file:prog.nw::nope]] :noweb-chunk")
+    eq(nil, none)
+    ok(err:find("nope"))
+    eq(true, spec("[[file:prog.nw::main]] :noweb-chunk").noweb_chunk)
+  end)
+
+  it("refuses binary files", function()
+    local fd = assert(io.open(dir .. "/blob.bin", "wb"))
+    fd:write("abc\0def\n")
+    fd:close()
+    local none, err = resolve("[[file:blob.bin]]")
+    eq(nil, none)
+    ok(err:find("binary"))
+  end)
+
+  it("reuses a result until one of its sources changes", function()
+    local ctx = { dir = dir, filename = dir .. "/notes.org", level = 0, indent = "", depth = 0 }
+    local s = spec("[[file:src.org::*Beta]]")
+    local a = source.resolve_cached(s, ctx)
+    local b = source.resolve_cached(s, ctx)
+    ok(a == b)
+    -- the file changes: a new result
+    vim.wait(20)
+    local lines = vim.deepcopy(SRC)
+    lines[19] = "Beta changed."
+    write("src.org", lines)
+    local c = source.resolve_cached(s, ctx)
+    ok(c ~= a)
+    eq("Beta changed.", c.lines[2])
   end)
 
   it("indents text files like the keyword", function()
@@ -482,7 +579,7 @@ describe("transclusion", function()
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     T.add()
     local before = buf_lines(buf)
-    vim.api.nvim_buf_set_lines(buf, 3, 4, false, { "Beta text, edited here." })
+    vim.api.nvim_buf_set_text(buf, 3, 0, 3, 4, { "Edited" })
     vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
     eq(before, buf_lines(buf))
     -- deleting the region's last lines doesn't eat the next line
