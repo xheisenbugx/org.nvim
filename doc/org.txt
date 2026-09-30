@@ -8014,7 +8014,8 @@ conflict is marked inside the one entry it is about:
     require("org").setup({ extensions = { merge = true } })
 <
 `:Org merge_install` (action `merge_install`) sets the driver up for the
-git repository of the current file. It asks where the attribute goes:
+git repository of the current file. It asks where the attribute goes (or
+takes it as an argument, `:Org merge_install info`):
 
   `.gitattributes`        committed, so every clone asks for the driver
   `.git/info/attributes`  this clone only
@@ -8455,16 +8456,32 @@ Beyond Emacs ~
   - Rendered diagrams are cached in `cache_dir` by a hash of the language,
     the command and options, the output format and the expanded body. An
     unchanged diagram is copied from the cache instead of being rendered
-    again. `:Org diagrams_rerender` renders the block at point without the
-    cache and `:Org diagrams_clear_cache` empties it.
+    again. For plantuml the key also covers the files the text pulls in
+    with `!include` (`!include_once`, `!include_many`, `!includesub`;
+    local files, four levels deep), so editing one renders again.
+    `:Org diagrams_rerender` renders the block at point without the cache
+    and `:Org diagrams_clear_cache` empties it. At startup the cache drops
+    entries unused for `cache_max_age` days, then the least recently used
+    beyond `cache_max_size` megabytes.
   - With `auto_preview` (the default) the result image is shown inline
     after the block runs, when an image backend is available
     (|org-images|; SVG needs ImageMagick).
   - With `render_on_save` every diagram block of an org buffer is rendered
-    just before the buffer is written, so the file on disk has the new
-    results. Blocks run without the evaluation prompt, except those with
-    `:eval no`, `never` or `query`, which are skipped. Rendering blocks
-    Neovim while it runs; unchanged diagrams come from the cache at once.
+    after the buffer is written, one block after another in the background,
+    so Neovim stays responsive while mmdc or dot run. When they are done
+    and nothing but the results changed, the buffer is written again, so
+    the file on disk has the new results; when you edited it meanwhile, the
+    buffer is left modified for you to save. Blocks run without the
+    evaluation prompt, except those with `:eval no`, `never` or `query`,
+    which are skipped. Unchanged diagrams come from the cache at once.
+  - `:Org diagrams_clean` deletes the generated files (`LANG-HASH8.EXT`) in
+    the current file's `output_dir` that no org file of that directory
+    links to or names (open buffers count with their unsaved text), after
+    asking; `:Org diagrams_clean dry` only lists them. Files you named
+    yourself with `:file` are never touched.
+  - The tools run without a shell (an argument list) unless the command is
+    a shell fragment (a string of several words) or the block sets `:cmd`
+    or `:cmdline`, which are shell text as in ob-dot.
 
 Actions ~
   `diagrams_render`         render the diagram block at point (what
@@ -8472,6 +8489,7 @@ Actions ~
   `diagrams_rerender`       the same, ignoring the cache
   `diagrams_render_buffer`  render every diagram block of the buffer
   `diagrams_clear_cache`    delete the cached renders
+  `diagrams_clean`          delete generated diagrams nothing links to
 No default keys; use `:Org <action>` or bind them in `mappings.org`.
 
 Options (defaults in parentheses) ~
@@ -8489,7 +8507,10 @@ Options (defaults in parentheses) ~
   `cache`            use the cache (true)
   `cache_dir`        stdpath("cache") .. "/org/diagrams"
   `auto_preview`     preview the result image (true)
-  `render_on_save`   render diagram blocks when writing (false)
+  `render_on_save`   render diagram blocks after writing (false)
+  `cache_max_age`    days an unused cache entry is kept (90; false: ever)
+  `cache_max_size`   megabytes the cache is pruned to (200; false: no
+                   limit)
 
 `:checkhealth org` shows which renderers (mmdc, dot, plantuml or the jar
 and java) are installed, whether results can be previewed, and the cache
@@ -8498,10 +8519,12 @@ tool is missing reports it and inserts no result.
 
 Limits ~
   - Generated names change with the body, so an edited diagram leaves its
-    old file behind in `output_dir`.
-  - The cache key is the text sent to the tool: a diagram that includes
-    other files (`!include`, mermaid config files) is not re-rendered when
-    only those files change; use `diagrams_rerender`.
+    old file behind in `output_dir` until `diagrams_clean`.
+  - Only plantuml includes are followed: a mermaid config or CSS file, and
+    dot's `image=` or `imagepath` files, are not part of the cache key;
+    use `diagrams_rerender` after changing them.
+  - Without Graphviz installed only fake tools were run in the tests; the
+    argument order follows ob-dot (`dot IN -TEXT [args] -o OUT`).
   - Only file results are cached. plantuml's text output (`:results
     verbatim`, no `:file`) is left to the core port.
 

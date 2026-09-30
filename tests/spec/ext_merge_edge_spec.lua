@@ -462,4 +462,34 @@ describe("merge extension: driver options", function()
     eq(1, run(dir, { "--name=other" }))
     vim.fn.delete(dir, "rf")
   end)
+
+  it("installs from :Org merge_install ARG, which completes", function()
+    if vim.fn.executable("git") == 0 then
+      return
+    end
+    require("org.config").opts.extensions.merge = {}
+    require("org.extensions").setup()
+    local notify = vim.notify
+    vim.notify = function() end
+    local ok1, err = pcall(function()
+      eq({ "info" }, require("org.commands").complete("i", "Org merge_install i"))
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, "p")
+      vim.system({ "git", "init", "-q" }, { cwd = dir }):wait()
+      local buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(buf, dir .. "/notes.org")
+      vim.api.nvim_set_current_buf(buf)
+      require("org.extensions.merge").install_command("info")
+      eq({ "*.org merge=org" }, vim.fn.readfile(dir .. "/.git/info/attributes"))
+      local cmd = { "git", "config", "--get", "merge.org.renameSimilarity" }
+      local res = vim.system(cmd, { cwd = dir, text = true }):wait()
+      eq("0.6", vim.trim(res.stdout))
+      vim.api.nvim_buf_delete(buf, { force = true })
+      vim.fn.delete(dir, "rf")
+    end)
+    vim.notify = notify
+    require("org.config").opts.extensions.merge = nil
+    require("org.extensions").setup()
+    ok(ok1, err)
+  end)
 end)

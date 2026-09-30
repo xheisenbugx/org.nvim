@@ -42,6 +42,17 @@ M.actions = {
   merge_uninstall = { MOD, "uninstall", desc = "Stop using the Org merge driver in this git repository" },
 }
 
+M.commands = {
+  merge_install = {
+    MOD,
+    "install_command",
+    desc = "Use the Org merge driver here: :Org merge_install [gitattributes|info]",
+    complete = function()
+      return { "gitattributes", "info" }
+    end,
+  },
+}
+
 local function opts()
   return require("org.extensions").opts("merge") or M.defaults
 end
@@ -272,6 +283,29 @@ function M.install()
       utils().error(msg)
     end
   end)
+end
+
+--- `:Org merge_install [gitattributes|info]`: without an argument, ask.
+function M.install_command(args)
+  local where = vim.trim(args or "")
+  if where == "" then
+    return M.install()
+  end
+  if where ~= "gitattributes" and where ~= "info" then
+    utils().warn("merge_install: gitattributes or info, not " .. where)
+    return
+  end
+  local root = M.repo_root()
+  if not root then
+    utils().warn("merge_install: not in a git repository")
+    return
+  end
+  local ok, msg = M.install_at(root, where)
+  if ok then
+    utils().notify(msg)
+  else
+    utils().error(msg)
+  end
 end
 
 --- `merge_uninstall`: remove the driver from the current repository.

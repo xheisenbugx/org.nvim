@@ -30,8 +30,14 @@
 ---@field cache_dir? string
 ---Preview the result image inline after a diagram block runs. (default: `true`)
 ---@field auto_preview? boolean
----Render every diagram block of an org buffer before it is written. (default: `false`)
+---Render every diagram block of an org buffer after it is written, in the
+---background, and write the results when nothing else changed. (default: `false`)
 ---@field render_on_save? boolean
+---Days an unused cache entry is kept; `false`: no limit. (default: `90`)
+---@field cache_max_age? number|false
+---Megabytes the cache is pruned to, least recently used first; `false`: no
+---limit. (default: `200`)
+---@field cache_max_size? number|false
 
 ---@class org.Config.Extensions.Diagrams.Mermaid
 ---The mmdc command: a string run by the shell (`"npx -y @mermaid-js/mermaid-cli"`
