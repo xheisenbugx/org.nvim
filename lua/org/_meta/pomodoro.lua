@@ -1,0 +1,39 @@
+---@meta
+-- LuaLS type definitions for `require("org").setup({ extensions = { pomodoro = ... } })`.
+-- Annotations only; never loaded at runtime.
+
+---@class org.Config.Extensions
+---Pomodoro timer on top of the clock (`:h org-extensions-pomodoro`).
+---@field pomodoro? org.Config.Extensions.Pomodoro|boolean
+
+---@class org.Config.Extensions.Pomodoro
+---`false` keeps the extension off.
+---@field enabled? boolean
+---Minutes of a pomodoro; fractions are allowed (org-pomodoro-length, default: `25`).
+---@field work? number
+---Minutes of a short break (org-pomodoro-short-break-length, default: `5`).
+---@field short_break? number
+---Minutes of a long break (org-pomodoro-long-break-length, default: `15`).
+---@field long_break? number
+---A long break follows every Nth pomodoro; 0 for never
+---(org-pomodoro-long-break-frequency, default: `4`).
+---@field long_break_every? integer
+---Start the break as soon as a pomodoro ends (default: `true`).
+---@field auto_start_breaks? boolean
+---Start the next pomodoro on the same entry when a break ends, instead of
+---waiting for `pomodoro_start` (default: `false`).
+---@field auto_start_work? boolean
+---Clock out during breaks and pauses (default: `true`).
+---@field clock_out_on_break? boolean
+---Property counting an entry's finished pomodoros; `false` for none
+---(default: `"POMODOROS"`).
+---@field property? string|false
+---Also send a desktop notification with osascript or notify-send (default: `true`).
+---@field system_notification? boolean
+---Command run when a phase ends: a shell string or an argv list; `false`
+---for none (default: `false`).
+---@field sound? string|string[]|false
+---Add the pomodoro to `require("org").statusline()` (default: `true`).
+---@field statusline? boolean
+---Statusline icons.
+---@field icons? { work?: string, short_break?: string, long_break?: string, paused?: string, ready?: string }
