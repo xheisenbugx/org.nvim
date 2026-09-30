@@ -9071,6 +9071,25 @@ column is shaded and its date highlighted on the axis; at day zoom
 weekends are shaded too. With `clocks` (or `c`), the days a task was
 clocked show as ▒. DONE tasks are left out unless `show_done` is set.
 
+Times of day count at day zoom, where a day's three columns are its thirds
+(0-8, 8-16, 16-24 h): `SCHEDULED: <... 14:00-15:00>` fills the middle one,
+a bar starting at 14:00 starts there, and a deadline at 20:00 puts its ◆ in
+the last one. A timed task with an Effort shorter than the rest of its day
+ends when the Effort does. The week and month zooms show whole days.
+
+A repeating task (`+1w`, `++1m`, `.+2d` on its SCHEDULED or DEADLINE) is
+drawn again at each later occurrence inside the view, in
+`OrgTimelineRepeat`: the whole bar and its deadline, shifted by the
+repeat. Only occurrences from the current date on are drawn: the past of a
+repeating task is its log, not its timestamp.
+
+With the |org-extensions-ics| extension on and the agenda files as the
+source, calendar events get a row each (a span per occurrence, in
+`OrgTimelineEvent`), placed by their times like timed tasks; `ics = false`
+leaves them out. They can't be opened or rescheduled from here.
+
+In a narrow window the task names take at most 40% of the width.
+
 Keys ~
   + = / -   zoom in / out: day (3 columns a day), week (a column a day),
             month (a column a week)
@@ -9091,6 +9110,7 @@ Options (defaults) ~
   `label_width`        34
   `hours_per_day`      8
   `clocks`             false
+  `ics`                true (calendar events, with the ics extension)
   `layout`             "float" (as for the kanban board)
   `width`, `height`    0.94, 0.88
   `save`               nil (save after S / D; nil follows
@@ -9103,7 +9123,12 @@ Highlight groups: `OrgTimelineTitle`, `OrgTimelineHint`, `OrgTimelineAxis`,
 `OrgTimelineMonth`, `OrgTimelineSeparator`, `OrgTimelineBar`,
 `OrgTimelineDone`, `OrgTimelineOverdue`, `OrgTimelineDeadline`,
 `OrgTimelineClock`, `OrgTimelineToday`, `OrgTimelineTodayLabel`,
-`OrgTimelineWeekend`, `OrgTimelineTask`.
+`OrgTimelineWeekend`, `OrgTimelineTask`, `OrgTimelineRepeat`,
+`OrgTimelineEvent`.
+
+Panning and zooming redraw without reading the files again; the timeline
+is rebuilt when one of its files is written or changed (in Normal mode),
+as the kanban board is.
 
 ------------------------------------------------------------------------------
 Heatmap                                               *org-extensions-heatmap*

@@ -49,6 +49,9 @@ M.defaults = {
   hours_per_day = 8,
   --- Show the days each task was clocked (▒); `c` toggles it.
   clocks = false,
+  --- Show calendar events of the ics extension (when it is on and the
+  --- source is the agenda files).
+  ics = true,
   --- Window: "float", "tab", "split", "vsplit" or "current".
   layout = "float",
   width = 0.94,
@@ -82,6 +85,9 @@ M.commands = {
     MOD,
     "command",
     desc = "Timeline: :Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]",
+    complete = function(arglead, cmdline)
+      return require(MOD).complete(arglead, cmdline)
+    end,
   },
 }
 
@@ -109,6 +115,8 @@ function M.setup()
     OrgTimelineClock = { link = "String" },
     OrgTimelineTodayLabel = { link = "Search" },
     OrgTimelineTask = {},
+    OrgTimelineRepeat = { link = "Identifier" },
+    OrgTimelineEvent = { link = "Special" },
   })
   views.highlights(augroup, M.column_highlights)
 end
@@ -147,15 +155,23 @@ local function effort_days(minutes, o)
   return math.max(1, math.ceil(minutes / ((o.hours_per_day or 8) * 60)))
 end
 
---- The row of a headline: `{ start, finish, deadline, overdue, done, ... }`
---- (day numbers), or nil when it has no date to show.
+local function time_of(ts)
+  return ts and ts:has_time() and (ts.hour * 60 + (ts.min or 0)) or nil
+end
+
+--- The row of a headline, or nil when it has no date to show:
+--- `start` / `finish` (day numbers) of its bar with the times of day
+--- `start_min` / `finish_min` when known, `deadline` and `deadline_min`,
+--- `overdue`, `done`, `clock_days` and, for a repeating task, `rep`
+--- (the repeating timestamp, whose later occurrences are drawn too).
 ---@param hl org.Headline
 ---@param o table options
 ---@param today integer
 ---@param clocks boolean
 function M.task(hl, o, today, clocks)
-  local s = hl.planning.scheduled and hl.planning.scheduled:days()
-  local d = hl.planning.deadline and hl.planning.deadline:days()
+  local sts, dts = hl.planning.scheduled, hl.planning.deadline
+  local s = sts and sts:days()
+  local d = dts and dts:days()
   local done = hl:is_done()
   local clock_days
   if clocks then
@@ -169,18 +185,39 @@ function M.task(hl, o, today, clocks)
   end
   local effort = views.effort(hl)
   local ed = effort_days(effort, o)
-  local start, finish
+  local smin, dmin = time_of(sts), time_of(dts)
+  local start, finish, start_min, finish_min
   if s and d then
     start, finish = math.min(s, d), math.max(s, d)
+    if s <= d then
+      start_min, finish_min = smin, dmin
+    end
   elseif s then
-    start, finish = s, s + (ed or 1) - 1
+    start, start_min = s, smin
+    if smin and sts.end_hour then
+      -- a time range: that part of the day
+      finish, finish_min = s, sts.end_hour * 60 + (sts.end_min or 0)
+    elseif smin and effort and effort > 0 and smin + effort <= 1440 then
+      finish, finish_min = s, smin + effort
+    else
+      finish = s + (ed or 1) - 1
+    end
   elseif d then
-    start, finish = d - (ed or 1) + 1, d
+    start, finish, finish_min = d - (ed or 1) + 1, d, dmin
   end
   local cmin, cmax
   for day in pairs(clock_days or {}) do
     cmin = math.min(cmin or day, day)
     cmax = math.max(cmax or day, day)
+  end
+  local rep
+  if not done then
+    for _, ts in ipairs({ sts or false, dts or false }) do
+      if ts and ts.repeater and (ts.repeater.value or 0) > 0 then
+        rep = ts
+        break
+      end
+    end
   end
   return {
     ref = views.ref(hl),
@@ -188,24 +225,45 @@ function M.task(hl, o, today, clocks)
     title = views.title(hl),
     start = start,
     finish = finish,
+    start_min = start_min,
+    finish_min = finish_min,
     scheduled = s,
     deadline = d,
+    deadline_min = dmin,
     effort = effort,
     done = done,
     overdue = not done and d ~= nil and d < today,
     clock_days = clock_days,
+    rep = rep,
     first = start or cmin,
     last = finish or cmax,
   }
 end
 
---- The rows of the timeline, sorted by start day.
+local function sort_rows(rows)
+  table.sort(rows, function(a, b)
+    if a.first ~= b.first then
+      return a.first < b.first
+    end
+    if a.last ~= b.last then
+      return a.last < b.last
+    end
+    return a.order < b.order
+  end)
+end
+
+--- The rows of the timeline's tasks, sorted by start day. Remembers the
+--- files shown (`file_set`, `key`) for the redraw watch.
 ---@param st table
 ---@return table[] rows, string|nil err
 function M.build(st)
   local o = st.opts
   local today = date.today_days()
+  local files = views.files(st.src)
+  st.file_set = views.file_set(files)
+  st.key = views.files_key(files)
   local hls, err = views.collect(st.src, {
+    files = files,
     query = o.query,
     filter = st.filter,
     tag = st.tag,
@@ -221,16 +279,54 @@ function M.build(st)
       rows[#rows + 1] = t
     end
   end
-  table.sort(rows, function(a, b)
-    if a.first ~= b.first then
-      return a.first < b.first
-    end
-    if a.last ~= b.last then
-      return a.last < b.last
-    end
-    return a.order < b.order
-  end)
+  sort_rows(rows)
   return rows, err
+end
+
+--- Rows of the calendar events (ics extension) between days `from` and
+--- `to`: one per event, a span per occurrence.
+---@return table[]
+function M.event_rows(from, to)
+  local ok, ics = pcall(require, "org.extensions.ics")
+  if not ok then
+    return {}
+  end
+  local items_ok, items = pcall(ics.agenda_items, from, to, {})
+  if not items_ok then
+    return {}
+  end
+  local by_key, rows = {}, {}
+  for _, item in ipairs(items or {}) do
+    local x = item.ics
+    if x and x.start then
+      local ev = x.event or {}
+      local key = tostring(x.calendar) .. "|" .. ((ev.uid and ev.uid ~= "") and ev.uid or item.title)
+      local row = by_key[key]
+      if not row then
+        row = { ics = true, title = item.title, spans = {}, seen = {}, order = 1e9 + #rows }
+        by_key[key] = row
+        rows[#rows + 1] = row
+      end
+      if not row.seen[x.start] then
+        row.seen[x.start] = true
+        local sd = math.floor(x.start / 86400)
+        local stop = math.max(x.stop or x.start, x.start)
+        local fd = stop > x.start and math.floor((stop - 1) / 86400) or sd
+        local span = { start = sd, finish = fd }
+        if not x.all_day then
+          span.start_min = math.floor((x.start % 86400) / 60)
+          span.finish_min = stop > x.start and (math.floor(((stop - 1) % 86400) / 60) + 1) or nil
+        end
+        row.spans[#row.spans + 1] = span
+        row.first = math.min(row.first or sd, sd)
+        row.last = math.max(row.last or fd, fd)
+      end
+    end
+  end
+  for _, row in ipairs(rows) do
+    row.seen = nil
+  end
+  return rows
 end
 
 ---------------------------------------------------------------------------
@@ -243,10 +339,19 @@ local function zoom(st)
   return M.ZOOMS[st.zoom]
 end
 
+local function win_width(st)
+  local win = st.win and vim.api.nvim_win_is_valid(st.win) and st.win or nil
+  return win and vim.api.nvim_win_get_width(win) or vim.o.columns
+end
+
+--- Width of the task names: `label_width`, at most 40% of a narrow window.
+local function label_width(st)
+  return math.max(8, math.min(st.opts.label_width or 34, math.floor(win_width(st) * 0.4)))
+end
+
 --- Number of cells that fit in the chart area.
 local function cell_count(st)
-  local win = st.win and vim.api.nvim_win_is_valid(st.win) and st.win or nil
-  local width = (win and vim.api.nvim_win_get_width(win) or vim.o.columns) - st.opts.label_width - 3
+  local width = win_width(st) - label_width(st) - 3
   return math.max(4, math.floor(width / zoom(st).width))
 end
 
@@ -257,60 +362,183 @@ local function cell_days(st, i)
   return a, a + z.days - 1
 end
 
-local function has_day(set, a, b)
-  if not set then
-    return false
-  end
-  for d = a, b do
-    if set[d] then
-      return true
+-- highlight group lists by background (weekend / today) and foreground,
+-- shared so that runs of equal cells merge into one extmark
+local BG = { we = { "OrgTimelineWeekend" }, t = { "OrgTimelineToday" }, wet = { "OrgTimelineWeekend", "OrgTimelineToday" } }
+local combos = {}
+local function groups_of(bg, fg)
+  local key = (bg or "") .. "|" .. (fg or "")
+  local g = combos[key]
+  if g == nil then
+    g = vim.list_extend({}, BG[bg] or {})
+    if fg then
+      g[#g + 1] = fg
     end
+    g = #g > 0 and g
+    combos[key] = g
   end
-  return false
+  return g or nil
 end
 
---- The segments (`{ text, groups }`) of a task's cell.
-local function cell(st, row, i, today)
+--- The cells of a row between cells 0 and n-1: `cov[i]` the bar span
+--- covering the cell, `dls[i]` a deadline in it, `trail[i]` the overdue
+--- trail, `clk[i]` a clocked day.
+local function row_features(st, row, n, today, last_day)
+  local zd = zoom(st).days
+  local s0 = st.start
+  local function idx(day)
+    return math.floor((day - s0) / zd)
+  end
+  local cov, dls, trail, clk = {}, {}, {}, {}
+  local function cover(span)
+    for i = math.max(0, idx(span.start)), math.min(n - 1, idx(span.finish)) do
+      if not cov[i] then
+        cov[i] = span
+      end
+    end
+  end
+  local function deadline(day, min, hl)
+    local i = idx(day)
+    if i >= 0 and i < n and not dls[i] then
+      dls[i] = { min = min, hl = hl }
+    end
+  end
+  local bar_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue") or "OrgTimelineBar"
+  if row.ics then
+    for _, sp in ipairs(row.spans) do
+      sp.hl = "OrgTimelineEvent"
+      cover(sp)
+    end
+    return cov, dls, trail, clk
+  end
+  if row.start then
+    cover({
+      start = row.start,
+      finish = row.finish,
+      start_min = row.start_min,
+      finish_min = row.finish_min,
+      hl = bar_hl,
+      base = true,
+    })
+  end
+  if row.deadline then
+    local dl_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineDeadline")
+    deadline(row.deadline, row.deadline_min, dl_hl)
+  end
+  if row.rep and row.start then
+    -- later occurrences: the whole bar (and deadline) shifted
+    local base = row.rep:days()
+    local len = row.finish - row.start
+    for _, occ in ipairs(date.occurrences(row.rep, s0 - len, last_day + len)) do
+      local delta = occ:days() - base
+      if delta > 0 then
+        cover({
+          start = row.start + delta,
+          finish = row.finish + delta,
+          start_min = row.start_min,
+          finish_min = row.finish_min,
+          hl = "OrgTimelineRepeat",
+        })
+        if row.deadline then
+          deadline(row.deadline + delta, row.deadline_min, "OrgTimelineRepeat")
+        end
+      end
+    end
+  end
+  if row.overdue then
+    -- how late it is: a dashed trail from the deadline to today
+    for i = math.max(0, idx(row.deadline) + 1), math.min(n - 1, idx(today)) do
+      trail[i] = true
+    end
+  end
+  for day in pairs(row.clock_days or {}) do
+    local i = idx(day)
+    if i >= 0 and i < n then
+      clk[i] = true
+    end
+  end
+  return cov, dls, trail, clk
+end
+
+--- Whether sub-cell `p` (a third of the day, at day zoom) of day `day`
+--- is under `span`.
+local function covers(span, day, p)
+  if span.start_min and day == span.start and (p + 1) * 480 <= span.start_min then
+    return false
+  end
+  if span.finish_min and day == span.finish and p * 480 >= span.finish_min then
+    return false
+  end
+  return true
+end
+
+--- Draw the chart part of a row into the canvas.
+local function draw_row(cv, st, row, n, today, bgs, last_day)
   local z = zoom(st)
   local w = z.width
-  local a, b = cell_days(st, i)
-  local on_bar = row.start and row.start <= b and row.finish >= a
-  local is_dl = row.deadline and row.deadline >= a and row.deadline <= b
-  local clocked = has_day(row.clock_days, a, b)
-  local base = {}
-  if z.days == 1 and w > 1 and date.from_days(a):weekday() >= 6 then
-    base[#base + 1] = "OrgTimelineWeekend"
-  end
-  if today >= a and today <= b then
-    base[#base + 1] = "OrgTimelineToday"
-  end
-  local function seg(text, hl)
-    local groups = vim.list_extend({}, base)
-    groups[#groups + 1] = hl
-    return { text, #groups > 0 and groups or nil }
-  end
-  -- clocked days of the bar show in the clock colour
-  local bar_hl = row.done and "OrgTimelineDone"
-    or (row.overdue and "OrgTimelineOverdue")
-    or (clocked and "OrgTimelineClock")
-    or "OrgTimelineBar"
-  if is_dl then
-    local dl_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineDeadline")
-    if w == 1 then
-      return { seg("◆", dl_hl) }
+  local fine = w == 3 and z.days == 1
+  local cov, dls, trail, clk = row_features(st, row, n, today, last_day)
+  -- runs of equal characters and highlights become one segment
+  local run_ch, run_n, run_hl = nil, 0, nil
+  local function emit(ch, hl)
+    if ch == run_ch and hl == run_hl then
+      run_n = run_n + 1
+      return
     end
-    local lw = math.floor((w - 1) / 2)
-    local left = (row.start and row.start < a) and seg(string.rep("█", lw), bar_hl) or seg(string.rep(" ", lw))
-    return { left, seg("◆", dl_hl), seg(string.rep(" ", w - 1 - lw)) }
-  elseif on_bar then
-    return { seg(string.rep("█", w), bar_hl) }
-  elseif row.overdue and a > row.deadline and a <= today then
-    -- how late it is: a dashed trail from the deadline to today
-    return { seg(string.rep("┄", w), "OrgTimelineOverdue") }
-  elseif clocked then
-    return { seg(string.rep("▒", w), "OrgTimelineClock") }
+    if run_n > 0 then
+      cv:put(string.rep(run_ch, run_n), run_hl)
+    end
+    run_ch, run_n, run_hl = ch, 1, hl
   end
-  return { seg(string.rep(" ", w)) }
+  local function bar_group(span, bg, clocked)
+    if span.base and clocked and not row.done and not row.overdue then
+      return groups_of(bg, "OrgTimelineClock")
+    end
+    return groups_of(bg, span.hl)
+  end
+  for i = 0, n - 1 do
+    local bg = bgs[i]
+    local dl, sp = dls[i], cov[i]
+    if fine then
+      local day = st.start + i
+      local dsub = dl and (dl.min and math.min(2, math.floor(dl.min / 480)) or 1) or nil
+      for p = 0, 2 do
+        if dsub and p == dsub then
+          emit("◆", groups_of(bg, dl.hl))
+        elseif dsub and (p > dsub or (sp and sp.start == day and not sp.start_min)) then
+          -- after the deadline mark, or a bar that only is the deadline day
+          emit(" ", groups_of(bg, nil))
+        elseif sp and covers(sp, day, p) then
+          emit("█", bar_group(sp, bg, clk[i]))
+        elseif trail[i] then
+          emit("┄", groups_of(bg, "OrgTimelineOverdue"))
+        elseif clk[i] then
+          emit("▒", groups_of(bg, "OrgTimelineClock"))
+        else
+          emit(" ", groups_of(bg, nil))
+        end
+      end
+    else
+      local ch, g
+      if dl then
+        ch, g = "◆", groups_of(bg, dl.hl)
+      elseif sp then
+        ch, g = "█", bar_group(sp, bg, clk[i])
+      elseif trail[i] then
+        ch, g = "┄", groups_of(bg, "OrgTimelineOverdue")
+      elseif clk[i] then
+        ch, g = "▒", groups_of(bg, "OrgTimelineClock")
+      else
+        ch, g = " ", groups_of(bg, nil)
+      end
+      for _ = 1, w do
+        emit(ch, g)
+      end
+    end
+  end
+  if run_n > 0 then
+    cv:put(string.rep(run_ch, run_n), run_hl)
+  end
 end
 
 --- The axis lines: months, then day numbers (and weekdays at day zoom).
@@ -402,21 +630,32 @@ local function hint(o)
   return table.concat(parts, "  ")
 end
 
---- Draw the timeline.
-function M.render(st)
+--- Whether calendar events are drawn: the ics extension is on, `ics` is
+--- not false and the source is the agenda files.
+local function with_events(st)
+  return st.opts.ics ~= false and st.src.kind == "agenda" and require("org.extensions").enabled("ics")
+end
+
+--- Draw the timeline from `st.task_rows` (built by `build`).
+function M.draw(st)
   if not vim.api.nvim_buf_is_valid(st.buf) then
     return
   end
   local o = st.opts
   local today = date.today_days()
-  local rows, err = M.build(st)
-  st.rows = rows
   local n = cell_count(st)
   st.cells = n
   local z = zoom(st)
-  local lw = o.label_width
+  local lw = label_width(st)
+  local last_day = select(2, cell_days(st, n - 1))
+  local rows = st.task_rows or {}
+  if with_events(st) then
+    rows = vim.list_extend(vim.list_extend({}, rows), M.event_rows(st.start, last_day))
+    sort_rows(rows)
+  end
+  st.rows = rows
   local cv = views.Canvas.new()
-  local first, last = date.from_days(st.start), date.from_days(select(2, cell_days(st, n - 1)))
+  local first, last = date.from_days(st.start), date.from_days(last_day)
   cv:add({
     { " Timeline", "OrgTimelineTitle" },
     { "  " .. views.source_label(st.src), "OrgTimelineHint" },
@@ -430,11 +669,17 @@ function M.render(st)
       "OrgTimelineHint",
     },
   })
-  if st.filter or st.tag then
-    cv:put("  · " .. (st.filter or ("tag " .. st.tag)), "OrgTimelineHint")
+  for _, f in ipairs({
+    o.query and ("query " .. o.query) or false,
+    st.tag and ("tag " .. st.tag) or false,
+    st.filter or false,
+  }) do
+    if f then
+      cv:put("  · " .. f, "OrgTimelineHint")
+    end
   end
-  if err then
-    cv:put("  " .. err, "DiagnosticError")
+  if st.err then
+    cv:put("  " .. st.err, "DiagnosticError")
   end
   cv:add({ { " " .. hint(o), "OrgTimelineHint" } })
   local ax, today_pos = axis(st, n, today)
@@ -458,6 +703,14 @@ function M.render(st)
     { "┼", "OrgTimelineSeparator" },
     { string.rep("─", n * z.width), "OrgTimelineSeparator" },
   })
+  -- the background of each cell: weekends (at day zoom) and today
+  local bgs = {}
+  for i = 0, n - 1 do
+    local a, b = cell_days(st, i)
+    local we = z.days == 1 and z.width > 1 and date.from_days(a):weekday() >= 6
+    local t = today >= a and today <= b
+    bgs[i] = (we and t) and "wet" or (we and "we") or (t and "t") or nil
+  end
   st.first_row_line = #cv.lines + 1
   st.line_rows = {}
   local todo_cfg = require("org.todo_keywords").global()
@@ -471,14 +724,11 @@ function M.render(st)
       cv:put(" ")
       used = used + utils.width(row.todo) + 1
     end
-    local title_hl = row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineTask")
+    local title_hl = row.ics and "OrgTimelineEvent"
+      or (row.done and "OrgTimelineDone" or (row.overdue and "OrgTimelineOverdue" or "OrgTimelineTask"))
     cv:put(views.fit(row.title, lw - used + 1), title_hl)
     cv:put("│", "OrgTimelineSeparator")
-    for i = 0, n - 1 do
-      for _, s in ipairs(cell(st, row, i, today)) do
-        cv:put(s[1], s[2])
-      end
-    end
+    draw_row(cv, st, row, n, today, bgs, last_day)
   end
   if #rows == 0 then
     cv:add({ { " No scheduled tasks or deadlines", "OrgTimelineHint" } })
@@ -490,6 +740,15 @@ function M.render(st)
     line = math.min(line, vim.api.nvim_buf_line_count(st.buf))
     pcall(vim.api.nvim_win_set_cursor, st.win, { line, 1 })
   end
+end
+
+--- Build and draw the timeline.
+function M.render(st)
+  if not vim.api.nvim_buf_is_valid(st.buf) then
+    return
+  end
+  st.task_rows, st.err = M.build(st)
+  M.draw(st)
 end
 
 ---------------------------------------------------------------------------
@@ -512,11 +771,18 @@ function M.row_at_cursor()
   return st.line_rows[vim.api.nvim_win_get_cursor(st.win)[1]]
 end
 
-function M.refresh()
+--- Rebuild and redraw. With `lazy` (the redraw watch), nothing happens
+--- while the timeline's files are unchanged.
+---@param lazy? boolean
+function M.refresh(lazy)
   local st = current()
-  if st then
-    M.render(st)
+  if not st then
+    return
   end
+  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+    return
+  end
+  M.render(st)
 end
 
 --- First day of the view so that `day` is `offset` cells from the left.
@@ -544,7 +810,7 @@ function M.zoom(dir)
   st.zoom = nz
   local n = cell_count(st)
   st.start = start_for(st, mid, math.floor(n / 2))
-  M.render(st)
+  M.draw(st)
 end
 
 --- Pan by half a screen: `dir` = -1 to the past, 1 to the future.
@@ -554,7 +820,7 @@ function M.pan(dir)
     return
   end
   st.start = st.start + dir * math.max(1, math.floor(st.cells / 2)) * zoom(st).days
-  M.render(st)
+  M.draw(st)
 end
 
 function M.goto_today()
@@ -563,7 +829,7 @@ function M.goto_today()
     return
   end
   st.start = start_for(st, date.today_days(), st.opts.days_before or 3)
-  M.render(st)
+  M.draw(st)
 end
 
 function M.toggle_clocks()
@@ -578,6 +844,10 @@ function M.jump()
   local st = current()
   local row = M.row_at_cursor()
   if st and row then
+    if not row.ref then
+      utils.warn("timeline: a calendar event has no heading to open")
+      return
+    end
     views.jump(row.ref, st.how)
   end
 end
@@ -588,6 +858,10 @@ function M.plan(kind)
   local st = current()
   local row = M.row_at_cursor()
   if not st or not row then
+    return
+  end
+  if not row.ref then
+    utils.warn("timeline: a calendar event can't be rescheduled here")
     return
   end
   local target = views.target(row.ref)
@@ -684,20 +958,29 @@ function M.open(o)
       M.plan("deadline")
     end,
     clocks = M.toggle_clocks,
-    refresh = M.refresh,
+    refresh = function()
+      M.refresh()
+    end,
     quit = M.close,
   }, "timeline")
   st.watch = views.watch("OrgTimelineWatch", function()
     if current() == st then
-      M.render(st)
+      M.refresh(true)
     end
-  end)
+  end, { buf = buf, relevant = views.relevant(st) })
   vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
     group = st.watch,
-    callback = function()
-      if current() == st then
-        M.render(st)
+    callback = function(ev)
+      if current() ~= st then
+        return
       end
+      if ev.event == "WinResized" and not vim.tbl_contains(vim.v.event.windows or {}, st.win) then
+        return
+      end
+      if ev.event == "VimResized" then
+        views.relayout(st.how)
+      end
+      pcall(M.draw, st)
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -729,7 +1012,7 @@ function M.parse_args(args)
       o.source = w
     elseif not o.zoom and zoom_index(w) then
       o.zoom = w
-    elseif not o.source and #rest == 0 and (w:match("%.org$") or w:find("/", 1, true)) and not w:match("^%(") then
+    elseif not o.source and #rest == 0 and views.is_path(w) then
       o.source = utils.expand(w)
     else
       rest[#rest + 1] = w
@@ -739,6 +1022,15 @@ function M.parse_args(args)
     o.filter = table.concat(rest, " ")
   end
   return o
+end
+
+--- Completion of `:Org timeline`: sources, zooms and tags.
+function M.complete(arglead)
+  local out = views.complete_sources(arglead)
+  for _, z in ipairs(M.ZOOMS) do
+    out[#out + 1] = z.name
+  end
+  return vim.list_extend(out, views.complete_tags())
 end
 
 --- `:Org timeline [agenda|buffer|subtree|<file>] [day|week|month] [filter]`.

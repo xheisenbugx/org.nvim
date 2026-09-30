@@ -296,3 +296,155 @@ describe("timeline", function()
     eq({ filter = '(todo "NEXT")' }, timeline.parse_args('(todo "NEXT")'))
   end)
 end)
+
+describe("timeline details", function()
+  before_each(function()
+    write()
+    setup({})
+  end)
+  after_each(function()
+    timeline.close()
+    restore()
+  end)
+
+  local function open_lines(lines, o)
+    org_buffer(lines)
+    return timeline.open(vim.tbl_extend("force", { source = "buffer" }, o or {}))
+  end
+
+  --- The chart characters of the row showing `title`.
+  local function cells_of(st, title)
+    local _, l = line_of(st, title)
+    return vim.fn.split(chart(l), [[\zs]])
+  end
+
+  local function groups(st)
+    local out = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(st.buf, -1, 0, -1, { details = true })) do
+      out[m[4].hl_group] = true
+    end
+    return out
+  end
+
+  it("draws the next occurrences of repeating tasks", function()
+    local st = open_lines({
+      "* TODO Weekly review",
+      "  SCHEDULED: " .. ts(1, "+1w"),
+      "* TODO Rent",
+      "  DEADLINE: " .. ts(2, "+1w"),
+    }, { zoom = "week" })
+    local c = cells_of(st, "Weekly review")
+    local function at(day)
+      return c[day - st.start + 1]
+    end
+    eq("█", at(today + 1))
+    eq(" ", at(today + 2))
+    eq("█", at(today + 8))
+    eq("█", at(today + 15))
+    c = cells_of(st, "Rent")
+    eq("◆", at(today + 2))
+    eq("◆", at(today + 9))
+    eq(" ", at(today + 5))
+    ok(groups(st).OrgTimelineRepeat)
+  end)
+
+  it("places timed tasks in their part of the day at day zoom", function()
+    local st = open_lines({
+      "* TODO Meeting",
+      "  SCHEDULED: " .. ts(0, "14:00-15:00"),
+      "* TODO Evening deadline",
+      "  DEADLINE: " .. ts(0, "20:00"),
+      "* TODO Morning start",
+      "  SCHEDULED: " .. ts(0, "07:00"),
+    })
+    eq("day", timeline.ZOOMS[st.zoom].name)
+    local p = (today - st.start) * 3
+    local c = cells_of(st, "Meeting")
+    eq({ " ", "█", " " }, { c[p + 1], c[p + 2], c[p + 3] })
+    c = cells_of(st, "Evening deadline")
+    eq({ " ", " ", "◆" }, { c[p + 1], c[p + 2], c[p + 3] })
+    c = cells_of(st, "Morning start")
+    eq({ "█", "█", "█" }, { c[p + 1], c[p + 2], c[p + 3] })
+    eq(" ", c[p + 4])
+  end)
+
+  it("pans and zooms without rebuilding", function()
+    local st = timeline.open()
+    local build = timeline.build
+    local n = 0
+    timeline.build = function(...)
+      n = n + 1
+      return build(...)
+    end
+    timeline.pan(1)
+    timeline.zoom(1)
+    timeline.goto_today()
+    timeline.build = build
+    eq(0, n)
+    ok(row(st, "Build the thing"))
+  end)
+
+  it("narrows the labels in a narrow window", function()
+    local columns = vim.o.columns
+    vim.o.columns = 40
+    local st = timeline.open()
+    vim.o.columns = columns
+    ok(st.cells >= 5, st.cells)
+    local _, l = line_of(st, "NEXT Build")
+    ok(vim.fn.strdisplaywidth(l:match("^(.-)│")) <= 16, l)
+  end)
+
+  it("shows the filter and the tag", function()
+    local st = timeline.open({ tag = "work", filter = '(todo "NEXT")' })
+    local head = buf_lines(st.buf)[1]
+    ok(head:find("tag work", 1, true), head)
+    ok(head:find('(todo "NEXT")', 1, true), head)
+  end)
+
+  it("shows calendar events with the ics extension", function()
+    local ics = dir .. "/cal.ics"
+    local d = date.from_days(today + 1)
+    local stamp = string.format("%04d%02d%02d", d.year, d.month, d.day)
+    utils.writefile(ics, {
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:dentist-1",
+      "DTSTART:" .. stamp .. "T100000",
+      "DTEND:" .. stamp .. "T110000",
+      "SUMMARY:Dentist",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    })
+    require("org").setup({
+      org_directory = dir,
+      agenda_files = { path },
+      todo_keywords = { "TODO NEXT WAITING | DONE CANCELLED" },
+      extensions = {
+        timeline = {},
+        ics = { calendars = { { name = "Home", path = ics } }, auto_refresh = false },
+      },
+    })
+    local st = timeline.open()
+    ok(row(st, "Dentist"), vim.inspect(buf_lines(st.buf)))
+    local p = (today + 1 - st.start) * 3
+    local c = cells_of(st, "Dentist")
+    eq({ " ", "█", " " }, { c[p + 1], c[p + 2], c[p + 3] })
+    ok(groups(st).OrgTimelineEvent)
+    -- nothing to open or reschedule
+    vim.api.nvim_win_set_cursor(st.win, { line_of(st, "Dentist"), 0 })
+    local notify = vim.notify
+    vim.notify = function() end
+    timeline.jump()
+    timeline.plan("scheduled")
+    vim.notify = notify
+    ok(vim.api.nvim_win_is_valid(st.win))
+  end)
+
+  it("parses a TODO match with a slash as a filter, and completes arguments", function()
+    eq({ filter = "work/NEXT" }, timeline.parse_args("work/NEXT"))
+    local c = require("org.commands").complete("", "Org timeline ")
+    ok(vim.tbl_contains(c, "week"), vim.inspect(c))
+    ok(vim.tbl_contains(c, "buffer"), vim.inspect(c))
+  end)
+end)
