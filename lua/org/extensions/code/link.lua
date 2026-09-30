@@ -28,20 +28,21 @@ function M.split(path)
   return file, target ~= "" and target or nil
 end
 
---- Absolute path of the file of a `code:` link followed from `bufnr`, or nil.
+--- Absolute path of the file of a `code:` link followed from `from` (a
+--- buffer, default the current one, or the path of the org file), or nil.
 ---@param file string
----@param bufnr? integer
+---@param from? integer|string
 ---@return string|nil
-function M.resolve(file, bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
+function M.resolve(file, from)
+  from = from or vim.api.nvim_get_current_buf()
   local expanded = vim.fs.normalize(file)
   if expanded:match("^/") or expanded:match("^%a:[/\\]") then
     return vim.fs.normalize(expanded)
   end
   local bases = {}
-  local name = vim.api.nvim_buf_get_name(bufnr)
+  local name = type(from) == "string" and from or vim.api.nvim_buf_get_name(from)
   local org_dir = name ~= "" and vim.fs.dirname(vim.fn.fnamemodify(name, ":p")) or nil
-  bases[#bases + 1] = git.root(bufnr)
+  bases[#bases + 1] = (type(from) == "number" or name ~= "") and git.root(from) or nil
   bases[#bases + 1] = git.root(vim.fn.getcwd())
   bases[#bases + 1] = org_dir
   bases[#bases + 1] = vim.fn.getcwd()
@@ -168,8 +169,50 @@ function M.complete()
   return "code:" .. vim.trim(f)
 end
 
+--- Where a `code:` link points, found without opening the file (no
+--- language server: treesitter, else a text search): `{ path, lnum, col,
+--- len, first, last, lang }` with `first`..`last` the lines of the
+--- definition (the whole file without a target), or nil and an error.
+---@param path string the link's path (`file::target`)
+---@param from? integer|string the buffer or path of the org file
+---@return table|nil, string|nil
+function M.locate(path, from)
+  local file, target = M.split(path)
+  local abs = M.resolve(file, from)
+  if not abs or vim.fn.filereadable(abs) ~= 1 then
+    return nil, "code: link: cannot find " .. file
+  end
+  local ft = vim.filetype.match({ filename = abs }) or ""
+  local out = { path = abs, lnum = 1, col = 0, len = 0, lang = require("org.extensions.code.context").lang(ft) }
+  local n = target and tonumber(target)
+  if n then
+    out.lnum, out.first, out.last = n, n, n
+  elseif target then
+    local pos = symbols.find_in_file(abs, target)
+    if not pos then
+      return nil, "code: link: no symbol " .. target .. " in " .. vim.fn.fnamemodify(abs, ":~:.")
+    end
+    out.lnum, out.col, out.len, out.first, out.last = pos.lnum, pos.col, pos.len, pos.first, pos.last
+  end
+  return out
+end
+
 --- The link type table registered in `links.types.code`.
 M.type = {
+  --- For other extensions: the target's position (`M.locate`).
+  locate = function(path, from)
+    return M.locate(path, from)
+  end,
+  --- For `#+transclude:`: the file, the lines of the definition and the
+  --- src block language.
+  transclude = function(path, ctx)
+    local loc, err = M.locate(path, ctx and (ctx.filename or ctx.bufnr))
+    if not loc then
+      return nil, err
+    end
+    local lines = loc.first and (loc.first .. "-" .. loc.last) or nil
+    return { path = loc.path, lines = lines, src = loc.lang ~= "" and loc.lang or nil }
+  end,
   follow = function(path)
     return M.follow(path)
   end,

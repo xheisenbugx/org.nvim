@@ -375,19 +375,17 @@ local function score(name, full, sym)
   return 0
 end
 
---- Position of symbol `sym` in `buf` from treesitter definitions. Only
---- the places where the last segment of the name occurs are looked at
---- (from the node there up to its definition), not the whole tree.
-local function ts_find(buf, sym, lines)
-  local root = ts_root(buf)
-  if not root then
-    return nil
-  end
+--- Position of symbol `sym` in the tree `root` of `source` (a buffer or
+--- the text) from treesitter definitions: `{ lnum, col }` and `{ first,
+--- last, len }` (the lines of the whole definition, the name's length).
+--- Only the places where the last segment of the name occurs are looked
+--- at (from the node there up to its definition), not the whole tree.
+local function ts_search(root, source, sym, lines)
   local last = last_segment(sym)
   if last == "" then
     return nil
   end
-  local best, best_score
+  local best, best_score, def
   for i, l in ipairs(lines) do
     local init = 1
     while true do
@@ -406,11 +404,14 @@ local function ts_find(buf, sym, lines)
             local sr, sc, er, ec = nn:range()
             -- the occurrence is the definition's name
             if sr <= i - 1 and i - 1 <= er and (sr < i - 1 or sc <= s - 1) and (er > i - 1 or s - 1 < ec) then
-              local name = node_text(nn, buf)
+              local name = node_text(nn, source)
               if name then
-                local sc2 = score(name, qualified(node, name, buf), sym)
+                local sc2 = score(name, qualified(node, name, source), sym)
                 if sc2 > 0 and (not best_score or sc2 > best_score) then
+                  local dr, _, der, dec = node:range()
                   best, best_score = { lnum = sr + 1, col = sc }, sc2
+                  -- a range ending at column 0 ends on the line before
+                  def = { first = dr + 1, last = (dec == 0 and der > dr) and der or der + 1, len = #name }
                 end
               end
             end
@@ -421,11 +422,19 @@ local function ts_find(buf, sym, lines)
         depth = depth + 1
       end
       if best_score == 3 then
-        return best
+        return best, def
       end
     end
   end
-  return best
+  return best, def
+end
+
+local function ts_find(buf, sym, lines)
+  local root = ts_root(buf)
+  if not root then
+    return nil
+  end
+  return (ts_search(root, buf, sym, lines))
 end
 
 local TEXT_KEYWORDS = {
@@ -590,6 +599,49 @@ function M.at(buf, lnum, col)
     end
   end
   return start and below(start, 0) or nil
+end
+
+--- Where `sym` is defined in file `path`, without loading it into a
+--- buffer or asking a language server (for other extensions: the org
+--- language server's go-to-definition, transclusion): `{ lnum, col, len,
+--- first, last }` (`first`..`last` the lines of the whole definition when
+--- treesitter found it, else the line), or nil.
+---@param path string
+---@param sym string
+---@return table|nil
+function M.find_in_file(path, sym)
+  local buf = vim.fn.bufnr(path)
+  local lines, source, root
+  if buf > 0 and vim.api.nvim_buf_is_loaded(buf) then
+    lines, source, root = vim.api.nvim_buf_get_lines(buf, 0, -1, false), buf, ts_root(buf)
+  else
+    local ok, l = pcall(vim.fn.readfile, path)
+    if not ok then
+      return nil
+    end
+    lines = l
+    source = table.concat(lines, "\n")
+    local ft = vim.filetype.match({ filename = path, contents = vim.list_slice(lines, 1, 5) })
+    local lang = ft and vim.treesitter.language.get_lang(ft) or ft
+    if lang and pcall(vim.treesitter.language.add, lang) then
+      local pok, parser = pcall(vim.treesitter.get_string_parser, source, lang)
+      local tok, trees = pcall(function()
+        return pok and parser and parser:parse() or nil
+      end)
+      root = tok and trees and trees[1] and trees[1]:root() or nil
+    end
+  end
+  if root then
+    local pos, def = ts_search(root, source, sym, lines)
+    if pos then
+      return { lnum = pos.lnum, col = pos.col, len = def.len, first = def.first, last = def.last }
+    end
+  end
+  local t = M.text_find(lines, sym)
+  if t then
+    t.len, t.first, t.last = #last_segment(sym), t.lnum, t.lnum
+  end
+  return t
 end
 
 return M

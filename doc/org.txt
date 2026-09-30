@@ -8512,6 +8512,20 @@ treesitter, else to the line. `link_path = "relative"` writes the path
 relative to the git root. Exported, a `code:` link is its description in
 code style.
 
+With the `lsp` extension (|org-extensions-lsp|), go to definition on a
+`code:` link jumps to its target, and with `transclusion`
+(|org-extensions-transclusion|) `#+transclude: [[code:src/app.lua::M.setup]]`
+shows the whole definition in a src block. Both find the symbol with
+treesitter, else the text search, without asking a language server (and
+without loading the file into a buffer).
+
+The treesitter lookup knows functions, methods, classes, structs, enums,
+interfaces, traits, modules and type definitions in the usual grammars
+(checked with Lua, Python, JavaScript, TypeScript, Rust and C), and names
+bound to a function (`const f = () => {}`, `M.f = function() end`). A
+method is linked as `Class.method` (`Type.method` in a Rust `impl`). Go
+methods are linked by their name only.
+
 Per-project org files ~
 `project_file` names the org file of a repository: a path relative to its
 root (default `.org/tasks.org`), or one with `<org_directory>`, `${repo}`

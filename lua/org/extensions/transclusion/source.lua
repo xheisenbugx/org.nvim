@@ -503,6 +503,22 @@ end
 ---@return org.transclusion.Result|nil, string|nil err
 resolve = function(spec, ctx)
   ctx = ctx or {}
+  -- a link type that says what to transclude (the code extension's code:
+  -- gives the file, the lines of the definition and its language)
+  local lt = (require("org.config").opts.links.types or {})[spec.type]
+  if type(lt) == "table" and type(lt.transclude) == "function" then
+    local ok, conv, err = pcall(lt.transclude, spec.path, ctx)
+    if not ok or type(conv) ~= "table" or not conv.path then
+      return nil, tostring(ok and (err or ("cannot transclude " .. spec.link)) or conv)
+    end
+    spec = vim.tbl_extend("force", spec, {
+      type = "file",
+      path = conv.path,
+      search = nil,
+      lines = spec.lines or conv.lines,
+      src = spec.src or conv.src,
+    })
+  end
   local dir = ctx.dir or (ctx.filename and vim.fn.fnamemodify(ctx.filename, ":h")) or vim.fn.getcwd()
   local path, id
   local search = spec.search
