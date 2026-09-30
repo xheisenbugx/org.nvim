@@ -243,6 +243,32 @@ describe("views_util watch", function()
     end))
   end)
 
+  it("waits while the view is hidden, and not while it is in another tab", function()
+    local calls = 0
+    local view = vim.api.nvim_create_buf(false, true)
+    group = views.watch("OrgViewsSpecWatch", function()
+      calls = calls + 1
+    end, { delay = 5, buf = view })
+    vim.api.nvim_exec_autocmds("User", { pattern = "OrgClockIn" })
+    vim.wait(100)
+    eq(0, calls)
+    -- shown in another tab: redrawn right away, and the one pending call
+    -- ran when it was shown
+    vim.cmd("tabnew")
+    vim.api.nvim_win_set_buf(0, view)
+    ok(vim.wait(500, function()
+      return calls == 1
+    end))
+    vim.cmd("tabprevious")
+    vim.api.nvim_exec_autocmds("User", { pattern = "OrgClockIn" })
+    ok(vim.wait(500, function()
+      return calls == 2
+    end))
+    vim.cmd("tabnext")
+    vim.cmd("tabclose")
+    vim.api.nvim_buf_delete(view, { force = true })
+  end)
+
   it("reports an error of the callback once", function()
     local msgs = {}
     local notify = vim.notify

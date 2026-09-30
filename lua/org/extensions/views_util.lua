@@ -776,7 +776,7 @@ function M.watch(name, fn, opts)
       if not vim.api.nvim_buf_is_valid(opts.buf) then
         return
       end
-      if vim.fn.bufwinid(opts.buf) == -1 then
+      if #vim.fn.win_findbuf(opts.buf) == 0 then
         hidden = true
         return
       end
