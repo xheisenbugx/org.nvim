@@ -181,6 +181,23 @@ local function write_file(path, lines)
   out:close()
 end
 
+-- Replace lines `old` of `buf` from 0-based row `row` by `new`, changing
+-- only the lines that differ: marks on the others (a keyword's) stay.
+local function replace_lines(buf, row, old, new)
+  local diff = (vim.text and vim.text.diff) or vim.diff
+  local ok, hunks = pcall(diff, table.concat(old, "\n") .. "\n", table.concat(new, "\n") .. "\n", {
+    result_type = "indices",
+  })
+  if not ok or type(hunks) ~= "table" then
+    hunks = { { 1, #old, 1, #new } }
+  end
+  for i = #hunks, 1, -1 do
+    local h = hunks[i]
+    local start = h[2] == 0 and h[1] or h[1] - 1
+    vim.api.nvim_buf_set_lines(buf, row + start, row + start + h[2], false, vim.list_slice(new, h[3], h[3] + h[4] - 1))
+  end
+end
+
 --- Write the edit buffer `b` back into its source. With `sync` (live
 --- editing), the text only goes into the source buffer, loaded when it
 --- isn't; nothing is written to disk.
@@ -196,11 +213,11 @@ function M.write(b, sync)
   if sync and vim.deep_equal(new, e.orig) then
     return true
   end
-  local lines, sb, map = source.read(e.path, e.bufnr)
+  local lines, sb = source.read(e.path, e.bufnr)
   if sync and not sb and e.path and lines then
     local nb = vim.fn.bufadd(e.path)
     vim.fn.bufload(nb)
-    lines, sb, map = source.read(e.path, e.bufnr)
+    lines, sb = source.read(e.path, e.bufnr)
   end
   if not lines then
     utils.error("transclusion: cannot read the source")
@@ -221,36 +238,36 @@ function M.write(b, sync)
     end
   end
   if sb then
-    local bf, bl = first, last
-    if map then
-      bf, bl = map[first] or first, map[last] or last
-      if last >= first and bl - bf ~= last - first then
-        utils.error("transclusion: the source region holds a materialized transclusion; remove it first")
-        return false
-      end
-      if last < first then
-        bf = map[first] or (#map > 0 and map[#map] + 1) or 1
-        bl = bf - 1
-      end
-    end
     if e.src_modified == nil then
       -- whether the source had changes of its own before this edit
       e.src_modified = vim.bo[sb].modified
     end
-    vim.api.nvim_buf_set_lines(sb, bf - 1, bl, false, new)
-    if not sync then
-      if not e.src_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
-        local ok, err = pcall(vim.api.nvim_buf_call, sb, function()
+    -- The source's own inserted transclusions are taken out meanwhile:
+    -- its lines are then the ones `first` and `last` count, and the
+    -- write (in BufWriteCmd, where autocommands don't nest) leaves them
+    -- out of the file.
+    local t = package.loaded["org.extensions.transclusion"]
+    local without = t and t.without_inserted or function(_, fn)
+      return fn()
+    end
+    local wrote = false
+    local ok, err = pcall(without, sb, function()
+      replace_lines(sb, first - 1, vim.list_slice(lines, first, last), new)
+      if not sync and not e.src_modified and vim.api.nvim_buf_get_name(sb) ~= "" then
+        vim.api.nvim_buf_call(sb, function()
           vim.cmd("silent keepalt write")
         end)
-        if not ok then
-          utils.error("transclusion: cannot write the source: " .. tostring(err))
-          return false
-        end
-        e.src_modified = nil
-      else
-        utils.notify("transclusion: source buffer updated (it had unsaved changes, so it was not written)")
+        wrote = true
       end
+    end)
+    if not ok then
+      utils.error("transclusion: cannot write the source: " .. tostring(err))
+      return false
+    end
+    if wrote then
+      e.src_modified = nil
+    elseif not sync then
+      utils.notify("transclusion: source buffer updated (it had unsaved changes, so it was not written)")
     end
   else
     local out = vim.list_slice(lines, 1, first - 1)

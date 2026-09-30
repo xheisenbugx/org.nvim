@@ -1763,24 +1763,6 @@ function M.without_inserted(buf, fn)
   return a1, a2
 end
 
--- Write `lines` to `path` the way `buf` writes its file.
-local function write_like(buf, path, lines)
-  local eol = vim.bo[buf].fileformat == "dos" and "\r\n" or (vim.bo[buf].fileformat == "mac" and "\r" or "\n")
-  local fd = io.open(path, "wb")
-  if not fd then
-    return false
-  end
-  if vim.bo[buf].bomb then
-    fd:write("\239\187\191")
-  end
-  fd:write(table.concat(lines, eol))
-  if #lines > 0 and (vim.bo[buf].endofline or vim.bo[buf].fixendofline) then
-    fd:write(eol)
-  end
-  fd:close()
-  return true
-end
-
 --- After a write that skipped autocommands (`:noautocmd w`), the file
 --- holds the inserted text: take it out of the file again.
 local function heal(buf)
@@ -1797,14 +1779,21 @@ local function heal(buf)
     return
   end
   st.mtime = mt
-  local clean, map = M.clean_lines(buf)
+  local _, map = M.clean_lines(buf)
   if not map then
     return
   end
   local disk = utils.readfile(name)
   if disk and vim.deep_equal(disk, api.nvim_buf_get_lines(buf, 0, -1, false)) then
-    if write_like(buf, name, clean) then
-      st.mtime = source.stamp(name)
+    -- written again by Vim, so it knows the file it wrote (no "changed
+    -- since editing started" warning); autocommands don't nest, so the
+    -- text is taken out here
+    local ok = pcall(M.without_inserted, buf, function()
+      api.nvim_buf_call(buf, function()
+        vim.cmd("silent keepalt write")
+      end)
+    end)
+    if ok then
       utils.warn("transclusion: the file was written without autocommands; its inserted text was taken out again")
     end
   end

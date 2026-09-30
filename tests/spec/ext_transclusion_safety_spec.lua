@@ -471,6 +471,25 @@ describe("transclusion data safety", function()
     end
   end)
 
+  it("keeps a source's own inserted text out when the edit float writes it", function()
+    -- src.org, loaded, has an inserted transclusion of code.py
+    local sbuf = open({ "* Beta", "b1", "#+transclude: [[file:code.py]] :lines 1-1", "b2" }, "src.org")
+    eq("import os", buf_lines(sbuf)[4])
+    local buf = open()
+    api.nvim_win_set_cursor(0, { 3, 0 })
+    local eb = T.edit()
+    api.nvim_buf_set_lines(eb, 1, 2, false, { "b1, edited" })
+    vim.cmd("silent write")
+    eq(
+      { "* Beta", "b1, edited", "#+transclude: [[file:code.py]] :lines 1-1", "b2" },
+      vim.fn.readfile(dir .. "/src.org")
+    )
+    eq("import os", buf_lines(sbuf)[4])
+    eq(false, vim.bo[sbuf].modified)
+    vim.cmd.normal(vim.keycode("<Esc>"))
+    eq(buf, api.nvim_get_current_buf())
+  end)
+
   it("writes clean with :wq", function()
     local path = write("notes.org", NOTES)
     local init = root .. "/tests/minimal_init.lua"
