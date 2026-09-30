@@ -3,7 +3,7 @@
 --- A side window listing the backlinks and reflinks of the node at point,
 --- each with a preview of the text around the link. It follows the cursor
 --- through org buffers while it is open. `<CR>` opens a link's location in
---- the window it was toggled from, `r` refreshes, `q` closes.
+--- the window it was toggled from, `r` refreshes, `<Esc>` closes.
 
 local db = require("org.extensions.roam.db")
 local files = require("org.files")
