@@ -194,6 +194,31 @@ describe("transclusion source", function()
     )
   end)
 
+  it("leaves out property drawers the way the element parser sees them", function()
+    local lines = {
+      "# comment",
+      ":PROPERTIES:",
+      ":ID: file-id",
+      ":END:",
+      "#+title: T",
+      "* H",
+      "SCHEDULED: <2026-01-05 Mon>",
+      ":PROPERTIES:",
+      ":A: 1",
+      ":END:",
+      "body",
+      ":LOGBOOK:",
+      "x",
+      ":END:",
+    }
+    write("props.org", lines)
+    local fast = assert(resolve("[[file:props.org]]"))
+    eq({ "# comment", "#+title: T", "* H", "SCHEDULED: <2026-01-05 Mon>", "body" }, vim.list_slice(fast.lines, 1, 5))
+    -- with another type, every element is parsed: the same drawers go
+    local slow = assert(resolve('[[file:props.org]] :exclude-elements "no-such-type"'))
+    eq(fast.lines, slow.lines)
+  end)
+
   it("keeps the property drawer when exclude_elements is empty", function()
     setup({ watch = false, exclude_elements = {} })
     local res = assert(resolve("[[file:src.org::*Beta]]"))

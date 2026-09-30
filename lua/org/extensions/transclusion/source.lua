@@ -99,49 +99,9 @@ local function mtime(path)
   return m or nil
 end
 
---- The loaded buffer of `path` (by name, then by real path).
-local function find_buffer(path)
-  if not memo then
-    return utils.find_buffer(path)
-  end
-  local f = memo.find[path]
-  if f ~= nil then
-    return f or nil
-  end
-  if not memo.names then
-    memo.names = {}
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(b) then
-        local name = vim.api.nvim_buf_get_name(b)
-        if name ~= "" then
-          memo.names[vim.fs.normalize(name)] = b
-        end
-      end
-    end
-  end
-  f = memo.names[vim.fs.normalize(path)]
-  if not f then
-    local real = vim.uv.fs_realpath(path)
-    if real then
-      if not memo.reals then
-        memo.reals = {}
-        for name, b in pairs(memo.names) do
-          local r = vim.uv.fs_realpath(name)
-          if r then
-            memo.reals[r] = b
-          end
-        end
-      end
-      f = memo.reals[real]
-    end
-  end
-  memo.find[path] = f or false
-  return f
-end
-
-M.find_buffer = find_buffer
-
-local reals = {} -- path -> real path (or false)
+-- path -> real path (or false); symbolic links rarely change, and this
+-- is asked for every source of every drawing pass
+local reals = {}
 
 local function real(path)
   local r = reals[path]
@@ -151,6 +111,53 @@ local function real(path)
   end
   return r
 end
+
+--- The loaded buffer of `path` (by name, then by real path).
+local function find_buffer(path)
+  if not memo then
+    return utils.find_buffer(path)
+  end
+  local key = path
+  local f = memo.find[key]
+  if f ~= nil then
+    return f or nil
+  end
+  if not memo.names then
+    memo.names, memo.tails = {}, {}
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) then
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" then
+          name = vim.fs.normalize(name)
+          memo.names[name] = b
+          memo.tails[name:match("[^/]*$")] = true
+        end
+      end
+    end
+  end
+  path = vim.fs.normalize(path)
+  f = memo.names[path]
+  -- through links: only when a loaded buffer has the same file name
+  if not f and memo.tails[path:match("[^/]*$")] then
+    local rp = real(path)
+    if rp then
+      if not memo.reals then
+        memo.reals = {}
+        for name, b in pairs(memo.names) do
+          local r = real(name)
+          if r then
+            memo.reals[r] = b
+          end
+        end
+      end
+      f = memo.reals[rp]
+    end
+  end
+  memo.find[key] = f or false
+  return f
+end
+
+M.find_buffer = find_buffer
 
 --- The key of `sources` (a set of paths) naming the same file as `path`,
 --- through symbolic links too (/var and /private/var on macOS).
@@ -622,11 +629,42 @@ local function mark_excluded(file, lines, first, last, types, drop)
       end
     end
   end
-  local function section(s, e)
+  -- only property drawers (the default): they can only open a section,
+  -- no need to parse every element of a long subtree
+  local simple = true
+  for t in pairs(types) do
+    if t ~= "property-drawer" and t ~= "planning" then
+      simple = false
+    end
+  end
+  local function section(s, e, head)
     if s > e then
       return
     end
-    walk(element.parse(lines, s, e))
+    if not simple then
+      walk(element.parse(lines, s, e))
+      return
+    end
+    if not types["property-drawer"] then
+      return
+    end
+    local i = s
+    if not head then
+      -- the file's drawer comes after blank and comment lines only
+      while i <= e and (lines[i]:match("^%s*$") or lines[i]:match("^%s*#%s") or lines[i]:match("^%s*#$")) do
+        i = i + 1
+      end
+    end
+    if i <= e and lines[i]:match("^%s*:[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss]:%s*$") then
+      for j = i + 1, e do
+        if lines[j]:match("^%s*:[Ee][Nn][Dd]:%s*$") then
+          for k = i, j do
+            drop[k] = true
+          end
+          return
+        end
+      end
+    end
   end
   local cur = first
   for _, hl in ipairs(file.headlines) do
@@ -640,7 +678,7 @@ local function mark_excluded(file, lines, first, last, types, drop)
         s = s + 1
       end
       cur = s
-      section(s, math.min(hl.body_end, last))
+      section(s, math.min(hl.body_end, last), true)
       cur = math.min(hl.body_end, last) + 1
     end
   end
