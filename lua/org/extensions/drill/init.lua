@@ -537,6 +537,8 @@ local function open_window(s)
   })
   vim.wo[s.win].wrap = true
   vim.wo[s.win].linebreak = true
+  -- wrapped lines keep the text's one-column padding
+  vim.wo[s.win].breakindent = true
   vim.wo[s.win].cursorline = false
   map_keys(s)
   vim.api.nvim_create_autocmd("WinClosed", {
