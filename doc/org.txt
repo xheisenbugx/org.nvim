@@ -8987,8 +8987,8 @@ A board with a column per TODO keyword and a card per heading:
 on the `source` option, the current buffer and the subtree at the cursor.
 
 Columns are the TODO keywords in the order they are defined (with the
-keywords of `#+TODO` lines in the source files) unless `columns` lists them;
-a column can gather several keywords under a `name`. The header shows the
+keywords of `#+TODO` lines in the source files after them) unless `columns`
+lists them; a column can gather several keywords under a `name`. The header shows the
 number of cards, or `count/limit` with a WIP limit (`wip` in the column or
 the `wip` option), in the error colour with a `!` once over it. Headers use
 the TODO keyword faces (`ui.todo_keyword_faces`).
@@ -9002,8 +9002,15 @@ by default). Cards are sorted by `sort`.
 Keys in the board ~
   h / l     move the card to the previous / next column: the heading gets
             the column's first keyword through the regular TODO code, so
-            logging, CLOSED, blocking and repeaters work as with `C-c C-t`
+            logging, CLOSED, blocking and repeaters work as with `C-c C-t`.
+            Columns whose keywords the card's file doesn't have (another
+            `#+TODO` sequence) are skipped. With `choose_keyword`, a column
+            of several keywords asks which one.
   j / k     next / previous card
+  J / K     move the card after the next / before the previous card of the
+            column: its subtree moves past the other one in the file. Only
+            for cards under the same heading, with `sort = "file"` (in the
+            other orders the board would put it back)
   H / L     previous / next column
   <CR>      open the heading
   /         filter (empty clears it)
@@ -9011,12 +9018,16 @@ Keys in the board ~
   q  <Esc>  quit
 
 The cursor can also be moved onto a card with any motion or the mouse. The
-board redraws itself when an org file is written or changed, and when a TODO
-state or clock changes. Moved cards are saved with `save = true` (default:
+board redraws itself when an org file is written, when one of its files is
+changed (in Normal mode; a burst of changes redraws once), and when a TODO
+state or clock changes; a board in a hidden tab waits until it is shown.
+Moving the selection redraws nothing. A board of thousands of cards takes a
+noticeable moment to build (about 0.2 s for 5,000 cards). Moved cards are saved with `save = true` (default:
 `agenda.save_after_edit`).
 
 Options (defaults) ~
   `columns`            {} (one per keyword)
+  `choose_keyword`     false
   `wip`                {} (limits by column name or keyword)
   `show_done`          true
   `source`             "agenda"
@@ -9031,8 +9042,8 @@ Options (defaults) ~
                        scheduled, category = false }
   `save`               nil
   `keys`               the keys above, by name: `prev_state`, `next_state`,
-                       `down`, `up`, `prev_column`, `next_column`, `jump`,
-                       `refresh`, `filter`, `quit`
+                       `down`, `up`, `move_down`, `move_up`, `prev_column`,
+                       `next_column`, `jump`, `refresh`, `filter`, `quit`
 
 Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
 `OrgKanbanSelected`, `OrgKanbanCardTitle`, `OrgKanbanDoneTitle`,

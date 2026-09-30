@@ -190,11 +190,13 @@ end
 ---@param buf integer
 ---@param ns integer
 function Canvas:draw(buf, ns)
+  -- clear first: replacing the lines would pile the old marks up at the
+  -- top, and adding marks next to a pile is slow
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, self:strings())
   vim.bo[buf].modifiable = false
   vim.bo[buf].modified = false
-  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for i, l in ipairs(self.lines) do
     for _, h in ipairs(l.hls) do
       local groups = type(h[3]) == "table" and h[3] or { h[3] }
@@ -339,8 +341,9 @@ end
 --- subtrees are skipped as in the agenda.
 ---@param src table from `resolve_source`
 --- `query` is an org-ql query, `filter` an org-ql sexp or a tags match
---- (see `compile_filter`) and `tag` a single tag.
----@param opts? { query?: string|table, filter?: string, tag?: string, pred?: fun(hl: org.Headline): boolean }
+--- (see `compile_filter`) and `tag` a single tag. `files` are the
+--- source's files when the caller has them already.
+---@param opts? { query?: string|table, filter?: string, tag?: string, pred?: fun(hl: org.Headline): boolean, files?: org.File[] }
 ---@return org.Headline[] headlines, string|nil err
 function M.collect(src, opts)
   opts = opts or {}
@@ -365,7 +368,7 @@ function M.collect(src, opts)
     end
   end
   local tag = opts.tag and opts.tag ~= "" and opts.tag or nil
-  require("org.agenda.items").each_headline(M.files(src), {}, function(hl)
+  require("org.agenda.items").each_headline(opts.files or M.files(src), {}, function(hl)
     if range and (hl.line < range[1] or hl.line > range[2]) then
       return
     end
@@ -386,6 +389,19 @@ function M.collect(src, opts)
     out[#out + 1] = hl
   end)
   return out
+end
+
+--- A key that changes when the parse of any of `files` changes (org.files
+--- keeps one parse per file text) or the day does: a view whose key is
+--- the same needn't be rebuilt.
+---@param files org.File[]
+---@return string
+function M.files_key(files)
+  local parts = { tostring(date.today_days()) }
+  for i, f in ipairs(files) do
+    parts[i + 1] = tostring(f)
+  end
+  return table.concat(parts, " ")
 end
 
 --- Whether a headline has `tag` (inherited tags count), ignoring case.
@@ -416,6 +432,20 @@ end
 ---@param hl org.Headline
 function M.ref(hl)
   return { filename = hl.file.filename, bufnr = hl.file.bufnr, lnum = hl.line, raw = hl.raw }
+end
+
+--- Whether two file names are the same file: a file parsed from disk and
+--- from its buffer can be named through a symlink or not (/tmp and
+--- /private/tmp on macOS).
+---@param a string
+---@param b string
+---@return boolean
+function M.same_file(a, b)
+  if a == b then
+    return true
+  end
+  local ra, rb = vim.uv.fs_realpath(a), vim.uv.fs_realpath(b)
+  return ra ~= nil and ra == rb
 end
 
 --- Buffer and line of a headline reference, loading its file when needed.

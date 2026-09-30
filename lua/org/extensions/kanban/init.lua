@@ -19,15 +19,20 @@ local M = {}
 
 local MOD = "org.extensions.kanban"
 local ns = vim.api.nvim_create_namespace("org_kanban")
+local sel_ns = vim.api.nvim_create_namespace("org_kanban_selection")
 local augroup = vim.api.nvim_create_augroup("OrgKanban", { clear = true })
 
 M.defaults = {
   --- Columns, left to right: a keyword, or a table of keywords with an
   --- optional `name` and `wip` limit: `{ "NEXT", "WAITING", name = "Doing" }`.
-  --- A card moved into a column gets the column's first keyword. Empty:
-  --- one column per TODO keyword, in the order they are defined.
+  --- A card moved into a column gets the column's first keyword that its
+  --- file knows (see `choose_keyword`). Empty: one column per TODO keyword,
+  --- in the order they are defined.
   ---@type (string|table)[]
   columns = {},
+  --- Moving a card into a column of several keywords asks which one
+  --- (vim.ui.select) instead of taking the first.
+  choose_keyword = false,
   --- WIP limits by column name or keyword: `{ NEXT = 3 }`. The header shows
   --- `count/limit`, in the error colour when over it.
   ---@type table<string, integer>
@@ -70,6 +75,8 @@ M.defaults = {
     up = "k",
     prev_column = "H",
     next_column = "L",
+    move_down = "J",
+    move_up = "K",
     jump = "<CR>",
     refresh = "r",
     filter = "/",
@@ -84,7 +91,14 @@ M.actions = {
 }
 
 M.commands = {
-  kanban = { MOD, "command", desc = "Kanban board: :Org kanban [agenda|buffer|subtree|<file>] [filter]" },
+  kanban = {
+    MOD,
+    "command",
+    desc = "Kanban board: :Org kanban [agenda|buffer|subtree|<file>] [filter]",
+    complete = function(arglead, cmdline)
+      return require(MOD).complete(arglead, cmdline)
+    end,
+  },
 }
 
 M.mappings = { global = { kanban_open = "<prefix>Vk" } }
@@ -196,6 +210,10 @@ local function card_of(hl, today)
     effort = views.effort(hl),
     category = hl:get_category(),
     prio_value = require("org.agenda.items").priority_value(hl),
+    -- the TODO keywords of the card's file (#+TODO lines)
+    todo_cfg = hl.file.settings.todo,
+    -- siblings share a parent (the file for top-level headlines)
+    parent = hl.parent or hl.file,
   }
 end
 
@@ -227,12 +245,15 @@ local function sort_cards(cards, how)
   end)
 end
 
---- Build the board data: columns with their cards.
+--- Build the board data: columns with their cards. Remembers in `st` the
+--- files shown (`file_set`, `key`) for the redraw watch.
 ---@param st table board state
 ---@return table[] columns, string|nil err
 function M.build(st)
   local o = st.opts
   local files = views.files(st.src)
+  st.file_set = views.file_set(files)
+  st.key = views.files_key(files)
   local cols = M.columns(o, files)
   local by_kw = {}
   for _, c in ipairs(cols) do
@@ -241,6 +262,7 @@ function M.build(st)
     end
   end
   local hls, err = views.collect(st.src, {
+    files = files,
     query = o.query,
     filter = st.filter,
     tag = st.tag,
@@ -293,8 +315,9 @@ end
 M._wrap = wrap
 
 --- Rows of a card: each row a list of segments exactly `w` cells wide.
-local function card_rows(card, w, o, selected)
-  local border = selected and "OrgKanbanSelected" or "OrgKanbanBorder"
+--- The first and last segment of each row are the border.
+local function card_rows(card, w, o)
+  local border = "OrgKanbanBorder"
   local inner = w - 4
   local rows = {}
   local function row(segs)
@@ -372,7 +395,7 @@ local function header_rows(col, w)
   local segs, used = { { " " } }, 1
   local label = col.name
   local hl = views.todo_group(col.keywords[1], todo_cfg)
-  segs[#segs + 1] = { utils.truncate(label, w - 8), hl }
+  segs[#segs + 1] = { utils.truncate(label, math.max(1, w - 8)), hl }
   used = used + utils.width(segs[#segs][1])
   local n = #col.cards
   local count = col.wip and string.format("%d/%d", n, col.wip) or tostring(n)
@@ -388,7 +411,8 @@ end
 function M.column_width(n, avail, o)
   local gap = 1
   local w = math.floor((avail - gap * (n - 1)) / math.max(1, n))
-  return math.max(o.min_column_width or 22, math.min(o.max_column_width or 44, w))
+  -- a card needs its borders and a few cells of text
+  return math.max(8, o.min_column_width or 22, math.min(o.max_column_width or 44, w))
 end
 
 local function hint(o)
@@ -401,6 +425,7 @@ local function hint(o)
   for _, p in ipairs({
     { "prev_state", "next_state", "move" },
     { "down", "up", "cards" },
+    { "move_down", "move_up", "reorder" },
     { "prev_column", "next_column", "columns" },
     { "jump", nil, "open" },
     { "filter", nil, "filter" },
@@ -417,24 +442,65 @@ end
 
 local HEADER_LINES = 2 -- title, blank
 
---- Draw the board.
+--- Keep the selection inside the board.
+local function clamp_selection(st)
+  local cols = st.cols or {}
+  st.sel.col = math.max(1, math.min(st.sel.col, math.max(1, #cols)))
+  local sc = cols[st.sel.col]
+  st.sel.row = sc and math.max(math.min(st.sel.row, #sc.cards), #sc.cards > 0 and 1 or 0) or 0
+end
+
+--- The rectangle of the selected card, or nil.
+local function selected_rect(st)
+  for _, r in ipairs(st.rects or {}) do
+    if r.col == st.sel.col and r.row == st.sel.row then
+      return r
+    end
+  end
+end
+
+--- Highlight the border of the selected card (its own namespace, so
+--- moving the selection redraws nothing else).
+local function paint_selection(st)
+  if not vim.api.nvim_buf_is_valid(st.buf) then
+    return
+  end
+  vim.api.nvim_buf_clear_namespace(st.buf, sel_ns, 0, -1)
+  local r = selected_rect(st)
+  if not r then
+    return
+  end
+  local function mark(lnum, s, e)
+    pcall(vim.api.nvim_buf_set_extmark, st.buf, sel_ns, lnum - 1, s, {
+      end_col = e,
+      hl_group = "OrgKanbanSelected",
+      priority = 200,
+    })
+  end
+  for k, sp in ipairs(r.spans) do
+    local lnum, s, e = sp[1], sp[2], sp[3]
+    if k == 1 or k == #r.spans then
+      mark(lnum, s, e)
+    else
+      mark(lnum, s, s + #B.v)
+      mark(lnum, e - #B.v, e)
+    end
+  end
+end
+
+--- Draw the board from `st.cols` (built by `build`).
 ---@param st table
-function M.render(st)
+function M.draw(st)
   if not vim.api.nvim_buf_is_valid(st.buf) then
     return
   end
   local o = st.opts
-  local cols, err = M.build(st)
-  st.cols = cols
-  st.err = err
+  local cols, err = st.cols or {}, st.err
   local win = st.win and vim.api.nvim_win_is_valid(st.win) and st.win or nil
   local avail = (win and vim.api.nvim_win_get_width(win) or vim.o.columns) - 2
   local w = M.column_width(#cols, avail, o)
   st.col_width = w
-  -- keep the selection in range
-  st.sel.col = math.max(1, math.min(st.sel.col, math.max(1, #cols)))
-  local sc = cols[st.sel.col]
-  st.sel.row = sc and math.max(math.min(st.sel.row, #sc.cards), #sc.cards > 0 and 1 or 0) or 0
+  clamp_selection(st)
 
   local cv = views.Canvas.new()
   cv:add({ { " Kanban", "OrgKanbanTitle" }, { "  " .. views.source_label(st.src), "OrgKanbanHint" } })
@@ -456,16 +522,22 @@ function M.render(st)
   end
   cv:add({ { " " .. hint(o), "OrgKanbanHint" } })
 
-  -- each column as rows of segments
-  local col_rows = {}
+  -- each column as rows of segments; `owner[ci][i]` is the card rect a
+  -- row belongs to
+  local col_rows, owner = {}, {}
   local rects = {}
   local height = 0
   for ci, col in ipairs(cols) do
     local rows = header_rows(col, w)
+    owner[ci] = {}
     for ri, card in ipairs(col.cards) do
       local top = #rows + 1
-      vim.list_extend(rows, card_rows(card, w, o, ci == st.sel.col and ri == st.sel.row))
-      rects[#rects + 1] = { col = ci, row = ri, top = top, bottom = #rows, card = card }
+      vim.list_extend(rows, card_rows(card, w, o))
+      local rect = { col = ci, row = ri, top = top, bottom = #rows, card = card, spans = {} }
+      rects[#rects + 1] = rect
+      for i = top, #rows do
+        owner[ci][i] = rect
+      end
     end
     if #col.cards == 0 then
       rows[#rows + 1] = { { views.center("·", w), "OrgKanbanEmpty" } }
@@ -475,7 +547,7 @@ function M.render(st)
   end
   local base = HEADER_LINES
   for i = 1, height do
-    cv:line()
+    local lnum = cv:line()
     cv:put(" ")
     for ci = 1, #cols do
       if ci > 1 then
@@ -483,8 +555,14 @@ function M.render(st)
       end
       local r = col_rows[ci][i]
       if r then
+        local l = cv.lines[lnum]
+        local b0 = l.bytes
         for _, s in ipairs(r) do
           cv:put(s[1], s[2])
+        end
+        local rect = owner[ci][i]
+        if rect then
+          rect.spans[#rect.spans + 1] = { lnum, b0, l.bytes }
         end
       elseif ci < #cols then
         cv:put(string.rep(" ", w))
@@ -502,17 +580,20 @@ function M.render(st)
   end
   st.rects = rects
   st.lines = cv:strings()
+  vim.api.nvim_buf_clear_namespace(st.buf, sel_ns, 0, -1)
   cv:draw(st.buf, ns)
+  paint_selection(st)
   M.place_cursor(st)
 end
 
---- The rectangle of the selected card, or nil.
-local function selected_rect(st)
-  for _, r in ipairs(st.rects or {}) do
-    if r.col == st.sel.col and r.row == st.sel.row then
-      return r
-    end
+--- Build and draw the board.
+---@param st table
+function M.render(st)
+  if not vim.api.nvim_buf_is_valid(st.buf) then
+    return
   end
+  st.cols, st.err = M.build(st)
+  M.draw(st)
 end
 
 --- Put the cursor on the selected card (or the column's header).
@@ -548,32 +629,54 @@ end
 --- The selected card, or nil.
 function M.selected()
   local st = current()
-  local r = st and selected_rect(st)
-  return r and r.card or nil
+  if not st or not st.cols then
+    return nil
+  end
+  local col = st.cols[st.sel.col]
+  return col and col.cards[st.sel.row] or nil
+end
+
+local function same_ref(a, b)
+  if a.lnum ~= b.lnum then
+    return false
+  end
+  if a.filename and b.filename then
+    return views.same_file(a.filename, b.filename)
+  end
+  return a.filename == b.filename and a.bufnr == b.bufnr
 end
 
 --- Select the card whose headline is at `ref` (file and line), if shown.
 local function reselect(st, ref)
-  for _, r in ipairs(st.rects or {}) do
-    local c = r.card.ref
-    if c.lnum == ref.lnum and (c.filename == ref.filename) and (c.filename or c.bufnr == ref.bufnr) then
-      st.sel = { col = r.col, row = r.row }
-      return true
+  for ci, col in ipairs(st.cols or {}) do
+    for ri, card in ipairs(col.cards) do
+      if same_ref(card.ref, ref) then
+        st.sel = { col = ci, row = ri }
+        return true
+      end
     end
   end
   return false
 end
 
-function M.refresh()
+--- Rebuild and redraw, keeping the selected card selected. With `lazy`
+--- (the redraw watch), nothing happens while the board's files are
+--- unchanged.
+---@param lazy? boolean
+function M.refresh(lazy)
   local st = current()
   if not st then
     return
   end
-  local card = M.selected()
-  M.render(st)
-  if card and reselect(st, card.ref) then
-    M.render(st)
+  if lazy == true and st.key and st.key == views.files_key(views.files(st.src)) then
+    return
   end
+  local card = M.selected()
+  st.cols, st.err = M.build(st)
+  if card then
+    reselect(st, card.ref)
+  end
+  M.draw(st)
 end
 
 --- Move the selection by `dr` cards and `dc` columns.
@@ -598,36 +701,120 @@ function M.move(dr, dc)
     local n = #st.cols[st.sel.col].cards
     st.sel.row = n == 0 and 0 or math.max(1, math.min(n, st.sel.row + dr))
   end
-  M.render(st)
+  paint_selection(st)
+  M.place_cursor(st)
+end
+
+--- The keywords of column `col` that a card's file knows.
+local function usable_keywords(col, card)
+  local out = {}
+  for _, k in ipairs(col.keywords) do
+    if not card.todo_cfg or card.todo_cfg:is_keyword(k) then
+      out[#out + 1] = k
+    end
+  end
+  return out
 end
 
 --- Move the selected card to the previous (`dir` = -1) or next column:
---- its headline gets the first keyword of that column.
+--- its headline gets the first keyword of that column that its file
+--- knows (columns without one are skipped); with `choose_keyword` and
+--- several, the user picks one.
 function M.move_card(dir)
   local st = current()
   local card = M.selected()
   if not st or not card then
     return
   end
-  local to = st.cols[st.sel.col + dir]
+  local ci, kws = st.sel.col + dir, nil
+  while st.cols[ci] do
+    kws = usable_keywords(st.cols[ci], card)
+    if #kws > 0 then
+      break
+    end
+    ci = ci + dir
+  end
+  local to = st.cols[ci]
   if not to then
     return
+  end
+  local kw = kws[1]
+  local co, main = coroutine.running()
+  if st.opts.choose_keyword and #kws > 1 and co and not main then
+    kw = utils.select(kws, { prompt = "State: " })
+    if not kw or not current() then
+      return
+    end
   end
   local target = views.target(card.ref)
   if not target then
     return
   end
-  local res = require("org.todo").change_state(target, to.keywords[1])
+  local res = require("org.todo").change_state(target, kw)
   if res then
     views.after_edit(target.bufnr, st.opts.save)
   end
-  if current() then
-    M.render(st)
+  if current() == st then
+    st.cols, st.err = M.build(st)
     if not reselect(st, card.ref) then
       -- the card left the board (or moved under the new state's sort)
-      st.sel.col = math.max(1, math.min(#st.cols, st.sel.col + dir))
+      st.sel.col = math.max(1, math.min(#st.cols, ci))
     end
-    M.render(st)
+    M.draw(st)
+  end
+end
+
+--- Move the selected card before the previous (`dir` = -1) or after the
+--- next card of its column in the file: its subtree moves past the other
+--- one's. Only for siblings (the same parent heading), with sort = "file".
+function M.move_order(dir)
+  local st = current()
+  local card = M.selected()
+  if not st or not card then
+    return
+  end
+  if st.opts.sort ~= "file" then
+    utils.warn('kanban: cards are sorted by ' .. tostring(st.opts.sort) .. '; reorder them with sort = "file"')
+    return
+  end
+  local other = st.cols[st.sel.col].cards[st.sel.row + dir]
+  if not other then
+    return
+  end
+  if card.parent ~= other.parent then
+    utils.warn("kanban: only cards under the same heading can be reordered")
+    return
+  end
+  local a, b = views.target(card.ref), views.target(other.ref)
+  if not a or not b or a.bufnr ~= b.bufnr then
+    return
+  end
+  local file = require("org.files").get_buffer(a.bufnr)
+  local ha, hb = file:headline_at(a.lnum), file:headline_at(b.lnum)
+  if not ha or not hb or ha.line ~= a.lnum or hb.line ~= b.lnum then
+    return
+  end
+  local buf = a.bufnr
+  local text = vim.api.nvim_buf_get_lines(buf, ha.line - 1, ha.end_line, false)
+  local new_line
+  if dir > 0 and hb.line > ha.end_line then
+    vim.api.nvim_buf_set_lines(buf, hb.end_line, hb.end_line, false, text)
+    vim.api.nvim_buf_set_lines(buf, ha.line - 1, ha.end_line, false, {})
+    new_line = hb.end_line - #text + 1
+  elseif dir < 0 and hb.end_line < ha.line then
+    vim.api.nvim_buf_set_lines(buf, ha.line - 1, ha.end_line, false, {})
+    vim.api.nvim_buf_set_lines(buf, hb.line - 1, hb.line - 1, false, text)
+    new_line = hb.line
+  else
+    return
+  end
+  views.after_edit(buf, st.opts.save)
+  if current() == st then
+    st.cols, st.err = M.build(st)
+    local ref = vim.deepcopy(card.ref)
+    ref.lnum = new_line
+    reselect(st, ref)
+    M.draw(st)
   end
 end
 
@@ -648,7 +835,7 @@ function M.ask_filter()
     return
   end
   local input = utils.input({ prompt = "Filter (tags match or (ql query)): ", default = st.filter or "" })
-  if input == nil then
+  if input == nil or current() ~= st then
     return
   end
   local _, err = views.compile_filter(input)
@@ -659,11 +846,12 @@ function M.ask_filter()
   local card = M.selected()
   st.filter = vim.trim(input) ~= "" and vim.trim(input) or nil
   st.sel = { col = st.sel.col, row = 1 }
-  M.render(st)
+  st.cols, st.err = M.build(st)
   -- keep the selected card when the filter lets it through
-  if card and reselect(st, card.ref) then
-    M.render(st)
+  if card then
+    reselect(st, card.ref)
   end
+  M.draw(st)
 end
 
 function M.close()
@@ -694,11 +882,7 @@ local function on_cursor(st)
     if pos[1] >= r.top and pos[1] <= r.bottom and vcol >= r.left and vcol <= r.right then
       if r.col ~= st.sel.col or r.row ~= st.sel.row then
         st.sel = { col = r.col, row = r.row }
-        local view = vim.fn.winsaveview()
-        M.render(st)
-        st.placing = true
-        vim.fn.winrestview(view)
-        st.placing = false
+        paint_selection(st)
       end
       return
     end
@@ -748,6 +932,12 @@ function M.open(o)
     up = function()
       M.move(-1, 0)
     end,
+    move_down = function()
+      M.move_order(1)
+    end,
+    move_up = function()
+      M.move_order(-1)
+    end,
     prev_column = function()
       M.move(0, -1)
     end,
@@ -755,15 +945,17 @@ function M.open(o)
       M.move(0, 1)
     end,
     jump = M.jump,
-    refresh = M.refresh,
+    refresh = function()
+      M.refresh()
+    end,
     filter = M.ask_filter,
     quit = M.close,
   }, "kanban")
   st.watch = views.watch("OrgKanbanWatch", function()
     if current() == st then
-      M.refresh()
+      M.refresh(true)
     end
-  end)
+  end, { buf = buf, relevant = views.relevant(st) })
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = st.watch,
     buffer = buf,
@@ -773,10 +965,17 @@ function M.open(o)
   })
   vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
     group = st.watch,
-    callback = function()
-      if current() == st then
-        M.refresh()
+    callback = function(ev)
+      if current() ~= st then
+        return
       end
+      if ev.event == "WinResized" and not vim.tbl_contains(vim.v.event.windows or {}, st.win) then
+        return
+      end
+      if ev.event == "VimResized" then
+        views.relayout(st.how)
+      end
+      pcall(M.draw, st)
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -812,13 +1011,23 @@ function M.parse_args(args)
   local o = {}
   if first == "agenda" or first == "buffer" or first == "subtree" then
     o.source, args = first, rest
-  elseif first and (first:match("%.org$") or first:find("/", 1, true)) and not first:match("^%(") then
+  elseif first and views.is_path(first) then
     o.source, args = utils.expand(first), rest
   end
   if args ~= "" then
     o.filter = args
   end
   return o
+end
+
+--- Completion of `:Org kanban`: a source, then tags for the filter.
+function M.complete(arglead, cmdline)
+  local words = vim.split(cmdline, "%s+", { trimempty = false })
+  -- "Org kanban <arglead>": the first argument
+  if #words <= 3 then
+    return vim.list_extend(views.complete_sources(arglead), views.complete_tags())
+  end
+  return views.complete_tags()
 end
 
 --- `:Org kanban [agenda|buffer|subtree|<file>] [filter]`.

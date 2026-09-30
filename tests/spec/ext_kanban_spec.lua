@@ -399,6 +399,194 @@ describe("kanban board", function()
   end)
 end)
 
+describe("kanban board edges", function()
+  before_each(function()
+    write()
+    setup({}, { log_done = "time" })
+  end)
+  after_each(function()
+    kanban.close()
+    restore()
+  end)
+
+  local function count_builds()
+    local build = kanban.build
+    local n = { 0 }
+    kanban.build = function(...)
+      n[1] = n[1] + 1
+      return build(...)
+    end
+    return n, function()
+      kanban.build = build
+    end
+  end
+
+  local function quiet()
+    local notify = vim.notify
+    local msgs = {}
+    vim.notify = function(m)
+      msgs[#msgs + 1] = m
+    end
+    return msgs, function()
+      vim.notify = notify
+    end
+  end
+
+  it("moves the selection without rebuilding the board", function()
+    local st = kanban.open()
+    local n, undo = count_builds()
+    kanban.move(1, 0)
+    kanban.move(0, 1)
+    kanban.move(-1, 0)
+    vim.api.nvim_exec_autocmds("CursorMoved", { buffer = st.buf })
+    undo()
+    eq(0, n[1])
+    -- the selected card's border is highlighted
+    local sel_ns = vim.api.nvim_create_namespace("org_kanban_selection")
+    local marks = vim.api.nvim_buf_get_extmarks(st.buf, sel_ns, 0, -1, { details = true })
+    ok(#marks > 0)
+    eq("OrgKanbanSelected", marks[1][4].hl_group)
+    local top = buf_lines(st.buf)[marks[1][2] + 1]
+    ok(top:sub(marks[1][3] + 1):find("^╭"), top)
+    local title_line = buf_lines(st.buf)[marks[1][2] + 2]
+    ok(title_line:find(kanban.selected().title, 1, true), title_line)
+  end)
+
+  it("skips columns whose keywords the card's file does not have", function()
+    local p2 = dir .. "/own.org"
+    utils.writefile(p2, { "#+TODO: TODO DOING | FINISHED", "* TODO Own sequence" })
+    require("org.files").invalidate(p2)
+    setup({}, { agenda_files = { path, p2 } })
+    local st = kanban.open()
+    eq({ "TODO", "NEXT", "WAITING", "DONE", "CANCELLED", "DOING", "FINISHED" }, col_names(st))
+    for i, c in ipairs(column(st, "TODO").cards) do
+      if c.title == "Own sequence" then
+        st.sel = { col = 1, row = i }
+      end
+    end
+    eq("Own sequence", kanban.selected().title)
+    kanban.move_card(1)
+    local b = utils.find_buffer(p2)
+    eq("* DOING Own sequence", buf_lines(b)[2])
+    eq("DOING", st.cols[st.sel.col].name)
+    eq("Own sequence", kanban.selected().title)
+    kanban.move_card(-1)
+    eq("* TODO Own sequence", buf_lines(b)[2])
+    eq("TODO", st.cols[st.sel.col].name)
+    vim.api.nvim_buf_delete(b, { force = true })
+  end)
+
+  it("takes the first keyword of a grouped column, or asks with choose_keyword", function()
+    local cols = { "TODO", { "NEXT", "WAITING", name = "Doing" }, "DONE" }
+    setup({ columns = cols })
+    kanban.open()
+    kanban.move_card(1)
+    ok(file_lines()[3]:match("^%* NEXT %[#A%] Urgent task"), file_lines()[3])
+    kanban.move_card(-1)
+    setup({ columns = cols, choose_keyword = true })
+    kanban.open()
+    local select = vim.ui.select
+    local offered
+    vim.ui.select = function(items, _, cb)
+      offered = items
+      cb("WAITING")
+    end
+    utils.run(kanban.move_card, 1)
+    vim.wait(1000, function()
+      return file_lines()[3]:match("WAITING") ~= nil
+    end)
+    vim.ui.select = select
+    eq({ "NEXT", "WAITING" }, offered)
+    ok(file_lines()[3]:match("^%* WAITING %[#A%] Urgent task"), file_lines()[3])
+  end)
+
+  it("reorders sibling cards with J and K when sorted by file", function()
+    setup({ sort = "file" })
+    local st = kanban.open()
+    eq({ "Low task", "Urgent task", "Child one", "Water plants" }, names(column(st, "TODO")))
+    kanban.move(1, 0)
+    eq("Urgent task", kanban.selected().title)
+    kanban.move_order(-1)
+    local lines = file_lines()
+    ok(lines[2]:find("Urgent task", 1, true), lines[2])
+    eq("  DEADLINE: " .. ts(-1), lines[3])
+    ok(lines[4]:find("Low task", 1, true), lines[4])
+    eq({ "Urgent task", "Low task", "Child one", "Water plants" }, names(column(st, "TODO")))
+    eq("Urgent task", kanban.selected().title)
+    kanban.move_order(1)
+    eq({ "Low task", "Urgent task", "Child one", "Water plants" }, names(column(st, "TODO")))
+    eq("Urgent task", kanban.selected().title)
+    ok(file_lines()[2]:find("Low task", 1, true))
+    for _, lhs in ipairs({ "J", "K" }) do
+      ok(vim.fn.maparg(lhs, "n", false, true).buffer == 1, lhs)
+    end
+  end)
+
+  it("reorders only siblings, and only when sorted by file", function()
+    setup({ sort = "file" })
+    kanban.open()
+    kanban.move(2, 0)
+    eq("Child one", kanban.selected().title)
+    local before = file_lines()
+    local msgs, undo = quiet()
+    kanban.move_order(1) -- Water plants is not under Project
+    eq(before, file_lines())
+    setup({})
+    kanban.open()
+    kanban.move_order(1)
+    undo()
+    eq(before, file_lines())
+    eq(2, #msgs)
+  end)
+
+  it("ignores text changes of org buffers that are not on the board", function()
+    kanban.open()
+    local n, undo = count_builds()
+    local other = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_lines(other, 0, -1, false, { "* TODO Elsewhere" })
+    vim.bo[other].filetype = "org"
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = other })
+    vim.wait(400)
+    eq(0, n[1])
+    local fb = utils.load_buffer(path)
+    vim.api.nvim_buf_set_lines(fb, -1, -1, false, { "* TODO Late addition" })
+    vim.api.nvim_exec_autocmds("TextChanged", { buffer = fb })
+    ok(vim.wait(1000, function()
+      return n[1] > 0
+    end))
+    undo()
+    vim.api.nvim_buf_delete(other, { force = true })
+  end)
+
+  it("redraws without rebuilding when the editor is resized", function()
+    local st = kanban.open()
+    local n, undo = count_builds()
+    local columns = vim.o.columns
+    vim.o.columns = columns - 10
+    vim.api.nvim_exec_autocmds("VimResized", {})
+    vim.o.columns = columns
+    undo()
+    eq(0, n[1])
+    ok(vim.api.nvim_win_get_width(st.win) <= columns - 12)
+  end)
+
+  it("opens in a tiny editor", function()
+    local columns, lines = vim.o.columns, vim.o.lines
+    vim.o.columns, vim.o.lines = 20, 6
+    local st = kanban.open()
+    vim.o.columns, vim.o.lines = columns, lines
+    ok(st and vim.api.nvim_win_is_valid(st.win))
+  end)
+
+  it("parses a TODO match with a slash as a filter, and completes arguments", function()
+    eq({ filter = "work/NEXT" }, kanban.parse_args("work/NEXT"))
+    local c = require("org.commands").complete("", "Org kanban ")
+    ok(vim.tbl_contains(c, "subtree"), vim.inspect(c))
+    c = require("org.commands").complete("wo", "Org kanban agenda wo")
+    ok(vim.tbl_contains(c, "work"), vim.inspect(c))
+  end)
+end)
+
 describe("kanban wrapping", function()
   it("wraps titles to the given lines and cuts the rest", function()
     eq({ "one two", "three" }, kanban._wrap("one two three", 8, 2))
