@@ -967,6 +967,20 @@ describe("transclusion", function()
     ok(table.concat(v[2], "\n"):find("recursive", 1, true))
   end)
 
+  it("transcludes its own file without feeding itself", function()
+    local buf, path = open_notes({ "* Self", "text", "#+transclude: [[file:notes.org]]" })
+    local v = virt_text(buf)[3]
+    eq({ "│ * Self", "│ text", "│ #+transclude: file:notes.org" }, vim.list_slice(v, 1, 3))
+    ok(table.concat(v, "\n"):find("recursive", 1, true))
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    T.add()
+    eq({ "* Self", "text", "#+transclude: [[file:notes.org]]" }, vim.list_slice(buf_lines(buf), 4, 6))
+    -- the inserted keyword is text, not a transclusion of its own
+    eq(1, #T.regions(buf))
+    vim.cmd("silent write")
+    eq({ "* Self", "text", "#+transclude: [[file:notes.org]]" }, vim.fn.readfile(path))
+  end)
+
   it("watches one directory for many sources and closes it when done", function()
     setup({ watch = true, debounce = 1 })
     for i = 1, 5 do

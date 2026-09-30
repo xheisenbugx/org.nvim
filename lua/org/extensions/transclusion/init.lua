@@ -258,10 +258,11 @@ end
 
 -- run `fn` with the buffer's modified flag kept as it was
 local function keep_modified(buf, fn)
-  local mod = vim.bo[buf].modified
+  local o = { buf = buf }
+  local mod = api.nvim_get_option_value("modified", o)
   local ok, err = pcall(fn)
-  if valid(buf) then
-    vim.bo[buf].modified = mod
+  if valid(buf) and api.nvim_get_option_value("modified", o) ~= mod then
+    api.nvim_set_option_value("modified", mod, o)
   end
   if not ok then
     error(err, 0)
