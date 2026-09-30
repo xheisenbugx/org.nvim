@@ -8613,8 +8613,9 @@ works at once, and a block's error shows on its line in the org file.
     })
 <
 A literate file is one of `files` (paths or globs; default
-`stdpath("config")/init.org`) or, with `detect`, any org file whose Lua
-blocks tangle by default:
+`stdpath("config")/init.org`) or, with `detect`, an org file under a
+directory of `allow` (default: `stdpath("config")`) whose Lua blocks
+tangle by default:
 >org
     #+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes
 
@@ -8623,12 +8624,31 @@ blocks tangle by default:
     vim.o.relativenumber = true
     #+end_src
 <
+Trust ~
+Saving a literate file runs Lua in your Neovim and writes the files its
+blocks tangle to, so it happens only for files you chose:
+  - the files in `files` are trusted;
+  - a detected file must be under `allow`, and with `confirm` (default)
+    the first save asks whether to tangle and run it; the answer is kept
+    in `stdpath("data")/org/literate-trust.json` (delete its entry to be
+    asked again);
+  - any other org file with a `:tangle` header (a file you downloaded, a
+    repository you cloned) is saved like any org file: nothing is tangled
+    or run.
+Opening a literate file runs and evaluates nothing: what it holds is
+remembered as text (noweb and `:var` references, which can evaluate
+blocks, are expanded only when a trusted file is tangled). `literate_goto_org`
+only looks at trusted files. The actions below work on the current buffer
+when you run them, like `:Org tangle` or executing a block.
+
 Saving it ~
 When a literate file is written it is tangled with |org-babel| tangle (so
 `:tangle`, `:noweb`, `:comments`... work as usual) and, with `reload`, the
-Lua blocks whose tangled text is new since the last tangle (or since the
-file was opened) run in file order, in this Neovim. Blocks you did not
-touch don't run again. An error, at compile or run time, is a diagnostic
+Lua blocks whose text is new since the last tangle (or since the file was
+opened) run in file order, in this Neovim, and so do the blocks whose
+tangled text changed (a block they include with noweb was edited).
+Blocks you did not touch don't run again. An error while tangling is
+reported once per save and never interrupts the write. An error, at compile or run time, is a diagnostic
 on the org line it comes from (for an error raised in a function the block
 calls, such as `vim.o.nosuchoption = 1`, the line of the call)
 (`diagnostics`), and in the quickfix list
@@ -8669,6 +8689,8 @@ org.nvim itself is set up from the tangled file like any plugin, with the
 Options ~
   `files`           literate org files (stdpath("config")/init.org)
   `detect`          also files with header-args:lua :tangle (true)
+  `allow`           directories `detect` looks in ({ stdpath("config") })
+  `confirm`         ask before the first save of a detected file (true)
   `tangle_on_save`  tangle when written (true)
   `reload`          run the changed Lua blocks (true)
   `diagnostics`     errors as diagnostics (true)

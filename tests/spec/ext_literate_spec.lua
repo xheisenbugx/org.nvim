@@ -14,12 +14,15 @@ local function stub(mod, name, fn)
   mod[name] = fn
 end
 
-local function setup(lit)
-  require("org").setup({
+-- files of the temp dir are detected (allow) without asking (confirm)
+local function setup(lit, extra)
+  require("org").setup(vim.tbl_extend("force", {
     org_directory = root .. "/tests/fixtures",
     agenda_files = { root .. "/tests/fixtures/*.org" },
-    extensions = { literate = vim.tbl_extend("force", { files = {}, notify = false }, lit or {}) },
-  })
+    extensions = {
+      literate = vim.tbl_extend("force", { files = {}, notify = false, allow = { dir }, confirm = false }, lit or {}),
+    },
+  }, extra or {}))
 end
 
 local INIT = {
@@ -112,6 +115,137 @@ describe("literate extension", function()
     setup({ detect = false })
     vim.cmd("edit " .. dir .. "/init.org")
     eq(false, lit.is_literate(0))
+  end)
+
+  describe("trust", function()
+    before_each(function()
+      vim.fn.delete(require("org.extensions.literate").trust_file())
+    end)
+
+    it("leaves detected files outside `allow` alone", function()
+      setup({ allow = { dir .. "/elsewhere" } })
+      vim.cmd("edit " .. write_init())
+      eq(false, require("org.extensions.literate").is_literate(0))
+      change(10, "vim.g.lit_b = 2")
+      eq(nil, vim.uv.fs_stat(dir .. "/init_org.lua"), "not tangled")
+      eq(nil, vim.g.lit_b, "not run")
+      -- a file listed in `files` needs no `allow`
+      setup({ allow = {}, files = { dir .. "/init.org" } })
+      change(10, "vim.g.lit_b = 3")
+      eq(3, vim.g.lit_b)
+    end)
+
+    it("asks once before tangling and running a detected file", function()
+      local asked = 0
+      local answer = false
+      stub(utils, "confirm", function()
+        asked = asked + 1
+        return answer
+      end)
+      setup({ confirm = true })
+      vim.cmd("edit " .. write_init())
+      change(10, "vim.g.lit_b = 2")
+      eq(1, asked)
+      eq(nil, vim.g.lit_b)
+      eq(nil, vim.uv.fs_stat(dir .. "/init_org.lua"))
+      change(10, "vim.g.lit_b = 3")
+      eq(1, asked, "the answer is remembered")
+      eq(nil, vim.g.lit_b)
+      -- remembered across sessions (setup again reads the file)
+      setup({ confirm = true })
+      change(10, "vim.g.lit_b = 4")
+      eq(1, asked)
+      eq(nil, vim.g.lit_b)
+      -- yes for another file
+      vim.fn.delete(require("org.extensions.literate").trust_file())
+      setup({ confirm = true })
+      answer = true
+      change(10, "vim.g.lit_b = 5")
+      eq(2, asked)
+      eq(5, vim.g.lit_b)
+      change(10, "vim.g.lit_b = 6")
+      eq(2, asked)
+      eq(6, vim.g.lit_b)
+    end)
+
+    it("evaluates nothing when a file is opened", function()
+      local marker = dir .. "/evaluated"
+      stub(utils, "confirm", function()
+        return true
+      end)
+      setup({}, { babel = { confirm_evaluate = false } })
+      vim.cmd("edit " .. write_init({
+        "#+PROPERTY: header-args:lua :tangle init_org.lua",
+        "#+name: side",
+        "#+begin_src lua :tangle no",
+        "vim.fn.writefile({}, " .. string.format("%q", marker) .. ")",
+        "return 1",
+        "#+end_src",
+        "#+begin_src lua :var x=side()",
+        "vim.g.lit_a = x",
+        "#+end_src",
+      }))
+      eq(nil, vim.uv.fs_stat(marker))
+      eq(nil, vim.g.lit_a)
+    end)
+  end)
+
+  it("goes back only to trusted org files, reading nothing else", function()
+    local other = vim.fs.dirname(dir) .. "/downloads"
+    vim.fn.mkdir(other, "p")
+    local marker = other .. "/evaluated"
+    setup({}, { babel = { confirm_evaluate = false } })
+    vim.fn.writefile({
+      "#+PROPERTY: header-args:lua :tangle x.lua",
+      "#+name: side",
+      "#+begin_src lua :tangle no",
+      "vim.fn.writefile({}, " .. string.format("%q", marker) .. ")",
+      "return 1",
+      "#+end_src",
+      "#+begin_src lua :var v=side()",
+      "vim.g.lit_a = v",
+      "#+end_src",
+    }, other .. "/x.org")
+    vim.fn.writefile({ "vim.g.lit_a = v" }, other .. "/x.lua")
+    local msgs = {}
+    stub(utils, "warn", function(m)
+      msgs[#msgs + 1] = m
+    end)
+    vim.cmd("edit " .. other .. "/x.lua")
+    eq(nil, require("org.extensions.literate").goto_org())
+    eq(nil, vim.uv.fs_stat(marker))
+    ok(msgs[1] and msgs[1]:find("No org block", 1, true), vim.inspect(msgs))
+  end)
+
+  it("reruns a block when a block it includes with noweb changes", function()
+    vim.cmd("edit " .. write_init({
+      "#+PROPERTY: header-args:lua :tangle init_org.lua :noweb yes",
+      "#+name: value",
+      "#+begin_src lua :tangle no",
+      "1",
+      "#+end_src",
+      "#+begin_src lua",
+      "vim.g.lit_a = <<value>>",
+      "#+end_src",
+    }))
+    change(4, "2")
+    eq(2, vim.g.lit_a)
+    change(4, "3")
+    eq(3, vim.g.lit_a)
+  end)
+
+  it("reports a failing tangle once, without raising from the autocmd", function()
+    local msgs = {}
+    stub(utils, "warn", function(m)
+      msgs[#msgs + 1] = m
+    end)
+    stub(require("org.babel.tangle"), "tangle", function()
+      error("disk full")
+    end)
+    vim.cmd("edit " .. write_init())
+    eq(true, (pcall(change, 10, "vim.g.lit_b = 2")))
+    eq(1, #msgs)
+    ok(msgs[1]:find("disk full", 1, true), msgs[1])
   end)
 
   it("tangles on save and runs only the changed blocks", function()

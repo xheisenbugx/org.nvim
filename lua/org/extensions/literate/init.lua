@@ -5,6 +5,12 @@
 --- Saving a literate org file tangles it and runs the Lua blocks whose
 --- text changed since the last tangle, so an option or a keymap changes at
 --- once; errors show as diagnostics on the block's line in the org file.
+---
+--- Trust: saving runs Lua and writes the tangled files, so only files you
+--- chose do it: the ones in `files`, and with `detect` org files that
+--- tangle their Lua blocks and live under a directory of `allow` (asked
+--- once per file with `confirm`). Opening a file never runs or evaluates
+--- anything.
 
 local utils = require("org.utils")
 
@@ -14,11 +20,18 @@ local ns = vim.api.nvim_create_namespace("org.literate")
 local augroup = vim.api.nvim_create_augroup("org.literate", { clear = true })
 
 M.defaults = {
-  --- Org files (paths or globs) that are always literate.
+  --- Org files (paths or globs) that are always literate (trusted).
   files = { vim.fn.stdpath("config") .. "/init.org" },
-  --- Also treat as literate any org file whose Lua blocks tangle by
-  --- default: `#+PROPERTY: header-args:lua :tangle FILE`.
+  --- Also treat as literate the org files whose Lua blocks tangle by
+  --- default (`#+PROPERTY: header-args:lua :tangle FILE`), when they are
+  --- under a directory of `allow`.
   detect = true,
+  --- Directories (paths or globs) where `detect` looks. An org file
+  --- elsewhere is never tangled or run on save unless it is in `files`.
+  allow = { vim.fn.stdpath("config") },
+  --- Ask before the first save that would tangle and run a detected file;
+  --- the answer is kept in stdpath("data")/org/literate-trust.json.
+  confirm = true,
   --- Tangle literate files when they are written.
   tangle_on_save = true,
   --- After tangling, run the Lua blocks whose text changed since the last
@@ -92,19 +105,42 @@ local function real(p)
   return vim.uv.fs_realpath(p) or p
 end
 
+--- Does glob or path `pat` (normalized) name `path` (whose real path is `rp`)?
+local function names(pat, path, rp)
+  if pat == path or real(pat) == rp then
+    return true
+  end
+  if pat:find("[%*%?%[{]") then
+    for _, f in ipairs(vim.fn.glob(pat, false, true)) do
+      if real(vim.fs.normalize(f)) == rp then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 --- Is `path` one of the configured `files`?
 local function configured(path)
   local rp = real(path)
   for _, pat in ipairs(opts().files or {}) do
-    local e = vim.fs.normalize(pat)
-    if e == path or real(e) == rp then
+    if names(vim.fs.normalize(pat), path, rp) then
       return true
     end
-    if e:find("[%*%?%[]") then
-      for _, f in ipairs(vim.fn.glob(e, false, true)) do
-        if real(vim.fs.normalize(f)) == rp then
-          return true
-        end
+  end
+  return false
+end
+
+--- Is `path` under one of the `allow` directories?
+local function allowed(path)
+  local rp = real(path)
+  for _, pat in ipairs(opts().allow or {}) do
+    local e = vim.fs.normalize(pat)
+    local dirs = e:find("[%*%?%[{]") and vim.fn.glob(e, false, true) or { e }
+    for _, d in ipairs(dirs) do
+      local rd = real(vim.fs.normalize(d)):gsub("/+$", "")
+      if rp:sub(1, #rd + 1) == rd .. "/" or path:sub(1, #d + 1) == d .. "/" then
+        return true
       end
     end
   end
@@ -114,28 +150,105 @@ end
 --- Does the buffer set `:tangle` for Lua blocks in a PROPERTY line?
 local function tangles_lua(bufnr)
   for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    local args = l:match("^%s*#%+[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Yy]:%s+header%-args:lua%s+(.*)$")
-    local t = args and args:match(":tangle%s+(%S+)")
-    if t and t ~= "no" then
-      return true
+    if l:find("^%s*#%+") then
+      local args = l:match("^%s*#%+[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Yy]:%s+header%-args:lua%s+(.*)$")
+      local t = args and args:match(":tangle%s+(%S+)")
+      if t and t ~= "no" then
+        return true
+      end
     end
   end
   return false
+end
+
+--- How `bufnr` is literate: "configured" (in `files`), "detected" (tangles
+--- its Lua blocks, under `allow`), or nil.
+---@param bufnr? integer
+---@return "configured"|"detected"|nil
+function M.kind(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) or vim.bo[bufnr].filetype ~= "org" then
+    return nil
+  end
+  local path = buf_path(bufnr)
+  if path and configured(path) then
+    return "configured"
+  end
+  if opts().detect ~= false and path and allowed(path) and tangles_lua(bufnr) then
+    return "detected"
+  end
+  return nil
 end
 
 --- Is `bufnr` a literate org buffer?
 ---@param bufnr? integer
 ---@return boolean
 function M.is_literate(bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-  if not vim.api.nvim_buf_is_valid(bufnr) or vim.bo[bufnr].filetype ~= "org" then
+  return M.kind(bufnr) ~= nil
+end
+
+---------------------------------------------------------------------------
+-- Trust
+---------------------------------------------------------------------------
+
+--- File keeping the answers of `confirm`: real path -> true/false.
+function M.trust_file()
+  return vim.fn.stdpath("data") .. "/org/literate-trust.json"
+end
+
+local trust_db
+
+local function trust_table()
+  if not trust_db then
+    trust_db = {}
+    local ok, lines = pcall(vim.fn.readfile, M.trust_file())
+    if ok and #lines > 0 then
+      local dok, t = pcall(vim.json.decode, table.concat(lines, "\n"))
+      if dok and type(t) == "table" then
+        trust_db = t
+      end
+    end
+  end
+  return trust_db
+end
+
+local function remember_trust(rp, yes)
+  local t = trust_table()
+  t[rp] = yes
+  vim.fn.mkdir(vim.fs.dirname(M.trust_file()), "p")
+  pcall(vim.fn.writefile, { vim.json.encode(t) }, M.trust_file())
+end
+
+--- May saving `bufnr` tangle and run its Lua? Configured files may; a
+--- detected one when you said so (asked the first time with `confirm`).
+---@param bufnr integer
+---@return boolean
+function M.trusted(bufnr)
+  local kind = M.kind(bufnr)
+  if kind == "configured" then
+    return true
+  elseif kind ~= "detected" then
     return false
   end
-  local path = buf_path(bufnr)
-  if path and configured(path) then
+  if opts().confirm == false then
     return true
   end
-  return opts().detect ~= false and tangles_lua(bufnr)
+  local rp = real(buf_path(bufnr))
+  local known = trust_table()[rp]
+  if known ~= nil then
+    return known
+  end
+  local yes = utils.confirm(
+    string.format(
+      "org literate: tangle %s and run its changed Lua blocks on every save? (remembered)",
+      vim.fn.fnamemodify(rp, ":~")
+    )
+  ) and true or false
+  remember_trust(rp, yes)
+  if not yes then
+    utils.notify("Not tangled or run on save; add it to `files` or edit " .. vim.fn.fnamemodify(M.trust_file(), ":~"))
+  end
+  return yes
 end
 
 ---------------------------------------------------------------------------
@@ -175,16 +288,30 @@ local function all_lua_blocks(bufnr)
   return out
 end
 
---- Bodies seen at the last tangle, per buffer: body -> true.
----@type table<integer, table<string, boolean>>
+-- The text that identifies a Lua block: its #+begin_src line and body as
+-- written (no noweb or variable expansion, so nothing is evaluated).
+local function raw_key(lines, b)
+  return (lines[b.start] or "") .. "\n" .. table.concat(b.body, "\n")
+end
+
+--- What the blocks of each buffer were at the last tangle (or when the
+--- file was opened): `raw` holds the raw keys of every Lua block, `tangled`
+--- the tangled bodies (known after the first tangle).
+---@type table<integer, { raw: table<string, boolean>, tangled?: table<string, boolean> }>
 M.baseline = {}
 
+-- Taken when a literate file is opened: the raw blocks only. Collecting
+-- the tangled bodies would expand noweb and :var references, which can
+-- evaluate blocks.
 local function remember(bufnr)
-  local set = {}
-  for _, s in ipairs(M.lua_blocks(bufnr)) do
-    set[s.body] = true
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local raw = {}
+  for _, b in ipairs(require("org.babel.blocks").parse_blocks(lines)) do
+    if not b.call then
+      raw[raw_key(lines, b)] = true
+    end
   end
-  M.baseline[bufnr] = set
+  M.baseline[bufnr] = { raw = raw }
 end
 
 ---------------------------------------------------------------------------
@@ -292,29 +419,60 @@ function M.on_save(bufnr)
   local written = require("org.babel.tangle").tangle({ bufnr = bufnr, silent = true })
   local result = { tangled = written, ran = 0, errors = {} }
   if o.reload ~= false then
-    local base = M.baseline[bufnr] or {}
+    local base = M.baseline[bufnr] or { raw = {} }
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    -- blocks whose text is new, and the names among them (a block that
+    -- includes one with <<name>> changes too)
+    local new_raw, new_names = {}, {}
+    local raw = {}
+    for _, b in ipairs(require("org.babel.blocks").parse_blocks(lines)) do
+      if not b.call then
+        local key = raw_key(lines, b)
+        raw[key] = true
+        if not base.raw[key] then
+          new_raw[b.start] = true
+          if b.name and b.name ~= "" then
+            new_names[#new_names + 1] = b.name
+          end
+        end
+      end
+    end
+    local function includes_new(spec)
+      for _, name in ipairs(new_names) do
+        for _, l in ipairs(spec.block.body) do
+          if l:find("<<" .. name, 1, true) then
+            return true
+          end
+        end
+      end
+      return false
+    end
     local changed = {}
     local specs = M.lua_blocks(bufnr)
     for _, s in ipairs(specs) do
-      if not base[s.body] then
+      local is_new = new_raw[s.block.start]
+        or (base.tangled and not base.tangled[s.body])
+        or (not base.tangled and includes_new(s))
+      if is_new then
         changed[#changed + 1] = s
       end
     end
     result.ran, result.errors = run_all(bufnr, changed)
     M.report(bufnr, result.errors)
     -- failed blocks stay "changed" and run again on the next save
-    local set = {}
+    local tangled = {}
     for _, s in ipairs(specs) do
       if not s.failed then
-        set[s.body] = true
+        tangled[s.body] = true
       end
     end
     for _, s in ipairs(changed) do
       if s.failed then
-        set[s.body] = nil
+        tangled[s.body] = nil
+        raw[raw_key(lines, s.block)] = nil
       end
     end
-    M.baseline[bufnr] = set
+    M.baseline[bufnr] = { raw = raw, tangled = tangled }
   else
     remember(bufnr)
   end
@@ -514,15 +672,36 @@ end
 -- Back from the tangled file
 ---------------------------------------------------------------------------
 
---- Org buffers that may have tangled `path`: the configured files, the
---- loaded literate buffers and the org files next to it and one level up.
+--- Is the org file `p` literate and trusted, without asking? (Reading
+--- which blocks tangle where expands header arguments, which may evaluate
+--- Lisp: only for files you chose.)
+local function trusted_path(p)
+  if configured(p) then
+    return true
+  end
+  local o = opts()
+  if o.detect == false or not allowed(p) then
+    return false
+  end
+  if o.confirm ~= false and trust_table()[real(p)] ~= true then
+    return false
+  end
+  local ok, lines = pcall(vim.fn.readfile, p, "", 200)
+  return ok and table.concat(lines, "\n"):find("header%-args:lua") ~= nil
+end
+
+--- Org files that may have tangled `path`, among the trusted literate
+--- ones: the configured files, the loaded org buffers and the org files
+--- next to it and up to two levels up.
 local function candidates(path)
   local list, seen = {}, {}
   local function add(p)
     p = vim.fs.normalize(p)
     if not seen[real(p)] and vim.uv.fs_stat(p) then
       seen[real(p)] = true
-      list[#list + 1] = p
+      if trusted_path(p) then
+        list[#list + 1] = p
+      end
     end
   end
   for _, pat in ipairs(opts().files or {}) do
@@ -630,11 +809,20 @@ function M.setup(o)
     vim.api.nvim_create_autocmd("BufWritePost", {
       group = augroup,
       callback = function(ev)
-        if M.is_literate(ev.buf) then
+        if vim.bo[ev.buf].filetype ~= "org" then
+          return
+        end
+        local ok, err = pcall(function()
+          if not M.trusted(ev.buf) then
+            return
+          end
           if not M.baseline[ev.buf] then
             remember(ev.buf)
           end
           M.on_save(ev.buf)
+        end)
+        if not ok then
+          utils.warn("literate: " .. tostring(err))
         end
       end,
     })
@@ -648,6 +836,7 @@ end
 
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
+  trust_db = nil
   for b in pairs(M.baseline) do
     if vim.api.nvim_buf_is_valid(b) then
       vim.diagnostic.reset(ns, b)
