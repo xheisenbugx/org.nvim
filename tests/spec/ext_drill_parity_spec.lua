@@ -484,6 +484,23 @@ describe("drill sessions (org-drill parity)", function()
     vim.fn.delete(path)
   end)
 
+  it("keeps a card's hidden text hidden (the content view)", function()
+    local fold = require("org.fold")
+    if not fold.conceal_supported then
+      return
+    end
+    local buf = org_buffer({ "* Q :drill:", "  question", "** A", "   answer" }, { 1, 0 })
+    fold.conceal(buf, 2, 2)
+    drill.start("file")
+    drill.reveal()
+    drill.grade(4)
+    eq("  SCHEDULED: <2026-09-30 Wed>", buf_lines(buf)[2])
+    for l = 2, 12 do
+      ok(fold.is_concealed(buf, l), "line " .. l .. " shown")
+    end
+    drill.quit()
+  end)
+
   it("keeps other properties and planning, and deletes LEARN_DATA", function()
     local buf = org_buffer({
       "* Q :drill:",

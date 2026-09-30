@@ -862,7 +862,13 @@ function M.write_meta(bufnr, lnum, scheduled, set, remove)
   local old = vim.api.nvim_buf_get_lines(bufnr, hl.line, last, false)
   if not vim.deep_equal(old, out) then
     local folds = closed_folds(bufnr, hl.line, hl.end_line)
+    -- an entry whose text is hidden (the content view conceals it)
+    local fold = require("org.fold")
+    local ok, hidden = pcall(fold.is_concealed, bufnr, hl.line + 1)
     vim.api.nvim_buf_set_lines(bufnr, hl.line, last, false, out)
+    if ok and hidden and #out > 0 then
+      pcall(fold.conceal, bufnr, hl.line + 1, hl.line + #out)
+    end
     local delta = #out - (last - hl.line)
     local drawer = #drawer > 0 and hl.line + (pline and 1 or 0) + 1 or nil
     restore_folds(folds, function(l)
