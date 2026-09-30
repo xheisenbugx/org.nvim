@@ -35,6 +35,12 @@ entries `{{now+1}}` put a minute from now, for the reminders demo.
 `demo/present.lua` is `init.lua` with the `present` extension turned on,
 for `present.tape`.
 
+`demo/code.lua` (for `code.tape`) turns on the `code` extension and makes
+a small git repository in `$ORG_DEMO_DIR/app` (branch `feature/login`),
+so it needs `git`. `demo/literate.lua` (for `literate.tape`) turns on the
+`literate` extension for `$ORG_DEMO_DIR/nvim/init.org`, which tangles to
+`lua/config.lua` next to it.
+
 To try the demo setup by hand:
 
 ```sh

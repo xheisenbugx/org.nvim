@@ -7600,4 +7600,223 @@ Differences from Emacs org-roam ~
     (`org-roam-completion-everywhere`); `roam:` links complete through
     |org-links| insertion.
 
+------------------------------------------------------------------------------
+Code and notes (code)                                    *org-extensions-code*
+
+`code` connects the code you edit with your org notes: capture a selection
+with a link back to it, link to functions by name, keep an org file per git
+repository, clock in by git branch and see the repository's TODO comments
+in the agenda.
+>lua
+    require("org").setup({ extensions = { code = {} } })
+<
+Keys (global, under `<prefix>j`) ~
+  `<prefix>jc`  code_capture (Normal and Visual): capture the selection as a
+              src block, with a link back to it and the git branch
+  `<prefix>jl`  code_store_link: store a `code:` link to the symbol at the
+              cursor
+  `<prefix>jp`  project_open: open the repository's org file
+  `<prefix>jn`  project_capture: capture a task into it
+  `<prefix>ja`  project_agenda: agenda of that file and the code TODOs
+  `<prefix>jt`  code_todos: the repository's TODO comments in an agenda
+  `<prefix>jb`  code_link_branch (org buffers): set the heading's `:BRANCH:`
+              to the current git branch
+
+Capturing code ~
+`code_capture` works in any file that is not org. In Visual mode the
+selection becomes a src block in the language of the buffer's filetype
+(`lua`, `python`, `js` for javascript, `C++` for cpp...; `languages` adds
+or changes names); in Normal mode there is no block. The note goes to the
+repository's project file (below), under `project_headline`, or to
+`default_notes_file` outside a repository. The template is
+`capture_template`; these expansions fill it:
+
+  `%(code-block)`      the selection as a `#+begin_src LANG` block ("" in
+                     Normal mode); lines starting with `*` or `#+` are
+                     escaped with a comma
+  `%(code-link)`       `[[code:PATH::SYMBOL][SYMBOL (file.lua)]]`, or
+                     `::LINE` when no symbol is found
+  `%(code-file-link)`  `[[file:PATH::LINE][file.lua:LINE]]`
+  `%(code-file)`       the path relative to the repository
+  `%(code-line)`       the line, or `first-last` of a selection
+  `%(code-lang)`       the Babel language
+  `%(code-symbol)`     the function or class around the cursor
+  `%(git-repo)`        the repository's directory name
+  `%(git-branch)`      the checked out branch ("" when detached)
+  `%(git-commit)`      the short hash of HEAD (needs `git`)
+  `%(git-info)`        `repo on branch @ commit`
+
+They work in every capture template started from a code buffer, so you can
+use them in your own `capture.templates`. The extension also adds a copy of
+`capture_template` to the capture menu under `template_key` ("k") when
+that key is free (`template_key = false` to not add it).
+
+Put `%(code-block)` at the start of a line: an entry's body is not indented
+for it. (The expansions are registered in `require("org.capture").expansions`,
+`name -> function(ctx)`, which other code can add to the same way.)
+
+`code:` links ~
+`[[code:src/app.lua::M.setup]]` opens the file and jumps to the symbol,
+found with the language server's document symbols (`textDocument/
+documentSymbol`, waiting `lsp_timeout` ms for a server that serves the
+filetype to attach), else treesitter definitions, else a text search for
+`function NAME`, `def NAME`, `NAME =`, then the word. A dotted name
+(`Class.method`) matches the symbol in its container. `code:PATH::42` jumps
+to line 42. A relative path is looked up from the git root of the org file,
+then of the working directory, then from the org file's directory, the
+working directory and the repositories of recent code buffers.
+
+`store_link` (and `code_store_link`) in a code buffer stores a `code:` link
+to the function or class around the cursor, from the language server or
+treesitter, else to the line. `link_path = "relative"` writes the path
+relative to the git root. Exported, a `code:` link is its description in
+code style.
+
+Per-project org files ~
+`project_file` names the org file of a repository: a path relative to its
+root (default `.org/tasks.org`), or one with `<org_directory>`, `${repo}`
+and `${root}` replaced, such as `"<org_directory>/projects/${repo}.org"` to
+keep notes out of the repository, or a function `(root, repo) -> path`.
+The file is created with `project_file_header` when first used. The
+repository is the one of the current buffer, else of the last code buffer
+you were in, else of the working directory.
+
+`project_agenda` shows `project_agenda_blocks` restricted to the project
+file: by default the week, its TODOs and the code TODOs.
+
+Code TODOs ~
+The `code_todos` agenda block type lists comments with `todo_keywords`
+(TODO, FIXME, HACK, XXX, BUG) after a comment marker (`--`, `//`, `#`,
+`/*`, `;`...):
+>lua
+    -- TODO: handle errors
+    -- FIXME(bob): wrong value
+    -- TODO(org:3f2a...): translate the greetings
+<
+They are found with `git grep` (tracked and untracked files), else `rg`,
+else by reading at most `todo_max_files` files; org files are skipped
+(`todo_exclude`). `<CR>`, `<Tab>` and `<Space>` on an item open the code
+line; other agenda commands (todo state, schedule...) don't apply to them.
+A comment naming a heading's ID (`TODO(org:ID)`, see `todo_link_pattern`)
+is listed under an item for that heading. Use the block in custom commands
+too:
+>lua
+    agenda = { custom_commands = {
+      c = { description = "Code TODOs", type = "code_todos", root = "~/app" },
+    } }
+<
+Without `root` the block uses the current repository.
+
+Clocking by branch ~
+With `branch_clock = true`, switching the git branch of the file you work
+in (noticed on |BufEnter|, |FocusGained| and |DirChanged|) clocks into the
+heading whose `:BRANCH:` property is the branch name, or else whose ID,
+CUSTOM_ID or TICKET property, or title, holds the ticket that
+`branch_ticket_pattern` (default `"(%u+%-%d+)"`, `ABC-123`) takes from the
+name. Headings are looked for in the project file and the agenda files.
+The branch found at startup only clocks in with `branch_clock_on_start`.
+`code_link_branch` sets `:BRANCH:` on the heading at point. The branch is
+read from `.git/HEAD`, so no process runs on BufEnter.
+
+Options ~
+  `capture_template`      template of `code_capture` (target "project")
+  `template_key`          key of its copy in the capture menu ("k")
+  `languages`             filetype -> Babel language ({})
+  `link_path`             "absolute" or "relative" ("absolute")
+  `store_links`           store `code:` links in code buffers (true)
+  `store_symbol`          link to the symbol, not the line (true)
+  `lsp_timeout`           ms to wait for a language server (1000)
+  `exclude_filetypes`     filetypes that are not code buffers
+  `project_file`          ".org/tasks.org"
+  `project_file_header`   "#+title: ${repo}\n"
+  `project_headline`      "Tasks"
+  `project_template`      template of `project_capture`
+  `project_agenda_blocks` blocks of `project_agenda`
+  `branch_clock`          clock in by branch (false)
+  `branch_clock_on_start` also for the branch at startup (false)
+  `branch_ticket_pattern` Lua pattern of the ticket ("(%u+%-%d+)")
+  `todo_keywords`         { "TODO", "FIXME", "HACK", "XXX", "BUG" }
+  `todo_link_pattern`     "^org:%s*(.-)%s*$"
+  `todo_require_comment`  only after a comment marker (true)
+  `todo_exclude`          Lua patterns of paths to skip
+  `todo_scanner`          "auto", "git", "rg" or "lua"
+  `todo_max_files`        2000
+  `todo_max_items`        500
+  `todo_group_prefix`     before the category of grouped TODOs ("↳ ")
+
+------------------------------------------------------------------------------
+Literate Neovim config (literate)                    *org-extensions-literate*
+
+`literate` makes an org file your Neovim configuration: saving it tangles
+its Lua blocks and runs the ones you changed, so a new option or keymap
+works at once, and a block's error shows on its line in the org file.
+>lua
+    require("org").setup({
+      extensions = { literate = { files = { "~/.config/nvim/init.org" } } },
+    })
+<
+A literate file is one of `files` (paths or globs; default
+`stdpath("config")/init.org`) or, with `detect`, any org file whose Lua
+blocks tangle by default:
+>org
+    #+PROPERTY: header-args:lua :tangle lua/config.lua :mkdirp yes
+
+    * Options
+    #+begin_src lua
+    vim.o.relativenumber = true
+    #+end_src
+<
+Saving it ~
+When a literate file is written it is tangled with |org-babel| tangle (so
+`:tangle`, `:noweb`, `:comments`... work as usual) and, with `reload`, the
+Lua blocks whose tangled text is new since the last tangle (or since the
+file was opened) run in file order, in this Neovim. Blocks you did not
+touch don't run again. An error, at compile or run time, is a diagnostic
+on the org line it comes from (for an error raised in a function the block
+calls, such as `vim.o.nosuchoption = 1`, the line of the call)
+(`diagnostics`), and in the quickfix list
+with `quickfix`; a block that failed runs again on the next save until it
+works. A notification says what was tangled and reloaded.
+
+Actions ~
+  `literate_reload`     run the Lua block at point, or every tangled Lua
+                      block of the file outside one
+  `literate_run_block`  run the Lua block at point (tangled or not) and show
+                      the value it returns
+  `literate_health`     compile every Lua block without running it; syntax
+                      errors become diagnostics
+  `literate_goto_org`   in the tangled file: jump to the org line the
+                      cursor's line comes from, by the link comments of
+                      `:comments link`, else by matching the text in the
+                      blocks that tangle to this file
+  `literate_bootstrap`  `:Org literate_bootstrap [path]` writes an init.lua
+                      (default: next to the org file) for the pattern below
+
+Bootstrapping ~
+Neovim reads init.lua, not init.org. Tangle the blocks to another file
+(`lua/config.lua`) and let `:Org literate_bootstrap` write an init.lua
+that loads it. On startup that init.lua re-tangles init.org first when it
+is newer than the tangled file (edited on another machine or pulled with
+git), with a small tangler that keeps every `lua` block without
+`:tangle no` (it knows nothing of noweb or per-heading properties; saving
+in Neovim uses the full tangle). Then it runs the tangled file. So the
+setup is:
+>
+    ~/.config/nvim/init.org         the configuration
+    ~/.config/nvim/lua/config.lua   tangled from it (on save)
+    ~/.config/nvim/init.lua         the stub (written once)
+<
+org.nvim itself is set up from the tangled file like any plugin, with the
+`literate` extension on so the next save tangles again.
+
+Options ~
+  `files`           literate org files (stdpath("config")/init.org)
+  `detect`          also files with header-args:lua :tangle (true)
+  `tangle_on_save`  tangle when written (true)
+  `reload`          run the changed Lua blocks (true)
+  `diagnostics`     errors as diagnostics (true)
+  `quickfix`        errors in the quickfix list too (false)
+  `notify`          report what was tangled and run (true)
+  `bootstrap_file`  init.lua of `literate_bootstrap` (next to the org file)
+
  vim:tw=78:ts=8:ft=help:norl:

@@ -750,6 +750,11 @@
 ---@field super_agenda? org.Config.Extensions.SuperAgenda|boolean
 ---Slideshows of org buffers, like Emacs org-present (`:h org-extensions-present`).
 ---@field present? org.Config.Extensions.Present|boolean
+---Code <-> notes: code captures, `code:` links, project files, branch clocks
+---and code TODOs (`:h org-extensions-code`).
+---@field code? org.Config.Extensions.Code|boolean
+---Literate Neovim config: tangle on save and live reload (`:h org-extensions-literate`).
+---@field literate? org.Config.Extensions.Literate|boolean
 
 ---@class org.Config.Extensions.Ql
 ---`false` keeps the extension off.

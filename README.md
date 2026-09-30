@@ -998,6 +998,26 @@ set. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
+- **`code`**: a bridge between code and notes. `code_capture` turns a
+  Visual selection into a `#+begin_src` block with a link back and the git
+  branch; `[[code:src/app.lua::M.setup]]` links jump to a symbol through
+  LSP (else treesitter or a text search); each repository gets an org file
+  (`.org/tasks.org`) with `project_open`, `project_capture` and a
+  `project_agenda` that lists the code's `TODO:` / `TODO(org:ID)`
+  comments; opt-in clocking by git branch. Keys under `<prefix>j`
+  (`:h org-extensions-code`).
+
+  ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](docs/media/code.gif)
+
+- **`literate`**: a literate Neovim config. Saving `init.org` tangles it
+  and runs only the Lua blocks you changed, so an option or keymap applies
+  at once; errors are diagnostics on the org line. Plus `literate_reload`,
+  `literate_run_block`, `literate_health`, a jump from the tangled file
+  back to the block, and `:Org literate_bootstrap` for an init.lua that
+  re-tangles a newer init.org on startup (`:h org-extensions-literate`).
+
+  ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](docs/media/literate.gif)
+
 More are on the way: a two-way Google Calendar sync modelled on
 [org-gcal](https://github.com/kidd/org-gcal.el) is in review
 ([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
