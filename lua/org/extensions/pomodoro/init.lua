@@ -269,9 +269,18 @@ function M.elapsed(now)
   return math.max(0, now - st.started)
 end
 
+---@class org.PomodoroInfo
+---@field phase string "work", "overtime", "short_break", "long_break" or "ready"
+---@field remaining number|nil seconds left (nil when ready or in overtime)
+---@field elapsed number|nil seconds since the phase started
+---@field paused boolean
+---@field count integer pomodoros finished in the session
+---@field title string the entry
+---@field overtime boolean
+
 --- The session for other code (a statusline, the sidebar extension): nil
 --- when none runs, else a copy of its state.
----@return { phase: string, remaining: number|nil, elapsed: number|nil, paused: boolean, count: integer, title: string, overtime: boolean }|nil
+---@return org.PomodoroInfo|nil
 function M.info()
   local st = M.state
   if not st then
