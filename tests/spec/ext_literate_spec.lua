@@ -520,6 +520,36 @@ describe("literate extension", function()
     eq(10, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
+  it("jumps back to the block a noweb reference brought the line from", function()
+    vim.cmd("edit " .. write_init({
+      "#+PROPERTY: header-args:lua :tangle init_org.lua :noweb yes",
+      "#+name: helper",
+      "#+begin_src lua :tangle no",
+      "vim.g.lit_helper = 1",
+      "#+end_src",
+      "#+begin_src lua",
+      "<<helper>>",
+      "vim.g.lit_a = 1",
+      "#+end_src",
+    }))
+    vim.cmd("silent write")
+    vim.cmd("edit " .. dir .. "/init_org.lua")
+    eq("vim.g.lit_helper = 1", buf_lines(0)[1])
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    require("org.actions").run("literate_goto_org")
+    eq(dir .. "/init.org", vim.api.nvim_buf_get_name(0))
+    eq(4, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("completes the path of :Org literate_bootstrap", function()
+    local commands = require("org.commands")
+    write_init()
+    local found = commands.complete(dir .. "/ini", "Org literate_bootstrap " .. dir .. "/ini")
+    ok(vim.tbl_contains(found, dir .. "/init.org"), vim.inspect(found))
+    local all = commands.complete("", "Org literate_bootstrap ")
+    ok(all[1]:find("init.lua$"), vim.inspect(all))
+  end)
+
   it("reports in :checkhealth", function()
     local out = {}
     local h = {}

@@ -82,6 +82,14 @@ M.commands = {
     "org.extensions.literate",
     "bootstrap",
     desc = "Write an init.lua stub that tangles an org file: :Org literate_bootstrap [init.lua path]",
+    -- a path: the files and directories that start with the argument
+    complete = function(arglead)
+      local items = vim.fn.getcompletion(arglead, "file")
+      if arglead == "" then
+        table.insert(items, 1, vim.fn.fnamemodify(vim.fn.stdpath("config") .. "/init.lua", ":~"))
+      end
+      return items
+    end,
   },
 }
 
@@ -894,6 +902,16 @@ function M.goto_org()
         end
       end
     end
+    if #matches == 0 and want ~= "" then
+      -- a line a noweb reference brought in: the block it comes from
+      for _, s in ipairs(all_lua_blocks(obuf)) do
+        for i, l in ipairs(s.block.body_raw or s.block.body or {}) do
+          if vim.trim(l) == want then
+            matches[#matches + 1] = { buf = obuf, lnum = s.block.start + i }
+          end
+        end
+      end
+    end
     best = matches[nth] or matches[1]
     if best then
       break
@@ -985,7 +1003,18 @@ function M.health(h, o)
     end
   end
   if found == 0 then
-    h.info("none of `files` exists" .. (o.detect ~= false and "; files with header-args:lua :tangle count too" or ""))
+    h.info("none of `files` exists")
+  end
+  if o.detect ~= false then
+    local dirs = vim.tbl_map(function(d)
+      return vim.fn.fnamemodify(vim.fs.normalize(d), ":~")
+    end, o.allow or {})
+    if #dirs == 0 then
+      h.info("`allow` is empty: only `files` are literate")
+    else
+      local ask = o.confirm ~= false and " (asked once per file)" or ""
+      h.info("org files with header-args:lua :tangle under " .. table.concat(dirs, ", ") .. " are literate" .. ask)
+    end
   end
   if o.tangle_on_save == false then
     h.info("tangle_on_save is off: tangle with :Org tangle")
