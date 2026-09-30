@@ -945,8 +945,13 @@ function M.setup(o)
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWinEnter", "FileType" }, {
     group = augroup,
     callback = function(ev)
-      if not M.baseline[ev.buf] and M.is_literate(ev.buf) then
-        remember(ev.buf)
+      if not M.baseline[ev.buf] and vim.bo[ev.buf].filetype == "org" then
+        -- only text is read here; a failure just leaves no baseline
+        pcall(function()
+          if M.is_literate(ev.buf) then
+            remember(ev.buf)
+          end
+        end)
       end
     end,
   })
