@@ -9015,7 +9015,7 @@ Keys in the board ~
   <CR>      open the heading
   /         filter (empty clears it)
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 The cursor can also be moved onto a card with any motion or the mouse. The
 board redraws itself when an org file is written, when one of its files is
@@ -9100,7 +9100,7 @@ Keys ~
             (as `C-c C-s` / `C-c C-d`)
   c         show or hide clocked days
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 Options (defaults) ~
   `source`, `query`, `tag`   "agenda", nil, nil
@@ -9174,7 +9174,7 @@ Keys ~
   k / j     previous / next day
   <CR>      the agenda of that day (a split heatmap stays open)
   r         refresh
-  q  <Esc>  quit
+  <Esc>     quit
 
 Options (defaults) ~
   `kind`          "clock"
@@ -9222,7 +9222,7 @@ Keys ~
   <CR>   open the entry (the clocked task, the inbox) in the window next
          to the sidebar
   r      refresh
-  q      close
+  <Esc>  close
 
 Options (defaults) ~
   `position`       "right"
@@ -9235,7 +9235,7 @@ Options (defaults) ~
   `focus`          false
   `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
                    inbox = "✉", deadline = "◆", scheduled = "▸" }
-  `keys`           { jump = "<CR>", refresh = "r", close = "q" }
+  `keys`           { jump = "<CR>", refresh = "r", close = "<Esc>" }
 
 Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,

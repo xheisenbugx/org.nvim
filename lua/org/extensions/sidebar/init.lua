@@ -51,7 +51,7 @@ M.defaults = {
     scheduled = "▸",
   },
   --- Keys in the sidebar.
-  keys = { jump = "<CR>", refresh = "r", close = "q" },
+  keys = { jump = "<CR>", refresh = "r", close = "<Esc>" },
 }
 
 M.actions = {

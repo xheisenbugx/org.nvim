@@ -80,7 +80,7 @@ M.defaults = {
     jump = "<CR>",
     refresh = "r",
     filter = "/",
-    quit = { "q", "<Esc>" },
+    quit = "<Esc>",
   },
 }
 

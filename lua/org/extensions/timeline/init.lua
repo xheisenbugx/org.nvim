@@ -71,7 +71,7 @@ M.defaults = {
     deadline = "D",
     clocks = "c",
     refresh = "r",
-    quit = { "q", "<Esc>" },
+    quit = "<Esc>",
   },
 }
 

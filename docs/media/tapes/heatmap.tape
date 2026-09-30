@@ -34,7 +34,7 @@ Type@5ms `Cap Tab | tasks closed per day` Enter
 Show
 Tab
 Sleep 3s
-Type "q"
+Escape
 Sleep 500ms
 Hide
 Ctrl+G

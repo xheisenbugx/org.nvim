@@ -268,12 +268,13 @@ describe("timeline", function()
 
   it("maps its keys", function()
     local st = timeline.open()
-    for _, lhs in ipairs({ "+", "-", "[", "]", ".", "<CR>", "S", "D", "c", "r", "q" }) do
+    for _, lhs in ipairs({ "+", "-", "[", "]", ".", "<CR>", "S", "D", "c", "r", "<Esc>" }) do
       ok(vim.fn.maparg(lhs, "n", false, true).buffer == 1, lhs)
     end
     vim.api.nvim_feedkeys("-", "x", false)
     eq("week", timeline.ZOOMS[st.zoom].name)
-    vim.api.nvim_feedkeys("q", "x", false)
+    eq("", vim.fn.maparg("q", "n"))
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
     eq(nil, timeline.state)
   end)
 

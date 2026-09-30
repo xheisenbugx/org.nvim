@@ -353,14 +353,15 @@ describe("kanban board", function()
 
   it("maps its keys in the board buffer", function()
     local st = kanban.open()
-    for _, lhs in ipairs({ "h", "l", "j", "k", "H", "L", "<CR>", "r", "/", "q" }) do
+    for _, lhs in ipairs({ "h", "l", "j", "k", "H", "L", "<CR>", "r", "/", "<Esc>" }) do
       local m = vim.fn.maparg(lhs, "n", false, true)
       ok(m.buffer == 1, lhs)
     end
     vim.api.nvim_feedkeys("l", "x", false)
     ok(file_lines()[3]:match("^%* NEXT %[#A%] Urgent task%s+:work:$"))
     eq(true, vim.api.nvim_buf_is_valid(st.buf))
-    vim.api.nvim_feedkeys("q", "x", false)
+    eq("", vim.fn.maparg("q", "n"))
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
     eq(nil, kanban.state)
   end)
 
