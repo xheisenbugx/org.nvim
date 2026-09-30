@@ -61,13 +61,28 @@ local function line_of(lines, text)
 end
 
 describe("agenda diary file", function()
+  -- Emacs printed these agendas on 2026-09-27; later, the scheduled task
+  -- would also show as "Sched. Nx:" on today.
+  local saved_today, saved_today_days, saved_now
   before_each(function()
     saved_tz = vim.env.TZ
     vim.env.TZ = "America/New_York"
     solar.reset()
+    saved_today, saved_today_days, saved_now = date.today, date.today_days, date.now
+    local T = date.days_from_civil(2026, 9, 27)
+    date.today_days = function()
+      return T
+    end
+    date.today = function()
+      return date.from_days(T)
+    end
+    date.now = function()
+      return date.from_days(T, { hour = 12, min = 0 })
+    end
   end)
   after_each(function()
     pcall(view.quit, true)
+    date.today, date.today_days, date.now = saved_today, saved_today_days, saved_now
     vim.env.TZ = saved_tz
     solar.reset()
     config.setup({})
