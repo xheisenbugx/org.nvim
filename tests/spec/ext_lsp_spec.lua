@@ -72,6 +72,10 @@ local function setup(extra)
 end
 
 local function open(path)
+  -- a modified scratch buffer another spec left current can't be left
+  if vim.bo.bufhidden == "wipe" then
+    vim.bo.modified = false
+  end
   vim.cmd("edit " .. vim.fn.fnameescape(path))
   return vim.api.nvim_get_current_buf()
 end
@@ -169,7 +173,8 @@ describe("lsp extension", function()
     local buf = open(main)
     eq({}, request(buf, "workspace/symbol", { query = "brandnew" }))
     local path = dir .. "/new.org"
-    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    -- :hide, for a modified buffer another spec left current
+  vim.cmd("hide edit " .. vim.fn.fnameescape(path))
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Brandnew heading" })
     vim.cmd("silent write")
     vim.cmd("bwipeout")
@@ -780,6 +785,35 @@ describe("lsp extension", function()
     ok(new, "a new client attached")
   end)
 
+  it("answers on an empty file", function()
+    local empty = dir .. "/empty.org"
+    utils.writefile(empty, {})
+    local buf = open(empty)
+    local td = { textDocument = { uri = vim.uri_from_bufnr(buf) } }
+    eq({}, request(buf, "textDocument/documentSymbol", td))
+    eq({}, request(buf, "textDocument/foldingRange", td))
+    eq({}, request(buf, "textDocument/documentLink", td))
+    eq(vim.NIL, request(buf, "textDocument/hover", tdp(buf, 1, 1)) or vim.NIL)
+    eq({}, require("org.extensions.lsp.diagnostics").compute(buf))
+    wipe(empty)
+    vim.fn.delete(empty)
+  end)
+
+  it("renames titles with multibyte characters (byte columns)", function()
+    local ob = open(other)
+    vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  Voir [[file:main.org::*Détails]] ici — [[*Elsewhere]]." })
+    local buf = open(main)
+    vim.api.nvim_buf_set_lines(buf, 11, 12, false, { "** Détails" })
+    local edit = request(buf, "textDocument/rename", {
+      textDocument = { uri = vim.uri_from_bufnr(buf) },
+      position = { line = 11, character = 4 },
+      newName = "Détails complets",
+    })
+    vim.lsp.util.apply_workspace_edit(edit, "utf-8")
+    eq("** Détails complets", buf_lines(buf)[12])
+    eq("  Voir [[file:main.org::*Détails complets]] ici — [[*Elsewhere]].", buf_lines(ob)[#buf_lines(ob)])
+  end)
+
   it("reports a failing notification handler or filter once", function()
     local u = require("org.utils")
     local err = u.error
@@ -898,17 +932,45 @@ describe("lsp extension", function()
       local sch = D.scheduler(function()
         n = n + 1
       end)
-      sch.run(buf)
-      sch.run(buf)
+      sch.run(buf, true)
+      sch.run(buf, true)
       eq(1, n)
       vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "" })
-      sch.run(buf)
+      sch.run(buf, true)
       eq(2, n)
       sch.clear(buf)
       eq(3, n)
-      sch.run(buf)
+      sch.run(buf, true)
       eq(4, n)
       sch.stop()
+    end)
+
+    it("lints in slices and starts over after a change", function()
+      local buf = open(main)
+      local got = {}
+      local sch = D.scheduler(function(_, diags)
+        got[#got + 1] = diags
+      end)
+      local slice = D.SLICE_MS
+      D.SLICE_MS = 0
+      local okr, res = pcall(function()
+        sch.run(buf)
+        -- one checker per tick: nothing yet
+        eq(0, #got)
+        vim.api.nvim_buf_set_lines(buf, 22, 23, false, { "  Fixed [[#report]] link." })
+        vim.wait(200)
+        -- abandoned: the text changed
+        eq(0, #got)
+        sch.run(buf)
+        ok(vim.wait(3000, function()
+          return #got == 1
+        end, 5))
+        return got[1]
+      end)
+      D.SLICE_MS = slice
+      sch.stop()
+      ok(okr, res)
+      eq(D.compute(buf), res)
     end)
 
     it("lints large buffers only when opened and written", function()

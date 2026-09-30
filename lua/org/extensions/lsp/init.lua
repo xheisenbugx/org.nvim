@@ -49,7 +49,7 @@ M.defaults = {
     debounce = 500,
     --- Buffers with more lines are linted when opened and written, not
     --- while you type; 0 or false: no limit.
-    max_lines = 10000,
+    max_lines = 3000,
     --- Checker names (`:Org lint` names); nil: org-lint's default set.
     ---@type string[]|nil
     checkers = nil,

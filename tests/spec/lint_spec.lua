@@ -194,7 +194,7 @@ describe("lint links and footnotes", function()
     eq({ '6 Unknown ID "123-nope"' }, run(lines, "invalid-id-link"))
   end)
 
-  it("looks each missing ID up once, not once per link", function()
+  it("looks IDs up in one scan of the ID files, not once per link", function()
     local id = require("org.id")
     local find = id.find
     local calls = 0
@@ -211,8 +211,8 @@ describe("lint links and footnotes", function()
     ok(ok_, res)
     eq(100, #res)
     eq('5 Unknown ID "gone-1"', res[1])
-    -- the first miss asks org.id; the rest use one scan of the ID files
-    eq(1, calls)
+    -- one scan of the ID files instead of org.id.find's rescan per ID
+    eq(0, calls)
   end)
 
   it("link syntax", function()
