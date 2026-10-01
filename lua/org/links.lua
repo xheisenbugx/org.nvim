@@ -1246,10 +1246,7 @@ end
 
 local function run_in_terminal(argv, cwd)
   vim.cmd("botright new")
-  if vim.fn.has("nvim-0.11") == 1 then
-    return vim.fn.jobstart(argv, { term = true, cwd = cwd })
-  end
-  return vim.fn.termopen(argv, { cwd = cwd })
+  return vim.fn.jobstart(argv, { term = true, cwd = cwd })
 end
 
 --- Run a `shell:` link in a terminal window, in the directory of the Org

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guidance for coding agents working on org.nvim, an Emacs Org mode
-implementation for Neovim 0.10+ written in pure Lua with no dependencies.
+implementation for Neovim 0.11+ written in pure Lua with no dependencies.
 [CONTRIBUTING.md](CONTRIBUTING.md) is the human-facing version of this file.
 
 ## Commands

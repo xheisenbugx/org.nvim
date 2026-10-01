@@ -3,6 +3,10 @@ if vim.g.loaded_org_nvim then
   return
 end
 vim.g.loaded_org_nvim = true
+if vim.fn.has("nvim-0.11") == 0 then
+  vim.notify("org.nvim requires Neovim 0.11 or later", vim.log.levels.ERROR)
+  return
+end
 
 vim.filetype.add({
   extension = { org = "org", org_archive = "org" },

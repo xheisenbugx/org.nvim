@@ -621,12 +621,8 @@ local function start_repl(sess, opts)
     end,
   }
   local ok, err = pcall(vim.api.nvim_buf_call, buf, function()
-    if vim.fn.has("nvim-0.11") == 1 then
-      jopts.term = true
-      job = vim.fn.jobstart(argv, jopts)
-    else
-      job = vim.fn.termopen(argv, jopts)
-    end
+    jopts.term = true
+    job = vim.fn.jobstart(argv, jopts)
   end)
   if not ok or not job or job <= 0 then
     pcall(vim.api.nvim_buf_delete, buf, { force = true })

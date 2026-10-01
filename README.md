@@ -8,7 +8,7 @@
 
 Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babel · Export
 
-[![Neovim 0.10+](https://img.shields.io/badge/Neovim-0.10%2B-57A143?style=for-the-badge&logo=neovim&logoColor=white)](https://neovim.io)
+[![Neovim 0.11+](https://img.shields.io/badge/Neovim-0.11%2B-57A143?style=for-the-badge&logo=neovim&logoColor=white)](https://neovim.io)
 [![Pure Lua](https://img.shields.io/badge/100%25-Lua-2C2D72?style=for-the-badge&logo=lua&logoColor=white)](lua/org)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-zero-ff69b4?style=for-the-badge)](#requirements)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-orange?style=for-the-badge)](CONTRIBUTING.md)
@@ -311,7 +311,7 @@ between them. `:checkhealth org` shows what it found, and
 | --- | --- | --- |
 | Neovim 0.13+ in kitty or Ghostty | `vim.ui.img` (built in) | Everything works, including `:align` |
 | Neovim 0.13+ in WezTerm | `vim.ui.img` | WezTerm's Kitty graphics support is partial |
-| Neovim 0.10–0.12 | snacks.nvim or image.nvim | `vim.ui.img` needs 0.13 |
+| Neovim 0.11–0.12 | snacks.nvim or image.nvim | `vim.ui.img` needs 0.13 |
 | Inside **tmux** | snacks.nvim | tmux drops `vim.ui.img`'s images. Add `set -g allow-passthrough on` and install snacks.nvim, or run Neovim outside tmux |
 | Inside zellij | nothing | zellij doesn't pass images through |
 | Over SSH | `vim.ui.img` or snacks.nvim | Images and LaTeX tools must be on the machine running Neovim |
@@ -468,7 +468,7 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
 ## Requirements
 
-- Neovim **0.10+**. Nothing else is required.
+- Neovim **0.11+**. Nothing else is required.
 - Optional:
   - `pandoc` for DOCX, EPUB and the other formats without a native
     back-end (HTML, LaTeX, ODT, Texinfo and the rest are built in).

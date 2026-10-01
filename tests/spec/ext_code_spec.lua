@@ -458,21 +458,9 @@ describe("code extension", function()
       eq("Greeter", symbols.at(buf, 7, 0))
     end)
 
-    it("asks only the language servers that answer documentSymbol (0.10 and 0.11+ clients)", function()
+    it("asks only the language servers that answer documentSymbol", function()
       local symbols = require("org.extensions.code.symbols")
       local method = "textDocument/documentSymbol"
-      -- Neovim 0.10: a field; called with a table (a colon call) it says yes
-      local old_yes = {
-        supports_method = function(m)
-          return type(m) ~= "string" or m == method
-        end,
-      }
-      local old_no = {
-        supports_method = function(m)
-          return type(m) ~= "string"
-        end,
-      }
-      -- Neovim 0.11+: a method of the client class
       local Client = {}
       Client.__index = Client
       function Client:supports_method(m)
@@ -480,8 +468,6 @@ describe("code extension", function()
       end
       local new_yes = setmetatable({ caps = { [method] = true } }, Client)
       local new_no = setmetatable({ caps = {} }, Client)
-      eq(true, symbols.supports_symbols(old_yes))
-      eq(false, symbols.supports_symbols(old_no))
       eq(true, symbols.supports_symbols(new_yes))
       eq(false, symbols.supports_symbols(new_no))
       eq(true, symbols.supports_symbols({ server_capabilities = { documentSymbolProvider = true } }))

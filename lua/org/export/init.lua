@@ -434,11 +434,7 @@ function M.compile_info(texi, opts)
     if opts.open or cfg().open_after_export then
       if vim.fn.executable("info") == 1 and #vim.api.nvim_list_uis() > 0 then
         vim.cmd("new")
-        if vim.fn.has("nvim-0.11") == 1 then
-          vim.fn.jobstart({ "info", "-f", result }, { term = true })
-        else
-          vim.fn.termopen({ "info", "-f", result })
-        end
+        vim.fn.jobstart({ "info", "-f", result }, { term = true })
         vim.cmd("startinsert")
       else
         vim.ui.open(result)
