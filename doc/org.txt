@@ -6719,7 +6719,11 @@ Differences from Emacs:
   mode is toggled (Emacs sets them while evaluating, so they apply from
   the next block). LaTeX .png results use the Normal highlight's colors
   (Emacs the default face's). ob-screen's `org-babel-screen-test` waits
-  at most `babel.timeout` (Emacs waits forever).
+  at most `babel.timeout` (Emacs waits forever). ob-csharp runs the built
+  program with `DOTNET_ROOT` set to the directory of dotnet's SDKs when it
+  is unset, so a .NET installed outside the default location (by
+  dotnet-install.sh, in ~/.dotnet) is found; Emacs leaves it unset and the
+  program fails with "You must install .NET to run this application".
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate

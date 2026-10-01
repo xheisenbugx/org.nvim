@@ -134,4 +134,34 @@ describe("babel ob-csharp", function()
     eq({ "restore csproj", "build bin" }, vim.list_slice(l, #l - 1))
     eq("net9.0", require("org.babel.lang.csharp").default_framework())
   end)
+
+  it("runs the program with DOTNET_ROOT of an SDK outside the default location", function()
+    local dir = h.tmpdir()
+    local dotnet = h.fake(dir, "dotnet", '[ "$1" = --list-sdks ] && echo "10.0.400 [/home/u/.dotnet/sdk]"')
+    h.set_lang("csharp", {
+      compiler = dotnet,
+      generate_restore_command = function()
+        return "true"
+      end,
+      -- the "app host": prints where it would look for .NET
+      generate_compile_command = function(p, bin)
+        local app = bin .. "/" .. vim.fn.fnamemodify(p, ":t:r")
+        return string.format(
+          "mkdir -p %s && printf '#!/bin/sh\\necho \"$DOTNET_ROOT\"\\n' > %s && chmod +x %s",
+          bin,
+          app,
+          app
+        )
+      end,
+    })
+    local saved = vim.env.DOTNET_ROOT
+    vim.env.DOTNET_ROOT = nil
+    local out = h.run({ "#+begin_src csharp", "1;", "#+end_src" }, dir)
+    eq({ "#+RESULTS:", ": /home/u/.dotnet" }, vim.list_slice(out, 5, 6))
+    -- one set by the user is kept
+    vim.env.DOTNET_ROOT = "/opt/dotnet"
+    out = h.run({ "#+begin_src csharp", "1;", "#+end_src" }, dir)
+    vim.env.DOTNET_ROOT = saved
+    eq({ "#+RESULTS:", ": /opt/dotnet" }, vim.list_slice(out, 5, 6))
+  end)
 end)
