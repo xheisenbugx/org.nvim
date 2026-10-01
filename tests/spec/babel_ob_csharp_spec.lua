@@ -101,6 +101,12 @@ describe("babel ob-csharp", function()
       return
     end
     local out = h.run(BLOCKS)
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find("Org%-Babel Error") then
+        print("ERRBUF>>\n" .. table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n") .. "\n<<ERRBUF")
+      end
+    end
+    print("OUT>>\n" .. table.concat(out, "\n") .. "\n<<OUT")
     -- Emacs 9.8.10 (the top-level statements after a file-scoped
     -- namespace don't compile: an empty result)
     eq({ "#+RESULTS:", "| 3 |", "| x |" }, vim.list_slice(out, 6, 8))

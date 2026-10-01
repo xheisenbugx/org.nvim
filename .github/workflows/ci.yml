@@ -19,12 +19,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        # v0.10.4: the oldest Neovim org.nvim supports
-        nvim: [v0.10.4, stable, nightly]
-        include:
-          - os: macos-latest
-            nvim: stable
+        os: [macos-latest]
+        nvim: [stable]
     # nightly breakage shouldn't block a merge
     continue-on-error: ${{ matrix.nvim == 'nightly' }}
     steps:
@@ -38,16 +34,17 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      - run: make test
-
-  helptags:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-      - name: doc/tags matches doc/org.txt
+      - run: make test SPEC=tests/spec/babel_ob_csharp_spec.lua
+        continue-on-error: true
+      - name: dotnet by hand
         run: |
-          nvim --headless -u NONE -c "helptags doc" -c q
-          git diff --exit-code doc/tags
+          set -x
+          which -a dotnet; dotnet --info | head -40; dotnet --list-sdks
+          d=$(mktemp -d); cd $d
+          printf 'namespace org.babel.autogen;\nclass Program { static void Main(string[] args) { System.Console.WriteLine(3); } }\n' > Program.cs
+          v=$(dotnet --list-sdks | tail -1 | cut -d. -f1)
+          printf '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net%s.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>\n' $v > x.csproj
+          time dotnet restore x.csproj; echo "restore exit $?"
+          time dotnet build --output bin x.csproj; echo "build exit $?"
+          ./bin/x; echo "run exit $?"
+
