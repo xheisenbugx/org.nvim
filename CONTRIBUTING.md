@@ -96,4 +96,32 @@ Some things to know before you start:
 - Keep org.nvim dependency-free. Optional integrations such as blink.cmp or
   lualine are fine, as long as they're loaded only when the user has them.
 
+## Branches, CI and releases
+
+- `dev` is the development branch: open every pull request against `dev`.
+- `main` only takes pull requests from `release/vX.Y.Z` branches. A
+  `release branch` check fails any other pull request into `main`.
+- Pull requests into `dev` and `main` run `make test` on Ubuntu against
+  Neovim v0.11.0, stable and nightly (nightly may fail without blocking),
+  and on macOS against stable. CI also checks that `doc/tags` is up to date;
+  after editing `doc/org.txt`, run
+  `nvim --headless -u NONE -c "helptags doc" -c q`. Pushes don't run CI.
+
+To release, branch from `dev` and open a pull request into `main`:
+
+```sh
+git switch -c release/v0.2.0 origin/dev
+git push -u origin release/v0.2.0
+gh pr create --base main --title "release: v0.2.0"
+```
+
+Merging it tags `v0.2.0` and publishes the GitHub release, with notes
+generated from the pull requests merged since the last tag. The tag goes on
+the release branch's last commit, so `dev` reaches it as well as `main`.
+There is no version number in the code: `:Org version` reports the latest
+`vX.Y.Z` tag of the checkout. Merge release PRs with a merge commit, not a
+squash, so that commit is part of `main`. If you commit a fix to the
+release branch itself, merge the release branch back into `dev` too. Pick the version with [semver](https://semver.org): before 1.0, a
+`feat` or a breaking change bumps the minor version, fixes bump the patch.
+
 Thanks again, and happy hacking! 🦄

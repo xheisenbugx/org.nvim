@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, nvim ${{ matrix.nvim }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        # v0.11.0: the oldest Neovim org.nvim supports
+        nvim: [v0.11.0, stable, nightly]
+        include:
+          - os: macos-latest
+            nvim: stable
+    # nightly breakage shouldn't block a merge
+    continue-on-error: ${{ matrix.nvim == 'nightly' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim }}
+      - name: Git identity for the specs that commit
+        run: |
+          git config --global user.name "org.nvim CI"
+          git config --global user.email "ci@example.invalid"
+      - run: nvim --version
+      - run: make test
+
+  helptags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+      - name: doc/tags matches doc/org.txt
+        run: |
+          nvim --headless -u NONE -c "helptags doc" -c q
+          git diff --exit-code doc/tags

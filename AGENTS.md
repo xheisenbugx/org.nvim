@@ -91,6 +91,8 @@ turned off, or the run will hang.
 - Branch names and titles follow Conventional Commits, as in the history:
   `fix/capture-prompt-after-tags` and `fix(capture): …`, `feat(agenda): …`,
   `docs: …`.
+- Branch from `dev` and open pull requests against `dev`. `main` only takes
+  `release/vX.Y.Z` branches, whose merge tags and publishes the release.
 - Document user-visible changes in `doc/org.txt`, and in `README.md` when
   it's a headline feature.
 - No new hard dependencies. Optional integrations (blink.cmp, lualine, …)

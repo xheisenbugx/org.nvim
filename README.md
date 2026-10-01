@@ -10,6 +10,7 @@ Outlines · TODOs · Agenda · Capture · Clocking · Spreadsheet tables · Babe
 
 [![Neovim 0.10+](https://img.shields.io/badge/Neovim-0.10%2B-57A143?style=for-the-badge&logo=neovim&logoColor=white)](https://neovim.io)
 [![Pure Lua](https://img.shields.io/badge/100%25-Lua-2C2D72?style=for-the-badge&logo=lua&logoColor=white)](lua/org)
+[![Release](https://img.shields.io/github/v/release/xheisenbugx/org.nvim?style=for-the-badge&color=blue)](https://github.com/xheisenbugx/org.nvim/releases)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-zero-ff69b4?style=for-the-badge)](#requirements)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-orange?style=for-the-badge)](CONTRIBUTING.md)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/xheisenbugx)
