@@ -87,6 +87,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("shell: a live shell keeps cwd, variables and functions; output and value", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("bash") then
       return
     end
@@ -123,6 +124,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("shell: commands typed in the REPL buffer share the session", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("bash") then
       return
     end
@@ -153,6 +155,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("python: definitions, imports and typed input persist; value and output", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -189,6 +192,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("python: killing the session stops the REPL; the next block starts afresh", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -209,6 +213,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("python: exiting the interpreter ends the session", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -233,6 +238,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("python: load in session runs the body in the REPL and shows it", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -247,6 +253,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("python: :async session results replace their placeholder", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -271,6 +278,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("ruby: irb locals are shared between blocks and typed input", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not (has("ruby") and has("irb")) then
       return
     end
@@ -294,6 +302,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("node: globals persist, promises are awaited, typed input is shared", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("node") then
       return
     end
@@ -317,6 +326,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("R: state persists; value and output", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("R") then
       return
     end
@@ -340,6 +350,7 @@ describe("babel :session REPLs", function()
   end)
 
   it("different languages with the same session name get their own buffer", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not (has("python3") and has("bash")) then
       return
     end

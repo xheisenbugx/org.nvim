@@ -227,8 +227,16 @@ local function restore(s)
       end
     end
   end
+  -- names are case-insensitive on Windows (Path and PATH are one variable)
+  local function fold(k)
+    return is_win and k:upper() or k
+  end
+  local before = {}
+  for k in pairs(s.env) do
+    before[fold(k)] = true
+  end
   for k in pairs(vim.fn.environ()) do
-    if s.env[k] == nil then
+    if not before[fold(k)] then
       vim.env[k] = nil
     end
   end

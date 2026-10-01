@@ -56,46 +56,16 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      # PROBE (temporary): does a REPL in a terminal buffer live when a UI
-      # is attached (an inner nvim --embed with nvim_ui_attach)?
-      - name: Session probe
-        continue-on-error: true
+      # GnuPG for Windows for org-crypt (Git for Windows' MSYS gpg blocks
+      # headless); first on PATH
+      - name: GnuPG
         shell: bash
         run: |
-          cat > "$RUNNER_TEMP/inner.lua" <<'LUA'
-          return function(shown)
-            local acc, code = {}, nil
-            local buf = vim.api.nvim_create_buf(true, false)
-            if shown then vim.api.nvim_set_current_buf(buf) end
-            local job
-            vim.api.nvim_buf_call(buf, function()
-              job = vim.fn.jobstart({ "python", "-i", "-q" }, {
-                term = true,
-                env = { PYTHON_BASIC_REPL = "1" },
-                on_stdout = function(_, d) acc[#acc + 1] = table.concat(d, "<NL>") end,
-                on_exit = function(_, c) code = c end,
-              })
-            end)
-            vim.wait(3000, function() return code ~= nil end)
-            if code == nil then
-              pcall(vim.fn.chansend, job, "print('BEGIN'); print(6*7); print('END')\r")
-              vim.wait(3000, function() return code ~= nil end)
-            end
-            pcall(vim.fn.jobstop, job)
-            return "exit=" .. tostring(code) .. " " .. vim.inspect(table.concat(acc, ""))
-          end
-          LUA
-          cat > "$RUNNER_TEMP/outer.lua" <<'LUA'
-          local inner = vim.fn.jobstart({ "nvim", "--embed", "-u", "NONE" }, { rpc = true })
-          vim.rpcrequest(inner, "nvim_ui_attach", 100, 30, { ext_linegrid = true })
-          local path = vim.env.RUNNER_TEMP .. "/inner.lua"
-          for _, shown in ipairs({ false, true }) do
-            local ok, r = pcall(vim.rpcrequest, inner, "nvim_exec_lua", "local p, s = ...; return dofile(p)(s)", { path, shown })
-            print("UI attached, " .. (shown and "shown" or "hidden") .. ": " .. tostring(ok) .. " " .. vim.inspect(r))
-          end
-          vim.fn.jobstop(inner)
-          LUA
-          nvim --headless -u NONE -l "$RUNNER_TEMP/outer.lua"
+          curl -fsSL -o "$RUNNER_TEMP/gnupg.exe" https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.24_20260923.exe
+          "$RUNNER_TEMP/gnupg.exe" /S
+          for d in "C:\\Program Files\\GnuPG\\bin" "C:\\Program Files (x86)\\GnuPG\\bin"; do
+            echo "$d" >> "$GITHUB_PATH"
+          done
       # make test without make: a throwaway XDG_DATA_HOME
       - name: Run specs
         shell: bash
