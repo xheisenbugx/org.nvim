@@ -166,9 +166,7 @@ describe("clock.x11idle_program_name (org-clock-x11idle-program-name)", function
   it("reads the idle time from the program on X11", function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
-    utils.writefile(dir .. "/fake-idle", { "#!/bin/sh", "echo 120000" })
-    vim.fn.setfperm(dir .. "/fake-idle", "rwxr-xr-x")
-    set_clock({ x11idle_program_name = dir .. "/fake-idle" })
+    set_clock({ x11idle_program_name = fake_exe(dir, "fake-idle", "echo 120000") })
     local display, has = vim.env.DISPLAY, vim.fn.has
     vim.env.DISPLAY = ":0"
     vim.fn.has = function(f) -- as on Linux: macOS asks ioreg instead

@@ -97,14 +97,14 @@ describe("man export", function()
     local bin = d .. "/bin"
     vim.fn.mkdir(bin, "p")
     -- writes "HL <lang>" and the input to the -o file
-    vim.fn.writefile({
-      "#!/bin/sh",
-      'while [ $# -gt 0 ]; do case "$1" in -s) l=$2; shift;; -i) i=$2; shift;; -o) o=$2; shift;; esac; shift; done',
-      '{ echo "HL $l"; cat "$i"; } > "$o"',
-    }, bin .. "/source-highlight")
-    vim.fn.setfperm(bin .. "/source-highlight", "rwxr-xr-x")
+    fake_exe(
+      bin,
+      "source-highlight",
+      'while [ $# -gt 0 ]; do case "$1" in -s) l=$2; shift;; -i) i=$2; shift;; -o) o=$2; shift;; esac; shift; done\n'
+        .. '{ echo "HL $l"; cat "$i"; } > "$o"'
+    )
     local path = vim.env.PATH
-    vim.env.PATH = bin .. ":" .. path
+    path_prepend(bin)
     config.opts.export.man = vim.tbl_extend("force", saved_man or {}, { source_highlight = true })
     local ok_, s = pcall(manpage, {
       "#+begin_src emacs-lisp",

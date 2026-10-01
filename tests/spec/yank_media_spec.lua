@@ -21,7 +21,6 @@ local function fake_clipboard(dir, types, contents)
   local bin = dir .. "/bin"
   vim.fn.mkdir(bin, "p")
   local lines = {
-    "#!/bin/sh",
     'if [ "$1" = "--list-types" ]; then',
     "cat <<'EOF'",
   }
@@ -33,10 +32,9 @@ local function fake_clipboard(dir, types, contents)
     lines[#lines + 1] = string.format("%s) cat '%s';;", t, f)
   end
   vim.list_extend(lines, { "esac" })
-  utils.writefile(bin .. "/wl-paste", lines)
-  vim.fn.setfperm(bin .. "/wl-paste", "rwxr-xr-x")
+  fake_exe(bin, "wl-paste", table.concat(lines, "\n"))
   saved_env = { PATH = vim.env.PATH, WAYLAND_DISPLAY = vim.env.WAYLAND_DISPLAY }
-  vim.env.PATH = bin .. ":" .. vim.env.PATH
+  path_prepend(bin)
   vim.env.WAYLAND_DISPLAY = "wayland-test"
 end
 

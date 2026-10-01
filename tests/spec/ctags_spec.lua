@@ -26,9 +26,7 @@ local FAKE = {
 }
 
 local function setup(dir, extra)
-  local fake = dir .. "/fake-ctags"
-  utils.writefile(fake, FAKE)
-  vim.fn.setfperm(fake, "rwxr-xr-x")
+  local fake = fake_exe(dir, "fake-ctags", table.concat(FAKE, "\n"))
   vim.env.FAKE_CTAGS_ARGS = dir .. "/args"
   config.setup(vim.tbl_deep_extend("force", { ctags = { enabled = true, path_to_ctags = fake } }, extra or {}))
 end

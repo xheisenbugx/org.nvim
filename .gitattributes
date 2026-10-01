@@ -1,0 +1,11 @@
+# LF in the working tree on every platform: specs compare fixture files
+# byte for byte, and Git for Windows would otherwise check them out as CRLF.
+* text=auto eol=lf
+*.png binary
+*.gif binary
+*.jpg binary
+*.odt binary
+*.docx binary
+*.zip binary
+# iCalendar uses CRLF (RFC 5545): keep these as they are
+*.ics -text
