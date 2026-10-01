@@ -42,7 +42,8 @@ local function assign(name, value)
       rows = { value }
     end
     local text = to_csv(rows)
-    local file = vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/julia-" .. vim.fn.sha256(text):sub(1, 16) .. ".csv"
+    local hash = require("org.utils").sha256(text):sub(1, 16)
+    local file = vim.fn.fnamemodify(vim.fn.tempname(), ":h") .. "/julia-" .. hash .. ".csv"
     ob.write(file, text .. "\n")
     return string.format('%s = begin\n    using CSV\n    CSV.read("%s")\nend', name, file)
   end

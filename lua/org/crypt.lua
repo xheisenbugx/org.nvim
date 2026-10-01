@@ -415,7 +415,7 @@ function M.encrypt_entry(target)
   local first, last = math.min(beg, stop), math.max(beg, stop) - 1
   local plain = last >= first and (table.concat(lines, "\n", first, last) .. "\n") or ""
   local id = key_id(keys)
-  local cached = (reuse[bufnr] or {})[vim.fn.sha256(plain)]
+  local cached = (reuse[bufnr] or {})[utils.sha256(plain)]
   local cipher, err
   if cached and cached.key == id then
     cipher = cached.text
@@ -474,7 +474,7 @@ function M.decrypt_entry(target)
       end
     end
   else
-    buf_cache(bufnr)[vim.fn.sha256(plain)] = { key = key_id(M.key_for_heading(hl)), text = cipher }
+    buf_cache(bufnr)[utils.sha256(plain)] = { key = key_id(M.key_for_heading(hl)), text = cipher }
   end
   local folded = bufnr == vim.api.nvim_get_current_buf() and vim.fn.foldclosed(hl.line) ~= -1
   vim.api.nvim_buf_set_lines(bufnr, s - 1, e, false, new)

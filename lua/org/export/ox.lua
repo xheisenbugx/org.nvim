@@ -2674,7 +2674,7 @@ function M.get_reference(datum, info)
   end
   refs.n = refs.n + 1
   local key = (datum.type or "secondary") .. ":" .. refs.n .. ":" .. table.concat(M.search_cells(datum), "|")
-  local h = vim.fn.sha256(key)
+  local h = utils.sha256(key)
   local ref = "org" .. h:sub(1, 7)
   local k = 8
   while refs.used[ref] do

@@ -61,7 +61,7 @@ local function process_vars(vars, args)
       local text = table_to_data(rows, missing)
       local file = vim.fn.fnamemodify(vim.fn.tempname(), ":h")
         .. "/gnuplot-"
-        .. vim.fn.sha256(text .. "\0" .. vim.inspect(args)):sub(1, 16)
+        .. require("org.utils").sha256(text .. "\0" .. vim.inspect(args)):sub(1, 16)
       ob.write(file, text)
       out[#out + 1] = { name = v.name, value = file }
     else
