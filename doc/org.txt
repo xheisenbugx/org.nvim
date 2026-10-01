@@ -6971,7 +6971,7 @@ in `extensions`:
       extensions = {
         roam = { directory = "~/roam" }, -- options merged over its defaults
         present = true,                  -- enable with the defaults
-        gcal = false,                    -- off (same as leaving it out)
+        ics = false,                     -- off (same as leaving it out)
       },
     })
 <
