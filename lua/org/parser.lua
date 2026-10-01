@@ -966,53 +966,86 @@ function Headline:get_category()
   return self.file:category()
 end
 
+local inheritance_regexes = {}
+
+--- Can `tag` be inherited (use_tag_inheritance, tags_exclude_from_inheritance)?
+local function inheritable(cfg, tag)
+  if vim.tbl_contains(cfg.tags_exclude_from_inheritance or {}, tag) then
+    return false
+  end
+  local inh = cfg.use_tag_inheritance
+  if type(inh) == "table" then
+    return vim.tbl_contains(inh, tag)
+  elseif type(inh) == "string" then
+    local re = inheritance_regexes[inh]
+    if not re then
+      re = vim.regex(inh)
+      inheritance_regexes[inh] = re
+    end
+    return re:match_str(tag) ~= nil
+  end
+  return true
+end
+
+--- The tags `parent` passes down to its children (filetags first, then
+--- the ancestors' from the top, deduplicated). Memoized on the headline:
+--- the agenda asks for the tags of every headline several times, and the
+--- memo is reused while the options, the own tags and the parent's list
+--- are the same tables.
+local function passed_down(file, parent, cfg)
+  local src = parent and parent.tags or file.settings.filetags
+  local up = parent and passed_down(file, rawget(parent, "parent"), cfg) or nil
+  local holder = parent or file
+  local c = rawget(holder, "_tags_down")
+  if
+    c
+    and c.src == src
+    and c.up == up
+    and c.inh == cfg.use_tag_inheritance
+    and c.excl == cfg.tags_exclude_from_inheritance
+  then
+    return c.list
+  end
+  local seen, list = {}, {}
+  for _, t in ipairs(up or {}) do
+    seen[t] = true
+    list[#list + 1] = t
+  end
+  for _, t in ipairs(src) do
+    if not seen[t] and inheritable(cfg, t) then
+      seen[t] = true
+      list[#list + 1] = t
+    end
+  end
+  rawset(holder, "_tags_down", {
+    src = src,
+    up = up,
+    inh = cfg.use_tag_inheritance,
+    excl = cfg.tags_exclude_from_inheritance,
+    list = list,
+  })
+  return list
+end
+
 --- All tags: filetags + inherited + own (deduplicated, own last).
 ---@param opts? { inherited?: boolean } inherited=false -> own tags only
 function Headline:get_tags(opts)
-  opts = opts or {}
-  if opts.inherited == false then
+  if opts and opts.inherited == false then
     return vim.deepcopy(self.tags)
   end
   local cfg = require("org.config").opts
   local seen, out = {}, {}
-  -- use_tag_inheritance: true, false, a list of tags or a regexp
-  -- (org-use-tag-inheritance)
-  local inh = cfg.use_tag_inheritance
-  local inh_re = type(inh) == "string" and vim.regex(inh) or nil
-  local function add(tag, inherited)
-    if seen[tag] then
-      return
-    end
-    if inherited and vim.tbl_contains(cfg.tags_exclude_from_inheritance or {}, tag) then
-      return
-    end
-    if inherited and type(inh) == "table" and not vim.tbl_contains(inh, tag) then
-      return
-    end
-    if inherited and inh_re and not inh_re:match_str(tag) then
-      return
-    end
-    seen[tag] = true
-    out[#out + 1] = tag
-  end
   if cfg.use_tag_inheritance ~= false then
-    for _, t in ipairs(self.file.settings.filetags) do
-      add(t, true)
-    end
-    local chain = {}
-    local p = self.parent
-    while p do
-      table.insert(chain, 1, p)
-      p = p.parent
-    end
-    for _, p2 in ipairs(chain) do
-      for _, t in ipairs(p2.tags) do
-        add(t, true)
-      end
+    for _, t in ipairs(passed_down(self.file, self.parent, cfg)) do
+      seen[t] = true
+      out[#out + 1] = t
     end
   end
   for _, t in ipairs(self.tags) do
-    add(t, false)
+    if not seen[t] then
+      seen[t] = true
+      out[#out + 1] = t
+    end
   end
   return out
 end
