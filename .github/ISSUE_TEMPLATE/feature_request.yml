@@ -1,0 +1,33 @@
+name: Feature request
+description: A missing Emacs Org feature, or an idea for org.nvim
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        org.nvim aims to behave like Emacs Org 9.8. Requests for something Org
+        already does are the easiest to accept; please link the relevant part of
+        the [Org manual](https://orgmode.org/manual/) if you can.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like to do
+      description: The workflow or problem, not only the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: emacs
+    attributes:
+      label: How Emacs Org does it
+      description: The command, option or manual section, if Emacs Org (or an Emacs package) has it.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: Keys, commands or options you have in mind.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself

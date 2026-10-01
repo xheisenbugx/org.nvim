@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in org.nvim doesn't work, or works differently from Emacs Org
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! `:Org bug_report` inside Neovim fills in the
+        versions and, if you agree, your options for you.
+        Please search the [existing issues](https://github.com/xheisenbugx/org.nvim/issues) first.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the file below
+        2. Put the cursor on the heading and press `<leader>ot`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: org
+    attributes:
+      label: Minimal org file
+      description: The smallest org text that shows the problem.
+      render: org
+  - type: textarea
+    id: emacs
+    attributes:
+      label: What Emacs Org does
+      description: Optional. If you know how Emacs Org 9.8 behaves here, it helps a lot.
+  - type: input
+    id: version
+    attributes:
+      label: org.nvim version
+      description: The output of `:Org version`.
+    validations:
+      required: true
+  - type: input
+    id: nvim
+    attributes:
+      label: Neovim version
+      description: The first line of `nvim --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: ":checkhealth org"
+      description: The output of `:checkhealth org`.
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your `require("org").setup({ ... })` call, or the options related to the problem.
+      render: lua
