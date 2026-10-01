@@ -102,7 +102,7 @@ Some things to know before you start:
 - `main` only takes pull requests from `release/vX.Y.Z` branches. A
   `release branch` check fails any other pull request into `main`.
 - Pull requests into `dev` and `main` run `make test` on Ubuntu against
-  Neovim v0.10.4, stable and nightly (nightly may fail without blocking),
+  Neovim v0.11.0, stable and nightly (nightly may fail without blocking),
   and on macOS against stable. CI also checks that `doc/tags` is up to date;
   after editing `doc/org.txt`, run
   `nvim --headless -u NONE -c "helptags doc" -c q`. Pushes don't run CI.

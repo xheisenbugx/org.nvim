@@ -20,8 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        # v0.10.4: the oldest Neovim org.nvim supports
-        nvim: [v0.10.4, stable, nightly]
+        # v0.11.0: the oldest Neovim org.nvim supports
+        nvim: [v0.11.0, stable, nightly]
         include:
           - os: macos-latest
             nvim: stable
