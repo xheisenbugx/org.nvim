@@ -721,9 +721,9 @@ local function with_tz(tz, fn, ...)
     return fn(...)
   end
   local saved = vim.env.TZ
-  vim.env.TZ = tz
+  dt.set_tz(tz)
   local ok, a = pcall(fn, ...)
-  vim.env.TZ = saved
+  dt.set_tz(saved)
   if not ok then
     error(a, 0)
   end

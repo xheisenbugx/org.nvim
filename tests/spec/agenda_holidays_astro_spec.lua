@@ -37,9 +37,9 @@ local NOW = 1790337600
 -- Run FN with the process time zone set to TZ (os.date follows it).
 local function with_tz(tz, fn)
   local saved = vim.env.TZ
-  vim.env.TZ = tz
+  date.set_tz(tz)
   local ok, err = pcall(fn, solar.system_zone(NOW))
-  vim.env.TZ = saved
+  date.set_tz(saved)
   solar.reset()
   if not ok then
     error(err, 0)
