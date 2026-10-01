@@ -58,22 +58,38 @@ jobs:
       - run: nvim --version
       # PROBE (temporary): what a REPL in a ConPTY terminal sends back
       - name: Session probe
-        if: always()
+        continue-on-error: true
         shell: bash
         run: |
           cat > "$RUNNER_TEMP/probe.lua" <<'LUA'
-          for _, argv in ipairs({ { "python", "-i", "-q" }, { "bash", "--norc", "-i" } }) do
-            local acc = {}
+          local cases = {
+            { "python", "-i", "-q" },
+            { "python", "-i", "-q", size = true },
+            { "bash", "--norc", "-i" },
+          }
+          for _, argv in ipairs(cases) do
+            local acc, code = {}, nil
             local buf = vim.api.nvim_create_buf(true, false)
             local job
+            local o = {
+              term = true,
+              env = { PYTHON_BASIC_REPL = "1" },
+              on_stdout = function(_, d) acc[#acc + 1] = table.concat(d, "<NL>") end,
+              on_exit = function(_, c) code = c end,
+            }
+            if argv.size then
+              o.width, o.height = 120, 40
+            end
             vim.api.nvim_buf_call(buf, function()
-              job = vim.fn.jobstart(argv, { term = true, env = { PYTHON_BASIC_REPL = "1" }, on_stdout = function(_, d) vim.list_extend(acc, { table.concat(d, "<NL>") }) end })
+              job = vim.fn.jobstart({ argv[1], argv[2], argv[3] }, o)
             end)
-            vim.wait(3000)
-            vim.fn.chansend(job, (argv[1] == "python" and "print('BEGIN'); print(6*7); print('END')" or "echo BEGIN; echo $((6*7)); echo END") .. "\r")
-            vim.wait(3000)
-            print(argv[1], vim.inspect(table.concat(acc, "")))
-            vim.fn.jobstop(job)
+            vim.wait(3000, function() return code ~= nil end)
+            if code == nil then
+              pcall(vim.fn.chansend, job, (argv[1] == "python" and "print('BEGIN'); print(6*7); print('END')" or "echo BEGIN; echo $((6*7)); echo END") .. "\r")
+              vim.wait(3000, function() return code ~= nil end)
+            end
+            print(argv[1], argv.size and "sized" or "", "exit=" .. tostring(code), vim.inspect(table.concat(acc, "")))
+            pcall(vim.fn.jobstop, job)
           end
           LUA
           nvim --headless -u NONE -l "$RUNNER_TEMP/probe.lua"
