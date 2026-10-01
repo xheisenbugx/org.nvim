@@ -1798,7 +1798,7 @@ end
 local key_ns
 local insert_keys
 local function watch_insert_keys()
-  if key_ns or vim.fn.has("nvim-0.11") == 0 then
+  if key_ns then
     return
   end
   insert_keys = {

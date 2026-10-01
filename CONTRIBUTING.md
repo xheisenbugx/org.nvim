@@ -19,7 +19,7 @@ you need to get started.
 
 ## Development setup
 
-You only need Neovim 0.10+. For linting, you also need
+You only need Neovim 0.11+. For linting, you also need
 [stylua](https://github.com/JohnnyMorganz/StyLua).
 
 ```sh

@@ -1878,10 +1878,8 @@ local function add(bufnr, kind, spec, src, backend)
   local end_row = (spec.end_row or spec.row) - 1
   local multi = end_row > spec.row - 1
   -- in place of the text (org-link-preview's display property) when the
-  -- backend can; text over several lines needs `conceal_lines` (0.11)
-  local inline = opts().placement ~= "below"
-    and backend.inline == true
-    and (not multi or vim.fn.has("nvim-0.11") == 1)
+  -- backend can
+  local inline = opts().placement ~= "below" and backend.inline == true
   local pw, ph = M.png_size(file)
   local size = { pw = pw, ph = ph, width = spec.width, kind = kind }
   if inline then

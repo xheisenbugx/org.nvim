@@ -66,7 +66,7 @@ graphics protocol. org.nvim asks a /backend/ to draw, chosen with
 1. ="native"= (=vim.ui.img=): Neovim 0.13 or newer, in a terminal with the
    Kitty graphics protocol (kitty, Ghostty, WezTerm). Not through tmux.
 2. ="snacks"=: the image module of snacks.nvim. Works in tmux with
-   =set -g allow-passthrough on=. Good for Neovim 0.10 to 0.12.
+   =set -g allow-passthrough on=. Good for Neovim 0.11 and 0.12.
 3. ="image.nvim"=: the 3rd/image.nvim plugin.
 4. none: no previews, and a message saying why.
 
@@ -83,7 +83,7 @@ installed.
 |--------------------------------------+--------------------------------------|
 | kitty or Ghostty, Neovim 0.13+       | native: everything in this file      |
 | WezTerm, Neovim 0.13+                | native (partial Kitty support)       |
-| Neovim 0.10 to 0.12                  | only with snacks.nvim / image.nvim   |
+| Neovim 0.11 and 0.12                 | only with snacks.nvim / image.nvim   |
 | inside tmux                          | snacks.nvim + allow-passthrough      |
 | inside zellij                        | no backend can draw                  |
 | over SSH                             | works; files live on the server      |

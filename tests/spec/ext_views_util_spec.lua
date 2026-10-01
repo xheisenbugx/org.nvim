@@ -187,8 +187,7 @@ describe("views_util watch", function()
     if group then
       pcall(vim.api.nvim_del_augroup_by_id, group)
     end
-    -- leave no modified scratch org buffer in the window (Neovim 0.10 can't
-    -- switch away from one with bufhidden=wipe)
+    -- leave no modified scratch org buffer in the window
     vim.cmd("silent! enew!")
   end)
 
