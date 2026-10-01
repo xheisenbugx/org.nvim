@@ -321,16 +321,18 @@ M.set_time = set_time
 --- Is `hl` inside a COMMENT subtree (with agenda.skip_comment_trees,
 --- org-agenda-skip-comment-trees), or an ARCHIVE-tagged one (unless
 --- archived trees are included, org-agenda-archives-mode)?
-local function hidden(hl, include_archived)
-  local skip_comments = config.opts.agenda.skip_comment_trees ~= false
-  local h = hl
-  while h do
-    if (skip_comments and h.commented) or (not include_archived and vim.tbl_contains(h.tags, "ARCHIVE")) then
-      return true
+local function hidden(hl, include_archived, memo)
+  local v = memo[hl]
+  if v == nil then
+    local skip_comments = config.opts.agenda.skip_comment_trees ~= false
+    v = (skip_comments and hl.commented) or (not include_archived and vim.tbl_contains(hl.tags, "ARCHIVE"))
+    v = v or false
+    if not v and hl.parent then
+      v = hidden(hl.parent, include_archived, memo)
     end
-    h = h.parent
+    memo[hl] = v
   end
-  return false
+  return v
 end
 
 --- Iterate visible headlines of `files` (skipping ARCHIVE/COMMENT
@@ -341,9 +343,12 @@ end
 function M.each_headline(files, opts, fn)
   opts = opts or {}
   local r = opts.restrict
+  -- whether each headline is hidden, so that a subtree's ancestors are
+  -- checked once rather than for every headline in it
+  local memo = {}
   for fidx, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
-      local ok = opts.all or not hidden(hl, opts.archives)
+      local ok = opts.all or not hidden(hl, opts.archives, memo)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
@@ -1604,14 +1609,31 @@ local function cat(item)
   return item.category or ""
 end
 
+-- results of string_cmp during one M.sort: a list has few distinct
+-- categories and tags, and collation is costly (a Vim call per comparison)
+local cmp_memo
+
 local function string_cmp(a, b)
   -- org-string< (org-sort-function)
-  local lessp = require("org.utils").string_lessp
-  if lessp(a, b) then
-    return -1
-  elseif lessp(b, a) then
-    return 1
+  if a == b then
+    return nil
   end
+  local key = cmp_memo and a .. "\0" .. b
+  local r = key and cmp_memo[key]
+  if r == nil then
+    local lessp = require("org.utils").string_lessp
+    if lessp(a, b) then
+      r = -1
+    elseif lessp(b, a) then
+      r = 1
+    else
+      r = false
+    end
+    if key then
+      cmp_memo[key] = r
+    end
+  end
+  return r or nil
 end
 
 local function todo_cmp(a, b)
@@ -1779,12 +1801,27 @@ local function has_any(strategy, a, b)
   return vim.tbl_contains(strategy, a) or vim.tbl_contains(strategy, b)
 end
 
+--- Which timestamp `set_list_timestamp` takes for `strategy`.
+---@return string|nil
+function M.list_timestamp_kind(strategy)
+  for _, k in ipairs({ "scheduled", "deadline", "ts", "tsia", "timestamp" }) do
+    if has_any(strategy, k .. "-up", k .. "-down") then
+      return k
+    end
+  end
+end
+
 --- The timestamp of a list entry (TODO, tags) used by the ts-* sorting
---- strategies (org-agenda-entry-get-agenda-timestamp).
-function M.set_list_timestamp(item, strategy)
+--- strategies (org-agenda-entry-get-agenda-timestamp). Callers setting it
+--- on many items pass `kind` from `list_timestamp_kind(strategy)`.
+---@param kind? string|false
+function M.set_list_timestamp(item, strategy, kind)
   local hl = item.headline
   if not hl then
     return
+  end
+  if kind == nil then
+    kind = M.list_timestamp_kind(strategy) or false
   end
   local function first(active)
     for _, t in ipairs(hl.timestamps) do
@@ -1803,15 +1840,15 @@ function M.set_list_timestamp(item, strategy)
     end
   end
   local ts, typ
-  if has_any(strategy, "scheduled-up", "scheduled-down") then
+  if kind == "scheduled" then
     ts, typ = hl.planning.scheduled, " scheduled"
-  elseif has_any(strategy, "deadline-up", "deadline-down") then
+  elseif kind == "deadline" then
     ts, typ = hl.planning.deadline, " deadline"
-  elseif has_any(strategy, "ts-up", "ts-down") then
+  elseif kind == "ts" then
     ts, typ = first(true), " timestamp"
-  elseif has_any(strategy, "tsia-up", "tsia-down") then
+  elseif kind == "tsia" then
     ts, typ = first(false), " timestamp_ia"
-  elseif has_any(strategy, "timestamp-up", "timestamp-down") then
+  elseif kind == "timestamp" then
     ts = hl.planning.scheduled or hl.planning.deadline or first(true) or first(false)
     typ = ""
   else
@@ -1893,9 +1930,15 @@ end
 function M.sort(items, strategy)
   strategy = strategy or {}
   M.check_strategy(strategy)
-  return merge_sort(items, function(a, b)
+  cmp_memo = {}
+  local ok, res = pcall(merge_sort, items, function(a, b)
     return lessp(a, b, strategy)
   end)
+  cmp_memo = nil
+  if not ok then
+    error(res, 0)
+  end
+  return res
 end
 
 return M

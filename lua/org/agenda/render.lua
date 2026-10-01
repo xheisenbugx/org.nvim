@@ -1300,8 +1300,9 @@ function M.list_block(b, block, ctx)
   insert_header(b, block, header)
   list = filter_list(list, ctx)
   if kind == "todo" or kind == "tags" then
+    local ts_kind = items_mod.list_timestamp_kind(sorting) or false
     for _, it in ipairs(list) do
-      items_mod.set_list_timestamp(it, sorting)
+      items_mod.set_list_timestamp(it, sorting, ts_kind)
     end
   end
   if not presorted then

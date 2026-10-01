@@ -522,6 +522,8 @@ function M.write_json(path, data)
   M.writefile(path, { vim.json.encode(data) })
 end
 
+local is_mac = vim.fn.has("mac") == 1
+
 --- Whether string `a` sorts before `b` (org-string<), following
 --- `sort_function` (org-sort-function): "collate" compares with the
 --- collation locale (like string-collate-lessp, see |:language|),
@@ -538,7 +540,7 @@ function M.string_lessp(a, b, ignore_case)
   end
   -- Emacs's string-collate-lessp compares character codes on macOS, whose
   -- wide-character collation for UTF-8 locales is not a real one
-  if f == "fallback" or (f == "collate" and vim.fn.has("mac") == 1) then
+  if f == "fallback" or (f == "collate" and is_mac) then
     if ignore_case then
       a, b = a:upper(), b:upper()
     end
@@ -605,23 +607,63 @@ end
 -- Buffers
 ---------------------------------------------------------------------------
 
+-- bufnr -> { name, norm, real }: a buffer's normalized name and resolved
+-- path, so that looking up many files (the agenda) doesn't resolve every
+-- buffer's name each time. Entries are checked against the current name.
+local buf_paths = {}
+
+local function buf_path(b)
+  local name = vim.api.nvim_buf_get_name(b)
+  if name == "" then
+    return nil
+  end
+  local c = buf_paths[b]
+  if not c or c.name ~= name then
+    c = { name = name, norm = vim.fs.normalize(name) }
+    buf_paths[b] = c
+  end
+  return c
+end
+
+local function buf_realpath(c)
+  if c.real == nil then
+    c.real = vim.uv.fs_realpath(c.name) or false
+  end
+  return c.real
+end
+
+vim.api.nvim_create_autocmd({ "BufWipeout", "BufWritePost", "BufFilePost" }, {
+  group = M.augroup,
+  callback = function(ev)
+    buf_paths[ev.buf] = nil
+  end,
+})
+-- a buffer's file may have been created or replaced by a link outside Vim
+vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "FileChangedShellPost" }, {
+  group = M.augroup,
+  callback = function()
+    buf_paths = {}
+  end,
+})
+
 --- Loaded buffer for a path, or nil.
 function M.find_buffer(path)
   path = vim.fs.normalize(path)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+  local bufs = vim.api.nvim_list_bufs()
+  for _, b in ipairs(bufs) do
     if vim.api.nvim_buf_is_loaded(b) then
-      local name = vim.api.nvim_buf_get_name(b)
-      if name ~= "" and vim.fs.normalize(name) == path then
+      local c = buf_path(b)
+      if c and c.norm == path then
         return b
       end
     end
   end
   local real = vim.uv.fs_realpath(path)
   if real then
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    for _, b in ipairs(bufs) do
       if vim.api.nvim_buf_is_loaded(b) then
-        local name = vim.api.nvim_buf_get_name(b)
-        if name ~= "" and vim.uv.fs_realpath(name) == real then
+        local c = buf_path(b)
+        if c and buf_realpath(c) == real then
           return b
         end
       end
