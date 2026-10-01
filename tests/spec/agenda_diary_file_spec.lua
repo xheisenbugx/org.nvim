@@ -66,7 +66,7 @@ describe("agenda diary file", function()
   local saved_today, saved_today_days, saved_now
   before_each(function()
     saved_tz = vim.env.TZ
-    vim.env.TZ = "America/New_York"
+    date.set_tz("America/New_York")
     solar.reset()
     saved_today, saved_today_days, saved_now = date.today, date.today_days, date.now
     local T = date.days_from_civil(2026, 9, 27)
@@ -83,7 +83,7 @@ describe("agenda diary file", function()
   after_each(function()
     pcall(view.quit, true)
     date.today, date.today_days, date.now = saved_today, saved_today_days, saved_now
-    vim.env.TZ = saved_tz
+    date.set_tz(saved_tz)
     solar.reset()
     config.setup({})
   end)

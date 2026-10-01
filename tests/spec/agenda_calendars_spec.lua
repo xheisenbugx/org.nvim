@@ -7,6 +7,7 @@
 local cal = require("org.agenda.calendars")
 local astro = require("org.agenda.holidays.astro")
 local solar = require("org.agenda.holidays.solar")
+local set_tz = require("org.date").set_tz
 
 local function abs(m, d, y)
   return astro.absolute_from_gregorian(m, d, y)
@@ -17,9 +18,9 @@ local NOW = 1790337600
 
 local function with_tz(tz, fn)
   local saved = vim.env.TZ
-  vim.env.TZ = tz
+  set_tz(tz)
   local ok, err = pcall(fn, solar.system_zone(NOW))
-  vim.env.TZ = saved
+  set_tz(saved)
   solar.reset()
   if not ok then
     error(err, 0)
@@ -235,10 +236,10 @@ describe("agenda calendars: agenda keys", function()
   it("lists moon phases and holidays in a float", function()
     open()
     local saved = vim.env.TZ
-    vim.env.TZ = "America/New_York"
+    set_tz("America/New_York")
     solar.reset()
     local okp, buf, win = pcall(view.phases_of_moon)
-    vim.env.TZ = saved
+    set_tz(saved)
     solar.reset()
     assert(okp, buf)
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -369,14 +370,14 @@ describe("agenda calendars: Hebrew and Chinese diary sexps", function()
 
   it("lights the Sabbath candles before sunset on Fridays", function()
     local saved = vim.env.TZ
-    vim.env.TZ = "America/New_York"
+    set_tz("America/New_York")
     solar.reset()
     local loc = { calendar_latitude = 40.7, calendar_longitude = -74.0 }
     config.setup({ agenda = loc })
     local ok1, res1 = pcall(listing, "(diary-hebrew-sabbath-candles)", day(2026, 9, 20), day(2026, 10, 3))
     config.setup({ agenda = vim.tbl_extend("force", loc, { hebrew_sabbath_candles_minutes = 40 }) })
     local ok2, res2 = pcall(listing, "(diary-hebrew-sabbath-candles)", day(2026, 9, 25), day(2026, 9, 25))
-    vim.env.TZ = saved
+    set_tz(saved)
     solar.reset()
     eq({
       "2026-09-25 6:29pm (EDT) Sabbath candle lighting",

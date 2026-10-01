@@ -238,6 +238,16 @@ function M.elapsed_minutes(start, stop)
   return (stop:to_time() - start:to_time()) / 60
 end
 
+--- Set the TZ environment variable (nil: unset it) and make local time
+--- (`os.date`, `os.time`) follow it. Lua uses localtime_r(), which on glibc
+--- keeps the zone it first read; Neovim's strftime() calls tzset() when TZ
+--- changed.
+---@param tz string?
+function M.set_tz(tz)
+  vim.env.TZ = tz
+  vim.fn.strftime("%Z", 0)
+end
+
 --- format-time-string of the date (see |M.format_time_string|).
 function Date:strftime(fmt)
   return M.format_time_string(fmt, self:to_time())
