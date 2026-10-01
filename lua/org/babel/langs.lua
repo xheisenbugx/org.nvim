@@ -996,7 +996,7 @@ local function fmt(template, ...)
 end
 
 --- Build how to run a block with an external program. Returns a spec:
---- `{ steps = { { cmd = argv|string, stdin?, script? } }, result_file? }`.
+--- `{ steps = { { cmd = argv|string, stdin?, script?, env? } }, result_file? }`.
 --- A string `cmd` runs through `sh -c`.
 ---@param ctx { cmd: string[], ext: string, graphics_file?: string }
 function M.prepare(lang, body, args, vars, ctx)

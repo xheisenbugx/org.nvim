@@ -25,19 +25,34 @@ function M.default_restore_command(project_file)
   return string.format("%s restore %s", o.compiler or "dotnet", q(project_file))
 end
 
---- `org-babel-csharp--find-dotnet-version`: the major versions of the
---- installed SDKs.
-function M.dotnet_versions()
+--- The lines of `dotnet --list-sdks`: "10.0.400 [/usr/local/share/dotnet/sdk]".
+local function list_sdks()
   local o = ob.opts("csharp") or {}
   local ok, res = pcall(function()
     return vim.system({ "sh", "-c", (o.compiler or "dotnet") .. " --list-sdks" }, { text = true }):wait()
   end)
-  local out = {}
   if not ok or not res.stdout then
-    return out
+    return {}
   end
+  return vim.split(res.stdout, "\n")
+end
+
+--- The directory .NET is installed in, from the path of its SDKs.
+function M.dotnet_root()
+  for _, l in ipairs(list_sdks()) do
+    local dir = l:match("%[(.*)/sdk%]%s*$")
+    if dir then
+      return dir
+    end
+  end
+end
+
+--- `org-babel-csharp--find-dotnet-version`: the major versions of the
+--- installed SDKs.
+function M.dotnet_versions()
+  local out = {}
   local seen = {}
-  for _, l in ipairs(vim.split(res.stdout, "\n")) do
+  for _, l in ipairs(list_sdks()) do
     local n = tonumber(l:match("^(%d+)%.[%d.]*") or "")
     if n and n ~= 0 and not seen[n] then
       seen[n] = true
@@ -226,7 +241,10 @@ function M.prepare(body, args, vars, ctx)
           end
         end,
       },
-      { cmd = run },
+      -- the app host looks for .NET in DOTNET_ROOT, else only in the default
+      -- location: tell it where the SDK that built it is (an SDK installed
+      -- by dotnet-install.sh or a version manager, in ~/.dotnet for example)
+      { cmd = run, env = not vim.env.DOTNET_ROOT and { DOTNET_ROOT = M.dotnet_root() } or nil },
     },
     convert = function(raw)
       if raw == nil then
