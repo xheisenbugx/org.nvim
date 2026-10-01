@@ -143,3 +143,95 @@ describe("notifications", function()
     end)
   end)
 end)
+
+describe("desktop notifications", function()
+  local notifications = require("org.agenda.notifications")
+  local real_has, real_executable, real_system
+  local platform, available, calls
+
+  before_each(function()
+    real_has, real_executable, real_system = vim.fn.has, vim.fn.executable, vim.system
+    platform, available, calls = {}, {}, {}
+    vim.fn.has = function(feature)
+      if feature == "mac" or feature == "win32" or feature == "wsl" then
+        return platform[feature] and 1 or 0
+      end
+      return real_has(feature)
+    end
+    vim.fn.executable = function(exe)
+      return available[exe] and 1 or 0
+    end
+    vim.system = function(cmd)
+      calls[#calls + 1] = cmd
+    end
+  end)
+
+  after_each(function()
+    vim.fn.has, vim.fn.executable, vim.system = real_has, real_executable, real_system
+  end)
+
+  -- the script powershell -EncodedCommand runs (UTF-16LE base64)
+  local function decode(b64)
+    local bytes, chars, i = vim.base64.decode(b64), {}, 1
+    local function unit()
+      local u = bytes:byte(i) + bytes:byte(i + 1) * 256
+      i = i + 2
+      return u
+    end
+    while i <= #bytes do
+      local u = unit()
+      if u >= 0xD800 and u < 0xDC00 then
+        u = 0x10000 + (u - 0xD800) * 0x400 + (unit() - 0xDC00)
+      end
+      chars[#chars + 1] = u
+    end
+    return vim.fn.list2str(chars, 1)
+  end
+
+  it("picks the notifier of the platform", function()
+    platform.mac, available.osascript, available["notify-send"] = true, true, true
+    eq("osascript", notifications.desktop_backend())
+    platform.mac = false
+    eq("notify-send", notifications.desktop_backend())
+    available["notify-send"] = nil
+    eq(nil, notifications.desktop_backend())
+    platform.win32, available["powershell.exe"] = true, true
+    eq("powershell", notifications.desktop_backend())
+    -- notify-send on Windows (e.g. from MSYS2) isn't a desktop notifier
+    available["notify-send"] = true
+    eq("powershell", notifications.desktop_backend())
+  end)
+
+  it("uses powershell.exe in WSL only without notify-send", function()
+    platform.wsl, available["powershell.exe"] = true, true
+    eq("powershell", notifications.desktop_backend())
+    available["notify-send"] = true
+    eq("notify-send", notifications.desktop_backend())
+  end)
+
+  it("shows a Windows toast through powershell.exe", function()
+    platform.win32, available["powershell.exe"] = true, true
+    notifications.desktop_notify("org: Deadline", "TODO Mike's review — 10:00 🍅")
+    eq(1, #calls)
+    local cmd = calls[1]
+    eq("powershell.exe", cmd[1])
+    eq("-EncodedCommand", cmd[#cmd - 1])
+    local script = decode(cmd[#cmd])
+    eq(notifications.toast_script("org: Deadline", "TODO Mike's review — 10:00 🍅"), script)
+    ok(script:find("CreateTextNode('org: Deadline')", 1, true), script)
+    -- quotes are doubled in PowerShell's single-quoted strings, and the
+    -- emoji (a surrogate pair in UTF-16) comes back whole
+    ok(script:find("CreateTextNode('TODO Mike''s review — 10:00 🍅')", 1, true), script)
+    ok(script:find("ToastNotificationManager", 1, true), script)
+  end)
+
+  it("doubles curly quotes, which PowerShell also ends strings with", function()
+    local script = notifications.toast_script("t", "it\u{2019}s")
+    ok(script:find("'it\u{2019}\u{2019}s'", 1, true), script)
+  end)
+
+  it("sends nothing without a notifier", function()
+    notifications.desktop_notify("title", "body")
+    eq(0, #calls)
+  end)
+end)
