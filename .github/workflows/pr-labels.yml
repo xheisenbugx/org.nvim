@@ -1,0 +1,74 @@
+name: PR labels
+
+# Labels a pull request from its Conventional Commits title, for the sections
+# of the release notes (.github/release.yml):
+#   feat → enhancement, fix → bug, perf → performance, docs → documentation,
+#   refactor/style/test/ci/build/chore → maintenance, release → release,
+#   a "!" before the colon → breaking, and a scope naming an extension
+#   (feat(roam): …, fix(ql,super-agenda): …) or "extensions" → extension.
+# pull_request_target so pull requests from forks can be labelled too; it
+# only reads the title and never checks out or runs the pull request's code.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set labels from the title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.pull_request.title }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          re='^([a-z]+)(\(([^)]*)\))?(!)?: '
+          if [[ ! "$TITLE" =~ $re ]]; then
+            echo "Title isn't in Conventional Commits form; leaving labels alone."
+            exit 0
+          fi
+          type="${BASH_REMATCH[1]}" scope="${BASH_REMATCH[3]}" bang="${BASH_REMATCH[4]}"
+          want=()
+          case "$type" in
+            feat) want+=(enhancement) ;;
+            fix) want+=(bug) ;;
+            perf) want+=(performance) ;;
+            docs) want+=(documentation) ;;
+            refactor | style | test | ci | build | chore) want+=(maintenance) ;;
+            release) want+=(release) ;;
+          esac
+          [[ -n "$bang" ]] && want+=(breaking)
+          if [[ -n "$scope" ]]; then
+            exts=$(gh api "repos/$GH_REPO/contents/lua/org/extensions?ref=$BASE" \
+              --jq '.[] | select(.type == "dir") | .name' || true)
+            IFS=',' read -ra scopes <<< "$scope"
+            for s in "${scopes[@]}"; do
+              s=$(echo "$s" | tr -d ' ' | tr '-' '_')
+              if [[ "$s" == extensions ]] || grep -qx "$s" <<< "$exts"; then
+                want+=(extension)
+                break
+              fi
+            done
+          fi
+          # drop managed labels the (possibly edited) title no longer implies
+          managed=(enhancement bug performance documentation maintenance release breaking extension)
+          have=$(gh pr view "$NUMBER" --json labels --jq '.labels[].name')
+          remove=()
+          for l in "${managed[@]}"; do
+            if grep -qx "$l" <<< "$have" && [[ ! " ${want[*]} " == *" $l "* ]]; then
+              remove+=("$l")
+            fi
+          done
+          args=()
+          [[ ${#want[@]} -gt 0 ]] && args+=(--add-label "$(IFS=,; echo "${want[*]}")")
+          [[ ${#remove[@]} -gt 0 ]] && args+=(--remove-label "$(IFS=,; echo "${remove[*]}")")
+          if [[ ${#args[@]} -gt 0 ]]; then
+            echo "gh pr edit $NUMBER ${args[*]}"
+            gh pr edit "$NUMBER" "${args[@]}"
+          fi
