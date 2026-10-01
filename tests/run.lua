@@ -236,7 +236,13 @@ local function restore(s)
 end
 
 local files = _G.arg and #_G.arg > 0 and _G.arg or vim.fn.glob(root .. "/tests/spec/**/*_spec.lua", false, true)
+local progress = vim.env.ORG_TEST_PROGRESS
 for _, f in ipairs(files) do
+  if progress and progress ~= "" then
+    -- which file a hanging run is in
+    io.stderr:write("== " .. vim.fn.fnamemodify(f, ":t") .. "\n")
+    io.stderr:flush()
+  end
   local state = snapshot()
   local ok, err = pcall(dofile, f)
   if not ok then

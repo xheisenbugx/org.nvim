@@ -50,7 +50,7 @@ local PUBLISH_KEYS = {
 --- Timestamp directory (org-publish-timestamp-directory).
 function M.timestamp_directory()
   local d = pcfg().timestamp_directory or (vim.fn.stdpath("data") .. "/org-timestamps/")
-  d = vim.fn.fnamemodify(vim.fn.expand(d), ":p")
+  d = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(d), ":p"))
   if not d:match("/$") then
     d = d .. "/"
   end
