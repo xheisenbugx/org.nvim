@@ -17,7 +17,8 @@ end
 local FAKE = {
   "#!/bin/sh",
   'out=""; dir=""',
-  'echo "$@" > "$FAKE_CTAGS_ARGS"',
+  -- printf, not echo: the echo of dash turns the \1 of the regexp into a \001 byte
+  'printf "%s\\n" "$*" > "$FAKE_CTAGS_ARGS"',
   'while [ $# -gt 0 ]; do case "$1" in -f) out="$2"; shift 2;; -R) dir="$2"; shift 2;; *) shift;; esac; done',
   "awk '{ line=$0; while (match(line, /<<[^<>]+>>/)) { "
     .. 'printf "%s\\t%s\\t%d;\\"\\td\\n", substr(line, RSTART+2, RLENGTH-4), FILENAME, FNR; '
