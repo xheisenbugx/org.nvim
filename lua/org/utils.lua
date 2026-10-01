@@ -280,6 +280,35 @@ function M.escape_pattern(s)
   return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
 end
 
+-- The LuaJIT of Neovim 0.11 rounds exact ties away from zero
+-- (string.format("%.2f", 0.125) is "0.13"); C printf, and so Emacs,
+-- rounds them to even. There, format floats with the C library.
+local c_snprintf
+if string.format("%.2f", 0.125) ~= "0.12" and jit then
+  local ffi = require("ffi")
+  pcall(ffi.cdef, "int snprintf(char *str, size_t size, const char *format, ...);")
+  c_snprintf = function(spec, x)
+    local size = 64
+    while true do
+      local buf = ffi.new("char[?]", size)
+      local n = ffi.C.snprintf(buf, size, spec, ffi.cast("double", x))
+      if n < size then
+        return ffi.string(buf, n)
+      end
+      size = n + 1
+    end
+  end
+end
+
+--- `string.format(spec, x)` for one float directive (%f, %e, %g, with
+--- flags, width and precision), rounding ties like C printf.
+function M.format_float(spec, x)
+  if c_snprintf and x == x and x ~= math.huge and x ~= -math.huge then
+    return c_snprintf(spec, x)
+  end
+  return string.format(spec, x)
+end
+
 function M.width(s)
   return vim.api.nvim_strwidth(s)
 end

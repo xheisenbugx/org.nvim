@@ -513,7 +513,7 @@ local function format_directive(spec, flags, width, prec, conv, v)
   if conv == "d" or conv == "x" or conv == "X" or conv == "o" then
     return string.format(spec:gsub("%.%d*", ""), trunc(x))
   end
-  return string.format(spec, x)
+  return require("org.utils").format_float(spec, x)
 end
 
 local function format(fmt, ...)

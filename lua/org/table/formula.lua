@@ -128,11 +128,11 @@ function M.seconds_to_string(secs, format)
   local pad = opts.table_duration_hour_zero_padding ~= false
   local res
   if format == "days" then
-    res = string.format("%.3f", s0 / 86400)
+    res = require("org.utils").format_float("%.3f", s0 / 86400)
   elseif format == "hours" then
-    res = string.format("%.2f", s0 / 3600)
+    res = require("org.utils").format_float("%.2f", s0 / 3600)
   elseif format == "minutes" then
-    res = string.format("%.1f", s0 / 60)
+    res = require("org.utils").format_float("%.1f", s0 / 60)
   elseif format == "seconds" then
     res = string.format("%d", math.floor(s0))
   else
@@ -171,7 +171,7 @@ function M.format_number(fmt, v, isfloat)
       elseif conv == "s" or conv == "S" then
         out[#out + 1] = string.format(spec:sub(1, -2) .. "s", n2s(v, isfloat))
       elseif conv:match("[feEgG]") then
-        out[#out + 1] = string.format(spec, v)
+        out[#out + 1] = require("org.utils").format_float(spec, v)
       else
         error("Invalid format operation %" .. conv)
       end
