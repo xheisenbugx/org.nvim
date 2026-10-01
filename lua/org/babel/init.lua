@@ -1058,7 +1058,8 @@ local function run_steps(spec, cwd, sync, cb)
   local failed = false
   local i = 0
   local function sys_opts(step)
-    return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = { PWD = cwd } }
+    local env = vim.tbl_extend("force", { PWD = cwd }, step.env or {})
+    return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = env }
   end
   local function handle(obj, step)
     local stderr = obj.stderr or ""
