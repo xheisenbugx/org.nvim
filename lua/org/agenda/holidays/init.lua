@@ -59,8 +59,13 @@ end
 --- holiday-easter-etc-abs: Gregorian Easter by the Nicaean rule.
 function M.easter(y)
   local century = math.floor(y / 100) + 1
-  local shifted_epact = (14 + 11 * (y % 19) - math.floor(3 * century / 4) + math.floor((5 + 8 * century) / 25)
-    + 30 * century) % 30
+  local shifted_epact = (
+    14
+    + 11 * (y % 19)
+    - math.floor(3 * century / 4)
+    + math.floor((5 + 8 * century) / 25)
+    + 30 * century
+  ) % 30
   local adjusted_epact = (shifted_epact == 0 or (shifted_epact == 1 and 10 < y % 19)) and shifted_epact + 1
     or shifted_epact
   local paschal_moon = date.days_from_civil(y, 4, 19) - adjusted_epact

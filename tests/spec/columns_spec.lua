@@ -73,7 +73,7 @@ end)
 
 describe("columnview dblock parameters", function()
   local lines = {
-    "#+BEGIN: columnview :id global :format \"%ITEM %N{+}\" PARAMS",
+    '#+BEGIN: columnview :id global :format "%ITEM %N{+}" PARAMS',
     "#+END:",
     "* A :x:",
     ":PROPERTIES:",
@@ -120,7 +120,7 @@ describe("columnview dblock parameters", function()
 
   it("keeps keywords and #+TBLFM lines and recalculates", function()
     local buf = org_buffer({
-      "#+BEGIN: columnview :id global :format \"%ITEM %N\"",
+      '#+BEGIN: columnview :id global :format "%ITEM %N"',
       "#+NAME: view",
       "| old |",
       "#+TBLFM: @>$2=99",

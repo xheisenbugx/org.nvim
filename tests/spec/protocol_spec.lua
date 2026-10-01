@@ -17,7 +17,10 @@ end
 
 describe("org-protocol", function()
   it("parses new-style queries and old-style paths", function()
-    eq({ url = "https://a.b/c?d=1", title = "A title" }, protocol.parse_query("url=https%3A%2F%2Fa.b%2Fc%3Fd%3D1&title=A+title"))
+    eq(
+      { url = "https://a.b/c?d=1", title = "A title" },
+      protocol.parse_query("url=https%3A%2F%2Fa.b%2Fc%3Fd%3D1&title=A+title")
+    )
     eq({ url = "u", title = "t", extra = "x" }, protocol.parse_old_style("u/t/extra/x", { "url", "title" }))
     eq("https://a.b/c", protocol.sanitize_uri("https:/a.b//c"))
   end)
@@ -50,7 +53,9 @@ describe("org-protocol", function()
       },
     }
     quiet(function()
-      ok(protocol.handle("org-protocol://capture?template=p&url=https%3A%2F%2Fex.com&title=Ex+Title&body=selected+text"))
+      ok(
+        protocol.handle("org-protocol://capture?template=p&url=https%3A%2F%2Fex.com&title=Ex+Title&body=selected+text")
+      )
       -- old style with a one-letter template key first
       ok(protocol.handle("org-protocol://capture://p/https%3A%2F%2Fold.com/Old/body"))
     end)

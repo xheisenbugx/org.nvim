@@ -259,12 +259,13 @@ REPL.python = {
       -- `session_cmd` (org-babel-python-command-session) is used as it is
       vim.list_extend(argv, { "-i", "-q" })
     end
-    return argv, {
-      PYTHONSTARTUP = setup,
-      ORG_BABEL_USER_STARTUP = vim.env.PYTHONSTARTUP or "",
-      PYTHON_BASIC_REPL = "1",
-      PYTHON_COLORS = "0",
-    }
+    return argv,
+      {
+        PYTHONSTARTUP = setup,
+        ORG_BABEL_USER_STARTUP = vim.env.PYTHONSTARTUP or "",
+        PYTHON_BASIC_REPL = "1",
+        PYTHON_COLORS = "0",
+      }
   end,
   line = function(_, id)
     return string.format("__org_babel_run(%d)", id)
@@ -621,12 +622,8 @@ local function start_repl(sess, opts)
     end,
   }
   local ok, err = pcall(vim.api.nvim_buf_call, buf, function()
-    if vim.fn.has("nvim-0.11") == 1 then
-      jopts.term = true
-      job = vim.fn.jobstart(argv, jopts)
-    else
-      job = vim.fn.termopen(argv, jopts)
-    end
+    jopts.term = true
+    job = vim.fn.jobstart(argv, jopts)
   end)
   if not ok or not job or job <= 0 then
     pcall(vim.api.nvim_buf_delete, buf, { force = true })

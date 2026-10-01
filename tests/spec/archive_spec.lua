@@ -128,7 +128,10 @@ describe("archive_subtree (Emacs parity)", function()
     )
     local want = { "", "Archived entries from file FILE" }
     vim.list_extend(want, dt)
-    vim.list_extend(want, { "**** DONE A", "CLOSED: [2026-03-05 Thu 10:00]", "**** DONE B", "CLOSED: [2026-03-05 Thu 11:00]" })
+    vim.list_extend(
+      want,
+      { "**** DONE A", "CLOSED: [2026-03-05 Thu 10:00]", "**** DONE B", "CLOSED: [2026-03-05 Thu 11:00]" }
+    )
     eq(want, a)
     _, a = ar("* DONE A\nCLOSED: [2026-03-05 Thu 10:00]\n* B", { "* DONE A" }, "arch.org::datetree/* Sub")
     want = { "", "Archived entries from file FILE" }
@@ -172,14 +175,20 @@ describe("archive", function()
   it("archives to the _archive file with context", function()
     local dir = tmpdir()
     local p = dir .. "/tasks.org"
-    utils.writefile(p, { "#+FILETAGS: :f:", "* Project :proj:", "** DONE Finish :x:", "   CLOSED: [2026-09-20 Sun]", "** Keep" })
+    utils.writefile(
+      p,
+      { "#+FILETAGS: :f:", "* Project :proj:", "** DONE Finish :x:", "   CLOSED: [2026-09-20 Sun]", "** Keep" }
+    )
     config.setup({ org_directory = dir, agenda_files = { dir }, id = { locations_file = dir .. "/ids.json" } })
     vim.cmd("edit! " .. p)
     vim.api.nvim_win_set_cursor(0, { 3, 0 })
     archive.archive_subtree()
-    eq({ "#+FILETAGS: :f:", "* Project :proj:", "** Keep" }, vim.tbl_map(function(l)
-      return (l:gsub("%s+", " "))
-    end, buf_lines()))
+    eq(
+      { "#+FILETAGS: :f:", "* Project :proj:", "** Keep" },
+      vim.tbl_map(function(l)
+        return (l:gsub("%s+", " "))
+      end, buf_lines())
+    )
     local a = utils.readfile(p .. "_archive")
     eq("#    -*- mode: org -*-", a[1])
     ok(a[4]:match("^Archived entries from file .*/tasks%.org$"), a[4])

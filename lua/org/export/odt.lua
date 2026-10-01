@@ -196,11 +196,9 @@ end
 
 --- org-odt--encode-tabs-and-spaces
 local function encode_tabs_and_spaces(s)
-  return (
-    s:gsub("\t", "<text:tab/>"):gsub("  +", function(sp)
-      return fmt(' <text:s text:c="%d"/>', #sp - 1)
-    end)
-  )
+  return (s:gsub("\t", "<text:tab/>"):gsub("  +", function(sp)
+    return fmt(' <text:s text:c="%d"/>', #sp - 1)
+  end))
 end
 
 --- org-odt--encode-plain-text
@@ -225,13 +223,15 @@ function M.unfill(s)
   local out = {}
   local pos = 1
   local function fill(seg)
-    return (seg:gsub("()([ \t\n]+)", function(p, ws)
-      local before = seg:sub(1, p - 1)
-      if before:match("[%.%?!][%)%]}\"']*$") and (ws:find("\n", 1, true) or #ws >= 2) then
-        return "  "
-      end
-      return " "
-    end))
+    return (
+      seg:gsub("()([ \t\n]+)", function(p, ws)
+        local before = seg:sub(1, p - 1)
+        if before:match("[%.%?!][%)%]}\"']*$") and (ws:find("\n", 1, true) or #ws >= 2) then
+          return "  "
+        end
+        return " "
+      end)
+    )
   end
   while true do
     local a, b = body:find("\n[ \t]*\n[ \t\n]*", pos)
@@ -499,11 +499,8 @@ function M.toc(depth, info, scope)
   local entries = {}
   for _, h in ipairs(headlines) do
     local entry = format_headline_wrap(h, backend, info, format_toc_headline)
-    entries[#entries + 1] = fmt(
-      '\n<text:p text:style-name="%s">%s</text:p>',
-      fmt("Contents_20_%d", ox.get_relative_level(h, info)),
-      entry
-    )
+    entries[#entries + 1] =
+      fmt('\n<text:p text:style-name="%s">%s</text:p>', fmt("Contents_20_%d", ox.get_relative_level(h, info)), entry)
   end
   local title = not scope and ox.translate("Table of Contents", "utf-8", info) or nil
   return format_toc(title, table.concat(entries, "\n"), depth)
@@ -687,13 +684,15 @@ local function default_category(el, info)
 end
 
 local function format_spec(s, spec)
-  return (s:gsub("%%(%a)", function(c)
-    local v = spec[c]
-    if v == nil then
-      return "%" .. c
-    end
-    return v
-  end))
+  return (
+    s:gsub("%%(%a)", function(c)
+      local v = spec[c]
+      if v == nil then
+        return "%" .. c
+      end
+      return v
+    end)
+  )
 end
 
 --- org-odt-format-label: for "definition", { caption } (nil when `el` has
@@ -989,9 +988,7 @@ local function inline_formula(info, data, standalone, unit, title, desc)
   end
   local captions = unit and labelled(unit) and format_label(unit, info, "definition", "__MathFormula__") or nil
   local equation = render_image_formula(info, "CaptionedDisplayFormula", href, nil, nil, captions, nil, title, desc)
-  local label = unit
-      and labelled(unit)
-      and format_label(unit, info, "definition", "__MathFormula__", "math-label")
+  local label = unit and labelled(unit) and format_label(unit, info, "definition", "__MathFormula__", "math-label")
     or nil
   return equation .. "<text:tab/>" .. (label and label[1] or "")
 end
@@ -1083,7 +1080,7 @@ local function prin1_string(s)
   if s == nil then
     return "nil"
   end
-  return '"' .. s:gsub("[\\\"]", "\\%0") .. '"'
+  return '"' .. s:gsub('[\\"]', "\\%0") .. '"'
 end
 
 --- The MathML cache file of a fragment (org-format-latex-as-mathml):
@@ -1441,8 +1438,7 @@ local function format_timestamp(ts, use_end, iso_only)
     iso,
     style,
     date
-  )
-    .. (rep ~= "" and (" " .. rep) or "")
+  ) .. (rep ~= "" and (" " .. rep) or "")
 end
 
 --- org-odt--build-date-styles
@@ -2186,8 +2182,10 @@ T.link = function(el, desc, info)
         desc or ordinal_string(ox.get_ordinal(dest, info))
       )
     elseif dest.type == "plain-text" then
-      local file_link =
-        setmetatable({ link_type = "file", path = dest.value, raw_link = "file:" .. dest.value }, { __index = el })
+      local file_link = setmetatable(
+        { link_type = "file", path = dest.value, raw_link = "file:" .. dest.value },
+        { __index = el }
+      )
       return T.link(file_link, desc or "", info)
     end
     local ok, ref = pcall(format_label, dest, info, "reference")

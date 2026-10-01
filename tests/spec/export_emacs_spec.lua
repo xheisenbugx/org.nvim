@@ -195,7 +195,8 @@ describe("export (Emacs features)", function()
     hasnt(h, "none")
     has(h, 'Sum: <code>2</code> and <code class="src src-sh">ls</code>.')
     -- text in verbatim, code and link paths is not Babel code
-    local h1 = html({ "V =src_sh{echo v}= C ~call_f()~ [[https://x.org/src_sh{p}][d]] R src_sh{r} {{{results(=r=)}}}." })
+    local h1 =
+      html({ "V =src_sh{echo v}= C ~call_f()~ [[https://x.org/src_sh{p}][d]] R src_sh{r} {{{results(=r=)}}}." })
     has(h1, "V <code>src_sh{echo v}</code> C <code>call_f()</code>")
     has(h1, 'href="https://x.org/src_sh%7Bp%7D"')
     has(h1, "R <code>r</code>.")
@@ -286,7 +287,10 @@ describe("export (Emacs features)", function()
     has(h, '<div class="inlinetask">\n<b><span class="todo TODO">TODO</span> Inline task</b><br />')
     has(h, "inline body")
     hasnt(h, ">END<")
-    hasnt(html({ "#+OPTIONS: inline:nil", "*************** TODO Inline task", "body", "*************** END" }), "Inline")
+    hasnt(
+      html({ "#+OPTIONS: inline:nil", "*************** TODO Inline task", "body", "*************** END" }),
+      "Inline"
+    )
   end)
 
   it("handles broken links per broken-links:", function()
@@ -298,7 +302,7 @@ describe("export (Emacs features)", function()
   end)
 
   it("uses smart quotes with ':t and localises strings with #+LANGUAGE", function()
-    local h = html({ "#+OPTIONS: ':t", "\"quoted\" and don't" })
+    local h = html({ "#+OPTIONS: ':t", '"quoted" and don\'t' })
     has(h, "&ldquo;quoted&rdquo; and don&rsquo;t")
     local fr = html({ "#+LANGUAGE: fr", "* A" }, { body_only = true })
     has(fr, "Table des matières")
@@ -342,9 +346,11 @@ describe("export (Emacs features)", function()
       paragraph = function(s)
         return s:upper()
       end,
-      ["final-output"] = { function(s)
-        return s .. "<!-- done -->\n"
-      end },
+      ["final-output"] = {
+        function(s)
+          return s .. "<!-- done -->\n"
+        end,
+      },
     }
     config.opts.export.hooks = {
       before_parsing = function(_, lines)

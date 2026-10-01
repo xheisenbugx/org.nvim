@@ -190,9 +190,12 @@ describe("review extension", function()
 
     it("uses the default order without a list", function()
       local list = steps.resolve(nil)
-      eq(steps.order, vim.tbl_map(function(s)
-        return s.name
-      end, list))
+      eq(
+        steps.order,
+        vim.tbl_map(function(s)
+          return s.name
+        end, list)
+      )
     end)
 
     describe("builtins", function()

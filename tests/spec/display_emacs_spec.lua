@@ -216,10 +216,17 @@ describe("fold commands (Emacs 9.8.10)", function()
     fold.show_all()
     fold.hide_drawer_all()
     -- Emacs: the property drawer and the logbook hidden
-    eq(
-      { "* A", ":PROPERTIES:", "#+begin_src sh", "echo", "#+end_src", "#+BEGIN: clocktable", "x", "#+END:", ":LOGBOOK:" },
-      visible()
-    )
+    eq({
+      "* A",
+      ":PROPERTIES:",
+      "#+begin_src sh",
+      "echo",
+      "#+end_src",
+      "#+BEGIN: clocktable",
+      "x",
+      "#+END:",
+      ":LOGBOOK:",
+    }, visible())
   end)
 
   it("are actions", function()
@@ -282,15 +289,13 @@ describe("catch_invisible_edits", function()
     eq(true, fold.line_visible(2))
     fold.hide_entry()
     -- delete at the border (over the hidden newline): shown, refused
-    if vim.fn.has("nvim-0.11") == 1 then
-      vim.api.nvim_feedkeys(vim.keycode("A<Del><Esc>"), "xt", false)
-      eq({ "* Ax", "body", "** B", "b" }, buf_lines(buf))
-      eq(true, fold.line_visible(2))
-    end
+    vim.api.nvim_feedkeys(vim.keycode("A<Del><Esc>"), "xt", false)
+    eq({ "* Ax", "body", "** B", "b" }, buf_lines(buf))
+    eq(true, fold.line_visible(2))
   end)
 
   it("<BS> after hidden lines is refused, then allowed once visible", function()
-    if not fold.conceal_supported or vim.fn.has("nvim-0.11") == 0 then
+    if not fold.conceal_supported then
       return
     end
     local buf = org_buffer({ "* A", "body", "** B", "b" }, { 1, 0 })

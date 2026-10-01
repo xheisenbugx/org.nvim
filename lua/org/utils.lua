@@ -280,6 +280,35 @@ function M.escape_pattern(s)
   return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
 end
 
+-- The LuaJIT of Neovim 0.11 rounds exact ties away from zero
+-- (string.format("%.2f", 0.125) is "0.13"); C printf, and so Emacs,
+-- rounds them to even. There, format floats with the C library.
+local c_snprintf
+if string.format("%.2f", 0.125) ~= "0.12" and jit then
+  local ffi = require("ffi")
+  pcall(ffi.cdef, "int snprintf(char *str, size_t size, const char *format, ...);")
+  c_snprintf = function(spec, x)
+    local size = 64
+    while true do
+      local buf = ffi.new("char[?]", size)
+      local n = ffi.C.snprintf(buf, size, spec, ffi.cast("double", x))
+      if n < size then
+        return ffi.string(buf, n)
+      end
+      size = n + 1
+    end
+  end
+end
+
+--- `string.format(spec, x)` for one float directive (%f, %e, %g, with
+--- flags, width and precision), rounding ties like C printf.
+function M.format_float(spec, x)
+  if c_snprintf and x == x and x ~= math.huge and x ~= -math.huge then
+    return c_snprintf(spec, x)
+  end
+  return string.format(spec, x)
+end
+
 function M.width(s)
   return vim.api.nvim_strwidth(s)
 end
@@ -328,6 +357,83 @@ function M.uuid()
   end
   local s = table.concat(hex)
   return string.format("%s-%s-%s-%s-%s", s:sub(1, 8), s:sub(9, 12), s:sub(13, 16), s:sub(17, 20), s:sub(21, 32))
+end
+
+-- stylua: ignore
+local SHA256_K = {
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+}
+
+--- SHA-256 in Lua, for the strings older sha256() rejects.
+local function sha256_lua(s)
+  local band, bor, bxor, bnot, ror, rshift = bit.band, bit.bor, bit.bxor, bit.bnot, bit.ror, bit.rshift
+  local len = #s
+  s = s .. "\128" .. string.rep("\0", (55 - len) % 64)
+  local bits = len * 8
+  local tail = {}
+  for i = 8, 1, -1 do
+    tail[i] = string.char(bits % 256)
+    bits = math.floor(bits / 256)
+  end
+  s = s .. table.concat(tail)
+  local h = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }
+  local w = {}
+  for chunk = 1, #s, 64 do
+    for i = 0, 15 do
+      local a, b, c, d = s:byte(chunk + i * 4, chunk + i * 4 + 3)
+      w[i] = bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(c, 8), d)
+    end
+    for i = 16, 63 do
+      local x, y = w[i - 15], w[i - 2]
+      local s0 = bxor(ror(x, 7), ror(x, 18), rshift(x, 3))
+      local s1 = bxor(ror(y, 17), ror(y, 19), rshift(y, 10))
+      w[i] = bit.tobit(w[i - 16] + s0 + w[i - 7] + s1)
+    end
+    local a, b, c, d, e, f, g, hh = unpack(h)
+    for i = 0, 63 do
+      local s1 = bxor(ror(e, 6), ror(e, 11), ror(e, 25))
+      local ch = bxor(band(e, f), band(bnot(e), g))
+      local t1 = hh + s1 + ch + SHA256_K[i + 1] + w[i]
+      local s0 = bxor(ror(a, 2), ror(a, 13), ror(a, 22))
+      local maj = bxor(band(a, b), band(a, c), band(b, c))
+      hh, g, f, e = g, f, e, bit.tobit(d + t1)
+      d, c, b, a = c, b, a, bit.tobit(t1 + s0 + maj)
+    end
+    for i, v in ipairs({ a, b, c, d, e, f, g, hh }) do
+      h[i] = bit.tobit(h[i] + v)
+    end
+  end
+  local out = {}
+  for i = 1, 8 do
+    out[i] = bit.tohex(h[i])
+  end
+  return table.concat(out)
+end
+M._sha256_lua = sha256_lua
+
+local sha256_takes_blobs
+
+--- Hex SHA-256 of the bytes of `s` (sha256()). Neovim passes a string with a
+--- NUL byte to sha256() as a Blob, which 0.11.0 rejects (E976), 0.12 hashes.
+---@param s string
+---@return string
+function M.sha256(s)
+  if s:find("\0", 1, true) then
+    if sha256_takes_blobs == nil then
+      sha256_takes_blobs = pcall(vim.fn.sha256, "\0")
+    end
+    if not sha256_takes_blobs then
+      return sha256_lua(s)
+    end
+  end
+  return vim.fn.sha256(s)
 end
 
 ---------------------------------------------------------------------------
@@ -416,6 +522,8 @@ function M.write_json(path, data)
   M.writefile(path, { vim.json.encode(data) })
 end
 
+local is_mac = vim.fn.has("mac") == 1
+
 --- Whether string `a` sorts before `b` (org-string<), following
 --- `sort_function` (org-sort-function): "collate" compares with the
 --- collation locale (like string-collate-lessp, see |:language|),
@@ -432,7 +540,7 @@ function M.string_lessp(a, b, ignore_case)
   end
   -- Emacs's string-collate-lessp compares character codes on macOS, whose
   -- wide-character collation for UTF-8 locales is not a real one
-  if f == "fallback" or (f == "collate" and vim.fn.has("mac") == 1) then
+  if f == "fallback" or (f == "collate" and is_mac) then
     if ignore_case then
       a, b = a:upper(), b:upper()
     end
@@ -499,23 +607,63 @@ end
 -- Buffers
 ---------------------------------------------------------------------------
 
+-- bufnr -> { name, norm, real }: a buffer's normalized name and resolved
+-- path, so that looking up many files (the agenda) doesn't resolve every
+-- buffer's name each time. Entries are checked against the current name.
+local buf_paths = {}
+
+local function buf_path(b)
+  local name = vim.api.nvim_buf_get_name(b)
+  if name == "" then
+    return nil
+  end
+  local c = buf_paths[b]
+  if not c or c.name ~= name then
+    c = { name = name, norm = vim.fs.normalize(name) }
+    buf_paths[b] = c
+  end
+  return c
+end
+
+local function buf_realpath(c)
+  if c.real == nil then
+    c.real = vim.uv.fs_realpath(c.name) or false
+  end
+  return c.real
+end
+
+vim.api.nvim_create_autocmd({ "BufWipeout", "BufWritePost", "BufFilePost" }, {
+  group = M.augroup,
+  callback = function(ev)
+    buf_paths[ev.buf] = nil
+  end,
+})
+-- a buffer's file may have been created or replaced by a link outside Vim
+vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "FileChangedShellPost" }, {
+  group = M.augroup,
+  callback = function()
+    buf_paths = {}
+  end,
+})
+
 --- Loaded buffer for a path, or nil.
 function M.find_buffer(path)
   path = vim.fs.normalize(path)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+  local bufs = vim.api.nvim_list_bufs()
+  for _, b in ipairs(bufs) do
     if vim.api.nvim_buf_is_loaded(b) then
-      local name = vim.api.nvim_buf_get_name(b)
-      if name ~= "" and vim.fs.normalize(name) == path then
+      local c = buf_path(b)
+      if c and c.norm == path then
         return b
       end
     end
   end
   local real = vim.uv.fs_realpath(path)
   if real then
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    for _, b in ipairs(bufs) do
       if vim.api.nvim_buf_is_loaded(b) then
-        local name = vim.api.nvim_buf_get_name(b)
-        if name ~= "" and vim.uv.fs_realpath(name) == real then
+        local c = buf_path(b)
+        if c and buf_realpath(c) == real then
           return b
         end
       end

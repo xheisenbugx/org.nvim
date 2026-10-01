@@ -93,9 +93,9 @@ describe("ascii export", function()
     end)
 
     it("special strings in utf-8", function()
-      eq("a -- b... \"q\"\n", exp('a -- b... "q"', "ascii"))
-      eq("a – b… \"q\"\n", exp('a -- b... "q"', "utf-8"))
-      eq("“q”\n", exp({ "#+OPTIONS: ':t", "\"q\"" }, "utf-8"))
+      eq('a -- b... "q"\n', exp('a -- b... "q"', "ascii"))
+      eq('a – b… "q"\n', exp('a -- b... "q"', "utf-8"))
+      eq("“q”\n", exp({ "#+OPTIONS: ':t", '"q"' }, "utf-8"))
     end)
 
     it("sub and superscripts", function()
@@ -110,10 +110,7 @@ describe("ascii export", function()
     end)
 
     it("internal links", function()
-      eq(
-        "1 A\n═══\n\n  See 2.\n\n\n2 B\n═══\n",
-        exp({ "* A", "See [[B]].", "* B" }, "utf-8")
-      )
+      eq("1 A\n═══\n\n  See 2.\n\n\n2 B\n═══\n", exp({ "* A", "See [[B]].", "* B" }, "utf-8"))
     end)
 
     -- A target's ordinal is a list (item or headline number); Emacs
@@ -143,7 +140,10 @@ describe("ascii export", function()
 
     it("footnotes", function()
       eq("Text[1].\n\n\n\nFootnotes\n_________\n\n[1] Note.\n", exp({ "Text[fn:1].", "", "[fn:1] Note." }))
-      eq("Text[1].\n\n\n\nFootnotes\n─────────\n\n[1] Note.\n", exp({ "Text[fn:1].", "", "[fn:1] Note." }, "utf-8"))
+      eq(
+        "Text[1].\n\n\n\nFootnotes\n─────────\n\n[1] Note.\n",
+        exp({ "Text[fn:1].", "", "[fn:1] Note." }, "utf-8")
+      )
     end)
 
     it("headlines, tags, todo and priority", function()
@@ -186,10 +186,7 @@ describe("ascii export", function()
     end)
 
     it("table captions", function()
-      eq(
-        " a \nTable 1: Cap\n",
-        exp({ "#+CAPTION: Cap", "| a |" })
-      )
+      eq(" a \nTable 1: Cap\n", exp({ "#+CAPTION: Cap", "| a |" }))
       config.opts.export.ascii = { caption_above = true }
       eq("Table 1: Cap\n a \n", exp({ "#+CAPTION: Cap", "| a |" }))
     end)

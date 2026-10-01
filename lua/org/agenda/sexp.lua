@@ -176,8 +176,7 @@ local function nth_named_absday(n, dayname, month, year, day)
   if n > 0 then
     return 7 * (n - 1) + dayname_on_or_before(dayname, 6 + abs_date(month, day or 1, year))
   end
-  return 7 * (n + 1)
-    + dayname_on_or_before(dayname, abs_date(month, day or date.days_in_month(year, month), year))
+  return 7 * (n + 1) + dayname_on_or_before(dayname, abs_date(month, day or date.days_in_month(year, month), year))
 end
 
 local function iso_week(day)
@@ -343,12 +342,18 @@ local function fn_float(ctx, month, dayname, n, day)
   local function base(mo, yr)
     return day or (n > 0 and 1 or date.days_in_month(yr, mo))
   end
-  local ok = (m1 == m2 and month_ok(month, m1) and (function()
-    local bd = base(m1, y1)
-    return d1 <= bd and bd <= d2
-  end)()) or ((y1 < y2 or (y1 == y2 and m1 < m2)) and (
-    (month_ok(month, m1) and d1 <= base(m1, y1)) or (month_ok(month, m2) and base(m2, y2) <= d2)
-  ))
+  local ok = (
+    m1 == m2
+    and month_ok(month, m1)
+    and (function()
+      local bd = base(m1, y1)
+      return d1 <= bd and bd <= d2
+    end)()
+  )
+    or (
+      (y1 < y2 or (y1 == y2 and m1 < m2))
+      and ((month_ok(month, m1) and d1 <= base(m1, y1)) or (month_ok(month, m2) and base(m2, y2) <= d2))
+    )
   if ok then
     return cons(ctx.entry)
   end
@@ -1509,7 +1514,7 @@ function M.eval_emacs(sexp, from, to, entry_text)
     "                (cond ((stringp r) (list :str r))",
     "                      ((and (consp r) (not (consp (cdr r))) (stringp (cdr r))) (list :text (cdr r)))",
     "                      ((and (consp r) (stringp (car r)))",
-    "                       (list :text (mapconcat (lambda (x) (if (stringp x) x \"\")) r \"; \")))",
+    '                       (list :text (mapconcat (lambda (x) (if (stringp x) x "")) r "; ")))',
     "                      (r (list :entry))))",
     "            (error nil))",
     "          res))",

@@ -82,9 +82,12 @@ describe("export odt", function()
         { name = "d/x.bin", data = "\0\1\2\255" .. string.rep("é", 100) },
       }))
       local list = zip.list(path)
-      eq({ "mimetype", "d/", "d/x.bin" }, vim.tbl_map(function(e)
-        return e.name
-      end, list))
+      eq(
+        { "mimetype", "d/", "d/x.bin" },
+        vim.tbl_map(function(e)
+          return e.name
+        end, list)
+      )
       eq(0, list[1].method)
       eq("\0\1\2\255" .. string.rep("é", 100), zip.read(path, "d/x.bin"))
       if vim.fn.executable("unzip") == 1 then
@@ -116,7 +119,10 @@ describe("export odt", function()
       }, names)
       eq(read(dir .. "/img.png"), get("Images/0001.png"))
       local manifest = get("META-INF/manifest.xml")
-      has(manifest, 'manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.2"/>')
+      has(
+        manifest,
+        'manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.2"/>'
+      )
       for _, p in ipairs({ "content.xml", "styles.xml", "meta.xml" }) do
         has(manifest, 'manifest:media-type="text/xml" manifest:full-path="' .. p .. '"/>')
       end
@@ -164,8 +170,14 @@ describe("export odt", function()
       local path, get = export_fixture("math")
       eq(normalize(read(dir .. "/math.emacs.xml")), normalize(body(get("content.xml"))))
       local mathml = get("Formula-0001/content.xml")
-      eq('<?xml version="1.0" encoding="UTF-8"?>\n<math xmlns="http://www.w3.org/1998/Math/MathML"><mtext>a+b</mtext></math>', mathml)
-      has(get("META-INF/manifest.xml"), 'manifest:media-type="application/vnd.oasis.opendocument.formula" manifest:full-path="Formula-0001/" manifest:version="1.2"/>')
+      eq(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<math xmlns="http://www.w3.org/1998/Math/MathML"><mtext>a+b</mtext></math>',
+        mathml
+      )
+      has(
+        get("META-INF/manifest.xml"),
+        'manifest:media-type="application/vnd.oasis.opendocument.formula" manifest:full-path="Formula-0001/" manifest:version="1.2"/>'
+      )
       ok(zip.read(path, "Formula-0004/content.xml"))
     end)
 
@@ -190,7 +202,12 @@ describe("export odt", function()
         "Some *b* /i/ _u_ +s+ =v= ~c~ text.",
       })
       local c = get("content.xml")
-      ok(c:find('<text:h text:style%-name="Heading_20_1_unnumbered" text:outline%-level="1" text:is%-list%-header="true">'), c)
+      ok(
+        c:find(
+          '<text:h text:style%-name="Heading_20_1_unnumbered" text:outline%-level="1" text:is%-list%-header="true">'
+        ),
+        c
+      )
       has(c, '<text:span text:style-name="Bold">b</text:span>')
       has(c, '<text:span text:style-name="Emphasis">i</text:span>')
       has(c, '<text:span text:style-name="Underline">u</text:span>')
@@ -203,7 +220,10 @@ describe("export odt", function()
       config.opts.export.odt.use_date_fields = true
       local _, get = export_fixture("dates")
       local c = get("content.xml")
-      has(c, '<text:date text:date-value="2024-01-15" style:data-style-name="OrgDate1" text:fixed="true">01/15/24 Mon</text:date> +1w&gt;')
+      has(
+        c,
+        '<text:date text:date-value="2024-01-15" style:data-style-name="OrgDate1" text:fixed="true">01/15/24 Mon</text:date> +1w&gt;'
+      )
       has(c, '<text:date text:date-value="2024-01-15T09:00:00" style:data-style-name="OrgDate2" text:fixed="true">')
       has(c, '<number:date-style style:name="OrgDate1"  number:automatic-order="true" number:format-source="fixed">')
       has(c, "<office:annotation>\n<dc:creator>Tester</dc:creator><dc:date>2024-05-06T10:30:00</dc:date>")
@@ -220,8 +240,14 @@ describe("export odt", function()
       end
       local _, get = export({ "#+begin_src lua", 'local x = "a"', "#+end_src" })
       local c = get("content.xml")
-      has(c, '<text:p text:style-name="OrgSrcBlockLastLine"><text:span text:style-name="OrgSrcKeyword">local</text:span><text:s/>')
-      has(get("styles.xml"), '<style:style style:name="OrgSrcBlock" style:family="paragraph" style:parent-style-name="Preformatted_20_Text">')
+      has(
+        c,
+        '<text:p text:style-name="OrgSrcBlockLastLine"><text:span text:style-name="OrgSrcKeyword">local</text:span><text:s/>'
+      )
+      has(
+        get("styles.xml"),
+        '<style:style style:name="OrgSrcBlock" style:family="paragraph" style:parent-style-name="Preformatted_20_Text">'
+      )
     end)
 
     it("renders LaTeX to pictures with a preview process (tex:dvipng...)", function()
@@ -280,7 +306,8 @@ describe("export odt", function()
     it("uses #+ODT_STYLES_FILE and #+ODT_EXTRA_STYLES", function()
       local tmp = vim.fn.tempname()
       vim.fn.mkdir(tmp, "p")
-      local styles = '<office:document-styles><office:styles><style:style style:name="Mine"/></office:styles></office:document-styles>'
+      local styles =
+        '<office:document-styles><office:styles><style:style style:name="Mine"/></office:styles></office:document-styles>'
       vim.fn.writefile({ styles }, tmp .. "/my-styles.xml")
       local _, get = export({
         '#+ODT_STYLES_FILE: "my-styles.xml"',
@@ -296,13 +323,17 @@ describe("export odt", function()
         { name = "styles.xml", data = styles },
         { name = "Pictures/logo.png", data = read(dir .. "/img.png") },
       }))
-      local path, get2 = export({ '#+ODT_STYLES_FILE: ("t.ott" ("styles.xml" "Pictures/logo.png"))', "Text" }, tmp .. "/doc.org")
+      local path, get2 =
+        export({ '#+ODT_STYLES_FILE: ("t.ott" ("styles.xml" "Pictures/logo.png"))', "Text" }, tmp .. "/doc.org")
       has(get2("styles.xml"), '<style:style style:name="Mine"/>')
       eq(read(dir .. "/img.png"), get2("Pictures/logo.png"))
       has(get2("META-INF/manifest.xml"), 'manifest:media-type="image/png" manifest:full-path="Pictures/logo.png"/>')
-      ok(vim.tbl_contains(vim.tbl_map(function(e)
-        return e.name
-      end, zip.list(path)), "Pictures/"))
+      ok(vim.tbl_contains(
+        vim.tbl_map(function(e)
+          return e.name
+        end, zip.list(path)),
+        "Pictures/"
+      ))
       -- a plain .ott: its styles.xml
       local _, get3 = export({ '#+ODT_STYLES_FILE: "t.ott"', "Text" }, tmp .. "/doc.org")
       has(get3("styles.xml"), '<style:style style:name="Mine"/>')

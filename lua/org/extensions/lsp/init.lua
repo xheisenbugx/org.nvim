@@ -208,19 +208,11 @@ function M.start()
   return id ~= nil
 end
 
-local function stop_client(client)
-  if vim.fn.has("nvim-0.11") == 1 then
-    client:stop(true)
-  else
-    vim.lsp.stop_client(client.id, true)
-  end
-end
-
 --- `lsp_stop`: stop the server (every buffer is detached).
 function M.stop()
   for _, c in ipairs(M.clients()) do
     active[c.id] = nil
-    stop_client(c)
+    c:stop(true)
   end
   active = {}
 end
@@ -287,11 +279,6 @@ function M.teardown()
 end
 
 function M.health(h, o)
-  if vim.fn.has("nvim-0.10") == 1 then
-    h.ok("lsp: Neovim supports in-process servers (vim.lsp.start with a cmd function)")
-  else
-    h.error("lsp: needs Neovim 0.10 or later")
-  end
   local clients = M.clients()
   if #clients == 0 then
     h.info(

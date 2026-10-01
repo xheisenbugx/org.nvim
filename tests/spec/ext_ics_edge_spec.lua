@@ -41,17 +41,17 @@ describe("ics: zoneinfo (TZif) reader", function()
     for _, name in ipairs({ "Europe/Berlin", "America/New_York", "Australia/Sydney", "Asia/Kolkata" }) do
       local z = assert(tzif.load(name))
       local saved = vim.env.TZ
-      vim.env.TZ = name
+      date.set_tz(name)
       for t = 0, 2 ^ 31 + 86400 * 365 * 20, 86400 * 37 + 3607 do
         local c = os.date("*t", t)
         local w = os.date("!*t", tzif.wall(z, t))
         if w.day ~= c.day or w.hour ~= c.hour or w.min ~= c.min then
-          vim.env.TZ = saved
+          date.set_tz(saved)
           local fmt = "%s at %d: libc %02d %02d:%02d, tzif %02d %02d:%02d"
           error(string.format(fmt, name, t, c.day, c.hour, c.min, w.day, w.hour, w.min))
         end
       end
-      vim.env.TZ = saved
+      date.set_tz(saved)
     end
   end)
 

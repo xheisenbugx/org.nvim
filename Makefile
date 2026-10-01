@@ -1,4 +1,4 @@
-.PHONY: test lint media
+.PHONY: test lint format media
 
 # A throwaway data dir: tests never touch the real ID database, clock
 # state or other stdpath("data") files, and parallel runs don't collide.
@@ -8,6 +8,10 @@ test:
 
 lint:
 	stylua --check lua plugin ftplugin syntax tests
+
+# stylua sometimes needs a second pass to settle
+format:
+	stylua lua plugin ftplugin syntax tests && stylua lua plugin ftplugin syntax tests
 
 # Re-record the README GIFs and screenshots (needs vhs and the
 # BlexMono Nerd Font; see docs/media/README.md).

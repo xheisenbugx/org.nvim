@@ -475,9 +475,12 @@ describe("links parity", function()
       eq("../X/y", links.normalize_file_path("/W/X/y", "relative", "/W/Z"))
       eq("~/foo.org", links.normalize_file_path(home .. "/foo.org", "absolute", home))
       eq(home .. "/foo.org", links.normalize_file_path("~/foo.org", "noabbrev", "/W"))
-      eq("F:/a", links.normalize_file_path("/a", function(p)
-        return "F:" .. p
-      end, "/W"))
+      eq(
+        "F:/a",
+        links.normalize_file_path("/a", function(p)
+          return "F:" .. p
+        end, "/W")
+      )
     end)
 
     it("formats stored links for the buffer and forgets them after insertion", function()

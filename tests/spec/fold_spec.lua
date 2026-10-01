@@ -78,7 +78,6 @@ describe("fold: cycling", function()
     fold.global_cycle() -- show all
     eq(-1, vim.fn.foldclosed(3))
   end)
-
 end)
 
 -- org-cycle-include-plain-lists 'integrate (Emacs 9.8.10: CHILDREN shows

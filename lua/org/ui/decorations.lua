@@ -20,18 +20,99 @@ M.entities = setmetatable({}, {
 })
 
 local SUPER = {
-  ["0"] = "⁰", ["1"] = "¹", ["2"] = "²", ["3"] = "³", ["4"] = "⁴", ["5"] = "⁵", ["6"] = "⁶", ["7"] = "⁷",
-  ["8"] = "⁸", ["9"] = "⁹", ["+"] = "⁺", ["-"] = "⁻", ["="] = "⁼", ["("] = "⁽", [")"] = "⁾", a = "ᵃ",
-  b = "ᵇ", c = "ᶜ", d = "ᵈ", e = "ᵉ", f = "ᶠ", g = "ᵍ", h = "ʰ", i = "ⁱ", j = "ʲ", k = "ᵏ", l = "ˡ",
-  m = "ᵐ", n = "ⁿ", o = "ᵒ", p = "ᵖ", r = "ʳ", s = "ˢ", t = "ᵗ", u = "ᵘ", v = "ᵛ", w = "ʷ", x = "ˣ",
-  y = "ʸ", z = "ᶻ", A = "ᴬ", B = "ᴮ", D = "ᴰ", E = "ᴱ", G = "ᴳ", H = "ᴴ", I = "ᴵ", J = "ᴶ", K = "ᴷ",
-  L = "ᴸ", M = "ᴹ", N = "ᴺ", O = "ᴼ", P = "ᴾ", R = "ᴿ", T = "ᵀ", U = "ᵁ", V = "ⱽ", W = "ᵂ",
+  ["0"] = "⁰",
+  ["1"] = "¹",
+  ["2"] = "²",
+  ["3"] = "³",
+  ["4"] = "⁴",
+  ["5"] = "⁵",
+  ["6"] = "⁶",
+  ["7"] = "⁷",
+  ["8"] = "⁸",
+  ["9"] = "⁹",
+  ["+"] = "⁺",
+  ["-"] = "⁻",
+  ["="] = "⁼",
+  ["("] = "⁽",
+  [")"] = "⁾",
+  a = "ᵃ",
+  b = "ᵇ",
+  c = "ᶜ",
+  d = "ᵈ",
+  e = "ᵉ",
+  f = "ᶠ",
+  g = "ᵍ",
+  h = "ʰ",
+  i = "ⁱ",
+  j = "ʲ",
+  k = "ᵏ",
+  l = "ˡ",
+  m = "ᵐ",
+  n = "ⁿ",
+  o = "ᵒ",
+  p = "ᵖ",
+  r = "ʳ",
+  s = "ˢ",
+  t = "ᵗ",
+  u = "ᵘ",
+  v = "ᵛ",
+  w = "ʷ",
+  x = "ˣ",
+  y = "ʸ",
+  z = "ᶻ",
+  A = "ᴬ",
+  B = "ᴮ",
+  D = "ᴰ",
+  E = "ᴱ",
+  G = "ᴳ",
+  H = "ᴴ",
+  I = "ᴵ",
+  J = "ᴶ",
+  K = "ᴷ",
+  L = "ᴸ",
+  M = "ᴹ",
+  N = "ᴺ",
+  O = "ᴼ",
+  P = "ᴾ",
+  R = "ᴿ",
+  T = "ᵀ",
+  U = "ᵁ",
+  V = "ⱽ",
+  W = "ᵂ",
 }
 local SUB = {
-  ["0"] = "₀", ["1"] = "₁", ["2"] = "₂", ["3"] = "₃", ["4"] = "₄", ["5"] = "₅", ["6"] = "₆", ["7"] = "₇",
-  ["8"] = "₈", ["9"] = "₉", ["+"] = "₊", ["-"] = "₋", ["="] = "₌", ["("] = "₍", [")"] = "₎", a = "ₐ",
-  e = "ₑ", h = "ₕ", i = "ᵢ", j = "ⱼ", k = "ₖ", l = "ₗ", m = "ₘ", n = "ₙ", o = "ₒ", p = "ₚ", r = "ᵣ",
-  s = "ₛ", t = "ₜ", u = "ᵤ", v = "ᵥ", x = "ₓ",
+  ["0"] = "₀",
+  ["1"] = "₁",
+  ["2"] = "₂",
+  ["3"] = "₃",
+  ["4"] = "₄",
+  ["5"] = "₅",
+  ["6"] = "₆",
+  ["7"] = "₇",
+  ["8"] = "₈",
+  ["9"] = "₉",
+  ["+"] = "₊",
+  ["-"] = "₋",
+  ["="] = "₌",
+  ["("] = "₍",
+  [")"] = "₎",
+  a = "ₐ",
+  e = "ₑ",
+  h = "ₕ",
+  i = "ᵢ",
+  j = "ⱼ",
+  k = "ₖ",
+  l = "ₗ",
+  m = "ₘ",
+  n = "ₙ",
+  o = "ₒ",
+  p = "ₚ",
+  r = "ᵣ",
+  s = "ₛ",
+  t = "ₜ",
+  u = "ᵤ",
+  v = "ᵥ",
+  x = "ₓ",
 }
 
 --- The `ui` options of a buffer: `#+STARTUP` words and the buffer toggles
@@ -331,7 +412,8 @@ function M.compute(bufnr, first, last, ui)
     end
     nums = nc.nums
   end
-  local scripts = ui.pretty_entities and ui.pretty_entities_include_sub_superscripts ~= false
+  local scripts = ui.pretty_entities
+    and ui.pretty_entities_include_sub_superscripts ~= false
     and ui.use_sub_superscripts ~= false
   local braces_only = ui.use_sub_superscripts == "{}"
   for i, line in ipairs(lines) do
@@ -556,7 +638,9 @@ function M.toggle_pretty_entities()
   local on = not M.ui_options(bufnr).pretty_entities
   vim.b[bufnr].org_pretty_entities = on
   M.attach(bufnr, true)
-  require("org.utils").notify(on and "Entities are now displayed as UTF8 characters" or "Entities are now displayed as plain text")
+  require("org.utils").notify(
+    on and "Entities are now displayed as UTF8 characters" or "Entities are now displayed as plain text"
+  )
 end
 
 --- Run the User autocmd of a mode hook (org-indent-mode-hook,

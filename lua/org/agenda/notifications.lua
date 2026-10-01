@@ -295,12 +295,16 @@ function M.start()
   M.stop()
   local interval = interval_seconds() * 1000
   timer = vim.uv.new_timer()
-  timer:start(1000, interval, vim.schedule_wrap(function()
-    local ok, err = pcall(M.tick)
-    if not ok then
-      utils.error("org notifications: " .. tostring(err))
-    end
-  end))
+  timer:start(
+    1000,
+    interval,
+    vim.schedule_wrap(function()
+      local ok, err = pcall(M.tick)
+      if not ok then
+        utils.error("org notifications: " .. tostring(err))
+      end
+    end)
+  )
   augroup = vim.api.nvim_create_augroup("org.notifications", { clear = true })
   vim.api.nvim_create_autocmd("VimLeavePre", { group = augroup, callback = M.release })
 end

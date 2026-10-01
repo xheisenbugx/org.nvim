@@ -21,7 +21,7 @@ local trim = ox.trim
 ---------------------------------------------------------------------------
 
 local function ccfg()
-  return ((require("org.config").opts.export or {}).cite) or {}
+  return (require("org.config").opts.export or {}).cite or {}
 end
 
 local function opt(name, default)
@@ -1230,12 +1230,7 @@ function basic.format_author_year(citation, format_cite, format_ref, info)
       citation.prefix,
       M.mapconcat(function(ref)
         local k = ref.key
-        return format_ref(
-          ref.prefix,
-          basic.get_author(k, info) or "??",
-          basic.get_year(k, info) or "????",
-          ref.suffix
-        )
+        return format_ref(ref.prefix, basic.get_author(k, info) or "??", basic.get_year(k, info) or "????", ref.suffix)
       end, M.get_references(citation), opt("basic_author_year_separator", ", ")),
       citation.suffix
     ),

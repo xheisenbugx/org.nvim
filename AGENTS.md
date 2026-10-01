@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guidance for coding agents working on org.nvim, an Emacs Org mode
-implementation for Neovim 0.10+ written in pure Lua with no dependencies.
+implementation for Neovim 0.11+ written in pure Lua with no dependencies.
 [CONTRIBUTING.md](CONTRIBUTING.md) is the human-facing version of this file.
 
 ## Commands
@@ -10,16 +10,17 @@ implementation for Neovim 0.10+ written in pure Lua with no dependencies.
 make test                                  # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
 make lint                                  # stylua --check lua plugin ftplugin syntax tests
+make format                                # stylua over the same paths
 ```
 
 - `make test` runs with a throwaway `XDG_DATA_HOME`, so tests never touch the
   real ID database or clock state. Run specs through `make`, not bare `nvim`.
 - Run the specs for the area you touched while iterating, and the full suite
   before you finish.
-- Formatting follows `stylua.toml`: 2-space indent, 120 columns, double
-  quotes. Don't reformat files you didn't change. If your local stylua
-  disagrees with the existing code in untouched files, it's the wrong version;
-  hand-format your changes to match and say that lint wasn't run.
+- Formatting follows `stylua.toml` (2-space indent, 120 columns, double
+  quotes, LuaJIT syntax). Run `make format` and make sure `make lint` passes
+  before you finish. Don't use `goto` as a field or method name: stylua
+  can't parse it (write `M["goto"]`).
 
 ## Layout
 
@@ -91,6 +92,8 @@ turned off, or the run will hang.
 - Branch names and titles follow Conventional Commits, as in the history:
   `fix/capture-prompt-after-tags` and `fix(capture): …`, `feat(agenda): …`,
   `docs: …`.
+- Branch from `dev` and open pull requests against `dev`. `main` only takes
+  `release/vX.Y.Z` branches, whose merge tags and publishes the release.
 - Document user-visible changes in `doc/org.txt`, and in `README.md` when
   it's a headline feature.
 - No new hard dependencies. Optional integrations (blink.cmp, lualine, …)

@@ -1534,12 +1534,17 @@ function M.options()
     { "texinfo_tables_verbatim", nil, nil, v("tables_verbatim", false) },
     { "texinfo_table_scientific_notation", nil, nil, v("table_scientific_notation", nil) },
     { "texinfo_table_default_markup", nil, nil, v("table_default_markup", "@asis") },
-    { "texinfo_text_markup_alist", nil, nil, v("text_markup_alist", {
-      bold = "@strong{%s}",
-      code = "code",
-      italic = "@emph{%s}",
-      verbatim = "samp",
-    }) },
+    {
+      "texinfo_text_markup_alist",
+      nil,
+      nil,
+      v("text_markup_alist", {
+        bold = "@strong{%s}",
+        code = "code",
+        italic = "@emph{%s}",
+        verbatim = "samp",
+      }),
+    },
     { "texinfo_format_drawer_function", nil, nil, v("format_drawer_function", nil) },
     { "texinfo_format_inlinetask_function", nil, nil, v("format_inlinetask_function", nil) },
     { "texinfo_compact_itemx", nil, "compact-itemx", v("compact_itemx", false) },

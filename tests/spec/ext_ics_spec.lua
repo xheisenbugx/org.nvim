@@ -70,9 +70,12 @@ describe("ics parser: content lines", function()
   it("reads dates, times, durations and offsets", function()
     eq({ naive = N(2026, 10, 5), all_day = true }, parser.time("20261005"))
     eq({ naive = N(2026, 10, 5, 14, 30), utc = true }, parser.time("20261005T143000Z"))
-    eq({ naive = N(2026, 10, 5, 14, 30), utc = false, tzid = "Europe/Paris" }, parser.time("20261005T143000", {
-      TZID = "Europe/Paris",
-    }))
+    eq(
+      { naive = N(2026, 10, 5, 14, 30), utc = false, tzid = "Europe/Paris" },
+      parser.time("20261005T143000", {
+        TZID = "Europe/Paris",
+      })
+    )
     eq(nil, parser.time("nonsense"))
     eq(5400, parser.duration("PT1H30M"))
     eq(86400 * 8 + 7200, parser.duration("P1W1DT2H"))

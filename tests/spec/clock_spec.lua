@@ -249,9 +249,12 @@ describe("clock", function()
     clock.history = {}
     clock.clock_in(nil, { at = date.now():add(-5, "min") })
     clock.clock_in({ bufnr = buf, lnum = files.get_buffer(buf).headlines[2].line }, { at = date.now():add(-3, "min") })
-    eq({ "B", "A" }, vim.tbl_map(function(h)
-      return h.title
-    end, clock.history))
+    eq(
+      { "B", "A" },
+      vim.tbl_map(function(h)
+        return h.title
+      end, clock.history)
+    )
     local ui = require("org.ui")
     local orig = ui.menu
     local seen
@@ -270,17 +273,20 @@ describe("clock", function()
     clock.clock_in_select()
     ui.menu = orig
     local cat = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t:r")
-    eq({
-      "The task interrupted by starting the last one",
-      "i " .. cat .. "  A",
-      "Current Clocking Task",
-      "c " .. cat .. "  B",
-      "Recent Tasks",
-      "1 " .. cat .. "  B",
-      "2 " .. cat .. "  A",
-    }, vim.tbl_map(function(l)
-      return (l:gsub("%s+", " "):gsub(cat .. " ", cat .. "  "))
-    end, seen))
+    eq(
+      {
+        "The task interrupted by starting the last one",
+        "i " .. cat .. "  A",
+        "Current Clocking Task",
+        "c " .. cat .. "  B",
+        "Recent Tasks",
+        "1 " .. cat .. "  B",
+        "2 " .. cat .. "  A",
+      },
+      vim.tbl_map(function(l)
+        return (l:gsub("%s+", " "):gsub(cat .. " ", cat .. "  "))
+      end, seen)
+    )
     eq("A", clock.active().title)
     eq("A", clock.history[1].title)
     -- B was interrupted

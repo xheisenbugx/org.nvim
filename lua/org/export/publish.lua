@@ -243,7 +243,7 @@ end
 --- org-publish-timestamp-filename
 local function timestamp_key(filename, pub_dir, pub_func)
   local fname = type(pub_func) == "string" and pub_func or (pub_func and "function" or "")
-  return "X" .. vim.fn.sha256(filename .. "::" .. (pub_dir or "") .. "::" .. fname)
+  return "X" .. utils.sha256(filename .. "::" .. (pub_dir or "") .. "::" .. fname)
 end
 
 --- Files included by `filename` (#+INCLUDE keywords).
@@ -584,7 +584,8 @@ function M.org_to(backend, filename, extension, plist, pub_dir, ext_extra)
     end
   end
   M.install_crossrefs()
-  local text, info = ox.export_as(backend, lines, { filename = filename, bufnr = bufnr, body_only = plist.body_only, ext = ext })
+  local text, info =
+    ox.export_as(backend, lines, { filename = filename, bufnr = bufnr, body_only = plist.body_only, ext = ext })
   if M.cache then
     store_crossrefs(info)
     collect_index(info)
@@ -778,7 +779,8 @@ function M.publish_file(filename, project, no_cache)
     error("No publishing function chosen", 0)
   end
   local fns = (type(pf) == "table") and pf or { pf }
-  local base_dir = plist.base_directory or error(string.format("Project %q does not have :base-directory defined", project[1]), 0)
+  local base_dir = plist.base_directory
+    or error(string.format("Project %q does not have :base-directory defined", project[1]), 0)
   base_dir = as_dir(expand(base_dir))
   local pub_base = plist.publishing_directory
     or error(string.format("Project %q does not have :publishing-directory defined", project[1]), 0)
@@ -1269,7 +1271,10 @@ local function search_headline(file, search)
   if not title then
     -- targets and named elements are valid destinations, but not headlines
     for _, l in ipairs(lines) do
-      if l:find("<<" .. search .. ">>", 1, true) or l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]*" .. vim.pesc(search) .. "[ \t]*$") then
+      if
+        l:find("<<" .. search .. ">>", 1, true)
+        or l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]*" .. vim.pesc(search) .. "[ \t]*$")
+      then
         return false
       end
     end
@@ -1319,7 +1324,7 @@ function M.resolve_external_link(search, file, info)
   for _, r in pairs(crossrefs) do
     used[r] = true
   end
-  local h = vim.fn.sha256(filename .. "::" .. search)
+  local h = utils.sha256(filename .. "::" .. search)
   local k = 1
   local ref = "org" .. h:sub(k, k + 6)
   while used[ref] do

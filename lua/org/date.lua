@@ -22,8 +22,18 @@ M.DAY_NAMES = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
 M.DAY_NAMES_LONG = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" }
 M.MONTH_NAMES = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
 M.MONTH_NAMES_LONG = {
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 }
 
 local floor = math.floor
@@ -236,6 +246,16 @@ end
 --- useful for calendar arithmetic, but clock durations must account for DST.
 function M.elapsed_minutes(start, stop)
   return (stop:to_time() - start:to_time()) / 60
+end
+
+--- Set the TZ environment variable (nil: unset it) and make local time
+--- (`os.date`, `os.time`) follow it. Lua uses localtime_r(), which on glibc
+--- keeps the zone it first read; Neovim's strftime() calls tzset() when TZ
+--- changed.
+---@param tz string?
+function M.set_tz(tz)
+  vim.env.TZ = tz
+  vim.fn.strftime("%Z", 0)
 end
 
 --- format-time-string of the date (see |M.format_time_string|).
@@ -670,8 +690,7 @@ function M.parse_all(line)
       if ts then
         local item = { date = ts, start_col = s, end_col = e, raw = line:sub(s, e) }
         -- range?
-        local rs, re, ropen, rbody, rclose =
-          line:find("^%-%-([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", e + 1)
+        local rs, re, ropen, rbody, rclose = line:find("^%-%-([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", e + 1)
         if rs and ((ropen == "<" and rclose == ">") or (ropen == "[" and rclose == "]")) then
           local ts2 = parse_body(rbody, ropen == "<")
           if ts2 then
@@ -840,13 +859,45 @@ end
 
 -- parse-time-weekdays (0 = Sunday) and parse-time-months
 local WEEKDAYS = {
-  sun = 0, mon = 1, tue = 2, wed = 3, thu = 4, fri = 5, sat = 6,
-  sunday = 0, monday = 1, tuesday = 2, wednesday = 3, thursday = 4, friday = 5, saturday = 6,
+  sun = 0,
+  mon = 1,
+  tue = 2,
+  wed = 3,
+  thu = 4,
+  fri = 5,
+  sat = 6,
+  sunday = 0,
+  monday = 1,
+  tuesday = 2,
+  wednesday = 3,
+  thursday = 4,
+  friday = 5,
+  saturday = 6,
 }
 local MONTHS = {
-  jan = 1, feb = 2, mar = 3, apr = 4, may = 5, jun = 6, jul = 7, aug = 8, sep = 9, oct = 10, nov = 11, dec = 12,
-  january = 1, february = 2, march = 3, april = 4, june = 6, july = 7, august = 8, september = 9,
-  october = 10, november = 11, december = 12,
+  jan = 1,
+  feb = 2,
+  mar = 3,
+  apr = 4,
+  may = 5,
+  jun = 6,
+  jul = 7,
+  aug = 8,
+  sep = 9,
+  oct = 10,
+  nov = 11,
+  dec = 12,
+  january = 1,
+  february = 2,
+  march = 3,
+  april = 4,
+  june = 6,
+  july = 7,
+  august = 8,
+  september = 9,
+  october = 10,
+  november = 11,
+  december = 12,
 }
 -- zone names parse-time-string swallows
 local ZONES = { z = true, ut = true, gmt = true, pst = true, pdt = true, mst = true, mdt = true }
@@ -997,9 +1048,7 @@ local function convert_hhmm(ans)
     if not s or (h == "" and m == "") then
       break
     end
-    ans = ans:sub(1, s - 1)
-      .. string.format("%02d:%02d", tonumber(h) or 0, tonumber(m) or 0)
-      .. ans:sub(e + 1)
+    ans = ans:sub(1, s - 1) .. string.format("%02d:%02d", tonumber(h) or 0, tonumber(m) or 0) .. ans:sub(e + 1)
   end
   return ans
 end

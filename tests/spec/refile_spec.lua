@@ -155,7 +155,7 @@ describe("refile targets", function()
     eq("B/", t.path)
   end)
 
-  it("creates parent nodes, asking first with \"confirm\"", function()
+  it('creates parent nodes, asking first with "confirm"', function()
     local dir = setup_files({ "* X" }, { "* Top" }, {
       refile = { targets = { { files = "agenda", level = 1 } }, use_outline_path = "file" },
     })
@@ -217,13 +217,20 @@ describe("refile", function()
   end
 
   it("refiles to another file, saves it and registers moved IDs", function()
-    local dir = setup_files({ "* Move me", ":PROPERTIES:", ":ID: moved-1", ":END:", "text", "* Stay" }, { "* Target", "** Existing" }, {
-      refile = { targets = { { files = "agenda", level = 1 } }, use_outline_path = "file" },
-    })
+    local dir = setup_files(
+      { "* Move me", ":PROPERTIES:", ":ID: moved-1", ":END:", "text", "* Stay" },
+      { "* Target", "** Existing" },
+      {
+        refile = { targets = { { files = "agenda", level = 1 } }, use_outline_path = "file" },
+      }
+    )
     vim.cmd("edit! " .. dir .. "/a.org")
     refile.refile({ lnum = 1 }, { dest = target("b.org/Target/") })
     eq({ "* Stay" }, buf_lines())
-    eq({ "* Target", "** Existing", "** Move me", ":PROPERTIES:", ":ID: moved-1", ":END:", "text" }, utils.readfile(dir .. "/b.org"))
+    eq(
+      { "* Target", "** Existing", "** Move me", ":PROPERTIES:", ":ID: moved-1", ":END:", "text" },
+      utils.readfile(dir .. "/b.org")
+    )
     local where = require("org.utils").read_json(dir .. "/ids.json")["moved-1"]
     eq(vim.uv.fs_realpath(dir .. "/b.org"), vim.uv.fs_realpath(where))
   end)
@@ -232,7 +239,12 @@ describe("refile", function()
     local dir = setup_files({ "* Copy me", "text" }, { "* Target", "** Existing" }, {
       todo_keywords = { "TODO(t) NEXT(n) | DONE(d)" },
       log_into_drawer = "LOGBOOK",
-      refile = { targets = { { files = "agenda", level = 1 } }, use_outline_path = "file", reverse_note_order = true, log = "time" },
+      refile = {
+        targets = { { files = "agenda", level = 1 } },
+        use_outline_path = "file",
+        reverse_note_order = true,
+        log = "time",
+      },
     })
     vim.cmd("edit! " .. dir .. "/a.org")
     refile.refile_copy({ lnum = 1 }, { dest = target("b.org/Target/") })

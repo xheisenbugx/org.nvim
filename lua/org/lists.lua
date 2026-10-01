@@ -1893,9 +1893,7 @@ function M.cycle_item_indentation()
   local line = vim.api.nvim_get_current_line()
   local parsed = M.parse_item_line(line)
   local state = vim.b[bufnr].org_tab_ind_state
-  local continuing = state
-    and state.lnum == lnum
-    and state.tick == vim.api.nvim_buf_get_changedtick(bufnr)
+  local continuing = state and state.lnum == lnum and state.tick == vim.api.nvim_buf_get_changedtick(bufnr)
   if not continuing then
     if not parsed or vim.trim(parsed.text) ~= "" or parser.headline_level(line) then
       return false

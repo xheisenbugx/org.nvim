@@ -4,10 +4,10 @@ local M = {}
 function M.check()
   local h = vim.health
   h.start("org.nvim")
-  if vim.fn.has("nvim-0.10") == 1 then
+  if vim.fn.has("nvim-0.11") == 1 then
     h.ok("Neovim " .. tostring(vim.version()))
   else
-    h.error("Neovim >= 0.10 is required")
+    h.error("Neovim >= 0.11 is required")
   end
 
   local cfg = require("org.config").opts

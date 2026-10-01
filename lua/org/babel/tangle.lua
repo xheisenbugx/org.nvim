@@ -206,8 +206,7 @@ function M.comment_links(bufnr, b, file, counter, noweb, link_block)
   local args = b.args or blocks_mod.header_args(b, file)
   local data = {
     ["start-line"] = b.start + 1,
-    file = (not noweb and cfg().tangle_use_relative_file_links ~= false)
-        and vim.fn.fnamemodify(buf_file(bufnr), ":t")
+    file = (not noweb and cfg().tangle_use_relative_file_links ~= false) and vim.fn.fnamemodify(buf_file(bufnr), ":t")
       or buf_file(bufnr),
     link = M.unbracketed_link(bufnr, lines, file, link_block or b, args.tangle),
     -- around noweb expansions only the block's name is used
@@ -252,10 +251,7 @@ local function org_comment(lines, file, b, prev_end)
     from_line = hl.line
     from_col = #(lines[hl.line]:match("^%*+%s+") or "") + 1
   end
-  if
-    prev_end
-    and (prev_end.line > from_line or (prev_end.line == from_line and prev_end.col > from_col))
-  then
+  if prev_end and (prev_end.line > from_line or (prev_end.line == from_line and prev_end.col > from_col)) then
     from_line, from_col = prev_end.line, prev_end.col
   end
   local parts = { lines[from_line]:sub(from_col) }

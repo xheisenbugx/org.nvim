@@ -64,20 +64,13 @@ end
 
 local METHOD = "textDocument/documentSymbol"
 
---- Does `client` answer textDocument/documentSymbol? Neovim 0.11+ has
---- `client:supports_method(m)`; 0.10 only the field `client.supports_method(m)`,
---- which says yes to anything that is not a method name (so a colon call
---- there would accept every client).
+--- Does `client` answer textDocument/documentSymbol?
 ---@param client table
 ---@return boolean
 function M.supports_symbols(client)
-  local mt = getmetatable(client)
-  local cls = mt and type(mt.__index) == "table" and rawget(mt.__index, "supports_method")
   local ok, res
-  if type(cls) == "function" then
-    ok, res = pcall(cls, client, METHOD)
-  elseif type(client.supports_method) == "function" then
-    ok, res = pcall(client.supports_method, METHOD)
+  if type(client.supports_method) == "function" then
+    ok, res = pcall(client.supports_method, client, METHOD)
   end
   if ok then
     return res and true or false
@@ -99,7 +92,7 @@ end
 -- (vim.lsp.start or vim.lsp.enable ran on FileType and it is still
 -- initializing), or a running one that serves its filetype.
 local function client_expected(buf)
-  -- `_uninitialized` (0.10 to 0.12) also lists clients still initializing
+  -- `_uninitialized` (0.11 and 0.12) also lists clients still initializing
   local ok, starting = pcall(vim.lsp.get_clients, { bufnr = buf, _uninitialized = true })
   if ok and #starting > 0 then
     return true
@@ -125,12 +118,7 @@ function M.byte_col(line, index, encoding)
   if encoding == "utf-8" or index <= 0 then
     return math.min(math.max(index, 0), #line)
   end
-  local ok, b
-  if vim.fn.has("nvim-0.11") == 1 then
-    ok, b = pcall(vim.str_byteindex, line, encoding, index, false)
-  else
-    ok, b = pcall(vim.str_byteindex, line, index, encoding == "utf-16")
-  end
+  local ok, b = pcall(vim.str_byteindex, line, encoding, index, false)
   if ok and type(b) == "number" then
     return b
   end

@@ -66,18 +66,27 @@ describe("agenda custom command types", function()
     vim.cmd("edit! " .. vim.fn.fnameescape(path))
     agenda.dispatch({ custom = "w" })
     -- Beta inherits :work: (org-match-sparse-tree honours tag inheritance)
-    eq({ 1, 3 }, vim.tbl_map(function(x)
-      return x.lnum
-    end, vim.fn.getloclist(0)))
+    eq(
+      { 1, 3 },
+      vim.tbl_map(function(x)
+        return x.lnum
+      end, vim.fn.getloclist(0))
+    )
     agenda.dispatch({ custom = "n" })
-    eq({ 3 }, vim.tbl_map(function(x)
-      return x.lnum
-    end, vim.fn.getloclist(0)))
+    eq(
+      { 3 },
+      vim.tbl_map(function(x)
+        return x.lnum
+      end, vim.fn.getloclist(0))
+    )
     -- occur-tree takes an Emacs regexp
     agenda.dispatch({ custom = "o" })
-    eq({ 5 }, vim.tbl_map(function(x)
-      return x.lnum
-    end, vim.fn.getloclist(0)))
+    eq(
+      { 5 },
+      vim.tbl_map(function(x)
+        return x.lnum
+      end, vim.fn.getloclist(0))
+    )
     ok(#visible_lines() < #lines)
     -- no agenda buffer was opened
     eq("org", vim.bo.filetype)

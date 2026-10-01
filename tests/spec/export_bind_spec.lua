@@ -56,7 +56,7 @@ describe("#+BIND:", function()
   it("sets the export options of the bound variables, like Emacs", function()
     config.opts.export.allow_bind_keywords = true
     local html = export("html", doc)
-    has(html, "<!DOCTYPE html>\n<html lang=\"en\">\n<head>")
+    has(html, '<!DOCTYPE html>\n<html lang="en">\n<head>')
     has(html, '<div id="preamble" class="status">\n<p>pre Bound</p>\n</div>\n<div id="content" class="content">')
     has(html, '<h2 id="')
     has(html, '">One</h2>')
@@ -83,20 +83,23 @@ describe("#+BIND:", function()
       "",
       "Text.",
     })
-    has(html, table.concat({
-      "<body>",
-      '<div id="content" class="content">',
-      '<h1 class="title">Fmt</h1>',
-      "<p>",
-      "Text.",
-      "</p>",
-      "</div>",
-      '<div id="postamble" class="status">',
-      '<p class="a">by Ann</p>',
-      "</div>",
-      "</body>",
-      "</html>",
-    }, "\n"))
+    has(
+      html,
+      table.concat({
+        "<body>",
+        '<div id="content" class="content">',
+        '<h1 class="title">Fmt</h1>',
+        "<p>",
+        "Text.",
+        "</p>",
+        "</div>",
+        '<div id="postamble" class="status">',
+        '<p class="a">by Ann</p>',
+        "</div>",
+        "</body>",
+        "</html>",
+      }, "\n")
+    )
     local lines = {
       "#+BIND: org-ascii-text-width 30",
       "#+BIND: org-ascii-global-margin 2",
@@ -112,16 +115,19 @@ describe("#+BIND:", function()
       ":END:",
       "A paragraph that is long enough to be filled at thirty columns wide. a_b a_{c}",
     }
-    eq(table.concat({
-      "  1 Head",
-      "  ======",
-      "",
-      "    kept drawer",
-      "    A paragraph that is long",
-      "    enough to be filled at",
-      "    thirty columns wide. a_b",
-      "    a_{c}",
-    }, "\n"), (export("ascii", lines, true):gsub("^\n+", ""):gsub("%s+$", "")))
+    eq(
+      table.concat({
+        "  1 Head",
+        "  ======",
+        "",
+        "    kept drawer",
+        "    A paragraph that is long",
+        "    enough to be filled at",
+        "    thirty columns wide. a_b",
+        "    a_{c}",
+      }, "\n"),
+      (export("ascii", lines, true):gsub("^\n+", ""):gsub("%s+$", ""))
+    )
     has(export("html", lines, true), "a_b a<sub>c</sub>")
   end)
 
@@ -136,11 +142,11 @@ describe("#+BIND:", function()
     local b = bind.bindings({
       BIND = {
         "org-export-with-tags not-in-toc",
-        "org-export-select-tags '(\"pub\" \"web\")",
+        'org-export-select-tags \'("pub" "web")',
         'org-export-with-drawers (not "LOGBOOK" "X")',
-        "org-latex-packages-alist ((\"\" \"minted\"))",
+        'org-latex-packages-alist (("" "minted"))',
         "org-ascii-headline-spacing (1 . 2)",
-        "org-export-global-macros ((\"hi\" . \"Hello $1\"))",
+        'org-export-global-macros (("hi" . "Hello $1"))',
         "unbalanced (",
         "org-texinfo-node-description-column 40.0",
       },

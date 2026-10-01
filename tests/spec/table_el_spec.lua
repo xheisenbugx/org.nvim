@@ -359,10 +359,12 @@ describe("table.el tables", function()
           "\\end{table}",
           "",
         }, "\n"),
-        (body("latex", vim.list_extend({ "#+CAPTION: Spans", "#+NAME: t" }, vim.deepcopy(SPANS))):gsub(
-          "tab:org%x+",
-          "tab:x"
-        ))
+        (
+          body("latex", vim.list_extend({ "#+CAPTION: Spans", "#+NAME: t" }, vim.deepcopy(SPANS))):gsub(
+            "tab:org%x+",
+            "tab:x"
+          )
+        )
       )
       eq(
         table.concat({

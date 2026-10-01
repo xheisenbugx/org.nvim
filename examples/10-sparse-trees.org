@@ -780,8 +780,6 @@ company (="0:15"=) and Fix the leaking tap (="0:45"=).
   headlines.
 - =p= asks for =NAME=value= in one prompt (Emacs asks for the property,
   then the value).
-- Folding uses Vim folds and hidden lines: with Neovim 0.10 the siblings
-  of a match stay visible (=:h org-hidden-lines=).
 
 * Further reading
 - =:h org-sparse-tree= — the menu and =<C-c>\=

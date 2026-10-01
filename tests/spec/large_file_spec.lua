@@ -265,7 +265,7 @@ describe("large files: textbuf writes back only the edited lines", function()
       local tb = textbuf.from_buffer(buf, { rand(#lines), 0 })
       for _ = 1, 3 do
         for _ = 1, rand(4) do
-          tb:goto(rand(#tb.text + 1))
+          tb:goto_char(rand(#tb.text + 1))
           if rand(2) == 1 then
             tb:insert(pieces[rand(#pieces)])
           else
@@ -487,7 +487,11 @@ describe("large files: list items from the section around the cursor", function(
         end
       end
       local got = lists.item_at(buf, l)
-      eq(want and { want.lnum, want.end_lnum, want.indent } or nil, got and { got.lnum, got.end_lnum, got.indent } or nil, "line " .. l)
+      eq(
+        want and { want.lnum, want.end_lnum, want.indent } or nil,
+        got and { got.lnum, got.end_lnum, got.indent } or nil,
+        "line " .. l
+      )
     end
     eq(true, lists.in_forbidden_block(buf, 10))
     eq(false, lists.in_forbidden_block(buf, 12))

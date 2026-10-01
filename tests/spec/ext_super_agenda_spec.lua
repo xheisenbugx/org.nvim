@@ -130,14 +130,17 @@ describe("super_agenda extension", function()
       setup({})
     end)
     it("puts each item in the first group it matches, then Other items", function()
-      eq({
-        { "Important", { "Pay bills" } },
-        { "Work", { "Standup", "Report" } },
-        { "Other items", { "Groceries", "Someday idea", "Child task", "Brush teeth" } },
-      }, grouped({
-        { name = "Important", priority = "A" },
-        { name = "Work", tag = "work", priority = "A" },
-      }))
+      eq(
+        {
+          { "Important", { "Pay bills" } },
+          { "Work", { "Standup", "Report" } },
+          { "Other items", { "Groceries", "Someday idea", "Child task", "Brush teeth" } },
+        },
+        grouped({
+          { name = "Important", priority = "A" },
+          { name = "Work", tag = "work", priority = "A" },
+        })
+      )
     end)
     it("todo, tag, category, priority comparisons", function()
       eq({ { "Waiting", { "Child task" } } }, vim.list_slice(grouped({ { name = "Waiting", todo = "WAITING" } }), 1, 1))
@@ -173,18 +176,26 @@ describe("super_agenda extension", function()
       eq({ "Standup" }, grouped({ { name = "H", heading_regexp = "^stand" } })[1][2])
       eq({ "Report" }, grouped({ { name = "F", file_path = "work\\.org$" } })[1][2])
       eq({ "Brush teeth" }, grouped({ { name = "H", habit = true } })[1][2])
-      eq({ "Report" }, grouped({ {
-        name = "P",
-        pred = function(it)
-          return it.title == "Report"
-        end,
-      } })[1][2])
+      eq(
+        { "Report" },
+        grouped({
+          {
+            name = "P",
+            pred = function(it)
+              return it.title == "Report"
+            end,
+          },
+        })[1][2]
+      )
     end)
     it(":and, :not, :discard, :take and :anything", function()
       eq({ "Report" }, grouped({ { name = "A", ["and"] = { tag = "work", deadline = true } } })[1][2])
-      eq({ "Pay bills", "Groceries", "Someday idea", "Child task", "Brush teeth" }, grouped({
-        { name = "N", ["not"] = { tag = "work" } },
-      })[1][2])
+      eq(
+        { "Pay bills", "Groceries", "Someday idea", "Child task", "Brush teeth" },
+        grouped({
+          { name = "N", ["not"] = { tag = "work" } },
+        })[1][2]
+      )
       eq({
         { "All", { "Pay bills", "Standup", "Groceries", "Child task", "Brush teeth", "Report" } },
       }, grouped({ { discard = { tag = "someday" } }, { name = "All", anything = true } }))
@@ -193,13 +204,19 @@ describe("super_agenda extension", function()
       eq("Last 1 Tags: work", grouped({ { take = { -1, { tag = "work" } } } })[1][1])
     end)
     it("orders groups by :order, then by name among equal non-zero orders", function()
-      eq({ "A", "B", "Other items", "Z" }, vim.tbl_map(function(s)
-        return s[1]
-      end, grouped({
-        { name = "Z", tag = "work", order = 100 },
-        { name = "B", priority = "A", order = 1 },
-        { name = "A", priority = "B", order = 1 },
-      })))
+      eq(
+        { "A", "B", "Other items", "Z" },
+        vim.tbl_map(
+          function(s)
+            return s[1]
+          end,
+          grouped({
+            { name = "Z", tag = "work", order = 100 },
+            { name = "B", priority = "A", order = 1 },
+            { name = "A", priority = "B", order = 1 },
+          })
+        )
+      )
     end)
     it("accepts Emacs-style plists", function()
       eq({ "Pay bills" }, grouped({ { ":name", "Imp", ":priority", "A" } })[1][2])
@@ -229,11 +246,16 @@ describe("super_agenda extension", function()
       eq({ "Parent", "Other items" }, names({ { auto_parent = true } }))
       eq({ "Parent", "Top-level headings" }, names({ { auto_outline_path = true } }))
       eq({ "Directory: " .. vim.fn.fnamemodify(dir, ":t") }, names({ { auto_dir_name = true } }))
-      eq({ "long", "short" }, names({ {
-        auto_map = function(it)
-          return #it.title > 9 and "long" or "short"
-        end,
-      } }))
+      eq(
+        { "long", "short" },
+        names({
+          {
+            auto_map = function(it)
+              return #it.title > 9 and "long" or "short"
+            end,
+          },
+        })
+      )
     end)
     it("groups by the latest timestamp, with a time or not", function()
       local key = require("org.extensions.super_agenda").auto.auto_ts.key
@@ -280,7 +302,14 @@ describe("super_agenda extension", function()
       eq("Items with child to-dos", require("org.extensions.super_agenda").selectors.children.name("todo"))
       eq("Logged", require("org.extensions.super_agenda").selectors.log.name(true))
       eq("Not logged", require("org.extensions.super_agenda").selectors.log.name(false))
-      eq("Predicate: Lambda", grouped({ { pred = function() return true end } })[1][1])
+      eq(
+        "Predicate: Lambda",
+        grouped({ {
+          pred = function()
+            return true
+          end,
+        } })[1][1]
+      )
     end)
     it("combines an automatic selector with others", function()
       eq({
@@ -320,9 +349,17 @@ describe("super_agenda extension", function()
       end
     end
     it("keeps the agenda highlights of a transformed line", function()
-      setup({ groups = { { name = "Work", tag = "work", transformer = function(l)
-        return ">> " .. l
-      end } } })
+      setup({
+        groups = {
+          {
+            name = "Work",
+            tag = "work",
+            transformer = function(l)
+              return ">> " .. l
+            end,
+          },
+        },
+      })
       view_lines({ type = "todo" })
       local plain_col
       local lnum = line_of("Standup")

@@ -1058,7 +1058,8 @@ local function run_steps(spec, cwd, sync, cb)
   local failed = false
   local i = 0
   local function sys_opts(step)
-    return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = { PWD = cwd } }
+    local env = vim.tbl_extend("force", { PWD = cwd }, step.env or {})
+    return { cwd = cwd, text = true, stdin = step.stdin, timeout = timeout, env = env }
   end
   local function handle(obj, step)
     local stderr = obj.stderr or ""
@@ -1903,7 +1904,7 @@ end
 
 --- A random placeholder id, like org-id-uuid.
 local function async_uuid()
-  local h = vim.fn.sha256(tostring(vim.uv.hrtime()) .. tostring(math.random()))
+  local h = utils.sha256(tostring(vim.uv.hrtime()) .. tostring(math.random()))
   local variant = ("89ab"):sub(tonumber(h:sub(17, 17), 16) % 4 + 1, tonumber(h:sub(17, 17), 16) % 4 + 1)
   return table.concat({ h:sub(1, 8), h:sub(9, 12), "4" .. h:sub(14, 16), variant .. h:sub(18, 20), h:sub(21, 32) }, "-")
 end

@@ -15,7 +15,11 @@ local M = {}
 M.extra = {
   agenda = { "org.agenda", "command", desc = "Open agenda: :Org agenda [a|t|m|s|<custom key>|day|week|month]" },
   capture = { "org.capture", "command", desc = "Capture with template key: :Org capture [key]" },
-  export = { "org.export", "command", desc = "Export: :Org export [html|md|gfm|ascii|latex|pdf|beamer|org|ics|docx|...]" },
+  export = {
+    "org.export",
+    "command",
+    desc = "Export: :Org export [html|md|gfm|ascii|latex|pdf|beamer|org|ics|docx|...]",
+  },
   publish = { "org.export", "publish_command", desc = "Publish: :Org publish [project|file|current|all] [force]" },
   convert_region = {
     "org.export",

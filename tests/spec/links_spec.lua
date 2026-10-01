@@ -13,7 +13,9 @@ end
 
 describe("links parsing", function()
   it("finds bracket, angle and plain links", function()
-    local l = links.parse_links("See [[https://a.b/c][Site]] and <mailto:x@y.z> or https://e.com/x. [[*Head]] [[#cid]] [[file:~/a.org::*H]]")
+    local l = links.parse_links(
+      "See [[https://a.b/c][Site]] and <mailto:x@y.z> or https://e.com/x. [[*Head]] [[#cid]] [[file:~/a.org::*H]]"
+    )
     eq(6, #l)
     eq("https://a.b/c", l[1].target)
     eq("Site", l[1].desc)
@@ -37,7 +39,11 @@ describe("links parsing", function()
     eq(0, #links.parse_links("<2026-09-23 Wed> [2026-09-23 Wed]"))
   end)
   it("expands abbreviations", function()
-    base_setup({ links = { abbreviations = { gh = "https://github.com/%s", g = "https://google.com/search?q=%h", w = "https://w.org/" } } })
+    base_setup({
+      links = {
+        abbreviations = { gh = "https://github.com/%s", g = "https://google.com/search?q=%h", w = "https://w.org/" },
+      },
+    })
     eq("https://github.com/a/b", links.expand_abbrev("gh:a/b"))
     eq("https://google.com/search?q=a%20b", links.expand_abbrev("g:a b"))
     eq("https://w.org/Page", links.expand_abbrev("w:Page"))
@@ -104,9 +110,11 @@ describe("links at cursor and opening", function()
   end)
   it("custom link types", function()
     local got
-    base_setup({ links = { types = { jira = function(path)
-      got = path
-    end } } })
+    base_setup({ links = { types = {
+      jira = function(path)
+        got = path
+      end,
+    } } })
     org_buffer({ "[[jira:ABC-1]]" }, { 1, 3 })
     links.open_at_point()
     eq("ABC-1", got)

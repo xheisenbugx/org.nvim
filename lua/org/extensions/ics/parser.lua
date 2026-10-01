@@ -82,14 +82,12 @@ end
 
 --- Unescape a TEXT value.
 function M.text(v)
-  return (
-    v:gsub("\\(.)", function(c)
-      if c == "n" or c == "N" then
-        return "\n"
-      end
-      return c
-    end)
-  )
+  return (v:gsub("\\(.)", function(c)
+    if c == "n" or c == "N" then
+      return "\n"
+    end
+    return c
+  end))
 end
 
 --- Parse into a component tree: `{ name, props = { {name, params, value} },
@@ -721,9 +719,9 @@ local function with_tz(tz, fn, ...)
     return fn(...)
   end
   local saved = vim.env.TZ
-  vim.env.TZ = tz
+  dt.set_tz(tz)
   local ok, a = pcall(fn, ...)
-  vim.env.TZ = saved
+  dt.set_tz(saved)
   if not ok then
     error(a, 0)
   end

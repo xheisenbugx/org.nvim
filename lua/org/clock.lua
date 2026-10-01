@@ -568,11 +568,15 @@ local function start_timers()
     -- org-clock-auto-clockout: clock out once idle for `secs` seconds
     auto_timer = vim.uv.new_timer()
     local period = math.max(1000, math.min(secs * 250, 30000))
-    auto_timer:start(period, period, vim.schedule_wrap(function()
-      if M.state and M.user_idle_seconds(secs) >= secs then
-        M.clock_out({})
-      end
-    end))
+    auto_timer:start(
+      period,
+      period,
+      vim.schedule_wrap(function()
+        if M.state and M.user_idle_seconds(secs) >= secs then
+          M.clock_out({})
+        end
+      end)
+    )
   end
 end
 

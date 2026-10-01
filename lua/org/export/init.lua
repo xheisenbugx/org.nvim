@@ -78,7 +78,16 @@ local PANDOC_EXT = {
   texinfo = "texi",
 }
 
-local FILETYPES = { html = "html", md = "markdown", gfm = "markdown", ascii = "text", latex = "tex", beamer = "tex", org = "org", icalendar = "icalendar" }
+local FILETYPES = {
+  html = "html",
+  md = "markdown",
+  gfm = "markdown",
+  ascii = "text",
+  latex = "tex",
+  beamer = "tex",
+  org = "org",
+  icalendar = "icalendar",
+}
 FILETYPES.texinfo = "texinfo"
 FILETYPES["koma-letter"] = "tex"
 FILETYPES.man = "nroff"
@@ -405,15 +414,17 @@ function M.to_string(format, opts)
     local n = vim.api.nvim_buf_get_name(bufnr)
     filename = n ~= "" and n or nil
   end
-  return (ox().export_as(spec[1], lines, {
-    filename = filename,
-    bufnr = bufnr,
-    subtree_line = opts.subtree_line,
-    body_only = opts.body_only,
-    visible_only = opts.visible_only,
-    no_final_newline = opts.no_final_newline,
-    ext = ext,
-  }))
+  return (
+    ox().export_as(spec[1], lines, {
+      filename = filename,
+      bufnr = bufnr,
+      subtree_line = opts.subtree_line,
+      body_only = opts.body_only,
+      visible_only = opts.visible_only,
+      no_final_newline = opts.no_final_newline,
+      ext = ext,
+    })
+  )
 end
 
 --- Process a .texi file into an Info file with makeinfo
@@ -434,11 +445,7 @@ function M.compile_info(texi, opts)
     if opts.open or cfg().open_after_export then
       if vim.fn.executable("info") == 1 and #vim.api.nvim_list_uis() > 0 then
         vim.cmd("new")
-        if vim.fn.has("nvim-0.11") == 1 then
-          vim.fn.jobstart({ "info", "-f", result }, { term = true })
-        else
-          vim.fn.termopen({ "info", "-f", result })
-        end
+        vim.fn.jobstart({ "info", "-f", result }, { term = true })
         vim.cmd("startinsert")
       else
         vim.ui.open(result)

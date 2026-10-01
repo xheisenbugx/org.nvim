@@ -1030,11 +1030,8 @@ function M.entry_lines(s)
   end
   for _, step in ipairs(s.steps) do
     if step.name == "clock" then
-      local _, total = steps_mod.clock_summary(
-        require("org.files").agenda_files(),
-        date.now(),
-        tonumber(o.clock_days) or 7
-      )
+      local _, total =
+        steps_mod.clock_summary(require("org.files").agenda_files(), date.now(), tonumber(o.clock_days) or 7)
       local days = tonumber(o.clock_days) or 7
       lines[#lines + 1] = string.format("%s- Clocked in the last %d days: %s", body, days, date.format_duration(total))
     end

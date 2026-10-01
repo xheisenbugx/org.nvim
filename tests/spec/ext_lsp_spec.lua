@@ -94,8 +94,7 @@ local function request(buf, method, params)
   local res = vim.lsp.buf_request_sync(buf, method, params, 3000)
   ok(res, "no response to " .. method)
   for _, r in pairs(res) do
-    -- Neovim 0.10 names the field `error`, 0.11+ `err`
-    local e = r.err or r.error
+    local e = r.err
     if e then
       return nil, e
     end
@@ -174,7 +173,7 @@ describe("lsp extension", function()
     eq({}, request(buf, "workspace/symbol", { query = "brandnew" }))
     local path = dir .. "/new.org"
     -- :hide, for a modified buffer another spec left current
-  vim.cmd("hide edit " .. vim.fn.fnameescape(path))
+    vim.cmd("hide edit " .. vim.fn.fnameescape(path))
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { "* Brandnew heading" })
     vim.cmd("silent write")
     vim.cmd("bwipeout")
@@ -696,7 +695,7 @@ describe("lsp extension", function()
         "#+END_HTML",
         "  %%(diary-float t 4 2)",
         "#+AUTHOR Me",
-        "#+INCLUDE: \"other.org\" html",
+        '#+INCLUDE: "other.org" html',
         "A [[file:a%20b%5B1%5D.org]] link.",
         "1. one",
         "3. three",

@@ -444,7 +444,7 @@ end
 
 --- Prompt for an ID and go to its entry (org-id-goto).
 ---@param id? string
-function M.goto(id)
+M["goto"] = function(id)
   if not id then
     local known = vim.tbl_keys(load_db())
     table.sort(known)

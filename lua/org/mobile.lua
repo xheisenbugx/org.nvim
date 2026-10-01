@@ -610,12 +610,14 @@ function M.sumo_blocks()
 end
 
 local function escape_olp(s)
-  return (s:gsub("[%%:/]", function(c)
-    if c == "%" then
-      return c
-    end
-    return string.format("%%%02X", c:byte())
-  end))
+  return (
+    s:gsub("[%%:/]", function(c)
+      if c == "%" then
+        return c
+      end
+      return string.format("%%%02X", c:byte())
+    end)
+  )
 end
 
 --- The olp: link of a headline (org-mobile-get-outline-path-link).

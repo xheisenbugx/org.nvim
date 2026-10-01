@@ -651,9 +651,11 @@ function M.c_expand(lang, body, args, vars, colnames)
     parts[#parts + 1] = ""
   end
   parts[#parts + 1] = table.concat(heads, "\n")
-  if main_p and not code:match("^[ \t]*[intvod]+[ \t\n\r]*main[ \t]*%(.*%)") and not code:find(
-    "\n[ \t]*[intvod]+[ \t\n\r]*main[ \t]*%(.*%)"
-  ) then
+  if
+    main_p
+    and not code:match("^[ \t]*[intvod]+[ \t\n\r]*main[ \t]*%(.*%)")
+    and not code:find("\n[ \t]*[intvod]+[ \t\n\r]*main[ \t]*%(.*%)")
+  then
     code = "int main() {\n" .. code .. "\nreturn 0;\n}\n"
   end
   parts[#parts + 1] = code
@@ -996,7 +998,7 @@ local function fmt(template, ...)
 end
 
 --- Build how to run a block with an external program. Returns a spec:
---- `{ steps = { { cmd = argv|string, stdin?, script? } }, result_file? }`.
+--- `{ steps = { { cmd = argv|string, stdin?, script?, env? } }, result_file? }`.
 --- A string `cmd` runs through `sh -c`.
 ---@param ctx { cmd: string[], ext: string, graphics_file?: string }
 function M.prepare(lang, body, args, vars, ctx)
@@ -1234,13 +1236,8 @@ function M.prepare(lang, body, args, vars, ctx)
         end
       end
       if engine == "mssql" then
-        command = string.format(
-          'sqlcmd %s -s "\t" %s -i %s -o %s',
-          cmdl,
-          table.concat(db, " "),
-          q(in_file),
-          q(out_file)
-        )
+        command =
+          string.format('sqlcmd %s -s "\t" %s -i %s -o %s', cmdl, table.concat(db, " "), q(in_file), q(out_file))
       else
         command = string.format("sqsh %s %s -i %s -o %s -m csv", cmdl, table.concat(db, " "), q(in_file), q(out_file))
       end

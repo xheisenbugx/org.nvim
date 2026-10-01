@@ -197,7 +197,6 @@ local function decorate(st, slide, lines)
   local buf = st.buf
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   local width = vim.api.nvim_win_is_valid(st.win) and vim.api.nvim_win_get_width(st.win) or 80
-  local can_hide_lines = vim.fn.has("nvim-0.11") == 1
   local first_heading = true
   -- level of the slide headline above (for indenting deeper headlines)
   local base
@@ -253,11 +252,7 @@ local function decorate(st, slide, lines)
         vim.api.nvim_buf_set_extmark(buf, ns, row, 0, { end_col = prefix, conceal = "" })
         vim.api.nvim_buf_set_extmark(buf, ns, row, prefix, { end_col = #line, hl_group = group, priority = 150 })
       elseif key then
-        if can_hide_lines then
-          vim.api.nvim_buf_set_extmark(buf, ns, row, 0, { conceal_lines = "" })
-        else
-          vim.api.nvim_buf_set_extmark(buf, ns, row, 0, { end_col = #line, conceal = "" })
-        end
+        vim.api.nvim_buf_set_extmark(buf, ns, row, 0, { conceal_lines = "" })
       end
     end
   end

@@ -39,7 +39,10 @@ describe("export beamer (Emacs ox-beamer parity)", function()
 
   it("defines the alternative frame environment when needed", function()
     local out = export("misc.org", false)
-    ok(out:find("\\newenvironment<>{orgframe}[1][]{\\begin{frame}#2[environment=orgframe,#1]}{\\end{frame}}", 1, true), out)
+    ok(
+      out:find("\\newenvironment<>{orgframe}[1][]{\\begin{frame}#2[environment=orgframe,#1]}{\\end{frame}}", 1, true),
+      out
+    )
   end)
 
   it("honours export.beamer options", function()

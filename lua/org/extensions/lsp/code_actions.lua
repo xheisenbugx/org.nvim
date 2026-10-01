@@ -231,9 +231,11 @@ M.fixers = {
     end
     local begin_e = s + #"#+BEGIN_" + #kind - 1
     local edits = { text_edit(lnum, s, begin_e, "#+BEGIN_EXPORT " .. kind:lower()) }
-    local close = "^%s*()#%+[Ee][Nn][Dd]_" .. vim.pesc(kind):gsub("%a", function(c)
-      return "[" .. c:upper() .. c:lower() .. "]"
-    end) .. "%s*$"
+    local close = "^%s*()#%+[Ee][Nn][Dd]_"
+      .. vim.pesc(kind):gsub("%a", function(c)
+        return "[" .. c:upper() .. c:lower() .. "]"
+      end)
+      .. "%s*$"
     for k = lnum + 1, #doc.lines do
       local es = doc.lines[k]:match(close)
       if es then
@@ -307,13 +309,7 @@ M.fixers = {
       return {}
     end
     return {
-      edit_action(
-        "Use export " .. markup,
-        "quickfix",
-        doc.uri,
-        { text_edit(lnum, ms, ms - 1, "export ") },
-        d
-      ),
+      edit_action("Use export " .. markup, "quickfix", doc.uri, { text_edit(lnum, ms, ms - 1, "export ") }, d),
     }
   end,
   ["percent-encoding-link-escape"] = function(doc, d)

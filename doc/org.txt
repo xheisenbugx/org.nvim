@@ -95,7 +95,7 @@ keys. `/` searches the list and `{` / `}` jump between sections.
 ==============================================================================
 2. INSTALLATION                                             *org-installation*
 
-Requires Neovim 0.10 or later. Optional tools:
+Requires Neovim 0.11 or later. Optional tools:
 
   pandoc               DOCX, EPUB, RST, ... export
   LibreOffice          ODT conversion (`export.odt.preferred_output_format`)
@@ -138,7 +138,9 @@ If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
 `:Org version` shows the org.nvim release, its git version and where it is
-installed (org-version); with a count it inserts that at the cursor.
+installed (org-version); with a count it inserts that at the cursor. The
+release is the latest `vX.Y.Z` git tag of the checkout, or "unreleased"
+when there is none (or org.nvim isn't a git checkout).
 
 Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
@@ -602,9 +604,7 @@ by command: `self_insert` (typed text), `delete_backward_char` (<BS>),
 each "insert", "delete" or "delete-backward" (false: not checked).
 Hidden lines are shared by the windows showing the buffer (like Emacs
 invisible text), while folds are per window. Vim's own fold commands (zo,
-zR, ...) don't show hidden lines; the org commands above do. Neovim 0.10
-cannot hide lines: the text of those entries stays visible and sparse trees
-also show the siblings of the matches.
+zR, ...) don't show hidden lines; the org commands above do.
 
 Startup visibility comes from `#+STARTUP:` (`overview`, `content`,
 `showall`, `show2levels` … `show5levels`, `showeverything`, `nofold`),
@@ -5448,7 +5448,7 @@ Setups:
                                    is partial; snacks.nvim can't draw in it
                                    (no unicode placeholders): with an older
                                    Neovim use image.nvim.
-  Neovim 0.10 to 0.12              no `vim.ui.img`: snacks.nvim or
+  Neovim 0.11 and 0.12             no `vim.ui.img`: snacks.nvim or
                                    image.nvim, in a terminal they support.
   tmux                             `vim.ui.img` writes straight to the
                                    terminal and tmux drops it, so its query
@@ -6719,7 +6719,11 @@ Differences from Emacs:
   mode is toggled (Emacs sets them while evaluating, so they apply from
   the next block). LaTeX .png results use the Normal highlight's colors
   (Emacs the default face's). ob-screen's `org-babel-screen-test` waits
-  at most `babel.timeout` (Emacs waits forever).
+  at most `babel.timeout` (Emacs waits forever). ob-csharp runs the built
+  program with `DOTNET_ROOT` set to the directory of dotnet's SDKs when it
+  is unset, so a .NET installed outside the default location (by
+  dotnet-install.sh, in ~/.dotnet) is found; Emacs leaves it unset and the
+  program fails with "You must install .NET to run this application".
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate
@@ -8135,7 +8139,7 @@ driver command from a committed file, so each clone installs it once).
 `merge_uninstall` removes the attribute lines and the config section again.
 
 The driver is `lua/org/extensions/merge/driver.lua`, a script run with
-`nvim --headless -u NONE -i NONE -l`, so it needs nothing but Neovim 0.10+
+`nvim --headless -u NONE -i NONE -l`, so it needs nothing but Neovim 0.11+
 and can be set up by hand. `bin/org-merge` in the plugin directory wraps
 that command:
 >sh
@@ -8926,8 +8930,8 @@ breadcrumb plugins.
 The server attaches to every org buffer that is a file (a FileType
 autocmd). One client serves them all; its root is `org_directory`. It
 reads the documents from their buffers, unsaved changes included, and
-other files from disk. Needs Neovim 0.10 or later (tested on 0.10, 0.11,
-0.12 and nightly). File names are compared with symlinks resolved, so a
+other files from disk. Needs Neovim 0.11 or later (tested on 0.11, 0.12
+and nightly). File names are compared with symlinks resolved, so a
 file opened through a symlink gets the edits of a rename in its own
 buffer.
 
