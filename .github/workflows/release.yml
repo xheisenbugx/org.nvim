@@ -1,0 +1,48 @@
+name: Release
+
+# Development happens on dev. main only takes pull requests from
+# release/vX.Y.Z branches; merging one tags vX.Y.Z on the merge commit and
+# publishes the GitHub release with notes generated from the merged PRs.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize, closed]
+
+jobs:
+  release-branch:
+    name: release branch
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Head branch is release/vX.Y.Z and the tag is new
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! "$HEAD_REF" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::main only accepts pull requests from release/vX.Y.Z branches (got '$HEAD_REF'). Target dev instead."
+            exit 1
+          fi
+          tag="${HEAD_REF#release/}"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>/dev/null; then
+            echo "::error::Tag $tag already exists."
+            exit 1
+          fi
+
+  publish:
+    if: github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Tag and publish the release
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${HEAD_REF#release/}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --title "org.nvim $tag" --generate-notes
