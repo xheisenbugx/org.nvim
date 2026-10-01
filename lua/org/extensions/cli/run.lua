@@ -294,7 +294,7 @@ local function touch_clock_stamp()
   pcall(function()
     local path = require("org.extensions.cli").stamp_path()
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-    local fh = io.open(path, "w")
+    local fh = io.open(path, "wb")
     if fh then
       fh:write(tostring(vim.uv.hrtime()) .. "\n")
       fh:close()

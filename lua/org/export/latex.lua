@@ -1422,7 +1422,7 @@ M.inline_image_rules = {
 local function inline_image(link, info)
   local parent = element.parent_element(link)
   local path = link.path
-  if path:match("^/") or path:match("^~") then
+  if require("org.utils").is_absolute(path) or path:match("^~") then
     path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   end
   local filetype = path:match("%.([%w]+)$")

@@ -5039,9 +5039,13 @@ number of minutes.
 Appointment reminders (`notifications.enabled = true`, or
 `:Org notifications_start`): timed SCHEDULED, DEADLINE and plain timestamps
 from the agenda files trigger |vim.notify()| at each of `reminder_time`
-minutes before the start. With `system_notification`, osascript or
-notify-send is also used. Set `notifications.notifier = function(n) ... end`
-to deliver them yourself.
+minutes before the start. With `system_notification`, a desktop
+notification is sent too: osascript on macOS, notify-send on Linux and the
+BSDs, and a toast through `powershell.exe` (Windows PowerShell, part of
+Windows) on Windows and in WSL without notify-send. The toasts show
+"Windows PowerShell" as their sender. `:checkhealth org` says which one is
+used. Set `notifications.notifier = function(n) ... end` to deliver them
+yourself.
 
 Each reminder is sent once per entry, which is known by its file, headline
 and start time: editing the file doesn't repeat it, and a headline whose
@@ -7888,8 +7892,8 @@ a second `setup()` in the same Neovim a running pomodoro clocks in again.
 
 Each phase change is announced through the clock's notifier
 (`clock.notification_handler`, else |vim.notify()|, and `clock.sound`), a
-desktop notification (osascript or notify-send, `system_notification`) and
-the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
+desktop notification (osascript, notify-send or a Windows toast,
+`system_notification`) and the `sound` command. A `User` autocmd `OrgPomodoroPhase` fires with
 `data = { phase, count, title }`, `phase` being "work", "overtime",
 "short_break", "long_break" or "ready".
 `require("org.extensions.pomodoro").info()` returns the session for other

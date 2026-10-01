@@ -2517,7 +2517,7 @@ M.defaults = {
     --- Minutes before a timed scheduled/deadline entry to notify.
     reminder_time = { 12, 9, 6, 3, 0 },
     check_interval = 60,
-    --- Also use the OS notifier (osascript / notify-send) when available.
+    --- Also use the OS notifier (osascript / notify-send / powershell.exe) when available.
     system_notification = true,
     --- Send reminders from one Neovim only, when several run with
     --- notifications on (a lock in stdpath("data")/org). Emacs usually

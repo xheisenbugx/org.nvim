@@ -386,7 +386,7 @@ function M.prepare(body, args, vars, ctx)
   if not file or file == "" then
     return { value = text }
   end
-  local out = file:match("^/") and file or (ctx.cwd .. "/" .. file)
+  local out = require("org.utils").is_absolute(file) and file or (ctx.cwd .. "/" .. file)
   -- compiled at once (Emacs waits too); an error aborts without a result
   M.make_file(text, args, out, ctx.bufnr, ctx.cwd)
   return { value = nil }

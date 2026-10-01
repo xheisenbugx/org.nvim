@@ -107,7 +107,7 @@ local function format_refs(refs, cwd)
     local version = type(ref) == "table" and ref[2] or nil
     local name = type(ref) == "table" and ref[1] or ref
     local full = vim.fn.resolve(vim.fn.fnamemodify(cwd .. "/" .. name, ":p"))
-    if name:match("^/") then
+    if require("org.utils").is_absolute(name) then
       full = vim.fn.resolve(name)
     end
     local ext = full:match("%.([^./]+)$")
@@ -218,7 +218,7 @@ function M.prepare(body, args, vars, ctx)
   local nuget = ob.unq(args.nugetconfig)
   if nuget then
     local src = vim.fn.fnamemodify(ctx.cwd .. "/" .. nuget, ":p")
-    if nuget:match("^/") then
+    if require("org.utils").is_absolute(nuget) then
       src = nuget
     end
     if vim.fn.filereadable(src) == 1 then

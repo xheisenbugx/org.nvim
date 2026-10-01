@@ -707,7 +707,9 @@ local function tangle()
     elseif t == "yes" then
       return vim.fn.fnamemodify(org, ":r") .. ".lua"
     end
-    return vim.fn.fnamemodify(t:sub(1, 1) == "/" and t or (dir .. "/" .. vim.fn.expand(t)), ":p")
+    -- copied into the bootstrap init.lua, so no org.utils: / or a drive
+    local abs = t:match("^/") or t:match("^%a:[/\\]")
+    return vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p")
   end
   local want = vim.fn.fnamemodify(out, ":p")
   local NOWEB = { yes = true, tangle = true, ["no-export"] = true, ["strip-export"] = true }

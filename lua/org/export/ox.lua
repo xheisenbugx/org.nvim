@@ -991,7 +991,7 @@ function M.expand_includes(lines, dir, opts)
           if opts.includer and not is_url and vim.fs.normalize(fdir) ~= vim.fs.normalize(dir) then
             for i, l in ipairs(body) do
               body[i] = l:gsub("%[%[file:([^%]:][^%]]-)%]", function(path)
-                if path:match("^/") or path:match("^~") then
+                if utils.is_absolute(path) or path:match("^~") then
                   return nil
                 end
                 local abs = vim.fs.normalize(fdir .. "/" .. path)
@@ -2656,10 +2656,11 @@ function M.file_uri(filename)
   if filename:match("^//") then
     return "file:" .. filename
   end
-  if not (filename:match("^/") or filename:match("^~")) then
+  if not (utils.is_absolute(filename) or filename:match("^~")) then
     return filename
   end
-  local full = vim.fn.fnamemodify(vim.fn.expand(filename), ":p")
+  -- forward slashes, as expand-file-name gives on Windows
+  local full = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(filename), ":p"))
   return (full:match("^/") and "file://" or "file:///") .. full
 end
 

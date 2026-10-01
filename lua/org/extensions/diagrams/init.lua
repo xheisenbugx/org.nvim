@@ -334,7 +334,7 @@ function M.unreferenced(bufnr)
   local base = vim.fn.fnamemodify(file, ":p:h")
   local out_dir = opts().output_dir or ""
   local dir = out_dir ~= "" and require("org.utils").expand(out_dir, base) or base
-  if not dir:match("^/") then
+  if not require("org.utils").is_absolute(dir) then
     dir = base .. "/" .. dir
   end
   if vim.fn.isdirectory(dir) == 0 then

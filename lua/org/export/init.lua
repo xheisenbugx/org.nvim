@@ -759,7 +759,7 @@ end)
 if not ok then
   result.error = tostring(err)
 end
-local f = assert(io.open(job.result, "w"))
+local f = assert(io.open(job.result, "wb"))
 f:write("return " .. export._serialize(result))
 f:close()
 ]]
@@ -807,10 +807,10 @@ function M.export_async(format, opts)
     }
     local jobfile, script = dir .. "/job.lua", dir .. "/run.lua"
     local ok = pcall(function()
-      local f = assert(io.open(jobfile, "w"))
+      local f = assert(io.open(jobfile, "wb"))
       f:write("return " .. serialize(job))
       f:close()
-      f = assert(io.open(script, "w"))
+      f = assert(io.open(script, "wb"))
       f:write(CHILD_SCRIPT)
       f:close()
     end)

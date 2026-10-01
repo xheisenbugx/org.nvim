@@ -307,7 +307,7 @@ local function run(cmd, timeout)
 end
 
 local function home(...)
-  return vim.fs.joinpath(vim.env.HOME or "~", ...)
+  return vim.fs.joinpath(require("org.utils").home(), ...)
 end
 
 local function xdg_config(...)

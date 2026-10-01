@@ -440,6 +440,25 @@ end
 -- Paths & files
 ---------------------------------------------------------------------------
 
+--- Whether `path` is absolute: `/x` and, as on Windows, a drive (`C:/x`,
+--- `C:\x`) or a UNC share (`\\server\share`, `//server/share`).
+---@param path string
+---@return boolean
+function M.is_absolute(path)
+  return path:match("^/") ~= nil or path:match("^%a:[/\\]") ~= nil or path:match("^\\\\") ~= nil
+end
+
+--- The user's home directory, also where $HOME isn't set (Windows uses
+--- %USERPROFILE%), with forward slashes.
+---@return string
+function M.home()
+  local home = vim.env.HOME
+  if not home or home == "" then
+    home = vim.uv.os_homedir() or "~"
+  end
+  return (home:gsub("\\", "/"))
+end
+
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
 --- `base` (default: org_directory).
 function M.expand(path, base)
@@ -450,7 +469,7 @@ function M.expand(path, base)
   -- :dir, :file, scopes), and Vim expansion evaluates `backticks` and
   -- interprets %, # and wildcards. Expand only ~ and environment variables.
   if path == "~" or path:match("^~[/\\]") then
-    path = (vim.env.HOME or "~") .. path:sub(2)
+    path = M.home() .. path:sub(2)
   end
   path = path
     :gsub("%${([%w_]+)}", function(v)
@@ -459,7 +478,7 @@ function M.expand(path, base)
     :gsub("%$([%w_]+)", function(v)
       return vim.env[v] or ("$" .. v)
     end)
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
+  if not M.is_absolute(path) then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path
   end
@@ -498,7 +517,7 @@ end
 
 function M.writefile(path, lines)
   vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-  local fd, err = io.open(path, "w")
+  local fd, err = io.open(path, "wb")
   if not fd then
     error("org: cannot write " .. path .. ": " .. tostring(err))
   end

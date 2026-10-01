@@ -342,7 +342,7 @@ function M.resolve_target(target)
       if not p:match("%.org$") then
         p = p .. ".org"
       end
-      if not p:match("^/") then
+      if not utils.is_absolute(p) then
         p = utils.expand(require("org.config").opts.org_directory) .. "/" .. p
       end
       if vim.fn.filereadable(p) == 0 then

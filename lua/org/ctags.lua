@@ -33,7 +33,7 @@ end
 --- current directory.
 local function absolute(name)
   name = vim.fs.normalize(name)
-  if not name:match("^/") then
+  if not utils.is_absolute(name) then
     local file = vim.api.nvim_buf_get_name(0)
     local base = file ~= "" and vim.fn.fnamemodify(file, ":p:h") or vim.fn.getcwd()
     name = base .. "/" .. name
