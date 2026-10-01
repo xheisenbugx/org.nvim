@@ -226,6 +226,31 @@ describe("version", function()
     ok(msg:find(v.root(), 1, true), msg)
   end)
 
+  it("takes the release from the latest vX.Y.Z git tag", function()
+    local v = require("org.version")
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    eq("unreleased", v.release_of(dir))
+    local function git(...)
+      -- no signing, whatever the user's git config says
+      local args = { "git", "-C", dir, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", ... }
+      local res = vim.system(args, { text = true }):wait()
+      eq(0, res.code, res.stderr)
+    end
+    git("init", "-q")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "a")
+    eq("unreleased", v.release_of(dir))
+    git("tag", "v0.1.0")
+    git("tag", "not-a-release")
+    eq("0.1.0", v.release_of(dir))
+    -- commits after a release keep its version, like Emacs between releases
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "b")
+    eq("0.1.0", v.release_of(dir))
+    git("tag", "v0.2.0")
+    eq("0.2.0", v.release_of(dir))
+    vim.fn.delete(dir, "rf")
+  end)
+
   it("inserts it at the cursor with a count", function()
     local buf = org_buffer({ "x" }, { 1, 0 })
     vim.keymap.set("n", "<F9>", function()
