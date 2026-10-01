@@ -141,7 +141,7 @@ local function tb_back_over_empty_lines(tb)
     tb:forward_line(-1)
   end
   tb:forward_line(1)
-  tb:goto(math.min(tb.point, pos))
+  tb:goto_char(math.min(tb.point, pos))
   local n = 0
   local p = tb.point
   while p < pos do
@@ -188,14 +188,14 @@ local function tb_clear_section(tb, name)
     text = text .. "\n"
   end
   tb.text = text
-  tb:goto(tb:point_max())
+  tb:goto_char(tb:point_max())
   if heading_blank_setting() then
     local save = tb.point
     if tb_back_over_empty_lines(tb) == 0 then
-      tb:goto(save)
+      tb:goto_char(save)
       tb:insert("\n")
     else
-      tb:goto(save)
+      tb:goto_char(save)
     end
   end
   tb:insert("* " .. name .. "\n")
@@ -218,7 +218,7 @@ local function tb_local_insertion_point(tb)
       break
     end
   end
-  tb:goto(target)
+  tb:goto_char(target)
   tb:skip_backward(" \t\n")
   if not tb:bobp() then
     tb:forward_line(1)
@@ -257,7 +257,7 @@ local function tb_end_of_meta_data(tb)
           break
         end
         if ln:match("^%s*:[Ee][Nn][Dd]:%s*$") then
-          tb:goto(p)
+          tb:goto_char(p)
           tb:forward_line(1)
           found = true
           break
@@ -296,7 +296,7 @@ function M.create_definition(bufnr, label, ref_lnum)
       p = nl + 1
     end
     if found then
-      tb:goto(found)
+      tb:goto_char(found)
       tb_end_of_meta_data(tb)
       if not tb:bolp() then
         tb:insert("\n")
@@ -610,7 +610,7 @@ local function insert_definitions(lines, entries)
     local last
     for _, en in ipairs(entries) do
       if en.ref_lnum then
-        tb:goto(tb:pos_of(en.ref_lnum, 0))
+        tb:goto_char(tb:pos_of(en.ref_lnum, 0))
         tb_local_insertion_point(tb)
         -- later references move down with the inserted lines
         local row = tb:rowcol()
@@ -625,7 +625,7 @@ local function insert_definitions(lines, entries)
         last = tb.point
       end
     end
-    tb:goto(last or tb:point_max())
+    tb:goto_char(last or tb:point_max())
     for _, en in ipairs(entries) do
       if not en.ref_lnum then
         tb:insert("\n" .. table.concat(en.block, "\n") .. "\n")

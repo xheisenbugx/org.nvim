@@ -174,7 +174,7 @@ local function tb_back_to_heading(tb)
   local p = tb:line_beg()
   while true do
     if tb_level(tb, p) then
-      tb:goto(p)
+      tb:goto_char(p)
       return true
     end
     if p == 1 then
@@ -191,12 +191,12 @@ local function tb_next_heading(tb)
   while true do
     local nl = tb.text:find("\n", p, true)
     if not nl or nl + 1 > #tb.text then
-      tb:goto(tb:point_max())
+      tb:goto_char(tb:point_max())
       return false
     end
     p = nl + 1
     if tb_level(tb, p) then
-      tb:goto(p)
+      tb:goto_char(p)
       return true
     end
   end
@@ -207,7 +207,7 @@ local function tb_current_level(tb)
   local save = tb.point
   local ok = tb_back_to_heading(tb)
   local lvl = ok and tb_level(tb) or nil
-  tb:goto(save)
+  tb:goto_char(save)
   return lvl
 end
 
@@ -219,7 +219,7 @@ local function tb_up_heading(tb)
     p = tb:line_beg(p - 1)
     local l = tb_level(tb, p)
     if l and l < lvl then
-      tb:goto(p)
+      tb:goto_char(p)
       return true
     end
   end
@@ -234,13 +234,13 @@ local function tb_end_of_subtree(tb)
   while true do
     local nl = tb.text:find("\n", p, true)
     if not nl or nl + 1 > #tb.text then
-      tb:goto(tb:point_max())
+      tb:goto_char(tb:point_max())
       return
     end
     p = nl + 1
     local l = tb_level(tb, p)
     if l and l <= lvl then
-      tb:goto(p)
+      tb:goto_char(p)
       return
     end
   end
@@ -250,16 +250,16 @@ end
 --- line at point.
 local function tb_n_empty_lines_before(tb, n)
   local _, col = tb:rowcol()
-  tb:goto(tb:line_beg())
+  tb:goto_char(tb:line_beg())
   if not tb:bobp() then
     local bol = tb.point
     tb:skip_backward(" \t\r\n")
     local start = tb:line_end()
-    tb:goto(bol)
+    tb:goto_char(bol)
     tb:delete(start, tb:line_beg() - 1)
   end
   tb:insert(string.rep("\n", n))
-  tb:goto(math.min(tb.point + col, tb:line_end()))
+  tb:goto_char(math.min(tb.point + col, tb:line_end()))
 end
 
 --- org--blank-before-heading-p for `blank_before_new_entry.heading`.
@@ -288,7 +288,7 @@ local function heading_blank_p(tb, parent)
       res = tb:line_empty_p(-1)
     end
   end
-  tb:goto(save)
+  tb:goto_char(save)
   return res
 end
 M._heading_blank_p = heading_blank_p
@@ -370,14 +370,14 @@ function M.insert_heading_at_point(opts)
   end
   local function maybe_add_blank_after()
     local save = tb.point
-    tb:goto(tb:line_end())
+    tb:goto_char(tb:line_end())
     if not tb:eobp() then
-      tb:goto(tb.point + 1)
+      tb:goto_char(tb.point + 1)
       if blank and tb_level(tb) then
         tb:insert("\n")
       end
     end
-    tb:goto(save)
+    tb:goto_char(save)
   end
   local function prev_line_empty()
     return tb:line_empty_p(-1)
@@ -398,40 +398,40 @@ function M.insert_heading_at_point(opts)
     end
     if blank and tb.point > 1 then
       local save = tb.point
-      tb:goto(tb.point - 1)
+      tb:goto_char(tb.point - 1)
       local before_first = tb_current_level(tb) == nil
-      tb:goto(save)
+      tb:goto_char(save)
       if before_first then
         tb:insert("\n")
-        tb:goto(tb.point - 1)
+        tb:goto_char(tb.point - 1)
       end
     end
     if not current_level and not tb:eobp() and not tb:bobp() then
       if tb:bolp() and tb_level(tb) then
         tb:insert("\n")
       end
-      tb:goto(tb.point - 1)
+      tb:goto_char(tb.point - 1)
     end
     if not (blank and prev_line_empty()) then
       tb_n_empty_lines_before(tb, blank and 1 or 0)
     end
     tb:insert(stars .. " \n")
-    tb:goto(tb.point - 1)
+    tb:goto_char(tb.point - 1)
     maybe_add_blank_after()
   elseif tb_level(tb) then
     if tb:bolp() then
       if blank then
         local save = tb.point
         tb:insert("\n")
-        tb:goto(save)
+        tb:goto_char(save)
       end
       local save = tb.point
       tb:insert(stars .. " \n")
-      tb:goto(save)
+      tb:goto_char(save)
       if not (blank and prev_line_empty()) then
         tb_n_empty_lines_before(tb, blank and 1 or 0)
       end
-      tb:goto(tb:line_end())
+      tb:goto_char(tb:line_end())
     else
       local bol = tb:line_beg()
       local ts, te = title_range(tb:line(), todo_cfg())
@@ -445,7 +445,7 @@ function M.insert_heading_at_point(opts)
           local new = edit.auto_align_tags() and edit.align_tags_line(tb:line(), todo_cfg()) or tb:line()
           tb.text = tb.text:sub(1, bol - 1) .. new .. tb.text:sub(tb:line_end())
         end
-        tb:goto(tb:line_end(bol))
+        tb:goto_char(tb:line_end(bol))
         if blank then
           tb:insert("\n")
         end
@@ -455,7 +455,7 @@ function M.insert_heading_at_point(opts)
           tb:insert(moved)
         end
       else
-        tb:goto(tb:line_end())
+        tb:goto_char(tb:line_end())
         if blank then
           tb:insert("\n")
         end
@@ -471,7 +471,7 @@ function M.insert_heading_at_point(opts)
     maybe_add_blank_after()
   else
     if not split then
-      tb:goto(tb:line_end())
+      tb:goto_char(tb:line_end())
     end
     tb:insert("\n" .. stars .. " ")
     if not (blank and prev_line_empty()) then
@@ -880,7 +880,7 @@ function M.insert_block(type, s, e)
   local column = #tb:line():match("^(%s*)")
   local before = tb.text:sub(tb:line_beg(), tb.point - 1)
   if before:match("^%s*$") then
-    tb:goto(tb:line_beg())
+    tb:goto_char(tb:line_beg())
   else
     tb:insert("\n")
   end
@@ -894,9 +894,9 @@ function M.insert_block(type, s, e)
   else
     tb:insert("\n")
   end
-  tb:goto(save)
+  tb:goto_char(save)
   if extended then
-    tb:goto(tb:line_end())
+    tb:goto_char(tb:line_end())
   else
     tb:forward_line(1)
     tb:skip_forward(" \t")
@@ -2497,7 +2497,7 @@ function M.emphasize()
       local char_len = ecol <= #last and #vim.fn.strcharpart(last:sub(ecol), 0, 1) or 1
       e = tb:pos_of(erow, math.min(ecol - 1 + math.max(char_len, 1), #last))
     end
-    tb:goto(b)
+    tb:goto_char(b)
     text = tb:delete(b, e)
     while #text > 1 and text:sub(1, 1) == text:sub(-1) and text:sub(1, 1):match("[%*/_=~%+]") do
       text = text:sub(2, -2)
@@ -2509,11 +2509,11 @@ function M.emphasize()
   end
   if not tb:eobp() and not tb.text:sub(tb.point, tb.point):match(EMPH_POST) and tb.text:sub(tb.point, tb.point) ~= "\n" then
     tb:insert(" ")
-    tb:goto(tb.point - 1)
+    tb:goto_char(tb.point - 1)
   end
   tb:insert(new)
   if not visual then
-    tb:goto(tb.point - 1)
+    tb:goto_char(tb.point - 1)
   end
   tb:apply()
   if not visual and ch ~= " " then

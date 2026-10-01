@@ -265,7 +265,7 @@ describe("large files: textbuf writes back only the edited lines", function()
       local tb = textbuf.from_buffer(buf, { rand(#lines), 0 })
       for _ = 1, 3 do
         for _ = 1, rand(4) do
-          tb:goto(rand(#tb.text + 1))
+          tb:goto_char(rand(#tb.text + 1))
           if rand(2) == 1 then
             tb:insert(pieces[rand(#pieces)])
           else

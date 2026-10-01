@@ -115,7 +115,7 @@ describe("ids", function()
     local stored = require("org.id").store_link()
     eq("id:" .. id, stored.link)
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
-    ok(require("org.id").goto(id))
+    ok(require("org.id")["goto"](id))
     eq("* B", vim.api.nvim_get_current_line())
     vim.bo[buf].modified = false
   end)

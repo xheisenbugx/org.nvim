@@ -222,7 +222,7 @@ end
 
 --- buffer_goto (org-goto): the interface of `goto_interface`, the other
 --- one with a count.
-function M.goto()
+M["goto"] = function()
   local interface = config.opts.goto_interface or "outline"
   if vim.v.count > 0 then
     interface = interface == "outline" and "outline-path-completion" or "outline"
