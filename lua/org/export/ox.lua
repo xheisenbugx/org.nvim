@@ -2659,7 +2659,8 @@ function M.file_uri(filename)
   if not (utils.is_absolute(filename) or filename:match("^~")) then
     return filename
   end
-  local full = vim.fn.fnamemodify(vim.fn.expand(filename), ":p")
+  -- forward slashes, as expand-file-name gives on Windows
+  local full = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(filename), ":p"))
   return (full:match("^/") and "file://" or "file:///") .. full
 end
 
