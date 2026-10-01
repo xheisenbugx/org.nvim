@@ -360,6 +360,11 @@ return config
       end
       local ok_, text = pcall(function()
         vim.cmd("checkhealth org")
+        -- Neovim 0.13 runs the checks asynchronously and sets the filetype
+        -- when they are done; keep the stubs until then
+        vim.wait(10000, function()
+          return vim.bo.filetype == "checkhealth"
+        end)
         local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
         vim.cmd("bwipeout!")
         return table.concat(lines, "\n")
