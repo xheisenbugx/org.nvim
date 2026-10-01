@@ -179,8 +179,9 @@ differs:
   time zone.
 - `:tangle-mode` and `:shebang` can't make a file executable: Windows has
   no Unix file modes.
-- org-crypt needs a `gpg` on %PATH%: GnuPG for Windows (Gpg4win) or the
-  one of Git for Windows.
+- org-crypt needs GnuPG for Windows (or Gpg4win) on %PATH%. The `gpg` of
+  Git for Windows can't ask for passphrases outside its own terminal; a
+  call that hangs is stopped after a minute.
 - Babel runs `sh`/`bash` blocks with the `sh` or `bash` on %PATH% (Git for
   Windows, MSYS2, WSL's `bash.exe`), like Emacs.
 
@@ -5106,7 +5107,9 @@ replaced by an ASCII-armored message (trailing blank lines stay outside):
     -----END PGP MESSAGE-----
 <
 The format is the one Emacs writes: files encrypted in either editor
-decrypt in the other.
+decrypt in the other. A gpg call that doesn't finish within a minute (e.g.
+one waiting for a passphrase prompt it can't show) is stopped and reported
+instead of freezing Neovim.
 
 :Org crypt_encrypt_entry     Encrypt the entry at the cursor
                              (org-encrypt-entry). Encrypted entries are

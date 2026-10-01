@@ -78,7 +78,8 @@ local function gpg(args, input)
   if not ok then
     return false, "", tostring(res)
   end
-  if res.code == 124 and res.signal ~= 0 then
+  -- a process killed on the timeout may have no result yet
+  if not res or (res.code == 124 and res.signal ~= 0) then
     return false, "", string.format("%s did not answer within %d s", cmd[1], M.timeout / 1000)
   end
   return res.code == 0, res.stdout or "", res.stderr or ""

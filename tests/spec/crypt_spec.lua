@@ -1,5 +1,16 @@
 -- org-crypt: encrypting entries with gpg.
 
+-- Git for Windows' gpg (MSYS) waits for a terminal it doesn't have here
+local msys_gpg = vim.fn.has("win32") == 1
+  and vim.fs.normalize(vim.fn.exepath("gpg")):lower():find("/usr/bin/", 1, true) ~= nil
+if msys_gpg then
+  describe("crypt", function()
+    it("skipped: only Git for Windows' gpg found", function()
+      skip_on_windows("needs GnuPG for Windows; Git's MSYS gpg can't run headless")
+    end)
+  end)
+  return
+end
 if vim.fn.executable("gpg") == 0 then
   describe("crypt", function()
     it("skipped: gpg not found", function() end)
@@ -14,13 +25,6 @@ local crypt = require("org.crypt")
 local home = vim.fn.tempname()
 vim.fn.mkdir(home, "p", "0700")
 local saved_home = vim.env.GNUPGHOME
--- Git for Windows' gpg (MSYS) takes its home in the MSYS form: /c/Users/...
-if vim.fn.has("win32") == 1 and vim.fn.executable("cygpath") == 1 then
-  local gpg = vim.fs.normalize(vim.fn.exepath("gpg")):lower()
-  if gpg:find("/usr/bin/", 1, true) then
-    home = vim.trim(vim.system({ "cygpath", "-u", home }, { text = true }):wait().stdout)
-  end
-end
 vim.env.GNUPGHOME = home
 vim.api.nvim_create_autocmd("VimLeavePre", {
   callback = function()
