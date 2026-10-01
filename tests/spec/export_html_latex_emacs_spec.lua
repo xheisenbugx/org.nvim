@@ -20,6 +20,7 @@ local DOC = {
 }
 
 describe("html LaTeX (Emacs parity)", function()
+  posix_shell()
   local dir, ui, saved_processes, saved_cmd
   before_each(function()
     config.opts.babel.evaluate_on_export = false
@@ -94,6 +95,7 @@ describe("html LaTeX (Emacs parity)", function()
   end)
 
   it("runs org-latex-to-html-convert-command for tex:html", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     config.opts.export.html.latex_to_html_convert_command = "echo '<m>'%i'</m>'"
     local out = html("#+OPTIONS: tex:html")
     ok(out:find("<p>\nInline <m>$x^2$</m>\n and <m>\\(y < 1\\)</m>\n here.\n</p>", 1, true), out)

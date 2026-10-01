@@ -108,7 +108,7 @@ describe("org-mobile", function()
     end
     ok(id1 and id2)
     local sums = utils.readfile(stage .. "/checksums.dat")
-    eq(4, #sums)
+    eq(4, #sums, vim.inspect(sums))
     eq(mobile.md5(read(stage .. "/index.org")) .. "  index.org", sums[1])
     eq("68b329da9893e34099c7d8ad5cb9c940  mobileorg.org", sums[2])
     ok(sums[3]:match("^%x+  a%.org$"))

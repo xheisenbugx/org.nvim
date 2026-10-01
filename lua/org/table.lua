@@ -1178,18 +1178,18 @@ function M.export(path, format)
     if not path or vim.trim(path) == "" then
       return
     end
-    path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
+    path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p"))
     if utils.exists(path) and not utils.confirm("Overwrite file " .. path .. "?") then
       utils.notify("File not written")
       return
     end
   end
-  path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
+  path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p"))
   if utils.is_dir(path) then
     utils.warn("This is a directory path, not a file")
     return
   end
-  if path == vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":p") then
+  if path == vim.fs.normalize(vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":p")) then
     utils.warn("Please specify a file name that is different from current")
     return
   end

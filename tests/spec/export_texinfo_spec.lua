@@ -35,6 +35,7 @@ local function tmpdir()
 end
 
 describe("texinfo export", function()
+  posix_shell()
   local saved_texinfo
   before_each(function()
     config.opts.babel.evaluate_on_export = false

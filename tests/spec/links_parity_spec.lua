@@ -663,6 +663,7 @@ describe("links parity", function()
     end)
 
     it("runs shell links literally in the file's directory", function()
+      skip_on_windows("its command is POSIX shell ('...', pwd)")
       local dir = tmpdir()
       local p = write(dir, "s.org", { "[[shell:echo '50% #1' && pwd]]", "[[shell:echo skipped]]" })
       edit(p, { 1, 3 })

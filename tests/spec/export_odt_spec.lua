@@ -53,6 +53,7 @@ local function body(xml)
 end
 
 describe("export odt", function()
+  posix_shell()
   local saved
   before_each(function()
     saved = saved or vim.deepcopy(config.opts.export.odt)

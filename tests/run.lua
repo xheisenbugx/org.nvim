@@ -157,16 +157,28 @@ _G.skip_on_windows = function(reason)
   end
 end
 
--- Specs give the plugin POSIX shell commands ("cp %f %b.pdf", 'quotes',
--- ;): on Windows run them with sh (Git for Windows'), as one can configure
--- there, rather than cmd.exe.
-if is_win and vim.fn.executable("sh") == 1 then
-  vim.o.shell = "sh"
-  vim.o.shellcmdflag = "-c"
-  vim.o.shellquote = ""
-  vim.o.shellxquote = ""
-  vim.o.shellredir = ">%s 2>&1"
-  vim.o.shellpipe = "2>&1| tee"
+--- Inside a describe: run 'shell' commands with sh (Git for Windows' on
+--- Windows) for its specs, which give the plugin POSIX shell commands
+--- ("cp %f %b.pdf", 'quotes', ;). Elsewhere 'shell' already is one.
+_G.posix_shell = function()
+  if not (is_win and vim.fn.executable("sh") == 1) then
+    return
+  end
+  local keys = { "shell", "shellcmdflag", "shellquote", "shellxquote", "shellredir", "shellpipe" }
+  local saved
+  before_each(function()
+    saved = {}
+    for _, k in ipairs(keys) do
+      saved[k] = vim.o[k]
+    end
+    vim.o.shell, vim.o.shellcmdflag, vim.o.shellquote, vim.o.shellxquote = "sh", "-c", "", ""
+    vim.o.shellredir, vim.o.shellpipe = ">%s 2>&1", "2>&1| tee"
+  end)
+  after_each(function()
+    for k, v in pairs(saved or {}) do
+      vim.o[k] = v
+    end
+  end)
 end
 
 -- Temp names in the form the plugin works with: forward slashes, and the

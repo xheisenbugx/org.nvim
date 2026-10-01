@@ -156,7 +156,7 @@ describe("org-id", function()
     local fresh = dir .. "/fresh-ids"
     setup(dir, { id = { locations_file = fresh } })
     id.register("f1", dir .. "/a.org")
-    eq({ "", '(("' .. dir .. '/a.org" "f1"))' }, utils.readfile(fresh))
+    eq({ "", '(("' .. utils.abbreviate(dir) .. '/a.org" "f1"))' }, utils.readfile(fresh))
     setup(dir)
     id.register("j1", dir .. "/a.org")
     eq(dir .. "/a.org", utils.read_json(dir .. "/ids.json").j1)

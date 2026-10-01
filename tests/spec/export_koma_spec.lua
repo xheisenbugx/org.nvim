@@ -42,6 +42,7 @@ local function golden(name, file)
 end
 
 describe("koma-letter export", function()
+  posix_shell()
   local saved_koma, saved_author, saved_email
   before_each(function()
     config.opts.babel.evaluate_on_export = false

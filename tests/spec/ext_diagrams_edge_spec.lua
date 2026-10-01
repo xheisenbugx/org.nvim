@@ -54,6 +54,7 @@ describe("diagrams: commands", function()
   end)
 
   it("renders from a directory with spaces and quotes in its name", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     local dir = tmpdir() .. "/it's a dir"
     vim.fn.mkdir(dir, "p")
     local log = dir .. "/log"

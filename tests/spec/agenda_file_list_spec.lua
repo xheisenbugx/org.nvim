@@ -86,7 +86,10 @@ describe("agenda file list", function()
       vim.tbl_map(require("org.utils").abbreviate, config.opts.agenda_files)
     )
     local json = vim.json.decode(table.concat(vim.fn.readfile(saved_json), "\n"))
-    eq({ b, a, c }, json.files)
+    eq(
+      vim.tbl_map(require("org.utils").abbreviate, { b, a, c }),
+      vim.tbl_map(require("org.utils").abbreviate, json.files)
+    )
     eq({ dir }, json.configured)
     -- setup() with the same configured value restores the saved list
     config.opts.agenda_files = { dir }

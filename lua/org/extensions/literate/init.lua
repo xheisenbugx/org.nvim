@@ -708,10 +708,11 @@ local function tangle()
       return vim.fn.fnamemodify(org, ":r") .. ".lua"
     end
     -- copied into the bootstrap init.lua, so no org.utils: / or a drive
-    local abs = t:match("^/") or t:match("^%a:[/\\]")
-    return vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p")
+    local abs = t:match("^[/\\]") or t:match("^%a:[/\\]")
+    return vim.fs.normalize(vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p"))
   end
-  local want = vim.fn.fnamemodify(out, ":p")
+  -- normalized: fnamemodify() mixes \ and / on Windows
+  local want = vim.fs.normalize(vim.fn.fnamemodify(out, ":p"))
   local NOWEB = { yes = true, tangle = true, ["no-export"] = true, ["strip-export"] = true }
   local function expand(b, depth)
     if depth > 10 or not NOWEB[b.noweb or ""] then

@@ -607,6 +607,8 @@ describe("merge extension: git", function()
   local function repo()
     local dir = tmpdir()
     git(dir, "init", "-q", "-b", "main")
+    -- Git for Windows checks files out with CRLF by default
+    git(dir, "config", "core.autocrlf", "false")
     return dir
   end
 

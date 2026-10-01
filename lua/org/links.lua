@@ -2414,12 +2414,16 @@ function M.normalize_file_path(path, method, dir)
   if type(method) == "function" then
     return method(path)
   end
-  -- expand() and fnamemodify() give \ on Windows, and a drive to /x
-  local expanded = vim.fs.normalize(vim.fn.expand(path))
-  if not utils.is_absolute(expanded) then
-    expanded = dir .. "/" .. expanded
+  -- the file and the directory made absolute alike: expand() and
+  -- fnamemodify() give \ on Windows, and may or may not add a drive to /x
+  local function absolute(p, base)
+    p = vim.fs.normalize(vim.fn.expand(p))
+    if base and not utils.is_absolute(p) then
+      p = base .. "/" .. p
+    end
+    return vim.fs.normalize(vim.fn.fnamemodify(p, ":p"))
   end
-  local full = vim.fs.normalize(vim.fn.fnamemodify(expanded, ":p"))
+  local full = absolute(path, dir)
   if path:sub(-1) == "/" and full:sub(-1) ~= "/" then
     full = full .. "/"
   end
@@ -2428,7 +2432,7 @@ function M.normalize_file_path(path, method, dir)
   elseif method == "noabbrev" then
     return full
   end
-  dir = vim.fs.normalize(vim.fn.fnamemodify(dir, ":p")):gsub("/$", "") .. "/"
+  dir = absolute(dir):gsub("/$", "") .. "/"
   if method == "relative" then
     local a = vim.split(dir:gsub("/$", ""), "/", { plain = true })
     local b = vim.split(full, "/", { plain = true })

@@ -3146,7 +3146,7 @@ end
 ---@return string?
 function M.convert(in_file, out_fmt, open)
   local utils = require("org.utils")
-  in_file = vim.fn.fnamemodify(vim.fn.expand(in_file), ":p")
+  in_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(in_file), ":p"))
   if vim.fn.filereadable(in_file) == 0 then
     utils.error("Cannot read " .. in_file)
     return nil
@@ -3276,7 +3276,7 @@ function M.export_as_odf(latex_frag, odf_file)
       return nil
     end
   end
-  odf_file = vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p")
+  odf_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p"))
   local mathml = M.latex_to_mathml(latex_frag)
   if not mathml then
     utils.error("No Math formula created")
