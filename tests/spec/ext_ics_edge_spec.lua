@@ -38,6 +38,7 @@ describe("ics: zoneinfo (TZif) reader", function()
   end
 
   it("agrees with the C library on offsets, past the last transition too", function()
+    skip_on_windows("TZ takes no IANA zone names on Windows")
     for _, name in ipairs({ "Europe/Berlin", "America/New_York", "Australia/Sydney", "Asia/Kolkata" }) do
       local z = assert(tzif.load(name))
       local saved = vim.env.TZ

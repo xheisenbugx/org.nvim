@@ -55,13 +55,6 @@ jobs:
         run: |
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
-      # GnuPG for Windows (Gpg4win's gpg) for org-crypt: Git's MSYS gpg
-      # doesn't take Windows paths
-      - name: GnuPG
-        shell: bash
-        run: |
-          choco install gnupg -y --no-progress > /dev/null
-          echo "C:\\Program Files (x86)\\GnuPG\\bin" >> "$GITHUB_PATH"
       - run: nvim --version
       # PROBE (temporary): what a REPL in a ConPTY terminal sends back
       - name: Session probe

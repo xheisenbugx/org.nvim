@@ -14,6 +14,13 @@ local crypt = require("org.crypt")
 local home = vim.fn.tempname()
 vim.fn.mkdir(home, "p", "0700")
 local saved_home = vim.env.GNUPGHOME
+-- Git for Windows' gpg (MSYS) takes its home in the MSYS form: /c/Users/...
+if vim.fn.has("win32") == 1 and vim.fn.executable("cygpath") == 1 then
+  local gpg = vim.fs.normalize(vim.fn.exepath("gpg")):lower()
+  if gpg:find("/usr/bin/", 1, true) then
+    home = vim.trim(vim.system({ "cygpath", "-u", home }, { text = true }):wait().stdout)
+  end
+end
 vim.env.GNUPGHOME = home
 vim.api.nvim_create_autocmd("VimLeavePre", {
   callback = function()

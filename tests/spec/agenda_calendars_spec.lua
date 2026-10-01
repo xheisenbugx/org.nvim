@@ -17,6 +17,7 @@ end
 local NOW = 1790337600
 
 local function with_tz(tz, fn)
+  skip_on_windows("TZ takes no IANA zone names on Windows")
   local saved = vim.env.TZ
   set_tz(tz)
   local ok, err = pcall(fn, solar.system_zone(NOW))
@@ -236,6 +237,7 @@ describe("agenda calendars: agenda keys", function()
   it("lists moon phases and holidays in a float", function()
     open()
     local saved = vim.env.TZ
+    skip_on_windows("TZ takes no IANA zone names on Windows")
     set_tz("America/New_York")
     solar.reset()
     local okp, buf, win = pcall(view.phases_of_moon)
@@ -370,6 +372,7 @@ describe("agenda calendars: Hebrew and Chinese diary sexps", function()
 
   it("lights the Sabbath candles before sunset on Fridays", function()
     local saved = vim.env.TZ
+    skip_on_windows("TZ takes no IANA zone names on Windows")
     set_tz("America/New_York")
     solar.reset()
     local loc = { calendar_latitude = 40.7, calendar_longitude = -74.0 }

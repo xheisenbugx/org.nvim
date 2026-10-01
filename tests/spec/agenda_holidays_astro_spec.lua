@@ -36,6 +36,7 @@ local NOW = 1790337600
 
 -- Run FN with the process time zone set to TZ (os.date follows it).
 local function with_tz(tz, fn)
+  skip_on_windows("TZ takes no IANA zone names on Windows")
   local saved = vim.env.TZ
   date.set_tz(tz)
   local ok, err = pcall(fn, solar.system_zone(NOW))

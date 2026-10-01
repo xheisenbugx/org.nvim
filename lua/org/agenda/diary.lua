@@ -40,7 +40,8 @@ function M.file()
   if f and f ~= "" then
     return vim.fs.normalize(vim.fn.expand(f))
   end
-  local home = vim.fs.normalize("~")
+  -- $HOME when set, as Emacs (libuv prefers %USERPROFILE% on Windows)
+  local home = require("org.utils").home()
   if vim.fn.filereadable(home .. "/diary") == 1 then
     return home .. "/diary"
   end
