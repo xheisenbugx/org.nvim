@@ -10,7 +10,13 @@ _G.describe = function(name, fn)
   table.insert(stack, name)
   table.insert(befores, {})
   table.insert(afters, {})
-  fn()
+  -- an error in the body fails the describe, not the specs of later files:
+  -- they would run with its name and its before_each/after_each hooks
+  local ok, err = pcall(fn)
+  if not ok then
+    results.failed = results.failed + 1
+    table.insert(results.errors, { name = table.concat(stack, " > "), err = err })
+  end
   table.remove(afters)
   table.remove(befores)
   table.remove(stack)
