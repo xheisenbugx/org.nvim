@@ -190,6 +190,8 @@ function M.register(id, filename)
   if not id or not filename then
     return
   end
+  -- one spelling per file (buffer names have \ on Windows)
+  filename = vim.fs.normalize(filename)
   local d = load_db()
   if d[id] ~= filename then
     d[id] = filename
@@ -212,6 +214,7 @@ end
 function M.register_many(map)
   local d, changed = load_db(), false
   for id, filename in pairs(map) do
+    filename = vim.fs.normalize(filename)
     if d[id] ~= filename then
       d[id] = filename
       changed = true
@@ -228,6 +231,7 @@ function M.register_lines(lines, filename)
   if not filename or filename == "" then
     return
   end
+  filename = vim.fs.normalize(filename)
   local d, changed = load_db(), false
   for _, l in ipairs(lines) do
     local id = l:match("^%s*:ID:%s+(%S+)")

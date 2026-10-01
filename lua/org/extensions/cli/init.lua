@@ -39,7 +39,7 @@ M.commands = {
     "install_command",
     desc = "Link bin/org into a directory: :Org cli_install [DIR]",
     complete = function(arglead)
-      return vim.fn.getcompletion(arglead, "dir")
+      return require("org.utils").complete_path(arglead, "dir")
     end,
   },
 }

@@ -2,7 +2,7 @@
 local parser = require("org.extensions.ics.parser")
 local date = require("org.date")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local fixture = root .. "/tests/fixtures/ics/work.ics"
 local N = parser.naive
 

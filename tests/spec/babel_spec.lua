@@ -244,7 +244,9 @@ describe("babel", function()
     eq(2, #written)
     eq({ "#!/bin/sh", "echo one", "", "echo two" }, vim.fn.readfile(dir .. "/out/script.sh"))
     eq({ "print(1)" }, vim.fn.readfile(dir .. "/doc.py"))
-    ok(vim.fn.getfperm(dir .. "/out/script.sh"):match("x"))
+    if vim.fn.has("win32") == 0 then -- no file modes on Windows
+      ok(vim.fn.getfperm(dir .. "/out/script.sh"):match("x"))
+    end
     vim.bo[buf].modified = false
   end)
 end)

@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local utils = require("org.utils")
 
 local repo -- temp git repository of each test
@@ -255,7 +255,7 @@ describe("code extension", function()
       ok(require("org.capture").sessions[cbuf], "a capture buffer")
       local text = table.concat(buf_lines(cbuf), "\n")
       local target = has_ts_lua() and "M.setup][M.setup (app.lua)]]" or "4][app.lua:4]]"
-      ok(text:find("[[code:" .. vim.fn.fnamemodify(repo, ":~") .. "/src/app.lua::" .. target, 1, true), text)
+      ok(text:find("[[code:" .. require("org.utils").abbreviate(repo) .. "/src/app.lua::" .. target, 1, true), text)
       local block = "#+begin_src lua\nfunction M.setup(opts)\n  local x = opts or {}\n  return x\n#+end_src"
       ok(text:find(block, 1, true), text)
       ok(text:find("myrepo on main", 1, true), text)
@@ -281,7 +281,7 @@ describe("code extension", function()
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
       require("org.actions").run("code_capture")
       local all = table.concat(read(repo .. "/.org/tasks.org"), "\n")
-      local path = vim.fn.fnamemodify(repo, ":~") .. "/tools/greet.py"
+      local path = require("org.utils").abbreviate(repo) .. "/tools/greet.py"
       ok(all:find("[[code:" .. path .. "::1][greet.py:1]]|[[file:" .. path .. "::1][greet.py:1]]||1", 1, true), all)
     end)
 
@@ -567,7 +567,7 @@ describe("code extension", function()
       vim.cmd("edit " .. repo .. "/src/app.lua")
       vim.api.nvim_win_set_cursor(0, { 6, 2 })
       require("org.links").store_link()
-      local path = vim.fn.fnamemodify(repo, ":~") .. "/src/app.lua"
+      local path = require("org.utils").abbreviate(repo) .. "/src/app.lua"
       local want = { link = "code:" .. path .. "::M.setup", desc = "M.setup (app.lua)" }
       if not has_ts_lua() then
         want = { link = "code:" .. path .. "::6", desc = "app.lua:6" }
@@ -765,6 +765,7 @@ describe("code extension", function()
     end)
 
     it("reads paths with non-ASCII bytes, spaces and colons from git grep and rg", function()
+      skip_on_windows("Windows file names can't contain ':'")
       write("docs/ünï côde.lua", { "-- TODO: unicode" })
       write("a:1:b.lua", { "-- FIXME: colons" })
       for _, how in ipairs({ "git", "rg" }) do

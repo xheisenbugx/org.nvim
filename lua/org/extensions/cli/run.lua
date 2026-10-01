@@ -274,7 +274,7 @@ local function hm(minutes)
 end
 
 local function short_path(p)
-  return p and vim.fn.fnamemodify(p, ":~") or nil
+  return p and require("org.utils").abbreviate(p) or nil
 end
 
 --- Load a file into a buffer (filetype org) and return its number.

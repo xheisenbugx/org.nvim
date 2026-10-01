@@ -111,7 +111,7 @@ local function context_properties(hl)
     if k == "time" then
       value = archive_time()
     elseif k == "file" then
-      value = hl.file.filename and vim.fn.fnamemodify(hl.file.filename, ":~")
+      value = hl.file.filename and utils.abbreviate(hl.file.filename)
     elseif k == "olpath" then
       value = table.concat(hl:outline_path(), "/")
     elseif k == "olid" then
@@ -443,7 +443,7 @@ function M.archive_subtree(target, opts)
     local n = vim.api.nvim_buf_line_count(bufnr)
     pcall(vim.api.nvim_win_set_cursor, 0, { math.max(1, math.min(s, n)), 0 })
   end
-  utils.notify(string.format('Subtree "%s" archived in %s', title, vim.fn.fnamemodify(loc.filename, ":~")))
+  utils.notify(string.format('Subtree "%s" archived in %s', title, utils.abbreviate(loc.filename)))
   return abuf
 end
 

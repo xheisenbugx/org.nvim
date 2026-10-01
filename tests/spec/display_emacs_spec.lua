@@ -438,7 +438,7 @@ describe("entities_user and entities_help", function()
   it("lists the entities like org-entities-help", function()
     config.opts.entities_user = user
     entities.apply_user()
-    local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+    local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
     -- the *Org Entity Help* buffer of Emacs 9.8.10 with these user entities
     local expected = vim.fn.readfile(root .. "/fixtures/entities_help_emacs.txt")
     eq(expected, entities.help_lines())

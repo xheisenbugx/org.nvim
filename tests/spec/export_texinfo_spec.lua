@@ -7,7 +7,7 @@ local export = require("org.export")
 local ox = require("org.export.ox")
 local texinfo = require("org.export.texinfo")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/texinfo"
 
 local function read(path)

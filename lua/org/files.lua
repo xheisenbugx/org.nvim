@@ -253,7 +253,7 @@ function M.agenda_file_to_front()
       break
     end
   end
-  local x = had or { path, vim.fn.fnamemodify(path, ":~") }
+  local x = had or { path, utils.abbreviate(path) }
   if to_end then
     table.insert(alist, x)
   else
@@ -275,7 +275,7 @@ function M.remove_file()
     utils.warn("Current buffer does not visit a file")
     return nil
   end
-  local short = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":~")
+  local short = utils.abbreviate(vim.api.nvim_buf_get_name(0))
   local alist = file_alist()
   local kept = vim.tbl_filter(function(x)
     return x[1] ~= path

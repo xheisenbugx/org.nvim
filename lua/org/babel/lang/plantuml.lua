@@ -74,7 +74,7 @@ function M.prepare(body, args, vars, ctx)
     if vim.fn.filereadable(jar) == 0 then
       error("Could not find plantuml.jar at " .. jar, 0)
     end
-    parts = { "java", java, "-jar", ob.sh(vim.fn.fnamemodify(jar, ":p")) }
+    parts = { "java", java, "-jar", ob.sh(vim.fs.normalize(vim.fn.fnamemodify(jar, ":p"))) }
     vim.list_extend(parts, o.args or {})
   end
   local ext = out_file:match("%.([^./]+)$")

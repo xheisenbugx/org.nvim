@@ -93,7 +93,7 @@ function M.jump()
   local name = utils.select(names, {
     prompt = "Jump to bookmark",
     format_item = function(n)
-      return n .. "  " .. vim.fn.fnamemodify(data[n].filename, ":~") .. ":" .. data[n].lnum
+      return n .. "  " .. utils.abbreviate(data[n].filename) .. ":" .. data[n].lnum
     end,
   })
   if name then

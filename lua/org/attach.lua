@@ -54,8 +54,9 @@ M.id_to_path = {
 }
 
 local function absolute(dir, base)
-  dir = vim.fn.expand(dir)
-  if not dir:match("^/") and not dir:match("^%a:[/\\]") then
+  -- expand() gives \ on Windows
+  dir = vim.fs.normalize(vim.fn.expand(dir))
+  if not utils.is_absolute(dir) then
     dir = base .. "/" .. dir
   end
   return vim.fs.normalize(dir)

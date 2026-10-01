@@ -1,7 +1,7 @@
 local date = require("org.date")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local function ts(offset, extra)
   local s = date.today():add(offset, "d"):to_string({ brackets = false })
@@ -377,7 +377,7 @@ describe("kanban board", function()
     eq({ source = "buffer" }, kanban.parse_args("buffer"))
     eq({ source = "subtree", filter = "work-home" }, kanban.parse_args("subtree work-home"))
     eq({ filter = '(todo "NEXT")' }, kanban.parse_args('(todo "NEXT")'))
-    eq({ source = vim.fn.expand("~/x.org"), filter = "a" }, kanban.parse_args("~/x.org a"))
+    eq({ source = vim.fs.normalize(vim.fn.expand("~/x.org")), filter = "a" }, kanban.parse_args("~/x.org a"))
   end)
 
   it("reports an invalid filter instead of opening", function()

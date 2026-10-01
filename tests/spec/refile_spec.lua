@@ -93,7 +93,7 @@ describe("refile targets", function()
     eq({ "a.org/", "a.org/A1/", "a.org/A1/A2/", "b.org/", "b.org/B1/" }, labels())
     config.opts.refile.use_outline_path = "full-file-path"
     local l = labels()
-    ok(l[#l]:match("^/.*/b%.org/B1/$"), vim.inspect(l))
+    ok(require("org.utils").is_absolute(l[#l]) and l[#l]:match("/b%.org/B1/$"), vim.inspect(l))
   end)
 
   it("uses #+TITLE with the title style, escapes / and drops cookies in paths", function()

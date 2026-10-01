@@ -334,7 +334,7 @@ function M.health(h, opts)
   table.sort(ids)
   for _, id in ipairs(ids) do
     local where = vim.tbl_map(function(n)
-      return vim.fn.fnamemodify(n.file, ":~") .. ":" .. n.lnum
+      return require("org.utils").abbreviate(n.file) .. ":" .. n.lnum
     end, dups[id])
     h.warn(string.format("duplicate ID %s (only the first is a node): %s", id, table.concat(where, ", ")))
   end

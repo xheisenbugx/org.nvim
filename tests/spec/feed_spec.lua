@@ -4,7 +4,7 @@ local config = require("org.config")
 local feed = require("org.feed")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local fixtures = root .. "/fixtures/feed/"
 
 local function quiet(fn)

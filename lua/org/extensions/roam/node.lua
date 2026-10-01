@@ -757,7 +757,7 @@ function M.extract_subtree(path)
   end
   path = utils.expand(vim.trim(path), db.directory())
   if utils.exists(path) or utils.find_buffer(path) then
-    utils.warn("org-roam: " .. vim.fn.fnamemodify(path, ":~") .. " exists, not extracting")
+    utils.warn("org-roam: " .. utils.abbreviate(path) .. " exists, not extracting")
     return
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, hl.line - 1, hl.end_line, false)
@@ -774,7 +774,7 @@ function M.extract_subtree(path)
   if src ~= "" then
     db.update_file(src)
   end
-  utils.notify("org-roam: extracted to " .. vim.fn.fnamemodify(path, ":~"))
+  utils.notify("org-roam: extracted to " .. utils.abbreviate(path))
 end
 
 --- Move the subtree at point (or the Visual lines) under a node

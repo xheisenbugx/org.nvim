@@ -893,7 +893,7 @@ end
 function M.complete_sources(arglead)
   local out = { "agenda", "buffer", "subtree" }
   if arglead ~= "" and arglead:match("^[~./]") or arglead:find("/", 1, true) then
-    for _, f in ipairs(vim.fn.getcompletion(arglead, "file")) do
+    for _, f in ipairs(require("org.utils").complete_path(arglead, "file")) do
       if f:match("/$") or f:match("%.org$") then
         out[#out + 1] = f
       end

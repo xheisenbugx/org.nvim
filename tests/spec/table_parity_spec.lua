@@ -212,6 +212,9 @@ describe("C-c * (org-table-recalculate)", function()
 end)
 
 describe("sorting (org-table-sort-lines)", function()
+  -- expected from Emacs in the C locale; Windows collates by its locale
+  -- (as Emacs does there), so compare character codes like the C locale
+  with_config({ sort_function = vim.fn.has("win32") == 1 and "fallback" or nil })
   it("sorts text without emphasis and link markup, case-insensitively", function()
     local out = at({ "| C |", "| *b* |", "| [[x][a]] |", "| B |" }, 1, 1, function()
       tbl.sort_column({ type = "a" })

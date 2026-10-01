@@ -205,7 +205,7 @@ function M.show(arg)
   utils.writefile(dot_file, vim.split(M.dot(opts), "\n", { plain = true }))
   local exe = o.executable or "dot"
   if vim.fn.executable(exe) ~= 1 then
-    utils.warn("org-roam: " .. exe .. " (Graphviz) not found; wrote " .. vim.fn.fnamemodify(dot_file, ":~"))
+    utils.warn("org-roam: " .. exe .. " (Graphviz) not found; wrote " .. utils.abbreviate(dot_file))
     return dot_file
   end
   local ft = o.filetype or "svg"
@@ -224,7 +224,7 @@ function M.show(arg)
       elseif viewer ~= false then
         vim.ui.open(out)
       end
-      utils.notify("org-roam: graph " .. vim.fn.fnamemodify(out, ":~"))
+      utils.notify("org-roam: graph " .. utils.abbreviate(out))
     end)
   end)
   return out

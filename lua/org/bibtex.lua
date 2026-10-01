@@ -1186,7 +1186,7 @@ function M.store_link(bufnr, lnum)
   end
   local ok, desc = pcall(M.autokey, entry, LINK_DESCRIPTION)
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local path = vim.fn.fnamemodify(name, ":~")
+  local path = utils.abbreviate(name)
   local link = "file:" .. path .. "::" .. entry.key
   local pairs_ = to_pairs(entry)
   local extra = { key = entry.key, type = "bibtex", btype = entry.type, link = link }

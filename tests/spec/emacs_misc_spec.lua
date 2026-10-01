@@ -207,7 +207,7 @@ describe("emacs: agenda file list", function()
     config.opts.agenda_files = { "~/nonexistent-org-dir/*.org" }
     silence(function()
       files.agenda_file_to_front()
-      eq(vim.fn.fnamemodify(path, ":~"), config.opts.agenda_files[1])
+      eq(require("org.utils").abbreviate(path), config.opts.agenda_files[1])
       ok(vim.tbl_contains(files.agenda_file_paths(), path))
       files.remove_file()
       ok(not vim.tbl_contains(files.agenda_file_paths(), path))

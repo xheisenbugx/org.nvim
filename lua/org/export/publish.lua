@@ -771,7 +771,7 @@ function M.publish_file(filename, project, no_cache)
   filename = expand(filename)
   project = project or M.get_project_from_filename(filename)
   if not project then
-    error(string.format("File %q is not part of any known project", vim.fn.fnamemodify(filename, ":~")), 0)
+    error(string.format("File %q is not part of any known project", utils.abbreviate(filename)), 0)
   end
   local plist = project[2]
   local pf = prop(project, "publishing_function", "html")

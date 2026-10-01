@@ -54,16 +54,16 @@ describe("agenda file list", function()
       files.agenda_file_to_front()
     end)
     eq("File added to front of agenda file list", msgs[1])
-    eq({ vim.fn.fnamemodify(c, ":~"), a, b }, vim.fn.readfile(list))
+    eq({ require("org.utils").abbreviate(c), a, b }, vim.fn.readfile(list))
     msgs = quiet(function()
       files.remove_file()
     end)
-    eq("Removed from Org Agenda list: " .. vim.fn.fnamemodify(c, ":~"), msgs[1])
+    eq("Removed from Org Agenda list: " .. require("org.utils").abbreviate(c), msgs[1])
     eq({ a, b }, vim.fn.readfile(list))
     msgs = quiet(function()
       files.remove_file()
     end)
-    eq("File was not in list: " .. vim.fn.fnamemodify(c, ":~") .. " (not removed)", msgs[1])
+    eq("File was not in list: " .. require("org.utils").abbreviate(c) .. " (not removed)", msgs[1])
   end)
 
   it("expands a directory and saves the list", function()
@@ -73,19 +73,28 @@ describe("agenda file list", function()
     quiet(function()
       files.remove_file()
     end)
-    eq({ a, c }, config.opts.agenda_files)
+    eq(
+      vim.tbl_map(require("org.utils").abbreviate, { a, c }),
+      vim.tbl_map(require("org.utils").abbreviate, config.opts.agenda_files)
+    )
     quiet(function()
       files.agenda_file_to_front()
     end)
     -- Emacs 9.8.10: ("b.org" "a.org" "c.org")
-    eq({ b, a, c }, config.opts.agenda_files)
+    eq(
+      vim.tbl_map(require("org.utils").abbreviate, { b, a, c }),
+      vim.tbl_map(require("org.utils").abbreviate, config.opts.agenda_files)
+    )
     local json = vim.json.decode(table.concat(vim.fn.readfile(saved_json), "\n"))
     eq({ b, a, c }, json.files)
     eq({ dir }, json.configured)
     -- setup() with the same configured value restores the saved list
     config.opts.agenda_files = { dir }
     files.load_saved_agenda_files()
-    eq({ b, a, c }, config.opts.agenda_files)
+    eq(
+      vim.tbl_map(require("org.utils").abbreviate, { b, a, c }),
+      vim.tbl_map(require("org.utils").abbreviate, config.opts.agenda_files)
+    )
     -- a changed configuration wins
     config.opts.agenda_files = { a }
     files.load_saved_agenda_files()

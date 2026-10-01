@@ -1,7 +1,7 @@
 local date = require("org.date")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local today = date.today_days()
 local function day(offset)

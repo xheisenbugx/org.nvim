@@ -11,8 +11,13 @@ local function setup_path(path, dir)
   -- Never use fn.expand here: setup directives are document text, and Vim
   -- expansion evaluates backticks/expressions and interprets % and #. Like
   -- Emacs (expand-file-name), only `~` is expanded, not $VARIABLES.
+  -- ~ is $HOME when set, as in Emacs (normalize() would use libuv's home,
+  -- %USERPROFILE% on Windows)
+  if path == "~" or path:match("^~[/\\]") then
+    path = require("org.utils").home() .. path:sub(2)
+  end
   path = vim.fs.normalize(path, { expand_env = false })
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
+  if not require("org.utils").is_absolute(path) then
     path = dir .. "/" .. path
   end
   return vim.fs.normalize(path, { expand_env = false })

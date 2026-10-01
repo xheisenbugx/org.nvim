@@ -1,6 +1,6 @@
 -- The drill extension against org-drill.el (gitlab.com/phillord/org-drill):
 -- scheduling algorithms, card types, session order, leeches and cram mode.
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local date = require("org.date")
 local sm2 = require("org.extensions.drill.sm2")

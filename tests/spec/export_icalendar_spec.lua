@@ -1,6 +1,6 @@
 local ical = require("org.export.icalendar")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/icalendar"
 
 local function read(path)

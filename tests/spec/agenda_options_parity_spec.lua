@@ -594,7 +594,7 @@ describe("missing agenda files", function()
     end)
     utils.getchar = getchar
     assert(ok2, err)
-    local short = vim.fn.fnamemodify(missing, ":~")
+    local short = require("org.utils").abbreviate(missing)
     eq(string.format("Non-existent agenda file %s.  [R]emove from list or [A]bort?", short), prompts[1])
     eq({ path }, config.opts.agenda_files)
     eq({ "  skip:       TODO A" }, item_lines())

@@ -1,6 +1,6 @@
 -- The org command line: picking among clock-in candidates, ID and
 -- FILE::HEADING queries, and a running Neovim following the shell's clock.
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local function workspace()
   local dir = vim.fn.tempname()

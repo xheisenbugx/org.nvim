@@ -183,7 +183,7 @@ function M.unbracketed_link(bufnr, lines, file, b, tangle)
     end
     return "file:" .. require("org.babel.results").relative(path, tdir) .. (search ~= "" and ("::" .. search) or "")
   end
-  return "file:" .. vim.fn.fnamemodify(target, ":~")
+  return "file:" .. utils.abbreviate(target)
 end
 
 --- `org-fill-template` for the comment formats.

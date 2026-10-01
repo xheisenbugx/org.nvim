@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 -- what :Org cli_install writes: a symlink, or a launcher on Windows
 local LINK = vim.fn.has("win32") == 1 and "org.cmd" or "org"
 local cli = require("org.extensions.cli.run")
@@ -247,7 +247,7 @@ describe("cli extension", function()
       end
     end
     require("org.extensions.cli").health(h)
-    ok(msgs[1]:match("^ok: cli: .*bin/org$"))
+    ok(msgs[1]:match("^ok: cli: .*bin/org$") or msgs[1]:match("^ok: cli: .*bin/org%.cmd$"), msgs[1])
   end)
 end)
 

@@ -141,6 +141,9 @@ describe("structure: TAB after creating a heading or item", function()
 end)
 
 describe("structure: sort by checkbox status and clocking time", function()
+  -- expected from Emacs in the C locale; Windows collates by its locale
+  -- (as Emacs does there), so compare character codes like the C locale
+  with_config({ sort_function = vim.fn.has("win32") == 1 and "fallback" or nil })
   it("sorts list items by checkbox (x)", function()
     local buf = org_buffer({ "- [X] a", "- [ ] b", "- [-] c" }, { 1, 0 })
     with_stub(ui, "menu", function(opts)
