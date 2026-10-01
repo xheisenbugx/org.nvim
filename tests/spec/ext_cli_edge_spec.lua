@@ -21,7 +21,7 @@ local function workspace()
 end
 
 local function run(dir, args)
-  local cmd = { root .. "/bin/org", "--config", dir .. "/cfg.lua" }
+  local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua" }
   vim.list_extend(cmd, args)
   local env = {
     ORG_NVIM_CONFIG = "",

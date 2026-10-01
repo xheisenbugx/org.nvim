@@ -183,3 +183,115 @@ describe("dropped files (org-yank-dnd-*)", function()
     ok(vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1]:find(dir .. "/keep.txt", 1, true))
   end)
 end)
+
+describe("yank_media on Windows", function()
+  local real_has, real_executable, real_system, env
+  local scripts
+
+  -- the script of a powershell -EncodedCommand (UTF-16LE base64)
+  local function decode(b64)
+    local bytes, chars = vim.base64.decode(b64), {}
+    for i = 1, #bytes, 2 do
+      chars[#chars + 1] = bytes:byte(i) + bytes:byte(i + 1) * 256
+    end
+    return vim.fn.list2str(chars, 1)
+  end
+
+  before_each(function()
+    real_has, real_executable, real_system = vim.fn.has, vim.fn.executable, vim.system
+    env = { WAYLAND_DISPLAY = vim.env.WAYLAND_DISPLAY, DISPLAY = vim.env.DISPLAY }
+    vim.env.WAYLAND_DISPLAY, vim.env.DISPLAY = nil, nil
+    vim.fn.has = function(f)
+      if f == "win32" then
+        return 1
+      elseif f == "mac" then
+        return 0
+      end
+      return real_has(f)
+    end
+    vim.fn.executable = function(exe)
+      return exe == "powershell.exe" and 1 or 0
+    end
+    scripts = {}
+  end)
+
+  after_each(function()
+    vim.fn.has, vim.fn.executable, vim.system = real_has, real_executable, real_system
+    vim.env.WAYLAND_DISPLAY, vim.env.DISPLAY = env.WAYLAND_DISPLAY, env.DISPLAY
+    config.setup({})
+  end)
+
+  --- Answer each powershell.exe call with the first of `replies` whose
+  --- pattern its script contains.
+  local function powershell(replies)
+    vim.system = function(cmd)
+      eq("powershell.exe", cmd[1])
+      eq("-STA", cmd[2])
+      local script = decode(cmd[#cmd])
+      scripts[#scripts + 1] = script
+      for _, r in ipairs(replies) do
+        if script:find(r[1], 1, true) then
+          return {
+            wait = function()
+              if type(r[2]) == "function" then
+                r[2](script)
+              end
+              return { code = 0, stdout = type(r[2]) == "string" and r[2] or "" }
+            end,
+          }
+        end
+      end
+      error("unexpected script: " .. script)
+    end
+  end
+
+  it("saves a clipboard image read through powershell.exe", function()
+    local dir = tmpdir()
+    local buf = org_file(dir, {
+      yank = {
+        image_save_method = "img/",
+        image_file_name_function = function()
+          return "shot"
+        end,
+      },
+    })
+    powershell({
+      { "ContainsImage()", "image/png\r\n" },
+      {
+        "GetImage()",
+        function(script)
+          -- the script saves the PNG to the path it names
+          local path = script:match("Save%('([^']+)'")
+          utils.writefile(path, { "PNGDATA" })
+        end,
+      },
+    })
+    ok(yank.yank_media())
+    eq("[[file:img/shot.png]]", vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1])
+    eq({ "PNGDATA" }, utils.readfile(dir .. "/img/shot.png"))
+  end)
+
+  it("moves files cut in Explorer, with Windows file URIs", function()
+    local dir = tmpdir()
+    utils.writefile(dir .. "/cut me.txt", { "x" })
+    local buf = org_file(dir, { yank = { dnd_method = "file-link" } })
+    local uri = "file:///" .. dir:gsub("^/", "") .. "/cut%20me.txt"
+    powershell({
+      { "ContainsImage()", "x-special/win-copied-files\r\n" },
+      { "Preferred DropEffect", "cut\r\n" .. uri .. "\r\n" },
+    })
+    ok(yank.yank_media())
+    ok(vim.api.nvim_buf_get_lines(buf, 4, 5, false)[1]:find("cut me.txt", 1, true))
+  end)
+
+  it("reads quoted Windows paths of dropped files, with backslashes", function()
+    if real_has("win32") == 0 then
+      return -- only Windows turns the backslashes of a path into slashes
+    end
+    local dir = tmpdir()
+    utils.writefile(dir .. "/a b.txt", { "x" })
+    -- a backslash is a directory separator here, not an escape
+    local win = dir:gsub("/", "\\")
+    eq({ dir .. "/a b.txt" }, yank.parse_dropped('"' .. win .. '\\a b.txt"'))
+  end)
+end)

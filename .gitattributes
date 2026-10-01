@@ -9,3 +9,4 @@
 *.zip binary
 # iCalendar uses CRLF (RFC 5545): keep these as they are
 *.ics -text
+*.cmd text eol=crlf

@@ -1,4 +1,6 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+-- what :Org cli_install writes: a symlink, or a launcher on Windows
+local LINK = vim.fn.has("win32") == 1 and "org.cmd" or "org"
 local cli = require("org.extensions.cli.run")
 
 local function reset()
@@ -53,7 +55,7 @@ end
 
 --- Run bin/org in a subprocess (never interactive: stdin is closed).
 local function run(dir, args, stdin)
-  local cmd = { root .. "/bin/org", "--config", dir .. "/cfg.lua" }
+  local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua" }
   vim.list_extend(cmd, args)
   local env = {
     ORG_NVIM_CONFIG = "",
@@ -199,11 +201,17 @@ describe("cli extension", function()
     end
     require("org.actions").run("cli_install")
     vim.wait(1000, function()
-      return vim.uv.fs_lstat(dir .. "/org") ~= nil
+      return vim.uv.fs_lstat(dir .. "/" .. LINK) ~= nil
     end)
     vim.ui.select = select
     ok(asked:match("Link"))
-    eq(vim.fn.resolve(root .. "/bin/org"), vim.fn.resolve(dir .. "/org"))
+    if vim.fn.has("win32") == 1 then
+      -- a launcher, as symlinks need administrator rights
+      local bin = require("org.extensions.cli").bin():gsub("/", "\\")
+      eq({ '@"' .. bin .. '" %*' }, vim.fn.readfile(dir .. "/org.cmd"))
+    else
+      eq(vim.fn.resolve(root .. "/bin/org"), vim.fn.resolve(dir .. "/org"))
+    end
     vim.fn.delete(dir, "rf")
   end)
 
@@ -215,9 +223,9 @@ describe("cli extension", function()
       cb("No")
     end
     require("org.actions").run("cli_install")
-    eq(nil, vim.uv.fs_lstat(dir .. "/org"))
+    eq(nil, vim.uv.fs_lstat(dir .. "/" .. LINK))
     vim.fn.mkdir(dir, "p")
-    vim.fn.writefile({ "other" }, dir .. "/org")
+    vim.fn.writefile({ "other" }, dir .. "/" .. LINK)
     local called = false
     vim.ui.select = function(_, _, cb)
       called = true
@@ -226,7 +234,7 @@ describe("cli extension", function()
     require("org.actions").run("cli_install")
     vim.ui.select = select
     eq(false, called)
-    eq({ "other" }, vim.fn.readfile(dir .. "/org"))
+    eq({ "other" }, vim.fn.readfile(dir .. "/" .. LINK))
     vim.fn.delete(dir, "rf")
   end)
 
