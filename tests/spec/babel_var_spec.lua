@@ -48,13 +48,17 @@ describe("babel :var (Emacs references)", function()
     -- no #+RESULTS needed: the referenced blocks are evaluated
     babel.execute({ bufnr = buf, lnum = 12, sync = true })
     ok(vim.tbl_contains(buf_lines(buf), ": 32"), vim.inspect(buf_lines(buf)))
-    eq(nil, (function()
-      for _, l in ipairs(buf_lines(buf)) do
-        if l == "#+RESULTS: square" then
-          return true
+    eq(
+      nil,
+      (function()
+        for _, l in ipairs(buf_lines(buf)) do
+          if l == "#+RESULTS: square" then
+            return true
+          end
         end
-      end
-    end)(), "referenced block results must not be inserted")
+      end)(),
+      "referenced block results must not be inserted"
+    )
   end)
 
   it("name[] is the body; a named #+CALL; header args in a reference", function()
@@ -261,9 +265,12 @@ describe("babel :var (Emacs references)", function()
       "Next: call_inc(x=41) here.",
     }, { 6, 9 })
     babel.execute_block()
-    ok(vim.wait(5000, function()
-      return buf_lines(buf)[6]:find("{{{results", 1, true) ~= nil
-    end, 20), vim.inspect(buf_lines(buf)))
+    ok(
+      vim.wait(5000, function()
+        return buf_lines(buf)[6]:find("{{{results", 1, true) ~= nil
+      end, 20),
+      vim.inspect(buf_lines(buf))
+    )
     eq("Next: call_inc(x=41) {{{results(=42=)}}} here.", buf_lines(buf)[6])
     local ib = babel.inline_at("a call_f[:results raw](y=1)[:exports both] b", 4)
     eq({ "f", ":results raw", "y=1", ":exports both" }, { ib.target, ib.inside, ib.call_args, ib.params })

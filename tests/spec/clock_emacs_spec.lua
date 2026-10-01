@@ -390,7 +390,10 @@ describe("resolving clocks (Emacs)", function()
   test("s subtracts the idle time and clocks in again", function()
     local buf, c = running()
     resolve(c, "s")
-    eq({ "CLOCK: " .. ts(date.now()), "CLOCK: " .. ts(ago(60)) .. "--" .. ts(ago(20)) .. " =>  0:40" }, clock_lines(buf))
+    eq(
+      { "CLOCK: " .. ts(date.now()), "CLOCK: " .. ts(ago(60)) .. "--" .. ts(ago(20)) .. " =>  0:40" },
+      clock_lines(buf)
+    )
     eq(ts(date.now()), clock.state.start)
   end)
 
@@ -550,9 +553,10 @@ end)
 describe("clock display and tables (Emacs)", function()
   local lines = {
     "* This year",
-    "CLOCK: [" .. date.today():start_of("year"):to_date_string() .. " Thu 10:00]--["
-      .. date.today():start_of("year"):to_date_string()
-      .. " Thu 11:30] =>  1:30",
+    "CLOCK: [" .. date.today():start_of("year"):to_date_string() .. " Thu 10:00]--[" .. date
+      .today()
+      :start_of("year")
+      :to_date_string() .. " Thu 11:30] =>  1:30",
     "* Old",
     "CLOCK: [2001-03-01 Thu 10:00]--[2001-03-01 Thu 12:00] =>  2:00",
   }
@@ -602,7 +606,10 @@ describe("clock display and tables (Emacs)", function()
       { "2026", -1, "2025" },
     }
     for _, c in ipairs(cases) do
-      local buf = org_buffer({ "#+BEGIN: clocktable :maxlevel 1 :block " .. c[1] .. " :scope file", "#+END:", "* A" }, { 1, 0 })
+      local buf = org_buffer(
+        { "#+BEGIN: clocktable :maxlevel 1 :block " .. c[1] .. " :scope file", "#+END:", "* A" },
+        { 1, 0 }
+      )
       ok(clock.clocktable_shift(c[2]))
       eq("#+BEGIN: clocktable :maxlevel 1 :block " .. c[3] .. " :scope file", buf_lines(buf)[1], c[1])
       ok(buf_lines(buf)[2]:match("^#%+CAPTION: Clock summary"), buf_lines(buf)[2])
@@ -615,7 +622,10 @@ describe("clock display and tables (Emacs)", function()
   end)
 
   test("clock_report inserts a subtree table in an entry, a file table before it", function()
-    local buf = org_buffer({ "#+TITLE: T", "* A", "text", "CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:00] =>  1:00" }, { 3, 0 })
+    local buf = org_buffer(
+      { "#+TITLE: T", "* A", "text", "CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 11:00] =>  1:00" },
+      { 3, 0 }
+    )
     clock.clock_report()
     eq("#+BEGIN: clocktable :scope subtree :maxlevel 2", buf_lines(buf)[4])
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
@@ -816,7 +826,13 @@ describe("agenda clocking (Emacs)", function()
     local d = date.today()
     local f = parser.parse({
       "* A",
-      string.format("CLOCK: [%s %s 10:00]--[%s %s 11:00] =>  1:00", d:to_date_string(), d:dayname(), d:to_date_string(), d:dayname()),
+      string.format(
+        "CLOCK: [%s %s 10:00]--[%s %s 11:00] =>  1:00",
+        d:to_date_string(),
+        d:dayname(),
+        d:to_date_string(),
+        d:dayname()
+      ),
     }, "/tmp/clockreport.org")
     local b = render.builder()
     render.clock_report(b, { f }, d:days(), d:days())

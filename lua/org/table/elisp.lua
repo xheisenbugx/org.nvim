@@ -538,9 +538,7 @@ local function string_to_number(s, base)
     local digits = s:match("^[+-]?%w+") or ""
     return tonumber(digits, int_arg(base)) or 0
   end
-  local f = s:match("^[+-]?%d*%.%d+[eE][+-]?%d+")
-    or s:match("^[+-]?%d+[eE][+-]?%d+")
-    or s:match("^[+-]?%d*%.%d+")
+  local f = s:match("^[+-]?%d*%.%d+[eE][+-]?%d+") or s:match("^[+-]?%d+[eE][+-]?%d+") or s:match("^[+-]?%d*%.%d+")
   if f then
     return M.float(tonumber(f))
   end
@@ -1006,11 +1004,9 @@ F.downcase = function(v)
   return vim.fn.tolower(str(v))
 end
 F.capitalize = function(v)
-  return (
-    vim.fn.tolower(str(v)):gsub("(%w)(%w*)", function(a, b)
-      return a:upper() .. b
-    end)
-  )
+  return (vim.fn.tolower(str(v)):gsub("(%w)(%w*)", function(a, b)
+    return a:upper() .. b
+  end))
 end
 F["string-to-number"] = string_to_number
 F["number-to-string"] = function(v)
@@ -1220,14 +1216,16 @@ end
 F["replace-regexp-in-string"] = function(re, rep, s, _, literal)
   local pat = regex_to_pattern(str(re))
   rep = str(rep)
-  return (str(s):gsub(pat, function(whole)
-    if truthy(literal) then
-      return rep
-    end
-    return (rep:gsub("\\([&\\])", function(c)
-      return c == "&" and whole or "\\"
-    end))
-  end))
+  return (
+    str(s):gsub(pat, function(whole)
+      if truthy(literal) then
+        return rep
+      end
+      return (rep:gsub("\\([&\\])", function(c)
+        return c == "&" and whole or "\\"
+      end))
+    end)
+  )
 end
 
 -- Environment: the functions capture templates and macros use most

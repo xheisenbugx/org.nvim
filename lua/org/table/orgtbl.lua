@@ -793,9 +793,11 @@ local function ascii_cell(s)
       return ch
     end,
   })
-  return (s:gsub("\\(%a+)({?}?)", function(name, braces)
-    return require("org.entities").utf8(name) or ("\\" .. name .. braces)
-  end))
+  return (
+    s:gsub("\\(%a+)({?}?)", function(name, braces)
+      return require("org.entities").utf8(name) or ("\\" .. name .. braces)
+    end)
+  )
 end
 
 --- orgtbl-to-unicode: the table as the ASCII export draws it with UTF-8
@@ -1119,9 +1121,13 @@ local function mode_keys()
     { { "n", "i" }, "<S-CR>", t.copy_down },
     { "n", "<C-c><C-c>", M.ctrl_c_ctrl_c },
     { { "n", "x" }, "<C-c>|", t.create_or_convert },
-    { "n", "<C-c>-", function()
-      t.insert_hline(vim.v.count > 0)
-    end },
+    {
+      "n",
+      "<C-c>-",
+      function()
+        t.insert_hline(vim.v.count > 0)
+      end,
+    },
     { "n", "<C-c><CR>", t.hline_and_move },
     { "n", "<C-c>=", t.eval_formula },
     { "n", "<C-c>'", t.edit_formulas },
@@ -1138,48 +1144,96 @@ local function mode_keys()
     { { "n", "x" }, "<C-c><C-x><M-w>", t.copy_region },
     { { "n", "x" }, "<C-c><C-x><C-w>", t.cut_region },
     { "n", "<C-c><C-x><C-y>", t.paste_rectangle },
-    { "n", "<M-Left>", function()
-      t.move_column(-1)
-    end },
-    { "n", "<M-Right>", function()
-      t.move_column(1)
-    end },
-    { "n", "<M-Up>", function()
-      t.move_row(-1)
-    end },
-    { "n", "<M-Down>", function()
-      t.move_row(1)
-    end },
+    {
+      "n",
+      "<M-Left>",
+      function()
+        t.move_column(-1)
+      end,
+    },
+    {
+      "n",
+      "<M-Right>",
+      function()
+        t.move_column(1)
+      end,
+    },
+    {
+      "n",
+      "<M-Up>",
+      function()
+        t.move_row(-1)
+      end,
+    },
+    {
+      "n",
+      "<M-Down>",
+      function()
+        t.move_row(1)
+      end,
+    },
     { "n", "<M-S-Left>", t.delete_column },
     { "n", "<M-S-Right>", t.insert_column },
     { "n", "<M-S-Up>", t.delete_row },
-    { "n", "<M-S-Down>", function()
-      t.insert_row(true)
-    end },
-    { "n", "<M-h>", function()
-      t.move_column(-1)
-    end },
-    { "n", "<M-l>", function()
-      t.move_column(1)
-    end },
-    { "n", "<M-k>", function()
-      t.move_row(-1)
-    end },
-    { "n", "<M-j>", function()
-      t.move_row(1)
-    end },
+    {
+      "n",
+      "<M-S-Down>",
+      function()
+        t.insert_row(true)
+      end,
+    },
+    {
+      "n",
+      "<M-h>",
+      function()
+        t.move_column(-1)
+      end,
+    },
+    {
+      "n",
+      "<M-l>",
+      function()
+        t.move_column(1)
+      end,
+    },
+    {
+      "n",
+      "<M-k>",
+      function()
+        t.move_row(-1)
+      end,
+    },
+    {
+      "n",
+      "<M-j>",
+      function()
+        t.move_row(1)
+      end,
+    },
     { "n", "<M-H>", t.delete_column },
     { "n", "<M-L>", t.insert_column },
     { "n", "<M-K>", t.delete_row },
-    { "n", "<M-J>", function()
-      t.insert_row(true)
-    end },
-    { "n", '<C-c>"a', function()
-      require("org.table.plot").ascii_plot()
-    end },
-    { "n", '<C-c>"g', function()
-      require("org.table.plot").gnuplot()
-    end },
+    {
+      "n",
+      "<M-J>",
+      function()
+        t.insert_row(true)
+      end,
+    },
+    {
+      "n",
+      '<C-c>"a',
+      function()
+        require("org.table.plot").ascii_plot()
+      end,
+    },
+    {
+      "n",
+      '<C-c>"g',
+      function()
+        require("org.table.plot").gnuplot()
+      end,
+    },
   }
 end
 

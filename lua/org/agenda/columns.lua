@@ -76,8 +76,13 @@ local function value(it, prop)
     return it.display_title or it.title or ""
   end
   local v = columns.value(it.headline, prop)
-  if (v == nil or v == "") and config.opts.agenda.columns_add_appointments_to_effort_sum
-    and key == (config.opts.effort_property or "Effort"):upper() and it.time and it.end_time then
+  if
+    (v == nil or v == "")
+    and config.opts.agenda.columns_add_appointments_to_effort_sum
+    and key == (config.opts.effort_property or "Effort"):upper()
+    and it.time
+    and it.end_time
+  then
     -- org-agenda-columns-add-appointments-to-effort-sum: the duration of
     -- the appointment stands for the missing effort
     return require("org.duration").from_minutes(it.end_time - it.time)

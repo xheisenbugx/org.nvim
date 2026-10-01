@@ -119,13 +119,15 @@ describe("agenda item dates", function()
   it("> changes a plain timestamp and keeps its time", function()
     open({ "* Meet", "  " .. ts(0, "10:00") })
     goto_title("Meet")
-    with_stubs({ {
-      view,
-      "pick_date",
-      function()
-        return today:add(2, "d")
-      end,
-    } }, function()
+    with_stubs({
+      {
+        view,
+        "pick_date",
+        function()
+          return today:add(2, "d")
+        end,
+      },
+    }, function()
       view.actions.date_prompt()
     end)
     eq("  " .. ts(2, "10:00"), source_lines()[2])
@@ -206,13 +208,15 @@ describe("agenda filters", function()
 
   it("/ applies the combined filter", function()
     open(lines)
-    with_stubs({ {
-      utils,
-      "input_complete",
-      function()
-        return "+work<0:30"
-      end,
-    } }, function()
+    with_stubs({
+      {
+        utils,
+        "input_complete",
+        function()
+          return "+work<0:30"
+        end,
+      },
+    }, function()
       view.actions.filter()
     end)
     eq({ "Alpha" }, shown())
@@ -261,15 +265,18 @@ describe("agenda filters", function()
 
   it("= filters by an Emacs regexp; _ by an Effort_ALL value", function()
     open(lines)
-    with_stubs({ {
-      utils,
-      "input",
+    with_stubs(
+      { {
+        utils,
+        "input",
+        function()
+          return "pl\\(o\\|a\\)t"
+        end,
+      } },
       function()
-        return "pl\\(o\\|a\\)t"
-      end,
-    } }, function()
-      view.actions.filter_regexp()
-    end)
+        view.actions.filter_regexp()
+      end
+    )
     eq({ "Gamma plot twist" }, shown())
     view.actions.filter_regexp()
     eq(4, #shown())
@@ -286,13 +293,16 @@ describe("agenda filters", function()
 
   it("~ limits the entries; presets filter a custom command", function()
     open(lines)
-    with_stubs({ { utils, "getchar", keys({ "e" }) }, {
-      utils,
-      "input",
-      function()
-        return "2"
-      end,
-    } }, function()
+    with_stubs({
+      { utils, "getchar", keys({ "e" }) },
+      {
+        utils,
+        "input",
+        function()
+          return "2"
+        end,
+      },
+    }, function()
       view.actions.limit()
     end)
     eq(2, #shown())
@@ -357,9 +367,12 @@ describe("agenda bulk actions", function()
       local wd = today:add(d, "d"):weekday()
       ok(wd <= 5, "weekend day " .. d)
     end
-    eq(2, view.scatter_distance(3, false, function()
-      return 2
-    end))
+    eq(
+      2,
+      view.scatter_distance(3, false, function()
+        return 2
+      end)
+    )
   end)
 
   it("s with ++N shifts each entry's own date; p keeps the marks", function()
@@ -405,13 +418,15 @@ describe("agenda bulk actions", function()
       },
     })
     goto_title("Two")
-    with_stubs({ {
-      require("org.ui"),
-      "menu",
-      function()
-        return { custom = "x" }
-      end,
-    } }, function()
+    with_stubs({
+      {
+        require("org.ui"),
+        "menu",
+        function()
+          return { custom = "x" }
+        end,
+      },
+    }, function()
       view.actions.bulk_action()
     end)
     eq({ "Two" }, seen)
@@ -469,13 +484,15 @@ describe("agenda buffers and windows", function()
     view.actions.drag_line_forward()
     eq("Two", view.state.line_items[l1].title)
     eq("One", view.state.line_items[l1 + 1].title)
-    with_stubs({ {
-      require("org.ui"),
-      "menu",
-      function()
-        return { type = "todo" }
-      end,
-    } }, function()
+    with_stubs({
+      {
+        require("org.ui"),
+        "menu",
+        function()
+          return { type = "todo" }
+        end,
+      },
+    }, function()
       view.actions.append()
     end)
     eq(2, #view.state.view.blocks)
@@ -550,7 +567,7 @@ describe("agenda items and sorting helpers", function()
     eq("W WORK TODO Task", b.lines[1])
   end)
 
-  it("splits sexp results on \"; \"", function()
+  it('splits sexp results on "; "', function()
     local file = parser.parse({ "* Dates", "%%(diary-block 1 1 2000 12 31 2100) One; Two" }, "/tmp/sexp.org")
     local by_day = items.agenda({ file }, T, T, { today = T })
     local titles = {}

@@ -147,10 +147,39 @@ local TRANSLATION = {
 
 -- `org-babel-header-arg-names`
 local HEADER_ARG_NAMES = {
-  "cache", "cmdline", "colnames", "comments", "dir", "eval", "exports", "epilogue", "file", "file-desc", "file-ext",
-  "file-mode", "hlines", "mkdirp", "no-expand", "noeval", "noweb", "noweb-ref", "noweb-sep", "noweb-prefix",
-  "output-dir", "padline", "post", "prologue", "results", "rownames", "sep", "session", "shebang", "tangle",
-  "tangle-mode", "var", "wrap",
+  "cache",
+  "cmdline",
+  "colnames",
+  "comments",
+  "dir",
+  "eval",
+  "exports",
+  "epilogue",
+  "file",
+  "file-desc",
+  "file-ext",
+  "file-mode",
+  "hlines",
+  "mkdirp",
+  "no-expand",
+  "noeval",
+  "noweb",
+  "noweb-ref",
+  "noweb-sep",
+  "noweb-prefix",
+  "output-dir",
+  "padline",
+  "post",
+  "prologue",
+  "results",
+  "rownames",
+  "sep",
+  "session",
+  "shebang",
+  "tangle",
+  "tangle-mode",
+  "var",
+  "wrap",
 }
 
 -- `org-babel-common-header-args-w-values`: name -> "any" | nil | list of groups.
@@ -261,15 +290,60 @@ local LOADED_LANGUAGES = { "emacs-lisp" }
 
 -- Items of `org-export-options-alist` and the registered backends.
 local OPTIONS_ITEMS = {
-  "H", "\\n", "num", "timestamp", "arch", "author", "expand-links", "broken-links", "c", "creator", "date", "d",
-  "email", "*", "e", ":", "f", "inline", "tex", "p", "pri", "prop", "'", "-", "stat", "^", "toc", "|", "tags",
-  "tasks", "<", "title", "todo", "latex-use-sans", "html5-fancy", "html-link-use-abs-url", "html-postamble",
-  "html-preamble", "html-style", "html-scripts", "html-self-link-headlines",
+  "H",
+  "\\n",
+  "num",
+  "timestamp",
+  "arch",
+  "author",
+  "expand-links",
+  "broken-links",
+  "c",
+  "creator",
+  "date",
+  "d",
+  "email",
+  "*",
+  "e",
+  ":",
+  "f",
+  "inline",
+  "tex",
+  "p",
+  "pri",
+  "prop",
+  "'",
+  "-",
+  "stat",
+  "^",
+  "toc",
+  "|",
+  "tags",
+  "tasks",
+  "<",
+  "title",
+  "todo",
+  "latex-use-sans",
+  "html5-fancy",
+  "html-link-use-abs-url",
+  "html-postamble",
+  "html-preamble",
+  "html-style",
+  "html-scripts",
+  "html-self-link-headlines",
 }
 
 -- Export keywords of `org-export-options-alist`.
 local COMMON_OPTION_KEYWORDS = {
-  "CITE_EXPORT", "CREATOR", "EXCLUDE_TAGS", "SELECT_TAGS", "LANGUAGE", "EMAIL", "AUTHOR", "DATE", "TITLE",
+  "CITE_EXPORT",
+  "CREATOR",
+  "EXCLUDE_TAGS",
+  "SELECT_TAGS",
+  "LANGUAGE",
+  "EMAIL",
+  "AUTHOR",
+  "DATE",
+  "TITLE",
 }
 -- Export keywords of the registered backends: keyword -> backends.
 local BACKEND_OPTION_KEYWORDS = {
@@ -310,22 +384,80 @@ local BACKEND_OPTION_KEYWORDS = {
 
 -- `org-default-properties`
 local DEFAULT_PROPERTIES = {
-  "ARCHIVE", "CATEGORY", "SUMMARY", "DESCRIPTION", "CUSTOM_ID", "LOCATION", "LOGGING", "COLUMNS", "VISIBILITY",
-  "TABLE_EXPORT_FORMAT", "TABLE_EXPORT_FILE", "EXPORT_OPTIONS", "EXPORT_TEXT", "EXPORT_FILE_NAME", "EXPORT_TITLE",
-  "EXPORT_AUTHOR", "EXPORT_DATE", "UNNUMBERED", "ORDERED", "NOBLOCKING", "COOKIE_DATA", "LOG_INTO_DRAWER",
-  "REPEAT_TO_STATE", "CLOCK_MODELINE_TOTAL", "STYLE", "HTML_CONTAINER_CLASS", "ORG-IMAGE-ACTUAL-WIDTH",
+  "ARCHIVE",
+  "CATEGORY",
+  "SUMMARY",
+  "DESCRIPTION",
+  "CUSTOM_ID",
+  "LOCATION",
+  "LOGGING",
+  "COLUMNS",
+  "VISIBILITY",
+  "TABLE_EXPORT_FORMAT",
+  "TABLE_EXPORT_FILE",
+  "EXPORT_OPTIONS",
+  "EXPORT_TEXT",
+  "EXPORT_FILE_NAME",
+  "EXPORT_TITLE",
+  "EXPORT_AUTHOR",
+  "EXPORT_DATE",
+  "UNNUMBERED",
+  "ORDERED",
+  "NOBLOCKING",
+  "COOKIE_DATA",
+  "LOG_INTO_DRAWER",
+  "REPEAT_TO_STATE",
+  "CLOCK_MODELINE_TOTAL",
+  "STYLE",
+  "HTML_CONTAINER_CLASS",
+  "ORG-IMAGE-ACTUAL-WIDTH",
 }
 
 -- `org-special-properties`
 local SPECIAL_PROPERTIES = {
-  "ALLTAGS", "BLOCKED", "CLOCKSUM", "CLOCKSUM_T", "CLOSED", "DEADLINE", "FILE", "ITEM", "PRIORITY", "SCHEDULED",
-  "TAGS", "TIMESTAMP", "TIMESTAMP_IA", "TODO",
+  "ALLTAGS",
+  "BLOCKED",
+  "CLOCKSUM",
+  "CLOCKSUM_T",
+  "CLOSED",
+  "DEADLINE",
+  "FILE",
+  "ITEM",
+  "PRIORITY",
+  "SCHEDULED",
+  "TAGS",
+  "TIMESTAMP",
+  "TIMESTAMP_IA",
+  "TODO",
 }
 
 -- Link types known to Org (`org-link-types`).
 local LINK_TYPES = {
-  "eww", "rmail", "mhe", "irc", "info", "gnus", "docview", "bibtex", "bbdb", "w3m", "doi", "attachment", "id",
-  "file+sys", "file+emacs", "shell", "news", "mailto", "https", "http", "ftp", "shortdoc", "help", "file", "elisp",
+  "eww",
+  "rmail",
+  "mhe",
+  "irc",
+  "info",
+  "gnus",
+  "docview",
+  "bibtex",
+  "bbdb",
+  "w3m",
+  "doi",
+  "attachment",
+  "id",
+  "file+sys",
+  "file+emacs",
+  "shell",
+  "news",
+  "mailto",
+  "https",
+  "http",
+  "ftp",
+  "shortdoc",
+  "help",
+  "file",
+  "elisp",
 }
 
 -- Citation processors (`org-cite-try-load-processor` finds them).
@@ -559,8 +691,12 @@ function Doc:para_sep(k, e)
   if is_clock_line(l) then
     return true
   end
-  if l:match("^[ \t]*[%-+*][ \t]") or l:match("^[ \t]*[%-+*]$") or l:match("^[ \t]*%d+[%.%)][ \t]")
-    or l:match("^[ \t]*%d+[%.%)]$") then
+  if
+    l:match("^[ \t]*[%-+*][ \t]")
+    or l:match("^[ \t]*[%-+*]$")
+    or l:match("^[ \t]*%d+[%.%)][ \t]")
+    or l:match("^[ \t]*%d+[%.%)]$")
+  then
     return true
   end
   return false
@@ -1229,7 +1365,9 @@ function Doc:block(i, k, e, aff, btype)
     end
     local switches = {}
     while true do
-      local m = r:match('^( +%-l ".+")') or r:match("^( +%-[ikr])") or r:match("^( +[%-+]n *%d+)")
+      local m = r:match('^( +%-l ".+")')
+        or r:match("^( +%-[ikr])")
+        or r:match("^( +[%-+]n *%d+)")
         or r:match("^( +[%-+]n)")
       if not m then
         break
@@ -1747,11 +1885,13 @@ function Lexer:link(p, a, b)
       return nil
     end
     raw = raw:gsub("[ \t]*\n[ \t]*", " ")
-    raw = raw:gsub("(\\+)([%[%]])", function(bs, br)
-      return string.rep("\\", math.floor(#bs / 2)) .. br
-    end):gsub("(\\+)$", function(bs)
-      return string.rep("\\", math.floor(#bs / 2))
-    end)
+    raw = raw
+      :gsub("(\\+)([%[%]])", function(bs, br)
+        return string.rep("\\", math.floor(#bs / 2)) .. br
+      end)
+      :gsub("(\\+)$", function(bs)
+        return string.rep("\\", math.floor(#bs / 2))
+      end)
     raw = self.expand_abbrev(raw)
     local o = { type = "link", b = p, format = "bracket", raw_link = raw, cb = cb, ce = ce, link_end = link_end }
     local lt = link_type_at(self.doc.link_types, raw, 1)
@@ -2603,7 +2743,7 @@ local function babel_read(cell)
   end
   local q = cell:match('^%s*"(.*)"%s*$')
   if q and not q:find('[^\\]"') and not q:match('^"') then
-    return (q:gsub('\\(.)', "%1"))
+    return (q:gsub("\\(.)", "%1"))
   end
   return cell
 end
@@ -3090,7 +3230,7 @@ end
 C["orphaned-affiliated-keywords"] = function(doc)
   local out = {}
   for _, k in ipairs(map_type(doc, "keyword")) do
-    if (k.key:match("^ATTR_[%-_A-Za-z0-9]+$") or (AFFILIATED[k.key] and k.key ~= "RESULT" and k.key ~= "RESULTS")) then
+    if k.key:match("^ATTR_[%-_A-Za-z0-9]+$") or (AFFILIATED[k.key] and k.key ~= "RESULT" and k.key ~= "RESULTS") then
       out[#out + 1] = at_post(k, string.format('Orphaned affiliated keyword: "%s"', k.key))
     end
   end
@@ -3103,10 +3243,8 @@ C["combining-keywords-with-affiliated"] = function(doc)
     if k.post_blank == 0 and k.last + 1 <= #doc.lines then
       local nxt = doc:element_at(k.last + 1, 1)
       if nxt and nxt ~= k and nxt.begin ~= k.begin and nxt.begin < nxt.post then
-        out[#out + 1] = at_begin(
-          k,
-          string.format("Independent keyword %s may be confused with affiliated keywords below", k.key)
-        )
+        out[#out + 1] =
+          at_begin(k, string.format("Independent keyword %s may be confused with affiliated keywords below", k.key))
       end
     end
   end
@@ -3119,7 +3257,7 @@ C["obsolete-affiliated-keywords"] = function(doc)
   for lnum, l in ipairs(doc.lines) do
     local key, e = l:match("^[ \t]*#%+([%a]+):()")
     local up = key and key:upper()
-    if up and (TRANSLATION[up]) then
+    if up and TRANSLATION[up] then
       local el = doc:element_at(lnum, e)
       if el and el.post > lnum then
         table.insert(out, 1, {
@@ -3138,10 +3276,8 @@ C["deprecated-export-blocks"] = function(doc)
   local out = {}
   for _, b in ipairs(map_type(doc, "special-block")) do
     if contains(dep, b.block_type:upper()) then
-      out[#out + 1] = at_post(
-        b,
-        string.format('Deprecated syntax for export block.  Use "BEGIN_EXPORT %s" instead', b.block_type)
-      )
+      out[#out + 1] =
+        at_post(b, string.format('Deprecated syntax for export block.  Use "BEGIN_EXPORT %s" instead', b.block_type))
     end
   end
   return out
@@ -3166,10 +3302,8 @@ C["deprecated-header-syntax"] = function(doc)
         end
       end
       if best then
-        out[#out + 1] = at_begin(
-          el,
-          string.format('Deprecated syntax for "%s".  Use header-args instead', el.value:sub(1, #best))
-        )
+        out[#out + 1] =
+          at_begin(el, string.format('Deprecated syntax for "%s".  Use header-args instead', el.value:sub(1, #best)))
       end
     elseif el.type == "node-property" and el.key then
       for _, p in ipairs(props) do
@@ -4386,13 +4520,7 @@ C["invalid-cite-export-declaration"] = function(doc)
           end
         end
         local name = tokens[1]
-        if
-          bad
-          or #tokens > 3
-          or name.quoted
-          or tonumber(name.text)
-          or name.text:match("[%(%)%[%]\"';`,#]")
-        then
+        if bad or #tokens > 3 or name.quoted or tonumber(name.text) or name.text:match("[%(%)%[%]\"';`,#]") then
           out[#out + 1] = at_begin(k, "Invalid cite export processor declaration")
         elseif not CITE_PROCESSORS[name.text] then
           out[#out + 1] = at_begin(k, string.format("Unknown cite export processor %s", name.text))
@@ -4655,10 +4783,8 @@ C["clock-syntax"] = function(doc)
     expected = expected:gsub("[ \t\n]+$", "")
     local actual = trim(l)
     if expected ~= actual then
-      out[#out + 1] = at_begin(
-        c,
-        string.format("Potentially malformed CLOCK: line\n           %s\nParsed as: %s", actual, expected)
-      )
+      out[#out + 1] =
+        at_begin(c, string.format("Potentially malformed CLOCK: line\n           %s\nParsed as: %s", actual, expected))
     end
   end
   return out

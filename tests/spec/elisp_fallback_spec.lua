@@ -56,10 +56,13 @@ describe("Emacs Lisp fallback", function()
         return
       end
       items._emacs_sexps = {}
-      eq({ "2026-09-28 Entry text", "2026-09-30 Entry text", "2026-10-02 Entry text" }, week({
-        "* Dates",
-        "%%(when (cl-evenp (calendar-extract-day date)) entry) Entry text",
-      }))
+      eq(
+        { "2026-09-28 Entry text", "2026-09-30 Entry text", "2026-10-02 Entry text" },
+        week({
+          "* Dates",
+          "%%(when (cl-evenp (calendar-extract-day date)) entry) Entry text",
+        })
+      )
       eq({
         "2026-09-27 ENTRY TEXT 27",
         "2026-09-28 ENTRY TEXT 28",
@@ -69,10 +72,13 @@ describe("Emacs Lisp fallback", function()
         "2026-10-02 ENTRY TEXT 2",
         "2026-10-03 ENTRY TEXT 3",
       }, week({ "* Dates", '%%(format "%s %d" (upcase entry) (calendar-extract-day date)) Entry text' }))
-      eq({ "2026-09-29 Marked" }, week({
-        "* Dates",
-        "%%(and (= (calendar-extract-day date) 29) (progn (sit-for 0) (cons 'mark \"Marked\"))) Entry text",
-      }))
+      eq(
+        { "2026-09-29 Marked" },
+        week({
+          "* Dates",
+          '%%(and (= (calendar-extract-day date) 29) (progn (sit-for 0) (cons \'mark "Marked"))) Entry text',
+        })
+      )
       eq(3, vim.tbl_count(items._emacs_sexps))
     end)
 
@@ -125,7 +131,7 @@ describe("Emacs Lisp fallback", function()
         "-Q",
         "--batch",
         "--eval",
-        "(progn (defun my-abbrev (tag) (concat \"https://example.org/\" (upcase tag)))"
+        '(progn (defun my-abbrev (tag) (concat "https://example.org/" (upcase tag)))'
           .. " (put 'my-abbrev 'org-link-abbrev-safe t))",
       }
       config.opts.links.abbreviations = { ex = "%(my-abbrev)/page", unsafe = "%(string-reverse)" }

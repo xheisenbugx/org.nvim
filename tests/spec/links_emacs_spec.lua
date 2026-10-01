@@ -96,10 +96,13 @@ describe("links (Emacs commands)", function()
     org_buffer({ "* Entry", "Go to [[*Target]].", "* Target" }, { 1, 0 })
     links.open_at_point_or_entry()
     eq(3, vim.api.nvim_win_get_cursor(0)[1])
-    eq(false, (function()
-      vim.api.nvim_win_set_cursor(0, { 3, 0 })
-      return links.open_at_point_or_entry()
-    end)())
+    eq(
+      false,
+      (function()
+        vim.api.nvim_win_set_cursor(0, { 3, 0 })
+        return links.open_at_point_or_entry()
+      end)()
+    )
   end)
 end)
 

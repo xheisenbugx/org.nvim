@@ -159,7 +159,12 @@ M.RESTRICTIONS = {
   italic = set(STANDARD),
   item = set(STANDARD_NO_LB),
   keyword = set(without(STANDARD, "footnote-reference")),
-  link = set(vim.list_extend({ "export-snippet", "inline-babel-call", "inline-src-block", "macro", "statistics-cookie" }, MINIMAL)),
+  link = set(
+    vim.list_extend(
+      { "export-snippet", "inline-babel-call", "inline-src-block", "macro", "statistics-cookie" },
+      MINIMAL
+    )
+  ),
   paragraph = set(STANDARD),
   ["radio-target"] = set(MINIMAL),
   ["strike-through"] = set(STANDARD),
@@ -275,7 +280,13 @@ function M.interpret(data)
   elseif t == "macro" then
     return data.value .. pb
   elseif t == "inline-src-block" then
-    return "src_" .. data.language .. (data.parameters and ("[" .. data.parameters .. "]") or "") .. "{" .. data.value .. "}" .. pb
+    return "src_"
+      .. data.language
+      .. (data.parameters and ("[" .. data.parameters .. "]") or "")
+      .. "{"
+      .. data.value
+      .. "}"
+      .. pb
   elseif t == "inline-babel-call" then
     return data.value .. pb
   elseif t == "citation" then
@@ -720,7 +731,8 @@ end
 function P:fill_paragraph(node, ignore_first)
   local lines = M.remove_indentation(node.raw_lines, ignore_first)
   local text = table.concat(lines, "\n") .. (node.no_final_newline and "" or "\n")
-  node.contents = self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
+  node.contents =
+    self:parse_objects(text, M.RESTRICTIONS[node.type == "verse-block" and "verse-block" or "paragraph"], node)
   -- Emacs only removes the common indentation from plain text
   -- (org-element-normalize-contents): multi-line verbatim values keep it
   local removed = #lines > 1 and #node.raw_lines[#lines] - #lines[#lines] or 0
@@ -1001,7 +1013,12 @@ function P:headline_title(node, line, inlinetask)
   rest = rest:gsub("^[ \t]+", "")
   local todo_cfg = self.opts.todo
   local word = rest:match("^(%S+)")
-  if word and todo_cfg and todo_cfg:is_keyword(word) and (rest:sub(#word + 1) == "" or rest:sub(#word + 1):match("^ ")) then
+  if
+    word
+    and todo_cfg
+    and todo_cfg:is_keyword(word)
+    and (rest:sub(#word + 1) == "" or rest:sub(#word + 1):match("^ "))
+  then
     node.todo_keyword = word
     node.todo_type = todo_cfg:is_done(word) and "done" or "todo"
     rest = rest:sub(#word + 1):gsub("^[ \t]+", "")
@@ -1127,7 +1144,10 @@ function P:clock(L, i, e)
   local ts = self:parse_timestamp(rest, 1)
   local duration = l:match("=>[ \t]*(%S+)[ \t]*$")
   local pb, nxt = after(L, i, e)
-  return M.node("clock", { post_blank = pb, value = ts, duration = duration, status = duration and "closed" or "running" }),
+  return M.node(
+    "clock",
+    { post_blank = pb, value = ts, duration = duration, status = duration and "closed" or "running" }
+  ),
     nxt
 end
 
@@ -1195,7 +1215,8 @@ function P:dynamic_block(L, i, e, aff)
   end
   local name, args = L[i]:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]:[ \t]*(%S+)[ \t]*(.-)[ \t]*$")
   local pb, nxt = after(L, j, e)
-  local node = attach(M.node("dynamic-block", { post_blank = pb, block_name = name, arguments = args ~= "" and args or nil }), aff)
+  local node =
+    attach(M.node("dynamic-block", { post_blank = pb, block_name = name, arguments = args ~= "" and args or nil }), aff)
   if j > i + 1 then
     M.adopt(node, self:parse_elements(L, i + 1, j - 1, nil, node))
   end
@@ -1314,7 +1335,9 @@ function P:raw_block(L, i, e, aff, btype, name)
     -- switches: -l "fmt", -i, -k, -r, -n N, +n N
     local switches = {}
     while true do
-      local sw = rest:match('^( +%-l "[^"]+")') or rest:match("^( +%-[ikr])%f[%s%z]") or rest:match("^( +[%-%+]n *%d*)%f[%s%z]")
+      local sw = rest:match('^( +%-l "[^"]+")')
+        or rest:match("^( +%-[ikr])%f[%s%z]")
+        or rest:match("^( +[%-%+]n *%d*)%f[%s%z]")
       if not sw then
         break
       end
@@ -1374,7 +1397,8 @@ function P:table(L, i, e, aff)
     j = j + 1
   end
   local pb, nxt = after(L, j - 1, e)
-  local node = attach(M.node("table", { post_blank = pb, tblfm = tblfm, table_type = orgtype and "org" or "table.el" }), aff)
+  local node =
+    attach(M.node("table", { post_blank = pb, tblfm = tblfm, table_type = orgtype and "org" or "table.el" }), aff)
   if not orgtype then
     node.value = table.concat(vim.list_slice(L, i, last), "\n") .. "\n"
     return node, nxt
@@ -1686,7 +1710,14 @@ local function word_char(c)
 end
 
 local PUNCT_CLOSE = "[ \t\n%-%.,;:!%?'\"%)}\\%[]"
-local EMPH = { ["*"] = "bold", ["/"] = "italic", ["_"] = "underline", ["+"] = "strike-through", ["="] = "verbatim", ["~"] = "code" }
+local EMPH = {
+  ["*"] = "bold",
+  ["/"] = "italic",
+  ["_"] = "underline",
+  ["+"] = "strike-through",
+  ["="] = "verbatim",
+  ["~"] = "code",
+}
 
 --- Non-ASCII characters with whitespace syntax in Emacs ([[:space:]]):
 --- no-break space, U+2000..U+200B, U+202F, U+205F and U+3000.
@@ -1925,21 +1956,25 @@ function P:expand_abbrev(link)
       return tag or ""
     end))
   elseif rpl:find("%h", 1, true) then
-    return (rpl:gsub("%%h", function()
-      return (tag or ""):gsub("[^%w%-_%.~]", function(ch)
-        return string.format("%%%02X", ch:byte())
+    return (
+      rpl:gsub("%%h", function()
+        return (tag or ""):gsub("[^%w%-_%.~]", function(ch)
+          return string.format("%%%02X", ch:byte())
+        end)
       end)
-    end))
+    )
   end
   return rpl .. (tag or "")
 end
 
 local function link_unescape(s)
-  return (s:gsub("(\\+)([%[%]])", function(bs, ch)
-    return string.rep("\\", math.floor(#bs / 2)) .. ch
-  end):gsub("(\\+)$", function(bs)
-    return string.rep("\\", math.floor(#bs / 2))
-  end))
+  return (
+    s:gsub("(\\+)([%[%]])", function(bs, ch)
+      return string.rep("\\", math.floor(#bs / 2)) .. ch
+    end):gsub("(\\+)$", function(bs)
+      return string.rep("\\", math.floor(#bs / 2))
+    end)
+  )
 end
 
 function P:make_link(raw, format, desc_text, e, s)
@@ -2699,7 +2734,8 @@ function P:parse_objects(s, R, parent, depth)
       flush(p - 1)
       node.parent = parent
       if node.inner then
-        node.contents = self:parse_objects(node.inner, M.RESTRICTIONS[node.type] or M.RESTRICTIONS.paragraph, node, depth)
+        node.contents =
+          self:parse_objects(node.inner, M.RESTRICTIONS[node.type] or M.RESTRICTIONS.paragraph, node, depth)
         node.inner = nil
       end
       out[#out + 1] = node

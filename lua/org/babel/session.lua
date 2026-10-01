@@ -259,12 +259,13 @@ REPL.python = {
       -- `session_cmd` (org-babel-python-command-session) is used as it is
       vim.list_extend(argv, { "-i", "-q" })
     end
-    return argv, {
-      PYTHONSTARTUP = setup,
-      ORG_BABEL_USER_STARTUP = vim.env.PYTHONSTARTUP or "",
-      PYTHON_BASIC_REPL = "1",
-      PYTHON_COLORS = "0",
-    }
+    return argv,
+      {
+        PYTHONSTARTUP = setup,
+        ORG_BABEL_USER_STARTUP = vim.env.PYTHONSTARTUP or "",
+        PYTHON_BASIC_REPL = "1",
+        PYTHON_COLORS = "0",
+      }
   end,
   line = function(_, id)
     return string.format("__org_babel_run(%d)", id)

@@ -40,18 +40,27 @@ end
 describe("quickadd tokenizer", function()
   local tok = require("org.extensions.quickadd.parse").tokenize
   it("splits on blanks", function()
-    eq({ "a", "b", "c" }, vim.tbl_map(function(t)
-      return t.text
-    end, tok("  a b\tc ")))
+    eq(
+      { "a", "b", "c" },
+      vim.tbl_map(function(t)
+        return t.text
+      end, tok("  a b\tc "))
+    )
   end)
   it("groups quoted words and marks them literal", function()
-    local t = tok('say "hello world" \'fri 3pm\'')
-    eq({ "say", "hello world", "fri 3pm" }, vim.tbl_map(function(x)
-      return x.text
-    end, t))
-    eq({ true, false, false }, vim.tbl_map(function(x)
-      return x.plain
-    end, t))
+    local t = tok("say \"hello world\" 'fri 3pm'")
+    eq(
+      { "say", "hello world", "fri 3pm" },
+      vim.tbl_map(function(x)
+        return x.text
+      end, t)
+    )
+    eq(
+      { true, false, false },
+      vim.tbl_map(function(x)
+        return x.plain
+      end, t)
+    )
   end)
   it("keeps apostrophes inside words and unclosed quotes", function()
     eq("Bob's", tok("Bob's car")[1].text)

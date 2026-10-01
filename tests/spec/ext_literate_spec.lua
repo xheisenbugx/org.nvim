@@ -293,9 +293,12 @@ describe("literate extension", function()
     change(6, "vim.g.lit_a = 5")
     eq(5, vim.g.lit_a)
     eq(3, vim.g.lit_b)
-    eq({ 11 }, vim.tbl_map(function(x)
-      return x[1]
-    end, diags()))
+    eq(
+      { 11 },
+      vim.tbl_map(function(x)
+        return x[1]
+      end, diags())
+    )
     change(11, "vim.g.lit_b = 4")
     eq({}, diags())
     eq(4, vim.g.lit_b)

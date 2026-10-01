@@ -12,10 +12,10 @@ local utils = require("org.utils")
 local FIXTURES = {
   ["f.org"] = "#+TITLE: Fixture\n#+CATEGORY: Main\n#+TODO: TODO NEXT WAITING | DONE CANCELLED\n#+FILETAGS: ft\n\n* TODO [#A] Scheduled today with time :work:\n  SCHEDULED: <2026-09-25 Fri 09:00>\n* TODO Scheduled past\n  SCHEDULED: <2026-09-20 Sun>\n* TODO Scheduled past with time\n  SCHEDULED: <2026-09-22 Tue 14:00>\n* DONE Done scheduled past\n  CLOSED: [2026-09-23 Wed 10:00] SCHEDULED: <2026-09-22 Tue>\n* TODO Deadline in 5 days\n  DEADLINE: <2026-09-30 Wed>\n* TODO Deadline overdue\n  DEADLINE: <2026-09-22 Tue>\n* TODO Deadline far\n  DEADLINE: <2026-11-30 Mon>\n* TODO Deadline with warning -3d\n  DEADLINE: <2026-09-30 Wed -3d>\n* TODO Deadline with warning -10d\n  DEADLINE: <2026-09-30 Wed -10d>\n* TODO Deadline today 16:00\n  DEADLINE: <2026-09-25 Fri 16:00>\n* TODO Scheduled and deadline\n  SCHEDULED: <2026-09-24 Thu> DEADLINE: <2026-09-28 Mon>\n* TODO Repeating weekly\n  SCHEDULED: <2026-09-14 Mon +1w>\n* TODO Repeating daily from past\n  SCHEDULED: <2026-09-23 Wed .+1d>\n* TODO Deadline repeating\n  DEADLINE: <2026-09-21 Mon ++1w>\n* TODO Scheduled delay\n  SCHEDULED: <2026-09-20 Sun -3d>\n* TODO Scheduled future\n  SCHEDULED: <2026-09-26 Sat 10:30-11:45>\n* Meeting\n  <2026-09-24 Thu 13:00-14:30>\n* Conference\n  <2026-09-23 Wed>--<2026-09-26 Sat>\n* Timed range\n  <2026-09-21 Mon 10:00>--<2026-09-22 Tue 12:00>\n* Weekly plain repeat\n  <2026-09-01 Tue 08:30 +1w>\n* Inactive only\n  [2026-09-24 Thu]\n* TODO Habit\n  SCHEDULED: <2026-09-24 Thu .+1d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n* Project\n  :PROPERTIES:\n  :CATEGORY: Proj\n  :END:\n** NEXT [#C] Child task :home:\n   SCHEDULED: <2026-09-25 Fri>\n** WAITING Waiting one\n* Stuck project\n** Something\n* COMMENT Commented\n** TODO Hidden\n   SCHEDULED: <2026-09-25 Fri>\n* Archived :ARCHIVE:\n** TODO Arch\n   SCHEDULED: <2026-09-25 Fri>\n* TODO Effort task\n  SCHEDULED: <2026-09-25 Fri 11:00>\n  :PROPERTIES:\n  :Effort:   1:30\n  :END:\n* Two timestamps\n  <2026-09-25 Fri 15:00> and <2026-09-26 Sat>\n",
   ["f2.org"] = "#+TODO: TODO NEXT WAITING | DONE CANCELLED\n* TODO [#A] Alpha :work:boss:\n  SCHEDULED: <2026-09-20 Sun>\n  :PROPERTIES:\n  :Effort:   1:30\n  :With:     Sarah\n  :Coffee:   unlimited\n  :END:\n  body text mentions banana split\n** NEXT Alpha child :urgent:\n   :PROPERTIES:\n   :Effort:   0:20\n   :END:\n*** Grandchild plain\n* DONE Beta :work:\n  CLOSED: [2026-09-24 Thu 10:00] DEADLINE: <2026-10-02 Fri>\n  :PROPERTIES:\n  :Effort:   3\n  :With:     Denny\n  :END:\n* WAITING [#C] Gamma :home:\n  :PROPERTIES:\n  :CATEGORY: gcat\n  :END:\n  Some text with Banana\n  and more lines\n* Delta stuff <2026-09-26 Sat>\n  apple pie recipe\n** TODO Delta sub\n* Projects\n** Proj one\n*** TODO do\n** Proj two\n*** WAITING wait\n** Proj three\n   has NEXTACTION hmm\n** Proj four\n*** notes :@work:\n",
-  ["h.org"] = "* TODO Shave\n  SCHEDULED: <2026-09-24 Thu .+2d/4d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :LAST_REPEAT: [2026-09-22 Tue 08:00]\n  :END:\n  :LOGBOOK:\n  - State \"DONE\"       from \"TODO\"       [2026-09-22 Tue 08:00]\n  - State \"DONE\"       from \"TODO\"       [2026-09-18 Fri 08:00]\n  - State \"DONE\"       from \"TODO\"       [2026-09-12 Sat 08:00]\n  - State \"DONE\"       from \"TODO\"       [2026-09-10 Thu 08:00]\n  :END:\n* TODO Run\n  SCHEDULED: <2026-09-25 Fri 07:00 ++1d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n  :LOGBOOK:\n  - State \"DONE\"       from \"TODO\"       [2026-09-24 Thu 07:10]\n  - State \"DONE\"       from \"TODO\"       [2026-09-20 Sun 07:10]\n  :END:\n* TODO Future habit\n  SCHEDULED: <2026-09-27 Sun .+1w>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n",
+  ["h.org"] = '* TODO Shave\n  SCHEDULED: <2026-09-24 Thu .+2d/4d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :LAST_REPEAT: [2026-09-22 Tue 08:00]\n  :END:\n  :LOGBOOK:\n  - State "DONE"       from "TODO"       [2026-09-22 Tue 08:00]\n  - State "DONE"       from "TODO"       [2026-09-18 Fri 08:00]\n  - State "DONE"       from "TODO"       [2026-09-12 Sat 08:00]\n  - State "DONE"       from "TODO"       [2026-09-10 Thu 08:00]\n  :END:\n* TODO Run\n  SCHEDULED: <2026-09-25 Fri 07:00 ++1d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n  :LOGBOOK:\n  - State "DONE"       from "TODO"       [2026-09-24 Thu 07:10]\n  - State "DONE"       from "TODO"       [2026-09-20 Sun 07:10]\n  :END:\n* TODO Future habit\n  SCHEDULED: <2026-09-27 Sun .+1w>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n',
   ["h2.org"] = "* TODO Late timed habit\n  SCHEDULED: <2026-09-23 Wed 07:00 .+1d>\n  :PROPERTIES:\n  :STYLE:    habit\n  :END:\n",
   ["r.org"] = "* Weekly plain repeat\n  <2026-09-01 Tue 08:30 +1w>\n* TODO Repeating sched\n  SCHEDULED: <2026-09-14 Mon +1w>\n* TODO Rep deadline\n  DEADLINE: <2026-09-15 Tue +1w>\n* Call Bob 10:00\n  <2026-09-25 Fri>\n* TODO Meeting at 14:00-15:00 about stuff\n  SCHEDULED: <2026-09-25 Fri>\n* DONE Done timestamp\n  <2026-09-25 Fri>\n* TODO With both\n  SCHEDULED: <2026-09-25 Fri> DEADLINE: <2026-09-25 Fri>\n* Multiple stamps\n  <2026-09-25 Fri 09:00> <2026-09-25 Fri 17:00>\n* TODO Sched 5pm heading 5pm\n  SCHEDULED: <2026-09-25 Fri 17:00>\n",
-  ["l.org"] = "* DONE Closed task\n  CLOSED: [2026-09-24 Thu 11:15]\n  :LOGBOOK:\n  - State \"DONE\"       from \"TODO\"       [2026-09-24 Thu 11:15]\n  CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 10:30] =>  1:30\n  - a clock note\n  :END:\n* TODO Clocked twice\n  :LOGBOOK:\n  CLOCK: [2026-09-24 Thu 13:00]--[2026-09-24 Thu 13:45] =>  0:45\n  CLOCK: [2026-09-23 Wed 22:00]--[2026-09-24 Thu 01:00] =>  3:00\n  :END:\n* TODO Plain\n  SCHEDULED: <2026-09-24 Thu>\n",
+  ["l.org"] = '* DONE Closed task\n  CLOSED: [2026-09-24 Thu 11:15]\n  :LOGBOOK:\n  - State "DONE"       from "TODO"       [2026-09-24 Thu 11:15]\n  CLOCK: [2026-09-24 Thu 09:00]--[2026-09-24 Thu 10:30] =>  1:30\n  - a clock note\n  :END:\n* TODO Clocked twice\n  :LOGBOOK:\n  CLOCK: [2026-09-24 Thu 13:00]--[2026-09-24 Thu 13:45] =>  0:45\n  CLOCK: [2026-09-23 Wed 22:00]--[2026-09-24 Thu 01:00] =>  3:00\n  :END:\n* TODO Plain\n  SCHEDULED: <2026-09-24 Thu>\n',
   ["c.org"] = "#+CATEGORY: VeryLongCategoryName\n* TODO Long cat\n  SCHEDULED: <2026-09-25 Fri>\n* TODO Heading with [[https://x.org][a link]] and *bold* ~code~ :tag1:tag2:\n  SCHEDULED: <2026-09-25 Fri>\n* TODO Heading with [[file:foo.org]]\n  SCHEDULED: <2026-09-25 Fri>\n* TODO [#B] Explicit B\n  SCHEDULED: <2026-09-25 Fri>\n* TODO [#A] Tail [1/3] [50%]\n  SCHEDULED: <2026-09-25 Fri>\n** TODO Deep child\n   SCHEDULED: <2026-09-25 Fri>\n",
   ["x.org"] = "#+CATEGORY: Cal\n* Birthdays\n%%(org-anniversary 1990 9 26) Arthur is %d years old\n%%(diary-float t 4 4) Fourth Thursday\n* Class 10:00 lecture\n  <%%(org-class 2026 9 1 2026 12 20 2)>\n* TODO Standup\n  SCHEDULED: <2026-09-21 Mon 09:30 +1d>\n* Same day range\n  <2026-09-25 Fri 10:00>--<2026-09-25 Fri 12:00>\n* Meeting 3pm with Bob\n  <2026-09-23 Wed>\n",
 }
@@ -24,9 +24,9 @@ local CASES = {
   {
     name = "week",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "week" } },
+    opts = {},
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -83,9 +83,9 @@ local CASES = {
   {
     name = "day",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "day" } },
+    opts = {},
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -119,9 +119,9 @@ local CASES = {
   {
     name = "fortnight",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'fortnight' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "fortnight" } },
+    opts = {},
+    state = {},
     expected = {
       "Fortnight-agenda (W39-W40):",
       "Monday     21 September 2026 W39",
@@ -199,9 +199,9 @@ local CASES = {
   {
     name = "month from today",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'month' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "month" } },
+    opts = {},
+    state = {},
     expected = {
       "Month-agenda (W39-W43):",
       "Friday     25 September 2026",
@@ -312,9 +312,9 @@ local CASES = {
   {
     name = "3 days",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 3 } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = 3 } },
+    opts = {},
+    state = {},
     expected = {
       "3 days-agenda (W39):",
       "Friday     25 September 2026",
@@ -355,9 +355,9 @@ local CASES = {
   {
     name = "headline times",
     fixture = "r.org",
-    blocks = { { type = 'agenda', span = 'day' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "day" } },
+    opts = {},
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -383,9 +383,9 @@ local CASES = {
   {
     name = "habits",
     fixture = "h.org",
-    blocks = { { type = 'agenda', span = 'day' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "day" } },
+    opts = {},
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -403,9 +403,9 @@ local CASES = {
   {
     name = "timed overdue habit",
     fixture = "h2.org",
-    blocks = { { type = 'agenda', span = 'day' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "day" } },
+    opts = {},
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -422,8 +422,8 @@ local CASES = {
   {
     name = "log mode",
     fixture = "l.org",
-    blocks = { { type = 'agenda', span = 'week' } },
-    opts = {  },
+    blocks = { { type = "agenda", span = "week" } },
+    opts = {},
     state = { log_mode = true },
     expected = {
       "Week-agenda (W39):",
@@ -445,9 +445,9 @@ local CASES = {
   {
     name = "todo list",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "todo" } },
+    opts = {},
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -476,9 +476,9 @@ local CASES = {
   {
     name = "todo keywords",
     fixture = "f.org",
-    blocks = { { type = 'todo', keywords = { 'WAITING', 'NEXT' } } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "todo", keywords = { "WAITING", "NEXT" } } },
+    opts = {},
+    state = {},
     expected = {
       "Global list of TODO items of type: WAITING|NEXT",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -490,9 +490,9 @@ local CASES = {
   {
     name = "tags",
     fixture = "f2.org",
-    blocks = { { type = 'tags', match = 'work' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "tags", match = "work" } },
+    opts = {},
+    state = {},
     expected = {
       "Headlines with TAGS match: work",
       "Press ‘1 r’ to search again",
@@ -505,9 +505,9 @@ local CASES = {
   {
     name = "tags-todo",
     fixture = "f2.org",
-    blocks = { { type = 'tags_todo', match = 'work' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "tags_todo", match = "work" } },
+    opts = {},
+    state = {},
     expected = {
       "Headlines with TAGS match: work",
       "Press ‘1 r’ to search again",
@@ -518,9 +518,9 @@ local CASES = {
   {
     name = "search",
     fixture = "f2.org",
-    blocks = { { type = 'search', match = '+banana -split' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "search", match = "+banana -split" } },
+    opts = {},
+    state = {},
     expected = {
       "Search words: +banana -split",
       "Press ‘[’, ‘]’ to add/sub word, ‘{’, ‘}’ to add/sub regexp, ‘1 r’ for a fresh search",
@@ -530,9 +530,9 @@ local CASES = {
   {
     name = "stuck projects",
     fixture = "f2.org",
-    blocks = { { type = 'stuck' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "stuck" } },
+    opts = {},
+    state = {},
     expected = {
       "List of stuck projects: ",
       "  f2:         Proj two",
@@ -543,9 +543,9 @@ local CASES = {
   {
     name = "long category",
     fixture = "c.org",
-    blocks = { { type = 'agenda', span = 'day' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "day" } },
+    opts = {},
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -560,9 +560,9 @@ local CASES = {
   {
     name = "prewarning skipped when scheduled",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_deadline_prewarning_if_scheduled = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -595,9 +595,9 @@ local CASES = {
   {
     name = "prewarning 2 days",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_deadline_prewarning_if_scheduled = 2 },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -630,9 +630,9 @@ local CASES = {
   {
     name = "prewarning pre-scheduled",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_deadline_prewarning_if_scheduled = "pre-scheduled" },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -666,9 +666,9 @@ local CASES = {
   {
     name = "ignore deadlines t = near",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_deadlines = true },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -691,9 +691,9 @@ local CASES = {
   {
     name = "ignore deadlines far",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_deadlines = "far" },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -720,9 +720,9 @@ local CASES = {
   {
     name = "ignore deadlines 3",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_deadlines = 3 },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -746,9 +746,9 @@ local CASES = {
   {
     name = "ignore deadlines -3",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_deadlines = -3 },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -775,9 +775,9 @@ local CASES = {
   {
     name = "ignore scheduled future",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_scheduled = "future" },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -805,9 +805,9 @@ local CASES = {
   {
     name = "ignore timestamp",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { todo_ignore_timestamp = true },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -836,9 +836,9 @@ local CASES = {
   {
     name = "M ignores options by default",
     fixture = "f2.org",
-    blocks = { { type = 'tags_todo', match = 'work' } },
+    blocks = { { type = "tags_todo", match = "work" } },
     opts = { todo_ignore_scheduled = "all" },
-    state = {  },
+    state = {},
     expected = {
       "Headlines with TAGS match: work",
       "Press ‘1 r’ to search again",
@@ -849,9 +849,9 @@ local CASES = {
   {
     name = "M honours ignore options",
     fixture = "f2.org",
-    blocks = { { type = 'tags_todo', match = 'work' } },
+    blocks = { { type = "tags_todo", match = "work" } },
     opts = { todo_ignore_scheduled = "all", tags_todo_honor_ignore_options = true },
-    state = {  },
+    state = {},
     expected = {
       "Headlines with TAGS match: work",
       "Press ‘1 r’ to search again",
@@ -861,9 +861,9 @@ local CASES = {
   {
     name = "grid remove-match",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { time_grid = { type = { "daily", "today", "require-timed", "remove-match" } } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -896,9 +896,9 @@ local CASES = {
   {
     name = "am/pm",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { timegrid_use_ampm = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -932,9 +932,9 @@ local CASES = {
   {
     name = "leading zero",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { time_leading_zero = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -968,9 +968,9 @@ local CASES = {
   {
     name = "no empty dates",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { show_all_dates = false },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -1027,9 +1027,9 @@ local CASES = {
   {
     name = "prefer last repeat",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { prefer_last_repeat = true },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -1086,9 +1086,9 @@ local CASES = {
   {
     name = "no future repeats",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { show_future_repeats = false },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -1143,9 +1143,9 @@ local CASES = {
   {
     name = "next future repeat",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { show_future_repeats = "next" },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -1201,9 +1201,9 @@ local CASES = {
   {
     name = "max entries",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { max_entries = 3 },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -1235,9 +1235,9 @@ local CASES = {
   {
     name = "max todos",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { max_todos = 4 },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -1251,9 +1251,9 @@ local CASES = {
   {
     name = "prefix format",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { prefix_format = { agenda = " %i %-12:c%?-12t%-6e% s%l", todo = " %-8:c %b %T " } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1287,9 +1287,9 @@ local CASES = {
   {
     name = "prefix format todo",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { prefix_format = { agenda = " %i %-12:c%?-12t%-6e% s%l", todo = " %-8:c %b %T " } },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -1318,9 +1318,9 @@ local CASES = {
   {
     name = "category max length",
     fixture = "c.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { prefix_format = { agenda = " %i %-12.10:c%?-12t% s" } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1335,9 +1335,9 @@ local CASES = {
   {
     name = "hide tags",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { hide_tags_regexp = "ft" },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1371,9 +1371,9 @@ local CASES = {
   {
     name = "entry types deadline",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { entry_types = { "deadline" } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1395,9 +1395,9 @@ local CASES = {
   {
     name = "entry types scheduled* timestamp",
     fixture = "r.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { entry_types = { "scheduled*", "timestamp" } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1418,9 +1418,9 @@ local CASES = {
   {
     name = "skip scheduled if deadline shown",
     fixture = "r.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_scheduled_if_deadline_is_shown = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1445,9 +1445,9 @@ local CASES = {
   {
     name = "skip timestamp if done",
     fixture = "r.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_timestamp_if_done = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1472,9 +1472,9 @@ local CASES = {
   {
     name = "skip additional timestamps",
     fixture = "r.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { skip_additional_timestamps_same_entry = true },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1499,9 +1499,9 @@ local CASES = {
   {
     name = "past days",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { deadline_past_days = 3, scheduled_past_days = 4 },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -1531,9 +1531,9 @@ local CASES = {
   {
     name = "year",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'year' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "year" } },
+    opts = {},
+    state = {},
     expected = {
       "Year-agenda:",
       "Friday     25 September 2026",
@@ -2459,9 +2459,9 @@ local CASES = {
   {
     name = "start day",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { start_day = "-3d" },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -2518,9 +2518,9 @@ local CASES = {
   {
     name = "no weekday alignment",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
+    blocks = { { type = "agenda", span = "week" } },
     opts = { start_on_weekday = false },
-    state = {  },
+    state = {},
     expected = {
       "Week-agenda (W39-W40):",
       "Friday     25 September 2026",
@@ -2576,9 +2576,9 @@ local CASES = {
   {
     name = "sorting alpha",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' } },
+    blocks = { { type = "agenda", span = "day" } },
     opts = { sorting = { agenda = { "alpha-up" }, todo = { "alpha-down" } } },
-    state = {  },
+    state = {},
     expected = {
       "Day-agenda (W39):",
       "Friday     25 September 2026",
@@ -2612,9 +2612,9 @@ local CASES = {
   {
     name = "sorting todo state",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { sorting = { agenda = { "todo-state-up", "priority-down" }, todo = { "todo-state-down" } } },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -2643,9 +2643,9 @@ local CASES = {
   {
     name = "sorting scheduled",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { sorting = { todo = { "scheduled-up", "deadline-down" } } },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -2674,9 +2674,9 @@ local CASES = {
   {
     name = "sorting effort tag",
     fixture = "f.org",
-    blocks = { { type = 'todo' } },
+    blocks = { { type = "todo" } },
     opts = { sorting = { todo = { "effort-down", "tag-up" } } },
-    state = {  },
+    state = {},
     expected = {
       "Global list of TODO items of type: ALL",
       "Press ‘N r’ (e.g. ‘0 r’) to search again: (0)[ALL] (1)CANCELLED (2)DONE",
@@ -2705,8 +2705,8 @@ local CASES = {
   {
     name = "inactive timestamps",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'week' } },
-    opts = {  },
+    blocks = { { type = "agenda", span = "week" } },
+    opts = {},
     state = { inactive = true },
     expected = {
       "Week-agenda (W39):",
@@ -2765,9 +2765,9 @@ local CASES = {
   {
     name = "diary sexps",
     fixture = "x.org",
-    blocks = { { type = 'agenda', span = 'week' } },
-    opts = {  },
-    state = {  },
+    blocks = { { type = "agenda", span = "week" } },
+    opts = {},
+    state = {},
     expected = {
       "Week-agenda (W39):",
       "Monday     21 September 2026 W39",
@@ -2798,8 +2798,12 @@ local CASES = {
   {
     name = "block agenda",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' }, { type = 'todo', keywords = { 'WAITING' } }, { type = 'tags', match = 'home' } },
-    opts = {  },
+    blocks = {
+      { type = "agenda", span = "day" },
+      { type = "todo", keywords = { "WAITING" } },
+      { type = "tags", match = "home" },
+    },
+    opts = {},
     state = { multi = true },
     expected = {
       "Day-agenda (W39):",
@@ -2842,7 +2846,7 @@ local CASES = {
   {
     name = "compact blocks",
     fixture = "f.org",
-    blocks = { { type = 'agenda', span = 'day' }, { type = 'todo', keywords = { 'WAITING' } } },
+    blocks = { { type = "agenda", span = "day" }, { type = "todo", keywords = { "WAITING" } } },
     opts = { compact_blocks = true },
     state = { multi = true },
     expected = {
@@ -2942,4 +2946,3 @@ describe("agenda parity with Emacs", function()
     end)
   end
 end)
-

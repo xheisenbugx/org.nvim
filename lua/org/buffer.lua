@@ -85,7 +85,10 @@ function M.attach(bufnr)
     try("org.timestamps", "attach_custom_display", bufnr)
   end
 
-  vim.b[bufnr].undo_ftplugin = (vim.b[bufnr].undo_ftplugin or "") .. "|lua require('org.buffer').detach(" .. bufnr .. ")"
+  vim.b[bufnr].undo_ftplugin = (vim.b[bufnr].undo_ftplugin or "")
+    .. "|lua require('org.buffer').detach("
+    .. bufnr
+    .. ")"
 end
 
 function M.detach(bufnr)

@@ -990,7 +990,6 @@ function M.insert_structure_template()
   M.insert_block(type, s, e)
 end
 
-
 ---------------------------------------------------------------------------
 -- Promote / demote
 ---------------------------------------------------------------------------
@@ -2507,7 +2506,11 @@ function M.emphasize()
   if not tb:bolp() and not tb.text:sub(tb.point - 1, tb.point - 1):match(EMPH_PRE) then
     tb:insert(" ")
   end
-  if not tb:eobp() and not tb.text:sub(tb.point, tb.point):match(EMPH_POST) and tb.text:sub(tb.point, tb.point) ~= "\n" then
+  if
+    not tb:eobp()
+    and not tb.text:sub(tb.point, tb.point):match(EMPH_POST)
+    and tb.text:sub(tb.point, tb.point) ~= "\n"
+  then
     tb:insert(" ")
     tb:goto_char(tb.point - 1)
   end

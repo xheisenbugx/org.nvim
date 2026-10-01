@@ -1529,7 +1529,6 @@ local function move_row(state, dir)
   end
 end
 
-
 --- Bind the column view keys with `map(lhs, fn, desc)`; `quit` leaves the
 --- view.
 local function bind_keys(state, map, quit)

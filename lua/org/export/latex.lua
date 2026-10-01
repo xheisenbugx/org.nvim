@@ -320,12 +320,14 @@ local function format_spec(info)
 end
 
 local function format_spec_apply(s, spec)
-  return (s:gsub("%%(.)", function(c)
-    if c == "%" then
-      return "%"
-    end
-    return spec[c] or ("%" .. c)
-  end))
+  return (
+    s:gsub("%%(.)", function(c)
+      if c == "%" then
+        return "%"
+      end
+      return spec[c] or ("%" .. c)
+    end)
+  )
 end
 
 ---------------------------------------------------------------------------
@@ -548,9 +550,11 @@ local function guess_inputenc(header)
   local cs = lcfg().inputenc or "utf8"
   local alist = lcfg().inputenc_alist or {}
   cs = alist[cs] or cs
-  return (header:gsub("\\usepackage%[AUTO%]{inputenc}", function()
-    return "\\usepackage[" .. cs .. "]{inputenc}"
-  end))
+  return (
+    header:gsub("\\usepackage%[AUTO%]{inputenc}", function()
+      return "\\usepackage[" .. cs .. "]{inputenc}"
+    end)
+  )
 end
 
 local function guess_babel_language(header, info)
@@ -874,8 +878,9 @@ local function template(contents, info)
   if
     info.latex_src_block_backend == "engraved"
     and element.map(info.parse_tree, { ["src-block"] = true, ["inline-src-block"] = true }, function()
-      return true
-    end, { first_match = true, ignore = info.ignore }) == true
+        return true
+      end, { first_match = true, ignore = info.ignore })
+      == true
   then
     out[#out + 1] = M.generate_engraved_preamble(info)
   end
@@ -938,7 +943,10 @@ end
 T.clock = function(el, _, info)
   return "\\noindent"
     .. "\\textbf{CLOCK:} "
-    .. fmt(info.latex_inactive_timestamp_format, ox.timestamp_translate(el.value) .. (el.duration and fmt(" (%s)", el.duration) or ""))
+    .. fmt(
+      info.latex_inactive_timestamp_format,
+      ox.timestamp_translate(el.value) .. (el.duration and fmt(" (%s)", el.duration) or "")
+    )
     .. "\\\\"
 end
 
@@ -980,7 +988,10 @@ end
 T["fixed-width"] = function(el, _, info)
   return wrap_label(
     el,
-    fmt("\\begin{verbatim}\n%s\n\\end{verbatim}", table.concat(element.remove_indentation(vim.split(el.value, "\n", { plain = true })), "\n")),
+    fmt(
+      "\\begin{verbatim}\n%s\n\\end{verbatim}",
+      table.concat(element.remove_indentation(vim.split(el.value, "\n", { plain = true })), "\n")
+    ),
     info
   )
 end
@@ -1101,15 +1112,17 @@ end
 --- Apply a two-slot format ("%s" title, "%s" contents).
 local function format2(f, a, b)
   local i = 0
-  return (f:gsub("%%s", function()
-    i = i + 1
-    if i == 1 then
-      return a
-    elseif i == 2 then
-      return b
-    end
-    return "%s"
-  end))
+  return (
+    f:gsub("%%s", function()
+      i = i + 1
+      if i == 1 then
+        return a
+      elseif i == 2 then
+        return b
+      end
+      return "%s"
+    end)
+  )
 end
 
 T.headline = function(el, contents, info)
@@ -1162,7 +1175,11 @@ T.headline = function(el, contents, info)
   local first = el.contents[1]
   if first and first.type == "section" then
     local stop = element.map(first, "keyword", function(k)
-      if k.key == "TOC" and k.value:lower():match("%f[%w]headlines%f[%W]") and k.value:lower():match("%f[%w]local%f[%W]") then
+      if
+        k.key == "TOC"
+        and k.value:lower():match("%f[%w]headlines%f[%W]")
+        and k.value:lower():match("%f[%w]local%f[%W]")
+      then
         return fmt("\\stopcontents[level-%d]", level)
       end
     end, { first_match = true, ignore = info.ignore })
@@ -1204,7 +1221,8 @@ T["horizontal-rule"] = function(el, _, info)
   local attr = ox.read_attribute("attr_latex", el)
   local prev = ox.get_previous_element(el, info)
   local nl = (prev and (prev.post_blank or 0) == 0) and "\n" or ""
-  return nl .. wrap_label(el, fmt("\\noindent\\rule{%s}{%s}", attr.width or "\\textwidth", attr.thickness or "0.5pt"), info)
+  return nl
+    .. wrap_label(el, fmt("\\noindent\\rule{%s}{%s}", attr.width or "\\textwidth", attr.thickness or "0.5pt"), info)
 end
 
 local function langs_lookup(list, lang)
@@ -1227,7 +1245,8 @@ T["inline-src-block"] = function(el, _, info)
   elseif backend == "listings" and lang then
     local llang = langs_lookup(info.latex_listings_langs, lang) or lang
     local sep = find_verb_separator(code)
-    local options = make_option_string(vim.list_extend(vim.deepcopy(info.latex_listings_options or {}), { { "language", llang } }))
+    local options =
+      make_option_string(vim.list_extend(vim.deepcopy(info.latex_listings_options or {}), { { "language", llang } }))
     return fmt("\\lstinline[%s]", options) .. sep .. code .. sep
   end
   return text_markup(code, "code", info)
@@ -1279,7 +1298,8 @@ T.item = function(el, contents, info)
     p = p.parent
   end
   local count = el.counter
-  local counter = (count and level < 5) and fmt("\\setcounter{enum%s}{%s}\n", ({ "i", "ii", "iii", "iv" })[level] or "", count - 1)
+  local counter = (count and level < 5)
+      and fmt("\\setcounter{enum%s}{%s}\n", ({ "i", "ii", "iii", "iv" })[level] or "", count - 1)
     or ""
   local checkbox = ({ on = "$\\boxtimes$", off = "$\\square$", trans = "$\\boxminus$" })[el.checkbox or ""]
   local tag = el.tag and ox.data(el.tag, info) or nil
@@ -1381,7 +1401,11 @@ T["latex-matrices"] = function(el, contents, info)
   elseif el.markup == "equation" then
     local caption = M.caption_label_string(el, info)
     local above = caption_above_p(el, info)
-    return "\\begin{equation}\n" .. (above and caption or "") .. contents .. ((not above) and caption or "") .. "\\end{equation}"
+    return "\\begin{equation}\n"
+      .. (above and caption or "")
+      .. contents
+      .. ((not above) and caption or "")
+      .. "\\end{equation}"
   end
   return fmt("\\[\n%s\\]", contents)
 end
@@ -1524,9 +1548,27 @@ local function inline_image(link, info)
   local cap_below = above and "" or caption
   local c = center and "\\centering" or ""
   if type(float) == "string" and not ({ wrap = 1, sideways = 1, multicolumn = 1, figure = 1, nonfloat = 1 })[float] then
-    return fmt("\\begin{%s}%s\n%s%s\n%s%s\n%s\\end{%s}", float, placement, cap_above, c, comment, code, cap_below, float)
+    return fmt(
+      "\\begin{%s}%s\n%s%s\n%s%s\n%s\\end{%s}",
+      float,
+      placement,
+      cap_above,
+      c,
+      comment,
+      code,
+      cap_below,
+      float
+    )
   elseif float == "wrap" then
-    return fmt("\\begin{wrapfigure}%s\n%s%s\n%s%s\n%s\\end{wrapfigure}", placement, cap_above, c, comment, code, cap_below)
+    return fmt(
+      "\\begin{wrapfigure}%s\n%s%s\n%s%s\n%s\\end{wrapfigure}",
+      placement,
+      cap_above,
+      c,
+      comment,
+      code,
+      cap_below
+    )
   elseif float == "sideways" then
     return fmt("\\begin{sidewaysfigure}\n%s%s\n%s%s\n%s\\end{sidewaysfigure}", cap_above, c, comment, code, cap_below)
   elseif float == "multicolumn" then
@@ -1565,7 +1607,8 @@ T.link = function(el, desc, info)
     return fmt("\\hyperref[%s]{%s}", ox.get_reference(dest, info), desc or "")
   end
   if ltype == "custom-id" or ltype == "fuzzy" or ltype == "id" then
-    local dest = ltype == "fuzzy" and ox.resolve_fuzzy_link(el, info, { "latex-matrices" }) or ox.resolve_id_link(el, info)
+    local dest = ltype == "fuzzy" and ox.resolve_fuzzy_link(el, info, { "latex-matrices" })
+      or ox.resolve_id_link(el, info)
     if dest.type == "plain-text" then
       if desc then
         return fmt("\\href{%s}{%s}", dest.value, desc)
@@ -1687,13 +1730,16 @@ end
 T.planning = function(el, _, info)
   local parts = {}
   if el.closed then
-    parts[#parts + 1] = "\\textbf{CLOSED:} " .. fmt(info.latex_inactive_timestamp_format, ox.timestamp_translate(el.closed))
+    parts[#parts + 1] = "\\textbf{CLOSED:} "
+      .. fmt(info.latex_inactive_timestamp_format, ox.timestamp_translate(el.closed))
   end
   if el.deadline then
-    parts[#parts + 1] = "\\textbf{DEADLINE:} " .. fmt(info.latex_active_timestamp_format, ox.timestamp_translate(el.deadline))
+    parts[#parts + 1] = "\\textbf{DEADLINE:} "
+      .. fmt(info.latex_active_timestamp_format, ox.timestamp_translate(el.deadline))
   end
   if el.scheduled then
-    parts[#parts + 1] = "\\textbf{SCHEDULED:} " .. fmt(info.latex_active_timestamp_format, ox.timestamp_translate(el.scheduled))
+    parts[#parts + 1] = "\\textbf{SCHEDULED:} "
+      .. fmt(info.latex_active_timestamp_format, ox.timestamp_translate(el.scheduled))
   end
   return "\\noindent" .. table.concat(parts, " ") .. "\\\\"
 end
@@ -1815,20 +1861,28 @@ T["src-block"] = function(el, _, info)
     local cap = M.caption_label_string(el, info)
     local formatted = ox.format_code_default(el, info)
     if custom_env:match("^[%w]+$") then
-      return fmt("\\begin{%s}\n%s\\end{%s}\n", custom_env, (above and cap or "") .. formatted .. ((not above) and cap or ""), custom_env)
+      return fmt(
+        "\\begin{%s}\n%s\\end{%s}\n",
+        custom_env,
+        (above and cap or "") .. formatted .. ((not above) and cap or ""),
+        custom_env
+      )
     end
-    return (custom_env:gsub("%%(.)", function(c)
-      return ({
-        s = formatted,
-        c = caption and ox.data(ox.get_caption(el), info) or "",
-        f = float or "",
-        l = M.label(el, info) or "",
-        o = attributes.options or "",
-      })[c] or ("%" .. c)
-    end))
+    return (
+      custom_env:gsub("%%(.)", function(c)
+        return ({
+          s = formatted,
+          c = caption and ox.data(ox.get_caption(el), info) or "",
+          f = float or "",
+          l = M.label(el, info) or "",
+          o = attributes.options or "",
+        })[c] or ("%" .. c)
+      end)
+    )
   elseif backend == "minted" then
     local cap = M.caption_label_string(el, info)
-    local placement = (attributes.placement and attributes.placement:gsub("^%[(.*)%]$", "%1")) or info.latex_default_figure_position
+    local placement = (attributes.placement and attributes.placement:gsub("^%[(.*)%]$", "%1"))
+      or info.latex_default_figure_position
     local multicol = float == "multicolumn"
     local open, close = "", ""
     if caption or multicol then
@@ -1979,13 +2033,18 @@ local function decorate_table(tbl_str, attr, caption, above, info)
   local fontsize = attr.font and (attr.font .. "\n") or nil
   local pre, post
   if env then
-    pre = fmt("\\begin{%s}%s\n", env, placement) .. (above and caption or "") .. (center and "\\centering\n" or "") .. (fontsize or "")
+    pre = fmt("\\begin{%s}%s\n", env, placement)
+      .. (above and caption or "")
+      .. (center and "\\centering\n" or "")
+      .. (fontsize or "")
     post = (above and "" or ("\n" .. caption)) .. fmt("\n\\end{%s}", env)
   elseif caption and caption ~= "" then
     pre = (center and "\\begin{center}\n" or "")
       .. (above and caption or "")
       .. ((fontsize and center) and fontsize or (fontsize and ("{" .. fontsize) or ""))
-    post = (above and "" or ("\n" .. caption)) .. (center and "\n\\end{center}" or "") .. ((fontsize and not center) and "}" or "")
+    post = (above and "" or ("\n" .. caption))
+      .. (center and "\n\\end{center}" or "")
+      .. ((fontsize and not center) and "}" or "")
   elseif center then
     pre = "\\begin{center}\n" .. (fontsize or "")
     post = "\n\\end{center}"
@@ -2025,7 +2084,8 @@ local function org_table(tbl, contents, info)
       .. fmt("\\end{%s}", env)
       .. (fontsize and "}" or "")
   end
-  local output = fmt("\\begin{%s}%s%s{%s}\n%s\\end{%s}", env, opt and fmt("[%s]", opt) or "", width, alignment, contents, env)
+  local output =
+    fmt("\\begin{%s}%s%s{%s}\n%s\\end{%s}", env, opt and fmt("[%s]", opt) or "", width, alignment, contents, env)
   return decorate_table(output, attr, caption, above, info)
 end
 
@@ -2154,7 +2214,9 @@ T["table-row"] = function(el, contents, info)
       cache[tbl] = contents or ""
     end
   end
-  local s = ((booktabs and not ox.get_previous_element(el, info)) and "\\toprule\n" or "") .. (contents or "") .. "\\\\\n"
+  local s = ((booktabs and not ox.get_previous_element(el, info)) and "\\toprule\n" or "")
+    .. (contents or "")
+    .. "\\\\\n"
   if longtable and ox.table_row_ends_header_p(el, info) then
     local _, columns = ox.table_dimensions(element.lineage(el, "table"), info)
     s = s
@@ -2200,7 +2262,9 @@ T["verse-block"] = function(el, contents, info)
   local lin = ox.read_attribute("attr_latex", el, "lines")
   local latcode = ox.read_attribute("attr_latex", el, "latexcode")
   local cent = ox.read_attribute("attr_latex", el, "center")
-  local attr = (cent and "[\\versewidth]" or "") .. (lin and fmt("\n\\poemlines{%s}", lin) or "") .. (latcode and fmt("\n%s", latcode) or "")
+  local attr = (cent and "[\\versewidth]" or "")
+    .. (lin and fmt("\n\\poemlines{%s}", lin) or "")
+    .. (latcode and fmt("\n%s", latcode) or "")
   local lit = ox.read_attribute("attr_latex", el, "literal")
   local vw = ox.read_attribute("attr_latex", el, "versewidth")
   local vwidth = vw and fmt("\\settowidth{\\versewidth}{%s}\n", vw) or ""
@@ -2246,7 +2310,12 @@ function M.options()
     { "latex_default_table_environment", nil, nil, v("default_table_environment", "tabular") },
     { "latex_default_quote_environment", nil, nil, v("default_quote_environment", "quote") },
     { "latex_default_table_mode", nil, nil, v("default_table_mode", "table") },
-    { "latex_default_footnote_command", "LATEX_FOOTNOTE_COMMAND", nil, v("default_footnote_command", "\\footnote{%s%s}") },
+    {
+      "latex_default_footnote_command",
+      "LATEX_FOOTNOTE_COMMAND",
+      nil,
+      v("default_footnote_command", "\\footnote{%s%s}"),
+    },
     { "latex_diary_timestamp_format", nil, nil, v("diary_timestamp_format", "\\textit{%s}") },
     { "latex_engraved_options", nil, nil, v("engraved_options", data.engraved_options) },
     { "latex_engraved_preamble", nil, nil, v("engraved_preamble", data.engraved_preamble) },
@@ -2275,14 +2344,19 @@ function M.options()
     { "latex_table_scientific_notation", nil, nil, v("table_scientific_notation", nil) },
     { "latex_tables_booktabs", nil, nil, v("tables_booktabs", false) },
     { "latex_tables_centered", nil, nil, v("tables_centered", true) },
-    { "latex_text_markup_alist", nil, nil, v("text_markup_alist", {
-      bold = "\\textbf{%s}",
-      code = "protectedtexttt",
-      italic = "\\emph{%s}",
-      ["strike-through"] = "\\sout{%s}",
-      underline = "\\uline{%s}",
-      verbatim = "protectedtexttt",
-    }) },
+    {
+      "latex_text_markup_alist",
+      nil,
+      nil,
+      v("text_markup_alist", {
+        bold = "\\textbf{%s}",
+        code = "protectedtexttt",
+        italic = "\\emph{%s}",
+        ["strike-through"] = "\\sout{%s}",
+        underline = "\\uline{%s}",
+        verbatim = "protectedtexttt",
+      }),
+    },
     { "latex_title_command", nil, nil, v("title_command", "\\maketitle") },
     { "latex_toc_command", nil, nil, v("toc_command", "\\tableofcontents\n\n") },
     { "latex_toc_include_unnumbered", nil, nil, v("toc_include_unnumbered", false) },

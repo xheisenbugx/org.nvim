@@ -680,9 +680,7 @@ function Parser:bracket()
       return { k = "vec", items = items }
     elseif c.kind == "op" and c.value == "," then
       self:next()
-    elseif
-      not (self:in_vector() and c.space and (starts_factor(c) or is_sign(c)))
-    then
+    elseif not (self:in_vector() and c.space and (starts_factor(c) or is_sign(c))) then
       error("syntax error: expected , or ]")
     end
     items[#items + 1] = self:level(0)
@@ -1668,7 +1666,6 @@ end
 ---------------------------------------------------------------------------
 -- Functions
 ---------------------------------------------------------------------------
-
 
 local function flatten(args)
   local out = {}
@@ -3572,8 +3569,32 @@ do
     mol = { "1", dims(nil, nil, nil, nil, nil, 1) },
   }
   local PREFIXES = {
-    Q = 30, R = 27, Y = 24, Z = 21, E = 18, P = 15, T = 12, G = 9, M = 6, k = 3, K = 3, h = 2, H = 2, D = 1,
-    d = -1, c = -2, m = -3, u = -6, n = -9, p = -12, f = -15, a = -18, z = -21, y = -24, r = -27, q = -30,
+    Q = 30,
+    R = 27,
+    Y = 24,
+    Z = 21,
+    E = 18,
+    P = 15,
+    T = 12,
+    G = 9,
+    M = 6,
+    k = 3,
+    K = 3,
+    h = 2,
+    H = 2,
+    D = 1,
+    d = -1,
+    c = -2,
+    m = -3,
+    u = -6,
+    n = -9,
+    p = -12,
+    f = -15,
+    a = -18,
+    z = -21,
+    y = -24,
+    r = -27,
+    q = -30,
   }
 
   local unit_cache = {}

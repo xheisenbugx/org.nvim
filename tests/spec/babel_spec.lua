@@ -79,9 +79,12 @@ describe("babel", function()
   it("executes lua in-process", function()
     local buf = org_buffer({ "#+begin_src lua", "return 1 + 2", "#+end_src" }, { 2, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[6] == ": 3"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[6] == ": 3"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq({ "#+begin_src lua", "return 1 + 2", "#+end_src", "", "#+RESULTS:", ": 3" }, buf_lines(buf))
     -- re-executing replaces
     babel.execute_block()
@@ -100,13 +103,19 @@ describe("babel", function()
       "#+end_src",
     }, { 1, 0 })
     babel.execute({ bufnr = buf, lnum = 1 })
-    ok(wait_for(buf, function(l)
-      return l[7] == "| b | 2 |"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[7] == "| b | 2 |"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     babel.execute({ bufnr = buf, lnum = 9 })
-    ok(wait_for(buf, function(l)
-      return vim.tbl_contains(l, ": y")
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return vim.tbl_contains(l, ": y")
+      end),
+      vim.inspect(buf_lines(buf))
+    )
   end)
 
   it("executes shell with vars from named table", function()
@@ -122,9 +131,12 @@ describe("babel", function()
       "#+end_src",
     }, { 7, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return vim.tbl_contains(l, ": 1\t2")
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return vim.tbl_contains(l, ": 1\t2")
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq("#+RESULTS: shblock", buf_lines(buf)[11])
     eq(": x=5", buf_lines(buf)[12])
   end)
@@ -136,14 +148,20 @@ describe("babel", function()
       "#+end_src",
     }, { 1, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[7] == "| c | d |"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[7] == "| c | d |"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     local buf2 = org_buffer({ "#+begin_src sh :results output drawer", "echo hi", "#+end_src" }, { 1, 0 })
     babel.execute_block()
-    ok(wait_for(buf2, function(l)
-      return l[7] == "hi" and l[8] == ":end:"
-    end), vim.inspect(buf_lines(buf2)))
+    ok(
+      wait_for(buf2, function(l)
+        return l[7] == "hi" and l[8] == ":end:"
+      end),
+      vim.inspect(buf_lines(buf2))
+    )
   end)
 
   it("python value mode", function()
@@ -152,9 +170,12 @@ describe("babel", function()
     end
     local buf = org_buffer({ "#+begin_src python :var x=4", "return [[x, x*2]]", "#+end_src" }, { 1, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[6] == "| 4 | 8 |" or l[6] == "| 4 | 8 |"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[6] == "| 4 | 8 |" or l[6] == "| 4 | 8 |"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
   end)
 
   it("noweb expansion and #+CALL", function()
@@ -170,9 +191,12 @@ describe("babel", function()
       "#+end_src",
     }, { 7, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return vim.tbl_contains(l, ": hello!")
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return vim.tbl_contains(l, ": hello!")
+      end),
+      vim.inspect(buf_lines(buf))
+    )
 
     local buf2 = org_buffer({
       "#+NAME: dbl",
@@ -183,9 +207,12 @@ describe("babel", function()
       "#+CALL: dbl(n=21)",
     }, { 6, 0 })
     babel.execute_block()
-    ok(wait_for(buf2, function(l)
-      return l[9] == ": 42"
-    end), vim.inspect(buf_lines(buf2)))
+    ok(
+      wait_for(buf2, function(l)
+        return l[9] == ": 42"
+      end),
+      vim.inspect(buf_lines(buf2))
+    )
   end)
 
   it("remove result", function()

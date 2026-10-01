@@ -101,7 +101,10 @@ function M.interpret_timestamp(ts)
   end
   local warn = ""
   if ts.warning_type then
-    warn = " " .. (ts.warning_type == "first" and "--" or "-") .. ts.warning_value .. (UNIT[ts.warning_unit] or ts.warning_unit)
+    warn = " "
+      .. (ts.warning_type == "first" and "--" or "-")
+      .. ts.warning_value
+      .. (UNIT[ts.warning_unit] or ts.warning_unit)
   end
   local tail = rep .. warn .. close
   local s = open .. date(ts.year_start, ts.month_start, ts.day_start, ts.hour_start, ts.minute_start)
@@ -474,7 +477,7 @@ function M.read_sexp(s, pos)
   elseif c == "'" and s:sub(pos + 1, pos + 1) ~= "" and not s:sub(pos + 1, pos + 1):match("%s") then
     return M.read_sexp(s, pos + 1)
   else
-    local tok = s:match("^[^%s%(%)\"]+", pos) or c
+    local tok = s:match('^[^%s%(%)"]+', pos) or c
     local e = pos + #tok
     if tok == "t" then
       return true, e
@@ -535,11 +538,13 @@ end
 
 --- Expand $VAR and ${VAR} (substitute-env-in-file-name).
 function M.expand_env(s)
-  return (s:gsub("%${([%w_]+)}", function(v)
-    return vim.env[v] or ""
-  end):gsub("%$([%a_][%w_]*)", function(v)
-    return vim.env[v] or ("$" .. v)
-  end))
+  return (
+    s:gsub("%${([%w_]+)}", function(v)
+      return vim.env[v] or ""
+    end):gsub("%$([%a_][%w_]*)", function(v)
+      return vim.env[v] or ("$" .. v)
+    end)
+  )
 end
 
 --- Compute export options (org-export-get-environment).
@@ -701,10 +706,10 @@ function M.parse_include_value(value, dir)
   local file = value:match('^(".-")%s') or value:match('^(".-")$') or value:match("^(%S+)")
   if file then
     value = value:sub(#file + 1)
-    local loc = file:match("::(.-)\"?$")
+    local loc = file:match('::(.-)"?$')
     if loc then
       p.location = loc
-      file = file:gsub("::.-(\"?)$", "%1")
+      file = file:gsub('::.-("?)$', "%1")
     end
     file = file:match('^"(.*)"$') or file
     if file:match("^%a[%w+.-]*://") then
@@ -815,8 +820,12 @@ function M.include_location(content, search, only_contents)
     local last = hl.end_line
     if only_contents then
       first = hl.line + 1
-      if content[first] and content[first]:match("^[ \t]*[A-Z]+:[ \t]*[<%[]") and content[first]:match("^[ \t]*(%u+):")
-        and ({ SCHEDULED = true, DEADLINE = true, CLOSED = true })[content[first]:match("^[ \t]*(%u+):")] then
+      if
+        content[first]
+        and content[first]:match("^[ \t]*[A-Z]+:[ \t]*[<%[]")
+        and content[first]:match("^[ \t]*(%u+):")
+        and ({ SCHEDULED = true, DEADLINE = true, CLOSED = true })[content[first]:match("^[ \t]*(%u+):")]
+      then
         first = first + 1
       end
       if content[first] and content[first]:match("^[ \t]*:[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss]:") then
@@ -845,7 +854,11 @@ function M.include_location(content, search, only_contents)
       local nm = l:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]*(.-)[ \t]*$")
       if nm == s then
         local j = i + 1
-        while content[j] and content[j]:match("^[ \t]*#%+[%w_]+:") and not content[j]:lower():match("^[ \t]*#%+begin") do
+        while
+          content[j]
+          and content[j]:match("^[ \t]*#%+[%w_]+:")
+          and not content[j]:lower():match("^[ \t]*#%+begin")
+        do
           j = j + 1
         end
         local l2 = content[j] or ""
@@ -1057,8 +1070,12 @@ function M.expand_includes(lines, dir, opts)
                   if d then
                     local def = { d }
                     local k = ci + 1
-                    while content[k] and not content[k]:match("^%[fn:") and not content[k]:match("^%*+ ")
-                      and not (content[k]:match("^[ \t]*$") and (content[k + 1] or ""):match("^[ \t]*$")) do
+                    while
+                      content[k]
+                      and not content[k]:match("^%[fn:")
+                      and not content[k]:match("^%*+ ")
+                      and not (content[k]:match("^[ \t]*$") and (content[k + 1] or ""):match("^[ \t]*$"))
+                    do
                       def[#def + 1] = content[k]
                       k = k + 1
                     end
@@ -1322,14 +1339,8 @@ function M.babel_process(lines, ctx)
             new[#new + 1] = b.indent .. "#+end_src"
           else
             -- org-babel-exp-code-template, indented like the block
-            local fields = exp_code_fields(
-              b.lang,
-              table.concat(escape_code(body), "\n"),
-              b.switches,
-              b.params,
-              b.name,
-              args
-            )
+            local fields =
+              exp_code_fields(b.lang, table.concat(escape_code(body), "\n"), b.switches, b.params, b.name, args)
             new = {}
             for _, l in ipairs(vim.split(M.fill_template(code_template, fields), "\n", { plain = true })) do
               new[#new + 1] = (l ~= "" and b.indent or "") .. l
@@ -2060,7 +2071,8 @@ function M.footnote_reference_map(fn, data, info, body_first)
       end
     end, {
       ignore = info.ignore,
-      no_recursion = delayp and { ["footnote-definition"] = true, ["footnote-reference"] = true } or { ["footnote-definition"] = true },
+      no_recursion = delayp and { ["footnote-definition"] = true, ["footnote-reference"] = true }
+        or { ["footnote-definition"] = true },
     })
   end
   search(data, body_first)
@@ -2331,13 +2343,15 @@ end
 
 --- org-info-emacs-documents
 local INFO_EMACS_DOCUMENTS = {}
-for d in (
-  "ada-mode auth autotype bovine calc ccmode cl dbus dired-x ebrowse ede ediff edt efaq-w32 efaq eglot eieio "
-  .. "eintr elisp emacs-gnutls emacs-mime emacs epa erc ert eshell eudc eww flymake forms gnus htmlfontify "
-  .. "idlwave ido info mairix-el message mh-e modus-themes newsticker nxml-mode octave-mode org pcl-cvs pgg "
-  .. "rcirc reftex remember sasl sc semantic ses sieve smtpmail speedbar srecode todo-mode tramp transient url "
-  .. "use-package vhdl-mode vip viper vtable widget wisent woman"
-):gmatch("%S+") do
+for d in
+  (
+    "ada-mode auth autotype bovine calc ccmode cl dbus dired-x ebrowse ede ediff edt efaq-w32 efaq eglot eieio "
+    .. "eintr elisp emacs-gnutls emacs-mime emacs epa erc ert eshell eudc eww flymake forms gnus htmlfontify "
+    .. "idlwave ido info mairix-el message mh-e modus-themes newsticker nxml-mode octave-mode org pcl-cvs pgg "
+    .. "rcirc reftex remember sasl sc semantic ses sieve smtpmail speedbar srecode todo-mode tramp transient url "
+    .. "use-package vhdl-mode vip viper vtable widget wisent woman"
+  ):gmatch("%S+")
+do
   INFO_EMACS_DOCUMENTS[d] = true
 end
 
@@ -3096,10 +3110,18 @@ function M.table_cell_borders(cell, info)
           groups[k] = v
         end
       end
-      if (col > 1 and (groups[col - 1] == ">" or groups[col - 1] == "<>")) or groups[col] == "<" or groups[col] == "<>" then
+      if
+        (col > 1 and (groups[col - 1] == ">" or groups[col - 1] == "<>"))
+        or groups[col] == "<"
+        or groups[col] == "<>"
+      then
         borders.left = true
       end
-      if (col < #r.contents and (groups[col + 1] == "<" or groups[col + 1] == "<>")) or groups[col] == ">" or groups[col] == "<>" then
+      if
+        (col < #r.contents and (groups[col + 1] == "<" or groups[col + 1] == "<>"))
+        or groups[col] == ">"
+        or groups[col] == "<>"
+      then
         borders.right = true
       end
       break
@@ -3391,10 +3413,14 @@ function M.smart_quote_status(node, info)
           local function strp(x)
             return x ~= nil and x ~= "blank" and x ~= "no-blank"
           end
-          local allow_open = (strp(prev) and (is_quote(prev) or is_space(prev) or is_open(prev)) or (prev == "blank" or prev == nil))
-            and (strp(nxt) and (is_word(nxt) or is_punct(nxt)) or nxt == "no-blank")
+          local allow_open = (
+            strp(prev) and (is_quote(prev) or is_space(prev) or is_open(prev)) or (prev == "blank" or prev == nil)
+          ) and (strp(nxt) and (is_word(nxt) or is_punct(nxt)) or nxt == "no-blank")
           local allow_close = (strp(prev) and (is_word(prev) or is_punct(prev)) or prev == "no-blank")
-            and (strp(nxt) and (is_space(nxt) or is_close(nxt) or is_punct(nxt) or is_quote(nxt)) or (nxt == "blank" or nxt == nil))
+            and (
+              strp(nxt) and (is_space(nxt) or is_close(nxt) or is_punct(nxt) or is_quote(nxt))
+              or (nxt == "blank" or nxt == nil)
+            )
           if allow_open and allow_close then
             st = "apostrophe"
           elseif allow_open then
@@ -3474,12 +3500,14 @@ function M.activate_smart_quotes(s, encoding, info, node)
     info.smart_quotes_table[lang] = quotes or false
   end
   local i = 0
-  return (s:gsub("['\"]", function(m)
-    i = i + 1
-    local st = status[i] and status[i].st
-    local tr = st and quotes and quotes[st] and quotes[st][encoding]
-    return tr or m
-  end))
+  return (
+    s:gsub("['\"]", function(m)
+      i = i + 1
+      local st = status[i] and status[i].st
+      local tr = st and quotes and quotes[st] and quotes[st][encoding]
+      return tr or m
+    end)
+  )
 end
 
 ---------------------------------------------------------------------------

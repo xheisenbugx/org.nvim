@@ -516,7 +516,7 @@ describe("tblfm emacs compat", function()
     end)
 
     it("'(concat $1 $2) and '(length $1) on strings", function()
-      local g = calc({ "| ab | cd |   |   |", '#+TBLFM: $3=\'(concat $1 "-" $2)::$4=\'(length $1)' })
+      local g = calc({ "| ab | cd |   |   |", "#+TBLFM: $3='(concat $1 \"-\" $2)::$4='(length $1)" })
       eq("ab-cd", g[1][3])
       eq("2", g[1][4])
     end)

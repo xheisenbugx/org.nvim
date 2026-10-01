@@ -47,7 +47,7 @@ describe("formulas", function()
   it("vmean, vmax, ranges in a row, lua formulas", function()
     local out = calc({
       "| 2 | 4 | 6 |   |   |   |",
-      "#+TBLFM: $4=vmean($1..$3)::$5=vmax($1..$3)::$6='(string.upper(\"x\" .. $1))",
+      '#+TBLFM: $4=vmean($1..$3)::$5=vmax($1..$3)::$6=\'(string.upper("x" .. $1))',
     })
     eq("| 2 | 4 | 6 | 4 | 6 | X2 |", out[1])
   end)

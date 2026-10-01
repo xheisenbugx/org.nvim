@@ -118,7 +118,9 @@ describe("formula editor", function()
     vim.api.nvim_win_set_cursor(0, { 1, 8 })
     fedit.shift_reference("right")
     eq("@2$3 = @3$2+$4", vim.api.nvim_get_current_line())
-    vim.api.nvim_set_current_line("$3 = '(concat (substring $1 0 3) \"-\" (upcase $2) \"-\" (number-to-string (+ 1 2 3 4 5 6)))")
+    vim.api.nvim_set_current_line(
+      '$3 = \'(concat (substring $1 0 3) "-" (upcase $2) "-" (number-to-string (+ 1 2 3 4 5 6)))'
+    )
     fedit.lisp_indent(0)
     eq({
       "$3 = '(concat (substring $1 0 3)",
@@ -127,7 +129,10 @@ describe("formula editor", function()
       '              "-"',
       "              (number-to-string (+ 1 2 3 4 5 6)))",
     }, buf_lines(0))
-    eq({ "$3='(concat (substring $1 0 3) \"-\" (upcase $2) \"-\" (number-to-string (+ 1 2 3 4 5 6)))" }, fedit.parse_lines(buf_lines(0)))
+    eq(
+      { '$3=\'(concat (substring $1 0 3) "-" (upcase $2) "-" (number-to-string (+ 1 2 3 4 5 6)))' },
+      fedit.parse_lines(buf_lines(0))
+    )
   end)
 
   it("converts A1 references", function()

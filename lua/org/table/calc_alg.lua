@@ -776,11 +776,7 @@ return function(K)
     local accum = 0
     if #terms == 2 then
       for i = 0, n do
-        accum = op(
-          "+",
-          accum,
-          op("*", F.choose({ n, i }), op("*", op("^", terms[2], i), op("^", terms[1], n - i)))
-        )
+        accum = op("+", accum, op("*", F.choose({ n, i }), op("*", op("^", terms[2], i), op("^", terms[1], n - i))))
       end
     elseif n == 2 then
       for i = 1, #terms do

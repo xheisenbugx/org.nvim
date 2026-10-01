@@ -386,7 +386,6 @@ local function restore_cursor(start, row, field)
   end
 end
 
-
 --- Re-read the table starting at `info.start` (after a buffer change).
 local function reload(info)
   local fresh = M.find(0, info.start)
@@ -555,14 +554,16 @@ function M.fix_formulas(bufnr, finish, key, replace, limit, delta, remove)
   end
   local pat = (key == "$" and "%$" or "@") .. "(%d+)"
   local function shift(text)
-    return (text:gsub(pat, function(n)
-      local new = replace[n]
-      if new then
-        return key .. new
-      elseif limit and tonumber(n) > limit then
-        return key .. (tonumber(n) + delta)
-      end
-    end))
+    return (
+      text:gsub(pat, function(n)
+        local new = replace[n]
+        if new then
+          return key .. new
+        elseif limit and tonumber(n) > limit then
+          return key .. (tonumber(n) + delta)
+        end
+      end)
+    )
   end
   for _, lnum in ipairs(lnums) do
     local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
@@ -920,12 +921,13 @@ function M.sort_column(opts)
       slice[#slice + 1] = { row = r, key = k, i = #slice + 1 }
     end
   end
-  local less = compare or function(a, b)
-    if type(a) == "string" and type(b) == "string" then
-      return utils.string_lessp(a, b) -- org-sort-function
+  local less = compare
+    or function(a, b)
+      if type(a) == "string" and type(b) == "string" then
+        return utils.string_lessp(a, b) -- org-sort-function
+      end
+      return a < b
     end
-    return a < b
-  end
   table.sort(slice, function(a, b)
     local x, y = a.key, b.key
     if reverse then
@@ -1042,9 +1044,7 @@ end
 local function too_long(n)
   local max = require("org.config").opts.table_convert_region_max_lines
   if max and n > max then
-    utils.warn(
-      string.format("Region is longer than `table_convert_region_max_lines' (%d) lines; not converting", max)
-    )
+    utils.warn(string.format("Region is longer than `table_convert_region_max_lines' (%d) lines; not converting", max))
     return true
   end
   return false
@@ -1668,11 +1668,13 @@ end
 
 --- Convert `@3$2` references to `B3` (Emacs org-table-convert-refs-to-an).
 function M.refs_to_an(s)
-  return (s:gsub("@(%d+)%$(%d+)", function(r, c)
-    return col_letter(tonumber(c)) .. r
-  end):gsub("%$(%d+)", function(c)
-    return col_letter(tonumber(c)) .. "&"
-  end))
+  return (
+    s:gsub("@(%d+)%$(%d+)", function(r, c)
+      return col_letter(tonumber(c)) .. r
+    end):gsub("%$(%d+)", function(c)
+      return col_letter(tonumber(c)) .. "&"
+    end)
+  )
 end
 
 --- A formula typed by the user, with A1-style references converted when

@@ -59,8 +59,10 @@ describe("(eval ...) macros", function()
     })
     -- Emacs: $1 inside a string stays as it is, missing arguments are nil,
     -- the value is inserted with (format "%s" ...)
-    eq("up: HELLO cat: <a|b> lit: $1-z num: 3 nil: [] lst: (1 a) miss: x str: plain $1 fmt: 12-x",
-      flat(export("ascii", lines)))
+    eq(
+      "up: HELLO cat: <a|b> lit: $1-z num: 3 nil: [] lst: (1 a) miss: x str: plain $1 fmt: 12-x",
+      flat(export("ascii", lines))
+    )
   end)
 
   it("export nothing when they can't be evaluated", function()
@@ -88,12 +90,15 @@ describe("(eval ...) macros", function()
       "* Keys",
       "Type {{{kbd(C-c SPC)}}} or {{{kbd(M-RET x)}}} then {{{kbd(C-x TAB)}}}.",
     })
-    eq(table.concat({
-      "@node Keys",
-      "@chapter Keys",
-      "",
-      "Type @kbd{C-c @key{SPC}} or @kbd{M-@key{RET} x} then @kbd{C-x @key{TAB}}.",
-    }, "\n"), vim.trim(out))
+    eq(
+      table.concat({
+        "@node Keys",
+        "@chapter Keys",
+        "",
+        "Type @kbd{C-c @key{SPC}} or @kbd{M-@key{RET} x} then @kbd{C-x @key{TAB}}.",
+      }, "\n"),
+      vim.trim(out)
+    )
     eq("@kbd{C-c @key{SPC}}", require("org.table.elisp").eval('(org-texinfo-kbd-macro "C-c SPC" t)'))
   end)
 end)

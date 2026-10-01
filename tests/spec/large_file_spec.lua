@@ -487,7 +487,11 @@ describe("large files: list items from the section around the cursor", function(
         end
       end
       local got = lists.item_at(buf, l)
-      eq(want and { want.lnum, want.end_lnum, want.indent } or nil, got and { got.lnum, got.end_lnum, got.indent } or nil, "line " .. l)
+      eq(
+        want and { want.lnum, want.end_lnum, want.indent } or nil,
+        got and { got.lnum, got.end_lnum, got.indent } or nil,
+        "line " .. l
+      )
     end
     eq(true, lists.in_forbidden_block(buf, 10))
     eq(false, lists.in_forbidden_block(buf, 12))

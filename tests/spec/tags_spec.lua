@@ -328,7 +328,8 @@ end)
 describe("inheritance options", function()
   local config = require("org.config")
   it("use_tag_inheritance as a list or regexp, use_property_inheritance as a regexp", function()
-    local buf = org_buffer({ "#+FILETAGS: :ft:", "* P :a:b:", ":PROPERTIES:", ":Foo: 1", ":Bar: 2", ":END:", "** C :c:" })
+    local buf =
+      org_buffer({ "#+FILETAGS: :ft:", "* P :a:b:", ":PROPERTIES:", ":Foo: 1", ":Bar: 2", ":END:", "** C :c:" })
     local child = require("org.files").get_buffer(buf).headlines[2]
     local saved_t, saved_p = config.opts.use_tag_inheritance, config.opts.use_property_inheritance
     config.opts.use_tag_inheritance = { "b", "ft" }

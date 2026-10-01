@@ -48,17 +48,19 @@ end
 ---@param s string
 ---@return string
 function M.decode_entities(s)
-  return (s:gsub("&(#?[%w]+);", function(ref)
-    local n
-    if ref:match("^#[xX]%x+$") then
-      n = tonumber(ref:sub(3), 16)
-    elseif ref:match("^#%d+$") then
-      n = tonumber(ref:sub(2))
-    else
-      return ENTITIES[ref]
-    end
-    return n and utf8_char(n)
-  end))
+  return (
+    s:gsub("&(#?[%w]+);", function(ref)
+      local n
+      if ref:match("^#[xX]%x+$") then
+        n = tonumber(ref:sub(3), 16)
+      elseif ref:match("^#%d+$") then
+        n = tonumber(ref:sub(2))
+      else
+        return ENTITIES[ref]
+      end
+      return n and utf8_char(n)
+    end)
+  )
 end
 
 --- Text of an XML fragment: entities decoded and `<![CDATA[...]]>`

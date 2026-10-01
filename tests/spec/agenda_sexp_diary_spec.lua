@@ -25,8 +25,10 @@ end
 
 describe("diary-remind and diary-offset", function()
   it("remind DAYS days before and on the day itself", function()
-    eq({ "2026-09-28 Reminder: Only 3 days until Remind me", "2026-10-01 Remind me" },
-      week("(diary-remind '(diary-date 10 1 2026) 3)", "Remind me"))
+    eq(
+      { "2026-09-28 Reminder: Only 3 days until Remind me", "2026-10-01 Remind me" },
+      week("(diary-remind '(diary-date 10 1 2026) 3)", "Remind me")
+    )
   end)
 
   it("take a list of days, or -N for 1..N", function()
@@ -61,16 +63,20 @@ describe("diary-remind and diary-offset", function()
   end)
 
   it("format the entry of the reminded date", function()
-    eq({ "2026-09-28 Reminder: Only 2 days until Anniv 26th", "2026-09-30 Anniv 26th" },
-      week("(diary-remind '(diary-anniversary 9 30 2000) 2)", "Anniv %d%s"))
+    eq(
+      { "2026-09-28 Reminder: Only 2 days until Anniv 26th", "2026-09-30 Anniv 26th" },
+      week("(diary-remind '(diary-anniversary 9 30 2000) 2)", "Anniv %d%s")
+    )
     eq({
       "2026-09-28 Reminder: Only 1 day until Block",
       "2026-09-29 Block",
       "2026-09-30 Block",
     }, week("(diary-remind '(diary-block 9 29 2026 9 30 2026) 1)", "Block"))
     -- MARKING only matters for the Emacs calendar
-    eq({ "2026-09-27 Reminder: Only 2 days until Remind marked", "2026-09-29 Remind marked" },
-      week("(diary-remind '(diary-date 9 29 2026) 2 t)", "Remind marked"))
+    eq(
+      { "2026-09-27 Reminder: Only 2 days until Remind marked", "2026-09-29 Remind marked" },
+      week("(diary-remind '(diary-date 9 29 2026) 2 t)", "Remind marked")
+    )
   end)
 
   it("offset a sexp by DAYS days", function()

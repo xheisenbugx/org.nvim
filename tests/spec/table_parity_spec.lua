@@ -55,12 +55,18 @@ describe("table formulas are fixed after structure edits (org-table-fix-formulas
 
   it("moving, inserting and killing rows fixes row references", function()
     local lines = { "| a | b |", "| 1 | 2 |", "| 3 | 4 |", "#+TBLFM: @3$2=@2$1*10" }
-    eq("#+TBLFM: @3$2=@1$1*10", at(lines, 1, 1, function()
-      tbl.move_row(1)
-    end)[4])
-    eq("#+TBLFM: @4$2=@3$1*10", at(lines, 2, 1, function()
-      tbl.insert_row(true)
-    end)[5])
+    eq(
+      "#+TBLFM: @3$2=@1$1*10",
+      at(lines, 1, 1, function()
+        tbl.move_row(1)
+      end)[4]
+    )
+    eq(
+      "#+TBLFM: @4$2=@3$1*10",
+      at(lines, 2, 1, function()
+        tbl.insert_row(true)
+      end)[5]
+    )
     eq("#+TBLFM: @2$2=@1$1*10", at(lines, 1, 1, tbl.delete_row)[3])
   end)
 
@@ -132,7 +138,10 @@ describe("multiple #+TBLFM lines", function()
   end)
 
   it("stored formulas are sorted like Emacs", function()
-    eq({ "$2=1", "$10=1", "$>=1", "@2$1=1", "@10$1=1" }, tbl.sort_formulas({ "$>=1", "@10$1=1", "$10=1", "@2$1=1", "$2=1" }))
+    eq(
+      { "$2=1", "$10=1", "$>=1", "@2$1=1", "@10$1=1" },
+      tbl.sort_formulas({ "$>=1", "@10$1=1", "$10=1", "@2$1=1", "$2=1" })
+    )
   end)
 end)
 
@@ -252,12 +261,18 @@ end)
 
 describe("alignment (org-table-align)", function()
   it("aligns cookie cells like the column and counts <N> as text", function()
-    eq({ "|  <r> | <l>  |  <c>   |", "|    a | 1    |   x    |", "| bbbb | 2222 | yyyyyy |" }, tbl.render(tbl.parse({
-      "| <r> | <l> | <c> |",
-      "| a | 1 | x |",
-      "| bbbb | 2222 | yyyyyy |",
-    })))
-    eq({ "|       <r5> |", "| abcdefghij |", "|          a |" }, tbl.render(tbl.parse({ "| <r5> |", "| abcdefghij |", "| a |" })))
+    eq(
+      { "|  <r> | <l>  |  <c>   |", "|    a | 1    |   x    |", "| bbbb | 2222 | yyyyyy |" },
+      tbl.render(tbl.parse({
+        "| <r> | <l> | <c> |",
+        "| a | 1 | x |",
+        "| bbbb | 2222 | yyyyyy |",
+      }))
+    )
+    eq(
+      { "|       <r5> |", "| abcdefghij |", "|          a |" },
+      tbl.render(tbl.parse({ "| <r5> |", "| abcdefghij |", "| a |" }))
+    )
     eq({ "| <5>   |", "| Short |", "| 1     |" }, tbl.render(tbl.parse({ "| <5> |", "| Short |", "| 1 |" })))
   end)
 end)

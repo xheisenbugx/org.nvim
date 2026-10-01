@@ -373,9 +373,17 @@ local s = structure
 describe("structure: templates, drawers, narrow, emphasize", function()
   it("template", function()
     local buf = org_buffer({ "* A", "" }, { 2, 0 })
-    local ui = require("org.ui"); local orig = ui.menu
-    ui.menu = function(o) for _, i in ipairs(o.items) do if i.key == "q" then return i.value end end end
-    s.insert_structure_template(); vim.cmd("stopinsert")
+    local ui = require("org.ui")
+    local orig = ui.menu
+    ui.menu = function(o)
+      for _, i in ipairs(o.items) do
+        if i.key == "q" then
+          return i.value
+        end
+      end
+    end
+    s.insert_structure_template()
+    vim.cmd("stopinsert")
     ui.menu = orig
     -- Emacs org-insert-structure-template: the empty line becomes the
     -- block, the cursor goes before its end line
@@ -384,9 +392,13 @@ describe("structure: templates, drawers, narrow, emphasize", function()
   end)
   it("drawer", function()
     local buf = org_buffer({ "* A", "x" }, { 1, 2 })
-    local u = require("org.utils"); local o = u.input
-    u.input = function() return "notes" end
-    s.insert_drawer(); vim.cmd("stopinsert")
+    local u = require("org.utils")
+    local o = u.input
+    u.input = function()
+      return "notes"
+    end
+    s.insert_drawer()
+    vim.cmd("stopinsert")
     u.input = o
     -- Emacs org-insert-drawer keeps the name as typed
     eq({ "* A", ":notes:", "", ":END:", "", "x" }, buf_lines(buf))
@@ -404,8 +416,11 @@ describe("structure: templates, drawers, narrow, emphasize", function()
   end)
   it("emphasize", function()
     local buf = org_buffer({ "hello world" }, { 1, 0 })
-    local u = require("org.utils"); local o = u.getchar
-    u.getchar = function() return "*" end
+    local u = require("org.utils")
+    local o = u.getchar
+    u.getchar = function()
+      return "*"
+    end
     vim.cmd("normal! v$")
     s.emphasize()
     u.getchar = o

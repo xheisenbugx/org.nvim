@@ -170,7 +170,8 @@ describe("log notes in the *Org Note* buffer", function()
 
   it("takes an agenda note (z) in the note buffer", function()
     local view = require("org.agenda.view")
-    local _, dir = file_buffer({ "* TODO Task", "  SCHEDULED: <" .. date.today():to_string({ brackets = false }) .. ">" })
+    local _, dir =
+      file_buffer({ "* TODO Task", "  SCHEDULED: <" .. date.today():to_string({ brackets = false }) .. ">" })
     vim.cmd("write")
     local path = vim.api.nvim_buf_get_name(0)
     config.setup({ agenda_files = { path }, org_directory = dir })

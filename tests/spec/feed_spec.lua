@@ -83,7 +83,7 @@ describe("org-feed XML", function()
       { guid = "b", handled = false, hash = "h2" },
       { handled = true, hash = "h3" },
     }, status)
-    eq({ '(("a \\"q\\"" t "h1")', ' ("b" nil "h2")', " (nil t \"h3\"))" }, feed.format_status(status))
+    eq({ '(("a \\"q\\"" t "h1")', ' ("b" nil "h2")', ' (nil t "h3"))' }, feed.format_status(status))
     eq({}, feed.parse_status("nil"))
     eq(nil, (feed.parse_status("((")))
   end)
@@ -143,11 +143,14 @@ describe("org-feed templates", function()
       "<2024-05-01 Wed> <2024-05-01 Wed 10:20> [2024-05-01 Wed] [2024-05-01 Wed 10:20]",
       feed.format_entry(e, "%t %T %u %U")
     )
-    eq("news %category  NEWS", feed.format_entry(e, "%category \\%category %missing %(string.upper(\"%category\"))"))
+    eq("news %category  NEWS", feed.format_entry(e, '%category \\%category %missing %(string.upper("%category"))'))
     eq("6", feed.format_entry(e, "%(#entry.category + 2)"))
-    eq("x", feed.format_entry(e, "", function()
-      return "x"
-    end))
+    eq(
+      "x",
+      feed.format_entry(e, "", function()
+        return "x"
+      end)
+    )
     -- a date without a time gets the current time
     ok(feed.format_entry({ pubDate = "01 May 2024" }, "%T"):match("^<2024%-05%-01 Wed %d%d:%d%d>$"))
   end)
@@ -289,9 +292,12 @@ describe("org-feed handlers", function()
     quiet(function()
       eq(1, feed.update("H"))
     end)
-    eq({ "A" }, vim.tbl_map(function(e)
-      return e.title
-    end, new_seen))
+    eq(
+      { "A" },
+      vim.tbl_map(function(e)
+        return e.title
+      end, new_seen)
+    )
     local text = table.concat(file_lines(target), "\n")
     -- the filtered-out item is not marked as handled
     ok(text:find(':MYFEED:\n%(%("ga" t "%x+"%)\n %("gb" nil "%x+"%)%)\n  :END:'), text)
@@ -301,9 +307,12 @@ describe("org-feed handlers", function()
       eq(0, feed.update("H"))
     end)
     eq(1, #new_seen)
-    eq({ "ga" }, vim.tbl_map(function(e)
-      return e.guid
-    end, changed_seen))
+    eq(
+      { "ga" },
+      vim.tbl_map(function(e)
+        return e.guid
+      end, changed_seen)
+    )
     eq("changed", changed_seen[1].description)
     eq(true, changed_seen[1].handled)
   end)

@@ -882,8 +882,13 @@ local function buffer_name(view, opts)
   local key = opts.key or view.key
   if not key then
     local b = view.blocks[1] or {}
-    key = (b.type == "agenda" and "a") or (b.type == "todo" and "t") or (b.type == "tags" and "m")
-      or (b.type == "tags_todo" and "M") or (b.type == "search" and "s") or (b.type == "stuck" and "#") or "a"
+    key = (b.type == "agenda" and "a")
+      or (b.type == "todo" and "t")
+      or (b.type == "tags" and "m")
+      or (b.type == "tags_todo" and "M")
+      or (b.type == "search" and "s")
+      or (b.type == "stuck" and "#")
+      or "a"
     if b.match and b.match ~= "" then
       key = key .. ":" .. b.match
     elseif b.keywords then
@@ -1554,8 +1559,13 @@ M.pick_date = pick_date
 local function source_date(target, item)
   -- only SCHEDULED, DEADLINE and active plain timestamps of date views
   local t = item.type
-  if item.sexp or item.inactive or item.log or not item.day
-    or not (t == "scheduled" or t == "deadline" or t == "timestamp" or t == "range") then
+  if
+    item.sexp
+    or item.inactive
+    or item.log
+    or not item.day
+    or not (t == "scheduled" or t == "deadline" or t == "timestamp" or t == "range")
+  then
     return nil, nil
   end
   local file = files.get_buffer(target.bufnr)
@@ -1590,8 +1600,13 @@ function M.shift_item(target, item, n, explicit_count, unit)
     utils.warn("No timestamp to shift")
     return
   end
-  if unit == "d" and not explicit_count and n == 1 and not d.range_end
-    and config.opts.agenda.move_date_from_past_immediately_to_today ~= false then
+  if
+    unit == "d"
+    and not explicit_count
+    and n == 1
+    and not d.range_end
+    and config.opts.agenda.move_date_from_past_immediately_to_today ~= false
+  then
     local today = date.today_days()
     if d:days() < today then
       n = today - d:days()
@@ -2416,8 +2431,8 @@ function M.bulk_action()
       { key = "t", label = "Change TODO state", value = "t" },
       { key = "+", label = "Add tag", value = "+" },
       { key = "-", label = "Remove tag", value = "-" },
-      { key = "s", label = "(Re)schedule (\"++2d\" shifts each date)", value = "s" },
-      { key = "d", label = "(Re)set deadline (\"++2d\" shifts each date)", value = "d" },
+      { key = "s", label = '(Re)schedule ("++2d" shifts each date)', value = "s" },
+      { key = "d", label = '(Re)set deadline ("++2d" shifts each date)', value = "d" },
       { key = "r", label = "Refile", value = "r" },
       { key = "S", label = "Scatter over N days (count: skip weekends)", value = "S" },
       { key = "f", label = "Apply a Lua function", value = "f" },
@@ -3019,8 +3034,7 @@ M.actions = {
     M.redo()
     local max = type(S.entry_text) == "number" and S.entry_text or config.opts.agenda.entry_text_maxlines or 5
     utils.notify(
-      "Entry text mode is "
-        .. (S.entry_text and string.format("on (maximum number of lines is %d)", max) or "off")
+      "Entry text mode is " .. (S.entry_text and string.format("on (maximum number of lines is %d)", max) or "off")
     )
   end,
   archives_mode = function()

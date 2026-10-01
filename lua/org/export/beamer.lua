@@ -335,7 +335,8 @@ local function format_block(h, contents, info)
     end
   end
   if column_width then
-    out[#out + 1] = fmt("\\begin{column}%s%s{%s}\n", options, env_format and "" or action, column_width .. "\\columnwidth")
+    out[#out + 1] =
+      fmt("\\begin{column}%s%s{%s}\n", options, env_format and "" or action, column_width .. "\\columnwidth")
   end
   if env_format and env_format[3] then
     local alist
@@ -518,12 +519,14 @@ local function format_spec(info)
 end
 
 local function format_spec_apply(s, spec)
-  return (s:gsub("%%(.)", function(c)
-    if c == "%" then
-      return "%"
-    end
-    return spec[c] or ("%" .. c)
-  end))
+  return (
+    s:gsub("%%(.)", function(c)
+      if c == "%" then
+        return "%"
+      end
+      return spec[c] or ("%" .. c)
+    end)
+  )
 end
 
 T.template = function(contents, info)

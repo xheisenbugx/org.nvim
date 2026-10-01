@@ -77,7 +77,7 @@ describe("agenda print layout", function()
   it("maps text to Latin-1 cells and wraps long lines", function()
     local rows = printer.format({ "a\tb", "é ┄┄ – “q” ✓ 日", string.rep("x", 22) }, nil, 20, false)
     eq("a       b", rows[1][1].text)
-    eq("\233 -- - \"q\" x ??", rows[2][1].text)
+    eq('\233 -- - "q" x ??', rows[2][1].text)
     eq(string.rep("x", 20), rows[3][1].text)
     eq("xx", rows[4][1].text)
     eq(4, #rows)
@@ -87,9 +87,12 @@ describe("agenda print layout", function()
     vim.api.nvim_set_hl(0, "OrgPrintTestBold", { bold = true, fg = 0xff0000 })
     local spans = { [0] = { { s = 2, e = 6, group = "OrgPrintTestBold" } } }
     local rows = printer.format({ "a bold c" }, spans, 97, true)
-    eq({ "a ", "bold", " c" }, vim.tbl_map(function(r)
-      return r.text
-    end, rows[1]))
+    eq(
+      { "a ", "bold", " c" },
+      vim.tbl_map(function(r)
+        return r.text
+      end, rows[1])
+    )
     eq(1, rows[1][2].font)
     eq({ 1, 0, 0 }, rows[1][2].fg)
     local bw = printer.format({ "a bold c" }, spans, 97, false)

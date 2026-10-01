@@ -82,14 +82,12 @@ end
 
 --- Unescape a TEXT value.
 function M.text(v)
-  return (
-    v:gsub("\\(.)", function(c)
-      if c == "n" or c == "N" then
-        return "\n"
-      end
-      return c
-    end)
-  )
+  return (v:gsub("\\(.)", function(c)
+    if c == "n" or c == "N" then
+      return "\n"
+    end
+    return c
+  end))
 end
 
 --- Parse into a component tree: `{ name, props = { {name, params, value} },

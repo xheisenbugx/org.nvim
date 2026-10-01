@@ -289,7 +289,9 @@ function M.set_restriction_lock(target)
   M.lock = { bufnr = bufnr, filename = file.filename, line = hl and hl.line, raw = hl and hl.raw }
   M.highlight_lock(bufnr, hl)
   local name = vim.fn.fnamemodify(file.filename or "buffer", ":t")
-  utils.notify(hl and ('Agenda restricted to subtree "' .. hl:plain_title() .. '"') or ("Agenda restricted to " .. name))
+  utils.notify(
+    hl and ('Agenda restricted to subtree "' .. hl:plain_title() .. '"') or ("Agenda restricted to " .. name)
+  )
   return true
 end
 

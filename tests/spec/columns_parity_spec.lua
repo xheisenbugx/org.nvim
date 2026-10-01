@@ -9,7 +9,7 @@ local function view_lines(buf)
 end
 
 describe("column summaries (org-columns-summary-types-default)", function()
-  it("formats numbers like (format \"%s\" n)", function()
+  it('formats numbers like (format "%s" n)', function()
     eq("4.1", columns.summarize("+", { "1.1", "3" }))
     eq("6", columns.summarize("+", { "1", "5" }))
     eq("3.5", columns.summarize("mean", { "3", "4" }))
@@ -143,7 +143,8 @@ describe("columnview blocks", function()
         end
         return out
       end
-      local buf = org_buffer({ "* A", "** B", "#+BEGIN: columnview :id global :formatter org_test_formatter", "#+END:" })
+      local buf =
+        org_buffer({ "* A", "** B", "#+BEGIN: columnview :id global :formatter org_test_formatter", "#+END:" })
       dblock.update_all(buf)
       eq({ "rows: 2 org_test_formatter", "1 A", "2 B" }, vim.list_slice(buf_lines(buf), 4, 6))
       _G.org_test_formatter = nil
@@ -173,7 +174,10 @@ describe("column view keys", function()
   end)
 
   it("<C-c><C-o> opens the link in the field", function()
-    org_buffer({ "* A", ":PROPERTIES:", ":COLUMNS: %ITEM %Url", ":Url: [[https://example.org][site]]", ":END:" }, { 1, 0 })
+    org_buffer(
+      { "* A", ":PROPERTIES:", ":COLUMNS: %ITEM %Url", ":Url: [[https://example.org][site]]", ":END:" },
+      { 1, 0 }
+    )
     columns.open({ view = "table" })
     vim.api.nvim_win_set_cursor(0, { 3, #vim.api.nvim_get_current_line() - 1 })
     local links = require("org.links")
