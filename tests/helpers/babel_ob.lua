@@ -5,7 +5,7 @@ local config = require("org.config")
 local M = {}
 
 function M.tmpdir()
-  local dir = vim.fn.resolve(vim.fn.tempname())
+  local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
   vim.fn.mkdir(dir, "p")
   return dir
 end

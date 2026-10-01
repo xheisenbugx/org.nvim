@@ -342,12 +342,12 @@ function M.files_alist()
   end
   local exclude = cfg().files_exclude_regexp
   local base = org_dir()
-  local base_real = (vim.uv.fs_realpath(base) or base):gsub("/$", "") .. "/"
+  local base_real = (utils.realpath(base) or base):gsub("/$", "") .. "/"
   local seen, out = {}, {}
   for _, file in ipairs(out_files) do
     file = utils.expand(file, base)
     if not (type(exclude) == "string" and exclude ~= "" and emacs_match(exclude, file)) then
-      local real = vim.uv.fs_realpath(file) or file
+      local real = utils.realpath(file) or file
       if not seen[real] then
         seen[real] = true
         local link

@@ -370,7 +370,7 @@ describe("export odt", function()
       local buf = org_buffer({ "* Hello", "World" })
       vim.api.nvim_buf_set_name(buf, tmp .. "/hello.org")
       local res = require("org.export").export("odt", {})
-      eq(vim.fn.resolve(tmp .. "/hello.odt"), vim.fn.resolve(res))
+      eq(vim.fs.normalize(vim.fn.resolve(tmp .. "/hello.odt")), vim.fs.normalize(vim.fn.resolve(res)))
       has(zip.read(res, "content.xml"), "World")
       vim.bo[buf].modified = false
       vim.cmd("bwipe! " .. buf)

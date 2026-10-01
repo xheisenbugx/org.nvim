@@ -158,7 +158,7 @@ describe("export", function()
       local buf = org_buffer(lines)
       vim.api.nvim_buf_set_name(buf, dir .. "/doc.org")
       local out = export.export("html", { bufnr = buf })
-      eq(vim.uv.fs_realpath(dir) .. "/doc.html", vim.uv.fs_realpath(out))
+      eq(require("org.utils").realpath(dir) .. "/doc.html", require("org.utils").realpath(out))
       ok(vim.fn.filereadable(out) == 1)
       local sub_line
       for i, l in ipairs(lines) do

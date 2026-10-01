@@ -69,7 +69,7 @@ describe("literate extension", function()
     end
     dir = vim.fn.tempname() .. "/nvim"
     vim.fn.mkdir(dir, "p")
-    dir = vim.uv.fs_realpath(dir)
+    dir = require("org.utils").realpath(dir)
     vim.g.lit_a, vim.g.lit_b, vim.g.lit_c = nil, nil, nil
     stub(utils, "notify", function() end)
     setup()

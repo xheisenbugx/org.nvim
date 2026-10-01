@@ -8,7 +8,7 @@ local initial = { org_directory = config.opts.org_directory, agenda_files = conf
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function read(path)

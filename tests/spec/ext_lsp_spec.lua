@@ -4,7 +4,7 @@ local utils = require("org.utils")
 local dir = vim.fs.normalize(vim.fn.tempname())
 vim.fn.mkdir(dir, "p")
 -- macOS: /var is /private/var; the server reports resolved names
-dir = vim.fs.normalize(vim.uv.fs_realpath(dir))
+dir = vim.fs.normalize(require("org.utils").realpath(dir))
 local main = dir .. "/main.org"
 local other = dir .. "/other.org"
 
@@ -468,7 +468,7 @@ describe("lsp extension", function()
       local same = 0
       for _, b in ipairs(vim.api.nvim_list_bufs()) do
         local name = vim.api.nvim_buf_get_name(b)
-        if name ~= "" and vim.uv.fs_realpath(name) == other then
+        if name ~= "" and require("org.utils").realpath(name) == other then
           same = same + 1
         end
       end

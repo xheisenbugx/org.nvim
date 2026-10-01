@@ -86,7 +86,7 @@ describe("org-id", function()
     eq(nil, id.find("in-archive"))
   end)
   it("stores an id: link before the first heading in a file-level drawer", function()
-    local dir = vim.uv.fs_realpath(tmpdir())
+    local dir = require("org.utils").realpath(tmpdir())
     setup(dir, { links = { use_id = true } })
     local links = require("org.links")
     local p = dir .. "/top.org"
@@ -124,7 +124,7 @@ describe("org-id", function()
   end)
 
   it("reads and writes Emacs's org-id-locations file", function()
-    local dir = vim.uv.fs_realpath(tmpdir())
+    local dir = require("org.utils").realpath(tmpdir())
     local db = dir .. "/.org-id-locations"
     utils.writefile(dir .. "/a.org", { "* A", ":PROPERTIES:", ":ID: id-a", ":END:" })
     utils.writefile(db, {

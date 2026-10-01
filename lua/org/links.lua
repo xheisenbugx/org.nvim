@@ -2483,8 +2483,8 @@ function M.format_for_buffer(link, desc, fopts)
   if cur ~= "" then
     local p, s = link:match("^file:(.-)::(.*)$")
     if p and p ~= "" then
-      local a = vim.uv.fs_realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
-      local b = vim.uv.fs_realpath(cur) or vim.fs.normalize(cur)
+      local a = utils.realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
+      local b = utils.realpath(cur) or vim.fs.normalize(cur)
       if a == b then
         link = s
       end

@@ -54,7 +54,7 @@ describe("roam extension", function()
   before_each(function()
     dir = vim.fn.tempname() .. "/roam"
     vim.fn.mkdir(dir, "p")
-    dir = vim.uv.fs_realpath(dir)
+    dir = require("org.utils").realpath(dir)
     setup()
     db().reset()
   end)

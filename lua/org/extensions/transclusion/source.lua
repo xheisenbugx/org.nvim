@@ -106,7 +106,7 @@ local reals = {}
 local function real(path)
   local r = reals[path]
   if r == nil then
-    r = vim.uv.fs_realpath(path) or false
+    r = utils.realpath(path) or false
     reals[path] = r
   end
   return r

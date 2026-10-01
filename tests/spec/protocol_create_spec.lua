@@ -76,7 +76,7 @@ describe("protocol_create (org-protocol-create)", function()
   it("takes the defaults from the file's publishing project", function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
-    dir = vim.uv.fs_realpath(dir)
+    dir = require("org.utils").realpath(dir)
     utils.writefile(dir .. "/page.org", { "* Page" })
     config.setup({
       export = {

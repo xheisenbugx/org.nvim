@@ -116,7 +116,7 @@ end
 
 describe("review extension", function()
   before_each(function()
-    dir = vim.fn.resolve(vim.fn.tempname())
+    dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
     vim.fn.mkdir(dir, "p")
     saved.notify = utils.notify
     utils.notify = function() end

@@ -11,7 +11,7 @@ describe("odt extras (Emacs parity)", function()
   before_each(function()
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
-    dir = vim.fn.resolve(dir)
+    dir = vim.fs.normalize(vim.fn.resolve(dir))
     c = config.opts.export.odt
     saved = vim.deepcopy(c)
     vim.fn.writefile({

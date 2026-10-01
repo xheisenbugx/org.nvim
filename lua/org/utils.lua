@@ -507,6 +507,16 @@ function M.home()
   return (home:gsub("\\", "/"))
 end
 
+--- The canonical path of an existing `path` (symlinks resolved) with
+--- forward slashes, or nil. vim.uv.fs_realpath gives backslashes on
+--- Windows, which don't compare with the normalized paths used elsewhere.
+---@param path string
+---@return string|nil
+function M.realpath(path)
+  local real = vim.uv.fs_realpath(path)
+  return real and vim.fs.normalize(real) or nil
+end
+
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
 --- `base` (default: org_directory).
 function M.expand(path, base)
@@ -694,7 +704,7 @@ end
 
 local function buf_realpath(c)
   if c.real == nil then
-    c.real = vim.uv.fs_realpath(c.name) or false
+    c.real = M.realpath(c.name) or false
   end
   return c.real
 end
@@ -725,7 +735,7 @@ function M.find_buffer(path)
       end
     end
   end
-  local real = vim.uv.fs_realpath(path)
+  local real = M.realpath(path)
   if real then
     for _, b in ipairs(bufs) do
       if vim.api.nvim_buf_is_loaded(b) then

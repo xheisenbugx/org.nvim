@@ -451,7 +451,7 @@ function M.same_file(a, b)
   if a == b then
     return true
   end
-  local ra, rb = vim.uv.fs_realpath(a), vim.uv.fs_realpath(b)
+  local ra, rb = utils.realpath(a), utils.realpath(b)
   return ra ~= nil and ra == rb
 end
 
@@ -739,7 +739,7 @@ function M.in_file_set(set, buf)
   if not set["\0real"] then
     local reals = {}
     for f in pairs(set) do
-      local r = vim.uv.fs_realpath(f)
+      local r = utils.realpath(f)
       if r then
         reals[#reals + 1] = r
       end
@@ -749,7 +749,7 @@ function M.in_file_set(set, buf)
     end
     set["\0real"] = true
   end
-  local real = vim.uv.fs_realpath(name)
+  local real = utils.realpath(name)
   return real ~= nil and set[real] == true
 end
 

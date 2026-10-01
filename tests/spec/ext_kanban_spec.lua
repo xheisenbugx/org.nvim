@@ -312,7 +312,7 @@ describe("kanban board", function()
     kanban.move(1, 0)
     kanban.jump()
     ok(not vim.api.nvim_win_is_valid(st.win))
-    eq(vim.uv.fs_realpath(path), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq(require("org.utils").realpath(path), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     eq(2, vim.api.nvim_win_get_cursor(0)[1])
   end)
 

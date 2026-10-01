@@ -118,11 +118,11 @@ local function expand(path, base)
     path = base:gsub("/$", "") .. "/" .. path
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
-  local real = vim.uv.fs_realpath(path)
+  local real = utils.realpath(path)
   if real then
     return real
   end
-  local dir = vim.uv.fs_realpath(vim.fn.fnamemodify(path, ":h"))
+  local dir = utils.realpath(vim.fn.fnamemodify(path, ":h"))
   if dir then
     return dir .. "/" .. vim.fn.fnamemodify(path, ":t")
   end
@@ -138,7 +138,7 @@ local function relative(path, base)
 end
 
 local function mtime(path)
-  local target = vim.uv.fs_realpath(path) or path
+  local target = utils.realpath(path) or path
   local st = vim.uv.fs_stat(target)
   if not st then
     error("No such file: " .. path, 0)
@@ -152,7 +152,7 @@ local function now()
 end
 
 local function truename(path)
-  return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+  return utils.realpath(path) or vim.fs.normalize(path)
 end
 
 local function is_dir(path)

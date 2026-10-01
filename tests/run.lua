@@ -161,7 +161,7 @@ if is_win then
   vim.fn.tempname = function()
     local p = tempname()
     local dir, base = p:match("^(.*)[/\\]([^/\\]+)$")
-    return vim.fs.normalize(vim.uv.fs_realpath(dir) or dir) .. "/" .. base
+    return vim.fs.normalize(require("org.utils").realpath(dir) or dir) .. "/" .. base
   end
 end
 

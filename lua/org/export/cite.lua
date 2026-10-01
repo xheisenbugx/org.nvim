@@ -1017,7 +1017,7 @@ function M.parse_bibliography(info)
   local results = {}
   for _, f in ipairs(info.bibliography or {}) do
     local path = M.bibliography_path(f, info)
-    local real = vim.uv.fs_realpath(path) or path
+    local real = utils.realpath(path) or path
     local entries = M.read_bibliography_file(real)
     if entries then
       results[#results + 1] = { real, entries }

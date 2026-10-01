@@ -67,7 +67,7 @@ end)
 
 describe("archive_subtree_save_file (org-archive-subtree-save-file-p)", function()
   local function run_case(value, from_agenda)
-    local dir = vim.uv.fs_realpath(tmpdir())
+    local dir = require("org.utils").realpath(tmpdir())
     setup(dir, { archive_subtree_save_file = value, archive_location = "arch.org::" })
     local p = dir .. "/s.org"
     utils.writefile(p, { "* A", "* B" })

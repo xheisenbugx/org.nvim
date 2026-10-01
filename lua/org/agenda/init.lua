@@ -345,7 +345,7 @@ function M.cycle_files()
     return
   end
   local function real(p)
-    return vim.uv.fs_realpath(p) or vim.fs.normalize(p)
+    return utils.realpath(p) or vim.fs.normalize(p)
   end
   local name = vim.api.nvim_buf_get_name(0)
   local cur = name ~= "" and real(name) or nil

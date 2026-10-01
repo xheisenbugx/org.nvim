@@ -232,7 +232,7 @@ describe("refile", function()
       utils.readfile(dir .. "/b.org")
     )
     local where = require("org.utils").read_json(dir .. "/ids.json")["moved-1"]
-    eq(vim.uv.fs_realpath(dir .. "/b.org"), vim.uv.fs_realpath(where))
+    eq(require("org.utils").realpath(dir .. "/b.org"), require("org.utils").realpath(where))
   end)
 
   it("copies a subtree, logs and honours reverse note order", function()

@@ -30,7 +30,7 @@ end
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function write(dir, name, lines)
@@ -54,7 +54,7 @@ local function cursor()
 end
 
 local function real(p)
-  return vim.uv.fs_realpath(p) or p
+  return require("org.utils").realpath(p) or p
 end
 
 --- Answer vim.fn.input prompts from a table (prompt prefix -> answer; a
@@ -680,9 +680,9 @@ describe("links parity", function()
       vim.wait(5000, function()
         return vim.fn.bufwinid(out) ~= -1
       end)
-      eq({ "50% #1", vim.uv.fs_realpath(dir) }, {
+      eq({ "50% #1", require("org.utils").realpath(dir) }, {
         vim.api.nvim_buf_get_lines(out, 0, 1, false)[1],
-        vim.uv.fs_realpath(vim.api.nvim_buf_get_lines(out, 1, 2, false)[1]),
+        require("org.utils").realpath(vim.api.nvim_buf_get_lines(out, 1, 2, false)[1]),
       })
       eq(vim.fn.bufnr(p), vim.api.nvim_get_current_buf())
       -- one line of output is only echoed; the next buffer is <2>

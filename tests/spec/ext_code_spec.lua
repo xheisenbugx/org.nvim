@@ -96,7 +96,7 @@ describe("code extension", function()
     end
     repo = vim.fn.tempname() .. "/myrepo"
     vim.fn.mkdir(repo, "p")
-    repo = vim.uv.fs_realpath(repo)
+    repo = require("org.utils").realpath(repo)
     write("src/app.lua", APP)
     write("tools/greet.py", PY)
     if has_git then

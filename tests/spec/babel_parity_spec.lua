@@ -11,7 +11,7 @@ local function has(exe)
 end
 
 local function tmpdir()
-  local dir = vim.fn.resolve(vim.fn.tempname())
+  local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
   vim.fn.mkdir(dir, "p")
   return dir
 end

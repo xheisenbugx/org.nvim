@@ -110,7 +110,7 @@ local function buf_path(bufnr)
 end
 
 local function real(p)
-  return vim.uv.fs_realpath(p) or p
+  return utils.realpath(p) or p
 end
 
 --- Does glob or path `pat` (normalized) name `path` (whose real path is `rp`)?

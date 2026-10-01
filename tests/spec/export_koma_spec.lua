@@ -32,7 +32,7 @@ end
 local function tmpdir()
   local d = vim.fn.tempname()
   vim.fn.mkdir(d, "p")
-  return vim.uv.fs_realpath(d)
+  return require("org.utils").realpath(d)
 end
 
 local function golden(name, file)

@@ -596,7 +596,7 @@ describe("ol-bibtex", function()
       vim.bo[src].bufhidden = "hide"
       vim.cmd("silent! only!")
       links.open_at_point()
-      eq(vim.uv.fs_realpath(path), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+      eq(require("org.utils").realpath(path), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
       eq(7, vim.api.nvim_win_get_cursor(0)[1])
       vim.cmd("silent! only!")
     end)

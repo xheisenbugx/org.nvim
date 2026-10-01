@@ -13,7 +13,7 @@ local function ts(offset, extra)
   return "<" .. s .. (extra and (" " .. extra) or "") .. ">"
 end
 
-local dir = vim.uv.fs_realpath((function()
+local dir = require("org.utils").realpath((function()
   local d = vim.fn.tempname()
   vim.fn.mkdir(d, "p")
   return d

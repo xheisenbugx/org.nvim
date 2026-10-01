@@ -90,7 +90,7 @@ describe("babel :session REPLs", function()
     if not has("bash") then
       return
     end
-    local dir = vim.fn.resolve(vim.fn.tempname())
+    local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
     vim.fn.mkdir(dir .. "/a/b", "p")
     local buf = run_all({
       "#+begin_src bash :session :dir " .. dir,
