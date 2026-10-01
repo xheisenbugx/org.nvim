@@ -965,13 +965,22 @@ the enabled ones and checks what each needs. An extension adds its own
 actions, `:Org` subcommands and default keys, but never replaces a key you
 set. See `:h org-extensions`.
 
-- **`present`** ([org-present](https://github.com/rlister/org-present)):
+Each extension is marked ✅ **stable** (used daily, well covered by specs;
+changes to its options or keys are called out in the release notes) or
+🧪 **experimental** (works and is tested, but has seen less real use, so
+its options may still change):
+
+| ✅ Stable | 🧪 Experimental |
+| --- | --- |
+| `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`, `kanban`, `sidebar` | `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`, `code`, `literate`, `lsp`, `transclusion`, `timeline`, `heatmap` |
+
+- ✅ **`present`** ([org-present](https://github.com/rlister/org-present)):
   `:Org present` shows the buffer as a slideshow, one top-level heading per
   slide, in its own tab (`:h org-extensions-present`).
 
   ![Presenting an org file: title slide, content slides with a counter, the whole file on one page, and back to the untouched file](docs/media/present.gif)
 
-- **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
+- ✅ **`ql`** ([org-ql](https://github.com/alphapapa/org-ql)): queries such as
   `(and (todo "NEXT") (tags "work"))` or `todo:NEXT tags:work !done`,
   `:Org ql_search`, named and saved views, `ql_find`, `ql_refile`,
   `ql_sparse_tree`, recent items, `org-ql` agenda custom commands and
@@ -979,7 +988,7 @@ set. See `:h org-extensions`.
 
   ![org-ql: a sexp query, changing a result's TODO state, the same search in plain syntax, a saved view sorted by deadline and an org-ql dynamic block](docs/media/ql.gif)
 
-- **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam
+- ✅ **`roam`** ([org-roam](https://github.com/org-roam/org-roam)): org-roam
   v2 notes in the same file format, so a directory can be shared with
   Emacs: find and insert nodes (typing a new title creates one), a
   backlinks, reflinks and unlinked references window, aliases, refs and
@@ -992,7 +1001,7 @@ set. See `:h org-extensions`.
 
   ![org-roam: find a node, backlinks, insert a link to a new node, daily notes](docs/media/roam.gif)
 
-- **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
+- ✅ **`super_agenda`** ([org-super-agenda](https://github.com/alphapapa/org-super-agenda)):
   group agenda days and lists (including org-ql results) by time grid,
   deadline, tag, priority, category and more, with auto groups. `<Tab>` on
   a group header folds the group, and `gj` / `gk` move between headers
@@ -1000,7 +1009,7 @@ set. See `:h org-extensions`.
 
   ![org-super-agenda: the day agenda in groups, moving between headers with gj and folding groups with Tab, then org-ql results grouped by category](docs/media/super-agenda.gif)
 
-- **`quickadd`** ([Todoist](https://todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)-style
+- ✅ **`quickadd`** ([Todoist](https://todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)-style
   quick add): `:Org quickadd` or `<prefix>q` turns one line such as
   `Call Bob fri 3pm #work !A ~30m @Inbox due mon every week` into an entry
   with SCHEDULED / DEADLINE, repeater, tags, priority and Effort, filed
@@ -1010,7 +1019,7 @@ set. See `:h org-extensions`.
 
   ![Quick add: typing a Todoist-style line with a live preview of the parsed entry, which lands under the matching heading with its date, tags, priority and effort](docs/media/quickadd.gif)
 
-- **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
+- 🧪 **`review`** (GTD weekly review): `:Org review` (`<prefix>W`) steps
   through a weekly review in a float: empty the inbox (refile, schedule,
   set a state, delete or skip each entry), stuck projects, waiting-for,
   overdue, the next two weeks, someday/maybe, last week's clocked time and
@@ -1020,7 +1029,7 @@ set. See `:h org-extensions`.
 
   ![Weekly review: scheduling and deleting inbox entries, stepping through stuck projects, waiting, overdue, upcoming, someday and clocked time, answering a reflection question, and the review logged in a date tree](docs/media/review.gif)
 
-- **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
+- 🧪 **`pomodoro`** ([org-pomodoro](https://github.com/marcinkoziej/org-pomodoro)):
   `<prefix>zs` starts a pomodoro on the heading at the cursor and clocks it
   in; when the 25 minutes are up the entry's `POMODOROS` count goes up, the
   clock stops and a 5-minute break starts (15 minutes after every fourth),
@@ -1030,7 +1039,7 @@ set. See `:h org-extensions`.
 
   ![Pomodoro: starting a pomodoro clocks in the task, the statusline counts down, pause and resume, the pomodoro ends with POMODOROS counted, a break and the next pomodoro](docs/media/pomodoro.gif)
 
-- **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
+- 🧪 **`drill`** ([org-drill](https://gitlab.com/phillord/org-drill)):
   flashcards with spaced repetition. Headings tagged `:drill:` are cards
   (simple, two-sided, multi-sided and cloze deletions such as
   `[Nile||river]`); `:Org drill` (`<prefix>D`) reviews the due ones in a
@@ -1041,7 +1050,7 @@ set. See `:h org-extensions`.
 
   ![org-drill: reviewing due cards in a float, showing answers, grading them 0-5, a cloze card, a two-sided card, a failed card coming back, the session summary and the new schedule in the file](docs/media/drill.gif)
 
-- **`merge`**: a structural git merge driver for Org files. `:Org
+- 🧪 **`merge`**: a structural git merge driver for Org files. `:Org
   merge_install` registers it for the repository (`*.org merge=org`), and
   git then merges org files entry by entry: entries matched by `ID` or
   outline path, refiles followed, properties merged key by key, clocks and
@@ -1051,7 +1060,7 @@ set. See `:h org-extensions`.
 
   ![Structural git merge: two branches edit the same org file, git merge with the Org driver merges tags, properties, clocks and new entries cleanly, and a second merge leaves one conflict around a single headline](docs/media/merge.gif)
 
-- **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
+- ✅ **`ics`**: subscribe to Google, Outlook or any iCalendar (`.ics`)
   calendar, a secret URL fetched with curl into a cache or a local file,
   and see its events read-only in the agenda day and week views: times
   converted to your zone, repeating events, exceptions and cancellations.
@@ -1060,7 +1069,7 @@ set. See `:h org-extensions`.
 
   ![The week agenda with events from two subscribed calendars next to org tasks, then ics_import copying a meeting into inbox.org as a heading](docs/media/ics.gif)
 
-- **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
+- 🧪 **`cli`**: an `org` shell command (`bin/org`, a headless Neovim) that
   prints the agenda as text, CSV or JSON, captures with a template, clocks
   in and out, reports the running clock (for tmux, SketchyBar or Raycast),
   searches and exports, from a config file of its own
@@ -1068,7 +1077,7 @@ set. See `:h org-extensions`.
 
   ![The org command line: the day agenda as text, the agenda as JSON through jq, capturing a task into the inbox, and clocking in, checking the clock for a status line and clocking out](docs/media/cli.gif)
 
-- **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
+- 🧪 **`diagrams`** ([ob-mermaid](https://github.com/arnm/ob-mermaid),
   ob-dot, ob-plantuml): `mermaid` (mmdc) and `dot` (Graphviz) source
   blocks, plus extras for `plantuml`: `C-c C-c` writes the diagram and
   inserts a `file:` link (a name is generated when there's no `:file`),
@@ -1078,7 +1087,7 @@ set. See `:h org-extensions`.
 
   ![Diagrams: C-c C-c on a mermaid block inserts a file: link to a real PNG, and saving renders every diagram block, re-rendering only the one that changed](docs/media/diagrams.gif)
 
-- **`code`**: a bridge between code and notes. `code_capture` turns a
+- 🧪 **`code`**: a bridge between code and notes. `code_capture` turns a
   Visual selection into a `#+begin_src` block with a link back and the git
   branch; `[[code:src/app.lua::M.setup]]` links jump to a symbol through
   LSP (else treesitter or a text search); each repository gets an org file
@@ -1089,7 +1098,7 @@ set. See `:h org-extensions`.
 
   ![code: a Visual selection in a Lua file captured as a src block with a code: link and the branch, the link followed back to the function, and the project agenda with the TODO comments of the repository](docs/media/code.gif)
 
-- **`literate`**: a literate Neovim config. Saving `init.org` tangles it
+- 🧪 **`literate`**: a literate Neovim config. Saving `init.org` tangles it
   and runs only the Lua blocks you changed, so an option or keymap applies
   at once; errors are diagnostics on the org line. Plus `literate_reload`,
   `literate_run_block`, `literate_health`, a jump from the tangled file
@@ -1098,7 +1107,7 @@ set. See `:h org-extensions`.
 
   ![literate: editing a Lua block of init.org and saving it changes an option live, then a block with an error shows a diagnostic on its org line](docs/media/literate.gif)
 
-- **`lsp`**: a language server for org buffers that runs inside Neovim
+- 🧪 **`lsp`**: a language server for org buffers that runs inside Neovim
   (nothing to install), so every LSP feature and plugin works in Org
   files: the outline as document symbols, headlines of all your files as
   workspace symbols, org-lint diagnostics as you type, hover on
@@ -1110,7 +1119,7 @@ set. See `:h org-extensions`.
 
   ![The org language server: org-lint diagnostics inline, the outline as document symbols, hover on a timestamp and on a link, and renaming a CUSTOM_ID updates the links in another file](docs/media/lsp.gif)
 
-- **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
+- 🧪 **`transclusion`** ([org-transclusion](https://github.com/nobiot/org-transclusion)):
   `#+transclude: [[file:notes.org::*Heading]] :level 2` or
   `[[file:main.py]] :lines 10-24 :src python` shows that text live, as
   virtual lines under the keyword (the file isn't touched) or inserted into
@@ -1121,7 +1130,7 @@ set. See `:h org-extensions`.
 
   ![Live transclusion: a heading of another file and lines of a Python file shown under their #+transclude: keywords, the heading edited in a float and written back, the text inserted into the buffer and back to virtual lines, then folded away with their headings](docs/media/transclusion.gif)
 
-- **`kanban`**: a board with a column per TODO keyword (or group of
+- ✅ **`kanban`**: a board with a column per TODO keyword (or group of
   keywords, with WIP limits) and a card per heading showing its priority,
   deadline countdown, effort and tags. `h` / `l` move a card to the
   previous / next state through the regular TODO code, so logging, CLOSED
@@ -1131,7 +1140,7 @@ set. See `:h org-extensions`.
 
   ![Kanban board: moving a card to NEXT goes over the WIP limit, filtering by a tag, moving a card to DONE and opening its heading with CLOSED logged](docs/media/kanban.gif)
 
-- **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
+- 🧪 **`timeline`**: a text-mode Gantt chart of the tasks with SCHEDULED,
   DEADLINE or Effort: bars from start to deadline, ◆ deadlines, today's
   column, overdue tasks in red, optional clocked days. `+` / `-` zoom
   (day, week, month), `[` / `]` pan, `S` / `D` reschedule
@@ -1139,7 +1148,7 @@ set. See `:h org-extensions`.
 
   ![Timeline: a Gantt chart of a plan, panning, zooming out to weeks, showing clocked days and moving an overdue deadline with the calendar](docs/media/timeline.gif)
 
-- **`heatmap`**: a GitHub-style calendar of the time clocked each day,
+- 🧪 **`heatmap`**: a GitHub-style calendar of the time clocked each day,
   the tasks closed or the habits done, shaded from your colorscheme, with
   totals and streaks; the selected day shows its tasks and `<CR>` opens its
   agenda (`:Org heatmap [clock|closed|habit] [tag]`, `<prefix>Vh`,
@@ -1147,7 +1156,7 @@ set. See `:h org-extensions`.
 
   ![Heatmap: nine months of clocked time, a day's total and tasks, tasks closed per day, one tag only and the agenda of the selected day](docs/media/heatmap.gif)
 
-- **`sidebar`**: a narrow "Today" window with the running clock against
+- ✅ **`sidebar`**: a narrow "Today" window with the running clock against
   its effort, the next appointment with a countdown, today's items,
   habits due and the inbox count, kept up to date by a timer and on writes
   (`sidebar_toggle`, `<prefix>Vs`, `:h org-extensions-sidebar`).
