@@ -43,7 +43,7 @@ jobs:
   windows:
     name: test (windows-latest, nvim stable)
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: rhysd/action-setup-vim@v1
@@ -90,8 +90,8 @@ jobs:
           vim.rpcrequest(inner, "nvim_ui_attach", 100, 30, { ext_linegrid = true })
           local path = vim.env.RUNNER_TEMP .. "/inner.lua"
           for _, shown in ipairs({ false, true }) do
-            local r = vim.rpcrequest(inner, "nvim_exec_lua", "return dofile(...)(select(2, ...))", { path, shown })
-            print("UI attached, " .. (shown and "shown" or "hidden") .. ": " .. r)
+            local ok, r = pcall(vim.rpcrequest, inner, "nvim_exec_lua", "local p, s = ...; return dofile(p)(s)", { path, shown })
+            print("UI attached, " .. (shown and "shown" or "hidden") .. ": " .. tostring(ok) .. " " .. vim.inspect(r))
           end
           vim.fn.jobstop(inner)
           LUA
@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           d=$(mktemp -d)
-          ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+          ORG_TEST_PROGRESS=2 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
     name: lint (stylua)
