@@ -437,6 +437,54 @@ function M.sha256(s)
 end
 
 ---------------------------------------------------------------------------
+-- PowerShell (Windows)
+---------------------------------------------------------------------------
+
+--- A PowerShell single-quoted string literal of `s`. Only quotes are
+--- special, doubled; PowerShell also takes the curly ones (U+2018 to
+--- U+201B) for '.
+---@param s string
+---@return string
+function M.ps_quote(s)
+  for _, q in ipairs({ "'", "\u{2018}", "\u{2019}", "\u{201A}", "\u{201B}" }) do
+    s = s:gsub(q, q .. q)
+  end
+  return "'" .. s .. "'"
+end
+
+-- Base64 of `s` (UTF-8) as UTF-16LE, for powershell -EncodedCommand.
+local function utf16le_base64(s)
+  local out = {}
+  for _, c in ipairs(vim.fn.str2list(s)) do
+    if c >= 0x10000 then
+      c = c - 0x10000
+      local hi, lo = 0xD800 + math.floor(c / 0x400), 0xDC00 + c % 0x400
+      out[#out + 1] = string.char(hi % 256, math.floor(hi / 256), lo % 256, math.floor(lo / 256))
+    else
+      out[#out + 1] = string.char(c % 256, math.floor(c / 256))
+    end
+  end
+  return vim.base64.encode(table.concat(out))
+end
+
+--- The command running `script` with Windows PowerShell (powershell.exe,
+--- part of Windows; also reachable from WSL). The script goes in
+--- -EncodedCommand, so no quoting rules of cmd.exe or a shell apply to it.
+---@param script string
+---@return string[]
+function M.powershell(script)
+  return {
+    "powershell.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-WindowStyle",
+    "Hidden",
+    "-EncodedCommand",
+    utf16le_base64(script),
+  }
+end
+
+---------------------------------------------------------------------------
 -- Paths & files
 ---------------------------------------------------------------------------
 

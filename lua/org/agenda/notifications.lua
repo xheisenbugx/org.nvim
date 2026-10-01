@@ -54,31 +54,6 @@ end
 -- PowerShell itself: an app id Windows knows, so nothing needs registering.
 local TOAST_APP = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
 
--- A PowerShell single-quoted string. Only quotes are special, doubled;
--- PowerShell also takes the curly ones (U+2018 to U+201B) for '.
-local function ps_quote(s)
-  for _, q in ipairs({ "'", "\u{2018}", "\u{2019}", "\u{201A}", "\u{201B}" }) do
-    s = s:gsub(q, q .. q)
-  end
-  return "'" .. s .. "'"
-end
-
--- Base64 of `s` (UTF-8) as UTF-16LE, for powershell -EncodedCommand: no
--- quoting rules of cmd.exe or a Linux shell (WSL) apply to the script.
-local function utf16le_base64(s)
-  local out = {}
-  for _, c in ipairs(vim.fn.str2list(s)) do
-    if c >= 0x10000 then
-      c = c - 0x10000
-      local hi, lo = 0xD800 + math.floor(c / 0x400), 0xDC00 + c % 0x400
-      out[#out + 1] = string.char(hi % 256, math.floor(hi / 256), lo % 256, math.floor(lo / 256))
-    else
-      out[#out + 1] = string.char(c % 256, math.floor(c / 256))
-    end
-  end
-  return vim.base64.encode(table.concat(out))
-end
-
 --- The PowerShell script showing a toast with `title` and `body`.
 ---@param title string
 ---@param body string
@@ -89,10 +64,10 @@ function M.toast_script(title, body)
     "$m = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]",
     "$x = $m::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)",
     "$t = $x.GetElementsByTagName('text')",
-    "[void]$t.Item(0).AppendChild($x.CreateTextNode(" .. ps_quote(title) .. "))",
-    "[void]$t.Item(1).AppendChild($x.CreateTextNode(" .. ps_quote(body) .. "))",
+    "[void]$t.Item(0).AppendChild($x.CreateTextNode(" .. utils.ps_quote(title) .. "))",
+    "[void]$t.Item(1).AppendChild($x.CreateTextNode(" .. utils.ps_quote(body) .. "))",
     "$m::CreateToastNotifier("
-      .. ps_quote(TOAST_APP)
+      .. utils.ps_quote(TOAST_APP)
       .. ").Show([Windows.UI.Notifications.ToastNotification]::new($x))",
   }, "\n")
 end
@@ -132,15 +107,7 @@ function M.desktop_notify(title, body)
   elseif backend == "notify-send" then
     pcall(vim.system, { "notify-send", "--app-name=org.nvim", title, body })
   elseif backend == "powershell" then
-    pcall(vim.system, {
-      "powershell.exe",
-      "-NoProfile",
-      "-NonInteractive",
-      "-WindowStyle",
-      "Hidden",
-      "-EncodedCommand",
-      utf16le_base64(M.toast_script(title, body)),
-    })
+    pcall(vim.system, utils.powershell(M.toast_script(title, body)))
   end
 end
 
