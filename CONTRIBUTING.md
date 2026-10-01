@@ -115,9 +115,13 @@ git push -u origin release/v0.2.0
 gh pr create --base main --title "release: v0.2.0"
 ```
 
-Merging it tags `v0.2.0` on the merge commit and publishes the GitHub
-release, with notes generated from the pull requests merged since the last
-tag. Pick the version with [semver](https://semver.org): before 1.0, a
+Merging it tags `v0.2.0` and publishes the GitHub release, with notes
+generated from the pull requests merged since the last tag. The tag goes on
+the release branch's last commit, so `dev` reaches it as well as `main`.
+There is no version number in the code: `:Org version` reports the latest
+`vX.Y.Z` tag of the checkout. Merge release PRs with a merge commit, not a
+squash, so that commit is part of `main`. If you commit a fix to the
+release branch itself, merge the release branch back into `dev` too. Pick the version with [semver](https://semver.org): before 1.0, a
 `feat` or a breaking change bumps the minor version, fixes bump the patch.
 
 Thanks again, and happy hacking! 🦄

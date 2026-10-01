@@ -1,8 +1,10 @@
 name: Release
 
 # Development happens on dev. main only takes pull requests from
-# release/vX.Y.Z branches; merging one tags vX.Y.Z on the merge commit and
-# publishes the GitHub release with notes generated from the merged PRs.
+# release/vX.Y.Z branches; merging one tags vX.Y.Z and publishes the GitHub
+# release with notes generated from the merged PRs. The tag goes on the
+# release branch's last commit, not the merge commit, so dev reaches it too:
+# org.nvim's version (:Org version) is the latest vX.Y.Z tag of the checkout.
 on:
   pull_request:
     branches: [main]
@@ -40,7 +42,7 @@ jobs:
       - name: Tag and publish the release
         env:
           HEAD_REF: ${{ github.head_ref }}
-          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${HEAD_REF#release/}"
