@@ -224,7 +224,7 @@ local function as_png(path)
     return nil
   end
   local st = vim.uv.fs_stat(path)
-  local key = vim.fn.sha256(path .. ":" .. (st and st.mtime.sec or 0))
+  local key = utils.sha256(path .. ":" .. (st and st.mtime.sec or 0))
   local out = cache_root() .. "/img-" .. key:sub(1, 20) .. ".png"
   if vim.uv.fs_stat(out) then
     return out
@@ -653,7 +653,7 @@ local function remote_preview(path, ctx)
   if not ext or not is_image("x." .. ext, opts().extensions or M.IMAGE_EXTENSIONS) then
     return nil
   end
-  local out = remote_dir() .. "/" .. vim.fn.sha256(url):sub(1, 32) .. "." .. ext:lower()
+  local out = remote_dir() .. "/" .. utils.sha256(url):sub(1, 32) .. "." .. ext:lower()
   if mode ~= "download" and not ctx.refresh and vim.uv.fs_stat(out) then
     return out
   end
@@ -1261,7 +1261,7 @@ function M.render_latex(text, bufnr, cb, row, col)
     "",
   }, "\n")
   local ext = spec.image_output_type or "png"
-  local key = vim.fn.sha256(table.concat({ "v3", process, dpi, doc, bg or "" }, "\0")):sub(1, 40)
+  local key = utils.sha256(table.concat({ "v3", process, dpi, doc, bg or "" }, "\0")):sub(1, 40)
   local out = image_dir(bufnr) .. "/org-ltximg_" .. key .. "." .. ext
   if vim.uv.fs_stat(out) then
     return cb(out)

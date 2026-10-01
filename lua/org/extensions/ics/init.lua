@@ -78,7 +78,7 @@ function M.file_of(c)
     return nil
   end
   local name = (c.name or "calendar"):gsub("[^%w_-]+", "_")
-  return string.format("%s/%s-%s.ics", vim.fn.expand(opts().cache_dir), name, vim.fn.sha256(url):sub(1, 12))
+  return string.format("%s/%s-%s.ics", vim.fn.expand(opts().cache_dir), name, utils().sha256(url):sub(1, 12))
 end
 
 local function calendars()

@@ -145,7 +145,7 @@ local function generated_uid(entry, info)
   info.icalendar_uid_count = info.icalendar_uid_count or {}
   local n = (info.icalendar_uid_count[key] or 0) + 1
   info.icalendar_uid_count[key] = n
-  local h = vim.fn.sha256(key .. "\0" .. n)
+  local h = utils.sha256(key .. "\0" .. n)
   return fmt("%s-%s-%s-%s-%s", h:sub(1, 8), h:sub(9, 12), h:sub(13, 16), h:sub(17, 20), h:sub(21, 32)):upper()
 end
 

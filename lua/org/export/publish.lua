@@ -243,7 +243,7 @@ end
 --- org-publish-timestamp-filename
 local function timestamp_key(filename, pub_dir, pub_func)
   local fname = type(pub_func) == "string" and pub_func or (pub_func and "function" or "")
-  return "X" .. vim.fn.sha256(filename .. "::" .. (pub_dir or "") .. "::" .. fname)
+  return "X" .. utils.sha256(filename .. "::" .. (pub_dir or "") .. "::" .. fname)
 end
 
 --- Files included by `filename` (#+INCLUDE keywords).
@@ -1319,7 +1319,7 @@ function M.resolve_external_link(search, file, info)
   for _, r in pairs(crossrefs) do
     used[r] = true
   end
-  local h = vim.fn.sha256(filename .. "::" .. search)
+  local h = utils.sha256(filename .. "::" .. search)
   local k = 1
   local ref = "org" .. h:sub(k, k + 6)
   while used[ref] do

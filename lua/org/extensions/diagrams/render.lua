@@ -95,7 +95,7 @@ end
 
 --- The content hash of a diagram: language, command shape and body.
 function M.hash(lang, shape, ext, text)
-  return vim.fn.sha256(table.concat({ lang, shape, ext or "", text }, "\0"))
+  return require("org.utils").sha256(table.concat({ lang, shape, ext or "", text }, "\0"))
 end
 
 --- Path of the cached output for `hash` and `ext`.

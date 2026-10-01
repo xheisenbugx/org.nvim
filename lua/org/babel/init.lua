@@ -1903,7 +1903,7 @@ end
 
 --- A random placeholder id, like org-id-uuid.
 local function async_uuid()
-  local h = vim.fn.sha256(tostring(vim.uv.hrtime()) .. tostring(math.random()))
+  local h = utils.sha256(tostring(vim.uv.hrtime()) .. tostring(math.random()))
   local variant = ("89ab"):sub(tonumber(h:sub(17, 17), 16) % 4 + 1, tonumber(h:sub(17, 17), 16) % 4 + 1)
   return table.concat({ h:sub(1, 8), h:sub(9, 12), "4" .. h:sub(14, 16), variant .. h:sub(18, 20), h:sub(21, 32) }, "-")
 end
