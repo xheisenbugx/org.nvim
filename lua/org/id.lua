@@ -90,8 +90,8 @@ function M.parse_emacs_locations(text, base)
       i = i + 1
     elseif c == ")" then
       if depth == 2 and entry and entry[1] then
-        local file = entry[1]:gsub("^~", vim.env.HOME or "~")
-        if base and not file:match("^/") and not file:match("^%a:[/\\]") then
+        local file = entry[1]:gsub("^~", utils.home)
+        if base and not utils.is_absolute(file) then
           file = base .. "/" .. file
         end
         file = vim.fs.normalize(file)
@@ -136,7 +136,7 @@ function M.format_emacs_locations(map, base)
     table.insert(by_file[file], id)
   end
   table.sort(names)
-  local home = vim.env.HOME and vim.fs.normalize(vim.env.HOME) or nil
+  local home = vim.fs.normalize(utils.home())
   local relative = (config.opts.id or {}).locations_file_relative
   local items = {}
   for _, file in ipairs(names) do

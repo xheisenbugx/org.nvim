@@ -1096,7 +1096,8 @@ function M.mathml_cache_file(frag, info)
     dir = dir .. "/"
   end
   local prefix = dir .. vim.fn.fnamemodify(input, ":t:r")
-  local absprefix = prefix:match("^/") and prefix or (vim.fn.fnamemodify(input, ":p:h") .. "/" .. prefix)
+  local absprefix = require("org.utils").is_absolute(prefix) and prefix
+    or (vim.fn.fnamemodify(input, ":p:h") .. "/" .. prefix)
   local id = require("org.babel.sha1").hex("(" .. prin1_string(frag) .. " " .. prin1_string(cmd) .. ")")
   return absprefix .. "-formula-" .. id .. ".mathml"
 end

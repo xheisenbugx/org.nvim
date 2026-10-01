@@ -119,7 +119,7 @@ end
 --- Make `dir` absolute like expand-file-name in the buffer's directory.
 local function absolute(dir)
   dir = vim.fs.normalize(dir)
-  if not dir:match("^/") then
+  if not utils.is_absolute(dir) then
     dir = buffer_dir() .. "/" .. dir
   end
   return vim.fs.normalize(vim.fn.fnamemodify(dir, ":p")):gsub("/$", "")
@@ -366,7 +366,7 @@ function M.parse_dropped(text)
   end
   for k, p in ipairs(paths) do
     p = vim.fs.normalize(p)
-    if not p:match("^/") or vim.fn.filereadable(p) == 0 then
+    if not utils.is_absolute(p) or vim.fn.filereadable(p) == 0 then
       return nil
     end
     paths[k] = p

@@ -1157,9 +1157,13 @@ function M.resolve_path(path, bufnr)
   end
   if vim.fn.fnamemodify(path, ":t"):find("[*?{%[]") then
     -- expand() would expand the wildcard too
-    path = path:gsub("^~/", (vim.env.HOME or "~") .. "/"):gsub("%$(%w+)", function(v)
-      return vim.env[v]
-    end)
+    path = path
+      :gsub("^~/", function()
+        return utils.home() .. "/"
+      end)
+      :gsub("%$(%w+)", function(v)
+        return vim.env[v]
+      end)
   else
     path = vim.fn.expand(path)
   end

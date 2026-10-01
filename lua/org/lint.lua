@@ -3849,7 +3849,7 @@ C["wrong-include-link-parameter"] = function(doc)
             local lines, target
             if file then
               target = expand_home(file)
-              if not target:match("^/") then
+              if not require("org.utils").is_absolute(target) then
                 target = (doc.dir or vim.fn.getcwd()) .. "/" .. target
               end
               local okr, l = pcall(vim.fn.readfile, target)
