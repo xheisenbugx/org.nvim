@@ -19,14 +19,17 @@ you need to get started.
 
 ## Development setup
 
-You only need Neovim 0.11+. For linting, you also need
-[stylua](https://github.com/JohnnyMorganz/StyLua).
+You only need Neovim 0.11+. For formatting and linting, you also need
+[stylua](https://github.com/JohnnyMorganz/StyLua) 2.x (`brew install stylua`
+or `cargo install stylua`).
 
 ```sh
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
 make lint                                 # stylua --check
+make format                               # format with stylua
+git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
 
 To try your checkout in your own config, point lazy.nvim at it:
@@ -83,7 +86,7 @@ Some things to know before you start:
    ```
 
 4. Document it in `doc/org.txt` (and in the README if it's user-visible).
-5. Run `make test` and `make lint`.
+5. Run `make format`, `make test` and `make lint`.
 
 ## Pull requests
 

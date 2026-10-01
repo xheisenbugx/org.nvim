@@ -37,7 +37,12 @@ end
 
 group("Anywhere", {
   agenda = { "org.agenda", "prompt", desc = "Agenda dispatcher", global = true },
-  capture = { "org.capture", "prompt", desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)", global = true },
+  capture = {
+    "org.capture",
+    "prompt",
+    desc = "Capture (count: 4 go to target, 16 last stored, 1 ask date)",
+    global = true,
+  },
   capture_here = { "org.capture", "prompt_here", desc = "Capture at the cursor (C-0 C-c c)", global = true },
   capture_goto_target = { "org.capture", "goto_target", desc = "Go to a capture template's target", global = true },
   capture_goto_last = { "org.capture", "goto_last_stored", desc = "Go to the last captured entry", global = true },

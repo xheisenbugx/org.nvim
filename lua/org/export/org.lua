@@ -84,7 +84,10 @@ I.headline = function(el, contents)
     .. " "
     .. title
   local tags = tags_string(el.tags)
-  return heading .. (tags and align_tags(heading, tags) or "") .. string.rep("\n", 1 + (el.pre_blank or 0)) .. (contents or "")
+  return heading
+    .. (tags and align_tags(heading, tags) or "")
+    .. string.rep("\n", 1 + (el.pre_blank or 0))
+    .. (contents or "")
 end
 
 I.inlinetask = function(el, contents)
@@ -570,9 +573,8 @@ T.section = function(el, contents, info)
     element.map(d, "footnote-reference", function(fn)
       if fn.fn_type == "standard" and not seen[fn] and ox.footnote_first_reference_p(fn, info) then
         seen[fn] = true
-        notes[#notes + 1] = ox.normalize_string(
-          fmt("[fn:%s] %s", fn.label, ox.data(ox.get_footnote_definition(fn, info), info))
-        )
+        notes[#notes + 1] =
+          ox.normalize_string(fmt("[fn:%s] %s", fn.label, ox.data(ox.get_footnote_definition(fn, info), info)))
       end
     end, { ignore = info.ignore, no_recursion = { headline = true } })
   end

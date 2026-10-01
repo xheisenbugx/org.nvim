@@ -300,7 +300,8 @@ local function time_value(s)
   if not h then
     h, mi = s:sub(rest):match("^ +(%d%d?):(%d%d)")
   end
-  return date.days_from_civil(tonumber(y), tonumber(mo), tonumber(d)) * 1440 + (tonumber(h) or 0) * 60
+  return date.days_from_civil(tonumber(y), tonumber(mo), tonumber(d)) * 1440
+    + (tonumber(h) or 0) * 60
     + (tonumber(mi) or 0)
 end
 
@@ -522,8 +523,11 @@ local function is_time_operand(v)
     return false
   end
   local l = ('"' .. v.text .. '"'):lower()
-  local ok = l:match('^"[%[<]%d') or l:match('^"[%[<]now') or l:match('^"[%[<]today')
-    or l:match('^"[%[<]tomorrow') or l:match('^"[%[<][%+%-]%d+[dmwy]')
+  local ok = l:match('^"[%[<]%d')
+    or l:match('^"[%[<]now')
+    or l:match('^"[%[<]today')
+    or l:match('^"[%[<]tomorrow')
+    or l:match('^"[%[<][%+%-]%d+[dmwy]')
   return ok ~= nil and l:match('[%]>]"$') ~= nil
 end
 

@@ -685,7 +685,7 @@ function M.csv_lines()
   if not S then
     return {}
   end
-  local sep = ((config.opts.agenda.time_grid or {}).separator) or " ┄┄┄┄┄ "
+  local sep = (config.opts.agenda.time_grid or {}).separator or " ┄┄┄┄┄ "
   local out = {}
   local day
   for l, line in ipairs(lines) do

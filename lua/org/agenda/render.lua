@@ -825,11 +825,16 @@ function M.apply_limits(list, kind, ctx)
   end
   local max_effort = get("max_effort")
   if max_effort then
-    list = limit_entries(list, function(e)
-      return e.grid and nil or items_mod.effort(e)
-    end, max_effort, function(e)
-      return e or (acfg.sort_noeffort_is_high ~= false and math.huge or -1)
-    end)
+    list = limit_entries(
+      list,
+      function(e)
+        return e.grid and nil or items_mod.effort(e)
+      end,
+      max_effort,
+      function(e)
+        return e or (acfg.sort_noeffort_is_high ~= false and math.huge or -1)
+      end
+    )
   end
   local max_todos = get("max_todos")
   if max_todos then
@@ -1407,24 +1412,24 @@ function M.view(view, ctx)
     b.block_starts[#b.block_starts + 1] = #b.lines + 1
     local bctx = vim.tbl_extend("force", ctx, { files = ctx.files_for(block), multi = multi })
     M.with_block_options(block, function()
-    if block.type == "agenda" then
-      local anchor = ctx.anchor
-      local align = ctx.align
-      local start_day = block.start_day or acfg.start_day
-      if not ctx.anchor_set and start_day then
-        local sd = date.read_date(start_day)
-        if sd then
-          -- org-agenda-list still aligns 7 and 14 day spans
-          anchor = sd:days()
+      if block.type == "agenda" then
+        local anchor = ctx.anchor
+        local align = ctx.align
+        local start_day = block.start_day or acfg.start_day
+        if not ctx.anchor_set and start_day then
+          local sd = date.read_date(start_day)
+          if sd then
+            -- org-agenda-list still aligns 7 and 14 day spans
+            anchor = sd:days()
+          end
         end
+        bctx.anchor = anchor
+        bctx.align = align
+        bctx.span = ctx.span_set and ctx.span or block.span or ctx.span
+        info[i] = M.agenda_block(b, block, bctx)
+      else
+        M.list_block(b, block, bctx)
       end
-      bctx.anchor = anchor
-      bctx.align = align
-      bctx.span = ctx.span_set and ctx.span or block.span or ctx.span
-      info[i] = M.agenda_block(b, block, bctx)
-    else
-      M.list_block(b, block, bctx)
-    end
     end)
   end
   b.info = info

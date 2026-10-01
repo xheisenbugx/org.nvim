@@ -652,7 +652,7 @@ function M.refile(target, opts)
     count = target == nil and vim.v.count or 0
   end
   if count == 4 then
-    return M.goto()
+    return M["goto"]()
   elseif count == 16 then
     return M.goto_last_stored()
   elseif count == 64 then
@@ -770,7 +770,7 @@ function M.refile_copy(target, opts)
 end
 
 --- Jump to a refile target (C-u C-c C-w).
-function M.goto()
+M["goto"] = function()
   local dest = M.pick_target({ prompt = "Goto" })
   if not dest then
     return

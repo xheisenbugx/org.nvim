@@ -3,7 +3,9 @@ local columns = require("org.columns")
 
 describe("dblock", function()
   it("parses params", function()
-    local p = dblock.parse_params(':scope agenda :maxlevel 2 :block thisweek :link t :fileskip0 nil :match "+work" :tstart <2026-01-01 Thu>')
+    local p = dblock.parse_params(
+      ':scope agenda :maxlevel 2 :block thisweek :link t :fileskip0 nil :match "+work" :tstart <2026-01-01 Thu>'
+    )
     eq("agenda", p.scope)
     eq(2, p.maxlevel)
     eq("thisweek", p.block)

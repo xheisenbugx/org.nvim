@@ -167,7 +167,8 @@ describe("export", function()
         end
       end
       -- the link to #first points outside the subtree: mark it like Emacs
-      local md = export.to_string("gfm", { lines = lines, subtree_line = sub_line, ext = { with_broken_links = "mark" } })
+      local md =
+        export.to_string("gfm", { lines = lines, subtree_line = sub_line, ext = { with_broken_links = "mark" } })
       has(md, "# Second section")
       hasnt(md, "First section")
       local md_body = export.to_string("gfm", { lines = lines, body_only = true })

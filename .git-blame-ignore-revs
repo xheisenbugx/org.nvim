@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by git blame:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: format the code base with stylua 2.5.2
+959ff6890d4e1e68393a5ca89c30c3ab52586ea3

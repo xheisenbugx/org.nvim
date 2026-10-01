@@ -421,7 +421,11 @@ function M.toc(info, depth, scope)
   if scope then
     return table.concat(out, "\n")
   end
-  return string.rep("#", 1 + (info.gfm_shift or 0)) .. " " .. ox.translate("Table of Contents", "utf-8", info) .. "\n\n" .. table.concat(out, "\n")
+  return string.rep("#", 1 + (info.gfm_shift or 0))
+    .. " "
+    .. ox.translate("Table of Contents", "utf-8", info)
+    .. "\n\n"
+    .. table.concat(out, "\n")
 end
 
 T.inner_template = function(contents, info)

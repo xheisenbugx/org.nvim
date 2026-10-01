@@ -144,7 +144,10 @@ describe("merge extension: edge cases", function()
   end)
 
   it("merges files with only a preamble, and empty files", function()
-    eq({ "#+TITLE: x", "#+AUTHOR: z" }, merge({ "#+TITLE: x" }, { "#+TITLE: x", "#+AUTHOR: z" }, { "#+TITLE: x" }).lines)
+    eq(
+      { "#+TITLE: x", "#+AUTHOR: z" },
+      merge({ "#+TITLE: x" }, { "#+TITLE: x", "#+AUTHOR: z" }, { "#+TITLE: x" }).lines
+    )
     eq({ "* B" }, merge({}, {}, { "* B" }).lines)
     local res = merge({ "* A" }, {}, { "* A", "x" })
     eq(1, res.conflicts)

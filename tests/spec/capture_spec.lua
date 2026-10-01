@@ -79,7 +79,10 @@ describe("capture.expand (org-capture-fill-template)", function()
 
   it("expands dates and keeps %% and backslash-escaped placeholders like Emacs", function()
     local text = run(capture.expand, "100%% %%t \\%t \\\\%t %t %u %T %<%Y/%m>", { date = D })
-    eq("100%% %<2026-09-25 Fri> %t \\<2026-09-25 Fri> <2026-09-25 Fri> [2026-09-25 Fri] <2026-09-25 Fri 12:00> 2026/09", text)
+    eq(
+      "100%% %<2026-09-25 Fri> %t \\<2026-09-25 Fri> <2026-09-25 Fri> [2026-09-25 Fri] <2026-09-25 Fri 12:00> 2026/09",
+      text
+    )
     eq("* TODO \30", run(capture.expand, "* TODO %?", {}))
     eq("%?", (run(capture.expand, "%? %?", {}):gsub("^\30 ", "")))
   end)
@@ -118,13 +121,22 @@ describe("capture.expand (org-capture-fill-template)", function()
     run(capture.capture, { target = p, headline = "Target", template = "* X %^{Status}p", immediate_finish = true })
     restore()
     eq({ "open", "closed" }, seen[1].candidates)
-    eq({ "* Target", ":PROPERTIES:", ":Status_ALL: open closed", ":END:", "** X ", ":PROPERTIES:", ":Status:   closed", ":END:" }, file_lines(p))
+    eq({
+      "* Target",
+      ":PROPERTIES:",
+      ":Status_ALL: open closed",
+      ":END:",
+      "** X ",
+      ":PROPERTIES:",
+      ":Status:   closed",
+      ":END:",
+    }, file_lines(p))
   end)
 
   it("repeats the text before %i on every line of the initial content", function()
     eq("- one\n- two", run(capture.expand, "- %i", { initial = "one\ntwo" }))
     eq("  > one\n  > two", run(capture.expand, "  > %i", { initial = "one\ntwo" }))
-    eq("x = (one\ntwo)", run(capture.expand, "x = %(\"(\" .. [[%i]] .. \")\")", { initial = "one\ntwo" }))
+    eq("x = (one\ntwo)", run(capture.expand, 'x = %("(" .. [[%i]] .. ")")', { initial = "one\ntwo" }))
   end)
 
   it("expands %a %l %L and asks for the description of %A", function()
@@ -237,9 +249,15 @@ describe("capture templates", function()
     eq(nil, list.b)
     eq("c", list.c.template)
     base_setup({
-      capture = { templates = t, templates_contexts = { { "a", function()
-        return true
-      end } } },
+      capture = {
+        templates = t,
+        templates_contexts = { {
+          "a",
+          function()
+            return true
+          end,
+        } },
+      },
     })
     eq("a", capture.templates({ mode = "org" }).a.template)
   end)
@@ -278,37 +296,101 @@ describe("capture placement (Emacs parity)", function()
     { "* A\nbody\n\n* B\n", { headline = "A", template = "* new" }, "* A\nbody\n** new\n* B\n" },
     { "* A\nbody\n\n\n* B\n\n* C\n", { headline = "A", template = "* new" }, "* A\nbody\n** new\n* B\n\n* C\n" },
     { "* A\n** x\n\n** y\n\n* B\n", { headline = "A", template = "* new" }, "* A\n** x\n\n** y\n** new\n* B\n" },
-    { "* A\n** x\n\n** y\n\n* B\n", { headline = "A", template = "* new", prepend = true }, "* A\n** new\n** x\n\n** y\n\n* B\n" },
+    {
+      "* A\n** x\n\n** y\n\n* B\n",
+      { headline = "A", template = "* new", prepend = true },
+      "* A\n** new\n** x\n\n** y\n\n* B\n",
+    },
     { "* A\n\n* B\n\n", { template = "* new" }, "* A\n\n* B\n* new\n" },
     { "* A\n* B\n\n\n", { template = "* new" }, "* A\n* B\n* new\n" },
     { "#+TITLE: t\n\n* A\n* B\n", { template = "* new", prepend = true }, "#+TITLE: t\n* new\n* A\n* B\n" },
     { "#+TITLE: t\n", { template = "* new", prepend = true }, "#+TITLE: t\n* new\n" },
     { "* A\n* B\n", { headline = "A", template = "* new", empty_lines_after = 2 }, "* A\n** new\n\n\n* B\n" },
     { "* A\n* B\n", { headline = "Zed", template = "* new" }, "* A\n* B\n* Zed\n** new\n" },
-    { "* A\n* TODO [#A] Zed :tag:\n", { headline = "Zed", template = "* new" }, "* A\n* TODO [#A] Zed :tag:\n** new\n" },
-    { "* A\ntext\n* B\n", { type = "plain", headline = "A", template = "p1\np2", empty_lines = 1 }, "* A\ntext\n\np1\np2\n\n* B\n" },
-    { "* A\n:PROPERTIES:\n:X: 1\n:END:\ntext\n* B\n", { type = "plain", headline = "A", template = "p1", prepend = true }, "* A\n:PROPERTIES:\n:X: 1\n:END:\np1\ntext\n* B\n" },
-    { "* A\n:PROPERTIES:\n:X: 1\n:END:\ntext\n* B\n", { type = "item", headline = "A", template = "p1", prepend = true }, "* A\n:PROPERTIES:\n:X: 1\n:END:\n- p1\ntext\n* B\n" },
-    { "* A\n- a\n- b\n\n* B\n", { type = "item", headline = "A", template = "c", empty_lines = 2 }, "* A\n- a\n- b\n\n- c\n\n* B\n" },
-    { "* A\n- a\n- b\n\n* B\n", { type = "item", headline = "A", template = "c", empty_lines = 2, prepend = true }, "* A\n- c\n\n- a\n- b\n\n* B\n" },
-    { "* A\ntext\n* B\n", { type = "item", headline = "A", template = "c", empty_lines = 1 }, "* A\ntext\n\n- c\n\n* B\n" },
-    { "* A\n  1) a\n  2) b\n", { type = "item", headline = "A", template = "- c\nmore" }, "* A\n  1) a\n  2) b\n  3) c\n  more\n" },
+    {
+      "* A\n* TODO [#A] Zed :tag:\n",
+      { headline = "Zed", template = "* new" },
+      "* A\n* TODO [#A] Zed :tag:\n** new\n",
+    },
+    {
+      "* A\ntext\n* B\n",
+      { type = "plain", headline = "A", template = "p1\np2", empty_lines = 1 },
+      "* A\ntext\n\np1\np2\n\n* B\n",
+    },
+    {
+      "* A\n:PROPERTIES:\n:X: 1\n:END:\ntext\n* B\n",
+      { type = "plain", headline = "A", template = "p1", prepend = true },
+      "* A\n:PROPERTIES:\n:X: 1\n:END:\np1\ntext\n* B\n",
+    },
+    {
+      "* A\n:PROPERTIES:\n:X: 1\n:END:\ntext\n* B\n",
+      { type = "item", headline = "A", template = "p1", prepend = true },
+      "* A\n:PROPERTIES:\n:X: 1\n:END:\n- p1\ntext\n* B\n",
+    },
+    {
+      "* A\n- a\n- b\n\n* B\n",
+      { type = "item", headline = "A", template = "c", empty_lines = 2 },
+      "* A\n- a\n- b\n\n- c\n\n* B\n",
+    },
+    {
+      "* A\n- a\n- b\n\n* B\n",
+      { type = "item", headline = "A", template = "c", empty_lines = 2, prepend = true },
+      "* A\n- c\n\n- a\n- b\n\n* B\n",
+    },
+    {
+      "* A\ntext\n* B\n",
+      { type = "item", headline = "A", template = "c", empty_lines = 1 },
+      "* A\ntext\n\n- c\n\n* B\n",
+    },
+    {
+      "* A\n  1) a\n  2) b\n",
+      { type = "item", headline = "A", template = "- c\nmore" },
+      "* A\n  1) a\n  2) b\n  3) c\n  more\n",
+    },
     { "* A\n- [ ] a\n", { type = "checkitem", headline = "A", template = "c" }, "* A\n- [ ] a\n- c\n" },
     { "* A\n- [ ] a\n", { type = "checkitem", headline = "A" }, "* A\n- [ ] a\n- [ ] \n" },
-    { "* A\ntext\n* B\n", { type = "table-line", headline = "A", template = "| x | y |" }, "* A\ntext\n|   |   |\n|---+---|\n| x | y |\n* B\n" },
-    { "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n", { type = "table-line", headline = "A", template = "| x |", table_line_pos = "II-1" }, "* A\n| a |\n|---|\n| 1 |\n| 2 |\n| x |\n|---|\n| 3 |\n" },
-    { "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n", { type = "table-line", headline = "A", template = "| x |", table_line_pos = "I+2" }, "* A\n| a |\n|---|\n| 1 |\n| x |\n| 2 |\n|---|\n| 3 |\n" },
-    { "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n", { type = "table-line", headline = "A", template = "| x |", table_line_pos = "II+1" }, "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| x |\n| 3 |\n" },
+    {
+      "* A\ntext\n* B\n",
+      { type = "table-line", headline = "A", template = "| x | y |" },
+      "* A\ntext\n|   |   |\n|---+---|\n| x | y |\n* B\n",
+    },
+    {
+      "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n",
+      { type = "table-line", headline = "A", template = "| x |", table_line_pos = "II-1" },
+      "* A\n| a |\n|---|\n| 1 |\n| 2 |\n| x |\n|---|\n| 3 |\n",
+    },
+    {
+      "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n",
+      { type = "table-line", headline = "A", template = "| x |", table_line_pos = "I+2" },
+      "* A\n| a |\n|---|\n| 1 |\n| x |\n| 2 |\n|---|\n| 3 |\n",
+    },
+    {
+      "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| 3 |\n",
+      { type = "table-line", headline = "A", template = "| x |", table_line_pos = "II+1" },
+      "* A\n| a |\n|---|\n| 1 |\n| 2 |\n|---|\n| x |\n| 3 |\n",
+    },
     { "text\n* A\n", { type = "table-line", template = "| x |" }, "text\n* A\n|   |\n|---|\n| x |\n" },
     { "* A\nbody\n* B\n", { regexp = "^\\* B", template = "* new" }, "* A\nbody\n* B\n** new\n" },
-    { "* A\nfoo MARK bar\n* B\n", { type = "plain", regexp = "MARK", template = "new", prepend = true }, "* A\nfoo \nnew\nMARK bar\n* B\n" },
+    {
+      "* A\nfoo MARK bar\n* B\n",
+      { type = "plain", regexp = "MARK", template = "new", prepend = true },
+      "* A\nfoo \nnew\nMARK bar\n* B\n",
+    },
     { "* A\n+ a\n+ b\n", { type = "item", headline = "A", template = "c", prepend = true }, "* A\n- c\n- a\n- b\n" },
-    { "* A\n1. a\n2. b\n", { type = "item", headline = "A", template = "c", prepend = true }, "* A\n1. c\n2. a\n3. b\n" },
+    {
+      "* A\n1. a\n2. b\n",
+      { type = "item", headline = "A", template = "c", prepend = true },
+      "* A\n1. c\n2. a\n3. b\n",
+    },
     { "* A\n- a\n- b\n", { type = "item", headline = "A", template = "3) c", prepend = true }, "* A\n- c\n- a\n- b\n" },
     { "* A\n1) a\n2) b\n", { type = "item", headline = "A", template = "- c" }, "* A\n1) a\n2) b\n3) c\n" },
     { "* A\n- a\n  - a1\n- b\n", { type = "item", headline = "A", template = "c" }, "* A\n- a\n  - a1\n- b\n- c\n" },
     { "* A\n- a\n- b\n\n- c\n", { type = "item", headline = "A", template = "d" }, "* A\n- a\n- b\n\n- c\n- d\n" },
-    { "* A\n- a\n- b\ntext\n- c\n", { type = "item", headline = "A", template = "d" }, "* A\n- a\n- b\n- d\ntext\n- c\n" },
+    {
+      "* A\n- a\n- b\ntext\n- c\n",
+      { type = "item", headline = "A", template = "d" },
+      "* A\n- a\n- b\n- d\ntext\n- c\n",
+    },
     { "* A\n  - [ ] a\n", { type = "checkitem", headline = "A", template = "- [X] c" }, "* A\n  - [ ] a\n  - [X] c\n" },
     { "* A\n- a\n* B\n- x\n", { type = "item", template = "new" }, "* A\n- a\n- new\n* B\n- x\n" },
     { "- a\n* B\n", { type = "item", template = "new" }, "- a\n- new\n* B\n" },
@@ -317,30 +399,106 @@ describe("capture placement (Emacs parity)", function()
     { "#+TITLE: x\n* B\n", { type = "plain", template = "new", empty_lines = 1 }, "#+TITLE: x\n* B\n\nnew\n\n" },
     { "#+TITLE: x\n* B\n\n\n", { type = "plain", template = "new" }, "#+TITLE: x\n* B\nnew\n" },
     { "* A\n\n\n* B\n", { type = "plain", headline = "A", template = "new" }, "* A\nnew\n* B\n" },
-    { "* A\nx\n\n\n* B\n", { type = "plain", headline = "A", template = "new", prepend = true }, "* A\nnew\nx\n\n\n* B\n" },
-    { "* A\nSCHEDULED: <2026-09-25 Fri>\n:LOGBOOK:\n- x\n:END:\ntext\n", { type = "plain", headline = "A", template = "new", prepend = true }, "* A\nSCHEDULED: <2026-09-25 Fri>\n:LOGBOOK:\n- x\n:END:\nnew\ntext\n" },
+    {
+      "* A\nx\n\n\n* B\n",
+      { type = "plain", headline = "A", template = "new", prepend = true },
+      "* A\nnew\nx\n\n\n* B\n",
+    },
+    {
+      "* A\nSCHEDULED: <2026-09-25 Fri>\n:LOGBOOK:\n- x\n:END:\ntext\n",
+      { type = "plain", headline = "A", template = "new", prepend = true },
+      "* A\nSCHEDULED: <2026-09-25 Fri>\n:LOGBOOK:\n- x\n:END:\nnew\ntext\n",
+    },
     { "* A\n", { headline = "A", template = "*** deep\ntext\n**** deeper\n" }, "* A\n** deep\ntext\n*** deeper\n" },
     { "* A\n", { headline = "A", template = "\n\n  * TODO x\n  text  \n\n" }, "* A\n**   * TODO x\n  text  \n" },
-    { "* 2027\n", { datetree = true, template = "* new" }, "\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n" },
-    { "#+TITLE: x\n\n\n* 2027\n", { datetree = true, template = "* new" }, "#+TITLE: x\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n" },
-    { "* 2025\n\n* 2027\n", { datetree = true, template = "* new" }, "* 2025\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n" },
-    { "* 2026\n\n** 2026-08 August\nx\n\n", { datetree = true, template = "* new" }, "* 2026\n\n** 2026-08 August\nx\n\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n" },
-    { "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n* Other\n", { datetree = true, template = "* new" }, "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n** 2026\n*** 2026-09 September\n**** 2026-09-25 Friday\n***** new\n* Other\n" },
-    { "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n", { datetree = true, tree_type = { "year", "month" }, template = "* new" }, "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n*** new\n" },
-    { "", { datetree = true, tree_type = { "year", "quarter", "week", "day" }, template = "* new" }, "\n* 2026\n** 2026-Q3\n*** 2026-W39\n**** 2026-09-25 Friday\n***** new\n" },
+    {
+      "* 2027\n",
+      { datetree = true, template = "* new" },
+      "\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n",
+    },
+    {
+      "#+TITLE: x\n\n\n* 2027\n",
+      { datetree = true, template = "* new" },
+      "#+TITLE: x\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n",
+    },
+    {
+      "* 2025\n\n* 2027\n",
+      { datetree = true, template = "* new" },
+      "* 2025\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n",
+    },
+    {
+      "* 2026\n\n** 2026-08 August\nx\n\n",
+      { datetree = true, template = "* new" },
+      "* 2026\n\n** 2026-08 August\nx\n\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n",
+    },
+    {
+      "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n* Other\n",
+      { datetree = true, template = "* new" },
+      "* Notes\n:PROPERTIES:\n:DATE_TREE: t\n:END:\n** 2026\n*** 2026-09 September\n**** 2026-09-25 Friday\n***** new\n* Other\n",
+    },
+    {
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n",
+      { datetree = true, tree_type = { "year", "month" }, template = "* new" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n*** new\n",
+    },
+    {
+      "",
+      { datetree = true, tree_type = { "year", "quarter", "week", "day" }, template = "* new" },
+      "\n* 2026\n** 2026-Q3\n*** 2026-W39\n**** 2026-09-25 Friday\n***** new\n",
+    },
     { "* A\n", { olp = { "A", "B" }, template = "* new" }, "* A\n" },
     { "* X\n** A\n* A\n** B\n", { olp = { "A", "B" }, template = "* new" }, "* X\n** A\n* A\n** B\n*** new\n" },
-    { "", { datetree = true, template = "* new" }, "\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n" },
-    { "#+TITLE: J\n* 2025\n** 2025-01 January\n* 2027\n* Notes\n", { datetree = true, template = "* new" }, "#+TITLE: J\n* 2025\n** 2025-01 January\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n* Notes\n" },
-    { "* 2026 :journal:\n** 2026-09 Sept\n*** 2026-09-25 Freitag\n**** old\n*** 2026-09-27 Sunday\n", { datetree = true, template = "* new" }, "* 2026 :journal:\n** 2026-09 Sept\n*** 2026-09-25 Freitag\n**** old\n**** new\n*** 2026-09-27 Sunday\n" },
-    { "* 2026\n** 2026-10 October\n** 2026-08 August\n", { datetree = true, template = "* new" }, "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n** 2026-10 October\n** 2026-08 August\n" },
-    { "", { datetree = true, tree_type = "week", template = "* new" }, "\n* 2026\n** 2026-W39\n*** 2026-09-25 Friday\n**** new\n" },
+    {
+      "",
+      { datetree = true, template = "* new" },
+      "\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n",
+    },
+    {
+      "#+TITLE: J\n* 2025\n** 2025-01 January\n* 2027\n* Notes\n",
+      { datetree = true, template = "* new" },
+      "#+TITLE: J\n* 2025\n** 2025-01 January\n* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n* 2027\n* Notes\n",
+    },
+    {
+      "* 2026 :journal:\n** 2026-09 Sept\n*** 2026-09-25 Freitag\n**** old\n*** 2026-09-27 Sunday\n",
+      { datetree = true, template = "* new" },
+      "* 2026 :journal:\n** 2026-09 Sept\n*** 2026-09-25 Freitag\n**** old\n**** new\n*** 2026-09-27 Sunday\n",
+    },
+    {
+      "* 2026\n** 2026-10 October\n** 2026-08 August\n",
+      { datetree = true, template = "* new" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n** 2026-10 October\n** 2026-08 August\n",
+    },
+    {
+      "",
+      { datetree = true, tree_type = "week", template = "* new" },
+      "\n* 2026\n** 2026-W39\n*** 2026-09-25 Friday\n**** new\n",
+    },
     { "", { datetree = true, tree_type = "month", template = "* new" }, "\n* 2026\n** 2026-09 September\n*** new\n" },
-    { "", { datetree = true, tree_type = { "year", "quarter", "month" }, template = "* new" }, "\n* 2026\n** 2026-Q3\n*** 2026-09 September\n**** new\n" },
-    { "* P\n** Q\n* Z\n", { olp = { "P", "Q" }, datetree = true, template = "* new" }, "* P\n** Q\n*** 2026\n**** 2026-09 September\n***** 2026-09-25 Friday\n****** new\n* Z\n" },
-    { "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n", { datetree = true, type = "item", template = "x" }, "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n- x\n**** a\n" },
-    { "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n", { datetree = true, prepend = true, template = "* new" }, "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n**** a\n" },
-    { "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n", { datetree = true, template = "* %t %T %u %U %<%Y/%m>" }, "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n**** <2026-09-25 Fri> <2026-09-25 Fri 12:00> [2026-09-25 Fri] [2026-09-25 Fri 12:00] 2026/09\n" },
+    {
+      "",
+      { datetree = true, tree_type = { "year", "quarter", "month" }, template = "* new" },
+      "\n* 2026\n** 2026-Q3\n*** 2026-09 September\n**** new\n",
+    },
+    {
+      "* P\n** Q\n* Z\n",
+      { olp = { "P", "Q" }, datetree = true, template = "* new" },
+      "* P\n** Q\n*** 2026\n**** 2026-09 September\n***** 2026-09-25 Friday\n****** new\n* Z\n",
+    },
+    {
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n",
+      { datetree = true, type = "item", template = "x" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n- x\n**** a\n",
+    },
+    {
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n",
+      { datetree = true, prepend = true, template = "* new" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** new\n**** a\n",
+    },
+    {
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n",
+      { datetree = true, template = "* %t %T %u %U %<%Y/%m>" },
+      "* 2026\n** 2026-09 September\n*** 2026-09-25 Friday\n**** a\n**** <2026-09-25 Fri> <2026-09-25 Fri 12:00> [2026-09-25 Fri] [2026-09-25 Fri 12:00] 2026/09\n",
+    },
   }
   for i, c in ipairs(cases) do
     it("case " .. i .. ": " .. (c[2].type or "entry") .. " " .. vim.inspect(c[2]):gsub("%s+", " "), function()
@@ -387,7 +545,10 @@ describe("capture targets", function()
       properties = { Where = "Room 1" },
       immediate_finish = true,
     })
-    eq({ "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where:    Room 1", ":END:" }, file_lines(p))
+    eq(
+      { "* Work", "** Meetings", "*** Old", "*** Standup", ":PROPERTIES:", ":Where:    Room 1", ":END:" },
+      file_lines(p)
+    )
     local r = run(capture.capture, { target = p, olp = "Work/Missing", template = "* X", immediate_finish = true })
     eq(nil, r)
     eq(7, #file_lines(p))
@@ -477,7 +638,11 @@ describe("capture targets", function()
     local p = tmpfile({ "* A", "body", "* B" })
     vim.cmd("edit! " .. p)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
-    run(capture.capture, { template = "* Here", immediate_finish = true, target = "/should/not/be/used.org" }, { here = true })
+    run(
+      capture.capture,
+      { template = "* Here", immediate_finish = true, target = "/should/not/be/used.org" },
+      { here = true }
+    )
     eq({ "* A", "* Here", "body", "* B" }, file_lines(p))
     vim.api.nvim_win_set_cursor(0, { 2, 3 })
     run(capture.capture, { type = "plain", template = "after", immediate_finish = true }, { here = true })
@@ -486,7 +651,9 @@ describe("capture targets", function()
 
   it("asks for the date tree date with a count of 1 (C-1)", function()
     local p = tmpfile({})
-    base_setup({ capture = { templates = { j = { target = p, datetree = true, template = "* J", immediate_finish = true } } } })
+    base_setup({
+      capture = { templates = { j = { target = p, datetree = true, template = "* J", immediate_finish = true } } },
+    })
     local orig_pick, orig_menu = require("org.calendar").pick, require("org.ui").menu
     require("org.calendar").pick = function()
       return date.parse("<2025-01-02 Thu>")
@@ -501,10 +668,20 @@ describe("capture targets", function()
 
   it("places table lines with :table-line-pos and creates missing tables", function()
     local p = tmpfile({ "* A", "| a |", "|---|", "| 1 |", "| 2 |", "|---|", "| 3 |" })
-    run(capture.capture, { target = p, headline = "A", type = "table-line", template = "| x |", table_line_pos = "II-1", immediate_finish = true })
+    run(capture.capture, {
+      target = p,
+      headline = "A",
+      type = "table-line",
+      template = "| x |",
+      table_line_pos = "II-1",
+      immediate_finish = true,
+    })
     eq({ "* A", "| a |", "|---|", "| 1 |", "| 2 |", "| x |", "|---|", "| 3 |" }, file_lines(p))
     local p2 = tmpfile({ "* A", "text" })
-    run(capture.capture, { target = p2, headline = "A", type = "table-line", template = "| x | y |", immediate_finish = true })
+    run(
+      capture.capture,
+      { target = p2, headline = "A", type = "table-line", template = "| x | y |", immediate_finish = true }
+    )
     eq({ "* A", "text", "|   |   |", "|---+---|", "| x | y |" }, file_lines(p2))
   end)
 end)
@@ -617,9 +794,12 @@ describe("capture buffer", function()
     local restore = answer({ 1 }, seen)
     run(capture.refile, buf)
     restore()
-    eq({ "Projects (" .. vim.fn.fnamemodify(dest, ":t") .. ")", "Other (" .. vim.fn.fnamemodify(dest, ":t") .. ")" }, vim.tbl_map(function(t)
-      return t.label
-    end, seen[1].candidates))
+    eq(
+      { "Projects (" .. vim.fn.fnamemodify(dest, ":t") .. ")", "Other (" .. vim.fn.fnamemodify(dest, ":t") .. ")" },
+      vim.tbl_map(function(t)
+        return t.label
+      end, seen[1].candidates)
+    )
     eq({ "* Inbox" }, file_lines(p))
     eq({ "* Projects", "** Refiled", "* Other" }, file_lines(dest))
     local buf2 = run(capture.capture, { template = "text", type = "plain", target = p })

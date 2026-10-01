@@ -31,9 +31,12 @@ describe("completion", function()
     org_buffer({ "* " })
     local r = c.get("* T", 3, 0)
     eq(2, r.start)
-    ok(vim.tbl_contains(vim.tbl_map(function(i)
-      return i.word
-    end, r.items), "TODO"))
+    ok(vim.tbl_contains(
+      vim.tbl_map(function(i)
+        return i.word
+      end, r.items),
+      "TODO"
+    ))
   end)
   it("src languages", function()
     org_buffer({ "" })
@@ -44,9 +47,12 @@ describe("completion", function()
     org_buffer({ "* A :work:", "* B :w" })
     local r = c.get("* B :w", 6, 0)
     eq(5, r.start)
-    ok(vim.tbl_contains(vim.tbl_map(function(i)
-      return i.word
-    end, r.items), "work:"))
+    ok(vim.tbl_contains(
+      vim.tbl_map(function(i)
+        return i.word
+      end, r.items),
+      "work:"
+    ))
   end)
   local function words(r)
     return vim.tbl_map(function(i)

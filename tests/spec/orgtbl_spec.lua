@@ -99,7 +99,10 @@ describe("radio tables", function()
     quiet(function()
       eq(1, orgtbl.send_table(buf, 5))
     end)
-    eq({ "% BEGIN RECEIVE ORGTBL sales", "a & b\\\\", "1 & 2\\\\", "% END RECEIVE ORGTBL sales" }, vim.list_slice(buf_lines(buf), 1, 4))
+    eq(
+      { "% BEGIN RECEIVE ORGTBL sales", "a & b\\\\", "1 & 2\\\\", "% END RECEIVE ORGTBL sales" },
+      vim.list_slice(buf_lines(buf), 1, 4)
+    )
     -- recalculating from #+TBLFM sends it too
     vim.api.nvim_buf_set_lines(buf, 7, 7, false, { "#+TBLFM: $2=$1*10" })
     quiet(function()
@@ -205,7 +208,10 @@ describe("plots", function()
   end)
 
   it("parses #+PLOT: options like org-plot", function()
-    local o = plot.parse_options({}, 'title:"Hello W" ind:1 deps:(2 3) type:2d with:histograms set:"yrange [0:]" set:"grid" file:"out.png"')
+    local o = plot.parse_options(
+      {},
+      'title:"Hello W" ind:1 deps:(2 3) type:2d with:histograms set:"yrange [0:]" set:"grid" file:"out.png"'
+    )
     eq("Hello W", o.title)
     eq(1, o.ind)
     eq({ 2, 3 }, o.deps)
@@ -229,12 +235,18 @@ describe("plots", function()
       script
     )
     script = plot.script({}, "/tmp/data", 2, { plot_type = "3d", with = "pm3d", map = true })
-    eq("reset\nset term GNUTERM \nset map\n\nset datafile separator \"\\t\"\nsplot '/tmp/data' matrix with pm3d title ''", script)
-    eq('"a"\t1\n"b c"\t2\n2024-01-10-00:00:00\t3', plot.data({ { "a", "1" }, { "b c", "2" }, { "<2024-01-10 Wed>", "3" } }, {}))
+    eq(
+      "reset\nset term GNUTERM \nset map\n\nset datafile separator \"\\t\"\nsplot '/tmp/data' matrix with pm3d title ''",
+      script
+    )
+    eq(
+      '"a"\t1\n"b c"\t2\n2024-01-10-00:00:00\t3',
+      plot.data({ { "a", "1" }, { "b c", "2" }, { "<2024-01-10 Wed>", "3" } }, {})
+    )
   end)
 
   it("collects the options and header labels of a table", function()
-    local buf = org_buffer({ "#+PLOT: title:\"Sales\" ind:1", "| m | v |", "|---+---|", "| 1 | 5 |" })
+    local buf = org_buffer({ '#+PLOT: title:"Sales" ind:1', "| m | v |", "|---+---|", "| 1 | 5 |" })
     local opts, rows, ncols = plot.collect(buf, 1)
     eq("Sales", opts.title)
     eq({ "m", "v" }, opts.labels)

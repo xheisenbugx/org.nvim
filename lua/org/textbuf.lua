@@ -105,7 +105,7 @@ function M:line(pos)
   return self.text:sub(self:line_beg(pos), self:line_end(pos) - 1)
 end
 
-function M:goto(pos)
+function M:goto_char(pos)
   self.point = math.max(1, math.min(pos, #self.text + 1))
 end
 

@@ -99,7 +99,10 @@ describe("todo", function()
   end)
 
   it("shifts ++ and .+ repeaters and body timestamps", function()
-    local buf = org_buffer({ "* NEXT Gym", "DEADLINE: <2020-01-01 Wed .+2d>", "Meeting <2020-01-01 Wed ++1d>" }, { 1, 0 })
+    local buf = org_buffer(
+      { "* NEXT Gym", "DEADLINE: <2020-01-01 Wed .+2d>", "Meeting <2020-01-01 Wed ++1d>" },
+      { 1, 0 }
+    )
     with_opts({ log_repeat = false }, function()
       todo.change_state(nil, "DONE")
     end)
@@ -301,28 +304,40 @@ describe("todo: Emacs org-todo parity", function()
 
   it("C-c C-t cycles within the set and comes back to it from no keyword", function()
     local buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* WAIT X" }), { 3, 0 })
-    eq("CANC - WAIT CANC", seq(buf, 3, function()
-      todo.select_or_cycle(nil, nil)
-    end, 4))
+    eq(
+      "CANC - WAIT CANC",
+      seq(buf, 3, function()
+        todo.select_or_cycle(nil, nil)
+      end, 4)
+    )
     -- without a remembered set: the first keyword
     local b2 = org_buffer({ "#+TODO: A B C", "* X" }, { 2, 0 })
-    eq("A B C -", seq(b2, 2, function()
-      todo.select_or_cycle()
-    end, 4))
+    eq(
+      "A B C -",
+      seq(b2, 2, function()
+        todo.select_or_cycle()
+      end, 4)
+    )
   end)
 
   it("switches keyword sets without logging, from no keyword to the first / last set", function()
     local buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* DONE X" }), { 3, 0 })
     with_opts({ log_done = "time" }, function()
-      eq("WAIT TODO WAIT", seq(buf, 3, function()
-        todo.next_sequence(nil, 1)
-      end, 3))
+      eq(
+        "WAIT TODO WAIT",
+        seq(buf, 3, function()
+          todo.next_sequence(nil, 1)
+        end, 3)
+      )
     end)
     eq(3, #buf_lines(buf))
     buf = org_buffer(vim.list_extend(vim.deepcopy(SETS), { "* X" }), { 3, 0 })
-    eq("WAIT TODO WAIT", seq(buf, 3, function()
-      todo.next_sequence(nil, -1)
-    end, 3))
+    eq(
+      "WAIT TODO WAIT",
+      seq(buf, 3, function()
+        todo.next_sequence(nil, -1)
+      end, 3)
+    )
   end)
 
   it("prefix arguments: 4 forces a note, 16 next set, 64 ignores blocking, N the Nth keyword", function()
@@ -399,11 +414,15 @@ describe("todo: Emacs org-todo parity", function()
     date.now = function()
       return date.parse("<2026-09-25 Fri 02:30>")
     end
-    local ok_, err = pcall(with_opts, { use_effective_time = true, extend_today_until = 4, log_done = "time" }, function()
-      local buf = org_buffer({ "* TODO X" }, { 1, 0 })
-      todo.change_state(nil, "DONE")
-      eq("CLOSED: [2026-09-24 Thu 23:59]", hl1(buf, 2))
-    end)
+    local ok_, err = pcall(
+      with_opts,
+      { use_effective_time = true, extend_today_until = 4, log_done = "time" },
+      function()
+        local buf = org_buffer({ "* TODO X" }, { 1, 0 })
+        todo.change_state(nil, "DONE")
+        eq("CLOSED: [2026-09-24 Thu 23:59]", hl1(buf, 2))
+      end
+    )
     date.now = real
     assert(ok_, err)
   end)

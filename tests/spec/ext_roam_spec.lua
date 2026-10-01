@@ -499,11 +499,17 @@ describe("roam extension", function()
       ok(table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n"):find("[[id:file-a][Apple]]", 1, true))
       db().update_file(b)
       eq(0, #db().backlinks("file-a"))
-      eq({}, vim.tbl_map(function(n)
-        return n.title
-      end, vim.tbl_filter(function(n)
-        return n.title == "Borrowed"
-      end, db().nodes())))
+      eq(
+        {},
+        vim.tbl_map(
+          function(n)
+            return n.title
+          end,
+          vim.tbl_filter(function(n)
+            return n.title == "Borrowed"
+          end, db().nodes())
+        )
+      )
     end)
 
     it("closes with <Esc>, not q", function()
@@ -659,9 +665,12 @@ describe("roam extension", function()
       write("x.draft.org", { ":PROPERTIES:", ":ID: draft", ":END:" })
       write("attic/old.org", { ":PROPERTIES:", ":ID: old", ":END:" })
       db().sync()
-      eq({ "keep" }, vim.tbl_map(function(n)
-        return n.id
-      end, db().nodes()))
+      eq(
+        { "keep" },
+        vim.tbl_map(function(n)
+          return n.id
+        end, db().nodes())
+      )
     end)
 
     it("finds a directory created after setup", function()
@@ -689,9 +698,12 @@ describe("roam extension", function()
         "Text [[id:a][A]].",
       })
       db().sync()
-      eq({ 9, 10 }, vim.tbl_map(function(b)
-        return b.link.lnum
-      end, db().backlinks("a")))
+      eq(
+        { 9, 10 },
+        vim.tbl_map(function(b)
+          return b.link.lnum
+        end, db().backlinks("a"))
+      )
       eq(0, #vim.tbl_filter(function(l)
         return l.type == "cite"
       end, db().links()))
@@ -753,12 +765,18 @@ describe("roam extension", function()
       })
       db().sync()
       local refs = db().unlinked_references(db().node("a"))
-      eq({ "alpha", "ALEF", "Alpha" }, vim.tbl_map(function(r)
-        return r.match
-      end, refs))
-      eq({ 1, 11, 56 }, vim.tbl_map(function(r)
-        return r.col
-      end, refs))
+      eq(
+        { "alpha", "ALEF", "Alpha" },
+        vim.tbl_map(function(r)
+          return r.match
+        end, refs)
+      )
+      eq(
+        { 1, 11, 56 },
+        vim.tbl_map(function(r)
+          return r.col
+        end, refs)
+      )
     end)
 
     it("finds unlinked references in the unsaved text of a buffer", function()

@@ -31,9 +31,12 @@ local function run_all(lines)
         finished = true
       end,
     })
-    ok(vim.wait(10000, function()
-      return finished
-    end, 20), "block at line " .. b.start .. " did not finish")
+    ok(
+      vim.wait(10000, function()
+        return finished
+      end, 20),
+      "block at line " .. b.start .. " did not finish"
+    )
   end
 end
 
@@ -229,9 +232,12 @@ describe("babel :session", function()
     local sess = session.find("python", "rp")
     local res = session.eval_sync(sess, "6 * 7", "repl", { timeout = 5000 })
     eq("42", vim.trim(res.output))
-    ok(wait_for(tbuf, function(l)
-      return vim.tbl_contains(l, "42")
-    end), vim.inspect(buf_lines(tbuf)))
+    ok(
+      wait_for(tbuf, function(l)
+        return vim.tbl_contains(l, "42")
+      end),
+      vim.inspect(buf_lines(tbuf))
+    )
     vim.cmd("close")
     vim.api.nvim_set_current_buf(buf)
   end)

@@ -657,9 +657,11 @@ local function entry_fn(entry, contents, info)
   local scope = { entry.title }
   vim.list_extend(scope, inside)
   local no_rec = etype == "headline" and { inlinetask = true } or nil
-  for _, ts in ipairs(element.map(scope, "timestamp", function(x)
-    return x
-  end, { ignore = info.ignore, no_recursion = no_rec })) do
+  for _, ts in
+    ipairs(element.map(scope, "timestamp", function(x)
+      return x
+    end, { ignore = info.ignore, no_recursion = no_rec }))
+  do
     if not skip_timestamp_p(info.with_timestamps, ts.ts_type) then
       counter = counter + 1
       out[#out + 1] = vevent(entry, ts, fmt("TS%d-%s", counter, uid), summary, loc, desc, cats, tz, class)
@@ -671,17 +673,21 @@ local function entry_fn(entry, contents, info)
   -- diary sexps (org-icalendar-include-sexps)
   if info.icalendar_include_sexps then
     local n = 0
-    for _, sexp in ipairs(element.map(scope, "diary-sexp", function(x)
-      return x
-    end, { ignore = info.ignore, no_recursion = no_rec })) do
+    for _, sexp in
+      ipairs(element.map(scope, "diary-sexp", function(x)
+        return x
+      end, { ignore = info.ignore, no_recursion = no_rec }))
+    do
       n = n + 1
       out[#out + 1] = M.transcode_diary_sexp(sexp.value or "", fmt("DS%d-%s", n, uid), summary)
     end
   end
   if etype == "headline" then
-    for _, task in ipairs(element.map(inside, "inlinetask", function(x)
-      return x
-    end, { ignore = info.ignore })) do
+    for _, task in
+      ipairs(element.map(inside, "inlinetask", function(x)
+        return x
+      end, { ignore = info.ignore }))
+    do
       out[#out + 1] = entry_fn(task, nil, info) or ""
     end
   end

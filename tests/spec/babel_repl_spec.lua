@@ -26,9 +26,12 @@ local function run_all(lines)
         finished = true
       end,
     })
-    ok(vim.wait(15000, function()
-      return finished
-    end, 20), "block at line " .. b.start .. " did not finish")
+    ok(
+      vim.wait(15000, function()
+        return finished
+      end, 20),
+      "block at line " .. b.start .. " did not finish"
+    )
   end
 end
 
@@ -42,18 +45,24 @@ local function run_at(buf, lnum)
       finished = true
     end,
   })
-  ok(vim.wait(15000, function()
-    return finished
-  end, 20), "block at line " .. lnum .. " did not finish")
+  ok(
+    vim.wait(15000, function()
+      return finished
+    end, 20),
+    "block at line " .. lnum .. " did not finish"
+  )
 end
 
 --- Type `text` into the REPL of `sess` and wait until its terminal shows
 --- `expect`.
 local function type_in(sess, text, expect)
   vim.fn.chansend(sess.job, text .. "\n")
-  ok(vim.wait(10000, function()
-    return table.concat(vim.api.nvim_buf_get_lines(sess.buf, 0, -1, false), "\n"):find(expect, 1, true) ~= nil
-  end, 20), table.concat(vim.api.nvim_buf_get_lines(sess.buf, 0, -1, false), "\n"))
+  ok(
+    vim.wait(10000, function()
+      return table.concat(vim.api.nvim_buf_get_lines(sess.buf, 0, -1, false), "\n"):find(expect, 1, true) ~= nil
+    end, 20),
+    table.concat(vim.api.nvim_buf_get_lines(sess.buf, 0, -1, false), "\n")
+  )
 end
 
 local function bufname(sess)
@@ -87,7 +96,7 @@ describe("babel :session REPLs", function()
       "#+begin_src bash :session :dir " .. dir,
       "cd a",
       "count=1",
-      "greet() { echo \"hello $1\"; }",
+      'greet() { echo "hello $1"; }',
       "#+end_src",
       "",
       "#+begin_src bash :session",

@@ -120,7 +120,10 @@ describe("agenda.items", function()
     end
   end)
   it("stuck projects", function()
-    local list = items.stuck({ file }, { block = { stuck_projects = { match = "+LEVEL=1-ARCHIVE", todo_keywords = { "TODO" } } } })
+    local list = items.stuck(
+      { file },
+      { block = { stuck_projects = { match = "+LEVEL=1-ARCHIVE", todo_keywords = { "TODO" } } } }
+    )
     local t = titles(list)
     ok(vim.tbl_contains(t, "Stuck project"))
     ok(not vim.tbl_contains(t, "Project"))

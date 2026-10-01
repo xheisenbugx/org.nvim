@@ -59,9 +59,12 @@ describe("babel asynchronous source tracking", function()
     })
     vim.api.nvim_buf_set_text(buf, 1, 8, 1, 8, { " " })
     pending[1]("one", {})
-    ok(vim.wait(1000, function()
-      return pending[2] ~= nil
-    end), "the second block still runs")
+    ok(
+      vim.wait(1000, function()
+        return pending[2] ~= nil
+      end),
+      "the second block still runs"
+    )
     pending[2]("two", {})
     ok(vim.wait(1000, function()
       return completed ~= nil

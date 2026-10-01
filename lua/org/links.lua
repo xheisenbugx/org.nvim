@@ -56,10 +56,37 @@ M.URL_SCHEMES = {
 -- application and everything else in Emacs, which can display images and
 -- office documents; Neovim cannot, so those go to the system app too.
 local EXTERNAL_EXT = {
-  pdf = true, png = true, jpg = true, jpeg = true, gif = true, svg = true, webp = true, bmp = true,
-  mp3 = true, mp4 = true, mkv = true, mov = true, avi = true, wav = true, flac = true, ogg = true,
-  doc = true, docx = true, xls = true, xlsx = true, ppt = true, pptx = true, odt = true, ods = true,
-  zip = true, epub = true, dmg = true, html = true, htm = true, xhtml = true, mm = true,
+  pdf = true,
+  png = true,
+  jpg = true,
+  jpeg = true,
+  gif = true,
+  svg = true,
+  webp = true,
+  bmp = true,
+  mp3 = true,
+  mp4 = true,
+  mkv = true,
+  mov = true,
+  avi = true,
+  wav = true,
+  flac = true,
+  ogg = true,
+  doc = true,
+  docx = true,
+  xls = true,
+  xlsx = true,
+  ppt = true,
+  pptx = true,
+  odt = true,
+  ods = true,
+  zip = true,
+  epub = true,
+  dmg = true,
+  html = true,
+  htm = true,
+  xhtml = true,
+  mm = true,
 }
 
 local ZWSP = "\226\128\139" -- U+200B ZERO WIDTH SPACE
@@ -826,9 +853,12 @@ local function buffer_text(bufnr, first, last)
 end
 
 local function words_pattern(words, sep)
-  return table.concat(vim.tbl_map(function(w)
-    return vim.pesc(w:lower())
-  end, words), sep)
+  return table.concat(
+    vim.tbl_map(function(w)
+      return vim.pesc(w:lower())
+    end, words),
+    sep
+  )
 end
 
 --- Insert a heading named `text` at the end of the buffer (level 1) or
@@ -2046,7 +2076,7 @@ local function directory_link(bufnr, lnum)
   end
   local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
   local name = vim.trim(line):gsub("[*@/=|]$", "")
-  if name ~= "" and not name:match("^[\"=]") and utils.exists(dir .. "/" .. name) then
+  if name ~= "" and not name:match('^["=]') and utils.exists(dir .. "/" .. name) then
     return { link = "file:" .. display_path(vim.fs.normalize(dir .. "/" .. name)), desc = nil }
   end
   return { link = "file:" .. display_path(vim.fs.normalize(dir)) .. "/", desc = nil }
@@ -2271,7 +2301,17 @@ end
 ---------------------------------------------------------------------------
 
 local PREFIXES = {
-  "file:", "id:", "https://", "http://", "mailto:", "shell:", "help:", "man:", "attachment:", "doi:", "file+sys:",
+  "file:",
+  "id:",
+  "https://",
+  "http://",
+  "mailto:",
+  "shell:",
+  "help:",
+  "man:",
+  "attachment:",
+  "doi:",
+  "file+sys:",
 }
 
 --- File name completion relative to the directory of buffer `bufnr`.
@@ -2930,8 +2970,9 @@ local function goto_link(dir)
       vim.api.nvim_win_set_cursor(0, { l, found.start_col - 1 })
       pcall(vim.cmd, "normal! zv")
       if wrapped then
-        utils.notify(dir > 0 and "Link search wrapped back to beginning of buffer"
-          or "Link search wrapped back to end of buffer")
+        utils.notify(
+          dir > 0 and "Link search wrapped back to beginning of buffer" or "Link search wrapped back to end of buffer"
+        )
       end
       return true
     end

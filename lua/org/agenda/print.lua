@@ -154,24 +154,75 @@ end
 
 local HORIZ = {}
 for _, c in ipairs({
-  0x2500, 0x2501, 0x2504, 0x2505, 0x2508, 0x2509, 0x254C, 0x254D, 0x2550, 0x2574, 0x2576, 0x2578, 0x257A,
-  0x257C, 0x257E,
+  0x2500,
+  0x2501,
+  0x2504,
+  0x2505,
+  0x2508,
+  0x2509,
+  0x254C,
+  0x254D,
+  0x2550,
+  0x2574,
+  0x2576,
+  0x2578,
+  0x257A,
+  0x257C,
+  0x257E,
 }) do
   HORIZ[c] = true
 end
 local VERT = {}
 for _, c in ipairs({
-  0x2502, 0x2503, 0x2506, 0x2507, 0x250A, 0x250B, 0x254E, 0x254F, 0x2551, 0x2575, 0x2577, 0x2579, 0x257B,
-  0x257D, 0x257F,
+  0x2502,
+  0x2503,
+  0x2506,
+  0x2507,
+  0x250A,
+  0x250B,
+  0x254E,
+  0x254F,
+  0x2551,
+  0x2575,
+  0x2577,
+  0x2579,
+  0x257B,
+  0x257D,
+  0x257F,
 }) do
   VERT[c] = true
 end
 local SUBST = {
-  [0x2010] = "-", [0x2011] = "-", [0x2012] = "-", [0x2013] = "-", [0x2014] = "-", [0x2015] = "-",
-  [0x2212] = "-", [0x2018] = "'", [0x2019] = "'", [0x201A] = "'", [0x201B] = "'", [0x201C] = '"',
-  [0x201D] = '"', [0x201E] = '"', [0x2022] = "*", [0x2023] = ">", [0x2026] = ".", [0x2039] = "<",
-  [0x203A] = ">", [0x2190] = "<", [0x2192] = ">", [0x2191] = "^", [0x2193] = "v", [0x20AC] = "E",
-  [0x2713] = "x", [0x2714] = "x", [0x2717] = "x", [0x2718] = "x", [0x25CF] = "*", [0x25CB] = "o",
+  [0x2010] = "-",
+  [0x2011] = "-",
+  [0x2012] = "-",
+  [0x2013] = "-",
+  [0x2014] = "-",
+  [0x2015] = "-",
+  [0x2212] = "-",
+  [0x2018] = "'",
+  [0x2019] = "'",
+  [0x201A] = "'",
+  [0x201B] = "'",
+  [0x201C] = '"',
+  [0x201D] = '"',
+  [0x201E] = '"',
+  [0x2022] = "*",
+  [0x2023] = ">",
+  [0x2026] = ".",
+  [0x2039] = "<",
+  [0x203A] = ">",
+  [0x2190] = "<",
+  [0x2192] = ">",
+  [0x2191] = "^",
+  [0x2193] = "v",
+  [0x20AC] = "E",
+  [0x2713] = "x",
+  [0x2714] = "x",
+  [0x2717] = "x",
+  [0x2718] = "x",
+  [0x25CF] = "*",
+  [0x25CB] = "o",
 }
 
 --- The Latin-1 byte string for one UTF-8 character of display width W.
@@ -487,11 +538,8 @@ function M.postscript(lines, spans, opts)
   o[#o + 1] = string.format("/F3 /Courier-BoldOblique-ISO findfont %s scalefont def", num(L.font_size))
   o[#o + 1] = string.format("/FT /Helvetica-Bold-ISO findfont %s scalefont def", num(L.title_size))
   o[#o + 1] = string.format("/FH /Helvetica-ISO findfont %s scalefont def", num(L.hdr_size))
-  o[#o + 1] = string.format(
-    "mark { << /PageSize [%s %s] >> setpagedevice } stopped cleartomark",
-    num(L.media_w),
-    num(L.media_h)
-  )
+  o[#o + 1] =
+    string.format("mark { << /PageSize [%s %s] >> setpagedevice } stopped cleartomark", num(L.media_w), num(L.media_h))
   o[#o + 1] = "%%EndSetup"
   for p, ops in ipairs(pages) do
     o[#o + 1] = string.format("%%%%Page: %d %d", p, p)
@@ -583,8 +631,7 @@ function M.pdf(lines, spans, opts)
       else
         local t = { string.format("BT %s %s Td", num(op.x), num(op.y)) }
         for _, run in ipairs(op.runs) do
-          local color = run.fg and string.format("%s %s %s rg", num(run.fg[1]), num(run.fg[2]), num(run.fg[3]))
-            or "0 g"
+          local color = run.fg and string.format("%s %s %s rg", num(run.fg[1]), num(run.fg[2]), num(run.fg[3])) or "0 g"
           local font = text_font[run.font] .. " " .. num(L.font_size)
           t[#t + 1] = string.format("%s %s Tf %s Tj", color, font, M.string_literal(run.text))
         end

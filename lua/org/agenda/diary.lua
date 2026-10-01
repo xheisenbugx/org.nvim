@@ -401,7 +401,20 @@ local HEBREW_LEAP_MONTHS = {
   "Adar I",
   "Adar II",
 }
-local CHINESE_MONTHS = { "正月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "冬月", "臘月" }
+local CHINESE_MONTHS = {
+  "正月",
+  "二月",
+  "三月",
+  "四月",
+  "五月",
+  "六月",
+  "七月",
+  "八月",
+  "九月",
+  "十月",
+  "冬月",
+  "臘月",
+}
 
 --- The calendars of `agenda.diary_nongregorian`: entry symbol, month names
 --- and the date of an absolute day (diary-*-list-entries).

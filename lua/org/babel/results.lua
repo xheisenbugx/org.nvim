@@ -281,11 +281,9 @@ end
 
 --- Escape a macro argument (org-macro-escape-arguments).
 local function macro_escape(s)
-  return (
-    s:gsub("(\\*),", function(bs)
-      return string.rep("\\", 2 * #bs + 1) .. ","
-    end)
-  )
+  return (s:gsub("(\\*),", function(bs)
+    return string.rep("\\", 2 * #bs + 1) .. ","
+  end))
 end
 
 --- Text inserted after an inline src block or call, like

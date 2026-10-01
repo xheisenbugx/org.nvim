@@ -133,12 +133,14 @@ function M.links(bufnr, conceal_links)
     local face = type(def) == "table" and def.face or nil
     if type(face) == "string" and name:match("^[%w_+%-]+$") then
       local group = "orgLinkType_" .. name:gsub("[^%w_]", "_")
-      cmd(string.format(
-        [=[syntax match %s /\[\[%s:%s\]\%%(\[.\{-1,}\]\)\?\]/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=],
-        group,
-        esc(name),
-        LINK_TARGET
-      ))
+      cmd(
+        string.format(
+          [=[syntax match %s /\[\[%s:%s\]\%%(\[.\{-1,}\]\)\?\]/ contains=orgLinkTargetHidden,orgLinkBracket,@NoSpell]=],
+          group,
+          esc(name),
+          LINK_TARGET
+        )
+      )
       cmd(string.format([=[syntax match %s /\<%s:%s/]=], group, esc(name), PLAIN_PATH))
       vim.api.nvim_set_hl(0, group, { link = face, default = true })
       cluster[#cluster + 1] = group
@@ -150,10 +152,12 @@ function M.links(bufnr, conceal_links)
     targets[#targets + 1] = esc(t):gsub(" +", [[\_s\+]])
   end
   if #targets > 0 then
-    cmd(string.format(
-      [=[syntax match orgRadioLink /\c\%%(^\|[^[:alnum:]]\)\@<=\%%(%s\)\%%($\|[^[:alnum:]]\)\@=/ contains=@NoSpell]=],
-      table.concat(targets, [[\|]])
-    ))
+    cmd(
+      string.format(
+        [=[syntax match orgRadioLink /\c\%%(^\|[^[:alnum:]]\)\@<=\%%(%s\)\%%($\|[^[:alnum:]]\)\@=/ contains=@NoSpell]=],
+        table.concat(targets, [[\|]])
+      )
+    )
     cluster[#cluster + 1] = "orgRadioLink"
   end
   cmd("syntax cluster orgLinks contains=" .. table.concat(cluster, ","))
@@ -192,7 +196,9 @@ function M.latex_and_related(ui)
   end
   if set.entities then
     -- (with the character after the name, like Emacs, unless a blank)
-    cmd([=[syntax match orgLatexEntity /\\\%(there4\|sup[123]\|frac[13][24]\|\a\+\)\%({}\|[^[:alpha:][:space:]]\|\ze\s\|$\)/]=])
+    cmd(
+      [=[syntax match orgLatexEntity /\\\%(there4\|sup[123]\|frac[13][24]\|\a\+\)\%({}\|[^[:alpha:][:space:]]\|\ze\s\|$\)/]=]
+    )
   end
   if set.script and ui.use_sub_superscripts ~= false then
     local body = [=[\%({[^}]*}\|([^)]*)\|\*\|[+-]\?[[:alnum:].,\\]*[[:alnum:]]\)]=]
@@ -242,16 +248,20 @@ function M.apply(bufnr)
     end
   end
   if #hidden_info > 0 then
-    cmd(string.format(
-      [=[syntax match orgKeyword /^\s*#+\c\%%(%s\):/ conceal nextgroup=orgKeywordValue skipwhite]=],
-      table.concat(hidden_info, [[\|]])
-    ))
+    cmd(
+      string.format(
+        [=[syntax match orgKeyword /^\s*#+\c\%%(%s\):/ conceal nextgroup=orgKeywordValue skipwhite]=],
+        table.concat(hidden_info, [[\|]])
+      )
+    )
   end
 
   -- Lists --------------------------------------------------------------------
   cmd([=[syntax match orgListBullet /^\s*\zs\([-+]\|\d\+[.)]\|\a[.)]\)\ze\(\s\|$\)/]=])
   cmd([=[syntax match orgListBullet /^\s\+\zs\*\ze\s/]=])
-  cmd([=[syntax match orgListTerm /\(^\s*\([-+]\|\s\*\)\s\+\(\[[ xX-]\]\s\+\)\?\)\@<=\S.\{-}\ze\s::\(\s\|$\)/ contains=orgBold,orgItalic,orgCode,orgVerbatim]=])
+  cmd(
+    [=[syntax match orgListTerm /\(^\s*\([-+]\|\s\*\)\s\+\(\[[ xX-]\]\s\+\)\?\)\@<=\S.\{-}\ze\s::\(\s\|$\)/ contains=orgBold,orgItalic,orgCode,orgVerbatim]=]
+  )
   cmd([=[syntax match orgCheckbox /\(^\s*\([-+*]\|\d\+[.)]\)\s\+\)\@<=\[ \]/]=])
   cmd([=[syntax match orgCheckboxChecked /\(^\s*\([-+*]\|\d\+[.)]\)\s\+\)\@<=\[[xX]\]/]=])
   cmd([=[syntax match orgCheckboxPartial /\(^\s*\([-+*]\|\d\+[.)]\)\s\+\)\@<=\[-\]/]=])
@@ -292,21 +302,23 @@ function M.apply(bufnr)
   local markup = "orgBold,orgItalic,orgUnderline,orgStrikethrough,orgVerbatim,orgCode"
   local function emph(group, char, extra)
     local c = esc(char)
-    cmd(string.format(
-      [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
-      group,
-      group,
-      pre,
-      c,
-      body,
-      c,
-      post,
-      border,
-      c,
-      post,
-      conceal_emph,
-      extra or ("contains=@Spell,@orgLinks," .. markup)
-    ))
+    cmd(
+      string.format(
+        [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
+        group,
+        group,
+        pre,
+        c,
+        body,
+        c,
+        post,
+        border,
+        c,
+        post,
+        conceal_emph,
+        extra or ("contains=@Spell,@orgLinks," .. markup)
+      )
+    )
   end
   emph("orgBold", "*")
   emph("orgItalic", "/")
@@ -319,7 +331,9 @@ function M.apply(bufnr)
   M.links(bufnr, conceal_links)
 
   -- Tables -------------------------------------------------------------------
-  cmd([=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgBold,orgItalic,orgCode,orgVerbatim,@orgLinks,orgTimestamp,orgTimestampInactive]=])
+  cmd(
+    [=[syntax match orgTable /^\s*|.*$/ contains=orgTableSeparator,orgTableHline,orgBold,orgItalic,orgCode,orgVerbatim,@orgLinks,orgTimestamp,orgTimestampInactive]=]
+  )
   cmd([=[syntax match orgTableSeparator /|/ contained]=])
   -- table.el borders (`+--+---+`), fontified like table lines in Emacs
   cmd([=[syntax match orgTable /^\s*+-[-+].*$/]=])
@@ -328,9 +342,15 @@ function M.apply(bufnr)
 
   -- Blocks -------------------------------------------------------------------
   cmd([=[syntax case ignore]=])
-  cmd([=[syntax region orgBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\z(\w\+\)\>.*$/ end=/^\s*#+end_\z1\>.*$/ keepend contains=@NoSpell]=])
-  cmd([=[syntax region orgDynamicBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin:.*$/ end=/^\s*#+end:.*$/ keepend contains=orgTable,orgTimestamp,orgTimestampInactive,@orgLinks]=])
-  cmd([=[syntax region orgQuoteBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\(quote\|verse\|center\)\>.*$/ end=/^\s*#+end_\(quote\|verse\|center\)\>.*$/ keepend contains=orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,@orgLinks,@Spell]=])
+  cmd(
+    [=[syntax region orgBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\z(\w\+\)\>.*$/ end=/^\s*#+end_\z1\>.*$/ keepend contains=@NoSpell]=]
+  )
+  cmd(
+    [=[syntax region orgDynamicBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin:.*$/ end=/^\s*#+end:.*$/ keepend contains=orgTable,orgTimestamp,orgTimestampInactive,@orgLinks]=]
+  )
+  cmd(
+    [=[syntax region orgQuoteBlock matchgroup=orgBlockDelimiter start=/^\s*#+begin_\(quote\|verse\|center\)\>.*$/ end=/^\s*#+end_\(quote\|verse\|center\)\>.*$/ keepend contains=orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,@orgLinks,@Spell]=]
+  )
   cmd([=[syntax case match]=])
 
   if ui.src_highlight ~= false then
@@ -366,12 +386,14 @@ function M.apply(bufnr)
             end
           end
         end
-        cmd(string.format(
-          [=[syntax region orgSrcBlock_%s matchgroup=orgBlockDelimiter start=/\c^\s*#+begin_src\s\+\(%s\)\>.*$/ end=/\c^\s*#+end_src\>.*$/ keepend contains=@%s]=],
-          syn,
-          table.concat(names, [[\|]]),
-          cluster
-        ))
+        cmd(
+          string.format(
+            [=[syntax region orgSrcBlock_%s matchgroup=orgBlockDelimiter start=/\c^\s*#+begin_src\s\+\(%s\)\>.*$/ end=/\c^\s*#+end_src\>.*$/ keepend contains=@%s]=],
+            syn,
+            table.concat(names, [[\|]]),
+            cluster
+          )
+        )
       end
     end
   end
@@ -387,10 +409,12 @@ function M.apply(bufnr)
       or string.format([=[/^\*\{%d} .*$/ contains=%s]=], n, contains)
   end
   if stars_only then
-    cmd(string.format(
-      [=[syntax match orgHeadlineText /^\*\+ .*$/ contains=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,%s]=],
-      contains
-    ))
+    cmd(
+      string.format(
+        [=[syntax match orgHeadlineText /^\*\+ .*$/ contains=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,%s]=],
+        contains
+      )
+    )
   end
   for level = 1, 8 do
     cmd(string.format([=[syntax match orgHeadlineLevel%d %s]=], level, level_pattern(level)))
@@ -408,20 +432,24 @@ function M.apply(bufnr)
   if done_alt ~= "" then
     cmd(string.format([[syntax match orgDone /\(^\*\+\s\+\)\@<=\(%s\)\ze\(\s\|$\)/ contained]], done_alt))
     if ui.fontify_done_headline ~= false then
-      cmd(string.format(
-        [=[syntax match orgHeadlineDone /^\*\+\s\+\(%s\)\s.*$/ contains=orgDone,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgPriority]=],
-        done_alt
-      ))
+      cmd(
+        string.format(
+          [=[syntax match orgHeadlineDone /^\*\+\s\+\(%s\)\s.*$/ contains=orgDone,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgPriority]=],
+          done_alt
+        )
+      )
     end
   end
   -- per-keyword faces
   for name in pairs(ui.todo_keyword_faces or {}) do
     if todo:is_keyword(name) then
-      cmd(string.format(
-        [=[syntax match orgTodoKw_%s /\(^\*\+\s\+\)\@<=%s\ze\(\s\|$\)/ contained containedin=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,orgHeadlineText,orgHeadlineDone]=],
-        name:gsub("[^%w_]", "_"),
-        esc(name)
-      ))
+      cmd(
+        string.format(
+          [=[syntax match orgTodoKw_%s /\(^\*\+\s\+\)\@<=%s\ze\(\s\|$\)/ contained containedin=orgHeadlineLevel1,orgHeadlineLevel2,orgHeadlineLevel3,orgHeadlineLevel4,orgHeadlineLevel5,orgHeadlineLevel6,orgHeadlineLevel7,orgHeadlineLevel8,orgHeadlineText,orgHeadlineDone]=],
+          name:gsub("[^%w_]", "_"),
+          esc(name)
+        )
+      )
     end
   end
   cmd([=[syntax match orgPriority /\[#\(\u\|\d\d\=\)\]/ contained contains=orgPriorityA,orgPriorityB,orgPriorityC]=])
@@ -432,28 +460,34 @@ function M.apply(bufnr)
   -- ui.priority_faces / ui.tag_faces (org-priority-faces, org-tag-faces)
   local hls = require("org.highlights")
   for prio in pairs(ui.priority_faces or {}) do
-    cmd(string.format(
-      [=[syntax match %s /\[#%s\]/ contained containedin=orgPriority]=],
-      hls.face_group("orgPriorityFace_", prio),
-      esc(tostring(prio))
-    ))
+    cmd(
+      string.format(
+        [=[syntax match %s /\[#%s\]/ contained containedin=orgPriority]=],
+        hls.face_group("orgPriorityFace_", prio),
+        esc(tostring(prio))
+      )
+    )
   end
   for tag in pairs(ui.tag_faces or {}) do
-    cmd(string.format(
-      [=[syntax match %s /:\zs%s\ze:/ contained containedin=orgTags]=],
-      hls.face_group("orgTagFace_", tag),
-      esc(tostring(tag))
-    ))
+    cmd(
+      string.format(
+        [=[syntax match %s /:\zs%s\ze:/ contained containedin=orgTags]=],
+        hls.face_group("orgTagFace_", tag),
+        esc(tostring(tag))
+      )
+    )
   end
   cmd([=[syntax match orgHeadlineComment /\(^\*\+\s\+\(\S\+\s\+\)\?\)\@<=COMMENT\>/ contained]=])
   if todo_alt ~= "" and ui.fontify_todo_headline then
     -- org-fontify-todo-headline: the text after a TODO keyword, priority
     -- cookie and tags included. Defined last, it wins over the items that
     -- start where it does ("[#A]", a link, ...) and contains them.
-    cmd(string.format(
-      [=[syntax match orgHeadlineTodo /\(^\*\+\s\+\(%s\)\s\+\)\@<=\S.*$/ contained contains=orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell]=],
-      todo_alt
-    ))
+    cmd(
+      string.format(
+        [=[syntax match orgHeadlineTodo /\(^\*\+\s\+\(%s\)\s\+\)\@<=\S.*$/ contained contains=orgPriority,orgTags,orgTimestamp,orgTimestampInactive,@orgLinks,orgStatistic,orgBold,orgItalic,orgUnderline,orgCode,orgVerbatim,orgStrikethrough,orgHeadlineComment,orgFootnote,@Spell]=],
+        todo_alt
+      )
+    )
   end
 
   require("org.highlights").apply_todo_faces()

@@ -27,11 +27,13 @@ local function word(w)
   if w == "~" or w:match("^~/") then
     w = (vim.env.HOME or "~") .. w:sub(2)
   end
-  return (w:gsub("%${([%w_]+)}", function(v)
-    return vim.env[v] or ("${" .. v .. "}")
-  end):gsub("%$([%w_]+)", function(v)
-    return vim.env[v] or ("$" .. v)
-  end))
+  return (
+    w:gsub("%${([%w_]+)}", function(v)
+      return vim.env[v] or ("${" .. v .. "}")
+    end):gsub("%$([%w_]+)", function(v)
+      return vim.env[v] or ("$" .. v)
+    end)
+  )
 end
 
 --- The command of a tool option as a shell fragment: a list is quoted word

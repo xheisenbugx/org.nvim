@@ -114,7 +114,10 @@ describe("org-attach", function()
   it("uses DIR, the old ATTACH_DIR and relative DIR values", function()
     local dir = tmpdir()
     setup(dir)
-    local buf = file_buffer(dir, { "* A", ":PROPERTIES:", ":DIR: stuff", ":END:", "* B", ":PROPERTIES:", ":ATTACH_DIR: /tmp/x", ":END:" })
+    local buf = file_buffer(
+      dir,
+      { "* A", ":PROPERTIES:", ":DIR: stuff", ":END:", "* B", ":PROPERTIES:", ":ATTACH_DIR: /tmp/x", ":END:" }
+    )
     eq(dir .. "/stuff", (attach.dir_for({ bufnr = buf, lnum = 1 })))
     eq("/tmp/x", (attach.dir_for({ bufnr = buf, lnum = 5 })))
     setup(dir, { attach = { dir_relative = true } })
@@ -127,7 +130,10 @@ describe("org-attach", function()
   it("maps IDs to folders with id_to_path, preferring existing ones", function()
     local dir = tmpdir()
     setup(dir)
-    local buf = file_buffer(dir, { "* A", ":PROPERTIES:", ":ID: 20260925T120000.000000", ":END:", "* B", ":PROPERTIES:", ":ID: x", ":END:" })
+    local buf = file_buffer(
+      dir,
+      { "* A", ":PROPERTIES:", ":ID: 20260925T120000.000000", ":END:", "* B", ":PROPERTIES:", ":ID: x", ":END:" }
+    )
     local a, b = { bufnr = buf, lnum = 1 }, { bufnr = buf, lnum = 5 }
     eq(dir .. "/data/20/260925T120000.000000", (attach.dir_for(a)))
     vim.fn.mkdir(dir .. "/data/202609/25T120000.000000", "p")

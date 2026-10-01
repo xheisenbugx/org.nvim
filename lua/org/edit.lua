@@ -72,11 +72,7 @@ function M.region_headlines(skip)
     if hl.line >= s and hl.line <= e then
       local fc = vim.fn.foldclosed(hl.line)
       level = level or hl.level
-      if
-        (fc == -1 or fc == hl.line)
-        and (loop ~= "start-level" or hl.level == level)
-        and not (skip and skip(hl))
-      then
+      if (fc == -1 or fc == hl.line) and (loop ~= "start-level" or hl.level == level) and not (skip and skip(hl)) then
         local id = vim.api.nvim_buf_set_extmark(bufnr, region_ns, hl.line - 1, 0, {})
         out[#out + 1] = {
           bufnr = bufnr,

@@ -739,9 +739,12 @@ describe("code extension", function()
       setup({ todo_scanner = "lua" })
       write(".org/tasks.org", { "* TODO Not code" })
       local found = require("org.extensions.code.todos").scan(repo)
-      eq({ "src/app.lua:3", "src/app.lua:10", "tools/greet.py:4" }, vim.tbl_map(function(t)
-        return t.rel .. ":" .. t.lnum
-      end, found))
+      eq(
+        { "src/app.lua:3", "src/app.lua:10", "tools/greet.py:4" },
+        vim.tbl_map(function(t)
+          return t.rel .. ":" .. t.lnum
+        end, found)
+      )
     end)
 
     it("scans with git grep, including untracked files", function()

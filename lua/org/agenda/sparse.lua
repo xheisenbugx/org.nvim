@@ -295,8 +295,7 @@ function M.dates(kind, d1, d2, type)
       out[#out + 1] = { lnum = m.lnum, col = m.col, end_col = m.end_col }
     end
   end
-  local title = kind == "between"
-      and string.format("between %s and %s", d1:to_date_string(), d2:to_date_string())
+  local title = kind == "between" and string.format("between %s and %s", d1:to_date_string(), d2:to_date_string())
     or string.format("%s %s", kind, d1:to_date_string())
   M.show(out, title, nil, string.format("%d entries %s", #out, title))
   return out

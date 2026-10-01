@@ -357,7 +357,7 @@ describe("babel parity: results", function()
         "#+end_src",
         "",
         "#+begin_src js :var t='((1 2) (3 4))",
-        "return [[1, \"a b\"], t[1]];",
+        'return [[1, "a b"], t[1]];',
         "#+end_src",
       })
       eq({ ": abc" }, result_of(out, "#+begin_src js"))
@@ -536,10 +536,13 @@ describe("babel parity: results", function()
     eq({ "x=[1 2]" }, require("org.babel.langs").var_lines("python", { { name = "x", value = lisp.read("[1 2]") } }))
     eq({ { "a", "b" }, { "c", "d" } }, lisp.import_table("a\tb\nc\td\n"))
     eq("one line", lisp.import_table("one line\n"))
-    eq({ { 1.5, 2 }, { "q", "x" } }, (function()
-      local t = lisp.import_table('1.50 2\n"q" x\n')
-      return { { lisp.tonumber(t[1][1]), t[1][2] }, t[2] }
-    end)())
+    eq(
+      { { 1.5, 2 }, { "q", "x" } },
+      (function()
+        local t = lisp.import_table('1.50 2\n"q" x\n')
+        return { { lisp.tonumber(t[1][1]), t[1][2] }, t[2] }
+      end)()
+    )
   end)
 end)
 
@@ -698,7 +701,7 @@ describe("babel parity: C and SQL", function()
       "|---+----|",
       "| 2 |    |",
       "| 3 |    |",
-      "#+TBLFM: $2='(org-sbe \"square\" (x $1))",
+      '#+TBLFM: $2=\'(org-sbe "square" (x $1))',
     }, { 8, 1 })
     require("org.table").recalc()
     eq({ "| n | sq |", "|---+----|", "| 2 |  4 |", "| 3 |  9 |" }, vim.list_slice(buf_lines(buf), 6, 9))

@@ -289,7 +289,7 @@ S.date = {
       elseif arg == "today" then
         return d == today()
       end
-      error("super_agenda: date must be true, false or \"today\"", 0)
+      error('super_agenda: date must be true, false or "today"', 0)
     end
   end,
 }
@@ -664,7 +664,8 @@ compile_group = function(g, joiner)
       end
     end
     return false
-  end, table.concat(names, joiner or " and ")
+  end,
+    table.concat(names, joiner or " and ")
 end
 
 ---------------------------------------------------------------------------

@@ -176,7 +176,14 @@ describe("edit", function()
     edit.set_planning(buf, 1, "deadline", date.parse("<2026-09-25 Fri>"))
     eq("DEADLINE: <2026-09-25 Fri> SCHEDULED: <2026-09-23 Wed>", buf_lines(buf)[2])
     edit.set_property(buf, 1, "ID", "x1")
-    eq({ "* TODO Task", "DEADLINE: <2026-09-25 Fri> SCHEDULED: <2026-09-23 Wed>", ":PROPERTIES:", ":ID:       x1", ":END:", "body" }, buf_lines(buf))
+    eq({
+      "* TODO Task",
+      "DEADLINE: <2026-09-25 Fri> SCHEDULED: <2026-09-23 Wed>",
+      ":PROPERTIES:",
+      ":ID:       x1",
+      ":END:",
+      "body",
+    }, buf_lines(buf))
     edit.add_log_entry(buf, 1, { "- Note" })
     eq(":LOGBOOK:", buf_lines(buf)[6])
     edit.set_property(buf, 1, "ID", nil)

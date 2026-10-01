@@ -646,7 +646,7 @@ function M.import_occurrence(occ)
   vim.api.nvim_buf_call(buf, function()
     vim.cmd("silent write")
   end)
-  u.notify(string.format("ics: added \"%s\" to %s", occ.event.summary, vim.fn.fnamemodify(file, ":~")))
+  u.notify(string.format('ics: added "%s" to %s', occ.event.summary, vim.fn.fnamemodify(file, ":~")))
   return file
 end
 

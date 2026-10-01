@@ -103,7 +103,7 @@ describe("texinfo export", function()
   it("honours the header keywords", function()
     local s = texi({
       "#+TITLE: T",
-      "#+TEXINFO_FILENAME: \"manual.info\"",
+      '#+TEXINFO_FILENAME: "manual.info"',
       "#+TEXINFO_HEADER: @set A",
       "#+TEXINFO_POST_HEADER: @set B",
       "#+TEXINFO_DIR_TITLE: Short",

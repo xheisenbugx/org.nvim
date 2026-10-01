@@ -110,7 +110,8 @@ end
 local function build_toc(info, n, scope)
   local out = {}
   if not scope then
-    out[#out + 1] = headline_title(info.md_headline_style, info.md_toplevel_hlevel, translate("Table of Contents", info))
+    out[#out + 1] =
+      headline_title(info.md_headline_style, info.md_toplevel_hlevel, translate("Table of Contents", info))
   end
   local entries = {}
   for _, h in ipairs(ox.collect_headlines(info, n, scope)) do
@@ -153,10 +154,12 @@ local function footnote_section(info)
   end
   local title = headline_title(info.md_headline_style, info.md_toplevel_hlevel, translate("Footnotes", info))
   local i = 0
-  return (info.md_footnotes_section:gsub("%%s", function()
-    i = i + 1
-    return i == 1 and title or table.concat(items, "\n")
-  end))
+  return (
+    info.md_footnotes_section:gsub("%%s", function()
+      i = i + 1
+      return i == 1 and title or table.concat(items, "\n")
+    end)
+  )
 end
 
 local function convert_to_html(datum, _, info)
@@ -251,7 +254,12 @@ T.headline = function(el, contents, info)
       local num = ox.get_headline_number(el, info)
       bullet = tostring(num[#num]) .. "."
     end
-    return bullet .. string.rep(" ", 4 - #bullet) .. heading .. tags .. "\n\n" .. (contents and prefix_lines(contents, "    ") or "")
+    return bullet
+      .. string.rep(" ", 4 - #bullet)
+      .. heading
+      .. tags
+      .. "\n\n"
+      .. (contents and prefix_lines(contents, "    ") or "")
   end
   local anchor
   if headline_referred_p(el, info) then
@@ -275,7 +283,11 @@ T.item = function(el, contents, info)
   end
   local box = ({ on = "[X] ", trans = "[-] ", off = "[ ] " })[el.checkbox or ""] or ""
   local tag = el.tag and fmt("**%s:** ", ox.data(el.tag, info)) or ""
-  return bullet .. string.rep(" ", math.max(1, 4 - #bullet)) .. box .. tag .. (contents and trim(prefix_lines(contents, "    ")) or "")
+  return bullet
+    .. string.rep(" ", math.max(1, 4 - #bullet))
+    .. box
+    .. tag
+    .. (contents and trim(prefix_lines(contents, "    ")) or "")
 end
 
 T.keyword = function(el, contents, info)

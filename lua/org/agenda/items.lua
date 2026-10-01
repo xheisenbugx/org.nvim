@@ -921,8 +921,11 @@ function M.agenda(files, from, to, opts)
               end
             end
             if d == a and d == b then
-              set_time(item, ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min })
-                or ts, acfg)
+              set_time(
+                item,
+                ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min }) or ts,
+                acfg
+              )
             elseif d == a then
               set_time(item, ts, acfg)
             elseif d == b then
@@ -1021,8 +1024,16 @@ function M.agenda(files, from, to, opts)
       local sx = raw and raw:match("^%s*%u+:") and raw:match(kind:upper() .. ":%s*<%%%%(%b())")
       if sx and types[kind] then
         for d = from, to do
-          if eval_sexp(sx, d, "") and not (done and (kind == "deadline" and acfg.skip_deadline_if_done or kind ==
-            "scheduled" and acfg.skip_scheduled_if_done)) then
+          if
+            eval_sexp(sx, d, "")
+            and not (
+              done
+              and (
+                kind == "deadline" and acfg.skip_deadline_if_done
+                or kind == "scheduled" and acfg.skip_scheduled_if_done
+              )
+            )
+          then
             local item = new_item(hl, {
               type = kind,
               ts_type = kind,

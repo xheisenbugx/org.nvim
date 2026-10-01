@@ -156,7 +156,11 @@ function M.format_headline(todo, _todo_type, priority, text, tags, info)
   local t = todo_html(todo, info)
   local p = priority_html(priority)
   local g = tags_html(tags, info)
-  return (t and (t .. " ") or "") .. (p and (p .. " ") or "") .. (text or "") .. (g and "&nbsp;&nbsp;&nbsp" or "") .. (g or "")
+  return (t and (t .. " ") or "")
+    .. (p and (p .. " ") or "")
+    .. (text or "")
+    .. (g and "&nbsp;&nbsp;&nbsp" or "")
+    .. (g or "")
 end
 
 local function format_headline(info, ...)
@@ -397,7 +401,11 @@ local function format_toc_headline(h, info)
     end
     prefix = table.concat(parts, ".") .. ". "
   end
-  return fmt('<a href="#%s">%s</a>', M.reference(h, info), prefix .. format_headline(info, todo, todo_type, priority, text, tags, info))
+  return fmt(
+    '<a href="#%s">%s</a>',
+    M.reference(h, info),
+    prefix .. format_headline(info, todo, todo_type, priority, text, tags, info)
+  )
 end
 
 function M.toc(depth, info, scope)
@@ -411,7 +419,9 @@ function M.toc(depth, info, scope)
   end
   local counter = info.html_toc_counter
   local suffix = counter and ("-" .. counter) or ""
-  local toc = fmt('<div id="text-table-of-contents%s" role="doc-toc">', suffix) .. toc_text(entries, scope) .. "</div>\n"
+  local toc = fmt('<div id="text-table-of-contents%s" role="doc-toc">', suffix)
+    .. toc_text(entries, scope)
+    .. "</div>\n"
   info.html_toc_counter = (counter or 0) + 1
   if scope then
     return toc
@@ -677,7 +687,10 @@ local function build_mathjax_config(info)
   -- legacy in-buffer options
   local lb = inbuf:match("%f[%w]linebreaks:%s*(%S+)")
   if lb then
-    template = template:gsub("displayOverflow: '[^']*'", "displayOverflow: '" .. (lb == "true" and "linebreak" or "overflow") .. "'")
+    template = template:gsub(
+      "displayOverflow: '[^']*'",
+      "displayOverflow: '" .. (lb == "true" and "linebreak" or "overflow") .. "'"
+    )
   end
   local an = inbuf:match("%f[%w]autonumber:%s*(%S+)")
   if an then
@@ -711,12 +724,14 @@ local function format_spec(info)
 end
 
 local function format_spec_apply(s, spec)
-  return (s:gsub("%%(.)", function(c)
-    if c == "%" then
-      return "%"
-    end
-    return spec[c] or ("%" .. c)
-  end))
+  return (
+    s:gsub("%%(.)", function(c)
+      if c == "%" then
+        return "%"
+      end
+      return spec[c] or ("%" .. c)
+    end)
+  )
 end
 
 local function build_pre_postamble(kind, info)
@@ -890,13 +905,15 @@ local function template(contents, info)
   if not (up == "" and home == "") then
     local f = info.html_home_up_format or data.home_up_format
     local i = 0
-    out[#out + 1] = (f:gsub("%%s", function()
-      i = i + 1
-      if i == 1 then
-        return up ~= "" and up or home
-      end
-      return home ~= "" and home or up
-    end))
+    out[#out + 1] = (
+      f:gsub("%%s", function()
+        i = i + 1
+        if i == 1 then
+          return up ~= "" and up or home
+        end
+        return home ~= "" and home or up
+      end)
+    )
   end
   out[#out + 1] = build_pre_postamble("preamble", info)
   local div = info.html_divs.content
@@ -908,7 +925,10 @@ local function template(contents, info)
       if fancy then
         sub = fmt('<p class="subtitle" role="doc-subtitle">%s</p>\n', ox.data(info.subtitle, info))
       else
-        sub = "\n" .. close_tag("br", nil, info) .. "\n" .. fmt('<span class="subtitle">%s</span>\n', ox.data(info.subtitle, info))
+        sub = "\n"
+          .. close_tag("br", nil, info)
+          .. "\n"
+          .. fmt('<span class="subtitle">%s</span>\n', ox.data(info.subtitle, info))
       end
     end
     if fancy then
@@ -1170,7 +1190,14 @@ T.headline = function(el, contents, info)
   if ox.low_level_p(el, info) then
     local html_type = numberedp and "ol" or "ul"
     return (ox.first_sibling_p(el, info) and fmt('<%s class="org-%s">\n', html_type, html_type) or "")
-      .. M.format_list_item(contents, numberedp and "ordered" or "unordered", nil, info, nil, anchor(id, nil, nil, info) .. formatted)
+      .. M.format_list_item(
+        contents,
+        numberedp and "ordered" or "unordered",
+        nil,
+        info,
+        nil,
+        anchor(id, nil, nil, info) .. formatted
+      )
       .. "\n"
       .. (ox.last_sibling_p(el, info) and fmt("</%s>\n", html_type) or "")
   end
@@ -1200,7 +1227,14 @@ T.headline = function(el, contents, info)
     c,
     "outline-container-" .. id,
     fmt("outline-%d", level) .. (extra_class and (" " .. extra_class) or ""),
-    fmt("\n<h%d id=\"%s\"%s>%s</h%d>\n", level, id, headline_class and fmt(' class="%s"', headline_class) or "", num .. formatted, level),
+    fmt(
+      '\n<h%d id="%s"%s>%s</h%d>\n',
+      level,
+      id,
+      headline_class and fmt(' class="%s"', headline_class) or "",
+      num .. formatted,
+      level
+    ),
     body,
     c
   )
@@ -1378,8 +1412,10 @@ end
 
 T["latex-environment"] = function(el, _, info)
   local ptype = info.with_latex
-  local frag = table.concat(element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })), "\n")
-    .. "\n"
+  local frag = table.concat(
+    element.remove_indentation(vim.split((el.value:gsub("\n$", "")), "\n", { plain = true })),
+    "\n"
+  ) .. "\n"
   local label = M.reference(el, info, true)
   if ptype == true or ptype == "mathjax" then
     if nw(label) then
@@ -1520,7 +1556,7 @@ end
 local function wrap_image(contents, info, caption, label)
   local fancy = html5_fancy_p(info)
   return fmt(
-    fancy and "\n<figure%s>\n%s%s\n</figure>" or "\n<div%s class=\"figure\">\n%s%s\n</div>",
+    fancy and "\n<figure%s>\n%s%s\n</figure>" or '\n<div%s class="figure">\n%s%s\n</div>',
     nw(label) and fmt(' id="%s"', label) or "",
     fancy and contents or fmt("<p>%s</p>", contents),
     nw(caption) and fmt(fancy and "\n<figcaption>%s</figcaption>" or "\n<p>%s</p>", caption) or ""
@@ -1677,7 +1713,11 @@ T.link = function(el, desc, info)
     return fmt(
       '<a href="#%s" %s%s>%s</a>',
       frag,
-      fmt("class=\"coderef\" onmouseover=\"CodeHighlightOn(this, '%s');\" onmouseout=\"CodeHighlightOff(this, '%s');\"", frag, frag),
+      fmt(
+        'class="coderef" onmouseover="CodeHighlightOn(this, \'%s\');" onmouseout="CodeHighlightOff(this, \'%s\');"',
+        frag,
+        frag
+      ),
       attributes,
       (f:gsub("%%s", function()
         return tostring(r)
@@ -1722,7 +1762,10 @@ T.paragraph = function(el, contents, info)
       local n = ox.get_ordinal(img, info, nil, function(x)
         return M.standalone_image_p(x, info, pred)
       end)
-      caption = '<span class="figure-number">' .. (translate("Figure %d:", info):gsub("%%d", tostring(n))) .. " </span>" .. raw
+      caption = '<span class="figure-number">'
+        .. (translate("Figure %d:", info):gsub("%%d", tostring(n)))
+        .. " </span>"
+        .. raw
     end
     return wrap_image(contents, info, caption, M.reference(el, info))
   end
@@ -1836,7 +1879,13 @@ T["src-block"] = function(el, _, info)
     return fmt(
       '<div class="org-src-container">\n%s%s\n</div>',
       cap,
-      fmt('<pre><code class="src src-%s"%s%s>%s</code></pre>', lang or "", label, lang == "html" and ' data-editor-type="html"' or "", code)
+      fmt(
+        '<pre><code class="src src-%s"%s%s>%s</code></pre>',
+        lang or "",
+        label,
+        lang == "html" and ' data-editor-type="html"' or "",
+        code
+      )
     )
   end
   return fmt(
@@ -1906,7 +1955,13 @@ T["table-row"] = function(el, contents, info)
   else
     tags = { "<tbody>", "\n</tbody>" }
   end
-  return (start_p and tags[1] or "") .. "\n" .. open_tag .. (contents or "") .. "\n" .. close .. (end_p and tags[2] or "")
+  return (start_p and tags[1] or "")
+    .. "\n"
+    .. open_tag
+    .. (contents or "")
+    .. "\n"
+    .. close
+    .. (end_p and tags[2] or "")
 end
 
 local function first_row_data_cells(tbl, info)
@@ -1959,11 +2014,21 @@ T.table = function(el, contents, info)
   local cap = ""
   if caption then
     cap = fmt(
-      info.html_table_caption_above and '<caption class="t-above">%s</caption>' or '<caption class="t-bottom">%s</caption>',
-      '<span class="table-number">' .. (translate("Table %d:", info):gsub("%%d", tostring(number))) .. "</span> " .. ox.data(caption, info)
+      info.html_table_caption_above and '<caption class="t-above">%s</caption>'
+        or '<caption class="t-bottom">%s</caption>',
+      '<span class="table-number">'
+        .. (translate("Table %d:", info):gsub("%%d", tostring(number)))
+        .. "</span> "
+        .. ox.data(caption, info)
     )
   end
-  return fmt("<table%s>\n%s\n%s\n%s</table>", a == "" and "" or (" " .. a), cap, table.concat(specs, "\n"), contents or "")
+  return fmt(
+    "<table%s>\n%s\n%s\n%s</table>",
+    a == "" and "" or (" " .. a),
+    cap,
+    table.concat(specs, "\n"),
+    contents or ""
+  )
 end
 
 --- table.el tables: the HTML table.el generates (org-html-table--table.el-table),
@@ -2032,7 +2097,13 @@ local function defaults()
     { "html_link_home", "HTML_LINK_HOME", nil, v("link_home", "") },
     { "html_link_up", "HTML_LINK_UP", nil, v("link_up", "") },
     { "html_mathjax", "HTML_MATHJAX", nil, "", "space" },
-    { "html_equation_reference_format", "HTML_EQUATION_REFERENCE_FORMAT", nil, v("equation_reference_format", "\\eqref{%s}"), "t" },
+    {
+      "html_equation_reference_format",
+      "HTML_EQUATION_REFERENCE_FORMAT",
+      nil,
+      v("equation_reference_format", "\\eqref{%s}"),
+      "t",
+    },
     { "html_postamble", nil, "html-postamble", v("postamble", "auto") },
     { "html_preamble", nil, "html-preamble", v("preamble", true) },
     { "html_head", "HTML_HEAD", nil, v("head", ""), "newline" },
@@ -2041,7 +2112,15 @@ local function defaults()
     { "html_head_include_default_style", nil, "html-style", head_default_style },
     { "html_head_include_scripts", nil, "html-scripts", v("head_include_scripts", false) },
     { "html_allow_name_attribute_in_anchors", nil, nil, v("allow_name_attribute_in_anchors", false) },
-    { "html_divs", nil, nil, v("divs", { preamble = { "div", "preamble" }, content = { "div", "content" }, postamble = { "div", "postamble" } }) },
+    {
+      "html_divs",
+      nil,
+      nil,
+      v(
+        "divs",
+        { preamble = { "div", "preamble" }, content = { "div", "content" }, postamble = { "div", "postamble" } }
+      ),
+    },
     { "html_checkbox_type", nil, nil, v("checkbox_type", "ascii") },
     { "html_extension", nil, nil, v("extension", "html") },
     { "html_footnote_format", nil, nil, v("footnote_format", "<sup>%s</sup>") },
@@ -2062,43 +2141,73 @@ local function defaults()
     { "html_table_header_tags", nil, nil, v("table_header_tags", { '<th scope="%s"%s>', "</th>" }) },
     { "html_table_use_header_tags_for_first_column", nil, nil, v("table_use_header_tags_for_first_column", false) },
     { "html_tag_class_prefix", nil, nil, v("tag_class_prefix", "") },
-    { "html_text_markup_alist", nil, nil, v("text_markup_alist", {
-      bold = "<b>%s</b>",
-      code = "<code>%s</code>",
-      italic = "<i>%s</i>",
-      ["strike-through"] = "<del>%s</del>",
-      underline = '<span class="underline">%s</span>',
-      verbatim = "<code>%s</code>",
-    }) },
+    {
+      "html_text_markup_alist",
+      nil,
+      nil,
+      v("text_markup_alist", {
+        bold = "<b>%s</b>",
+        code = "<code>%s</code>",
+        italic = "<i>%s</i>",
+        ["strike-through"] = "<del>%s</del>",
+        underline = '<span class="underline">%s</span>',
+        verbatim = "<code>%s</code>",
+      }),
+    },
     { "html_todo_kwd_class_prefix", nil, nil, v("todo_kwd_class_prefix", "") },
     { "html_toplevel_hlevel", nil, nil, v("toplevel_hlevel", 2) },
     { "html_validation_link", nil, nil, v("validation_link", data.validation_link) },
-    { "html_viewport", nil, nil, v("viewport", {
-      { "width", "device-width" },
-      { "initial-scale", "1" },
-      { "minimum-scale", "" },
-      { "maximum-scale", "" },
-      { "user-scalable", "" },
-    }) },
+    {
+      "html_viewport",
+      nil,
+      nil,
+      v("viewport", {
+        { "width", "device-width" },
+        { "initial-scale", "1" },
+        { "minimum-scale", "" },
+        { "maximum-scale", "" },
+        { "user-scalable", "" },
+      }),
+    },
     { "html_inline_images", nil, nil, v("inline_images", true) },
-    { "html_table_attributes", nil, nil, v("table_default_attributes", {
-      { "border", "2" },
-      { "cellspacing", "0" },
-      { "cellpadding", "6" },
-      { "rules", "groups" },
-      { "frame", "hsides" },
-    }) },
+    {
+      "html_table_attributes",
+      nil,
+      nil,
+      v("table_default_attributes", {
+        { "border", "2" },
+        { "cellspacing", "0" },
+        { "cellpadding", "6" },
+        { "rules", "groups" },
+        { "frame", "hsides" },
+      }),
+    },
     { "html_table_row_open_tag", nil, nil, v("table_row_open_tag", "<tr>") },
     { "html_table_row_close_tag", nil, nil, v("table_row_close_tag", "</tr>") },
-    { "html_xml_declaration", nil, nil, v("xml_declaration", {
-      html = '<?xml version="1.0" encoding="%s"?>',
-      php = '<?php echo "<?xml version=\\"1.0\\" encoding=\\"%s\\" ?>"; ?>',
-    }) },
+    {
+      "html_xml_declaration",
+      nil,
+      nil,
+      v("xml_declaration", {
+        html = '<?xml version="1.0" encoding="%s"?>',
+        php = '<?php echo "<?xml version=\\"1.0\\" encoding=\\"%s\\" ?>"; ?>',
+      }),
+    },
     { "html_coding_system", nil, nil, v("coding_system", "utf-8") },
     { "html_wrap_src_lines", nil, nil, v("wrap_src_lines", false) },
     { "html_klipsify_src", nil, nil, v("klipsify_src", false) },
-    { "html_klipse_css", nil, nil, v("klipse_css", "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css") },
-    { "html_klipse_js", nil, nil, v("klipse_js", "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js") },
+    {
+      "html_klipse_css",
+      nil,
+      nil,
+      v("klipse_css", "https://storage.googleapis.com/app.klipse.tech/css/codemirror.css"),
+    },
+    {
+      "html_klipse_js",
+      nil,
+      nil,
+      v("klipse_js", "https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js"),
+    },
     { "html_klipse_selection_script", nil, nil, v("klipse_selection_script", KLIPSE_SELECTION_SCRIPT) },
     { "html_scripts", nil, nil, v("scripts", data.scripts) },
     { "infojs_opt", "INFOJS_OPT", nil, nil },

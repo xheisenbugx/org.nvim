@@ -164,13 +164,24 @@ describe("export publish (ox-publish)", function()
 
   it("builds list and tree site maps with custom sorting", function()
     local dir = setup()
-    local project = { "t", { base_directory = dir .. "/src", recursive = true, sitemap_sort_files = "anti-chronologically", sitemap_style = "list" } }
+    local project = {
+      "t",
+      {
+        base_directory = dir .. "/src",
+        recursive = true,
+        sitemap_sort_files = "anti-chronologically",
+        sitemap_style = "list",
+      },
+    }
     publish.initialize_cache("t")
     publish.sitemap(project, "sm.org")
     local s = read(dir .. "/src/sm.org")
     -- A Page has a 2026-01-02 date; the others use their file modification time
     ok(s:match("^#%+TITLE: Sitemap for project t\n\n"), s)
     ok(s:find("- [[file:sub/page.org][A Page]]", 1, true), s)
-    eq("- a\n  - [[file:b.org][B]]", publish.list_to_org({ "unordered", { "a", { "unordered", { "[[file:b.org][B]]" } } } }))
+    eq(
+      "- a\n  - [[file:b.org][B]]",
+      publish.list_to_org({ "unordered", { "a", { "unordered", { "[[file:b.org][B]]" } } } })
+    )
   end)
 end)

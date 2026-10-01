@@ -564,7 +564,8 @@ function M.pick(opts)
       end
     elseif ch == "T" then
       local cur = sel:time_string() or ""
-      local ok2, text = pcall(vim.fn.input, { prompt = "Time (HH:MM[-HH:MM], empty clears): ", default = cur, cancelreturn = vim.NIL })
+      local ok2, text =
+        pcall(vim.fn.input, { prompt = "Time (HH:MM[-HH:MM], empty clears): ", default = cur, cancelreturn = vim.NIL })
       if ok2 and text ~= vim.NIL and text ~= nil then
         text = vim.trim(text)
         if text == "" then
@@ -572,7 +573,12 @@ function M.pick(opts)
         else
           local d = date.read_date(text, sel)
           if d and d.hour then
-            sel = sel:clone({ hour = d.hour, min = d.min, end_hour = d.end_hour or vim.NIL, end_min = d.end_min or vim.NIL })
+            sel = sel:clone({
+              hour = d.hour,
+              min = d.min,
+              end_hour = d.end_hour or vim.NIL,
+              end_min = d.end_min or vim.NIL,
+            })
           else
             utils.warn("Cannot parse time: " .. text)
           end

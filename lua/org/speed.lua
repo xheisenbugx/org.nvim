@@ -109,9 +109,13 @@ M.defaults = {
   { "/", run("sparse_tree"), "sparse tree" },
   { "Misc" },
   { "o", run("open_at_point"), "open the link at point" },
-  { "?", function()
-    M.help()
-  end, "this help" },
+  {
+    "?",
+    function()
+      M.help()
+    end,
+    "this help",
+  },
   { "<", run("agenda_set_restriction_lock"), "lock the agenda to the subtree" },
   { ">", run("agenda_remove_restriction_lock"), "remove the agenda lock" },
 }

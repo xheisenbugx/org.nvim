@@ -55,7 +55,7 @@ local function option_list(t, quote)
   table.sort(keys)
   local out = {}
   for _, k in ipairs(keys) do
-    out[#out + 1] = string.format('%s=%s%s%s', k, quote or '"', escape(t[k]), quote or '"')
+    out[#out + 1] = string.format("%s=%s%s%s", k, quote or '"', escape(t[k]), quote or '"')
   end
   return out
 end

@@ -702,12 +702,9 @@ describe("drill session", function()
     drill.grade(5)
     ok(drill.session.finished)
     local disk = vim.fn.readfile(path)
-    eq(
-      8,
-      #vim.tbl_filter(function(l)
-        return l:find(":DRILL_", 1, true) ~= nil
-      end, disk)
-    )
+    eq(8, #vim.tbl_filter(function(l)
+      return l:find(":DRILL_", 1, true) ~= nil
+    end, disk))
     ok(table.concat(disk, "\n"):find("SCHEDULED: <2026%-09%-30 Wed>"))
     vim.cmd("bwipeout!")
     vim.fn.delete(path)

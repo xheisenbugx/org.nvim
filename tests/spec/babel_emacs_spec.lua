@@ -22,15 +22,21 @@ describe("babel (Emacs header args)", function()
   it(":wrap wraps results in a block", function()
     local buf = org_buffer({ "#+begin_src lua :wrap src python", "return 'x = 1'", "#+end_src" }, { 2, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[8] == "#+end_src"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[8] == "#+end_src"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq({ "#+RESULTS:", "#+begin_src python", "x = 1", "#+end_src" }, vim.list_slice(buf_lines(buf), 5, 8))
     local buf2 = org_buffer({ "#+begin_src lua :wrap", "return 'hi'", "#+end_src" }, { 2, 0 })
     babel.execute_block()
-    ok(wait_for(buf2, function(l)
-      return l[8] == "#+end_results"
-    end), vim.inspect(buf_lines(buf2)))
+    ok(
+      wait_for(buf2, function(l)
+        return l[8] == "#+end_results"
+      end),
+      vim.inspect(buf_lines(buf2))
+    )
   end)
 
   it("expands several noweb references on one line and joins :noweb-ref blocks", function()
@@ -121,16 +127,22 @@ describe("babel (Emacs header args)", function()
       "#+end_src",
     }, { 8, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[14] ~= nil
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[14] ~= nil
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq({ "#+RESULTS:", "| a | 10 |", "| b | 20 |" }, vim.list_slice(buf_lines(buf), 12, 14))
     vim.api.nvim_buf_set_lines(buf, 6, 7, false, { "#+begin_src lua :var t=tbl :colnames yes" })
     vim.api.nvim_win_set_cursor(0, { 8, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[16] ~= nil
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[16] ~= nil
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq({ "| name |  n |", "|------+----|", "| a    | 10 |", "| b    | 20 |" }, vim.list_slice(buf_lines(buf), 13, 16))
   end)
 
@@ -146,9 +158,12 @@ describe("babel (Emacs header args)", function()
       "#+end_src",
     }, { 7, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return vim.tbl_contains(l, ": 2:1")
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return vim.tbl_contains(l, ": 2:1")
+      end),
+      vim.inspect(buf_lines(buf))
+    )
   end)
 
   it("indexes table variables with ranges and negative indices", function()
@@ -163,9 +178,12 @@ describe("babel (Emacs header args)", function()
   it(":cache yes stores a hash and skips unchanged blocks", function()
     local buf = org_buffer({ "#+begin_src lua :cache yes", "return os.clock()", "#+end_src" }, { 2, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[5] and l[5]:match("^#%+RESULTS%[%x+%]:") ~= nil
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[5] and l[5]:match("^#%+RESULTS%[%x+%]:") ~= nil
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     local before = buf_lines(buf)
     babel.execute_block()
     vim.wait(200)
@@ -181,15 +199,18 @@ describe("babel (Emacs header args)", function()
     )
     vim.api.nvim_buf_set_name(buf, dir .. "/f.org")
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[7] == "[[file:out/gen.txt]]"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[7] == "[[file:out/gen.txt]]"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq({ "hello" }, vim.fn.readfile(dir .. "/out/gen.txt"))
     vim.bo[buf].modified = false
   end)
 
   it("expands a block body with variables", function()
-    local buf = org_buffer({ "#+begin_src sh :var x=2 :prologue \"set -e\"", "echo $x", "#+end_src" }, { 2, 0 })
+    local buf = org_buffer({ '#+begin_src sh :var x=2 :prologue "set -e"', "echo $x", "#+end_src" }, { 2, 0 })
     local b = babel.at_block(buf, 2)
     -- org-babel-expand-body:generic: prologue, variables, body
     eq({ "set -e", "x='2'", "echo $x" }, babel.expand_body(buf, b, b.args, "eval"))
@@ -235,15 +256,18 @@ describe("babel (Emacs header args)", function()
     eq(1, babel.lob_ingest(dir .. "/lib.org"))
     local buf = org_buffer({ "#+CALL: triple(n=5)" }, { 1, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[4] == ": 15"
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[4] == ": 15"
+      end),
+      vim.inspect(buf_lines(buf))
+    )
   end)
 
   it(":post runs a named block on the result", function()
     local buf = org_buffer({
       "#+NAME: shout",
-      "#+begin_src lua :var s=\"\"",
+      '#+begin_src lua :var s=""',
       "return string.upper(s) .. '!'",
       "#+end_src",
       "",
@@ -252,9 +276,12 @@ describe("babel (Emacs header args)", function()
       "#+end_src",
     }, { 7, 0 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return vim.tbl_contains(l, ": HEY!")
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return vim.tbl_contains(l, ": HEY!")
+      end),
+      vim.inspect(buf_lines(buf))
+    )
   end)
 
   it("keeps indentation with -i when editing and tangling", function()
@@ -273,17 +300,23 @@ describe("babel (Emacs header args)", function()
   it("evaluates inline src blocks and replaces their results", function()
     local buf = org_buffer({ "Two: src_lua{return 1 + 1} and more." }, { 1, 8 })
     babel.execute_block()
-    ok(wait_for(buf, function(l)
-      return l[1]:find("{{{results", 1, true) ~= nil
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return l[1]:find("{{{results", 1, true) ~= nil
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq("Two: src_lua{return 1 + 1} {{{results(=2=)}}} and more.", buf_lines(buf)[1])
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Two: src_lua[:results raw]{return 3} {{{results(=2=)}}} end" })
     vim.api.nvim_win_set_cursor(0, { 1, 8 })
     require("org.context").context_action()
     -- :results raw inserts the bare value in place of the old macro
-    ok(wait_for(buf, function(l)
-      return not l[1]:find("{{{results", 1, true)
-    end), vim.inspect(buf_lines(buf)))
+    ok(
+      wait_for(buf, function(l)
+        return not l[1]:find("{{{results", 1, true)
+      end),
+      vim.inspect(buf_lines(buf))
+    )
     eq("Two: src_lua[:results raw]{return 3} 3 end", buf_lines(buf)[1])
   end)
 
@@ -309,13 +342,19 @@ describe("babel (Emacs header args)", function()
     eq("#+begin_src sh :results output", buf_lines(buf)[3])
     -- like org-babel-check-src-block, only headers close to a known one
     -- are reported
-    eq({}, (function()
-      babel.insert_header_arg("bogus", "1")
-      return babel.check_block()
-    end)())
-    eq({ "resluts", "results" }, (function()
-      babel.insert_header_arg("resluts", "1")
-      return babel.check_block()
-    end)())
+    eq(
+      {},
+      (function()
+        babel.insert_header_arg("bogus", "1")
+        return babel.check_block()
+      end)()
+    )
+    eq(
+      { "resluts", "results" },
+      (function()
+        babel.insert_header_arg("resluts", "1")
+        return babel.check_block()
+      end)()
+    )
   end)
 end)

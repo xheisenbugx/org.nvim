@@ -2369,13 +2369,15 @@ local function hint(unnarrowed)
   local function first(v)
     return config.lhs_list(v)[1] or "-"
   end
-  return string.format(
-    " Capture: finish %s  refile %s  abort %s%s",
-    first(maps.finalize),
-    first(maps.refile),
-    first(maps.kill),
-    unnarrowed and "" or "  (:w finishes)"
-  ):gsub("%%", "%%%%")
+  return string
+    .format(
+      " Capture: finish %s  refile %s  abort %s%s",
+      first(maps.finalize),
+      first(maps.refile),
+      first(maps.kill),
+      unnarrowed and "" or "  (:w finishes)"
+    )
+    :gsub("%%", "%%%%")
 end
 
 --- Split the expanded text into lines, removing the cursor marker.

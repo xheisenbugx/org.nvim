@@ -12,43 +12,44 @@ vim.fn.mkdir(dir, "p")
 local path = dir .. "/ql.org"
 local other = dir .. "/other.org"
 
-local LINES = {
-  "#+TITLE: Q",
-  "#+CATEGORY: q",
-  "* TODO [#A] Write report :work:",
-  "  DEADLINE: " .. ts(2),
-  "  :PROPERTIES:",
-  "  :Effort: 1:30",
-  "  :END:",
-  "  mentions the moon",
-  "* NEXT Call Bob :work:phone:",
-  "  SCHEDULED: " .. ts(0),
-  "* DONE Old thing",
-  "  CLOSED: " .. ts(-3, "[", "]"),
-  "* Project :proj:",
-  "  :PROPERTIES:",
-  "  :CATEGORY: pr",
-  "  :OWNER: me",
-  "  :END:",
-  "** TODO [#C] Subtask",
-  "   Meeting " .. ts(5),
-  "   Noted " .. ts(-1, "[", "]"),
-  "   :LOGBOOK:",
-  "   CLOCK: [" .. today:add(-1, "d"):to_string({ brackets = false }) .. " 10:00]--[" .. today
-    :add(-1, "d")
-    :to_string({ brackets = false }) .. " 11:00] =>  1:00",
-  "   :END:",
-  "*** WAITING Deep",
-  "    #+begin_src python",
-  "    print('hi')",
-  "    #+end_src",
-  "    See [[https://example.com][the site]]",
-  "* TODO [#B] Habit :daily:",
-  "  SCHEDULED: " .. ts(0, "<", " +1d>"),
-  "  :PROPERTIES:",
-  "  :STYLE: habit",
-  "  :END:",
-}
+local LINES =
+  {
+    "#+TITLE: Q",
+    "#+CATEGORY: q",
+    "* TODO [#A] Write report :work:",
+    "  DEADLINE: " .. ts(2),
+    "  :PROPERTIES:",
+    "  :Effort: 1:30",
+    "  :END:",
+    "  mentions the moon",
+    "* NEXT Call Bob :work:phone:",
+    "  SCHEDULED: " .. ts(0),
+    "* DONE Old thing",
+    "  CLOSED: " .. ts(-3, "[", "]"),
+    "* Project :proj:",
+    "  :PROPERTIES:",
+    "  :CATEGORY: pr",
+    "  :OWNER: me",
+    "  :END:",
+    "** TODO [#C] Subtask",
+    "   Meeting " .. ts(5),
+    "   Noted " .. ts(-1, "[", "]"),
+    "   :LOGBOOK:",
+    "   CLOCK: [" .. today:add(-1, "d"):to_string({ brackets = false }) .. " 10:00]--[" .. today
+      :add(-1, "d")
+      :to_string({ brackets = false }) .. " 11:00] =>  1:00",
+    "   :END:",
+    "*** WAITING Deep",
+    "    #+begin_src python",
+    "    print('hi')",
+    "    #+end_src",
+    "    See [[https://example.com][the site]]",
+    "* TODO [#B] Habit :daily:",
+    "  SCHEDULED: " .. ts(0, "<", " +1d>"),
+    "  :PROPERTIES:",
+    "  :STYLE: habit",
+    "  :END:",
+  }
 
 -- Later specs get a fresh agenda buffer: its keys are set when it is made.
 local function wipe_agendas()
@@ -109,7 +110,7 @@ describe("ql extension", function()
         { "and", { "todo", "NEXT" }, { "not", { "tags", "x" } } },
         query.read_sexp('(and (todo "NEXT") (not (tags "x")))')
       )
-      eq({ "priority", ">=", "B" }, query.read_sexp("(priority '>= \"B\")"))
+      eq({ "priority", ">=", "B" }, query.read_sexp('(priority \'>= "B")'))
       eq({ "deadline", ":to", "today", ":with-time", true }, query.read_sexp("(deadline :to today :with-time t)"))
       eq({ "ts", ":from", -7 }, query.read_sexp("(ts :from -7) ; comment"))
     end)
@@ -153,8 +154,8 @@ describe("ql extension", function()
     end)
     it("priority", function()
       eq({ "Write report" }, sel('(priority "A")'))
-      eq({ "Write report", "Habit" }, sel("(priority '>= \"B\")"))
-      eq({ "Subtask" }, sel("(priority '< \"B\")"))
+      eq({ "Write report", "Habit" }, sel('(priority \'>= "B")'))
+      eq({ "Subtask" }, sel('(priority \'< "B")'))
       eq({ "Write report", "Subtask", "Habit" }, sel("(priority)"))
     end)
     it("planning dates", function()
@@ -185,7 +186,7 @@ describe("ql extension", function()
       eq({ "Project" }, sel('(property "OWNER" "me")'))
       eq({ "Project", "Subtask", "Deep" }, sel('(property "OWNER" "me" :inherit t)'))
       eq({ "Write report" }, sel('(effort "1:30")'))
-      eq({ "Write report" }, sel("(effort '> \"1:00\")"))
+      eq({ "Write report" }, sel('(effort \'> "1:00")'))
       eq({ "Write report" }, sel('(effort "1:00" "2:00")'))
       eq({ "Project", "Subtask", "Deep" }, sel('(category "pr")'))
       eq({ "Habit" }, sel("(habit)"))
@@ -220,9 +221,15 @@ describe("ql extension", function()
       eq({}, sel('(src :lang "ruby")'))
       eq({ "Deep" }, sel('(link "the site")'))
       eq({ "Deep" }, sel('(link :target "example")'))
-      eq({ "Habit" }, sel({ "pred", function(hl)
-        return hl.title:find("Habit") ~= nil
-      end }))
+      eq(
+        { "Habit" },
+        sel({
+          "pred",
+          function(hl)
+            return hl.title:find("Habit") ~= nil
+          end,
+        })
+      )
       eq({ "Call Bob" }, sel({ "and", { "todo", "NEXT" }, { "tags", "work" } }))
       local cfg = require("org.config").opts
       cfg.enforce_todo_dependencies = true
@@ -334,11 +341,14 @@ describe("ql extension", function()
       eq({ "Habit", "Call Bob", "Write report", "Subtask", "Deep" }, sel(q, { sort = { "priority", "scheduled" } }))
       eq({ "Write report", "Habit", "Subtask", "Call Bob", "Deep" }, sel(q, { sort = { "scheduled", "priority" } }))
       eq({ "Deep", "Subtask", "Write report", "Habit", "Call Bob" }, sel(q, { sort = { "date", "reverse" } }))
-      eq({ "Deep", "Habit", "Subtask", "Call Bob", "Write report" }, sel(q, {
-        sort = function(a, b)
-          return #a.title < #b.title
-        end,
-      }))
+      eq(
+        { "Deep", "Habit", "Subtask", "Call Bob", "Write report" },
+        sel(q, {
+          sort = function(a, b)
+            return #a.title < #b.title
+          end,
+        })
+      )
       eq(5, #sel(q, { sort = "random" }))
     end)
   end)

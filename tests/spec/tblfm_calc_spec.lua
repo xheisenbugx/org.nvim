@@ -165,13 +165,13 @@ describe("tblfm calc parity", function()
     },
     {
       "cases1__lisp_L",
-      { "| 1 | 2 |  |", "#+TBLFM: $3='(format \"%S\" $1);L" },
-      { "| 1 | 2 | 1 |", "#+TBLFM: $3='(format \"%S\" $1);L" },
+      { "| 1 | 2 |  |", '#+TBLFM: $3=\'(format "%S" $1);L' },
+      { "| 1 | 2 | 1 |", '#+TBLFM: $3=\'(format "%S" $1);L' },
     },
     {
       "cases1__lisp_concat",
-      { "| a | b |  |", "#+TBLFM: $3='(concat $1 \"-\" $2)" },
-      { "| a | b | a-b |", "#+TBLFM: $3='(concat $1 \"-\" $2)" },
+      { "| a | b |  |", '#+TBLFM: $3=\'(concat $1 "-" $2)' },
+      { "| a | b | a-b |", '#+TBLFM: $3=\'(concat $1 "-" $2)' },
     },
     {
       "cases1__lisp_num",
@@ -225,8 +225,26 @@ describe("tblfm calc parity", function()
     },
     {
       "cases1__named_field",
-      { "|   | v |", "|---+---|", "| _ | foo |", "| # | 3 |", "| # |   |", "|---+---|", "| # | 7 |", "#+TBLFM: @4$2=$foo*2" },
-      { "|   |   v |", "|---+-----|", "| _ | foo |", "| # |   3 |", "| # |   6 |", "|---+-----|", "| # |   7 |", "#+TBLFM: @4$2=$foo*2" },
+      {
+        "|   | v |",
+        "|---+---|",
+        "| _ | foo |",
+        "| # | 3 |",
+        "| # |   |",
+        "|---+---|",
+        "| # | 7 |",
+        "#+TBLFM: @4$2=$foo*2",
+      },
+      {
+        "|   |   v |",
+        "|---+-----|",
+        "| _ | foo |",
+        "| # |   3 |",
+        "| # |   6 |",
+        "|---+-----|",
+        "| # |   7 |",
+        "#+TBLFM: @4$2=$foo*2",
+      },
     },
     {
       "cases1__now_like",
@@ -300,13 +318,29 @@ describe("tblfm calc parity", function()
     },
     {
       "cases1__string_eq",
-      { "| a |  |", "#+TBLFM: $2=if(\"$1\" == \"a\", 1, 0)" },
-      { "| a | 0 |", "#+TBLFM: $2=if(\"$1\" == \"a\", 1, 0)" },
+      { "| a |  |", '#+TBLFM: $2=if("$1" == "a", 1, 0)' },
+      { "| a | 0 |", '#+TBLFM: $2=if("$1" == "a", 1, 0)' },
     },
     {
       "cases1__sum_col",
-      { "| a | b |", "|---+---|", "| 1 | 2 |", "| 3 | 4 |", "|---+---|", "|   |   |", "#+TBLFM: @>$1=vsum(@I..@II)::@>$2=vmean(@I..@II)" },
-      { "| a | b |", "|---+---|", "| 1 | 2 |", "| 3 | 4 |", "|---+---|", "| 4 | 3 |", "#+TBLFM: @>$1=vsum(@I..@II)::@>$2=vmean(@I..@II)" },
+      {
+        "| a | b |",
+        "|---+---|",
+        "| 1 | 2 |",
+        "| 3 | 4 |",
+        "|---+---|",
+        "|   |   |",
+        "#+TBLFM: @>$1=vsum(@I..@II)::@>$2=vmean(@I..@II)",
+      },
+      {
+        "| a | b |",
+        "|---+---|",
+        "| 1 | 2 |",
+        "| 3 | 4 |",
+        "|---+---|",
+        "| 4 | 3 |",
+        "#+TBLFM: @>$1=vsum(@I..@II)::@>$2=vmean(@I..@II)",
+      },
     },
     {
       "cases1__text_expr",
@@ -340,8 +374,14 @@ describe("tblfm calc parity", function()
     },
     {
       "cases1__vfuncs",
-      { "| 1 | 5 | 3 |  |  |  |  |  |", "#+TBLFM: $4=vmax($1..$3)::$5=vmin($1..$3)::$6=vmedian($1..$3)::$7=vcount($1..$3)::$8=vsdev($1..$3)" },
-      { "| 1 | 5 | 3 | 5 | 1 | 3 | 3 | 2 |", "#+TBLFM: $4=vmax($1..$3)::$5=vmin($1..$3)::$6=vmedian($1..$3)::$7=vcount($1..$3)::$8=vsdev($1..$3)" },
+      {
+        "| 1 | 5 | 3 |  |  |  |  |  |",
+        "#+TBLFM: $4=vmax($1..$3)::$5=vmin($1..$3)::$6=vmedian($1..$3)::$7=vcount($1..$3)::$8=vsdev($1..$3)",
+      },
+      {
+        "| 1 | 5 | 3 | 5 | 1 | 3 | 3 | 2 |",
+        "#+TBLFM: $4=vmax($1..$3)::$5=vmin($1..$3)::$6=vmedian($1..$3)::$7=vcount($1..$3)::$8=vsdev($1..$3)",
+      },
     },
     {
       "cases1__vprod",
@@ -475,8 +515,8 @@ describe("tblfm calc parity", function()
     },
     {
       "cases2__lisp_at_hash",
-      { "| x |  |", "| y |  |", "#+TBLFM: $2='(format \"%s-%d\" $1 @#)" },
-      { "| x | x-1 |", "| y | y-2 |", "#+TBLFM: $2='(format \"%s-%d\" $1 @#)" },
+      { "| x |  |", "| y |  |", '#+TBLFM: $2=\'(format "%s-%d" $1 @#)' },
+      { "| x | x-1 |", "| y | y-2 |", '#+TBLFM: $2=\'(format "%s-%d" $1 @#)' },
     },
     {
       "cases2__lisp_no_quote_ref",
@@ -525,8 +565,22 @@ describe("tblfm calc parity", function()
     },
     {
       "cases2__range_hline",
-      { "| 1 | 2 |", "|---+---|", "| 3 | 4 |", "|---+---|", "|   |   |", "#+TBLFM: @3$1=vsum(@I$1..@II$1)::@3$2=vsum(@<..@>>)" },
-      { "| 1 | 2 |", "|---+---|", "| 3 | 4 |", "|---+---|", "| 3 | 6 |", "#+TBLFM: @3$1=vsum(@I$1..@II$1)::@3$2=vsum(@<..@>>)" },
+      {
+        "| 1 | 2 |",
+        "|---+---|",
+        "| 3 | 4 |",
+        "|---+---|",
+        "|   |   |",
+        "#+TBLFM: @3$1=vsum(@I$1..@II$1)::@3$2=vsum(@<..@>>)",
+      },
+      {
+        "| 1 | 2 |",
+        "|---+---|",
+        "| 3 | 4 |",
+        "|---+---|",
+        "| 3 | 6 |",
+        "#+TBLFM: @3$1=vsum(@I$1..@II$1)::@3$2=vsum(@<..@>>)",
+      },
     },
     {
       "cases2__remote_named_col",
@@ -650,13 +704,13 @@ describe("tblfm calc parity", function()
     },
     {
       "cases3__f_lisp_empty",
-      { "| 1 |  |", "|   |  |", "#+TBLFM: $2='(concat \"x\" $1)" },
-      { "| 1 | x1 |", "|   | x  |", "#+TBLFM: $2='(concat \"x\" $1)" },
+      { "| 1 |  |", "|   |  |", '#+TBLFM: $2=\'(concat "x" $1)' },
+      { "| 1 | x1 |", "|   | x  |", '#+TBLFM: $2=\'(concat "x" $1)' },
     },
     {
       "cases3__f_lisp_empty_E",
-      { "| 1 |  |", "|   |  |", "#+TBLFM: $2='(concat \"x\" $1);E" },
-      { "| 1 | x1 |", "|   | x  |", "#+TBLFM: $2='(concat \"x\" $1);E" },
+      { "| 1 |  |", "|   |  |", '#+TBLFM: $2=\'(concat "x" $1);E' },
+      { "| 1 | x1 |", "|   | x  |", '#+TBLFM: $2=\'(concat "x" $1);E' },
     },
     {
       "cases3__f_lisp_float",
@@ -675,13 +729,13 @@ describe("tblfm calc parity", function()
     },
     {
       "cases3__f_lisp_format_time",
-      { "| 5 |  |", "#+TBLFM: $2='(format \"%05.1f\" $1);N" },
-      { "| 5 | 005.0 |", "#+TBLFM: $2='(format \"%05.1f\" $1);N" },
+      { "| 5 |  |", '#+TBLFM: $2=\'(format "%05.1f" $1);N' },
+      { "| 5 | 005.0 |", '#+TBLFM: $2=\'(format "%05.1f" $1);N' },
     },
     {
       "cases3__f_lisp_if",
-      { "| 5 |  |", "#+TBLFM: $2='(if (> $1 3) \"big\" \"small\");N" },
-      { "| 5 | big |", "#+TBLFM: $2='(if (> $1 3) \"big\" \"small\");N" },
+      { "| 5 |  |", '#+TBLFM: $2=\'(if (> $1 3) "big" "small");N' },
+      { "| 5 | big |", '#+TBLFM: $2=\'(if (> $1 3) "big" "small");N' },
     },
     {
       "cases3__f_lisp_let",
@@ -700,8 +754,8 @@ describe("tblfm calc parity", function()
     },
     {
       "cases3__f_lisp_string_fn",
-      { "| a,b |  |", "#+TBLFM: $2='(car (split-string $1 \",\"))" },
-      { "| a,b | a |", "#+TBLFM: $2='(car (split-string $1 \",\"))" },
+      { "| a,b |  |", '#+TBLFM: $2=\'(car (split-string $1 ","))' },
+      { "| a,b | a |", '#+TBLFM: $2=\'(car (split-string $1 ","))' },
     },
     {
       "cases3__f_lisp_string_to_number",
@@ -1710,8 +1764,8 @@ describe("tblfm calc parity", function()
     },
     {
       "f25",
-      { "| 2 | |", "#+TBLFM: $2='(concat \"x\" $1)" },
-      { "| 2 | x2 |", "#+TBLFM: $2='(concat \"x\" $1)" },
+      { "| 2 | |", '#+TBLFM: $2=\'(concat "x" $1)' },
+      { "| 2 | x2 |", '#+TBLFM: $2=\'(concat "x" $1)' },
     },
     {
       "f26",

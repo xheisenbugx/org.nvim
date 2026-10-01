@@ -155,8 +155,27 @@ end
 -- header is read like org-babel-parse-header-arguments (`:dir (concat ...)`);
 -- :var forms are evaluated when the variable is resolved.
 local LISP_HEADERS = {}
-for _, k in ipairs({ "dir", "file", "output-dir", "file-desc", "file-ext", "tangle", "results", "exports",
-  "session", "cmdline", "prologue", "epilogue", "wrap", "shebang", "mkdirp", "eval", "cache", "noweb", "comments" }) do
+for _, k in ipairs({
+  "dir",
+  "file",
+  "output-dir",
+  "file-desc",
+  "file-ext",
+  "tangle",
+  "results",
+  "exports",
+  "session",
+  "cmdline",
+  "prologue",
+  "epilogue",
+  "wrap",
+  "shebang",
+  "mkdirp",
+  "eval",
+  "cache",
+  "noweb",
+  "comments",
+}) do
   LISP_HEADERS[k] = true
 end
 

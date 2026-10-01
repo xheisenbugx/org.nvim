@@ -13,25 +13,31 @@ end
 
 describe("lint structure", function()
   it("misplaced heading", function()
-    eq({ "1 Possibly misplaced heading line", "3 Possibly misplaced heading line" }, run({
-      "Paragraph** Oops heading",
-      "* Heading 1",
-      "* Heading 2** Heading 3",
-      "text",
-    }, "misplaced-heading"))
+    eq(
+      { "1 Possibly misplaced heading line", "3 Possibly misplaced heading line" },
+      run({
+        "Paragraph** Oops heading",
+        "* Heading 1",
+        "* Heading 2** Heading 3",
+        "text",
+      }, "misplaced-heading")
+    )
   end)
 
   it("duplicates", function()
-    eq({ '3 Duplicate CUSTOM_ID property "dup"', '7 Duplicate CUSTOM_ID property "dup"' }, run({
-      "* A",
-      ":PROPERTIES:",
-      ":CUSTOM_ID: dup",
-      ":END:",
-      "* B",
-      ":PROPERTIES:",
-      ":CUSTOM_ID: dup",
-      ":END:",
-    }, "duplicate-custom-id"))
+    eq(
+      { '3 Duplicate CUSTOM_ID property "dup"', '7 Duplicate CUSTOM_ID property "dup"' },
+      run({
+        "* A",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: dup",
+        ":END:",
+        "* B",
+        ":PROPERTIES:",
+        ":CUSTOM_ID: dup",
+        ":END:",
+      }, "duplicate-custom-id")
+    )
     eq(
       { '1 Duplicate NAME "dup"', '6 Duplicate NAME "dup"' },
       run({ "#+name: dup", "#+begin_example", "x", "#+end_example", "", "#+name: dup", "| a |" }, "duplicate-name")
@@ -77,7 +83,7 @@ describe("lint structure", function()
     }, run({ ":DRAWER:", ":INNER:", "x", ":END:", ":LONELY:" }, "incomplete-drawer"))
     eq({ "2 Possible indented diary-sexp" }, run({ "text", "  %%(diary-float t 4 2)" }, "indented-diary-sexp"))
     eq(
-      { "2 Deprecated syntax for export block.  Use \"BEGIN_EXPORT html\" instead" },
+      { '2 Deprecated syntax for export block.  Use "BEGIN_EXPORT html" instead' },
       run({ "", "#+begin_html", "<p>x</p>", "#+end_html" }, "deprecated-export-blocks")
     )
     eq(
@@ -156,22 +162,28 @@ describe("lint properties and planning", function()
   end)
 
   it("timestamps and clocks", function()
-    eq({
-      "1 Potentially malformed timestamp <2024-01-01> .  Parsed as: <2024-01-01 Mon> ",
-      "1 Potentially malformed timestamp <2024-01-01 Mon 9:00>.  Parsed as: <2024-01-01 Mon 09:00>",
-      "2 Potentially malformed timestamp <2024-02-30> .  Parsed as: <2024-03-01 Fri> ",
-    }, run({
-      "At <2024-01-01> and <2024-01-01 Mon 9:00>",
-      "Also <2024-02-30> and <2024-01-01 Mon>--<2024-01-03 Wed>",
-    }, "timestamp-syntax"))
-    eq({
-      "2 Potentially malformed CLOCK: line\n           CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] => 1:05"
-        .. "\nParsed as: CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] =>  1:05",
-    }, run({
-      "* H",
-      "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] => 1:05",
-      "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] =>  1:05",
-    }, "clock-syntax"))
+    eq(
+      {
+        "1 Potentially malformed timestamp <2024-01-01> .  Parsed as: <2024-01-01 Mon> ",
+        "1 Potentially malformed timestamp <2024-01-01 Mon 9:00>.  Parsed as: <2024-01-01 Mon 09:00>",
+        "2 Potentially malformed timestamp <2024-02-30> .  Parsed as: <2024-03-01 Fri> ",
+      },
+      run({
+        "At <2024-01-01> and <2024-01-01 Mon 9:00>",
+        "Also <2024-02-30> and <2024-01-01 Mon>--<2024-01-03 Wed>",
+      }, "timestamp-syntax")
+    )
+    eq(
+      {
+        "2 Potentially malformed CLOCK: line\n           CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] => 1:05"
+          .. "\nParsed as: CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] =>  1:05",
+      },
+      run({
+        "* H",
+        "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] => 1:05",
+        "CLOCK: [2024-01-01 Mon 10:00]--[2024-01-01 Mon 11:05] =>  1:05",
+      }, "clock-syntax")
+    )
   end)
 end)
 
@@ -359,20 +371,23 @@ describe("lint export", function()
   end)
 
   it("macros", function()
-    eq({
-      '2 Unused placeholders in macro "bad"',
-      '3 Missing template in macro "%s"',
-      '4 Missing argument in macro "greet"',
-      '4 Spurious argument in macro "greet": b',
-      '4 Missing argument in macro "title"',
-      '4 Undefined macro "nope"',
-      '4 Spurious arguments in macro "bad": 3, 4',
-    }, run({
-      "#+MACRO: greet Hello $1",
-      "#+MACRO: bad Hi $2",
-      "#+MACRO: empty",
-      "{{{greet}}} {{{greet(a,b)}}} {{{title}}} {{{nope}}} {{{bad(1,2,3,4)}}} {{{n}}}",
-    }, "invalid-macro-argument-and-template"))
+    eq(
+      {
+        '2 Unused placeholders in macro "bad"',
+        '3 Missing template in macro "%s"',
+        '4 Missing argument in macro "greet"',
+        '4 Spurious argument in macro "greet": b',
+        '4 Missing argument in macro "title"',
+        '4 Undefined macro "nope"',
+        '4 Spurious arguments in macro "bad": 3, 4',
+      },
+      run({
+        "#+MACRO: greet Hello $1",
+        "#+MACRO: bad Hi $2",
+        "#+MACRO: empty",
+        "{{{greet}}} {{{greet(a,b)}}} {{{title}}} {{{nope}}} {{{bad(1,2,3,4)}}} {{{n}}}",
+      }, "invalid-macro-argument-and-template")
+    )
   end)
 
   it("citations, LaTeX and beamer", function()
@@ -415,9 +430,12 @@ describe("lint entry points", function()
   it("sorts reports by line and runs every default checker", function()
     local buf = org_buffer({ "#+TITLE foo", "* QUOTE x", "[[nowhere]]" })
     local reports = lint.lint(buf)
-    eq({ 1, 2, 3 }, vim.tbl_map(function(r)
-      return r.lnum
-    end, reports))
+    eq(
+      { 1, 2, 3 },
+      vim.tbl_map(function(r)
+        return r.lnum
+      end, reports)
+    )
     eq("invalid-keyword-syntax", reports[1].checker)
     eq("low", reports[1].trust)
     eq("high", reports[3].trust)
