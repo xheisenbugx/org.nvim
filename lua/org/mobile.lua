@@ -870,14 +870,23 @@ end
 ---------------------------------------------------------------------------
 
 --- Checksum of a file with `mobile.checksum_binary`.
-local function file_checksum(path)
-  local res = vim.system({ M.checksum_binary(), path }, { text = true }):wait()
-  for hex in (res.stdout or ""):gmatch("%x+") do
+--- Checksum of the file at `path`: from `mobile.checksum_binary`, else MD5.
+function M.file_checksum(path)
+  local bin = M.checksum_binary()
+  local ok, res = pcall(function()
+    return bin and vim.system({ bin, path }, { text = true }):wait()
+  end)
+  for hex in (ok and res and res.stdout or ""):gmatch("%x+") do
     if #hex >= 30 then
       return hex:sub(1, 40)
     end
   end
+  -- no checksum program that runs (e.g. Git for Windows' Perl shasum):
+  -- the MD5 computed here, which MobileOrg takes as well
+  local data = read_raw(path)
+  return data and M.md5(data) or nil
 end
+local file_checksum = M.file_checksum
 
 --- Save the modified buffers of `paths` (org-save-all-org-buffers for the
 --- staged files).

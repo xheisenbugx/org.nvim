@@ -126,7 +126,9 @@ describe("dropped files (org-yank-dnd-*)", function()
     local dir = tmpdir()
     utils.writefile(dir .. "/a b.txt", { "x" })
     utils.writefile(dir .. "/c.png", { "x" })
-    eq({ dir .. "/a b.txt", dir .. "/c.png" }, yank.parse_dropped(dir .. "/a\\ b.txt " .. dir .. "/c.png"))
+    if vim.fn.has("win32") == 0 then -- a Unix terminal escapes the space; Windows has \ for directories
+      eq({ dir .. "/a b.txt", dir .. "/c.png" }, yank.parse_dropped(dir .. "/a\\ b.txt " .. dir .. "/c.png"))
+    end
     eq({ dir .. "/a b.txt" }, yank.parse_dropped("'" .. dir .. "/a b.txt'"))
     eq({ dir .. "/a b.txt" }, yank.parse_dropped("file://" .. dir .. "/a%20b.txt\n"))
     eq(nil, yank.parse_dropped("just some text"))

@@ -2418,10 +2418,10 @@ function M.normalize_file_path(path, method, dir)
   -- fnamemodify() give \ on Windows, and may or may not add a drive to /x
   local function absolute(p, base)
     p = vim.fs.normalize(vim.fn.expand(p))
-    if base and not utils.is_absolute(p) then
-      p = base .. "/" .. p
+    if not utils.is_absolute(p) then
+      p = base and (base .. "/" .. p) or vim.fn.fnamemodify(p, ":p")
     end
-    return vim.fs.normalize(vim.fn.fnamemodify(p, ":p"))
+    return vim.fs.normalize(p)
   end
   local full = absolute(path, dir)
   if path:sub(-1) == "/" and full:sub(-1) ~= "/" then

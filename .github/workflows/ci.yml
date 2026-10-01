@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           d=$(mktemp -d)
-          ORG_TEST_PROGRESS=2 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+          ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:
     name: lint (stylua)
