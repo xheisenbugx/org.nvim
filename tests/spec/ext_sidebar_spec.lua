@@ -409,11 +409,18 @@ describe("sidebar", function()
       extensions = { sidebar = {}, pomodoro = { system_notification = false } },
     })
     local pomodoro = require("org.extensions.pomodoro")
-    local now = pomodoro.time()
+    -- a fixed whole-second clock: with the real one the sidebar rounds the
+    -- end to the nearest second, which crosses into the next minute when
+    -- it falls in the last half second of one
+    local real_time, now = pomodoro.time, os.time()
+    pomodoro.time = function()
+      return now
+    end
     pomodoro.state = { phase = "work", started = now - 60, duration = 25 * 60, count = 1, title = "Ship" }
-    local st = sidebar.open()
-    local t = text(st)
-    pomodoro.state = nil
+    local ok_open, st = pcall(sidebar.open)
+    local t = ok_open and text(st) or tostring(st)
+    pomodoro.state, pomodoro.time = nil, real_time
+    ok(ok_open, t)
     local until_ = os.date("%H:%M", now - 60 + 25 * 60)
     ok(t:find("work until " .. until_, 1, true), t)
     sidebar.close()

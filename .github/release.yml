@@ -1,0 +1,24 @@
+# Sections of the release notes that `gh release create --generate-notes`
+# writes (see workflows/release.yml). A pull request goes in the first
+# section one of its labels matches; workflows/pr-labels.yml sets the labels
+# from the Conventional Commits title.
+changelog:
+  exclude:
+    labels: [release, duplicate, invalid, wontfix]
+  categories:
+    - title: 💥 Breaking changes
+      labels: [breaking]
+    - title: 🧩 Extensions
+      labels: [extension]
+    - title: ✨ Features
+      labels: [enhancement]
+    - title: 🐛 Fixes
+      labels: [bug]
+    - title: ⚡ Performance
+      labels: [performance]
+    - title: 📚 Documentation
+      labels: [documentation]
+    - title: 🔧 Maintenance
+      labels: [maintenance]
+    - title: Other changes
+      labels: ["*"]

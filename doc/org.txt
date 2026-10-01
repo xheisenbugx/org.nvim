@@ -6971,7 +6971,7 @@ in `extensions`:
       extensions = {
         roam = { directory = "~/roam" }, -- options merged over its defaults
         present = true,                  -- enable with the defaults
-        gcal = false,                    -- off (same as leaving it out)
+        ics = false,                     -- off (same as leaving it out)
       },
     })
 <
@@ -6983,6 +6983,23 @@ An enabled extension can add actions (usable in `mappings` and `:Org`),
 `:Org` subcommands and default keys. A default key never replaces one you
 set; set it to `false` in `mappings` to remove it. `:checkhealth org` lists
 the enabled extensions and checks what each needs.
+
+Stability ~
+                                                    *org-extensions-stability*
+Each extension is marked as one of:
+
+  stable        used daily and well covered by specs; its options, actions
+                and keys only change with a note in the release notes
+  experimental  works and is tested, but has seen less real use; options
+                and behaviour may still change between minor releases
+
+Stable:       `ql`, `super_agenda`, `present`, `roam`, `quickadd`, `ics`,
+              `kanban`, `sidebar`
+Experimental: `review`, `pomodoro`, `drill`, `merge`, `cli`, `diagrams`,
+              `code`, `literate`, `lsp`, `transclusion`, `timeline`,
+              `heatmap`
+
+Bug reports about experimental extensions are just as welcome.
 
 Writing an extension ~
 An extension is a module `lua/org/extensions/<name>.lua` (or
@@ -7001,6 +7018,8 @@ An extension is a module `lua/org/extensions/<name>.lua` (or
 
 ------------------------------------------------------------------------------
 org-ql                                                    *org-extensions-ql*
+
+Stability: stable (|org-extensions-stability|)
 
 Modelled on the Emacs package org-ql: a query language for Org entries,
 search views and a dynamic block. Enable it with:
@@ -7148,6 +7167,8 @@ the plain syntax also accepts comparators (`priority:>=,B`) and numbers
 ------------------------------------------------------------------------------
 org-super-agenda                                *org-extensions-super-agenda*
 
+Stability: stable (|org-extensions-stability|)
+
 Modelled on the Emacs package org-super-agenda: splits each day of the
 agenda, and each TODO, tags, search and org-ql list, into groups.
 >lua
@@ -7241,6 +7262,8 @@ agenda item (a Lua table), not the item's text.
 
 ------------------------------------------------------------------------------
 Presentations (org-present)                           *org-extensions-present*
+
+Stability: stable (|org-extensions-stability|)
 
 `present` shows an org buffer as a slideshow, like Emacs org-present:
 >lua
@@ -7361,6 +7384,8 @@ Differences from Emacs org-present ~
 
 ------------------------------------------------------------------------------
 org-roam                                                *org-extensions-roam*
+
+Stability: stable (|org-extensions-stability|)
 
 A network of linked notes, modelled on Emacs org-roam v2. Every `.org` file
 under `directory` is indexed. A node is a file with a file-level `:ID:`
@@ -7607,6 +7632,8 @@ Differences from Emacs org-roam ~
 ------------------------------------------------------------------------------
 Quick add (Todoist-style)                            *org-extensions-quickadd*
 
+Stability: stable (|org-extensions-stability|)
+
 `quickadd` adds an entry from one line, the way Todoist's quick add does:
 >lua
     require("org").setup({ extensions = { quickadd = true } })
@@ -7707,6 +7734,8 @@ planning timestamps and the target without touching any file.
 
 ------------------------------------------------------------------------------
 Weekly review (GTD)                                    *org-extensions-review*
+
+Stability: experimental (|org-extensions-stability|)
 
 `review` walks you through a GTD weekly review, one step at a time, in a
 floating window:
@@ -7829,6 +7858,8 @@ Options ~
 ------------------------------------------------------------------------------
 Pomodoro                                             *org-extensions-pomodoro*
 
+Stability: experimental (|org-extensions-stability|)
+
 `pomodoro` runs the Pomodoro technique on top of the clock, like Emacs
 org-pomodoro:
 >lua
@@ -7922,6 +7953,8 @@ when it exits.
 
 ------------------------------------------------------------------------------
 Spaced repetition (org-drill)                           *org-extensions-drill*
+
+Stability: experimental (|org-extensions-stability|)
 
 `drill` turns headlines into flashcards and schedules their reviews by
 spaced repetition, like Emacs org-drill:
@@ -8119,6 +8152,8 @@ Differences from Emacs org-drill ~
 ------------------------------------------------------------------------------
 Structural git merges                                  *org-extensions-merge*
 
+Stability: experimental (|org-extensions-stability|)
+
 `merge` is a git merge driver that merges Org files entry by entry instead
 of line by line, so two clones of the same notes (a laptop and a phone,
 two people on a shared file) merge cleanly far more often, and a real
@@ -8256,6 +8291,8 @@ Limits ~
 ------------------------------------------------------------------------------
 iCalendar subscriptions                                   *org-extensions-ics*
 
+Stability: stable (|org-extensions-stability|)
+
 `ics` shows the events of iCalendar (`.ics`) calendars in the agenda,
 read-only, next to your org entries: a Google or Outlook "secret address",
 any `http(s)://` or `webcal://` subscription link, or a local file:
@@ -8382,6 +8419,8 @@ fetches, unknown zones, and whether `curl` is installed (needed only for
 
 ------------------------------------------------------------------------------
 Command line (org)                                       *org-extensions-cli*
+
+Stability: experimental (|org-extensions-stability|)
 
 `bin/org` is a shell command that runs org.nvim in a headless Neovim
 (`nvim --headless -l`), to print the agenda, capture, clock in and out,
@@ -8531,6 +8570,8 @@ Limits ~
 ------------------------------------------------------------------------------
 Diagrams (ob-mermaid, ob-dot, ob-plantuml)           *org-extensions-diagrams*
 
+Stability: experimental (|org-extensions-stability|)
+
 `diagrams` renders diagram source blocks to images: `mermaid` (with
 mermaid-cli's `mmdc`, like the third-party ob-mermaid), `dot` (Graphviz,
 like Emacs's ob-dot) and the built-in `plantuml` port (|org-babel-languages|):
@@ -8643,6 +8684,8 @@ Limits ~
 
 ------------------------------------------------------------------------------
 Code and notes (code)                                    *org-extensions-code*
+
+Stability: experimental (|org-extensions-stability|)
 
 `code` connects the code you edit with your org notes: capture a selection
 with a link back to it, link to functions by name, keep an org file per git
@@ -8816,6 +8859,8 @@ Options ~
 ------------------------------------------------------------------------------
 Literate Neovim config (literate)                    *org-extensions-literate*
 
+Stability: experimental (|org-extensions-stability|)
+
 `literate` makes an org file your Neovim configuration: saving it tangles
 its Lua blocks and runs the ones you changed, so a new option or keymap
 works at once, and a block's error shows on its line in the org file.
@@ -8918,6 +8963,8 @@ Options ~
 
 ------------------------------------------------------------------------------
 Language server                                           *org-extensions-lsp*
+
+Stability: experimental (|org-extensions-stability|)
 
 `lsp` runs a language server for org buffers inside Neovim: no program to
 install, the server is Lua in the same process (|vim.lsp.start()| with a
@@ -9115,6 +9162,8 @@ Notes ~
 
 ------------------------------------------------------------------------------
 Transclusion (org-transclusion)                  *org-extensions-transclusion*
+
+Stability: experimental (|org-extensions-stability|)
 
 `transclusion` shows text from other files, or other parts of the same
 file, where a `#+transclude:` keyword points to, like Emacs
@@ -9354,6 +9403,8 @@ redraws it.
 ------------------------------------------------------------------------------
 Kanban board                                           *org-extensions-kanban*
 
+Stability: stable (|org-extensions-stability|)
+
 A board with a column per TODO keyword and a card per heading:
 >lua
     require("org").setup({ extensions = { kanban = {
@@ -9436,6 +9487,8 @@ Highlight groups: `OrgKanbanTitle`, `OrgKanbanHint`, `OrgKanbanBorder`,
 ------------------------------------------------------------------------------
 Timeline                                             *org-extensions-timeline*
 
+Stability: experimental (|org-extensions-stability|)
+
 A text-mode Gantt chart: one row per task with a SCHEDULED or DEADLINE date,
 on a date axis.
 >lua
@@ -9515,6 +9568,8 @@ as the kanban board is.
 ------------------------------------------------------------------------------
 Heatmap                                               *org-extensions-heatmap*
 
+Stability: experimental (|org-extensions-stability|)
+
 A calendar heatmap in the style of GitHub's contribution graph: a column per
 week, a row per weekday, each day shaded by what was done that day.
 >lua
@@ -9576,6 +9631,8 @@ options), `OrgHeatmapTitle`, `OrgHeatmapHint`, `OrgHeatmapLabel`,
 
 ------------------------------------------------------------------------------
 Today sidebar                                         *org-extensions-sidebar*
+
+Stability: stable (|org-extensions-stability|)
 
 A narrow window at the side of the tab that keeps today in view:
 >lua
