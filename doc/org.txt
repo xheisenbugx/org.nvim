@@ -138,7 +138,9 @@ If `setup()` is never called, the defaults are used the first time an org
 buffer is opened or `:Org` is run.
 
 `:Org version` shows the org.nvim release, its git version and where it is
-installed (org-version); with a count it inserts that at the cursor.
+installed (org-version); with a count it inserts that at the cursor. The
+release is the latest `vX.Y.Z` git tag of the checkout, or "unreleased"
+when there is none (or org.nvim isn't a git checkout).
 
 Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
