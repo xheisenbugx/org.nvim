@@ -1153,10 +1153,6 @@ set. See `:h org-extensions`.
 
   ![Today sidebar: clocking in, opening the sidebar, jumping to an overdue task and capturing to the inbox while its count updates](docs/media/sidebar.gif)
 
-More are on the way: a two-way Google Calendar sync modelled on
-[org-gcal](https://github.com/kidd/org-gcal.el) is in review
-([#70](https://github.com/xheisenbugx/org.nvim/pull/70)).
-
 ---
 
 ## 🗺️ Roadmap
@@ -1173,7 +1169,7 @@ command or option:
 - [ ] Custom `diary-date-forms` in the Emacs diary file
 - [ ] Column view headlines read-only against every kind of edit (Visual, Ex commands, the API)
 - [ ] `#+BIND` for export variables that have no org.nvim option
-- [ ] More [extensions](#-extensions), starting with org-gcal
+- [ ] More [extensions](#-extensions)
 
 Done in the latest parity round (every command and option of Org 9.8.10
 checked, see the
