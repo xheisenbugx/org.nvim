@@ -207,7 +207,13 @@ function M.open(opts)
     end
     local pos = vim.api.nvim_buf_get_extmark_by_id(src, ns, mark, { details = true })
     local detail = pos[3]
-    if not detail or detail.invalid then
+    -- Neovim 0.11 doesn't invalidate a mark over whole lines when they
+    -- are deleted: it collapses
+    local collapsed = detail
+      and pos[1] == detail.end_row
+      and pos[2] == detail.end_col
+      and not vim.deep_equal(original, object and { "" } or {})
+    if not detail or detail.invalid or collapsed then
       return false, "Source region was deleted or replaced; edit buffer kept open"
     end
     local current = object and vim.api.nvim_buf_get_text(src, pos[1], pos[2], detail.end_row, detail.end_col, {})
