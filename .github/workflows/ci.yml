@@ -40,6 +40,19 @@ jobs:
       - run: nvim --version
       - run: make test
 
+  lint:
+    name: lint (stylua)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # the version the code base is formatted with; bump it together with a
+      # `make format` pass, since stylua releases can format differently
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 2.5.2
+          args: --check lua plugin ftplugin syntax tests
+
   helptags:
     runs-on: ubuntu-latest
     steps:

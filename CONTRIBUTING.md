@@ -20,8 +20,9 @@ you need to get started.
 ## Development setup
 
 You only need Neovim 0.11+. For formatting and linting, you also need
-[stylua](https://github.com/JohnnyMorganz/StyLua) 2.x (`brew install stylua`
-or `cargo install stylua`).
+[stylua](https://github.com/JohnnyMorganz/StyLua) 2.5.2, the version CI
+checks with (`cargo install stylua --version 2.5.2`, or a release binary;
+other versions can format differently).
 
 ```sh
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
