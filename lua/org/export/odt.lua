@@ -1042,7 +1042,7 @@ function M.latex_to_mathml(frag)
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
   local tin, tout = dir .. "/ltxmathml-in", dir .. "/ltxmathml-out"
-  local f = io.open(tin, "w")
+  local f = io.open(tin, "wb")
   if f then
     f:write(frag)
     f:close()
@@ -1111,7 +1111,7 @@ function M.latex_to_mathml_cached(frag, info)
   local mathml = M.latex_to_mathml(frag)
   if mathml and file then
     vim.fn.mkdir(vim.fn.fnamemodify(file, ":h"), "p")
-    local f = io.open(file, "w")
+    local f = io.open(file, "wb")
     if f then
       f:write(mathml)
       f:close()
@@ -1195,7 +1195,7 @@ function M.latex_to_image(frag, process, info)
     "\\end{document}",
     "",
   }, "\n")
-  local f = io.open(dir .. "/" .. base .. ".tex", "w")
+  local f = io.open(dir .. "/" .. base .. ".tex", "wb")
   if not f then
     return nil
   end
