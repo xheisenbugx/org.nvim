@@ -1,0 +1,9 @@
+# blank issues stay on: :Org bug_report opens issues/new with a prefilled body
+blank_issues_enabled: true
+contact_links:
+  - name: User manual
+    url: https://github.com/xheisenbugx/org.nvim/blob/main/doc/org.txt
+    about: Every command, key and option is documented in `:h org`.
+  - name: Org manual
+    url: https://orgmode.org/manual/
+    about: How Emacs Org behaves, which org.nvim follows.
