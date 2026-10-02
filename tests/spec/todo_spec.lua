@@ -134,6 +134,24 @@ describe("todo", function()
     eq("* NEXT Gym", buf_lines(buf)[1])
   end)
 
+  it("a `!` flag on the DONE keyword wins over lognotedone: no note", function()
+    -- org-todo: the closing note is only set up when dolog is nil
+    local asked = false
+    utils.input = function()
+      asked = true
+      return "n"
+    end
+    local buf = org_buffer({ "#+TODO: TODO | DONE(d!)", "#+STARTUP: lognotedone", "* TODO A" }, { 3, 0 })
+    todo.change_state(nil, "DONE")
+    local l = buf_lines(buf)
+    eq(false, asked)
+    eq("* DONE A", l[3])
+    ok(l[4]:match("^CLOSED: %["), l[4])
+    eq(":LOGBOOK:", l[5])
+    ok(l[6]:match('^%- State "DONE"       from "TODO"       %[[^%]]*%]$'), l[6])
+    eq(":END:", l[7])
+  end)
+
   it("a repeating entry of a type sequence returns to its previous state", function()
     -- org-auto-repeat-maybe: (eq interpret 'type) -> org-last-state
     local buf = org_buffer(

@@ -615,7 +615,9 @@ function M.change_state(target, new, opts)
     result.repeated = true
   else
     local note = opts.note
-    local wants_note = (new ~= nil and state_log == "note") or (becomes_done and log_done == "note")
+    -- a closing note only when the state itself logs nothing (a `!` flag
+    -- records the state change with its time, without a note)
+    local wants_note = (new ~= nil and state_log == "note") or (becomes_done and log_done == "note" and not state_log)
     local aborted = false
     if wants_note and note == nil then
       note = utils.input_note({
