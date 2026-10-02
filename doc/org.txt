@@ -8659,7 +8659,8 @@ Beyond Emacs ~
     `:Org diagrams_rerender` renders the block at point without the cache
     and `:Org diagrams_clear_cache` empties it. At startup the cache drops
     entries unused for `cache_max_age` days, then the least recently used
-    beyond `cache_max_size` megabytes.
+    beyond `cache_max_size` megabytes. Both only touch cache entries (files
+    named by the hash); other files in `cache_dir` are left alone.
   - With `auto_preview` (the default) the result image is shown inline
     after the block runs, when an image backend is available
     (|org-images|; SVG needs ImageMagick).
