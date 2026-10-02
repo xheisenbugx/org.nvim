@@ -3263,6 +3263,35 @@ end
 --- lists replace). Used for extension options.
 M.merge = merge_into
 
+--- Options that are tables of sub-options (`clock = { ... }`).
+local SECTIONS = {}
+for _, k in ipairs({
+  "agenda",
+  "attach",
+  "babel",
+  "bibtex",
+  "capture",
+  "clock",
+  "crypt",
+  "ctags",
+  "export",
+  "feed",
+  "id",
+  "links",
+  "lists",
+  "mappings",
+  "mobile",
+  "mouse",
+  "notifications",
+  "protocol",
+  "refile",
+  "timer",
+  "ui",
+  "yank",
+}) do
+  SECTIONS[k] = true
+end
+
 --- Merge user options into `M.opts`. Dict options merge key by key; lists
 --- (and `capture.templates`) replace the default; `{}` for a dict option
 --- keeps its defaults; `babel.languages = { lang = false }` removes a
@@ -3271,6 +3300,16 @@ M.merge = merge_into
 ---@return org.config.Resolved
 function M.setup(opts)
   opts = opts or {}
+  if type(opts) ~= "table" then
+    error("org.nvim: setup() takes a table of options, got " .. type(opts), 2)
+  end
+  -- option sections: a scalar here would fail later with an obscure
+  -- "attempt to index" error deep in some module
+  for k, v in pairs(opts) do
+    if type(v) ~= "table" and type(M.defaults[k]) == "table" and SECTIONS[k] then
+      error(string.format("org.nvim: option `%s` must be a table, got %s", k, type(v)), 2)
+    end
+  end
   -- `capture.templates` and `agenda.custom_commands` are replaced wholesale
   -- when given, so users aren't stuck with the default template.
   local templates = opts.capture and opts.capture.templates
