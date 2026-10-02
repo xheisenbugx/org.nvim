@@ -2683,13 +2683,9 @@ local function sort_rows(rows, spec)
   for i = s, e do
     slice[#slice + 1] = { row = rows[i], key = key(rows[i]), i = i }
   end
+  -- sort-subr sorts a reversed list stably and reverses it again: equal
+  -- keys keep their order either way
   local reverse = kind ~= lower
-  if reverse then
-    -- sort-subr: reverse, stable sort, reverse again
-    for i, x in ipairs(slice) do
-      x.i = -i
-    end
-  end
   table.sort(slice, function(a, b)
     if a.key ~= b.key then
       if reverse then

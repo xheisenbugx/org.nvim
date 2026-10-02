@@ -406,6 +406,32 @@ describe("clock", function()
     eq("CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30", buf_lines(buf)[3])
   end)
 
+  it("keeps equal keys in order when a clocktable :sort is reversed (as Emacs)", function()
+    local buf = org_buffer({
+      "* A",
+      "CLOCK: [2026-09-01 Tue 10:00]--[2026-09-01 Tue 12:00] =>  2:00",
+      "** S1",
+      "CLOCK: [2026-09-03 Thu 10:00]--[2026-09-03 Thu 11:00] =>  1:00",
+      "** S2",
+      "CLOCK: [2026-09-03 Thu 12:00]--[2026-09-03 Thu 12:10] =>  0:10",
+      "* B",
+      "CLOCK: [2026-09-04 Fri 10:00]--[2026-09-04 Fri 10:30] =>  0:30",
+    })
+    local l = clock.clocktable({ sort = "(2 . ?T)", header = "" }, buf)
+    -- by Time descending; S1 and S2 have no level-1 time (key 0) and keep
+    -- their order
+    eq({
+      "| Headline     |   Time |      |",
+      "|--------------+--------+------|",
+      "| *Total time* | *3:40* |      |",
+      "|--------------+--------+------|",
+      "| A            |   3:10 |      |",
+      "| B            |   0:30 |      |",
+      "| \\_  S1       |        | 1:00 |",
+      "| \\_  S2       |        | 0:10 |",
+    }, l)
+  end)
+
   it("cleans up temp buffers", function()
     vim.cmd("enew!")
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
