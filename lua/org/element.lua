@@ -247,7 +247,7 @@ parse = function(lines, s, e, parent, first_is_item_text)
       add(el)
     elseif kind == "item" then
       -- a whole plain list
-      local ls = lists.parse_region(lines, post, e)
+      local ls = lists.parse_region(lines, post, e, true)
       local list = ls[1]
       if list and list.items[1].lnum == post then
         local stop = 0
