@@ -385,7 +385,7 @@ end
 --- Absolute name of a bibliography file.
 function M.bibliography_path(file, info)
   if file:match("^/") or file:match("^~") or file:match("^%a:[/\\]") then
-    return vim.fs.normalize(vim.fn.expand(file))
+    return vim.fs.normalize(require("org.utils").expand_vars(file))
   end
   local dir = info.input_file and vim.fn.fnamemodify(info.input_file, ":p:h") or vim.fn.getcwd()
   return vim.fs.normalize(dir .. "/" .. file)

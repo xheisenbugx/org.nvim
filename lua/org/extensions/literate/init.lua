@@ -707,9 +707,13 @@ local function tangle()
     elseif t == "yes" then
       return vim.fn.fnamemodify(org, ":r") .. ".lua"
     end
-    -- copied into the bootstrap init.lua, so no org.utils: / or a drive
+    -- copied into the bootstrap init.lua, so no org.utils. Expand only ~:
+    -- vim.fn.expand() would run `backticks` in the document's :tangle value
+    t = t:gsub("^~([/\\])", function(sep)
+      return (vim.env.HOME or "~") .. sep
+    end)
     local abs = t:match("^[/\\]") or t:match("^%a:[/\\]")
-    return vim.fs.normalize(vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p"))
+    return vim.fs.normalize(vim.fn.fnamemodify(abs and t or (dir .. "/" .. t), ":p"))
   end
   -- normalized: fnamemodify() mixes \ and / on Windows
   local want = vim.fs.normalize(vim.fn.fnamemodify(out, ":p"))

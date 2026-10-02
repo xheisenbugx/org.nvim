@@ -2660,7 +2660,7 @@ function M.file_uri(filename)
     return filename
   end
   -- forward slashes, as expand-file-name gives on Windows
-  local full = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(filename), ":p"))
+  local full = vim.fs.normalize(vim.fn.fnamemodify(utils.expand_vars(filename), ":p"))
   return (full:match("^/") and "file://" or "file:///") .. full
 end
 

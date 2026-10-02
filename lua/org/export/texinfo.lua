@@ -1061,7 +1061,7 @@ local function inline_image(link, info)
   local path = link.path
   local filename
   if require("org.utils").is_absolute(path) or path:match("^~") then
-    filename = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+    filename = vim.fn.fnamemodify(require("org.utils").expand_vars(path), ":p")
   else
     filename = vim.fs.normalize(path):gsub("^%./", "")
   end

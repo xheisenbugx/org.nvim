@@ -555,6 +555,26 @@ end
 
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
 --- `base` (default: org_directory).
+--- `path` with a leading ~ and $VAR / ${VAR} expanded and nothing else; a
+--- relative path stays relative. The safe replacement for vim.fn.expand()
+--- on document text, which runs `backticks` as shell commands.
+---@param path string
+---@return string
+function M.expand_vars(path)
+  if path == "~" or path:match("^~[/\\]") then
+    path = M.home() .. path:sub(2)
+  end
+  return (
+    path
+      :gsub("%${([%w_]+)}", function(v)
+        return vim.env[v] or ("${" .. v .. "}")
+      end)
+      :gsub("%$([%w_]+)", function(v)
+        return vim.env[v] or ("$" .. v)
+      end)
+  )
+end
+
 function M.expand(path, base)
   if not path or path == "" then
     return path
@@ -562,16 +582,7 @@ function M.expand(path, base)
   -- Never vim.fn.expand(): paths often come from document text (INCLUDE,
   -- :dir, :file, scopes), and Vim expansion evaluates `backticks` and
   -- interprets %, # and wildcards. Expand only ~ and environment variables.
-  if path == "~" or path:match("^~[/\\]") then
-    path = M.home() .. path:sub(2)
-  end
-  path = path
-    :gsub("%${([%w_]+)}", function(v)
-      return vim.env[v] or ("${" .. v .. "}")
-    end)
-    :gsub("%$([%w_]+)", function(v)
-      return vim.env[v] or ("$" .. v)
-    end)
+  path = M.expand_vars(path)
   if not M.is_absolute(path) then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path

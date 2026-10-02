@@ -1423,7 +1423,7 @@ local function inline_image(link, info)
   local parent = element.parent_element(link)
   local path = link.path
   if require("org.utils").is_absolute(path) or path:match("^~") then
-    path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+    path = vim.fn.fnamemodify(require("org.utils").expand_vars(path), ":p")
   end
   local filetype = path:match("%.([%w]+)$")
   filetype = filetype and filetype:lower()
