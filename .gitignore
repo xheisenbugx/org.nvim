@@ -13,5 +13,7 @@ examples/ltximg/
 # (make publish-media), never committed here
 docs/media/*.gif
 docs/media/*.png
+# examples/13-links.org opens and attaches this one
+!docs/media/columns.png
 docs/media/video/
 .DS_Store
