@@ -143,6 +143,10 @@ describe("structure: promote/demote", function()
       seen[#seen + 1] = buf_lines(buf)[3]
     end
     eq({ "*** ", "* ", "** ", "*** " }, seen)
+    -- a sibling of a top-level headline becomes its child first
+    buf = org_buffer({ "* A", "* " }, { 2, 2 })
+    structure.cycle_level()
+    eq("** ", buf_lines(buf)[2])
   end)
 end)
 

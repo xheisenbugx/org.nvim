@@ -1157,11 +1157,12 @@ function M.cycle_level()
   -- the steps of org-do-promote / org-do-demote (org-level-increment)
   local inc = M.level_increment(bufnr)
   local new
-  if prev == 0 or prev == 1 then
-    -- first headline of the file, or the parent is top-level
-    new = cur - inc * math.floor((cur - 1) / inc)
+  if prev == 0 then
+    new = cur - inc * math.floor((cur - 1) / inc) -- first headline of the file
   elseif prev == cur then
     new = cur + inc -- sibling -> child
+  elseif prev == 1 then
+    new = cur - inc * math.floor((cur - 1) / inc) -- the parent is top-level
   elseif cur == 1 then
     new = 1 + inc * math.floor((prev - 1) / inc) -- back to the sibling level
   elseif cur < prev then
