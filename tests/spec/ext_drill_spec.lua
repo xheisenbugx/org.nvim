@@ -710,3 +710,29 @@ describe("drill session", function()
     vim.fn.delete(path)
   end)
 end)
+
+describe("drill write_meta", function()
+  it("keeps every line of a property repeated in the drawer", function()
+    setup({})
+    local buf = org_buffer({
+      "* Q :drill:",
+      ":PROPERTIES:",
+      ":NOTE: first",
+      ":NOTE: second",
+      ":LEARN_DATA: (1 2 2.5)",
+      ":END:",
+      "question",
+    }, { 1, 0 })
+    ok(require("org.extensions.drill").write_meta(buf, 1, nil, { { "DRILL_EASE", "2.5" } }, { "LEARN_DATA" }))
+    eq({
+      "* Q :drill:",
+      ":PROPERTIES:",
+      ":NOTE: first",
+      ":NOTE: second",
+      ":DRILL_EASE: 2.5",
+      ":END:",
+      "question",
+    }, buf_lines(buf))
+    setup(nil)
+  end)
+end)
