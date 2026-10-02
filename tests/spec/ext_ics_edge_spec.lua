@@ -147,6 +147,31 @@ describe("ics: recurrence details", function()
     end
   end)
 
+  it("closes components by name when an END line is missing", function()
+    local cal = parser.parse(table.concat({
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:a",
+      "DTSTART:20260105T100000Z",
+      "SUMMARY:A",
+      "BEGIN:VALARM",
+      "TRIGGER:-PT15M",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:b",
+      "DTSTART:20260106T100000Z",
+      "SUMMARY:B",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    }, "\r\n"))
+    eq(
+      { "A", "B" },
+      vim.tbl_map(function(e)
+        return e.summary
+      end, cal.events)
+    )
+  end)
+
   it("skips Feb 29 in non-leap years", function()
     local r = parser.rrule("FREQ=YEARLY;COUNT=2")
     eq({ "2024-02-29 00:00", "2028-02-29 00:00" }, vim.tbl_map(utc, parser.expand(r, N(2024, 2, 29), 0, N(2030, 1, 1))))

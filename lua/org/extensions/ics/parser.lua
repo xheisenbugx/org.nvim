@@ -99,13 +99,21 @@ function M.tree(text)
   for _, line in ipairs(M.unfold(text)) do
     local name, params, value = M.content_line(line)
     if name == "BEGIN" then
-      local comp = { name = value:upper(), props = {}, children = {} }
+      local comp = { name = vim.trim(value):upper(), props = {}, children = {} }
       local top = stack[#stack]
       top.children[#top.children + 1] = comp
       stack[#stack + 1] = comp
     elseif name == "END" then
-      if #stack > 1 then
-        stack[#stack] = nil
+      -- close the component of that name, and any left open inside it
+      -- (a missing END:VALARM must not swallow the next event)
+      local want = vim.trim(value):upper()
+      for k = #stack, 2, -1 do
+        if stack[k].name == want then
+          for j = #stack, k, -1 do
+            stack[j] = nil
+          end
+          break
+        end
       end
     elseif name then
       local top = stack[#stack]
