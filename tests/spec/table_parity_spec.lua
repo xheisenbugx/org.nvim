@@ -115,6 +115,28 @@ describe("table formulas are fixed after structure edits (org-table-fix-formulas
   end)
 end)
 
+describe("S-RET (org-table-copy-down)", function()
+  local function down(lines, line, col)
+    return at(lines, line, col, function()
+      tbl.copy_down(1)
+    end)
+  end
+
+  it("increments floats like number-to-string", function()
+    eq("| 3.0 |   |", down({ "| 1.0 | b |", "| 2.0 | b |" }, 2, 1)[3])
+    eq("| 1001.0 |   |", down({ "| 1e3 | b |" }, 1, 1)[2])
+    eq("| 0.30000000000000004 |   |", down({ "| 0.1 | b |", "| 0.2 | b |" }, 2, 1)[3])
+    eq("|  6 |   |", down({ "| 5. | b |" }, 1, 1)[2])
+  end)
+
+  it("moves on like org-table-next-row: # rows recalculate, rows are inserted", function()
+    local out = down({ "| # | 5 |", "| * | b |", "|---+---|", "| x | y |", "#+TBLFM: @3$1=@3$2" }, 1, 2)
+    eq({ "| # | 5 |", "| * | 6 |", "|---+---|", "| y | y |", "#+TBLFM: @3$1=@3$2" }, out)
+    out = down({ "| # | 1 |", "|---+---|", "| 9 | 9 |", "#+TBLFM: @2$1=7" }, 1, 2)
+    eq({ "| # | 1 |", "| # | 2 |", "|---+---|", "| 7 | 9 |", "#+TBLFM: @3$1=7" }, out)
+  end)
+end)
+
 describe("formulas typed into a field (org-table-maybe-eval-formula)", function()
   it("=formula sets the column formula and drops the field's own one", function()
     local out = at({ "| 3 | =$1*2 |", "#+TBLFM: $2=5::@1$2=7" }, 1, 2, tbl.next_field)

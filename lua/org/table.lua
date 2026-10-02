@@ -2212,11 +2212,14 @@ end
 ---@param previous? string
 ---@param step number
 function M.increment_field(value, previous, step)
-  local function num_str(n)
-    if n == math.floor(n) and math.abs(n) < 1e15 then
+  -- number-to-string: integers as such, floats like Emacs prints them
+  -- (3.0, 0.30000000000000004)
+  local function num_str(n, isfloat)
+    if not isfloat and n == math.floor(n) and math.abs(n) < 2 ^ 53 then
       return string.format("%d", n)
     end
-    return string.format("%.15g", n)
+    local elisp = require("org.table.elisp")
+    return elisp.to_string(elisp.float(n))
   end
   local function analyze(s)
     if not s or s == "" then
@@ -2224,7 +2227,10 @@ function M.increment_field(value, previous, step)
     end
     local n = s:match("^[-+]?%d+%.?$") or s:match("^[-+]?%d*%.%d+$") or s:match("^[-+]?%d+%.?%d*[eE][-+]?%d+$")
     if n then
-      return "number", tonumber((n:gsub("^%+", ""):gsub("%.$", ""))), nil
+      -- string-to-number: a float with a fraction or an exponent ("5." is
+      -- an integer)
+      local float = n:find("[eE]") ~= nil or n:find("%.%d") ~= nil
+      return "number", tonumber((n:gsub("^%+", ""):gsub("%.$", ""))), float
     end
     local pre = s:match("^%d+")
     if pre then
@@ -2241,10 +2247,14 @@ function M.increment_field(value, previous, step)
   end
   local kind, v1, p1 = analyze(value)
   local kind2, v2, p2 = analyze(previous)
-  local same = kind == kind2 and p1 == p2
   if kind == "number" then
-    return num_str(v1 + (same and (v1 - v2) or step))
-  elseif kind == "prefix" then
+    -- p1/p2 tell whether the numbers are floats
+    local same = kind2 == "number"
+    local float = p1 or (same and p2) or (not same and step ~= math.floor(step))
+    return num_str(v1 + (same and (v1 - v2) or step), float)
+  end
+  local same = kind == kind2 and p1 == p2
+  if kind == "prefix" then
     return num_str(v1 + (same and (v1 - v2) or step)) .. p1
   elseif kind == "suffix" then
     return p1 .. num_str(v1 + (same and (v1 - v2) or step))
@@ -2303,16 +2313,28 @@ function M.copy_down(n)
   if inc ~= false and inc ~= nil and n ~= 0 then
     value = M.increment_field(value, type(inc) ~= "number" and above(src) or nil, type(inc) == "number" and inc or 1)
   end
-  local target = row
+  local target, added = row, false
   if initial ~= "" then
+    -- org-table-next-row: a `#` row is recalculated before leaving it, and
+    -- a new row is added like org-table-insert-row
+    info = before_move(info, row, field, true)
+    t = info.tbl
     target = row + 1
     if not t.rows[target] or t.rows[target].hline then
-      table.insert(t.rows, target, empty_row(t.ncols))
+      table.insert(t.rows, target, new_row_at(t, target))
+      added = true
     end
   end
   t.rows[target].cells[field] = value
-  local lines = write_table(info, t)
-  set_cursor(info, lines, target, field, #value)
+  write_table(info, t)
+  if added then
+    M.fix_formulas(0, info.finish, "@", nil, dline(t, target) - 1, 1)
+  end
+  info = reload(info)
+  if maybe_recalc_line(info, target) then
+    info = reload(info)
+  end
+  set_cursor(info, info.lines, target, field, #value)
 end
 
 --- Transpose the table at the cursor: rows become columns. Hlines are
