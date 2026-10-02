@@ -15,6 +15,12 @@ describe("dblock", function()
     eq("<2026-01-01 Thu>", p.tstart)
   end)
 
+  it("keeps the first of repeated params, like plist-get", function()
+    local p = dblock.parse_params(":maxlevel 2 :link nil :maxlevel 3 :link t")
+    eq(2, p.maxlevel)
+    eq(false, p.link)
+  end)
+
   it("updates clocktable blocks", function()
     local buf = org_buffer({
       "#+BEGIN: clocktable :maxlevel 1",

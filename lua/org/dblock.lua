@@ -107,7 +107,10 @@ function M.parse_params(str)
         value = tonumber(value)
       end
     end
-    params[key:lower()] = value
+    -- plist-get: the first occurrence of a repeated key wins
+    if params[key:lower()] == nil then
+      params[key:lower()] = value
+    end
   end
   return params
 end
