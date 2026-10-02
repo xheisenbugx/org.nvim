@@ -69,11 +69,13 @@ function M.format(S)
   return from_item(S.line_items[lines[1]]) or config.opts.columns_default_format or "%25ITEM %TODO %3PRIORITY %TAGS"
 end
 
---- Value of a column for an agenda item (ITEM without stars).
+--- Value of a column for an agenda item (ITEM without stars, with its
+--- links shown as their description: org-columns--displayed-value applies
+--- org-link-display-format).
 local function value(it, prop)
   local key = prop:upper()
   if key == "ITEM" then
-    return it.display_title or it.title or ""
+    return require("org.agenda.render").display_title(it.display_title or it.title or "")
   end
   local v = columns.value(it.headline, prop)
   if
@@ -340,6 +342,10 @@ function M.edit()
   end
   local col = A.cols[ci]
   local cur = A.cells[vim.api.nvim_win_get_cursor(0)[1]][ci] or ""
+  if col.prop:upper() == "ITEM" then
+    -- edit the title itself, not its displayed form (links reduced)
+    cur = it.display_title or it.title or ""
+  end
   local vals = allowed(it, col.prop)
   local v
   if vals and #vals > 0 then

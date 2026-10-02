@@ -984,6 +984,13 @@ function M.overlay_lines(bufnr)
   return state and state.row_at
 end
 
+--- The display width of the column view row drawn over line `lnum` of
+--- `bufnr` (what comes after it, like a fold's ellipsis, starts there).
+function M.overlay_width(bufnr, lnum)
+  local state = views[bufnr]
+  return state and state.row_width and state.row_width[lnum] or 0
+end
+
 --- Is the overlay column view shown in `bufnr` (default: the current
 --- buffer)?
 function M.active(bufnr)
@@ -1080,7 +1087,7 @@ local function overlay_render(state, update)
   end
   vim.api.nvim_buf_clear_namespace(src, ns_ov, 0, -1)
   local lines = vim.api.nvim_buf_get_lines(src, 0, -1, false)
-  state.row_at = {}
+  state.row_at, state.row_width = {}, {}
   for k, r in ipairs(rows) do
     local lnum = r.hl.line
     state.row_at[lnum] = r
@@ -1099,6 +1106,7 @@ local function overlay_render(state, update)
     end
     -- make the rest of the line disappear
     local lw = vim.fn.strdisplaywidth(lines[lnum] or "")
+    state.row_width[lnum] = math.max(lw, total)
     if lw > total then
       chunks[#chunks + 1] = { string.rep(" ", lw - total), "Normal" }
     end

@@ -115,6 +115,28 @@ local SUB = {
   x = "ₓ",
 }
 
+--- Which `^` and `_` are sub/superscripts in a buffer: `#+OPTIONS: ^:`
+--- overrides `default` (org-use-sub-superscripts, set buffer-locally by
+--- org-set-regexps-and-options). `^:nil` is displayed like `^:{}`, as
+--- org-raise-scripts treats anything but t as braces only.
+---@param file? org.File
+---@return boolean|string
+function M.sub_superscripts(file, default)
+  local value = default
+  local opts = file and file.settings and file.settings.keywords and file.settings.keywords.OPTIONS
+  for _, v in ipairs(opts or {}) do
+    for item in tostring(v):gmatch("%S+") do
+      local w = item:match("^%^:(.*)$")
+      if w == "t" then
+        value = true
+      elseif w == "{}" or w == "nil" then
+        value = "{}"
+      end
+    end
+  end
+  return value
+end
+
 --- The `ui` options of a buffer: `#+STARTUP` words and the buffer toggles
 --- override the configuration.
 ---@param file? org.File the parsed buffer, when the caller has it
@@ -136,6 +158,9 @@ function M.ui_options(bufnr, file)
   flag("hide_leading_stars", "hidestars", "showstars")
   flag("pretty_entities", "entitiespretty", "entitiesplain")
   flag("num", "num", "nonum")
+  if ok then
+    ui.use_sub_superscripts = M.sub_superscripts(file, ui.use_sub_superscripts)
+  end
   if vim.api.nvim_buf_is_valid(bufnr) then
     if vim.b[bufnr].org_indent_mode ~= nil then
       ui.indent_mode = vim.b[bufnr].org_indent_mode
@@ -202,18 +227,67 @@ local function enabled(ui)
     or require("org.parser").inlinetask_min_level() ~= nil
 end
 
---- Byte ranges of inline code, verbatim and links in `line`, where
---- entities and scripts are not displayed.
+local EMPH_PRE = "[%s%(%'\"{%-]"
+local EMPH_POST = "[%s%-%.,:!%?;%'\"%)}%[]"
+
+--- Byte ranges [s, e] of the emphasis (any marker) in `line`, as
+--- org-do-emphasis-faces finds it on one line: a marker after the start or
+--- a pre character, a non-blank text, the same marker after a non-blank and
+--- before a post character or the end.
+local function emphasis_ranges(line, out)
+  for i = 1, #line do
+    local m = line:sub(i, i)
+    if
+      m:find("^[*/_+=~]")
+      and (i == 1 or line:sub(i - 1, i - 1):find("^" .. EMPH_PRE))
+      and line:sub(i + 1, i + 1):find("^%S")
+      and not (m == "*" and i == 1 and line:find("^%*+ "))
+    then
+      local j = i + 1
+      while true do
+        j = line:find(m, j + 1, true)
+        if not j then
+          break
+        end
+        local after = line:sub(j + 1, j + 1)
+        if line:sub(j - 1, j - 1):find("^%S") and (after == "" or after:find("^" .. EMPH_POST)) then
+          out[#out + 1] = { i, j }
+          break
+        end
+      end
+    end
+  end
+end
+
+--- Byte ranges of `line` where entities and scripts are not displayed
+--- (org-raise-scripts skips emphasis, links, footnotes, tags and property
+--- names): bracket and plain links, emphasis, footnote references, a
+--- headline's tags, a node property's name.
 local function protected_ranges(line)
   local out = {}
   for s, e in line:gmatch("()%[%[.-%]%]()") do
     out[#out + 1] = { s, e - 1 }
   end
-  for s, e in line:gmatch("()[=~][^%s=~][^\n]-[=~]()") do
+  emphasis_ranges(line, out)
+  local schemes = require("org.links").URL_SCHEMES
+  for s, scheme, e in line:gmatch("()(%a[%w+%-]*):[^%s%[%]<>()]+()") do
+    if schemes[scheme:lower()] and (s == 1 or not line:sub(s - 1, s - 1):find("^%w")) then
+      out[#out + 1] = { s, e - 1 }
+    end
+  end
+  for s, e in line:gmatch("()%[fn:[^%]]*%]()") do
     out[#out + 1] = { s, e - 1 }
   end
-  for s, e in line:gmatch("()%a+://%S+()") do
-    out[#out + 1] = { s, e - 1 }
+  if line:byte(1) == 42 then
+    local s = line:match("^%*+ .-%s():[^%s]+:%s*$")
+    if s then
+      out[#out + 1] = { s, #line }
+    end
+  else
+    local e = line:match("^%s*:[^%s]-:()%s") or line:match("^%s*:[^%s]-:()$")
+    if e then
+      out[#out + 1] = { 1, e - 1 }
+    end
   end
   return out
 end
@@ -307,6 +381,27 @@ local function numbering(lines, ui)
   return out
 end
 
+-- Blocks whose contents are not Org text (org-protecting-blocks, and
+-- comment blocks): no entities, scripts or checkboxes are drawn in them.
+local VERBATIM_BLOCKS = { src = true, example = true, export = true, comment = true }
+
+--- For a `#+begin_` / `#+end_` line: whether a verbatim block is open after
+--- it, and the language of a src block; nil for other lines. (Quote, verse,
+--- center and special blocks hold ordinary Org text.)
+---@return boolean? in_block, string? src_lang
+function M.block_line(line)
+  local kind = line:match("^%s*#%+[bB][eE][gG][iI][nN]_(%S+)")
+  if kind then
+    if VERBATIM_BLOCKS[kind:lower()] then
+      return true, kind:lower() == "src" and line:match("^%s*#%+%S+%s*(%S*)") or nil
+    end
+    return false, nil
+  end
+  if line:match("^%s*#%+[eE][nN][dD]_") then
+    return false, nil
+  end
+end
+
 --- Headline level and whether a block is open at the start of row `first`
 --- (0-based): the state the loop in `compute` has when it gets there. Only
 --- the entry containing the row is read.
@@ -336,11 +431,9 @@ local function context_at(bufnr, first, min_inline)
     if lvl then
       level, in_block, src_lang = lvl, false, nil
     elseif not (line:byte(1) == 42 and parser.headline_level(line)) then
-      if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
-        in_block = true
-        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
-      elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block, src_lang = false, nil
+      local b, l = M.block_line(line)
+      if b ~= nil then
+        in_block, src_lang = b, l
       end
     end
   end
@@ -489,18 +582,17 @@ function M.compute(bufnr, first, last, ui)
         })
       end
     else
-      if line:match("^%s*#%+[bB][eE][gG][iI][nN]_") then
-        in_block = true
-        src_lang = line:match("^%s*#%+[bB][eE][gG][iI][nN]_[sS][rR][cC]%s*(%S*)")
-      elseif line:match("^%s*#%+[eE][nN][dD]_") then
-        in_block, src_lang = false, nil
+      local b, l = M.block_line(line)
+      if b ~= nil then
+        in_block, src_lang = b, l
       elseif src_lang and src_faces and src_faces[src_lang] and line ~= "" then
         -- body of a src block: its language's face (org-src-block-faces)
         set(row, 0, { end_col = #line, hl_group = src_faces[src_lang], priority = 90 })
       end
       local _, text_prefix = M.indent_widths(ui, ui.indent_mode and level or 0)
-      if text_prefix > 0 and line ~= "" then
-        -- org-indent: text of a level-n entry starts at column 2n
+      if text_prefix > 0 then
+        -- org-indent: text of a level-n entry starts at column 2n (empty
+        -- lines too, so the cursor sits there)
         set(row, 0, {
           virt_text = { { string.rep(" ", text_prefix), "Normal" } },
           virt_text_pos = "inline",
@@ -508,12 +600,16 @@ function M.compute(bufnr, first, last, ui)
         })
       end
       if boxes and not in_block then
-        local pre, box = line:match("^(%s*[-+*]%s+)(%[[ xX%-]%])")
-        if not pre then
-          pre, box = line:match("^(%s*%d+[.)]%s+)(%[[ xX%-]%])")
-        end
-        if not pre and line:match("^%s*%a[.)]") and require("org.lists").opt("allow_alphabetical") then
-          pre, box = line:match("^(%s*%a[.)]%s+)(%[[ xX%-]%])")
+        -- the item's checkbox, after an optional [@N] counter, followed by
+        -- a blank; "[x]" is no checkbox (org-list-full-item-re)
+        local item = line:find("^%s*[-+*%w]") and require("org.lists").parse_item_line(line)
+        local pre, box
+        if item and item.checkbox then
+          local col = item.indent + #item.bullet_ws
+          local counter = line:match("^%[@[^%]]*%][ \t]*", col + 1) or ""
+          col = col + #counter
+          box = line:match("^%[[ X%-]%]", col + 1)
+          pre = box and line:sub(1, col)
         end
         if box then
           local state = box:sub(2, 2)
@@ -539,7 +635,8 @@ function M.compute(bufnr, first, last, ui)
         end
       end
     end
-    if ui.pretty_entities and not in_block and not line:match("^%s*#%+") then
+    -- (not in keywords and comments: org-at-comment-p)
+    if ui.pretty_entities and not in_block and not line:match("^%s*#[%s+]") and not line:match("^%s*#$") then
       local protected = protected_ranges(line)
       -- \name, \name{} (org-fontify-entities)
       local init = 1
@@ -735,7 +832,7 @@ local current ---@type table<integer, table[]>?
 -- real extmarks in their own namespace, rebuilt for the rows a window is
 -- about to draw whenever the text changed.
 local ns_inline = vim.api.nvim_create_namespace("org.decorations.inline")
-local inline_synced = {} ---@type table<integer, { tick: integer, rows: table<integer, boolean> }>
+local inline_synced = {} ---@type table<integer, { tick: integer, ui: table, rows: table<integer, boolean> }>
 
 --- Marks drawn as real extmarks instead of ephemeral ones: inline virtual
 --- text (which can't be ephemeral) and overlays that must be placed after
@@ -745,10 +842,14 @@ local function is_persistent(m)
 end
 
 local function sync_inline(bufnr, rows, top, bot)
-  local tick = cache[bufnr].tick
+  local tick, ui = cache[bufnr].tick, cache[bufnr].ui
   local synced = inline_synced[bufnr]
-  if not synced or synced.tick ~= tick then
-    synced = { tick = tick, rows = {} }
+  if not synced or synced.tick ~= tick or synced.ui ~= ui then
+    if synced and synced.ui ~= ui then
+      -- (indent mode turned off without an edit: no row may keep its prefix)
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
+    end
+    synced = { tick = tick, ui = ui, rows = {} }
     inline_synced[bufnr] = synced
   end
   local row = top
@@ -774,15 +875,43 @@ local function sync_inline(bufnr, rows, top, bot)
   end
 end
 
+--- The row ranges of [top, bot] a window draws: of a closed fold only its
+--- first row.
+local function drawn_ranges(win, top, bot)
+  local out = {}
+  local ok = pcall(vim.api.nvim_win_call, win, function()
+    local row = top
+    local s = top
+    while row <= bot do
+      local fend = vim.fn.foldclosedend(row + 1)
+      if fend ~= -1 then
+        out[#out + 1] = { s, row }
+        row = fend
+        s = row
+      else
+        row = row + 1
+      end
+    end
+    if s <= bot then
+      out[#out + 1] = { s, bot }
+    end
+  end)
+  return ok and out or { { top, bot } }
+end
+
 vim.api.nvim_set_decoration_provider(ns, {
-  on_win = function(_, _, bufnr, toprow, botrow)
+  on_win = function(_, win, bufnr, toprow, botrow)
     if not attached[bufnr] then
       return false
     end
     botrow = math.min(botrow, vim.api.nvim_buf_line_count(bufnr) - 1)
-    current = rows_for(bufnr, toprow, botrow)
-    sync_inline(bufnr, current, toprow, botrow)
-    return next(current) ~= nil
+    local ranges = (vim.wo[win].foldenable and botrow - toprow > 0) and drawn_ranges(win, toprow, botrow)
+      or { { toprow, botrow } }
+    for _, r in ipairs(ranges) do
+      current = rows_for(bufnr, r[1], r[2])
+      sync_inline(bufnr, current, r[1], r[2])
+    end
+    return current ~= nil and next(current) ~= nil
   end,
   on_line = function(_, _, bufnr, row)
     local marks = current and current[row]
@@ -811,17 +940,36 @@ function M.render(bufnr)
   pcall(vim.api.nvim__redraw, { buf = bufnr, valid = false })
 end
 
+--- Indent mode wraps lines with 'breakindent', set for the buffer in the
+--- windows that show it (not globally: other buffers keep theirs).
+local function set_win_opts(bufnr, win)
+  if vim.api.nvim_win_get_buf(win) == bufnr and M.ui_options(bufnr).indent_mode then
+    vim.wo[win][0].breakindent = true
+    vim.wo[win][0].wrap = true
+  end
+end
+
+--- Stop drawing the decorations of `bufnr` (its filetype changed).
+function M.detach(bufnr)
+  attached[bufnr] = nil
+  pcall(vim.api.nvim_del_augroup_by_name, "org.decorations." .. bufnr)
+  M.render(bufnr)
+end
+
 ---@param force? boolean attach even when nothing is enabled (toggles)
 function M.attach(bufnr, force)
   local ui = M.ui_options(bufnr)
   if not enabled(ui) and not force then
+    -- (a reload that turned the decorations off: nothing stale stays)
+    if attached[bufnr] then
+      M.detach(bufnr)
+    end
     return
   end
   if ui.indent_mode then
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.wo.breakindent = true
-      vim.wo.wrap = true
-    end)
+    for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+      set_win_opts(bufnr, win)
+    end
   end
   if not attached[bufnr] and not force then
     -- the modes turned on when the buffer is set up (org-startup-indented,
@@ -835,6 +983,13 @@ function M.attach(bufnr, force)
   end
   attached[bufnr] = true
   local group = vim.api.nvim_create_augroup("org.decorations." .. bufnr, { clear = true })
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    buffer = bufnr,
+    callback = function()
+      set_win_opts(bufnr, vim.api.nvim_get_current_win())
+    end,
+  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     group = group,
     buffer = bufnr,

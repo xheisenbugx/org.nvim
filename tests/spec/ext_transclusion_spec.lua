@@ -448,7 +448,7 @@ describe("transclusion highlight", function()
       texts[#texts + 1] = ch[1]
     end
     eq("** TODO Title with desc :tag:", table.concat(texts))
-    eq({ " :tag:", "OrgTags" }, c[1][#c[1]])
+    eq({ ":tag:", "OrgTags" }, c[1][#c[1]])
     eq("OrgKeyword", c[2][1][2])
     eq("OrgTitle", c[2][2][2])
     eq({ "-", "OrgListBullet" }, { vim.trim(c[3][2][1]), c[3][2][2] })

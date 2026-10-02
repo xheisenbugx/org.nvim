@@ -266,6 +266,15 @@ local function text_columns(win)
   return info and math.max(1, info.width - info.textoff) or 80
 end
 
+--- The window previews of `bufnr` are sized for: the current window when
+--- it shows the buffer, else the first one that does (-1: none).
+local function buf_win(bufnr)
+  if vim.api.nvim_get_current_buf() == bufnr then
+    return vim.api.nvim_get_current_win()
+  end
+  return vim.fn.bufwinid(bufnr)
+end
+
 --- The fill column: 'textwidth', or 70 like Emacs `fill-column`.
 local function fill_column(bufnr)
   local tw = vim.bo[bufnr].textwidth
@@ -309,7 +318,7 @@ local AFFILIATED =
 ---@return org.images.Line[] lines, table<integer, { first: integer, last: integer, attrs: string[] }> paras, table<integer, { first: integer, last: integer, name: string }> envs
 function M.scan(lines)
   local info, paras, envs = {}, {}, {}
-  local block, dynamic, props = nil, false, false
+  local dynamic, props = false, false
   local pending = {} -- affiliated keyword lines waiting for their element
   local para -- current paragraph
   local function other(li, keep_pending)
@@ -329,17 +338,41 @@ function M.scan(lines)
     paras[para].last = i
     li.para = para
   end
+  -- The blocks the line is in, innermost last: { name, stop }. A block
+  -- needs its #+end_ line before the next headline (and inside the block
+  -- around it); without one, Emacs reads #+begin_ as paragraph text.
+  local stack = {}
+  local function limit()
+    local top = stack[#stack]
+    return top and top.stop - 1 or #lines
+  end
+  local function block_end(name, from)
+    local pat = "^[ \t]*#%+end_" .. vim.pesc(name) .. "[ \t]*$"
+    for r = from, limit() do
+      if lines[r]:match("^%*+%s") then
+        return nil
+      end
+      if lines[r]:lower():match(pat) then
+        return r
+      end
+    end
+  end
   local i = 1
   while i <= #lines do
     local l = lines[i]
     local low = l:lower()
     local li = {}
     info[i] = li
+    local top = stack[#stack]
+    local block = top and top.name
+    local no_elements = block and (OPAQUE_BLOCKS[block] or block == "verse")
     local key = low:match("^%s*#%+([%w_-]+)%[?[^:]*%]?:")
     local env = l:match("^[ \t]*\\begin{([%w*]+)}")
+    local begin = low:match("^%s*#%+begin_([%w_-]+)")
+    local begin_stop = begin and not props and not no_elements and block_end(begin, i + 1)
     local stop
-    if env and not block and not props then
-      for r = i + 1, #lines do
+    if env and not no_elements and not props then
+      for r = i + 1, limit() do
         if lines[r]:match("^%*+%s") then
           break
         end
@@ -349,14 +382,15 @@ function M.scan(lines)
         end
       end
     end
-    if block then
-      if low:match("^%s*#%+end_" .. vim.pesc(block) .. "%f[^%w_-]") then
-        li.skip = true
-        block = nil
-        other(li)
-      elseif OPAQUE_BLOCKS[block] then
-        li.skip = true
-      elseif l:match("^%s*$") then
+    if top and i == top.stop then
+      li.skip = true
+      stack[#stack] = nil
+      other(li)
+    elseif block and OPAQUE_BLOCKS[block] then
+      li.skip = true
+    elseif block == "verse" then
+      -- a verse block holds objects only: every line is text
+      if l:match("^%s*$") then
         other(li)
       else
         text(li, i)
@@ -366,9 +400,10 @@ function M.scan(lines)
       if low:match("^%s*:end:%s*$") then
         props = false
       end
-    elseif low:match("^%s*#%+begin_([%w_-]+)") then
+    elseif begin_stop then
+      -- quote, center and special blocks hold elements of their own
       li.skip = true
-      block = low:match("^%s*#%+begin_([%w_-]+)")
+      stack[#stack + 1] = { name = begin, stop = begin_stop }
       other(li)
     elseif low:match("^%s*#%+begin:") then
       li.skip, dynamic = true, true
@@ -1404,7 +1439,7 @@ end
 
 --- Whether preview `p` is drawn in place of its text right now.
 local function in_place(p)
-  return p.inline and not p.revealed
+  return p.inline and not p.revealed and not p.below
 end
 
 --- Hidden text needs 'conceallevel' 2 in the windows showing `bufnr`.
@@ -1821,7 +1856,11 @@ local function size_of(win, s)
     maxw = text_columns(win) - 1
   end
   if s.indent then
-    maxw = math.max(1, math.min(maxw, text_columns(win) - 1 - s.indent))
+    -- the columns left on the screen row the text starts on: with 'wrap'
+    -- the text before it may take whole rows of its own
+    local cols = text_columns(win)
+    local indent = vim.wo[win].wrap and s.indent % cols or s.indent
+    maxw = math.max(1, math.min(maxw, cols - 1 - indent))
   end
   if not s.pw then
     return maxw, math.min(maxh or 24, 10)
@@ -1837,11 +1876,36 @@ local function size_of(win, s)
   return M.fit(s.pw, s.ph, maxw, maxh, want)
 end
 
+--- Whether the line of image `p`, drawn in place of its text, wraps after
+--- the image's screen row: the image would cover the line's own wrapped
+--- text, as its rows can only be reserved after the whole line. Emacs makes
+--- that screen line as tall as the image instead; here the image goes under
+--- the line, as with `placement = "below"`.
+local function wraps_after(bufnr, p)
+  if not p.inline or p.multi or p.height <= 1 then
+    return false
+  end
+  local win = buf_win(bufnr)
+  local r, c, d = mark_pos(bufnr, p.mark)
+  if win == -1 or not r or not vim.wo[win].wrap then
+    return false
+  end
+  local cols = text_columns(win)
+  local line = vim.api.nvim_buf_get_lines(bufnr, r, r + 1, false)[1] or ""
+  local before = vim.fn.strdisplaywidth(line:sub(1, c)) % cols
+  local rest = line:sub((d and d.end_col or c) + 1):gsub("%s+$", "")
+  local after = vim.fn.strdisplaywidth(rest, before + p.width)
+  return before + p.width + after > cols
+end
+
 --- Show preview `p` with backend `b` where its extmark is now: the rows
 --- are reserved at the end of the link or fragment, the image starts at
 --- its first column (under a fragment over several lines shown as text, at
 --- the start of its last line).
 local function show(b, bufnr, p)
+  if b == backends.native then
+    p.below = wraps_after(bufnr, p)
+  end
   local r, c, d = mark_pos(bufnr, p.mark)
   local end_row = d and d.end_row or r
   local line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
@@ -1860,13 +1924,27 @@ local function cursor_on(bufnr, r, er)
   return l >= r and l <= er
 end
 
+--- Whether an image drawn in place of rows `r..er` (0-based) of `bufnr`
+--- shows its text instead: on the cursor line, and (native, taller than a
+--- line) on the first line of a closed fold in the current window, where
+--- the rows under the line can't be reserved.
+local function want_revealed(bufnr, backend, height, r, er)
+  if cursor_on(bufnr, r, er) then
+    return true
+  end
+  return backend == "native"
+    and height > 1
+    and vim.api.nvim_get_current_buf() == bufnr
+    and vim.fn.foldclosed(r + 1) == r + 1
+end
+
 --- Inline LaTeX (`$..$`, `\(..\)`) is drawn as tall as the line.
 local function inline_math(text)
   return text:match("^%$[^$]") ~= nil or text:match("^\\%(") ~= nil
 end
 
 local function add(bufnr, kind, spec, src, backend)
-  local win = vim.fn.bufwinid(bufnr)
+  local win = buf_win(bufnr)
   win = win ~= -1 and win or vim.api.nvim_get_current_win()
   local file = src
   if backend.needs_png then
@@ -1903,7 +1981,7 @@ local function add(bufnr, kind, spec, src, backend)
     text = spec.text,
     inline = inline,
     multi = multi,
-    revealed = inline and cursor_on(bufnr, spec.row - 1, end_row),
+    revealed = inline and want_revealed(bufnr, backend.name, h, spec.row - 1, end_row),
     mark = vim.api.nvim_buf_set_extmark(bufnr, ns, spec.row - 1, spec.col, {
       end_row = end_row,
       end_col = spec.end_col,
@@ -2123,16 +2201,18 @@ function M.show_latex(bufnr, first, last, done, range)
   end
 end
 
---- Size every preview again (the font or the window changed).
-function M.refit()
+--- Size every preview again (the font or the window changed). `keep`: the
+--- terminal still has the images (a window was resized), only move them.
+function M.refit(keep)
   for bufnr, list in pairs(previews) do
     if vim.api.nvim_buf_is_valid(bufnr) then
-      local win = vim.fn.bufwinid(bufnr)
+      local win = buf_win(bufnr)
       if win ~= -1 then
         for _, p in pairs(list) do
           local w, h = size_of(win, p.size)
-          if w ~= p.width or h ~= p.height then
-            p.width, p.height = w, h
+          local resized = w ~= p.width or h ~= p.height
+          p.width, p.height = w, h
+          if resized or (p.backend == "native" and p.shown and wraps_after(bufnr, p) ~= (p.below == true)) then
             local b = backend_of(p)
             if mark_pos(bufnr, p.mark) and b then
               pcall(b.hide, bufnr, p)
@@ -2143,7 +2223,7 @@ function M.refit()
       end
     end
   end
-  M.sync(true)
+  M.sync(not keep)
 end
 
 ---------------------------------------------------------------------------
@@ -2316,12 +2396,21 @@ function M._layout()
           return vim.fn.foldclosed(lnum)
         end)
         local y = folded == -1 and row_after(win, info, lnum) or nil
+        if folded == lnum then
+          -- the first line of a closed fold shows, but not the rows under
+          -- it: only an image as tall as the line can stay in place there
+          -- (the taller ones show their text, see want_revealed())
+          items = vim.tbl_filter(function(it)
+            return in_place(it.p) and it.p.height == 1
+          end, items)
+          y = #items > 0 and top or nil
+        end
         if y then
           table.sort(items, function(a, b)
             return a.row < b.row or (a.row == b.row and a.col < b.col)
           end)
           for _, it in ipairs(items) do
-            if in_place(it.p) then
+            if in_place(it.p) and folded == -1 then
               y = math.max(y, row_after(win, info, lnum) + it.p.height - 1)
             end
           end
@@ -2343,7 +2432,9 @@ function M._layout()
               x = sp.col > 0 and sp.col - concealed_before(win, bufnr, it.row + 1, it.col, list) or left
             end
             x = math.max(left, math.min(x, right - p.width + 1))
-            local visible = py ~= nil and py >= top and py + p.height - 1 <= bottom
+            -- an image wider than this window (sized for another one, or
+            -- before a resize) would cover the window next to it
+            local visible = py ~= nil and py >= top and py + p.height - 1 <= bottom and x + p.width - 1 <= right
             for _, r in ipairs(rects) do
               -- a float covers the windows under it, not itself
               if visible and r.win ~= win and (not is_float or r.z > (cfg.zindex or 50)) then
@@ -2374,6 +2465,9 @@ function M.sync(force)
   if not img then
     return
   end
+  -- a fold opened or closed since: show the text of the images on the
+  -- first line of a closed fold
+  M._update_reveal()
   local want = M._layout()
   for key, cur in pairs(placed) do
     if force or not want[key] then
@@ -2461,7 +2555,7 @@ function M._update_reveal()
           r, _, d = mark_pos(bufnr, p.mark)
         end
         if r then
-          local want = cursor_on(bufnr, r, d and d.end_row or r)
+          local want = want_revealed(bufnr, p.backend, p.height, r, d and d.end_row or r)
           if want ~= (p.revealed == true) then
             local b = backend_of(p)
             pcall(b.hide, bufnr, p)
@@ -2576,7 +2670,7 @@ vim.api.nvim_create_autocmd({ "WinNew", "CompleteChanged", "CompleteDone" }, {
 
 -- The terminal forgets images when the screen is cleared or resized, and
 -- the cell size may have changed with the font.
-vim.api.nvim_create_autocmd({ "VimResized", "VimResume", "FocusGained", "UIEnter" }, {
+vim.api.nvim_create_autocmd({ "VimResized", "WinResized", "VimResume", "FocusGained", "UIEnter" }, {
   group = vim.api.nvim_create_augroup("org.images", { clear = true }),
   callback = function(ev)
     if ev.event == "VimResized" then
@@ -2584,7 +2678,9 @@ vim.api.nvim_create_autocmd({ "VimResized", "VimResume", "FocusGained", "UIEnter
       ask_cell_size()
     end
     if next(placed) or next(previews) then
-      vim.schedule(M.refit)
+      vim.schedule(function()
+        M.refit(ev.event == "WinResized")
+      end)
     end
   end,
 })

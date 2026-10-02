@@ -886,7 +886,7 @@ local function virt_chunks(res, max)
   local c = res.chunks[max]
   if not c then
     local lines = #res.lines > max and vim.list_slice(res.lines, 1, max) or res.lines
-    c = res.kind == "org" and highlight.org(lines) or highlight.code(lines, res.lang)
+    c = res.kind == "org" and highlight.org(lines, res.todo) or highlight.code(lines, res.lang)
     res.chunks[max] = c
   end
   return c
@@ -1033,6 +1033,22 @@ local function render(buf, st, refresh)
   for _, r in ipairs(regs) do
     below[r.s] = r
   end
+  local ui
+  local function text_pad(level)
+    if ui == nil then
+      local ok, decorations = pcall(require, "org.ui.decorations")
+      local uok, u = false, nil
+      if ok then
+        uok, u = pcall(decorations.ui_options, buf)
+      end
+      ui = uok and u.indent_mode and { u = u, widths = decorations.indent_widths } or false
+    end
+    if not ui or not level or level <= 0 then
+      return 0
+    end
+    local _, text = ui.widths(ui.u, level)
+    return text
+  end
   local sources = {}
   local kws = keyword.scan(lines, function(row)
     return inside[row]
@@ -1077,8 +1093,16 @@ local function render(buf, st, refresh)
         end
       end
       if show then
-        place(kw.row, res or ("e\0" .. kw.indent .. "\0" .. tostring(err)), function()
-          return draw_virtual(buf, kw.row, kw.indent, res, err)
+        -- org-indent-mode: the keyword is drawn after its entry's virtual
+        -- indentation, and so is the text under it
+        local pad = text_pad(env.levels[kw.row])
+        local indent = pad > 0 and string.rep(" ", pad) .. kw.indent or kw.indent
+        local key = res or ("e\0" .. tostring(err))
+        if pad > 0 or kw.indent ~= "" then
+          key = tostring(key) .. "\0" .. indent
+        end
+        place(kw.row, key, function()
+          return draw_virtual(buf, kw.row, indent, res, err)
         end)
       end
       if show or adopted then

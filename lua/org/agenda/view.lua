@@ -1303,7 +1303,8 @@ local function open_in_window(win, target, item)
   local shown = win
   vim.api.nvim_win_call(win, function()
     if item.filename then
-      utils.open_file(item.filename, target.lnum)
+      -- no zv: it would show every sibling of the ancestors
+      utils.open_file(item.filename, target.lnum, { reveal = false })
     else
       utils.set_current_buf(target.bufnr)
       vim.api.nvim_win_set_cursor(0, { target.lnum, 0 })

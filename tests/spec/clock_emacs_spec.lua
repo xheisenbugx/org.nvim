@@ -840,6 +840,8 @@ describe("agenda clocking (Emacs)", function()
     eq("| File            | Headline         | Time   |", b.lines[1])
     eq("|                 | ALL *Total time* | *1:00* |", b.lines[3])
     eq("| clockreport.org | *File time*      | *1:00* |", b.lines[5])
-    eq("|                 | [[file:/tmp/clockreport.org::*A][A]]                | 1:00   |", b.lines[6])
+    -- Emacs keeps the link in the text with its brackets invisible; the
+    -- agenda shows what Emacs displays, as it does for item titles
+    eq("|                 | A                | 1:00   |", b.lines[6])
   end)
 end)
