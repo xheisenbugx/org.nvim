@@ -1292,6 +1292,10 @@ function M.timestamps_adjust_closest(n)
     return false
   end
   local new = parser.parse_clock_line(vim.api.nvim_get_current_line())
+  if not new then
+    -- on a bracket, the change made the timestamp active: no clock left
+    return true
+  end
   local delta = (on_start and new.start:minutes() or (new["end"] and new["end"]:minutes() or before)) - before
   local hl = files.get_buffer(bufnr):headline_at(lnum)
   if #M.history < 2 or not hl or delta == 0 then
