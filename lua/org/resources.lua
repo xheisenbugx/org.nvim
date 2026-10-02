@@ -62,7 +62,7 @@ local function file_uri(file)
   if not file or file == "" then
     return nil
   end
-  return "file://" .. (vim.uv.fs_realpath(file) or vim.fs.normalize(file))
+  return "file://" .. (utils.realpath(file) or vim.fs.normalize(file))
 end
 
 --- Is `uri` safe: does it, or "file://" .. the requesting `file`, match
@@ -111,7 +111,7 @@ end
 ---@param uri string
 ---@param file? string
 function M.confirm(uri, file)
-  local current = file and file ~= "" and (vim.uv.fs_realpath(file) or file) or nil
+  local current = file and file ~= "" and (utils.realpath(file) or file) or nil
   local domain = M.domain(uri)
   local lines = {
     "An org-mode document would like to download " .. uri .. ", which is not considered safe.",

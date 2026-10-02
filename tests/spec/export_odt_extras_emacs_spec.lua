@@ -7,11 +7,12 @@ local config = require("org.config")
 local utils = require("org.utils")
 
 describe("odt extras (Emacs parity)", function()
+  posix_shell()
   local dir, c, saved
   before_each(function()
     dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
-    dir = vim.fn.resolve(dir)
+    dir = vim.fs.normalize(vim.fn.resolve(dir))
     c = config.opts.export.odt
     saved = vim.deepcopy(c)
     vim.fn.writefile({

@@ -1124,7 +1124,7 @@ function M.finish()
   if changed then
     utils.save_buffer_or_warn(bufnr)
   end
-  utils.notify("Weekly review logged to " .. vim.fn.fnamemodify(log_path(), ":~"))
+  utils.notify("Weekly review logged to " .. utils.abbreviate(log_path()))
   if o.open_log then
     vim.api.nvim_win_set_buf(0, bufnr)
     pcall(vim.api.nvim_win_set_cursor, 0, { line, 0 })

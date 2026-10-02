@@ -1,7 +1,7 @@
 local date = require("org.date")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local today = date.today_days()
 local function day(offset)
@@ -255,7 +255,7 @@ describe("timeline", function()
     vim.api.nvim_win_set_cursor(st.win, { line_of(st, "Write docs"), 0 })
     timeline.jump()
     ok(not vim.api.nvim_win_is_valid(st.win))
-    eq(vim.uv.fs_realpath(path), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq(require("org.utils").realpath(path), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     eq(5, vim.api.nvim_win_get_cursor(0)[1])
   end)
 

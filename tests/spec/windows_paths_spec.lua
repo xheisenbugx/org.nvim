@@ -12,7 +12,14 @@ describe("Windows paths", function()
   end)
 
   it("knows absolute paths with a drive or a UNC share", function()
-    for _, p in ipairs({ "/x", "C:/notes/a.org", "c:\\notes\\a.org", "\\\\server\\share\\a.org", "//server/share" }) do
+    for _, p in ipairs({
+      "/x",
+      "\\x",
+      "C:/notes/a.org",
+      "c:\\notes\\a.org",
+      "\\\\server\\share\\a.org",
+      "//server/share",
+    }) do
       ok(utils.is_absolute(p), p)
     end
     for _, p in ipairs({ "a.org", "notes/a.org", "./a.org", "../a.org", "~/a.org", "C:a.org", "notes\\a.org" }) do

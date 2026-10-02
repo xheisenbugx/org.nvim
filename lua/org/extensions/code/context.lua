@@ -171,7 +171,7 @@ M.expansions = {
   ["code-file-link"] = function(c)
     local line = lines_label(c):match("^%d+")
     return require("org.links").format(
-      "file:" .. vim.fn.fnamemodify(c.file, ":~") .. "::" .. line,
+      "file:" .. utils.abbreviate(c.file) .. "::" .. line,
       vim.fs.basename(c.file) .. ":" .. lines_label(c)
     )
   end,
@@ -182,7 +182,7 @@ M.expansions = {
     return c.lang
   end,
   ["code-file"] = function(c)
-    return c.relpath or vim.fn.fnamemodify(c.file, ":~")
+    return c.relpath or utils.abbreviate(c.file)
   end,
   ["code-line"] = function(c)
     return lines_label(c)

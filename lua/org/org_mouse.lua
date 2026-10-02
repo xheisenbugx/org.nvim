@@ -1309,7 +1309,7 @@ function M.agenda_items()
       "Agenda Files",
       items = vim.tbl_map(function(f)
         return {
-          vim.fn.fnamemodify(f, ":~"),
+          utils.abbreviate(f),
           hint = false,
           fn = function()
             utils.open_file(f)

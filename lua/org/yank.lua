@@ -36,8 +36,55 @@ local function run(cmd)
   return nil
 end
 
+--- The Windows clipboard through powershell.exe: an image (as PNG), and
+--- files copied or cut in Explorer, read like x-special/gnome-copied-files
+--- ("copy" or "cut", then file:// URIs).
+local function windows_clipboard()
+  local prelude = "Add-Type -AssemblyName System.Windows.Forms, System.Drawing; "
+    .. "$c = [System.Windows.Forms.Clipboard]; "
+  local function ps(script)
+    local cmd = utils.powershell(prelude .. script)
+    -- the clipboard needs a single-threaded apartment
+    table.insert(cmd, 2, "-STA")
+    return run(cmd)
+  end
+  local out =
+    ps("if ($c::ContainsImage()) { 'image/png' }; if ($c::ContainsFileDropList()) { 'x-special/win-copied-files' }")
+  if not out then
+    return nil
+  end
+  return {
+    types = vim.split(out, "%s+", { trimempty = true }),
+    read = function(mime)
+      if mime == "image/png" then
+        local tmp = vim.fn.tempname() .. ".png"
+        local saved = ps(
+          "$i = $c::GetImage(); if ($i) { $i.Save("
+            .. utils.ps_quote(tmp)
+            .. ", [System.Drawing.Imaging.ImageFormat]::Png) }"
+        )
+        local fd = saved and io.open(tmp, "rb")
+        local data = fd and fd:read("*a")
+        if fd then
+          fd:close()
+        end
+        os.remove(tmp)
+        return data
+      elseif mime == "x-special/win-copied-files" then
+        -- Explorer marks a cut with DROPEFFECT_MOVE (2) in Preferred DropEffect
+        return ps(
+          "$e = 'copy'; $d = $c::GetData('Preferred DropEffect'); "
+            .. "if ($d) { $b = New-Object byte[] 4; [void]$d.Read($b, 0, 4); if ($b[0] -band 2) { $e = 'cut' } }; "
+            .. "$e; $c::GetFileDropList() | ForEach-Object { ([System.Uri]$_).AbsoluteUri }"
+        )
+      end
+    end,
+  }
+end
+
 --- The system clipboard: its MIME types and a reader for one of them.
---- wl-paste on Wayland, xclip on X11, osascript on macOS.
+--- wl-paste on Wayland, xclip on X11, osascript on macOS, powershell.exe
+--- on Windows.
 ---@return { types: string[], read: fun(mime: string): string|nil }|nil
 function M.clipboard()
   if vim.env.WAYLAND_DISPLAY and vim.fn.executable("wl-paste") == 1 then
@@ -62,6 +109,8 @@ function M.clipboard()
         return run({ "xclip", "-selection", "clipboard", "-t", mime, "-o" })
       end,
     }
+  elseif vim.fn.has("win32") == 1 and vim.fn.executable("powershell.exe") == 1 then
+    return windows_clipboard()
   elseif vim.fn.has("mac") == 1 and vim.fn.executable("osascript") == 1 then
     local info = run({ "osascript", "-e", "clipboard info" }) or ""
     local types = {}
@@ -306,9 +355,11 @@ function M.handle_files(paths, action)
 end
 
 local function decode_uri(u)
-  return (u:gsub("^file://", ""):gsub("%%(%x%x)", function(h)
+  local p = u:gsub("^file://", ""):gsub("%%(%x%x)", function(h)
     return string.char(tonumber(h, 16))
-  end))
+  end)
+  -- file:///C:/x names C:/x
+  return (p:gsub("^/(%a:[/\\])", "%1"))
 end
 
 --- Local files named by pasted text: `file://` URIs (one per line) or
@@ -330,13 +381,16 @@ function M.parse_dropped(text)
       paths[#paths + 1] = decode_uri(vim.trim(line))
     end
   else
+    -- on Windows \ separates directories: terminals quote paths with
+    -- spaces ("C:\a b\c.txt") instead of escaping them
+    local escapes = vim.fn.has("win32") == 0
     local cur, i, quote = nil, 1, nil
     while i <= #text do
       local c = text:sub(i, i)
       if quote then
         if c == quote then
           quote = nil
-        elseif c == "\\" and quote == '"' and i < #text then
+        elseif escapes and c == "\\" and quote == '"' and i < #text then
           i = i + 1
           cur = (cur or "") .. text:sub(i, i)
         else
@@ -344,7 +398,7 @@ function M.parse_dropped(text)
         end
       elseif c == "'" or c == '"' then
         quote, cur = c, cur or ""
-      elseif c == "\\" and i < #text then
+      elseif escapes and c == "\\" and i < #text then
         i = i + 1
         cur = (cur or "") .. text:sub(i, i)
       elseif c:match("%s") then

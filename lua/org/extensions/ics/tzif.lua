@@ -344,8 +344,9 @@ function M.dirs()
   return out
 end
 
---- The parsed zone `name` ("Europe/Berlin"), cached; nil when there is
---- no such file or it can't be read.
+--- The parsed zone `name` ("Europe/Berlin"), cached: its zoneinfo file,
+--- else (no zoneinfo, as on Windows) its current rule from the bundled
+--- tz_rules; nil for an unknown zone.
 ---@param name string
 function M.load(name)
   if type(name) ~= "string" or name == "" or name:find("%.%.") or name:sub(1, 1) == "/" then
@@ -366,6 +367,14 @@ function M.load(name)
         z = parsed
         break
       end
+    end
+  end
+  if not z then
+    -- no zoneinfo (Windows): the zone's current rule, bundled
+    local rule = require("org.extensions.ics.tz_rules")[name]
+    local footer = rule and M.parse_posix(rule)
+    if footer then
+      z = { times = {}, types = {}, utoff = {}, footer = footer, bundled = true }
     end
   end
   cache[name] = z

@@ -380,18 +380,18 @@ function M.clean(dry)
   local utils = require("org.utils")
   local unused, dir = M.unreferenced(0)
   if #unused == 0 then
-    utils.notify("diagrams: no unused diagrams" .. (dir and (" in " .. vim.fn.fnamemodify(dir, ":~")) or ""))
+    utils.notify("diagrams: no unused diagrams" .. (dir and (" in " .. require("org.utils").abbreviate(dir)) or ""))
     return 0
   end
   local names = vim.tbl_map(function(p)
     return vim.fn.fnamemodify(p, ":t")
   end, unused)
   if dry == true then
-    utils.notify("diagrams: unused in " .. vim.fn.fnamemodify(dir, ":~") .. ": " .. table.concat(names, ", "))
+    utils.notify("diagrams: unused in " .. require("org.utils").abbreviate(dir) .. ": " .. table.concat(names, ", "))
     return #unused
   end
   local choice = utils.select({ "Yes", "No" }, {
-    prompt = string.format("Delete %d unused diagram(s) in %s?", #unused, vim.fn.fnamemodify(dir, ":~")),
+    prompt = string.format("Delete %d unused diagram(s) in %s?", #unused, require("org.utils").abbreviate(dir)),
   })
   if choice ~= "Yes" then
     return 0
@@ -523,7 +523,7 @@ function M.health(h, o)
       return
     end
     if render.available(cmd) then
-      h.ok(string.format("diagrams: %s renders with %s", lang, vim.fn.exepath(render.program(cmd))))
+      h.ok(string.format("diagrams: %s renders with %s", lang, vim.fs.normalize(vim.fn.exepath(render.program(cmd)))))
     else
       h.warn(string.format("diagrams: %s needs %s (not found)", lang, render.program(cmd)), { hint })
     end
@@ -541,7 +541,7 @@ function M.health(h, o)
         h.warn("diagrams: plantuml.jar is set but java is not installed")
       end
     elseif vim.fn.executable(po.executable_path or "plantuml") == 1 then
-      h.ok("diagrams: plantuml renders with " .. vim.fn.exepath(po.executable_path or "plantuml"))
+      h.ok("diagrams: plantuml renders with " .. vim.fs.normalize(vim.fn.exepath(po.executable_path or "plantuml")))
     else
       h.warn("diagrams: plantuml needs the plantuml command or babel.languages.plantuml.jar_path")
     end

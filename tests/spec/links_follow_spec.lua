@@ -8,7 +8,7 @@ local links = require("org.links")
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function stub(tbl, name, value)
@@ -79,12 +79,15 @@ describe("following links", function()
       org_buffer({ "x" }, { 1, 0 })
       vim.bo.modified = false
       links.open("file:" .. dir)
-      eq(dir, vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)) or vim.api.nvim_buf_get_name(0):gsub("/$", ""))
+      eq(
+        dir,
+        require("org.utils").realpath(vim.api.nvim_buf_get_name(0)) or vim.api.nvim_buf_get_name(0):gsub("/$", "")
+      )
       org_buffer({ "x" }, { 1, 0 })
       vim.bo.modified = false
       config.opts.links.open_directory_means_index_dot_org = true
       links.open("file:" .. dir)
-      eq(dir .. "/index.org", vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+      eq(dir .. "/index.org", require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     end)
 
     it("refuse missing files for external apps unless open_non_existing_files", function()
@@ -199,7 +202,7 @@ describe("following links", function()
       pcall(vim.cmd, "cclose")
       eq(1, #items)
       eq(2, items[1].lnum)
-      eq(vim.uv.fs_realpath(b), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(items[1].bufnr)))
+      eq(require("org.utils").realpath(b), require("org.utils").realpath(vim.api.nvim_buf_get_name(items[1].bufnr)))
       eq("[[file:" .. l.link:gsub("^file:", "") .. "][Target heading]]", items[1].text)
     end)
   end)

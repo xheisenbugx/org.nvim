@@ -62,7 +62,7 @@ function M.directory()
   end
   local dir = vim.fs.normalize(utils.expand(from))
   -- buffers are named by the resolved path when the directory is a symlink
-  local real = vim.uv.fs_realpath(dir)
+  local real = utils.realpath(dir)
   dir = (real or dir):gsub("/$", "")
   -- a directory that doesn't exist yet is resolved again next time
   dir_cache = { from = real and from or nil, dir = real and dir or nil }
@@ -84,8 +84,8 @@ function M.relative(path)
   local dir = M.directory() .. "/"
   path = vim.fs.normalize(path)
   if path:sub(1, #dir) ~= dir then
-    local real = vim.uv.fs_realpath(path) or vim.uv.fs_realpath(vim.fs.dirname(path))
-    if real and not vim.uv.fs_realpath(path) then
+    local real = utils.realpath(path) or utils.realpath(vim.fs.dirname(path))
+    if real and not utils.realpath(path) then
       real = real .. "/" .. vim.fs.basename(path)
     end
     path = real or path
@@ -781,7 +781,7 @@ local function modified_buffers()
     local name = vim.api.nvim_buf_get_name(b)
     if name ~= "" and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
       out[vim.fs.normalize(name)] = b
-      out[vim.uv.fs_realpath(name) or ""] = b
+      out[utils.realpath(name) or ""] = b
     end
   end
   return out

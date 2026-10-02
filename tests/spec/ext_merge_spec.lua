@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local fixtures = root .. "/tests/fixtures/merge"
 local driver = root .. "/lua/org/extensions/merge/driver.lua"
 
@@ -607,6 +607,8 @@ describe("merge extension: git", function()
   local function repo()
     local dir = tmpdir()
     git(dir, "init", "-q", "-b", "main")
+    -- Git for Windows checks files out with CRLF by default
+    git(dir, "config", "core.autocrlf", "false")
     return dir
   end
 

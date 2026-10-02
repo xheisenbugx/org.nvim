@@ -35,9 +35,9 @@ end
 local NOW = 1790337600
 
 -- Run FN with the process time zone set to TZ (os.date follows it).
-local function with_tz(tz, fn)
+local function with_tz(name, fn)
   local saved = vim.env.TZ
-  date.set_tz(tz)
+  date.set_tz(tz(name))
   local ok, err = pcall(fn, solar.system_zone(NOW))
   date.set_tz(saved)
   solar.reset()
@@ -99,6 +99,7 @@ describe("holidays solar", function()
   end)
 
   it("follows the system zone and its DST rules (TZ=America/New_York)", function()
+    skip_on_windows("needs New York's past daylight saving dates (1970), which EST5EDT lacks")
     with_tz("America/New_York", function(zone)
       eq(-300, zone.tz)
       eq(60, zone.dst_offset)

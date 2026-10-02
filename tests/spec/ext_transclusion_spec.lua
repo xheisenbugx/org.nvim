@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local function setup(t)
   require("org").setup({
@@ -809,7 +809,7 @@ describe("transclusion", function()
     open_notes(NOTES)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     T.open_source()
-    eq(vim.uv.fs_realpath(dir .. "/src.org"), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq(require("org.utils").realpath(dir .. "/src.org"), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     eq(15, vim.api.nvim_win_get_cursor(0)[1])
     vim.cmd("close")
   end)

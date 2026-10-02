@@ -71,14 +71,15 @@ end
 --- The local file of a calendar: its `path`, or the cache file of its URL.
 function M.file_of(c)
   if c.path then
-    return vim.fn.expand(c.path)
+    return vim.fs.normalize(vim.fn.expand(c.path))
   end
   local url = url_of(c)
   if not url then
     return nil
   end
   local name = (c.name or "calendar"):gsub("[^%w_-]+", "_")
-  return string.format("%s/%s-%s.ics", vim.fn.expand(opts().cache_dir), name, utils().sha256(url):sub(1, 12))
+  local dir = vim.fs.normalize(vim.fn.expand(opts().cache_dir))
+  return string.format("%s/%s-%s.ics", dir, name, utils().sha256(url):sub(1, 12))
 end
 
 local function calendars()
@@ -618,7 +619,7 @@ function M.import_occurrence(occ)
   local old = imported(lines, occ)
   if old then
     local stamp = M.timestamp(occ)
-    local where = vim.fn.fnamemodify(file, ":~") .. ":" .. old.line
+    local where = require("org.utils").abbreviate(file) .. ":" .. old.line
     for i = old.line + 1, old.body_end or old.line do
       if lines[i]:match("^%s*<%d%d%d%d%-%d%d%-%d%d[^>]*>[-<>%d%s%a:]*$") then
         if vim.trim(lines[i]) == stamp then
@@ -646,7 +647,7 @@ function M.import_occurrence(occ)
   vim.api.nvim_buf_call(buf, function()
     vim.cmd("silent write")
   end)
-  u.notify(string.format('ics: added "%s" to %s', occ.event.summary, vim.fn.fnamemodify(file, ":~")))
+  u.notify(string.format('ics: added "%s" to %s', occ.event.summary, require("org.utils").abbreviate(file)))
   return file
 end
 

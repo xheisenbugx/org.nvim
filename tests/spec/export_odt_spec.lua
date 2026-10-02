@@ -2,7 +2,7 @@ local odt = require("org.export.odt")
 local zip = require("org.export.zip")
 local config = require("org.config")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/odt"
 
 local function has(s, sub)
@@ -53,6 +53,7 @@ local function body(xml)
 end
 
 describe("export odt", function()
+  posix_shell()
   local saved
   before_each(function()
     saved = saved or vim.deepcopy(config.opts.export.odt)
@@ -370,7 +371,7 @@ describe("export odt", function()
       local buf = org_buffer({ "* Hello", "World" })
       vim.api.nvim_buf_set_name(buf, tmp .. "/hello.org")
       local res = require("org.export").export("odt", {})
-      eq(vim.fn.resolve(tmp .. "/hello.odt"), vim.fn.resolve(res))
+      eq(vim.fs.normalize(vim.fn.resolve(tmp .. "/hello.odt")), vim.fs.normalize(vim.fn.resolve(res)))
       has(zip.read(res, "content.xml"), "World")
       vim.bo[buf].modified = false
       vim.cmd("bwipe! " .. buf)

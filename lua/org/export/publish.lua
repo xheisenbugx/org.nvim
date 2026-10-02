@@ -50,7 +50,7 @@ local PUBLISH_KEYS = {
 --- Timestamp directory (org-publish-timestamp-directory).
 function M.timestamp_directory()
   local d = pcfg().timestamp_directory or (vim.fn.stdpath("data") .. "/org-timestamps/")
-  d = vim.fn.fnamemodify(vim.fn.expand(d), ":p")
+  d = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(d), ":p"))
   if not d:match("/$") then
     d = d .. "/"
   end
@@ -118,11 +118,11 @@ local function expand(path, base)
     path = base:gsub("/$", "") .. "/" .. path
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
-  local real = vim.uv.fs_realpath(path)
+  local real = utils.realpath(path)
   if real then
     return real
   end
-  local dir = vim.uv.fs_realpath(vim.fn.fnamemodify(path, ":h"))
+  local dir = utils.realpath(vim.fn.fnamemodify(path, ":h"))
   if dir then
     return dir .. "/" .. vim.fn.fnamemodify(path, ":t")
   end
@@ -138,7 +138,7 @@ local function relative(path, base)
 end
 
 local function mtime(path)
-  local target = vim.uv.fs_realpath(path) or path
+  local target = utils.realpath(path) or path
   local st = vim.uv.fs_stat(target)
   if not st then
     error("No such file: " .. path, 0)
@@ -152,7 +152,7 @@ local function now()
 end
 
 local function truename(path)
-  return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+  return utils.realpath(path) or vim.fs.normalize(path)
 end
 
 local function is_dir(path)
@@ -771,7 +771,7 @@ function M.publish_file(filename, project, no_cache)
   filename = expand(filename)
   project = project or M.get_project_from_filename(filename)
   if not project then
-    error(string.format("File %q is not part of any known project", vim.fn.fnamemodify(filename, ":~")), 0)
+    error(string.format("File %q is not part of any known project", utils.abbreviate(filename)), 0)
   end
   local plist = project[2]
   local pf = prop(project, "publishing_function", "html")

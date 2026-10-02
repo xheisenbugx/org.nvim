@@ -15,7 +15,7 @@ describe("line endings", function()
   end)
 
   it("opens no file for writing in text mode", function()
-    local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+    local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
     local found = {}
     for _, file in ipairs(vim.fn.globpath(root .. "/lua/org", "**/*.lua", false, true)) do
       for lnum, line in ipairs(vim.fn.readfile(file)) do

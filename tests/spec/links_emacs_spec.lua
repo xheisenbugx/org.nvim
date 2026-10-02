@@ -139,7 +139,7 @@ describe("attachments", function()
     vim.fn.writefile({ "src" }, dir .. "/src.txt")
     local link = attach.attach_file(dir .. "/src.txt", "lns", { bufnr = buf, lnum = 1 })
     -- lns is a symbolic link to the absolute path (org-attach-method)
-    eq(dir .. "/src.txt", vim.uv.fs_readlink(link))
+    eq(dir .. "/src.txt", vim.fs.normalize(vim.uv.fs_readlink(link)))
     eq({ "src" }, vim.fn.readfile(link))
     vim.fn.delete(vim.fn.fnamemodify(dest, ":h"), "rf")
     local orig = require("org.utils").confirm

@@ -1183,7 +1183,7 @@ function M.complete_scope(arglead)
   end
   out[#out + 1] = "tag:"
   if arglead:find("/", 1, true) or arglead:match("^[~.]") then
-    for _, p in ipairs(vim.fn.getcompletion(arglead, "file")) do
+    for _, p in ipairs(require("org.utils").complete_path(arglead, "file")) do
       if p:match("%.org$") or p:match("/$") then
         out[#out + 1] = p
       end

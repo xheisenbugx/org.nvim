@@ -84,9 +84,9 @@ M.commands = {
     desc = "Write an init.lua stub that tangles an org file: :Org literate_bootstrap [init.lua path]",
     -- a path: the files and directories that start with the argument
     complete = function(arglead)
-      local items = vim.fn.getcompletion(arglead, "file")
+      local items = require("org.utils").complete_path(arglead, "file")
       if arglead == "" then
-        table.insert(items, 1, vim.fn.fnamemodify(vim.fn.stdpath("config") .. "/init.lua", ":~"))
+        table.insert(items, 1, utils.abbreviate(vim.fn.stdpath("config") .. "/init.lua"))
       end
       return items
     end,
@@ -110,7 +110,7 @@ local function buf_path(bufnr)
 end
 
 local function real(p)
-  return vim.uv.fs_realpath(p) or p
+  return utils.realpath(p) or p
 end
 
 --- Does glob or path `pat` (normalized) name `path` (whose real path is `rp`)?
@@ -249,12 +249,12 @@ function M.trusted(bufnr)
   local yes = utils.confirm(
     string.format(
       "org literate: tangle %s and run its changed Lua blocks on every save? (remembered)",
-      vim.fn.fnamemodify(rp, ":~")
+      utils.abbreviate(rp)
     )
   ) and true or false
   remember_trust(rp, yes)
   if not yes then
-    utils.notify("Not tangled or run on save; add it to `files` or edit " .. vim.fn.fnamemodify(M.trust_file(), ":~"))
+    utils.notify("Not tangled or run on save; add it to `files` or edit " .. utils.abbreviate(M.trust_file()))
   end
   return yes
 end
@@ -708,10 +708,11 @@ local function tangle()
       return vim.fn.fnamemodify(org, ":r") .. ".lua"
     end
     -- copied into the bootstrap init.lua, so no org.utils: / or a drive
-    local abs = t:match("^/") or t:match("^%a:[/\\]")
-    return vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p")
+    local abs = t:match("^[/\\]") or t:match("^%a:[/\\]")
+    return vim.fs.normalize(vim.fn.fnamemodify(abs and t or (dir .. "/" .. vim.fn.expand(t)), ":p"))
   end
-  local want = vim.fn.fnamemodify(out, ":p")
+  -- normalized: fnamemodify() mixes \ and / on Windows
+  local want = vim.fs.normalize(vim.fn.fnamemodify(out, ":p"))
   local NOWEB = { yes = true, tangle = true, ["no-export"] = true, ["strip-export"] = true }
   local function expand(b, depth)
     if depth > 10 or not NOWEB[b.noweb or ""] then
@@ -798,15 +799,15 @@ function M.bootstrap(path)
   local subst = {
     __ORG__ = string.format("%q", org),
     __OUT__ = string.format("%q", out),
-    __ORG_SHOWN__ = vim.fn.fnamemodify(org, ":~"),
-    __OUT_SHOWN__ = vim.fn.fnamemodify(out, ":~"),
+    __ORG_SHOWN__ = utils.abbreviate(org),
+    __OUT_SHOWN__ = utils.abbreviate(out),
   }
   local text = STUB:gsub("__[%u_]+__", function(k)
     return subst[k]
   end)
   vim.fn.mkdir(vim.fs.dirname(path), "p")
   vim.fn.writefile(vim.split(text, "\n", { plain = true }), path)
-  utils.notify("Wrote " .. vim.fn.fnamemodify(path, ":~"))
+  utils.notify("Wrote " .. utils.abbreviate(path))
   return path
 end
 
@@ -1004,7 +1005,7 @@ function M.health(h, o)
   for _, pat in ipairs(o.files or {}) do
     for _, f in ipairs(vim.fn.glob(vim.fs.normalize(pat), false, true)) do
       found = found + 1
-      h.ok("literate file: " .. vim.fn.fnamemodify(f, ":~"))
+      h.ok("literate file: " .. utils.abbreviate(f))
     end
   end
   if found == 0 then
@@ -1012,7 +1013,7 @@ function M.health(h, o)
   end
   if o.detect ~= false then
     local dirs = vim.tbl_map(function(d)
-      return vim.fn.fnamemodify(vim.fs.normalize(d), ":~")
+      return utils.abbreviate(vim.fs.normalize(d))
     end, o.allow or {})
     if #dirs == 0 then
       h.info("`allow` is empty: only `files` are literate")

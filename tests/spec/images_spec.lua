@@ -3,7 +3,7 @@ local images = require("org.ui.images")
 
 local dir = vim.fn.tempname()
 vim.fn.mkdir(dir, "p")
-dir = vim.uv.fs_realpath(dir)
+dir = require("org.utils").realpath(dir)
 
 --- A PNG file of `w` x `h` pixels (only the header matters here).
 local function png(name, w, h)

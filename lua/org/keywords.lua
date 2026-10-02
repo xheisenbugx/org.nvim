@@ -11,8 +11,13 @@ local function setup_path(path, dir)
   -- Never use fn.expand here: setup directives are document text, and Vim
   -- expansion evaluates backticks/expressions and interprets % and #. Like
   -- Emacs (expand-file-name), only `~` is expanded, not $VARIABLES.
+  -- ~ is $HOME when set, as in Emacs (normalize() would use libuv's home,
+  -- %USERPROFILE% on Windows)
+  if path == "~" or path:match("^~[/\\]") then
+    path = require("org.utils").home() .. path:sub(2)
+  end
   path = vim.fs.normalize(path, { expand_env = false })
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
+  if not require("org.utils").is_absolute(path) then
     path = dir .. "/" .. path
   end
   return vim.fs.normalize(path, { expand_env = false })
@@ -66,13 +71,13 @@ local buf_names = {}
 --- utils.find_buffer, with buffer paths resolved once per buffer name.
 local function loaded_buffer(path)
   path = vim.fs.normalize(path)
-  local real = vim.uv.fs_realpath(path)
+  local real = utils.realpath(path)
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     local name = vim.api.nvim_buf_get_name(b)
     if name ~= "" and vim.api.nvim_buf_is_loaded(b) then
       local cached = buf_names[b]
       if not cached or cached[1] ~= name then
-        cached = { name, vim.fs.normalize(name), vim.uv.fs_realpath(name) or false }
+        cached = { name, vim.fs.normalize(name), utils.realpath(name) or false }
         buf_names[b] = cached
       end
       if cached[2] == path or (real and cached[3] == real) then
@@ -106,7 +111,7 @@ function M.dependencies_valid(dependencies)
 end
 
 local function identity(path)
-  return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+  return utils.realpath(path) or vim.fs.normalize(path)
 end
 
 --- Collect keyword elements in appearance order, recursively inserting local

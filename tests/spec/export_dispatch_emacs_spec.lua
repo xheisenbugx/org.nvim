@@ -400,7 +400,7 @@ describe("export dispatch (Emacs parity)", function()
     it("views the result at the cursor", function()
       local dir = vim.fn.tempname()
       vim.fn.mkdir(dir, "p")
-      dir = vim.uv.fs_realpath(dir)
+      dir = require("org.utils").realpath(dir)
       local html, txt = dir .. "/a.html", dir .. "/a.txt"
       vim.fn.writefile({ "<p>x</p>" }, html)
       vim.fn.writefile({ "text" }, txt)

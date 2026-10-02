@@ -155,6 +155,36 @@ send the keys org maps:
 - on macOS, Option must send Alt for the <M-...> keys
 Inside tmux the terminal is the one of the attached client.
 
+Windows ~
+                                                                *org-windows*
+org.nvim runs on Windows as on Linux and macOS; the test suite runs on
+Windows in CI. Paths may use \ or /, a drive (`C:\notes`) or a UNC share
+(`\\server\share`); org.nvim works with / internally and writes files
+with LF line endings. `~` is $HOME when set, else %USERPROFILE%. What
+differs:
+
+- Desktop notifications (|org-notifications|, pomodoro) are toasts shown
+  through `powershell.exe` (Windows PowerShell, part of Windows); their
+  sender is "Windows PowerShell".
+- `yank_media` reads images and files copied or cut in Explorer from the
+  clipboard through `powershell.exe`.
+- The `org` command line is `bin\org.cmd`, and `:Org cli_install` writes
+  an `org.cmd` launcher into its directory (symlinks need administrator
+  rights). The git merge driver is `bin\org-merge.cmd`.
+- The `ics` extension converts time zones with a bundled table of each
+  zone's current rule, as Windows has no zoneinfo files: times far in the
+  past may use today's rule of a zone that changed since.
+- `TZ` with a zone name ("Europe/Berlin") has no effect: the Windows C
+  library only takes the old "EST5EDT" form. org.nvim uses the system's
+  time zone.
+- `:tangle-mode` and `:shebang` can't make a file executable: Windows has
+  no Unix file modes.
+- org-crypt needs GnuPG for Windows (or Gpg4win) on %PATH%. The `gpg` of
+  Git for Windows can't ask for passphrases outside its own terminal; a
+  call that hangs is stopped after a minute.
+- Babel runs `sh`/`bash` blocks with the `sh` or `bash` on %PATH% (Git for
+  Windows, MSYS2, WSL's `bash.exe`), like Emacs.
+
 ==============================================================================
 3. DOCUMENT STRUCTURE                                          *org-structure*
 
@@ -5077,7 +5107,9 @@ replaced by an ASCII-armored message (trailing blank lines stay outside):
     -----END PGP MESSAGE-----
 <
 The format is the one Emacs writes: files encrypted in either editor
-decrypt in the other.
+decrypt in the other. A gpg call that doesn't finish within a minute (e.g.
+one waiting for a passphrase prompt it can't show) is stopped and reported
+instead of freezing Neovim.
 
 :Org crypt_encrypt_entry     Encrypt the entry at the cursor
                              (org-encrypt-entry). Encrypted entries are

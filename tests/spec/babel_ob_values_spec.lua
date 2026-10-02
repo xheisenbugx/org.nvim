@@ -164,6 +164,7 @@ describe("babel value conversion options", function()
   end)
 
   it("python sessions start session_cmd as it is (org-babel-python-command-session)", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end

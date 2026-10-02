@@ -632,7 +632,7 @@ function M.expand(text, ctx)
     local f = s:match("^%%%[([^\n]+)%]", p)
     return f and (p + #f + 2) or nil, f
   end, function(f, s, p, e)
-    local path = vim.fn.fnamemodify(vim.fn.expand(f), ":p")
+    local path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(f), ":p"))
     local fd, err = io.open(path, "r")
     local content
     if fd then
@@ -2280,7 +2280,7 @@ function M.finalize(buf, opts)
       require("org.bookmarks").set("last_capture_marker", rbuf, rline)
     end
   else
-    utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
+    utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
   end
   kill_target(tpl, s.ctx.loc)
   if (tpl.jump_to_captured or jump) and dbuf then
@@ -2736,7 +2736,7 @@ function M.capture(tpl_or_key, opts)
     emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
     if dbuf then
-      utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
+      utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
       kill_target(tpl, loc)
       if tpl.jump_to_captured then
         M.goto_last_stored()

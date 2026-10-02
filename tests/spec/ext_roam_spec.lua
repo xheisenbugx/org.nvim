@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local utils = require("org.utils")
 
 local dir
@@ -54,7 +54,7 @@ describe("roam extension", function()
   before_each(function()
     dir = vim.fn.tempname() .. "/roam"
     vim.fn.mkdir(dir, "p")
-    dir = vim.uv.fs_realpath(dir)
+    dir = require("org.utils").realpath(dir)
     setup()
     db().reset()
   end)

@@ -7,7 +7,7 @@ local cite = require("org.export.cite")
 
 require("org.config").opts.babel.evaluate_on_export = false
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/cite/"
 
 local function read(name)

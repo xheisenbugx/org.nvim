@@ -521,7 +521,10 @@ local function on_output(sess, data)
   if not req then
     return
   end
-  sess.acc = sess.acc .. table.concat(data, "\n")
+  -- without escape sequences: a terminal (ConPTY on Windows) may wrap the
+  -- markers' lines in cursor and erase sequences. A sequence split between
+  -- chunks is removed once its end arrives.
+  sess.acc = plain(sess.acc .. table.concat(data, "\n"))
   if not req.bos then
     local s, e = sess.acc:find(M.BOS .. " " .. req.id .. "\r*\n")
     if not s then
@@ -564,7 +567,11 @@ function send_next(sess)
   sess.acc = ""
   sess.scan = 1
   -- C-u first discards what was typed at the prompt and not yet sent
-  local ok, err = pcall(vim.fn.chansend, sess.job, "\21" .. r.line(sess, req.id, src, req.mode) .. "\n")
+  -- (readline's unix-line-discard: a Windows console would insert it, and
+  -- takes \r for Enter)
+  local win = vim.fn.has("win32") == 1
+  local line = r.line(sess, req.id, src, req.mode)
+  local ok, err = pcall(vim.fn.chansend, sess.job, win and (line .. "\r") or ("\21" .. line .. "\n"))
   if not ok or err == 0 then
     sess.current = nil
     stop_timer(req)

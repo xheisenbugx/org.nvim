@@ -489,11 +489,12 @@ end
 ---------------------------------------------------------------------------
 
 --- Whether `path` is absolute: `/x` and, as on Windows, a drive (`C:/x`,
---- `C:\x`) or a UNC share (`\\server\share`, `//server/share`).
+--- `C:\x`), the root of the current drive (`\x`, what expand() makes of
+--- `/x` there) or a UNC share (`\\server\share`, `//server/share`).
 ---@param path string
 ---@return boolean
 function M.is_absolute(path)
-  return path:match("^/") ~= nil or path:match("^%a:[/\\]") ~= nil or path:match("^\\\\") ~= nil
+  return path:match("^[/\\]") ~= nil or path:match("^%a:[/\\]") ~= nil
 end
 
 --- The user's home directory, also where $HOME isn't set (Windows uses
@@ -505,6 +506,51 @@ function M.home()
     home = vim.uv.os_homedir() or "~"
   end
   return (home:gsub("\\", "/"))
+end
+
+--- The canonical path of an existing `path` (symlinks resolved) with
+--- forward slashes, or nil. vim.uv.fs_realpath gives backslashes on
+--- Windows, which don't compare with the normalized paths used elsewhere.
+---@param path string
+---@return string|nil
+function M.realpath(path)
+  local real = vim.uv.fs_realpath(path)
+  return real and vim.fs.normalize(real) or nil
+end
+
+--- `path` with forward slashes and the home directory as `~`, like
+--- abbreviate-file-name (fnamemodify ":~" keeps \ on Windows).
+---@param path string
+---@return string
+function M.abbreviate(path)
+  path = vim.fs.normalize(path)
+  local home = vim.fs.normalize(M.home())
+  local p, h = path, home
+  if vim.fn.has("win32") == 1 then
+    p, h = p:lower(), h:lower()
+  end
+  if p == h then
+    return "~"
+  elseif p:sub(1, #h + 1) == h .. "/" then
+    return "~" .. path:sub(#home + 1)
+  end
+  return path
+end
+
+--- File name completion (getcompletion() of `kind`, "file" or "dir")
+--- with forward slashes, a directory keeping its trailing /. On Windows
+--- getcompletion() gives \.
+---@param lead string
+---@param kind? "file"|"dir"
+---@return string[]
+function M.complete_path(lead, kind)
+  local out = {}
+  for _, f in ipairs(vim.fn.getcompletion(lead, kind or "file")) do
+    local dir = f:match("[/\\]$") ~= nil
+    f = vim.fs.normalize(f)
+    out[#out + 1] = (dir and f:sub(-1) ~= "/") and (f .. "/") or f
+  end
+  return out
 end
 
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
@@ -694,7 +740,7 @@ end
 
 local function buf_realpath(c)
   if c.real == nil then
-    c.real = vim.uv.fs_realpath(c.name) or false
+    c.real = M.realpath(c.name) or false
   end
   return c.real
 end
@@ -725,7 +771,7 @@ function M.find_buffer(path)
       end
     end
   end
-  local real = vim.uv.fs_realpath(path)
+  local real = M.realpath(path)
   if real then
     for _, b in ipairs(bufs) do
       if vim.api.nvim_buf_is_loaded(b) then

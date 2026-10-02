@@ -11,7 +11,7 @@ vim.g.org_test = true
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local FAKE = {
@@ -26,9 +26,7 @@ local FAKE = {
 }
 
 local function setup(dir, extra)
-  local fake = dir .. "/fake-ctags"
-  utils.writefile(fake, FAKE)
-  vim.fn.setfperm(fake, "rwxr-xr-x")
+  local fake = fake_exe(dir, "fake-ctags", table.concat(FAKE, "\n"))
   vim.env.FAKE_CTAGS_ARGS = dir .. "/args"
   config.setup(vim.tbl_deep_extend("force", { ctags = { enabled = true, path_to_ctags = fake } }, extra or {}))
 end
@@ -52,6 +50,7 @@ describe("org-ctags", function()
   end)
 
   it("creates the tags file and reads the tags back", function()
+    skip_on_windows("the fake ctags is a .cmd script: cmd.exe reads the < > of its regexp argument as redirections")
     local dir = tmpdir()
     setup(dir)
     utils.writefile(dir .. "/a.org", { "* Intro", "See [[Target]]." })
@@ -73,6 +72,7 @@ describe("org-ctags", function()
   end)
 
   it("follows a plain link to the tag in another file", function()
+    skip_on_windows("the fake ctags is a .cmd script: cmd.exe reads the < > of its regexp argument as redirections")
     local dir = tmpdir()
     setup(dir)
     utils.writefile(dir .. "/a.org", { "* Intro", "See [[Target]]." })
@@ -86,6 +86,7 @@ describe("org-ctags", function()
   end)
 
   it("rebuilds the tags when asked, then offers a new topic", function()
+    skip_on_windows("the fake ctags is a .cmd script: cmd.exe reads the < > of its regexp argument as redirections")
     local dir = tmpdir()
     setup(dir)
     utils.writefile(dir .. "/a.org", { "* A", "body" })
@@ -139,6 +140,7 @@ describe("org-ctags", function()
   end)
 
   it("find_tag_interactive jumps to a known tag or runs the functions", function()
+    skip_on_windows("the fake ctags is a .cmd script: cmd.exe reads the < > of its regexp argument as redirections")
     local dir = tmpdir()
     setup(dir, { ctags = { open_link_functions = { "append_topic" } } })
     utils.writefile(dir .. "/b.org", { "* x", "* <<Here>>" })

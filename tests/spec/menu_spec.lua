@@ -167,8 +167,11 @@ describe("menus", function()
     local files = names("Org.File List for Agenda")
     config.opts.agenda_files = saved
     eq("Edit File List", files[1])
-    local label = vim.fn.fnamemodify(vim.fs.normalize(vim.fn.resolve(path)), ":~")
-    ok(vim.tbl_contains(files, label) or vim.tbl_contains(files, vim.fn.fnamemodify(path, ":~")), vim.inspect(files))
+    local label = require("org.utils").abbreviate(vim.fs.normalize(vim.fn.resolve(path)))
+    ok(
+      vim.tbl_contains(files, label) or vim.tbl_contains(files, require("org.utils").abbreviate(path)),
+      vim.inspect(files)
+    )
     emenu("Org", "File List for Agenda", files[#files])
     eq("* T", vim.api.nvim_get_current_line())
     vim.fn.delete(path)

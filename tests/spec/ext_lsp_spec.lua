@@ -4,7 +4,7 @@ local utils = require("org.utils")
 local dir = vim.fs.normalize(vim.fn.tempname())
 vim.fn.mkdir(dir, "p")
 -- macOS: /var is /private/var; the server reports resolved names
-dir = vim.fs.normalize(vim.uv.fs_realpath(dir))
+dir = vim.fs.normalize(require("org.utils").realpath(dir))
 local main = dir .. "/main.org"
 local other = dir .. "/other.org"
 
@@ -250,10 +250,10 @@ describe("lsp extension", function()
         return nil
       end
       if r and r.uri then
-        return vim.uri_to_fname(r.uri), r.range.start.line + 1
+        return vim.fs.normalize(vim.uri_to_fname(r.uri)), r.range.start.line + 1
       end
       if r and r[1] then
-        return vim.uri_to_fname(r[1].uri), r[1].range.start.line + 1
+        return vim.fs.normalize(vim.uri_to_fname(r[1].uri)), r[1].range.start.line + 1
       end
     end
 
@@ -334,7 +334,7 @@ describe("lsp extension", function()
       })
       local out = {}
       for _, l in ipairs(r or {}) do
-        out[#out + 1] = vim.fs.basename(vim.uri_to_fname(l.uri)) .. ":" .. (l.range.start.line + 1)
+        out[#out + 1] = vim.fs.basename(vim.fs.normalize(vim.uri_to_fname(l.uri))) .. ":" .. (l.range.start.line + 1)
       end
       table.sort(out)
       return out
@@ -468,7 +468,7 @@ describe("lsp extension", function()
       local same = 0
       for _, b in ipairs(vim.api.nvim_list_bufs()) do
         local name = vim.api.nvim_buf_get_name(b)
-        if name ~= "" and vim.uv.fs_realpath(name) == other then
+        if name ~= "" and require("org.utils").realpath(name) == other then
           same = same + 1
         end
       end
@@ -535,7 +535,7 @@ describe("lsp extension", function()
       vim.api.nvim_buf_set_lines(ob, -1, -1, false, { "  See [[id:node-1][Node]]." })
       local last = #buf_lines(ob)
       local r = request(ob, "textDocument/definition", tdp(ob, last, 12))
-      eq(node, vim.uri_to_fname((r.uri and r or r[1]).uri))
+      eq(node, vim.fs.normalize(vim.uri_to_fname((r.uri and r or r[1]).uri)))
       local list = request(ob, "textDocument/references", {
         textDocument = { uri = vim.uri_from_bufnr(ob) },
         position = { line = last - 1, character = 11 },
@@ -889,7 +889,7 @@ describe("lsp extension", function()
       vim.api.nvim_buf_set_lines(ob, -1, -1, false, SPAN)
       local r = request(ob, "textDocument/definition", tdp(ob, 9, 3))
       local loc = r.uri and r or r[1]
-      eq({ main, 2 }, { vim.uri_to_fname(loc.uri), loc.range.start.line + 1 })
+      eq({ main, 2 }, { vim.fs.normalize(vim.uri_to_fname(loc.uri)), loc.range.start.line + 1 })
       local buf = open(main)
       local list = request(buf, "textDocument/references", {
         textDocument = { uri = vim.uri_from_bufnr(buf) },

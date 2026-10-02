@@ -40,6 +40,29 @@ jobs:
       - run: nvim --version
       - run: make test
 
+  windows:
+    name: test (windows-latest, nvim stable)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Git identity for the specs that commit
+        shell: bash
+        run: |
+          git config --global user.name "org.nvim CI"
+          git config --global user.email "ci@example.invalid"
+      - run: nvim --version
+      # make test without make: a throwaway XDG_DATA_HOME
+      - name: Run specs
+        shell: bash
+        run: |
+          d=$(mktemp -d)
+          ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
+
   lint:
     name: lint (stylua)
     runs-on: ubuntu-latest

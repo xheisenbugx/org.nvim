@@ -64,15 +64,23 @@ function M.read_passphrase(prompt)
   return pw
 end
 
+--- Milliseconds gpg gets before it is stopped: one waiting for a
+--- passphrase it can't ask for would otherwise freeze Neovim.
+M.timeout = 60000
+
 --- Run gpg with `args`, feeding `input`. Returns ok, stdout, stderr.
 local function gpg(args, input)
   local cmd = { cfg().gpg_program or "gpg", "--batch", "--no-tty", "--yes" }
   vim.list_extend(cmd, args)
   local ok, res = pcall(function()
-    return vim.system(cmd, { stdin = input or "", text = true }):wait()
+    return vim.system(cmd, { stdin = input or "", text = true }):wait(M.timeout)
   end)
   if not ok then
     return false, "", tostring(res)
+  end
+  -- a process killed on the timeout may have no result yet
+  if not res or (res.code == 124 and res.signal ~= 0) then
+    return false, "", string.format("%s did not answer within %d s", cmd[1], M.timeout / 1000)
   end
   return res.code == 0, res.stdout or "", res.stderr or ""
 end

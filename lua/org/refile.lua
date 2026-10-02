@@ -196,7 +196,7 @@ function M.targets(opts)
       if style == "file" or style == "buffer-name" then
         base = fname
       elseif style == "full-file-path" then
-        base = vim.uv.fs_realpath(f.filename) or f.filename
+        base = utils.realpath(f.filename) or f.filename
       elseif style == "title" then
         base = f.settings.title or fname
       end

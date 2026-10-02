@@ -2,7 +2,7 @@
 local parser = require("org.extensions.ics.parser")
 local date = require("org.date")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local fixture = root .. "/tests/fixtures/ics/work.ics"
 local N = parser.naive
 
@@ -574,5 +574,42 @@ describe("ics extension", function()
     ok(text:find("unknown time zones read as local time: Mars/Olympus", 1, true), text)
     ok(text:find("error: ics: Missing: " .. dir .. "/nope.ics not found", 1, true), text)
     ok(text:find("warn: ics: Remote not fetched yet", 1, true), text)
+  end)
+end)
+
+describe("ics time zones without zoneinfo (Windows)", function()
+  local tzif = require("org.extensions.ics.tzif")
+  local dirs
+
+  before_each(function()
+    dirs = tzif.dirs
+    tzif.clear()
+  end)
+
+  after_each(function()
+    tzif.dirs = dirs
+    tzif.clear()
+  end)
+
+  it("uses the bundled rule of a zone and agrees with its zoneinfo", function()
+    -- offsets from the zone files, where this system has them
+    local cases = {
+      { "America/New_York", os.time({ year = 2026, month = 1, day = 15, hour = 12 }), -5 * 3600 },
+      { "America/New_York", os.time({ year = 2026, month = 7, day = 15, hour = 12 }), -4 * 3600 },
+      { "Europe/Berlin", os.time({ year = 2026, month = 7, day = 15, hour = 12 }), 2 * 3600 },
+      { "Australia/Sydney", os.time({ year = 2026, month = 1, day = 15, hour = 12 }), 11 * 3600 },
+      { "Asia/Kolkata", os.time({ year = 2026, month = 1, day = 15, hour = 12 }), 5 * 3600 + 1800 },
+    }
+    local empty = vim.fn.tempname()
+    vim.fn.mkdir(empty, "p")
+    tzif.dirs = function()
+      return { empty }
+    end
+    for _, c in ipairs(cases) do
+      local z = tzif.load(c[1])
+      ok(z and z.bundled, c[1])
+      eq(c[3], tzif.offset(z, c[2]), c[1])
+    end
+    eq(nil, tzif.load("Nowhere/Nothing"))
   end)
 end)

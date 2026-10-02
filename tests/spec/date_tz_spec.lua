@@ -2,6 +2,7 @@ local date = require("org.date")
 
 describe("date.set_tz", function()
   it("makes os.date and os.time follow TZ in a running process", function()
+    skip_on_windows("TZ takes no IANA zone names on Windows")
     local saved = vim.env.TZ
     local ok, err = pcall(function()
       date.set_tz("America/New_York")

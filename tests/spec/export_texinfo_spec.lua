@@ -7,7 +7,7 @@ local export = require("org.export")
 local ox = require("org.export.ox")
 local texinfo = require("org.export.texinfo")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/texinfo"
 
 local function read(path)
@@ -35,6 +35,7 @@ local function tmpdir()
 end
 
 describe("texinfo export", function()
+  posix_shell()
   local saved_texinfo
   before_each(function()
     config.opts.babel.evaluate_on_export = false
@@ -140,7 +141,7 @@ describe("texinfo export", function()
   end)
 
   it("exports a file with the dispatcher formats texinfo and info", function()
-    local d = vim.uv.fs_realpath(tmpdir())
+    local d = require("org.utils").realpath(tmpdir())
     local src = d .. "/manual.org"
     vim.fn.writefile({ "#+TITLE: Manual", "* Chapter", "Text." }, src)
     vim.cmd("edit " .. vim.fn.fnameescape(src))
@@ -166,7 +167,7 @@ describe("texinfo export", function()
   end)
 
   it("publishes with the texinfo publishing function", function()
-    local d = vim.uv.fs_realpath(tmpdir())
+    local d = require("org.utils").realpath(tmpdir())
     vim.fn.mkdir(d .. "/src", "p")
     vim.fn.writefile({ "#+TITLE: P", "* A" }, d .. "/src/p.org")
     local out = require("org.export.publish").functions.texinfo({}, d .. "/src/p.org", d .. "/pub")

@@ -1,7 +1,7 @@
 local date = require("org.date")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local function ts(offset, extra)
   local s = date.today():add(offset, "d"):to_string({ brackets = false })
@@ -312,7 +312,7 @@ describe("kanban board", function()
     kanban.move(1, 0)
     kanban.jump()
     ok(not vim.api.nvim_win_is_valid(st.win))
-    eq(vim.uv.fs_realpath(path), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq(require("org.utils").realpath(path), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     eq(2, vim.api.nvim_win_get_cursor(0)[1])
   end)
 
@@ -377,7 +377,7 @@ describe("kanban board", function()
     eq({ source = "buffer" }, kanban.parse_args("buffer"))
     eq({ source = "subtree", filter = "work-home" }, kanban.parse_args("subtree work-home"))
     eq({ filter = '(todo "NEXT")' }, kanban.parse_args('(todo "NEXT")'))
-    eq({ source = vim.fn.expand("~/x.org"), filter = "a" }, kanban.parse_args("~/x.org a"))
+    eq({ source = vim.fs.normalize(vim.fn.expand("~/x.org")), filter = "a" }, kanban.parse_args("~/x.org a"))
   end)
 
   it("reports an invalid filter instead of opening", function()

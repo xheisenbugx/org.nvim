@@ -7,7 +7,7 @@ vim.g.org_test = true
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function setup(dir, extra)
@@ -52,7 +52,7 @@ describe("org-attach", function()
     eq(vim.uv.fs_stat(dir .. "/l.txt").ino, vim.uv.fs_stat(l).ino)
     local s = attach.attach_file(dir .. "/s.txt", "lns", t)
     eq("link", vim.uv.fs_lstat(s).type)
-    eq(dir .. "/s.txt", vim.uv.fs_readlink(s))
+    eq(dir .. "/s.txt", vim.fs.normalize(vim.uv.fs_readlink(s)))
     eq("* Task :ATTACH:", buf_lines(buf)[1])
     eq({ "c.txt", "l.txt", "m.txt", "s.txt" }, attach.list(t))
   end)

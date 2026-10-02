@@ -45,7 +45,7 @@ describe("diagrams: commands", function()
     -- org_directory/mmdc, so the default command was never found)
     eq("mmdc", render.program("mmdc"))
     eq("npx -y @mermaid-js/mermaid-cli", render.command_string("npx -y @mermaid-js/mermaid-cli"))
-    eq(vim.env.HOME .. "/bin/dot", render.program("~/bin/dot"))
+    eq(require("org.utils").home() .. "/bin/dot", render.program("~/bin/dot"))
     local dir = tmpdir()
     fake(dir, "mmdc", "exit 0")
     h.with_path(dir, function()
@@ -54,6 +54,7 @@ describe("diagrams: commands", function()
   end)
 
   it("renders from a directory with spaces and quotes in its name", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     local dir = tmpdir() .. "/it's a dir"
     vim.fn.mkdir(dir, "p")
     local log = dir .. "/log"

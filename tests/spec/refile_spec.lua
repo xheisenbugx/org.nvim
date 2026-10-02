@@ -93,7 +93,7 @@ describe("refile targets", function()
     eq({ "a.org/", "a.org/A1/", "a.org/A1/A2/", "b.org/", "b.org/B1/" }, labels())
     config.opts.refile.use_outline_path = "full-file-path"
     local l = labels()
-    ok(l[#l]:match("^/.*/b%.org/B1/$"), vim.inspect(l))
+    ok(require("org.utils").is_absolute(l[#l]) and l[#l]:match("/b%.org/B1/$"), vim.inspect(l))
   end)
 
   it("uses #+TITLE with the title style, escapes / and drops cookies in paths", function()
@@ -232,7 +232,7 @@ describe("refile", function()
       utils.readfile(dir .. "/b.org")
     )
     local where = require("org.utils").read_json(dir .. "/ids.json")["moved-1"]
-    eq(vim.uv.fs_realpath(dir .. "/b.org"), vim.uv.fs_realpath(where))
+    eq(require("org.utils").realpath(dir .. "/b.org"), require("org.utils").realpath(where))
   end)
 
   it("copies a subtree, logs and honours reverse note order", function()

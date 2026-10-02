@@ -1770,7 +1770,7 @@ local function add_stored(link, desc, quiet)
 end
 
 local function display_path(path)
-  return vim.fn.fnamemodify(path, ":~")
+  return utils.abbreviate(path)
 end
 
 --- Name of the element at `lnum` (its `#+NAME:` line, or a src block /
@@ -2320,14 +2320,16 @@ local PREFIXES = {
 
 --- File name completion relative to the directory of buffer `bufnr`.
 local function complete_files(lead, bufnr)
-  local expanded = vim.fn.expand(lead)
-  if expanded:match("^/") or lead:match("^~") or expanded:match("^%a:[/\\]") then
-    return vim.fn.getcompletion(lead, "file")
+  local expanded = vim.fs.normalize(vim.fn.expand(lead))
+  if utils.is_absolute(expanded) or lead:match("^~") then
+    return utils.complete_path(lead, "file")
   end
-  local base = base_dir(bufnr) .. "/"
+  local base = vim.fs.normalize(base_dir(bufnr)) .. "/"
   local out = {}
-  for _, f in ipairs(vim.fn.getcompletion(base .. lead, "file")) do
-    out[#out + 1] = f:sub(1, #base) == base and f:sub(#base + 1) or f
+  for _, f in ipairs(utils.complete_path(base .. lead, "file")) do
+    local head = f:sub(1, #base)
+    local inside = head == base or (vim.fn.has("win32") == 1 and head:lower() == base:lower())
+    out[#out + 1] = inside and f:sub(#base + 1) or f
   end
   return out
 end
@@ -2412,20 +2414,25 @@ function M.normalize_file_path(path, method, dir)
   if type(method) == "function" then
     return method(path)
   end
-  local expanded = vim.fn.expand(path)
-  if not expanded:match("^/") and not expanded:match("^%a:[/\\]") then
-    expanded = dir .. "/" .. expanded
+  -- the file and the directory made absolute alike: expand() and
+  -- fnamemodify() give \ on Windows, and may or may not add a drive to /x
+  local function absolute(p, base)
+    p = vim.fs.normalize(vim.fn.expand(p))
+    if not utils.is_absolute(p) then
+      p = base and (base .. "/" .. p) or vim.fn.fnamemodify(p, ":p")
+    end
+    return vim.fs.normalize(p)
   end
-  local full = vim.fs.normalize(vim.fn.fnamemodify(expanded, ":p"))
+  local full = absolute(path, dir)
   if path:sub(-1) == "/" and full:sub(-1) ~= "/" then
     full = full .. "/"
   end
   if method == "absolute" then
-    return vim.fn.fnamemodify(full, ":~")
+    return utils.abbreviate(full)
   elseif method == "noabbrev" then
     return full
   end
-  dir = vim.fs.normalize(dir):gsub("/$", "") .. "/"
+  dir = absolute(dir):gsub("/$", "") .. "/"
   if method == "relative" then
     local a = vim.split(dir:gsub("/$", ""), "/", { plain = true })
     local b = vim.split(full, "/", { plain = true })
@@ -2443,10 +2450,11 @@ function M.normalize_file_path(path, method, dir)
     local rel = table.concat(parts, "/")
     return rel == "" and "." or rel
   end
-  if full:sub(1, #dir) == dir then
+  local head = full:sub(1, #dir)
+  if head == dir or (vim.fn.has("win32") == 1 and head:lower() == dir:lower()) then
     return full:sub(#dir + 1)
   end
-  return vim.fn.fnamemodify(full, ":~")
+  return utils.abbreviate(full)
 end
 
 --- Default description of a link: the type's `insert_description`, else
@@ -2483,8 +2491,8 @@ function M.format_for_buffer(link, desc, fopts)
   if cur ~= "" then
     local p, s = link:match("^file:(.-)::(.*)$")
     if p and p ~= "" then
-      local a = vim.uv.fs_realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
-      local b = vim.uv.fs_realpath(cur) or vim.fs.normalize(cur)
+      local a = utils.realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
+      local b = utils.realpath(cur) or vim.fs.normalize(cur)
       if a == b then
         link = s
       end
@@ -2563,7 +2571,7 @@ local function complete_file_link(bufnr, absolute)
   file = vim.trim(file)
   local full = M.resolve_path(file, bufnr)
   if absolute then
-    return "file:" .. vim.fn.fnamemodify(full, ":~")
+    return "file:" .. utils.abbreviate(full)
   end
   local dir = base_dir(bufnr) .. "/"
   if full:sub(1, #dir) == dir then

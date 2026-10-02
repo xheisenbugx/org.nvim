@@ -151,8 +151,8 @@ function M.relpath(root, path)
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
   root = vim.fs.normalize(root)
   -- resolve symlinks (/tmp -> /private/tmp on macOS) on both sides
-  local rpath = vim.uv.fs_realpath(path) or path
-  local rroot = vim.uv.fs_realpath(root) or root
+  local rpath = require("org.utils").realpath(path) or path
+  local rroot = require("org.utils").realpath(root) or root
   for _, pair in ipairs({ { root, path }, { rroot, rpath } }) do
     local r, p = pair[1], pair[2]
     if p:sub(1, #r + 1) == r .. "/" then

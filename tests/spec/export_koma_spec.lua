@@ -8,7 +8,7 @@
 local export = require("org.export")
 local ox = require("org.export.ox")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/koma"
 
 local function read(path)
@@ -32,7 +32,7 @@ end
 local function tmpdir()
   local d = vim.fn.tempname()
   vim.fn.mkdir(d, "p")
-  return vim.uv.fs_realpath(d)
+  return require("org.utils").realpath(d)
 end
 
 local function golden(name, file)
@@ -42,6 +42,7 @@ local function golden(name, file)
 end
 
 describe("koma-letter export", function()
+  posix_shell()
   local saved_koma, saved_author, saved_email
   before_each(function()
     config.opts.babel.evaluate_on_export = false

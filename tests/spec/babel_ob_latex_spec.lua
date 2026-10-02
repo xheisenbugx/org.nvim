@@ -73,6 +73,7 @@ local FULLPAGE = {
 }
 
 describe("babel ob-latex", function()
+  posix_shell()
   local dir
   before_each(function()
     config.opts.babel.confirm_evaluate = false

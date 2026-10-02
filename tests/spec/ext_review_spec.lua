@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local date = require("org.date")
 local utils = require("org.utils")
@@ -116,7 +116,7 @@ end
 
 describe("review extension", function()
   before_each(function()
-    dir = vim.fn.resolve(vim.fn.tempname())
+    dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
     vim.fn.mkdir(dir, "p")
     saved.notify = utils.notify
     utils.notify = function() end

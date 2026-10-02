@@ -4,7 +4,7 @@ local config = require("org.config")
 local feed = require("org.feed")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local fixtures = root .. "/fixtures/feed/"
 
 local function quiet(fn)
@@ -350,7 +350,7 @@ describe("org-feed commands", function()
     quiet(function()
       feed.goto_inbox("Fn")
     end)
-    eq(vim.uv.fs_realpath(target), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+    eq(require("org.utils").realpath(target), require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     eq("* Inbox", vim.api.nvim_get_current_line())
     eq({ "* A", "", "", "* Inbox", "" }, buf_lines())
   end)

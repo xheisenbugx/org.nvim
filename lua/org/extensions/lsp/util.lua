@@ -19,7 +19,7 @@ function M.canon(path)
   path = vim.fs.normalize(path)
   local r = real_cache[path]
   if not r then
-    r = vim.uv.fs_realpath(path)
+    r = utils.realpath(path)
     if not r then
       return path
     end

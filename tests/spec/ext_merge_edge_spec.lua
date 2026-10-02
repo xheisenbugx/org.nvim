@@ -415,7 +415,7 @@ describe("merge extension: fuzz", function()
 end)
 
 describe("merge extension: driver options", function()
-  local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+  local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
   local driver = root .. "/lua/org/extensions/merge/driver.lua"
   local function files(dir)
     vim.fn.writefile({ "* TODO A" }, dir .. "/base.org")

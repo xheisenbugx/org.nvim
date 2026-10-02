@@ -39,7 +39,7 @@ M.commands = {
     "install_command",
     desc = "Link bin/org into a directory: :Org cli_install [DIR]",
     complete = function(arglead)
-      return vim.fn.getcompletion(arglead, "dir")
+      return require("org.utils").complete_path(arglead, "dir")
     end,
   },
 }
@@ -128,10 +128,41 @@ local function opts()
   return require("org.extensions").opts("cli") or M.defaults
 end
 
---- Path of `bin/org` in this checkout.
+local is_win = vim.fn.has("win32") == 1
+
+--- Path of `bin/org` in this checkout (`bin/org.cmd` on Windows).
 ---@return string
 function M.bin()
-  return require("org.version").root() .. "/bin/org"
+  return require("org.version").root() .. (is_win and "/bin/org.cmd" or "/bin/org")
+end
+
+--- The launcher `cli_install` writes on Windows, where symlinks need
+--- administrator rights or developer mode: it runs `bin`.
+---@param bin string
+---@return string
+local function shim(bin)
+  return '@"' .. bin:gsub("/", "\\") .. '" %*\r\n'
+end
+
+local function same_path(a, b)
+  a, b = vim.fs.normalize(a), vim.fs.normalize(b)
+  if is_win then
+    a, b = a:lower(), b:lower()
+  end
+  return a == b
+end
+
+--- What `p` runs: the target of a symlink, or of an `org.cmd` launcher.
+local function target(p)
+  if is_win then
+    local f = io.open(p, "rb")
+    local text = f and f:read("*a") or ""
+    if f then
+      f:close()
+    end
+    return text:match('^@"(.-)" %%%*') or p
+  end
+  return vim.fn.resolve(p)
 end
 
 --- The `org` found on $PATH, resolved, or nil.
@@ -140,7 +171,7 @@ local function on_path()
   if p == "" then
     return nil
   end
-  return vim.fn.resolve(p)
+  return target(p)
 end
 
 --- Symlink `bin/org` into `install_dir` (asks first; an existing file
@@ -149,10 +180,10 @@ end
 ---@return string|nil the link made
 function M.install(dir)
   local utils = require("org.utils")
-  dir = vim.fn.expand(dir or opts().install_dir)
-  local link = dir .. "/org"
+  dir = vim.fs.normalize(vim.fn.expand(dir or opts().install_dir))
+  local link = dir .. (is_win and "/org.cmd" or "/org")
   local bin = M.bin()
-  if vim.fn.resolve(link) == vim.fn.resolve(bin) then
+  if vim.uv.fs_lstat(link) and same_path(target(link), is_win and bin or vim.fn.resolve(bin)) then
     utils.notify("org CLI already installed: " .. link)
     return link
   end
@@ -165,13 +196,26 @@ function M.install(dir)
     return nil
   end
   vim.fn.mkdir(dir, "p")
-  local ok, err = vim.uv.fs_symlink(bin, link)
+  local ok, err
+  if is_win then
+    local f
+    f, err = io.open(link, "wb")
+    if f then
+      ok = f:write(shim(bin))
+      f:close()
+    end
+  else
+    ok, err = vim.uv.fs_symlink(bin, link)
+  end
   if not ok then
     utils.error("Could not link " .. link .. ": " .. tostring(err))
     return nil
   end
-  local path = ":" .. (vim.env.PATH or "") .. ":"
-  if not path:find(":" .. dir .. ":", 1, true) and not path:find(":" .. dir .. "/:", 1, true) then
+  local on = false
+  for _, p in ipairs(vim.split(vim.env.PATH or "", is_win and ";" or ":", { trimempty = true })) do
+    on = on or same_path(p:gsub("[/\\]$", ""), dir)
+  end
+  if not on then
     utils.warn(dir .. " is not on your $PATH")
   end
   utils.notify("org CLI installed: " .. link)
@@ -186,7 +230,7 @@ function M.health(h)
     h.error("cli: " .. bin .. " is missing or not executable")
   end
   local found = on_path()
-  if found and found == vim.fn.resolve(bin) then
+  if found and same_path(found, is_win and bin or vim.fn.resolve(bin)) then
     h.ok("cli: `org` on $PATH is this checkout's bin/org")
   elseif found then
     h.warn("cli: `org` on $PATH is " .. found .. ", not " .. bin)

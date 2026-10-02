@@ -202,7 +202,7 @@ local function loaded_buffers()
       local name = vim.api.nvim_buf_get_name(b)
       if name ~= "" then
         out[vim.fs.normalize(name)] = b
-        local real = vim.uv.fs_realpath(name)
+        local real = utils.realpath(name)
         if real then
           out[real] = b
         end
@@ -213,7 +213,7 @@ local function loaded_buffers()
 end
 
 local function file_index(p, bufs)
-  local b = bufs[p] or bufs[vim.uv.fs_realpath(p) or ""]
+  local b = bufs[p] or bufs[utils.realpath(p) or ""]
   local key
   if b then
     key = "b" .. b .. ":" .. vim.api.nvim_buf_get_changedtick(b)

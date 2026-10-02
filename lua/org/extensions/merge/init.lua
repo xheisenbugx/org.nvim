@@ -268,7 +268,7 @@ function M.install()
     return
   end
   vim.ui.select(CHOICES, {
-    prompt = "Org merge driver for " .. vim.fn.fnamemodify(root, ":~") .. ":",
+    prompt = "Org merge driver for " .. require("org.utils").abbreviate(root) .. ":",
     format_item = function(c)
       return c.label
     end,
