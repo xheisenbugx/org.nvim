@@ -186,6 +186,46 @@ describe("clock display (C-c C-x C-d)", function()
   end)
 end)
 
+describe("custom timestamp display", function()
+  -- Emacs 9.8.10 (org-display-custom-times t): org.el removes the display
+  -- in protecting blocks, fixed-width lines, verbatim/code and keyword lines
+  -- other than the document info ones
+  it("leaves code, verbatim and keyword timestamps as typed", function()
+    local lines = {
+      "* H",
+      "#+begin_src sh",
+      "echo <2026-10-02 Fri>",
+      "#+end_src",
+      "#+begin_example",
+      "ex <2026-10-02 Fri>",
+      "#+end_example",
+      ": fixed <2026-10-02 Fri>",
+      "=<2026-10-02 Fri>= verbatim and ~[2026-10-02 Fri]~ code",
+      "#+FOO: [2026-10-02 Fri]",
+      "plain <2026-10-02 Fri>",
+      "# comment <2026-10-02 Fri>",
+      "#+DATE: <2026-10-02 Fri>",
+      "#+begin_quote",
+      "quoted <2026-10-02 Fri> and =code= <2026-10-03 Sat>",
+      "#+end_quote",
+    }
+    local buf = org_buffer(lines)
+    local utils = require("org.utils")
+    local notify = utils.notify
+    utils.notify = function() end
+    require("org.timestamps").toggle_custom_display()
+    utils.notify = notify
+    local ns = vim.api.nvim_create_namespace("org.timestamps.custom")
+    local shown = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      shown[#shown + 1] = (m[2] + 1) .. ":" .. m[4].virt_text[1][1]
+    end
+    eq({ "11:10/02/26 Fri", "12:10/02/26 Fri", "13:10/02/26 Fri", "15:10/02/26 Fri", "15:10/03/26 Sat" }, shown)
+    vim.b[buf].org_custom_times = false
+    require("org.timestamps").refresh_custom_display(buf)
+  end)
+end)
+
 describe("shrunk table columns", function()
   -- Emacs 9.8.10 org-table-shrink: the field is cut at its visible width,
   -- so a link shows as its description

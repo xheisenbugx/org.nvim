@@ -679,6 +679,27 @@ function M.visible_width(s, o)
   return utils.width(M.visible_text(s, o))
 end
 
+--- Byte ranges ({ first, last }, markers included) of the =verbatim= and
+--- ~code~ objects of the line `s` (org-emph-re).
+---@param s string
+---@return integer[][]
+function M.verbatim_ranges(s)
+  local out, i = {}, 1
+  while true do
+    i = s:find("[=~]", i)
+    if not i then
+      return out
+    end
+    local close = emphasis_close(s, i)
+    if close then
+      out[#out + 1] = { i, close }
+      i = close + 1
+    else
+      i = i + 1
+    end
+  end
+end
+
 --- Open a buffer in a window according to `mode`.
 ---@param buf integer
 ---@param mode "float"|"split"|"vsplit"|"tab"|"current"|nil
