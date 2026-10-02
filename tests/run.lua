@@ -284,6 +284,10 @@ local function restore(s)
       vim.env[k] = v
     end
   end
+  -- the C library reads TZ once: make it read it again
+  pcall(function()
+    require("org.date").set_tz(s.env.TZ)
+  end)
 end
 
 local files = _G.arg and #_G.arg > 0 and _G.arg or vim.fn.glob(root .. "/tests/spec/**/*_spec.lua", false, true)
