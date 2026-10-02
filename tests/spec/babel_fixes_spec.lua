@@ -68,6 +68,25 @@ describe("babel :dir", function()
   end)
 end)
 
+describe("babel tangle modes", function()
+  it("gives the file the mode of its first block, like Emacs", function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local target = dir .. "/out.sh"
+    local buf = org_buffer({
+      "#+begin_src sh :tangle " .. target .. " :tangle-mode o600",
+      "echo 1",
+      "#+end_src",
+      "#+begin_src sh :tangle " .. target .. " :tangle-mode o644",
+      "echo 2",
+      "#+end_src",
+    })
+    require("org.babel.tangle").tangle({ bufnr = buf, silent = true })
+    eq("rw-------", vim.fn.getfperm(target))
+    vim.fn.delete(dir, "rf")
+  end)
+end)
+
 describe("babel fish variables", function()
   it("escapes backslashes and quotes inside fish single quotes", function()
     local langs = require("org.babel.langs")

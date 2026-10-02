@@ -449,7 +449,10 @@ function M.tangle(opts)
       if tmode then
         local mode, err = babel().file_mode(tmode)
         if mode then
-          table.insert(modes, 1, mode)
+          if not vim.tbl_contains(modes, mode) then
+            -- in block order (Emacs pushes them with add-to-list)
+            modes[#modes + 1] = mode
+          end
         else
           utils.error(err)
         end
