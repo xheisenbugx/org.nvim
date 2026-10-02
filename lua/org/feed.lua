@@ -1149,22 +1149,29 @@ function M.update(feed, retrieve_only)
   local bufnr = utils.load_buffer(file)
   local inbox = M.find_or_create_inbox(bufnr, feed.headline)
   local old = M.read_status(bufnr, inbox, drawer)
+  -- the first status of each guid (nil guids under a key of their own)
+  local by_guid = {}
+  for _, st in ipairs(old) do
+    local k = st.guid == nil and vim.NIL or st.guid
+    by_guid[k] = by_guid[k] or st
+  end
   local function old_of(guid)
-    for _, st in ipairs(old) do
-      if st.guid == guid then
-        return st
-      end
-    end
+    return by_guid[guid == nil and vim.NIL or guid]
   end
 
   -- new: never handled; changed: handled and the hash differs
   local new, changed = {}, {}
-  for _, e in ipairs(entries) do
+  -- the SHA-1 of each item, computed once (it is most of the time spent)
+  local hashes = {}
+  for i, e in ipairs(entries) do
+    hashes[i] = sha1(e.item_full_text or "")
+  end
+  for i, e in ipairs(entries) do
     local st = old_of(e.guid)
     e.handled = st and st.handled or false
     if not e.handled then
       table.insert(new, 1, e)
-    elseif st.hash and sha1(e.item_full_text or "") ~= st.hash then
+    elseif st.hash and hashes[i] ~= st.hash then
       table.insert(changed, 1, e)
     end
   end
@@ -1193,11 +1200,11 @@ function M.update(feed, retrieve_only)
     handled_now[e.guid or vim.NIL] = true
   end
   local status = {}
-  for _, e in ipairs(entries) do
+  for i, e in ipairs(entries) do
     status[#status + 1] = {
       guid = e.guid,
       handled = handled_now[e.guid or vim.NIL] or e.handled or false,
-      hash = sha1(e.item_full_text or ""),
+      hash = hashes[i],
     }
   end
 
