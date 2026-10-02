@@ -551,6 +551,32 @@ describe("todo: Emacs org-todo parity", function()
     end)
   end)
 
+  it("after_todo_statistics_hooks: the walk stops at the COOKIE_DATA headline", function()
+    -- org-update-parent-todo-statistics: `lim` is where COOKIE_DATA is
+    -- inherited from, even when hierarchical_todo_statistics is nil
+    local calls = {}
+    with_opts({
+      hierarchical_todo_statistics = false,
+      after_todo_statistics_hooks = {
+        function(_, _, target)
+          calls[#calls + 1] = target.lnum
+        end,
+      },
+    }, function()
+      org_buffer({
+        "* Top [/]",
+        "** Mid [/]",
+        ":PROPERTIES:",
+        ":COOKIE_DATA: todo",
+        ":END:",
+        "*** Low [/]",
+        "**** TODO A",
+      }, { 7, 0 })
+      todo.change_state(nil, "DONE")
+    end)
+    eq({ 6, 2 }, calls)
+  end)
+
   it("checkbox blocking: counters, partial boxes, not inside blocks", function()
     with_opts({ enforce_todo_checkbox_dependencies = true }, function()
       org_buffer({ "* TODO P", "1. [@3] [ ] a" }, { 1, 0 })

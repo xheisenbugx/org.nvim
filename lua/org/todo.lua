@@ -282,8 +282,8 @@ end
 --- The ancestors of `hl` whose TODO cookie org-update-parent-todo-statistics
 --- updates: the parent, or with recursive statistics every ancestor up to
 --- the one setting COOKIE_DATA (all of them when
---- `hierarchical_todo_statistics` is false); one counting checkboxes stops
---- the walk.
+--- `hierarchical_todo_statistics` is false, up to the one setting
+--- COOKIE_DATA when there is one); one counting checkboxes stops the walk.
 local function statistics_ancestors(hl)
   local parent = hl.parent
   if not parent then
@@ -295,9 +295,10 @@ local function statistics_ancestors(hl)
   while h do
     local data = h.properties.COOKIE_DATA
     if data then
-      if not recursive and data:lower():find("recursive") then
-        recursive, limit = true, h.line
-      end
+      -- the inherited COOKIE_DATA bounds the walk (`lim` in
+      -- org-update-parent-todo-statistics)
+      recursive = recursive or data:lower():find("recursive") ~= nil
+      limit = h.line
       break
     end
     h = h.parent
