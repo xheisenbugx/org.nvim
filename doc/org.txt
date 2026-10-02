@@ -537,12 +537,17 @@ function deciding where they apply.
 ==============================================================================
 4. VISIBILITY AND FOLDING                                        *org-folding*
 
-Headlines fold by level. Plain list items with sub-items or more lines fold
+Headlines fold by their depth in the outline (a `***` headline right under
+a `*` one folds one level below it). Plain list items with sub-items or more lines fold
 one level deeper (`cycle_include_plain_lists`, org-cycle-include-plain-lists),
 and drawers and `#+begin_`/`#+end_` blocks one level deeper than what
-contains them. When the text before a headline ends with at least
-`cycle_separator_lines` (2) blank lines, the last one stays visible when the
-subtree above is folded (org-cycle-separator-lines).
+contains them, so a block in a drawer, or a drawer in a quote, center or
+special block, folds on its own. When the text before a headline ends with
+at least `cycle_separator_lines` (2) blank lines, the last one stays visible
+when the subtree above is folded, and so does the one before a child
+headline in CONTENTS (org-cycle-separator-lines); a negative value keeps all
+of those blank lines visible. Blank lines at the end of the file are never
+hidden (org-cycle-show-empty-lines).
 
 <Tab>           (ctx) Subtree cycling like org-cycle: a folded subtree
                 shows its text and its children (CHILDREN); right after
@@ -554,19 +559,28 @@ subtree above is folded (org-cycle-separator-lines).
                 (`cycle_emulate_tab`, org-cycle-emulate-tab: `true`,
                 `"white"`, `"whitestart"`, `"exc-hl-bol"`; `false` cycles
                 the entry instead). In Insert mode inside a table, move to
-                the next field.
+                the next field. Cycling shows or hides the outline only:
+                drawers, blocks and results keep their folded or open
+                state (Emacs never re-hides a drawer while cycling).
                 With a count (in place of C-u): `16<Tab>` restores the
                 startup visibility, `64<Tab>` shows everything including
                 drawers, and any other N shows the whole subtree of the
                 ancestor at level N.
 <S-Tab>         Global cycling: OVERVIEW → CONTENTS (headlines only) →
                 SHOW ALL when pressed in a row; after any other command
-                it starts again from OVERVIEW. With a count N, show
-                headlines up to level N.
-<C-c><Tab>      Show the children of the entry (a count: that many levels)
-                without showing its text (org-show-children).
-<C-c><C-k>      Show every headline of the subtree, without their text
-                (show_branches).
+                it starts again from OVERVIEW. OVERVIEW and CONTENTS fold
+                the outline; drawers, blocks and `#+RESULTS` stay as they
+                were (blocks fold only with `hideblocks`, drawers per
+                `hidedrawers`). SHOW ALL shows every headline and block,
+                a folded drawer stays folded. CONTENTS also shows inline
+                tasks, folded. With a count N, show the headlines with up
+                to N stars.
+<C-c><Tab>      Fold the subtree, then show the children of the entry (a
+                count: that many levels) without its text
+                (org-ctrl-c-tab).
+<C-c><C-k>      Fold the subtree, then show every headline in it without
+                their text, keeping archived subtrees folded
+                (org-kill-note-or-show-branches).
 <C-c><C-r>      Show the context of the cursor (org-reveal): the headlines
                 above it, their children and the current entry. A count 4
                 (C-u) also shows the text of the headlines above; 16 the
@@ -630,7 +644,8 @@ CONTENTS view, <C-c><Tab>, <C-c><C-k>, `#+STARTUP: content` and
 siblings of a sparse-tree match. Those lines are hidden with `conceal_lines`
 extmarks (Neovim 0.11 or later, 'conceallevel' 2, set by the plugin), and
 the headline gets the ellipsis. Hidden lines are never under the cursor:
-<j> / <k> skip them and other jumps show them (like Emacs, which never
+<j> / <k> skip them and other jumps show them (a search, mark, <G> or Ex
+command landing on the hidden line next to the cursor too) (like Emacs, which never
 leaves point in invisible text). Edits that touch hidden text follow
 `catch_invisible_edits` (org-fold-catch-invisible-edits): typing on a
 hidden line, typing, <CR> or <BS> at the end of a line followed by hidden
@@ -1187,7 +1202,10 @@ Timestamps:
                 time-range end (`-11:30`) and a trailing repeater stay
                 visible. `display_custom_times = true` or
                 `#+STARTUP: customtime` turn it on; the real text shows in
-                Insert mode (see 'concealcursor'). The formats are Emacs
+                Insert mode (see 'concealcursor'). Timestamps in blocks,
+                fixed-width lines, =verbatim=, ~code~ and `#+KEYWORD:`
+                lines (except TITLE, SUBTITLE, AUTHOR, EMAIL, DATE) stay
+                as typed, as in Emacs. The formats are Emacs
                 `format-time-string` formats, the first for dates and the
                 second for dates with a time, e.g.
                 `{ "%A %d %B %Y", "%A %d %B %Y, %H:%M" }`: %a %A %b %B %d
@@ -1328,6 +1346,8 @@ same date again is not logged.
                 for `clock.display_default_range` (this year). Count: 4 =
                 today, 16 = ask for a range, 64 = only the total. Editing
                 the buffer, <C-c><C-c> or calling it again hides the sums.
+                Like Emacs, a sum covers the tags and also shows on folded
+                headlines; the times line up on the displayed title.
                                                               *org-clocktable*
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
@@ -1563,7 +1583,9 @@ Times: `time_leading_zero`, `timegrid_use_ampm`,
 Tags show inherited tags first, then "::" and the entry's own tags
 (":ft::work:"); `hide_tags_regexp` (a Vim regexp) hides some,
 `remove_tags` removes them (true, or "prefix" when %T is used),
-`tags_column` places them ("auto" = right edge of the window). Day headers
+`tags_column` places them ("auto" = right edge of the window, 0 = one space
+after the entry text); `ui.todo_keyword_faces` and `ui.tag_faces` apply here
+too. In the clock report, links show as their description. Day headers
 use `format_date` (a strftime format or a function) and show the ISO week
 on Mondays; `weekend_days` (0 = Sunday) get the weekend highlight, and
 `day_face_function(date)` may return another highlight group
@@ -3747,8 +3769,12 @@ others (org-table-shrink), count 16 expands all (org-table-expand).
 with cookies when a file is opened; columnview blocks with widths are
 shrunk after an update. Neovim has no overlays that hide text, so shrunk
 fields are concealed ('conceallevel' is set to 2) and drawn as inline
-virtual text; the text itself is unchanged. In Insert mode the table is
-shown in full, and it shrinks again when you leave Insert mode.
+virtual text; the text itself is unchanged. Fields are cut on their
+displayed text, so a link shows its description. In Insert mode the table
+is shown in full, and it shrinks again when you leave Insert mode.
+Aligning a table pads fields to their displayed width (org-string-width):
+a link counts as its description while links are shown descriptively, and
+hidden emphasis markers and prettified entities count as displayed.
 
                                                   *org-table-follow-field*
 Follow-field mode (<C-c>` with count 16): a small window below shows the
@@ -5340,7 +5366,11 @@ With the native backend, the text of the link is concealed behind blank
 inline text as wide as the image, virtual lines keep the rows the image
 needs under the line free, and the images are placed on the screen after
 every redraw, so they follow scrolling, folding, window splits and
-resizes, also in floating windows.
+resizes, also in floating windows. Images are sized for each window and
+sized again when it is resized; in a window too narrow for an image the
+image is not drawn. When a line wraps after an image, the image is drawn
+under the line and the link text stays visible; on the first line of a
+closed fold, an image taller than one row shows its link text.
 An image is shown once all of it fits in the window, and hidden under
 floating windows and the popup menu. Only PNG can be sent to the
 terminal: other formats are converted with ImageMagick (`magick`). Sizes
@@ -5594,6 +5624,19 @@ Emphasis follows org-emphasis-regexp-components: the markers need a space,
 `(`, `'`, `"`, `{` or `-` (or the line start) before them, may span one line
 break, and bold, italic, underline and strike-through can nest.
 
+Quote and verse block contents are highlighted as ordinary Org (lists,
+tables, timestamps, markup) on top of OrgQuoteBlock; center, special
+(`#+begin_note`...) and dynamic (`#+BEGIN:`) blocks highlight only their
+delimiter lines. Every block ends at the next headline, whether or not it
+has its `#+end` line. `#+begin_export LANG` blocks get LANG's syntax, as
+`#+begin_src LANG` blocks do. A buffer's `#+OPTIONS: ^:t`, `^:{}` or `^:nil`
+overrides `ui.use_sub_superscripts`, for pretty entities and for the
+"script" LaTeX highlighting (`^:nil` displays like `^:{}`, as in Emacs).
+Complete statistics cookies ([2/2], [100%]) use OrgStatisticDone, others
+OrgStatistic (org-checkbox-statistics-done/-todo); OrgSexpDate is diary
+sexps (`<%%(...)>`, `%%(...)` lines) and OrgArchived the text of headlines
+tagged ARCHIVE.
+
 Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlights*
   OrgHeadlineLevel1..8   (linked to the colorscheme's markdown headings)
   OrgTodo OrgDone OrgHeadlineDone OrgHeadlineComment
@@ -5603,7 +5646,10 @@ Highlight groups (all `default`, override with |nvim_set_hl()|):  *org-highlight
   OrgTitle OrgComment OrgBlock OrgQuoteBlock OrgBlockDelimiter
   OrgBold OrgItalic OrgUnderline OrgStrikethrough OrgVerbatim OrgCode
   OrgLink OrgListBullet OrgListTerm OrgCheckbox OrgCheckboxChecked
-  OrgCheckboxPartial OrgStatistic OrgTable OrgTableSeparator OrgTableFormula
+  OrgCheckboxPartial OrgStatistic OrgStatisticDone OrgTable
+  OrgTableSeparator OrgTableFormula OrgSexpDate OrgArchived
+  OrgInlineSrc OrgInlineSrcMarker OrgInlineSrcLang
+  OrgExportSnippetMarker OrgExportSnippetBackend
   OrgFootnote OrgTarget OrgLatex OrgHorizontalRule OrgMacro
   OrgHiddenStars OrgSuperscript OrgSubscript OrgInlinetask OrgSparseMatch
   OrgMenuKey OrgMenuHeading OrgMenuDesc OrgMenuMore OrgMenuOn OrgMenuOff
@@ -6638,6 +6684,19 @@ Differences from Emacs:
 ==============================================================================
 32. DIFFERENCES FROM EMACS                                   *org-differences*
 
+- Display: in indent mode (org-indent-mode) rows that wrap don't get the
+  virtual indentation (Emacs sets a wrap-prefix; Neovim has no per-line
+  one). Emphasis doesn't nest inside the same kind of emphasis or inside
+  verbatim/code: Emacs fontifies `*a *b* c*` and `=x *y* z=` twice,
+  org.nvim highlights the outer span only. In the agenda clock report,
+  links are replaced by their description in the text (Emacs keeps the
+  link and hides its brackets). A shrunk table column shows its full
+  fields on the cursor line in modes missing from 'concealcursor' (Visual
+  with the default "nc"), as Neovim reveals concealed text there. An image
+  shown in place of its link whose line wraps after it, or on the first
+  line of a closed fold, is drawn below the line or shown as its link text
+  (Emacs makes that screen line as tall as the image).
+
 - Log notes (`*Org Note*`, `note_buffer`) open while the command runs:
   a state change or rescheduling is applied once the note is stored or
   cancelled (Emacs changes the entry first and opens the note buffer
@@ -7407,7 +7466,9 @@ slide, goes back to slides from the slide under the cursor.
 Folded slides ~
 With `startup_folded = true` each slide shows only its headline at first
 (org-present-startup-folded); `<Tab>` unfolds it step by step like any
-subtree, to reveal a slide bit by bit.
+subtree, to reveal a slide bit by bit. A folded slide headline is drawn as
+it is when open; its top padding and the rule under it appear once it is
+unfolded (Neovim draws no virtual lines on a closed fold).
 
 Font size ~
 `present_big` makes the terminal font `font_scale` points bigger (4 when
