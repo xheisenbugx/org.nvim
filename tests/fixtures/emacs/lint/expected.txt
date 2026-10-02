@@ -1,0 +1,118 @@
+=== examples/00-index.org
+=== examples/01-outline.org
+=== examples/02-markup.org
+553:8 [invalid-macro-argument-and-template] Missing argument in macro "title"
+=== examples/03-lists.org
+125:1 [item-number] Bullet counter "7. " is not the same with item position 2.  Consider adding manual [@7] counter.
+126:1 [item-number] Bullet counter "2. " is not the same with item position 3.  Consider adding manual [@2] counter.
+127:1 [item-number] Bullet counter "1. " is not the same with item position 4.  Consider adding manual [@1] counter.
+=== examples/04-todo.org
+=== examples/05-tags.org
+=== examples/06-properties-columns.org
+100:1 [obsolete-properties-drawer] Incorrect contents for PROPERTIES drawer
+=== examples/07-dates.org
+135:16 [timestamp-syntax] Potentially malformed timestamp [2026-10-01 Mon].  Parsed as: [2026-10-01 Thu]
+=== examples/08-clocking.org
+=== examples/09-agenda.org
+=== examples/10-sparse-trees.org
+=== examples/11-capture.org
+176:1 [misplaced-heading] Possibly misplaced heading line
+242:47 [misplaced-heading] Possibly misplaced heading line
+243:31 [misplaced-heading] Possibly misplaced heading line
+246:1 [misplaced-heading] Possibly misplaced heading line
+508:1 [misplaced-heading] Possibly misplaced heading line
+519:1 [misplaced-heading] Possibly misplaced heading line
+532:1 [misplaced-heading] Possibly misplaced heading line
+705:1 [misplaced-heading] Possibly misplaced heading line
+741:1 [misplaced-heading] Possibly misplaced heading line
+743:1 [misplaced-heading] Possibly misplaced heading line
+=== examples/12-refile-archive.org
+=== examples/13-links.org
+255:3 [invalid-custom-id-link] Unknown custom ID "no-such-id"
+332:3 [invalid-fuzzy-link] Unknown fuzzy location "A heading that does not exist yet"
+432:3 [link-to-local-file] Link to non-existent local file "*.org"
+470:3 [invalid-fuzzy-link] Unknown fuzzy location "man:ls"
+471:3 [invalid-fuzzy-link] Unknown fuzzy location "man:ls::-l"
+525:3 [percent-encoding-link-escape] Link escaped with obsolete percent-encoding syntax
+=== examples/14-footnotes.org
+219:16 [undefined-footnote-reference] Missing definition for footnote [sky]
+=== examples/15-tables.org
+=== examples/16-spreadsheet.org
+=== examples/17-babel.org
+573:1 [suspicious-language-in-src-block] Unknown source block language: 'json'
+588:1 [empty-header-argument] Empty value in header argument ":wrap"
+1331:1 [wrong-header-argument] Unknown header argument ":resluts"
+=== examples/18-dynamic-blocks.org
+=== examples/19-export.org
+114:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+1218:10 [invalid-macro-argument-and-template] Missing argument in macro "title"
+1218:26 [invalid-macro-argument-and-template] Missing argument in macro "author"
+1822:16 [invalid-fuzzy-link] Unknown fuzzy location "A heading that does not exist"
+=== examples/20-timers-reminders.org
+71:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+=== examples/21-images-latex.org
+430:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+486:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+533:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+557:1 [suspicious-language-in-src-block] Unknown source block language: 'vim'
+=== examples/22-extras.org
+838:1 [duplicate-custom-id] Duplicate CUSTOM_ID property "same-id"
+842:1 [duplicate-custom-id] Duplicate CUSTOM_ID property "same-id"
+845:11 [invalid-fuzzy-link] Unknown fuzzy location "No such heading"
+846:11 [invalid-custom-id-link] Unknown custom ID "no-such-id"
+848:11 [link-to-local-file] Link to non-existent local file "does-not-exist.org"
+849:8 [trailing-bracket-after-link] Trailing ']' after link end
+851:1 [missing-language-in-src-block] Missing language in source block
+855:1 [wrong-header-argument] Unknown header argument ":foo"
+859:1 [wrong-header-value] Unknown value "maybe" for header ":results"
+863:1 [obsolete-affiliated-keywords] Obsolete affiliated keyword: "TBLNAME".  Use "NAME" instead
+866:1 [deprecated-export-blocks] Deprecated syntax for export block.  Use "BEGIN_EXPORT HTML" instead
+870:1 [orphaned-affiliated-keywords] Orphaned affiliated keyword: "NAME"
+873:37 [undefined-footnote-reference] Missing definition for footnote [nodef]
+875:1 [unreferenced-footnote-definition] No reference for footnote definition [unused]
+878:1 [invalid-effort-property] Invalid effort duration format: "lots"
+879:1 [special-property-in-properties-drawer] Special property "TODO" found in a properties drawer
+883:1 [misplaced-planning-info] Misplaced planning info line
+885:1 [planning-inactive] Inactive timestamp in SCHEDULED will not appear in agenda.
+886:21 [timestamp-syntax] Potentially malformed timestamp <2026-12-03 Fri>.  Parsed as: <2026-12-03 Thu>
+887:1 [priority] Out-of-bounds priority 'Z'
+890:1 [item-number] Bullet counter "3. " is not the same with item position 2.  Consider adding manual [@3] counter.
+891:1 [spurious-colons] Tags contain a spurious colon
+893:1 [duplicate-name] Duplicate NAME "twice"
+896:1 [duplicate-name] Duplicate NAME "twice"
+899:1 [invalid-keyword-syntax] Possible missing colon in keyword "ATTR_HTML"
+902:1 [non-existent-setupfile-parameter] Non-existent setup file "no-such-setup.org"
+904:1 [invalid-block] Possible incomplete block "#+begin_quote"
+=== examples/tutorial.org
+214:1 [item-number] Bullet counter "1. " is not the same with item position 3.  Consider adding manual [@1] counter.
+215:1 [item-number] Bullet counter "2. " is not the same with item position 4.  Consider adding manual [@2] counter.
+216:1 [item-number] Bullet counter "3. " is not the same with item position 5.  Consider adding manual [@3] counter.
+218:1 [item-number] Bullet counter "1) " is not the same with item position 6.  Consider adding manual [@1] counter.
+219:1 [item-number] Bullet counter "2) " is not the same with item position 7.  Consider adding manual [@2] counter.
+1216:1 [extraneous-element-in-footnote-section] Extraneous elements in footnote section are not exported
+=== tests/fixtures/emacs/lint/issues.org
+3:1 [non-existent-setupfile-parameter] Non-existent setup file "does-not-exist.setup"
+4:1 [wrong-include-link-parameter] Non-existent file argument in INCLUDE keyword
+5:1 [unknown-options-item] Unknown OPTIONS item "nosuchopt"
+6:1 [orphaned-affiliated-keywords] Orphaned affiliated keyword: "CAPTION"
+8:34 [timestamp-syntax] Potentially malformed timestamp <2026-10-01 Mon>.  Parsed as: <2026-10-01 Thu>
+12:1 [misplaced-planning-info] Misplaced planning info line
+17:1 [duplicate-custom-id] Duplicate CUSTOM_ID property "dup"
+22:1 [duplicate-custom-id] Duplicate CUSTOM_ID property "dup"
+26:1 [incomplete-drawer] Possible incomplete drawer ":LOGBOOK:"
+31:1 [missing-language-in-src-block] Missing language in source block
+35:1 [wrong-header-value] Unknown value "nowhere" for header ":exports"
+35:1 [wrong-header-value] Unknown value "nonsense" for header ":results"
+39:1 [invalid-block] Possible incomplete block "#+begin_example"
+42:1 [link-to-local-file] Link to non-existent local file "missing-file.org"
+43:1 [invalid-custom-id-link] Unknown custom ID "no-such-custom-id"
+44:1 [invalid-fuzzy-link] Unknown fuzzy location "No such heading"
+46:1 [percent-encoding-link-escape] Link escaped with obsolete percent-encoding syntax
+47:1 [unreferenced-footnote-definition] No reference for footnote definition [undefined]
+49:1 [unreferenced-footnote-definition] No reference for footnote definition [unused]
+53:1 [item-number] Bullet counter "3. " is not the same with item position 2.  Consider adding manual [@3] counter.
+65:1 [invalid-macro-argument-and-template] Undefined macro "undefined-macro"
+67:1 [invalid-macro-argument-and-template] Missing argument in macro "twice"
+70:1 [duplicate-name] Duplicate NAME "same"
+73:1 [duplicate-name] Duplicate NAME "same"
+76:1 [invalid-keyword-syntax] Possible missing colon in keyword "attr_html"

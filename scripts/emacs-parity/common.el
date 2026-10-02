@@ -47,7 +47,7 @@
       auto-save-default nil
       create-lockfiles nil
       org-id-locations-file (make-temp-file "parity-ids")
-      org-id-track-globally nil
+      org-id-track-globally t
       inhibit-message t
       system-time-locale "C")
 

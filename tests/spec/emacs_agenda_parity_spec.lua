@@ -59,7 +59,8 @@ describe("agenda views match Emacs", function()
     local name = case[1]
     it(name, function()
       ok(expected[name], "no Emacs output for " .. name .. " (run make parity-fixtures)")
-      P.compare(P.normalise("agenda", expected[name].lines), render(case), KNOWN[name])
+      local e, o = P.normalise("agenda", expected[name].lines, render(case))
+      P.compare(e, o, KNOWN[name])
     end)
   end
 end)

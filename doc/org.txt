@@ -7034,6 +7034,17 @@ Differences from Emacs:
 - Customize (|org-customize|) lists lua/org/config.lua's options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
+- org-lint (|org-lint|): invalid-id-link reports an ID found neither in
+  the file nor in the ID locations; Emacs 9.8.10 falls back on the
+  current file for any ID (org-id-find-id-file), so it never reports one
+  in a file buffer. misplaced-heading reports the misplaced stars
+  themselves; Emacs 9.8.10 reads the match position after
+  org-element-at-point has overwritten it, so its reports land elsewhere
+  (later on the line, or on the line after the paragraph).
+  suspicious-language-in-src-block knows the languages with a Babel
+  backend or a Neovim syntax or ftplugin file (`vim`, `json`, ...),
+  where Emacs knows those with a Babel backend or an installed major
+  mode.
 
 ==============================================================================
 33. EXTENSIONS                                               *org-extensions*

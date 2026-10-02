@@ -85,29 +85,69 @@ end
 ---------------------------------------------------------------------------
 -- Known, intentional differences
 ---------------------------------------------------------------------------
--- The ONLY place where Emacs output is rewritten before comparing. Each
--- entry is a documented difference (:h org-differences, or the keys of
+-- The ONLY place where outputs are rewritten before comparing. Each entry
+-- is a documented difference (:h org-differences, or the keys of
 -- :h org-agenda-keys): never add one to make a real bug pass, mark the
 -- case as known in its spec instead.
+--   emacs = { { pattern, replacement }, ... }  gsub on each Emacs line
+--   both = { { pattern, replacement }, ... }  gsub on the lines of both sides
+--   drop = { pattern, ... }  lines dropped on both sides
 M.NORMALISE = {
   agenda = {
-    -- the hint lines name the key that edits the query: Vim's count
-    -- prefix instead of Emacs' C-u (:h org-agenda-keys, "r")
-    { "‘C%-u r’", "‘1 r’" },
+    emacs = {
+      -- the hint lines name the key that edits the query: Vim's count
+      -- prefix instead of Emacs' C-u (:h org-agenda-keys, "r")
+      { "‘C%-u r’", "‘1 r’" },
+    },
+  },
+  lint = {
+    both = {
+      -- Emacs reports a misplaced heading at a wrong place: the checker
+      -- reads match-beginning after org-element-at-point clobbered the
+      -- match data (with the match data saved, Emacs gives our places).
+      -- Compare the number of reports only (:h org-differences).
+      { "^%d+:%d+ (%[misplaced%-heading%])", "?:? %1" },
+    },
+    drop = {
+      -- which languages are known depends on the installation: Emacs
+      -- knows those with a babel backend or an installed major mode
+      -- (no vim-mode or json-mode in emacs -Q), org.nvim those with a
+      -- babel backend or a Neovim syntax/ftplugin (:h org-differences)
+      "^%d+:%d+ %[suspicious%-language%-in%-src%-block%]",
+      -- Emacs falls back on the current file for any ID
+      -- (org-id-find-id-file), so it never reports an unknown ID in a
+      -- file buffer; org.nvim does (:h org-differences)
+      "^%d+:%d+ %[invalid%-id%-link%]",
+    },
   },
 }
 
---- Apply the NORMALISE rules of `area` to the Emacs lines.
-function M.normalise(area, lines)
+--- Apply the NORMALISE rules of `area`: returns the Emacs and our lines.
+function M.normalise(area, emacs, ours)
   local rules = M.NORMALISE[area] or {}
-  local out = {}
-  for i, l in ipairs(lines) do
-    for _, r in ipairs(rules) do
-      l = l:gsub(r[1], r[2])
+  local function keep(l)
+    for _, p in ipairs(rules.drop or {}) do
+      if l:match(p) then
+        return false
+      end
     end
-    out[i] = l
+    return true
   end
-  return out
+  local function rewrite(lines, sets)
+    local out = {}
+    for _, l in ipairs(lines) do
+      for _, set in ipairs(sets) do
+        for _, r in ipairs(set) do
+          l = l:gsub(r[1], r[2])
+        end
+      end
+      if keep(l) then
+        out[#out + 1] = l
+      end
+    end
+    return out
+  end
+  return rewrite(emacs, { rules.emacs or {}, rules.both or {} }), rewrite(ours, { rules.both or {} })
 end
 
 --- A readable diff of two line lists (first difference with context).
