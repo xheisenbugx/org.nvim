@@ -733,6 +733,51 @@ describe("capture buffer", function()
     eq({ "* Inbox" }, file_lines(p))
   end)
 
+  it("a cancelled prompt leaves no headline or date tree in the target", function()
+    local p = tmpfile({ "* Inbox", "text" })
+    base_setup()
+    local tb = utils.load_buffer(p)
+    local restore = answer({ nil })
+    run(capture.capture, { template = "* %^{Title}", target = p, headline = "New" })
+    restore()
+    eq({ "* Inbox", "text" }, buf_lines(tb))
+    eq(false, vim.bo[tb].modified)
+    -- a target file the capture loaded is unloaded again
+    local q = tmpfile({ "* Old" })
+    restore = answer({ nil })
+    run(capture.capture, { template = "* %^{Title}", target = q, datetree = true }, { date = D })
+    restore()
+    eq(nil, utils.find_buffer(q))
+    eq({ "* Old" }, utils.readfile(q))
+  end)
+
+  it("kill unloads an empty or missing target file it loaded, unmodified", function()
+    base_setup()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local empty, missing = dir .. "/empty.org", dir .. "/missing.org"
+    utils.writefile(empty, {})
+    for _, p in ipairs({ empty, missing }) do
+      local buf = run(capture.capture, { template = "* X", target = p, headline = "New" })
+      local tb = capture.sessions[buf].ctx.loc.bufnr
+      eq({ "* New" }, buf_lines(tb))
+      capture.kill(buf)
+      eq(false, vim.api.nvim_buf_is_valid(tb))
+    end
+    eq(false, utils.exists(missing))
+  end)
+
+  it("an immediate capture that can't be saved leaves no headline behind", function()
+    base_setup()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local p = dir .. "/no/such/dir/t.org"
+    local dbuf = run(capture.capture, { template = "* X", target = p, headline = "New", immediate_finish = true })
+    eq(nil, dbuf)
+    local tb = utils.find_buffer(p)
+    eq(true, tb == nil or vim.deep_equal({ "" }, buf_lines(tb)))
+  end)
+
   it("runs on_abort with the target buffer when the capture is killed", function()
     local p = tmpfile({ "* Inbox" })
     base_setup()
