@@ -1258,6 +1258,11 @@ local function search_headline(file, search)
   if not lines then
     error(string.format("No such file: %q", file), 0)
   end
+  -- a /regexp/ search makes a sparse tree (org-occur) in Emacs: never a
+  -- broken link, and never a headline with a CUSTOM_ID
+  if search:match("^/.*/$") then
+    return false
+  end
   local parser = require("org.parser")
   local f = parser.parse(lines, file)
   local title = search:match("^%*(.*)$")
