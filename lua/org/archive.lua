@@ -53,22 +53,23 @@ function M.parse_location(location, source_file)
     file_part, heading = location, ""
   end
   local filename
+  -- %s is the source file's name without its directory, in both parts
+  -- (org-archive--compute-location)
+  local base = vim.fn.fnamemodify(source_file or "", ":t")
+  local function subst()
+    return base
+  end
   if file_part == "" then
     filename = source_file
   else
     local src = source_file or ""
-    file_part = file_part:gsub("%%s", function()
-      return src
-    end)
-    if src ~= "" then
-      -- when %s already produced an absolute path this is a no-op
-      if not file_part:match("^[/~]") and not file_part:match("^%a:[/\\]") then
-        file_part = vim.fn.fnamemodify(src, ":h") .. "/" .. file_part
-      end
-    end
-    filename = vim.fs.normalize(vim.fn.expand(file_part))
+    file_part = file_part:gsub("%%s", subst)
+    -- relative to the source file's directory (expand-file-name). Never
+    -- vim.fn.expand(): the location comes from document text, and Vim
+    -- expansion runs `backticks` and globs.
+    filename = utils.expand(file_part, src ~= "" and vim.fn.fnamemodify(src, ":h") or vim.fn.getcwd())
   end
-  heading = vim.trim(heading or ""):gsub("%%s", vim.fn.fnamemodify(source_file or "", ":t"))
+  heading = vim.trim(heading or ""):gsub("%%s", subst)
   local datetree = false
   local dt_rest = heading:match("^datetree/(.*)$")
   if dt_rest then

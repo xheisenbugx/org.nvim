@@ -71,6 +71,21 @@ describe("archive locations", function()
     l = archive.parse_location("a.org::datetree/* Sub", "/x/y.org")
     eq("**** Sub", l.stars)
   end)
+
+  it("puts the file name without its directory in %s, like Emacs", function()
+    -- (format file-fmt (file-name-nondirectory current-file)), expanded in
+    -- the source file's directory
+    eq("/x/arch/y.org_archive", archive.parse_location("arch/%s_archive::", "/x/y.org").filename)
+    eq(vim.fs.normalize("~/o/y.org_archive"), archive.parse_location("~/o/%s_archive::", "/x/y.org").filename)
+    eq("/a/y.org_archive", archive.parse_location("/a/%s_archive::", "/x/y.org").filename)
+    -- a % in the file name is inserted as is
+    eq("** From 100%1.org", archive.parse_location("::** From %s", "/x/100%1.org").stars)
+  end)
+
+  it("never runs shell commands from a location in the document", function()
+    local l = archive.parse_location("`echo pwned`.org::", "/x/y.org")
+    eq("/x/`echo pwned`.org", l.filename)
+  end)
 end)
 
 describe("archive_subtree (Emacs parity)", function()
