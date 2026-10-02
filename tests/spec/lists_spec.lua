@@ -194,6 +194,31 @@ describe("lists: editing", function()
   end)
 end)
 
+describe("lists: parse_region first_only", function()
+  it("stops after the first list, which is the same as without it", function()
+    local lines = {
+      "- a",
+      "  #+begin_src sh",
+      "- not an item",
+      "  #+end_src",
+      "  - b",
+      "",
+      "",
+      "- c",
+      "text",
+      "- d",
+    }
+    local all_lists = lists.parse_region(lines, 1, #lines)
+    eq(3, #all_lists)
+    local one, items = lists.parse_region(lines, 1, #lines, true)
+    eq(1, #one)
+    eq(2, #items)
+    eq(5, one[1].items[1].end_lnum)
+    eq(all_lists[1].items[1].end_lnum, one[1].items[1].end_lnum)
+    eq(5, one[1].items[1].children[1].lnum)
+  end)
+end)
+
 describe("lists: description terms and counters", function()
   it("takes the description term up to the last ' ::' (greedy, like Emacs)", function()
     eq("a :: b", lists.parse_item_line("- a :: b :: c").tag)

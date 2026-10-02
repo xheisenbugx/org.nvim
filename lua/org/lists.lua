@@ -173,46 +173,63 @@ local function is_blank(line)
   return line == nil or first_nonblank(line) == nil
 end
 
+--- When lines[i] opens a forbidden block closed within lines[i+1..to],
+--- the line number of its #+end line.
+local function forbidden_block_end(lines, i, to)
+  local j = first_nonblank(lines[i])
+  local name = j and lines[i]:byte(j) == 35 and lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  if name and M.forbidden_blocks[name:lower()] then
+    local close = ("^%s*#%+end_" .. vim.pesc(name) .. "%s*$"):lower()
+    for k = i + 1, to do
+      if lines[k]:lower():match(close) then
+        return k
+      end
+    end
+  end
+end
+
 --- Lines strictly inside a forbidden block within lines[from..to]:
 --- set of line numbers.
 local function verbatim_lines(lines, from, to)
   local set = {}
   local i = from
   while i <= to do
-    local j = first_nonblank(lines[i])
-    local name = j and lines[i]:byte(j) == 35 and lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
-    if name and M.forbidden_blocks[name:lower()] then
-      local close = "^%s*#%+[Ee][Nn][Dd]_" .. vim.pesc(name) .. "%s*$"
-      local stop
-      for j = i + 1, to do
-        if lines[j]:lower():match(close:lower()) then
-          stop = j
-          break
-        end
+    local stop = forbidden_block_end(lines, i, to)
+    if stop then
+      for j = i + 1, stop - 1 do
+        set[j] = true
       end
-      if stop then
-        for j = i + 1, stop - 1 do
-          set[j] = true
-        end
-        i = stop
-      end
+      i = stop
     end
     i = i + 1
   end
   return set
 end
 
---- Parse all lists within lines[from..to].
+--- Parse all lists within lines[from..to]. With `first_only`, stop at
+--- the end of the first list (the element parser asks for one list at a
+--- time: scanning the rest of the section made it quadratic).
+---@param first_only? boolean
 ---@return { items: org.ListItem[] }[] lists, org.ListItem[] all items (in order)
-function M.parse_region(lines, from, to)
+function M.parse_region(lines, from, to, first_only)
   local lists, all = {}, {}
   local stack = {} -- open items
   local current -- current list
   local blanks = 0
-  local verbatim = verbatim_lines(lines, from, to)
+  -- lines [verbatim_from, verbatim_to] are inside a forbidden block
+  local verbatim_from, verbatim_to = 0, -1
   for i = from, to do
+    if first_only and lists[1] and not current then
+      break
+    end
     local line = lines[i]
-    if verbatim[i] then
+    if i > verbatim_to then
+      local stop = forbidden_block_end(lines, i, to)
+      if stop then
+        verbatim_from, verbatim_to = i + 1, stop - 1
+      end
+    end
+    if i >= verbatim_from and i <= verbatim_to then
       -- block contents belong to the enclosing item, whatever their indentation
       blanks = is_blank(line) and blanks + 1 or 0
       if #stack > 0 and not is_blank(line) then
