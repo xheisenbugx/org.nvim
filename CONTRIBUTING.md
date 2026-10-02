@@ -173,6 +173,23 @@ explains how to add cases, how the runs are kept deterministic (a fixed
 fix the bug, document an intended difference, or mark the case as a known
 failure.
 
+### Fuzz tests
+
+The `tests/spec/fuzz_*_spec.lua` specs run the parser, the fold levels,
+editing commands and the merge driver on random Org text from
+[`tests/helpers/fuzz.lua`](tests/helpers/fuzz.lua), a seeded generator you
+can reuse in new specs. `make test` runs a few fixed seeds. To look for
+bugs, run many more, or replay the seed a failure names:
+
+```sh
+ORG_FUZZ_ITERATIONS=5000 make test SPEC="tests/spec/fuzz_parser_spec.lua tests/spec/fuzz_ops_spec.lua tests/spec/fuzz_merge_spec.lua"
+ORG_FUZZ_SEED=640 make test SPEC=tests/spec/fuzz_ops_spec.lua
+```
+
+A failure prints the input as a Lua table. Cut it down to the few lines
+that still fail and add it to `tests/spec/fuzz_regressions_spec.lua` with
+the fix.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.
