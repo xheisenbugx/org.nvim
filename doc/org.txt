@@ -3750,8 +3750,14 @@ of orgtbl-to-generic: :splice, :skip N (rows, hlines included), :skipcols
 (2 3), :hline, :sep, :hsep, :tstart :tend, :lstart :lend, :llstart :llend,
 :hlstart :hlend :hllstart :hllend, :lfmt :llfmt :hlfmt :hllfmt, :fmt :hfmt
 (a format or `(2 "$%s$" 4 "%s")`), :efmt (`"%s\\times10^{%s}"`), :raw. As in
-Emacs export, a column of recalculation marks, the `! ^ _ $ /` rows and
-cookie rows are dropped. From Lua, the format parameters may be functions:
+Emacs export, a column of recalculation marks is dropped, and so are the
+`! ^ _ $ /` rows and cookie rows, except by the translators without a
+backend (tsv, csv, generic: Emacs exports them with the Org backend, which
+keeps special rows). The latex, html and texinfo translators transcode
+cells with the matching exporter (links, entities, LaTeX fragments,
+sub/superscripts), and align columns like the export: the last
+alignment cookie, else by the share of numbers among all transcoded cells.
+From Lua, the format parameters may be functions:
 `require("org.table.orgtbl").translate("orgtbl-to-generic", rows, {...})`;
 a global Lua function can be used as a translator by name.
 
@@ -6657,9 +6663,8 @@ Differences from Emacs:
   columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
-  needs gnuplot.el). Translators convert Org markup in cells with a
-  simplified exporter (orgtbl-to-unicode: verbatim, links and entities
-  only).
+  needs gnuplot.el). orgtbl-to-unicode converts Org markup in cells
+  with a simplified exporter (verbatim, links and entities only).
 - Clocking (|org-clock|): the idle time comes from the system on macOS
   (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
   own input, so time spent in other applications counts as idle there.
