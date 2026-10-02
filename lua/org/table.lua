@@ -67,6 +67,10 @@ function M.parse(lines)
       t.ncols = math.max(t.ncols, #cells)
     end
   end
+  if t.ncols == 0 and lines[1] then
+    -- only hlines: as many columns as the first one has (org-table-align)
+    t.ncols = select(2, lines[1]:gsub("%+", "")) + 1
+  end
   t.ncols = math.max(t.ncols, 1)
   return t
 end
