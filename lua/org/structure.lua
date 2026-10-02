@@ -1030,7 +1030,14 @@ local function change_level(hl, file, delta, subtree)
   local pos = cursor()
   set_lines(bufnr, s, e, new)
   local l = vim.api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
-  vim.api.nvim_win_set_cursor(0, { pos[1], math.max(0, math.min(pos[2] + delta, #l)) })
+  -- keep the cursor on its character: a headline changes by its stars, a
+  -- body line by its re-indentation (if any)
+  local shift = 0
+  if pos[1] >= s and pos[1] <= e then
+    local old = lines[pos[1] - s + 1]
+    shift = parser.headline_level(old) and delta or #l - #old
+  end
+  vim.api.nvim_win_set_cursor(0, { pos[1], math.max(0, math.min(pos[2] + shift, #l)) })
 end
 
 local function headline_for_level_change()
