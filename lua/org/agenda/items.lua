@@ -523,6 +523,17 @@ local function int(v)
   return type(v) == "number" and v or nil
 end
 
+--- org-get-wdays for a deadline: a `deadline_warning_days` of 0 or less is
+--- enforced as its absolute value, over any -Nd cookie; else the cookie,
+--- else the option.
+local function deadline_wdays(ts, tv)
+  tv = tv or 14
+  if tv <= 0 then
+    return -tv
+  end
+  return date.warning_days(ts, tv)
+end
+
 local SOURCE_RANK = {
   deadline = 1,
   ["upcoming-deadline"] = 1,
@@ -581,6 +592,9 @@ function M.agenda(files, from, to, opts)
   local inactive_leader = acfg.inactive_leader or "["
   local dl_past_days = acfg.deadline_past_days or 10000
   local sc_past_days = acfg.scheduled_past_days or 10000
+  -- org-agenda-get-blocks binds org-agenda-default-appointment-duration
+  -- to nil: a range's first and last days show only their own time
+  local block_acfg = vim.tbl_extend("force", acfg, { default_appointment_duration = false })
   local sexp_mod
 
   -- sexps are parsed once; a bad one is reported once per session and
@@ -708,7 +722,7 @@ function M.agenda(files, from, to, opts)
     if dl and dl.active ~= false and dl_type then
       local base = prefers_last(acfg, hl.todo) and last_occ(dl, today) or dl:days()
       local wdays = acfg.deadline_warning_days or cfg.deadline_warning_days
-      local warn = date.warning_days(dl, wdays)
+      local warn = deadline_wdays(dl, wdays)
       local skip_pre = acfg.skip_deadline_prewarning_if_scheduled
       local sched = hl.planning.scheduled
       if skip_pre and sched then
@@ -924,12 +938,12 @@ function M.agenda(files, from, to, opts)
               set_time(
                 item,
                 ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min }) or ts,
-                acfg
+                block_acfg
               )
             elseif d == a then
-              set_time(item, ts, acfg)
+              set_time(item, ts, block_acfg)
             elseif d == b then
-              set_time(item, ts.range_end, acfg)
+              set_time(item, ts.range_end, block_acfg)
             end
             add(d, item)
           end
@@ -1074,7 +1088,7 @@ function M.agenda(files, from, to, opts)
                       face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
                       inactive = true,
                     })
-                    set_time(item, d == a and ts or (d == b and ts.range_end) or nil, acfg)
+                    set_time(item, d == a and ts or (d == b and ts.range_end) or nil, block_acfg)
                     add(d, item)
                   end
                 else
@@ -1317,7 +1331,7 @@ local function ignored_by_date(hl, acfg, today)
     local diff = to_now(dl)
     local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
     -- org-deadline-close-p always compares days
-    local close = dl:days() - today <= date.warning_days(dl, wdays) and not hl:is_done()
+    local close = dl:days() - today <= deadline_wdays(dl, wdays) and not hl:is_done()
     if id == "all" then
       return true
     elseif id == "far" then
@@ -1391,6 +1405,10 @@ function M.todo(files, keywords, opts)
       return
     end
     if ignored_by_date(hl, acfg, today) then
+      -- org-agenda-get-todos skips the subtree of an ignored entry too
+      if acfg.todo_list_sublevels == false then
+        skip_below = hl
+      end
       return
     end
     local item = new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil })

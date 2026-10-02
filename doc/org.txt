@@ -5803,7 +5803,7 @@ Structure and visibility ~
   footnote_fill_after_inline_note_extraction  false  normalizing refills
                                       the paragraphs of inline notes
                                       (at `textwidth`, 70 when 0)
-  deadline_warning_days     14
+  deadline_warning_days     14        0 or negative = also over -Nd cookies
   scheduled_delay_days      0         negative = also over -Nd cookies
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
