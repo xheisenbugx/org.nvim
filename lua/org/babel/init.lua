@@ -198,7 +198,9 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
     local nw = noweb_for(args, purpose or "eval")
     local body = b.body
     if nw then
-      body = M.expand_noweb(bufnr, b.body, depth + 1, nw == "strip" and "strip" or nil, args, purpose)
+      -- like org-babel-expand-noweb-references, an included block is
+      -- expanded: only the block being tangled or exported strips
+      body = M.expand_noweb(bufnr, b.body, depth + 1, nil, args, purpose)
     end
     -- like Emacs, a link comment points at the referenced block the first
     -- time it is looked up, then (from its reference cache) at the block
@@ -317,10 +319,8 @@ function M.expand_noweb(bufnr, body, depth, mode, args, purpose)
         parts[#parts + 1] = line:sub(pos, s - 1)
         pos = e + 1
       end
-      local stripped = table.concat(parts)
-      if not stripped:match("^%s*$") then
-        out[#out + 1] = stripped
-      end
+      -- the line stays, like replace-regexp-in-string in ob-tangle
+      out[#out + 1] = table.concat(parts)
     else
       local built = { "" }
       local pos = 1

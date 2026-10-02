@@ -36,3 +36,49 @@ describe("babel sql engines", function()
     end
   end)
 end)
+
+describe("babel noweb strip-tangle", function()
+  local function tangled(lines)
+    local buf = org_buffer(lines)
+    local groups, order = require("org.babel.tangle").collect(buf, {})
+    return groups[order[1]][1].body
+  end
+
+  it("removes the reference but keeps its line, like Emacs", function()
+    eq(
+      "echo a\n\necho b",
+      tangled({
+        "#+NAME: foo",
+        "#+begin_src sh",
+        "echo foo",
+        "#+end_src",
+        "",
+        "#+begin_src sh :tangle /tmp/org-strip.sh :noweb strip-tangle",
+        "echo a",
+        "<<foo>>",
+        "echo b",
+        "#+end_src",
+      })
+    )
+  end)
+
+  it("expands the references of a strip-tangle block included by another", function()
+    eq(
+      "echo in\necho foo",
+      tangled({
+        "#+NAME: foo",
+        "#+begin_src sh",
+        "echo foo",
+        "#+end_src",
+        "#+NAME: inner",
+        "#+begin_src sh :noweb strip-tangle",
+        "echo in",
+        "<<foo>>",
+        "#+end_src",
+        "#+begin_src sh :tangle /tmp/org-strip.sh :noweb yes",
+        "<<inner>>",
+        "#+end_src",
+      })
+    )
+  end)
+end)
