@@ -908,7 +908,8 @@ function M.parse_bibtex(content)
     end
     do
       skip_ws()
-      local key = content:match("^[^%s,]+", pos) or ""
+      -- the key ends at a comma or, in a field-less entry, the delimiter
+      local key = content:match(close == "}" and "^[^%s,}]+" or "^[^%s,)]+", pos) or ""
       pos = pos + #key
       local entry = { { "id", key }, { "type", etype } }
       while pos <= n do

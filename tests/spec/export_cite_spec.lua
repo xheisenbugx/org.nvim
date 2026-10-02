@@ -157,4 +157,23 @@ describe("citations helpers", function()
     eq(cite.basic.number_to_suffix(25), "z")
     eq(cite.basic.number_to_suffix(26), "aa")
   end)
+
+  it("parses a BibTeX entry without fields without swallowing the next one", function()
+    local text = table.concat({
+      "@misc{solo}",
+      "@book{k2, title = {A {Nested} title}, year = 2020}",
+      "@misc(paren)",
+    }, "\n")
+    local entries = cite.parse_bibtex(text)
+    eq({ { "id", "solo" }, { "type", "misc" } }, entries.solo)
+    eq({ { "id", "k2" }, { "type", "book" }, { "title", "A {Nested} title" }, { "year", "2020" } }, entries.k2)
+    eq({ { "id", "paren" }, { "type", "misc" } }, entries.paren)
+    local parsed = require("org.bibtex").parse_text(text)
+    eq(
+      { "solo", "k2", "paren" },
+      vim.tbl_map(function(e)
+        return e.key
+      end, parsed)
+    )
+  end)
 end)

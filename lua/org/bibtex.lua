@@ -530,7 +530,7 @@ local function parse_entry_at(text, at)
   end
   local pos = p + 1
   local key
-  key, pos = text:match("^[ \t\n]*([^%s,]*)[ \t\n]*()", pos)
+  key, pos = text:match(close == "}" and "^[ \t\n]*([^%s,}]*)[ \t\n]*()" or "^[ \t\n]*([^%s,)]*)[ \t\n]*()", pos)
   local entry = { type = etype, key = key, fields = {} }
   local n = #text
   while pos <= n do
