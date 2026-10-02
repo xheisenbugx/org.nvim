@@ -37,6 +37,37 @@ describe("babel sql engines", function()
   end)
 end)
 
+describe("babel noweb cache", function()
+  it("sees edits made between and during cached expansions", function()
+    local buf = org_buffer({
+      "#+NAME: foo",
+      "#+begin_src sh",
+      "echo one",
+      "#+end_src",
+    })
+    eq({ "echo one" }, babel.expand_noweb(buf, { "<<foo>>" }))
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "echo two" })
+    eq({ "echo two" }, babel.expand_noweb(buf, { "<<foo>>" }))
+    babel.with_noweb_cache(function()
+      eq({ "echo two" }, babel.expand_noweb(buf, { "<<foo>>" }))
+      vim.api.nvim_buf_set_lines(buf, 2, 3, false, { "echo three" })
+      eq({ "echo three" }, babel.expand_noweb(buf, { "<<foo>>" }))
+    end)
+  end)
+
+  it("finds the named results of every block in one parse", function()
+    local lines = {}
+    for i = 1, 3 do
+      vim.list_extend(lines, { "#+NAME: b" .. i, "#+begin_src sh", "echo", "#+end_src", "text" })
+    end
+    vim.list_extend(lines, { "#+RESULTS: b3", ": 3", "#+RESULTS: b1", ": 1", "#+results: b1", ": dup" })
+    local list = blocks.parse_blocks(lines)
+    eq(18, list[1].results.start)
+    eq(nil, list[2].results)
+    eq(16, list[3].results.start)
+  end)
+end)
+
 describe("babel noweb strip-tangle", function()
   local function tangled(lines)
     local buf = org_buffer(lines)

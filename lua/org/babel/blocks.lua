@@ -609,6 +609,20 @@ function M.parse_blocks(lines)
   local blocks = {}
   local n = #lines
   local i = 1
+  -- line of the first `#+RESULTS: name` of each name, indexed on first use
+  local index
+  local function named_results(name)
+    if not index then
+      index = {}
+      for x = 1, n do
+        local nm = lines[x]:find("#+", 1, true) and match_results(lines[x])
+        if nm and not index[nm] then
+          index[nm] = x
+        end
+      end
+    end
+    return index[name]
+  end
   while i <= n do
     local line = lines[i]
     local indent, rest = line:match("^(%s*)#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc](.*)$")
@@ -658,12 +672,10 @@ function M.parse_blocks(lines)
       if rname and (rname == "" or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
-        for x = 1, n do
+        local x = named_results(block.name)
+        if x then
           local nm, h = match_results(lines[x])
-          if nm and nm == block.name then
-            block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
-            break
-          end
+          block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
         end
       end
       blocks[#blocks + 1] = block
@@ -709,12 +721,10 @@ function M.parse_blocks(lines)
       if rname and (rname == "" or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
-        for x = 1, n do
+        local x = named_results(block.name)
+        if x then
           local nm, h = match_results(lines[x])
-          if nm and nm == block.name then
-            block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
-            break
-          end
+          block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
         end
       end
       blocks[#blocks + 1] = block

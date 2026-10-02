@@ -230,7 +230,7 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   -- a block named `ref` is unique
   for _, b in ipairs(ctx.all) do
     if not b.call and b.name == ref and not in_commented(ctx.file, b.start) then
-      return body_of(b, blocks_mod.header_args(b, ctx.file), true)
+      return body_of(b, ctx.header_args(b), true)
     end
   end
   local lob = M.library[ref]
@@ -241,7 +241,7 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   local text
   for _, b in ipairs(ctx.all) do
     if not b.call and not in_commented(ctx.file, b.start) then
-      local args = blocks_mod.header_args(b, ctx.file)
+      local args = ctx.header_args(b)
       if blocks_mod.unquote(args["noweb-ref"]) == ref then
         local chunk = table.concat(body_of(b, args), "\n")
         if text then
@@ -293,15 +293,63 @@ local function find_noweb(line, pos)
 end
 M.find_noweb = find_noweb
 
+-- The parsed blocks (and their header args) of a buffer, shared by the
+-- noweb expansions of one operation while the buffer is unchanged, like
+-- Emacs' org-babel-expand-noweb-references--cache.
+local noweb_scope, noweb_cache = 0, nil
+
+local function noweb_ctx(bufnr)
+  local tick = type(bufnr) == "number" and vim.api.nvim_buf_get_changedtick(bufnr) or nil
+  local c = noweb_cache
+  if c and c.bufnr == bufnr and c.tick == tick then
+    return c.ctx
+  end
+  local lines = buf_lines(bufnr)
+  local file = get_file(bufnr)
+  local ctx = { lines = lines, all = blocks_mod.parse_blocks(lines), file = file, args = {} }
+  function ctx.header_args(b)
+    local a = ctx.args[b]
+    if not a then
+      a = blocks_mod.header_args(b, file)
+      ctx.args[b] = a
+    end
+    return a
+  end
+  if noweb_scope > 0 then
+    noweb_cache = { bufnr = bufnr, tick = tick, ctx = ctx }
+  end
+  return ctx
+end
+
+--- Run `fn(...)` with the noweb cache enabled: the noweb expansions it
+--- makes share one parse of the buffer (tangling every block of a file).
+function M.with_noweb_cache(fn, ...)
+  noweb_scope = noweb_scope + 1
+  local res = vim.F.pack_len(pcall(fn, ...))
+  noweb_scope = noweb_scope - 1
+  if noweb_scope == 0 then
+    noweb_cache = nil
+  end
+  if not res[1] then
+    error(res[2], 0)
+  end
+  return unpack(res, 2, res.n)
+end
+
+local expand_noweb
+
 --- Expand <<ref>> references in body lines. `mode` "strip" removes them.
 --- `args` are the header args of the expanded block (:noweb-prefix).
 function M.expand_noweb(bufnr, body, depth, mode, args, purpose)
+  return M.with_noweb_cache(expand_noweb, bufnr, body, depth, mode, args, purpose)
+end
+
+expand_noweb = function(bufnr, body, depth, mode, args, purpose)
   depth = depth or 0
   if depth > 20 then
     error("noweb: reference depth exceeded")
   end
-  local lines = buf_lines(bufnr)
-  local ctx = { lines = lines, all = blocks_mod.parse_blocks(lines), file = get_file(bufnr) }
+  local ctx = noweb_ctx(bufnr)
   local prefix_opt = args and args["noweb-prefix"]
   local use_prefix = not (prefix_opt == "no" or prefix_opt == "nil")
   local out = {}

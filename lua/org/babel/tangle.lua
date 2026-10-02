@@ -300,6 +300,11 @@ end
 --- order (org-babel-tangle-collect-blocks).
 ---@param opts { only_line?: integer, tangle_file?: string, lang_re?: string, target?: string }
 function M.collect(bufnr, opts)
+  -- the noweb expansions of all the blocks share one parse of the buffer
+  return babel().with_noweb_cache(M._collect, bufnr, opts)
+end
+
+function M._collect(bufnr, opts)
   local lines = babel().buf_lines(bufnr)
   local file = babel().get_file(bufnr)
   local groups, order = {}, {}
