@@ -657,6 +657,7 @@ function M.stack_show()
     map("g", M.stack_refresh)
     map("<Space>", "j")
     map("q", "<Cmd>close<CR>")
+    map("<Esc>", "<Cmd>close<CR>")
   end
   local win = vim.fn.bufwinid(buf)
   if win == -1 then
@@ -1270,12 +1271,16 @@ local function expert_menu(items, state)
     if not first then
       keys[#keys + 1] = "?"
     end
-    keys[#keys + 1] = "q"
+    -- q quits unless an entry (a user's backend key) takes it
+    local q_quits = require("org.ui").q_quits(level)
+    if q_quits then
+      keys[#keys + 1] = "q"
+    end
     chunks[#chunks + 1] = { ") [" .. table.concat(keys) .. "]: ", "Question" }
     vim.api.nvim_echo(chunks, false, {})
     local ok, ch = pcall(vim.fn.getcharstr)
     vim.api.nvim_echo({ { "" } }, false, {})
-    if not ok or ch == "\27" or ch == "\3" or ch == "q" then
+    if not ok or ch == "\27" or ch == "\3" or (ch == "q" and q_quits) then
       if ch == "q" and first then
         level, first = items, nil
       else

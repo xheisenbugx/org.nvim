@@ -58,7 +58,7 @@ M.defaults = {
     prev_day = "k",
     agenda = "<CR>",
     refresh = "r",
-    quit = "<Esc>",
+    quit = { "<Esc>", "q" },
   },
 }
 

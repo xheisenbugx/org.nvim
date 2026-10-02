@@ -480,7 +480,7 @@ function M.pick(opts)
   while true do
     draw()
     local ok, ch = pcall(vim.fn.getcharstr)
-    if not ok or ch == "\27" or ch == "\3" or ch == "q" then
+    if not ok or ch == "\27" or ch == "\3" or (ch == "q" and ch ~= cal.agenda and ch ~= cal.diary) then
       return finish(nil)
     end
     if ch == cal.agenda or ch == cal.diary then

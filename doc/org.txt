@@ -413,6 +413,7 @@ g{              Parent headline.
                                  search; <CR> ends it, <CR> again jumps)
                                  with `goto_auto_isearch`; otherwise
                                  n p f b u move and q quits.
+                  <C-g> <Esc>    quit
                 With "outline-path-completion": pick a headline by its
                 outline path (|vim.ui.select()|), down to
                 `goto_max_level`. A count uses the other interface.
@@ -6424,7 +6425,12 @@ Commands that ask for one key (the export dispatcher, the agenda
 dispatcher, capture templates, sorting, …) show a floating menu: each row
 is a key, then what it does; a toggle's value is shown on the right ("on"
 in green, "off" dimmed) and `›` marks a submenu. Press a key to choose,
-<BS> to go back from a submenu, <Esc> to quit.
+<BS> to go back from a submenu, <Esc> to quit. `q` quits too, unless an
+entry of the menu uses it as its key: a TODO keyword, tag, capture
+template, agenda command or export backend you gave the key `q` is chosen
+with it, and only <Esc> quits that menu. The same holds for the expert
+export prompt, the agenda's tag filter, the attachment prompt and the date
+prompt's calendar keys. A choice list closes with `q` or <Esc>.
                                                            *org-choice-list*
 Commands that ask for one of a fixed set of values (Emacs's
 completing-read) show a floating list instead: the table export format
@@ -7452,7 +7458,7 @@ Keys in the slide buffer (actions after the arrow) ~
   <C-c><C-1>  1            toggle one big page  -> `present_toggle_one_big_page`
   <C-c><C-=>  +  =         bigger font          -> `present_big`
   <C-c><C-->  -            reset the font       -> `present_small`
-  <C-c><C-q>  <Esc>        quit                 -> `present_quit`
+  <C-c><C-q>  <Esc>  q     quit                 -> `present_quit`
   <C-c><C-r>               toggle editing       -> `present_toggle_read_only`
 
 The single-letter keys are only mapped while the slides are read-only.
@@ -7937,7 +7943,7 @@ Keys in the review window ~
   i            answer the question under the cursor
   R            refresh (collect the step's entries again)
   F            finish                         -> `review_finish`
-  <Esc>        pause                          -> `review_quit`
+  <Esc>  q     pause                          -> `review_quit`
 Change them with `keys` (a key, a list, or false for none).
 
 The entries are read from the agenda files, and every change is saved to
@@ -9546,8 +9552,10 @@ The `query` option takes any org-ql query, plain syntax included.
 
 COMMENT and ARCHIVE subtrees are left out, as in the agenda. The views are
 scratch buffers; <CR> opens the heading in the window the view was opened
-from (floats and tabs close first), and <Esc> closes them (`q` is left
-alone). `:Org kanban`, `:Org timeline` and `:Org heatmap` complete their
+from (floats and tabs close first), and <Esc> or `q` closes them. A key
+in a list of alternatives, like `q` in the default `quit = { "<Esc>", "q" }`,
+gives way to any other key that uses it, so setting `refresh = "q"` keeps
+`q` for refreshing. `:Org kanban`, `:Org timeline` and `:Org heatmap` complete their
 arguments: the sources, org files, zooms or kinds, and the tags of the
 agenda files. A word is a file when it ends in `.org`, starts with `~`, `.`
 or `/`, has a glob character or names an existing path; anything else is
@@ -9608,7 +9616,7 @@ Keys in the board ~
   <CR>      open the heading
   /         filter (empty clears it)
   r         refresh
-  <Esc>     quit
+  <Esc> q   quit
 
 The cursor can also be moved onto a card with any motion or the mouse. The
 board redraws itself when an org file is written, when one of its files is
@@ -9695,7 +9703,7 @@ Keys ~
             (as `C-c C-s` / `C-c C-d`)
   c         show or hide clocked days
   r         refresh
-  <Esc>     quit
+  <Esc> q   quit
 
 Options (defaults) ~
   `source`, `query`, `tag`   "agenda", nil, nil
@@ -9771,7 +9779,7 @@ Keys ~
   k / j     previous / next day
   <CR>      the agenda of that day (a split heatmap stays open)
   r         refresh
-  <Esc>     quit
+  <Esc> q   quit
 
 Options (defaults) ~
   `kind`          "clock"
@@ -9844,7 +9852,7 @@ Options (defaults) ~
   `icons`          { clock = "◷", next = "»", today = "▣", habits = "↻",
                    inbox = "✉", deadline = "◆", scheduled = "▸",
                    event = "◇" }
-  `keys`           { jump = "<CR>", refresh = "r", close = "<Esc>" }
+  `keys`           { jump = "<CR>", refresh = "r", close = { "<Esc>", "q" } }
 
 Highlight groups: `OrgSidebarTitle`, `OrgSidebarDate`, `OrgSidebarSection`,
 `OrgSidebarCount`, `OrgSidebarTime`, `OrgSidebarPast`, `OrgSidebarText`,

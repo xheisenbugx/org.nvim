@@ -678,6 +678,37 @@ end
 -- Keys and refreshing
 ---------------------------------------------------------------------------
 
+--- The keys bound to `name` in a `keys` option (name -> lhs, list of lhs
+--- or false). An alternative in a list gives way to a key another name
+--- (in `keys` or the `also` tables) uses, so a default
+--- `quit = { "<Esc>", "q" }` never takes a `q` the user gave another key.
+---@param keys table<string, string|string[]|false>
+---@param name string
+---@param ... table<string, string|string[]|false> more key tables to check
+---@return string[]
+function M.lhs(keys, name, ...)
+  local lhs = keys and keys[name]
+  if not lhs then
+    return {}
+  end
+  if type(lhs) ~= "table" then
+    return { lhs }
+  end
+  local taken = {}
+  for _, set in ipairs({ keys, ... }) do
+    for other, v in pairs(set or {}) do
+      if v and not (set == keys and other == name) then
+        for _, l in ipairs(type(v) == "table" and v or { v }) do
+          taken[l] = true
+        end
+      end
+    end
+  end
+  return vim.tbl_filter(function(l)
+    return not taken[l]
+  end, lhs)
+end
+
 --- Map buffer keys from a `keys` option (name -> lhs, list of lhs or
 --- false) to `handlers[name]`. Handlers run as org actions (in a
 --- coroutine, so they may prompt).
@@ -689,7 +720,7 @@ function M.map(buf, keys, handlers, label)
   for name, lhs in pairs(keys or {}) do
     local fn = handlers[name]
     if fn and lhs then
-      for _, l in ipairs(type(lhs) == "table" and lhs or { lhs }) do
+      for _, l in ipairs(M.lhs(keys, name)) do
         vim.keymap.set("n", l, function()
           utils.run(fn)
         end, { buffer = buf, nowait = true, silent = true, desc = label .. ": " .. name:gsub("_", " ") })

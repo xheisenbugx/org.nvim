@@ -78,7 +78,7 @@ M.defaults = {
     reveal = { "<Space>", "<CR>" },
     skip = "s",
     edit = "e",
-    quit = "<Esc>",
+    quit = { "<Esc>", "q" },
   },
 }
 
@@ -499,16 +499,18 @@ local function map_keys(s)
     end
   end
   local keys = o.keys or {}
-  map(keys.reveal, function()
+  local views = require("org.extensions.views_util")
+  local grades = { grade = { "0", "1", "2", "3", "4", "5" } }
+  map(views.lhs(keys, "reveal", grades), function()
     M.reveal()
   end)
-  map(keys.skip, function()
+  map(views.lhs(keys, "skip", grades), function()
     M.skip()
   end)
-  map(keys.edit, function()
+  map(views.lhs(keys, "edit", grades), function()
     M.edit()
   end)
-  map(keys.quit, function()
+  map(views.lhs(keys, "quit", grades), function()
     M.quit()
   end)
   for q = 0, 5 do

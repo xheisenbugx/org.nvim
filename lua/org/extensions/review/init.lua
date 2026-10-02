@@ -74,7 +74,7 @@ M.defaults = {
     note = "i",
     refresh = "R",
     finish = "F",
-    quit = "<Esc>",
+    quit = { "<Esc>", "q" },
   },
 }
 
@@ -552,10 +552,11 @@ local function map_keys(buf)
     finish = M.finish,
     quit = M.quit,
   }
+  -- a key the current step binds (`step.keys`) is the step's
+  local step_lhs = vim.tbl_keys((current() or {}).keys or {})
   for name, fn in pairs(fns) do
-    local lhs = keys[name]
-    if lhs then
-      for _, k in ipairs(type(lhs) == "table" and lhs or { lhs }) do
+    if keys[name] then
+      for _, k in ipairs(require("org.extensions.views_util").lhs(keys, name, { step = step_lhs })) do
         vim.keymap.set("n", k, function()
           utils.run(fn)
         end, { buffer = buf, nowait = true, desc = "org review: " .. name })
@@ -571,6 +572,8 @@ local function map_step_keys()
     pcall(vim.keymap.del, "n", lhs, { buffer = s.buf })
   end
   s.step_keys = {}
+  -- give back the review keys the previous step's keys covered
+  map_keys(s.buf)
   local step = current()
   for lhs, fn in pairs(step.keys or {}) do
     s.step_keys[#s.step_keys + 1] = lhs

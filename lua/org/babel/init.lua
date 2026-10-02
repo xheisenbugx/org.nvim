@@ -3283,7 +3283,9 @@ local function show_scratch(lines, ft, name)
     vim.bo[buf].filetype = ft
   end
   pcall(vim.api.nvim_buf_set_name, buf, name .. " #" .. buf)
-  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, nowait = true })
+  for _, lhs in ipairs({ "q", "<Esc>" }) do
+    vim.keymap.set("n", lhs, "<cmd>close<cr>", { buffer = buf, nowait = true })
+  end
   return buf
 end
 
