@@ -1,4 +1,5 @@
 local structure = require("org.structure")
+local config = require("org.config")
 
 local function cur()
   return vim.api.nvim_win_get_cursor(0)
@@ -63,6 +64,23 @@ describe("structure: inserting headings", function()
     eq({ "* A", "", "* B", "text", "", "* " }, buf_lines(buf))
   end)
 
+  -- Emacs org-back-to-heading and org-end-of-subtree search with limited
+  -- levels: an inline task above point is not the current entry
+  it("M-RET after an inline task uses the entry's level", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local lines = { "* A", "***** TODO x", "***** END", "text", "* B" }
+    local buf = org_buffer(lines, { 4, 0 })
+    structure.meta_return_heading({ respect_content = true })
+    local got1 = buf_lines(buf)
+    buf = org_buffer(lines, { 4, 0 })
+    structure.meta_return_heading({ pos = { 4, 4 } })
+    local got2 = buf_lines(buf)
+    config.opts.inlinetask_min_level = saved
+    eq({ "* A", "***** TODO x", "***** END", "text", "* ", "* B" }, got1)
+    eq({ "* A", "***** TODO x", "***** END", "text", "* ", "* B" }, got2)
+  end)
+
   -- Emacs org-insert-subheading: a headline below the current line, demoted
   it("inserts subheading below the headline", function()
     local buf = org_buffer({ "* A", "body", "** old" }, { 1, 0 })
@@ -91,6 +109,62 @@ describe("structure: promote/demote", function()
     structure.promote_heading()
     eq({ "* A" }, buf_lines(buf))
   end)
+  -- Emacs org-promote/org-demote only touch the stars: point in the body
+  -- stays on its character
+  it("keeps the cursor column in an unchanged body line", function()
+    local buf = org_buffer({ "* A", "body text" }, { 2, 3 })
+    structure.demote_subtree()
+    eq({ "** A", "body text" }, buf_lines(buf))
+    eq({ 2, 3 }, cur())
+    structure.promote_subtree()
+    eq({ 2, 3 }, cur())
+    org_buffer({ "* Title", "body" }, { 1, 3 })
+    structure.demote_heading()
+    eq({ 1, 4 }, cur())
+  end)
+  -- Emacs org-demote-subtree maps over the tree with limited levels:
+  -- inline tasks keep their level
+  it("leaves inline tasks alone when demoting a subtree", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local buf = org_buffer({ "* A", "***** TODO x", "***** END", "** B" }, { 1, 0 })
+    structure.demote_subtree()
+    eq({ "** A", "***** TODO x", "***** END", "*** B" }, buf_lines(buf))
+    -- not indented as body text either
+    local saved_adapt = config.opts.adapt_indentation
+    config.opts.adapt_indentation = true
+    buf = org_buffer({ "* A", "text", "***** TODO x", "***** END" }, { 1, 0 })
+    structure.demote_subtree()
+    config.opts.adapt_indentation = saved_adapt
+    config.opts.inlinetask_min_level = saved
+    eq({ "** A", " text", "***** TODO x", "***** END" }, buf_lines(buf))
+  end)
+  -- Emacs org-cycle-level steps by org-level-increment
+  it("cycle_level with odd levels only", function()
+    local saved = config.opts.odd_levels_only
+    config.opts.odd_levels_only = true
+    local buf = org_buffer({ "* A", "*** B", "*** " }, { 3, 4 })
+    local seen = {}
+    for _ = 1, 4 do
+      structure.cycle_level()
+      seen[#seen + 1] = buf_lines(buf)[3]
+    end
+    config.opts.odd_levels_only = saved
+    eq({ "***** ", "* ", "*** ", "***** " }, seen)
+  end)
+  it("cycle_level", function()
+    local buf = org_buffer({ "* A", "** B", "** " }, { 3, 3 })
+    local seen = {}
+    for _ = 1, 4 do
+      structure.cycle_level()
+      seen[#seen + 1] = buf_lines(buf)[3]
+    end
+    eq({ "*** ", "* ", "** ", "*** " }, seen)
+    -- a sibling of a top-level headline becomes its child first
+    buf = org_buffer({ "* A", "* " }, { 2, 2 })
+    structure.cycle_level()
+    eq("** ", buf_lines(buf)[2])
+  end)
 end)
 
 describe("structure: moving and kill ring", function()
@@ -101,6 +175,47 @@ describe("structure: moving and kill ring", function()
     eq(1, cur()[1])
     structure.move_subtree_down()
     eq({ "* A", "a", "* B", "b", "** B1" }, buf_lines(buf))
+  end)
+
+  -- Emacs only moves the text: the visibility of other entries is kept
+  it("moving a subtree keeps the folds elsewhere", function()
+    local buf = org_buffer({ "* A", "a", "* B", "b", "* C", "c", "* D", "d", "** D1", "d1" }, { 1, 0 })
+    require("org.fold").overview()
+    vim.cmd("7foldopen")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    structure.move_subtree_down()
+    eq({ "* B", "b", "* A", "a", "* C", "c", "* D", "d", "** D1", "d1" }, buf_lines(buf))
+    eq(3, vim.fn.foldclosed(3)) -- the moved subtree stays folded
+    eq(-1, vim.fn.foldclosed(7)) -- D stays open
+    eq(9, vim.fn.foldclosed(9))
+    -- a closed child of the entry right after the insertion point
+    buf = org_buffer({ "* A", "a", "* B", "b", "* C", "c", "** C1", "c1" }, { 1, 0 })
+    require("org.fold").show_all()
+    vim.cmd("7foldclose")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    structure.move_subtree_down()
+    eq({ "* B", "b", "* A", "a", "* C", "c", "** C1", "c1" }, buf_lines(buf))
+    eq(7, vim.fn.foldclosed(7))
+    eq(-1, vim.fn.foldclosed(5))
+    structure.move_subtree_up()
+    eq({ "* A", "a", "* B", "b", "* C", "c", "** C1", "c1" }, buf_lines(buf))
+    eq(7, vim.fn.foldclosed(7))
+  end)
+
+  it("pasting a folded subtree keeps the folds elsewhere", function()
+    local buf = org_buffer({ "* A", "a", "* B", "b", "** B1", "b1" }, { 1, 0 })
+    require("org.fold").show_all()
+    vim.cmd("1foldclose")
+    vim.cmd("5foldclose")
+    with_stub(vim, "notify", function() end, function()
+      structure.copy_subtree()
+      vim.api.nvim_win_set_cursor(0, { 3, 0 })
+      structure.paste_subtree()
+    end)
+    eq({ "* A", "a", "* A", "a", "* B", "b", "** B1", "b1" }, buf_lines(buf))
+    eq(3, vim.fn.foldclosed(3)) -- pasted folded, like it was copied
+    eq(-1, vim.fn.foldclosed(6))
+    eq(7, vim.fn.foldclosed(7)) -- B1 stays closed
   end)
 
   -- Emacs org-paste-subtree: at the start of a headline, before it with
@@ -244,6 +359,32 @@ describe("structure: navigation and text objects", function()
     eq(6, cur()[1])
     structure.prev_heading()
     eq(5, cur()[1])
+  end)
+
+  it("sibling motions record the starting position in the jumplist", function()
+    local buf = org_buffer({ "* A", "x", "* B", "* C" }, { 2, 0 })
+    structure.next_sibling()
+    eq({ 3, 0 }, cur())
+    eq({ 2, 0 }, vim.api.nvim_buf_get_mark(buf, "'"))
+  end)
+
+  -- inline tasks are not part of the outline: no siblings, no crash
+  it("subtree commands on an inline task", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local lines2 = { "* A", "***** TODO x", "***** END", "* B" }
+    local buf = org_buffer(lines2, { 2, 0 })
+    local ok1, err1 = pcall(function()
+      with_stub(require("org.utils"), "warn", function() end, function()
+        structure.move_subtree_down()
+        structure.next_sibling()
+        structure.mark_subtree()
+      end)
+    end)
+    vim.cmd("normal! \27")
+    config.opts.inlinetask_min_level = saved
+    eq(true, ok1, err1)
+    eq(lines2, buf_lines(buf))
   end)
 
   it("selects subtree", function()

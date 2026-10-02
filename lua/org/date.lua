@@ -75,6 +75,16 @@ function M.days_in_month(y, m)
   return dim[m]
 end
 
+--- Copy of a repeater or warning (plain tables; faster than vim.deepcopy,
+--- which matters as dates are cloned a lot in the agenda).
+local function copy_spec(s)
+  local c = {}
+  for k, v in pairs(s) do
+    c[k] = type(v) == "table" and copy_spec(v) or v
+  end
+  return c
+end
+
 ---@return table
 function Date.new(t)
   t = t or {}
@@ -87,8 +97,8 @@ function Date.new(t)
     end_hour = t.end_hour,
     end_min = t.end_min,
     active = t.active ~= false,
-    repeater = t.repeater and vim.deepcopy(t.repeater) or nil,
-    warning = t.warning and vim.deepcopy(t.warning) or nil,
+    repeater = t.repeater and copy_spec(t.repeater) or nil,
+    warning = t.warning and copy_spec(t.warning) or nil,
     range_end = t.range_end,
   }, Date)
   if self.hour and not self.min then
@@ -100,7 +110,14 @@ end
 --- A new date from a day number (no time).
 function M.from_days(n, t)
   local y, m, d = M.civil_from_days(n)
-  local o = vim.tbl_extend("force", t or {}, { year = y, month = m, day = d })
+  local o = { year = y, month = m, day = d }
+  if t then
+    for k, v in pairs(t) do
+      if o[k] == nil then
+        o[k] = v
+      end
+    end
+  end
   return Date.new(o)
 end
 
@@ -623,45 +640,53 @@ end
 ---------------------------------------------------------------------------
 
 local UNIT = "[hdwmy]"
+local REPEATER = "^([%.%+]?%+)(%d+)(" .. UNIT .. ")(.*)$"
+local REPEATER_MAX = "^/(%d+)(" .. UNIT .. ")$"
+local WARNING = "^(%-%-?)(%d+)(" .. UNIT .. ")$"
 
---- Parse the inside of a timestamp (without brackets).
-local function parse_body(body, active)
-  local y, mo, d, rest = body:match("^%s*(%d%d%d%d)%-(%d%d?)%-(%d%d?)(.*)$")
-  if not y then
-    return nil
-  end
+--- A timestamp from its date fields (strings) and the text after the date.
+local function parse_fields(y, mo, d, rest, active)
   local ts = Date.new({ year = tonumber(y), month = tonumber(mo), day = tonumber(d), active = active })
   if ts.month < 1 or ts.month > 12 or ts.day < 1 or ts.day > 31 then
     return nil
   end
   for token in rest:gmatch("%S+") do
-    local h1, m1, h2, m2 = token:match("^(%d%d?):(%d%d)%-(%d%d?):(%d%d)$")
-    if h1 then
-      ts.hour, ts.min, ts.end_hour, ts.end_min = tonumber(h1), tonumber(m1), tonumber(h2), tonumber(m2)
-    else
-      local h, m = token:match("^(%d%d?):(%d%d)$")
-      if h then
-        ts.hour, ts.min = tonumber(h), tonumber(m)
+    -- dispatch on the first character: day names (in any language) and
+    -- other words are ignored without trying every pattern
+    local c = token:byte(1)
+    if c >= 48 and c <= 57 then -- a digit: a time or time range
+      local h1, m1, h2, m2 = token:match("^(%d%d?):(%d%d)%-(%d%d?):(%d%d)$")
+      if h1 then
+        ts.hour, ts.min, ts.end_hour, ts.end_min = tonumber(h1), tonumber(m1), tonumber(h2), tonumber(m2)
       else
-        local rtype, rval, runit, rest2 = token:match("^([%.%+]?%+)(%d+)(" .. UNIT .. ")(.*)$")
-        if rtype and (rtype == "+" or rtype == "++" or rtype == ".+") then
-          ts.repeater = { type = rtype, value = tonumber(rval), unit = runit }
-          local mv, mu = rest2:match("^/(%d+)(" .. UNIT .. ")$")
-          if mv then
-            ts.repeater.max = { value = tonumber(mv), unit = mu }
-          end
-        else
-          local wtype, wval, wunit = token:match("^(%-%-?)(%d+)(" .. UNIT .. ")$")
-          if wtype then
-            ts.warning = { type = wtype, value = tonumber(wval), unit = wunit }
-          end
-          -- anything else (day names, in any language) is ignored
+        local h, m = token:match("^(%d%d?):(%d%d)$")
+        if h then
+          ts.hour, ts.min = tonumber(h), tonumber(m)
         end
+      end
+    elseif c == 43 or c == 46 then -- "+" or ".": a repeater
+      local rtype, rval, runit, rest2 = token:match(REPEATER)
+      if rtype and (rtype == "+" or rtype == "++" or rtype == ".+") then
+        ts.repeater = { type = rtype, value = tonumber(rval), unit = runit }
+        local mv, mu = rest2:match(REPEATER_MAX)
+        if mv then
+          ts.repeater.max = { value = tonumber(mv), unit = mu }
+        end
+      end
+    elseif c == 45 then -- "-": a warning or delay
+      local wtype, wval, wunit = token:match(WARNING)
+      if wtype then
+        ts.warning = { type = wtype, value = tonumber(wval), unit = wunit }
       end
     end
   end
   return ts
 end
+
+-- `<` or `[`, the date (year, month, day), the rest, and `>` or `]`
+local STAMP = "([<%[])(%d%d%d%d)%-(%d%d?)%-(%d%d?)([^<>%[%]\n]-)([>%]])"
+local STAMP_AT = "^" .. STAMP
+local RANGE_END_AT = "^%-%-" .. STAMP
 
 --- Parse a single timestamp string like `<2026-09-23 Wed>` or `[2026-09-23]`.
 ---@return table|nil
@@ -673,6 +698,23 @@ function M.parse(str)
   return list[1] and list[1].date or nil
 end
 
+--- Where the next `<YYYY-` or `[YYYY-` at or after `init` starts. Plain
+--- searches for the dash and an anchored check are much faster than an
+--- unanchored pattern scan, and most lines have no timestamp.
+local function stamp_start(line, init)
+  local p = init + 5
+  while true do
+    p = line:find("-", p, true)
+    if not p then
+      return nil
+    end
+    if line:find("^[<%[]%d%d%d%d%-", p - 5) then
+      return p - 5
+    end
+    p = p + 1
+  end
+end
+
 --- Find every timestamp in a line.
 --- Returns list of { date, start_col, end_col (1-based, inclusive), raw }.
 --- `<a>--<b>` ranges yield one entry whose date has `range_end`.
@@ -680,19 +722,22 @@ function M.parse_all(line)
   local out = {}
   local init = 1
   while true do
-    local s, e, open, body, close = line:find("([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", init)
+    local s = stamp_start(line, init)
     if not s then
       break
     end
+    local _, e, open, y, mo, d, rest, close = line:find(STAMP_AT, s)
     local active = open == "<"
-    if (active and close == ">") or (not active and close == "]") then
-      local ts = parse_body(body, active)
+    if not e then
+      e = s
+    elseif (active and close == ">") or (not active and close == "]") then
+      local ts = parse_fields(y, mo, d, rest, active)
       if ts then
         local item = { date = ts, start_col = s, end_col = e, raw = line:sub(s, e) }
         -- range?
-        local rs, re, ropen, rbody, rclose = line:find("^%-%-([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", e + 1)
+        local rs, re, ropen, ry, rmo, rd, rrest, rclose = line:find(RANGE_END_AT, e + 1)
         if rs and ((ropen == "<" and rclose == ">") or (ropen == "[" and rclose == "]")) then
-          local ts2 = parse_body(rbody, ropen == "<")
+          local ts2 = parse_fields(ry, rmo, rd, rrest, ropen == "<")
           if ts2 then
             ts.range_end = ts2
             item.end_col = re
@@ -748,21 +793,30 @@ end
 -- Repeaters
 ---------------------------------------------------------------------------
 
---- Next occurrence for a repeated timestamp when marked DONE (org-auto-repeat-maybe).
+local next_repeat
+
+--- Next occurrence for a repeated timestamp when marked DONE
+--- (org-auto-repeat-maybe). Like Emacs, a `--N` delay is dropped from the
+--- shifted timestamp: it only postponed the first occurrence.
 ---@param ts table
 ---@param now? table defaults to M.now()
 ---@param today? table the day `.+` and `++` count from (default: org-today of `now`)
 function M.apply_repeater(ts, now, today)
   local r = ts.repeater
-  if not r then
+  if not r or r.value == 0 then
     return ts
   end
-  now = now or M.now()
+  local nxt = next_repeat(ts, now or M.now(), today)
+  if nxt.warning and nxt.warning.type == "--" then
+    nxt = nxt:clone({ warning = vim.NIL })
+  end
+  return nxt
+end
+
+function next_repeat(ts, now, today)
+  local r = ts.repeater
   local unit = r.unit
   local n = r.value
-  if n == 0 then
-    return ts
-  end
   -- day repeaters count from org-today (`extend_today_until`)
   today = today or M.from_days(math.floor((now:minutes() - extend_today_until() * 60) / 1440))
   if r.type == "+" then
@@ -812,22 +866,27 @@ function M.occurrences(ts, from_days, to_days)
     return out
   end
   local r = ts.repeater
-  local cur = ts
-  local start = cur:days()
+  local start = ts:days()
   if start > to_days then
     return out
   end
-  -- jump close to `from_days` for day/week units
-  if start < from_days and (r.unit == "d" or r.unit == "w") then
-    local step = r.unit == "w" and r.value * 7 or r.value
-    local skip = floor((from_days - start) / step)
-    if skip > 0 then
-      cur = cur:add(skip * step, "d")
+  -- jump to the last occurrence before `from_days`; occurrence k is always
+  -- computed from the start (no drift at month ends, like org-closest-date)
+  local k = 0
+  if start < from_days then
+    if r.unit == "d" or r.unit == "w" then
+      k = floor((from_days - start) / (r.unit == "w" and r.value * 7 or r.value))
+    elseif r.unit == "h" then
+      k = floor((from_days * 1440 - ts:minutes()) / (r.value * 60))
+    elseif r.unit == "m" or r.unit == "y" then
+      local from = M.from_days(from_days)
+      local months = (from.year - ts.year) * 12 + from.month - ts.month - 1
+      k = floor(months / (r.unit == "y" and r.value * 12 or r.value))
     end
+    k = math.max(k, 0)
   end
-  -- occurrence k is computed from the start (no drift at month ends,
-  -- like org-closest-date)
-  local base, k = cur, 0
+  local base = ts
+  local cur = k > 0 and base:add(k * r.value, r.unit) or base
   local guard = 0
   while cur:days() <= to_days and guard < 5000 do
     if cur:days() >= from_days then
@@ -849,6 +908,17 @@ function M.warning_days(ts, default)
     return floor(w.value * (mult[w.unit] or 1))
   end
   return default or 14
+end
+
+--- org-get-wdays for a deadline: a `deadline_warning_days` (`default`) of 0
+--- or less is enforced as its absolute value, over any -Nd cookie; else the
+--- cookie, else the option.
+function M.deadline_warning_days(ts, default)
+  default = default or 14
+  if default <= 0 then
+    return -default
+  end
+  return M.warning_days(ts, default)
 end
 
 ---------------------------------------------------------------------------

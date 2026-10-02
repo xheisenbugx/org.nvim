@@ -53,13 +53,11 @@ M.id_to_path = {
   end,
 }
 
+--- `dir` (a DIR property, an ID path) as an absolute path relative to
+--- `base`. utils.expand, not vim.fn.expand(), which runs `backticks` in
+--- document text as shell commands.
 local function absolute(dir, base)
-  -- expand() gives \ on Windows
-  dir = vim.fs.normalize(vim.fn.expand(dir))
-  if not utils.is_absolute(dir) then
-    dir = base .. "/" .. dir
-  end
-  return vim.fs.normalize(dir)
+  return utils.expand(dir, base)
 end
 
 --- The folder for `id` (org-attach-dir-from-id): the first folder given by
@@ -234,7 +232,7 @@ end
 ---@return string|nil description
 function M.attach_file(path, method, target)
   method = method or cfg().method or "cp"
-  path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(path), ":p")):gsub("/$", "")
+  path = utils.expand(path, vim.fn.getcwd()):gsub("/$", "")
   if not utils.exists(path) then
     utils.warn("No such file: " .. path)
     return nil

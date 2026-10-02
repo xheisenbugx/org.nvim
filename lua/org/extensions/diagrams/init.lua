@@ -253,12 +253,19 @@ function M.render_after_save(bufnr, on_done)
   nxt()
 end
 
+--- Is `name` a cache entry (render.cache_path: a sha256 and an optional
+--- extension)? Other files in `cache_dir` are never deleted: it may be
+--- set to a directory that holds more than the cache.
+local function cache_entry(name)
+  return name:match("^" .. string.rep("%x", 64) .. "%.?[%w]*$") ~= nil
+end
+
 --- Delete the cached diagrams.
 function M.clear_cache()
   local dir = require("org.utils").expand(opts().cache_dir)
   local n = 0
   for _, f in ipairs(vim.fn.glob(dir .. "/*", true, true)) do
-    if vim.fn.delete(f) == 0 then
+    if cache_entry(vim.fn.fnamemodify(f, ":t")) and vim.fn.delete(f) == 0 then
       n = n + 1
     end
   end
@@ -286,7 +293,7 @@ function M.prune_cache(max_age, max_size)
     if not name then
       break
     end
-    if kind == "file" then
+    if kind == "file" and cache_entry(name) then
       local path = dir .. "/" .. name
       local st = vim.uv.fs_stat(path)
       if st then

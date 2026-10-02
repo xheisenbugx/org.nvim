@@ -555,6 +555,26 @@ end
 
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
 --- `base` (default: org_directory).
+--- `path` with a leading ~ and $VAR / ${VAR} expanded and nothing else; a
+--- relative path stays relative. The safe replacement for vim.fn.expand()
+--- on document text, which runs `backticks` as shell commands.
+---@param path string
+---@return string
+function M.expand_vars(path)
+  if path == "~" or path:match("^~[/\\]") then
+    path = M.home() .. path:sub(2)
+  end
+  return (
+    path
+      :gsub("%${([%w_]+)}", function(v)
+        return vim.env[v] or ("${" .. v .. "}")
+      end)
+      :gsub("%$([%w_]+)", function(v)
+        return vim.env[v] or ("$" .. v)
+      end)
+  )
+end
+
 function M.expand(path, base)
   if not path or path == "" then
     return path
@@ -562,16 +582,7 @@ function M.expand(path, base)
   -- Never vim.fn.expand(): paths often come from document text (INCLUDE,
   -- :dir, :file, scopes), and Vim expansion evaluates `backticks` and
   -- interprets %, # and wildcards. Expand only ~ and environment variables.
-  if path == "~" or path:match("^~[/\\]") then
-    path = M.home() .. path:sub(2)
-  end
-  path = path
-    :gsub("%${([%w_]+)}", function(v)
-      return vim.env[v] or ("${" .. v .. "}")
-    end)
-    :gsub("%$([%w_]+)", function(v)
-      return vim.env[v] or ("$" .. v)
-    end)
+  path = M.expand_vars(path)
   if not M.is_absolute(path) then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path
@@ -601,6 +612,11 @@ function M.readfile(path)
   end
   local content = fd:read("*a")
   fd:close()
+  -- a UTF-8 byte order mark is not text (Vim's 'bomb', Emacs's
+  -- utf-8-with-signature): a file read from disk must parse like its buffer
+  if content:sub(1, 3) == "\239\187\191" then
+    content = content:sub(4)
+  end
   content = content:gsub("\r\n", "\n")
   local lines = vim.split(content, "\n", { plain = true })
   if lines[#lines] == "" then
@@ -620,6 +636,11 @@ function M.writefile(path, lines)
     fd:write("\n")
   end
   fd:close()
+  -- the cached parse of the file is stale even when its mtime is not
+  local files = package.loaded["org.files"]
+  if files then
+    files.invalidate(vim.fn.fnamemodify(path, ":p"))
+  end
 end
 
 function M.read_json(path)
@@ -827,6 +848,12 @@ end
 ---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    -- the write below skips BufWritePre, so crypt.encrypt_on_save is run
+    -- here: entries are encrypted, or nothing is written
+    local crypt = package.loaded["org.crypt"]
+    if crypt and vim.bo[bufnr].filetype == "org" and crypt.before_save(bufnr) == 0 then
+      return false, "org-crypt: encryption failed, buffer not written"
+    end
     local ok, err
     local write = function()
       vim.api.nvim_buf_call(bufnr, function()

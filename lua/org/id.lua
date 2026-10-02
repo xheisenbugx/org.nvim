@@ -171,6 +171,12 @@ local function load_db()
     if type(db) ~= "table" then
       db = {}
     end
+    -- a hand-edited or damaged file: keep only id -> file name entries
+    for k, v in pairs(db) do
+      if type(k) ~= "string" or type(v) ~= "string" then
+        db[k] = nil
+      end
+    end
   end
   return db
 end
@@ -384,30 +390,40 @@ end
 --- number of IDs found.
 function M.update_locations()
   local new = {}
-  local count = 0
+  local count, dups = 0, {}
+  local function add(id, filename)
+    if not id or not id:match("%S") then
+      return
+    end
+    if new[id] then
+      -- the first file scanned keeps the ID, as in Emacs
+      dups[#dups + 1] = id
+      return
+    end
+    count = count + 1
+    new[id] = filename
+  end
   for _, p in ipairs(M.files()) do
     local f = files.get(p)
     if f then
-      local fid = f.properties and f.properties.ID
-      if fid and fid ~= "" then
-        count = count + (new[fid] and 0 or 1)
-        new[fid] = f.filename or p
-      end
+      add(f.properties and f.properties.ID, f.filename or p)
       for _, hl in ipairs(f.headlines) do
-        local id = hl.properties.ID
-        if id then
-          if not new[id] then
-            count = count + 1
-          end
-          new[id] = f.filename or p
-        end
+        add(hl.properties.ID, f.filename or p)
       end
     end
   end
   db = new
   save_db()
+  if #dups > 0 then
+    local shown = vim.tbl_map(function(d)
+      return string.format("%q", d)
+    end, vim.list_slice(dups, 1, 10))
+    utils.warn(
+      string.format("%d duplicate IDs found: %s%s", #dups, table.concat(shown, ", "), #dups > 10 and ", ..." or "")
+    )
+  end
   utils.notify(string.format("%d IDs found", count))
-  return count
+  return count, dups
 end
 
 --- Locate an id. Returns { filename, lnum, headline } or nil.

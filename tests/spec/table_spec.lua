@@ -64,6 +64,10 @@ describe("table", function()
     eq({ "| d | c |", "| b | a |", "|---+---|" }, buf_lines(buf))
   end)
 
+  it("keeps the columns of a table made only of hlines (org-table-align)", function()
+    eq({ "|---+---|", "|---+---|" }, tbl.render(tbl.parse({ "|---+---|", "|-" })))
+  end)
+
   it("converts csv", function()
     eq({ "| a | b c |", "| 1 |  22 |" }, tbl.convert_lines({ 'a,"b c"', "1,22" }))
     eq({ "| x | y |", "| 1 | 2 |" }, tbl.convert_lines({ "x  y", "1 2" }))

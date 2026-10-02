@@ -61,8 +61,9 @@ describe("visibility: startup", function()
 
   it("keeps archived subtrees folded in SHOW ALL", function()
     org_buffer({ "* A", "a body", "* Old :ARCHIVE:", "old body", "* B", "b body" }, { 1, 0 })
-    fold.overview()
-    vim.b.org_global_cycle = "content"
+    fold.show_all()
+    fold.global_cycle() -- overview
+    fold.global_cycle() -- contents
     fold.global_cycle() -- show all
     eq(false, closed(2))
     eq(3, vim.fn.foldclosed(3))
@@ -71,6 +72,37 @@ describe("visibility: startup", function()
 end)
 
 describe("visibility: cycling", function()
+  -- Emacs reveals the outline only (org-fold-region ... 'outline): folded
+  -- blocks stay folded in SUBTREE, an opened one stays open
+  it("SUBTREE keeps the state of block folds", function()
+    org_buffer({
+      "* A",
+      "#+begin_src sh",
+      "ls",
+      "#+end_src",
+      "- item",
+      "  more",
+      "#+begin_example",
+      "x",
+      "#+end_example",
+      "** B",
+      "b",
+      "* C",
+    }, { 1, 0 })
+    fold.show_all()
+    fold.hide_block_all()
+    vim.cmd("7foldopen")
+    fold.cycle() -- folded
+    eq(1, vim.fn.foldclosed(1))
+    fold.cycle() -- children
+    fold.cycle() -- subtree
+    eq(false, closed(1))
+    eq(2, vim.fn.foldclosed(2))
+    eq(false, closed(8))
+    eq(false, closed(6))
+    eq(false, closed(11))
+  end)
+
   it("archived children stay closed, force_cycle_archived opens them", function()
     org_buffer({ "* A", "** Kept", "kept body", "** Old :ARCHIVE:", "old body" }, { 1, 0 })
     fold.overview()

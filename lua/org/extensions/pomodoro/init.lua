@@ -55,14 +55,14 @@ M.defaults = {
 
 local ns = vim.api.nvim_create_namespace("org_pomodoro")
 
---- Current time in seconds (os.time with sub-second steps); specs
---- replace it with a fake clock.
+--- Current wall-clock time in seconds, sub-second (the time a suspended
+--- machine slept counts, so the phases it covered end on wake-up and a
+--- saved session compares with the next Neovim's time); specs replace it
+--- with a fake clock.
 ---@return number
-do
-  local base_os, base_uv = os.time(), vim.uv.now() / 1000
-  M.time = function()
-    return base_os + (vim.uv.now() / 1000 - base_uv)
-  end
+function M.time()
+  local sec, usec = vim.uv.gettimeofday()
+  return sec + usec / 1e6
 end
 
 ---@class org.PomodoroState

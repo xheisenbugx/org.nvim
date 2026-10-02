@@ -416,7 +416,7 @@ T.link = function(el, desc, info)
     elseif not (require("org.utils").is_absolute(raw) or raw:match("^~")) then
       p = raw
     else
-      p = vim.fn.fnamemodify(vim.fn.expand(raw), ":p")
+      p = vim.fn.fnamemodify(require("org.utils").expand_vars(raw), ":p")
     end
     local caption = ox.data(ox.get_caption(element.parent_element(el)) or {}, info)
     return fmt("![img](%s)", nw(caption) and fmt('%s "%s"', p, caption) or p)

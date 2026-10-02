@@ -200,7 +200,7 @@ local function style_file(info)
   if not style then
     return ETC_DIR .. "/chicago-author-date.csl"
   end
-  local expanded = vim.fn.expand(style)
+  local expanded = require("org.utils").expand_vars(style)
   if expanded:match("^/") or expanded:match("^%a:[/\\]") then
     return expanded
   end

@@ -67,6 +67,10 @@ function M.parse(lines)
       t.ncols = math.max(t.ncols, #cells)
     end
   end
+  if t.ncols == 0 and lines[1] then
+    -- only hlines: as many columns as the first one has (org-table-align)
+    t.ncols = select(2, lines[1]:gsub("%+", "")) + 1
+  end
   t.ncols = math.max(t.ncols, 1)
   return t
 end
@@ -354,6 +358,18 @@ local function empty_row(ncols)
   return { cells = cells }
 end
 
+--- An empty row for inserting at `at`, copying the `#`, `*` or `$` mark of
+--- the row above (Emacs org-table-insert-row below that row).
+local function new_row_at(t, at)
+  local row = empty_row(t.ncols)
+  local above = t.rows[at - 1]
+  local mark = above and not above.hline and above.cells[1]
+  if mark == "#" or mark == "*" or mark == "$" then
+    row.cells[1] = mark
+  end
+  return row
+end
+
 -- Defined with the formula commands below.
 local before_move
 
@@ -471,10 +487,14 @@ function M.next_field()
     end
   end
   if insert_at then
-    table.insert(t.rows, insert_at, empty_row(t.ncols))
+    table.insert(t.rows, insert_at, new_row_at(t, insert_at))
     target_row = insert_at
   end
   local lines = motion_write(info, t, insert_at ~= nil)
+  if insert_at then
+    -- org-table-insert-row: rows from the new one on move down
+    M.fix_formulas(0, info.finish, "@", nil, dline(t, insert_at) - 1, 1)
+  end
   set_cursor(info, lines, target_row, target_field, 0)
   after_motion()
 end
@@ -519,10 +539,14 @@ function M.next_row()
   local nxt = t.rows[row + 1]
   local added = false
   if not nxt or nxt.hline then
-    table.insert(t.rows, row + 1, empty_row(t.ncols))
+    table.insert(t.rows, row + 1, new_row_at(t, row + 1))
     added = true
   end
   local lines = motion_write(info, t, added)
+  if added then
+    -- org-table-insert-row: rows from the new one on move down
+    M.fix_formulas(0, info.finish, "@", nil, dline(t, row + 1) - 1, 1)
+  end
   set_cursor(info, lines, row + 1, field, 0)
   after_motion()
 end
@@ -1856,6 +1880,14 @@ local function maybe_eval_formula(info, row, field)
   local parts = formula_parts(0, info)
   local idx = find_formula(parts, lhs)
   parts[idx or (#parts + 1)] = lhs .. "=" .. rhs
+  if named ~= ":" then
+    -- the column formula replaces the field's own formula
+    -- (org-table-get-formula)
+    local own = find_formula(parts, field_name(t, dl, field) or ("@" .. dl .. "$" .. field))
+    if own then
+      table.remove(parts, own)
+    end
+  end
   write_formulas(0, info, parts)
   info = reload(info)
   eval_one(info, row, field, rhs)
@@ -2180,11 +2212,14 @@ end
 ---@param previous? string
 ---@param step number
 function M.increment_field(value, previous, step)
-  local function num_str(n)
-    if n == math.floor(n) and math.abs(n) < 1e15 then
+  -- number-to-string: integers as such, floats like Emacs prints them
+  -- (3.0, 0.30000000000000004)
+  local function num_str(n, isfloat)
+    if not isfloat and n == math.floor(n) and math.abs(n) < 2 ^ 53 then
       return string.format("%d", n)
     end
-    return string.format("%.15g", n)
+    local elisp = require("org.table.elisp")
+    return elisp.to_string(elisp.float(n))
   end
   local function analyze(s)
     if not s or s == "" then
@@ -2192,7 +2227,10 @@ function M.increment_field(value, previous, step)
     end
     local n = s:match("^[-+]?%d+%.?$") or s:match("^[-+]?%d*%.%d+$") or s:match("^[-+]?%d+%.?%d*[eE][-+]?%d+$")
     if n then
-      return "number", tonumber((n:gsub("^%+", ""):gsub("%.$", ""))), nil
+      -- string-to-number: a float with a fraction or an exponent ("5." is
+      -- an integer)
+      local float = n:find("[eE]") ~= nil or n:find("%.%d") ~= nil
+      return "number", tonumber((n:gsub("^%+", ""):gsub("%.$", ""))), float
     end
     local pre = s:match("^%d+")
     if pre then
@@ -2209,10 +2247,14 @@ function M.increment_field(value, previous, step)
   end
   local kind, v1, p1 = analyze(value)
   local kind2, v2, p2 = analyze(previous)
-  local same = kind == kind2 and p1 == p2
   if kind == "number" then
-    return num_str(v1 + (same and (v1 - v2) or step))
-  elseif kind == "prefix" then
+    -- p1/p2 tell whether the numbers are floats
+    local same = kind2 == "number"
+    local float = p1 or (same and p2) or (not same and step ~= math.floor(step))
+    return num_str(v1 + (same and (v1 - v2) or step), float)
+  end
+  local same = kind == kind2 and p1 == p2
+  if kind == "prefix" then
     return num_str(v1 + (same and (v1 - v2) or step)) .. p1
   elseif kind == "suffix" then
     return p1 .. num_str(v1 + (same and (v1 - v2) or step))
@@ -2271,16 +2313,28 @@ function M.copy_down(n)
   if inc ~= false and inc ~= nil and n ~= 0 then
     value = M.increment_field(value, type(inc) ~= "number" and above(src) or nil, type(inc) == "number" and inc or 1)
   end
-  local target = row
+  local target, added = row, false
   if initial ~= "" then
+    -- org-table-next-row: a `#` row is recalculated before leaving it, and
+    -- a new row is added like org-table-insert-row
+    info = before_move(info, row, field, true)
+    t = info.tbl
     target = row + 1
     if not t.rows[target] or t.rows[target].hline then
-      table.insert(t.rows, target, empty_row(t.ncols))
+      table.insert(t.rows, target, new_row_at(t, target))
+      added = true
     end
   end
   t.rows[target].cells[field] = value
-  local lines = write_table(info, t)
-  set_cursor(info, lines, target, field, #value)
+  write_table(info, t)
+  if added then
+    M.fix_formulas(0, info.finish, "@", nil, dline(t, target) - 1, 1)
+  end
+  info = reload(info)
+  if maybe_recalc_line(info, target) then
+    info = reload(info)
+  end
+  set_cursor(info, info.lines, target, field, #value)
 end
 
 --- Transpose the table at the cursor: rows become columns. Hlines are

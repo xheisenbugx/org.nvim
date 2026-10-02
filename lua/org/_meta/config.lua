@@ -10,8 +10,10 @@
 ---(default: `"~/org"`)
 ---@field org_directory? string
 ---Files, directories and globs scanned by the agenda, refile and id lookups.
----Directories are scanned recursively for `*.org` files. A single string is
----also accepted. (Emacs `org-agenda-files`, default: `{ "~/org/**/*.org" }`)
+---A directory adds its `*.org` files (not recursively, like Emacs); use a
+---glob such as `~/org/**/*.org` to recurse. A single string naming a non-org
+---file reads the list from that file, one per line.
+---(Emacs `org-agenda-files`, default: `{}`)
 ---@field agenda_files? string|string[]
 ---Default target for capture templates without a `target`.
 ---(Emacs `org-default-notes-file`, default: `"~/.notes"`)
@@ -1102,6 +1104,21 @@
 ---Kitty graphics protocol), `"snacks"` (Snacks.image), `"image.nvim"`, or
 ---`false`. `"auto"` uses the first that works. (default: `"auto"`)
 ---@field backend? "auto"|"native"|"snacks"|"image.nvim"|false
+---Where images go: `"inline"` draws them in place of the link or fragment
+---(its text is hidden until the cursor is on the line, like Emacs),
+---`"below"` under the line with the text left as it is. (default: `"inline"`)
+---@field placement? "inline"|"below"
+---Links previewed at once; the rest follow in batches every
+---`preview_delay` seconds, `0` = all at once.
+---(Emacs `org-link-preview-batch-size`, default: `6`)
+---@field batch_size? integer
+---Seconds between preview batches.
+---(Emacs `org-link-preview-delay`, default: `0.05`)
+---@field preview_delay? number
+---Images of http(s) links: `"skip"`, `"download"` (fetched with curl on
+---every preview) or `"cache"` (fetched once into `stdpath("cache")`).
+---(Emacs `org-display-remote-inline-images`, default: `"skip"`)
+---@field remote? "skip"|"download"|"cache"
 ---Image width: `true` = their own size, a number = pixels, `false` or
 ---`{ n }` = the `:width` of `#+ATTR_ORG` (else another `#+ATTR_x`), else n
 ---pixels. The ORG-IMAGE-ACTUAL-WIDTH property overrides it.

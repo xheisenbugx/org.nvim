@@ -62,10 +62,15 @@ function M.setup(opts)
       end
     end)
   end
-  -- attach to org buffers that were opened before setup ran
+  -- attach to org buffers that were opened before setup ran; buffers
+  -- already attached (setup called again) get the new keymaps
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].filetype == "org" then
-      require("org.buffer").attach(b)
+      if vim.b[b].org_attached then
+        require("org.mappings").attach(b)
+      else
+        require("org.buffer").attach(b)
+      end
     end
   end
   return M

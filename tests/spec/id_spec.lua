@@ -85,6 +85,39 @@ describe("org-id", function()
     utils.write_json(dir .. "/ids.json", {})
     eq(nil, id.find("in-archive"))
   end)
+  it("reports duplicate IDs and keeps the first file, like org-id-update-id-locations", function()
+    local dir = tmpdir()
+    utils.writefile(dir .. "/a.org", { "* A", ":PROPERTIES:", ":ID: dup", ":END:" })
+    utils.writefile(
+      dir .. "/b.org",
+      { "* B", ":PROPERTIES:", ":ID: dup", ":END:", "* C", ":PROPERTIES:", ":ID: c", ":END:" }
+    )
+    setup(dir)
+    vim.cmd("enew!")
+    vim.cmd("silent! %bwipeout!")
+    local warned = {}
+    local warn = utils.warn
+    utils.warn = function(msg)
+      warned[#warned + 1] = msg
+    end
+    local n, dups = id.update_locations()
+    utils.warn = warn
+    eq(2, n)
+    eq({ "dup" }, dups)
+    eq({ '1 duplicate IDs found: "dup"' }, warned)
+    ok(utils.read_json(dir .. "/ids.json")["dup"]:match("/a%.org$"))
+  end)
+
+  it("ignores damaged entries in the locations file", function()
+    local dir = tmpdir()
+    setup(dir)
+    utils.writefile(dir .. "/ids.json", { '{"a": null, "b": {"x": 1}, "c": 5}' })
+    id._reset()
+    eq(nil, id.find("a"))
+    eq(nil, id.find("b"))
+    eq({}, id.known_ids())
+  end)
+
   it("stores an id: link before the first heading in a file-level drawer", function()
     local dir = require("org.utils").realpath(tmpdir())
     setup(dir, { links = { use_id = true } })

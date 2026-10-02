@@ -249,6 +249,26 @@ describe("org-feed update", function()
       "* Next",
     }, file_lines(target))
   end)
+
+  it("refuses an unterminated status drawer instead of deleting what follows", function()
+    local before = {
+      "* Feed Inbox",
+      "  :FEEDSTATUS:",
+      '(("id-1" t "x"))',
+      "* Next",
+      "  :PROPERTIES:",
+      "  :ID: keep",
+      "  :END:",
+      "* Last",
+    }
+    utils.writefile(target, before)
+    local okc, err = pcall(quiet, function()
+      return feed.update("Ex")
+    end)
+    eq(false, okc)
+    ok(tostring(err):find("FEEDSTATUS", 1, true), err)
+    eq(before, file_lines(target))
+  end)
 end)
 
 describe("org-feed handlers", function()

@@ -35,6 +35,24 @@ describe("links parsing", function()
     eq("fuzzy", l[3].type)
     eq("[[a\\]b][d]]", links.format("a]b", "d"))
   end)
+  it("ends plain links like org-link-plain-re", function()
+    -- results checked against Org 9.8.10's org-link-any-re
+    local cases = {
+      ["see https://a.b/foo- now"] = "https://a.b/foo-",
+      ["x https://a.b/c-."] = "https://a.b/c-",
+      ["https://a.b/x[1] y"] = "https://a.b/x[1]",
+      ["https://a.b/x<1> y"] = "https://a.b/x<1>",
+      ["https://a.b/[(x)] q"] = "https://a.b/[(x)]",
+      ["https://a.b/(x(y"] = "https://a.b/",
+      ["https://a.b/x(y)-"] = "https://a.b/x(y)-",
+      ["see https:xy now"] = "https:xy",
+    }
+    for text, want in pairs(cases) do
+      local l = links.parse_links(text)[1]
+      eq(want, l and l.target, text)
+    end
+    eq(0, #links.parse_links("see https:x now"))
+  end)
   it("does not treat timestamps as links", function()
     eq(0, #links.parse_links("<2026-09-23 Wed> [2026-09-23 Wed]"))
   end)
@@ -63,6 +81,12 @@ describe("links at cursor and opening", function()
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     eq(nil, links.link_at_cursor())
     eq(false, links.open_at_point())
+  end)
+  -- Emacs (org-find-property) also finds the file-level drawer, at point-min
+  it("finds a CUSTOM_ID in the file-level property drawer", function()
+    org_buffer({ ":PROPERTIES:", ":CUSTOM_ID: top", ":END:", "#+TITLE: x", "", "* A", "[[#TOP]]" }, { 7, 3 })
+    ok(links.search_in_buffer("#TOP"))
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
   end)
   it("follows internal links", function()
     local buf = org_buffer({

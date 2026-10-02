@@ -193,6 +193,13 @@ local function sh_quote(s)
   return "'" .. tostring(s):gsub("'", "'\"'\"'") .. "'"
 end
 
+--- fish reads `\\` and `\'` as escapes inside single quotes: a value with
+--- a backslash (`C:\dir\`) would change or end the string early.
+local function fish_quote(s)
+  return "'" .. tostring(s):gsub("[\\']", "\\%0") .. "'"
+end
+M.fish_quote = fish_quote
+
 --- `(if (stringp v) v (format "%S" v))`
 local function echo(v)
   if type(v) == "string" then
@@ -685,7 +692,7 @@ function M.var_lines(lang, vars, args)
         out[#out + 1] = v.name .. "=" .. sh_quote(table_to_text(val, sep, hline))
       end
     elseif fam == "fish" then
-      out[#out + 1] = "set " .. v.name .. " " .. sh_quote(table_to_text(val, sep, hline))
+      out[#out + 1] = "set " .. v.name .. " " .. fish_quote(table_to_text(val, sep, hline))
     elseif fam == "python" then
       out[#out + 1] = v.name .. "=" .. python_value(val)
     elseif fam == "js" then
@@ -1232,7 +1239,8 @@ function M.prepare(lang, body, args, vars, ctx)
       local flag = engine == "mssql" and { "-S", "-U", "-P", "-d" } or { "-S", "-U", "-P", "-D" }
       for i, v in ipairs({ host, user, password, database }) do
         if v then
-          db[#db + 1] = string.format('%s "%s"', flag[i], q(v))
+          -- the value is already shell-quoted: no extra double quotes
+          db[#db + 1] = flag[i] .. " " .. q(v)
         end
       end
       if engine == "mssql" then

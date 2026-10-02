@@ -111,6 +111,55 @@ describe("following links", function()
       links.open("file:" .. dir .. "/missing.pdf")
       eq({ dir .. "/there.pdf", dir .. "/missing.pdf" }, opened)
     end)
+
+    it("never runs backticks in a link path as a shell command", function()
+      local dir = tmpdir()
+      local buf = org_buffer({ "x" }, { 1, 0 })
+      vim.api.nvim_buf_set_name(buf, dir .. "/notes.org")
+      local path = links.resolve_path("sub/`touch pwned`/a.org", buf)
+      eq(dir .. "/sub/`touch pwned`/a.org", path)
+      eq(nil, vim.uv.fs_stat(dir .. "/pwned"))
+      eq(nil, vim.uv.fs_stat(vim.fn.getcwd() .. "/pwned"))
+      -- % and # are file name characters, not Vim's current/alternate file
+      eq(dir .. "/%a#b.org", links.resolve_path("%a#b.org", buf))
+      vim.env.ORG_LINK_TEST_DIR = dir
+      eq(dir .. "/x.org", links.resolve_path("$ORG_LINK_TEST_DIR/x.org", buf))
+      eq(vim.fs.normalize(vim.env.HOME) .. "/x.org", links.resolve_path("~/x.org", buf))
+      vim.bo[buf].modified = false
+    end)
+
+    it("passes a file name with % to a file_apps command intact", function()
+      local dir = tmpdir()
+      local file = dir .. "/50%25 off.pdf"
+      vim.fn.writefile({ "" }, file)
+      local argv
+      local restore = stub(vim, "system", function(cmd)
+        argv = cmd
+      end)
+      config.opts.links.file_apps = { pdf = "viewer --file=%s" }
+      org_buffer({ "x" }, { 1, 0 })
+      local ok_, err = pcall(links.open, "file:" .. file)
+      restore()
+      ok(ok_, err)
+      eq({ "viewer", "--file=" .. file }, argv)
+    end)
+  end)
+
+  describe("man links", function()
+    it("pass the page to :Man as arguments, never as Ex commands", function()
+      local got
+      vim.api.nvim_create_user_command("Man", function(p)
+        got = p.fargs
+      end, { nargs = "*", bar = true, force = true })
+      vim.g.org_links_man_injected = nil
+      org_buffer({ "x" }, { 1, 0 })
+      links.open("man:ls|let g:org_links_man_injected = 1")
+      eq(nil, vim.g.org_links_man_injected)
+      eq({ "ls|let", "g:org_links_man_injected", "=", "1" }, got)
+      links.open("man:printf 3")
+      eq({ "printf", "3" }, got)
+      vim.api.nvim_del_user_command("Man")
+    end)
   end)
 
   describe("open_at_point_global (org-open-at-point-global)", function()

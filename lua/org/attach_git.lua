@@ -85,14 +85,14 @@ function M.commit(dir)
   for _, f in ipairs(split0(git({ "ls-files", "-zmo", "--exclude-standard" }, dir).stdout)) do
     local st = vim.uv.fs_stat(dir .. "/" .. f)
     if annex and st and st.size >= cutoff then
-      git({ "annex", "add", f }, dir)
+      git({ "annex", "add", "--", f }, dir)
     else
-      git({ "add", f }, dir)
+      git({ "add", "--", f }, dir)
     end
     changes = changes + 1
   end
   for _, f in ipairs(split0(git({ "ls-files", "-z", "--deleted" }, dir).stdout)) do
-    git({ "rm", f }, dir)
+    git({ "rm", "--", f }, dir)
     changes = changes + 1
   end
   if changes > 0 then
@@ -111,7 +111,7 @@ function M.annex_get_maybe(path, dir)
     return
   end
   local rel = require("org.attach").relative_path(path, dir)
-  local found = git({ "annex", "find", "--format=found", "--in=here", rel }, dir).stdout
+  local found = git({ "annex", "find", "--format=found", "--in=here", "--", rel }, dir).stdout
   if found == "found" then
     return
   end
@@ -123,7 +123,7 @@ function M.annex_get_maybe(path, dir)
     error(string.format("File %s stored in git annex but unavailable", path), 0)
   end
   utils.notify(string.format('Running git annex get "%s".', rel))
-  git({ "annex", "get", rel }, dir)
+  git({ "annex", "get", "--", rel }, dir)
 end
 
 return M

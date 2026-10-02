@@ -1657,15 +1657,17 @@ function M.macro_expander(ctx)
       if t:match("^%(eval%f[^%w]") then
         return eval_macro(t, args)
       end
+      -- org-macro-expand takes (nth (1- N) args): $0 is the first argument
       return (t:gsub("%$(%d+)", function(d)
-        return args[tonumber(d)] or ""
+        return args[math.max(tonumber(d), 1)] or ""
       end))
     end
     local b = builtin[key]
     if b then
       return b(args, parser)
     end
-    return nil
+    -- org-macro-replace-all: an unknown macro stops the export
+    error("Undefined Org macro: " .. key .. "; aborting", 0)
   end
 end
 
@@ -2660,7 +2662,7 @@ function M.file_uri(filename)
     return filename
   end
   -- forward slashes, as expand-file-name gives on Windows
-  local full = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(filename), ":p"))
+  local full = vim.fs.normalize(vim.fn.fnamemodify(utils.expand_vars(filename), ":p"))
   return (full:match("^/") and "file://" or "file:///") .. full
 end
 
@@ -2738,21 +2740,52 @@ function M.get_ordinal(el, info, types, predicate)
     return M.get_footnote_number(el, info)
   end
   local want = { [t] = true }
+  local key = { t }
   for _, x in ipairs(types or {}) do
     want[x] = true
+    key[#key + 1] = x
   end
-  local counter = 0
-  return element.map(info.parse_tree, want, function(x)
-    if x == el then
-      if not predicate or predicate(x, info) then
-        return counter + 1
+  -- one walk numbers every element of these types for this predicate:
+  -- mapping the tree for each table or figure is quadratic
+  local tree = info.parse_tree
+  local cache = info.ordinal_cache
+  if not cache or cache.tree ~= tree or cache.ignore ~= info.ignore then
+    cache = { tree = tree, ignore = info.ignore, by_pred = setmetatable({}, { __mode = "k" }) }
+    info.ordinal_cache = cache
+  end
+  local pkey = predicate or cache
+  key = table.concat(key, "\0")
+  local by_key = cache.by_pred[pkey]
+  if not by_key then
+    -- a predicate seen once may be a closure made for this call: walk
+    -- up to the element only, and number everything when it comes back
+    cache.by_pred[pkey] = {}
+    local counter = 0
+    return element.map(tree, want, function(x)
+      if x == el then
+        if not predicate or predicate(x, info) then
+          return counter + 1
+        end
+        return nil
       end
-      return nil
-    end
-    if not predicate or predicate(x, info) then
-      counter = counter + 1
-    end
-  end, { ignore = info.ignore, first_match = true })
+      if not predicate or predicate(x, info) then
+        counter = counter + 1
+      end
+    end, { ignore = info.ignore, first_match = true })
+  end
+  local ordinals = by_key[key]
+  if not ordinals then
+    ordinals = {}
+    local counter = 0
+    element.map(tree, want, function(x)
+      if not predicate or predicate(x, info) then
+        counter = counter + 1
+        ordinals[x] = counter
+      end
+    end, { ignore = info.ignore })
+    cache.by_pred[pkey][key] = ordinals
+  end
+  return ordinals[el]
 end
 
 ---------------------------------------------------------------------------
@@ -3569,9 +3602,7 @@ function M.selected_trees(data, info)
           selected[h] = true
         end)
       elseif t == "headline" then
-        local g2 = vim.list_extend(vim.deepcopy(genealogy), { d })
-        -- (deepcopy of nodes is expensive; use shallow copy)
-        g2 = {}
+        local g2 = {}
         for _, x in ipairs(genealogy) do
           g2[#g2 + 1] = x
         end
@@ -3794,7 +3825,7 @@ function M.prune_tree(data, info)
     end
   end
   -- missing footnote definitions
-  local missing = M.missing_definitions(data, definitions)
+  local missing = M.missing_definitions(data, definitions, info.widened_footnote)
   for _, d in ipairs(missing) do
     walk(d)
   end
@@ -3802,7 +3833,10 @@ function M.prune_tree(data, info)
   info.ignore = ignore
 end
 
-function M.missing_definitions(tree, definitions)
+--- Footnote definitions TREE references but lacks, looked up in
+--- DEFINITIONS, then with LOOKUP(label) (the widened buffer of a subtree
+--- export, like org-footnote-get-definition).
+function M.missing_definitions(tree, definitions, lookup)
   local function labels_in(d)
     return element.map(d, "footnote-reference", function(r)
       if r.fn_type == "standard" then
@@ -3841,6 +3875,7 @@ function M.missing_definitions(tree, definitions)
           break
         end
       end
+      def = def or (lookup and lookup(label))
       if not def then
         error("Definition not found for footnote " .. label, 0)
       end
@@ -4074,7 +4109,14 @@ local function subtree_region(lines, line, todo)
     end
     b = k + 1
   end
-  return { lines = vim.list_slice(lines, b, e - 1), props = props, title = parts.title, line = s, first = b }
+  return {
+    lines = vim.list_slice(lines, b, e - 1),
+    props = props,
+    title = parts.title,
+    line = s,
+    first = b,
+    last = e - 1,
+  }
 end
 
 --- `lines` without the ones hidden in a buffer's current window (closed
@@ -4178,7 +4220,25 @@ function export_as(backend, lines, opts)
     bufnr = opts.bufnr,
     backend = backend.name,
   })
+  local has_include = false
+  for _, l in ipairs(work) do
+    if l:match("^[ \t]*#%+[Ii][Nn][Cc][Ll][Uu][Dd][Ee]:") then
+      has_include = true
+      break
+    end
+  end
   work = M.expand_includes(work, dir, { includer = filename, expand_env = expand_env, todo = todo })
+  if has_include then
+    -- options and macros are read after #+INCLUDE expansion
+    -- (org-export--annotate-info), so included files can define them
+    local full = work
+    if subtree then
+      full = vim.list_slice(lines, 1, subtree.first - 1)
+      vim.list_extend(full, work)
+      vim.list_extend(full, lines, subtree.last + 1)
+    end
+    keywords = M.collect_keywords(full, dir, nil, nil, filename)
+  end
   work = M.delete_comment_trees(work, todo)
   -- Babel
   local babel_cfg = require("org.config").opts.babel or {}
@@ -4301,6 +4361,24 @@ function export_as(backend, lines, opts)
   info.table_cell_alignment_cache = {}
   info.smart_quote_cache = {}
   info.subtree_props = subtree and subtree.props or nil
+  if subtree then
+    -- org-export--missing-definitions: a definition outside the exported
+    -- subtree is read from the widened buffer (org-footnote-get-definition)
+    info.widened_footnote = function(label)
+      local head = "[fn:" .. label .. "]"
+      for i, l in ipairs(lines) do
+        if l:sub(1, #head) == head then
+          local j = i + 1
+          while j <= #lines and not (lines[j]:match("^%*+ ") or lines[j]:match("^%[fn:[%w_-]+%]")) do
+            j = j + 1
+          end
+          return element.map(parser:parse(vim.list_slice(lines, i, j - 1)), "footnote-definition", function(d)
+            return d.label == label and d or nil
+          end, { first_match = true })
+        end
+      end
+    end
+  end
   info.todo_done = function(k)
     return todo:is_done(k)
   end

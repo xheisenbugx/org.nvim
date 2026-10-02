@@ -137,6 +137,19 @@ describe("timestamps (Emacs details)", function()
     eq("<2026-09-23 Wed 10:02-11:02>", buf_lines(buf)[1])
   end)
 
+  it("S-Up/Down on the start minute rounds the end time on its own (org-modify-ts-extra)", function()
+    -- Emacs: <... 10:03-11:07> S-Up => 10:05-11:10, not 11:09
+    local buf = org_buffer({ "<2026-09-24 Thu 10:03-11:07>" }, { 1, 20 })
+    ts.increment(1)
+    eq("<2026-09-24 Thu 10:05-11:10>", buf_lines(buf)[1])
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<2026-09-24 Thu 10:03-11:07>" })
+    ts.increment(-1)
+    eq("<2026-09-24 Thu 10:00-11:05>", buf_lines(buf)[1])
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<2026-09-24 Thu 10:58-11:59>" })
+    ts.increment(1)
+    eq("<2026-09-24 Thu 11:00-12:00>", buf_lines(buf)[1])
+  end)
+
   it("toggles the timestamp type", function()
     -- only the timestamp at the cursor, like org-toggle-timestamp-type
     local buf = org_buffer({ "a <2026-09-23 Wed>--<2026-09-24 Thu> b" }, { 1, 5 })

@@ -142,7 +142,9 @@ installed (org-version); with a count it inserts that at the cursor. The
 release is the latest `vX.Y.Z` git tag of the checkout, or "unreleased"
 when there is none (or org.nvim isn't a git checkout).
 
-Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
+Run |:checkhealth| `org` to check paths and external tools, and to list
+options given to setup() that org.nvim doesn't know (typos, or action names
+in `mappings` that don't exist). Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
 send the keys org maps:
 - <C-CR>, <S-CR>, <C-,> and the like need extended keys (CSI u), which tmux
@@ -558,7 +560,9 @@ subtree above is folded (org-cycle-separator-lines).
                 drawers, and any other N shows the whole subtree of the
                 ancestor at level N.
 <S-Tab>         Global cycling: OVERVIEW → CONTENTS (headlines only) →
-                SHOW ALL. With a count N, show headlines up to level N.
+                SHOW ALL when pressed in a row; after any other command
+                it starts again from OVERVIEW. With a count N, show
+                headlines up to level N.
 <C-c><Tab>      Show the children of the entry (a count: that many levels)
                 without showing its text (org-show-children).
 <C-c><C-k>      Show every headline of the subtree, without their text
@@ -640,7 +644,9 @@ Startup visibility comes from `#+STARTUP:` (`overview`, `content`,
 `showall`, `show2levels` … `show5levels`, `showeverything`, `nofold`),
 falling back to the `startup_folded` option. Drawers are then folded
 (`hidedrawers`, off with `nohidedrawers` or `hide_drawer_startup = false`)
-and so are blocks with `hideblocks` (or `hide_block_startup = true`).
+and so are blocks with `hideblocks` (or `hide_block_startup = true`);
+showing a subtree (<Tab>'s SUBTREE, a `VISIBILITY: all` property) leaves
+folded blocks folded, like Emacs.
 Except with `showeverything`, a `VISIBILITY` property (`folded`,
 `children`, `content`, `all`) then sets the visibility of its subtree.
 
@@ -1315,6 +1321,7 @@ same date again is not logged.
                 for `clock.display_default_range` (this year). Count: 4 =
                 today, 16 = ask for a range, 64 = only the total. Editing
                 the buffer, <C-c><C-c> or calling it again hides the sums.
+                                                              *org-clocktable*
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
                 first headline; update it when on one. With a count,
@@ -3036,6 +3043,7 @@ Results are kept for the session.
                 A count of 4 (C-u) toggles `links.context_for_files`, 16
                 (C-u C-u) skips custom `store` functions, 64 stores one link
                 per selected line.
+                                                             *org-insert-link*
 <prefix>li      Insert a link (org-insert-link). Stored links, their
                 descriptions, link types and file paths (relative to the
                 file's directory) are completed; an empty answer inserts
@@ -3746,8 +3754,14 @@ of orgtbl-to-generic: :splice, :skip N (rows, hlines included), :skipcols
 (2 3), :hline, :sep, :hsep, :tstart :tend, :lstart :lend, :llstart :llend,
 :hlstart :hlend :hllstart :hllend, :lfmt :llfmt :hlfmt :hllfmt, :fmt :hfmt
 (a format or `(2 "$%s$" 4 "%s")`), :efmt (`"%s\\times10^{%s}"`), :raw. As in
-Emacs export, a column of recalculation marks, the `! ^ _ $ /` rows and
-cookie rows are dropped. From Lua, the format parameters may be functions:
+Emacs export, a column of recalculation marks is dropped, and so are the
+`! ^ _ $ /` rows and cookie rows, except by the translators without a
+backend (tsv, csv, generic: Emacs exports them with the Org backend, which
+keeps special rows). The latex, html and texinfo translators transcode
+cells with the matching exporter (links, entities, LaTeX fragments,
+sub/superscripts), and align columns like the export: the last
+alignment cookie, else by the share of numbers among all transcoded cells.
+From Lua, the format parameters may be functions:
 `require("org.table.orgtbl").translate("orgtbl-to-generic", rows, {...})`;
 a global Lua function can be used as a translator by name.
 
@@ -4903,7 +4917,7 @@ Repeaters (`+1w`) give RRULE; APPT_WARNTIME or `alarm_time` adds a VALARM;
 SUMMARY, LOCATION, DESCRIPTION, CLASS and TIMEZONE properties are honoured;
 the body is the DESCRIPTION (`include_body`). Tags and the category go to
 CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
-Files use CRLF line endings and 75-character folded lines (RFC 5545).
+Files use CRLF line endings and lines folded at 75 octets (RFC 5545).
 Differences: entries without an ID get a UID derived from the file and the
 entry (stable across exports) instead of a random one; `++`/`.+`
 repeaters give no RRULE (like Emacs); BBDB anniversaries are not supported.
@@ -5034,6 +5048,9 @@ These need Emacs Lisp or Emacs itself:
 - Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
+- iCalendar lines are folded at 75 octets without splitting a UTF-8
+  character (RFC 5545); Emacs folds at 75 characters, so the two differ
+  only on lines with non-ASCII text.
 - The default creator string names Neovim and org.nvim instead of Emacs.
 
 ==============================================================================
@@ -5799,7 +5816,7 @@ Structure and visibility ~
   footnote_fill_after_inline_note_extraction  false  normalizing refills
                                       the paragraphs of inline notes
                                       (at `textwidth`, 70 when 0)
-  deadline_warning_days     14
+  deadline_warning_days     14        0 or negative = also over -Nd cookies
   scheduled_delay_days      0         negative = also over -Nd cookies
   time_stamp_rounding_minutes  { 0, 5 }  { now in prompts, S-Up minutes }
   read_date_prefer_future   true      true|false|"time"
@@ -5851,6 +5868,8 @@ agenda ~
   restore_windows_after_quit false, sticky false, persistent_filter false,
   auto_exclude_function nil, persistent_marks false,
   bulk_custom_functions {}, compact_blocks false, log_mode_items,
+  log_mode_add_notes true, clock_consistency_checks { max_duration
+  "10:00", min_duration 0, max_gap "0:05", gap_ok_around { "4:00" } },
   habits { graph_column 40, preceding_days 21, following_days 7,
   show_habits, show_habits_only_for_today true, show_all_today,
   show_done_always_green, scheduled_past_days, today_glyph "!",
@@ -6631,6 +6650,9 @@ Differences from Emacs:
   tables); here the field shows #ERROR (the last definition wins) and the
   other fields are still computed. Left sides Emacs rejects are accepted:
   `$name=` for a named column, `$2..$3=` and `@I$2..@>$2=` ranges.
+- Footnote sorting and renumbering leave src, example, export and comment
+  blocks alone: a line starting with `[fn:N]` inside one is code, not a
+  definition. Emacs renumbers such lines too.
 - Tables in the table.el format (|org-table.el|) are recognized,
   converted, exported and edited, but the table.el editor itself (a
   separate large Emacs package) is not reproduced: in the <C-c>' buffer
@@ -6650,9 +6672,8 @@ Differences from Emacs:
   columns use conceal and virtual text (|org-table-shrink|), the
   header line is drawn in the 'winbar', <C-c>` edits a field in a prompt
   (follow-field mode uses a window) and plots use gnuplot directly (Emacs
-  needs gnuplot.el). Translators convert Org markup in cells with a
-  simplified exporter (orgtbl-to-unicode: verbatim, links and entities
-  only).
+  needs gnuplot.el). orgtbl-to-unicode converts Org markup in cells
+  with a simplified exporter (verbatim, links and entities only).
 - Clocking (|org-clock|): the idle time comes from the system on macOS
   (ioreg) and X11 (xprintidle), elsewhere (Wayland, Windows) from Neovim's
   own input, so time spent in other applications counts as idle there.
@@ -6760,6 +6781,8 @@ Differences from Emacs:
   is unset, so a .NET installed outside the default location (by
   dotnet-install.sh, in ~/.dotnet) is found; Emacs leaves it unset and the
   program fails with "You must install .NET to run this application".
+  fish `:var` values escape `\` and `'` inside their single quotes (Emacs
+  quotes them like POSIX shells, which changes values with backslashes).
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate
@@ -8652,7 +8675,8 @@ Beyond Emacs ~
     `:Org diagrams_rerender` renders the block at point without the cache
     and `:Org diagrams_clear_cache` empties it. At startup the cache drops
     entries unused for `cache_max_age` days, then the least recently used
-    beyond `cache_max_size` megabytes.
+    beyond `cache_max_size` megabytes. Both only touch cache entries (files
+    named by the hash); other files in `cache_dir` are left alone.
   - With `auto_preview` (the default) the result image is shown inline
     after the block runs, when an image backend is available
     (|org-images|; SVG needs ImageMagick).

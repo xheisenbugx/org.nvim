@@ -336,6 +336,35 @@ describe("org-mouse", function()
     eq({ "* B", "* A" }, buf_lines(buf))
   end)
 
+  it("leaves both buffers alone when a drag ends in another window", function()
+    local a = org_buffer({ "* A", "* B" })
+    local win_a = vim.api.nvim_get_current_win()
+    vim.cmd("split")
+    local b = org_buffer({ "* X", "* Y" })
+    local win_b = vim.api.nvim_get_current_win()
+    vim.api.nvim_set_current_win(win_a)
+    local function at(win, lnum, col)
+      vim.fn.getmousepos = function()
+        return { winid = win, line = lnum, column = col, screenrow = lnum, screencol = col }
+      end
+    end
+    at(win_a, 2, 3)
+    om.ctrl_press()
+    at(win_b, 1, 1)
+    om.ctrl_release()
+    eq({ "* A", "* B" }, buf_lines(a))
+    eq({ "* X", "* Y" }, buf_lines(b))
+    config.opts.mouse.features = { "move-tree" }
+    vim.api.nvim_set_current_win(win_a)
+    at(win_a, 2, 3)
+    om.right_press()
+    at(win_b, 1, 1)
+    om.right_release()
+    eq({ "* A", "* B" }, buf_lines(a))
+    eq({ "* X", "* Y" }, buf_lines(b))
+    pcall(vim.api.nvim_win_close, win_b, true)
+  end)
+
   it("shows the context menu on a right click, yanks a link on a right drag", function()
     local buf = org_buffer({ "* TODO Task", "see  here" })
     local shown

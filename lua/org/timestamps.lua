@@ -403,7 +403,15 @@ end
 local function shift_component(d, comp, n)
   if comp == "minute" and d.min then
     local min, step = rounded_minutes(d.min, n)
-    return d:add(min - d.min + step, "min")
+    local r = d:add(min - d.min + step, "min")
+    if d.end_hour then
+      -- the end time is rounded and stepped on its own, like Emacs
+      -- (org-modify-ts-extra), not moved by the start's change
+      local emin = rounded_minutes(d.end_min or 0, n)
+      local e = d.end_hour * 60 + emin + step
+      r.end_hour, r.end_min = math.floor(e / 60) % 24, e % 60
+    end
+    return r
   elseif comp == "year" then
     return d:add(n, "y")
   elseif comp == "month" then

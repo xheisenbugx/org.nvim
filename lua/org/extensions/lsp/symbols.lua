@@ -39,12 +39,13 @@ local function name_of(hl)
   return t ~= "" and t or "(untitled)"
 end
 
---- Named src blocks and tables: { lnum, last, name, kind, name_lnum }.
+--- Named src blocks and tables: { lnum, last, name, col, kind }, `col` the
+--- column of the name on line `lnum`.
 local function named_elements(lines, want_src, want_tables)
   local out = {}
   local i, n = 1, #lines
   while i <= n do
-    local name = lines[i]:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+(.-)[ \t]*$")
+    local col, name = lines[i]:match("^[ \t]*#%+[Nn][Aa][Mm][Ee]:[ \t]+()(.-)[ \t]*$")
     if name and name ~= "" then
       local j = i + 1
       -- other affiliated keywords (#+CAPTION:, #+ATTR_HTML:, ...)
@@ -57,7 +58,7 @@ local function named_elements(lines, want_src, want_tables)
         while k <= n and not lines[k]:match("^[ \t]*#%+[Ee][Nn][Dd]_[Ss][Rr][Cc]") do
           k = k + 1
         end
-        out[#out + 1] = { lnum = i, last = math.min(k, n), name = name, kind = "src_block" }
+        out[#out + 1] = { lnum = i, last = math.min(k, n), name = name, col = col, kind = "src_block" }
         i = k
       elseif want_tables and l:match("^[ \t]*|") then
         local k = j
@@ -66,7 +67,7 @@ local function named_elements(lines, want_src, want_tables)
         do
           k = k + 1
         end
-        out[#out + 1] = { lnum = i, last = k, name = name, kind = "table" }
+        out[#out + 1] = { lnum = i, last = k, name = name, col = col, kind = "table" }
         i = k
       end
     end
@@ -123,8 +124,7 @@ function M.document(doc)
       return not foreign[el.lnum]
     end, named_elements(lines, o.src_blocks ~= false, o.tables ~= false))
     for _, el in ipairs(named) do
-      local line = lines[el.lnum]
-      local s = line:find(el.name, 1, true)
+      local s = el.col
       local sym = {
         name = el.name,
         detail = el.kind == "src_block" and "src block" or "table",

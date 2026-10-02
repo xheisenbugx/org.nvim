@@ -694,7 +694,7 @@ local function build_mathjax_config(info)
   end
   local an = inbuf:match("%f[%w]autonumber:%s*(%S+)")
   if an then
-    template = template:gsub("tags: '[^']*'", "tags: '" .. an:lower() .. "'")
+    template = template:gsub("tags: '[^']*'", "tags: '" .. an:lower():gsub("%%", "%%%%") .. "'")
   end
   return ox.normalize_string(template)
 end
@@ -1419,7 +1419,9 @@ T["latex-environment"] = function(el, _, info)
   local label = M.reference(el, info, true)
   if ptype == true or ptype == "mathjax" then
     if nw(label) then
-      frag = frag:gsub("^([^\n]*)", "%1\n\\label{" .. label .. "}", 1)
+      frag = frag:gsub("^([^\n]*)", function(first)
+        return first .. "\n\\label{" .. label .. "}"
+      end, 1)
     end
     return frag
   end

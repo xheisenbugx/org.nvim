@@ -169,7 +169,7 @@ end
 
 --- Column of the body of a list item (org-list-item-body-column).
 local function body_column(it)
-  return it.indent + #it.bullet + 1
+  return require("org.lists").body_column(it)
 end
 
 --- The node property of a property drawer line (property drawers have no

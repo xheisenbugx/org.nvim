@@ -211,43 +211,56 @@ end
 
 local PLAIN_BAD = "[%s%[%]()<>]"
 
---- End of a plain link path starting at `i` (org-link-plain-re): balanced
---- parentheses (two levels) are allowed, and the link cannot end with
---- punctuation other than `/` or a closing parenthesis group.
+local OPENER, CLOSER = "[<(%[]", "[%]>)]"
+
+--- End of a parenthesis group `<([` ... `])>` (one nested level) starting
+--- at `j`, or nil.
+local function scan_group(text, j)
+  local k, n = j + 1, #text
+  while k <= n do
+    local d = text:sub(k, k)
+    if d:match(CLOSER) then
+      return k
+    elseif d:match(OPENER) then
+      local e = text:find(PLAIN_BAD, k + 1)
+      if e and text:sub(e, e):match(CLOSER) then
+        k = e + 1
+      else
+        return nil
+      end
+    elseif d:match(PLAIN_BAD) then
+      return nil
+    else
+      k = k + 1
+    end
+  end
+end
+
+--- End of a plain link path starting at `i` (org-link-plain-re): groups in
+--- `<([` and `])>` (two levels) are allowed, the path has at least two
+--- elements, and it cannot end with punctuation other than `-`, `/` or a
+--- group.
 local function scan_plain(text, i)
-  local j, last = i, nil
+  local j, last, tokens = i, nil, 0
   local n = #text
   while j <= n do
     local c = text:sub(j, j)
-    if c == "(" then
-      local k, closed = j + 1, false
-      while k <= n do
-        local d = text:sub(k, k)
-        if d == ")" then
-          closed = true
-          break
-        elseif d == "(" then
-          local e = text:find(PLAIN_BAD, k + 1)
-          if e and text:sub(e, e) == ")" then
-            k = e + 1
-          else
-            break
-          end
-        elseif d:match(PLAIN_BAD) then
-          break
-        else
-          k = k + 1
-        end
-      end
-      if not closed then
+    if c:match(OPENER) then
+      local k = scan_group(text, j)
+      if not k then
         break
       end
-      last = k
+      tokens = tokens + 1
+      -- the path needs at least two elements
+      if tokens > 1 then
+        last = k
+      end
       j = k + 1
     elseif c:match(PLAIN_BAD) then
       break
     else
-      if c == "/" or not c:match("%p") then
+      tokens = tokens + 1
+      if tokens > 1 and (c == "/" or c == "-" or not c:match("%p")) then
         last = j
       end
       j = j + 1
@@ -970,6 +983,12 @@ function M.search_in_buffer(search, sopts)
 
   if normalized:sub(1, 1) == "#" then
     local id = normalized:sub(2):lower()
+    -- the file-level property drawer (org-find-property: point-min)
+    local fcid = file and first == 1 and file.properties and file.properties.CUSTOM_ID
+    if fcid and fcid:lower() == id then
+      goto_pos(1, 0, sopts.stealth)
+      return true
+    end
     for _, hl in ipairs(headlines) do
       local cid = hl.properties.CUSTOM_ID
       if cid and cid:lower() == id then
@@ -1122,9 +1141,12 @@ local function run_external(app, path)
     return vim.ui.open(path)
   end
   local cmd = vim.split(app, "%s+", { trimempty = true })
-  if app:find("%s", 1, true) and app:find("%%s") then
+  if app:find("%s", 1, true) then
     cmd = vim.tbl_map(function(p)
-      return (p:gsub("%%s", path))
+      -- a function: `%` in the file name is not a capture reference
+      return (p:gsub("%%s", function()
+        return path
+      end))
     end, cmd)
   else
     cmd[#cmd + 1] = path
@@ -1147,6 +1169,37 @@ local function base_dir(bufnr)
 end
 M.base_dir = base_dir
 
+--- `~user/...` -> that user's home (expand-file-name); `~/` and
+--- environment variables are left to utils.expand.
+local function expand_user(path)
+  local user, rest = path:match("^~([%w_.%-]+)(.*)$")
+  if user and (rest == "" or rest:match("^[/\\]")) then
+    local home = vim.fn.expand("~" .. user)
+    if home ~= "~" .. user then
+      return home .. rest
+    end
+  end
+  return path
+end
+
+--- Expand `~`, `~user` and environment variables of a path written in a
+--- document, leaving a relative path relative.
+local function expand_text(path)
+  path = expand_user(path)
+  if path == "~" or path:match("^~[/\\]") then
+    path = utils.home() .. path:sub(2)
+  end
+  return (
+    path
+      :gsub("%${([%w_]+)}", function(v)
+        return vim.env[v]
+      end)
+      :gsub("%$([%w_]+)", function(v)
+        return vim.env[v]
+      end)
+  )
+end
+
 --- Resolve a file link path relative to the buffer.
 function M.resolve_path(path, bufnr)
   if path == "" then
@@ -1154,23 +1207,12 @@ function M.resolve_path(path, bufnr)
     if name ~= "" then
       return vim.fs.normalize(name)
     end
+    return vim.fs.normalize(base_dir(bufnr))
   end
-  if vim.fn.fnamemodify(path, ":t"):find("[*?{%[]") then
-    -- expand() would expand the wildcard too
-    path = path
-      :gsub("^~/", function()
-        return utils.home() .. "/"
-      end)
-      :gsub("%$(%w+)", function(v)
-        return vim.env[v]
-      end)
-  else
-    path = vim.fn.expand(path)
-  end
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
-    path = base_dir(bufnr) .. "/" .. path
-  end
-  return vim.fs.normalize(path)
+  -- utils.expand, not vim.fn.expand(): the path is document text, and Vim
+  -- expansion runs `backticks` as shell commands and interprets % # and
+  -- wildcards
+  return utils.expand(expand_user(path), base_dir(bufnr))
 end
 
 local function warn_err(err)
@@ -1543,7 +1585,8 @@ function M.open(target, opts)
   elseif t == "man" then
     local page, search = link.path:match("^(.-)::(.*)$")
     page = page or link.path
-    local ok, err = pcall(vim.cmd, "Man " .. page)
+    -- structured: `|` in the page must not end the :Man command
+    local ok, err = pcall(vim.api.nvim_cmd, { cmd = "Man", args = split_words(page) }, {})
     if not ok then
       utils.warn(tostring(err))
       return false
@@ -2320,7 +2363,7 @@ local PREFIXES = {
 
 --- File name completion relative to the directory of buffer `bufnr`.
 local function complete_files(lead, bufnr)
-  local expanded = vim.fs.normalize(vim.fn.expand(lead))
+  local expanded = vim.fs.normalize(expand_text(lead))
   if utils.is_absolute(expanded) or lead:match("^~") then
     return utils.complete_path(lead, "file")
   end
@@ -2417,7 +2460,7 @@ function M.normalize_file_path(path, method, dir)
   -- the file and the directory made absolute alike: expand() and
   -- fnamemodify() give \ on Windows, and may or may not add a drive to /x
   local function absolute(p, base)
-    p = vim.fs.normalize(vim.fn.expand(p))
+    p = vim.fs.normalize(expand_text(p))
     if not utils.is_absolute(p) then
       p = base and (base .. "/" .. p) or vim.fn.fnamemodify(p, ":p")
     end
@@ -2491,7 +2534,7 @@ function M.format_for_buffer(link, desc, fopts)
   if cur ~= "" then
     local p, s = link:match("^file:(.-)::(.*)$")
     if p and p ~= "" then
-      local a = utils.realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
+      local a = utils.realpath(M.resolve_path(p, bufnr)) or M.resolve_path(p, bufnr)
       local b = utils.realpath(cur) or vim.fs.normalize(cur)
       if a == b then
         link = s

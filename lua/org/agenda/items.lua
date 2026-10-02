@@ -523,6 +523,34 @@ local function int(v)
   return type(v) == "number" and v or nil
 end
 
+--- org-get-wdays for a deadline: a `deadline_warning_days` of 0 or less is
+--- enforced as its absolute value, over any -Nd cookie; else the cookie,
+--- else the option.
+local function deadline_wdays(ts, tv)
+  return date.deadline_warning_days(ts, tv)
+end
+
+-- whether a file's lines contain "%%(" (diary sexps, <%%(...)> stamps),
+-- by lines table: most files have none, and then the per-entry line scans
+-- for sexps are skipped
+local has_sexps_memo = setmetatable({}, { __mode = "k" })
+
+local function has_sexps(file)
+  local lines = file.lines or {}
+  local v = has_sexps_memo[lines]
+  if v == nil then
+    v = false
+    for i = 1, #lines do
+      if lines[i]:find("%%(", 1, true) then
+        v = true
+        break
+      end
+    end
+    has_sexps_memo[lines] = v
+  end
+  return v
+end
+
 local SOURCE_RANK = {
   deadline = 1,
   ["upcoming-deadline"] = 1,
@@ -581,6 +609,9 @@ function M.agenda(files, from, to, opts)
   local inactive_leader = acfg.inactive_leader or "["
   local dl_past_days = acfg.deadline_past_days or 10000
   local sc_past_days = acfg.scheduled_past_days or 10000
+  -- org-agenda-get-blocks binds org-agenda-default-appointment-duration
+  -- to nil: a range's first and last days show only their own time
+  local block_acfg = vim.tbl_extend("force", acfg, { default_appointment_duration = false })
   local sexp_mod
 
   -- sexps are parsed once; a bad one is reported once per session and
@@ -692,13 +723,16 @@ function M.agenda(files, from, to, opts)
   if types.sexp and not (opts.restrict and opts.restrict.range) then
     for fidx, file in ipairs(files) do
       cur_fidx = fidx
-      add_sexps(nil, file, 1, file.preamble_end or 0)
+      if has_sexps(file) then
+        add_sexps(nil, file, 1, file.preamble_end or 0)
+      end
     end
   end
 
   M.each_headline(files, opts, function(hl, _, fidx)
     cur_fidx = fidx
     local done = hl:is_done()
+    local sexps = has_sexps(hl.file)
     -- deadline days of this entry, for the skip-*-if-deadline-is-shown options
     local dl_shown = {}
 
@@ -708,7 +742,7 @@ function M.agenda(files, from, to, opts)
     if dl and dl.active ~= false and dl_type then
       local base = prefers_last(acfg, hl.todo) and last_occ(dl, today) or dl:days()
       local wdays = acfg.deadline_warning_days or cfg.deadline_warning_days
-      local warn = date.warning_days(dl, wdays)
+      local warn = deadline_wdays(dl, wdays)
       local skip_pre = acfg.skip_deadline_prewarning_if_scheduled
       local sched = hl.planning.scheduled
       if skip_pre and sched then
@@ -730,9 +764,10 @@ function M.agenda(files, from, to, opts)
         days[today] = days[today] or "today"
       end
       for c, kind in pairs(days) do
-        local show = true
+        -- days outside the range are dropped by add(): don't build them
+        local show = c >= from and c <= to
         local diff = base - c
-        if c ~= base and kind ~= "repeat" then
+        if show and c ~= base and kind ~= "repeat" then
           -- reminder in today's agenda
           if base > c then
             show = diff <= warn
@@ -820,8 +855,8 @@ function M.agenda(files, from, to, opts)
       local show_all = is_habit and habit_cfg.show_all_today
       for c, kind in pairs(days) do
         local diff = c - base
-        local show = true
-        if not (c == today and show_all) then
+        local show = c >= from and c <= to
+        if show and not (c == today and show_all) then
           if (delay > 0 and diff < delay) or diff > past_days or base > c then
             show = false
           elseif c ~= base and c ~= today and kind ~= "repeat" then
@@ -924,12 +959,12 @@ function M.agenda(files, from, to, opts)
               set_time(
                 item,
                 ts.hour and ts:clone({ end_hour = ts.range_end.hour, end_min = ts.range_end.min }) or ts,
-                acfg
+                block_acfg
               )
             elseif d == a then
-              set_time(item, ts, acfg)
+              set_time(item, ts, block_acfg)
             elseif d == b then
-              set_time(item, ts.range_end, acfg)
+              set_time(item, ts.range_end, block_acfg)
             end
             add(d, item)
           end
@@ -988,7 +1023,7 @@ function M.agenda(files, from, to, opts)
         end
       end
       -- <%%(sexp)> timestamps
-      if types.timestamp then
+      if types.timestamp and sexps then
         local lines = hl.file.lines
         for i = hl.line, hl.body_end do
           local line = lines[i] or ""
@@ -1015,11 +1050,11 @@ function M.agenda(files, from, to, opts)
     end
 
     -- %%(sexp) entries (org-agenda-get-sexps) ---------------------------
-    if types.sexp then
+    if types.sexp and sexps then
       add_sexps(hl, hl.file, hl.line + 1, hl.body_end)
     end
     -- sexp planning dates: SCHEDULED/DEADLINE: <%%(...)>
-    for _, kind in ipairs({ "scheduled", "deadline" }) do
+    for _, kind in ipairs(sexps and { "scheduled", "deadline" } or {}) do
       local raw = hl.file.lines[hl.planning_line or (hl.line + 1)]
       local sx = raw and raw:match("^%s*%u+:") and raw:match(kind:upper() .. ":%s*<%%%%(%b())")
       if sx and types[kind] then
@@ -1074,7 +1109,7 @@ function M.agenda(files, from, to, opts)
                       face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
                       inactive = true,
                     })
-                    set_time(item, d == a and ts or (d == b and ts.range_end) or nil, acfg)
+                    set_time(item, d == a and ts or (d == b and ts.range_end) or nil, block_acfg)
                     add(d, item)
                   end
                 else
@@ -1317,7 +1352,7 @@ local function ignored_by_date(hl, acfg, today)
     local diff = to_now(dl)
     local wdays = acfg.deadline_warning_days or config.opts.deadline_warning_days
     -- org-deadline-close-p always compares days
-    local close = dl:days() - today <= date.warning_days(dl, wdays) and not hl:is_done()
+    local close = dl:days() - today <= deadline_wdays(dl, wdays) and not hl:is_done()
     if id == "all" then
       return true
     elseif id == "far" then
@@ -1391,6 +1426,10 @@ function M.todo(files, keywords, opts)
       return
     end
     if ignored_by_date(hl, acfg, today) then
+      -- org-agenda-get-todos skips the subtree of an ignored entry too
+      if acfg.todo_list_sublevels == false then
+        skip_below = hl
+      end
       return
     end
     local item = new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil })

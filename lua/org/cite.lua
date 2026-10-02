@@ -439,7 +439,7 @@ local function strip_quotes(s)
 end
 
 local function absolute(f, dir)
-  f = vim.fn.expand(f)
+  f = utils.expand_vars(f)
   if f:match("^/") or f:match("^%a:[/\\]") then
     return vim.fs.normalize(f)
   end

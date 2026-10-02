@@ -143,8 +143,11 @@ end
 ---@return string
 function M.set_level(line, level)
   level = math.max(1, math.min(9, level))
-  if line:find(":level *[1-9]?") then
-    return (line:gsub(":level *[1-9]?", ":level " .. level, 1))
+  -- properties follow the link: a link that spells ":level" is kept
+  local _, e = line:find("%[%[.-%]%]")
+  local head, props = line:sub(1, e or 0), line:sub((e or 0) + 1)
+  if props:find(":level *[1-9]?") then
+    return head .. props:gsub(":level *[1-9]?", ":level " .. level, 1)
   end
   return line .. " :level " .. level
 end

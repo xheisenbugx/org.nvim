@@ -482,7 +482,7 @@ local function list_entries(path, day, ctx, out, main)
   if f and acfg.diary_include_files then
     local dir = vim.fs.dirname(ctx.main)
     for inc in f.text:gmatch('%f[^\n%z]#include "([^"]*)"') do
-      local file = vim.fs.normalize(vim.fn.expand(inc))
+      local file = vim.fs.normalize(require("org.utils").expand_vars(inc))
       if not require("org.utils").is_absolute(file) then
         file = vim.fs.normalize(dir .. "/" .. file)
       end

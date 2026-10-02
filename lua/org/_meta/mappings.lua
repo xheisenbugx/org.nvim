@@ -18,13 +18,16 @@
 ---| "agenda" # Agenda dispatcher
 ---| "agenda_file_remove" # Remove file from agenda files
 ---| "agenda_file_to_front" # Add file to agenda files
+---| "agenda_kill_all_buffers" # Delete all agenda buffers (org-agenda-kill-all-agenda-buffers)
 ---| "agenda_remove_restriction_lock" # Remove agenda restriction lock
 ---| "agenda_set_restriction_lock" # Lock agenda to subtree / file
 ---| "archive_all_done" # Archive children without open TODOs
 ---| "archive_all_old" # Archive children with old time stamps
 ---| "archive_subtree" # Archive subtree (Visual: all headlines)
+---| "archive_subtree_default" # Archive with archive_default_command
 ---| "archive_to_sibling" # Archive to Archive sibling (Visual: all headlines)
 ---| "attach" # Attachments
+---| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
 ---| "babel_check" # Check src block header args
 ---| "babel_demarcate" # Split / wrap src block
 ---| "babel_describe_bindings" # List Babel key bindings
@@ -65,6 +68,8 @@
 ---| "babel_tangle_file" # Tangle another file
 ---| "babel_view_info" # Show src block info
 ---| "backward_element" # Previous element
+---| "beamer_mode" # Toggle the Beamer editing mode (org-beamer-mode)
+---| "beamer_select_environment" # Select the Beamer environment of the entry (BEAMER_env)
 ---| "beginning_of_item" # Go to the start of the item
 ---| "beginning_of_item_list" # Go to the first item of the list
 ---| "beginning_of_line" # Start of line / headline title
@@ -86,9 +91,12 @@
 ---| "bug_report" # Report a bug (org-submit-bug-report)
 ---| "capture" # Capture (count: 4 go to target, 16 last stored, 1 ask date)
 ---| "capture_goto_last" # Go to the last captured entry
----| "capture_here" # Capture at the cursor (C-0 C-c c)
 ---| "capture_goto_target" # Go to a capture template's target
+---| "capture_here" # Capture at the cursor (C-0 C-c c)
+---| "capture_string" # Capture a string typed at a prompt
 ---| "checkbox_radio_mode" # Toggle checkboxes as radio buttons (org-list-checkbox-radio-mode)
+---| "cite_insert" # Insert / edit a citation (count: delete it, or pick a style)
+---| "cite_mouse_click" # Mouse click on a citation key
 ---| "clock_cancel" # Cancel clock
 ---| "clock_display" # Display clock sums
 ---| "clock_goto" # Go to clocked task
@@ -103,7 +111,14 @@
 ---| "clock_toggle_auto_clockout" # Toggle auto clock-out after idle time
 ---| "clone_subtree" # Clone subtree with time shift
 ---| "column_view" # Column view
+---| "compute_property_at_point" # Compute property from column summary
 ---| "context_action" # Context action (C-c C-c)
+---| "convert_region_to_ascii" # Replace the region by its ASCII export
+---| "convert_region_to_html" # Replace the region by its HTML export
+---| "convert_region_to_latex" # Replace the region by its LaTeX export
+---| "convert_region_to_md" # Replace the region by its Markdown export
+---| "convert_region_to_texinfo" # Replace the region by its Texinfo export
+---| "convert_region_to_utf8" # Replace the region by its UTF-8 text export
 ---| "convert_to_odd_levels" # Convert the file to odd levels only
 ---| "convert_to_oddeven_levels" # Convert an odd-levels file to odd and even levels
 ---| "copy_special" # Copy table region / subtree
@@ -113,6 +128,14 @@
 ---| "crypt_decrypt_entry" # Decrypt entry
 ---| "crypt_encrypt_entries" # Encrypt all entries matching crypt.tag_matcher
 ---| "crypt_encrypt_entry" # Encrypt entry
+---| "ctags_all_tags" # List the tags of the tags files
+---| "ctags_append_topic" # Append a new topic to the buffer
+---| "ctags_create_tags" # Rebuild the tags file of this directory
+---| "ctags_find_tag" # Jump to a tag
+---| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
+---| "ctags_get_filename_for_tag" # Show where a tag is defined
+---| "ctags_open_file" # Open a file and add a new topic
+---| "ctags_visit_buffer_or_file" # Visit NAME.org
 ---| "ctrl_c_caret" # Sort table column / entries / items
 ---| "ctrl_c_minus" # Table hline / cycle bullet / toggle item
 ---| "ctrl_c_ret" # Table hline and move / insert heading
@@ -125,6 +148,7 @@
 ---| "cycle_agenda_files" # Visit next agenda file
 ---| "cycle_bullet" # Cycle list bullet
 ---| "date_today" # Insert today's date
+---| "datetree_cleanup" # Move date tree entries under the day of their time stamp
 ---| "dblock_update" # Update dynamic block
 ---| "dblock_update_all" # Update all dynamic blocks
 ---| "deadline" # Deadline (Visual: all headlines)
@@ -144,11 +168,15 @@
 ---| "end_of_item" # Go to the end of the item
 ---| "end_of_item_list" # Go to the end of the list
 ---| "end_of_line" # End of line / before the tags
+---| "entities_help" # List all entities
 ---| "escape_code_in_region" # Comma-escape * and #+ lines of the selection
 ---| "evaluate_time_range" # Evaluate time range
 ---| "export" # Export dispatcher
+---| "export_stack" # Export stack: results of background exports
+---| "export_stack_clear" # Remove every entry from the export stack
 ---| "feed_goto_inbox" # Go to the inbox of a feed
 ---| "feed_update_all" # Update all RSS/Atom feeds
+---| "find_file_at_mouse" # Open the link clicked in Neovim
 ---| "force_cycle_archived" # Cycle subtree, even when archived
 ---| "forward_element" # Next element
 ---| "global_cycle" # Cycle global visibility
@@ -156,6 +184,10 @@
 ---| "goto_heading" # Go to heading in agenda files
 ---| "goto_parent" # Go to parent heading
 ---| "help" # Show org keymaps
+---| "hide_block_all" # Fold all blocks
+---| "hide_drawer_all" # Fold all drawers
+---| "hide_entry" # Hide the text of the entry
+---| "html_htmlize_generate_css" # Stylesheet of the source code highlighting classes (htmlize)
 ---| "id_copy" # Copy entry ID
 ---| "id_get_create" # Get or create ID
 ---| "id_goto" # Go to entry by ID
@@ -165,6 +197,7 @@
 ---| "increment" # Increment timestamp / priority
 ---| "indent_block" # Indent the block at point
 ---| "indent_drawer" # Indent the drawer at point
+---| "indent_mode" # Toggle virtual indentation (org-indent-mode)
 ---| "indent_region" # Indent the buffer / selection (org-indent-region)
 ---| "indirect_subtree" # Subtree in split edit buffer
 ---| "inlinetask_insert" # Insert inline task
@@ -183,13 +216,20 @@
 ---| "insert_todo_subheading" # Insert TODO subheading
 ---| "kill_line" # Kill to the end of the line / the tags
 ---| "latex_preview" # Toggle LaTeX previews (count: 4 hide, 16 buffer, 64 hide buffer)
----| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "link_open_from_string" # Open a link typed at a prompt
 ---| "link_preview" # Toggle image previews (count: 4 hide, 16 buffer, 64 hide buffer)
 ---| "link_preview_refresh" # Refresh image previews in the buffer
+---| "lint" # Check the buffer for syntax problems (org-lint)
 ---| "list_make_subtree" # Turn the list into a subtree
 ---| "mark_element" # Select element
 ---| "mark_ring_goto" # Jump back from followed link
+---| "mark_subtree" # Select subtree
+---| "meta_down" # Move subtree / item / row / element down
+---| "meta_left" # Promote / move column left
+---| "meta_return" # New heading / item / row
+---| "meta_right" # Demote / move column right
+---| "meta_shift_return" # New TODO heading / checkbox item
+---| "meta_up" # Move subtree / item / row / element up
 ---| "mouse_context_menu" # Context menu for the cursor position (org-mouse-show-context-menu)
 ---| "mouse_end_headline" # End of the headline, before the tags (org-mouse-end-headline)
 ---| "mouse_insert_checkbox" # Checkbox on the item (org-mouse-insert-checkbox)
@@ -199,17 +239,6 @@
 ---| "mouse_show_overview" # Show the overview (org-mouse-show-overview)
 ---| "mouse_timestamp_today" # Change the timestamp with the date prompt (org-mouse-timestamp-today)
 ---| "mouse_transform_to_outline" # Plain list to outline (org-mouse-transform-to-outline)
----| "occur_link_in_agenda_files" # Find links to here in the agenda files
----| "open_at_mouse" # Open the link clicked
----| "open_at_point_global" # Follow an Org link, date or URL in any buffer
----| "find_file_at_mouse" # Open the link clicked in Neovim
----| "mark_subtree" # Select subtree
----| "meta_down" # Move subtree / item / row / element down
----| "meta_left" # Promote / move column left
----| "meta_return" # New heading / item / row
----| "meta_right" # Demote / move column right
----| "meta_shift_return" # New TODO heading / checkbox item
----| "meta_up" # Move subtree / item / row / element up
 ---| "move_subtree_down" # Move subtree down
 ---| "move_subtree_up" # Move subtree up
 ---| "narrow_block" # Narrow to block (edit buffer)
@@ -220,7 +249,13 @@
 ---| "next_link" # Next link
 ---| "next_sibling" # Next sibling heading
 ---| "num_mode" # Toggle headline numbering (org-num-mode)
+---| "occur_link_in_agenda_files" # Find links to here in the agenda files
+---| "odt_convert" # Convert a file with the ODT converter (count: open it)
+---| "odt_export_as_odf" # Export a LaTeX fragment as an OpenDocument formula (.odf)
+---| "odt_export_as_odf_and_open" # Export a LaTeX fragment as an .odf file and open it
+---| "open_at_mouse" # Open the link clicked
 ---| "open_at_point" # Open link / footnote / date at point
+---| "open_at_point_global" # Follow an Org link, date or URL in any buffer
 ---| "open_link_or_entry" # Open link at point / entry links
 ---| "orgtbl_insert_radio_table" # Insert radio table template
 ---| "orgtbl_mode" # Toggle orgtbl-mode
@@ -236,27 +271,14 @@
 ---| "priority_show" # Show the priority (C-u C-c ,)
 ---| "promote_heading" # Promote heading / item
 ---| "promote_subtree" # Promote subtree
----| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
----| "refile_copy" # Copy subtree / region to a refile target
----| "refile_reverse" # Refile with reverse_note_order inverted (first child)
----| "datetree_cleanup" # Move date tree entries under the day of their time stamp
----| "archive_subtree_default" # Archive with archive_default_command
----| "attach_from_file_manager" # Attach the netrw / oil files to the entry in the Org window
----| "capture_string" # Capture a string typed at a prompt
----| "yank_media" # Paste a clipboard image or copied files (link / attach)
----| "ctags_find_tag_interactive" # Jump to a tag (topic), or create it
----| "ctags_find_tag" # Jump to a tag
----| "ctags_create_tags" # Rebuild the tags file of this directory
----| "ctags_all_tags" # List the tags of the tags files
----| "ctags_get_filename_for_tag" # Show where a tag is defined
----| "ctags_open_file" # Open a file and add a new topic
----| "ctags_visit_buffer_or_file" # Visit NAME.org
----| "ctags_append_topic" # Append a new topic to the buffer
 ---| "protocol_create" # Create an org-protocol project
 ---| "protocol_create_for_org" # Create an org-protocol project for this file's publishing project
+---| "refile" # Refile subtree / region (count: 4 goto, 16 last, 2 clock, 3 copy)
 ---| "refile_cache_clear" # Clear the refile target cache
+---| "refile_copy" # Copy subtree / region to a refile target
 ---| "refile_goto" # Jump to a refile target
 ---| "refile_goto_last" # Jump to last refile / capture
+---| "refile_reverse" # Refile with reverse_note_order inverted (first child)
 ---| "reset_checkbox_state_subtree" # Uncheck every checkbox of the subtree
 ---| "reveal" # Reveal context around cursor
 ---| "schedule" # Schedule (Visual: all headlines)
@@ -340,6 +362,7 @@
 ---| "toggle_archive_tag" # Toggle ARCHIVE tag (Visual: all headlines)
 ---| "toggle_checkbox" # Toggle checkbox
 ---| "toggle_comment" # Toggle COMMENT keyword
+---| "toggle_custom_properties_visibility" # Hide / show custom_properties
 ---| "toggle_fixed_width" # Toggle fixed-width (:)
 ---| "toggle_heading" # Toggle heading
 ---| "toggle_item" # Toggle list item
@@ -358,6 +381,7 @@
 ---| "version" # Show the org.nvim version (count: insert it)
 ---| "yank" # Put, folding / adjusting subtrees (org-yank)
 ---| "yank_before" # Put before, folding / adjusting subtrees
+---| "yank_media" # Paste a clipboard image or copied files (link / attach)
 
 --- Base for action-backed sections: any `org.ActionName` may be used as a
 --- key; unknown names are ignored.
@@ -450,6 +474,8 @@
 ---@field insert_structure_template? org.MappingLhs
 --- Footnote: jump / new / menu (count). Default: `<prefix>if`
 ---@field insert_footnote? org.MappingLhs
+--- Insert / edit a citation (count: delete it, or pick a style). Default: `<prefix>i@`
+---@field cite_insert? org.MappingLhs
 --- Promote heading / item. Default: `<<`
 ---@field promote_heading? org.MappingLhs
 --- Demote heading / item. Default: `>>`
@@ -754,6 +780,8 @@
 ---@field insert_drawer? org.MappingLhs
 --- Footnote: jump / new / menu (count). Default: `<C-c><C-x>f`
 ---@field insert_footnote? org.MappingLhs
+--- Insert / edit a citation (count: delete it, or pick a style). Default: `<C-c><C-x>@`
+---@field cite_insert? org.MappingLhs
 --- Emphasize selection. Default: `<C-c><C-x><C-f>`
 ---@field emphasize? org.MappingLhs
 --- Clone subtree with time shift. Default: `<C-c><C-x>c`
@@ -1312,11 +1340,12 @@
 --- Finalize the capture and refile it (prompts for a target). Default: `{ "<C-c><C-w>", "<prefix>r" }`
 ---@field refile? org.MappingLhs
 
---- Keys in the src-block / special edit buffer (normal mode).
+--- Keys of the Beamer mode (org-beamer-mode-map), set while `beamer_mode` is on.
 ---@class org.Config.Mappings.Beamer
 --- Select the Beamer environment of the entry. Default: `<C-c><C-b>`
 ---@field beamer_select_environment? org.MappingLhs
 
+--- Keys in the src-block / special edit buffer (normal mode).
 ---@class org.Config.Mappings.EditSrc
 --- Write the edit buffer back and close it. Default: `{ "<C-c>'", "<prefix>'" }`
 ---@field save_exit? org.MappingLhs

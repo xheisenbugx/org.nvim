@@ -266,4 +266,21 @@ describe("menus", function()
     ok(vim.tbl_contains(names("Org.Customize.Org"), "deadline_warning_days"))
     ok(vim.tbl_contains(names("Org.Customize.Org.agenda"), "span"))
   end)
+
+  it("loads the menu entries only for a buffer that has a menu", function()
+    local defs = package.loaded["org.menu_defs"]
+    vim.cmd("enew!")
+    package.loaded["org.menu_defs"] = nil
+    menu.sync(true)
+    eq(nil, package.loaded["org.menu_defs"])
+    eq({}, get("Org"))
+    org_buffer({ "* Heading" }, { 1, 0 })
+    menu.sync(true)
+    ok(package.loaded["org.menu_defs"] ~= nil)
+    ok(vim.tbl_contains(names("Org"), "Show/Hide"))
+    if defs and package.loaded["org.menu_defs"] ~= defs then
+      package.loaded["org.menu_defs"] = defs
+      menu.sync(true)
+    end
+  end)
 end)

@@ -997,8 +997,15 @@ end
 -- LaTeX conversion (org-odt--translate-latex-fragments)
 ---------------------------------------------------------------------------
 
+--- Quote `s` for `sh -c` (see `sh` below). vim.fn.shellescape follows
+--- 'shell' instead: with fish it doubles backslashes, with csh it escapes
+--- "!", which `sh` would then keep literally (a LaTeX fragment's "\frac"
+--- would reach the converter as "\\frac").
 local function shellescape(s)
-  return vim.fn.shellescape(s)
+  if vim.fn.has("win32") == 1 then
+    return vim.fn.shellescape(s)
+  end
+  return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
 local function sh(cmd, cwd)
@@ -1207,7 +1214,10 @@ function M.latex_to_image(frag, process, info)
   local ext = spec.image_output_type or "png"
   local function run(cmds, src, out_ext)
     for _, c in ipairs(cmds or {}) do
-      local cmd = c:gsub("%%o%%b", shellescape(dir .. "/" .. base))
+      local ob = shellescape(dir .. "/" .. base)
+      local cmd = c:gsub("%%o%%b", function()
+        return ob
+      end)
       cmd = format_spec(cmd, {
         b = base,
         f = shellescape(base .. "." .. src),
@@ -2144,8 +2154,11 @@ T.link = function(el, desc, info)
   else
     path = ltype .. ":" .. raw
   end
-  path = path:gsub("&", "&amp;")
-  raw = raw:gsub("&", "&amp;")
+  -- Emacs only converts "&"; quotes and angle brackets would also break
+  -- the xlink:href attribute (and the XML).
+  local attr_escapes = { ["&"] = "&amp;", ['"'] = "&quot;", ["<"] = "&lt;", [">"] = "&gt;" }
+  path = path:gsub('[&"<>]', attr_escapes)
+  raw = raw:gsub('[&"<>]', attr_escapes)
   local custom = ox.custom_protocol_maybe(el, desc, "odt", info)
   if custom then
     return custom

@@ -136,6 +136,12 @@ describe("transclusion keyword", function()
     eq("#+transclude: [[x]] :level 3", keyword.set_level("#+transclude: [[x]] :level 2", 3))
     eq("#+transclude: [[x]] :level 1", keyword.set_level("#+transclude: [[x]]", 1))
     eq("#+transclude: [[x]] :level 1", keyword.set_level("#+transclude: [[x]] :level", 0))
+    -- a link that spells ":level" keeps it
+    eq("#+transclude: [[file:a.org::level 3]] :level 2", keyword.set_level("#+transclude: [[file:a.org::level 3]]", 2))
+    eq(
+      "#+transclude: [[file:a.org::level 3]] :level 2",
+      keyword.set_level("#+transclude: [[file:a.org::level 3]] :level 1", 2)
+    )
   end)
 end)
 
@@ -424,6 +430,14 @@ describe("transclusion source", function()
   end)
 end)
 
+describe("transclusion source cache", function()
+  it("clears its real paths without leaking a global", function()
+    _G.reals = nil
+    source.clear_cache()
+    eq(nil, rawget(_G, "reals"))
+  end)
+end)
+
 describe("transclusion highlight", function()
   it("colours org lines", function()
     local c = highlight.org({ "** TODO Title with [[x][desc]] :tag:", "#+title: T", "- item =code=" })
@@ -703,6 +717,21 @@ describe("transclusion", function()
     eq("│     return x + 2", virt_text(buf)[4][3])
   end)
 
+  it("keeps the rest of the last line of a :thing-at-point when writing back", function()
+    write("f.el", { "(defun f () 1) ; keep me", "(defun g () 2)" })
+    open_notes({ "* Notes", "#+transclude: [[file:f.el::defun f]] :thing-at-point sexp" })
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    local eb = T.edit()
+    eq({ "(defun f () 1)" }, buf_lines(eb))
+    vim.api.nvim_buf_set_lines(eb, 0, 1, false, { "(defun f () 42)" })
+    vim.cmd("write")
+    eq({ "(defun f () 42) ; keep me", "(defun g () 2)" }, vim.fn.readfile(dir .. "/f.el"))
+    -- a second write still finds the text
+    vim.api.nvim_buf_set_lines(eb, 0, 1, false, { "(defun f () 43)" })
+    vim.cmd("write")
+    eq({ "(defun f () 43) ; keep me", "(defun g () 2)" }, vim.fn.readfile(dir .. "/f.el"))
+  end)
+
   it("refuses to write over a source that changed meanwhile", function()
     open_notes(NOTES)
     vim.api.nvim_win_set_cursor(0, { 4, 0 })
@@ -867,6 +896,11 @@ describe("transclusion", function()
     got = c(":", "Org transclusion_insert [[file:code.py]] :lines 1-2 :")
     ok(not vim.tbl_contains(got, ":lines"))
     ok(vim.tbl_contains(got, ":src"))
+    -- properties with a "-" in their name
+    got = c(":", "Org transclusion_insert [[file:src.org]] :only-contents :no-first-heading :")
+    ok(not vim.tbl_contains(got, ":only-contents"))
+    ok(not vim.tbl_contains(got, ":no-first-heading"))
+    ok(vim.tbl_contains(got, ":level"))
   end)
 
   it("closes the edit float with <Esc>, not over unwritten edits", function()

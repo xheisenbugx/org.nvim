@@ -40,7 +40,7 @@
 ---Notify once when the clocked time reaches the task's effort. (default: `true`)
 ---@field notify_effort? boolean
 ---Number of tasks remembered in the clock history, used by clock in with a
----count (`org-clock-history-length`). (default: `35`)
+---count (`org-clock-history-length`). (default: `5`)
 ---@field history_length? integer
 ---Start a new clock where the last one stopped (`org-clock-continuously`).
 ---(default: `false`)
@@ -114,7 +114,7 @@
 ---@field x11idle_program_name? string
 ---Persist the running clock and clock history across restarts
 ---(`org-clock-persist`): `true` (both), `"clock"`, `"history"`, `false`.
----(default: `true`)
+---(default: `false`)
 ---@field persist? boolean|"clock"|"history"
 ---Ask before resuming a clock after a restart
 ---(`org-clock-persist-query-resume`). (default: `true`)

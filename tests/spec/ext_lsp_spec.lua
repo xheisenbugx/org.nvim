@@ -149,6 +149,17 @@ describe("lsp extension", function()
         return s.name
       end, details.children)
     )
+    eq({ line = 13, character = 11 }, details.children[1].selectionRange.start)
+  end)
+
+  it("selects a #+NAME: symbol at its value when it also spells the keyword", function()
+    local buf = open(main)
+    vim.api.nvim_buf_set_lines(buf, 13, 14, false, { "   #+name: name" })
+    local syms = request(buf, "textDocument/documentSymbol", { textDocument = { uri = vim.uri_from_bufnr(buf) } })
+    local sym = syms[1].children[1].children[1]
+    eq("name", sym.name)
+    eq({ line = 13, character = 11 }, sym.selectionRange.start)
+    eq({ line = 13, character = 15 }, sym.selectionRange["end"])
   end)
 
   it("finds workspace symbols across files", function()
@@ -441,6 +452,15 @@ describe("lsp extension", function()
       local ob = utils.find_buffer(other)
       eq("  And [[id:2222-bbbb][by id]] and [[file:main.org::*Write report][Write report]].", buf_lines(ob)[3])
       eq("  Plain id:2222-bbbb here.", buf_lines(ob)[4])
+    end)
+
+    it("renames a #+NAME: whose value also spells the keyword", function()
+      local buf = open(main)
+      vim.api.nvim_buf_set_lines(buf, 13, 14, false, { "   #+name: name" })
+      vim.api.nvim_buf_set_lines(buf, 21, 22, false, { "  Back to [[name]] and [[Details]]." })
+      ok(rename(buf, 14, 14, "numbers"))
+      eq("   #+name: numbers", buf_lines(buf)[14])
+      eq("  Back to [[numbers]] and [[Details]].", buf_lines(buf)[22])
     end)
 
     it("renames a headline reached by a fuzzy link", function()

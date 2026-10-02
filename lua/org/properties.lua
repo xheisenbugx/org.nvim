@@ -466,7 +466,8 @@ function M.set_effort(target, value)
   if value == "" then
     edit.set_property(bufnr, hl.line, prop, nil)
     require("org.clock").effort_changed(bufnr, hl.line)
-    return false
+    -- not `false`: the buffer changed, so the key must not fall back
+    return ""
   end
   -- the value is stored as typed, like Emacs; it must be a duration
   local minutes = date.parse_duration(value)

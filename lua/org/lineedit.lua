@@ -219,8 +219,12 @@ function M.kill_line()
     if tags and col < tags then
       kill(line:sub(col + 1, tags), "c")
       local new = line:sub(1, col) .. line:sub(tags + 1)
-      local todo_cfg = require("org.files").get_buffer(bufnr).settings.todo
-      new = require("org.edit").align_tags_line(new, todo_cfg)
+      -- realigned like Emacs only with `auto_align_tags` (org-auto-align-tags)
+      local edit = require("org.edit")
+      if edit.auto_align_tags() then
+        local todo_cfg = require("org.files").get_buffer(bufnr).settings.todo
+        new = edit.align_tags_line(new, todo_cfg)
+      end
       vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { new })
     else
       kill(line:sub(col + 1), "c")
