@@ -427,9 +427,18 @@ end
 -- a write of the index waiting in `save_later`: { timer, path, data }
 local pending = nil
 
+--- Write the index atomically: to a temporary file renamed over the
+--- index, so that a crash or another Neovim reading it meanwhile never
+--- sees half of it.
 local function write(path, data)
-  local ok, err = pcall(utils.write_json, path, data)
+  local tmp = path .. ".tmp" .. vim.fn.getpid()
+  local ok, err = pcall(utils.write_json, tmp, data)
+  if ok then
+    local renamed, rerr = vim.uv.fs_rename(tmp, path)
+    ok, err = renamed ~= nil, rerr
+  end
   if not ok then
+    pcall(vim.uv.fs_unlink, tmp)
     utils.warn("org-roam: cannot write the index: " .. tostring(err))
   end
 end
@@ -523,6 +532,8 @@ local function fresh_parse(path)
   return lines and require("org.parser").parse(lines, path) or nil
 end
 
+local patch_lookup
+
 --- Index one file now (after a save), or drop it when it is gone or no
 --- longer a roam file. Returns true when the index changed.
 ---@param path string
@@ -532,9 +543,10 @@ function M.update_file(path, file)
   path = vim.fs.normalize(path)
   local idx = load()
   if not M.is_roam_file(path) or not utils.exists(path) then
-    if idx.files[path] then
+    local old = idx.files[path]
+    if old then
       idx.files[path] = nil
-      lookup = nil
+      patch_lookup(path, old, nil)
       save_later()
       return true
     end
@@ -543,8 +555,9 @@ function M.update_file(path, file)
   local sec, nsec = stat(path)
   local nodes, links = M.parse_file(path, file or fresh_parse(path))
   local entry = { sec = sec, nsec = nsec, nodes = nodes, links = links }
+  local old = idx.files[path]
   idx.files[path] = entry
-  lookup = nil
+  patch_lookup(path, old, entry)
   save_later()
   register_ids({ entry })
   return true
@@ -603,12 +616,14 @@ local function build()
     return lookup
   end
   local idx = load()
-  lookup = { nodes = {}, by_id = {}, backlinks = {}, reflinks = {}, duplicates = {} }
+  -- path_of: the file of each node, as indexed (for patch_lookup)
+  lookup = { nodes = {}, by_id = {}, backlinks = {}, reflinks = {}, duplicates = {}, path_of = {} }
   local paths = vim.tbl_keys(idx.files)
   table.sort(paths)
   for _, path in ipairs(paths) do
     local e = idx.files[path]
     for _, n in ipairs(e.nodes or {}) do
+      lookup.path_of[n] = path
       local first = lookup.by_id[n.id]
       if first then
         -- org-roam's database refuses a second node with the same id
@@ -634,6 +649,105 @@ local function build()
     end
   end
   return lookup
+end
+
+--- Bring the lookup tables up to date after the entry of one file went
+--- from `old` to `new` (either nil), keeping the order a full build
+--- gives (by path, then by position in the file). A change involving an
+--- id used by another file, or twice, drops the lookup: which node wins
+--- depends on the order of every file, left to the next full build.
+---@param path string
+---@param old? table
+---@param new? table
+function patch_lookup(path, old, new)
+  local lk = lookup
+  if not lk then
+    return
+  end
+  local old_nodes = old and old.nodes or {}
+  local new_nodes = new and new.nodes or {}
+  local ids = {}
+  for _, n in ipairs(old_nodes) do
+    if lk.duplicates[n.id] or lk.by_id[n.id] ~= n then
+      lookup = nil
+      return
+    end
+  end
+  for _, n in ipairs(new_nodes) do
+    local cur = lk.by_id[n.id]
+    if ids[n.id] or lk.duplicates[n.id] or (cur and lk.path_of[cur] ~= path) then
+      lookup = nil
+      return
+    end
+    ids[n.id] = true
+  end
+  -- nodes
+  local gone = {}
+  for _, n in ipairs(old_nodes) do
+    gone[n] = true
+    lk.by_id[n.id] = nil
+    lk.path_of[n] = nil
+  end
+  local nodes, placed = {}, false
+  local function place()
+    placed = true
+    for _, n in ipairs(new_nodes) do
+      nodes[#nodes + 1] = n
+      lk.by_id[n.id] = n
+      lk.path_of[n] = path
+    end
+  end
+  for _, n in ipairs(lk.nodes) do
+    if not gone[n] then
+      if not placed and lk.path_of[n] > path then
+        place()
+      end
+      nodes[#nodes + 1] = n
+    end
+  end
+  if not placed then
+    place()
+  end
+  lk.nodes = nodes
+  -- backlinks and reflinks of every target the file linked or links to
+  local targets = {}
+  for _, e in ipairs({ old or {}, new or {} }) do
+    for _, l in ipairs(e.links or {}) do
+      local tbl = l.type == "id" and lk.backlinks or lk.reflinks
+      targets[tbl] = targets[tbl] or {}
+      targets[tbl][l.path] = true
+    end
+  end
+  for tbl, keys in pairs(targets) do
+    for key in pairs(keys) do
+      local mine = {}
+      for _, l in ipairs(new and new.links or {}) do
+        if l.path == key and (l.type == "id") == (tbl == lk.backlinks) then
+          l.file = path
+          mine[#mine + 1] = l
+        end
+      end
+      local list, put = {}, false
+      for _, l in ipairs(tbl[key] or {}) do
+        if l.file ~= path then
+          if not put and l.file > path then
+            put = true
+            vim.list_extend(list, mine)
+          end
+          list[#list + 1] = l
+        end
+      end
+      if not put then
+        vim.list_extend(list, mine)
+      end
+      tbl[key] = #list > 0 and list or nil
+    end
+  end
+end
+
+--- The lookup tables (tests).
+function M._lookup()
+  return build()
 end
 
 --- Drop the in-memory index (tests; a changed directory).

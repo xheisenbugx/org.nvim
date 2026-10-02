@@ -114,6 +114,134 @@ describe("agenda headline iteration", function()
   end)
 end)
 
+describe("roam lookup after one file changes", function()
+  local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
+  local utils = require("org.utils")
+  local dir, index_file
+  local function db()
+    return require("org.extensions.roam.db")
+  end
+  before_each(function()
+    dir = vim.fn.tempname() .. "/roam"
+    vim.fn.mkdir(dir, "p")
+    dir = utils.realpath(dir)
+    index_file = dir .. "/../roam-index.json"
+    require("org").setup({
+      org_directory = root .. "/tests/fixtures",
+      extensions = { roam = { directory = dir, index_file = index_file } },
+    })
+    db().reset()
+  end)
+  after_each(function()
+    db().reset()
+    vim.fn.delete(vim.fs.dirname(dir), "rf")
+    require("org").setup({
+      org_directory = root .. "/tests/fixtures",
+      agenda_files = { root .. "/tests/fixtures/*.org" },
+    })
+  end)
+
+  local function note(name, id, lines)
+    local path = dir .. "/" .. name .. ".org"
+    utils.writefile(path, vim.list_extend({ ":PROPERTIES:", ":ID: " .. id, ":END:", "#+title: " .. name }, lines or {}))
+    return path
+  end
+
+  -- what the lookup holds, in a comparable form
+  local function snapshot()
+    local lk = db()._lookup()
+    local function links(map)
+      local out = {}
+      for k, list in pairs(map) do
+        out[k] = vim.tbl_map(function(l)
+          return { l.file, l.source, l.lnum, l.col }
+        end, list)
+      end
+      return out
+    end
+    return {
+      nodes = vim.tbl_map(function(n)
+        return { n.id, n.file, n.title }
+      end, lk.nodes),
+      ids = vim.tbl_map(function(n)
+        return n.file
+      end, lk.by_id),
+      backlinks = links(lk.backlinks),
+      reflinks = links(lk.reflinks),
+      duplicates = vim.tbl_keys(lk.duplicates),
+    }
+  end
+
+  -- the patched lookup equals one built from scratch (from the index
+  -- written to disk)
+  local function check()
+    local patched = snapshot()
+    db().reset()
+    eq(snapshot(), patched)
+  end
+
+  it("matches a full build after adding, changing and removing nodes and links", function()
+    local a = note("a", "A", { "* A1", ":PROPERTIES:", ":ID: A1", ":END:", "[[id:C][c]] https://x.org" })
+    note("c", "C", { "[[id:A][a]]" })
+    local e = note("e", "E", { "[[id:C][to c]]", "[[id:A1][a1]]" })
+    db().sync()
+    snapshot()
+    -- a note between a and c (path order) linking to both
+    local b = note("b", "B", { "* B1", ":PROPERTIES:", ":ID: B1", ":END:", "[[id:A][a]] [[id:C][c]]" })
+    db().update_file(b)
+    eq(
+      { "A", "A1", "B", "B1", "C", "E" },
+      vim.tbl_map(function(n)
+        return n.id
+      end, db().nodes())
+    )
+    check()
+    -- a node renamed, a link removed and another added
+    utils.writefile(
+      a,
+      { ":PROPERTIES:", ":ID: A", ":END:", "#+title: a", "* A2", ":PROPERTIES:", ":ID: A2", ":END:", "[[id:E][e]]" }
+    )
+    db().update_file(a)
+    eq(nil, db().node("A1"))
+    eq("A2", db().node("A2").id)
+    check()
+    -- a file deleted
+    vim.fn.delete(e)
+    db().update_file(e)
+    eq(nil, db().node("E"))
+    eq({}, db().backlinks("C") and vim.tbl_filter(function(x)
+      return x.link.file == e
+    end, db().backlinks("C")))
+    check()
+  end)
+
+  it("falls back to a full build when an id is used by another file", function()
+    note("a", "A")
+    local b = note("b", "B")
+    db().sync()
+    snapshot()
+    utils.writefile(b, { ":PROPERTIES:", ":ID: A", ":END:", "#+title: b" })
+    db().update_file(b)
+    eq({ "A" }, vim.tbl_keys(db().duplicates()))
+    eq(dir .. "/a.org", db().node("A").file)
+    check()
+    -- and back to a unique id
+    utils.writefile(b, { ":PROPERTIES:", ":ID: B", ":END:", "#+title: b" })
+    db().update_file(b)
+    eq({}, db().duplicates())
+    check()
+  end)
+
+  it("writes the index atomically", function()
+    note("a", "A")
+    db().sync()
+    ok(vim.uv.fs_stat(index_file))
+    local leftovers = vim.fn.glob(vim.fs.normalize(index_file) .. ".tmp*", false, true)
+    eq({}, leftovers)
+    eq("A", vim.json.decode(table.concat(vim.fn.readfile(index_file), "\n")).files[dir .. "/a.org"].nodes[1].id)
+  end)
+end)
+
 describe("open clock cache", function()
   local clock = require("org.clock")
   local date = require("org.date")
