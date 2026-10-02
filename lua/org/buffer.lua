@@ -34,6 +34,39 @@ function M.insert_mode_line(bufnr)
   end
 end
 
+--- Concealing for the buffer in window `win`: set with `:setlocal`, so
+--- other buffers later shown in the window keep their own values.
+local function set_win_opts(bufnr, win)
+  if vim.api.nvim_win_get_buf(win) ~= bufnr then
+    return
+  end
+  local wo = vim.wo[win][0]
+  local ui = config.opts.ui
+  local hides = ui.conceal_links or ui.hide_macro_markers or #(ui.hidden_keywords or {}) > 0
+  local ok_ts, ts = pcall(require, "org.timestamps")
+  if hides or (ok_ts and ts.custom_display_enabled(bufnr)) then
+    wo.conceallevel = math.max(vim.wo[win].conceallevel, 2)
+  end
+  if vim.wo[win].concealcursor == "" then
+    wo.concealcursor = "nc"
+  end
+end
+
+-- What `attach` sets in a buffer, undone by `detach`.
+local BUF_OPTS = {
+  "commentstring",
+  "comments",
+  "formatoptions",
+  "formatlistpat",
+  "omnifunc",
+  "indentexpr",
+  "indentkeys",
+  "formatexpr",
+  "expandtab",
+  "textwidth",
+}
+local WIN_OPTS = { "foldmethod", "foldexpr", "foldtext", "conceallevel", "concealcursor" }
+
 --- Called from ftplugin/org.lua for every org buffer.
 function M.attach(bufnr)
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
@@ -58,12 +91,16 @@ function M.attach(bufnr)
   bo.expandtab = true
   bo.textwidth = bo.textwidth ~= 0 and bo.textwidth or 0
 
-  vim.api.nvim_buf_call(bufnr, function()
-    local ui = config.opts.ui
-    local hides = ui.conceal_links or ui.hide_macro_markers or #(ui.hidden_keywords or {}) > 0
-    vim.wo.conceallevel = hides and math.max(vim.wo.conceallevel, 2) or vim.wo.conceallevel
-    vim.wo.concealcursor = vim.wo.concealcursor == "" and "nc" or vim.wo.concealcursor
-  end)
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    set_win_opts(bufnr, win)
+  end
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = vim.api.nvim_create_augroup("org.buffer." .. bufnr, { clear = true }),
+    buffer = bufnr,
+    callback = function()
+      set_win_opts(bufnr, vim.api.nvim_get_current_win())
+    end,
+  })
 
   try("org.fold", "setup_buffer", bufnr)
   require("org.mappings").attach(bufnr)
@@ -80,20 +117,40 @@ function M.attach(bufnr)
   -- custom timestamp display (display_custom_times, #+STARTUP: customtime)
   local ok_ts, ts = pcall(require, "org.timestamps")
   if ok_ts and ts.custom_display_enabled(bufnr) then
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.wo.conceallevel = math.max(vim.wo.conceallevel, 2)
-    end)
     try("org.timestamps", "attach_custom_display", bufnr)
   end
 
-  vim.b[bufnr].undo_ftplugin = (vim.b[bufnr].undo_ftplugin or "")
-    .. "|lua require('org.buffer').detach("
-    .. bufnr
-    .. ")"
+  local undo = "lua require('org.buffer').detach(" .. bufnr .. ")"
+  local prev = vim.b[bufnr].undo_ftplugin
+  -- (a leading "|" would be an empty command, which prints the line)
+  vim.b[bufnr].undo_ftplugin = (prev and prev ~= "") and (prev .. " | " .. undo) or undo
 end
 
+--- Undo `attach` (b:undo_ftplugin, when the filetype changes): the
+--- buffer's options, mappings, folds and decorations go back to what any
+--- other buffer has (Emacs: kill-all-local-variables).
 function M.detach(bufnr)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
   vim.b[bufnr].org_attached = nil
+  for _, name in ipairs(BUF_OPTS) do
+    vim.bo[bufnr][name] = vim.api.nvim_get_option_value(name, { scope = "global" })
+  end
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    for _, name in ipairs(WIN_OPTS) do
+      vim.wo[win][0][name] = vim.api.nvim_get_option_value(name, { scope = "global" })
+    end
+  end
+  for _, r in ipairs(vim.b[bufnr].org_keymaps or {}) do
+    pcall(vim.keymap.del, r[1], r[2], { buffer = bufnr })
+  end
+  vim.b[bufnr].org_keymaps = nil
+  for _, group in ipairs({ "org.buffer.", "org.fold." }) do
+    pcall(vim.api.nvim_del_augroup_by_name, group .. bufnr)
+  end
+  try("org.ui.decorations", "detach", bufnr)
 end
 
 --- Re-read in-buffer settings (#+TODO etc.) and refresh syntax/folds.

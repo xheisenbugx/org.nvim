@@ -330,6 +330,10 @@ function M.element_end(lines, k)
   if bname then
     local pat = "^%s*#%+[Ee][Nn][Dd]_" .. vim.pesc(bname:lower()) .. "%f[%s%z]"
     for j = k + 1, n do
+      if lines[j]:match("^%*+%s") then
+        -- a block never runs past a headline (it is a paragraph then)
+        break
+      end
       if lines[j]:lower():match(pat) then
         local kind = bname:lower()
         if kind ~= "src" and kind ~= "example" and kind ~= "export" then
@@ -348,6 +352,9 @@ function M.element_end(lines, k)
   local env = line:match("^%s*\\begin{([^}]+)}")
   if env then
     for j = k, n do
+      if j > k and lines[j]:match("^%*+%s") then
+        break
+      end
       if lines[j]:find("\\end{" .. env .. "}", 1, true) then
         return j, "latex"
       end

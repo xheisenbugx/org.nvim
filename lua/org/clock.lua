@@ -1905,6 +1905,54 @@ end
 -- Clock sums on headlines
 ---------------------------------------------------------------------------
 
+-- The sums are drawn over the text from the end of the title, which also
+-- covers the inline ellipsis org.fold draws after a closed fold's heading.
+-- On a closed fold the sum is drawn again with the ellipsis after it, as
+-- in Emacs, where the overlay ends at the end of the line and the fold's
+-- ellipsis follows. Folds are per window: done when each window redraws.
+local folded_ns = vim.api.nvim_create_namespace("org.clock.display.folded")
+local folded_rows = {} -- winid -> { [row] = extmark }
+vim.api.nvim_set_decoration_provider(folded_ns, {
+  on_win = function(_, win, buf, top, bot)
+    folded_rows[win] = nil
+    if vim.wo[win].foldtext ~= "" or not vim.wo[win].foldenable then
+      return false
+    end
+    local marks = vim.api.nvim_buf_get_extmarks(buf, display_ns, { top, 0 }, { bot, -1 }, { details = true })
+    local rows
+    for _, m in ipairs(marks) do
+      if m[4].virt_text then
+        local lnum = m[2] + 1
+        local closed = vim.api.nvim_win_call(win, function()
+          return vim.fn.foldclosed(lnum)
+        end)
+        if closed == lnum then
+          rows = rows or {}
+          rows[m[2]] = m
+        end
+      end
+    end
+    if not rows then
+      return false
+    end
+    folded_rows[win] = rows
+  end,
+  on_line = function(_, win, buf, row)
+    local m = folded_rows[win] and folded_rows[win][row]
+    if not m then
+      return
+    end
+    local chunks = vim.deepcopy(m[4].virt_text)
+    chunks[#chunks + 1] = { require("org.config").opts.ellipsis or "...", "Comment" }
+    pcall(vim.api.nvim_buf_set_extmark, buf, folded_ns, row, m[3], {
+      virt_text = chunks,
+      virt_text_pos = "overlay",
+      hl_mode = "combine",
+      ephemeral = true,
+    })
+  end,
+})
+
 --- Remove the clock sums shown by `toggle_display` (org-clock-remove-overlays).
 function M.remove_overlays(bufnr)
   bufnr = (type(bufnr) ~= "number" or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
@@ -1946,17 +1994,29 @@ function M.toggle_display(bufnr, range)
   local file = files.get_buffer(bufnr)
   local times, total = clock_sum(file.children, from, to)
   if count < 64 then
+    local o = require("org.ui").conceal_opts(bufnr)
     for _, hl in ipairs(file.headlines) do
       local m = times[hl]
       if m and m > 0 then
-        -- like Emacs: dots up to column 60, then the time
-        local dots = math.max(60 - utils.width(file.lines[hl.line]) - 1, 0)
-        vim.api.nvim_buf_set_extmark(bufnr, display_ns, hl.line - 1, 0, {
+        -- org-clock-put-overlay: the overlay replaces the line from the end
+        -- of the title (the tags are hidden), its dots fill up to column 60
+        -- measured on the displayed title (org-string-width), then the
+        -- time. It is drawn over the text ("overlay"): Neovim draws no eol
+        -- text on a closed fold's line (Emacs shows the sums in overview),
+        -- and inline text would make the line wrap sooner, as Neovim wraps
+        -- a line at its width with the concealed text.
+        local line = file.lines[hl.line]
+        local title = line:match("^(.-)%s+:[%w_@#%%:\128-\255]+:%s*$") or line:gsub("%s+$", "")
+        local dots = math.max(60 - require("org.ui").visible_width(title, o), 0)
+        if #line > #title then
+          vim.api.nvim_buf_set_extmark(bufnr, display_ns, hl.line - 1, #title, { end_col = #line, conceal = "" })
+        end
+        vim.api.nvim_buf_set_extmark(bufnr, display_ns, hl.line - 1, #title, {
           virt_text = {
-            { " " .. string.rep("·", dots), "OrgClockOverlayDots" },
+            { string.rep("·", dots), "OrgClockOverlayDots" },
             { string.format(" %9s ", date.duration_to_string(m)), "OrgClockOverlay" },
           },
-          virt_text_pos = "eol",
+          virt_text_pos = "overlay",
           hl_mode = "combine",
         })
       end

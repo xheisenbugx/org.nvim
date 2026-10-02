@@ -23,6 +23,7 @@ local M = {}
 ---@field tail string|nil the rest of line `last` after `raw` (a thing at point ends inside it)
 ---@field lines string[] the formatted text to show
 ---@field lang string|nil language of text sources
+---@field todo org.TodoConfig|nil the source file's TODO keywords (Org sources)
 ---@field label string where the text comes from, for display
 ---@field sources table<string, boolean> files read, nested ones included
 ---@field errors string[] problems with nested transclusions
@@ -1056,6 +1057,10 @@ resolve = function(spec, ctx)
   end
   while #res.lines > 0 and res.lines[#res.lines]:match("^%s*$") do
     table.remove(res.lines)
+  end
+  if res.kind == "org" then
+    -- the source file's TODO keywords (its #+TODO lines), for highlighting
+    res.todo = parse(lines, path, key).settings.todo
   end
   res.label = label
   return res

@@ -172,38 +172,15 @@ local function is_cookie_row(row)
 end
 M.is_cookie_row = is_cookie_row
 
---- Display width of a cell. Links count as their description (or path)
---- while `ui.conceal_links` hides the brackets, like Emacs aligning with
---- `org-link-descriptive`.
-local function cell_width(s)
-  if not s:find("[[", 1, true) or (require("org.config").opts.ui or {}).conceal_links == false then
-    return utils.width(s)
-  end
-  local out, i = {}, 1
-  while true do
-    local a = s:find("[[", i, true)
-    if not a then
-      break
-    end
-    -- the link path may hold backslash-escaped brackets
-    local k = a + 2
-    while k <= #s and not s:sub(k, k):match("[%[%]]") do
-      k = k + (s:sub(k, k) == "\\" and 2 or 1)
-    end
-    local after, visible = nil, nil
-    if s:sub(k, k + 1) == "]]" then
-      after, visible = k + 2, s:sub(a + 2, k - 1)
-    elseif s:sub(k, k + 1) == "][" then
-      local close = s:find("]]", k + 2, true)
-      if close then
-        after, visible = close + 2, s:sub(k + 2, close - 1)
-      end
-    end
-    out[#out + 1] = s:sub(i, a - 1) .. (visible or "[[")
-    i = after or a + 2
-  end
-  out[#out + 1] = s:sub(i)
-  return utils.width(table.concat(out))
+--- Display width of a cell, as the buffer shows it: a link counts as its
+--- description (or path) while links are shown descriptively, hidden
+--- emphasis markers count for nothing and pretty entities count as their
+--- character, like Emacs aligning with org-string-width (which skips
+--- invisible text). `o` is the buffer's |org.ui.conceal_opts|.
+---@param s string
+---@param o? table
+local function cell_width(s, o)
+  return require("org.ui").visible_width(s, o)
 end
 M.cell_width = cell_width
 
@@ -211,15 +188,16 @@ M.cell_width = cell_width
 --- Emacs org-table-align: the first `<l>`/`<r>`/`<c>` cookie fixes the
 --- alignment, else a column is right-aligned when at least
 --- `table_number_fraction` of its non-empty fields are numbers.
-function M.layout(t)
+function M.layout(t, o)
   local fraction = require("org.config").opts.table_number_fraction or 0.5
+  o = o or require("org.ui").conceal_opts()
   local widths, align = {}, {}
   for c = 1, t.ncols do
     local w, fixed, numbers, nonempty = 1, nil, 0, 0
     for _, row in ipairs(t.rows) do
       if not row.hline then
         local cell = row.cells[c] or ""
-        w = math.max(w, cell_width(cell))
+        w = math.max(w, cell_width(cell, o))
         if fixed or cell == "" then
           -- nothing
         elseif cell:match("^<[lrc]%d*>$") then
@@ -241,7 +219,8 @@ end
 --- Render a parsed table into aligned lines.
 function M.render(t)
   local ncols = t.ncols
-  local widths, align = M.layout(t)
+  local o = require("org.ui").conceal_opts()
+  local widths, align = M.layout(t, o)
   local out = {}
   for _, row in ipairs(t.rows) do
     if row.hline then
@@ -254,7 +233,7 @@ function M.render(t)
       local parts = {}
       for c = 1, ncols do
         local cell = row.cells[c] or ""
-        local pad = widths[c] - cell_width(cell)
+        local pad = widths[c] - cell_width(cell, o)
         local a = align[c]
         if a == "r" then
           cell = string.rep(" ", pad) .. cell
@@ -2492,12 +2471,14 @@ function M.toggle_coordinate_overlays()
   local line = info.lines[1]
   local pipes = pipe_positions(line)
   local label = ""
+  -- (measured on the displayed row: a concealed link is narrower)
+  local o = require("org.ui").conceal_opts(bufnr)
   for c = 1, t.ncols do
     local p = pipes[c]
     if not p then
       break
     end
-    local col = vim.fn.strdisplaywidth(line:sub(1, p)) + 1
+    local col = vim.fn.strdisplaywidth(require("org.ui").visible_text(line:sub(1, p), o)) + 1
     local text = "$" .. c
     label = label .. string.rep(" ", math.max(col - vim.fn.strdisplaywidth(label), c > 1 and 1 or 0)) .. text
   end

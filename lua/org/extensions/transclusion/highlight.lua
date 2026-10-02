@@ -17,23 +17,28 @@ local EMPHASIS = {
   ["~"] = "OrgCode",
 }
 
-local function tabs(s)
+-- one UTF-8 character
+local CHAR = "[%z\1-\127\194-\244][\128-\191]*"
+
+-- `s` with its tabs expanded to the next tab stop, `col` display cells
+-- into the line; returns the new text and the column after it
+local function tabs(s, col)
   if not s:find("\t", 1, true) then
-    return s
+    return s, col + vim.api.nvim_strwidth(s)
   end
   local ts = vim.o.tabstop > 0 and vim.o.tabstop or 8
-  local out, col = {}, 0
-  for ch in s:gmatch(".") do
+  local out = {}
+  for ch in s:gmatch(CHAR) do
     if ch == "\t" then
       local n = ts - (col % ts)
       out[#out + 1] = string.rep(" ", n)
       col = col + n
     else
       out[#out + 1] = ch
-      col = col + 1
+      col = col + vim.api.nvim_strwidth(ch)
     end
   end
-  return table.concat(out)
+  return table.concat(out), col
 end
 
 --- Chunks of inline markup in `text` on a `base` group.
@@ -59,15 +64,14 @@ function M.inline(text, base)
     local rest = text:sub(i)
     local done = false
     if c == "[" then
-      local target, desc = rest:match("^%[%[(.-)%]%[(.-)%]%]")
-      local s, e
+      -- org-link-bracket-re: the target has no brackets, so a plain
+      -- [[link]] doesn't run on into a later [[target][desc]]
+      local s, e, target, desc = rest:find("^%[%[([^%[%]]+)%]%[(.-)%]%]")
       if target then
-        s, e = rest:find("^%[%[.-%]%[.-%]%]")
         push(desc, "OrgLink")
       else
-        target = rest:match("^%[%[(.-)%]%]")
+        s, e, target = rest:find("^%[%[([^%[%]]+)%]%]")
         if target then
-          s, e = rest:find("^%[%[.-%]%]")
           push(target, "OrgLink")
         end
       end
@@ -135,21 +139,47 @@ local function append(dst, chunks)
   return dst
 end
 
-local function headline(line, level)
-  local parts = require("org.parser").parse_headline_line(line)
+-- Highlighted ranges of the headline as written: the text is never
+-- rebuilt, so COMMENT and the spacing before aligned tags stay.
+local function headline(line, level, todo_cfg)
+  local parts = require("org.parser").parse_headline_line(line, todo_cfg)
   local hl = "OrgHeadlineLevel" .. (((level - 1) % 8) + 1)
-  local out = { { parts.stars .. " ", hl } }
+  local pos = line:match("^%*+ +()")
+  local out = { { line:sub(1, pos - 1), hl } }
+  local stop = #line + 1
+  if #parts.tags > 0 then
+    -- the tags as the parser found them, with the space before them
+    stop = line:find("%s:[%w_@#%%:\128-\255]+:%s*$", pos - 1) + 1
+  end
+  local function ws()
+    local e = line:match("^%s*()", pos)
+    if e > pos then
+      out[#out + 1] = { line:sub(pos, e - 1), hl }
+      pos = e
+    end
+  end
   if parts.todo then
-    local cfg = require("org.todo_keywords").global()
+    local cfg = todo_cfg or require("org.todo_keywords").global()
     out[#out + 1] = { parts.todo, cfg:is_done(parts.todo) and "OrgDone" or "OrgTodo" }
-    out[#out + 1] = { " ", hl }
+    pos = pos + #parts.todo
+    ws()
   end
   if parts.priority then
-    out[#out + 1] = { "[#" .. parts.priority .. "] ", "OrgPriority" }
+    local e = line:match("^%[#[^%]]+%]()", pos)
+    out[#out + 1] = { line:sub(pos, e - 1), "OrgPriority" }
+    pos = e
+    ws()
   end
-  append(out, M.inline(parts.title, hl))
-  if #parts.tags > 0 then
-    out[#out + 1] = { " :" .. table.concat(parts.tags, ":") .. ":", "OrgTags" }
+  if parts.commented then
+    out[#out + 1] = { "COMMENT", hl }
+    pos = pos + #"COMMENT"
+    ws()
+  end
+  if stop > pos then
+    append(out, M.inline(line:sub(pos, stop - 1), hl))
+  end
+  if stop <= #line then
+    out[#out + 1] = { line:sub(stop), "OrgTags" }
   end
   return out
 end
@@ -188,8 +218,9 @@ end
 
 --- Chunks of org lines.
 ---@param lines string[]
+---@param todo_cfg? org.TodoConfig the source file's TODO keywords
 ---@return table[][]
-function M.org(lines)
+function M.org(lines, todo_cfg)
   local out = {}
   -- src blocks first, to highlight each block's code as a whole
   local code = {}
@@ -225,7 +256,7 @@ function M.org(lines)
         chunks = code[idx] or { { line, block == "quote" and "OrgQuoteBlock" or "OrgBlock" } }
       end
     elseif level then
-      chunks = headline(line, #level)
+      chunks = headline(line, #level, todo_cfg)
     elseif lower:match("^%s*#%+begin_") then
       block = lower:match("^%s*#%+begin_(%S+)")
       chunks = { { line, "OrgBlockDelimiter" } }
@@ -272,10 +303,13 @@ function M.org(lines)
   return M.expand_tabs(out)
 end
 
+--- Expand the tabs of each line's chunks in place, tab stops counted in
+--- display cells from the start of the line (as the source buffer shows).
 function M.expand_tabs(lines)
   for _, chunks in ipairs(lines) do
+    local col = 0
     for _, c in ipairs(chunks) do
-      c[1] = tabs(c[1])
+      c[1], col = tabs(c[1], col)
     end
   end
   return lines

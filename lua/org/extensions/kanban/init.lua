@@ -289,6 +289,21 @@ end
 
 local B = { tl = "╭", tr = "╮", bl = "╰", br = "╯", h = "─", v = "│", rule = "━" }
 
+--- `ch` repeated over `cells` display cells. Box-drawing characters are
+--- two cells wide with 'ambiwidth' "double"; a cell they can't fill is a
+--- space.
+local function fill(ch, cells)
+  local cw = math.max(1, utils.width(ch))
+  local n = math.max(0, math.floor(cells / cw))
+  return string.rep(ch, n) .. string.rep(" ", math.max(0, cells - n * cw))
+end
+M._fill = fill
+
+--- A border row `w` cells wide: `l`, `h` repeated, `r`.
+local function edge(l, h, r, w)
+  return l .. fill(h, w - utils.width(l) - utils.width(r)) .. r
+end
+
 --- Wrap `s` into at most `n` lines of `width` cells; the last is cut.
 local function wrap(s, width, n)
   local words = vim.split(vim.trim(s), "%s+", { trimempty = true })
@@ -318,7 +333,7 @@ M._wrap = wrap
 --- The first and last segment of each row are the border.
 local function card_rows(card, w, o)
   local border = "OrgKanbanBorder"
-  local inner = w - 4
+  local inner = w - 2 * utils.width(B.v) - 2
   local rows = {}
   local function row(segs)
     local used = 0
@@ -330,7 +345,7 @@ local function card_rows(card, w, o)
     line[#line + 1] = { string.rep(" ", math.max(0, inner - used)) .. " " .. B.v, border }
     rows[#rows + 1] = line
   end
-  rows[1] = { { B.tl .. string.rep(B.h, w - 2) .. B.tr, border } }
+  rows[1] = { { edge(B.tl, B.h, B.tr, w), border } }
   local prefix = ""
   local show_prio = o.card.priority ~= false and card.priority
   if show_prio then
@@ -386,7 +401,7 @@ local function card_rows(card, w, o)
   if #tagsegs > 0 then
     row(tagsegs)
   end
-  rows[#rows + 1] = { { B.bl .. string.rep(B.h, w - 2) .. B.br, border } }
+  rows[#rows + 1] = { { edge(B.bl, B.h, B.br, w), border } }
   return rows
 end
 
@@ -404,7 +419,7 @@ local function header_rows(col, w)
   segs[#segs + 1] = { ctext, over and "OrgKanbanWipExceeded" or "OrgKanbanCount" }
   used = used + utils.width(ctext)
   segs[#segs + 1] = { string.rep(" ", math.max(0, w - used)) }
-  return { segs, { { string.rep(B.rule, w), over and "OrgKanbanWipExceeded" or hl } } }
+  return { segs, { { fill(B.rule, w), over and "OrgKanbanWipExceeded" or hl } } }
 end
 
 --- Column width for `n` columns in `avail` cells.

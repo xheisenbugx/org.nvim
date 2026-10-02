@@ -377,10 +377,11 @@ function M.time_string(start, stop)
   return s .. trail .. (use_ampm and " " or "")
 end
 
+--- `title` as the agenda shows it: bracket links replaced by their
+--- description, or their target (org-link-display-format, which follows
+--- org-link-bracket-re: `\\]` in the target, any description up to `]]`).
 local function display_title(title)
-  local t = title:gsub("%[%[([^%]]-)%]%[([^%]]-)%]%]", "%2")
-  t = t:gsub("%[%[([^%]]-)%]%]", "%1")
-  return t
+  return require("org.links").display_format(title or "")
 end
 M.display_title = display_title
 
@@ -587,6 +588,60 @@ function M.priority_group(item)
   return "OrgAgendaPriority"
 end
 
+-- the `ui` table whose keyword and tag faces were last defined
+local faces_for
+
+--- Define the groups of `ui.todo_keyword_faces` / `ui.tag_faces` (the
+--- agenda can be opened before any Org buffer did), again after setup().
+local function ensure_faces()
+  local ui = config.opts.ui
+  if faces_for ~= ui then
+    faces_for = ui
+    local hls = require("org.highlights")
+    hls.ensure()
+    hls.apply_todo_faces()
+  end
+end
+
+--- Highlight group of an item's TODO keyword (org-get-todo-face): its
+--- `ui.todo_keyword_faces` face, else OrgAgendaDoneKeyword or
+--- OrgAgendaTodoKeyword.
+---@return string
+function M.todo_group(item)
+  local faces = (config.opts.ui or {}).todo_keyword_faces or {}
+  if item.todo and faces[item.todo] then
+    ensure_faces()
+    return "orgTodoKw_" .. item.todo:gsub("[^%w_]", "_")
+  end
+  return item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword"
+end
+
+--- Push the tag string `:a:b:` of a line: OrgAgendaTag, with the
+--- `ui.tag_faces` face on the tags that have one (org-agenda-align-tags
+--- adds org-tag-faces).
+local function push_tags(push, tagstr)
+  local faces = (config.opts.ui or {}).tag_faces or {}
+  if next(faces) == nil then
+    push(tagstr, "OrgAgendaTag")
+    return
+  end
+  local hls = require("org.highlights")
+  ensure_faces()
+  local init = 1
+  for s, tag, e in tagstr:gmatch("()([^:]+)()") do
+    if faces[tag] then
+      if s > init then
+        push(tagstr:sub(init, s - 1), "OrgAgendaTag")
+      end
+      push(tag, hls.face_group("orgTagFace_", tag))
+      init = e
+    end
+  end
+  if init <= #tagstr then
+    push(tagstr:sub(init), "OrgAgendaTag")
+  end
+end
+
 --- Build the parts for an item line.
 ---@param item org.AgendaItem
 ---@param ctx { agenda?: boolean, kind?: string, width: integer, today: integer }
@@ -627,7 +682,7 @@ function M.item_parts(item, ctx)
     local fmt = acfg.todo_keyword_format or "%-1s"
     if fmt ~= "" then
       local ok, kw = pcall(string.format, fmt, item.todo)
-      push(ok and kw or item.todo, item.done and "OrgAgendaDoneKeyword" or "OrgAgendaTodoKeyword")
+      push(ok and kw or item.todo, M.todo_group(item))
       push(" ")
     end
   end
@@ -646,7 +701,8 @@ function M.item_parts(item, ctx)
     if tagstr then
       local col = acfg.tags_column
       local pad
-      if type(col) == "number" and col > 0 then
+      if type(col) == "number" and col >= 0 then
+        -- 0: one space after the text (org-agenda-align-tags)
         pad = col - width
       elseif type(col) == "number" and col < 0 then
         pad = -col - width - utils.width(tagstr)
@@ -654,7 +710,7 @@ function M.item_parts(item, ctx)
         pad = (ctx.width - 1) - width - utils.width(tagstr)
       end
       push(string.rep(" ", math.max(pad, 1)))
-      push(tagstr, "OrgAgendaTag")
+      push_tags(push, tagstr)
     end
   end
 
@@ -673,6 +729,26 @@ function M.item_parts(item, ctx)
     vim.list_extend(parts, after)
   end
   return parts
+end
+
+--- `l` with each tab expanded to the next multiple of 8 columns
+--- (untabify, as org-agenda-get-some-entry-text does).
+function M.untabify(l)
+  if not l:find("\t", 1, true) then
+    return l
+  end
+  local out, col = {}, 0
+  local segs = vim.split(l, "\t", { plain = true })
+  for i, seg in ipairs(segs) do
+    out[#out + 1] = seg
+    col = col + utils.width(seg)
+    if i < #segs then
+      local n = 8 - col % 8
+      out[#out + 1] = string.rep(" ", n)
+      col = col + n
+    end
+  end
+  return table.concat(out)
 end
 
 local PLANNING_LINE = vim.regex("\\c^[ \t]*\\<\\(SCHEDULED:\\|DEADLINE:\\|CLOSED:\\|CLOCK:\\) *[[<][^]>]\\+[]>]")
@@ -721,7 +797,7 @@ function M.entry_text(hl, max)
   local out = vim.split(text, "\n", { plain = true })
   local indent
   for n, l in ipairs(out) do
-    l = l:gsub("\t", string.rep(" ", 8))
+    l = M.untabify(l)
     out[n] = l
     if not l:match("^[ \t]*$") then
       local w = #l:match("^( *)")
@@ -760,19 +836,21 @@ end
 ---@return string|nil text, table[] hls, string|nil line_hl
 function M.item_line(it, ctx)
   local parts = M.item_parts(it, ctx)
+  local blocked = false
   if ctx.dim_blocked and M.is_blocked(it) then
     if ctx.dim_blocked == "invisible" then
       return nil, {}, nil
     end
+    -- org-agenda-dim-blocked-tasks: the dimmed face over the whole line,
+    -- above the other faces (its overlay has priority 50)
+    blocked = true
     for _, p in ipairs(parts) do
-      if p[2] ~= "OrgAgendaCategory" then
-        p[2] = "OrgAgendaDimmed"
-      end
+      p[2] = "OrgAgendaDimmed"
     end
   end
   local text, hls = M.line_text(parts)
   local fp = config.opts.agenda.fontify_priorities
-  if parts.priority_index and (fp == true or type(fp) == "table") then
+  if not blocked and parts.priority_index and (fp == true or type(fp) == "table") then
     -- the priority face from the cookie to the end of the line
     local col = 0
     for i = 1, parts.priority_index - 1 do
@@ -1124,8 +1202,53 @@ function M.clock_report(b, files, from, to)
     return
   end
   for _, l in ipairs(lines) do
-    b:text(l)
+    b:add_line(M.clock_report_line(l))
   end
+end
+
+--- A clock report line as the agenda shows it (org-clock-get-clocktable
+--- returns the table fontified as in an Org buffer): bracket links reduced
+--- to their description, the table in OrgTable, its rules and bars in
+--- OrgTableSeparator, links in OrgLink and `*bold*` in OrgBold.
+---@param l string
+---@return string text, table[] hls
+function M.clock_report_line(l)
+  local found = require("org.links").parse_links(l, { bracket_only = true })
+  local out, hls, init = {}, {}, 1
+  local len = 0
+  local function put(s, group)
+    if group and #s > 0 then
+      hls[#hls + 1] = { len, len + #s, group }
+    end
+    out[#out + 1] = s
+    len = len + #s
+  end
+  for _, lk in ipairs(found) do
+    put(l:sub(init, lk.start_col - 1))
+    put(lk.desc or lk.raw_target, "OrgLink")
+    init = lk.end_col + 1
+  end
+  put(l:sub(init))
+  local text = table.concat(out)
+  if not text:match("^%s*|") then
+    return text, hls
+  end
+  local table_hls = { { 0, #text, "OrgTable" } }
+  if text:match("^%s*|[-+]") then
+    table_hls[2] = { 0, #text, "OrgTableSeparator" }
+  else
+    for col in text:gmatch("()|") do
+      table_hls[#table_hls + 1] = { col - 1, col, "OrgTableSeparator" }
+    end
+  end
+  for s, e in text:gmatch("()%*[^%s*][^*]-%*()") do
+    local before = s > 1 and text:sub(s - 1, s - 1) or " "
+    local after = text:sub(e, e)
+    if before:match("[%s|(]") and (after == "" or after:match("[%s|.,;:!?)]")) then
+      table_hls[#table_hls + 1] = { s - 1, e - 1, "OrgBold" }
+    end
+  end
+  return text, vim.list_extend(table_hls, hls)
 end
 
 --- Insert a block header (org-agenda--insert-overriding-header): a

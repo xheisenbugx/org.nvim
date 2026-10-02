@@ -92,6 +92,17 @@ M.links = {
   orgHorizontalRule = "OrgHorizontalRule",
   orgFixedWidth = "OrgVerbatim",
   orgMacro = "OrgMacro",
+  orgInfoKeyword = "OrgKeyword",
+  orgInfoValue = "OrgKeywordValue",
+  orgSexpDate = "OrgSexpDate",
+  orgStatisticDone = "OrgStatisticDone",
+  orgHeadlineArchived = "OrgArchived",
+  orgExportSnippetMarker = "OrgExportSnippetMarker",
+  orgExportSnippetBackend = "OrgExportSnippetBackend",
+  orgInlineSrcMarker = "OrgInlineSrcMarker",
+  orgInlineSrcLang = "OrgInlineSrcLang",
+  orgInlineSrcHeader = "OrgInlineSrc",
+  orgInlineSrcBody = "OrgInlineSrc",
 }
 
 --- Default definitions of the Org* groups.
@@ -135,7 +146,21 @@ local function defaults()
     OrgCheckbox = { link = first_existing({ "@markup.list.unchecked" }, "Special") },
     OrgCheckboxChecked = { link = first_existing({ "@markup.list.checked" }, "DiagnosticOk") },
     OrgCheckboxPartial = { link = "DiagnosticWarn" },
-    OrgStatistic = { link = "Special" },
+    -- checkbox statistics cookies: incomplete in the TODO face, complete in
+    -- the DONE face (org-checkbox-statistics-todo / -done)
+    OrgStatistic = { link = "OrgTodo" },
+    OrgStatisticDone = { link = "OrgDone" },
+    -- diary sexp timestamps (org-sexp-date)
+    OrgSexpDate = { link = "OrgTimestamp" },
+    -- headlines tagged ARCHIVE (org-archived)
+    OrgArchived = { link = "Comment" },
+    -- inline export snippets @@backend:...@@: the markers and the backend
+    OrgExportSnippetMarker = { link = "Comment" },
+    OrgExportSnippetBackend = { link = "OrgTags" },
+    -- inline src blocks src_lang[header]{body} (org-inline-src-block)
+    OrgInlineSrc = { link = "OrgBlock" },
+    OrgInlineSrcMarker = { link = "OrgBlockDelimiter" },
+    OrgInlineSrcLang = { link = "OrgKeyword" },
     OrgTable = { link = first_existing({ "@markup.raw" }, "Normal") },
     OrgTableSeparator = { link = "Delimiter" },
     OrgTableFormula = { link = "Comment" },

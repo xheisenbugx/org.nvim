@@ -551,10 +551,65 @@ local function custom_span(line, s, e)
   return s + 1, e - 1 - #rep - #tr
 end
 
+-- org-protecting-blocks: blocks whose contents are shown as typed
+local PROTECTING = { src = true, example = true, export = true }
+-- document keywords whose value is fontified as text (org-fontify-meta-
+-- lines-and-blocks-1); any other #+KEY: line is shown as typed
+local INFO_KEYWORDS = { title = true, subtitle = true, author = true, email = true, date = true }
+
+--- Lines (a set) whose timestamps are shown as typed, as Emacs removes the
+--- custom display there: src, example and export blocks (their delimiter
+--- lines included), fixed-width lines and #+KEYWORD: lines other than the
+--- document info ones.
+local function literal_lines(lines)
+  local out = {}
+  local i = 1
+  while i <= #lines do
+    local line = lines[i]
+    local kind = line:match("^%s*#%+[bB][eE][gG][iI][nN]_(%a+)")
+    kind = kind and kind:lower()
+    if kind and PROTECTING[kind] then
+      -- a block needs its #+end line before the next headline
+      local stop
+      for j = i + 1, #lines do
+        if lines[j]:match("^%*+%s") then
+          break
+        end
+        local e = lines[j]:match("^%s*#%+[eE][nN][dD]_(%a+)")
+        if e and e:lower() == kind then
+          stop = j
+          break
+        end
+      end
+      if stop then
+        for j = i, stop do
+          out[j] = true
+        end
+        i = stop
+      end
+    elseif line:match("^%s*:%s") or line:match("^%s*:$") then
+      out[i] = true
+    else
+      local key = line:match("^%s*#%+(%a+):")
+      if not key and line:match("^%s*#%+%S") then
+        key = ""
+      end
+      if key and not INFO_KEYWORDS[key:lower()] and not kind then
+        out[i] = true
+      end
+    end
+    i = i + 1
+  end
+  return out
+end
+
 --- Redraw the custom display of every timestamp of the buffer: the text of
 --- each one (both ends of a range) inside its brackets is concealed and its
 --- custom text shown inline, like Emacs displays it over the timestamp.
 --- Editing shows the real text (the concealment follows 'concealcursor').
+--- Code is shown as typed, as in Emacs: src/example/export blocks,
+--- fixed-width lines, =verbatim=, ~code~ and #+KEYWORD: lines (but
+--- #+DATE: and the other document info keywords).
 function M.refresh_custom_display(bufnr)
   bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
   if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -564,9 +619,23 @@ function M.refresh_custom_display(bufnr)
   if not M.custom_display_enabled(bufnr) then
     return
   end
-  for i, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    if line:find("[<%[]%d%d%d%d%-") then
-      for _, item in ipairs(date.parse_all(line)) do
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local literal = literal_lines(lines)
+  for i, line in ipairs(lines) do
+    if not literal[i] and line:find("[<%[]%d%d%d%d%-") then
+      local items = date.parse_all(line)
+      if line:find("[=~]") then
+        local verbatim = require("org.ui").verbatim_ranges(line)
+        items = vim.tbl_filter(function(item)
+          for _, r in ipairs(verbatim) do
+            if item.start_col <= r[2] and item.end_col >= r[1] then
+              return false
+            end
+          end
+          return true
+        end, items)
+      end
+      for _, item in ipairs(items) do
         local parts = { { item.date, item.start_col, item.end_col } }
         if item.date.range_end then
           local dash = item.raw:find("[%]>]%-%-[<%[]")
