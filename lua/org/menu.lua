@@ -222,7 +222,13 @@ end
 --- Menus that belong in the current buffer: root -> builder.
 ---@return table<string, fun(): (org.MenuEntry|string)[]>
 function M.wanted()
-  local defs = require("org.menu_defs")
+  -- org.menu_defs is loaded only once a buffer wants a menu (not on
+  -- setup() or entering any other buffer)
+  local defs = setmetatable({}, {
+    __index = function(_, k)
+      return require("org.menu_defs")[k]
+    end,
+  })
   local want = {}
   local buf = vim.api.nvim_get_current_buf()
   local ft = vim.bo[buf].filetype
