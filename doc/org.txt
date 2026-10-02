@@ -4907,7 +4907,7 @@ Repeaters (`+1w`) give RRULE; APPT_WARNTIME or `alarm_time` adds a VALARM;
 SUMMARY, LOCATION, DESCRIPTION, CLASS and TIMEZONE properties are honoured;
 the body is the DESCRIPTION (`include_body`). Tags and the category go to
 CATEGORIES (`categories`). #+ICALENDAR_EXCLUDE_TAGS and #+ICAL-TTL are read.
-Files use CRLF line endings and 75-character folded lines (RFC 5545).
+Files use CRLF line endings and lines folded at 75 octets (RFC 5545).
 Differences: entries without an ID get a UID derived from the file and the
 entry (stable across exports) instead of a random one; `++`/`.+`
 repeaters give no RRULE (like Emacs); BBDB anniversaries are not supported.
@@ -5038,6 +5038,9 @@ These need Emacs Lisp or Emacs itself:
 - Remote (TRAMP) files and directories.
 - Generated labels (`orgXXXXXXX`) and iCalendar UIDs are derived from the
   content instead of random, so repeated exports give the same output.
+- iCalendar lines are folded at 75 octets without splitting a UTF-8
+  character (RFC 5545); Emacs folds at 75 characters, so the two differ
+  only on lines with non-ASCII text.
 - The default creator string names Neovim and org.nvim instead of Emacs.
 
 ==============================================================================
