@@ -487,6 +487,198 @@ function M.help(title, rows)
   return buf, win
 end
 
+---------------------------------------------------------------------------
+-- Displayed text
+---------------------------------------------------------------------------
+
+--- What the buffer hides when it draws Org text: link brackets and paths
+--- (`ui.conceal_links`, or `b:org_link_descriptive` from
+--- toggle_link_display), emphasis markers (`ui.hide_emphasis_markers`, or
+--- `b:org_hide_emphasis_markers`), and entities and sub/superscripts shown
+--- as UTF-8 (`ui.pretty_entities`, `#+STARTUP: entitiespretty`,
+--- toggle_pretty_entities). Pass the result to |M.visible_text|.
+---@param bufnr? integer
+---@return table
+function M.conceal_opts(bufnr)
+  bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  local ui = require("org.config").opts.ui or {}
+  local valid = vim.api.nvim_buf_is_valid(bufnr)
+  local b = valid and vim.b[bufnr] or {}
+  local links = ui.conceal_links ~= false
+  if b.org_link_descriptive ~= nil then
+    links = b.org_link_descriptive and true or false
+  end
+  local o = { links = links }
+  -- emphasis and entities are drawn by the Org syntax and decorations only
+  if valid and vim.bo[bufnr].filetype == "org" then
+    o.emphasis = ui.hide_emphasis_markers and true or false
+    if b.org_hide_emphasis_markers ~= nil then
+      o.emphasis = b.org_hide_emphasis_markers and true or false
+    end
+    local dui = require("org.ui.decorations").ui_options(bufnr)
+    if dui.pretty_entities then
+      o.entities = true
+      o.scripts = dui.pretty_entities_include_sub_superscripts ~= false and dui.use_sub_superscripts ~= false
+      o.braces_only = dui.use_sub_superscripts == "{}"
+    end
+  end
+  return o
+end
+
+local EMPH_PRE = "[%s%(%'\"{%-]"
+local EMPH_POST = "[%s%-%.,:!?;'\"%)}%[]"
+
+--- The closing marker of emphasis opening at byte i of s (org-emph-re).
+local function emphasis_close(s, i)
+  local ch = s:sub(i, i)
+  local prev = i == 1 and " " or s:sub(i - 1, i - 1)
+  local first = s:sub(i + 1, i + 1)
+  if not prev:match(EMPH_PRE) or first == "" or first:match("[%s,\"']") then
+    return nil
+  end
+  local j = i + 1
+  while true do
+    j = s:find(ch, j + 1, true)
+    if not j then
+      return nil
+    end
+    local after = s:sub(j + 1, j + 1)
+    if not s:sub(j - 1, j - 1):match("[%s,\"']") and (after == "" or after:match(EMPH_POST)) then
+      return j
+    end
+  end
+end
+
+--- Byte ranges the decorations never prettify: links, verbatim/code-like
+--- spans and plain URLs (like org.ui.decorations).
+local function protected_ranges(s)
+  local out = {}
+  for a, e in s:gmatch("()%[%[.-%]%]()") do
+    out[#out + 1] = { a, e - 1 }
+  end
+  for a, e in s:gmatch("()[=~][^%s=~][^\n]-[=~]()") do
+    out[#out + 1] = { a, e - 1 }
+  end
+  for a, e in s:gmatch("()%a+://%S+()") do
+    out[#out + 1] = { a, e - 1 }
+  end
+  return out
+end
+
+local function in_ranges(ranges, pos)
+  for _, r in ipairs(ranges) do
+    if pos >= r[1] and pos <= r[2] then
+      return true
+    end
+  end
+  return false
+end
+
+--- The text as the buffer displays it with the conceals of `o`
+--- (|M.conceal_opts|): a link shows as its description (or path), hidden
+--- emphasis markers and sub/superscript marks and braces are dropped and
+--- a pretty entity shows as its character. Like Emacs measuring with
+--- org-string-width, which skips invisible text and counts compositions.
+---@param s string
+---@param o? table
+---@return string
+function M.visible_text(s, o)
+  o = o or M.conceal_opts()
+  if not (s:find("[[", 1, true) or (o.emphasis and s:find("[*/_+=~]")) or (o.entities and s:find("[\\_^]"))) then
+    return s
+  end
+  local prot = o.entities and protected_ranges(s) or {}
+  local out, drop, i, n = {}, {}, 1, #s
+  while i <= n do
+    local c = s:sub(i, i)
+    local handled = false
+    if c == "[" and s:sub(i + 1, i + 1) == "[" then
+      -- the link path may hold backslash-escaped brackets
+      local k = i + 2
+      while k <= n and not s:sub(k, k):match("[%[%]]") do
+        k = k + (s:sub(k, k) == "\\" and 2 or 1)
+      end
+      local after, visible
+      if s:sub(k, k + 1) == "]]" then
+        after, visible = k + 2, s:sub(i + 2, k - 1)
+      elseif s:sub(k, k + 1) == "][" then
+        local close = s:find("]]", k + 2, true)
+        if close then
+          after, visible = close + 2, s:sub(k + 2, close - 1)
+        end
+      end
+      if after then
+        out[#out + 1] = o.links and visible or s:sub(i, after - 1)
+        i, handled = after, true
+      end
+    elseif drop[i] then
+      out[#out + 1] = o.emphasis and "" or c
+      i, handled = i + 1, true
+    elseif c:match("[*/_+=~]") then
+      local close = emphasis_close(s, i)
+      if close then
+        if c == "=" or c == "~" then
+          -- verbatim and code: shown as typed
+          local inner = s:sub(i + 1, close - 1)
+          out[#out + 1] = o.emphasis and inner or (c .. inner .. c)
+          i = close + 1
+        else
+          out[#out + 1] = o.emphasis and "" or c
+          drop[close] = true
+          i = i + 1
+        end
+        handled = true
+      end
+    end
+    if not handled and o.entities and c == "\\" and not in_ranges(prot, i) then
+      local name = s:match("^%a+", i + 1)
+      local ents = require("org.entities")
+      local sym = name and ents.utf8(name)
+      local e = name and i + #name
+      if name and not sym then
+        local w = s:match("^%a+%d%d?", i + 1)
+        sym = w and ents.utf8(w)
+        e = sym and i + #w or e
+      end
+      if sym and vim.fn.strchars(sym) == 1 and not s:sub(e + 1, e + 1):match("%a") then
+        out[#out + 1] = sym
+        i = s:sub(e + 1, e + 2) == "{}" and e + 3 or e + 1
+        handled = true
+      end
+    end
+    if not handled and o.scripts and (c == "_" or c == "^") and i > 1 and s:sub(i - 1, i - 1):match("%S") then
+      if not in_ranges(prot, i) then
+        if s:sub(i + 1, i + 1) == "{" then
+          local close = s:find("}", i + 2, true)
+          if close and close > i + 2 then
+            out[#out + 1] = s:sub(i + 2, close - 1)
+            i, handled = close + 1, true
+          end
+        elseif not o.braces_only then
+          local b = s:match("^%*", i + 1) or s:match("^[+-]?[%w.,\\]*%w", i + 1)
+          if b then
+            out[#out + 1] = b
+            i, handled = i + 1 + #b, true
+          end
+        end
+      end
+    end
+    if not handled then
+      out[#out + 1] = c
+      i = i + 1
+    end
+  end
+  return table.concat(out)
+end
+
+--- Display width of `s` as the buffer shows it (|M.visible_text|).
+---@param s string
+---@param o? table conceal options (|M.conceal_opts|)
+---@return integer
+function M.visible_width(s, o)
+  return utils.width(M.visible_text(s, o))
+end
+
 --- Open a buffer in a window according to `mode`.
 ---@param buf integer
 ---@param mode "float"|"split"|"vsplit"|"tab"|"current"|nil

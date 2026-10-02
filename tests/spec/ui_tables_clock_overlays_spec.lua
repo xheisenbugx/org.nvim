@@ -48,3 +48,78 @@ describe("special window float", function()
     end)
   end)
 end)
+
+describe("table alignment on the displayed width", function()
+  local function align(lines)
+    local buf = org_buffer(lines, { 1, 2 })
+    require("org.table").align()
+    return buf_lines(buf)
+  end
+
+  describe("with hidden emphasis markers", function()
+    with_config({ ui = vim.tbl_extend("force", require("org.config").opts.ui, { hide_emphasis_markers = true }) })
+
+    -- Emacs 9.8.10, org-hide-emphasis-markers t: org-table-align measures
+    -- with org-string-width, which skips the invisible markers
+    it("doesn't count the markers", function()
+      eq({ "| *bold* | x |", "| ab   | y |" }, align({ "| *bold* | x |", "| ab | y |" }))
+    end)
+
+    it("lines the bars up on screen", function()
+      align({ "| *bold* | x |", "| ab | y |", "" })
+      vim.wo.foldenable = false
+      vim.api.nvim_win_set_cursor(0, { 3, 0 })
+      vim.cmd("redraw!")
+      eq(screen_row(2):find("|", 2, true), screen_row(1):find("|", 2, true))
+    end)
+  end)
+
+  describe("with pretty entities", function()
+    with_config({ ui = vim.tbl_extend("force", require("org.config").opts.ui, { pretty_entities = true }) })
+
+    -- Emacs 9.8.10, org-pretty-entities t: "\alpha x" displays as "α x"
+    it("counts an entity as its character", function()
+      eq({ "| \\alpha x | z |", "| ab  | y |" }, align({ "| \\alpha x | z |", "| ab | y |" }))
+    end)
+
+    it("doesn't count the script marks and braces", function()
+      eq({ "| a_{ij} | z |", "| ab  | y |" }, align({ "| a_{ij} | z |", "| ab | y |" }))
+    end)
+  end)
+
+  it("counts markers and entities when they are shown", function()
+    eq({ "| *bold* | x |", "| ab     | y |" }, align({ "| *bold* | x |", "| ab | y |" }))
+    eq({ "| \\alpha x | z |", "| ab       | y |" }, align({ "| \\alpha x | z |", "| ab | y |" }))
+  end)
+
+  -- Emacs 9.8.10: org-toggle-link-display, then org-table-align
+  it("counts the whole link after toggle_link_display", function()
+    local buf = org_buffer({ "| [[https://example.com][ex]] | z |", "| ab | y |" }, { 1, 2 })
+    require("org.links").toggle_link_display()
+    require("org.table").align()
+    eq("| ab                          | y |", buf_lines(buf)[2])
+    require("org.links").toggle_link_display()
+    require("org.table").align()
+    eq("| ab | y |", buf_lines(buf)[2])
+  end)
+
+  it("puts the C-c } column labels over the displayed fields", function()
+    with_size(60, 10, function()
+      org_buffer({ "text", "| [[https://example.com][Ex]] | b | c |", "| x | yyy | z |" }, { 3, 2 })
+      require("org.table").align()
+      require("org.table").toggle_coordinate_overlays()
+      vim.wo.foldenable = false
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      vim.cmd("redraw!")
+      local labels, first = screen_row(2), screen_row(3)
+      local n = 0
+      for p in first:gmatch("()|") do
+        n = n + 1
+        if n <= 3 then
+          eq("$" .. n, labels:sub(p + 2, p + 3), first .. " / " .. labels)
+        end
+      end
+      require("org.table").toggle_coordinate_overlays()
+    end)
+  end)
+end)
