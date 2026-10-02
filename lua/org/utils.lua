@@ -565,7 +565,7 @@ end
 
 function M.writefile(path, lines)
   vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-  local fd, err = io.open(path, "w")
+  local fd, err = io.open(path, "wb")
   if not fd then
     error("org: cannot write " .. path .. ": " .. tostring(err))
   end

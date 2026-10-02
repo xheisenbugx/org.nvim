@@ -230,7 +230,7 @@ local function write_lock(pid)
   -- instances starting together may race to create the directory
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(path, ":h"), "p")
   local tmp = path .. "." .. vim.fn.getpid()
-  local fd = io.open(tmp, "w")
+  local fd = io.open(tmp, "wb")
   if not fd then
     return
   end

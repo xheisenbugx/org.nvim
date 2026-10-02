@@ -213,7 +213,7 @@ end
 local function source_highlight(code, lst_lang)
   local infile = tmpname("srchilite")
   local outfile = tmpname("reshilite")
-  local f = io.open(infile, "w")
+  local f = io.open(infile, "wb")
   if not f then
     return ""
   end
