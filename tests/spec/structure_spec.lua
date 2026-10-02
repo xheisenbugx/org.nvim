@@ -1,4 +1,5 @@
 local structure = require("org.structure")
+local config = require("org.config")
 
 local function cur()
   return vim.api.nvim_win_get_cursor(0)
@@ -244,6 +245,26 @@ describe("structure: navigation and text objects", function()
     eq(6, cur()[1])
     structure.prev_heading()
     eq(5, cur()[1])
+  end)
+
+
+  -- inline tasks are not part of the outline: no siblings, no crash
+  it("subtree commands on an inline task", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local lines2 = { "* A", "***** TODO x", "***** END", "* B" }
+    local buf = org_buffer(lines2, { 2, 0 })
+    local ok1, err1 = pcall(function()
+      with_stub(require("org.utils"), "warn", function() end, function()
+        structure.move_subtree_down()
+        structure.next_sibling()
+        structure.mark_subtree()
+      end)
+    end)
+    vim.cmd("normal! \27")
+    config.opts.inlinetask_min_level = saved
+    eq(true, ok1, err1)
+    eq(lines2, buf_lines(buf))
   end)
 
   it("selects subtree", function()

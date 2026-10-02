@@ -1182,6 +1182,10 @@ end
 ---------------------------------------------------------------------------
 
 local function siblings(hl)
+  if hl.inlinetask then
+    -- inline tasks are not in the outline tree: no siblings
+    return { hl }
+  end
   return hl.parent and hl.parent.children or hl.file.children
 end
 
