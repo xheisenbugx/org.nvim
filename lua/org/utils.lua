@@ -907,7 +907,9 @@ function M.set_current_buf(b)
   end
 end
 
----@param opts? { split?: string, col?: integer, reuse_win?: boolean }
+--- `opts.reveal` false leaves the folds as they are (the caller shows the
+--- context), instead of opening those around the line.
+---@param opts? { split?: string, col?: integer, reuse_win?: boolean, reveal?: boolean }
 function M.open_file(path, lnum, opts)
   opts = opts or {}
   local cmd = ({ split = "split", vsplit = "vsplit", tab = "tabedit" })[opts.split or ""] or "edit"
@@ -944,7 +946,9 @@ function M.open_file(path, lnum, opts)
   if lnum then
     local last = vim.api.nvim_buf_line_count(0)
     vim.api.nvim_win_set_cursor(0, { math.max(1, math.min(lnum, last)), opts.col or 0 })
-    vim.cmd("normal! zv")
+    if opts.reveal ~= false then
+      vim.cmd("normal! zv")
+    end
   end
 end
 
