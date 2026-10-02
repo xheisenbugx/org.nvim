@@ -1202,13 +1202,14 @@ function M.export(path, format)
     if not path or vim.trim(path) == "" then
       return
     end
-    path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p"))
+    path = vim.fs.normalize(vim.fn.fnamemodify(utils.expand_vars(vim.trim(path)), ":p"))
     if utils.exists(path) and not utils.confirm("Overwrite file " .. path .. "?") then
       utils.notify("File not written")
       return
     end
   end
-  path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p"))
+  -- TABLE_EXPORT_FILE is document text: never vim.fn.expand() (`backticks`)
+  path = vim.fs.normalize(vim.fn.fnamemodify(utils.expand_vars(vim.trim(path)), ":p"))
   if utils.is_dir(path) then
     utils.warn("This is a directory path, not a file")
     return

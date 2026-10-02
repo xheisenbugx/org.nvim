@@ -280,6 +280,14 @@ function M.escape_pattern(s)
   return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
 end
 
+--- `s` as a literal gsub replacement: its `%` doubled, so a path, label or
+--- user text that holds one isn't read as a capture reference.
+---@param s string
+---@return string
+function M.gsub_escape(s)
+  return (s:gsub("%%", "%%%%"))
+end
+
 -- The LuaJIT of Neovim 0.11 rounds exact ties away from zero
 -- (string.format("%.2f", 0.125) is "0.13"); C printf, and so Emacs,
 -- rounds them to even. There, format floats with the C library.

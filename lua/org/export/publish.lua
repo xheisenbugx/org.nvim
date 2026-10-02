@@ -113,7 +113,9 @@ end
 --- Absolute, symlink-resolved file name (like file-truename), so that
 --- cache keys and project lookups agree whatever the spelling.
 local function expand(path, base)
-  path = vim.fn.expand(path)
+  -- not vim.fn.expand(): #+EXPORT_FILE_NAME and file names on disk would
+  -- have their `backticks` run as shell commands
+  path = utils.expand_vars(path)
   if not utils.is_absolute(path) and base then
     path = base:gsub("/$", "") .. "/" .. path
   end

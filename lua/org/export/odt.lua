@@ -912,7 +912,8 @@ local function input_dir(info)
 end
 
 local function expand_path(path, info)
-  path = vim.fn.expand(path)
+  -- link paths are document text: never vim.fn.expand() (`backticks`)
+  path = require("org.utils").expand_vars(path)
   if path:match("^/") or path:match("^%a:[/\\]") then
     return vim.fs.normalize(path)
   end

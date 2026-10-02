@@ -228,6 +228,11 @@ describe("export (Emacs features)", function()
     has(h3, '<span class="linenr">11: </span>c')
   end)
 
+  it("resolves a coderef whose label has pattern characters (ref:a-b)", function()
+    local h = html({ "#+begin_src sh -n -r", "echo a", "echo b (ref:a-b)", "#+end_src", "", "Line [[(a-b)]]." })
+    has(h, ">2</a>.")
+  end)
+
   it("expands noweb references in exported code with :noweb yes", function()
     config.opts.babel.evaluate_on_export = true
     babel.export_evaluate = function(_, l)

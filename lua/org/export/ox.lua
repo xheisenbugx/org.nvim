@@ -2480,7 +2480,7 @@ function M.resolve_coderef(ref, info)
   local r = element.map(info.parse_tree, { ["example-block"] = true, ["src-block"] = true }, function(el)
     local value = trim(el.value or "")
     local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
-    local pat = vim.pesc(fmt):gsub("%%%%s", vim.pesc(ref))
+    local pat = vim.pesc(fmt):gsub("%%%%s", utils.gsub_escape(vim.pesc(ref)))
     local lines = vim.split(value, "\n", { plain = true })
     for i = #lines, 1, -1 do
       if lines[i]:find(pat .. "[ \t]*$") then

@@ -595,7 +595,9 @@ function M.radar(rows, opts)
   local code = RADAR_TEMPLATE:gsub("@SETUP@", function()
     return setup_file
   end)
-    :gsub("@TICKS@", num_str(tic_count))
+    :gsub("@TICKS@", function()
+      return num_str(tic_count)
+    end)
     :gsub("@TICKLINES@", function()
       return tick_lines
     end)
@@ -819,7 +821,7 @@ function M.gnuplot(bufnr, lnum)
   local script = M.script(rows, data_file, ncols, opts)
   if opts.script then
     local user = utils.readfile(vim.fn.fnamemodify(tostring(opts.script), ":p")) or {}
-    script = script .. "\n" .. table.concat(user, "\n"):gsub("%$datafile", data_file)
+    script = script .. "\n" .. table.concat(user, "\n"):gsub("%$datafile", utils.gsub_escape(data_file))
   end
   local script_file = vim.fn.tempname() .. ".gp"
   utils.writefile(script_file, vim.split(script, "\n", { plain = true }))
