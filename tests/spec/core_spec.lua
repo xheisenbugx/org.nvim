@@ -53,6 +53,24 @@ describe("date", function()
     config.opts.extend_today_until = saved
     assert(ok_, err)
   end)
+  it("finds occurrences of repeaters that started long ago", function()
+    local function occ(s, y, m, d, y2, m2, d2)
+      local out = {}
+      local from = date.days_from_civil(y, m, d)
+      for _, o in ipairs(date.occurrences(date.parse(s), from, date.days_from_civil(y2, m2, d2))) do
+        out[#out + 1] = o:to_string()
+      end
+      return out
+    end
+    -- an hourly repeater more than 5000 hours before the window
+    local h = occ("<2025-01-01 Wed 10:00 +1h>", 2026, 10, 1, 2026, 10, 1)
+    eq(24, #h)
+    eq("<2026-10-01 Thu 00:00 +1h>", h[1])
+    eq("<2026-10-01 Thu 23:00 +1h>", h[24])
+    -- months count from the start, without drift at month ends
+    eq({ "<2426-03-03 Tue +1m>", "<2426-03-31 Tue +1m>" }, occ("<2026-01-31 Sat +1m>", 2426, 2, 1, 2426, 3, 31))
+    eq({ "<2027-01-31 Sun +1w>" }, occ("<2026-01-04 Sun +1w>", 2027, 1, 31, 2027, 1, 31))
+  end)
   it("reads dates", function()
     local base = date.today()
     eq(base:days() + 3, date.read_date("+3d"):days())

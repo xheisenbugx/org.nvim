@@ -812,22 +812,27 @@ function M.occurrences(ts, from_days, to_days)
     return out
   end
   local r = ts.repeater
-  local cur = ts
-  local start = cur:days()
+  local start = ts:days()
   if start > to_days then
     return out
   end
-  -- jump close to `from_days` for day/week units
-  if start < from_days and (r.unit == "d" or r.unit == "w") then
-    local step = r.unit == "w" and r.value * 7 or r.value
-    local skip = floor((from_days - start) / step)
-    if skip > 0 then
-      cur = cur:add(skip * step, "d")
+  -- jump to the last occurrence before `from_days`; occurrence k is always
+  -- computed from the start (no drift at month ends, like org-closest-date)
+  local k = 0
+  if start < from_days then
+    if r.unit == "d" or r.unit == "w" then
+      k = floor((from_days - start) / (r.unit == "w" and r.value * 7 or r.value))
+    elseif r.unit == "h" then
+      k = floor((from_days * 1440 - ts:minutes()) / (r.value * 60))
+    elseif r.unit == "m" or r.unit == "y" then
+      local from = M.from_days(from_days)
+      local months = (from.year - ts.year) * 12 + from.month - ts.month - 1
+      k = floor(months / (r.unit == "y" and r.value * 12 or r.value))
     end
+    k = math.max(k, 0)
   end
-  -- occurrence k is computed from the start (no drift at month ends,
-  -- like org-closest-date)
-  local base, k = cur, 0
+  local base = ts
+  local cur = k > 0 and base:add(k * r.value, r.unit) or base
   local guard = 0
   while cur:days() <= to_days and guard < 5000 do
     if cur:days() >= from_days then
