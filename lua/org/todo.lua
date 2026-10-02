@@ -397,8 +397,9 @@ end
 
 --- State a repeating entry returns to (org-auto-repeat-maybe): the
 --- REPEAT_TO_STATE property, a string `todo_repeat_to_state`, the previous
---- state when `todo_repeat_to_state` is true, else the first keyword of the
---- previous state's sequence.
+--- state when `todo_repeat_to_state` is true, else the previous state in a
+--- type sequence (`#+TYP_TODO`) and the first keyword of the previous
+--- state's sequence otherwise.
 local function repeat_to_state(hl, todo_cfg, old)
   local rts = config.opts.todo_repeat_to_state
   local to = hl:get_property("REPEAT_TO_STATE")
@@ -414,6 +415,9 @@ local function repeat_to_state(hl, todo_cfg, old)
     return to
   end
   local kw = todo_cfg:get(old)
+  if kw and kw.seq_type == "type" then
+    return old
+  end
   local seq = kw and todo_cfg.sequences[kw.seq]
   return seq and seq[1].name or nil
 end
@@ -572,15 +576,19 @@ function M.change_state(target, new, opts)
     if opts.inhibit_note and log_repeat == "note" then
       log_repeat = "time"
     end
-    local rep_log = log_repeat
+    -- the record org-todo already set up wins (org-log-setup): a state
+    -- log, or the closing note of `log_done = "note"`
+    local rep_log, purpose = log_repeat, "state"
     if state_log then
       rep_log = (state_log == "note" or log_repeat == "note") and "note" or "time"
+    elseif log_done == "note" then
+      rep_log, purpose = "note", "done"
     end
     local note = opts.note
     if rep_log == "note" and note == nil then
       note = utils.input_note({
         prompt = "Note for state change to " .. new .. ": ",
-        purpose = edit.note_purpose("state", new, old),
+        purpose = edit.note_purpose(purpose, new, old),
       })
       -- a cancelled note (C-c C-k) logs nothing (org-note-abort)
       rep_log = note ~= nil and rep_log
@@ -597,7 +605,9 @@ function M.change_state(target, new, opts)
     if log_repeat or has_clock then
       edit.set_property(bufnr, lnum, "LAST_REPEAT", now_inactive:to_string())
     end
-    if rep_log then
+    if rep_log == "note" and purpose == "done" then
+      edit.add_log_entry(bufnr, lnum, edit.log_entry("done", note, new, old, now_eff))
+    elseif rep_log then
       edit.add_log_entry(bufnr, lnum, state_entry(new, old, note, now_eff))
     end
     result.new = final
