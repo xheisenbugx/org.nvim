@@ -118,7 +118,8 @@ local function relevel(lines, delta, todo_cfg)
   end
   local out = {}
   for i, l in ipairs(lines) do
-    local p = parser.parse_headline_line(l, todo_cfg)
+    -- inline tasks keep their level (org-with-limited-levels)
+    local p = parser.outline_level(l) and parser.parse_headline_line(l, todo_cfg)
     local kind = data[i]
     if p then
       -- like org-promote / org-demote: change the stars, realign the tags
@@ -140,7 +141,13 @@ local function relevel(lines, delta, todo_cfg)
       end
     elseif kind == "log" then
       out[i] = is_blank(l) and l or shift(l)
-    elseif adapt and adapt ~= "headline-data" and not is_blank(l) and not l:match("^#%+") then
+    elseif
+      adapt
+      and adapt ~= "headline-data"
+      and not is_blank(l)
+      and not l:match("^#%+")
+      and not parser.headline_level(l)
+    then
       out[i] = shift(l)
     else
       out[i] = l

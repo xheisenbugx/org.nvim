@@ -105,6 +105,23 @@ describe("structure: promote/demote", function()
     structure.demote_heading()
     eq({ 1, 4 }, cur())
   end)
+  -- Emacs org-demote-subtree maps over the tree with limited levels:
+  -- inline tasks keep their level
+  it("leaves inline tasks alone when demoting a subtree", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local buf = org_buffer({ "* A", "***** TODO x", "***** END", "** B" }, { 1, 0 })
+    structure.demote_subtree()
+    eq({ "** A", "***** TODO x", "***** END", "*** B" }, buf_lines(buf))
+    -- not indented as body text either
+    local saved_adapt = config.opts.adapt_indentation
+    config.opts.adapt_indentation = true
+    buf = org_buffer({ "* A", "text", "***** TODO x", "***** END" }, { 1, 0 })
+    structure.demote_subtree()
+    config.opts.adapt_indentation = saved_adapt
+    config.opts.inlinetask_min_level = saved
+    eq({ "** A", " text", "***** TODO x", "***** END" }, buf_lines(buf))
+  end)
   -- Emacs org-cycle-level steps by org-level-increment
   it("cycle_level with odd levels only", function()
     local saved = config.opts.odd_levels_only
