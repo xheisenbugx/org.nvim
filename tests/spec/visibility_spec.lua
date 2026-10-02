@@ -61,8 +61,9 @@ describe("visibility: startup", function()
 
   it("keeps archived subtrees folded in SHOW ALL", function()
     org_buffer({ "* A", "a body", "* Old :ARCHIVE:", "old body", "* B", "b body" }, { 1, 0 })
-    fold.overview()
-    vim.b.org_global_cycle = "content"
+    fold.show_all()
+    fold.global_cycle() -- overview
+    fold.global_cycle() -- contents
     fold.global_cycle() -- show all
     eq(false, closed(2))
     eq(3, vim.fn.foldclosed(3))

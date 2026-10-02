@@ -558,7 +558,9 @@ subtree above is folded (org-cycle-separator-lines).
                 drawers, and any other N shows the whole subtree of the
                 ancestor at level N.
 <S-Tab>         Global cycling: OVERVIEW → CONTENTS (headlines only) →
-                SHOW ALL. With a count N, show headlines up to level N.
+                SHOW ALL when pressed in a row; after any other command
+                it starts again from OVERVIEW. With a count N, show
+                headlines up to level N.
 <C-c><Tab>      Show the children of the entry (a count: that many levels)
                 without showing its text (org-show-children).
 <C-c><C-k>      Show every headline of the subtree, without their text

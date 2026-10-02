@@ -833,13 +833,55 @@ local function run_cycle_hook(pattern, state, lnum)
   })
 end
 
+--- Where the cursor shows: the start of the closed fold holding it, else
+--- the nearest visible line above it (the text Vim and `on_cursor_moved`
+--- would move it to).
+local function shown_lnum(lnum)
+  local fc = vim.fn.foldclosed(lnum)
+  if fc ~= -1 then
+    return fc
+  end
+  local l = lnum
+  while l > 1 and not M.line_visible(l) do
+    l = l - 1
+    fc = vim.fn.foldclosed(l)
+    if fc ~= -1 then
+      return fc
+    end
+  end
+  return l
+end
+
+--- Remember the global cycle just done (Emacs checks `last-command`): the
+--- cursor goes where it shows, so that nothing moves it before the next
+--- command.
+local function set_last_global()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local shown = shown_lnum(lnum)
+  if shown ~= lnum then
+    vim.api.nvim_win_set_cursor(0, { shown, 0 })
+  end
+  vim.w.org_last_global = { buf = curbuf(), tick = vim.api.nvim_buf_get_changedtick(0), lnum = shown }
+end
+
+--- Whether the last command in this window was a global cycle.
+local function last_was_global()
+  local s = vim.w.org_last_global
+  return s ~= nil
+    and s.buf == curbuf()
+    and s.tick == vim.api.nvim_buf_get_changedtick(0)
+    and s.lnum == vim.api.nvim_win_get_cursor(0)[1]
+end
+
 function M.global_cycle()
   if vim.v.count > 0 then
     show_levels(vim.v.count)
     vim.b.org_global_cycle = "content"
     return
   end
-  local state = vim.b.org_global_cycle or "showall"
+  -- CONTENTS and SHOW ALL only right after the previous state; any other
+  -- command in between starts again from OVERVIEW (org-cycle-internal-global)
+  local state = last_was_global() and vim.b.org_global_cycle or "showall"
   if state == "showall" then
     run_cycle_hook("OrgCyclePre", "overview")
     M.overview()
@@ -856,6 +898,7 @@ function M.global_cycle()
     vim.api.nvim_echo({ { "SHOW ALL" } }, false, {})
     run_cycle_hook("OrgCycle", "all")
   end
+  set_last_global()
 end
 
 ---------------------------------------------------------------------------
