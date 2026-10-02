@@ -31,7 +31,8 @@ describe("babel sql engines", function()
         lang = "sql",
       }, nil)
       local cmd = langs.prepare("sql", { "select 1;" }, args, {}, { cmd = {}, ext = "sql" }).steps[1].cmd
-      ok(cmd:find("-S 'my-host' -U 'u' -P 'p w' -", 1, true), cmd)
+      local q = vim.fn.shellescape
+      ok(cmd:find(("-S %s -U %s -P %s -"):format(q("my-host"), q("u"), q("p w")), 1, true), cmd)
       ok(not cmd:find("\"'", 1, true), cmd)
     end
   end)
@@ -70,6 +71,7 @@ end)
 
 describe("babel tangle modes", function()
   it("gives the file the mode of its first block, like Emacs", function()
+    skip_on_windows("Windows has no Unix file modes")
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
     local target = dir .. "/out.sh"

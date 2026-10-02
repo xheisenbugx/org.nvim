@@ -235,8 +235,9 @@ describe("clock", function()
     config.opts.clock.out_switch_to_state = "NEXT"
     local buf = file_buffer({ "#+STARTUP: lognoteclock-out", "* TODO A" })
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
-    clock.clock_in(nil, { at = date.now():add(-10, "min") })
-    clock.clock_out({ note = "stopped here" })
+    local now = date.now()
+    clock.clock_in(nil, { at = now:add(-10, "min") })
+    clock.clock_out({ at = now, note = "stopped here" })
     config.opts.clock.out_switch_to_state = nil
     local l = buf_lines(buf)
     eq("* NEXT A", l[2])
