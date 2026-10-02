@@ -704,7 +704,9 @@ local function write_default(captured, cols, params, file)
   local out = { captured[1], "hline" }
   for k = 3, #captured do
     local row = captured[k]
-    local level = row.rel_level or row.level
+    -- the entry's own level, also in a local or :id view (Emacs
+    -- org-columns--capture-view keeps org-current-level)
+    local level = row.level
     if out[#out] ~= "hline" and (hlines == true or (type(hlines) == "number" and row.level <= hlines)) then
       out[#out + 1] = "hline"
     end

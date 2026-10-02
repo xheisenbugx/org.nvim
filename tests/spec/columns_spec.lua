@@ -288,3 +288,27 @@ describe("column view", function()
     close_view()
   end)
 end)
+
+describe("columnview dblock :indent", function()
+  it("indents by the entry's own level in an :id view (checked against Emacs)", function()
+    local buf = org_buffer({
+      "#+COLUMNS: %ITEM %Cost{+}",
+      "* Top",
+      "** Mid",
+      ":PROPERTIES:",
+      ":ID: cv-indent-mid",
+      ":END:",
+      "*** Leaf",
+      ":PROPERTIES:",
+      ":Cost: 3",
+      ":END:",
+      "",
+      '#+BEGIN: columnview :id "cv-indent-mid" :indent t',
+      "#+END:",
+    })
+    dblock.update_all(buf)
+    local l = buf_lines(buf)
+    eq("| \\_  Mid    |    3 |", l[15])
+    eq("| \\_    Leaf |    3 |", l[16])
+  end)
+end)
