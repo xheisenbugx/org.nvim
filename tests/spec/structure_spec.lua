@@ -105,6 +105,28 @@ describe("structure: promote/demote", function()
     structure.demote_heading()
     eq({ 1, 4 }, cur())
   end)
+  -- Emacs org-cycle-level steps by org-level-increment
+  it("cycle_level with odd levels only", function()
+    local saved = config.opts.odd_levels_only
+    config.opts.odd_levels_only = true
+    local buf = org_buffer({ "* A", "*** B", "*** " }, { 3, 4 })
+    local seen = {}
+    for _ = 1, 4 do
+      structure.cycle_level()
+      seen[#seen + 1] = buf_lines(buf)[3]
+    end
+    config.opts.odd_levels_only = saved
+    eq({ "***** ", "* ", "*** ", "***** " }, seen)
+  end)
+  it("cycle_level", function()
+    local buf = org_buffer({ "* A", "** B", "** " }, { 3, 3 })
+    local seen = {}
+    for _ = 1, 4 do
+      structure.cycle_level()
+      seen[#seen + 1] = buf_lines(buf)[3]
+    end
+    eq({ "*** ", "* ", "** ", "*** " }, seen)
+  end)
 end)
 
 describe("structure: moving and kill ring", function()

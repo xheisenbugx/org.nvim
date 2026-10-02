@@ -1147,19 +1147,21 @@ function M.cycle_level()
   local cur = p.level
   local prev_hl = lnum > 1 and file:headline_at(lnum - 1) or nil
   local prev = prev_hl and prev_hl.level or 0
+  -- the steps of org-do-promote / org-do-demote (org-level-increment)
+  local inc = M.level_increment(bufnr)
   local new
-  if prev == 0 then
-    new = 1 -- first headline of the file
+  if prev == 0 or prev == 1 then
+    -- first headline of the file, or the parent is top-level
+    new = cur - inc * math.floor((cur - 1) / inc)
   elseif prev == cur then
-    new = cur + 1 -- sibling -> child
-  elseif prev == 1 then
-    new = 1
+    new = cur + inc -- sibling -> child
   elseif cur == 1 then
-    new = prev -- back to the sibling level
+    new = 1 + inc * math.floor((prev - 1) / inc) -- back to the sibling level
   elseif cur < prev then
-    new = cur - 1
+    new = cur - inc
   else
-    new = prev - 1
+    -- promote until higher than the previous level
+    new = cur - inc * (1 + math.floor((cur - prev) / inc))
   end
   local rest = line:sub(#line:match("^%*+") + 1)
   local text = string.rep("*", math.max(new, 1)) .. rest
