@@ -75,6 +75,16 @@ function M.days_in_month(y, m)
   return dim[m]
 end
 
+--- Copy of a repeater or warning (plain tables; faster than vim.deepcopy,
+--- which matters as dates are cloned a lot in the agenda).
+local function copy_spec(s)
+  local c = {}
+  for k, v in pairs(s) do
+    c[k] = type(v) == "table" and copy_spec(v) or v
+  end
+  return c
+end
+
 ---@return table
 function Date.new(t)
   t = t or {}
@@ -87,8 +97,8 @@ function Date.new(t)
     end_hour = t.end_hour,
     end_min = t.end_min,
     active = t.active ~= false,
-    repeater = t.repeater and vim.deepcopy(t.repeater) or nil,
-    warning = t.warning and vim.deepcopy(t.warning) or nil,
+    repeater = t.repeater and copy_spec(t.repeater) or nil,
+    warning = t.warning and copy_spec(t.warning) or nil,
     range_end = t.range_end,
   }, Date)
   if self.hour and not self.min then
@@ -100,7 +110,14 @@ end
 --- A new date from a day number (no time).
 function M.from_days(n, t)
   local y, m, d = M.civil_from_days(n)
-  local o = vim.tbl_extend("force", t or {}, { year = y, month = m, day = d })
+  local o = { year = y, month = m, day = d }
+  if t then
+    for k, v in pairs(t) do
+      if o[k] == nil then
+        o[k] = v
+      end
+    end
+  end
   return Date.new(o)
 end
 
@@ -623,45 +640,53 @@ end
 ---------------------------------------------------------------------------
 
 local UNIT = "[hdwmy]"
+local REPEATER = "^([%.%+]?%+)(%d+)(" .. UNIT .. ")(.*)$"
+local REPEATER_MAX = "^/(%d+)(" .. UNIT .. ")$"
+local WARNING = "^(%-%-?)(%d+)(" .. UNIT .. ")$"
 
---- Parse the inside of a timestamp (without brackets).
-local function parse_body(body, active)
-  local y, mo, d, rest = body:match("^%s*(%d%d%d%d)%-(%d%d?)%-(%d%d?)(.*)$")
-  if not y then
-    return nil
-  end
+--- A timestamp from its date fields (strings) and the text after the date.
+local function parse_fields(y, mo, d, rest, active)
   local ts = Date.new({ year = tonumber(y), month = tonumber(mo), day = tonumber(d), active = active })
   if ts.month < 1 or ts.month > 12 or ts.day < 1 or ts.day > 31 then
     return nil
   end
   for token in rest:gmatch("%S+") do
-    local h1, m1, h2, m2 = token:match("^(%d%d?):(%d%d)%-(%d%d?):(%d%d)$")
-    if h1 then
-      ts.hour, ts.min, ts.end_hour, ts.end_min = tonumber(h1), tonumber(m1), tonumber(h2), tonumber(m2)
-    else
-      local h, m = token:match("^(%d%d?):(%d%d)$")
-      if h then
-        ts.hour, ts.min = tonumber(h), tonumber(m)
+    -- dispatch on the first character: day names (in any language) and
+    -- other words are ignored without trying every pattern
+    local c = token:byte(1)
+    if c >= 48 and c <= 57 then -- a digit: a time or time range
+      local h1, m1, h2, m2 = token:match("^(%d%d?):(%d%d)%-(%d%d?):(%d%d)$")
+      if h1 then
+        ts.hour, ts.min, ts.end_hour, ts.end_min = tonumber(h1), tonumber(m1), tonumber(h2), tonumber(m2)
       else
-        local rtype, rval, runit, rest2 = token:match("^([%.%+]?%+)(%d+)(" .. UNIT .. ")(.*)$")
-        if rtype and (rtype == "+" or rtype == "++" or rtype == ".+") then
-          ts.repeater = { type = rtype, value = tonumber(rval), unit = runit }
-          local mv, mu = rest2:match("^/(%d+)(" .. UNIT .. ")$")
-          if mv then
-            ts.repeater.max = { value = tonumber(mv), unit = mu }
-          end
-        else
-          local wtype, wval, wunit = token:match("^(%-%-?)(%d+)(" .. UNIT .. ")$")
-          if wtype then
-            ts.warning = { type = wtype, value = tonumber(wval), unit = wunit }
-          end
-          -- anything else (day names, in any language) is ignored
+        local h, m = token:match("^(%d%d?):(%d%d)$")
+        if h then
+          ts.hour, ts.min = tonumber(h), tonumber(m)
         end
+      end
+    elseif c == 43 or c == 46 then -- "+" or ".": a repeater
+      local rtype, rval, runit, rest2 = token:match(REPEATER)
+      if rtype and (rtype == "+" or rtype == "++" or rtype == ".+") then
+        ts.repeater = { type = rtype, value = tonumber(rval), unit = runit }
+        local mv, mu = rest2:match(REPEATER_MAX)
+        if mv then
+          ts.repeater.max = { value = tonumber(mv), unit = mu }
+        end
+      end
+    elseif c == 45 then -- "-": a warning or delay
+      local wtype, wval, wunit = token:match(WARNING)
+      if wtype then
+        ts.warning = { type = wtype, value = tonumber(wval), unit = wunit }
       end
     end
   end
   return ts
 end
+
+-- `<` or `[`, the date (year, month, day), the rest, and `>` or `]`
+local STAMP = "([<%[])(%d%d%d%d)%-(%d%d?)%-(%d%d?)([^<>%[%]\n]-)([>%]])"
+local STAMP_AT = "^" .. STAMP
+local RANGE_END_AT = "^%-%-" .. STAMP
 
 --- Parse a single timestamp string like `<2026-09-23 Wed>` or `[2026-09-23]`.
 ---@return table|nil
@@ -673,6 +698,23 @@ function M.parse(str)
   return list[1] and list[1].date or nil
 end
 
+--- Where the next `<YYYY-` or `[YYYY-` at or after `init` starts. Plain
+--- searches for the dash and an anchored check are much faster than an
+--- unanchored pattern scan, and most lines have no timestamp.
+local function stamp_start(line, init)
+  local p = init + 5
+  while true do
+    p = line:find("-", p, true)
+    if not p then
+      return nil
+    end
+    if line:find("^[<%[]%d%d%d%d%-", p - 5) then
+      return p - 5
+    end
+    p = p + 1
+  end
+end
+
 --- Find every timestamp in a line.
 --- Returns list of { date, start_col, end_col (1-based, inclusive), raw }.
 --- `<a>--<b>` ranges yield one entry whose date has `range_end`.
@@ -680,19 +722,22 @@ function M.parse_all(line)
   local out = {}
   local init = 1
   while true do
-    local s, e, open, body, close = line:find("([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", init)
+    local s = stamp_start(line, init)
     if not s then
       break
     end
+    local _, e, open, y, mo, d, rest, close = line:find(STAMP_AT, s)
     local active = open == "<"
-    if (active and close == ">") or (not active and close == "]") then
-      local ts = parse_body(body, active)
+    if not e then
+      e = s
+    elseif (active and close == ">") or (not active and close == "]") then
+      local ts = parse_fields(y, mo, d, rest, active)
       if ts then
         local item = { date = ts, start_col = s, end_col = e, raw = line:sub(s, e) }
         -- range?
-        local rs, re, ropen, rbody, rclose = line:find("^%-%-([<%[])(%d%d%d%d%-%d%d?%-%d%d?[^<>%[%]\n]-)([>%]])", e + 1)
+        local rs, re, ropen, ry, rmo, rd, rrest, rclose = line:find(RANGE_END_AT, e + 1)
         if rs and ((ropen == "<" and rclose == ">") or (ropen == "[" and rclose == "]")) then
-          local ts2 = parse_body(rbody, ropen == "<")
+          local ts2 = parse_fields(ry, rmo, rd, rrest, ropen == "<")
           if ts2 then
             ts.range_end = ts2
             item.end_col = re
