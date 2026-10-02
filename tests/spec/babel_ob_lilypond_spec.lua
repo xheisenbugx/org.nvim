@@ -105,7 +105,8 @@ describe("babel ob-lilypond", function()
       "\\layout { }",
       "% Score:2 ends here",
     }, vim.fn.readfile(dir .. "/score.ly"))
-    vim.wait(2000, function()
+    -- the viewers run asynchronously: slow under parallel spec jobs
+    vim.wait(10000, function()
       return #vim.fn.readfile(dir .. "/lily.log") >= 11
     end)
     local log = vim.fn.readfile(dir .. "/lily.log")
