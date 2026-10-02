@@ -104,6 +104,33 @@ describe("agenda entries after source edits", function()
   end)
 end)
 
+describe("agenda bulk mark regexp", function()
+  after_each(function()
+    pcall(view.quit, true)
+  end)
+
+  -- org-agenda-bulk-mark-regexp matches the entry text (txt), not the
+  -- category prefix of the line (checked against Emacs 9.8.10)
+  it("matches the entry text, not the prefix", function()
+    setup({
+      "#+CATEGORY: alpha",
+      "* TODO Short task :work:",
+      "* TODO Long task :home:",
+      "* TODO Exactly half hour :work:urgent:",
+      "* TODO Beta child :Work:",
+      "* TODO Phone call :phone:",
+    })
+    agenda.open_todo()
+    eq(0, view.mark_regexp("alpha"))
+    view.actions.unmark_all()
+    eq(0, view.mark_regexp("^  alpha"))
+    view.actions.unmark_all()
+    eq(2, view.mark_regexp("task"))
+    view.actions.unmark_all()
+    eq(2, view.mark_regexp("work:$"))
+  end)
+end)
+
 describe("agenda category filter", function()
   after_each(function()
     pcall(view.quit, true)

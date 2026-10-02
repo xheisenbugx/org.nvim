@@ -2414,7 +2414,9 @@ function M.limit(count)
   M.redo()
 end
 
---- Mark every entry whose agenda line matches `pattern` (Emacs regexp).
+--- Mark every entry whose agenda line and text (the TODO keyword,
+--- priority, headline and tags, without the prefix) match `pattern`, an
+--- Emacs regexp (org-agenda-bulk-mark-regexp tests the `txt' property).
 function M.mark_regexp(pattern)
   local ok, re = pcall(require("org.agenda.search").compile_emacs_regexp, pattern)
   if not ok then
@@ -2427,7 +2429,7 @@ function M.mark_regexp(pattern)
   local n = 0
   for lnum, item in pairs(S.line_items) do
     local line = vim.api.nvim_buf_get_lines(S.buf, lnum - 1, lnum, false)[1] or ""
-    if re:match_str(line) then
+    if re:match_str(line) and re:match_str(item_txt(item)) then
       S.marks[item_key(item)] = item
       n = n + 1
     end
