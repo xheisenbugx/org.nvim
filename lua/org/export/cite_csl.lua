@@ -211,6 +211,7 @@ local function style_file(info)
   end
   local styles_dir = copt("csl_styles_dir", nil)
   if styles_dir then
+    -- lint: allow expand: a configured CSL directory
     local f = vim.fn.expand(styles_dir) .. "/" .. style
     if vim.uv.fs_stat(f) then
       return vim.fs.normalize(f)
@@ -225,6 +226,7 @@ local function locale_getter()
   local dir = copt("csl_locales_dir", nil)
   return function(loc)
     if dir then
+      -- lint: allow expand: a configured CSL directory
       local ok, res = pcall(S.locale_getter_from_dir(vim.fn.expand(dir)), loc)
       if ok and res then
         return res

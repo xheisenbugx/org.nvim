@@ -84,19 +84,12 @@ describe("agenda entries after source edits", function()
     setup({ "* TODO One", "* TODO Two" })
     agenda.open_todo()
     local one, two = item_lines("One")[1], item_lines("Two")[1]
-    local buf = view.state.buf
-    local ns = vim.api.nvim_create_namespace("org.agenda")
     -- a line highlight like the clocked entry's
     view.state.line_hl_groups[one] = "OrgAgendaClocking"
-    vim.api.nvim_buf_set_extmark(buf, ns, one - 1, 0, { line_hl_group = "OrgAgendaClocking" })
     vim.api.nvim_win_set_cursor(view.state.win, { one, 0 })
     view.drag_line(two - one)
     local function line_hl(l)
-      for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, { l - 1, 0 }, { l - 1, -1 }, { details = true })) do
-        if m[4].line_hl_group then
-          return m[4].line_hl_group
-        end
-      end
+      return view.state.line_hl_groups[l]
     end
     eq("One", view.state.line_items[two].title)
     eq("OrgAgendaClocking", line_hl(two))

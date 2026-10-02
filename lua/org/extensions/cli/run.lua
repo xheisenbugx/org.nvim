@@ -190,6 +190,7 @@ end
 function M.config_file(flags)
   local f = flags.config or vim.env.ORG_NVIM_CONFIG
   if f and f ~= "" then
+    -- lint: allow expand: a command-line argument
     f = vim.fn.expand(f)
     if vim.fn.filereadable(f) == 0 then
       fail("config file not found: " .. f, 2)
@@ -239,10 +240,12 @@ function M.load_config(flags)
     end
   end
   if flags.dir then
+    -- lint: allow expand: a command-line argument
     config.opts.org_directory = vim.fn.fnamemodify(vim.fn.expand(flags.dir), ":p")
   end
   if #flags.files > 0 then
     config.opts.agenda_files = vim.tbl_map(function(f)
+      -- lint: allow expand: a command-line argument
       return vim.fn.fnamemodify(vim.fn.expand(f), ":p")
     end, flags.files)
   end
@@ -621,6 +624,7 @@ function M.find_headlines(query)
   local id = query:match("^id:(.+)$")
   local file_part, head_part = query:match("^(.-)::%**%s*(.+)$")
   if file_part and file_part ~= "" then
+    -- lint: allow expand: a command-line argument
     local want = vim.fn.fnamemodify(vim.fn.expand(file_part), ":p")
     local sel = {}
     for _, f in ipairs(files) do
@@ -795,6 +799,7 @@ function M.cmd_export(words, flags)
   if not file or not backend then
     fail("usage: org export FILE BACKEND [-o OUTPUT|--stdout]", 2)
   end
+  -- lint: allow expand: a command-line argument
   file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(file), ":p"))
   if vim.fn.filereadable(file) == 0 then
     fail("no such file: " .. file, 2)
@@ -810,6 +815,7 @@ function M.cmd_export(words, flags)
     M.stdout(text:sub(-1) == "\n" and text or (text .. "\n"))
     return 0
   end
+  -- lint: allow expand: a command-line argument
   local output = flags.output and vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(flags.output), ":p")) or nil
   local res = export.export(backend, { bufnr = bufnr, output = output, async = false })
   if not res then

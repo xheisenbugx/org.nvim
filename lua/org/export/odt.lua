@@ -261,6 +261,7 @@ function M.plain_text(text, info, node)
   end
   if info.with_special_strings then
     for _, p in ipairs(SPECIAL_STRINGS) do
+      -- lint: allow gsub: constant replacement pairs
       out = out:gsub(p[1], p[2])
     end
   end
@@ -912,7 +913,8 @@ local function input_dir(info)
 end
 
 local function expand_path(path, info)
-  path = vim.fn.expand(path)
+  -- link paths are document text: never vim.fn.expand() (`backticks`)
+  path = require("org.utils").expand_vars(path)
   if path:match("^/") or path:match("^%a:[/\\]") then
     return vim.fs.normalize(path)
   end
@@ -1035,6 +1037,7 @@ function M.mathml_available()
     return false
   end
   if cmd:find("%j", 1, true) then
+    -- lint: allow expand: the jar option
     return jar ~= nil and vim.fn.filereadable(vim.fn.expand(jar)) == 1
   end
   return true
@@ -1055,6 +1058,7 @@ function M.latex_to_mathml(frag)
     f:close()
   end
   local full = format_spec(cmd, {
+    -- lint: allow expand: the jar option
     j = jar and shellescape(vim.fn.fnamemodify(vim.fn.expand(jar), ":p")) or "",
     I = shellescape(tin),
     i = shellescape(frag),
@@ -1499,6 +1503,7 @@ function M.build_date_styles(f, style)
     { "%%z", "" },
   }
   for _, p in ipairs(pre) do
+    -- lint: allow gsub: constant replacement pairs
     f = f:gsub(p[1], p[2])
   end
   local out = {}
@@ -3159,6 +3164,7 @@ end
 ---@return string?
 function M.convert(in_file, out_fmt, open)
   local utils = require("org.utils")
+  -- lint: allow expand: a file the caller or user named
   in_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(in_file), ":p"))
   if vim.fn.filereadable(in_file) == 0 then
     utils.error("Cannot read " .. in_file)
@@ -3289,6 +3295,7 @@ function M.export_as_odf(latex_frag, odf_file)
       return nil
     end
   end
+  -- lint: allow expand: a file the user typed
   odf_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p"))
   local mathml = M.latex_to_mathml(latex_frag)
   if not mathml then

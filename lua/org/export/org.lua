@@ -160,6 +160,7 @@ I.item = function(el, contents)
     local ind = string.rep(" ", tag and 5 or #bullet)
     local pre = math.min(el.pre_blank or 1, 2)
     -- every non-blank line gets the item indentation
+    -- lint: allow gsub: spaces
     local body = contents:gsub("\n([ \t]*%S)", "\n" .. ind .. "%1"):gsub("^([ \t]*%S)", ind .. "%1")
     if pre == 0 then
       s = s .. ox.trim(body)

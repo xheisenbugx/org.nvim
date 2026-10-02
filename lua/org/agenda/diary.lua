@@ -38,6 +38,7 @@ end
 function M.file()
   local f = config.opts.agenda.diary_file
   if f and f ~= "" then
+    -- lint: allow expand: the diary_file option, not document text
     return vim.fs.normalize(vim.fn.expand(f))
   end
   -- $HOME when set, as Emacs (libuv prefers %USERPROFILE% on Windows)

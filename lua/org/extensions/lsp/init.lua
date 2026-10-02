@@ -232,11 +232,19 @@ function M.setup(o)
   local util = require(MOD .. ".util")
   util.invalidate()
   -- a new org file on disk: list the workspace files again
-  vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+  vim.api.nvim_create_autocmd("BufFilePost", {
     group = augroup,
     pattern = "*.org",
     callback = function()
       util.invalidate()
+    end,
+  })
+  -- a write hook: org's own saves (capture to a new file, ...) count too
+  require("org.write_hooks").register("lsp", {
+    post = function(buf, ctx)
+      if ctx.ok and vim.api.nvim_buf_get_name(buf):match("%.org$") then
+        util.invalidate()
+      end
     end,
   })
   vim.api.nvim_create_autocmd({ "BufAdd", "BufReadPost", "BufFilePost", "BufUnload", "BufWipeout" }, {
@@ -274,6 +282,7 @@ end
 --- Turned off (or set up again): stop the server, remove the autocmds.
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
+  require("org.write_hooks").unregister("lsp")
   require(MOD .. ".rename").reset()
   M.stop()
 end

@@ -23,6 +23,7 @@ local config = require("org.config")
 local date = require("org.date")
 local edit = require("org.edit")
 local files = require("org.files")
+local marks = require("org.marks")
 local parser = require("org.parser")
 local ui = require("org.ui")
 local utils = require("org.utils")
@@ -30,7 +31,6 @@ local utils = require("org.utils")
 local M = {}
 
 local CURSOR = "\30"
-local ns = vim.api.nvim_create_namespace("org_capture")
 
 --- Active capture sessions: bufnr -> session
 M.sessions = {}
@@ -632,6 +632,7 @@ function M.expand(text, ctx)
     local f = s:match("^%%%[([^\n]+)%]", p)
     return f and (p + #f + 2) or nil, f
   end, function(f, s, p, e)
+    -- lint: allow expand: %[file] of a configured capture template
     local path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(f), ":p"))
     local fd, err = io.open(path, "r")
     local content
@@ -1196,17 +1197,10 @@ local function track_target_changes(loc, before)
     vim.diff(table.concat(before, "\n") .. "\n", table.concat(after, "\n") .. "\n", { result_type = "indices" })
   for _, h in ipairs(hunks) do
     if h[4] > 0 then
-      local start = h[3] - 1
       loc.changes[#loc.changes + 1] = {
         original = vim.list_slice(before, h[1], h[1] + h[2] - 1),
         created = vim.list_slice(after, h[3], h[3] + h[4] - 1),
-        mark = vim.api.nvim_buf_set_extmark(loc.bufnr, ns, start, 0, {
-          end_row = start + h[4],
-          end_col = 0,
-          right_gravity = true,
-          end_right_gravity = false,
-          invalidate = true,
-        }),
+        mark = marks.range(loc.bufnr, h[3], h[3] + h[4] - 1, { invalidate = true }),
       }
     end
   end
@@ -1354,9 +1348,10 @@ function M.resolve_target(tpl, ctx)
       -- the mark goes invalid when the headline line is deleted (or
       -- rewritten); the title then finds it again
       loc.title, loc.level = heading.title, heading.level
-      loc.mark = vim.api.nvim_buf_set_extmark(bufnr, ns, line - 1, 0, { invalidate = true })
+      loc.mark = marks.set(bufnr, line, nil, { invalidate = true })
     else
-      loc.mark = vim.api.nvim_buf_set_extmark(bufnr, ns, line - 1, math.min(col, len), {})
+      -- an exact position: text inserted there goes before it
+      loc.mark = marks.set(bufnr, line, math.min(col, len), { gravity = "right" })
     end
   end
   return loc
@@ -1364,16 +1359,19 @@ end
 
 --- Current (line, col) of a location's mark.
 local function mark_pos(loc)
-  if not loc.mark or not vim.api.nvim_buf_is_valid(loc.bufnr) then
+  local lnum, col, invalid
+  if loc.mark then
+    lnum, col, invalid = loc.mark:pos()
+  end
+  if not lnum then
     return nil
   end
-  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, loc.bufnr, ns, loc.mark, { details = true })
-  if not ok or not pos or not pos[1] then
-    return nil
+  if loc.title and not invalid then
+    return lnum, 0
   end
-  if pos[3] and pos[3].invalid then
+  if invalid then
     local file = files.get_buffer(loc.bufnr)
-    local hl = file:headline_on(pos[1] + 1)
+    local hl = file:headline_on(lnum)
     if hl and hl.title == loc.title and hl.level == loc.level then
       return hl.line, 0
     end
@@ -1388,16 +1386,14 @@ local function mark_pos(loc)
     end
     return found and found.line or nil, 0
   end
-  return pos[1] + 1, pos[2]
+  return lnum, col
 end
 
 local function release(loc)
-  if loc and vim.api.nvim_buf_is_valid(loc.bufnr) then
-    if loc.mark then
-      pcall(vim.api.nvim_buf_del_extmark, loc.bufnr, ns, loc.mark)
-    end
+  if loc then
+    marks.del(loc.mark)
     for _, change in ipairs(loc.changes or {}) do
-      pcall(vim.api.nvim_buf_del_extmark, loc.bufnr, ns, change.mark)
+      marks.del(change.mark)
     end
   end
 end
@@ -1408,9 +1404,9 @@ local function cleanup_target(loc)
   end
   for i = #(loc.changes or {}), 1, -1 do
     local change = loc.changes[i]
-    local pos = vim.api.nvim_buf_get_extmark_by_id(loc.bufnr, ns, change.mark, { details = true })
-    if pos[1] and not pos[3].invalid then
-      local first, last = pos[1], pos[3].end_row
+    local first, last = change.mark:rows()
+    if first then
+      first = first - 1
       local current = vim.api.nvim_buf_get_lines(loc.bufnr, first, last, false)
       local owned = vim.deep_equal(current, change.created)
       -- A user may have added text or children immediately after a generated
@@ -2043,14 +2039,10 @@ function M.store(tpl, lines, ctx)
   local bufnr = loc.bufnr
   local before = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local modified = vim.bo[bufnr].modified
-  local marks, owned = {}, { [loc.mark or false] = true }
+  -- restoring the text after a failed save squashes the target's marks
+  local snapshot = { loc.mark and loc.mark:save() }
   for _, change in ipairs(loc.changes or {}) do
-    owned[change.mark] = true
-  end
-  for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, { details = true })) do
-    if owned[mark[1]] and not mark[4].invalid then
-      marks[#marks + 1] = mark
-    end
+    snapshot[#snapshot + 1] = change.mark and change.mark:save()
   end
   local ok, line = pcall(M.place, loc, tpl, lines)
   if not ok then
@@ -2064,23 +2056,17 @@ function M.store(tpl, lines, ctx)
   if ttype == "entry" then
     line = first_headline_line(bufnr, line)
   end
+  -- the hooks may edit the target: follow the stored text
+  local entry = marks.set(bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
   emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
+  line = entry and entry:lnum() or line
+  marks.del(entry)
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
       utils.restore_buffer(bufnr, before, modified)
-      for _, mark in ipairs(marks) do
-        local details = mark[4]
-        vim.api.nvim_buf_set_extmark(bufnr, ns, mark[2], mark[3], {
-          id = mark[1],
-          end_row = details.end_row,
-          end_col = details.end_col,
-          right_gravity = details.right_gravity,
-          end_right_gravity = details.end_right_gravity,
-          invalidate = true,
-        })
-      end
+      marks.restore(snapshot)
       utils.warn("Capture could not be saved; the text is kept in the capture buffer: " .. tostring(err))
       return nil
     end
@@ -2092,20 +2078,24 @@ end
 --- position and finish the clock.
 function stored(tpl, ctx, bufnr, line)
   release(ctx.loc)
-  require("org.refile").remember(bufnr, line, "last_capture")
   if ctx.clock_start then
     -- Clock state can be persisted outside this buffer, and may resume an
     -- interrupted task. Only finalize it once the captured text is safe.
+    -- A clock line added to the enclosing entry moves a non-entry capture.
+    local entry = marks.set(bufnr, line)
     local clocked, err = pcall(function()
       finish_clock(tpl, ctx, bufnr, line)
       if not tpl.no_save then
         assert(utils.save_buffer(bufnr))
       end
     end)
+    line = entry and entry:lnum() or line
+    marks.del(entry)
     if not clocked then
       utils.warn("Capture was stored, but its clock changes could not be finalized: " .. tostring(err))
     end
   end
+  require("org.refile").remember(bufnr, line, "last_capture")
   return bufnr, line
 end
 
@@ -2124,9 +2114,7 @@ local function end_unnarrowed(s)
       end
     end
   end)
-  for _, mark in ipairs({ s.region, s.change and s.change.mark }) do
-    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
-  end
+  marks.del(s.region, s.change and s.change.mark)
   if s.win and vim.api.nvim_win_is_valid(s.win) then
     vim.wo[s.win].winbar = s.winbar or ""
   end
@@ -2172,12 +2160,7 @@ end
 --- Rows (1-based, inclusive) holding an unnarrowed capture's text, or nil
 --- when that text was deleted.
 local function unnarrowed_region(s)
-  local bufnr = s.ctx.loc.bufnr
-  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, s.region, { details = true })
-  if not ok or not pos[1] or pos[3].invalid or pos[3].end_row <= pos[1] then
-    return nil
-  end
-  return pos[1] + 1, pos[3].end_row
+  return s.region:rows()
 end
 
 --- Finalize an unnarrowed capture: its text is already in the target, so
@@ -2210,8 +2193,11 @@ local function store_unnarrowed(s)
     pcall(require("org.table").align_at, bufnr, line)
   end
   pcall(require("org.lists").update_statistics_for, bufnr, line)
+  local entry = marks.set(bufnr, line)
   run_hook(tpl.before_finalize, bufnr, line)
   emit("OrgCaptureBeforeFinalize", { bufnr = bufnr, line = line })
+  line = entry and entry:lnum() or line
+  marks.del(entry)
   if not tpl.no_save then
     local saved, err = utils.save_buffer(bufnr)
     if not saved then
@@ -2231,9 +2217,9 @@ local function remove_unnarrowed(s)
   if not (c and vim.api.nvim_buf_is_valid(bufnr)) then
     return
   end
-  local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, c.mark, { details = true })
-  if ok and pos[1] and not pos[3].invalid then
-    vim.api.nvim_buf_set_lines(bufnr, pos[1], pos[3].end_row, false, c.original)
+  local first, last = c.mark:rows()
+  if first then
+    vim.api.nvim_buf_set_lines(bufnr, first - 1, last, false, c.original)
   end
 end
 
@@ -2541,13 +2527,7 @@ local function open_unnarrowed(tpl, text, ctx)
   -- (also by `O` on the first line or `o` on the last) belongs to the span,
   -- and the mark goes invalid only when all its lines are deleted
   local function span(s0, e0)
-    return vim.api.nvim_buf_set_extmark(bufnr, ns, s0 - 1, 0, {
-      end_row = e0,
-      end_col = 0,
-      right_gravity = false,
-      end_right_gravity = false,
-      invalidate = true,
-    })
+    return marks.range(bufnr, s0, e0, { grow_start = true, invalidate = true })
   end
   local s = {
     template = tpl,

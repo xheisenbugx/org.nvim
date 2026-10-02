@@ -70,9 +70,26 @@ end
 --- Highlight spans of the agenda buffer: 0-based row -> { s, e, group }
 --- (byte columns; line highlights cover the whole line).
 function M.spans(buf, lines)
+  local by_row = {}
+  -- the highlights of an agenda buffer are kept in its state (drawn by a
+  -- decoration provider)
+  local st = require("org.agenda.view").state_of(buf)
+  if st then
+    for l, parts in pairs(st.line_parts or {}) do
+      local row = {}
+      for _, h in ipairs(parts) do
+        row[#row + 1] = { s = h[1], e = h[2], group = h[3] }
+      end
+      by_row[l - 1] = row
+    end
+    for l, group in pairs(st.line_hl_groups or {}) do
+      by_row[l - 1] = by_row[l - 1] or {}
+      table.insert(by_row[l - 1], { s = 0, e = #(lines[l] or ""), group = group, line = true })
+    end
+    return by_row
+  end
   local ns = vim.api.nvim_create_namespace("org.agenda")
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
-  local by_row = {}
   for _, m in ipairs(marks) do
     local row, col, d = m[2], m[3], m[4]
     local group = d.hl_group or d.line_hl_group
@@ -464,6 +481,7 @@ function M.write_now(path, opts)
       return false
     end
   end
+  -- lint: allow expand: a file the user typed or configured
   path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   local ext = (path:match("%.([^./]+)$") or ""):lower()
   local nlines = #lines
@@ -556,6 +574,7 @@ function M.store_views(overrides)
         with_agenda_options(opts, function()
           agenda.open_custom(key)
           for _, f in ipairs(fl) do
+            -- lint: allow expand: a file the user typed or configured
             local path = vim.fn.fnamemodify(vim.fn.expand(f), ":p")
             if M.write(path, { nosettings = true, print = cmd.settings or cmd.options }) then
               n = n + 1

@@ -1,0 +1,1269 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org9ceed55">1. How to use this file</a>
+<ul>
+<li><a href="#orga0d449c">1.1. How to check the result: export one subtree</a></li>
+<li><a href="#orgba55d0f">1.2. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#org7ce5a9a">2. Emphasis</a>
+<ul>
+<li><a href="#org4875214">2.1. Emphasis examples</a></li>
+<li><a href="#orgaf6c356">2.2. When emphasis does not work</a></li>
+<li><a href="#orgafc9f12">2.3. Things that are not emphasis</a></li>
+<li><a href="#org10c0f82">2.4. Adding emphasis with a key</a>
+<ul>
+<li><a href="#org3030266">2.4.1. Emphasize playground</a></li>
+</ul>
+</li>
+<li><a href="#org2fc59bc">2.5. Hiding the markers</a></li>
+</ul>
+</li>
+<li><a href="#orgc4eb537">3. Subscripts and superscripts</a>
+<ul>
+<li><a href="#org1183b91">3.1. Scripts with defaults</a></li>
+<li><a href="#org1a9b2bc">3.2. Scripts with braces only</a></li>
+</ul>
+</li>
+<li><a href="#orgd1986c9">4. Entities</a>
+<ul>
+<li><a href="#org9a91767">4.1. Entity examples</a></li>
+</ul>
+</li>
+<li><a href="#org765f93b">5. Special strings and smart quotes</a>
+<ul>
+<li><a href="#org5570f68">5.1. Dashes and dots</a></li>
+<li><a href="#orgffe733b">5.2. Curly quotes</a></li>
+</ul>
+</li>
+<li><a href="#org8fc251a">6. LaTeX fragments</a>
+<ul>
+<li><a href="#org897f433">6.1. Math examples</a></li>
+</ul>
+</li>
+<li><a href="#org38bae4b">7. Paragraphs, line breaks and rules</a>
+<ul>
+<li><a href="#org22e105b">7.1. Breaks and rules</a></li>
+</ul>
+</li>
+<li><a href="#orgd54f3f3">8. Blocks</a>
+<ul>
+<li><a href="#orgd42c180">8.1. Block examples</a></li>
+<li><a href="#org203ff68">8.2. Line numbers in examples</a></li>
+<li><a href="#orgbc77e6e">8.3. Numbered example</a></li>
+</ul>
+</li>
+<li><a href="#org3ec8003">9. Fixed-width lines</a>
+<ul>
+<li><a href="#org2339d7e">9.1. Fixed-width playground</a></li>
+<li><a href="#orgbdd1cd6">9.2. Fixed-width example</a></li>
+</ul>
+</li>
+<li><a href="#org8242909">10. Comments</a>
+<ul>
+<li><a href="#org1fec826">10.1. Comment examples</a></li>
+</ul>
+</li>
+<li><a href="#org45cb940">11. Keywords</a></li>
+<li><a href="#orgd57504c">12. Export snippets</a>
+<ul>
+<li><a href="#org0c92d11">12.1. Snippet example</a></li>
+</ul>
+</li>
+<li><a href="#org1709cfb">13. Macros</a>
+<ul>
+<li><a href="#orgb0f1a4e">13.1. Macro examples</a>
+<ul>
+<li><a href="#org9b58fed">13.1.1. Weekly meeting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org4dafb16">14. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org9ceed55" class="outline-2">
+<h2 id="org9ceed55"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+This file shows how Org marks up text: emphasis, sub- and superscripts,
+special symbols, blocks, comments, line breaks, keywords and macros. Most of
+this markup is <b>shown</b> by the editor (colours, hidden markers) and <b>used</b>
+by the exporter (HTML, LaTeX, plain text&hellip;).
+</p>
+
+<p>
+Start Neovim from the root of the repository with the bundled config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/02-markup.org
+</code></pre>
+</div>
+
+<ul class="org-ul">
+<li>The file opens folded. <code>&lt;Tab&gt;</code> on a heading opens it, <code>&lt;S-Tab&gt;</code> cycles
+the whole buffer.</li>
+<li><code>&lt;prefix&gt;</code> means <code>&lt;leader&gt;o</code> (<code>&lt;Space&gt;o</code> with the bundled config). <code>g?</code>
+lists every key of the buffer.</li>
+<li><code>u</code> undoes; <code>git checkout examples/02-markup.org</code> restores the file.</li>
+<li><b>Try:</b> lines are exercises, <b>Expect:</b> lines say what you should see.</li>
+<li>Lines starting with =# = are comments: notes for you, never exported.</li>
+</ul>
+</div>
+<div id="outline-container-orga0d449c" class="outline-3">
+<h3 id="orga0d449c"><span class="section-number-3">1.1.</span> How to check the result: export one subtree</h3>
+<div class="outline-text-3" id="text-1-1">
+<p>
+Markup is easiest to verify by exporting. With the cursor anywhere inside a
+heading, this command exports <b>only that subtree</b>, without the HTML page
+around it, into a scratch buffer:
+</p>
+
+<pre class="example" id="orga1ef59e">
+:Org export html subtree body buffer
+</pre>
+
+<p>
+A split named "Org HTML Export" opens with the HTML. Close it with <code>:q</code>.
+For a plain-text view use <code>utf8</code> instead of <code>html</code>. The same exports are in
+the menu of <code>&lt;prefix&gt;e</code> (Emacs <code>&lt;C-c&gt;&lt;C-e&gt;</code>): press <code>s</code> (subtree only) and
+<code>b</code> (body only), then <code>h H</code> (HTML buffer) or <code>t U</code> (UTF-8 buffer). Export
+itself is covered in <a href="19-export.html">19-export.org</a>.
+</p>
+
+<p>
+Most <b>Expect:</b> lines below quote the exact HTML you should find.
+</p>
+</div>
+</div>
+<div id="outline-container-orgba55d0f" class="outline-3">
+<h3 id="orgba55d0f"><span class="section-number-3">1.2.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-2">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;E</code></td>
+<td class="org-left">emphasize: wrap the selection in <code>*</code> <code>/</code> <code>_</code>&hellip;</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-f&gt;</code></td>
+<td class="org-left">the same, Emacs key</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;\</code></td>
+<td class="org-left">toggle pretty entities (<code>\alpha</code> shown as α)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;:</code></td>
+<td class="org-left">toggle fixed-width =: = on the line / selection</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;ib</code></td>
+<td class="org-left">insert a block (quote, example, src&hellip;)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;hC</code></td>
+<td class="org-left">toggle the COMMENT keyword of a headline</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;Tab&gt;</code></td>
+<td class="org-left">on a <code>#+begin_</code> line: fold / unfold the block</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;e</code></td>
+<td class="org-left">export menu</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;xl</code></td>
+<td class="org-left">preview LaTeX fragments as images</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="outline-container-org7ce5a9a" class="outline-2">
+<h2 id="org7ce5a9a"><span class="section-number-2">2.</span> Emphasis</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Six markers change how text looks. Put the marker right before the first
+character and right after the last one:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">You write</th>
+<th scope="col" class="org-left">You get</th>
+<th scope="col" class="org-left">HTML</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>*bold*</code></td>
+<td class="org-left"><b>bold</b></td>
+<td class="org-left"><code>&lt;b&gt;bold&lt;/b&gt;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>/italic/</code></td>
+<td class="org-left"><i>italic</i></td>
+<td class="org-left"><code>&lt;i&gt;italic&lt;/i&gt;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>_underlined_</code></td>
+<td class="org-left"><span class="underline">underlined</span></td>
+<td class="org-left"><code>&lt;span class</code>"underline"&gt;&hellip;=</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>+strike+</code></td>
+<td class="org-left"><del>strike</del></td>
+<td class="org-left"><code>&lt;del&gt;strike&lt;/del&gt;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>=verbatim=</code></td>
+<td class="org-left"><code>verbatim</code></td>
+<td class="org-left"><code>&lt;code&gt;verbatim&lt;/code&gt;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>~code~</code></td>
+<td class="org-left"><code>code</code></td>
+<td class="org-left"><code>&lt;code&gt;code&lt;/code&gt;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<code>verbatim</code> and <code>code</code> look the same in most exports; the difference is
+that nothing inside them is interpreted: no emphasis, no links, no
+entities. Use <code>code</code> for code and <code>verbatim</code> for keys, file names and
+literal strings (this is the convention of the Org manual).
+</p>
+
+<p>
+Emphasis can be nested, and can span <b>two</b> lines, but not more.
+</p>
+
+<p>
+<b>Try:</b> open "Emphasis examples" below and look at the colours: each kind of
+markup has its own highlight group (<code>OrgBold</code>, <code>OrgItalic</code>, <code>OrgUnderline</code>,
+<code>OrgStrikethrough</code>, <code>OrgVerbatim</code>, <code>OrgCode</code>). Then, with the cursor in it,
+run <code>:Org export html subtree body buffer</code>.
+</p>
+
+<p>
+<b>Expect:</b> the HTML contains, one per line:
+</p>
+<pre class="example">
+&lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, &lt;span class="underline"&gt;underlined&lt;/span&gt;,
+&lt;del&gt;strike-through&lt;/del&gt;, &lt;code&gt;verbatim&lt;/code&gt; and &lt;code&gt;code&lt;/code&gt;.
+&lt;b&gt;bold with &lt;i&gt;italic inside&lt;/i&gt; it&lt;/b&gt;
+&lt;code&gt;*not bold*&lt;/code&gt;
+&lt;b&gt;emphasis over
+two lines&lt;/b&gt;
+</pre>
+</div>
+<div id="outline-container-org4875214" class="outline-3">
+<h3 id="org4875214"><span class="section-number-3">2.1.</span> Emphasis examples</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+<b>bold</b>, <i>italic</i>, <span class="underline">underlined</span>,
+<del>strike-through</del>, <code>verbatim</code> and <code>code</code>.
+<b>bold with <i>italic inside</i> it</b>
+<code>*not bold*</code> because verbatim shows its text as it is.
+<b>emphasis over
+two lines</b> works.
+</p>
+</div>
+</div>
+<div id="outline-container-orgaf6c356" class="outline-3">
+<h3 id="orgaf6c356"><span class="section-number-3">2.2.</span> When emphasis does not work</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+The markers are only recognised in the right context (Org's
+<code>org-emphasis-regexp-components</code>):
+</p>
+
+<ul class="org-ul">
+<li>The opening marker must be at the start of a line or after a space or one
+of <code>-('"{</code>. The closing marker must be followed by a space, the end of the
+line, or one of <code>-.,:!?;'")}\[</code>. So markers inside a word do nothing:
+<code>a*b*c</code> stays as it is.</li>
+<li>The text inside cannot start or end with a space: <code>* no *</code> is not bold.</li>
+<li>Emphasis spans at most two lines. Three lines: no emphasis.</li>
+<li>Inside <code>verbatim</code> and <code>code</code> nothing is interpreted.</li>
+</ul>
+
+<p>
+<b>Try:</b> open "Things that are not emphasis" and export it as above.
+</p>
+
+<p>
+<b>Expect:</b> none of these lines has <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code> or <code>&lt;del&gt;</code> in the HTML:
+the stars, slashes and plus signs come out as plain characters:
+</p>
+<pre class="example">
+a*b*c in the middle of a word.
+Here * no stars * because of the spaces inside.
+2+3+4 is just arithmetic.
+path/to/file is not italic.
+</pre>
+<p>
+(Underscores are different: <code>snake_case</code> gives a subscript, see the next
+topic.)
+</p>
+</div>
+</div>
+<div id="outline-container-orgafc9f12" class="outline-3">
+<h3 id="orgafc9f12"><span class="section-number-3">2.3.</span> Things that are not emphasis</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+a*b*c in the middle of a word.
+Here * no stars * because of the spaces inside.
+2+3+4 is just arithmetic.
+path/to/file is not italic.
+</p>
+</div>
+</div>
+<div id="outline-container-org10c0f82" class="outline-3">
+<h3 id="org10c0f82"><span class="section-number-3">2.4.</span> Adding emphasis with a key</h3>
+<div class="outline-text-3" id="text-2-4">
+<p>
+<code>&lt;prefix&gt;E</code> (Emacs <code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-f&gt;</code>) asks for a marker (<code>*</code> <code>/</code> <code>_</code> <code>+</code>
+<code>=</code> <code>~</code>) and:
+</p>
+<ul class="org-ul">
+<li>in Visual mode, wraps the selection in it; if the selection already has a
+marker, it is replaced; answering <code>&lt;Space&gt;</code> removes the markers;</li>
+<li>in Normal mode, inserts a pair of markers and puts you in Insert mode
+between them.</li>
+</ul>
+<p>
+Spaces are added when needed so the markers are recognised.
+</p>
+
+<p>
+<b>Try:</b> on the line "Make this word bold." below, put the cursor on "word",
+press <code>viw</code>, then <code>&lt;prefix&gt;E</code> and <code>*</code>.
+</p>
+
+<p>
+<b>Expect:</b> the line reads <code>Make this *word* bold.</code> and "word" turns bold.
+</p>
+
+<p>
+<b>Try:</b> put the cursor on the first star of <code>*word*</code>, select up to the
+second star with <code>vf*</code>, press <code>&lt;prefix&gt;E</code> and <code>/</code>.
+</p>
+
+<p>
+<b>Expect:</b> the stars are replaced: <code>Make this /word/ bold.</code>
+</p>
+
+<p>
+<b>Try:</b> on the line "Type between alpha beta", put the cursor on the <code>b</code> of
+"beta", press <code>&lt;prefix&gt;E</code> and <code>~</code>, type <code>ls</code> and press <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>Type between alpha ~ls~ beta</code>: the pair was inserted before
+"beta" and a space was added after it, so the markers are recognised.
+</p>
+</div>
+<div id="outline-container-org3030266" class="outline-4">
+<h4 id="org3030266"><span class="section-number-4">2.4.1.</span> Emphasize playground</h4>
+<div class="outline-text-4" id="text-2-4-1">
+<p>
+Make this word bold.
+Type between alpha beta
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org2fc59bc" class="outline-3">
+<h3 id="org2fc59bc"><span class="section-number-3">2.5.</span> Hiding the markers</h3>
+<div class="outline-text-3" id="text-2-5">
+<p>
+With <code>ui.hide_emphasis_markers = true</code> the markers are concealed: you see
+<b>bold</b> without its stars. The markers stay in the file, and show again on
+the line under the cursor (depending on <code>'concealcursor'</code>).
+</p>
+
+<p>
+<b>Try:</b> run these two commands, then look at "Emphasis examples":
+</p>
+
+<pre class="example" id="org8463113">
+:lua require("org.config").opts.ui.hide_emphasis_markers = true
+:w | e
+</pre>
+
+<p>
+<b>Expect:</b> the markers disappear from lines away from the cursor. Set it
+back to <code>false</code> the same way.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgc4eb537" class="outline-2">
+<h2 id="orgc4eb537"><span class="section-number-2">3.</span> Subscripts and superscripts</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+<code>_</code> makes a subscript and <code>^</code> a superscript: <code>x^2</code>, <code>a_i</code>. Without braces
+the script extends over all the letters and digits that follow, so write
+<code>H_{2}O</code> (not <code>H_2O</code>, which subscripts "2O"). Braces are always safe:
+<code>x^{10}</code>, <code>a_{ij}</code>.
+</p>
+
+<p>
+Two settings control them:
+</p>
+<ul class="org-ul">
+<li>In the buffer, with <code>ui.pretty_entities</code> on (see Entities below), scripts
+are drawn with Unicode super/subscript characters when all of their
+characters have one (x², aᵢⱼ), else highlighted with <code>OrgSuperscript</code> /
+<code>OrgSubscript</code>.</li>
+<li>In the export, <code>#+OPTIONS: ^:{}</code> (or <code>:EXPORT_OPTIONS: ^:{}</code> on a
+subtree) only accepts scripts in braces, so <code>snake_case</code> stays intact.
+<code>^:nil</code> turns them off.</li>
+</ul>
+
+<p>
+<b>Try:</b> export "Scripts with defaults" (<code>:Org export html subtree body
+buffer</code>).
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+H&lt;sub&gt;2&lt;/sub&gt;O and E=mc&lt;sup&gt;2&lt;/sup&gt; and a&lt;sub&gt;ij&lt;/sub&gt;
+H&lt;sub&gt;2O&lt;/sub&gt; is wrong: "2O" is subscripted.
+snake&lt;sub&gt;case&lt;/sub&gt;
+</pre>
+
+<p>
+<b>Try:</b> export "Scripts with braces only" the same way.
+</p>
+
+<p>
+<b>Expect:</b> <code>H_2O</code> and <code>snake_case</code> stay as they are, only the braced ones
+change:
+</p>
+<pre class="example">
+H_2O snake_case x&lt;sup&gt;2&lt;/sup&gt; a&lt;sub&gt;ij&lt;/sub&gt;
+</pre>
+</div>
+<div id="outline-container-org1183b91" class="outline-3">
+<h3 id="org1183b91"><span class="section-number-3">3.1.</span> Scripts with defaults</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+H<sub>2</sub>O and E=mc<sup>2</sup> and a<sub>ij</sub>
+H<sub>2O</sub> is wrong: "2O" is subscripted.
+snake<sub>case</sub>
+</p>
+</div>
+</div>
+<div id="outline-container-org1a9b2bc" class="outline-3">
+<h3 id="org1a9b2bc"><span class="section-number-3">3.2.</span> Scripts with braces only</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+H<sub>2O</sub> snake<sub>case</sub> x<sup>2</sup> a<sub>ij</sub>
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd1986c9" class="outline-2">
+<h2 id="orgd1986c9"><span class="section-number-2">4.</span> Entities</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Entities are TeX-like names for symbols: <code>\alpha</code>, <code>\to</code>, <code>\deg</code>,
+<code>\copy</code>&hellip; Org knows hundreds of them (the same list as Emacs'
+<code>org-entities</code>). Each exporter writes the right thing: <code>&amp;alpha;</code> in HTML,
+<code>\alpha</code> in LaTeX, <code>α</code> in UTF-8 text. End an entity with <code>{}</code> when a letter
+follows: <code>\alpha{}beta</code>.
+</p>
+
+<p>
+In the buffer, <code>ui.pretty_entities = true</code> (or <code>#+STARTUP: entitiespretty</code>)
+shows them as their Unicode character. <code>&lt;C-c&gt;&lt;C-x&gt;\</code> toggles this for the
+current buffer. Entities are never prettified in blocks, code, verbatim or
+links. As in Emacs, only entities with a one-character symbol are drawn:
+<code>\sin</code> or <code>\lim</code> stay as written in the buffer (they still export as
+<code>sin</code> and <code>lim</code>).
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Write</th>
+<th scope="col" class="org-left">Shows as</th>
+<th scope="col" class="org-left">Write</th>
+<th scope="col" class="org-left">Shows as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>\alpha</code></td>
+<td class="org-left">α</td>
+<td class="org-left"><code>\to</code></td>
+<td class="org-left">→</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\beta</code></td>
+<td class="org-left">β</td>
+<td class="org-left"><code>\larr</code></td>
+<td class="org-left">←</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\pi</code></td>
+<td class="org-left">π</td>
+<td class="org-left"><code>\deg</code></td>
+<td class="org-left">°</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\infty</code></td>
+<td class="org-left">∞</td>
+<td class="org-left"><code>\copy</code></td>
+<td class="org-left">©</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\pm</code></td>
+<td class="org-left">±</td>
+<td class="org-left"><code>\euro</code></td>
+<td class="org-left">€</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\times</code></td>
+<td class="org-left">×</td>
+<td class="org-left"><code>\nbsp</code></td>
+<td class="org-left">(space)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> open "Entity examples" and press <code>&lt;C-c&gt;&lt;C-x&gt;\</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>\alpha</code> is drawn as α, <code>\to</code> as →, <code>\deg{}</code> as °, and the
+scripts <code>x^2</code> and <code>a_{ij}</code> as x² and aᵢⱼ. Press <code>&lt;C-c&gt;&lt;C-x&gt;\</code> again to see
+the plain text.
+</p>
+
+<p>
+<b>Try:</b> export "Entity examples" to HTML.
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+&amp;alpha; &amp;beta; &amp;pi; &amp;rarr; 20&amp;deg;C &amp;copy; 2026
+&amp;alpha;beta (the {} ends the name)
+</pre>
+</div>
+<div id="outline-container-org9a91767" class="outline-3">
+<h3 id="org9a91767"><span class="section-number-3">4.1.</span> Entity examples</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+&alpha; &beta; &pi; &rarr; 20&deg;C &copy; 2026
+&alpha;beta (the {} ends the name)
+x<sup>2</sup> and a<sub>ij</sub>
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org765f93b" class="outline-2">
+<h2 id="org765f93b"><span class="section-number-2">5.</span> Special strings and smart quotes</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+When exporting, a few character sequences become typographic symbols
+(<code>#+OPTIONS: -:t</code>, the default; <code>-:nil</code> turns it off):
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Write</th>
+<th scope="col" class="org-left">Becomes</th>
+<th scope="col" class="org-left">HTML</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>--</code></td>
+<td class="org-left">en dash –</td>
+<td class="org-left"><code>&amp;ndash;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>---</code></td>
+<td class="org-left">em dash —</td>
+<td class="org-left"><code>&amp;mdash;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>...</code></td>
+<td class="org-left">ellipsis …</td>
+<td class="org-left"><code>&amp;hellip;</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\-</code></td>
+<td class="org-left">soft hyphen</td>
+<td class="org-left"><code>&amp;shy;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Smart quotes (<code>#+OPTIONS: ':t</code>, off by default) turn "straight" quotes
+into curly ones, using the quotes of <code>#+LANGUAGE:</code>.
+</p>
+
+<p>
+<b>Try:</b> export "Dashes and dots", then "Curly quotes".
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+pages 10&amp;ndash;20 &amp;mdash; and so on&amp;hellip;
+</pre>
+<p>
+and for "Curly quotes":
+</p>
+<pre class="example">
+&amp;ldquo;Hello,&amp;rdquo; she said. It&amp;rsquo;s fine.
+</pre>
+</div>
+<div id="outline-container-org5570f68" class="outline-3">
+<h3 id="org5570f68"><span class="section-number-3">5.1.</span> Dashes and dots</h3>
+<div class="outline-text-3" id="text-5-1">
+<p>
+pages 10&ndash;20 &mdash; and so on&hellip;
+</p>
+</div>
+</div>
+<div id="outline-container-orgffe733b" class="outline-3">
+<h3 id="orgffe733b"><span class="section-number-3">5.2.</span> Curly quotes</h3>
+<div class="outline-text-3" id="text-5-2">
+<p>
+"Hello," she said. It's fine.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org8fc251a" class="outline-2">
+<h2 id="org8fc251a"><span class="section-number-2">6.</span> LaTeX fragments</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+Math is written in LaTeX: <code>$x^2$</code> or <code>\(x^2\)</code> inline, <code>\[ ... \]</code> or
+<code>\begin{equation}</code> &hellip; <code>\end{equation}</code> for displayed formulas. In the
+buffer they are highlighted (<code>OrgLatex</code>); <code>&lt;prefix&gt;xl</code> (Emacs
+<code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-l&gt;</code>) previews them as images if you have LaTeX and an image
+backend. HTML export uses MathJax. Details and previews:
+<a href="21-images-latex.html">21-images-latex.org</a>.
+</p>
+
+<p>
+<code>$</code> is only math when it is not next to a space inside: <code>$5 and $10</code> is
+money, not math.
+</p>
+
+<p>
+<b>Try:</b> export "Math examples".
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+The area is \(\pi r^2\) and \(a+b\).
+\[ E = mc^2 \]
+It costs $5 and $10.
+</pre>
+</div>
+<div id="outline-container-org897f433" class="outline-3">
+<h3 id="org897f433"><span class="section-number-3">6.1.</span> Math examples</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+The area is \(\pi r^2\) and \(a+b\).
+\[ E = mc^2 \]
+It costs $5 and $10.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org38bae4b" class="outline-2">
+<h2 id="org38bae4b"><span class="section-number-2">7.</span> Paragraphs, line breaks and rules</h2>
+<div class="outline-text-2" id="text-7">
+<ul class="org-ul">
+<li>A <b>paragraph</b> is a group of lines; blank lines separate paragraphs. Line
+breaks inside a paragraph are ignored when exporting.</li>
+<li><code>\\</code> at the end of a line forces a line break.</li>
+<li><code>#+OPTIONS: \n:t</code> keeps every line break of the file.</li>
+<li>A line of <b>five or more dashes</b> (<code>-----</code>) is a horizontal rule.</li>
+</ul>
+
+<p>
+<b>Try:</b> export "Breaks and rules".
+</p>
+
+<p>
+<b>Expect:</b> the first paragraph has no <code>&lt;br /&gt;</code> (a browser shows its two
+lines as one), the second has one after "Forced", and the dashes became
+<code>&lt;hr /&gt;</code>:
+</p>
+<pre class="example">
+&lt;p&gt;
+These two lines
+form one paragraph.
+&lt;/p&gt;
+
+&lt;p&gt;
+Forced &lt;br /&gt;
+break here.
+&lt;/p&gt;
+
+&lt;hr /&gt;
+</pre>
+</div>
+<div id="outline-container-org22e105b" class="outline-3">
+<h3 id="org22e105b"><span class="section-number-3">7.1.</span> Breaks and rules</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+These two lines
+form one paragraph.
+</p>
+
+<p>
+Forced <br />
+break here.
+</p>
+
+<hr />
+
+<p>
+A new paragraph after the rule.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd54f3f3" class="outline-2">
+<h2 id="orgd54f3f3"><span class="section-number-2">8.</span> Blocks</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+Blocks start with <code>#+begin_NAME</code> and end with <code>#+end_NAME</code> (upper or lower
+case). Insert them with <code>&lt;prefix&gt;ib</code> (see
+<a href="01-outline.html">01-outline.org</a>). <code>&lt;Tab&gt;</code> on the <code>#+begin_</code> line
+folds the block; <code>#+STARTUP: hideblocks</code> folds all of them when the file
+opens.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Block</th>
+<th scope="col" class="org-left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>quote</code></td>
+<td class="org-left">a quotation</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>center</code></td>
+<td class="org-left">centered text</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>verse</code></td>
+<td class="org-left">a poem: line breaks and indentation are kept</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>example</code></td>
+<td class="org-left">verbatim text in a monospace font</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>src LANG</code></td>
+<td class="org-left">source code in language LANG</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>export BACKEND</code></td>
+<td class="org-left">raw text for one exporter only (<code>html</code>, <code>latex</code>&hellip;)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>comment</code></td>
+<td class="org-left">never exported</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Markup works inside quote, center and verse blocks, but not inside example
+and src blocks.
+</p>
+
+<p>
+<b>Try:</b> on "Block examples", press <code>&lt;Tab&gt;</code> until everything shows, then
+press <code>&lt;Tab&gt;</code> on each <code>#+begin_</code> line to fold and unfold it.
+</p>
+
+<p>
+<b>Expect:</b> each block folds into its <code>#+begin_</code> line.
+</p>
+
+<p>
+<b>Try:</b> export "Block examples".
+</p>
+
+<p>
+<b>Expect:</b> in the HTML you find <code>&lt;blockquote&gt;</code> with <code>&lt;b&gt;ideas&lt;/b&gt;</code> inside,
+<code>&lt;div class</code>"org-center"&gt;=, <code>&lt;p class</code>"verse"&gt;= with <code>&amp;nbsp;</code> for the
+indentation and <code>&lt;br /&gt;</code> at every line end, <code>&lt;pre class</code>"example"&gt;= with
+<code>*not bold*</code> left as it is, <code>&lt;pre class</code>"src src-lua"&gt;=, the raw
+<code>&lt;em&gt;raw HTML&lt;/em&gt;</code>, and <b>no</b> trace of "This is a comment block".
+</p>
+</div>
+<div id="outline-container-orgd42c180" class="outline-3">
+<h3 id="orgd42c180"><span class="section-number-3">8.1.</span> Block examples</h3>
+<div class="outline-text-3" id="text-8-1">
+<blockquote>
+<p>
+Everything is made of <b>ideas</b>. &mdash; Anonymous
+</p>
+</blockquote>
+
+<div class="org-center">
+<p>
+Centered title
+</p>
+</div>
+
+<p class="verse">
+Roses are red,<br />
+&nbsp;&nbsp;violets are blue,<br />
+&nbsp;&nbsp;&nbsp;&nbsp;verses keep<br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;their indentation too.<br />
+</p>
+
+<pre class="example" id="org15303e2">
+Example text: *not bold*, shown exactly as typed.
+</pre>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>print("hello from Lua")
+</code></pre>
+</div>
+
+<em>raw HTML</em>
+</div>
+</div>
+<div id="outline-container-org203ff68" class="outline-3">
+<h3 id="org203ff68"><span class="section-number-3">8.2.</span> Line numbers in examples</h3>
+<div class="outline-text-3" id="text-8-2">
+<p>
+Example and src blocks accept switches. <code>-n</code> numbers the lines, <code>+n</code>
+continues the numbering of the previous block.
+</p>
+
+<p>
+<b>Try:</b> export "Numbered example".
+</p>
+
+<p>
+<b>Expect:</b> the lines start with <code>&lt;span class</code>"linenr"&gt;1: &lt;/span&gt;= and
+<code>&lt;span class</code>"linenr"&gt;2: &lt;/span&gt;=.
+</p>
+</div>
+</div>
+<div id="outline-container-orgbc77e6e" class="outline-3">
+<h3 id="orgbc77e6e"><span class="section-number-3">8.3.</span> Numbered example</h3>
+<div class="outline-text-3" id="text-8-3">
+<pre class="example" id="orgd81a00d">
+<span class="linenr">1: </span>first line
+<span class="linenr">2: </span>second line
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org3ec8003" class="outline-2">
+<h2 id="org3ec8003"><span class="section-number-2">9.</span> Fixed-width lines</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+A line starting with a colon and a space (=: =) is shown and exported
+verbatim, like a one-line example block. Handy for short program output.
+</p>
+
+<p>
+<code>&lt;C-c&gt;:</code> (<code>toggle_fixed_width</code>) adds or removes the =: = prefix on the
+current line, or on every line of a Visual selection.
+</p>
+
+<p>
+<b>Try:</b> select the two "output" lines below with <code>V</code> and <code>j</code>, press <code>&lt;C-c&gt;:</code>.
+</p>
+
+<p>
+<b>Expect:</b> both lines start with <code>: = and are highlighted as fixed-width.
+Select the two lines again (=V</code> and <code>j</code>) and press <code>&lt;C-c&gt;:</code> to remove it.
+</p>
+
+<p>
+<b>Try:</b> export "Fixed-width example".
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+&lt;pre class="example"&gt;
+$ date
+Mon Sep 28 10:00:00 2026
+&lt;/pre&gt;
+</pre>
+</div>
+<div id="outline-container-org2339d7e" class="outline-3">
+<h3 id="org2339d7e"><span class="section-number-3">9.1.</span> Fixed-width playground</h3>
+<div class="outline-text-3" id="text-9-1">
+<p>
+output line one
+output line two
+</p>
+</div>
+</div>
+<div id="outline-container-orgbdd1cd6" class="outline-3">
+<h3 id="orgbdd1cd6"><span class="section-number-3">9.2.</span> Fixed-width example</h3>
+<div class="outline-text-3" id="text-9-2">
+<pre class="example">
+$ date
+Mon Sep 28 10:00:00 2026
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org8242909" class="outline-2">
+<h2 id="org8242909"><span class="section-number-2">10.</span> Comments</h2>
+<div class="outline-text-2" id="text-10">
+<p>
+Three ways to keep text out of the export:
+</p>
+
+<ol class="org-ol">
+<li>A line starting with <code>#</code> followed by a space (or <code>#</code> alone) is a
+comment line. <code>#+</code> starts a keyword instead, and <code>#word</code> is plain text.</li>
+<li>A <code>#+begin_comment</code> / <code>#+end_comment</code> block (see Blocks).</li>
+<li>A headline starting with <code>COMMENT</code> comments out the whole subtree: it is
+left out of the export and the agenda. <code>&lt;prefix&gt;hC</code> (Emacs <code>&lt;C-c&gt;;</code>)
+toggles the keyword.</li>
+</ol>
+
+<p>
+<b>Try:</b> export "Comment examples".
+</p>
+
+<p>
+<b>Expect:</b> only "Visible text." and "#hashtag is not a comment." are in the
+HTML. Nothing of "Secret child" appears.
+</p>
+
+<p>
+<b>Try:</b> on "Secret child", press <code>&lt;prefix&gt;hC</code>, and export again.
+</p>
+
+<p>
+<b>Expect:</b> the keyword is removed, and "Secret child" and "Its text." now
+appear in the HTML.
+</p>
+</div>
+<div id="outline-container-org1fec826" class="outline-3">
+<h3 id="org1fec826"><span class="section-number-3">10.1.</span> Comment examples</h3>
+<div class="outline-text-3" id="text-10-1">
+<p>
+Visible text.
+</p>
+
+<p>
+#hashtag is not a comment.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org45cb940" class="outline-2">
+<h2 id="org45cb940"><span class="section-number-2">11.</span> Keywords</h2>
+<div class="outline-text-2" id="text-11">
+<p>
+Lines like <code>#+TITLE: ...</code> are keywords: settings for the file or the
+export. The ones at the top of this file are:
+</p>
+
+<dl class="org-dl">
+<dt><code>#+TITLE:</code> and <code>#+AUTHOR:</code></dt><dd>the document title and author.</dd>
+<dt><code>#+STARTUP:</code></dt><dd>how the file opens (see
+<a href="01-outline.html">01-outline.org</a>).</dd>
+<dt><code>#+CATEGORY:</code></dt><dd>the name used by the agenda.</dd>
+<dt><code>#+MACRO:</code></dt><dd>text macros (see Macros below).</dd>
+</dl>
+
+<p>
+Others you will meet: <code>#+OPTIONS:</code> (export options), <code>#+TODO:</code>,
+<code>#+TAGS:</code>, <code>#+PROPERTY:</code>, <code>#+COLUMNS:</code>, and the <b>affiliated</b> keywords
+<code>#+NAME:</code>, <code>#+CAPTION:</code> and <code>#+ATTR_HTML:</code> which go right above an element
+(a table, a block, an image) to name or describe it. After editing a <code>#+</code>
+line, press <code>&lt;C-c&gt;&lt;C-c&gt;</code> on it so the buffer picks up the change.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd57504c" class="outline-2">
+<h2 id="orgd57504c"><span class="section-number-2">12.</span> Export snippets</h2>
+<div class="outline-text-2" id="text-12">
+<p>
+<code>@@BACKEND:text@@</code> inserts raw text for one exporter only, inline. Other
+exporters drop it. Use it for things Org markup can't express, e.g.
+keyboard keys in HTML.
+</p>
+
+<p>
+<b>Try:</b> export "Snippet example" to HTML, then to UTF-8
+(<code>:Org export utf8 subtree body buffer</code>).
+</p>
+
+<p>
+<b>Expect:</b> in HTML: <code>Press &lt;kbd&gt;Ctrl&lt;/kbd&gt;-&lt;kbd&gt;S&lt;/kbd&gt; to save.</code> In UTF-8:
+<code>Press Ctrl-S to save.</code>
+</p>
+</div>
+<div id="outline-container-org0c92d11" class="outline-3">
+<h3 id="org0c92d11"><span class="section-number-3">12.1.</span> Snippet example</h3>
+<div class="outline-text-3" id="text-12-1">
+<p>
+Press <kbd>Ctrl</kbd>-<kbd>S</kbd> to save.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org1709cfb" class="outline-2">
+<h2 id="org1709cfb"><span class="section-number-2">13.</span> Macros</h2>
+<div class="outline-text-2" id="text-13">
+<p>
+Macros are templates expanded when exporting: <code>#+MACRO: name text</code> defines
+one, <code>{{{name(arg1,arg2)}}}</code> uses it. In the text, <code>$1</code>, <code>$2</code>&hellip; are the
+arguments and <code>$0</code> all of them. A comma inside an argument is written
+<code>\,</code>. This file defines three macros at the top:
+</p>
+
+<pre class="example" id="orgb72b707">
+#+MACRO: greet Hello, $1!
+#+MACRO: swap $2 before $1
+#+MACRO: kbd @@html:&lt;kbd&gt;@@$1@@html:&lt;/kbd&gt;@@
+</pre>
+
+<p>
+Built-in macros:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Macro</th>
+<th scope="col" class="org-left">Expands to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>{{{title}}}</code></td>
+<td class="org-left">the <code>#+TITLE:</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{author}}}</code></td>
+<td class="org-left">the <code>#+AUTHOR:</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{date(FMT)}}}</code></td>
+<td class="org-left">the <code>#+DATE:</code>, formatted (FMT optional)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{time(FMT)}}}</code></td>
+<td class="org-left">the export time, e.g. <code>%Y-%m-%d</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{keyword(NAME)}}}</code></td>
+<td class="org-left">the value of any <code>#+NAME:</code> keyword</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{property(NAME)}}}</code></td>
+<td class="org-left">a property of the entry around the macro</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{n}}}</code></td>
+<td class="org-left">a counter: 1, 2, 3&hellip; (<code>{{{n(name)}}}</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{input-file}}}</code></td>
+<td class="org-left">the name of this file</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{{{modification-time(FMT)}}}</code></td>
+<td class="org-left">when the file was last changed</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+In the buffer, macros are highlighted with <code>OrgMacro</code> and not expanded.
+</p>
+
+<p>
+<b>Try:</b> export "Macro examples".
+</p>
+
+<p>
+<b>Expect:</b> (the export also has a small table of contents, because of the
+child headline)
+</p>
+<pre class="example">
+Hello, World! Hello, Ada, Grace!
+second before first
+Press &lt;kbd&gt;C-c&lt;/kbd&gt;.
+Title: Markup: emphasis, blocks, comments and friends
+Author: Ada Lovelace
+Steps 1, 2, 3.
+</pre>
+<p>
+and under the "Weekly meeting" heading:
+</p>
+<pre class="example">
+Room: Blue room
+</pre>
+</div>
+<div id="outline-container-orgb0f1a4e" class="outline-3">
+<h3 id="orgb0f1a4e"><span class="section-number-3">13.1.</span> Macro examples</h3>
+<div class="outline-text-3" id="text-13-1">
+<p>
+Hello, World! Hello, Ada, Grace!
+second before first
+Press <kbd>C-c</kbd>.
+Title: Markup: emphasis, blocks, comments and friends
+Author: Ada Lovelace
+Steps 1, 2, 3.
+</p>
+</div>
+<div id="outline-container-org9b58fed" class="outline-4">
+<h4 id="org9b58fed"><span class="section-number-4">13.1.1.</span> Weekly meeting</h4>
+<div class="outline-text-4" id="text-13-1-1">
+<p>
+Room: Blue room
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-org4dafb16" class="outline-2">
+<h2 id="org4dafb16"><span class="section-number-2">14.</span> Further reading</h2>
+<div class="outline-text-2" id="text-14">
+<dl class="org-dl">
+<dt><code>:h org-appearance</code></dt><dd>hiding markers, pretty entities, highlights</dd>
+<dt><code>:h org-highlights</code></dt><dd>the highlight groups (<code>OrgBold</code>, <code>OrgLatex</code>&hellip;)</dd>
+<dt><code>:h org-structure</code></dt><dd><code>&lt;prefix&gt;E</code>, <code>&lt;prefix&gt;ib</code>, <code>&lt;C-c&gt;:</code></dd>
+<dt><code>:h org-export-settings</code></dt><dd><code>#+OPTIONS:</code> keys and macros</dd>
+<dt><code>:h org-images</code></dt><dd>LaTeX previews</dd>
+<dt>(no term)</dt><dd><a href="19-export.html">19-export.org</a> and
+<a href="21-images-latex.html">21-images-latex.org</a> :: more on export and math</dd>
+</dl>
+</div>
+</div>

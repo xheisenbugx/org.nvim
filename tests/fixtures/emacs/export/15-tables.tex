@@ -1,0 +1,1937 @@
+\section{How to use this file}
+\label{sec:orga368926}
+Org tables are plain text: every line that starts with \texttt{|} is a table row,
+and org.nvim keeps the columns lined up for you while you type. This file
+covers everything you can do with a table \textbf{without} formulas: creating
+tables (by typing, from CSV/TSV text, from a file), aligning, moving around,
+adding, deleting and moving rows and columns, horizontal lines, copying a
+series down, sorting, transposing, alignment and width cookies, shrinking
+columns, column groups, links and markup in cells, names and captions,
+exporting a table to a file and table.el tables.
+
+Formulas (\texttt{\#+TBLFM:}, \texttt{\$3=\$1*\$2}, \texttt{vsum(@2..@-1)} \ldots{}) have their own file:
+\href{16-spreadsheet.org}{16-spreadsheet.org}.
+
+\begin{itemize}
+\item The file starts folded (\texttt{\#+STARTUP: overview}). Put the cursor on a
+heading and press \texttt{<Tab>} to open it; \texttt{<S-Tab>} cycles the whole buffer.
+\item \texttt{<prefix>} means your org prefix, \texttt{<leader>o} by default (with the
+bundled init file the leader is \texttt{<Space>}, so \texttt{<prefix>Tc} is
+\texttt{<Space>oTc}). Emacs keys (\texttt{<C-c>|}, \texttt{<C-c>\textasciicircum{}} \ldots{}) work too.
+\item The exercises change the tables in place. \texttt{u} undoes an exercise, so you
+can press \texttt{u} and do the next one on the original table. \texttt{git checkout
+  examples/15-tables.org} restores the whole file.
+\item \texttt{g?} lists every key of the buffer; type \texttt{/table} in that list to see the
+table keys.
+\item Lines starting with \textbf{Try:} are exercises. \textbf{Expect:} shows the exact result.
+Expected tables are shown inside \texttt{\#+begin\_example} blocks so that they are
+plain text (the table commands leave them alone).
+\item Lines starting with =\# = are Org comments: they explain the example next
+to them and are never exported.
+\end{itemize}
+
+Start Neovim from the repository root with the bundled init file (it sets
+the agenda files to \texttt{examples/*.org} and a scratch \texttt{org\_directory}, so your
+own notes are never touched):
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/15-tables.org
+\end{verbatim}
+
+Two things about keys before you start:
+
+\begin{itemize}
+\item Every table key under the prefix starts with \texttt{T} (\texttt{<prefix>Tc},
+\texttt{<prefix>Ts} \ldots{}); \texttt{<prefix>T} itself does nothing, so you can pause after
+it (which-key, if installed, then lists the table keys).
+\item The \texttt{<M-...>} keys need a terminal that sends Alt. If \texttt{<M-j>} does
+nothing, the arrow forms \texttt{<M-Down>} \texttt{<M-Up>} \texttt{<M-Left>} \texttt{<M-Right>} do the
+same thing. \texttt{<S-CR>} needs a terminal that can tell it from \texttt{<CR>} (see
+"Copy down" below for tmux).
+\end{itemize}
+\subsection{Keys in this file}
+\label{sec:org6f3b54d}
+The "Emacs" column names the same command in Emacs Org. All the \texttt{C-c ...}
+ones are mapped in org.nvim too, as \texttt{<C-c>...}; for the others use the key
+in the first column.
+
+\begin{center}
+\begin{tabular}{lll}
+Key & Emacs & What it does\\
+\hline
+\texttt{<C-c><C-c>}, \texttt{<prefix><CR>} & C-c C-c & align the table\\
+\texttt{<Esc>} (leaving Insert) &  & align the table\\
+\texttt{<Tab>} / \texttt{<S-Tab>} (Insert) & TAB / S-TAB & next / previous field\\
+\texttt{<CR>} (Insert) & RET & same column, next row\\
+\texttt{<prefix>Tc} & C-c \(\vert{}\) & new table / convert lines\\
+\texttt{:Org table\_import} &  & file → table\\
+\texttt{:Org table\_export} &  & table → file\\
+\texttt{<prefix>T-} or \texttt{<C-c>-} & C-c - & hline (count: above)\\
+\texttt{<C-c><CR>} & C-c RET & hline and move below it\\
+\texttt{<M-k>} / \texttt{<M-j>} & M-up / M-down & move the row\\
+\texttt{<M-h>} / \texttt{<M-l>} & M-left / M-right & move the column\\
+\texttt{<M-K>} or \texttt{<prefix>TR} & M-S-up & delete the row\\
+\texttt{<M-J>} & M-S-down & insert a row above\\
+\texttt{<M-CR>} or \texttt{<prefix>Tr} & M-RET & insert a row below\\
+\texttt{<M-H>} or \texttt{<prefix>TI} & M-S-left & delete the column\\
+\texttt{<M-L>} or \texttt{<prefix>Ti} & M-S-right & insert a column\\
+\texttt{<S-Up>} \texttt{<S-Down>} \ldots{} & S-up \ldots{} & swap one field\\
+\texttt{<S-CR>} & S-RET & copy the field down\\
+\texttt{<prefix>Ts} or \texttt{<C-c>\textasciicircum{}} & C-c \^{} & sort the rows\\
+\texttt{<prefix>Tt} &  & transpose\\
+\texttt{<C-c><Space>} & C-c SPC & blank the field(s)\\
+\texttt{<C-c>?} & C-c ? & field reference\\
+\texttt{<C-c>\}} & C-c \} & show row/column numbers\\
+\texttt{<C-c>+} & C-c + & sum the column\\
+\texttt{<C-c><C-x><M-w>} & C-c C-x M-w & copy a rectangle\\
+\texttt{<C-c><C-x><C-w>} & C-c C-x C-w & cut a rectangle\\
+\texttt{<C-c><C-x><C-y>} & C-c C-x C-y & paste a rectangle\\
+\texttt{<C-c>`} & C-c ` & edit the field\\
+\texttt{16<C-c>`} & C-u C-u C-c ` & follow-field mode\\
+\texttt{<C-c><Tab>} & C-c TAB & shrink / expand column\\
+\texttt{<C-c>\textasciitilde{}} & C-c \textasciitilde{} & table.el conversion\\
+\end{tabular}
+\end{center}
+\section{Anatomy of a table}
+\label{sec:org3d780a4}
+A table is a block of consecutive lines that start with \texttt{|} (spaces before
+the \texttt{|} are allowed). Inside a line, \texttt{|} separates the \textbf{fields}. A line
+that starts with \texttt{|-} is a \textbf{horizontal line} (an "hline"); it has no fields.
+The rows above the first hline are the \textbf{header}: they are exported as
+column titles. The first line that does not start with \texttt{|} ends the table.
+
+\begin{table}[htbp]
+\label{tab:orge87d85b}
+\centering
+\begin{tabular}{lrrl}
+Planet & Moons & Radius (km) & Ringed\\
+\hline
+Mercury & 0 & 2440 & no\\
+Earth & 1 & 6371 & no\\
+Jupiter & 95 & 69911 & yes\\
+Saturn & 146 & 58232 & yes\\
+\end{tabular}
+\end{table}
+
+What you see above:
+
+\begin{itemize}
+\item Every row has the same number of fields, padded with spaces so the \texttt{|}
+line up. You never type that padding yourself: org.nvim \textbf{aligns} the
+table.
+\item Columns where at least half the non-empty fields are numbers
+("Moons", "Radius") are right-aligned; the others are left-aligned.
+\item The hline \texttt{|-{}-{}-{}-{}-{}-{}-{}-{}-+-{}-{}-{}-{}-{}-{}-+...|} has a \texttt{+} where a \texttt{|} would be.
+\item A table can have several hlines; they split it into sections (the sort
+command uses them, see "Sorting rows").
+\end{itemize}
+
+A table does not need a header or an hline. This is a table too:
+
+\begin{center}
+\begin{tabular}{lr}
+apples & 3\\
+pears & 5\\
+cherries & 12\\
+\end{tabular}
+\end{center}
+\section{Aligning a table}
+\label{sec:org765f93b}
+Any table command aligns the table it works on. You can also align on
+demand:
+
+\begin{itemize}
+\item \texttt{<C-c><C-c>} (or \texttt{<prefix><CR>}) with the cursor anywhere in the table.
+\item Leaving Insert mode (\texttt{<Esc>}) inside a table aligns it.
+\item Aligning adds the missing fields of short rows, turns \texttt{|-} into a full
+hline, and trims extra spaces in fields.
+\end{itemize}
+
+\textbf{Try:} put the cursor on "cherries" in the little table at the end of the
+previous section and press \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} the fields line up and 12 is right-aligned:
+\begin{verbatim}
+| apples   |  3 |
+| pears    |  5 |
+| cherries | 12 |
+\end{verbatim}
+
+The table below is a real mess on purpose: fields of different widths, a
+row with a missing field, a row with an extra field, a bare \texttt{|-} line and a
+row without a closing \texttt{|}.
+
+\begin{table}[htbp]
+\label{tab:org14c171c}
+\centering
+\begin{tabular}{llr}
+Name & Language & Stars\\
+\hline
+org.nvim & Lua & 42\\
+neorg & Lua\\
+orgmode & Lua & 3100 & extra\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} put the cursor anywhere in the table and press \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} five columns (the "extra" field made the table wider), every short
+row padded, the \texttt{|-} turned into a full line:
+\begin{verbatim}
+| Name     | Language | Stars |       |
+|----------+----------+-------+-------|
+| org.nvim | Lua      |    42 |       |
+| neorg    | Lua      |       |       |
+| orgmode  | Lua      |  3100 | extra |
+\end{verbatim}
+
+\textbf{Try:} in the aligned table, put the cursor on "Lua" in the first data row,
+press \texttt{ea} (append at the end of the word), type = and Neovim=, then press
+\texttt{<Esc>}.
+
+\textbf{Expect:} leaving Insert mode widened the "Language" column:
+\begin{verbatim}
+| Name     | Language       | Stars |       |
+|----------+----------------+-------+-------|
+| org.nvim | Lua and Neovim |    42 |       |
+| neorg    | Lua            |       |       |
+| orgmode  | Lua            |  3100 | extra |
+\end{verbatim}
+\section{Creating tables}
+\label{sec:org3ec8003}
+\subsection{By typing}
+\label{sec:org897f433}
+Start a line with \texttt{|} and type the fields separated by \texttt{|}. The first
+\texttt{<Tab>} (or \texttt{<Esc>}, or \texttt{<C-c><C-c>}) aligns it. A row made of just \texttt{|-}
+becomes an hline when you press \texttt{<Tab>} on it, and \texttt{<Tab>} moves to (and
+creates) the row below.
+
+\textbf{Try:} on the empty line of the practice area above, type exactly:
+\texttt{i|Name|Age} \texttt{<Esc>} \texttt{o|-} \texttt{<Tab>} \texttt{Ada} \texttt{<Tab>} \texttt{36} \texttt{<Tab>} \texttt{Bob}
+\texttt{<Tab>} \texttt{41} \texttt{<Esc>}
+
+(that is: Insert, the header row, leave Insert, open a line below, type
+\texttt{|-}, then \texttt{<Tab>} converts it into an hline and jumps to a new row where you
+type "Ada", \texttt{<Tab>}, "36", \texttt{<Tab>} makes another row \ldots{})
+
+\textbf{Expect:}
+\begin{verbatim}
+| Name | Age |
+|------+-----|
+| Ada  |  36 |
+| Bob  |  41 |
+\end{verbatim}
+
+Note: inside a table, \texttt{<CR>} in Insert mode always goes to the next row
+(creating one when needed), even at the end of the line. To type something
+under a table, leave Insert mode and open a line with \texttt{o} on the last row;
+text that does not start with \texttt{|} is no longer part of the table.
+\subsection{An empty table: \texttt{<prefix>Tc}}
+\label{sec:org4f04a7e}
+On a line outside any table, \texttt{<prefix>Tc} (Emacs \texttt{C-c |}) asks
+\texttt{Table size Columns x Rows [e.g. 5x2]:} with \texttt{5x2} already filled in.
+\texttt{<CR>} accepts it; to type another size, clear the prompt with \texttt{<C-u>} first.
+The first row is a header and an hline follows it. On a blank line the
+table replaces the line; on a line with text it goes below that line. The
+cursor lands in the first field.
+
+\textbf{Try:} on the empty line of the practice area, press \texttt{<prefix>Tc} and \texttt{<CR>}.
+
+\textbf{Expect:} 5 columns, 2 rows (header + one data row):
+\begin{verbatim}
+|   |   |   |   |   |
+|---+---+---+---+---|
+|   |   |   |   |   |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}, then \texttt{<prefix>Tc} \texttt{<C-u>} \texttt{3x4} \texttt{<CR>}.
+
+\textbf{Expect:} 3 columns, 4 rows:
+\begin{verbatim}
+|   |   |   |
+|---+---+---|
+|   |   |   |
+|   |   |   |
+|   |   |   |
+\end{verbatim}
+
+\textbf{Try:} put the cursor on the text line "Shopping list:" below and press
+\texttt{<prefix>Tc} \texttt{<C-u>} \texttt{2x3} \texttt{<CR>}.
+
+Shopping list:
+
+\textbf{Expect:} the text stays and the table appears below it:
+\begin{verbatim}
+Shopping list:
+|   |   |
+|---+---|
+|   |   |
+|   |   |
+\end{verbatim}
+
+\texttt{<prefix>Tc} inside an existing table just aligns it.
+\subsection{Converting CSV, TSV and whitespace text}
+\label{sec:orge5cb850}
+Select lines of text in Visual mode (\texttt{V}) and press \texttt{<prefix>Tc}: each line
+becomes a row. The separator is guessed from the selection:
+
+\begin{enumerate}
+\item a Tab anywhere → split on Tabs (TSV);
+\item else a comma anywhere → split as CSV (with \texttt{"quoted, fields"} and \texttt{""}
+for a literal quote);
+\item else → split on runs of spaces.
+\end{enumerate}
+
+A count before \texttt{<prefix>Tc} (typed in Visual mode, after selecting) forces
+the separator: \texttt{4} comma, \texttt{16} Tab, any other N "N or more spaces" (so
+single spaces stay inside fields). A \texttt{|} in the data becomes \texttt{\textbackslash{}vert\{\}}.
+There is no hline in a converted table; add one with \texttt{<prefix>T-}
+(see "Horizontal lines").
+\subsubsection{CSV}
+\label{sec:org15303e2}
+name,role,city
+Ada Lovelace,engineer,London
+"Doe, Jane",cook,"New ""Old"" York"
+
+\textbf{Try:} put the cursor on "name,role,city", press \texttt{V2j} to select the three
+lines, then \texttt{<prefix>Tc}.
+
+\textbf{Expect:} the quotes are gone and "Doe, Jane" stays one field:
+\begin{verbatim}
+| name         | role     | city           |
+| Ada Lovelace | engineer | London         |
+| Doe, Jane    | cook     | New "Old" York |
+\end{verbatim}
+\subsubsection{TSV}
+\label{sec:orgcc47755}
+city	country	population
+São Paulo	Brazil	12.33
+
+\textbf{Try:} \texttt{V} on "city", \texttt{j}, \texttt{<prefix>Tc}.
+
+\textbf{Expect:} (the space in "São Paulo" is kept, the Tabs split)
+\begin{verbatim}
+| city      | country | population |
+| São Paulo | Brazil  |      12.33 |
+\end{verbatim}
+\subsubsection{Whitespace}
+\label{sec:orgd42c180}
+alpha beta   gamma
+1 2       3
+
+\textbf{Try:} \texttt{V} on "alpha", \texttt{j}, \texttt{<prefix>Tc}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| alpha | beta | gamma |
+|     1 |    2 |     3 |
+\end{verbatim}
+\subsubsection{Two or more spaces (a count)}
+\label{sec:orgc8c3ec6}
+Columns of text copied from a terminal often contain single spaces inside a
+field. Split on "2 or more spaces" instead:
+
+New York     8.3   USA
+Los Angeles  3.9   USA
+Mexico City  9.2   Mexico
+
+\textbf{Try:} \texttt{V} on "New York", \texttt{2j}, then \texttt{2<prefix>Tc} (the \texttt{2} is the count).
+
+\textbf{Expect:}
+\begin{verbatim}
+| New York    | 8.3 | USA    |
+| Los Angeles | 3.9 | USA    |
+| Mexico City | 9.2 | Mexico |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} and do it again without the count (\texttt{V2j<prefix>Tc}).
+
+\textbf{Expect:} every single space splits too, so the city names are cut in two:
+\begin{verbatim}
+| New    | York    | 8.3 | USA    |
+| Los    | Angeles | 3.9 | USA    |
+| Mexico | City    | 9.2 | Mexico |
+\end{verbatim}
+
+Press \texttt{u} to get the text back.
+\subsubsection{Forcing CSV with a count}
+\label{sec:orgd54f3f3}
+first name,last name
+Grace Brewster,Hopper
+
+\textbf{Try:} \texttt{V} on "first name", \texttt{j}, \texttt{4<prefix>Tc}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| first name     | last name |
+| Grace Brewster | Hopper    |
+\end{verbatim}
+
+(Without the count this would also work, because the comma is found; the
+count matters when the text has both Tabs and commas.)
+\subsection{Importing a file: \texttt{:Org table\_import}}
+\label{sec:orgbdd1cd6}
+\texttt{:Org table\_import} asks for a file name and inserts the file as a table
+below the cursor line (replacing the line when it is blank). The separator
+is guessed like above (Tab, else comma, else spaces).
+
+\textbf{Try:} first make a small CSV file. Run this Ex command (copy it):
+
+\begin{verbatim}
+:call writefile(['item,qty,price', 'apple,3,0.50', '"melon, big",1,2.25'], '/tmp/org15-fruit.csv')
+\end{verbatim}
+
+Then put the cursor on the empty line of the practice area below, run
+\texttt{:Org table\_import}, type \texttt{/tmp/org15-fruit.csv} and press \texttt{<CR>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| item       | qty | price |
+| apple      |   3 |  0.50 |
+| melon, big |   1 |  2.25 |
+\end{verbatim}
+\section{Moving around in Insert mode}
+\label{sec:org8242909}
+While you are in Insert mode inside a table:
+
+\begin{center}
+\begin{tabular}{ll}
+Key & Moves to\\
+\hline
+\texttt{<Tab>} & the next field; after the last field, the next row's first\\
+\texttt{<S-Tab>} & the previous field; before the first, the previous row's last\\
+\texttt{<CR>} & the same column in the next row\\
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item Every move aligns the table first, so the columns grow as you type.
+\item Hlines are skipped.
+\item \texttt{<Tab>} in the last field of the last row \textbf{adds a row}.
+\item \texttt{<CR>} on the last row, or on a row followed by an hline, \textbf{inserts an
+empty row} below it.
+\item The cursor lands at the start of the field. What you type is inserted
+before the text already there; to replace a field, empty it first with
+\texttt{<C-c><Space>} in Normal mode (see "Field helpers").
+\end{itemize}
+
+\begin{table}[htbp]
+\label{tab:org8f24d88}
+\centering
+\begin{tabular}{llr}
+Day & Task & Hours\\
+\hline
+Mon & Write specs & 2\\
+Tue & Review & 1\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} put the cursor on "Review", press \texttt{A} (end of the line), then
+\texttt{<Tab>} and type \texttt{Wed}, \texttt{<Tab>} \texttt{Deploy}, \texttt{<Tab>} \texttt{3}, \texttt{<Esc>}.
+
+\textbf{Expect:} \texttt{<Tab>} after the last field created the "Wed" row:
+\begin{verbatim}
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+| Wed | Deploy      |     3 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Put the cursor on "Mon", press \texttt{i}, then \texttt{<CR>} twice and type
+\texttt{Fri}, \texttt{<Esc>}.
+
+\textbf{Expect:} the first \texttt{<CR>} went to "Tue"; the second one found no row below
+and inserted one:
+\begin{verbatim}
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+| Fri |             |       |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Put the cursor on "Day" (the header), press \texttt{i}, \texttt{<CR>}, type
+\texttt{Sun}, \texttt{<Esc>}.
+
+\textbf{Expect:} the header is followed by the hline, so \texttt{<CR>} inserted a new row
+right under the header, above the hline:
+\begin{verbatim}
+| Day | Task        | Hours |
+| Sun |             |       |
+|-----+-------------+-------|
+| Mon | Write specs |     2 |
+| Tue | Review      |     1 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Put the cursor on "1" (the Hours of Tue), press \texttt{i}, then
+\texttt{<S-Tab>} three times and type \texttt{Big =, =<Esc>}.
+
+\textbf{Expect:} \texttt{<S-Tab>} went back Task, Day, then to the last field of the
+previous row (Mon's Hours), where "Big " was inserted before "2":
+\begin{verbatim}
+| Day | Task        | Hours |
+|-----+-------------+-------|
+| Mon | Write specs | Big 2 |
+| Tue | Review      | 1     |
+\end{verbatim}
+\section{Horizontal lines (hlines)}
+\label{sec:orgb72b707}
+Ways to make an hline:
+
+\begin{itemize}
+\item Type \texttt{|-} on a new line and press \texttt{<Tab>} (Insert mode) or \texttt{<C-c><C-c>}.
+\item \texttt{<prefix>T-} or \texttt{<C-c>-}: insert an hline \textbf{below} the current row.
+\item \texttt{1<C-c>-} (any count): insert it \textbf{above} the current row.
+\item \texttt{<C-c><CR>}: insert an hline below the current row and move to the row
+under it, creating an empty row when there is none.
+\end{itemize}
+
+An hline is a row like any other for \texttt{<M-k>} / \texttt{<M-j>} (move) and \texttt{<M-K>}
+(delete).
+
+\begin{table}[htbp]
+\label{tab:orgb08c2e4}
+\centering
+\begin{tabular}{lr}
+Quarter & Revenue\\
+Q1 & 100\\
+Q2 & 120\\
+Q3 & 90\\
+Total & 310\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Quarter", press \texttt{<prefix>T-}.
+
+\textbf{Expect:} a header line now separates the titles:
+\begin{verbatim}
+| Quarter | Revenue |
+|---------+---------|
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+| Total   |     310 |
+\end{verbatim}
+
+\textbf{Try:} (keep the result) cursor on "Total", press \texttt{1<C-c>-}.
+
+\textbf{Expect:} an hline above "Total":
+\begin{verbatim}
+| Quarter | Revenue |
+|---------+---------|
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+|---------+---------|
+| Total   |     310 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. Cursor on "Total", press \texttt{<C-c><CR>}.
+
+\textbf{Expect:} an hline below Total and a new empty row, with the cursor in it:
+\begin{verbatim}
+| Quarter | Revenue |
+| Q1      |     100 |
+| Q2      |     120 |
+| Q3      |      90 |
+| Total   |     310 |
+|---------+---------|
+|         |         |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. On the empty line of the practice area below, type
+\texttt{i|Col A|Col B} \texttt{<Esc>}, then \texttt{o|-} \texttt{<Esc>}, then \texttt{<C-c><C-c>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Col A | Col B |
+|-------+-------|
+\end{verbatim}
+\section{Rows: move, insert, delete}
+\label{sec:org6d2fcfd}
+All in Normal mode, with the cursor anywhere in the row:
+
+\begin{center}
+\begin{tabular}{ll}
+Key & Action\\
+\hline
+\texttt{<M-k>} / \texttt{<M-Up>} & move the row up (it swaps with an hline too)\\
+\texttt{<M-j>} / \texttt{<M-Down>} & move the row down\\
+\texttt{<M-K>} / \texttt{<prefix>TR} & delete the row (or the hline)\\
+\texttt{<M-J>} & insert an empty row \textbf{above}\\
+\texttt{<M-CR>} / \texttt{<prefix>Tr} & insert an empty row \textbf{below}\\
+\end{tabular}
+\end{center}
+
+\texttt{<M-CR>} also works in Insert mode. Plain Vim works as well: \texttt{dd} deletes
+the row, \texttt{p} pastes it, \texttt{yyp} duplicates it; the table is aligned by the
+next table command.
+
+\begin{table}[htbp]
+\label{tab:orgcb89e30}
+\centering
+\begin{tabular}{lrr}
+Fruit & Qty & Price\\
+\hline
+Apple & 3 & 0.50\\
+Banana & 12 & 0.25\\
+Cherry & 40 & 0.10\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Apple", press \texttt{<M-j>}.
+
+\textbf{Expect:} Apple and Banana swapped; the cursor stays on Apple:
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Banana |  12 |  0.25 |
+| Apple  |   3 |  0.50 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Cherry", press \texttt{<M-k>} twice.
+
+\textbf{Expect:} Cherry is the first data row:
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Cherry |  40 |  0.10 |
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. Cursor on "Apple", press \texttt{<M-k>} once.
+
+\textbf{Expect:} Apple swapped places with the hline: it is now part of the header.
+\begin{verbatim}
+| Fruit  | Qty | Price |
+| Apple  |   3 |  0.50 |
+|--------+-----+-------|
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Banana", press \texttt{<M-K>} (or \texttt{<prefix>TR}).
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Banana", press \texttt{<M-J>}.
+
+\textbf{Expect:} an empty row above Banana (the cursor is in it):
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+|        |     |       |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Banana", press \texttt{<M-CR>} (or \texttt{<prefix>Tr}).
+
+\textbf{Expect:} an empty row below Banana:
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+|        |     |       |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Apple", press \texttt{i} (Insert mode), then \texttt{<M-CR>}, type
+\texttt{Kiwi}, \texttt{<Tab>}, \texttt{5}, \texttt{<Esc>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Kiwi   |   5 |       |
+| Banana |  12 |  0.25 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+\section{Columns: move, insert, delete}
+\label{sec:orgffc7ee1}
+Normal mode, cursor anywhere in the column:
+
+\begin{center}
+\begin{tabular}{ll}
+Key & Action\\
+\hline
+\texttt{<M-h>} / \texttt{<M-Left>} & move the column left\\
+\texttt{<M-l>} / \texttt{<M-Right>} & move the column right\\
+\texttt{<M-H>} / \texttt{<prefix>TI} & delete the column\\
+\texttt{<M-L>} / \texttt{<prefix>Ti} & insert an empty column left of the cursor\\
+\end{tabular}
+\end{center}
+
+\begin{table}[htbp]
+\label{tab:orgd5b1c41}
+\centering
+\begin{tabular}{lrr}
+Fruit & Qty & Price\\
+\hline
+Apple & 3 & 0.50\\
+Banana & 12 & 0.25\\
+Cherry & 40 & 0.10\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Fruit", press \texttt{<M-l>}.
+
+\textbf{Expect:} the Fruit column moved one place right:
+\begin{verbatim}
+| Qty | Fruit  | Price |
+|-----+--------+-------|
+|   3 | Apple  |  0.50 |
+|  12 | Banana |  0.25 |
+|  40 | Cherry |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} (keep it) press \texttt{<M-l>} again, then \texttt{<M-h>} twice.
+
+\textbf{Expect:} back to the original table: the cursor follows the column.
+
+\textbf{Try:} cursor on "Qty", press \texttt{<M-H>} (or \texttt{<prefix>TI}).
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit  | Price |
+|--------+-------|
+| Apple  |  0.50 |
+| Banana |  0.25 |
+| Cherry |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "Qty", press \texttt{<M-L>} (or \texttt{<prefix>Ti}).
+
+\textbf{Expect:} an empty column appeared where Qty was, and Qty moved right:
+\begin{verbatim}
+| Fruit  |   | Qty | Price |
+|--------+---+-----+-------|
+| Apple  |   |   3 |  0.50 |
+| Banana |   |  12 |  0.25 |
+| Cherry |   |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{<M-h>} on the first column, or \texttt{<M-l>} on the last one.
+
+\textbf{Expect:} the message "Cannot move column further" and no change.
+\section{Swapping single fields: \texttt{<S-arrows>}}
+\label{sec:orgd279195}
+\texttt{<S-Up>} \texttt{<S-Down>} \texttt{<S-Left>} \texttt{<S-Right>} swap the \textbf{field} under the
+cursor with its neighbour and follow it. Only that one field moves; the rest
+of the row stays. Hlines are jumped over. Exception: on a timestamp, the
+\texttt{<S-arrows>} change the date instead (as everywhere in Org).
+
+\begin{table}[htbp]
+\label{tab:org25f39bf}
+\centering
+\begin{tabular}{lll}
+Mon & Tue & Wed\\
+\hline
+gym & swim & yoga\\
+read & code & cook\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "gym", press \texttt{<S-Right>} twice.
+
+\textbf{Expect:} "gym" travelled to the Wed column; swim and yoga moved left:
+\begin{verbatim}
+| Mon  | Tue  | Wed  |
+|------+------+------|
+| swim | yoga | gym  |
+| read | code | cook |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. Cursor on "gym", press \texttt{<S-Down>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Mon  | Tue  | Wed  |
+|------+------+------|
+| read | swim | yoga |
+| gym  | code | cook |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "swim", press \texttt{<S-Up>}.
+
+\textbf{Expect:} it jumped over the hline and swapped with the header "Tue":
+\begin{verbatim}
+| Mon  | swim | Wed  |
+|------+------+------|
+| gym  | Tue  | yoga |
+| read | code | cook |
+\end{verbatim}
+\section{Copy down and series: \texttt{<S-CR>}}
+\label{sec:org3c0e124}
+\texttt{<S-CR>} (Normal or Insert mode) copies the current field into the row
+below and moves there, adding a row when the table ends (or an hline
+follows). While copying it \textbf{increments}:
+
+\begin{itemize}
+\item a number: +1, or +the difference to the field above when that field is a
+number too (so 5, 10 continues 15, 20);
+\item text that starts or ends with a number (\texttt{Item 1}, \texttt{Room 101},
+\texttt{3 apples}): that number, same rule;
+\item a timestamp: +1 day, or +the difference in days to a timestamp above
+(so a weekly series stays weekly);
+\item anything else is copied unchanged.
+\end{itemize}
+
+In an \textbf{empty} field, \texttt{<S-CR>} fills it from the nearest non-empty field
+above (with a count N: the Nth one above) and stays in that row.
+
+Set \texttt{table\_copy\_increment = false} to copy without incrementing, or to a
+number to use that step.
+
+Note for tmux: \texttt{<S-CR>} arrives as \texttt{<CR>} unless extended keys are on
+(\texttt{set -s extended-keys on} and \texttt{set -as terminal-features 'xterm*:extkeys'}).
+
+\begin{table}[htbp]
+\label{tab:org925a93b}
+\centering
+\begin{tabular}{rll}
+Step & Task & Due\\
+\hline
+1 & Item 1 & \textit{<2026-10-05 Mon>}\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "1" (the Step), press \texttt{<S-CR>} three times.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|    2 |        |                  |
+|    3 |        |                  |
+|    4 |        |                  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} (three times) and do the same on "Item 1", twice.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|      | Item 2 |                  |
+|      | Item 3 |                  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. Now on the date, twice.
+
+\textbf{Expect:} one day at a time, with the right weekday:
+\begin{verbatim}
+| Step | Task   | Due              |
+|------+--------+------------------|
+|    1 | Item 1 | <2026-10-05 Mon> |
+|      |        | <2026-10-06 Tue> |
+|      |        | <2026-10-07 Wed> |
+\end{verbatim}
+
+The next table already has two rows, so the \textbf{difference} is repeated.
+
+\begin{table}[htbp]
+\label{tab:orgf5f9677}
+\centering
+\begin{tabular}{rll}
+n & label & when\\
+\hline
+5 & Room 101 & \textit{<2026-10-05 Mon>}\\
+10 & Room 103 & \textit{<2026-10-12 Mon>}\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "10", press \texttt{<S-CR>} twice.
+
+\textbf{Expect:} steps of 5:
+\begin{verbatim}
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+| 15 |          |                  |
+| 20 |          |                  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. On "Room 103", twice.
+
+\textbf{Expect:} steps of 2:
+\begin{verbatim}
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+|    | Room 105 |                  |
+|    | Room 107 |                  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u} \texttt{u}. On "\textit{<2026-10-12 Mon>}", twice.
+
+\textbf{Expect:} a weekly series:
+\begin{verbatim}
+|  n | label    | when             |
+|----+----------+------------------|
+|  5 | Room 101 | <2026-10-05 Mon> |
+| 10 | Room 103 | <2026-10-12 Mon> |
+|    |          | <2026-10-19 Mon> |
+|    |          | <2026-10-26 Mon> |
+\end{verbatim}
+
+In an empty field \texttt{<S-CR>} fetches the value from above:
+
+\begin{table}[htbp]
+\label{tab:org9c43852}
+\centering
+\begin{tabular}{ll}
+Colour & Size\\
+\hline
+red & S\\
+blue & M\\
+ & \\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor in the empty Colour field of the last row, press \texttt{<S-CR>}.
+
+\textbf{Expect:} "blue" copied into it, and no new row:
+\begin{verbatim}
+| Colour | Size |
+|--------+------|
+| red    | S    |
+| blue   | M    |
+| blue   |      |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}, then in the same empty field press \texttt{2<S-CR>}.
+
+\textbf{Expect:} the 2nd non-empty field above ("red"):
+\begin{verbatim}
+| Colour | Size |
+|--------+------|
+| red    | S    |
+| blue   | M    |
+| red    |      |
+\end{verbatim}
+\section{Sorting rows}
+\label{sec:orgd22997b}
+\texttt{<prefix>Ts} (Emacs \texttt{C-c \textasciicircum{}}) sorts rows by the column under the cursor.
+A menu asks for the kind of sort:
+
+\begin{center}
+\begin{tabular}{ll}
+Key & Sort\\
+\hline
+\texttt{a} / \texttt{A} & alphabetically / reversed (case-insensitive; markup ignored)\\
+\texttt{n} / \texttt{N} & numerically / reversed\\
+\texttt{t} / \texttt{T} & by time: timestamps, durations, \texttt{H:MM} / reversed\\
+\texttt{f} / \texttt{F} & with a Lua function that computes the sort key / reversed\\
+\end{tabular}
+\end{center}
+
+Only the rows between the hlines around the cursor are sorted: the header
+and the other sections stay where they are. Rows that compare equal keep
+their order.
+\subsection{The sort kinds}
+\label{sec:org538b2c8}
+\begin{table}[htbp]
+\label{tab:org6f725ab}
+\centering
+\begin{tabular}{lrrlr}
+Name & Age & Score & Joined & Time\\
+\hline
+charlie & 35 & 9.5 & \textit{<2026-11-03 Tue>} & 1:30\\
+Alice & 7 & 12 & \textit{<2026-09-30 Wed>} & 0:45\\
+bob & 120 & -3 & \textit{<2026-10-14 Wed>} & 12:05\\
+\textbf{Dave} & 42 & 100 & \textit{{[}2026-10-01 Thu]} & 2:00\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "charlie", press \texttt{<prefix>Ts} then \texttt{a}.
+
+\textbf{Expect:} A-Z ignoring case; "\textbf{Dave}" sorts as "Dave" (the \texttt{*} of bold
+markup is ignored):
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Same place, \texttt{<prefix>Ts} \texttt{A}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "35" (Age), \texttt{<prefix>Ts} \texttt{n}.
+
+\textbf{Expect:} 7, 35, 42, 120 (alphabetically it would be 120, 35, 42, 7):
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "9.5" (Score), \texttt{<prefix>Ts} \texttt{N}.
+
+\textbf{Expect:} largest first; negative numbers and decimals are understood:
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on the first date, \texttt{<prefix>Ts} \texttt{t}.
+
+\textbf{Expect:} chronological order; active \texttt{<...>} and inactive \texttt{[...]} dates
+mix:
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "1:30" (Time), \texttt{<prefix>Ts} \texttt{t}.
+
+\textbf{Expect:} by duration: 0:45, 1:30, 2:00, 12:05 (alphabetically 12:05 would
+come before 2:00):
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+\end{verbatim}
+\subsection{Case-sensitive sorting}
+\label{sec:orgaa3a7e6}
+With a count, \texttt{a} / \texttt{A} respect case: uppercase letters sort before
+lowercase ones.
+
+\textbf{Try:} \texttt{u}. Cursor on "charlie", press \texttt{1<prefix>Ts} \texttt{a}.
+
+\textbf{Expect:} Alice and Dave (capitals) first, then bob and charlie:
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+\end{verbatim}
+\subsection{Sorting with a function}
+\label{sec:org0f736aa}
+\texttt{f} asks for two things, both Lua:
+
+\begin{enumerate}
+\item \texttt{Function for extracting keys:} a function that receives the field text
+(trimmed) and returns the value to sort by, e.g.
+\texttt{function(s) return \#s end} (the length of the text);
+\item \texttt{Function for comparing keys (empty for default):} press \texttt{<CR>} for the
+normal \texttt{<} comparison, or give a function \texttt{function(a, b) ... end} that
+returns true when \texttt{a} goes first.
+\end{enumerate}
+
+\textbf{Try:} \texttt{u}. Cursor on "charlie", \texttt{<prefix>Ts} \texttt{f}, type
+\texttt{function(s) return \#s end}, \texttt{<CR>}, then \texttt{<CR>} again at the second prompt.
+
+\textbf{Expect:} shortest name first (bob=3, Alice=5, *Dave*=6, charlie=7):
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "charlie", \texttt{<prefix>Ts} \texttt{f}, type
+\texttt{function(s) return s:sub(-1) end} \texttt{<CR>} and \texttt{<CR>}.
+
+\textbf{Expect:} sorted by the \textbf{last character} ("*", "b", "e", "e"); charlie and
+Alice tie on "e" and keep their order:
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. \texttt{<prefix>Ts} \texttt{f}, key \texttt{function(s) return s:lower() end},
+comparison \texttt{function(a, b) return a > b end}.
+
+\textbf{Expect:} Z to A:
+\begin{verbatim}
+| Name    | Age | Score | Joined           |  Time |
+|---------+-----+-------+------------------+-------|
+| charlie |  35 |   9.5 | <2026-11-03 Tue> |  1:30 |
+| bob     | 120 |    -3 | <2026-10-14 Wed> | 12:05 |
+| Alice   |   7 |    12 | <2026-09-30 Wed> |  0:45 |
+| *Dave*  |  42 |   100 | [2026-10-01 Thu] |  2:00 |
+\end{verbatim}
+\subsection{Sorting one section}
+\label{sec:org32a6c99}
+Hlines divide a table into sections; sorting stays inside the section of
+the cursor.
+
+\begin{table}[htbp]
+\label{tab:org3845ba5}
+\centering
+\begin{tabular}{llr}
+Group & Item & Qty\\
+\hline
+B & pear & 4\\
+A & apple & 10\\
+C & fig & 1\\
+\hline
+Z & melon & 2\\
+X & lime & 30\\
+Y & grape & 7\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "melon", \texttt{<prefix>Ts} \texttt{a}.
+
+\textbf{Expect:} only the second section is sorted, by Item (the column of the
+cursor):
+\begin{verbatim}
+| Group | Item  | Qty |
+|-------+-------+-----|
+| B     | pear  |   4 |
+| A     | apple |  10 |
+| C     | fig   |   1 |
+|-------+-------+-----|
+| Y     | grape |   7 |
+| X     | lime  |  30 |
+| Z     | melon |   2 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "4" (Qty of pear), \texttt{<prefix>Ts} \texttt{N}.
+
+\textbf{Expect:} the first section, largest quantity first:
+\begin{verbatim}
+| Group | Item  | Qty |
+|-------+-------+-----|
+| A     | apple |  10 |
+| B     | pear  |   4 |
+| C     | fig   |   1 |
+|-------+-------+-----|
+| Z     | melon |   2 |
+| X     | lime  |  30 |
+| Y     | grape |   7 |
+\end{verbatim}
+
+Tip: to sort only some rows of a table, fence them with temporary hlines
+(\texttt{<prefix>T-} and \texttt{1<C-c>-}), sort, then delete the hlines with \texttt{<M-K>}.
+\section{Transposing: \texttt{<prefix>Tt}}
+\label{sec:orgbf8ef56}
+\texttt{<prefix>Tt} turns rows into columns and columns into rows. Hlines are
+dropped (add one again with \texttt{<prefix>T-} if you want a header).
+
+\begin{table}[htbp]
+\label{tab:org4a7a5fe}
+\centering
+\begin{tabular}{lrr}
+Fruit & Qty & Price\\
+\hline
+Apple & 3 & 0.50\\
+Banana & 12 & 0.25\\
+Cherry & 40 & 0.10\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor anywhere in the table, \texttt{<prefix>Tt}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit | Apple | Banana | Cherry |
+| Qty   |     3 |     12 |     40 |
+| Price |  0.50 |   0.25 |   0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>Tt} again.
+
+\textbf{Expect:} the original table, minus its hline.
+\section{Field helpers}
+\label{sec:orga176ef6}
+\begin{table}[htbp]
+\label{tab:orgb4018d6}
+\centering
+\begin{tabular}{lrr}
+Fruit & Qty & Price\\
+\hline
+Apple & 3 & 0.50\\
+Banana & 12 & 0.25\\
+Cherry & 40 & 0.10\\
+\end{tabular}
+\end{table}
+\subsection{Blank a field: \texttt{<C-c><Space>}}
+\label{sec:org063e364}
+Empties the field under the cursor. In Visual mode (\texttt{v} or \texttt{<C-v>}) it
+empties every field the selection touches.
+
+\textbf{Try:} cursor on "12", \texttt{<C-c><Space>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "3", press \texttt{<C-v>j} (a block over "3" and "12"), then
+\texttt{<C-c><Space>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |     |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |  0.10 |
+\end{verbatim}
+\subsection{Where am I? \texttt{<C-c>?} and \texttt{<C-c>\}}}
+\label{sec:orgcf0df04}
+\texttt{<C-c>?} shows the reference of the field in the message area; these
+references are what formulas use (see
+\href{16-spreadsheet.org}{16-spreadsheet.org}).
+\texttt{<C-c>\}} toggles virtual text with the row numbers (\texttt{@1}, \texttt{@2} \ldots{} at the end
+of each data row; hlines are not counted) and the column numbers (\texttt{\$1},
+\texttt{\$2} \ldots{} above the table).
+
+\textbf{Try:} cursor on "12", \texttt{<C-c>?}.
+
+\textbf{Expect:} the message \texttt{line @3, col \$2, ref @3\$2 or B3}.
+
+\textbf{Try:} \texttt{<C-c>\}}, look, and \texttt{<C-c>\}} again.
+
+\textbf{Expect:} \texttt{@1} after the header row, \texttt{@2} \texttt{@3} \texttt{@4} after the data rows,
+and a virtual line \texttt{\$1 \$2 \$3} above the table, each over its column. The
+second \texttt{<C-c>\}} removes them. The file text is not changed.
+\subsection{Quick sum: \texttt{<C-c>+}}
+\label{sec:org85dfe2e}
+\texttt{<C-c>+} adds the numbers of the current column (or of the Visual
+selection) and puts the result into the unnamed register, ready for \texttt{p}.
+This is not a formula: nothing is written into the table.
+
+\textbf{Try:} cursor on "12", \texttt{<C-c>+}.
+
+\textbf{Expect:} the message \texttt{Sum of 3 items: 55}; \texttt{p} would paste \texttt{55}.
+\subsection{Rectangles: copy, cut and paste fields}
+\label{sec:orgb2d4fbd}
+\begin{itemize}
+\item \texttt{<C-c><C-x><M-w>} copies the fields covered by the Visual selection (or
+the current field) into a table clipboard;
+\item \texttt{<C-c><C-x><C-w>} does the same and blanks them;
+\item \texttt{<C-c><C-x><C-y>} pastes the rectangle with its top-left corner at the
+current field, overwriting fields and adding rows or columns when needed.
+\end{itemize}
+
+\textbf{Try:} cursor on "Apple", \texttt{<C-v>j10l} (a block from Apple over into the Qty
+column of Banana), \texttt{<C-c><C-x><M-w>}. Then put the cursor on "Cherry" and
+press \texttt{<C-c><C-x><C-y>}.
+
+\textbf{Expect:} the 2x2 block was pasted from Cherry on, adding a row:
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |   3 |  0.50 |
+| Banana |  12 |  0.25 |
+| Apple  |   3 |  0.10 |
+| Banana |  12 |       |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. Cursor on "3", \texttt{<C-v>j} and \texttt{<C-c><C-x><C-w>}, then cursor on
+"0.10" and \texttt{<C-c><C-x><C-y>}.
+
+\textbf{Expect:} the quantities left their column and went to Price:
+\begin{verbatim}
+| Fruit  | Qty | Price |
+|--------+-----+-------|
+| Apple  |     |  0.50 |
+| Banana |     |  0.25 |
+| Cherry |  40 |     3 |
+|        |     |    12 |
+\end{verbatim}
+\section{Editing a field}
+\label{sec:org760f570}
+\subsection{In a prompt: \texttt{<C-c>`}}
+\label{sec:orgb9b8308}
+\texttt{<C-c>`} (backtick) opens a prompt \texttt{Field @2\$1: = holding the full text of
+the field. Change it and press =<CR>}; \texttt{<Esc>} cancels. This is handy for
+long fields and for shrunk columns (see "Column widths"). A \texttt{|} you type is
+stored as \texttt{\textbackslash{}vert\{\}} so it does not split the field.
+
+\begin{table}[htbp]
+\label{tab:orgc673174}
+\centering
+\begin{tabular}{lrr}
+Fruit & Qty & Price\\
+\hline
+Apple & 3 & 0.50\\
+Banana & 12 & 0.25\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Apple", \texttt{<C-c>`}, \texttt{<C-u>} (clears the prompt), type
+\texttt{Green apple}, \texttt{<CR>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| Fruit       | Qty | Price |
+|-------------+-----+-------|
+| Green apple |   3 |  0.50 |
+| Banana      |  12 |  0.25 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. \texttt{<C-c>`} on "Apple" again, \texttt{<C-u>}, type \texttt{in|out}, \texttt{<CR>}.
+
+\textbf{Expect:} the pipe was escaped:
+\begin{verbatim}
+| Fruit        | Qty | Price |
+|--------------+-----+-------|
+| in\vert{}out |   3 |  0.50 |
+| Banana       |  12 |  0.25 |
+\end{verbatim}
+\subsection{Follow-field mode: \texttt{16<C-c>`}}
+\label{sec:org6edcd02}
+Follow-field mode opens a small window below the table that always shows
+the full text of the field under the cursor. Edit the text in that window
+and write it back with \texttt{<C-c><C-c>} or \texttt{:w}; moving to another field also
+writes a changed field back. Leaving the table ends the mode. \texttt{16<C-c>`}
+(Emacs \texttt{C-u C-u C-c `}) or \texttt{:Org table\_follow\_field\_mode} toggles it.
+
+\textbf{Try:} cursor on "Apple", \texttt{16<C-c>`}.
+
+\textbf{Expect:} the message "Table follow-field mode enabled" and a window below
+with the single line \texttt{Apple}; its winbar says
+\texttt{Field @2\$1  (<C-c><C-c> or :w writes it back)}. Move the cursor with \texttt{l}
+and \texttt{j} in the table: the window follows. Go into the window (\texttt{<C-w>j}),
+change the text, press \texttt{<C-c><C-c>}, come back with \texttt{<C-w>k}: the field
+has the new text and the table is aligned. Move the cursor out of the table
+to end the mode.
+\subsection{Header-line mode}
+\label{sec:orgd462ce2}
+In a long table the header scrolls away. \texttt{:Org table\_header\_line\_mode}
+shows the first row of the table in the window's winbar whenever that row
+is scrolled above the top of the window (\texttt{table\_header\_line\_p = true} turns
+it on for every buffer).
+
+\textbf{Try:} \texttt{:Org table\_header\_line\_mode}, then put the cursor on "Banana" in
+the table of "In a prompt" above and press \texttt{zt} (scroll that line to the
+top of the window).
+
+\textbf{Expect:} the winbar shows the header row of the table. Scroll back up
+(\texttt{<C-y>}) until the header line itself is visible: the winbar empties. Run
+the command again to turn it off.
+\section{Alignment: numbers and \texttt{<l>} \texttt{<c>} \texttt{<r>} cookies}
+\label{sec:org90ce335}
+\subsection{Automatic: numbers go right}
+\label{sec:org8db22cf}
+A column is right-aligned when at least half (\texttt{table\_number\_fraction},
+0.5) of its non-empty fields look like numbers; otherwise it is
+left-aligned. Empty fields do not count. "Numbers" include \texttt{-7}, \texttt{3.5},
+\texttt{1e3}, \texttt{12\%}, \texttt{1:30}, \texttt{>5}; \texttt{1,000}, \texttt{\$12} and \texttt{n/a} are not.
+
+\begin{table}[htbp]
+\label{tab:org817e9dd}
+\centering
+\begin{tabular}{rrrlrrlllr}
+A & B & C & D & E & F & G & H & I & J\\
+\hline
+-7 & 3.5 & 1e3 & 12\% & 1:30 & >5 & 1,000 & \$12 & n/a & 0x1F\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} put the cursor in the table and press \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} nothing changes: the file shows the result already. Columns A to
+F are right-aligned (numbers), G to J left-aligned (text: \texttt{0x1F} is not a
+number for the alignment either).
+
+\begin{table}[htbp]
+\label{tab:org74913ca}
+\centering
+\begin{tabular}{rl}
+Mostly & Rarely\\
+\hline
+10 & 10\\
+n/a & n/a\\
+30 & 30\\
+40 & n/a\\
+n/a & n/a\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} in "Rarely", replace the second \texttt{n/a} with \texttt{20} (put the cursor on
+it, \texttt{ciW20<Esc>}).
+
+\textbf{Expect:} now 3 of its 6 fields are numbers and the column jumps to the
+right:
+\begin{verbatim}
+| Mostly | Rarely |
+|--------+--------|
+|     10 |     10 |
+|    n/a |    n/a |
+|     30 |     30 |
+|     40 |     20 |
+|    n/a |    n/a |
+\end{verbatim}
+\subsection{Fixed: alignment cookies}
+\label{sec:org4fe12a3}
+To choose the alignment yourself, put a \textbf{cookie} in any field of the column:
+\texttt{<l>} left, \texttt{<c>} centred, \texttt{<r>} right. The cookie usually sits in a row of
+its own (a row made only of cookies). A cookie row is not exported, and
+the cookies themselves are aligned like their column.
+
+\begin{table}[htbp]
+\label{tab:org8581edd}
+\centering
+\begin{tabular}{lcrr}
+Left & Center & Right & Auto\\
+\hline
+a & b & c & 1\\
+longer text & mid & x & 22\\
+1 & 2 & 3 & abc\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} \texttt{<C-c><C-c>} in the table.
+
+\textbf{Expect:} "Left" stays left even though it has a number, "Center" is
+centred, "Right" is right-aligned although it is all letters, and "Auto"
+follows the numbers rule (2 of its 4 non-empty fields, header included,
+are numbers):
+\begin{verbatim}
+| Left        | Center | Right | Auto |
+| <l>         |  <c>   |   <r> |      |
+|-------------+--------+-------+------|
+| a           |   b    |     c |    1 |
+| longer text |  mid   |     x |   22 |
+| 1           |   2    |     3 |  abc |
+\end{verbatim}
+\section{Column widths and shrinking}
+\label{sec:org6030345}
+A \textbf{width cookie} \texttt{<N>} (or \texttt{<lN>}, \texttt{<cN>}, \texttt{<rN>} with an alignment)
+limits how much of a column is \textbf{shown}. It never cuts your text: the table
+is aligned to the full text, and the column is only narrowed on screen when
+you \textbf{shrink} it:
+
+\begin{itemize}
+\item \texttt{<C-c><Tab>} in a column: shrink it, or show it again. A column with a
+width cookie shows its first N characters followed by \texttt{…}; a column
+without a cookie collapses to just \texttt{…}.
+\item \texttt{4<C-c><Tab>}: shrink every column that has a width cookie, expand the
+others (Emacs \texttt{org-table-shrink}).
+\item \texttt{16<C-c><Tab>}: expand every column.
+\item \texttt{<C-c><Tab>} with the cursor before the first \texttt{|} (press \texttt{0} first):
+asks \texttt{Column ranges (e.g. 2-4 6-):} and toggles those columns.
+\item \texttt{\#+STARTUP: shrink} in a file (or \texttt{startup\_shrink\_all\_tables = true})
+shrinks the cookie columns of every table when the file opens.
+\end{itemize}
+
+Shrinking uses conceal and virtual text, so it sets \texttt{'conceallevel'} to 2.
+The text in the file never changes (\texttt{:set conceallevel=0} shows it). In
+Insert mode the table is shown in full, and it shrinks again when you leave
+Insert mode. \texttt{4<C-c>`} shows the column of the cursor in full; \texttt{<C-c>`} on
+a shrunk field lets you read and edit the whole text.
+
+\begin{table}[htbp]
+\label{tab:org19028c7}
+\centering
+\begin{tabular}{llll}
+Task & <12> & Owner & Est\\
+\hline
+Write the release notes & Needs the list of merged PRs & Ada & 3h\\
+Review pull requests & Two big ones from the core team & Linus & 1h\\
+Plan the Q4 roadmap & Talk to support first & Margaret & 2h\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Needs", \texttt{<C-c><Tab>}.
+
+\textbf{Expect:} the second column now shows 12 characters and \texttt{…} on each line:
+\begin{verbatim}
+| Task                    | <12>        …| Owner    | Est |
+|-------------------------+-------------…+----------+-----|
+| Write the release notes | Needs the li…| Ada      | 3h  |
+| Review pull requests    | Two big ones…| Linus    | 1h  |
+| Plan the Q4 roadmap     | Talk to supp…| Margaret | 2h  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{<C-c><Tab>} again (still in that column).
+
+\textbf{Expect:} the full column again.
+
+\textbf{Try:} cursor on "Ada", \texttt{<C-c><Tab>}.
+
+\textbf{Expect:} "Owner" has no cookie, so it collapses to \texttt{…}:
+\begin{verbatim}
+| Task                    | <12>                            |…| Est |
+|-------------------------+---------------------------------+…+-----|
+| Write the release notes | Needs the list of merged PRs    |…| 3h  |
+| Review pull requests    | Two big ones from the core team |…| 1h  |
+| Plan the Q4 roadmap     | Talk to support first           |…| 2h  |
+\end{verbatim}
+
+\textbf{Try:} \texttt{16<C-c><Tab>} (everything back), then \texttt{4<C-c><Tab>}.
+
+\textbf{Expect:} only the cookie column (2) is shrunk, as in the first result.
+
+\textbf{Try:} \texttt{16<C-c><Tab>}. Put the cursor on the \texttt{|} at the start of a row
+(\texttt{0}), press \texttt{<C-c><Tab>}, type \texttt{3-4} and \texttt{<CR>}.
+
+\textbf{Expect:} columns 3 and 4 collapse to \texttt{…}.
+
+\textbf{Try:} with a column shrunk, put the cursor in it and press \texttt{i}.
+
+\textbf{Expect:} while you are in Insert mode the columns show in full; \texttt{<Esc>}
+shrinks them again. \texttt{16<C-c><Tab>} to finish.
+\section{Column groups}
+\label{sec:orgd7ba314}
+A row whose first field is \texttt{/} defines \textbf{column groups} for export: in the
+other fields of that row, \texttt{<} starts a group, \texttt{>} ends one, and \texttt{<>} makes a
+column a group of its own. Exporters draw vertical lines between groups
+(HTML uses \texttt{<colgroup>} elements, \LaTeX{} \texttt{|} in the column spec, ASCII \texttt{|}).
+Inside the editor the row is an ordinary row; like a cookie row, it is not
+exported as data.
+
+\begin{table}[htbp]
+\label{tab:orge7575d4}
+\centering
+\begin{tabular}{r|rrr|rr|}
+N & N\textsuperscript{2} & N\textsuperscript{3} & N\textsuperscript{4} & sqrt(n) & sqrt[4](N)\\
+\hline
+1 & 1 & 1 & 1 & 1 & 1\\
+2 & 4 & 8 & 16 & 1.4142 & 1.1892\\
+3 & 9 & 27 & 81 & 1.7321 & 1.3161\\
+\end{tabular}
+\end{table}
+
+This makes three groups: N alone (the first column always starts a group),
+the powers N\textsuperscript{2} to N\textsuperscript{4}, and the two roots.
+
+\textbf{Try:} with the cursor in this section, press \texttt{<prefix>e} (the export
+menu), \texttt{s} (scope: this subtree), \texttt{t} (plain text), \texttt{A} (as an ASCII
+buffer). Find the table in the new buffer; \texttt{:q} closes it.
+
+\textbf{Expect:} vertical bars only between the groups:
+\begin{verbatim}
+ N | N^2  N^3  N^4 | sqrt(n)  sqrt[4](N) |
+---+---------------+---------------------+
+ 1 |   1    1    1 |       1           1 |
+ 2 |   4    8   16 |  1.4142      1.1892 |
+ 3 |   9   27   81 |  1.7321      1.3161 |
+\end{verbatim}
+\section{Rich content in fields}
+\label{sec:org4373b75}
+Fields can hold links, emphasis, code, timestamps, entities and non-ASCII
+text:
+
+\begin{itemize}
+\item Links are aligned by what you \textbf{see}: while link brackets are concealed
+(\texttt{ui.conceal\_links}, the default), \texttt{[[https://orgmode.org][Org]]} counts
+as 3 characters wide. That is why the raw text of a row with links looks
+misaligned with \texttt{:set conceallevel=0}, and fine with the default.
+\item Emphasis markers (\texttt{*bold*}, \texttt{/italic/}, \texttt{=code=}) count as characters.
+\item Wide characters (CJK, emoji) count as two columns, accented letters as
+one.
+\item A literal \texttt{|} cannot be typed into a field (it would split it); write
+\texttt{\textbackslash{}vert\{\}} instead, which exports as \texttt{|}.
+\end{itemize}
+
+\begin{table}[htbp]
+\label{tab:orgaaaef3c}
+\centering
+\begin{tabular}{ll}
+What & Example\\
+\hline
+link & \href{https://orgmode.org}{Org}\\
+bare link & \url{https://neovim.io}\\
+markup & \textbf{bold}, \emph{italic}, \texttt{verbatim}, \texttt{code}\\
+date & \textit{<2026-12-24 Thu>}\\
+entity & \(\alpha\) + \(\beta\), 30\textdegree{}\\
+unicode & José, Zürich, 東京\\
+pipe & a \(\vert{}\) b\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} \texttt{<C-c><C-c>} in the table.
+
+\textbf{Expect:} no change: the table is already aligned as org.nvim aligns it
+(the "link" rows look short in the file text, but line up on screen).
+
+\textbf{Try:} cursor on "24" in the date, \texttt{<S-Up>}.
+
+\textbf{Expect:} the date becomes \texttt{<2026-12-25 Fri>} (on a timestamp the
+\texttt{<S-arrows>} change the date; they do not swap fields). \texttt{u} to undo.
+\section{Tables inside lists and indented tables}
+\label{sec:orge417ad7}
+A table can be indented, for instance under a list item; every command
+keeps the indentation of its first line.
+
+\begin{itemize}
+\item Shopping for the party:
+\begin{center}
+\begin{tabular}{lr}
+Item & Qty\\
+\hline
+chips & 3\\
+salsa & 2\\
+\end{tabular}
+\end{center}
+\item Guests:
+\begin{center}
+\begin{tabular}{ll}
+Name & Plus one\\
+Ada & yes\\
+Bob & no\\
+\end{tabular}
+\end{center}
+\end{itemize}
+
+\textbf{Try:} cursor on "Ada" in the second (unaligned) table, \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} aligned, still indented by two spaces:
+\begin{verbatim}
+- Guests:
+  | Name | Plus one |
+  | Ada  | yes      |
+  | Bob  | no       |
+\end{verbatim}
+
+\textbf{Try:} cursor on "salsa", \texttt{<M-CR>}, then \texttt{i} and type \texttt{dip}, \texttt{<Esc>}.
+
+\textbf{Expect:} the new row is indented like the table:
+\begin{verbatim}
+- Shopping for the party:
+  | Item  | Qty |
+  |-------+-----|
+  | chips |   3 |
+  | salsa |   2 |
+  | dip   |     |
+\end{verbatim}
+\section{Names, captions and export attributes}
+\label{sec:orgcf84e55}
+Keywords directly above a table belong to it:
+
+\begin{itemize}
+\item \texttt{\#+NAME: name} gives the table a name. Links \texttt{[[name]]} jump to it,
+formulas read it with \texttt{remote(name, ...)} and code blocks with
+\texttt{:var x=name} (see \href{16-spreadsheet.org}{16-spreadsheet.org} and
+\href{17-babel.org}{17-babel.org}).
+\item \texttt{\#+CAPTION: text} is the caption shown by exporters ("Table 1: text").
+\item \texttt{\#+ATTR\_HTML:}, \texttt{\#+ATTR\_LATEX:}, \texttt{\#+ATTR\_ODT:} \ldots{} pass options to one
+exporter, e.g. \texttt{:border 2 :rules all :frame border} for HTML,
+\texttt{:environment longtable :align l|r} for \LaTeX{}.
+\end{itemize}
+
+\begin{longtable}{l|r}
+\caption{\label{tab:org53d342f}Monthly budget}
+\\
+Item & Amount\\
+\hline
+\endfirsthead
+\multicolumn{2}{l}{Continued from previous page} \\
+\hline
+
+Item & Amount \\
+
+\hline
+\endhead
+\hline\multicolumn{2}{r}{Continued on next page} \\
+\endfoot
+\endlastfoot
+\hline
+Rent & 900\\
+Groceries & 350\\
+\end{longtable}
+
+\textbf{Try:} put the cursor on this link and press \texttt{<CR>}: \ref{tab:org53d342f}
+
+\textbf{Expect:} the cursor jumps to the \texttt{\#+NAME: budget} line. \texttt{<C-o>} brings
+you back.
+
+\textbf{Try:} cursor on the \texttt{\#+NAME: budget} line, press \texttt{<prefix>ls} (store a
+link); come back here and insert it with \texttt{<prefix>lL} on the empty line
+below.
+
+\textbf{Expect:} the link \texttt{[[budget]]} is inserted.
+
+\textbf{Try:} with the cursor in this section, press \texttt{<prefix>e} \texttt{s} (this
+subtree) \texttt{h} \texttt{H} (HTML, as a buffer), and find the \texttt{<table>}.
+
+\textbf{Expect:} the table is exported with the caption and the attributes (the
+\texttt{id} is generated from the table):
+\begin{verbatim}
+<table id="org362de52" border="2" cellspacing="0" cellpadding="6" rules="all" frame="border">
+<caption class="t-above"><span class="table-number">Table 1:</span> Monthly budget</caption>
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Item</th>
+<th scope="col" class="org-right">Amount</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">Rent</td>
+<td class="org-right">900</td>
+</tr>
+
+<tr>
+<td class="org-left">Groceries</td>
+<td class="org-right">350</td>
+</tr>
+</tbody>
+</table>
+\end{verbatim}
+
+and \texttt{<prefix>e} \texttt{s} \texttt{l} \texttt{L} (\LaTeX{}, as a buffer) shows the \texttt{longtable}
+environment with the column spec \texttt{l|r} (again with a generated label):
+\begin{verbatim}
+\begin{longtable}{l|r}
+\caption{\label{tab:org362de52}Monthly budget}
+\\
+Item & Amount\\
+\hline
+\endfirsthead
+\multicolumn{2}{l}{Continued from previous page} \\
+\hline
+
+Item & Amount \\
+
+\hline
+\endhead
+\hline\multicolumn{2}{r}{Continued on next page} \\
+\endfoot
+\endlastfoot
+\hline
+Rent & 900\\
+Groceries & 350\\
+\end{longtable}
+\end{verbatim}
+\section{Exporting a table to a file: \texttt{:Org table\_export}}
+\label{sec:orga657571}
+\texttt{:Org table\_export} writes the table under the cursor to a file with a
+\textbf{translator}: \texttt{orgtbl-to-tsv}, \texttt{orgtbl-to-csv}, \texttt{orgtbl-to-latex},
+\texttt{orgtbl-to-html}, \texttt{orgtbl-to-texinfo}, \texttt{orgtbl-to-orgtbl},
+\texttt{orgtbl-to-generic} (plus parameters, e.g. \texttt{orgtbl-to-latex :splice t}).
+It asks for the file name, then for the format, suggesting the one matching
+the file extension (\texttt{.csv} → \texttt{orgtbl-to-csv}), else
+\texttt{table\_export\_default\_format} (\texttt{orgtbl-to-tsv}). Hlines are dropped in
+CSV/TSV.
+
+The file name and the format can instead come from the properties
+\texttt{TABLE\_EXPORT\_FILE} and \texttt{TABLE\_EXPORT\_FORMAT} of the entry (inherited from
+parents): then there is no question at all.
+
+\begin{table}[htbp]
+\label{tab:org254f1b8}
+\centering
+\begin{tabular}{lrr}
+item & qty & price\\
+\hline
+apple & 3 & 0.50\\
+melon, big & 1 & 2.25\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor in the table, \texttt{:Org table\_export}, type \texttt{/tmp/org15-out.csv},
+\texttt{<CR>}, accept the suggested format \texttt{orgtbl-to-csv} with \texttt{<CR>}. Then
+\texttt{:split /tmp/org15-out.csv}.
+
+\textbf{Expect:} the message "Export done: /tmp/org15-out.csv" and the file:
+\begin{verbatim}
+item,qty,price
+apple,3,0.50
+"melon, big",1,2.25
+\end{verbatim}
+\subsection{Export with properties}
+\label{sec:org2580b9d}
+This entry sets both properties, so the command asks nothing.
+
+\begin{center}
+\begin{tabular}{lr}
+Item & Amount\\
+\hline
+Rent & 900\\
+Groceries & 350\\
+\end{tabular}
+\end{center}
+
+\textbf{Try:} cursor in the table, \texttt{:Org table\_export}, then
+\texttt{:split /tmp/org15-budget.tex}.
+
+\textbf{Expect:} with \texttt{:splice t} only the rows are written (no \texttt{\textbackslash{}begin\{tabular\}}),
+ready to be included in a hand-written \LaTeX{} table:
+\begin{verbatim}
+Item & Amount\\
+\hline
+Rent & 900\\
+Groceries & 350\\
+\end{verbatim}
+\section{table.el tables}
+\label{sec:orgd269a94}
+Emacs has a second table package, table.el, whose tables are grids of \texttt{+},
+\texttt{-} and \texttt{|} in which a cell can span several rows or columns and hold
+several lines. Org files may contain them. org.nvim recognises them, leaves
+them alone for the normal table commands, and offers:
+
+\begin{itemize}
+\item \texttt{<C-c>\textasciitilde{}} on an Org table: convert it to a table.el table (after a
+confirmation). Hlines are dropped and every row gets a border.
+\item \texttt{<C-c>\textasciitilde{}} on a table.el table: convert it back to an Org table (the border
+lines are removed; spanned and multi-line cells are split, as in Emacs).
+\item \texttt{<C-c>\textasciitilde{}} elsewhere: insert a new table.el table after asking for the
+number of columns and rows and the cell widths and heights.
+\item \texttt{<C-c>'} on a table.el table: edit it in a separate buffer where the grid
+is realigned when you leave Insert mode; \texttt{<C-c><C-c>} writes it back,
+\texttt{<C-c><C-k>} aborts.
+\item \texttt{<Tab>} and \texttt{<C-c><C-c>} on a table.el table only print a hint.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{|l|l|l|}
+\hline
+\multicolumn{2}{|l|}{0} & 1 \\
+\cline{1-2}
+2 & 3 & \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Try:} cursor on the "0" cell, \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} the message "Use C-c ' to edit table.el tables".
+
+\begin{table}[htbp]
+\label{tab:org908c9ee}
+\centering
+\begin{tabular}{lr}
+Fruit & Qty\\
+\hline
+Apple & 3\\
+Banana & 12\\
+\end{tabular}
+\end{table}
+
+\textbf{Try:} cursor on "Apple", \texttt{<C-c>\textasciitilde{}}, answer \texttt{y}.
+
+\textbf{Expect:}
+\begin{verbatim}
++--------+-----+
+| Fruit  | Qty |
++--------+-----+
+| Apple  |   3 |
++--------+-----+
+| Banana |  12 |
++--------+-----+
+\end{verbatim}
+
+\textbf{Try:} \texttt{<C-c>\textasciitilde{}} again (on the new grid) and answer \texttt{y}.
+
+\textbf{Expect:} an Org table again; the hline is gone:
+\begin{verbatim}
+| Fruit  | Qty |
+| Apple  |   3 |
+| Banana |  12 |
+\end{verbatim}
+
+\textbf{Try:} \texttt{u}. On the empty line of the practice area below, press \texttt{<C-c>\textasciitilde{}}
+and answer the prompts: \texttt{2} columns, \texttt{2} rows, width \texttt{6}, height \texttt{1} (type
+each number and \texttt{<CR>}).
+
+\textbf{Expect:}
+\begin{verbatim}
++------+------+
+|      |      |
++------+------+
+|      |      |
++------+------+
+\end{verbatim}
+
+\textbf{Try:} cursor in the new grid, \texttt{<C-c>'}; in the new buffer type some text
+into a cell (in Insert mode, without \texttt{|}), press \texttt{<Esc>} and then
+\texttt{<C-c><C-c>}.
+
+\textbf{Expect:} the grid grew to fit the text and was written back to this file.
+\section{Tables in other filetypes: orgtbl-mode}
+\label{sec:org529bed1}
+\texttt{:Org orgtbl\_mode} turns on the table editor in a buffer of any filetype
+(Emacs orgtbl-mode), for instance in a Markdown or text file: on lines
+starting with \texttt{|}, \texttt{<Tab>}, \texttt{<S-Tab>}, \texttt{<CR>} (Insert mode), \texttt{<S-CR>},
+\texttt{<C-c><C-c>}, \texttt{<C-c>-}, \texttt{<C-c>\textasciicircum{}}, \texttt{<M-hjkl>}, \texttt{<M-HJKL>} \ldots{} work as in
+Org buffers; elsewhere the keys keep their normal meaning.
+
+\textbf{Try:} \texttt{:enew}, \texttt{:set filetype=markdown}, \texttt{:Org orgtbl\_mode}, then type
+\texttt{i|a|b} \texttt{<Tab>} \texttt{1} \texttt{<Tab>} \texttt{2} \texttt{<Esc>}.
+
+\textbf{Expect:}
+\begin{verbatim}
+| a | b |
+| 1 | 2 |
+\end{verbatim}
+
+Radio tables (a table that is sent, translated to \LaTeX{} or HTML, into
+another part of the file whenever it changes) are described in
+\texttt{:h org-radio-tables}.
+\section{Formulas}
+\label{sec:orge3a656f}
+Everything computed (\texttt{\#+TBLFM:}, column and field formulas, \texttt{vsum}, dates
+arithmetic, the formula editor \texttt{<prefix>'}, recalculation with
+\texttt{<prefix>Tf}, the \texttt{\#} / \texttt{*} recalculation marks with \texttt{<prefix>T\#}, plots)
+is in \href{16-spreadsheet.org}{16-spreadsheet.org}.
+\section{Further reading}
+\label{sec:org2bf539b}
+\begin{itemize}
+\item \texttt{:h org-tables} — the table keys and commands
+\item \texttt{:h org-table-shrink} — shrinking columns
+\item \texttt{:h org-table-follow-field} — follow-field and header-line modes
+\item \texttt{:h org-table-translators} — the \texttt{orgtbl-to-*} translators used by
+\texttt{:Org table\_export}
+\item \texttt{:h orgtbl-mode} — tables in other filetypes, radio tables
+\item \texttt{:h org-table.el} — table.el tables
+\item \texttt{:h org-keymaps} and \texttt{:h org-emacs-keys} — every key
+\item \texttt{:h org-differences} — where org.nvim differs from Emacs
+\end{itemize}

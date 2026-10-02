@@ -1,0 +1,35 @@
+#+TODO: TODO NEXT WAITING | DONE CANCELLED
+#+CATEGORY: work
+* TODO [#A] Important task :work:
+  SCHEDULED: <2026-10-01 Thu 09:00>
+* TODO Late task
+  SCHEDULED: <2026-09-28 Mon>
+* NEXT Deadline soon :home:
+  DEADLINE: <2026-10-04 Sun>
+* TODO Deadline today
+  DEADLINE: <2026-10-01 Thu 14:00>
+* Meeting :work:meet:
+  <2026-10-01 Thu 10:00-11:30>
+* Range meeting
+  <2026-09-30 Wed>--<2026-10-02 Fri>
+* TODO [#C] Low prio scheduled
+  SCHEDULED: <2026-10-01 Thu>
+* DONE Done today
+  CLOSED: [2026-10-01 Thu 08:00] SCHEDULED: <2026-10-01 Thu>
+* WAITING Repeater
+  SCHEDULED: <2026-09-24 Thu +1w>
+* Project :proj:
+** TODO Child one
+   SCHEDULED: <2026-10-01 Thu 16:00>
+** TODO [#B] Child two :sub:
+   DEADLINE: <2026-09-29 Tue>
+** CANCELLED Dropped child
+* Evening event
+  <2026-10-01 Thu 19:30>
+* TODO Delayed
+  SCHEDULED: <2026-09-30 Wed -2d>
+* TODO Future scheduled
+  SCHEDULED: <2026-10-03 Sat>
+* Plain timestamp later in week
+  <2026-10-05 Mon 08:00>
+* TODO Unscheduled task with a longer title to see truncation and tags :work:urgent:

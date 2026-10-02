@@ -205,27 +205,27 @@ M.expansions = {
 }
 
 --- Register the expansions with capture (`org.capture.expansions`).
+--- Done when capture first loads, not at startup.
 function M.register()
-  local capture = require("org.capture")
-  for name, fn in pairs(M.expansions) do
-    capture.expansions[name] = function(ctx)
-      local c = current(ctx)
-      if not c then
-        return ""
+  require("org.lazy").on_load("org.capture", "code", function(capture)
+    for name, fn in pairs(M.expansions) do
+      capture.expansions[name] = function(ctx)
+        local c = current(ctx)
+        if not c then
+          return ""
+        end
+        return fn(c) or ""
       end
-      return fn(c) or ""
     end
-  end
+  end)
 end
 
 function M.unregister()
-  local ok, capture = pcall(require, "org.capture")
-  if not ok then
-    return
-  end
-  for name in pairs(M.expansions) do
-    capture.expansions[name] = nil
-  end
+  require("org.lazy").if_loaded("org.capture", "code", function(capture)
+    for name in pairs(M.expansions) do
+      capture.expansions[name] = nil
+    end
+  end)
 end
 
 --- Where a `"project"` capture of repository `root` goes: the project

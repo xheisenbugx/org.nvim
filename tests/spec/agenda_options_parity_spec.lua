@@ -194,16 +194,9 @@ describe("agenda line format options", function()
 
   --- Highlight groups of the agenda line `lnum` (0-based ranges).
   local function groups_at(lnum)
-    local ns = vim.api.nvim_create_namespace("org.agenda")
     local out = {}
-    for _, m in
-      ipairs(vim.api.nvim_buf_get_extmarks(view.state.buf, ns, { lnum - 1, 0 }, { lnum - 1, -1 }, {
-        details = true,
-      }))
-    do
-      if m[4].hl_group then
-        out[#out + 1] = { m[3], m[4].end_col, m[4].hl_group }
-      end
+    for _, h in ipairs(view.state.line_parts[lnum] or {}) do
+      out[#out + 1] = { h[1], h[2], h[3] }
     end
     return out
   end

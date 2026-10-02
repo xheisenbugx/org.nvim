@@ -7,7 +7,12 @@
 --- the language, the command and the expanded body, so an unchanged
 --- diagram is copied instead of rendered again.
 
-local ob = require("org.babel.ob")
+-- org.babel.ob loads on first use, not when the extension is set up
+local ob = setmetatable({}, {
+  __index = function(_, k)
+    return require("org.babel.ob")[k]
+  end,
+})
 
 local M = {}
 

@@ -12,6 +12,7 @@ local ns = vim.api.nvim_create_namespace("org.ui")
 ---@return integer buf, integer win
 function M.float(lines, opts)
   opts = opts or {}
+  require("org.highlights").ensure()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].bufhidden = "wipe"
@@ -225,6 +226,7 @@ end
 ---@param opts { title: string, items: org.MenuItem[], footer?: string[] }
 ---@return any|nil
 function M.menu(opts)
+  require("org.highlights").ensure()
   local items = opts.items
   local title = opts.title
   local stack = {}

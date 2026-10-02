@@ -1,0 +1,16 @@
+#+STARTUP: content
+* A
+a
+** B
+:PROPERTIES:
+:VISIBILITY: folded
+:END:
+b
+*** C
+c
+** D
+:PROPERTIES:
+:VISIBILITY: all
+:END:
+*** E
+e

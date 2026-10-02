@@ -637,15 +637,19 @@ local function fix_bul(struct)
     local b
     if prev and counter and counter:match("%a") and prev_bul:match("%a") then
       -- alpha counter in an alpha list
+      -- lint: allow gsub: a [@N] counter is digits or a letter
       b = prev_bul:gsub("%a", alpha_count(counter, prev_bul), 1)
     elseif prev and counter and counter:match("%d+") and prev_bul:match("%d+") then
       -- numeric counter in a numbered list
+      -- lint: allow gsub: a [@N] counter is digits or a letter
       b = prev_bul:gsub("%d+", counter, 1)
     elseif prev then
       b = inc_bullet(prev_bul)
     elseif counter and use_alpha(struct, it) and counter:match("%a") and bullet:match("%a") then
+      -- lint: allow gsub: a [@N] counter is digits or a letter
       b = bullet:gsub("%a", alpha_count(counter, bullet), 1)
     elseif counter and counter:match("%d+") and bullet:match("%d+") then
+      -- lint: allow gsub: a [@N] counter is digits or a letter
       b = bullet:gsub("%d+", counter, 1)
     elseif alphap and bullet:match("%u") then
       b = bullet:gsub("%u", "A", 1)
@@ -882,7 +886,9 @@ end
 
 local function replace_cookies(line, done, total)
   local pct = total == 0 and 0 or math.floor(done * 100 / total)
+  -- lint: allow gsub: numbers
   line = line:gsub("%[%d*/%d*%]", "[" .. done .. "/" .. total .. "]")
+  -- lint: allow gsub: a number
   line = line:gsub("%[%d*%%%]", "[" .. pct .. "%%]")
   return line
 end

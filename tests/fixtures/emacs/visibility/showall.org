@@ -1,0 +1,15 @@
+#+STARTUP: showall hideblocks
+* A
+:PROPERTIES:
+:ID: 1
+:END:
+#+begin_src sh
+ls
+#+end_src
+- item
+  more
+* Old :ARCHIVE:
+old
+** sub
+* B
+b

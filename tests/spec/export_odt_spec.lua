@@ -95,6 +95,14 @@ describe("export odt", function()
         eq(0, vim.system({ "unzip", "-tq", path }):wait().code)
       end
     end)
+
+    it("never runs `backticks` in an image link's path", function()
+      local tmp = vim.fn.tempname()
+      vim.fn.mkdir(tmp, "p")
+      vim.uv.fs_copyfile(dir .. "/img.png", tmp .. "/i-`echo x`.png")
+      local _, get = export({ "[[file:i-`echo x`.png]]" }, tmp .. "/doc.org")
+      eq(read(dir .. "/img.png"), get("Images/0001.png"))
+    end)
   end)
 
   describe("package", function()

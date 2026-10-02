@@ -1,0 +1,884 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#orgd82a681">1. How to use this file</a>
+<ul>
+<li><a href="#org215ba45">1.1. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#orge87d85b">2. See the timer in the statusline</a></li>
+<li><a href="#orgbdb4163">3. The relative timer</a>
+<ul>
+<li><a href="#org99371d7">3.1. Starting from an offset</a></li>
+</ul>
+</li>
+<li><a href="#org4f0e106">4. Timer lists for meeting notes</a>
+<ul>
+<li><a href="#orgffe733b">4.1. A meeting to take notes in</a>
+<ul>
+<li><a href="#org5570f68">4.1.1. Weekly sync</a></li>
+</ul>
+</li>
+<li><a href="#org42f874c">4.2. Numbered timer lists and long notes</a></li>
+<li><a href="#org897f433">4.3. Not a timer list</a></li>
+<li><a href="#org8fc251a">4.4. Shifting timer values</a></li>
+</ul>
+</li>
+<li><a href="#orgd54f3f3">5. The countdown timer</a>
+<ul>
+<li>
+<ul>
+<li><a href="#orgd81a00d">5.0.1. A quick countdown to see the end</a></li>
+<li><a href="#orgc8c3ec6">5.0.2. <span class="todo TODO">TODO</span> Write the abstract</a></li>
+<li><a href="#orgbc77e6e">5.0.3. A pomodoro with a count</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org3ec8003">6. Hooks and options</a>
+<ul>
+<li><a href="#orgbdd1cd6">6.1. Your own keys</a></li>
+</ul>
+</li>
+<li><a href="#orgd39765f">7. Appointment reminders</a>
+<ul>
+<li><a href="#org8242909">7.1. Turning them on</a></li>
+<li><a href="#orgfe04580">7.2. Test it now</a>
+<ul>
+<li><a href="#orgb0f1a4e">7.2.1. <span class="todo TODO">TODO</span> Test the reminders</a></li>
+<li><a href="#org1709cfb">7.2.2. Coffee with Sam</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org74aee5d">8. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgd82a681" class="outline-2">
+<h2 id="orgd82a681"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+org.nvim has two kinds of timers, and it can remind you of appointments:
+</p>
+
+<ul class="org-ul">
+<li>A <b>relative timer</b> counts up from zero (or from any offset). Insert its
+value into the text to timestamp notes relative to the start of a
+meeting, a talk or a recording: <code>- 0:04:40 :: roadmap discussion</code>.</li>
+<li>A <b>countdown timer</b> counts down from N minutes and notifies you at the
+end: a pomodoro, a time box for a task (it can use the task's <code>Effort</code>).</li>
+<li><b>Appointment reminders</b> watch the timed entries of your agenda files and
+notify you a few minutes before each one starts.</li>
+</ul>
+
+<p>
+Only one timer (relative or countdown) runs at a time. Both are different
+from <i>clocking</i>, which records time spent on tasks in the file: see
+<a href="08-clocking.html">08-clocking.org</a>.
+</p>
+
+<ul class="org-ul">
+<li>The file starts folded (<code>#+STARTUP: overview</code>). Put the cursor on a
+heading and press <code>&lt;Tab&gt;</code> to open it, <code>&lt;S-Tab&gt;</code> to cycle the whole file.</li>
+<li>Lines starting with <b>Try:</b> are exercises, <b>Expect:</b> says what you should
+see afterwards. Lines starting with <code>#</code> are comments about the example
+next to them.</li>
+<li>Nothing breaks if you make a mess: <code>u</code> undoes, and
+<code>git checkout examples/20-timers-reminders.org</code> restores the file.</li>
+<li><code>&lt;prefix&gt;</code> means <code>&lt;leader&gt;o</code>. <code>g?</code> lists every key of the buffer.</li>
+<li>A <i>count</i> is a number typed before a key: <code>4&lt;C-c&gt;&lt;C-x&gt;0</code> means press <code>4</code>,
+then <code>&lt;C-c&gt;&lt;C-x&gt;0</code>. Counts stand in for Emacs's <code>C-u</code> (<code>4</code>) and
+<code>C-u C-u</code> (<code>16</code>).</li>
+</ul>
+
+<p>
+Start Neovim from the repository root with the bundled init file, so the
+agenda (and the reminders) see these files and your own notes are
+untouched:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/20-timers-reminders.org
+</code></pre>
+</div>
+
+<p>
+<code>examples/minimal_init.lua</code> sets <code>agenda_files</code> to <code>examples/*.org</code> (plus a
+scratch directory under <code>stdpath("state")</code> for captures) and adds a few
+capture templates and custom agenda commands. It does not turn the
+reminders on: you start them with a command below.
+</p>
+
+<p>
+Timer values change every second, so the <b>Expect:</b> lines below show the
+<i>shape</i> of the result (<code>0:00:07</code> means "whatever the timer shows").
+</p>
+</div>
+<div id="outline-container-org215ba45" class="outline-3">
+<h3 id="org215ba45"><span class="section-number-3">1.1.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-1">
+<p>
+The timers have Emacs keys and <code>:Org</code> commands, but no <code>&lt;prefix&gt;</code> keys by
+default (see "Your own keys" at the end to add some).
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Emacs key</th>
+<th scope="col" class="org-left">Command</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;0</code></td>
+<td class="org-left"><code>:Org timer_start</code></td>
+<td class="org-left">start (or restart) the relative timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;.</code></td>
+<td class="org-left"><code>:Org timer_insert</code></td>
+<td class="org-left">insert the timer value</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;-</code></td>
+<td class="org-left"><code>:Org timer_item</code></td>
+<td class="org-left">insert a <code>- 0:01:23 ::</code> item</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;,</code></td>
+<td class="org-left"><code>:Org timer_pause</code></td>
+<td class="org-left">pause / continue either timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;_</code></td>
+<td class="org-left"><code>:Org timer_stop</code></td>
+<td class="org-left">stop either timer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;;</code></td>
+<td class="org-left"><code>:Org timer_countdown N</code></td>
+<td class="org-left">start a countdown of N minutes</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org timer_remaining</code></td>
+<td class="org-left">show the time left of the countdown</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org notifications_start</code></td>
+<td class="org-left">start appointment reminders</td>
+</tr>
+
+<tr>
+<td class="org-left">(none)</td>
+<td class="org-left"><code>:Org notifications_stop</code></td>
+<td class="org-left">stop them</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="outline-container-orge87d85b" class="outline-2">
+<h2 id="orge87d85b"><span class="section-number-2">2.</span> See the timer in the statusline</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+<code>require("org").statusline()</code> returns the running clock and timer as a
+string: <code>⏲ 0:12:34</code> for the timer, with <code>(paused)</code> appended while it is
+paused, and an empty string when nothing runs. Put it in your statusline
+to see the timer tick. For this session only:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-vim"><code>:set laststatus=2
+:let &amp;statusline = "%f %= %{v:lua.require'org'.statusline()} "
+</code></pre>
+</div>
+
+<p>
+With lualine, in your config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("lualine").setup({
+  sections = {
+    lualine_x = { function() return require("org").statusline() end },
+  },
+})
+</code></pre>
+</div>
+
+<p>
+<b>Try:</b> run the two <code>:</code> commands above (type them on the command line).
+</p>
+
+<p>
+<b>Expect:</b> the right side of the statusline is empty for now. It shows the
+timer once you start one in the next section.
+</p>
+</div>
+</div>
+<div id="outline-container-orgbdb4163" class="outline-2">
+<h2 id="orgbdb4163"><span class="section-number-2">3.</span> The relative timer</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+<code>&lt;C-c&gt;&lt;C-x&gt;0</code> (<code>:Org timer_start</code>) starts a timer at <code>0:00:00</code> and says
+<code>Timer start time set to 15:19:42, current value is 0:00:00</code>.
+<code>&lt;C-c&gt;&lt;C-x&gt;.</code> (<code>:Org timer_insert</code>) inserts the current value <i>after</i> the
+cursor, followed by a space (the <code>timer.format</code> option, <code>"%s "</code>); if no timer
+runs yet, it starts one first.
+</p>
+
+<p>
+<code>&lt;C-c&gt;&lt;C-x&gt;,</code> pauses the timer (<code>Timer paused at 0:01:07</code>) and continues it
+(<code>Timer continues at 0:01:07</code>): paused time doesn't count.
+<code>&lt;C-c&gt;&lt;C-x&gt;_</code> stops it (<code>Timer stopped</code>); another stop says
+<code>No running timer</code>.
+</p>
+
+<p>
+Scratch area (the empty lines are where you insert):
+</p>
+
+
+<p>
+<b>Try:</b> put the cursor on the empty line under "Line 1" and press
+<code>&lt;C-c&gt;&lt;C-x&gt;.</code>.
+</p>
+
+<p>
+<b>Expect:</b> the message <code>Timer start time set to HH:MM:SS, current value is
+0:00:00</code>, the line now reads <code>0:00:00</code> (plus a trailing space), and the
+statusline shows <code>⏲ 0:00:01</code>, <code>⏲ 0:00:02</code>, &hellip;
+</p>
+
+<p>
+<b>Try:</b> wait a few seconds, then on the empty line under "Line 2" press
+<code>&lt;C-c&gt;&lt;C-x&gt;.</code> again.
+</p>
+
+<p>
+<b>Expect:</b> a larger value there, e.g. <code>0:00:09</code>: the timer kept running.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;,</code>, wait five seconds, press <code>&lt;C-c&gt;&lt;C-x&gt;,</code> again.
+</p>
+
+<p>
+<b>Expect:</b> <code>Timer paused at 0:00:14</code>, the statusline shows
+<code>⏲ 0:00:14 (paused)</code> and doesn't move; then <code>Timer continues at 0:00:14</code>
+and it counts on from there.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;_</code>, then <code>&lt;C-c&gt;&lt;C-x&gt;_</code> once more.
+</p>
+
+<p>
+<b>Expect:</b> <code>Timer stopped</code>, the statusline part disappears; then
+<code>No running timer</code>.
+</p>
+</div>
+<div id="outline-container-org99371d7" class="outline-3">
+<h3 id="org99371d7"><span class="section-number-3">3.1.</span> Starting from an offset</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+A count on <code>&lt;C-c&gt;&lt;C-x&gt;0</code> asks <code>Restart timer with offset [0:12:00]:</code>. The
+default in brackets is the first timer value on the current line (or
+<code>0:00:00</code>), so you can continue timing a recording from where your notes
+left off. Type an offset or press <code>&lt;CR&gt;</code> for the default:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">You type</th>
+<th scope="col" class="org-left">The timer starts at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;CR&gt;</code></td>
+<td class="org-left">the value on the line</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>1:00:00</code></td>
+<td class="org-left"><code>1:00:00</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>1:30</code></td>
+<td class="org-left"><code>0:01:30</code> (M:SS)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>90</code></td>
+<td class="org-left"><code>0:01:30</code> (seconds)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<code>:Org timer_start 1:30</code> does the same without the prompt.
+</p>
+
+<p>
+A count on <code>&lt;C-c&gt;&lt;C-x&gt;.</code> (e.g. <code>4&lt;C-c&gt;&lt;C-x&gt;.</code>) restarts the timer at zero
+before inserting.
+</p>
+
+<dl class="org-dl">
+<dt>0:05:10</dt><dd>intro music</dd>
+<dt>0:12:00</dt><dd>first question</dd>
+</dl>
+
+<p>
+<b>Try:</b> put the cursor on the "first question" line, press <code>4&lt;C-c&gt;&lt;C-x&gt;0</code>
+and <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>Timer start time set to ..., current value is 0:12:00</code>, and the
+statusline counts on from <code>⏲ 0:12:00</code>. Press <code>&lt;C-c&gt;&lt;C-x&gt;_</code> to stop it.
+</p>
+
+<p>
+<b>Try:</b> run <code>:Org timer_start 90</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>... current value is 0:01:30</code>. Stop it with <code>:Org timer_stop</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org4f0e106" class="outline-2">
+<h2 id="org4f0e106"><span class="section-number-2">4.</span> Timer lists for meeting notes</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+<code>&lt;C-c&gt;&lt;C-x&gt;-</code> (<code>:Org timer_item</code>) inserts a description item whose term is
+the timer value, <code>- 0:02:15 ::</code>, and leaves you in Insert mode to type the
+note. It starts the timer if none runs (a count restarts it).
+</p>
+
+<ul class="org-ul">
+<li>On a line of plain text, it turns the line into the first item:
+<code>Introductions</code> becomes <code>- 0:00:00 :: Introductions</code>.</li>
+<li>On an item of a timer list, the new item goes below the current one
+(and below its continuation lines), with the same bullet; in a numbered
+list the number goes up (<code>1.</code> → <code>2.</code>).</li>
+<li>In a list that is not a timer list (<code>- apples</code>), it refuses with
+<code>This is not a timer list</code>.</li>
+</ul>
+
+<p>
+In a timer list, <code>&lt;M-CR&gt;</code> does the same as <code>&lt;C-c&gt;&lt;C-x&gt;-</code> (like Emacs): it
+inserts the next item with the current timer value.
+</p>
+</div>
+<div id="outline-container-orgffe733b" class="outline-3">
+<h3 id="orgffe733b"><span class="section-number-3">4.1.</span> A meeting to take notes in</h3>
+<div class="outline-text-3" id="text-4-1">
+</div>
+<div id="outline-container-org5570f68" class="outline-4">
+<h4 id="org5570f68"><span class="section-number-4">4.1.1.</span> Weekly sync</h4>
+<div class="outline-text-4" id="text-4-1-1">
+<p>
+Introductions
+</p>
+
+<p>
+<b>Try:</b> put the cursor on "Introductions" and press <code>&lt;C-c&gt;&lt;C-x&gt;-</code>. Press
+<code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the line becomes <code>- 0:00:00 :: Introductions</code> and the timer runs
+(<code>⏲ 0:00:03</code> in the statusline).
+</p>
+
+<p>
+<b>Try:</b> wait a bit, press <code>&lt;C-c&gt;&lt;C-x&gt;-</code> again, type <code>roadmap discussion</code>
+and <code>&lt;Esc&gt;</code>. Repeat with <code>action items</code>.
+</p>
+
+<p>
+<b>Expect:</b> two new items right below the first one, e.g.
+<code>- 0:00:41 :: roadmap discussion</code> and <code>- 0:01:12 :: action items</code>.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;_</code> to stop the timer at the end of the meeting.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org42f874c" class="outline-3">
+<h3 id="org42f874c"><span class="section-number-3">4.2.</span> Numbered timer lists and long notes</h3>
+<div class="outline-text-3" id="text-4-2">
+<ol class="org-ol">
+<li>0:00:10 :: welcome</li>
+<li>0:03:25 :: demo of the new importer;
+it failed on the second file, retried with &ndash;force</li>
+<li>0:09:50 :: questions</li>
+</ol>
+
+<p>
+<b>Try:</b> put the cursor on item 2 (either of its lines) and press
+<code>&lt;C-c&gt;&lt;C-x&gt;-</code>, then <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> a new item <code>3. 0:00:00 ::</code> right after the continuation line
+of item 2, before the old item 3, which is now a second <code>3.</code>. Press
+<code>&lt;C-c&gt;&lt;C-c&gt;</code> on any item of the list: the numbers are repaired and the last
+item becomes <code>4. 0:09:50 :: questions</code> (see <a href="03-lists.html">03-lists.org</a>).
+Press <code>&lt;C-c&gt;&lt;C-x&gt;_</code> to stop the timer.
+</p>
+</div>
+</div>
+<div id="outline-container-org897f433" class="outline-3">
+<h3 id="org897f433"><span class="section-number-3">4.3.</span> Not a timer list</h3>
+<div class="outline-text-3" id="text-4-3">
+<ul class="org-ul">
+<li>apples</li>
+<li>pears</li>
+</ul>
+
+<p>
+<b>Try:</b> put the cursor on "apples" and press <code>&lt;C-c&gt;&lt;C-x&gt;-</code>.
+</p>
+
+<p>
+<b>Expect:</b> the error <code>This is not a timer list</code>, and nothing changes.
+</p>
+</div>
+</div>
+<div id="outline-container-org8fc251a" class="outline-3">
+<h3 id="org8fc251a"><span class="section-number-3">4.4.</span> Shifting timer values</h3>
+<div class="outline-text-3" id="text-4-4">
+<p>
+Recorded something, but started the timer late? <code>16&lt;C-c&gt;&lt;C-x&gt;0</code> (or
+<code>16&lt;C-c&gt;&lt;C-x&gt;.</code>) asks
+<code>Enter time difference like "-1:08:26".  Default is first time to zero:</code>
+and adds that difference to every timer value (<code>H:MM:SS</code>) on the current
+line. Press <code>&lt;CR&gt;</code> without typing to shift so that the first value becomes
+<code>0:00:00</code>. (In Emacs this works on the region; in org.nvim the keys work on
+the current line.)
+</p>
+
+<dl class="org-dl">
+<dt>0:05:10</dt><dd>talk starts</dd>
+<dt>0:07:00</dt><dd>first slide</dd>
+</dl>
+
+<p>
+<b>Try:</b> on "talk starts" press <code>16&lt;C-c&gt;&lt;C-x&gt;0</code>, then <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>- 0:00:00 :: talk starts</code> (shifted by -0:05:10).
+</p>
+
+<p>
+<b>Try:</b> on "first slide" press <code>16&lt;C-c&gt;&lt;C-x&gt;0</code>, type <code>-0:05:10</code> and <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>- 0:01:50 :: first slide</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd54f3f3" class="outline-2">
+<h2 id="orgd54f3f3"><span class="section-number-2">5.</span> The countdown timer</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+<code>&lt;C-c&gt;&lt;C-x&gt;;</code> (<code>:Org timer_countdown</code>) starts a countdown. How long:
+</p>
+
+<ol class="org-ol">
+<li><code>:Org timer_countdown 25</code> → 25 minutes. The argument is minutes, or
+<code>H:MM:SS</code> / <code>M:SS</code>: <code>:Org timer_countdown 0:00:30</code> is 30 seconds,
+<code>:Org timer_countdown 1:30</code> is 1 minute 30.</li>
+<li>a count, <code>25&lt;C-c&gt;&lt;C-x&gt;;</code> → 25 minutes (Emacs's <code>C-u</code> for "the default
+timer" has no count form here: a count is always minutes);</li>
+<li>otherwise the <code>Effort</code> of the entry at the cursor (<code>0:25</code> → 25 minutes);</li>
+<li>otherwise a prompt <code>How much time left? (minutes or h:mm:ss)</code>,
+pre-filled with <code>timer.default_timer</code> when you set it (e.g. <code>"25"</code>).</li>
+</ol>
+
+<p>
+While it runs, the statusline shows the time <i>left</i> (<code>⏲ 0:24:59</code>),
+<code>:Org timer_remaining</code> says <code>24 minute(s) 12 seconds left before next time
+out</code>, <code>&lt;C-c&gt;&lt;C-x&gt;,</code> pauses and continues it, <code>&lt;C-c&gt;&lt;C-x&gt;_</code> cancels it, and
+<code>&lt;C-c&gt;&lt;C-x&gt;.</code> inserts the remaining time. At zero you get a notification
+<code>&lt;title&gt;: time out</code>, where the title is the headline of the entry the
+cursor was in when you started (the file name before the first headline),
+with the
+<code>clock.sound</code> and <code>clock.notification_handler</code> options of clocking.
+</p>
+
+<p>
+Starting a countdown while the relative timer runs is refused
+(<code>Relative timer is running.  Stop first</code>), and the other way round
+(<code>Countdown timer is running.  Cancel first</code>). Starting a second countdown
+asks <code>Replace current timer?</code>.
+</p>
+</div>
+<div id="outline-container-orgd81a00d" class="outline-4">
+<h4 id="orgd81a00d"><span class="section-number-4">5.0.1.</span> A quick countdown to see the end</h4>
+<div class="outline-text-4" id="text-5-0-1">
+<p>
+<b>Try:</b> run <code>:Org timer_countdown 0:00:20</code> and wait 20 seconds.
+</p>
+
+<p>
+<b>Expect:</b> the statusline counts down from <code>⏲ 0:00:20</code>; at zero a warning
+notification <code>A quick countdown to see the end: time out</code> appears (the
+entry the cursor is in), and the timer is gone from the statusline.
+</p>
+</div>
+</div>
+<div id="outline-container-orgc8c3ec6" class="outline-4">
+<h4 id="orgc8c3ec6"><span class="section-number-4">5.0.2.</span> <span class="todo TODO">TODO</span> Write the abstract</h4>
+<div class="outline-text-4" id="text-5-0-2">
+<p>
+<b>Try:</b> with the cursor on this headline, press <code>&lt;C-c&gt;&lt;C-x&gt;;</code>.
+</p>
+
+<p>
+<b>Expect:</b> no prompt; the statusline shows <code>⏲ 0:25:00</code> counting down.
+</p>
+
+<p>
+<b>Try:</b> run <code>:Org timer_remaining</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>24 minute(s) 48 seconds left before next time out</code> (or similar).
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;0</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>Countdown timer is running.  Cancel first</code>: no relative timer
+while a countdown runs.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;,</code> twice, then <code>&lt;C-c&gt;&lt;C-x&gt;_</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>Timer paused at 0:24:30</code>, <code>Timer continues at 0:24:30</code>, then
+<code>Timer stopped</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-orgbc77e6e" class="outline-4">
+<h4 id="orgbc77e6e"><span class="section-number-4">5.0.3.</span> A pomodoro with a count</h4>
+<div class="outline-text-4" id="text-5-0-3">
+<p>
+<b>Try:</b> press <code>3&lt;C-c&gt;&lt;C-x&gt;;</code> anywhere.
+</p>
+
+<p>
+<b>Expect:</b> a 3-minute countdown (<code>⏲ 0:03:00</code>). Stop it with
+<code>&lt;C-c&gt;&lt;C-x&gt;_</code> or let it run out.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org3ec8003" class="outline-2">
+<h2 id="org3ec8003"><span class="section-number-2">6.</span> Hooks and options</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+Timer events are <code>User</code> autocommands, handy for your own integrations:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Pattern</th>
+<th scope="col" class="org-left">When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>OrgTimerStart</code></td>
+<td class="org-left">the relative timer (re)starts</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerSet</code></td>
+<td class="org-left">a countdown starts (<code>data.seconds</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerPause</code></td>
+<td class="org-left">either timer pauses</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerContinue</code></td>
+<td class="org-left">it continues</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerStop</code></td>
+<td class="org-left">it is stopped</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>OrgTimerDone</code></td>
+<td class="org-left">a countdown reached zero (<code>data.title</code>)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>vim.api.nvim_create_autocmd("User", {
+  pattern = "OrgTimerDone",
+  callback = function(ev)
+    vim.notify("Take a break! (" .. (ev.data.title or "timer") .. ")")
+  end,
+})
+</code></pre>
+</div>
+
+<p>
+Options (in <code>require("org").setup({ ... })</code>):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>timer = {
+  format = "%s ",        -- how timer_insert writes the value
+  default_timer = "25",  -- suggested length of a countdown ("0" = none)
+},
+clock = {
+  sound = true,          -- countdown end: terminal bell, or a sound file
+  notification_handler = nil, -- function(msg) or a program name
+},
+</code></pre>
+</div>
+</div>
+<div id="outline-container-orgbdd1cd6" class="outline-3">
+<h3 id="orgbdd1cd6"><span class="section-number-3">6.1.</span> Your own keys</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+The timer actions can be mapped like any other action, in the
+<code>mappings.org</code> section of the setup:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>mappings = {
+  org = {
+    timer_start = "&lt;prefix&gt;m0",
+    timer_insert = "&lt;prefix&gt;m.",
+    timer_item = "&lt;prefix&gt;m-",
+    timer_pause = "&lt;prefix&gt;m,",
+    timer_stop = "&lt;prefix&gt;m_",
+    timer_countdown = "&lt;prefix&gt;m;",
+  },
+},
+</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd39765f" class="outline-2">
+<h2 id="orgd39765f"><span class="section-number-2">7.</span> Appointment reminders</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+Reminders watch the entries of your agenda files that have a <i>time</i> today
+or tomorrow:
+</p>
+
+<ul class="org-ul">
+<li>a SCHEDULED or DEADLINE date with a time
+(<code>SCHEDULED: &lt;... 16:00&gt;</code>),</li>
+<li>or a plain active timestamp with a time or time range in the entry
+(<code>&lt;... 16:10-16:25&gt;</code>).</li>
+</ul>
+
+<p>
+Entries without a time, DONE entries and inactive timestamps are ignored.
+</p>
+
+<p>
+At each of <code>notifications.reminder_time</code> minutes before the start (by
+default 12, 9, 6, 3 and 0) you get one notification, a warning in Neovim:
+</p>
+
+<pre class="example" id="org73cb48e">
+TODO Call the bank
+Scheduled at 16:00 (in 12 min) — timers
+</pre>
+
+<p>
+The first line is the TODO keyword and title, the second says what kind
+of time it is (<code>Scheduled</code>, <code>Deadline</code> or <code>Appointment</code> for a plain
+timestamp), the time, how far off (<code>now</code> at 0) and the category. With
+<code>system_notification</code> (on by default) a desktop notification is shown too
+(<code>osascript</code> on macOS, <code>notify-send</code> on Linux).
+</p>
+
+<p>
+The check runs once a minute (<code>check_interval</code>, in seconds). If Neovim
+was not running at a reminder time, the next check sends only the
+nearest one that was missed (at 15:57 for a 16:00 entry you get "in 3 min",
+once). Changes are picked up right away, even unsaved ones.
+</p>
+</div>
+<div id="outline-container-org8242909" class="outline-3">
+<h3 id="org8242909"><span class="section-number-3">7.1.</span> Turning them on</h3>
+<div class="outline-text-3" id="text-7-1">
+<ul class="org-ul">
+<li>For this session: <code>:Org notifications_start</code> (and
+<code>:Org notifications_stop</code>). The first check is one second later.</li>
+<li>Always: in the setup,</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  notifications = {
+    enabled = true,                  -- start when org.nvim loads
+    reminder_time = { 15, 5, 0 },    -- minutes before the start
+    check_interval = 60,             -- seconds between checks
+    system_notification = true,      -- also osascript / notify-send
+    -- deliver them yourself instead (n.title, n.body, n.item, n.minutes):
+    notifier = function(n)
+      vim.notify(n.body, vim.log.levels.INFO, { title = n.title })
+    end,
+  },
+})
+</code></pre>
+</div>
+</div>
+</div>
+<div id="outline-container-orgfe04580" class="outline-3">
+<h3 id="orgfe04580"><span class="section-number-3">7.2.</span> Test it now</h3>
+<div class="outline-text-3" id="text-7-2">
+<p>
+To see a reminder you need a timed entry a few minutes from now, in an
+agenda file. This file is one (via <code>examples/minimal_init.lua</code>).
+</p>
+</div>
+<div id="outline-container-orgb0f1a4e" class="outline-4">
+<h4 id="orgb0f1a4e"><span class="section-number-4">7.2.1.</span> <span class="todo TODO">TODO</span> Test the reminders</h4>
+<div class="outline-text-4" id="text-7-2-1">
+<p>
+<b>Try:</b>
+</p>
+<ol class="org-ol">
+<li>Look at the time (<code>:echo strftime("%H:%M")</code>), say it is 15:32.</li>
+<li>Put the cursor on the headline "Test the reminders" and press
+<code>&lt;prefix&gt;s</code>, then <code>i</code>, type a time 10 minutes from now (<code>15:42</code>) and
+press <code>&lt;CR&gt;</code>. (<code>+10m</code> would mean ten <i>months</i>: <code>m</code> is months in the
+date prompt; type the time itself.)</li>
+<li>Run <code>:Org notifications_start</code>.</li>
+</ol>
+
+<p>
+<b>Expect:</b> the line <code>SCHEDULED: 2026-09-28 Mon 15:42</code> (with <code>&lt;&gt;</code>, and your
+date and time) under the headline, and about a second after step 3 a
+notification
+</p>
+
+<pre class="example" id="org99af24e">
+TODO Test the reminders
+Scheduled at 15:42 (in 10 min) — timers
+</pre>
+
+<p>
+then "in 9 min", "in 6 min", "in 3 min" and "now" at those minutes. The
+first one comes right away because 10 minutes is already inside the
+12-minute reminder.
+</p>
+
+<p>
+<b>Try:</b> mark the task DONE (<code>&lt;C-c&gt;&lt;C-t&gt;</code> then <code>d</code>).
+</p>
+
+<p>
+<b>Expect:</b> no more reminders for it: DONE entries are skipped.
+</p>
+</div>
+</div>
+<div id="outline-container-org1709cfb" class="outline-4">
+<h4 id="org1709cfb"><span class="section-number-4">7.2.2.</span> Coffee with Sam</h4>
+<div class="outline-text-4" id="text-7-2-2">
+<p>
+<b>Try:</b> add a plain appointment: on the empty line below, press
+<code>16&lt;prefix&gt;i.</code> (it inserts now), then put the cursor on the minutes and
+press <code>&lt;S-Up&gt;</code> a few times to move it 5 to 10 minutes ahead (each press
+rounds up to the next multiple of 5).
+</p>
+
+
+<p>
+<b>Expect:</b> reminders titled <code>Coffee with Sam</code> with <code>Appointment at HH:MM</code>.
+Run <code>:Org notifications_stop</code> when you are done, and <code>u</code> (or <code>git
+checkout</code>) to remove the test entries.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-org74aee5d" class="outline-2">
+<h2 id="org74aee5d"><span class="section-number-2">8.</span> Further reading</h2>
+<div class="outline-text-2" id="text-8">
+<ul class="org-ul">
+<li><code>:h org-timers</code> and <code>:h org-notifications</code>: every timer command and the
+reminders.</li>
+<li><code>:h org-api</code>: <code>require("org").statusline()</code>.</li>
+<li><code>:h org-config</code>: the <code>timer</code> and <code>notifications</code> options, <code>clock.sound</code>
+and <code>clock.notification_handler</code>.</li>
+<li><code>:h org-differences</code>: the countdown count vs. Emacs's <code>C-u</code>.</li>
+<li>The other example files: <a href="07-dates.html">07-dates.org</a> (timestamps
+with times and the date prompt), <a href="08-clocking.html">08-clocking.org</a>
+(clocking time on tasks) and <a href="09-agenda.html">09-agenda.org</a> (the
+agenda that the reminders read).</li>
+</ul>
+</div>
+</div>

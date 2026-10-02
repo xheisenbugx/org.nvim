@@ -1,0 +1,696 @@
+1 How to use this file
+======================
+
+  This file shows how Org marks up text: emphasis, sub- and
+  superscripts, special symbols, blocks, comments, line breaks, keywords
+  and macros. Most of this markup is *shown* by the editor (colours,
+  hidden markers) and *used* by the exporter (HTML, LaTeX, plain
+  text...).
+
+  Start Neovim from the root of the repository with the bundled config:
+
+  ,----
+  | nvim -u examples/minimal_init.lua examples/02-markup.org
+  `----
+
+  - The file opens folded. `<Tab>' on a heading opens it, `<S-Tab>'
+    cycles the whole buffer.
+  - `<prefix>' means `<leader>o' (`<Space>o' with the bundled
+    config). `g?'  lists every key of the buffer.
+  - `u' undoes; `git checkout examples/02-markup.org' restores the file.
+  - *Try:* lines are exercises, *Expect:* lines say what you should see.
+  - Lines starting with =# = are comments: notes for you, never
+    exported.
+
+
+1.1 How to check the result: export one subtree
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Markup is easiest to verify by exporting. With the cursor anywhere
+  inside a heading, this command exports *only that subtree*, without
+  the HTML page around it, into a scratch buffer:
+
+  ,----
+  | :Org export html subtree body buffer
+  `----
+
+  A split named "Org HTML Export" opens with the HTML. Close it with
+  `:q'.  For a plain-text view use `utf8' instead of `html'. The same
+  exports are in the menu of `<prefix>e' (Emacs `<C-c><C-e>'): press `s'
+  (subtree only) and `b' (body only), then `h H' (HTML buffer) or `t U'
+  (UTF-8 buffer). Export itself is covered in [19-export.org].
+
+  Most *Expect:* lines below quote the exact HTML you should find.
+
+
+[19-export.org] <file:19-export.org>
+
+
+1.2 Keys in this file
+~~~~~~~~~~~~~~~~~~~~~
+
+   Key                What it does                                    
+  --------------------------------------------------------------------
+   `<prefix>E'        emphasize: wrap the selection in `*' `/' `_'... 
+   `<C-c><C-x><C-f>'  the same, Emacs key                             
+   `<C-c><C-x>\'      toggle pretty entities (`\alpha' shown as α)    
+   `<C-c>:'           toggle fixed-width =: = on the line / selection 
+   `<prefix>ib'       insert a block (quote, example, src...)         
+   `<prefix>hC'       toggle the COMMENT keyword of a headline        
+   `<Tab>'            on a `#+begin_' line: fold / unfold the block   
+   `<prefix>e'        export menu                                     
+   `<prefix>xl'       preview LaTeX fragments as images               
+
+
+2 Emphasis
+==========
+
+  Six markers change how text looks. Put the marker right before the
+  first character and right after the last one:
+
+   You write       You get       HTML                          
+  -------------------------------------------------------------
+   `*bold*'        *bold*        `<b>bold</b>'                 
+   `/italic/'      /italic/      `<i>italic</i>'               
+   `_underlined_'  _underlined_  `<span class'"underline">...= 
+   `+strike+'      +strike+      `<del>strike</del>'           
+   `=verbatim='    `verbatim'    `<code>verbatim</code>'       
+   `~code~'        `code'        `<code>code</code>'           
+
+  `verbatim' and `code' look the same in most exports; the difference is
+  that nothing inside them is interpreted: no emphasis, no links, no
+  entities. Use `code' for code and `verbatim' for keys, file names and
+  literal strings (this is the convention of the Org manual).
+
+  Emphasis can be nested, and can span *two* lines, but not more.
+
+  *Try:* open "Emphasis examples" below and look at the colours: each
+  kind of markup has its own highlight group (`OrgBold', `OrgItalic',
+  `OrgUnderline', `OrgStrikethrough', `OrgVerbatim', `OrgCode'). Then,
+  with the cursor in it, run `:Org export html subtree body buffer'.
+
+  *Expect:* the HTML contains, one per line:
+  ,----
+  | <b>bold</b>, <i>italic</i>, <span class="underline">underlined</span>,
+  | <del>strike-through</del>, <code>verbatim</code> and <code>code</code>.
+  | <b>bold with <i>italic inside</i> it</b>
+  | <code>*not bold*</code>
+  | <b>emphasis over
+  | two lines</b>
+  `----
+
+
+2.1 Emphasis examples
+~~~~~~~~~~~~~~~~~~~~~
+
+  *bold*, /italic/, _underlined_, +strike-through+, `verbatim' and
+  `code'.  *bold with /italic inside/ it* `*not bold*' because verbatim
+  shows its text as it is.  *emphasis over two lines* works.
+
+
+2.2 When emphasis does not work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  The markers are only recognised in the right context (Org's
+  `org-emphasis-regexp-components'):
+
+  - The opening marker must be at the start of a line or after a space
+    or one of `-('"{'. The closing marker must be followed by a space,
+    the end of the line, or one of `-.,:!?;'")}\['. So markers inside a
+    word do nothing: `a*b*c' stays as it is.
+  - The text inside cannot start or end with a space: `* no *' is not
+    bold.
+  - Emphasis spans at most two lines. Three lines: no emphasis.
+  - Inside `verbatim' and `code' nothing is interpreted.
+
+  *Try:* open "Things that are not emphasis" and export it as above.
+
+  *Expect:* none of these lines has `<b>', `<i>' or `<del>' in the HTML:
+  the stars, slashes and plus signs come out as plain characters:
+  ,----
+  | a*b*c in the middle of a word.
+  | Here * no stars * because of the spaces inside.
+  | 2+3+4 is just arithmetic.
+  | path/to/file is not italic.
+  `----
+  (Underscores are different: `snake_case' gives a subscript, see the
+  next topic.)
+
+
+2.3 Things that are not emphasis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  a*b*c in the middle of a word.  Here * no stars * because of the
+  spaces inside.  2+3+4 is just arithmetic.  path/to/file is not italic.
+
+
+2.4 Adding emphasis with a key
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  `<prefix>E' (Emacs `<C-c><C-x><C-f>') asks for a marker (`*' `/' `_'
+  `+' `=' `~') and:
+  - in Visual mode, wraps the selection in it; if the selection already
+    has a marker, it is replaced; answering `<Space>' removes the
+    markers;
+  - in Normal mode, inserts a pair of markers and puts you in Insert
+    mode between them.
+  Spaces are added when needed so the markers are recognised.
+
+  *Try:* on the line "Make this word bold." below, put the cursor on
+  "word", press `viw', then `<prefix>E' and `*'.
+
+  *Expect:* the line reads `Make this *word* bold.' and "word" turns
+   bold.
+
+  *Try:* put the cursor on the first star of `*word*', select up to the
+  second star with `vf*', press `<prefix>E' and `/'.
+
+  *Expect:* the stars are replaced: `Make this /word/ bold.'
+
+  *Try:* on the line "Type between alpha beta", put the cursor on the
+  `b' of "beta", press `<prefix>E' and `~', type `ls' and press `<Esc>'.
+
+  *Expect:* `Type between alpha ~ls~ beta': the pair was inserted before
+  "beta" and a space was added after it, so the markers are recognised.
+
+
+2.4.1 Emphasize playground
+--------------------------
+
+  Make this word bold.  Type between alpha beta
+
+
+2.5 Hiding the markers
+~~~~~~~~~~~~~~~~~~~~~~
+
+  With `ui.hide_emphasis_markers = true' the markers are concealed: you
+  see *bold* without its stars. The markers stay in the file, and show
+  again on the line under the cursor (depending on `'concealcursor'').
+
+  *Try:* run these two commands, then look at "Emphasis examples":
+
+  ,----
+  | :lua require("org.config").opts.ui.hide_emphasis_markers = true
+  | :w | e
+  `----
+
+  *Expect:* the markers disappear from lines away from the cursor. Set
+  it back to `false' the same way.
+
+
+3 Subscripts and superscripts
+=============================
+
+  `_' makes a subscript and `^' a superscript: `x^2', `a_i'. Without
+  braces the script extends over all the letters and digits that follow,
+  so write `H_{2}O' (not `H_2O', which subscripts "2O"). Braces are
+  always safe: `x^{10}', `a_{ij}'.
+
+  Two settings control them:
+  - In the buffer, with `ui.pretty_entities' on (see Entities below),
+    scripts are drawn with Unicode super/subscript characters when all
+    of their characters have one (x², aᵢⱼ), else highlighted with
+    `OrgSuperscript' / `OrgSubscript'.
+  - In the export, `#+OPTIONS: ^:{}' (or `:EXPORT_OPTIONS: ^:{}' on a
+    subtree) only accepts scripts in braces, so `snake_case' stays
+    intact.  `^:nil' turns them off.
+
+  *Try:* export "Scripts with defaults" (`:Org export html subtree body
+  buffer').
+
+  *Expect:*
+  ,----
+  | H<sub>2</sub>O and E=mc<sup>2</sup> and a<sub>ij</sub>
+  | H<sub>2O</sub> is wrong: "2O" is subscripted.
+  | snake<sub>case</sub>
+  `----
+
+  *Try:* export "Scripts with braces only" the same way.
+
+  *Expect:* `H_2O' and `snake_case' stay as they are, only the braced
+  ones change:
+  ,----
+  | H_2O snake_case x<sup>2</sup> a<sub>ij</sub>
+  `----
+
+
+3.1 Scripts with defaults
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  H_{2}O and E=mc^2 and a_{ij} H_2O is wrong: "2O" is subscripted.
+  snake_case
+
+
+3.2 Scripts with braces only
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  H_2O snake_case x^{2} a_{ij}
+
+
+4 Entities
+==========
+
+  Entities are TeX-like names for symbols: `\alpha', `\to', `\deg',
+  `\copy'... Org knows hundreds of them (the same list as Emacs'
+  `org-entities'). Each exporter writes the right thing: `&alpha;' in
+  HTML, `\alpha' in LaTeX, `α' in UTF-8 text. End an entity with `{}'
+  when a letter follows: `\alpha{}beta'.
+
+  In the buffer, `ui.pretty_entities = true' (or `#+STARTUP:
+  entitiespretty') shows them as their Unicode character. `<C-c><C-x>\'
+  toggles this for the current buffer. Entities are never prettified in
+  blocks, code, verbatim or links. As in Emacs, only entities with a
+  one-character symbol are drawn: `\sin' or `\lim' stay as written in
+  the buffer (they still export as `sin' and `lim').
+
+   Write     Shows as  Write    Shows as 
+  ---------------------------------------
+   `\alpha'  α         `\to'    →        
+   `\beta'   β         `\larr'  ←        
+   `\pi'     π         `\deg'   °        
+   `\infty'  ∞         `\copy'  ©        
+   `\pm'     ±         `\euro'  €        
+   `\times'  ×         `\nbsp'  (space)  
+
+  *Try:* open "Entity examples" and press `<C-c><C-x>\'.
+
+  *Expect:* `\alpha' is drawn as α, `\to' as →, `\deg{}' as °, and the
+  scripts `x^2' and `a_{ij}' as x² and aᵢⱼ. Press `<C-c><C-x>\' again to
+  see the plain text.
+
+  *Try:* export "Entity examples" to HTML.
+
+  *Expect:*
+  ,----
+  | &alpha; &beta; &pi; &rarr; 20&deg;C &copy; 2026
+  | &alpha;beta (the {} ends the name)
+  `----
+
+
+4.1 Entity examples
+~~~~~~~~~~~~~~~~~~~
+
+  alpha beta pi -> 20degreeC (c) 2026 alphabeta (the {} ends the name)
+  x^2 and a_{ij}
+
+
+5 Special strings and smart quotes
+==================================
+
+  When exporting, a few character sequences become typographic symbols
+  (`#+OPTIONS: -:t', the default; `-:nil' turns it off):
+
+   Write  Becomes      HTML       
+  --------------------------------
+   `--'   en dash –    `&ndash;'  
+   `---'  em dash —    `&mdash;'  
+   `...'  ellipsis …   `&hellip;' 
+   `\-'   soft hyphen  `&shy;'    
+
+  Smart quotes (`#+OPTIONS: ':t', off by default) turn "straight" quotes
+  into curly ones, using the quotes of `#+LANGUAGE:'.
+
+  *Try:* export "Dashes and dots", then "Curly quotes".
+
+  *Expect:*
+  ,----
+  | pages 10&ndash;20 &mdash; and so on&hellip;
+  `----
+  and for "Curly quotes":
+  ,----
+  | &ldquo;Hello,&rdquo; she said. It&rsquo;s fine.
+  `----
+
+
+5.1 Dashes and dots
+~~~~~~~~~~~~~~~~~~~
+
+  pages 10--20 --- and so on...
+
+
+5.2 Curly quotes
+~~~~~~~~~~~~~~~~
+
+  "Hello," she said. It's fine.
+
+
+6 LaTeX fragments
+=================
+
+  Math is written in LaTeX: `$x^2$' or `\(x^2\)' inline, `\[ ... \]' or
+  `\begin{equation}' ... `\end{equation}' for displayed formulas. In the
+  buffer they are highlighted (`OrgLatex'); `<prefix>xl' (Emacs
+  `<C-c><C-x><C-l>') previews them as images if you have LaTeX and an
+  image backend. HTML export uses MathJax. Details and previews:
+  [21-images-latex.org].
+
+  `$' is only math when it is not next to a space inside: `$5 and $10'
+  is money, not math.
+
+  *Try:* export "Math examples".
+
+  *Expect:*
+  ,----
+  | The area is \(\pi r^2\) and \(a+b\).
+  | \[ E = mc^2 \]
+  | It costs $5 and $10.
+  `----
+
+
+[21-images-latex.org] <file:21-images-latex.org>
+
+6.1 Math examples
+~~~~~~~~~~~~~~~~~
+
+  The area is $\pi r^2$ and \(a+b\).  \[ E = mc^2 \] It costs $5 and
+  $10.
+
+
+7 Paragraphs, line breaks and rules
+===================================
+
+  - A *paragraph* is a group of lines; blank lines separate
+    paragraphs. Line breaks inside a paragraph are ignored when
+    exporting.
+  - `\\' at the end of a line forces a line break.
+  - `#+OPTIONS: \n:t' keeps every line break of the file.
+  - A line of *five or more dashes* (`-----') is a horizontal rule.
+
+  *Try:* export "Breaks and rules".
+
+  *Expect:* the first paragraph has no `<br />' (a browser shows its two
+  lines as one), the second has one after "Forced", and the dashes
+  became `<hr />':
+  ,----
+  | <p>
+  | These two lines
+  | form one paragraph.
+  | </p>
+  | 
+  | <p>
+  | Forced <br />
+  | break here.
+  | </p>
+  | 
+  | <hr />
+  `----
+
+
+7.1 Breaks and rules
+~~~~~~~~~~~~~~~~~~~~
+
+  These two lines form one paragraph.
+
+  Forced
+  break here.
+
+  ----------------------------------------------------------------------
+
+  A new paragraph after the rule.
+
+
+8 Blocks
+========
+
+  Blocks start with `#+begin_NAME' and end with `#+end_NAME' (upper or
+  lower case). Insert them with `<prefix>ib' (see
+  [01-outline.org]). `<Tab>' on the `#+begin_' line folds the block;
+  `#+STARTUP: hideblocks' folds all of them when the file opens.
+
+   Block             Meaning                                             
+  -----------------------------------------------------------------------
+   `quote'           a quotation                                         
+   `center'          centered text                                       
+   `verse'           a poem: line breaks and indentation are kept        
+   `example'         verbatim text in a monospace font                   
+   `src LANG'        source code in language LANG                        
+   `export BACKEND'  raw text for one exporter only (`html', `latex'...) 
+   `comment'         never exported                                      
+
+  Markup works inside quote, center and verse blocks, but not inside
+  example and src blocks.
+
+  *Try:* on "Block examples", press `<Tab>' until everything shows, then
+  press `<Tab>' on each `#+begin_' line to fold and unfold it.
+
+  *Expect:* each block folds into its `#+begin_' line.
+
+  *Try:* export "Block examples".
+
+  *Expect:* in the HTML you find `<blockquote>' with `<b>ideas</b>'
+  inside, `<div class'"org-center">=, `<p class'"verse">= with `&nbsp;'
+  for the indentation and `<br />' at every line end, `<pre
+  class'"example">= with `*not bold*' left as it is, `<pre class'"src
+  src-lua">=, the raw `<em>raw HTML</em>', and *no* trace of "This is a
+  comment block".
+
+
+[01-outline.org] <file:01-outline.org>
+
+8.1 Block examples
+~~~~~~~~~~~~~~~~~~
+
+        Everything is made of *ideas*. --- Anonymous
+
+  			    Centered title
+
+        Roses are red,
+          violets are blue,
+            verses keep
+              their indentation too.
+
+  ,----
+  | Example text: *not bold*, shown exactly as typed.
+  `----
+
+  ,----
+  | print("hello from Lua")
+  `----
+
+
+8.2 Line numbers in examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Example and src blocks accept switches. `-n' numbers the lines, `+n'
+  continues the numbering of the previous block.
+
+  *Try:* export "Numbered example".
+
+  *Expect:* the lines start with `<span class'"linenr">1: </span>= and
+  `<span class'"linenr">2: </span>=.
+
+
+8.3 Numbered example
+~~~~~~~~~~~~~~~~~~~~
+
+  ,----
+  | 1  first line
+  | 2  second line
+  `----
+
+
+9 Fixed-width lines
+===================
+
+  A line starting with a colon and a space (=: =) is shown and exported
+  verbatim, like a one-line example block. Handy for short program
+  output.
+
+  `<C-c>:' (`toggle_fixed_width') adds or removes the =: = prefix on the
+  current line, or on every line of a Visual selection.
+
+  *Try:* select the two "output" lines below with `V' and `j', press
+   `<C-c>:'.
+
+  *Expect:* both lines start with `: = and are highlighted as
+  fixed-width.  Select the two lines again (=V' and `j') and press
+  `<C-c>:' to remove it.
+
+  *Try:* export "Fixed-width example".
+
+  *Expect:*
+  ,----
+  | <pre class="example">
+  | $ date
+  | Mon Sep 28 10:00:00 2026
+  | </pre>
+  `----
+
+
+9.1 Fixed-width playground
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  output line one output line two
+
+
+9.2 Fixed-width example
+~~~~~~~~~~~~~~~~~~~~~~~
+
+  ,----
+  | $ date
+  | Mon Sep 28 10:00:00 2026
+  `----
+
+
+10 Comments
+===========
+
+  Three ways to keep text out of the export:
+
+  1. A line starting with `#' followed by a space (or `#' alone) is a
+     comment line. `#+' starts a keyword instead, and `#word' is plain
+     text.
+  2. A `#+begin_comment' / `#+end_comment' block (see Blocks).
+  3. A headline starting with `COMMENT' comments out the whole subtree:
+     it is left out of the export and the agenda. `<prefix>hC' (Emacs
+     `<C-c>;') toggles the keyword.
+
+  *Try:* export "Comment examples".
+
+  *Expect:* only "Visible text." and "#hashtag is not a comment." are in
+  the HTML. Nothing of "Secret child" appears.
+
+  *Try:* on "Secret child", press `<prefix>hC', and export again.
+
+  *Expect:* the keyword is removed, and "Secret child" and "Its text."
+  now appear in the HTML.
+
+
+10.1 Comment examples
+~~~~~~~~~~~~~~~~~~~~~
+
+  Visible text.
+
+  #hashtag is not a comment.
+
+
+11 Keywords
+===========
+
+  Lines like `#+TITLE: ...' are keywords: settings for the file or the
+  export. The ones at the top of this file are:
+
+  `#+TITLE:' and `#+AUTHOR:'
+        the document title and author.
+  `#+STARTUP:'
+        how the file opens (see [01-outline.org]).
+  `#+CATEGORY:'
+        the name used by the agenda.
+  `#+MACRO:'
+        text macros (see Macros below).
+
+  Others you will meet: `#+OPTIONS:' (export options), `#+TODO:',
+  `#+TAGS:', `#+PROPERTY:', `#+COLUMNS:', and the *affiliated* keywords
+  `#+NAME:', `#+CAPTION:' and `#+ATTR_HTML:' which go right above an
+  element (a table, a block, an image) to name or describe it. After
+  editing a `#+' line, press `<C-c><C-c>' on it so the buffer picks up
+  the change.
+
+
+[01-outline.org] <file:01-outline.org>
+
+
+12 Export snippets
+==================
+
+  `@@BACKEND:text@@' inserts raw text for one exporter only,
+  inline. Other exporters drop it. Use it for things Org markup can't
+  express, e.g.  keyboard keys in HTML.
+
+  *Try:* export "Snippet example" to HTML, then to UTF-8 (`:Org export
+  utf8 subtree body buffer').
+
+  *Expect:* in HTML: `Press <kbd>Ctrl</kbd>-<kbd>S</kbd> to save.' In
+  UTF-8: `Press Ctrl-S to save.'
+
+
+12.1 Snippet example
+~~~~~~~~~~~~~~~~~~~~
+
+  Press Ctrl-S to save.
+
+
+13 Macros
+=========
+
+  Macros are templates expanded when exporting: `#+MACRO: name text'
+  defines one, `{{{name(arg1,arg2)}}}' uses it. In the text, `$1',
+  `$2'... are the arguments and `$0' all of them. A comma inside an
+  argument is written `\,'. This file defines three macros at the top:
+
+  ,----
+  | #+MACRO: greet Hello, $1!
+  | #+MACRO: swap $2 before $1
+  | #+MACRO: kbd @@html:<kbd>@@$1@@html:</kbd>@@
+  `----
+
+  Built-in macros:
+
+   Macro                           Expands to                               
+  --------------------------------------------------------------------------
+   `{{{title}}}'                   the `#+TITLE:'                           
+   `{{{author}}}'                  the `#+AUTHOR:'                          
+   `{{{date(FMT)}}}'               the `#+DATE:', formatted (FMT optional)  
+   `{{{time(FMT)}}}'               the export time, e.g. `%Y-%m-%d'         
+   `{{{keyword(NAME)}}}'           the value of any `#+NAME:' keyword       
+   `{{{property(NAME)}}}'          a property of the entry around the macro 
+   `{{{n}}}'                       a counter: 1, 2, 3... (`{{{n(name)}}}')  
+   `{{{input-file}}}'              the name of this file                    
+   `{{{modification-time(FMT)}}}'  when the file was last changed           
+
+  In the buffer, macros are highlighted with `OrgMacro' and not
+  expanded.
+
+  *Try:* export "Macro examples".
+
+  *Expect:* (the export also has a small table of contents, because of
+  the child headline)
+  ,----
+  | Hello, World! Hello, Ada, Grace!
+  | second before first
+  | Press <kbd>C-c</kbd>.
+  | Title: Markup: emphasis, blocks, comments and friends
+  | Author: Ada Lovelace
+  | Steps 1, 2, 3.
+  `----
+  and under the "Weekly meeting" heading:
+  ,----
+  | Room: Blue room
+  `----
+
+
+13.1 Macro examples
+~~~~~~~~~~~~~~~~~~~
+
+  Hello, World! Hello, Ada, Grace!  second before first Press C-c.
+  Title: Markup: emphasis, blocks, comments and friends Author: Ada
+  Lovelace Steps 1, 2, 3.
+
+
+13.1.1 Weekly meeting
+---------------------
+
+  Room: Blue room
+
+
+14 Further reading
+==================
+
+  `:h org-appearance'
+        hiding markers, pretty entities, highlights
+  `:h org-highlights'
+        the highlight groups (`OrgBold', `OrgLatex'...)
+  `:h org-structure'
+        `<prefix>E', `<prefix>ib', `<C-c>:'
+  `:h org-export-settings'
+        `#+OPTIONS:' keys and macros
+  `:h org-images'
+        LaTeX previews
+
+        [19-export.org] and [21-images-latex.org] :: more on export and
+        math
+
+
+[19-export.org] <file:19-export.org>
+
+[21-images-latex.org] <file:21-images-latex.org>

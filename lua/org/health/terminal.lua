@@ -707,7 +707,7 @@ function M.kitty_parse_conf(lines)
   end
   local by_code = {}
   local function put(trigger, action)
-    local expanded = trigger:gsub("kitty_mod", kitty_mod)
+    local expanded = trigger:gsub("kitty_mod", require("org.utils").gsub_escape(kitty_mod))
     local mods, key = split_plus(expanded)
     local token = key and M.key_token(mods, key)
     if token then

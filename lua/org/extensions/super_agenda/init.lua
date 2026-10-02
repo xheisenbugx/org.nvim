@@ -1312,18 +1312,28 @@ end
 ---------------------------------------------------------------------------
 
 function M.setup()
-  require("org.agenda.render").grouper = M.grouper
-  require("org.agenda.view").refresh_hooks.super_agenda = on_refresh
+  local lazy = require("org.lazy")
+  -- the agenda modules load on the first agenda, not at startup
+  lazy.on_load("org.agenda.render", "super_agenda", function(render)
+    render.grouper = M.grouper
+  end)
+  lazy.on_load("org.agenda.view", "super_agenda", function(view)
+    view.refresh_hooks.super_agenda = on_refresh
+  end)
 end
 
 --- Undo `setup`: the agenda renders its rows as before, and the header
 --- keys of agenda buffers are given back to what they did.
 function M.teardown()
-  local render = require("org.agenda.render")
-  if render.grouper == M.grouper then
-    render.grouper = nil
-  end
-  require("org.agenda.view").refresh_hooks.super_agenda = nil
+  local lazy = require("org.lazy")
+  lazy.if_loaded("org.agenda.render", "super_agenda", function(render)
+    if render.grouper == M.grouper then
+      render.grouper = nil
+    end
+  end)
+  lazy.if_loaded("org.agenda.view", "super_agenda", function(view)
+    view.refresh_hooks.super_agenda = nil
+  end)
   for buf, saved in pairs(buf_keys) do
     if vim.api.nvim_buf_is_valid(buf) then
       vim.b[buf].org_super_agenda_keys = nil

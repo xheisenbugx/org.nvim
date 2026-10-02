@@ -3347,7 +3347,7 @@ function M.lhs_list(value)
   local out = {}
   for _, lhs in ipairs(list) do
     if lhs then
-      out[#out + 1] = (lhs:gsub("<prefix>", prefix))
+      out[#out + 1] = (lhs:gsub("<prefix>", require("org.utils").gsub_escape(prefix)))
     end
   end
   return out

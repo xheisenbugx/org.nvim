@@ -1,0 +1,751 @@
+\section{How to use this file}
+\label{sec:org2872d7b}
+Plain lists are the lists you write in the body of an entry: bullets,
+numbers, descriptions and checkboxes. Org understands their structure, so
+it can renumber them, move items with their sub-items, and count the
+checked boxes for you. This file goes from simple lists to checkbox
+statistics.
+
+Start Neovim from the root of the repository with the bundled config:
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/03-lists.org
+\end{verbatim}
+
+\begin{itemize}
+\item The file opens folded. \texttt{<Tab>} on a heading opens it, \texttt{<S-Tab>} cycles
+the whole buffer.
+\item \texttt{<prefix>} means \texttt{<leader>o} (\texttt{<Space>o} with the bundled config). \texttt{g?}
+lists every key of the buffer.
+\item \texttt{u} undoes; \texttt{git checkout examples/03-lists.org} restores the file.
+\item \textbf{Try:} lines are exercises, \textbf{Expect:} lines say what you should see.
+\item Lines starting with =\# = are comments: notes for you. A comment line in
+column 0 ends a list, so comments are placed above or below lists, never
+between their items.
+\item The bundled config draws checkboxes as icons: \texttt{[ ]} as an empty box,
+\texttt{[-]} as \texttt{◐} and \texttt{[X]} as \texttt{✓}. The text in the file does not change.
+\item "On an item" means the cursor is on the first line of the item, usually
+on its text (not in column 0).
+\end{itemize}
+\subsection{Keys in this file}
+\label{sec:orgc60e13e}
+\begin{center}
+\begin{tabular}{ll}
+Key & What it does\\
+\hline
+\texttt{<M-CR>} & new item (Normal mode: after this one)\\
+\texttt{<M-S-CR>} & new item with a checkbox\\
+\texttt{<prefix>is} & new sub-item (indented)\\
+\texttt{<Tab>} (Insert mode) & on an empty item: cycle its indentation\\
+\texttt{<Tab>} & on an item with sub-items: fold / unfold\\
+\texttt{<S-Right>} \texttt{<S-Left>} & cycle the bullet style of the list\\
+\texttt{<prefix>hb} / \texttt{<C-c>-} & cycle the bullet style\\
+\texttt{<S-Down>} \texttt{<S-Up>} & next / previous item of the same level\\
+\texttt{>{}>{}} \texttt{<{}<{}} / \texttt{<M-l>} \texttt{<M-h>} & indent / outdent the item\\
+\texttt{>s} \texttt{<s} / \texttt{<M-L>} \texttt{<M-H>} & indent / outdent the item and its children\\
+\texttt{<M-k>} \texttt{<M-j>} & move the item (with sub-items) up / down\\
+\texttt{<C-Space>} & toggle a checkbox\\
+\texttt{<C-c><C-c>} & toggle a checkbox, or repair the list\\
+\texttt{<C-c><C-x><C-b>} & toggle checkbox (Emacs key)\\
+\texttt{<prefix>\#} / \texttt{<C-c>\#} & update statistics cookies\\
+\texttt{<prefix>-} & toggle between item and text / headline\\
+\texttt{<prefix>*} & turn the item into a headline\\
+\texttt{<C-c><C-*>} & turn the whole list into a subtree\\
+\texttt{<prefix>hs} & sort the list\\
+\texttt{<C-c><C-x><C-r>} & toggle a radio button\\
+\end{tabular}
+\end{center}
+\section{Unordered lists}
+\label{sec:org27a19fc}
+An item starts with a bullet followed by a space: \texttt{-}, \texttt{+}, or \texttt{*} (a star
+only when the item is indented, because a star in column 0 starts a
+headline). Lines that belong to an item are indented past its bullet.
+Items indented under another item form a sub-list.
+
+A list ends:
+\begin{itemize}
+\item at a line that is indented at or left of the first bullet (and is not a
+new item),
+\item at a headline,
+\item or after \textbf{two} blank lines in a row.
+\end{itemize}
+
+\textbf{Try:} open "Groceries" below. Put the cursor on "Fruit" and press \texttt{<Tab>},
+then \texttt{<Tab>} again.
+
+\textbf{Expect:} the first \texttt{<Tab>} folds "Fruit": its sub-items "apples" and
+"pears" and its second line are hidden, the line ends with \texttt{...}. The
+second \texttt{<Tab>} shows them again. (\texttt{cycle\_include\_plain\_lists = true}, the
+default, makes items with sub-items or several lines foldable.)
+\subsection{Groceries}
+\label{sec:orgaf6c356}
+\begin{itemize}
+\item Fruit
+(only the ripe ones)
+\begin{itemize}
+\item apples
+\item pears
+\end{itemize}
+\item Vegetables
+\begin{itemize}
+\item carrots
+\item leeks
+\begin{itemize}
+\item the thin ones
+\end{itemize}
+\end{itemize}
+\item Bread
+\end{itemize}
+This line is not indented, so it is not part of the list.
+\subsection{Where a list ends}
+\label{sec:orge1f6803}
+\begin{itemize}
+\item first item
+\item second item
+\end{itemize}
+
+
+This paragraph comes after two blank lines: the list above has ended.
+
+\begin{verbatim}
+- this looks like an item
+- but it is example text
+\end{verbatim}
+\section{Ordered lists}
+\label{sec:org9627784}
+Ordered bullets are a number followed by \texttt{.} or \texttt{)}: \texttt{1.}, \texttt{1)}. You never
+renumber by hand: every list command renumbers the list when it changes it.
+If the numbers are wrong (you typed them, or pasted lines), \texttt{<C-c><C-c>} on
+the first line of an item repairs the whole list.
+
+A counter \texttt{[@N]} right after the bullet makes the list continue from N.
+
+\textbf{Try:} put the cursor on "Wake up" (in "Wrong numbers") and press
+\texttt{<C-c><C-c>}.
+
+\textbf{Expect:} the numbers become 1, 2, 3, 4:
+\begin{verbatim}
+1. Wake up
+2. Make coffee
+3. Drink coffee
+4. Work
+\end{verbatim}
+
+\textbf{Try:} in "Counter", press \texttt{<C-c><C-c>} on "Chapter five".
+
+\textbf{Expect:} the numbers stay 5, 6, 7: the list starts at the counter.
+Change \texttt{[@5]} to \texttt{[@10]} and press \texttt{<C-c><C-c>} again: 10, 11, 12.
+\subsection{Wrong numbers}
+\label{sec:org3030266}
+\begin{enumerate}
+\item Wake up
+\item Make coffee
+\item Drink coffee
+\item Work
+\end{enumerate}
+\subsection{Counter}
+\label{sec:org10c0f82}
+\begin{enumerate}
+\setcounter{enumi}{4}
+\item Chapter five
+\item Chapter six
+\item Chapter seven
+\end{enumerate}
+\subsection{Two styles}
+\label{sec:org8463113}
+\begin{enumerate}
+\item A closing parenthesis
+\item works the same way
+\begin{enumerate}
+\item and a sub-list can use its own style
+\item independently
+\end{enumerate}
+\end{enumerate}
+\section{Description lists}
+\label{sec:orge8718bb}
+A description item has a term, then \texttt{::} surrounded by spaces, then the
+description. It is an unordered item (\texttt{-} or \texttt{+}), and it is exported as a
+definition list (\texttt{<dl>} in HTML).
+
+\textbf{Try:} on "Neovim" press \texttt{\$} (end of line) then \texttt{<M-CR>}, type \texttt{Emacs},
+press \texttt{<Esc>}.
+
+\textbf{Expect:} a new description item right after "Neovim", with the separator
+already there and the cursor on the term:
+\begin{verbatim}
+- Emacs ::
+\end{verbatim}
+\subsection{Editors}
+\label{sec:orgc5d4884}
+\begin{description}
+\item[{Org}] a plain-text outliner and organizer
+\item[{Neovim}] a hyperextensible Vim-based text editor
+\item[{Plain text}] lasts forever
+and a description can go on over
+several lines.
+\end{description}
+\section{Inserting items}
+\label{sec:orgbdb4163}
+\texttt{<M-CR>} (Meta-Return) on an item inserts a new item of the same kind
+(bullet, description term) and leaves you in Insert mode. Where:
+\begin{itemize}
+\item Normal mode, anywhere on the item's first line (even column 0): after
+the item \textbf{and its sub-items}.
+\item Insert mode: at the cursor. At or before the item text (e.g. \texttt{i} in
+column 0) the new item goes above; in the middle of the text, the rest of
+the text moves to the new item.
+\end{itemize}
+
+\texttt{<M-S-CR>} does the same but adds an empty checkbox \texttt{[ ]}. \texttt{<prefix>is}
+inserts a sub-item (indented one level). A new item never copies the
+checkbox of the current one with \texttt{<M-CR>}.
+
+In Insert mode, right after \texttt{<M-CR>}, \texttt{<Tab>} on the new empty item cycles
+its indentation: under the previous item, then back out level by level.
+
+When the items of a list are separated by blank lines, new items get a
+blank line too (\texttt{blank\_before\_new\_entry = \{ plain\_list\_item = "auto" \}}).
+
+\textbf{Try:} on "Saturday" press \texttt{\$} and \texttt{<M-CR>}, type \texttt{Sunday}, \texttt{<Esc>}.
+
+\textbf{Expect:} \texttt{- Sunday} after "Saturday" (and after its sub-item "morning
+run"), before "Next week".
+
+\textbf{Try:} on "Saturday" press \texttt{\$} and \texttt{<M-S-CR>}, type \texttt{Pack}, \texttt{<Esc>}.
+
+\textbf{Expect:} \texttt{- [ ] Pack} after the "Saturday" item.
+
+\textbf{Try:} on "Saturday" press \texttt{\$} and \texttt{<prefix>is}, type \texttt{evening}, \texttt{<Esc>}.
+
+\textbf{Expect:} an indented sub-item =  - evening= right below "Saturday".
+
+\textbf{Try:} on "Next week" press \texttt{A}, then \texttt{<M-CR>}, then \texttt{<Tab>}, type
+\texttt{Monday} and \texttt{<Esc>}.
+
+\textbf{Expect:} =  - Monday= indented under "Next week".
+
+\textbf{Try:} on "Split this item" put the cursor on \texttt{i} of "item", press \texttt{i} and
+\texttt{<M-CR>}, then \texttt{<Esc>}.
+
+\textbf{Expect:} two items: \texttt{- Split this} and \texttt{- item}.
+\subsection{Weekend}
+\label{sec:orge87d85b}
+\begin{itemize}
+\item Saturday
+\begin{itemize}
+\item morning run
+\end{itemize}
+\item Next week
+\item Split this item
+\end{itemize}
+\subsection{Spaced items}
+\label{sec:org99371d7}
+\begin{itemize}
+\item first
+
+\item second
+\end{itemize}
+
+\textbf{Try:} on "second" press \texttt{\$} and \texttt{<M-CR>}, type \texttt{third}.
+
+\textbf{Expect:} a blank line, then \texttt{- third}.
+\section{Bullet styles}
+\label{sec:org1183b91}
+\texttt{<S-Right>} / \texttt{<S-Left>} on an item cycle the bullet of \textbf{the whole list}
+(the item and its siblings) through \texttt{-}, \texttt{+}, \texttt{*}, \texttt{1.}, \texttt{1)}. The star is
+skipped for a list in column 0. Sub-lists keep their own bullets.
+\texttt{<prefix>hb} and \texttt{<C-c>-} cycle forward too.
+
+\textbf{Try:} on "alpha" (in "Cycle me") press \texttt{<S-Right>} four times.
+
+\textbf{Expect:} the bullets of alpha, beta and gamma become \texttt{+}, then \texttt{1.} \texttt{2.}
+\texttt{3.}, then \texttt{1)} \texttt{2)} \texttt{3)}, then \texttt{-} again. The sub-item "beta one" keeps its
+\texttt{-} bullet (and moves right when the numbers make the bullet wider).
+\subsection{Cycle me}
+\label{sec:org6852f3b}
+\begin{itemize}
+\item alpha
+\item beta
+\begin{itemize}
+\item beta one
+\end{itemize}
+\item gamma
+\end{itemize}
+\section{Moving between items}
+\label{sec:orgc4eb537}
+\texttt{<S-Down>} / \texttt{<S-Up>} jump to the next / previous item \textbf{of the same level},
+skipping sub-items.
+
+\textbf{Try:} on "Ann" press \texttt{<S-Down>} twice.
+
+\textbf{Expect:} the cursor goes to "Bob" (skipping "Ann's notes"), then to "Cid".
+\subsection{People}
+\label{sec:org1a9b2bc}
+\begin{itemize}
+\item Ann
+\begin{itemize}
+\item Ann's notes
+\end{itemize}
+\item Bob
+\item Cid
+\end{itemize}
+\section{Indenting and outdenting}
+\label{sec:org42f874c}
+\begin{center}
+\begin{tabular}{ll}
+Key & Moves\\
+\hline
+\texttt{>{}>{}} / \texttt{<{}<{}}, \texttt{<M-l>} / \texttt{<M-h>} & the item alone\\
+\texttt{>s} / \texttt{<s}, \texttt{<M-L>} / \texttt{<M-H>} & the item and its sub-items (subtree)\\
+\end{tabular}
+\end{center}
+
+Org's list rules apply:
+\begin{itemize}
+\item The first item of a list cannot be indented alone; \texttt{<M-L>} / \texttt{<M-H>} on
+it move the whole list.
+\item An item with sub-items cannot be outdented alone: use \texttt{<s} or \texttt{<M-H>}.
+\item After each change the list is repaired: numbering, bullets, the
+indentation of sub-lists and parent checkboxes.
+\item In Visual mode, \texttt{<M-l>} / \texttt{<M-h>} indent / outdent every selected item.
+\end{itemize}
+
+\textbf{Try:} on "Task B" press \texttt{>s}.
+
+\textbf{Expect:} "Task B" and its sub-item "B detail" move right together; "Task
+B" is now a sub-item of "Task A":
+\begin{verbatim}
+- Task A
+  - Task B
+    - B detail
+- Task C
+\end{verbatim}
+
+\textbf{Try:} press \texttt{u}, then \texttt{>{}>{}} on "Task B".
+
+\textbf{Expect:} only "Task B" moves; "B detail" stays where it was and becomes
+its sibling:
+\begin{verbatim}
+- Task A
+  - Task B
+  - B detail
+\end{verbatim}
+
+\textbf{Try:} press \texttt{u}, then \texttt{>{}>{}} on "Task A".
+
+\textbf{Expect:} nothing changes and a message says "At first item: use
+S-M-<left/right> to move the whole list".
+
+\textbf{Try:} on "Nested parent" (in "Outdent rules") press \texttt{<{}<{}}.
+
+\textbf{Expect:} the message "Cannot outdent an item without its children".
+Press \texttt{<s} instead: "Nested parent" and "Nested child" both move left.
+\subsection{Indent rules}
+\label{sec:orgffe733b}
+\begin{itemize}
+\item Task A
+\item Task B
+\begin{itemize}
+\item B detail
+\end{itemize}
+\item Task C
+\end{itemize}
+\subsection{Outdent rules}
+\label{sec:org765f93b}
+\begin{itemize}
+\item Top
+\begin{itemize}
+\item Nested parent
+\begin{itemize}
+\item Nested child
+\end{itemize}
+\end{itemize}
+\end{itemize}
+\section{Moving items}
+\label{sec:org4f04a7e}
+\texttt{<M-k>} / \texttt{<M-j>} (also \texttt{<M-Up>} / \texttt{<M-Down>}) move an item up / down past
+its sibling. Sub-items, extra lines and checkboxes travel with it, and
+ordered lists are renumbered.
+
+\textbf{Try:} on "Third" press \texttt{<M-k>} twice.
+
+\textbf{Expect:}
+\begin{verbatim}
+1. Third
+2. First
+3. Second
+\end{verbatim}
+The numbers stay in order; only the texts moved.
+
+\textbf{Try:} on "Unpacked" press \texttt{<M-j>}.
+
+\textbf{Expect:} "Unpacked" moves below "Packed" together with its sub-item:
+\begin{verbatim}
+- [X] Packed
+- [ ] Unpacked
+  - [ ] socks
+\end{verbatim}
+\subsection{Numbered to reorder}
+\label{sec:org4f0e106}
+\begin{enumerate}
+\item First
+\item Second
+\item Third
+\end{enumerate}
+\subsection{Boxes to reorder}
+\label{sec:orgd2d6e17}
+\begin{itemize}
+\item[{$\square$}] Unpacked
+\begin{itemize}
+\item[{$\square$}] socks
+\end{itemize}
+\item[{$\boxtimes$}] Packed
+\end{itemize}
+\section{Converting items, text and headlines}
+\label{sec:org15303e2}
+\begin{center}
+\begin{tabular}{lll}
+Key & On & Result\\
+\hline
+\texttt{<prefix>-} & a text line & an item\\
+\texttt{<prefix>-} & an item & a text line (the checkbox stays)\\
+\texttt{<prefix>-} & a headline & an item (a TODO keyword becomes a box)\\
+\texttt{<prefix>*} & an item & a headline (\texttt{[ ]} / \texttt{[X]} → TODO / DONE)\\
+\texttt{<C-c><C-*>} & an item & the whole list becomes a subtree\\
+\end{tabular}
+\end{center}
+
+In Visual mode \texttt{<prefix>-} converts every selected line; with a count the
+selection becomes a single item.
+
+\textbf{Try:} select the three lines "eggs", "flour" and "sugar" (in "Text to
+items") with \texttt{V} and \texttt{2j}, then press \texttt{<prefix>-}.
+
+\textbf{Expect:}
+\begin{verbatim}
+- eggs
+- flour
+- sugar
+\end{verbatim}
+
+\textbf{Try:} in "Items to headlines", on "[ ] Book the venue" press \texttt{<C-c><C-*>}.
+
+\textbf{Expect:} the list is gone; its items are now child headlines of "Items to
+headlines", with checkboxes turned into keywords and sub-items into deeper
+headlines:
+\begin{verbatim}
+*** TODO Book the venue
+*** DONE Send the invitations
+**** DONE Family
+**** DONE Friends
+\end{verbatim}
+\subsection{Text to items}
+\label{sec:org38bae4b}
+eggs
+flour
+sugar
+\subsection{Items to headlines}
+\label{sec:orgefbd59a}
+\begin{itemize}
+\item[{$\square$}] Book the venue
+\item[{$\boxtimes$}] Send the invitations
+\begin{itemize}
+\item[{$\boxtimes$}] Family
+\item[{$\boxtimes$}] Friends
+\end{itemize}
+\end{itemize}
+\section{Checkboxes}
+\label{sec:org80a4529}
+An item becomes a task when it starts with a checkbox: \texttt{[ ]} (open),
+\texttt{[X]} (done) or \texttt{[-]} (partly done, set automatically).
+
+\begin{itemize}
+\item \texttt{<C-Space>} (or \texttt{<C-c><C-c>}, or Emacs \texttt{<C-c><C-x><C-b>}) on the first
+line of an item toggles its box.
+\item A parent box follows its children: when some children are done it shows
+\texttt{[-]}, when all are done \texttt{[X]}. Toggling the parent itself is refused
+("Cannot toggle this checkbox").
+\item With a count: \texttt{4<C-c><C-c>} adds (or removes) a checkbox on the item;
+\texttt{16<C-c><C-c>} sets \texttt{[-]}.
+\item In Visual mode, \texttt{<C-Space>} toggles every selected item (following the
+state of the first one).
+\item On a \textbf{headline}, \texttt{<C-Space>} toggles every item of its text.
+\end{itemize}
+
+\textbf{Try:} in "Packing", toggle "Passport" and "Tickets" with \texttt{<C-Space>}.
+
+\textbf{Expect:} "Documents" first becomes \texttt{[-]} (after Passport), then \texttt{[X]}
+(after Tickets). "Documents" was never toggled by you.
+
+\textbf{Try:} on "Documents" press \texttt{<C-c><C-c>}.
+
+\textbf{Expect:} nothing changes, and the message "Cannot toggle this checkbox:
+all subitems checked" appears. (\texttt{<C-Space>} silently leaves it alone.)
+
+\textbf{Try:} on "Toothbrush" (no box yet) press \texttt{4<C-c><C-c>}.
+
+\textbf{Expect:} \texttt{- [ ] Toothbrush}. Press \texttt{4<C-c><C-c>} again to remove it.
+
+\textbf{Try:} select "Shirts", "Socks" and "Shoes" with \texttt{V2j} and press
+\texttt{<C-Space>}.
+
+\textbf{Expect:} all three become \texttt{[X]}.
+\subsection{Packing}
+\label{sec:orgbdd1cd6}
+\begin{itemize}
+\item[{$\square$}] Documents
+\begin{itemize}
+\item[{$\square$}] Passport
+\item[{$\square$}] Tickets
+\end{itemize}
+\item Toothbrush
+\item[{$\square$}] Shirts
+\item[{$\square$}] Socks
+\item[{$\square$}] Shoes
+\end{itemize}
+\subsection{Toggle everything from the headline}
+\label{sec:org3ec8003}
+\begin{itemize}
+\item[{$\square$}] one
+\item[{$\square$}] two
+\item[{$\square$}] three
+\end{itemize}
+
+\textbf{Try:} on the headline "Toggle everything from the headline" press
+\texttt{<C-Space>}.
+
+\textbf{Expect:} one, two and three are all checked. Press it again to uncheck
+them.
+\subsection{Ordered checklists}
+\label{sec:org302e170}
+With the property \texttt{ORDERED: t}, the boxes must be checked in order: an
+unchecked box blocks the ones after it.
+
+\textbf{Try:} press \texttt{<C-c><C-c>} on "Step two" (before "Step one").
+
+\textbf{Expect:} "Step two" stays unchecked and the message "Cannot toggle this
+checkbox: unchecked subitems" appears (the same words as Emacs). Check
+"Step one" first; then "Step two" can be checked.
+
+\begin{itemize}
+\item[{$\square$}] Step one
+\item[{$\square$}] Step two
+\item[{$\square$}] Step three
+\end{itemize}
+\section{Statistics cookies}
+\label{sec:org45cb940}
+A cookie \texttt{[/]} or \texttt{[\%]} at the end of an item or a headline shows how many
+of its checkboxes are done: \texttt{[2/5]} or \texttt{[40\%]}. Type the empty cookie
+yourself; Org fills it in and updates it after every toggle. You can put
+both on the same line.
+
+\begin{itemize}
+\item On an \textbf{item}, the cookie counts its direct sub-items.
+\item On a \textbf{headline}, it counts the top-level items of its text (sub-items are
+counted through their parents), or, when there are no checkboxes, its
+child TODO entries (see \href{04-todo.org}{04-todo.org}).
+\item \texttt{<prefix>\#} (Emacs \texttt{<C-c>\#}) updates the cookies of the current entry;
+\texttt{4<prefix>\#} updates every cookie of the buffer.
+\end{itemize}
+
+\textbf{Try:} go to "Party [/] [\%]" below and press \texttt{<prefix>\#} on its headline.
+
+\textbf{Expect:} the headline shows \texttt{[1/3] [33\%]} (one of its three top-level
+items, "Music", is checked). "Food" shows \texttt{[1/2]}.
+
+\textbf{Try:} check "Snacks".
+
+\textbf{Expect:} "Food" becomes \texttt{[X]} with \texttt{[2/2]}, and the headline becomes
+\texttt{[2/3] [66\%]}.
+\subsection{Party [/] [\%]}
+\label{sec:org8242909}
+\begin{itemize}
+\item[{$\boxminus$}] Food [/]
+\begin{itemize}
+\item[{$\boxtimes$}] Cake
+\item[{$\square$}] Snacks
+\end{itemize}
+\item[{$\boxtimes$}] Music
+\item[{$\square$}] Invitations
+\end{itemize}
+\subsection{Counting the whole tree [/]}
+\label{sec:orgde2857d}
+\texttt{COOKIE\_DATA} changes what a headline cookie counts: \texttt{checkbox} or \texttt{todo}
+forces one kind, and \texttt{recursive} counts every box in the tree, sub-items
+included.
+
+\textbf{Try:} press \texttt{<prefix>\#} on this headline.
+
+\textbf{Expect:} \texttt{[2/7]}: all seven boxes are counted, parents and sub-items
+alike (Food, Cake, Snacks, Decoration, Balloons, Lights, Music), and two of
+them (Cake and Music) are checked. Without \texttt{recursive} the cookie would
+count only the three top-level items: \texttt{[1/3]}.
+
+\begin{itemize}
+\item[{$\boxminus$}] Food
+\begin{itemize}
+\item[{$\boxtimes$}] Cake
+\item[{$\square$}] Snacks
+\end{itemize}
+\item[{$\square$}] Decoration
+\begin{itemize}
+\item[{$\square$}] Balloons
+\item[{$\square$}] Lights
+\end{itemize}
+\item[{$\boxtimes$}] Music
+\end{itemize}
+\subsection{Cookies without checkboxes}
+\label{sec:orge6bfee2}
+When a headline has a cookie but no checkboxes in its text and no child
+entries, \texttt{<prefix>\#} sets it to \texttt{[0/0]} or \texttt{[100\%]}.
+\subsubsection{Nothing to count [\%]}
+\label{sec:orgb08c2e4}
+\textbf{Try:} press \texttt{<prefix>\#} on "Nothing to count".
+
+\textbf{Expect:} \texttt{[100\%]}.
+\section{Radio lists}
+\label{sec:orgb72b707}
+A radio list allows only one checked item: checking one unchecks the
+others. Mark the list with \texttt{\#+attr\_org: :radio t} on the line above it;
+then \texttt{<C-c><C-c>} and \texttt{<C-Space>} work like radio buttons.
+\texttt{<C-c><C-x><C-r>} (\texttt{:Org toggle\_radio\_button}) toggles a radio button in
+any list, and \texttt{:Org checkbox\_radio\_mode} makes \texttt{<C-c><C-c>} behave that
+way in every list of the buffer.
+
+\textbf{Try:} in "Coffee size", press \texttt{<C-c><C-c>} on "Large".
+
+\textbf{Expect:} "Large" is checked and "Medium" is unchecked.
+
+\textbf{Try:} in "Normal list", put the cursor on "red" and press
+\texttt{<C-c><C-x><C-r>}.
+
+\textbf{Expect:} "red" is checked and "green" unchecked, although this list has no
+\texttt{:radio} attribute.
+\subsection{Coffee size}
+\label{sec:org0c92d11}
+\begin{itemize}
+\item[{$\square$}] Small
+\item[{$\boxtimes$}] Medium
+\item[{$\square$}] Large
+\end{itemize}
+\subsection{Normal list}
+\label{sec:orgd57504c}
+\begin{itemize}
+\item[{$\square$}] red
+\item[{$\boxtimes$}] green
+\item[{$\square$}] blue
+\end{itemize}
+\section{Sorting lists}
+\label{sec:orgb0f1a4e}
+\texttt{<prefix>hs} (Emacs \texttt{<C-c>\textasciicircum{}}) on an item sorts that item and its siblings.
+The menu has fewer keys than for headlines:
+
+\begin{center}
+\begin{tabular}{ll}
+Key & Sorts by\\
+\hline
+\texttt{a} & the item text, alphabetically\\
+\texttt{n} & the number at the start of the text\\
+\texttt{t} & the first timestamp of the item (or a timer \texttt{0:05:00 ::} term)\\
+\texttt{x} & checkbox: unchecked \texttt{[ ]} first, then \texttt{[-]}, then \texttt{[X]}\\
+\texttt{f} & a Lua function\\
+\end{tabular}
+\end{center}
+
+Uppercase keys reverse the order; a count makes \texttt{a} case-sensitive.
+Sub-items travel with their item, and ordered lists are renumbered.
+
+\textbf{Try:} on "cherry" press \texttt{<prefix>hs} then \texttt{a}.
+
+\textbf{Expect:} apple, banana (with its sub-item), cherry, numbered 1, 2, 3.
+
+\textbf{Try:} on any item of "Chores list" press \texttt{<prefix>hs} then \texttt{x}.
+
+\textbf{Expect:} the open items first, each group in its original order:
+\begin{verbatim}
+- [ ] vacuum
+- [ ] windows
+- [X] dishes
+- [X] laundry
+\end{verbatim}
+Press \texttt{<prefix>hs} then \texttt{X} (reverse) to get the checked ones first.
+
+\textbf{Try:} on "Retro" press \texttt{<prefix>hs} then \texttt{t}.
+
+\textbf{Expect:} Kickoff (Oct 1), Review (Oct 14), Retro (Nov 2).
+\subsection{Fruit list}
+\label{sec:orgf7915eb}
+\begin{enumerate}
+\item cherry
+\item banana
+\begin{itemize}
+\item a sub-item stays with banana
+\end{itemize}
+\item apple
+\end{enumerate}
+\subsection{Chores list}
+\label{sec:org99af24e}
+\begin{itemize}
+\item[{$\square$}] vacuum
+\item[{$\boxtimes$}] dishes
+\item[{$\square$}] windows
+\item[{$\boxtimes$}] laundry
+\end{itemize}
+\subsection{Meetings list}
+\label{sec:org9b58fed}
+\begin{itemize}
+\item Retro \textit{<2026-11-02 Mon>}
+\item Meeting: Kickoff \textit{<2026-10-01 Thu>}
+\item Review \textit{<2026-10-14 Wed>}
+\end{itemize}
+\section{Checkboxes that block a TODO}
+\label{sec:orgd39765f}
+With \texttt{enforce\_todo\_checkbox\_dependencies = true}, an entry cannot be marked
+DONE while it has unchecked boxes. It is off by default; for this session:
+
+\begin{verbatim}
+:lua require("org.config").opts.enforce_todo_checkbox_dependencies = true
+\end{verbatim}
+
+\textbf{Try:} turn it on, then on "Ship the release" press \texttt{cit} (next TODO
+state).
+
+\textbf{Expect:} the entry stays TODO and a message says it is blocked. Check both
+boxes and press \texttt{cit} again: it becomes DONE.
+\subsection{{\bfseries\sffamily TODO} Ship the release}
+\label{sec:orgfe04580}
+\begin{itemize}
+\item[{$\square$}] Tests pass
+\item[{$\square$}] Changelog written
+\end{itemize}
+\section{List settings}
+\label{sec:org6d2fcfd}
+\begin{center}
+\begin{tabular}{ll}
+Option (default) & Effect\\
+\hline
+\texttt{blank\_before\_new\_entry.plain\_list\_item} (auto) & blank lines between items\\
+\texttt{cycle\_include\_plain\_lists} (\texttt{true}) & \texttt{<Tab>} folds items\\
+\texttt{meta\_return\_split\_line} (\texttt{true}) & \texttt{<M-CR>} splits the text\\
+\texttt{enforce\_todo\_checkbox\_dependencies} (\texttt{false}) & open boxes block DONE\\
+\texttt{ui.checkboxes} (\texttt{false}) & icons for the boxes\\
+\end{tabular}
+\end{center}
+
+Not available (Emacs options without an org.nvim equivalent): alphabetical
+bullets (\texttt{a.}, \texttt{org-list-allow-alphabetical}), changing the bullet
+automatically when demoting (\texttt{org-list-demote-modify-bullet}) and a custom
+indentation of sub-lists (\texttt{org-list-indent-offset}).
+
+Timer lists (items whose term is a running time, \texttt{0:05:12 ::}) are covered
+in \href{20-timers-reminders.org}{20-timers-reminders.org}.
+\section{Further reading}
+\label{sec:orgd5b1c41}
+\begin{description}
+\item[{\texttt{:h org-lists}}] lists, checkboxes and cookies
+\item[{\texttt{:h org-radio-list}}] radio buttons
+\item[{\texttt{:h org-meta-return}}] \texttt{<M-CR>} in lists
+\item[{\texttt{:h org-promote-demote}}] indentation rules for items
+\item[{\texttt{:h org-sort}}] sorting lists
+\item[{\texttt{:h org-todo-statistics}}] cookies that count TODO entries
+\end{description}

@@ -1,0 +1,16 @@
+#+STARTUP: showall hidedrawers
+* A
+:PROPERTIES:
+:X: 1
+:END:
+:NOTES:
+some note
+:END:
+#+begin_quote
+q
+#+end_quote
+** B
+text
+#+begin_src lua
+print(1)
+#+end_src

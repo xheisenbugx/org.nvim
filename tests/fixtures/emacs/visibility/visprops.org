@@ -1,0 +1,25 @@
+#+STARTUP: overview
+* A
+:PROPERTIES:
+:VISIBILITY: content
+:END:
+a body
+** B
+b body
+*** C
+c
+* F
+:PROPERTIES:
+:VISIBILITY: all
+:END:
+f body
+:LOGBOOK:
+- x
+:END:
+** G
+g
+* H
+:PROPERTIES:
+:VISIBILITY: folded
+:END:
+** I

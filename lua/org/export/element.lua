@@ -741,6 +741,7 @@ function P:fill_paragraph(node, ignore_first)
     local types = { verbatim = true, code = true, ["inline-src-block"] = true, ["latex-fragment"] = true }
     M.map(node.contents, types, function(o)
       if o.value and o.value:find("\n", 1, true) then
+        -- lint: allow gsub: a newline and spaces
         o.value = o.value:gsub("\n", pad)
       end
     end)

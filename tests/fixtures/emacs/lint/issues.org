@@ -1,0 +1,83 @@
+#+TITLE: Lint issues
+#+STARTUP: nosuchoption
+#+SETUPFILE: does-not-exist.setup
+#+INCLUDE: "missing.org"
+#+OPTIONS: H:2 toc:nil nosuchopt:t
+#+CAPTION: orphan caption
+
+* A heading with a bad timestamp <2026-10-01 Mon>
+SCHEDULED: <2026-10-01 Thu>
+* TODO Planning in the wrong place
+Some text first.
+DEADLINE: <2026-10-05 Mon>
+
+* Properties
+:PROPERTIES:
+:ID:
+:CUSTOM_ID: dup
+:END:
+
+* Again
+:PROPERTIES:
+:CUSTOM_ID: dup
+:END:
+
+* Drawers
+:LOGBOOK:
+- note
+* Not closed above
+
+* Blocks
+#+begin_src
+echo no language
+#+end_src
+
+#+begin_src emacs-lisp :results nonsense :exports nowhere
+(+ 1 2)
+#+end_src
+
+#+begin_example
+unfinished
+* Links
+[[file:missing-file.org][missing file]]
+[[#no-such-custom-id][custom id]]
+[[*No such heading][fuzzy]]
+[[id:00000000-0000-0000-0000-000000000000][unknown id]]
+[[https://example.com/a%20b][percent]]
+[fn:undefined] reference.
+
+[fn:unused] An unused definition.
+
+* Lists
+1. one
+3. three
+- [ ] mixed
+  1) nested
+
+* Tables
+| a | b |
+|---+---|
+| 1 | 2 | 3 |
+#+TBLFM: $4=$1+$2
+#+TBLFM: $3=$1
+
+* Macros
+{{{undefined-macro}}}
+#+MACRO: twice $1 $1 $2
+{{{twice(x)}}}
+
+* Keywords
+#+NAME: same
+| x |
+
+#+NAME: same
+| y |
+
+#+attr_html :width
+#+results:
+: old result
+
+* Clock
+:LOGBOOK:
+CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:00] =>  2:00
+:END:

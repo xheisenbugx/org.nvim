@@ -321,11 +321,22 @@ M.set_time = set_time
 --- Is `hl` inside a COMMENT subtree (with agenda.skip_comment_trees,
 --- org-agenda-skip-comment-trees), or an ARCHIVE-tagged one (unless
 --- archived trees are included, org-agenda-archives-mode)?
+-- a plain scan: vim.tbl_contains validates its arguments on every call,
+-- and building a set per headline costs more than the few tags it holds
+local function has_archive_tag(tags)
+  for i = 1, #tags do
+    if tags[i] == "ARCHIVE" then
+      return true
+    end
+  end
+  return false
+end
+
 local function hidden(hl, include_archived, memo)
   local v = memo[hl]
   if v == nil then
     local skip_comments = config.opts.agenda.skip_comment_trees ~= false
-    v = (skip_comments and hl.commented) or (not include_archived and vim.tbl_contains(hl.tags, "ARCHIVE"))
+    v = (skip_comments and hl.commented) or (not include_archived and has_archive_tag(hl.tags))
     v = v or false
     if not v and hl.parent then
       v = hidden(hl.parent, include_archived, memo)
@@ -346,14 +357,17 @@ function M.each_headline(files, opts, fn)
   -- whether each headline is hidden, so that a subtree's ancestors are
   -- checked once rather than for every headline in it
   local memo = {}
+  local global = config.opts.agenda.skip_function_global
+  if type(global) ~= "function" then
+    global = nil
+  end
   for fidx, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
       local ok = opts.all or not hidden(hl, opts.archives, memo)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
-      local global = config.opts.agenda.skip_function_global
-      if ok and type(global) == "function" then
+      if ok and global then
         local s_ok, skip = pcall(global, hl)
         ok = not (s_ok and skip)
       end
@@ -795,6 +809,8 @@ function M.agenda(files, from, to, opts)
             ts_date = base,
             extra = leader,
             face = done and "OrgAgendaDone" or M.deadline_face(1 - diff / math.max(warn, 1)),
+            undone_face = M.deadline_face(1 - diff / math.max(warn, 1)),
+            fixface = true,
             reminder = c ~= base and kind ~= "repeat" or nil,
             overdue = c == today and base < today or nil,
             upcoming = upcoming and diff or nil,
@@ -907,6 +923,8 @@ function M.agenda(files, from, to, opts)
             ts_date = base,
             extra = leader,
             face = done and "OrgAgendaDone" or face,
+            undone_face = face,
+            fixface = true,
             habit = habit,
             reminder = (c ~= base and kind ~= "repeat") or nil,
             past = (c == today and past) and diff or nil,
@@ -945,6 +963,8 @@ function M.agenda(files, from, to, opts)
               ts_index = idx,
               extra = string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, n),
               face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+              undone_face = "OrgAgendaTimestamp",
+              fixface = true,
             })
             if acfg.remove_timeranges_from_blocks and t.line == hl.line and t.start_col then
               -- org-agenda-remove-timeranges-from-blocks: drop the range
@@ -1009,6 +1029,8 @@ function M.agenda(files, from, to, opts)
                 ts_index = idx,
                 extra = "",
                 face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                undone_face = "OrgAgendaTimestamp",
+                fixface = true,
               })
               if habits.is_habit(hl) then
                 local h = habits.parse(hl)
@@ -1038,6 +1060,8 @@ function M.agenda(files, from, to, opts)
                     extra = "",
                     sexp = m.sexp,
                     face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                    undone_face = "OrgAgendaTimestamp",
+                    fixface = true,
                   })
                   set_time(item, nil, acfg, true, m.sexp)
                   add(d, item)
@@ -1107,6 +1131,8 @@ function M.agenda(files, from, to, opts)
                       extra = inactive_leader
                         .. string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, b - a + 1),
                       face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                      undone_face = "OrgAgendaTimestamp",
+                      fixface = true,
                       inactive = true,
                     })
                     set_time(item, d == a and ts or (d == b and ts.range_end) or nil, block_acfg)
@@ -1120,6 +1146,8 @@ function M.agenda(files, from, to, opts)
                     ts_date = ts:days(),
                     extra = inactive_leader,
                     face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                    undone_face = "OrgAgendaTimestamp",
+                    fixface = true,
                     inactive = true,
                   })
                   set_time(item, ts, acfg, true)
@@ -1432,7 +1460,8 @@ function M.todo(files, keywords, opts)
       end
       return
     end
-    local item = new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil })
+    local item =
+      new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil, fixface = true })
     item.urgency = item.prio + 1
     out[#out + 1] = item
     if acfg.todo_list_sublevels == false then
@@ -1461,8 +1490,10 @@ function M.tags(files, predicate, todo_only, opts)
       return
     end
     if predicate(hl) then
-      out[#out + 1] =
-        new_item(hl, { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil })
+      out[#out + 1] = new_item(
+        hl,
+        { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil, fixface = true }
+      )
       if acfg.tags_match_list_sublevels == false then
         skip_below = hl
       end
@@ -1480,6 +1511,7 @@ function M.search(files, predicate, opts)
         type = "search",
         ts_type = "search",
         face = hl:is_done() and "OrgAgendaDone" or nil,
+        fixface = true,
         urgency = 1000,
         prio = 1000,
       })

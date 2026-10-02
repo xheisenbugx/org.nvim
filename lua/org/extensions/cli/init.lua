@@ -180,6 +180,7 @@ end
 ---@return string|nil the link made
 function M.install(dir)
   local utils = require("org.utils")
+  -- lint: allow expand: the install_dir option or $ORG_NVIM_CONFIG
   dir = vim.fs.normalize(vim.fn.expand(dir or opts().install_dir))
   local link = dir .. (is_win and "/org.cmd" or "/org")
   local bin = M.bin()
@@ -239,6 +240,7 @@ function M.health(h)
   end
   local cfg = vim.env.ORG_NVIM_CONFIG
   if cfg and cfg ~= "" then
+    -- lint: allow expand: the install_dir option or $ORG_NVIM_CONFIG
     if vim.fn.filereadable(vim.fn.expand(cfg)) == 1 then
       h.ok("cli: config $ORG_NVIM_CONFIG = " .. cfg)
     else

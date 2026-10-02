@@ -173,11 +173,16 @@ local function own_text(e, no_head)
     for _, k in ipairs(e.props.order) do
       parts[#parts + 1] = e.props.map[k]
     end
+    -- the closing lines too: without them, ":PROPERTIES:" ":END:"
+    -- ":LOGBOOK:" ":END:" would read the same as ":PROPERTIES:"
+    -- ":LOGBOOK:" ":END:" (a LOGBOOK line inside the properties)
+    parts[#parts + 1] = e.props.close
   end
   for _, name in ipairs(e.drawers) do
     local d = e.drawers[name]
     parts[#parts + 1] = d.open
     vim.list_extend(parts, d.items)
+    parts[#parts + 1] = d.close
   end
   parts[#parts + 1] = "\0"
   vim.list_extend(parts, e.body)

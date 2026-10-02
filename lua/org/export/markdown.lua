@@ -322,7 +322,7 @@ T["latex-environment"] = function(el, _, info)
   local frag = table.concat(lines, "\n") .. "\n"
   local label = html.reference(el, info, true)
   if nw(label) then
-    frag = frag:gsub("^([^\n]*)", "%1\n\\label{" .. label .. "}", 1)
+    frag = frag:gsub("^([^\n]*)", "%1\n\\label{" .. require("org.utils").gsub_escape(label) .. "}", 1)
   end
   return frag
 end

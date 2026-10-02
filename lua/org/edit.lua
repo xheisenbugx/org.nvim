@@ -44,8 +44,6 @@ function M.resolve_headline(target)
   return bufnr, file, hl
 end
 
-local region_ns = vim.api.nvim_create_namespace("org.edit.region")
-
 --- In Visual mode, the headlines of the selection when
 --- `loop_over_headlines_in_active_region` is set (Emacs
 --- org-loop-over-headlines-in-active-region): leaves Visual mode and returns
@@ -73,13 +71,14 @@ function M.region_headlines(skip)
       local fc = vim.fn.foldclosed(hl.line)
       level = level or hl.level
       if (fc == -1 or fc == hl.line) and (loop ~= "start-level" or hl.level == level) and not (skip and skip(hl)) then
-        local id = vim.api.nvim_buf_set_extmark(bufnr, region_ns, hl.line - 1, 0, {})
+        -- the edits made for earlier headlines move the later ones
+        local mark = require("org.marks").set(bufnr, hl.line)
         out[#out + 1] = {
           bufnr = bufnr,
           lnum = function()
-            local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, region_ns, id, {})
-            vim.api.nvim_buf_del_extmark(bufnr, region_ns, id)
-            return pos[1] and pos[1] + 1 or nil
+            local l = mark and mark:lnum()
+            require("org.marks").del(mark)
+            return l
           end,
         }
       end

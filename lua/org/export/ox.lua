@@ -1624,6 +1624,11 @@ function M.macro_expander(ctx)
       return M.format_time(args[1] or "")
     end,
     results = function(args)
+      -- replaced only after Babel ran (org-export-as): without it the
+      -- macro stays and exports as nothing (org-export-use-babel nil)
+      if ctx.babel == false then
+        return nil
+      end
       return args[1] or ""
     end,
   }
@@ -2480,7 +2485,7 @@ function M.resolve_coderef(ref, info)
   local r = element.map(info.parse_tree, { ["example-block"] = true, ["src-block"] = true }, function(el)
     local value = trim(el.value or "")
     local fmt = el.label_fmt or require("org.config").opts.coderef_label_format or "(ref:%s)"
-    local pat = vim.pesc(fmt):gsub("%%%%s", vim.pesc(ref))
+    local pat = vim.pesc(fmt):gsub("%%%%s", utils.gsub_escape(vim.pesc(ref)))
     local lines = vim.split(value, "\n", { plain = true })
     for i = #lines, 1, -1 do
       if lines[i]:find(pat .. "[ \t]*$") then
@@ -4275,7 +4280,11 @@ function export_as(backend, lines, opts)
     (require("org.config").opts.links or {}).abbreviations or {},
     file0.settings.link_abbrevs or {}
   )
-  local ctx = { keywords = keywords, filename = filename }
+  local ctx = {
+    keywords = keywords,
+    filename = filename,
+    babel = babel_cfg.evaluate_on_export and not opts.no_babel and true or false,
+  }
   local expander = M.macro_expander(ctx)
   local popts = {
     todo = todo,

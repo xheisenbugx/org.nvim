@@ -28,7 +28,7 @@ other versions can format differently).
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
-make lint                                 # stylua --check
+make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
@@ -68,6 +68,37 @@ Some things to know before you start:
 - **Defaults live in one place.** Every option and its default is in
   [`lua/org/config.lua`](lua/org/config.lua). Add new options there and
   document them in `:h org-config`.
+- **Saving goes through `utils.save_buffer`, and write logic through
+  `org.write_hooks`.** Org writes the files it edits in the background
+  (refile, archive, capture, agenda edits, mobile, tangle, ...) with
+  `utils.save_buffer`, which uses `:noautocmd write`, so a `BufWritePre`
+  or `BufWritePost` autocommand never sees those saves. Code that must run
+  around every write, by `:w` or by org, registers a write hook instead:
+
+  ```lua
+  require("org.write_hooks").register("my-ext", {
+    order = 50,        -- pre hooks run lowest first, post hooks in reverse
+    filetype = "org",  -- optional filter
+    pre = function(bufnr, ctx)
+      -- change the buffer before it's written; keep what post needs in
+      -- ctx.state. Return false, "msg" (or throw) to veto: nothing is
+      -- written, :w fails and save_buffer returns false, "msg".
+    end,
+    post = function(bufnr, ctx)
+      -- ctx.ok: whether the file was written. Runs for every hook whose
+      -- pre ran, also after a veto or a failed write: restore the buffer
+      -- here (and its 'modified' flag).
+    end,
+  })
+  ```
+
+  `ctx.source` is `"write"` or `"save_buffer"`. Unregister in your
+  extension's `teardown` with `require("org.write_hooks").unregister("my-ext")`.
+  crypt (`encrypt_on_save`, order 50), transclusion (order 10) and roam
+  (order 20) are the built-in users. Don't write org buffers yourself with
+  `:write` from code: inside an autocommand or a `BufWriteCmd` the hooks
+  don't run; call `utils.save_buffer` (or `save_buffer_or_warn`) and check
+  its result.
 
 ## Adding a feature
 
@@ -88,6 +119,76 @@ Some things to know before you start:
 
 4. Document it in `doc/org.txt` (and in the README if it's user-visible).
 5. Run `make format`, `make test` and `make lint`.
+
+### Source lint rules
+
+Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
+(`tests/spec/lint_sources_spec.lua` runs it too). It reports
+`file:line: rule: message` for bug classes that kept turning up in review:
+
+| Rule | Flags | Do instead |
+| --- | --- | --- |
+| `expand` | `vim.fn.expand(x)` where `x` isn't a string literal. Vim expansion runs `` `backticks` `` as shell commands and globs, and paths often come from the document. | `utils.expand_vars(x)` (only `~` and `$VAR`) or `utils.expand(x, base)` |
+| `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
+| `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
+
+When a hit is audited and safe (a config option, a number, a constant),
+allow it with a comment on the same line or the line above, and say why:
+
+```lua
+-- lint: allow expand: the jar_path option, not document text
+local jar = vim.fn.expand(o.jar_path)
+```
+
+An allow comment without a reason, or one that no longer allows anything,
+is reported too.
+
+## Comparing with Emacs
+
+org.nvim aims to behave like Emacs Org 9.8.10. Besides the hand-written
+`*_emacs_spec.lua` and `*_parity_spec.lua` specs, these specs compare
+org.nvim with real Emacs output that's checked in under
+`tests/fixtures/emacs/`:
+
+| Spec | Compares |
+| --- | --- |
+| `emacs_visibility_parity_spec.lua` | startup visibility and TAB/S-TAB |
+| `emacs_agenda_parity_spec.lua` | agenda views |
+| `emacs_export_parity_spec.lua` | exports of `examples/*.org` |
+| `emacs_clocktable_parity_spec.lua` | clock tables |
+| `emacs_lint_parity_spec.lua` | org-lint reports |
+
+They only read the fixtures, so you don't need Emacs to run them. To
+regenerate the fixtures after you change an input or add a case, you need
+Emacs with Org 9.8.10:
+
+```sh
+ORG_DIR=/path/to/org-9.8.10 make parity-fixtures   # or AREAS="agenda lint"
+git diff tests/fixtures/emacs                      # review what Emacs changed
+```
+
+[`scripts/emacs-parity/README.md`](scripts/emacs-parity/README.md)
+explains how to add cases, how the runs are kept deterministic (a fixed
+"now", time zone and locale), and what to do when a comparison fails:
+fix the bug, document an intended difference, or mark the case as a known
+failure.
+
+## Fuzz tests
+
+The `tests/spec/fuzz_*_spec.lua` specs run the parser, the fold levels,
+editing commands and the merge driver on random Org text from
+[`tests/helpers/fuzz.lua`](tests/helpers/fuzz.lua), a seeded generator you
+can reuse in new specs. `make test` runs a few fixed seeds. To look for
+bugs, run many more, or replay the seed a failure names:
+
+```sh
+ORG_FUZZ_ITERATIONS=5000 make test SPEC="tests/spec/fuzz_parser_spec.lua tests/spec/fuzz_ops_spec.lua tests/spec/fuzz_merge_spec.lua"
+ORG_FUZZ_SEED=640 make test SPEC=tests/spec/fuzz_ops_spec.lua
+```
+
+A failure prints the input as a Lua table. Cut it down to the few lines
+that still fail and add it to `tests/spec/fuzz_regressions_spec.lua` with
+the fix.
 
 ## Pull requests
 

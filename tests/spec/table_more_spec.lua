@@ -227,6 +227,23 @@ describe("table import / export", function()
     eq({ "x,y" }, utils.readfile(path))
   end)
 
+  it("never runs `backticks` in TABLE_EXPORT_FILE", function()
+    local path = dir .. "/t-`echo pwned`.csv"
+    org_buffer({
+      "* Data",
+      ":PROPERTIES:",
+      ":TABLE_EXPORT_FILE: " .. path,
+      ":TABLE_EXPORT_FORMAT: orgtbl-to-csv",
+      ":END:",
+      "| x | y |",
+    }, { 6, 2 })
+    quiet(function()
+      tbl.export()
+    end)
+    eq({ "x,y" }, utils.readfile(path))
+    eq(false, utils.exists(dir .. "/t-pwned.csv"))
+  end)
+
   it("returns false outside tables", function()
     org_buffer({ "text" }, { 1, 0 })
     eq(false, tbl.export())

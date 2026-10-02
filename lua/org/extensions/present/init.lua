@@ -714,10 +714,10 @@ function M.start(n)
     callback = function()
       sync(st)
       render(st, vim.api.nvim_win_get_cursor(st.win)[1])
+      -- autocommands don't nest in BufWriteCmd: save_buffer runs the
+      -- write hooks (crypt, transclusion, ...)
       if vim.api.nvim_buf_get_name(st.source) ~= "" then
-        vim.api.nvim_buf_call(st.source, function()
-          vim.cmd("silent write")
-        end)
+        require("org.utils").save_buffer_or_warn(st.source)
       end
     end,
   })

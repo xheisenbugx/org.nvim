@@ -9,7 +9,7 @@ implementation for Neovim 0.11+ written in pure Lua with no dependencies.
 ```sh
 make test                                  # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
-make lint                                  # stylua --check lua plugin ftplugin syntax tests
+make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
 ```
 
@@ -21,6 +21,13 @@ make format                                # stylua over the same paths
   quotes, LuaJIT syntax). Run `make format` and make sure `make lint` passes
   before you finish. Don't use `goto` as a field or method name: stylua
   can't parse it (write `M["goto"]`).
+- `make lint` also runs `scripts/lint_sources.lua`, which flags bug classes
+  that kept coming back: `vim.fn.expand()` on a non-literal (it runs
+  `backticks`; use `utils.expand_vars` / `utils.expand`), a `gsub`
+  replacement that is a variable or concatenation (`%` in it is a capture;
+  wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
+  with `line:find(value)` (capture it with `()`). An audited safe use takes
+  `-- lint: allow <rule>: <reason>` on its line or the line above.
 
 ## Layout
 
@@ -53,6 +60,10 @@ make format                                # stylua over the same paths
 - **Options live in `config.lua`.** A new option needs a default there, an
   entry under `:h org-config` in `doc/org.txt`, and a type in
   `lua/org/_meta/`.
+- **Org saves through `utils.save_buffer`.** It writes with `:noautocmd`,
+  so logic that must run around every write (`:w` or org's own saves)
+  registers a hook in `lua/org/write_hooks.lua`, not a
+  BufWritePre/BufWritePost autocommand. See CONTRIBUTING.md.
 - **Key conflicts matter.** Before adding a default key in `mappings.lua`,
   check it isn't a prefix of, or already taken by, another mapping.
 
@@ -64,6 +75,13 @@ Emacs does (the Org source and manual) instead of guessing. Specs named
 their expectations to make a test pass unless Emacs really does something
 else. Intentional differences go under `:h org-differences` in `doc/org.txt`.
 `docs/parity-review.md` records past parity reviews.
+
+`tests/spec/emacs_*_parity_spec.lua` compare org.nvim with real Emacs output
+checked in under `tests/fixtures/emacs/` (visibility, agenda, export, clock
+tables, org-lint). Regenerate those fixtures with `make parity-fixtures`
+(it needs Emacs with Org 9.8.10, see `scripts/emacs-parity/README.md`), never
+by hand. Rewrite rules for intentional differences live only in `NORMALISE`
+in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
 
 ## Tests
 

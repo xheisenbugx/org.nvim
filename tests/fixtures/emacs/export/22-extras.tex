@@ -1,0 +1,1059 @@
+\section{How to use this file}
+\label{sec:org8463113}
+This file collects the features of org.nvim that don't belong to one of the
+other example files: finding help, completion, the syntax checker
+(org-lint), speed keys, inline tasks, encryption, special edit buffers,
+element commands, structure templates, display options, setup files, the
+Emacs keys, and the integrations (org-protocol, feeds, MobileOrg, the Lua
+API).
+
+\begin{itemize}
+\item The file starts folded (\texttt{\#+STARTUP: overview}). Put the cursor on a
+heading and press \texttt{<Tab>} to open it; \texttt{<S-Tab>} cycles the whole buffer.
+\item Nothing breaks if you make a mess: \texttt{u} undoes, and
+\texttt{git checkout examples/22-extras.org} restores the file.
+\item \texttt{g?} lists every key of the buffer (see the next section).
+\item \texttt{<prefix>} means \texttt{<leader>o}, the default \texttt{mappings.prefix}. With
+\texttt{examples/minimal\_init.lua} the leader is \texttt{<Space>}, so \texttt{<prefix>'} is
+\texttt{<Space>o'}.
+\item Lines starting with \textbf{Try:} are exercises with the exact keys to press;
+\textbf{Expect:} says what you should see afterwards.
+\item Lines starting with \texttt{\#} followed by a space are Org comments that annotate
+the examples. They are dimmed and never exported.
+\end{itemize}
+
+Start Neovim from the repository root with the bundled init file, so your
+own config is not involved:
+
+\begin{verbatim}
+nvim -u examples/minimal_init.lua examples/22-extras.org
+\end{verbatim}
+
+\texttt{examples/minimal\_init.lua} sets the leader keys (\texttt{<Space>} and \texttt{\textbackslash{}}),
+points the agenda at \texttt{examples/*.org}, sends captures to a scratch
+\texttt{org\_directory} under \texttt{stdpath("state")}, and defines a few capture
+templates and custom agenda commands. Everything this file talks about is
+left at its default, so several sections show how to turn a feature on
+for the current session with a \texttt{:lua} command. Those changes last until
+you quit Neovim.
+\subsection{Keys in this file}
+\label{sec:org10c0f82}
+\begin{center}
+\begin{tabular}{lll}
+Key & Emacs key & What it does\\
+\hline
+\texttt{g?} &  & list the keys of the buffer\\
+\texttt{:Org} &  & pick any org command\\
+\texttt{<C-x><C-o>} & \texttt{M-TAB} & complete (Insert mode)\\
+\texttt{:Org lint} & \texttt{M-x org-lint} & check the syntax of the buffer\\
+\texttt{<prefix>'} & \texttt{C-c '} & edit in a separate buffer\\
+\texttt{<prefix>ib} & \texttt{C-c C-,} & insert a \texttt{\#+begin\_} block\\
+\texttt{<prefix>v} & \texttt{M-h} & select the element\\
+\texttt{<M-\}>} / \texttt{<M-\{>} & \texttt{M-\}} / \texttt{M-\{} & next / previous element\\
+\texttt{<C-M-t>} & \texttt{C-M-t} & swap with the previous element\\
+\texttt{<C-c>:} & \texttt{C-c :} & toggle fixed-width \texttt{:} lines\\
+\texttt{<C-c><C-x>t} & \texttt{C-c C-x t} & insert an inline task\\
+\texttt{:Org num\_mode} & \texttt{M-x org-num-mode} & number the headlines\\
+\texttt{<C-c><C-x>\textbackslash{}} & \texttt{C-c C-x \textbackslash{}} & toggle pretty entities\\
+\texttt{:checkhealth org} &  & check the setup\\
+\end{tabular}
+\end{center}
+\section{Getting help inside Neovim}
+\label{sec:org99371d7}
+You never need to leave Neovim to find a key or a command.
+\subsection{g?: the keys of the current buffer}
+\label{sec:org9627784}
+\texttt{g?} in an org buffer (or in the agenda) opens a floating window listing
+every mapping of that buffer, grouped by topic ("Anywhere", "Structure",
+"Links" \ldots{}). Each row lists every key of one command (the Vim-style key,
+the \texttt{<prefix>} key and the Emacs key) and what it does. \texttt{i\_} marks
+Insert-mode keys.
+
+In the window:
+\begin{itemize}
+\item \texttt{/} searches the list like any buffer,
+\item \texttt{\{} and \texttt{\}} jump between sections,
+\item \texttt{q}, \texttt{<Esc>} or \texttt{g?} close it.
+\end{itemize}
+
+\textbf{Try:} press \texttt{g?} here, then type \texttt{/Footnote:} and \texttt{<CR>}.
+\textbf{Expect:} the cursor lands on the row
+\texttt{<leader>oif  <C-c><C-x>f  Footnote: jump / new / menu (count)}.
+Press \texttt{q} to close the window.
+
+\textbf{Try:} press \texttt{g?}, then \texttt{\}} a few times.
+\textbf{Expect:} the cursor jumps from one section heading to the next.
+\subsection{:Org: every command by name}
+\label{sec:orga368926}
+Every action of org.nvim has a name (the names in \texttt{:h org-keymaps}), and
+\texttt{:Org \{name\}} runs it, whether or not it has a key:
+
+\begin{itemize}
+\item \texttt{:Org} alone shows a picker with every command and its description.
+\item \texttt{:Org <Tab>} completes the names on the command line.
+\item Some commands take arguments: \texttt{:Org agenda a}, \texttt{:Org capture t},
+\texttt{:Org export html}, \texttt{:Org lint duplicate-name}, \texttt{:Org timer\_countdown 5}.
+\item Some take a range, e.g. \texttt{:'<,'>Org link\_preview} previews the image
+links of the Visual selection.
+\end{itemize}
+
+\textbf{Try:} type \texttt{:Org} and \texttt{<CR>}, then type \texttt{num} to filter the list and pick
+\texttt{num\_mode}.
+\textbf{Expect:} every headline of this file gets a number in front of it
+(\texttt{1}, \texttt{2}, \texttt{2.1} \ldots{}). Run \texttt{:Org num\_mode} again to remove them.
+
+\textbf{Try:} type \texttt{:Org toggle\_} and press \texttt{<Tab>} repeatedly.
+\textbf{Expect:} the command line cycles through \texttt{toggle\_archive\_tag},
+\texttt{toggle\_checkbox}, \texttt{toggle\_comment} and the other \texttt{toggle\_...} commands.
+\subsection{:help}
+\label{sec:orge87d85b}
+The manual is \texttt{:h org}. Every section has a tag, and most tags are named
+after the Emacs feature: \texttt{:h org-links}, \texttt{:h org-lint}, \texttt{:h org-crypt},
+\texttt{:h org-speed-commands}, \texttt{:h org-emacs-keys}, \texttt{:h org-differences}.
+\texttt{:h org-keymaps} lists every action with its default key, and
+\texttt{:h org-config} every option.
+
+\textbf{Try:} \texttt{:h org-differences} and read the part about the element commands.
+\section{Checking your setup: :checkhealth org}
+\label{sec:org9a91767}
+\texttt{:checkhealth org} checks everything org.nvim depends on and prints what
+it found, in five parts:
+
+\begin{description}
+\item[{org.nvim}] Neovim version, \texttt{org\_directory}, agenda files, notes file, TODO
+keywords
+\item[{external tools}] pandoc, makeinfo, \LaTeX{}, and the interpreter of every
+Babel language
+\item[{image and \LaTeX{} previews}] which image backend draws previews (see
+\href{21-images-latex.org}{21-images-latex})
+\item[{completion}] omnifunc, blink.cmp or nvim-cmp
+\item[{terminal keys}] whether tmux and the terminal pass the keys org maps
+\end{description}
+
+The last part matters more than it seems: keys such as \texttt{<C-CR>}, \texttt{<S-CR>},
+\texttt{<C-,>}, \texttt{<M-S-CR>} only reach Neovim when the terminal sends "extended
+keys" (CSI u). Inside tmux you need \texttt{set -s extended-keys on} and a
+\texttt{terminal-features} entry with \texttt{extkeys}. The check also reads the
+keybinds of Ghostty, kitty and WezTerm and warns when one of them takes a
+key org.nvim maps (Ghostty's \texttt{ctrl+tab}, kitty's \texttt{ctrl+shift+enter}, \ldots{}).
+On macOS, Option must send Alt for the \texttt{<M-...>} keys.
+
+\textbf{Try:} run \texttt{:checkhealth org}.
+\textbf{Expect:} a line "OK N agenda file(s) found" (the \texttt{.org} files of
+\texttt{examples/} plus those in the scratch directory), one line per Babel
+language saying whether its interpreter was found, and a "terminal keys"
+part listing the keys that need CSI u.
+
+If a key does nothing, test it: in Insert mode press \texttt{<C-v>} and then the
+key. Neovim inserts what it received: \texttt{<C-CR>} should give \texttt{<C-CR>}, not
+a plain \texttt{\textasciicircum{}M}.
+\section{Completion}
+\label{sec:org97668aa}
+org.nvim completes Org syntax as you type, like Emacs \texttt{org-pcomplete}
+(\texttt{M-TAB}). The same candidates are available three ways:
+
+\begin{itemize}
+\item the built-in omnifunc, \texttt{<C-x><C-o>} in Insert mode. It is set
+automatically in every org buffer, nothing to configure;
+\item a \href{https://github.com/Saghen/blink.cmp}{blink.cmp} source;
+\item an \href{https://github.com/hrsh7th/nvim-cmp}{nvim-cmp} source.
+\end{itemize}
+
+The blink.cmp source, in your blink.cmp options:
+
+\begin{verbatim}
+sources = {
+  per_filetype = { org = { inherit_defaults = true, "org" } },
+  providers = { org = { name = "Org", module = "org.completion.blink" } },
+}
+\end{verbatim}
+
+The nvim-cmp source:
+
+\begin{verbatim}
+require("cmp").register_source("org", require("org.completion.cmp").new())
+-- and add { name = "org" } to the sources of cmp.setup.filetype("org", ...)
+\end{verbatim}
+\subsection{What completes where}
+\label{sec:orgd2d6e17}
+You type \ldots{} and it completes:
+
+\begin{description}
+\item[{stars and a space}] TODO keywords, and \texttt{COMMENT}
+\item[{\texttt{:} after a headline title}] tags of the file and \texttt{\#+TAGS}, not those
+already on the headline
+\item[{\texttt{\#+}}] keywords: \texttt{TITLE:}, \texttt{STARTUP:}, \texttt{BEGIN\_SRC} \ldots{}
+\item[{\texttt{\#+STARTUP:} and a space}] startup words: \texttt{overview}, \texttt{indent}, \texttt{num} \ldots{}
+\item[{\texttt{\#+OPTIONS:} and a space}] export options: \texttt{toc:}, \texttt{num:}, \texttt{\textasciicircum{}:} \ldots{}
+\item[{\texttt{\#+FILETAGS: :}}] tags
+\item[{\texttt{\#+begin\_src} and a space}] languages
+\item[{\texttt{\#+begin\_src lua :} or \texttt{\#+HEADER: :}}] header arguments (\texttt{:results}, \texttt{:var}
+\ldots{})
+\item[{\texttt{\#+BEGIN: clocktable :}}] clock table parameters
+\item[{\texttt{\textbackslash{}}}] entities: \texttt{\textbackslash{}alpha}, \texttt{\textbackslash{}rarr} \ldots{}
+\item[{\texttt{:} at line start in a property drawer}] property names the entry doesn't
+have yet
+\item[{\texttt{:} at line start elsewhere}] drawer names (\texttt{PROPERTIES:}, \texttt{LOGBOOK:} \ldots{})
+\item[{\texttt{[[}}] link types, stored links, abbreviations, headlines
+\item[{\texttt{[[*}}] headlines of the buffer
+\item[{\texttt{[[\#}}] \texttt{CUSTOM\_ID} values of the buffer
+\end{description}
+
+With the omnifunc, what you already typed filters the list: \texttt{\#+ST} then
+\texttt{<C-x><C-o>} offers only \texttt{STARTUP:}. Keywords are offered in the case you
+typed (\texttt{\#+st} gives \texttt{startup:}).
+\subsection{Practice area}
+\label{sec:org15303e2}
+\textbf{Try:} on the empty line below, type \texttt{\#+STA} then \texttt{<C-x><C-o>}.
+
+\textbf{Expect:} \texttt{\#+STA} becomes \texttt{\#+STARTUP:} (the only match). Then type a space
+and \texttt{<C-x><C-o>} again: a menu of startup words (\texttt{fold}, \texttt{overview},
+\texttt{nofold} \ldots{}). Delete the line afterwards (\texttt{dd}).
+
+\textbf{Try:} on the empty line below, type \texttt{\#+begin\_src l} then \texttt{<C-x><C-o>}.
+
+\textbf{Expect:} a menu with \texttt{latex}, \texttt{lisp} and \texttt{lua}, the
+languages starting with "l". Pick \texttt{lua}, type a space and \texttt{:ex} then
+\texttt{<C-x><C-o>}: \texttt{:exports} is offered.
+
+\textbf{Try:} on the empty line below, type \texttt{[[*Comp} then \texttt{<C-x><C-o>}.
+
+\textbf{Expect:} \texttt{[[*Completion} (the heading of this section). Finish the link
+with \texttt{]]} and press \texttt{<Esc>}, then \texttt{<CR>} on it: the cursor jumps to
+"* Completion".
+
+\textbf{Try:} on the empty line below, type \texttt{[[\#} then \texttt{<C-x><C-o>}.
+
+\textbf{Expect:} the \texttt{CUSTOM\_ID} values of this file: \texttt{\#extras-lint} (the lint
+section further down) and \texttt{\#same-id} twice (from the intentionally broken
+lint playground).
+
+\textbf{Try:} on the empty line below, type \texttt{\textbackslash{}alp} then \texttt{<C-x><C-o>}.
+
+\textbf{Expect:} \texttt{\textbackslash{}Alpha} and \texttt{\textbackslash{}alpha} (the omnifunc ignores case when it
+filters). With pretty entities on (see "Display options") they show as Α
+and α.
+\subsubsection{Tags and TODO keywords}
+\label{sec:org22e105b}
+\textbf{Try:} put the cursor at the end of the headline "Tag practice" below
+(\texttt{\$}), press \texttt{a}, type a space, \texttt{:} and \texttt{<C-x><C-o>}.
+\textbf{Expect:} the menu offers \texttt{crypt:}, \texttt{home:} and \texttt{urgent:}, but not
+\texttt{work:}, which the headline already has.
+
+\textbf{Try:} on the headline "Keyword practice", put the cursor on the K of
+"Keyword", press \texttt{i} and then \texttt{<C-x><C-o>}.
+\textbf{Expect:} \texttt{TODO}, \texttt{DONE} and \texttt{COMMENT}. Pick \texttt{TODO} and type a space: the
+headline now reads "TODO Keyword practice".
+\begin{enumerate}
+\item Tag practice\hfill{}\textsc{work}
+\label{sec:org4f04a7e}
+\item Keyword practice
+\label{sec:org2ee9fa0}
+\end{enumerate}
+\subsubsection{Properties}
+\label{sec:orgefbd59a}
+\textbf{Try:} put the cursor on the \texttt{:Effort:} line of the drawer below, press
+\texttt{o} to open a new line in the drawer, type \texttt{:} and \texttt{<C-x><C-o>}.
+\textbf{Expect:} property names such as \texttt{ID:}, \texttt{CUSTOM\_ID:}, \texttt{CATEGORY:},
+\texttt{ORDERED:} \ldots{} but not \texttt{Effort:}, which this entry already has. Delete
+the line when done.
+\begin{enumerate}
+\item Property practice
+\label{sec:org38bae4b}
+\end{enumerate}
+\section{Structure templates and org-tempo}
+\label{sec:orgc8c3ec6}
+Blocks (\texttt{\#+begin\_src}, \texttt{\#+begin\_quote} \ldots{}) are tedious to type. Two
+helpers insert them.
+\subsection{<prefix>ib: insert a block}
+\label{sec:org8457a29}
+\texttt{<prefix>ib} (Emacs \texttt{C-c C-,}, org-insert-structure-template) asks for a
+block type and inserts an empty block at the cursor, or wraps the Visual
+selection in one. The cursor goes inside the block, or right after
+\texttt{\#+begin\_src} and a space so you can type the language. The keys come from
+\texttt{structure\_template\_alist}:
+
+\begin{center}
+\begin{tabular}{llll}
+Key & Block & Key & Block\\
+\hline
+\texttt{a} & \texttt{\#+begin\_export ascii} & \texttt{l} & \texttt{\#+begin\_export latex}\\
+\texttt{c} & \texttt{\#+begin\_center} & \texttt{q} & \texttt{\#+begin\_quote}\\
+\texttt{C} & \texttt{\#+begin\_comment} & \texttt{s} & \texttt{\#+begin\_src}\\
+\texttt{e} & \texttt{\#+begin\_example} & \texttt{v} & \texttt{\#+begin\_verse}\\
+\texttt{E} & \texttt{\#+begin\_export} & \texttt{h} & \texttt{\#+begin\_export html}\\
+\end{tabular}
+\end{center}
+
+\texttt{<Tab>} in the menu asks for any type by name (a custom block such as
+\texttt{\#+begin\_note} too). Emacs writes that one in upper case
+(\texttt{\#+BEGIN\_NOTE}), and so does org.nvim.
+
+\textbf{Try:} select the two lines of the poem below with \texttt{V j}, press
+\texttt{<prefix>ib} and then \texttt{v}.
+\textbf{Expect:} the lines are wrapped:
+\begin{verbatim}
+#+begin_verse
+Roses are red,
+violets are blue.
+#+end_verse
+\end{verbatim}
+
+Roses are red,
+violets are blue.
+
+\textbf{Try:} on the empty line right after this paragraph (just before the
+next heading), press \texttt{<prefix>ib} then \texttt{s}, type \texttt{lua} and \texttt{<Esc>}.
+\textbf{Expect:} the empty line becomes an empty \texttt{\#+begin\_src lua} /
+\texttt{\#+end\_src} block: after \texttt{s} the cursor waited right after
+\texttt{\#+begin\_src} and a space, so what you typed became the language.
+\subsection{org-tempo: <s<Tab>}
+\label{sec:orgd81a00d}
+With \texttt{tempo = true} (the Emacs org-tempo module, off by default), typing
+\texttt{<} plus a key of the table above and then \texttt{<Tab>} in Insert mode, alone
+on a line, expands to the block. \texttt{<L}, \texttt{<H}, \texttt{<A} and \texttt{<i} expand to
+the keywords \texttt{\#+latex:}, \texttt{\#+html:}, \texttt{\#+ascii:} and \texttt{\#+index:}, and
+\texttt{<I} asks for a file to \texttt{\#+include:}.
+
+\textbf{Try:} turn it on for this session:
+\begin{verbatim}
+:lua require("org.config").opts.tempo = true
+\end{verbatim}
+Then on the empty line below press \texttt{i}, type \texttt{<q} and \texttt{<Tab>}.
+
+\textbf{Expect:} \texttt{<q} is replaced by
+\begin{verbatim}
+#+begin_quote
+#+end_quote
+\end{verbatim}
+with the cursor on the empty line between them, still in Insert mode.
+
+\textbf{Try:} on another empty line, \texttt{i}, \texttt{<L}, \texttt{<Tab>}, then type \texttt{\textbackslash{}newpage}.
+\textbf{Expect:} the line reads \texttt{\#+latex: \textbackslash{}newpage}.
+\section{Special edit buffers: <prefix>'}
+\label{sec:org302e170}
+\texttt{<prefix>'} (Emacs \texttt{C-c '}, org-edit-special) opens the element at the
+cursor in a separate buffer with the right filetype, so you get the
+syntax, indentation and LSP of that language. Save it back:
+
+\begin{itemize}
+\item \texttt{<prefix>'} (or \texttt{<C-c>'}) in the edit buffer saves and closes it,
+\item \texttt{:w} saves without closing,
+\item \texttt{<C-c><C-k>} throws the changes away (the \texttt{edit\_src.abort} key).
+\end{itemize}
+
+It works on:
+
+\begin{center}
+\begin{tabular}{ll}
+At the cursor & You edit\\
+\hline
+a \texttt{\#+begin\_src LANG} block & the code, filetype \texttt{LANG}\\
+an inline \texttt{src\_LANG\{...\}} block & the code, kept on one line\\
+a \texttt{\#+begin\_example} block & the text\\
+a \texttt{\#+begin\_export html} block & the text, filetype \texttt{html}\\
+a \texttt{\#+begin\_comment} block & the text\\
+\texttt{:} fixed-width lines & the lines without the \texttt{:}\\
+a \LaTeX{} fragment \texttt{\$x\$}, \texttt{\textbackslash{}(x\textbackslash{})}, \texttt{\textbackslash{}[x\textbackslash{}]} & the formula (filetype \texttt{plaintex})\\
+a \texttt{\textbackslash{}begin\{env\}} \ldots{} \texttt{\textbackslash{}end\{env\}} & the environment\\
+a footnote reference \texttt{[fn:label]} & the definition of that footnote\\
+\texttt{\#+INCLUDE:}, \texttt{\#+SETUPFILE:} & visits the file\\
+a \texttt{SCHEDULED:} / \texttt{DEADLINE:} line & runs \texttt{<prefix>s} / \texttt{<prefix>d}\\
+a timestamp & the date prompt\\
+a link & follows it\\
+\end{tabular}
+\end{center}
+
+Anywhere else it says "No special environment to edit here".
+
+If the file changed under an open edit buffer, \texttt{:w} refuses to overwrite
+the conflicting region; look at both versions and use \texttt{:w!} to force it.
+\subsection{Examples to edit}
+\label{sec:orgbdd1cd6}
+\textbf{Try:} put the cursor on \texttt{print} below and press \texttt{<prefix>'}.
+\textbf{Expect:} a window with one line, \texttt{print("from the edit buffer")}, and
+\texttt{:set ft?} says \texttt{filetype=lua}. Change the text, press \texttt{<prefix>'}: the
+block below shows your change.
+
+\begin{verbatim}
+print("from the edit buffer")
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>'} on the first line of the fixed-width area below.
+\textbf{Expect:} the edit buffer shows \texttt{first line} and \texttt{second line} without
+the \texttt{:} markers. Add a third line, press \texttt{<prefix>'}: it comes back as
+\texttt{: third line}.
+
+\begin{verbatim}
+first line
+second line
+\end{verbatim}
+
+\textbf{Try:} \texttt{<prefix>'} with the cursor inside the \texttt{\$...\$} formula below.
+\textbf{Expect:} a buffer with only \texttt{a\textasciicircum{}2 + b\textasciicircum{}2 = c\textasciicircum{}2}.
+
+Pythagoras: \(a^2 + b^2 = c^2\) for a right triangle.
+
+\textbf{Try:} \texttt{<prefix>'} on the environment below.
+\textbf{Expect:} the whole \texttt{\textbackslash{}begin\{align\}} \ldots{} \texttt{\textbackslash{}end\{align\}}, filetype
+\texttt{plaintex}.
+
+\begin{align}
+e^{i\pi} + 1 &= 0
+\end{align}
+
+\textbf{Try:} \texttt{<prefix>'} on the inline block in this line: \texttt{echo inline}.
+\textbf{Expect:} a buffer with \texttt{echo inline}, filetype \texttt{sh}.
+
+\textbf{Try:} \texttt{<prefix>'} on \texttt{[fn:extras1]} in this sentence\footnote{The definition of this footnote, edited from the reference.}.
+\textbf{Expect:} a buffer with the text of the definition just below. Edit it
+and press \texttt{<prefix>'} to put it back.
+
+\begin{verbatim}
+An example block: <prefix>' opens it too.
+\end{verbatim}
+\subsection{Narrowing is the same idea}
+\label{sec:org3ec8003}
+\texttt{<prefix>hn} edits the current subtree in a separate buffer, \texttt{<prefix>nb}
+the block at the cursor and \texttt{<prefix>ne} the element at the cursor
+(Emacs \texttt{C-x n s}, \texttt{C-x n b}, \texttt{C-x n e}, which are taken by Vim keys
+here). \texttt{:w} writes back, \texttt{<C-c>'} saves and closes. See
+\href{01-outline.org}{01-outline}.
+\section{Elements: paragraphs, lists, blocks, tables \ldots{}}
+\label{sec:orgfee8a47}
+Org calls the parts of an entry's text \emph{elements}: paragraphs, plain
+lists and their items, blocks, drawers, tables, fixed-width areas,
+keywords and comments. The blank lines after an element belong to it.
+Some commands work on whole elements, like Emacs' \texttt{M-\}}, \texttt{M-h}, \texttt{C-M-t}:
+
+\begin{center}
+\begin{tabular}{lll}
+Key & Emacs & What it does\\
+\hline
+\texttt{<M-\}>} & \texttt{M-\}} & next element at the same level\\
+\texttt{<M-\{>} & \texttt{M-\{} & previous element\\
+\texttt{<C-c><C-\textasciicircum{}>} & \texttt{C-c C-\textasciicircum{}} & up to the parent element\\
+\texttt{<C-c><C-\_>} & \texttt{C-c C-\_} & into the first element inside\\
+\texttt{<prefix>v} & \texttt{M-h} & select it; again adds the next\\
+\texttt{<C-M-t>} & \texttt{C-M-t} & swap with the previous one\\
+\texttt{<M-k>} \texttt{<M-j>} & \texttt{M-up} \texttt{M-down} & on text: drag it up / down\\
+\texttt{<C-c><M-f>} & \texttt{C-c M-f} & next block (\texttt{<C-c><M-b>} prev)\\
+\texttt{<C-c>:} & \texttt{C-c :} & toggle \texttt{:} fixed-width\\
+\end{tabular}
+\end{center}
+
+Emacs' \texttt{M-h} is \texttt{<M-h>} (promote) in org.nvim, so select is \texttt{<prefix>v}.
+The commands always act on whole lines.
+\subsection{Practice}
+\label{sec:org80a4529}
+\textbf{Try:} put the cursor on "First paragraph" and press \texttt{<M-\}>} four times.
+\textbf{Expect:} the cursor visits "- a list item", "- another item" (inside a
+list it moves from item to item), the table, and "Last paragraph", in
+that order. \texttt{<M-\{>} goes back the same way.
+
+First paragraph. It is one element even though
+it spans two lines.
+
+\begin{itemize}
+\item a list item
+\item another item
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{lr}
+a table & 1\\
+\end{tabular}
+\end{center}
+
+Last paragraph.
+
+\textbf{Try:} on "Last paragraph" press \texttt{<C-M-t>}.
+\textbf{Expect:} "Last paragraph." and the table swap places, and the cursor is
+after both. \texttt{u} to undo.
+
+\textbf{Try:} on "First paragraph" press \texttt{<prefix>v}, then \texttt{<prefix>v} again.
+\textbf{Expect:} Visual line mode with the two lines of the paragraph and the
+blank line after it selected; the second \texttt{<prefix>v} adds the next
+element, "- a list item".
+
+\textbf{Try:} select the two lines of "Some output" below with \texttt{Vj} and press
+\texttt{<C-c>:}.
+\textbf{Expect:} both lines start with \texttt{:} and a space (fixed-width, shown verbatim and
+exported as code). \texttt{<C-c>:} again removes the markers.
+
+Some output
+of a command
+\section{Speed keys}
+\label{sec:org1fec826}
+Speed keys (Emacs \texttt{org-use-speed-commands}) are single letters that run a
+command when you type them \emph{at the very start of a headline}, before the
+first star. Anywhere else the letter is inserted as usual. They are off by
+default.
+
+In org.nvim they work in \textbf{Insert mode}, with the cursor in column 0 of a
+headline (in Normal mode those letters are Vim commands). So \texttt{I} (or \texttt{0i})
+on a headline, then letters. After each command the cursor goes back to
+column 0 of the headline it ends on, still in Insert mode, so you can
+type several in a row. \texttt{<Esc>} leaves.
+
+\begin{center}
+\begin{tabular}{llll}
+Key & Command & Key & Command\\
+\hline
+\texttt{n} / \texttt{p} & next / previous heading & \texttt{t} & change TODO state\\
+\texttt{f} / \texttt{b} & next / previous sibling & \texttt{,} & set priority\\
+\texttt{u} & parent heading & \texttt{0} to \texttt{3} & priority none, A, B, C\\
+\texttt{F} / \texttt{B} & next / previous block & \texttt{:} & set tags\\
+\texttt{j} & go to a heading & \texttt{e} \texttt{E} & set effort / next effort\\
+\texttt{g} & go to a refile target & \texttt{W} & set \texttt{APPT\_WARNTIME}\\
+\texttt{c} / \texttt{C} & cycle / global cycle & \texttt{I} \texttt{O} & clock in / out\\
+\texttt{SPC} & show the outline path & \texttt{v} & agenda\\
+\texttt{s} & narrow to the subtree & \texttt{/} & sparse tree\\
+\texttt{k} & cut the subtree & \texttt{o} & open a link\\
+\texttt{=} & column view & \texttt{<} \texttt{>} & agenda restriction lock\\
+\texttt{U} / \texttt{D} & move subtree up / down & \texttt{i} & insert a heading\\
+\texttt{r} / \texttt{l} & demote / promote & \texttt{\textasciicircum{}} & sort children\\
+\texttt{R} / \texttt{L} & the same with children & \texttt{w} & refile\\
+\texttt{a} & archive subtree & \texttt{@} & select the subtree\\
+\texttt{\#} & toggle COMMENT & \texttt{?} & list the speed keys\\
+\end{tabular}
+\end{center}
+
+Turn them on in your config with \texttt{use\_speed\_commands = true}, and add or
+change keys with \texttt{speed\_commands}:
+
+\begin{verbatim}
+require("org").setup({
+  use_speed_commands = true,
+  -- an action name, a function, or false to drop a key:
+  speed_commands = { x = "archive_subtree", n = false },
+})
+\end{verbatim}
+
+\texttt{use\_speed\_commands} may also be a function that returns true where speed
+keys should apply.
+\subsection{Practice}
+\label{sec:org99967f4}
+\textbf{Try:} turn speed keys on for this session:
+\begin{verbatim}
+:lua require("org.config").opts.use_speed_commands = true
+\end{verbatim}
+Then put the cursor on "Speed one" below and press \texttt{0i} (column 0, Insert
+mode). Type \texttt{n}, \texttt{n}, \texttt{p}.
+\textbf{Expect:} the cursor moves to "Speed two", then "Speed three", then back
+to "Speed two", staying in Insert mode in column 0. Nothing is inserted.
+
+\textbf{Try:} still in Insert mode on "Speed two", type \texttt{D}.
+\textbf{Expect:} "Speed two" moves below "Speed three": the order is one,
+three, two.
+
+\textbf{Try:} type \texttt{r}, then \texttt{l}.
+\textbf{Expect:} "Speed two" gets one more star (a child of "Speed three"),
+then \texttt{l} takes it away again.
+
+\textbf{Try:} type \texttt{SPC} (the space bar).
+\textbf{Expect:} the echo area shows the outline path, e.g.
+\texttt{Speed keys/Practice/Speed two}.
+
+\textbf{Try:} type \texttt{?}.
+\textbf{Expect:} a window listing every speed key by group ("Outline
+Navigation", "Outline Visibility" \ldots{}). \texttt{q} closes it.
+
+\textbf{Try:} press \texttt{<Esc>}, then \texttt{A} at the end of a headline and type \texttt{n}.
+\textbf{Expect:} a plain \texttt{n} is inserted: speed keys only work in column 0.
+\subsubsection{Speed one}
+\label{sec:org8f24d88}
+\subsubsection{Speed two}
+\label{sec:org26715ee}
+\subsubsection{Speed three}
+\label{sec:org29e3bf9}
+\section{Inline tasks}
+\label{sec:org9b58fed}
+An inline task (the Emacs org-inlinetask module) is a TODO item in the
+\emph{middle} of an entry's text, which does not start a new entry: the text
+after it still belongs to the entry above. It is a headline with at least
+\texttt{inlinetask\_min\_level} stars (Emacs uses 15), optionally closed by a line
+with the same stars and \texttt{END}:
+
+\begin{verbatim}
+* Meeting notes
+We discussed the budget.
+*************** TODO Send the slides to Ana
+Details of the task can go here.
+*************** END
+And the notes continue: this line is still part of "Meeting notes".
+\end{verbatim}
+
+Inline tasks are \textbf{off} by default, as in Emacs without the module
+(\texttt{inlinetask\_min\_level = false}). While they are off, a line of 15 stars
+is simply a very deep headline. When they are on:
+
+\begin{itemize}
+\item they don't count as entries: folding, motions, \texttt{ar} and the agenda see
+the text around them as part of the entry above,
+\item \texttt{<Tab>} on one folds it up to its \texttt{END} line,
+\item \texttt{<{}<{}} / \texttt{>{}>{}} promote and demote the task and its \texttt{END} line together,
+never below the minimum level,
+\item only their last two stars are shown,
+\item \texttt{<C-c><C-x>t} (org-inlinetask-insert-task) inserts one below the
+cursor, or around the Visual selection. It gets
+\texttt{inlinetask\_default\_state} as keyword unless you give a count.
+\item export writes them as a small box (\texttt{export.with\_inlinetasks}).
+\end{itemize}
+\subsection{Practice}
+\label{sec:org99af24e}
+\textbf{Try:} turn inline tasks on:
+\begin{verbatim}
+:lua require("org.config").opts.inlinetask_min_level = 15
+\end{verbatim}
+then reload the file so it is parsed again: \texttt{:w} and \texttt{:e}.
+Open this section again and press \texttt{<Tab>} on the line "TODO Call the
+plumber" (the one with 15 stars).
+\textbf{Expect:} before, that line was a headline of its own. Now \texttt{<Tab>} folds
+the task down to one line (its details and \texttt{END} line hidden), and the
+line shows only two stars.
+
+\textbf{Try:} put the cursor on "More text of the entry" and press \texttt{<C-c><C-x>t}.
+\textbf{Expect:} two lines of 15 stars are added below it, the second one
+followed by \texttt{END}, and you are in Insert mode after the stars of the
+first one. Type \texttt{TODO Buy milk} and \texttt{<Esc>}.
+
+\textbf{Try:} on "Kitchen" below, press \texttt{ar} in Visual mode (\texttt{v a r}).
+\textbf{Expect:} the selection covers "Kitchen" down to "Last line of the
+entry", inline task included: it is not a subtree of its own.
+\subsubsection{Kitchen}
+\label{sec:orgf7915eb}
+The sink leaks.
+\begin{center}
+\fbox{
+\begin{minipage}[c]{.6\linewidth}
+\textbf{\textsf{\textsc{TODO}}} Call the plumber
+
+\rule[.8em]{\linewidth}{2pt}
+
+Ask for Tuesday morning.
+\end{minipage}
+}
+\end{center}
+More text of the entry.
+Last line of the entry.
+\section{Encryption: org-crypt}
+\label{sec:org84cb207}
+org-crypt encrypts the text of an entry with GnuPG, in the same format as
+Emacs, so files encrypted in one editor decrypt in the other. It needs the
+\texttt{gpg} program (\texttt{crypt.gpg\_program}) installed and working; \texttt{gpg -{}-{}version}
+in a shell tells you.
+
+\begin{itemize}
+\item Entries tagged \texttt{:crypt:} (\texttt{crypt.tag\_matcher}, a match expression) are
+the ones the "entries" commands and encrypt-on-save act on.
+\item The headline, the planning line, the property drawer, clock lines and
+the LOGBOOK stay readable. The rest of the entry, children included,
+becomes a \texttt{-{}-{}-{}-{}-BEGIN PGP MESSAGE-{}-{}-{}-{}-} block.
+\item The key: the \texttt{CRYPTKEY} property, else \texttt{crypt.key}, is looked up in your
+public keyring. When nothing matches (\texttt{crypt.key} is \texttt{""} by default,
+which never matches) the entry is encrypted \textbf{symmetrically}, with a
+passphrase you type. \texttt{crypt.key = false} always encrypts
+symmetrically.
+\item Passphrases are read with \texttt{inputsecret()} (twice when encrypting) and
+handed to gpg with \texttt{-{}-{}pinentry-mode loopback}.
+\end{itemize}
+
+There are no default keys, as in Emacs. Use the commands (Emacs
+\texttt{M-x org-encrypt-entry} and friends), or map the actions yourself:
+
+\begin{center}
+\begin{tabular}{ll}
+Command & What it does\\
+\hline
+\texttt{:Org crypt\_encrypt\_entry} & encrypt the entry at the cursor\\
+\texttt{:Org crypt\_decrypt\_entry} & decrypt it\\
+\texttt{:Org crypt\_encrypt\_entries} & encrypt every \texttt{:crypt:} entry\\
+\texttt{:Org crypt\_decrypt\_entries} & decrypt them all\\
+\texttt{<C-c><C-r>} (\texttt{:Org reveal}) & decrypts the entry first\\
+\end{tabular}
+\end{center}
+
+\begin{verbatim}
+require("org").setup({
+  crypt = { key = "you@example.com", encrypt_on_save = true },
+  -- keep the tag on the entries that carry it, as Emacs recommends:
+  tags_exclude_from_inheritance = { "crypt" },
+  mappings = { org = {
+    crypt_encrypt_entry = "<prefix>xc",
+    crypt_decrypt_entry = "<prefix>xC",
+  } },
+})
+\end{verbatim}
+
+With \texttt{crypt.encrypt\_on\_save = true}, the \texttt{:crypt:} entries are encrypted
+before every write, and stay encrypted in the buffer afterwards (decrypt
+again to keep working), like Emacs' \texttt{org-crypt-use-before-save-magic}.
+
+\textbf{Leaks.} Decrypted text can reach the disk through the swap file and a
+persistent undo file. Before decrypting in a buffer with either,
+\texttt{crypt.disable\_auto\_save} (\texttt{"ask"} by default) asks whether to turn them
+off for that buffer. \texttt{examples/minimal\_init.lua} already sets
+\texttt{noswapfile}, so you won't be asked here. Yanked text goes to registers,
+which \texttt{shada} may save: see \texttt{:h org-crypt-leaks}.
+\subsection{Practice}
+\label{sec:org8dacc29}
+\textbf{Try:} put the cursor on "Wifi password" below and run
+\texttt{:Org crypt\_encrypt\_entry}. Type a passphrase (\texttt{test} will do) and
+\texttt{<CR>}, then the same again to confirm.
+\textbf{Expect:} the message "No crypt key set, using symmetric encryption.",
+and the two lines of text are replaced by a block like:
+\begin{verbatim}
+-----BEGIN PGP MESSAGE-----
+
+jA0ECQMI...
+-----END PGP MESSAGE-----
+\end{verbatim}
+The headline and its tag stay as they are. The letters differ every time.
+
+\textbf{Try:} on the same headline run \texttt{:Org crypt\_decrypt\_entry} and type the
+passphrase.
+\textbf{Expect:} the original two lines are back.
+
+\textbf{Try:} encrypt it again, then press \texttt{<C-c><C-r>} (reveal) on the headline.
+\textbf{Expect:} you are asked for the passphrase and the text is decrypted:
+revealing an encrypted entry decrypts it, as in Emacs.
+\subsubsection{Wifi password\hfill{}\textsc{crypt}}
+\label{sec:org74aee5d}
+The network is "garden", the password is correct-horse-battery.
+This line is encrypted too.
+\section{Display options}
+\label{sec:orgaa3a7e6}
+These options change how the buffer looks, not the file. Most have a
+\texttt{\#+STARTUP:} word for one file and a \texttt{ui} option for all files. See
+\href{02-markup.org}{02-markup} for emphasis and entities, and
+\href{21-images-latex.org}{21-images-latex} for images and formulas.
+
+Options under \texttt{ui} in your setup:
+
+\begin{description}
+\item[{\texttt{num}}] number headlines: \texttt{1}, \texttt{1.1}, \texttt{1.2} \ldots{}
+(\texttt{\#+STARTUP:} \texttt{num} / \texttt{nonum}; toggle: \texttt{:Org num\_mode})
+\item[{\texttt{indent\_mode}}] indent text under its headline (org-indent-mode)
+(\texttt{\#+STARTUP:} \texttt{indent} / \texttt{noindent})
+\item[{\texttt{hide\_leading\_stars}}] show only the last star
+(\texttt{\#+STARTUP:} \texttt{hidestars} / \texttt{showstars})
+\item[{\texttt{pretty\_entities}}] \texttt{\textbackslash{}alpha} shows as α, \texttt{x\textasciicircum{}2} as x²
+(\texttt{\#+STARTUP:} \texttt{entitiespretty} / \texttt{entitiesplain}; toggle: \texttt{<C-c><C-x>\textbackslash{}})
+\item[{\texttt{conceal\_links}}] show only link descriptions
+(toggle: \texttt{<prefix>lt})
+\item[{\texttt{hide\_emphasis\_markers}}] hide the \texttt{*} \texttt{/} \texttt{\_} \ldots{} markers
+\item[{\texttt{bullets}}] symbols in place of the stars
+\item[{\texttt{checkboxes}}] icons for \texttt{[ ]} \texttt{[-]} \texttt{[X]}
+\item[{\texttt{todo\_keyword\_faces}, \texttt{priority\_faces}, \texttt{tag\_faces}}] colours per keyword /
+priority / tag
+\end{description}
+
+\texttt{examples/minimal\_init.lua} sets \texttt{bullets} (◉ ○ ✸ ✿) and \texttt{checkboxes},
+which is why the stars of this file look the way they do.
+
+Headline numbering follows the org-num options: \texttt{num\_max\_level},
+\texttt{num\_skip\_commented}, \texttt{num\_skip\_tags}, \texttt{num\_skip\_unnumbered} (a subtree
+with an \texttt{UNNUMBERED} property) and \texttt{num\_format\_function}.
+
+\textbf{Try:} \texttt{:Org num\_mode}, then \texttt{<S-Tab>} until you see every headline.
+\textbf{Expect:} "Org-Num mode enabled", and the headlines of this file are
+numbered: "How to use this file" is \texttt{1}, its child "Keys in this file" is
+\texttt{1.1}, "Getting help inside Neovim" is \texttt{2} and so on. \texttt{:Org num\_mode}
+again removes the numbers.
+
+\textbf{Try:} change the \texttt{\#+STARTUP:} line at the top of this file to
+\texttt{\#+STARTUP: overview indent}, press \texttt{<C-c><C-c>} on it and reload with
+\texttt{:e}.
+\textbf{Expect:} the body text of each entry is indented under its headline
+(only on screen: the file is unchanged) and only one star of each
+headline shows. Put the line back afterwards.
+
+\textbf{Try:} press \texttt{<C-c><C-x>\textbackslash{}} on this line: \(\alpha\) \(\to\) \(\beta\), E = mc\textsuperscript{2}.
+\textbf{Expect:} with pretty entities on you see α → β and mc². Press it again
+to see the text as written.
+
+Highlight groups (\texttt{OrgTodo}, \texttt{OrgTags}, \texttt{OrgLink}, \texttt{OrgHeadlineLevel1}
+\ldots{}) are listed in \texttt{:h org-highlights}; set them with \texttt{nvim\_set\_hl()}.
+\section{Setup files: \#+SETUPFILE}
+\label{sec:org652c872}
+Several files can share their settings (\texttt{\#+TODO:}, \texttt{\#+TAGS:}, \texttt{\#+LINK:},
+\texttt{\#+PROPERTY:}, \texttt{\#+OPTIONS:} \ldots{}) through a setup file:
+
+\begin{verbatim}
+#+SETUPFILE: "~/org/setup/common.org"
+\end{verbatim}
+
+Only the settings of that file are imported, never its headings. Paths
+are relative to the file that names them; quotes allow spaces; setup
+files may name other setup files (cycles are stopped). \texttt{<prefix>'} on
+the line visits the file.
+
+\textbf{Try:} add this line at the top of this file, below \texttt{\#+TAGS:}, and press
+\texttt{<C-c><C-c>} on it:
+\begin{verbatim}
+#+SETUPFILE: tutorial.org
+\end{verbatim}
+Then put the cursor on any headline of this file and press \texttt{<prefix>S}.
+\textbf{Expect:} the TODO keyword menu now offers \texttt{TODO}, \texttt{NEXT}, \texttt{WAITING},
+\texttt{DONE} and \texttt{CANCELLED}: the \texttt{\#+TODO:} line of \href{tutorial.org}{tutorial.org}
+was imported. Press \texttt{<Esc>}, delete the line again and press
+\texttt{<C-c><C-c>} on the \texttt{\#+TAGS:} line to refresh.
+
+A missing setup file is ignored when the file is read; \texttt{:Org lint}
+reports it (see the next section).
+\section{org-lint: check the syntax}
+\label{sec:orge7575d4}
+\texttt{:Org lint} (Emacs \texttt{M-x org-lint}) looks for mistakes that make Org read
+your text differently from what you meant: a link to a heading that
+doesn't exist, a footnote without its definition, a \texttt{\#+begin\_src} without
+a language, a misspelt header argument \ldots{} It lists what it finds in the
+\textbf{location list} (\texttt{:lopen}), titled "org-lint". Each entry is
+\texttt{checker: message}; \texttt{E} marks the reliable checks ("high trust"), \texttt{W} the
+heuristics ("low trust"). It has no default key, as in Emacs.
+
+\begin{itemize}
+\item \texttt{:Org lint} runs every checker.
+\item \texttt{:Org lint duplicate-name invalid-fuzzy-link} runs only those
+(\texttt{<Tab>} completes the checker names), like Emacs' \texttt{C-u C-u M-x
+  org-lint}.
+\item \texttt{:lnext} / \texttt{:lprev} (or \texttt{]l} / \texttt{[l} in Neovim 0.11+) walk the list.
+\item From Lua: \texttt{require("org.lint").lint(0)} returns the reports as a list
+of \texttt{\{ lnum, col, checker, message, trust \}}.
+\end{itemize}
+
+Every checker of Org 9.8 is implemented; \texttt{:h org-lint} lists them.
+
+The rest of this file is clean. The subtree below is full of mistakes on
+purpose. It is marked \texttt{COMMENT}, so it is never exported and the agenda
+ignores its TODO entries and dates, but \texttt{org-lint} still checks it.
+
+\textbf{Try:} run \texttt{:Org lint}, then \texttt{:lopen}.
+\textbf{Expect:} 28 entries, all in "COMMENT Lint playground", in the order of
+the list below. \texttt{<CR>} on an entry jumps to its line.
+
+\textbf{Try:} \texttt{:Org lint duplicate-name}.
+\textbf{Expect:} exactly two entries, \texttt{duplicate-name: Duplicate NAME "twice"},
+on the two \texttt{\#+NAME: twice} lines.
+
+\textbf{Try:} fix one mistake (for example add \texttt{sh} after the bare
+\texttt{\#+begin\_src}), run \texttt{:Org lint} again.
+\textbf{Expect:} that entry is gone and the others remain.
+
+Each mistake of the playground and the entry it produces, in file order:
+
+\begin{description}
+\item[{two headings with \texttt{CUSTOM\_ID: same-id}}] \texttt{duplicate-custom-id: Duplicate CUSTOM\_ID property "same-id"} (twice)
+\item[{\texttt{[[*No such heading]]}}] \texttt{invalid-fuzzy-link: Unknown fuzzy location "No such heading"}
+\item[{\texttt{[[\#no-such-id]]}}] \texttt{invalid-custom-id-link: Unknown custom ID "no-such-id"}
+\item[{\texttt{[[id:...]]} to an unknown ID}] \texttt{invalid-id-link: Unknown ID "00000000-..."}
+\item[{\texttt{[[file:does-not-exist.org]]}}] \texttt{link-to-local-file: Link to non-existent local file "does-not-exist.org"}
+\item[{a link followed by a stray \texttt{]}}] \texttt{trailing-bracket-after-link: Trailing ']' after link end}
+\item[{\texttt{\#+begin\_src} with no language}] \texttt{missing-language-in-src-block: Missing language in source block}
+\item[{\texttt{:foo bar} on a src block}] \texttt{wrong-header-argument: Unknown header argument ":foo"}
+\item[{\texttt{:results maybe}}] \texttt{wrong-header-value: Unknown value "maybe" for header ":results"}
+\item[{\texttt{\#+TBLNAME:}}] \texttt{obsolete-affiliated-keywords: Obsolete affiliated keyword: "TBLNAME".  Use "NAME" instead}
+\item[{\texttt{\#+BEGIN\_HTML} block}] \texttt{deprecated-export-blocks: Deprecated syntax for export block.  Use "BEGIN\_EXPORT HTML" instead}
+\item[{\texttt{\#+NAME:} with nothing after it}] \texttt{orphaned-affiliated-keywords: Orphaned affiliated keyword: "NAME"}
+\item[{\texttt{[fn:nodef]} without a definition}] \texttt{undefined-footnote-reference: Missing definition for footnote [nodef]}
+\item[{\texttt{[fn:unused]} definition, no reference}] \texttt{unreferenced-footnote-definition: No reference for footnote definition [unused]}
+\item[{\texttt{:EFFORT: lots}}] \texttt{invalid-effort-property: Invalid effort duration format: "lots"}
+\item[{\texttt{:TODO:} in a property drawer}] \texttt{special-property-in-properties-drawer: Special property "TODO" found in a properties drawer}
+\item[{\texttt{SCHEDULED:} after body text}] \texttt{misplaced-planning-info: Misplaced planning info line}
+\item[{\texttt{SCHEDULED: [inactive date]}}] \texttt{planning-inactive: Inactive timestamp in SCHEDULED will not appear in agenda.}
+\item[{\texttt{<2026-12-03 Fri>} (it's a Thursday)}] \texttt{timestamp-syntax: Potentially malformed timestamp <2026-12-03 Fri>.  Parsed as: <2026-12-03 Thu>}
+\item[{\texttt{[\#Z]}}] \texttt{priority: Out-of-bounds priority 'Z'}
+\item[{a list numbered 1., 3.}] \texttt{item-number: Bullet counter "3. " is not the same with item position 2.  Consider adding manual [@3] counter.}
+\item[{tags \texttt{::work::}}] \texttt{spurious-colons: Tags contain a spurious colon}
+\item[{two \texttt{\#+NAME: twice}}] \texttt{duplicate-name: Duplicate NAME "twice"} (twice)
+\item[{\texttt{\#+ATTR\_HTML :width 10} (no colon)}] \texttt{invalid-keyword-syntax: Possible missing colon in keyword "ATTR\_HTML"}
+\item[{\texttt{\#+SETUPFILE: no-such-setup.org}}] \texttt{non-existent-setupfile-parameter: Non-existent setup file "no-such-setup.org"}
+\item[{\texttt{\#+begin\_quote} never closed}] \texttt{invalid-block: Possible incomplete block "\#+begin\_quote"}
+\end{description}
+\section{Emacs keys}
+\label{sec:org90632f4}
+Coming from Emacs? Org's own keys (\texttt{org-mode-map}) work on top of the
+Vim-style keys, so muscle memory keeps working. They live in three
+sections of \texttt{mappings}, each of which can be turned off:
+
+\begin{verbatim}
+require("org").setup({
+  mappings = {
+    emacs = false,        -- C-c ... keys in Normal mode
+    emacs_insert = false, -- <C-CR>, <C-S-CR> in Insert mode
+    emacs_global = false, -- <C-c>a agenda, <C-c>c capture, <C-c>l store link
+  },
+})
+\end{verbatim}
+
+\begin{itemize}
+\item \texttt{C-c} keys are Normal-mode only: in Insert mode \texttt{<C-c>} still leaves
+Insert mode.
+\item Emacs' \texttt{C-u} prefix is a Vim count: \texttt{4<C-c>.} is \texttt{C-u C-c .},
+\texttt{16<C-c><C-t>} is \texttt{C-u C-u C-c C-t}.
+\item Keys marked "(ctx)" in \texttt{:h org-emacs-keys} depend on the cursor, like in
+Emacs: \texttt{<C-c>-} inserts a table rule in a table, cycles the bullet on a
+list item, and toggles an item elsewhere.
+\item Emacs keys that Vim needs are moved: \texttt{M-h} (mark element) is
+\texttt{<prefix>v}, \texttt{C-x n s} / \texttt{C-x n b} (narrow) are \texttt{<prefix>hn} /
+\texttt{<prefix>nb}.
+\end{itemize}
+
+The Emacs key is typed as written, in Vim's key notation: \texttt{C-c C-t} is
+\texttt{<C-c><C-t>}, \texttt{C-c .} is \texttt{<C-c>.}, \texttt{M-RET} is \texttt{<M-CR>}. The most used
+ones and their Vim-style equivalents:
+
+\begin{center}
+\begin{tabular}{lll}
+Emacs & Vim-style key & Action\\
+\hline
+\texttt{C-c C-c} & \texttt{<prefix><CR>} & act on the context\\
+\texttt{C-c C-t} & \texttt{cit} / \texttt{<prefix>S} & change TODO state\\
+\texttt{C-c C-s} / \texttt{C-c C-d} & \texttt{<prefix>s} / \texttt{<prefix>d} & schedule / deadline\\
+\texttt{C-c .} / \texttt{C-c !} & \texttt{<prefix>i.} / \texttt{<prefix>i!} & timestamps\\
+\texttt{C-c C-q} & \texttt{<prefix>t} & set tags\\
+\texttt{C-c C-x p} & \texttt{<prefix>p} & set a property\\
+\texttt{C-c C-l} & \texttt{<prefix>li} & insert a link\\
+\texttt{C-c C-o} & \texttt{<CR>} / \texttt{gx} & open the link\\
+\texttt{C-c l} & \texttt{<prefix>ls} & store a link\\
+\texttt{C-c a} / \texttt{C-c c} & \texttt{<prefix>a} / \texttt{<prefix>c} & agenda / capture\\
+\texttt{C-c C-w} & \texttt{<prefix>r} & refile\\
+\texttt{C-c C-x C-i} / \texttt{C-o} & \texttt{<prefix>xi} / \texttt{<prefix>xo} & clock in / out\\
+\texttt{C-c C-e} & \texttt{<prefix>e} & export\\
+\texttt{C-c '} & \texttt{<prefix>'} & edit special\\
+\texttt{C-c C-x f} & \texttt{<prefix>if} & footnote\\
+\texttt{C-c C-,} & \texttt{<prefix>ib} & structure template\\
+\texttt{C-c /} & \texttt{<prefix>/} & sparse tree\\
+\texttt{C-c ;} & \texttt{<prefix>hC} & toggle COMMENT\\
+\texttt{C-c *} / \texttt{C-c -} & \texttt{<prefix>*} / \texttt{<prefix>-} & toggle heading / item\\
+\texttt{C-c C-r} &  & reveal the context\\
+\texttt{C-c C-v e} & \texttt{<prefix>be} & run a src block\\
+\texttt{M-RET} &  & new heading / item / row\\
+\texttt{C-RET} & \texttt{<prefix>ih} & heading after subtree\\
+\end{tabular}
+\end{center}
+
+\textbf{Try:} on the headline "Emacs practice" below, press \texttt{<C-c><C-t>}.
+\textbf{Expect:} it becomes "TODO Emacs practice" (this file has only
+\texttt{TODO} and \texttt{DONE}, so the key cycles). Press \texttt{<C-c><C-t>} twice more to
+get \texttt{DONE} and then no keyword.
+
+\textbf{Try:} on the same headline press \texttt{<C-c>;}.
+\textbf{Expect:} "COMMENT Emacs practice". Again to remove it.
+\subsubsection{Emacs practice}
+\label{sec:org9999d85}
+\section{Integrations}
+\label{sec:org254b633}
+\subsection{org-protocol: capture from the browser}
+\label{sec:org543491e}
+\texttt{org-protocol://} URLs let a browser or another program talk to a
+running Neovim, like Emacs' org-protocol:
+
+\begin{description}
+\item[{\texttt{org-protocol://capture?template=t\&url=URL\&title=TITLE\&body=TEXT}}] capture with template \texttt{t}
+\item[{\texttt{org-protocol://store-link?url=URL\&title=TITLE}}] store the link for \texttt{<prefix>li}
+\item[{\texttt{org-protocol://open-source?url=URL}}] open the local file of a published page
+\end{description}
+
+Neovim must listen on a socket (\texttt{nvim -{}-{}listen \textasciitilde{}/.cache/nvim/org.sock}),
+and the operating system must hand \texttt{org-protocol:} URLs to a small
+handler that calls:
+
+\begin{verbatim}
+nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+\end{verbatim}
+
+\texttt{:h org-protocol} has the desktop file (Linux), the macOS app and a
+bookmarklet. You can try it without any of that with \texttt{:Org protocol}:
+
+\textbf{Try:} run
+\begin{verbatim}
+:Org protocol org-protocol://store-link?url=https%3A%2F%2Forgmode.org&title=Org%20Mode
+\end{verbatim}
+then on the empty line below press \texttt{<prefix>li}, \texttt{<CR>} at the "Insert
+link (default \url{https://orgmode.org})" prompt and \texttt{<CR>} again to accept the
+description "Org Mode".
+\textbf{Expect:} the message "insert\textsubscript{link} to insert new Org link, p to insert
+"\url{https://orgmode.org}"", and the line becomes
+\texttt{[[https://orgmode.org][Org Mode]]}.
+
+\textbf{Try:} run
+\begin{verbatim}
+:Org protocol org-protocol://capture?template=t&url=https%3A%2F%2Fneovim.io&title=Neovim
+\end{verbatim}
+\textbf{Expect:} the capture window of the "Task" template of
+\texttt{minimal\_init.lua}, with a \texttt{[[https://neovim.io][Neovim]]} link in it.
+\texttt{<C-c><C-k>} cancels.
+\subsection{RSS and Atom feeds}
+\label{sec:org53d342f}
+org-feed adds the items of RSS and Atom feeds as child headlines of an
+inbox heading. List the feeds in your config:
+
+\begin{verbatim}
+require("org").setup({
+  feed = {
+    feeds = {
+      { name = "Neovim news", url = "https://neovim.io/news.xml",
+        file = "~/org/feeds.org", headline = "Neovim news" },
+    },
+  },
+})
+\end{verbatim}
+
+\texttt{<C-c><C-x>g} (\texttt{:Org feed\_update\_all}) fetches every feed with \texttt{curl}
+and adds the new items; \texttt{<C-c><C-x>G} (\texttt{:Org feed\_goto\_inbox}) jumps to
+an inbox. The items already seen are remembered in a \texttt{:FEEDSTATUS:}
+drawer, in the format Emacs writes. See \texttt{:h org-feed}.
+\subsection{MobileOrg}
+\label{sec:org6669e35}
+\texttt{:Org mobile\_push} copies your agenda files and agenda views into a
+staging directory (\texttt{mobile.directory}) that a MobileOrg-style app syncs;
+\texttt{:Org mobile\_pull} brings back what you captured and edited on the phone.
+See \texttt{:h org-mobile}.
+\subsection{The Lua API}
+\label{sec:orge3c0000}
+\texttt{require("org")} has a small API for your own config and scripts
+(\texttt{:h org-api}):
+
+\begin{itemize}
+\item \texttt{require("org").agenda("a")} and \texttt{require("org").capture("t")} open a
+view or a template,
+\item \texttt{require("org").action("cycle")} runs any action by name,
+\item \texttt{require("org").statusline()} returns the running clock and timer as a
+string for your statusline, empty when nothing runs,
+\item lower-level modules: \texttt{org.parser}, \texttt{org.files}, \texttt{org.date},
+\texttt{org.agenda.search}, \texttt{org.export}, \texttt{org.dblock}.
+\end{itemize}
+
+Lua source blocks run inside Neovim, so you can try the API right here.
+
+\textbf{Try:} press \texttt{<C-c><C-c>} in the block below and answer \texttt{y} when asked
+"Evaluate this lua code block on your system?".
+\textbf{Expect:} the \texttt{\#+RESULTS:} under it is rewritten with the same value,
+\texttt{<2026-10-05 Mon>}: one week after the date in the code. Change \texttt{1} to
+\texttt{2} and run it again: \texttt{<2026-10-12 Mon>}.
+
+\begin{verbatim}
+local date = require("org.date")
+return date.parse("<2026-09-28 Mon>"):add(1, "w"):to_string()
+\end{verbatim}
+
+\phantomsection
+\label{org0373b60}
+\begin{verbatim}
+<2026-10-05 Mon>
+\end{verbatim}
+\section{Further reading}
+\label{sec:org4cefeec}
+\begin{itemize}
+\item \texttt{:h org} the whole manual; \texttt{:h org-keymaps} every key; \texttt{:h org-commands}
+every \texttt{:Org} subcommand; \texttt{:h org-config} every option.
+\item \texttt{:h org-completion}, \texttt{:h org-lint}, \texttt{:h org-speed-commands},
+\texttt{:h org-inlinetask}, \texttt{:h org-crypt}, \texttt{:h org-crypt-leaks}.
+\item \texttt{:h org-babel-edit-special} (special edit buffers), \texttt{:h org-elements},
+\texttt{:h org-tempo}, \texttt{:h org-appearance}, \texttt{:h org-highlights}.
+\item \texttt{:h org-setupfile}, \texttt{:h org-in-buffer-settings}.
+\item \texttt{:h org-emacs-keys}, \texttt{:h org-differences}.
+\item \texttt{:h org-protocol}, \texttt{:h org-feed}, \texttt{:h org-mobile}, \texttt{:h org-api}.
+\item The other example files: \href{00-index.org}{00-index}.
+\end{itemize}

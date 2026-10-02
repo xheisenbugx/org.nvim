@@ -1,0 +1,354 @@
+#+TITLE: Clock tables
+* Tables over other files
+#+BEGIN: clocktable :scope ("a.org" "b.org" "c.org") :formula % :maxlevel 2 :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| File  | Headline         | Time   |      |     % |
+|-------+------------------+--------+------+-------|
+|       | ALL *Total time* | *5:45* |      | 100.0 |
+|-------+------------------+--------+------+-------|
+| a.org | *File time*      | *5:30* |      |  95.7 |
+|       | Project A        | 5:30   |      |  95.7 |
+|       | \_  Sub          |        | 1:00 |  17.4 |
+|-------+------------------+--------+------+-------|
+| b.org | *File time*      | *0:15* |      |   4.3 |
+|       | B task           | 0:15   |      |   4.3 |
+|-------+------------------+--------+------+-------|
+| c.org | *File time*      | *0:00* |      |   0.0 |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org" "c.org") :fileskip0 t :filetitle t :level t :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| File   |   L | Headline     | Time   |      |
+|--------+-----+--------------+--------+------|
+|        | ALL | *Total time* | *5:45* |      |
+|--------+-----+--------------+--------+------|
+| File A |     | *File time*  | *5:30* |      |
+|        |   1 | Project A    | 5:30   |      |
+|        |   2 | \_  Sub      |        | 1:00 |
+|--------+-----+--------------+--------+------|
+| b.org  |     | *File time*  | *0:15* |      |
+|        |   1 | B task       | 0:15   |      |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org") :hidefiles t :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline     |   Time |      |
+|--------------+--------+------|
+| *Total time* | *5:45* |      |
+|--------------+--------+------|
+| Project A    |   5:30 |      |
+| \_  Sub      |        | 1:00 |
+|--------------+--------+------|
+| B task       |   0:15 |      |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org") :step day :tstart "<2026-09-01>" :tend "<2026-09-04>" :stepskip0 t
+
+Daily report: [2026-09-01 Tue]
+| File  | Headline         | Time   |
+|-------+------------------+--------|
+|       | ALL *Total time* | *2:00* |
+|-------+------------------+--------|
+| a.org | *File time*      | *2:00* |
+|       | Project A        | 2:00   |
+|-------+------------------+--------|
+| b.org | *File time*      | *0:00* |
+
+Daily report: [2026-09-02 Wed]
+| File  | Headline         | Time   |
+|-------+------------------+--------|
+|       | ALL *Total time* | *2:45* |
+|-------+------------------+--------|
+| a.org | *File time*      | *2:30* |
+|       | Project A        | 2:30   |
+|-------+------------------+--------|
+| b.org | *File time*      | *0:15* |
+|       | B task           | 0:15   |
+
+Daily report: [2026-09-03 Thu]
+| File  | Headline         | Time   |      |
+|-------+------------------+--------+------|
+|       | ALL *Total time* | *1:00* |      |
+|-------+------------------+--------+------|
+| a.org | *File time*      | *1:00* |      |
+|       | Project A        | 1:00   |      |
+|       | \_  Sub          |        | 1:00 |
+|-------+------------------+--------+------|
+| b.org | *File time*      | *0:00* |      |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :step semimonth :tstart "<2026-08-20>" :tend "<2026-09-20>"
+
+Semimonthly report starting on: [2026-08-20 Thu]
+| File  | Headline         | Time   |
+|-------+------------------+--------|
+|       | ALL *Total time* | *1:00* |
+|-------+------------------+--------|
+| a.org | *File time*      | *1:00* |
+|       | Other            | 1:00   |
+
+Semimonthly report starting on: [2026-09-01 Tue]
+| File  | Headline         | Time   |      |
+|-------+------------------+--------+------|
+|       | ALL *Total time* | *5:30* |      |
+|-------+------------------+--------+------|
+| a.org | *File time*      | *5:30* |      |
+|       | Project A        | 5:30   |      |
+|       | \_  Sub          |        | 1:00 |
+
+Semimonthly report starting on: [2026-09-16 Wed]
+| File | Headline         | Time   |
+|------+------------------+--------|
+|      | ALL *Total time* | *0:00* |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :block 2026-W36 :step day :wstart 0
+
+Daily report: [2026-08-30 Sun]
+| File | Headline         | Time   |
+|------+------------------+--------|
+|      | ALL *Total time* | *0:00* |
+
+Daily report: [2026-08-31 Mon]
+| File | Headline         | Time   |
+|------+------------------+--------|
+|      | ALL *Total time* | *0:00* |
+
+Daily report: [2026-09-01 Tue]
+| File  | Headline         | Time   |
+|-------+------------------+--------|
+|       | ALL *Total time* | *2:00* |
+|-------+------------------+--------|
+| a.org | *File time*      | *2:00* |
+|       | Project A        | 2:00   |
+
+Daily report: [2026-09-02 Wed]
+| File  | Headline         | Time   |
+|-------+------------------+--------|
+|       | ALL *Total time* | *2:30* |
+|-------+------------------+--------|
+| a.org | *File time*      | *2:30* |
+|       | Project A        | 2:30   |
+
+Daily report: [2026-09-03 Thu]
+| File  | Headline         | Time   |      |
+|-------+------------------+--------+------|
+|       | ALL *Total time* | *1:00* |      |
+|-------+------------------+--------+------|
+| a.org | *File time*      | *1:00* |      |
+|       | Project A        | 1:00   |      |
+|       | \_  Sub          |        | 1:00 |
+
+Daily report: [2026-09-04 Fri]
+| File | Headline         | Time   |
+|------+------------------+--------|
+|      | ALL *Total time* | *0:00* |
+
+Daily report: [2026-09-05 Sat]
+| File | Headline         | Time   |
+|------+------------------+--------|
+|      | ALL *Total time* | *0:00* |
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :block 2026-Q3 :step month :mstart 15 :stepskip0 t
+
+Monthly report starting on: [2026-08-15 Sat]
+| File  | Headline         | Time   |      |
+|-------+------------------+--------+------|
+|       | ALL *Total time* | *6:30* |      |
+|-------+------------------+--------+------|
+| a.org | *File time*      | *6:30* |      |
+|       | Project A        | 5:30   |      |
+|       | \_  Sub          |        | 1:00 |
+|       | Other            | 1:00   |      |
+
+#+END:
+
+* Work in this file
+** TODO Design :dev:
+:PROPERTIES:
+:Effort: 2:00
+:OWNER: ann
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 09:00]--[2026-09-28 Mon 11:30] =>  2:30
+CLOCK: [2026-09-29 Tue 14:00]--[2026-09-29 Tue 15:00] =>  1:00
+:END:
+*** Review :review:
+:LOGBOOK:
+CLOCK: [2026-09-30 Wed 10:00]--[2026-09-30 Wed 10:45] =>  0:45
+:END:
+** DONE Build a much longer headline that gets narrowed in tables :dev:
+:PROPERTIES:
+:OWNER: bob
+:END:
+:LOGBOOK:
+CLOCK: [2026-10-01 Thu 08:00]--[2026-10-01 Thu 09:20] =>  1:20
+CLOCK: [2026-09-15 Tue 08:00]--[2026-09-15 Tue 08:30] =>  0:30
+:END:
+** Meetings :meet:
+:LOGBOOK:
+CLOCK: [2026-09-30 Wed 16:00]--[2026-09-30 Wed 17:00] =>  1:00
+:END:
+
+* Tables over this file
+#+BEGIN: clocktable :scope file :maxlevel 3
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline                                 | Time   |      |      |
+|------------------------------------------+--------+------+------|
+| *Total time*                             | *7:05* |      |      |
+|------------------------------------------+--------+------+------|
+| Work in this file                        | 7:05   |      |      |
+| \_  Design                               |        | 4:15 |      |
+| \_    Review                             |        |      | 0:45 |
+| \_  Build a much longer headline that... |        | 1:50 |      |
+| \_  Meetings                             |        | 1:00 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :compact t :emphasize t
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline                                   | Time   |
+|--------------------------------------------+--------|
+| *Total time*                               | *7:05* |
+|--------------------------------------------+--------|
+| *Work in this file*                        | *7:05* |
+| \_  /Design/                               | /4:15/ |
+| \_    Review                               | 0:45   |
+| \_  /Build a much longer headline that.../ | /1:50/ |
+| \_  /Meetings/                             | /1:00/ |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :properties ("OWNER" "Effort") :tags t
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Tags        | OWNER | Effort | Headline                                 | Time   |      |      |
+|-------------+-------+--------+------------------------------------------+--------+------+------|
+|             |       |        | *Total time*                             | *7:05* |      |      |
+|-------------+-------+--------+------------------------------------------+--------+------+------|
+|             |       |        | Work in this file                        | 7:05   |      |      |
+| dev         | ann   |   2:00 | \_  Design                               |        | 4:15 |      |
+| dev, review |       |        | \_    Review                             |        |      | 0:45 |
+| dev         | bob   |        | \_  Build a much longer headline that... |        | 1:50 |      |
+| meet        |       |        | \_  Meetings                             |        | 1:00 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :match "dev" :indent nil
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline                             | Time   |      |      |
+|--------------------------------------+--------+------+------|
+| *Total time*                         | *6:05* |      |      |
+|--------------------------------------+--------+------+------|
+| Work in this file                    | 6:05   |      |      |
+| Design                               |        | 4:15 |      |
+| Review                               |        |      | 0:45 |
+| Build a much longer headline that... |        | 1:50 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :narrow 20! :timestamp t
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Timestamp | Headline            | Time   |      |      |
+|-----------+---------------------+--------+------+------|
+|           | *Total time*        | *7:05* |      |      |
+|-----------+---------------------+--------+------+------|
+|           | Work in this file   | 7:05   |      |      |
+|           | \_  Design          |        | 4:15 |      |
+|           | \_    Review        |        |      | 0:45 |
+|           | \_  Build a much... |        | 1:50 |      |
+|           | \_  Meetings        |        | 1:00 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block thisweek
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00], for week 2026-W40.
+| Headline                                 | Time   |      |      |
+|------------------------------------------+--------+------+------|
+| *Total time*                             | *6:35* |      |      |
+|------------------------------------------+--------+------+------|
+| Work in this file                        | 6:35   |      |      |
+| \_  Design                               |        | 4:15 |      |
+| \_    Review                             |        |      | 0:45 |
+| \_  Build a much longer headline that... |        | 1:20 |      |
+| \_  Meetings                             |        | 1:00 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block today
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00], for Thursday, October 01, 2026.
+| Headline                                 | Time   |      |
+|------------------------------------------+--------+------|
+| *Total time*                             | *1:20* |      |
+|------------------------------------------+--------+------|
+| Work in this file                        | 1:20   |      |
+| \_  Build a much longer headline that... |        | 1:20 |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block lastweek :step day
+
+Daily report: [2026-09-21 Mon]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-22 Tue]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-23 Wed]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-24 Thu]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-25 Fri]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-26 Sat]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+
+Daily report: [2026-09-27 Sun]
+| Headline     | Time   |
+|--------------+--------|
+| *Total time* | *0:00* |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :tstart "<-1w>" :tend "<now>" :link t
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline                                 | Time   |      |      |
+|------------------------------------------+--------+------+------|
+| *Total time*                             | *6:35* |      |      |
+|------------------------------------------+--------+------+------|
+| [[file:@DIR@/tables.org::*Work in this file][Work in this file]]                        | 6:35   |      |      |
+| \_  [[file:@DIR@/tables.org::*Design][Design]]                               |        | 4:15 |      |
+| \_    [[file:@DIR@/tables.org::*Review][Review]]                             |        |      | 0:45 |
+| \_  [[file:@DIR@/tables.org::*Build a much longer headline that gets narrowed in tables][Build a much longer headline that...]] |        | 1:20 |      |
+| \_  [[file:@DIR@/tables.org::*Meetings][Meetings]]                             |        | 1:00 |      |
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 1 :formula "$3=$2*60;N"
+#+CAPTION: Clock summary at [2026-10-01 Thu 12:00]
+| Headline          | Time   |     |
+|-------------------+--------+-----|
+| *Total time*      | *7:05* |   0 |
+|-------------------+--------+-----|
+| Work in this file | 7:05   | 420 |
+#+TBLFM: $3=$2*60;N
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :lang "de" :hidefiles nil :sort (2 . ?N)
+#+CAPTION: Erstellt am [2026-10-01 Thu 12:00]
+| Kopfzeile                                | Dauer  |      |      |
+|------------------------------------------+--------+------+------|
+| *Gesamtdauer*                            | *7:05* |      |      |
+|------------------------------------------+--------+------+------|
+| Work in this file                        | 7:05   |      |      |
+| \_  Design                               |        | 4:15 |      |
+| \_    Review                             |        |      | 0:45 |
+| \_  Build a much longer headline that... |        | 1:50 |      |
+| \_  Meetings                             |        | 1:00 |      |
+#+END:

@@ -1779,6 +1779,17 @@ Like Emacs, edits made from the agenda leave the source buffers modified
 Buffers are listed, so :qa asks before losing changes. Set
 `save_after_edit = true` to write them after every edit.
 
+Like Emacs (org-agenda-change-all-lines), changing the TODO state, the
+priority, tags, effort or a property, adding a note and clocking in or
+out re-format only the lines of that entry, in place: a DONE entry stays
+in the TODO list until the next `r`, and a line the filters now hide is
+removed. A repeating entry marked done on today's line shows DONE there.
+Date changes (S-Right, S-Left, `>`, schedule, deadline) show the new date
+at the right edge of the line, " => <date>" (" S => " / " D => " for
+schedule and deadline, highlight OrgAgendaNewTime), and the entry moves
+at the next `r` (org-agenda-show-new-time). Refile, archive, kill, bulk
+actions and the entry-text mode (`E`) rebuild the view.
+
 Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_follow_mode`, `start_with_clockreport_mode`,
 `start_with_entry_text_mode`, `show_outline_path` (echo the outline path
@@ -1789,8 +1800,9 @@ buffer is built or rebuilt (org-agenda-finalize-hook), `OrgAgendaFilter`
 after a filter changed (org-agenda-filter-hook), with `data.buf`,
 `data.filters` and `data.filter` (the filter text of the window bar);
 `OrgAgendaBeforeWrite` before a written agenda (|org-agenda-export|).
-Unlike Emacs, the agenda is rebuilt after edits from it, so
-`OrgAgendaFinalize` also fires then.
+`OrgAgendaFinalize` also fires after the lines of an edited entry were
+re-formatted, with `data.lines` (the agenda lines that changed), like
+Emacs runs the hook on each of them.
 >lua
     vim.api.nvim_create_autocmd("User", {
       pattern = "OrgAgendaFinalize",
@@ -3148,7 +3160,10 @@ relative to the database with `id.locations_file_relative`
 it from the agenda files, their archive files (`id.search_archives`,
 default true), `id.extra_files`, the loaded org buffers and the files
 already known; an ID that is not where the database says triggers the same
-scan. Refiled and archived entries are recorded at their new place.
+scan. The database also records what each file held when it was last
+scanned (a `" org.nvim-scan"` member in JSON, a `; org.nvim-scan:`
+comment in Emacs's format, which Emacs ignores), so a rebuild reads again
+only the files whose modification time or size changed. Refiled and archived entries are recorded at their new place.
 New IDs follow `id.method` (org-id-method): "uuid" (default), "ts" (a time
 stamp in `id.ts_format`) or "org" (a compact time based ID), with
 `id.prefix` and a colon in front when set (org-id-prefix).
@@ -5156,7 +5171,8 @@ they are asked only when gpg-agent has none cached. During one
 `*_entries` run or save the symmetric passphrase is asked once.
 
 Encrypting on save: with `crypt.encrypt_on_save = true`, matching entries
-are encrypted before the buffer is written (Emacs
+are encrypted before the buffer is written, by `:w` or by org itself
+(refile, archive, capture, agenda edits, mobile push, tangle, ...; Emacs
 `(org-crypt-use-before-save-magic)`). As in Emacs the buffer stays
 encrypted after writing; decrypt again to keep working. When an entry
 can't be encrypted the write is aborted.
@@ -7018,6 +7034,17 @@ Differences from Emacs:
 - Customize (|org-customize|) lists lua/org/config.lua's options and sets
   them for the session; there is nothing like Custom's "Save" (options
   live in your `setup()` call).
+- org-lint (|org-lint|): invalid-id-link reports an ID found neither in
+  the file nor in the ID locations; Emacs 9.8.10 falls back on the
+  current file for any ID (org-id-find-id-file), so it never reports one
+  in a file buffer. misplaced-heading reports the misplaced stars
+  themselves; Emacs 9.8.10 reads the match position after
+  org-element-at-point has overwritten it, so its reports land elsewhere
+  (later on the line, or on the line after the paragraph).
+  suspicious-language-in-src-block knows the languages with a Babel
+  backend or a Neovim syntax or ftplugin file (`vim`, `json`, ...),
+  where Emacs knows those with a Babel backend or an installed major
+  mode.
 
 ==============================================================================
 33. EXTENSIONS                                               *org-extensions*
@@ -7471,8 +7498,8 @@ The index ~
 The index is a JSON file (`index_file`, by default in stdpath("data")) that
 holds every file's nodes, links and citations with its mtime. Each command
 that reads it first re-parses the files that changed, and with
-`update_on_save` a roam file is re-indexed when it is written (the JSON
-file itself is rewritten a second later, once for all the saves in
+`update_on_save` a roam file is re-indexed when it is written, by `:w` or
+by org itself, say a capture into it (the JSON file itself is rewritten a second later, once for all the saves in
 between, and on exit). `:Org roam_db_sync` updates it by hand,
 `:Org roam_db_sync force` rebuilds it. As in org-roam, links in verbatim
 blocks, comment and fixed-width lines, `ROAM_REFS` and `#+transclude:` are
@@ -7563,8 +7590,9 @@ behind, and a node with no text beyond its head is stored.
 
 `roam:Title` links open the node with that title or alias, and create it
 when there is none (`roam_links`). With `link_auto_replace` (the default),
-saving a roam file and following such a link turn `roam:` links to
-existing nodes into `id:` links (outside verbatim blocks);
+saving a roam file (by `:w` or by org itself) and following such a link
+turn `roam:` links to existing nodes into `id:` links (outside verbatim
+blocks);
 `:Org roam_link_replace_all` does it by hand.
 
 The backlinks window ~
