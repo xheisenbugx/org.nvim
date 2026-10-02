@@ -216,6 +216,20 @@ describe("refile", function()
     end)
   end
 
+  it("refiles the right subtree when a new parent node is created above it", function()
+    local dir = setup_files({ "* A", "* B", "** b1", "* C", "c body" }, { "* X" }, {
+      refile = { targets = { { files = "current", level = 1 } }, allow_creating_parent_nodes = true },
+    })
+    vim.cmd("edit! " .. dir .. "/a.org")
+    local oi = utils.input_complete
+    utils.input_complete = function()
+      return "A/New"
+    end
+    run(refile.refile, { lnum = 4 })
+    utils.input_complete = oi
+    eq({ "* A", "** New", "*** C", "c body", "* B", "** b1" }, buf_lines())
+  end)
+
   it("refiles to another file, saves it and registers moved IDs", function()
     local dir = setup_files(
       { "* Move me", ":PROPERTIES:", ":ID: moved-1", ":END:", "text", "* Stay" },
