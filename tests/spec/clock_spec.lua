@@ -393,6 +393,19 @@ describe("clock", function()
     )
   end)
 
+  it("follows the clocked buffer when it is saved under another name", function()
+    local buf = file_buffer({ "* Task" })
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    vim.cmd("silent write")
+    local new = vim.fn.tempname() .. ".org"
+    vim.cmd("silent saveas " .. vim.fn.fnameescape(new))
+    eq(buf, vim.api.nvim_get_current_buf())
+    eq(vim.fn.resolve(new), vim.fn.resolve(clock.state.path))
+    eq(buf, (clock.find_open_clock()))
+    eq(90, clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") }))
+    eq("CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30", buf_lines(buf)[3])
+  end)
+
   it("cleans up temp buffers", function()
     vim.cmd("enew!")
     for _, b in ipairs(vim.api.nvim_list_bufs()) do

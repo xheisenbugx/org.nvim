@@ -646,6 +646,35 @@ function M.toggle_auto_clockout()
 end
 
 local exit_hooked = false
+local rename_hooked = false
+
+--- Follow the clocked buffer when it gets another name (:saveas, :file),
+--- as Emacs follows its clock marker.
+local function hook_rename()
+  if rename_hooked then
+    return
+  end
+  rename_hooked = true
+  -- :saveas also names a new alternate buffer: the events nest
+  local renaming = {}
+  vim.api.nvim_create_autocmd("BufFilePre", {
+    group = utils.augroup,
+    callback = function(ev)
+      renaming[ev.buf] = M.state ~= nil and state_in_buffer(ev.buf) or nil
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufFilePost", {
+    group = utils.augroup,
+    callback = function(ev)
+      if renaming[ev.buf] and M.state then
+        M.state.path = buf_path(ev.buf) or ""
+        M.state.bufnr = unnamed(ev.buf)
+        persist()
+      end
+      renaming[ev.buf] = nil
+    end,
+  })
+end
 
 --- On exit with `clock.persist_query_save` and a running clock, ask
 --- whether to keep it for the next session (org-clock-persist-query-save);
@@ -1066,6 +1095,7 @@ function M.clock_in(target, opts)
   persist()
   start_timers()
   hook_exit()
+  hook_rename()
   utils.notify("Clock starts at " .. start_str .. " - " .. sum_text)
   fire("OrgClockIn", { bufnr = bufnr, lnum = lnum, title = M.state.title })
   vim.cmd("redrawstatus")
@@ -1979,6 +2009,7 @@ function M.sync()
             total = (total_before(hl)),
           }
           start_timers()
+          hook_rename()
           pcall(vim.cmd, "redrawstatus")
           return "in", M.state
         end
@@ -1994,6 +2025,7 @@ end
 ---@return org.ClockState|nil state the running clock, if any
 function M.restore()
   hook_exit()
+  hook_rename()
   if M.state then
     return M.state
   end
