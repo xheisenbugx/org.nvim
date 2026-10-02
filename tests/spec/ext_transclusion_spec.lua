@@ -136,6 +136,12 @@ describe("transclusion keyword", function()
     eq("#+transclude: [[x]] :level 3", keyword.set_level("#+transclude: [[x]] :level 2", 3))
     eq("#+transclude: [[x]] :level 1", keyword.set_level("#+transclude: [[x]]", 1))
     eq("#+transclude: [[x]] :level 1", keyword.set_level("#+transclude: [[x]] :level", 0))
+    -- a link that spells ":level" keeps it
+    eq("#+transclude: [[file:a.org::level 3]] :level 2", keyword.set_level("#+transclude: [[file:a.org::level 3]]", 2))
+    eq(
+      "#+transclude: [[file:a.org::level 3]] :level 2",
+      keyword.set_level("#+transclude: [[file:a.org::level 3]] :level 1", 2)
+    )
   end)
 end)
 
