@@ -321,11 +321,22 @@ M.set_time = set_time
 --- Is `hl` inside a COMMENT subtree (with agenda.skip_comment_trees,
 --- org-agenda-skip-comment-trees), or an ARCHIVE-tagged one (unless
 --- archived trees are included, org-agenda-archives-mode)?
+-- a plain scan: vim.tbl_contains validates its arguments on every call,
+-- and building a set per headline costs more than the few tags it holds
+local function has_archive_tag(tags)
+  for i = 1, #tags do
+    if tags[i] == "ARCHIVE" then
+      return true
+    end
+  end
+  return false
+end
+
 local function hidden(hl, include_archived, memo)
   local v = memo[hl]
   if v == nil then
     local skip_comments = config.opts.agenda.skip_comment_trees ~= false
-    v = (skip_comments and hl.commented) or (not include_archived and vim.tbl_contains(hl.tags, "ARCHIVE"))
+    v = (skip_comments and hl.commented) or (not include_archived and has_archive_tag(hl.tags))
     v = v or false
     if not v and hl.parent then
       v = hidden(hl.parent, include_archived, memo)
@@ -346,14 +357,17 @@ function M.each_headline(files, opts, fn)
   -- whether each headline is hidden, so that a subtree's ancestors are
   -- checked once rather than for every headline in it
   local memo = {}
+  local global = config.opts.agenda.skip_function_global
+  if type(global) ~= "function" then
+    global = nil
+  end
   for fidx, file in ipairs(files) do
     for _, hl in ipairs(file.headlines) do
       local ok = opts.all or not hidden(hl, opts.archives, memo)
       if ok and r and r.range then
         ok = hl.line >= r.range[1] and hl.line <= r.range[2]
       end
-      local global = config.opts.agenda.skip_function_global
-      if ok and type(global) == "function" then
+      if ok and global then
         local s_ok, skip = pcall(global, hl)
         ok = not (s_ok and skip)
       end

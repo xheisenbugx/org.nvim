@@ -85,6 +85,35 @@ describe("babel block cache", function()
   end)
 end)
 
+describe("agenda headline iteration", function()
+  local items = require("org.agenda.items")
+  local config = require("org.config")
+  local parser = require("org.parser")
+  after_each(function()
+    config.opts.agenda.skip_function_global = nil
+  end)
+
+  local function titles(file, opts)
+    local out = {}
+    items.each_headline({ file }, opts, function(hl)
+      out[#out + 1] = hl.title
+    end)
+    return out
+  end
+
+  it("hides ARCHIVE subtrees and reads skip_function_global per call", function()
+    local file = parser.parse({ "* A", "* B :x:ARCHIVE:", "** C", "* D :ARCHIVEX:" })
+    eq({ "A", "D" }, titles(file))
+    eq({ "A", "B", "C", "D" }, titles(file, { archives = true }))
+    config.opts.agenda.skip_function_global = function(hl)
+      return hl.title == "A"
+    end
+    eq({ "D" }, titles(file))
+    config.opts.agenda.skip_function_global = nil
+    eq({ "A", "D" }, titles(file))
+  end)
+end)
+
 describe("open clock cache", function()
   local clock = require("org.clock")
   local date = require("org.date")
