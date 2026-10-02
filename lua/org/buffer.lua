@@ -42,6 +42,7 @@ function M.attach(bufnr)
   end
   vim.b[bufnr].org_attached = true
   require("org").ensure_setup()
+  require("org.highlights").ensure()
 
   local bo = vim.bo[bufnr]
   M.insert_mode_line(bufnr)

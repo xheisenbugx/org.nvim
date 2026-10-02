@@ -48,6 +48,8 @@ local fallback = {
 }
 
 function M.define()
+  -- the Org* groups the agenda links to
+  require("org.highlights").ensure()
   for group, target in pairs(links) do
     if fallback[target] and not exists(target) then
       target = fallback[target]

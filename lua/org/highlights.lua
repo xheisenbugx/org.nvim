@@ -243,7 +243,19 @@ function M.face_group(prefix, name)
   end)
 end
 
+local defined = false
+
+--- Define the groups if that has not happened yet. Called on the first org
+--- buffer (and other org.nvim windows: agenda, menus, views), so that
+--- `setup()` does not pay for it.
+function M.ensure()
+  if not defined then
+    M.define()
+  end
+end
+
 function M.define()
+  defined = true
   for name, def in pairs(defaults()) do
     def.default = true
     vim.api.nvim_set_hl(0, name, def)
@@ -257,14 +269,31 @@ function M.define()
   M.apply_todo_faces()
 end
 
+--- Called by `setup()`. The groups are defined lazily (`M.ensure`): on the
+--- first buffer whose filetype starts with `org` (org files, the agenda,
+--- column view, ...) or the first org.nvim menu, action or command. A
+--- `:colorscheme` change redefines them once they exist.
 function M.setup()
-  M.define()
+  local group = vim.api.nvim_create_augroup("org.highlights", { clear = true })
   vim.api.nvim_create_autocmd("ColorScheme", {
-    group = vim.api.nvim_create_augroup("org.highlights", { clear = true }),
+    group = group,
     callback = function()
-      M.define()
+      if defined then
+        M.define()
+      end
     end,
   })
+  vim.api.nvim_create_autocmd("FileType", {
+    group = group,
+    pattern = "org*",
+    callback = function()
+      M.ensure()
+    end,
+  })
+  if defined then
+    -- setup() again: the new ui.*_faces
+    M.define()
+  end
 end
 
 return M
