@@ -28,10 +28,16 @@ other versions can format differently).
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
+ORG_TEST_JOBS=1 make test                 # all specs in one Neovim, one after another
 make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
+
+`make test` runs each spec file in its own headless Neovim, as many at a
+time as there are CPUs (`ORG_TEST_JOBS`), with its own throwaway
+`XDG_DATA_HOME`. A file that runs longer than `ORG_TEST_TIMEOUT` seconds
+(600) is killed and reported as failed.
 
 To try your checkout in your own config, point lazy.nvim at it:
 
