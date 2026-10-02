@@ -18,7 +18,8 @@ local utils = require("org.utils")
 local M = {}
 
 ---@class org.ClockState
----@field path string
+---@field path string "" for a buffer without a file
+---@field bufnr? integer the buffer, kept only when it has no file
 ---@field start string inactive timestamp string of the clock start
 ---@field title string
 ---@field effort integer|nil minutes
@@ -151,6 +152,25 @@ function M._is_open_clock_of(line, start)
   return s and c.start:minutes() == s:minutes() or false
 end
 
+--- Whether the running clock is in buffer `bufnr`.
+local function state_in_buffer(bufnr)
+  local st = M.state
+  if not st then
+    return false
+  end
+  if st.path == "" then
+    return st.bufnr == bufnr
+  end
+  local path = buf_path(bufnr)
+  return path ~= nil and path == vim.fs.normalize(st.path)
+end
+
+--- The `bufnr` to keep in the clock state: only for a buffer without a
+--- file, which cannot be found again by its path.
+local function unnamed(bufnr)
+  return buf_path(bufnr) == nil and bufnr or nil
+end
+
 --- Locate the open clock line of the running clock.
 ---@return integer|nil bufnr, integer|nil lnum
 function M.find_open_clock()
@@ -158,7 +178,16 @@ function M.find_open_clock()
   if not st then
     return nil
   end
-  local bufnr = utils.find_buffer(st.path)
+  local bufnr
+  if st.path == "" then
+    -- a buffer without a file: only that buffer, while it is loaded
+    bufnr = st.bufnr
+    if not (bufnr and vim.api.nvim_buf_is_loaded(bufnr) and buf_path(bufnr) == nil) then
+      return nil
+    end
+  else
+    bufnr = utils.find_buffer(st.path)
+  end
   if not bufnr then
     if not utils.exists(st.path) then
       return nil
@@ -221,8 +250,7 @@ function M.is_clocked_headline(bufnr, lnum)
     return false
   end
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
-  local path = buf_path(bufnr)
-  if not path or path ~= vim.fs.normalize(M.state.path) then
+  if not state_in_buffer(bufnr) then
     return false
   end
   local b, clnum = M.find_open_clock()
@@ -1027,6 +1055,7 @@ function M.clock_in(target, opts)
   end
   M.state = {
     path = buf_path(bufnr) or "",
+    bufnr = unnamed(bufnr),
     start = start_str,
     title = mode_line_heading(hl),
     effort = require("org.properties").effort_minutes(hl),
@@ -1134,7 +1163,7 @@ function M.update_clock_line(bufnr, lnum, old_line)
   end
   if not c["end"] then
     local st = M.state
-    if st and old_line and buf_path(bufnr) == vim.fs.normalize(st.path) and M._is_open_clock_of(old_line, st.start) then
+    if st and old_line and state_in_buffer(bufnr) and M._is_open_clock_of(old_line, st.start) then
       st.start = c.start:clone({ active = false }):to_string({ range = false })
       persist()
       vim.cmd("redrawstatus")
@@ -1461,6 +1490,7 @@ local function close_clock(clock, stop)
   local saved = M.state
   M.state = {
     path = buf_path(clock.bufnr) or "",
+    bufnr = unnamed(clock.bufnr),
     start = clock.start:clone({ active = false }):to_string({ range = false }),
     title = hl and mode_line_heading(hl) or "?",
   }
@@ -1980,7 +2010,14 @@ function M.restore()
           M.history = data.history
         end
       end
-      if want_clock and type(data.state) == "table" and data.state.path and data.state.start then
+      -- a clock in a buffer without a file did not survive the restart
+      if
+        want_clock
+        and type(data.state) == "table"
+        and data.state.path
+        and data.state.path ~= ""
+        and data.state.start
+      then
         M.state = data.state
         if M.find_open_clock() then
           if not query_resume(M.state.title) then

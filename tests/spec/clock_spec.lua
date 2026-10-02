@@ -377,6 +377,22 @@ describe("clock", function()
     eq({ "* Task", "CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30" }, buf_lines(buf))
   end)
 
+  it("clocks in and out of a buffer without a file", function()
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    vim.bo[buf].bufhidden = "hide"
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    ok(clock.is_clocked_headline(buf, 1))
+    eq(buf, (clock.find_open_clock()))
+    -- another unnamed buffer is not the clocked one
+    local other = org_buffer({ "* Task" }, { 1, 0 })
+    eq(false, clock.is_clocked_headline(other, 1))
+    eq(90, clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") }))
+    eq(
+      { "* Task", ":LOGBOOK:", "CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30", ":END:" },
+      buf_lines(buf)
+    )
+  end)
+
   it("cleans up temp buffers", function()
     vim.cmd("enew!")
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
