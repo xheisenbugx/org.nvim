@@ -160,6 +160,19 @@ describe("structure: moving and kill ring", function()
     eq({ "* A", "a", "* B", "b", "** B1" }, buf_lines(buf))
   end)
 
+  -- Emacs only moves the text: the visibility of other entries is kept
+  it("moving a subtree keeps the folds elsewhere", function()
+    local buf = org_buffer({ "* A", "a", "* B", "b", "* C", "c", "* D", "d", "** D1", "d1" }, { 1, 0 })
+    require("org.fold").overview()
+    vim.cmd("7foldopen")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    structure.move_subtree_down()
+    eq({ "* B", "b", "* A", "a", "* C", "c", "* D", "d", "** D1", "d1" }, buf_lines(buf))
+    eq(3, vim.fn.foldclosed(3)) -- the moved subtree stays folded
+    eq(-1, vim.fn.foldclosed(7)) -- D stays open
+    eq(9, vim.fn.foldclosed(9))
+  end)
+
   -- Emacs org-paste-subtree: at the start of a headline, before it with
   -- its level; elsewhere before the next visible headline, at the deeper
   -- level of the headlines around

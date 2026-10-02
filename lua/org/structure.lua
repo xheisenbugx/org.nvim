@@ -1246,12 +1246,13 @@ local function move_subtree(dir, n)
     new_start = other.line
   end
   vim.api.nvim_win_set_cursor(0, { new_start + offset, pos[2] })
-  -- keep the moved subtree folded or open, like Emacs
-  vim.cmd("silent! normal! zx")
+  -- keep the moved subtree folded or open, like Emacs, without resetting
+  -- the folds of the rest of the buffer (zx would)
   if folded then
     pcall(vim.cmd, new_start .. "foldclose")
   else
     pcall(vim.cmd, new_start .. "foldopen")
+    vim.cmd("silent! normal! zv")
   end
 end
 
