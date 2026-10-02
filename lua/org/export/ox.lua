@@ -1657,15 +1657,17 @@ function M.macro_expander(ctx)
       if t:match("^%(eval%f[^%w]") then
         return eval_macro(t, args)
       end
+      -- org-macro-expand takes (nth (1- N) args): $0 is the first argument
       return (t:gsub("%$(%d+)", function(d)
-        return args[tonumber(d)] or ""
+        return args[math.max(tonumber(d), 1)] or ""
       end))
     end
     local b = builtin[key]
     if b then
       return b(args, parser)
     end
-    return nil
+    -- org-macro-replace-all: an unknown macro stops the export
+    error("Undefined Org macro: " .. key .. "; aborting", 0)
   end
 end
 
@@ -3794,7 +3796,7 @@ function M.prune_tree(data, info)
     end
   end
   -- missing footnote definitions
-  local missing = M.missing_definitions(data, definitions)
+  local missing = M.missing_definitions(data, definitions, info.widened_footnote)
   for _, d in ipairs(missing) do
     walk(d)
   end
@@ -3802,7 +3804,10 @@ function M.prune_tree(data, info)
   info.ignore = ignore
 end
 
-function M.missing_definitions(tree, definitions)
+--- Footnote definitions TREE references but lacks, looked up in
+--- DEFINITIONS, then with LOOKUP(label) (the widened buffer of a subtree
+--- export, like org-footnote-get-definition).
+function M.missing_definitions(tree, definitions, lookup)
   local function labels_in(d)
     return element.map(d, "footnote-reference", function(r)
       if r.fn_type == "standard" then
@@ -3841,6 +3846,7 @@ function M.missing_definitions(tree, definitions)
           break
         end
       end
+      def = def or (lookup and lookup(label))
       if not def then
         error("Definition not found for footnote " .. label, 0)
       end
@@ -4074,7 +4080,14 @@ local function subtree_region(lines, line, todo)
     end
     b = k + 1
   end
-  return { lines = vim.list_slice(lines, b, e - 1), props = props, title = parts.title, line = s, first = b }
+  return {
+    lines = vim.list_slice(lines, b, e - 1),
+    props = props,
+    title = parts.title,
+    line = s,
+    first = b,
+    last = e - 1,
+  }
 end
 
 --- `lines` without the ones hidden in a buffer's current window (closed
@@ -4178,7 +4191,25 @@ function export_as(backend, lines, opts)
     bufnr = opts.bufnr,
     backend = backend.name,
   })
+  local has_include = false
+  for _, l in ipairs(work) do
+    if l:match("^[ \t]*#%+[Ii][Nn][Cc][Ll][Uu][Dd][Ee]:") then
+      has_include = true
+      break
+    end
+  end
   work = M.expand_includes(work, dir, { includer = filename, expand_env = expand_env, todo = todo })
+  if has_include then
+    -- options and macros are read after #+INCLUDE expansion
+    -- (org-export--annotate-info), so included files can define them
+    local full = work
+    if subtree then
+      full = vim.list_slice(lines, 1, subtree.first - 1)
+      vim.list_extend(full, work)
+      vim.list_extend(full, lines, subtree.last + 1)
+    end
+    keywords = M.collect_keywords(full, dir, nil, nil, filename)
+  end
   work = M.delete_comment_trees(work, todo)
   -- Babel
   local babel_cfg = require("org.config").opts.babel or {}
@@ -4301,6 +4332,24 @@ function export_as(backend, lines, opts)
   info.table_cell_alignment_cache = {}
   info.smart_quote_cache = {}
   info.subtree_props = subtree and subtree.props or nil
+  if subtree then
+    -- org-export--missing-definitions: a definition outside the exported
+    -- subtree is read from the widened buffer (org-footnote-get-definition)
+    info.widened_footnote = function(label)
+      local head = "[fn:" .. label .. "]"
+      for i, l in ipairs(lines) do
+        if l:sub(1, #head) == head then
+          local j = i + 1
+          while j <= #lines and not (lines[j]:match("^%*+ ") or lines[j]:match("^%[fn:[%w_-]+%]")) do
+            j = j + 1
+          end
+          return element.map(parser:parse(vim.list_slice(lines, i, j - 1)), "footnote-definition", function(d)
+            return d.label == label and d or nil
+          end, { first_match = true })
+        end
+      end
+    end
+  end
   info.todo_done = function(k)
     return todo:is_done(k)
   end
