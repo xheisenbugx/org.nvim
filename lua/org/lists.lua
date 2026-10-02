@@ -154,9 +154,10 @@ function M.parse_item_line(line)
     col = col + (#rest - #stripped)
     rest = stripped
   end
-  local tag = rest:match("^(.-)%s+::%s") or rest:match("^(.-)%s+::$")
+  -- greedy, like org-list-full-item-re: the term runs to the last " ::"
+  local tag = rest:match("^(.*)%s+::$") or rest:match("^(.*)%s+::%s")
   if tag then
-    item.tag = tag
+    item.tag = tag:gsub("[ \t]+$", "")
   end
   item.text = rest
   item.content_col = col
@@ -544,6 +545,15 @@ local function bullet_string(b)
 end
 M.bullet_string = bullet_string
 
+--- Column at which the body of `item` starts (org-list-item-body-column):
+--- one space after the bullet, two when it matches
+--- lists.two_spaces_after_bullet_regexp.
+---@param item org.ListItem
+---@return integer
+function M.body_column(item)
+  return item.indent + #item.bullet + (two_spaces_p(item.bullet) and 2 or 1)
+end
+
 --- org-list-inc-bullet-maybe: "1." -> "2.", "a)" -> "b)".
 local function inc_bullet(b)
   local n = b:match("%d+")
@@ -722,7 +732,8 @@ end
 local function item_line(it, line)
   local rest = line:sub(it.indent + #it.bullet_ws + 1)
   if it.box ~= it.checkbox then
-    local counter = rest:match("^%[@%d+%]")
+    -- [@N], [@c] or [@start:N] (a new box goes right after it)
+    local counter = it.counter and rest:match("^%[@[^%]]*%]")
     if it.checkbox and it.box then
       local s = rest:find("%[[ xX%-]%]")
       rest = rest:sub(1, s) .. it.box .. rest:sub(s + 2)
@@ -1415,7 +1426,8 @@ end
 local function after_bullet_col(line, item)
   local col = item.content_col
   if item.tag then
-    local _, e = line:find("^.-%s+::%s*", col + 1)
+    local _, e = line:find("^.*%s+::$", col + 1)
+    e = e or select(2, line:find("^.*%s+::%s+", col + 1))
     if e then
       col = e
     end
@@ -2251,8 +2263,8 @@ function M.list_to_subtree(bufnr, struct, level, items)
     local line = lines[it.lnum - struct.first + 1]
     local text = line:sub(it.content_col + 1)
     if it.tag then
-      local term, desc = text:match("^(.-)%s+::%s*(.*)$")
-      text = " " .. (term or "") .. " " .. (desc or "")
+      local desc = text:sub(#it.tag + 1):gsub("^%s+::%s*", "")
+      text = " " .. it.tag .. " " .. desc
     end
     local kw = ""
     if it.checkbox == "X" then
