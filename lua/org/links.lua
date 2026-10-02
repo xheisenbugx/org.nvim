@@ -983,6 +983,12 @@ function M.search_in_buffer(search, sopts)
 
   if normalized:sub(1, 1) == "#" then
     local id = normalized:sub(2):lower()
+    -- the file-level property drawer (org-find-property: point-min)
+    local fcid = file and first == 1 and file.properties and file.properties.CUSTOM_ID
+    if fcid and fcid:lower() == id then
+      goto_pos(1, 0, sopts.stealth)
+      return true
+    end
     for _, hl in ipairs(headlines) do
       local cid = hl.properties.CUSTOM_ID
       if cid and cid:lower() == id then

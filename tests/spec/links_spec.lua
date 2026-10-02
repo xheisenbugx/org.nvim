@@ -82,6 +82,12 @@ describe("links at cursor and opening", function()
     eq(nil, links.link_at_cursor())
     eq(false, links.open_at_point())
   end)
+  -- Emacs (org-find-property) also finds the file-level drawer, at point-min
+  it("finds a CUSTOM_ID in the file-level property drawer", function()
+    org_buffer({ ":PROPERTIES:", ":CUSTOM_ID: top", ":END:", "#+TITLE: x", "", "* A", "[[#TOP]]" }, { 7, 3 })
+    ok(links.search_in_buffer("#TOP"))
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+  end)
   it("follows internal links", function()
     local buf = org_buffer({
       "[[*Second]] [[#cid]] [[tgt]] [[Third]] [[/re.ex/]] radio",
