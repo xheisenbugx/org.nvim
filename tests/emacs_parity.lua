@@ -82,6 +82,34 @@ function M.freeze_time()
   end)
 end
 
+---------------------------------------------------------------------------
+-- Known, intentional differences
+---------------------------------------------------------------------------
+-- The ONLY place where Emacs output is rewritten before comparing. Each
+-- entry is a documented difference (:h org-differences, or the keys of
+-- :h org-agenda-keys): never add one to make a real bug pass, mark the
+-- case as known in its spec instead.
+M.NORMALISE = {
+  agenda = {
+    -- the hint lines name the key that edits the query: Vim's count
+    -- prefix instead of Emacs' C-u (:h org-agenda-keys, "r")
+    { "‘C%-u r’", "‘1 r’" },
+  },
+}
+
+--- Apply the NORMALISE rules of `area` to the Emacs lines.
+function M.normalise(area, lines)
+  local rules = M.NORMALISE[area] or {}
+  local out = {}
+  for i, l in ipairs(lines) do
+    for _, r in ipairs(rules) do
+      l = l:gsub(r[1], r[2])
+    end
+    out[i] = l
+  end
+  return out
+end
+
 --- A readable diff of two line lists (first difference with context).
 function M.diff(expected, actual)
   local n = math.max(#expected, #actual)

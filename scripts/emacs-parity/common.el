@@ -4,7 +4,17 @@
 ;; deterministic: a fixed "now", no user config (emacs -Q), and the
 ;; environment set by generate.sh (TZ=UTC0, LC_ALL=C).
 
-(require 'org)
+;; Defaults that depend on the display (the agenda time grid's ┄, the
+;; block separator's ─, ...) are computed when the libraries load: give
+;; them the values of a graphical Emacs (what org.nvim follows), not the
+;; ASCII fallbacks of a batch terminal.
+(require 'cl-lib)
+(cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
+          ((symbol-function 'char-displayable-p) (lambda (&rest _) t)))
+  (dolist (lib '(org org-agenda org-clock org-lint ox ox-ascii ox-html ox-latex ox-md))
+    (require lib)))
+;; Help strings ("Press ‘C-u r’ ...") with curved quotes, as in a GUI.
+(setq text-quoting-style 'curve)
 (require 'subr-x)
 
 (unless (string-prefix-p "9.8.10" (org-version))

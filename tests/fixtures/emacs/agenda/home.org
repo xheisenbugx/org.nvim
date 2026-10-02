@@ -1,0 +1,23 @@
+#+FILETAGS: :personal:
+* Chores
+:PROPERTIES:
+:CATEGORY: chores
+:END:
+** TODO Laundry
+   SCHEDULED: <2026-10-01 Thu 18:00>
+** NEXT Groceries :errand:
+   DEADLINE: <2026-10-02 Fri> SCHEDULED: <2026-09-30 Wed>
+** TODO Plants
+   SCHEDULED: <2026-09-26 Sat .+3d>
+* Events
+** Dentist :health:
+   <2026-10-02 Fri 08:30>
+** Birthday
+   <%%(diary-anniversary 10 3 1990)>
+** Trip
+   <2026-10-03 Sat 09:00>--<2026-10-04 Sun 18:00>
+* TODO [#A] Pay bills :finance:
+  DEADLINE: <2026-10-08 Thu -10d>
+* WAITING Package delivery
+* DONE Old thing :finance:
+  CLOSED: [2026-09-20 Sun 10:00]
