@@ -75,10 +75,11 @@ function M.check()
       end
     end
   end
-  if vim.fn.has("mac") == 1 then
-    h.info("notifications use osascript on macOS")
-  elseif vim.fn.executable("notify-send") == 1 then
-    h.ok("notify-send available for notifications")
+  local notifier = require("org.agenda.notifications").desktop_backend()
+  if notifier then
+    h.ok(string.format("desktop notifications use %s", notifier))
+  else
+    h.info("no desktop notifier (osascript, notify-send or powershell.exe): reminders only use vim.notify")
   end
 
   h.start("org.nvim image and LaTeX previews")

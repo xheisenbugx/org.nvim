@@ -49,12 +49,53 @@ function M.upcoming(now)
   return out
 end
 
---- Send a desktop notification: osascript on macOS, else notify-send
---- (nothing when neither is there). Also used by extensions (pomodoro).
+-- Windows PowerShell 5.1 (powershell.exe, part of Windows) shows toasts
+-- through WinRT, which PowerShell 7 can't load. The toasts are sent as
+-- PowerShell itself: an app id Windows knows, so nothing needs registering.
+local TOAST_APP = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
+
+--- The PowerShell script showing a toast with `title` and `body`.
+---@param title string
+---@param body string
+---@return string
+function M.toast_script(title, body)
+  return table.concat({
+    "$ErrorActionPreference = 'Stop'",
+    "$m = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]",
+    "$x = $m::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)",
+    "$t = $x.GetElementsByTagName('text')",
+    "[void]$t.Item(0).AppendChild($x.CreateTextNode(" .. utils.ps_quote(title) .. "))",
+    "[void]$t.Item(1).AppendChild($x.CreateTextNode(" .. utils.ps_quote(body) .. "))",
+    "$m::CreateToastNotifier("
+      .. utils.ps_quote(TOAST_APP)
+      .. ").Show([Windows.UI.Notifications.ToastNotification]::new($x))",
+  }, "\n")
+end
+
+--- Which desktop notifier `desktop_notify` uses: "osascript" (macOS),
+--- "notify-send" (Linux, BSD), "powershell" (Windows, and WSL without
+--- notify-send) or nil when none is available.
+---@return "osascript"|"notify-send"|"powershell"|nil
+function M.desktop_backend()
+  local fn = vim.fn
+  if fn.has("mac") == 1 and fn.executable("osascript") == 1 then
+    return "osascript"
+  elseif fn.has("win32") == 0 and fn.executable("notify-send") == 1 then
+    return "notify-send"
+  elseif (fn.has("win32") == 1 or fn.has("wsl") == 1) and fn.executable("powershell.exe") == 1 then
+    return "powershell"
+  end
+  return nil
+end
+
+--- Send a desktop notification: osascript on macOS, notify-send on Linux,
+--- a toast through powershell.exe on Windows (nothing when none is there).
+--- Also used by extensions (pomodoro).
 ---@param title string
 ---@param body string
 function M.desktop_notify(title, body)
-  if vim.fn.has("mac") == 1 and vim.fn.executable("osascript") == 1 then
+  local backend = M.desktop_backend()
+  if backend == "osascript" then
     local esc = function(s)
       return (s:gsub("\\", "\\\\"):gsub('"', '\\"'))
     end
@@ -63,8 +104,10 @@ function M.desktop_notify(title, body)
       "-e",
       string.format('display notification "%s" with title "%s"', esc(body), esc(title)),
     })
-  elseif vim.fn.executable("notify-send") == 1 then
+  elseif backend == "notify-send" then
     pcall(vim.system, { "notify-send", "--app-name=org.nvim", title, body })
+  elseif backend == "powershell" then
+    pcall(vim.system, utils.powershell(M.toast_script(title, body)))
   end
 end
 

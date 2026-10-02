@@ -39,7 +39,7 @@ M.defaults = {
   clock_out_on_break = true,
   --- Property counting the finished pomodoros of an entry; false for none.
   property = "POMODOROS",
-  --- Also send a desktop notification (osascript / notify-send).
+  --- Also send a desktop notification (osascript / notify-send / powershell.exe).
   system_notification = true,
   --- Command run when a phase ends, e.g. `{ "afplay", "/System/Library/Sounds/Glass.aiff" }`
   --- or a shell string; false for none (`clock.sound` still applies).
@@ -787,8 +787,8 @@ function M.health(h, o)
       h.error(string.format("pomodoro: %s must be a positive number of minutes", k))
     end
   end
-  if o.system_notification and vim.fn.executable("osascript") == 0 and vim.fn.executable("notify-send") == 0 then
-    h.warn("pomodoro: no osascript or notify-send for desktop notifications")
+  if o.system_notification and not require("org.agenda.notifications").desktop_backend() then
+    h.warn("pomodoro: no osascript, notify-send or powershell.exe for desktop notifications")
   else
     h.ok(
       string.format(
