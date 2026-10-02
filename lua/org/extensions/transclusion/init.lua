@@ -152,7 +152,7 @@ function M.complete_insert(arglead, cmdline)
   end
   local out = {}
   for _, p in ipairs(PROPS) do
-    if not before:find(p .. "%f[^%w%-]") then
+    if not before:find(vim.pesc(p) .. "%f[^%w%-]") then
       out[#out + 1] = p
     end
   end

@@ -896,6 +896,11 @@ describe("transclusion", function()
     got = c(":", "Org transclusion_insert [[file:code.py]] :lines 1-2 :")
     ok(not vim.tbl_contains(got, ":lines"))
     ok(vim.tbl_contains(got, ":src"))
+    -- properties with a "-" in their name
+    got = c(":", "Org transclusion_insert [[file:src.org]] :only-contents :no-first-heading :")
+    ok(not vim.tbl_contains(got, ":only-contents"))
+    ok(not vim.tbl_contains(got, ":no-first-heading"))
+    ok(vim.tbl_contains(got, ":level"))
   end)
 
   it("closes the edit float with <Esc>, not over unwritten edits", function()
