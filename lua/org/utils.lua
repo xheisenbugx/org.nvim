@@ -817,14 +817,51 @@ function M.find_buffer(path)
   end
 end
 
---- Buffer for a path, loading it (hidden) when needed.
+-- Buffers load_buffer created unlisted, listed once a normal window shows them.
+local background = {}
+
+local function list_when_shown(b)
+  background[b] = true
+  local group = vim.api.nvim_create_augroup("org_background_buffers", { clear = false })
+  if #vim.api.nvim_get_autocmds({ group = group }) > 0 then
+    return
+  end
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    callback = function(ev)
+      if not background[ev.buf] then
+        return
+      end
+      for _, w in ipairs(vim.fn.win_findbuf(ev.buf)) do
+        if vim.api.nvim_win_get_config(w).relative == "" then
+          background[ev.buf] = nil
+          vim.bo[ev.buf].buflisted = true
+          return
+        end
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    callback = function(ev)
+      background[ev.buf] = nil
+    end,
+  })
+end
+
+--- Buffer for a path, loading it (hidden) when needed. A buffer it creates
+--- stays unlisted, so background edits (agenda, refile, capture, clock)
+--- don't add it to the buffer list or a buffer tabline; it's listed once
+--- it's shown in a normal window, like a file opened with :edit.
 function M.load_buffer(path)
   local b = M.find_buffer(path)
   if b then
     return b
   end
   b = vim.fn.bufadd(path)
-  vim.bo[b].buflisted = true
+  if not vim.bo[b].buflisted then
+    list_when_shown(b)
+  end
   -- A hidden load can't show the swap-file dialog; from Lua the ATTENTION
   -- message surfaces as E325. Suppress it ('shortmess' A) and load anyway.
   local shortmess = vim.o.shortmess

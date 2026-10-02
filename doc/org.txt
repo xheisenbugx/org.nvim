@@ -1784,6 +1784,10 @@ All configurable under `mappings.agenda`:
   Q               quit and delete the agenda buffer
   x               quit, delete the agenda buffers and the unmodified
                   buffers the agenda loaded
+A file the agenda (or refile, capture, the clock, ...) loads to make an
+edit stays out of the buffer list (|unlisted-buffer|), so it doesn't show
+up in `:ls` or a buffer tabline; it's listed once you open it in a window.
+`:wall` still saves it and `:qall` still warns about unsaved changes.
   g?              help
   ?               show the MobileOrg flagging note of the entry; again to
                   remove the FLAGGED tag and the note (|org-mobile|)
