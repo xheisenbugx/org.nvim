@@ -205,9 +205,10 @@ local function openssl(decrypt, infile, outfile)
   if decrypt then
     cmd[#cmd + 1] = "-d"
   end
-  vim.list_extend(cmd, { "-aes-256-cbc", "-salt", "-pass", "pass:" .. M.encryption_password(), "-in", infile })
-  vim.list_extend(cmd, { "-out", outfile })
-  local res = vim.system(cmd, { text = true }):wait()
+  -- the password goes on stdin: in argv (as Emacs passes it) any local
+  -- user could read it from the process list
+  vim.list_extend(cmd, { "-aes-256-cbc", "-salt", "-pass", "stdin", "-in", infile, "-out", outfile })
+  local res = vim.system(cmd, { text = true, stdin = M.encryption_password() .. "\n" }):wait()
   if res.code ~= 0 then
     error("openssl failed: " .. vim.trim(res.stderr or ""), 0)
   end
@@ -1002,6 +1003,7 @@ function M.move_capture()
   end
   local n = vim.api.nvim_buf_line_count(bufnr)
   local first = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1]
+  local was_modified = vim.bo[bufnr].modified
   local start
   if n == 1 and first == "" then
     vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, new)
@@ -1010,7 +1012,15 @@ function M.move_capture()
     vim.api.nvim_buf_set_lines(bufnr, n, n, false, new)
     start = n + 1
   end
-  utils.save_buffer_or_warn(bufnr)
+  -- like Emacs's save-buffer, a failed save stops the pull before the
+  -- capture file is emptied, so the entries are not lost
+  local saved, err = utils.save_buffer(bufnr)
+  if not saved then
+    -- take the entries out again, or the next pull would add them twice
+    vim.api.nvim_buf_set_lines(bufnr, start - 1, start - 1 + #new, false, {})
+    vim.bo[bufnr].modified = was_modified
+    error(("Could not save %s: %s"):format(inbox_path(), err), 0)
+  end
   stage_write(capture, "")
   update_capture_checksum("")
   return bufnr, start

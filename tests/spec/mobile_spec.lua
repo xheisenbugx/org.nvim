@@ -412,6 +412,45 @@ describe("org-mobile", function()
     eq("", read(out))
   end)
 
+  it("keeps mobileorg.org when the inbox cannot be saved", function()
+    dir = setup({ ["a.org"] = { "* A" } })
+    local inbox = dir .. "/org/from-mobile.org"
+    utils.writefile(inbox, { "* Earlier" })
+    vim.uv.fs_chmod(inbox, tonumber("444", 8))
+    local capture = dir .. "/stage/mobileorg.org"
+    utils.writefile(capture, { "* Captured on the phone" })
+    local warn, err = utils.warn, utils.error
+    utils.warn, utils.error = function() end, function() end
+    local res = mobile.pull()
+    utils.warn, utils.error = warn, err
+    vim.uv.fs_chmod(inbox, tonumber("644", 8))
+    eq(nil, res)
+    eq("* Captured on the phone\n", read(capture))
+    eq("* Earlier\n", read(inbox))
+    -- the entries are not left in the buffer to be added again
+    eq({ "* Earlier" }, buf_lines(buffer_of(inbox)))
+  end)
+
+  it("passes the encryption password to openssl on stdin, not argv", function()
+    local calls = {}
+    local system = vim.system
+    vim.system = function(cmd, opts)
+      calls[#calls + 1] = { cmd = cmd, opts = opts }
+      return {
+        wait = function()
+          return { code = 0, stdout = "", stderr = "" }
+        end,
+      }
+    end
+    dir = setup({ ["a.org"] = { "* A" } }, { mobile = { use_encryption = true, encryption_password = "s3cr3t" } })
+    local okc, perr = pcall(mobile.encrypt_file, "in", "out")
+    vim.system = system
+    ok(okc, perr)
+    eq(1, #calls)
+    ok(not table.concat(calls[1].cmd, " "):find("s3cr3t", 1, true), table.concat(calls[1].cmd, " "))
+    eq("s3cr3t\n", calls[1].opts.stdin)
+  end)
+
   it("reports a missing staging directory", function()
     dir = setup({ ["a.org"] = { "* A" } })
     config.opts.mobile.directory = dir .. "/missing"
