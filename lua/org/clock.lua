@@ -2502,13 +2502,19 @@ end
 
 --- Report bounds use civil minutes; convert them to local instants before
 --- clipping so a clock spanning a DST change retains its real duration.
-local function clipped_clock_minutes(start, stop, from_min, to_min)
+---@return number|nil from_s, number|nil to_s the bounds as local instants
+local function clip_bounds(from_min, to_min)
+  return from_min and at_minutes(from_min):to_time(), to_min and at_minutes(to_min):to_time()
+end
+
+--- Minutes of a clock within the bounds from `clip_bounds`.
+local function clipped_clock_minutes(start, stop, from_s, to_s)
   local s, e = start:to_time(), stop:to_time()
-  if from_min then
-    s = math.max(s, at_minutes(from_min):to_time())
+  if from_s and from_s > s then
+    s = from_s
   end
-  if to_min then
-    e = math.min(e, at_minutes(to_min):to_time())
+  if to_s and to_s < e then
+    e = to_s
   end
   return math.max(0, math.floor((e - s) / 60))
 end
@@ -2526,11 +2532,12 @@ function clock_sum(roots, ts, te, pred)
   if include_running and ts and te and roots[1] then
     run_hl, run_start = running_in(roots[1].file)
   end
+  local ts_s, te_s = clip_bounds(ts, te)
   local function own(hl)
     local t = 0
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        t = t + clipped_clock_minutes(c.start, c["end"], ts, te)
+        t = t + clipped_clock_minutes(c.start, c["end"], ts_s, te_s)
       end
     end
     if hl == run_hl and run_start:minutes() >= ts and run_start:minutes() <= te then
@@ -2573,9 +2580,10 @@ end
 function M.sum_minutes(hl, from_min, to_min, own_only)
   if own_only then
     local total = 0
+    local from_s, to_s = clip_bounds(from_min, to_min)
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        total = total + clipped_clock_minutes(c.start, c["end"], from_min, to_min)
+        total = total + clipped_clock_minutes(c.start, c["end"], from_s, to_s)
       end
     end
     return total
