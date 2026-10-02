@@ -1136,6 +1136,7 @@ function M.import(path, sep)
   if not path or vim.trim(path) == "" then
     return
   end
+  -- lint: allow expand: a file the user typed
   path = vim.fn.fnamemodify(vim.fn.expand(vim.trim(path)), ":p")
   local data = utils.readfile(path)
   if not data then

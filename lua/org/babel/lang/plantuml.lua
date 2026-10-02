@@ -70,6 +70,7 @@ function M.prepare(body, args, vars, ctx)
     if jar == "" then
       error("`babel.languages.plantuml.jar_path' is not set", 0)
     end
+    -- lint: allow expand: the jar_path option
     jar = vim.fn.expand(jar)
     if vim.fn.filereadable(jar) == 0 then
       error("Could not find plantuml.jar at " .. jar, 0)

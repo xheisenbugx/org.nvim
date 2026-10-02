@@ -550,6 +550,7 @@ function M.health(h, o)
     local po = require("org.config").opts.babel.languages.plantuml
     if type(po) ~= "table" then
       h.warn("diagrams: plantuml is off in babel.languages")
+    -- lint: allow expand: the jar_path option
     elseif (po.jar_path or "") ~= "" and vim.fn.filereadable(vim.fn.expand(po.jar_path)) == 1 then
       if vim.fn.executable("java") == 1 then
         h.ok("diagrams: plantuml renders with " .. po.jar_path)

@@ -105,6 +105,7 @@ end
 --- The timer value as inserted in the buffer (org-timer-value-string).
 local function value_string()
   local fmt = cfg().format or "%s "
+  -- lint: allow gsub: a formatted timer value
   return (fmt:gsub("%%s", M.format(M.value()), 1))
 end
 

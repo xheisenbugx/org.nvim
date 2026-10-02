@@ -3993,6 +3993,7 @@ function M.export(path)
   if ok and type(exp.write) == "function" then
     return exp.write(path)
   end
+  -- lint: allow expand: a file the user typed
   path = vim.fn.expand(path)
   utils.writefile(path, vim.api.nvim_buf_get_lines(S.buf, 0, -1, false))
   utils.notify("Agenda written to " .. path)

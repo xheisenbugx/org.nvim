@@ -481,6 +481,7 @@ function M.write_now(path, opts)
       return false
     end
   end
+  -- lint: allow expand: a file the user typed or configured
   path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   local ext = (path:match("%.([^./]+)$") or ""):lower()
   local nlines = #lines
@@ -573,6 +574,7 @@ function M.store_views(overrides)
         with_agenda_options(opts, function()
           agenda.open_custom(key)
           for _, f in ipairs(fl) do
+            -- lint: allow expand: a file the user typed or configured
             local path = vim.fn.fnamemodify(vim.fn.expand(f), ":p")
             if M.write(path, { nosettings = true, print = cmd.settings or cmd.options }) then
               n = n + 1

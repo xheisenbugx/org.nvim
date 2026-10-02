@@ -28,7 +28,7 @@ other versions can format differently).
 git clone https://github.com/xheisenbugx/org.nvim && cd org.nvim
 make test                                 # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua # a single spec
-make lint                                 # stylua --check
+make lint                                 # stylua --check + source lint rules
 make format                               # format with stylua
 git config blame.ignoreRevsFile .git-blame-ignore-revs  # blame past the formatting commit
 ```
@@ -119,6 +119,29 @@ Some things to know before you start:
 
 4. Document it in `doc/org.txt` (and in the README if it's user-visible).
 5. Run `make format`, `make test` and `make lint`.
+
+### Source lint rules
+
+Besides stylua, `make lint` runs `scripts/lint_sources.lua` over `lua/`
+(`tests/spec/lint_sources_spec.lua` runs it too). It reports
+`file:line: rule: message` for bug classes that kept turning up in review:
+
+| Rule | Flags | Do instead |
+| --- | --- | --- |
+| `expand` | `vim.fn.expand(x)` where `x` isn't a string literal. Vim expansion runs `` `backticks` `` as shell commands and globs, and paths often come from the document. | `utils.expand_vars(x)` (only `~` and `$VAR`) or `utils.expand(x, base)` |
+| `gsub` | `s:gsub(pat, repl)` / `string.gsub` where `repl` is a variable or a concatenation: a `%` in a path, label or user text is read as a capture. | a literal, a function, a table, or `utils.gsub_escape(value)` |
+| `keyword-span` | a value captured from a `#+KEY: value` line located again with `line:find(value)` from the start of the line, which finds `#+name: name` inside the keyword. | capture the column in the same match: `line:match("^#%+name:%s*()(.-)$")` |
+
+When a hit is audited and safe (a config option, a number, a constant),
+allow it with a comment on the same line or the line above, and say why:
+
+```lua
+-- lint: allow expand: the jar_path option, not document text
+local jar = vim.fn.expand(o.jar_path)
+```
+
+An allow comment without a reason, or one that no longer allows anything,
+is reported too.
 
 ## Pull requests
 

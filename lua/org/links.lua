@@ -1174,6 +1174,7 @@ M.base_dir = base_dir
 local function expand_user(path)
   local user, rest = path:match("^~([%w_.%-]+)(.*)$")
   if user and (rest == "" or rest:match("^[/\\]")) then
+    -- lint: allow expand: ~user, user matched by [%w_.-]+
     local home = vim.fn.expand("~" .. user)
     if home ~= "~" .. user then
       return home .. rest

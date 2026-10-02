@@ -455,6 +455,7 @@ end
 ---@return string
 function M.ps_quote(s)
   for _, q in ipairs({ "'", "\u{2018}", "\u{2019}", "\u{201A}", "\u{201B}" }) do
+    -- lint: allow gsub: quote characters
     s = s:gsub(q, q .. q)
   end
   return "'" .. s .. "'"

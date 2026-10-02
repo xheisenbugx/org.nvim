@@ -102,6 +102,7 @@ end
 
 local function state_file()
   local f = opts().state_file
+  -- lint: allow expand: the state_file option
   return type(f) == "string" and f ~= "" and vim.fn.expand(f) or nil
 end
 

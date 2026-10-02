@@ -590,6 +590,7 @@ function M.radar(rows, opts)
     .. table.concat(settings, "\n")
     .. "\nEOD\n"
   local axis = (ymin and ymax) and "1" or "$1"
+  -- lint: allow gsub: "1" or "$1"
   local tick_lines = ticks == 0 and "" or RADAR_TICKS:gsub("@A@", axis)
   local setup_file = opts.setup_file or (vim.fn.tempname() .. "-org-plot-setup")
   local code = RADAR_TEMPLATE:gsub("@SETUP@", function()

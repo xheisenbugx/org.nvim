@@ -102,6 +102,7 @@ function M.parse_emacs_locations(text, base)
       i = i + 1
     elseif c == ")" then
       if depth == 2 and entry and entry[1] then
+        -- lint: allow gsub: utils.home is a function
         local file = entry[1]:gsub("^~", utils.home)
         if base and not utils.is_absolute(file) then
           file = base .. "/" .. file

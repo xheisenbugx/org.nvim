@@ -6,8 +6,10 @@ test:
 	@d=$$(mktemp -d) && XDG_DATA_HOME=$$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua $(SPEC); \
 	s=$$?; rm -rf $$d; exit $$s
 
+# stylua, then the source rules of scripts/lint_sources.lua
 lint:
 	stylua --check lua plugin ftplugin syntax tests
+	nvim --headless --clean -l scripts/lint_sources.lua lua
 
 # stylua sometimes needs a second pass to settle
 format:

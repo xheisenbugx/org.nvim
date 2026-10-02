@@ -9,7 +9,7 @@ implementation for Neovim 0.11+ written in pure Lua with no dependencies.
 ```sh
 make test                                  # all specs, headless
 make test SPEC=tests/spec/agenda_spec.lua  # one spec (space-separate several)
-make lint                                  # stylua --check lua plugin ftplugin syntax tests
+make lint                                  # stylua --check, then scripts/lint_sources.lua over lua/
 make format                                # stylua over the same paths
 ```
 
@@ -21,6 +21,13 @@ make format                                # stylua over the same paths
   quotes, LuaJIT syntax). Run `make format` and make sure `make lint` passes
   before you finish. Don't use `goto` as a field or method name: stylua
   can't parse it (write `M["goto"]`).
+- `make lint` also runs `scripts/lint_sources.lua`, which flags bug classes
+  that kept coming back: `vim.fn.expand()` on a non-literal (it runs
+  `backticks`; use `utils.expand_vars` / `utils.expand`), a `gsub`
+  replacement that is a variable or concatenation (`%` in it is a capture;
+  wrap it in `utils.gsub_escape`), and a `#+KEY:` value's column found again
+  with `line:find(value)` (capture it with `()`). An audited safe use takes
+  `-- lint: allow <rule>: <reason>` on its line or the line above.
 
 ## Layout
 

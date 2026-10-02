@@ -493,6 +493,7 @@ function M.notify(msg)
     -- the terminal bell
     pcall(vim.api.nvim_chan_send, vim.v.stderr, "\7")
   elseif type(sound) == "string" and sound ~= "" then
+    -- lint: allow expand: the sound option
     local file = vim.fn.expand(sound)
     for _, player in ipairs({ "afplay", "paplay", "aplay" }) do
       if vim.fn.executable(player) == 1 then

@@ -632,6 +632,7 @@ function M.expand(text, ctx)
     local f = s:match("^%%%[([^\n]+)%]", p)
     return f and (p + #f + 2) or nil, f
   end, function(f, s, p, e)
+    -- lint: allow expand: %[file] of a configured capture template
     local path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(f), ":p"))
     local fd, err = io.open(path, "r")
     local content
