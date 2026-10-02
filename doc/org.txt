@@ -1319,6 +1319,7 @@ same date again is not logged.
                 for `clock.display_default_range` (this year). Count: 4 =
                 today, 16 = ask for a range, 64 = only the total. Editing
                 the buffer, <C-c><C-c> or calling it again hides the sums.
+                                                              *org-clocktable*
 <prefix>xr      Insert a clock report (`#+BEGIN: clocktable`) for the entry
                 at the cursor (:scope subtree), or the file before the
                 first headline; update it when on one. With a count,
@@ -3040,6 +3041,7 @@ Results are kept for the session.
                 A count of 4 (C-u) toggles `links.context_for_files`, 16
                 (C-u C-u) skips custom `store` functions, 64 stores one link
                 per selected line.
+                                                             *org-insert-link*
 <prefix>li      Insert a link (org-insert-link). Stored links, their
                 descriptions, link types and file paths (relative to the
                 file's directory) are completed; an empty answer inserts

@@ -257,4 +257,23 @@ describe("consistency", function()
     table.sort(wrong)
     eq({}, wrong)
   end)
+
+  it("links only to help tags defined in doc/org.txt", function()
+    local lines = vim.fn.readfile(root .. "/doc/org.txt")
+    local tags = {}
+    for _, l in ipairs(lines) do
+      for tag in l:gmatch("%*([^*%s]+)%*") do
+        tags[tag] = true
+      end
+    end
+    local broken = {}
+    for i, l in ipairs(lines) do
+      for ref in l:gmatch("|(org[^|%s]*)|") do
+        if not tags[ref] then
+          broken[#broken + 1] = i .. ": " .. ref
+        end
+      end
+    end
+    eq({}, broken)
+  end)
 end)
