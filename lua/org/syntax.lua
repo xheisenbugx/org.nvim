@@ -306,11 +306,15 @@ function M.apply(bufnr)
   local markup = "orgBold,orgItalic,orgUnderline,orgStrikethrough,orgVerbatim,orgCode"
   local function emph(group, char, extra)
     local c = esc(char)
+    -- headline stars never open bold markup (Emacs `org-do-emphasis-faces`),
+    -- or "*** Title" would be bold "*" with both outer stars concealed
+    local not_stars = char == "*" and [=[\%(^\*\+ \)\@!]=] or ""
     cmd(
       string.format(
-        [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
+        [=[syntax region %s matchgroup=%sDelimiter start=/%s%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
         group,
         group,
+        not_stars,
         pre,
         c,
         body,
