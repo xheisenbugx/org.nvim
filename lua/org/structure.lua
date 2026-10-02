@@ -190,12 +190,20 @@ local function tb_level(tb, pos)
   return parser.headline_level(tb:line(pos))
 end
 
+--- Like tb_level, but nil for inline tasks: the headlines that searches
+--- for a heading find (org-with-limited-levels).
+local function tb_outline_level(tb, pos)
+  return parser.outline_level(tb:line(pos))
+end
+
 --- Move to the beginning of the headline at or above point
 --- (org-back-to-heading). Returns false before the first headline.
 local function tb_back_to_heading(tb)
   local p = tb:line_beg()
+  local here = p
   while true do
-    if tb_level(tb, p) then
+    -- org-at-heading-p on the line itself, then limited levels above
+    if (p == here and tb_level(tb, p)) or tb_outline_level(tb, p) then
       tb:goto_char(p)
       return true
     end
@@ -217,7 +225,7 @@ local function tb_next_heading(tb)
       return false
     end
     p = nl + 1
-    if tb_level(tb, p) then
+    if tb_outline_level(tb, p) then
       tb:goto_char(p)
       return true
     end
@@ -239,7 +247,7 @@ local function tb_up_heading(tb)
   local p = tb:line_beg()
   while p > 1 do
     p = tb:line_beg(p - 1)
-    local l = tb_level(tb, p)
+    local l = tb_outline_level(tb, p)
     if l and l < lvl then
       tb:goto_char(p)
       return true
@@ -260,7 +268,7 @@ local function tb_end_of_subtree(tb)
       return
     end
     p = nl + 1
-    local l = tb_level(tb, p)
+    local l = tb_outline_level(tb, p)
     if l and l <= lvl then
       tb:goto_char(p)
       return

@@ -64,6 +64,23 @@ describe("structure: inserting headings", function()
     eq({ "* A", "", "* B", "text", "", "* " }, buf_lines(buf))
   end)
 
+  -- Emacs org-back-to-heading and org-end-of-subtree search with limited
+  -- levels: an inline task above point is not the current entry
+  it("M-RET after an inline task uses the entry's level", function()
+    local saved = config.opts.inlinetask_min_level
+    config.opts.inlinetask_min_level = 5
+    local lines = { "* A", "***** TODO x", "***** END", "text", "* B" }
+    local buf = org_buffer(lines, { 4, 0 })
+    structure.meta_return_heading({ respect_content = true })
+    local got1 = buf_lines(buf)
+    buf = org_buffer(lines, { 4, 0 })
+    structure.meta_return_heading({ pos = { 4, 4 } })
+    local got2 = buf_lines(buf)
+    config.opts.inlinetask_min_level = saved
+    eq({ "* A", "***** TODO x", "***** END", "text", "* ", "* B" }, got1)
+    eq({ "* A", "***** TODO x", "***** END", "text", "* ", "* B" }, got2)
+  end)
+
   -- Emacs org-insert-subheading: a headline below the current line, demoted
   it("inserts subheading below the headline", function()
     local buf = org_buffer({ "* A", "body", "** old" }, { 1, 0 })
