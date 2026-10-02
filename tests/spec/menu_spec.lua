@@ -167,8 +167,11 @@ describe("menus", function()
     local files = names("Org.File List for Agenda")
     config.opts.agenda_files = saved
     eq("Edit File List", files[1])
-    local label = vim.fn.fnamemodify(vim.fs.normalize(vim.fn.resolve(path)), ":~")
-    ok(vim.tbl_contains(files, label) or vim.tbl_contains(files, vim.fn.fnamemodify(path, ":~")), vim.inspect(files))
+    local label = require("org.utils").abbreviate(vim.fs.normalize(vim.fn.resolve(path)))
+    ok(
+      vim.tbl_contains(files, label) or vim.tbl_contains(files, require("org.utils").abbreviate(path)),
+      vim.inspect(files)
+    )
     emenu("Org", "File List for Agenda", files[#files])
     eq("* T", vim.api.nvim_get_current_line())
     vim.fn.delete(path)
@@ -262,5 +265,22 @@ describe("menus", function()
     eq("Org", sub[3])
     ok(vim.tbl_contains(names("Org.Customize.Org"), "deadline_warning_days"))
     ok(vim.tbl_contains(names("Org.Customize.Org.agenda"), "span"))
+  end)
+
+  it("loads the menu entries only for a buffer that has a menu", function()
+    local defs = package.loaded["org.menu_defs"]
+    vim.cmd("enew!")
+    package.loaded["org.menu_defs"] = nil
+    menu.sync(true)
+    eq(nil, package.loaded["org.menu_defs"])
+    eq({}, get("Org"))
+    org_buffer({ "* Heading" }, { 1, 0 })
+    menu.sync(true)
+    ok(package.loaded["org.menu_defs"] ~= nil)
+    ok(vim.tbl_contains(names("Org"), "Show/Hide"))
+    if defs and package.loaded["org.menu_defs"] ~= defs then
+      package.loaded["org.menu_defs"] = defs
+      menu.sync(true)
+    end
   end)
 end)

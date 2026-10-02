@@ -9,7 +9,7 @@ local initial = { org_directory = config.opts.org_directory, agenda_files = conf
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function run(args, cwd)
@@ -96,6 +96,19 @@ describe("org-attach-git", function()
     utils.writefile(dir .. "/x.txt", { "x" })
     attach.attach_file(dir .. "/x.txt", "cp", { bufnr = buf, lnum = 1 })
     eq("x.txt", run({ "git", "ls-files" }, dir .. "/data/ab/cdef"))
+  end)
+
+  it("commits and removes attachments whose names start with a dash", function()
+    local dir = tmpdir()
+    setup(dir, { attach = { git_dir = "individual-repository" } })
+    git_init(dir .. "/data/ab/cdef")
+    buf = file_buffer(dir, { "* Task", ":PROPERTIES:", ":ID: abcdef", ":END:" })
+    utils.writefile(dir .. "/-n.txt", { "x" })
+    attach.attach_file(dir .. "/-n.txt", "cp", { bufnr = buf, lnum = 1 })
+    eq("-n.txt", run({ "git", "ls-files" }, dir .. "/data/ab/cdef"))
+    vim.uv.fs_unlink(dir .. "/data/ab/cdef/-n.txt")
+    eq(1, attach_git.commit(dir .. "/data/ab/cdef"))
+    eq("", run({ "git", "ls-files" }, dir .. "/data/ab/cdef"))
   end)
 
   it("annexes large files and gets missing annexed content", function()

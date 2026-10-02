@@ -40,7 +40,8 @@ function M.file()
   if f and f ~= "" then
     return vim.fs.normalize(vim.fn.expand(f))
   end
-  local home = vim.fs.normalize("~")
+  -- $HOME when set, as Emacs (libuv prefers %USERPROFILE% on Windows)
+  local home = require("org.utils").home()
   if vim.fn.filereadable(home .. "/diary") == 1 then
     return home .. "/diary"
   end
@@ -481,8 +482,8 @@ local function list_entries(path, day, ctx, out, main)
   if f and acfg.diary_include_files then
     local dir = vim.fs.dirname(ctx.main)
     for inc in f.text:gmatch('%f[^\n%z]#include "([^"]*)"') do
-      local file = vim.fs.normalize(vim.fn.expand(inc))
-      if not file:match("^/") then
+      local file = vim.fs.normalize(require("org.utils").expand_vars(inc))
+      if not require("org.utils").is_absolute(file) then
         file = vim.fs.normalize(dir .. "/" .. file)
       end
       if vim.fn.filereadable(file) == 0 then

@@ -16,6 +16,8 @@ local utils = require("org.utils")
 
 local M = {}
 
+local ns = vim.api.nvim_create_namespace("org.refile.source")
+
 ---@class org.RefileTarget
 ---@field filename string
 ---@field lnum integer|nil headline line; nil = file top level
@@ -196,7 +198,7 @@ function M.targets(opts)
       if style == "file" or style == "buffer-name" then
         base = fname
       elseif style == "full-file-path" then
-        base = vim.uv.fs_realpath(f.filename) or f.filename
+        base = utils.realpath(f.filename) or f.filename
       elseif style == "title" then
         base = f.settings.title or fname
       end
@@ -699,13 +701,23 @@ function M.refile(target, opts)
     dest = clock_target()
   end
   local s, e = hl.line, range and range[2] or hl.end_line
-  dest = dest
-    or M.pick_target({
+  if not dest then
+    -- creating a parent node (allow_creating_parent_nodes) may insert
+    -- lines above the source: follow it with a mark
+    local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, s - 1, 0, {})
+    dest = M.pick_target({
       prompt = range and (verb .. " region to") or (verb .. ' subtree "' .. heading_text(hl) .. '" to'),
       exclude = { filename = file.filename, s = s, e = e },
       targets = opts.targets,
       bufnr = bufnr,
     })
+    local row = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})[1]
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
+    if row and row + 1 ~= s then
+      local delta = row + 1 - s
+      s, e = s + delta, e + delta
+    end
+  end
   if not dest then
     return
   end
@@ -718,7 +730,7 @@ function M.refile(target, opts)
   else
     ok, dbuf, dline = pcall(M.move, {
       bufnr = bufnr,
-      lnum = hl.line,
+      lnum = s,
       range = range and { s, e },
       save_destination = true,
     }, dest)

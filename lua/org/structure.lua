@@ -36,6 +36,21 @@ local function is_blank(l)
   return l == nil or l:match("^%s*$") ~= nil
 end
 
+--- Insert `lines` before line `at` (a line past the end appends). Lines
+--- inserted right before a fold become part of it for Vim, which then
+--- forgets the open/closed state of the folds nested in it; appended to
+--- the end of the line above instead, the folds below are kept.
+local function insert_lines(bufnr, at, lines)
+  if at <= 1 or #lines == 0 then
+    vim.api.nvim_buf_set_lines(bufnr, at - 1, at - 1, false, lines)
+    return
+  end
+  local prev = vim.api.nvim_buf_get_lines(bufnr, at - 2, at - 1, false)[1]
+  local text = { "" }
+  vim.list_extend(text, lines)
+  vim.api.nvim_buf_set_text(bufnr, at - 2, #prev, at - 2, #prev, text)
+end
+
 --- Whether only odd levels are used (org-odd-levels-only, `#+STARTUP:
 --- odd` / `oddeven`).
 function M.odd_levels_only(bufnr)
@@ -118,7 +133,8 @@ local function relevel(lines, delta, todo_cfg)
   end
   local out = {}
   for i, l in ipairs(lines) do
-    local p = parser.parse_headline_line(l, todo_cfg)
+    -- inline tasks keep their level (org-with-limited-levels)
+    local p = parser.outline_level(l) and parser.parse_headline_line(l, todo_cfg)
     local kind = data[i]
     if p then
       -- like org-promote / org-demote: change the stars, realign the tags
@@ -140,7 +156,13 @@ local function relevel(lines, delta, todo_cfg)
       end
     elseif kind == "log" then
       out[i] = is_blank(l) and l or shift(l)
-    elseif adapt and adapt ~= "headline-data" and not is_blank(l) and not l:match("^#%+") then
+    elseif
+      adapt
+      and adapt ~= "headline-data"
+      and not is_blank(l)
+      and not l:match("^#%+")
+      and not parser.headline_level(l)
+    then
       out[i] = shift(l)
     else
       out[i] = l
@@ -168,12 +190,20 @@ local function tb_level(tb, pos)
   return parser.headline_level(tb:line(pos))
 end
 
+--- Like tb_level, but nil for inline tasks: the headlines that searches
+--- for a heading find (org-with-limited-levels).
+local function tb_outline_level(tb, pos)
+  return parser.outline_level(tb:line(pos))
+end
+
 --- Move to the beginning of the headline at or above point
 --- (org-back-to-heading). Returns false before the first headline.
 local function tb_back_to_heading(tb)
   local p = tb:line_beg()
+  local here = p
   while true do
-    if tb_level(tb, p) then
+    -- org-at-heading-p on the line itself, then limited levels above
+    if (p == here and tb_level(tb, p)) or tb_outline_level(tb, p) then
       tb:goto_char(p)
       return true
     end
@@ -195,7 +225,7 @@ local function tb_next_heading(tb)
       return false
     end
     p = nl + 1
-    if tb_level(tb, p) then
+    if tb_outline_level(tb, p) then
       tb:goto_char(p)
       return true
     end
@@ -217,7 +247,7 @@ local function tb_up_heading(tb)
   local p = tb:line_beg()
   while p > 1 do
     p = tb:line_beg(p - 1)
-    local l = tb_level(tb, p)
+    local l = tb_outline_level(tb, p)
     if l and l < lvl then
       tb:goto_char(p)
       return true
@@ -238,7 +268,7 @@ local function tb_end_of_subtree(tb)
       return
     end
     p = nl + 1
-    local l = tb_level(tb, p)
+    local l = tb_outline_level(tb, p)
     if l and l <= lvl then
       tb:goto_char(p)
       return
@@ -1030,7 +1060,14 @@ local function change_level(hl, file, delta, subtree)
   local pos = cursor()
   set_lines(bufnr, s, e, new)
   local l = vim.api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
-  vim.api.nvim_win_set_cursor(0, { pos[1], math.max(0, math.min(pos[2] + delta, #l)) })
+  -- keep the cursor on its character: a headline changes by its stars, a
+  -- body line by its re-indentation (if any)
+  local shift = 0
+  if pos[1] >= s and pos[1] <= e then
+    local old = lines[pos[1] - s + 1]
+    shift = parser.headline_level(old) and delta or #l - #old
+  end
+  vim.api.nvim_win_set_cursor(0, { pos[1], math.max(0, math.min(pos[2] + shift, #l)) })
 end
 
 local function headline_for_level_change()
@@ -1140,19 +1177,22 @@ function M.cycle_level()
   local cur = p.level
   local prev_hl = lnum > 1 and file:headline_at(lnum - 1) or nil
   local prev = prev_hl and prev_hl.level or 0
+  -- the steps of org-do-promote / org-do-demote (org-level-increment)
+  local inc = M.level_increment(bufnr)
   local new
   if prev == 0 then
-    new = 1 -- first headline of the file
+    new = cur - inc * math.floor((cur - 1) / inc) -- first headline of the file
   elseif prev == cur then
-    new = cur + 1 -- sibling -> child
+    new = cur + inc -- sibling -> child
   elseif prev == 1 then
-    new = 1
+    new = cur - inc * math.floor((cur - 1) / inc) -- the parent is top-level
   elseif cur == 1 then
-    new = prev -- back to the sibling level
+    new = 1 + inc * math.floor((prev - 1) / inc) -- back to the sibling level
   elseif cur < prev then
-    new = cur - 1
+    new = cur - inc
   else
-    new = prev - 1
+    -- promote until higher than the previous level
+    new = cur - inc * (1 + math.floor((cur - prev) / inc))
   end
   local rest = line:sub(#line:match("^%*+") + 1)
   local text = string.rep("*", math.max(new, 1)) .. rest
@@ -1182,6 +1222,10 @@ end
 ---------------------------------------------------------------------------
 
 local function siblings(hl)
+  if hl.inlinetask then
+    -- inline tasks are not in the outline tree: no siblings
+    return { hl }
+  end
   return hl.parent and hl.parent.children or hl.file.children
 end
 
@@ -1215,22 +1259,23 @@ local function move_subtree(dir, n)
   if dir > 0 then
     local other = sibs[idx + n]
     -- insert after the other subtree, then delete the original
-    set_lines(bufnr, other.end_line + 1, other.end_line, text)
+    insert_lines(bufnr, other.end_line + 1, text)
     set_lines(bufnr, hl.line, hl.end_line, {})
     new_start = other.end_line + 1 - #text
   else
     local other = sibs[idx - n]
     set_lines(bufnr, hl.line, hl.end_line, {})
-    set_lines(bufnr, other.line, other.line - 1, text)
+    insert_lines(bufnr, other.line, text)
     new_start = other.line
   end
   vim.api.nvim_win_set_cursor(0, { new_start + offset, pos[2] })
-  -- keep the moved subtree folded or open, like Emacs
-  vim.cmd("silent! normal! zx")
+  -- keep the moved subtree folded or open, like Emacs, without resetting
+  -- the folds of the rest of the buffer (zx would)
   if folded then
     pcall(vim.cmd, new_start .. "foldclose")
   else
     pcall(vim.cmd, new_start .. "foldopen")
+    vim.cmd("silent! normal! zv")
   end
 end
 
@@ -1528,14 +1573,14 @@ function M.paste_subtree(opts)
   end
   local shift = new_level - old_level
   local new = shift ~= 0 and relevel(lines, shift, file.settings.todo) or lines
-  set_lines(bufnr, at, at - 1, new)
+  insert_lines(bufnr, at, new)
   local first = at
   while first < at + #new - 1 and is_blank(get_lines(bufnr, first, first)[1]) do
     first = first + 1
   end
   vim.api.nvim_win_set_cursor(0, { first, 0 })
   if not opts.lines and M.clip_folded and vim.deep_equal(M.clip, lines) then
-    vim.cmd("silent! normal! zx")
+    -- (not zx: that would reset the folds of the whole buffer)
     pcall(vim.cmd, first .. "foldclose")
   end
   utils.notify(string.format("Clipboard pasted as level %d subtree", new_level))
@@ -2583,8 +2628,10 @@ end
 
 local function sibling_jump(dir)
   local target
+  -- walk the tree without moving the cursor, so the jump records the
+  -- starting position in the jumplist
+  local hl = current_headline()
   for _ = 1, math.max(vim.v.count, 1) do
-    local hl = current_headline()
     if not hl then
       break
     end
@@ -2595,8 +2642,7 @@ local function sibling_jump(dir)
       end
       break
     end
-    target = sib.line
-    vim.api.nvim_win_set_cursor(0, { target, 0 })
+    target, hl = sib.line, sib
   end
   if target then
     jump(target)

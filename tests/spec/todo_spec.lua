@@ -7,12 +7,13 @@ local utils = require("org.utils")
 local function with_opts(overrides, fn)
   local saved = {}
   for k, v in pairs(overrides) do
-    saved[k] = config.opts[k]
+    -- boxed, so that an option unset before (nil) is unset again after
+    saved[k] = { config.opts[k] }
     config.opts[k] = v
   end
   local ok, err = pcall(fn)
   for k, v in pairs(saved) do
-    config.opts[k] = v
+    config.opts[k] = v[1]
   end
   if not ok then
     error(err, 0)
@@ -131,6 +132,50 @@ describe("todo", function()
     }, { 1, 0 })
     todo.change_state(nil, "DONE")
     eq("* NEXT Gym", buf_lines(buf)[1])
+  end)
+
+  it("a `!` flag on the DONE keyword wins over lognotedone: no note", function()
+    -- org-todo: the closing note is only set up when dolog is nil
+    local asked = false
+    utils.input = function()
+      asked = true
+      return "n"
+    end
+    local buf = org_buffer({ "#+TODO: TODO | DONE(d!)", "#+STARTUP: lognotedone", "* TODO A" }, { 3, 0 })
+    todo.change_state(nil, "DONE")
+    local l = buf_lines(buf)
+    eq(false, asked)
+    eq("* DONE A", l[3])
+    ok(l[4]:match("^CLOSED: %["), l[4])
+    eq(":LOGBOOK:", l[5])
+    ok(l[6]:match('^%- State "DONE"       from "TODO"       %[[^%]]*%]$'), l[6])
+    eq(":END:", l[7])
+  end)
+
+  it("a repeating entry of a type sequence returns to its previous state", function()
+    -- org-auto-repeat-maybe: (eq interpret 'type) -> org-last-state
+    local buf = org_buffer(
+      { "#+TYP_TODO: Fred Sara | DONE", "* Sara Task", "SCHEDULED: <2020-01-01 Wed +1d>" },
+      { 2, 0 }
+    )
+    todo.change_state(nil, "DONE")
+    eq("* Sara Task", buf_lines(buf)[2])
+  end)
+
+  it("a repeating entry with log_done = note takes a closing note", function()
+    -- org-todo sets up the CLOSING NOTE before org-auto-repeat-maybe,
+    -- which keeps that setup (org-log-setup)
+    for _, log_repeat in ipairs({ "time", false }) do
+      with_opts({ log_done = "note", log_repeat = log_repeat, log_into_drawer = false }, function()
+        local buf = org_buffer({ "* TODO Gym", "SCHEDULED: <2020-01-01 Wed +1d>" }, { 1, 0 })
+        todo.change_state(nil, "DONE", { note = "went" })
+        local l = buf_lines(buf)
+        eq("* TODO Gym", l[1])
+        local n = #l
+        ok(l[n - 1]:match("^%- CLOSING NOTE %[.*%] \\\\$"), vim.inspect(l))
+        eq("  went", l[n])
+      end)
+    end
   end)
 
   it("repeating: removes plain SCHEDULED, LAST_REPEAT only when logging or clocked", function()
@@ -504,6 +549,32 @@ describe("todo: Emacs org-todo parity", function()
       -- P's own change (from the hook) runs them before B's returns
       eq({ 2, 1, 3, 5 }, stats)
     end)
+  end)
+
+  it("after_todo_statistics_hooks: the walk stops at the COOKIE_DATA headline", function()
+    -- org-update-parent-todo-statistics: `lim` is where COOKIE_DATA is
+    -- inherited from, even when hierarchical_todo_statistics is nil
+    local calls = {}
+    with_opts({
+      hierarchical_todo_statistics = false,
+      after_todo_statistics_hooks = {
+        function(_, _, target)
+          calls[#calls + 1] = target.lnum
+        end,
+      },
+    }, function()
+      org_buffer({
+        "* Top [/]",
+        "** Mid [/]",
+        ":PROPERTIES:",
+        ":COOKIE_DATA: todo",
+        ":END:",
+        "*** Low [/]",
+        "**** TODO A",
+      }, { 7, 0 })
+      todo.change_state(nil, "DONE")
+    end)
+    eq({ 6, 2 }, calls)
   end)
 
   it("checkbox blocking: counters, partial boxes, not inside blocks", function()

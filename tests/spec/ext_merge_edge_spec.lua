@@ -26,6 +26,18 @@ local function cat(...)
 end
 
 describe("merge extension: edge cases", function()
+  it("keeps a level changed on one side under the same parent", function()
+    local base = { "* A", "*** B", "text", "**** C" }
+    local theirs = { "* A", "** B", "text", "*** C" }
+    local res = merge(base, base, theirs)
+    eq(0, res.conflicts)
+    eq(theirs, res.lines)
+    local ours = { "* A", "*** B", "text ours", "**** C" }
+    res = merge(base, ours, theirs)
+    eq(0, res.conflicts)
+    eq({ "* A", "** B", "text ours", "*** C" }, res.lines)
+  end)
+
   it("keeps both entries of an ID used twice in different subtrees", function()
     local base = cat({ "* A" }, entry("** X", "1", { "a" }), { "* B" }, entry("** Y", "1", { "b" }))
     local theirs = vim.list_extend(vim.deepcopy(base), { "c" })
@@ -415,7 +427,7 @@ describe("merge extension: fuzz", function()
 end)
 
 describe("merge extension: driver options", function()
-  local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+  local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
   local driver = root .. "/lua/org/extensions/merge/driver.lua"
   local function files(dir)
     vim.fn.writefile({ "* TODO A" }, dir .. "/base.org")

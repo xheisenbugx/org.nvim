@@ -125,7 +125,7 @@ local function prepare(rows, params, opts)
   local info = opts.info
   local out = {}
   for _, r in ipairs(rows) do
-    if info and r ~= "hline" and r[1] == "/" then
+    if info and not opts.keep_special and r ~= "hline" and r[1] == "/" then
       -- a column-groups row: always special for the ASCII export
       local groups = vim.deepcopy(r)
       if special then
@@ -146,10 +146,16 @@ local function prepare(rows, params, opts)
       out[#out + 1] = r
     elseif info and is_cookie_row(r, special) then
       info.cookies = info.cookies or {}
+      info.align = info.align or {}
       for c, v in ipairs(r) do
         local col = special and c - 1 or c
         if col >= 1 and v ~= "" and not info.cookies[col] then
           info.cookies[col] = v
+        end
+        -- the export takes the last alignment cookie of a column
+        local a = col >= 1 and v:match("^<([lrc])%d*>$")
+        if a then
+          info.align[col] = a
         end
       end
     end
@@ -177,15 +183,17 @@ local function prepare(rows, params, opts)
     if info and info.groups then
       info.groups = filter(info.groups)
     end
-    if info and info.cookies then
-      local n = 0
-      for c in pairs(info.cookies) do
-        n = math.max(n, c)
-      end
-      local cookies = filter(info.cookies, n)
-      info.cookies = {}
-      for c, v in ipairs(cookies) do
-        info.cookies[c] = v or nil
+    for _, key in ipairs({ "cookies", "align" }) do
+      if info and info[key] then
+        local n = 0
+        for c in pairs(info[key]) do
+          n = math.max(n, c)
+        end
+        local kept = filter(info[key], n)
+        info[key] = {}
+        for c, v in ipairs(kept) do
+          info[key][c] = v or nil
+        end
       end
     end
   end
@@ -292,13 +300,16 @@ end
 
 --- Org markup of a cell as LaTeX (ox-latex, simplified).
 local function latex_cell(s)
+  local special = {
+    ["\\"] = "\\textbackslash{}",
+    ["~"] = "\\textasciitilde{}",
+    ["^"] = "\\textasciicircum{}",
+  }
   local function esc(t)
-    return (
-      t:gsub("\\", "\\textbackslash{}")
-        :gsub("([%%$#&{}_])", "\\%1")
-        :gsub("~", "\\textasciitilde{}")
-        :gsub("%^", "\\textasciicircum{}")
-    )
+    -- one pass: the braces of \textbackslash{} are not escaped again
+    return (t:gsub("[\\~^%%$#&{}_]", function(ch)
+      return special[ch] or ("\\" .. ch)
+    end))
   end
   s = s:gsub("(%w)_(%w+)", "%1\1%2\2"):gsub("(%w)%^(%w+)", "%1\3%2\4")
   local map = {
@@ -444,8 +455,13 @@ local EXP = "^([-+]?%d*%.?%d+)[eE]([-+]?%d+)$"
 ---   hline?: fun(info: table): string?, table?: fun(body: string, info: table): string }
 function M.generic(rows, params, backend)
   params = params or {}
+  -- without a backend, Emacs exports through the Org backend, which keeps
+  -- the special rows (org-org-with-special-rows)
+  local keep = backend == nil and params.backend == nil
   backend = backend or {}
-  rows = prepare(rows, params)
+  local pinfo = {}
+  rows = prepare(rows, params, { keep_special = keep, info = pinfo })
+  local tx = backend.cells and not params.raw and backend.cells(rows) or nil
   local nheader = header_count(rows)
   local ndata = 0
   for _, r in ipairs(rows) do
@@ -472,7 +488,10 @@ function M.generic(rows, params, backend)
       local last = datai == ndata
       local cells = {}
       for c, v in ipairs(r) do
-        local s = backend.cell and not params.raw and backend.cell(v) or v
+        local s = tx and tx[i] and tx[i][c]
+        if s == nil then
+          s = backend.cell and not params.raw and backend.cell(v) or v
+        end
         if s ~= "" then
           local efmt = column_format(params.efmt, c)
           if efmt then
@@ -533,9 +552,101 @@ function M.generic(rows, params, backend)
     return frame(body, params)
   end
   if backend.table then
-    return backend.table(body, { rows = rows, params = params })
+    return backend.table(body, { rows = rows, params = params, cells = tx, align = pinfo.align })
   end
   return body
+end
+
+--- The cells of the prepared `rows` as the export backend `name`
+--- transcodes them: orgtbl-to-latex and friends export the table through
+--- `org-export-as` in Emacs, so links, entities, LaTeX fragments,
+--- sub/superscripts and the like come out as in a real export. Returns
+--- `tx[i][c]` for every data row `i`, or nil when the export fails.
+local function export_cells(name, rows)
+  local ox = require("org.export.ox")
+  local lines, rowlen = {}, {}
+  for i, r in ipairs(rows) do
+    if r ~= "hline" then
+      -- a first column that is never a special one, so that no row or
+      -- column is dropped by the export
+      local cells = { "x" }
+      for c = 1, #r do
+        cells[c + 1] = type(r[c]) == "string" and r[c] or ""
+      end
+      lines[#lines + 1] = "| " .. table.concat(cells, " | ") .. " |"
+      rowlen[#rowlen + 1] = { i, #r }
+    end
+  end
+  if #lines == 0 then
+    return nil
+  end
+  local got = {}
+  local backend = ox.create_backend(name, {
+    ["table-cell"] = function(_, contents)
+      got[#got + 1] = contents or ""
+      return ""
+    end,
+    ["table-row"] = function()
+      return ""
+    end,
+    table = function()
+      return ""
+    end,
+  })
+  local ok = pcall(ox.export_as, backend, lines, { body_only = true })
+  local want = 0
+  for _, rl in ipairs(rowlen) do
+    want = want + rl[2] + 1
+  end
+  if not ok or #got ~= want then
+    return nil
+  end
+  local tx, k = {}, 0
+  for _, rl in ipairs(rowlen) do
+    local i, n = rl[1], rl[2]
+    k = k + 1 -- the "x" cell
+    tx[i] = {}
+    for c = 1, n do
+      k = k + 1
+      tx[i][c] = type(rows[i][c]) == "string" and got[k] or nil
+    end
+  end
+  return tx
+end
+
+--- Alignment ("l"/"r"/"c") of each column of `rows` as the export
+--- computes it (org-export-table-cell-alignment): the last alignment
+--- cookie of the column (`cookies[c]`), else right when at least
+--- `table_number_fraction` of all its cells are numbers once transcoded
+--- (`tx`, see `export_cells`), an empty cell after a number counting as
+--- one.
+local function export_alignments(rows, tx, cookies)
+  local ox = require("org.export.ox")
+  local fraction = require("org.config").opts.table_number_fraction or 0.5
+  local ncols = 0
+  for _, r in ipairs(rows) do
+    if r ~= "hline" then
+      ncols = math.max(ncols, #r)
+    end
+  end
+  local align = {}
+  for c = 1, ncols do
+    local numbers, total, prev = 0, 0, false
+    for i, r in ipairs(rows) do
+      if r ~= "hline" then
+        local v = tx and tx[i] and tx[i][c] or (type(r[c]) == "string" and r[c] or "")
+        total = total + 1
+        if ox.table_number_p(v) or (v == "" and prev) then
+          prev = true
+          numbers = numbers + 1
+        else
+          prev = false
+        end
+      end
+    end
+    align[c] = cookies and cookies[c] or (total > 0 and numbers >= fraction * total and "r" or "l")
+  end
+  return align, ncols
 end
 
 --- Alignment ("l"/"r"/"c") of each column of `rows` (like the export).
@@ -585,14 +696,18 @@ function M.translators.latex(rows, params)
   local env = params.environment or "tabular"
   return M.generic(rows, params, {
     cell = latex_cell,
+    cells = function(prepared)
+      return export_cells("latex", prepared)
+    end,
     row = function(cells)
       return table.concat(cells, " & ") .. "\\\\"
     end,
-    hline = function(info)
-      return (booktabs and info.header) and "\\midrule" or "\\hline"
+    hline = function()
+      -- leading and trailing hlines are gone: every rule is a mid one
+      return booktabs and "\\midrule" or "\\hline"
     end,
     table = function(body, info)
-      local align, ncols = alignments(info.rows)
+      local align, ncols = export_alignments(info.rows, info.cells, info.align)
       local spec = table.concat(align, "", 1, ncols)
       local lines = { "\\begin{" .. env .. "}{" .. spec .. "}" }
       if booktabs then
@@ -625,12 +740,17 @@ function M.translators.html(rows, params)
     end
     attr_text = table.concat(parts)
   end
-  local prepared = prepare(rows, params)
-  local align = alignments(prepared)
+  local pinfo = {}
+  local prepared = prepare(rows, params, { info = pinfo })
+  local tx = not params.raw and export_cells("html", prepared) or nil
+  local align = export_alignments(prepared, tx, pinfo.align)
   local names = { l = "left", r = "right", c = "center" }
   local nheader = header_count(prepared)
   return M.generic(rows, params, {
     cell = html_cell,
+    cells = function()
+      return tx
+    end,
     row = function(cells, info)
       local tag = info.header and "th" or "td"
       local out = { "<tr>" }
@@ -669,7 +789,7 @@ function M.translators.html(rows, params)
             cur = {}
           end
         else
-          cur[#cur + 1] = { cells = r, header = i <= nheader }
+          cur[#cur + 1] = { cells = r, header = i <= nheader, tx = tx and tx[i] }
         end
       end
       if #cur > 0 then
@@ -681,7 +801,10 @@ function M.translators.html(rows, params)
         for k, row in ipairs(g) do
           local cells = {}
           for c, v in ipairs(row.cells) do
-            local s = params.raw and v or html_cell(v)
+            local s = row.tx and row.tx[c]
+            if s == nil then
+              s = params.raw and v or html_cell(v)
+            end
             local f = row.header and column_format(params.hfmt, c) or nil
             f = f or column_format(params.fmt, c)
             if f and s ~= "" then
@@ -718,6 +841,9 @@ function M.translators.texinfo(rows, params)
   params = params or {}
   local out = M.generic(rows, params, {
     cell = texinfo_cell,
+    cells = function(prepared)
+      return export_cells("texinfo", prepared)
+    end,
     row = function(cells, info)
       local lines = { (info.header and "@headitem " or "@item ") .. (cells[1] or "") }
       for c = 2, #cells do

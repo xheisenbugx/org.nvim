@@ -274,7 +274,7 @@ local function hm(minutes)
 end
 
 local function short_path(p)
-  return p and vim.fn.fnamemodify(p, ":~") or nil
+  return p and require("org.utils").abbreviate(p) or nil
 end
 
 --- Load a file into a buffer (filetype org) and return its number.
@@ -294,7 +294,7 @@ local function touch_clock_stamp()
   pcall(function()
     local path = require("org.extensions.cli").stamp_path()
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-    local fh = io.open(path, "w")
+    local fh = io.open(path, "wb")
     if fh then
       fh:write(tostring(vim.uv.hrtime()) .. "\n")
       fh:close()
@@ -795,7 +795,7 @@ function M.cmd_export(words, flags)
   if not file or not backend then
     fail("usage: org export FILE BACKEND [-o OUTPUT|--stdout]", 2)
   end
-  file = vim.fn.fnamemodify(vim.fn.expand(file), ":p")
+  file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(file), ":p"))
   if vim.fn.filereadable(file) == 0 then
     fail("no such file: " .. file, 2)
   end
@@ -810,12 +810,12 @@ function M.cmd_export(words, flags)
     M.stdout(text:sub(-1) == "\n" and text or (text .. "\n"))
     return 0
   end
-  local output = flags.output and vim.fn.fnamemodify(vim.fn.expand(flags.output), ":p") or nil
+  local output = flags.output and vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(flags.output), ":p")) or nil
   local res = export.export(backend, { bufnr = bufnr, output = output, async = false })
   if not res then
     fail("export failed")
   end
-  out(res)
+  out(vim.fs.normalize(res))
   return 0
 end
 

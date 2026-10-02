@@ -307,7 +307,7 @@ local function run(cmd, timeout)
 end
 
 local function home(...)
-  return vim.fs.joinpath(vim.env.HOME or "~", ...)
+  return vim.fs.joinpath(require("org.utils").home(), ...)
 end
 
 local function xdg_config(...)
@@ -362,7 +362,7 @@ function M.tmux_state(exec)
   if client then
     local parts = vim.split(client, "\t")
     st.termname, st.features = parts[1], parts[2]
-    st.config = parts[3] and parts[3] ~= "" and vim.fn.fnamemodify(vim.split(parts[3], ",")[1], ":~") or nil
+    st.config = parts[3] and parts[3] ~= "" and require("org.utils").abbreviate(vim.split(parts[3], ",")[1]) or nil
     st.termtype = parts[4] ~= "" and parts[4] or nil
   end
   local tf = exec({ "tmux", "show", "-sv", "terminal-features" })

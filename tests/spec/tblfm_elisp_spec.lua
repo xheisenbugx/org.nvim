@@ -105,6 +105,21 @@ describe("elisp formulas", function()
     ok(not pcall(elisp.eval, "unbound-var"))
   end)
 
+  it("string-match and string-match-p (case-sensitive, character index)", function()
+    eq(1, elisp.eval('(string-match "b" "abc")'))
+    eq(nil, elisp.eval('(string-match-p "B" "abc")'))
+    eq(2, elisp.eval('(string-match "c" "abcabc" 1)'))
+    eq(5, elisp.eval('(string-match "c" "abcabc" 3)'))
+    eq(2, elisp.eval('(string-match "x" "äöx")'))
+  end)
+
+  it('a formula returning nil inserts nil, like Emacs (format "%s" nil)', function()
+    local buf =
+      org_buffer({ "| a |   |   |   |", [[#+TBLFM: $2='(string-match "b" $1)::$3='(when nil 1)::$4='(> 1 2)]] })
+    require("org.table").recalc(buf, 1)
+    eq("| a | nil | nil | nil |", buf_lines(buf)[1])
+  end)
+
   it("looks_like", function()
     ok(elisp.looks_like("(+ 1 2)"))
     ok(elisp.looks_like('(concat "a" "b")'))

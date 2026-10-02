@@ -3,7 +3,7 @@
 local config = require("org.config")
 vim.g.org_test = true
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 local function quiet(body)
   local orig = vim.notify
   vim.notify = function() end

@@ -354,6 +354,11 @@
 ---Replaces the <style> section of agendas written as HTML
 ---(org-agenda-export-html-style). (default: `nil`)
 ---@field export_html_style? string
+---Settings applied when views are written: ps-print variables (`ps_*`) for
+---the printout, other keys are agenda options for the views that
+---org-store-agenda-views builds. See `:h org-agenda-export`.
+---(Emacs `org-agenda-exporter-settings`, default: `nil`)
+---@field exporter_settings? table<string, any>
 ---Ask before `<C-k>` deletes an entry longer than this many lines
 ---(org-agenda-confirm-kill). `false` = never ask. (default: `1`)
 ---@field confirm_kill? integer|false

@@ -186,7 +186,7 @@ end
 local function item_head(line)
   local head = line:match("^%s*%S+%s*")
   local rest = line:sub(#head + 1)
-  local counter = rest:match("^%[@[%w]+%]%s*")
+  local counter = rest:match("^%[@start:%w+%]%s*") or rest:match("^%[@%w+%]%s*")
   if counter then
     head, rest = head .. counter, rest:sub(#counter + 1)
   end
@@ -194,7 +194,8 @@ local function item_head(line)
   if cb then
     head, rest = head .. cb, rest:sub(#cb + 1)
   end
-  local tag = rest:match("^.-%s::%s+") or rest:match("^.-%s::$")
+  -- greedy, like org-list-full-item-re: the term runs to the last " ::"
+  local tag = rest:match("^.*%s::$") or rest:match("^.*%s::%s+")
   if tag then
     head = head .. tag
   end
@@ -314,7 +315,7 @@ local function collect(bufnr, els, off, from, to, jobs)
             local head, prefix
             if parent and parent.type == "item" then
               local it = parent.list_item
-              prefix = string.rep(" ", it.indent + #it.bullet + 1)
+              prefix = string.rep(" ", require("org.lists").body_column(it))
               head = el.first == parent.first and item_head(lines[1]) or leading(lines[1])
             elseif parent and parent.type == "footnote-definition" and el.first == parent.first then
               head = lines[1]:match("^%[fn:[^%]]*%]%s*")

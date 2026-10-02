@@ -837,6 +837,10 @@ function M.write_meta(bufnr, lnum, scheduled, set, remove)
     for i = s + 1, e - 1 do
       local key = require("org.parser").parse_property_line(file.lines[i])
       local k = key and key:upper() or ("\0" .. i)
+      if props[k] then
+        -- a repeated property: its later lines are kept as they are
+        k = "\0" .. i
+      end
       order[#order + 1] = k
       props[k] = { line = file.lines[i] }
     end
@@ -1183,7 +1187,7 @@ function M.complete_scope(arglead)
   end
   out[#out + 1] = "tag:"
   if arglead:find("/", 1, true) or arglead:match("^[~.]") then
-    for _, p in ipairs(vim.fn.getcompletion(arglead, "file")) do
+    for _, p in ipairs(require("org.utils").complete_path(arglead, "file")) do
       if p:match("%.org$") or p:match("/$") then
         out[#out + 1] = p
       end

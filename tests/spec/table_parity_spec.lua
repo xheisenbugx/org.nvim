@@ -105,6 +105,46 @@ describe("table formulas are fixed after structure edits (org-table-fix-formulas
     end)
     eq({ "| # | 1 |", "| # |   |", "#+TBLFM: $2=1" }, out)
   end)
+
+  it("a row added by <Tab> or <CR> copies the mark and fixes formulas", function()
+    -- both go through org-table-insert-row in Emacs
+    local out = at({ "| $ | b |", "| * | 2 |" }, 2, 2, tbl.next_field)
+    eq({ "| $ | b |", "| * | 2 |", "| * |   |" }, out)
+    out = at({ "| a | b |", "|---+---|", "| 1 | 2 |", "#+TBLFM: @2$2=@2$1*3" }, 1, 1, tbl.next_row)
+    eq({ "| a | b |", "|   |   |", "|---+---|", "| 1 | 2 |", "#+TBLFM: @3$2=@3$1*3" }, out)
+  end)
+end)
+
+describe("S-RET (org-table-copy-down)", function()
+  local function down(lines, line, col)
+    return at(lines, line, col, function()
+      tbl.copy_down(1)
+    end)
+  end
+
+  it("increments floats like number-to-string", function()
+    eq("| 3.0 |   |", down({ "| 1.0 | b |", "| 2.0 | b |" }, 2, 1)[3])
+    eq("| 1001.0 |   |", down({ "| 1e3 | b |" }, 1, 1)[2])
+    eq("| 0.30000000000000004 |   |", down({ "| 0.1 | b |", "| 0.2 | b |" }, 2, 1)[3])
+    eq("|  6 |   |", down({ "| 5. | b |" }, 1, 1)[2])
+  end)
+
+  it("moves on like org-table-next-row: # rows recalculate, rows are inserted", function()
+    local out = down({ "| # | 5 |", "| * | b |", "|---+---|", "| x | y |", "#+TBLFM: @3$1=@3$2" }, 1, 2)
+    eq({ "| # | 5 |", "| * | 6 |", "|---+---|", "| y | y |", "#+TBLFM: @3$1=@3$2" }, out)
+    out = down({ "| # | 1 |", "|---+---|", "| 9 | 9 |", "#+TBLFM: @2$1=7" }, 1, 2)
+    eq({ "| # | 1 |", "| # | 2 |", "|---+---|", "| 7 | 9 |", "#+TBLFM: @3$1=7" }, out)
+  end)
+end)
+
+describe("formulas typed into a field (org-table-maybe-eval-formula)", function()
+  it("=formula sets the column formula and drops the field's own one", function()
+    local out = at({ "| 3 | =$1*2 |", "#+TBLFM: $2=5::@1$2=7" }, 1, 2, tbl.next_field)
+    eq("#+TBLFM: $2=$1*2", out[#out])
+    eq("| 3 | 6 |", out[1])
+    out = at({ "| 3 | :=$1*2 |", "#+TBLFM: $2=5" }, 1, 2, tbl.next_field)
+    eq("#+TBLFM: $2=5::@1$2=$1*2", out[#out])
+  end)
 end)
 
 describe("multiple #+TBLFM lines", function()
@@ -212,6 +252,9 @@ describe("C-c * (org-table-recalculate)", function()
 end)
 
 describe("sorting (org-table-sort-lines)", function()
+  -- expected from Emacs in the C locale; Windows collates by its locale
+  -- (as Emacs does there), so compare character codes like the C locale
+  with_config({ sort_function = vim.fn.has("win32") == 1 and "fallback" or nil })
   it("sorts text without emphasis and link markup, case-insensitively", function()
     local out = at({ "| C |", "| *b* |", "| [[x][a]] |", "| B |" }, 1, 1, function()
       tbl.sort_column({ type = "a" })

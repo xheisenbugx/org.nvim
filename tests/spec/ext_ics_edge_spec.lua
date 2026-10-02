@@ -38,6 +38,7 @@ describe("ics: zoneinfo (TZif) reader", function()
   end
 
   it("agrees with the C library on offsets, past the last transition too", function()
+    skip_on_windows("TZ takes no IANA zone names on Windows")
     for _, name in ipairs({ "Europe/Berlin", "America/New_York", "Australia/Sydney", "Asia/Kolkata" }) do
       local z = assert(tzif.load(name))
       local saved = vim.env.TZ
@@ -96,6 +97,78 @@ describe("ics: recurrence details", function()
     eq(
       { "2026-01-06 09:00", "2026-01-06 09:20", "2026-01-06 09:40" },
       vim.tbl_map(utc, parser.expand(r, N(2026, 1, 5, 9), N(2026, 1, 6), N(2026, 1, 6, 23)))
+    )
+  end)
+
+  it("finds single events by their span, zones included, and skips far ones", function()
+    local cal = parser.parse(ics({
+      { "UID:a", "DTSTART;VALUE=DATE:20260101", "DTEND;VALUE=DATE:20260301", "SUMMARY:Long" },
+      { "UID:b", "DTSTART:20260204T230000Z", "DURATION:PT2H", "SUMMARY:Late UTC" },
+      { "UID:c", "DTSTART;TZID=Pacific/Kiritimati:20260206T010000", "SUMMARY:Early zone" },
+      { "UID:d", "DTSTART:20250105T100000", "SUMMARY:Last year" },
+      { "UID:e", "DTSTART:20270105T100000", "SUMMARY:Next year" },
+    }))
+    local from = day("2026-02-05 Thu")
+    local names = vim.tbl_map(function(o)
+      return o.event.summary
+    end, parser.occurrences(cal, from, from, { timezone = "UTC" }))
+    table.sort(names)
+    if parser.system_zone("Pacific/Kiritimati") then
+      eq({ "Early zone", "Late UTC", "Long" }, names)
+    else
+      eq(
+        { "Late UTC", "Long" },
+        vim.tbl_filter(function(n)
+          return n ~= "Early zone"
+        end, names)
+      )
+    end
+  end)
+
+  it("reads an RDATE in its own zone, and drops one that repeats the rule", function()
+    local cal = parser.parse(ics({
+      {
+        "UID:r",
+        "DTSTART:20260105T100000Z",
+        "RRULE:FREQ=DAILY;COUNT=2",
+        "RDATE;TZID=Asia/Tokyo:20260110T180000",
+        "RDATE:20260106T100000Z",
+        "SUMMARY:R",
+      },
+    }))
+    local from = day("2026-01-05 Mon")
+    local starts = vim.tbl_map(function(o)
+      return utc(o.start)
+    end, parser.occurrences(cal, from, from + 10, { timezone = "UTC" }))
+    if parser.system_zone("Asia/Tokyo") then
+      eq({ "2026-01-05 10:00", "2026-01-06 10:00", "2026-01-10 09:00" }, starts)
+    else
+      eq({ "2026-01-05 10:00", "2026-01-06 10:00" }, vim.list_slice(starts, 1, 2))
+    end
+  end)
+
+  it("closes components by name when an END line is missing", function()
+    local cal = parser.parse(table.concat({
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:a",
+      "DTSTART:20260105T100000Z",
+      "SUMMARY:A",
+      "BEGIN:VALARM",
+      "TRIGGER:-PT15M",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:b",
+      "DTSTART:20260106T100000Z",
+      "SUMMARY:B",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    }, "\r\n"))
+    eq(
+      { "A", "B" },
+      vim.tbl_map(function(e)
+        return e.summary
+      end, cal.events)
     )
   end)
 

@@ -154,9 +154,10 @@ function M.parse_item_line(line)
     col = col + (#rest - #stripped)
     rest = stripped
   end
-  local tag = rest:match("^(.-)%s+::%s") or rest:match("^(.-)%s+::$")
+  -- greedy, like org-list-full-item-re: the term runs to the last " ::"
+  local tag = rest:match("^(.*)%s+::$") or rest:match("^(.*)%s+::%s")
   if tag then
-    item.tag = tag
+    item.tag = tag:gsub("[ \t]+$", "")
   end
   item.text = rest
   item.content_col = col
@@ -172,46 +173,63 @@ local function is_blank(line)
   return line == nil or first_nonblank(line) == nil
 end
 
+--- When lines[i] opens a forbidden block closed within lines[i+1..to],
+--- the line number of its #+end line.
+local function forbidden_block_end(lines, i, to)
+  local j = first_nonblank(lines[i])
+  local name = j and lines[i]:byte(j) == 35 and lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+  if name and M.forbidden_blocks[name:lower()] then
+    local close = ("^%s*#%+end_" .. vim.pesc(name) .. "%s*$"):lower()
+    for k = i + 1, to do
+      if lines[k]:lower():match(close) then
+        return k
+      end
+    end
+  end
+end
+
 --- Lines strictly inside a forbidden block within lines[from..to]:
 --- set of line numbers.
 local function verbatim_lines(lines, from, to)
   local set = {}
   local i = from
   while i <= to do
-    local j = first_nonblank(lines[i])
-    local name = j and lines[i]:byte(j) == 35 and lines[i]:match("^%s*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
-    if name and M.forbidden_blocks[name:lower()] then
-      local close = "^%s*#%+[Ee][Nn][Dd]_" .. vim.pesc(name) .. "%s*$"
-      local stop
-      for j = i + 1, to do
-        if lines[j]:lower():match(close:lower()) then
-          stop = j
-          break
-        end
+    local stop = forbidden_block_end(lines, i, to)
+    if stop then
+      for j = i + 1, stop - 1 do
+        set[j] = true
       end
-      if stop then
-        for j = i + 1, stop - 1 do
-          set[j] = true
-        end
-        i = stop
-      end
+      i = stop
     end
     i = i + 1
   end
   return set
 end
 
---- Parse all lists within lines[from..to].
+--- Parse all lists within lines[from..to]. With `first_only`, stop at
+--- the end of the first list (the element parser asks for one list at a
+--- time: scanning the rest of the section made it quadratic).
+---@param first_only? boolean
 ---@return { items: org.ListItem[] }[] lists, org.ListItem[] all items (in order)
-function M.parse_region(lines, from, to)
+function M.parse_region(lines, from, to, first_only)
   local lists, all = {}, {}
   local stack = {} -- open items
   local current -- current list
   local blanks = 0
-  local verbatim = verbatim_lines(lines, from, to)
+  -- lines [verbatim_from, verbatim_to] are inside a forbidden block
+  local verbatim_from, verbatim_to = 0, -1
   for i = from, to do
+    if first_only and lists[1] and not current then
+      break
+    end
     local line = lines[i]
-    if verbatim[i] then
+    if i > verbatim_to then
+      local stop = forbidden_block_end(lines, i, to)
+      if stop then
+        verbatim_from, verbatim_to = i + 1, stop - 1
+      end
+    end
+    if i >= verbatim_from and i <= verbatim_to then
       -- block contents belong to the enclosing item, whatever their indentation
       blanks = is_blank(line) and blanks + 1 or 0
       if #stack > 0 and not is_blank(line) then
@@ -544,6 +562,15 @@ local function bullet_string(b)
 end
 M.bullet_string = bullet_string
 
+--- Column at which the body of `item` starts (org-list-item-body-column):
+--- one space after the bullet, two when it matches
+--- lists.two_spaces_after_bullet_regexp.
+---@param item org.ListItem
+---@return integer
+function M.body_column(item)
+  return item.indent + #item.bullet + (two_spaces_p(item.bullet) and 2 or 1)
+end
+
 --- org-list-inc-bullet-maybe: "1." -> "2.", "a)" -> "b)".
 local function inc_bullet(b)
   local n = b:match("%d+")
@@ -722,7 +749,8 @@ end
 local function item_line(it, line)
   local rest = line:sub(it.indent + #it.bullet_ws + 1)
   if it.box ~= it.checkbox then
-    local counter = rest:match("^%[@%d+%]")
+    -- [@N], [@c] or [@start:N] (a new box goes right after it)
+    local counter = it.counter and rest:match("^%[@[^%]]*%]")
     if it.checkbox and it.box then
       local s = rest:find("%[[ xX%-]%]")
       rest = rest:sub(1, s) .. it.box .. rest:sub(s + 2)
@@ -1415,7 +1443,8 @@ end
 local function after_bullet_col(line, item)
   local col = item.content_col
   if item.tag then
-    local _, e = line:find("^.-%s+::%s*", col + 1)
+    local _, e = line:find("^.*%s+::$", col + 1)
+    e = e or select(2, line:find("^.*%s+::%s+", col + 1))
     if e then
       col = e
     end
@@ -2251,8 +2280,8 @@ function M.list_to_subtree(bufnr, struct, level, items)
     local line = lines[it.lnum - struct.first + 1]
     local text = line:sub(it.content_col + 1)
     if it.tag then
-      local term, desc = text:match("^(.-)%s+::%s*(.*)$")
-      text = " " .. (term or "") .. " " .. (desc or "")
+      local desc = text:sub(#it.tag + 1):gsub("^%s+::%s*", "")
+      text = " " .. it.tag .. " " .. desc
     end
     local kw = ""
     if it.checkbox == "X" then

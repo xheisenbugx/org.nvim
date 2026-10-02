@@ -45,7 +45,7 @@ describe("diagrams: commands", function()
     -- org_directory/mmdc, so the default command was never found)
     eq("mmdc", render.program("mmdc"))
     eq("npx -y @mermaid-js/mermaid-cli", render.command_string("npx -y @mermaid-js/mermaid-cli"))
-    eq(vim.env.HOME .. "/bin/dot", render.program("~/bin/dot"))
+    eq(require("org.utils").home() .. "/bin/dot", render.program("~/bin/dot"))
     local dir = tmpdir()
     fake(dir, "mmdc", "exit 0")
     h.with_path(dir, function()
@@ -54,6 +54,7 @@ describe("diagrams: commands", function()
   end)
 
   it("renders from a directory with spaces and quotes in its name", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     local dir = tmpdir() .. "/it's a dir"
     vim.fn.mkdir(dir, "p")
     local log = dir .. "/log"
@@ -148,19 +149,27 @@ describe("diagrams: cleaning", function()
       vim.fn.writefile({ string.rep("x", kb * 1024 - 1) }, dir .. "/cache/" .. name, "b")
       vim.uv.fs_utime(dir .. "/cache/" .. name, now - days * 86400, now - days * 86400)
     end
-    entry("old", 1, 100)
-    entry("a", 600, 1)
-    entry("b", 600, 2)
-    entry("c", 600, 3)
+    local function h(c)
+      return string.rep(c, 64) .. ".png"
+    end
+    entry(h("0"), 1, 100)
+    entry(h("a"), 600, 1)
+    entry(h("b"), 600, 2)
+    entry(h("c"), 600, 3)
+    -- not cache entries: never deleted, whatever their age and size
+    entry("notes.txt", 1, 100)
+    entry("big.png", 2048, 1)
     local ext = require("org.extensions.diagrams")
     eq(1, ext.prune_cache(90, false))
-    eq(0, vim.fn.filereadable(dir .. "/cache/old"))
+    eq(0, vim.fn.filereadable(dir .. "/cache/" .. h("0")))
     eq(1, ext.prune_cache(false, 1.5))
     eq({ 1, 1, 0 }, {
-      vim.fn.filereadable(dir .. "/cache/a"),
-      vim.fn.filereadable(dir .. "/cache/b"),
-      vim.fn.filereadable(dir .. "/cache/c"),
+      vim.fn.filereadable(dir .. "/cache/" .. h("a")),
+      vim.fn.filereadable(dir .. "/cache/" .. h("b")),
+      vim.fn.filereadable(dir .. "/cache/" .. h("c")),
     })
+    ext.clear_cache()
+    eq({ "big.png", "notes.txt" }, vim.fn.readdir(dir .. "/cache"))
   end)
 end)
 

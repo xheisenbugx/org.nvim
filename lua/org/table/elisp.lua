@@ -19,7 +19,8 @@
 ---   apply funcall mapcar identity number-sequence not null numberp
 ---   integerp floatp stringp listp consp symbolp zerop string-prefix-p
 ---   string-suffix-p symbol-name princ prin1 print terpri prin1-to-string
----   string-empty-p string-replace replace-regexp-in-string
+---   string-empty-p string-replace replace-regexp-in-string string-match
+---   string-match-p
 ---   format-time-string float-time user-full-name user-login-name
 ---   system-name getenv file-name-nondirectory file-name-directory
 ---   file-name-extension file-name-sans-extension file-name-base
@@ -1213,6 +1214,24 @@ F["string-replace"] = function(from, to, s)
   end
   return (s:gsub(vim.pesc(from), (to:gsub("%%", "%%%%"))))
 end
+--- string-match / string-match-p: the character index of the first match
+--- of a (simple) regexp in `s` from `start`, or nil. Org formulas run with
+--- case-fold-search nil, so matching is case-sensitive.
+local function string_match(re, s, start)
+  s = str(s)
+  local from = 1
+  if start ~= nil then
+    local k = int_arg(start)
+    if k < 0 then
+      k = vim.fn.strchars(s) + k
+    end
+    from = #vim.fn.strcharpart(s, 0, k) + 1
+  end
+  local i = s:find(regex_to_pattern(str(re)), from)
+  return i and vim.fn.strchars(s:sub(1, i - 1)) or nil
+end
+F["string-match"] = string_match
+F["string-match-p"] = string_match
 F["replace-regexp-in-string"] = function(re, rep, s, _, literal)
   local pat = regex_to_pattern(str(re))
   rep = str(rep)

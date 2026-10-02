@@ -2,7 +2,7 @@ local odt = require("org.export.odt")
 local zip = require("org.export.zip")
 local config = require("org.config")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/odt"
 
 local function has(s, sub)
@@ -53,6 +53,7 @@ local function body(xml)
 end
 
 describe("export odt", function()
+  posix_shell()
   local saved
   before_each(function()
     saved = saved or vim.deepcopy(config.opts.export.odt)
@@ -370,12 +371,28 @@ describe("export odt", function()
       local buf = org_buffer({ "* Hello", "World" })
       vim.api.nvim_buf_set_name(buf, tmp .. "/hello.org")
       local res = require("org.export").export("odt", {})
-      eq(vim.fn.resolve(tmp .. "/hello.odt"), vim.fn.resolve(res))
+      eq(vim.fs.normalize(vim.fn.resolve(tmp .. "/hello.odt")), vim.fs.normalize(vim.fn.resolve(res)))
       has(zip.read(res, "content.xml"), "World")
       vim.bo[buf].modified = false
       vim.cmd("bwipe! " .. buf)
       local xml = require("org.export").to_string("odt", { lines = { "Hi" }, body_only = true })
       has(xml, '<text:p text:style-name="Text_20_body">Hi</text:p>')
     end)
+  end)
+
+  it("escapes quotes and angle brackets in link targets", function()
+    local _, member = export({ '[[https://e.com/?a=1&b="2"<x>][link]]' })
+    has(member("content.xml"), 'xlink:href="https://e.com/?a=1&amp;b=&quot;2&quot;&lt;x&gt;">link</text:a>')
+  end)
+
+  it("quotes shell arguments for sh whatever 'shell' is", function()
+    if vim.fn.has("win32") == 1 then
+      return
+    end
+    local saved = vim.o.shell
+    vim.o.shell = "/usr/bin/fish"
+    local arg = odt.shellescape("\\frac{a}{b} it's !x")
+    vim.o.shell = saved
+    eq("\\frac{a}{b} it's !x", odt.shell_command_to_string("printf %s " .. arg))
   end)
 end)

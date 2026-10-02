@@ -530,7 +530,7 @@ local function parse_entry_at(text, at)
   end
   local pos = p + 1
   local key
-  key, pos = text:match("^[ \t\n]*([^%s,]*)[ \t\n]*()", pos)
+  key, pos = text:match(close == "}" and "^[ \t\n]*([^%s,}]*)[ \t\n]*()" or "^[ \t\n]*([^%s,)]*)[ \t\n]*()", pos)
   local entry = { type = etype, key = key, fields = {} }
   local n = #text
   while pos <= n do
@@ -1186,7 +1186,7 @@ function M.store_link(bufnr, lnum)
   end
   local ok, desc = pcall(M.autokey, entry, LINK_DESCRIPTION)
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local path = vim.fn.fnamemodify(name, ":~")
+  local path = utils.abbreviate(name)
   local link = "file:" .. path .. "::" .. entry.key
   local pairs_ = to_pairs(entry)
   local extra = { key = entry.key, type = "bibtex", btype = entry.type, link = link }

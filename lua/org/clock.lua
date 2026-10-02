@@ -18,7 +18,8 @@ local utils = require("org.utils")
 local M = {}
 
 ---@class org.ClockState
----@field path string
+---@field path string "" for a buffer without a file
+---@field bufnr? integer the buffer, kept only when it has no file
 ---@field start string inactive timestamp string of the clock start
 ---@field title string
 ---@field effort integer|nil minutes
@@ -138,6 +139,38 @@ function M.format_clock_line(indent, start, stop)
     minutes
 end
 
+--- Whether `line` is an open CLOCK line starting at `start` (a timestamp
+--- string), however its timestamp is written.
+---@param line string
+---@param start string
+function M._is_open_clock_of(line, start)
+  if line:match("^%s*CLOCK:%s*" .. utils.escape_pattern(start) .. "%s*$") then
+    return true
+  end
+  local c = parser.parse_clock_line(line)
+  local s = c and not c["end"] and date.parse(start)
+  return s and c.start:minutes() == s:minutes() or false
+end
+
+--- Whether the running clock is in buffer `bufnr`.
+local function state_in_buffer(bufnr)
+  local st = M.state
+  if not st then
+    return false
+  end
+  if st.path == "" then
+    return st.bufnr == bufnr
+  end
+  local path = buf_path(bufnr)
+  return path ~= nil and path == vim.fs.normalize(st.path)
+end
+
+--- The `bufnr` to keep in the clock state: only for a buffer without a
+--- file, which cannot be found again by its path.
+local function unnamed(bufnr)
+  return buf_path(bufnr) == nil and bufnr or nil
+end
+
 --- Locate the open clock line of the running clock.
 ---@return integer|nil bufnr, integer|nil lnum
 function M.find_open_clock()
@@ -145,7 +178,16 @@ function M.find_open_clock()
   if not st then
     return nil
   end
-  local bufnr = utils.find_buffer(st.path)
+  local bufnr
+  if st.path == "" then
+    -- a buffer without a file: only that buffer, while it is loaded
+    bufnr = st.bufnr
+    if not (bufnr and vim.api.nvim_buf_is_loaded(bufnr) and buf_path(bufnr) == nil) then
+      return nil
+    end
+  else
+    bufnr = utils.find_buffer(st.path)
+  end
   if not bufnr then
     if not utils.exists(st.path) then
       return nil
@@ -156,6 +198,13 @@ function M.find_open_clock()
   local pat = "^%s*CLOCK:%s*" .. utils.escape_pattern(st.start) .. "%s*$"
   for i, l in ipairs(lines) do
     if l:match(pat) then
+      return bufnr, i
+    end
+  end
+  -- the line may be written differently from the state's normalized
+  -- start (no day name, another day name, extra spaces)
+  for i, l in ipairs(lines) do
+    if l:find("CLOCK:", 1, true) and M._is_open_clock_of(l, st.start) then
       return bufnr, i
     end
   end
@@ -201,8 +250,7 @@ function M.is_clocked_headline(bufnr, lnum)
     return false
   end
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
-  local path = buf_path(bufnr)
-  if not path or path ~= vim.fs.normalize(M.state.path) then
+  if not state_in_buffer(bufnr) then
     return false
   end
   local b, clnum = M.find_open_clock()
@@ -598,6 +646,35 @@ function M.toggle_auto_clockout()
 end
 
 local exit_hooked = false
+local rename_hooked = false
+
+--- Follow the clocked buffer when it gets another name (:saveas, :file),
+--- as Emacs follows its clock marker.
+local function hook_rename()
+  if rename_hooked then
+    return
+  end
+  rename_hooked = true
+  -- :saveas also names a new alternate buffer: the events nest
+  local renaming = {}
+  vim.api.nvim_create_autocmd("BufFilePre", {
+    group = utils.augroup,
+    callback = function(ev)
+      renaming[ev.buf] = M.state ~= nil and state_in_buffer(ev.buf) or nil
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufFilePost", {
+    group = utils.augroup,
+    callback = function(ev)
+      if renaming[ev.buf] and M.state then
+        M.state.path = buf_path(ev.buf) or ""
+        M.state.bufnr = unnamed(ev.buf)
+        persist()
+      end
+      renaming[ev.buf] = nil
+    end,
+  })
+end
 
 --- On exit with `clock.persist_query_save` and a running clock, ask
 --- whether to keep it for the next session (org-clock-persist-query-save);
@@ -1007,6 +1084,7 @@ function M.clock_in(target, opts)
   end
   M.state = {
     path = buf_path(bufnr) or "",
+    bufnr = unnamed(bufnr),
     start = start_str,
     title = mode_line_heading(hl),
     effort = require("org.properties").effort_minutes(hl),
@@ -1017,6 +1095,7 @@ function M.clock_in(target, opts)
   persist()
   start_timers()
   hook_exit()
+  hook_rename()
   utils.notify("Clock starts at " .. start_str .. " - " .. sum_text)
   fire("OrgClockIn", { bufnr = bufnr, lnum = lnum, title = M.state.title })
   vim.cmd("redrawstatus")
@@ -1114,12 +1193,7 @@ function M.update_clock_line(bufnr, lnum, old_line)
   end
   if not c["end"] then
     local st = M.state
-    if
-      st
-      and old_line
-      and buf_path(bufnr) == vim.fs.normalize(st.path)
-      and old_line:match("^%s*CLOCK:%s*" .. utils.escape_pattern(st.start) .. "%s*$")
-    then
+    if st and old_line and state_in_buffer(bufnr) and M._is_open_clock_of(old_line, st.start) then
       st.start = c.start:clone({ active = false }):to_string({ range = false })
       persist()
       vim.cmd("redrawstatus")
@@ -1446,6 +1520,7 @@ local function close_clock(clock, stop)
   local saved = M.state
   M.state = {
     path = buf_path(clock.bufnr) or "",
+    bufnr = unnamed(clock.bufnr),
     start = clock.start:clone({ active = false }):to_string({ range = false }),
     title = hl and mode_line_heading(hl) or "?",
   }
@@ -1934,6 +2009,7 @@ function M.sync()
             total = (total_before(hl)),
           }
           start_timers()
+          hook_rename()
           pcall(vim.cmd, "redrawstatus")
           return "in", M.state
         end
@@ -1949,6 +2025,7 @@ end
 ---@return org.ClockState|nil state the running clock, if any
 function M.restore()
   hook_exit()
+  hook_rename()
   if M.state then
     return M.state
   end
@@ -1965,7 +2042,14 @@ function M.restore()
           M.history = data.history
         end
       end
-      if want_clock and type(data.state) == "table" and data.state.path and data.state.start then
+      -- a clock in a buffer without a file did not survive the restart
+      if
+        want_clock
+        and type(data.state) == "table"
+        and data.state.path
+        and data.state.path ~= ""
+        and data.state.start
+      then
         M.state = data.state
         if M.find_open_clock() then
           if not query_resume(M.state.title) then
@@ -2418,13 +2502,19 @@ end
 
 --- Report bounds use civil minutes; convert them to local instants before
 --- clipping so a clock spanning a DST change retains its real duration.
-local function clipped_clock_minutes(start, stop, from_min, to_min)
+---@return number|nil from_s, number|nil to_s the bounds as local instants
+local function clip_bounds(from_min, to_min)
+  return from_min and at_minutes(from_min):to_time(), to_min and at_minutes(to_min):to_time()
+end
+
+--- Minutes of a clock within the bounds from `clip_bounds`.
+local function clipped_clock_minutes(start, stop, from_s, to_s)
   local s, e = start:to_time(), stop:to_time()
-  if from_min then
-    s = math.max(s, at_minutes(from_min):to_time())
+  if from_s and from_s > s then
+    s = from_s
   end
-  if to_min then
-    e = math.min(e, at_minutes(to_min):to_time())
+  if to_s and to_s < e then
+    e = to_s
   end
   return math.max(0, math.floor((e - s) / 60))
 end
@@ -2442,11 +2532,12 @@ function clock_sum(roots, ts, te, pred)
   if include_running and ts and te and roots[1] then
     run_hl, run_start = running_in(roots[1].file)
   end
+  local ts_s, te_s = clip_bounds(ts, te)
   local function own(hl)
     local t = 0
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        t = t + clipped_clock_minutes(c.start, c["end"], ts, te)
+        t = t + clipped_clock_minutes(c.start, c["end"], ts_s, te_s)
       end
     end
     if hl == run_hl and run_start:minutes() >= ts and run_start:minutes() <= te then
@@ -2489,9 +2580,10 @@ end
 function M.sum_minutes(hl, from_min, to_min, own_only)
   if own_only then
     local total = 0
+    local from_s, to_s = clip_bounds(from_min, to_min)
     for _, c in ipairs(hl.clocks) do
       if c["end"] then
-        total = total + clipped_clock_minutes(c.start, c["end"], from_min, to_min)
+        total = total + clipped_clock_minutes(c.start, c["end"], from_s, to_s)
       end
     end
     return total
@@ -2599,13 +2691,9 @@ local function sort_rows(rows, spec)
   for i = s, e do
     slice[#slice + 1] = { row = rows[i], key = key(rows[i]), i = i }
   end
+  -- sort-subr sorts a reversed list stably and reverses it again: equal
+  -- keys keep their order either way
   local reverse = kind ~= lower
-  if reverse then
-    -- sort-subr: reverse, stable sort, reverse again
-    for i, x in ipairs(slice) do
-      x.i = -i
-    end
-  end
   table.sort(slice, function(a, b)
     if a.key ~= b.key then
       if reverse then

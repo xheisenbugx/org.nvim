@@ -8,7 +8,7 @@ local initial = { org_directory = config.opts.org_directory, agenda_files = conf
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function read(path)
@@ -108,7 +108,7 @@ describe("org-mobile", function()
     end
     ok(id1 and id2)
     local sums = utils.readfile(stage .. "/checksums.dat")
-    eq(4, #sums)
+    eq(4, #sums, vim.inspect(sums))
     eq(mobile.md5(read(stage .. "/index.org")) .. "  index.org", sums[1])
     eq("68b329da9893e34099c7d8ad5cb9c940  mobileorg.org", sums[2])
     ok(sums[3]:match("^%x+  a%.org$"))
@@ -412,6 +412,45 @@ describe("org-mobile", function()
     eq("", read(out))
   end)
 
+  it("keeps mobileorg.org when the inbox cannot be saved", function()
+    dir = setup({ ["a.org"] = { "* A" } })
+    local inbox = dir .. "/org/from-mobile.org"
+    utils.writefile(inbox, { "* Earlier" })
+    vim.uv.fs_chmod(inbox, tonumber("444", 8))
+    local capture = dir .. "/stage/mobileorg.org"
+    utils.writefile(capture, { "* Captured on the phone" })
+    local warn, err = utils.warn, utils.error
+    utils.warn, utils.error = function() end, function() end
+    local res = mobile.pull()
+    utils.warn, utils.error = warn, err
+    vim.uv.fs_chmod(inbox, tonumber("644", 8))
+    eq(nil, res)
+    eq("* Captured on the phone\n", read(capture))
+    eq("* Earlier\n", read(inbox))
+    -- the entries are not left in the buffer to be added again
+    eq({ "* Earlier" }, buf_lines(buffer_of(inbox)))
+  end)
+
+  it("passes the encryption password to openssl on stdin, not argv", function()
+    local calls = {}
+    local system = vim.system
+    vim.system = function(cmd, opts)
+      calls[#calls + 1] = { cmd = cmd, opts = opts }
+      return {
+        wait = function()
+          return { code = 0, stdout = "", stderr = "" }
+        end,
+      }
+    end
+    dir = setup({ ["a.org"] = { "* A" } }, { mobile = { use_encryption = true, encryption_password = "s3cr3t" } })
+    local okc, perr = pcall(mobile.encrypt_file, "in", "out")
+    vim.system = system
+    ok(okc, perr)
+    eq(1, #calls)
+    ok(not table.concat(calls[1].cmd, " "):find("s3cr3t", 1, true), table.concat(calls[1].cmd, " "))
+    eq("s3cr3t\n", calls[1].opts.stdin)
+  end)
+
   it("reports a missing staging directory", function()
     dir = setup({ ["a.org"] = { "* A" } })
     config.opts.mobile.directory = dir .. "/missing"
@@ -419,5 +458,22 @@ describe("org-mobile", function()
     eq(false, okc)
     eq("Option `mobile.directory' must point to an existing directory", err)
     eq(false, mobile.push())
+  end)
+end)
+
+describe("org-mobile checksums", function()
+  after_each(function()
+    config.setup({})
+  end)
+
+  it("computes MD5 itself when the checksum program doesn't run", function()
+    local f = vim.fn.tempname()
+    utils.writefile(f, { "* Task" })
+    config.setup({ mobile = { checksum_binary = "no-such-checksum-program" } })
+    local mobile = require("org.mobile")
+    local fd = assert(io.open(f, "rb"))
+    local data = fd:read("*a")
+    fd:close()
+    eq(mobile.md5(data), mobile.file_checksum(f))
   end)
 end)

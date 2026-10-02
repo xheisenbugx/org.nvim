@@ -1767,14 +1767,22 @@ local Lexer = {}
 Lexer.__index = Lexer
 
 --- Longest link type (`org-link-types`) followed by ":" at `p`.
+local type_sets = setmetatable({}, { __mode = "k" })
 local function link_type_at(types, s, p)
-  local best
-  for _, t in ipairs(types) do
-    if s:sub(p, p + #t) == t .. ":" and (not best or #t > #best) then
-      best = t
+  -- A type holds no ":", so the only candidate is the text up to the
+  -- first colon.
+  local set = type_sets[types]
+  if not set then
+    set = { [0] = 0 }
+    for _, t in ipairs(types) do
+      set[t] = true
+      set[0] = math.max(set[0], #t)
     end
+    type_sets[types] = set
   end
-  return best
+  local colon = s:find(":", p, true)
+  local t = colon and colon - p <= set[0] and s:sub(p, colon - 1)
+  return t and set[t] and t or nil
 end
 
 -- Emphasis markers
@@ -3849,7 +3857,7 @@ C["wrong-include-link-parameter"] = function(doc)
             local lines, target
             if file then
               target = expand_home(file)
-              if not target:match("^/") then
+              if not require("org.utils").is_absolute(target) then
                 target = (doc.dir or vim.fn.getcwd()) .. "/" .. target
               end
               local okr, l = pcall(vim.fn.readfile, target)

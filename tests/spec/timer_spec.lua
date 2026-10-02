@@ -165,4 +165,32 @@ describe("timer", function()
     eq("10", seen)
     ok(vim.tbl_contains(msgs, "10 minute(s) 0 seconds left before next time out"), vim.inspect(msgs))
   end)
+
+  it("inserts after a multibyte character without splitting it", function()
+    silence(function()
+      timer.start("0:10:00")
+      timer.pause_or_continue()
+      local buf = org_buffer({ "éa" }, { 1, 0 })
+      timer.insert()
+      eq("é0:10:00 a", buf_lines(buf)[1])
+      timer.stop()
+    end)
+  end)
+
+  it("counts wall-clock time, including time the machine slept", function()
+    silence(function()
+      local gtod = vim.uv.gettimeofday
+      timer.start("0:00:00")
+      local sec, usec = gtod()
+      -- an hour passes on the wall clock (the monotonic clock stood still)
+      vim.uv.gettimeofday = function()
+        return sec + 3600, usec
+      end
+      local ok_, v = pcall(timer.value)
+      vim.uv.gettimeofday = gtod
+      timer.stop()
+      ok(ok_, v)
+      ok(v >= 3599 and v <= 3601, v)
+    end)
+  end)
 end)

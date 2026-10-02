@@ -43,12 +43,39 @@ local function wrap(name, lhs, mode)
   end
 end
 
-local function set(mode, lhs, rhs, opts)
+--- The global keymaps set by `setup_global`: { mode, lhs, desc }.
+local global_maps = {}
+
+--- Set a keymap and remember it in `record` (a list of { mode, lhs, desc })
+--- so that a later `setup()` can remove it.
+local function set(mode, lhs, rhs, opts, record)
   vim.keymap.set(mode, lhs, rhs, opts)
+  for _, m in ipairs(type(mode) == "table" and mode or { mode }) do
+    record[#record + 1] = { m, lhs, opts.desc }
+  end
 end
 
---- Global keymaps (agenda, capture, ...).
+--- Delete the keymaps of `record` that are still ours (same desc), so a
+--- mapping the user has since put on the same key is left alone.
+local function unset(record, bufnr)
+  for _, r in ipairs(record or {}) do
+    local mode, lhs, desc = r[1], r[2], r[3]
+    local maps = bufnr and vim.api.nvim_buf_get_keymap(bufnr, mode) or vim.api.nvim_get_keymap(mode)
+    local key = vim.keycode(lhs)
+    for _, m in ipairs(maps) do
+      if m.desc == desc and vim.keycode(m.lhs) == key then
+        pcall(vim.keymap.del, mode, lhs, bufnr and { buffer = bufnr } or nil)
+        break
+      end
+    end
+  end
+end
+
+--- Global keymaps (agenda, capture, ...). Calling it again (`setup()`
+--- twice) first removes the keymaps of the previous call.
 function M.setup_global()
+  unset(global_maps)
+  global_maps = {}
   local maps = config.opts.mappings
   if maps.disable_all then
     return
@@ -60,7 +87,7 @@ function M.setup_global()
         for _, lhs in ipairs(config.lhs_list(value)) do
           for _, mode in ipairs(a.modes or { "n" }) do
             if mode ~= "i" then
-              set(mode, lhs, wrap(name, lhs, mode), { desc = "org: " .. a.desc })
+              set(mode, lhs, wrap(name, lhs, mode), { desc = "org: " .. a.desc }, global_maps)
             end
           end
         end
@@ -70,10 +97,15 @@ function M.setup_global()
   M.register_which_key()
 end
 
---- Buffer-local keymaps for an org buffer.
+--- Buffer-local keymaps for an org buffer. Calling it again (`setup()`
+--- re-attaching open buffers) first removes the keymaps it set before.
 function M.attach(bufnr)
+  bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+  unset(vim.b[bufnr].org_keymaps, bufnr)
+  local record = {}
   local maps = config.opts.mappings
   if maps.disable_all then
+    vim.b[bufnr].org_keymaps = record
     return
   end
   for name, value in pairs(maps.org or {}) do
@@ -82,7 +114,7 @@ function M.attach(bufnr)
       for _, lhs in ipairs(config.lhs_list(value)) do
         for _, mode in ipairs(a.modes or { "n" }) do
           if mode ~= "i" or name == "meta_return" or name == "meta_shift_return" then
-            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc })
+            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc }, record)
           end
         end
       end
@@ -95,7 +127,7 @@ function M.attach(bufnr)
       for _, lhs in ipairs(config.lhs_list(value)) do
         for _, mode in ipairs(a.modes or { "n" }) do
           if mode ~= "i" then
-            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc })
+            set(mode, lhs, wrap(name, lhs, mode), { buffer = bufnr, desc = "org: " .. a.desc }, record)
           end
         end
       end
@@ -106,7 +138,7 @@ function M.attach(bufnr)
       local a = actions.list[name]
       if a then
         for _, lhs in ipairs(config.lhs_list(value)) do
-          set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = "org: " .. a.desc })
+          set("i", lhs, wrap(name, lhs, "i"), { buffer = bufnr, desc = "org: " .. a.desc }, record)
         end
       end
     end
@@ -125,9 +157,10 @@ function M.attach(bufnr)
     for _, lhs in ipairs(config.lhs_list(to[name])) do
       set({ "o", "x" }, lhs, function()
         require("org.structure")[spec[1]](spec[2])
-      end, { buffer = bufnr, desc = "org: " .. name:gsub("_", " ") })
+      end, { buffer = bufnr, desc = "org: " .. name:gsub("_", " ") }, record)
     end
   end
+  vim.b[bufnr].org_keymaps = record
 end
 
 local groups = {

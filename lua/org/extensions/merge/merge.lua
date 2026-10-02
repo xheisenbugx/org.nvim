@@ -1156,7 +1156,17 @@ function M.merge_lines(base, ours, theirs, opts)
   local emit
   local function emit_entry(p, plevel, k)
     local src = source(k)
-    local level = math.max(1, plevel + rel_level(src))
+    local rel = rel_level(src)
+    do
+      -- the depth below the parent is merged like a value: a level changed
+      -- on one side only (`* A` / `*** B` -> `** B`) is kept
+      local b, o, t = B.by_key[k], O.by_key[k], T.by_key[k]
+      if o and t and o.parent_key == p and t.parent_key == p then
+        local v = merge3(b and b.parent_key == p and rel_level(b) or nil, rel_level(o), rel_level(t))
+        rel = v or rel
+      end
+    end
+    local level = math.max(1, plevel + rel)
     local st = state[k]
     local skip = {}
     if ghost[p] and ghost[p][k] then

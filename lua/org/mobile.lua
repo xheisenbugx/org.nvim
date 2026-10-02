@@ -205,9 +205,10 @@ local function openssl(decrypt, infile, outfile)
   if decrypt then
     cmd[#cmd + 1] = "-d"
   end
-  vim.list_extend(cmd, { "-aes-256-cbc", "-salt", "-pass", "pass:" .. M.encryption_password(), "-in", infile })
-  vim.list_extend(cmd, { "-out", outfile })
-  local res = vim.system(cmd, { text = true }):wait()
+  -- the password goes on stdin: in argv (as Emacs passes it) any local
+  -- user could read it from the process list
+  vim.list_extend(cmd, { "-aes-256-cbc", "-salt", "-pass", "stdin", "-in", infile, "-out", outfile })
+  local res = vim.system(cmd, { text = true, stdin = M.encryption_password() .. "\n" }):wait()
   if res.code ~= 0 then
     error("openssl failed: " .. vim.trim(res.stderr or ""), 0)
   end
@@ -342,12 +343,12 @@ function M.files_alist()
   end
   local exclude = cfg().files_exclude_regexp
   local base = org_dir()
-  local base_real = (vim.uv.fs_realpath(base) or base):gsub("/$", "") .. "/"
+  local base_real = (utils.realpath(base) or base):gsub("/$", "") .. "/"
   local seen, out = {}, {}
   for _, file in ipairs(out_files) do
     file = utils.expand(file, base)
     if not (type(exclude) == "string" and exclude ~= "" and emacs_match(exclude, file)) then
-      local real = vim.uv.fs_realpath(file) or file
+      local real = utils.realpath(file) or file
       if not seen[real] then
         seen[real] = true
         local link
@@ -870,14 +871,23 @@ end
 ---------------------------------------------------------------------------
 
 --- Checksum of a file with `mobile.checksum_binary`.
-local function file_checksum(path)
-  local res = vim.system({ M.checksum_binary(), path }, { text = true }):wait()
-  for hex in (res.stdout or ""):gmatch("%x+") do
+--- Checksum of the file at `path`: from `mobile.checksum_binary`, else MD5.
+function M.file_checksum(path)
+  local bin = M.checksum_binary()
+  local ok, res = pcall(function()
+    return bin and vim.system({ bin, path }, { text = true }):wait()
+  end)
+  for hex in (ok and res and res.stdout or ""):gmatch("%x+") do
     if #hex >= 30 then
       return hex:sub(1, 40)
     end
   end
+  -- no checksum program that runs (e.g. Git for Windows' Perl shasum):
+  -- the MD5 computed here, which MobileOrg takes as well
+  local data = read_raw(path)
+  return data and M.md5(data) or nil
 end
+local file_checksum = M.file_checksum
 
 --- Save the modified buffers of `paths` (org-save-all-org-buffers for the
 --- staged files).
@@ -993,6 +1003,7 @@ function M.move_capture()
   end
   local n = vim.api.nvim_buf_line_count(bufnr)
   local first = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1]
+  local was_modified = vim.bo[bufnr].modified
   local start
   if n == 1 and first == "" then
     vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, new)
@@ -1001,7 +1012,15 @@ function M.move_capture()
     vim.api.nvim_buf_set_lines(bufnr, n, n, false, new)
     start = n + 1
   end
-  utils.save_buffer_or_warn(bufnr)
+  -- like Emacs's save-buffer, a failed save stops the pull before the
+  -- capture file is emptied, so the entries are not lost
+  local saved, err = utils.save_buffer(bufnr)
+  if not saved then
+    -- take the entries out again, or the next pull would add them twice
+    vim.api.nvim_buf_set_lines(bufnr, start - 1, start - 1 + #new, false, {})
+    vim.bo[bufnr].modified = was_modified
+    error(("Could not save %s: %s"):format(inbox_path(), err), 0)
+  end
   stage_write(capture, "")
   update_capture_checksum("")
   return bufnr, start

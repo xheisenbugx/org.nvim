@@ -462,3 +462,30 @@ return config
     end)
   end)
 end)
+
+describe("health: unknown options", function()
+  local health = require("org.health")
+
+  it("reports misspelt options and action names, not free-form tables", function()
+    eq(
+      { "agenda_file", "clock.persit", "export.html.nope", "mappings.agenda.latr", "mappings.org.cloc_in" },
+      health.unknown_options({
+        agenda_file = {},
+        org_directory = "~/org",
+        -- nil by default: known from the types in lua/org/_meta/
+        tags_sort_function = "string<",
+        clock = { persit = true, persist = true },
+        agenda = { exporter_settings = { ps_landscape_mode = true }, custom_commands = { x = { type = "tags" } } },
+        mappings = { org = { clock_in = "x", cloc_in = "y" }, agenda = { later = "f", latr = "g", ["goto"] = "<Tab>" } },
+        babel = { languages = { mylang = { cmd = "x" } }, default_header_args = { anything = "x" } },
+        log_note_headings = { custom = "x" },
+        extensions = { third_party = { a = 1 } },
+        export = { html = { doctype = "html5", nope = 1 } },
+      })
+    )
+  end)
+
+  it("knows every default option", function()
+    eq({}, health.unknown_options(require("org.config").defaults))
+  end)
+end)

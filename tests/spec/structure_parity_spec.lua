@@ -524,6 +524,9 @@ describe("emacs parity: S1", function()
 end)
 
 describe("emacs parity: S2", function()
+  -- expected from Emacs in the C locale; Windows collates by its locale
+  -- (as Emacs does there), so compare character codes like the C locale
+  with_config({ sort_function = vim.fn.has("win32") == 1 and "fallback" or nil })
   with_config({ todo_keywords = { "TODO NEXT | DONE" }, startup_folded = "showeverything" })
   case("paste-bol-heading", "* A\n** X\nx\n* B\n|* C", function()
     local s = require("org.structure")

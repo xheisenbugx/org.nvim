@@ -437,11 +437,144 @@ function M.sha256(s)
 end
 
 ---------------------------------------------------------------------------
+-- PowerShell (Windows)
+---------------------------------------------------------------------------
+
+--- A PowerShell single-quoted string literal of `s`. Only quotes are
+--- special, doubled; PowerShell also takes the curly ones (U+2018 to
+--- U+201B) for '.
+---@param s string
+---@return string
+function M.ps_quote(s)
+  for _, q in ipairs({ "'", "\u{2018}", "\u{2019}", "\u{201A}", "\u{201B}" }) do
+    s = s:gsub(q, q .. q)
+  end
+  return "'" .. s .. "'"
+end
+
+-- Base64 of `s` (UTF-8) as UTF-16LE, for powershell -EncodedCommand.
+local function utf16le_base64(s)
+  local out = {}
+  for _, c in ipairs(vim.fn.str2list(s)) do
+    if c >= 0x10000 then
+      c = c - 0x10000
+      local hi, lo = 0xD800 + math.floor(c / 0x400), 0xDC00 + c % 0x400
+      out[#out + 1] = string.char(hi % 256, math.floor(hi / 256), lo % 256, math.floor(lo / 256))
+    else
+      out[#out + 1] = string.char(c % 256, math.floor(c / 256))
+    end
+  end
+  return vim.base64.encode(table.concat(out))
+end
+
+--- The command running `script` with Windows PowerShell (powershell.exe,
+--- part of Windows; also reachable from WSL). The script goes in
+--- -EncodedCommand, so no quoting rules of cmd.exe or a shell apply to it.
+---@param script string
+---@return string[]
+function M.powershell(script)
+  return {
+    "powershell.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-WindowStyle",
+    "Hidden",
+    "-EncodedCommand",
+    utf16le_base64(script),
+  }
+end
+
+---------------------------------------------------------------------------
 -- Paths & files
 ---------------------------------------------------------------------------
 
+--- Whether `path` is absolute: `/x` and, as on Windows, a drive (`C:/x`,
+--- `C:\x`), the root of the current drive (`\x`, what expand() makes of
+--- `/x` there) or a UNC share (`\\server\share`, `//server/share`).
+---@param path string
+---@return boolean
+function M.is_absolute(path)
+  return path:match("^[/\\]") ~= nil or path:match("^%a:[/\\]") ~= nil
+end
+
+--- The user's home directory, also where $HOME isn't set (Windows uses
+--- %USERPROFILE%), with forward slashes.
+---@return string
+function M.home()
+  local home = vim.env.HOME
+  if not home or home == "" then
+    home = vim.uv.os_homedir() or "~"
+  end
+  return (home:gsub("\\", "/"))
+end
+
+--- The canonical path of an existing `path` (symlinks resolved) with
+--- forward slashes, or nil. vim.uv.fs_realpath gives backslashes on
+--- Windows, which don't compare with the normalized paths used elsewhere.
+---@param path string
+---@return string|nil
+function M.realpath(path)
+  local real = vim.uv.fs_realpath(path)
+  return real and vim.fs.normalize(real) or nil
+end
+
+--- `path` with forward slashes and the home directory as `~`, like
+--- abbreviate-file-name (fnamemodify ":~" keeps \ on Windows).
+---@param path string
+---@return string
+function M.abbreviate(path)
+  path = vim.fs.normalize(path)
+  local home = vim.fs.normalize(M.home())
+  local p, h = path, home
+  if vim.fn.has("win32") == 1 then
+    p, h = p:lower(), h:lower()
+  end
+  if p == h then
+    return "~"
+  elseif p:sub(1, #h + 1) == h .. "/" then
+    return "~" .. path:sub(#home + 1)
+  end
+  return path
+end
+
+--- File name completion (getcompletion() of `kind`, "file" or "dir")
+--- with forward slashes, a directory keeping its trailing /. On Windows
+--- getcompletion() gives \.
+---@param lead string
+---@param kind? "file"|"dir"
+---@return string[]
+function M.complete_path(lead, kind)
+  local out = {}
+  for _, f in ipairs(vim.fn.getcompletion(lead, kind or "file")) do
+    local dir = f:match("[/\\]$") ~= nil
+    f = vim.fs.normalize(f)
+    out[#out + 1] = (dir and f:sub(-1) ~= "/") and (f .. "/") or f
+  end
+  return out
+end
+
 --- Expand `~`, env vars and make absolute. Relative paths resolve against
 --- `base` (default: org_directory).
+--- `path` with a leading ~ and $VAR / ${VAR} expanded and nothing else; a
+--- relative path stays relative. The safe replacement for vim.fn.expand()
+--- on document text, which runs `backticks` as shell commands.
+---@param path string
+---@return string
+function M.expand_vars(path)
+  if path == "~" or path:match("^~[/\\]") then
+    path = M.home() .. path:sub(2)
+  end
+  return (
+    path
+      :gsub("%${([%w_]+)}", function(v)
+        return vim.env[v] or ("${" .. v .. "}")
+      end)
+      :gsub("%$([%w_]+)", function(v)
+        return vim.env[v] or ("$" .. v)
+      end)
+  )
+end
+
 function M.expand(path, base)
   if not path or path == "" then
     return path
@@ -449,17 +582,8 @@ function M.expand(path, base)
   -- Never vim.fn.expand(): paths often come from document text (INCLUDE,
   -- :dir, :file, scopes), and Vim expansion evaluates `backticks` and
   -- interprets %, # and wildcards. Expand only ~ and environment variables.
-  if path == "~" or path:match("^~[/\\]") then
-    path = (vim.env.HOME or "~") .. path:sub(2)
-  end
-  path = path
-    :gsub("%${([%w_]+)}", function(v)
-      return vim.env[v] or ("${" .. v .. "}")
-    end)
-    :gsub("%$([%w_]+)", function(v)
-      return vim.env[v] or ("$" .. v)
-    end)
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
+  path = M.expand_vars(path)
+  if not M.is_absolute(path) then
     base = base or M.expand(require("org.config").opts.org_directory, vim.fn.getcwd())
     path = base .. "/" .. path
   end
@@ -488,6 +612,11 @@ function M.readfile(path)
   end
   local content = fd:read("*a")
   fd:close()
+  -- a UTF-8 byte order mark is not text (Vim's 'bomb', Emacs's
+  -- utf-8-with-signature): a file read from disk must parse like its buffer
+  if content:sub(1, 3) == "\239\187\191" then
+    content = content:sub(4)
+  end
   content = content:gsub("\r\n", "\n")
   local lines = vim.split(content, "\n", { plain = true })
   if lines[#lines] == "" then
@@ -498,7 +627,7 @@ end
 
 function M.writefile(path, lines)
   vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-  local fd, err = io.open(path, "w")
+  local fd, err = io.open(path, "wb")
   if not fd then
     error("org: cannot write " .. path .. ": " .. tostring(err))
   end
@@ -507,6 +636,11 @@ function M.writefile(path, lines)
     fd:write("\n")
   end
   fd:close()
+  -- the cached parse of the file is stale even when its mtime is not
+  local files = package.loaded["org.files"]
+  if files then
+    files.invalidate(vim.fn.fnamemodify(path, ":p"))
+  end
 end
 
 function M.read_json(path)
@@ -627,7 +761,7 @@ end
 
 local function buf_realpath(c)
   if c.real == nil then
-    c.real = vim.uv.fs_realpath(c.name) or false
+    c.real = M.realpath(c.name) or false
   end
   return c.real
 end
@@ -658,7 +792,7 @@ function M.find_buffer(path)
       end
     end
   end
-  local real = vim.uv.fs_realpath(path)
+  local real = M.realpath(path)
   if real then
     for _, b in ipairs(bufs) do
       if vim.api.nvim_buf_is_loaded(b) then
@@ -714,6 +848,12 @@ end
 ---@return boolean ok, string? err
 function M.save_buffer(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    -- the write below skips BufWritePre, so crypt.encrypt_on_save is run
+    -- here: entries are encrypted, or nothing is written
+    local crypt = package.loaded["org.crypt"]
+    if crypt and vim.bo[bufnr].filetype == "org" and crypt.before_save(bufnr) == 0 then
+      return false, "org-crypt: encryption failed, buffer not written"
+    end
     local ok, err
     local write = function()
       vim.api.nvim_buf_call(bufnr, function()

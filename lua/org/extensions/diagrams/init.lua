@@ -253,12 +253,19 @@ function M.render_after_save(bufnr, on_done)
   nxt()
 end
 
+--- Is `name` a cache entry (render.cache_path: a sha256 and an optional
+--- extension)? Other files in `cache_dir` are never deleted: it may be
+--- set to a directory that holds more than the cache.
+local function cache_entry(name)
+  return name:match("^" .. string.rep("%x", 64) .. "%.?[%w]*$") ~= nil
+end
+
 --- Delete the cached diagrams.
 function M.clear_cache()
   local dir = require("org.utils").expand(opts().cache_dir)
   local n = 0
   for _, f in ipairs(vim.fn.glob(dir .. "/*", true, true)) do
-    if vim.fn.delete(f) == 0 then
+    if cache_entry(vim.fn.fnamemodify(f, ":t")) and vim.fn.delete(f) == 0 then
       n = n + 1
     end
   end
@@ -286,7 +293,7 @@ function M.prune_cache(max_age, max_size)
     if not name then
       break
     end
-    if kind == "file" then
+    if kind == "file" and cache_entry(name) then
       local path = dir .. "/" .. name
       local st = vim.uv.fs_stat(path)
       if st then
@@ -334,7 +341,7 @@ function M.unreferenced(bufnr)
   local base = vim.fn.fnamemodify(file, ":p:h")
   local out_dir = opts().output_dir or ""
   local dir = out_dir ~= "" and require("org.utils").expand(out_dir, base) or base
-  if not dir:match("^/") then
+  if not require("org.utils").is_absolute(dir) then
     dir = base .. "/" .. dir
   end
   if vim.fn.isdirectory(dir) == 0 then
@@ -380,18 +387,18 @@ function M.clean(dry)
   local utils = require("org.utils")
   local unused, dir = M.unreferenced(0)
   if #unused == 0 then
-    utils.notify("diagrams: no unused diagrams" .. (dir and (" in " .. vim.fn.fnamemodify(dir, ":~")) or ""))
+    utils.notify("diagrams: no unused diagrams" .. (dir and (" in " .. require("org.utils").abbreviate(dir)) or ""))
     return 0
   end
   local names = vim.tbl_map(function(p)
     return vim.fn.fnamemodify(p, ":t")
   end, unused)
   if dry == true then
-    utils.notify("diagrams: unused in " .. vim.fn.fnamemodify(dir, ":~") .. ": " .. table.concat(names, ", "))
+    utils.notify("diagrams: unused in " .. require("org.utils").abbreviate(dir) .. ": " .. table.concat(names, ", "))
     return #unused
   end
   local choice = utils.select({ "Yes", "No" }, {
-    prompt = string.format("Delete %d unused diagram(s) in %s?", #unused, vim.fn.fnamemodify(dir, ":~")),
+    prompt = string.format("Delete %d unused diagram(s) in %s?", #unused, require("org.utils").abbreviate(dir)),
   })
   if choice ~= "Yes" then
     return 0
@@ -523,7 +530,7 @@ function M.health(h, o)
       return
     end
     if render.available(cmd) then
-      h.ok(string.format("diagrams: %s renders with %s", lang, vim.fn.exepath(render.program(cmd))))
+      h.ok(string.format("diagrams: %s renders with %s", lang, vim.fs.normalize(vim.fn.exepath(render.program(cmd)))))
     else
       h.warn(string.format("diagrams: %s needs %s (not found)", lang, render.program(cmd)), { hint })
     end
@@ -541,7 +548,7 @@ function M.health(h, o)
         h.warn("diagrams: plantuml.jar is set but java is not installed")
       end
     elseif vim.fn.executable(po.executable_path or "plantuml") == 1 then
-      h.ok("diagrams: plantuml renders with " .. vim.fn.exepath(po.executable_path or "plantuml"))
+      h.ok("diagrams: plantuml renders with " .. vim.fs.normalize(vim.fn.exepath(po.executable_path or "plantuml")))
     else
       h.warn("diagrams: plantuml needs the plantuml command or babel.languages.plantuml.jar_path")
     end

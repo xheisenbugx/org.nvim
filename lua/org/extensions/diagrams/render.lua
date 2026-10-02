@@ -25,7 +25,7 @@ end
 local function word(w)
   w = tostring(w or "")
   if w == "~" or w:match("^~/") then
-    w = (vim.env.HOME or "~") .. w:sub(2)
+    w = require("org.utils").home() .. w:sub(2)
   end
   return (
     w:gsub("%${([%w_]+)}", function(v)
@@ -137,7 +137,7 @@ function M.output_file(lang, args, ctx, text)
     args.file = file
   end
   local abs = require("org.utils").expand(file, ctx.cwd)
-  if not abs:match("^/") then
+  if not require("org.utils").is_absolute(abs) then
     abs = (ctx.cwd or vim.fn.getcwd()) .. "/" .. abs
   end
   return file, abs, ext
@@ -332,7 +332,7 @@ function M.include_digest(text, dir)
         name = name:gsub("!.*$", "") -- !includesub FILE!PART
         if not name:match("^%a+://") and not name:match("^<.*>$") then
           local path = require("org.utils").expand(name, base)
-          if not path:match("^/") then
+          if not require("org.utils").is_absolute(path) then
             path = base .. "/" .. path
           end
           if not seen[path] then

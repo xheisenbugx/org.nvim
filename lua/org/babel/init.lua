@@ -198,7 +198,9 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
     local nw = noweb_for(args, purpose or "eval")
     local body = b.body
     if nw then
-      body = M.expand_noweb(bufnr, b.body, depth + 1, nw == "strip" and "strip" or nil, args, purpose)
+      -- like org-babel-expand-noweb-references, an included block is
+      -- expanded: only the block being tangled or exported strips
+      body = M.expand_noweb(bufnr, b.body, depth + 1, nil, args, purpose)
     end
     -- like Emacs, a link comment points at the referenced block the first
     -- time it is looked up, then (from its reference cache) at the block
@@ -228,7 +230,7 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   -- a block named `ref` is unique
   for _, b in ipairs(ctx.all) do
     if not b.call and b.name == ref and not in_commented(ctx.file, b.start) then
-      return body_of(b, blocks_mod.header_args(b, ctx.file), true)
+      return body_of(b, ctx.header_args(b), true)
     end
   end
   local lob = M.library[ref]
@@ -239,7 +241,7 @@ local function noweb_reference(bufnr, ref, depth, purpose, ctx, parent_args)
   local text
   for _, b in ipairs(ctx.all) do
     if not b.call and not in_commented(ctx.file, b.start) then
-      local args = blocks_mod.header_args(b, ctx.file)
+      local args = ctx.header_args(b)
       if blocks_mod.unquote(args["noweb-ref"]) == ref then
         local chunk = table.concat(body_of(b, args), "\n")
         if text then
@@ -291,15 +293,63 @@ local function find_noweb(line, pos)
 end
 M.find_noweb = find_noweb
 
+-- The parsed blocks (and their header args) of a buffer, shared by the
+-- noweb expansions of one operation while the buffer is unchanged, like
+-- Emacs' org-babel-expand-noweb-references--cache.
+local noweb_scope, noweb_cache = 0, nil
+
+local function noweb_ctx(bufnr)
+  local tick = type(bufnr) == "number" and vim.api.nvim_buf_get_changedtick(bufnr) or nil
+  local c = noweb_cache
+  if c and c.bufnr == bufnr and c.tick == tick then
+    return c.ctx
+  end
+  local lines = buf_lines(bufnr)
+  local file = get_file(bufnr)
+  local ctx = { lines = lines, all = blocks_mod.parse_blocks(lines), file = file, args = {} }
+  function ctx.header_args(b)
+    local a = ctx.args[b]
+    if not a then
+      a = blocks_mod.header_args(b, file)
+      ctx.args[b] = a
+    end
+    return a
+  end
+  if noweb_scope > 0 then
+    noweb_cache = { bufnr = bufnr, tick = tick, ctx = ctx }
+  end
+  return ctx
+end
+
+--- Run `fn(...)` with the noweb cache enabled: the noweb expansions it
+--- makes share one parse of the buffer (tangling every block of a file).
+function M.with_noweb_cache(fn, ...)
+  noweb_scope = noweb_scope + 1
+  local res = vim.F.pack_len(pcall(fn, ...))
+  noweb_scope = noweb_scope - 1
+  if noweb_scope == 0 then
+    noweb_cache = nil
+  end
+  if not res[1] then
+    error(res[2], 0)
+  end
+  return unpack(res, 2, res.n)
+end
+
+local expand_noweb
+
 --- Expand <<ref>> references in body lines. `mode` "strip" removes them.
 --- `args` are the header args of the expanded block (:noweb-prefix).
 function M.expand_noweb(bufnr, body, depth, mode, args, purpose)
+  return M.with_noweb_cache(expand_noweb, bufnr, body, depth, mode, args, purpose)
+end
+
+expand_noweb = function(bufnr, body, depth, mode, args, purpose)
   depth = depth or 0
   if depth > 20 then
     error("noweb: reference depth exceeded")
   end
-  local lines = buf_lines(bufnr)
-  local ctx = { lines = lines, all = blocks_mod.parse_blocks(lines), file = get_file(bufnr) }
+  local ctx = noweb_ctx(bufnr)
   local prefix_opt = args and args["noweb-prefix"]
   local use_prefix = not (prefix_opt == "no" or prefix_opt == "nil")
   local out = {}
@@ -317,10 +367,8 @@ function M.expand_noweb(bufnr, body, depth, mode, args, purpose)
         parts[#parts + 1] = line:sub(pos, s - 1)
         pos = e + 1
       end
-      local stripped = table.concat(parts)
-      if not stripped:match("^%s*$") then
-        out[#out + 1] = stripped
-      end
+      -- the line stays, like replace-regexp-in-string in ob-tangle
+      out[#out + 1] = table.concat(parts)
     else
       local built = { "" }
       local pos = 1
@@ -795,15 +843,21 @@ local function split_cmd(cmd)
   return vim.split(vim.trim(cmd), "%s+")
 end
 
---- Working directory of a block (`:dir`, created with `:mkdirp yes`).
+--- Working directory of a block (`:dir`, created unless `:mkdirp` is
+--- missing, "no" or "nil"). Like Emacs, a `:dir` that does not exist is
+--- an error: the code must not run in another directory.
 local function block_cwd(bufnr, args)
   local file_dir = buf_dir(bufnr)
-  local cwd = args.dir and utils.expand(blocks_mod.unquote(args.dir), file_dir) or file_dir
-  if args.dir and (args.mkdirp == "yes" or args.mkdirp == "t") and not utils.is_dir(cwd) then
+  if not args.dir then
+    return utils.is_dir(file_dir) and file_dir or vim.fn.getcwd()
+  end
+  local cwd = utils.expand(blocks_mod.unquote(args.dir), file_dir)
+  local mkdirp = args.mkdirp
+  if mkdirp ~= nil and mkdirp ~= "no" and mkdirp ~= "nil" and not utils.is_dir(cwd) then
     vim.fn.mkdir(cwd, "p")
   end
   if not utils.is_dir(cwd) then
-    cwd = vim.fn.getcwd()
+    error("Setting current directory: No such file or directory, " .. cwd, 0)
   end
   return cwd
 end
@@ -1659,7 +1713,12 @@ function M.evaluate(bufnr, src, args, opts, cb)
     body = strip_coderefs(body, src.switches)
   end
   local rp = results.result_params(args)
-  local cwd = block_cwd(bufnr, args)
+  local cok, cwd = pcall(block_cwd, bufnr, args)
+  if not cok then
+    utils.error("babel: " .. tostring(cwd))
+    finish(nil, { error = tostring(cwd), skipped = true, abort = true })
+    return ret_result, ret_info
+  end
   local graphics_file
   if rp.graphics and langs.family(lang) == "python" then
     if not args.file then

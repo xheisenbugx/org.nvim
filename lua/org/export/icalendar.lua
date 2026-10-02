@@ -53,22 +53,55 @@ function M.cleanup_string(s)
   return s
 end
 
---- org-icalendar-fold-string: lines of at most 75 characters.
+--- Byte index of the end of the longest prefix of `line` from `start`
+--- that fits in `max` octets without splitting a UTF-8 sequence.
+local function fold_end(line, start, max)
+  local e = start + max - 1
+  if e >= #line then
+    return #line
+  end
+  -- back up while the next byte is a continuation byte (10xxxxxx)
+  while e >= start do
+    local b = line:byte(e + 1)
+    if b < 0x80 or b >= 0xC0 then
+      break
+    end
+    e = e - 1
+  end
+  if e < start then
+    -- no character boundary within `max` octets: keep one character
+    e = start
+    while e < #line do
+      local b = line:byte(e + 1)
+      if b < 0x80 or b >= 0xC0 then
+        break
+      end
+      e = e + 1
+    end
+  end
+  return e
+end
+
+--- org-icalendar-fold-string: lines of at most 75 octets (RFC 5545
+--- 3.1), never splitting a UTF-8 character. Emacs counts characters, so
+--- lines with multibyte text can exceed the limit there; the two agree on
+--- ASCII text.
 function M.fold_string(s)
   local out = {}
   for line in (s .. "\n"):gmatch("(.-)\n") do
     if line ~= "" then
-      local len = vim.fn.strchars(line)
-      if len <= 75 then
+      if #line <= 75 then
         out[#out + 1] = line
       else
-        local folded = vim.fn.strcharpart(line, 0, 75)
-        local start = 75
-        while start + 74 < len do
-          folded = folded .. "\n " .. vim.fn.strcharpart(line, start, 74)
-          start = start + 74
+        local parts = {}
+        local start, max = 1, 75
+        while start <= #line do
+          local e = fold_end(line, start, max)
+          parts[#parts + 1] = line:sub(start, e)
+          -- the continuation marker takes up one octet
+          start, max = e + 1, 74
         end
-        out[#out + 1] = folded .. "\n " .. vim.fn.strcharpart(line, start)
+        out[#out + 1] = table.concat(parts, "\n ")
       end
     end
   end

@@ -2,7 +2,7 @@ local export = require("org.export")
 local ox = require("org.export.ox")
 local element = require("org.export.element")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local sample = root .. "/fixtures/export/sample.org"
 local lines = vim.fn.readfile(sample)
 
@@ -158,7 +158,7 @@ describe("export", function()
       local buf = org_buffer(lines)
       vim.api.nvim_buf_set_name(buf, dir .. "/doc.org")
       local out = export.export("html", { bufnr = buf })
-      eq(vim.uv.fs_realpath(dir) .. "/doc.html", vim.uv.fs_realpath(out))
+      eq(require("org.utils").realpath(dir) .. "/doc.html", require("org.utils").realpath(out))
       ok(vim.fn.filereadable(out) == 1)
       local sub_line
       for i, l in ipairs(lines) do
@@ -227,6 +227,64 @@ describe("export", function()
       eq({ "TODO", "NEXT" }, o.tasks)
       eq("{}", o["^"])
       eq(false, o[":"])
+    end)
+  end)
+
+  describe("macros, footnotes and blocks (Emacs parity)", function()
+    local function tmpdir(files)
+      local d = vim.fn.tempname()
+      vim.fn.mkdir(d, "p")
+      for name, l in pairs(files) do
+        vim.fn.writefile(l, d .. "/" .. name)
+      end
+      return d
+    end
+
+    it("aborts on an undefined macro", function()
+      local ok_, err = pcall(body, "html", { "Text {{{nope}}} here." })
+      eq(false, ok_)
+      eq("Undefined Org macro: nope; aborting", err)
+      -- but not in a COMMENT subtree, which is gone before expansion
+      eq("", body("html", { "* COMMENT c", "{{{nope}}}" }))
+    end)
+
+    it("expands $0 to the first argument like org-macro-expand", function()
+      eq("<p>\n[a|b|a]\n</p>\n", body("html", { "#+MACRO: m [$1|$2|$0]", "{{{m(a,b)}}}" }))
+    end)
+
+    it("reads macros and keywords from included files", function()
+      local d = tmpdir({
+        ["defs.org"] = { "#+MACRO: incm from-include", "#+TITLE: inc title" },
+        ["main.org"] = { '#+INCLUDE: "defs.org"', "Use {{{incm}}} {{{title}}}" },
+      })
+      local f = d .. "/main.org"
+      local h = ox.export_as("html", vim.fn.readfile(f), { filename = f, body_only = true })
+      eq("<p>\nUse from-include inc title\n</p>\n", h)
+    end)
+
+    it("finds a footnote definition outside the exported subtree", function()
+      local src = { "* A", "Note[fn:1].", "* B", "", "[fn:1] The definition." }
+      local h = ox.export_as("html", src, { subtree_line = 1, body_only = true })
+      has(h, "The definition.")
+      has(h, 'href="#fn.1"')
+    end)
+
+    it("keeps a % in a user label of a LaTeX environment", function()
+      local h = ox.export_as("html", { "#+NAME: eq%1", "\\begin{equation}", "x", "\\end{equation}" }, {
+        body_only = true,
+        ext = { html_prefer_user_labels = true },
+      })
+      eq("\\begin{equation}\n\\label{eq%1}\nx\n\\end{equation}\n", h)
+    end)
+
+    it("reads a blank line opening a quote or dynamic block as a paragraph", function()
+      eq(
+        "<blockquote>\n<p>\n\n</p>\n\n<p>\nq\n</p>\n</blockquote>\n",
+        body("html", { "#+BEGIN_QUOTE", "", "q", "#+END_QUOTE" })
+      )
+      eq("<p>\n\n</p>\n\n\n<p>\nd\n</p>\n", body("html", { "#+BEGIN: foo", "", "", "d", "#+END:" }))
+      -- drawers skip it
+      eq("<p>\nx\n</p>\n", body("html", { ":DRW:", "", "x", ":END:" }))
     end)
   end)
 end)

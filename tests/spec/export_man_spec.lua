@@ -9,7 +9,7 @@ local export = require("org.export")
 local ox = require("org.export.ox")
 local man = require("org.export.man")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/man"
 
 local function read(path)
@@ -31,7 +31,7 @@ end
 local function tmpdir()
   local d = vim.fn.tempname()
   vim.fn.mkdir(d, "p")
-  return vim.uv.fs_realpath(d)
+  return require("org.utils").realpath(d)
 end
 
 local function golden(name, file, ext)
@@ -97,14 +97,14 @@ describe("man export", function()
     local bin = d .. "/bin"
     vim.fn.mkdir(bin, "p")
     -- writes "HL <lang>" and the input to the -o file
-    vim.fn.writefile({
-      "#!/bin/sh",
-      'while [ $# -gt 0 ]; do case "$1" in -s) l=$2; shift;; -i) i=$2; shift;; -o) o=$2; shift;; esac; shift; done',
-      '{ echo "HL $l"; cat "$i"; } > "$o"',
-    }, bin .. "/source-highlight")
-    vim.fn.setfperm(bin .. "/source-highlight", "rwxr-xr-x")
+    fake_exe(
+      bin,
+      "source-highlight",
+      'while [ $# -gt 0 ]; do case "$1" in -s) l=$2; shift;; -i) i=$2; shift;; -o) o=$2; shift;; esac; shift; done\n'
+        .. '{ echo "HL $l"; cat "$i"; } > "$o"'
+    )
     local path = vim.env.PATH
-    vim.env.PATH = bin .. ":" .. path
+    path_prepend(bin)
     config.opts.export.man = vim.tbl_extend("force", saved_man or {}, { source_highlight = true })
     local ok_, s = pcall(manpage, {
       "#+begin_src emacs-lisp",
@@ -125,32 +125,35 @@ describe("man export", function()
     eq({ "koma-letter", "koma-pdf" }, require("org.commands").complete("ko", "Org export ko"))
   end)
 
-  it("exports with the dispatcher formats man and man-pdf (fake groff pipeline)", function()
-    local d = tmpdir()
-    local src = d .. "/tool.org"
-    vim.fn.writefile({ "#+TITLE: tool", "#+DATE: 2026", "* NAME", "tool - x" }, src)
-    vim.cmd("edit " .. vim.fn.fnameescape(src))
-    local buf = vim.api.nvim_get_current_buf()
-    local out = export.export("man", { bufnr = buf })
-    eq(d .. "/tool.man", out)
-    eq('.TH "tool" "1" "2026" "" \n.SH "NAME"\n.PP\ntool - x\n', read(out))
-    -- man-pdf: pdf_process with %f/%b, log files removed
-    config.opts.export.man = vim.tbl_extend("force", saved_man or {}, {
-      pdf_process = { "cp %f %b.pdf", "touch %b.log %b.toc" },
-    })
-    local pdf = export.export("man-pdf", { bufnr = buf })
-    eq(d .. "/tool.pdf", pdf)
-    eq(read(d .. "/tool.man"), read(pdf))
-    eq(0, vim.fn.filereadable(d .. "/tool.log"))
-    eq(0, vim.fn.filereadable(d .. "/tool.toc"))
-    -- remove_logfiles = false keeps them
-    config.opts.export.man.remove_logfiles = false
-    export.export("man-pdf", { bufnr = buf })
-    eq(1, vim.fn.filereadable(d .. "/tool.log"))
-    -- a failing process reports an error and returns nil
-    config.opts.export.man.pdf_process = { "true" }
-    os.remove(d .. "/tool.pdf")
-    eq(nil, export.export("man-pdf", { bufnr = buf }))
-    vim.cmd("bwipeout!")
+  describe("with a POSIX shell", function()
+    posix_shell()
+    it("exports with the dispatcher formats man and man-pdf (fake groff pipeline)", function()
+      local d = tmpdir()
+      local src = d .. "/tool.org"
+      vim.fn.writefile({ "#+TITLE: tool", "#+DATE: 2026", "* NAME", "tool - x" }, src)
+      vim.cmd("edit " .. vim.fn.fnameescape(src))
+      local buf = vim.api.nvim_get_current_buf()
+      local out = export.export("man", { bufnr = buf })
+      eq(d .. "/tool.man", out)
+      eq('.TH "tool" "1" "2026" "" \n.SH "NAME"\n.PP\ntool - x\n', read(out))
+      -- man-pdf: pdf_process with %f/%b, log files removed
+      config.opts.export.man = vim.tbl_extend("force", saved_man or {}, {
+        pdf_process = { "cp %f %b.pdf", "touch %b.log %b.toc" },
+      })
+      local pdf = export.export("man-pdf", { bufnr = buf })
+      eq(d .. "/tool.pdf", pdf)
+      eq(read(d .. "/tool.man"), read(pdf))
+      eq(0, vim.fn.filereadable(d .. "/tool.log"))
+      eq(0, vim.fn.filereadable(d .. "/tool.toc"))
+      -- remove_logfiles = false keeps them
+      config.opts.export.man.remove_logfiles = false
+      export.export("man-pdf", { bufnr = buf })
+      eq(1, vim.fn.filereadable(d .. "/tool.log"))
+      -- a failing process reports an error and returns nil
+      config.opts.export.man.pdf_process = { "true" }
+      os.remove(d .. "/tool.pdf")
+      eq(nil, export.export("man-pdf", { bufnr = buf }))
+      vim.cmd("bwipeout!")
+    end)
   end)
 end)

@@ -157,13 +157,19 @@ function M.run(opts)
 end
 
 function M.complete(arglead, cmdline)
-  local nargs = #vim.split(cmdline, "%s+", { trimempty = false })
-  if nargs <= 2 then
+  -- customlist completion: Vim doesn't filter the candidates itself
+  local function filter(list)
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1
-    end, names())
+    end, list)
   end
-  local sub = cmdline:match("^%S+%s+(%S+)")
+  -- the words after `Org` (the command line may start with a range or
+  -- modifiers such as `:silent`)
+  local args = vim.split(cmdline:match("^.-%f[%a]Org!?%s+(.*)$") or "", "%s+", { trimempty = false })
+  if #args <= 1 then
+    return filter(names())
+  end
+  local sub = args[1]
   if sub == "export" or sub == "convert_region" then
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1
@@ -201,13 +207,25 @@ function M.complete(arglead, cmdline)
       return n:find(arglead, 1, true) == 1
     end, out)
   elseif sub == "agenda" then
-    local out = { "a", "t", "T", "m", "M", "s", "#", "day", "week", "month", "year" }
+    -- the keys `org.agenda.command` takes, then the custom commands
+    local out = { "a", "t", "T", "m", "M", "s", "S", "n", "#", "/", "day", "week", "fortnight", "month", "year" }
+    local custom = {}
     for key in pairs(require("org.config").opts.agenda.custom_commands or {}) do
-      out[#out + 1] = key
+      if type(key) == "string" and not vim.tbl_contains(out, key) then
+        custom[#custom + 1] = key
+      end
     end
-    return out
+    table.sort(custom)
+    return filter(vim.list_extend(out, custom))
   elseif sub == "capture" then
-    return vim.tbl_keys(require("org.config").opts.capture.templates or {})
+    local keys = {}
+    for key in pairs(require("org.config").opts.capture.templates or {}) do
+      if type(key) == "string" then
+        keys[#keys + 1] = key
+      end
+    end
+    table.sort(keys)
+    return filter(keys)
   elseif sub == "feed_update" or sub == "feed_goto_inbox" or sub == "feed_show_raw" then
     return vim.tbl_filter(function(n)
       return n:find(arglead, 1, true) == 1

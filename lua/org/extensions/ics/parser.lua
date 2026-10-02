@@ -99,13 +99,21 @@ function M.tree(text)
   for _, line in ipairs(M.unfold(text)) do
     local name, params, value = M.content_line(line)
     if name == "BEGIN" then
-      local comp = { name = value:upper(), props = {}, children = {} }
+      local comp = { name = vim.trim(value):upper(), props = {}, children = {} }
       local top = stack[#stack]
       top.children[#top.children + 1] = comp
       stack[#stack + 1] = comp
     elseif name == "END" then
-      if #stack > 1 then
-        stack[#stack] = nil
+      -- close the component of that name, and any left open inside it
+      -- (a missing END:VALARM must not swallow the next event)
+      local want = vim.trim(value):upper()
+      for k = #stack, 2, -1 do
+        if stack[k].name == want then
+          for j = #stack, k, -1 do
+            stack[j] = nil
+          end
+          break
+        end
       end
     elseif name then
       local top = stack[#stack]
@@ -1095,7 +1103,18 @@ function M.occurrences(cal, from, to, opts)
     if ev.status ~= "CANCELLED" or ev.recurrence_id then
       local starts = {}
       if ev.recurrence_id or not (ev.rrule or #ev.rdates > 0) then
-        starts[1] = ev.start.naive
+        -- a single event far outside the range (the slack covers zone
+        -- offsets) is skipped before its zone is looked up
+        local s = ev.start.naive
+        local e = s + 86400
+        if ev.stop then
+          e = math.max(e, ev.stop.naive)
+        elseif ev.duration then
+          e = math.max(e, s + ev.duration)
+        end
+        if s <= to_n and e >= from_n then
+          starts[1] = s
+        end
       else
         -- span of one occurrence, so one that started before `from` and
         -- still runs is found
@@ -1127,14 +1146,23 @@ function M.occurrences(cal, from, to, opts)
         end
         for _, r in ipairs(ev.rdates) do
           if r.naive >= from_n - span and r.naive <= to_n then
-            starts[#starts + 1] = r.naive
+            -- an RDATE keeps its own zone (UTC, another TZID)
+            starts[#starts + 1] = r.all_day == ev.start.all_day and r or r.naive
           end
         end
       end
+      -- an RDATE that repeats an occurrence of the rule is one instance
+      local seen = {}
       for _, n in ipairs(starts) do
-        local t = { naive = n, all_day = ev.start.all_day, utc = ev.start.utc, tzid = ev.start.tzid }
+        local t
+        if type(n) == "table" then
+          t, n = n, n.naive
+        else
+          t = { naive = n, all_day = ev.start.all_day, utc = ev.start.utc, tzid = ev.start.tzid }
+        end
         local key = occ_key(cal, t, aliases)
-        local skip = ev.status == "CANCELLED"
+        local skip = ev.status == "CANCELLED" or seen[key]
+        seen[key] = true
         if not ev.recurrence_id then
           skip = skip or overridden[ev.uid .. "|" .. key]
           for _, x in ipairs(ev.exdates) do

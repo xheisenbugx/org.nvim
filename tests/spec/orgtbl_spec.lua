@@ -66,14 +66,51 @@ describe("table translators (orgtbl-to-*)", function()
     end)
   end
 
-  it("drops the special column and special rows", function()
-    local out = orgtbl.translate("orgtbl-to-csv", {
+  it("drops the special column; special rows only with a backend", function()
+    local rows = {
       { "!", "a", "b" },
       { "#", "1", "2" },
       { "", "<5>", "" },
       { "*", "3", "4" },
+    }
+    -- without a backend Emacs exports through the Org backend, which keeps
+    -- special rows (org-org-with-special-rows)
+    eq("a,b\n1,2\n<5>,\n3,4", orgtbl.translate("orgtbl-to-csv", rows, ""))
+    eq("1 & 2\\\\\n3 & 4\\\\", orgtbl.translate("orgtbl-to-latex", rows, ":splice t"))
+  end)
+
+  it("transcodes cells like the export backend (Emacs 9.8.10 output)", function()
+    local rows = {
+      { "$x$", "\\alpha", "a_{1}", "[[https://x.org][d]]", "..." },
+    }
+    eq(
+      "\\(x\\) & \\(\\alpha\\) & a\\textsubscript{1} & \\href{https://x.org}{d} & \\ldots{}\\\\",
+      orgtbl.translate("orgtbl-to-latex", rows, ":splice t")
+    )
+    eq(
+      "@item α\n@tab @uref{https://x.org, d}",
+      orgtbl.translate("orgtbl-to-texinfo", { { "\\alpha", "[[https://x.org][d]]" } }, ":splice t")
+    )
+  end)
+
+  it("latex: alignment from transcoded cells and cookies, booktabs rules", function()
+    -- 50% is 50\% once transcoded: not a number; empty cells count, the
+    -- last cookie wins (org-export-table-cell-alignment)
+    eq(
+      "\\begin{tabular}{lr}\n50\\% & x\\\\\n\\emph{i} & 2\\\\\n\\end{tabular}",
+      orgtbl.translate("orgtbl-to-latex", { { "50%", "x" }, { "/i/", "2" } }, "")
+    )
+    local out = orgtbl.translate("orgtbl-to-latex", {
+      { "a", "1" },
+      { "", "" },
+      { "", "x" },
+      { "1", "" },
     }, "")
-    eq("1,2\n3,4", out)
+    eq("\\begin{tabular}{lr}", out:match("^[^\n]+"))
+    out = orgtbl.translate("orgtbl-to-latex", { { "a", "b" }, { "<r>", "<l>" }, { "1", "2" }, { "<c>", "" } }, "")
+    eq("\\begin{tabular}{cl}", out:match("^[^\n]+"))
+    out = orgtbl.translate("orgtbl-to-latex", { { "a" }, "hline", { "1" }, "hline", { "3" } }, ":booktabs t")
+    eq("\\begin{tabular}{r}\n\\toprule\na\\\\\n\\midrule\n1\\\\\n\\midrule\n3\\\\\n\\bottomrule\n\\end{tabular}", out)
   end)
 
   it("table_export writes the translator output", function()

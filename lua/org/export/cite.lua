@@ -385,7 +385,7 @@ end
 --- Absolute name of a bibliography file.
 function M.bibliography_path(file, info)
   if file:match("^/") or file:match("^~") or file:match("^%a:[/\\]") then
-    return vim.fs.normalize(vim.fn.expand(file))
+    return vim.fs.normalize(require("org.utils").expand_vars(file))
   end
   local dir = info.input_file and vim.fn.fnamemodify(info.input_file, ":p:h") or vim.fn.getcwd()
   return vim.fs.normalize(dir .. "/" .. file)
@@ -908,7 +908,8 @@ function M.parse_bibtex(content)
     end
     do
       skip_ws()
-      local key = content:match("^[^%s,]+", pos) or ""
+      -- the key ends at a comma or, in a field-less entry, the delimiter
+      local key = content:match(close == "}" and "^[^%s,}]+" or "^[^%s,)]+", pos) or ""
       pos = pos + #key
       local entry = { { "id", key }, { "type", etype } }
       while pos <= n do
@@ -1017,7 +1018,7 @@ function M.parse_bibliography(info)
   local results = {}
   for _, f in ipairs(info.bibliography or {}) do
     local path = M.bibliography_path(f, info)
-    local real = vim.uv.fs_realpath(path) or path
+    local real = utils.realpath(path) or path
     local entries = M.read_bibliography_file(real)
     if entries then
       results[#results + 1] = { real, entries }

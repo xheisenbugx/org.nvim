@@ -1309,7 +1309,7 @@ function M.agenda_items()
       "Agenda Files",
       items = vim.tbl_map(function(f)
         return {
-          vim.fn.fnamemodify(f, ":~"),
+          utils.abbreviate(f),
           hint = false,
           fn = function()
             utils.open_file(f)
@@ -1445,7 +1445,22 @@ function M.mouse_pos()
   if pos.winid ~= vim.api.nvim_get_current_win() then
     pcall(vim.api.nvim_set_current_win, pos.winid)
   end
-  return { pos.line, pos.column, screen = { pos.screenrow, pos.screencol } }
+  return { pos.line, pos.column, screen = { pos.screenrow, pos.screencol }, win = pos.winid }
+end
+
+--- The mouse position at the release of a drag that started at `p` (from
+--- `mouse_pos`), without changing windows: nil outside any window, and
+--- `other` set when the drag ended in another window (whose line numbers
+--- must not be used on the buffer of the press).
+---@param p table
+---@return table|nil
+function M.release_pos(p)
+  local pos = vim.fn.getmousepos()
+  if pos.winid == 0 or pos.line == 0 then
+    return nil
+  end
+  local other = p.win ~= nil and pos.winid ~= p.win
+  return { pos.line, pos.column, screen = { pos.screenrow, pos.screencol }, win = pos.winid, other = other }
 end
 
 --- The Visual selection as the region of a context menu.
@@ -1487,8 +1502,12 @@ function M.right_release(now)
   if not press then
     return
   end
-  local r = now and press.p or M.mouse_pos() or press.p
   local p = press.p
+  local r = not now and M.release_pos(p) or p
+  if r.other then
+    -- a drag into another window: nothing to do in this buffer
+    return
+  end
   local dragged = r[1] ~= p[1] or r[2] ~= p[2]
   if dragged and M.feature("move-tree") then
     M.move_tree({ p[1], p[2] }, { r[1], r[2] })
@@ -1520,8 +1539,8 @@ end
 function M.ctrl_release()
   local p = M._ctrl_press
   M._ctrl_press = nil
-  local r = M.mouse_pos()
-  if p and r and (p[1] ~= r[1] or p[2] ~= r[2]) then
+  local r = p and M.release_pos(p)
+  if r and not r.other and (p[1] ~= r[1] or p[2] ~= r[2]) then
     M.move_tree({ p[1], p[2] }, { r[1], r[2] })
   end
 end
@@ -1607,12 +1626,13 @@ function M.attach_agenda(bufnr)
   map("<RightRelease>", function()
     local press = M._press
     M._press = nil
-    local r = M.mouse_pos()
-    if not (press and press.p and r) then
+    local r = press and press.p and M.release_pos(press.p)
+    if not r then
       return
     end
     local p = press.p
-    if p.screen[2] ~= r.screen[2] and p.screen[1] == r.screen[1] or p[2] ~= r[2] then
+    -- in another window only the screen positions mean something here
+    if p.screen[2] ~= r.screen[2] and p.screen[1] == r.screen[1] or (not r.other and p[2] ~= r[2]) then
       -- org-mouse-get-gesture
       view.run_action(r.screen[2] < p.screen[2] and "earlier" or "later")
       return

@@ -12,7 +12,10 @@ for a in "$@"; do case $a in --output=*) out=${a#--output=};; esac; last=$a; don
 cat "$last" >> "$log"
 echo "---" >> "$log"
 : > "$out.pdf"
-: > "$out.midi"]]
+: > "$out.midi"
+: > "$out.mid"]]
+-- the MIDI file played: .mid on Windows, like Emacs (system-type windows-nt)
+local MIDI = vim.fn.has("win32") == 1 and ".mid" or ".midi"
 
 local PAPER = {
   "#(if (ly:get-option 'use-paper-size-for-page)",
@@ -110,7 +113,7 @@ describe("babel ob-lilypond", function()
     -- the viewer and the player run at the same time
     local shown = vim.list_slice(log, 10, 11)
     table.sort(shown)
-    eq({ "viewer " .. dir .. "/score.midi", "viewer " .. dir .. "/score.pdf" }, shown)
+    eq({ "viewer " .. dir .. "/score" .. MIDI, "viewer " .. dir .. "/score.pdf" }, shown)
     eq(false, lp.toggle_arrange_mode())
     eq({ results = "file", exports = "results" }, config.opts.babel.languages.lilypond.default_header_args)
   end)

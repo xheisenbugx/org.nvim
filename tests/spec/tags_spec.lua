@@ -294,6 +294,13 @@ describe("properties: Emacs parity", function()
     eq(":Effort:   1h", buf_lines(buf)[4])
     eq(nil, properties.set_effort(nil, "foo"))
   end)
+
+  it("clearing the effort is handled (no false: the key must not fall back)", function()
+    local buf = org_buffer({ "* X", ":PROPERTIES:", ":Effort:   1:00", ":END:" }, { 1, 0 })
+    local res = properties.set_effort(nil, "")
+    ok(res ~= false)
+    eq({ "* X" }, buf_lines(buf))
+  end)
 end)
 
 describe("priority and tag faces", function()

@@ -152,7 +152,7 @@ function M.complete_insert(arglead, cmdline)
   end
   local out = {}
   for _, p in ipairs(PROPS) do
-    if not before:find(p .. "%f[^%w%-]") then
+    if not before:find(vim.pesc(p) .. "%f[^%w%-]") then
       out[#out + 1] = p
     end
   end
@@ -1602,9 +1602,9 @@ local function shift(delta)
     return
   end
   local buf = api.nvim_get_current_buf()
-  local res = resolve_at(buf, t.row)
+  local res, _, spec = resolve_at(buf, t.row)
   local line = api.nvim_buf_get_lines(buf, t.row - 1, t.row, false)[1]
-  local cur = tonumber(line:match(":level *(%d)"))
+  local cur = spec and type(spec.level) == "number" and spec.level or nil
   if not cur and res then
     for _, l in ipairs(res.lines) do
       local stars = l:match("^(%*+) ")

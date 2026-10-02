@@ -90,8 +90,8 @@ function M.parse_emacs_locations(text, base)
       i = i + 1
     elseif c == ")" then
       if depth == 2 and entry and entry[1] then
-        local file = entry[1]:gsub("^~", vim.env.HOME or "~")
-        if base and not file:match("^/") and not file:match("^%a:[/\\]") then
+        local file = entry[1]:gsub("^~", utils.home)
+        if base and not utils.is_absolute(file) then
           file = base .. "/" .. file
         end
         file = vim.fs.normalize(file)
@@ -136,7 +136,7 @@ function M.format_emacs_locations(map, base)
     table.insert(by_file[file], id)
   end
   table.sort(names)
-  local home = vim.env.HOME and vim.fs.normalize(vim.env.HOME) or nil
+  local home = vim.fs.normalize(utils.home())
   local relative = (config.opts.id or {}).locations_file_relative
   local items = {}
   for _, file in ipairs(names) do
@@ -171,6 +171,12 @@ local function load_db()
     if type(db) ~= "table" then
       db = {}
     end
+    -- a hand-edited or damaged file: keep only id -> file name entries
+    for k, v in pairs(db) do
+      if type(k) ~= "string" or type(v) ~= "string" then
+        db[k] = nil
+      end
+    end
   end
   return db
 end
@@ -190,6 +196,8 @@ function M.register(id, filename)
   if not id or not filename then
     return
   end
+  -- one spelling per file (buffer names have \ on Windows)
+  filename = vim.fs.normalize(filename)
   local d = load_db()
   if d[id] ~= filename then
     d[id] = filename
@@ -212,6 +220,7 @@ end
 function M.register_many(map)
   local d, changed = load_db(), false
   for id, filename in pairs(map) do
+    filename = vim.fs.normalize(filename)
     if d[id] ~= filename then
       d[id] = filename
       changed = true
@@ -228,6 +237,7 @@ function M.register_lines(lines, filename)
   if not filename or filename == "" then
     return
   end
+  filename = vim.fs.normalize(filename)
   local d, changed = load_db(), false
   for _, l in ipairs(lines) do
     local id = l:match("^%s*:ID:%s+(%S+)")
@@ -380,30 +390,40 @@ end
 --- number of IDs found.
 function M.update_locations()
   local new = {}
-  local count = 0
+  local count, dups = 0, {}
+  local function add(id, filename)
+    if not id or not id:match("%S") then
+      return
+    end
+    if new[id] then
+      -- the first file scanned keeps the ID, as in Emacs
+      dups[#dups + 1] = id
+      return
+    end
+    count = count + 1
+    new[id] = filename
+  end
   for _, p in ipairs(M.files()) do
     local f = files.get(p)
     if f then
-      local fid = f.properties and f.properties.ID
-      if fid and fid ~= "" then
-        count = count + (new[fid] and 0 or 1)
-        new[fid] = f.filename or p
-      end
+      add(f.properties and f.properties.ID, f.filename or p)
       for _, hl in ipairs(f.headlines) do
-        local id = hl.properties.ID
-        if id then
-          if not new[id] then
-            count = count + 1
-          end
-          new[id] = f.filename or p
-        end
+        add(hl.properties.ID, f.filename or p)
       end
     end
   end
   db = new
   save_db()
+  if #dups > 0 then
+    local shown = vim.tbl_map(function(d)
+      return string.format("%q", d)
+    end, vim.list_slice(dups, 1, 10))
+    utils.warn(
+      string.format("%d duplicate IDs found: %s%s", #dups, table.concat(shown, ", "), #dups > 10 and ", ..." or "")
+    )
+  end
   utils.notify(string.format("%d IDs found", count))
-  return count
+  return count, dups
 end
 
 --- Locate an id. Returns { filename, lnum, headline } or nil.

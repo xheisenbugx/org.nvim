@@ -118,6 +118,7 @@ describe("babel ob-maxima", function()
   after_each(h.restore)
 
   it("batchloads the expanded file and filters Maxima's noise", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     local dir = h.tmpdir()
     h.set_lang("maxima", { cmd = h.fake(dir, "maxima", FAKE_MAXIMA) })
     local out = h.run({

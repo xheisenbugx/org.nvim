@@ -30,7 +30,7 @@ end
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function write(dir, name, lines)
@@ -54,7 +54,7 @@ local function cursor()
 end
 
 local function real(p)
-  return vim.uv.fs_realpath(p) or p
+  return require("org.utils").realpath(p) or p
 end
 
 --- Answer vim.fn.input prompts from a table (prompt prefix -> answer; a
@@ -337,7 +337,7 @@ describe("links parity", function()
         "See <<my target>> here.",
       })
       local buf = edit(p)
-      local path = "file:" .. vim.fn.fnamemodify(p, ":~")
+      local path = "file:" .. require("org.utils").abbreviate(p)
       local function at(lnum, extra)
         return links.link_to_location(vim.tbl_extend("force", { bufnr = buf, lnum = lnum }, extra or {}))
       end
@@ -365,7 +365,7 @@ describe("links parity", function()
       local dir = tmpdir()
       local p = write(dir, "plain.txt", { "first line", "", "  (second   line)" })
       local buf = edit(p)
-      local path = "file:" .. vim.fn.fnamemodify(p, ":~")
+      local path = "file:" .. require("org.utils").abbreviate(p)
       eq(path .. "::first line", links.link_to_location({ bufnr = buf, lnum = 1 }).link)
       eq(path, links.link_to_location({ bufnr = buf, lnum = 2 }).link)
       eq(path .. "::second line", links.link_to_location({ bufnr = buf, lnum = 3 }).link)
@@ -377,13 +377,13 @@ describe("links parity", function()
       local p = write(dir, "c.org", { "* H", ":PROPERTIES:", ":CUSTOM_ID: cc", ":END:", "* Plain" })
       edit(p, { 5, 0 })
       local l = links.store_link(0)
-      eq("file:" .. vim.fn.fnamemodify(p, ":~") .. "::*Plain", l.link)
+      eq("file:" .. require("org.utils").abbreviate(p) .. "::*Plain", l.link)
       eq({ "* H", ":PROPERTIES:", ":CUSTOM_ID: cc", ":END:", "* Plain" }, buf_lines())
       -- with IDs: the id: link and then the CUSTOM_ID link (most recent)
       config.opts.links.use_id = true
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
       l = links.store_link(0)
-      eq("file:" .. vim.fn.fnamemodify(p, ":~") .. "::#cc", l.link)
+      eq("file:" .. require("org.utils").abbreviate(p) .. "::#cc", l.link)
       eq("H", l.desc)
       ok(links.stored[2].link:match("^id:"), links.stored[2].link)
       -- create-if-interactive-and-no-custom-id
@@ -392,7 +392,7 @@ describe("links parity", function()
       edit(p, { 1, 0 })
       config.opts.links.use_id = "create-if-interactive-and-no-custom-id"
       l = links.store_link(0)
-      eq("file:" .. vim.fn.fnamemodify(p, ":~") .. "::#cc", l.link)
+      eq("file:" .. require("org.utils").abbreviate(p) .. "::#cc", l.link)
       eq(1, #links.stored)
       vim.bo.modified = false
     end)
@@ -420,7 +420,7 @@ describe("links parity", function()
       end
       eq({ link = "id:abc", desc = "Head [1/2]", id = true }, at(1))
       eq({ link = "id:abc::tbl1", desc = "tbl1", id = true }, at(6))
-      eq("file:" .. vim.fn.fnamemodify(p, ":~") .. "::#c1", at(7).link)
+      eq("file:" .. require("org.utils").abbreviate(p) .. "::#c1", at(7).link)
       config.opts.id.link_consider_parent_id = true
       eq({ link = "id:abc::#c1", desc = "Child 1", id = true }, at(7))
       config.opts.id.link_use_context = false
@@ -442,7 +442,7 @@ describe("links parity", function()
       vim.bo.bufhidden = "wipe"
       vim.api.nvim_buf_set_name(0, dir)
       l = links.link_to_location({})
-      eq("file:" .. vim.fn.fnamemodify(dir, ":~") .. "/", l.link)
+      eq("file:" .. require("org.utils").abbreviate(dir) .. "/", l.link)
     end)
 
     it("uses the store functions of custom link types first", function()
@@ -553,7 +553,7 @@ describe("links parity", function()
       eq("[[file:sub/x.org]]", buf_lines()[1])
       vim.api.nvim_buf_set_lines(0, 0, -1, false, { "" })
       links.insert_link(16)
-      eq("[[file:" .. vim.fn.fnamemodify(dir .. "/sub/x.org", ":~") .. "]]", buf_lines()[1])
+      eq("[[file:" .. require("org.utils").abbreviate(dir .. "/sub/x.org") .. "]]", buf_lines()[1])
       -- file completion is relative to the buffer's directory, not the cwd
       local cwd = vim.fn.getcwd()
       vim.cmd("cd /")
@@ -663,6 +663,7 @@ describe("links parity", function()
     end)
 
     it("runs shell links literally in the file's directory", function()
+      skip_on_windows("its command is POSIX shell ('...', pwd)")
       local dir = tmpdir()
       local p = write(dir, "s.org", { "[[shell:echo '50% #1' && pwd]]", "[[shell:echo skipped]]" })
       edit(p, { 1, 3 })
@@ -680,9 +681,9 @@ describe("links parity", function()
       vim.wait(5000, function()
         return vim.fn.bufwinid(out) ~= -1
       end)
-      eq({ "50% #1", vim.uv.fs_realpath(dir) }, {
+      eq({ "50% #1", require("org.utils").realpath(dir) }, {
         vim.api.nvim_buf_get_lines(out, 0, 1, false)[1],
-        vim.uv.fs_realpath(vim.api.nvim_buf_get_lines(out, 1, 2, false)[1]),
+        require("org.utils").realpath(vim.api.nvim_buf_get_lines(out, 1, 2, false)[1]),
       })
       eq(vim.fn.bufnr(p), vim.api.nvim_get_current_buf())
       -- one line of output is only echoed; the next buffer is <2>

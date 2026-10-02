@@ -183,7 +183,7 @@ function M.unbracketed_link(bufnr, lines, file, b, tangle)
     end
     return "file:" .. require("org.babel.results").relative(path, tdir) .. (search ~= "" and ("::" .. search) or "")
   end
-  return "file:" .. vim.fn.fnamemodify(target, ":~")
+  return "file:" .. utils.abbreviate(target)
 end
 
 --- `org-fill-template` for the comment formats.
@@ -300,6 +300,11 @@ end
 --- order (org-babel-tangle-collect-blocks).
 ---@param opts { only_line?: integer, tangle_file?: string, lang_re?: string, target?: string }
 function M.collect(bufnr, opts)
+  -- the noweb expansions of all the blocks share one parse of the buffer
+  return babel().with_noweb_cache(M._collect, bufnr, opts)
+end
+
+function M._collect(bufnr, opts)
   local lines = babel().buf_lines(bufnr)
   local file = babel().get_file(bufnr)
   local groups, order = {}, {}
@@ -444,7 +449,10 @@ function M.tangle(opts)
       if tmode then
         local mode, err = babel().file_mode(tmode)
         if mode then
-          table.insert(modes, 1, mode)
+          if not vim.tbl_contains(modes, mode) then
+            -- in block order (Emacs pushes them with add-to-list)
+            modes[#modes + 1] = mode
+          end
         else
           utils.error(err)
         end

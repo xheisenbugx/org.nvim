@@ -8,7 +8,7 @@ local links = require("org.links")
 local function tmpdir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  return vim.uv.fs_realpath(dir)
+  return require("org.utils").realpath(dir)
 end
 
 local function stub(tbl, name, value)
@@ -79,12 +79,15 @@ describe("following links", function()
       org_buffer({ "x" }, { 1, 0 })
       vim.bo.modified = false
       links.open("file:" .. dir)
-      eq(dir, vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)) or vim.api.nvim_buf_get_name(0):gsub("/$", ""))
+      eq(
+        dir,
+        require("org.utils").realpath(vim.api.nvim_buf_get_name(0)) or vim.api.nvim_buf_get_name(0):gsub("/$", "")
+      )
       org_buffer({ "x" }, { 1, 0 })
       vim.bo.modified = false
       config.opts.links.open_directory_means_index_dot_org = true
       links.open("file:" .. dir)
-      eq(dir .. "/index.org", vim.uv.fs_realpath(vim.api.nvim_buf_get_name(0)))
+      eq(dir .. "/index.org", require("org.utils").realpath(vim.api.nvim_buf_get_name(0)))
     end)
 
     it("refuse missing files for external apps unless open_non_existing_files", function()
@@ -107,6 +110,55 @@ describe("following links", function()
       config.opts.links.open_non_existing_files = true
       links.open("file:" .. dir .. "/missing.pdf")
       eq({ dir .. "/there.pdf", dir .. "/missing.pdf" }, opened)
+    end)
+
+    it("never runs backticks in a link path as a shell command", function()
+      local dir = tmpdir()
+      local buf = org_buffer({ "x" }, { 1, 0 })
+      vim.api.nvim_buf_set_name(buf, dir .. "/notes.org")
+      local path = links.resolve_path("sub/`touch pwned`/a.org", buf)
+      eq(dir .. "/sub/`touch pwned`/a.org", path)
+      eq(nil, vim.uv.fs_stat(dir .. "/pwned"))
+      eq(nil, vim.uv.fs_stat(vim.fn.getcwd() .. "/pwned"))
+      -- % and # are file name characters, not Vim's current/alternate file
+      eq(dir .. "/%a#b.org", links.resolve_path("%a#b.org", buf))
+      vim.env.ORG_LINK_TEST_DIR = dir
+      eq(dir .. "/x.org", links.resolve_path("$ORG_LINK_TEST_DIR/x.org", buf))
+      eq(vim.fs.normalize(vim.env.HOME) .. "/x.org", links.resolve_path("~/x.org", buf))
+      vim.bo[buf].modified = false
+    end)
+
+    it("passes a file name with % to a file_apps command intact", function()
+      local dir = tmpdir()
+      local file = dir .. "/50%25 off.pdf"
+      vim.fn.writefile({ "" }, file)
+      local argv
+      local restore = stub(vim, "system", function(cmd)
+        argv = cmd
+      end)
+      config.opts.links.file_apps = { pdf = "viewer --file=%s" }
+      org_buffer({ "x" }, { 1, 0 })
+      local ok_, err = pcall(links.open, "file:" .. file)
+      restore()
+      ok(ok_, err)
+      eq({ "viewer", "--file=" .. file }, argv)
+    end)
+  end)
+
+  describe("man links", function()
+    it("pass the page to :Man as arguments, never as Ex commands", function()
+      local got
+      vim.api.nvim_create_user_command("Man", function(p)
+        got = p.fargs
+      end, { nargs = "*", bar = true, force = true })
+      vim.g.org_links_man_injected = nil
+      org_buffer({ "x" }, { 1, 0 })
+      links.open("man:ls|let g:org_links_man_injected = 1")
+      eq(nil, vim.g.org_links_man_injected)
+      eq({ "ls|let", "g:org_links_man_injected", "=", "1" }, got)
+      links.open("man:printf 3")
+      eq({ "printf", "3" }, got)
+      vim.api.nvim_del_user_command("Man")
     end)
   end)
 
@@ -199,7 +251,7 @@ describe("following links", function()
       pcall(vim.cmd, "cclose")
       eq(1, #items)
       eq(2, items[1].lnum)
-      eq(vim.uv.fs_realpath(b), vim.uv.fs_realpath(vim.api.nvim_buf_get_name(items[1].bufnr)))
+      eq(require("org.utils").realpath(b), require("org.utils").realpath(vim.api.nvim_buf_get_name(items[1].bufnr)))
       eq("[[file:" .. l.link:gsub("^file:", "") .. "][Target heading]]", items[1].text)
     end)
   end)

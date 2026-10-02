@@ -439,7 +439,7 @@ local function strip_quotes(s)
 end
 
 local function absolute(f, dir)
-  f = vim.fn.expand(f)
+  f = utils.expand_vars(f)
   if f:match("^/") or f:match("^%a:[/\\]") then
     return vim.fs.normalize(f)
   end
@@ -485,7 +485,7 @@ function M.parse_bibliography(bufnr)
   local cite = require("org.export.cite")
   local results = {}
   for _, f in ipairs(M.bibliography_files(bufnr)) do
-    local real = vim.uv.fs_realpath(f) or f
+    local real = utils.realpath(f) or f
     local ok, entries = pcall(cite.read_bibliography_file, real)
     if ok and entries then
       table.insert(results, 1, { real, entries })

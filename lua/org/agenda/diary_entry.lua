@@ -312,7 +312,7 @@ local function org_file_entry(path, d1, d2)
   end
   if text:match("%S") then
     local what = kind:sub(1, 1):upper() .. kind:sub(2)
-    utils.notify(what .. " entry added to " .. vim.fn.fnamemodify(path, ":~"))
+    utils.notify(what .. " entry added to " .. utils.abbreviate(path))
     -- from the agenda (not from the calendar)
     if vim.bo.filetype == "orgagenda" then
       view().redo()

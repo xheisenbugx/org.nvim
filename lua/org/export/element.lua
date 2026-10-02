@@ -796,9 +796,27 @@ function P:greater_block(L, i, e, aff, btype, name)
     node.parameters = params ~= "" and params or nil
   end
   if j > i + 1 then
-    M.adopt(node, self:parse_elements(L, i + 1, j - 1, nil, node))
+    M.adopt(node, self:block_contents(L, i + 1, j - 1, node))
   end
   return node, nxt
+end
+
+--- Contents of a center, quote, special or dynamic block. They begin on
+--- the line after #+BEGIN, unlike drawers or items, so a blank line there
+--- is read as a paragraph (org-element-paragraph-parser), which Emacs
+--- exports as an empty one.
+function P:block_contents(L, s, e, parent)
+  local out = {}
+  if blank(L[s]) then
+    local pb, nxt = after(L, s, e)
+    -- its post-blank counts its own line too
+    local p = M.node("paragraph", { post_blank = pb + 1, raw_lines = { L[s] } })
+    self:fill_paragraph(p)
+    out[1] = p
+    s = nxt
+  end
+  vim.list_extend(out, self:parse_elements(L, s, e, nil, parent))
+  return out
 end
 
 function P:element_at(L, i, e, mode, parent, not_bol)
@@ -1218,7 +1236,7 @@ function P:dynamic_block(L, i, e, aff)
   local node =
     attach(M.node("dynamic-block", { post_blank = pb, block_name = name, arguments = args ~= "" and args or nil }), aff)
   if j > i + 1 then
-    M.adopt(node, self:parse_elements(L, i + 1, j - 1, nil, node))
+    M.adopt(node, self:block_contents(L, i + 1, j - 1, node))
   end
   return node, nxt
 end
@@ -1980,7 +1998,7 @@ end
 function P:make_link(raw, format, desc_text, e, s)
   local ltype, path
   local explicit = false
-  if raw:match("^/") or raw:match("^~") or raw:match("^%.%.?/") then
+  if require("org.utils").is_absolute(raw) or raw:match("^~") or raw:match("^%.%.?/") then
     ltype, path = "file", raw
   else
     local t, p2 = self:link_type_of(raw)

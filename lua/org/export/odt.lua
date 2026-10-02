@@ -997,8 +997,15 @@ end
 -- LaTeX conversion (org-odt--translate-latex-fragments)
 ---------------------------------------------------------------------------
 
+--- Quote `s` for `sh -c` (see `sh` below). vim.fn.shellescape follows
+--- 'shell' instead: with fish it doubles backslashes, with csh it escapes
+--- "!", which `sh` would then keep literally (a LaTeX fragment's "\frac"
+--- would reach the converter as "\\frac").
 local function shellescape(s)
-  return vim.fn.shellescape(s)
+  if vim.fn.has("win32") == 1 then
+    return vim.fn.shellescape(s)
+  end
+  return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
 local function sh(cmd, cwd)
@@ -1042,7 +1049,7 @@ function M.latex_to_mathml(frag)
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
   local tin, tout = dir .. "/ltxmathml-in", dir .. "/ltxmathml-out"
-  local f = io.open(tin, "w")
+  local f = io.open(tin, "wb")
   if f then
     f:write(frag)
     f:close()
@@ -1096,7 +1103,8 @@ function M.mathml_cache_file(frag, info)
     dir = dir .. "/"
   end
   local prefix = dir .. vim.fn.fnamemodify(input, ":t:r")
-  local absprefix = prefix:match("^/") and prefix or (vim.fn.fnamemodify(input, ":p:h") .. "/" .. prefix)
+  local absprefix = require("org.utils").is_absolute(prefix) and prefix
+    or (vim.fn.fnamemodify(input, ":p:h") .. "/" .. prefix)
   local id = require("org.babel.sha1").hex("(" .. prin1_string(frag) .. " " .. prin1_string(cmd) .. ")")
   return absprefix .. "-formula-" .. id .. ".mathml"
 end
@@ -1111,7 +1119,7 @@ function M.latex_to_mathml_cached(frag, info)
   local mathml = M.latex_to_mathml(frag)
   if mathml and file then
     vim.fn.mkdir(vim.fn.fnamemodify(file, ":h"), "p")
-    local f = io.open(file, "w")
+    local f = io.open(file, "wb")
     if f then
       f:write(mathml)
       f:close()
@@ -1195,7 +1203,7 @@ function M.latex_to_image(frag, process, info)
     "\\end{document}",
     "",
   }, "\n")
-  local f = io.open(dir .. "/" .. base .. ".tex", "w")
+  local f = io.open(dir .. "/" .. base .. ".tex", "wb")
   if not f then
     return nil
   end
@@ -1206,7 +1214,10 @@ function M.latex_to_image(frag, process, info)
   local ext = spec.image_output_type or "png"
   local function run(cmds, src, out_ext)
     for _, c in ipairs(cmds or {}) do
-      local cmd = c:gsub("%%o%%b", shellescape(dir .. "/" .. base))
+      local ob = shellescape(dir .. "/" .. base)
+      local cmd = c:gsub("%%o%%b", function()
+        return ob
+      end)
       cmd = format_spec(cmd, {
         b = base,
         f = shellescape(base .. "." .. src),
@@ -2143,8 +2154,11 @@ T.link = function(el, desc, info)
   else
     path = ltype .. ":" .. raw
   end
-  path = path:gsub("&", "&amp;")
-  raw = raw:gsub("&", "&amp;")
+  -- Emacs only converts "&"; quotes and angle brackets would also break
+  -- the xlink:href attribute (and the XML).
+  local attr_escapes = { ["&"] = "&amp;", ['"'] = "&quot;", ["<"] = "&lt;", [">"] = "&gt;" }
+  path = path:gsub('[&"<>]', attr_escapes)
+  raw = raw:gsub('[&"<>]', attr_escapes)
   local custom = ox.custom_protocol_maybe(el, desc, "odt", info)
   if custom then
     return custom
@@ -3145,7 +3159,7 @@ end
 ---@return string?
 function M.convert(in_file, out_fmt, open)
   local utils = require("org.utils")
-  in_file = vim.fn.fnamemodify(vim.fn.expand(in_file), ":p")
+  in_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(in_file), ":p"))
   if vim.fn.filereadable(in_file) == 0 then
     utils.error("Cannot read " .. in_file)
     return nil
@@ -3275,7 +3289,7 @@ function M.export_as_odf(latex_frag, odf_file)
       return nil
     end
   end
-  odf_file = vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p")
+  odf_file = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(odf_file or default_file), ":p"))
   local mathml = M.latex_to_mathml(latex_frag)
   if not mathml then
     utils.error("No Math formula created")

@@ -121,7 +121,7 @@ local function file_entries()
   local out = {}
   for _, f in ipairs(ok and list or {}) do
     out[#out + 1] = {
-      vim.fn.fnamemodify(f, ":~"),
+      utils.abbreviate(f),
       fn = function()
         utils.open_file(f)
       end,

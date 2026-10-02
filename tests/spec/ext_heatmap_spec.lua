@@ -1,7 +1,7 @@
 local date = require("org.date")
 local utils = require("org.utils")
 
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local today = date.today_days()
 local function day(offset)
@@ -311,7 +311,7 @@ describe("heatmap view", function()
     eq({ kind = "closed", tag = "work" }, heatmap.parse_args("closed +work"))
     eq({ kind = "habit" }, heatmap.parse_args("habit"))
     eq({ tag = "home" }, heatmap.parse_args(":home:"))
-    eq({ source = vim.fn.expand("~/log.org") }, heatmap.parse_args("~/log.org"))
+    eq({ source = vim.fs.normalize(vim.fn.expand("~/log.org")) }, heatmap.parse_args("~/log.org"))
   end)
 
   it("refuses an unknown kind", function()

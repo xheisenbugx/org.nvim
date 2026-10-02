@@ -194,6 +194,69 @@ describe("lists: editing", function()
   end)
 end)
 
+describe("lists: parse_region first_only", function()
+  it("stops after the first list, which is the same as without it", function()
+    local lines = {
+      "- a",
+      "  #+begin_src sh",
+      "- not an item",
+      "  #+end_src",
+      "  - b",
+      "",
+      "",
+      "- c",
+      "text",
+      "- d",
+    }
+    local all_lists = lists.parse_region(lines, 1, #lines)
+    eq(3, #all_lists)
+    local one, items = lists.parse_region(lines, 1, #lines, true)
+    eq(1, #one)
+    eq(2, #items)
+    eq(5, one[1].items[1].end_lnum)
+    eq(all_lists[1].items[1].end_lnum, one[1].items[1].end_lnum)
+    eq(5, one[1].items[1].children[1].lnum)
+  end)
+end)
+
+describe("lists: description terms and counters", function()
+  it("takes the description term up to the last ' ::' (greedy, like Emacs)", function()
+    eq("a :: b", lists.parse_item_line("- a :: b :: c").tag)
+    eq("a :: b", lists.parse_item_line("- a :: b ::").tag)
+    eq("term", lists.parse_item_line("- term  :: text").tag)
+    eq("", lists.parse_item_line("-  :: text").tag)
+  end)
+
+  it("adds a checkbox after a [@start:N] counter", function()
+    local buf = org_buffer({ "- [ ] p", "  1. [@start:3] x", "  2. [X] y" }, { 2, 0 })
+    lists.ctrl_c_ctrl_c_item(lists.item_at(buf, 2), 4)
+    eq({ "- [-] p", "  3. [@start:3][ ] x", "  4. [X] y" }, buf_lines(buf))
+    eq("3", lists.item_at(buf, 2).counter)
+    eq(" ", lists.item_at(buf, 2).checkbox)
+  end)
+
+  describe("alphabetical", function()
+    with_config({ lists = { allow_alphabetical = true } })
+    it("adds a checkbox after a [@b] counter", function()
+      local buf = org_buffer({ "- [ ] p", "  a. [@b] x", "  b. [X] y" }, { 2, 0 })
+      lists.ctrl_c_ctrl_c_item(lists.item_at(buf, 2), 4)
+      eq({ "- [-] p", "  b. [@b][ ] x", "  c. [X] y" }, buf_lines(buf))
+    end)
+  end)
+end)
+
+describe("lists: two_spaces_after_bullet_regexp", function()
+  with_config({ lists = { two_spaces_after_bullet_regexp = "[0-9]" } })
+  it("indents and fills item bodies at org-list-item-body-column", function()
+    local buf = org_buffer({ "1.  aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk", "    cont" }, { 1, 0 })
+    eq(4, require("org.indent").line_column(buf, 2))
+    vim.api.nvim_buf_set_lines(buf, 1, 2, false, {})
+    vim.bo[buf].textwidth = 30
+    require("org.fill").fill_region(buf, 1, 1)
+    eq({ "1.  aaa bbb ccc ddd eee fff", "    ggg hhh iii jjj kkk" }, buf_lines(buf))
+  end)
+end)
+
 describe("lists: org-list-checkbox-radio-mode", function()
   it("makes C-c C-c toggle checkboxes like radio buttons in the buffer", function()
     local buf = org_buffer({ "- [X] a", "- [ ] b", "- [ ] c" }, { 2, 0 })

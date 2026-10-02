@@ -470,7 +470,8 @@ The full reference is in `:h org.nvim` ([`doc/org.txt`](doc/org.txt)).
 
 ## Requirements
 
-- Neovim **0.11+**. Nothing else is required.
+- Neovim **0.11+** on Linux, macOS or Windows. Nothing else is required
+  (Windows notes: `:h org-windows`).
 - Optional:
   - `pandoc` for DOCX, EPUB and the other formats without a native
     back-end (HTML, LaTeX, ODT, Texinfo and the rest are built in).

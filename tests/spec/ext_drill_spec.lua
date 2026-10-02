@@ -1,4 +1,4 @@
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local date = require("org.date")
 local sm2 = require("org.extensions.drill.sm2")
@@ -708,5 +708,31 @@ describe("drill session", function()
     ok(table.concat(disk, "\n"):find("SCHEDULED: <2026%-09%-30 Wed>"))
     vim.cmd("bwipeout!")
     vim.fn.delete(path)
+  end)
+end)
+
+describe("drill write_meta", function()
+  it("keeps every line of a property repeated in the drawer", function()
+    setup({})
+    local buf = org_buffer({
+      "* Q :drill:",
+      ":PROPERTIES:",
+      ":NOTE: first",
+      ":NOTE: second",
+      ":LEARN_DATA: (1 2 2.5)",
+      ":END:",
+      "question",
+    }, { 1, 0 })
+    ok(require("org.extensions.drill").write_meta(buf, 1, nil, { { "DRILL_EASE", "2.5" } }, { "LEARN_DATA" }))
+    eq({
+      "* Q :drill:",
+      ":PROPERTIES:",
+      ":NOTE: first",
+      ":NOTE: second",
+      ":DRILL_EASE: 2.5",
+      ":END:",
+      "question",
+    }, buf_lines(buf))
+    setup(nil)
   end)
 end)

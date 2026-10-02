@@ -5,17 +5,15 @@ local config = require("org.config")
 local M = {}
 
 function M.tmpdir()
-  local dir = vim.fn.resolve(vim.fn.tempname())
+  local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
   vim.fn.mkdir(dir, "p")
   return dir
 end
 
---- An executable shell script `name` in `dir` with `body`.
+--- An executable shell script `name` in `dir` with `body` (see fake_exe
+--- in tests/run.lua); returns the path to run it by.
 function M.fake(dir, name, body)
-  local path = dir .. "/" .. name
-  vim.fn.writefile(vim.split("#!/bin/sh\n" .. body, "\n", { plain = true }), path)
-  vim.uv.fs_chmod(path, tonumber("755", 8))
-  return path
+  return fake_exe(dir, name, body)
 end
 
 --- Execute the whole buffer (org-babel-execute-buffer) and return its
@@ -59,7 +57,7 @@ end
 --- Put `dir` first on $PATH while `fn` runs.
 function M.with_path(dir, fn)
   local path = vim.env.PATH
-  vim.env.PATH = dir .. ":" .. path
+  path_prepend(dir)
   local ok, err = pcall(fn)
   vim.env.PATH = path
   if not ok then

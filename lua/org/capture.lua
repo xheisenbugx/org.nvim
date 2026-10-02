@@ -632,7 +632,7 @@ function M.expand(text, ctx)
     local f = s:match("^%%%[([^\n]+)%]", p)
     return f and (p + #f + 2) or nil, f
   end, function(f, s, p, e)
-    local path = vim.fn.fnamemodify(vim.fn.expand(f), ":p")
+    local path = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(f), ":p"))
     local fd, err = io.open(path, "r")
     local content
     if fd then
@@ -1432,8 +1432,10 @@ local function cleanup_target(loc)
   if vim.deep_equal(lines, loc.original_lines) and not loc.was_modified then
     -- The target may have been written while capturing: only clear the
     -- flag when the file still holds the restored text.
+    -- (an empty or missing file is a buffer with one empty line)
     local name = vim.api.nvim_buf_get_name(loc.bufnr)
-    vim.bo[loc.bufnr].modified = name ~= "" and not vim.deep_equal(utils.readfile(name), lines)
+    local disk = name ~= "" and utils.readfile(name) or {}
+    vim.bo[loc.bufnr].modified = name ~= "" and not vim.deep_equal(#disk > 0 and disk or { "" }, lines)
   end
 end
 
@@ -2280,7 +2282,7 @@ function M.finalize(buf, opts)
       require("org.bookmarks").set("last_capture_marker", rbuf, rline)
     end
   else
-    utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
+    utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
   end
   kill_target(tpl, s.ctx.loc)
   if (tpl.jump_to_captured or jump) and dbuf then
@@ -2326,6 +2328,18 @@ function M.goto_target(key)
   return loc.bufnr, line
 end
 
+--- Undo what resolving a capture target created (headlines, date tree
+--- nodes) and unload a target buffer the capture loaded.
+local function discard_target(loc)
+  cleanup_target(loc)
+  release(loc)
+  if loc and loc.new_buffer and vim.api.nvim_buf_is_valid(loc.bufnr) and not vim.bo[loc.bufnr].modified then
+    if vim.fn.bufwinid(loc.bufnr) == -1 then
+      pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
+    end
+  end
+end
+
 --- Abort the capture.
 function M.kill(buf)
   buf = buf or vim.api.nvim_get_current_buf()
@@ -2342,13 +2356,7 @@ function M.kill(buf)
   end
   close_session(buf)
   local loc = s.ctx.loc
-  cleanup_target(loc)
-  release(loc)
-  if loc and loc.new_buffer and vim.api.nvim_buf_is_valid(loc.bufnr) and not vim.bo[loc.bufnr].modified then
-    if vim.fn.bufwinid(loc.bufnr) == -1 then
-      pcall(vim.api.nvim_buf_delete, loc.bufnr, {})
-    end
-  end
+  discard_target(loc)
   utils.notify("Capture aborted")
   run_hook(s.template.on_abort, loc and loc.bufnr)
   if s.ctx.clock_start then
@@ -2714,7 +2722,8 @@ function M.capture(tpl_or_key, opts)
   local ttype = tpl.type or "entry"
   local ok, expanded = pcall(M.expand, template_text(tpl, ctx), ctx)
   if not ok then
-    release(loc)
+    -- a cancelled prompt (or a failing template) leaves no trace
+    discard_target(loc)
     if tostring(expanded):find("org_abort", 1, true) then
       return
     end
@@ -2736,13 +2745,20 @@ function M.capture(tpl_or_key, opts)
     emit("OrgCapturePrepareFinalize", { immediate = true })
     local dbuf, dline = M.store(tpl, lines, ctx)
     if dbuf then
-      utils.notify("Captured to " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(dbuf), ":~"))
+      utils.notify("Captured to " .. utils.abbreviate(vim.api.nvim_buf_get_name(dbuf)))
       kill_target(tpl, loc)
       if tpl.jump_to_captured then
         M.goto_last_stored()
       end
       run_hook(tpl.after_finalize, dbuf, dline)
       emit("OrgCaptureAfterFinalize", { bufnr = dbuf, line = dline })
+    else
+      -- nothing stored and no capture buffer to keep it: undo the target
+      -- headlines and restart an interrupted clock, like an abort
+      discard_target(ctx.loc)
+      if ctx.clock_start then
+        resume_interrupted(vim.tbl_extend("force", tpl, { clock_keep = false }), ctx)
+      end
     end
     return dbuf, dline
   end

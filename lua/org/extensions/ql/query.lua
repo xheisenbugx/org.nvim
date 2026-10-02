@@ -701,7 +701,7 @@ local function planning_pred(kinds, single)
         local ts = hl.planning and hl.planning[k]
         if ts then
           if auto then
-            local warn = date.warning_days(ts, config.opts.deadline_warning_days or 14)
+            local warn = date.deadline_warning_days(ts, config.opts.deadline_warning_days or 14)
             if ts:days() <= date.today_days() + warn then
               return true
             end

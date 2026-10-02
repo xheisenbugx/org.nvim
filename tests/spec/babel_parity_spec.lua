@@ -11,7 +11,7 @@ local function has(exe)
 end
 
 local function tmpdir()
-  local dir = vim.fn.resolve(vim.fn.tempname())
+  local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
   vim.fn.mkdir(dir, "p")
   return dir
 end
@@ -683,11 +683,14 @@ describe("babel parity: C and SQL", function()
     }, nil)
     local spec = langs.prepare("sql", { "select 1;" }, args, {}, { cmd = {}, ext = "sql" })
     local cmd = spec.steps[1].cmd
-    local want = 'psql --set="ON_ERROR_STOP=1"  -A -P footer=off -F "\t"  ' .. "-h'h' -p5433 -U'u' -d'd' -f "
+    -- shell-quote-argument: '...' on Unix, "..." on Windows
+    local q = vim.fn.shellescape
+    local want = 'psql --set="ON_ERROR_STOP=1"  -A -P footer=off -F "\t"  '
+      .. string.format("-h%s -p5433 -U%s -d%s -f ", q("h"), q("u"), q("d"))
     eq(want, cmd:sub(1, #want))
     args = blocks.header_args({ params = ":engine mysql :database d", header_lines = {}, start = 1, lang = "sql" }, nil)
     cmd = langs.prepare("sql", { "select 1;" }, args, {}, { cmd = {}, ext = "sql" }).steps[1].cmd
-    ok(cmd:find("^mysql %-D'd'  +< "), cmd)
+    ok(cmd:find("^mysql %-D" .. vim.pesc(q("d")) .. "  +< "), cmd)
   end)
 
   it("evaluates org-sbe in table formulas", function()
@@ -811,6 +814,7 @@ describe("babel parity: tangling", function()
   end)
 
   it("interprets :tangle-mode like org-babel-interpret-file-mode", function()
+    skip_on_windows("Windows has no Unix file modes")
     local dir = tangle({
       "#+begin_src sh :tangle m1.sh :tangle-mode rwxr-xr-x",
       "echo m1",

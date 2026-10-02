@@ -78,6 +78,44 @@ describe("fold: cycling", function()
     fold.global_cycle() -- show all
     eq(-1, vim.fn.foldclosed(3))
   end)
+
+  -- org-cycle-internal-global: CONTENTS and SHOW ALL only follow the
+  -- previous S-TAB; after any other command S-TAB shows the OVERVIEW
+  it("global cycle starts again from OVERVIEW after another command", function()
+    local buf = org_buffer(lines, { 4, 0 })
+    fold.setup_buffer(buf)
+    fold.show_all()
+    fold.global_cycle() -- overview: the cursor goes to the headline it shows on
+    eq(1, vim.fn.foldclosed(1))
+    eq(1, vim.api.nvim_win_get_cursor(0)[1])
+    fold.global_cycle() -- contents
+    eq(-1, vim.fn.foldclosed(1))
+    eq(3, vim.fn.foldclosed(3))
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    fold.global_cycle() -- overview again, not show all
+    eq(1, vim.fn.foldclosed(1))
+    fold.global_cycle() -- contents
+    vim.cmd("normal! 3Gzo")
+    fold.global_cycle() -- the cursor moved: overview
+    eq(1, vim.fn.foldclosed(1))
+  end)
+
+  it("<S-Tab> cycles OVERVIEW, CONTENTS, SHOW ALL when pressed in a row", function()
+    local buf = org_buffer(lines, { 4, 0 })
+    fold.setup_buffer(buf)
+    fold.show_all()
+    local function stab()
+      vim.api.nvim_feedkeys(vim.keycode("<S-Tab>"), "xt", false)
+    end
+    stab()
+    eq(1, vim.fn.foldclosed(1))
+    stab()
+    eq(-1, vim.fn.foldclosed(1))
+    eq(3, vim.fn.foldclosed(3))
+    stab()
+    eq(-1, vim.fn.foldclosed(3))
+    eq(-1, vim.fn.foldclosed(4))
+  end)
 end)
 
 -- org-cycle-include-plain-lists 'integrate (Emacs 9.8.10: CHILDREN shows

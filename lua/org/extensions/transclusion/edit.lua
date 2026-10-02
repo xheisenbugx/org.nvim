@@ -78,6 +78,7 @@ function M.open(res, spec, ctx, o)
     first = res.first,
     last = res.last,
     orig = vim.deepcopy(res.raw),
+    tail = res.tail,
     spec = spec,
     ctx = ctx,
     live = o.live and true or false,
@@ -198,6 +199,21 @@ local function replace_lines(buf, row, old, new)
   end
 end
 
+-- `lines` with `tail` (the source text after a thing at point) put back
+-- at the end of the last line
+local function with_tail(lines, tail)
+  if not tail or tail == "" then
+    return lines
+  end
+  local out = vim.deepcopy(lines)
+  if #out == 0 then
+    out[1] = tail
+  else
+    out[#out] = out[#out] .. tail
+  end
+  return out
+end
+
 --- Write the edit buffer `b` back into its source. With `sync` (live
 --- editing), the text only goes into the source buffer, loaded when it
 --- isn't; nothing is written to disk.
@@ -209,10 +225,11 @@ function M.write(b, sync)
   if not e then
     return false
   end
-  local new = vim.api.nvim_buf_get_lines(b, 0, -1, false)
-  if sync and vim.deep_equal(new, e.orig) then
+  local edited = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+  if sync and vim.deep_equal(edited, e.orig) then
     return true
   end
+  local new = with_tail(edited, e.tail)
   local lines, sb = source.read(e.path, e.bufnr)
   if sync and not sb and e.path and lines then
     local nb = vim.fn.bufadd(e.path)
@@ -224,10 +241,10 @@ function M.write(b, sync)
     return false
   end
   local first, last = e.first, e.last
-  if not vim.deep_equal(vim.list_slice(lines, first, last), e.orig) then
+  if not vim.deep_equal(vim.list_slice(lines, first, last), with_tail(e.orig, e.tail)) then
     -- the source moved: find the same text again
     local r = source.resolve(e.spec, e.ctx)
-    if r and vim.deep_equal(r.raw, e.orig) then
+    if r and vim.deep_equal(r.raw, e.orig) and r.tail == e.tail then
       first, last = r.first, r.last
     else
       if not sync or not e.warned then
@@ -282,7 +299,7 @@ function M.write(b, sync)
     require("org.files").invalidate(e.path)
   end
   e.first, e.last = first, first + #new - 1
-  e.orig = vim.deepcopy(new)
+  e.orig = edited
   e.warned = nil
   if not sync then
     vim.bo[b].modified = false

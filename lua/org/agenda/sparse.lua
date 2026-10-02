@@ -310,7 +310,7 @@ function M.deadlines()
     if not dl or hl:is_done() then
       return false
     end
-    return dl:days() - today <= date.warning_days(dl, warn_default)
+    return dl:days() - today <= date.deadline_warning_days(dl, warn_default)
   end, "deadlines")
 end
 

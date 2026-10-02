@@ -101,6 +101,18 @@ describe("kill_line", function()
     eq(" here", vim.fn.getreg('"'))
   end)
 
+  -- Emacs org-kill-line realigns the tags only with org-auto-align-tags
+  it("special: keeps the tags in place without auto_align_tags", function()
+    config.opts.special_ctrl_k = true
+    local saved = config.opts.auto_align_tags
+    config.opts.auto_align_tags = false
+    local buf = org_buffer({ "* TODO Title here   :tag:" }, { 1, 12 })
+    le.kill_line()
+    config.opts.auto_align_tags = saved
+    eq({ "* TODO Title   :tag:" }, buf_lines(buf))
+    eq(" here", vim.fn.getreg('"'))
+  end)
+
   it("special: on the tags kills them", function()
     config.opts.special_ctrl_k = true
     local buf = org_buffer({ "* TODO Title here   :tag:" }, { 1, 18 })

@@ -85,8 +85,41 @@ describe("org-id", function()
     utils.write_json(dir .. "/ids.json", {})
     eq(nil, id.find("in-archive"))
   end)
+  it("reports duplicate IDs and keeps the first file, like org-id-update-id-locations", function()
+    local dir = tmpdir()
+    utils.writefile(dir .. "/a.org", { "* A", ":PROPERTIES:", ":ID: dup", ":END:" })
+    utils.writefile(
+      dir .. "/b.org",
+      { "* B", ":PROPERTIES:", ":ID: dup", ":END:", "* C", ":PROPERTIES:", ":ID: c", ":END:" }
+    )
+    setup(dir)
+    vim.cmd("enew!")
+    vim.cmd("silent! %bwipeout!")
+    local warned = {}
+    local warn = utils.warn
+    utils.warn = function(msg)
+      warned[#warned + 1] = msg
+    end
+    local n, dups = id.update_locations()
+    utils.warn = warn
+    eq(2, n)
+    eq({ "dup" }, dups)
+    eq({ '1 duplicate IDs found: "dup"' }, warned)
+    ok(utils.read_json(dir .. "/ids.json")["dup"]:match("/a%.org$"))
+  end)
+
+  it("ignores damaged entries in the locations file", function()
+    local dir = tmpdir()
+    setup(dir)
+    utils.writefile(dir .. "/ids.json", { '{"a": null, "b": {"x": 1}, "c": 5}' })
+    id._reset()
+    eq(nil, id.find("a"))
+    eq(nil, id.find("b"))
+    eq({}, id.known_ids())
+  end)
+
   it("stores an id: link before the first heading in a file-level drawer", function()
-    local dir = vim.uv.fs_realpath(tmpdir())
+    local dir = require("org.utils").realpath(tmpdir())
     setup(dir, { links = { use_id = true } })
     local links = require("org.links")
     local p = dir .. "/top.org"
@@ -124,7 +157,7 @@ describe("org-id", function()
   end)
 
   it("reads and writes Emacs's org-id-locations file", function()
-    local dir = vim.uv.fs_realpath(tmpdir())
+    local dir = require("org.utils").realpath(tmpdir())
     local db = dir .. "/.org-id-locations"
     utils.writefile(dir .. "/a.org", { "* A", ":PROPERTIES:", ":ID: id-a", ":END:" })
     utils.writefile(db, {
@@ -144,7 +177,8 @@ describe("org-id", function()
     eq("", utils.readfile(db)[1])
     ok(text:find('("~/n.org" "id-new")', 1, true), text)
     ok(text:find('("~/x \\"q\\".org" "id-x")', 1, true), text)
-    ok(text:find('("' .. dir .. '/a.org" "id-a" "id-a2")', 1, true), text)
+    -- (abbreviated where the temp directory is below home, as on Windows)
+    ok(text:find('("' .. utils.abbreviate(dir) .. '/a.org" "id-a" "id-a2")', 1, true), text)
     -- relative file names (org-id-locations-file-relative)
     setup(dir, { id = { locations_file = db, locations_file_relative = true } })
     id.register("id-b", dir .. "/b.org")
@@ -155,7 +189,7 @@ describe("org-id", function()
     local fresh = dir .. "/fresh-ids"
     setup(dir, { id = { locations_file = fresh } })
     id.register("f1", dir .. "/a.org")
-    eq({ "", '(("' .. dir .. '/a.org" "f1"))' }, utils.readfile(fresh))
+    eq({ "", '(("' .. utils.abbreviate(dir) .. '/a.org" "f1"))' }, utils.readfile(fresh))
     setup(dir)
     id.register("j1", dir .. "/a.org")
     eq(dir .. "/a.org", utils.read_json(dir .. "/ids.json").j1)

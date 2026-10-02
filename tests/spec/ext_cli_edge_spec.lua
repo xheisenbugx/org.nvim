@@ -1,6 +1,6 @@
 -- The org command line: picking among clock-in candidates, ID and
 -- FILE::HEADING queries, and a running Neovim following the shell's clock.
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h"))
 
 local function workspace()
   local dir = vim.fn.tempname()
@@ -21,7 +21,7 @@ local function workspace()
 end
 
 local function run(dir, args)
-  local cmd = { root .. "/bin/org", "--config", dir .. "/cfg.lua" }
+  local cmd = { require("org.extensions.cli").bin(), "--config", dir .. "/cfg.lua" }
   vim.list_extend(cmd, args)
   local env = {
     ORG_NVIM_CONFIG = "",

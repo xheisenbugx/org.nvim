@@ -67,6 +67,7 @@ describe("babel ob-ditaa", function()
   end)
 
   it("runs java -jar (the default mode) and epstopdf for pdf", function()
+    skip_on_windows("the fake tool runs behind cmd.exe, which re-quotes this command line")
     local dir = tmpdir()
     local log = dir .. "/log"
     fake(dir, "java", 'echo "java $*" >> ' .. log)

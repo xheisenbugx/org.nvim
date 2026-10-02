@@ -50,7 +50,7 @@ local PUBLISH_KEYS = {
 --- Timestamp directory (org-publish-timestamp-directory).
 function M.timestamp_directory()
   local d = pcfg().timestamp_directory or (vim.fn.stdpath("data") .. "/org-timestamps/")
-  d = vim.fn.fnamemodify(vim.fn.expand(d), ":p")
+  d = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(d), ":p"))
   if not d:match("/$") then
     d = d .. "/"
   end
@@ -114,15 +114,15 @@ end
 --- cache keys and project lookups agree whatever the spelling.
 local function expand(path, base)
   path = vim.fn.expand(path)
-  if not path:match("^/") and base then
+  if not utils.is_absolute(path) and base then
     path = base:gsub("/$", "") .. "/" .. path
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
-  local real = vim.uv.fs_realpath(path)
+  local real = utils.realpath(path)
   if real then
     return real
   end
-  local dir = vim.uv.fs_realpath(vim.fn.fnamemodify(path, ":h"))
+  local dir = utils.realpath(vim.fn.fnamemodify(path, ":h"))
   if dir then
     return dir .. "/" .. vim.fn.fnamemodify(path, ":t")
   end
@@ -138,7 +138,7 @@ local function relative(path, base)
 end
 
 local function mtime(path)
-  local target = vim.uv.fs_realpath(path) or path
+  local target = utils.realpath(path) or path
   local st = vim.uv.fs_stat(target)
   if not st then
     error("No such file: " .. path, 0)
@@ -152,7 +152,7 @@ local function now()
 end
 
 local function truename(path)
-  return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+  return utils.realpath(path) or vim.fs.normalize(path)
 end
 
 local function is_dir(path)
@@ -176,7 +176,7 @@ function M.write_cache_file(free)
   end
   local file = M.cache[":cache-file:"]
   vim.fn.mkdir(vim.fn.fnamemodify(file, ":h"), "p")
-  local fd = assert(io.open(file, "w"))
+  local fd = assert(io.open(file, "wb"))
   fd:write(vim.json.encode(M.cache))
   fd:close()
   if free then
@@ -594,7 +594,7 @@ function M.org_to(backend, filename, extension, plist, pub_dir, ext_extra)
     text = text .. "\n"
   end
   vim.fn.mkdir(vim.fn.fnamemodify(output, ":h"), "p")
-  local fd = assert(io.open(output, "w"))
+  local fd = assert(io.open(output, "wb"))
   fd:write(text)
   fd:close()
   return output
@@ -771,7 +771,7 @@ function M.publish_file(filename, project, no_cache)
   filename = expand(filename)
   project = project or M.get_project_from_filename(filename)
   if not project then
-    error(string.format("File %q is not part of any known project", vim.fn.fnamemodify(filename, ":~")), 0)
+    error(string.format("File %q is not part of any known project", utils.abbreviate(filename)), 0)
   end
   local plist = project[2]
   local pf = prop(project, "publishing_function", "html")
@@ -1043,7 +1043,7 @@ function M.sitemap(project, sitemap_filename)
     files = stable_sort(files, pred)
   end
   local text = builder(title, files_to_list(files, project, style, format_entry))
-  local fd = assert(io.open(sitemap_filename, "w"))
+  local fd = assert(io.open(sitemap_filename, "wb"))
   fd:write(text)
   fd:close()
   return sitemap_filename
@@ -1117,12 +1117,12 @@ function M.generate_theindex(project, directory)
     end
     current_letter, last_entry = letter, entry
   end
-  local fd = assert(io.open(directory .. "theindex.inc", "w"))
+  local fd = assert(io.open(directory .. "theindex.inc", "wb"))
   fd:write(table.concat(out))
   fd:close()
   local index_org = directory .. "theindex.org"
   if vim.fn.filereadable(index_org) == 0 then
-    local f2 = assert(io.open(index_org, "w"))
+    local f2 = assert(io.open(index_org, "wb"))
     f2:write('#+TITLE: Index\n\n#+INCLUDE: "theindex.inc"\n\n')
     f2:close()
   end
@@ -1240,7 +1240,7 @@ end
 --- (org-publish-file-relative-name).
 function M.file_relative_name(filename, info)
   local base = info and info.base_directory
-  if base and (filename:match("^/") or filename:match("^~")) then
+  if base and (utils.is_absolute(filename) or filename:match("^~")) then
     local abs = expand(filename)
     base = as_dir(expand(base))
     if abs:sub(1, #base) == base then
@@ -1288,7 +1288,7 @@ end
 --- reference the target file uses (or will use) for it; else
 --- "MissingReference".
 function M.resolve_external_link(search, file, info)
-  if info and info.input_file and not (file:match("^/") or file:match("^~")) then
+  if info and info.input_file and not (utils.is_absolute(file) or file:match("^~")) then
     file = expand(file, vim.fn.fnamemodify(info.input_file, ":p:h"))
   else
     file = expand(file)

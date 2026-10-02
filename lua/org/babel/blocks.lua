@@ -581,12 +581,48 @@ function M.inline_literal_lines(lines)
   return hidden
 end
 
+--- Split the text after a block's language into its switches (`-n 10`,
+--- `+n`, `-i`, `-k`, `-r`, `-l "fmt"`) and its header arguments, like the
+--- org-element src-block parser: a `:` inside `-l "(ref:%s)"` does not start
+--- the parameters.
+---@return string switches, string params
+function M.split_switches(after)
+  local pos = 1
+  local last = 0
+  while true do
+    local s = after:match("^%s*()", pos)
+    local e = after:match('^%-l +"[^"]*"()', s)
+      or after:match("^%-[ikr]()", s)
+      or after:match("^[%-+]n *%d+()", s)
+      or after:match("^[%-+]n()", s)
+    if not e or (s > 1 and s == pos) then
+      break
+    end
+    last, pos = e - 1, e
+  end
+  return vim.trim(after:sub(1, last)), vim.trim(after:sub(last + 1))
+end
+
 --- Parse all src blocks (and #+CALL lines) of a list of lines.
 ---@return table[] blocks
 function M.parse_blocks(lines)
   local blocks = {}
   local n = #lines
   local i = 1
+  -- line of the first `#+RESULTS: name` of each name, indexed on first use
+  local index
+  local function named_results(name)
+    if not index then
+      index = {}
+      for x = 1, n do
+        local nm = lines[x]:find("#+", 1, true) and match_results(lines[x])
+        if nm and not index[nm] then
+          index[nm] = x
+        end
+      end
+    end
+    return index[name]
+  end
   while i <= n do
     local line = lines[i]
     local indent, rest = line:match("^(%s*)#%+[Bb][Ee][Gg][Ii][Nn]_[Ss][Rr][Cc](.*)$")
@@ -597,11 +633,7 @@ function M.parse_blocks(lines)
       local lang, after = vim.trim(rest):match("^(%S+)%s*(.*)$")
       lang = lang or ""
       after = after or ""
-      -- switches (-n, -r, -l "fmt") come before header args
-      local switches, params = after:match("^(.-)%s*(:.*)$")
-      if not switches then
-        switches, params = after, ""
-      end
+      local switches, params = M.split_switches(after)
       local raw = M.unescape(vim.list_slice(lines, i + 1, j - 1))
       local block = {
         start = i,
@@ -640,12 +672,10 @@ function M.parse_blocks(lines)
       if rname and (rname == "" or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
-        for x = 1, n do
+        local x = named_results(block.name)
+        if x then
           local nm, h = match_results(lines[x])
-          if nm and nm == block.name then
-            block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
-            break
-          end
+          block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
         end
       end
       blocks[#blocks + 1] = block
@@ -691,12 +721,10 @@ function M.parse_blocks(lines)
       if rname and (rname == "" or rname == block.name) then
         block.results = { start = r, finish = results_end(lines, r), name = rname, hash = rhash }
       elseif block.name then
-        for x = 1, n do
+        local x = named_results(block.name)
+        if x then
           local nm, h = match_results(lines[x])
-          if nm and nm == block.name then
-            block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
-            break
-          end
+          block.results = { start = x, finish = results_end(lines, x), name = nm, hash = h }
         end
       end
       blocks[#blocks + 1] = block

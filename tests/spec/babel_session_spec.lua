@@ -66,6 +66,7 @@ describe("babel :session", function()
   end)
 
   it("python: state persists, value is the last expression, output mode prints", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -95,6 +96,7 @@ describe("babel :session", function()
   end)
 
   it("python: errors are reported and the session keeps running", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -118,10 +120,11 @@ describe("babel :session", function()
   end)
 
   it("shell: environment and directory persist; :results value is the exit status", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("bash") then
       return
     end
-    local dir = vim.fn.resolve(vim.fn.tempname())
+    local dir = vim.fs.normalize(vim.fn.resolve(vim.fn.tempname()))
     vim.fn.mkdir(dir .. "/sub", "p")
     local buf = run_all({
       "#+begin_src bash :session sh1 :dir " .. dir,
@@ -148,6 +151,7 @@ describe("babel :session", function()
   end)
 
   it("node and ruby sessions keep their variables", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if has("node") then
       local buf = run_all({
         "#+begin_src js :session n",
@@ -178,6 +182,7 @@ describe("babel :session", function()
   end)
 
   it("sessions get :var assignments and differ by name", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -216,6 +221,7 @@ describe("babel :session", function()
   end)
 
   it("switch to session copies the body and shows the REPL terminal", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     if not has("python3") then
       return
     end
@@ -282,6 +288,7 @@ describe("babel :async sessions (org-babel-comint-async)", function()
   end
 
   it("writes a placeholder at once and replaces it, even after the block was edited", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     local buf, wait = start({
       "#+begin_src sh :session async1 :async yes :results output",
       "sleep 0.3; echo done",
@@ -325,6 +332,7 @@ describe("babel :async sessions (org-babel-comint-async)", function()
   end)
 
   it("keeps the normal asynchronous run without :async, with :async no or without a session", function()
+    skip_on_windows("REPL sessions run in a terminal, which gets no input in headless Neovim on Windows")
     for _, header in ipairs({ ":session async3", ":session async3 :async no", ":async yes" }) do
       local buf, wait = start({ "#+begin_src sh " .. header .. " :results output", "echo plain", "#+end_src" })
       eq(3, #buf_lines(buf), header)

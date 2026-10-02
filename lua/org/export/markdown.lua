@@ -413,10 +413,10 @@ T.link = function(el, desc, info)
     local p
     if ltype ~= "file" then
       p = ltype .. ":" .. raw
-    elseif not (raw:match("^/") or raw:match("^~")) then
+    elseif not (require("org.utils").is_absolute(raw) or raw:match("^~")) then
       p = raw
     else
-      p = vim.fn.fnamemodify(vim.fn.expand(raw), ":p")
+      p = vim.fn.fnamemodify(require("org.utils").expand_vars(raw), ":p")
     end
     local caption = ox.data(ox.get_caption(element.parent_element(el)) or {}, info)
     return fmt("![img](%s)", nw(caption) and fmt('%s "%s"', p, caption) or p)

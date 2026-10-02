@@ -14,6 +14,42 @@ local M = {}
 
 M.section_title = "Footnotes"
 
+-- blocks whose contents are not parsed for objects: footnotes in them are
+-- code, not references or definitions
+local LITERAL_BLOCKS = { src = true, example = true, export = true, comment = true }
+
+--- Line numbers of `lines` inside (or delimiting) a src, example, export
+--- or comment block. An unterminated block is a paragraph, as in Org.
+---@param lines string[]
+---@return table<integer, true>
+function M.literal_lines(lines)
+  local mask = {}
+  local i = 1
+  while i <= #lines do
+    local name = lines[i]:match("^[ \t]*#%+[Bb][Ee][Gg][Ii][Nn]_(%S+)")
+    name = name and name:lower()
+    local stop
+    if name and LITERAL_BLOCKS[name] then
+      for j = i + 1, #lines do
+        local e = lines[j]:match("^[ \t]*#%+[Ee][Nn][Dd]_(%S+)[ \t]*$")
+        if e and e:lower() == name then
+          stop = j
+          break
+        end
+      end
+    end
+    if stop then
+      for j = i, stop do
+        mask[j] = true
+      end
+      i = stop + 1
+    else
+      i = i + 1
+    end
+  end
+  return mask
+end
+
 --- Footnote at the cursor.
 ---@return { kind: "reference"|"definition"|"inline", label: string|nil, start_col: integer, end_col: integer }|nil
 function M.at_point(bufnr, lnum, col)
@@ -61,16 +97,18 @@ function M.at_point(bufnr, lnum, col)
 end
 
 local function find_definition(bufnr, label)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local literal = M.literal_lines(lines)
   local pat = "^%[fn:" .. utils.escape_pattern(label) .. "%]"
-  for i, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    if l:match(pat) then
+  for i, l in ipairs(lines) do
+    if not literal[i] and l:match(pat) then
       return i
     end
   end
   -- inline definition with label
   local inline = "[fn:" .. label .. ":"
-  for i, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    local s = l:find(inline, 1, true)
+  for i, l in ipairs(lines) do
+    local s = not literal[i] and l:find(inline, 1, true)
     if s then
       return i, s
     end
@@ -79,9 +117,11 @@ end
 
 local function find_reference(bufnr, label)
   local needle = "[fn:" .. label .. "]"
-  for i, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local literal = M.literal_lines(lines)
+  for i, l in ipairs(lines) do
     local init = 1
-    while true do
+    while not literal[i] do
       local s = l:find(needle, init, true)
       if not s then
         break
@@ -353,8 +393,10 @@ end
 --- Every footnote label used in the buffer (org-footnote-all-labels).
 function M.all_labels(bufnr)
   local seen, out = {}, {}
-  for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)) do
-    for label in l:gmatch("%[fn:([^%]:%s]+)[%]:]") do
+  local lines = vim.api.nvim_buf_get_lines(bufnr or 0, 0, -1, false)
+  local literal = M.literal_lines(lines)
+  for i, l in ipairs(lines) do
+    for label in (literal[i] and "" or l):gmatch("%[fn:([^%]:%s]+)[%]:]") do
       if not seen[label] then
         seen[label] = true
         out[#out + 1] = label
@@ -500,9 +542,10 @@ end
 ---@return { lnum: integer, s: integer, e: integer, label: string|nil, text: string|nil }[]
 function M.collect_references(lines)
   local out = {}
+  local literal = M.literal_lines(lines)
   for lnum, line in ipairs(lines) do
     local init = 1
-    while true do
+    while not literal[lnum] do
       local s = line:find("[fn:", init, true)
       if not s then
         break
@@ -541,16 +584,17 @@ end
 ---@return { label: string, start: integer, stop: integer }[]
 function M.collect_definitions(lines)
   local parser = require("org.parser")
+  local literal = M.literal_lines(lines)
   local out = {}
   local i = 1
   while i <= #lines do
-    local label = lines[i]:match("^%[fn:([^%]:]+)%]")
+    local label = not literal[i] and lines[i]:match("^%[fn:([^%]:]+)%]")
     if label then
       local stop = i
       local j = i + 1
       while j <= #lines do
         local l = lines[j]
-        if l:match("^%[fn:[^%]:]+%]") or parser.headline_level(l) then
+        if (not literal[j] and l:match("^%[fn:[^%]:]+%]")) or parser.headline_level(l) then
           break
         end
         if is_blank(l) and is_blank(lines[j + 1]) then
@@ -697,10 +741,13 @@ function M.renumber(bufnr)
       map[d.label] = tostring(n)
     end
   end
+  local literal = M.literal_lines(lines)
   for i, l in ipairs(lines) do
-    lines[i] = l:gsub("%[fn:(%d+)([%]:])", function(num, c)
-      return "[fn:" .. (map[num] or num) .. c
-    end)
+    if not literal[i] then
+      lines[i] = l:gsub("%[fn:(%d+)([%]:])", function(num, c)
+        return "[fn:" .. (map[num] or num) .. c
+      end)
+    end
   end
   set_buffer(bufnr, lines)
 end

@@ -1,6 +1,98 @@
 --- :checkhealth org
 local M = {}
 
+--- Option classes of the LuaLS annotations in lua/org/_meta/:
+--- class -> { fields = { name -> type }, parent?, open? (any key) }.
+local function meta_classes()
+  local classes = {}
+  for _, f in ipairs(vim.api.nvim_get_runtime_file("lua/org/_meta/*.lua", true)) do
+    local cur
+    for _, line in ipairs(vim.fn.readfile(f)) do
+      local cls, parent = line:match("^%-%-%-@class%s+([%w%._]+)%s*:?%s*([%w%._]*)")
+      if cls then
+        cur = cls
+        classes[cls] = classes[cls] or { fields = {} }
+        if parent ~= "" then
+          classes[cls].parent = parent
+        end
+      elseif cur then
+        -- `name` or `["name"]` (a Lua keyword such as goto)
+        local name, ty = line:match("^%-%-%-@field%s+([%w_]+)%??%s+(.*)$")
+        if not name then
+          name, ty = line:match('^%-%-%-@field%s+%["([%w_]+)"%]%??%s+(.*)$')
+        end
+        if name then
+          classes[cur].fields[name] = ty
+        elseif line:match('^%-%-%-@field%s+%[[^"]') then
+          -- `[string]` keys: any name is valid
+          classes[cur].open = true
+        elseif not line:match("^%-%-%-") then
+          cur = nil
+        end
+      end
+    end
+  end
+  return classes
+end
+
+--- Keys of the options given to setup() that org.nvim doesn't know (typos,
+--- removed options), as dotted paths. Free-form tables (`log_note_headings`,
+--- `babel.languages`, `extensions`, ...) aren't checked; the action-backed
+--- `mappings` sections are checked against the action names.
+---@param user table options passed to setup()
+---@return string[]
+function M.unknown_options(user)
+  local classes = meta_classes()
+  local actions = require("org.actions").list
+  local action_sections = {
+    global = true,
+    org = true,
+    org_insert = true,
+    emacs_global = true,
+    emacs = true,
+    emacs_insert = true,
+  }
+  local out = {}
+  local function field(cls, name)
+    while cls and classes[cls] do
+      local ty = classes[cls].fields[name]
+      if ty then
+        return ty
+      end
+      cls = classes[cls].parent
+    end
+  end
+  local function walk(tbl, defaults, cls, path)
+    for k, v in pairs(tbl) do
+      if type(k) == "string" then
+        local def = type(defaults) == "table" and defaults[k] or nil
+        local ty = field(cls, k)
+        if def == nil and not ty then
+          out[#out + 1] = path .. k
+        elseif type(v) == "table" and not vim.islist(v) and path .. k ~= "extensions" then
+          if path == "mappings." and action_sections[k] then
+            for name in pairs(v) do
+              if type(name) == "string" and not actions[name] then
+                out[#out + 1] = path .. k .. "." .. name
+              end
+            end
+          else
+            local sub = ty and ty:match("^(org%.Config[%w%._]*)")
+            if sub and classes[sub] and not classes[sub].open then
+              walk(v, def, sub, path .. k .. ".")
+            end
+          end
+        end
+      end
+    end
+  end
+  if next(classes) and type(user) == "table" then
+    walk(user, require("org.config").defaults, "org.Config", "")
+  end
+  table.sort(out)
+  return out
+end
+
 function M.check()
   local h = vim.health
   h.start("org.nvim")
@@ -29,6 +121,13 @@ function M.check()
     h.ok("default_notes_file: " .. notes)
   else
     h.info("default_notes_file will be created on first capture: " .. notes)
+  end
+
+  local unknown = M.unknown_options(require("org.config").user_opts)
+  if #unknown > 0 then
+    h.warn("Unknown options passed to setup() (ignored): " .. table.concat(unknown, ", "), {
+      "check the names in :h org-config and :h org-keymaps",
+    })
   end
 
   -- keyword config
@@ -75,10 +174,11 @@ function M.check()
       end
     end
   end
-  if vim.fn.has("mac") == 1 then
-    h.info("notifications use osascript on macOS")
-  elseif vim.fn.executable("notify-send") == 1 then
-    h.ok("notify-send available for notifications")
+  local notifier = require("org.agenda.notifications").desktop_backend()
+  if notifier then
+    h.ok(string.format("desktop notifications use %s", notifier))
+  else
+    h.info("no desktop notifier (osascript, notify-send or powershell.exe): reminders only use vim.notify")
   end
 
   h.start("org.nvim image and LaTeX previews")

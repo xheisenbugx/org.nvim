@@ -38,6 +38,13 @@ describe("date", function()
     eq("2026-09-08", date.apply_repeater(date.parse("<2026-09-01 Tue +1w>"), now):to_date_string())
     eq("2026-09-29", date.apply_repeater(date.parse("<2026-09-01 Tue ++1w>"), now):to_date_string())
     eq("2026-09-30", date.apply_repeater(date.parse("<2026-09-01 Tue .+1w>"), now):to_date_string())
+    -- a `--N` delay only postpones the first occurrence: Emacs drops it
+    -- (org-timestamp-change ... suppress-tmp-delay); a `-N` warning stays
+    eq("<2026-09-08 Tue +1w>", date.apply_repeater(date.parse("<2026-09-01 Tue +1w --2d>"), now):to_string())
+    eq("<2026-09-29 Tue ++1w>", date.apply_repeater(date.parse("<2026-09-01 Tue ++1w --2d>"), now):to_string())
+    eq("<2026-09-24 Thu .+1d>", date.apply_repeater(date.parse("<2026-09-01 Tue .+1d --1d>"), now):to_string())
+    eq("<2026-09-08 Tue +1w -2d>", date.apply_repeater(date.parse("<2026-09-01 Tue +1w -2d>"), now):to_string())
+    eq("<2026-09-01 Tue +0d --2d>", date.apply_repeater(date.parse("<2026-09-01 Tue +0d --2d>"), now):to_string())
     -- before extend_today_until o'clock, day repeaters count from yesterday
     local config = require("org.config")
     local saved = config.opts.extend_today_until
@@ -52,6 +59,24 @@ describe("date", function()
     end)
     config.opts.extend_today_until = saved
     assert(ok_, err)
+  end)
+  it("finds occurrences of repeaters that started long ago", function()
+    local function occ(s, y, m, d, y2, m2, d2)
+      local out = {}
+      local from = date.days_from_civil(y, m, d)
+      for _, o in ipairs(date.occurrences(date.parse(s), from, date.days_from_civil(y2, m2, d2))) do
+        out[#out + 1] = o:to_string()
+      end
+      return out
+    end
+    -- an hourly repeater more than 5000 hours before the window
+    local h = occ("<2025-01-01 Wed 10:00 +1h>", 2026, 10, 1, 2026, 10, 1)
+    eq(24, #h)
+    eq("<2026-10-01 Thu 00:00 +1h>", h[1])
+    eq("<2026-10-01 Thu 23:00 +1h>", h[24])
+    -- months count from the start, without drift at month ends
+    eq({ "<2426-03-03 Tue +1m>", "<2426-03-31 Tue +1m>" }, occ("<2026-01-31 Sat +1m>", 2426, 2, 1, 2426, 3, 31))
+    eq({ "<2027-01-31 Sun +1w>" }, occ("<2026-01-04 Sun +1w>", 2027, 1, 31, 2027, 1, 31))
   end)
   it("reads dates", function()
     local base = date.today()
@@ -201,5 +226,17 @@ describe("utils", function()
     require("org.utils").writefile(dir .. "/a.org", { "* A" })
     require("org.utils").writefile(dir .. "/b.org", { "* B" })
     eq(2, #require("org.utils").glob_org_files({ dir .. "/*.org" }))
+  end)
+end)
+
+describe("date.deadline_warning_days", function()
+  local date = require("org.date")
+  it("uses the -Nd cookie, else the option", function()
+    eq(3, date.deadline_warning_days(date.parse("<2026-10-10 Sat -3d>"), 14))
+    eq(14, date.deadline_warning_days(date.parse("<2026-10-10 Sat>"), 14))
+  end)
+  it("enforces an option of 0 or less over the cookie (org-get-wdays)", function()
+    eq(0, date.deadline_warning_days(date.parse("<2026-10-10 Sat -7d>"), 0))
+    eq(7, date.deadline_warning_days(date.parse("<2026-10-10 Sat -3d>"), -7))
   end)
 end)

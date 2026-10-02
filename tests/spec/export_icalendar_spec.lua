@@ -1,6 +1,6 @@
 local ical = require("org.export.icalendar")
 local config = require("org.config")
-local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h"))
 local dir = root .. "/fixtures/export/icalendar"
 
 local function read(path)
@@ -52,6 +52,21 @@ describe("export icalendar", function()
     eq(75, #lines[1])
     eq(" " .. string.rep("x", 74), lines[2])
     eq(" " .. string.rep("x", 11), lines[3])
+  end)
+
+  it("folds at 75 octets without splitting UTF-8 characters (RFC 5545)", function()
+    local line = "SUMMARY:" .. string.rep("é", 60) -- 8 + 120 octets
+    local folded = ical.fold_string(line)
+    local lines = vim.split((folded:gsub("\n$", "")), "\n", { plain = true })
+    for i, l in ipairs(lines) do
+      ok(#l <= 75, "line " .. i .. " has " .. #l .. " octets")
+      -- no lead byte at the end, no continuation byte after the marker
+      ok(not l:match("[\192-\255]$"), l)
+      ok(not l:match("^ ?[\128-\191]"), l)
+    end
+    -- the first line holds 8 + 33 * 2 = 74 octets: one more would split an é
+    eq("SUMMARY:" .. string.rep("é", 33), lines[1])
+    eq(line, (folded:gsub("\n$", ""):gsub("\n ", "")))
   end)
 
   it("converts timestamps like org-icalendar-convert-timestamp", function()

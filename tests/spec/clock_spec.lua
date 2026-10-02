@@ -235,8 +235,9 @@ describe("clock", function()
     config.opts.clock.out_switch_to_state = "NEXT"
     local buf = file_buffer({ "#+STARTUP: lognoteclock-out", "* TODO A" })
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
-    clock.clock_in(nil, { at = date.now():add(-10, "min") })
-    clock.clock_out({ note = "stopped here" })
+    local now = date.now()
+    clock.clock_in(nil, { at = now:add(-10, "min") })
+    clock.clock_out({ at = now, note = "stopped here" })
     config.opts.clock.out_switch_to_state = nil
     local l = buf_lines(buf)
     eq("* NEXT A", l[2])
@@ -359,6 +360,77 @@ describe("clock", function()
       "CLOCK: [2026-09-23 Wed 10:00]--[2026-09-23 Wed 10:30] =>  0:30",
       ":END:",
     }, buf_lines(buf))
+  end)
+
+  it("finds an open clock written without a day name", function()
+    local buf = file_buffer({ "* Task", "CLOCK: [2026-10-01 10:00]" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    clock.clock_in(nil, { resume = true })
+    eq("[2026-10-01 Thu 10:00]", clock.state.start)
+    local b, l = clock.find_open_clock()
+    eq(buf, b)
+    eq(2, l)
+    ok(clock.is_clocked_headline(buf, 1))
+    for _, d in ipairs(clock.dangling_clocks(false)) do
+      ok(d.bufnr ~= buf, "the running clock is not dangling")
+    end
+    clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") })
+    eq({ "* Task", "CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30" }, buf_lines(buf))
+  end)
+
+  it("clocks in and out of a buffer without a file", function()
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    vim.bo[buf].bufhidden = "hide"
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    ok(clock.is_clocked_headline(buf, 1))
+    eq(buf, (clock.find_open_clock()))
+    -- another unnamed buffer is not the clocked one
+    local other = org_buffer({ "* Task" }, { 1, 0 })
+    eq(false, clock.is_clocked_headline(other, 1))
+    eq(90, clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") }))
+    eq(
+      { "* Task", ":LOGBOOK:", "CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30", ":END:" },
+      buf_lines(buf)
+    )
+  end)
+
+  it("follows the clocked buffer when it is saved under another name", function()
+    local buf = file_buffer({ "* Task" })
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    vim.cmd("silent write")
+    local new = vim.fn.tempname() .. ".org"
+    vim.cmd("silent saveas " .. vim.fn.fnameescape(new))
+    eq(buf, vim.api.nvim_get_current_buf())
+    eq(vim.fn.resolve(new), vim.fn.resolve(clock.state.path))
+    eq(buf, (clock.find_open_clock()))
+    eq(90, clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") }))
+    eq("CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30", buf_lines(buf)[3])
+  end)
+
+  it("keeps equal keys in order when a clocktable :sort is reversed (as Emacs)", function()
+    local buf = org_buffer({
+      "* A",
+      "CLOCK: [2026-09-01 Tue 10:00]--[2026-09-01 Tue 12:00] =>  2:00",
+      "** S1",
+      "CLOCK: [2026-09-03 Thu 10:00]--[2026-09-03 Thu 11:00] =>  1:00",
+      "** S2",
+      "CLOCK: [2026-09-03 Thu 12:00]--[2026-09-03 Thu 12:10] =>  0:10",
+      "* B",
+      "CLOCK: [2026-09-04 Fri 10:00]--[2026-09-04 Fri 10:30] =>  0:30",
+    })
+    local l = clock.clocktable({ sort = "(2 . ?T)", header = "" }, buf)
+    -- by Time descending; S1 and S2 have no level-1 time (key 0) and keep
+    -- their order
+    eq({
+      "| Headline     |   Time |      |",
+      "|--------------+--------+------|",
+      "| *Total time* | *3:40* |      |",
+      "|--------------+--------+------|",
+      "| A            |   3:10 |      |",
+      "| B            |   0:30 |      |",
+      "| \\_  S1       |        | 1:00 |",
+      "| \\_  S2       |        | 0:10 |",
+    }, l)
   end)
 
   it("cleans up temp buffers", function()

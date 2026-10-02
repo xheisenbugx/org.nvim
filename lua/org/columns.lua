@@ -101,40 +101,46 @@ M.SUMMARY_DESCRIPTIONS = {
 --- Parse a column format string.
 ---@return { width?: integer, prop: string, title: string, summary?: string, summary_fmt?: string }[]
 function M.parse_format(fmt)
+  -- org-columns-compile-format: repeatedly search
+  -- %[WIDTH]PROP[(TITLE)][{SUMMARY[;FORMAT]}], so a title may hold "%"
+  -- or spaces and columns need no space between them.
+  fmt = fmt or ""
   local cols = {}
-  local specs = {}
-  for tok in (fmt or ""):gmatch("%S+") do
-    if tok:sub(1, 1) == "%" or #specs == 0 then
-      specs[#specs + 1] = tok
+  local pos = 1
+  while true do
+    local _, e, width, prop = fmt:find("%%(%d*)([%w_%-]+)", pos)
+    if not e then
+      break
+    end
+    local title = fmt:match("^%(([^%)]*)%)", e + 1)
+    if title then
+      e = e + #title + 2
+    end
+    local summary = fmt:match("^{([^}]*)}", e + 1)
+    if summary then
+      e = e + #summary + 2
+    end
+    pos = e + 1
+    -- org-string-nw-p: a blank title or operator is none
+    if title and not title:match("%S") then
+      title = nil
+    end
+    local sfmt
+    if summary and summary:match("%S") then
+      summary, sfmt = summary:match("^([^;]*);?(.*)$")
+      if sfmt == "" then
+        sfmt = nil
+      end
     else
-      specs[#specs] = specs[#specs] .. " " .. tok
+      summary = nil
     end
-  end
-  for _, spec in ipairs(specs) do
-    local width, rest = spec:match("^%%(%d*)(.*)$")
-    local prop = rest and rest:match("^([%w_%-]+)")
-    if prop then
-      rest = rest:sub(#prop + 1)
-      local title = rest:match("^%(([^%)]*)%)")
-      if title then
-        rest = rest:sub(#title + 3)
-      end
-      local summary = rest:match("^{([^}]*)}")
-      local sfmt
-      if summary then
-        summary, sfmt = summary:match("^([^;]*);?(.*)$")
-        if sfmt == "" then
-          sfmt = nil
-        end
-      end
-      cols[#cols + 1] = {
-        width = tonumber(width),
-        prop = prop,
-        title = title or prop,
-        summary = summary,
-        summary_fmt = sfmt,
-      }
-    end
+    cols[#cols + 1] = {
+      width = tonumber(width),
+      prop = prop,
+      title = title or prop,
+      summary = summary,
+      summary_fmt = sfmt,
+    }
   end
   return cols
 end
@@ -356,7 +362,7 @@ M.SUMMARIES = {
         local m = (low + high) / 2
         mean = mean + m
         var = var + (low * low + high * high) / 2 - m * m
-      else
+      elseif #parts == 1 then
         mean = mean + formula().string_to_number(v)
       end
     end
@@ -475,7 +481,14 @@ function M.compute(roots, cols, opts)
             vals[#vals + 1] = v
           end
         end
-        local own = collect and collect(hl, col.prop) or M.value(hl, col.prop)
+        -- Emacs reads the entry's own value here (org-entry-get without
+        -- inheritance): an inherited one would be counted once per child.
+        local own
+        if collect then
+          own = collect(hl, col.prop)
+        else
+          own = hl:get_property(col.prop, false) or ""
+        end
         local s
         if #vals > 0 then
           s = fn(vals, col.summary_fmt)
@@ -487,7 +500,7 @@ function M.compute(roots, cols, opts)
         end
         if s then
           return s
-        elseif own ~= "" then
+        elseif own and own:match("%S") then
           return own
         end
       end
@@ -691,7 +704,9 @@ local function write_default(captured, cols, params, file)
   local out = { captured[1], "hline" }
   for k = 3, #captured do
     local row = captured[k]
-    local level = row.rel_level or row.level
+    -- the entry's own level, also in a local or :id view (Emacs
+    -- org-columns--capture-view keeps org-current-level)
+    local level = row.level
     if out[#out] ~= "hline" and (hlines == true or (type(hlines) == "number" and row.level <= hlines)) then
       out[#out + 1] = "hline"
     end

@@ -694,7 +694,7 @@ local function build_mathjax_config(info)
   end
   local an = inbuf:match("%f[%w]autonumber:%s*(%S+)")
   if an then
-    template = template:gsub("tags: '[^']*'", "tags: '" .. an:lower() .. "'")
+    template = template:gsub("tags: '[^']*'", "tags: '" .. an:lower():gsub("%%", "%%%%") .. "'")
   end
   return ox.normalize_string(template)
 end
@@ -1380,7 +1380,7 @@ function M.latex_image(frag, process, info)
   local hash = require("org.babel.sha1").hex(table.concat({ process, info.latex_header or "", frag }, "\0"))
   local ext = spec.image_output_type or "png"
   local linkfile = fmt("%s_%s.%s", prefix, hash, ext)
-  local movefile = imgdir:match("^/") and linkfile or (cache_dir .. "/" .. linkfile)
+  local movefile = require("org.utils").is_absolute(imgdir) and linkfile or (cache_dir .. "/" .. linkfile)
   if not vim.uv.fs_stat(movefile) then
     local made = odt.latex_to_image(frag, process, info)
     if not made then
@@ -1419,7 +1419,9 @@ T["latex-environment"] = function(el, _, info)
   local label = M.reference(el, info, true)
   if ptype == true or ptype == "mathjax" then
     if nw(label) then
-      frag = frag:gsub("^([^\n]*)", "%1\n\\label{" .. label .. "}", 1)
+      frag = frag:gsub("^([^\n]*)", function(first)
+        return first .. "\n\\label{" .. label .. "}"
+      end, 1)
     end
     return frag
   end
