@@ -123,3 +123,39 @@ describe("table alignment on the displayed width", function()
     end)
   end)
 end)
+
+describe("shrunk table columns", function()
+  -- Emacs 9.8.10 org-table-shrink: the field is cut at its visible width,
+  -- so a link shows as its description
+  it("show a link as its description", function()
+    with_size(60, 10, function()
+      org_buffer({
+        "| <4>                     | x |",
+        "| [[https://a.com][Link]]  | y |",
+        "| [[https://a.com][L]]     | z |",
+        "",
+        "text",
+      }, { 5, 0 })
+      require("org.table").shrink(0, 1)
+      vim.cmd("redraw!")
+      ok(vim.startswith(screen_row(2), "| Link…| y |"), screen_row(2))
+      ok(vim.startswith(screen_row(3), "| L   …| z |"), screen_row(3))
+    end)
+  end)
+
+  it("aren't drawn twice on the cursor line in Visual mode", function()
+    with_size(60, 10, function()
+      org_buffer({ "| <3>   | x |", "| abcdef | y |", "| ab     | z |" }, { 2, 2 })
+      require("org.table").shrink(0, 1)
+      vim.cmd("normal! v")
+      vim.cmd("redraw!")
+      local visual = screen_row(2)
+      vim.cmd("normal! \27")
+      vim.cmd("redraw!")
+      -- the revealed line shows its field once, in full
+      eq("| abcdef | y |", visual)
+      eq("| abc…| y |", screen_row(2))
+      eq("| ab …| z |", screen_row(3))
+    end)
+  end)
+end)

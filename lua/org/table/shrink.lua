@@ -122,6 +122,30 @@ local function field_text(content, width, align, hline, indicator)
   return " " .. string.rep(" ", before) .. content .. string.rep(" ", required - before) .. indicator
 end
 
+--- The line (1-based) of the current window's cursor when that window
+--- shows `bufnr` and its cursor line reveals concealed text in the current
+--- mode ('concealcursor' lacks the mode, e.g. Visual mode with the default
+--- "nc"), else nil.
+local function revealed_line(bufnr)
+  local win = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_buf(win) ~= bufnr then
+    return nil
+  end
+  local m = vim.api.nvim_get_mode().mode:sub(1, 1)
+  local key = "n"
+  if m == "v" or m == "V" or m == "\22" or m == "s" or m == "S" or m == "\19" then
+    key = "v"
+  elseif m == "i" or m == "R" then
+    key = "i"
+  elseif m == "c" then
+    key = "c"
+  end
+  if vim.wo[win].concealcursor:find(key, 1, true) then
+    return nil
+  end
+  return vim.api.nvim_win_get_cursor(win)[1]
+end
+
 --- Draw the shrunk columns of the table at `start` (clearing old marks).
 local function draw(bufnr, entry, start)
   local info = tbl().find(bufnr, start)
@@ -133,11 +157,19 @@ local function draw(bufnr, entry, start)
     return
   end
   local t = tbl().parse(info.lines)
-  local _, align = tbl().layout(t)
+  local o = require("org.ui").conceal_opts(bufnr)
+  local _, align = tbl().layout(t, o)
   local cookies = M.cookie_widths(t)
   local indicator = require("org.config").opts.table_shrunk_column_indicator or "…"
+  -- the cursor line shows its concealed text in modes missing from
+  -- 'concealcursor': the virtual text would sit next to the revealed field,
+  -- so that line shows its fields in full (as in Insert mode)
+  local revealed = revealed_line(bufnr)
   for i, line in ipairs(info.lines) do
     local hline = t.rows[i] and t.rows[i].hline
+    if info.start + i - 1 == revealed then
+      line = ""
+    end
     -- field separators (hlines separate fields with `+`)
     local pipes = {}
     for p in line:gmatch(hline and "()[+|]" or "()|") do
@@ -146,7 +178,10 @@ local function draw(bufnr, entry, start)
     for c in pairs(entry.cols) do
       local a, b = pipes[c], pipes[c + 1]
       if a and b and b > a + 1 then
-        local content = hline and "" or vim.trim(line:sub(a + 1, b - 1))
+        -- the field as displayed: a link shows as its description, hidden
+        -- emphasis markers don't count (org-table--shrink-field measures
+        -- with org-string-width, which skips invisible text)
+        local content = hline and "" or require("org.ui").visible_text(vim.trim(line:sub(a + 1, b - 1)), o)
         local text = field_text(content, cookies[c] or 0, align[c], hline, indicator)
         vim.api.nvim_buf_set_extmark(bufnr, ns, info.start + i - 2, a, {
           end_col = b - 1,
@@ -183,6 +218,30 @@ local function attach(bufnr)
         vim.api.nvim_buf_clear_namespace(bufnr, ns, info.start - 1, info.finish)
       end
     end,
+  })
+  -- a mode change or a move can reveal or conceal the cursor line (see
+  -- revealed_line): redraw the shrunk tables it leaves and enters
+  local last
+  local function follow_cursor()
+    if vim.fn.mode() == "i" then
+      return
+    end
+    local now = revealed_line(bufnr)
+    if now == last then
+      return
+    end
+    local before = last
+    last = now
+    for _, l in pairs({ before or false, now or false }) do
+      if l and l <= vim.api.nvim_buf_line_count(bufnr) then
+        M.refresh(bufnr, l)
+      end
+    end
+  end
+  vim.api.nvim_create_autocmd({ "ModeChanged", "CursorMoved" }, {
+    buffer = bufnr,
+    group = group,
+    callback = follow_cursor,
   })
   vim.api.nvim_create_autocmd({ "InsertLeave", "TextChanged" }, {
     buffer = bufnr,
