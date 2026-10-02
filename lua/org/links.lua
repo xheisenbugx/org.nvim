@@ -1141,9 +1141,12 @@ local function run_external(app, path)
     return vim.ui.open(path)
   end
   local cmd = vim.split(app, "%s+", { trimempty = true })
-  if app:find("%s", 1, true) and app:find("%%s") then
+  if app:find("%s", 1, true) then
     cmd = vim.tbl_map(function(p)
-      return (p:gsub("%%s", path))
+      -- a function: `%` in the file name is not a capture reference
+      return (p:gsub("%%s", function()
+        return path
+      end))
     end, cmd)
   else
     cmd[#cmd + 1] = path
@@ -1166,6 +1169,37 @@ local function base_dir(bufnr)
 end
 M.base_dir = base_dir
 
+--- `~user/...` -> that user's home (expand-file-name); `~/` and
+--- environment variables are left to utils.expand.
+local function expand_user(path)
+  local user, rest = path:match("^~([%w_.%-]+)(.*)$")
+  if user and (rest == "" or rest:match("^[/\\]")) then
+    local home = vim.fn.expand("~" .. user)
+    if home ~= "~" .. user then
+      return home .. rest
+    end
+  end
+  return path
+end
+
+--- Expand `~`, `~user` and environment variables of a path written in a
+--- document, leaving a relative path relative.
+local function expand_text(path)
+  path = expand_user(path)
+  if path == "~" or path:match("^~[/\\]") then
+    path = utils.home() .. path:sub(2)
+  end
+  return (
+    path
+      :gsub("%${([%w_]+)}", function(v)
+        return vim.env[v]
+      end)
+      :gsub("%$([%w_]+)", function(v)
+        return vim.env[v]
+      end)
+  )
+end
+
 --- Resolve a file link path relative to the buffer.
 function M.resolve_path(path, bufnr)
   if path == "" then
@@ -1173,23 +1207,12 @@ function M.resolve_path(path, bufnr)
     if name ~= "" then
       return vim.fs.normalize(name)
     end
+    return vim.fs.normalize(base_dir(bufnr))
   end
-  if vim.fn.fnamemodify(path, ":t"):find("[*?{%[]") then
-    -- expand() would expand the wildcard too
-    path = path
-      :gsub("^~/", function()
-        return utils.home() .. "/"
-      end)
-      :gsub("%$(%w+)", function(v)
-        return vim.env[v]
-      end)
-  else
-    path = vim.fn.expand(path)
-  end
-  if not path:match("^/") and not path:match("^%a:[/\\]") then
-    path = base_dir(bufnr) .. "/" .. path
-  end
-  return vim.fs.normalize(path)
+  -- utils.expand, not vim.fn.expand(): the path is document text, and Vim
+  -- expansion runs `backticks` as shell commands and interprets % # and
+  -- wildcards
+  return utils.expand(expand_user(path), base_dir(bufnr))
 end
 
 local function warn_err(err)
@@ -2340,7 +2363,7 @@ local PREFIXES = {
 
 --- File name completion relative to the directory of buffer `bufnr`.
 local function complete_files(lead, bufnr)
-  local expanded = vim.fs.normalize(vim.fn.expand(lead))
+  local expanded = vim.fs.normalize(expand_text(lead))
   if utils.is_absolute(expanded) or lead:match("^~") then
     return utils.complete_path(lead, "file")
   end
@@ -2437,7 +2460,7 @@ function M.normalize_file_path(path, method, dir)
   -- the file and the directory made absolute alike: expand() and
   -- fnamemodify() give \ on Windows, and may or may not add a drive to /x
   local function absolute(p, base)
-    p = vim.fs.normalize(vim.fn.expand(p))
+    p = vim.fs.normalize(expand_text(p))
     if not utils.is_absolute(p) then
       p = base and (base .. "/" .. p) or vim.fn.fnamemodify(p, ":p")
     end
@@ -2511,7 +2534,7 @@ function M.format_for_buffer(link, desc, fopts)
   if cur ~= "" then
     local p, s = link:match("^file:(.-)::(.*)$")
     if p and p ~= "" then
-      local a = utils.realpath(vim.fn.expand(p)) or vim.fs.normalize(vim.fn.expand(p))
+      local a = utils.realpath(M.resolve_path(p, bufnr)) or M.resolve_path(p, bufnr)
       local b = utils.realpath(cur) or vim.fs.normalize(cur)
       if a == b then
         link = s
