@@ -10,6 +10,8 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("org.agenda")
 local ns_marks = vim.api.nvim_create_namespace("org.agenda.marks")
+-- the new dates shown after a date change (org-agenda-show-new-time)
+local ns_newtime = vim.api.nvim_create_namespace("org.agenda.newtime")
 
 local function empty_filters()
   return { tag = {}, category = {}, regexp = {}, effort = {}, top = nil }
@@ -46,6 +48,8 @@ local function new_state()
     marks = {},
     line_items = {},
     line_parts = {},
+    line_hl_groups = {},
+    line_ctx = nil, -- line -> render context of its item (for change_all_lines)
     day_lines = {},
     info = {},
     restrict = nil,
@@ -583,12 +587,14 @@ function M.refresh()
   S.info = b.info or {}
   S.block_starts = b.block_starts or { 1 }
   S.entry_text_lines = b.entry_text_lines or {}
+  S.line_ctx = b.line_ctx or {}
   local buf = S.buf
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, b.lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].modified = false
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(buf, ns_newtime, 0, -1)
   S.line_parts = {}
   for _, h in ipairs(b.hls) do
     pcall(vim.api.nvim_buf_set_extmark, buf, ns, h[1], h[2], {
@@ -1487,9 +1493,318 @@ local function call(mod, fn, ...)
 end
 M.call = call
 
+---------------------------------------------------------------------------
+-- Updating the lines of one entry (org-agenda-change-all-lines)
+---------------------------------------------------------------------------
+
+local clocked_item
+
+--- Is `it` a line of the entry `old` comes from (Emacs compares the
+--- org-hd-marker of the lines)?
+local function same_entry(it, old)
+  if it == old or (old.headline and it.headline == old.headline) then
+    return true
+  end
+  return it.headline ~= nil
+    and it.lnum == old.lnum
+    and it.raw == old.raw
+    and it.filename == old.filename
+    and (old.filename ~= nil or it.bufnr == old.bufnr)
+end
+
+--- The lines showing the entry of `old` (and passing `pred`), last first.
+local function entry_lines(old, pred)
+  local out = {}
+  for l, it in pairs(S.line_items) do
+    if same_entry(it, old) and (not pred or pred(it)) then
+      out[#out + 1] = l
+    end
+  end
+  table.sort(out, function(a, b)
+    return a > b
+  end)
+  return out
+end
+
+--- Drop line `l` of the agenda buffer and of the line maps.
+local function delete_line(l)
+  local buf = S.buf
+  vim.bo[buf].modifiable = true
+  vim.api.nvim_buf_set_lines(buf, l - 1, l, false, {})
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].modified = false
+  for _, map in ipairs({ S.line_items, S.line_parts, S.line_hl_groups, S.line_ctx, S.day_lines, S.entry_text_lines }) do
+    local moved = {}
+    for k, v in pairs(map) do
+      if k > l then
+        moved[k] = v
+      end
+    end
+    map[l] = nil
+    for k in pairs(moved) do
+      map[k] = nil
+    end
+    for k, v in pairs(moved) do
+      map[k - 1] = v
+    end
+  end
+  for i, s in ipairs(S.block_starts or {}) do
+    if s > l then
+      S.block_starts[i] = s - 1
+    end
+  end
+  local cur = S.win and vim.api.nvim_win_is_valid(S.win) and vim.api.nvim_win_get_cursor(S.win)
+  if cur and cur[1] > l then
+    pcall(vim.api.nvim_win_set_cursor, S.win, { cur[1] - 1, cur[2] })
+  end
+end
+
+--- Draw the highlights of line `l` from `S.line_parts` / `S.line_hl_groups`.
+local function draw_line(l)
+  local buf = S.buf
+  vim.api.nvim_buf_clear_namespace(buf, ns, l - 1, l)
+  for _, h in ipairs(S.line_parts[l] or {}) do
+    pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, h[1], {
+      end_col = h[2],
+      hl_group = h[3],
+      priority = h[4] or 110,
+    })
+  end
+  local lh = S.line_hl_groups[l]
+  if lh then
+    pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, 0, { line_hl_group = lh, priority = 90 })
+  end
+end
+
+--- Replace line `l` with `text` and its highlights.
+local function set_line(l, text, hls, line_hl)
+  local buf = S.buf
+  if vim.api.nvim_buf_get_lines(buf, l - 1, l, false)[1] ~= text then
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, l - 1, l, false, { text })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].modified = false
+  end
+  vim.api.nvim_buf_clear_namespace(buf, ns_newtime, l - 1, l)
+  S.line_parts[l] = hls
+  S.line_hl_groups[l] = line_hl
+  draw_line(l)
+end
+
+--- A copy of the agenda item `old` with what it takes from its entry read
+--- again from `hl` (org-agenda-change-all-lines formats NEWHEAD with the
+--- line's own extra, level, category, time and format).
+local function updated_item(old, hl)
+  local it = {}
+  for k, v in pairs(old) do
+    it[k] = v
+  end
+  it.headline = hl
+  it.filename = hl.file.filename
+  it.bufnr = hl.file.bufnr
+  it.lnum = hl.line
+  it.raw = hl.raw
+  it.todo = hl.todo
+  it.priority = hl.priority
+  it.category = hl:get_category()
+  it.tags = hl:get_tags()
+  it.done = hl:is_done()
+  it.level = hl.level
+  local prio = require("org.agenda.items").priority_value(hl)
+  it.urgency = (old.urgency or old.prio or 0) - (old.prio or 0) + prio
+  it.prio = prio
+  if old.fixface then
+    -- the undone or done face for the new state (FIXFACE)
+    it.face = it.done and "OrgAgendaDone" or old.undone_face
+  end
+  if old.habit then
+    it.habit = require("org.agenda.habits").parse(hl) or old.habit
+  end
+  return it
+end
+
+--- Keep the bulk mark of a line whose item changed.
+local function move_mark(old, new)
+  local k = item_key(old)
+  if S.marks[k] then
+    S.marks[k] = nil
+    S.marks[item_key(new)] = true
+  end
+end
+
+--- After a change of the entry of the agenda item `old` (now at line `lnum`
+--- of `bufnr`), format every agenda line showing that entry again, like
+--- org-agenda-change-all-lines: the lines stay where they are, a line
+--- whose item the filters now hide is removed, the clocking highlight is
+--- updated. `opts.snapshot` (a repeating entry marked done) shows only the
+--- line at point, as `opts.snapshot` (org-agenda-headline-snapshot-before-repeat).
+--- Returns false when the lines can't be updated in place (the view is
+--- then rebuilt).
+---@param old table agenda item
+---@param bufnr integer
+---@param lnum integer
+---@param opts? { snapshot?: string, just_line?: integer }
+---@return boolean
+function M.change_all_lines(old, bufnr, lnum, opts)
+  opts = opts or {}
+  if not (S.buf and vim.api.nvim_buf_is_valid(S.buf)) or not S.line_ctx or S.entry_text then
+    return false
+  end
+  if not (old.headline and vim.api.nvim_buf_is_valid(bufnr)) then
+    return false
+  end
+  local hl = files.get_buffer(bufnr):headline_at(lnum)
+  if not (hl and hl.line == lnum and hl.title == old.headline.title) then
+    return false
+  end
+  local lines = entry_lines(old)
+  for _, l in ipairs(lines) do
+    if not S.line_ctx[l] then
+      return false
+    end
+  end
+  local clocking = clocking_pred()
+  local changed = {} -- the lines kept, first first
+  for _, l in ipairs(lines) do
+    if not opts.just_line or opts.just_line == l then
+      local prev = S.line_items[l]
+      local it = updated_item(prev, hl)
+      if opts.snapshot then
+        it.todo, it.done = opts.snapshot, true
+        if prev.fixface then
+          it.face = "OrgAgendaDone"
+        end
+      end
+      local ctx = setmetatable({ is_clocking = clocking }, { __index = S.line_ctx[l] })
+      local text, hls, line_hl
+      render.with_block_options(ctx.block or {}, function()
+        if not ctx.filter or ctx.filter(it) then
+          text, hls, line_hl = render.item_line(it, ctx)
+        end
+      end)
+      move_mark(prev, it)
+      if text then
+        S.line_items[l] = it
+        set_line(l, text, hls, line_hl)
+        table.insert(changed, 1, l)
+      else
+        delete_line(l)
+        for i, c in ipairs(changed) do
+          changed[i] = c > l and c - 1 or c
+        end
+      end
+    end
+  end
+  M.mark_clocking_task(clocking)
+  if next(S.marks) then
+    M.render_marks()
+  end
+  local ok, cols = pcall(require, "org.agenda.columns")
+  if ok then
+    pcall(cols.refresh_if_active)
+  end
+  -- org-agenda-finalize, narrowed to each line, runs the finalize hook
+  local data = { buf = S.buf, filters = vim.deepcopy(S.filters), filter = M.filter_desc(), lines = changed }
+  pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "OrgAgendaFinalize", data = data, modeline = false })
+  return true
+end
+
+--- Drop the clocking highlight of the lines whose entry is no longer
+--- clocked (org-agenda-unmark-clocking-task); the lines of a newly clocked
+--- entry get theirs from `change_all_lines`.
+---@param clocking? fun(it: table): boolean the clocking predicate
+---@return boolean
+function M.mark_clocking_task(clocking)
+  if not (S.buf and vim.api.nvim_buf_is_valid(S.buf)) then
+    return false
+  end
+  clocking = clocking or clocking_pred()
+  for l, group in pairs(S.line_hl_groups or {}) do
+    if group == "OrgAgendaClocking" and not (clocking and clocking(S.line_items[l] or {})) then
+      S.line_hl_groups[l] = nil
+      draw_line(l)
+    end
+  end
+  return true
+end
+
+--- The agenda item of the running clock's entry, with its buffer and
+--- headline line.
+---@return table|nil item, integer|nil bufnr, integer|nil lnum
+clocked_item = function()
+  local ok, clock = pcall(require, "org.clock")
+  if not (ok and clock.state and type(clock.find_open_clock) == "function") then
+    return nil
+  end
+  local ok2, bufnr, clnum = pcall(clock.find_open_clock)
+  if not (ok2 and bufnr) then
+    return nil
+  end
+  local hl = files.get_buffer(bufnr):headline_at(clnum)
+  if not hl then
+    return nil
+  end
+  local name = vim.fs.normalize(vim.api.nvim_buf_get_name(bufnr))
+  for _, it in pairs(S.line_items) do
+    if
+      it.headline
+      and it.lnum == hl.line
+      and it.raw == hl.raw
+      and (it.filename and vim.fs.normalize(it.filename) == name or it.bufnr == bufnr)
+    then
+      return it, bufnr, hl.line
+    end
+  end
+  return nil
+end
+
+--- Show the new date of the lines of the item `old` that come from the
+--- same timestamp at the right edge of the window, without moving them
+--- (org-agenda-show-new-time): " => <stamp>", after `prefix` (" S" for
+--- schedule, " D" for deadline).
+---@param old table agenda item
+---@param stamp string|nil
+---@param prefix? string
+function M.show_new_time(old, stamp, prefix)
+  if not (S.buf and vim.api.nvim_buf_is_valid(S.buf)) then
+    return
+  end
+  local text = (prefix or "") .. " => " .. (stamp or "") .. " "
+  local kind = old.type
+  local lines = entry_lines(old, function(it)
+    return it.type == kind and it.ts_index == old.ts_index
+  end)
+  local width = S.win and vim.api.nvim_win_is_valid(S.win) and vim.api.nvim_win_get_width(S.win) or vim.o.columns
+  for _, l in ipairs(lines) do
+    vim.api.nvim_buf_clear_namespace(S.buf, ns_newtime, l - 1, l)
+    pcall(vim.api.nvim_buf_set_extmark, S.buf, ns_newtime, l - 1, 0, {
+      virt_text = { { text, "OrgAgendaNewTime" } },
+      virt_text_pos = "overlay",
+      virt_text_win_col = math.max(1, width - vim.fn.strdisplaywidth(text)),
+      priority = 300,
+    })
+  end
+end
+
+--- The text a line shows over its end after a date change (" => <stamp>"),
+--- or nil.
+---@param lnum integer
+---@return string|nil
+function M.new_time_at(lnum)
+  if not (S.buf and vim.api.nvim_buf_is_valid(S.buf)) then
+    return nil
+  end
+  local marks = vim.api.nvim_buf_get_extmarks(S.buf, ns_newtime, { lnum - 1, 0 }, { lnum - 1, -1 }, { details = true })
+  local m = marks[1]
+  return m and m[4].virt_text and m[4].virt_text[1][1] or nil
+end
+
 --- After an edit: save when `save_after_edit` is set (Emacs leaves the
---- buffers modified) and rebuild the agenda.
-local function finish(bufs)
+--- buffers modified) and update the agenda: `update()` changes the lines
+--- of the entry in place and returns true, otherwise the view is rebuilt.
+---@param bufs? integer[]
+---@param update? fun(): boolean
+local function finish(bufs, update)
   if config.opts.agenda.save_after_edit then
     for _, b in ipairs(bufs or {}) do
       utils.save_buffer_or_warn(b)
@@ -1500,7 +1815,9 @@ local function finish(bufs)
     if win and vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_set_current_win, win)
     end
-    M.redo()
+    if not (update and update()) then
+      M.redo()
+    end
   end
 end
 
@@ -1575,8 +1892,58 @@ function M.undo()
   return true
 end
 
---- Wrap `fn(target, item)` as an action on the entry at point.
-local function on_item(fn)
+local kind_of
+
+--- How the agenda follows an edit of `update` kind made on the entry of
+--- `item` (now at `target`): "lines" formats the lines of the entry again
+--- (org-agenda-change-all-lines); "schedule", "deadline" and "date" show
+--- the new date on the lines of the item (org-agenda-show-new-time);
+--- anything else rebuilds the view. `res` is what the edit returned.
+local function updater(update, target, item, res, changed)
+  if update == "lines" then
+    return function()
+      local opts
+      local cur = S.win and vim.api.nvim_win_is_valid(S.win) and vim.api.nvim_win_get_cursor(S.win)[1]
+      if type(res) == "table" and res.repeated and res.done_keyword and item.day == date.today_days() then
+        -- a repeating entry done today: the line at point shows it done
+        -- until the next rebuild (org-agenda-headline-snapshot-before-repeat)
+        opts = { snapshot = res.done_keyword, just_line = cur }
+      end
+      return M.change_all_lines(item, target.bufnr, target.lnum, opts)
+    end
+  elseif update == "schedule" or update == "deadline" or update == "date" then
+    return function()
+      if not changed then
+        return true
+      end
+      if not (S.buf and vim.api.nvim_buf_is_valid(S.buf)) then
+        return false
+      end
+      local hl = files.get_buffer(target.bufnr):headline_at(target.lnum)
+      if not hl then
+        return false
+      end
+      local kind = update == "date" and kind_of(item) or (update == "schedule" and "scheduled" or "deadline")
+      local d
+      if kind == "timestamp" then
+        local t = hl.timestamps[item.ts_index or 1]
+        d = t and t.date
+      else
+        d = hl.planning[kind]
+      end
+      local prefix = (update == "schedule" and " S") or (update == "deadline" and " D") or nil
+      M.show_new_time(item, d and d:to_string() or nil, prefix)
+      return true
+    end
+  end
+  return nil
+end
+
+--- Wrap `fn(target, item)` as an action on the entry at point; `update`
+--- says how the agenda follows the edit (see `updater`), by default it is
+--- rebuilt.
+---@param update? "lines"|"schedule"|"deadline"|"date"
+local function on_item(fn, update)
   return function()
     local item = M.item_at_cursor()
     if not item then
@@ -1600,15 +1967,18 @@ local function on_item(fn)
     if not target then
       return
     end
+    local res
+    local tick = vim.api.nvim_buf_get_changedtick(target.bufnr)
     with_remote_undo(target.bufnr, function()
-      fn(target, item)
+      res = fn(target, item)
     end)
-    finish({ target.bufnr })
+    local changed = vim.api.nvim_buf_is_valid(target.bufnr) and vim.api.nvim_buf_get_changedtick(target.bufnr) ~= tick
+    finish({ target.bufnr }, updater(update, target, item, res, changed))
   end
 end
 M.on_item = on_item
 
-local function kind_of(item)
+function kind_of(item)
   if item.type == "deadline" then
     return "deadline"
   elseif item.type == "timestamp" or item.type == "range" then
@@ -1772,7 +2142,7 @@ local function do_date_shift(sign)
     else
       M.shift_item(target, item, sign * math.max(count, 1), sign < 0 or count > 0)
     end
-  end)
+  end, "date")
 end
 
 --- The type of the block at the cursor ("agenda", "todo", ...).
@@ -2660,6 +3030,9 @@ function M.drag_line(dir)
   vim.bo[S.buf].modifiable = false
   S.line_items[lnum], S.line_items[other] = S.line_items[other], S.line_items[lnum]
   S.line_parts[lnum], S.line_parts[other] = S.line_parts[other], S.line_parts[lnum]
+  if S.line_ctx then
+    S.line_ctx[lnum], S.line_ctx[other] = S.line_ctx[other], S.line_ctx[lnum]
+  end
   local lh = S.line_hl_groups or {}
   lh[lnum], lh[other] = lh[other], lh[lnum]
   for _, l in ipairs({ lnum, other }) do
@@ -2882,8 +3255,8 @@ M.actions = {
   end,
   todo = on_item(function(target)
     -- org-agenda-todo runs org-todo: fast selection or cycling in the set
-    call("org.todo", "select_or_cycle", target)
-  end),
+    return call("org.todo", "select_or_cycle", target)
+  end, "lines"),
   -- org-agenda-todo-yesterday: org-agenda-todo with the effective time
   -- 23:59 of yesterday (use_effective_time, extend_today_until = hour + 1)
   todo_yesterday = on_item(function(target)
@@ -2891,70 +3264,79 @@ M.actions = {
     local saved = { opts.use_effective_time, opts.extend_today_until }
     opts.use_effective_time = true
     opts.extend_today_until = tonumber(os.date("%H")) + 1
-    local ok, err = pcall(call, "org.todo", "select_or_cycle", target)
+    local ok, res = pcall(call, "org.todo", "select_or_cycle", target)
     opts.use_effective_time, opts.extend_today_until = saved[1], saved[2]
     if not ok then
-      error(err, 0)
+      error(res, 0)
     end
-  end),
+    return res
+  end, "lines"),
   todo_next = on_item(function(target)
-    call("org.todo", "cycle_next", target)
-  end),
+    return call("org.todo", "cycle_next", target)
+  end, "lines"),
   todo_prev = on_item(function(target)
-    call("org.todo", "cycle_prev", target)
-  end),
+    return call("org.todo", "cycle_prev", target)
+  end, "lines"),
   priority = on_item(function(target)
     call("org.priority", "set", target)
-  end),
+  end, "lines"),
   priority_up = on_item(function(target)
     call("org.priority", "shift", target, 1)
-  end),
+  end, "lines"),
   priority_down = on_item(function(target)
     call("org.priority", "shift", target, -1)
-  end),
+  end, "lines"),
   set_tags = on_item(function(target)
     call("org.tags", "set_tags", target)
-  end),
+  end, "lines"),
   schedule = on_item(function(target)
     call("org.timestamps", "schedule", target)
-  end),
+  end, "schedule"),
   deadline = on_item(function(target)
     call("org.timestamps", "deadline", target)
-  end),
+  end, "deadline"),
   date_later = do_date_shift(1),
   date_earlier = do_date_shift(-1),
   date_later_hours = on_item(function(target, item)
     M.shift_item(target, item, math.max(vim.v.count, 1), true, "h")
-  end),
+  end, "date"),
   date_earlier_hours = on_item(function(target, item)
     M.shift_item(target, item, -math.max(vim.v.count, 1), true, "h")
-  end),
+  end, "date"),
   date_later_minutes = on_item(function(target, item)
     M.shift_item(target, item, math.max(vim.v.count, 1), true, "min")
-  end),
+  end, "date"),
   date_earlier_minutes = on_item(function(target, item)
     M.shift_item(target, item, -math.max(vim.v.count, 1), true, "min")
-  end),
+  end, "date"),
   date_prompt = on_item(function(target, item)
     M.date_prompt(target, item)
-  end),
+  end, "date"),
   clock_in = on_item(function(target)
     call("org.clock", "clock_in", target)
-  end),
+  end, "lines"),
   clock_out = function()
+    -- org-agenda-clock-out: the lines of the clocked entry change
+    local it, bufnr, lnum = clocked_item()
     call("org.clock", "clock_out")
-    finish({})
+    finish({}, function()
+      if it then
+        return M.change_all_lines(it, bufnr, lnum)
+      end
+      return M.mark_clocking_task()
+    end)
   end,
   clock_cancel = function()
+    -- org-agenda-clock-cancel only unmarks the clocking task
     call("org.clock", "clock_cancel")
-    finish({})
+    finish({}, M.mark_clocking_task)
   end,
   clock_goto = function()
     call("org.clock", "goto_clock")
   end,
   set_effort = on_item(function(target)
     call("org.properties", "set_effort", target)
-  end),
+  end, "lines"),
   refile = on_item(function(target)
     call("org.refile", "refile", target)
   end),
@@ -2963,7 +3345,7 @@ M.actions = {
   end),
   toggle_archive_tag = on_item(function(target)
     call("org.archive", "toggle_archive_tag", target)
-  end),
+  end, "lines"),
   attach = function()
     local w = M.show_item(false)
     if w then
@@ -2984,7 +3366,7 @@ M.actions = {
       local ts = date.now():clone({ active = false }):to_string()
       edit.add_log_entry(target.bufnr, target.lnum, edit.log_lines("- Note taken on " .. ts, note))
     end
-  end),
+  end, "lines"),
   log_mode = function()
     local count = vim.v.count
     if count > 0 then
@@ -3294,7 +3676,7 @@ M.actions = {
   end,
   set_property = on_item(function(target)
     call("org.properties", "set_property", target)
-  end),
+  end, "lines"),
   show_tags = function()
     local item = M.item_at_cursor()
     if not item then

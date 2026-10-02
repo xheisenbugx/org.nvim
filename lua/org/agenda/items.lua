@@ -809,6 +809,8 @@ function M.agenda(files, from, to, opts)
             ts_date = base,
             extra = leader,
             face = done and "OrgAgendaDone" or M.deadline_face(1 - diff / math.max(warn, 1)),
+            undone_face = M.deadline_face(1 - diff / math.max(warn, 1)),
+            fixface = true,
             reminder = c ~= base and kind ~= "repeat" or nil,
             overdue = c == today and base < today or nil,
             upcoming = upcoming and diff or nil,
@@ -921,6 +923,8 @@ function M.agenda(files, from, to, opts)
             ts_date = base,
             extra = leader,
             face = done and "OrgAgendaDone" or face,
+            undone_face = face,
+            fixface = true,
             habit = habit,
             reminder = (c ~= base and kind ~= "repeat") or nil,
             past = (c == today and past) and diff or nil,
@@ -959,6 +963,8 @@ function M.agenda(files, from, to, opts)
               ts_index = idx,
               extra = string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, n),
               face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+              undone_face = "OrgAgendaTimestamp",
+              fixface = true,
             })
             if acfg.remove_timeranges_from_blocks and t.line == hl.line and t.start_col then
               -- org-agenda-remove-timeranges-from-blocks: drop the range
@@ -1023,6 +1029,8 @@ function M.agenda(files, from, to, opts)
                 ts_index = idx,
                 extra = "",
                 face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                undone_face = "OrgAgendaTimestamp",
+                fixface = true,
               })
               if habits.is_habit(hl) then
                 local h = habits.parse(hl)
@@ -1052,6 +1060,8 @@ function M.agenda(files, from, to, opts)
                     extra = "",
                     sexp = m.sexp,
                     face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                    undone_face = "OrgAgendaTimestamp",
+                    fixface = true,
                   })
                   set_time(item, nil, acfg, true, m.sexp)
                   add(d, item)
@@ -1121,6 +1131,8 @@ function M.agenda(files, from, to, opts)
                       extra = inactive_leader
                         .. string.format(a == b and leaders_r[1] or leaders_r[2], d - a + 1, b - a + 1),
                       face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                      undone_face = "OrgAgendaTimestamp",
+                      fixface = true,
                       inactive = true,
                     })
                     set_time(item, d == a and ts or (d == b and ts.range_end) or nil, block_acfg)
@@ -1134,6 +1146,8 @@ function M.agenda(files, from, to, opts)
                     ts_date = ts:days(),
                     extra = inactive_leader,
                     face = done and "OrgAgendaDone" or "OrgAgendaTimestamp",
+                    undone_face = "OrgAgendaTimestamp",
+                    fixface = true,
                     inactive = true,
                   })
                   set_time(item, ts, acfg, true)
@@ -1446,7 +1460,8 @@ function M.todo(files, keywords, opts)
       end
       return
     end
-    local item = new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil })
+    local item =
+      new_item(hl, { type = "todo", ts_type = "todo", face = hl:is_done() and "OrgAgendaDone" or nil, fixface = true })
     item.urgency = item.prio + 1
     out[#out + 1] = item
     if acfg.todo_list_sublevels == false then
@@ -1475,8 +1490,10 @@ function M.tags(files, predicate, todo_only, opts)
       return
     end
     if predicate(hl) then
-      out[#out + 1] =
-        new_item(hl, { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil })
+      out[#out + 1] = new_item(
+        hl,
+        { type = "tags", ts_type = "tagsmatch", face = hl:is_done() and "OrgAgendaDone" or nil, fixface = true }
+      )
       if acfg.tags_match_list_sublevels == false then
         skip_below = hl
       end
@@ -1494,6 +1511,7 @@ function M.search(files, predicate, opts)
         type = "search",
         ts_type = "search",
         face = hl:is_done() and "OrgAgendaDone" or nil,
+        fixface = true,
         urgency = 1000,
         prio = 1000,
       })

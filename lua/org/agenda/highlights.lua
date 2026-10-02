@@ -25,6 +25,8 @@ local links = {
   OrgAgendaFilter = "WarningMsg",
   OrgAgendaMark = "DiagnosticInfo",
   OrgAgendaClocking = "Visual",
+  -- the new date shown after a date change (secondary-selection)
+  OrgAgendaNewTime = "PmenuSel",
   OrgAgendaLog = "Comment",
   OrgAgendaHint = "Comment",
   OrgAgendaEntryText = "Comment",

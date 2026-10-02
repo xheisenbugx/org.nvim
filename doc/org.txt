@@ -1779,6 +1779,17 @@ Like Emacs, edits made from the agenda leave the source buffers modified
 Buffers are listed, so :qa asks before losing changes. Set
 `save_after_edit = true` to write them after every edit.
 
+Like Emacs (org-agenda-change-all-lines), changing the TODO state, the
+priority, tags, effort or a property, adding a note and clocking in or
+out re-format only the lines of that entry, in place: a DONE entry stays
+in the TODO list until the next `r`, and a line the filters now hide is
+removed. A repeating entry marked done on today's line shows DONE there.
+Date changes (S-Right, S-Left, `>`, schedule, deadline) show the new date
+at the right edge of the line, " => <date>" (" S => " / " D => " for
+schedule and deadline, highlight OrgAgendaNewTime), and the entry moves
+at the next `r` (org-agenda-show-new-time). Refile, archive, kill, bulk
+actions and the entry-text mode (`E`) rebuild the view.
+
 Options: `agenda.start_with_log_mode` (true, "all" or "clockcheck"),
 `start_with_follow_mode`, `start_with_clockreport_mode`,
 `start_with_entry_text_mode`, `show_outline_path` (echo the outline path
@@ -1789,8 +1800,9 @@ buffer is built or rebuilt (org-agenda-finalize-hook), `OrgAgendaFilter`
 after a filter changed (org-agenda-filter-hook), with `data.buf`,
 `data.filters` and `data.filter` (the filter text of the window bar);
 `OrgAgendaBeforeWrite` before a written agenda (|org-agenda-export|).
-Unlike Emacs, the agenda is rebuilt after edits from it, so
-`OrgAgendaFinalize` also fires then.
+`OrgAgendaFinalize` also fires after the lines of an edited entry were
+re-formatted, with `data.lines` (the agenda lines that changed), like
+Emacs runs the hook on each of them.
 >lua
     vim.api.nvim_create_autocmd("User", {
       pattern = "OrgAgendaFinalize",
