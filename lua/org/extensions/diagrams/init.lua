@@ -215,10 +215,10 @@ function M.render_after_save(bufnr, on_done)
     local valid = vim.api.nvim_buf_is_valid(bufnr)
     -- written again only when nothing but results changed
     if valid and vim.bo[bufnr].modified and without_results(bufnr) == before then
+      -- through save_buffer: this may run inside BufWritePost, where a
+      -- nested write would skip the write hooks
       saving[bufnr] = true
-      pcall(vim.api.nvim_buf_call, bufnr, function()
-        vim.cmd("silent write")
-      end)
+      require("org.utils").save_buffer_or_warn(bufnr)
       saving[bufnr] = nil
     end
     if on_done then

@@ -5159,7 +5159,8 @@ they are asked only when gpg-agent has none cached. During one
 `*_entries` run or save the symmetric passphrase is asked once.
 
 Encrypting on save: with `crypt.encrypt_on_save = true`, matching entries
-are encrypted before the buffer is written (Emacs
+are encrypted before the buffer is written, by `:w` or by org itself
+(refile, archive, capture, agenda edits, mobile push, tangle, ...; Emacs
 `(org-crypt-use-before-save-magic)`). As in Emacs the buffer stays
 encrypted after writing; decrypt again to keep working. When an entry
 can't be encrypted the write is aborted.
@@ -7474,8 +7475,8 @@ The index ~
 The index is a JSON file (`index_file`, by default in stdpath("data")) that
 holds every file's nodes, links and citations with its mtime. Each command
 that reads it first re-parses the files that changed, and with
-`update_on_save` a roam file is re-indexed when it is written (the JSON
-file itself is rewritten a second later, once for all the saves in
+`update_on_save` a roam file is re-indexed when it is written, by `:w` or
+by org itself, say a capture into it (the JSON file itself is rewritten a second later, once for all the saves in
 between, and on exit). `:Org roam_db_sync` updates it by hand,
 `:Org roam_db_sync force` rebuilds it. As in org-roam, links in verbatim
 blocks, comment and fixed-width lines, `ROAM_REFS` and `#+transclude:` are
@@ -7566,8 +7567,9 @@ behind, and a node with no text beyond its head is stored.
 
 `roam:Title` links open the node with that title or alias, and create it
 when there is none (`roam_links`). With `link_auto_replace` (the default),
-saving a roam file and following such a link turn `roam:` links to
-existing nodes into `id:` links (outside verbatim blocks);
+saving a roam file (by `:w` or by org itself) and following such a link
+turn `roam:` links to existing nodes into `id:` links (outside verbatim
+blocks);
 `:Org roam_link_replace_all` does it by hand.
 
 The backlinks window ~

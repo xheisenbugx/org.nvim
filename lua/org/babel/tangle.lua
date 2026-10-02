@@ -414,10 +414,9 @@ function M.tangle(opts)
     bufnr = vim.api.nvim_get_current_buf()
   end
   -- org-babel-pre-tangle-hook (save-buffer in Emacs)
-  if cfg().tangle_save_buffer ~= false and vim.bo[bufnr].modified and vim.api.nvim_buf_get_name(bufnr) ~= "" then
-    pcall(vim.api.nvim_buf_call, bufnr, function()
-      vim.cmd("silent noautocmd write")
-    end)
+  -- (through save_buffer, so the write hooks run: crypt, transclusion)
+  if cfg().tangle_save_buffer ~= false then
+    utils.save_buffer_or_warn(bufnr)
   end
   babel().fire("OrgBabelTanglePre", { bufnr = bufnr })
   local file = babel().get_file(bufnr)
