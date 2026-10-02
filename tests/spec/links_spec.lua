@@ -35,6 +35,24 @@ describe("links parsing", function()
     eq("fuzzy", l[3].type)
     eq("[[a\\]b][d]]", links.format("a]b", "d"))
   end)
+  it("ends plain links like org-link-plain-re", function()
+    -- results checked against Org 9.8.10's org-link-any-re
+    local cases = {
+      ["see https://a.b/foo- now"] = "https://a.b/foo-",
+      ["x https://a.b/c-."] = "https://a.b/c-",
+      ["https://a.b/x[1] y"] = "https://a.b/x[1]",
+      ["https://a.b/x<1> y"] = "https://a.b/x<1>",
+      ["https://a.b/[(x)] q"] = "https://a.b/[(x)]",
+      ["https://a.b/(x(y"] = "https://a.b/",
+      ["https://a.b/x(y)-"] = "https://a.b/x(y)-",
+      ["see https:xy now"] = "https:xy",
+    }
+    for text, want in pairs(cases) do
+      local l = links.parse_links(text)[1]
+      eq(want, l and l.target, text)
+    end
+    eq(0, #links.parse_links("see https:x now"))
+  end)
   it("does not treat timestamps as links", function()
     eq(0, #links.parse_links("<2026-09-23 Wed> [2026-09-23 Wed]"))
   end)

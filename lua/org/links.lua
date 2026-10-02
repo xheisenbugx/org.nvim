@@ -211,43 +211,56 @@ end
 
 local PLAIN_BAD = "[%s%[%]()<>]"
 
---- End of a plain link path starting at `i` (org-link-plain-re): balanced
---- parentheses (two levels) are allowed, and the link cannot end with
---- punctuation other than `/` or a closing parenthesis group.
+local OPENER, CLOSER = "[<(%[]", "[%]>)]"
+
+--- End of a parenthesis group `<([` ... `])>` (one nested level) starting
+--- at `j`, or nil.
+local function scan_group(text, j)
+  local k, n = j + 1, #text
+  while k <= n do
+    local d = text:sub(k, k)
+    if d:match(CLOSER) then
+      return k
+    elseif d:match(OPENER) then
+      local e = text:find(PLAIN_BAD, k + 1)
+      if e and text:sub(e, e):match(CLOSER) then
+        k = e + 1
+      else
+        return nil
+      end
+    elseif d:match(PLAIN_BAD) then
+      return nil
+    else
+      k = k + 1
+    end
+  end
+end
+
+--- End of a plain link path starting at `i` (org-link-plain-re): groups in
+--- `<([` and `])>` (two levels) are allowed, the path has at least two
+--- elements, and it cannot end with punctuation other than `-`, `/` or a
+--- group.
 local function scan_plain(text, i)
-  local j, last = i, nil
+  local j, last, tokens = i, nil, 0
   local n = #text
   while j <= n do
     local c = text:sub(j, j)
-    if c == "(" then
-      local k, closed = j + 1, false
-      while k <= n do
-        local d = text:sub(k, k)
-        if d == ")" then
-          closed = true
-          break
-        elseif d == "(" then
-          local e = text:find(PLAIN_BAD, k + 1)
-          if e and text:sub(e, e) == ")" then
-            k = e + 1
-          else
-            break
-          end
-        elseif d:match(PLAIN_BAD) then
-          break
-        else
-          k = k + 1
-        end
-      end
-      if not closed then
+    if c:match(OPENER) then
+      local k = scan_group(text, j)
+      if not k then
         break
       end
-      last = k
+      tokens = tokens + 1
+      -- the path needs at least two elements
+      if tokens > 1 then
+        last = k
+      end
       j = k + 1
     elseif c:match(PLAIN_BAD) then
       break
     else
-      if c == "/" or not c:match("%p") then
+      tokens = tokens + 1
+      if tokens > 1 and (c == "/" or c == "-" or not c:match("%p")) then
         last = j
       end
       j = j + 1
