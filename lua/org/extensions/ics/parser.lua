@@ -1138,14 +1138,23 @@ function M.occurrences(cal, from, to, opts)
         end
         for _, r in ipairs(ev.rdates) do
           if r.naive >= from_n - span and r.naive <= to_n then
-            starts[#starts + 1] = r.naive
+            -- an RDATE keeps its own zone (UTC, another TZID)
+            starts[#starts + 1] = r.all_day == ev.start.all_day and r or r.naive
           end
         end
       end
+      -- an RDATE that repeats an occurrence of the rule is one instance
+      local seen = {}
       for _, n in ipairs(starts) do
-        local t = { naive = n, all_day = ev.start.all_day, utc = ev.start.utc, tzid = ev.start.tzid }
+        local t
+        if type(n) == "table" then
+          t, n = n, n.naive
+        else
+          t = { naive = n, all_day = ev.start.all_day, utc = ev.start.utc, tzid = ev.start.tzid }
+        end
         local key = occ_key(cal, t, aliases)
-        local skip = ev.status == "CANCELLED"
+        local skip = ev.status == "CANCELLED" or seen[key]
+        seen[key] = true
         if not ev.recurrence_id then
           skip = skip or overridden[ev.uid .. "|" .. key]
           for _, x in ipairs(ev.exdates) do

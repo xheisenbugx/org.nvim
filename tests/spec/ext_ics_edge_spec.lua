@@ -125,6 +125,28 @@ describe("ics: recurrence details", function()
     end
   end)
 
+  it("reads an RDATE in its own zone, and drops one that repeats the rule", function()
+    local cal = parser.parse(ics({
+      {
+        "UID:r",
+        "DTSTART:20260105T100000Z",
+        "RRULE:FREQ=DAILY;COUNT=2",
+        "RDATE;TZID=Asia/Tokyo:20260110T180000",
+        "RDATE:20260106T100000Z",
+        "SUMMARY:R",
+      },
+    }))
+    local from = day("2026-01-05 Mon")
+    local starts = vim.tbl_map(function(o)
+      return utc(o.start)
+    end, parser.occurrences(cal, from, from + 10, { timezone = "UTC" }))
+    if parser.system_zone("Asia/Tokyo") then
+      eq({ "2026-01-05 10:00", "2026-01-06 10:00", "2026-01-10 09:00" }, starts)
+    else
+      eq({ "2026-01-05 10:00", "2026-01-06 10:00" }, vim.list_slice(starts, 1, 2))
+    end
+  end)
+
   it("skips Feb 29 in non-leap years", function()
     local r = parser.rrule("FREQ=YEARLY;COUNT=2")
     eq({ "2024-02-29 00:00", "2028-02-29 00:00" }, vim.tbl_map(utc, parser.expand(r, N(2024, 2, 29), 0, N(2030, 1, 1))))
