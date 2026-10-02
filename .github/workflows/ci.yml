@@ -56,28 +56,11 @@ jobs:
           git config --global user.name "org.nvim CI"
           git config --global user.email "ci@example.invalid"
       - run: nvim --version
-      # GnuPG for Windows for org-crypt (Git for Windows' MSYS gpg can't run
-      # headless); without it the crypt specs are skipped
-      - name: GnuPG
-        continue-on-error: true
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          $exe = "$env:RUNNER_TEMP\gnupg.exe"
-          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.24_20260923.exe -OutFile $exe
-          Start-Process -FilePath $exe -ArgumentList '/S' -Wait
-          foreach ($d in "C:\Program Files\GnuPG\bin", "C:\Program Files (x86)\GnuPG\bin") {
-            if (Test-Path "$d\gpg.exe") { Add-Content $env:GITHUB_PATH $d; Write-Output "gpg: $d" }
-          }
       # make test without make: a throwaway XDG_DATA_HOME
       - name: Run specs
         shell: bash
         run: |
           d=$(mktemp -d)
-          # GnuPG for Windows before Git's /usr/bin gpg
-          for g in "/c/Program Files/GnuPG/bin" "/c/Program Files (x86)/GnuPG/bin"; do
-            if [ -x "$g/gpg.exe" ]; then PATH="$g:$PATH"; fi
-          done
           ORG_TEST_PROGRESS=1 XDG_DATA_HOME=$d nvim --headless -u tests/minimal_init.lua -l tests/run.lua < /dev/null
 
   lint:

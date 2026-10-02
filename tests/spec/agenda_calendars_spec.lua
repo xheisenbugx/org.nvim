@@ -16,10 +16,9 @@ end
 -- 2026-09-25 12:00 UTC (see agenda_holidays_astro_spec).
 local NOW = 1790337600
 
-local function with_tz(tz, fn)
-  skip_on_windows("TZ takes no IANA zone names on Windows")
+local function with_tz(name, fn)
   local saved = vim.env.TZ
-  set_tz(tz)
+  set_tz(tz(name))
   local ok, err = pcall(fn, solar.system_zone(NOW))
   set_tz(saved)
   solar.reset()
@@ -237,8 +236,7 @@ describe("agenda calendars: agenda keys", function()
   it("lists moon phases and holidays in a float", function()
     open()
     local saved = vim.env.TZ
-    skip_on_windows("TZ takes no IANA zone names on Windows")
-    set_tz("America/New_York")
+    set_tz(tz("America/New_York"))
     solar.reset()
     local okp, buf, win = pcall(view.phases_of_moon)
     set_tz(saved)
@@ -372,8 +370,7 @@ describe("agenda calendars: Hebrew and Chinese diary sexps", function()
 
   it("lights the Sabbath candles before sunset on Fridays", function()
     local saved = vim.env.TZ
-    skip_on_windows("TZ takes no IANA zone names on Windows")
-    set_tz("America/New_York")
+    set_tz(tz("America/New_York"))
     solar.reset()
     local loc = { calendar_latitude = 40.7, calendar_longitude = -74.0 }
     config.setup({ agenda = loc })

@@ -157,6 +157,21 @@ _G.skip_on_windows = function(reason)
   end
 end
 
+--- The TZ value for the IANA zone `name`: Windows' C runtime takes no zone
+--- names, only rules like "EST5EDT" (always with US daylight saving dates),
+--- so there a zone without such an equivalent skips the spec.
+local WINDOWS_TZ = { ["America/New_York"] = "EST5EDT", ["UTC"] = "UTC0" }
+_G.tz = function(name)
+  if not is_win or name == nil then
+    return name
+  end
+  local rule = WINDOWS_TZ[name]
+  if not rule then
+    skip_on_windows("TZ takes no zone names on Windows, and " .. name .. " has no US-rule equivalent")
+  end
+  return rule
+end
+
 --- Inside a describe: run 'shell' commands with sh (Git for Windows' on
 --- Windows) for its specs, which give the plugin POSIX shell commands
 --- ("cp %f %b.pdf", 'quotes', ;). Elsewhere 'shell' already is one.
