@@ -1,0 +1,83 @@
+#+TITLE: Clock tables
+* Tables over other files
+#+BEGIN: clocktable :scope ("a.org" "b.org" "c.org") :formula % :maxlevel 2 :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org" "c.org") :fileskip0 t :filetitle t :level t :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org") :hidefiles t :tstart "<2026-09-01>" :tend "<2026-10-01>"
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org" "b.org") :step day :tstart "<2026-09-01>" :tend "<2026-09-04>" :stepskip0 t
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :step semimonth :tstart "<2026-08-20>" :tend "<2026-09-20>"
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :block 2026-W36 :step day :wstart 0
+#+END:
+
+#+BEGIN: clocktable :scope ("a.org") :block 2026-Q3 :step month :mstart 15 :stepskip0 t
+#+END:
+
+* Work in this file
+** TODO Design :dev:
+:PROPERTIES:
+:Effort: 2:00
+:OWNER: ann
+:END:
+:LOGBOOK:
+CLOCK: [2026-09-28 Mon 09:00]--[2026-09-28 Mon 11:30] =>  2:30
+CLOCK: [2026-09-29 Tue 14:00]--[2026-09-29 Tue 15:00] =>  1:00
+:END:
+*** Review :review:
+:LOGBOOK:
+CLOCK: [2026-09-30 Wed 10:00]--[2026-09-30 Wed 10:45] =>  0:45
+:END:
+** DONE Build a much longer headline that gets narrowed in tables :dev:
+:PROPERTIES:
+:OWNER: bob
+:END:
+:LOGBOOK:
+CLOCK: [2026-10-01 Thu 08:00]--[2026-10-01 Thu 09:20] =>  1:20
+CLOCK: [2026-09-15 Tue 08:00]--[2026-09-15 Tue 08:30] =>  0:30
+:END:
+** Meetings :meet:
+:LOGBOOK:
+CLOCK: [2026-09-30 Wed 16:00]--[2026-09-30 Wed 17:00] =>  1:00
+:END:
+
+* Tables over this file
+#+BEGIN: clocktable :scope file :maxlevel 3
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :compact t :emphasize t
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :properties ("OWNER" "Effort") :tags t
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :match "dev" :indent nil
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :narrow 20! :timestamp t
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block thisweek
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block today
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :block lastweek :step day
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :tstart "<-1w>" :tend "<now>" :link t
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 1 :formula "$3=$2*60;N"
+#+END:
+
+#+BEGIN: clocktable :scope file :maxlevel 3 :lang "de" :hidefiles nil :sort (2 . ?N)
+#+END:
