@@ -166,6 +166,20 @@ describe("texinfo export", function()
     vim.cmd("bwipeout!")
   end)
 
+  it("compiles a .texi whose directory name contains % (format-spec in one pass)", function()
+    local d = vim.uv.fs_realpath(tmpdir()) .. "/100%fun"
+    vim.fn.mkdir(d, "p")
+    local texi = d .. "/m.texi"
+    vim.fn.writefile({ "\\input texinfo" }, texi)
+    local saved = config.opts.export.texinfo
+    config.opts.export.texinfo = vim.tbl_extend("force", saved or {}, { info_process = { "cp %F %O" } })
+    local info, err = require("org.export.texinfo").compile(texi)
+    config.opts.export.texinfo = saved
+    eq(nil, err)
+    eq(d .. "/m.info", info)
+    eq(read(texi), read(info))
+  end)
+
   it("publishes with the texinfo publishing function", function()
     local d = require("org.utils").realpath(tmpdir())
     vim.fn.mkdir(d .. "/src", "p")

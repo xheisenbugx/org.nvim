@@ -1469,12 +1469,18 @@ function M.compile(texi, on_done)
     return finish()
   end
   local cmds = {}
+  local spec = {
+    F = shell_quote(full),
+    f = shell_quote(vim.fn.fnamemodify(full, ":t")),
+    b = shell_quote(base),
+    o = shell_quote(dir),
+    O = shell_quote(out),
+  }
   for _, c in ipairs(process) do
-    cmds[#cmds + 1] = c:gsub("%%F", shell_quote(full))
-      :gsub("%%f", shell_quote(vim.fn.fnamemodify(full, ":t")))
-      :gsub("%%b", shell_quote(base))
-      :gsub("%%o", shell_quote(dir))
-      :gsub("%%O", shell_quote(out))
+    -- one pass (format-spec): a "%" in a substituted path is left alone
+    cmds[#cmds + 1] = c:gsub("%%(%a)", function(k)
+      return spec[k]
+    end)
   end
   if not on_done then
     for _, c in ipairs(cmds) do
