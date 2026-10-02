@@ -361,6 +361,22 @@ describe("clock", function()
     }, buf_lines(buf))
   end)
 
+  it("finds an open clock written without a day name", function()
+    local buf = file_buffer({ "* Task", "CLOCK: [2026-10-01 10:00]" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    clock.clock_in(nil, { resume = true })
+    eq("[2026-10-01 Thu 10:00]", clock.state.start)
+    local b, l = clock.find_open_clock()
+    eq(buf, b)
+    eq(2, l)
+    ok(clock.is_clocked_headline(buf, 1))
+    for _, d in ipairs(clock.dangling_clocks(false)) do
+      ok(d.bufnr ~= buf, "the running clock is not dangling")
+    end
+    clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") })
+    eq({ "* Task", "CLOCK: [2026-10-01 Thu 10:00]--[2026-10-01 Thu 11:30] =>  1:30" }, buf_lines(buf))
+  end)
+
   it("cleans up temp buffers", function()
     vim.cmd("enew!")
     for _, b in ipairs(vim.api.nvim_list_bufs()) do

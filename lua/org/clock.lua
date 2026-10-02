@@ -138,6 +138,19 @@ function M.format_clock_line(indent, start, stop)
     minutes
 end
 
+--- Whether `line` is an open CLOCK line starting at `start` (a timestamp
+--- string), however its timestamp is written.
+---@param line string
+---@param start string
+function M._is_open_clock_of(line, start)
+  if line:match("^%s*CLOCK:%s*" .. utils.escape_pattern(start) .. "%s*$") then
+    return true
+  end
+  local c = parser.parse_clock_line(line)
+  local s = c and not c["end"] and date.parse(start)
+  return s and c.start:minutes() == s:minutes() or false
+end
+
 --- Locate the open clock line of the running clock.
 ---@return integer|nil bufnr, integer|nil lnum
 function M.find_open_clock()
@@ -156,6 +169,13 @@ function M.find_open_clock()
   local pat = "^%s*CLOCK:%s*" .. utils.escape_pattern(st.start) .. "%s*$"
   for i, l in ipairs(lines) do
     if l:match(pat) then
+      return bufnr, i
+    end
+  end
+  -- the line may be written differently from the state's normalized
+  -- start (no day name, another day name, extra spaces)
+  for i, l in ipairs(lines) do
+    if l:find("CLOCK:", 1, true) and M._is_open_clock_of(l, st.start) then
       return bufnr, i
     end
   end
@@ -1114,12 +1134,7 @@ function M.update_clock_line(bufnr, lnum, old_line)
   end
   if not c["end"] then
     local st = M.state
-    if
-      st
-      and old_line
-      and buf_path(bufnr) == vim.fs.normalize(st.path)
-      and old_line:match("^%s*CLOCK:%s*" .. utils.escape_pattern(st.start) .. "%s*$")
-    then
+    if st and old_line and buf_path(bufnr) == vim.fs.normalize(st.path) and M._is_open_clock_of(old_line, st.start) then
       st.start = c.start:clone({ active = false }):to_string({ range = false })
       persist()
       vim.cmd("redrawstatus")
