@@ -527,11 +527,7 @@ end
 --- enforced as its absolute value, over any -Nd cookie; else the cookie,
 --- else the option.
 local function deadline_wdays(ts, tv)
-  tv = tv or 14
-  if tv <= 0 then
-    return -tv
-  end
-  return date.warning_days(ts, tv)
+  return date.deadline_warning_days(ts, tv)
 end
 
 -- whether a file's lines contain "%%(" (diary sexps, <%%(...)> stamps),

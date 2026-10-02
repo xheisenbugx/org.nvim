@@ -6650,6 +6650,9 @@ Differences from Emacs:
   tables); here the field shows #ERROR (the last definition wins) and the
   other fields are still computed. Left sides Emacs rejects are accepted:
   `$name=` for a named column, `$2..$3=` and `@I$2..@>$2=` ranges.
+- Footnote sorting and renumbering leave src, example, export and comment
+  blocks alone: a line starting with `[fn:N]` inside one is code, not a
+  definition. Emacs renumbers such lines too.
 - Tables in the table.el format (|org-table.el|) are recognized,
   converted, exported and edited, but the table.el editor itself (a
   separate large Emacs package) is not reproduced: in the <C-c>' buffer

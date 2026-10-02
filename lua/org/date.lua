@@ -910,6 +910,17 @@ function M.warning_days(ts, default)
   return default or 14
 end
 
+--- org-get-wdays for a deadline: a `deadline_warning_days` (`default`) of 0
+--- or less is enforced as its absolute value, over any -Nd cookie; else the
+--- cookie, else the option.
+function M.deadline_warning_days(ts, default)
+  default = default or 14
+  if default <= 0 then
+    return -default
+  end
+  return M.warning_days(ts, default)
+end
+
 ---------------------------------------------------------------------------
 -- org-read-date: parse free-form date input relative to a default date
 ---------------------------------------------------------------------------
