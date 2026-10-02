@@ -1,0 +1,13 @@
+#+STARTUP: showeverything
+* A
+:PROPERTIES:
+:X: 1
+:END:
+#+begin_example
+ex
+#+end_example
+** B
+:LOGBOOK:
+- l
+:END:
+b

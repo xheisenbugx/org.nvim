@@ -16,7 +16,8 @@ local did_setup = false
 
 --- Configure org.nvim. Merges `opts` over the defaults (see `:h org-config`),
 --- loads the enabled `extensions` (see `:h org-extensions`), registers
---- `:Org`, the global keymaps and highlights, starts agenda
+--- `:Org` and the global keymaps (highlight groups are defined on the
+--- first org buffer, menu or command; heavy modules load on use), starts agenda
 --- notifications (`notifications.enabled`) and restores a persisted clock
 --- (`clock.persist`). Org buffers opened before `setup` are attached too.
 --- Calling it again re-applies the configuration.

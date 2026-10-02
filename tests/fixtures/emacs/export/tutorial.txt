@@ -1,0 +1,1548 @@
+1 How to use this file
+======================
+
+  This file is a hands-on tour of org.nvim. Every top-level heading
+  covers one feature and contains examples you can edit right
+  here. Nothing breaks if you make a mess: `u' undoes, and `git checkout
+  examples/tutorial.org' restores the file.
+
+  - The file starts folded (`#+STARTUP: overview'). Put the cursor on a
+    heading and press `<Tab>' to open it. `<S-Tab>' cycles the whole
+    buffer.
+  - Keys below assume the default prefix `<leader>o'; replace it with
+    yours.
+  - Press `g?' at any time to list every keymap of the current buffer.
+  - Coming from Emacs? The usual `C-c' keys work too (`:h
+    org-emacs-keys').
+  - Lines starting with *Try:* are exercises.
+
+  To try the agenda, capture and refile sections without touching your
+  own config, start Neovim with the bundled init file from the repo
+  root:
+
+  ,----
+  | nvim -u examples/minimal_init.lua examples/tutorial.org
+  `----
+
+  It points `agenda_files' at this directory and sends captures to a
+  scratch file, so your real notes are untouched.
+
+  The examples use dates around late September 2026. When they are in
+  the past, press `<C-a>' on the day of any timestamp to move it
+  forward.
+
+
+2 Outline and visibility
+========================
+
+  An org file is an outline: headlines start with one or more stars.
+
+
+2.1 Cycling
+~~~~~~~~~~~
+
+  - `<Tab>' on a headline cycles it: FOLDED → CHILDREN → SUBTREE.
+  - `<S-Tab>' cycles the whole buffer: OVERVIEW → CONTENTS → SHOW ALL.
+  - `3<S-Tab>' shows every headline up to level 3.
+  - `<Tab>' on a `:PROPERTIES:' drawer or a `#+begin_' line folds just
+    that.
+  - `:Org overview', `:Org content' and `:Org show_all' set it directly.
+  - `16<Tab>' goes back to the startup visibility, `64<Tab>' shows
+    everything, drawers included.
+  - Subtrees tagged `:ARCHIVE:' stay folded; `<C-c><C-Tab>' opens one
+    anyway.
+
+  *Try:* fold and unfold the tree below.
+
+
+2.1.1 Level 3
+-------------
+
+  Body text belongs to the headline above it.
+
+
+* 2.1.1.1 Level 4
+
+  + 2.1.1.1.1 Level 5
+
+    Headlines can go as deep as you like.
+
+
+2.1.2 Another level 3
+---------------------
+
+
+2.1.3 Old notes                                                :ARCHIVE:
+---------------
+
+
+2.2 Startup visibility
+~~~~~~~~~~~~~~~~~~~~~~
+
+  `#+STARTUP:' at the top of the file sets how it opens: `overview',
+  `content', `show2levels' to `show5levels', `showall', `showeverything'
+  or `nofold'. Without it, the `startup_folded' option decides. Add
+  `hideblocks' to fold every block, or `nohidedrawers' to keep drawers
+  open. A `:VISIBILITY:' property (`folded', `children', `content',
+  `all') overrides it for one subtree.
+
+  *Try:* change the `#+STARTUP:' line of this file to `content', press
+  `<C-c><C-c>' on it, then reopen the file with `:e'.
+
+
+2.3 Motions and text objects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Key          Moves to / selects                       
+  -------------------------------------------------------
+   `]]' `[['    next / previous visible headline         
+   `][' `[]'    next / previous sibling                  
+   `g{'         parent headline                          
+   `<prefix>.'  pick any headline of the buffer          
+   `ih' `ah'    section body / section with its headline 
+   `ir' `ar'    subtree body / subtree with its headline 
+
+  *Try:* on "Sibling one" below, press `dar' to delete the whole
+  subtree, then `u'. Press `yih' to yank just its body.
+
+
+2.3.1 Sibling one
+-----------------
+
+  Body of sibling one.
+
+
+* 2.3.1.1 A child of sibling one
+
+
+2.3.2 Sibling two
+-----------------
+
+
+2.3.3 Sibling three
+-------------------
+
+
+3 Structure editing
+===================
+
+3.1 Inserting headlines
+~~~~~~~~~~~~~~~~~~~~~~~
+
+  - `<M-CR>' on a headline inserts a sibling after its subtree; on a
+    list item it inserts a new item; in a table, a new row.
+  - `<M-S-CR>' does the same but inserts a TODO heading or a checkbox
+    item.
+  - `<prefix>ih' / `<prefix>it' / `<prefix>is' insert a heading, a TODO
+    heading and a subheading.
+
+  *Try:* press `<M-CR>' on "Fruit" below and type "Vegetables". Then
+  press `<M-CR>' again and, still in Insert mode, `<Tab>': the new empty
+  headline becomes a child. Keep pressing `<Tab>' to cycle its level.
+
+
+3.1.1 Fruit
+-----------
+
+
+3.1.2 Grains
+------------
+
+
+3.2 Promote, demote and move
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Key              Action                                                   
+  ---------------------------------------------------------------------------
+   `<<' `>>'        promote / demote the headline (or list item)             
+   `<s' `>s'        promote / demote the whole subtree                       
+   `<M-h>' `<M-l>'  promote / demote (also `<M-Left>' `<M-Right>')           
+   `<M-k>' `<M-j>'  move subtree/item/row up/down (also `<M-Up>' `<M-Down>') 
+   `<M-K>' `<M-J>'  drag the current line up / down (outside tables)         
+
+  In Visual mode, `<M-h>' / `<M-l>' promote or demote every selected
+  headline.
+
+  *Try:* sort these into order with `<M-j>' / `<M-k>', then demote "Step
+  2b" under "Step 2" with `>>'.
+
+
+3.2.1 Step 3
+------------
+
+
+3.2.2 Step 1
+------------
+
+
+3.2.3 Step 2b
+-------------
+
+
+3.2.4 Step 2
+------------
+
+
+3.3 Cut, copy, paste and clone
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  - `<prefix>hy' copies a subtree, `<prefix>hd' cuts it, `<prefix>hp'
+    pastes it after the current subtree, adjusting its level.
+  - `<prefix>hc' clones a subtree N times and shifts its timestamps.
+
+  *Try:* on "Team sync" press `<prefix>hc', answer `3' copies with a
+  shift of `+1w'. You get the next three weekly meetings.
+
+
+3.3.1 Team sync
+---------------
+
+  <2026-09-28 Mon 10:00-10:30>
+
+
+3.4 Sorting
+~~~~~~~~~~~
+
+  `<prefix>hs' sorts the children of the current headline (or the list
+  under the cursor). Menu keys: `a' alphabetical, `n' numeric, `t' time,
+  `s' scheduled, `d' deadline, `p' priority, `o' TODO order, `r' by
+  property.  Uppercase reverses.
+
+  *Try:* on "Books to read" press `<prefix>hs' then `a', then
+  `<prefix>hs' and `p' to sort by priority.
+
+
+3.4.1 Books to read
+-------------------
+
+* 3.4.1.1 The Pragmatic Programmer
+
+
+* 3.4.1.2 Structure and Interpretation of Computer Programs
+
+
+* 3.4.1.3 Crafting Interpreters
+
+
+3.5 Narrowing
+~~~~~~~~~~~~~
+
+  `<prefix>hn' opens the current subtree in its own buffer. `:w' writes
+  the changes back, `<C-c>'' saves and closes.
+
+
+3.6 Converting lines
+~~~~~~~~~~~~~~~~~~~~
+
+  - `<prefix>*' turns a line into a headline (and back). On a list item,
+    the item becomes a headline.
+  - `<prefix>-' turns a line into a list item (and back).
+  - `<prefix>hC' toggles the `COMMENT' keyword. Commented subtrees are
+    left out of the agenda and the export.
+
+  *Try:* turn this line into a headline and back with `<prefix>*'.
+
+
+4 Markup
+========
+
+  Org has inline markup: *bold*, /italic/, _underlined_, `verbatim',
+  `code' and +strike-through+. In Visual mode, `<prefix>E' wraps the
+  selection in a marker. Set `ui.hide_emphasis_markers = true' to hide
+  the markers.
+
+  Blocks are inserted with `<prefix>ib' (a template menu). In Visual
+  mode the selection is wrapped in the block.
+
+        Plain text is the most durable format there is.
+
+  ,----
+  | Example blocks are shown verbatim, in a monospace font.
+  `----
+
+        Verse blocks keep
+          their line breaks
+            and indentation.
+
+  		      Centered text (in export).
+
+  LaTeX fragments like $E = mc^2$ and \(\alpha + \beta\) are exported
+  with MathJax in HTML. With `ui.pretty_entities' set, alpha shows as α.
+
+  ----------------------------------------------------------------------
+
+  The line of five dashes above is a horizontal rule.
+
+
+5 Plain lists and checkboxes
+============================
+
+5.1 Bullet styles
+~~~~~~~~~~~~~~~~~
+
+  Unordered bullets are `-', `+' or an indented `*'. Ordered bullets are
+  `1.'  and `1)'.
+
+  - dash
+  + plus
+    * star (only when indented)
+
+  1. first
+  2. second
+  3. third
+
+  1) with a paren
+  2) also works
+
+  *Try:* put the cursor on "dash" and press `<S-Right>' a few times to
+  cycle the bullet style of the whole list. On the ordered list, move
+  "third" up with `<M-k>': the list is renumbered.
+
+
+5.2 Counters and descriptions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  3. `[@3]' starts the list at three
+  4. and the next item continues
+
+  - a plain-text outliner
+  - a hyperextensible Vim-based text editor
+  - both of the above
+
+
+5.3 Checkboxes
+~~~~~~~~~~~~~~
+
+  `<C-Space>' (or `<C-c><C-c>') toggles a checkbox. A parent shows `[-]'
+  while only some of its children are done. Statistics cookies (`[1/3]'
+  or `[33%]') update automatically; `<prefix>#' updates them by hand.
+
+  *Try:* check the children of "Pack for the trip" and watch both
+  cookies.  Select all three children with `V' and press `<C-Space>' to
+  toggle them together. `<S-Down>' / `<S-Up>' jump between items of the
+  same level.
+
+  - [-] Pack for the trip [1/3] [33%]
+    - [X] Passport
+    - [ ] Charger
+    - [ ] Toothbrush
+  - [ ] `<M-S-CR>' on this item adds a new checkbox item
+
+
+5.4 Checklists on a headline [1/4]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  A cookie on a headline counts the checkboxes in its body.
+
+  - [X] Draft the outline
+  - [ ] Write the introduction
+  - [ ] Add examples
+  - [ ] Proofread
+
+
+6 TODO keywords
+===============
+
+  This file defines its own keywords with `#+TODO:' at the top:
+
+  ,----
+  | #+TODO: TODO(t) NEXT(n) WAITING(w@/!) | DONE(d!) CANCELLED(c@)
+  `----
+
+  Keywords after `|' are done states. The letter in parentheses is the
+  key for fast selection. `!' logs a timestamp, `@' asks for a
+  note. `w@/!' means: ask for a note when entering WAITING, log a
+  timestamp when leaving it.
+
+
+6.1 TODO Cycle my state
+~~~~~~~~~~~~~~~~~~~~~~~
+
+  - `cit' / `ciT' (or `<S-Right>' / `<S-Left>' on the headline) cycles
+    through the states.
+  - `<prefix>S' opens fast selection: press `d' for DONE, `w' for
+    WAITING...
+
+  *Try:* mark this entry DONE. A `CLOSED:' timestamp is added and the
+  state change is logged in a `:LOGBOOK:' drawer. Set it to WAITING and
+  you are asked for a note.
+
+
+6.2 WAITING Reply from the landlord
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  This is what a logged state change with a note looks like.
+
+
+6.3 DONE A finished task
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+6.4 Logging per subtree
+~~~~~~~~~~~~~~~~~~~~~~~
+
+  The `LOGGING' property changes logging for a whole subtree: `nil'
+  turns it off, `lognotedone' asks for a note when done, and specs like
+  `WAITING(@)' replace the flags of the keywords. `LOG_INTO_DRAWER'
+  picks another drawer.
+
+
+6.4.1 TODO Nothing is logged here
+---------------------------------
+
+  *Try:* mark this entry DONE: no `CLOSED:' line and no `:LOGBOOK:'.
+
+
+6.5 TODO Repeating tasks
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Timestamps with a repeater move forward when the task is marked DONE,
+  and the task goes back to the first keyword of its sequence (TODO). A
+  `REPEAT_TO_STATE' property picks another state.
+
+   Repeater  Meaning                                                       
+  -------------------------------------------------------------------------
+   `+1w'     shift by one week, once                                       
+   `++1w'    shift by weeks until the date is in the future (same weekday) 
+   `.+2d'    shift to two days after today                                 
+
+
+6.5.1 TODO Water the plants
+---------------------------
+
+
+6.5.2 TODO Pay rent
+-------------------
+
+
+6.5.3 TODO Weekly review
+------------------------
+
+
+6.5.4 NEXT Stand-up notes
+-------------------------
+
+  *Try:* mark "Weekly review" DONE and watch the date jump forward.
+
+
+6.6 TODO Child TODOs and progress [0/3]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  A cookie on a headline without checkboxes counts its child TODO
+  entries.
+
+
+6.6.1 TODO Book the flights
+---------------------------
+
+
+6.6.2 TODO Reserve the hotel
+----------------------------
+
+
+6.6.3 TODO Plan the itinerary
+-----------------------------
+
+  *Try:* mark the children DONE one by one.
+
+
+6.7 TODO Ordered dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  With `:ORDERED: t' and `enforce_todo_dependencies = true' in your
+  config, a child can't be marked DONE before its earlier siblings are.
+  `<C-c><C-x>o' toggles the ORDERED property.
+
+
+6.7.1 TODO Step one
+-------------------
+
+
+6.7.2 TODO Step two (blocked until step one is done)
+----------------------------------------------------
+
+
+7 Priorities
+============
+
+  Priorities go right after the keyword: `[#A]', `[#B]' or `[#C]'. The
+  range comes from `priority_highest' / `priority_lowest' or
+  `#+PRIORITIES:'.
+
+  - `<S-Up>' / `<S-Down>' on the headline raise / lower the priority.
+  - `<C-a>' / `<C-x>' on the cookie do the same.
+  - `<prefix>,' then a letter sets it, `<Space>' removes it.
+
+
+7.1 TODO Fix the production outage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+7.2 TODO Review the pull request
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+7.3 TODO Clean up the downloads folder
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+7.4 TODO No priority yet
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+  *Try:* give the last entry priority A, then lower it to C.
+
+
+8 Tags
+======
+
+  Tags sit at the end of the headline, between colons. The fast keys
+  come from `#+TAGS:' at the top of the file. Tags inside `{ }' are
+  mutually exclusive.
+
+  - `<prefix>t' (or `<C-c><C-c>' on a headline) opens fast tag
+    selection.
+  - In that menu, `<Tab>' lets you type any tag and `<Space>' clears
+    them all.
+  - `:Org align_tags' (or `4<prefix>t') realigns every tag in the buffer
+    to `tags_column'.
+  - Select some headlines and press `<prefix>t' to add or remove one tag
+    on all of them.
+
+
+8.1 Plan the offsite                                              :work:
+~~~~~~~~~~~~~~~~~~~~
+
+8.1.1 Book a room                                              :@office:
+-----------------
+
+
+8.1.2 Send the agenda                                           :urgent:
+---------------------
+
+  *Try:* on "Book a room" press `<prefix>t' then `r'. `@remote' replaces
+  `@office' because they are in the same group.
+
+
+8.2 Inheritance
+~~~~~~~~~~~~~~~
+
+  Children inherit the tags of their parents, and every entry in this
+  file has `tutorial' from `#+FILETAGS:'. The agenda match `+work' finds
+  "Book a room" and "Send the agenda" even though only their parent has
+  `:work:'.  Disable it with `use_tag_inheritance = false', or exclude
+  single tags with `tags_exclude_from_inheritance'.
+
+
+9 Properties and column view
+============================
+
+9.1 TODO Write the quarterly report                               :work:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Properties live in a `:PROPERTIES:' drawer under the headline.
+
+  - `<prefix>p' sets a property (names are completed), `<prefix>P'
+    deletes one.
+  - `<prefix>xe' sets the `Effort' property. The choices come from
+    `#+PROPERTY: Effort_ALL' at the top of the file.
+  - `<prefix>lI' creates an `ID' property.
+
+  *Try:* set a `CLIENT' property on "Prepare the slides" below. Set its
+  effort with `<prefix>xe'. On the `:Effort:' line of "Gather the
+  numbers", press `<S-Right>' to step through the allowed values, and
+  `<C-c><C-c>' for a menu to set or delete it.
+
+
+9.1.1 TODO Gather the numbers
+-----------------------------
+
+
+9.1.2 TODO Prepare the slides
+-----------------------------
+
+
+9.2 Special and file-wide properties
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  - Special properties can be used in matches and column view: `ITEM',
+    `TODO', `PRIORITY', `TAGS', `ALLTAGS', `CATEGORY', `LEVEL',
+    `SCHEDULED', `DEADLINE', `CLOSED', `TIMESTAMP', `FILE'.
+  - `#+PROPERTY: NAME value' sets a property for the whole file.
+  - `use_property_inheritance' makes children inherit property values.
+
+
+9.3 Column view
+~~~~~~~~~~~~~~~
+
+  `<prefix>C' opens column view: every headline as a row of a table,
+  with the columns from `#+COLUMNS:' at the top of this
+  file. `%Effort{:}' sums the efforts of the children. In the view, `e'
+  edits a value, `n' / `p' switch to the next / previous allowed value
+  (from `Effort_ALL', the TODO keywords, the priorities...), `a' edits
+  the allowed values, `<CR>' jumps to the entry, `r' refreshes and `q'
+  quits.
+
+  The layout can be changed from the view too, and is saved back to the
+  `#+COLUMNS:' line: `<' / `>' narrow / widen a column, `<M-h>' /
+  `<M-l>' move it, `<M-L>' adds a column, `<M-H>' deletes one and `s'
+  edits one.
+
+  *Try:* put the cursor on "Write the quarterly report" and press
+  `<prefix>C'.  Move to the Effort column of "Prepare the slides" and
+  press `n'.
+
+  Summary operators: `{+}' sum, `{$}' money, `{:}' time sum, `{X}'
+  checkbox, `{X/}' and `{X%}' checkbox statistics, `{min}' `{max}'
+  `{mean}', `{:min}' `{:max}' `{:mean}' for times, `{@min}' `{@max}'
+  `{@mean}' for ages and `{est+}' for `low-high' estimates.
+
+
+10 Dates and times
+==================
+
+10.1 Timestamps
+~~~~~~~~~~~~~~~
+
+  ,----
+  | <2026-11-02 Mon>                     active: shows in the agenda
+  | [2026-11-02 Mon]                     inactive: just a note
+  | <2026-11-02 Mon 10:00-11:30>         with a time range
+  | <2026-11-09 Mon>--<2026-11-11 Wed>   a date range
+  | <2026-11-02 Mon +1w>                 with a repeater
+  | <2026-11-19 Thu -5d>                 with a warning period
+  `----
+
+  - `<prefix>i.' inserts an active timestamp, `<prefix>i!' an inactive
+    one.  With a count (`4<prefix>i.') the time is included. Right after
+    another timestamp, it makes a range.
+  - `<C-a>' / `<C-x>' change the part under the cursor: year, month,
+    day, hour, minute, repeater or warning. `<S-Right>' / `<S-Left>'
+    move one day.  On the minutes, `<S-Up>' / `<S-Down>' step by five
+    minutes.
+  - `:Org toggle_timestamp_type' turns `<...>' into `[...]' and back.
+  - `<CR>' on a timestamp opens the agenda for that day.
+
+  *Try:* type `<prefix>i.' here and pick a date. Then put the cursor on
+  the month and press `<C-a>': the weekday is updated for you.
+
+  Meeting with the designers <2026-09-30 Wed 15:00>
+
+
+10.2 SCHEDULED and DEADLINE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+10.2.1 TODO Dentist appointment
+-------------------------------
+
+
+10.2.2 TODO Submit the tax return
+---------------------------------
+
+  The `-10d' shows the deadline in the agenda ten days before it is due
+  (instead of `deadline_warning_days').
+
+
+10.2.3 TODO Something to plan
+-----------------------------
+
+  *Try:* press `<prefix>s' on this headline to schedule it and
+  `<prefix>d' to give it a deadline. `4<C-c><C-s>' removes the date
+  again, and `16<prefix>d' asks for the day the deadline starts warning
+  (`-5d').
+
+
+10.3 The calendar and date input
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Date prompts open a floating calendar. Move with `h' `j' `k' `l' (day,
+  week), `H' `L' (month), `J' `K' (year), `.' for today, `T' to set a
+  time, `<CR>' to select. Press `i' to type a date instead:
+
+   You type           You get                           
+  ------------------------------------------------------
+   `.' or nothing     today                             
+   `+3d' `-2w' `+1m'  relative to today                 
+   `fri' `+2fri'      next Friday / Friday in two weeks 
+   `sep 15'           the next September 15             
+   `15'               the next 15th of a month          
+   `2026-10-01'       an absolute date                  
+   `tomorrow 14:00'   a date and a time                 
+   `fri 10:00-11:30'  a date with a time range          
+   `10:00+1:30'       a start time and a duration       
+   `w40' `w40 fri'    Monday (or Friday) of ISO week 40 
+   `15.3.2027'        a day.month.year date             
+   `15h30'            a time                            
+
+
+11 Clocking and effort
+======================
+
+11.1 NEXT Write the blog post                                     :work:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  - `<prefix>xi' clocks in on this entry, `<prefix>xo' clocks out.
+  - `<prefix>xq' cancels the clock, `<prefix>xj' jumps to the clocked
+    entry from anywhere. `:Org clock_in_last' restarts the last clock.
+  - The running clock survives a restart of Neovim.
+  - `<prefix>xd' shows the clocked time of every headline as virtual
+    text.
+  - `<C-c><C-c>' on a `CLOCK:' line recomputes its duration, and
+    `<C-S-Up>' / `<C-S-Down>' move both of its timestamps.
+  - `2<prefix>xi' picks a task from the recently clocked ones.
+  - `<prefix>xm' changes the effort of the clocked task (`+0:15' adds a
+    quarter), `<prefix>xE' steps through `Effort_ALL'. You are notified
+    when the clocked time reaches the effort.
+  - `<prefix>xz' finds clocks that were never closed and lets you keep
+    or cancel them.
+
+  *Try:* clock in here, wait a minute, clock out and look at the
+  `:LOGBOOK:'.  With `require("org").statusline()' in your statusline
+  you see `⏱ [0:01/1:30] (Write the blog post)' while it runs.
+
+
+11.2 TODO Review the design doc                                   :work:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+11.3 Clock table
+~~~~~~~~~~~~~~~~
+
+  A clock table is a dynamic block. Put the cursor on the `#+BEGIN:'
+  line and press `<C-c><C-c>' to (re)generate it. `<prefix>xr' inserts a
+  new one.
+
+  *Try:* change `:maxlevel 2' to `:maxlevel 3', or add `:block
+  thisweek', `:tags t', `:formula %' or `:properties ("Effort")', and
+  update it again.  `:step day' with a `:block' makes one table per day.
+
+
+12 Agenda
+=========
+
+  The agenda collects entries from `agenda_files' into one view. Open
+  the dispatcher with `<prefix>a':
+
+   Key  View                                                
+  ----------------------------------------------------------
+   `a'  the week (or day, see `agenda.span')                
+   `t'  every open TODO                                     
+   `T'  TODOs with one keyword                              
+   `m'  a tags/properties match                             
+   `M'  a match, TODO entries only                          
+   `s'  search for words or a regexp                        
+   `S'  search, TODO entries only                           
+   `n'  the agenda and all TODOs                            
+   `#'  stuck projects                                      
+   `/'  a regexp in all agenda files (quickfix list)        
+   `<'  restrict to the current file (press again: subtree) 
+
+  `<C-c><C-x><' on a headline locks every agenda command to that subtree
+  until `<C-c><C-x>>' removes the lock.
+
+  This file is in `agenda_files' when you use
+  `examples/minimal_init.lua'.  Otherwise add it for this session with
+  `<C-c>['.
+
+  *Try:* press `<prefix>a' then `a'. Press `gd' and go to `2026-09-28'
+  to see the entries below.
+
+
+12.1 Things that show up in the agenda
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+12.1.1 TODO Standup                                               :work:
+-------------------
+
+
+12.1.2 Lunch with Sam
+---------------------
+
+  <2026-09-28 Mon 12:30-13:30>
+
+
+12.1.3 Conference
+-----------------
+
+  <2026-10-05 Mon>--<2026-10-07 Wed> Multi-day ranges show as `(1/3):',
+  `(2/3):', `(3/3):'.
+
+
+12.1.4 TODO Renew the passport                                    :home:
+------------------------------
+
+  Deadlines appear `In N d.:' before they are due and `N d. ago:' after.
+
+
+12.1.5 TODO Run 5k                                               :habit:
+------------------
+
+  With `:STYLE: habit' the agenda draws a consistency graph: `*' marks a
+  day the habit was done, and the colours show whether it was on time.
+
+
+12.2 Working in the agenda
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Key             Action                                  
+  ---------------------------------------------------------
+   `f' `b' `.'     later / earlier / today                 
+   `vd' `vw' `vm'  day / week / month view                 
+   `<CR>' `<Tab>'  open the entry here / in another window 
+   `F'             follow mode                             
+   `t'             change the TODO state                   
+   `s' `d' `>'     schedule / deadline / move to a date    
+   `,' `+' `-'     set / raise / lower the priority        
+   `:'             set tags                                
+   `I' `O'         clock in / out                          
+   `R' `$'         refile / archive                        
+   `l' `C'         log mode / clock report                 
+   `E'             show the first lines of each entry      
+   `va' `v['       include archived trees / inactive dates 
+   `/' `<' `_'     filter by tag / category / effort       
+   `m' `*' `B'     mark one / mark all / bulk action       
+   `<C-k>'         delete the entry from its file          
+   `q'             quit                                    
+
+  The = key filters by regexp, ^ keeps the entries under the same top
+  headline and | removes all filters.
+
+  *Try:* in the week agenda press `E' to see the body text of the
+  entries, then `_' and type `<0:30' to keep only the short tasks.
+
+
+12.3 Match syntax
+~~~~~~~~~~~~~~~~~
+
+  The `m' and `M' views, custom commands, sparse trees and clock tables
+  use the same match syntax as Emacs:
+
+   Match                 Finds                                       
+  -------------------------------------------------------------------
+   `+work-urgent'        tagged work, not urgent                     
+   `+work/NEXT'          work entries in the NEXT state              
+   `+work/!'             work entries that are not done              
+   `PRIORITY'"A"=        priority A                                  
+   `Effort<*1'           effort under an hour (and set)              
+   `LEVEL=2'             second-level headlines                      
+   `CLIENT'"ACME"=       a property value                            
+   `SCHEDULED<'"<+2d>"=  scheduled in the next two days (or overdue) 
+   `{^hab}'              a tag matching a regexp                     
+
+  Use `|' for "or": `work|home' finds entries tagged work or home.
+
+  *Try:* `<prefix>a' then `M' and type `+work/!'.
+
+
+12.4 Custom agenda commands
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Combine several views in one buffer with `agenda.custom_commands':
+
+  ,----
+  | agenda = {
+  |   custom_commands = {
+  |     w = {
+  |       description = "Work overview",
+  |       types = {
+  |         { type = "agenda", span = "day", header = "Today" },
+  |         { type = "tags_todo", match = "+work/!", header = "Open work tasks" },
+  |         { type = "todo", match = "WAITING", header = "Waiting for" },
+  |       },
+  |     },
+  |     u = { description = "Urgent", type = "tags", match = 'PRIORITY="A"|+urgent' },
+  |   },
+  | }
+  `----
+
+  `examples/minimal_init.lua' defines both, so `<prefix>a' then `w'
+  works right away.
+
+
+12.5 Stuck projects
+~~~~~~~~~~~~~~~~~~~
+
+  A project is "stuck" when it has no NEXT or TODO child. `<prefix>a'
+  then `#' lists them. `agenda.stuck_projects' says what a project is;
+  the example config uses `{ match = "+project/-DONE" }' and keeps the
+  `project' tag from being inherited (`tags_exclude_from_inheritance'),
+  so "Learn Rust" is stuck and "Repaint the kitchen" is not.
+
+
+12.5.1 Learn Rust                                              :project:
+-----------------
+
+
+12.5.2 Repaint the kitchen                                     :project:
+--------------------------
+
+* 12.5.2.1 TODO Buy paint
+
+
+13 Sparse trees
+===============
+
+  `<prefix>/' folds the buffer so that only matching entries are
+  visible, and fills the location list (`:lnext', `:lprev').
+
+   Key          Shows                                     
+  --------------------------------------------------------
+   `/'          lines matching a regexp (also `r')        
+   `t'          open TODO entries                         
+   `T'          entries with one TODO keyword             
+   `m'          a tags/properties match                   
+   `p'          a property value                          
+   `d'          deadlines due soon or overdue             
+   `b' `a' `D'  timestamps before / after / between dates 
+   `c'          clear the highlights                      
+
+  *Try:* `<prefix>/' then `m' and type `+work'. Then `<S-Tab>' to show
+  everything again and `<C-c><C-c>' (or `<prefix>/' `c') to clear the
+  highlights. `<C-c>\' goes straight to the tags/properties match.
+
+
+14 Capture
+==========
+
+  Capture files a note from any buffer without leaving what you are
+  doing.  `<prefix>c' shows the template menu. In the capture window,
+  `<C-c><C-c>' or `:w' finishes, `<C-c><C-k>' aborts and `<C-c><C-w>'
+  refiles.
+
+  Templates live in your config:
+
+  ,----
+  | capture = {
+  |   templates = {
+  |     t = { description = "Task", template = "* TODO %?\n  %U\n  %a", target = "inbox.org" },
+  |     w = "Work", -- a group: press w, then t or m
+  |     wt = { description = "Work task", template = "* TODO %? :work:", target = "work.org", headline = "Inbox" },
+  |     wm = { description = "Meeting", template = "* %^{Who} %^g\n  %T\n  %?", target = "work.org", olp = { "Meetings" }, clock_in = true },
+  |     j = { description = "Journal", template = "* %<%H:%M> %?", target = "journal.org", datetree = true },
+  |     s = { description = "Shopping item", type = "checkitem", template = "[ ] %?", target = "inbox.org", headline = "Shopping" },
+  |     x = { description = "Expense", type = "table-line", template = "| %u | %^{Amount} | %^{What} |", target = "inbox.org", headline = "Expenses", immediate_finish = true },
+  |   },
+  | }
+  `----
+
+  Useful expansions: `%?' cursor, `%U' inactive timestamp, `%T' active
+  timestamp with time, `%a' link back to where you were, `%i' the visual
+  selection, `%^{Prompt}' ask for text, `%^g' ask for tags,
+  `%<%Y-%m-%d>' strftime.
+
+  *Try:* with `examples/minimal_init.lua', select a line of this
+  paragraph in Visual mode, press `<prefix>c' and `t'. The task links
+  back here and quotes the selection. The captured entries go to a
+  scratch file under `stdpath("state")'.
+
+
+15 Refile and archive
+=====================
+
+15.1 Refiling
+~~~~~~~~~~~~~
+
+  `<prefix>r' moves the subtree under another headline in any agenda
+  file.  Targets look like `tutorial.org/Refile and archive/Projects'.
+
+  *Try:* refile "A stray idea" under "Projects".
+
+  `<prefix>R' copies the subtree instead, leaving the original in place,
+  and `:Org refile_goto_last' jumps to wherever the last refile or
+  capture went.  `refile.targets' picks the targets like Emacs'
+  `org-refile-targets', e.g.  `{ { files = "agenda", tag = "project" }
+  }'.
+
+
+15.1.1 A stray idea
+-------------------
+
+
+15.1.2 Projects
+---------------
+
+* 15.1.2.1 Existing project
+
+
+15.2 Archiving
+~~~~~~~~~~~~~~
+
+  - `<prefix>$' moves the subtree to the archive (`tutorial.org_archive'
+    here). It keeps where it came from in `ARCHIVE_*' properties.
+  - `<prefix>hA' toggles the `ARCHIVE' tag instead: the subtree stays in
+    place, folded, and is hidden from the agenda.
+  - `<C-c><C-x>A' moves the subtree under an `Archive' sibling (created
+    with the `ARCHIVE' tag when missing).
+  - `:Org archive_all_done' on a headline offers to archive each child
+    that has no open TODO.
+  - The location comes from the `ARCHIVE' property, `#+ARCHIVE:' or
+    `archive_location'.
+
+
+15.2.1 DONE An old task to archive
+----------------------------------
+
+
+15.2.2 Old notes                                               :ARCHIVE:
+----------------
+
+
+16 Links
+========
+
+  `<CR>' (or `gx') opens the link under the cursor. `<prefix>li' inserts
+  a link (or edits the one under the cursor), `<prefix>ls' stores a link
+  to the current location from any buffer, and `<prefix>ln' /
+  `<prefix>lp' jump between links. `<prefix>lt' shows the raw link text.
+
+
+16.1 Link types
+~~~~~~~~~~~~~~~
+
+  - A web page: [the Org manual], or a bare URL: <https://neovim.io>
+  - A heading in this file: [the Tables section]
+  - A custom ID: [the footnotes section]
+  - A dedicated target: [jump to <<my target>>]
+  - A file: [the example config]
+  - A line in a file: [the top of this file]
+  - A heading in a file: [Capture]
+  - A regexp in a file: [agenda_files]
+  - Vim help: [:h org-links]
+  - A shell command (asks first): [say hello]
+  - An abbreviation from `#+LINK:': [org.nvim on GitHub]
+  - Another one: [search the web]
+
+  This is the dedicated target from the list above.
+
+  *Try:* `<prefix>ls' on the "Tables" heading below, come back here and
+  press `<prefix>li'. The stored link is offered first. `<prefix>lL'
+  inserts the last stored link without asking, and `<prefix>lA' inserts
+  every stored link as a list.
+
+  `<prefix>ls' on a `<<target>>' or on a named table or block stores a
+  link to that target or name instead of the heading.
+
+
+[the Org manual] <https://orgmode.org>
+
+[the Tables section] See section 18
+
+[the footnotes section] See section 17
+
+[jump to <<my target>>] See figure (16 1)
+
+[the example config] <file:minimal_init.lua>
+
+[the top of this file] <file:tutorial.org::1>
+
+[Capture] <file:tutorial.org::*Capture>
+
+[agenda_files] <file:minimal_init.lua::/agenda_files/>
+
+[:h org-links] <help:org-links>
+
+[say hello] <shell:echo "hello from a link">
+
+[org.nvim on GitHub] <https://github.com/xheisenbugx/org.nvim>
+
+[search the web] <https://duckduckgo.com/?q=org mode tables>
+
+
+16.2 Radio targets
+~~~~~~~~~~~~~~~~~~
+
+  A radio link is a target with three brackets: every other "radio link"
+  in the file becomes a link to it, also in export. Press `<CR>' on the
+  words radio link at the end of this sentence to jump back: radio link.
+
+
+16.3 Following links from a headline
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  `<C-c><C-o>' on a headline without a link under the cursor offers the
+  links of the entry. `<C-c>&' (or `<C-o>') jumps back.
+
+
+16.4 IDs
+~~~~~~~~
+
+  An `ID' property gives a heading a link that survives moving it to
+  another file. `<prefix>lI' creates one; `<prefix>ls' uses it
+  automatically.  `<prefix>lg' goes to an entry by ID and `<prefix>ly'
+  copies the ID of the entry under the cursor. `:Org
+  id_update_locations' rebuilds the index from the agenda files.
+
+
+16.5 Attachments
+~~~~~~~~~~~~~~~~
+
+  `<prefix>A' opens the attachment menu: `a' attach a file, `u' download
+  a URL, `b' attach a buffer, `n' create a new one, `o' open one, `f'
+  open the attachment directory, `z' sync the tag, `d' delete. Files go
+  into `attach.dir' (default `data/') and the heading gets an `ATTACH'
+  tag.  `[[attachment:notes.txt]]' links to an attached file.
+
+
+17 Using footnotes
+==================
+
+  Footnotes are references like this one[1], named ones[2], and inline
+  footnotes[3].
+
+  - `<CR>' on a reference jumps to its definition, and back.
+  - `<prefix>if' inserts a new footnote and its definition (on a
+    footnote it jumps instead).
+  - `4<prefix>if' opens a menu to sort the definitions, renumber them,
+    normalize every footnote (inline ones included) or delete one.
+
+  *Try:* put the cursor at the end of this sentence and press
+   `<prefix>if'.
+
+
+18 Tables
+=========
+
+18.1 Editing
+~~~~~~~~~~~~
+
+  Type `|Name|Age', press `<Esc>o', type `|-' and press `<Tab>' in
+  Insert mode: the table is aligned and a separator appears.
+
+  - Insert mode: `<Tab>' / `<S-Tab>' next / previous field (a new row is
+    added at the end), `<CR>' the same column in the next row.
+  - `<C-c><C-c>' aligns the table. Leaving Insert mode also aligns it.
+  - `<M-h>' `<M-l>' move a column, `<M-k>' `<M-j>' move a row.
+  - `<M-H>' / `<M-L>' delete / insert a column; `<M-K>' / `<M-J>' delete
+    / insert a row; `<M-CR>' adds a row below.
+  - `<prefix>Ts' sorts the rows by the column under the cursor.
+  - `<prefix>Tc' creates a table, or converts selected CSV/TSV lines.
+  - `<S-Up>' `<S-Down>' `<S-Left>' `<S-Right>' swap a single field with
+    its neighbour. `<prefix>Tt' transposes the whole table.
+  - `<S-CR>' copies the field one row down and moves with it. Numbers,
+    text ending in a number and dates count up, so pressing it again
+    fills a series.
+  - `:Org table_import' reads a CSV/TSV file into a table, `:Org
+    table_export' writes the table to one.
+
+  *Try:* put the cursor on `3' below and press `<S-CR>' a few times.
+
+   Step  Date             
+  ------------------------
+      1  <2026-11-02 Mon> 
+      2  <2026-11-09 Mon> 
+      3  <2026-11-16 Mon> 
+
+  Then do the same on the last date: it moves on by a week each time.
+
+  *Try:* this table is a mess. Put the cursor in it and press
+   `<C-c><C-c>'.
+
+   Name      Language  Stars 
+  ---------------------------
+   org.nvim  Lua          42 
+   neorg     Lua        6500 
+   orgmode   Lua        3100 
+
+  *Try:* select the lines below in Visual mode and press `<prefix>Tc'.
+
+  name,role,city Ada,engineer,London Linus,maintainer,Portland
+
+
+18.2 Formulas
+~~~~~~~~~~~~~
+
+  Formulas go on a `#+TBLFM:' line under the table. `<C-c><C-c>' on that
+  line (or `<prefix>Tf' in the table) recalculates. `<prefix>'' edits
+  the formulas in their own buffer.
+
+  *Try:* change a quantity, then press `<C-c><C-c>' on the `#+TBLFM:'
+   line.
+
+   Item      Qty  Price  Total 
+  -----------------------------
+   Coffee      3    4.5        
+   Keyboard    1    120        
+   Stickers   10    0.8        
+  -----------------------------
+   Sum                         
+
+  - `$4' is column 4, `@>' the last row, `@I..@II' the rows between the
+    first and the second separator.
+  - `$4'...= is a column formula; `@>$4'...= a field formula.
+  - `;%.2f' formats the result.
+  - You can also type a formula straight into a field: `=$1*2' makes a
+    column formula, `:=vsum(@I..@II)' a field formula. `<Tab>', `<CR>'
+    or `<C-c><C-c>' moves it to the `#+TBLFM:' line and recalculates.
+
+  *Try:* in Insert mode, type `=$1*2' in the first empty field below and
+  press `<Tab>'.
+
+   n  double 
+  -----------
+   1         
+   2         
+   3         
+
+
+18.3 References and functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   References       Meaning                                     
+  --------------------------------------------------------------
+   `$2' `$>' `$-1'  column 2 / last column / column to the left 
+   `@3' `@>' `@-1'  row 3 / last row / row above                
+   `@I' `@II'       first / second separator                    
+   `@2$3'           a single field                              
+   `@2$1..@4$3'     a range                                     
+   `@#' `$#'        the current row / column number             
+
+   n  square  running total  odd?  label  
+  ----------------------------------------
+   1       1              1     1  item-1 
+   2       4              3     0  item-2 
+   3       9              6     1  item-3 
+   4      16             10     0  item-4 
+
+  Available functions: `vsum' `vmean' `vmin' `vmax' `vcount' `vmedian'
+  `vsdev' `abs' `sqrt' `round' `floor' `ceil' `mod' `min' `max' `if' and
+  more.  Anything else in `'( ... )' is evaluated as Lua (or as Emacs
+  Lisp, for the common functions like `+', `concat' and `format').
+
+
+18.4 Named columns, parameters and constants
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Name columns with a `!' row, and define parameters with a `$'
+  row. Constants come from `#+CONSTANTS:'.
+
+   Product  net   gross 
+  ----------------------
+   Lamp      40   48.40 
+   Chair    120  145.20 
+   Desk     300  363.00 
+  ----------------------
+
+
+18.5 Time and durations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+  The `T' flag reads and writes `H:MM:SS'; `U' writes `H:MM'.
+
+   Task     Start    End  Duration 
+  ---------------------------------
+   Emails   09:00  09:40     00:40 
+   Coding   09:40  12:15     02:35 
+   Meeting  13:00  13:45     00:45 
+
+
+18.6 Referencing another table
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  `remote(name, ref)' reads a field of a table with a `#+NAME:'.
+
+   Fruit   Price 
+  ---------------
+   Apple    0.50 
+   Banana   0.25 
+
+   Order    Amount  Total 
+  ------------------------
+   Apples       12   6.00 
+   Bananas       6   1.50 
+
+
+19 Source blocks (Babel)
+========================
+
+  `<C-c><C-c>' inside a block runs it in the background and writes the
+  output into a `#+RESULTS:' block. You are asked before anything runs
+  (`babel.confirm_evaluate').
+
+   Key                        Action                                       
+  -------------------------------------------------------------------------
+   `<C-c><C-c>' `<prefix>be'  run the block under the cursor               
+   `<prefix>bb' `<prefix>bs'  run every block in the buffer / subtree      
+   `<prefix>bk'               remove the result                            
+   `<prefix>bn' `<prefix>bp'  next / previous block                        
+   `<prefix>''                edit the block in a buffer with its filetype 
+   `<prefix>bt'               tangle the file                              
+   `<prefix>bv'               show the expanded block                      
+   `<prefix>bd'               split the block at the cursor in two         
+   `<prefix>bg' `<prefix>br'  go to a named block / result                 
+   `<prefix>bj'               add a header argument                        
+
+
+19.1 Languages
+~~~~~~~~~~~~~~
+
+  Lua runs inside Neovim, so it can use the whole `vim' API:
+
+  ,----
+  | return string.format("Neovim %s, %d buffers open", tostring(vim.version()), #vim.api.nvim_list_bufs())
+  `----
+
+  Other languages run their interpreter:
+
+  ,----
+  | echo "Hello from $(basename "$SHELL")"
+  | uname -s
+  `----
+
+  ,----
+  | import platform
+  | print(f"Python {platform.python_version()}")
+  `----
+
+  ,----
+  | console.log(["a", "b", "c"].map((s) => s.toUpperCase()).join(" "))
+  `----
+
+  Add or change languages with `babel.languages', for example `{ deno =
+  { cmd = "deno run", ext = "ts" } }'.
+
+
+19.2 Results
+~~~~~~~~~~~~
+
+  `:results output' captures what the program prints. `:results value'
+  (the default) captures the return value. Lists of lists become tables.
+
+  ,----
+  | return [[n, n * n, n ** 3] for n in range(1, 5)]
+  `----
+
+  ,----
+  | printf "apples\nbananas\ncherries\n"
+  `----
+
+  ,----
+  | print("Exported with its result")
+  `----
+
+  Other `:results' options: `raw', `org', `drawer', `html', `code',
+  `file', and `append' / `prepend' / `silent'.
+
+  `:wrap' puts the result in a block, and `:cache yes' only runs the
+  block again when it changed (the hash is kept in `#+RESULTS[…]:'):
+
+  ,----
+  | import json
+  | return json.dumps({"answer": 42})
+  `----
+
+  `:file' writes the result to a file and links to it:
+
+  ,----
+  | echo "Written by babel"
+  `----
+
+  Inline blocks work too: put the cursor on `return 6 * 7' and press
+  `<C-c><C-c>'.
+
+
+19.3 Variables and tables as input
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  `:var' passes values into a block. A named table becomes a list of
+  rows.  Its header row (above the first hline) is passed separately and
+  put back on a table result (`:colnames'). `rows=expenses[0:1]' would
+  pass the first two rows only.
+
+   Category  Amount 
+  ------------------
+   Rent        1200 
+   Food         450 
+   Travel       300 
+
+  ,----
+  | total = sum(amount for _, amount in rows)
+  | for name, amount in rows:
+  |     print(f"{name:8} {amount / total:6.1%}")
+  `----
+
+  ,----
+  | return string.rep("hello " .. name .. "! ", times)
+  `----
+
+
+19.4 Named blocks and #+CALL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  A named block can be called with other arguments. Put the cursor on
+  the `#+CALL:' line and press `<C-c><C-c>'.
+
+  ,----
+  | return x * x
+  `----
+
+
+19.5 Noweb
+~~~~~~~~~~
+
+  `:noweb yes' expands `<<name>>' with the body of another block.
+
+  ,----
+  | greet() { echo "Hello, $1!"; }
+  `----
+
+  ,----
+  | <<greet-function>>
+  | greet "noweb"
+  `----
+
+
+19.6 Tangling
+~~~~~~~~~~~~~
+
+  `<prefix>bt' writes blocks with `:tangle' to files (`1<prefix>bt' only
+  the block under the cursor). This one becomes `hello.sh' next to this
+  file:
+
+  ,----
+  | echo "I was tangled from tutorial.org"
+  `----
+
+
+19.7 Header arguments
+~~~~~~~~~~~~~~~~~~~~~
+
+  Header arguments can also be set for the whole file (`#+PROPERTY:
+  header-args:python :results output'), for a subtree (a `header-args'
+  property), or on `#+HEADER:' lines above a block.
+
+  ,----
+  | pwd
+  `----
+
+
+20 Dynamic blocks
+=================
+
+  Dynamic blocks are regenerated in place. `<C-c><C-c>' on the
+  `#+BEGIN:' line updates one, `<prefix>xU' updates every block in the
+  file.
+
+  The clock table in "Clocking and effort" is one. A `columnview' block
+  writes the column view of a subtree into the file:
+
+   ITEM                        TODO  Effort 
+  ------------------------------------------
+   Write the quarterly report  TODO    1:00 
+   Gather the numbers          TODO    1:00 
+   Prepare the slides          TODO         
+
+  `:id' names the subtree by its `ID' property. `:id local' uses the
+  subtree the block is in, and `:id global' the whole file.
+
+  You can register your own blocks from Lua:
+
+  ,----
+  | require("org.dblock").register("today", function(params, ctx)
+  |   return { "Generated on " .. os.date("%Y-%m-%d") }
+  | end)
+  `----
+
+
+21 Export
+=========
+
+  `<prefix>e' opens the export dispatcher:
+
+   Keys   Output                                  
+  ------------------------------------------------
+   `h h'  HTML file (`h o' also opens it)         
+   `m m'  Markdown file                           
+   `t a'  plain text                              
+   `l l'  LaTeX, `l p' PDF                        
+   `d d'  DOCX (pandoc), `o o' ODT                
+   `s'    toggle: export only the current subtree 
+
+  *Try:* put the cursor on the "Export sample" heading below, press
+  `<prefix>e', then `s' and `h o'.
+
+
+21.1 Export sample
+~~~~~~~~~~~~~~~~~~
+
+  /org.nvim/ replaces the macro with its text.
+
+   Format    Native 
+  ------------------
+   HTML      yes    
+   Markdown  yes    
+   DOCX      pandoc 
+  Table 1: A captioned table
+
+  Inline math: $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$.
+
+
+21.1.1 This subtree is exported
+-------------------------------
+
+
+21.2 Export settings
+~~~~~~~~~~~~~~~~~~~~
+
+  Export options go in `#+OPTIONS:' at the top of a file, for example
+  `#+OPTIONS: toc:2 num:nil ^:{} todo:nil'. `#+TITLE:', `#+AUTHOR:' and
+  `#+DATE:' fill in the title page. Code runs only with `:exports
+  results' or `both', and export uses the existing `#+RESULTS:' instead
+  of running it again. `#' in the export dispatcher inserts all the
+  settings with their current values.
+
+  `#+INCLUDE: "other.org::*A heading" :only-contents t' includes one
+  subtree of another file, and `tasks:nil', `arch:nil', `prop:t' or
+  `d:("NOTES")' in `#+OPTIONS:' choose which tasks, archived trees,
+  properties and drawers are exported.
+
+
+22 Timers and notifications
+===========================
+
+22.1 Timers
+~~~~~~~~~~~
+
+  - `:Org timer_start' starts a relative timer (`<C-c><C-x>0').
+  - `:Org timer_insert' inserts its value. In a list it starts an item
+    like =- 0:01:23 :: =, which makes meeting notes easy.
+  - `:Org timer_countdown 25' starts a 25-minute countdown (a pomodoro).
+    On an entry with an Effort, `<C-c><C-x>;' counts down from the
+    effort.  `<C-c><C-x>,' pauses either timer, `<C-c><C-x>_' stops it.
+
+  - introductions
+  - roadmap discussion
+
+
+22.2 Appointment reminders
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  With `notifications = { enabled = true }' (or `:Org
+  notifications_start'), entries with a time in the agenda files trigger
+  a notification `reminder_time' minutes before they start.
+
+
+23 Completion
+=============
+
+  Completion works with the built-in omnifunc (`<C-x><C-o>'), blink.cmp
+  and nvim-cmp. It completes:
+
+  - TODO keywords right after the stars
+  - tags after `:' on a headline
+  - `#+' keywords, `#+STARTUP' and `#+OPTIONS' values
+  - source block languages after `#+begin_src'
+  - property and drawer names at the start of a line
+  - link types, stored links, headings (`[[*') and custom IDs (`[[#')
+
+  *Try:* on a new line, type `#+' and press `<C-x><C-o>'. Then type
+  `[[*Ta' and complete again.
+
+
+
+Footnotes
+_________
+
+[1] Press `<CR>' here to jump back to the reference.
+
+[2] Named footnotes work the same way.
+
+[3] defined right here, no definition needed

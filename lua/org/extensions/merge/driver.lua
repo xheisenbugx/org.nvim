@@ -148,6 +148,7 @@ for k, v in pairs(cli) do
 end
 
 if config_file then
+  -- lint: allow expand: the config_file option
   local ok, err = pcall(dofile, vim.fn.expand(config_file))
   if not ok then
     io.stderr:write("org-merge: " .. tostring(err) .. "\n")

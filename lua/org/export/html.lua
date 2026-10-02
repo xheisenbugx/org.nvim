@@ -975,6 +975,7 @@ function M.plain_text(text, info, node)
     out = convert_special_strings(out)
   end
   if info.preserve_breaks then
+    -- lint: allow gsub: a <br> tag
     out = out:gsub("\\\\([ \t]*\n)", "%1"):gsub("[ \t]*\n", close_tag("br", nil, info) .. "\n")
   end
   return out
@@ -2053,6 +2054,7 @@ T["verse-block"] = function(_, contents, info)
   local br = close_tag("br", nil, info)
   contents = contents or ""
   contents = contents:gsub(vim.pesc(br) .. "[ \t]*\n", "\n")
+  -- lint: allow gsub: a <br> tag
   contents = contents:gsub("[ \t]*\n", br .. "\n")
   contents = contents:gsub("\n([ \t]+)", function(ws)
     return "\n" .. string.rep("&nbsp;", #ws)

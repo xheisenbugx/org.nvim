@@ -58,15 +58,25 @@ end
 --- Delete the keymaps of `record` that are still ours (same desc), so a
 --- mapping the user has since put on the same key is left alone.
 local function unset(record, bufnr)
+  -- mode -> { [keycode(lhs) .. NUL .. desc] = true }, read once per mode
+  local current = {}
+  local function ours(mode, key, desc)
+    if not current[mode] then
+      local set_ = {}
+      local maps = bufnr and vim.api.nvim_buf_get_keymap(bufnr, mode) or vim.api.nvim_get_keymap(mode)
+      for _, m in ipairs(maps) do
+        if m.desc then
+          set_[vim.keycode(m.lhs) .. "\0" .. m.desc] = true
+        end
+      end
+      current[mode] = set_
+    end
+    return current[mode][key .. "\0" .. desc]
+  end
   for _, r in ipairs(record or {}) do
     local mode, lhs, desc = r[1], r[2], r[3]
-    local maps = bufnr and vim.api.nvim_buf_get_keymap(bufnr, mode) or vim.api.nvim_get_keymap(mode)
-    local key = vim.keycode(lhs)
-    for _, m in ipairs(maps) do
-      if m.desc == desc and vim.keycode(m.lhs) == key then
-        pcall(vim.keymap.del, mode, lhs, bufnr and { buffer = bufnr } or nil)
-        break
-      end
+    if desc and ours(mode, vim.keycode(lhs), desc) then
+      pcall(vim.keymap.del, mode, lhs, bufnr and { buffer = bufnr } or nil)
     end
   end
 end

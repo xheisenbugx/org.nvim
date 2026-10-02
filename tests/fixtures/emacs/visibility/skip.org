@@ -1,0 +1,6 @@
+#+STARTUP: show3levels
+* A
+*** deep
+x
+** B
+*** C

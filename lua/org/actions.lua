@@ -876,6 +876,8 @@ function M.run(name, ...)
   if not fn then
     return true
   end
+  -- the highlight groups are defined on first use, not at setup()
+  require("org.highlights").ensure()
   -- org-fold-catch-invisible-edits-commands
   if not require("org.fold").check_invisible_edit_command(name) then
     return true

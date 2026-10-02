@@ -1,0 +1,21 @@
+# Agenda cases over work.org and home.org (the agenda files, in that
+# order), default settings, "now" = 2026-10-01 Thu 12:00, width 80.
+#   <name> agenda <span> <start-date>
+#   <name> log <span> <start-date>        (agenda with log mode on)
+#   <name> todo <keywords|->              (org-todo-list; - = all)
+#   <name> tags <match>                   (org-tags-view)
+#   <name> tags-todo <match>              (org-tags-view, TODO only)
+#   <name> search <words>                 (org-search-view)
+day         agenda     day   2026-10-01
+day-past    agenda     day   2026-09-29
+day-future  agenda     day   2026-10-03
+week        agenda     week  2026-10-01
+log-day     log        day   2026-10-01
+todo        todo       -
+todo-kw     todo       WAITING|NEXT
+tags        tags       +work
+tags-or     tags       work|personal
+tags-not    tags       -work+TODO="TODO"
+tags-prop   tags       CATEGORY="chores"
+tags-todo   tags-todo  +work|+home
+search      search     task

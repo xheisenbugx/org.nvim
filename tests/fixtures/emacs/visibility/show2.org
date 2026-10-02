@@ -1,0 +1,11 @@
+#+STARTUP: show2levels
+* A
+a body
+** B
+b body
+*** C
+c body
+**** C4
+x
+** D
+* E

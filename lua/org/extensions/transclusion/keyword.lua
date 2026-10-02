@@ -147,6 +147,7 @@ function M.set_level(line, level)
   local _, e = line:find("%[%[.-%]%]")
   local head, props = line:sub(1, e or 0), line:sub((e or 0) + 1)
   if props:find(":level *[1-9]?") then
+    -- lint: allow gsub: a level number
     return head .. props:gsub(":level *[1-9]?", ":level " .. level, 1)
   end
   return line .. " :level " .. level

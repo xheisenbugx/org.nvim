@@ -71,6 +71,7 @@ end
 --- The local file of a calendar: its `path`, or the cache file of its URL.
 function M.file_of(c)
   if c.path then
+    -- lint: allow expand: a configured calendar path or file
     return vim.fs.normalize(vim.fn.expand(c.path))
   end
   local url = url_of(c)
@@ -78,6 +79,7 @@ function M.file_of(c)
     return nil
   end
   local name = (c.name or "calendar"):gsub("[^%w_-]+", "_")
+  -- lint: allow expand: a configured calendar path or file
   local dir = vim.fs.normalize(vim.fn.expand(opts().cache_dir))
   return string.format("%s/%s-%s.ics", dir, name, utils().sha256(url):sub(1, 12))
 end
@@ -612,6 +614,7 @@ function M.import_occurrence(occ)
     utils().error("ics: set extensions.ics.import_file")
     return nil
   end
+  -- lint: allow expand: a configured calendar path or file
   file = vim.fn.expand(file)
   local u = utils()
   local buf = u.find_buffer(file) or u.load_buffer(file)
@@ -702,7 +705,9 @@ local function stop_timer()
 end
 
 function M.setup(o)
-  require("org.agenda.items").day_sources.ics = M.agenda_items
+  require("org.lazy").on_load("org.agenda.items", "ics", function(items)
+    items.day_sources.ics = M.agenda_items
+  end)
   M.clear_cache()
   M.fetch_errors = {}
   failed_at, warned = {}, {}
@@ -732,10 +737,11 @@ M.commands = {
 }
 
 function M.teardown()
-  local items = require("org.agenda.items")
-  if items.day_sources.ics == M.agenda_items then
-    items.day_sources.ics = nil
-  end
+  require("org.lazy").if_loaded("org.agenda.items", "ics", function(items)
+    if items.day_sources.ics == M.agenda_items then
+      items.day_sources.ics = nil
+    end
+  end)
   stop_timer()
   M.clear_cache()
 end

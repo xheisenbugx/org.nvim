@@ -1,0 +1,1788 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org10c0f82">1. How to use this file</a>
+<ul>
+<li><a href="#org3030266">1.1. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#orgd0ba423">2. Playground</a>
+<ul>
+<li><a href="#orgb4ec9e4">2.1. Office move&nbsp;&nbsp;&nbsp<span class="tag"><span class="work">work</span></span></a>
+<ul>
+<li><a href="#org8463113">2.1.1. <span class="todo TODO">TODO</span> Sign the new lease&nbsp;&nbsp;&nbsp<span class="tag"><span class="urgent">urgent</span></span></a></li>
+<li><a href="#org9627784">2.1.2. <span class="todo NEXT">NEXT</span> Book the movers&nbsp;&nbsp;&nbsp<span class="tag"><span class="phone">phone</span></span></a></li>
+<li><a href="#org2fc59bc">2.1.3. <span class="todo WAITING">WAITING</span> Quote from the cleaning company&nbsp;&nbsp;&nbsp<span class="tag"><span class="email">email</span></span></a></li>
+<li><a href="#org7ce5a9a">2.1.4. <span class="todo TODO">TODO</span> Pack the archive room</a></li>
+<li><a href="#orgc5d4884">2.1.5. <span class="done DONE">DONE</span> Choose the new office</a></li>
+<li><a href="#orge8718bb">2.1.6. Team meeting about the move&nbsp;&nbsp;&nbsp<span class="tag"><span class="meeting">meeting</span></span></a></li>
+</ul>
+</li>
+<li><a href="#orgbdb4163">2.2. Home&nbsp;&nbsp;&nbsp<span class="tag"><span class="home">home</span></span></a>
+<ul>
+<li><a href="#org215ba45">2.2.1. <span class="todo TODO">TODO</span> Fix the leaking tap&nbsp;&nbsp;&nbsp<span class="tag"><span class="urgent">urgent</span></span></a></li>
+<li><a href="#orgd82a681">2.2.2. <span class="todo TODO">TODO</span> Paint the fence</a></li>
+<li><a href="#org6f3b54d">2.2.3. <span class="todo TODO">TODO</span> Buy groceries&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></a></li>
+<li><a href="#orga368926">2.2.4. <span class="todo NEXT">NEXT</span> Call the plumber back&nbsp;&nbsp;&nbsp<span class="tag"><span class="phone">phone</span>&nbsp;<span class="urgent">urgent</span></span></a></li>
+<li><a href="#orge87d85b">2.2.5. <span class="done CANCELLED">CANCELLED</span> Repaint the garage</a></li>
+<li><a href="#org99371d7">2.2.6. <span class="done DONE">DONE</span> Renew the car insurance&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></a></li>
+</ul>
+</li>
+<li><a href="#org9a91767">2.3. Side projects</a>
+<ul>
+<li><a href="#org6852f3b">2.3.1. <span class="todo TODO">TODO</span> Write a blog post about sparse trees&nbsp;&nbsp;&nbsp<span class="tag"><span class="writing">writing</span></span></a></li>
+<li><a href="#org1183b91">2.3.2. <span class="todo TODO">TODO</span> Submit the conference talk&nbsp;&nbsp;&nbsp<span class="tag"><span class="writing">writing</span>&nbsp;<span class="urgent">urgent</span></span></a></li>
+<li><a href="#org1a9b2bc">2.3.3. Idea: a garden planner app&nbsp;&nbsp;&nbsp<span class="tag"><span class="idea">idea</span></span></a></li>
+<li><a href="#org3d780a4">2.3.4. <span class="todo WAITING">WAITING</span> Library book reservation&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#orgffe733b">3. Your first sparse tree: open TODO entries</a></li>
+<li><a href="#org38bae4b">4. Getting back: moving, unfolding and clearing</a>
+<ul>
+<li><a href="#org4f0e106">4.1. Jumping from match to match</a></li>
+<li><a href="#orgd2d6e17">4.2. Showing everything again</a></li>
+<li><a href="#org22e105b">4.3. Removing the highlights</a></li>
+</ul>
+</li>
+<li><a href="#org97668aa">5. Specific TODO keywords (T)</a></li>
+<li><a href="#orgd42c180">6. Regexp sparse trees (/ or r)</a></li>
+<li><a href="#orgc8c3ec6">7. Tags and property matches (m, M and C-c \)</a></li>
+<li><a href="#orgb72b707">8. Match syntax: tags</a>
+<ul>
+<li><a href="#org29e3bf9">8.1. Simple tags, AND, NOT</a></li>
+<li><a href="#orgde2857d">8.2. OR, and how it mixes with AND</a></li>
+<li><a href="#orge6bfee2">8.3. Inheritance</a></li>
+<li><a href="#org45cb940">8.4. Tag regexps</a></li>
+<li><a href="#org0c92d11">8.5. Tag groups</a></li>
+<li><a href="#orgd57504c">8.6. Gotcha: spaces end the match</a></li>
+</ul>
+</li>
+<li><a href="#orgd81a00d">9. Match syntax: the TODO part</a></li>
+<li><a href="#orgd5b1c41">10. Match syntax: properties</a>
+<ul>
+<li><a href="#orgcb89e30">10.1. Strings</a></li>
+<li><a href="#orgf7915eb">10.2. Numbers</a></li>
+<li><a href="#org99af24e">10.3. Regexps on property values</a></li>
+<li><a href="#org6d2fcfd">10.4. Special properties</a></li>
+</ul>
+</li>
+<li><a href="#org14f7a8f">11. Match syntax: dates</a>
+<ul>
+<li><a href="#org4dafb16">11.1. Absolute dates (always the same result)</a></li>
+<li><a href="#orgb6725e2">11.2. Relative dates</a></li>
+</ul>
+</li>
+<li><a href="#orgffc7ee1">12. Property value (p)</a></li>
+<li><a href="#org4ee7b52">13. Deadlines (d)</a></li>
+<li><a href="#orgae84143">14. Dates before, after and between (b, a, D)</a></li>
+<li><a href="#org74aee5d">15. More ways to get a sparse tree</a>
+<ul>
+<li><a href="#orgd279195">15.1. From a link</a></li>
+<li><a href="#orga5fd821">15.2. From an agenda custom command</a></li>
+<li><a href="#orgef0656a">15.3. Speed key</a></li>
+</ul>
+</li>
+<li><a href="#org538b2c8">16. Common mistakes</a></li>
+<li><a href="#org8457a29">17. Differences from Emacs</a></li>
+<li><a href="#org220c0d1">18. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org10c0f82" class="outline-2">
+<h2 id="org10c0f82"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+A <i>sparse tree</i> folds the buffer so that only the entries you are looking
+for stay visible, together with the headlines above them (their "context").
+The matches are highlighted and collected in the window's location list,
+so you can jump from one to the next. Nothing in the file changes: a
+sparse tree is only a way of looking at it.
+</p>
+
+<p>
+This file has two halves:
+</p>
+<ul class="org-ul">
+<li>the <a href="#orgd0ba423">Playground</a>, a small task list (an office move, a
+household, side projects) that every exercise searches, and</li>
+<li>one heading per kind of sparse tree and per part of the match syntax,
+each with examples, exercises (<b>Try:</b>) and the exact result (<b>Expect:</b>).</li>
+</ul>
+
+<p>
+Working through it:
+</p>
+<ul class="org-ul">
+<li>The file starts folded (<code>#+STARTUP: overview</code>). Put the cursor on a
+heading and press <code>&lt;Tab&gt;</code> to open it; <code>&lt;S-Tab&gt;</code> cycles the whole buffer.</li>
+<li><code>&lt;prefix&gt;</code> means <code>&lt;leader&gt;o</code> (the default prefix), so <code>&lt;prefix&gt;/</code> is
+<code>&lt;leader&gt;o/</code>. With <code>examples/minimal_init.lua</code> the leader is <code>&lt;Space&gt;</code>.</li>
+<li>Press <code>g?</code> at any time to list every keymap of the buffer.</li>
+<li>Sparse trees don't edit anything, but if you do change the Playground,
+<code>u</code> undoes and <code>git checkout examples/10-sparse-trees.org</code> restores it.
+The expected results below assume the Playground is unchanged.</li>
+<li>Coming from Emacs? <code>C-c /</code> and <code>C-c \</code> work too (<code>:h org-emacs-keys</code>).</li>
+</ul>
+
+<p>
+Start Neovim from the root of the repository with the bundled config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/10-sparse-trees.org
+</code></pre>
+</div>
+
+<p>
+<code>examples/minimal_init.lua</code> loads org.nvim from this checkout, sets
+<code>&lt;Space&gt;</code> as the leader, points the agenda at <code>examples/*.org</code> and sends
+captures to a scratch directory. Sparse trees only look at the current
+buffer, so none of that matters here except the leader key.
+</p>
+
+<p>
+Every sparse tree prints a message like <code>4 matches for +urgent</code>. That
+number is the easiest thing to check, so each <b>Expect:</b> gives it.
+</p>
+
+<p>
+Today is Mon 2026-09-28 in these examples. Only the deadline tree (<code>d</code>) and
+the relative dates (<code>&lt;today&gt;</code>, <code>&lt;+1w&gt;</code>) depend on the real date; their
+<b>Expect:</b> lines say so.
+</p>
+</div>
+<div id="outline-container-org3030266" class="outline-3">
+<h3 id="org3030266"><span class="section-number-3">1.1.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;/</code></td>
+<td class="org-left">sparse tree menu (Emacs <code>C-c /</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;/</code></td>
+<td class="org-left">the same menu, Emacs key</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;\</code></td>
+<td class="org-left">tags / property match tree, straight away</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>]l</code> <code>[l</code></td>
+<td class="org-left">next / previous match (<code>:lnext</code> <code>:lprev</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:lopen</code></td>
+<td class="org-left">list every match in the location list</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-c&gt;</code></td>
+<td class="org-left">remove the highlights (first press)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;/</code> then <code>c</code></td>
+<td class="org-left">remove the highlights</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;S-Tab&gt;</code>, <code>:Org show_all</code></td>
+<td class="org-left">unfold again</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;q</code></td>
+<td class="org-left">turn tag groups on / off in matches</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+In the menu of <code>&lt;prefix&gt;/</code>:
+</p>
+
+<dl class="org-dl">
+<dt><code>/</code> or <code>r</code></dt><dd>lines matching a (Vim) regexp</dd>
+<dt><code>t</code></dt><dd>open TODO entries (not done)</dd>
+<dt><code>T</code></dt><dd>entries with the TODO keyword(s) you type (<code>NEXT|WAITING</code>)</dd>
+<dt><code>m</code></dt><dd>entries selected by a tags / property match</dd>
+<dt><code>M</code></dt><dd>the same, open TODO entries only</dd>
+<dt><code>p</code></dt><dd>entries with a property value (<code>ASSIGNEE=Bob</code>)</dd>
+<dt><code>d</code></dt><dd>deadlines past due or inside their warning period</dd>
+<dt><code>b</code></dt><dd>entries with a date before a date</dd>
+<dt><code>a</code></dt><dd>entries with a date after a date</dd>
+<dt><code>D</code></dt><dd>entries with a date between two dates</dd>
+<dt><code>c</code></dt><dd>clear the highlights</dd>
+</dl>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd0ba423" class="outline-2">
+<h2 id="orgd0ba423"><span class="section-number-2">2.</span> Playground</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+This is the data the exercises search. Open it once with <code>&lt;Tab&gt;</code> (and
+<code>&lt;Tab&gt;</code> again for everything) to see what is there. Notice:
+</p>
+<ul class="org-ul">
+<li>the TODO keywords (<code>#+TODO: TODO NEXT WAITING | DONE CANCELLED</code>),</li>
+<li>the tags, some of them inherited from a parent headline,</li>
+<li>the <code>Effort</code>, <code>COST</code> and <code>ASSIGNEE</code> properties,</li>
+<li>the <code>CATEGORY</code> of each group, and</li>
+<li>the SCHEDULED / DEADLINE / CLOSED lines and plain timestamps.</li>
+</ul>
+
+<p>
+All the level-3 headlines of this file are here, so <code>LEVEL=3</code> finds
+exactly the tasks of the Playground.
+</p>
+</div>
+<div id="outline-container-orgb4ec9e4" class="outline-3">
+<h3 id="orgb4ec9e4"><span class="section-number-3">2.1.</span> Office move&nbsp;&nbsp;&nbsp<span class="tag"><span class="work">work</span></span></h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+All tasks of the office move inherit the <code>work</code> tag from this headline.
+</p>
+</div>
+<div id="outline-container-org8463113" class="outline-4">
+<h4 id="org8463113"><span class="section-number-4">2.1.1.</span> <span class="todo TODO">TODO</span> Sign the new lease&nbsp;&nbsp;&nbsp<span class="tag"><span class="urgent">urgent</span></span></h4>
+<div class="outline-text-4" id="text-2-1-1">
+<p>
+The landlord sends the Invoice for the deposit after the signature.
+</p>
+</div>
+</div>
+<div id="outline-container-org9627784" class="outline-4">
+<h4 id="org9627784"><span class="section-number-4">2.1.2.</span> <span class="todo NEXT">NEXT</span> Book the movers&nbsp;&nbsp;&nbsp<span class="tag"><span class="phone">phone</span></span></h4>
+<div class="outline-text-4" id="text-2-1-2">
+<p>
+Ask for an invoice with the VAT number on it.
+</p>
+</div>
+</div>
+<div id="outline-container-org2fc59bc" class="outline-4">
+<h4 id="org2fc59bc"><span class="section-number-4">2.1.3.</span> <span class="todo WAITING">WAITING</span> Quote from the cleaning company&nbsp;&nbsp;&nbsp<span class="tag"><span class="email">email</span></span></h4>
+<div class="outline-text-4" id="text-2-1-3">
+</div>
+</div>
+<div id="outline-container-org7ce5a9a" class="outline-4">
+<h4 id="org7ce5a9a"><span class="section-number-4">2.1.4.</span> <span class="todo TODO">TODO</span> Pack the archive room</h4>
+<div class="outline-text-4" id="text-2-1-4">
+</div>
+</div>
+<div id="outline-container-orgc5d4884" class="outline-4">
+<h4 id="orgc5d4884"><span class="section-number-4">2.1.5.</span> <span class="done DONE">DONE</span> Choose the new office</h4>
+<div class="outline-text-4" id="text-2-1-5">
+</div>
+</div>
+<div id="outline-container-orge8718bb" class="outline-4">
+<h4 id="orge8718bb"><span class="section-number-4">2.1.6.</span> Team meeting about the move&nbsp;&nbsp;&nbsp<span class="tag"><span class="meeting">meeting</span></span></h4>
+<div class="outline-text-4" id="text-2-1-6">
+<p>
+<span class="timestamp-wrapper"><span class="timestamp">&lt;2026-09-30 Wed 10:00-11:00&gt;</span></span>
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgbdb4163" class="outline-3">
+<h3 id="orgbdb4163"><span class="section-number-3">2.2.</span> Home&nbsp;&nbsp;&nbsp<span class="tag"><span class="home">home</span></span></h3>
+<div class="outline-text-3" id="text-2-2">
+</div>
+<div id="outline-container-org215ba45" class="outline-4">
+<h4 id="org215ba45"><span class="section-number-4">2.2.1.</span> <span class="todo TODO">TODO</span> Fix the leaking tap&nbsp;&nbsp;&nbsp<span class="tag"><span class="urgent">urgent</span></span></h4>
+<div class="outline-text-4" id="text-2-2-1">
+</div>
+</div>
+<div id="outline-container-orgd82a681" class="outline-4">
+<h4 id="orgd82a681"><span class="section-number-4">2.2.2.</span> <span class="todo TODO">TODO</span> Paint the fence</h4>
+<div class="outline-text-4" id="text-2-2-2">
+</div>
+</div>
+<div id="outline-container-org6f3b54d" class="outline-4">
+<h4 id="org6f3b54d"><span class="section-number-4">2.2.3.</span> <span class="todo TODO">TODO</span> Buy groceries&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></h4>
+<div class="outline-text-4" id="text-2-2-3">
+</div>
+</div>
+<div id="outline-container-orga368926" class="outline-4">
+<h4 id="orga368926"><span class="section-number-4">2.2.4.</span> <span class="todo NEXT">NEXT</span> Call the plumber back&nbsp;&nbsp;&nbsp<span class="tag"><span class="phone">phone</span>&nbsp;<span class="urgent">urgent</span></span></h4>
+<div class="outline-text-4" id="text-2-2-4">
+<p>
+Pay the plumber's invoice in cash.
+</p>
+</div>
+</div>
+<div id="outline-container-orge87d85b" class="outline-4">
+<h4 id="orge87d85b"><span class="section-number-4">2.2.5.</span> <span class="done CANCELLED">CANCELLED</span> Repaint the garage</h4>
+<div class="outline-text-4" id="text-2-2-5">
+</div>
+</div>
+<div id="outline-container-org99371d7" class="outline-4">
+<h4 id="org99371d7"><span class="section-number-4">2.2.6.</span> <span class="done DONE">DONE</span> Renew the car insurance&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></h4>
+<div class="outline-text-4" id="text-2-2-6">
+</div>
+</div>
+</div>
+<div id="outline-container-org9a91767" class="outline-3">
+<h3 id="org9a91767"><span class="section-number-3">2.3.</span> Side projects</h3>
+<div class="outline-text-3" id="text-2-3">
+</div>
+<div id="outline-container-org6852f3b" class="outline-4">
+<h4 id="org6852f3b"><span class="section-number-4">2.3.1.</span> <span class="todo TODO">TODO</span> Write a blog post about sparse trees&nbsp;&nbsp;&nbsp<span class="tag"><span class="writing">writing</span></span></h4>
+<div class="outline-text-4" id="text-2-3-1">
+</div>
+</div>
+<div id="outline-container-org1183b91" class="outline-4">
+<h4 id="org1183b91"><span class="section-number-4">2.3.2.</span> <span class="todo TODO">TODO</span> Submit the conference talk&nbsp;&nbsp;&nbsp<span class="tag"><span class="writing">writing</span>&nbsp;<span class="urgent">urgent</span></span></h4>
+<div class="outline-text-4" id="text-2-3-2">
+</div>
+</div>
+<div id="outline-container-org1a9b2bc" class="outline-4">
+<h4 id="org1a9b2bc"><span class="section-number-4">2.3.3.</span> Idea: a garden planner app&nbsp;&nbsp;&nbsp<span class="tag"><span class="idea">idea</span></span></h4>
+<div class="outline-text-4" id="text-2-3-3">
+<p>
+<span class="timestamp-wrapper"><span class="timestamp">[2026-09-15 Tue]</span></span> Noted while weeding the garden.
+</p>
+</div>
+</div>
+<div id="outline-container-org3d780a4" class="outline-4">
+<h4 id="org3d780a4"><span class="section-number-4">2.3.4.</span> <span class="todo WAITING">WAITING</span> Library book reservation&nbsp;&nbsp;&nbsp<span class="tag"><span class="errand">errand</span></span></h4>
+<div class="outline-text-4" id="text-2-3-4">
+</div>
+<ol class="org-ol">
+<li><a id="orgc4eb537"></a>Pick up the book at the front desk<br />
+<div class="outline-text-5" id="text-2-3-4-1">
+</div>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div id="outline-container-orgffe733b" class="outline-2">
+<h2 id="orgffe733b"><span class="section-number-2">3.</span> Your first sparse tree: open TODO entries</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+<code>&lt;prefix&gt;/</code> opens a small menu; each key builds a different sparse tree.
+The simplest one is <code>t</code>: every headline with a TODO keyword that is not
+done (<code>TODO</code>, <code>NEXT</code> and <code>WAITING</code> here; <code>DONE</code> and <code>CANCELLED</code> are done
+states because they come after the <code>|</code> in <code>#+TODO:</code>).
+</p>
+
+<p>
+What happens:
+</p>
+<ol class="org-ol">
+<li>the whole buffer is folded to its top-level headlines (OVERVIEW),</li>
+<li>each matching headline is shown with all its ancestors,</li>
+<li>the matching headlines are highlighted (the <code>Search</code> colour), and</li>
+<li>the location list of the window is filled with the matches, and the
+cursor goes to the first one.</li>
+</ol>
+
+<p>
+<b>Try:</b> press <code>&lt;prefix&gt;/</code> then <code>t</code>.
+</p>
+
+<p>
+<b>Expect:</b> the message <code>11 matches for TODO entries</code>. Under "Playground"
+you see the three groups and, under them, these headlines highlighted:
+</p>
+<ul class="org-ul">
+<li>Office move: Sign the new lease, Book the movers, Quote from the cleaning
+company, Pack the archive room</li>
+<li>Home: Fix the leaking tap, Paint the fence, Buy groceries, Call the
+plumber back</li>
+<li>Side projects: Write a blog post&hellip;, Submit the conference talk, Library
+book reservation</li>
+</ul>
+<p>
+"Choose the new office" (DONE), "Repaint the garage" (CANCELLED), "Team
+meeting about the move" and "Idea: a garden planner app" (no keyword) are
+hidden. The other top-level headings of this file stay folded.
+</p>
+</div>
+</div>
+<div id="outline-container-org38bae4b" class="outline-2">
+<h2 id="org38bae4b"><span class="section-number-2">4.</span> Getting back: moving, unfolding and clearing</h2>
+<div class="outline-text-2" id="text-4">
+</div>
+<div id="outline-container-org4f0e106" class="outline-3">
+<h3 id="org4f0e106"><span class="section-number-3">4.1.</span> Jumping from match to match</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+The matches are in the <i>location list</i> of the window, so the usual Vim
+commands move between them:
+</p>
+<ul class="org-ul">
+<li><code>]l</code> / <code>[l</code> (Neovim 0.11+ default mappings) or <code>:lnext</code> / <code>:lprev</code>,</li>
+<li><code>:lfirst</code> / <code>:llast</code>,</li>
+<li><code>:lopen</code> shows the list (its title is <code>Sparse tree: ...</code>); <code>&lt;CR&gt;</code> on a
+line jumps there, <code>:lclose</code> closes it.</li>
+</ul>
+
+<p>
+<b>Try:</b> after the TODO tree above, press <code>]l</code> three times, then <code>[l</code> once.
+</p>
+
+<p>
+<b>Expect:</b> the cursor goes Sign the new lease → Book the movers → Quote from
+the cleaning company → Pack the archive room, then back to Quote from the
+cleaning company. <code>:lopen</code> lists 11 lines.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd2d6e17" class="outline-3">
+<h3 id="orgd2d6e17"><span class="section-number-3">4.2.</span> Showing everything again</h3>
+<div class="outline-text-3" id="text-4-2">
+<p>
+A sparse tree only changes the folds. Any visibility command undoes it:
+</p>
+<ul class="org-ul">
+<li><code>&lt;S-Tab&gt;</code> cycles the whole buffer (OVERVIEW → CONTENTS → SHOW ALL),</li>
+<li><code>:Org show_all</code> shows everything, <code>:Org overview</code> folds everything,</li>
+<li><code>&lt;Tab&gt;</code> on a folded headline opens just that one.</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org22e105b" class="outline-3">
+<h3 id="org22e105b"><span class="section-number-3">4.3.</span> Removing the highlights</h3>
+<div class="outline-text-3" id="text-4-3">
+<p>
+The highlights stay until one of these:
+</p>
+<ul class="org-ul">
+<li>the first <code>&lt;C-c&gt;&lt;C-c&gt;</code> in the buffer only removes them (like Emacs, it
+does nothing else that time),</li>
+<li><code>&lt;prefix&gt;/</code> then <code>c</code> removes them and empties the location list,</li>
+<li>any change to the buffer removes them.</li>
+</ul>
+
+<p>
+<b>Try:</b> build the TODO tree again (<code>&lt;prefix&gt;/</code> <code>t</code>), then press <code>&lt;C-c&gt;&lt;C-c&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the highlights disappear at once; the folds stay as they are.
+Press <code>&lt;prefix&gt;/</code> <code>t</code> again and then <code>&lt;prefix&gt;/</code> <code>c</code>: same result, and
+<code>:lopen</code> now shows an empty list.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org97668aa" class="outline-2">
+<h2 id="org97668aa"><span class="section-number-2">5.</span> Specific TODO keywords (T)</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+<code>T</code> asks for one or more keywords, with completion on the keywords of the
+buffer. Separate several keywords with <code>|</code> (or spaces). Done keywords are
+allowed here, unlike with <code>t</code>.
+</p>
+
+<dl class="org-dl">
+<dt><code>NEXT</code></dt><dd>2 matches: Book the movers, Call the plumber back</dd>
+<dt><code>NEXT|WAITING</code></dt><dd>4 matches: the two above, Quote from the cleaning
+company, Library book reservation</dd>
+<dt><code>DONE CANCELLED</code></dt><dd>3 matches: Choose the new office, Repaint the
+garage, Renew the car insurance</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>T</code>, type <code>NEXT|WAITING</code> and press <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches for NEXT|WAITING</code>: Book the movers, Quote from the
+cleaning company, Call the plumber back and Library book reservation.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>T</code> and type <code>DONE</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches for DONE</code>: Choose the new office and Renew the car
+insurance. The keyword is compared exactly: <code>done</code> finds nothing.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd42c180" class="outline-2">
+<h2 id="orgd42c180"><span class="section-number-2">6.</span> Regexp sparse trees (/ or r)</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+<code>/</code> (or <code>r</code>) asks for a regular expression and highlights every <i>line</i> that
+matches, anywhere in the buffer: headlines, body text, drawers and these
+explanations too. Each match shows the lines of its entry and the
+headlines above it. Only the matching part of the line is highlighted.
+</p>
+
+<p>
+In the <code>&lt;prefix&gt;/</code> menu the regexp is a <b>Vim</b> regexp (<code>:h pattern</code>), and
+it is case-sensitive: add <code>\c</code> to ignore case. (Emacs uses an Emacs regexp
+and ignores case; see <a href="#org8457a29">Differences from Emacs</a>.)
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Pattern</th>
+<th scope="col" class="org-left">Matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>[i]nvoice</code></td>
+<td class="org-left">2 lines: Book the movers, Call the plumber back</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>\c[i]nvoice</code></td>
+<td class="org-left">3 lines: the two above and Sign the new lease</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>[I]nvoice</code></td>
+<td class="org-left">1 line: the body of Sign the new lease</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>^\*\+ [N]EXT</code></td>
+<td class="org-left">2 headlines in the NEXT state</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:[A]SSIGNEE: *Bob</code></td>
+<td class="org-left">2 property lines: Book the movers, Pack &hellip;</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SCHEDULED: &lt;2026-1[0]</code></td>
+<td class="org-left">3 planning lines: scheduled in October</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>/</code>, type <code>[i]nvoice</code> and press <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches for /[i]nvoice/</code>. The body lines of "Book the movers"
+and "Call the plumber back" are visible under their headlines, with the
+word highlighted. The capitalised word in the body of "Sign the new lease"
+is not a match, because the pattern is case-sensitive.
+</p>
+
+<p>
+<b>Try:</b> the same with <code>\c[i]nvoice</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>3 matches for /\c[i]nvoice/</code>: the two lines above plus the body
+line of "Sign the new lease".
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>r</code> and type <code>SCHEDULED: &lt;2026-1[0]</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>3 matches</code>: the SCHEDULED lines of Pack the archive room,
+Paint the fence and Library book reservation. Press <code>]l</code> to walk through
+them; <code>:lopen</code> lists the three lines.
+</p>
+</div>
+</div>
+<div id="outline-container-orgc8c3ec6" class="outline-2">
+<h2 id="orgc8c3ec6"><span class="section-number-2">7.</span> Tags and property matches (m, M and C-c \)</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+<code>m</code> asks for a <i>match string</i> (a tags / property / TODO query, the same
+syntax as the agenda's <code>m</code> view and clock tables) and shows every headline
+that it selects. <code>M</code> does the same but keeps only open TODO entries.
+<code>&lt;C-c&gt;\</code> skips the menu and asks for the match directly (Emacs
+<code>org-match-sparse-tree</code>). To keep only open TODO entries there, end the
+match with <code>/!</code> (see <a href="#orgd81a00d">the TODO part</a>).
+</p>
+
+<p>
+Headlines are matched, not lines: the whole headline is highlighted.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Keys</th>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-left">Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;/</code> <code>m</code></td>
+<td class="org-left"><code>+urgent</code></td>
+<td class="org-left">4 matches</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;/</code> <code>M</code></td>
+<td class="org-left"><code>+work</code></td>
+<td class="org-left">4 matches (only the open TODO ones)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;\</code></td>
+<td class="org-left"><code>+work</code></td>
+<td class="org-left">7 matches (Office move and its 6 tasks)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;\</code></td>
+<td class="org-left"><code>+work/!</code></td>
+<td class="org-left">4 matches, like <code>M</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>m</code>, type <code>+urgent</code> and press <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches for +urgent</code>: Sign the new lease, Fix the leaking
+tap, Call the plumber back and Submit the conference talk.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> and type <code>+work</code>, then <code>&lt;C-c&gt;\</code> again with <code>+work/!</code>.
+</p>
+
+<p>
+<b>Expect:</b> first <code>7 matches for +work</code> (Office move and every task under
+it, because tags are inherited), then <code>4 matches</code>: Sign the new lease,
+Book the movers, Quote from the cleaning company and Pack the archive
+room. The DONE task and the meeting (no keyword) are left out.
+</p>
+
+<p>
+The next sections go through the match syntax piece by piece. Use
+<code>&lt;C-c&gt;\</code> (or <code>&lt;prefix&gt;/</code> <code>m</code>) for every example.
+</p>
+</div>
+</div>
+<div id="outline-container-orgb72b707" class="outline-2">
+<h2 id="orgb72b707"><span class="section-number-2">8.</span> Match syntax: tags</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+A match string is a list of <i>terms</i>. For tags:
+</p>
+
+<dl class="org-dl">
+<dt><code>work</code></dt><dd>tagged <code>work</code> (the <code>+</code> is optional)</dd>
+<dt><code>+work</code></dt><dd>tagged <code>work</code></dd>
+<dt><code>-work</code></dt><dd>not tagged <code>work</code></dd>
+<dt><code>+a+b</code></dt><dd>tagged <code>a</code> AND <code>b</code></dd>
+<dt><code>a:b</code> and <code>a&amp;b</code></dt><dd>the same: <code>:</code> and <code>&amp;</code> also mean AND</dd>
+<dt><code>a|b</code></dt><dd>tagged <code>a</code> OR <code>b</code></dd>
+<dt><code>{regexp}</code></dt><dd>a tag matching an (Emacs) regexp</dd>
+</dl>
+
+<p>
+Rules worth remembering:
+</p>
+<ul class="org-ul">
+<li>AND binds tighter than OR: <code>a+b|c</code> is "(a and b) or c". There are no
+parentheses.</li>
+<li>Tags are inherited: a child has the tags of its parents (and of
+<code>#+FILETAGS:</code>). <code>tags_exclude_from_inheritance</code> and
+<code>use_tag_inheritance</code> change that.</li>
+<li>Tag names are compared exactly: <code>Work</code> does not find <code>work</code>. Regexps in
+<code>{...}</code> ignore case.</li>
+<li>A term cannot contain spaces. Text that does not start a new term ends
+the match silently, as in Emacs: <code>work -urgent</code> is the same as <code>work</code>.</li>
+</ul>
+</div>
+<div id="outline-container-org29e3bf9" class="outline-3">
+<h3 id="org29e3bf9"><span class="section-number-3">8.1.</span> Simple tags, AND, NOT</h3>
+<div class="outline-text-3" id="text-8-1">
+<dl class="org-dl">
+<dt><code>+home</code></dt><dd>7: Home and its 6 tasks</dd>
+<dt><code>+urgent+home</code></dt><dd>2: Fix the leaking tap, Call the plumber back</dd>
+<dt><code>home:urgent</code></dt><dd>2: the same</dd>
+<dt><code>home&amp;urgent</code></dt><dd>2: the same</dd>
+<dt><code>+work-urgent</code></dt><dd>6: Office move and its tasks, except the lease</dd>
+<dt><code>+urgent-work</code></dt><dd>3: Fix the leaking tap, Call the plumber back, Submit
+the conference talk</dd>
+<dt><code>+phone</code></dt><dd>2: Book the movers, Call the plumber back</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>+work-urgent</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>6 matches for +work-urgent</code>: Office move, Book the movers, Quote
+from the cleaning company, Pack the archive room, Choose the new office
+and Team meeting about the move. "Sign the new lease" is hidden.
+</p>
+</div>
+</div>
+<div id="outline-container-orgde2857d" class="outline-3">
+<h3 id="orgde2857d"><span class="section-number-3">8.2.</span> OR, and how it mixes with AND</h3>
+<div class="outline-text-3" id="text-8-2">
+<dl class="org-dl">
+<dt><code>work|home</code></dt><dd>14: both groups and all their tasks</dd>
+<dt><code>phone|email</code></dt><dd>3: Book the movers, Quote from the cleaning company,
+Call the plumber back</dd>
+<dt><code>home+urgent|writing</code></dt><dd>4: Fix the leaking tap, Call the plumber back,
+the blog post, the conference talk</dd>
+<dt><code>+work+urgent|+home+errand</code></dt><dd>3: Sign the new lease, Buy groceries,
+Renew the car insurance</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>home+urgent|writing</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches</code>. Read it as "(home AND urgent) OR writing": Fix the
+leaking tap and Call the plumber back (home and urgent), Write a blog post
+about sparse trees and Submit the conference talk (writing).
+</p>
+</div>
+</div>
+<div id="outline-container-orge6bfee2" class="outline-3">
+<h3 id="orge6bfee2"><span class="section-number-3">8.3.</span> Inheritance</h3>
+<div class="outline-text-3" id="text-8-3">
+<p>
+"Pick up the book at the front desk" has no tags of its own, but its
+parent "Library book reservation" is tagged <code>errand</code>.
+</p>
+
+<dl class="org-dl">
+<dt><code>+errand</code></dt><dd>4: Buy groceries, Renew the car insurance, Library book
+reservation, Pick up the book at the front desk</dd>
+<dt><code>+work</code></dt><dd>7: Office move and its 6 tasks, none of which has its own tag</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>+errand</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches</code>, the level-4 "Pick up the book at the front desk"
+among them.
+</p>
+</div>
+</div>
+<div id="outline-container-org45cb940" class="outline-3">
+<h3 id="org45cb940"><span class="section-number-3">8.4.</span> Tag regexps</h3>
+<div class="outline-text-3" id="text-8-4">
+<p>
+<code>{...}</code> holds an Emacs regexp that is compared with each tag (ignoring
+case). It can be negated with <code>-</code> like a tag.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>{^w}</code></td>
+<td class="org-right">9</td>
+<td class="org-left">tags starting with w: work (7) and writing (2)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{ing$}</code></td>
+<td class="org-right">3</td>
+<td class="org-left">writing (2) and meeting: both end in "ing"</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>{^e}</code></td>
+<td class="org-right">5</td>
+<td class="org-left">errand (4) and email (1)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>+home-{^e}</code></td>
+<td class="org-right">5</td>
+<td class="org-left">Home, Fix&hellip;, Paint&hellip;, Call&hellip;, Repaint&hellip;</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>{^w}</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>9 matches</code>: Office move and its six tasks, plus Write a blog post
+about sparse trees and Submit the conference talk.
+</p>
+</div>
+</div>
+<div id="outline-container-org0c92d11" class="outline-3">
+<h3 id="org0c92d11"><span class="section-number-3">8.5.</span> Tag groups</h3>
+<div class="outline-text-3" id="text-8-5">
+<p>
+The second <code>#+TAGS:</code> line of this file defines a <i>group tag</i>:
+<code>[ Office : meeting email ]</code>. With <code>group_tags</code> on (the default), the
+match <code>Office</code> finds entries tagged <code>Office</code>, <code>meeting</code> or <code>email</code>, and
+<code>-Office</code> excludes all three. <code>&lt;C-c&gt;&lt;C-x&gt;q</code> turns groups off and on.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>Office</code></td>
+<td class="org-right">2</td>
+<td class="org-left">Quote&hellip;, Team meeting about the move</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>+work-Office</code></td>
+<td class="org-right">5</td>
+<td class="org-left">Office move, Sign&hellip;, Book&hellip;, Pack&hellip;, Choose&hellip;</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>Office</code>. Then press <code>&lt;C-c&gt;&lt;C-x&gt;q</code> and run the same
+match again. Press <code>&lt;C-c&gt;&lt;C-x&gt;q</code> once more to turn groups back on.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code> with groups on; <code>0 matches for Office</code> with groups
+off (no headline has the tag <code>Office</code> itself).
+</p>
+</div>
+</div>
+<div id="outline-container-orgd57504c" class="outline-3">
+<h3 id="orgd57504c"><span class="section-number-3">8.6.</span> Gotcha: spaces end the match</h3>
+<div class="outline-text-3" id="text-8-6">
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>work -urgent</code> (with a space).
+</p>
+
+<p>
+<b>Expect:</b> <code>7 matches</code>, exactly like <code>work</code>: the space ends the match and
+<code>-urgent</code> is ignored without an error. Type <code>work-urgent</code> instead.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd81a00d" class="outline-2">
+<h2 id="orgd81a00d"><span class="section-number-2">9.</span> Match syntax: the TODO part</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+Everything after the last <code>/</code> is matched against the TODO keyword.
+</p>
+
+<dl class="org-dl">
+<dt><code>/NEXT</code></dt><dd>keyword is NEXT</dd>
+<dt><code>/NEXT|WAITING</code></dt><dd>NEXT or WAITING</dd>
+<dt><code>/-DONE</code></dt><dd>keyword is not DONE (entries without a keyword match too)</dd>
+<dt><code>/!</code></dt><dd>only open TODO entries (a not-done keyword)</dd>
+<dt><code>/!-WAITING</code></dt><dd>open TODO entries, except WAITING</dd>
+<dt><code>/{^W}</code></dt><dd>a keyword matching an Emacs regexp</dd>
+<dt><code>TAGS/TODO-PART</code></dt><dd>both parts must match</dd>
+</dl>
+
+<p>
+Examples (the number is the match count):
+</p>
+<dl class="org-dl">
+<dt><code>/NEXT</code></dt><dd>2: Book the movers, Call the plumber back</dd>
+<dt><code>/NEXT|WAITING</code></dt><dd>4: the two above, Quote&hellip;, Library book reservation</dd>
+<dt><code>/DONE|CANCELLED</code></dt><dd>3: Choose&hellip;, Repaint&hellip;, Renew&hellip;</dd>
+<dt><code>/!</code></dt><dd>11: the same as <code>&lt;prefix&gt;/</code> <code>t</code></dd>
+<dt><code>/!-WAITING</code></dt><dd>9: the 11 open entries minus the 2 WAITING ones</dd>
+<dt><code>/{^W}</code></dt><dd>2: Quote&hellip;, Library book reservation</dd>
+<dt><code>+home/!</code></dt><dd>4: Fix&hellip;, Paint&hellip;, Buy groceries, Call&hellip;</dd>
+<dt><code>+work/-DONE</code></dt><dd>6: the Office move group, minus Choose the new office</dd>
+<dt><code>+urgent/TODO</code></dt><dd>3: Sign&hellip;, Fix&hellip;, Submit the conference talk</dd>
+<dt><code>-home/!</code></dt><dd>7: the open entries outside Home</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>+home/!</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches for +home/!</code>: Fix the leaking tap, Paint the fence,
+Buy groceries and Call the plumber back. The DONE and CANCELLED tasks and
+the Home headline itself (no keyword) are not shown.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>+work/-DONE</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>6 matches</code>: Office move, Sign the new lease, Book the movers,
+Quote from the cleaning company, Pack the archive room and Team meeting
+about the move. <code>-DONE</code> keeps headlines without any keyword; use <code>/!</code> when
+you only want open tasks.
+</p>
+</div>
+</div>
+<div id="outline-container-orgd5b1c41" class="outline-2">
+<h2 id="orgd5b1c41"><span class="section-number-2">10.</span> Match syntax: properties</h2>
+<div class="outline-text-2" id="text-10">
+<p>
+A term can also compare a property: <code>NAME OPERATOR VALUE</code>.
+</p>
+
+<p>
+Operators: <code>=</code> (or <code>==</code>), <code>&lt;&gt;</code> (or <code>!=</code> or <code>/=</code>), <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>.
+The value decides the kind of comparison:
+</p>
+<ul class="org-ul">
+<li><code>"text"</code> in double quotes: a string comparison,</li>
+<li>a number (<code>100</code>, <code>2.5</code>): a numeric comparison,</li>
+<li><code>{regexp}</code>: an Emacs regexp, ignoring case (<code>&lt;&gt;</code> means "does not match"),</li>
+<li><code>"[2026-10-01 Thu]"</code>, <code>"&lt;today&gt;"</code> &hellip;: a date comparison (next section).</li>
+</ul>
+
+<p>
+A missing property counts as the empty string <code>""</code> in string comparisons
+and as <code>0</code> in numeric ones. Add <code>*</code> after the operator (<code>&lt;*</code>, <code>&gt;=*</code>,
+<code>&lt;&gt;*</code>, &hellip;) to match only entries that have the property.
+</p>
+
+<p>
+Properties are not inherited in matches unless <code>use_property_inheritance</code>
+says so (it is <code>false</code> by default). <code>CATEGORY</code> is special: it always comes
+from the nearest <code>:CATEGORY:</code> above, or from <code>#+CATEGORY:</code>.
+</p>
+</div>
+<div id="outline-container-orgcb89e30" class="outline-3">
+<h3 id="orgcb89e30"><span class="section-number-3">10.1.</span> Strings</h3>
+<div class="outline-text-3" id="text-10-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>ASSIGNEE</code>"Bob"=</td>
+<td class="org-right">2</td>
+<td class="org-left">Book the movers, Pack the archive room</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ASSIGNEE</code>"bob"=</td>
+<td class="org-right">0</td>
+<td class="org-left">strings are compared exactly</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ASSIGNEE&lt;&gt;*"Bob"</code></td>
+<td class="org-right">3</td>
+<td class="org-left">Sign&hellip;, Quote&hellip;, Paint the fence</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>Effort</code>"1:00"=</td>
+<td class="org-right">1</td>
+<td class="org-left">Sign the new lease</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>+home+ASSIGNEE</code>"Alice"=</td>
+<td class="org-right">1</td>
+<td class="org-left">Paint the fence</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>ASSIGNEE</code>"Bob"<code>, then with =ASSIGNEE&lt;&gt;*"Bob"</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code>, then <code>3 matches</code>: Sign the new lease (Alice), Quote
+from the cleaning company (Carol) and Paint the fence (Alice). Without the
+star (<code>ASSIGNEE&lt;&gt;"Bob"</code>) every headline without an ASSIGNEE would match
+too, the headings of this tutorial included.
+</p>
+</div>
+</div>
+<div id="outline-container-orgf7915eb" class="outline-3">
+<h3 id="orgf7915eb"><span class="section-number-3">10.2.</span> Numbers</h3>
+<div class="outline-text-3" id="text-10-2">
+<p>
+Numbers are read like Emacs's <code>string-to-number</code>: the leading number of
+the value, so <code>"1:30"</code> is <code>1</code> and <code>"0:45"</code> is <code>0</code>. Use them for plain
+numbers such as <code>COST</code>; for efforts, see the strings above or compare
+whole hours.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>COST&gt;100</code></td>
+<td class="org-right">4</td>
+<td class="org-left">Sign (1200), Book (450), Paint (150), Renew (640)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>COST&gt;=*500</code></td>
+<td class="org-right">2</td>
+<td class="org-left">Sign the new lease, Renew the car insurance</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>COST&lt;=*100</code></td>
+<td class="org-right">1</td>
+<td class="org-left">Fix the leaking tap (80)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>COST&gt;100+home</code></td>
+<td class="org-right">2</td>
+<td class="org-left">Paint the fence, Renew the car insurance</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>Effort&gt;=*2</code></td>
+<td class="org-right">3</td>
+<td class="org-left">Pack&hellip; (4:00), Paint&hellip; (5:00), Write a blog&hellip; (2:00)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>Effort&lt;*1</code></td>
+<td class="org-right">3</td>
+<td class="org-left">Book&hellip; (0:30), Quote&hellip; (0:15), Fix&hellip; (0:45)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>COST&gt;=*500</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code>: Sign the new lease and Renew the car insurance.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>COST&lt;=100</code> (no star).
+</p>
+
+<p>
+<b>Expect:</b> many more matches than you might think: Fix the leaking tap, and
+every headline without a COST (it counts as 0), the headings of this
+tutorial included. Now try <code>COST&lt;=*100</code>: <code>1 match</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org99af24e" class="outline-3">
+<h3 id="org99af24e"><span class="section-number-3">10.3.</span> Regexps on property values</h3>
+<div class="outline-text-3" id="text-10-3">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>ASSIGNEE={^[ab]}</code></td>
+<td class="org-right">4</td>
+<td class="org-left">Alice (2) and Bob (2): regexps ignore case</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ASSIGNEE={o}</code></td>
+<td class="org-right">3</td>
+<td class="org-left">Bob (2) and Carol</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ASSIGNEE&lt;&gt;{^b}+Effort&gt;=*1</code></td>
+<td class="org-right">3</td>
+<td class="org-left">Sign&hellip;, Paint&hellip;, Write a blog&hellip; (no ASSIGNEE)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>ASSIGNEE={^[ab]}</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>4 matches</code>: Sign the new lease, Book the movers, Pack the
+archive room and Paint the fence.
+</p>
+</div>
+</div>
+<div id="outline-container-org6d2fcfd" class="outline-3">
+<h3 id="org6d2fcfd"><span class="section-number-3">10.4.</span> Special properties</h3>
+<div class="outline-text-3" id="text-10-4">
+<p>
+Some property names are computed from the headline:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Name</th>
+<th scope="col" class="org-left">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>LEVEL</code></td>
+<td class="org-left">the number of stars</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>TODO</code></td>
+<td class="org-left">the TODO keyword</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>PRIORITY</code></td>
+<td class="org-left">the priority letter; <code>B</code> when there is no cookie</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>CATEGORY</code></td>
+<td class="org-left">the category (inherited, see above)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ITEM</code></td>
+<td class="org-left">the headline text, without stars, keyword and tags</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>TAGS</code> <code>ALLTAGS</code></td>
+<td class="org-left">own tags / all tags, as <code>:a:b:</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SCHEDULED</code> <code>DEADLINE</code> <code>CLOSED</code></td>
+<td class="org-left">the planning dates</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>TIMESTAMP</code> <code>TIMESTAMP_IA</code></td>
+<td class="org-left">the first active / inactive timestamp</td>
+</tr>
+</tbody>
+</table>
+
+<dl class="org-dl">
+<dt><code>LEVEL=3</code></dt><dd>16: every task of the Playground</dd>
+<dt><code>LEVEL&gt;3</code></dt><dd>1: Pick up the book at the front desk</dd>
+<dt><code>LEVEL=2+work</code></dt><dd>1: Office move</dd>
+<dt><code>TODO</code>"NEXT"=</dt><dd>2: Book the movers, Call the plumber back</dd>
+<dt><code>PRIORITY</code>"A"=</dt><dd>1: Sign the new lease</dd>
+<dt><code>PRIORITY&lt;"C"+LEVEL=3</code></dt><dd>15: every task but Paint the fence (<code>[#C]</code>):
+a task without a cookie has priority B</dd>
+<dt><code>CATEGORY</code>"household"=</dt><dd>7: Home and its 6 tasks</dd>
+<dt><code>CATEGORY</code>"hobby"/!=</dt><dd>3: the blog post, the conference talk, the
+library book</dd>
+<dt><code>ITEM={lease\|plumber}</code></dt><dd>2: Sign the new lease, Call the plumber back
+(<code>\|</code> is "or" in an Emacs regexp)</dd>
+<dt><code>ALLTAGS={:phone:}</code></dt><dd>2: Book the movers, Call the plumber back</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>PRIORITY</code>"A"<code>, then =LEVEL&gt;3</code>, then
+<code>CATEGORY</code>"hobby"/!=.
+</p>
+
+<p>
+<b>Expect:</b> <code>1 match</code> (Sign the new lease), <code>1 match</code> (Pick up the book at
+the front desk), <code>3 matches</code> (Write a blog post about sparse trees, Submit
+the conference talk, Library book reservation).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org14f7a8f" class="outline-2">
+<h2 id="org14f7a8f"><span class="section-number-2">11.</span> Match syntax: dates</h2>
+<div class="outline-text-2" id="text-11">
+<p>
+Put a date in double quotes, inside angle or square brackets, and the
+property is compared as a date. Works with <code>SCHEDULED</code>, <code>DEADLINE</code>,
+<code>CLOSED</code>, <code>TIMESTAMP</code> (the first active timestamp of the entry),
+<code>TIMESTAMP_IA</code> (the first inactive one) and any property holding a
+timestamp. An entry without the date never matches.
+</p>
+
+<p>
+Angle brackets work as well as square ones (the Emacs manual uses angle
+brackets, like <code>"&lt;today&gt;"</code> below). The examples use square
+brackets: written in this file, an angle-bracket date would itself be an
+active timestamp of the explanation headings, and date searches would find
+them.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Date value</th>
+<th scope="col" class="org-left">Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>"[2026-10-01 Thu]"</code></td>
+<td class="org-left">that day at 00:00</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>"[2026-10-01 Thu 14:00]"</code></td>
+<td class="org-left">that day at 14:00</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>"&lt;today&gt;"</code></td>
+<td class="org-left">today at 00:00</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>"&lt;tomorrow&gt;"</code></td>
+<td class="org-left">tomorrow; <code>"&lt;yesterday&gt;"</code> also works</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>"&lt;now&gt;"</code></td>
+<td class="org-left">now, with the time</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>"&lt;+2d&gt;"</code> <code>"&lt;-1w&gt;"</code></td>
+<td class="org-left">today plus / minus days, weeks, months (m), years (y)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="outline-container-org4dafb16" class="outline-3">
+<h3 id="org4dafb16"><span class="section-number-3">11.1.</span> Absolute dates (always the same result)</h3>
+<div class="outline-text-3" id="text-11-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>SCHEDULED&lt;"[2026-10-01 Thu]"</code></td>
+<td class="org-right">2</td>
+<td class="org-left">Book the movers, Buy groceries</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SCHEDULED&gt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-10-05 Mon]</span></span>"=</td>
+<td class="org-right">3</td>
+<td class="org-left">Pack&hellip;, Paint&hellip;, Library book reservation</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>DEADLINE&lt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-10-02 Fri]</span></span>"=</td>
+<td class="org-right">4</td>
+<td class="org-left">Sign&hellip;, Choose&hellip;, Fix&hellip;, Renew&hellip;</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>DEADLINE&lt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-10-02 Fri]</span></span>"/!=</td>
+<td class="org-right">2</td>
+<td class="org-left">Sign the new lease, Fix the leaking tap</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>CLOSED&gt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-09-15 Tue]</span></span>"=</td>
+<td class="org-right">2</td>
+<td class="org-left">Choose the new office, Renew the car insurance</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>TIMESTAMP&gt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-09-30 Wed]</span></span>"=</td>
+<td class="org-right">1</td>
+<td class="org-left">Team meeting about the move</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>TIMESTAMP_IA&lt;"[2026-10-01 Thu]"</code></td>
+<td class="org-right">1</td>
+<td class="org-left">Idea: a garden planner app</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>DEADLINE&lt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-10-02 Fri]</span></span>"/!=.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code>: Sign the new lease (due Oct 2) and Fix the leaking
+tap (due Sep 25). The DONE entries with an early deadline are left out by
+<code>/!</code>.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>CLOSED&gt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-09-15 Tue]</span></span>"<code>, then with
+=TIMESTAMP&gt;</code>"<span class="timestamp-wrapper"><span class="timestamp">[2026-09-30 Wed]</span></span>"=.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code> (Choose the new office, Renew the car insurance),
+then <code>1 match</code> (Team meeting about the move: its plain timestamp is its
+TIMESTAMP; SCHEDULED and DEADLINE dates don't count as TIMESTAMP).
+</p>
+</div>
+</div>
+<div id="outline-container-orgb6725e2" class="outline-3">
+<h3 id="orgb6725e2"><span class="section-number-3">11.2.</span> Relative dates</h3>
+<div class="outline-text-3" id="text-11-2">
+<p>
+These depend on the day you run them. On Mon 2026-09-28:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Match</th>
+<th scope="col" class="org-right">Count</th>
+<th scope="col" class="org-left">Headlines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>SCHEDULED&lt;</code>"&lt;today&gt;"=</td>
+<td class="org-right">1</td>
+<td class="org-left">Buy groceries</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SCHEDULED&lt;</code>"&lt;tomorrow&gt;"=</td>
+<td class="org-right">2</td>
+<td class="org-left">Buy groceries, Book the movers</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>DEADLINE&lt;"&lt;+1w&gt;"/!</code></td>
+<td class="org-right">2</td>
+<td class="org-left">Sign the new lease, Fix the leaking tap</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SCHEDULED&gt;"&lt;+2w&gt;"</code></td>
+<td class="org-right">1</td>
+<td class="org-left">Paint the fence (Oct 17)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>SCHEDULED&lt;</code>"&lt;tomorrow&gt;"=.
+</p>
+
+<p>
+<b>Expect:</b> on 2026-09-28, <code>2 matches</code>. On a later day, every entry
+scheduled up to tomorrow matches, so the count only grows.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgffc7ee1" class="outline-2">
+<h2 id="orgffc7ee1"><span class="section-number-2">12.</span> Property value (p)</h2>
+<div class="outline-text-2" id="text-12">
+<p>
+<code>p</code> is a shortcut for a single property: type <code>NAME=value</code> and it builds
+the match <code>NAME</code>"value"= for you (quotes are added when missing).
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>p</code> and type <code>ASSIGNEE=Bob</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches for ASSIGNEE</code>"Bob"=: Book the movers and Pack the
+archive room.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>p</code> and type <code>COST=450</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>1 match</code>: Book the movers. (The comparison is a string one, so
+<code>COST=450.0</code> finds nothing.)
+</p>
+</div>
+</div>
+<div id="outline-container-org4ee7b52" class="outline-2">
+<h2 id="org4ee7b52"><span class="section-number-2">13.</span> Deadlines (d)</h2>
+<div class="outline-text-2" id="text-13">
+<p>
+<code>d</code> shows the open entries whose deadline is past or inside its warning
+period: <code>deadline_warning_days</code> (14 by default) before the date, or the
+entry's own <code>-Nd</code> cookie (the <code>-40d</code> in the DEADLINE of "Submit the
+conference talk" warns 40 days ahead). Done entries are never shown.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>d</code>.
+</p>
+
+<p>
+<b>Expect:</b> on Mon 2026-09-28, <code>3 matches for deadlines</code>:
+</p>
+<ul class="org-ul">
+<li>Sign the new lease (due in 4 days),</li>
+<li>Fix the leaking tap (3 days overdue),</li>
+<li>Submit the conference talk (due in 32 days, but the <code>-40d</code> cookie
+warns 40 days ahead).</li>
+</ul>
+<p>
+Not shown: Write a blog post (Nov 20 is 53 days away), Choose the new
+office and Renew the car insurance (done). On a later date more entries
+fall inside their warning period.
+</p>
+</div>
+</div>
+<div id="outline-container-orgae84143" class="outline-2">
+<h2 id="orgae84143"><span class="section-number-2">14.</span> Dates before, after and between (b, a, D)</h2>
+<div class="outline-text-2" id="text-14">
+<p>
+<code>b</code>, <code>a</code> and <code>D</code> open the calendar to pick a date (<code>D</code> asks twice: from,
+to). In the calendar, <code>h</code> <code>l</code> <code>j</code> <code>k</code> move by day / week, <code>&lt;</code> <code>&gt;</code> by
+month, <code>.</code> goes to today, <code>i</code> lets you type a date (like <code>2026-10-01</code>,
+<code>+3d</code> or <code>fri</code>), and <code>&lt;CR&gt;</code> selects.
+</p>
+
+<p>
+An entry matches when its SCHEDULED, DEADLINE or one of its active
+timestamps is:
+</p>
+<ul class="org-ul">
+<li><code>b</code>: strictly before the date,</li>
+<li><code>a</code>: strictly after the date,</li>
+<li><code>D</code>: between the two dates, both included.</li>
+</ul>
+<p>
+CLOSED dates and inactive timestamps (like the one under the Idea) are
+not used.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>b</code>; in the calendar press <code>i</code>, type <code>2026-10-01</code> and
+press <code>&lt;CR&gt;</code> (the typed date is taken at once).
+</p>
+
+<p>
+<b>Expect:</b> <code>6 matches for before 2026-10-01</code>: Book the movers (Sep 29),
+Choose the new office (deadline Sep 20), Team meeting about the move
+(Sep 30), Fix the leaking tap (Sep 25), Buy groceries (Sep 28) and Renew
+the car insurance (deadline Sep 30).
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>a</code>, then <code>i</code>, <code>2026-10-15</code>, <code>&lt;CR&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>3 matches for after 2026-10-15</code>: Paint the fence (Oct 17),
+Write a blog post (Nov 20) and Submit the conference talk (Oct 30).
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;/</code> <code>D</code>, then <code>i</code>, <code>2026-10-01</code>, <code>&lt;CR&gt;</code> (the first
+calendar) and <code>i</code>, <code>2026-10-12</code>, <code>&lt;CR&gt;</code> (the second one).
+</p>
+
+<p>
+<b>Expect:</b> <code>3 matches for between 2026-10-01 and 2026-10-12</code>: Sign the new
+lease (Oct 2), Pack the archive room (Oct 12, the last day is included)
+and Library book reservation (Oct 5).
+</p>
+</div>
+</div>
+<div id="outline-container-org74aee5d" class="outline-2">
+<h2 id="org74aee5d"><span class="section-number-2">15.</span> More ways to get a sparse tree</h2>
+<div class="outline-text-2" id="text-15">
+</div>
+<div id="outline-container-orgd279195" class="outline-3">
+<h3 id="orgd279195"><span class="section-number-3">15.1.</span> From a link</h3>
+<div class="outline-text-3" id="text-15-1">
+<p>
+A link to a file with <code>::/regexp/</code> after the name opens the file as a
+regexp sparse tree. Here the regexp is an Emacs regexp.
+</p>
+
+<ul class="org-ul">
+<li><a href="10-sparse-trees.html#MissingReference">All of Alice's tasks</a></li>
+</ul>
+
+<p>
+<b>Try:</b> put the cursor on the link above and press <code>&lt;CR&gt;</code> (or <code>gx</code>).
+</p>
+
+<p>
+<b>Expect:</b> <code>2 matches</code>: the ASSIGNEE lines in the property drawers of Sign
+the new lease and Paint the fence, highlighted. Unlike the <code>/</code> menu entry,
+this regexp ignores case, like Emacs.
+</p>
+</div>
+</div>
+<div id="outline-container-orga5fd821" class="outline-3">
+<h3 id="orga5fd821"><span class="section-number-3">15.2.</span> From an agenda custom command</h3>
+<div class="outline-text-3" id="text-15-2">
+<p>
+The agenda's <code>custom_commands</code> can build a sparse tree of the current
+buffer instead of an agenda: <code>tags_tree</code> (a match string), <code>todo_tree</code> (a
+TODO keyword) and <code>occur_tree</code> (an Emacs regexp). They can't be blocks of a
+composite command. For example, in your config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  agenda = {
+    custom_commands = {
+      -- &lt;prefix&gt;a then U: the urgent open tasks of the current buffer
+      U = { description = "Urgent tree", type = "tags_tree",
+            match = "+urgent/!" },
+      -- &lt;prefix&gt;a then N: every NEXT entry of the current buffer
+      N = { description = "NEXT tree", type = "todo_tree", match = "NEXT" },
+      -- &lt;prefix&gt;a then I: the lines about bills (an Emacs regexp)
+      I = { description = "Bills", type = "occur_tree", match = "[i]nvoice" },
+    },
+  },
+})
+</code></pre>
+</div>
+
+<p>
+<code>examples/minimal_init.lua</code> does not define these, so this one is only to
+read. With them, <code>&lt;prefix&gt;a</code> <code>U</code> in this file shows <code>3 matches</code> (Sign the
+new lease, Fix the leaking tap, Submit the conference talk).
+</p>
+</div>
+</div>
+<div id="outline-container-orgef0656a" class="outline-3">
+<h3 id="orgef0656a"><span class="section-number-3">15.3.</span> Speed key</h3>
+<div class="outline-text-3" id="text-15-3">
+<p>
+With <code>use_speed_commands = true</code>, pressing <code>/</code> with the cursor on the
+first star of a headline opens the sparse tree menu (like <code>&lt;prefix&gt;/</code>).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org538b2c8" class="outline-2">
+<h2 id="org538b2c8"><span class="section-number-2">16.</span> Common mistakes</h2>
+<div class="outline-text-2" id="text-16">
+<dl class="org-dl">
+<dt><code>work -urgent</code></dt><dd>same as <code>work</code>: the space ends the match. Write
+<code>work-urgent</code>.</dd>
+<dt><code>Work</code></dt><dd>0 matches: tags are compared exactly. Write <code>work</code> (or
+<code>{^work$}</code>, which ignores case).</dd>
+<dt><code>(a|b)+c</code></dt><dd>parentheses are not part of the syntax. Write <code>a+c|b+c</code>.</dd>
+<dt><code>COST&lt;100</code></dt><dd>entries without a COST match too (a missing number is
+0). Write <code>COST&lt;*100</code>.</dd>
+<dt><code>Effort&lt;"1:00"</code></dt><dd>entries without an Effort match too (<code>"" &lt; "1:00"</code>).
+Write <code>Effort&lt;*"1:00"</code>.</dd>
+<dt><code>Effort&lt;1:30</code></dt><dd>read as <code>Effort&lt;1</code> AND a tag named <code>30</code>: 0 matches.
+Write <code>Effort&lt;*"1:30"</code>.</dd>
+<dt><code>ASSIGNEE=Bob</code></dt><dd>without quotes it is not a comparison: a search for
+the tag <code>ASSIGNEE</code> that stops at <code>=</code>, so 0 matches. Write
+<code>ASSIGNEE</code>"Bob"=.</dd>
+<dt><code>[i]nvoice</code> in the <code>/</code> menu</dt><dd>a case-sensitive Vim regexp. Write
+<code>\c[i]nvoice</code> to ignore case.</dd>
+</dl>
+
+<p>
+<b>Try:</b> <code>&lt;C-c&gt;\</code> with <code>Effort&lt;*"1:00"</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>3 matches</code>: Book the movers (<code>"0:30"</code>), Quote from the cleaning
+company (<code>"0:15"</code>) and Fix the leaking tap (<code>"0:45"</code>).
+</p>
+</div>
+</div>
+<div id="outline-container-org8457a29" class="outline-2">
+<h2 id="org8457a29"><span class="section-number-2">17.</span> Differences from Emacs</h2>
+<div class="outline-text-2" id="text-17">
+<ul class="org-ul">
+<li>In the <code>&lt;prefix&gt;/</code> menu, <code>/</code> and <code>r</code> take a <i>Vim</i> regexp and are
+case-sensitive (Emacs: an Emacs regexp, ignoring case). <code>\c</code> makes it
+ignore case. Links with <code>::/regexp/</code> and <code>occur_tree</code> commands take an
+Emacs regexp.</li>
+<li><code>c</code> in the menu clears the highlights. In Emacs <code>c</code> cycles the kind of
+date used by <code>b</code>, <code>a</code> and <code>D</code> (scheduled/deadline, all timestamps, only
+deadlines, &hellip;). Here <code>b</code>, <code>a</code> and <code>D</code> always look at SCHEDULED,
+DEADLINE and the active timestamps of each entry, and match whole
+headlines.</li>
+<li><code>p</code> asks for <code>NAME=value</code> in one prompt (Emacs asks for the property,
+then the value).</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org220c0d1" class="outline-2">
+<h2 id="org220c0d1"><span class="section-number-2">18.</span> Further reading</h2>
+<div class="outline-text-2" id="text-18">
+<ul class="org-ul">
+<li><code>:h org-sparse-tree</code> — the menu and <code>&lt;C-c&gt;\</code></li>
+<li><code>:h org-match-syntax</code> — the whole match syntax</li>
+<li><code>:h org-tag-groups</code> — group tags in matches</li>
+<li><code>:h org-agenda-custom-commands</code> — <code>tags_tree</code>, <code>todo_tree</code>, <code>occur_tree</code></li>
+<li><code>:h org-hidden-lines</code> — how the folds of a sparse tree are made</li>
+<li><code>:h org-read-date</code> — what you can type in the calendar with <code>i</code></li>
+<li><a href="05-tags.html">05-tags.org</a> and
+<a href="06-properties-columns.html">06-properties-columns.org</a>: tags and
+properties themselves</li>
+<li><a href="09-agenda.html">09-agenda.org</a>: the same match syntax in the agenda</li>
+</ul>
+</div>
+</div>

@@ -696,6 +696,7 @@ local matrix_cache
 function M.sm5_matrix()
   if not matrix_cache then
     local f = opts().sm5_matrix_file
+    -- lint: allow expand: the sm5_matrix_file option
     local m = f and f ~= "" and utils.read_json(vim.fn.expand(f)) or nil
     matrix_cache = type(m) == "table" and m or {}
   end
@@ -708,6 +709,7 @@ local function save_matrix(m)
   if not f or f == "" then
     return
   end
+  -- lint: allow expand: the sm5_matrix_file option
   f = vim.fn.expand(f)
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(f, ":h"), "p")
   local ok, err = pcall(utils.write_json, f, m)

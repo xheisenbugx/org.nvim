@@ -260,31 +260,33 @@ function M.setup(opts)
       require(R .. ".db").flush()
     end,
   })
-  if opts.update_on_save then
-    vim.api.nvim_create_autocmd("BufWritePost", {
-      group = augroup,
-      pattern = "*.org",
-      callback = function(ev)
-        local db = require(R .. ".db")
-        local path = vim.fs.normalize(vim.api.nvim_buf_get_name(ev.buf))
-        if db.is_roam_file(path) then
-          require("org.files").invalidate(path)
-          db.update_file(path)
-        end
-      end,
-    })
+  -- Write hooks, so org's own saves (capture, refile, ...) count as well
+  -- as :w
+  local function roam_path(buf)
+    local path = vim.fs.normalize(vim.api.nvim_buf_get_name(buf))
+    if path:match("%.org$") and require(R .. ".db").is_roam_file(path) then
+      return path
+    end
   end
-  if opts.link_auto_replace then
-    vim.api.nvim_create_autocmd("BufWritePre", {
-      group = augroup,
-      pattern = "*.org",
-      callback = function(ev)
-        local path = vim.fs.normalize(vim.api.nvim_buf_get_name(ev.buf))
-        if require(R .. ".db").is_roam_file(path) then
-          require(R .. ".node").link_replace_all(ev.buf)
+  local hooks = require("org.write_hooks")
+  if opts.update_on_save or opts.link_auto_replace then
+    hooks.register("roam", {
+      order = 20,
+      pre = opts.link_auto_replace and function(buf)
+        if roam_path(buf) then
+          require(R .. ".node").link_replace_all(buf)
         end
-      end,
+      end or nil,
+      post = opts.update_on_save and function(buf, ctx)
+        local path = ctx.ok and roam_path(buf)
+        if path then
+          require("org.files").invalidate(path)
+          require(R .. ".db").update_file(path)
+        end
+      end or nil,
     })
+  else
+    hooks.unregister("roam")
   end
   if opts.roam_links then
     local types = require("org.config").opts.links.types
@@ -309,6 +311,7 @@ end
 --- Undo `setup` when the extension is turned off.
 function M.teardown()
   vim.api.nvim_clear_autocmds({ group = augroup })
+  require("org.write_hooks").unregister("roam")
   require(R .. ".protocol").register(false)
   require(R .. ".buffer").wipe()
   require(R .. ".db").flush()

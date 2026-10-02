@@ -50,6 +50,7 @@ local PUBLISH_KEYS = {
 --- Timestamp directory (org-publish-timestamp-directory).
 function M.timestamp_directory()
   local d = pcfg().timestamp_directory or (vim.fn.stdpath("data") .. "/org-timestamps/")
+  -- lint: allow expand: the timestamp_directory option
   d = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(d), ":p"))
   if not d:match("/$") then
     d = d .. "/"
@@ -113,7 +114,9 @@ end
 --- Absolute, symlink-resolved file name (like file-truename), so that
 --- cache keys and project lookups agree whatever the spelling.
 local function expand(path, base)
-  path = vim.fn.expand(path)
+  -- not vim.fn.expand(): #+EXPORT_FILE_NAME and file names on disk would
+  -- have their `backticks` run as shell commands
+  path = utils.expand_vars(path)
   if not utils.is_absolute(path) and base then
     path = base:gsub("/$", "") .. "/" .. path
   end
@@ -1254,6 +1257,11 @@ local function search_headline(file, search)
   local lines = utils.readfile(file)
   if not lines then
     error(string.format("No such file: %q", file), 0)
+  end
+  -- a /regexp/ search makes a sparse tree (org-occur) in Emacs: never a
+  -- broken link, and never a headline with a CUSTOM_ID
+  if search:match("^/.*/$") then
+    return false
   end
   local parser = require("org.parser")
   local f = parser.parse(lines, file)

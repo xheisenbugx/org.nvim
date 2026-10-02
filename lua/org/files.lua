@@ -4,8 +4,7 @@
 --- edits are visible to the agenda), otherwise from disk. Results are cached
 --- by buffer changedtick / file mtime.
 
-local parser = require("org.parser")
-local keywords = require("org.keywords")
+-- org.parser and org.keywords load on the first parse, not at setup()
 local utils = require("org.utils")
 
 local M = {}
@@ -37,12 +36,12 @@ function M.get_buffer(bufnr)
     and c.cwd == cwd
     and c.todo_spec == spec
     and c.base == base
-    and keywords.dependencies_valid(c.file.setup_dependencies)
+    and require("org.keywords").dependencies_valid(c.file.setup_dependencies)
   then
     return c.file
   end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local file = parser.parse(lines, name ~= "" and vim.fs.normalize(name) or nil, base)
+  local file = require("org.parser").parse(lines, name ~= "" and vim.fs.normalize(name) or nil, base)
   file.bufnr = bufnr
   buf_cache[bufnr] = { tick = tick, name = name, cwd = cwd, file = file, todo_spec = spec, base = base }
   return file
@@ -81,7 +80,7 @@ function M.get(path)
     and c.mtime == mtime
     and c.size == size
     and c.todo_spec == spec
-    and keywords.dependencies_valid(c.file.setup_dependencies)
+    and require("org.keywords").dependencies_valid(c.file.setup_dependencies)
   then
     return c.file
   end
@@ -89,7 +88,7 @@ function M.get(path)
   if not lines then
     return nil
   end
-  local file = parser.parse(lines, path)
+  local file = require("org.parser").parse(lines, path)
   disk_cache[path] = { mtime = mtime, size = size, file = file, todo_spec = spec }
   return file
 end

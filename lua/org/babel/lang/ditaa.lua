@@ -9,9 +9,11 @@ function M.expand(body, args)
 end
 
 local function ensure_jar(file)
+  -- lint: allow expand: the jar_path option
   if vim.fn.filereadable(vim.fn.expand(file)) == 0 then
     error("(ob-ditaa) Could not find jar file " .. file, 0)
   end
+  -- lint: allow expand: the jar_path option
   return vim.fn.expand(file)
 end
 

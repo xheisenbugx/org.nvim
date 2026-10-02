@@ -1,0 +1,1408 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org2872d7b">1. How to use this file</a>
+<ul>
+<li><a href="#orgc60e13e">1.1. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#org28d6e92">2. Unordered lists</a>
+<ul>
+<li><a href="#orgaf6c356">2.1. Groceries</a></li>
+<li><a href="#org27a19fc">2.2. Where a list ends</a></li>
+</ul>
+</li>
+<li><a href="#org2fc59bc">3. Ordered lists</a>
+<ul>
+<li><a href="#org10c0f82">3.1. Wrong numbers</a></li>
+<li><a href="#org8463113">3.2. Counter</a></li>
+<li><a href="#org9627784">3.3. Two styles</a></li>
+</ul>
+</li>
+<li><a href="#orgb4ec9e4">4. Description lists</a>
+<ul>
+<li><a href="#orge8718bb">4.1. Editors</a></li>
+</ul>
+</li>
+<li><a href="#org6852f3b">5. Inserting items</a>
+<ul>
+<li><a href="#org99371d7">5.1. Weekend</a></li>
+<li><a href="#orgbdb4163">5.2. Spaced items</a></li>
+</ul>
+</li>
+<li><a href="#org1a9b2bc">6. Bullet styles</a>
+<ul>
+<li><a href="#org1183b91">6.1. Cycle me</a></li>
+</ul>
+</li>
+<li><a href="#org3d780a4">7. Moving between items</a>
+<ul>
+<li><a href="#orgc4eb537">7.1. People</a></li>
+</ul>
+</li>
+<li><a href="#org897f433">8. Indenting and outdenting</a>
+<ul>
+<li><a href="#org765f93b">8.1. Indent rules</a></li>
+<li><a href="#org42f874c">8.2. Outdent rules</a></li>
+</ul>
+</li>
+<li><a href="#org2ee9fa0">9. Moving items</a>
+<ul>
+<li><a href="#orgd2d6e17">9.1. Numbered to reorder</a></li>
+<li><a href="#org4f04a7e">9.2. Boxes to reorder</a></li>
+</ul>
+</li>
+<li><a href="#org97668aa">10. Converting items, text and headlines</a>
+<ul>
+<li><a href="#orgefbd59a">10.1. Text to items</a></li>
+<li><a href="#org15303e2">10.2. Items to headlines</a></li>
+</ul>
+</li>
+<li><a href="#orgfee8a47">11. Checkboxes</a>
+<ul>
+<li><a href="#org3ec8003">11.1. Packing</a></li>
+<li><a href="#org302e170">11.2. Toggle everything from the headline</a></li>
+<li><a href="#org80a4529">11.3. Ordered checklists</a></li>
+</ul>
+</li>
+<li><a href="#org0c92d11">12. Statistics cookies</a>
+<ul>
+<li><a href="#orgde2857d">12.1. Party <code>[/]</code> <code>[%]</code></a></li>
+<li><a href="#orgb08c2e4">12.2. Counting the whole tree <code>[/]</code></a></li>
+<li><a href="#org45cb940">12.3. Cookies without checkboxes</a>
+<ul>
+<li><a href="#orge6bfee2">12.3.1. Nothing to count <code>[%]</code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#orgcb89e30">13. Radio lists</a>
+<ul>
+<li><a href="#orgd57504c">13.1. Coffee size</a></li>
+<li><a href="#orgb72b707">13.2. Normal list</a></li>
+</ul>
+</li>
+<li><a href="#org1709cfb">14. Sorting lists</a>
+<ul>
+<li><a href="#org99af24e">14.1. Fruit list</a></li>
+<li><a href="#org9b58fed">14.2. Chores list</a></li>
+<li><a href="#orgb0f1a4e">14.3. Meetings list</a></li>
+</ul>
+</li>
+<li><a href="#orgd5b1c41">15. Checkboxes that block a TODO</a>
+<ul>
+<li><a href="#org6d2fcfd">15.1. <span class="todo TODO">TODO</span> Ship the release</a></li>
+</ul>
+</li>
+<li><a href="#org4dafb16">16. List settings</a></li>
+<li><a href="#orgb6725e2">17. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org2872d7b" class="outline-2">
+<h2 id="org2872d7b"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Plain lists are the lists you write in the body of an entry: bullets,
+numbers, descriptions and checkboxes. Org understands their structure, so
+it can renumber them, move items with their sub-items, and count the
+checked boxes for you. This file goes from simple lists to checkbox
+statistics.
+</p>
+
+<p>
+Start Neovim from the root of the repository with the bundled config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/03-lists.org
+</code></pre>
+</div>
+
+<ul class="org-ul">
+<li>The file opens folded. <code>&lt;Tab&gt;</code> on a heading opens it, <code>&lt;S-Tab&gt;</code> cycles
+the whole buffer.</li>
+<li><code>&lt;prefix&gt;</code> means <code>&lt;leader&gt;o</code> (<code>&lt;Space&gt;o</code> with the bundled config). <code>g?</code>
+lists every key of the buffer.</li>
+<li><code>u</code> undoes; <code>git checkout examples/03-lists.org</code> restores the file.</li>
+<li><b>Try:</b> lines are exercises, <b>Expect:</b> lines say what you should see.</li>
+<li>Lines starting with =# = are comments: notes for you. A comment line in
+column 0 ends a list, so comments are placed above or below lists, never
+between their items.</li>
+<li>The bundled config draws checkboxes as icons: <code>[ ]</code> as an empty box,
+<code>[-]</code> as <code>◐</code> and <code>[X]</code> as <code>✓</code>. The text in the file does not change.</li>
+<li>"On an item" means the cursor is on the first line of the item, usually
+on its text (not in column 0).</li>
+</ul>
+</div>
+<div id="outline-container-orgc60e13e" class="outline-3">
+<h3 id="orgc60e13e"><span class="section-number-3">1.1.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;M-CR&gt;</code></td>
+<td class="org-left">new item (Normal mode: after this one)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;M-S-CR&gt;</code></td>
+<td class="org-left">new item with a checkbox</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;is</code></td>
+<td class="org-left">new sub-item (indented)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;Tab&gt;</code> (Insert mode)</td>
+<td class="org-left">on an empty item: cycle its indentation</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;Tab&gt;</code></td>
+<td class="org-left">on an item with sub-items: fold / unfold</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;S-Right&gt;</code> <code>&lt;S-Left&gt;</code></td>
+<td class="org-left">cycle the bullet style of the list</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;hb</code> / <code>&lt;C-c&gt;-</code></td>
+<td class="org-left">cycle the bullet style</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;S-Down&gt;</code> <code>&lt;S-Up&gt;</code></td>
+<td class="org-left">next / previous item of the same level</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&gt;&gt;</code> <code>&lt;&lt;</code> / <code>&lt;M-l&gt;</code> <code>&lt;M-h&gt;</code></td>
+<td class="org-left">indent / outdent the item</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&gt;s</code> <code>&lt;s</code> / <code>&lt;M-L&gt;</code> <code>&lt;M-H&gt;</code></td>
+<td class="org-left">indent / outdent the item and its children</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;M-k&gt;</code> <code>&lt;M-j&gt;</code></td>
+<td class="org-left">move the item (with sub-items) up / down</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-Space&gt;</code></td>
+<td class="org-left">toggle a checkbox</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-c&gt;</code></td>
+<td class="org-left">toggle a checkbox, or repair the list</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-b&gt;</code></td>
+<td class="org-left">toggle checkbox (Emacs key)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;#</code> / <code>&lt;C-c&gt;#</code></td>
+<td class="org-left">update statistics cookies</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;-</code></td>
+<td class="org-left">toggle between item and text / headline</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;*</code></td>
+<td class="org-left">turn the item into a headline</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-*&gt;</code></td>
+<td class="org-left">turn the whole list into a subtree</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;hs</code></td>
+<td class="org-left">sort the list</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-r&gt;</code></td>
+<td class="org-left">toggle a radio button</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="outline-container-org28d6e92" class="outline-2">
+<h2 id="org28d6e92"><span class="section-number-2">2.</span> Unordered lists</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+An item starts with a bullet followed by a space: <code>-</code>, <code>+</code>, or <code>*</code> (a star
+only when the item is indented, because a star in column 0 starts a
+headline). Lines that belong to an item are indented past its bullet.
+Items indented under another item form a sub-list.
+</p>
+
+<p>
+A list ends:
+</p>
+<ul class="org-ul">
+<li>at a line that is indented at or left of the first bullet (and is not a
+new item),</li>
+<li>at a headline,</li>
+<li>or after <b>two</b> blank lines in a row.</li>
+</ul>
+
+<p>
+<b>Try:</b> open "Groceries" below. Put the cursor on "Fruit" and press <code>&lt;Tab&gt;</code>,
+then <code>&lt;Tab&gt;</code> again.
+</p>
+
+<p>
+<b>Expect:</b> the first <code>&lt;Tab&gt;</code> folds "Fruit": its sub-items "apples" and
+"pears" and its second line are hidden, the line ends with <code>...</code>. The
+second <code>&lt;Tab&gt;</code> shows them again. (<code>cycle_include_plain_lists = true</code>, the
+default, makes items with sub-items or several lines foldable.)
+</p>
+</div>
+<div id="outline-container-orgaf6c356" class="outline-3">
+<h3 id="orgaf6c356"><span class="section-number-3">2.1.</span> Groceries</h3>
+<div class="outline-text-3" id="text-2-1">
+<ul class="org-ul">
+<li>Fruit
+(only the ripe ones)
+<ul class="org-ul">
+<li>apples</li>
+<li>pears</li>
+</ul></li>
+<li>Vegetables
+<ul class="org-ul">
+<li>carrots</li>
+<li>leeks
+<ul class="org-ul">
+<li>the thin ones</li>
+</ul></li>
+</ul></li>
+<li>Bread</li>
+</ul>
+<p>
+This line is not indented, so it is not part of the list.
+</p>
+</div>
+</div>
+<div id="outline-container-org27a19fc" class="outline-3">
+<h3 id="org27a19fc"><span class="section-number-3">2.2.</span> Where a list ends</h3>
+<div class="outline-text-3" id="text-2-2">
+<ul class="org-ul">
+<li>first item</li>
+<li>second item</li>
+</ul>
+
+
+<p>
+This paragraph comes after two blank lines: the list above has ended.
+</p>
+
+<pre class="example" id="orgafc9f12">
+- this looks like an item
+- but it is example text
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org2fc59bc" class="outline-2">
+<h2 id="org2fc59bc"><span class="section-number-2">3.</span> Ordered lists</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Ordered bullets are a number followed by <code>.</code> or <code>)</code>: <code>1.</code>, <code>1)</code>. You never
+renumber by hand: every list command renumbers the list when it changes it.
+If the numbers are wrong (you typed them, or pasted lines), <code>&lt;C-c&gt;&lt;C-c&gt;</code> on
+the first line of an item repairs the whole list.
+</p>
+
+<p>
+A counter <code>[@N]</code> right after the bullet makes the list continue from N.
+</p>
+
+<p>
+<b>Try:</b> put the cursor on "Wake up" (in "Wrong numbers") and press
+<code>&lt;C-c&gt;&lt;C-c&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the numbers become 1, 2, 3, 4:
+</p>
+<pre class="example">
+1. Wake up
+2. Make coffee
+3. Drink coffee
+4. Work
+</pre>
+
+<p>
+<b>Try:</b> in "Counter", press <code>&lt;C-c&gt;&lt;C-c&gt;</code> on "Chapter five".
+</p>
+
+<p>
+<b>Expect:</b> the numbers stay 5, 6, 7: the list starts at the counter.
+Change <code>[@5]</code> to <code>[@10]</code> and press <code>&lt;C-c&gt;&lt;C-c&gt;</code> again: 10, 11, 12.
+</p>
+</div>
+<div id="outline-container-org10c0f82" class="outline-3">
+<h3 id="org10c0f82"><span class="section-number-3">3.1.</span> Wrong numbers</h3>
+<div class="outline-text-3" id="text-3-1">
+<ol class="org-ol">
+<li>Wake up</li>
+<li>Make coffee</li>
+<li>Drink coffee</li>
+<li>Work</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org8463113" class="outline-3">
+<h3 id="org8463113"><span class="section-number-3">3.2.</span> Counter</h3>
+<div class="outline-text-3" id="text-3-2">
+<ol class="org-ol">
+<li value="5">Chapter five</li>
+<li>Chapter six</li>
+<li>Chapter seven</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org9627784" class="outline-3">
+<h3 id="org9627784"><span class="section-number-3">3.3.</span> Two styles</h3>
+<div class="outline-text-3" id="text-3-3">
+<ol class="org-ol">
+<li>A closing parenthesis</li>
+<li>works the same way
+<ol class="org-ol">
+<li>and a sub-list can use its own style</li>
+<li>independently</li>
+</ol></li>
+</ol>
+</div>
+</div>
+</div>
+<div id="outline-container-orgb4ec9e4" class="outline-2">
+<h2 id="orgb4ec9e4"><span class="section-number-2">4.</span> Description lists</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+A description item has a term, then <code>::</code> surrounded by spaces, then the
+description. It is an unordered item (<code>-</code> or <code>+</code>), and it is exported as a
+definition list (<code>&lt;dl&gt;</code> in HTML).
+</p>
+
+<p>
+<b>Try:</b> on "Neovim" press <code>$</code> (end of line) then <code>&lt;M-CR&gt;</code>, type <code>Emacs</code>,
+press <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> a new description item right after "Neovim", with the separator
+already there and the cursor on the term:
+</p>
+<pre class="example">
+- Emacs ::
+</pre>
+</div>
+<div id="outline-container-orge8718bb" class="outline-3">
+<h3 id="orge8718bb"><span class="section-number-3">4.1.</span> Editors</h3>
+<div class="outline-text-3" id="text-4-1">
+<dl class="org-dl">
+<dt>Org</dt><dd>a plain-text outliner and organizer</dd>
+<dt>Neovim</dt><dd>a hyperextensible Vim-based text editor</dd>
+<dt>Plain text</dt><dd>lasts forever
+and a description can go on over
+several lines.</dd>
+</dl>
+</div>
+</div>
+</div>
+<div id="outline-container-org6852f3b" class="outline-2">
+<h2 id="org6852f3b"><span class="section-number-2">5.</span> Inserting items</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+<code>&lt;M-CR&gt;</code> (Meta-Return) on an item inserts a new item of the same kind
+(bullet, description term) and leaves you in Insert mode. Where:
+</p>
+<ul class="org-ul">
+<li>Normal mode, anywhere on the item's first line (even column 0): after
+the item <b>and its sub-items</b>.</li>
+<li>Insert mode: at the cursor. At or before the item text (e.g. <code>i</code> in
+column 0) the new item goes above; in the middle of the text, the rest of
+the text moves to the new item.</li>
+</ul>
+
+<p>
+<code>&lt;M-S-CR&gt;</code> does the same but adds an empty checkbox <code>[ ]</code>. <code>&lt;prefix&gt;is</code>
+inserts a sub-item (indented one level). A new item never copies the
+checkbox of the current one with <code>&lt;M-CR&gt;</code>.
+</p>
+
+<p>
+In Insert mode, right after <code>&lt;M-CR&gt;</code>, <code>&lt;Tab&gt;</code> on the new empty item cycles
+its indentation: under the previous item, then back out level by level.
+</p>
+
+<p>
+When the items of a list are separated by blank lines, new items get a
+blank line too (<code>blank_before_new_entry = { plain_list_item = "auto" }</code>).
+</p>
+
+<p>
+<b>Try:</b> on "Saturday" press <code>$</code> and <code>&lt;M-CR&gt;</code>, type <code>Sunday</code>, <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>- Sunday</code> after "Saturday" (and after its sub-item "morning
+run"), before "Next week".
+</p>
+
+<p>
+<b>Try:</b> on "Saturday" press <code>$</code> and <code>&lt;M-S-CR&gt;</code>, type <code>Pack</code>, <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>- [ ] Pack</code> after the "Saturday" item.
+</p>
+
+<p>
+<b>Try:</b> on "Saturday" press <code>$</code> and <code>&lt;prefix&gt;is</code>, type <code>evening</code>, <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> an indented sub-item =  - evening= right below "Saturday".
+</p>
+
+<p>
+<b>Try:</b> on "Next week" press <code>A</code>, then <code>&lt;M-CR&gt;</code>, then <code>&lt;Tab&gt;</code>, type
+<code>Monday</code> and <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> =  - Monday= indented under "Next week".
+</p>
+
+<p>
+<b>Try:</b> on "Split this item" put the cursor on <code>i</code> of "item", press <code>i</code> and
+<code>&lt;M-CR&gt;</code>, then <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> two items: <code>- Split this</code> and <code>- item</code>.
+</p>
+</div>
+<div id="outline-container-org99371d7" class="outline-3">
+<h3 id="org99371d7"><span class="section-number-3">5.1.</span> Weekend</h3>
+<div class="outline-text-3" id="text-5-1">
+<ul class="org-ul">
+<li>Saturday
+<ul class="org-ul">
+<li>morning run</li>
+</ul></li>
+<li>Next week</li>
+<li>Split this item</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgbdb4163" class="outline-3">
+<h3 id="orgbdb4163"><span class="section-number-3">5.2.</span> Spaced items</h3>
+<div class="outline-text-3" id="text-5-2">
+<ul class="org-ul">
+<li>first</li>
+
+<li>second</li>
+</ul>
+
+<p>
+<b>Try:</b> on "second" press <code>$</code> and <code>&lt;M-CR&gt;</code>, type <code>third</code>.
+</p>
+
+<p>
+<b>Expect:</b> a blank line, then <code>- third</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org1a9b2bc" class="outline-2">
+<h2 id="org1a9b2bc"><span class="section-number-2">6.</span> Bullet styles</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+<code>&lt;S-Right&gt;</code> / <code>&lt;S-Left&gt;</code> on an item cycle the bullet of <b>the whole list</b>
+(the item and its siblings) through <code>-</code>, <code>+</code>, <code>*</code>, <code>1.</code>, <code>1)</code>. The star is
+skipped for a list in column 0. Sub-lists keep their own bullets.
+<code>&lt;prefix&gt;hb</code> and <code>&lt;C-c&gt;-</code> cycle forward too.
+</p>
+
+<p>
+<b>Try:</b> on "alpha" (in "Cycle me") press <code>&lt;S-Right&gt;</code> four times.
+</p>
+
+<p>
+<b>Expect:</b> the bullets of alpha, beta and gamma become <code>+</code>, then <code>1.</code> <code>2.</code>
+<code>3.</code>, then <code>1)</code> <code>2)</code> <code>3)</code>, then <code>-</code> again. The sub-item "beta one" keeps its
+<code>-</code> bullet (and moves right when the numbers make the bullet wider).
+</p>
+</div>
+<div id="outline-container-org1183b91" class="outline-3">
+<h3 id="org1183b91"><span class="section-number-3">6.1.</span> Cycle me</h3>
+<div class="outline-text-3" id="text-6-1">
+<ul class="org-ul">
+<li>alpha</li>
+<li>beta
+<ul class="org-ul">
+<li>beta one</li>
+</ul></li>
+<li>gamma</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org3d780a4" class="outline-2">
+<h2 id="org3d780a4"><span class="section-number-2">7.</span> Moving between items</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+<code>&lt;S-Down&gt;</code> / <code>&lt;S-Up&gt;</code> jump to the next / previous item <b>of the same level</b>,
+skipping sub-items.
+</p>
+
+<p>
+<b>Try:</b> on "Ann" press <code>&lt;S-Down&gt;</code> twice.
+</p>
+
+<p>
+<b>Expect:</b> the cursor goes to "Bob" (skipping "Ann's notes"), then to "Cid".
+</p>
+</div>
+<div id="outline-container-orgc4eb537" class="outline-3">
+<h3 id="orgc4eb537"><span class="section-number-3">7.1.</span> People</h3>
+<div class="outline-text-3" id="text-7-1">
+<ul class="org-ul">
+<li>Ann
+<ul class="org-ul">
+<li>Ann's notes</li>
+</ul></li>
+<li>Bob</li>
+<li>Cid</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org897f433" class="outline-2">
+<h2 id="org897f433"><span class="section-number-2">8.</span> Indenting and outdenting</h2>
+<div class="outline-text-2" id="text-8">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Moves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&gt;&gt;</code> / <code>&lt;&lt;</code>, <code>&lt;M-l&gt;</code> / <code>&lt;M-h&gt;</code></td>
+<td class="org-left">the item alone</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&gt;s</code> / <code>&lt;s</code>, <code>&lt;M-L&gt;</code> / <code>&lt;M-H&gt;</code></td>
+<td class="org-left">the item and its sub-items (subtree)</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Org's list rules apply:
+</p>
+<ul class="org-ul">
+<li>The first item of a list cannot be indented alone; <code>&lt;M-L&gt;</code> / <code>&lt;M-H&gt;</code> on
+it move the whole list.</li>
+<li>An item with sub-items cannot be outdented alone: use <code>&lt;s</code> or <code>&lt;M-H&gt;</code>.</li>
+<li>After each change the list is repaired: numbering, bullets, the
+indentation of sub-lists and parent checkboxes.</li>
+<li>In Visual mode, <code>&lt;M-l&gt;</code> / <code>&lt;M-h&gt;</code> indent / outdent every selected item.</li>
+</ul>
+
+<p>
+<b>Try:</b> on "Task B" press <code>&gt;s</code>.
+</p>
+
+<p>
+<b>Expect:</b> "Task B" and its sub-item "B detail" move right together; "Task
+B" is now a sub-item of "Task A":
+</p>
+<pre class="example">
+- Task A
+  - Task B
+    - B detail
+- Task C
+</pre>
+
+<p>
+<b>Try:</b> press <code>u</code>, then <code>&gt;&gt;</code> on "Task B".
+</p>
+
+<p>
+<b>Expect:</b> only "Task B" moves; "B detail" stays where it was and becomes
+its sibling:
+</p>
+<pre class="example">
+- Task A
+  - Task B
+  - B detail
+</pre>
+
+<p>
+<b>Try:</b> press <code>u</code>, then <code>&gt;&gt;</code> on "Task A".
+</p>
+
+<p>
+<b>Expect:</b> nothing changes and a message says "At first item: use
+S-M-&lt;left/right&gt; to move the whole list".
+</p>
+
+<p>
+<b>Try:</b> on "Nested parent" (in "Outdent rules") press <code>&lt;&lt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the message "Cannot outdent an item without its children".
+Press <code>&lt;s</code> instead: "Nested parent" and "Nested child" both move left.
+</p>
+</div>
+<div id="outline-container-org765f93b" class="outline-3">
+<h3 id="org765f93b"><span class="section-number-3">8.1.</span> Indent rules</h3>
+<div class="outline-text-3" id="text-8-1">
+<ul class="org-ul">
+<li>Task A</li>
+<li>Task B
+<ul class="org-ul">
+<li>B detail</li>
+</ul></li>
+<li>Task C</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org42f874c" class="outline-3">
+<h3 id="org42f874c"><span class="section-number-3">8.2.</span> Outdent rules</h3>
+<div class="outline-text-3" id="text-8-2">
+<ul class="org-ul">
+<li>Top
+<ul class="org-ul">
+<li>Nested parent
+<ul class="org-ul">
+<li>Nested child</li>
+</ul></li>
+</ul></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org2ee9fa0" class="outline-2">
+<h2 id="org2ee9fa0"><span class="section-number-2">9.</span> Moving items</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+<code>&lt;M-k&gt;</code> / <code>&lt;M-j&gt;</code> (also <code>&lt;M-Up&gt;</code> / <code>&lt;M-Down&gt;</code>) move an item up / down past
+its sibling. Sub-items, extra lines and checkboxes travel with it, and
+ordered lists are renumbered.
+</p>
+
+<p>
+<b>Try:</b> on "Third" press <code>&lt;M-k&gt;</code> twice.
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+1. Third
+2. First
+3. Second
+</pre>
+<p>
+The numbers stay in order; only the texts moved.
+</p>
+
+<p>
+<b>Try:</b> on "Unpacked" press <code>&lt;M-j&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> "Unpacked" moves below "Packed" together with its sub-item:
+</p>
+<pre class="example">
+- [X] Packed
+- [ ] Unpacked
+  - [ ] socks
+</pre>
+</div>
+<div id="outline-container-orgd2d6e17" class="outline-3">
+<h3 id="orgd2d6e17"><span class="section-number-3">9.1.</span> Numbered to reorder</h3>
+<div class="outline-text-3" id="text-9-1">
+<ol class="org-ol">
+<li>First</li>
+<li>Second</li>
+<li>Third</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org4f04a7e" class="outline-3">
+<h3 id="org4f04a7e"><span class="section-number-3">9.2.</span> Boxes to reorder</h3>
+<div class="outline-text-3" id="text-9-2">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Unpacked
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> socks</li>
+</ul></li>
+<li class="on"><code>[X]</code> Packed</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org97668aa" class="outline-2">
+<h2 id="org97668aa"><span class="section-number-2">10.</span> Converting items, text and headlines</h2>
+<div class="outline-text-2" id="text-10">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">On</th>
+<th scope="col" class="org-left">Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;-</code></td>
+<td class="org-left">a text line</td>
+<td class="org-left">an item</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;-</code></td>
+<td class="org-left">an item</td>
+<td class="org-left">a text line (the checkbox stays)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;-</code></td>
+<td class="org-left">a headline</td>
+<td class="org-left">an item (a TODO keyword becomes a box)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;*</code></td>
+<td class="org-left">an item</td>
+<td class="org-left">a headline (<code>[ ]</code> / <code>[X]</code> → TODO / DONE)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-*&gt;</code></td>
+<td class="org-left">an item</td>
+<td class="org-left">the whole list becomes a subtree</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+In Visual mode <code>&lt;prefix&gt;-</code> converts every selected line; with a count the
+selection becomes a single item.
+</p>
+
+<p>
+<b>Try:</b> select the three lines "eggs", "flour" and "sugar" (in "Text to
+items") with <code>V</code> and <code>2j</code>, then press <code>&lt;prefix&gt;-</code>.
+</p>
+
+<p>
+<b>Expect:</b>
+</p>
+<pre class="example">
+- eggs
+- flour
+- sugar
+</pre>
+
+<p>
+<b>Try:</b> in "Items to headlines", on "[ ] Book the venue" press <code>&lt;C-c&gt;&lt;C-*&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the list is gone; its items are now child headlines of "Items to
+headlines", with checkboxes turned into keywords and sub-items into deeper
+headlines:
+</p>
+<pre class="example">
+*** TODO Book the venue
+*** DONE Send the invitations
+**** DONE Family
+**** DONE Friends
+</pre>
+</div>
+<div id="outline-container-orgefbd59a" class="outline-3">
+<h3 id="orgefbd59a"><span class="section-number-3">10.1.</span> Text to items</h3>
+<div class="outline-text-3" id="text-10-1">
+<p>
+eggs
+flour
+sugar
+</p>
+</div>
+</div>
+<div id="outline-container-org15303e2" class="outline-3">
+<h3 id="org15303e2"><span class="section-number-3">10.2.</span> Items to headlines</h3>
+<div class="outline-text-3" id="text-10-2">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Book the venue</li>
+<li class="on"><code>[X]</code> Send the invitations
+<ul class="org-ul">
+<li class="on"><code>[X]</code> Family</li>
+<li class="on"><code>[X]</code> Friends</li>
+</ul></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-orgfee8a47" class="outline-2">
+<h2 id="orgfee8a47"><span class="section-number-2">11.</span> Checkboxes</h2>
+<div class="outline-text-2" id="text-11">
+<p>
+An item becomes a task when it starts with a checkbox: <code>[ ]</code> (open),
+<code>[X]</code> (done) or <code>[-]</code> (partly done, set automatically).
+</p>
+
+<ul class="org-ul">
+<li><code>&lt;C-Space&gt;</code> (or <code>&lt;C-c&gt;&lt;C-c&gt;</code>, or Emacs <code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-b&gt;</code>) on the first
+line of an item toggles its box.</li>
+<li>A parent box follows its children: when some children are done it shows
+<code>[-]</code>, when all are done <code>[X]</code>. Toggling the parent itself is refused
+("Cannot toggle this checkbox").</li>
+<li>With a count: <code>4&lt;C-c&gt;&lt;C-c&gt;</code> adds (or removes) a checkbox on the item;
+<code>16&lt;C-c&gt;&lt;C-c&gt;</code> sets <code>[-]</code>.</li>
+<li>In Visual mode, <code>&lt;C-Space&gt;</code> toggles every selected item (following the
+state of the first one).</li>
+<li>On a <b>headline</b>, <code>&lt;C-Space&gt;</code> toggles every item of its text.</li>
+</ul>
+
+<p>
+<b>Try:</b> in "Packing", toggle "Passport" and "Tickets" with <code>&lt;C-Space&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> "Documents" first becomes <code>[-]</code> (after Passport), then <code>[X]</code>
+(after Tickets). "Documents" was never toggled by you.
+</p>
+
+<p>
+<b>Try:</b> on "Documents" press <code>&lt;C-c&gt;&lt;C-c&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> nothing changes, and the message "Cannot toggle this checkbox:
+all subitems checked" appears. (<code>&lt;C-Space&gt;</code> silently leaves it alone.)
+</p>
+
+<p>
+<b>Try:</b> on "Toothbrush" (no box yet) press <code>4&lt;C-c&gt;&lt;C-c&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>- [ ] Toothbrush</code>. Press <code>4&lt;C-c&gt;&lt;C-c&gt;</code> again to remove it.
+</p>
+
+<p>
+<b>Try:</b> select "Shirts", "Socks" and "Shoes" with <code>V2j</code> and press
+<code>&lt;C-Space&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> all three become <code>[X]</code>.
+</p>
+</div>
+<div id="outline-container-org3ec8003" class="outline-3">
+<h3 id="org3ec8003"><span class="section-number-3">11.1.</span> Packing</h3>
+<div class="outline-text-3" id="text-11-1">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Documents
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Passport</li>
+<li class="off"><code>[&nbsp;]</code> Tickets</li>
+</ul></li>
+<li>Toothbrush</li>
+<li class="off"><code>[&nbsp;]</code> Shirts</li>
+<li class="off"><code>[&nbsp;]</code> Socks</li>
+<li class="off"><code>[&nbsp;]</code> Shoes</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org302e170" class="outline-3">
+<h3 id="org302e170"><span class="section-number-3">11.2.</span> Toggle everything from the headline</h3>
+<div class="outline-text-3" id="text-11-2">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> one</li>
+<li class="off"><code>[&nbsp;]</code> two</li>
+<li class="off"><code>[&nbsp;]</code> three</li>
+</ul>
+
+<p>
+<b>Try:</b> on the headline "Toggle everything from the headline" press
+<code>&lt;C-Space&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> one, two and three are all checked. Press it again to uncheck
+them.
+</p>
+</div>
+</div>
+<div id="outline-container-org80a4529" class="outline-3">
+<h3 id="org80a4529"><span class="section-number-3">11.3.</span> Ordered checklists</h3>
+<div class="outline-text-3" id="text-11-3">
+<p>
+With the property <code>ORDERED: t</code>, the boxes must be checked in order: an
+unchecked box blocks the ones after it.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-c&gt;</code> on "Step two" (before "Step one").
+</p>
+
+<p>
+<b>Expect:</b> "Step two" stays unchecked and the message "Cannot toggle this
+checkbox: unchecked subitems" appears (the same words as Emacs). Check
+"Step one" first; then "Step two" can be checked.
+</p>
+
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Step one</li>
+<li class="off"><code>[&nbsp;]</code> Step two</li>
+<li class="off"><code>[&nbsp;]</code> Step three</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org0c92d11" class="outline-2">
+<h2 id="org0c92d11"><span class="section-number-2">12.</span> Statistics cookies</h2>
+<div class="outline-text-2" id="text-12">
+<p>
+A cookie <code>[/]</code> or <code>[%]</code> at the end of an item or a headline shows how many
+of its checkboxes are done: <code>[2/5]</code> or <code>[40%]</code>. Type the empty cookie
+yourself; Org fills it in and updates it after every toggle. You can put
+both on the same line.
+</p>
+
+<ul class="org-ul">
+<li>On an <b>item</b>, the cookie counts its direct sub-items.</li>
+<li>On a <b>headline</b>, it counts the top-level items of its text (sub-items are
+counted through their parents), or, when there are no checkboxes, its
+child TODO entries (see <a href="04-todo.html">04-todo.org</a>).</li>
+<li><code>&lt;prefix&gt;#</code> (Emacs <code>&lt;C-c&gt;#</code>) updates the cookies of the current entry;
+<code>4&lt;prefix&gt;#</code> updates every cookie of the buffer.</li>
+</ul>
+
+<p>
+<b>Try:</b> go to "Party <code>[/]</code> <code>[%]</code>" below and press <code>&lt;prefix&gt;#</code> on its headline.
+</p>
+
+<p>
+<b>Expect:</b> the headline shows <code>[1/3] [33%]</code> (one of its three top-level
+items, "Music", is checked). "Food" shows <code>[1/2]</code>.
+</p>
+
+<p>
+<b>Try:</b> check "Snacks".
+</p>
+
+<p>
+<b>Expect:</b> "Food" becomes <code>[X]</code> with <code>[2/2]</code>, and the headline becomes
+<code>[2/3] [66%]</code>.
+</p>
+</div>
+<div id="outline-container-orgde2857d" class="outline-3">
+<h3 id="orgde2857d"><span class="section-number-3">12.1.</span> Party <code>[/]</code> <code>[%]</code></h3>
+<div class="outline-text-3" id="text-12-1">
+<ul class="org-ul">
+<li class="trans"><code>[-]</code> Food <code>[/]</code>
+<ul class="org-ul">
+<li class="on"><code>[X]</code> Cake</li>
+<li class="off"><code>[&nbsp;]</code> Snacks</li>
+</ul></li>
+<li class="on"><code>[X]</code> Music</li>
+<li class="off"><code>[&nbsp;]</code> Invitations</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgb08c2e4" class="outline-3">
+<h3 id="orgb08c2e4"><span class="section-number-3">12.2.</span> Counting the whole tree <code>[/]</code></h3>
+<div class="outline-text-3" id="text-12-2">
+<p>
+<code>COOKIE_DATA</code> changes what a headline cookie counts: <code>checkbox</code> or <code>todo</code>
+forces one kind, and <code>recursive</code> counts every box in the tree, sub-items
+included.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;prefix&gt;#</code> on this headline.
+</p>
+
+<p>
+<b>Expect:</b> <code>[2/7]</code>: all seven boxes are counted, parents and sub-items
+alike (Food, Cake, Snacks, Decoration, Balloons, Lights, Music), and two of
+them (Cake and Music) are checked. Without <code>recursive</code> the cookie would
+count only the three top-level items: <code>[1/3]</code>.
+</p>
+
+<ul class="org-ul">
+<li class="trans"><code>[-]</code> Food
+<ul class="org-ul">
+<li class="on"><code>[X]</code> Cake</li>
+<li class="off"><code>[&nbsp;]</code> Snacks</li>
+</ul></li>
+<li class="off"><code>[&nbsp;]</code> Decoration
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Balloons</li>
+<li class="off"><code>[&nbsp;]</code> Lights</li>
+</ul></li>
+<li class="on"><code>[X]</code> Music</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org45cb940" class="outline-3">
+<h3 id="org45cb940"><span class="section-number-3">12.3.</span> Cookies without checkboxes</h3>
+<div class="outline-text-3" id="text-12-3">
+<p>
+When a headline has a cookie but no checkboxes in its text and no child
+entries, <code>&lt;prefix&gt;#</code> sets it to <code>[0/0]</code> or <code>[100%]</code>.
+</p>
+</div>
+<div id="outline-container-orge6bfee2" class="outline-4">
+<h4 id="orge6bfee2"><span class="section-number-4">12.3.1.</span> Nothing to count <code>[%]</code></h4>
+<div class="outline-text-4" id="text-12-3-1">
+<p>
+<b>Try:</b> press <code>&lt;prefix&gt;#</code> on "Nothing to count".
+</p>
+
+<p>
+<b>Expect:</b> <code>[100%]</code>.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-orgcb89e30" class="outline-2">
+<h2 id="orgcb89e30"><span class="section-number-2">13.</span> Radio lists</h2>
+<div class="outline-text-2" id="text-13">
+<p>
+A radio list allows only one checked item: checking one unchecks the
+others. Mark the list with <code>#+attr_org: :radio t</code> on the line above it;
+then <code>&lt;C-c&gt;&lt;C-c&gt;</code> and <code>&lt;C-Space&gt;</code> work like radio buttons.
+<code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-r&gt;</code> (<code>:Org toggle_radio_button</code>) toggles a radio button in
+any list, and <code>:Org checkbox_radio_mode</code> makes <code>&lt;C-c&gt;&lt;C-c&gt;</code> behave that
+way in every list of the buffer.
+</p>
+
+<p>
+<b>Try:</b> in "Coffee size", press <code>&lt;C-c&gt;&lt;C-c&gt;</code> on "Large".
+</p>
+
+<p>
+<b>Expect:</b> "Large" is checked and "Medium" is unchecked.
+</p>
+
+<p>
+<b>Try:</b> in "Normal list", put the cursor on "red" and press
+<code>&lt;C-c&gt;&lt;C-x&gt;&lt;C-r&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> "red" is checked and "green" unchecked, although this list has no
+<code>:radio</code> attribute.
+</p>
+</div>
+<div id="outline-container-orgd57504c" class="outline-3">
+<h3 id="orgd57504c"><span class="section-number-3">13.1.</span> Coffee size</h3>
+<div class="outline-text-3" id="text-13-1">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Small</li>
+<li class="on"><code>[X]</code> Medium</li>
+<li class="off"><code>[&nbsp;]</code> Large</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgb72b707" class="outline-3">
+<h3 id="orgb72b707"><span class="section-number-3">13.2.</span> Normal list</h3>
+<div class="outline-text-3" id="text-13-2">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> red</li>
+<li class="on"><code>[X]</code> green</li>
+<li class="off"><code>[&nbsp;]</code> blue</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org1709cfb" class="outline-2">
+<h2 id="org1709cfb"><span class="section-number-2">14.</span> Sorting lists</h2>
+<div class="outline-text-2" id="text-14">
+<p>
+<code>&lt;prefix&gt;hs</code> (Emacs <code>&lt;C-c&gt;^</code>) on an item sorts that item and its siblings.
+The menu has fewer keys than for headlines:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Sorts by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>a</code></td>
+<td class="org-left">the item text, alphabetically</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>n</code></td>
+<td class="org-left">the number at the start of the text</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">the first timestamp of the item (or a timer <code>0:05:00 ::</code> term)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>x</code></td>
+<td class="org-left">checkbox: unchecked <code>[ ]</code> first, then <code>[-]</code>, then <code>[X]</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>f</code></td>
+<td class="org-left">a Lua function</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Uppercase keys reverse the order; a count makes <code>a</code> case-sensitive.
+Sub-items travel with their item, and ordered lists are renumbered.
+</p>
+
+<p>
+<b>Try:</b> on "cherry" press <code>&lt;prefix&gt;hs</code> then <code>a</code>.
+</p>
+
+<p>
+<b>Expect:</b> apple, banana (with its sub-item), cherry, numbered 1, 2, 3.
+</p>
+
+<p>
+<b>Try:</b> on any item of "Chores list" press <code>&lt;prefix&gt;hs</code> then <code>x</code>.
+</p>
+
+<p>
+<b>Expect:</b> the open items first, each group in its original order:
+</p>
+<pre class="example">
+- [ ] vacuum
+- [ ] windows
+- [X] dishes
+- [X] laundry
+</pre>
+<p>
+Press <code>&lt;prefix&gt;hs</code> then <code>X</code> (reverse) to get the checked ones first.
+</p>
+
+<p>
+<b>Try:</b> on "Retro" press <code>&lt;prefix&gt;hs</code> then <code>t</code>.
+</p>
+
+<p>
+<b>Expect:</b> Kickoff (Oct 1), Review (Oct 14), Retro (Nov 2).
+</p>
+</div>
+<div id="outline-container-org99af24e" class="outline-3">
+<h3 id="org99af24e"><span class="section-number-3">14.1.</span> Fruit list</h3>
+<div class="outline-text-3" id="text-14-1">
+<ol class="org-ol">
+<li>cherry</li>
+<li>banana
+<ul class="org-ul">
+<li>a sub-item stays with banana</li>
+</ul></li>
+<li>apple</li>
+</ol>
+</div>
+</div>
+<div id="outline-container-org9b58fed" class="outline-3">
+<h3 id="org9b58fed"><span class="section-number-3">14.2.</span> Chores list</h3>
+<div class="outline-text-3" id="text-14-2">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> vacuum</li>
+<li class="on"><code>[X]</code> dishes</li>
+<li class="off"><code>[&nbsp;]</code> windows</li>
+<li class="on"><code>[X]</code> laundry</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgb0f1a4e" class="outline-3">
+<h3 id="orgb0f1a4e"><span class="section-number-3">14.3.</span> Meetings list</h3>
+<div class="outline-text-3" id="text-14-3">
+<ul class="org-ul">
+<li>Retro <span class="timestamp-wrapper"><span class="timestamp">&lt;2026-11-02 Mon&gt;</span></span></li>
+<li>Meeting: Kickoff <span class="timestamp-wrapper"><span class="timestamp">&lt;2026-10-01 Thu&gt;</span></span></li>
+<li>Review <span class="timestamp-wrapper"><span class="timestamp">&lt;2026-10-14 Wed&gt;</span></span></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd5b1c41" class="outline-2">
+<h2 id="orgd5b1c41"><span class="section-number-2">15.</span> Checkboxes that block a TODO</h2>
+<div class="outline-text-2" id="text-15">
+<p>
+With <code>enforce_todo_checkbox_dependencies = true</code>, an entry cannot be marked
+DONE while it has unchecked boxes. It is off by default; for this session:
+</p>
+
+<pre class="example" id="orgfe04580">
+:lua require("org.config").opts.enforce_todo_checkbox_dependencies = true
+</pre>
+
+<p>
+<b>Try:</b> turn it on, then on "Ship the release" press <code>cit</code> (next TODO
+state).
+</p>
+
+<p>
+<b>Expect:</b> the entry stays TODO and a message says it is blocked. Check both
+boxes and press <code>cit</code> again: it becomes DONE.
+</p>
+</div>
+<div id="outline-container-org6d2fcfd" class="outline-3">
+<h3 id="org6d2fcfd"><span class="section-number-3">15.1.</span> <span class="todo TODO">TODO</span> Ship the release</h3>
+<div class="outline-text-3" id="text-15-1">
+<ul class="org-ul">
+<li class="off"><code>[&nbsp;]</code> Tests pass</li>
+<li class="off"><code>[&nbsp;]</code> Changelog written</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org4dafb16" class="outline-2">
+<h2 id="org4dafb16"><span class="section-number-2">16.</span> List settings</h2>
+<div class="outline-text-2" id="text-16">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Option (default)</th>
+<th scope="col" class="org-left">Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>blank_before_new_entry.plain_list_item</code> (auto)</td>
+<td class="org-left">blank lines between items</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>cycle_include_plain_lists</code> (<code>true</code>)</td>
+<td class="org-left"><code>&lt;Tab&gt;</code> folds items</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>meta_return_split_line</code> (<code>true</code>)</td>
+<td class="org-left"><code>&lt;M-CR&gt;</code> splits the text</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>enforce_todo_checkbox_dependencies</code> (<code>false</code>)</td>
+<td class="org-left">open boxes block DONE</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>ui.checkboxes</code> (<code>false</code>)</td>
+<td class="org-left">icons for the boxes</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Not available (Emacs options without an org.nvim equivalent): alphabetical
+bullets (<code>a.</code>, <code>org-list-allow-alphabetical</code>), changing the bullet
+automatically when demoting (<code>org-list-demote-modify-bullet</code>) and a custom
+indentation of sub-lists (<code>org-list-indent-offset</code>).
+</p>
+
+<p>
+Timer lists (items whose term is a running time, <code>0:05:12 ::</code>) are covered
+in <a href="20-timers-reminders.html">20-timers-reminders.org</a>.
+</p>
+</div>
+</div>
+<div id="outline-container-orgb6725e2" class="outline-2">
+<h2 id="orgb6725e2"><span class="section-number-2">17.</span> Further reading</h2>
+<div class="outline-text-2" id="text-17">
+<dl class="org-dl">
+<dt><code>:h org-lists</code></dt><dd>lists, checkboxes and cookies</dd>
+<dt><code>:h org-radio-list</code></dt><dd>radio buttons</dd>
+<dt><code>:h org-meta-return</code></dt><dd><code>&lt;M-CR&gt;</code> in lists</dd>
+<dt><code>:h org-promote-demote</code></dt><dd>indentation rules for items</dd>
+<dt><code>:h org-sort</code></dt><dd>sorting lists</dd>
+<dt><code>:h org-todo-statistics</code></dt><dd>cookies that count TODO entries</dd>
+</dl>
+</div>
+</div>

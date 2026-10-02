@@ -1,0 +1,2084 @@
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#org8463113">1. How to use this file</a>
+<ul>
+<li><a href="#org10c0f82">1.1. Keys in this file</a></li>
+</ul>
+</li>
+<li><a href="#org99371d7">2. Getting help inside Neovim</a>
+<ul>
+<li><a href="#org9627784">2.1. g?: the keys of the current buffer</a></li>
+<li><a href="#orga368926">2.2. :Org: every command by name</a></li>
+<li><a href="#orge87d85b">2.3. :help</a></li>
+</ul>
+</li>
+<li><a href="#org9a91767">3. Checking your setup: :checkhealth org</a></li>
+<li><a href="#org8457a29">4. Completion</a>
+<ul>
+<li><a href="#org2ee9fa0">4.1. What completes where</a></li>
+<li><a href="#orgcc47755">4.2. Practice area</a>
+<ul>
+<li><a href="#orgefbd59a">4.2.1. Tags and TODO keywords</a></li>
+<li><a href="#org97668aa">4.2.2. Properties</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#orgd54f3f3">5. Structure templates and org-tempo</a>
+<ul>
+<li><a href="#org203ff68">5.1. &lt;prefix&gt;ib: insert a block</a></li>
+<li><a href="#orgbc77e6e">5.2. org-tempo: &lt;s&lt;Tab&gt;</a></li>
+</ul>
+</li>
+<li><a href="#orgfee8a47">6. Special edit buffers: &lt;prefix&gt;'</a>
+<ul>
+<li><a href="#org302e170">6.1. Examples to edit</a></li>
+<li><a href="#org80a4529">6.2. Narrowing is the same idea</a></li>
+</ul>
+</li>
+<li><a href="#org73cb48e">7. Elements: paragraphs, lists, blocks, tables &hellip;</a>
+<ul>
+<li><a href="#orgc0d11a5">7.1. Practice</a></li>
+</ul>
+</li>
+<li><a href="#orgde2857d">8. Speed keys</a>
+<ul>
+<li><a href="#org8242909">8.1. Practice</a>
+<ul>
+<li><a href="#org29e3bf9">8.1.1. Speed one</a></li>
+<li><a href="#org99967f4">8.1.2. Speed two</a></li>
+<li><a href="#org1fec826">8.1.3. Speed three</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#orgfe04580">9. Inline tasks</a>
+<ul>
+<li><a href="#org1709cfb">9.1. Practice</a>
+<ul>
+<li><a href="#orgb0f1a4e">9.1.1. Kitchen</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#orgd5de3e7">10. Encryption: org-crypt</a>
+<ul>
+<li><a href="#org1858b08">10.1. Practice</a>
+<ul>
+<li><a href="#org925a93b">10.1.1. Wifi password&nbsp;&nbsp;&nbsp<span class="tag"><span class="crypt">crypt</span></span></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org652c872">11. Display options</a></li>
+<li><a href="#org4b1d8d6">12. Setup files: #+SETUPFILE</a></li>
+<li><a href="#extras-lint">13. org-lint: check the syntax</a></li>
+<li><a href="#org773f935">14. Emacs keys</a>
+<ul>
+<li>
+<ul>
+<li><a href="#org853d9c8">14.0.1. Emacs practice</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#org8228d88">15. Integrations</a>
+<ul>
+<li><a href="#orgcf84e55">15.1. org-protocol: capture from the browser</a></li>
+<li><a href="#orgc1855ad">15.2. RSS and Atom feeds</a></li>
+<li><a href="#org42d1764">15.3. MobileOrg</a></li>
+<li><a href="#orgde4cbdf">15.4. The Lua API</a></li>
+</ul>
+</li>
+<li><a href="#org5d404f1">16. Further reading</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org8463113" class="outline-2">
+<h2 id="org8463113"><span class="section-number-2">1.</span> How to use this file</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+This file collects the features of org.nvim that don't belong to one of the
+other example files: finding help, completion, the syntax checker
+(org-lint), speed keys, inline tasks, encryption, special edit buffers,
+element commands, structure templates, display options, setup files, the
+Emacs keys, and the integrations (org-protocol, feeds, MobileOrg, the Lua
+API).
+</p>
+
+<ul class="org-ul">
+<li>The file starts folded (<code>#+STARTUP: overview</code>). Put the cursor on a
+heading and press <code>&lt;Tab&gt;</code> to open it; <code>&lt;S-Tab&gt;</code> cycles the whole buffer.</li>
+<li>Nothing breaks if you make a mess: <code>u</code> undoes, and
+<code>git checkout examples/22-extras.org</code> restores the file.</li>
+<li><code>g?</code> lists every key of the buffer (see the next section).</li>
+<li><code>&lt;prefix&gt;</code> means <code>&lt;leader&gt;o</code>, the default <code>mappings.prefix</code>. With
+<code>examples/minimal_init.lua</code> the leader is <code>&lt;Space&gt;</code>, so <code>&lt;prefix&gt;'</code> is
+<code>&lt;Space&gt;o'</code>.</li>
+<li>Lines starting with <b>Try:</b> are exercises with the exact keys to press;
+<b>Expect:</b> says what you should see afterwards.</li>
+<li>Lines starting with <code>#</code> followed by a space are Org comments that annotate
+the examples. They are dimmed and never exported.</li>
+</ul>
+
+<p>
+Start Neovim from the repository root with the bundled init file, so your
+own config is not involved:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim -u examples/minimal_init.lua examples/22-extras.org
+</code></pre>
+</div>
+
+<p>
+<code>examples/minimal_init.lua</code> sets the leader keys (<code>&lt;Space&gt;</code> and <code>\</code>),
+points the agenda at <code>examples/*.org</code>, sends captures to a scratch
+<code>org_directory</code> under <code>stdpath("state")</code>, and defines a few capture
+templates and custom agenda commands. Everything this file talks about is
+left at its default, so several sections show how to turn a feature on
+for the current session with a <code>:lua</code> command. Those changes last until
+you quit Neovim.
+</p>
+</div>
+<div id="outline-container-org10c0f82" class="outline-3">
+<h3 id="org10c0f82"><span class="section-number-3">1.1.</span> Keys in this file</h3>
+<div class="outline-text-3" id="text-1-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Emacs key</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>g?</code></td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">list the keys of the buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org</code></td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">pick any org command</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-x&gt;&lt;C-o&gt;</code></td>
+<td class="org-left"><code>M-TAB</code></td>
+<td class="org-left">complete (Insert mode)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org lint</code></td>
+<td class="org-left"><code>M-x org-lint</code></td>
+<td class="org-left">check the syntax of the buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;'</code></td>
+<td class="org-left"><code>C-c '</code></td>
+<td class="org-left">edit in a separate buffer</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;ib</code></td>
+<td class="org-left"><code>C-c C-,</code></td>
+<td class="org-left">insert a <code>#+begin_</code> block</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;v</code></td>
+<td class="org-left"><code>M-h</code></td>
+<td class="org-left">select the element</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;M-}&gt;</code> / <code>&lt;M-{&gt;</code></td>
+<td class="org-left"><code>M-}</code> / <code>M-{</code></td>
+<td class="org-left">next / previous element</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-M-t&gt;</code></td>
+<td class="org-left"><code>C-M-t</code></td>
+<td class="org-left">swap with the previous element</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;:</code></td>
+<td class="org-left"><code>C-c :</code></td>
+<td class="org-left">toggle fixed-width <code>:</code> lines</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;t</code></td>
+<td class="org-left"><code>C-c C-x t</code></td>
+<td class="org-left">insert an inline task</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org num_mode</code></td>
+<td class="org-left"><code>M-x org-num-mode</code></td>
+<td class="org-left">number the headlines</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-x&gt;\</code></td>
+<td class="org-left"><code>C-c C-x \</code></td>
+<td class="org-left">toggle pretty entities</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:checkhealth org</code></td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">check the setup</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="outline-container-org99371d7" class="outline-2">
+<h2 id="org99371d7"><span class="section-number-2">2.</span> Getting help inside Neovim</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+You never need to leave Neovim to find a key or a command.
+</p>
+</div>
+<div id="outline-container-org9627784" class="outline-3">
+<h3 id="org9627784"><span class="section-number-3">2.1.</span> g?: the keys of the current buffer</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+<code>g?</code> in an org buffer (or in the agenda) opens a floating window listing
+every mapping of that buffer, grouped by topic ("Anywhere", "Structure",
+"Links" &hellip;). Each row lists every key of one command (the Vim-style key,
+the <code>&lt;prefix&gt;</code> key and the Emacs key) and what it does. <code>i_</code> marks
+Insert-mode keys.
+</p>
+
+<p>
+In the window:
+</p>
+<ul class="org-ul">
+<li><code>/</code> searches the list like any buffer,</li>
+<li><code>{</code> and <code>}</code> jump between sections,</li>
+<li><code>q</code>, <code>&lt;Esc&gt;</code> or <code>g?</code> close it.</li>
+</ul>
+
+<p>
+<b>Try:</b> press <code>g?</code> here, then type <code>/Footnote:</code> and <code>&lt;CR&gt;</code>.
+<b>Expect:</b> the cursor lands on the row
+<code>&lt;leader&gt;oif  &lt;C-c&gt;&lt;C-x&gt;f  Footnote: jump / new / menu (count)</code>.
+Press <code>q</code> to close the window.
+</p>
+
+<p>
+<b>Try:</b> press <code>g?</code>, then <code>}</code> a few times.
+<b>Expect:</b> the cursor jumps from one section heading to the next.
+</p>
+</div>
+</div>
+<div id="outline-container-orga368926" class="outline-3">
+<h3 id="orga368926"><span class="section-number-3">2.2.</span> :Org: every command by name</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+Every action of org.nvim has a name (the names in <code>:h org-keymaps</code>), and
+<code>:Org {name}</code> runs it, whether or not it has a key:
+</p>
+
+<ul class="org-ul">
+<li><code>:Org</code> alone shows a picker with every command and its description.</li>
+<li><code>:Org &lt;Tab&gt;</code> completes the names on the command line.</li>
+<li>Some commands take arguments: <code>:Org agenda a</code>, <code>:Org capture t</code>,
+<code>:Org export html</code>, <code>:Org lint duplicate-name</code>, <code>:Org timer_countdown 5</code>.</li>
+<li>Some take a range, e.g. <code>:'&lt;,'&gt;Org link_preview</code> previews the image
+links of the Visual selection.</li>
+</ul>
+
+<p>
+<b>Try:</b> type <code>:Org</code> and <code>&lt;CR&gt;</code>, then type <code>num</code> to filter the list and pick
+<code>num_mode</code>.
+<b>Expect:</b> every headline of this file gets a number in front of it
+(<code>1</code>, <code>2</code>, <code>2.1</code> &hellip;). Run <code>:Org num_mode</code> again to remove them.
+</p>
+
+<p>
+<b>Try:</b> type <code>:Org toggle_</code> and press <code>&lt;Tab&gt;</code> repeatedly.
+<b>Expect:</b> the command line cycles through <code>toggle_archive_tag</code>,
+<code>toggle_checkbox</code>, <code>toggle_comment</code> and the other <code>toggle_...</code> commands.
+</p>
+</div>
+</div>
+<div id="outline-container-orge87d85b" class="outline-3">
+<h3 id="orge87d85b"><span class="section-number-3">2.3.</span> :help</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+The manual is <code>:h org</code>. Every section has a tag, and most tags are named
+after the Emacs feature: <code>:h org-links</code>, <code>:h org-lint</code>, <code>:h org-crypt</code>,
+<code>:h org-speed-commands</code>, <code>:h org-emacs-keys</code>, <code>:h org-differences</code>.
+<code>:h org-keymaps</code> lists every action with its default key, and
+<code>:h org-config</code> every option.
+</p>
+
+<p>
+<b>Try:</b> <code>:h org-differences</code> and read the part about the element commands.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org9a91767" class="outline-2">
+<h2 id="org9a91767"><span class="section-number-2">3.</span> Checking your setup: :checkhealth org</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+<code>:checkhealth org</code> checks everything org.nvim depends on and prints what
+it found, in five parts:
+</p>
+
+<dl class="org-dl">
+<dt>org.nvim</dt><dd>Neovim version, <code>org_directory</code>, agenda files, notes file, TODO
+keywords</dd>
+<dt>external tools</dt><dd>pandoc, makeinfo, LaTeX, and the interpreter of every
+Babel language</dd>
+<dt>image and LaTeX previews</dt><dd>which image backend draws previews (see
+<a href="21-images-latex.html">21-images-latex</a>)</dd>
+<dt>completion</dt><dd>omnifunc, blink.cmp or nvim-cmp</dd>
+<dt>terminal keys</dt><dd>whether tmux and the terminal pass the keys org maps</dd>
+</dl>
+
+<p>
+The last part matters more than it seems: keys such as <code>&lt;C-CR&gt;</code>, <code>&lt;S-CR&gt;</code>,
+<code>&lt;C-,&gt;</code>, <code>&lt;M-S-CR&gt;</code> only reach Neovim when the terminal sends "extended
+keys" (CSI u). Inside tmux you need <code>set -s extended-keys on</code> and a
+<code>terminal-features</code> entry with <code>extkeys</code>. The check also reads the
+keybinds of Ghostty, kitty and WezTerm and warns when one of them takes a
+key org.nvim maps (Ghostty's <code>ctrl+tab</code>, kitty's <code>ctrl+shift+enter</code>, &hellip;).
+On macOS, Option must send Alt for the <code>&lt;M-...&gt;</code> keys.
+</p>
+
+<p>
+<b>Try:</b> run <code>:checkhealth org</code>.
+<b>Expect:</b> a line "OK N agenda file(s) found" (the <code>.org</code> files of
+<code>examples/</code> plus those in the scratch directory), one line per Babel
+language saying whether its interpreter was found, and a "terminal keys"
+part listing the keys that need CSI u.
+</p>
+
+<p>
+If a key does nothing, test it: in Insert mode press <code>&lt;C-v&gt;</code> and then the
+key. Neovim inserts what it received: <code>&lt;C-CR&gt;</code> should give <code>&lt;C-CR&gt;</code>, not
+a plain <code>^M</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org8457a29" class="outline-2">
+<h2 id="org8457a29"><span class="section-number-2">4.</span> Completion</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+org.nvim completes Org syntax as you type, like Emacs <code>org-pcomplete</code>
+(<code>M-TAB</code>). The same candidates are available three ways:
+</p>
+
+<ul class="org-ul">
+<li>the built-in omnifunc, <code>&lt;C-x&gt;&lt;C-o&gt;</code> in Insert mode. It is set
+automatically in every org buffer, nothing to configure;</li>
+<li>a <a href="https://github.com/Saghen/blink.cmp">blink.cmp</a> source;</li>
+<li>an <a href="https://github.com/hrsh7th/nvim-cmp">nvim-cmp</a> source.</li>
+</ul>
+
+<p>
+The blink.cmp source, in your blink.cmp options:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>sources = {
+  per_filetype = { org = { inherit_defaults = true, "org" } },
+  providers = { org = { name = "Org", module = "org.completion.blink" } },
+}
+</code></pre>
+</div>
+
+<p>
+The nvim-cmp source:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("cmp").register_source("org", require("org.completion.cmp").new())
+-- and add { name = "org" } to the sources of cmp.setup.filetype("org", ...)
+</code></pre>
+</div>
+</div>
+<div id="outline-container-org2ee9fa0" class="outline-3">
+<h3 id="org2ee9fa0"><span class="section-number-3">4.1.</span> What completes where</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+You type &hellip; and it completes:
+</p>
+
+<dl class="org-dl">
+<dt>stars and a space</dt><dd>TODO keywords, and <code>COMMENT</code></dd>
+<dt><code>:</code> after a headline title</dt><dd>tags of the file and <code>#+TAGS</code>, not those
+already on the headline</dd>
+<dt><code>#+</code></dt><dd>keywords: <code>TITLE:</code>, <code>STARTUP:</code>, <code>BEGIN_SRC</code> &hellip;</dd>
+<dt><code>#+STARTUP:</code> and a space</dt><dd>startup words: <code>overview</code>, <code>indent</code>, <code>num</code> &hellip;</dd>
+<dt><code>#+OPTIONS:</code> and a space</dt><dd>export options: <code>toc:</code>, <code>num:</code>, <code>^:</code> &hellip;</dd>
+<dt><code>#+FILETAGS: :</code></dt><dd>tags</dd>
+<dt><code>#+begin_src</code> and a space</dt><dd>languages</dd>
+<dt><code>#+begin_src lua :</code> or <code>#+HEADER: :</code></dt><dd>header arguments (<code>:results</code>, <code>:var</code>
+&hellip;)</dd>
+<dt><code>#+BEGIN: clocktable :</code></dt><dd>clock table parameters</dd>
+<dt><code>\</code></dt><dd>entities: <code>\alpha</code>, <code>\rarr</code> &hellip;</dd>
+<dt><code>:</code> at line start in a property drawer</dt><dd>property names the entry doesn't
+have yet</dd>
+<dt><code>:</code> at line start elsewhere</dt><dd>drawer names (<code>PROPERTIES:</code>, <code>LOGBOOK:</code> &hellip;)</dd>
+<dt><code>[[</code></dt><dd>link types, stored links, abbreviations, headlines</dd>
+<dt><code>[[*</code></dt><dd>headlines of the buffer</dd>
+<dt><code>[[#</code></dt><dd><code>CUSTOM_ID</code> values of the buffer</dd>
+</dl>
+
+<p>
+With the omnifunc, what you already typed filters the list: <code>#+ST</code> then
+<code>&lt;C-x&gt;&lt;C-o&gt;</code> offers only <code>STARTUP:</code>. Keywords are offered in the case you
+typed (<code>#+st</code> gives <code>startup:</code>).
+</p>
+</div>
+</div>
+<div id="outline-container-orgcc47755" class="outline-3">
+<h3 id="orgcc47755"><span class="section-number-3">4.2.</span> Practice area</h3>
+<div class="outline-text-3" id="text-4-2">
+<p>
+<b>Try:</b> on the empty line below, type <code>#+STA</code> then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>#+STA</code> becomes <code>#+STARTUP:</code> (the only match). Then type a space
+and <code>&lt;C-x&gt;&lt;C-o&gt;</code> again: a menu of startup words (<code>fold</code>, <code>overview</code>,
+<code>nofold</code> &hellip;). Delete the line afterwards (<code>dd</code>).
+</p>
+
+<p>
+<b>Try:</b> on the empty line below, type <code>#+begin_src l</code> then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> a menu with <code>latex</code>, <code>lisp</code> and <code>lua</code>, the
+languages starting with "l". Pick <code>lua</code>, type a space and <code>:ex</code> then
+<code>&lt;C-x&gt;&lt;C-o&gt;</code>: <code>:exports</code> is offered.
+</p>
+
+<p>
+<b>Try:</b> on the empty line below, type <code>[[*Comp</code> then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>[[*Completion</code> (the heading of this section). Finish the link
+with <code>]]</code> and press <code>&lt;Esc&gt;</code>, then <code>&lt;CR&gt;</code> on it: the cursor jumps to
+"* Completion".
+</p>
+
+<p>
+<b>Try:</b> on the empty line below, type <code>[[#</code> then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> the <code>CUSTOM_ID</code> values of this file: <code>#extras-lint</code> (the lint
+section further down) and <code>#same-id</code> twice (from the intentionally broken
+lint playground).
+</p>
+
+<p>
+<b>Try:</b> on the empty line below, type <code>\alp</code> then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>\Alpha</code> and <code>\alpha</code> (the omnifunc ignores case when it
+filters). With pretty entities on (see "Display options") they show as Α
+and α.
+</p>
+</div>
+<div id="outline-container-orgefbd59a" class="outline-4">
+<h4 id="orgefbd59a"><span class="section-number-4">4.2.1.</span> Tags and TODO keywords</h4>
+<div class="outline-text-4" id="text-4-2-1">
+<p>
+<b>Try:</b> put the cursor at the end of the headline "Tag practice" below
+(<code>$</code>), press <code>a</code>, type a space, <code>:</code> and <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+<b>Expect:</b> the menu offers <code>crypt:</code>, <code>home:</code> and <code>urgent:</code>, but not
+<code>work:</code>, which the headline already has.
+</p>
+
+<p>
+<b>Try:</b> on the headline "Keyword practice", put the cursor on the K of
+"Keyword", press <code>i</code> and then <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+<b>Expect:</b> <code>TODO</code>, <code>DONE</code> and <code>COMMENT</code>. Pick <code>TODO</code> and type a space: the
+headline now reads "TODO Keyword practice".
+</p>
+</div>
+<ol class="org-ol">
+<li><a id="org22e105b"></a>Tag practice&nbsp;&nbsp;&nbsp<span class="tag"><span class="work">work</span></span><br /></li>
+<li><a id="org38bae4b"></a>Keyword practice<br /></li>
+</ol>
+</div>
+<div id="outline-container-org97668aa" class="outline-4">
+<h4 id="org97668aa"><span class="section-number-4">4.2.2.</span> Properties</h4>
+<div class="outline-text-4" id="text-4-2-2">
+<p>
+<b>Try:</b> put the cursor on the <code>:Effort:</code> line of the drawer below, press
+<code>o</code> to open a new line in the drawer, type <code>:</code> and <code>&lt;C-x&gt;&lt;C-o&gt;</code>.
+<b>Expect:</b> property names such as <code>ID:</code>, <code>CUSTOM_ID:</code>, <code>CATEGORY:</code>,
+<code>ORDERED:</code> &hellip; but not <code>Effort:</code>, which this entry already has. Delete
+the line when done.
+</p>
+</div>
+<ol class="org-ol">
+<li><a id="org15303e2"></a>Property practice<br />
+<div class="outline-text-5" id="text-4-2-2-1">
+</div>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd54f3f3" class="outline-2">
+<h2 id="orgd54f3f3"><span class="section-number-2">5.</span> Structure templates and org-tempo</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+Blocks (<code>#+begin_src</code>, <code>#+begin_quote</code> &hellip;) are tedious to type. Two
+helpers insert them.
+</p>
+</div>
+<div id="outline-container-org203ff68" class="outline-3">
+<h3 id="org203ff68"><span class="section-number-3">5.1.</span> &lt;prefix&gt;ib: insert a block</h3>
+<div class="outline-text-3" id="text-5-1">
+<p>
+<code>&lt;prefix&gt;ib</code> (Emacs <code>C-c C-,</code>, org-insert-structure-template) asks for a
+block type and inserts an empty block at the cursor, or wraps the Visual
+selection in one. The cursor goes inside the block, or right after
+<code>#+begin_src</code> and a space so you can type the language. The keys come from
+<code>structure_template_alist</code>:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Block</th>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Block</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>a</code></td>
+<td class="org-left"><code>#+begin_export ascii</code></td>
+<td class="org-left"><code>l</code></td>
+<td class="org-left"><code>#+begin_export latex</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>c</code></td>
+<td class="org-left"><code>#+begin_center</code></td>
+<td class="org-left"><code>q</code></td>
+<td class="org-left"><code>#+begin_quote</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C</code></td>
+<td class="org-left"><code>#+begin_comment</code></td>
+<td class="org-left"><code>s</code></td>
+<td class="org-left"><code>#+begin_src</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>e</code></td>
+<td class="org-left"><code>#+begin_example</code></td>
+<td class="org-left"><code>v</code></td>
+<td class="org-left"><code>#+begin_verse</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>E</code></td>
+<td class="org-left"><code>#+begin_export</code></td>
+<td class="org-left"><code>h</code></td>
+<td class="org-left"><code>#+begin_export html</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<code>&lt;Tab&gt;</code> in the menu asks for any type by name (a custom block such as
+<code>#+begin_note</code> too). Emacs writes that one in upper case
+(<code>#+BEGIN_NOTE</code>), and so does org.nvim.
+</p>
+
+<p>
+<b>Try:</b> select the two lines of the poem below with <code>V j</code>, press
+<code>&lt;prefix&gt;ib</code> and then <code>v</code>.
+<b>Expect:</b> the lines are wrapped:
+</p>
+<pre class="example">
+#+begin_verse
+Roses are red,
+violets are blue.
+#+end_verse
+</pre>
+
+<p>
+Roses are red,
+violets are blue.
+</p>
+
+<p>
+<b>Try:</b> on the empty line right after this paragraph (just before the
+next heading), press <code>&lt;prefix&gt;ib</code> then <code>s</code>, type <code>lua</code> and <code>&lt;Esc&gt;</code>.
+<b>Expect:</b> the empty line becomes an empty <code>#+begin_src lua</code> /
+<code>#+end_src</code> block: after <code>s</code> the cursor waited right after
+<code>#+begin_src</code> and a space, so what you typed became the language.
+</p>
+</div>
+</div>
+<div id="outline-container-orgbc77e6e" class="outline-3">
+<h3 id="orgbc77e6e"><span class="section-number-3">5.2.</span> org-tempo: &lt;s&lt;Tab&gt;</h3>
+<div class="outline-text-3" id="text-5-2">
+<p>
+With <code>tempo = true</code> (the Emacs org-tempo module, off by default), typing
+<code>&lt;</code> plus a key of the table above and then <code>&lt;Tab&gt;</code> in Insert mode, alone
+on a line, expands to the block. <code>&lt;L</code>, <code>&lt;H</code>, <code>&lt;A</code> and <code>&lt;i</code> expand to
+the keywords <code>#+latex:</code>, <code>#+html:</code>, <code>#+ascii:</code> and <code>#+index:</code>, and
+<code>&lt;I</code> asks for a file to <code>#+include:</code>.
+</p>
+
+<p>
+<b>Try:</b> turn it on for this session:
+</p>
+<pre class="example">
+:lua require("org.config").opts.tempo = true
+</pre>
+<p>
+Then on the empty line below press <code>i</code>, type <code>&lt;q</code> and <code>&lt;Tab&gt;</code>.
+</p>
+
+<p>
+<b>Expect:</b> <code>&lt;q</code> is replaced by
+</p>
+<pre class="example">
+#+begin_quote
+#+end_quote
+</pre>
+<p>
+with the cursor on the empty line between them, still in Insert mode.
+</p>
+
+<p>
+<b>Try:</b> on another empty line, <code>i</code>, <code>&lt;L</code>, <code>&lt;Tab&gt;</code>, then type <code>\newpage</code>.
+<b>Expect:</b> the line reads <code>#+latex: \newpage</code>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgfee8a47" class="outline-2">
+<h2 id="orgfee8a47"><span class="section-number-2">6.</span> Special edit buffers: &lt;prefix&gt;'</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+<code>&lt;prefix&gt;'</code> (Emacs <code>C-c '</code>, org-edit-special) opens the element at the
+cursor in a separate buffer with the right filetype, so you get the
+syntax, indentation and LSP of that language. Save it back:
+</p>
+
+<ul class="org-ul">
+<li><code>&lt;prefix&gt;'</code> (or <code>&lt;C-c&gt;'</code>) in the edit buffer saves and closes it,</li>
+<li><code>:w</code> saves without closing,</li>
+<li><code>&lt;C-c&gt;&lt;C-k&gt;</code> throws the changes away (the <code>edit_src.abort</code> key).</li>
+</ul>
+
+<p>
+It works on:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">At the cursor</th>
+<th scope="col" class="org-left">You edit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">a <code>#+begin_src LANG</code> block</td>
+<td class="org-left">the code, filetype <code>LANG</code></td>
+</tr>
+
+<tr>
+<td class="org-left">an inline <code>src_LANG{...}</code> block</td>
+<td class="org-left">the code, kept on one line</td>
+</tr>
+
+<tr>
+<td class="org-left">a <code>#+begin_example</code> block</td>
+<td class="org-left">the text</td>
+</tr>
+
+<tr>
+<td class="org-left">a <code>#+begin_export html</code> block</td>
+<td class="org-left">the text, filetype <code>html</code></td>
+</tr>
+
+<tr>
+<td class="org-left">a <code>#+begin_comment</code> block</td>
+<td class="org-left">the text</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:</code> fixed-width lines</td>
+<td class="org-left">the lines without the <code>:</code></td>
+</tr>
+
+<tr>
+<td class="org-left">a LaTeX fragment <code>$x$</code>, <code>\(x\)</code>, <code>\[x\]</code></td>
+<td class="org-left">the formula (filetype <code>plaintex</code>)</td>
+</tr>
+
+<tr>
+<td class="org-left">a <code>\begin{env}</code> &hellip; <code>\end{env}</code></td>
+<td class="org-left">the environment</td>
+</tr>
+
+<tr>
+<td class="org-left">a footnote reference <code>[fn:label]</code></td>
+<td class="org-left">the definition of that footnote</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#+INCLUDE:</code>, <code>#+SETUPFILE:</code></td>
+<td class="org-left">visits the file</td>
+</tr>
+
+<tr>
+<td class="org-left">a <code>SCHEDULED:</code> / <code>DEADLINE:</code> line</td>
+<td class="org-left">runs <code>&lt;prefix&gt;s</code> / <code>&lt;prefix&gt;d</code></td>
+</tr>
+
+<tr>
+<td class="org-left">a timestamp</td>
+<td class="org-left">the date prompt</td>
+</tr>
+
+<tr>
+<td class="org-left">a link</td>
+<td class="org-left">follows it</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Anywhere else it says "No special environment to edit here".
+</p>
+
+<p>
+If the file changed under an open edit buffer, <code>:w</code> refuses to overwrite
+the conflicting region; look at both versions and use <code>:w!</code> to force it.
+</p>
+</div>
+<div id="outline-container-org302e170" class="outline-3">
+<h3 id="org302e170"><span class="section-number-3">6.1.</span> Examples to edit</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+<b>Try:</b> put the cursor on <code>print</code> below and press <code>&lt;prefix&gt;'</code>.
+<b>Expect:</b> a window with one line, <code>print("from the edit buffer")</code>, and
+<code>:set ft?</code> says <code>filetype=lua</code>. Change the text, press <code>&lt;prefix&gt;'</code>: the
+block below shows your change.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>print("from the edit buffer")
+</code></pre>
+</div>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;'</code> on the first line of the fixed-width area below.
+<b>Expect:</b> the edit buffer shows <code>first line</code> and <code>second line</code> without
+the <code>:</code> markers. Add a third line, press <code>&lt;prefix&gt;'</code>: it comes back as
+<code>: third line</code>.
+</p>
+
+<pre class="example">
+first line
+second line
+</pre>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;'</code> with the cursor inside the <code>$...$</code> formula below.
+<b>Expect:</b> a buffer with only <code>a^2 + b^2 = c^2</code>.
+</p>
+
+<p>
+Pythagoras: \(a^2 + b^2 = c^2\) for a right triangle.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;'</code> on the environment below.
+<b>Expect:</b> the whole <code>\begin{align}</code> &hellip; <code>\end{align}</code>, filetype
+<code>plaintex</code>.
+</p>
+
+\begin{align}
+e^{i\pi} + 1 &= 0
+\end{align}
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;'</code> on the inline block in this line: <code class="src src-sh">echo inline</code>.
+<b>Expect:</b> a buffer with <code>echo inline</code>, filetype <code>sh</code>.
+</p>
+
+<p>
+<b>Try:</b> <code>&lt;prefix&gt;'</code> on <code>[fn:extras1]</code> in this sentence<sup><a id="fnr.extras1" class="footref" href="#fn.extras1" role="doc-backlink">1</a></sup>.
+<b>Expect:</b> a buffer with the text of the definition just below. Edit it
+and press <code>&lt;prefix&gt;'</code> to put it back.
+</p>
+
+<pre class="example" id="orgbdd1cd6">
+An example block: &lt;prefix&gt;' opens it too.
+</pre>
+</div>
+</div>
+<div id="outline-container-org80a4529" class="outline-3">
+<h3 id="org80a4529"><span class="section-number-3">6.2.</span> Narrowing is the same idea</h3>
+<div class="outline-text-3" id="text-6-2">
+<p>
+<code>&lt;prefix&gt;hn</code> edits the current subtree in a separate buffer, <code>&lt;prefix&gt;nb</code>
+the block at the cursor and <code>&lt;prefix&gt;ne</code> the element at the cursor
+(Emacs <code>C-x n s</code>, <code>C-x n b</code>, <code>C-x n e</code>, which are taken by Vim keys
+here). <code>:w</code> writes back, <code>&lt;C-c&gt;'</code> saves and closes. See
+<a href="01-outline.html">01-outline</a>.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-org73cb48e" class="outline-2">
+<h2 id="org73cb48e"><span class="section-number-2">7.</span> Elements: paragraphs, lists, blocks, tables &hellip;</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+Org calls the parts of an entry's text <i>elements</i>: paragraphs, plain
+lists and their items, blocks, drawers, tables, fixed-width areas,
+keywords and comments. The blank lines after an element belong to it.
+Some commands work on whole elements, like Emacs' <code>M-}</code>, <code>M-h</code>, <code>C-M-t</code>:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Emacs</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>&lt;M-}&gt;</code></td>
+<td class="org-left"><code>M-}</code></td>
+<td class="org-left">next element at the same level</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;M-{&gt;</code></td>
+<td class="org-left"><code>M-{</code></td>
+<td class="org-left">previous element</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-^&gt;</code></td>
+<td class="org-left"><code>C-c C-^</code></td>
+<td class="org-left">up to the parent element</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-_&gt;</code></td>
+<td class="org-left"><code>C-c C-_</code></td>
+<td class="org-left">into the first element inside</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;prefix&gt;v</code></td>
+<td class="org-left"><code>M-h</code></td>
+<td class="org-left">select it; again adds the next</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-M-t&gt;</code></td>
+<td class="org-left"><code>C-M-t</code></td>
+<td class="org-left">swap with the previous one</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;M-k&gt;</code> <code>&lt;M-j&gt;</code></td>
+<td class="org-left"><code>M-up</code> <code>M-down</code></td>
+<td class="org-left">on text: drag it up / down</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;M-f&gt;</code></td>
+<td class="org-left"><code>C-c M-f</code></td>
+<td class="org-left">next block (<code>&lt;C-c&gt;&lt;M-b&gt;</code> prev)</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;:</code></td>
+<td class="org-left"><code>C-c :</code></td>
+<td class="org-left">toggle <code>:</code> fixed-width</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Emacs' <code>M-h</code> is <code>&lt;M-h&gt;</code> (promote) in org.nvim, so select is <code>&lt;prefix&gt;v</code>.
+The commands always act on whole lines.
+</p>
+</div>
+<div id="outline-container-orgc0d11a5" class="outline-3">
+<h3 id="orgc0d11a5"><span class="section-number-3">7.1.</span> Practice</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+<b>Try:</b> put the cursor on "First paragraph" and press <code>&lt;M-}&gt;</code> four times.
+<b>Expect:</b> the cursor visits "- a list item", "- another item" (inside a
+list it moves from item to item), the table, and "Last paragraph", in
+that order. <code>&lt;M-{&gt;</code> goes back the same way.
+</p>
+
+<p>
+First paragraph. It is one element even though
+it spans two lines.
+</p>
+
+<ul class="org-ul">
+<li>a list item</li>
+<li>another item</li>
+</ul>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-right" />
+</colgroup>
+<tbody>
+<tr>
+<td class="org-left">a table</td>
+<td class="org-right">1</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Last paragraph.
+</p>
+
+<p>
+<b>Try:</b> on "Last paragraph" press <code>&lt;C-M-t&gt;</code>.
+<b>Expect:</b> "Last paragraph." and the table swap places, and the cursor is
+after both. <code>u</code> to undo.
+</p>
+
+<p>
+<b>Try:</b> on "First paragraph" press <code>&lt;prefix&gt;v</code>, then <code>&lt;prefix&gt;v</code> again.
+<b>Expect:</b> Visual line mode with the two lines of the paragraph and the
+blank line after it selected; the second <code>&lt;prefix&gt;v</code> adds the next
+element, "- a list item".
+</p>
+
+<p>
+<b>Try:</b> select the two lines of "Some output" below with <code>Vj</code> and press
+<code>&lt;C-c&gt;:</code>.
+<b>Expect:</b> both lines start with <code>:</code> and a space (fixed-width, shown verbatim and
+exported as code). <code>&lt;C-c&gt;:</code> again removes the markers.
+</p>
+
+<p>
+Some output
+of a command
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-orgde2857d" class="outline-2">
+<h2 id="orgde2857d"><span class="section-number-2">8.</span> Speed keys</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+Speed keys (Emacs <code>org-use-speed-commands</code>) are single letters that run a
+command when you type them <i>at the very start of a headline</i>, before the
+first star. Anywhere else the letter is inserted as usual. They are off by
+default.
+</p>
+
+<p>
+In org.nvim they work in <b>Insert mode</b>, with the cursor in column 0 of a
+headline (in Normal mode those letters are Vim commands). So <code>I</code> (or <code>0i</code>)
+on a headline, then letters. After each command the cursor goes back to
+column 0 of the headline it ends on, still in Insert mode, so you can
+type several in a row. <code>&lt;Esc&gt;</code> leaves.
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Command</th>
+<th scope="col" class="org-left">Key</th>
+<th scope="col" class="org-left">Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>n</code> / <code>p</code></td>
+<td class="org-left">next / previous heading</td>
+<td class="org-left"><code>t</code></td>
+<td class="org-left">change TODO state</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>f</code> / <code>b</code></td>
+<td class="org-left">next / previous sibling</td>
+<td class="org-left"><code>,</code></td>
+<td class="org-left">set priority</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>u</code></td>
+<td class="org-left">parent heading</td>
+<td class="org-left"><code>0</code> to <code>3</code></td>
+<td class="org-left">priority none, A, B, C</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>F</code> / <code>B</code></td>
+<td class="org-left">next / previous block</td>
+<td class="org-left"><code>:</code></td>
+<td class="org-left">set tags</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>j</code></td>
+<td class="org-left">go to a heading</td>
+<td class="org-left"><code>e</code> <code>E</code></td>
+<td class="org-left">set effort / next effort</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>g</code></td>
+<td class="org-left">go to a refile target</td>
+<td class="org-left"><code>W</code></td>
+<td class="org-left">set <code>APPT_WARNTIME</code></td>
+</tr>
+
+<tr>
+<td class="org-left"><code>c</code> / <code>C</code></td>
+<td class="org-left">cycle / global cycle</td>
+<td class="org-left"><code>I</code> <code>O</code></td>
+<td class="org-left">clock in / out</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>SPC</code></td>
+<td class="org-left">show the outline path</td>
+<td class="org-left"><code>v</code></td>
+<td class="org-left">agenda</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>s</code></td>
+<td class="org-left">narrow to the subtree</td>
+<td class="org-left"><code>/</code></td>
+<td class="org-left">sparse tree</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>k</code></td>
+<td class="org-left">cut the subtree</td>
+<td class="org-left"><code>o</code></td>
+<td class="org-left">open a link</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>=</code></td>
+<td class="org-left">column view</td>
+<td class="org-left"><code>&lt;</code> <code>&gt;</code></td>
+<td class="org-left">agenda restriction lock</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>U</code> / <code>D</code></td>
+<td class="org-left">move subtree up / down</td>
+<td class="org-left"><code>i</code></td>
+<td class="org-left">insert a heading</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>r</code> / <code>l</code></td>
+<td class="org-left">demote / promote</td>
+<td class="org-left"><code>^</code></td>
+<td class="org-left">sort children</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>R</code> / <code>L</code></td>
+<td class="org-left">the same with children</td>
+<td class="org-left"><code>w</code></td>
+<td class="org-left">refile</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>a</code></td>
+<td class="org-left">archive subtree</td>
+<td class="org-left"><code>@</code></td>
+<td class="org-left">select the subtree</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>#</code></td>
+<td class="org-left">toggle COMMENT</td>
+<td class="org-left"><code>?</code></td>
+<td class="org-left">list the speed keys</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Turn them on in your config with <code>use_speed_commands = true</code>, and add or
+change keys with <code>speed_commands</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  use_speed_commands = true,
+  -- an action name, a function, or false to drop a key:
+  speed_commands = { x = "archive_subtree", n = false },
+})
+</code></pre>
+</div>
+
+<p>
+<code>use_speed_commands</code> may also be a function that returns true where speed
+keys should apply.
+</p>
+</div>
+<div id="outline-container-org8242909" class="outline-3">
+<h3 id="org8242909"><span class="section-number-3">8.1.</span> Practice</h3>
+<div class="outline-text-3" id="text-8-1">
+<p>
+<b>Try:</b> turn speed keys on for this session:
+</p>
+<pre class="example">
+:lua require("org.config").opts.use_speed_commands = true
+</pre>
+<p>
+Then put the cursor on "Speed one" below and press <code>0i</code> (column 0, Insert
+mode). Type <code>n</code>, <code>n</code>, <code>p</code>.
+<b>Expect:</b> the cursor moves to "Speed two", then "Speed three", then back
+to "Speed two", staying in Insert mode in column 0. Nothing is inserted.
+</p>
+
+<p>
+<b>Try:</b> still in Insert mode on "Speed two", type <code>D</code>.
+<b>Expect:</b> "Speed two" moves below "Speed three": the order is one,
+three, two.
+</p>
+
+<p>
+<b>Try:</b> type <code>r</code>, then <code>l</code>.
+<b>Expect:</b> "Speed two" gets one more star (a child of "Speed three"),
+then <code>l</code> takes it away again.
+</p>
+
+<p>
+<b>Try:</b> type <code>SPC</code> (the space bar).
+<b>Expect:</b> the echo area shows the outline path, e.g.
+<code>Speed keys/Practice/Speed two</code>.
+</p>
+
+<p>
+<b>Try:</b> type <code>?</code>.
+<b>Expect:</b> a window listing every speed key by group ("Outline
+Navigation", "Outline Visibility" &hellip;). <code>q</code> closes it.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;Esc&gt;</code>, then <code>A</code> at the end of a headline and type <code>n</code>.
+<b>Expect:</b> a plain <code>n</code> is inserted: speed keys only work in column 0.
+</p>
+</div>
+<div id="outline-container-org29e3bf9" class="outline-4">
+<h4 id="org29e3bf9"><span class="section-number-4">8.1.1.</span> Speed one</h4>
+</div>
+<div id="outline-container-org99967f4" class="outline-4">
+<h4 id="org99967f4"><span class="section-number-4">8.1.2.</span> Speed two</h4>
+</div>
+<div id="outline-container-org1fec826" class="outline-4">
+<h4 id="org1fec826"><span class="section-number-4">8.1.3.</span> Speed three</h4>
+</div>
+</div>
+</div>
+<div id="outline-container-orgfe04580" class="outline-2">
+<h2 id="orgfe04580"><span class="section-number-2">9.</span> Inline tasks</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+An inline task (the Emacs org-inlinetask module) is a TODO item in the
+<i>middle</i> of an entry's text, which does not start a new entry: the text
+after it still belongs to the entry above. It is a headline with at least
+<code>inlinetask_min_level</code> stars (Emacs uses 15), optionally closed by a line
+with the same stars and <code>END</code>:
+</p>
+
+<pre class="example" id="orgb08c2e4">
+* Meeting notes
+We discussed the budget.
+*************** TODO Send the slides to Ana
+Details of the task can go here.
+*************** END
+And the notes continue: this line is still part of "Meeting notes".
+</pre>
+
+<p>
+Inline tasks are <b>off</b> by default, as in Emacs without the module
+(<code>inlinetask_min_level = false</code>). While they are off, a line of 15 stars
+is simply a very deep headline. When they are on:
+</p>
+
+<ul class="org-ul">
+<li>they don't count as entries: folding, motions, <code>ar</code> and the agenda see
+the text around them as part of the entry above,</li>
+<li><code>&lt;Tab&gt;</code> on one folds it up to its <code>END</code> line,</li>
+<li><code>&lt;&lt;</code> / <code>&gt;&gt;</code> promote and demote the task and its <code>END</code> line together,
+never below the minimum level,</li>
+<li>only their last two stars are shown,</li>
+<li><code>&lt;C-c&gt;&lt;C-x&gt;t</code> (org-inlinetask-insert-task) inserts one below the
+cursor, or around the Visual selection. It gets
+<code>inlinetask_default_state</code> as keyword unless you give a count.</li>
+<li>export writes them as a small box (<code>export.with_inlinetasks</code>).</li>
+</ul>
+</div>
+<div id="outline-container-org1709cfb" class="outline-3">
+<h3 id="org1709cfb"><span class="section-number-3">9.1.</span> Practice</h3>
+<div class="outline-text-3" id="text-9-1">
+<p>
+<b>Try:</b> turn inline tasks on:
+</p>
+<pre class="example">
+:lua require("org.config").opts.inlinetask_min_level = 15
+</pre>
+<p>
+then reload the file so it is parsed again: <code>:w</code> and <code>:e</code>.
+Open this section again and press <code>&lt;Tab&gt;</code> on the line "TODO Call the
+plumber" (the one with 15 stars).
+<b>Expect:</b> before, that line was a headline of its own. Now <code>&lt;Tab&gt;</code> folds
+the task down to one line (its details and <code>END</code> line hidden), and the
+line shows only two stars.
+</p>
+
+<p>
+<b>Try:</b> put the cursor on "More text of the entry" and press <code>&lt;C-c&gt;&lt;C-x&gt;t</code>.
+<b>Expect:</b> two lines of 15 stars are added below it, the second one
+followed by <code>END</code>, and you are in Insert mode after the stars of the
+first one. Type <code>TODO Buy milk</code> and <code>&lt;Esc&gt;</code>.
+</p>
+
+<p>
+<b>Try:</b> on "Kitchen" below, press <code>ar</code> in Visual mode (<code>v a r</code>).
+<b>Expect:</b> the selection covers "Kitchen" down to "Last line of the
+entry", inline task included: it is not a subtree of its own.
+</p>
+</div>
+<div id="outline-container-orgb0f1a4e" class="outline-4">
+<h4 id="orgb0f1a4e"><span class="section-number-4">9.1.1.</span> Kitchen</h4>
+<div class="outline-text-4" id="text-9-1-1">
+<p>
+The sink leaks.
+</p>
+<div class="inlinetask">
+<b><span class="todo TODO">TODO</span> Call the plumber</b><br />
+<p>
+Ask for Tuesday morning.
+</p>
+</div>
+<p>
+More text of the entry.
+Last line of the entry.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-orgd5de3e7" class="outline-2">
+<h2 id="orgd5de3e7"><span class="section-number-2">10.</span> Encryption: org-crypt</h2>
+<div class="outline-text-2" id="text-10">
+<p>
+org-crypt encrypts the text of an entry with GnuPG, in the same format as
+Emacs, so files encrypted in one editor decrypt in the other. It needs the
+<code>gpg</code> program (<code>crypt.gpg_program</code>) installed and working; <code>gpg --version</code>
+in a shell tells you.
+</p>
+
+<ul class="org-ul">
+<li>Entries tagged <code>:crypt:</code> (<code>crypt.tag_matcher</code>, a match expression) are
+the ones the "entries" commands and encrypt-on-save act on.</li>
+<li>The headline, the planning line, the property drawer, clock lines and
+the LOGBOOK stay readable. The rest of the entry, children included,
+becomes a <code>-----BEGIN PGP MESSAGE-----</code> block.</li>
+<li>The key: the <code>CRYPTKEY</code> property, else <code>crypt.key</code>, is looked up in your
+public keyring. When nothing matches (<code>crypt.key</code> is <code>""</code> by default,
+which never matches) the entry is encrypted <b>symmetrically</b>, with a
+passphrase you type. <code>crypt.key = false</code> always encrypts
+symmetrically.</li>
+<li>Passphrases are read with <code>inputsecret()</code> (twice when encrypting) and
+handed to gpg with <code>--pinentry-mode loopback</code>.</li>
+</ul>
+
+<p>
+There are no default keys, as in Emacs. Use the commands (Emacs
+<code>M-x org-encrypt-entry</code> and friends), or map the actions yourself:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Command</th>
+<th scope="col" class="org-left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>:Org crypt_encrypt_entry</code></td>
+<td class="org-left">encrypt the entry at the cursor</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org crypt_decrypt_entry</code></td>
+<td class="org-left">decrypt it</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org crypt_encrypt_entries</code></td>
+<td class="org-left">encrypt every <code>:crypt:</code> entry</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>:Org crypt_decrypt_entries</code></td>
+<td class="org-left">decrypt them all</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>&lt;C-c&gt;&lt;C-r&gt;</code> (<code>:Org reveal</code>)</td>
+<td class="org-left">decrypts the entry first</td>
+</tr>
+</tbody>
+</table>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  crypt = { key = "you@example.com", encrypt_on_save = true },
+  -- keep the tag on the entries that carry it, as Emacs recommends:
+  tags_exclude_from_inheritance = { "crypt" },
+  mappings = { org = {
+    crypt_encrypt_entry = "&lt;prefix&gt;xc",
+    crypt_decrypt_entry = "&lt;prefix&gt;xC",
+  } },
+})
+</code></pre>
+</div>
+
+<p>
+With <code>crypt.encrypt_on_save = true</code>, the <code>:crypt:</code> entries are encrypted
+before every write, and stay encrypted in the buffer afterwards (decrypt
+again to keep working), like Emacs' <code>org-crypt-use-before-save-magic</code>.
+</p>
+
+<p>
+<b>Leaks.</b> Decrypted text can reach the disk through the swap file and a
+persistent undo file. Before decrypting in a buffer with either,
+<code>crypt.disable_auto_save</code> (<code>"ask"</code> by default) asks whether to turn them
+off for that buffer. <code>examples/minimal_init.lua</code> already sets
+<code>noswapfile</code>, so you won't be asked here. Yanked text goes to registers,
+which <code>shada</code> may save: see <code>:h org-crypt-leaks</code>.
+</p>
+</div>
+<div id="outline-container-org1858b08" class="outline-3">
+<h3 id="org1858b08"><span class="section-number-3">10.1.</span> Practice</h3>
+<div class="outline-text-3" id="text-10-1">
+<p>
+<b>Try:</b> put the cursor on "Wifi password" below and run
+<code>:Org crypt_encrypt_entry</code>. Type a passphrase (<code>test</code> will do) and
+<code>&lt;CR&gt;</code>, then the same again to confirm.
+<b>Expect:</b> the message "No crypt key set, using symmetric encryption.",
+and the two lines of text are replaced by a block like:
+</p>
+<pre class="example">
+-----BEGIN PGP MESSAGE-----
+
+jA0ECQMI...
+-----END PGP MESSAGE-----
+</pre>
+<p>
+The headline and its tag stay as they are. The letters differ every time.
+</p>
+
+<p>
+<b>Try:</b> on the same headline run <code>:Org crypt_decrypt_entry</code> and type the
+passphrase.
+<b>Expect:</b> the original two lines are back.
+</p>
+
+<p>
+<b>Try:</b> encrypt it again, then press <code>&lt;C-c&gt;&lt;C-r&gt;</code> (reveal) on the headline.
+<b>Expect:</b> you are asked for the passphrase and the text is decrypted:
+revealing an encrypted entry decrypts it, as in Emacs.
+</p>
+</div>
+<div id="outline-container-org925a93b" class="outline-4">
+<h4 id="org925a93b"><span class="section-number-4">10.1.1.</span> Wifi password&nbsp;&nbsp;&nbsp<span class="tag"><span class="crypt">crypt</span></span></h4>
+<div class="outline-text-4" id="text-10-1-1">
+<p>
+The network is "garden", the password is correct-horse-battery.
+This line is encrypted too.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-org652c872" class="outline-2">
+<h2 id="org652c872"><span class="section-number-2">11.</span> Display options</h2>
+<div class="outline-text-2" id="text-11">
+<p>
+These options change how the buffer looks, not the file. Most have a
+<code>#+STARTUP:</code> word for one file and a <code>ui</code> option for all files. See
+<a href="02-markup.html">02-markup</a> for emphasis and entities, and
+<a href="21-images-latex.html">21-images-latex</a> for images and formulas.
+</p>
+
+<p>
+Options under <code>ui</code> in your setup:
+</p>
+
+<dl class="org-dl">
+<dt><code>num</code></dt><dd>number headlines: <code>1</code>, <code>1.1</code>, <code>1.2</code> &hellip;
+(<code>#+STARTUP:</code> <code>num</code> / <code>nonum</code>; toggle: <code>:Org num_mode</code>)</dd>
+<dt><code>indent_mode</code></dt><dd>indent text under its headline (org-indent-mode)
+(<code>#+STARTUP:</code> <code>indent</code> / <code>noindent</code>)</dd>
+<dt><code>hide_leading_stars</code></dt><dd>show only the last star
+(<code>#+STARTUP:</code> <code>hidestars</code> / <code>showstars</code>)</dd>
+<dt><code>pretty_entities</code></dt><dd><code>\alpha</code> shows as α, <code>x^2</code> as x²
+(<code>#+STARTUP:</code> <code>entitiespretty</code> / <code>entitiesplain</code>; toggle: <code>&lt;C-c&gt;&lt;C-x&gt;\</code>)</dd>
+<dt><code>conceal_links</code></dt><dd>show only link descriptions
+(toggle: <code>&lt;prefix&gt;lt</code>)</dd>
+<dt><code>hide_emphasis_markers</code></dt><dd>hide the <code>*</code> <code>/</code> <code>_</code> &hellip; markers</dd>
+<dt><code>bullets</code></dt><dd>symbols in place of the stars</dd>
+<dt><code>checkboxes</code></dt><dd>icons for <code>[ ]</code> <code>[-]</code> <code>[X]</code></dd>
+<dt><code>todo_keyword_faces</code>, <code>priority_faces</code>, <code>tag_faces</code></dt><dd>colours per keyword /
+priority / tag</dd>
+</dl>
+
+<p>
+<code>examples/minimal_init.lua</code> sets <code>bullets</code> (◉ ○ ✸ ✿) and <code>checkboxes</code>,
+which is why the stars of this file look the way they do.
+</p>
+
+<p>
+Headline numbering follows the org-num options: <code>num_max_level</code>,
+<code>num_skip_commented</code>, <code>num_skip_tags</code>, <code>num_skip_unnumbered</code> (a subtree
+with an <code>UNNUMBERED</code> property) and <code>num_format_function</code>.
+</p>
+
+<p>
+<b>Try:</b> <code>:Org num_mode</code>, then <code>&lt;S-Tab&gt;</code> until you see every headline.
+<b>Expect:</b> "Org-Num mode enabled", and the headlines of this file are
+numbered: "How to use this file" is <code>1</code>, its child "Keys in this file" is
+<code>1.1</code>, "Getting help inside Neovim" is <code>2</code> and so on. <code>:Org num_mode</code>
+again removes the numbers.
+</p>
+
+<p>
+<b>Try:</b> change the <code>#+STARTUP:</code> line at the top of this file to
+<code>#+STARTUP: overview indent</code>, press <code>&lt;C-c&gt;&lt;C-c&gt;</code> on it and reload with
+<code>:e</code>.
+<b>Expect:</b> the body text of each entry is indented under its headline
+(only on screen: the file is unchanged) and only one star of each
+headline shows. Put the line back afterwards.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-x&gt;\</code> on this line: &alpha; &rarr; &beta;, E = mc<sup>2</sup>.
+<b>Expect:</b> with pretty entities on you see α → β and mc². Press it again
+to see the text as written.
+</p>
+
+<p>
+Highlight groups (<code>OrgTodo</code>, <code>OrgTags</code>, <code>OrgLink</code>, <code>OrgHeadlineLevel1</code>
+&hellip;) are listed in <code>:h org-highlights</code>; set them with <code>nvim_set_hl()</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org4b1d8d6" class="outline-2">
+<h2 id="org4b1d8d6"><span class="section-number-2">12.</span> Setup files: #+SETUPFILE</h2>
+<div class="outline-text-2" id="text-12">
+<p>
+Several files can share their settings (<code>#+TODO:</code>, <code>#+TAGS:</code>, <code>#+LINK:</code>,
+<code>#+PROPERTY:</code>, <code>#+OPTIONS:</code> &hellip;) through a setup file:
+</p>
+
+<pre class="example" id="org05944c1">
+#+SETUPFILE: "~/org/setup/common.org"
+</pre>
+
+<p>
+Only the settings of that file are imported, never its headings. Paths
+are relative to the file that names them; quotes allow spaces; setup
+files may name other setup files (cycles are stopped). <code>&lt;prefix&gt;'</code> on
+the line visits the file.
+</p>
+
+<p>
+<b>Try:</b> add this line at the top of this file, below <code>#+TAGS:</code>, and press
+<code>&lt;C-c&gt;&lt;C-c&gt;</code> on it:
+</p>
+<pre class="example">
+#+SETUPFILE: tutorial.org
+</pre>
+<p>
+Then put the cursor on any headline of this file and press <code>&lt;prefix&gt;S</code>.
+<b>Expect:</b> the TODO keyword menu now offers <code>TODO</code>, <code>NEXT</code>, <code>WAITING</code>,
+<code>DONE</code> and <code>CANCELLED</code>: the <code>#+TODO:</code> line of <a href="tutorial.html">tutorial.org</a>
+was imported. Press <code>&lt;Esc&gt;</code>, delete the line again and press
+<code>&lt;C-c&gt;&lt;C-c&gt;</code> on the <code>#+TAGS:</code> line to refresh.
+</p>
+
+<p>
+A missing setup file is ignored when the file is read; <code>:Org lint</code>
+reports it (see the next section).
+</p>
+</div>
+</div>
+<div id="outline-container-extras-lint" class="outline-2">
+<h2 id="extras-lint"><span class="section-number-2">13.</span> org-lint: check the syntax</h2>
+<div class="outline-text-2" id="text-extras-lint">
+<p>
+<code>:Org lint</code> (Emacs <code>M-x org-lint</code>) looks for mistakes that make Org read
+your text differently from what you meant: a link to a heading that
+doesn't exist, a footnote without its definition, a <code>#+begin_src</code> without
+a language, a misspelt header argument &hellip; It lists what it finds in the
+<b>location list</b> (<code>:lopen</code>), titled "org-lint". Each entry is
+<code>checker: message</code>; <code>E</code> marks the reliable checks ("high trust"), <code>W</code> the
+heuristics ("low trust"). It has no default key, as in Emacs.
+</p>
+
+<ul class="org-ul">
+<li><code>:Org lint</code> runs every checker.</li>
+<li><code>:Org lint duplicate-name invalid-fuzzy-link</code> runs only those
+(<code>&lt;Tab&gt;</code> completes the checker names), like Emacs' <code>C-u C-u M-x
+  org-lint</code>.</li>
+<li><code>:lnext</code> / <code>:lprev</code> (or <code>]l</code> / <code>[l</code> in Neovim 0.11+) walk the list.</li>
+<li>From Lua: <code>require("org.lint").lint(0)</code> returns the reports as a list
+of <code>{ lnum, col, checker, message, trust }</code>.</li>
+</ul>
+
+<p>
+Every checker of Org 9.8 is implemented; <code>:h org-lint</code> lists them.
+</p>
+
+<p>
+The rest of this file is clean. The subtree below is full of mistakes on
+purpose. It is marked <code>COMMENT</code>, so it is never exported and the agenda
+ignores its TODO entries and dates, but <code>org-lint</code> still checks it.
+</p>
+
+<p>
+<b>Try:</b> run <code>:Org lint</code>, then <code>:lopen</code>.
+<b>Expect:</b> 28 entries, all in "COMMENT Lint playground", in the order of
+the list below. <code>&lt;CR&gt;</code> on an entry jumps to its line.
+</p>
+
+<p>
+<b>Try:</b> <code>:Org lint duplicate-name</code>.
+<b>Expect:</b> exactly two entries, <code>duplicate-name: Duplicate NAME "twice"</code>,
+on the two <code>#+NAME: twice</code> lines.
+</p>
+
+<p>
+<b>Try:</b> fix one mistake (for example add <code>sh</code> after the bare
+<code>#+begin_src</code>), run <code>:Org lint</code> again.
+<b>Expect:</b> that entry is gone and the others remain.
+</p>
+
+<p>
+Each mistake of the playground and the entry it produces, in file order:
+</p>
+
+<dl class="org-dl">
+<dt>two headings with <code>CUSTOM_ID: same-id</code></dt><dd><code>duplicate-custom-id: Duplicate CUSTOM_ID property "same-id"</code> (twice)</dd>
+<dt><code>[[*No such heading]]</code></dt><dd><code>invalid-fuzzy-link: Unknown fuzzy location "No such heading"</code></dd>
+<dt><code>[[#no-such-id]]</code></dt><dd><code>invalid-custom-id-link: Unknown custom ID "no-such-id"</code></dd>
+<dt><code>[[id:...]]</code> to an unknown ID</dt><dd><code>invalid-id-link: Unknown ID "00000000-..."</code></dd>
+<dt><code>[[file:does-not-exist.org]]</code></dt><dd><code>link-to-local-file: Link to non-existent local file "does-not-exist.org"</code></dd>
+<dt>a link followed by a stray <code>]</code></dt><dd><code>trailing-bracket-after-link: Trailing ']' after link end</code></dd>
+<dt><code>#+begin_src</code> with no language</dt><dd><code>missing-language-in-src-block: Missing language in source block</code></dd>
+<dt><code>:foo bar</code> on a src block</dt><dd><code>wrong-header-argument: Unknown header argument ":foo"</code></dd>
+<dt><code>:results maybe</code></dt><dd><code>wrong-header-value: Unknown value "maybe" for header ":results"</code></dd>
+<dt><code>#+TBLNAME:</code></dt><dd><code>obsolete-affiliated-keywords: Obsolete affiliated keyword: "TBLNAME".  Use "NAME" instead</code></dd>
+<dt><code>#+BEGIN_HTML</code> block</dt><dd><code>deprecated-export-blocks: Deprecated syntax for export block.  Use "BEGIN_EXPORT HTML" instead</code></dd>
+<dt><code>#+NAME:</code> with nothing after it</dt><dd><code>orphaned-affiliated-keywords: Orphaned affiliated keyword: "NAME"</code></dd>
+<dt><code>[fn:nodef]</code> without a definition</dt><dd><code>undefined-footnote-reference: Missing definition for footnote [nodef]</code></dd>
+<dt><code>[fn:unused]</code> definition, no reference</dt><dd><code>unreferenced-footnote-definition: No reference for footnote definition [unused]</code></dd>
+<dt><code>:EFFORT: lots</code></dt><dd><code>invalid-effort-property: Invalid effort duration format: "lots"</code></dd>
+<dt><code>:TODO:</code> in a property drawer</dt><dd><code>special-property-in-properties-drawer: Special property "TODO" found in a properties drawer</code></dd>
+<dt><code>SCHEDULED:</code> after body text</dt><dd><code>misplaced-planning-info: Misplaced planning info line</code></dd>
+<dt><code>SCHEDULED: [inactive date]</code></dt><dd><code>planning-inactive: Inactive timestamp in SCHEDULED will not appear in agenda.</code></dd>
+<dt><code>&lt;2026-12-03 Fri&gt;</code> (it's a Thursday)</dt><dd><code>timestamp-syntax: Potentially malformed timestamp &lt;2026-12-03 Fri&gt;.  Parsed as: &lt;2026-12-03 Thu&gt;</code></dd>
+<dt><code>[#Z]</code></dt><dd><code>priority: Out-of-bounds priority 'Z'</code></dd>
+<dt>a list numbered 1., 3.</dt><dd><code>item-number: Bullet counter "3. " is not the same with item position 2.  Consider adding manual [@3] counter.</code></dd>
+<dt>tags <code>::work::</code></dt><dd><code>spurious-colons: Tags contain a spurious colon</code></dd>
+<dt>two <code>#+NAME: twice</code></dt><dd><code>duplicate-name: Duplicate NAME "twice"</code> (twice)</dd>
+<dt><code>#+ATTR_HTML :width 10</code> (no colon)</dt><dd><code>invalid-keyword-syntax: Possible missing colon in keyword "ATTR_HTML"</code></dd>
+<dt><code>#+SETUPFILE: no-such-setup.org</code></dt><dd><code>non-existent-setupfile-parameter: Non-existent setup file "no-such-setup.org"</code></dd>
+<dt><code>#+begin_quote</code> never closed</dt><dd><code>invalid-block: Possible incomplete block "#+begin_quote"</code></dd>
+</dl>
+</div>
+</div>
+<div id="outline-container-org773f935" class="outline-2">
+<h2 id="org773f935"><span class="section-number-2">14.</span> Emacs keys</h2>
+<div class="outline-text-2" id="text-14">
+<p>
+Coming from Emacs? Org's own keys (<code>org-mode-map</code>) work on top of the
+Vim-style keys, so muscle memory keeps working. They live in three
+sections of <code>mappings</code>, each of which can be turned off:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  mappings = {
+    emacs = false,        -- C-c ... keys in Normal mode
+    emacs_insert = false, -- &lt;C-CR&gt;, &lt;C-S-CR&gt; in Insert mode
+    emacs_global = false, -- &lt;C-c&gt;a agenda, &lt;C-c&gt;c capture, &lt;C-c&gt;l store link
+  },
+})
+</code></pre>
+</div>
+
+<ul class="org-ul">
+<li><code>C-c</code> keys are Normal-mode only: in Insert mode <code>&lt;C-c&gt;</code> still leaves
+Insert mode.</li>
+<li>Emacs' <code>C-u</code> prefix is a Vim count: <code>4&lt;C-c&gt;.</code> is <code>C-u C-c .</code>,
+<code>16&lt;C-c&gt;&lt;C-t&gt;</code> is <code>C-u C-u C-c C-t</code>.</li>
+<li>Keys marked "(ctx)" in <code>:h org-emacs-keys</code> depend on the cursor, like in
+Emacs: <code>&lt;C-c&gt;-</code> inserts a table rule in a table, cycles the bullet on a
+list item, and toggles an item elsewhere.</li>
+<li>Emacs keys that Vim needs are moved: <code>M-h</code> (mark element) is
+<code>&lt;prefix&gt;v</code>, <code>C-x n s</code> / <code>C-x n b</code> (narrow) are <code>&lt;prefix&gt;hn</code> /
+<code>&lt;prefix&gt;nb</code>.</li>
+</ul>
+
+<p>
+The Emacs key is typed as written, in Vim's key notation: <code>C-c C-t</code> is
+<code>&lt;C-c&gt;&lt;C-t&gt;</code>, <code>C-c .</code> is <code>&lt;C-c&gt;.</code>, <code>M-RET</code> is <code>&lt;M-CR&gt;</code>. The most used
+ones and their Vim-style equivalents:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Emacs</th>
+<th scope="col" class="org-left">Vim-style key</th>
+<th scope="col" class="org-left">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left"><code>C-c C-c</code></td>
+<td class="org-left"><code>&lt;prefix&gt;&lt;CR&gt;</code></td>
+<td class="org-left">act on the context</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-t</code></td>
+<td class="org-left"><code>cit</code> / <code>&lt;prefix&gt;S</code></td>
+<td class="org-left">change TODO state</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-s</code> / <code>C-c C-d</code></td>
+<td class="org-left"><code>&lt;prefix&gt;s</code> / <code>&lt;prefix&gt;d</code></td>
+<td class="org-left">schedule / deadline</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c .</code> / <code>C-c !</code></td>
+<td class="org-left"><code>&lt;prefix&gt;i.</code> / <code>&lt;prefix&gt;i!</code></td>
+<td class="org-left">timestamps</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-q</code></td>
+<td class="org-left"><code>&lt;prefix&gt;t</code></td>
+<td class="org-left">set tags</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-x p</code></td>
+<td class="org-left"><code>&lt;prefix&gt;p</code></td>
+<td class="org-left">set a property</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-l</code></td>
+<td class="org-left"><code>&lt;prefix&gt;li</code></td>
+<td class="org-left">insert a link</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-o</code></td>
+<td class="org-left"><code>&lt;CR&gt;</code> / <code>gx</code></td>
+<td class="org-left">open the link</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c l</code></td>
+<td class="org-left"><code>&lt;prefix&gt;ls</code></td>
+<td class="org-left">store a link</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c a</code> / <code>C-c c</code></td>
+<td class="org-left"><code>&lt;prefix&gt;a</code> / <code>&lt;prefix&gt;c</code></td>
+<td class="org-left">agenda / capture</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-w</code></td>
+<td class="org-left"><code>&lt;prefix&gt;r</code></td>
+<td class="org-left">refile</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-x C-i</code> / <code>C-o</code></td>
+<td class="org-left"><code>&lt;prefix&gt;xi</code> / <code>&lt;prefix&gt;xo</code></td>
+<td class="org-left">clock in / out</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-e</code></td>
+<td class="org-left"><code>&lt;prefix&gt;e</code></td>
+<td class="org-left">export</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c '</code></td>
+<td class="org-left"><code>&lt;prefix&gt;'</code></td>
+<td class="org-left">edit special</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-x f</code></td>
+<td class="org-left"><code>&lt;prefix&gt;if</code></td>
+<td class="org-left">footnote</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-,</code></td>
+<td class="org-left"><code>&lt;prefix&gt;ib</code></td>
+<td class="org-left">structure template</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c /</code></td>
+<td class="org-left"><code>&lt;prefix&gt;/</code></td>
+<td class="org-left">sparse tree</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c ;</code></td>
+<td class="org-left"><code>&lt;prefix&gt;hC</code></td>
+<td class="org-left">toggle COMMENT</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c *</code> / <code>C-c -</code></td>
+<td class="org-left"><code>&lt;prefix&gt;*</code> / <code>&lt;prefix&gt;-</code></td>
+<td class="org-left">toggle heading / item</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-r</code></td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">reveal the context</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-c C-v e</code></td>
+<td class="org-left"><code>&lt;prefix&gt;be</code></td>
+<td class="org-left">run a src block</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>M-RET</code></td>
+<td class="org-left">&nbsp;</td>
+<td class="org-left">new heading / item / row</td>
+</tr>
+
+<tr>
+<td class="org-left"><code>C-RET</code></td>
+<td class="org-left"><code>&lt;prefix&gt;ih</code></td>
+<td class="org-left">heading after subtree</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<b>Try:</b> on the headline "Emacs practice" below, press <code>&lt;C-c&gt;&lt;C-t&gt;</code>.
+<b>Expect:</b> it becomes "TODO Emacs practice" (this file has only
+<code>TODO</code> and <code>DONE</code>, so the key cycles). Press <code>&lt;C-c&gt;&lt;C-t&gt;</code> twice more to
+get <code>DONE</code> and then no keyword.
+</p>
+
+<p>
+<b>Try:</b> on the same headline press <code>&lt;C-c&gt;;</code>.
+<b>Expect:</b> "COMMENT Emacs practice". Again to remove it.
+</p>
+</div>
+<div id="outline-container-org853d9c8" class="outline-4">
+<h4 id="org853d9c8"><span class="section-number-4">14.0.1.</span> Emacs practice</h4>
+</div>
+</div>
+<div id="outline-container-org8228d88" class="outline-2">
+<h2 id="org8228d88"><span class="section-number-2">15.</span> Integrations</h2>
+<div class="outline-text-2" id="text-15">
+</div>
+<div id="outline-container-orgcf84e55" class="outline-3">
+<h3 id="orgcf84e55"><span class="section-number-3">15.1.</span> org-protocol: capture from the browser</h3>
+<div class="outline-text-3" id="text-15-1">
+<p>
+<code>org-protocol://</code> URLs let a browser or another program talk to a
+running Neovim, like Emacs' org-protocol:
+</p>
+
+<dl class="org-dl">
+<dt><code>org-protocol://capture?template=t&amp;url=URL&amp;title=TITLE&amp;body=TEXT</code></dt><dd>capture with template <code>t</code></dd>
+<dt><code>org-protocol://store-link?url=URL&amp;title=TITLE</code></dt><dd>store the link for <code>&lt;prefix&gt;li</code></dd>
+<dt><code>org-protocol://open-source?url=URL</code></dt><dd>open the local file of a published page</dd>
+</dl>
+
+<p>
+Neovim must listen on a socket (<code>nvim --listen ~/.cache/nvim/org.sock</code>),
+and the operating system must hand <code>org-protocol:</code> URLs to a small
+handler that calls:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><code>nvim --server ~/.cache/nvim/org.sock --remote-expr "v:lua.require'org.protocol'.handle('%u')"
+</code></pre>
+</div>
+
+<p>
+<code>:h org-protocol</code> has the desktop file (Linux), the macOS app and a
+bookmarklet. You can try it without any of that with <code>:Org protocol</code>:
+</p>
+
+<p>
+<b>Try:</b> run
+</p>
+<pre class="example">
+:Org protocol org-protocol://store-link?url=https%3A%2F%2Forgmode.org&amp;title=Org%20Mode
+</pre>
+<p>
+then on the empty line below press <code>&lt;prefix&gt;li</code>, <code>&lt;CR&gt;</code> at the "Insert
+link (default <a href="https://orgmode.org">https://orgmode.org</a>)" prompt and <code>&lt;CR&gt;</code> again to accept the
+description "Org Mode".
+<b>Expect:</b> the message "insert<sub>link</sub> to insert new Org link, p to insert
+"<a href="https://orgmode.org">https://orgmode.org</a>"", and the line becomes
+<code>[[https://orgmode.org][Org Mode]]</code>.
+</p>
+
+<p>
+<b>Try:</b> run
+</p>
+<pre class="example">
+:Org protocol org-protocol://capture?template=t&amp;url=https%3A%2F%2Fneovim.io&amp;title=Neovim
+</pre>
+<p>
+<b>Expect:</b> the capture window of the "Task" template of
+<code>minimal_init.lua</code>, with a <code>[[https://neovim.io][Neovim]]</code> link in it.
+<code>&lt;C-c&gt;&lt;C-k&gt;</code> cancels.
+</p>
+</div>
+</div>
+<div id="outline-container-orgc1855ad" class="outline-3">
+<h3 id="orgc1855ad"><span class="section-number-3">15.2.</span> RSS and Atom feeds</h3>
+<div class="outline-text-3" id="text-15-2">
+<p>
+org-feed adds the items of RSS and Atom feeds as child headlines of an
+inbox heading. List the feeds in your config:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>require("org").setup({
+  feed = {
+    feeds = {
+      { name = "Neovim news", url = "https://neovim.io/news.xml",
+        file = "~/org/feeds.org", headline = "Neovim news" },
+    },
+  },
+})
+</code></pre>
+</div>
+
+<p>
+<code>&lt;C-c&gt;&lt;C-x&gt;g</code> (<code>:Org feed_update_all</code>) fetches every feed with <code>curl</code>
+and adds the new items; <code>&lt;C-c&gt;&lt;C-x&gt;G</code> (<code>:Org feed_goto_inbox</code>) jumps to
+an inbox. The items already seen are remembered in a <code>:FEEDSTATUS:</code>
+drawer, in the format Emacs writes. See <code>:h org-feed</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-org42d1764" class="outline-3">
+<h3 id="org42d1764"><span class="section-number-3">15.3.</span> MobileOrg</h3>
+<div class="outline-text-3" id="text-15-3">
+<p>
+<code>:Org mobile_push</code> copies your agenda files and agenda views into a
+staging directory (<code>mobile.directory</code>) that a MobileOrg-style app syncs;
+<code>:Org mobile_pull</code> brings back what you captured and edited on the phone.
+See <code>:h org-mobile</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-orgde4cbdf" class="outline-3">
+<h3 id="orgde4cbdf"><span class="section-number-3">15.4.</span> The Lua API</h3>
+<div class="outline-text-3" id="text-15-4">
+<p>
+<code>require("org")</code> has a small API for your own config and scripts
+(<code>:h org-api</code>):
+</p>
+
+<ul class="org-ul">
+<li><code>require("org").agenda("a")</code> and <code>require("org").capture("t")</code> open a
+view or a template,</li>
+<li><code>require("org").action("cycle")</code> runs any action by name,</li>
+<li><code>require("org").statusline()</code> returns the running clock and timer as a
+string for your statusline, empty when nothing runs,</li>
+<li>lower-level modules: <code>org.parser</code>, <code>org.files</code>, <code>org.date</code>,
+<code>org.agenda.search</code>, <code>org.export</code>, <code>org.dblock</code>.</li>
+</ul>
+
+<p>
+Lua source blocks run inside Neovim, so you can try the API right here.
+</p>
+
+<p>
+<b>Try:</b> press <code>&lt;C-c&gt;&lt;C-c&gt;</code> in the block below and answer <code>y</code> when asked
+"Evaluate this lua code block on your system?".
+<b>Expect:</b> the <code>#+RESULTS:</code> under it is rewritten with the same value,
+<code>&lt;2026-10-05 Mon&gt;</code>: one week after the date in the code. Change <code>1</code> to
+<code>2</code> and run it again: <code>&lt;2026-10-12 Mon&gt;</code>.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-lua"><code>local date = require("org.date")
+return date.parse("&lt;2026-09-28 Mon&gt;"):add(1, "w"):to_string()
+</code></pre>
+</div>
+
+<pre class="example">
+&lt;2026-10-05 Mon&gt;
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-org5d404f1" class="outline-2">
+<h2 id="org5d404f1"><span class="section-number-2">16.</span> Further reading</h2>
+<div class="outline-text-2" id="text-16">
+<ul class="org-ul">
+<li><code>:h org</code> the whole manual; <code>:h org-keymaps</code> every key; <code>:h org-commands</code>
+every <code>:Org</code> subcommand; <code>:h org-config</code> every option.</li>
+<li><code>:h org-completion</code>, <code>:h org-lint</code>, <code>:h org-speed-commands</code>,
+<code>:h org-inlinetask</code>, <code>:h org-crypt</code>, <code>:h org-crypt-leaks</code>.</li>
+<li><code>:h org-babel-edit-special</code> (special edit buffers), <code>:h org-elements</code>,
+<code>:h org-tempo</code>, <code>:h org-appearance</code>, <code>:h org-highlights</code>.</li>
+<li><code>:h org-setupfile</code>, <code>:h org-in-buffer-settings</code>.</li>
+<li><code>:h org-emacs-keys</code>, <code>:h org-differences</code>.</li>
+<li><code>:h org-protocol</code>, <code>:h org-feed</code>, <code>:h org-mobile</code>, <code>:h org-api</code>.</li>
+<li>The other example files: <a href="00-index.html">00-index</a>.</li>
+</ul>
+</div>
+</div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.extras1" class="footnum" href="#fnr.extras1" role="doc-backlink">1</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+The definition of this footnote, edited from the reference.
+</p></div></div>
+
+
+</div>
+</div>

@@ -1181,7 +1181,7 @@ local function image_dir(bufnr)
     end
     dir = vim.fn.fnamemodify(name, ":p:h") .. "/" .. dir
   end
-  dir = vim.fs.normalize(vim.fn.expand(dir))
+  dir = vim.fs.normalize(utils.expand_vars(dir))
   vim.fn.mkdir(dir, "p")
   return dir
 end
@@ -1298,7 +1298,7 @@ function M.render_latex(text, bufnr, cb, row, col)
           S = string.format("%.3f", dpi / 140),
         }
         -- %o%b: one path, not two quoted halves
-        local cmd = c:gsub("%%o%%b", vim.fn.shellescape(dir .. "/" .. base))
+        local cmd = c:gsub("%%o%%b", utils.gsub_escape(vim.fn.shellescape(dir .. "/" .. base)))
         steps[#steps + 1] = { cmd = substitute(cmd, s), expect = dir .. "/" .. base .. "." .. out_ext }
       end
     end

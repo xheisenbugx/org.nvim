@@ -1,0 +1,25 @@
+# Export cases: <file, relative to the repository root> <backends...>
+# Each is exported body-only, without evaluating Babel (backends: ascii
+# html latex md); the output is <basename>.<txt|html|tex|md> here, with
+# the repository root in paths written as @ROOT@/.
+#
+# A subset, to keep the fixtures small (~1 MB): the export-heavy tutorials
+# with every backend, a few others with some. Left out on purpose:
+#   13-links, 14-footnotes  Emacs aborts: they show a broken link and an
+#                           undefined footnote on purpose
+#   tutorial html           Emacs aborts on a fuzzy link it can't resolve
+#   21-images-latex latex   Emacs asks whether to download a remote image
+#                           (impossible in batch)
+#   the other examples      size only (they are mostly outline, agenda and
+#                           editing tutorials; add them here when needed)
+examples/00-index.org             ascii html latex md
+examples/02-markup.org            ascii html latex md
+examples/03-lists.org             ascii html latex md
+examples/10-sparse-trees.org      html
+examples/15-tables.org            ascii latex
+examples/17-babel.org             ascii md
+examples/19-export.org            ascii html latex md
+examples/20-timers-reminders.org  ascii html latex md
+examples/21-images-latex.org      ascii md
+examples/22-extras.org            ascii html latex md
+examples/tutorial.org             ascii

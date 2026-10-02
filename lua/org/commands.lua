@@ -127,6 +127,8 @@ local function names()
 end
 
 function M.run(opts)
+  -- the highlight groups are defined on first use, not at setup()
+  require("org.highlights").ensure()
   local args = opts.fargs
   local name = args[1]
   if not name then

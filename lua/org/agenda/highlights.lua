@@ -25,6 +25,8 @@ local links = {
   OrgAgendaFilter = "WarningMsg",
   OrgAgendaMark = "DiagnosticInfo",
   OrgAgendaClocking = "Visual",
+  -- the new date shown after a date change (secondary-selection)
+  OrgAgendaNewTime = "PmenuSel",
   OrgAgendaLog = "Comment",
   OrgAgendaHint = "Comment",
   OrgAgendaEntryText = "Comment",
@@ -48,6 +50,8 @@ local fallback = {
 }
 
 function M.define()
+  -- the Org* groups the agenda links to
+  require("org.highlights").ensure()
   for group, target in pairs(links) do
     if fallback[target] and not exists(target) then
       target = fallback[target]

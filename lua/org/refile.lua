@@ -12,11 +12,10 @@
 local config = require("org.config")
 local edit = require("org.edit")
 local files = require("org.files")
+local marks = require("org.marks")
 local utils = require("org.utils")
 
 local M = {}
-
-local ns = vim.api.nvim_create_namespace("org.refile.source")
 
 ---@class org.RefileTarget
 ---@field filename string
@@ -535,14 +534,15 @@ function M.move(src, dest)
     if dest.lnum and dest.lnum >= s and dest.lnum <= e then
       error("Cannot refile to position inside the tree or region", 0)
     end
-    local at = insertion_point(files.get_buffer(dbuf), dest)
-    local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
-    if at >= e then
-      vim.api.nvim_buf_set_lines(sbuf, s - 1, e, false, {})
-      return b, l - (e - s + 1)
-    end
-    vim.api.nvim_buf_set_lines(sbuf, s - 1 + #lines, e + #lines, false, {})
-    return b, l
+    -- the copy may land above or below the source: follow both
+    return marks.with(function(track)
+      local source = track.range(sbuf, s, e)
+      local b, l = M.insert_subtree(lines, { bufnr = dbuf, lnum = dest.lnum, prepend = dest.prepend })
+      local moved = track(b, l)
+      local s1, e1 = source:rows()
+      vim.api.nvim_buf_set_lines(sbuf, s1 - 1, e1, false, {})
+      return b, moved:lnum()
+    end)
   end
   local before = vim.api.nvim_buf_get_lines(dbuf, 0, -1, false)
   local modified = vim.bo[dbuf].modified
@@ -704,18 +704,22 @@ function M.refile(target, opts)
   if not dest then
     -- creating a parent node (allow_creating_parent_nodes) may insert
     -- lines above the source: follow it with a mark
-    local mark = vim.api.nvim_buf_set_extmark(bufnr, ns, s - 1, 0, {})
+    local source = marks.range(bufnr, s, e)
     dest = M.pick_target({
       prompt = range and (verb .. " region to") or (verb .. ' subtree "' .. heading_text(hl) .. '" to'),
       exclude = { filename = file.filename, s = s, e = e },
       targets = opts.targets,
       bufnr = bufnr,
     })
-    local row = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns, mark, {})[1]
-    pcall(vim.api.nvim_buf_del_extmark, bufnr, ns, mark)
-    if row and row + 1 ~= s then
-      local delta = row + 1 - s
-      s, e = s + delta, e + delta
+    if source then
+      s, e = source:rows()
+      source:del()
+      if not s then
+        if dest then
+          utils.warn("The entry to refile is gone")
+        end
+        return
+      end
     end
   end
   if not dest then
