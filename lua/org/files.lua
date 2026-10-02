@@ -10,7 +10,7 @@ local utils = require("org.utils")
 
 local M = {}
 
-local disk_cache = {} -- path -> { mtime, file }
+local disk_cache = {} -- path -> { mtime, size, file, todo_spec }
 local buf_cache = {} -- bufnr -> { tick, name, cwd, file, todo_spec }
 
 --- Parse a buffer (cached by changedtick).
@@ -68,13 +68,21 @@ function M.get(path)
   if b then
     return M.get_buffer(b)
   end
-  local mtime = utils.mtime(path)
-  if not mtime then
+  local st = vim.uv.fs_stat(path)
+  if not st then
     return nil
   end
+  -- the size too: a rewrite can keep the mtime on coarse file systems
+  local mtime, size = st.mtime.sec * 1e9 + st.mtime.nsec, st.size
   local spec = require("org.config").opts.todo_keywords
   local c = disk_cache[path]
-  if c and c.mtime == mtime and c.todo_spec == spec and keywords.dependencies_valid(c.file.setup_dependencies) then
+  if
+    c
+    and c.mtime == mtime
+    and c.size == size
+    and c.todo_spec == spec
+    and keywords.dependencies_valid(c.file.setup_dependencies)
+  then
     return c.file
   end
   local lines = utils.readfile(path)
@@ -82,7 +90,7 @@ function M.get(path)
     return nil
   end
   local file = parser.parse(lines, path)
-  disk_cache[path] = { mtime = mtime, file = file, todo_spec = spec }
+  disk_cache[path] = { mtime = mtime, size = size, file = file, todo_spec = spec }
   return file
 end
 

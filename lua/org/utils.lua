@@ -601,6 +601,11 @@ function M.readfile(path)
   end
   local content = fd:read("*a")
   fd:close()
+  -- a UTF-8 byte order mark is not text (Vim's 'bomb', Emacs's
+  -- utf-8-with-signature): a file read from disk must parse like its buffer
+  if content:sub(1, 3) == "\239\187\191" then
+    content = content:sub(4)
+  end
   content = content:gsub("\r\n", "\n")
   local lines = vim.split(content, "\n", { plain = true })
   if lines[#lines] == "" then
@@ -620,6 +625,11 @@ function M.writefile(path, lines)
     fd:write("\n")
   end
   fd:close()
+  -- the cached parse of the file is stale even when its mtime is not
+  local files = package.loaded["org.files"]
+  if files then
+    files.invalidate(vim.fn.fnamemodify(path, ":p"))
+  end
 end
 
 function M.read_json(path)
