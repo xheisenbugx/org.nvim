@@ -47,3 +47,43 @@ describe("config.setup", function()
     ok(not pcall(config.setup, "~/org"))
   end)
 end)
+
+describe("org.setup called again", function()
+  local config = require("org.config")
+  local saved
+
+  before_each(function()
+    saved = vim.deepcopy(config.opts)
+  end)
+
+  after_each(function()
+    require("org").setup(saved)
+  end)
+
+  local function mapped(lhs, buf)
+    local key = vim.keycode((lhs:gsub("<leader>", vim.g.mapleader)))
+    local maps = buf and vim.api.nvim_buf_get_keymap(buf, "n") or vim.api.nvim_get_keymap("n")
+    for _, m in ipairs(maps) do
+      if vim.keycode(m.lhs) == key then
+        return m.desc
+      end
+    end
+  end
+
+  it("replaces the global and buffer keymaps of the previous call", function()
+    local buf = org_buffer({ "* Heading" }, { 1, 0 })
+    ok(mapped("<leader>oa"))
+    ok(mapped("<leader>ohy", buf))
+    require("org").setup({ mappings = { global = { agenda = false }, org = { copy_subtree = "<leader>oY" } } })
+    eq(nil, mapped("<leader>oa"))
+    eq(nil, mapped("<leader>ohy", buf))
+    ok(mapped("<leader>oY", buf))
+  end)
+
+  it("leaves a key the user mapped since alone", function()
+    vim.keymap.set("n", "<leader>oa", "<Nop>", { desc = "mine" })
+    require("org").setup({ mappings = { global = { agenda = false } } })
+    eq("mine", mapped("<leader>oa"))
+    vim.keymap.del("n", "<leader>oa")
+  end)
+end)
