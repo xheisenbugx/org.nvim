@@ -672,19 +672,20 @@ function M.find_or_create_inbox(bufnr, heading)
   return #lines + 3
 end
 
---- The status drawer of the inbox at `lnum`: its first and last content
---- lines (the drawer line + 1 .. the `:END:` line - 1), or nil.
+--- The status drawer of the inbox at `lnum`: the drawer line and its
+--- `:END:` line, or nil. Errors when the drawer has no `:END:` inside the
+--- inbox subtree, so that rewriting it never deletes the text after it.
 local function find_drawer(lines, lnum, drawer)
   local stop = subtree_end(lines, lnum)
   local pat = "^[ \t]*:" .. vim.pesc(drawer) .. ":[ \t]*$"
   for k = lnum + 1, stop do
     if lines[k]:match(pat) then
-      for j = k + 1, #lines do
+      for j = k + 1, stop do
         if lines[j]:match("^[ \t]*:END:") then
           return k, j
         end
       end
-      return k, nil
+      error(("Unterminated :%s: drawer under %s"):format(drawer, lines[lnum]), 0)
     end
   end
 end
@@ -694,7 +695,7 @@ end
 function M.read_status(bufnr, lnum, drawer)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local s, e = find_drawer(lines, lnum, drawer)
-  if not s or not e or e > subtree_end(lines, lnum) then
+  if not s then
     return {}
   end
   local text = table.concat(vim.list_slice(lines, s + 1, e - 1), "\n")
@@ -712,7 +713,7 @@ function M.write_status(bufnr, lnum, drawer, status)
   local body = M.format_status(status)
   local s, e = find_drawer(lines, lnum, drawer)
   if s then
-    vim.api.nvim_buf_set_lines(bufnr, s, e and e - 1 or #lines, false, body)
+    vim.api.nvim_buf_set_lines(bufnr, s, e - 1, false, body)
     return
   end
   local at = (next_heading(lines, lnum) or #lines + 1) - 1
