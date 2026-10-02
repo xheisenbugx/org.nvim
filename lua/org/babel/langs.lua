@@ -1232,7 +1232,8 @@ function M.prepare(lang, body, args, vars, ctx)
       local flag = engine == "mssql" and { "-S", "-U", "-P", "-d" } or { "-S", "-U", "-P", "-D" }
       for i, v in ipairs({ host, user, password, database }) do
         if v then
-          db[#db + 1] = string.format('%s "%s"', flag[i], q(v))
+          -- the value is already shell-quoted: no extra double quotes
+          db[#db + 1] = flag[i] .. " " .. q(v)
         end
       end
       if engine == "mssql" then
