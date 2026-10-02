@@ -8,3 +8,10 @@ examples/19-export.*
 !examples/19-export.org
 examples/data/
 examples/ltximg/
+
+# README media: recorded locally, published to the media branch
+# (make publish-media), never committed here
+docs/media/*.gif
+docs/media/*.png
+docs/media/video/
+.DS_Store
