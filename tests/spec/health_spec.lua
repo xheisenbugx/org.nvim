@@ -489,3 +489,77 @@ describe("health: unknown options", function()
     eq({}, health.unknown_options(require("org.config").defaults))
   end)
 end)
+
+describe("health: external tools", function()
+  --- Run the health check with `vim.health` and `executable()` stubbed,
+  --- returning every reported message as "<kind>: <text>".
+  local function run_check(missing)
+    local out, health, executable = {}, vim.health, vim.fn.executable
+    local stub = {}
+    for _, kind in ipairs({ "start", "ok", "info", "warn", "error" }) do
+      stub[kind] = function(msg)
+        out[#out + 1] = kind .. ": " .. tostring(msg)
+      end
+    end
+    vim.health = stub
+    vim.fn.executable = function(exe)
+      return missing[exe] and 0 or executable(exe)
+    end
+    local okay, err = pcall(require("org.health").check)
+    vim.health, vim.fn.executable = health, executable
+    assert(okay, err)
+    return out
+  end
+
+  local function pandoc_message(out)
+    for _, msg in ipairs(out) do
+      if msg:find("pandoc", 1, true) then
+        return msg
+      end
+    end
+  end
+
+  it("doesn't say LaTeX, PDF or ODT export need pandoc", function()
+    local msg = pandoc_message(run_check({ pandoc = true }))
+    ok(msg, "a pandoc message")
+    eq("info", msg:match("^(%a+):"))
+    for _, fmt in ipairs({ "LaTeX", "PDF", "ODT" }) do
+      ok(not msg:find(fmt, 1, true), msg)
+    end
+    ok(msg:find("DOCX", 1, true), msg)
+  end)
+
+  local function find(out, pat)
+    for _, msg in ipairs(out) do
+      if msg:find(pat) then
+        return msg
+      end
+    end
+  end
+
+  --- Run the check with opts[section][key] = value, then restore it.
+  local function check_with(section, key, value, missing)
+    local t = require("org.config").opts[section]
+    local saved = t[key]
+    t[key] = value
+    local okay, out = pcall(run_check, missing or {})
+    t[key] = saved
+    assert(okay, out)
+    return out
+  end
+
+  it("checks the LaTeX compiler used for PDF export", function()
+    local out = check_with("export", "latex", { compiler = "lualatex" }, { lualatex = true })
+    eq(
+      "info: lualatex not found: LaTeX export works, PDFs can't be built (export.latex.compiler)",
+      find(out, "lualatex")
+    )
+  end)
+
+  it("says when desktop notifications are off or replaced", function()
+    local n = require("org.config").opts.notifications
+    ok(find(check_with("notifications", "system_notification", false), "^info: desktop notifications off"))
+    ok(find(check_with("notifications", "notifier", function() end), "^ok: reminders use notifications.notifier"))
+    ok(n == require("org.config").opts.notifications)
+  end)
+end)

@@ -152,17 +152,36 @@ function M.check()
     pandoc = pandoc[1]
   end
   if vim.fn.executable(pandoc) == 1 then
-    h.ok("pandoc found (LaTeX/PDF/DOCX/ODT/... export)")
+    h.ok("pandoc found (DOCX, EPUB and the other formats without a native back-end)")
   else
-    h.warn("pandoc not found: export to LaTeX/PDF/DOCX/ODT via pandoc unavailable (HTML/Markdown/text work)")
+    -- HTML, LaTeX/PDF, ODT, Texinfo and the rest are native back-ends
+    h.info("pandoc not found: DOCX, EPUB and the other pandoc formats can't be exported (the native back-ends work)")
   end
   if vim.fn.executable("makeinfo") == 1 then
     h.ok("makeinfo found (Texinfo to Info export)")
   else
     h.info("makeinfo not found: Texinfo export works, Info files can't be built")
   end
+  -- LaTeX and Beamer to PDF (org-latex-pdf-process; export/latex.lua pdf_process)
+  local latex = cfg.export.latex or {}
+  if latex.pdf_process then
+    h.ok("PDF export uses export.latex.pdf_process")
+  else
+    local compiler = latex.compiler or "pdflatex"
+    if vim.fn.executable(compiler) == 1 then
+      local latexmk = vim.fn.executable("latexmk") == 1 and vim.fn.executable("perl") == 1
+      h.ok(string.format("%s found (LaTeX to PDF export%s)", compiler, latexmk and ", through latexmk" or ""))
+    else
+      h.info(string.format("%s not found: LaTeX export works, PDFs can't be built (export.latex.compiler)", compiler))
+    end
+  end
   local seen = {}
-  for lang, spec in pairs(cfg.babel.languages or {}) do
+  local langs = vim.tbl_keys(cfg.babel.languages or {})
+  table.sort(langs, function(x, y)
+    return x:lower() < y:lower()
+  end)
+  for _, lang in ipairs(langs) do
+    local spec = cfg.babel.languages[lang]
     local cmd = type(spec) == "table" and spec.cmd
     local exe = type(cmd) == "table" and cmd[1] or type(cmd) == "string" and vim.split(cmd, "%s+")[1] or nil
     if exe and not seen[exe] then
@@ -174,8 +193,13 @@ function M.check()
       end
     end
   end
+  local ncfg = cfg.notifications or {}
   local notifier = require("org.agenda.notifications").desktop_backend()
-  if notifier then
+  if ncfg.notifier then
+    h.ok("reminders use notifications.notifier")
+  elseif ncfg.system_notification == false then
+    h.info("desktop notifications off (notifications.system_notification): reminders only use vim.notify")
+  elseif notifier then
     h.ok(string.format("desktop notifications use %s", notifier))
   else
     h.info("no desktop notifier (osascript, notify-send or powershell.exe): reminders only use vim.notify")
