@@ -84,3 +84,45 @@ describe("babel block cache", function()
     eq(expected, buf_lines(buf))
   end)
 end)
+
+describe("open clock cache", function()
+  local clock = require("org.clock")
+  local date = require("org.date")
+  before_each(function()
+    clock.state = nil
+  end)
+  after_each(function()
+    clock.state = nil
+  end)
+
+  it("follows edits to the buffer of the running clock", function()
+    local buf = org_buffer({ "* Task" }, { 1, 0 })
+    vim.bo[buf].bufhidden = "hide"
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    local b, l = clock.find_open_clock()
+    eq(buf, b)
+    eq(3, l)
+    -- the same answer again from the cache
+    eq(3, select(2, clock.find_open_clock()))
+    vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "* Before", "text" })
+    eq(5, select(2, clock.find_open_clock()))
+    -- the clock line removed: no open clock
+    vim.api.nvim_buf_set_lines(buf, 4, 5, false, {})
+    eq(nil, clock.find_open_clock())
+    vim.api.nvim_buf_set_lines(buf, 4, 4, false, { "CLOCK: [2026-10-01 Thu 10:00]" })
+    eq(5, select(2, clock.find_open_clock()))
+    eq(90, clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") }))
+    eq(nil, clock.find_open_clock())
+  end)
+
+  it("does not reuse the answer for another clock state", function()
+    local buf = org_buffer({ "* A", "* B" }, { 1, 0 })
+    vim.bo[buf].bufhidden = "hide"
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 10:00]") })
+    eq(3, select(2, clock.find_open_clock()))
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+    clock.clock_in(nil, { at = date.parse("[2026-10-01 Thu 11:00]") })
+    eq(7, select(2, clock.find_open_clock()))
+    clock.clock_out({ at = date.parse("[2026-10-01 Thu 11:30]") })
+  end)
+end)
