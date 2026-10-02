@@ -843,15 +843,21 @@ local function split_cmd(cmd)
   return vim.split(vim.trim(cmd), "%s+")
 end
 
---- Working directory of a block (`:dir`, created with `:mkdirp yes`).
+--- Working directory of a block (`:dir`, created unless `:mkdirp` is
+--- missing, "no" or "nil"). Like Emacs, a `:dir` that does not exist is
+--- an error: the code must not run in another directory.
 local function block_cwd(bufnr, args)
   local file_dir = buf_dir(bufnr)
-  local cwd = args.dir and utils.expand(blocks_mod.unquote(args.dir), file_dir) or file_dir
-  if args.dir and (args.mkdirp == "yes" or args.mkdirp == "t") and not utils.is_dir(cwd) then
+  if not args.dir then
+    return utils.is_dir(file_dir) and file_dir or vim.fn.getcwd()
+  end
+  local cwd = utils.expand(blocks_mod.unquote(args.dir), file_dir)
+  local mkdirp = args.mkdirp
+  if mkdirp ~= nil and mkdirp ~= "no" and mkdirp ~= "nil" and not utils.is_dir(cwd) then
     vim.fn.mkdir(cwd, "p")
   end
   if not utils.is_dir(cwd) then
-    cwd = vim.fn.getcwd()
+    error("Setting current directory: No such file or directory, " .. cwd, 0)
   end
   return cwd
 end
@@ -1707,7 +1713,12 @@ function M.evaluate(bufnr, src, args, opts, cb)
     body = strip_coderefs(body, src.switches)
   end
   local rp = results.result_params(args)
-  local cwd = block_cwd(bufnr, args)
+  local cok, cwd = pcall(block_cwd, bufnr, args)
+  if not cok then
+    utils.error("babel: " .. tostring(cwd))
+    finish(nil, { error = tostring(cwd), skipped = true, abort = true })
+    return ret_result, ret_info
+  end
   local graphics_file
   if rp.graphics and langs.family(lang) == "python" then
     if not args.file then

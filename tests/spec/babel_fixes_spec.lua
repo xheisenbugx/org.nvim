@@ -37,6 +37,37 @@ describe("babel sql engines", function()
   end)
 end)
 
+describe("babel :dir", function()
+  before_each(function()
+    config.opts.babel.confirm_evaluate = false
+  end)
+
+  it("does not run a block whose :dir is missing in another directory", function()
+    local missing = vim.fn.tempname() .. "/nope"
+    local buf = org_buffer({ "#+begin_src sh :results output :dir " .. missing, "pwd", "#+end_src" })
+    local done
+    babel.execute({
+      bufnr = buf,
+      lnum = 1,
+      sync = true,
+      on_done = function(okd)
+        done = okd
+      end,
+    })
+    eq(false, done)
+    eq(3, #buf_lines(buf))
+  end)
+
+  it("creates :dir with any :mkdirp value but no and nil", function()
+    local base = vim.fn.tempname()
+    local buf = org_buffer({ "#+begin_src sh :results output :mkdirp t :dir " .. base .. "/a/b", "pwd", "#+end_src" })
+    babel.execute({ bufnr = buf, lnum = 1, sync = true })
+    eq(1, vim.fn.isdirectory(base .. "/a/b"))
+    ok(buf_lines(buf)[6]:find("/a/b$"), buf_lines(buf)[6])
+    vim.fn.delete(base, "rf")
+  end)
+end)
+
 describe("babel fish variables", function()
   it("escapes backslashes and quotes inside fish single quotes", function()
     local langs = require("org.babel.langs")
