@@ -113,6 +113,23 @@ describe("following links", function()
     end)
   end)
 
+  describe("man links", function()
+    it("pass the page to :Man as arguments, never as Ex commands", function()
+      local got
+      vim.api.nvim_create_user_command("Man", function(p)
+        got = p.fargs
+      end, { nargs = "*", bar = true, force = true })
+      vim.g.org_links_man_injected = nil
+      org_buffer({ "x" }, { 1, 0 })
+      links.open("man:ls|let g:org_links_man_injected = 1")
+      eq(nil, vim.g.org_links_man_injected)
+      eq({ "ls|let", "g:org_links_man_injected", "=", "1" }, got)
+      links.open("man:printf 3")
+      eq({ "printf", "3" }, got)
+      vim.api.nvim_del_user_command("Man")
+    end)
+  end)
+
   describe("open_at_point_global (org-open-at-point-global)", function()
     local function text_buffer(lines, cursor)
       local buf = vim.api.nvim_create_buf(true, true)

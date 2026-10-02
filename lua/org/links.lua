@@ -1556,7 +1556,8 @@ function M.open(target, opts)
   elseif t == "man" then
     local page, search = link.path:match("^(.-)::(.*)$")
     page = page or link.path
-    local ok, err = pcall(vim.cmd, "Man " .. page)
+    -- structured: `|` in the page must not end the :Man command
+    local ok, err = pcall(vim.api.nvim_cmd, { cmd = "Man", args = split_words(page) }, {})
     if not ok then
       utils.warn(tostring(err))
       return false
