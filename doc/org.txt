@@ -6778,6 +6778,8 @@ Differences from Emacs:
   is unset, so a .NET installed outside the default location (by
   dotnet-install.sh, in ~/.dotnet) is found; Emacs leaves it unset and the
   program fails with "You must install .NET to run this application".
+  fish `:var` values escape `\` and `'` inside their single quotes (Emacs
+  quotes them like POSIX shells, which changes values with backslashes).
 - Emacs Lisp outside of blocks (`(eval ...)` macros, capture `%(sexp)`,
   diary sexps, `%(function)` link abbreviations, header forms) runs on the
   table formula Lisp interpreter when it can and otherwise in a separate

@@ -193,6 +193,13 @@ local function sh_quote(s)
   return "'" .. tostring(s):gsub("'", "'\"'\"'") .. "'"
 end
 
+--- fish reads `\\` and `\'` as escapes inside single quotes: a value with
+--- a backslash (`C:\dir\`) would change or end the string early.
+local function fish_quote(s)
+  return "'" .. tostring(s):gsub("[\\']", "\\%0") .. "'"
+end
+M.fish_quote = fish_quote
+
 --- `(if (stringp v) v (format "%S" v))`
 local function echo(v)
   if type(v) == "string" then
@@ -685,7 +692,7 @@ function M.var_lines(lang, vars, args)
         out[#out + 1] = v.name .. "=" .. sh_quote(table_to_text(val, sep, hline))
       end
     elseif fam == "fish" then
-      out[#out + 1] = "set " .. v.name .. " " .. sh_quote(table_to_text(val, sep, hline))
+      out[#out + 1] = "set " .. v.name .. " " .. fish_quote(table_to_text(val, sep, hline))
     elseif fam == "python" then
       out[#out + 1] = v.name .. "=" .. python_value(val)
     elseif fam == "js" then

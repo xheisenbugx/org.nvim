@@ -37,6 +37,21 @@ describe("babel sql engines", function()
   end)
 end)
 
+describe("babel fish variables", function()
+  it("escapes backslashes and quotes inside fish single quotes", function()
+    local langs = require("org.babel.langs")
+    eq(
+      { [[set x 'C:\\dir\\']], [[set y 'it\'s']] },
+      langs.var_lines("fish", {
+        { name = "x", value = [[C:\dir\]] },
+        { name = "y", value = "it's" },
+      })
+    )
+    -- POSIX shells keep the usual quoting
+    eq({ [[x='it'"'"'s\']] }, langs.var_lines("sh", { { name = "x", value = [[it's\]] } }))
+  end)
+end)
+
 describe("babel noweb cache", function()
   it("sees edits made between and during cached expansions", function()
     local buf = org_buffer({
