@@ -128,6 +128,22 @@ end)
 describe("present folded slides", function()
   local present = require("org.extensions.present")
 
+  -- Headless Neovim 0.11 draws no floating window into the screen
+  -- that screenstring() reads, and a presentation is a float.
+  local function floats_drawn()
+    local b = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, { "FLOAT" })
+    local w = vim.api.nvim_open_win(b, false, { relative = "editor", row = 0, col = 0, width = 5, height = 1 })
+    vim.cmd("redraw!")
+    local s = ""
+    for c = 1, 5 do
+      s = s .. vim.fn.screenstring(1, c)
+    end
+    vim.api.nvim_win_close(w, true)
+    vim.api.nvim_buf_delete(b, { force = true })
+    return s == "FLOAT"
+  end
+
   after_each(function()
     present.quit()
     restore()
@@ -146,7 +162,14 @@ describe("present folded slides", function()
     eq("", vim.wo[st.win].foldtext)
     vim.api.nvim_win_call(st.win, function()
       eq(1, vim.fn.foldclosed(1))
+      -- the link shows its description, as on an open line
+      local col = vim.fn.getline(1):find("[[", 1, true)
+      ok(vim.wo.conceallevel >= 2)
+      eq(1, vim.fn.synconcealed(1, col)[1])
     end)
+    if not floats_drawn() then
+      return
+    end
     vim.cmd("redraw!")
     local found
     for r = 1, vim.o.lines do
