@@ -606,6 +606,147 @@ end
 M.refresh_ellipsis = refresh_ellipsis
 
 ---------------------------------------------------------------------------
+-- Closed folds
+---------------------------------------------------------------------------
+
+-- 'foldtext' is empty, so Neovim draws a closed fold's first line as it
+-- draws it open, with its syntax groups and concealed text: a folded heading
+-- keeps the faces of its TODO keyword, tags, links... as in Emacs, where
+-- folding only hides the text after it. The ellipsis after it is an inline
+-- mark (eol marks aren't drawn on a closed fold) in a namespace scoped to
+-- the window, since folds are per window: each redraw compares the marks
+-- with the closed folds on screen and moves them when they differ.
+local closed_ns = {} -- winid -> namespace
+
+local function win_ns(win)
+  local ns = closed_ns[win]
+  if not ns then
+    ns = vim.api.nvim_create_namespace("org.fold.closed." .. win)
+    closed_ns[win] = ns
+    if vim.api.nvim__ns_set then
+      pcall(vim.api.nvim__ns_set, ns, { wins = { win } })
+    end
+  end
+  return ns
+end
+
+local function uses_empty_foldtext(win, buf)
+  return vim.bo[buf].filetype == "org"
+    and vim.wo[win].foldtext == ""
+    and vim.wo[win].foldexpr == "v:lua.require'org.fold'.foldexpr(v:lnum)"
+end
+
+--- Rows (0-based) of the closed folds starting in rows [top, bot] of `win`,
+--- with the byte length of each, as "row:len" keys.
+local function closed_rows(win, buf, top, bot)
+  local rows = {}
+  vim.api.nvim_win_call(win, function()
+    local l = top + 1
+    while l <= bot + 1 do
+      local fc = vim.fn.foldclosed(l)
+      if fc == -1 then
+        l = l + 1
+      else
+        if fc == l then
+          local line = vim.api.nvim_buf_get_lines(buf, l - 1, l, false)[1] or ""
+          rows[(l - 1) .. ":" .. #line] = true
+        end
+        l = vim.fn.foldclosedend(l) + 1
+      end
+    end
+  end)
+  return rows
+end
+
+local function marked_rows(buf, ns, top, bot)
+  local rows = {}
+  for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, { top, 0 }, { bot, -1 }, {})) do
+    rows[m[2] .. ":" .. m[3]] = m[1]
+  end
+  return rows
+end
+
+local function same_keys(a, b)
+  for k in pairs(a) do
+    if b[k] == nil then
+      return false
+    end
+  end
+  for k in pairs(b) do
+    if a[k] == nil then
+      return false
+    end
+  end
+  return true
+end
+
+local function sync_closed(win, buf, top, bot)
+  if not (vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(buf)) then
+    return
+  end
+  if vim.api.nvim_win_get_buf(win) ~= buf or not uses_empty_foldtext(win, buf) then
+    return
+  end
+  local ns = win_ns(win)
+  local want, have = closed_rows(win, buf, top, bot), marked_rows(buf, ns, top, bot)
+  if same_keys(want, have) then
+    return
+  end
+  for key, id in pairs(have) do
+    if not want[key] then
+      vim.api.nvim_buf_del_extmark(buf, ns, id)
+    end
+  end
+  for key in pairs(want) do
+    if not have[key] then
+      local row, col = key:match("^(%d+):(%d+)$")
+      pcall(vim.api.nvim_buf_set_extmark, buf, ns, tonumber(row), tonumber(col), {
+        virt_text = { { ellipsis(), "Comment" } },
+        virt_text_pos = "inline",
+        undo_restore = false,
+      })
+    end
+  end
+  vim.cmd("redraw")
+end
+M._sync_closed = sync_closed
+
+local pending = {}
+vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace("org.fold.closed"), {
+  on_win = function(_, win, buf, top, bot)
+    if pending[win] or not uses_empty_foldtext(win, buf) then
+      return false
+    end
+    local ns = win_ns(win)
+    if not same_keys(closed_rows(win, buf, top, bot), marked_rows(buf, ns, top, bot)) then
+      -- marks can't change while the window is being drawn
+      pending[win] = true
+      vim.schedule(function()
+        pending[win] = nil
+        sync_closed(win, buf, top, bot)
+      end)
+    end
+    return false
+  end,
+})
+
+vim.api.nvim_create_autocmd("WinClosed", {
+  group = vim.api.nvim_create_augroup("org.fold.closed", { clear = true }),
+  callback = function(args)
+    local win = tonumber(args.match)
+    local ns = win and closed_ns[win]
+    if ns then
+      closed_ns[win] = nil
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) then
+          vim.api.nvim_buf_clear_namespace(b, ns, 0, -1)
+        end
+      end
+    end
+  end,
+})
+
+---------------------------------------------------------------------------
 -- Window helpers
 ---------------------------------------------------------------------------
 
@@ -613,7 +754,8 @@ local function set_win_opts(win)
   local wo = vim.wo[win][0]
   wo.foldmethod = "expr"
   wo.foldexpr = "v:lua.require'org.fold'.foldexpr(v:lnum)"
-  wo.foldtext = "v:lua.require'org.fold'.foldtext()"
+  -- empty: the line as drawn open, with an ellipsis mark (see "Closed folds")
+  wo.foldtext = ""
   wo.foldenable = true
   local fc = vim.wo[win].fillchars
   if not fc:find("fold:") then

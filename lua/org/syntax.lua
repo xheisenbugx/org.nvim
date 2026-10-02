@@ -262,7 +262,9 @@ function M.apply(bufnr)
   cmd([=[syntax match orgListBullet /^\s\+\zs\*\ze\s/]=])
   -- \%#=1: the backtracking engine tests the look-behind first; the NFA
   -- engine tried the lazy \{-} from every column of every line first,
-  -- which was most of the first redraw of a file with long lines
+  -- which was most of the first redraw of a file with long lines, and on a
+  -- paragraph line of a few hundred characters ran out of 'maxmempattern'
+  -- (E363), which turned off highlighting below it (#121)
   cmd(
     [=[syntax match orgListTerm /\%#=1\(^\s*\([-+]\|\s\*\)\s\+\(\[[ xX-]\]\s\+\)\?\)\@<=\S.\{-}\ze\s::\(\s\|$\)/ contains=orgBold,orgItalic,orgCode,orgVerbatim]=]
   )
@@ -306,11 +308,15 @@ function M.apply(bufnr)
   local markup = "orgBold,orgItalic,orgUnderline,orgStrikethrough,orgVerbatim,orgCode"
   local function emph(group, char, extra)
     local c = esc(char)
+    -- headline stars never open bold markup (Emacs `org-do-emphasis-faces`),
+    -- or "*** Title" would be bold "*" with both outer stars concealed
+    local not_stars = char == "*" and [=[\%(^\*\+ \)\@!]=] or ""
     cmd(
       string.format(
-        [=[syntax region %s matchgroup=%sDelimiter start=/%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
+        [=[syntax region %s matchgroup=%sDelimiter start=/%s%s%s\ze%s%s%s/ end=/\%%(%s\)\@<=%s\ze%s/ keepend%s %s]=],
         group,
         group,
+        not_stars,
         pre,
         c,
         body,

@@ -615,6 +615,13 @@ first child), "tree" (all children) and "canonical" (also the text of the
 headlines above). A single span (or true = "canonical", false =
 "minimal") applies to every context.
 
+                                                        *org-fold-display*
+A closed fold shows its first line as it looks open, as in Emacs: the TODO
+keyword, priority, tags, links and emphasis keep their highlighting and
+concealing, followed by `ellipsis`. The plugin sets 'foldtext' to an empty
+string for this; the ellipsis is an inline mark that only the windows where
+the fold is closed show.
+
                                                         *org-hidden-lines*
 Vim folds nest, so a fold that is open shows every line in it: they cannot
 show the child headlines of an entry while hiding its own text, as the Emacs
