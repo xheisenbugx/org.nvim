@@ -143,6 +143,36 @@ local jar = vim.fn.expand(o.jar_path)
 An allow comment without a reason, or one that no longer allows anything,
 is reported too.
 
+## Comparing with Emacs
+
+org.nvim aims to behave like Emacs Org 9.8.10. Besides the hand-written
+`*_emacs_spec.lua` and `*_parity_spec.lua` specs, these specs compare
+org.nvim with real Emacs output that's checked in under
+`tests/fixtures/emacs/`:
+
+| Spec | Compares |
+| --- | --- |
+| `emacs_visibility_parity_spec.lua` | startup visibility and TAB/S-TAB |
+| `emacs_agenda_parity_spec.lua` | agenda views |
+| `emacs_export_parity_spec.lua` | exports of `examples/*.org` |
+| `emacs_clocktable_parity_spec.lua` | clock tables |
+| `emacs_lint_parity_spec.lua` | org-lint reports |
+
+They only read the fixtures, so you don't need Emacs to run them. To
+regenerate the fixtures after you change an input or add a case, you need
+Emacs with Org 9.8.10:
+
+```sh
+ORG_DIR=/path/to/org-9.8.10 make parity-fixtures   # or AREAS="agenda lint"
+git diff tests/fixtures/emacs                      # review what Emacs changed
+```
+
+[`scripts/emacs-parity/README.md`](scripts/emacs-parity/README.md)
+explains how to add cases, how the runs are kept deterministic (a fixed
+"now", time zone and locale), and what to do when a comparison fails:
+fix the bug, document an intended difference, or mark the case as a known
+failure.
+
 ## Pull requests
 
 - Keep each PR focused on one change. Small PRs get reviewed faster.

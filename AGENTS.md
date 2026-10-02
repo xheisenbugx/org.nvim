@@ -76,6 +76,13 @@ their expectations to make a test pass unless Emacs really does something
 else. Intentional differences go under `:h org-differences` in `doc/org.txt`.
 `docs/parity-review.md` records past parity reviews.
 
+`tests/spec/emacs_*_parity_spec.lua` compare org.nvim with real Emacs output
+checked in under `tests/fixtures/emacs/` (visibility, agenda, export, clock
+tables, org-lint). Regenerate those fixtures with `make parity-fixtures`
+(it needs Emacs with Org 9.8.10, see `scripts/emacs-parity/README.md`), never
+by hand. Rewrite rules for intentional differences live only in `NORMALISE`
+in `tests/emacs_parity.lua`; known bugs go in a spec's `KNOWN` table.
+
 ## Tests
 
 The runner is a small busted-style harness (`tests/run.lua`) with globals
