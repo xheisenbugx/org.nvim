@@ -36,6 +36,21 @@ local function is_blank(l)
   return l == nil or l:match("^%s*$") ~= nil
 end
 
+--- Insert `lines` before line `at` (a line past the end appends). Lines
+--- inserted right before a fold become part of it for Vim, which then
+--- forgets the open/closed state of the folds nested in it; appended to
+--- the end of the line above instead, the folds below are kept.
+local function insert_lines(bufnr, at, lines)
+  if at <= 1 or #lines == 0 then
+    vim.api.nvim_buf_set_lines(bufnr, at - 1, at - 1, false, lines)
+    return
+  end
+  local prev = vim.api.nvim_buf_get_lines(bufnr, at - 2, at - 1, false)[1]
+  local text = { "" }
+  vim.list_extend(text, lines)
+  vim.api.nvim_buf_set_text(bufnr, at - 2, #prev, at - 2, #prev, text)
+end
+
 --- Whether only odd levels are used (org-odd-levels-only, `#+STARTUP:
 --- odd` / `oddeven`).
 function M.odd_levels_only(bufnr)
@@ -1236,13 +1251,13 @@ local function move_subtree(dir, n)
   if dir > 0 then
     local other = sibs[idx + n]
     -- insert after the other subtree, then delete the original
-    set_lines(bufnr, other.end_line + 1, other.end_line, text)
+    insert_lines(bufnr, other.end_line + 1, text)
     set_lines(bufnr, hl.line, hl.end_line, {})
     new_start = other.end_line + 1 - #text
   else
     local other = sibs[idx - n]
     set_lines(bufnr, hl.line, hl.end_line, {})
-    set_lines(bufnr, other.line, other.line - 1, text)
+    insert_lines(bufnr, other.line, text)
     new_start = other.line
   end
   vim.api.nvim_win_set_cursor(0, { new_start + offset, pos[2] })
@@ -1550,14 +1565,14 @@ function M.paste_subtree(opts)
   end
   local shift = new_level - old_level
   local new = shift ~= 0 and relevel(lines, shift, file.settings.todo) or lines
-  set_lines(bufnr, at, at - 1, new)
+  insert_lines(bufnr, at, new)
   local first = at
   while first < at + #new - 1 and is_blank(get_lines(bufnr, first, first)[1]) do
     first = first + 1
   end
   vim.api.nvim_win_set_cursor(0, { first, 0 })
   if not opts.lines and M.clip_folded and vim.deep_equal(M.clip, lines) then
-    vim.cmd("silent! normal! zx")
+    -- (not zx: that would reset the folds of the whole buffer)
     pcall(vim.cmd, first .. "foldclose")
   end
   utils.notify(string.format("Clipboard pasted as level %d subtree", new_level))

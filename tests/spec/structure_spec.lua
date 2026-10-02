@@ -171,6 +171,34 @@ describe("structure: moving and kill ring", function()
     eq(3, vim.fn.foldclosed(3)) -- the moved subtree stays folded
     eq(-1, vim.fn.foldclosed(7)) -- D stays open
     eq(9, vim.fn.foldclosed(9))
+    -- a closed child of the entry right after the insertion point
+    buf = org_buffer({ "* A", "a", "* B", "b", "* C", "c", "** C1", "c1" }, { 1, 0 })
+    require("org.fold").show_all()
+    vim.cmd("7foldclose")
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    structure.move_subtree_down()
+    eq({ "* B", "b", "* A", "a", "* C", "c", "** C1", "c1" }, buf_lines(buf))
+    eq(7, vim.fn.foldclosed(7))
+    eq(-1, vim.fn.foldclosed(5))
+    structure.move_subtree_up()
+    eq({ "* A", "a", "* B", "b", "* C", "c", "** C1", "c1" }, buf_lines(buf))
+    eq(7, vim.fn.foldclosed(7))
+  end)
+
+  it("pasting a folded subtree keeps the folds elsewhere", function()
+    local buf = org_buffer({ "* A", "a", "* B", "b", "** B1", "b1" }, { 1, 0 })
+    require("org.fold").show_all()
+    vim.cmd("1foldclose")
+    vim.cmd("5foldclose")
+    with_stub(vim, "notify", function() end, function()
+      structure.copy_subtree()
+      vim.api.nvim_win_set_cursor(0, { 3, 0 })
+      structure.paste_subtree()
+    end)
+    eq({ "* A", "a", "* A", "a", "* B", "b", "** B1", "b1" }, buf_lines(buf))
+    eq(3, vim.fn.foldclosed(3)) -- pasted folded, like it was copied
+    eq(-1, vim.fn.foldclosed(6))
+    eq(7, vim.fn.foldclosed(7)) -- B1 stays closed
   end)
 
   -- Emacs org-paste-subtree: at the start of a headline, before it with
