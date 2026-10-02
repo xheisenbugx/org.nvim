@@ -142,7 +142,9 @@ installed (org-version); with a count it inserts that at the cursor. The
 release is the latest `vX.Y.Z` git tag of the checkout, or "unreleased"
 when there is none (or org.nvim isn't a git checkout).
 
-Run |:checkhealth| `org` to check paths and external tools. Inside tmux,
+Run |:checkhealth| `org` to check paths and external tools, and to list
+options given to setup() that org.nvim doesn't know (typos, or action names
+in `mappings` that don't exist). Inside tmux,
 Ghostty, kitty, WezTerm or Alacritty it also checks that the terminal can
 send the keys org maps:
 - <C-CR>, <S-CR>, <C-,> and the like need extended keys (CSI u), which tmux

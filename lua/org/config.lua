@@ -3322,6 +3322,8 @@ function M.setup(opts)
   if templates then
     M.opts.capture.templates = templates
   end
+  -- what the user passed, for :checkhealth org (unknown options)
+  M.user_opts = opts
   if opts.babel and opts.babel.languages then
     -- languages merge per key; allow `false` to remove one
     for k, v in pairs(opts.babel.languages) do

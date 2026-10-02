@@ -1152,8 +1152,6 @@
 ---@field reset_view? org.MappingLhs
 --- Go to the item's location in another window. Default: `<Tab>`
 ---@field ["goto"] org.MappingLhs?
---- Go to the item's location in another window (org-agenda-goto). Default: `<Tab>`
----@field goto? org.MappingLhs
 --- Go to the item's location in this window. Default: `<CR>`
 ---@field switch_to? org.MappingLhs
 --- Show the item's location in another window, keeping focus in the agenda. Default: `<Space>`

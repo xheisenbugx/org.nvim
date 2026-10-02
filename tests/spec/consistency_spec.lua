@@ -23,7 +23,11 @@ local function meta_classes()
         end
         doc = {}
       else
+        -- `name` or `["name"]` (a Lua keyword such as goto)
         local name, ty = line:match("^%-%-%-@field%s+([%w_]+)%??%s+(.*)$")
+        if not name then
+          name, ty = line:match('^%-%-%-@field%s+%["([%w_]+)"%]%??%s+(.*)$')
+        end
         if name and cur then
           classes[cur].fields[name] = { type = ty, doc = table.concat(doc, " ") }
           doc = {}
