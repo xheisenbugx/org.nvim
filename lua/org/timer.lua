@@ -19,8 +19,11 @@ local M = {}
 M.state = nil
 local countdown_timer
 
+--- Wall-clock seconds, like Emacs (current-time): time spent suspended
+--- counts, which the monotonic clock (vim.uv.hrtime) leaves out.
 local function now()
-  return vim.uv.hrtime() / 1e9
+  local sec, usec = vim.uv.gettimeofday()
+  return sec + usec / 1e6
 end
 
 local function stop_countdown_timer()
