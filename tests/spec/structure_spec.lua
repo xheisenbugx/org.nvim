@@ -247,6 +247,12 @@ describe("structure: navigation and text objects", function()
     eq(5, cur()[1])
   end)
 
+  it("sibling motions record the starting position in the jumplist", function()
+    local buf = org_buffer({ "* A", "x", "* B", "* C" }, { 2, 0 })
+    structure.next_sibling()
+    eq({ 3, 0 }, cur())
+    eq({ 2, 0 }, vim.api.nvim_buf_get_mark(buf, "'"))
+  end)
 
   -- inline tasks are not part of the outline: no siblings, no crash
   it("subtree commands on an inline task", function()

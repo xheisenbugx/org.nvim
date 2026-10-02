@@ -2587,8 +2587,10 @@ end
 
 local function sibling_jump(dir)
   local target
+  -- walk the tree without moving the cursor, so the jump records the
+  -- starting position in the jumplist
+  local hl = current_headline()
   for _ = 1, math.max(vim.v.count, 1) do
-    local hl = current_headline()
     if not hl then
       break
     end
@@ -2599,8 +2601,7 @@ local function sibling_jump(dir)
       end
       break
     end
-    target = sib.line
-    vim.api.nvim_win_set_cursor(0, { target, 0 })
+    target, hl = sib.line, sib
   end
   if target then
     jump(target)
