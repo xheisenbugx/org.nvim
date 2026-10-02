@@ -105,6 +105,24 @@ describe("table formulas are fixed after structure edits (org-table-fix-formulas
     end)
     eq({ "| # | 1 |", "| # |   |", "#+TBLFM: $2=1" }, out)
   end)
+
+  it("a row added by <Tab> or <CR> copies the mark and fixes formulas", function()
+    -- both go through org-table-insert-row in Emacs
+    local out = at({ "| $ | b |", "| * | 2 |" }, 2, 2, tbl.next_field)
+    eq({ "| $ | b |", "| * | 2 |", "| * |   |" }, out)
+    out = at({ "| a | b |", "|---+---|", "| 1 | 2 |", "#+TBLFM: @2$2=@2$1*3" }, 1, 1, tbl.next_row)
+    eq({ "| a | b |", "|   |   |", "|---+---|", "| 1 | 2 |", "#+TBLFM: @3$2=@3$1*3" }, out)
+  end)
+end)
+
+describe("formulas typed into a field (org-table-maybe-eval-formula)", function()
+  it("=formula sets the column formula and drops the field's own one", function()
+    local out = at({ "| 3 | =$1*2 |", "#+TBLFM: $2=5::@1$2=7" }, 1, 2, tbl.next_field)
+    eq("#+TBLFM: $2=$1*2", out[#out])
+    eq("| 3 | 6 |", out[1])
+    out = at({ "| 3 | :=$1*2 |", "#+TBLFM: $2=5" }, 1, 2, tbl.next_field)
+    eq("#+TBLFM: $2=5::@1$2=$1*2", out[#out])
+  end)
 end)
 
 describe("multiple #+TBLFM lines", function()
