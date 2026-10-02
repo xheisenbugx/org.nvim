@@ -534,6 +534,27 @@ local function deadline_wdays(ts, tv)
   return date.warning_days(ts, tv)
 end
 
+-- whether a file's lines contain "%%(" (diary sexps, <%%(...)> stamps),
+-- by lines table: most files have none, and then the per-entry line scans
+-- for sexps are skipped
+local has_sexps_memo = setmetatable({}, { __mode = "k" })
+
+local function has_sexps(file)
+  local lines = file.lines or {}
+  local v = has_sexps_memo[lines]
+  if v == nil then
+    v = false
+    for i = 1, #lines do
+      if lines[i]:find("%%(", 1, true) then
+        v = true
+        break
+      end
+    end
+    has_sexps_memo[lines] = v
+  end
+  return v
+end
+
 local SOURCE_RANK = {
   deadline = 1,
   ["upcoming-deadline"] = 1,
@@ -706,13 +727,16 @@ function M.agenda(files, from, to, opts)
   if types.sexp and not (opts.restrict and opts.restrict.range) then
     for fidx, file in ipairs(files) do
       cur_fidx = fidx
-      add_sexps(nil, file, 1, file.preamble_end or 0)
+      if has_sexps(file) then
+        add_sexps(nil, file, 1, file.preamble_end or 0)
+      end
     end
   end
 
   M.each_headline(files, opts, function(hl, _, fidx)
     cur_fidx = fidx
     local done = hl:is_done()
+    local sexps = has_sexps(hl.file)
     -- deadline days of this entry, for the skip-*-if-deadline-is-shown options
     local dl_shown = {}
 
@@ -744,9 +768,10 @@ function M.agenda(files, from, to, opts)
         days[today] = days[today] or "today"
       end
       for c, kind in pairs(days) do
-        local show = true
+        -- days outside the range are dropped by add(): don't build them
+        local show = c >= from and c <= to
         local diff = base - c
-        if c ~= base and kind ~= "repeat" then
+        if show and c ~= base and kind ~= "repeat" then
           -- reminder in today's agenda
           if base > c then
             show = diff <= warn
@@ -834,8 +859,8 @@ function M.agenda(files, from, to, opts)
       local show_all = is_habit and habit_cfg.show_all_today
       for c, kind in pairs(days) do
         local diff = c - base
-        local show = true
-        if not (c == today and show_all) then
+        local show = c >= from and c <= to
+        if show and not (c == today and show_all) then
           if (delay > 0 and diff < delay) or diff > past_days or base > c then
             show = false
           elseif c ~= base and c ~= today and kind ~= "repeat" then
@@ -1002,7 +1027,7 @@ function M.agenda(files, from, to, opts)
         end
       end
       -- <%%(sexp)> timestamps
-      if types.timestamp then
+      if types.timestamp and sexps then
         local lines = hl.file.lines
         for i = hl.line, hl.body_end do
           local line = lines[i] or ""
@@ -1029,11 +1054,11 @@ function M.agenda(files, from, to, opts)
     end
 
     -- %%(sexp) entries (org-agenda-get-sexps) ---------------------------
-    if types.sexp then
+    if types.sexp and sexps then
       add_sexps(hl, hl.file, hl.line + 1, hl.body_end)
     end
     -- sexp planning dates: SCHEDULED/DEADLINE: <%%(...)>
-    for _, kind in ipairs({ "scheduled", "deadline" }) do
+    for _, kind in ipairs(sexps and { "scheduled", "deadline" } or {}) do
       local raw = hl.file.lines[hl.planning_line or (hl.line + 1)]
       local sx = raw and raw:match("^%s*%u+:") and raw:match(kind:upper() .. ":%s*<%%%%(%b())")
       if sx and types[kind] then
