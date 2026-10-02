@@ -38,6 +38,13 @@ describe("date", function()
     eq("2026-09-08", date.apply_repeater(date.parse("<2026-09-01 Tue +1w>"), now):to_date_string())
     eq("2026-09-29", date.apply_repeater(date.parse("<2026-09-01 Tue ++1w>"), now):to_date_string())
     eq("2026-09-30", date.apply_repeater(date.parse("<2026-09-01 Tue .+1w>"), now):to_date_string())
+    -- a `--N` delay only postpones the first occurrence: Emacs drops it
+    -- (org-timestamp-change ... suppress-tmp-delay); a `-N` warning stays
+    eq("<2026-09-08 Tue +1w>", date.apply_repeater(date.parse("<2026-09-01 Tue +1w --2d>"), now):to_string())
+    eq("<2026-09-29 Tue ++1w>", date.apply_repeater(date.parse("<2026-09-01 Tue ++1w --2d>"), now):to_string())
+    eq("<2026-09-24 Thu .+1d>", date.apply_repeater(date.parse("<2026-09-01 Tue .+1d --1d>"), now):to_string())
+    eq("<2026-09-08 Tue +1w -2d>", date.apply_repeater(date.parse("<2026-09-01 Tue +1w -2d>"), now):to_string())
+    eq("<2026-09-01 Tue +0d --2d>", date.apply_repeater(date.parse("<2026-09-01 Tue +0d --2d>"), now):to_string())
     -- before extend_today_until o'clock, day repeaters count from yesterday
     local config = require("org.config")
     local saved = config.opts.extend_today_until

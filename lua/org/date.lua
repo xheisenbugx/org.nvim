@@ -748,21 +748,30 @@ end
 -- Repeaters
 ---------------------------------------------------------------------------
 
---- Next occurrence for a repeated timestamp when marked DONE (org-auto-repeat-maybe).
+local next_repeat
+
+--- Next occurrence for a repeated timestamp when marked DONE
+--- (org-auto-repeat-maybe). Like Emacs, a `--N` delay is dropped from the
+--- shifted timestamp: it only postponed the first occurrence.
 ---@param ts table
 ---@param now? table defaults to M.now()
 ---@param today? table the day `.+` and `++` count from (default: org-today of `now`)
 function M.apply_repeater(ts, now, today)
   local r = ts.repeater
-  if not r then
+  if not r or r.value == 0 then
     return ts
   end
-  now = now or M.now()
+  local nxt = next_repeat(ts, now or M.now(), today)
+  if nxt.warning and nxt.warning.type == "--" then
+    nxt = nxt:clone({ warning = vim.NIL })
+  end
+  return nxt
+end
+
+function next_repeat(ts, now, today)
+  local r = ts.repeater
   local unit = r.unit
   local n = r.value
-  if n == 0 then
-    return ts
-  end
   -- day repeaters count from org-today (`extend_today_until`)
   today = today or M.from_days(math.floor((now:minutes() - extend_today_until() * 60) / 1440))
   if r.type == "+" then
