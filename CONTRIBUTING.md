@@ -173,7 +173,7 @@ explains how to add cases, how the runs are kept deterministic (a fixed
 fix the bug, document an intended difference, or mark the case as a known
 failure.
 
-### Fuzz tests
+## Fuzz tests
 
 The `tests/spec/fuzz_*_spec.lua` specs run the parser, the fold levels,
 editing commands and the merge driver on random Org text from
