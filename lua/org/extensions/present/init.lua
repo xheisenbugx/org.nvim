@@ -698,7 +698,9 @@ function M.start(n)
     linebreak = true,
     breakindent = true,
     fillchars = "eob: ,fold: ",
-    foldtext = "v:lua.require'org.extensions.present'.foldtext()",
+    -- empty, like org windows: a closed slide headline is drawn as it is
+    -- open (concealed stars and links, its TODO face), with org's ellipsis
+    foldtext = "",
     winhighlight = "NormalFloat:Normal,WinBar:Normal,WinBarNC:Normal",
   }) do
     vim.wo[st.win][opt] = val
@@ -796,26 +798,6 @@ function M.start(n)
   vim.api.nvim_echo({}, false, {})
   fire("OrgPresentStart", o.on_start, st, st)
   fire("OrgPresentSlide", o.on_slide, st, st.index, st, st.heading)
-end
-
---- 'foldtext' of the slide window: org's, with the stars hidden and deeper
---- headlines indented like the unfolded ones.
-function M.foldtext()
-  local chunks = require("org.fold").foldtext()
-  local st = M.state
-  if not st or not st.opts.hide_stars then
-    return chunks
-  end
-  local stars = chunks[1][1]:match("^(%*+)%s+")
-  if stars then
-    local base = vim.b[st.buf].org_present_base or 1
-    local indent = st.opts.indent_subheadings and string.rep("  ", math.max(0, #stars - base)) or ""
-    chunks[1][1] = indent .. chunks[1][1]:sub(#chunks[1][1]:match("^%*+%s+") + 1)
-    if vim.v.foldstart == 1 and #stars == base then
-      chunks[1][2] = "OrgPresentHeading"
-    end
-  end
-  return chunks
 end
 
 --- `:Org present [n]`.
