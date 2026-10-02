@@ -124,6 +124,68 @@ describe("table alignment on the displayed width", function()
   end)
 end)
 
+describe("clock display (C-c C-x C-d)", function()
+  local CLOCK = "CLOCK: [2026-03-01 Sun 10:00]--[2026-03-01 Sun 11:30] =>  1:30"
+
+  local function display()
+    local utils = require("org.utils")
+    local notify = utils.notify
+    utils.notify = function() end
+    local ok_, err = pcall(require("org.clock").toggle_display, 0, "untilnow")
+    utils.notify = notify
+    assert(ok_, err)
+  end
+
+  -- org-clock-put-overlay puts the overlay on the heading line, which stays
+  -- visible when the subtree is folded
+  it("shows the sums on folded headlines, before the ellipsis", function()
+    with_size(80, 12, function()
+      org_buffer({
+        "* Project",
+        CLOCK,
+        "* Other",
+        "CLOCK: [2026-03-01 Sun 12:00]--[2026-03-01 Sun 12:45] =>  0:45",
+      })
+      require("org.fold").overview()
+      display()
+      vim.cmd("redraw!")
+      eq(1, vim.fn.foldclosed(1))
+      eq("* Project" .. string.rep("·", 51) .. "      1:30 ...", screen_row(1))
+      eq("* Other" .. string.rep("·", 53) .. "      0:45 ...", screen_row(2))
+      vim.cmd("normal! zR")
+      vim.cmd("redraw!")
+      eq("* Project" .. string.rep("·", 51) .. "      1:30", screen_row(1))
+      require("org.clock").remove_overlays(0)
+    end)
+  end)
+
+  -- the dots fill up to column 60 measured on the displayed title
+  -- (org-string-width), and the overlay hides the tags
+  it("lines the sums up on headlines with links and tags", function()
+    with_size(80, 12, function()
+      org_buffer({
+        "* Plain task",
+        CLOCK,
+        "* Read [[https://example.com/a/very/long/path/to/doc][doc]]",
+        CLOCK,
+        "* TODO Tagged                                                 :work:home:",
+        CLOCK,
+      })
+      vim.wo.conceallevel = 2
+      vim.wo.foldenable = false
+      display()
+      vim.cmd("redraw!")
+      eq(64, screen_col(1, "   1:30"))
+      eq(64, screen_col(3, "   1:30"))
+      eq(64, screen_col(5, "   1:30"), screen_row(5))
+      eq("* TODO Tagged" .. string.rep("·", 47) .. "      1:30", screen_row(5))
+      require("org.clock").remove_overlays(0)
+      vim.cmd("redraw!")
+      ok(screen_row(5):find(":work:home:$"), screen_row(5))
+    end)
+  end)
+end)
+
 describe("shrunk table columns", function()
   -- Emacs 9.8.10 org-table-shrink: the field is cut at its visible width,
   -- so a link shows as its description
