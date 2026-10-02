@@ -1082,14 +1082,28 @@ function Headline:get_inherited_tags()
   return out
 end
 
+-- Compiled case-insensitive regexps of options (false: invalid), as
+-- property lookups match them for every headline.
+local iregexes = {}
+
+--- Does the Vim regexp `pat` match `s`, ignoring case?
+local function imatch(pat, s)
+  local re = iregexes[pat]
+  if re == nil then
+    local ok, r = pcall(vim.regex, "\\c" .. pat)
+    re = ok and r or false
+    iregexes[pat] = re
+  end
+  return re and re:match_str(s) ~= nil or false
+end
+
 local function should_inherit(name)
   local inh = require("org.config").opts.use_property_inheritance
   if inh == true then
     return true
   elseif type(inh) == "string" then
     -- a regexp matched against the name, ignoring case like Emacs
-    local ok, re = pcall(vim.regex, "\\c" .. inh)
-    return ok and re:match_str(name) ~= nil
+    return imatch(inh, name)
   elseif type(inh) == "table" then
     for _, p in ipairs(inh) do
       if p:upper() == name then
@@ -1116,8 +1130,7 @@ function M.property_separator(key)
         end
       end
     elseif type(match) == "string" then
-      local ok, re = pcall(vim.regex, "\\c" .. match)
-      if ok and re:match_str(key) then
+      if imatch(match, key) then
         return sep
       end
     end
