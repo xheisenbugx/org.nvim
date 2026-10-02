@@ -702,7 +702,9 @@ local function stop_timer()
 end
 
 function M.setup(o)
-  require("org.agenda.items").day_sources.ics = M.agenda_items
+  require("org.lazy").on_load("org.agenda.items", "ics", function(items)
+    items.day_sources.ics = M.agenda_items
+  end)
   M.clear_cache()
   M.fetch_errors = {}
   failed_at, warned = {}, {}
@@ -732,10 +734,11 @@ M.commands = {
 }
 
 function M.teardown()
-  local items = require("org.agenda.items")
-  if items.day_sources.ics == M.agenda_items then
-    items.day_sources.ics = nil
-  end
+  require("org.lazy").if_loaded("org.agenda.items", "ics", function(items)
+    if items.day_sources.ics == M.agenda_items then
+      items.day_sources.ics = nil
+    end
+  end)
   stop_timer()
   M.clear_cache()
 end

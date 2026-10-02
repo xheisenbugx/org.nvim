@@ -8,9 +8,7 @@
 --- wrapped in a src block, and nested transclusions expanded up to a depth
 --- limit.
 
-local element = require("org.element")
 local keyword = require("org.extensions.transclusion.keyword")
-local parser = require("org.parser")
 local utils = require("org.utils")
 
 local M = {}
@@ -253,7 +251,7 @@ local function parse(lines, path, key)
   local k = path or key:match("^b%d+") or key
   local c = parsed[k]
   if not c or c.key ~= key or c.lines ~= lines then
-    c = { key = key, lines = lines, file = parser.parse(lines, path) }
+    c = { key = key, lines = lines, file = require("org.parser").parse(lines, path) }
     parsed[k] = c
   end
   return c.file
@@ -278,7 +276,7 @@ local function element_around(file, lines, lnum)
   end
   local s = hl and hl.line + 1 or 1
   local e = hl and hl.body_end or file.preamble_end
-  for _, el in ipairs(element.parse(lines, s, e)) do
+  for _, el in ipairs(require("org.element").parse(lines, s, e)) do
     if el.first <= lnum and lnum <= el.last then
       return el.first, el.clast
     end
@@ -642,7 +640,7 @@ local function mark_excluded(file, lines, first, last, types, drop)
       return
     end
     if not simple then
-      walk(element.parse(lines, s, e))
+      walk(require("org.element").parse(lines, s, e))
       return
     end
     if not types["property-drawer"] then
@@ -985,7 +983,7 @@ resolve = function(spec, ctx)
       local out, heads = {}, {}
       for i = first, last do
         out[#out + 1] = lines[i]
-        heads[#out] = lines[i]:match("^%*+ ") and parser.outline_level(lines[i]) and true or nil
+        heads[#out] = lines[i]:match("^%*+ ") and require("org.parser").outline_level(lines[i]) and true or nil
       end
       res.lines = format_levels(out, heads, spec, ctx)
     else

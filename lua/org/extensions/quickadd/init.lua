@@ -801,12 +801,16 @@ M.mappings = {
 
 function M.setup()
   M.clear_index()
-  require("org.capture").store_filters.quickadd = M.capture_filter
+  require("org.lazy").on_load("org.capture", "quickadd", function(capture)
+    capture.store_filters.quickadd = M.capture_filter
+  end)
 end
 
 function M.teardown()
   M.clear_index()
-  require("org.capture").store_filters.quickadd = nil
+  require("org.lazy").if_loaded("org.capture", "quickadd", function(capture)
+    capture.store_filters.quickadd = nil
+  end)
 end
 
 function M.health(h, o)

@@ -721,19 +721,39 @@ local function on_refresh(buf)
 end
 
 function M.setup()
-  local render = require("org.agenda.render")
-  render.sources.ql = source
-  render.sources["org-ql"] = source
-  render.sources.org_ql = source
-  require("org.dblock").register("org-ql", M.dblock)
-  require("org.agenda.view").refresh_hooks.ql = on_refresh
+  local lazy = require("org.lazy")
+  -- the agenda modules load on the first agenda, not at startup
+  lazy.on_load("org.agenda.render", "ql", function(render)
+    render.sources.ql = source
+    render.sources["org-ql"] = source
+    render.sources.org_ql = source
+  end)
+  lazy.on_load("org.dblock", "ql", function(dblock)
+    dblock.register("org-ql", M.dblock)
+  end)
+  lazy.on_load("org.agenda.view", "ql", function(view)
+    view.refresh_hooks.ql = on_refresh
+  end)
   query.clear_cache()
 end
 
 --- Undo `setup`: agenda buffers get their save key back. The block type
 --- and the dynamic block stay registered, to say the extension is off.
 function M.teardown()
-  require("org.agenda.view").refresh_hooks.ql = nil
+  local lazy = require("org.lazy")
+  lazy.if_loaded("org.agenda.view", "ql", function(view)
+    view.refresh_hooks.ql = nil
+  end)
+  lazy.if_loaded("org.agenda.render", "ql", function(render)
+    for _, name in ipairs({ "ql", "org-ql", "org_ql" }) do
+      if render.sources[name] == source then
+        render.sources[name] = nil
+      end
+    end
+  end)
+  -- the org-ql block stays registered once org.dblock has loaded; it
+  -- reports the extension as off
+  lazy.on_load("org.dblock", "ql", nil)
   for buf, k in pairs(buf_keys) do
     if vim.api.nvim_buf_is_valid(buf) then
       vim.b[buf].org_ql_keys = nil

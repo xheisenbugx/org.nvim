@@ -1922,7 +1922,9 @@ function M.setup()
     end
   end
   edit.later = later
-  require("org.export.hooks").preprocessors.transclusion = M.export_preprocess
+  require("org.lazy").on_load("org.export.hooks", "transclusion", function(hooks)
+    hooks.preprocessors.transclusion = M.export_preprocess
+  end)
   api.nvim_clear_autocmds({ group = augroup })
   local function guard(fn)
     return function(ev)
@@ -2039,7 +2041,9 @@ function M.teardown()
   M.buffers = {}
   stop_all()
   edit.close_all()
-  require("org.export.hooks").preprocessors.transclusion = nil
+  require("org.lazy").if_loaded("org.export.hooks", "transclusion", function(hooks)
+    hooks.preprocessors.transclusion = nil
+  end)
   source.buffer_lines = function(buf)
     return api.nvim_buf_get_lines(buf, 0, -1, false), nil
   end

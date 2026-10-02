@@ -8,7 +8,6 @@
 --- sync only re-parses files that changed.
 
 local files = require("org.files")
-local parser = require("org.parser")
 local utils = require("org.utils")
 
 local M = {}
@@ -368,7 +367,7 @@ function M.parse_file(path, file)
   local i = 1
   while i <= #lines do
     local line = lines[i]
-    local block_end = parser.verbatim_block_end(lines, i, #lines)
+    local block_end = require("org.parser").verbatim_block_end(lines, i, #lines)
     if block_end then
       i = block_end + 1
     else
@@ -516,12 +515,12 @@ local function fresh_parse(path)
   if b then
     local clean = without_transcluded(b)
     if clean then
-      return parser.parse(clean, path)
+      return require("org.parser").parse(clean, path)
     end
     return files.get_buffer(b)
   end
   local lines = utils.readfile(path)
-  return lines and parser.parse(lines, path) or nil
+  return lines and require("org.parser").parse(lines, path) or nil
 end
 
 --- Index one file now (after a save), or drop it when it is gone or no
