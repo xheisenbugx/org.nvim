@@ -13,4 +13,15 @@ describe("fuzz regressions", function()
     eq(true, require("org.clock").timestamps_adjust_closest(-1))
     eq("CLOCK: [2003-10-04 Fri 05:00]--<2003-10-04 Fri 23:30> => 18:30", buf_lines(buf)[2])
   end)
+
+  it("merge keeps a one-sided deletion of a property drawer's :END:", function()
+    local merge = require("org.extensions.merge.merge")
+    local base = { "** H", ":PROPERTIES:", ":END:", ":LOGBOOK:", ":END:" }
+    local ours = { "** H", ":PROPERTIES:", ":LOGBOOK:", ":END:" }
+    local res = merge.merge(base, ours, base)
+    eq(0, res.conflicts)
+    eq(ours, res.lines)
+    res = merge.merge(base, base, ours)
+    eq(ours, res.lines)
+  end)
 end)
