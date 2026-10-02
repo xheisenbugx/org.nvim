@@ -100,6 +100,31 @@ describe("ics: recurrence details", function()
     )
   end)
 
+  it("finds single events by their span, zones included, and skips far ones", function()
+    local cal = parser.parse(ics({
+      { "UID:a", "DTSTART;VALUE=DATE:20260101", "DTEND;VALUE=DATE:20260301", "SUMMARY:Long" },
+      { "UID:b", "DTSTART:20260204T230000Z", "DURATION:PT2H", "SUMMARY:Late UTC" },
+      { "UID:c", "DTSTART;TZID=Pacific/Kiritimati:20260206T010000", "SUMMARY:Early zone" },
+      { "UID:d", "DTSTART:20250105T100000", "SUMMARY:Last year" },
+      { "UID:e", "DTSTART:20270105T100000", "SUMMARY:Next year" },
+    }))
+    local from = day("2026-02-05 Thu")
+    local names = vim.tbl_map(function(o)
+      return o.event.summary
+    end, parser.occurrences(cal, from, from, { timezone = "UTC" }))
+    table.sort(names)
+    if parser.system_zone("Pacific/Kiritimati") then
+      eq({ "Early zone", "Late UTC", "Long" }, names)
+    else
+      eq(
+        { "Late UTC", "Long" },
+        vim.tbl_filter(function(n)
+          return n ~= "Early zone"
+        end, names)
+      )
+    end
+  end)
+
   it("skips Feb 29 in non-leap years", function()
     local r = parser.rrule("FREQ=YEARLY;COUNT=2")
     eq({ "2024-02-29 00:00", "2028-02-29 00:00" }, vim.tbl_map(utc, parser.expand(r, N(2024, 2, 29), 0, N(2030, 1, 1))))

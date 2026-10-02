@@ -1095,7 +1095,18 @@ function M.occurrences(cal, from, to, opts)
     if ev.status ~= "CANCELLED" or ev.recurrence_id then
       local starts = {}
       if ev.recurrence_id or not (ev.rrule or #ev.rdates > 0) then
-        starts[1] = ev.start.naive
+        -- a single event far outside the range (the slack covers zone
+        -- offsets) is skipped before its zone is looked up
+        local s = ev.start.naive
+        local e = s + 86400
+        if ev.stop then
+          e = math.max(e, ev.stop.naive)
+        elseif ev.duration then
+          e = math.max(e, s + ev.duration)
+        end
+        if s <= to_n and e >= from_n then
+          starts[1] = s
+        end
       else
         -- span of one occurrence, so one that started before `from` and
         -- still runs is found
